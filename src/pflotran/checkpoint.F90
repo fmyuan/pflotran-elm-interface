@@ -7,35 +7,39 @@
 
 ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS MODIFIED TO PREVENT
 ! COMPATIBILITY ISSUES - geh.
-#define REVISION_NUMBER 1
+#define REVISION_NUMBER 3
 
 module Checkpoint_Header_module
   implicit none
   private
   type, public :: checkpoint_header_type
     integer*8 :: revision_number  ! increment this every time there is a change
-                                             ! in the checkpoint file format
+    integer*8 :: plot_number      ! in the checkpoint file format
+    integer*8 :: match_waypoint_flag
+
+    integer*8 :: nflowdof
     real*8 :: flow_time
     real*8 :: flow_dt
-    integer*8 :: flow_steps
-    integer*8 :: flow_newtcum
-    integer*8 :: flow_icutcum
-    integer*8 :: flow_linear_cum
-    integer*8 :: flow_num_const_timesteps
+    real*8 :: flow_prev_dt
+    integer*8 :: flow_time_steps
+    integer*8 :: flow_cumulative_newton_iterations
+    integer*8 :: flow_cumulative_time_step_cuts
+    integer*8 :: flow_cumulative_linear_iterations
+    integer*8 :: flow_num_constant_time_steps
     integer*8 :: flow_num_newton_iterations
     real*8 :: flow_cumulative_solver_time  ! don't implement yet; will screw up restarts
+
+    integer*8 :: ntrandof
     real*8 :: tran_time
     real*8 :: tran_dt
-    integer*8 :: tran_steps
-    integer*8 :: tran_newtcum
-    integer*8 :: tran_icutcum
-    integer*8 :: tran_linear_cum
-    integer*8 :: tran_num_const_timesteps
+    real*8 :: tran_prev_dt
+    integer*8 :: tran_time_steps
+    integer*8 :: tran_cumulative_newton_iterations
+    integer*8 :: tran_cumulative_time_step_cuts
+    integer*8 :: tran_cumulative_linear_iterations
+    integer*8 :: tran_num_constant_time_steps
     integer*8 :: tran_num_newton_iterations
     real*8 :: tran_cumulative_solver_time  ! don't implement yet; will screw up restarts
-    integer*8 :: plot_number
-    integer*8 :: nflowdof
-    integer*8 :: ntrandof
     integer*8 :: checkpoint_activity_coefs
   end type checkpoint_header_type
 end module Checkpoint_Header_module
@@ -53,8 +57,8 @@ module Checkpoint_module
 #include "definitions.h"
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
-#include "finclude/petscda.h"
-#include "finclude/petscda.h90"
+#include "finclude/petscdm.h"
+#include "finclude/petscdm.h90"
 #include "finclude/petscdef.h"
 #include "finclude/petscis.h"
 #include "finclude/petscis.h90"
@@ -74,16 +78,20 @@ module Checkpoint_module
 contains
 
 subroutine Checkpoint(realization, &
-                      flow_steps,flow_newtcum,flow_icutcum, &
-                      flow_linear_cum, &
-                      flow_num_const_timesteps, &
+                      flow_time_steps,flow_cumulative_newton_iterations, &
+                      flow_cumulative_time_step_cuts, &
+                      flow_cumulative_linear_iterations, &
+                      flow_num_constant_time_steps, &
                       flow_num_newton_iterations, &
                       flow_cumulative_solver_time, &
-                      tran_steps,tran_newtcum,tran_icutcum, &
-                      tran_linear_cum, &
-                      tran_num_const_timesteps, &
+                      flow_prev_dt, &
+                      tran_time_steps,tran_cumulative_newton_iterations, &
+                      tran_cumulative_time_step_cuts, &
+                      tran_cumulative_linear_iterations, &
+                      tran_num_constant_time_steps, &
                       tran_num_newton_iterations, &
                       tran_cumulative_solver_time, &
+                      tran_prev_dt, &
                       id)
 
   use Realization_module
@@ -102,16 +110,24 @@ subroutine Checkpoint(realization, &
   implicit none
 
   type(realization_type) :: realization
-  PetscInt :: flow_num_const_timesteps
+  PetscInt :: flow_num_constant_time_steps
   PetscInt :: flow_num_newton_iterations
-  PetscInt :: flow_steps, flow_newtcum, flow_icutcum, flow_linear_cum
+  PetscInt :: flow_time_steps
+  PetscInt :: flow_cumulative_newton_iterations
+  PetscInt :: flow_cumulative_time_step_cuts
+  PetscInt :: flow_cumulative_linear_iterations
   PetscReal :: flow_cumulative_solver_time
-  PetscInt :: tran_num_const_timesteps
+  PetscReal :: flow_prev_dt
+  PetscInt :: tran_num_constant_time_steps
   PetscInt :: tran_num_newton_iterations
-  PetscInt :: tran_steps, tran_newtcum, tran_icutcum, tran_linear_cum
+  PetscInt :: tran_time_steps
+  PetscInt :: tran_cumulative_newton_iterations
+  PetscInt :: tran_cumulative_time_step_cuts
+  PetscInt :: tran_cumulative_linear_iterations
   PetscReal :: tran_cumulative_solver_time
+  PetscReal :: tran_prev_dt
   PetscInt, intent(in) :: id  ! id should not be altered within this subroutine
-  PetscInt :: checkpoint_activity_coefs
+  
 #ifdef PetscSizeT
   PetscSizeT :: bagsize
 #else
@@ -119,6 +135,9 @@ subroutine Checkpoint(realization, &
   ! is 8 bytes.  This is dangerous, but what can we do?
   integer*8 :: bagsize
 #endif
+
+  PetscInt :: checkpoint_activity_coefs
+  PetscInt :: match_waypoint_flag
 
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: id_string
@@ -165,17 +184,23 @@ subroutine Checkpoint(realization, &
   ! We manually specify the number of bytes required for the 
   ! checkpoint header, since sizeof() is not supported by some Fortran 
   ! compilers.  To be on the safe side, we assume an integer is 8 bytes.
-  bagsize = 184
+  bagsize = 208
   call PetscBagCreate(option%mycomm, bagsize, bag, ierr)
   call PetscBagGetData(bag, header, ierr); CHKERRQ(ierr)
 
   i = REVISION_NUMBER
   call PetscBagRegisterInt(bag,header%revision_number,i, &
                            "revision_number","revision_number",ierr)
-
   ! Register variables that are passed into timestepper().
   call PetscBagRegisterInt(bag,header%plot_number,output_option%plot_number, &
                            "plot_number","plot_number",ierr)
+  match_waypoint_flag = ZERO_INTEGER
+  if (option%match_waypoint) then
+    match_waypoint_flag = ONE_INTEGER
+  endif
+  call PetscBagRegisterInt(bag,header%match_waypoint_flag,match_waypoint_flag, &
+                           "match_waypoint_flag","match_waypoint_flag",ierr)
+
   ! FLOW
   call PetscBagRegisterInt(bag,header%nflowdof,option%nflowdof, &
                            "nflowdof","Number of flow degrees of freedom",ierr)
@@ -184,10 +209,10 @@ subroutine Checkpoint(realization, &
                            "flow_num_newton_iterations", &
                            "Number of flow Newton iterations in last SNES solve", &
                            ierr)
-  call PetscBagRegisterInt(bag,header%flow_num_const_timesteps, &
-                           flow_num_const_timesteps, &
-                           "flow_num_const_timesteps", &
-                           "flow_num_const_timesteps",ierr)
+  call PetscBagRegisterInt(bag,header%flow_num_constant_time_steps, &
+                           flow_num_constant_time_steps, &
+                           "flow_num_constant_time_steps", &
+                           "flow_num_constant_time_steps",ierr)
 
   ! TRANSPORT
   call PetscBagRegisterInt(bag,header%tran_num_newton_iterations, &
@@ -195,10 +220,10 @@ subroutine Checkpoint(realization, &
                            "tran_num_newton_iterations", &
                            "Number of transport Newton iterations in last SNES solve", &
                            ierr)
-  call PetscBagRegisterInt(bag,header%tran_num_const_timesteps, &
-                           tran_num_const_timesteps, &
-                           "tran_num_const_timesteps", &
-                           "tran_num_const_timesteps",ierr)
+  call PetscBagRegisterInt(bag,header%tran_num_constant_time_steps, &
+                           tran_num_constant_time_steps, &
+                           "tran_num_constant_time_steps", &
+                           "tran_num_constant_time_steps",ierr)
   
   ! Register relevant components of the stepper.
   ! FLOW
@@ -206,13 +231,22 @@ subroutine Checkpoint(realization, &
                             "Flow Simulation time (seconds)",ierr)
   call PetscBagRegisterReal(bag,header%flow_dt,option%flow_dt,"flow_dt", &
                             "Current size of flow timestep (seconds)",ierr)
-  call PetscBagRegisterInt(bag,header%flow_steps,flow_steps,"flow_steps", &
+  call PetscBagRegisterReal(bag,header%flow_prev_dt,flow_prev_dt,"flow_prev_dt", &
+                            "Previous size of flow timestep (seconds)",ierr)
+                            
+  call PetscBagRegisterInt(bag,header%flow_time_steps,flow_time_steps,"flow_steps", &
                             "Total number of flow steps taken",ierr)
-  call PetscBagRegisterInt(bag,header%flow_newtcum,flow_newtcum,"flow_newtcum", &
+  call PetscBagRegisterInt(bag,header%flow_cumulative_newton_iterations, &
+                           flow_cumulative_newton_iterations, &
+                           "flow_cumulative_newton_iterations", &
                             "Total number of flow Newton steps taken",ierr)
-  call PetscBagRegisterInt(bag,header%flow_icutcum,flow_icutcum,"flow_icutcum", &
+  call PetscBagRegisterInt(bag,header%flow_cumulative_time_step_cuts, &
+                           flow_cumulative_time_step_cuts, &
+                           "flow_cumulative_time_step_cuts", &
                             "Total number of flow time step cuts",ierr)
-  call PetscBagRegisterInt(bag,header%flow_linear_cum,flow_linear_cum,"flow_linear_cum", &
+  call PetscBagRegisterInt(bag,header%flow_cumulative_linear_iterations, &
+                           flow_cumulative_linear_iterations, &
+                           "flow_cumulative_linear_iterations", &
                             "Total number of flow linear iterations",ierr)
   call PetscBagRegisterReal(bag,header%flow_cumulative_solver_time, &
                             flow_cumulative_solver_time, &
@@ -226,15 +260,23 @@ subroutine Checkpoint(realization, &
   call PetscBagRegisterReal(bag,header%tran_time,option%tran_time,"tran_time", &
                             "Transport Simulation time (seconds)",ierr)
   call PetscBagRegisterReal(bag,header%tran_dt,option%tran_dt,"tran_dt", &
-                            "Current size of transport timestep (years)",ierr)
+                            "Current size of transport timestep (seconds)",ierr)
+  call PetscBagRegisterReal(bag,header%tran_prev_dt,tran_prev_dt,"tran_prev_dt", &
+                            "Previous size of transport timestep (seconds)",ierr)
                             
-  call PetscBagRegisterInt(bag,header%tran_steps,tran_steps,"tran_steps", &
+  call PetscBagRegisterInt(bag,header%tran_time_steps,tran_time_steps,"tran_steps", &
                             "Total number of transport steps taken",ierr)
-  call PetscBagRegisterInt(bag,header%tran_newtcum,tran_newtcum,"tran_newtcum", &
-                            "Total number of transport Newton steps taken",ierr)
-  call PetscBagRegisterInt(bag,header%tran_icutcum,tran_icutcum,"tran_icutcum", &
+  call PetscBagRegisterInt(bag,header%tran_cumulative_newton_iterations, &
+                           tran_cumulative_newton_iterations, &
+                           "tran_cumulative_newton_iterations", &
+                           "Total number of transport Newton steps taken",ierr)
+  call PetscBagRegisterInt(bag,header%tran_cumulative_time_step_cuts, &
+                           tran_cumulative_time_step_cuts, &
+                           "tran_cumulative_time_step_cuts", &
                             "Total number of transport time step cuts",ierr)
-  call PetscBagRegisterInt(bag,header%tran_linear_cum,tran_linear_cum,"tran_linear_cum", &
+  call PetscBagRegisterInt(bag,header%tran_cumulative_linear_iterations, &
+                           tran_cumulative_linear_iterations, &
+                           "tran_cumulative_linear_iterations", &
                             "Total number of transport linear iterations",ierr)
   call PetscBagRegisterReal(bag,header%tran_cumulative_solver_time, &
                             tran_cumulative_solver_time, &
@@ -350,16 +392,22 @@ subroutine Checkpoint(realization, &
 end subroutine Checkpoint
 
 subroutine Restart(realization, &
-                   flow_steps,flow_newtcum,flow_icutcum, &
-                   flow_linear_cum, &
-                   flow_num_const_timesteps, &
+                   flow_time_steps, &
+                   flow_cumulative_newton_iterations, &
+                   flow_cumulative_time_step_cuts, &
+                   flow_cumulative_linear_iterations, &
+                   flow_num_constant_time_steps, &
                    flow_num_newton_iterations, &
                    flow_cumulative_solver_time, &
-                   tran_steps,tran_newtcum,tran_icutcum, &
-                   tran_linear_cum, &
-                   tran_num_const_timesteps, &
+                   flow_prev_dt, &
+                   tran_time_steps, &
+                   tran_cumulative_newton_iterations, &
+                   tran_cumulative_time_step_cuts, &
+                   tran_cumulative_linear_iterations, &
+                   tran_num_constant_time_steps, &
                    tran_num_newton_iterations, &
                    tran_cumulative_solver_time, &
+                   tran_prev_dt, &
                    flow_read, &
                    transport_read, &
                    activity_coefs_read)
@@ -379,14 +427,18 @@ subroutine Restart(realization, &
   implicit none
 
   type(realization_type) :: realization
-  PetscInt :: flow_num_const_timesteps
+  PetscInt :: flow_num_constant_time_steps
   PetscInt :: flow_num_newton_iterations
-  PetscInt :: flow_steps, flow_newtcum, flow_icutcum, flow_linear_cum
+  PetscInt :: flow_time_steps, flow_cumulative_newton_iterations
+  PetscInt :: flow_cumulative_time_step_cuts, flow_cumulative_linear_iterations
   PetscReal :: flow_cumulative_solver_time
-  PetscInt :: tran_num_const_timesteps
+  PetscReal :: flow_prev_dt
+  PetscInt :: tran_num_constant_time_steps
   PetscInt :: tran_num_newton_iterations
-  PetscInt :: tran_steps, tran_newtcum, tran_icutcum, tran_linear_cum
+  PetscInt :: tran_time_steps, tran_cumulative_newton_iterations
+  PetscInt :: tran_cumulative_time_step_cuts, tran_cumulative_linear_iterations
   PetscReal :: tran_cumulative_solver_time
+  PetscReal :: tran_prev_dt
   PetscBool :: activity_coefs_read, flow_read, transport_read
 
   PetscViewer viewer
@@ -400,6 +452,7 @@ subroutine Restart(realization, &
   PetscInt :: int_flag
   PetscInt :: i
   PetscInt :: read_activity_coefs
+  PetscBool :: found
   character(len=MAXSTRINGLENGTH) :: string
   
   type(field_type), pointer :: field
@@ -413,6 +466,7 @@ subroutine Restart(realization, &
   option => realization%option
   discretization => realization%discretization
   output_option => realization%output_option
+
   
   call PetscGetTime(tstart,ierr)
   option%io_buffer = '--> Open checkpoint file: ' // &
@@ -440,18 +494,21 @@ subroutine Restart(realization, &
   endif
   
   output_option%plot_number = header%plot_number
+  option%match_waypoint = (header%match_waypoint_flag == ONE_INTEGER)
+  
   ! FLOW
   if (option%nflowdof > 0 .and. option%nflowdof == header%nflowdof) then
     option%flow_time = header%flow_time
     option%flow_dt = header%flow_dt
     flow_num_newton_iterations = header%flow_num_newton_iterations
-    flow_num_const_timesteps = header%flow_num_const_timesteps
-    flow_steps = header%flow_steps
-    flow_newtcum = header%flow_newtcum
-    flow_icutcum = header%flow_icutcum
-    flow_linear_cum = header%flow_linear_cum
+    flow_num_constant_time_steps = header%flow_num_constant_time_steps
+    flow_time_steps = header%flow_time_steps
+    flow_cumulative_newton_iterations = header%flow_cumulative_newton_iterations
+    flow_cumulative_time_step_cuts = header%flow_cumulative_time_step_cuts
+    flow_cumulative_linear_iterations = header%flow_cumulative_linear_iterations
     flow_cumulative_solver_time = header%flow_cumulative_solver_time
     flow_cumulative_solver_time = 0.d0
+    flow_prev_dt = header%flow_prev_dt
     flow_read = PETSC_TRUE
   endif
   ! TRANSPORT
@@ -459,13 +516,14 @@ subroutine Restart(realization, &
     option%tran_time = header%tran_time
     option%tran_dt = header%tran_dt
     tran_num_newton_iterations = header%tran_num_newton_iterations
-    tran_num_const_timesteps = header%tran_num_const_timesteps
-    tran_steps = header%tran_steps
-    tran_newtcum = header%tran_newtcum
-    tran_icutcum = header%tran_icutcum
-    tran_linear_cum = header%tran_linear_cum
+    tran_num_constant_time_steps = header%tran_num_constant_time_steps
+    tran_time_steps = header%tran_time_steps
+    tran_cumulative_newton_iterations = header%tran_cumulative_newton_iterations
+    tran_cumulative_time_step_cuts = header%tran_cumulative_time_step_cuts
+    tran_cumulative_linear_iterations = header%tran_cumulative_linear_iterations
     tran_cumulative_solver_time = header%tran_cumulative_solver_time
     tran_cumulative_solver_time = 0.d0
+    tran_prev_dt = header%tran_prev_dt
     read_activity_coefs = header%checkpoint_activity_coefs
     transport_read = PETSC_TRUE
   else if (option%ntrandof /= header%ntrandof) then

@@ -59,11 +59,11 @@ module Structured_Grid_module
 
   public :: StructuredGridCreate, &
             StructuredGridDestroy, &
-            StructuredGridCreateDA, &
+            StructuredGridCreateDM, &
             StructGridComputeLocalBounds, &
             StructGridComputeInternConnect, &
             StructGridComputeBoundConnect, &
-            StructuredGridCreateVecFromDA, &
+            StructuredGridCreateVecFromDM, &
             StructuredGridMapIndices, &
             StructuredGridComputeSpacing, &
             StructuredGridComputeCoord, &
@@ -73,6 +73,7 @@ module Structured_Grid_module
             StructGridGetIJKFromCoordinate, &
             StructGridGetIJKFromLocalID, &
             StructGridGetIJKFromGhostedID, &
+            StructuredGridVecGetMaskArrayCellF90, &
             StructuredGridVecGetArrayF90, &
             StructGridVecRestoreArrayF90
 contains
@@ -184,7 +185,7 @@ end function StructuredGridCreate
 ! date: 10/22/07
 !
 ! ************************************************************************** !
-subroutine StructuredGridCreateDA(structured_grid,da,ndof,stencil_width, &
+subroutine StructuredGridCreateDM(structured_grid,da,ndof,stencil_width, &
                                   option)
 
   use Option_module
@@ -193,34 +194,34 @@ subroutine StructuredGridCreateDA(structured_grid,da,ndof,stencil_width, &
 
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
-#include "finclude/petscda.h"
-#include "finclude/petscda.h90"
+#include "finclude/petscdm.h"
+#include "finclude/petscdm.h90"
 
   type(option_type) :: option
   type(structured_grid_type) :: structured_grid
-  DA :: da
+  DM :: da
   PetscInt :: ndof
   PetscInt :: stencil_width
 
   PetscErrorCode :: ierr
 
   !-----------------------------------------------------------------------
-  ! Generate the DA object that will manage communication.
+  ! Generate the DM object that will manage communication.
   !-----------------------------------------------------------------------
-  call DACreate3D(option%mycomm,DA_NONPERIODIC,DA_STENCIL_STAR, &
+  call DMDACreate3D(option%mycomm,DMDA_NONPERIODIC,DMDA_STENCIL_STAR, &
                   structured_grid%nx,structured_grid%ny,structured_grid%nz, &
                   structured_grid%npx,structured_grid%npy,structured_grid%npz, &
                   ndof,stencil_width, &
                   PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER, &
                   da,ierr)
 
-  call DAGetInfo(da,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER, &
+  call DMDAGetInfo(da,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER, &
                  PETSC_NULL_INTEGER,structured_grid%npx_final, &
                  structured_grid%npy_final,structured_grid%npz_final, &
                  PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER, &
                  PETSC_NULL_INTEGER,ierr)
 
-end subroutine StructuredGridCreateDA
+end subroutine StructuredGridCreateDM
 
 ! ************************************************************************** !
 !
@@ -258,17 +259,17 @@ subroutine StructGridComputeLocalBounds(structured_grid,da)
      
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
-#include "finclude/petscda.h"
-#include "finclude/petscda.h90"
+#include "finclude/petscdm.h"
+#include "finclude/petscdm.h90"
 
   type(structured_grid_type) :: structured_grid
-  DA :: da
+  DM :: da
 
   PetscErrorCode :: ierr
 
   if(structured_grid%p_samr_patch==0) then
       ! get corner information
-     call DAGetCorners(da, structured_grid%nxs, &
+     call DMDAGetCorners(da, structured_grid%nxs, &
           structured_grid%nys, structured_grid%nzs, structured_grid%nlx, &
           structured_grid%nly, structured_grid%nlz, ierr)
      
@@ -281,7 +282,7 @@ subroutine StructGridComputeLocalBounds(structured_grid,da)
      structured_grid%nlmax = structured_grid%nlx * structured_grid%nly * structured_grid%nlz
      
      ! get ghosted corner information
-     call DAGetGhostCorners(da, structured_grid%ngxs, &
+     call DMDAGetGhostCorners(da, structured_grid%ngxs, &
           structured_grid%ngys, structured_grid%ngzs, structured_grid%ngx, &
           structured_grid%ngy, structured_grid%ngz, ierr)
      
@@ -323,16 +324,16 @@ end subroutine StructGridComputeLocalBounds
 
 ! ************************************************************************** !
 !
-! StructuredGridCreateVecFromDA: Creates a PETSc vector from a DA
+! StructuredGridCreateVecFromDM: Creates a PETSc vector from a DM
 ! author: Glenn Hammond
 ! date: 02/08/08
 !
 ! ************************************************************************** !
-subroutine StructuredGridCreateVecFromDA(da,vector,vector_type)
+subroutine StructuredGridCreateVecFromDM(da,vector,vector_type)
 
   implicit none
 
-  DA :: da
+  DM :: da
   Vec :: vector
   PetscInt :: vector_type
   
@@ -340,14 +341,14 @@ subroutine StructuredGridCreateVecFromDA(da,vector,vector_type)
 
   select case (vector_type)
     case(GLOBAL)
-      call DACreateGlobalVector(da,vector,ierr)
+      call DMCreateGlobalVector(da,vector,ierr)
     case(LOCAL)
-      call DACreateLocalVector(da,vector,ierr)
+      call DMCreateLocalVector(da,vector,ierr)
     case(NATURAL)
-      call DACreateNaturalVector(da,vector,ierr)
+      call DMDACreateNaturalVector(da,vector,ierr)
   end select
 
-end subroutine StructuredGridCreateVecFromDA
+end subroutine StructuredGridCreateVecFromDM
 
 ! ************************************************************************** !
 !
@@ -1942,7 +1943,59 @@ subroutine StructuredGridDestroy(structured_grid)
   nullify(structured_grid)
 
 end subroutine StructuredGridDestroy
+
                           
+! ************************************************************************** !
+!
+! StructuredGridVecGetArrayCellF90: Interface for SAMRAI AMR
+! author: Bobby Philip
+! date: 12/15/10
+!
+! ************************************************************************** !
+subroutine StructuredGridVecGetMaskArrayCellF90(structured_grid, vec, f90ptr, ierr)
+
+ use cf90interface_module
+
+ implicit none 
+
+ interface
+    subroutine samrvecgetmaskarraycellf90(patch, petscvec, f90wrap)
+      implicit none
+#include "finclude/petscsysdef.h"
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+      PetscFortranAddr, intent(inout):: patch
+      Vec:: petscvec
+      PetscFortranAddr :: f90wrap
+    end subroutine samrvecgetmaskarraycellf90
+ end interface
+
+#include "finclude/petscsysdef.h"
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+ type(structured_grid_type) :: structured_grid
+ Vec:: vec
+ PetscReal, pointer :: f90ptr(:)
+ PetscErrorCode :: ierr
+ 
+ type(f90ptrwrap), pointer :: ptr
+ PetscFortranAddr :: cptr
+ 
+ if(structured_grid%p_samr_patch .eq. 0) then
+! we'll have to throw an error here      
+ else
+    ierr=0
+    allocate(ptr)
+    nullify(ptr%f90ptr)
+    call assign_c_array_ptr(cptr, ptr)
+    call samrvecgetmaskarraycellf90(structured_grid%p_samr_patch, vec, cptr)
+    f90ptr => ptr%f90ptr
+    deallocate(ptr)
+ endif
+ 
+end subroutine StructuredGridVecGetMaskArrayCellF90
+      
 ! ************************************************************************** !
 !
 ! StructuredGridVecGetArrayCellF90: Interface for SAMRAI AMR

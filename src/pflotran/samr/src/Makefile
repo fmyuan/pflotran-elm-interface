@@ -48,7 +48,14 @@ ifeq "$(BUILDTYPE)" "x86_64-Linux"
    CXXFLAGS_EXTRA += -DNDIM=$(PDIM)
    CPPFLAGS_EXTRA += -DNDIM=$(PDIM)
 endif
+
 ifeq "$(BUILDTYPE)" "i386-Darwin"
+   CXXFLAGS_EXTRA += -DNDIM=$(PDIM)
+   CPPFLAGS_EXTRA += -DNDIM=$(PDIM)
+#   LDFLAGS_EXTRA += -arch x86_64 
+endif
+
+ifeq "$(BUILDTYPE)" "x86_64-Darwin"
    CXXFLAGS_EXTRA += -DNDIM=$(PDIM)
    CPPFLAGS_EXTRA += -DNDIM=$(PDIM)
 endif
@@ -76,12 +83,12 @@ PFLOTRAN_LDFLAGS = -L${AMRUTILITIES_HOME}/lib
 #PFLOTRAN_LDFLAGS += -L${SAMRSOLVERS_HOME}/lib -L${HOME}/packages/duma/duma_2_5_15   
 PFLOTRAN_LDFLAGS += -L${SAMRSOLVERS_HOME}/lib
 
-PFLOTRAN_LDLIBS = ${SAMRSOLVERS_HOME}/lib/libpreconditionerbase3d.a
-PFLOTRAN_LDLIBS += ${SAMRSOLVERS_HOME}/lib/libmlsolvers3d.a
-PFLOTRAN_LDLIBS += ${SAMRSOLVERS_HOME}/lib/liblinearops3d.a
-PFLOTRAN_LDLIBS += ${AMRUTILITIES_HOME}/lib/libAMRUtils3d.a
+#PFLOTRAN_LDLIBS = ${SAMRSOLVERS_HOME}/lib/libmlsolvers3d.a
+#PFLOTRAN_LDLIBS += ${SAMRSOLVERS_HOME}/lib/liblinearops3d.a
+#PFLOTRAN_LDLIBS += ${AMRUTILITIES_HOME}/lib/libAMRUtils3d.a
 #PFLOTRAN_LDLIBS += -lpflotranamr ${HOME}/packages/duma/duma_2_5_15/libduma.a  
-PFLOTRAN_LDLIBS += -lpflotranamr
+PFLOTRAN_LDLIBS = -lmlsolvers3d -llinearops3d -lAMRUtils3d -lpflotranamr
+#PFLOTRAN_LDLIBS += -lpflotranamr
 PFLOTRAN_LDLIBS += ${HDF5_LIBS}
 
 
@@ -107,7 +114,7 @@ else
 FFLAGS += ${HDF5_FFLAGS} 
 endif
 
-PFLOTRAN_LDFLAGS += -L${PFLOTRAN_DIR}
+PFLOTRAN_LDFLAGS += -arch_errors_fatal -L${PFLOTRAN_DIR}
 
 #LDLIBS_EXTRA += ${PFLOTRAN_LDLIBS}
 #LDFLAGS_EXTRA += ${PFLOTRAN_LDFLAGS}
@@ -144,13 +151,13 @@ DRIVER_OBJS = $(filter-out ./SAMRAIStartup.o, $(OBJS))
 	${F90} -c ${FFLAGS} ${FC_FLAGS} ${FPPFLAGS} -o $@ $<
 
 SAMRAIDriver: SAMRAIDriver.o ${DRIVER_OBJS} ${PFLOTRAN_DIR}/libpflotranamr.a
-	$(CXX) ${DRIVER_OBJS} ${PFLOTRAN_LDLIBS} ${PFLOTRAN_LDFLAGS} $(LIBSAMRAI3D) $(LIBSAMRAI) ${LDFLAGS} ${LDLIBS} -o $@ 
+	$(CXX)  ${PFLOTRAN_LDFLAGS} ${PFLOTRAN_LDLIBS} ${DRIVER_OBJS} ${PFLOTRAN_LDFLAGS} ${PFLOTRAN_LDLIBS} $(LIBSAMRAI3D) $(LIBSAMRAI) ${LDFLAGS} ${LDLIBS} -o $@ 
 
 SAMRAIStartup: SAMRAIStartup.o BogusTagAndInitStrategy.o
 	$(CXX) -g SAMRAIStartup.o BogusTagAndInitStrategy.o ${PFLOTRAN_LDLIBS} ${PFLOTRAN_LDFLAGS} $(LIBSAMRAI3D) $(LIBSAMRAI) ${LDFLAGS} ${LDLIBS} -o $@
 
 clean:
-	$(RM) SAMRAIDriver *.f core *~ *.mod
+	$(RM) SAMRAIDriver *.f core *~ *.mod fortran/3d/*.o
 	$(RM) *.o *.ii *.int.c
 
 veryclean:

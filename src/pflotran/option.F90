@@ -99,7 +99,6 @@ module Option_module
     PetscReal :: tran_weight_t0, tran_weight_t1
     PetscReal :: flow_dt, tran_dt, dt ! The size of the time step.
     PetscBool :: match_waypoint
-    PetscReal :: prev_dt
   
       ! Basically our target number of newton iterations per time step.
     PetscReal :: dpmxe,dtmpmxe,dsmxe,dcmxe !maximum allowed changes in field vars.
@@ -165,10 +164,6 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: initialize_flow_filename
     character(len=MAXSTRINGLENGTH) :: initialize_transport_filename
         
-    character(len=MAXSTRINGLENGTH) :: permx_filename
-    character(len=MAXSTRINGLENGTH) :: permy_filename
-    character(len=MAXSTRINGLENGTH) :: permz_filename
-    
     character(len=MAXWORDLENGTH) :: global_prefix
     character(len=MAXWORDLENGTH) :: group_prefix
     
@@ -178,6 +173,11 @@ module Option_module
   
     PetscBool :: mimetic
     PetscBool :: ani_relative_permeability
+    
+    PetscBool :: use_upwinding
+
+    PetscInt :: chunk_size
+    PetscInt :: chunk_offset
 
   end type option_type
   
@@ -354,6 +354,11 @@ subroutine OptionInitAll(option)
   option%mimetic = PETSC_FALSE
   option%ani_relative_permeability = PETSC_FALSE
 
+  option%use_upwinding = PETSC_TRUE
+
+  option%chunk_size = 8
+  option%chunk_offset = 0
+
   call OptionInitRealization(option)
 
 end subroutine OptionInitAll
@@ -480,18 +485,12 @@ subroutine OptionInitRealization(option)
   option%tran_weight_t1 = 0.d0
   option%flow_dt = 0.d0
   option%tran_dt = 0.d0
-  option%dt = 0.d0
   option%match_waypoint = PETSC_FALSE
-  option%prev_dt = 0.d0
 
   option%io_handshake_buffer_size = 0
 
   option%initialize_flow_filename = ''
   option%initialize_transport_filename = ''
-  
-  option%permx_filename = ""
-  option%permy_filename = ""
-  option%permz_filename = ""
   
   option%steady_state = PETSC_FALSE
   

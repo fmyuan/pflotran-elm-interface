@@ -55,6 +55,7 @@
 #define TOTAL_SORBED_MOBILE  37
 #define COLLOID_MOBILE  38
 #define COLLOID_IMMOBILE  39
+#define AGE  40
 
 extern "C" {
 #include "petsc.h"
@@ -231,6 +232,25 @@ void samr_vecgetarraysidef90_(SAMRAI::hier::Patch<NDIM> **patch,
    
 }
 
+void samrvecgetmaskarraycellf90_(SAMRAI::hier::Patch<NDIM> **patch, 
+			     Vec *petscVec,
+			     void **f90wrap)
+
+{
+  SAMRAI::tbox::Pointer< SAMRAI::solv::SAMRAIVectorReal<NDIM, double > > sVec = SAMRAI::solv::PETSc_SAMRAIVectorReal<NDIM, double>::getSAMRAIVector(*petscVec);
+  const int cvIndex = sVec->getControlVolumeIndex(0);  
+  SAMRAI::tbox::Pointer< SAMRAI::pdat::CCellData<NDIM, double> > pData = (*patch)->getPatchData(cvIndex);
+  int depth = pData->getDepth();
+  
+  int len = pData->getGhostBox().size();
+  len = len*depth;
+  
+  void *p_data_ptr = pData->getPointer(0);
+  
+  cf90bridge_(p_data_ptr, &len, *f90wrap);
+   
+}
+
 int samr_patch_at_bc_(SAMRAI::hier::Patch<NDIM> **patch, 
                       int *axis, int *side)
 {
@@ -273,13 +293,13 @@ void samrcreatematrix_(SAMRAI::PflotranApplicationStrategy **application_strateg
    operator_db->putInteger("ndof", *ndof);
    operator_db->putInteger("stencilsize", *stencilSize);
 
-   SAMRAI::PflotranJacobianMultilevelOperatorParameters *parameters = new  SAMRAI::PflotranJacobianMultilevelOperatorParameters(operator_db);
+   SAMRAI::SAMRSolvers::PflotranJacobianMultilevelOperatorParameters *parameters = new  SAMRAI::SAMRSolvers::PflotranJacobianMultilevelOperatorParameters(operator_db);
    parameters->d_hierarchy = hierarchy;
    parameters->d_pMatrix = pMatrix;
    parameters->d_cf_interpolant = (*application_strategy)->getRefinementBoundaryInterpolant();
    parameters->d_set_boundary_ghosts.setNull();
 
-   SAMRAI::PflotranJacobianMultilevelOperator *pJacobian = new SAMRAI::PflotranJacobianMultilevelOperator((SAMRAI::MultilevelOperatorParameters *)parameters);
+   SAMRAI::SAMRSolvers::PflotranJacobianMultilevelOperator *pJacobian = new SAMRAI::SAMRSolvers::PflotranJacobianMultilevelOperator(parameters);
    if(*flowortransport==0)
    {
       (*application_strategy)->setFlowJacobianMatrix(pJacobian);
@@ -352,7 +372,7 @@ void samrcoarsenfacefluxes_(SAMRAI::PflotranApplicationStrategy **application_st
 void 
 samrsetcurrentjacobianpatch_( Mat *mat, SAMRAI::hier::Patch<NDIM> **patch)
 {
-   SAMRAI::PflotranJacobianMultilevelOperator *pJacobian = NULL;
+  SAMRAI::SAMRSolvers::PflotranJacobianMultilevelOperator *pJacobian = NULL;
 
    MatShellGetContext(*mat, (void **)&pJacobian);
    
@@ -366,7 +386,7 @@ void samrsetjacobiansourceonpatch_(int *which_jac,
                                    SAMRAI::hier::Patch<NDIM> **patch) 
 {
 
-   SAMRAI::PflotranJacobianMultilevelOperator *pJacobian = (*application_strategy)->getJacobianOperator(which_jac);
+   SAMRAI::SAMRSolvers::PflotranJacobianMultilevelOperator *pJacobian = (*application_strategy)->getJacobianOperator(which_jac);
 
    pJacobian->setSourceValueOnPatch(patch, index, val);
 
@@ -377,7 +397,7 @@ void samrsetjacobiansrccoeffsonpatch_(int *which_jac,
                                       SAMRAI::hier::Patch<NDIM> **patch) 
 {
 
-   SAMRAI::PflotranJacobianMultilevelOperator *pJacobian = (*application_strategy)->getJacobianOperator(which_jac);
+   SAMRAI::SAMRSolvers::PflotranJacobianMultilevelOperator *pJacobian = (*application_strategy)->getJacobianOperator(which_jac);
 
    pJacobian->setSrcCoefficientsOnPatch(patch);
 
@@ -475,8 +495,6 @@ void samrcopyvectoveccomponent_(Vec *svec, Vec *dvec, int *comp)
 void samrregisterforviz_(SAMRAI::PflotranApplicationStrategy **application_strategy, 
                          Vec *svec, 
                          int *component,
-                         int *dname,
-                         int *inx,
 	          char *vName)
 {
   SAMRAI::appu::VisItDataWriter<NDIM>* vizWriter = (*application_strategy)->getVizWriter();

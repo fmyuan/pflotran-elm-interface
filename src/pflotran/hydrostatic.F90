@@ -233,7 +233,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
                  pressure_gradient(Y_DIRECTION)*dist_y
 
 !      if (grid%itype==STRUCTURED_GRID_MIMETIC) then
-!         pressure = 3*conn_set_ptr%cntr(3,conn_id)    !WORKINGCHECK
+!         pressure = 3*conn_set_ptr%cntr(3,conn_id)    !DASVYAT WORKINGCHECK
 !      end if
  
     else
@@ -275,9 +275,9 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   enddo
 
 #ifdef DASVYAT 
-  do iconn = 1, num_faces
-     write(*,*) iconn, coupler%flow_aux_real_var(1,iconn)
-  end do
+!  do iconn = 1, num_faces
+!     write(*,*) iconn, coupler%flow_aux_real_var(1,iconn)
+!  end do
 #endif
  
   if (associated(pressure_array)) deallocate(pressure_array)
