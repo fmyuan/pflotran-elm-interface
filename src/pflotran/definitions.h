@@ -59,6 +59,10 @@ PetscInt, parameter :: TIME_NULL = 0
 PetscInt, parameter :: TIME_T = 1
 PetscInt, parameter :: TIME_TpDT = 2
 
+PetscInt, parameter :: SORPTION_LINEAR = 1
+PetscInt, parameter :: SORPTION_LANGMUIR = 2
+PetscInt, parameter :: SORPTION_FREUNDLICH  = 3
+
 ! Classes
 PetscInt, parameter :: NULL_CLASS = 0
 PetscInt, parameter :: FLOW_CLASS = 1
@@ -132,11 +136,6 @@ PetscInt, parameter :: NULL_SURFACE = 0
 PetscInt, parameter :: COLLOID_SURFACE = 1
 PetscInt, parameter :: MINERAL_SURFACE = 2
 
-! KD rxn types
-PetscInt, parameter :: SORPTION_LINEAR = 1
-PetscInt, parameter :: SORPTION_LANGMUIR = 2
-PetscInt, parameter :: SORPTION_FREUNDLICH  = 3
-
 ! coupler types
 PetscInt, parameter :: INITIAL_COUPLER_TYPE = 1
 PetscInt, parameter :: BOUNDARY_COUPLER_TYPE = 2
@@ -207,6 +206,7 @@ PetscInt, parameter :: TOTAL_SORBED = 36
 PetscInt, parameter :: TOTAL_SORBED_MOBILE = 37
 PetscInt, parameter :: COLLOID_MOBILE = 38
 PetscInt, parameter :: COLLOID_IMMOBILE = 39
+PetscInt, parameter :: AGE = 40
 
 ! activity coefficients
 PetscInt, parameter :: ACT_COEF_FREQUENCY_OFF = 0
@@ -254,5 +254,11 @@ PetscInt, parameter :: SIDE_CENTERED = 1
 ! approaches to coupling reactive transport
 PetscInt, parameter :: GLOBAL_IMPLICIT = 0
 PetscInt, parameter :: OPERATOR_SPLIT = 1
+
+! dataset types
+PetscInt, parameter :: DATASET_SCALAR = 1
+PetscInt, parameter :: DATASET_VECTOR = 2
+PetscInt, parameter :: DATASET_TENSOR = 3
+PetscInt, parameter :: DATASET_HETEROGENEOUS = 4
 
 #define HASH
