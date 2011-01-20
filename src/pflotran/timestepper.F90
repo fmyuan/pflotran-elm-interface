@@ -1,15 +1,19 @@
 module Timestepper_module
- 
+
   use Solver_module
-  use Waypoint_module 
-  use Convergence_module 
- 
+  use Waypoint_module
+  use Convergence_module
+
+#ifdef CLM_PFLOTRAN
+  use clm_varctl      , only : iulog
+#endif
+
   implicit none
 
   private
-  
+
 #include "definitions.h"
- 
+
   type, public :: stepper_type
   
     PetscInt :: steps         ! The number of time steps taken by the code.
@@ -54,10 +58,10 @@ module Timestepper_module
   end type stepper_type
   
   public :: TimestepperCreate, TimestepperDestroy, StepperRun, &
-#ifdef CLM_PFLOTRAN
+!#ifdef CLM_PFLOTRAN
            StepperRunInit, StepperRunOneDT, StepperRunFinalize, &
 	   StepperUpdateSolution, & ! Added by GB
-#endif
+!#endif
             TimestepperRead, TimestepperPrintInfo
 
 contains
@@ -1067,7 +1071,11 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
       if (step_to_steady_state) then
         write(*,'(/,2("=")," Initialize FLOW to Steady-State ",25("="))')
       else
+#ifndef CLM_PFLOTRAN
         write(*,'(/,2("=")," FLOW ",52("="))')
+#else
+        write(iulog,'(/,2("=")," FLOW ",52("="))')
+#endif
       endif
     endif
 
@@ -1160,7 +1168,11 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
           case(RICHARDS_MODE)
             update_reason=1
         end select   
+#ifndef CLM_PFLOTRAN
         if (option%print_screen_flag) print *,'update_reason: ',update_reason
+#else
+        if (option%print_screen_flag) write(iulog,*),'update_reason: ',update_reason
+#endif
       endif
    
   !******************************************************************
@@ -1298,6 +1310,7 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
   call SNESGetFunctionNorm(solver%snes,fnorm,ierr)
   call VecNorm(field%flow_r,NORM_INFINITY,inorm,ierr)
   if (option%print_screen_flag) then
+#ifndef CLM_PFLOTRAN
     write(*, '(/," FLOW ",i6," Time= ",1pe12.4," Dt= ",1pe12.4," [",a1,"]", &
       & " snes_conv_reason: ",i4,/,"  newton = ",i3," [",i8,"]", &
       & " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
@@ -1308,6 +1321,18 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
       stepper%cumulative_newton_iterations,sum_linear_iterations, &
       stepper%cumulative_linear_iterations,icut, &
       stepper%cumulative_time_step_cuts
+#else
+    write(iulog, '(/," FLOW ",i6," Time= ",1pe12.4," Dt= ",1pe12.4," [",a1,"]", &
+      & " snes_conv_reason: ",i4,/,"  newton = ",i3," [",i8,"]", &
+      & " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
+      stepper%steps, &
+      stepper%target_time/realization%output_option%tconv, &
+      option%flow_dt/realization%output_option%tconv, &
+      realization%output_option%tunit,snes_reason,sum_newton_iterations, &
+      stepper%cumulative_newton_iterations,sum_linear_iterations, &
+      stepper%cumulative_linear_iterations,icut, &
+      stepper%cumulative_time_step_cuts
+#endif
 
     ! the grid pointer is null if we are working with SAMRAI
     if(associated(discretization%grid)) then
@@ -1315,9 +1340,16 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
     else
        scaled_fnorm = fnorm
     endif
+#ifndef CLM_PFLOTRAN
     print *,' --> SNES Linear/Non-Linear Iterations = ', &
              num_linear_iterations,' / ',num_newton_iterations
     write(*,'("  --> SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm 
+#else
+    write(iulog,*),' --> SNES Linear/Non-Linear Iterations = ', &
+             num_linear_iterations,' / ',num_newton_iterations
+    write(iulog,'("  --> SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm 
+#endif
+
   endif
   if (option%print_file_flag) then
     write(option%fid_out, '(" FLOW ",i6," Time= ",1pe12.4," Dt= ",1pe12.4," [",a1, &
@@ -1348,7 +1380,11 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
     case(RICHARDS_MODE)
       call RichardsMaxChange(realization)
       if (option%print_screen_flag) then
+#ifndef CLM_PFLOTRAN
         write(*,'("  --> max chng: dpmx= ",1pe12.4)') option%dpmax
+#else
+        write(iulog,'("  --> max chng: dpmx= ",1pe12.4)') option%dpmax
+#endif
       endif
       if (option%print_file_flag) then
         write(option%fid_out,'("  --> max chng: dpmx= ",1pe12.4)') option%dpmax
@@ -1572,11 +1608,19 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
 
       if (icut > stepper%max_time_step_cuts .or. option%tran_dt<1.d-20) then
         if (option%print_screen_flag) then
+#ifndef CLM_PFLOTRAN
           print *,"--> max_time_step_cuts exceeded: icut/icutmax= ", &
                   icut,stepper%max_time_step_cuts, &
                   "t= ",final_tran_time/realization%output_option%tconv, " dt= ", &
                   option%tran_dt/realization%output_option%tconv
           print *,"Stopping execution!"
+#else
+          write(iulog,*),"--> max_time_step_cuts exceeded: icut/icutmax= ", &
+                  icut,stepper%max_time_step_cuts, &
+                  "t= ",final_tran_time/realization%output_option%tconv, " dt= ", &
+                  option%tran_dt/realization%output_option%tconv
+          write(iulog,*),"Stopping execution!"
+#endif
         endif
         realization%output_option%plot_name = 'tran_cut_to_failure'
         plot_flag = PETSC_TRUE
@@ -1587,13 +1631,20 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
       endif
 
       option%tran_dt = 0.5d0 * option%tran_dt
-    
+
+#ifndef CLM_PFLOTRAN
       if (option%print_screen_flag) write(*,'('' -> Cut time step: snes='',i3, &
         &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.4, '' dt= '', &
         &   1pe12.4)')  snes_reason,icut,stepper%cumulative_time_step_cuts, &
             option%tran_time/realization%output_option%tconv, &
             option%tran_dt/realization%output_option%tconv
-
+#else
+      if (option%print_screen_flag) write(iulog,'('' -> Cut time step: snes='',i3, &
+        &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.4, '' dt= '', &
+        &   1pe12.4)')  snes_reason,icut,stepper%cumulative_time_step_cuts, &
+            option%tran_time/realization%output_option%tconv, &
+            option%tran_dt/realization%output_option%tconv
+#endif
 
       ! recompute weights
       if (option%nflowdof > 0) then
@@ -1683,8 +1734,13 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
   
   call RTMaxChange(realization)
   if (option%print_screen_flag) then
+#ifndef CLM_PFLOTRAN
     write(*,'("  --> max chng: dcmx= ",1pe12.4," dc/dt= ",1pe12.4," [mol/s]")') &
       option%dcmax,option%dcmax/option%tran_dt
+#else
+    write(iulog,'("  --> max chng: dcmx= ",1pe12.4," dc/dt= ",1pe12.4," [mol/s]")') &
+      option%dcmax,option%dcmax/option%tran_dt
+#endif
   endif
   if (option%print_file_flag) then  
     write(option%fid_out,'("  --> max chng: dcmx= ",1pe12.4," dc/dt= ", &
@@ -2152,8 +2208,11 @@ subroutine StepperSolveFlowSteadyState(realization,stepper,failure)
                                   field%ithrm_loc,ONEDOF)
   call DiscretizationLocalToLocal(discretization,field%iphas_loc, &
                                   field%iphas_loc,ONEDOF)
-    
+#ifndef CLM_PFLOTRAN    
   if (option%print_screen_flag) write(*,'(/,2("=")," FLOW (STEADY STATE) ",37("="))')
+#else
+  if (option%print_screen_flag) write(iulog,'(/,2("=")," FLOW (STEADY STATE) ",37("="))')
+#endif
 
   call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%flow_xx, ierr)
 
@@ -2762,10 +2821,7 @@ subroutine TimestepperDestroy(stepper)
   
 end subroutine TimestepperDestroy
 
-
-
-#ifdef CLM_PFLOTRAN
-
+!#ifdef CLM_PFLOTRAN
   ! ************************************************************************** !
   !
   ! StepperRunInit:
@@ -2805,10 +2861,10 @@ end subroutine TimestepperDestroy
 
     PetscBool :: plot_flag, stop_flag, transient_plot_flag
     !PetscTruth :: master_timestep_cut_flag
-    PetscBool :: flow_timestep_cut_flag, tran_timestep_cut_flag
-    PetscInt :: istep, start_step
-    PetscInt :: num_const_timesteps
-    PetscInt :: num_newton_iterations, idum, idum2
+    !PetscBool :: flow_timestep_cut_flag, tran_timestep_cut_flag
+    !PetscInt :: istep, start_step
+    !PetscInt :: num_const_timesteps
+    !PetscInt :: num_newton_iterations, idum, idum2
     PetscBool :: activity_coefs_read
     PetscBool :: flow_read
     PetscBool :: transport_read
@@ -2816,6 +2872,7 @@ end subroutine TimestepperDestroy
     PetscBool :: run_flow_as_steady_state
     PetscBool :: failure
     PetscLogDouble :: start_time, end_time
+    PetscReal :: tran_dt_save, flow_t0
 
     PetscLogDouble :: stepper_start_time, current_time, average_step_time
     PetscErrorCode :: ierr
@@ -2837,8 +2894,8 @@ end subroutine TimestepperDestroy
     plot_flag                = PETSC_FALSE
     transient_plot_flag      = PETSC_FALSE
     !master_timestep_cut_flag = PETSC_FALSE
-    flow_timestep_cut_flag   = PETSC_FALSE
-    tran_timestep_cut_flag   = PETSC_FALSE
+    !flow_timestep_cut_flag   = PETSC_FALSE
+    !tran_timestep_cut_flag   = PETSC_FALSE
     stop_flag                = PETSC_FALSE
     activity_coefs_read      = PETSC_FALSE
     flow_read                = PETSC_FALSE
@@ -2846,13 +2903,16 @@ end subroutine TimestepperDestroy
     step_to_steady_state     = PETSC_FALSE
     run_flow_as_steady_state = PETSC_FALSE
     failure                  = PETSC_FALSE
-    num_const_timesteps      = 0
+    !num_const_timesteps      = 0
 
+#ifndef CLM_PFLOTRAN
     print *, 'In StepperRun()'
+#else
+    write(iulog,*), 'In StepperRun() '
+#endif
 
     if (option%restart_flag) then
        call StepperRestart(realization,flow_stepper,tran_stepper, &
-            num_const_timesteps,num_newton_iterations, &
             flow_read,transport_read,activity_coefs_read)
        if (associated(flow_stepper)) flow_stepper%cur_waypoint => &
             WaypointSkipToTime(realization%waypoints,option%time)
@@ -2864,19 +2924,19 @@ end subroutine TimestepperDestroy
        endif
 
     else if (master_stepper%init_to_steady_state) then
-
        option%print_screen_flag = OptionPrintToScreen(option)
        option%print_file_flag = OptionPrintToFile(option)
        if (associated(flow_stepper)) then
           if (flow_stepper%init_to_steady_state) then
              step_to_steady_state = PETSC_TRUE
+#ifndef CLM_PFLOTRAN
              write(*,*), 'PROBLEM: Currently NOT allowing for steady state solve!!!'
-
+#else
+             write(iulog,*), 'PROBLEM: Currently NOT allowing for steady state solve!!!'
+#endif
              option%flow_dt = master_stepper%dt_min
-             call StepperStepFlowDT(realization,flow_stepper, &
-                  flow_timestep_cut_flag, &
-                  num_newton_iterations, &
-                  step_to_steady_state,failure)
+             call StepperStepFlowDT(realization,flow_stepper,step_to_steady_state, &
+                  failure)
              if (failure) then ! if flow solve fails, exit
                 if (OptionPrintToScreen(option)) then
                    write(*,*) ' ERROR: steady state solve failed!!!'
@@ -2930,7 +2990,7 @@ end subroutine TimestepperDestroy
     ! print initial condition output if not a restarted sim
     call OutputInit(realization)
     if (output_option%plot_number == 0 .and. &
-         master_stepper%nstepmax >= 0 .and. &
+         master_stepper%max_time_step >= 0 .and. &
          output_option%print_initial) then
        plot_flag = PETSC_TRUE
        transient_plot_flag = PETSC_TRUE
@@ -3012,6 +3072,11 @@ end subroutine TimestepperDestroy
     use Mass_Balance_module
     use Discretization_module
 
+    !GB
+    use Global_Aux_module
+    use Grid_module
+    use Richards_module
+
     implicit none
 
 #include "finclude/petscdef.h"
@@ -3023,7 +3088,7 @@ end subroutine TimestepperDestroy
     type(stepper_type), pointer :: flow_stepper
     type(stepper_type), pointer :: tran_stepper
     type(stepper_type), pointer :: master_stepper
-    type(stepper_type), pointer :: flow_stepper_save
+    type(stepper_type), pointer :: null_stepper
 
     type(option_type), pointer :: option
     type(output_option_type), pointer :: output_option
@@ -3031,40 +3096,34 @@ end subroutine TimestepperDestroy
 
     character(len=MAXSTRINGLENGTH) :: string
     PetscBool :: plot_flag, stop_flag, transient_plot_flag
-    PetscBool :: master_timestep_cut_flag
-    PetscBool :: flow_timestep_cut_flag, tran_timestep_cut_flag
-    PetscInt :: istep, start_step
-    PetscInt :: num_const_timesteps
-    PetscInt :: num_newton_iterations, idum, idum2
-    !PetscBool :: activity_coefs_read
-    !PetscBool :: flow_read
-    !PetscBool :: transport_read
+    !PetscBool :: master_timestep_cut_flag
+    !PetscBool :: flow_timestep_cut_flag, tran_timestep_cut_flag
+    !PetscInt :: istep, start_step
+    !PetscInt :: num_const_timesteps
+    !PetscInt :: num_newton_iterations, idum, idum2
+    PetscBool :: activity_coefs_read
+    PetscBool :: flow_read
+    PetscBool :: transport_read
     PetscBool :: step_to_steady_state
     PetscBool :: run_flow_as_steady_state
     PetscBool :: failure
     PetscLogDouble :: start_time, end_time
-	PetscReal  :: pause_time
+    PetscReal :: tran_dt_save, flow_t0
 
     PetscLogDouble :: stepper_start_time, current_time, average_step_time
     PetscErrorCode :: ierr
 
+    !GB
+    PetscReal          :: pause_time
+    PetscReal          :: liq_vol_start, liq_vol_end
+    PetscReal          :: dx,dy,dz, sat, del_liq_vol
+    PetscReal, pointer :: porosity_loc_p(:)
+    PetscInt           :: local_id, ghosted_id
+
+    type(global_auxvar_type), pointer :: global_aux_vars(:)
+
     option => realization%option
     output_option => realization%output_option
-
-    plot_flag                = PETSC_FALSE
-    transient_plot_flag      = PETSC_FALSE
-    master_timestep_cut_flag = PETSC_FALSE
-    flow_timestep_cut_flag   = PETSC_FALSE
-    tran_timestep_cut_flag   = PETSC_FALSE
-    stop_flag                = PETSC_FALSE
-    !activity_coefs_read      = PETSC_FALSE
-    !flow_read                = PETSC_FALSE
-    !transport_read           = PETSC_FALSE
-    step_to_steady_state     = PETSC_FALSE
-    run_flow_as_steady_state = PETSC_FALSE
-    failure                  = PETSC_FALSE
-    num_const_timesteps      = 0
-
 
     if (option%steady_state) then
        call StepperRunSteadyState(realization,flow_stepper,tran_stepper)
@@ -3077,20 +3136,58 @@ end subroutine TimestepperDestroy
        master_stepper => tran_stepper
     endif
 
+    plot_flag                = PETSC_FALSE
+    transient_plot_flag      = PETSC_FALSE
+    !master_timestep_cut_flag = PETSC_FALSE
+    !flow_timestep_cut_flag   = PETSC_FALSE
+    !tran_timestep_cut_flag   = PETSC_FALSE
+    stop_flag                = PETSC_FALSE
+    activity_coefs_read      = PETSC_FALSE
+    flow_read                = PETSC_FALSE
+    transport_read           = PETSC_FALSE
+    step_to_steady_state     = PETSC_FALSE
+    run_flow_as_steady_state = PETSC_FALSE
+    failure                  = PETSC_FALSE
+    !num_const_timesteps      = 0
 
+    ! GB
+    global_aux_vars => realization%patch%aux%Global%aux_vars
+    call GridVecGetArrayF90(realization%patch%grid,realization%field%porosity_loc, &
+         porosity_loc_p, ierr)
+    liq_vol_start = 0.0d0
+    liq_vol_end   = 0.0d0
+    call RichardsUpdateAuxVars(realization)
+    do local_id=1,realization%patch%grid%nlmax
+       ghosted_id = realization%patch%grid%nL2G(local_id)
+       if(associated(realization%patch%imat)) then
+          if(realization%patch%imat(ghosted_id) <= 0) cycle
+       endif
+
+       sat = global_aux_vars(ghosted_id)%sat(1)
+       dx  = realization%patch%grid%structured_grid%dx(ghosted_id)
+       dy  = realization%patch%grid%structured_grid%dy(ghosted_id)
+       dz  = realization%patch%grid%structured_grid%dz(ghosted_id)
+       del_liq_vol = sat *dx*dy*dz * porosity_loc_p(ghosted_id)
+       liq_vol_start = liq_vol_start + del_liq_vol
+    enddo
 
     ! ensure that steady_state flag is off
     step_to_steady_state = PETSC_FALSE
     call PetscGetTime(stepper_start_time, ierr)
-    start_step = master_stepper%steps+1
+    !start_step = master_stepper%steps+1
+    if (associated(flow_stepper)) &
+         flow_stepper%start_time_step = flow_stepper%steps + 1
+    if (associated(tran_stepper)) &
+         tran_stepper%start_time_step = tran_stepper%steps + 1
 
 
-    do istep = start_step, master_stepper%nstepmax
-       print *, ' ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ '
-       print *, ' '
-       print *, ' '
-       print *, 'istep = ',istep, ' nstepmax = ', master_stepper%nstepmax
-
+    do !istep = start_step, master_stepper%max_time_step
+#ifdef CLM_PFLOTRAN
+       write(iulog, *), ' ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ '
+       write(iulog, *), ' '
+       write(iulog, *), ' '
+       !print *, 'istep = ',istep, ' max_time_step = ', master_stepper%max_time_step
+#endif
        if (OptionPrintToScreen(option) .and. &
             mod(master_stepper%steps,output_option%screen_imod) == 0) then
           option%print_screen_flag = PETSC_TRUE
@@ -3105,8 +3202,8 @@ end subroutine TimestepperDestroy
        endif
 
        prev_waypoint => master_stepper%cur_waypoint
-       flow_timestep_cut_flag = PETSC_FALSE
-       tran_timestep_cut_flag = PETSC_FALSE
+       !flow_timestep_cut_flag = PETSC_FALSE
+       !tran_timestep_cut_flag = PETSC_FALSE
        plot_flag = PETSC_FALSE
        transient_plot_flag = PETSC_FALSE
 
@@ -3114,60 +3211,103 @@ end subroutine TimestepperDestroy
             transient_plot_flag)
 
        ! flow solution
-       if (associated(flow_stepper) .and. .not.run_flow_as_steady_state) then
-          print *,'Call StepperStepFlowDT()'
-          call PetscLogStagePush(logging%stage(FLOW_STAGE),ierr)
-          call StepperStepFlowDT(realization,flow_stepper, &
-               flow_timestep_cut_flag, &
-               num_newton_iterations, &
-               step_to_steady_state,failure)
-          call PetscLogStagePop(ierr)
-          if (failure) return ! if flow solve fails, exit
+       if (associated(flow_stepper)) then
+          if(.not.run_flow_as_steady_state) then
+#ifdef CLM_PFLOTRAN
+             write(iulog, *),'Call StepperStepFlowDT()'
+#endif
+             flow_t0 = option%flow_time
+             call PetscLogStagePush(logging%stage(FLOW_STAGE),ierr)
+             call StepperStepFlowDT(realization,flow_stepper,step_to_steady_state, &
+                  failure)
+             call PetscLogStagePop(ierr)
+             if (failure) return ! if flow solve fails, exit
+             option%flow_time = flow_stepper%target_time
+          endif
        endif
        ! (reactive) transport solution
        if (associated(tran_stepper)) then
           call PetscLogStagePush(logging%stage(TRAN_STAGE),ierr)
-          if (option%reactive_transport_coupling == GLOBAL_IMPLICIT) then
-             call StepperStepTransportDT(realization,tran_stepper, &
-                  flow_timestep_cut_flag, &
-                  tran_timestep_cut_flag, &
-                  idum,failure)
-          else
-#ifdef REVISED_TRANSPORT
-             call StepperStepTransportDT1(realization,tran_stepper, &
-                  flow_timestep_cut_flag, &
-                  tran_timestep_cut_flag, &
-                  idum,failure)
-#endif
+          tran_dt_save = -999.d0
+          if (associated(flow_stepper)) then
+             if (flow_stepper%time_step_cut_flag) then
+                tran_stepper%target_time = flow_stepper%target_time
+                option%tran_dt = min(option%tran_dt,option%flow_dt)
+             endif
           endif
+          if (associated(flow_stepper)) then
+             if (flow_stepper%time_step_cut_flag) then
+                tran_stepper%target_time = flow_stepper%target_time
+                option%tran_dt = min(option%tran_dt,option%flow_dt)
+             endif
+          endif
+          do ! loop on transport until it reaches the target time
+             if (option%reactive_transport_coupling == GLOBAL_IMPLICIT) then
+                !global implicit
+                call StepperStepTransportDT_GI(realization,tran_stepper, &
+                     flow_t0,option%flow_time,failure)
+             else
+                !operator splitting
+                call StepperStepTransportDT_OS(realization,tran_stepper, &
+                     flow_t0,option%flow_time,failure)
+             endif
+             if (failure) then ! if transport solve fails, exit
+                call PetscLogStagePop(ierr)
+                return 
+             endif
+             
+             ! update transport time
+             option%tran_time = option%tran_time + option%tran_dt
+             
+             ! if target time reached, we are done
+             if ((tran_stepper%target_time-option%tran_time) / &
+                  option%tran_time < 1.d-10) exit
+             
+             call StepperUpdateTransportSolution(realization)
+             
+             ! if still stepping, update the time step size based on convergence
+             ! criteria
+             call StepperUpdateDT(null_stepper,tran_stepper,option) 
+             ! if current step exceeds (factoring in tolerance) exceeds the target
+             ! time, set the step size to the difference
+             if ((option%tran_time + &
+                  (1.d0+tran_stepper%time_step_tolerance)*option%tran_dt) > &
+                  tran_stepper%target_time) then
+                ! tran_dt_save enables us to regain the original tran_dt if
+                ! it is cut to match the target time
+                tran_dt_save = option%tran_dt
+                option%tran_dt = tran_stepper%target_time - option%tran_time
+             endif
+          enddo
+          ! if substepping occured and time step size was modified to 
+          ! to match the stepper target time, need to set the transport
+          ! step size back to the pre-modified value
+          if (tran_dt_save > -998.d0) option%tran_dt = tran_dt_save
+          option%tran_time = tran_stepper%target_time
           call PetscLogStagePop(ierr)
-          if (failure) return ! if flow solve fails, exit
-          if (.not.associated(flow_stepper) .or. run_flow_as_steady_state) &
-               num_newton_iterations = idum
        endif
-
-       if (associated(flow_stepper) .and. .not.run_flow_as_steady_state) then
-          master_timestep_cut_flag = flow_timestep_cut_flag
-       else
-          master_timestep_cut_flag = tran_timestep_cut_flag
-       endif
-
+       
        ! update solution variables
-	   print *, ' '
-	   print *,'StepperUpdateSolution()'
+#ifdef CLM_PFLOTRAN
+       write(iulog, *), ' '
+       write(iulog, *),'StepperUpdateSolution()'
+#endif
        call StepperUpdateSolution(realization)
-
+       option%time = master_stepper%target_time
+       
        ! if a time step cut has occured, need to set the below back to original values
        ! if they changed.
-       if (master_timestep_cut_flag) then
+       if (master_stepper%time_step_cut_flag) then
           master_stepper%cur_waypoint => prev_waypoint
           plot_flag = PETSC_FALSE
        endif
        ! however, if we are using the modulus of the output_option%imod, we may still print
-       if (mod(istep,output_option%periodic_output_ts_imod) == 0) then
+       if (mod(master_stepper%steps, &
+            output_option%periodic_output_ts_imod) == 0) then
           plot_flag = PETSC_TRUE
        endif
-       if (plot_flag .or. mod(istep,output_option%periodic_tr_output_ts_imod) == 0) then
+       if (plot_flag .or. mod(master_stepper%steps, &
+            output_option%periodic_tr_output_ts_imod) == 0) then
           transient_plot_flag = PETSC_TRUE
        endif
 
@@ -3178,9 +3318,7 @@ end subroutine TimestepperDestroy
        !    endif
        call Output(realization,plot_flag,transient_plot_flag)
 
-       call StepperUpdateDT(flow_stepper,tran_stepper,option, &
-            master_timestep_cut_flag, &
-            num_const_timesteps,num_newton_iterations)
+       call StepperUpdateDT(flow_stepper,tran_stepper,option)
 
        ! if a simulation wallclock duration time is set, check to see that the
        ! next time step will not exceed that value.  If it does, print the
@@ -3188,7 +3326,8 @@ end subroutine TimestepperDestroy
        if (option%wallclock_stop_flag) then
           call PetscGetTime(current_time, ierr)
           average_step_time = (current_time-stepper_start_time)/ &
-               real(istep-start_step+1) &
+               real(master_stepper%steps-&
+               master_stepper%start_time_step+1) &
                *2.d0  ! just to be safe, double it
           if (average_step_time + current_time > option%wallclock_stop_time) then
              call printMsg(option,"Wallclock stop time exceeded.  Exiting!!!")
@@ -3198,36 +3337,66 @@ end subroutine TimestepperDestroy
        endif
 
        if (option%checkpoint_flag .and. &
-            mod(istep,option%checkpoint_frequency) == 0) then
+            mod(master_stepper%steps,option%checkpoint_frequency) == 0) then
           call StepperCheckpoint(realization,flow_stepper,tran_stepper, &
-               num_const_timesteps,num_newton_iterations, &
-               istep)
+               master_stepper%steps)
        endif
 
-
-       print *, ' '
-       print *, ' '
-       print *, ' ////////////////////////////////////////////////////////////////////// '
-
+#ifdef CLM_PFLOTRAN
+       write(iulog,*), ' '
+       write(iulog,*), ' pause_time = ', pause_time, 'option%time = ', option%time 
+       write(iulog,*), ' ////////////////////////////////////////////////////////////////////// '
+#endif
        ! if at end of waypoint list (i.e. cur_waypoint = null), we are done!
        !if (.not.associated(master_stepper%cur_waypoint) .or. stop_flag .or. (option%time.eq.stop_time) ) then
-	   if(pause_time>0 .and. option%time.eq.pause_time) then
-	   exit
-	   endif
-	   
-	   if (.not.associated(master_stepper%cur_waypoint) .or. stop_flag  ) then
-          if ( stop_flag) then
-             print *, 'We are done ... stop_flag condition'
-          endif
-		  if (.not.associated(master_stepper%cur_waypoint)) then
-             print *, 'We are done ... cur_waypoint == null'
-          endif
-		  !if ( master_stepper%cur_waypoint%time.eq.stop_time) then
-		  !  print *, 'We are done ... cur_waypoint%time =',master_stepper%cur_waypoint%time, ' === stop_time = ',stop_time,& 
-		  !	' time = ',option%time
-		  !endif
+       !if(pause_time>0 .and. option%time.eq.pause_time) then
+       if(pause_Time>0.and.flow_stepper%target_time/realization%output_option%tconv.eq.pause_time) then
           exit
        endif
+	   
+       if (.not.associated(master_stepper%cur_waypoint) .or. stop_flag  ) then
+          if ( stop_flag) then
+#ifdef CLM_PFLOTRAN
+             write(iulog,*), 'We are done ... stop_flag condition'
+#endif
+          endif
+          if (.not.associated(master_stepper%cur_waypoint)) then
+#ifdef CLM_PFLOTRAN
+             write(iulog,*), 'We are done ... cur_waypoint == null'
+#endif
+          endif
+          if (.not.associated(master_stepper%cur_waypoint)) then
+#ifdef CLM_PFLOTRAN
+             write(iulog,*), 'We are done ... cur_waypoint == null'
+#endif
+          endif
+          !if ( master_stepper%cur_waypoint%time.eq.stop_time) then
+          !  print *, 'We are done ... cur_waypoint%time =',master_stepper%cur_waypoint%time, ' === stop_time = ',stop_time,
+          !     ' time = ',option%time
+          !endif
+          exit
+       endif
+
+       ! GB
+       !global_aux_vars => realization%patch%aux%Global%aux_vars
+       !call RichardsUpdateAuxVars(realization)
+       !do local_id=1,realization%patch%grid%nlmax
+       !   ghosted_id = realization%patch%grid%nL2G(local_id)
+       !   if(associated(realization%patch%imat)) then
+       !      if(realization%patch%imat(ghosted_id) <= 0) cycle
+       !   endif
+
+       !   sat = global_aux_vars(ghosted_id)%sat(1)
+       !   dz  = realization%patch%grid%structured_grid%dz(ghosted_id)
+       !   dx  = realization%patch%grid%structured_grid%dx(ghosted_id)
+       !   dy  = realization%patch%grid%structured_grid%dy(ghosted_id)
+       !   del_liq_vol = sat*dx*dy*dz*porosity_loc_p(ghosted_id)
+       !   liq_vol_end = liq_vol_end + del_liq_vol
+       !enddo
+       !call GridVecRestoreArrayF90(realization%patch%grid,realization%field%porosity_loc, &
+       !     porosity_loc_p, ierr)
+
+       !write(iulog,*), 'Change in volume = ', liq_vol_start-liq_vol_end
 
     enddo
 
@@ -3273,7 +3442,7 @@ end subroutine TimestepperDestroy
     PetscBool :: plot_flag, stop_flag, transient_plot_flag
     !PetscBool :: master_timestep_cut_flag
     !PetscBool :: flow_timestep_cut_flag, tran_timestep_cut_flag
-    PetscInt :: istep, start_step
+    !PetscInt :: istep, start_step
     PetscInt :: num_const_timesteps
     PetscInt :: num_newton_iterations, idum, idum2
     !PetscBool :: activity_coefs_read
@@ -3300,24 +3469,32 @@ end subroutine TimestepperDestroy
 
     if (option%checkpoint_flag) then
        call StepperCheckpoint(realization,flow_stepper,tran_stepper, &
-            num_const_timesteps,num_newton_iterations, &
-            NEG_ONE_INTEGER)
+            master_stepper%steps)
     endif
 
     if (OptionPrintToScreen(option)) then
        if (option%nflowdof > 0) then
+#ifndef CLM_PFLOTRAN
           write(*,'(/," FLOW steps = ",i6," newton = ",i8," linear = ",i10, &
                & " cuts = ",i6)') &
-               flow_stepper%steps,flow_stepper%newton_cum, &
-               flow_stepper%linear_cum,flow_stepper%icutcum
+               flow_stepper%steps,flow_stepper%cumulative_newton_iterations, &
+               flow_stepper%cumulative_linear_iterations,flow_stepper%cumulative_time_step_cuts
           write(string,'(f12.1)') flow_stepper%cumulative_solver_time
           write(*,*) 'FLOW SNES time = ' // trim(adjustl(string)) // ' seconds'
+#else
+          write(iulog,'(/," FLOW steps = ",i6," newton = ",i8," linear = ",i10, &
+               & " cuts = ",i6)') &
+               flow_stepper%steps,flow_stepper%cumulative_newton_iterations, &
+               flow_stepper%cumulative_linear_iterations,flow_stepper%cumulative_time_step_cuts
+          write(string,'(f12.1)') flow_stepper%cumulative_solver_time
+          write(iulog,*) 'FLOW SNES time = ' // trim(adjustl(string)) // ' seconds'
+#endif
        endif
        if (option%ntrandof > 0) then
           write(*,'(/," TRAN steps = ",i6," newton = ",i8," linear = ",i10, &
                & " cuts = ",i6)') &
-               tran_stepper%steps,tran_stepper%newton_cum, &
-               tran_stepper%linear_cum,tran_stepper%icutcum
+               tran_stepper%steps,tran_stepper%cumulative_newton_iterations, &
+               tran_stepper%cumulative_linear_iterations,tran_stepper%cumulative_time_step_cuts
           write(string,'(f12.1)') tran_stepper%cumulative_solver_time
           write(*,*) 'TRAN SNES time = ' // trim(adjustl(string)) // ' seconds'
        endif
@@ -3327,16 +3504,16 @@ end subroutine TimestepperDestroy
        if (option%nflowdof > 0) then
           write(option%fid_out,'(/," FLOW steps = ",i6," newton = ",i8," linear = ",i10, &
                & " cuts = ",i6)') &
-               flow_stepper%steps,flow_stepper%newton_cum, &
-               flow_stepper%linear_cum,flow_stepper%icutcum
+               flow_stepper%steps,flow_stepper%cumulative_newton_iterations, &
+               flow_stepper%cumulative_linear_iterations,flow_stepper%cumulative_time_step_cuts
           write(string,'(f12.1)') flow_stepper%cumulative_solver_time
           write(option%fid_out,*) 'FLOW SNES time = ' // trim(adjustl(string)) // ' seconds'
        endif
        if (option%ntrandof > 0) then
           write(option%fid_out,'(/," TRAN steps = ",i6," newton = ",i8," linear = ",i10, &
                & " cuts = ",i6)') &
-               tran_stepper%steps,tran_stepper%newton_cum, &
-               tran_stepper%linear_cum,tran_stepper%icutcum
+               tran_stepper%steps,tran_stepper%cumulative_newton_iterations, &
+               tran_stepper%cumulative_linear_iterations,tran_stepper%cumulative_time_step_cuts
           write(string,'(f12.1)') tran_stepper%cumulative_solver_time
           write(option%fid_out,*) 'TRAN SNES time = ' // trim(adjustl(string)) // ' seconds'
        endif
@@ -3347,6 +3524,6 @@ end subroutine TimestepperDestroy
   end subroutine StepperRunFinalize
 
 
-#endif CLM_PFLOTRAN
+!#endif CLM_PFLOTRAN
 
 end module Timestepper_module

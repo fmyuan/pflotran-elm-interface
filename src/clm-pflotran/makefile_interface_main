@@ -30,6 +30,10 @@ ifdef chuan_co2
 CHUAN_FLAG = -DCHUAN_CO2
 endif
 
+ifdef scott 
+SCOTT_FLAGS = -DENABLE_UNSTRUCTURED -DGEH_DEBUG -fbounds-check
+endif 
+
 ifdef coll
 COLL_FLAG = -DCOLL
 endif
@@ -43,26 +47,31 @@ ifdef vamsi_hdf5
 endif
 
 ifdef samr_hdf5
-  HDF5_FLAGS += -I$(HDF5_INCLUDE) -I$(HDF5_LIB) -DUSE_HDF5
+  HDF5_FLAGS += -I$(HDF5_INCLUDE) -I$(HDF5_LIB) -DSAMR_HAVE_HDF5
 endif
 
+ifdef gpu
+   GPU_FLAGS += -DCHUNK
+endif
 
 ifdef dasvyat
   DASVYAT = -DDASVYAT
 endif
 
-MYFLAGS = -I${objdir} $(HDF5_FLAGS) $(DASVYAT)\
-	  -DREVISED_TRANSPORT \
-	  $(COMPILE_BROKEN_FLAGS) $(GLENN_FLAGS) $(UO2_FLAG) $(TEMP_FLAG)\
-	  $(CHUAN_FLAG) $(COLL_FLAG) $(DENSITY_FLAG) \
-	  -DCLM_PFLOTRAN
+ifdef dasvyat_debug
+  DASVYAT_DEBUG = -DDASVYAT_DEBUG
+endif
+
+MYFLAGS = -I${objdir} $(HDF5_FLAGS) $(DASVYAT) $(DASVYAT_DEBUG)\
+          $(COMPILE_BROKEN_FLAGS) $(GLENN_FLAGS) $(UO2_FLAG) $(TEMP_FLAG) $(GPU_FLAGS)\
+				$(CHUAN_FLAG) $(SCOTT_FLAGS) $(COLL_FLAG) $(DENSITY_FLAG)
 
 CFLAGS		 = 
 FFLAGS		 =
 CPPFLAGS         = ${MYFLAGS}
 FPPFLAGS         = ${MYFLAGS}
 
-CLEANFILES       = pflotran_2
+CLEANFILES       = pflotran 
 
 ifdef petscrel
  include ${PETSC_DIR}/bmake/common/base
@@ -108,6 +117,7 @@ common_obj = ${common_src}option.o \
 	${common_src}waypoint.o \
 	${common_src}region.o \
 	${common_src}fluid.o \
+	${common_src}dataset.o \
 	${common_src}saturation_function.o \
 	${common_src}material.o \
 	${common_src}pckr_mod.o \
@@ -151,7 +161,7 @@ common_obj = ${common_src}option.o \
 	${common_src}stochastic.o \
 	${common_src}output.o \
 	${common_src}init.o \
-	${common_src}pflotran_model.o
+        ${common_src}pflotran_model.o
 
 pflotran_obj = ${common_obj}\
 	${common_src}amrstubs.o
@@ -162,7 +172,7 @@ pflotranamr: $(util_obj) $(pflotranamr_obj)
 	ar ru libpflotranamr.a $(util_obj) $(pflotranamr_obj)
 
 pflotran : $(util_obj) $(pflotran_obj) ${pflotran_src}pflotran_interface_main.o
-	${FLINKER}   -o pflotran_2 $(util_obj) $(pflotran_obj) ${pflotran_src}pflotran_interface_main.o ${PETSC_LIB} ${LIBS} 
+	${FLINKER}   -o pflotran $(util_obj) $(pflotran_obj) ${pflotran_src}pflotran_interface_main.o ${PETSC_LIB} ${LIBS} 
 
 ascii_to_hdf5: input.o hdf5_dataset.o ascii_to_hdf5.o 
 	${FLINKER} -o ascii_to_hdf5 ascii_to_hdf5.o hdf5_dataset.o input.o \
@@ -181,9 +191,8 @@ auxilliary.o : thc_aux.o richards_aux.o reactive_transport_aux.o \
 	mphase_aux.o flash2_aux.o global_aux.o
 #pflotran.o : simulation.o output.o init.o timestepper.o logging.o \
 #	     stochastic_aux.o stochastic.o
-pflotran_model.o: simulation.o realization.o timestepper.o option.o \
-	input.o init.o logging.o stochastic.o stochastic_aux.o \
-	waypoint.o units.o
+pflotran_model.o : simulation.o output.o init.o timestepper.o logging.o \
+	     stochastic_aux.o stochastic.o waypoint.o units.o
 simulation.o : timestepper.o realization.o 
 init.o : option.o grid.o debug.o realization.o solver.o timestepper.o \
 	simulation.o input.o material.o region.o condition.o convergence.o \
@@ -203,7 +212,7 @@ grid.o : structured_grid.o unstructured_grid.o option.o region.o connection.o \
 input.o : string.o option.o
 solver.o : option.o field.o input.o string.o
 region.o : input.o utility.o logging.o string.o
-material.o : option.o input.o string.o
+material.o : option.o input.o string.o dataset.o
 fluid.o : option.o input.o string.o
 saturation_function.o : option.o input.o string.o utility.o
 coupler.o : condition.o connection.o region.o input.o grid.o mfd_aux.o
@@ -247,7 +256,7 @@ immis.o : immis_aux.o realization.o  global_aux.o
 flash2.o : flash2_aux.o realization.o fluid.o global_aux.o
 mphase_aux.o :  option.o material.o water_eos.o co2_span_wagner.o \
 		co2eos.o co2_span_wagner_spline.o co2_sw.o pckr_mod.o \
-		fluid.o saturation_function.o
+		fluid.o saturation_function.o pckr_mod.o
 immis_aux.o :  option.o material.o water_eos.o co2_span_wagner.o \
 		co2eos.o co2_span_wagner_spline.o co2_sw.o pckr_mod.o fluid.o \
 		saturation_function.o

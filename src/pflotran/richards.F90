@@ -6,6 +6,10 @@ module Richards_module
   use Matrix_Buffer_module
 #endif
   
+#ifdef CLM_PFLOTRAN
+  use clm_varctl      , only : iulog
+  use pflotran_clm_interface_type
+#endif 
   implicit none
   
   private 
@@ -3078,6 +3082,11 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
+#ifdef CLM_PFLOTRAN
+      !write(iulog,*),'QSRC: local_id = ',local_id,qsrc !,pf_clm_data%qsrc_flx(local_id)
+      qsrc = pf_clm_data%qsrc_flx(local_id)
+#endif
+
       select case(source_sink%flow_condition%rate%itype)
         case(MASS_RATE_SS)
           qsrc_mol = qsrc/FMWH2O ! kg/sec -> kmol/sec
@@ -4293,6 +4302,10 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
 
       if (patch%imat(ghosted_id) <= 0) cycle
       
+#ifdef CLM_PFLOTRAN
+      qsrc = pf_clm_data%qsrc_flx(local_id)
+#endif
+
       Jup = 0.d0
       select case(source_sink%flow_condition%rate%itype)
         case(MASS_RATE_SS,SCALED_MASS_RATE_SS)
