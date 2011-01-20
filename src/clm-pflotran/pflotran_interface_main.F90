@@ -1,29 +1,34 @@
 program pflotran_interface_main
 
-use pflotran_model_module
+  use pflotran_model_module
 
-implicit none
+  implicit none
 
 #include "finclude/petscsysdef.h"
-  
+
+  PetscInt :: time
+
   type(pflotran_model_type),pointer :: pflotran_m
 
   allocate(pflotran_m)
 
-  pflotran_m => pflotranModelCreate()	
+  pflotran_m => pflotranModelCreate()
 
 
   call pflotranModelStepperRunInit(pflotran_m)
-  call pflotranModelStepperRunTillPauseTime(pflotran_m,1.0d0)  
-  
-  call pflotranModelUpdateTopBCHomogeneous(pflotran_m, 2.0d0 * 3.171d-10 )
-  
-  call pflotranModelStepperRunTillPauseTime(pflotran_m,2.0d0)  
-  call pflotranModelStepperRunTillPauseTime(pflotran_m,3.0d0)  
 
+
+  do time = 1,48
+
+     call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 1800.0d0)
+
+  enddo
+
+  !call pflotranModelStepperRunTillPauseTime(pflotran_m,4.0d0)
+  !call pflotranModelStepperRunTillPauseTime(pflotran_m,7.0d0)
+  
   call pflotranModelStepperRunFinalize(pflotran_m)
 
   call pflotranModelDestroy(pflotran_m)
-  
 
 end program pflotran_interface_main

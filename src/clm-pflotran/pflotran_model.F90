@@ -13,7 +13,12 @@ module pflotran_model_module
   use Units_module
 
 #ifdef WITH_CLM
-  use clm_varctl      , only : iulog
+  use Richards_Aux_module
+  use pflotran_clm_interface_type
+  use clm_varctl, only            : iulog
+  use Mapping_module
+  use clm_pflotran_interface_type
+
 #endif
 
   implicit none
@@ -26,8 +31,8 @@ module pflotran_model_module
   PetscBool :: truth
   PetscBool :: option_found
   PetscBool :: single_inputfile
-  PetscInt :: i
-  PetscInt :: temp_int
+  PetscInt  :: i
+  PetscInt  :: temp_int
   PetscErrorCode :: ierr
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH), pointer :: filenames(:)
@@ -36,11 +41,21 @@ module pflotran_model_module
      type(stochastic_type),  pointer :: stochastic
      type(simulation_type),  pointer :: simulation
      type(realization_type), pointer :: realization
-     type(option_type), pointer :: option
+     type(option_type),      pointer :: option
+#ifdef WITH_CLM
+     type(mapping_type),     pointer :: mapping
+#endif
   end type pflotran_model_type
 
 
   public::pflotranModelCreate,               &
+#ifdef CLM_PFLOTRAN
+       pflotranModelSetICs,                  & !
+       pflotranModelSetSoilProp,             & !
+       pflotranModelUpdateSourceSink,        & !
+       pflotranModelUpdateSaturation,        & !
+       pflotranModelGetSaturation,           & !
+#endif
        pflotranModelStepperRunInit,          &
        pflotranModelStepperRunTillPauseTime, &
        pflotranModelUpdateTopBCHomogeneous,  &
@@ -72,7 +87,9 @@ contains
     use Logging_module
     use Stochastic_module
     use Stochastic_Aux_module
-
+#ifdef CLM_PFLOTRAN
+    use pflotran_clm_interface_type
+#endif
     implicit none
 
 
@@ -98,8 +115,17 @@ contains
     allocate(pflotran_model%simulation)
     allocate(pflotran_model%realization)
     allocate(pflotran_model%option)
+#ifdef CLM_PFLOTRAN
+    allocate(pflotran_model%mapping)
+#endif
 
     nullify(pflotran_model%stochastic)
+    nullify(pflotran_model%simulation)
+    nullify(pflotran_model%realization)
+    nullify(pflotran_model%option)
+#ifdef CLM_PFLOTRAN
+    nullify(pflotran_model%mapping)
+#endif
     pflotran_model%option => OptionCreate()
     pflotran_model%option%fid_out = IUNIT2
     single_inputfile = PETSC_TRUE
@@ -152,8 +178,10 @@ contains
 
     if (single_inputfile) then
 #ifdef WITH_CLM
-       write (iulog,*) 'single_inputfile'
-#endif
+       write(iulog,*),'single_inputfile'
+#else
+       print *,'single_inputfile'
+#endif	   
        PETSC_COMM_WORLD = MPI_COMM_WORLD
        call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
     else
@@ -192,6 +220,21 @@ contains
 
     call Init(pflotran_model%simulation)
 
+#ifdef CLM_PFLOTRAN
+    ! dimension = nlxy
+    allocate ( pf_clm_data%zwt     ( pflotran_model%realization%patch%grid%structured_grid%nlxy ) )
+
+    ! dimension = nlmax
+    allocate ( pf_clm_data%qsrc_flx( pflotran_model%realization%patch%grid%structured_grid%nlmax) )
+    allocate ( pf_clm_data%sat_new ( pflotran_model%realization%patch%grid%structured_grid%nlmax) )
+
+    ! dimension = ngmax
+    allocate ( pf_clm_data%alpha   ( pflotran_model%realization%patch%grid%ngmax ) )
+    allocate ( pf_clm_data%lambda  ( pflotran_model%realization%patch%grid%ngmax ) )
+
+    pflotran_model%mapping => MappingCreate()
+#endif
+
     pflotranModelCreate => pflotran_model
 
 
@@ -219,6 +262,556 @@ contains
 
   ! ************************************************************************** !
   !
+  ! pflotranModelSetICs:
+  !
+  !
+  ! author: Gautam Bisht
+  ! date: 10/12/2010
+  ! ************************************************************************** !
+#ifdef CLM_PFLOTRAN
+  subroutine pflotranModelSetICs( pflotran_model )
+
+    use Realization_module
+    use Patch_module
+    use Grid_module
+    use Field_module
+    use Richards_Aux_module
+    use Global_Aux_module
+    use Option_module
+    use Richards_module
+    use Discretization_module
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    type(option_type), pointer                :: option
+    type(realization_type),pointer            :: realization
+    type(patch_type),pointer                  :: patch
+    type(grid_type),pointer                   :: grid
+    type(field_type),pointer                  :: field
+    type(richards_auxvar_type), pointer       :: rich_aux_vars(:)
+    type(global_auxvar_type), pointer         :: global_aux_vars(:)
+    type(discretization_type), pointer        :: discretization
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id
+    PetscReal          :: head_constant, grav, den,tmp, sat
+    PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:)
+    PetscReal, pointer :: porosity_loc_p(:), perm_xx_loc_p(:)
+
+    realization      => pflotran_model%simulation%realization
+    discretization   => realization%discretization
+    patch            => realization%patch
+    grid             => patch%grid
+    field            => realization%field
+    rich_aux_vars    => patch%aux%Richards%aux_vars
+    global_aux_vars  => patch%aux%Global%aux_vars
+    option           => realization%option
+
+    write (iulog,*), 'In pflotranModelSetICs'
+
+    den = 998.2d0       ! [kg/m^3]  @ 20 degC
+    grav = 9.81d0       ! [m/S^2]
+
+    head_constant = den*grav*(grid%z_max_global - clm_pf_data%zwt(1)) + 101325.0d0
+
+    write(iulog,*), 'z_max_global = ',grid%z_max_global
+    write(iulog,*), 'zwt          = ',clm_pf_data%zwt(1)
+    write(iulog,*), 'head_constant= ',head_constant
+
+    call GridVecGetArrayF90(grid,field%flow_xx      ,xx_loc_p       ,ierr)
+
+    do local_id = 1, grid%nlmax
+       ghosted_id = grid%nL2G(local_id)
+       if (associated(patch%imat)) then
+          if (patch%imat(ghosted_id) <= 0) cycle
+       endif
+       !xx_loc_p(ghosted_id) = head_constant - grid%z(ghosted_id)*den*grav
+       xx_loc_p(ghosted_id) = 0.50d0*xx_loc_p(ghosted_id)
+    enddo
+
+    call GridVecRestoreArrayF90(grid,field%flow_xx       ,xx_loc_p       ,ierr)
+    ! update dependent vectors
+    call DiscretizationGlobalToLocal(discretization,field%flow_xx, &
+                                     field%flow_xx_loc,NFLOWDOF)  
+    call VecCopy(field%flow_xx, field%flow_yy, ierr)
+
+    call RichardsUpdateAuxVars(realization)
+
+    call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
+    tmp = 0.d0
+    do local_id= 1,grid%nlmax
+
+       ghosted_id = grid%nL2G(local_id)
+       if (associated(patch%imat)) then
+          if (patch%imat(ghosted_id) <= 0) cycle
+       endif
+       sat      = global_aux_vars(ghosted_id)%sat(1)
+       tmp = tmp + sat*porosity_loc_p(ghosted_id)
+    enddo
+    write(iulog, *),'total_volume_liq = ', tmp
+
+  end subroutine pflotranModelSetICs
+#endif
+
+  ! ************************************************************************** !
+  !
+  ! pflotranModelSetSoilProp:
+  !
+  !
+  ! author: Gautam Bisht
+  ! date: 10/22/2010
+  ! ************************************************************************** !
+#ifdef CLM_PFLOTRAN
+  subroutine pflotranModelSetSoilProp( pflotran_model )
+
+    use Realization_module
+    use Patch_module
+    use Grid_module
+    use clm_pflotran_interface_type
+    use Richards_Aux_module
+    use Field_module
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    type(realization_type),pointer            :: realization
+    type(patch_type),pointer                  :: patch
+    type(grid_type),pointer                   :: grid
+    type(field_type),pointer                  :: field
+    type(mapping_type),pointer                :: map
+    type(richards_auxvar_type), pointer       :: rich_aux_vars(:)
+    type(richards_auxvar_type), pointer       :: aux_var
+    type(inside_each_pflotran_cell), pointer  :: pf_cell
+
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id, clm_id
+    PetscInt           :: i
+    PetscReal          :: den, vis, grav, vol_ovlap
+    PetscReal,pointer  :: porosity_loc_p(:), vol_ovlap_arr(:)
+    PetscReal,pointer  :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
+
+
+    den = 998.2d0       ! [kg/m^3]  @ 20 degC
+    vis = 0.001002d0    ! [N s/m^2] @ 20 degC
+    grav = 9.81d0       ! [m/S^2]
+
+    realization     => pflotran_model%simulation%realization
+    patch           => realization%patch
+    grid            => patch%grid
+    field           => realization%field
+    rich_aux_vars   => patch%aux%Richards%aux_vars
+    map             => pflotran_model%mapping
+
+
+    call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
+    call GridVecGetArrayF90(grid,field%perm_xx_loc,  perm_xx_loc_p,  ierr)
+    call GridVecGetArrayF90(grid,field%perm_yy_loc,  perm_yy_loc_p,  ierr)
+    call GridVecGetArrayF90(grid,field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+
+    allocate( vol_ovlap_arr(1:grid%ngmax ))
+
+    do local_id = 1,grid%ngmax
+       vol_ovlap_arr(local_id) = 0.0d0
+    enddo
+
+
+    write (iulog,*), 'In pflotranModelSetSoilProp: ',grid%ngmax
+
+
+    ! Initialize permeability and porosity to ZERO
+    do local_id = 1,grid%nlmax
+
+       ghosted_id = grid%nL2G(local_id)
+
+       if (associated(patch%imat)) then
+          if(patch%imat(ghosted_id) <= 0) cycle
+       endif
+
+       perm_xx_loc_p(ghosted_id) = 0.0d0
+       perm_yy_loc_p(ghosted_id) = 0.0d0
+       perm_zz_loc_p(ghosted_id) = 0.0d0
+
+       porosity_loc_p(ghosted_id) = 0.0d0
+
+    enddo
+
+
+    ! Map
+    do local_id = 1,grid%nlmax
+
+       ghosted_id = grid%nL2G(local_id)
+
+       if (associated(patch%imat)) then
+          if(patch%imat(ghosted_id) <= 0) cycle
+       endif
+
+
+       aux_var => rich_aux_vars(ghosted_id)
+       pf_cell => map%pf2clm(local_id)
+
+       !write(iulog,*), 'ghosted_id',ghosted_id, pf_cell%num_clm_cells
+
+       do i = 1,pf_cell%num_clm_cells
+
+          clm_id    = pf_cell%id_clm_cells(i)
+          vol_ovlap = pf_cell%perc_vol_overlap(i)
+
+          !
+          ! bc_alpha [1/Pa]; while sucsat [mm of H20]
+          !
+          ! [Pa] = [mm of H20] * 0.001 [m/mm] * 1000 [kg/m^3] * 9.81 [m/sec^2]
+          !
+          aux_var%bc_alpha  = aux_var%bc_alpha  + vol_ovlap * 1.d0/(clm_pf_data%sucsat(1,clm_id)*grav)
+
+          !
+          ! bc_lambda = 1/bsw
+          !
+          aux_var%bc_lambda = aux_var%bc_lambda + vol_ovlap * (1.d0/clm_pf_data%bsw(   1,clm_id))
+
+          !
+          ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
+          ! [m^2]          [mm/sec]
+          perm_xx_loc_p(ghosted_id) = perm_xx_loc_p(ghosted_id) + vol_ovlap * clm_pf_data%hksat_x(1,clm_id) * vis/ (den * grav) * 1000.d0
+          perm_yy_loc_p(ghosted_id) = perm_yy_loc_p(ghosted_id) + vol_ovlap * clm_pf_data%hksat_y(1,clm_id) * vis/ (den * grav) * 1000.d0
+          perm_zz_loc_p(ghosted_id) = perm_zz_loc_p(ghosted_id) + vol_ovlap * clm_pf_data%hksat_z(1,clm_id) * vis/ (den * grav) * 1000.d0
+
+          !
+          ! porosity = vol. soil moisture @ saturation
+          !
+          porosity_loc_p(ghosted_id) = porosity_loc_p(ghosted_id) + vol_ovlap * clm_pf_data%watsat(1,clm_id)
+
+          vol_ovlap_arr(ghosted_id)  = vol_ovlap_arr(ghosted_id) + vol_ovlap
+
+       enddo
+
+       if (pf_cell%num_clm_cells.eq.0) then
+
+          !
+          ! Soil layer in PFLOTRAN is lower than CLM's lowest soil layer,
+          ! use the values of lowest soil layer
+          !
+
+          aux_var%bc_alpha  = 1.d0/(clm_pf_data%sucsat(1,clm_pf_data%nlevsoi)*grav)
+          aux_var%bc_lambda = 1.d0/(clm_pf_data%bsw(   1,clm_pf_data%nlevsoi))
+
+          perm_xx_loc_p(ghosted_id) = clm_pf_data%hksat_x(1,clm_pf_data%nlevsoi) * vis/ (den * grav) * 1000.d0
+          perm_yy_loc_p(ghosted_id) = clm_pf_data%hksat_y(1,clm_pf_data%nlevsoi) * vis/ (den * grav) * 1000.d0
+          perm_zz_loc_p(ghosted_id) = clm_pf_data%hksat_z(1,clm_pf_data%nlevsoi) * vis/ (den * grav) * 1000.d0
+
+          porosity_loc_p(ghosted_id) = clm_pf_data%watsat(1,clm_pf_data%nlevsoi)
+
+          vol_ovlap_arr(ghosted_id) = 1.0d0
+
+       endif
+
+    enddo
+
+    ! Scale the soil properties by total_vol_overlap
+    do local_id = 1,grid%nlmax
+
+       ghosted_id = grid%nL2G(local_id)
+
+       if (associated(patch%imat)) then
+          if(patch%imat(ghosted_id) <= 0) cycle
+       endif
+
+       aux_var => rich_aux_vars(ghosted_id)
+
+       if (map%pf2clm(local_id)%num_clm_cells.gt.0) then
+
+          !aux_var%bc_alpha  = aux_var%bc_alpha /vol_ovlap_arr(ghosted_id)
+          !aux_var%bc_lambda = aux_var%bc_lambda/vol_ovlap_arr(ghosted_id)
+          !
+          !perm_xx_loc_p(ghosted_id) = perm_xx_loc_p(ghosted_id) / vol_ovlap_arr(ghosted_id)
+          !perm_yy_loc_p(ghosted_id) = perm_yy_loc_p(ghosted_id) / vol_ovlap_arr(ghosted_id)
+          !perm_zz_loc_p(ghosted_id) = perm_zz_loc_p(ghosted_id) / vol_ovlap_arr(ghosted_id)
+          !
+          !porosity_loc_p(ghosted_id) = porosity_loc_p(ghosted_id) / vol_ovlap_arr(ghosted_id)
+
+          aux_var%bc_alpha  = aux_var%bc_alpha /map%pf2clm(local_id)%total_vol_overlap
+          aux_var%bc_lambda = aux_var%bc_lambda/map%pf2clm(local_id)%total_vol_overlap
+
+          perm_xx_loc_p(ghosted_id) = perm_xx_loc_p(ghosted_id) / map%pf2clm(local_id)%total_vol_overlap
+          perm_yy_loc_p(ghosted_id) = perm_yy_loc_p(ghosted_id) / map%pf2clm(local_id)%total_vol_overlap
+          perm_zz_loc_p(ghosted_id) = perm_zz_loc_p(ghosted_id) / map%pf2clm(local_id)%total_vol_overlap
+          
+          porosity_loc_p(ghosted_id) = porosity_loc_p(ghosted_id) / map%pf2clm(local_id)%total_vol_overlap
+
+       endif
+
+    enddo
+
+
+    call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
+    call GridVecRestoreArrayF90(grid,field%perm_xx_loc,  perm_xx_loc_p,  ierr)
+    call GridVecRestoreArrayF90(grid,field%perm_yy_loc,  perm_yy_loc_p,  ierr)
+    call GridVecRestoreArrayF90(grid,field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+
+
+    deallocate ( vol_ovlap_arr)
+
+  end subroutine pflotranModelSetSoilProp
+#endif
+
+  ! ************************************************************************** !
+  !
+  ! pflotranModelGetSaturation:
+  !
+  !
+  ! author: Gautam Bisht
+  ! date: 11/01/2010
+  ! ************************************************************************** !
+#ifdef CLM_PFLOTRAN
+  subroutine pflotranModelGetSaturation (pflotran_model)
+
+    use Realization_module
+    use Patch_module
+    use Grid_module
+    use clm_pflotran_interface_type
+    use Richards_module
+    use Richards_Aux_module
+    use Global_Aux_module
+    use Field_module
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    type(realization_type),pointer            :: realization
+    type(patch_type),pointer                  :: patch
+    type(grid_type),pointer                   :: grid
+    type(field_type),pointer                  :: field
+    type(mapping_type),pointer                :: map
+    type(richards_auxvar_type), pointer       :: aux_var
+    type(inside_each_pflotran_cell), pointer  :: pf_cell
+    type(inside_each_clm_cell),pointer        :: clm_cell
+    type(global_auxvar_type), pointer         :: global_aux_vars(:)
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id, clm_id
+    PetscInt           :: i, g, lev
+    PetscReal          :: sat, vol_ovp, tmp
+    PetscReal,pointer  :: porosity_loc_p(:)
+
+    realization     => pflotran_model%simulation%realization
+    patch           => realization%patch
+    grid            => patch%grid
+    map             => pflotran_model%mapping
+    global_aux_vars => patch%aux%Global%aux_vars
+    field           => realization%field
+
+    write(iulog, *), 'pflotranModelGetSaturation'
+
+    call RichardsUpdateAuxVars(realization)
+    call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
+
+    do g = 1, clm_pf_data%ngrids
+       do lev = 1, clm_pf_data%nlevsoi
+          clm_pf_data%sat(g,lev) = 0.0d0
+       enddo
+    enddo
+
+    do clm_id = 1,clm_pf_data%nlevsoi
+
+       clm_cell => map%clm2pf(clm_id)
+
+       do i = 1,clm_cell%num_pflotran_cells
+
+          local_id = clm_cell%id_pflotran_cells(i)
+          vol_ovp  = clm_cell%perc_vol_overlap( i)
+
+          ghosted_id = grid%nL2G(local_id)
+          sat      = global_aux_vars(ghosted_id)%sat(1)
+
+          clm_pf_data%sat(1,clm_id) = clm_pf_data%sat(1,clm_id) + sat*vol_ovp
+       enddo
+    enddo
+
+
+    call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
+
+  end subroutine pflotranModelGetSaturation
+#endif
+
+  ! ************************************************************************** !
+  !
+  ! pflotranModelInitMapping:
+  !
+  !
+  ! author: Gautam Bisht
+  ! date: 10/18/2010
+  ! ************************************************************************** !
+#ifdef CLM_PFLOTRAN
+  subroutine pflotranModelInitMapping( pflotran_model)
+
+    use Realization_module
+    use Patch_module
+    use Grid_module
+    use clm_pflotran_interface_type
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    type(realization_type),pointer            :: realization
+    type(patch_type),pointer                  :: patch
+    type(grid_type),pointer                   :: grid
+    type(mapping_type),pointer                :: map
+
+    PetscInt  :: local_id, ghosted_id, lev, i,j, id, tmp_int
+    PetscInt  :: z_up_lev, z_dw_lev
+    PetscReal :: z_frm_top, zsurf_frm_top,z_up_frm_top,z_dw_frm_top;
+    PetscReal :: tmp_a, tmp_b
+
+    realization => pflotran_model%simulation%realization
+    patch       => realization%patch
+    grid        => patch%grid
+    map         => pflotran_model%mapping
+
+
+    allocate(map%pf2clm(1:grid%nlmax                               ))
+    allocate(map%clm2pf(1:clm_pf_data%nlevsoi * clm_pf_data%ngrids ))
+
+    write (iulog,*), 'In pflotranModelInitMapping nlmax = ',grid%nlmax
+    do i = 1, clm_pf_data%nlevsoi
+       map%clm2pf(i)%num_pflotran_cells = 0
+       map%clm2pf(i)%total_vol_overlap  = 0.0d0
+    enddo
+
+
+
+    do local_id = 1, grid%nlmax
+
+       ghosted_id = grid%nL2G(local_id)
+
+       if (associated(patch%imat)) then
+          if (patch%imat(ghosted_id) <= 0) cycle
+       endif
+
+
+       !                                     --------
+       !    ===================    z_up_frm_top  |
+       !    ||               ||                  |
+       !    ||               ||                 \ /  +ve
+       !    ||               ||
+       !    ||       o       ||    z_frm_top
+       !    ||               ||
+       !    ||               ||
+       !    ||               ||
+       !    ===================    z_dw_frm_top
+       !
+       !
+
+       z_frm_top       = grid%z_max_global - grid%z(ghosted_id)
+       z_up_frm_top    = z_frm_top - grid%structured_grid%dz(ghosted_id) * 0.5d0
+       z_dw_frm_top    = z_frm_top + grid%structured_grid%dz(ghosted_id) * 0.5d0
+
+       if ( z_up_frm_top.lt.0.d0) then
+          z_up_frm_top = 0.0d0
+       endif
+
+
+       if( z_up_frm_top.ge.clm_pf_data%zisoi(clm_pf_data%nlevsoi)) then
+          ! Top of the CV cell in the PFLOTRAN is below the lowest soil layer witin the CLM
+          map%pf2clm(local_id)%num_clm_cells = 0;
+       else
+
+
+          do lev = 0,clm_pf_data%nlevsoi-1
+             z_up_lev = lev+1
+             if( (clm_pf_data%zisoi(lev).le.z_up_frm_top).and.(clm_pf_data%zisoi(lev+1).ge.z_up_frm_top )) then
+                goto 10
+             endif
+          enddo
+
+10        continue
+
+          do lev = 0,clm_pf_data%nlevsoi-1
+             z_dw_lev = lev+1
+             if( (clm_pf_data%zisoi(lev).le.z_dw_frm_top).and.(clm_pf_data%zisoi(lev+1).ge.z_dw_frm_top )) then
+                goto 20
+             endif
+          enddo
+20        continue
+
+          map%pf2clm(local_id)%num_clm_cells     = z_dw_lev - z_up_lev + 1d0
+          map%pf2clm(local_id)%total_vol_overlap = 0.0d0
+          allocate( map%pf2clm(local_id)%id_clm_cells(    1:z_dw_lev - z_up_lev + 1 ) )
+          allocate( map%pf2clm(local_id)%perc_vol_overlap(1:z_dw_lev - z_up_lev + 1 ) )
+
+          do lev = 1, map%pf2clm(local_id)%num_clm_cells
+
+             map%pf2clm(local_id)%id_clm_cells(lev) = z_up_lev + (lev-1)
+
+             tmp_int = map%clm2pf( z_up_lev + lev-1 )%num_pflotran_cells + 1
+             map%clm2pf( z_up_lev + lev-1 )%num_pflotran_cells =  &
+                  map%clm2pf( z_up_lev + lev-1 )%num_pflotran_cells + 1
+
+             tmp_a = max( clm_pf_data%zisoi(z_up_lev + lev - 2), z_up_frm_top)
+             tmp_b = min( clm_pf_data%zisoi(z_up_lev + lev - 1), z_dw_frm_top)
+
+             map%pf2clm(local_id)%perc_vol_overlap(lev) = (tmp_b-tmp_a)/(z_dw_frm_top - z_up_frm_top)
+
+             map%pf2clm(local_id)%total_vol_overlap = map%pf2clm(local_id)%total_vol_overlap + &
+                  map%pf2clm(local_id)%perc_vol_overlap(lev)
+          enddo
+
+       endif
+
+    enddo
+
+
+    do i = 1,clm_pf_data%nlevsoi
+
+       if (map%clm2pf(i)%num_pflotran_cells.gt.0) then
+          allocate(map%clm2pf(i)%id_pflotran_cells(1:map%clm2pf(i)%num_pflotran_cells))
+          allocate(map%clm2pf(i)%perc_vol_overlap( 1:map%clm2pf(i)%num_pflotran_cells))
+
+          do j=1,map%clm2pf(i)%num_pflotran_cells
+             map%clm2pf(i)%id_pflotran_cells(j) = -999
+          enddo
+       endif
+    enddo
+
+
+    do local_id = 1, grid%nlmax
+
+       ghosted_id = grid%nL2G(local_id)
+
+       if (associated(patch%imat)) then
+          if (patch%imat(ghosted_id) <= 0) cycle
+       endif
+       
+       if ( map%pf2clm(local_id)%num_clm_cells.gt.0) then
+
+          do i=1, map%pf2clm(local_id)%num_clm_cells
+
+             id = map%pf2clm(local_id)%id_clm_cells(i)
+
+             do j=1, map%clm2pf( id )%num_pflotran_cells
+                lev = j
+                if ( map%clm2pf( id )%id_pflotran_cells(j).eq.-999) then
+                   goto 30
+                endif
+             enddo
+30           continue
+
+
+             z_frm_top       = grid%z_max_global - grid%z(ghosted_id)
+             z_up_frm_top    = z_frm_top - grid%structured_grid%dz(ghosted_id) * 0.5d0
+             z_dw_frm_top    = z_frm_top + grid%structured_grid%dz(ghosted_id) * 0.5d0
+
+             tmp_a = max( clm_pf_data%zisoi(id-1), z_up_frm_top)
+             tmp_b = min( clm_pf_data%zisoi(id  ), z_dw_frm_top)
+
+             map%clm2pf(id)%id_pflotran_cells(lev) = local_id
+             map%clm2pf(id)%perc_vol_overlap(lev)  = (tmp_b - tmp_a)/&
+                  ( clm_pf_data%zisoi(id) - clm_pf_data%zisoi(id-1))
+             map%clm2pf(id)%total_vol_overlap = map%clm2pf(id)%total_vol_overlap + &
+                  map%clm2pf(id)%perc_vol_overlap(lev)
+             
+             !write(iulog,*), 'CLM2PF: ',id, map%clm2pf(id)%id_pflotran_cells(lev)
+          enddo
+       endif
+    enddo
+
+  end subroutine pflotranModelInitMapping
+#endif
+
+  ! ************************************************************************** !
+  !
   ! pflotranModelStepperRunTillPauseTime: It performs the model integration
   !             till the specified pause_time.
   !
@@ -229,18 +822,317 @@ contains
   ! ************************************************************************** !
   subroutine pflotranModelStepperRunTillPauseTime(pflotran_model, pause_time)
 
+    use Richards_module
+    use Grid_module
+    use Patch_module
+    use Field_module
+    use Global_Aux_module
+
+
     type(pflotran_model_type), pointer :: pflotran_model
-    PetscReal                          :: pause_time
+    type(realization_type), pointer    :: realization
+    type(grid_type),pointer            :: grid
+    type(field_type),pointer           :: field
+    type(global_auxvar_type), pointer  :: global_aux_vars(:)
+    type(patch_type), pointer          :: patch
+
+    PetscReal  :: pause_time
+    PetscReal  :: dtime
+    PetscReal  :: liq_vol_start ! [m^3/m^3]
+    PetscReal  :: liq_vol_end   ! [m^3/m^3]
+    PetscReal  :: del_liq_vol, dz, sat, source_sink
+    PetscInt   :: local_id, ghosted_id
+    PetscReal,pointer  :: porosity_loc_p(:)
+ 
+    realization     => pflotran_model%simulation%realization
+    patch           => realization%patch
+    grid            => patch%grid
+    global_aux_vars => patch%aux%Global%aux_vars
+    field           => realization%field
+
+#ifdef CLM_PFLOTRAN
+    write(iulog,*), '>>>> Inserting waypoint at pause_time = ',pause_time
+#else
+    print *, '>>>> Inserting waypoint at pause_time = ',pause_time
+#endif
 
     call pflotranModelInsertWaypoint(pflotran_model, pause_time)
-    call pflotranModelInsertWaypoint(pflotran_model, pause_time + 1.0d0)
+    call pflotranModelInsertWaypoint(pflotran_model, pause_time + 100.0d0)
+
+    call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
+
+    call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
+
+    liq_vol_start = 0.d0
+    liq_vol_end   = 0.d0
+    source_sink   = 0.d0
+
+    ! Volume of Water before PFLOTRAN is called
+    do local_id= 1,grid%nlmax
+       ghosted_id = grid%nL2G(local_id)
+       if (associated(patch%imat)) then
+          if (patch%imat(ghosted_id) <= 0) cycle
+       endif
+       sat           = global_aux_vars(ghosted_id)%sat(1)
+       dz            = grid%structured_grid%dz(ghosted_id) 
+       del_liq_vol   = sat * porosity_loc_p(ghosted_id) * dz
+       liq_vol_start = liq_vol_start + del_liq_vol
+    enddo
 
     call StepperRunOneDT(pflotran_model%simulation%realization, &
          pflotran_model%simulation%flow_stepper, &
          pflotran_model%simulation%tran_stepper, pause_time)
 
+#ifdef CLM_PFLOTRAN
+   call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
+   ! Volume of Water after PFLOTRAN finished
+   do local_id= 1,grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (associated(patch%imat)) then
+         if (patch%imat(ghosted_id) <= 0) cycle
+      endif
+      sat           = global_aux_vars(ghosted_id)%sat(1)
+      dz            = grid%structured_grid%dz(ghosted_id) 
+      del_liq_vol   = sat * porosity_loc_p(ghosted_id) * dz
+      liq_vol_end   = liq_vol_end + del_liq_vol
+
+      source_sink   = source_sink + pf_clm_data%qsrc_flx(local_id)
+   enddo
+   
+   write(iulog, *), '===================================================='
+   write(iulog, *), 'Volume of LIQUID water:'
+   write(iulog, *), 'Before PFLOTRAN call: ',liq_vol_start,                        '[m^3/area]'
+   write(iulog, *), 'After  PFLOTRAN call: ',liq_vol_end  ,                        '[m^3/area]'
+   write(iulog, *), 'Change              : ',liq_vol_start-liq_vol_end,            '[m^3/area]'
+   write(iulog, *), 'Rate of change      : ',(liq_vol_end-liq_vol_start)/1800.0d0, '[m^3/area/sec]'
+   write(iulog, *), 'Source_sink         : ',source_sink/998.2d0, '[m/sec]'
+   write(iulog, *), '====================================================?'
+
+   call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
+#endif
+
   end subroutine pflotranModelStepperRunTillPauseTime
 
+  ! ************************************************************************** !
+  !
+  !
+  ! author: Gautam Bisht
+  ! date: 10/28/2010
+  ! ************************************************************************** !
+#ifdef CLM_PFLOTRAN
+  subroutine pflotranModelUpdateSourceSink (pflotran_model)
+
+    use Realization_module
+    use Patch_module
+    use Grid_module
+    use clm_pflotran_interface_type
+    use Richards_Aux_module
+    use Field_module
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    type(realization_type),pointer            :: realization
+    type(patch_type),pointer                  :: patch
+    type(grid_type),pointer                   :: grid
+    type(field_type),pointer                  :: field
+    type(mapping_type),pointer                :: map
+    type(inside_each_clm_cell), pointer       :: clm_cell
+
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id, pf_id
+    PetscInt           :: i
+    PetscReal          :: vol_ovlap, tmp
+
+    realization     => pflotran_model%simulation%realization
+    patch           => realization%patch
+    grid            => patch%grid
+    field           => realization%field
+    map             => pflotran_model%mapping
+
+
+    ! Initialize source/sink to ZERO
+    do local_id = 1,grid%nlmax
+
+       ghosted_id = grid%nL2G(local_id)
+
+       if (associated(patch%imat)) then
+          if(patch%imat(ghosted_id) <= 0) cycle
+       endif
+
+       pf_clm_data%qsrc_flx(local_id) = 0.0d0
+
+    enddo
+
+    tmp = 0.0d0
+    do i = 1,clm_pf_data%nlevsoi
+
+       tmp = tmp + clm_pf_data%qflx_sink(1,i)
+       do local_id = 1,map%clm2pf(i)%num_pflotran_cells
+
+          pf_id     = map%clm2pf(i)%id_pflotran_cells(local_id)
+          vol_ovlap = map%clm2pf(i)%perc_vol_overlap( local_id)
+
+          pf_clm_data%qsrc_flx(pf_id) = pf_clm_data%qsrc_flx(pf_id) &
+               - vol_ovlap * clm_pf_data%qflx_sink(1,i)
+       enddo
+    enddo
+
+    write(iulog,*), 'pflotranModelUpdateSourceSink: tmp       [mm/sec] = ',tmp*1000.0d0 /998.2d0
+    write(iulog,*), 'pflotranModelUpdateSourceSink: tmp*30*60 [mm    ] = ',tmp*30*60*1000.0d0 /998.2d0
+
+  end subroutine pflotranModelUpdateSourceSink
+#endif
+
+  ! ************************************************************************** !
+  !
+  ! pflotranModelUpdateSaturation:
+  !
+  !
+  ! author: Gautam Bisht
+  ! date: 10/12/2010
+  ! ************************************************************************** !
+#ifdef CLM_PFLOTRAN
+  subroutine pflotranModelUpdateSaturation( pflotran_model )
+
+    use Realization_module
+    use Patch_module
+    use Grid_module
+    use Field_module
+    use Richards_Aux_module
+    use Global_Aux_module
+    use Option_module
+    use Richards_module
+    use Saturation_Function_module
+    use Discretization_module
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    type(option_type), pointer                :: option
+    type(realization_type),pointer            :: realization
+    type(patch_type),pointer                  :: patch
+    type(grid_type),pointer                   :: grid
+    type(field_type),pointer                  :: field
+    type(richards_auxvar_type), pointer       :: rich_aux_vars(:)
+    type(global_auxvar_type), pointer         :: global_aux_vars(:)
+    type(inside_each_clm_cell), pointer       :: clm_cell
+    type(mapping_type),pointer                :: map
+    type(inside_each_pflotran_cell), pointer  :: pf_cell
+    type(saturation_function_type)            :: sat_func
+    type(richards_auxvar_type)                :: aux_var
+    type(global_auxvar_type)                  :: global_aux_var
+    type(discretization_type), pointer        :: discretization
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id, clm_id, i
+    PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:)
+    PetscReal          :: sat_old, sat_new, sat
+    PetscReal          :: pc_old, pc_new, pc
+    PetscReal          :: lambda, alpha, Sr, vol_ovlap
+
+    realization      => pflotran_model%simulation%realization
+    discretization   => realization%discretization
+    patch            => realization%patch
+    grid             => patch%grid
+    field            => realization%field
+    rich_aux_vars    => patch%aux%Richards%aux_vars
+    global_aux_vars  => patch%aux%Global%aux_vars
+    option           => realization%option
+    map              => pflotran_model%mapping
+
+    write (iulog,*), 'In pflotranModelUpdateSaturation'
+
+    ! Initialize sat_new to ZERO
+    do local_id = 1,grid%nlmax
+       ghosted_id = grid%nL2G(local_id)
+       if (associated(patch%imat)) then
+          if(patch%imat(ghosted_id) <= 0) cycle
+       endif
+       pf_clm_data%sat_new(local_id) = 0.0d0
+    enddo
+
+    do local_id = 1,grid%nlmax
+       
+       ghosted_id = grid%nL2G(local_id)      
+       if (associated(patch%imat)) then
+          if(patch%imat(ghosted_id) <= 0) cycle
+       endif
+
+       pf_cell => map%pf2clm(local_id)
+
+       do i = 1,pf_cell%num_clm_cells
+
+          clm_id    = pf_cell%id_clm_cells(i)
+          vol_ovlap = pf_cell%perc_vol_overlap(i)
+
+          pf_clm_data%sat_new(local_id) = pf_clm_data%sat_new(local_id) +&
+               vol_ovlap * clm_pf_data%sat(1,clm_id)
+
+       enddo
+    enddo
+
+    call GridVecGetArrayF90(grid,field%flow_xx,  xx_loc_p,   ierr)
+    call GridVecGetArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
+
+    do local_id = 1, grid%nlmax
+
+       ghosted_id = grid%nL2G(local_id)
+
+       if (associated(patch%imat)) then
+          if (patch%imat(ghosted_id) <= 0) cycle
+       endif
+
+       if (map%pf2clm(local_id)%num_clm_cells.gt.0) then
+          sat_new = pf_clm_data%sat_new(ghosted_id) / map%pf2clm(local_id)%total_vol_overlap
+
+          sat_func = realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr
+          aux_var        = rich_aux_vars(ghosted_id)
+          global_aux_var = global_aux_vars(ghosted_id)
+          lambda         = aux_var%bc_lambda
+          alpha          = aux_var%bc_alpha
+          Sr             = sat_func%Sr(1)
+
+          pc = option%reference_pressure - xx_loc_p(ghosted_id)
+          
+          sat_old = Sr + (1.0d0 - Sr)* ((pc*alpha)**(-lambda))
+          pc_old  = (1.0d0/alpha) * (((1.0d0 - Sr)/(sat_old - Sr))**(1.0/lambda))
+ 
+          !sat_new = 0.99d0*sat_old
+          sat_new = min(sat_new, 1.0d0)  
+          if ( sat_new.lt.Sr ) then
+             write(iulog,*), 'sat_new < Sr'
+             pc_new = 1.0d0/alpha
+          else
+             pc_new  = (1.0d0/alpha) * (((1.0d0 - Sr)/(sat_new - Sr))**(1.0/lambda))
+          endif
+          
+          !write(iulog, *), 'sat diff: ',sat_new, sat_old
+          !write(iulog, *), 'pc  diff: ',pc_new ,  pc_old
+          
+          xx_loc_p(ghosted_id) = option%reference_pressure - pc_new 
+
+       endif
+       
+    enddo
+
+    call GridVecRestoreArrayF90(grid,field%flow_xx,  xx_loc_p,   ierr)
+    call GridVecRestoreArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
+    ! update dependent vectors
+    call DiscretizationGlobalToLocal(discretization,field%flow_xx, &
+                                     field%flow_xx_loc,NFLOWDOF)  
+    call VecCopy(field%flow_xx, field%flow_yy, ierr)
+
+
+    local_id = grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    write (iulog, *), 'SAT:', global_aux_vars(ghosted_id)%sat(1)
+
+    call RichardsUpdateAuxVars(realization)
+
+    local_id = grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    write (iulog, *), 'SAT:', global_aux_vars(ghosted_id)%sat(1)
+
+  end subroutine pflotranModelUpdateSaturation
+#endif
 
   ! ************************************************************************** !
   !
@@ -359,6 +1251,20 @@ contains
   subroutine pflotranModelDestroy(pflotran_model)
 
     type(pflotran_model_type), pointer :: pflotran_model
+
+#ifdef CLM_PFLOTRAN
+    type(mapping_type),pointer         :: map
+
+    map         => pflotran_model%mapping
+
+    deallocate ( pf_clm_data%zwt      )
+    deallocate ( pf_clm_data%alpha    )
+    deallocate ( pf_clm_data%lambda   )
+    deallocate ( pf_clm_data%qsrc_flx )
+    deallocate ( pf_clm_data%sat_new  )
+    deallocate ( map%pf2clm )
+    deallocate ( map%clm2pf )
+#endif
 
     ! Clean things up.
     call SimulationDestroy(pflotran_model%simulation)
