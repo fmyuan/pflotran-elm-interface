@@ -37,6 +37,16 @@ module pflotran_model_module
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH), pointer :: filenames(:)
 
+!#ifdef CLM_PFLOTRAN
+  type, public :: inside_each_overlapped_cell
+     PetscInt           :: ocell_count
+     PetscInt,  pointer :: ocell_id(:)
+     PetscReal, pointer :: perc_vol_overlap(:)
+     PetscReal          :: total_vol_overlap
+  end type inside_each_overlapped_cell
+
+!#endif
+
   type, public :: pflotran_model_type
      type(stochastic_type),  pointer :: stochastic
      type(simulation_type),  pointer :: simulation
@@ -45,8 +55,13 @@ module pflotran_model_module
 #ifdef WITH_CLM
      type(mapping_type),     pointer :: mapping
 #endif
-  end type pflotran_model_type
+     type(inside_each_overlapped_cell), pointer :: pf_cells(:)
+     type(inside_each_overlapped_cell), pointer :: clm_cells(:)
+	 
+	 PetscInt :: num_pf_cells
+	 PetscInt :: num_clm_cells
 
+  end type pflotran_model_type
 
   public::pflotranModelCreate,               &
 #ifdef CLM_PFLOTRAN
@@ -55,7 +70,9 @@ module pflotran_model_module
        pflotranModelUpdateSourceSink,        & !
        pflotranModelUpdateSaturation,        & !
        pflotranModelGetSaturation,           & !
+	   pflotranModelInitMapping,             &
 #endif
+	   pflotranModelInitMapping2,            &
        pflotranModelStepperRunInit,          &
        pflotranModelStepperRunTillPauseTime, &
        pflotranModelUpdateTopBCHomogeneous,  &
@@ -126,6 +143,10 @@ contains
 #ifdef CLM_PFLOTRAN
     nullify(pflotran_model%mapping)
 #endif
+	nullify(pflotran_model%pf_cells)
+	nullify(pflotran_model%clm_cells)
+
+
     pflotran_model%option => OptionCreate()
     pflotran_model%option%fid_out = IUNIT2
     single_inputfile = PETSC_TRUE
@@ -235,6 +256,9 @@ contains
     pflotran_model%mapping => MappingCreate()
 #endif
 
+	pflotran_model%num_pf_cells = -1
+	pflotran_model%num_clm_cells= -1
+
     pflotranModelCreate => pflotran_model
 
 
@@ -290,6 +314,8 @@ contains
     type(richards_auxvar_type), pointer       :: rich_aux_vars(:)
     type(global_auxvar_type), pointer         :: global_aux_vars(:)
     type(discretization_type), pointer        :: discretization
+	
+	implicit none
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
@@ -369,6 +395,8 @@ contains
     use clm_pflotran_interface_type
     use Richards_Aux_module
     use Field_module
+
+	implicit none
 
     type(pflotran_model_type), pointer        :: pflotran_model
     type(realization_type),pointer            :: realization
@@ -571,6 +599,8 @@ contains
     use Global_Aux_module
     use Field_module
 
+	implicit none
+
     type(pflotran_model_type), pointer        :: pflotran_model
     type(realization_type),pointer            :: realization
     type(patch_type),pointer                  :: patch
@@ -643,6 +673,8 @@ contains
     use Patch_module
     use Grid_module
     use clm_pflotran_interface_type
+
+	implicit none
 
     type(pflotran_model_type), pointer        :: pflotran_model
     type(realization_type),pointer            :: realization
@@ -812,6 +844,121 @@ contains
 
   ! ************************************************************************** !
   !
+  ! pflotranModelInitMapping2:
+  !
+  !
+  ! author: Gautam Bisht
+  ! date: 01/28/2011
+  ! ************************************************************************** !
+!#ifdef CLM_PFLOTRAN
+  subroutine pflotranModelInitMapping2( pflotran_model )
+
+  use Input_module
+  use Option_module
+
+  implicit none
+
+  character(len=MAXSTRINGLENGTH)     :: filename
+  type(pflotran_model_type), pointer :: pflotran_model
+  PetscInt                           :: ii,jj
+
+  filename = 'mapping_clm2pf.txt'
+
+  call pflotranModelReadMappingFile( pflotran_model%option, filename, &
+	pflotran_model%clm_cells, pflotran_model%num_clm_cells)
+
+  filename = 'mapping_pf2clm.txt'
+
+  call pflotranModelReadMappingFile( pflotran_model%option, filename, &
+	pflotran_model%pf_cells, pflotran_model%num_pf_cells)
+
+  print *, 'pf_cells%num_pf_cells =',pflotran_model%num_pf_cells
+  print *, 'pf_cells%num_clm_cells=',pflotran_model%num_clm_cells
+
+  
+  ! Free up the memory
+  do ii = 1,pflotran_model%num_pf_cells
+	if( pflotran_model%pf_cells(ii)%ocell_count.gt.0) then
+		deallocate(pflotran_model%pf_cells(ii)%ocell_id)
+		deallocate(pflotran_model%pf_cells(ii)%perc_vol_overlap )
+	endif
+  enddo
+  deallocate(pflotran_model%pf_cells)
+  
+  do ii = 1,pflotran_model%num_clm_cells
+	if( pflotran_model%clm_cells(ii)%ocell_count.gt.0) then
+		deallocate(pflotran_model%clm_cells(ii)%ocell_id)
+		deallocate(pflotran_model%clm_cells(ii)%perc_vol_overlap )
+	endif
+  enddo
+  deallocate(pflotran_model%clm_cells)
+
+
+  end subroutine pflotranModelInitMapping2
+  
+  ! ************************************************************************** !
+  !
+  ! pflotranModelReadMappingFile:
+  !
+  !
+  ! author: Gautam Bisht
+  ! date: 01/28/2011
+  ! ************************************************************************** !
+  subroutine pflotranModelReadMappingFile(option, filename, ocells, num_cells)
+  
+  use Input_module
+  use Option_module
+  
+  implicit none
+  
+  PetscInt  :: cell_id, ocell_id
+  PetscInt  :: num_cells, num_ocells
+  PetscReal :: ocell_vol
+  PetscInt  :: fileid
+  PetscInt  :: ii, jj
+
+  character(len=MAXSTRINGLENGTH)     :: filename
+  character(len=MAXWORDLENGTH)       :: card
+  type(input_type), pointer          :: input
+  type(option_type), pointer         :: option
+  type(inside_each_overlapped_cell),pointer :: ocells(:)  
+  
+  fileid   = 20
+  card     = 'pflotran_interface_main'
+
+  input => InputCreate(fileid,filename)
+  call InputReadFlotranString(input,option)
+  call InputErrorMsg(input,option,'number of cells',card)
+
+  num_cells = -1
+  call InputReadInt(input,option,num_cells)
+  
+  allocate(ocells(num_cells))
+  
+  do ii = 1,num_cells
+	call InputReadFlotranString(input,option)
+	call InputReadInt(input,option,cell_id)
+	call InputReadInt(input,option,num_ocells)
+	ocells(cell_id)%ocell_count = num_cells
+	allocate(ocells(cell_id)%ocell_id(        num_ocells) )
+	allocate(ocells(cell_id)%perc_vol_overlap(num_ocells) )
+	ocells(cell_id)%total_vol_overlap = 0.0d0
+	do jj = 1,num_ocells
+	  call InputReadInt(input,option,ocell_id)
+	  call InputReadDouble(input,option,ocell_vol)
+	  ocells(cell_id)%ocell_id(jj)         = ocell_id
+	  ocells(cell_id)%perc_vol_overlap(jj) = ocell_vol
+	  ocells(cell_id)%total_vol_overlap  = &
+		ocells(cell_id)%total_vol_overlap + ocell_vol
+	enddo
+  enddo
+
+  end subroutine pflotranModelReadMappingFile
+  
+!#endif
+
+  ! ************************************************************************** !
+  !
   ! pflotranModelStepperRunTillPauseTime: It performs the model integration
   !             till the specified pause_time.
   !
@@ -828,6 +975,7 @@ contains
     use Field_module
     use Global_Aux_module
 
+	implicit none
 
     type(pflotran_model_type), pointer :: pflotran_model
     type(realization_type), pointer    :: realization
@@ -929,6 +1077,8 @@ contains
     use Richards_Aux_module
     use Field_module
 
+	implicit none
+
     type(pflotran_model_type), pointer        :: pflotran_model
     type(realization_type),pointer            :: realization
     type(patch_type),pointer                  :: patch
@@ -1004,6 +1154,8 @@ contains
     use Richards_module
     use Saturation_Function_module
     use Discretization_module
+
+	implicit none
 
     type(pflotran_model_type), pointer        :: pflotran_model
     type(option_type), pointer                :: option
@@ -1144,6 +1296,7 @@ contains
 
     use Condition_module
 
+	implicit none
 
     type(pflotran_model_type), pointer        :: pflotran_model
     type(realization_type),pointer            :: realization
@@ -1200,6 +1353,8 @@ contains
   ! ************************************************************************** !
   subroutine pflotranModelStepperRunFinalize(pflotran_model)
 
+	implicit none
+
     type(pflotran_model_type), pointer :: pflotran_model
 
     call StepperRunFinalize(pflotran_model%simulation%realization, &
@@ -1222,6 +1377,8 @@ contains
   ! date: 9/10/2010
   ! ************************************************************************** !
   subroutine pflotranModelInsertWaypoint(pflotran_model, waypoint_time)
+
+	implicit none
 
     type(pflotran_model_type),pointer :: pflotran_model
     type(waypoint_type)      ,pointer :: waypoint
@@ -1250,7 +1407,10 @@ contains
   ! ************************************************************************** !
   subroutine pflotranModelDestroy(pflotran_model)
 
+	implicit none
+
     type(pflotran_model_type), pointer :: pflotran_model
+	PetscInt :: ii, jj
 
 #ifdef CLM_PFLOTRAN
     type(mapping_type),pointer         :: map
