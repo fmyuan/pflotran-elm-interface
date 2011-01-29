@@ -14,6 +14,7 @@ program pflotran_interface_main
 
   pflotran_m => pflotranModelCreate()
 
+  call pflotranModelInitMapping2(pflotran_m)
 
   call pflotranModelStepperRunInit(pflotran_m)
 
