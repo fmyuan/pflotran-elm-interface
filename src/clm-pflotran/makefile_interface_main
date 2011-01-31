@@ -64,7 +64,7 @@ endif
 
 MYFLAGS = -I${objdir} $(HDF5_FLAGS) $(DASVYAT) $(DASVYAT_DEBUG)\
           $(COMPILE_BROKEN_FLAGS) $(GLENN_FLAGS) $(UO2_FLAG) $(TEMP_FLAG) $(GPU_FLAGS)\
-				$(CHUAN_FLAG) $(SCOTT_FLAGS) $(COLL_FLAG) $(DENSITY_FLAG)
+				$(CHUAN_FLAG) $(SCOTT_FLAGS) $(COLL_FLAG) $(DENSITY_FLAG) -w
 
 CFLAGS		 = 
 FFLAGS		 =
@@ -161,6 +161,7 @@ common_obj = ${common_src}option.o \
 	${common_src}stochastic.o \
 	${common_src}output.o \
 	${common_src}init.o \
+	${common_src}mapping.o \
         ${common_src}pflotran_model.o
 
 pflotran_obj = ${common_obj}\
