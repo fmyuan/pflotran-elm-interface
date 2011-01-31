@@ -16,19 +16,19 @@ program pflotran_interface_main
 
   call pflotranModelInitMapping2(pflotran_m)
 
-  call pflotranModelStepperRunInit(pflotran_m)
+  !call pflotranModelStepperRunInit(pflotran_m)
 
 
-  do time = 1,48
+  !do time = 1,48
 
-     call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 1800.0d0)
+   !  call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 1800.0d0)
 
-  enddo
+  !enddo
 
   !call pflotranModelStepperRunTillPauseTime(pflotran_m,4.0d0)
   !call pflotranModelStepperRunTillPauseTime(pflotran_m,7.0d0)
   
-  call pflotranModelStepperRunFinalize(pflotran_m)
+  !call pflotranModelStepperRunFinalize(pflotran_m)
 
   call pflotranModelDestroy(pflotran_m)
 
