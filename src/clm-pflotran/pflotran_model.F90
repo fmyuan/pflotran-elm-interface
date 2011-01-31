@@ -57,6 +57,8 @@ module pflotran_model_module
 #ifdef WITH_CLM
      type(mapping_type),     pointer :: mapping
 #endif
+     PetscReal :: pause_time_1
+     PetscReal :: pause_time_2
      type(inside_each_overlapped_cell), pointer :: pf_cells(:)
      type(inside_each_overlapped_cell), pointer :: clm_cells(:)
      type(mapping_type),     pointer :: map_clm2pf
@@ -82,6 +84,7 @@ module pflotran_model_module
        pflotranModelUpdateTopBCHomogeneous,  &
        pflotranModelStepperRunFinalize,      &
        pflotranModelInsertWaypoint,          &
+       pflotranModelDeleteWaypoint,          &
        pflotranModelDestroy
 
 contains
@@ -157,6 +160,9 @@ contains
     pflotran_model%option => OptionCreate()
     pflotran_model%option%fid_out = IUNIT2
     single_inputfile = PETSC_TRUE
+
+    pflotran_model%pause_time_1 = -1.0d0
+    pflotran_model%pause_time_2 = -1.0d0
 
 
 #ifndef WITH_CLM
@@ -807,6 +813,7 @@ contains
     enddo
 
 
+
     do local_id = 1, grid%nlmax
 
        ghosted_id = grid%nL2G(local_id)
@@ -843,10 +850,32 @@ contains
              map%clm2pf(id)%total_vol_overlap = map%clm2pf(id)%total_vol_overlap + &
                   map%clm2pf(id)%perc_vol_overlap(lev)
              
-             !write(iulog,*), 'CLM2PF: ',id, map%clm2pf(id)%id_pflotran_cells(lev)
           enddo
        endif
     enddo
+
+
+    write(iulog,*), 'CLM2PF: '
+    do i = 1,clm_pf_data%nlevsoi
+       write(iulog,*), ' clm_id =',i,' num_cells = ', map%clm2pf(i)%num_pflotran_cells
+       do j=1,map%clm2pf(i)%num_pflotran_cells
+          write(iulog,*), ' pf_id=',map%clm2pf(i)%id_pflotran_cells(j), &
+               map%clm2pf(i)%perc_vol_overlap(j)
+       enddo
+    enddo
+    
+    write(iulog,*), '=============================================== '
+    write(iulog,*), '=============================================== '
+    write(iulog,*), 'PF2CLM: '
+    do i = 1,grid%nlmax
+       write(iulog,*), ' pf_id =',i,' num_cells = ', map%pf2clm(i)%num_clm_cells
+       do j=1,map%pf2clm(i)%num_clm_cells
+          write(iulog,*), ' clm_id=',map%pf2clm(i)%id_clm_cells(j), &
+               map%pf2clm(i)%perc_vol_overlap(j)
+       enddo
+    enddo
+    write(iulog,*), '=============================================== '
+
 
   end subroutine pflotranModelInitMapping
 #endif
@@ -1364,11 +1393,25 @@ contains
    write(iulog, *), 'After  PFLOTRAN call: ',liq_vol_end  ,                        '[m^3/area]'
    write(iulog, *), 'Change              : ',liq_vol_start-liq_vol_end,            '[m^3/area]'
    write(iulog, *), 'Rate of change      : ',(liq_vol_end-liq_vol_start)/1800.0d0, '[m^3/area/sec]'
-   write(iulog, *), 'Source_sink         : ',source_sink/998.2d0, '[m/sec]'
+   write(iulog, *), 'Source_sink         : ',source_sink/998.2d0,                  '[m/sec]'
    write(iulog, *), '====================================================?'
 
    call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
 #endif
+
+
+   if(pflotran_model%pause_time_1.gt.0.0d0) then
+      print *, 'call pflotranModelDeleteWaypoint: ', pflotran_model%pause_time_1
+      call pflotranModelDeleteWaypoint(pflotran_model, pflotran_model%pause_time_1)
+   endif
+
+   if(pflotran_model%pause_time_2.gt.0.0d0) then
+      print *, 'call pflotranModelDeleteWaypoint: ', pflotran_model%pause_time_2
+      call pflotranModelDeleteWaypoint(pflotran_model, pflotran_model%pause_time_2)
+   endif
+
+   pflotran_model%pause_time_1 = pause_time 
+   pflotran_model%pause_time_2 = pause_time + 100.0d0
 
   end subroutine pflotranModelStepperRunTillPauseTime
 
@@ -1708,6 +1751,26 @@ contains
 
 
   end subroutine pflotranModelInsertWaypoint
+
+  subroutine pflotranModelDeleteWaypoint(pflotran_model, waypoint_time)
+
+    type(pflotran_model_type),pointer :: pflotran_model
+    type(waypoint_type)      ,pointer :: waypoint
+    type(option_type)        ,pointer :: option
+    PetscReal                         :: waypoint_time
+    character(len=MAXWORDLENGTH)      :: word
+
+    option => pflotran_model%realization%option
+    word = 's'
+    waypoint => WaypointCreate()
+    waypoint%time        = waypoint_time * UnitsConvertToInternal(word,option)
+    waypoint%update_srcs = PETSC_TRUE
+    waypoint%dt_max      = 3153600
+
+    call WaypointDeleteFromList(waypoint,pflotran_model%realization%waypoints)
+
+
+  end subroutine pflotranModelDeleteWaypoint
 
   ! ************************************************************************** !
   !
