@@ -3083,7 +3083,6 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
       if (patch%imat(ghosted_id) <= 0) cycle
 
 #ifdef CLM_PFLOTRAN
-      !write(iulog,*),'QSRC: local_id = ',local_id,qsrc !,pf_clm_data%qsrc_flx(local_id)
       qsrc = pf_clm_data%qsrc_flx(local_id)
 #endif
 
