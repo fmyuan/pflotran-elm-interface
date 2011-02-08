@@ -64,7 +64,7 @@ endif
 
 MYFLAGS = -I${objdir} $(HDF5_FLAGS) $(DASVYAT) $(DASVYAT_DEBUG)\
           $(COMPILE_BROKEN_FLAGS) $(GLENN_FLAGS) $(UO2_FLAG) $(TEMP_FLAG) $(GPU_FLAGS)\
-				$(CHUAN_FLAG) $(SCOTT_FLAGS) $(COLL_FLAG) $(DENSITY_FLAG) -w
+				$(CHUAN_FLAG) $(SCOTT_FLAGS) $(COLL_FLAG) $(DENSITY_FLAG) -O0 -g
 
 CFLAGS		 = 
 FFLAGS		 =
@@ -84,7 +84,8 @@ ifdef tau
 FC = /ccs/proj/geo002/tau/tau-2.19.1/craycnl/bin/tau_f90.sh -optCompInst -tau_makefile=$(TAU_MAKEFILE)
 FLINKER = /ccs/proj/geo002/tau/tau-2.19.1/craycnl/bin/tau_f90.sh -optCompInst -tau_makefile=$(TAU_MAKEFILE)
 endif
-
+FC_FLAGS = 
+FLINKER  = ftn 
 util_obj  = ${common_src}input.o \
 	${common_src}string.o \
 	${common_src}water_eos.o \
@@ -162,6 +163,7 @@ common_obj = ${common_src}option.o \
 	${common_src}output.o \
 	${common_src}init.o \
 	${common_src}mapping.o \
+        ${common_src}clm_pflotran_interface_data.o \
         ${common_src}pflotran_model.o
 
 pflotran_obj = ${common_obj}\

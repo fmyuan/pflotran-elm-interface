@@ -18,7 +18,7 @@ module pflotran_model_module
   use clm_varctl, only            : iulog
   use Mapping_module
   use clm_pflotran_interface_type
-
+  use clm_pflotran_interface_data
 #endif
   use Mapping_module
 
@@ -76,9 +76,9 @@ module pflotran_model_module
        pflotranModelUpdateSourceSink,        & !
        pflotranModelUpdateSaturation,        & !
        pflotranModelGetSaturation,           & !
-	   pflotranModelInitMapping,             &
+       pflotranModelInitMapping,             &
 #endif
-	   pflotranModelInitMapping2,            &
+       pflotranModelInitMapping2,            &
        pflotranModelStepperRunInit,          &
        pflotranModelStepperRunTillPauseTime, &
        pflotranModelUpdateTopBCHomogeneous,  &
@@ -320,6 +320,7 @@ contains
     use Richards_module
     use Discretization_module
 
+    implicit none
     type(pflotran_model_type), pointer        :: pflotran_model
     type(option_type), pointer                :: option
     type(realization_type),pointer            :: realization
@@ -330,7 +331,6 @@ contains
     type(global_auxvar_type), pointer         :: global_aux_vars(:)
     type(discretization_type), pointer        :: discretization
 	
-	implicit none
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
@@ -889,29 +889,34 @@ contains
   ! date: 01/28/2011
   ! ************************************************************************** !
 !#ifdef CLM_PFLOTRAN
-  subroutine pflotranModelInitMapping2( pflotran_model )
+  subroutine pflotranModelInitMapping2( pflotran_model, clm_pf_data, &
+       grid_clm_cell_ids_ghosted_nindex, grid_clm_npts_local)
 
   use Input_module
   use Option_module
   use Realization_module
   use Grid_module
   use Patch_module
-  
+  use clm_pflotran_interface_data
+
   implicit none
+
+  
 
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
 #include "finclude/petscviewer.h"
 
   PetscInt                           :: ii,jj, irank
-  PetscInt							 :: local_id, ocell_count
+  PetscInt			     :: local_id, ocell_count
   PetscInt, pointer                  :: grid_pf_cell_ids_ghosted_nindex(:)
-  PetscInt, pointer					 :: grid_clm_cell_ids_ghosted_nindex(:)
+  PetscInt, pointer                  :: grid_clm_cell_ids_ghosted_nindex(:)
   PetscInt                           :: grid_pf_npts_local, grid_pf_npts_ghost
   PetscInt                           :: grid_clm_npts_local, grid_clm_npts_ghost
   PetscInt                           :: grid_pf_npts_ghosted, grid_clm_npts_ghosted
   PetscInt, allocatable              :: ocell_ids(:)
   PetscReal,allocatable              :: ocell_vol(:)
+
   
   character(len=MAXSTRINGLENGTH)     :: filename
   type(pflotran_model_type), pointer :: pflotran_model
@@ -919,9 +924,11 @@ contains
   type(realization_type), pointer    :: realization
   type(grid_type),pointer            :: grid
   type(patch_type), pointer          :: patch
+  type(clm_pflotran_data),pointer    :: clm_pf_data
 
   PetscErrorCode :: ierr
-  PetscMPIInt :: status_mpi(MPI_STATUS_SIZE)
+  PetscMPIInt    :: status_mpi(MPI_STATUS_SIZE)
+
   
   PetscInt, allocatable :: tmp_int_array(:)
   
@@ -930,245 +937,268 @@ contains
   Vec :: hksat_x_clmloc, hksat_y_clmloc, hksat_z_clmloc
   Vec :: hksat_x_pfloc, hksat_y_pfloc, hksat_z_pfloc
 
-  IS       :: is_clmlocal_to_global                       ! 
-  IS       :: is_pflocal_to_global                        ! 
-  IS       :: is_global_to_clmlocal
-  IS       :: is_global_to_pflocal
-  IS       :: is_clmlocal_to_clmlocal
-  IS       :: is_pflocal_to_pflocal
-  
-  
-  VecScatter :: scatter_clmlocal_to_global
-  VecScatter :: gather_global_to_pflocal
+  type(mapping_type),     pointer :: m_clm2pf
+  type(mapping_type),     pointer :: m_pf2clm
 
+
+  m_clm2pf        => pflotran_model%map_clm2pf
+  m_pf2clm        => pflotran_model%map_pf2clm
   option          => pflotran_model%option
   realization     => pflotran_model%simulation%realization
   patch           => realization%patch
   patch           => realization%patch
   grid            => patch%grid
 
+
   if ( option%myrank == option%io_rank) then
   
-	filename = 'mapping_clm2pf.txt'
-	call pflotranModelReadMappingFile( option, filename, &
-		pflotran_model%clm_cells, pflotran_model%num_clm_cells)
-
-	filename = 'mapping_pf2clm.txt'
-	call pflotranModelReadMappingFile( option, filename, &
-		pflotran_model%pf_cells, pflotran_model%num_pf_cells)
-
-	print *, 'pf_cells%num_pf_cells =',pflotran_model%num_pf_cells
-	print *, 'pf_cells%num_clm_cells=',pflotran_model%num_clm_cells
-
-
-	allocate(grid_pf_cell_ids_ghosted_nindex(grid%ngmax))
-	allocate(grid_clm_cell_ids_ghosted_nindex(10))
-
-    do local_id = 1,grid%ngmax
-	  grid_pf_cell_ids_ghosted_nindex(local_id) = grid%nG2A(local_id)
-	  !print *, 'grid_pf_cell_ids_ghosted_nindex(',local_id,')=', & 
-	  !grid%nG2A(local_id)
-	enddo	
-	grid_pf_npts_local = grid%nlmax
-	grid_pf_npts_ghost = grid%ngmax - grid%nlmax
-
-    do local_id = 1,10
-	  grid_clm_cell_ids_ghosted_nindex(local_id) = local_id - 1
-	enddo
-	grid_clm_npts_local = 10
-	grid_clm_npts_ghost = 0
-    
-	
-	call pflotranModelFindOverlapCells(pflotran_model%pf_cells, grid%ngmax, &
-		grid_pf_cell_ids_ghosted_nindex, ocell_ids, ocell_vol, ocell_count)
+     filename = 'mapping_clm2pf.txt'
+     call pflotranModelReadMappingFile( option, filename, &
+          pflotran_model%clm_cells, pflotran_model%num_clm_cells)
+     
+     filename = 'mapping_pf2clm.txt'
+     call pflotranModelReadMappingFile( option, filename, &
+          pflotran_model%pf_cells, pflotran_model%num_pf_cells)
+     
+     !print *, 'pf_cells%num_pf_cells =',pflotran_model%num_pf_cells
+     !print *, 'pf_cells%num_clm_cells=',pflotran_model%num_clm_cells
+     
+     ! Sending data to other processors
+     !print *, 'rank = ',option%io_rank
+     do irank = 0,option%mycommsize-1
+        if (irank == option%io_rank) cycle
 
 
-    pflotran_model%map_clm2pf%num_cells_local   = grid_pf_npts_local
-	pflotran_model%map_clm2pf%num_cells_ghost   = grid_pf_npts_ghost
-	pflotran_model%map_clm2pf%num_cells_ghosted = grid%ngmax
-	pflotran_model%map_clm2pf%num_ocells        = ocell_count
-	
-	call MappingAllocateMemory(pflotran_model%map_clm2pf)
-	call MappingSetOcells(pflotran_model%map_clm2pf, ocell_ids,ocell_vol)
+        call MPI_Recv(grid_pf_npts_ghosted, 1, MPI_INTEGER, &
+             irank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+        !print *,'io_rank recv data = ',grid_pf_npts_ghosted,'from=',irank
+        allocate(grid_pf_cell_ids_ghosted_nindex(grid_pf_npts_ghosted))
+        call MPI_Recv(grid_pf_cell_ids_ghosted_nindex, grid_pf_npts_ghosted, &
+             MPI_INTEGER,irank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+        
+        call pflotranModelFindOverlapCells(pflotran_model%pf_cells, grid_pf_npts_ghosted,&
+             grid_pf_cell_ids_ghosted_nindex, ocell_ids, ocell_vol, ocell_count)
+        
+        call MPI_Send(ocell_count,1,MPI_INTEGER,irank,0,option%mycomm,ierr)
+        call MPI_Send(ocell_ids,ocell_count,MPI_INTEGER,irank,0,option%mycomm,ierr)
+        call MPI_Send(ocell_vol,ocell_count,MPI_DOUBLE_PRECISION,irank,0,option%mycomm,ierr)
+        
+        ! Free memory
+        deallocate(grid_pf_cell_ids_ghosted_nindex)
+        deallocate(ocell_ids)
+        deallocate(ocell_vol)
+        
 
-    ! Free up memory
-    deallocate(grid_pf_cell_ids_ghosted_nindex)
-	!deallocate(grid_clm_cell_ids_ghosted_nindex)
-	deallocate(ocell_ids)
-	deallocate(ocell_vol)
-	
-	
-	print *, 'rank = ',option%io_rank
-    do irank = 0,option%mycommsize-1
-	  if (irank == option%io_rank) cycle
-	  call MPI_Recv(grid_pf_npts_ghosted, 1, MPI_INTEGER, &
-	  				irank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
-	  print *,'io_rank recv data = ',grid_pf_npts_ghosted,'from=',irank
-	  allocate(grid_pf_cell_ids_ghosted_nindex(grid_pf_npts_ghosted))
-	  call MPI_Recv(grid_pf_cell_ids_ghosted_nindex, grid_pf_npts_ghosted, &
-					MPI_INTEGER,irank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
-					
-      call pflotranModelFindOverlapCells(pflotran_model%pf_cells, grid_pf_npts_ghosted,&
-	  	grid_pf_cell_ids_ghosted_nindex, ocell_ids, ocell_vol, ocell_count)
-		
-	  call MPI_Send(ocell_count,1,MPI_INTEGER,irank,0,option%mycomm,ierr)
-	  call MPI_Send(ocell_ids,ocell_count,MPI_INTEGER,irank,0,option%mycomm,ierr)
-	  call MPI_Send(ocell_vol,ocell_count,MPI_DOUBLE_PRECISION,irank,0,option%mycomm,ierr)
-	  
-	  ! Free memory
-	  deallocate(grid_pf_cell_ids_ghosted_nindex)
-	  deallocate(ocell_ids)
-	  deallocate(ocell_vol)
-					
-	enddo
-	
+        call MPI_Recv(grid_clm_npts_ghosted,1,MPI_INTEGER, &
+             irank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+        allocate(grid_clm_cell_ids_ghosted_nindex(grid_clm_npts_ghosted))
+        call MPI_Recv(grid_clm_cell_ids_ghosted_nindex, grid_clm_npts_ghosted, &
+             MPI_INTEGER,irank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
 
-	! Free up the memory	  
-	  do ii = 1,pflotran_model%num_clm_cells
-		if( pflotran_model%clm_cells(ii)%ocell_count.gt.0) then
-		  deallocate(pflotran_model%clm_cells(ii)%ocell_id)
-		  deallocate(pflotran_model%clm_cells(ii)%perc_vol_overlap )
-		endif
-	  enddo
-	deallocate(pflotran_model%clm_cells)
-	
-	do ii = 1,pflotran_model%num_pf_cells
-	  if( pflotran_model%pf_cells(ii)%ocell_count.gt.0) then
-		deallocate(pflotran_model%pf_cells(ii)%ocell_id)
-		deallocate(pflotran_model%pf_cells(ii)%perc_vol_overlap )
-	  endif
-	  enddo
-	  deallocate(pflotran_model%pf_cells)
-	
+        call pflotranModelFindOverlapCells(pflotran_model%clm_cells, grid_clm_npts_ghosted,&
+             grid_clm_cell_ids_ghosted_nindex,ocell_ids,ocell_vol,ocell_count)
+
+        call MPI_Send(ocell_count,1,MPI_INTEGER,irank,0,option%mycomm,ierr)
+        call MPI_Send(ocell_ids,ocell_count,MPI_INTEGER,irank,0,option%mycomm,ierr)
+        call MPI_Send(ocell_vol,ocell_count,MPI_DOUBLE_PRECISION,irank,0,option%mycomm,ierr)
+
+
+        ! Free memory
+        deallocate(grid_clm_cell_ids_ghosted_nindex)
+        deallocate(ocell_ids)
+        deallocate(ocell_vol)
+
+     enddo
+     
+
+     ! Doing local work
+     allocate(grid_pf_cell_ids_ghosted_nindex(grid%ngmax))
+     !allocate(grid_clm_cell_ids_ghosted_nindex(40/option%mycommsize))
+               
+     do local_id = 1,grid%ngmax
+        grid_pf_cell_ids_ghosted_nindex(local_id) = grid%nG2A(local_id)
+     enddo
+     grid_pf_npts_local   = grid%nlmax
+     grid_pf_npts_ghost   = grid%ngmax - grid%nlmax
+     grid_pf_npts_ghosted = grid_pf_npts_local + grid_pf_npts_ghost
+     
+     !do local_id = 1,40/option%mycommsize
+     !   grid_clm_cell_ids_ghosted_nindex(local_id) = local_id - 1
+     !enddo
+     !grid_clm_npts_local   = 40/option%mycommsize
+     grid_clm_npts_ghost   = 0
+     grid_clm_npts_ghosted = grid_clm_npts_local + grid_clm_npts_ghost
+     
+     
+     call pflotranModelFindOverlapCells(pflotran_model%pf_cells, grid%ngmax, &
+          grid_pf_cell_ids_ghosted_nindex, ocell_ids, ocell_vol, ocell_count)
+          
+     m_clm2pf%tmesh_num_cells_local   = grid_pf_npts_local
+     m_clm2pf%tmesh_num_cells_ghost   = grid_pf_npts_ghost
+     m_clm2pf%tmesh_num_cells_ghosted = grid%ngmax
+     m_clm2pf%num_ocells_with_fmesh        = ocell_count
+     
+     call MappingAllocateMemory(m_clm2pf)
+     call MappingSetOcells(m_clm2pf, ocell_ids,ocell_vol)
+     
+     ! Free up memory
+     deallocate(ocell_ids)
+     deallocate(ocell_vol)
+
+     call pflotranModelFindOverlapCells(pflotran_model%clm_cells, grid_clm_npts_ghosted,&
+          grid_clm_cell_ids_ghosted_nindex,ocell_ids, ocell_vol, ocell_count)
+     m_pf2clm%tmesh_num_cells_local   = grid_clm_npts_local
+     m_pf2clm%tmesh_num_cells_ghost   = grid_clm_npts_ghost
+     m_pf2clm%tmesh_num_cells_ghosted = grid_clm_npts_ghosted
+     m_pf2clm%num_ocells_with_fmesh              = ocell_count
+     
+     call MappingAllocateMemory(m_clm2pf)
+     call MappingSetOcells(m_clm2pf, ocell_ids,ocell_vol)
+     
+     ! Free up memory
+     deallocate(ocell_ids)
+     deallocate(ocell_vol)
+
+
+
+
+     
+     ! Free up the memory	  
+     do ii = 1,pflotran_model%num_clm_cells
+        if( pflotran_model%clm_cells(ii)%ocell_count.gt.0) then
+           deallocate(pflotran_model%clm_cells(ii)%ocell_id)
+           deallocate(pflotran_model%clm_cells(ii)%perc_vol_overlap )
+        endif
+     enddo
+     deallocate(pflotran_model%clm_cells)
+     
+     do ii = 1,pflotran_model%num_pf_cells
+        if( pflotran_model%pf_cells(ii)%ocell_count.gt.0) then
+           deallocate(pflotran_model%pf_cells(ii)%ocell_id)
+           deallocate(pflotran_model%pf_cells(ii)%perc_vol_overlap )
+        endif
+     enddo
+     deallocate(pflotran_model%pf_cells)
+     
   else
-  
-  	allocate(grid_pf_cell_ids_ghosted_nindex(grid%ngmax))
-	allocate(grid_clm_cell_ids_ghosted_nindex(10))
+     
+     allocate(grid_pf_cell_ids_ghosted_nindex(grid%ngmax))
+     !allocate(grid_clm_cell_ids_ghosted_nindex(40/option%mycommsize))
+     
+     do local_id = 1,grid%ngmax
+        grid_pf_cell_ids_ghosted_nindex(local_id) = grid%nG2A(local_id)
+     enddo
+     grid_pf_npts_local = grid%nlmax
+     grid_pf_npts_ghost = grid%ngmax - grid%nlmax
+     
+     !do local_id = 1,40/option%mycommsize
+     !   grid_clm_cell_ids_ghosted_nindex(local_id) = local_id - 1 + &
+     !        option%myrank*(40/option%mycommsize)
+     !enddo
+     !grid_clm_npts_local = 40/option%mycommsize
+     grid_clm_npts_ghost = 0
+     grid_clm_npts_ghosted = grid_clm_npts_local + grid_clm_npts_ghost     
 
-    do local_id = 1,grid%ngmax
-	  grid_pf_cell_ids_ghosted_nindex(local_id) = grid%nG2A(local_id)
-	  !print *, 'grid_pf_cell_ids_ghosted_nindex(',local_id,')=', & 
-	  !grid%nG2A(local_id)
-	enddo	
-	grid_pf_npts_local = grid%nlmax
-	grid_pf_npts_ghost = grid%ngmax - grid%nlmax
 
-    do local_id = 1,10
-	  grid_clm_cell_ids_ghosted_nindex(local_id) = local_id - 1 + +option%myrank*10
-	enddo
-	grid_clm_npts_local = 10
-	grid_clm_npts_ghost = 0
+     !
+     !print *, 'rank = ',option%myrank,' data =',grid_pf_npts_local+grid_pf_npts_ghost
+     call MPI_Send(grid%ngmax,1,MPI_INTEGER,option%io_rank,option%myrank,option%mycomm,&
+          ierr)
+     call MPI_Send(grid_pf_cell_ids_ghosted_nindex,grid%ngmax,MPI_INTEGER, &
+          option%io_rank,option%myrank,option%mycomm,ierr)
+     
+     call MPI_Recv(ocell_count,1,MPI_INTEGER,0,MPI_ANY_TAG,option%mycomm,&
+          status_mpi,ierr)
+     
+     allocate(ocell_ids(ocell_count))
+     allocate(ocell_vol(ocell_count))
+     
+     call MPI_Recv(ocell_ids,ocell_count,MPI_INTEGER,0,MPI_ANY_TAG,option%mycomm, &
+          status_mpi,ierr)
+     call MPI_Recv(ocell_vol,ocell_count,MPI_DOUBLE_PRECISION,0,MPI_ANY_TAG,option%mycomm, &
+          status_mpi,ierr)
+     
+     
+     m_clm2pf%tmesh_num_cells_local   = grid_pf_npts_local
+     m_clm2pf%tmesh_num_cells_ghost   = grid_pf_npts_ghost
+     m_clm2pf%tmesh_num_cells_ghosted = grid%ngmax
+     m_clm2pf%num_ocells_with_fmesh              = ocell_count
+     
+     call MappingAllocateMemory(m_clm2pf)
+     call MappingSetOcells(m_clm2pf, ocell_ids,ocell_vol)
+     
+     ! Free up memory
+     deallocate(ocell_ids)
+     deallocate(ocell_vol)
 
-	print *, 'rank = ',option%myrank,' data =',grid_pf_npts_local+grid_pf_npts_ghost
-    call MPI_Send(grid%ngmax,1,MPI_INTEGER,option%io_rank,irank,option%mycomm,&
-				  ierr)
-	call MPI_Send(grid_pf_cell_ids_ghosted_nindex,grid%ngmax,MPI_INTEGER, &
-				  option%io_rank,irank,option%mycomm,ierr)
-	
-	call MPI_Recv(ocell_count,1,MPI_INTEGER,0,MPI_ANY_TAG,option%mycomm,&
-				  status_mpi,ierr)
-	
-	allocate(ocell_ids(ocell_count))
-	allocate(ocell_vol(ocell_count))
-	
-	call MPI_Recv(ocell_ids,ocell_count,MPI_INTEGER,0,MPI_ANY_TAG,option%mycomm, &
-				  status_mpi,ierr)
-	call MPI_Recv(ocell_vol,ocell_count,MPI_DOUBLE_PRECISION,0,MPI_ANY_TAG,option%mycomm, &
-				  status_mpi,ierr)
-				  
-				  
-    pflotran_model%map_clm2pf%num_cells_local   = grid_pf_npts_local
-	pflotran_model%map_clm2pf%num_cells_ghost   = grid_pf_npts_ghost
-	pflotran_model%map_clm2pf%num_cells_ghosted = grid%ngmax
-	pflotran_model%map_clm2pf%num_ocells        = ocell_count
-	
-	call MappingAllocateMemory(pflotran_model%map_clm2pf)
-	call MappingSetOcells(pflotran_model%map_clm2pf, ocell_ids,ocell_vol)
 
-	
-    ! Free up memory
-    deallocate(grid_pf_cell_ids_ghosted_nindex)
-	!deallocate(grid_clm_cell_ids_ghosted_nindex)
-	deallocate(ocell_ids)
-	deallocate(ocell_vol)
 
+     ! 
+     call MPI_Send(grid_clm_npts_local+grid_clm_npts_ghost,1,MPI_INTEGER,&
+          option%io_rank,option%myrank,option%mycomm,ierr)
+
+     call MPI_Send(grid_clm_cell_ids_ghosted_nindex,&
+          grid_clm_npts_local+grid_clm_npts_ghost, &
+          MPI_INTEGER,option%io_rank,option%myrank,option%mycomm,ierr)
+
+     call MPI_Recv(ocell_count, 1,MPI_INTEGER,0,MPI_ANY_TAG,option%mycomm,&
+          status_mpi,ierr)
+
+     allocate(ocell_ids(ocell_count))
+     allocate(ocell_vol(ocell_count))
+     
+     call MPI_Recv(ocell_ids,ocell_count,MPI_INTEGER,0,MPI_ANY_TAG,option%mycomm, &
+          status_mpi,ierr)
+     call MPI_Recv(ocell_vol,ocell_count,MPI_DOUBLE_PRECISION,0,MPI_ANY_TAG,option%mycomm, &
+          status_mpi,ierr)
+
+     m_pf2clm%tmesh_num_cells_local   = grid_clm_npts_local
+     m_pf2clm%tmesh_num_cells_ghost   = grid_clm_npts_ghost
+     m_pf2clm%tmesh_num_cells_ghosted = grid_clm_npts_local+grid_clm_npts_ghost
+     m_pf2clm%num_ocells_with_fmesh              = ocell_count
+
+     call MappingAllocateMemory(m_pf2clm)
+     call MappingSetOcells(m_pf2clm,ocell_ids,ocell_vol)
+     m_clm2pf%num_ocells_with_fmesh          = ocell_count
+     
+     ! Free up memory
+     deallocate(ocell_ids)
+     deallocate(ocell_vol)
+     
   endif
-
-	print *,'rank = ',option%myrank,'ocells=',pflotran_model%map_clm2pf%num_ocells, &
-		'docells=',pflotran_model%map_clm2pf%num_docells
-
-
-  !  Create Vectors
-  call VecCreateMPI(option%mycomm, grid_clm_npts_local, PETSC_DETERMINE, hksat_x, ierr)
-  call VecSetBlockSize(hksat_x, 1, ierr)
-
-  !call VecCreateSeq(PETSC_COMM_SELF, grid_clm_npts_local, hksat_x_clmloc, ierr)
-  !call VecSetBlockSize(hksat_x_clmloc, 1, ierr)
-  call VecCreateMPI(option%mycomm, grid_clm_npts_local, PETSC_DETERMINE, hksat_x_clmloc, ierr)
-  call VecSetBlockSize(hksat_x_clmloc, 1, ierr)
-
-  call VecCreateSeq(PETSC_COMM_SELF, pflotran_model%map_clm2pf%num_docells, hksat_x_pfloc, ierr)
-  call VecSetBlockSize(hksat_x_pfloc, 1, ierr)
-
-  ! Create Index Sets
-  allocate(tmp_int_array(grid_clm_npts_local))
-  do ii = 1,grid_clm_npts_local
-     tmp_int_array(ii) = ii - 1
-  enddo
-
-  call ISCreateBlock( option%mycomm, 1, grid_clm_npts_local, &
-       tmp_int_array, PETSC_COPY_VALUES, &
-       is_clmlocal_to_clmlocal, ierr)
-  deallocate(tmp_int_array)
-  call PetscViewerASCIIOpen(option%mycomm, 'is_clmlocal_to_clmlocal.out',viewer,ierr)
-  call ISView(is_clmlocal_to_clmlocal,viewer, ierr)
-  call PetscViewerDestroy(viewer, ierr)
-
-  call ISCreateBlock( option%mycomm, 1, grid_clm_npts_local, &
-       grid_clm_cell_ids_ghosted_nindex, PETSC_COPY_VALUES, &
-       is_clmlocal_to_global, ierr)
-  call PetscViewerASCIIOpen(option%mycomm, 'is_clmlocal_to_global.out',viewer,ierr)
-  call ISView(is_clmlocal_to_global,viewer, ierr)
-  call PetscViewerDestroy(viewer, ierr)
-
-  allocate(tmp_int_array(pflotran_model%map_clm2pf%num_docells))
-  do ii = 1,pflotran_model%map_clm2pf%num_docells
-     tmp_int_array(ii) = ii - 1
-  enddo
-
-  call ISCreateBlock( option%mycomm, 1, pflotran_model%map_clm2pf%num_docells, &
-       tmp_int_array, PETSC_COPY_VALUES, &
-       is_pflocal_to_pflocal, ierr)
-  deallocate(tmp_int_array)
-  call PetscViewerASCIIOpen(option%mycomm, 'is_pflocal_to_pflocal.out',viewer,ierr)
-  call ISView(is_pflocal_to_pflocal,viewer, ierr)
-  call PetscViewerDestroy(viewer, ierr)
+  
+  !print *,'rank = ',option%myrank,'ocells=',m_clm2pf%num_ocells_with_fmesh, &
+  !     'docells=',m_clm2pf%num_docells_with_fmesh
+  !print *,'rank = ',option%myrank,'ocells=',m_pf2clm%num_ocells_with_fmesh, &
+  !     'docells=',m_pf2clm%num_docells_with_fmesh
+  
+  ! Creating Vectors
+  m_pf2clm%num_ocells_with_fmesh          = 10
+  clm_pf_data%clm_num_local    = grid_clm_npts_local
+  clm_pf_data%pf_num_local     = grid_pf_npts_local
+  clm_pf_data%clm_num_docells  = m_pf2clm%num_docells_with_fmesh
+  clm_pf_data%pf_num_docells   = m_clm2pf%num_docells_with_fmesh
 
 
-  call ISCreateBlock(option%mycomm, 1, pflotran_model%map_clm2pf%num_docells, &
-       pflotran_model%map_clm2pf%docell_ids_sorted_nindex, PETSC_COPY_VALUES, &
-       is_global_to_pflocal, ierr)
-  call PetscViewerASCIIOpen(option%mycomm, 'is_global_to_pflocal.out',viewer,ierr)
-  call ISView(is_global_to_pflocal,viewer, ierr)
-  call PetscViewerDestroy(viewer, ierr)
+  call clm_pf_data_allocate_memory(clm_pf_data, option%mycomm)
+  
 
-  ! Create VecScatter
-  call VecScatterCreate(hksat_x_clmloc, is_clmlocal_to_clmlocal, &
-       hksat_x, is_clmlocal_to_global, &
-       scatter_clmlocal_to_global, ierr)
+  ! Creating Index Sets
+  call MappingCreateIS(m_clm2pf, option%mycomm, grid_clm_npts_local, &
+       grid_clm_cell_ids_ghosted_nindex )
+  !call MappingCreateIS(m_pf2clm, option%mycomm, grid_pf_npts_local, &
+  !     grid_pf_cell_ids_ghosted_nindex )
 
-  call PetscViewerASCIIOpen(option%mycomm, 'scatter_clmlocal_to_global.out', viewer, ierr)
-  call VecScatterView(scatter_clmlocal_to_global, viewer, ierr)
-  call PetscViewerDestroy(viewer, ierr)
+  ! Creating VecScatter
+  call MappingCreateVecScatter(m_clm2pf, option%mycomm, grid_clm_npts_local, &
+       clm_pf_data%hksat_x_clmloc, clm_pf_data%hksat_x, clm_pf_data%hksat_x_pfloc)
+  !call MappingCreateVecScatter(m_pf2clm, option%mycomm, grid_pf_npts_local, &
+  !     clm_pf_data%sat_pfloc, clm_pf_data%sat, clm_pf_data%sat_clmloc)
+  
 
-  call VecScatterCreate(hksat_x, is_global_to_pflocal, &
-       hksat_x_pfloc, is_pflocal_to_pflocal, &
-       gather_global_to_pflocal)
-
-  call PetscViewerASCIIOpen(option%mycomm, 'gather_global_to_pflocal.out', viewer, ierr)
-  call VecScatterView(gather_global_to_pflocal, viewer, ierr)
-  call PetscViewerDestroy(viewer, ierr)
-
+  ! Free memory
+  deallocate(grid_pf_cell_ids_ghosted_nindex)
+  !deallocate(grid_clm_cell_ids_ghosted_nindex)
 
   end subroutine pflotranModelInitMapping2
 
@@ -1201,8 +1231,6 @@ contains
 	  ocell_count = ocell_count + grid_cells(cell_id)%ocell_count
 	enddo
 	
-	print *, 'ocell_count = ',ocell_count
-	
 	allocate(ocell_ids(ocell_count))
 	allocate(ocell_vol(ocell_count))
 	
@@ -1212,7 +1240,6 @@ contains
 	  do jj = 1,grid_cells(cell_id)%ocell_count
 	    ocell_ids(tmp_idx) = grid_cells(cell_id)%ocell_id(jj)
 		ocell_vol(tmp_idx) = grid_cells(cell_id)%perc_vol_overlap(jj)
-		!print *, tmp_idx,ocell_ids(tmp_idx),cell_id
 		tmp_idx = tmp_idx + 1
 		
 	  enddo
@@ -1853,7 +1880,7 @@ contains
     call PetscOptionsSetValue('-options_left','no',ierr);
 
     call OptionDestroy(pflotran_model%option)
-    call PetscFinalize(ierr)
+    !call PetscFinalize(ierr)
 #ifndef WITH_CLM
     call MPI_Finalize(ierr)
 #endif
