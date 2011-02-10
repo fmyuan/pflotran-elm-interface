@@ -70,14 +70,14 @@ module pflotran_model_module
   end type pflotran_model_type
 
   public::pflotranModelCreate,               &
-       #ifdef CLM_PFLOTRAN
+#ifdef CLM_PFLOTRAN
   pflotranModelSetICs,                  & !
        pflotranModelSetSoilProp,             & !
        pflotranModelUpdateSourceSink,        & !
        pflotranModelUpdateSaturation,        & !
        pflotranModelGetSaturation,           & !
        pflotranModelInitMapping,             &
-       #endif
+#endif
   pflotranModelInitMapping2,            &
        pflotranModelStepperRunInit,          &
        pflotranModelStepperRunTillPauseTime, &
@@ -916,7 +916,7 @@ contains
     PetscInt                           :: grid_clm_npts_ghosted_tmp
     PetscInt, pointer                  :: ocell_ids(:)
     PetscReal,pointer                  :: ocell_vol(:)
-
+    PetscInt, pointer                  :: grid_clm_active(:), grid_pf_active(:)
 
     character(len=MAXSTRINGLENGTH)     :: filename
     type(pflotran_model_type), pointer :: pflotran_model
@@ -960,20 +960,30 @@ contains
        call pflotranModelReadMappingFile( option, filename, &
             pflotran_model%pf_cells, pflotran_model%num_pf_cells)
 
-       ! Sending data to other processors
+       ! TODO: Check the two mapping files are consistent
+       !       (i.e. ensure that the cell-ids in one mapping file
+	   !        are present in the other mapping file and vice-versa)
+
+       allocate(grid_clm_active(pflotran_model%num_clm_cells))
+       allocate(grid_pf_active( pflotran_model%num_pf_cells ))
+	   grid_clm_active = 0
+	   grid_pf_active  = 0
+	   
+       ! Receiving/Sending data to other processors
        do irank = 0,option%mycommsize-1
           if (irank == option%io_rank) cycle
-
 
           call MPI_Recv(grid_pf_npts_ghosted, 1, MPI_INTEGER, &
                irank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
           allocate(grid_pf_cell_ids_ghosted_nindex(grid_pf_npts_ghosted))
           call MPI_Recv(grid_pf_cell_ids_ghosted_nindex, grid_pf_npts_ghosted, &
                MPI_INTEGER,irank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
-
+          do local_id = 1,grid_pf_npts_ghosted
+		    grid_pf_active( grid_pf_cell_ids_ghosted_nindex(local_id) + 1 ) = 1
+		  enddo
           call pflotranModelFindOverlapCells(pflotran_model%pf_cells, grid_pf_npts_ghosted,&
                grid_pf_cell_ids_ghosted_nindex, ocell_ids, ocell_vol, ocell_count)
-
+          write(*,*), 'PF : ',irank,ocell_count
           call MPI_Send(ocell_count,1,MPI_INTEGER,irank,0,option%mycomm,ierr)
           call MPI_Send(ocell_ids,ocell_count,MPI_INTEGER,irank,0,option%mycomm,ierr)
           call MPI_Send(ocell_vol,ocell_count,MPI_DOUBLE_PRECISION,irank,0,option%mycomm,ierr)
@@ -989,10 +999,13 @@ contains
           allocate(grid_clm_cell_ids_ghosted_nindex_tmp(grid_clm_npts_ghosted_tmp))
           call MPI_Recv(grid_clm_cell_ids_ghosted_nindex_tmp, grid_clm_npts_ghosted_tmp, &
                MPI_INTEGER,irank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+          do local_id = 1,grid_clm_npts_ghosted_tmp
+		    grid_clm_active( grid_clm_cell_ids_ghosted_nindex_tmp(local_id) + 1 ) = 1
+		  enddo
 
           call pflotranModelFindOverlapCells(pflotran_model%clm_cells, grid_clm_npts_ghosted_tmp,&
                grid_clm_cell_ids_ghosted_nindex_tmp,ocell_ids,ocell_vol,ocell_count)
-
+          write(*,*), 'CLM: ',irank,ocell_count
           call MPI_Send(ocell_count,1,MPI_INTEGER,irank,0,option%mycomm,ierr)
           call MPI_Send(ocell_ids,ocell_count,MPI_INTEGER,irank,0,option%mycomm,ierr)
           call MPI_Send(ocell_vol,ocell_count,MPI_DOUBLE_PRECISION,irank,0,option%mycomm,ierr)
@@ -1011,6 +1024,7 @@ contains
 
        do local_id = 1,grid%ngmax
           grid_pf_cell_ids_ghosted_nindex(local_id) = grid%nG2A(local_id)
+		  grid_pf_active( grid%nG2A(local_id) ) = 1
        enddo
        grid_pf_npts_local   = grid%nlmax
        grid_pf_npts_ghost   = grid%ngmax - grid%nlmax
@@ -1019,15 +1033,17 @@ contains
 
        grid_clm_npts_ghost   = 0
        grid_clm_npts_ghosted = grid_clm_npts_local + grid_clm_npts_ghost
-
+       do local_id = 1,grid_clm_npts_ghosted
+	    grid_clm_active( grid_clm_cell_ids_ghosted_nindex(local_id) + 1 ) = 1
+       enddo
 
        call pflotranModelFindOverlapCells(pflotran_model%pf_cells, grid%ngmax, &
             grid_pf_cell_ids_ghosted_nindex, ocell_ids, ocell_vol, ocell_count)
-
+       write(*,*), 'PF : ',option%myrank,ocell_count
        m_clm2pf%tmesh_num_cells_local   = grid_pf_npts_local
        m_clm2pf%tmesh_num_cells_ghost   = grid_pf_npts_ghost
        m_clm2pf%tmesh_num_cells_ghosted = grid%ngmax
-       m_clm2pf%num_ocells_with_fmesh        = ocell_count
+       m_clm2pf%num_ocells_with_fmesh   = ocell_count
 
        call MappingAllocateMemory(m_clm2pf)
        call MappingSetOcells(m_clm2pf, ocell_ids,ocell_vol)
@@ -1038,10 +1054,11 @@ contains
 
        call pflotranModelFindOverlapCells(pflotran_model%clm_cells, grid_clm_npts_ghosted,&
             grid_clm_cell_ids_ghosted_nindex,ocell_ids, ocell_vol, ocell_count)
+       write(*,*), 'CLM: ',option%myrank,ocell_count
        m_pf2clm%tmesh_num_cells_local   = grid_clm_npts_local
        m_pf2clm%tmesh_num_cells_ghost   = grid_clm_npts_ghost
        m_pf2clm%tmesh_num_cells_ghosted = grid_clm_npts_ghosted
-       m_pf2clm%num_ocells_with_fmesh              = ocell_count
+       m_pf2clm%num_ocells_with_fmesh   = ocell_count
 
        call MappingAllocateMemory(m_pf2clm)
        call MappingSetOcells(m_pf2clm, ocell_ids,ocell_vol)
@@ -1066,6 +1083,29 @@ contains
           endif
        enddo
        deallocate(pflotran_model%pf_cells)
+
+
+       ! Error checking to ensure all CLM cells that are in the 
+	   ! mapping file are active on some processor
+       do local_id = 1,pflotran_model%num_clm_cells
+	     if ( grid_clm_active(local_id).eq.0 ) then
+		   write(*,*), 'All CLM grid '
+           pflotran_model%option%io_buffer = 'All CLM cells present within mapping file ' //&
+		   ' are not active!'
+          call printErrMsg(option)
+		 endif
+	   enddo
+
+       ! Error checking to ensure all PF cells that are in the 
+	   ! mapping file are active on some processor
+       do local_id = 1,pflotran_model%num_pf_cells
+	     if ( grid_pf_active(local_id).eq.0 ) then
+		   write(*,*), 'All CLM grid '
+           pflotran_model%option%io_buffer = 'All PF cells present within mapping file ' //&
+		   ' are not active!'
+          call printErrMsg(option)
+		 endif
+	   enddo
 
     else
 
@@ -1141,6 +1181,8 @@ contains
        deallocate(ocell_vol)
 
     endif
+	
+    call MPI_Barrier(pflotran_model%option%global_comm,ierr)
 
     ! Creating Vectors
     clm_pf_data%clm_num_local    = grid_clm_npts_local
@@ -1155,14 +1197,14 @@ contains
     ! Creating Index Sets
     call MappingCreateIS(m_clm2pf, option%mycomm, grid_clm_npts_local, &
          grid_clm_cell_ids_ghosted_nindex )
-    !call MappingCreateIS(m_pf2clm, option%mycomm, grid_pf_npts_local, &
-    !     grid_pf_cell_ids_ghosted_nindex )
+    call MappingCreateIS(m_pf2clm, option%mycomm, grid_pf_npts_local, &
+         grid_pf_cell_ids_ghosted_nindex )
 
     ! Creating VecScatter
     call MappingCreateVecScatter(m_clm2pf, option%mycomm, grid_clm_npts_local, &
          clm_pf_data%hksat_x_clmloc, clm_pf_data%hksat_x, clm_pf_data%hksat_x_pfloc)
-    !call MappingCreateVecScatter(m_pf2clm, option%mycomm, grid_pf_npts_local, &
-    !     clm_pf_data%sat_pfloc, clm_pf_data%sat, clm_pf_data%sat_clmloc)
+    call MappingCreateVecScatter(m_pf2clm, option%mycomm, grid_pf_npts_local, &
+         clm_pf_data%sat_pfloc, clm_pf_data%sat, clm_pf_data%sat_clmloc)
 
 
     ! Free memory
@@ -1195,10 +1237,10 @@ contains
 
     ocell_count = 0
     do ii = 1,grid_npts_ghosted
-       cell_id = grid_cell_ids_ghosted_nindex(ii) + 1
+       cell_id     = grid_cell_ids_ghosted_nindex(ii) + 1
        ocell_count = ocell_count + grid_cells(cell_id)%ocell_count
     enddo
-
+    
     allocate(ocell_ids(ocell_count))
     allocate(ocell_vol(ocell_count))
 

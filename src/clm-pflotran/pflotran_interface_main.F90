@@ -10,6 +10,8 @@ program pflotran_interface_main
 
   type(pflotran_model_type),pointer :: pflotran_m
   type(clm_pflotran_data),pointer :: clmpf_data
+  PetscInt, pointer                  :: clm_cell_ids(:)
+  PetscInt                           :: clm_npts, ii
 
   allocate(pflotran_m)
   allocate(clmpf_data)
@@ -17,7 +19,19 @@ program pflotran_interface_main
   pflotran_m => pflotranModelCreate()
   clmpf_data => clm_pf_data_create()
 
-  call pflotranModelInitMapping2(pflotran_m, clmpf_data)
+  !clm_npts = 1
+  !allocate(clm_cell_ids(clm_npts))
+  !clm_cell_ids(1) = pflotran_m%option%myrank
+
+  clm_npts = 40/pflotran_m%option%mycommsize
+  !clm_npts = 2
+  allocate(clm_cell_ids(clm_npts))
+  do ii = 1,clm_npts
+    clm_cell_ids(ii) = clm_npts*pflotran_m%option%myrank + ii -1
+  	if(pflotran_m%option%myrank.eq.0) write(*,*),clm_cell_ids(ii)
+  enddo
+
+  call pflotranModelInitMapping2(pflotran_m,clmpf_data,clm_cell_ids,clm_npts)
 
   !call pflotranModelStepperRunInit(pflotran_m)
 
