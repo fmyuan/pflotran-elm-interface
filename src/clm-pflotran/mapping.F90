@@ -181,6 +181,12 @@ contains
 
     call MPI_Comm_rank(MPI_COMM_WORLD,rank, ierr)
 
+    ! Check if number of overlapped cells > 0
+	if (map%num_ocells_with_fmesh.eq.0) then
+		map%num_docells_with_fmesh = 0
+		return
+	endif
+	
     allocate (index(map%num_ocells_with_fmesh))
 
     do ii = 1,map%num_ocells_with_fmesh
@@ -278,6 +284,9 @@ contains
 
     IS :: is_fmeshlocal_to_fmeshlocal
     IS :: is_tmeshlocal_to_tmeshlocal
+    PetscInt           :: rank
+
+    call MPI_Comm_rank(MPI_COMM_WORLD,rank, ierr)
 
     ! Create a temporary IS set 'tmeshlocal_to_tmeshlocal'
     allocate(tmp_int_array(map%num_docells_with_fmesh))
