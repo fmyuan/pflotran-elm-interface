@@ -1,12 +1,12 @@
 module Mapping_module
 
-!  use clm_pflotran_interface_type
+  !  use clm_pflotran_interface_type
 
   implicit none
 
 #include "definitions.h"
 #include "finclude/petsclog.h"
-!#include "finclude/petscsys.h"
+  !#include "finclude/petscsys.h"
 #include "finclude/petscviewer.h"
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
@@ -28,7 +28,7 @@ module Mapping_module
      PetscInt           :: num_pflotran_cells
      PetscInt,  pointer :: id_pflotran_cells(:)
      PetscReal, pointer :: perc_vol_overlap(:)
-     PetscReal          :: total_vol_overlap 
+     PetscReal          :: total_vol_overlap
   end type inside_each_clm_cell
 
   type, public  :: mapping_type
@@ -68,13 +68,13 @@ module Mapping_module
 
      PetscInt, pointer  :: docell_ids_sorted_nindex(:)     ! Distinct overlapped Cell-IDs sorted and
      !                                                       in natural indexing                      [num_docells_with_fmesh]
-     PetscInt,pointer   :: hash(:)                         ! Lookup table for obtaining position in 
-     !                                                       the sorted distinct cell ids 
-     !                                                       (docell_ids_sorted) list for every 
+     PetscInt,pointer   :: hash(:)                         ! Lookup table for obtaining position in
+     !                                                       the sorted distinct cell ids
+     !                                                       (docell_ids_sorted) list for every
      !                                                       overlapped cell-id (ocell)               [num_ocells_with_fmesh]
 
      !
-     ! This class allows 'scatter' of local data on fmesh to a 
+     ! This class allows 'scatter' of local data on fmesh to a
      ! global vector; from which local data is 'sactter' for
      ! tmesh
      !
@@ -119,11 +119,11 @@ contains
     nullify(map%pf2clm)
     nullify(map%clm2pf)
 
-    map%map_id              = -1
+    map%map_id                    = -1
     map%tmesh_num_cells_local     = -1
     map%tmesh_num_cells_ghost     = -1
     map%tmesh_num_cells_ghosted   = -1
-    map%num_ocells_with_fmesh          = -1
+    map%num_ocells_with_fmesh     = -1
 
     nullify (map%tmesh_cell_ids_ghosted_nindex)
     nullify (map%ocell_cnt_ghosted)
@@ -136,7 +136,7 @@ contains
     map%is_fmeshlocal_to_global      = 0
     map%is_global_to_tmeshlocal      = 0
     map%scatter_fmeshlocal_to_global = 0
-    map%scatter_global_to_tmeshlocal  = 0
+    map%scatter_global_to_tmeshlocal = 0
 
     MappingCreate => map
 
@@ -183,9 +183,7 @@ contains
 
     allocate (index(map%num_ocells_with_fmesh))
 
-    !if(rank.eq.0) write(*,*), 'OCell IDs: '
     do ii = 1,map%num_ocells_with_fmesh
-       !if(rank.eq.0) write(*,*), ii,ocell_ids(ii)
        map%ocell_ids_nindex(ii) = ocell_ids(ii)
        map%ocell_vol_nindex(ii) = ocell_vol(ii)
        index(ii) = ii
@@ -205,36 +203,27 @@ contains
        endif
     enddo
 
-    !print *, 'num_docells_with_fmesh: ', map%num_docells_with_fmesh, 'num_ocells_with_fmesh',map%num_ocells_with_fmesh
     ! Allocate memory
     allocate( map%docell_ids_sorted_nindex ( map%num_docells_with_fmesh ) )
     allocate( map%hash                     ( map%num_ocells_with_fmesh  ) )
 
     ! Save the ids of distinct overlapped cells
-    !if(rank.eq.0) write(*,*), 'Distinct IDs: '
     count = 1
     map%docell_ids_sorted_nindex( count ) = ocell_ids(index(1))
-    !if(rank.eq.0) write(*,*), count, ocell_ids(index(1))
 
     do ii = 2,map%num_ocells_with_fmesh
        if ( ocell_ids(index(ii)).gt.ocell_ids(index(ii-1)) ) then
           count = count + 1
           map%docell_ids_sorted_nindex( count ) = &
                ocell_ids(index(ii))
-          !if(rank.eq.0) write(*,*), count, ocell_ids(index(ii))
        endif
     enddo
 
     ! Populate the lookup table
-    !if(rank.eq.0) write(*,*), 'Hash table: '
     do ii = 1,map%num_ocells_with_fmesh
        do jj = 1,map%num_docells_with_fmesh
           if( ocell_ids(ii).eq.map%docell_ids_sorted_nindex(jj)) then
              map%hash(ii) = jj
-             !if (rank.eq.0) then
-             !   write(*,*), ocell_ids(ii), map%docell_ids_sorted_nindex(jj), &
-             !        jj
-             !endif
           endif
        enddo
     enddo
@@ -249,8 +238,8 @@ contains
   ! ************************************************************************** !
   subroutine MappingCreateIS(map, mycomm, fmeshlocal_npts, fmesh_cell_ids)
 
-    implicit none 
-    
+    implicit none
+
     type(mapping_type), pointer :: map
     PetscInt                    :: fmeshlocal_npts
     PetscInt, pointer           :: fmesh_cell_ids(:)
@@ -260,7 +249,7 @@ contains
     call ISCreateBlock( mycomm, 1, fmeshlocal_npts, &
          fmesh_cell_ids, PETSC_COPY_VALUES, &
          map%is_fmeshlocal_to_global, ierr)
-    
+
 
     call ISCreateBlock( mycomm, 1, map%num_docells_with_fmesh, &
          map%docell_ids_sorted_nindex, PETSC_COPY_VALUES, &
@@ -281,7 +270,7 @@ contains
     PetscInt                    :: fmesh_npts
     PetscInt, allocatable       :: tmp_int_array(:)
     PetscInt                    :: ii
-    PetscMPIInt                 :: mycomm    
+    PetscMPIInt                 :: mycomm
     PetscErrorCode              :: ierr
 
     PetscViewer :: viewer
@@ -289,7 +278,7 @@ contains
 
     IS :: is_fmeshlocal_to_fmeshlocal
     IS :: is_tmeshlocal_to_tmeshlocal
-    
+
     ! Create a temporary IS set 'tmeshlocal_to_tmeshlocal'
     allocate(tmp_int_array(map%num_docells_with_fmesh))
     do ii = 1,map%num_docells_with_fmesh
@@ -311,14 +300,14 @@ contains
          is_fmeshlocal_to_fmeshlocal, ierr)
     deallocate(tmp_int_array)
     call PetscViewerASCIIOpen(mycomm, 'is_fmeshlocal_to_fmeshlocal.out',viewer,ierr)
-    call ISView(is_tmeshlocal_to_tmeshlocal,viewer, ierr)
+    call ISView(is_fmeshlocal_to_fmeshlocal,viewer, ierr)
     call PetscViewerDestroy(viewer, ierr)
-    
+
     call VecScatterCreate(vec_fmeshlocal, is_fmeshlocal_to_fmeshlocal, &
          vec_global, map%is_fmeshlocal_to_global, &
          map%scatter_fmeshlocal_to_global, ierr)
-    
-    call PetscViewerASCIIOpen(mycomm, 'scatterclmlocal_to_global.out', viewer, ierr)
+
+    call PetscViewerASCIIOpen(mycomm, 'scatter_clmlocal_to_global.out', viewer, ierr)
     call VecScatterView(map%scatter_fmeshlocal_to_global, viewer, ierr)
     call PetscViewerDestroy(viewer, ierr)
 
@@ -332,7 +321,7 @@ contains
 
     !call ISDestroy(is_fmeshlocal_to_fmeshlocal)
     !call ISDestroy(is_tmeshlocal_to_tmeshlocal)
-    
+
   end subroutine MappingCreateVecScatter
 
   ! ************************************************************************** !
@@ -341,7 +330,7 @@ contains
   ! ************************************************************************** !
   subroutine MappingDestroy (map)
 
-    implicit none 
+    implicit none
 
     type (mapping_type), pointer :: map
     PetscErrorCode               :: ierr
