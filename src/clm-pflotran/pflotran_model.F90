@@ -71,8 +71,9 @@ module pflotran_model_module
 
   public::pflotranModelCreate,               &
 #ifdef CLM_PFLOTRAN
-  pflotranModelSetICs,                  & !
+       pflotranModelSetICs,                  & !
        pflotranModelSetSoilProp,             & !
+       pflotranModelSetSoilProp2,            & !
        pflotranModelUpdateSourceSink,        & !
        pflotranModelUpdateSaturation,        & !
        pflotranModelGetSaturation,           & !
@@ -379,6 +380,88 @@ contains
 
     call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
     tmp = 0.d0
+    write(iulog,*), 'Saturation:'
+    do local_id= 1,grid%nlmax
+
+       ghosted_id = grid%nL2G(local_id)
+       if (associated(patch%imat)) then
+          if (patch%imat(ghosted_id) <= 0) cycle
+       endif
+       sat      = global_aux_vars(ghosted_id)%sat(1)
+       tmp = tmp + sat*porosity_loc_p(ghosted_id)
+       write(iulog,*), local_id,sat
+    enddo
+    write(iulog, *),'total_volume_liq = ', tmp
+
+  end subroutine pflotranModelSetICs
+
+
+  subroutine pflotranModelSetICs2( pflotran_model )
+
+    use Realization_module
+    use Patch_module
+    use Grid_module
+    use Field_module
+    use Richards_Aux_module
+    use Global_Aux_module
+    use Option_module
+    use Richards_module
+    use Discretization_module
+
+    implicit none
+    type(pflotran_model_type), pointer        :: pflotran_model
+    type(option_type), pointer                :: option
+    type(realization_type),pointer            :: realization
+    type(patch_type),pointer                  :: patch
+    type(grid_type),pointer                   :: grid
+    type(field_type),pointer                  :: field
+    type(richards_auxvar_type), pointer       :: rich_aux_vars(:)
+    type(global_auxvar_type), pointer         :: global_aux_vars(:)
+    type(discretization_type), pointer        :: discretization
+
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id
+    PetscReal          :: head_constant, grav, den,tmp, sat
+    PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:)
+    PetscReal, pointer :: porosity_loc_p(:), perm_xx_loc_p(:)
+
+    realization      => pflotran_model%simulation%realization
+    discretization   => realization%discretization
+    patch            => realization%patch
+    grid             => patch%grid
+    field            => realization%field
+    rich_aux_vars    => patch%aux%Richards%aux_vars
+    global_aux_vars  => patch%aux%Global%aux_vars
+    option           => realization%option
+
+    write (iulog,*), 'In pflotranModelSetICs'
+
+    den = 998.2d0       ! [kg/m^3]  @ 20 degC
+    grav = 9.81d0       ! [m/S^2]
+
+    head_constant = den*grav*(grid%z_max_global - clm_pf_data%zwt(1)) + 101325.0d0
+
+    call GridVecGetArrayF90(grid,field%flow_xx      ,xx_loc_p       ,ierr)
+
+    do local_id = 1, grid%nlmax
+       ghosted_id = grid%nL2G(local_id)
+       if (associated(patch%imat)) then
+          if (patch%imat(ghosted_id) <= 0) cycle
+       endif
+       xx_loc_p(ghosted_id) = head_constant - grid%z(ghosted_id)*den*grav
+    enddo
+
+    call GridVecRestoreArrayF90(grid,field%flow_xx       ,xx_loc_p       ,ierr)
+    ! update dependent vectors
+    call DiscretizationGlobalToLocal(discretization,field%flow_xx, &
+         field%flow_xx_loc,NFLOWDOF)
+    call VecCopy(field%flow_xx, field%flow_yy, ierr)
+
+    call RichardsUpdateAuxVars(realization)
+
+    call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
+    tmp = 0.d0
     do local_id= 1,grid%nlmax
 
        ghosted_id = grid%nL2G(local_id)
@@ -388,9 +471,9 @@ contains
        sat      = global_aux_vars(ghosted_id)%sat(1)
        tmp = tmp + sat*porosity_loc_p(ghosted_id)
     enddo
-    write(iulog, *),'total_volume_liq = ', tmp
 
-  end subroutine pflotranModelSetICs
+  end subroutine pflotranModelSetICs2
+
 #endif
 
   ! ************************************************************************** !
@@ -592,6 +675,17 @@ contains
     deallocate ( vol_ovlap_arr)
 
   end subroutine pflotranModelSetSoilProp
+
+
+  subroutine pflotranModelSetSoilProp2( pflotran_model )
+
+    implicit none
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+
+  end subroutine pflotranModelSetSoilProp2
+
+
 #endif
 
   ! ************************************************************************** !
@@ -855,12 +949,12 @@ contains
     enddo
 
 
-    write(iulog,*), 'CLM2PF: '
+    !write(iulog,*), 'CLM2PF: '
     do i = 1,clm_pf_data%nlevsoi
-       write(iulog,*), ' clm_id =',i,' num_cells = ', map%clm2pf(i)%num_pflotran_cells
+       !write(iulog,*), ' clm_id =',i,' num_cells = ', map%clm2pf(i)%num_pflotran_cells
        do j=1,map%clm2pf(i)%num_pflotran_cells
-          write(iulog,*), ' pf_id=',map%clm2pf(i)%id_pflotran_cells(j), &
-               map%clm2pf(i)%perc_vol_overlap(j)
+          !write(iulog,*), ' pf_id=',map%clm2pf(i)%id_pflotran_cells(j), &
+          !     map%clm2pf(i)%perc_vol_overlap(j)
        enddo
     enddo
 
@@ -868,10 +962,10 @@ contains
     write(iulog,*), '=============================================== '
     write(iulog,*), 'PF2CLM: '
     do i = 1,grid%nlmax
-       write(iulog,*), ' pf_id =',i,' num_cells = ', map%pf2clm(i)%num_clm_cells
+       !write(iulog,*), ' pf_id =',i,' num_cells = ', map%pf2clm(i)%num_clm_cells
        do j=1,map%pf2clm(i)%num_clm_cells
-          write(iulog,*), ' clm_id=',map%pf2clm(i)%id_clm_cells(j), &
-               map%pf2clm(i)%perc_vol_overlap(j)
+          !write(iulog,*), ' clm_id=',map%pf2clm(i)%id_clm_cells(j), &
+          !     map%pf2clm(i)%perc_vol_overlap(j)
        enddo
     enddo
     write(iulog,*), '=============================================== '
@@ -962,12 +1056,12 @@ contains
 
        ! TODO: Check the two mapping files are consistent
        !       (i.e. ensure that the cell-ids in one mapping file
-	   !        are present in the other mapping file and vice-versa)
+       !        are present in the other mapping file and vice-versa)
 
        allocate(grid_clm_active(pflotran_model%num_clm_cells))
        allocate(grid_pf_active( pflotran_model%num_pf_cells ))
-	   grid_clm_active = 0
-	   grid_pf_active  = 0
+       grid_clm_active = 0
+       grid_pf_active  = 0
 	   
        ! Receiving/Sending data to other processors
        do irank = 0,option%mycommsize-1
@@ -1099,13 +1193,13 @@ contains
        ! Error checking to ensure all PF cells that are in the 
 	   ! mapping file are active on some processor
        do local_id = 1,pflotran_model%num_pf_cells
-	     if ( grid_pf_active(local_id).eq.0 ) then
-		   write(*,*), 'All CLM grid '
-           pflotran_model%option%io_buffer = 'All PF cells present within mapping file ' //&
-		   ' are not active!'
-          call printErrMsg(option)
-		 endif
-	   enddo
+          if ( grid_pf_active(local_id).eq.0 ) then
+             write(*,*), 'All CLM grid '
+             pflotran_model%option%io_buffer = 'All PF cells present within mapping file ' //&
+                  ' are not active!'
+             call printErrMsg(option)
+          endif
+       enddo
 
     else
 
