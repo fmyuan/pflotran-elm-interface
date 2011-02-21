@@ -46,6 +46,10 @@ ifdef vamsi_hdf5
   HDF5_FLAGS += -DVAMSI_HDF5 -DVAMSI_DEFAULT -DVAMSI_HDF5_READ -DVAMSI_HDF5_WRITE -DVAMSI_STAGE_BARRIER
 endif
 
+ifdef have_hdf5
+  HDF5_FLAGS += -I$(HDF5_INCLUDE) -I$(HDF5_LIB) -DPETSC_HAVE_HDF5
+endif
+
 ifdef samr_hdf5
   HDF5_FLAGS += -I$(HDF5_INCLUDE) -I$(HDF5_LIB) -DSAMR_HAVE_HDF5
 endif
@@ -78,6 +82,10 @@ ifdef petscrel
 else
  include ${PETSC_DIR}/conf/variables
  include ${PETSC_DIR}/conf/rules
+endif
+
+ifdef have_hdf5
+LIBS +=  -L${HDF5_LIB} -lhdf5_fortran -lhdf5 -lz 
 endif
 
 ifdef tau
@@ -147,6 +155,7 @@ common_obj = ${common_src}option.o \
 	${common_src}immis.o\
 	${common_src}flash2.o\
 	${common_src}transport.o\
+	${common_src}reaction_chunk.o\
 	${common_src}reaction.o\
 	${common_src}reactive_transport.o\
 	${common_src}thc.o\
@@ -236,6 +245,7 @@ output.o : grid.o structured_grid.o option.o realization.o field.o \
            thc.o richards.o mphase.o flash2.o \
            discretization.o logging.o amrgrid.o
 reaction.o : reactive_transport_aux.o reaction_aux.o option.o string.o
+reaction_chunk.o : reactive_transport_aux.o reaction_aux.o option.o string.o
 reaction_aux.o : option.o string.o
 transport.o : reactive_transport_aux.o option.o matrix_block_aux.o
 reactive_transport.o : realization.o reaction.o transport.o matrix_block_aux.o \
