@@ -6,7 +6,7 @@ module Mapping_module
 
 #include "definitions.h"
 #include "finclude/petsclog.h"
-  !#include "finclude/petscsys.h"
+!#include "finclude/petscsys.h"
 #include "finclude/petscviewer.h"
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
@@ -51,13 +51,13 @@ module Mapping_module
      PetscInt :: tmesh_num_cells_ghost                    ! Number of ghost cells
      PetscInt :: tmesh_num_cells_ghosted                  ! num_cells_local + num_cells_ghost
 
-     PetscInt :: num_ocells_with_fmesh                         ! Total number of cells 'fmesh'
-     !                                                which overlap with 'tmesh'
-     PetscInt :: num_docells_with_fmesh                        ! Number of distinct cells 'fmesh'
-     !                                                which overlap with 'tmesh'
+     PetscInt :: num_ocells_with_fmesh                    ! Total number of cells 'fmesh'
+     !                                                      which overlap with 'tmesh'
+     PetscInt :: num_docells_with_fmesh                   ! Number of distinct cells 'fmesh'
+     !                                                      which overlap with 'tmesh'
 
      ! 'tmesh' Cells:
-     PetscInt, pointer  :: tmesh_cell_ids_ghosted_nindex(:)      ! Cell-IDs in Natural indexing             [tmesh_num_cells_ghosted]
+     PetscInt, pointer  :: tmesh_cell_ids_ghosted_nindex(:)! Cell-IDs in Natural indexing             [tmesh_num_cells_ghosted]
 
      !                                                     'fmesh' Overlapped Cells:
      PetscInt, pointer  :: ocell_cnt_ghosted(:)            ! For each 'tmesh' cell, the count of
@@ -68,7 +68,7 @@ module Mapping_module
 
      PetscInt, pointer  :: docell_ids_sorted_nindex(:)     ! Distinct overlapped Cell-IDs sorted and
      !                                                       in natural indexing                      [num_docells_with_fmesh]
-     PetscInt,pointer   :: hash(:)                         ! Lookup table for obtaining position in
+     PetscInt, pointer   :: hash(:)                        ! Lookup table for obtaining position in
      !                                                       the sorted distinct cell ids
      !                                                       (docell_ids_sorted) list for every
      !                                                       overlapped cell-id (ocell)               [num_ocells_with_fmesh]
@@ -100,6 +100,8 @@ module Mapping_module
        MappingSetOcells, &
        MappingCreateIS, &
        MappingCreateVecScatter, &
+       MappingScatterLocal2Global, &
+       MappingScatterGlobal2Local, &
        MappingDestroy
 
 contains
@@ -332,6 +334,47 @@ contains
     !call ISDestroy(is_tmeshlocal_to_tmeshlocal)
 
   end subroutine MappingCreateVecScatter
+
+  ! ************************************************************************** !
+  !
+  !
+  ! ************************************************************************** !
+  subroutine MappingScatterLocal2Global(map, vec_local, vec_global)
+
+    implicit none
+
+    type (mapping_type), pointer :: map
+    PetscErrorCode               :: ierr
+
+    Vec :: vec_local, vec_global
+
+    call VecScatterBegin( map%scatter_fmeshlocal_to_global, &
+         vec_local,vec_global, INSERT_VALUES,SCATTER_FORWARD, ierr)
+    call VecScatterEnd( map%scatter_fmeshlocal_to_global, &
+         vec_local,vec_global, INSERT_VALUES,SCATTER_FORWARD, ierr)
+
+  end subroutine MappingScatterLocal2Global
+
+
+  ! ************************************************************************** !
+  !
+  !
+  ! ************************************************************************** !
+  subroutine MappingScatterGlobal2Local(map, vec_local, vec_global)
+
+    implicit none
+
+    type (mapping_type), pointer :: map
+    PetscErrorCode               :: ierr
+
+    Vec :: vec_local, vec_global
+
+    call VecScatterBegin( map%scatter_global_to_tmeshlocal, &
+         vec_global, vec_local, INSERT_VALUES,SCATTER_FORWARD, ierr)
+    call VecScatterEnd( map%scatter_global_to_tmeshlocal, &
+         vec_global,vec_local, INSERT_VALUES,SCATTER_FORWARD, ierr)
+
+  end subroutine MappingScatterGlobal2Local
 
   ! ************************************************************************** !
   !
