@@ -1137,8 +1137,6 @@ subroutine RichardsInitializeTimestep(realization)
 
   call RichardsUpdateFixedAccum(realization)
 
-
-
 end subroutine RichardsInitializeTimestep
 
 ! ************************************************************************** !
