@@ -773,6 +773,19 @@ subroutine StepperUpdateDT(flow_stepper,tran_stepper,option)
             ut = up
           endif
           dtt = fac * dt * (1.d0 + ut)
+        case(G_MODE)   
+          fac = 0.5d0
+          if (flow_stepper%num_newton_iterations >= flow_stepper%iaccel) then
+            fac = 0.33d0
+            ut = 0.d0
+          else
+            up = option%dpmxe/(option%dpmax+0.1)
+            utmp = option%dtmpmxe/(option%dtmpmax+1.d-5)
+            uc = option%dcmxe/(option%dcmax+1.d-6)
+!            uus= option%dsmxe/(option%dsmax+1.d-6)
+            ut = min(up,utmp,uc)
+          endif
+          dtt = fac * dt * (1.d0 + ut)
         case default
           dtt = dt
           if (flow_stepper%num_newton_iterations <= flow_stepper%iaccel .and. &
@@ -837,16 +850,15 @@ subroutine StepperUpdateDT(flow_stepper,tran_stepper,option)
       if (tran_stepper%iaccel == 0) return
 
       dtt = dt
-      if ( &
-      !tran_stepper%num_newton_iterations <= tran_stepper%iaccel .and. &
-          tran_stepper%num_newton_iterations <= size(tran_stepper%tfac)) then
-        if (tran_stepper%num_newton_iterations == 0) then
-          dtt = tran_stepper%tfac(1) * dt
-        else
+      if (tran_stepper%num_newton_iterations <= tran_stepper%iaccel) then
+        if (tran_stepper%num_newton_iterations <= size(tran_stepper%tfac)) then
           dtt = tran_stepper%tfac(tran_stepper%num_newton_iterations) * dt
+        else
+          dtt = 0.5d0 * dt
         endif
       else
-        dtt = 2.d0 * dt
+!       dtt = 2.d0 * dt
+        dtt = 0.5d0 * dt
       endif
 
       if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
@@ -1028,6 +1040,8 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
   use Richards_module, only : RichardsMaxChange, RichardsInitializeTimestep, &
                              RichardsTimeCut
   use THC_module, only : THCMaxChange, THCInitializeTimestep, THCTimeCut
+  use General_module, only : GeneralMaxChange, GeneralInitializeTimestep, &
+                             GeneralTimeCut
   use Global_module
 
   use Output_module, only : Output
@@ -1133,6 +1147,8 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
         call ImmisInitializeTimestep(realization)
       case(FLASH2_MODE)
         call Flash2InitializeTimestep(realization)
+      case(G_MODE)
+        call GeneralInitializeTimestep(realization)
     end select
     
     do
@@ -1153,7 +1169,7 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
     read(*,*)    
 #endif
       select case(option%iflowmode)
-        case(MPH_MODE,THC_MODE,IMS_MODE,FLASH2_MODE)
+        case(MPH_MODE,THC_MODE,IMS_MODE,FLASH2_MODE,G_MODE)
           call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%flow_xx, ierr)
         case(RICHARDS_MODE)
           if (discretization%itype == STRUCTURED_GRID_MIMETIC) then 
@@ -1204,7 +1220,7 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
             call Flash2UpdateReason(update_reason,realization)
           case(THC_MODE)
             update_reason=1
-          case(RICHARDS_MODE)
+          case(RICHARDS_MODE,G_MODE)
             update_reason=1
         end select   
 #ifndef CLM_PFLOTRAN
@@ -1266,6 +1282,8 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
             call ImmisTimeCut(realization)
           case(FLASH2_MODE)
             call Flash2TimeCut(realization)
+          case(G_MODE)
+            call GeneralTimeCut(realization)
         end select
         call VecCopy(field%iphas_old_loc, field%iphas_loc, ierr)
 
@@ -1454,7 +1472,7 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
       if (option%print_file_flag) then
         write(option%fid_out,'("  --> max chng: dpmx= ",1pe12.4)') option%dpmax
       endif
-    case(MPH_MODE,IMS_MODE,FLASH2_MODE)
+    case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE)
       select case(option%iflowmode)
         case(MPH_MODE)
           call MphaseMaxChange(realization)
@@ -1462,6 +1480,8 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
           call ImmisMaxChange(realization)
         case(FLASH2_MODE)
           call FLASH2MaxChange(realization)
+        case(G_MODE)
+          call GeneralMaxChange(realization)
       end select
       ! note use mph will use variable switching, the x and s change is not meaningful 
       if (option%print_screen_flag) then
@@ -1929,6 +1949,8 @@ subroutine StepperStepTransportDT_OS(realization,stepper,flow_t0,flow_t1, &
     call MatShellSetOperation(solver%J, MATOP_MULT,RTTransportMatVec, ierr)
     call MatShellSetContext(solver%J, discretization%amrgrid%p_application, ierr)
     call RTCalculateTransportMatrix(realization,solver%Jpre)
+!  the next line was used to debug why an ludcmp error was showing up
+!     call RTCalculateTransportMatrix(realization,solver%J)
 #ifndef PC_BUG       
     call SAMRSetPetscTransportMatrix(discretization%amrgrid%p_application, solver%Jpre)
 #endif       
@@ -2513,6 +2535,7 @@ subroutine StepperUpdateFlowSolution(realization)
   use Immis_module, only: ImmisUpdateSolution
   use Richards_module, only : RichardsUpdateSolution
   use THC_module, only : THCUpdateSolution
+  use General_module, only : GeneralUpdateSolution
 
   use Realization_module
   use Option_module
@@ -2538,6 +2561,8 @@ subroutine StepperUpdateFlowSolution(realization)
       call THCUpdateSolution(realization)
     case(RICHARDS_MODE)
       call RichardsUpdateSolution(realization)
+    case(G_MODE)
+      call GeneralUpdateSolution(realization)
   end select    
 
 end subroutine StepperUpdateFlowSolution
@@ -2604,6 +2629,7 @@ subroutine StepperUpdateFlowAuxVars(realization)
   use Immis_module, only: ImmisUpdateAuxVars
   use Richards_module, only : RichardsUpdateAuxVars
   use THC_module, only : THCUpdateAuxVars
+  use General_module, only : GeneralUpdateAuxVars
 
   use Realization_module
   use Option_module
@@ -2629,6 +2655,8 @@ subroutine StepperUpdateFlowAuxVars(realization)
       call THCUpdateAuxVars(realization)
     case(RICHARDS_MODE)
       call RichardsUpdateAuxVars(realization)
+    case(G_MODE)
+      call GeneralUpdateAuxVars(realization)
   end select    
 
 end subroutine StepperUpdateFlowAuxVars
