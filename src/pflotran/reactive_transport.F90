@@ -2737,7 +2737,7 @@ subroutine RTTransportResidualPatch1(realization,solution_loc,residual,idof)
 
   if (option%use_samr) then
      do axis=0,2  
-      call GridVecGetArrayF90(grid,axis,field%flow_face_fluxes, fluxes(axis)%flux_p, ierr)
+      call GridVecGetArrayF90(grid,axis,field%tran_face_fluxes, fluxes(axis)%flux_p, ierr)
       fluxes(axis)%flux_p(:)=0.0
      enddo
   endif
@@ -3295,6 +3295,8 @@ subroutine RTTransportMatVecPatch2(realization,solution_loc,residual,idof)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: sum_connection, iconn
+  PetscInt :: ieqgas, icomp
+  PetscReal :: msrc(realization%option%nphase)
   PetscReal :: qsrc, molality
   PetscInt :: flow_src_sink_type
   PetscReal :: scale, coef_in, coef_out
@@ -3625,7 +3627,7 @@ subroutine RTTransportResidualFluxContribPatch(r,realization,ierr)
   call GridVecGetArrayF90(grid,r, r_p, ierr)
 
   do axis=0,2  
-     call GridVecGetArrayF90(grid,axis,field%flow_face_fluxes, fluxes(axis)%flux_p, ierr)  
+     call GridVecGetArrayF90(grid,axis,field%tran_face_fluxes, fluxes(axis)%flux_p, ierr)  
   enddo
 
   nlx = grid%structured_grid%nlx  
