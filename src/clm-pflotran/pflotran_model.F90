@@ -595,9 +595,9 @@ contains
           !
           ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
           ! [m^2]          [mm/sec]
-          perm_xx_loc_p(ghosted_id) = perm_xx_loc_p(ghosted_id) + vol_ovlap * clm_pf_data%hksat_x(1,clm_id) * vis/ (den * grav) * 1000.d0
-          perm_yy_loc_p(ghosted_id) = perm_yy_loc_p(ghosted_id) + vol_ovlap * clm_pf_data%hksat_y(1,clm_id) * vis/ (den * grav) * 1000.d0
-          perm_zz_loc_p(ghosted_id) = perm_zz_loc_p(ghosted_id) + vol_ovlap * clm_pf_data%hksat_z(1,clm_id) * vis/ (den * grav) * 1000.d0
+          perm_xx_loc_p(ghosted_id) = perm_xx_loc_p(ghosted_id) + vol_ovlap * clm_pf_data%hksat_x(1,clm_id) * vis/ (den * grav) / 1000.d0
+          perm_yy_loc_p(ghosted_id) = perm_yy_loc_p(ghosted_id) + vol_ovlap * clm_pf_data%hksat_y(1,clm_id) * vis/ (den * grav) / 1000.d0
+          perm_zz_loc_p(ghosted_id) = perm_zz_loc_p(ghosted_id) + vol_ovlap * clm_pf_data%hksat_z(1,clm_id) * vis/ (den * grav) / 1000.d0
 
           !
           ! porosity = vol. soil moisture @ saturation
@@ -759,6 +759,9 @@ contains
 
           clm_pf_data%sat(1,clm_id) = clm_pf_data%sat(1,clm_id) + sat*vol_ovp
        enddo
+
+       clm_pf_data%sat(1,clm_id) = min( clm_pf_data%sat(1,clm_id), 1.0d0)
+
     enddo
 
 
@@ -1531,12 +1534,10 @@ contains
 
 
     if(pflotran_model%pause_time_1.gt.0.0d0) then
-       print *, 'call pflotranModelDeleteWaypoint: ', pflotran_model%pause_time_1
        call pflotranModelDeleteWaypoint(pflotran_model, pflotran_model%pause_time_1)
     endif
 
     if(pflotran_model%pause_time_2.gt.0.0d0) then
-       print *, 'call pflotranModelDeleteWaypoint: ', pflotran_model%pause_time_2
        call pflotranModelDeleteWaypoint(pflotran_model, pflotran_model%pause_time_2)
     endif
 

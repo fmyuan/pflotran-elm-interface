@@ -1239,13 +1239,20 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
 
         stepper%target_time = stepper%target_time - option%flow_dt
         option%flow_dt = 0.5d0 * option%flow_dt
-      
+
+#ifndef CLM_PFLOTRAN      
         if (option%print_screen_flag) write(*,'('' -> Cut time step: snes='',i3, &
           &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.4, '' dt= '', &
           &   1pe12.4)')  snes_reason,icut,stepper%cumulative_time_step_cuts, &
               option%flow_time/realization%output_option%tconv, &
               option%flow_dt/realization%output_option%tconv
-
+#else
+        if (option%print_screen_flag) write(iulog,'('' -> Cut time step: snes='',i3, &
+          &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.4, '' dt= '', &
+          &   1pe12.4)')  snes_reason,icut,stepper%cumulative_time_step_cuts, &
+              option%flow_time/realization%output_option%tconv, &
+              option%flow_dt/realization%output_option%tconv
+#endif
         stepper%target_time = stepper%target_time + option%flow_dt
 
         select case(option%iflowmode)
