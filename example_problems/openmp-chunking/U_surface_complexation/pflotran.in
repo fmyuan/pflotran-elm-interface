@@ -5,11 +5,11 @@
 MODE RICHARDS
 
 :=========================== debug settings ===================================
-DEBUG
+:DEBUG
 :MATVIEW_JACOBIAN
 :VECVIEW_RESIDUAL
 :VECVIEW_SOLUTION
-/
+:/
 
 :=========================== chemistry =======================================
 CHEMISTRY

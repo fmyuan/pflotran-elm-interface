@@ -539,7 +539,7 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
       endif
       do ! loop on transport until it reaches the target time
         if (option%reactive_transport_coupling == GLOBAL_IMPLICIT) then
-	      !global implicit
+     !global implicit
           call StepperStepTransportDT_GI(realization,tran_stepper, &
                                       flow_t0,option%flow_time,failure)
         else
@@ -1197,15 +1197,17 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
       call PetscGetTime(log_start_time, ierr)
 
 #ifdef DASVYAT_DEBUG
-!    call PetscViewerASCIIOpen(realization%option%mycomm,'timestepp_flow_xx.out', &
-!                              viewer,ierr)
-!    if (discretization%itype == STRUCTURED_GRID_MIMETIC) then
-!            call VecView(field%flow_xx_faces, viewer, ierr)
-!    else
-!            call VecView(field%flow_xx, viewer, ierr)
-!    end if
-!    write(*,*) "VecView error", ierr
-!    call PetscViewerDestroy(viewer,ierr)
+    call PetscViewerASCIIOpen(realization%option%mycomm,'timestepp_flow_xx_before.out', &
+                              viewer,ierr)
+    if (discretization%itype == STRUCTURED_GRID_MIMETIC) then
+            call VecView(field%flow_xx_faces, viewer, ierr)
+            call VecView(field%flow_xx, viewer, ierr)
+            call vecView(field%flow_r_faces, viewer, ierr)
+    else
+            call VecView(field%flow_xx, viewer, ierr)
+    end if
+    write(*,*) "VecView error", ierr
+    call PetscViewerDestroy(viewer,ierr)
     write(*,*) "Before SNESSolve" 
     read(*,*)    
 #endif
@@ -1221,18 +1223,21 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
 
 #ifdef DASVYAT_DEBUG
 
-!    call PetscViewerASCIIOpen(realization%option%mycomm,'timestepp_flow_xx.out', &
-!                              viewer,ierr)
-!    if (discretization%itype == STRUCTURED_GRID_MIMETIC) then
-!            call VecView(field%flow_xx_faces, viewer, ierr)
-!    else
-!            call VecView(field%flow_xx, viewer, ierr)
-!    end if
-!    write(*,*) "VecView error", ierr
-!    call PetscViewerDestroy(viewer,ierr)
-!
+    call PetscViewerASCIIOpen(realization%option%mycomm,'timestepp_flow_xx_after.out', &
+                              viewer,ierr)
+    if (discretization%itype == STRUCTURED_GRID_MIMETIC) then
+            call VecView(field%flow_xx_faces, viewer, ierr)
+            call VecView(field%flow_xx, viewer, ierr)
+            call vecView(field%flow_r_faces, viewer, ierr)
+    else
+            call VecView(field%flow_xx, viewer, ierr)
+    end if
+    write(*,*) "VecView error", ierr
+    call PetscViewerDestroy(viewer,ierr)
+
     write(*,*) "After SNESSolve" 
-    read(*,*)    
+    read(*,*)   
+     
 #endif
 
 
@@ -1295,7 +1300,12 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
         endif
 
         stepper%target_time = stepper%target_time - option%flow_dt
-        option%flow_dt = 0.5d0 * option%flow_dt
+
+#ifdef DASVYAT_TEST_CUT
+        option%flow_dt = 1d0*option%flow_dt
+#else
+        option%flow_dt = 0.5d0 * option%flow_dt  
+#endif
 
 #ifndef CLM_PFLOTRAN      
         if (option%print_screen_flag) write(*,'('' -> Cut time step: snes='',i3, &

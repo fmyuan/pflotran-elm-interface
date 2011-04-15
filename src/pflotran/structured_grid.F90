@@ -197,7 +197,7 @@ subroutine StructuredGridCreateDM(structured_grid,da,ndof,stencil_width, &
 #include "finclude/petscvec.h90"
 #include "finclude/petscdm.h"
 #include "finclude/petscdm.h90"
-#ifdef DMDA_NEW
+#ifndef DMDA_OLD
 #include "finclude/petscdmda.h"
 #endif
 
@@ -212,7 +212,7 @@ subroutine StructuredGridCreateDM(structured_grid,da,ndof,stencil_width, &
   !-----------------------------------------------------------------------
   ! Generate the DM object that will manage communication.
   !-----------------------------------------------------------------------
-#ifdef DMDA_NEW
+#ifndef DMDA_OLD
   call DMDACreate3D(option%mycomm,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE, &
                   DMDA_BOUNDARY_NONE,DMDA_STENCIL_STAR, &
                   structured_grid%nx,structured_grid%ny,structured_grid%nz, &
@@ -624,7 +624,7 @@ subroutine StructuredGridComputeSpacing(structured_grid,nG2A,nG2L,option)
           structured_grid%dx_global = (structured_grid%bounds(X_DIRECTION,UPPER)- &
                                        structured_grid%bounds(X_DIRECTION,LOWER)) / &
                                        dble(structured_grid%nx)
-          structured_grid%dy = 1.d0
+          structured_grid%dy_global = 1.d0
           structured_grid%dz_global = (structured_grid%bounds(Z_DIRECTION,UPPER)- &
                                        structured_grid%bounds(Z_DIRECTION,LOWER)) / &
                                        dble(structured_grid%nz)
@@ -634,8 +634,8 @@ subroutine StructuredGridComputeSpacing(structured_grid,nG2A,nG2L,option)
           structured_grid%dx_global = (structured_grid%bounds(X_DIRECTION,UPPER)- &
                                        structured_grid%bounds(X_DIRECTION,LOWER)) / &
                                        dble(structured_grid%nx)
-          structured_grid%dy = 1.d0
-          structured_grid%dz = 1.d0
+          structured_grid%dy_global = 1.d0
+          structured_grid%dz_global = 1.d0
       end select
       
     endif
@@ -1602,6 +1602,8 @@ subroutine StructGridPopulateConnection(radius,structured_grid,connection,iface,
               connection%dist(0,iconn) = 0.5d0*structured_grid%dx(ghosted_id)
               connection%area(iconn) = structured_grid%dy(ghosted_id)* &
                                    structured_grid%dz(ghosted_id)
+
+
               if (iface ==  WEST_FACE) then
                 connection%dist(1,iconn) = 1.d0
               else
