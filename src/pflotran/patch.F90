@@ -609,12 +609,12 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
   endif
  
   if (patch%grid%itype == STRUCTURED_GRID_MIMETIC) then
-#ifdef DASVYAT
+!#ifdef DASVYAT
 !    temp_int = ConnectionGetNumberInList(patch%grid%boundary_connection_set_list)
     temp_int = CouplerGetNumBoundConnectionsInListMFD(patch%grid, &
-										patch%boundary_conditions, &
-										option)
-#endif
+                            patch%boundary_conditions, &
+                           option)
+!#endif
   else  
     temp_int = CouplerGetNumConnectionsInList(patch%boundary_conditions)
   end if
@@ -712,7 +712,13 @@ subroutine PatchInitCouplerAuxVars(coupler_list,reaction,option)
 
             case(RICHARDS_MODE)
 !geh              allocate(coupler%flow_aux_real_var(option%nflowdof*option%nphase,num_connections))
-              if (option%mimetic) num_connections = coupler%numfaces_set
+              if (option%mimetic) then
+                 if (coupler%itype == INITIAL_COUPLER_TYPE) then 
+                     num_connections = coupler%numfaces_set + coupler%region%num_cells
+                 else 
+                     num_connections = coupler%numfaces_set
+                 end if
+              end if
               allocate(coupler%flow_aux_real_var(2,num_connections))
               allocate(coupler%flow_aux_int_var(1,num_connections))
               coupler%flow_aux_real_var = 0.d0
@@ -1647,11 +1653,13 @@ subroutine PatchGetDataset(patch,field,option,output_option,vec,ivar, &
         case(PRIMARY_MOLARITY)
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
-             xmass =1.D0
-             if(associated(patch%aux%Global%aux_vars(ghosted_id)%xmass))&
-                xmass = patch%aux%Global%aux_vars(ghosted_id)%xmass(iphase)
+            if (associated(patch%aux%Global%aux_vars(ghosted_id)%xmass)) then
+              xmass = patch%aux%Global%aux_vars(ghosted_id)%xmass(iphase)
+            else
+              xmass = 1.d0
+            endif
             vec_ptr(local_id) = &
-              patch%aux%RT%aux_vars(ghosted_id)%pri_molal(isubvar)* xmass*&
+              patch%aux%RT%aux_vars(ghosted_id)%pri_molal(isubvar) * xmass * &
               (patch%aux%Global%aux_vars(ghosted_id)%den_kg(iphase)/1000.d0)
           enddo
         case(SECONDARY_MOLALITY)
@@ -1663,22 +1671,30 @@ subroutine PatchGetDataset(patch,field,option,output_option,vec,ivar, &
         case(SECONDARY_MOLARITY)
           do local_id=1,grid%nlmax
             ghosted_id = grid%nL2G(local_id)
-             xmass =1.D0
-            if(associated(patch%aux%Global%aux_vars(ghosted_id)%xmass))&
-               xmass = patch%aux%Global%aux_vars(ghosted_id)%xmass(iphase)
+            if (associated(patch%aux%Global%aux_vars(ghosted_id)%xmass)) then
+              xmass = patch%aux%Global%aux_vars(ghosted_id)%xmass(iphase)
+            else
+              xmass = 1.d0
+            endif
             vec_ptr(local_id) = &
-              patch%aux%RT%aux_vars(ghosted_id)%sec_molal(isubvar)* xmass *&
+              patch%aux%RT%aux_vars(ghosted_id)%sec_molal(isubvar) * xmass * &
               (patch%aux%Global%aux_vars(ghosted_id)%den_kg(iphase)/1000.d0)
           enddo
         case(TOTAL_MOLALITY)
           do local_id=1,grid%nlmax
             ghosted_id =grid%nL2G(local_id)
-            xmass =1.D0
-            if(associated(patch%aux%Global%aux_vars(ghosted_id)%xmass))&
-               xmass = patch%aux%Global%aux_vars(ghosted_id)%xmass(iphase)
-            vec_ptr(local_id) = &
-              patch%aux%RT%aux_vars(ghosted_id)%total(isubvar,iphase)/ xmass /&
-              (patch%aux%Global%aux_vars(ghosted_id)%den_kg(iphase)/1000.d0)
+            if (associated(patch%aux%Global%aux_vars(ghosted_id)%xmass)) then
+              xmass = patch%aux%Global%aux_vars(ghosted_id)%xmass(iphase)
+            else
+              xmass = 1.d0
+            endif
+            if (patch%aux%Global%aux_vars(ghosted_id)%den_kg(iphase) > 0.d0) then
+              vec_ptr(local_id) = &
+                patch%aux%RT%aux_vars(ghosted_id)%total(isubvar,iphase) / xmass / &
+                (patch%aux%Global%aux_vars(ghosted_id)%den_kg(iphase)/1000.d0)
+            else
+              vec_ptr(local_id) = 0.d0
+            endif
           enddo
         case(TOTAL_MOLARITY)
           do local_id=1,grid%nlmax
@@ -1757,9 +1773,13 @@ subroutine PatchGetDataset(patch,field,option,output_option,vec,ivar, &
           if (patch%reaction%print_tot_conc_type == TOTAL_MOLALITY) then
             do local_id=1,grid%nlmax
               ghosted_id =grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                patch%aux%RT%aux_vars(grid%nL2G(local_id))%colloid%conc_mob(isubvar) /&
-                (patch%aux%Global%aux_vars(ghosted_id)%den_kg(iphase)/1000.d0)
+              if (patch%aux%Global%aux_vars(ghosted_id)%den_kg(iphase) > 0.d0) then
+                vec_ptr(local_id) = &
+                  patch%aux%RT%aux_vars(grid%nL2G(local_id))%colloid%conc_mob(isubvar) / &
+                  (patch%aux%Global%aux_vars(ghosted_id)%den_kg(iphase)/1000.d0)
+              else
+                vec_ptr(local_id) = 0.d0
+              endif
             enddo
           else
             do local_id=1,grid%nlmax
@@ -1771,9 +1791,13 @@ subroutine PatchGetDataset(patch,field,option,output_option,vec,ivar, &
           if (patch%reaction%print_tot_conc_type == TOTAL_MOLALITY) then
             do local_id=1,grid%nlmax
               ghosted_id =grid%nL2G(local_id)
-              vec_ptr(local_id) = &
-                patch%aux%RT%aux_vars(grid%nL2G(local_id))%colloid%conc_imb(isubvar) /&
-                (patch%aux%Global%aux_vars(ghosted_id)%den_kg(iphase)/1000.d0)
+              if (patch%aux%Global%aux_vars(ghosted_id)%den_kg(iphase) > 0.d0) then
+                vec_ptr(local_id) = &
+                  patch%aux%RT%aux_vars(grid%nL2G(local_id))%colloid%conc_imb(isubvar) / &
+                  (patch%aux%Global%aux_vars(ghosted_id)%den_kg(iphase)/1000.d0)
+              else
+                vec_ptr(local_id) = 0.d0
+              endif
             enddo
           else
             do local_id=1,grid%nlmax
@@ -1826,7 +1850,7 @@ end subroutine PatchGetDataset
 !
 ! ************************************************************************** !
 function PatchGetDatasetValueAtCell(patch,field,option,output_option, &
-  ivar,isubvar,ghosted_id,isubvar1)
+                                    ivar,isubvar,ghosted_id,isubvar1)
 
   use Grid_module
   use Option_module
@@ -1864,10 +1888,16 @@ function PatchGetDatasetValueAtCell(patch,field,option,output_option, &
   
   value = -999.99d0
 
+  ! inactive grid cell
+  if (patch%imat(ghosted_id) <= 0) then
+    PatchGetDatasetValueAtCell = 0.d0
+    return
+  endif
+
   iphase = 1
-  xmass =1.D0
-  if(associated(patch%aux%Global%aux_vars(ghosted_id)%xmass))&
-     xmass = patch%aux%Global%aux_vars(ghosted_id)%xmass(iphase)
+  xmass = 1.d0
+  if (associated(patch%aux%Global%aux_vars(ghosted_id)%xmass)) &
+    xmass = patch%aux%Global%aux_vars(ghosted_id)%xmass(iphase)
              
   select case(ivar)
     case(TEMPERATURE,PRESSURE,LIQUID_SATURATION,GAS_SATURATION, &
@@ -2029,26 +2059,21 @@ function PatchGetDatasetValueAtCell(patch,field,option,output_option, &
          
       select case(ivar)
         case(PH)
-          if (patch%aux%RT%aux_vars(ghosted_id)%pri_molal(isubvar) > &
-              0.d0) then
-            value = -log10(patch%aux%RT%aux_vars(ghosted_id)% &
-                           pri_act_coef(isubvar)* &
-                           patch%aux%RT%aux_vars(ghosted_id)%pri_molal(isubvar))
-          else
-            value = 0.d0
-          endif
+          value = -log10(patch%aux%RT%aux_vars(ghosted_id)% &
+                         pri_act_coef(isubvar)* &
+                         patch%aux%RT%aux_vars(ghosted_id)%pri_molal(isubvar))
         case(PRIMARY_MOLALITY)
           value = patch%aux%RT%aux_vars(ghosted_id)%pri_molal(isubvar)
         case(PRIMARY_MOLARITY)
-          value = patch%aux%RT%aux_vars(ghosted_id)%pri_molal(isubvar)* xmass *&
-                  patch%aux%Global%aux_vars(ghosted_id)%den_kg(iphase)/1000.d0
+          value = patch%aux%RT%aux_vars(ghosted_id)%pri_molal(isubvar) * xmass * &
+                  patch%aux%Global%aux_vars(ghosted_id)%den_kg(iphase) / 1000.d0
         case(SECONDARY_MOLALITY)
           value = patch%aux%RT%aux_vars(ghosted_id)%sec_molal(isubvar)
         case(SECONDARY_MOLARITY)
-          value = patch%aux%RT%aux_vars(ghosted_id)%sec_molal(isubvar)* xmass*&
-                  patch%aux%Global%aux_vars(ghosted_id)%den_kg(iphase)/1000.d0
+          value = patch%aux%RT%aux_vars(ghosted_id)%sec_molal(isubvar) * xmass * &
+                  patch%aux%Global%aux_vars(ghosted_id)%den_kg(iphase) / 1000.d0
         case(TOTAL_MOLALITY)
-          value = patch%aux%RT%aux_vars(ghosted_id)%total(isubvar,iphase)/ xmass/&
+          value = patch%aux%RT%aux_vars(ghosted_id)%total(isubvar,iphase) / xmass / &
                   patch%aux%Global%aux_vars(ghosted_id)%den_kg(iphase)*1000.d0
         case(TOTAL_MOLARITY)
           value = patch%aux%RT%aux_vars(ghosted_id)%total(isubvar,iphase)
