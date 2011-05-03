@@ -264,7 +264,10 @@ subroutine ludcmp(A,N,INDX,D)
     enddo
     if (aamax.eq.0) then
       call MPI_Comm_rank(MPI_COMM_WORLD,rank,ierr)
-      print *, "ERROR: Singular value encountered in ludcmp() on processor", rank
+      print *, "ERROR: Singular value encountered in ludcmp() on processor: ", rank, ' aamax = ',aamax,' species = ',i
+      do k = 1, N
+        print *, "Jacobian: ",k,(j,A(k,j),j=1,N)
+      enddo
       call MPI_Abort(MPI_COMM_WORLD,ONE_INTEGER_MPI,ierr)
       call MPI_Finalize(ierr)
       stop
@@ -921,5 +924,34 @@ function SearchOrderedArray(array,array_length,int_value)
   enddo
 
 end function SearchOrderedArray
+
+! ************************************************************************** !
+!
+! FileExists: Returns PETSC_TRUE if file exists
+! author: Glenn Hammond
+! date: 04/27/11
+!
+! ************************************************************************** !
+function FileExists(filename)
+
+  implicit none
+  
+  PetscBool FileExists
+
+  character(len=*) :: filename
+  PetscInt :: fid
+  PetscInt :: ios
+  
+  ios = 0
+  fid = 86
+  open(unit=fid,file=filename,action="read",status="old",iostat=ios)
+  if (ios == 0) then
+    close(fid)
+    FileExists = PETSC_TRUE
+  else
+    FileExists = PETSC_FALSE
+  endif
+
+end function FileExists
 
 end module Utility_module
