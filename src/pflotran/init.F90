@@ -78,7 +78,7 @@ subroutine Init(simulation)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
-  type(pflow_debug_type), pointer :: debug
+  type(flow_debug_type), pointer :: debug
   type(waypoint_list_type), pointer :: waypoint_list
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: string
@@ -712,7 +712,10 @@ subroutine Init(simulation)
   if (debug%print_couplers) then
     call verifyAllCouplers(realization)
   endif
-  
+  if (debug%print_waypoints) then
+    call WaypointListPrint(realization%waypoints,option)
+  endif
+
 #ifdef OS_STATISTICS
   call RealizationPrintGridStatistics(realization)
 #endif
@@ -1641,9 +1644,14 @@ subroutine InitReadInput(simulation)
         option%wallclock_stop_flag = PETSC_TRUE
         call InputReadDouble(input,option,option%wallclock_stop_time)
         call InputErrorMsg(input,option,'stop time','WALLCLOCK_STOP') 
+
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (input%ierr /= 0) word = 'h'
+        call InputDefaultMsg(input,option,'WALLCLOCK_STOP time units')
+        units_conversion = UnitsConvertToInternal(word,option) 
         ! convert from hrs to seconds and add to start_time
         option%wallclock_stop_time = option%start_time + &
-                                     option%wallclock_stop_time*3600.d0
+                                     option%wallclock_stop_time*units_conversion
       
 !....................
       case ('OUTPUT')
@@ -2613,7 +2621,11 @@ subroutine readRegionFiles(realization)
     if (.not.associated(region)) exit
     if (len_trim(region%filename) > 1) then
       if (index(region%filename,'.h5') > 0) then
+      if(region%grid_type.eq.STRUCTURED_GRID) then
         call HDF5ReadRegionFromFile(realization,region,region%filename)
+    else
+      call HDF5ReadUnstructuredGridRegionFromFile(realization,region,region%filename)
+    endif
       else
         call RegionReadFromFile(region,realization%option, &
                                 region%filename)

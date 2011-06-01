@@ -619,8 +619,6 @@ subroutine StructuredGridComputeSpacing(structured_grid,nG2A,nG2L,option)
                                        structured_grid%bounds(Z_DIRECTION,LOWER)) / &
                                        dble(structured_grid%nz)
         case(CYLINDRICAL_GRID)
-!         print *, 'CYLINDRICAL grids still need dr to be set up'
-!         stop
           structured_grid%dx_global = (structured_grid%bounds(X_DIRECTION,UPPER)- &
                                        structured_grid%bounds(X_DIRECTION,LOWER)) / &
                                        dble(structured_grid%nx)
@@ -629,8 +627,6 @@ subroutine StructuredGridComputeSpacing(structured_grid,nG2A,nG2L,option)
                                        structured_grid%bounds(Z_DIRECTION,LOWER)) / &
                                        dble(structured_grid%nz)
         case(SPHERICAL_GRID)
-!         print *, 'CYLINDRICAL grids still need dr to be set up'
-!         stop
           structured_grid%dx_global = (structured_grid%bounds(X_DIRECTION,UPPER)- &
                                        structured_grid%bounds(X_DIRECTION,LOWER)) / &
                                        dble(structured_grid%nx)
@@ -1020,9 +1016,13 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
   PetscInt :: nconn
   PetscInt :: lenx, leny, lenz
   PetscReal :: dist_up, dist_dn
-  type(connection_set_type), pointer :: connections
+  PetscReal :: r1, r2
+  type(connection_set_type), pointer :: connections, connections_2
+
   PetscErrorCode :: ierr
   PetscReal, pointer :: radius(:)
+  PetscInt, pointer :: int_array1(:), int_array2(:),int_array3(:),int_array4(:),int_array5(:),index(:)
+  PetscInt :: count
 
   radius => xc
   
@@ -1213,10 +1213,10 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
           enddo
         enddo
       case(CYLINDRICAL_GRID)
-        option%io_buffer = 'Cylindrical coordinates not implemented.'
+        option%io_buffer = 'For cylindrical coordinates, NY must be equal to 1.'
         call printErrMsg(option)
       case(SPHERICAL_GRID)
-        option%io_buffer = 'Spherical coordinates not implemented.'
+        option%io_buffer = 'For spherical coordinates, NY must be equal to 1.'
         call printErrMsg(option)
 
     end select
@@ -1277,22 +1277,90 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
               connections%dist(-1,iconn) = dist_up/(dist_up+dist_dn)
               connections%dist(0,iconn) = dist_up+dist_dn
               connections%dist(3,iconn) = 1.d0  ! z component of unit vector
-              connections%area(iconn) = 2.d0 * pi * radius(id_up) * &
-                                        structured_grid%dx(id_up)
+              ! pi*(r2^2-r1^2)
+              r2 = xc(id_up) + 0.5d0*structured_grid%dx(id_up)
+              r1 = xc(id_up) - 0.5d0*structured_grid%dx(id_up)
+              connections%area(iconn) = pi * dabs(r2*r2 - r1*r1)
               connections%cntr(1,iconn) = xc(id_up) 
               connections%cntr(2,iconn) = yc(id_up) 
-              connections%cntr(3,iconn) = zc(id_up) + connections%dist(-1,iconn)*(zc(id_dn) - zc(id_up)) 
+              connections%cntr(3,iconn) = zc(id_up) + &
+                                          connections%dist(-1,iconn)* &
+                                          (zc(id_dn) - zc(id_up)) 
             enddo
           enddo
         enddo
       case(SPHERICAL_GRID)
-        print *, 'Areas for spherical coordinates for z-axis not applicable.'
-        stop
+        option%io_buffer = 'For spherical coordinates, NZ must be equal to 1.'
+        call printErrMsg(option)
   end select
   endif
 
+#ifdef REARRANGE_CONN
+  allocate(int_array1(1:iconn))
+  allocate(int_array2(1:iconn))
+  allocate(int_array3(1:iconn))
+  allocate(int_array4(1:iconn))
+  allocate(int_array5(1:iconn))
+  allocate(index(1:iconn))
+
+  do i = 1,iconn
+    int_array1(i) = i
+    int_array2(i) = connections%id_up(i)
+  enddo
   
+  int_array1 = int_array1 - 1
+  call PetscSortIntWithPermutation(iconn, int_array2, int_array1,ierr)
+  int_array1 = int_array1 + 1
+
+  count = 0
+  i = 1
+  count = count + 1
+  int_array3(count) = int_array2(int_array1(i))
+  int_array4(count) = connections%id_dn(int_array1(i))
+
+  do i=2,iconn
+    if( int_array3(count).ne.int_array2(int_array1(i) )) then
+      do k = 1,count
+        int_array5(k) = k
+      enddo
+      int_array5 = int_array5 - 1
+      call PetscSortIntWithPermutation(count,int_array4,int_array5,ierr)
+      int_array5 = int_array5 + 1
+      do k = 1,count
+        index(i -count +k -1) = int_array1(i -count -1 + int_array5(k) )
+      enddo
+      count = 1
+      int_array3(count) = int_array2(int_array1(i))
+      int_array4(count) = connections%id_dn(int_array1(i))
+    else
+      count = count + 1
+      int_array3(count) = int_array2(int_array1(i))
+      int_array4(count) = connections%id_dn(int_array1(i))
+    endif
+  enddo
+    do k = 1,count
+      int_array5(k) = k
+    enddo
+    int_array5 = int_array5 - 1
+    call PetscSortIntWithPermutation(count,int_array4,int_array5,ierr)
+    int_array5 = int_array5 + 1
+    do k = 1,count
+      index(i -count +k -1) = int_array1(i -count -1 + int_array5(k) )
+    enddo
+  connections_2=> ConnectionCreate(nconn, &
+                                  option%nphase,INTERNAL_CONNECTION_TYPE)
+  do i=1,iconn
+    connections_2%local(i)     = connections%local(index(i))
+    connections_2%id_up(i)     = connections%id_up(index(i))
+    connections_2%id_dn(i)     = connections%id_dn(index(i))
+    connections_2%dist(-1:3,i) = connections%dist(-1:3,index(i))
+    connections_2%area(i)      = connections%area(index(i))
+    connections_2%cntr(1:3,i)  = connections%cntr(1:3,index(i))
+  enddo
+  StructGridComputeInternConnect => connections_2
+#else
   StructGridComputeInternConnect => connections
+#endif
 
 end function StructGridComputeInternConnect
 
@@ -1982,7 +2050,8 @@ end subroutine StructuredGridMapIndices
 subroutine StructGridGetGhostedNeighbors(structured_grid,ghosted_id, &
                                          stencil_type, &
                                          stencil_width_i,stencil_width_j, &
-                                         stencil_width_k,ghosted_neighbors, &
+                                         stencil_width_k,x_count,y_count, &
+                                         z_count,ghosted_neighbors, &
                                          option)
 
   use Option_module
@@ -1996,7 +2065,10 @@ subroutine StructGridGetGhostedNeighbors(structured_grid,ghosted_id, &
   PetscInt :: stencil_width_i
   PetscInt :: stencil_width_j
   PetscInt :: stencil_width_k
-  PetscInt :: ghosted_neighbors(0:27)
+  PetscInt :: x_count
+  PetscInt :: y_count
+  PetscInt :: z_count
+  PetscInt :: ghosted_neighbors(*)
 
   PetscInt :: i, j, k
   PetscInt :: icount
@@ -2004,31 +2076,36 @@ subroutine StructGridGetGhostedNeighbors(structured_grid,ghosted_id, &
 
   call StructGridGetIJKFromGhostedID(structured_grid,ghosted_id,i,j,k)
   
+  x_count = 0
+  y_count = 0
+  z_count = 0
   icount = 0
   select case(stencil_type)
     case(STAR_STENCIL)
-      do ii = i-stencil_width_i, i+stencil_width_i
+      do ii = max(i-stencil_width_i,1), min(i+stencil_width_i,structured_grid%ngx)
         if (ii /= i) then
           icount = icount + 1
+          x_count = x_count + 1
           ghosted_neighbors(icount) = &
             StructGridGetGhostedIDFromIJK(structured_grid,ii,j,k)
         endif
       enddo
-      do jj = j-stencil_width_j, j+stencil_width_j
+      do jj = max(j-stencil_width_j,1), min(j+stencil_width_j,structured_grid%ngy)
         if (jj /= j) then
           icount = icount + 1
+          y_count = y_count + 1
           ghosted_neighbors(icount) = &
             StructGridGetGhostedIDFromIJK(structured_grid,i,jj,k)
         endif
       enddo
-      do kk = k-stencil_width_k, k+stencil_width_k
+      do kk = max(k-stencil_width_k,1), min(k+stencil_width_k,structured_grid%ngz)
         if (kk /= k) then
           icount = icount + 1
+          z_count = z_count + 1
           ghosted_neighbors(icount) = &
             StructGridGetGhostedIDFromIJK(structured_grid,i,j,kk)
         endif
       enddo
-      ghosted_neighbors(0) = icount
     case(BOX_STENCIL)
       option%io_buffer = 'BOX_STENCIL not yet supported in ' // &
         'StructGridGetNeighbors.'

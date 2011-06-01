@@ -828,33 +828,33 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
                                   aux_vars(ghosted_id)%aux_var_elem(0),&
                                   global_aux_vars(ghosted_id), &
                                   iphase, &
-                                  realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+        realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
                                   realization%fluid_properties,option, xphi)
 ! update global variables
-    if( associated(global_aux_vars))then
-      global_aux_vars(ghosted_id)%pres(:)= aux_vars(ghosted_id)%aux_var_elem(0)%pres -&
+    if(associated(global_aux_vars))then
+      global_aux_vars(ghosted_id)%pres(:) = aux_vars(ghosted_id)%aux_var_elem(0)%pres -&
                aux_vars(ghosted_id)%aux_var_elem(0)%pc(:)
-      global_aux_vars(ghosted_id)%temp(:)=aux_vars(ghosted_id)%aux_var_elem(0)%temp
-      global_aux_vars(ghosted_id)%sat(:)=aux_vars(ghosted_id)%aux_var_elem(0)%sat(:)
+      global_aux_vars(ghosted_id)%temp(:) = aux_vars(ghosted_id)%aux_var_elem(0)%temp
+      global_aux_vars(ghosted_id)%sat(:) = aux_vars(ghosted_id)%aux_var_elem(0)%sat(:)
 !     global_aux_vars(ghosted_id)%sat_store = 
-      global_aux_vars(ghosted_id)%fugacoeff(1)=xphi
-      global_aux_vars(ghosted_id)%den(:)=aux_vars(ghosted_id)%aux_var_elem(0)%den(:)
+      global_aux_vars(ghosted_id)%fugacoeff(1) = xphi
+      global_aux_vars(ghosted_id)%den(:) = aux_vars(ghosted_id)%aux_var_elem(0)%den(:)
       global_aux_vars(ghosted_id)%den_kg(:) = aux_vars(ghosted_id)%aux_var_elem(0)%den(:) &
                                           * aux_vars(ghosted_id)%aux_var_elem(0)%avgmw(:)
       
       mnacl= global_aux_vars(ghosted_id)%m_nacl(1)
       if(global_aux_vars(ghosted_id)%m_nacl(2)>mnacl) mnacl= global_aux_vars(ghosted_id)%m_nacl(2)
-      ynacl =  mnacl/(1.d3/FMWH2O + mnacl)
-      global_aux_vars(ghosted_id)%xmass(1)= (1.d0-ynacl)&
+      ynacl = mnacl/(1.d3/FMWH2O + mnacl)
+      global_aux_vars(ghosted_id)%xmass(1) = (1.d0-ynacl)&
                               *aux_vars(ghosted_id)%aux_var_elem(0)%xmol(1) * FMWH2O&
                               /((1.d0-ynacl)*aux_vars(ghosted_id)%aux_var_elem(0)%xmol(1) * FMWH2O &
                               +aux_vars(ghosted_id)%aux_var_elem(0)%xmol(2) * FMWCO2 &
                               +ynacl*aux_vars(ghosted_id)%aux_var_elem(0)%xmol(1)*FMWNACL)
-      global_aux_vars(ghosted_id)%xmass(2)=aux_vars(ghosted_id)%aux_var_elem(0)%xmol(3) * FMWH2O&
+      global_aux_vars(ghosted_id)%xmass(2) = aux_vars(ghosted_id)%aux_var_elem(0)%xmol(3) * FMWH2O&
                               /(aux_vars(ghosted_id)%aux_var_elem(0)%xmol(3) * FMWH2O&
                               +aux_vars(ghosted_id)%aux_var_elem(0)%xmol(4) * FMWCO2) 
-      global_aux_vars(ghosted_id)%reaction_rate_store(:)=global_aux_vars(ghosted_id)%reaction_rate(:)
-      global_aux_vars(ghosted_id)%reaction_rate(:) = 0D0
+      global_aux_vars(ghosted_id)%reaction_rate_store(:) = global_aux_vars(ghosted_id)%reaction_rate(:)
+      global_aux_vars(ghosted_id)%reaction_rate(:) = 0.D0
 !     print *,'UPdate mphase and gloable vars', ghosted_id, global_aux_vars(ghosted_id)%m_nacl(:), & 
 !       global_aux_vars(ghosted_id)%pres(:)
 !     global_aux_vars(ghosted_id)%mass_balance 
@@ -1278,54 +1278,53 @@ subroutine MphaseSourceSink(mmsrc,psrc,tsrc,hsrc,aux_var,isrctype,Res, &
         endif
               
         Res(jco2) = Res(jco2) + msrc(2)*option%flow_dt
-        if (energy_flag) &
-          Res(option%nflowdof) = Res(option%nflowdof)+ msrc(2) * &
-            enth_src_co2 *option%flow_dt
-        endif
+        if (energy_flag) Res(option%nflowdof) = Res(option%nflowdof)+ msrc(2) * &
+          enth_src_co2 *option%flow_dt
+      endif
 
-      case(-1) ! production well
-     !  if node pessure is lower than the given extraction pressure, shut it down
-        Dq = psrc(2) ! well parameter, read in input file
+    case(-1) ! production well
+     !if node pessure is lower than the given extraction pressure, shut it down
+      Dq = psrc(2) ! well parameter, read in input file
                       ! Take the place of 2nd parameter 
-        ! Flow term
-        do np = 1, option%nphase
-          dphi = aux_var%pres - aux_var%pc(np)- psrc(1)
-          if (dphi>=0.D0) then ! outflow only
-            ukvr = aux_var%kvr(np)
-            v_darcy=0D0
-            if (ukvr*Dq>floweps) then
-              v_darcy = Dq * ukvr * dphi
-              Res(1) = Res(1)- v_darcy* aux_var%den(np)* &
-                aux_var%xmol((np-1)*option%nflowspec+1) 
-              Res(2) = Res(2)- v_darcy* aux_var%den(np)* &
-                aux_var%xmol((np-1)*option%nflowspec+2) 
-              if(energy_flag) Res(3) =Res(3)- v_darcy* aux_var%den(np)*aux_var%h(np)
-            endif
+    ! Flow term
+      do np = 1, option%nphase
+        dphi = aux_var%pres - aux_var%pc(np)- psrc(1)
+        if (dphi>=0.D0) then ! outflow only
+          ukvr = aux_var%kvr(np)
+          v_darcy=0D0
+          if (ukvr*Dq>floweps) then
+            v_darcy = Dq * ukvr * dphi
+            Res(1) = Res(1)- v_darcy* aux_var%den(np)* &
+              aux_var%xmol((np-1)*option%nflowspec+1) 
+            Res(2) = Res(2)- v_darcy* aux_var%den(np)* &
+              aux_var%xmol((np-1)*option%nflowspec+2) 
+            if(energy_flag) Res(3) =Res(3)- v_darcy* aux_var%den(np)*aux_var%h(np)
           endif
-        enddo
+        endif
+      enddo
        ! print *,'well-prod: ',  aux_var%pres,psrc(1), res
          
-      case(1) ! injection well with constant pressure
-        Dq = psrc(2) ! well parameter, read in input file
+    case(1) ! injection well with constant pressure
+      Dq = psrc(2) ! well parameter, read in input file
                       ! Take the place of 2nd parameter 
         ! Flow term
-        do np = 1, option%nphase
-          dphi = psrc(1) - aux_var%pres - aux_var%pc(np)
-          if (dphi>=0.D0) then ! outflow only
-            ukvr = aux_var%kvr(np)
-            v_darcy=0.D0
-            if (ukvr*Dq>floweps) then
-              v_darcy = Dq * ukvr * dphi
-              Res(1) = Res(1) - v_darcy* aux_var%den(np)* &
-                aux_var%xmol((np-1)*option%nflowspec+1) 
-              Res(2) = Res(2) - v_darcy* aux_var%den(np)* &
-                aux_var%xmol((np-1)*option%nflowspec+2) 
-              if(energy_flag) Res(3) = Res(3) - v_darcy*aux_var%den(np)*aux_var%h(np)
-            endif
+      do np = 1, option%nphase
+        dphi = psrc(1) - aux_var%pres - aux_var%pc(np)
+        if (dphi>=0.D0) then ! outflow only
+          ukvr = aux_var%kvr(np)
+          v_darcy=0.D0
+          if (ukvr*Dq>floweps) then
+            v_darcy = Dq * ukvr * dphi
+            Res(1) = Res(1) - v_darcy* aux_var%den(np)* &
+              aux_var%xmol((np-1)*option%nflowspec+1) 
+            Res(2) = Res(2) - v_darcy* aux_var%den(np)* &
+              aux_var%xmol((np-1)*option%nflowspec+2) 
+            if(energy_flag) Res(3) = Res(3) - v_darcy*aux_var%den(np)*aux_var%h(np)
           endif
-        enddo 
-      case default
-      print *,'Unrecognized Source/Sink condition: ', isrctype 
+        endif
+      enddo 
+    case default
+    print *,'Unrecognized Source/Sink condition: ', isrctype 
   end select      
       
 end subroutine MphaseSourceSink
@@ -3608,6 +3607,22 @@ function MphaseGetTecplotHeader(realization,icolumn)
     write(string2,'('',"'',i2,''-d(g)"'')') icolumn
   else
     write(string2,'('',"d(g)"'')')
+  endif
+  string = trim(string) // trim(string2)
+    
+  if (icolumn > -1) then
+    icolumn = icolumn + 1
+    write(string2,'('',"'',i2,''-vis(l)"'')') icolumn
+  else
+    write(string2,'('',"vis(l)"'')')
+  endif
+  string = trim(string) // trim(string2)
+
+  if (icolumn > -1) then
+    icolumn = icolumn + 1
+    write(string2,'('',"'',i2,''-vis(g)"'')') icolumn
+  else
+    write(string2,'('',"vis(g)"'')')
   endif
   string = trim(string) // trim(string2)
     
