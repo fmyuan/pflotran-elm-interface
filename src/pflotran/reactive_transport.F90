@@ -5396,13 +5396,15 @@ end subroutine RTJacobianPatch2
 ! date: 02/15/08
 !
 ! ************************************************************************** !
-subroutine RTUpdateAuxVars(realization,update_bcs,update_activity_coefs)
+subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
+                           update_activity_coefs)
 
   use Realization_module
   use Level_module
   use Patch_module
 
   type(realization_type) :: realization
+  PetscBool :: update_cells
   PetscBool :: update_bcs
   PetscBool :: update_activity_coefs
   
@@ -5417,7 +5419,7 @@ subroutine RTUpdateAuxVars(realization,update_bcs,update_activity_coefs)
       if (.not.associated(cur_patch)) exit
       realization%patch => cur_patch
       ! PETSC_TRUE to update cells
-      call RTUpdateAuxVarsPatch(realization,PETSC_TRUE,update_bcs, &
+      call RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
                                 update_activity_coefs)
       cur_patch => cur_patch%next
     enddo
@@ -5708,11 +5710,11 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
       boundary_condition => boundary_condition%next
     enddo
 
-    patch%aux%RT%aux_vars_up_to_date = PETSC_TRUE
-
     call PetscLogEventEnd(logging%event_rt_auxvars_bc,ierr)
 
   endif 
+
+  patch%aux%RT%aux_vars_up_to_date = update_cells .and. update_bcs
   
   call GridVecRestoreArrayF90(grid,field%tran_xx_loc,xx_loc_p, ierr)
   icall = icall+ 1
