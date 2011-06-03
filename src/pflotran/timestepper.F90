@@ -274,7 +274,8 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
   use Logging_module  
   use Mass_Balance_module
   use Discretization_module
-  
+  use Reactive_Transport_module, only : RTUpdateAuxVars
+
   implicit none
   
 #include "finclude/petscdef.h"
@@ -302,7 +303,7 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
   PetscBool :: failure
   PetscLogDouble :: start_time, end_time
   PetscReal :: tran_dt_save, flow_t0
-  
+
   PetscLogDouble :: stepper_start_time, current_time, average_step_time
   PetscErrorCode :: ierr
 
@@ -350,6 +351,12 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
 
     if (transport_read) then
       tran_stepper%target_time = option%tran_time
+      ! This is here since we need to recalculate the secondary complexes
+      ! if they exist.  DO NOT update activity coefficients!!! - geh
+      if (realization%reaction%use_full_geochemistry) then
+                                         ! cells     bcs        act coefs.
+        call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
+      endif
     endif
 
   else if (master_stepper%init_to_steady_state) then
@@ -839,12 +846,14 @@ subroutine StepperUpdateDT(flow_stepper,tran_stepper,option)
 
       if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
       if (dtt > flow_stepper%dt_max) dtt = flow_stepper%dt_max
-      ! for restarted simulations, we will give 5 time steps to get caught up
-!geh      if (option%restart_flag .and. flow_stepper%steps <= 5) then
-      if (option%restart_flag .or. flow_stepper%steps <= 5) then
+      ! geh: the issue here is that we do not want pflotran to cut the time step
+      ! (due to dt being large relative to time) if we restart the simulation 
+      ! setting the time back to zero.  the problem is that one cannot key 
+      ! off of option%restart_flag since that flag is also set when time is 
+      ! nonzero....  Therefore, must use option%restart_time
+      if (dabs(option%restart_time) < 1.d-40 .and. flow_stepper%steps <= 5) then
         ! do nothing
       else
-!geh        if (dtt>.25d0*time .and. time>5.d2) dtt=.25d0*time
         if (dtt>.25d0*time) dtt=.25d0*time
       endif
       dt = dtt
@@ -901,12 +910,10 @@ subroutine StepperUpdateDT(flow_stepper,tran_stepper,option)
 
       if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
       if (dtt > tran_stepper%dt_max) dtt = tran_stepper%dt_max
-      ! for restarted simulations, we will give 5 time steps to get caught up
-!geh      if (option%restart_flag .and. tran_stepper%steps <= 5) then
-      if (option%restart_flag .or. tran_stepper%steps <= 5) then
+      ! geh: see comment above under flow stepper
+      if (dabs(option%restart_time) < 1.d-40 .and. tran_stepper%steps <= 5) then
         ! do nothing
       else
-!geh        if (dtt>.25d0*time .and. time>5.d2) dtt=.25d0*time
         if (dtt>.25d0*time) dtt=.25d0*time
       endif
       dt = dtt
@@ -1667,8 +1674,8 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
     final_tran_time = option%tran_time + option%tran_dt
    
     if (realization%reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF) then
-      call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE)
-!       The below is set within RTUpdateAuxVarsPatch() when PETSC_TRUE,PETSC_TRUE are passed
+      call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
+!       The below is set within RTUpdateAuxVarsPatch() when PETSC_TRUE,PETSC_TRUE,* are passed
 !       patch%aux%RT%aux_vars_up_to_date = PETSC_TRUE 
     endif
     if (realization%reaction%use_log_formulation) then
@@ -1983,7 +1990,7 @@ subroutine StepperStepTransportDT_OS(realization,stepper,flow_t0,flow_t1, &
   ! update time derivative on RHS
   call RTUpdateRHSCoefs(realization)
   ! calculate total component concentrations based on t0 densities
-  call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_FALSE)
+  call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
   call RTCalculateRHS_t0(realization)
     
   ! set densities and saturations to t+dt
@@ -2485,7 +2492,7 @@ subroutine StepperSolveTranSteadyState(realization,stepper,failure)
   if (option%print_screen_flag) write(*,'(/,2("=")" TRANSPORT (STEADY STATE) ",32("="))')
 
   if (realization%reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF) then
-    call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE)
+    call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
   endif
 
   if (realization%reaction%use_log_formulation) then
