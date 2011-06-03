@@ -1,9 +1,9 @@
 module Timestepper_module
-
+ 
   use Solver_module
   use Waypoint_module
   use Convergence_module
-
+ 
 #ifdef CLM_PFLOTRAN
   use clm_varctl      , only : iulog
 #endif
@@ -11,7 +11,7 @@ module Timestepper_module
   implicit none
 
   private
-
+  
 #include "definitions.h"
 
   type, public :: stepper_type
@@ -58,10 +58,10 @@ module Timestepper_module
   end type stepper_type
   
   public :: TimestepperCreate, TimestepperDestroy, StepperRun, &
-!#ifdef CLM_PFLOTRAN
+#if defined(CLM_PFLOTRAN) || defined (CLM_OFFLINE)
            StepperRunInit, StepperRunOneDT, StepperRunFinalize, &
 	   StepperUpdateSolution, & ! Added by GB
-!#endif
+#endif
             TimestepperRead, TimestepperPrintInfo, TimestepperReset
 
 contains
@@ -2999,7 +2999,7 @@ subroutine TimestepperDestroy(stepper)
   
 end subroutine TimestepperDestroy
 
-!#ifdef CLM_PFLOTRAN
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   ! ************************************************************************** !
   !
   ! StepperRunInit:
@@ -3017,6 +3017,7 @@ end subroutine TimestepperDestroy
     use Logging_module
     use Mass_Balance_module
     use Discretization_module
+    use Reactive_Transport_module, only : RTUpdateAuxVars
 
     implicit none
 
@@ -3025,24 +3026,18 @@ end subroutine TimestepperDestroy
 #include "finclude/petscsys.h"
 #include "finclude/petscviewer.h"
 
-    type(realization_type)      :: realization
+    type(realization_type) :: realization
     type(stepper_type), pointer :: flow_stepper
     type(stepper_type), pointer :: tran_stepper
+    
     type(stepper_type), pointer :: master_stepper
-    type(stepper_type), pointer :: flow_stepper_save
-
+    type(stepper_type), pointer :: null_stepper
     type(option_type),        pointer :: option
     type(output_option_type), pointer :: output_option
     type(waypoint_type),      pointer :: prev_waypoint
 
     character(len=MAXSTRINGLENGTH) :: string
-
     PetscBool :: plot_flag, stop_flag, transient_plot_flag
-    !PetscTruth :: master_timestep_cut_flag
-    !PetscBool :: flow_timestep_cut_flag, tran_timestep_cut_flag
-    !PetscInt :: istep, start_step
-    !PetscInt :: num_const_timesteps
-    !PetscInt :: num_newton_iterations, idum, idum2
     PetscBool :: activity_coefs_read
     PetscBool :: flow_read
     PetscBool :: transport_read
@@ -3057,6 +3052,11 @@ end subroutine TimestepperDestroy
 
     option => realization%option
     output_option => realization%output_option
+ 
+    nullify(master_stepper,null_stepper)
+
+    call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-vecload_block_size", & 
+                             failure, ierr)
 
     if (option%steady_state) then
        call StepperRunSteadyState(realization,flow_stepper,tran_stepper)
@@ -3071,9 +3071,6 @@ end subroutine TimestepperDestroy
 
     plot_flag                = PETSC_FALSE
     transient_plot_flag      = PETSC_FALSE
-    !master_timestep_cut_flag = PETSC_FALSE
-    !flow_timestep_cut_flag   = PETSC_FALSE
-    !tran_timestep_cut_flag   = PETSC_FALSE
     stop_flag                = PETSC_FALSE
     activity_coefs_read      = PETSC_FALSE
     flow_read                = PETSC_FALSE
@@ -3081,7 +3078,6 @@ end subroutine TimestepperDestroy
     step_to_steady_state     = PETSC_FALSE
     run_flow_as_steady_state = PETSC_FALSE
     failure                  = PETSC_FALSE
-    !num_const_timesteps      = 0
 
 #ifndef CLM_PFLOTRAN
     print *, 'In StepperRun()'
@@ -3100,6 +3096,16 @@ end subroutine TimestepperDestroy
        if (flow_read) then
           call StepperUpdateFlowAuxVars(realization)
        endif
+
+      if (transport_read) then
+        tran_stepper%target_time = option%tran_time
+        ! This is here since we need to recalculate the secondary complexes
+        ! if they exist.  DO NOT update activity coefficients!!! - geh
+        if (realization%reaction%use_full_geochemistry) then
+                                           ! cells     bcs        act coefs.
+          call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
+        endif
+      endif
 
     else if (master_stepper%init_to_steady_state) then
        option%print_screen_flag = OptionPrintToScreen(option)
@@ -3165,8 +3171,21 @@ end subroutine TimestepperDestroy
     option%init_stage = PETSC_FALSE
     call PetscLogStagePush(logging%stage(TS_STAGE),ierr)
 
+    !if TIMESTEPPER->MAX_STEPS < 0, print out solution composition only
+    if (master_stepper%max_time_step < 0) then
+      call printMsg(option,'')
+      write(option%io_buffer,*) master_stepper%max_time_step
+      option%io_buffer = 'The maximum # of time steps (' // &
+                         trim(adjustl(option%io_buffer)) // &
+                         '), specified by TIMESTEPPER->MAX_STEPS, ' // &
+                         'has been met.  Stopping....'  
+      call printMsg(option)
+      call printMsg(option,'')
+      return
+    endif
+
     ! print initial condition output if not a restarted sim
-    call OutputInit(realization)
+    call OutputInit(realization,master_stepper%steps)
     if (output_option%plot_number == 0 .and. &
          master_stepper%max_time_step >= 0 .and. &
          output_option%print_initial) then
@@ -3189,6 +3208,20 @@ end subroutine TimestepperDestroy
        endif
 
     endif
+  
+    !if TIMESTEPPER->MAX_STEPS < 0, print out initial condition only
+    if (master_stepper%max_time_step < 1) then
+      call printMsg(option,'')
+      write(option%io_buffer,*) master_stepper%max_time_step
+      option%io_buffer = 'The maximum # of time steps (' // &
+                         trim(adjustl(option%io_buffer)) // &
+                         '), specified by TIMESTEPPER->MAX_STEPS, ' // &
+                         'has been met.  Stopping....'  
+      call printMsg(option)
+      call printMsg(option,'')                    
+      return
+    endif
+
     ! increment plot number so that 000 is always the initial condition, and nothing else
     if (output_option%plot_number == 0) output_option%plot_number = 1
 
@@ -3274,11 +3307,6 @@ end subroutine TimestepperDestroy
 
     character(len=MAXSTRINGLENGTH) :: string
     PetscBool :: plot_flag, stop_flag, transient_plot_flag
-    !PetscBool :: master_timestep_cut_flag
-    !PetscBool :: flow_timestep_cut_flag, tran_timestep_cut_flag
-    !PetscInt :: istep, start_step
-    !PetscInt :: num_const_timesteps
-    !PetscInt :: num_newton_iterations, idum, idum2
     PetscBool :: activity_coefs_read
     PetscBool :: flow_read
     PetscBool :: transport_read
@@ -3316,9 +3344,6 @@ end subroutine TimestepperDestroy
 
     plot_flag                = PETSC_FALSE
     transient_plot_flag      = PETSC_FALSE
-    !master_timestep_cut_flag = PETSC_FALSE
-    !flow_timestep_cut_flag   = PETSC_FALSE
-    !tran_timestep_cut_flag   = PETSC_FALSE
     stop_flag                = PETSC_FALSE
     activity_coefs_read      = PETSC_FALSE
     flow_read                = PETSC_FALSE
@@ -3380,8 +3405,6 @@ end subroutine TimestepperDestroy
        endif
 
        prev_waypoint => master_stepper%cur_waypoint
-       !flow_timestep_cut_flag = PETSC_FALSE
-       !tran_timestep_cut_flag = PETSC_FALSE
        plot_flag = PETSC_FALSE
        transient_plot_flag = PETSC_FALSE
 
@@ -3614,18 +3637,11 @@ end subroutine TimestepperDestroy
 
     type(option_type), pointer :: option
     type(output_option_type), pointer :: output_option
-    !type(waypoint_type), pointer :: prev_waypoint
 
     character(len=MAXSTRINGLENGTH) :: string
     PetscBool :: plot_flag, stop_flag, transient_plot_flag
-    !PetscBool :: master_timestep_cut_flag
-    !PetscBool :: flow_timestep_cut_flag, tran_timestep_cut_flag
-    !PetscInt :: istep, start_step
     PetscInt :: num_const_timesteps
     PetscInt :: num_newton_iterations, idum, idum2
-    !PetscBool :: activity_coefs_read
-    !PetscBool :: flow_read
-    !PetscBool :: transport_read
     PetscBool :: step_to_steady_state
     PetscBool :: run_flow_as_steady_state
     PetscBool :: failure
@@ -3702,6 +3718,6 @@ end subroutine TimestepperDestroy
   end subroutine StepperRunFinalize
 
 
-!#endif CLM_PFLOTRAN
+#endif ! defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
 
 end module Timestepper_module

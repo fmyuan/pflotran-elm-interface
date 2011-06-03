@@ -46,6 +46,10 @@ ifdef vamsi_hdf5
   HDF5_FLAGS += -DVAMSI_HDF5 -DVAMSI_DEFAULT -DVAMSI_HDF5_READ -DVAMSI_HDF5_WRITE -DVAMSI_STAGE_BARRIER
 endif
 
+ifdef have_hdf5
+  HDF5_FLAGS += -I$(HDF5_INCLUDE) -I$(HDF5_LIB) -DPETSC_HAVE_HDF5
+endif
+
 ifdef samr_hdf5
   HDF5_FLAGS += -I$(HDF5_INCLUDE) -I$(HDF5_LIB) -DSAMR_HAVE_HDF5
 endif
@@ -62,9 +66,17 @@ ifdef dasvyat_debug
   DASVYAT_DEBUG = -DDASVYAT_DEBUG
 endif
 
+ifdef dasvyat_test_cut
+  DASVYAT += -DDASVYAT_TEST_CUT
+endif
+
+ifdef gautam
+  GAUTAM_FLAGS = -DOS_STATISTICS -DGLENN -DENABLE_UNSTRUCTURED -w -DMIXED_UMESH -DREARRANGE_CONN -DCLM_OFFLINE #-DGEH_DEBUG -DGB_DEBUG
+endif
+
 MYFLAGS = -I${objdir} $(HDF5_FLAGS) $(DASVYAT) $(DASVYAT_DEBUG)\
           $(COMPILE_BROKEN_FLAGS) $(GLENN_FLAGS) $(UO2_FLAG) $(TEMP_FLAG) $(GPU_FLAGS)\
-				$(CHUAN_FLAG) $(SCOTT_FLAGS) $(COLL_FLAG) $(DENSITY_FLAG) -O0 -g -w
+				$(CHUAN_FLAG) $(SCOTT_FLAGS) $(COLL_FLAG) $(DENSITY_FLAG) $(GAUTAM_FLAGS)
 
 CFLAGS		 = 
 FFLAGS		 =
@@ -84,12 +96,15 @@ ifdef dmda_old
   GLENN_FLAGS += -DDMDA_OLD
 endif
 
+ifdef have_hdf5
+LIBS +=  -L${HDF5_LIB} -lhdf5_fortran -lhdf5 -lz 
+endif
+
 ifdef tau
 FC = /ccs/proj/geo002/tau/tau-2.19.1/craycnl/bin/tau_f90.sh -optCompInst -tau_makefile=$(TAU_MAKEFILE)
 FLINKER = /ccs/proj/geo002/tau/tau-2.19.1/craycnl/bin/tau_f90.sh -optCompInst -tau_makefile=$(TAU_MAKEFILE)
 endif
-FC_FLAGS = 
-#FLINKER  = ftn 
+
 util_obj  = ${common_src}input.o \
 	${common_src}string.o \
 	${common_src}water_eos.o \
@@ -113,7 +128,7 @@ common_obj = ${common_src}option.o \
 	${common_src}reaction_aux.o\
 	${common_src}thc_aux.o\
 	${common_src}richards_aux.o\
-        ${common_src}general_aux.o\
+  ${common_src}general_aux.o\
 	${common_src}mphase_aux.o\
 	${common_src}immis_aux.o\
         ${common_src}mfd_aux.o\
@@ -159,7 +174,7 @@ common_obj = ${common_src}option.o \
 	${common_src}reactive_transport.o\
 	${common_src}thc.o\
 	${common_src}richards.o\
-        ${common_src}general.o\
+  ${common_src}general.o\
 	${common_src}mass_balance.o\
 	${common_src}general_grid.o \
 	${common_src}checkpoint.o \
@@ -171,8 +186,8 @@ common_obj = ${common_src}option.o \
 	${common_src}output.o \
 	${common_src}init.o \
 	${common_src}mapping.o \
-        ${common_src}clm_pflotran_interface_data.o \
-        ${common_src}pflotran_model.o
+  ${common_src}clm_pflotran_interface_data.o \
+  ${common_src}pflotran_model.o
 
 pflotran_obj = ${common_obj}\
 	${common_src}amrstubs.o
@@ -199,7 +214,7 @@ test: functions.o test.o
 # Dependencies stemming from "use" statements.
 # These ensure that the module files are built in the correct order.
 auxilliary.o : thc_aux.o richards_aux.o reactive_transport_aux.o \
-	mphase_aux.o flash2_aux.o global_aux.o material_aux.o
+	mphase_aux.o flash2_aux.o global_aux.o
 #pflotran.o : simulation.o output.o init.o timestepper.o logging.o \
 #	     stochastic_aux.o stochastic.o
 pflotran_model.o : simulation.o output.o init.o timestepper.o logging.o \
@@ -212,7 +227,7 @@ init.o : option.o grid.o debug.o realization.o solver.o timestepper.o \
 	coupler.o strata.o pckr_mod.o field.o mphase.o flash2.o \
 	richards.o thc.o discretization.o logging.o mass_balance.o \
 	database.o reaction_aux.o string.o units.o stochastic_aux.o \
-	velocity.o
+	velocity.o dataset.o
 unstructured_grid.o : option.o connection.o 
 structured_grid.o : connection.o option.o input.o cf90bridge.o
 general_grid.o : grid.o realization.o hdf5.o logging.o
@@ -223,7 +238,7 @@ grid.o : structured_grid.o unstructured_grid.o option.o region.o connection.o \
 input.o : string.o option.o
 solver.o : option.o field.o input.o string.o
 region.o : input.o utility.o logging.o string.o
-material.o : option.o input.o string.o dataset.o
+material.o : option.o input.o string.o dataset.o material_aux.o
 material_aux.o : option.o
 fluid.o : option.o input.o string.o
 saturation_function.o : option.o input.o string.o utility.o
@@ -236,11 +251,11 @@ realization.o : grid.o option.o region.o condition.o coupler.o material.o \
                 strata.o waypoint.o field.o hydrostatic.o debug.o \
 		observation.o velocity.o \
                 patch.o level.o discretization.o reaction.o reaction_aux.o \
-                fluid.o saturation_function.o
+                fluid.o saturation_function.o dataset.o
 level.o : patch.o option.o
 patch.o : option.o grid.o coupler.o observation.o strata.o region.o \
           auxilliary.o reaction.o condition.o connection.o hydrostatic.o \
-          field.o 
+          field.o
 strata.o : input.o region.o material.o
 hydrostatic.o : option.o grid.o coupler.o condition.o connection.o region.o \
                 structured_grid.o
@@ -291,6 +306,7 @@ hdf5_aux.o : option.o logging.o
 checkpoint.o : realization.o logging.o
 mass_balance.o : realization.o option.o field.o solver.o logging.o thc.o
 database.o : reaction.o input.o option.o utility.o reaction_aux.o string.o
+dataset.o : string.o option.o input.o
 global.o : realization.o level.o patch.o global_aux.o connection.o grid.o \
 	   option.o coupler.o
 global_aux.o : option.o

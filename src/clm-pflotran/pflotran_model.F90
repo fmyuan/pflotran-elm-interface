@@ -61,8 +61,9 @@ module pflotran_model_module
      PetscReal :: pause_time_2
      type(inside_each_overlapped_cell), pointer :: pf_cells(:)
      type(inside_each_overlapped_cell), pointer :: clm_cells(:)
-     type(mapping_type),     pointer :: map_clm2pf
-     type(mapping_type),     pointer :: map_pf2clm
+     type(mapping_type),                pointer :: map_clm2pf
+     type(mapping_type),                pointer :: map_clm2pf_soils
+     type(mapping_type),                pointer :: map_pf2clm
 
      PetscInt :: num_pf_cells
      PetscInt :: num_clm_cells
@@ -70,7 +71,7 @@ module pflotran_model_module
   end type pflotran_model_type
 
   public::pflotranModelCreate,               &
-#ifdef CLM_PFLOTRAN
+#if defined(CLM_PFLOTRAN)
        pflotranModelSetICs,                  & !
        pflotranModelSetSoilProp,             & !
        pflotranModelSetSoilProp2,            & !
@@ -79,8 +80,8 @@ module pflotran_model_module
        pflotranModelGetSaturation,           & !
        pflotranModelInitMapping,             &
 #endif
-  pflotranModelInitMapping2,            &
-  pflotranModelInitMapping3,            &
+       pflotranModelInitMapping2,            &
+       pflotranModelInitMapping3,            &
        pflotranModelStepperRunInit,          &
        pflotranModelStepperRunTillPauseTime, &
        pflotranModelUpdateTopBCHomogeneous,  &
@@ -145,6 +146,7 @@ contains
     allocate(pflotran_model%mapping)
 #endif
     allocate(pflotran_model%map_clm2pf)
+    allocate(pflotran_model%map_clm2pf_soils)
     allocate(pflotran_model%map_pf2clm)
 
     nullify(pflotran_model%stochastic)
@@ -157,6 +159,7 @@ contains
     nullify(pflotran_model%pf_cells)
     nullify(pflotran_model%clm_cells)
     nullify(pflotran_model%map_clm2pf)
+    nullify(pflotran_model%map_clm2pf_soils)
     nullify(pflotran_model%map_pf2clm)
 
     pflotran_model%option => OptionCreate()
@@ -167,7 +170,7 @@ contains
     pflotran_model%pause_time_2 = -1.0d0
 
 
-#ifndef WITH_CLM
+#ifndef CLM_PFLOTRAN
     call MPI_Init(ierr)
 #endif
     pflotran_model%option%global_comm = MPI_COMM_WORLD
@@ -213,7 +216,7 @@ contains
     endif
 
     if (single_inputfile) then
-#ifdef WITH_CLM
+#ifdef CLM_PFLOTRAN
        write(iulog,*),'single_inputfile'
 #else
        print *,'single_inputfile'
@@ -270,8 +273,9 @@ contains
 
     pflotran_model%mapping => MappingCreate()
 #endif
-    pflotran_model%map_clm2pf => MappingCreate()
-    pflotran_model%map_pf2clm => MappingCreate()
+    pflotran_model%map_clm2pf       => MappingCreate()
+    pflotran_model%map_clm2pf_soils => MappingCreate()
+    pflotran_model%map_pf2clm       => MappingCreate()
 
     pflotran_model%num_pf_cells = -1
     pflotran_model%num_clm_cells= -1
@@ -697,7 +701,7 @@ contains
   ! author: Gautam Bisht
   ! date: 11/01/2010
   ! ************************************************************************** !
-#ifdef CLM_PFLOTRAN
+#if defined(CLM_PFLOTRAN)
   subroutine pflotranModelGetSaturation (pflotran_model)
 
     use Realization_module
@@ -1015,13 +1019,13 @@ contains
     PetscInt, pointer                  :: grid_pf_cell_ids_ghosted_nindex(:)
     PetscInt, pointer                  :: grid_clm_cell_ids_ghosted_nindex_tmp(:)
     PetscInt                           :: grid_pf_npts_local, grid_pf_npts_ghost
-	PetscInt                           :: grid_clm_npts_ghost
+  PetscInt                           :: grid_clm_npts_ghost
     PetscInt                           :: grid_pf_npts_ghosted, grid_clm_npts_ghosted
     PetscInt                           :: grid_clm_npts_ghosted_tmp
     PetscInt, pointer                  :: pf_ocell_ids(:),clm_ocell_ids(:)
     PetscReal,pointer                  :: pf_ocell_vol(:),clm_ocell_vol(:)
     PetscInt, pointer                  :: grid_clm_active(:), grid_pf_active(:)
-	PetscInt, pointer                  :: pf_ocell_count_array(:), clm_ocell_count_array(:)
+  PetscInt, pointer                  :: pf_ocell_count_array(:), clm_ocell_count_array(:)
 
     character(len=MAXSTRINGLENGTH)     :: filename
     type(option_type), pointer         :: option
@@ -1055,7 +1059,7 @@ contains
    if ( option%myrank == option%io_rank) then
    
        ! Read the mapping files
-	   
+     
        filename = 'mapping_clm2pf.txt'
        call pflotranModelReadMappingFile( option, filename, &
             pflotran_model%clm_cells, pflotran_model%num_clm_cells)
@@ -1080,21 +1084,21 @@ contains
           call MPI_Recv(grid_clm_npts_ghosted, 1, MPI_INTEGER, &
                irank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
 
-          ! Allocate memory			   
+          ! Allocate memory         
           allocate(grid_clm_cell_ids_ghosted_nindex_tmp(grid_clm_npts_ghosted))
-		  allocate(clm_ocell_count_array            (grid_clm_npts_ghosted))
-		  
+      allocate(clm_ocell_count_array            (grid_clm_npts_ghosted))
+      
           call MPI_Recv(grid_clm_cell_ids_ghosted_nindex_tmp, grid_clm_npts_ghosted, &
                MPI_INTEGER,irank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
 
           ! 
           do local_id = 1,grid_clm_npts_ghosted
-		    grid_clm_active( grid_clm_cell_ids_ghosted_nindex_tmp(local_id) + 1 ) = 1
-		  enddo
+        grid_clm_active( grid_clm_cell_ids_ghosted_nindex_tmp(local_id) + 1 ) = 1
+      enddo
 
           call pflotranModelFindOverlapCells(pflotran_model%clm_cells, grid_clm_npts_ghosted,&
                grid_clm_cell_ids_ghosted_nindex_tmp, clm_ocell_ids,clm_ocell_vol,clm_ocell_count,&
-			   clm_ocell_count_array)
+         clm_ocell_count_array)
 
           call MPI_Send(clm_ocell_count,1,MPI_INTEGER,irank,0,option%mycomm,ierr)
           call MPI_Send(clm_ocell_ids,clm_ocell_count,MPI_INTEGER,irank,0,option%mycomm,ierr)
@@ -1109,22 +1113,22 @@ contains
 
           call MPI_Recv(grid_pf_npts_ghosted,1,MPI_INTEGER, &
                irank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
-			   
-		  ! Allocate data
+         
+      ! Allocate data
           allocate(grid_pf_cell_ids_ghosted_nindex(grid_pf_npts_ghosted))
-		  allocate(pf_ocell_count_array            (grid_pf_npts_ghosted))
+      allocate(pf_ocell_count_array            (grid_pf_npts_ghosted))
 
           call MPI_Recv(grid_pf_cell_ids_ghosted_nindex, grid_pf_npts_ghosted, &
                MPI_INTEGER,irank,MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
           
-		  !
+      !
           do local_id = 1,grid_pf_npts_ghosted
-		    grid_pf_active( grid_pf_cell_ids_ghosted_nindex(local_id) + 1 ) = 1
-		  enddo
+        grid_pf_active( grid_pf_cell_ids_ghosted_nindex(local_id) + 1 ) = 1
+      enddo
 
           call pflotranModelFindOverlapCells(pflotran_model%pf_cells, grid_pf_npts_ghosted,&
                grid_pf_cell_ids_ghosted_nindex,pf_ocell_ids,pf_ocell_vol,pf_ocell_count,&
-			   pf_ocell_count_array)
+         pf_ocell_count_array)
 
           call MPI_Send(pf_ocell_count,1,MPI_INTEGER,irank,0,option%mycomm,ierr)
           call MPI_Send(pf_ocell_ids,pf_ocell_count,MPI_INTEGER,irank,0,option%mycomm,ierr)
@@ -1136,25 +1140,25 @@ contains
           deallocate(pf_ocell_vol)
 
        enddo
-	   
+     
        ! Doing local work
        grid_clm_npts_ghost   = 0
        grid_clm_npts_ghosted = grid_clm_npts_local + grid_clm_npts_ghost
        do local_id = 1,grid_clm_npts_ghosted
-	    grid_clm_active( grid_clm_cell_ids_ghosted_nindex(local_id) + 1 ) = 1
+      grid_clm_active( grid_clm_cell_ids_ghosted_nindex(local_id) + 1 ) = 1
        enddo
-	   
+     
        allocate(clm_ocell_count_array(grid_clm_npts_ghosted))
        call pflotranModelFindOverlapCells(pflotran_model%clm_cells, grid_clm_npts_ghosted,&
             grid_clm_cell_ids_ghosted_nindex, clm_ocell_ids,clm_ocell_vol,clm_ocell_count,&
-			clm_ocell_count_array)
+      clm_ocell_count_array)
 
        allocate(grid_pf_cell_ids_ghosted_nindex(grid%ngmax))
        allocate(pf_ocell_count_array            (grid%ngmax))
 
        do local_id = 1,grid%ngmax
           grid_pf_cell_ids_ghosted_nindex(local_id) = grid%nG2A(local_id)
-		  grid_pf_active( grid%nG2A(local_id) ) = 1
+      grid_pf_active( grid%nG2A(local_id) ) = 1
        enddo
        grid_pf_npts_local   = grid%nlmax
        grid_pf_npts_ghost   = grid%ngmax - grid%nlmax
@@ -1165,31 +1169,31 @@ contains
             pf_ocell_count_array)
 
        call MappingSetNumCells(m_clm2pf, grid_clm_npts_local, grid_clm_npts_ghost, &
-	        grid_clm_npts_local+grid_clm_npts_ghost, pf_ocell_count)
+          grid_clm_npts_local+grid_clm_npts_ghost, pf_ocell_count)
        call MappingAllocateMemory(m_clm2pf)
        call MappingSetOcells(m_clm2pf,pf_ocell_ids,pf_ocell_vol)
        call MappingSetTmeshCellIds( m_clm2pf, grid_clm_cell_ids_ghosted_nindex)
 
 
-	   call MappingSetNumCells(m_pf2clm, grid_pf_npts_local, grid_pf_npts_ghost, &
-	        grid%ngmax,clm_ocell_count)		 
+     call MappingSetNumCells(m_pf2clm, grid_pf_npts_local, grid_pf_npts_ghost, &
+          grid%ngmax,clm_ocell_count)     
        call MappingAllocateMemory(m_pf2clm)
        call MappingSetOcells(m_pf2clm,clm_ocell_ids,clm_ocell_vol)
        call MappingSetTmeshCellIds( m_pf2clm,grid_pf_cell_ids_ghosted_nindex)
 
        ! Error checking to ensure all CLM cells that are in the 
-	   ! mapping file are active on some processor
+     ! mapping file are active on some processor
        do local_id = 1,pflotran_model%num_clm_cells
-	     if ( grid_clm_active(local_id).eq.0 ) then
-		   write(*,*), 'All CLM grid '
+       if ( grid_clm_active(local_id).eq.0 ) then
+       write(*,*), 'All CLM grid '
            pflotran_model%option%io_buffer = 'All CLM cells present within mapping file ' //&
-		   ' are not active!'
+       ' are not active!'
           call printErrMsg(option)
-		 endif
-	   enddo
+     endif
+     enddo
 
        ! Error checking to ensure all PF cells that are in the 
-	   ! mapping file are active on some processor
+     ! mapping file are active on some processor
        do local_id = 1,pflotran_model%num_pf_cells
           if ( grid_pf_active(local_id).eq.0 ) then
              write(*,*), 'All CLM grid '
@@ -1198,12 +1202,12 @@ contains
              call printErrMsg(option)
           endif
        enddo
-	   
+     
        ! Free memory
-	   deallocate(clm_ocell_count_array)
+     deallocate(clm_ocell_count_array)
        deallocate(clm_ocell_ids)
        deallocate(clm_ocell_vol)
-	   deallocate(pf_ocell_count_array)
+     deallocate(pf_ocell_count_array)
        deallocate(pf_ocell_ids)
        deallocate(pf_ocell_vol)
 
@@ -1255,29 +1259,29 @@ contains
             status_mpi,ierr)
 
        call MappingSetNumCells(m_clm2pf, grid_clm_npts_local, grid_clm_npts_ghost, &
-	        grid_clm_npts_local+grid_clm_npts_ghost,pf_ocell_count)
+          grid_clm_npts_local+grid_clm_npts_ghost,pf_ocell_count)
        call MappingAllocateMemory(m_clm2pf)
        call MappingSetOcells(m_clm2pf,pf_ocell_ids,pf_ocell_vol)
        call MappingSetTmeshCellIds( m_clm2pf, grid_clm_cell_ids_ghosted_nindex)
 
-	   call MappingSetNumCells(m_pf2clm, grid_pf_npts_local, grid_pf_npts_ghost, &
-	        grid%ngmax,clm_ocell_count)		 
+     call MappingSetNumCells(m_pf2clm, grid_pf_npts_local, grid_pf_npts_ghost, &
+          grid%ngmax,clm_ocell_count)     
        call MappingAllocateMemory(m_pf2clm)
        call MappingSetOcells(m_pf2clm,clm_ocell_ids,clm_ocell_vol)
        call MappingSetTmeshCellIds( m_pf2clm,grid_pf_cell_ids_ghosted_nindex)
 
-	   write(*,*), 'm_clm2pf: '
-	   write(*,*), '          grid_clm_npts_local   = ',grid_clm_npts_local
-	   write(*,*), '          grid_clm_npts_ghost   = ',grid_clm_npts_ghost
-	   write(*,*), '          grid_clm_npts_ghosted = ',grid_clm_npts_local+grid_clm_npts_ghost
-	   write(*,*), '          num_ocells_with_fmesh = ',pf_ocell_count
-       write(*,*), '          num_docells_with_fmesh= ',m_clm2pf%num_docells_with_fmesh	   
-	   write(*,*), 'm_pf2clm: '
-	   write(*,*), '          grid_clm_npts_local   = ',grid_pf_npts_local
-	   write(*,*), '          grid_clm_npts_ghost   = ',grid_pf_npts_ghost
-	   write(*,*), '          grid_clm_npts_ghosted = ',grid_pf_npts_ghosted
-	   write(*,*), '          num_ocells_with_fmesh = ',clm_ocell_count
-       write(*,*), '          num_docells_with_fmesh= ',m_pf2clm%num_docells_with_fmesh	   
+     write(*,*), 'm_clm2pf: '
+     write(*,*), '          grid_clm_npts_local   = ',grid_clm_npts_local
+     write(*,*), '          grid_clm_npts_ghost   = ',grid_clm_npts_ghost
+     write(*,*), '          grid_clm_npts_ghosted = ',grid_clm_npts_local+grid_clm_npts_ghost
+     write(*,*), '          num_ocells_with_fmesh = ',pf_ocell_count
+       write(*,*), '          num_docells_with_fmesh= ',m_clm2pf%num_docells_with_fmesh     
+     write(*,*), 'm_pf2clm: '
+     write(*,*), '          grid_clm_npts_local   = ',grid_pf_npts_local
+     write(*,*), '          grid_clm_npts_ghost   = ',grid_pf_npts_ghost
+     write(*,*), '          grid_clm_npts_ghosted = ',grid_pf_npts_ghosted
+     write(*,*), '          num_ocells_with_fmesh = ',clm_ocell_count
+       write(*,*), '          num_docells_with_fmesh= ',m_pf2clm%num_docells_with_fmesh     
 
        ! Free up memory
        deallocate(clm_ocell_ids)
@@ -1296,8 +1300,8 @@ contains
     clm_pf_data%pf_num_docells   = m_clm2pf%num_docells_with_fmesh
 
     !write(*,*), 'clm_pf_data: ',option%myrank, clm_pf_data%clm_num_local, &
-	!     clm_pf_data%pf_num_local, clm_pf_data%clm_num_docells, &
-	!	 clm_pf_data%pf_num_docells
+  !     clm_pf_data%pf_num_local, clm_pf_data%clm_num_docells, &
+  !   clm_pf_data%pf_num_docells
 
     call clm_pf_data_allocate_memory(clm_pf_data, option%mycomm)
 
@@ -1308,11 +1312,11 @@ contains
     call MappingCreateIS(m_pf2clm, option%mycomm, grid_pf_npts_local, &
          grid_pf_cell_ids_ghosted_nindex)
 
-	if(option%myrank.eq.0) then
-	     write(*,*), 'm_pf2clm: '
-		 write(*,*), '         grid_pf_npts_local = ',grid_pf_npts_local
-	endif	 
-		 
+  if(option%myrank.eq.0) then
+       write(*,*), 'm_pf2clm: '
+     write(*,*), '         grid_pf_npts_local = ',grid_pf_npts_local
+  endif   
+     
     ! Creating VecScatter
     call MappingCreateVecScatter(m_clm2pf, option%mycomm, grid_clm_npts_local, &
          clm_pf_data%hksat_x_clmloc, clm_pf_data%hksat_x, clm_pf_data%hksat_x_pfloc)
@@ -1332,8 +1336,8 @@ contains
   ! author: Gautam Bisht
   ! date: 03/24/2011
   ! ************************************************************************** !
-  subroutine pflotranModelInitMapping3( pflotran_model, clm_pf_data, &
-       grid_clm_cell_ids_ghosted_nindex, grid_clm_npts_local)
+  subroutine pflotranModelInitMapping3(pflotran_model, filename, &
+       grid_clm_cell_ids_ghosted_nindex, grid_clm_npts_local, map_id,source_id)
 
     use Input_module
     use Option_module
@@ -1348,87 +1352,120 @@ contains
 #include "finclude/petscvec.h90"
 #include "finclude/petscviewer.h"
 
-    PetscInt, intent(in),pointer       :: grid_clm_cell_ids_ghosted_nindex(:)
-    PetscInt, intent(in)               :: grid_clm_npts_local
+    type(pflotran_model_type), intent(inout), pointer :: pflotran_model
+    !type(clm_pflotran_data), intent(inout),pointer    :: clm_pf_data
+    PetscInt, intent(in),pointer                      :: grid_clm_cell_ids_ghosted_nindex(:)
+    PetscInt, intent(in)                              :: grid_clm_npts_local
+    PetscInt, intent(in)                              :: map_id, source_id
+    character(len=MAXSTRINGLENGTH)                    :: filename
+    
+    ! local
     PetscInt                           :: local_id, grid_pf_npts_local, grid_pf_npts_ghost
-	PetscInt                           :: grid_clm_npts_ghost
+    PetscInt                           :: grid_clm_npts_ghost
     PetscInt, pointer                  :: grid_pf_cell_ids_ghosted_nindex(:)
     PetscInt, pointer                  :: grid_pf_cell_ids_local_nindex(:)
-	PetscInt, pointer                  :: grid_pf_local_or_ghost_nindex(:)
+    PetscInt, pointer                  :: grid_pf_local_or_ghost_nindex(:)
     PetscInt                           :: count
-    PetscErrorCode               :: ierr
+    PetscErrorCode                     :: ierr
+    type(mapping_type),pointer         :: m_clm2pf
+    type(mapping_type),pointer         :: m_pf2clm
+    type(mapping_type),pointer         :: map
 
-
-    type(pflotran_model_type), intent(inout), pointer :: pflotran_model
-    type(clm_pflotran_data), intent(inout),pointer    :: clm_pf_data
-    type(mapping_type),pointer                        :: m_clm2pf
-    type(mapping_type),pointer                        :: m_pf2clm
-
-    character(len=MAXSTRINGLENGTH)     :: filename
     type(option_type), pointer         :: option
     type(realization_type), pointer    :: realization
     type(grid_type),pointer            :: grid
     type(patch_type), pointer          :: patch
 
 
-    m_clm2pf        => pflotran_model%map_clm2pf
-    m_pf2clm        => pflotran_model%map_pf2clm
     option          => pflotran_model%option
     realization     => pflotran_model%simulation%realization
     patch           => realization%patch
     patch           => realization%patch
     grid            => patch%grid
-	
-    
-	
+
+    m_clm2pf        => pflotran_model%map_clm2pf
+    m_pf2clm        => pflotran_model%map_pf2clm
+    select case(map_id)
+      case(1)
+        map => pflotran_model%map_clm2pf
+      case(2)
+        map => pflotran_model%map_clm2pf_soils
+      case(3)
+        map => pflotran_model%map_pf2clm
+      case default
+        option%io_buffer = 'Invalid map_id argument to pflotranModelInitMapping3'
+        call printErrMsg(option)
+    end select
+  
     allocate(grid_pf_cell_ids_ghosted_nindex(grid%ngmax))
     allocate(grid_pf_cell_ids_local_nindex  (grid%nlmax))
-	allocate(grid_pf_local_or_ghost_nindex  (grid%ngmax))
+    allocate(grid_pf_local_or_ghost_nindex  (grid%ngmax))
 
     do local_id = 1,grid%nlmax
        grid_pf_cell_ids_local_nindex(local_id)   = grid%nL2A(local_id)
     enddo
-	
-	do local_id = 1,grid%ngmax
-		grid_pf_cell_ids_ghosted_nindex(local_id) = grid%nG2A(local_id)
-		if (grid%nG2L(local_id).eq.0) then
-			grid_pf_local_or_ghost_nindex(local_id) = 0 ! GHOST
-		else
-			grid_pf_local_or_ghost_nindex(local_id) = 1 ! LOCAL
-		endif
-	enddo
+  
+    do local_id = 1,grid%ngmax
+      grid_pf_cell_ids_ghosted_nindex(local_id) = grid%nG2A(local_id)
+      if (grid%nG2L(local_id).eq.0) then
+        grid_pf_local_or_ghost_nindex(local_id) = 0 ! GHOST
+      else
+        grid_pf_local_or_ghost_nindex(local_id) = 1 ! LOCAL
+      endif
+    enddo
 
-	grid_pf_npts_local = grid%nlmax
+    grid_pf_npts_local = grid%nlmax
     grid_pf_npts_ghost = grid%ngmax - grid%nlmax
     grid_clm_npts_ghost= 0
 
+#if 0
     !filename = 'mapping_clm2pf_matrix.txt'
-	!call MappingSetSourceMeshCellIds(m_pf2clm, option, grid_pf_npts_local, &
-	!     grid_pf_cell_ids_local_nindex)
-	!call MappingSetDestinationMeshCellIds(m_pf2clm, option, grid_clm_npts_local, &
-	!     grid_clm_npts_ghost, grid_clm_cell_ids_ghosted_nindex)
-	!call MappingReadTxtFile(m_pf2clm, filename, option)
-	!call MappingFindDistinctSourceMeshCellIds(m_pf2clm, option)
-	!call MappingCreateWeightMatrix(map,option)
-	!call MappingCreateScatterOfSourceMesh(m_pf2clm, option)
+    !call MappingSetSourceMeshCellIds(m_pf2clm, option, grid_pf_npts_local, &
+    !     grid_pf_cell_ids_local_nindex)
+    !call MappingSetDestinationMeshCellIds(m_pf2clm, option, grid_clm_npts_local, &
+    !     grid_clm_npts_ghost, grid_clm_cell_ids_ghosted_nindex)
+    !call MappingReadTxtFile(m_pf2clm, filename, option)
+    !call MappingFindDistinctSourceMeshCellIds(m_pf2clm, option)
+    !call MappingCreateWeightMatrix(map,option)
+    !call MappingCreateScatterOfSourceMesh(m_pf2clm, option)
 
-
-	filename = 'mapping_pf2clm_matrix.txt'
-	filename = 'wts_matrix.txt'
-	call MappingSetSourceMeshCellIds(m_clm2pf, option, grid_clm_npts_local, &
-	     grid_clm_cell_ids_ghosted_nindex)
-	call MappingSetDestinationMeshCellIds(m_clm2pf, option, grid_pf_npts_local, &
-	     grid_pf_npts_ghost, grid_pf_cell_ids_ghosted_nindex, grid_pf_local_or_ghost_nindex)
-	call MappingReadTxtFile(m_clm2pf, filename, option)
-	!call MappingReadTxtFileMPI(m_clm2pf, filename, option)
-	call MappingFindDistinctSourceMeshCellIds(m_clm2pf,option)
+    !filename = 'mapping_pf2clm_matrix.txt'
+    filename = 'wts_matrix.txt'
+    call MappingSetSourceMeshCellIds(m_clm2pf, option, grid_clm_npts_local, &
+         grid_clm_cell_ids_ghosted_nindex)
+    call MappingSetDestinationMeshCellIds(m_clm2pf, option, grid_pf_npts_local, &
+         grid_pf_npts_ghost, grid_pf_cell_ids_ghosted_nindex, grid_pf_local_or_ghost_nindex)
+    !call MappingReadTxtFile(m_clm2pf, filename, option)
+    call MappingReadTxtFileMPI(m_clm2pf, filename, option)
+    call MappingFindDistinctSourceMeshCellIds(m_clm2pf,option)
     call MappingCreateWeightMatrix(m_clm2pf,option)
-	call MappingCreateScatterOfSourceMesh(m_clm2pf, option)
-	
+    call MappingCreateScatterOfSourceMesh(m_clm2pf, option)
+#endif
+    
+    select case(source_id)
+      case(1)
+        call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
+          grid_clm_cell_ids_ghosted_nindex)
+        call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
+          grid_pf_npts_ghost, grid_pf_cell_ids_ghosted_nindex, grid_pf_local_or_ghost_nindex)
+      case(2)
+        call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
+          grid_pf_cell_ids_ghosted_nindex)
+        !call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
+        !  grid_clm_npts_ghost, grid_clm_cell_ids_ghosted_nindex, grid_clm_local_or_ghost_nindex)
+      case default
+        option%io_buffer = 'Invalid argument source_id passed to pflotranModelInitMapping3'
+        call printErrMsg(option)
+    end select
+    
+    call MappingReadTxtFileMPI(map, trim(filename), option)
+    call MappingFindDistinctSourceMeshCellIds(map,option)
+    call MappingCreateWeightMatrix(map,option)
+    call MappingCreateScatterOfSourceMesh(map, option)        
 
     deallocate(grid_pf_cell_ids_ghosted_nindex)
     deallocate(grid_pf_cell_ids_local_nindex)
-	deallocate(grid_pf_local_or_ghost_nindex)
+    deallocate(grid_pf_local_or_ghost_nindex)
 
 end subroutine pflotranModelInitMapping3
 
@@ -1451,16 +1488,16 @@ end subroutine pflotranModelInitMapping3
     PetscInt,pointer                   :: grid_cell_ids_ghosted_nindex(:)
     PetscInt,intent(out),pointer       :: ocell_ids(:)
     PetscReal,intent(out),pointer      :: ocell_vol(:)
-	PetscInt,intent(out)               :: ocell_count
-	PetscInt,intent(out),pointer       :: grid_ocell_count(:)
+    PetscInt,intent(out)               :: ocell_count
+    PetscInt,intent(out),pointer       :: grid_ocell_count(:)
 
     type(inside_each_overlapped_cell),pointer :: grid_cells(:)
 
     ocell_count = 0
     do ii = 1,grid_npts_ghosted
-       cell_id              = grid_cell_ids_ghosted_nindex(ii) + 1
-       ocell_count          = ocell_count + grid_cells(cell_id)%ocell_count
-	   grid_ocell_count(ii) = grid_cells(cell_id)%ocell_count
+      cell_id              = grid_cell_ids_ghosted_nindex(ii) + 1
+      ocell_count          = ocell_count + grid_cells(cell_id)%ocell_count
+      grid_ocell_count(ii) = grid_cells(cell_id)%ocell_count
     enddo
     
     allocate(ocell_ids(ocell_count))
@@ -1468,13 +1505,12 @@ end subroutine pflotranModelInitMapping3
 
     tmp_idx = 1
     do ii = 1,grid_npts_ghosted
-       cell_id = grid_cell_ids_ghosted_nindex(ii) + 1
-       do jj = 1,grid_cells(cell_id)%ocell_count
-          ocell_ids(tmp_idx) = grid_cells(cell_id)%ocell_id(jj)
-          ocell_vol(tmp_idx) = grid_cells(cell_id)%perc_vol_overlap(jj)
-          tmp_idx = tmp_idx + 1
-       enddo
-
+      cell_id = grid_cell_ids_ghosted_nindex(ii) + 1
+      do jj = 1,grid_cells(cell_id)%ocell_count
+        ocell_ids(tmp_idx) = grid_cells(cell_id)%ocell_id(jj)
+        ocell_vol(tmp_idx) = grid_cells(cell_id)%perc_vol_overlap(jj)
+        tmp_idx = tmp_idx + 1
+      enddo
     enddo
 
   end subroutine pflotranModelFindOverlapCells
@@ -1999,9 +2035,9 @@ end subroutine pflotranModelInitMapping3
     option => pflotran_model%realization%option
     word = 's'
     waypoint => WaypointCreate()
-    waypoint%time        = waypoint_time * UnitsConvertToInternal(word,option)
-    waypoint%update_srcs = PETSC_TRUE
-    waypoint%dt_max      = 3153600
+    waypoint%time              = waypoint_time * UnitsConvertToInternal(word,option)
+    waypoint%update_conditions = PETSC_TRUE
+    waypoint%dt_max            = 3153600
 
     call WaypointInsertInList(waypoint,pflotran_model%realization%waypoints)
 
@@ -2019,9 +2055,9 @@ end subroutine pflotranModelInitMapping3
     option => pflotran_model%realization%option
     word = 's'
     waypoint => WaypointCreate()
-    waypoint%time        = waypoint_time * UnitsConvertToInternal(word,option)
-    waypoint%update_srcs = PETSC_TRUE
-    waypoint%dt_max      = 3153600
+    waypoint%time              = waypoint_time * UnitsConvertToInternal(word,option)
+    waypoint%update_conditions = PETSC_TRUE
+    waypoint%dt_max            = 3153600
 
     call WaypointDeleteFromList(waypoint,pflotran_model%realization%waypoints)
 
@@ -2066,7 +2102,7 @@ end subroutine pflotranModelInitMapping3
     if (pflotran_model%option%myrank == pflotran_model%option%io_rank) then
 
        if (pflotran_model%option%print_to_screen) then
-#ifdef WITH_CLM
+#ifdef CLM_PFLOTRAN
           write(iulog,'(/," CPU Time:", 1pe12.4, " [sec] ", &
                & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
                timex(2)-timex(1), (timex(2)-timex(1))/60.d0, &
@@ -2110,7 +2146,7 @@ end subroutine pflotranModelInitMapping3
 
     call OptionDestroy(pflotran_model%option)
     !call PetscFinalize(ierr)
-#ifndef WITH_CLM
+#ifndef CLM_PFLOTRAN
     call MPI_Finalize(ierr)
 #endif
 

@@ -15,17 +15,17 @@ program pflotran_interface_main
 
   PetscInt :: time
 
-  type(pflotran_model_type),pointer :: pflotran_m
-  type(clm_pflotran_data),pointer :: clmpf_data
+  type(pflotran_model_type),pointer  :: pflotran_m
+  type(clm_pflotran_data),pointer    :: clmpf_data
   PetscInt, pointer                  :: clm_cell_ids(:)
   PetscInt                           :: clm_npts, ii,fileid,num_u_a,jj
   PetscReal, pointer                 :: v_loc(:),u_a(:)
   type(input_type), pointer          :: input
   character(len=MAXSTRINGLENGTH)     :: filename
   character(len=MAXWORDLENGTH)       :: card
-  PetscViewer :: viewer
-  PetscInt, pointer :: tmp_id(:)
-  PetscInt :: npts
+  PetscViewer                        :: viewer
+  PetscInt, pointer                  :: tmp_id(:)
+  PetscInt                           :: npts
   
   
   Vec :: sat_clmloc
@@ -35,44 +35,14 @@ program pflotran_interface_main
   allocate(pflotran_m)
   allocate(clmpf_data)
 
+  ! Create the model and CLM data
   pflotran_m => pflotranModelCreate()
   clmpf_data => clm_pf_data_create()
 
 
-#if 0
-  clm_npts = 40/pflotran_m%option%mycommsize
-  !clm_npts = 40
-  allocate(clm_cell_ids(clm_npts))
-  if( clm_npts.eq.20) then
-  if(pflotran_m%option%myrank.eq.0) then 
-    do ii = 1,10
-      clm_cell_ids(ii) = ii-1
- 	  !write(*,*),ii,clm_cell_ids(ii), pflotran_m%option%myrank
-    enddo
-    do ii = 11,20
-      clm_cell_ids(ii) = 40-ii!ii+10-1
- 	  !write(*,*),ii,clm_cell_ids(ii), pflotran_m%option%myrank
-    enddo
-  else
-    do ii = 1,10
-      clm_cell_ids(ii) = ii+10-1
- 	  !write(*,*),ii,clm_cell_ids(ii), pflotran_m%option%myrank
-    enddo
-    do ii = 11,20
-      clm_cell_ids(ii) = ii+20-1
- 	  !write(*,*),ii,clm_cell_ids(ii), pflotran_m%option%myrank
-    enddo
-  endif
-  
-  else
-    do ii = 1,clm_npts
-	  clm_cell_ids(ii) = ii-1
-	enddo
-  endif
-#endif 
-
-#if 0
-  clm_npts = 8192/pflotran_m%option%mycommsize
+#if 1
+  !clm_npts = 8192/pflotran_m%option%mycommsize
+  clm_npts = 5586/pflotran_m%option%mycommsize
   allocate(clm_cell_ids(clm_npts))
   do ii = 1,clm_npts
     clm_cell_ids(ii) = ii-1 + clm_npts*pflotran_m%option%myrank
@@ -111,50 +81,12 @@ program pflotran_interface_main
 #endif
 
   !call pflotranModelInitMapping2(pflotran_m,clmpf_data,clm_cell_ids,clm_npts)
-  call pflotranModelInitMapping3(pflotran_m,clmpf_data,clm_cell_ids,clm_npts)
+  !call pflotranModelInitMapping3(pflotran_m,clmpf_data,clm_cell_ids,clm_npts)
+  filename = 'conus_10min_smallmesh_from_clm_subset_wts_matrix.txt'//CHAR(0)
+  call pflotranModelInitMapping3(pflotran_m,filename,&
+    clm_cell_ids,clm_npts,1,1)
 
-  !call VecCreateMPI(pflotran_m%option%mycomm, pflotran_m%map_clm2pf%s_ncells_local, &
-  !     PETSC_DECIDE, sat_clmloc, ierr)
-  !call VecGetArrayF90(sat_clmloc,v_loc,ierr)
-  
-  !if(clm_npts.eq.20) then
-  !if(pflotran_m%option%myrank.eq.0) then
-  !  do ii = 1,10
-  !    v_loc(ii) = 0.97d0-0.05d0*ii
-  !  enddo
-  !  do ii = 11,20
-  !    v_loc(ii) = 0.42d0+0.05d0*(ii-10)
-  !  enddo
-  !else
-  !  do ii = 1,10
-  !    v_loc(ii) = 0.97d0-0.05d0*ii
-  !  enddo
-  !  do ii = 11,20
-  !    v_loc(ii) = 0.97d0-0.05d0*(ii-10)
-  !  enddo  
-  !endif
-  !else
-  !  do ii = 1,10
-  !    v_loc(ii) = 0.97d0-0.05d0*ii
-  !  enddo
-  !  do ii = 11,20
-  !    v_loc(ii) = 0.97d0-0.05d0*(ii-10)
-  !  enddo
-  !  do ii = 21,30
-  !    v_loc(ii) = 0.97d0-0.05d0*(ii-20)
-  !  enddo
-  !  do ii = 31,40
-  !    v_loc(ii) = 0.97d0-0.05d0*(ii-30)
-  !  enddo  
-  !endif
-  
-  !call VecRestoreArrayF90(sat_clmloc,v_loc,ierr)
-  !call VecView(sat_clmloc,PETSC_VIEWER_STDOUT_WORLD)
-
-
-
-
-#if 1
+#if 0
   filename = 'u_a.txt'
   fileid   = 10
   input => InputCreate(fileid,filename)
@@ -196,19 +128,11 @@ program pflotran_interface_main
 #endif
 
   !call pflotranModelStepperRunInit(pflotran_m)
-
-
-  !do time = 1,48
-
-   !  call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 1800.0d0)
-
+  !do time = 1,0
+  !   call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 1800.0d0)
   !enddo
-
-  !call pflotranModelStepperRunTillPauseTime(pflotran_m,4.0d0)
-  !call pflotranModelStepperRunTillPauseTime(pflotran_m,7.0d0)
-  
   !call pflotranModelStepperRunFinalize(pflotran_m)
 
-  call pflotranModelDestroy(pflotran_m)
+  !call pflotranModelDestroy(pflotran_m)
 
 end program pflotran_interface_main
