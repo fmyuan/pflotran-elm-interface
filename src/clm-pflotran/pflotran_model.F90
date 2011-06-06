@@ -12,12 +12,14 @@ module pflotran_model_module
   use Waypoint_module
   use Units_module
 
-#ifdef WITH_CLM
-  use Richards_Aux_module
-  use pflotran_clm_interface_type
+#if defined (CLM_PFLOTRAN)
   use clm_varctl, only            : iulog
   use Mapping_module
-  use clm_pflotran_interface_type
+#endif  
+#if defined (CLM_PFLOTRAN) || defined(CLM_OFFLINE)  
+  use Richards_Aux_module
+  use pflotran_clm_interface_type
+  !use clm_pflotran_interface_type
   use clm_pflotran_interface_data
 #endif
   use Mapping_module
@@ -258,19 +260,45 @@ contains
     pflotran_model%option%start_time = timex_wall(1)
 
     call Init(pflotran_model%simulation)
+    
+#if defined (CLM_PFLOTRAN) || defined (CLM_OFFLINE)
+    select case( pflotran_model%realization%patch%grid%itype)
+      case(STRUCTURED_GRID)
+        ! dimension = nlxy
+        allocate ( pf_clm_data%zwt     ( pflotran_model%realization%patch%grid%structured_grid%nlxy ) )
+
+        ! dimension = nlmax
+        allocate ( pf_clm_data%qsrc_flx( pflotran_model%realization%patch%grid%structured_grid%nlmax) )
+        allocate ( pf_clm_data%sat_new ( pflotran_model%realization%patch%grid%structured_grid%nlmax) )
+
+        ! dimension = ngmax
+        allocate ( pf_clm_data%alpha   ( pflotran_model%realization%patch%grid%ngmax ) )
+        allocate ( pf_clm_data%lambda  ( pflotran_model%realization%patch%grid%ngmax ) )
+      case(UNSTRUCTURED_GRID)
+        ! dimension = nlxy
+        !allocate ( pf_clm_data%zwt     ( pflotran_model%realization%patch%grid%unstructured_grid%nlxy ) )
+        nullify(pf_clm_data%zwt)
+
+        ! dimension = nlmax
+        allocate ( pf_clm_data%qsrc_flx( pflotran_model%realization%patch%grid%unstructured_grid%nlmax) )
+        allocate ( pf_clm_data%sat_new ( pflotran_model%realization%patch%grid%unstructured_grid%nlmax) )        
+
+        ! dimension = ngmax
+        allocate ( pf_clm_data%alpha   ( pflotran_model%realization%patch%grid%ngmax ) )
+        allocate ( pf_clm_data%lambda  ( pflotran_model%realization%patch%grid%ngmax ) )
+        
+        pf_clm_data%qsrc_flx = 0.0d0
+        pf_clm_data%sat_new  = 0.0d0
+        pf_clm_data%alpha    = 0.0d0
+        pf_clm_data%lambda   = 0.0d0
+        
+        write(*,*), 'size(pf_clm_data%alpha   ) = ',pflotran_model%realization%patch%grid%ngmax
+        write(*,*), 'size(pf_clm_data%qsrc_flx) = ',pflotran_model%realization%patch%grid%unstructured_grid%nlmax
+      
+    end select
+#endif
 
 #ifdef CLM_PFLOTRAN
-    ! dimension = nlxy
-    allocate ( pf_clm_data%zwt     ( pflotran_model%realization%patch%grid%structured_grid%nlxy ) )
-
-    ! dimension = nlmax
-    allocate ( pf_clm_data%qsrc_flx( pflotran_model%realization%patch%grid%structured_grid%nlmax) )
-    allocate ( pf_clm_data%sat_new ( pflotran_model%realization%patch%grid%structured_grid%nlmax) )
-
-    ! dimension = ngmax
-    allocate ( pf_clm_data%alpha   ( pflotran_model%realization%patch%grid%ngmax ) )
-    allocate ( pf_clm_data%lambda  ( pflotran_model%realization%patch%grid%ngmax ) )
-
     pflotran_model%mapping => MappingCreate()
 #endif
     pflotran_model%map_clm2pf       => MappingCreate()
@@ -1644,7 +1672,7 @@ end subroutine pflotranModelInitMapping3
     call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
 
     call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-
+#if 1
     liq_vol_start = 0.d0
     liq_vol_end   = 0.d0
     source_sink   = 0.d0
@@ -1655,12 +1683,13 @@ end subroutine pflotranModelInitMapping3
        if (associated(patch%imat)) then
           if (patch%imat(ghosted_id) <= 0) cycle
        endif
-       sat           = global_aux_vars(ghosted_id)%sat(1)
-       dz            = grid%structured_grid%dz(ghosted_id)
-       del_liq_vol   = sat * porosity_loc_p(ghosted_id) * dz
-       liq_vol_start = liq_vol_start + del_liq_vol
+       !sat           = global_aux_vars(ghosted_id)%sat(1)
+       !dz            = grid%structured_grid%dz(ghosted_id)
+       !del_liq_vol   = sat * porosity_loc_p(ghosted_id) * dz
+       !liq_vol_start = liq_vol_start + del_liq_vol
     enddo
-
+#endif
+    write(*,*), 'call StepperRunOneDT'
     call StepperRunOneDT(pflotran_model%simulation%realization, &
          pflotran_model%simulation%flow_stepper, &
          pflotran_model%simulation%tran_stepper, pause_time)
@@ -1674,7 +1703,7 @@ end subroutine pflotranModelInitMapping3
           if (patch%imat(ghosted_id) <= 0) cycle
        endif
        sat           = global_aux_vars(ghosted_id)%sat(1)
-       dz            = grid%structured_grid%dz(ghosted_id)
+      !dz            = grid%structured_grid%dz(ghosted_id)
        del_liq_vol   = sat * porosity_loc_p(ghosted_id) * dz
        liq_vol_end   = liq_vol_end + del_liq_vol
 
