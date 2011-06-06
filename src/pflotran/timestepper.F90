@@ -3360,6 +3360,8 @@ end subroutine TimestepperDestroy
     liq_vol_start = 0.0d0
     liq_vol_end   = 0.0d0
     call RichardsUpdateAuxVars(realization)
+
+#if defined (CLM_PFLOTRAN)
     do local_id=1,realization%patch%grid%nlmax
        ghosted_id = realization%patch%grid%nL2G(local_id)
        if(associated(realization%patch%imat)) then
@@ -3373,7 +3375,7 @@ end subroutine TimestepperDestroy
        del_liq_vol = sat *dx*dy*dz * porosity_loc_p(ghosted_id)
        liq_vol_start = liq_vol_start + del_liq_vol
     enddo
-
+#endif
     ! ensure that steady_state flag is off
     step_to_steady_state = PETSC_FALSE
     call PetscGetTime(stepper_start_time, ierr)

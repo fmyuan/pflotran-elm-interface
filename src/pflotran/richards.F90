@@ -8,8 +8,10 @@ module Richards_module
   
 #ifdef CLM_PFLOTRAN
   use clm_varctl      , only : iulog
+#endif
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   use pflotran_clm_interface_type
-#endif 
+#endif
   implicit none
   
   private 
@@ -2977,7 +2979,7 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
       icap_up = int(icap_loc_p(ghosted_id_up))
       icap_dn = int(icap_loc_p(ghosted_id_dn))
 
- 
+
       call RichardsFlux(rich_aux_vars(ghosted_id_up), &
                         global_aux_vars(ghosted_id_up), &
                           porosity_loc_p(ghosted_id_up), &
@@ -3285,7 +3287,7 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
-#ifdef CLM_PFLOTRAN
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
       qsrc = pf_clm_data%qsrc_flx(local_id)
 #endif
 
@@ -4555,7 +4557,7 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
 
       if (patch%imat(ghosted_id) <= 0) cycle
       
-#ifdef CLM_PFLOTRAN
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
       qsrc = pf_clm_data%qsrc_flx(local_id)
 #endif
 
