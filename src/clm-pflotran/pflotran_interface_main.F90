@@ -9,6 +9,8 @@ program pflotran_interface_main
   use Grid_module
   use Field_module
   use Richards_Aux_module
+  use Richards_module
+  use Discretization_module
   
   implicit none
 
@@ -45,6 +47,7 @@ program pflotran_interface_main
   character(len=MAXSTRINGLENGTH)     :: pyy_dname = '/Material/perm_y'//CHAR(0)
   character(len=MAXSTRINGLENGTH)     :: pzz_dname = '/Material/perm_z'//CHAR(0)
   character(len=MAXSTRINGLENGTH)     :: rch_dname = '/Recharge'//CHAR(0)
+  character(len=MAXSTRINGLENGTH)     :: ics_dname = '/Pressure'//CHAR(0)
   
   !
   PetscReal,pointer :: alp_p(:)
@@ -57,6 +60,8 @@ program pflotran_interface_main
   PetscInt          :: dataset_dims(1)
   PetscReal,pointer :: rch_2d_p(:,:), rch_1d_p(:)
   PetscInt          :: rch_data_dims(2), rch_dataset_dims(2)
+  PetscReal,pointer :: ics_p(:)
+  PetscInt          :: ics_data_dims(1), ics_dataset_dims(1)
 
   !
   Vec :: lam_nat_v,lam_loc_v
@@ -66,7 +71,7 @@ program pflotran_interface_main
   Vec :: pyy_nat_v,pyy_loc_v
   Vec :: pzz_nat_v,pzz_loc_v
   Vec :: rch_nat_v,rch_loc_v
-
+  Vec :: ics_nat_v,ics_loc_v
 
   !
   PetscScalar,pointer :: v_loc_1(:),v_loc_2(:),v_loc_3(:),v_loc_4(:)
@@ -91,7 +96,6 @@ program pflotran_interface_main
 
   ! Read soil properties data  
   filename = 'soil_prop.h5'
-
   call HDF5ReadDatasetReal1D(filename,alp_dname,NONUNIFORM_CONTIGUOUS_READ,&
     pflotran_m%option,alp_p,data_dims,dataset_dims)
   write(*,*),'data_dims: ',data_dims(:)
@@ -115,6 +119,12 @@ program pflotran_interface_main
   call HDF5ReadDatasetReal1D(filename,pzz_dname,NONUNIFORM_CONTIGUOUS_READ,&
     pflotran_m%option,pzz_p,data_dims,dataset_dims)
   write(*,*),'data_dims: ',data_dims(:)
+  
+  ! Read initial conditions
+  filename = 'init_cond_conus_10min_smallmesh.h5'
+  call HDF5ReadDatasetReal1D(filename,ics_dname,NONUNIFORM_CONTIGUOUS_READ,&
+    pflotran_m%option,ics_p,data_dims,dataset_dims)
+  write(*,*),'ics_data_dims: ',data_dims(:),dataset_dims(:)
 
   ! Create vectors to save soil properties
   call VecCreateMPI(pflotran_m%option%mycomm, dataset_dims(1), PETSC_DECIDE, alp_nat_v, ierr)
@@ -124,6 +134,9 @@ program pflotran_interface_main
   call VecCreateMPI(pflotran_m%option%mycomm, dataset_dims(1), PETSC_DECIDE, pyy_nat_v, ierr)
   call VecCreateMPI(pflotran_m%option%mycomm, dataset_dims(1), PETSC_DECIDE, pzz_nat_v, ierr)
   
+  ! Create vector to save initial conditions
+  call VecCreateMPI(pflotran_m%option%mycomm, dataset_dims(1), PETSC_DECIDE, ics_nat_v, ierr)
+  
   ! Save the data into vectors in natural index  
   call VecGetArrayF90(alp_nat_v,v_loc_1,ierr)
   call VecGetArrayF90(lam_nat_v,v_loc_2,ierr)
@@ -131,6 +144,7 @@ program pflotran_interface_main
   call VecGetArrayF90(pxx_nat_v,v_loc_4,ierr)
   call VecGetArrayF90(pyy_nat_v,v_loc_5,ierr)
   call VecGetArrayF90(pzz_nat_v,v_loc_6,ierr)
+  call VecGetArrayF90(ics_nat_v,v_loc_7,ierr)
   
   do ii = 1,data_dims(1)
     v_loc_1(ii) = alp_p(ii)
@@ -139,6 +153,7 @@ program pflotran_interface_main
     v_loc_4(ii) = pxx_p(ii)
     v_loc_5(ii) = pyy_p(ii)
     v_loc_6(ii) = pzz_p(ii)
+    v_loc_7(ii) = ics_p(ii)
   enddo
       
   call VecRestoreArrayF90(alp_nat_v,v_loc_1,ierr)
@@ -147,6 +162,7 @@ program pflotran_interface_main
   call VecRestoreArrayF90(pxx_nat_v,v_loc_4,ierr)
   call VecRestoreArrayF90(pyy_nat_v,v_loc_5,ierr)
   call VecRestoreArrayF90(pzz_nat_v,v_loc_6,ierr)
+  call VecRestoreArrayF90(ics_nat_v,v_loc_7,ierr)
 
   ! Free memory
   deallocate(alp_p)
@@ -155,6 +171,7 @@ program pflotran_interface_main
   deallocate(pxx_p)
   deallocate(pyy_p)
   deallocate(pzz_p)
+  deallocate(ics_p)
   
   grid      => pflotran_m%realization%patch%grid
   field     => pflotran_m%realization%field
@@ -166,13 +183,15 @@ program pflotran_interface_main
     !write(*,*), tmp_int_array(ii)
   enddo
 
-  ! Create vectors to save soil properties corresponding to ghosted cells present on each proc
+  ! Create vectors to save soil properties and initial conditions corresponding 
+  ! to ghosted cells present on each proc
   call VecCreateMPI(pflotran_m%option%mycomm, grid%ngmax, PETSC_DECIDE, alp_loc_v, ierr)
   call VecCreateMPI(pflotran_m%option%mycomm, grid%ngmax, PETSC_DECIDE, lam_loc_v, ierr)
   call VecCreateMPI(pflotran_m%option%mycomm, grid%ngmax, PETSC_DECIDE, por_loc_v, ierr)
   call VecCreateMPI(pflotran_m%option%mycomm, grid%ngmax, PETSC_DECIDE, pxx_loc_v, ierr)
   call VecCreateMPI(pflotran_m%option%mycomm, grid%ngmax, PETSC_DECIDE, pyy_loc_v, ierr)
   call VecCreateMPI(pflotran_m%option%mycomm, grid%ngmax, PETSC_DECIDE, pzz_loc_v, ierr)
+  call VecCreateMPI(pflotran_m%option%mycomm, grid%ngmax, PETSC_DECIDE, ics_loc_v, ierr)
 
   tmp_int_array = tmp_int_array - 1
   call ISCreateBlock(pflotran_m%option%mycomm, 1, grid%ngmax, tmp_int_array, PETSC_COPY_VALUES, &
@@ -219,7 +238,12 @@ program pflotran_interface_main
   call VecScatterBegin(vec_scat, pzz_nat_v, pzz_loc_v, INSERT_VALUES, SCATTER_FORWARD, ierr)
   call VecScatterEnd(  vec_scat, pzz_nat_v, pzz_loc_v, INSERT_VALUES, SCATTER_FORWARD, ierr)
   
+  call VecScatterBegin(vec_scat, ics_nat_v, ics_loc_v, INSERT_VALUES, SCATTER_FORWARD, ierr)
+  call VecScatterEnd(  vec_scat, ics_nat_v, ics_loc_v, INSERT_VALUES, SCATTER_FORWARD, ierr)
+
+  ! ========================================================================
   ! Save the porosity and permeability data
+  ! ========================================================================
   call GridVecGetArrayF90(grid,field%porosity_loc, v_loc_1, ierr)
   call GridVecGetArrayF90(grid,field%perm_xx_loc,  v_loc_2, ierr)
   call GridVecGetArrayF90(grid,field%perm_yy_loc,  v_loc_3, ierr)
@@ -250,7 +274,9 @@ program pflotran_interface_main
   call VecRestoreArrayF90(pyy_loc_v, v_loc_7, ierr)
   call VecRestoreArrayF90(pzz_loc_v, v_loc_8, ierr)
 
+  ! ========================================================================
   ! Save lambda and alpha
+  ! ========================================================================
   rich_aux_vars   => pflotran_m%realization%patch%aux%Richards%aux_vars
   call VecGetArrayF90(alp_loc_v, v_loc_1, ierr)
   call VecGetArrayF90(lam_loc_v, v_loc_2, ierr)
@@ -263,6 +289,24 @@ program pflotran_interface_main
   
   call VecRestoreArrayF90(alp_loc_v, v_loc_1, ierr)
   call VecRestoreArrayF90(lam_loc_v, v_loc_2, ierr)
+  
+  ! ========================================================================
+  ! Save initial conditions
+  ! ========================================================================
+  call GridVecGetArrayF90(grid,field%flow_xx,v_loc_1,ierr)
+  call VecGetArrayF90(ics_loc_v,v_loc_2,ierr)
+  do ii = 1, grid%ngmax
+       v_loc_1(ii) = v_loc_2(ii)
+  enddo
+
+  call GridVecRestoreArrayF90(grid,field%flow_xx,v_loc_1,ierr)
+  call VecRestoreArrayF90(ics_loc_v,v_loc_2,ierr)
+
+  call DiscretizationGlobalToLocal(pflotran_m%realization%discretization,&
+    field%flow_xx,field%flow_xx_loc,NFLOWDOF)
+  call VecCopy(field%flow_xx, field%flow_yy, ierr)
+  call RichardsUpdateAuxVars(pflotran_m%realization)
+
 
   ! ========================================================================
   !                             Read forcing data
@@ -273,26 +317,30 @@ program pflotran_interface_main
   !write(*,*),'rch_data_dims: ',rch_data_dims(:),rch_dataset_dims(:)
 
   ! ========================================================================
+  !                             Read forcing data
+  ! ========================================================================
+
+  ! ========================================================================
   !                             Mapping
   ! ========================================================================
-  clm_npts = 57*98/pflotran_m%option%mycommsize
-  allocate(clm_cell_ids(clm_npts))
-  do ii = 1,clm_npts
-    clm_cell_ids(ii) = ii-1 + clm_npts*pflotran_m%option%myrank
-  enddo
-
-  filename = 'conus_10min_smallmesh_from_clm_subset_wts_matrix.txt'//CHAR(0)
-  call pflotranModelInitMapping3(pflotran_m,filename,&
-    clm_cell_ids,clm_npts,1,1)
-
-
-  !call pflotranModelStepperRunInit(pflotran_m)
-  !do time = 1,0
-  !   call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 3600.0d0)
+  !clm_npts = 57*98/pflotran_m%option%mycommsize
+  !allocate(clm_cell_ids(clm_npts))
+  !do ii = 1,clm_npts
+  !  clm_cell_ids(ii) = ii-1 + clm_npts*pflotran_m%option%myrank
   !enddo
-  !call pflotranModelStepperRunFinalize(pflotran_m)
 
-  !call pflotranModelDestroy(pflotran_m)
+  !filename = 'conus_10min_smallmesh_from_clm_subset_wts_matrix.txt'//CHAR(0)
+  !call pflotranModelInitMapping3(pflotran_m,filename,&
+  !  clm_cell_ids,clm_npts,1,1)
+
+
+  call pflotranModelStepperRunInit(pflotran_m)
+  do time = 1,1
+     call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 3600.0d0)
+  enddo
+  call pflotranModelStepperRunFinalize(pflotran_m)
+
+  call pflotranModelDestroy(pflotran_m)
 
 
 #if 0
