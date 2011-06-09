@@ -44,6 +44,7 @@ program pflotran_interface_main
   character(len=MAXSTRINGLENGTH)     :: pxx_dname = '/Material/perm_x'//CHAR(0)
   character(len=MAXSTRINGLENGTH)     :: pyy_dname = '/Material/perm_y'//CHAR(0)
   character(len=MAXSTRINGLENGTH)     :: pzz_dname = '/Material/perm_z'//CHAR(0)
+  character(len=MAXSTRINGLENGTH)     :: rch_dname = '/Recharge'//CHAR(0)
   
   !
   PetscReal,pointer :: alp_p(:)
@@ -52,16 +53,20 @@ program pflotran_interface_main
   PetscReal,pointer :: pxx_p(:)
   PetscReal,pointer :: pyy_p(:)
   PetscReal,pointer :: pzz_p(:)
-  PetscInt   :: data_dims(1)
-  PetscInt   :: dataset_dims(1)
+  PetscInt          :: data_dims(1)
+  PetscInt          :: dataset_dims(1)
+  PetscReal,pointer :: rch_2d_p(:,:), rch_1d_p(:)
+  PetscInt          :: rch_data_dims(2), rch_dataset_dims(2)
 
-  !    
+  !
   Vec :: lam_nat_v,lam_loc_v
   Vec :: por_nat_v,por_loc_v
   Vec :: alp_nat_v,alp_loc_v
   Vec :: pxx_nat_v,pxx_loc_v
   Vec :: pyy_nat_v,pyy_loc_v
   Vec :: pzz_nat_v,pzz_loc_v
+  Vec :: rch_nat_v,rch_loc_v
+
 
   !
   PetscScalar,pointer :: v_loc_1(:),v_loc_2(:),v_loc_3(:),v_loc_4(:)
@@ -158,6 +163,7 @@ program pflotran_interface_main
   allocate(tmp_int_array(grid%ngmax))
   do ii = 1,grid%ngmax
     tmp_int_array(ii) = grid%nG2A(ii)
+    !write(*,*), tmp_int_array(ii)
   enddo
 
   ! Create vectors to save soil properties corresponding to ghosted cells present on each proc
@@ -172,15 +178,22 @@ program pflotran_interface_main
   call ISCreateBlock(pflotran_m%option%mycomm, 1, grid%ngmax, tmp_int_array, PETSC_COPY_VALUES, &
          is_from, ierr)
   deallocate(tmp_int_array)
+  call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'is_from.out', viewer, ierr)
+  call ISView(is_from, viewer,ierr)
+  call PetscViewerDestroy(viewer, ierr)
   
   ! Create index set - Scattering to 
   call VecGetOwnershipRange(alp_loc_v,istart,iend,ierr)
   allocate(tmp_int_array(grid%ngmax))
   do ii = 1,grid%ngmax
     tmp_int_array(ii) = ii-1+istart
+    !write(*,*), tmp_int_array(ii)
   enddo
   call ISCreateBlock(pflotran_m%option%mycomm, 1, grid%ngmax, tmp_int_array, PETSC_COPY_VALUES, &
          is_to, ierr)
+  call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'is_to.out', viewer, ierr)
+  call ISView(is_to, viewer,ierr)
+  call PetscViewerDestroy(viewer, ierr)
 
   ! Create vector scatter
   call VecScatterCreate(alp_nat_v, is_from, alp_loc_v, is_to, vec_scat, ierr)
@@ -250,6 +263,37 @@ program pflotran_interface_main
   
   call VecRestoreArrayF90(alp_loc_v, v_loc_1, ierr)
   call VecRestoreArrayF90(lam_loc_v, v_loc_2, ierr)
+
+  ! ========================================================================
+  !                             Read forcing data
+  ! ========================================================================
+  !filename = '01_recharge.h5'
+  !call HDF5ReadDatasetReal2D(filename,rch_dname,NONUNIFORM_CONTIGUOUS_READ,&
+  !  pflotran_m%option,rch_2d_p,rch_data_dims,rch_dataset_dims)
+  !write(*,*),'rch_data_dims: ',rch_data_dims(:),rch_dataset_dims(:)
+
+  ! ========================================================================
+  !                             Mapping
+  ! ========================================================================
+  clm_npts = 57*98/pflotran_m%option%mycommsize
+  allocate(clm_cell_ids(clm_npts))
+  do ii = 1,clm_npts
+    clm_cell_ids(ii) = ii-1 + clm_npts*pflotran_m%option%myrank
+  enddo
+
+  filename = 'conus_10min_smallmesh_from_clm_subset_wts_matrix.txt'//CHAR(0)
+  call pflotranModelInitMapping3(pflotran_m,filename,&
+    clm_cell_ids,clm_npts,1,1)
+
+
+  !call pflotranModelStepperRunInit(pflotran_m)
+  !do time = 1,0
+  !   call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 3600.0d0)
+  !enddo
+  !call pflotranModelStepperRunFinalize(pflotran_m)
+
+  !call pflotranModelDestroy(pflotran_m)
+
 
 #if 0
 
@@ -342,12 +386,5 @@ program pflotran_interface_main
 
 #endif ! #if 0 @ line no 64
 
-  call pflotranModelStepperRunInit(pflotran_m)
-  do time = 1,1
-     call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 1800.0d0)
-  enddo
-  call pflotranModelStepperRunFinalize(pflotran_m)
-
-  !call pflotranModelDestroy(pflotran_m)
 
 end program pflotran_interface_main

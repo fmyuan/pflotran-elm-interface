@@ -1404,7 +1404,7 @@ contains
     type(grid_type),pointer            :: grid
     type(patch_type), pointer          :: patch
 
-
+    write(*,*), 'In pflotranModelInitMapping3'
     option          => pflotran_model%option
     realization     => pflotran_model%simulation%realization
     patch           => realization%patch
@@ -1424,7 +1424,7 @@ contains
         option%io_buffer = 'Invalid map_id argument to pflotranModelInitMapping3'
         call printErrMsg(option)
     end select
-  
+#if 0
     allocate(grid_pf_cell_ids_ghosted_nindex(grid%ngmax))
     allocate(grid_pf_cell_ids_local_nindex  (grid%nlmax))
     allocate(grid_pf_local_or_ghost_nindex  (grid%ngmax))
@@ -1434,7 +1434,8 @@ contains
     enddo
   
     do local_id = 1,grid%ngmax
-      grid_pf_cell_ids_ghosted_nindex(local_id) = grid%nG2A(local_id)
+      grid_pf_cell_ids_ghosted_nindex(local_id) = grid%nG2A(local_id)-1
+      if(local_id == 1) write(*,*), 'nG2A(1) = ',grid%nG2A(local_id),grid%nL2A(local_id)
       if (grid%nG2L(local_id).eq.0) then
         grid_pf_local_or_ghost_nindex(local_id) = 0 ! GHOST
       else
@@ -1445,6 +1446,26 @@ contains
     grid_pf_npts_local = grid%nlmax
     grid_pf_npts_ghost = grid%ngmax - grid%nlmax
     grid_clm_npts_ghost= 0
+#else
+    allocate(grid_pf_cell_ids_ghosted_nindex(213900))
+    allocate(grid_pf_cell_ids_local_nindex  (213900))
+    allocate(grid_pf_local_or_ghost_nindex  (213900))
+
+    do local_id = 1,213900
+       grid_pf_cell_ids_local_nindex(local_id)   = local_id-1
+    enddo
+  
+    do local_id = 1,213900
+      grid_pf_cell_ids_ghosted_nindex(local_id) = local_id-1
+      grid_pf_local_or_ghost_nindex(local_id) = 1 ! LOCAL
+    enddo
+
+    grid_pf_npts_local = 213900
+    grid_pf_npts_ghost = 0
+    grid_clm_npts_ghost= 0
+#endif
+
+
 
 #if 0
     !filename = 'mapping_clm2pf_matrix.txt'
@@ -1472,11 +1493,15 @@ contains
     
     select case(source_id)
       case(1)
+        write(*,*), 'source_id = 1'
+        write(*,*), 'SetSourceMeshCellIds'
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
           grid_clm_cell_ids_ghosted_nindex)
+        write(*,*), 'SetDestinationMeshCellIds'
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
           grid_pf_npts_ghost, grid_pf_cell_ids_ghosted_nindex, grid_pf_local_or_ghost_nindex)
       case(2)
+        write(*,*), 'source_id =2'
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
           grid_pf_cell_ids_ghosted_nindex)
         !call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
@@ -1486,9 +1511,13 @@ contains
         call printErrMsg(option)
     end select
     
+    write(*,*), 'MappingReadTxtFileMPI'
     call MappingReadTxtFileMPI(map, trim(filename), option)
+    write(*,*), 'MappingFindDistinctSourceMeshCellIds'
     call MappingFindDistinctSourceMeshCellIds(map,option)
+    write(*,*),'MappingCreateWeightMatrix'
     call MappingCreateWeightMatrix(map,option)
+    write(*,*),'MappingCreateScatterOfSourceMesh'
     call MappingCreateScatterOfSourceMesh(map, option)        
 
     deallocate(grid_pf_cell_ids_ghosted_nindex)

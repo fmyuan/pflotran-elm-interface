@@ -985,11 +985,13 @@ contains
     enddo
 	
 	! Create vectors
+  write (*,*), 'map%d_ncells_ghosted = ', map%d_ncells_ghosted
+  write (*,*), 'map%d_ncells_local   = ', map%d_ncells_local
     call VecCreateMPI(option%mycomm, map%d_ncells_ghosted, PETSC_DECIDE, vec_tmp_1, ierr)
     call VecCreateMPI(option%mycomm, map%d_ncells_local  , PETSC_DECIDE, vec_tmp_2, ierr)
     ! 
     call VecGetOwnershipRange(vec_tmp_1,istart,iend,ierr)
-	allocate(tmp_int_array(map%d_ncells_local))
+	  allocate(tmp_int_array(map%d_ncells_local))
     count = 0
     do ii=1,map%d_ncells_ghosted
        if(map%d_local_or_ghost(ii).eq.1) then
@@ -1002,7 +1004,7 @@ contains
     deallocate(tmp_int_array)
 
     allocate(tmp_int_array(map%d_ncells_local))
-	count = 0
+	  count = 0
     do ii=1,map%d_ncells_ghosted
 	   if(map%d_local_or_ghost(ii).eq.1) then
 	      count = count + 1
@@ -1014,18 +1016,19 @@ contains
          is_to, ierr)
     deallocate(tmp_int_array)
 	
-    call PetscViewerASCIIOpen(option%mycomm, 'is_from.out', viewer, ierr)
+    call PetscViewerASCIIOpen(option%mycomm, 'is_from_1.out', viewer, ierr)
     call ISView(is_from, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 
-    call PetscViewerASCIIOpen(option%mycomm, 'is_to.out', viewer, ierr)
+    call PetscViewerASCIIOpen(option%mycomm, 'is_to_1.out', viewer, ierr)
     call ISView(is_to, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 	
+    write(*,*), 'call VecScatterCreate()'
     call VecScatterCreate(vec_tmp_1, is_from, vec_tmp_2, is_to, map%scatter_d_l2n, ierr)
 
     call PetscViewerASCIIOpen(option%mycomm, 'scatter_d_l2n.out', viewer, ierr)
-	call VecScatterView(map%scatter_d_l2n, viewer,ierr)
+	  call VecScatterView(map%scatter_d_l2n, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 
     ! Free memory
