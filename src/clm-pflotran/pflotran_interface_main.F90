@@ -77,6 +77,7 @@ program pflotran_interface_main
   PetscScalar,pointer :: v_loc_1(:),v_loc_2(:),v_loc_3(:),v_loc_4(:)
   PetscScalar,pointer :: v_loc_5(:),v_loc_6(:),v_loc_7(:),v_loc_8(:)
   PetscInt, pointer   :: tmp_int_array(:)
+  PetscReal,pointer   :: tmp_real_array(:)
   IS                  :: is_from, is_to
   VecScatter          :: vec_scat
   PetscInt            :: istart,iend
@@ -180,7 +181,6 @@ program pflotran_interface_main
   allocate(tmp_int_array(grid%ngmax))
   do ii = 1,grid%ngmax
     tmp_int_array(ii) = grid%nG2A(ii)
-    !write(*,*), tmp_int_array(ii)
   enddo
 
   ! Create vectors to save soil properties and initial conditions corresponding 
@@ -191,7 +191,6 @@ program pflotran_interface_main
   call VecCreateMPI(pflotran_m%option%mycomm, grid%ngmax, PETSC_DECIDE, pxx_loc_v, ierr)
   call VecCreateMPI(pflotran_m%option%mycomm, grid%ngmax, PETSC_DECIDE, pyy_loc_v, ierr)
   call VecCreateMPI(pflotran_m%option%mycomm, grid%ngmax, PETSC_DECIDE, pzz_loc_v, ierr)
-  call VecCreateMPI(pflotran_m%option%mycomm, grid%ngmax, PETSC_DECIDE, ics_loc_v, ierr)
 
   tmp_int_array = tmp_int_array - 1
   call ISCreateBlock(pflotran_m%option%mycomm, 1, grid%ngmax, tmp_int_array, PETSC_COPY_VALUES, &
@@ -206,7 +205,6 @@ program pflotran_interface_main
   allocate(tmp_int_array(grid%ngmax))
   do ii = 1,grid%ngmax
     tmp_int_array(ii) = ii-1+istart
-    !write(*,*), tmp_int_array(ii)
   enddo
   call ISCreateBlock(pflotran_m%option%mycomm, 1, grid%ngmax, tmp_int_array, PETSC_COPY_VALUES, &
          is_to, ierr)
@@ -216,8 +214,11 @@ program pflotran_interface_main
 
   ! Create vector scatter
   call VecScatterCreate(alp_nat_v, is_from, alp_loc_v, is_to, vec_scat, ierr)
-  call ISDestroy(is_from)
-  call ISDestroy(is_to)
+  call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'vec_scat.out', viewer, ierr)
+  call VecScatterView(vec_scat, viewer,ierr)
+  call PetscViewerDestroy(viewer, ierr)
+  !call ISDestroy(is_from)
+  !call ISDestroy(is_to)
   
   ! Scatter vectors
   call VecScatterBegin(vec_scat, alp_nat_v, alp_loc_v, INSERT_VALUES, SCATTER_FORWARD, ierr)
@@ -238,8 +239,7 @@ program pflotran_interface_main
   call VecScatterBegin(vec_scat, pzz_nat_v, pzz_loc_v, INSERT_VALUES, SCATTER_FORWARD, ierr)
   call VecScatterEnd(  vec_scat, pzz_nat_v, pzz_loc_v, INSERT_VALUES, SCATTER_FORWARD, ierr)
   
-  call VecScatterBegin(vec_scat, ics_nat_v, ics_loc_v, INSERT_VALUES, SCATTER_FORWARD, ierr)
-  call VecScatterEnd(  vec_scat, ics_nat_v, ics_loc_v, INSERT_VALUES, SCATTER_FORWARD, ierr)
+  call VecScatterDestroy(vec_scat,ierr)
 
   ! ========================================================================
   ! Save the porosity and permeability data
@@ -293,20 +293,60 @@ program pflotran_interface_main
   ! ========================================================================
   ! Save initial conditions
   ! ========================================================================
-  call GridVecGetArrayF90(grid,field%flow_xx,v_loc_1,ierr)
+#if 1
+  call VecCreateMPI(pflotran_m%option%mycomm, grid%nlmax, PETSC_DECIDE, ics_loc_v, ierr)
+
+  ! Create index set - Scattering from global vector
+  allocate(tmp_int_array(grid%ngmax))
+  do ii = 1,grid%nlmax
+    tmp_int_array(ii) = grid%nL2A(ii)
+  enddo
+  write(*,*), 'tmp_int_array(1) = ',tmp_int_array(1)
+
+  !tmp_int_array = tmp_int_array - 1
+  call ISCreateBlock(pflotran_m%option%mycomm, 1, grid%nlmax, tmp_int_array, PETSC_COPY_VALUES, &
+         is_from, ierr)
+  deallocate(tmp_int_array)
+  call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'is_fromm.out', viewer, ierr)
+  call ISView(is_from, viewer,ierr)
+  call PetscViewerDestroy(viewer, ierr)
+  
+  ! Create index set - Scattering to 
+  call VecGetOwnershipRange(ics_loc_v,istart,iend,ierr)
+  allocate(tmp_int_array(grid%nlmax))
+  do ii = 1,grid%nlmax
+    tmp_int_array(ii) = ii-1+istart
+  enddo
+  call ISCreateBlock(pflotran_m%option%mycomm, 1, grid%nlmax, tmp_int_array, PETSC_COPY_VALUES, &
+         is_to, ierr)
+  call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'is_too.out', viewer, ierr)
+  call ISView(is_to, viewer,ierr)
+  call PetscViewerDestroy(viewer, ierr)
+
+  ! Create vector scatter
+  call VecScatterCreate(ics_nat_v, is_from, ics_loc_v, is_to, vec_scat, ierr)
+
+  call VecScatterBegin(vec_scat, ics_nat_v, ics_loc_v, INSERT_VALUES, SCATTER_FORWARD, ierr)
+  call VecScatterEnd(  vec_scat, ics_nat_v, ics_loc_v, INSERT_VALUES, SCATTER_FORWARD, ierr)
+
+  call VecScatterDestroy(vec_scat, ierr)
+
+  call GridVecGetArrayF90(grid,field%flow_xx,tmp_real_array,ierr)
   call VecGetArrayF90(ics_loc_v,v_loc_2,ierr)
-  do ii = 1, grid%ngmax
-       v_loc_1(ii) = v_loc_2(ii)
+
+  do ii = 1, grid%nlmax
+       tmp_real_array(ii) = v_loc_2(ii)
+       !tmp_real_array(ii) = REAL(v_loc_2(ii))
   enddo
 
-  call GridVecRestoreArrayF90(grid,field%flow_xx,v_loc_1,ierr)
+  call GridVecRestoreArrayF90(grid,field%flow_xx,tmp_real_array,ierr)
   call VecRestoreArrayF90(ics_loc_v,v_loc_2,ierr)
 
   call DiscretizationGlobalToLocal(pflotran_m%realization%discretization,&
     field%flow_xx,field%flow_xx_loc,NFLOWDOF)
   call VecCopy(field%flow_xx, field%flow_yy, ierr)
   call RichardsUpdateAuxVars(pflotran_m%realization)
-
+#endif
 
   ! ========================================================================
   !                             Read forcing data
@@ -335,7 +375,7 @@ program pflotran_interface_main
 
 
   call pflotranModelStepperRunInit(pflotran_m)
-  do time = 1,1
+  do time = 1,0
      call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 3600.0d0)
   enddo
   call pflotranModelStepperRunFinalize(pflotran_m)
