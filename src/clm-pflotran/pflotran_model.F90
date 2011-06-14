@@ -1424,7 +1424,7 @@ contains
         option%io_buffer = 'Invalid map_id argument to pflotranModelInitMapping3'
         call printErrMsg(option)
     end select
-#if 0
+#if 1
     allocate(grid_pf_cell_ids_ghosted_nindex(grid%ngmax))
     allocate(grid_pf_cell_ids_local_nindex  (grid%nlmax))
     allocate(grid_pf_local_or_ghost_nindex  (grid%ngmax))
