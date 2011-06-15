@@ -128,15 +128,15 @@ program pflotran_interface_main
   write(*,*),'ics_data_dims: ',data_dims(:),dataset_dims(:)
 
   ! Create vectors to save soil properties
-  call VecCreateMPI(pflotran_m%option%mycomm, dataset_dims(1), PETSC_DECIDE, alp_nat_v, ierr)
-  call VecCreateMPI(pflotran_m%option%mycomm, dataset_dims(1), PETSC_DECIDE, lam_nat_v, ierr)
-  call VecCreateMPI(pflotran_m%option%mycomm, dataset_dims(1), PETSC_DECIDE, por_nat_v, ierr)
-  call VecCreateMPI(pflotran_m%option%mycomm, dataset_dims(1), PETSC_DECIDE, pxx_nat_v, ierr)
-  call VecCreateMPI(pflotran_m%option%mycomm, dataset_dims(1), PETSC_DECIDE, pyy_nat_v, ierr)
-  call VecCreateMPI(pflotran_m%option%mycomm, dataset_dims(1), PETSC_DECIDE, pzz_nat_v, ierr)
+  call VecCreateMPI(pflotran_m%option%mycomm, PETSC_DECIDE, dataset_dims(1), alp_nat_v, ierr)
+  call VecCreateMPI(pflotran_m%option%mycomm, PETSC_DECIDE, dataset_dims(1), lam_nat_v, ierr)
+  call VecCreateMPI(pflotran_m%option%mycomm, PETSC_DECIDE, dataset_dims(1), por_nat_v, ierr)
+  call VecCreateMPI(pflotran_m%option%mycomm, PETSC_DECIDE, dataset_dims(1), pxx_nat_v, ierr)
+  call VecCreateMPI(pflotran_m%option%mycomm, PETSC_DECIDE, dataset_dims(1), pyy_nat_v, ierr)
+  call VecCreateMPI(pflotran_m%option%mycomm, PETSC_DECIDE, dataset_dims(1), pzz_nat_v, ierr)
   
   ! Create vector to save initial conditions
-  call VecCreateMPI(pflotran_m%option%mycomm, dataset_dims(1), PETSC_DECIDE, ics_nat_v, ierr)
+  call VecCreateMPI(pflotran_m%option%mycomm, PETSC_DECIDE, dataset_dims(1), ics_nat_v, ierr)
   
   ! Save the data into vectors in natural index  
   call VecGetArrayF90(alp_nat_v,v_loc_1,ierr)
@@ -293,7 +293,6 @@ program pflotran_interface_main
   ! ========================================================================
   ! Save initial conditions
   ! ========================================================================
-#if 1
   call VecCreateMPI(pflotran_m%option%mycomm, grid%nlmax, PETSC_DECIDE, ics_loc_v, ierr)
 
   ! Create index set - Scattering from global vector
@@ -301,7 +300,6 @@ program pflotran_interface_main
   do ii = 1,grid%nlmax
     tmp_int_array(ii) = grid%nL2A(ii)
   enddo
-  write(*,*), 'tmp_int_array(1) = ',tmp_int_array(1)
 
   !tmp_int_array = tmp_int_array - 1
   call ISCreateBlock(pflotran_m%option%mycomm, 1, grid%nlmax, tmp_int_array, PETSC_COPY_VALUES, &
@@ -346,7 +344,6 @@ program pflotran_interface_main
     field%flow_xx,field%flow_xx_loc,NFLOWDOF)
   call VecCopy(field%flow_xx, field%flow_yy, ierr)
   call RichardsUpdateAuxVars(pflotran_m%realization)
-#endif
 
   ! ========================================================================
   !                             Read forcing data

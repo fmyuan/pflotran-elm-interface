@@ -651,9 +651,9 @@ contains
           aux_var%bc_alpha  = 1.d0/(clm_pf_data%sucsat(1,clm_pf_data%nlevsoi)*grav)
           aux_var%bc_lambda = 1.d0/(clm_pf_data%bsw(   1,clm_pf_data%nlevsoi))
 
-          perm_xx_loc_p(ghosted_id) = clm_pf_data%hksat_x(1,clm_pf_data%nlevsoi) * vis/ (den * grav) * 1000.d0
-          perm_yy_loc_p(ghosted_id) = clm_pf_data%hksat_y(1,clm_pf_data%nlevsoi) * vis/ (den * grav) * 1000.d0
-          perm_zz_loc_p(ghosted_id) = clm_pf_data%hksat_z(1,clm_pf_data%nlevsoi) * vis/ (den * grav) * 1000.d0
+          perm_xx_loc_p(ghosted_id) = clm_pf_data%hksat_x(1,clm_pf_data%nlevsoi) * vis/ (den * grav) / 1000.d0
+          perm_yy_loc_p(ghosted_id) = clm_pf_data%hksat_y(1,clm_pf_data%nlevsoi) * vis/ (den * grav) / 1000.d0
+          perm_zz_loc_p(ghosted_id) = clm_pf_data%hksat_z(1,clm_pf_data%nlevsoi) * vis/ (den * grav) / 1000.d0
 
           porosity_loc_p(ghosted_id) = clm_pf_data%watsat(1,clm_pf_data%nlevsoi)
 
