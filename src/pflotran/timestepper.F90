@@ -3080,7 +3080,7 @@ end subroutine TimestepperDestroy
     failure                  = PETSC_FALSE
 
 #ifndef CLM_PFLOTRAN
-    print *, 'In StepperRun()'
+    if(option%myrank == option%io_rank) print *, 'In StepperRun()'
 #else
     write(iulog,*), 'In StepperRun() '
 #endif

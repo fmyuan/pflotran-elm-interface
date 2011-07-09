@@ -3427,6 +3427,7 @@ subroutine InitReadHDF5CardsFromInput(realization)
 
   if (.not.InputError(input)) then  
     ! read in keyword 
+     write(8,*), 'no error'
         call InputReadInt(input,option,option%hdf5_read_group_size)
         call InputErrorMsg(input,option,'HDF5_READ_GROUP_SIZE','Group size')
   endif

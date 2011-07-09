@@ -99,33 +99,33 @@ program pflotran_interface_main
   filename = 'soil_prop.h5'
   call HDF5ReadDatasetReal1D(filename,alp_dname,NONUNIFORM_CONTIGUOUS_READ,&
     pflotran_m%option,alp_p,data_dims,dataset_dims)
-  write(*,*),'data_dims: ',data_dims(:)
+  !write(*,*),'alpha - data_dims: ',data_dims(:)
 
   call HDF5ReadDatasetReal1D(filename,lam_dname,NONUNIFORM_CONTIGUOUS_READ,&
     pflotran_m%option,lam_p,data_dims,dataset_dims)
-  write(*,*),'data_dims: ',data_dims(:)
+  !write(*,*),'lambda - data_dims: ',data_dims(:)
 
   call HDF5ReadDatasetReal1D(filename,por_dname,NONUNIFORM_CONTIGUOUS_READ,&
     pflotran_m%option,por_p,data_dims,dataset_dims)
-  write(*,*),'data_dims: ',data_dims(:)
+  !write(*,*),'porosity - data_dims: ',data_dims(:)
 
   call HDF5ReadDatasetReal1D(filename,pxx_dname,NONUNIFORM_CONTIGUOUS_READ,&
     pflotran_m%option,pxx_p,data_dims,dataset_dims)
-  write(*,*),'data_dims: ',data_dims(:)
+  !write(*,*),'px data_dims: ',data_dims(:)
 
   call HDF5ReadDatasetReal1D(filename,pyy_dname,NONUNIFORM_CONTIGUOUS_READ,&
     pflotran_m%option,pyy_p,data_dims,dataset_dims)
-  write(*,*),'data_dims: ',data_dims(:)
+  !write(*,*),'py data_dims: ',data_dims(:)
 
   call HDF5ReadDatasetReal1D(filename,pzz_dname,NONUNIFORM_CONTIGUOUS_READ,&
     pflotran_m%option,pzz_p,data_dims,dataset_dims)
-  write(*,*),'data_dims: ',data_dims(:)
+  !write(*,*),'pz data_dims: ',data_dims(:)
   
   ! Read initial conditions
-  filename = 'init_cond_conus_10min_smallmesh.h5'
+  filename = 'init_cond_conus_10min_mesh.h5'
   call HDF5ReadDatasetReal1D(filename,ics_dname,NONUNIFORM_CONTIGUOUS_READ,&
     pflotran_m%option,ics_p,data_dims,dataset_dims)
-  write(*,*),'ics_data_dims: ',data_dims(:),dataset_dims(:)
+  !write(*,*),'ics_data_dims: ',data_dims(:),dataset_dims(:)
 
   ! Create vectors to save soil properties
   call VecCreateMPI(pflotran_m%option%mycomm, PETSC_DECIDE, dataset_dims(1), alp_nat_v, ierr)
@@ -255,13 +255,13 @@ program pflotran_interface_main
   call VecGetArrayF90(pzz_loc_v, v_loc_8, ierr)
 
   do ii = 1,grid%ngmax
-    if(ii.eq.1) write (*,*), v_loc_1(ii),v_loc_2(ii),v_loc_3(ii),v_loc_4(ii)
-    if(ii.eq.1) write (*,*), v_loc_5(ii),v_loc_6(ii),v_loc_7(ii),v_loc_8(ii)
+    !if(ii.eq.1) write (*,*), v_loc_1(ii),v_loc_2(ii),v_loc_3(ii),v_loc_4(ii)
+    !if(ii.eq.1) write (*,*), v_loc_5(ii),v_loc_6(ii),v_loc_7(ii),v_loc_8(ii)
     v_loc_1(ii) = v_loc_5(ii)
     v_loc_2(ii) = v_loc_6(ii)
     v_loc_3(ii) = v_loc_7(ii)
     v_loc_4(ii) = v_loc_8(ii)
-    if(ii.eq.1) write (*,*), v_loc_1(ii),v_loc_2(ii),v_loc_3(ii),v_loc_4(ii)
+    !if(ii.eq.1) write (*,*), v_loc_1(ii),v_loc_2(ii),v_loc_3(ii),v_loc_4(ii)
   enddo
   
   call GridVecRestoreArrayF90(grid,field%porosity_loc, v_loc_1, ierr)
@@ -360,15 +360,17 @@ program pflotran_interface_main
   ! ========================================================================
   !                             Mapping
   ! ========================================================================
-  !clm_npts = 57*98/pflotran_m%option%mycommsize
-  !allocate(clm_cell_ids(clm_npts))
-  !do ii = 1,clm_npts
-  !  clm_cell_ids(ii) = ii-1 + clm_npts*pflotran_m%option%myrank
-  !enddo
+#if 0
+  clm_npts = 57*98*10/pflotran_m%option%mycommsize
+  allocate(clm_cell_ids(clm_npts))
+  do ii = 1,clm_npts
+    clm_cell_ids(ii) = ii-1 + clm_npts*pflotran_m%option%myrank
+  enddo
 
-  !filename = 'conus_10min_smallmesh_from_clm_subset_wts_matrix.txt'//CHAR(0)
-  !call pflotranModelInitMapping3(pflotran_m,filename,&
-  !  clm_cell_ids,clm_npts,1,1)
+  filename = 'conus_10min_from_clm_subset_wts_matrix.txt'//CHAR(0)
+  call pflotranModelInitMapping3(pflotran_m,filename,&
+    clm_cell_ids,clm_npts,1,1)
+#endif
 
 
   call pflotranModelStepperRunInit(pflotran_m)

@@ -221,7 +221,7 @@ contains
 #ifdef CLM_PFLOTRAN
        write(iulog,*),'single_inputfile'
 #else
-       print *,'single_inputfile'
+       if(pflotran_model%option%myrank == pflotran_model%option%io_rank) write(*,*),'single_inputfile'
 #endif
        PETSC_COMM_WORLD = MPI_COMM_WORLD
        call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
@@ -260,7 +260,6 @@ contains
     pflotran_model%option%start_time = timex_wall(1)
 
     call Init(pflotran_model%simulation)
-    
 #if defined (CLM_PFLOTRAN) || defined (CLM_OFFLINE)
     select case( pflotran_model%realization%patch%grid%itype)
       case(STRUCTURED_GRID)
@@ -292,8 +291,8 @@ contains
         pf_clm_data%alpha    = 0.0d0
         pf_clm_data%lambda   = 0.0d0
         
-        write(*,*), 'size(pf_clm_data%alpha   ) = ',pflotran_model%realization%patch%grid%ngmax
-        write(*,*), 'size(pf_clm_data%qsrc_flx) = ',pflotran_model%realization%patch%grid%unstructured_grid%nlmax
+        !write(*,*), 'size(pf_clm_data%alpha   ) = ',pflotran_model%realization%patch%grid%ngmax
+        !write(*,*), 'size(pf_clm_data%qsrc_flx) = ',pflotran_model%realization%patch%grid%unstructured_grid%nlmax
       
     end select
 #endif
@@ -1404,7 +1403,7 @@ contains
     type(grid_type),pointer            :: grid
     type(patch_type), pointer          :: patch
 
-    write(*,*), 'In pflotranModelInitMapping3'
+    !write(*,*), 'In pflotranModelInitMapping3'
     option          => pflotran_model%option
     realization     => pflotran_model%simulation%realization
     patch           => realization%patch
@@ -1435,7 +1434,7 @@ contains
   
     do local_id = 1,grid%ngmax
       grid_pf_cell_ids_ghosted_nindex(local_id) = grid%nG2A(local_id)-1
-      if(local_id == 1) write(*,*), 'nG2A(1) = ',grid%nG2A(local_id),grid%nL2A(local_id)
+      !if(local_id == 1) write(*,*), 'nG2A(1) = ',grid%nG2A(local_id),grid%nL2A(local_id)
       if (grid%nG2L(local_id).eq.0) then
         grid_pf_local_or_ghost_nindex(local_id) = 0 ! GHOST
       else
@@ -1493,15 +1492,15 @@ contains
     
     select case(source_id)
       case(1)
-        write(*,*), 'source_id = 1'
-        write(*,*), 'SetSourceMeshCellIds'
+        !write(*,*), 'source_id = 1'
+        !write(*,*), 'SetSourceMeshCellIds'
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
           grid_clm_cell_ids_ghosted_nindex)
-        write(*,*), 'SetDestinationMeshCellIds'
+        !write(*,*), 'SetDestinationMeshCellIds'
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
           grid_pf_npts_ghost, grid_pf_cell_ids_ghosted_nindex, grid_pf_local_or_ghost_nindex)
       case(2)
-        write(*,*), 'source_id =2'
+        !write(*,*), 'source_id =2'
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
           grid_pf_cell_ids_ghosted_nindex)
         !call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
@@ -1511,13 +1510,18 @@ contains
         call printErrMsg(option)
     end select
     
-    write(*,*), 'MappingReadTxtFileMPI'
+    if(option%myrank == option%io_rank) write(*,*), 'MappingReadTxtFileMPI'
+    call MPI_Barrier(MPI_COMM_WORLD,ierr)
     call MappingReadTxtFileMPI(map, trim(filename), option)
-    write(*,*), 'MappingFindDistinctSourceMeshCellIds'
+
+    if(option%myrank == option%io_rank) write(*,*), 'MappingFindDistinctSourceMeshCellIds'
+    call MPI_Barrier(MPI_COMM_WORLD,ierr)
     call MappingFindDistinctSourceMeshCellIds(map,option)
-    write(*,*),'MappingCreateWeightMatrix'
+    if(option%myrank == option%io_rank) write(*,*),'MappingCreateWeightMatrix'
+    call MPI_Barrier(MPI_COMM_WORLD,ierr)
     call MappingCreateWeightMatrix(map,option)
-    write(*,*),'MappingCreateScatterOfSourceMesh'
+    if(option%myrank == option%io_rank) write(*,*),'MappingCreateScatterOfSourceMesh'
+    call MPI_Barrier(MPI_COMM_WORLD,ierr)
     call MappingCreateScatterOfSourceMesh(map, option)        
 
     deallocate(grid_pf_cell_ids_ghosted_nindex)
@@ -1692,7 +1696,7 @@ end subroutine pflotranModelInitMapping3
 #ifdef CLM_PFLOTRAN
     write(iulog,*), '>>>> Inserting waypoint at pause_time = ',pause_time
 #else
-    print *, '>>>> Inserting waypoint at pause_time = ',pause_time
+    !print *, '>>>> Inserting waypoint at pause_time = ',pause_time
 #endif
 
     call pflotranModelInsertWaypoint(pflotran_model, pause_time)
@@ -1718,7 +1722,7 @@ end subroutine pflotranModelInitMapping3
        !liq_vol_start = liq_vol_start + del_liq_vol
     enddo
 #endif
-    write(*,*), 'call StepperRunOneDT'
+
     call StepperRunOneDT(pflotran_model%simulation%realization, &
          pflotran_model%simulation%flow_stepper, &
          pflotran_model%simulation%tran_stepper, pause_time)
