@@ -2203,7 +2203,7 @@ end subroutine pflotranModelInitMapping3
     call PetscOptionsSetValue('-options_left','no',ierr);
 
     call OptionDestroy(pflotran_model%option)
-    !call PetscFinalize(ierr)
+    call PetscFinalize(ierr)
 #ifndef CLM_PFLOTRAN
     call MPI_Finalize(ierr)
 #endif
