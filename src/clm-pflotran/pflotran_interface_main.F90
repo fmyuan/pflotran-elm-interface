@@ -196,9 +196,9 @@ program pflotran_interface_main
   call ISCreateBlock(pflotran_m%option%mycomm, 1, grid%ngmax, tmp_int_array, PETSC_COPY_VALUES, &
          is_from, ierr)
   deallocate(tmp_int_array)
-  call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'is_from.out', viewer, ierr)
-  call ISView(is_from, viewer,ierr)
-  call PetscViewerDestroy(viewer, ierr)
+  !call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'is_from.out', viewer, ierr)
+  !call ISView(is_from, viewer,ierr)
+  !call PetscViewerDestroy(viewer, ierr)
   
   ! Create index set - Scattering to 
   call VecGetOwnershipRange(alp_loc_v,istart,iend,ierr)
@@ -208,15 +208,15 @@ program pflotran_interface_main
   enddo
   call ISCreateBlock(pflotran_m%option%mycomm, 1, grid%ngmax, tmp_int_array, PETSC_COPY_VALUES, &
          is_to, ierr)
-  call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'is_to.out', viewer, ierr)
-  call ISView(is_to, viewer,ierr)
-  call PetscViewerDestroy(viewer, ierr)
+  !call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'is_to.out', viewer, ierr)
+  !call ISView(is_to, viewer,ierr)
+  !call PetscViewerDestroy(viewer, ierr)
 
   ! Create vector scatter
   call VecScatterCreate(alp_nat_v, is_from, alp_loc_v, is_to, vec_scat, ierr)
-  call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'vec_scat.out', viewer, ierr)
-  call VecScatterView(vec_scat, viewer,ierr)
-  call PetscViewerDestroy(viewer, ierr)
+  !call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'vec_scat.out', viewer, ierr)
+  !call VecScatterView(vec_scat, viewer,ierr)
+  !call PetscViewerDestroy(viewer, ierr)
   !call ISDestroy(is_from)
   !call ISDestroy(is_to)
   
@@ -240,7 +240,7 @@ program pflotran_interface_main
   call VecScatterEnd(  vec_scat, pzz_nat_v, pzz_loc_v, INSERT_VALUES, SCATTER_FORWARD, ierr)
   
   call VecScatterDestroy(vec_scat,ierr)
-
+#if 0
   ! ========================================================================
   ! Save the porosity and permeability data
   ! ========================================================================
@@ -305,9 +305,9 @@ program pflotran_interface_main
   call ISCreateBlock(pflotran_m%option%mycomm, 1, grid%nlmax, tmp_int_array, PETSC_COPY_VALUES, &
          is_from, ierr)
   deallocate(tmp_int_array)
-  call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'is_fromm.out', viewer, ierr)
-  call ISView(is_from, viewer,ierr)
-  call PetscViewerDestroy(viewer, ierr)
+  !call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'is_fromm.out', viewer, ierr)
+  !call ISView(is_from, viewer,ierr)
+  !call PetscViewerDestroy(viewer, ierr)
   
   ! Create index set - Scattering to 
   call VecGetOwnershipRange(ics_loc_v,istart,iend,ierr)
@@ -317,9 +317,9 @@ program pflotran_interface_main
   enddo
   call ISCreateBlock(pflotran_m%option%mycomm, 1, grid%nlmax, tmp_int_array, PETSC_COPY_VALUES, &
          is_to, ierr)
-  call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'is_too.out', viewer, ierr)
-  call ISView(is_to, viewer,ierr)
-  call PetscViewerDestroy(viewer, ierr)
+  !call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'is_too.out', viewer, ierr)
+  !call ISView(is_to, viewer,ierr)
+  !call PetscViewerDestroy(viewer, ierr)
 
   ! Create vector scatter
   call VecScatterCreate(ics_nat_v, is_from, ics_loc_v, is_to, vec_scat, ierr)
@@ -344,7 +344,7 @@ program pflotran_interface_main
     field%flow_xx,field%flow_xx_loc,NFLOWDOF)
   call VecCopy(field%flow_xx, field%flow_yy, ierr)
   call RichardsUpdateAuxVars(pflotran_m%realization)
-
+#endif
   ! ========================================================================
   !                             Read forcing data
   ! ========================================================================
@@ -372,7 +372,7 @@ program pflotran_interface_main
 
 
   call pflotranModelStepperRunInit(pflotran_m)
-  do time = 1,0
+  do time = 1,10
      call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 3600.0d0)
   enddo
   call pflotranModelStepperRunFinalize(pflotran_m)
@@ -455,9 +455,9 @@ program pflotran_interface_main
   enddo 
   call VecRestoreArrayF90(sat_clmloc,v_loc,ierr)
   !call VecView(sat_clmloc,PETSC_VIEWER_STDOUT_WORLD)
-  call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'sat_clmloc.out',viewer,ierr)
-  call VecView(sat_clmloc, viewer,ierr)
-  call PetscViewerDestroy(viewer, ierr)
+  !call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'sat_clmloc.out',viewer,ierr)
+  !call VecView(sat_clmloc, viewer,ierr)
+  !call PetscViewerDestroy(viewer, ierr)
   
 
   call VecCreateMPI(pflotran_m%option%mycomm, pflotran_m%map_clm2pf%d_ncells_ghosted, &
