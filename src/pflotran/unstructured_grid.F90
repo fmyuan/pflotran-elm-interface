@@ -459,7 +459,7 @@ print *, '0: ', unstructured_grid%num_cells_local, ' cells'
           temp_int_array(:,1:unstructured_grid%num_cells_local)
       else
         ! otherwise communicate to other ranks
-print *, '0: ', num_to_read, ' cells sent'
+!print *, '0: ', num_to_read, ' cells sent'
         int_mpi = num_to_read*MAX_VERT_PER_CELL
         call MPI_Send(temp_int_array,int_mpi,MPIU_INTEGER,irank, &
                       num_to_read,option%mycomm,ierr)
@@ -468,7 +468,7 @@ print *, '0: ', num_to_read, ' cells sent'
     deallocate(temp_int_array)
   else
     ! other ranks post the recv
-print *, option%myrank,': ',unstructured_grid%num_cells_local, ' cells recv'
+!print *, option%myrank,': ',unstructured_grid%num_cells_local, ' cells recv'
     int_mpi = unstructured_grid%num_cells_local*MAX_VERT_PER_CELL
     call MPI_Recv(unstructured_grid%cell_vertices_0,int_mpi, &
                   MPIU_INTEGER,option%io_rank, &

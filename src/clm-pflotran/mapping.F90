@@ -985,8 +985,8 @@ contains
     enddo
 	
 	! Create vectors
-  write (*,*), 'map%d_ncells_ghosted = ', map%d_ncells_ghosted
-  write (*,*), 'map%d_ncells_local   = ', map%d_ncells_local
+    !write (*,*), 'map%d_ncells_ghosted = ', map%d_ncells_ghosted
+    !write (*,*), 'map%d_ncells_local   = ', map%d_ncells_local
     call VecCreateMPI(option%mycomm, map%d_ncells_ghosted, PETSC_DECIDE, vec_tmp_1, ierr)
     call VecCreateMPI(option%mycomm, map%d_ncells_local  , PETSC_DECIDE, vec_tmp_2, ierr)
     ! 
@@ -1016,29 +1016,30 @@ contains
          is_to, ierr)
     deallocate(tmp_int_array)
 	
-    call PetscViewerASCIIOpen(option%mycomm, 'is_from_1.out', viewer, ierr)
-    call ISView(is_from, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    !call PetscViewerASCIIOpen(option%mycomm, 'is_from_1.out', viewer, ierr)
+    !call ISView(is_from, viewer,ierr)
+    !call PetscViewerDestroy(viewer, ierr)
 
-    call PetscViewerASCIIOpen(option%mycomm, 'is_to_1.out', viewer, ierr)
-    call ISView(is_to, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    !call PetscViewerASCIIOpen(option%mycomm, 'is_to_1.out', viewer, ierr)
+    !call ISView(is_to, viewer,ierr)
+    !call PetscViewerDestroy(viewer, ierr)
 	
-    write(*,*), 'call VecScatterCreate()'
+    !write(*,*), 'call VecScatterCreate()'
     call VecScatterCreate(vec_tmp_1, is_from, vec_tmp_2, is_to, map%scatter_d_l2n, ierr)
 
-    call PetscViewerASCIIOpen(option%mycomm, 'scatter_d_l2n.out', viewer, ierr)
-	  call VecScatterView(map%scatter_d_l2n, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    !call PetscViewerASCIIOpen(option%mycomm, 'scatter_d_l2n.out', viewer, ierr)
+    !call VecScatterView(map%scatter_d_l2n, viewer,ierr)
+    !call PetscViewerDestroy(viewer, ierr)
 
     ! Free memory
-    deallocate(index)
-    deallocate(rev_index)
-    call VecDestroy(vec_tmp_1)
-    call VecDestroy(vec_tmp_2)
-    call ISDestroy(is_from)
-    call ISDestroy(is_to)
+    !deallocate(index)
+    !deallocate(rev_index)
+    !call VecDestroy(vec_tmp_1)
+    !call VecDestroy(vec_tmp_2)
+    !call ISDestroy(is_from)
+    !call ISDestroy(is_to)
 
+    !write(*,*), 'done in MappingSetDestinationMeshCellIds....'
   end subroutine MappingSetDestinationMeshCellIds
 
 
@@ -1110,6 +1111,9 @@ contains
     call ISDestroy(is_ltog,ierr)
     call ISDestroy(is_ltol,ierr)
 	
+    !call PetscViewerASCIIOpen(option%mycomm, 'vscat_1.out', viewer, ierr)
+    !call VecScatterView(vscat_1, viewer,ierr)
+    !call PetscViewerDestroy(viewer, ierr)
 
     ! Scatter data
     call VecScatterBegin(vscat_1, porder, nA2P, INSERT_VALUES, SCATTER_FORWARD, ierr)
@@ -1128,7 +1132,17 @@ contains
     call ISCreateBlock(option%mycomm, 1, map%s2d_s_ncells_distinct, tmp_int_array, &
          PETSC_COPY_VALUES, is_ltol, ierr)
 
+    !call PetscViewerASCIIOpen(option%mycomm, 'is_ltol.out', viewer, ierr)
+    !call ISView(is_ltol, viewer,ierr)
+    !call PetscViewerDestroy(viewer, ierr)
+
+    !call PetscViewerASCIIOpen(option%mycomm, 'is_gtol.out', viewer, ierr)
+    !call ISView(is_gtol, viewer,ierr)
+    !call PetscViewerDestroy(viewer, ierr)
+
+    !if(option%myrank == option%io_rank) write(*,*), 'attempting to create vscat_2 ....'
     call VecScatterCreate(nA2P, is_gtol, porder_req, is_ltol, vscat_2, ierr)
+    !if(option%myrank == option%io_rank) write(*,*), 'vscat_2 created'
 
     call VecScatterBegin(vscat_2, nA2P, porder_req, INSERT_VALUES, SCATTER_FORWARD, ierr)
     call VecScatterEnd(  vscat_2, nA2P, porder_req, INSERT_VALUES, SCATTER_FORWARD, ierr)
@@ -1148,8 +1162,8 @@ contains
     call VecDestroy(nA2P  , ierr)
     call VecScatterDestroy(vscat_1,ierr)
     call VecScatterDestroy(vscat_2,ierr)
-    call ISDestroy(is_gtol,ierr)
-    call ISDestroy(is_ltol, ierr)
+    !call ISDestroy(is_gtol,ierr)
+    !call ISDestroy(is_ltol, ierr)
 
 
   end subroutine MappingCreateScatterOfSourceMesh
@@ -1199,15 +1213,15 @@ contains
     call MatAssemblyBegin(map%mat_wts,MAT_FINAL_ASSEMBLY,ierr)
     call MatAssemblyEnd(  map%mat_wts,MAT_FINAL_ASSEMBLY,ierr)
 	
-	deallocate(index)
-	
-	if(option%myrank.eq.0) then
-       call PetscViewerASCIIOpen(PETSC_COMM_SELF, 'mat_wts_0.out', viewer, ierr)
-	else
-	   call PetscViewerASCIIOpen(PETSC_COMM_SELF, 'mat_wts_1.out', viewer, ierr)
-	endif
-    call MatView(map%mat_wts, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    deallocate(index)
+    
+    if(option%myrank.eq.0) then
+       !call PetscViewerASCIIOpen(PETSC_COMM_SELF, 'mat_wts_0.out', viewer, ierr)
+    else
+       !call PetscViewerASCIIOpen(PETSC_COMM_SELF, 'mat_wts_1.out', viewer, ierr)
+    endif
+    !call MatView(map%mat_wts, viewer,ierr)
+    !call PetscViewerDestroy(viewer, ierr)
 	
 	
   end subroutine MappingCreateWeightMatrix
@@ -1262,25 +1276,25 @@ contains
     call VecScatterBegin(map%scatter_d_l2n, vec_d, vec_d_nat, INSERT_VALUES, SCATTER_FORWARD, ierr)
     call VecScatterEnd(  map%scatter_d_l2n, vec_d, vec_d_nat, INSERT_VALUES, SCATTER_FORWARD, ierr)
 
-    call PetscViewerASCIIOpen(option%mycomm, 'u_b.out', viewer, ierr)
-    call VecView(vec_d_nat, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
+    !call PetscViewerASCIIOpen(option%mycomm, 'u_b.out', viewer, ierr)
+    !call VecView(vec_d_nat, viewer,ierr)
+    !call PetscViewerDestroy(viewer, ierr)
 
-	if(option%myrank.eq.0) then
-       call PetscViewerASCIIOpen(PETSC_COMM_SELF, 'vec_d_loc_0.out', viewer, ierr)
-	else
-	   call PetscViewerASCIIOpen(PETSC_COMM_SELF, 'vec_d_loc_1.out', viewer, ierr)
-	endif
-    call VecView(vec_d_loc, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
-
-	!
-	call VecDestroy(vec_s_local,ierr)
-	call VecDestroy(vec_s_loc,ierr)
-	call VecDestroy(vec_d_loc,ierr)
-	call VecDestroy(vec_d_nat,ierr)
-	
-
+    !if(option%myrank.eq.0) then
+    !   call PetscViewerASCIIOpen(PETSC_COMM_SELF, 'vec_d_loc_0.out', viewer, ierr)
+    !else
+    !   call PetscViewerASCIIOpen(PETSC_COMM_SELF, 'vec_d_loc_1.out', viewer, ierr)
+    !endif
+    !call VecView(vec_d_loc, viewer,ierr)
+    !call PetscViewerDestroy(viewer, ierr)
+    
+    !
+    call VecDestroy(vec_s_local,ierr)
+    call VecDestroy(vec_s_loc,ierr)
+    call VecDestroy(vec_d_loc,ierr)
+    call VecDestroy(vec_d_nat,ierr)
+    
+    
 
   end subroutine MappingSourceToDestination
 

@@ -1951,9 +1951,12 @@ subroutine RichardsFlux(rich_aux_var_up,global_aux_var_up, &
     if (ukvr>floweps) then
       v_darcy= Dq * ukvr * dphi
 
-!      write(*,*) "Gravity Input", Dq*ukvr*gravity
-!	  write(*,*) "phi", global_aux_var_up%pres(1) - global_aux_var_dn%pres(1)
-!	  write(*,*) "Dq", Dq, "ukvr ", ukvr
+      if (option%myrank==-1) then
+         write(*,*) "Gravity Input", Dq*ukvr*gravity
+         write(*,*) "phi", global_aux_var_up%pres(1) - global_aux_var_dn%pres(1)
+         write(*,*) "Dq", Dq, "ukvr ", ukvr
+         write(*,*), " "
+      endif
    
       q = v_darcy * area
 
@@ -2479,6 +2482,7 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   endif
    
   if (realization%debug%vecview_residual) then
+     if(option%myrank == option%io_rank) write(*,*), 'Rresidual.out'
     call PetscViewerASCIIOpen(realization%option%mycomm,'Rresidual.out', &
                               viewer,ierr)
     call VecView(r,viewer,ierr)
@@ -2489,6 +2493,7 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
     call PetscViewerDestroy(viewer,ierr)
   endif
   if (realization%debug%vecview_solution) then
+     if(option%myrank == option%io_rank) write(*,*), 'Rxx.out'
     call PetscViewerASCIIOpen(realization%option%mycomm,'Rxx.out', &
                               viewer,ierr)
     call VecView(xx,viewer,ierr)
@@ -3986,6 +3991,7 @@ subroutine RichardsJacobian(snes,xx,A,B,flag,realization,ierr)
 
   if (realization%debug%matview_Jacobian) then
 #if 1  
+     if(option%myrank == option%io_rank) write(*,*), 'Rjacobian.out'
     call PetscViewerASCIIOpen(realization%option%mycomm,'Rjacobian.out', &
                               viewer,ierr)
 #else
