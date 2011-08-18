@@ -9,6 +9,7 @@ module Patch_module
   use Reaction_Aux_module
   use Material_module
   use Field_module
+  use Saturation_Function_module
   
   use Auxilliary_module
 
@@ -25,8 +26,7 @@ module Patch_module
     ! These arrays will be used by all modes, mode-specific arrays should
     ! go in the auxilliary data stucture for that mode
     PetscInt, pointer :: imat(:)
-      ! Integer array of material ids of size ngmax.
-    type(material_property_ptr_type), pointer :: material_property_array(:)
+    PetscInt, pointer :: sat_func_id(:)
 
 #ifdef SUBCONTINUUM_MODEL
     !These arrays will hold the no. of subcontinuum types at each cell 
@@ -46,6 +46,7 @@ module Patch_module
     PetscReal, pointer :: boundary_fluxes(:,:,:)  
     PetscReal, pointer :: internal_tran_coefs(:,:)
     PetscReal, pointer :: boundary_tran_coefs(:,:)
+    PetscReal, pointer :: ss_fluid_fluxes(:,:)
 
     type(grid_type), pointer :: grid
 
@@ -54,6 +55,11 @@ module Patch_module
     type(coupler_list_type), pointer :: boundary_conditions
     type(coupler_list_type), pointer :: initial_conditions
     type(coupler_list_type), pointer :: source_sinks
+
+    type(material_property_type), pointer :: material_properties
+    type(material_property_ptr_type), pointer :: material_property_array(:)
+    type(saturation_function_type), pointer :: saturation_functions
+    type(saturation_function_ptr_type), pointer :: saturation_function_array(:)
 
     ! pointer to field object in mother realization object
     type(field_type), pointer :: field 
@@ -109,7 +115,7 @@ function PatchCreate()
 
   patch%id = 0
   nullify(patch%imat)
-  nullify(patch%material_property_array)
+  nullify(patch%sat_func_id)
 #ifdef SUBCONTINUUM_MODEL
   nullify(patch%subcontinuum_count)
   nullify(patch%subcontinnuum_ids)
@@ -122,6 +128,7 @@ function PatchCreate()
   nullify(patch%boundary_fluxes)
   nullify(patch%internal_tran_coefs)
   nullify(patch%boundary_tran_coefs)
+  nullify(patch%ss_fluid_fluxes)
 
   nullify(patch%grid)
 
@@ -134,6 +141,11 @@ function PatchCreate()
   call CouplerInitList(patch%initial_conditions)
   allocate(patch%source_sinks)
   call CouplerInitList(patch%source_sinks)
+
+  nullify(patch%material_properties)
+  nullify(patch%material_property_array)
+  nullify(patch%saturation_functions)
+  nullify(patch%saturation_function_array)
 
   nullify(patch%field)
   allocate(patch%observation)
@@ -261,7 +273,7 @@ subroutine PatchLocalizeRegions(patch,regions,option)
   if(patch%grid%itype.ne.UNSTRUCTURED_GRID) then
     call GridLocalizeRegions(patch%grid,patch%regions,option)
   else
-    call GridLocalizeRegionsForUnstructuredMesh(patch%grid,patch%regions,option)
+    call GridLocalizeRegionsForUGrid(patch%grid,patch%regions,option)
   endif
  
 end subroutine PatchLocalizeRegions
@@ -273,10 +285,8 @@ end subroutine PatchLocalizeRegions
 ! date: 02/22/08
 !
 ! ************************************************************************** !
-!subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
-!                                material_properties, subcontinuum_properties, option)
 subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
-                                material_properties,option)
+                                option)
 
   use Option_module
   use Material_module
@@ -290,7 +300,6 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
   implicit none
   
   type(patch_type) :: patch
-  type(material_property_type), pointer :: material_properties
 #ifdef SUBCONTINUUM_MODEL
   type(subcontinuum_property_type), pointer :: subcontinuum_properties
 #endif
@@ -305,8 +314,9 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
   
   PetscInt :: temp_int, isub
   
-  call MaterialPropConvertListToArray(material_properties,patch%material_property_array,option)
 #ifdef SUBCONTINUUM_MODEL
+  option%io_buffer = 'Jitu, move the call to SubcontinuumPropConvertListToArray to RealProcessMatPropAndSatFunc -- Glenn'
+  call printErrMsg(option)
   call SubcontinuumPropConvertListToArray(subcontinuum_properties,patch%subcontinuum_property_array,option)
 #endif
   
@@ -613,24 +623,28 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
   endif
  
   if (patch%grid%itype == STRUCTURED_GRID_MIMETIC) then
-!#ifdef DASVYAT
-!    temp_int = ConnectionGetNumberInList(patch%grid%boundary_connection_set_list)
     temp_int = CouplerGetNumBoundConnectionsInListMFD(patch%grid, &
-                            patch%boundary_conditions, &
-                           option)
-!#endif
+                                                 patch%boundary_conditions, &
+                                                 option)
   else  
     temp_int = CouplerGetNumConnectionsInList(patch%boundary_conditions)
   end if
-  allocate(patch%boundary_velocities(option%nphase,temp_int)) 
-  patch%boundary_velocities = 0.d0
-  allocate(patch%boundary_tran_coefs(option%nphase,temp_int))
-  patch%boundary_tran_coefs = 0.d0
-  if (option%store_solute_fluxes) then
-    allocate(patch%boundary_fluxes(option%nphase,option%ntrandof,temp_int))
-    patch%boundary_fluxes = 0.d0
+  if (temp_int > 0) then
+    allocate(patch%boundary_velocities(option%nphase,temp_int)) 
+    patch%boundary_velocities = 0.d0
+    allocate(patch%boundary_tran_coefs(option%nphase,temp_int))
+    patch%boundary_tran_coefs = 0.d0
+    if (option%store_solute_fluxes) then
+      allocate(patch%boundary_fluxes(option%nphase,option%ntrandof,temp_int))
+      patch%boundary_fluxes = 0.d0
+    endif
   endif
 
+  temp_int = CouplerGetNumConnectionsInList(patch%source_sinks)
+  if (temp_int > 0) then
+    allocate(patch%ss_fluid_fluxes(option%nphase,temp_int))
+    patch%ss_fluid_fluxes = 0.d0
+  endif
 
 end subroutine PatchProcessCouplers
 
@@ -709,7 +723,8 @@ subroutine PatchInitCouplerAuxVars(coupler_list,reaction,option)
           (coupler%itype == INITIAL_COUPLER_TYPE .or. &
            coupler%itype == BOUNDARY_COUPLER_TYPE)) then
 
-        if (associated(coupler%flow_condition%pressure)) then
+        if (associated(coupler%flow_condition%pressure) .or. &
+            associated(coupler%flow_condition%concentration)) then
 
           ! allocate arrays that match the number of connections
           select case(option%iflowmode)
@@ -743,7 +758,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,reaction,option)
                 
             case(G_MODE)
               allocate(coupler%flow_aux_real_var(FOUR_INTEGER,num_connections))
-              allocate(coupler%flow_aux_int_var(0,num_connections))
+              allocate(coupler%flow_aux_int_var(ONE_INTEGER,num_connections))
               coupler%flow_aux_real_var = 0.d0
               coupler%flow_aux_int_var = 0
                 
@@ -836,6 +851,7 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
   use Option_module
   use Condition_module
   use Hydrostatic_module
+  use Saturation_module
 
   implicit none
   
@@ -872,71 +888,86 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
       flow_condition => coupler%flow_condition
 
       if (force_update_flag .or. FlowConditionIsTransient(flow_condition)) then
-        if (associated(flow_condition%pressure)) then
-          select case(flow_condition%pressure%itype)
-            case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-!              do idof = 1, condition%num_sub_conditions
-!                if (associated(condition%sub_condition_ptr(idof)%ptr)) then
-!                  coupler%flow_aux_real_var(idof,1:num_connections) = &
-!                    condition%sub_condition_ptr(idof)%ptr%dataset%cur_value(1)
-!                endif
-!              enddo
-              select case(option%iflowmode)
-                case(FLASH2_MODE)
-                  coupler%flow_aux_real_var(ONE_INTEGER,1:num_connections) = &
-                    flow_condition%pressure%dataset%cur_value(1)  ! <-- Chuan Fix
-                   coupler%flow_aux_real_var(TWO_INTEGER,1:num_connections) = &
-                    flow_condition%temperature%dataset%cur_value(1)! <-- Chuan Fix
-                  coupler%flow_aux_real_var(THREE_INTEGER,1:num_connections) = &
-                    flow_condition%concentration%dataset%cur_value(1)! <-- Chuan Fix
-                  coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = &
-                    flow_condition%iphase
-                case(MPH_MODE)
-                  coupler%flow_aux_real_var(ONE_INTEGER,1:num_connections) = &
-                    flow_condition%pressure%dataset%cur_value(1)  ! <-- Chuan Fix
-                   coupler%flow_aux_real_var(TWO_INTEGER,1:num_connections) = &
-                    flow_condition%temperature%dataset%cur_value(1)! <-- Chuan Fix
-                  coupler%flow_aux_real_var(THREE_INTEGER,1:num_connections) = &
-                    flow_condition%concentration%dataset%cur_value(1)! <-- Chuan Fix
-                  coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = &
-                    flow_condition%iphase
-                case(IMS_MODE)
-                  coupler%flow_aux_real_var(ONE_INTEGER,1:num_connections) = &
-                    flow_condition%pressure%dataset%cur_value(1)  ! <-- Chuan Fix
-                   coupler%flow_aux_real_var(TWO_INTEGER,1:num_connections) = &
-                    flow_condition%temperature%dataset%cur_value(1)! <-- Chuan Fix
-                  coupler%flow_aux_real_var(THREE_INTEGER,1:num_connections) = &
-                    flow_condition%concentration%dataset%cur_value(1)! <-- Chuan Fix
-                  coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = &
-                    flow_condition%iphase
-                case(THC_MODE)
-                  coupler%flow_aux_real_var(ONE_INTEGER,1:num_connections) = &
-                    flow_condition%pressure%dataset%cur_value(1)
-                  coupler%flow_aux_real_var(TWO_INTEGER,1:num_connections) = &
-                    flow_condition%temperature%dataset%cur_value(1)
-                  coupler%flow_aux_real_var(THREE_INTEGER,1:num_connections) = &
-                    flow_condition%concentration%dataset%cur_value(1)
-                  coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = &
-                    flow_condition%iphase
-                case(RICHARDS_MODE)
-                  coupler%flow_aux_real_var(ONE_INTEGER,1:num_connections) = &
-                    flow_condition%pressure%dataset%cur_value(1)
-                case(G_MODE)
-                  do idof = 1, option%nflowdof
-                    coupler%flow_aux_real_var(idof,1:num_connections) = &
-                      flow_condition%sub_condition_ptr(idof)%ptr%dataset%cur_value(1)
-                  enddo
-              end select
-            case(HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
-              call HydrostaticUpdateCoupler(coupler,option,patch%grid)
-          end select
-        endif
-        if (associated(flow_condition%rate)) then
-          select case(flow_condition%rate%itype)
-            case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
-              call PatchScaleSourceSink(patch,option)
-          end select
-        endif
+        if (option%iflowmode == G_MODE) then
+
+        else
+          if (associated(flow_condition%pressure)) then
+            select case(flow_condition%pressure%itype)
+              case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
+  !              do idof = 1, condition%num_sub_conditions
+  !                if (associated(condition%sub_condition_ptr(idof)%ptr)) then
+  !                  coupler%flow_aux_real_var(idof,1:num_connections) = &
+  !                    condition%sub_condition_ptr(idof)%ptr%dataset%cur_value(1)
+  !                endif
+  !              enddo
+                select case(option%iflowmode)
+                  case(FLASH2_MODE)
+                    coupler%flow_aux_real_var(ONE_INTEGER,1:num_connections) = &
+                      flow_condition%pressure%dataset%cur_value(1)  ! <-- Chuan Fix
+                     coupler%flow_aux_real_var(TWO_INTEGER,1:num_connections) = &
+                      flow_condition%temperature%dataset%cur_value(1)! <-- Chuan Fix
+                    coupler%flow_aux_real_var(THREE_INTEGER,1:num_connections) = &
+                      flow_condition%concentration%dataset%cur_value(1)! <-- Chuan Fix
+                    coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = &
+                      flow_condition%iphase
+                  case(MPH_MODE)
+                    coupler%flow_aux_real_var(ONE_INTEGER,1:num_connections) = &
+                      flow_condition%pressure%dataset%cur_value(1)  ! <-- Chuan Fix
+                     coupler%flow_aux_real_var(TWO_INTEGER,1:num_connections) = &
+                      flow_condition%temperature%dataset%cur_value(1)! <-- Chuan Fix
+                    coupler%flow_aux_real_var(THREE_INTEGER,1:num_connections) = &
+                      flow_condition%concentration%dataset%cur_value(1)! <-- Chuan Fix
+                    coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = &
+                      flow_condition%iphase
+                  case(IMS_MODE)
+                    coupler%flow_aux_real_var(ONE_INTEGER,1:num_connections) = &
+                      flow_condition%pressure%dataset%cur_value(1)  ! <-- Chuan Fix
+                     coupler%flow_aux_real_var(TWO_INTEGER,1:num_connections) = &
+                      flow_condition%temperature%dataset%cur_value(1)! <-- Chuan Fix
+                    coupler%flow_aux_real_var(THREE_INTEGER,1:num_connections) = &
+                      flow_condition%concentration%dataset%cur_value(1)! <-- Chuan Fix
+                    coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = &
+                      flow_condition%iphase
+                  case(THC_MODE)
+                    coupler%flow_aux_real_var(ONE_INTEGER,1:num_connections) = &
+                      flow_condition%pressure%dataset%cur_value(1)
+                    coupler%flow_aux_real_var(TWO_INTEGER,1:num_connections) = &
+                      flow_condition%temperature%dataset%cur_value(1)
+                    coupler%flow_aux_real_var(THREE_INTEGER,1:num_connections) = &
+                      flow_condition%concentration%dataset%cur_value(1)
+                    coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = &
+                      flow_condition%iphase
+                  case(RICHARDS_MODE)
+                    coupler%flow_aux_real_var(ONE_INTEGER,1:num_connections) = &
+                      flow_condition%pressure%dataset%cur_value(1)
+                  case(G_MODE)
+                    do idof = 1, option%nflowdof
+                      coupler%flow_aux_real_var(idof,1:num_connections) = &
+                        flow_condition%sub_condition_ptr(idof)%ptr%dataset%cur_value(1)
+                    enddo
+                    coupler%flow_aux_int_var(ONE_INTEGER,1:num_connections) = &
+                      flow_condition%iphase
+                end select
+              case(HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+                call HydrostaticUpdateCoupler(coupler,option,patch%grid)
+              case(SATURATION_BC)
+            end select
+          endif
+          if (associated(flow_condition%concentration)) then
+            select case(option%iflowmode)
+              case(RICHARDS_MODE)
+                call SaturationUpdateCoupler(coupler,option,patch%grid, &
+                                             patch%saturation_function_array, &
+                                             patch%sat_func_id)
+            end select
+          endif
+          if (associated(flow_condition%rate)) then
+            select case(flow_condition%rate%itype)
+              case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
+                call PatchScaleSourceSink(patch,option)
+            end select
+          endif
+        endif ! option%iflowmode /= GMODE
       endif
      
     endif
@@ -1365,7 +1396,7 @@ subroutine PatchGetDataset(patch,field,option,output_option,vec,ivar, &
     case(TEMPERATURE,PRESSURE,LIQUID_SATURATION,GAS_SATURATION, &
          LIQUID_MOLE_FRACTION,GAS_MOLE_FRACTION,LIQUID_ENERGY,GAS_ENERGY, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY,GAS_VISCOSITY, &
-         SC_FUGA_COEFF,STATE)
+         LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,STATE)
          
       if (associated(patch%aux%THC)) then
         select case(ivar)
@@ -1420,6 +1451,10 @@ subroutine PatchGetDataset(patch,field,option,output_option,vec,ivar, &
             call printErrMsg(option,'LIQUID_VISCOSITY not supported by Richards')
           case(GAS_VISCOSITY)
             call printErrMsg(option,'GAS_VISCOSITY not supported by Richards')
+          case(LIQUID_MOBILITY)
+            call printErrMsg(option,'LIQUID_MOBILITY not supported by Richards')
+          case(GAS_MOBILITY)
+            call printErrMsg(option,'GAS_MOBILITY not supported by Richards')
           case(PRESSURE)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
@@ -1472,6 +1507,10 @@ subroutine PatchGetDataset(patch,field,option,output_option,vec,ivar, &
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%Flash2%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%vis(2)
             enddo
+          case(GAS_MOBILITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%Flash2%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%kvr(2)
+            enddo
           case(GAS_DENSITY) 
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%Global%aux_vars(grid%nL2G(local_id))%den_kg(2)
@@ -1495,6 +1534,10 @@ subroutine PatchGetDataset(patch,field,option,output_option,vec,ivar, &
           case(LIQUID_VISCOSITY)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%Flash2%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%vis(1)
+            enddo
+          case(LIQUID_MOBILITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%Flash2%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%kvr(1)
             enddo
           case(LIQUID_ENERGY)
             do local_id=1,grid%nlmax
@@ -1526,6 +1569,10 @@ subroutine PatchGetDataset(patch,field,option,output_option,vec,ivar, &
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%Mphase%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%vis(1)
             enddo
+          case(LIQUID_MOBILITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%Mphase%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%kvr(1)
+            enddo
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%Global%aux_vars(grid%nL2G(local_id))%sat(2)
@@ -1541,6 +1588,10 @@ subroutine PatchGetDataset(patch,field,option,output_option,vec,ivar, &
           case(GAS_VISCOSITY) 
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%Mphase%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%vis(2)
+            enddo
+          case(GAS_MOBILITY) 
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%Mphase%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%kvr(2)
             enddo
           case(GAS_DENSITY) 
             do local_id=1,grid%nlmax
@@ -1935,7 +1986,7 @@ function PatchGetDatasetValueAtCell(patch,field,option,output_option, &
     case(TEMPERATURE,PRESSURE,LIQUID_SATURATION,GAS_SATURATION, &
          LIQUID_MOLE_FRACTION,GAS_MOLE_FRACTION,LIQUID_ENERGY,GAS_ENERGY, &
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY,GAS_VISCOSITY, &
-         SC_FUGA_COEFF,STATE)
+         LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,STATE)
          
       if (associated(patch%aux%THC)) then
         select case(ivar)
@@ -1988,7 +2039,9 @@ function PatchGetDatasetValueAtCell(patch,field,option,output_option, &
           case(LIQUID_DENSITY)
             value = patch%aux%Global%aux_vars(ghosted_id)%den_kg(1)
           case(LIQUID_VISCOSITY)
-            value = patch%aux%Global%aux_vars(ghosted_id)%den_kg(1)
+            value = patch%aux%Flash2%aux_vars(ghosted_id)%aux_var_elem(0)%vis(1)
+          case(LIQUID_MOBILITY)
+            value = patch%aux%Flash2%aux_vars(ghosted_id)%aux_var_elem(0)%kvr(1)
           case(GAS_SATURATION)
             value = patch%aux%Global%aux_vars(ghosted_id)%sat(2)
           case(GAS_MOLE_FRACTION)
@@ -2000,7 +2053,9 @@ function PatchGetDatasetValueAtCell(patch,field,option,output_option, &
           case(GAS_DENSITY_MOL) 
             value = patch%aux%Global%aux_vars(ghosted_id)%den(2)
           case(GAS_VISCOSITY) 
-            value = patch%aux%Global%aux_vars(ghosted_id)%den_kg(2)
+            value = patch%aux%Flash2%aux_vars(ghosted_id)%aux_var_elem(0)%vis(2)
+          case(GAS_MOBILITY) 
+            value = patch%aux%Flash2%aux_vars(ghosted_id)%aux_var_elem(0)%kvr(2)
           case(SC_FUGA_COEFF)
             value = patch%aux%Global%aux_vars(ghosted_id)%fugacoeff(1)   
           case(LIQUID_MOLE_FRACTION)
@@ -2020,6 +2075,8 @@ function PatchGetDatasetValueAtCell(patch,field,option,output_option, &
             value = patch%aux%Global%aux_vars(ghosted_id)%den_kg(1)
           case(LIQUID_VISCOSITY)
             value = patch%aux%Mphase%aux_vars(ghosted_id)%aux_var_elem(0)%vis(1)
+          case(LIQUID_MOBILITY)
+            value = patch%aux%Mphase%aux_vars(ghosted_id)%aux_var_elem(0)%kvr(1)
           case(GAS_SATURATION)
             value = patch%aux%Global%aux_vars(ghosted_id)%sat(2)
           case(GAS_MOLE_FRACTION)
@@ -2030,6 +2087,8 @@ function PatchGetDatasetValueAtCell(patch,field,option,output_option, &
             value = patch%aux%Global%aux_vars(ghosted_id)%den_kg(2)
           case(GAS_VISCOSITY) 
             value = patch%aux%Mphase%aux_vars(ghosted_id)%aux_var_elem(0)%vis(2)
+          case(GAS_MOBILITY) 
+            value = patch%aux%Mphase%aux_vars(ghosted_id)%aux_var_elem(0)%kvr(2)
           case(GAS_DENSITY_MOL) 
             value = patch%aux%Global%aux_vars(ghosted_id)%den(2)
           case(SC_FUGA_COEFF)
@@ -2242,7 +2301,8 @@ subroutine PatchSetDataset(patch,field,option,vec,vec_format,ivar,isubvar)
   select case(ivar)
     case(TEMPERATURE,PRESSURE,LIQUID_SATURATION,GAS_SATURATION, &
          LIQUID_MOLE_FRACTION,GAS_MOLE_FRACTION,LIQUID_ENERGY,GAS_ENERGY, &
-         LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY,GAS_VISCOSITY,STATE)
+         LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY,GAS_VISCOSITY, &
+         LIQUID_MOBILITY,GAS_MOBILITY,STATE)
       if (associated(patch%aux%THC)) then
         select case(ivar)
           case(TEMPERATURE)
@@ -2325,6 +2385,10 @@ subroutine PatchSetDataset(patch,field,option,vec,vec_format,ivar,isubvar)
             call printErrMsg(option,'LIQUID_VISCOSITY not supported by Richards')
           case(GAS_VISCOSITY)
             call printErrMsg(option,'GAS_VISCOSITY not supported by Richards')
+          case(LIQUID_MOBILITY)
+            call printErrMsg(option,'LIQUID_MOBILITY not supported by Richards')
+          case(GAS_MOBILITY)
+            call printErrMsg(option,'GAS_MOBILITY not supported by Richards')
           case(LIQUID_ENERGY)
             call printErrMsg(option,'LIQUID_ENERGY not supported by Richards')
           case(GAS_ENERGY)
@@ -2402,6 +2466,26 @@ subroutine PatchSetDataset(patch,field,option,vec,vec_format,ivar,isubvar)
                 patch%aux%Flash2%aux_vars(ghosted_id)%aux_var_elem(0)%den(1) = vec_ptr(ghosted_id)
               enddo
             endif
+          case(LIQUID_VISCOSITY)
+            if (vec_format == GLOBAL) then
+              do local_id=1,grid%nlmax
+                patch%aux%Flash2%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%vis(1) = vec_ptr(local_id)
+              enddo
+            else if (vec_format == LOCAL) then
+              do ghosted_id=1,grid%ngmax
+                patch%aux%Flash2%aux_vars(ghosted_id)%aux_var_elem(0)%vis(1) = vec_ptr(ghosted_id)
+              enddo
+            endif
+          case(LIQUID_MOBILITY)
+            if (vec_format == GLOBAL) then
+              do local_id=1,grid%nlmax
+                patch%aux%Flash2%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%kvr(1) = vec_ptr(local_id)
+              enddo
+            else if (vec_format == LOCAL) then
+              do ghosted_id=1,grid%ngmax
+                patch%aux%Flash2%aux_vars(ghosted_id)%aux_var_elem(0)%kvr(1) = vec_ptr(ghosted_id)
+              enddo
+            endif
           case(GAS_SATURATION)
             if (vec_format == GLOBAL) then
               do local_id=1,grid%nlmax
@@ -2440,6 +2524,26 @@ subroutine PatchSetDataset(patch,field,option,vec,vec_format,ivar,isubvar)
             else if (vec_format == LOCAL) then
               do ghosted_id=1,grid%ngmax
                 patch%aux%Flash2%aux_vars(ghosted_id)%aux_var_elem(0)%den(2) = vec_ptr(ghosted_id)
+              enddo
+            endif
+          case(GAS_VISCOSITY) 
+            if (vec_format == GLOBAL) then
+              do local_id=1,grid%nlmax
+                patch%aux%Flash2%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%vis(2) = vec_ptr(local_id)
+              enddo
+            else if (vec_format == LOCAL) then
+              do ghosted_id=1,grid%ngmax
+                patch%aux%Flash2%aux_vars(ghosted_id)%aux_var_elem(0)%vis(2) = vec_ptr(ghosted_id)
+              enddo
+            endif
+          case(GAS_MOBILITY) 
+            if (vec_format == GLOBAL) then
+              do local_id=1,grid%nlmax
+                patch%aux%Flash2%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%kvr(2) = vec_ptr(local_id)
+              enddo
+            else if (vec_format == LOCAL) then
+              do ghosted_id=1,grid%ngmax
+                patch%aux%Flash2%aux_vars(ghosted_id)%aux_var_elem(0)%kvr(2) = vec_ptr(ghosted_id)
               enddo
             endif
           case(LIQUID_MOLE_FRACTION)
@@ -2503,6 +2607,26 @@ subroutine PatchSetDataset(patch,field,option,vec,vec_format,ivar,isubvar)
             else if (vec_format == LOCAL) then
               do ghosted_id=1,grid%ngmax
                 patch%aux%Mphase%aux_vars(ghosted_id)%aux_var_elem(0)%den(1) = vec_ptr(ghosted_id)
+              enddo
+            endif
+          case(LIQUID_VISCOSITY)
+            if (vec_format == GLOBAL) then
+              do local_id=1,grid%nlmax
+                patch%aux%Mphase%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%vis(1) = vec_ptr(local_id)
+              enddo
+            else if (vec_format == LOCAL) then
+              do ghosted_id=1,grid%ngmax
+                patch%aux%Mphase%aux_vars(ghosted_id)%aux_var_elem(0)%vis(1) = vec_ptr(ghosted_id)
+              enddo
+            endif
+          case(LIQUID_MOBILITY)
+            if (vec_format == GLOBAL) then
+              do local_id=1,grid%nlmax
+                patch%aux%Mphase%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%kvr(1) = vec_ptr(local_id)
+              enddo
+            else if (vec_format == LOCAL) then
+              do ghosted_id=1,grid%ngmax
+                patch%aux%Mphase%aux_vars(ghosted_id)%aux_var_elem(0)%kvr(1) = vec_ptr(ghosted_id)
               enddo
             endif
           case(GAS_SATURATION)
@@ -2886,6 +3010,8 @@ subroutine PatchDestroy(patch)
   
   if (associated(patch%imat)) deallocate(patch%imat)
   nullify(patch%imat)
+  if (associated(patch%sat_func_id)) deallocate(patch%sat_func_id)
+  nullify(patch%sat_func_id)
   if (associated(patch%internal_velocities)) deallocate(patch%internal_velocities)
   nullify(patch%internal_velocities)
   if (associated(patch%boundary_velocities)) deallocate(patch%boundary_velocities)
@@ -2898,6 +3024,19 @@ subroutine PatchDestroy(patch)
   nullify(patch%internal_tran_coefs)
   if (associated(patch%boundary_tran_coefs)) deallocate(patch%boundary_tran_coefs)
   nullify(patch%boundary_tran_coefs)
+  if (associated(patch%ss_fluid_fluxes)) deallocate(patch%ss_fluid_fluxes)
+  nullify(patch%ss_fluid_fluxes)
+
+  if (associated(patch%material_property_array)) &
+    deallocate(patch%material_property_array)
+  nullify(patch%material_property_array)
+  ! Since this linked list will be destroyed by realization, just nullify here
+  nullify(patch%material_properties)
+  if (associated(patch%saturation_function_array)) &
+    deallocate(patch%saturation_function_array)
+  nullify(patch%saturation_function_array)
+  ! Since this linked list will be destroyed by realization, just nullify here
+  nullify(patch%saturation_functions)
 
   call GridDestroy(patch%grid)
   call RegionDestroyList(patch%regions)

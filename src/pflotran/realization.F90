@@ -101,8 +101,9 @@ private
             RealizationCountCells, &
             RealizationPrintGridStatistics, &
             RealizationSetUpBC4Faces, &
-            RealizatonPassFieldPtrToPatches
-            
+            RealizatonPassFieldPtrToPatches, &
+            RealLocalToLocalWithArray
+ 
 contains
   
 ! ************************************************************************** !
@@ -681,7 +682,6 @@ subroutine RealizationProcessCouplers(realization)
       if (.not.associated(cur_patch)) exit
       call PatchProcessCouplers(cur_patch,realization%flow_conditions, &
                                 realization%transport_conditions, &
-                                realization%material_properties, &
                                 realization%option)
 !      call PatchProcessCouplers(cur_patch,realization%flow_conditions, &
 !                                realization%transport_conditions, &
@@ -737,6 +737,9 @@ subroutine RealProcessMatPropAndSatFunc(realization)
   type(option_type), pointer :: option
   type(material_property_type), pointer :: cur_material_property
   character(len=MAXSTRINGLENGTH) :: string
+
+  type(level_type), pointer :: cur_level
+  type(patch_type), pointer :: cur_patch
   
   option => realization%option
   
@@ -746,7 +749,28 @@ subroutine RealProcessMatPropAndSatFunc(realization)
                                       option)
   call SaturatFuncConvertListToArray(realization%saturation_functions, &
                                      realization%saturation_function_array, &
-                                     option) 
+                                     option)
+
+  ! set up mirrored pointer arrays within patches to saturation functions
+  ! and material properties
+  cur_level => realization%level_list%first
+  do 
+    if (.not.associated(cur_level)) exit
+    cur_patch => cur_level%patch_list%first
+    do
+      if (.not.associated(cur_patch)) exit
+      cur_patch%material_properties => realization%material_properties
+      call MaterialPropConvertListToArray(cur_patch%material_properties, &
+                                          cur_patch%material_property_array, &
+                                          option)
+      cur_patch%saturation_functions => realization%saturation_functions
+      call SaturatFuncConvertListToArray(cur_patch%saturation_functions, &
+                                         cur_patch%saturation_function_array, &
+                                         option)
+      cur_patch => cur_patch%next
+    enddo
+    cur_level => cur_level%next
+  enddo 
     
   cur_material_property => realization%material_properties                            
   do                                      
@@ -2386,7 +2410,7 @@ subroutine RealizationUpdatePropertiesPatch(realization)
       call GridVecRestoreArrayF90(grid,field%work,vec_p,ierr)
     endif
 
-    call DiscretizationGlobalToLocal(discretization,field%tortuosity_loc, &
+    call DiscretizationLocalToLocal(discretization,field%tortuosity_loc, &
                                      field%tortuosity_loc,ONEDOF)
   endif
       
@@ -2404,7 +2428,7 @@ subroutine RealizationUpdatePropertiesPatch(realization)
     call GridVecRestoreArrayF90(grid,field%tortuosity0,tortuosity0_p,ierr)  
     call GridVecRestoreArrayF90(grid,field%work,vec_p,ierr)
 
-    call DiscretizationGlobalToLocal(discretization,field%tortuosity_loc, &
+    call DiscretizationLocalToLocal(discretization,field%tortuosity_loc, &
                                      field%tortuosity_loc,ONEDOF)
   endif
       
@@ -2432,16 +2456,84 @@ subroutine RealizationUpdatePropertiesPatch(realization)
     call GridVecRestoreArrayF90(grid,field%perm_yy_loc,perm_yy_loc_p,ierr)
     call GridVecRestoreArrayF90(grid,field%work,vec_p,ierr)
 
-    call DiscretizationGlobalToLocal(discretization,field%perm_xx_loc, &
-                                     field%perm_xx_loc,ONEDOF)
-    call DiscretizationGlobalToLocal(discretization,field%perm_yy_loc, &
-                                     field%perm_yy_loc,ONEDOF)
-    call DiscretizationGlobalToLocal(discretization,field%perm_zz_loc, &
-                                     field%perm_zz_loc,ONEDOF)
+    call DiscretizationLocalToLocal(discretization,field%perm_xx_loc, &
+                                    field%perm_xx_loc,ONEDOF)
+    call DiscretizationLocalToLocal(discretization,field%perm_yy_loc, &
+                                    field%perm_yy_loc,ONEDOF)
+    call DiscretizationLocalToLocal(discretization,field%perm_zz_loc, &
+                                    field%perm_zz_loc,ONEDOF)
   endif  
   
 end subroutine RealizationUpdatePropertiesPatch
- 
+
+! ************************************************************************** !
+!
+! RealLocalToLocalWithArray: Takes an F90 array that is ghosted
+!                            and updates the ghosted values
+! author: Glenn Hammond
+! date: 06/09/11
+!
+! ************************************************************************** !
+subroutine RealLocalToLocalWithArray(realization,array_id)
+
+  use Grid_module
+
+  implicit none
+
+  type(realization_type) :: realization
+  PetscInt :: array_id
+  
+  type(level_type), pointer :: cur_level
+  type(patch_type), pointer :: cur_patch
+  type(grid_type), pointer :: grid
+  type(field_type), pointer :: field
+
+  field => realization%field
+
+  cur_level => realization%level_list%first
+  do
+    if (.not.associated(cur_level)) exit
+    cur_patch => cur_level%patch_list%first
+    do
+      if (.not.associated(cur_patch)) exit
+      grid => cur_patch%grid
+      select case(array_id)
+        case(MATERIAL_ID_ARRAY)
+          call GridCopyIntegerArrayToVec(grid, cur_patch%imat,field%work_loc, &
+                                         grid%ngmax)
+        case(SATURATION_FUNCTION_ID_ARRAY)
+          call GridCopyIntegerArrayToVec(grid, cur_patch%sat_func_id, &
+                                         field%work_loc, grid%ngmax)
+      end select
+      cur_patch => cur_patch%next
+    enddo
+    cur_level => cur_level%next
+  enddo
+  call DiscretizationLocalToLocal(realization%discretization,field%work_loc, &
+                                  field%work_loc,ONEDOF)
+  cur_level => realization%level_list%first
+  do
+    if (.not.associated(cur_level)) exit
+    cur_patch => cur_level%patch_list%first
+    do
+      if (.not.associated(cur_patch)) exit
+      grid => cur_patch%grid
+
+      select case(array_id)
+        case(MATERIAL_ID_ARRAY)
+          call GridCopyVecToIntegerArray(grid, cur_patch%imat,field%work_loc, &
+                                         grid%ngmax)
+        case(SATURATION_FUNCTION_ID_ARRAY)
+          call GridCopyVecToIntegerArray(grid, cur_patch%sat_func_id, &
+                                         field%work_loc, grid%ngmax)
+      end select
+      cur_patch => cur_patch%next
+    enddo
+    cur_level => cur_level%next
+  enddo
+
+end subroutine RealLocalToLocalWithArray
+
 ! ************************************************************************** !
 !
 ! RealizationCountCells: Counts # of active and inactive grid cells 

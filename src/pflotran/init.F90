@@ -540,7 +540,6 @@ subroutine Init(simulation)
   if (OptionPrintToScreen(option)) write(*,'("++++++++++++++++++++++++++++++++&
                      &++++++++++++++++++++++++++++",/)')
 
-
   call PetscLogEventBegin(logging%event_setup,ierr)
   ! read any regions provided in external files
   call readRegionFiles(realization)
@@ -548,11 +547,12 @@ subroutine Init(simulation)
   call RealizationLocalizeRegions(realization)
   call RealizatonPassFieldPtrToPatches(realization)
   ! link conditions with regions through couplers and generate connectivity
+  call RealProcessMatPropAndSatFunc(realization)
   call RealizationProcessCouplers(realization)
   call RealizationProcessConditions(realization)
   call RealProcessFluidProperties(realization)
-  call RealProcessMatPropAndSatFunc(realization)
   call assignMaterialPropToRegions(realization)
+
 #ifdef SUBCONTINUUM_MODEL
   call RealProcessSubcontinuumProp(realization)
   call assignSubcontinuumPropToRegions(realization)
@@ -566,7 +566,6 @@ subroutine Init(simulation)
     call printMsg(option,"  Finished setting up TRAN Realization ")  
   endif
   call RealizationPrintCouplers(realization)
-
   ! should we still support this
   if (option%use_generalized_grid) then 
     call printMsg(option,'Reading structured grid from hdf5')
@@ -592,10 +591,8 @@ subroutine Init(simulation)
   if (associated(tran_stepper)) then
     tran_stepper%cur_waypoint => realization%waypoints%first
   endif
-  
   ! initialize global auxilliary variable object
   call GlobalSetup(realization)
-  
   ! initialize FLOW
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
@@ -1233,7 +1230,8 @@ subroutine InitReadInput(simulation)
               enddo
             case('MOLAL','MOLALITY', &
                  'UPDATE_POROSITY','UPDATE_TORTUOSITY', &
-                 'UPDATE_PERMEABILITY','UPDATE_MINERAL_SURFACE_AREA')
+                 'UPDATE_PERMEABILITY','UPDATE_MINERAL_SURFACE_AREA', &
+                 'NO_RESTART_MINERAL_VOL_FRAC')
               ! dummy placeholder
           end select
         enddo
@@ -1784,6 +1782,23 @@ subroutine InitReadInput(simulation)
               select case(trim(word))
                 case ('HDF5')
                   output_option%print_hdf5 = PETSC_TRUE
+                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputDefaultMsg(input,option, &
+                                       'OUTPUT,FORMAT,HDF5,# FILES')
+                  if (len_trim(word) > 1) then 
+                    call StringToUpper(word)
+                    select case(trim(word))
+                      case('SINGLE_FILE')
+                        output_option%print_single_h5_file = PETSC_TRUE
+                      case('MULTIPLE_FILES')
+                        output_option%print_single_h5_file = PETSC_FALSE
+                      case default
+                        option%io_buffer = 'HDF5 keyword (' // trim(word) // &
+                          ') not recongnized.  Use "SINGLE_FILE" or ' // &
+                          '"MULTIPLE_FILES".'
+                        call printErrMsg(option)
+                    end select
+                  endif
                 case ('MAD')
                   output_option%print_mad = PETSC_TRUE
                 case ('TECPLOT')
@@ -2076,6 +2091,9 @@ subroutine assignMaterialPropToRegions(realization)
         allocate(cur_patch%imat(cur_patch%grid%ngmax))
         ! initialize to "unset"
         cur_patch%imat = -999
+        ! also allocate saturation function id
+        allocate(cur_patch%sat_func_id(cur_patch%grid%ngmax))
+        cur_patch%sat_func_id = -999
       endif
       cur_patch => cur_patch%next
     enddo
@@ -2130,36 +2148,7 @@ subroutine assignMaterialPropToRegions(realization)
     
   if (update_ghosted_material_ids) then
     ! update ghosted material ids
-    cur_level => realization%level_list%first
-    do 
-      if (.not.associated(cur_level)) exit
-      cur_patch => cur_level%patch_list%first
-      do
-        if (.not.associated(cur_patch)) exit
-        grid => cur_patch%grid
-
-        call GridCopyIntegerArrayToVec(grid, cur_patch%imat,field%work_loc, &
-                                            grid%ngmax)
-        cur_patch => cur_patch%next
-      enddo
-      cur_level => cur_level%next
-    enddo
-    call DiscretizationLocalToLocal(discretization,field%work_loc, &
-                                    field%work_loc,ONEDOF)
-    cur_level => realization%level_list%first
-    do 
-      if (.not.associated(cur_level)) exit
-      cur_patch => cur_level%patch_list%first
-      do
-        if (.not.associated(cur_patch)) exit
-        grid => cur_patch%grid
-
-        call GridCopyVecToIntegerArray(grid,cur_patch%imat,field%work_loc, &
-                                            grid%ngmax)
-        cur_patch => cur_patch%next
-      enddo
-      cur_level => cur_level%next
-    enddo
+    call RealLocalToLocalWithArray(realization,MATERIAL_ID_ARRAY)
   endif
 
   ! set cell by cell material properties
@@ -2218,6 +2207,7 @@ subroutine assignMaterialPropToRegions(realization)
           call printErrMsg(option)
         endif
         if (option%nflowdof > 0) then
+          patch%sat_func_id(ghosted_id) = material_property%saturation_function_id
           icap_loc_p(ghosted_id) = material_property%saturation_function_id
           ithrm_loc_p(ghosted_id) = material_property%id
           perm_xx_p(local_id) = material_property%permeability(1,1)
@@ -2303,6 +2293,7 @@ subroutine assignMaterialPropToRegions(realization)
                                     field%icap_loc,ONEDOF)   
     call DiscretizationLocalToLocal(discretization,field%ithrm_loc, &
                                     field%ithrm_loc,ONEDOF)
+    call RealLocalToLocalWithArray(realization,SATURATION_FUNCTION_ID_ARRAY)
   endif
   
   call DiscretizationGlobalToLocal(discretization,field%porosity0, &
@@ -2631,7 +2622,11 @@ subroutine readRegionFiles(realization)
       if(region%grid_type.eq.STRUCTURED_GRID) then
         call HDF5ReadRegionFromFile(realization,region,region%filename)
     else
+#ifndef SAMR_HAVE_HDF5
       call HDF5ReadUnstructuredGridRegionFromFile(realization,region,region%filename)
+#else
+      ! TO DO: Read region from HDF5 for Unstructured mesh with SAMRAI
+#endif      
     endif
       else
         call RegionReadFromFile(region,realization%option, &

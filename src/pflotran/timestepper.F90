@@ -274,7 +274,6 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
   use Logging_module  
   use Mass_Balance_module
   use Discretization_module
-  use Reactive_Transport_module, only : RTUpdateAuxVars
 
   implicit none
   
@@ -354,8 +353,8 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
       ! This is here since we need to recalculate the secondary complexes
       ! if they exist.  DO NOT update activity coefficients!!! - geh
       if (realization%reaction%use_full_geochemistry) then
-                                         ! cells     bcs        act coefs.
-        call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
+        call StepperUpdateTranAuxVars(realization)
+        !call StepperSandbox(realization)
       endif
     endif
 
@@ -1268,9 +1267,9 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
           case(IMS_MODE)
             call ImmisUpdateReason(update_reason,realization)
           case(MPH_MODE)
-            call MPhaseUpdateReason(update_reason,realization)
+!           call MPhaseUpdateReason(update_reason,realization)
           case(FLASH2_MODE)
-            call Flash2UpdateReason(update_reason,realization)
+!           call Flash2UpdateReason(update_reason,realization)
           case(THC_MODE)
             update_reason=1
           case(RICHARDS_MODE,G_MODE)
@@ -2744,6 +2743,126 @@ subroutine StepperUpdateFlowAuxVars(realization)
   end select    
 
 end subroutine StepperUpdateFlowAuxVars
+
+! ************************************************************************** !
+!
+! StepperUpdateTranAuxVars: Updates the flow auxilliary variables
+! author: Glenn Hammond
+! date: 10/11/08 
+!
+! ************************************************************************** !
+subroutine StepperUpdateTranAuxVars(realization)
+  
+  use Reactive_Transport_module, only : RTUpdateAuxVars
+  use Realization_module
+
+  implicit none
+
+  type(realization_type) :: realization
+
+                                   ! cells     bcs        act coefs.
+  call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
+
+end subroutine StepperUpdateTranAuxVars
+
+! ************************************************************************** !
+!
+! StepperSandbox: Sandbox for temporary miscellaneous operations
+! author: Glenn Hammond
+! date: 06/27/11
+!
+! ************************************************************************** !
+subroutine StepperSandbox(realization)
+  
+  use Reactive_Transport_module, only : RTUpdateAuxVars
+  use Realization_module
+  use Patch_module
+  use Grid_module
+  use Field_module
+  use Discretization_module
+  use Option_module
+  use Reaction_module
+  use Reaction_Aux_module
+  use Reactive_Transport_Aux_module
+  use Global_Aux_module
+  use String_module
+
+  implicit none
+
+  type(realization_type) :: realization
+  type(patch_type), pointer :: patch
+  type(discretization_type), pointer :: discretization
+  type(field_type), pointer :: field
+  type(grid_type), pointer :: grid
+  type(reaction_type), pointer :: reaction
+  type(option_type), pointer :: option
+
+  PetscReal, pointer :: tran_xx_p(:)
+  PetscReal, pointer :: porosity_loc_p(:)
+  PetscReal, pointer :: volume_p(:)
+  type(global_auxvar_type), pointer :: global_aux_vars(:)
+  type(reactive_transport_auxvar_type), pointer :: rt_aux_vars(:)
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: istart, iend
+  PetscInt :: species_offset
+  PetscInt :: num_iterations
+  PetscErrorCode :: ierr
+
+  discretization => realization%discretization
+  field => realization%field
+  patch => realization%patch
+  grid => patch%grid
+  reaction => realization%reaction
+  option => realization%option
+
+  rt_aux_vars => patch%Aux%RT%aux_vars
+  global_aux_vars => patch%Aux%Global%aux_vars
+
+                                   ! cells     bcs        act coefs.
+  call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
+
+  call GridVecGetArrayF90(grid,field%tran_xx,tran_xx_p,ierr)
+  call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)  
+  call GridVecGetArrayF90(grid,field%volume,volume_p,ierr)
+
+  do species_offset = 1, reaction%naqcomp
+    if (StringCompare(reaction%primary_species_names(species_offset), &
+                      'UO2++',FIVE_INTEGER)) then
+      ! decrement
+      exit
+    endif
+  enddo
+  species_offset = species_offset - 1
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    
+    iend = local_id*reaction%naqcomp
+    istart = iend-reaction%naqcomp+1
+    
+    tran_xx_p(istart:iend) = rt_aux_vars(ghosted_id)%total(:,ONE_INTEGER)
+    ! scale uo2++ total concentration by 0.25
+    tran_xx_p(istart + species_offset) = 0.25d0 * &
+                                         tran_xx_p(istart + species_offset)
+
+    call RReact(rt_aux_vars(ghosted_id),global_aux_vars(ghosted_id), &
+                tran_xx_p(istart:iend),volume_p(local_id), &
+                porosity_loc_p(ghosted_id), &
+                num_iterations,reaction,option)
+    tran_xx_p(istart:iend) = rt_aux_vars(ghosted_id)%pri_molal
+  enddo
+
+  call GridVecRestoreArrayF90(grid,field%tran_xx,tran_xx_p,ierr)
+  call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)  
+  call GridVecRestoreArrayF90(grid,field%volume,volume_p,ierr)
+  call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
+                                   field%tran_xx_loc,NTRANDOF)
+
+                                   ! cells     bcs        act coefs.
+  call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
+
+end subroutine StepperSandbox
 
 ! ************************************************************************** !
 !

@@ -427,7 +427,7 @@ subroutine Checkpoint(realization, &
 
   call PetscGetTime(tend,ierr) 
   write(option%io_buffer, &
-        '("      Seconds to write to checkpoint file: ", f6.2)') tend-tstart
+        '("      Seconds to write to checkpoint file: ", f10.2)') tend-tstart
   call printMsg(option)
 
   call PetscLogEventEnd(logging%event_checkpoint,ierr)  
@@ -695,13 +695,20 @@ subroutine Restart(realization, &
     ! mineral volume fractions for kinetic minerals
     if (realization%reaction%nkinmnrl > 0) then
       do i = 1, realization%reaction%nkinmnrl
+        ! have to load the vecs no matter what
         call VecLoad(global_vec,viewer,ierr)
-        call RealizationSetDataset(realization,global_vec,GLOBAL, &
-                                   MINERAL_VOLUME_FRACTION,i)
+        if (.not.option%no_restart_mineral_vol_frac) then
+          call RealizationSetDataset(realization,global_vec,GLOBAL, &
+                                     MINERAL_VOLUME_FRACTION,i)
+        endif
       enddo
     endif
     ! sorbed concentrations for multirate kinetic sorption
     if (realization%reaction%kinmr_nrate > 0 .and. &
+        .not.option%no_checkpoint_kinetic_sorption .and. &
+        ! we need to fix this.  We need something to skip over the reading
+        ! of sorbed concentrations altogether if they do not exist in the
+        ! checkpoint file
         .not.option%no_restart_kinetic_sorption) then
       ! PETSC_FALSE flag indicates read from file
       call RTCheckpointKineticSorption(realization,viewer,PETSC_FALSE)

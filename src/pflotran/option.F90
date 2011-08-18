@@ -150,6 +150,7 @@ module Option_module
     PetscBool :: jumpstart_kinetic_sorption
     PetscBool :: no_checkpoint_kinetic_sorption
     PetscBool :: no_restart_kinetic_sorption
+    PetscBool :: no_restart_mineral_vol_frac
         
 !   table lookup
     PetscInt :: itable
@@ -185,6 +186,7 @@ module Option_module
     PetscBool :: steady_state
     
     PetscBool :: use_matrix_buffer
+    PetscBool :: force_newton_iteration
   
     PetscBool :: mimetic
     PetscBool :: ani_relative_permeability
@@ -207,6 +209,7 @@ module Option_module
     PetscBool :: print_hdf5
     PetscBool :: print_hdf5_velocities
     PetscBool :: print_hdf5_flux_velocities
+    PetscBool :: print_single_h5_file
 
     PetscBool :: print_tecplot 
     PetscInt :: tecplot_format
@@ -451,6 +454,7 @@ subroutine OptionInitRealization(option)
   option%jumpstart_kinetic_sorption = PETSC_FALSE
   option%no_checkpoint_kinetic_sorption = PETSC_FALSE
   option%no_restart_kinetic_sorption = PETSC_FALSE
+  option%no_restart_mineral_vol_frac = PETSC_FALSE
   
   option%minimum_hydrostatic_pressure = -1.d20
 
@@ -523,6 +527,7 @@ subroutine OptionInitRealization(option)
 
   option%use_matrix_buffer = PETSC_FALSE
   option%init_stage = PETSC_FALSE 
+  option%force_newton_iteration = PETSC_FALSE
 
   option%mimetic = PETSC_FALSE
  
@@ -548,6 +553,7 @@ function OutputOptionCreate()
   output_option%print_hdf5 = PETSC_FALSE
   output_option%print_hdf5_velocities = PETSC_FALSE
   output_option%print_hdf5_flux_velocities = PETSC_FALSE
+  output_option%print_single_h5_file = PETSC_TRUE
   output_option%print_tecplot = PETSC_FALSE
   output_option%tecplot_format = 0
   output_option%print_tecplot_velocities = PETSC_FALSE
