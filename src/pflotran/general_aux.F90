@@ -35,10 +35,11 @@ module General_Aux_module
 
     PetscBool :: aux_vars_up_to_date
     PetscBool :: inactive_cells_exist
-    PetscInt :: num_aux, num_aux_bc
+    PetscInt :: num_aux, num_aux_bc, num_aux_ss
     type(general_parameter_type), pointer :: general_parameter
     type(general_auxvar_type), pointer :: aux_vars(:,:)
     type(general_auxvar_type), pointer :: aux_vars_bc(:)
+    type(general_auxvar_type), pointer :: aux_vars_ss(:)
   end type general_type
 
   public :: GeneralAuxCreate, GeneralAuxDestroy, &
@@ -72,8 +73,10 @@ function GeneralAuxCreate(option)
   aux%inactive_cells_exist = PETSC_FALSE
   aux%num_aux = 0
   aux%num_aux_bc = 0
+  aux%num_aux_ss = 0
   nullify(aux%aux_vars)
   nullify(aux%aux_vars_bc)
+  nullify(aux%aux_vars_ss)
   aux%n_zero_rows = 0
   nullify(aux%zero_rows_local)
   nullify(aux%zero_rows_local_ghosted)
@@ -213,7 +216,7 @@ subroutine GeneralAuxVarCompute(x,gen_aux_var, global_aux_var,&
   select case(global_aux_var%istate)
     case(LIQUID_STATE)
       gen_aux_var%pres(lid) = x(GENERAL_LIQUID_PRESSURE_DOF)
-      gen_aux_var%xmol(acid,lid) = x(GENERAL_CONCENTRATION_DOF)
+      gen_aux_var%xmol(acid,lid) = x(GENERAL_MOLE_FRACTION_DOF)
       gen_aux_var%temp = x(GENERAL_TEMPERATURE_DOF)
 
       gen_aux_var%xmol(wid,lid) = 1.d0 - gen_aux_var%xmol(acid,lid)
@@ -375,6 +378,13 @@ subroutine GeneralAuxDestroy(aux)
     deallocate(aux%aux_vars_bc)
   endif
   nullify(aux%aux_vars_bc)
+  if (associated(aux%aux_vars_ss)) then
+    do iaux = 1, aux%num_aux_ss
+      call GeneralAuxVarDestroy(aux%aux_vars_ss(iaux))
+    enddo  
+    deallocate(aux%aux_vars_ss)
+  endif
+  nullify(aux%aux_vars_ss)
   if (associated(aux%zero_rows_local)) deallocate(aux%zero_rows_local)
   nullify(aux%zero_rows_local)
   if (associated(aux%zero_rows_local_ghosted)) deallocate(aux%zero_rows_local_ghosted)

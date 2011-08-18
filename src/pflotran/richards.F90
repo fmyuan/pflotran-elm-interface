@@ -2,7 +2,7 @@ module Richards_module
 
   use Richards_Aux_module
   use Global_Aux_module
-#ifdef GLENN
+#ifdef BUFFER_MATRIX
   use Matrix_Buffer_module
 #endif
   
@@ -141,10 +141,13 @@ subroutine RichardsSetupPatch(realization)
   type(patch_type),pointer :: patch
   type(grid_type), pointer :: grid
   type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: source_sink
 
   PetscInt :: ghosted_id, iconn, sum_connection
   PetscInt :: i, ierr
-  type(richards_auxvar_type), pointer :: rich_aux_vars(:), rich_aux_vars_bc(:)  
+  type(richards_auxvar_type), pointer :: rich_aux_vars(:)  
+  type(richards_auxvar_type), pointer :: rich_aux_vars_bc(:)  
+  type(richards_auxvar_type), pointer :: rich_aux_vars_ss(:)  
   
   option => realization%option
   patch => realization%patch
@@ -152,10 +155,10 @@ subroutine RichardsSetupPatch(realization)
 
   patch%aux%Richards => RichardsAuxCreate()
   allocate(patch%aux%Richards%richards_parameter%sir(option%nphase, &
-                                  size(realization%saturation_function_array)))
-  do i = 1, size(realization%saturation_function_array)
-    patch%aux%Richards%richards_parameter%sir(:,realization%saturation_function_array(i)%ptr%id) = &
-      realization%saturation_function_array(i)%ptr%Sr(:)
+                                  size(patch%saturation_function_array)))
+  do i = 1, size(patch%saturation_function_array)
+    patch%aux%Richards%richards_parameter%sir(:,patch%saturation_function_array(i)%ptr%id) = &
+      patch%saturation_function_array(i)%ptr%Sr(:)
   enddo
   
   ! allocate aux_var data structures for all grid cells  
@@ -168,14 +171,7 @@ subroutine RichardsSetupPatch(realization)
 
   ! count the number of boundary connections and allocate
   ! aux_var data structures for them  
-  boundary_condition => patch%boundary_conditions%first
-  sum_connection = 0    
-  do 
-    if (.not.associated(boundary_condition)) exit
-    sum_connection = sum_connection + &
-                     boundary_condition%connection_set%num_connections
-    boundary_condition => boundary_condition%next
-  enddo
+  sum_connection = CouplerGetNumConnectionsInList(patch%boundary_conditions)
   if (sum_connection > 0) then
     allocate(rich_aux_vars_bc(sum_connection))
     do iconn = 1, sum_connection
@@ -184,6 +180,18 @@ subroutine RichardsSetupPatch(realization)
     patch%aux%Richards%aux_vars_bc => rich_aux_vars_bc
   endif
   patch%aux%Richards%num_aux_bc = sum_connection
+  
+  ! count the number of source/sink connections and allocate
+  ! aux_var data structures for them  
+  sum_connection = CouplerGetNumConnectionsInList(patch%source_sinks)
+  if (sum_connection > 0) then
+    allocate(rich_aux_vars_ss(sum_connection))
+    do iconn = 1, sum_connection
+      call RichardsAuxVarInit(rich_aux_vars_ss(iconn),option)
+    enddo
+    patch%aux%Richards%aux_vars_ss => rich_aux_vars_ss
+  endif
+  patch%aux%Richards%num_aux_ss = sum_connection
   
   ! create zero array for zeroing residual and Jacobian (1 on diagonal)
   ! for inactive cells (and isothermal)
@@ -272,9 +280,7 @@ subroutine RichardsComputeMassBalancePatch(realization,mass_balance)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     !geh - Ignore inactive cells with inactive materials
-    if (associated(patch%imat)) then
-      if (patch%imat(ghosted_id) <= 0) cycle
-    endif
+    if (patch%imat(ghosted_id) <= 0) cycle
     ! mass = volume*saturation*density
     mass_balance = mass_balance + &
       global_aux_vars(ghosted_id)%den_kg* &
@@ -310,7 +316,6 @@ subroutine RichardsCheckMassBalancePatch(realization)
   PetscReal, pointer :: porosity_loc_p(:), &
                         volume_p(:), &
                         accum_p(:), xx_faces_loc_p(:)
-!  PetscReal, pointer :: icap_loc_p(:)
 
   type(realization_type) :: realization
 
@@ -320,8 +325,8 @@ subroutine RichardsCheckMassBalancePatch(realization)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(richards_parameter_type), pointer :: richards_parameter
-  type(richards_auxvar_type), pointer :: rich_aux_vars(:), rich_aux_vars_bc(:)
-  type(global_auxvar_type), pointer :: global_aux_vars(:), global_aux_vars_bc(:)
+  type(richards_auxvar_type), pointer :: rich_aux_vars(:)
+  type(global_auxvar_type), pointer :: global_aux_vars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscReal :: mass_conserv, res(1)
@@ -449,6 +454,7 @@ subroutine RichardsZeroMassBalDeltaPatch(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(global_auxvar_type), pointer :: global_aux_vars_bc(:)
+  type(global_auxvar_type), pointer :: global_aux_vars_ss(:)
 
   PetscInt :: iconn
 
@@ -456,6 +462,7 @@ subroutine RichardsZeroMassBalDeltaPatch(realization)
   patch => realization%patch
 
   global_aux_vars_bc => patch%aux%Global%aux_vars_bc
+  global_aux_vars_ss => patch%aux%Global%aux_vars_ss
 
 #ifdef COMPUTE_INTERNAL_MASS_FLUX
   do iconn = 1, patch%aux%Richards%num_aux
@@ -468,6 +475,11 @@ subroutine RichardsZeroMassBalDeltaPatch(realization)
   if (patch%aux%Richards%num_aux_bc > 0) then
     do iconn = 1, patch%aux%Richards%num_aux_bc
       global_aux_vars_bc(iconn)%mass_balance_delta = 0.d0
+    enddo
+  endif
+  if (patch%aux%Richards%num_aux_ss > 0) then
+    do iconn = 1, patch%aux%Richards%num_aux_ss
+      global_aux_vars_ss(iconn)%mass_balance_delta = 0.d0
     enddo
   endif
 
@@ -494,6 +506,7 @@ subroutine RichardsUpdateMassBalancePatch(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(global_auxvar_type), pointer :: global_aux_vars_bc(:)
+  type(global_auxvar_type), pointer :: global_aux_vars_ss(:)
 
   PetscInt :: iconn
 
@@ -501,6 +514,7 @@ subroutine RichardsUpdateMassBalancePatch(realization)
   patch => realization%patch
 
   global_aux_vars_bc => patch%aux%Global%aux_vars_bc
+  global_aux_vars_ss => patch%aux%Global%aux_vars_ss
 
 #ifdef COMPUTE_INTERNAL_MASS_FLUX
   do iconn = 1, patch%aux%Richards%num_aux
@@ -518,6 +532,14 @@ subroutine RichardsUpdateMassBalancePatch(realization)
       global_aux_vars_bc(iconn)%mass_balance = &
         global_aux_vars_bc(iconn)%mass_balance + &
         global_aux_vars_bc(iconn)%mass_balance_delta*FMWH2O*option%flow_dt
+    enddo
+  endif
+
+  if (patch%aux%Richards%num_aux_ss > 0) then
+    do iconn = 1, patch%aux%Richards%num_aux_ss
+      global_aux_vars_ss(iconn)%mass_balance = &
+        global_aux_vars_ss(iconn)%mass_balance + &
+        global_aux_vars_ss(iconn)%mass_balance_delta*FMWH2O*option%flow_dt
     enddo
   endif
 
@@ -671,12 +693,17 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
-  type(richards_auxvar_type), pointer :: rich_aux_vars(:), rich_aux_vars_bc(:)  
-  type(global_auxvar_type), pointer :: global_aux_vars(:), global_aux_vars_bc(:)  
+  type(richards_auxvar_type), pointer :: rich_aux_vars(:) 
+  type(richards_auxvar_type), pointer :: rich_aux_vars_bc(:)
+  type(richards_auxvar_type), pointer :: rich_aux_vars_ss(:)
+  type(global_auxvar_type), pointer :: global_aux_vars(:)
+  type(global_auxvar_type), pointer :: global_aux_vars_bc(:)  
+  type(global_auxvar_type), pointer :: global_aux_vars_ss(:)  
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn
   PetscInt :: iphasebc, iphase, i
-  PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:), xx_p(:)
+  PetscReal, pointer :: xx_loc_p(:), xx_p(:)
   PetscReal, pointer :: perm_xx_loc_p(:), porosity_loc_p(:)  
   PetscReal :: xxbc(realization%option%nflowdof)
   PetscErrorCode :: ierr
@@ -690,32 +717,25 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
 
   rich_aux_vars => patch%aux%Richards%aux_vars
   rich_aux_vars_bc => patch%aux%Richards%aux_vars_bc
+  rich_aux_vars_ss => patch%aux%Richards%aux_vars_ss
   global_aux_vars => patch%aux%Global%aux_vars
   global_aux_vars_bc => patch%aux%Global%aux_vars_bc
-
-
-
+  global_aux_vars_ss => patch%aux%Global%aux_vars_ss
     
   call GridVecGetArrayF90(grid,field%flow_xx, xx_p, ierr)
   call GridVecGetArrayF90(grid,field%flow_xx_loc,xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc,icap_loc_p,ierr)
   call GridVecGetArrayF90(grid,field%perm_xx_loc,perm_xx_loc_p,ierr)
   call GridVecGetArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)  
-
-
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
      
     !geh - Ignore inactive cells with inactive materials
-    if (associated(patch%imat)) then
-      if (patch%imat(ghosted_id) <= 0) cycle
-    endif
-
+    if (patch%imat(ghosted_id) <= 0) cycle
    
     call RichardsAuxVarCompute(xx_loc_p(ghosted_id:ghosted_id),rich_aux_vars(ghosted_id), &
                        global_aux_vars(ghosted_id), &
-                       realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+                       patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr, &
                        porosity_loc_p(ghosted_id),perm_xx_loc_p(ghosted_id), &                       
                        option)
   enddo
@@ -724,6 +744,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
 
   call PetscLogEventBegin(logging%event_r_auxvars_bc,ierr)
 
+  ! boundary conditions
   boundary_condition => patch%boundary_conditions%first
   sum_connection = 0    
   do 
@@ -733,9 +754,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
-      if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id) <= 0) cycle
-      endif
+      if (patch%imat(ghosted_id) <= 0) cycle
 
       select case(boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF))
         case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
@@ -746,16 +765,36 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
       
       call RichardsAuxVarCompute(xxbc(1),rich_aux_vars_bc(sum_connection), &
                          global_aux_vars_bc(sum_connection), &
-                         realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+                         patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr, &
                          porosity_loc_p(ghosted_id),perm_xx_loc_p(ghosted_id), &                         
                          option)
     enddo
     boundary_condition => boundary_condition%next
   enddo
 
+  ! source/sinks
+  source_sink => patch%source_sinks%first
+  sum_connection = 0    
+  do 
+    if (.not.associated(source_sink)) exit
+    cur_connection_set => source_sink%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+
+      call RichardsAuxVarCopy(rich_aux_vars(ghosted_id), &
+                              rich_aux_vars_ss(sum_connection),option)
+      call GlobalAuxVarCopy(global_aux_vars(ghosted_id), &
+                            global_aux_vars_ss(sum_connection),option)
+
+    enddo
+    source_sink => source_sink%next
+  enddo
+
   call GridVecRestoreArrayF90(grid,field%flow_xx, xx_p, ierr)
   call GridVecRestoreArrayF90(grid,field%flow_xx_loc,xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc,icap_loc_p,ierr)
   call GridVecRestoreArrayF90(grid,field%perm_xx_loc,perm_xx_loc_p,ierr)
   call GridVecRestoreArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)  
   
@@ -844,9 +883,7 @@ subroutine RichardsInitialPressureReconstructionPatch(realization)
     ghosted_id = grid%nL2G(local_id)   
  
     !geh - Ignore inactive cells with inactive materials
-    if (associated(patch%imat)) then
-      if (patch%imat(ghosted_id) <= 0) cycle
-    endif
+    if (patch%imat(ghosted_id) <= 0) cycle
     mfd_aux_var => grid%MFD%aux_vars(local_id)
     do j = 1, mfd_aux_var%numfaces
        ghost_face_id = mfd_aux_var%face_id_gh(j)
@@ -863,10 +900,8 @@ subroutine RichardsInitialPressureReconstructionPatch(realization)
  
         
         !geh - Ignore inactive cells with inactive materials
-        if (associated(patch%imat)) then
-          if (patch%imat(ghosted_id) <= 0) cycle
-        endif
-
+        if (patch%imat(ghosted_id) <= 0) cycle
+ 
         Res(1) = 0
 
         source_f = 0.
@@ -991,9 +1026,7 @@ subroutine RichardsUpdateCellPressurePatch(realization)
     ghosted_id = grid%nL2G(local_id)   
  
     !geh - Ignore inactive cells with inactive materials
-    if (associated(patch%imat)) then
-      if (patch%imat(ghosted_id) <= 0) cycle
-    endif
+    if (patch%imat(ghosted_id) <= 0) cycle
     mfd_aux_var => grid%MFD%aux_vars(local_id)
     do j = 1, mfd_aux_var%numfaces
        ghost_face_id = mfd_aux_var%face_id_gh(j)
@@ -1010,9 +1043,7 @@ subroutine RichardsUpdateCellPressurePatch(realization)
  
         
         !geh - Ignore inactive cells with inactive materials
-        if (associated(patch%imat)) then
-          if (patch%imat(ghosted_id) <= 0) cycle
-        endif
+        if (patch%imat(ghosted_id) <= 0) cycle
         
 
        call RichardsAccumulation(rich_aux_vars(ghosted_id), &
@@ -1105,7 +1136,7 @@ subroutine RichardsUpdateAuxVarsPatchMFD(realization)
   PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, i,j
   PetscInt :: iphasebc, iphase
   PetscInt :: ghost_face_id, iface, jface, numfaces
-  PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:), xx_faces_p(:), bc_loc_p(:), accum_p(:)
+  PetscReal, pointer :: xx_loc_p(:), xx_faces_p(:), bc_loc_p(:), accum_p(:)
   PetscReal, pointer :: perm_xx_loc_p(:), porosity_loc_p(:), volume_p(:)  
   PetscReal, pointer :: sq_faces(:), darcy_v(:), faces_pr(:)
   PetscReal :: Res(realization%option%nflowdof), source_f(realization%option%nflowdof)
@@ -1138,7 +1169,6 @@ subroutine RichardsUpdateAuxVarsPatchMFD(realization)
     
   call GridVecGetArrayF90(grid,field%flow_xx, xx_loc_p, ierr)
   call VecGetArrayF90(field%flow_xx_loc_faces, xx_faces_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc, icap_loc_p,ierr)
   call GridVecGetArrayF90(grid,field%perm0_xx, perm_xx_loc_p,ierr)
   call GridVecGetArrayF90(grid,field%porosity0, porosity_loc_p,ierr)  
   call GridVecGetArrayF90(grid,field%volume, volume_p,ierr)  
@@ -1155,9 +1185,7 @@ subroutine RichardsUpdateAuxVarsPatchMFD(realization)
     ghosted_id = grid%nL2G(local_id)   
  
     !geh - Ignore inactive cells with inactive materials
-    if (associated(patch%imat)) then
-      if (patch%imat(ghosted_id) <= 0) cycle
-    endif
+    if (patch%imat(ghosted_id) <= 0) cycle
     mfd_aux_var => grid%MFD%aux_vars(local_id)
     do j = 1, mfd_aux_var%numfaces
        ghost_face_id = mfd_aux_var%face_id_gh(j)
@@ -1169,9 +1197,7 @@ subroutine RichardsUpdateAuxVarsPatchMFD(realization)
  
         
         !geh - Ignore inactive cells with inactive materials
-        if (associated(patch%imat)) then
-          if (patch%imat(ghosted_id) <= 0) cycle
-        endif
+        if (patch%imat(ghosted_id) <= 0) cycle
         call RichardsAccumulation(rich_aux_vars(ghosted_id), &
                                 global_aux_vars(ghosted_id), &
                                 porosity_loc_p(ghosted_id), &
@@ -1199,7 +1225,7 @@ subroutine RichardsUpdateAuxVarsPatchMFD(realization)
    
        call RichardsAuxVarCompute(xx_loc_p(local_id:local_id),rich_aux_vars(ghosted_id), &
                        global_aux_vars(ghosted_id), &
-                       realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+                       patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr, &
                        porosity_loc_p(local_id),perm_xx_loc_p(local_id), &                       
                        option)
 
@@ -1220,9 +1246,7 @@ subroutine RichardsUpdateAuxVarsPatchMFD(realization)
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
-      if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id) <= 0) cycle
-      endif
+      if (patch%imat(ghosted_id) <= 0) cycle
 
       select case(boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF))
         case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
@@ -1236,7 +1260,7 @@ subroutine RichardsUpdateAuxVarsPatchMFD(realization)
       
       call RichardsAuxVarCompute(xxbc(1),rich_aux_vars_bc(sum_connection), &
                          global_aux_vars_bc(sum_connection), &
-                         realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+                         patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr, &
                          porosity_loc_p(ghosted_id),perm_xx_loc_p(ghosted_id), &                         
                          option)
     enddo
@@ -1247,7 +1271,6 @@ subroutine RichardsUpdateAuxVarsPatchMFD(realization)
 
   call GridVecRestoreArrayF90(grid,field%flow_xx, xx_loc_p, ierr)
   call VecRestoreArrayF90(field%flow_xx_loc_faces, xx_faces_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc, icap_loc_p,ierr)
   call GridVecRestoreArrayF90(grid,field%perm0_xx, perm_xx_loc_p,ierr)
   call GridVecRestoreArrayF90(grid,field%porosity0, porosity_loc_p,ierr)  
   call GridVecRestoreArrayF90(grid,field%volume, volume_p,ierr)  
@@ -1425,7 +1448,7 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
   type(global_auxvar_type), pointer :: global_aux_vars(:)
 
   PetscInt :: ghosted_id, local_id, numfaces, jface, ghost_face_id, j
-  PetscReal, pointer :: xx_p(:), icap_loc_p(:), iphase_loc_p(:)
+  PetscReal, pointer :: xx_p(:), iphase_loc_p(:)
   PetscReal, pointer :: porosity_loc_p(:), tor_loc_p(:), volume_p(:), &
                           accum_p(:), perm_xx_loc_p(:)
 !  PetscReal, pointer :: xx_faces_p(:)
@@ -1446,7 +1469,6 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
   global_aux_vars => patch%aux%Global%aux_vars
     
   call GridVecGetArrayF90(grid,field%flow_xx,xx_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc,icap_loc_p,ierr)
   call GridVecGetArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
   call GridVecGetArrayF90(grid,field%tortuosity_loc,tor_loc_p,ierr)
   call GridVecGetArrayF90(grid,field%volume,volume_p,ierr)
@@ -1468,7 +1490,7 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
     if (patch%imat(ghosted_id) <= 0) cycle
     call RichardsAuxVarCompute(xx_p(local_id:local_id), &
                    rich_aux_vars(ghosted_id),global_aux_vars(ghosted_id), &
-                   realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+                   patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr, &
                    porosity_loc_p(ghosted_id),perm_xx_loc_p(ghosted_id), &                        
                    option)
     call RichardsAccumulation(rich_aux_vars(ghosted_id),global_aux_vars(ghosted_id), &
@@ -1478,7 +1500,6 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
   enddo
 
   call GridVecRestoreArrayF90(grid,field%flow_xx,xx_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc,icap_loc_p,ierr)
   call GridVecRestoreArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
   call GridVecRestoreArrayF90(grid,field%tortuosity_loc,tor_loc_p,ierr)
   call GridVecRestoreArrayF90(grid,field%volume,volume_p,ierr)
@@ -1550,9 +1571,7 @@ subroutine RichardsNumericalJacTest(xx,realization)
   call RichardsResidual(PETSC_NULL_OBJECT,xx,res,realization,ierr)
   call GridVecGetArrayF90(grid,res,vec2_p,ierr)
   do icell = 1,grid%nlmax
-    if (associated(patch%imat)) then
-      if (patch%imat(grid%nL2G(icell)) <= 0) cycle
-    endif
+    if (patch%imat(grid%nL2G(icell)) <= 0) cycle
      idof = icell
 !    do idof = (icell-1)*option%nflowdof+1,icell*option%nflowdof 
       call veccopy(xx,xx_pert,ierr)
@@ -2423,7 +2442,6 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   ! These 3 must be called before RichardsUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
   call DiscretizationLocalToLocal(discretization,field%iphas_loc,field%iphas_loc,ONEDOF)
-  call DiscretizationLocalToLocal(discretization,field%icap_loc,field%icap_loc,ONEDOF)
 
   call DiscretizationLocalToLocal(discretization,field%perm_xx_loc,field%perm_xx_loc,ONEDOF)
   call DiscretizationLocalToLocal(discretization,field%perm_yy_loc,field%perm_yy_loc,ONEDOF)
@@ -2593,7 +2611,6 @@ subroutine RichardsResidualMFD(snes,xx,r,realization,ierr)
 !  read(*,*)
 
   call DiscretizationLocalToLocal(discretization,field%iphas_loc,field%iphas_loc,ONEDOF)
-  call DiscretizationLocalToLocal(discretization,field%icap_loc,field%icap_loc,ONEDOF)
 
 
   call DiscretizationLocalToLocal(discretization,field%perm_xx_loc,field%perm_xx_loc,ONEDOF)
@@ -2831,7 +2848,6 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
 
   PetscReal, pointer :: r_p(:), porosity_loc_p(:), &
                         perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
-  PetscReal, pointer :: icap_loc_p(:)
 
   PetscReal, pointer :: face_fluxes_p(:)
   PetscInt :: icap_up, icap_dn
@@ -2900,7 +2916,6 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
   call GridVecGetArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
   call GridVecGetArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
   call GridVecGetArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
   !print *,' Finished scattering non deriv'
 
   if (option%use_samr) then
@@ -2981,8 +2996,8 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
                 perm_yy_loc_p(ghosted_id_dn)*dabs(cur_connection_set%dist(2,iconn))+ &
                 perm_zz_loc_p(ghosted_id_dn)*dabs(cur_connection_set%dist(3,iconn))
 
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
+      icap_up = patch%sat_func_id(ghosted_id_up)
+      icap_dn = patch%sat_func_id(ghosted_id_dn)
 
 
       call RichardsFlux(rich_aux_vars(ghosted_id_up), &
@@ -3085,7 +3100,7 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
       perm_dn = perm_xx_loc_p(ghosted_id)*dabs(cur_connection_set%dist(1,iconn))+ &
                 perm_yy_loc_p(ghosted_id)*dabs(cur_connection_set%dist(2,iconn))+ &
                 perm_zz_loc_p(ghosted_id)*dabs(cur_connection_set%dist(3,iconn))
-      icap_dn = int(icap_loc_p(ghosted_id)) 
+      icap_dn = patch%sat_func_id(ghosted_id)
 
 
       call RichardsBCFlux(boundary_condition%flow_condition%itype, &
@@ -3181,7 +3196,6 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
   call GridVecRestoreArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
   call GridVecRestoreArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
   call GridVecRestoreArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
 
   !read(*,*) local_id
 
@@ -3233,11 +3247,12 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(richards_parameter_type), pointer :: richards_parameter
-  type(richards_auxvar_type), pointer :: rich_aux_vars(:), rich_aux_vars_bc(:)
-  type(global_auxvar_type), pointer :: global_aux_vars(:), global_aux_vars_bc(:)
+  type(richards_auxvar_type), pointer :: rich_aux_vars(:), rich_aux_vars_ss(:)
+  type(global_auxvar_type), pointer :: global_aux_vars(:), global_aux_vars_ss(:)
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
+  PetscInt :: sum_connection
   
   patch => realization%patch
   grid => patch%grid
@@ -3245,9 +3260,9 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   field => realization%field
   richards_parameter => patch%aux%Richards%richards_parameter
   rich_aux_vars => patch%aux%Richards%aux_vars
-  rich_aux_vars_bc => patch%aux%Richards%aux_vars_bc
+  rich_aux_vars_ss => patch%aux%Richards%aux_vars_ss
   global_aux_vars => patch%aux%Global%aux_vars
-  global_aux_vars_bc => patch%aux%Global%aux_vars_bc
+  global_aux_vars_ss => patch%aux%Global%aux_vars_ss
 
 ! now assign access pointer to local variables
   call GridVecGetArrayF90(grid,r, r_p, ierr)
@@ -3279,7 +3294,8 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   endif
 #if 1
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first 
+  source_sink => patch%source_sinks%first
+  sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
     
@@ -3287,7 +3303,8 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
       
     cur_connection_set => source_sink%connection_set
     
-    do iconn = 1, cur_connection_set%num_connections      
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1     
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
@@ -3310,12 +3327,16 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
           qsrc_mol = qsrc*global_aux_vars(ghosted_id)%den(1)* & ! den = kmol/m^3
             source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
       end select
-!      if (option%compute_mass_balance_new) then
+      if (option%compute_mass_balance_new) then
         ! need to added global aux_var for src/sink
-!        global_aux_vars_ss(ghosted_id)%mass_balance_delta(1) = &
-!          global_aux_vars_ss(ghosted_id)%mass_balance_delta(1) - qsrc_kg
-!      endif
+        global_aux_vars_ss(sum_connection)%mass_balance_delta(1,1) = &
+          global_aux_vars_ss(sum_connection)%mass_balance_delta(1,1) - &
+          qsrc_mol
+      endif
       r_p(local_id) = r_p(local_id) - qsrc_mol
+      ! fluid flux [m^3/sec] = qsrc_mol [kmol/sec] / den [kmol/m^3]
+      patch%ss_fluid_fluxes(1,sum_connection) = qsrc_mol / &
+                                             global_aux_vars(ghosted_id)%den(1)
     enddo
     source_sink => source_sink%next
   enddo
@@ -3420,7 +3441,6 @@ subroutine RichardsResidualPatchMFD1(snes,xx,r,realization,ierr)
                         perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:),&
                         volume_p(:), xx_loc_faces_p(:), xx_p(:), work_loc_faces_p(:), &
                         perm_xz_loc_p(:), perm_xy_loc_p(:), perm_yz_loc_p(:)
-!  PetscReal, pointer :: icap_loc_p(:)
 
   PetscReal, pointer :: face_fluxes_p(:), bc_faces_p(:)
 
@@ -3432,8 +3452,8 @@ subroutine RichardsResidualPatchMFD1(snes,xx,r,realization,ierr)
   type(field_type), pointer :: field
   type(coupler_type), pointer :: boundary_condition
   type(richards_parameter_type), pointer :: richards_parameter
-  type(richards_auxvar_type), pointer :: rich_aux_vars(:), rich_aux_vars_bc(:)
-  type(global_auxvar_type), pointer :: global_aux_vars(:), global_aux_vars_bc(:)
+  type(richards_auxvar_type), pointer :: rich_aux_vars(:)
+  type(global_auxvar_type), pointer :: global_aux_vars(:)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
@@ -3456,9 +3476,7 @@ subroutine RichardsResidualPatchMFD1(snes,xx,r,realization,ierr)
   field => realization%field
   richards_parameter => patch%aux%Richards%richards_parameter
   rich_aux_vars => patch%aux%Richards%aux_vars
-  rich_aux_vars_bc => patch%aux%Richards%aux_vars_bc
   global_aux_vars => patch%aux%Global%aux_vars
-  global_aux_vars_bc => patch%aux%Global%aux_vars_bc
   discretization => realization%discretization 
 
 !  call RichardsUpdateAuxVarsPatchMFD(realization)
@@ -3550,10 +3568,8 @@ subroutine RichardsResidualPatchMFD1(snes,xx,r,realization,ierr)
 
     ghosted_id = grid%nL2G(icell)
       !geh - Ignore inactive cells with inactive materials
-      if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id) <= 0) cycle
-      endif
-
+      if (patch%imat(ghosted_id) <= 0) cycle
+ 
 
       PermTensor = 0.
       PermTensor(1,1) = perm_xx_loc_p(ghosted_id)
@@ -3674,8 +3690,8 @@ subroutine RichardsResidualPatchMFD2(snes,xx,r,realization,ierr)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(richards_parameter_type), pointer :: richards_parameter
-  type(richards_auxvar_type), pointer :: rich_aux_vars(:), rich_aux_vars_bc(:)
-  type(global_auxvar_type), pointer :: global_aux_vars(:), global_aux_vars_bc(:)
+  type(richards_auxvar_type), pointer :: rich_aux_vars(:)
+  type(global_auxvar_type), pointer :: global_aux_vars(:)
   type(coupler_type), pointer :: source_sink, boundary_condition
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn, sum_connection, bc_type, stride
@@ -3699,9 +3715,7 @@ subroutine RichardsResidualPatchMFD2(snes,xx,r,realization,ierr)
   field => realization%field
   richards_parameter => patch%aux%Richards%richards_parameter
   rich_aux_vars => patch%aux%Richards%aux_vars
-  rich_aux_vars_bc => patch%aux%Richards%aux_vars_bc
   global_aux_vars => patch%aux%Global%aux_vars
-  global_aux_vars_bc => patch%aux%Global%aux_vars_bc
 
 
 
@@ -3779,9 +3793,7 @@ subroutine RichardsResidualPatchMFD2(snes,xx,r,realization,ierr)
          
 
         !geh - Ignore inactive cells with inactive materials
-        if (associated(patch%imat)) then
-          if (patch%imat(ghosted_id) <= 0) cycle
-        endif
+        if (patch%imat(ghosted_id) <= 0) cycle
         call RichardsAccumulation(rich_aux_vars(ghosted_id), &
                                 global_aux_vars(ghosted_id), &
                                 porosity_loc_p(ghosted_id), &
@@ -4175,8 +4187,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
 
   PetscReal, pointer :: porosity_loc_p(:), &
                         perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
-  PetscReal, pointer :: icap_loc_p(:)
-  PetscInt :: icap,icap_up,icap_dn
+  PetscInt :: icap_up,icap_dn
   PetscReal :: dd_up, dd_dn
   PetscReal :: perm_up, perm_dn
   PetscReal :: upweight
@@ -4214,7 +4225,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
   global_aux_vars => patch%aux%Global%aux_vars
   global_aux_vars_bc => patch%aux%Global%aux_vars_bc
 
-#ifdef GLENN
+#ifdef BUFFER_MATRIX
   if (option%use_matrix_buffer) then
     if (associated(patch%aux%Richards%matrix_buffer)) then
       call MatrixBufferZero(patch%aux%Richards%matrix_buffer)
@@ -4229,7 +4240,6 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
   call GridVecGetArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
   call GridVecGetArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
   call GridVecGetArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
   
 #if 1
   ! Interior Flux Terms -----------------------------------  
@@ -4274,8 +4284,8 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
                 perm_yy_loc_p(ghosted_id_dn)*dabs(cur_connection_set%dist(2,iconn))+ &
                 perm_zz_loc_p(ghosted_id_dn)*dabs(cur_connection_set%dist(3,iconn))
     
-      icap_up = int(icap_loc_p(ghosted_id_up))
-      icap_dn = int(icap_loc_p(ghosted_id_dn))
+      icap_up = patch%sat_func_id(ghosted_id_up)
+      icap_dn = patch%sat_func_id(ghosted_id_dn)
                               
       call RichardsFluxDerivative(rich_aux_vars(ghosted_id_up), &
                                   global_aux_vars(ghosted_id_up), &
@@ -4289,11 +4299,11 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
                                     dd_dn,perm_dn, &
                                   cur_connection_set%area(iconn), cur_connection_set%dist(1:3,iconn), distance_gravity, &
                                   upweight,option,&
-                                  realization%saturation_function_array(icap_up)%ptr,&
-                                  realization%saturation_function_array(icap_dn)%ptr,&
+                                  patch%saturation_function_array(icap_up)%ptr,&
+                                  patch%saturation_function_array(icap_dn)%ptr,&
                                   Jup,Jdn)
       if (local_id_up > 0) then
-#ifdef GLENN
+#ifdef BUFFER_MATRIX
         if (option%use_matrix_buffer) then
           call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id_up, &
                                ghosted_id_up,Jup(1,1))
@@ -4305,14 +4315,14 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
                                         Jup,ADD_VALUES,ierr)
           call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
                                         Jdn,ADD_VALUES,ierr)
-#ifdef GLENN
+#ifdef BUFFER_MATRIX
         endif
 #endif
       endif
       if (local_id_dn > 0) then
         Jup = -Jup
         Jdn = -Jdn
-#ifdef GLENN
+#ifdef BUFFER_MATRIX
         if (option%use_matrix_buffer) then
           call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id_dn, &
                                ghosted_id_dn,Jdn(1,1))
@@ -4324,7 +4334,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
                                         Jdn,ADD_VALUES,ierr)
           call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                                         Jup,ADD_VALUES,ierr)
-#ifdef GLENN
+#ifdef BUFFER_MATRIX
         endif
 #endif
       endif
@@ -4368,7 +4378,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
       perm_dn = perm_xx_loc_p(ghosted_id)*dabs(cur_connection_set%dist(1,iconn))+ &
                 perm_yy_loc_p(ghosted_id)*dabs(cur_connection_set%dist(2,iconn))+ &
                 perm_zz_loc_p(ghosted_id)*dabs(cur_connection_set%dist(3,iconn))
-      icap_dn = int(icap_loc_p(ghosted_id))  
+      icap_dn = patch%sat_func_id(ghosted_id) 
 
       call RichardsBCFluxDerivative(boundary_condition%flow_condition%itype, &
                                 boundary_condition%flow_aux_real_var(:,iconn), &
@@ -4382,10 +4392,10 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
                                 cur_connection_set%area(iconn), &
                                 cur_connection_set%dist(0:3,iconn), &
                                 option, &
-                                realization%saturation_function_array(icap_dn)%ptr,&
+                                patch%saturation_function_array(icap_dn)%ptr,&
                                 Jdn)
       Jdn = -Jdn
-#ifdef GLENN
+#ifdef BUFFER_MATRIX
       if (option%use_matrix_buffer) then
         call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id, &
                              ghosted_id,Jdn(1,1))
@@ -4393,7 +4403,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
 #endif
         call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
                                ADD_VALUES,ierr)
-#ifdef GLENN
+#ifdef BUFFER_MATRIX
       endif
 #endif
  
@@ -4416,7 +4426,6 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
   call GridVecRestoreArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
   call GridVecRestoreArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
   call GridVecRestoreArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
 
 end subroutine RichardsJacobianPatch1
 
@@ -4471,7 +4480,7 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
 
   PetscErrorCode :: ierr
 
-  PetscReal, pointer :: porosity_loc_p(:), volume_p(:), icap_loc_p(:)
+  PetscReal, pointer :: porosity_loc_p(:), volume_p(:)
   PetscReal :: qsrc
   PetscInt :: icap
   PetscInt :: local_id, ghosted_id
@@ -4501,7 +4510,6 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
 
   call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
   call GridVecGetArrayF90(grid,field%volume, volume_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
   
   if (.not.option%steady_state) then
 #if 1
@@ -4510,15 +4518,15 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
     ghosted_id = grid%nL2G(local_id)
     !geh - Ignore inactive cells with inactive materials
     if (patch%imat(ghosted_id) <= 0) cycle
-    icap = int(icap_loc_p(ghosted_id))
+    icap = patch%sat_func_id(ghosted_id)
     call RichardsAccumDerivative(rich_aux_vars(ghosted_id), &
                               global_aux_vars(ghosted_id), &
                               porosity_loc_p(ghosted_id), &
                               volume_p(local_id), &
                               option, &
-                              realization%saturation_function_array(icap)%ptr,&
+                              patch%saturation_function_array(icap)%ptr,&
                               Jup) 
-#ifdef GLENN
+#ifdef BUFFER_MATRIX
     if (option%use_matrix_buffer) then
       call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id, &
                            ghosted_id,Jup(1,1))
@@ -4526,7 +4534,7 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
 #endif
       call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                              ADD_VALUES,ierr)
-#ifdef GLENN
+#ifdef BUFFER_MATRIX
     endif
 #endif
 !!$    if(option%use_samr) then
@@ -4577,14 +4585,14 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
             source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
 
       end select
-#ifdef GLENN
+#ifdef BUFFER_MATRIX
       if (option%use_matrix_buffer) then
         call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id, &
                              ghosted_id,Jup(1,1))
       else
 #endif
         call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup,ADD_VALUES,ierr)  
-#ifdef GLENN
+#ifdef BUFFER_MATRIX
       endif
 #endif
 
@@ -4610,9 +4618,8 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
   
   call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
   call GridVecRestoreArrayF90(grid,field%volume, volume_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
 
-#ifdef GLENN
+#ifdef BUFFER_MATRIX
   if (option%use_matrix_buffer) then
     if (patch%aux%Richards%inactive_cells_exist) then
       call MatrixBufferZeroRows(patch%aux%Richards%matrix_buffer, &
@@ -4627,7 +4634,7 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr)
 
 ! zero out isothermal and inactive cells
-#ifdef GLENN
+#ifdef BUFFER_MATRIX
   if (.not.option%use_matrix_buffer) then
 #endif
     if (patch%aux%Richards%inactive_cells_exist) then
@@ -4636,7 +4643,7 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
                             patch%aux%Richards%zero_rows_local_ghosted, &
                             qsrc,PETSC_NULL_OBJECT,PETSC_NULL_OBJECT,ierr) 
     endif
-#ifdef GLENN
+#ifdef BUFFER_MATRIX
   endif
 #endif
 
@@ -4686,8 +4693,7 @@ subroutine RichardsJacobianPatchMFD (snes,xx,A,B,flag,realization,ierr)
   PetscReal, pointer :: porosity_loc_p(:), &
                         perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:), &
                         perm_xz_loc_p(:), perm_xy_loc_p(:), perm_yz_loc_p(:)
-  PetscReal, pointer :: icap_loc_p(:), accum_p(:), xx_p(:)
-  PetscInt :: icap
+  PetscReal, pointer :: accum_p(:), xx_p(:)
   PetscReal :: dd_up, dd_dn
   PetscReal :: perm_up, perm_dn
   PetscReal :: upweight
@@ -4915,14 +4921,12 @@ subroutine RichardsCreateZeroArray(patch,option)
   
   n_zero_rows = 0
 
-  if (associated(patch%imat)) then
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) then
-        n_zero_rows = n_zero_rows + option%nflowdof
-      endif
-    enddo
-  endif
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) then
+      n_zero_rows = n_zero_rows + option%nflowdof
+    endif
+  enddo
 
   allocate(zero_rows_local(n_zero_rows))
   allocate(zero_rows_local_ghosted(n_zero_rows))
@@ -4931,18 +4935,16 @@ subroutine RichardsCreateZeroArray(patch,option)
   zero_rows_local_ghosted = 0
   ncount = 0
 
-  if (associated(patch%imat)) then
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) then
-        do idof = 1, option%nflowdof
-          ncount = ncount + 1
-          zero_rows_local(ncount) = (local_id-1)*option%nflowdof+idof
-          zero_rows_local_ghosted(ncount) = (ghosted_id-1)*option%nflowdof+idof-1
-        enddo
-      endif
-    enddo
-  endif
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) then
+      do idof = 1, option%nflowdof
+        ncount = ncount + 1
+        zero_rows_local(ncount) = (local_id-1)*option%nflowdof+idof
+        zero_rows_local_ghosted(ncount) = (ghosted_id-1)*option%nflowdof+idof-1
+      enddo
+    endif
+  enddo
 
   patch%aux%Richards%zero_rows_local => zero_rows_local
   patch%aux%Richards%zero_rows_local_ghosted => zero_rows_local_ghosted
