@@ -22,6 +22,10 @@ ifdef glenn
 GLENN_FLAGS = -DOS_STATISTICS -DGLENN -DENABLE_UNSTRUCTURED
 endif
 
+ifdef dbl
+DBL_FLAG = -DDOUBLE_LAYER
+endif
+
 ifdef temp
 TEMP_FLAG = -DTEMP_DEPENDENT_LOGK
 endif
@@ -30,8 +34,8 @@ ifdef chuan_co2
 CHUAN_FLAG = -DCHUAN_CO2
 endif
 
-ifdef scott 
-SCOTT_FLAGS = -DENABLE_UNSTRUCTURED -DGEH_DEBUG -fbounds-check
+ifdef debug_gen
+SCOTT_FLAGS = -DDEBUG_GENERAL
 endif 
 
 ifdef coll
@@ -71,11 +75,11 @@ ifdef dasvyat_test_cut
 endif
 
 ifdef gautam
-  GAUTAM_FLAGS = -DOS_STATISTICS -DGLENN -DENABLE_UNSTRUCTURED -w -DMIXED_UMESH -DREARRANGE_CONN #-DPARALLELIO_LIB #-DGEH_DEBUG -DGB_DEBUG
+  GAUTAM_FLAGS = -DOS_STATISTICS -DENABLE_UNSTRUCTURED -w -DMIXED_UMESH -DREARRANGE_CONN -DGB_DEBUG -g #-DPARALLELIO_LIB #-DGEH_DEBUG -DGB_DEBUG
 endif
 
 MYFLAGS = -I${objdir} $(HDF5_FLAGS) $(DASVYAT) $(DASVYAT_DEBUG)\
-          $(COMPILE_BROKEN_FLAGS) $(GLENN_FLAGS) $(UO2_FLAG) $(TEMP_FLAG) $(GPU_FLAGS)\
+          $(COMPILE_BROKEN_FLAGS) $(GLENN_FLAGS) $(UO2_FLAG) $(DBL_FLAG) $(TEMP_FLAG) $(GPU_FLAGS)\
 				$(CHUAN_FLAG) $(SCOTT_FLAGS) $(COLL_FLAG) $(DENSITY_FLAG) $(GAUTAM_FLAGS)
 
 CFLAGS		 = 
@@ -159,6 +163,7 @@ common_obj = ${common_src}option.o \
 	${common_src}grid.o \
 	${common_src}matrix_buffer.o \
 	${common_src}hydrostatic.o \
+	${common_src}saturation.o \
 	${common_src}patch.o \
         ${common_src}mfd.o\
 	${common_src}level.o \
@@ -253,16 +258,17 @@ realization.o : grid.o option.o region.o condition.o coupler.o material.o \
                 fluid.o saturation_function.o dataset.o
 patch.o : option.o grid.o coupler.o observation.o strata.o region.o \
           auxilliary.o reaction.o condition.o connection.o hydrostatic.o \
-          field.o
+          field.o saturation.o
 level.o : patch.o option.o
 strata.o : input.o region.o material.o
 hydrostatic.o : option.o grid.o coupler.o condition.o connection.o region.o \
                 structured_grid.o
+saturation.o : option.o grid.o coupler.o condition.o connection.o region.o
 waypoint.o : option.o 
 output.o : grid.o structured_grid.o option.o realization.o field.o \
            coupler.o connection.o hdf5.o observation.o \
            reactive_transport.o \
-           thc.o richards.o mphase.o flash2.o \
+           thc.o richards.o mphase.o flash2.o general.o \
            discretization.o logging.o amrgrid.o
 reaction.o : reactive_transport_aux.o reaction_aux.o option.o string.o
 reaction_chunk.o : reactive_transport_aux.o reaction_aux.o option.o string.o
@@ -296,7 +302,7 @@ immis_aux.o :  option.o material.o water_eos.o co2_span_wagner.o \
 flash2_aux.o :  option.o material.o water_eos.o co2_span_wagner.o \
 		co2eos.o co2_span_wagner_spline.o co2_sw.o pckr_mod.o fluid.o \
 		saturation_function.o
-timestepper.o : thc.o richards.o mphase.o flash2.o \
+timestepper.o : thc.o richards.o mphase.o flash2.o general.o \
                 realization.o grid.o option.o field.o solver.o \
                 output.o convergence.o checkpoint.o waypoint.o logging.o \
                 mass_balance.o input.o string.o reactive_transport.o

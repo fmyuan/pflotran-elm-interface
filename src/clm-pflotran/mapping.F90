@@ -229,27 +229,27 @@ contains
     allocate(int_array2(map%s2d_s_ncells))
     allocate(int_array3(map%s2d_s_ncells))
     allocate(int_array4(map%s2d_s_ncells))
-	
-	!
-	! Follows Glenn's approach in unstructured code to remove duplicate
-	! vertices.
-	!
-	! map%s2d_s_cell_ids - Contains source mesh cell ids with duplicate entries
-	! The algo is explained below: 
-	!     int_array  : Cell-ids
-	!     int_array2 : Sorted index
-	!     int_array3 : Distinct values
-	!     int_array4 : Indices w.r.t. new distinct value vector
-	!
-	!  ii  int_array  int_array2  int_array3  int_array4
-	!   1     90         6           70          3
-	!   2    100         3           80          4
-	!   3     80         1           90          2
-	!   4    100         2          100          4
-	!   5    101         4          101          5
-	!   6     70         5                       1
-	!
-	
+  
+  !
+  ! Follows Glenn's approach in unstructured code to remove duplicate
+  ! vertices.
+  !
+  ! map%s2d_s_cell_ids - Contains source mesh cell ids with duplicate entries
+  ! The algo is explained below: 
+  !     int_array  : Cell-ids
+  !     int_array2 : Sorted index
+  !     int_array3 : Distinct values
+  !     int_array4 : Indices w.r.t. new distinct value vector
+  !
+  !  ii  int_array  int_array2  int_array3  int_array4
+  !   1     90         6           70          3
+  !   2    100         3           80          4
+  !   3     80         1           90          2
+  !   4    100         2          100          4
+  !   5    101         4          101          5
+  !   6     70         5                       1
+  !
+  
     do ii = 1,map%s2d_s_ncells
       int_array(ii)  = map%s2d_s_cell_ids(ii)
       int_array2(ii) = ii
@@ -274,7 +274,7 @@ contains
       int_array4(int_array2(ii)) = count 
     enddo
     
-	! Change 1-based index to 0-based index
+  ! Change 1-based index to 0-based index
     int_array4 = int_array4 - 1
     
     map%s2d_s_ncells_distinct = count
@@ -418,7 +418,7 @@ contains
                 endif
              enddo
           enddo
-		  
+      
           ! 2) Save the cell-ids of overlapped cells
           s2d_wts_nonzero_rcount_csr = 0
 
@@ -453,8 +453,8 @@ contains
                 call MPI_Send(s2d_s_cell_ids, s2d_s_ncells, MPI_INTEGER         ,&
                    irank, option%myrank, option%mycomm, ierr)
                 do ii = 1,s2d_s_ncells
-				   !write(*,*), ii, s2d_s_cell_ids(ii), wt_ovp_tmp(ii)
-				enddo
+           !write(*,*), ii, s2d_s_cell_ids(ii), wt_ovp_tmp(ii)
+        enddo
 
                 ! Free memory
                 deallocate(s2d_s_cell_ids)
@@ -476,7 +476,7 @@ contains
                 do ii = 1,map%s2d_s_ncells
                    map%s2d_s_cell_ids(ii)  = s2d_s_cell_ids(ii)
                    map%s2d_wts(ii)         = wt_ovp_tmp(ii)
-				   !write(*,*), ii, s2d_s_cell_ids(ii), wt_ovp_tmp(ii)
+           !write(*,*), ii, s2d_s_cell_ids(ii), wt_ovp_tmp(ii)
                 enddo
 
                 ! Free memory
@@ -525,7 +525,7 @@ contains
        endif
 
     endif
-	
+  
   end subroutine MappingReadTxtFile
 
   ! ************************************************************************** !
@@ -661,17 +661,18 @@ contains
                 wts_mat_row_loc(ii) = wts_mat_row_tmp(ii)
                 wts_mat_col_loc(ii) = wts_mat_col_tmp(ii)
                 wts_mat_loc(ii)     = wts_mat_tmp(ii)
+                write(*,*), ii, wts_mat_row_loc(ii), wts_mat_col_loc(ii), wts_mat_loc(ii)
              enddo
           else
              ! Otherwise communicate to other ranks
              call MPI_Send(num_to_read,1,MPI_INTEGER,irank,option%myrank, &
-			    option%mycomm,ierr)
+          option%mycomm,ierr)
              call MPI_Send(wts_mat_row_tmp,num_to_read,MPI_INTEGER,irank, &
-			    option%myrank,option%mycomm,ierr)
+          option%myrank,option%mycomm,ierr)
              call MPI_Send(wts_mat_col_tmp,num_to_read,MPI_INTEGER,irank, &
-			    option%myrank,option%mycomm,ierr)
+          option%myrank,option%mycomm,ierr)
              call MPI_Send(wts_mat_tmp,num_to_read,MPI_DOUBLE_PRECISION, &
-			    irank,option%myrank,option%mycomm,ierr)
+          irank,option%myrank,option%mycomm,ierr)
           endif
 
        enddo
@@ -683,16 +684,16 @@ contains
     else
        ! Other ranks receive data from io_rank
        call MPI_Recv(num_wts_loc,1,MPI_INTEGER,option%io_rank,MPI_ANY_TAG, &
-	      option%mycomm,status_mpi,ierr)
+        option%mycomm,status_mpi,ierr)
        allocate(wts_mat_row_loc(num_wts_loc))
        allocate(wts_mat_col_loc(num_wts_loc))
        allocate(wts_mat_loc(    num_wts_loc))
        call MPI_Recv(wts_mat_row_loc,num_wts_loc,MPI_INTEGER,option%io_rank, &
-	      MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+        MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
        call MPI_Recv(wts_mat_col_loc,num_wts_loc,MPI_INTEGER,option%io_rank, &
-	      MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+        MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
        call MPI_Recv(wts_mat_loc,num_wts_loc,MPI_DOUBLE_PRECISION,option%io_rank, &
-	      MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+        MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
     endif
 
     ! Save dataset related to wts in MPI-Vecs
@@ -715,7 +716,7 @@ contains
     call VecRestoreArrayF90(wts_mat_vec    , v_loc_3, ierr)
 
     ! For each destination mesh cell, count the number of cells it overlaps with
-	! in source mesh.
+    ! in source mesh.
     call VecCreateMPI(option%mycomm, map%d_ncells_local, PETSC_DECIDE, nonzero_rcount       , ierr)
 
     call VecGetSize(nonzero_rcount,ii,ierr)
@@ -743,8 +744,8 @@ contains
     call VecSetValues(nonzero_rcount,jj,wts_mat_row_tmp,wts_mat_row_count,ADD_VALUES,ierr);
     call VecAssemblyBegin(nonzero_rcount,ierr)
     call VecAssemblyEnd(nonzero_rcount,ierr)
-	deallocate(wts_mat_row_tmp)
-	deallocate(wts_mat_row_count)
+  deallocate(wts_mat_row_tmp)
+  deallocate(wts_mat_row_count)
 
     ! Find cummulative sum of the nonzero_rcount vector
     call VecCreateMPI(option%mycomm, map%d_ncells_local, PETSC_DECIDE, nonzero_rcount_cumsum, ierr)
@@ -939,13 +940,13 @@ contains
     Vec                          :: vec_tmp_1, vec_tmp_2
     PetscViewer :: viewer
     PetscInt                     :: istart, iend,count
-	
-	! Initialize
+  
+  ! Initialize
     map%d_ncells_local   = num_cells_local
     map%d_ncells_ghost   = num_cells_ghost
     map%d_ncells_ghosted = num_cells_local + num_cells_ghost
-	
-	! Assign memory
+  
+  ! Assign memory
     allocate(map%d_cell_ids(        map%d_ncells_ghosted))
     allocate(map%d_cell_ids_sort(   map%d_ncells_ghosted))
     allocate(map%d_local_or_ghost(  map%d_ncells_ghosted))
@@ -953,8 +954,8 @@ contains
     allocate(map%d_nS2G(            map%d_ncells_ghosted))
     allocate(index(                 map%d_ncells_ghosted))
     allocate(rev_index(             map%d_ncells_ghosted))
-	
-	! Save cell-ids, local/ghost flag, and initialize index and rev-index
+  
+  ! Save cell-ids, local/ghost flag, and initialize index and rev-index
     do ii = 1,num_cells_local+num_cells_ghost
        map%d_cell_ids(ii)       = cell_ids_ghosted(ii)
        map%d_local_or_ghost(ii) = local_or_ghost(ii)
@@ -966,9 +967,9 @@ contains
     index = index - 1
     call PetscSortIntWithPermutation( map%d_ncells_ghosted, cell_ids_ghosted, index, ierr)
     index = index + 1
-	
-	! Save the d_cells_ids in ascending sort order. Also save the index of
-	! Ghosted-to-Sorted order 
+  
+  ! Save the d_cells_ids in ascending sort order. Also save the index of
+  ! Ghosted-to-Sorted order 
     do ii = 1,num_cells_local+num_cells_ghost
        map%d_cell_ids_sort(ii) = cell_ids_ghosted(index(ii))
        map%d_nG2S(ii)          = index(ii)
@@ -978,20 +979,20 @@ contains
     rev_index = rev_index - 1
     call PetscSortIntWithPermutation( map%d_ncells_ghosted, index, rev_index, ierr)
     rev_index = rev_index + 1
-	
-	! Save the reverse sort index: Sorted-to-Ghosted
+  
+  ! Save the reverse sort index: Sorted-to-Ghosted
     do ii = 1,num_cells_local+num_cells_ghost
        map%d_nS2G(ii)             = rev_index(ii)
     enddo
-	
-	! Create vectors
+  
+  ! Create vectors
     !write (*,*), 'map%d_ncells_ghosted = ', map%d_ncells_ghosted
     !write (*,*), 'map%d_ncells_local   = ', map%d_ncells_local
     call VecCreateMPI(option%mycomm, map%d_ncells_ghosted, PETSC_DECIDE, vec_tmp_1, ierr)
     call VecCreateMPI(option%mycomm, map%d_ncells_local  , PETSC_DECIDE, vec_tmp_2, ierr)
     ! 
     call VecGetOwnershipRange(vec_tmp_1,istart,iend,ierr)
-	  allocate(tmp_int_array(map%d_ncells_local))
+    allocate(tmp_int_array(map%d_ncells_local))
     count = 0
     do ii=1,map%d_ncells_ghosted
        if(map%d_local_or_ghost(ii).eq.1) then
@@ -1004,18 +1005,18 @@ contains
     deallocate(tmp_int_array)
 
     allocate(tmp_int_array(map%d_ncells_local))
-	  count = 0
+    count = 0
     do ii=1,map%d_ncells_ghosted
-	   if(map%d_local_or_ghost(ii).eq.1) then
-	      count = count + 1
+     if(map%d_local_or_ghost(ii).eq.1) then
+        count = count + 1
           tmp_int_array(count) = map%d_cell_ids(ii)
-		endif
+    endif
     enddo
     
     call ISCreateBlock(option%mycomm,1,map%d_ncells_local, tmp_int_array, PETSC_COPY_VALUES, &
          is_to, ierr)
     deallocate(tmp_int_array)
-	
+  
     !call PetscViewerASCIIOpen(option%mycomm, 'is_from_1.out', viewer, ierr)
     !call ISView(is_from, viewer,ierr)
     !call PetscViewerDestroy(viewer, ierr)
@@ -1023,7 +1024,7 @@ contains
     !call PetscViewerASCIIOpen(option%mycomm, 'is_to_1.out', viewer, ierr)
     !call ISView(is_to, viewer,ierr)
     !call PetscViewerDestroy(viewer, ierr)
-	
+  
     !write(*,*), 'call VecScatterCreate()'
     call VecScatterCreate(vec_tmp_1, is_from, vec_tmp_2, is_to, map%scatter_d_l2n, ierr)
 
@@ -1110,7 +1111,7 @@ contains
     call VecScatterCreate(aorder, is_ltol, nA2P, is_ltog, vscat_1, ierr)
     call ISDestroy(is_ltog,ierr)
     call ISDestroy(is_ltol,ierr)
-	
+  
     !call PetscViewerASCIIOpen(option%mycomm, 'vscat_1.out', viewer, ierr)
     !call VecScatterView(vscat_1, viewer,ierr)
     !call PetscViewerDestroy(viewer, ierr)
@@ -1212,7 +1213,7 @@ contains
     enddo
     call MatAssemblyBegin(map%mat_wts,MAT_FINAL_ASSEMBLY,ierr)
     call MatAssemblyEnd(  map%mat_wts,MAT_FINAL_ASSEMBLY,ierr)
-	
+  
     deallocate(index)
     
     if(option%myrank.eq.0) then
@@ -1222,8 +1223,8 @@ contains
     endif
     !call MatView(map%mat_wts, viewer,ierr)
     !call PetscViewerDestroy(viewer, ierr)
-	
-	
+  
+  
   end subroutine MappingCreateWeightMatrix
 
   ! ************************************************************************** !
@@ -1272,7 +1273,7 @@ contains
     v_loc_1 = v_loc_2
     call VecRestoreArrayF90(vec_d    ,v_loc_1,ierr)
     call VecRestoreArrayF90(vec_d_loc,v_loc_2,ierr)
-	
+  
     call VecScatterBegin(map%scatter_d_l2n, vec_d, vec_d_nat, INSERT_VALUES, SCATTER_FORWARD, ierr)
     call VecScatterEnd(  map%scatter_d_l2n, vec_d, vec_d_nat, INSERT_VALUES, SCATTER_FORWARD, ierr)
 
