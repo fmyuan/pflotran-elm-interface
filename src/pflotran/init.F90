@@ -540,7 +540,6 @@ subroutine Init(simulation)
   if (OptionPrintToScreen(option)) write(*,'("++++++++++++++++++++++++++++++++&
                      &++++++++++++++++++++++++++++",/)')
 
-
   call PetscLogEventBegin(logging%event_setup,ierr)
   ! read any regions provided in external files
   call readRegionFiles(realization)
@@ -548,11 +547,12 @@ subroutine Init(simulation)
   call RealizationLocalizeRegions(realization)
   call RealizatonPassFieldPtrToPatches(realization)
   ! link conditions with regions through couplers and generate connectivity
+  call RealProcessMatPropAndSatFunc(realization)
   call RealizationProcessCouplers(realization)
   call RealizationProcessConditions(realization)
   call RealProcessFluidProperties(realization)
-  call RealProcessMatPropAndSatFunc(realization)
   call assignMaterialPropToRegions(realization)
+
 #ifdef SUBCONTINUUM_MODEL
   call RealProcessSubcontinuumProp(realization)
   call assignSubcontinuumPropToRegions(realization)
@@ -566,7 +566,6 @@ subroutine Init(simulation)
     call printMsg(option,"  Finished setting up TRAN Realization ")  
   endif
   call RealizationPrintCouplers(realization)
-
   ! should we still support this
   if (option%use_generalized_grid) then 
     call printMsg(option,'Reading structured grid from hdf5')
@@ -592,10 +591,8 @@ subroutine Init(simulation)
   if (associated(tran_stepper)) then
     tran_stepper%cur_waypoint => realization%waypoints%first
   endif
-  
   ! initialize global auxilliary variable object
   call GlobalSetup(realization)
-  
   ! initialize FLOW
   ! set up auxillary variable arrays
   if (option%nflowdof > 0) then
@@ -720,7 +717,7 @@ subroutine Init(simulation)
     call verifyAllCouplers(realization)
   endif
   if (debug%print_waypoints) then
-    call WaypointListPrint(realization%waypoints,option)
+    call WaypointListPrint(realization%waypoints,option,realization%output_option)
   endif
 
 #ifdef OS_STATISTICS
@@ -1100,8 +1097,12 @@ subroutine InitReadInput(simulation)
   type(velocity_dataset_type), pointer :: velocity_dataset
   type(dataset_type), pointer :: dataset
   type(input_type), pointer :: input
-  
-  
+
+  character(len=MAXWORDLENGTH) :: plot_variables(100)
+  PetscInt :: num_plot_variables
+
+  plot_variables = ''
+  num_plot_variables = 0
   nullify(flow_stepper)
   nullify(tran_stepper)
   nullify(flow_solver)
@@ -1233,7 +1234,8 @@ subroutine InitReadInput(simulation)
               enddo
             case('MOLAL','MOLALITY', &
                  'UPDATE_POROSITY','UPDATE_TORTUOSITY', &
-                 'UPDATE_PERMEABILITY','UPDATE_MINERAL_SURFACE_AREA')
+                 'UPDATE_PERMEABILITY','UPDATE_MINERAL_SURFACE_AREA', &
+                 'NO_RESTART_MINERAL_VOL_FRAC')
               ! dummy placeholder
           end select
         enddo
@@ -1303,7 +1305,11 @@ subroutine InitReadInput(simulation)
         call InputReadWord(input,option,flow_condition%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'FLOW_CONDITION','name') 
         call printMsg(option,flow_condition%name)
-        call FlowConditionRead(flow_condition,input,option)
+        if (option%iflowmode == G_MODE) then
+          call FlowConditionGeneralRead(flow_condition,input,option)
+        else
+          call FlowConditionRead(flow_condition,input,option)
+        endif
         call FlowConditionAddToList(flow_condition,realization%flow_conditions)
         nullify(flow_condition)
         
@@ -1784,6 +1790,23 @@ subroutine InitReadInput(simulation)
               select case(trim(word))
                 case ('HDF5')
                   output_option%print_hdf5 = PETSC_TRUE
+                  call InputReadWord(input,option,word,PETSC_TRUE)
+                  call InputDefaultMsg(input,option, &
+                                       'OUTPUT,FORMAT,HDF5,# FILES')
+                  if (len_trim(word) > 1) then 
+                    call StringToUpper(word)
+                    select case(trim(word))
+                      case('SINGLE_FILE')
+                        output_option%print_single_h5_file = PETSC_TRUE
+                      case('MULTIPLE_FILES')
+                        output_option%print_single_h5_file = PETSC_FALSE
+                      case default
+                        option%io_buffer = 'HDF5 keyword (' // trim(word) // &
+                          ') not recongnized.  Use "SINGLE_FILE" or ' // &
+                          '"MULTIPLE_FILES".'
+                        call printErrMsg(option)
+                    end select
+                  endif
                 case ('MAD')
                   output_option%print_mad = PETSC_TRUE
                 case ('TECPLOT')
@@ -1819,26 +1842,34 @@ subroutine InitReadInput(simulation)
             case ('HDF5_WRITE_GROUP_SIZE')
               call InputReadInt(input,option,option%hdf5_write_group_size)
               call InputErrorMsg(input,option,'HDF5_WRITE_GROUP_SIZE','Group size')
+            case('PROCESSOR_ID')
+              num_plot_variables = num_plot_variables + 1
+              plot_variables(num_plot_variables) = trim(word)
             case default
               option%io_buffer = 'Keyword: ' // trim(word) // &
                                  ' not recognized in OUTPUT.'
               call printErrMsg(option)              
           end select
-       enddo
-       if (velocities) then
-         if (output_option%print_tecplot) &
-           output_option%print_tecplot_velocities = PETSC_TRUE
-         if (output_option%print_hdf5) &
-           output_option%print_hdf5_velocities = PETSC_TRUE
-         if (output_option%print_vtk) &
-           output_option%print_vtk_velocities = PETSC_TRUE
-       endif
-       if (fluxes) then
-         if (output_option%print_tecplot) &
-           output_option%print_tecplot_flux_velocities = PETSC_TRUE
-         if (output_option%print_hdf5) &
+        enddo
+        if (num_plot_variables > 0) then
+          allocate(output_option%plot_variables(num_plot_variables))
+          output_option%plot_variables(1:num_plot_variables) = &
+                                           plot_variables(1:num_plot_variables)
+        endif
+        if (velocities) then
+          if (output_option%print_tecplot) &
+            output_option%print_tecplot_velocities = PETSC_TRUE
+          if (output_option%print_hdf5) &
+            output_option%print_hdf5_velocities = PETSC_TRUE
+          if (output_option%print_vtk) &
+            output_option%print_vtk_velocities = PETSC_TRUE
+        endif
+        if (fluxes) then
+          if (output_option%print_tecplot) &
+            output_option%print_tecplot_flux_velocities = PETSC_TRUE
+          if (output_option%print_hdf5) &
            output_option%print_hdf5_flux_velocities = PETSC_TRUE
-       endif
+        endif
             
 !.....................
       case ('TIME')
@@ -1980,12 +2011,12 @@ subroutine setFlowMode(option)
     case('GENERAL')
       option%iflowmode = G_MODE
       option%nphase = 2
-      option%liquid_phase = 1      
-      option%gas_phase = 2 
+      option%liquid_phase = 1  ! liquid_pressure
+      option%gas_phase = 2     ! gas_pressure
 
-      option%air_pressure_id = 2
-      option%capillary_pressure_id = 3
-      option%vapor_pressure_id = 4
+      option%air_pressure_id = 3
+      option%capillary_pressure_id = 4
+      option%vapor_pressure_id = 5
 
       option%water_id = 1
       option%air_id = 2
@@ -2076,6 +2107,9 @@ subroutine assignMaterialPropToRegions(realization)
         allocate(cur_patch%imat(cur_patch%grid%ngmax))
         ! initialize to "unset"
         cur_patch%imat = -999
+        ! also allocate saturation function id
+        allocate(cur_patch%sat_func_id(cur_patch%grid%ngmax))
+        cur_patch%sat_func_id = -999
       endif
       cur_patch => cur_patch%next
     enddo
@@ -2130,36 +2164,7 @@ subroutine assignMaterialPropToRegions(realization)
     
   if (update_ghosted_material_ids) then
     ! update ghosted material ids
-    cur_level => realization%level_list%first
-    do 
-      if (.not.associated(cur_level)) exit
-      cur_patch => cur_level%patch_list%first
-      do
-        if (.not.associated(cur_patch)) exit
-        grid => cur_patch%grid
-
-        call GridCopyIntegerArrayToVec(grid, cur_patch%imat,field%work_loc, &
-                                            grid%ngmax)
-        cur_patch => cur_patch%next
-      enddo
-      cur_level => cur_level%next
-    enddo
-    call DiscretizationLocalToLocal(discretization,field%work_loc, &
-                                    field%work_loc,ONEDOF)
-    cur_level => realization%level_list%first
-    do 
-      if (.not.associated(cur_level)) exit
-      cur_patch => cur_level%patch_list%first
-      do
-        if (.not.associated(cur_patch)) exit
-        grid => cur_patch%grid
-
-        call GridCopyVecToIntegerArray(grid,cur_patch%imat,field%work_loc, &
-                                            grid%ngmax)
-        cur_patch => cur_patch%next
-      enddo
-      cur_level => cur_level%next
-    enddo
+    call RealLocalToLocalWithArray(realization,MATERIAL_ID_ARRAY)
   endif
 
   ! set cell by cell material properties
@@ -2218,6 +2223,7 @@ subroutine assignMaterialPropToRegions(realization)
           call printErrMsg(option)
         endif
         if (option%nflowdof > 0) then
+          patch%sat_func_id(ghosted_id) = material_property%saturation_function_id
           icap_loc_p(ghosted_id) = material_property%saturation_function_id
           ithrm_loc_p(ghosted_id) = material_property%id
           perm_xx_p(local_id) = material_property%permeability(1,1)
@@ -2303,6 +2309,7 @@ subroutine assignMaterialPropToRegions(realization)
                                     field%icap_loc,ONEDOF)   
     call DiscretizationLocalToLocal(discretization,field%ithrm_loc, &
                                     field%ithrm_loc,ONEDOF)
+    call RealLocalToLocalWithArray(realization,SATURATION_FUNCTION_ID_ARRAY)
   endif
   
   call DiscretizationGlobalToLocal(discretization,field%porosity0, &
@@ -2631,7 +2638,11 @@ subroutine readRegionFiles(realization)
       if(region%grid_type.eq.STRUCTURED_GRID) then
         call HDF5ReadRegionFromFile(realization,region,region%filename)
     else
+#ifndef SAMR_HAVE_HDF5
       call HDF5ReadUnstructuredGridRegionFromFile(realization,region,region%filename)
+#else
+      ! TO DO: Read region from HDF5 for Unstructured mesh with SAMRAI
+#endif      
     endif
       else
         call RegionReadFromFile(region,realization%option, &
@@ -2823,21 +2834,13 @@ subroutine readPermeabilitiesFromFile(realization,material_property)
       if (material_property%vertical_anisotropy_ratio > 0.d0) then
         ratio = material_property%vertical_anisotropy_ratio
       endif
-      if (associated(patch%imat)) then
-        do local_id = 1, grid%nlmax
-          if (patch%imat(grid%nL2G(local_id)) == material_property%id) then
-            perm_xx_p(local_id) = vec_p(local_id)
-            perm_yy_p(local_id) = vec_p(local_id)
-            perm_zz_p(local_id) = vec_p(local_id)*ratio
-          endif
-        enddo
-      else
-        do local_id = 1, grid%nlmax
+      do local_id = 1, grid%nlmax
+        if (patch%imat(grid%nL2G(local_id)) == material_property%id) then
           perm_xx_p(local_id) = vec_p(local_id)
           perm_yy_p(local_id) = vec_p(local_id)
-          perm_zz_p(local_id) = vec_p(local_id)*ratio         
-        enddo
-      endif
+          perm_zz_p(local_id) = vec_p(local_id)*ratio
+        endif
+      enddo
       call GridVecRestoreArrayF90(grid,global_vec,vec_p,ierr)
     else
       do idirection = X_DIRECTION,Z_DIRECTION
@@ -2890,9 +2893,7 @@ subroutine readPermeabilitiesFromFile(realization,material_property)
       call InputErrorMsg(input,option,'natural id','STRATA')
       ghosted_id = GridGetLocalGhostedIdFromHash(grid,natural_id)
       if (ghosted_id > 0) then
-        if (associated(patch%imat)) then
-          if (patch%imat(ghosted_id) /= material_property%id) cycle
-        endif
+        if (patch%imat(ghosted_id) /= material_property%id) cycle
         local_id = grid%nG2L(ghosted_id)
         if (local_id > 0) then
           call InputReadDouble(input,option,permeability)

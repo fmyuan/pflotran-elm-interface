@@ -156,6 +156,7 @@ subroutine RTSetupPatch(realization)
   type(grid_type), pointer :: grid
   type(reaction_type), pointer :: reaction
   type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: source_sink
   type(fluid_property_type), pointer :: cur_fluid_property
 
   PetscInt :: ghosted_id, iconn, sum_connection
@@ -202,30 +203,27 @@ subroutine RTSetupPatch(realization)
   
   ! count the number of boundary connections and allocate
   ! aux_var data structures for them
-  boundary_condition => patch%boundary_conditions%first
-  sum_connection = 0    
-  do 
-    if (.not.associated(boundary_condition)) exit
-    sum_connection = sum_connection + &
-                     boundary_condition%connection_set%num_connections
-    boundary_condition => boundary_condition%next
-  enddo
-  
+  sum_connection = CouplerGetNumConnectionsInList(patch%boundary_conditions)
   if (sum_connection > 0) then
     option%iflag = 1 ! enable allocation of mass_balance array 
     allocate(patch%aux%RT%aux_vars_bc(sum_connection))
     do iconn = 1, sum_connection
       call RTAuxVarInit(patch%aux%RT%aux_vars_bc(iconn),reaction,option)
     enddo
-#ifdef DASVYAT
-!	write(*,*) 'sum_connection',sum_connection
-!    do iconn = 1, sum_connection
-!      write(*,*) "RTAuxVarInit ",patch%aux%RT%aux_vars_bc(iconn)%total(1,1)
-!    enddo
-!	read(*,*)
-#endif
   endif
   patch%aux%RT%num_aux_bc = sum_connection
+
+  ! count the number of boundary connections and allocate
+  ! aux_var data structures for them
+  sum_connection = CouplerGetNumConnectionsInList(patch%source_sinks)
+  if (sum_connection > 0) then
+    option%iflag = 1 ! enable allocation of mass_balance array 
+    allocate(patch%aux%RT%aux_vars_ss(sum_connection))
+    do iconn = 1, sum_connection
+      call RTAuxVarInit(patch%aux%RT%aux_vars_ss(iconn),reaction,option)
+    enddo
+  endif
+  patch%aux%RT%num_aux_ss = sum_connection
   option%iflag = 0
 
   ! create zero array for zeroing residual and Jacobian (1 on diagonal)
@@ -239,6 +237,8 @@ subroutine RTSetupPatch(realization)
     iphase = cur_fluid_property%phase_id
     patch%aux%RT%rt_parameter%diffusion_coefficient(iphase) = &
       cur_fluid_property%diffusion_coefficient
+    patch%aux%RT%rt_parameter%diffusion_activation_energy(iphase) = &
+      cur_fluid_property%diffusion_activation_energy
     cur_fluid_property => cur_fluid_property%next
   enddo
   
@@ -525,6 +525,7 @@ subroutine RTZeroMassBalanceDeltaPatch(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(reactive_transport_auxvar_type), pointer :: rt_aux_vars_bc(:)
+  type(reactive_transport_auxvar_type), pointer :: rt_aux_vars_ss(:)
 
   PetscInt :: iconn
 
@@ -532,6 +533,7 @@ subroutine RTZeroMassBalanceDeltaPatch(realization)
   patch => realization%patch
 
   rt_aux_vars_bc => patch%aux%RT%aux_vars_bc
+  rt_aux_vars_ss => patch%aux%RT%aux_vars_ss
 
 #ifdef COMPUTE_INTERNAL_MASS_FLUX
   do iconn = 1, patch%aux%RT%num_aux
@@ -541,6 +543,10 @@ subroutine RTZeroMassBalanceDeltaPatch(realization)
 
   do iconn = 1, patch%aux%RT%num_aux_bc
     rt_aux_vars_bc(iconn)%mass_balance_delta = 0.d0
+  enddo
+
+  do iconn = 1, patch%aux%RT%num_aux_ss
+    rt_aux_vars_ss(iconn)%mass_balance_delta = 0.d0
   enddo
 
 end subroutine RTZeroMassBalanceDeltaPatch
@@ -566,6 +572,7 @@ subroutine RTUpdateMassBalancePatch(realization)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(reactive_transport_auxvar_type), pointer :: rt_aux_vars_bc(:)
+  type(reactive_transport_auxvar_type), pointer :: rt_aux_vars_ss(:)
 
   PetscInt :: iconn
 
@@ -573,6 +580,7 @@ subroutine RTUpdateMassBalancePatch(realization)
   patch => realization%patch
 
   rt_aux_vars_bc => patch%aux%RT%aux_vars_bc
+  rt_aux_vars_ss => patch%aux%RT%aux_vars_ss
 
 #ifdef COMPUTE_INTERNAL_MASS_FLUX
   do iconn = 1, patch%aux%RT%num_aux
@@ -586,6 +594,12 @@ subroutine RTUpdateMassBalancePatch(realization)
     rt_aux_vars_bc(iconn)%mass_balance = &
       rt_aux_vars_bc(iconn)%mass_balance + &
       rt_aux_vars_bc(iconn)%mass_balance_delta*option%tran_dt
+  enddo
+
+  do iconn = 1, patch%aux%RT%num_aux_ss
+    rt_aux_vars_ss(iconn)%mass_balance = &
+      rt_aux_vars_ss(iconn)%mass_balance + &
+      rt_aux_vars_ss(iconn)%mass_balance_delta*option%tran_dt
   enddo
 
 end subroutine RTUpdateMassBalancePatch
@@ -1038,14 +1052,7 @@ subroutine RTUpdateTransportCoefsPatch(realization)
     cur_connection_set => cur_connection_set%next
   enddo    
   
-#ifdef DASVYAT
-!  write(*,*) "Before TDiffusionBC"
-!  read(*,*)
-#endif
-
 ! Boundary Flux Terms -----------------------------------
-
-
   boundary_condition => patch%boundary_conditions%first
   sum_connection = 0    
   do 
@@ -1063,15 +1070,13 @@ subroutine RTUpdateTransportCoefsPatch(realization)
   
       if (option%mimetic) then
 #ifdef DASVYAT
-          ghosted_face_id = boundary_condition%faces_set(iconn)
-          cur_connection_set => grid%faces(ghosted_face_id)%conn_set_ptr
-
-          
-          id = grid%faces(ghosted_face_id)%id
-          local_id = grid%nG2L(cur_connection_set%id_dn(id))
+        ghosted_face_id = boundary_condition%faces_set(iconn)
+        cur_connection_set => grid%faces(ghosted_face_id)%conn_set_ptr
+        id = grid%faces(ghosted_face_id)%id
+        local_id = grid%nG2L(cur_connection_set%id_dn(id))
 #endif
       else
-         local_id = cur_connection_set%id_dn(iconn)
+        local_id = cur_connection_set%id_dn(iconn)
       end if
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
@@ -1088,12 +1093,6 @@ subroutine RTUpdateTransportCoefsPatch(realization)
     enddo
     boundary_condition => boundary_condition%next
   enddo
-
-#ifdef DASVYAT
-!  write(*,*) "After TDiffusionBC"
-!  read(*,*)
-#endif
-
 
   ! Restore vectors
   call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
@@ -1608,8 +1607,8 @@ subroutine RTCalculateTransportMatrix(realization,T)
       grid => cur_patch%grid
       ! need to set the current patch in the Jacobian operator
       ! so that entries will be set correctly
-      if(option%use_samr) then
-         call SAMRSetCurrentJacobianPatch(T, grid%structured_grid%p_samr_patch)
+      if (option%use_samr) then
+        call SAMRSetCurrentJacobianPatch(T, grid%structured_grid%p_samr_patch)
       endif
 
       call RTCalculateTranMatrixPatch1(realization,T)
@@ -1953,7 +1952,8 @@ subroutine RTCalculateTranMatrixPatch2(realization,T)
   if(option%use_samr) then
      flow_pc = 1
      call SAMRSetJacobianSrcCoeffsOnPatch(flow_pc, &
-          realization%discretization%amrgrid%p_application, grid%structured_grid%p_samr_patch)
+            realization%discretization%amrgrid%p_application, &
+            grid%structured_grid%p_samr_patch)
   endif
   
 end subroutine RTCalculateTranMatrixPatch2
@@ -2336,19 +2336,31 @@ subroutine RTComputeBCMassBalanceOSPatch(realization)
   type(patch_type), pointer :: patch
   type(reaction_type), pointer :: reaction
   type(reactive_transport_param_type), pointer :: rt_parameter
-  type(reactive_transport_auxvar_type), pointer :: rt_aux_vars(:), rt_aux_vars_bc(:)
-  type(global_auxvar_type), pointer :: global_aux_vars(:), global_aux_vars_bc(:) 
+  type(reactive_transport_auxvar_type), pointer :: rt_aux_vars(:)
+  type(reactive_transport_auxvar_type), pointer :: rt_aux_vars_bc(:)
+  type(reactive_transport_auxvar_type), pointer :: rt_aux_vars_ss(:)
+  type(global_auxvar_type), pointer :: global_aux_vars(:)
+  type(global_auxvar_type), pointer :: global_aux_vars_bc(:) 
+  type(global_auxvar_type), pointer :: global_aux_vars_ss(:) 
   PetscReal :: Res(realization%reaction%ncomp)
   
   PetscReal, pointer :: face_fluxes_p(:)
 
   type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: source_sink
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: sum_connection, iconn
+  PetscInt :: flow_src_sink_type
+  PetscReal :: scale
+  PetscReal :: qsrc
   
   PetscReal :: coef_up(realization%option%nphase)
   PetscReal :: coef_dn(realization%option%nphase)
+  PetscReal :: coef_in, coef_out
+  PetscReal, pointer :: volume_p(:)
+  PetscReal, pointer :: porosity_loc_p(:)
+  PetscErrorCode :: ierr
 
   option => realization%option
   field => realization%field
@@ -2358,8 +2370,10 @@ subroutine RTComputeBCMassBalanceOSPatch(realization)
   rt_parameter => patch%aux%RT%rt_parameter
   rt_aux_vars => patch%aux%RT%aux_vars
   rt_aux_vars_bc => patch%aux%RT%aux_vars_bc
+  rt_aux_vars_ss => patch%aux%RT%aux_vars_ss
   global_aux_vars => patch%aux%Global%aux_vars
   global_aux_vars_bc => patch%aux%Global%aux_vars_bc
+  global_aux_vars_ss => patch%aux%Global%aux_vars_ss
   
 ! Boundary Flux Terms -----------------------------------
   boundary_condition => patch%boundary_conditions%first
@@ -2401,6 +2415,61 @@ subroutine RTComputeBCMassBalanceOSPatch(realization)
     enddo
     boundary_condition => boundary_condition%next
   enddo
+
+  call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)  
+  call GridVecGetArrayF90(grid,field%volume,volume_p,ierr)
+
+  ! Source/sink terms -------------------------------------
+  source_sink => patch%source_sinks%first
+  sum_connection = 0
+  do 
+    if (.not.associated(source_sink)) exit
+    
+    cur_connection_set => source_sink%connection_set
+
+    flow_src_sink_type = 0
+    if (associated(source_sink%flow_condition) .and. &
+        associated(source_sink%flow_condition%rate)) then
+      qsrc = source_sink%flow_condition%rate%dataset%cur_value(1)
+      flow_src_sink_type = source_sink%flow_condition%rate%itype
+    endif
+      
+    do iconn = 1, cur_connection_set%num_connections 
+      sum_connection = sum_connection + 1     
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+
+      if (patch%imat(ghosted_id) <= 0) cycle
+
+      if (associated(source_sink%flow_aux_real_var)) then
+        scale = source_sink%flow_aux_real_var(1,iconn)
+      else
+        scale = 1.d0
+      endif
+      call TSrcSinkCoef(option,qsrc,flow_src_sink_type, &
+                        source_sink%tran_condition%itype, &
+                        porosity_loc_p(ghosted_id), &
+                        global_aux_vars(ghosted_id)%sat(option%liquid_phase), &
+                        volume_p(local_id), &
+                        global_aux_vars(ghosted_id)%den_kg(option%liquid_phase), &
+                        scale,coef_in,coef_out)
+      Res = coef_in*rt_aux_vars(ghosted_id)%total(:,iphase) + &
+            coef_out*source_sink%tran_condition%cur_constraint_coupler% &
+            rt_auxvar%total(:,iphase)
+      if (option%compute_mass_balance_new) then
+        ! contribution to boundary 
+        rt_aux_vars_ss(sum_connection)%mass_balance_delta(:,iphase) = &
+          rt_aux_vars_ss(sum_connection)%mass_balance_delta(:,iphase) + Res
+        ! contribution to internal 
+!        rt_aux_vars(ghosted_id)%mass_balance_delta(:,iphase) = &
+!          rt_aux_vars(ghosted_id)%mass_balance_delta(:,iphase) - Res
+        endif
+    enddo
+    source_sink => source_sink%next
+  enddo
+
+  call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)  
+  call GridVecRestoreArrayF90(grid,field%volume,volume_p,ierr)
 
 end subroutine RTComputeBCMassBalanceOSPatch
 
@@ -2812,7 +2881,6 @@ subroutine RTTransportResidualPatch2(realization,solution_loc,residual,idof)
   
   type(global_auxvar_type), pointer :: global_aux_vars(:)
   type(reactive_transport_auxvar_type), pointer :: rt_aux_vars(:)
-  type(reactive_transport_auxvar_type), pointer :: rt_aux_vars_bc(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -2848,7 +2916,6 @@ subroutine RTTransportResidualPatch2(realization,solution_loc,residual,idof)
   patch => realization%patch
   global_aux_vars => patch%aux%Global%aux_vars
   rt_aux_vars => patch%aux%RT%aux_vars
-  rt_aux_vars_bc => patch%aux%RT%aux_vars_bc
   grid => patch%grid
   reaction => realization%reaction
 
@@ -3018,7 +3085,6 @@ subroutine RTTransportMatVecPatch2(realization,solution_loc,residual,idof)
   type(global_auxvar_type), pointer :: global_aux_vars(:)
   type(reactive_transport_param_type), pointer :: rt_parameter
   type(reactive_transport_auxvar_type), pointer :: rt_aux_vars(:)
-  type(reactive_transport_auxvar_type), pointer :: rt_aux_vars_bc(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -3056,7 +3122,6 @@ subroutine RTTransportMatVecPatch2(realization,solution_loc,residual,idof)
   global_aux_vars => patch%aux%Global%aux_vars
   rt_parameter => patch%aux%RT%rt_parameter
   rt_aux_vars => patch%aux%RT%aux_vars
-  rt_aux_vars_bc => patch%aux%RT%aux_vars_bc
   grid => patch%grid
 
   ! Get vectors
@@ -4321,12 +4386,6 @@ subroutine RTResidualPatch1(snes,xx,r,realization,ierr)
     enddo
   endif
 
-#ifdef DASVYAT
-!  do iconn = 1, grid%nlmax
-!	  write(*,*) "r_p", r_p(iconn)
-!  end do
-!  stop
-#endif  
   ! Restore vectors
   call GridVecRestoreArrayF90(grid,r, r_p, ierr)
  
@@ -4379,8 +4438,10 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
   type(patch_type), pointer :: patch
   type(reaction_type), pointer :: reaction
   type(reactive_transport_param_type), pointer :: rt_parameter
-  type(reactive_transport_auxvar_type), pointer :: rt_aux_vars(:), rt_aux_vars_bc(:)
-  type(global_auxvar_type), pointer :: global_aux_vars(:), global_aux_vars_bc(:) 
+  type(reactive_transport_auxvar_type), pointer :: rt_aux_vars(:)
+  type(reactive_transport_auxvar_type), pointer :: rt_aux_vars_ss(:)
+  type(global_auxvar_type), pointer :: global_aux_vars(:)
+  type(global_auxvar_type), pointer :: global_aux_vars_ss(:) 
   PetscReal :: Res(realization%reaction%ncomp)
   
   type(coupler_type), pointer :: source_sink
@@ -4391,6 +4452,7 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
   PetscReal :: scale, coef_in, coef_out
   PetscReal :: Jup(realization%reaction%ncomp,realization%reaction%ncomp)
   PetscBool :: volumetric
+  PetscInt :: sum_connection
 #ifdef CHUAN_CO2
   PetscReal :: msrc(1:realization%option%nflowspec)
   PetscInt :: icomp, ieqgas
@@ -4403,9 +4465,9 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
   grid => patch%grid
   rt_parameter => patch%aux%RT%rt_parameter
   rt_aux_vars => patch%aux%RT%aux_vars
-  rt_aux_vars_bc => patch%aux%RT%aux_vars_bc
+  rt_aux_vars_ss => patch%aux%RT%aux_vars_ss
   global_aux_vars => patch%aux%Global%aux_vars
-  global_aux_vars_bc => patch%aux%Global%aux_vars_bc
+  global_aux_vars_ss => patch%aux%Global%aux_vars_ss
   
   ! Get pointer to Vector data
   call GridVecGetArrayF90(grid,r, r_p, ierr)
@@ -4454,20 +4516,24 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
 #endif
 #if 1
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first 
+  source_sink => patch%source_sinks%first
+  sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
     
     cur_connection_set => source_sink%connection_set
 
+#ifdef SRC_SINK_OLD
     flow_src_sink_type = 0
     if (associated(source_sink%flow_condition) .and. &
         associated(source_sink%flow_condition%rate)) then
       qsrc = source_sink%flow_condition%rate%dataset%cur_value(1)
       flow_src_sink_type = source_sink%flow_condition%rate%itype
     endif
+#endif
       
-    do iconn = 1, cur_connection_set%num_connections      
+    do iconn = 1, cur_connection_set%num_connections 
+      sum_connection = sum_connection + 1     
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
 
@@ -4483,6 +4549,7 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
         iendcoll = reaction%offset_coll + reaction%ncoll
       endif
 
+#ifdef SRC_SINK_OLD
       if (associated(source_sink%flow_aux_real_var)) then
         scale = source_sink%flow_aux_real_var(1,iconn)
       else
@@ -4495,6 +4562,11 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
                         volume_p(local_id), &
                         global_aux_vars(ghosted_id)%den_kg(option%liquid_phase), &
                         scale,coef_in,coef_out)
+#else
+      qsrc = patch%ss_fluid_fluxes(1,sum_connection)
+      call TSrcSinkCoefNew(option,qsrc,source_sink%tran_condition%itype, &
+                           coef_in,coef_out)
+#endif
       Res(istartaq:iendaq) = coef_in*rt_aux_vars(ghosted_id)%total(:,iphase) + &
                              coef_out*source_sink%tran_condition%cur_constraint_coupler% &
                                         rt_auxvar%total(:,iphase)
@@ -4506,6 +4578,14 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
       istartall = offset + 1
       iendall = offset + reaction%ncomp
       r_p(istartall:iendall) = r_p(istartall:iendall) + Res(1:reaction%ncomp)                                  
+      if (option%compute_mass_balance_new) then
+        ! contribution to boundary 
+        rt_aux_vars_ss(sum_connection)%mass_balance_delta(:,iphase) = &
+          rt_aux_vars_ss(sum_connection)%mass_balance_delta(:,iphase) + Res
+        ! contribution to internal 
+!        rt_aux_vars(ghosted_id)%mass_balance_delta(:,iphase) = &
+!          rt_aux_vars(ghosted_id)%mass_balance_delta(:,iphase) - Res
+        endif
     enddo
     source_sink => source_sink%next
   enddo
@@ -4517,10 +4597,13 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
       do 
         if (.not.associated(source_sink)) exit
 
-!geh begin change
-!geh        msrc(:) = source_sink%flow_condition%pressure%dataset%cur_value(:)
-        msrc(:) = source_sink%flow_condition%rate%dataset%cur_value(:)
-!geh end change
+        select case(source_sink%flow_condition%itype(1))
+          case(MASS_RATE_SS)
+            msrc(:) = source_sink%flow_condition%rate%dataset%cur_value(:)
+          case default
+            msrc(:) = 0.d0
+        end select
+
         msrc(1) =  msrc(1) / FMWH2O*1D3
         msrc(2) =  msrc(2) / FMWCO2*1D3
         ! print *,'RT SC source'
@@ -4659,9 +4742,10 @@ subroutine RTJacobian(snes,xx,A,B,flag,realization,ierr)
       grid => cur_patch%grid
       ! need to set the current patch in the Jacobian operator
       ! so that entries will be set correctly
-      if(associated(grid%structured_grid) .and. &
-        (.not.(grid%structured_grid%p_samr_patch.eq.0))) then
-         call SAMRSetCurrentJacobianPatch(J,grid%structured_grid%p_samr_patch)
+      if (associated(grid%structured_grid)) then
+        if (.not.grid%structured_grid%p_samr_patch == 0) then
+          call SAMRSetCurrentJacobianPatch(J,grid%structured_grid%p_samr_patch)
+        endif
       endif
 
       call RTJacobianPatch1(snes,xx,J,J,flag,realization,ierr)
@@ -4685,9 +4769,10 @@ subroutine RTJacobian(snes,xx,A,B,flag,realization,ierr)
       grid => cur_patch%grid
       ! need to set the current patch in the Jacobian operator
       ! so that entries will be set correctly
-      if(associated(grid%structured_grid) .and. &
-        (.not.(grid%structured_grid%p_samr_patch.eq.0))) then
-         call SAMRSetCurrentJacobianPatch(J,grid%structured_grid%p_samr_patch)
+      if (associated(grid%structured_grid)) then
+        if (.not.grid%structured_grid%p_samr_patch == 0) then
+          call SAMRSetCurrentJacobianPatch(J,grid%structured_grid%p_samr_patch)
+        endif
       endif
 
       call RTJacobianPatch2(snes,xx,J,J,flag,realization,ierr)
@@ -5206,7 +5291,7 @@ subroutine RTJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
   
   type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
-  PetscInt :: iconn
+  PetscInt :: iconn, sum_connection
   PetscReal :: qsrc, rdum
   PetscBool :: volumetric
   PetscInt :: flow_src_sink_type
@@ -5257,19 +5342,23 @@ subroutine RTJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
   ! Source/Sink terms -------------------------------------
   call PetscLogEventBegin(logging%event_rt_jacobian_ss,ierr)   
   source_sink => patch%source_sinks%first 
+  sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
     
     cur_connection_set => source_sink%connection_set
 
+#ifdef SRC_SINK_OLD
     flow_src_sink_type = 0
     if (associated(source_sink%flow_condition) .and. &
         associated(source_sink%flow_condition%rate)) then
       qsrc = source_sink%flow_condition%rate%dataset%cur_value(1)
       flow_src_sink_type = source_sink%flow_condition%rate%itype
     endif
+#endif
       
     do iconn = 1, cur_connection_set%num_connections      
+      sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
 
@@ -5283,6 +5372,7 @@ subroutine RTJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
         iendcoll = reaction%offset_coll + reaction%ncoll
       endif
 
+#ifdef SRC_SINK_OLD
       if (associated(source_sink%flow_aux_real_var)) then
         scale = source_sink%flow_aux_real_var(1,iconn)
       else
@@ -5295,6 +5385,10 @@ subroutine RTJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
                         volume_p(local_id), &
                         global_aux_vars(ghosted_id)%den_kg(option%liquid_phase), &
                         scale,coef_in,coef_out)
+#else
+      qsrc = patch%ss_fluid_fluxes(1,sum_connection)
+      call TSrcSinkCoefNew(option,qsrc,source_sink%tran_condition%itype,coef_in,coef_out)
+#endif
       ! coef_in is non-zero
       if (dabs(coef_in-1.d20) > 0.d0) then
         Jup = coef_in*rt_aux_vars(ghosted_id)%aqueous%dtotal(:,:,option%liquid_phase)
@@ -5385,7 +5479,8 @@ subroutine RTJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
   if(option%use_samr) then
      tran_pc = 1
      call SAMRSetJacobianSrcCoeffsOnPatch(tran_pc, &
-          realization%discretization%amrgrid%p_application, grid%structured_grid%p_samr_patch)
+            realization%discretization%amrgrid%p_application, &
+            grid%structured_grid%p_samr_patch)
   endif
 
 end subroutine RTJacobianPatch2
@@ -5546,12 +5641,6 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
 
     call PetscLogEventBegin(logging%event_rt_auxvars_bc,ierr)
 
-#ifdef DASVYAT
-!		do iconn=1,6
-! 			write(*,*) "total", iconn, patch%aux%RT%aux_vars_bc(iconn)%total(1,1)
-!        end do 
-#endif          
-
     boundary_condition => patch%boundary_conditions%first
     sum_connection = 0    
     do 
@@ -5571,9 +5660,6 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
         sum_connection = sum_connection + 1
         local_id = cur_connection_set%id_dn(iconn)
         ghosted_id = grid%nL2G(local_id)
-#ifdef DASVYAT
-!		write(*,*) "basis_molarity_p",basis_molarity_p,"den_kg",patch%aux%Global%aux_vars_bc(sum_connection)%den_kg(1)
-#endif
         
         if (patch%imat(ghosted_id) <= 0) cycle
 
@@ -5866,7 +5952,7 @@ function RTGetTecplotHeader(realization,icolumn)
   PetscInt :: icolumn
   
   character(len=MAXHEADERLENGTH) :: string, string2
-  character(len=2) :: free_mol_char, tot_mol_char
+  character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
   type(option_type), pointer :: option
   type(reaction_type), pointer :: reaction
   PetscInt :: i
@@ -5888,7 +5974,13 @@ function RTGetTecplotHeader(realization,icolumn)
     tot_mol_char = 'M'
   endif
   
-  if (reaction%print_pH .and. associated(reaction%species_idx)) then
+  if (reaction%print_secondary_conc_type == SECONDARY_MOLALITY) then
+    sec_mol_char = 'm'
+  else
+    sec_mol_char = 'M'
+  endif
+  
+if (reaction%print_pH .and. associated(reaction%species_idx)) then
     if (reaction%species_idx%h_ion_id > 0) then
       if (icolumn > -1) then
         icolumn = icolumn + 1
@@ -5947,6 +6039,20 @@ function RTGetTecplotHeader(realization,icolumn)
     enddo
   endif
   
+  do i=1,reaction%neqcplx
+    if (reaction%secondary_species_print(i)) then
+      if (icolumn > -1) then
+        icolumn = icolumn + 1
+        write(string2,'('',"'',i2,''-'',a,''_'',a,''"'')') icolumn, &
+          trim(reaction%secondary_species_names(i)), trim(sec_mol_char)
+      else
+        write(string2,'('',"'',a,''_'',a,''"'')') &
+          trim(reaction%secondary_species_names(i)), trim(sec_mol_char)
+      endif
+      string = trim(string) // trim(string2)
+    endif
+  enddo  
+    
   do i=1,reaction%nkinmnrl
     if (reaction%kinmnrl_print(i)) then
       if (icolumn > -1) then
@@ -5968,6 +6074,19 @@ function RTGetTecplotHeader(realization,icolumn)
           trim(reaction%kinmnrl_names(i))
       else
         write(string2,'('',"'',a,''_rt"'')') trim(reaction%kinmnrl_names(i))    
+      endif
+      string = trim(string) // trim(string2)
+    endif
+  enddo
+  
+  do i=1,reaction%nmnrl
+    if (reaction%mnrl_print(i)) then
+      if (icolumn > -1) then
+        icolumn = icolumn + 1
+        write(string2,'('',"'',i2,''-'',a,''_si"'')') icolumn, &
+          trim(reaction%mineral_names(i))
+      else
+        write(string2,'('',"'',a,''_si"'')') trim(reaction%mineral_names(i))    
       endif
       string = trim(string) // trim(string2)
     endif
@@ -6278,13 +6397,15 @@ subroutine RTCheckpointKineticSorption(realization,viewer,checkpoint)
               call GridVecRestoreArrayF90(grid,field%work,vec_p,ierr)
               call VecView(field%work,viewer,ierr)
             else
-              call VecLoad(viewer,field%work,ierr)
-              call GridVecGetArrayF90(grid,field%work,vec_p,ierr)
-              do local_id = 1, grid%nlmax
-                rt_auxvars(grid%nL2G(local_id))%kinmr_total_sorb(icomp,irate) = &
-                   vec_p(local_id)
-              enddo
-              call GridVecRestoreArrayF90(grid,field%work,vec_p,ierr)
+              call VecLoad(field%work,viewer,ierr)
+              if (.not.option%no_restart_kinetic_sorption) then
+                call GridVecGetArrayF90(grid,field%work,vec_p,ierr)
+                do local_id = 1, grid%nlmax
+                  rt_auxvars(grid%nL2G(local_id))%kinmr_total_sorb(icomp,irate) = &
+                     vec_p(local_id)
+                enddo
+                call GridVecRestoreArrayF90(grid,field%work,vec_p,ierr)
+              endif
             endif
           enddo
         endif

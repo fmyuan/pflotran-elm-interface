@@ -89,6 +89,8 @@ module Option_module
 
     PetscInt :: ntrandof
   
+    PetscBool :: variables_swapped
+    
     PetscInt :: iflag
     PetscBool :: init_stage
     PetscBool :: print_screen_flag
@@ -122,14 +124,8 @@ module Option_module
     PetscReal :: gravity(3)
     
     PetscReal :: scale
- !   PetscReal, pointer :: dencpr(:),ckwet(:)
- !   PetscReal, pointer :: sir(:,:)
 
     PetscReal :: m_nacl
-!    PetscReal :: difaq, delhaq, eqkair, ret=1.d0, fc=1.d0
-!    PetscReal :: difsc
-!    PetscReal :: difgs
-!    PetscReal :: disp
     
     PetscInt :: ideriv
     PetscInt :: idt_switch
@@ -150,6 +146,7 @@ module Option_module
     PetscBool :: jumpstart_kinetic_sorption
     PetscBool :: no_checkpoint_kinetic_sorption
     PetscBool :: no_restart_kinetic_sorption
+    PetscBool :: no_restart_mineral_vol_frac
         
 !   table lookup
     PetscInt :: itable
@@ -179,12 +176,13 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: initialize_flow_filename
     character(len=MAXSTRINGLENGTH) :: initialize_transport_filename
         
-    character(len=MAXWORDLENGTH) :: global_prefix
+    character(len=MAXSTRINGLENGTH) :: global_prefix
     character(len=MAXWORDLENGTH) :: group_prefix
     
     PetscBool :: steady_state
     
     PetscBool :: use_matrix_buffer
+    PetscBool :: force_newton_iteration
   
     PetscBool :: mimetic
     PetscBool :: ani_relative_permeability
@@ -207,6 +205,7 @@ module Option_module
     PetscBool :: print_hdf5
     PetscBool :: print_hdf5_velocities
     PetscBool :: print_hdf5_flux_velocities
+    PetscBool :: print_single_h5_file
 
     PetscBool :: print_tecplot 
     PetscInt :: tecplot_format
@@ -233,6 +232,8 @@ module Option_module
     
     PetscInt :: plot_number
     character(len=MAXWORDLENGTH) :: plot_name
+
+    character(len=MAXWORDLENGTH), pointer :: plot_variables(:)
 
   end type output_option_type
 
@@ -451,6 +452,7 @@ subroutine OptionInitRealization(option)
   option%jumpstart_kinetic_sorption = PETSC_FALSE
   option%no_checkpoint_kinetic_sorption = PETSC_FALSE
   option%no_restart_kinetic_sorption = PETSC_FALSE
+  option%no_restart_mineral_vol_frac = PETSC_FALSE
   
   option%minimum_hydrostatic_pressure = -1.d20
 
@@ -462,10 +464,15 @@ subroutine OptionInitRealization(option)
   option%gravity(:) = 0.d0
   option%gravity(3) = -9.8068d0    ! m/s^2
 
-  option%dpmxe = 5.d4
+  option%dpmxe = 5.d5
   option%dtmpmxe = 5.d0
   option%dsmxe = 0.5d0
   option%dcmxe = 1.d0
+
+  option%dpmax = 0.d0
+  option%dtmpmax = 0.d0
+  option%dsmax = 0.d0
+  option%dcmax = 0.d0
 
   !physical constants and defult variables
 !  option%difaq = 1.d-9 ! m^2/s read from input file
@@ -523,9 +530,11 @@ subroutine OptionInitRealization(option)
 
   option%use_matrix_buffer = PETSC_FALSE
   option%init_stage = PETSC_FALSE 
+  option%force_newton_iteration = PETSC_FALSE
 
   option%mimetic = PETSC_FALSE
  
+  option%variables_swapped = PETSC_FALSE
 
 end subroutine OptionInitRealization
 
@@ -548,6 +557,7 @@ function OutputOptionCreate()
   output_option%print_hdf5 = PETSC_FALSE
   output_option%print_hdf5_velocities = PETSC_FALSE
   output_option%print_hdf5_flux_velocities = PETSC_FALSE
+  output_option%print_single_h5_file = PETSC_TRUE
   output_option%print_tecplot = PETSC_FALSE
   output_option%tecplot_format = 0
   output_option%print_tecplot_velocities = PETSC_FALSE
@@ -952,6 +962,10 @@ subroutine OutputOptionDestroy(output_option)
   
   type(output_option_type), pointer :: output_option
   
+  if (associated(output_option%plot_variables)) &
+    deallocate(output_option%plot_variables)
+  nullify(output_option%plot_variables)
+
   deallocate(output_option)
   nullify(output_option)
   
@@ -973,16 +987,6 @@ subroutine OptionDestroy(option)
   ! all kinds of stuff needs to be added here.
 
   ! all the below should be placed somewhere other than option.F90
-#if 0
-  if (associated(option%dencpr)) deallocate(option%dencpr)
-  nullify(option%dencpr)
-  if (associated(option%ckwet)) deallocate(option%ckwet)
-  nullify(option%ckwet)
-  if (associated(option%sir)) deallocate(option%sir)
-  nullify(option%sir)
-  if (associated(option%tfac)) deallocate(option%tfac)
-  nullify(option%tfac)
-#endif  
   
   deallocate(option)
   nullify(option)
