@@ -27,6 +27,7 @@ module Transport_module
             TFluxDerivative, &
             TFluxCoef, &
             TSrcSinkCoef, &
+            TSrcSinkCoefNew, &
             TFlux_CD, &
             TFluxDerivative_CD, &
             TFluxCoef_CD
@@ -61,14 +62,23 @@ subroutine TDiffusion(global_aux_var_up,por_up,tor_up,dist_up, &
   PetscReal :: sat_up, sat_dn
   PetscReal :: stp_up, stp_dn
   PetscReal :: q
-  
-  diffusion(:) = 0.d0
 
+  PetscReal :: temp_up, temp_dn         ! variables to store temperature upstream and downstream
+  PetscReal :: weight_temp              ! variable to store the arithmetic weighted average temperature
+  PetscReal, parameter :: R_gas_constant = 8.3144621d-3 ! Gas constant in kJ/mol/K
+  PetscReal :: T_ref_inv
+
+  diffusion(:) = 0.d0
+  T_ref_inv = 1.d0/(25.d0+273.15d0)
+    
   iphase = 1
   q = velocity(iphase)
   
   sat_up = global_aux_var_up%sat(iphase)
   sat_dn = global_aux_var_dn%sat(iphase)
+
+  temp_up = global_aux_var_up%temp(iphase)      ! getting data from global to local variables
+  temp_dn = global_aux_var_dn%temp(iphase)
   
   if (sat_up > eps .and. sat_dn > eps) then
     stp_up = sat_up*tor_up*por_up 
@@ -79,7 +89,16 @@ subroutine TDiffusion(global_aux_var_up,por_up,tor_up,dist_up, &
     ! units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
     diffusion(iphase) = rt_parameter%dispersivity*dabs(q)/(dist_up+dist_dn) + &
                         weight*rt_parameter%diffusion_coefficient(iphase)
-  endif
+! Add the effect of temperature on diffusivity, Satish Karra, 08/15/2011
+#ifdef TEMP_DEPENDENT_LOGK
+    weight_temp = (temp_up*dist_up + temp_dn*dist_dn)/(dist_dn + dist_up)     ! Arithmetic weighted mean by distances
+    diffusion(iphase) = diffusion(iphase) + &
+            weight*rt_parameter%diffusion_coefficient(iphase)* &
+            (exp(rt_parameter%diffusion_activation_energy(iphase) &
+            /R_gas_constant*(T_ref_inv-1.d0/(weight_temp+273.15d0))) - 1.d0)
+#endif
+    endif
+
 
 ! Add in multiphase, clu 12/29/08
 #ifdef CHUAN_CO2  
@@ -92,7 +111,8 @@ subroutine TDiffusion(global_aux_var_up,por_up,tor_up,dist_up, &
       q = velocity(iphase)
       sat_up = global_aux_var_up%sat(iphase)
       sat_dn = global_aux_var_dn%sat(iphase)
-  
+      temp_up = global_aux_var_up%temp(iphase)      ! getting data from global to local variables
+      temp_dn = global_aux_var_dn%temp(iphase)
       if (sat_up > eps .and. sat_dn > eps) then
         stp_up = sat_up*tor_up*por_up 
         stp_dn = sat_dn*tor_dn*por_dn
@@ -102,6 +122,15 @@ subroutine TDiffusion(global_aux_var_up,por_up,tor_up,dist_up, &
     ! units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
         if(iphase ==2) diffusion(iphase) = rt_parameter%dispersivity*dabs(q)/(dist_up+dist_dn) + &
                                weight*rt_parameter%diffusion_coefficient(iphase)
+! Add the effect of temperature on diffusivity, Satish Karra, 08/15/2011
+#ifdef TEMP_DEPENDENT_LOGK
+    weight_temp = (temp_up*dist_up + temp_dn*dist_dn)/(dist_dn + dist_up)     ! Arithmetic weighted mean by distances
+    diffusion(iphase) = diffusion(iphase) + &
+            weight*rt_parameter%diffusion_coefficient(iphase)* &
+            (exp(rt_parameter%diffusion_activation_energy(iphase) &
+            /R_gas_constant*(T_ref_inv-1.d0/(weight_temp+273.15d0))) - 1.d0)
+#endif
+
       endif
     enddo
   endif
@@ -137,14 +166,22 @@ subroutine TDiffusionBC(ibndtype,global_aux_var_up,global_aux_var_dn, &
   PetscReal :: weight
   PetscReal :: q
   PetscReal :: sat_up, sat_dn
-  
+
+  PetscReal :: temp_up                  ! variable to store temperature at the boundary
+  PetscReal, parameter :: R_gas_constant = 8.3144621d-3 ! Gas constant in kJ/mol/K
+  PetscReal :: T_ref_inv
+
   diffusion(:) = 0.d0
+  T_ref_inv = 1.d0/(25.d0+273.15d0)
 
   iphase = 1
   q = velocity(iphase)
   
   sat_up = global_aux_var_up%sat(iphase)
   sat_dn = global_aux_var_dn%sat(iphase)
+
+  temp_up = global_aux_var_up%temp(iphase)      ! getting data from global to local variables
+
 
   select case(ibndtype)
     case(DIRICHLET_BC)
@@ -155,7 +192,15 @@ subroutine TDiffusionBC(ibndtype,global_aux_var_up,global_aux_var_dn, &
         ! units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
         diffusion(iphase) = rt_parameter%dispersivity*dabs(q)/dist_dn + &
                             weight*rt_parameter%diffusion_coefficient(iphase)
+#ifdef TEMP_DEPENDENT_LOGK    
+        diffusion(iphase) = diffusion(iphase) + &
+          weight*rt_parameter%diffusion_coefficient(iphase)* &
+          (exp(rt_parameter%diffusion_activation_energy(iphase)/ &
+          R_gas_constant*(T_ref_inv-1.d0/(temp_up+273.15d0))) - 1.d0)
+#endif
+
       endif    
+
     case(DIRICHLET_ZERO_GRADIENT_BC)
       if (q >= 0.d0) then
         ! same as dirichlet above
@@ -166,6 +211,13 @@ subroutine TDiffusionBC(ibndtype,global_aux_var_up,global_aux_var_dn, &
           ! units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
           diffusion(iphase) = rt_parameter%dispersivity*dabs(q)/dist_dn + &
                               weight*rt_parameter%diffusion_coefficient(iphase)
+#ifdef TEMP_DEPENDENT_LOGK    
+          diffusion(iphase) = diffusion(iphase) + &
+            weight*rt_parameter%diffusion_coefficient(iphase)* &
+            (exp(rt_parameter%diffusion_activation_energy(iphase)/ &
+            R_gas_constant*(T_ref_inv-1.d0/(temp_up+273.15d0))) - 1.d0)
+#endif
+
         endif    
       endif
     case(CONCENTRATION_SS,NEUMANN_BC,ZERO_GRADIENT_BC)
@@ -183,27 +235,45 @@ subroutine TDiffusionBC(ibndtype,global_aux_var_up,global_aux_var_dn, &
       q = velocity(iphase)
       sat_up = global_aux_var_up%sat(iphase)
       sat_dn = global_aux_var_dn%sat(iphase)
+      temp_up = global_aux_var_up%temp(iphase)      ! getting data from global to local variables
 
       select case(ibndtype)
         case(DIRICHLET_BC)
           if (sat_up > eps .and. sat_dn > eps) then
-        ! units = (m^3 water/m^3 por)*(m^3 por/m^3 bulk)/(m bulk) = m^3 water/m^4 bulk 
+         !  units = (m^3 water/m^3 por)*(m^3 por/m^3 bulk)/(m bulk) = m^3 water/m^4 bulk 
             weight = tor_dn*por_dn*(sat_up*sat_dn)/((sat_up+sat_dn)*dist_dn)
-         ! need to account for multiple phases
-         ! units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
+         !  need to account for multiple phases
+         !  units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
             if( iphase == 2) diffusion(iphase) = rt_parameter%dispersivity*dabs(q)/dist_dn + &
                                        weight*rt_parameter%diffusion_coefficient(iphase)
+#ifdef TEMP_DEPENDENT_LOGK    
+            diffusion(iphase) = diffusion(iphase) + &
+              weight*rt_parameter%diffusion_coefficient(iphase)* &
+              (exp(rt_parameter%diffusion_activation_energy(iphase)/ &
+              R_gas_constant*(T_ref_inv-1.d0/(temp_up+273.15d0))) - 1.d0)
+#endif
+
+
           endif    
+          
         case(DIRICHLET_ZERO_GRADIENT_BC)
           if (q >= 0.d0) then
-         ! same as dirichlet above
+          ! same as dirichlet above
             if (sat_up > eps .and. sat_dn > eps) then
-          ! units = (m^3 water/m^3 por)*(m^3 por/m^3 bulk)/(m bulk) = m^3 water/m^4 bulk 
+          !   units = (m^3 water/m^3 por)*(m^3 por/m^3 bulk)/(m bulk) = m^3 water/m^4 bulk 
               weight = tor_dn*por_dn*(sat_up*sat_dn)/((sat_up+sat_dn)*dist_dn)
-        ! need to account for multiple phases
-        ! units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
+          !   need to account for multiple phases
+          !   units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
               if(iphase == 2) diffusion(iphase) = rt_parameter%dispersivity*dabs(q)/dist_dn + &
                                         weight*rt_parameter%diffusion_coefficient(iphase)
+#ifdef TEMP_DEPENDENT_LOGK    
+              diffusion(iphase) = diffusion(iphase) + &
+                weight*rt_parameter%diffusion_coefficient(iphase)* &
+                (exp(rt_parameter%diffusion_activation_energy(iphase)/ &
+                R_gas_constant*(T_ref_inv-1.d0/(temp_up+273.15d0))) - 1.d0)
+#endif
+
+
             endif    
           endif
         case(CONCENTRATION_SS,NEUMANN_BC,ZERO_GRADIENT_BC)
@@ -829,4 +899,56 @@ subroutine TSrcSinkCoef(option,qsrc,flow_src_sink_type,tran_src_sink_type, &
 
 end subroutine TSrcSinkCoef
   
+! ************************************************************************** !
+!
+! TSrcSinkCoefNew: Computes src/sink coefficients for transport matrix
+!                  Here qsrc [m^3/sec] provided by flow.
+! author: Glenn Hammond
+! date: 01/12/11
+!
+! ************************************************************************** !
+subroutine TSrcSinkCoefNew(option,qsrc,tran_src_sink_type,T_in,T_out)
+
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+  PetscReal :: qsrc
+  PetscInt :: tran_src_sink_type
+  PetscReal :: T_in ! coefficient that scales concentration at cell
+  PetscReal :: T_out ! concentration that scales external concentration
+      
+  T_in = 0.d0 
+  T_out = 0.d0
+     
+  select case(tran_src_sink_type)
+    case(EQUILIBRIUM_SS)
+      ! units should be mol/sec
+      ! 1.d-3 is a relatively large rate designed to equilibrate 
+      ! the aqueous concentration with the concentrations specified at
+      ! the src/sink
+      T_in = 1.d-3 ! units L water/sec
+      T_out = -1.d0*T_in
+    case(MASS_RATE_SS)
+      ! in this case, rt_auxvar_bc%total actually holds the mass rate
+      T_in = 0.d0
+      T_out = -1.d0
+    case default
+      ! qsrc always in m^3/sec
+      if (qsrc > 0.d0) then ! injection
+        T_in = 0.d0
+        T_out = -1.d0*qsrc*1000.d0 ! m^3/sec * 1000 L/m^3 -> L/s
+      else
+        T_out = 0.d0
+        T_in = -1.d0*qsrc*1000.d0 ! m^3/sec * 1000 L/m^3 -> L/s
+      endif
+  end select
+
+  ! Units of Tin & Tout should be L/s.  When multiplied by Total (M) you get
+  ! moles/sec, the units of the residual.  To get the units of the Jacobian
+  ! kg/sec, one must either scale by dtotal or den/1000. (kg/L).
+
+end subroutine TSrcSinkCoefNew
+
 end module Transport_module

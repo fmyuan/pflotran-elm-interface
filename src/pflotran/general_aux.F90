@@ -35,10 +35,11 @@ module General_Aux_module
 
     PetscBool :: aux_vars_up_to_date
     PetscBool :: inactive_cells_exist
-    PetscInt :: num_aux, num_aux_bc
+    PetscInt :: num_aux, num_aux_bc, num_aux_ss
     type(general_parameter_type), pointer :: general_parameter
     type(general_auxvar_type), pointer :: aux_vars(:,:)
     type(general_auxvar_type), pointer :: aux_vars_bc(:)
+    type(general_auxvar_type), pointer :: aux_vars_ss(:)
   end type general_type
 
   public :: GeneralAuxCreate, GeneralAuxDestroy, &
@@ -72,8 +73,10 @@ function GeneralAuxCreate(option)
   aux%inactive_cells_exist = PETSC_FALSE
   aux%num_aux = 0
   aux%num_aux_bc = 0
+  aux%num_aux_ss = 0
   nullify(aux%aux_vars)
   nullify(aux%aux_vars_bc)
+  nullify(aux%aux_vars_ss)
   aux%n_zero_rows = 0
   nullify(aux%zero_rows_local)
   nullify(aux%zero_rows_local_ghosted)
@@ -190,6 +193,19 @@ subroutine GeneralAuxVarCompute(x,gen_aux_var, global_aux_var,&
   PetscInt :: apid, cpid, vpid
   PetscErrorCode :: ierr
 
+  ! from init.F90
+!  option%nphase = 2
+!  option%liquid_phase = 1  ! liquid_pressure
+!  option%gas_phase = 2     ! gas_pressure
+
+!  option%air_pressure_id = 3
+!  option%capillary_pressure_id = 4
+!  option%vapor_pressure_id = 5
+
+!  option%water_id = 1
+!  option%air_id = 2
+!  option%energy_id = 3
+
   lid = option%liquid_phase
   gid = option%gas_phase
   apid = option%air_pressure_id
@@ -200,20 +216,31 @@ subroutine GeneralAuxVarCompute(x,gen_aux_var, global_aux_var,&
   wid = option%water_id
   eid = option%energy_id
   
+  !geh gen_aux_var%temp = 0.d0
+#ifdef DEBUG_GENERAL  
+  gen_aux_var%H = -999.d0
+  gen_aux_var%U = -999.d0
+  gen_aux_var%kvr = -999.d0
+  gen_aux_var%pres = -999.d0
+  gen_aux_var%sat = -999.d0
+  gen_aux_var%den = -999.d0
+  gen_aux_var%den_kg = -999.d0
+  gen_aux_var%xmol = -999.d0
+#else
   gen_aux_var%H = 0.d0
   gen_aux_var%U = 0.d0
   gen_aux_var%kvr = 0.d0
   gen_aux_var%pres = 0.d0
-  gen_aux_var%temp = 0.d0
   gen_aux_var%sat = 0.d0
   gen_aux_var%den = 0.d0
   gen_aux_var%den_kg = 0.d0
   gen_aux_var%xmol = 0.d0
+#endif  
   
   select case(global_aux_var%istate)
     case(LIQUID_STATE)
       gen_aux_var%pres(lid) = x(GENERAL_LIQUID_PRESSURE_DOF)
-      gen_aux_var%xmol(acid,lid) = x(GENERAL_CONCENTRATION_DOF)
+      gen_aux_var%xmol(acid,lid) = x(GENERAL_MOLE_FRACTION_DOF)
       gen_aux_var%temp = x(GENERAL_TEMPERATURE_DOF)
 
       gen_aux_var%xmol(wid,lid) = 1.d0 - gen_aux_var%xmol(acid,lid)
@@ -245,6 +272,9 @@ subroutine GeneralAuxVarCompute(x,gen_aux_var, global_aux_var,&
       gen_aux_var%sat(lid) = 1.d0 - gen_aux_var%sat(gid)
       gen_aux_var%pres(vpid) = gen_aux_var%pres(gid) - gen_aux_var%pres(apid)
       
+      guess = gen_aux_var%temp
+      call Tsat(gen_aux_var%temp,gen_aux_var%pres(vpid),dummy,guess,ierr)
+
       call SatFuncGetCapillaryPressure(gen_aux_var%pres(cpid), &
                                        gen_aux_var%sat(lid), &
                                        saturation_function,option)      
@@ -255,12 +285,9 @@ subroutine GeneralAuxVarCompute(x,gen_aux_var, global_aux_var,&
                              gen_aux_var%pres(vpid),K_H)
       gen_aux_var%xmol(acid,lid) = gen_aux_var%pres(apid) / &
                                   (gen_aux_var%pres(gid)*K_H)
-      gen_aux_var%xmol(wid,lid) = 1.d0 - gen_aux_var%xmol(apid,lid)
+      gen_aux_var%xmol(wid,lid) = 1.d0 - gen_aux_var%xmol(acid,lid)
       gen_aux_var%xmol(acid,gid) = gen_aux_var%pres(apid) / gen_aux_var%pres(gid)
       gen_aux_var%xmol(wid,gid) = 1.d0 - gen_aux_var%xmol(acid,gid)
-
-      guess = gen_aux_var%temp
-      call Tsat(gen_aux_var%temp,gen_aux_var%pres(vpid),dummy,guess,ierr)
 
   end select
 
@@ -375,6 +402,13 @@ subroutine GeneralAuxDestroy(aux)
     deallocate(aux%aux_vars_bc)
   endif
   nullify(aux%aux_vars_bc)
+  if (associated(aux%aux_vars_ss)) then
+    do iaux = 1, aux%num_aux_ss
+      call GeneralAuxVarDestroy(aux%aux_vars_ss(iaux))
+    enddo  
+    deallocate(aux%aux_vars_ss)
+  endif
+  nullify(aux%aux_vars_ss)
   if (associated(aux%zero_rows_local)) deallocate(aux%zero_rows_local)
   nullify(aux%zero_rows_local)
   if (associated(aux%zero_rows_local_ghosted)) deallocate(aux%zero_rows_local_ghosted)
