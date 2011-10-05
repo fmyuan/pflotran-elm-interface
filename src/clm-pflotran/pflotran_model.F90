@@ -19,8 +19,11 @@ module pflotran_model_module
 #if defined (CLM_PFLOTRAN) || defined(CLM_OFFLINE)  
   use Richards_Aux_module
   use pflotran_clm_interface_type
-  !use clm_pflotran_interface_type
   use clm_pflotran_interface_data
+#endif
+
+#if defined CLM_PFLOTRAN
+  use clm_pflotran_interface_type
 #endif
   use Mapping_module
 
