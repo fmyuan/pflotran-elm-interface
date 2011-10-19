@@ -66,8 +66,7 @@ module Mapping_module
      PetscInt           :: d_ncells_ghost      ! # of ghost destination mesh cells present
      PetscInt           :: d_ncells_ghosted    ! local+ghost=ghosted destination mesh cells
 
-     !
-     ! 0 or 1 based ???? 0-based
+     ! natuaral-index starting with 0
      PetscInt,pointer   :: d_cell_ids(:)       ! IDs of ghosted destination mesh cells present
      PetscInt,pointer   :: d_cell_ids_sort(:)  ! Sorted Ghosted IDs of destination mesh cells
      PetscInt,pointer   :: d_nG2S(:)           ! Ghosted to Sorted
@@ -535,7 +534,7 @@ contains
   !
   ! ASSUMPTION:
   !    - The format of txt file to be read is assumed to be a  "Coordinate list"
-  !       format i.e. (row, col, wts).
+  !       format i.e. (row, col, wt).
   !    - The row and col values are 1-based index.
   !    - The data is stored with ascending rows.
   !
@@ -591,6 +590,10 @@ contains
 
     PetscMPIInt                        :: status_mpi(MPI_STATUS_SIZE)
     character(len=MAXSTRINGLENGTH)     :: string  
+    
+    PetscInt :: PRINT_RANK
+    
+    PRINT_RANK = 0
 
     row_prev = -1
     fileid   = 20
@@ -661,7 +664,7 @@ contains
                 wts_mat_row_loc(ii) = wts_mat_row_tmp(ii)
                 wts_mat_col_loc(ii) = wts_mat_col_tmp(ii)
                 wts_mat_loc(ii)     = wts_mat_tmp(ii)
-                write(*,*), ii, wts_mat_row_loc(ii), wts_mat_col_loc(ii), wts_mat_loc(ii)
+                !write(*,*), ii, wts_mat_row_loc(ii), wts_mat_col_loc(ii), wts_mat_loc(ii)
              enddo
           else
              ! Otherwise communicate to other ranks
@@ -715,8 +718,26 @@ contains
     call VecRestoreArrayF90(wts_mat_col_vec, v_loc_2, ierr)
     call VecRestoreArrayF90(wts_mat_vec    , v_loc_3, ierr)
 
-    ! For each destination mesh cell, count the number of cells it overlaps with
-    ! in source mesh.
+    !
+    ! After reading the Mapping file in parallel, reshuffling of the data
+    ! needs to occur. 
+    !
+    !        W_loc * s_loc  = d_loc
+    !        W_loc * s_dloc = d_loc
+    !
+    ! For all points of destination mesh that are active on a given
+    ! processor, find:
+    !
+    ! - The points of source meshes that are required
+    ! -
+    !
+
+
+    ! For each cell of destination mesh, find the count of cells overlaped in
+    ! source mesh.
+    !                              OR
+    ! Num of non-zero entries in each row of the global W matrix
+
     call VecCreateMPI(option%mycomm, map%d_ncells_local, PETSC_DECIDE, nonzero_rcount       , ierr)
 
     call VecGetSize(nonzero_rcount,ii,ierr)
@@ -740,12 +761,19 @@ contains
           wts_mat_row_count(jj) = 1
        endif
     enddo
+    
+    if(option%myrank.eq.PRINT_RANK) then
+      write(*,*), 'wts_mat_row_count: '
+      do ii = 1,jj
+        write(*,*), ii, wts_mat_row_tmp(ii),wts_mat_row_count(ii)
+      enddo
+    endif
 
-    call VecSetValues(nonzero_rcount,jj,wts_mat_row_tmp,wts_mat_row_count,ADD_VALUES,ierr);
+    call VecSetValues(nonzero_rcount, jj, wts_mat_row_tmp, wts_mat_row_count, ADD_VALUES, ierr);
     call VecAssemblyBegin(nonzero_rcount,ierr)
     call VecAssemblyEnd(nonzero_rcount,ierr)
-  deallocate(wts_mat_row_tmp)
-  deallocate(wts_mat_row_count)
+    deallocate(wts_mat_row_tmp)
+    deallocate(wts_mat_row_count)
 
     ! Find cummulative sum of the nonzero_rcount vector
     call VecCreateMPI(option%mycomm, map%d_ncells_local, PETSC_DECIDE, nonzero_rcount_cumsum, ierr)
@@ -754,50 +782,81 @@ contains
 
     ii = 1
     v_loc_2(ii) = v_loc_1(ii)
+    if(option%myrank.eq.PRINT_RANK) write (*,*), 'v_loc_1: ',ii, v_loc_1(ii), v_loc_2(ii)
     do ii = 2,map%d_ncells_local
        v_loc_2(ii) = v_loc_1(ii) + v_loc_2(ii-1)
+       if(option%myrank.eq.PRINT_RANK) write (*,*), 'v_loc_1: ',ii, v_loc_1(ii), v_loc_2(ii)
     enddo
 
     cumsum_start = 0
     call MPI_Exscan(INT(v_loc_2(map%d_ncells_local)),cumsum_start,ONE_INTEGER_MPI,MPIU_INTEGER, &
          MPI_SUM,option%mycomm,ierr)
 
+    if(option%myrank.eq.PRINT_RANK) write (*,*), 'cum_start: ',cumsum_start
     do ii = 1,map%d_ncells_local
        v_loc_2(ii) = v_loc_2(ii) + cumsum_start
+       if(option%myrank.eq.PRINT_RANK) write (*,*), 'v_loc_2: ',ii, v_loc_2(ii)
     enddo
 
     call VecRestoreArrayF90(nonzero_rcount       , v_loc_1,ierr)
     call VecRestoreArrayF90(nonzero_rcount_cumsum, v_loc_2,ierr)
 
+    ! On a given processor, find the number of source mesh cells required to 
+    ! reconstruct variables for the destination mesh.
     !
+    ! From the MPI-Vec nonzero_rcount, get entries corresponding to destination
+    ! cells present on a given processor
     !
-    !
-    call VecCreateSeq(PETSC_COMM_SELF, map%d_ncells_ghosted, nonzero_rcount_loc       , ierr)
-    call VecCreateSeq(PETSC_COMM_SELF, map%d_ncells_ghosted, nonzero_rcount_cumsum_loc, ierr)
+    
+    ! Create local vectors to hold the scattered data
+    call VecCreateSeq(PETSC_COMM_SELF, map%d_ncells_ghosted, &
+                      nonzero_rcount_loc, ierr)
+    call VecCreateSeq(PETSC_COMM_SELF, map%d_ncells_ghosted, &
+                      nonzero_rcount_cumsum_loc, ierr)
 
+    ! Allocate and initialize a temporary array to be used for creation of index
+    ! set
     allocate(tmp_int_array(map%d_ncells_ghosted))
     do ii=1,map%d_ncells_ghosted
        tmp_int_array(ii) = ii-1
     enddo
 
-    call ISCreateBlock(option%mycomm, 1, map%d_ncells_ghosted, tmp_int_array, PETSC_COPY_VALUES, &
-         is_to, ierr)
+    ! Create an index set to scatter to local vector
+    call ISCreateBlock(option%mycomm, 1, map%d_ncells_ghosted, tmp_int_array, &
+                       PETSC_COPY_VALUES, is_to, ierr)
     deallocate(tmp_int_array)
 
-    call ISCreateBlock(option%mycomm, 1, map%d_ncells_ghosted, map%d_cell_ids_sort, PETSC_COPY_VALUES, &
-         is_from, ierr)
+    ! Create an index set to scatter from MPI vector
+    call ISCreateBlock(option%mycomm, 1, map%d_ncells_ghosted, &
+                      map%d_cell_ids_sort, PETSC_COPY_VALUES, is_from, ierr)
 
-    call VecScatterCreate(nonzero_rcount, is_from, nonzero_rcount_loc, is_to, vec_scat, ierr)
+    if(option%myrank.eq.PRINT_RANK) then
+      write(*,*), 'd_cell_ids_sort: ', option%myrank
+      do ii = 1,map%d_ncells_ghosted
+        write(*,*), ii, map%d_cell_ids_sort(ii)
+      enddo
+    endif
+
+    ! Create a vector scatter context
+    call VecScatterCreate(nonzero_rcount, is_from, nonzero_rcount_loc, is_to, &
+                          vec_scat, ierr)
     call ISDestroy(is_from, ierr)
     call ISDestroy(is_to  , ierr)
 
+    ! Scatter the data (i) nonzero_rcount; (ii) nonzero_rcount_cumsum
+    call VecScatterBegin(vec_scat, nonzero_rcount, nonzero_rcount_loc, &
+                         INSERT_VALUES, SCATTER_FORWARD, ierr)
+    call VecScatterEnd(vec_scat, nonzero_rcount, nonzero_rcount_loc, &
+                       INSERT_VALUES, SCATTER_FORWARD, ierr)
 
-    call VecScatterBegin( vec_scat, nonzero_rcount, nonzero_rcount_loc,INSERT_VALUES,SCATTER_FORWARD, ierr)
-    call VecScatterEnd(   vec_scat, nonzero_rcount, nonzero_rcount_loc,INSERT_VALUES,SCATTER_FORWARD, ierr)
+    call VecScatterBegin(vec_scat, nonzero_rcount_cumsum, &
+                         nonzero_rcount_cumsum_loc, INSERT_VALUES, &
+                         SCATTER_FORWARD, ierr)
+    call VecScatterEnd(vec_scat, nonzero_rcount_cumsum, &
+                       nonzero_rcount_cumsum_loc, INSERT_VALUES, &
+                       SCATTER_FORWARD, ierr)
 
-    call VecScatterBegin( vec_scat, nonzero_rcount_cumsum, nonzero_rcount_cumsum_loc,INSERT_VALUES,SCATTER_FORWARD, ierr)
-    call VecScatterEnd(   vec_scat, nonzero_rcount_cumsum, nonzero_rcount_cumsum_loc,INSERT_VALUES,SCATTER_FORWARD, ierr)
-
+    ! Destroy vector scatter
     call VecScatterDestroy(vec_scat, ierr)
 
     call VecGetArrayF90(nonzero_rcount_loc       , v_loc_1, ierr)
@@ -805,67 +864,98 @@ contains
 
     allocate(map%s2d_wts_nonzero_rcount_csr(map%d_ncells_ghosted))
 
-    count = 0
+    ! For each destination, save the number of overlapped source mesh cells
+    count = 0 ! cummulative count of number of overlapped source mesh cells
+    if(option%myrank.eq.PRINT_RANK) write(*,*), 'local rcount and rcount_cumsum: rank ',option%myrank
     do ii=1,map%d_ncells_ghosted
        count = count + INT(v_loc_1(ii))
        map%s2d_wts_nonzero_rcount_csr(ii) = INT(v_loc_1(ii))
+       if(option%myrank.eq.PRINT_RANK) write(*,*), ii, count, map%s2d_wts_nonzero_rcount_csr(ii)
     enddo
 
     map%s2d_s_ncells = count
 
-    !if (map%s2d_s_ncells.gt.-10) then
-    
-       allocate(map%s2d_s_cell_ids(map%s2d_s_ncells))
-       allocate(map%s2d_wts(       map%s2d_s_ncells))
+    !if (map%s2d_s_ncells > 0) then
+      
+      ! Allocate memory to save cell ids of source mesh that overlap with 
+      ! cells in destination mesh and corresponding weights
+      allocate(map%s2d_s_cell_ids(map%s2d_s_ncells))
+      allocate(map%s2d_wts(       map%s2d_s_ncells))
 
-       allocate(tmp_int_array(map%s2d_s_ncells))
+      ! Allocate memory
+      allocate(tmp_int_array(map%s2d_s_ncells))
 
-       kk = 0
-       do ii = 1,map%d_ncells_ghosted
-          do jj = 1,INT(v_loc_1(ii))
-             kk = kk + 1
-             tmp_int_array(kk) = INT(v_loc_2(ii)) - INT(v_loc_1(ii)) + jj - 1
-          enddo
-       enddo
+      ! For each cell in destination mesh, save indices of MPI Vectors, which
+      ! contain data read from mapping file, for all overlapped cells of 
+      ! of source mesh
+      if(option%myrank.eq.PRINT_RANK) write(*,*), 'tmp_int_array: rank ',option%myrank      
+      kk = 0
+      do ii = 1,map%d_ncells_ghosted
+        do jj = 1,INT(v_loc_1(ii))
+          kk = kk + 1
+          tmp_int_array(kk) = INT(v_loc_2(ii)) - INT(v_loc_1(ii)) + jj - 1
+          if(option%myrank.eq.PRINT_RANK) write(*,*), kk, tmp_int_array(kk), map%d_cell_ids_sort(ii)
+        enddo
+      enddo
 
-       call VecRestoreArrayF90(nonzero_rcount_cumsum_loc, v_loc_1, ierr)
-       call VecRestoreArrayF90(nonzero_rcount_loc       , v_loc_2, ierr)
+      ! Create an index set to scatter from
+      call ISCreateBlock(option%mycomm, 1, map%s2d_s_ncells, tmp_int_array, &
+                         PETSC_COPY_VALUES, is_from, ierr)
 
-       call ISCreateBlock(option%mycomm, 1, map%s2d_s_ncells, tmp_int_array, PETSC_COPY_VALUES, is_from, ierr)
+      do ii=1,map%s2d_s_ncells
+        tmp_int_array(ii) = ii-1
+      enddo
 
-       do ii=1,map%s2d_s_ncells
-          tmp_int_array(ii) = ii-1
-       enddo
+      call ISCreateBlock(option%mycomm, 1, map%s2d_s_ncells, tmp_int_array, &
+                         PETSC_COPY_VALUES, is_to, ierr)
+      deallocate(tmp_int_array)
 
-       call ISCreateBlock(option%mycomm, 1, map%s2d_s_ncells, tmp_int_array, PETSC_COPY_VALUES, is_to, ierr)
-       deallocate(tmp_int_array)
+      ! Allocate memory
+      call VecCreateSeq(PETSC_COMM_SELF, map%s2d_s_ncells, wts_mat_row_vec_loc, &
+                        ierr)
+      call VecCreateSeq(PETSC_COMM_SELF, map%s2d_s_ncells, wts_mat_col_vec_loc, &
+                        ierr)
+      call VecCreateSeq(PETSC_COMM_SELF, map%s2d_s_ncells, wts_mat_vec_loc, ierr)
 
-       call VecCreateSeq(PETSC_COMM_SELF, map%s2d_s_ncells, wts_mat_row_vec_loc, ierr)
-       call VecCreateSeq(PETSC_COMM_SELF, map%s2d_s_ncells, wts_mat_col_vec_loc, ierr)
-       call VecCreateSeq(PETSC_COMM_SELF, map%s2d_s_ncells, wts_mat_vec_loc    , ierr)
+      ! Create scatter context
+      call VecScatterCreate(wts_mat_row_vec, is_from, wts_mat_row_vec_loc, &
+                            is_to, vec_scat, ierr)
 
-       call VecScatterCreate(wts_mat_row_vec, is_from, wts_mat_row_vec_loc, is_to, vec_scat, ierr)
+      ! Scatter the data
+      call VecScatterBegin(vec_scat, wts_mat_col_vec, wts_mat_col_vec_loc, &
+                           INSERT_VALUES, SCATTER_FORWARD, ierr)
+      call VecScatterEnd(vec_scat, wts_mat_col_vec, wts_mat_col_vec_loc, &
+                         INSERT_VALUES, SCATTER_FORWARD, ierr)
+      call VecScatterBegin(vec_scat, wts_mat_vec, wts_mat_vec_loc, &
+                           INSERT_VALUES, SCATTER_FORWARD, ierr)
+      call VecScatterEnd(vec_scat, wts_mat_vec, wts_mat_vec_loc, &
+                         INSERT_VALUES, SCATTER_FORWARD, ierr)
+      
+      ! Attach to the local copy of the scatterd data
+      call VecGetArrayF90(wts_mat_col_vec_loc,v_loc_1,ierr)
+      call VecGetArrayF90(wts_mat_vec_loc    ,v_loc_2,ierr)
 
-       call VecScatterBegin(vec_scat, wts_mat_col_vec, wts_mat_col_vec_loc, INSERT_VALUES, SCATTER_FORWARD, ierr)
-       call VecScatterEnd(  vec_scat, wts_mat_col_vec, wts_mat_col_vec_loc, INSERT_VALUES, SCATTER_FORWARD, ierr)
-       call VecScatterBegin(vec_scat, wts_mat_vec    , wts_mat_vec_loc    , INSERT_VALUES, SCATTER_FORWARD, ierr)
-       call VecScatterEnd(  vec_scat, wts_mat_vec    , wts_mat_vec_loc    , INSERT_VALUES, SCATTER_FORWARD, ierr)
-       
-       call VecGetArrayF90(wts_mat_col_vec_loc,v_loc_1,ierr)
-       call VecGetArrayF90(wts_mat_vec_loc    ,v_loc_2,ierr)
-
-       do ii = 1,map%s2d_s_ncells
-          map%s2d_s_cell_ids(ii) = INT(v_loc_1(ii))
-          map%s2d_wts(ii)        = v_loc_2(ii)
-       enddo 
-       
-       call VecRestoreArrayF90(wts_mat_col_vec_loc, v_loc_1, ierr)
-       call VecRestoreArrayF90(wts_mat_vec_loc    , v_loc_2, ierr)
-              
-       call VecDestroy(wts_mat_col_vec_loc,ierr)
-       call VecDestroy(wts_mat_vec_loc,ierr)
+      ! Save the scattered data
+      if(option%myrank.eq.PRINT_RANK) write(*,*), 'd_s_cell_ids: rank ',option%myrank
+      do ii = 1,map%s2d_s_ncells
+        map%s2d_s_cell_ids(ii) = INT(v_loc_1(ii))
+        map%s2d_wts(ii)        = v_loc_2(ii)
+        if(option%myrank.eq.PRINT_RANK) write(*,*), ii, map%s2d_s_cell_ids(ii)
+      enddo 
+      
+      ! Restore vectors
+      call VecRestoreArrayF90(wts_mat_col_vec_loc, v_loc_1, ierr)
+      call VecRestoreArrayF90(wts_mat_vec_loc    , v_loc_2, ierr)
+      
+      ! Free memory
+      call VecDestroy(wts_mat_col_vec_loc, ierr)
+      call VecDestroy(wts_mat_vec_loc, ierr)
 
     !endif
+
+    ! Restore vectors
+    call VecRestoreArrayF90(nonzero_rcount_cumsum_loc, v_loc_1, ierr)
+    call VecRestoreArrayF90(nonzero_rcount_loc       , v_loc_2, ierr)
 
 
     ! Free Memory
@@ -876,7 +966,6 @@ contains
     call VecDestroy(wts_mat_row_vec,ierr)
     call VecDestroy(wts_mat_col_vec,ierr)
     call VecDestroy(wts_mat_vec,ierr)
-
 
   end subroutine MappingReadTxtFileMPI
 
