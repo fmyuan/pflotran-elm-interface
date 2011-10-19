@@ -1426,7 +1426,7 @@ contains
         option%io_buffer = 'Invalid map_id argument to pflotranModelInitMapping3'
         call printErrMsg(option)
     end select
-#if 1
+
     allocate(grid_pf_cell_ids_ghosted_nindex(grid%ngmax))
     allocate(grid_pf_cell_ids_local_nindex  (grid%nlmax))
     allocate(grid_pf_local_or_ghost_nindex  (grid%ngmax))
@@ -1434,10 +1434,8 @@ contains
     do local_id = 1,grid%nlmax
        grid_pf_cell_ids_local_nindex(local_id)   = grid%nL2A(local_id)
     enddo
-  
     do local_id = 1,grid%ngmax
       grid_pf_cell_ids_ghosted_nindex(local_id) = grid%nG2A(local_id)-1
-      !if(local_id == 1) write(*,*), 'nG2A(1) = ',grid%nG2A(local_id),grid%nL2A(local_id)
       if (grid%nG2L(local_id).eq.0) then
         grid_pf_local_or_ghost_nindex(local_id) = 0 ! GHOST
       else
@@ -1448,64 +1446,20 @@ contains
     grid_pf_npts_local = grid%nlmax
     grid_pf_npts_ghost = grid%ngmax - grid%nlmax
     grid_clm_npts_ghost= 0
-#else
-    allocate(grid_pf_cell_ids_ghosted_nindex(213900))
-    allocate(grid_pf_cell_ids_local_nindex  (213900))
-    allocate(grid_pf_local_or_ghost_nindex  (213900))
-
-    do local_id = 1,213900
-       grid_pf_cell_ids_local_nindex(local_id)   = local_id-1
-    enddo
-  
-    do local_id = 1,213900
-      grid_pf_cell_ids_ghosted_nindex(local_id) = local_id-1
-      grid_pf_local_or_ghost_nindex(local_id) = 1 ! LOCAL
-    enddo
-
-    grid_pf_npts_local = 213900
-    grid_pf_npts_ghost = 0
-    grid_clm_npts_ghost= 0
-#endif
-
-
-
-#if 0
-    !filename = 'mapping_clm2pf_matrix.txt'
-    !call MappingSetSourceMeshCellIds(m_pf2clm, option, grid_pf_npts_local, &
-    !     grid_pf_cell_ids_local_nindex)
-    !call MappingSetDestinationMeshCellIds(m_pf2clm, option, grid_clm_npts_local, &
-    !     grid_clm_npts_ghost, grid_clm_cell_ids_ghosted_nindex)
-    !call MappingReadTxtFile(m_pf2clm, filename, option)
-    !call MappingFindDistinctSourceMeshCellIds(m_pf2clm, option)
-    !call MappingCreateWeightMatrix(map,option)
-    !call MappingCreateScatterOfSourceMesh(m_pf2clm, option)
-
-    !filename = 'mapping_pf2clm_matrix.txt'
-    filename = 'wts_matrix.txt'
-    call MappingSetSourceMeshCellIds(m_clm2pf, option, grid_clm_npts_local, &
-         grid_clm_cell_ids_ghosted_nindex)
-    call MappingSetDestinationMeshCellIds(m_clm2pf, option, grid_pf_npts_local, &
-         grid_pf_npts_ghost, grid_pf_cell_ids_ghosted_nindex, grid_pf_local_or_ghost_nindex)
-    !call MappingReadTxtFile(m_clm2pf, filename, option)
-    call MappingReadTxtFileMPI(m_clm2pf, filename, option)
-    call MappingFindDistinctSourceMeshCellIds(m_clm2pf,option)
-    call MappingCreateWeightMatrix(m_clm2pf,option)
-    call MappingCreateScatterOfSourceMesh(m_clm2pf, option)
-#endif
     
     select case(source_id)
       case(1)
-        !write(*,*), 'source_id = 1'
-        !write(*,*), 'SetSourceMeshCellIds'
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
-          grid_clm_cell_ids_ghosted_nindex)
-        !write(*,*), 'SetDestinationMeshCellIds'
+                                         grid_clm_cell_ids_ghosted_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
-          grid_pf_npts_ghost, grid_pf_cell_ids_ghosted_nindex, grid_pf_local_or_ghost_nindex)
+                                              grid_pf_npts_ghost, &
+                                              grid_pf_cell_ids_ghosted_nindex, &
+                                              grid_pf_local_or_ghost_nindex)
       case(2)
-        !write(*,*), 'source_id =2'
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
           grid_pf_cell_ids_ghosted_nindex)
+        option%io_buffer = 'Source_id = 2 in pflotranModelInitMapping3 not completed'
+        call printErrMsg(option)
         !call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
         !  grid_clm_npts_ghost, grid_clm_cell_ids_ghosted_nindex, grid_clm_local_or_ghost_nindex)
       case default
@@ -1513,19 +1467,18 @@ contains
         call printErrMsg(option)
     end select
     
-    if(option%myrank == option%io_rank) write(*,*), 'MappingReadTxtFileMPI'
     call MPI_Barrier(MPI_COMM_WORLD,ierr)
     call MappingReadTxtFileMPI(map, trim(filename), option)
 
-    if(option%myrank == option%io_rank) write(*,*), 'MappingFindDistinctSourceMeshCellIds'
     call MPI_Barrier(MPI_COMM_WORLD,ierr)
     call MappingFindDistinctSourceMeshCellIds(map,option)
-    if(option%myrank == option%io_rank) write(*,*),'MappingCreateWeightMatrix'
+
     call MPI_Barrier(MPI_COMM_WORLD,ierr)
     call MappingCreateWeightMatrix(map,option)
-    if(option%myrank == option%io_rank) write(*,*),'MappingCreateScatterOfSourceMesh'
+
     call MPI_Barrier(MPI_COMM_WORLD,ierr)
     call MappingCreateScatterOfSourceMesh(map, option)        
+    if(option%myrank == PRINT_RANK) write(*,*),' ... done'
 
     deallocate(grid_pf_cell_ids_ghosted_nindex)
     deallocate(grid_pf_cell_ids_local_nindex)
