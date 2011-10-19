@@ -1478,7 +1478,6 @@ contains
 
     call MPI_Barrier(MPI_COMM_WORLD,ierr)
     call MappingCreateScatterOfSourceMesh(map, option)        
-    if(option%myrank == PRINT_RANK) write(*,*),' ... done'
 
     deallocate(grid_pf_cell_ids_ghosted_nindex)
     deallocate(grid_pf_cell_ids_local_nindex)
