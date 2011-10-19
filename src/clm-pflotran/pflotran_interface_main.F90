@@ -87,27 +87,38 @@ program pflotran_interface_main
   type(richards_auxvar_type), pointer  :: rich_aux_vars(:)
   type(richards_auxvar_type), pointer  :: aux_var
 
+  PetscInt :: PRINT_RANK    
+  PRINT_RANK = 0
+
   ! A
   allocate(pflotran_m)
   allocate(clmpf_data)    
 
   ! Create the model and CLM data
-  write(*,*), 'Create the pflotranModel'
   pflotran_m => pflotranModelCreate()
-  
-  write(*,*), 'Create CLMPF data'
   clmpf_data => clm_pf_data_create()
 
   clm_npts = 2*2*10/pflotran_m%option%mycommsize
   allocate(clm_cell_ids(clm_npts))
   do ii = 1,clm_npts
     clm_cell_ids(ii) = ii-1 + clm_npts*pflotran_m%option%myrank
+    if(pflotran_m%option%myrank.eq.PRINT_RANK) write(*,*), ii, clm_cell_ids(ii)
   enddo
 
   filename = 'idealize_mapping_clm2pf_flux_2x2_clm_matching.dat'//CHAR(0)
+  filename = 'idealize_mapping_clm2pf_flux_2x2.dat'//CHAR(0)
   call pflotranModelInitMapping3(pflotran_m,filename,&
     clm_cell_ids,clm_npts,1,1)
 
+  if(pflotran_m%option%myrank.eq.PRINT_RANK) write(*,*), 'pflotranModelStepperRunInit'
+  call pflotranModelStepperRunInit(pflotran_m)
+  !do time = 1,0
+  !   call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 3600.0d0)
+  !enddo
+  !call pflotranModelStepperRunFinalize(pflotran_m)
+
+  if(pflotran_m%option%myrank.eq.PRINT_RANK) write(*,*), 'pflotranModelDestroy'
+  call pflotranModelDestroy(pflotran_m)
 
 #if 0 
   ! Read soil properties data  
