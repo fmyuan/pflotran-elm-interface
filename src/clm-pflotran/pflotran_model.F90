@@ -1367,7 +1367,7 @@ contains
   ! date: 03/24/2011
   ! ************************************************************************** !
   subroutine pflotranModelInitMapping3(pflotran_model, filename, &
-       grid_clm_cell_ids_ghosted_nindex, grid_clm_npts_local, map_id,source_id)
+       grid_clm_cell_ids_ghosted_nindex, grid_clm_npts_local, map_id, source_id)
 
     use Input_module
     use Option_module
