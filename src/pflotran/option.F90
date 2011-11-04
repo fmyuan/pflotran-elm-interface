@@ -217,6 +217,7 @@ module Option_module
     PetscBool :: print_vtk_velocities
 
     PetscBool :: print_observation 
+    PetscBool :: print_column_ids
 
     PetscBool :: print_mad 
 
@@ -567,6 +568,7 @@ function OutputOptionCreate()
   output_option%print_vtk = PETSC_FALSE
   output_option%print_vtk_velocities = PETSC_FALSE
   output_option%print_observation = PETSC_FALSE
+  output_option%print_column_ids = PETSC_FALSE
   output_option%print_mad = PETSC_FALSE
   output_option%print_initial = PETSC_TRUE
   output_option%print_final = PETSC_TRUE

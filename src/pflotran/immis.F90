@@ -1248,10 +1248,15 @@ subroutine ImmisBCFlux(ibndtype,aux_vars,aux_var_up,aux_var_dn, &
   ! Conduction term
 ! if(option%use_isothermal == PETSC_FALSE) then
     select case(ibndtype(2))
-    case(DIRICHLET_BC, 4)
+    case(DIRICHLET_BC)
        Dk =  Dk_dn / dd_up
        cond = Dk*area*(aux_var_up%temp - aux_var_dn%temp) 
-       fluxe=fluxe + cond
+       fluxe = fluxe + cond
+    case(NEUMANN_BC)
+       fluxe = fluxe + aux_vars(2)*area*1.d-6 ! The variable numbers are hard-coded now. Need to be fixed
+       ! from W to MW, Added by Satish Karra 10/19/11
+    case(ZERO_GRADIENT_BC)
+       ! No change in fluxe	
     end select
 ! end if
 
@@ -1535,11 +1540,11 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
    !   enthalpy_flag = PETSC_FALSE
    ! endif
       
-    psrc(:) = source_sink%flow_condition%pressure%dataset%cur_value(:)
-!    qsrc1 = source_sink%flow_condition%pressure%dataset%cur_value(1)
-    tsrc1 = source_sink%flow_condition%temperature%dataset%cur_value(1)
-    csrc1 = source_sink%flow_condition%concentration%dataset%cur_value(1)
-    if (enthalpy_flag) hsrc1 = source_sink%flow_condition%enthalpy%dataset%cur_value(1)
+    psrc(:) = source_sink%flow_condition%pressure%flow_dataset%time_series%cur_value(:)
+!    qsrc1 = source_sink%flow_condition%pressure%flow_dataset%time_series%cur_value(1)
+    tsrc1 = source_sink%flow_condition%temperature%flow_dataset%time_series%cur_value(1)
+    csrc1 = source_sink%flow_condition%concentration%flow_dataset%time_series%cur_value(1)
+    if (enthalpy_flag) hsrc1 = source_sink%flow_condition%enthalpy%flow_dataset%time_series%cur_value(1)
 !    hsrc1=0D0
 !    qsrc1 = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
 !    csrc1 = csrc1 / FMWCO2
@@ -1849,7 +1854,7 @@ subroutine SAMRSetCurrentJacobianPatch(mat,patch)
       ! need to set the current patch in the Jacobian operator
       ! so that entries will be set correctly
       if(associated(grid%structured_grid) .and. &
-        (.not.(grid%structured_grid%p_samr_patch.eq.0))) then
+        (.not.(grid%structured_grid%p_samr_patch == 0))) then
          call SAMRSetCurrentJacobianPatch(J, grid%structured_grid%p_samr_patch)
       endif
       call ImmisJacobianPatch(snes,xx,A,B,flag,realization,ierr)
@@ -2024,11 +2029,11 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,flag,realization,ierr)
    !   enthalpy_flag = PETSC_FALSE
    ! endif
 
-    psrc(:) = source_sink%flow_condition%pressure%dataset%cur_value(:)
-    tsrc1 = source_sink%flow_condition%temperature%dataset%cur_value(1)
-    csrc1 = source_sink%flow_condition%concentration%dataset%cur_value(1)
+    psrc(:) = source_sink%flow_condition%pressure%flow_dataset%time_series%cur_value(:)
+    tsrc1 = source_sink%flow_condition%temperature%flow_dataset%time_series%cur_value(1)
+    csrc1 = source_sink%flow_condition%concentration%flow_dataset%time_series%cur_value(1)
  !   hsrc1=0.D0
-    if (enthalpy_flag) hsrc1 = source_sink%flow_condition%enthalpy%dataset%cur_value(1)
+    if (enthalpy_flag) hsrc1 = source_sink%flow_condition%enthalpy%flow_dataset%time_series%cur_value(1)
 
    ! qsrc1 = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
    ! csrc1 = csrc1 / FMWCO2
