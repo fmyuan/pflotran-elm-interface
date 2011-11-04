@@ -9,7 +9,7 @@ module Realization_module
   use Subcontinuum_module
 #endif
   use Saturation_Function_module
-  use Dataset_module
+  use Dataset_Aux_module
   use Fluid_module
   use Discretization_module
   use Field_module
@@ -196,7 +196,8 @@ end function RealizationCreate2
 subroutine RealizationCreateDiscretization(realization)
 
   use Grid_module
-  use Unstructured_Grid_module, only : UGridMapIndices
+  use Unstructured_Grid_module, only : UGridMapIndices, &
+                                       UGridEnsureRightHandRule
   use AMR_Grid_module
   use MFD_module
   use Coupler_module
@@ -317,7 +318,7 @@ subroutine RealizationCreateDiscretization(realization)
 
 
 
-    if(option%use_samr) then
+    if (option%use_samr) then
        option%ivar_centering = SIDE_CENTERED
        call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_face_fluxes, &
                                     GLOBAL,option)
@@ -350,7 +351,7 @@ subroutine RealizationCreateDiscretization(realization)
                                            field%tran_work_loc)
       endif
 
-      if(option%use_samr) then
+      if (option%use_samr) then
          option%ivar_centering = SIDE_CENTERED
          call DiscretizationCreateVector(discretization,NTRANDOF,field%tran_face_fluxes, &
                                       GLOBAL,option)
@@ -375,7 +376,7 @@ subroutine RealizationCreateDiscretization(realization)
       ! again, just for storage of the current colution
       call DiscretizationCreateVector(discretization,NTRANDOF,field%tran_xx_loc, &
                                       LOCAL,option)
-      if(option%use_samr) then
+      if (option%use_samr) then
          option%ivar_centering = SIDE_CENTERED
          call DiscretizationCreateVector(discretization,ONEDOF,field%tran_face_fluxes, &
                                       GLOBAL,option)
@@ -406,6 +407,10 @@ subroutine RealizationCreateDiscretization(realization)
                            grid%nG2L,grid%nL2G,grid%nL2A,grid%nG2A)
       call GridComputeCoordinates(grid,discretization%origin,option, & 
                                    discretization%dm_1dof%ugdm)  !sp 
+#ifdef GLENN
+      call UGridEnsureRightHandRule(grid%unstructured_grid,grid%x, &
+                                    grid%y,grid%z,option)
+#endif
       ! set up internal connectivity, distance, etc.
       call GridComputeInternalConnect(grid,option, discretization%dm_1dof%ugdm) !sp 
       call GridComputeVolumes(grid,field%volume,option)
@@ -867,6 +872,9 @@ subroutine RealizationProcessConditions(realization)
   
   type(realization_type) :: realization
   
+  if (realization%option%nflowdof > 0) then
+    call RealProcessFlowConditions(realization)
+  endif
   if (realization%option%ntrandof > 0) then
     call RealProcessTranConditions(realization)
   endif
@@ -1013,7 +1021,7 @@ subroutine RealProcessSubcontinuumProp(realization)
             cur_subcontinuum_property%id
           exit
         endif
-        ! START TODO: check if this error check block is at right place. might have
+        ! START TODO(jitu): check if this error check block is at right place. might have
         ! to push it to upper do loop: Jitu 10/07/2010 
         if (.not.found) then
           option%io_buffer = 'Saturation function "' // &
@@ -1023,7 +1031,7 @@ subroutine RealProcessSubcontinuumProp(realization)
                '" not found among available subcontinuum types.'
           call printErrMsg(realization%option)    
         endif
-        ! END TODO
+        ! END TODO(jitu)
       enddo  
       cur_subcontinuum_property => cur_subcontinuum_property%next
     enddo
@@ -1032,7 +1040,6 @@ subroutine RealProcessSubcontinuumProp(realization)
 #endif 
 end subroutine RealProcessSubcontinuumProp
 
-! ************************************************************************** !
 ! ************************************************************************** !
 !
 ! RealProcessFluidProperties: Sets up linkeage with fluid properties
@@ -1074,6 +1081,93 @@ subroutine RealProcessFluidProperties(realization)
   endif
   
 end subroutine RealProcessFluidProperties
+
+! ************************************************************************** !
+!
+! RealProcessFlowConditions: Sets linkage of flow conditions to dataset
+! author: Glenn Hammond
+! date: 10/26/11
+!
+! ************************************************************************** !
+subroutine RealProcessFlowConditions(realization)
+
+  use Dataset_module
+
+  implicit none
+
+  type(realization_type) :: realization
+  
+  type(flow_condition_type), pointer :: cur_flow_condition
+  type(flow_sub_condition_type), pointer :: cur_flow_sub_condition
+  type(option_type), pointer :: option
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: dataset_name
+  PetscInt :: i
+  type(dataset_type), pointer :: dataset
+  
+  option => realization%option
+  
+  ! loop over flow conditions looking for linkage to datasets
+  cur_flow_condition => realization%flow_conditions%first
+  do
+    if (.not.associated(cur_flow_condition)) exit
+    !TODO(geh): could destroy the time_series here if dataset allocated
+    select case(option%iflowmode)
+      case(G_MODE)
+      case(RICHARDS_MODE)
+        do i = 1, size(cur_flow_condition%sub_condition_ptr)
+          ! check for dataset in flow_dataset
+          if (associated(cur_flow_condition%sub_condition_ptr(i)%ptr% &
+                          flow_dataset%dataset)) then
+            dataset_name = cur_flow_condition%sub_condition_ptr(i)%ptr% &
+                          flow_dataset%dataset%name
+            ! delete the dataset since it is solely a placeholder
+            call DatasetDestroy(cur_flow_condition%sub_condition_ptr(i)%ptr% &
+                                flow_dataset%dataset)
+            ! get dataset from list
+            string = 'flow_condition ' // trim(cur_flow_condition%name)
+            dataset => &
+              DatasetGetPointer(realization%datasets,dataset_name,string,option)
+            cur_flow_condition%sub_condition_ptr(i)%ptr%flow_dataset%dataset => &
+              dataset
+            call DatasetLoad(dataset,option)
+          endif
+          if (associated(cur_flow_condition%sub_condition_ptr(i)%ptr% &
+                          datum%dataset)) then
+            dataset_name = cur_flow_condition%sub_condition_ptr(i)%ptr% &
+                          datum%dataset%name
+            ! delete the dataset since it is solely a placeholder
+            call DatasetDestroy(cur_flow_condition%sub_condition_ptr(i)%ptr% &
+                                datum%dataset)
+            ! get dataset from list
+            string = 'flow_condition ' // trim(cur_flow_condition%name)
+            dataset => &
+              DatasetGetPointer(realization%datasets,dataset_name,string,option)
+            cur_flow_condition%sub_condition_ptr(i)%ptr%datum%dataset => &
+              dataset
+            call DatasetLoad(dataset,option)
+          endif
+          if (associated(cur_flow_condition%sub_condition_ptr(i)%ptr% &
+                          gradient%dataset)) then
+            dataset_name = cur_flow_condition%sub_condition_ptr(i)%ptr% &
+                          gradient%dataset%name
+            ! delete the dataset since it is solely a placeholder
+            call DatasetDestroy(cur_flow_condition%sub_condition_ptr(i)%ptr% &
+                                gradient%dataset)
+            ! get dataset from list
+            string = 'flow_condition ' // trim(cur_flow_condition%name)
+            dataset => &
+              DatasetGetPointer(realization%datasets,dataset_name,string,option)
+            cur_flow_condition%sub_condition_ptr(i)%ptr%gradient%dataset => &
+              dataset
+            call DatasetLoad(dataset,option)
+          endif
+        enddo
+    end select
+    cur_flow_condition => cur_flow_condition%next
+  enddo
+
+end subroutine RealProcessFlowConditions
 
 ! ************************************************************************** !
 !
@@ -1141,6 +1235,7 @@ subroutine RealProcessTranConditions(realization)
   ! tie constraints to couplers, if not already associated
   cur_condition => realization%transport_conditions%first
   do
+
     if (.not.associated(cur_condition)) exit
     cur_constraint_coupler => cur_condition%constraint_coupler_list
     do
@@ -1591,6 +1686,8 @@ subroutine RealizationAddWaypointsToList(realization)
     if (cur_flow_condition%sync_time_with_update) then
       do isub_condition = 1, cur_flow_condition%num_sub_conditions
         sub_condition => cur_flow_condition%sub_condition_ptr(isub_condition)%ptr
+        !TODO(geh): check if this updated more than simply the flow_dataset (i.e. datum and gradient)
+        !geh: followup - no, datum/gradient are not considered.  Should they be considered?
         call FlowConditionDatasetGetTimes(option,sub_condition,final_time, &
                                           times)
         if (size(times) > 1000) then
@@ -1810,6 +1907,8 @@ end subroutine RealizationSetDataset
 !
 ! ************************************************************************** !
 subroutine RealizationUpdateProperties(realization)
+
+  implicit none
 
   type(realization_type) :: realization
   
@@ -2461,6 +2560,8 @@ end subroutine RealizationPrintGridStatistics
 !
 ! ************************************************************************** !
 subroutine RealizationCalculateCFL1Timestep(realization,max_dt_cfl_1)
+
+  implicit none
 
   type(realization_type) realization
   PetscReal :: max_dt_cfl_1

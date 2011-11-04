@@ -1414,8 +1414,9 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
                                          aq_species_constraint, &
                                          srfcplx_constraint, &
                                          colloid_constraint, &
+                                         porosity1, &
                                          num_iterations, &
-                                         initialize_rt_auxvar,option)
+                                         use_prev_soln_as_guess,option)
   use Option_module
   use Input_module
   use String_module  
@@ -1435,7 +1436,13 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   type(srfcplx_constraint_type), pointer :: srfcplx_constraint
   type(colloid_constraint_type), pointer :: colloid_constraint
   PetscInt :: num_iterations
-  PetscBool :: initialize_rt_auxvar
+  
+! *****************************
+! pcl: using 'porosity' does not compile on Mac with gfortran 4.6.0
+  PetscReal :: porosity1
+! *****************************
+
+  PetscBool :: use_prev_soln_as_guess
   type(option_type) :: option
   
   character(len=MAXSTRINGLENGTH) :: string
@@ -1451,12 +1458,12 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   PetscReal :: Res(reaction%naqcomp)
   PetscReal :: total_conc(reaction%naqcomp)
   PetscReal :: free_conc(reaction%naqcomp)
+  PetscReal :: guess(reaction%naqcomp)
   PetscReal :: Jac(reaction%naqcomp,reaction%naqcomp)
   PetscInt :: indices(reaction%naqcomp)
   PetscReal :: norm
+  PetscReal :: max_abs_res
   PetscReal :: prev_molal(reaction%naqcomp)
-  PetscReal, parameter :: tol = 1.d-12
-  PetscReal, parameter :: tol_loose = 1.d-6
   PetscBool :: compute_activity_coefs
 
   PetscInt :: constraint_id(reaction%naqcomp)
@@ -1521,6 +1528,14 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     rt_auxvar%total(:,iphase) = aq_species_constraint%basis_molarity
     return
   endif
+  
+  ! set initial guess
+  
+  if (use_prev_soln_as_guess) then
+    guess = rt_auxvar%pri_molal
+  else
+    guess = 1.d-9
+  endif
 
   ! if using multirate reaction, we need to turn it off to equilibrate the system
   ! then turn it back on
@@ -1561,7 +1576,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     select case(constraint_type(icomp))
       case(CONSTRAINT_NULL,CONSTRAINT_TOTAL,CONSTRAINT_TOTAL_SORB)
         total_conc(icomp) = conc(icomp)*convert_molal_to_molar
-        free_conc(icomp) = 1.d-9
+        free_conc(icomp) = guess(icomp)
       case(CONSTRAINT_FREE)
         free_conc(icomp) = conc(icomp)*convert_molar_to_molal
       case(CONSTRAINT_LOG)
@@ -1600,13 +1615,11 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
         if (conc(icomp) <= 0.d0) then ! log form
           conc(icomp) = 10.d0**conc(icomp) ! conc log10 partial pressure gas
         endif
-        free_conc(icomp) = 1.d-9 ! guess
+        free_conc(icomp) = guess(icomp)
     end select
   enddo
   
-  if (initialize_rt_auxvar) then
-    rt_auxvar%pri_molal = free_conc
-  endif
+  rt_auxvar%pri_molal = free_conc
 
   num_iterations = 0
   compute_activity_coefs = PETSC_FALSE
@@ -1616,7 +1629,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF .and. &
         compute_activity_coefs) then
       call RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
-      if(option%iflowmode == MPH_MODE .or. option%iflowmode == FLASH2_MODE)then
+      if (option%iflowmode == MPH_MODE .or. option%iflowmode == FLASH2_MODE) then
             call CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)  
        endif
      endif
@@ -1648,7 +1661,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           Jac(icomp,:) = rt_auxvar%aqueous%dtotal(icomp,:,1)
         case(CONSTRAINT_TOTAL_SORB)
           ! conversion from m^3 bulk -> L water
-          tempreal = option%reference_porosity*option%reference_saturation*1000.d0
+          tempreal = porosity1*global_auxvar%sat(iphase)*1000.d0
           ! total = mol/L water  total_sorb = mol/m^3 bulk
           Res(icomp) = rt_auxvar%total(icomp,1) + &
             rt_auxvar%total_sorb_eq(icomp)/tempreal - total_conc(icomp)
@@ -1815,7 +1828,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
           igas = constraint_id(icomp)
          
           ! compute secondary species concentration
-          if(abs(reaction%species_idx%co2_gas_id) == igas) then
+          if (abs(reaction%species_idx%co2_gas_id) == igas) then
           
 !           pres = global_auxvar%pres(2)
             pres = conc(icomp)*1.D5
@@ -1908,6 +1921,8 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       end select
     enddo
     
+    max_abs_res = maxval(abs(Res))
+    
     ! scale Jacobian
     do icomp = 1, reaction%naqcomp
       norm = max(1.d0,maxval(abs(Jac(icomp,:))))
@@ -1949,7 +1964,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     endif
     
     ! check for convergence
-    if (maxval(dabs(res)) < tol) then
+    if (max_abs_res < reaction%max_residual_tolerance) then
       ! need some sort of convergence before we kick in activities
       if (compute_activity_coefs) exit
       compute_activity_coefs = PETSC_TRUE
@@ -3541,7 +3556,7 @@ subroutine RActivityCoefficients(rt_auxvar,global_auxvar,reaction,option)
             ncomp = reaction%eqcplxspecid(0,icplx)
             do jcomp = 1, ncomp
               j = reaction%eqcplxspecid(jcomp,icplx)
-              if(abs(reaction%primary_spec_Z(j)) > 0.d0) then
+              if (abs(reaction%primary_spec_Z(j)) > 0.d0) then
                 dgamdi = -0.5d0*reaction%debyeA*reaction%primary_spec_Z(j)**2/(sqrt_I* &
                 (1.d0+reaction%debyeB*reaction%primary_spec_a0(j)*sqrt_I)**2)+ &
                 reaction%debyeBdot 
@@ -3808,7 +3823,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,reaction,option)
   endif
 #endif  
 
-  if(iphase > option%nphase) return 
+  if (iphase > option%nphase) return 
   rt_auxvar%total(:,iphase) = 0D0
   rt_auxvar%aqueous%dtotal(:,:,iphase)=0D0
 !  do icomp = 1, reaction%naqcomp
@@ -3816,7 +3831,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,reaction,option)
 !  enddo
     
 !  den_kg_per_L = global_auxvar%den_kg(iphase)*1.d-3     
-  if(global_auxvar%sat(iphase)>1D-20)then
+  if (global_auxvar%sat(iphase)>1D-20) then
     do ieqgas = 1, reaction%ngas ! all gas phase species are secondary
    
       pressure = global_auxvar%pres(2)
@@ -3834,7 +3849,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,reaction,option)
 !            global_auxvar%fugacoeff(1) = xphico2
 
 
-      if(abs(reaction%species_idx%co2_gas_id) == ieqgas )then
+      if (abs(reaction%species_idx%co2_gas_id) == ieqgas ) then
 !          call Henry_duan_sun_0NaCl(pco2*1D-5, temperature, henry)
         if (reaction%species_idx%na_ion_id /= 0 .and. reaction%species_idx%cl_ion_id /= 0) then
           m_na = rt_auxvar%pri_molal(reaction%species_idx%na_ion_id)
@@ -3872,7 +3887,7 @@ subroutine RTotal(rt_auxvar,global_auxvar,reaction,option)
                                         rt_auxvar%gas_molal(ieqgas)
 !       print *,'Ttotal',pressure, temperature, xphico2, den, lnQk,rt_auxvar%pri_molal(icomp),&
 !        global_auxvar%sat(2),rt_auxvar%gas_molal(ieqgas)
-   !     if(rt_auxvar%total(icomp,iphase) > den)rt_auxvar%total(icomp,iphase) = den* .99D0
+   !     if (rt_auxvar%total(icomp,iphase) > den)rt_auxvar%total(icomp,iphase) = den* .99D0
    !     enddo
 
    ! contribute to %dtotal
@@ -5513,7 +5528,7 @@ subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
     do k = j, FIVE_INTEGER
       a(j,k) = 0.d0
       do i = 1, reaction%num_dbase_temperatures
-        if (temp_int(i) .eq. 1) then
+        if (temp_int(i) == 1) then
           a(j,k) = a(j,k) + vec(j,i)*vec(k,i)
         endif
       enddo

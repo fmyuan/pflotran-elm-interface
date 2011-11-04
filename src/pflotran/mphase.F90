@@ -610,28 +610,36 @@ end subroutine MphaseUpdateMassBalancePatch
               re=0; exit
            endif
            if(xx_p(n0 + 3) < 0D0)then
- !             if(xx_p(n0 + 3) > -1D-3)then
- !                xx_p(n0 + 3) =0.D0
- !             else  
+              if(xx_p(n0 + 3) > -1D-14)then
+                 xx_p(n0 + 3) =0.D0
+              else  
         
  !        print *,'MPhaseUpdate: ',iipha,n,n0,option%nflowdof,xx_p(n0+3)
           
                  re=0; exit
- !             endif          ! clu removed 05/02/2011
+            endif          ! clu removed 05/02/2011
           endif
         case (2)
            if(xx_p(n0 + 3) > 1.0D0)then
               re=0; exit
            endif
            if(xx_p(n0 + 3) < 0D-0)then
+            if(xx_p(n0 + 3) > -1D-14)then
+                 xx_p(n0 + 3) =0.D0
+              else  
               re=0; exit
+            endif 
            endif
         case (3)
            if(xx_p(n0 + 3) > 1.D0)then
               re=0; exit
            endif
            if(xx_p(n0 + 3) < 0.)then
+            if(xx_p(n0 + 3) > -1D-14)then
+                 xx_p(n0 + 3) =0.D0
+              else  
               re=0; exit
+            endif  
            endif
         end select
      end do
@@ -838,7 +846,7 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
   type(global_auxvar_type), pointer :: global_aux_vars_ss(:)
 
   PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, idof, iconn
-  PetscInt :: iphasebc, iphase
+  PetscInt :: iphase
   PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:), iphase_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
   PetscErrorCode :: ierr
@@ -945,14 +953,14 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
       enddo
 
       select case(boundary_condition%flow_condition%itype(MPH_CONCENTRATION_DOF))
-        case(DIRICHLET_BC,SEEPAGE_BC)
+        case(DIRICHLET_BC,SEEPAGE_BC,HYDROSTATIC_BC)
           iphase = boundary_condition%flow_aux_int_var(1,iconn)
-        case(NEUMANN_BC,ZERO_GRADIENT_BC,HYDROSTATIC_BC)
+        case(NEUMANN_BC,ZERO_GRADIENT_BC)
           iphase=int(iphase_loc_p(ghosted_id))                               
       end select
 	  
       call MphaseAuxVarCompute_NINC(xxbc,aux_vars_bc(sum_connection)%aux_var_elem(0), &
-                          global_aux_vars_bc(sum_connection),iphasebc, &
+                          global_aux_vars_bc(sum_connection),iphase, &
                          realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
                          realization%fluid_properties, option, xphi)
     
@@ -1411,7 +1419,8 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,aux_var,isrctype,
         else if(option%co2eos == EOS_MRK) then
 ! MRK eos [modified version from  Kerrick and Jacobs (1981) and Weir et al. (1996).]
           call CO2(tsrc,aux_var%pres, rho,fg, xphi,enth_src_co2)
-            enth_src_co2 = enth_src_co2*FMWCO2*option%scale
+          qsrc_phase(2) = msrc(2)*rho/FMWCO2
+          enth_src_co2 = enth_src_co2*FMWCO2*option%scale
         else
           call printErrMsg(option,'pflow mphase ERROR: Need specify CO2 EOS')
         endif
@@ -1456,6 +1465,7 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,aux_var,isrctype,
             dphi = aux_var%pres - aux_var%pc(np) - pressure_bh
             if (dphi>=0.D0) then ! outflow only
               ukvr = aux_var%kvr(np)
+              if(ukvr<1e-20) ukvr=0D0
               v_darcy=0D0
               if (ukvr*Dq>floweps) then
                 v_darcy = Dq * ukvr * dphi
@@ -1512,6 +1522,7 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,aux_var,isrctype,
     case default
       print *,'Unrecognized Source/Sink condition: ', isrctype 
   end select      
+  deallocate(msrc)
       
 end subroutine MphaseSourceSink
 
@@ -2080,7 +2091,7 @@ subroutine MphaseVarSwitchPatch(xx, realization, icri, ichange)
   PetscReal :: p2,p,tmp,t
   PetscReal :: dg,dddt,dddp,fg,dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp
   PetscReal :: ug,xphi,henry,sat_pressure
-  PetscReal :: k1, k2, z1, z2,xg, vmco2, vmh2o,sg
+  PetscReal :: k1, k2, z1, z2, xg, vmco2, vmh2o, sg, sgg
   PetscReal :: xmol(realization%option%nphase*realization%option%nflowspec),&
                satu(realization%option%nphase)
 ! PetscReal :: yh2o_in_co2 = 1.d-2
@@ -2230,16 +2241,9 @@ subroutine MphaseVarSwitchPatch(xx, realization, icri, ichange)
 
 !         print *,'phase chg: ',xmol(2),xco2eq,mco2,m_nacl,p,t
 
-          if(xmol(2) > xco2eq * 1.10d0) then
-!         if(xmol(2) > xco2eq) then
-          
-            write(*,'('' Liq -> 2ph '',''rank='',i6,'' n='',i8,'' p='',1pe10.4, &
-       &    '' T='',1pe10.4,'' Xl='',1pe11.4,'' xmol4='',1pe11.4, &
-       &    '' Xco2eq='',1pe11.4)') &
-            option%myrank,local_id,xx_p(dof_offset+1:dof_offset+3),xmol(4),xco2eq
+!         if(xmol(4)+ wat_sat_x > 1.05d0) then
+          if(xmol(2) > xco2eq) then
 
-            iphase_loc_p(ghosted_id) = 3 ! Liq -> 2ph
-        
         !   Rachford-Rice initial guess: 1=H2O, 2=CO2
             k1 = wat_sat_x !sat_pressure*1.D5/p
             k2 = henry/p
@@ -2250,9 +2254,31 @@ subroutine MphaseVarSwitchPatch(xx, realization, icri, ichange)
             
        !    calculate initial guess for sg
             sg = vmco2*xg/(vmco2*xg+vmh2o*(1.d0-xg))
-!           write(*,'(''Rachford-Rice: '',1p10e12.4)') k1,k2,z1,z2,xg,sg,den(1)
-            xx_p(dof_offset+3) = sg   
-            ichange = 1
+            if(sg>1.D-4) then          
+              write(*,'('' Liq -> 2ph '',''rank='',i6,'' n='',i8,'' p='',1pe10.4, &
+       &      '' T='',1pe10.4,'' Xl='',1pe11.4,'' xmol4='',1pe11.4, &
+       &      '' Xco2eq='',1pe11.4)') &
+              option%myrank,local_id,xx_p(dof_offset+1:dof_offset+3), &
+                xmol(4),xco2eq
+
+              iphase_loc_p(ghosted_id) = 3 ! Liq -> 2ph
+        
+              write(*,'(''Rachford-Rice: '','' z1, z2='', &
+        &     1p2e12.4,'' xeq='',1pe12.4,'' xg='',1pe12.4, &
+        &     '' sg='',1pe12.4)') z1,z2,xco2eq,xg,sg
+        
+!             write(*,'(''Rachford-Rice: '',''K1,2='',1p2e12.4,'' z1,2='', &
+!       &     1p2e12.4,'' xeq='',1pe12.4,'' xg='',1pe12.4, &
+!       &     '' sg='',1pe12.4,'' dg='',1p2e12.4)') &
+!             k1,k2,z1,z2,xco2eq,xg,sg,den(1),dg
+
+              sgg = den(1)*(z2-xco2eq)/(den(1)*(z2-xco2eq) - &
+                dg*(z2-(1.d0-wat_sat_x)))
+              write(*,'(''Rachford-Rice: sg = '',1p2e12.4)') sgg,sg
+              
+              xx_p(dof_offset+3) = sg   
+              ichange = 1
+            endif
           endif
 
         case(2) ! gas
@@ -2267,8 +2293,8 @@ subroutine MphaseVarSwitchPatch(xx, realization, icri, ichange)
             option%myrank,local_id,xx_p(dof_offset+1:dof_offset+3),wat_sat_x
 
             iphase_loc_p(ghosted_id) = 3 ! Gas -> 2ph
-!           xx_p(dof_offset+3) = 1.D0-formeps
-            xx_p(dof_offset+3) = 1.D0
+           xx_p(dof_offset+3) = 1.D0-formeps
+!            xx_p(dof_offset+3) = 1.D0
             ichange = 1
           endif
 
@@ -2591,12 +2617,12 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
    ! endif
 
     if (associated(source_sink%flow_condition%pressure)) then
-      psrc(:) = source_sink%flow_condition%pressure%dataset%cur_value(:)
+      psrc(:) = source_sink%flow_condition%pressure%flow_dataset%time_series%cur_value(:)
     endif
-!   qsrc1 = source_sink%flow_condition%pressure%dataset%cur_value(1)
-    tsrc1 = source_sink%flow_condition%temperature%dataset%cur_value(1)
-    csrc1 = source_sink%flow_condition%concentration%dataset%cur_value(1)
-    if (enthalpy_flag) hsrc1 = source_sink%flow_condition%enthalpy%dataset%cur_value(1)
+!   qsrc1 = source_sink%flow_condition%pressure%flow_dataset%time_series%cur_value(1)
+    tsrc1 = source_sink%flow_condition%temperature%flow_dataset%time_series%cur_value(1)
+    csrc1 = source_sink%flow_condition%concentration%flow_dataset%time_series%cur_value(1)
+    if (enthalpy_flag) hsrc1 = source_sink%flow_condition%enthalpy%flow_dataset%time_series%cur_value(1)
     
 !   print *,'src/sink: ',tsrc1,csrc1,hsrc1,psrc
     
@@ -2610,10 +2636,10 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
 !clu add
  select case(source_sink%flow_condition%itype(1))
    case(MASS_RATE_SS)
-     msrc => source_sink%flow_condition%rate%dataset%cur_value
+     msrc => source_sink%flow_condition%rate%flow_dataset%time_series%cur_value
      nsrcpara= 2
    case(WELL_SS)
-     msrc => source_sink%flow_condition%well%dataset%cur_value
+     msrc => source_sink%flow_condition%well%flow_dataset%time_series%cur_value
      nsrcpara = 7 + option%nflowspec 
      
 !    print *,'src/sink: ',nsrcpara,msrc
@@ -2643,7 +2669,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
       if (option%compute_mass_balance_new) then
         global_aux_vars_ss(sum_connection)%mass_balance_delta(:,1) = &
           global_aux_vars_ss(sum_connection)%mass_balance_delta(:,1) - &
-          Res(:)/option%flow_dt
+         Res(:)/option%flow_dt
       endif
   
       r_p((local_id-1)*option%nflowdof + jh2o) = r_p((local_id-1)*option%nflowdof + jh2o)-Res(jh2o)
@@ -2993,7 +3019,7 @@ end interface
       ! need to set the current patch in the Jacobian operator
       ! so that entries will be set correctly
       if(associated(grid%structured_grid) .and. &
-        (.not.(grid%structured_grid%p_samr_patch.eq.0))) then
+        (.not.(grid%structured_grid%p_samr_patch == 0))) then
          call SAMRSetCurrentJacobianPatch(J, grid%structured_grid%p_samr_patch)
       endif
       call MphaseJacobianPatch(snes,xx,J,J,flag,realization,ierr)
@@ -3192,12 +3218,12 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,flag,realization,ierr)
    ! endif
 
     if (associated(source_sink%flow_condition%pressure)) then
-      psrc(:) = source_sink%flow_condition%pressure%dataset%cur_value(:)
+      psrc(:) = source_sink%flow_condition%pressure%flow_dataset%time_series%cur_value(:)
     endif
-    tsrc1 = source_sink%flow_condition%temperature%dataset%cur_value(1)
-    csrc1 = source_sink%flow_condition%concentration%dataset%cur_value(1)
+    tsrc1 = source_sink%flow_condition%temperature%flow_dataset%time_series%cur_value(1)
+    csrc1 = source_sink%flow_condition%concentration%flow_dataset%time_series%cur_value(1)
  !   hsrc1=0.D0
-    if (enthalpy_flag) hsrc1 = source_sink%flow_condition%enthalpy%dataset%cur_value(1)
+    if (enthalpy_flag) hsrc1 = source_sink%flow_condition%enthalpy%flow_dataset%time_series%cur_value(1)
 
    ! qsrc1 = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
    ! csrc1 = csrc1 / FMWCO2
@@ -3207,10 +3233,10 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,flag,realization,ierr)
 !clu add
      select case(source_sink%flow_condition%itype(1))
      case(MASS_RATE_SS)
-       msrc => source_sink%flow_condition%rate%dataset%cur_value
+       msrc => source_sink%flow_condition%rate%flow_dataset%time_series%cur_value
        nsrcpara= 2
      case(WELL_SS)
-       msrc => source_sink%flow_condition%well%dataset%cur_value
+       msrc => source_sink%flow_condition%well%flow_dataset%time_series%cur_value
        nsrcpara = 7 + option%nflowspec 
      case default
        print *, 'mphase mode does not support source/sink type: ', source_sink%flow_condition%itype(1)

@@ -140,7 +140,7 @@ end interface
 
   patch => realization%patch
 
-  if(associated(patch)) then
+  if (associated(patch)) then
      if (associated(patch%grid)) then
         grid => patch%grid
      endif
@@ -286,7 +286,7 @@ end interface
       endif
     endif
 
-    if(option%use_samr) then
+    if (option%use_samr) then
        option%samr_mode=0
     endif
       
@@ -398,10 +398,10 @@ end interface
     endif
 
     ! setup a shell preconditioner and initialize in the case of AMR
-    if(option%use_samr) then
+    if (option%use_samr) then
 !     flow_solver%pc_type = PCSHELL
       pcside = PC_RIGHT
-      if(flow_solver%pc_type==PCSHELL) then
+      if (flow_solver%pc_type==PCSHELL) then
         call KSPSetPCSide(flow_solver%ksp, pcside,ierr)
         flowortranpc=0 
         call SAMRInitializePreconditioner(discretization%amrgrid%p_application, flowortranpc, flow_solver%pc)
@@ -434,7 +434,7 @@ end interface
     call SNESSetOptionsPrefix(tran_solver%snes, "tran_",ierr)
     call SolverCheckCommandLine(tran_solver)
       
-     if(option%use_samr) then
+     if (option%use_samr) then
         option%samr_mode=1
      endif
      if (option%reactive_transport_coupling == GLOBAL_IMPLICIT) then
@@ -501,10 +501,10 @@ end interface
     call SolverSetSNESOptions(tran_solver)
 
     ! setup a shell preconditioner and initialize in the case of AMR
-    if(associated(discretization%amrgrid)) then
+    if (associated(discretization%amrgrid)) then
 !       flow_solver%pc_type = PCSHELL
        pcside = PC_RIGHT
-       if(tran_solver%pc_type==PCSHELL) then
+       if (tran_solver%pc_type==PCSHELL) then
           call KSPSetPCSide(tran_solver%ksp, pcside,ierr)
           flowortranpc=1
           call SAMRInitializePreconditioner(discretization%amrgrid%p_application, flowortranpc, tran_solver%pc)
@@ -1020,7 +1020,7 @@ subroutine InitReadInput(simulation)
   use Subcontinuum_module
 #endif
   use Saturation_Function_module  
-  use Dataset_module
+  use Dataset_Aux_module
   use Fluid_module
   use Realization_module
   use Timestepper_module
@@ -1106,7 +1106,7 @@ subroutine InitReadInput(simulation)
   realization => simulation%realization
   patch => realization%patch
 
-  if(associated(patch)) grid => patch%grid
+  if (associated(patch)) grid => patch%grid
 
   option => realization%option
   output_option => realization%output_option
@@ -1683,6 +1683,8 @@ subroutine InitReadInput(simulation)
               output_option%print_porosity = PETSC_TRUE
             case('MASS_BALANCE')
               option%compute_mass_balance_new = PETSC_TRUE
+            case('PRINT_COLUMN_IDS')
+              output_option%print_column_ids = PETSC_TRUE
             case('TIMES')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'units','OUTPUT')
@@ -1854,6 +1856,8 @@ subroutine InitReadInput(simulation)
                       output_option%tecplot_format = TECPLOT_POINT_FORMAT
                     case('BLOCK')
                       output_option%tecplot_format = TECPLOT_BLOCK_FORMAT
+                    case('FEBRICK')
+                      output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
                     case default
                       option%io_buffer = 'TECPLOT format (' // trim(word) // &
                                          ') not recongnized.'
@@ -1862,6 +1866,9 @@ subroutine InitReadInput(simulation)
                   if (output_option%tecplot_format == TECPLOT_POINT_FORMAT &
                       .and. option%mycommsize > 1) then
                     output_option%tecplot_format = TECPLOT_BLOCK_FORMAT
+                  endif
+                  if (grid%itype == UNSTRUCTURED_GRID) then
+                    output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
                   endif
                 case ('VTK')
                   output_option%print_vtk = PETSC_TRUE
@@ -2416,7 +2423,7 @@ subroutine assignSubcontinuumPropToRegions(realization)
   ! loop over all patches and allocate arrays for subcontinuum type
   ! count arrays: This has to be done only for the last and finest level
   cur _level => realization%level_list%last
-  if(.not.associated(cur_level)) exit
+  if (.not.associated(cur_level)) exit
   cur_patch => cur_level%patch_list%first
   do
     ! Allocate storage for the subcontinuum id offset
@@ -2438,7 +2445,7 @@ subroutine assignSubcontinuumPropToRegions(realization)
           iend = grid%nlmax
         endif
         do icell=istart, iend
-          if(associated(region)) then
+          if (associated(region)) then
             local_id = region%cell_ids(icell)
           else
             local_id = icell
@@ -2468,7 +2475,7 @@ subroutine assignSubcontinuumPropToRegions(realization)
   enddo 
 
   ! currently subcontinuum properties are set based on regions only.
-  ! TODO: Add support to read subcontinuum properties from input file
+  ! TODO(jitu): Add support to read subcontinuum properties from input file
   update_ghosted_subcontinuum_ids = PETSC_FALSE
   cur_level => realization%level_list%last
   if (.not.associated(cur_level)) exit
@@ -2483,7 +2490,7 @@ subroutine assignSubcontinuumPropToRegions(realization)
       if (.not.associated(strata%region) .and. strata%active) then
         ! readSubcontinuumFromFile(realization, &
         !                        strata%subcontinuum_property_file_name)
-        ! TODO: Implement the above function
+        ! TODO(jitu): Implement the above function
       else if (strata%active) then
         update_ghosted_subcontinuum_ids = PETSC_TRUE
         region => strata%region
@@ -2670,12 +2677,13 @@ subroutine readRegionFiles(realization)
     if (.not.associated(region)) exit
     if (len_trim(region%filename) > 1) then
       if (index(region%filename,'.h5') > 0) then
-      if(region%grid_type.eq.STRUCTURED_GRID) then
+      if (region%grid_type == STRUCTURED_GRID) then
         call HDF5ReadRegionFromFile(realization,region,region%filename)
     else
 #ifndef SAMR_HAVE_HDF5
       call HDF5ReadUnstructuredGridRegionFromFile(realization,region,region%filename)
 #else
+     !geh: No.  AMR is entirely structured.
       ! TO DO: Read region from HDF5 for Unstructured mesh with SAMRAI
 #endif      
     endif
@@ -2828,7 +2836,7 @@ subroutine readPermeabilitiesFromFile(realization,material_property)
   PetscInt :: fid = 86
   PetscInt :: status
   PetscInt :: idirection
-  PetscReal :: ratio
+  PetscReal :: ratio, scale
   Vec :: global_vec
   PetscErrorCode :: ierr
   
@@ -2866,14 +2874,20 @@ subroutine readPermeabilitiesFromFile(realization,material_property)
                           group_name,dataset_name,append_realization_id)
       call GridVecGetArrayF90(grid,global_vec,vec_p,ierr)
       ratio = 1.d0
+      scale = 1.d0
+      !TODO(geh): fix so that ratio and scale work for perms outside
+      ! of dataset
       if (material_property%vertical_anisotropy_ratio > 0.d0) then
         ratio = material_property%vertical_anisotropy_ratio
       endif
+      if (material_property%permeability_scaling_factor > 0.d0) then
+        scale = material_property%permeability_scaling_factor
+      endif
       do local_id = 1, grid%nlmax
         if (patch%imat(grid%nL2G(local_id)) == material_property%id) then
-          perm_xx_p(local_id) = vec_p(local_id)
-          perm_yy_p(local_id) = vec_p(local_id)
-          perm_zz_p(local_id) = vec_p(local_id)*ratio
+          perm_xx_p(local_id) = vec_p(local_id)*scale
+          perm_yy_p(local_id) = vec_p(local_id)*scale
+          perm_zz_p(local_id) = vec_p(local_id)*ratio*scale
         endif
       enddo
       call GridVecRestoreArrayF90(grid,global_vec,vec_p,ierr)

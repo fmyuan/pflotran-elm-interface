@@ -198,6 +198,7 @@ subroutine StructuredGridCreateDM(structured_grid,da,ndof,stencil_width, &
 #include "finclude/petscdm.h"
 #include "finclude/petscdm.h90"
 #ifndef DMDA_OLD
+! For PETSc versions >= 3.2
 #include "finclude/petscdmda.h"
 #endif
 
@@ -213,6 +214,7 @@ subroutine StructuredGridCreateDM(structured_grid,da,ndof,stencil_width, &
   ! Generate the DM object that will manage communication.
   !-----------------------------------------------------------------------
 #ifndef DMDA_OLD
+  ! This code is for the DMDACreate3D() interface in PETSc versions >= 3.2 --RTM
   call DMDACreate3D(option%mycomm,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE, &
                   DMDA_BOUNDARY_NONE,DMDA_STENCIL_STAR, &
                   structured_grid%nx,structured_grid%ny,structured_grid%nz, &
@@ -227,6 +229,8 @@ subroutine StructuredGridCreateDM(structured_grid,da,ndof,stencil_width, &
                  PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER, &
                  PETSC_NULL_INTEGER,ierr)
 #else
+  ! This code is for the DMDACreate3D() interface in versions of PETSc
+  ! prior to release 3.2.  This should be removed, eventually. --RTM
   call DMDACreate3D(option%mycomm,DMDA_NONPERIODIC,DMDA_STENCIL_STAR, &
                   structured_grid%nx,structured_grid%ny,structured_grid%nz, &
                   structured_grid%npx,structured_grid%npy,structured_grid%npz, &
@@ -287,7 +291,7 @@ subroutine samr_patch_get_ghostcorners(p_patch, nxs, nys, nzs, nlx, nly, nlz)
 
   PetscErrorCode :: ierr
 
-  if(structured_grid%p_samr_patch==0) then
+  if (structured_grid%p_samr_patch==0) then
       ! get corner information
      call DMDAGetCorners(da, structured_grid%nxs, &
           structured_grid%nys, structured_grid%nzs, structured_grid%nlx, &
@@ -460,13 +464,13 @@ subroutine StructuredGridReadArray(a,n,input,option)
       call InputReadDouble(input,option,a(i))
 !geh  ierr, which comes from iostat, will not necessarily be 0 and 1, 
 !geh  it could be another number
-!geh      if (ierr .eq. 1) a(i) = 0.d0
+!geh      if (ierr == 1) a(i) = 0.d0
       if (input%ierr /= 0) a(i) = 0.d0
 !     print *,i,i1,i2,nvalue,a(i),n,ierr
 !     call fiDefaultMsg("Error reading grid spacing", ierr)
     enddo
     do i = i1,i2
-      if (a(i).eq.0.d0) then
+      if (a(i) == 0.d0) then
 
 !---------if less than nx non-zero values are read, set all the zero
 !         values to the last non zero value read. Only for cartesian 
@@ -478,7 +482,7 @@ subroutine StructuredGridReadArray(a,n,input,option)
         return
       endif
     enddo
-    if (i2.ge.n) exit
+    if (i2 >= n) exit
   enddo
     
 end subroutine StructuredGridReadArray
@@ -597,7 +601,7 @@ subroutine StructuredGridComputeSpacing(structured_grid,nG2A,nG2L,option)
   allocate(structured_grid%dzg_local(structured_grid%ngz))
   structured_grid%dzg_local = 0.d0
   
-  if (structured_grid%p_samr_patch .eq. 0) then
+  if (structured_grid%p_samr_patch == 0) then
     if (.not.associated(structured_grid%dx_global)) then
       ! indicates that the grid spacings still need to be computed
       if (structured_grid%bounds(1,1) < -1.d19) then ! bounds have not been initialized
@@ -1042,31 +1046,31 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
   leny = structured_grid%ngy - 1
   lenz = structured_grid%ngz - 1
 
-  if(.not.(structured_grid%p_samr_patch.eq.0)) then
-     if(samr_patch_at_bc(structured_grid%p_samr_patch, ZERO_INTEGER, ZERO_INTEGER) ==1) then
+  if (.not.(structured_grid%p_samr_patch == 0)) then
+     if (samr_patch_at_bc(structured_grid%p_samr_patch, ZERO_INTEGER, ZERO_INTEGER) ==1) then
         nconn = nconn - structured_grid%nlyz
         lenx = lenx-1
         samr_ofx = 1
      endif  
-     if(samr_patch_at_bc(structured_grid%p_samr_patch, ZERO_INTEGER, ONE_INTEGER) ==1) then 
+     if (samr_patch_at_bc(structured_grid%p_samr_patch, ZERO_INTEGER, ONE_INTEGER) ==1) then 
         nconn = nconn - structured_grid%nlyz
         lenx = lenx-1
      endif  
-     if(samr_patch_at_bc(structured_grid%p_samr_patch, ONE_INTEGER, ZERO_INTEGER) ==1) then
+     if (samr_patch_at_bc(structured_grid%p_samr_patch, ONE_INTEGER, ZERO_INTEGER) ==1) then
         nconn = nconn - structured_grid%nlxz
         leny=leny-1
         samr_ofy = structured_grid%ngx
      endif  
-     if(samr_patch_at_bc(structured_grid%p_samr_patch, ONE_INTEGER, ONE_INTEGER) ==1) then
+     if (samr_patch_at_bc(structured_grid%p_samr_patch, ONE_INTEGER, ONE_INTEGER) ==1) then
         nconn = nconn - structured_grid%nlxz
         leny=leny-1
      endif  
-     if(samr_patch_at_bc(structured_grid%p_samr_patch, TWO_INTEGER, ZERO_INTEGER) ==1) then
+     if (samr_patch_at_bc(structured_grid%p_samr_patch, TWO_INTEGER, ZERO_INTEGER) ==1) then
         nconn = nconn - structured_grid%nlxy
         lenz=lenz-1
         samr_ofz = structured_grid%ngxy
      endif  
-     if(samr_patch_at_bc(structured_grid%p_samr_patch, TWO_INTEGER, ONE_INTEGER) ==1) then
+     if (samr_patch_at_bc(structured_grid%p_samr_patch, TWO_INTEGER, ONE_INTEGER) ==1) then
         nconn = nconn - structured_grid%nlxy
         lenz=lenz-1
      endif  
@@ -1319,7 +1323,7 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
   int_array4(count) = connections%id_dn(int_array1(i))
 
   do i=2,iconn
-    if( int_array3(count).ne.int_array2(int_array1(i) )) then
+    if ( int_array3(count).ne.int_array2(int_array1(i) )) then
       do k = 1,count
         int_array5(k) = k
       enddo
@@ -1879,7 +1883,7 @@ subroutine StructuredGridMapIndices(structured_grid,nG2L,nL2G,nL2A,nG2A)
   allocate(nG2L(structured_grid%ngmax))
 ! only allocate space for the next two arrays if the current grid is not
 ! not part of an AMR grid hierarchy
-  if(structured_grid%p_samr_patch.eq.0) then
+  if (structured_grid%p_samr_patch == 0) then
      allocate(nL2A(structured_grid%nlmax))
      allocate(nG2A(structured_grid%ngmax))
   endif
@@ -1895,7 +1899,7 @@ subroutine StructuredGridMapIndices(structured_grid,nG2L,nL2G,nL2A,nG2A)
   nG2L = 0  ! Must initialize this to zero!
   nL2G = 0
 
-  if(structured_grid%p_samr_patch.eq.0)then
+  if (structured_grid%p_samr_patch == 0) then
      nG2A = 0
      nL2A = 0
   endif
@@ -1957,8 +1961,8 @@ subroutine StructuredGridMapIndices(structured_grid,nG2L,nL2G,nL2A,nG2A)
     enddo
   enddo
 
-  if(.not.(structured_grid%p_samr_patch.eq.0)) then
-     if(samr_patch_at_bc(structured_grid%p_samr_patch, ZERO_INTEGER, ZERO_INTEGER) ==1) then
+  if (.not.(structured_grid%p_samr_patch == 0)) then
+     if (samr_patch_at_bc(structured_grid%p_samr_patch, ZERO_INTEGER, ZERO_INTEGER) ==1) then
         do k=1,structured_grid%ngz
            do j=1,structured_grid%ngy
               ghosted_id = 1+(j-1)*structured_grid%ngx+(k-1)*structured_grid%ngxy
@@ -1966,7 +1970,7 @@ subroutine StructuredGridMapIndices(structured_grid,nG2L,nL2G,nL2A,nG2A)
            enddo
         enddo
      endif  
-     if(samr_patch_at_bc(structured_grid%p_samr_patch, ZERO_INTEGER, ONE_INTEGER) ==1) then 
+     if (samr_patch_at_bc(structured_grid%p_samr_patch, ZERO_INTEGER, ONE_INTEGER) ==1) then 
         i=structured_grid%ngx
         do k=1,structured_grid%ngz
            do j=1,structured_grid%ngy
@@ -1975,7 +1979,7 @@ subroutine StructuredGridMapIndices(structured_grid,nG2L,nL2G,nL2A,nG2A)
            enddo
         enddo
      endif
-     if(samr_patch_at_bc(structured_grid%p_samr_patch, ONE_INTEGER, ZERO_INTEGER) ==1) then
+     if (samr_patch_at_bc(structured_grid%p_samr_patch, ONE_INTEGER, ZERO_INTEGER) ==1) then
         do k=1,structured_grid%ngz
            do i=1,structured_grid%ngx
               ghosted_id = i+(k-1)*structured_grid%ngxy
@@ -1983,7 +1987,7 @@ subroutine StructuredGridMapIndices(structured_grid,nG2L,nL2G,nL2A,nG2A)
            enddo
         enddo
      endif  
-     if(samr_patch_at_bc(structured_grid%p_samr_patch, ONE_INTEGER, ONE_INTEGER) ==1) then
+     if (samr_patch_at_bc(structured_grid%p_samr_patch, ONE_INTEGER, ONE_INTEGER) ==1) then
         j=structured_grid%ngy
         do k=1,structured_grid%ngz
            do i=1,structured_grid%ngx
@@ -1992,7 +1996,7 @@ subroutine StructuredGridMapIndices(structured_grid,nG2L,nL2G,nL2A,nG2A)
            enddo
         enddo
      endif  
-     if(samr_patch_at_bc(structured_grid%p_samr_patch, TWO_INTEGER, ZERO_INTEGER) ==1) then
+     if (samr_patch_at_bc(structured_grid%p_samr_patch, TWO_INTEGER, ZERO_INTEGER) ==1) then
         do j=1,structured_grid%ngy
            do i=1,structured_grid%ngx
               ghosted_id = i+(j-1)*structured_grid%ngx
@@ -2000,7 +2004,7 @@ subroutine StructuredGridMapIndices(structured_grid,nG2L,nL2G,nL2A,nG2A)
            enddo
         enddo
      endif  
-     if(samr_patch_at_bc(structured_grid%p_samr_patch, TWO_INTEGER, ONE_INTEGER) ==1) then
+     if (samr_patch_at_bc(structured_grid%p_samr_patch, TWO_INTEGER, ONE_INTEGER) ==1) then
         k=structured_grid%ngz
         do j=1,structured_grid%ngy
            do i=1,structured_grid%ngx
@@ -2011,7 +2015,7 @@ subroutine StructuredGridMapIndices(structured_grid,nG2L,nL2G,nL2A,nG2A)
      endif  
   endif
 
-  if(structured_grid%p_samr_patch.eq.0) then
+  if (structured_grid%p_samr_patch == 0) then
      local_id=0
      do k=1,structured_grid%nlz
         do j=1,structured_grid%nly
@@ -2197,7 +2201,7 @@ subroutine samrvecgetmaskarraycellf90(patch, petscvec, f90wrap)
  type(f90ptrwrap), pointer :: ptr
  PetscFortranAddr :: cptr
  
- if(structured_grid%p_samr_patch .eq. 0) then
+ if (structured_grid%p_samr_patch == 0) then
 ! we'll have to throw an error here      
  else
     ierr=0
@@ -2248,7 +2252,7 @@ subroutine samr_vecgetarraycellf90(patch, petscvec, f90wrap)
  type(f90ptrwrap), pointer :: ptr
  PetscFortranAddr :: cptr
  
- if(structured_grid%p_samr_patch .eq. 0) then
+ if (structured_grid%p_samr_patch == 0) then
     call VecGetArrayF90(vec, f90ptr, ierr)
  else
     ierr=0
@@ -2301,7 +2305,7 @@ subroutine samr_vecgetarraysidef90(patch, axis, petscvec, f90wrap)
  type(f90ptrwrap), pointer :: ptr
  PetscFortranAddr :: cptr
  
- if(structured_grid%p_samr_patch .eq. 0) then
+ if (structured_grid%p_samr_patch == 0) then
     call VecGetArrayF90(vec, f90ptr, ierr)
  else
     ierr=0
@@ -2340,7 +2344,7 @@ subroutine StructGridVecRestoreArrayF90(structured_grid, vec, f90ptr, ierr)
  type(f90ptrwrap), pointer :: ptr
  PetscFortranAddr :: cptr
  
- if(structured_grid%p_samr_patch .eq. 0) then
+ if (structured_grid%p_samr_patch == 0) then
     call VecRestoreArrayF90(vec, f90ptr, ierr)
  else
     ierr = 0

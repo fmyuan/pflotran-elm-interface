@@ -764,16 +764,16 @@ subroutine RTUpdateSolutionPatch(realization)
             rt_aux_vars(ghosted_id)%mnrl_volfrac(imnrl) = 0.d0
 
 #ifdef CHUAN_CO2
-          if(option%iflowmode == MPH_MODE .or. option%iflowmode == FLASH2_MODE)then
+          if (option%iflowmode == MPH_MODE .or. option%iflowmode == FLASH2_MODE) then
             ncomp = reaction%kinmnrlspecid(0,imnrl)
             do iaqspec=1, ncomp  
               icomp = reaction%kinmnrlspecid(iaqspec,imnrl)
-              if(icomp == realization%reaction%species_idx%co2_aq_id) then
+              if (icomp == realization%reaction%species_idx%co2_aq_id) then
                 global_aux_vars(ghosted_id)%reaction_rate(2) &
                   = global_aux_vars(ghosted_id)%reaction_rate(2)& 
                   + rt_aux_vars(ghosted_id)%mnrl_rate(imnrl)* option%tran_dt&
                   * reaction%mnrlstoich(icomp,imnrl)/option%flow_dt
-              else if(icomp == reaction%species_idx%h2o_aq_id)then
+              else if (icomp == reaction%species_idx%h2o_aq_id) then
                 global_aux_vars(ghosted_id)%reaction_rate(1) &
                   = global_aux_vars(ghosted_id)%reaction_rate(1)& 
                   + rt_aux_vars(ghosted_id)%mnrl_rate(imnrl)* option%tran_dt&
@@ -1451,7 +1451,7 @@ subroutine RTCalculateRHS_t1Patch(realization)
     flow_src_sink_type = 0
     if (associated(source_sink%flow_condition) .and. &
         associated(source_sink%flow_condition%rate)) then
-      qsrc = source_sink%flow_condition%rate%dataset%cur_value(1)
+      qsrc = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(1)
       flow_src_sink_type = source_sink%flow_condition%rate%itype
     endif
     
@@ -1514,8 +1514,8 @@ subroutine RTCalculateRHS_t1Patch(realization)
         if (.not.associated(source_sink)) exit
 
 !geh begin change
-!geh        msrc(:) = source_sink%flow_condition%pressure%dataset%cur_value(:)
-        msrc(:) = source_sink%flow_condition%rate%dataset%cur_value(:)
+!geh        msrc(:) = source_sink%flow_condition%pressure%flow_dataset%time_series%cur_value(:)
+        msrc(:) = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(:)
 !geh end change
         msrc(1) =  msrc(1) / FMWH2O*1D3
         msrc(2) =  msrc(2) / FMWCO2*1D3
@@ -1530,7 +1530,7 @@ subroutine RTCalculateRHS_t1Patch(realization)
           select case(source_sink%flow_condition%itype(1))
             case(MASS_RATE_SS)
               do ieqgas = 1, reaction%ngas
-                if(abs(reaction%species_idx%co2_gas_id) == ieqgas) then
+                if (abs(reaction%species_idx%co2_gas_id) == ieqgas) then
                   icomp = reaction%eqgasspecid(1,ieqgas)
                   iendall = local_id*reaction%ncomp
                   istartall = iendall-reaction%ncomp
@@ -1627,7 +1627,7 @@ end interface
       grid => cur_patch%grid
       ! need to set the current patch in the Jacobian operator
       ! so that entries will be set correctly
-      if(option%use_samr) then
+      if (option%use_samr) then
          call SAMRSetCurrentJacobianPatch(T, grid%structured_grid%p_samr_patch)
       endif
 
@@ -1892,7 +1892,7 @@ end interface
     flow_src_sink_type = 0
     if (associated(source_sink%flow_condition) .and. &
         associated(source_sink%flow_condition%rate)) then
-      qsrc = source_sink%flow_condition%rate%dataset%cur_value(1)
+      qsrc = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(1)
       flow_src_sink_type = source_sink%flow_condition%rate%itype
     endif
       
@@ -1949,7 +1949,7 @@ end interface
                           PETSC_NULL_OBJECT,PETSC_NULL_OBJECT,ierr) 
   endif
 
-  if(option%use_samr) then
+  if (option%use_samr) then
      flow_pc = 1
      call SAMRSetJacobianSrcCoeffsOnPatch(flow_pc, &
             realization%discretization%amrgrid%p_application, &
@@ -2014,7 +2014,7 @@ end interface
   option => realization%option
   field => realization%field
 
-  if(option%use_samr) then
+  if (option%use_samr) then
     call SAMRCoarsenVector(discretization%amrgrid%p_application, field%tran_xx)
   endif
       
@@ -2176,7 +2176,7 @@ subroutine RTReactPatch(realization)
   call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)  
   call GridVecGetArrayF90(grid,field%volume,volume_p,ierr)
 
-  if(option%use_samr) then
+  if (option%use_samr) then
       call GridVecGetMaskArrayCellF90(grid, field%porosity_loc, mask_p, ierr)
   endif
       
@@ -2258,7 +2258,7 @@ subroutine RTReactPatch(realization)
 !geh: many f90 compilers do not bail out of the condition if the first 
 !     argument is false, but still check the second.  In this case mask_p 
 !     is null for non-amr and must be moved within the conditional
-!geh    if(option%use_samr .and. (mask_p(local_id)<=0)) cycle
+!geh    if (option%use_samr .and. (mask_p(local_id)<=0)) cycle
     if (option%use_samr) then
       if (mask_p(local_id) <= 0) cycle
     endif    
@@ -2430,7 +2430,7 @@ subroutine RTComputeBCMassBalanceOSPatch(realization)
     flow_src_sink_type = 0
     if (associated(source_sink%flow_condition) .and. &
         associated(source_sink%flow_condition%rate)) then
-      qsrc = source_sink%flow_condition%rate%dataset%cur_value(1)
+      qsrc = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(1)
       flow_src_sink_type = source_sink%flow_condition%rate%itype
     endif
       
@@ -2532,7 +2532,7 @@ end interface
 
   ! now coarsen all face fluxes in case we are using SAMRAI to 
   ! ensure consistent fluxes at coarse-fine interfaces
-  if(option%use_samr) then
+  if (option%use_samr) then
     call SAMRCoarsenFaceFluxes(discretization%amrgrid%p_application, field%tran_face_fluxes, ierr)
 
     cur_level => realization%level_list%first
@@ -2563,7 +2563,7 @@ end interface
     cur_level => cur_level%next
   enddo
 
-  if(discretization%itype==AMR_GRID) then
+  if (discretization%itype==AMR_GRID) then
     call samrpetscobjectstateincrease(residual)
   endif
       
@@ -2676,18 +2676,18 @@ subroutine RTTransportResidualPatch1(realization,solution_loc,residual,idof)
     ngx = grid%structured_grid%ngx   
     ngxy = grid%structured_grid%ngxy
 
-    if(samr_patch_at_bc(grid%structured_grid%p_samr_patch, ZERO_INTEGER, &
+    if (samr_patch_at_bc(grid%structured_grid%p_samr_patch, ZERO_INTEGER, &
                         ZERO_INTEGER)==1) nlx = nlx-1
-    if(samr_patch_at_bc(grid%structured_grid%p_samr_patch, ZERO_INTEGER, &
+    if (samr_patch_at_bc(grid%structured_grid%p_samr_patch, ZERO_INTEGER, &
                         ONE_INTEGER)==1) nlx = nlx-1
     
     max_x_conn = (nlx+1)*nly*nlz
     ! reinitialize nlx
     nlx = grid%structured_grid%nlx  
 
-    if(samr_patch_at_bc(grid%structured_grid%p_samr_patch, ONE_INTEGER, &
+    if (samr_patch_at_bc(grid%structured_grid%p_samr_patch, ONE_INTEGER, &
                         ZERO_INTEGER)==1) nly = nly-1
-    if(samr_patch_at_bc(grid%structured_grid%p_samr_patch, ONE_INTEGER, &
+    if (samr_patch_at_bc(grid%structured_grid%p_samr_patch, ONE_INTEGER, &
                         ONE_INTEGER)==1) nly = nly-1
     
     max_y_conn = max_x_conn + nlx*(nly+1)*nlz
@@ -2726,7 +2726,7 @@ subroutine RTTransportResidualPatch1(realization,solution_loc,residual,idof)
       if (option%use_samr) then
         if (sum_connection <= max_x_conn) then
           direction = 0
-          if(mod(mod(ghosted_id_dn,ngxy),ngx).eq.0) then
+          if (mod(mod(ghosted_id_dn,ngxy),ngx) == 0) then
              flux_id = ((ghosted_id_dn/ngxy)-1)*(nlx+1)*nly + &
                        ((mod(ghosted_id_dn,ngxy))/ngx-1)*(nlx+1)
           else
@@ -2749,7 +2749,7 @@ subroutine RTTransportResidualPatch1(realization,solution_loc,residual,idof)
         fluxes(direction)%flux_p(flux_id) = res
       endif
 
-      if(.not.option%use_samr) then
+      if (.not.option%use_samr) then
         residual_p(local_id_up) = residual_p(local_id_up) + res
         residual_p(local_id_dn) = residual_p(local_id_dn) - res
       endif
@@ -2783,7 +2783,7 @@ subroutine RTTransportResidualPatch1(realization,solution_loc,residual,idof)
 
       ! leave off the boundary contribution since it is already inclued in the
 ! rhs value
-      if(option%use_samr) then
+      if (option%use_samr) then
       ! bp, I only need this                  
          res = coef_dn(iphase)*solution_loc_p(ghosted_id)
       else                  
@@ -2961,7 +2961,7 @@ subroutine RTTransportResidualPatch2(realization,solution_loc,residual,idof)
     flow_src_sink_type = 0
     if (associated(source_sink%flow_condition) .and. &
         associated(source_sink%flow_condition%rate)) then
-      qsrc = source_sink%flow_condition%rate%dataset%cur_value(1)
+      qsrc = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(1)
       flow_src_sink_type = source_sink%flow_condition%rate%itype
     endif
       
@@ -3005,7 +3005,7 @@ subroutine RTTransportResidualPatch2(realization,solution_loc,residual,idof)
       ! in the src sink
       
       do ieqgas = 1, reaction%ngas
-        if(abs(reaction%species_idx%co2_gas_id) == ieqgas) then
+        if (abs(reaction%species_idx%co2_gas_id) == ieqgas) then
  
           icomp = reaction%eqgasspecid(1,ieqgas)
           if (idof == icomp) then
@@ -3015,8 +3015,8 @@ subroutine RTTransportResidualPatch2(realization,solution_loc,residual,idof)
               if (.not.associated(source_sink)) exit
 
 !geh begin change
-!geh              msrc(:) = source_sink%flow_condition%pressure%dataset%cur_value(:)
-              msrc(:) = source_sink%flow_condition%rate%dataset%cur_value(:)
+!geh              msrc(:) = source_sink%flow_condition%pressure%flow_dataset%time_series%cur_value(:)
+              msrc(:) = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(:)
 !geh end change
               msrc(1) =  msrc(1) / FMWH2O*1D3
               msrc(2) =  msrc(2) / FMWCO2*1D3
@@ -3165,7 +3165,7 @@ subroutine RTTransportMatVecPatch2(realization,solution_loc,residual,idof)
     flow_src_sink_type = 0
     if (associated(source_sink%flow_condition) .and. &
         associated(source_sink%flow_condition%rate)) then
-      qsrc = source_sink%flow_condition%rate%dataset%cur_value(1)
+      qsrc = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(1)
       flow_src_sink_type = source_sink%flow_condition%rate%itype
     endif
       
@@ -3211,7 +3211,7 @@ subroutine RTTransportMatVecPatch2(realization,solution_loc,residual,idof)
       ! in the src sink
       
       do ieqgas = 1, reaction%ngas
-        if(abs(reaction%species_idx%co2_gas_id) == ieqgas) then
+        if (abs(reaction%species_idx%co2_gas_id) == ieqgas) then
  
           icomp = reaction%eqgasspecid(1,ieqgas)
           if (idof == icomp) then
@@ -3221,8 +3221,8 @@ subroutine RTTransportMatVecPatch2(realization,solution_loc,residual,idof)
               if (.not.associated(source_sink)) exit
 
 !geh begin change
-!geh              msrc(:) = source_sink%flow_condition%pressure%dataset%cur_value(:)
-              msrc(:) = source_sink%flow_condition%rate%dataset%cur_value(:)
+!geh              msrc(:) = source_sink%flow_condition%pressure%flow_dataset%time_series%cur_value(:)
+              msrc(:) = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(:)
 !geh end change
               msrc(1) =  msrc(1) / FMWH2O*1D3
               msrc(2) =  msrc(2) / FMWCO2*1D3
@@ -3349,7 +3349,7 @@ end interface
 
   ! now coarsen all face fluxes in case we are using SAMRAI to 
   ! ensure consistent fluxes at coarse-fine interfaces
-  if(option%use_samr) then
+  if (option%use_samr) then
     call SAMRCoarsenFaceFluxes(discretization%amrgrid%p_application, field%tran_face_fluxes, ierr)
 
     cur_level => realization%level_list%first
@@ -3643,7 +3643,7 @@ end interface
 
   ! now coarsen all face fluxes in case we are using SAMRAI to 
   ! ensure consistent fluxes at coarse-fine interfaces
-  if(option%use_samr) then
+  if (option%use_samr) then
     call SAMRCoarsenFaceFluxes(discretization%amrgrid%p_application, field%tran_face_fluxes, ierr)
 
     cur_level => realization%level_list%first
@@ -3674,7 +3674,7 @@ end interface
     cur_level => cur_level%next
   enddo
 
-  if(discretization%itype==AMR_GRID) then
+  if (discretization%itype==AMR_GRID) then
     call samrpetscobjectstateincrease(r)
   endif
 
@@ -3936,15 +3936,15 @@ subroutine RTResidualPatch1(snes,xx,r,realization,ierr)
     ngx = grid%structured_grid%ngx   
     ngxy = grid%structured_grid%ngxy
 
-    if(samr_patch_at_bc(grid%structured_grid%p_samr_patch, 0, 0)==1) nlx = nlx-1
-    if(samr_patch_at_bc(grid%structured_grid%p_samr_patch, 0, 1)==1) nlx = nlx-1
+    if (samr_patch_at_bc(grid%structured_grid%p_samr_patch, 0, 0)==1) nlx = nlx-1
+    if (samr_patch_at_bc(grid%structured_grid%p_samr_patch, 0, 1)==1) nlx = nlx-1
     
     max_x_conn = (nlx+1)*nly*nlz
     ! reinitialize nlx
     nlx = grid%structured_grid%nlx  
 
-    if(samr_patch_at_bc(grid%structured_grid%p_samr_patch, 1, 0)==1) nly = nly-1
-    if(samr_patch_at_bc(grid%structured_grid%p_samr_patch, 1, 1)==1) nly = nly-1
+    if (samr_patch_at_bc(grid%structured_grid%p_samr_patch, 1, 0)==1) nly = nly-1
+    if (samr_patch_at_bc(grid%structured_grid%p_samr_patch, 1, 1)==1) nly = nly-1
     
     max_y_conn = max_x_conn + nlx*(nly+1)*nlz
 
@@ -4030,7 +4030,7 @@ subroutine RTResidualPatch1(snes,xx,r,realization,ierr)
           
         if (sum_connection <= max_x_conn) then
           direction = 0
-          if(mod(mod(ghosted_id_dn,ngxy),ngx).eq.0) then
+          if (mod(mod(ghosted_id_dn,ngxy),ngx) == 0) then
             flux_id = ((ghosted_id_dn/ngxy)-1)*(nlx+1)*nly + &
                      ((mod(ghosted_id_dn,ngxy))/ngx-1)*(nlx+1)
           else
@@ -4524,7 +4524,7 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
     flow_src_sink_type = 0
     if (associated(source_sink%flow_condition) .and. &
         associated(source_sink%flow_condition%rate)) then
-      qsrc = source_sink%flow_condition%rate%dataset%cur_value(1)
+      qsrc = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(1)
       flow_src_sink_type = source_sink%flow_condition%rate%itype
     endif
 #endif
@@ -4596,7 +4596,7 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
 
         select case(source_sink%flow_condition%itype(1))
           case(MASS_RATE_SS)
-            msrc(:) = source_sink%flow_condition%rate%dataset%cur_value(:)
+            msrc(:) = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(:)
           case default
             msrc(:) = 0.d0
         end select
@@ -4614,7 +4614,7 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
           select case(source_sink%flow_condition%itype(1))
             case(MASS_RATE_SS)
               do ieqgas = 1, reaction%ngas
-                if(abs(reaction%species_idx%co2_gas_id) == ieqgas) then
+                if (abs(reaction%species_idx%co2_gas_id) == ieqgas) then
                   icomp = reaction%eqgasspecid(1,ieqgas)
                   iendall = local_id*reaction%ncomp
                   istartall = iendall-reaction%ncomp
@@ -5349,7 +5349,7 @@ end interface
     flow_src_sink_type = 0
     if (associated(source_sink%flow_condition) .and. &
         associated(source_sink%flow_condition%rate)) then
-      qsrc = source_sink%flow_condition%rate%dataset%cur_value(1)
+      qsrc = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(1)
       flow_src_sink_type = source_sink%flow_condition%rate%itype
     endif
 #endif
@@ -5473,7 +5473,7 @@ end interface
     call PetscLogEventEnd(logging%event_rt_jacobian_zero,ierr)                          
   endif
 
-  if(option%use_samr) then
+  if (option%use_samr) then
      tran_pc = 1
      call SAMRSetJacobianSrcCoeffsOnPatch(tran_pc, &
             realization%discretization%amrgrid%p_application, &
@@ -5563,6 +5563,7 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
   PetscInt :: istartaq_loc, iendaq_loc
   PetscInt :: istartcoll_loc, iendcoll_loc
   PetscReal, pointer :: xx_loc_p(:)
+  PetscReal, pointer :: porosity_loc_p(:)
   PetscReal :: xxbc(realization%reaction%ncomp)
   PetscReal, pointer :: basis_molarity_p(:)
   PetscReal, pointer :: basis_coll_conc_p(:)
@@ -5581,7 +5582,8 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
   field => realization%field
   reaction => realization%reaction
   
-  call GridVecGetArrayF90(grid,field%tran_xx_loc,xx_loc_p, ierr)
+  call GridVecGetArrayF90(grid,field%tran_xx_loc,xx_loc_p,ierr)
+  call GridVecGetArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
 
   if (update_cells) then
 
@@ -5609,7 +5611,7 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
         call RActivityCoefficients(patch%aux%RT%aux_vars(ghosted_id), &
                                    patch%aux%Global%aux_vars(ghosted_id), &
                                    reaction,option)
-        if(option%iflowmode == MPH_MODE .or. option%iflowmode == FLASH2_MODE)then
+        if (option%iflowmode == MPH_MODE .or. option%iflowmode == FLASH2_MODE) then
           call CO2AqActCoeff(patch%aux%RT%aux_vars(ghosted_id), &
                                    patch%aux%Global%aux_vars(ghosted_id), &
                                    reaction,option)
@@ -5674,42 +5676,54 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
         endif
 
 !       if (option%iflowmode /= MPH_MODE .or. icall>1) then
-        if (option%iflowmode /= MPH_MODE .and. option%iflowmode /= FLASH2_MODE)then
-!       Note: the  DIRICHLET_BC is not time dependent in this case (icall)    
-        select case(boundary_condition%tran_condition%itype)
+        if (option%iflowmode /= MPH_MODE .and. option%iflowmode /= FLASH2_MODE) then
+  !       Note: the  DIRICHLET_BC is not time dependent in this case (icall)    
+          select case(boundary_condition%tran_condition%itype)
             case(CONCENTRATION_SS,DIRICHLET_BC,NEUMANN_BC)
               ! since basis_molarity is in molarity, must convert to molality
                 ! by dividing by density of water (mol/L -> mol/kg)
-              xxbc(istartaq_loc:iendaq_loc) = basis_molarity_p(1:reaction%naqcomp) / &
-                patch%aux%Global%aux_vars_bc(sum_connection)%den_kg(iphase) * 1000.d0
+              xxbc(istartaq_loc:iendaq_loc) = &
+                basis_molarity_p(1:reaction%naqcomp) / &
+                patch%aux%Global%aux_vars_bc(sum_connection)%den_kg(iphase) * &
+                1000.d0
               if (reaction%ncoll > 0) then
-                xxbc(istartcoll_loc:iendcoll_loc) = basis_coll_conc_p(1:reaction%ncoll) / &
-                  patch%aux%Global%aux_vars_bc(sum_connection)%den_kg(iphase) * 1000.d0
+                xxbc(istartcoll_loc:iendcoll_loc) = &
+                  basis_coll_conc_p(1:reaction%ncoll) / &
+                  patch%aux%Global%aux_vars_bc(sum_connection)%den_kg(iphase) * &
+                  1000.d0
               endif
             case(DIRICHLET_ZERO_GRADIENT_BC)
   !geh            do iphase = 1, option%nphase
                 if (patch%boundary_velocities(iphase,sum_connection) >= 0.d0) then
                   ! same as dirichlet above
-                  xxbc(istartaq_loc:iendaq_loc) = basis_molarity_p(1:reaction%naqcomp) / &
-                    patch%aux%Global%aux_vars_bc(sum_connection)%den_kg(iphase) * 1000.d0
+                  xxbc(istartaq_loc:iendaq_loc) = &
+                    basis_molarity_p(1:reaction%naqcomp) / &
+                    patch%aux%Global%aux_vars_bc(sum_connection)%den_kg(iphase) * &
+                  & 1000.d0
                   if (reaction%ncoll > 0) then
-                    xxbc(istartcoll_loc:iendcoll_loc) = basis_coll_conc_p(1:reaction%ncoll) / &
-                      patch%aux%Global%aux_vars_bc(sum_connection)%den_kg(iphase) * 1000.d0
+                    xxbc(istartcoll_loc:iendcoll_loc) = &
+                      basis_coll_conc_p(1:reaction%ncoll) / &
+                      patch%aux%Global%aux_vars_bc(sum_connection)%den_kg(iphase) * &
+                      1000.d0
                   endif
                 else
                   ! same as zero_gradient below
                   xxbc(istartaq_loc:iendaq_loc) = xx_loc_p(istartaq:iendaq)
                   if (reaction%ncoll > 0) then
-                    xxbc(istartcoll_loc:iendcoll_loc) = basis_coll_conc_p(1:reaction%ncoll) / &
-                      patch%aux%Global%aux_vars_bc(sum_connection)%den_kg(iphase) * 1000.d0
+                    xxbc(istartcoll_loc:iendcoll_loc) = &
+                      basis_coll_conc_p(1:reaction%ncoll) / &
+                      patch%aux%Global%aux_vars_bc(sum_connection)%den_kg(iphase) * &
+                      1000.d0
                   endif
                 endif
   !geh          enddo
             case(ZERO_GRADIENT_BC)
               xxbc(istartaq_loc:iendaq_loc) = xx_loc_p(istartaq:iendaq)
               if (reaction%ncoll > 0) then
-                xxbc(istartcoll_loc:iendcoll_loc) = basis_coll_conc_p(1:reaction%ncoll) / &
-                  patch%aux%Global%aux_vars_bc(sum_connection)%den_kg(iphase) * 1000.d0
+                xxbc(istartcoll_loc:iendcoll_loc) = &
+                  basis_coll_conc_p(1:reaction%ncoll) / &
+                  patch%aux%Global%aux_vars_bc(sum_connection)%den_kg(iphase) * &
+                  1000.d0
               endif
           end select
           ! no need to update boundary fluid density since it is already set
@@ -5722,28 +5736,41 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
           endif
           if (compute_activity_coefs) then
             call RActivityCoefficients(patch%aux%RT%aux_vars_bc(sum_connection), &
-                                       patch%aux%Global%aux_vars_bc(sum_connection), &
-                                       reaction,option)
-            if(option%iflowmode == MPH_MODE .or. option%iflowmode == FLASH2_MODE)then
+                                        patch%aux%Global%aux_vars_bc(sum_connection), &
+                                        reaction,option)
+            if (option%iflowmode == MPH_MODE .or. option%iflowmode == FLASH2_MODE) then
               call CO2AqActCoeff(patch%aux%RT%aux_vars_bc(sum_connection), &
-                                 patch%aux%Global%aux_vars_bc(sum_connection), &
-                                 reaction,option) 
-             endif                           
+                                  patch%aux%Global%aux_vars_bc(sum_connection), &
+                                  reaction,option) 
+              endif                           
           endif
           call RTAuxVarCompute(patch%aux%RT%aux_vars_bc(sum_connection), &
-                               patch%aux%Global%aux_vars_bc(sum_connection), &
-                               reaction,option)
-         else
-           skip_equilibrate_constraint = PETSC_FALSE
-          ! Chuan needs to fill this in.
+                                patch%aux%Global%aux_vars_bc(sum_connection), &
+                                reaction,option)
+        else
+          skip_equilibrate_constraint = PETSC_FALSE
+        ! Chuan needs to fill this in.
           select case(boundary_condition%tran_condition%itype)
             case(CONCENTRATION_SS,DIRICHLET_BC,NEUMANN_BC)
               ! don't need to do anything as the constraint below provides all
               ! the concentrations, etc.
+              
+              !geh: terrible kludge, but should work for now.
+              !geh: the problem is that ...%pri_molal() on first call is zero and 
+              !     PETSC_TRUE is passed into ReactionEquilibrateConstraint() below
+              !     for use_prev_soln_as_guess.  If the previous solution is zero,
+              !     the code will crash.
+              if (patch%aux%RT%aux_vars_bc(sum_connection)%pri_molal(1) < 1.d-200) then
+                patch%aux%RT%aux_vars_bc(sum_connection)%pri_molal = 1.d-9
+              endif
             case(DIRICHLET_ZERO_GRADIENT_BC)
                 if (patch%boundary_velocities(iphase,sum_connection) >= 0.d0) then
                   ! don't need to do anything as the constraint below provides all
                   ! the concentrations, etc.
+                  
+                if (patch%aux%RT%aux_vars_bc(sum_connection)%pri_molal(1) < 1.d-200) then
+                  patch%aux%RT%aux_vars_bc(sum_connection)%pri_molal = 1.d-9
+                endif                  
                 else
                   ! same as zero_gradient below
                   skip_equilibrate_constraint = PETSC_TRUE
@@ -5767,16 +5794,17 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
           end select
           ! no need to update boundary fluid density since it is already set
           if (.not.skip_equilibrate_constraint) then
-           ! print *,'RT redo constrain on BCs: 1: ', sum_connection
+            ! print *,'RT redo constrain on BCs: 1: ', sum_connection
             call ReactionEquilibrateConstraint(patch%aux%RT%aux_vars_bc(sum_connection), &
               patch%aux%Global%aux_vars_bc(sum_connection),reaction, &
               boundary_condition%tran_condition%cur_constraint_coupler%constraint_name, &
               boundary_condition%tran_condition%cur_constraint_coupler%aqueous_species, &
               boundary_condition%tran_condition%cur_constraint_coupler%surface_complexes, &
               boundary_condition%tran_condition%cur_constraint_coupler%colloids, &
+              porosity_loc_p(ghosted_id), &
               boundary_condition%tran_condition%cur_constraint_coupler%num_iterations, &
               PETSC_TRUE,option)
-           ! print *,'RT redo constrain on BCs: 2: ', sum_connection  
+            ! print *,'RT redo constrain on BCs: 2: ', sum_connection  
           endif         
         endif
 
@@ -5787,11 +5815,11 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
                   patch%aux%RT%aux_vars_bc(sum_connection)%pri_molal(reaction%species_idx%na_ion_id)
             patch%aux%Global%aux_vars_bc(sum_connection)%m_nacl(2) = &
                   patch%aux%RT%aux_vars_bc(sum_connection)%pri_molal(reaction%species_idx%cl_ion_id)
-           else
+            else
             patch%aux%Global%aux_vars_bc(sum_connection)%m_nacl = option%m_nacl
           endif
         endif
-      enddo
+      enddo ! iconn
       boundary_condition => boundary_condition%next
     enddo
 
@@ -5802,6 +5830,7 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
   patch%aux%RT%aux_vars_up_to_date = update_cells .and. update_bcs
   
   call GridVecRestoreArrayF90(grid,field%tran_xx_loc,xx_loc_p, ierr)
+  call GridVecRestoreArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
   icall = icall+ 1
 
 end subroutine RTUpdateAuxVarsPatch
@@ -5879,7 +5908,7 @@ subroutine RTCreateZeroArray(patch,reaction,option)
   patch%aux%RT%n_zero_rows = n_zero_rows  
 
 
-  if(.not.(option%use_samr)) then
+  if (.not.(option%use_samr)) then
      call MPI_Allreduce(n_zero_rows,flag,ONE_INTEGER_MPI,MPIU_INTEGER, &
                         MPI_MAX,option%mycomm,ierr)
      
@@ -5937,7 +5966,7 @@ end subroutine RTMaxChange
 ! date: 02/13/08
 !
 ! ************************************************************************** !
-function RTGetTecplotHeader(realization,icolumn)
+function RTGetTecplotHeader(realization,cell_string,icolumn)
 
   use Realization_module
   use Option_module
@@ -5945,10 +5974,12 @@ function RTGetTecplotHeader(realization,icolumn)
   implicit none
   
   character(len=MAXHEADERLENGTH) :: RTGetTecplotHeader
+  character(len=MAXSTRINGLENGTH) cell_string
   type(realization_type) :: realization
   PetscInt :: icolumn
   
-  character(len=MAXHEADERLENGTH) :: string, string2
+  character(len=MAXHEADERLENGTH) :: header
+  character(len=MAXSTRINGLENGTH) string
   character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
   type(option_type), pointer :: option
   type(reaction_type), pointer :: reaction
@@ -5957,7 +5988,7 @@ function RTGetTecplotHeader(realization,icolumn)
   option => realization%option
   reaction => realization%reaction
   
-  string = ''
+  header = ''
   
   if (reaction%print_free_conc_type == PRIMARY_MOLALITY) then
     free_mol_char = 'm'
@@ -5977,30 +6008,19 @@ function RTGetTecplotHeader(realization,icolumn)
     sec_mol_char = 'M'
   endif
   
-if (reaction%print_pH .and. associated(reaction%species_idx)) then
+  if (reaction%print_pH .and. associated(reaction%species_idx)) then
     if (reaction%species_idx%h_ion_id > 0) then
-      if (icolumn > -1) then
-        icolumn = icolumn + 1
-        write(string2,'('',"'',i2,''-pH"'')') icolumn
-      else
-        write(string2,'('',"pH"'')') 
-      endif
-      string = trim(string) // trim(string2)
+      string = 'pH'
+      call RTAppendToHeader(header,string,cell_string,icolumn)
     endif
   endif
   
   if (reaction%print_total_component) then
     do i=1,reaction%naqcomp
       if (reaction%primary_species_print(i)) then
-        if (icolumn > -1) then
-          icolumn = icolumn + 1
-          write(string2,'('',"'',i2,''-'',a,''_tot_'',a,''"'')') icolumn, &
-            trim(reaction%primary_species_names(i)), trim(tot_mol_char)
-        else
-          write(string2,'('',"'',a,''_tot_'',a,''"'')') &
-            trim(reaction%primary_species_names(i)), trim(tot_mol_char)
-        endif
-        string = trim(string) // trim(string2)
+        string = trim(reaction%primary_species_names(i)) // '_tot_' // &
+                 trim(tot_mol_char)
+        call RTAppendToHeader(header,string,cell_string,icolumn)
       endif
     enddo
   endif
@@ -6008,15 +6028,9 @@ if (reaction%print_pH .and. associated(reaction%species_idx)) then
   if (reaction%print_free_ion) then
     do i=1,reaction%naqcomp
       if (reaction%primary_species_print(i)) then
-        if (icolumn > -1) then
-          icolumn = icolumn + 1
-          write(string2,'('',"'',i2,''-'',a,''_free_'',a,''"'')') icolumn, &
-            trim(reaction%primary_species_names(i)), trim(free_mol_char)
-        else
-          write(string2,'('',"'',a,''_free_'',a,''"'')') &
-            trim(reaction%primary_species_names(i)), trim(free_mol_char)
-        endif
-        string = trim(string) // trim(string2)
+        string = trim(reaction%primary_species_names(i)) // '_free_' // &
+                 trim(free_mol_char)
+        call RTAppendToHeader(header,string,cell_string,icolumn)
       endif
     enddo  
   endif
@@ -6024,134 +6038,74 @@ if (reaction%print_pH .and. associated(reaction%species_idx)) then
   if (reaction%print_act_coefs) then
     do i=1,reaction%naqcomp
       if (reaction%primary_species_print(i)) then
-        if (icolumn > -1) then
-          icolumn = icolumn + 1
-          write(string2,'('',"'',i2,''-'',a,''_gam"'')') icolumn, &
-            trim(reaction%primary_species_names(i))
-        else
-          write(string2,'('',"'',a,''_gam"'')') trim(reaction%primary_species_names(i))
-        endif
-        string = trim(string) // trim(string2)
+        string = trim(reaction%primary_species_names(i)) // '_gam'
+        call RTAppendToHeader(header,string,cell_string,icolumn)
       endif
     enddo
   endif
   
   do i=1,reaction%neqcplx
     if (reaction%secondary_species_print(i)) then
-      if (icolumn > -1) then
-        icolumn = icolumn + 1
-        write(string2,'('',"'',i2,''-'',a,''_'',a,''"'')') icolumn, &
-          trim(reaction%secondary_species_names(i)), trim(sec_mol_char)
-      else
-        write(string2,'('',"'',a,''_'',a,''"'')') &
-          trim(reaction%secondary_species_names(i)), trim(sec_mol_char)
-      endif
-      string = trim(string) // trim(string2)
+      string = trim(reaction%secondary_species_names(i)) // &
+               '_' // trim(sec_mol_char)
+      call RTAppendToHeader(header,string,cell_string,icolumn)
     endif
   enddo  
     
   do i=1,reaction%nkinmnrl
     if (reaction%kinmnrl_print(i)) then
-      if (icolumn > -1) then
-        icolumn = icolumn + 1
-        write(string2,'('',"'',i2,''-'',a,''_vf"'')') icolumn, &
-          trim(reaction%kinmnrl_names(i))
-      else
-        write(string2,'('',"'',a,''_vf"'')') trim(reaction%kinmnrl_names(i))    
-      endif
-      string = trim(string) // trim(string2)
+      string = trim(reaction%kinmnrl_names(i)) // '_vf'
+      call RTAppendToHeader(header,string,cell_string,icolumn)
     endif
   enddo
   
   do i=1,reaction%nkinmnrl
     if (reaction%kinmnrl_print(i)) then
-      if (icolumn > -1) then
-        icolumn = icolumn + 1
-        write(string2,'('',"'',i2,''-'',a,''_rt"'')') icolumn, &
-          trim(reaction%kinmnrl_names(i))
-      else
-        write(string2,'('',"'',a,''_rt"'')') trim(reaction%kinmnrl_names(i))    
-      endif
-      string = trim(string) // trim(string2)
+      string = trim(reaction%kinmnrl_names(i)) // '_rt'
+      call RTAppendToHeader(header,string,cell_string,icolumn)
     endif
   enddo
   
   do i=1,reaction%nmnrl
     if (reaction%mnrl_print(i)) then
-      if (icolumn > -1) then
-        icolumn = icolumn + 1
-        write(string2,'('',"'',i2,''-'',a,''_si"'')') icolumn, &
-          trim(reaction%mineral_names(i))
-      else
-        write(string2,'('',"'',a,''_si"'')') trim(reaction%mineral_names(i))    
-      endif
-      string = trim(string) // trim(string2)
+      string = trim(reaction%mineral_names(i)) // '_si'
+      call RTAppendToHeader(header,string,cell_string,icolumn)
     endif
   enddo
   
   do i=1,realization%reaction%neqsrfcplxrxn
     if (reaction%eqsrfcplx_site_print(i)) then
-      if (icolumn > -1) then
-        icolumn = icolumn + 1  
-        write(string2,'('',"'',i2,''-'',a,''"'')') icolumn, &
-          trim(reaction%eqsrfcplx_site_names(i))
-      else
-        write(string2,'('',"'',a,''"'')') trim(reaction%eqsrfcplx_site_names(i))
-      endif
-      string = trim(string) // trim(string2)
+      string = trim(reaction%eqsrfcplx_site_names(i))
+      call RTAppendToHeader(header,string,cell_string,icolumn)
     endif
   enddo
   
   do i=1,realization%reaction%neqsrfcplx
     if (reaction%eqsrfcplx_print(i)) then
-      if (icolumn > -1) then
-        icolumn = icolumn + 1  
-        write(string2,'('',"'',i2,''-'',a,''"'')') icolumn, &
-          trim(reaction%eqsrfcplx_names(i))
-      else
-        write(string2,'('',"'',a,''"'')') trim(reaction%eqsrfcplx_names(i))
-      endif
-      string = trim(string) // trim(string2)
+      string = trim(reaction%eqsrfcplx_names(i))
+      call RTAppendToHeader(header,string,cell_string,icolumn)
     endif
   enddo
   
   do i=1,realization%reaction%nkinsrfcplxrxn
     if (reaction%kinsrfcplx_site_print(i)) then
-      if (icolumn > -1) then
-        icolumn = icolumn + 1  
-        write(string2,'('',"'',i2,''-'',a,''"'')') icolumn, &
-          trim(reaction%kinsrfcplx_site_names(i))
-      else
-        write(string2,'('',"'',a,''"'')') trim(reaction%kinsrfcplx_site_names(i))
-      endif
-      string = trim(string) // trim(string2)
+      string = trim(reaction%kinsrfcplx_site_names(i))
+      call RTAppendToHeader(header,string,cell_string,icolumn)
     endif
   enddo
   
   do i=1,realization%reaction%nkinsrfcplx
     if (reaction%kinsrfcplx_print(i)) then
-      if (icolumn > -1) then
-        icolumn = icolumn + 1  
-        write(string2,'('',"'',i2,''-'',a,''"'')') icolumn, &
-          trim(reaction%kinsrfcplx_names(i))
-      else
-        write(string2,'('',"'',a,''"'')') trim(reaction%kinsrfcplx_names(i))
-      endif
-      string = trim(string) // trim(string2)
+      string = trim(reaction%kinsrfcplx_names(i))
+      call RTAppendToHeader(header,string,cell_string,icolumn)
     endif
   enddo
 
   if (associated(reaction%kd_print)) then
     do i=1,reaction%naqcomp
       if (reaction%kd_print(i)) then
-        if (icolumn > -1) then
-          icolumn = icolumn + 1
-          write(string2,'('',"'',i2,''-'',a,''_kd"'')') icolumn, &
-            trim(reaction%primary_species_names(i))
-        else
-          write(string2,'('',"'',a,''_kd"'')') trim(reaction%primary_species_names(i))
-        endif
-        string = trim(string) // trim(string2)
+        string = trim(reaction%primary_species_names(i)) // '_kd'
+        call RTAppendToHeader(header,string,cell_string,icolumn)
       endif
     enddo
   endif
@@ -6159,14 +6113,8 @@ if (reaction%print_pH .and. associated(reaction%species_idx)) then
   if (associated(reaction%total_sorb_print)) then
     do i=1,reaction%naqcomp
       if (reaction%total_sorb_print(i)) then
-        if (icolumn > -1) then
-          icolumn = icolumn + 1
-          write(string2,'('',"'',i2,''-'',a,''_total_sorb"'')') icolumn, &
-            trim(reaction%primary_species_names(i))
-        else
-          write(string2,'('',"'',a,''_total_sorb"'')') trim(reaction%primary_species_names(i))
-        endif
-        string = trim(string) // trim(string2)
+        string = trim(reaction%primary_species_names(i)) // '_total_sorb'
+        call RTAppendToHeader(header,string,cell_string,icolumn)
       endif
     enddo
   endif
@@ -6174,15 +6122,8 @@ if (reaction%print_pH .and. associated(reaction%species_idx)) then
   if (associated(reaction%total_sorb_mobile_print)) then
     do i=1,reaction%ncollcomp
       if (reaction%total_sorb_mobile_print(i)) then
-        if (icolumn > -1) then
-          icolumn = icolumn + 1
-          write(string2,'('',"'',i2,''-'',a,''_total_sorb_mob"'')') icolumn, &
-            trim(reaction%colloid_species_names(i))
-        else
-          write(string2,'('',"'',a,''_total_sorb_mob"'')') &
-            trim(reaction%colloid_species_names(i))
-        endif
-        string = trim(string) // trim(string2)
+        string = trim(reaction%colloid_species_names(i)) // '_total_sorb_mob'
+        call RTAppendToHeader(header,string,cell_string,icolumn)
       endif
     enddo
   endif
@@ -6190,45 +6131,28 @@ if (reaction%print_pH .and. associated(reaction%species_idx)) then
   if (reaction%print_colloid) then
     do i=1,reaction%ncoll
       if (reaction%colloid_print(i)) then
-        if (icolumn > -1) then
-          icolumn = icolumn + 1
-          write(string2,'('',"'',i2,''-'',a,''_col_mob_'',a,''"'')') icolumn, &
-            trim(reaction%colloid_names(i)), trim(tot_mol_char)
-        else
-          write(string2,'('',"'',a,''_col_mob_'',a,''"'')') &
-            trim(reaction%colloid_names(i)), trim(tot_mol_char)
-        endif
-        string = trim(string) // trim(string2)
+        string = trim(reaction%colloid_names(i)) // '_col_mob_' // &
+                 trim(tot_mol_char)
+        call RTAppendToHeader(header,string,cell_string,icolumn)
       endif
     enddo
     do i=1,reaction%ncoll
       if (reaction%colloid_print(i)) then
-        if (icolumn > -1) then
-          icolumn = icolumn + 1
-          write(string2,'('',"'',i2,''-'',a,''_col_imb_'',a,''"'')') icolumn, &
-            trim(reaction%colloid_names(i)), trim(tot_mol_char)
-        else
-          write(string2,'('',"'',a,''_col_imb_'',a,''"'')') &
-            trim(reaction%colloid_names(i)), trim(tot_mol_char)
-        endif
-        string = trim(string) // trim(string2)
+        string = trim(reaction%colloid_names(i)) // '_col_imb_' // &
+                 trim(tot_mol_char)
+        call RTAppendToHeader(header,string,cell_string,icolumn)
       endif
     enddo
   endif
   
   if (reaction%print_age) then
     if (reaction%species_idx%tracer_age_id > 0) then
-        if (icolumn > -1) then
-          icolumn = icolumn + 1
-          write(string2,'('',"'',i2,''-Tracer_Age"'')') icolumn
-        else
-          write(string2,'('',"Tracer_Age"'')') 
-        endif
-        string = trim(string) // trim(string2)
+      string = 'Tracer_Age'
+      call RTAppendToHeader(header,string,cell_string,icolumn)
     endif
   endif
     
-  RTGetTecplotHeader = string
+  RTGetTecplotHeader = header
 
 end function RTGetTecplotHeader
 
@@ -6413,6 +6337,50 @@ subroutine RTCheckpointKineticSorption(realization,viewer,checkpoint)
   enddo
 
 end subroutine RTCheckpointKineticSorption
+
+! ************************************************************************** !
+!
+! RTAppendToHeader: Appends formatted strings to header string
+! author: Glenn Hammond
+! date: 10/27/11
+!
+! ************************************************************************** !
+subroutine RTAppendToHeader(header,variable_string,cell_string,icolumn)
+
+  character(len=MAXHEADERLENGTH) :: header
+  character(len=*) :: variable_string
+  character(len=MAXSTRINGLENGTH) :: cell_string
+  character(len=MAXSTRINGLENGTH) :: variable_string_adj
+  character(len=MAXWORDLENGTH) :: column_string
+  PetscInt :: icolumn
+
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: len_cell_string
+
+  variable_string_adj = variable_string
+  !geh: Shift to left.  Cannot perform on same string since len=*
+  variable_string_adj = adjustl(variable_string_adj)
+
+  if (icolumn > 0) then
+    icolumn = icolumn + 1
+    write(column_string,'(i4,''-'')') icolumn
+    column_string = trim(adjustl(column_string))
+  else
+    column_string = ''
+  endif
+
+  !geh: this is all to remove the lousy spaces
+  len_cell_string = len_trim(cell_string) 
+  if (len_cell_string > 0) then
+    write(string,'('',"'',a,a,'' '',a,''"'')') trim(column_string), &
+          trim(variable_string_adj), trim(cell_string)
+  else
+    write(string,'('',"'',a,a,''"'')') trim(variable_string_adj), &
+          trim(cell_string)
+  endif
+  header = trim(header) // trim(string)
+
+end subroutine RTAppendToHeader
 
 ! ************************************************************************** !
 !

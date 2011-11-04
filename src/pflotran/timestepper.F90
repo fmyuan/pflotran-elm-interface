@@ -280,7 +280,7 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
 
   use Option_module
   use Output_module, only : Output, OutputInit, OutputVectorTecplot, &
-                            OutputPermeability
+                            OutputPermeability, OutputPrintCouplers
   use Logging_module  
   use Mass_Balance_module
   use Discretization_module
@@ -511,6 +511,10 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
     flow_stepper%start_time_step = flow_stepper%steps + 1
   if (associated(tran_stepper)) &
     tran_stepper%start_time_step = tran_stepper%steps + 1
+  
+  if (realization%debug%print_couplers) then
+    call OutputPrintCouplers(realization,0)
+  endif  
   do
 
     if (OptionPrintToScreen(option) .and. &
@@ -620,6 +624,10 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
       option%tran_time = tran_stepper%target_time
       call PetscLogStagePop(ierr)
     endif
+
+    if (realization%debug%print_couplers) then
+      call OutputPrintCouplers(realization,master_stepper%steps)
+    endif  
 
     ! update solution variables
     
@@ -1529,7 +1537,7 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
 #endif
 
     ! the grid pointer is null if we are working with SAMRAI
-    if(associated(discretization%grid)) then
+    if (associated(discretization%grid)) then
        scaled_fnorm = fnorm/discretization%grid%nmax 
     else
        scaled_fnorm = fnorm
@@ -1733,7 +1741,7 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
     endif
     if (realization%reaction%use_log_formulation) then
       if (associated(realization%patch%grid%structured_grid) .and. &
-          (.not.(realization%patch%grid%structured_grid%p_samr_patch.eq.0))) then
+          (.not.(realization%patch%grid%structured_grid%p_samr_patch == 0))) then
         cur_level => realization%level_list%first
         do 
           if (.not.associated(cur_level)) exit
@@ -1761,7 +1769,7 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
         (log_end_time - log_start_time)          
         
       if (associated(realization%patch%grid%structured_grid) .and. &
-          (.not.(realization%patch%grid%structured_grid%p_samr_patch.eq.0))) then
+          (.not.(realization%patch%grid%structured_grid%p_samr_patch == 0))) then
         cur_level => realization%level_list%first
         do 
           if (.not.associated(cur_level)) exit
@@ -1905,7 +1913,7 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
     endif
     
     ! the grid pointer is null if we are working with SAMRAI
-    if(associated(discretization%grid)) then
+    if (associated(discretization%grid)) then
        scaled_fnorm = fnorm/discretization%grid%nmax   
     else
        scaled_fnorm = fnorm
@@ -2465,7 +2473,7 @@ subroutine StepperSolveFlowSteadyState(realization,stepper,failure)
   call VecNorm(field%flow_r,NORM_INFINITY,inorm,ierr)
   if (option%print_screen_flag) then
     ! the grid pointer is null if we are working with SAMRAI
-    if(associated(discretization%grid)) then
+    if (associated(discretization%grid)) then
        scaled_fnorm = fnorm/discretization%grid%nmax 
     else
        scaled_fnorm = fnorm
@@ -2550,7 +2558,7 @@ subroutine StepperSolveTranSteadyState(realization,stepper,failure)
 
   if (realization%reaction%use_log_formulation) then
     if (associated(realization%patch%grid%structured_grid) .and. &
-        (.not.(realization%patch%grid%structured_grid%p_samr_patch.eq.0))) then
+        (.not.(realization%patch%grid%structured_grid%p_samr_patch == 0))) then
       cur_level => realization%level_list%first
       do 
         if (.not.associated(cur_level)) exit
@@ -2574,7 +2582,7 @@ subroutine StepperSolveTranSteadyState(realization,stepper,failure)
     call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%tran_log_xx, ierr)
       
     if (associated(realization%patch%grid%structured_grid) .and. &
-        (.not.(realization%patch%grid%structured_grid%p_samr_patch.eq.0))) then
+        (.not.(realization%patch%grid%structured_grid%p_samr_patch == 0))) then
       cur_level => realization%level_list%first
       do 
         if (.not.associated(cur_level)) exit
@@ -2619,7 +2627,7 @@ subroutine StepperSolveTranSteadyState(realization,stepper,failure)
   call VecNorm(field%tran_r,NORM_INFINITY,inorm,ierr)
   if (option%print_screen_flag) then
     ! the grid pointer is null if we are working with SAMRAI
-    if(associated(discretization%grid)) then
+    if (associated(discretization%grid)) then
        scaled_fnorm = fnorm/discretization%grid%nmax   
     else
        scaled_fnorm = fnorm
