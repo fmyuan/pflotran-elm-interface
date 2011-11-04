@@ -72,6 +72,7 @@ program pflotran_interface_main
   Vec :: pzz_nat_v,pzz_loc_v
   Vec :: rch_nat_v,rch_loc_v
   Vec :: ics_nat_v,ics_loc_v
+  Vec :: por_pfloc
 
   !
   PetscScalar,pointer :: v_loc_1(:),v_loc_2(:),v_loc_3(:),v_loc_4(:)
@@ -110,19 +111,19 @@ program pflotran_interface_main
   call pflotranModelInitMapping3(pflotran_m,filename,&
     clm_cell_ids,clm_npts,1,1)
 
-  if(pflotran_m%option%myrank.eq.PRINT_RANK) write(*,*), 'pflotranModelStepperRunInit'
-  call pflotranModelStepperRunInit(pflotran_m)
+  filename = 'idealize_mapping_clm2pf_soil_2x2.dat'//CHAR(0)
+  call pflotranModelInitMapping3(pflotran_m,filename,&
+    clm_cell_ids,clm_npts,2,1)
+
+  !if(pflotran_m%option%myrank.eq.PRINT_RANK) write(*,*), 'pflotranModelStepperRunInit'
+  !call pflotranModelStepperRunInit(pflotran_m)
   !do time = 1,0
   !   call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 3600.0d0)
   !enddo
   !call pflotranModelStepperRunFinalize(pflotran_m)
 
-  if(pflotran_m%option%myrank.eq.PRINT_RANK) write(*,*), 'pflotranModelDestroy'
-  call pflotranModelDestroy(pflotran_m)
-
-#if 0 
   ! Read soil properties data  
-  filename = 'soil_prop.h5'
+  filename = 'soil_prop_2x2pt.h5'
   call HDF5ReadDatasetReal1D(filename,alp_dname,NONUNIFORM_CONTIGUOUS_READ,&
     pflotran_m%option,alp_p,data_dims,dataset_dims)
   !write(*,*),'alpha - data_dims: ',data_dims(:)
@@ -148,9 +149,9 @@ program pflotran_interface_main
   !write(*,*),'pz data_dims: ',data_dims(:)
   
   ! Read initial conditions
-  filename = 'init_cond_conus_10min_mesh.h5'
-  call HDF5ReadDatasetReal1D(filename,ics_dname,NONUNIFORM_CONTIGUOUS_READ,&
-    pflotran_m%option,ics_p,data_dims,dataset_dims)
+  !filename = 'init_cond_conus_10min_mesh.h5'
+  !call HDF5ReadDatasetReal1D(filename,ics_dname,NONUNIFORM_CONTIGUOUS_READ,&
+  !  pflotran_m%option,ics_p,data_dims,dataset_dims)
   !write(*,*),'ics_data_dims: ',data_dims(:),dataset_dims(:)
 
   ! Create vectors to save soil properties
@@ -162,7 +163,7 @@ program pflotran_interface_main
   call VecCreateMPI(pflotran_m%option%mycomm, PETSC_DECIDE, dataset_dims(1), pzz_nat_v, ierr)
   
   ! Create vector to save initial conditions
-  call VecCreateMPI(pflotran_m%option%mycomm, PETSC_DECIDE, dataset_dims(1), ics_nat_v, ierr)
+  !call VecCreateMPI(pflotran_m%option%mycomm, PETSC_DECIDE, dataset_dims(1), ics_nat_v, ierr)
   
   ! Save the data into vectors in natural index  
   call VecGetArrayF90(alp_nat_v,v_loc_1,ierr)
@@ -171,7 +172,7 @@ program pflotran_interface_main
   call VecGetArrayF90(pxx_nat_v,v_loc_4,ierr)
   call VecGetArrayF90(pyy_nat_v,v_loc_5,ierr)
   call VecGetArrayF90(pzz_nat_v,v_loc_6,ierr)
-  call VecGetArrayF90(ics_nat_v,v_loc_7,ierr)
+  !call VecGetArrayF90(ics_nat_v,v_loc_7,ierr)
   
   do ii = 1,data_dims(1)
     v_loc_1(ii) = alp_p(ii)
@@ -180,7 +181,7 @@ program pflotran_interface_main
     v_loc_4(ii) = pxx_p(ii)
     v_loc_5(ii) = pyy_p(ii)
     v_loc_6(ii) = pzz_p(ii)
-    v_loc_7(ii) = ics_p(ii)
+    !v_loc_7(ii) = ics_p(ii)
   enddo
       
   call VecRestoreArrayF90(alp_nat_v,v_loc_1,ierr)
@@ -189,7 +190,7 @@ program pflotran_interface_main
   call VecRestoreArrayF90(pxx_nat_v,v_loc_4,ierr)
   call VecRestoreArrayF90(pyy_nat_v,v_loc_5,ierr)
   call VecRestoreArrayF90(pzz_nat_v,v_loc_6,ierr)
-  call VecRestoreArrayF90(ics_nat_v,v_loc_7,ierr)
+  !call VecRestoreArrayF90(ics_nat_v,v_loc_7,ierr)
 
   ! Free memory
   deallocate(alp_p)
@@ -198,8 +199,29 @@ program pflotran_interface_main
   deallocate(pxx_p)
   deallocate(pyy_p)
   deallocate(pzz_p)
-  deallocate(ics_p)
+  !deallocate(ics_p)
   
+  call VecCreateMPI(pflotran_m%option%mycomm, &
+                    pflotran_m%map_clm2pf%d_ncells_ghosted, &
+                    PETSC_DECIDE, por_pfloc, ierr)
+
+  call MappingSourceToDestination( pflotran_m%map_clm2pf_soils, pflotran_m%option, por_nat_v, &
+       por_pfloc)
+
+  call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'por_pfloc.out', viewer, ierr)
+  call VecView(por_pfloc, viewer,ierr)
+  call PetscViewerDestroy(viewer, ierr)
+
+  call PetscViewerASCIIOpen(pflotran_m%option%mycomm, 'por.out', viewer, ierr)
+  call VecView(por_nat_v, viewer,ierr)
+  call PetscViewerDestroy(viewer, ierr)
+
+  if(pflotran_m%option%myrank.eq.PRINT_RANK) write(*,*), 'pflotranModelDestroy'
+  call pflotranModelDestroy(pflotran_m)
+
+
+
+#if 0 
   grid      => pflotran_m%realization%patch%grid
   field     => pflotran_m%realization%field
   
