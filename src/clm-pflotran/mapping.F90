@@ -593,7 +593,7 @@ contains
     
     PetscInt :: PRINT_RANK
     
-    PRINT_RANK = 0
+    PRINT_RANK = -1
 
     row_prev = -1
     fileid   = 20
@@ -1340,10 +1340,10 @@ contains
     PetscViewer :: viewer
 
     call VecCreateMPI(option%mycomm  , map%s2d_s_ncells_distinct, PETSC_DECIDE, vec_s_local, ierr)
-    call VecCreateSeq(PETSC_COMM_SELF, map%s2d_s_ncells_distinct, vec_s_loc, ierr)
-    call VecCreateSeq(PETSC_COMM_SELF, map%d_ncells_ghosted     , vec_d_loc, ierr)
     call VecCreateMPI(option%mycomm  , map%d_ncells_local       , PETSC_DECIDE, vec_d_nat, ierr)
 
+    call VecCreateSeq(PETSC_COMM_SELF, map%s2d_s_ncells_distinct, vec_s_loc, ierr)
+    call VecCreateSeq(PETSC_COMM_SELF, map%d_ncells_ghosted     , vec_d_loc, ierr)
 
     call VecScatterBegin(map%s2d_scat_s_g2dl, vec_s, vec_s_local, INSERT_VALUES, SCATTER_FORWARD, ierr)
     call VecScatterEnd(  map%s2d_scat_s_g2dl, vec_s, vec_s_local, INSERT_VALUES, SCATTER_FORWARD, ierr)
