@@ -1976,7 +1976,16 @@ subroutine InitReadInput(simulation)
 
         option%flow_dt = default_stepper%dt_min
         option%tran_dt = default_stepper%dt_min
-      
+
+!....................
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+      case ('MAPPING_FILES')
+        do
+          call InputReadFlotranString(input,option)
+          call InputReadStringErrorMsg(input,option,card)
+          if (InputCheckExit(input,option)) exit
+        enddo
+#endif
 !....................
       case default
     

@@ -108,11 +108,11 @@ program pflotran_interface_main
 
   filename = 'idealize_mapping_clm2pf_flux_2x2_clm_matching.dat'//CHAR(0)
   filename = 'idealize_mapping_clm2pf_flux_2x2.dat'//CHAR(0)
-  call pflotranModelInitMapping3(pflotran_m,filename,&
+  call pflotranModelInitMapping3(pflotran_m, &
     clm_cell_ids,clm_npts,1,1)
 
   filename = 'idealize_mapping_clm2pf_soil_2x2.dat'//CHAR(0)
-  call pflotranModelInitMapping3(pflotran_m,filename,&
+  call pflotranModelInitMapping3(pflotran_m, &
     clm_cell_ids,clm_npts,2,1)
 
   !if(pflotran_m%option%myrank.eq.PRINT_RANK) write(*,*), 'pflotranModelStepperRunInit'
@@ -416,7 +416,7 @@ program pflotran_interface_main
   enddo
 
   filename = 'conus_10min_from_clm_subset_wts_matrix.txt'//CHAR(0)
-  call pflotranModelInitMapping3(pflotran_m,filename,&
+  call pflotranModelInitMapping3(pflotran_m, &
     clm_cell_ids,clm_npts,1,1)
 #endif
 

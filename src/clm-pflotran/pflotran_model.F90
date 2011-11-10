@@ -59,7 +59,7 @@ module pflotran_model_module
      type(simulation_type),  pointer :: simulation
      type(realization_type), pointer :: realization
      type(option_type),      pointer :: option
-#ifdef WITH_CLM
+#ifdef CLM_PFLOTRAN
      type(mapping_type),     pointer :: mapping
 #endif
      PetscReal :: pause_time_1
@@ -119,6 +119,7 @@ contains
     use Logging_module
     use Stochastic_module
     use Stochastic_Aux_module
+    use String_module
 #ifdef CLM_PFLOTRAN
     use pflotran_clm_interface_type
 #endif
@@ -138,17 +139,27 @@ contains
     PetscErrorCode :: ierr
     character(len=MAXSTRINGLENGTH)          :: string
     character(len=MAXSTRINGLENGTH), pointer :: filenames(:)
+    character(len=MAXWORDLENGTH) :: word
 
     type(pflotran_model_type),      pointer :: pflotran_model
 
+#ifdef CLM_PFLOTRAN
+    write(iulog,*),'in pflotranModelCreate()'
+#endif
 
     allocate(pflotran_model)
+    write(iulog,*),'allocating stochastic'
     allocate(pflotran_model%stochastic)
+    write(iulog,*),'allocating simulation'
     allocate(pflotran_model%simulation)
+    write(iulog,*),'allocating realization'
     allocate(pflotran_model%realization)
+    write(iulog,*),'allocating option'
     allocate(pflotran_model%option)
+    write(iulog,*),'option ... done'
 #ifdef CLM_PFLOTRAN
-    allocate(pflotran_model%mapping)
+    write(iulog,*),'allocating mapping'
+    !allocate(pflotran_model%mapping)
 #endif
     allocate(pflotran_model%map_clm2pf)
     allocate(pflotran_model%map_clm2pf_soils)
@@ -159,7 +170,7 @@ contains
     nullify(pflotran_model%realization)
     nullify(pflotran_model%option)
 #ifdef CLM_PFLOTRAN
-    nullify(pflotran_model%mapping)
+    !nullify(pflotran_model%mapping)
 #endif
     nullify(pflotran_model%pf_cells)
     nullify(pflotran_model%clm_cells)
@@ -186,7 +197,6 @@ contains
     pflotran_model%option%myrank = pflotran_model%option%global_rank
     pflotran_model%option%mycommsize = pflotran_model%option%global_commsize
     pflotran_model%option%mygroup = pflotran_model%option%global_group
-
 
     ! check for non-default input filename
     pflotran_model%option%input_filename = "pflotran.in"
@@ -300,8 +310,9 @@ contains
     end select
 #endif
 
+  
 #ifdef CLM_PFLOTRAN
-    pflotran_model%mapping => MappingCreate()
+    !pflotran_model%mapping => MappingCreate()
 #endif
     pflotran_model%map_clm2pf       => MappingCreate()
     pflotran_model%map_clm2pf_soils => MappingCreate()
@@ -310,6 +321,45 @@ contains
     pflotran_model%num_pf_cells = -1
     pflotran_model%num_clm_cells= -1
 
+  pflotran_model%realization%input => InputCreate(IUNIT1,pflotran_model%option%input_filename)
+  
+  do
+  
+    call InputReadFlotranString(pflotran_model%realization%input, pflotran_model%option)
+    if (pflotran_model%realization%input%ierr /= 0) exit
+
+    call InputReadWord(pflotran_model%realization%input, pflotran_model%option, word, PETSC_TRUE)
+    call InputErrorMsg(pflotran_model%realization%input, pflotran_model%option, 'keyword', 'MAPPING_FILES')
+    call StringToUpper(word)
+
+    select case(trim(word))
+      case('CLM2PF_FLUX_FILE')
+          call InputReadWord(pflotran_model%realization%input, &
+                             pflotran_model%option, &
+                             pflotran_model%map_clm2pf%filename, PETSC_TRUE)
+          pflotran_model%map_clm2pf%filename = trim(pflotran_model%map_clm2pf%filename)//CHAR(0)
+          call InputErrorMsg(pflotran_model%realization%input, &
+                             pflotran_model%option,'type', 'MAPPING_FILES')   
+          call StringToLower(pflotran_model%map_clm2pf%filename)
+      case('CLM2PF_SOIL_FILE')
+          call InputReadWord(pflotran_model%realization%input, &
+                             pflotran_model%option, &
+                             pflotran_model%map_clm2pf_soils%filename, PETSC_TRUE)
+          call InputErrorMsg(pflotran_model%realization%input, &
+                             pflotran_model%option,'type', 'MAPPING_FILES')   
+          call StringToLower(pflotran_model%map_clm2pf_soils%filename)
+      case('PF2CLM_FLUX_FILE')
+          call InputReadWord(pflotran_model%realization%input, &
+                             pflotran_model%option, &
+                             pflotran_model%map_pf2clm%filename, PETSC_TRUE)
+          call InputErrorMsg(pflotran_model%realization%input, &
+                             pflotran_model%option,'type', 'MAPPING_FILES')   
+          call StringToLower(pflotran_model%map_pf2clm%filename)
+    end select
+
+  enddo
+  call InputDestroy(pflotran_model%realization%input)
+  
     pflotranModelCreate => pflotran_model
 
 
@@ -1366,8 +1416,11 @@ contains
   ! author: Gautam Bisht
   ! date: 03/24/2011
   ! ************************************************************************** !
-  subroutine pflotranModelInitMapping3(pflotran_model, filename, &
-       grid_clm_cell_ids_ghosted_nindex, grid_clm_npts_local, map_id, source_id)
+  subroutine pflotranModelInitMapping3(pflotran_model,  &
+                                       grid_clm_cell_ids_ghosted_nindex, &
+                                       grid_clm_npts_local, &
+                                       map_id, &
+                                       source_id)
 
     use Input_module
     use Option_module
@@ -1397,8 +1450,6 @@ contains
     PetscInt, pointer                  :: grid_pf_local_or_ghost_nindex(:)
     PetscInt                           :: count
     PetscErrorCode                     :: ierr
-    type(mapping_type),pointer         :: m_clm2pf
-    type(mapping_type),pointer         :: m_pf2clm
     type(mapping_type),pointer         :: map
 
     type(option_type), pointer         :: option
@@ -1406,15 +1457,12 @@ contains
     type(grid_type),pointer            :: grid
     type(patch_type), pointer          :: patch
 
-    !write(*,*), 'In pflotranModelInitMapping3'
     option          => pflotran_model%option
     realization     => pflotran_model%simulation%realization
     patch           => realization%patch
     patch           => realization%patch
     grid            => patch%grid
 
-    m_clm2pf        => pflotran_model%map_clm2pf
-    m_pf2clm        => pflotran_model%map_pf2clm
     select case(map_id)
       case(1)
         map => pflotran_model%map_clm2pf
@@ -1468,7 +1516,7 @@ contains
     end select
     
     call MPI_Barrier(MPI_COMM_WORLD,ierr)
-    call MappingReadTxtFileMPI(map, trim(filename), option)
+    call MappingReadTxtFileMPI(map, trim(map%filename), option)
 
     call MPI_Barrier(MPI_COMM_WORLD,ierr)
     call MappingFindDistinctSourceMeshCellIds(map,option)
@@ -1988,8 +2036,9 @@ end subroutine pflotranModelInitMapping3
              sub_condition => condition%sub_condition_ptr(isub_condition)%ptr
 
              if (associated(sub_condition)) then
-                dataset => sub_condition%dataset
-                dataset%values(1,1) = flux_value
+                !dataset => sub_condition%dataset
+                !dataset%values(1,1) = flux_value
+                !dataset%rate = flux_value
                 print *,'In UpdateTopBCHomogeneous: ', flux_value
                 !call FlowSubConditionUpdateDataset(option,1.0d0,sub_condition%dataset)
              endif

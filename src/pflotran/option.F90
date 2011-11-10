@@ -293,6 +293,7 @@ function OptionCreate()
   ! simulations or initialization for every realization (e.g. within multiple 
   ! stochastic simulations).  This is done in OptionInitAll() and
   ! OptionInitRealization()
+  write(iulog,*), 'call OptionInitAll()'
   call OptionInitAll(option)
   OptionCreate => option
   
@@ -378,6 +379,7 @@ subroutine OptionInitAll(option)
   option%num_threads = 1
   option%test_res = 0 
  
+  write(iulog,*), 'call OptionInitRealization()'
   call OptionInitRealization(option)
 
 end subroutine OptionInitAll

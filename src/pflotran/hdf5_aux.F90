@@ -28,7 +28,8 @@ module HDF5_aux_module
   public :: HDF5ReadNDimRealArray, &
             HDF5ReadDatasetInteger2D, &
             HDF5ReadDatasetReal2D, &
-            HDF5ReadDatasetReal1D
+            HDF5ReadDatasetReal1D, &
+            HDF5ReadDataset
 #else
   public :: HDF5ReadNDimRealArray, &
             HDF5ReadDataset
@@ -519,9 +520,9 @@ end subroutine HDF5ReadDatasetInteger2D
 
 ! ************************************************************************** !
 !
-! : 
-! author: 
-! date: 
+! HDF5ReadDatasetReal2D: 
+! author: Gautam Bisht
+! date: 05/13/2010
 !
 ! ************************************************************************** !
 
@@ -604,9 +605,9 @@ end subroutine HDF5ReadDatasetReal2D
 
 ! ************************************************************************** !
 !
-! : 
-! author: 
-! date: 
+! HDF5ReadDatasetReal1D: 
+! author: Gautam Bisht
+! date: 05/13/2010
 !
 ! ************************************************************************** !
 
@@ -681,6 +682,7 @@ subroutine HDF5ReadDatasetReal1D(filename,dataset_name,read_option,option, &
   call parallelIO_close_file( file_id, option%ioread_group_id, ierr)  
 
 end subroutine HDF5ReadDatasetReal1D
+
 #endif ! PARALLELIO_LIB
 
 #endif ! defined(PETSC_HAVE_HDF5)
