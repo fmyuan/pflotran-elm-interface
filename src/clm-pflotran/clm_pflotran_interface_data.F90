@@ -127,7 +127,7 @@ contains
 
     PetscErrorCode :: ierr
     PetscMPIInt    :: mycomm, rank
-	PetscViewer    :: viewer
+    PetscViewer    :: viewer
     type(clm_pflotran_data), pointer :: data
 
     call MPI_Comm_rank(MPI_COMM_WORLD,rank, ierr)
@@ -198,10 +198,10 @@ contains
 
     write(*,*), 'size(hksat_x_clmloc) = ',data%clm_num_local
     write(*,*),	'size(hksat_x       ) = ',data%clm_num_local
-	write(*,*), 'size(hksat_x_pfloc ) = ',data%pf_num_docells
-	write(*,*), 'size(sat_pfloc     ) = ',data%pf_num_local
+	  write(*,*), 'size(hksat_x_pfloc ) = ',data%pf_num_docells
+    write(*,*), 'size(sat_pfloc     ) = ',data%pf_num_local
     write(*,*),	'size(sat           ) = ',data%pf_num_local
-	write(*,*), 'size(sat_clmloc    ) = ',data%clm_num_docells
+    write(*,*), 'size(sat_clmloc    ) = ',data%clm_num_docells
 
 
     call VecCreateMPI(mycomm,data%clm_num_local, PETSC_DETERMINE,data%sat_clm,ierr)
