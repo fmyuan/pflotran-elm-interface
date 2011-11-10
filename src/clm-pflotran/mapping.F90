@@ -57,6 +57,8 @@ module Mapping_module
      !   - Performs a local matrix-vector product 
      !
 
+     character(len=MAXSTRINGLENGTH) :: filename
+
      ! Source mesh
      PetscInt           :: s_ncells_local      ! # of local source mesh cells present
      PetscInt,pointer   :: s_cell_ids(:)       ! IDs of source mesh cells
@@ -124,7 +126,9 @@ contains
     type(mapping_type), pointer :: map
 
     allocate(map)
-        
+    
+    map%filename = ''
+    
     map%s_ncells_local        = 0
     map%d_ncells_local        = 0
     map%d_ncells_ghost        = 0
