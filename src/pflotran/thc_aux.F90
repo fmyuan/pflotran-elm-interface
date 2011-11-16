@@ -90,7 +90,7 @@ function THCAuxCreate(option)
 
   allocate(aux%thc_parameter%diffusion_coefficient(option%nphase))
   allocate(aux%thc_parameter%diffusion_activation_energy(option%nphase))
-  aux%thc_parameter%diffusion_coefficient = 0.d0
+  aux%thc_parameter%diffusion_coefficient = 1.d-9
   aux%thc_parameter%diffusion_activation_energy = 0.d0
 
   THCAuxCreate => aux
@@ -280,7 +280,7 @@ subroutine THCAuxVarCompute(x,aux_var,global_aux_var, &
     dw_dp = 0.d0
     hw_dp = 0.d0
   endif
- 
+
 ! aux_var%den = dw_mol
 ! aux_var%den_kg = dw_kg
   global_aux_var%den = dw_mol
@@ -311,7 +311,7 @@ subroutine THCAuxVarCompute(x,aux_var,global_aux_var, &
 
   aux_var%dh_dt = hw_dt
   aux_var%du_dt = hw_dt + pw/(dw_mol*dw_mol)*option%scale*dw_dt
-
+  
 end subroutine THCAuxVarCompute
 
 ! ************************************************************************** !
