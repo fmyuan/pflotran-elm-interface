@@ -3028,7 +3028,7 @@ subroutine OutputObservationTecplot(realization)
       open(unit=fid,file=filename,action="write",status="replace")
       ! write header
       ! write title
-      write(fid,'(a)',advance="no") '"Time[' // trim(output_option%tunit) // ']"'
+      write(fid,'(a)',advance="no") ' "Time[' // trim(output_option%tunit) // ']"'
       observation => patch%observation%first
 
       ! must initialize icolumn here so that icolumn does not restart with
@@ -7793,17 +7793,17 @@ subroutine OutputMassBalanceNew(realization)
       open(unit=fid,file=filename,action="write",status="replace")
 
       ! write header
-      write(fid,'(a)',advance="no") '"Time[' // trim(output_option%tunit) // ']"'
+      write(fid,'(a)',advance="no") ' "Time[' // trim(output_option%tunit) // ']"'  
       
+      header = ''
       if (option%iflowmode > 0) then
-        write(fid,'(a)',advance="no") '"dt_flow[' // trim(output_option%tunit) // ']"'
-        icol = icol + 1
+        call OutputAppendToHeader(header,'dt_flow',output_option%tunit,'',icol)
       endif
       
       if (option%ntrandof > 0) then
-        write(fid,'(a)',advance="no") '"dt_tran[' // trim(output_option%tunit) // ']"'
-        icol = icol + 1
+        call OutputAppendToHeader(header,'dt_tran',output_option%tunit,'',icol)
       endif
+      write(fid,'(a)',advance="no") trim(header)
       
       header = ''
       select case(option%iflowmode)
@@ -7863,7 +7863,7 @@ subroutine OutputMassBalanceNew(realization)
           case(RICHARDS_MODE)
             string = trim(coupler%name) // ' Water Mass'
             call OutputAppendToHeader(header,string,'[kg]','',icol)
-            units = '[kg/' // trim(output_option%tunit) // ']"'
+            units = '[kg/' // trim(output_option%tunit) // ']'
             string = trim(coupler%name) // ' Water Mass'
             call OutputAppendToHeader(header,string,units,'',icol)
           case(G_MODE)
@@ -7871,7 +7871,7 @@ subroutine OutputMassBalanceNew(realization)
             call OutputAppendToHeader(header,string,'[mol]','',icol)
             string = trim(coupler%name) // ' Air Mass'
             call OutputAppendToHeader(header,string,'[mol]','',icol)
-            units = '[mol/' // trim(output_option%tunit) // ']"'
+            units = '[mol/' // trim(output_option%tunit) // ']'
             string = trim(coupler%name) // ' Water Mass'
             call OutputAppendToHeader(header,string,units,'',icol)
             string = trim(coupler%name) // ' Air Mass'
@@ -7901,7 +7901,7 @@ subroutine OutputMassBalanceNew(realization)
           write(fid,'(a)',advance="no") trim(header)
           
           header = ''    
-          units = '[mol/' // trim(output_option%tunit) // ']"'
+          units = '[mol/' // trim(output_option%tunit) // ']'
           do i=1,reaction%naqcomp
             if (reaction%primary_species_print(i)) then
               string = trim(coupler%name) // ' ' // &

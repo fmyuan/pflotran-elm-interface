@@ -26,12 +26,20 @@ ifdef dbl
 DBL_FLAG = -DDOUBLE_LAYER
 endif
 
+ifdef pcl
+PCL_FLAG = -DPCL
+endif
+
 ifdef temp
 TEMP_FLAG = -DTEMP_DEPENDENT_LOGK
 endif
 
 ifdef ice
 ICE_FLAG = -DICE
+endif
+
+ifdef vapor
+VAPOR_FLAG = -DVAPOR
 endif
 
 ifdef chuan_co2
@@ -83,8 +91,10 @@ ifdef gautam
 endif
 
 MYFLAGS = -I${objdir} $(HDF5_FLAGS) $(DASVYAT) $(DASVYAT_DEBUG)\
-          $(COMPILE_BROKEN_FLAGS) $(GLENN_FLAGS) $(UO2_FLAG) $(DBL_FLAG) $(TEMP_FLAG) $(GPU_FLAGS)\
-				$(CHUAN_FLAG) $(SCOTT_FLAGS) $(COLL_FLAG) $(DENSITY_FLAG) $(GAUTAM_FLAGS) $(ICE_FLAG)
+          $(COMPILE_BROKEN_FLAGS) $(GLENN_FLAGS) $(UO2_FLAG)\
+					 $(PCL_FLAG) $(DBL_FLAG) $(TEMP_FLAG) $(GPU_FLAGS)\
+				$(CHUAN_FLAG) $(SCOTT_FLAGS) $(COLL_FLAG) $(DENSITY_FLAG)\
+				 $(GAUTAM_FLAGS) $(ICE_FLAG) $(VAPOR_FLAG) 
 
 CFLAGS		 = 
 FFLAGS		 =
