@@ -2,7 +2,7 @@
 
 PetscInt, parameter :: MAXHEADERLENGTH = 2048
 PetscInt, parameter :: MAXSTRINGLENGTH = 512
-PetscInt, parameter :: MAXWORDLENGTH = 32
+PetscInt, parameter :: MAXWORDLENGTH = 512
 PetscInt, parameter :: IUNIT1 = 15
 PetscInt, parameter :: IUNIT2 = 16
 PetscInt, parameter :: IUNIT3 = 17
