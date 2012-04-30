@@ -37,15 +37,41 @@ subroutine StochasticInit(stochastic,option)
   PetscInt :: realization_id
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: option_found
+  PetscInt, pointer :: realization_ids_from_file(:)
+  character(len=MAXSTRINGLENGTH) :: filename
+  type(input_type), pointer :: input
   PetscErrorCode :: ierr
 
   ! query user for number of communicator groups and realizations
   string = '-num_groups'
-  call InputGetCommandLineInt(string,stochastic%num_groups,option_found,option)
+  call InputGetCommandLineInt(string,stochastic%num_groups, &
+                              option_found,option)
 
   string = '-num_realizations'
-  call InputGetCommandLineInt(string,stochastic%num_realizations,option_found,option)
+  call InputGetCommandLineInt(string,stochastic%num_realizations, &
+                              option_found,option)
 
+  ! read realization ids from a file - contributed by Xingyuan
+  string = '-realization_ids_file'
+  call InputGetCommandLineString(string,filename,option_found,option)
+  if (option_found) then
+    input => InputCreate(IUNIT_TEMP,filename,option)
+    allocate(realization_ids_from_file(stochastic%num_realizations))
+    realization_ids_from_file = 0
+    string = &
+      '# of realization ids read from file may be too few in StochasticInit()'
+    do i = 1, stochastic%num_realizations
+      call InputReadFlotranString(input,option)
+      call InputReadStringErrorMsg(input,option,string)
+      call InputReadInt(input,option,realization_ids_from_file(i))
+      call InputErrorMsg(input,option,'realization id', &
+                         'StochasticInit')
+    enddo
+    call InputDestroy(input)
+  else
+    nullify(realization_ids_from_file)
+  endif
+    
   ! Realization offset contributed by Xingyuan.  This allows one to specify the
   ! smallest/lowest realization id (other than zero) in a stochastic simulation
   string = '-realization_offset'
@@ -90,6 +116,14 @@ subroutine StochasticInit(stochastic,option)
   do i = 1, stochastic%num_local_realizations
     stochastic%realization_ids(i) = offset + i
   enddo
+  
+  ! map ids from file - contributed by Xingyuan
+  if (associated(realization_ids_from_file)) then
+    do i = 1, stochastic%num_local_realizations
+      stochastic%realization_ids(i) = &
+        realization_ids_from_file(stochastic%realization_ids(i))
+    enddo
+  endif
 
 end subroutine StochasticInit
 
@@ -116,7 +150,7 @@ subroutine StochasticRun(stochastic,option)
   type(stochastic_type), pointer :: stochastic
   type(option_type), pointer :: option
 
-  PetscLogDouble :: timex(4), timex_wall(4)
+  PetscLogDouble :: timex_wall(4)
   PetscInt :: irealization
   type(simulation_type), pointer :: simulation
   type(realization_type), pointer :: realization
@@ -149,40 +183,35 @@ subroutine StochasticRun(stochastic,option)
     endif
 #endif
 
-    call PetscGetCPUTime(timex(1), ierr)
     call PetscGetTime(timex_wall(1), ierr)
     option%start_time = timex_wall(1)
 
     call Init(simulation)
 
+#ifdef SURFACE_FLOW
+    !call StepperRun(simulation%realization,simulation%flow_stepper, &
+    !                simulation%tran_stepper,simulation%surf_flow_stepper)
+    option%io_buffer = 'Stochastic mode not tested for surface-flow'
+    call printErrMsgByRank(option)
+#else
     call StepperRun(simulation%realization,simulation%flow_stepper, &
                     simulation%tran_stepper)
+#endif
 
     call SimulationDestroy(simulation)
 
   ! Final Time
-    call PetscGetCPUTime(timex(2), ierr)
     call PetscGetTime(timex_wall(2), ierr)
     
     if (option%myrank == option%io_rank) then
 
       if (option%print_to_screen) then
-        write(*,'(/," CPU Time:", 1pe12.4, " [sec] ", &
-        & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-          timex(2)-timex(1), (timex(2)-timex(1))/60.d0, &
-          (timex(2)-timex(1))/3600.d0
-
         write(*,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
         & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
           timex_wall(2)-timex_wall(1), (timex_wall(2)-timex_wall(1))/60.d0, &
           (timex_wall(2)-timex_wall(1))/3600.d0
       endif
       if (option%print_to_file) then
-        write(option%fid_out,'(/," CPU Time:", 1pe12.4, " [sec] ", &
-        & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-          timex(2)-timex(1), (timex(2)-timex(1))/60.d0, &
-          (timex(2)-timex(1))/3600.d0
-
         write(option%fid_out,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
         & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
           timex_wall(2)-timex_wall(1), (timex_wall(2)-timex_wall(1))/60.d0, &

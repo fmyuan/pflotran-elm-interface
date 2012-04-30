@@ -10,6 +10,8 @@ module Dataset_Aux_module
     character(len=MAXWORDLENGTH) :: name
     character(len=MAXWORDLENGTH) :: h5_dataset_name
     character(len=MAXSTRINGLENGTH) :: filename
+    PetscBool :: is_transient
+    PetscBool :: is_cell_indexed
     PetscInt :: max_buffer_size
     PetscInt :: data_type
     PetscInt :: data_dim ! dimensions of data: XY, X, YXZ, etc.
@@ -91,6 +93,8 @@ function DatasetCreate()
   dataset%h5_dataset_name = ''
   dataset%filename = ''
   dataset%realization_dependent = PETSC_FALSE
+  dataset%is_transient = PETSC_FALSE
+  dataset%is_cell_indexed = PETSC_FALSE
   dataset%data_type = 0
   dataset%max_buffer_size = 0
 
@@ -186,21 +190,6 @@ subroutine DatasetRead(dataset,input,option)
         call InputReadNChars(input,option,dataset%filename, &
                              MAXSTRINGLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,'name','DATASET')
-!TODO(geh): remove is here after 10/30/11
-#if 0        
-      case('TYPE') 
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'type','DATASET')
-        call StringToUpper(word)
-        select case (trim(word))
-          case('HETEROGENEOUS')
-            dataset%itype = DATASET_HETEROGENEOUS
-          case default
-            option%io_buffer = 'Dataset type: ' // trim(word) // &
-                               ' not recognized in dataset'    
-            call printErrMsg(option)
-        end select
-#endif
       case('REALIZATION_DEPENDENT')
         dataset%realization_dependent = PETSC_TRUE
       case('MAX_BUFFER_SIZE') 
@@ -811,6 +800,10 @@ recursive subroutine DatasetDestroy(dataset)
   type(dataset_type), pointer :: dataset
   
   if (.not.associated(dataset)) return
+  
+  if (associated(dataset%next)) then
+    call DatasetDestroy(dataset%next)
+  endif
 
   if (associated(dataset%iarray)) deallocate(dataset%iarray)
   nullify(dataset%iarray)

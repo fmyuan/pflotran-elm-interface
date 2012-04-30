@@ -1,8 +1,8 @@
 \documentclass[12pt]{article}
-%\usepackage{times}
+\usepackage{times}
 %\usepackage{palatino}
+%\usepackage{fourier}  % Looks nice but isn't present in many LaTeX distros.
 \usepackage[T1]{fontenc}
-\usepackage{fourier}
 \usepackage{amsmath,amsbsy,amssymb}
 \usepackage{deflist}
 %\usepackage{fancyheadings}
@@ -291,7 +291,7 @@ endorse the viewpoint of a publication or guarantee its technical correctness.
 
 \section{Introduction}
 
-PFLOTRAN solves a system of generally nonlinear partial differential equations describing multiphase, multicomponent and multiscale reactive flow and transport in porous materials. The code is designed to run on massively parallel computing architectures as well as workstations and labtops (Hammond et al., 2011). Parallelization is achieved through domain decomposition using the PETSc (Port\-a\-ble Extensible Toolkit for Scientific Computation) libraries for the parallelization framework  (Balay et al., 1997).
+PFLOTRAN solves a system of generally nonlinear partial differential equations describing multiphase, multicomponent and multiscale reactive flow and transport in porous materials. The code is designed to run on massively parallel computing architectures as well as workstations and laptops (Hammond et al., 2011). Parallelization is achieved through domain decomposition using the PETSc (Port\-a\-ble Extensible Toolkit for Scientific Computation) libraries for the parallelization framework  (Balay et al., 1997).
 
 \section{Governing Equations}
 
@@ -317,39 +317,72 @@ Capillary pressure is related to saturation by various
 phenomenological relations, one of which is the van Genuchten 
 (1980) relation 
 \EQ\label{seff}
-s_l^{\rm eff} \eq \left[1+\left( \alpha |P_c| \right)^n 
+s_e \eq \left[1+\left( \frac{p_c}{p_c^0} \right)^n 
 \right]^{-m}, 
 \EN 
-where $P_c$ represents the capillary pressure [Pa], and $s_l^{\rm 
-eff}$ is defined by 
+where $p_c$ represents the capillary pressure [Pa], and the effective saturation $s_e$ is defined by 
 \EQ 
-s_l^{\rm eff} \eq \frac{s_l - s_l^r}{s_l^0 - s_l^r}, 
+s_e \eq \frac{s - s_r}{s_0 - s_r}, 
 \EN 
-where $s_l^r$ denotes the residual saturation, and $s_l^0$ denotes 
-the maximum saturation. The quantity $n$ is related to $m$ by 
-the expression 
-\EQ\label{lambda} 
-m \eq 1-\frac{1}{n}, \ \ \ \ \ n \eq \frac{1}{1-m}. 
-\EN 
- 
-Relative permeability for the liquid phase is given by the expression \EQ\label{krl} 
-k_{rl} \eq \sqrt{s_l^{\rm eff}} \left\{1 - \left[1- \left( s_l^{\rm 
-eff} \right)^{1/m} \right]^m \right\}^2, 
-\EN 
-and for the gas phase by 
-\EQ 
-k_{rg} \eq 1 - k_{rl}. 
-\EN 
+where $s_r$ denotes the residual saturation, and $s_0$ denotes 
+the maximum saturation. 
+The inverse relation is given by
+\EQ
+p_c \eq p_c^0 \left(s_e^{-1/m}-1\right)^{1/n}.
+\EN
+The quantities $m$, $n$ and $p_c^0$ are impirical constants determined by fitting to experimental data.
 
-\subsubsection{Brook-Corey Functions} 
- 
-The Brook-Corey functions for relative permeability are defined by  
-\EQ\label{corey} 
-k_{rl} \eq s_*^4, \ \ \ k_{rg} \eq (1-s_*^2)(1-s_*)^2, \ \ \ s_* 
-\eq \frac{s_l - s_l^r}{1-s_l^r-s_g^r}. 
+\subsubsection{Brook-Corey Saturation Function} 
+
+The Brook-Corey saturation function is a limiting form of the van Genuchten relation for $p_c/p_c^0 \gg 1$, with the form
+\EQ
+s_e \eq \left(\frac{p_c}{p_c^0}\right)^{-\lambda},
+\EN
+with $\lambda=mn$ and inverse relation
+\EQ
+p_c \eq p_c^0 s_e^{-1/\lambda}.
+\EN
+
+\subsubsection{Relative Permeability}
+
+Two forms of the relative permeability function are implemented based on the Mualem and Burdine formulations.
+The quantity $n$ is related to $m$ by 
+the expression 
+\EQ\label{lambda_mualem} 
+m \eq 1-\frac{1}{n}, \ \ \ \ \ n \eq \frac{1}{1-m}, 
 \EN 
-Capillary pressure is not incorporated in the Brook-Corey functions. 
- 
+for the Mualem formulation and by
+\EQ\label{lambda_burdine} 
+m \eq 1-\frac{2}{n}, \ \ \ \ \ n \eq \frac{2}{1-m}, 
+\EN 
+for the Burdine formulation.
+
+For the Mualem relative permeability function based on the van Genuchten saturation function is given by the expression 
+\EQ\label{krl_mualem} 
+k_{r} \eq \sqrt{s_e} \left\{1 - \left[1- \left( s_e \right)^{1/m} \right]^m \right\}^2. 
+\EN 
+%and for the gas phase by 
+%\EQ 
+%k_{rg} \eq 1 - k_{rl}. 
+%\EN 
+
+The Mualem relative permeability function based on the Brook-Corey saturation function is defined by 
+\BA
+k_r &\eq \big(s_e\big)^{5/2+2/\lambda},\\
+&\eq \big(p_c/p_c^0\big)^{-(5\lambda/2+2)}.
+\EA
+
+For the Burdine formulation
+\EQ\label{krl_burdine} 
+k_{r} \eq s_e^2 \left\{1 - \left[1- \left( s_e \right)^{1/m} \right]^m \right\}. 
+\EN 
+The Burdine relative permeability function based on the Brooks-Corey saturation function has the form
+\BA
+k_r &\eq \big(s_e\big)^{2+3/\lambda},\\
+&\eq \left(\frac{p_c}{p_c^0}\right)^{-(2+3\lambda)}.
+\EA
+
+\begin{comment}
 \subsubsection{Linear} 
  
 The linear relation is defined by 
@@ -357,7 +390,46 @@ The linear relation is defined by
 k_{rl} \eq s_*, \ \ \ k_{rg} \eq 1-k_{rl}, \ \ \ s_* \eq \frac{s_l 
 - s_l^r}{1-s_l^r}. 
 \EN 
- 
+\end{comment}
+
+\subsubsection{Smoothing}
+
+At the end points of the saturation and relative permeability functions it is sometimes necessary to smooth the functions in order for the Newton-Raphson equations to converge. This is accomplished using a third order polynomial interpolation by matching the values of the function to be fit (capillary pressure or relative permeability), and imposing zero slope at the fully saturated end point and matching the derivative at a chosen variably saturated point that is close to fully saturated. The resulting equations for coefficients $a_i$, $i=0-3$, are given by
+\begin{subequations}
+\BA
+a_0 + a_1 x_1 + a_2 x_1^2 + a_3 x_1^3 &\eq f_1,\\
+a_0 + a_1 x_2 + a_2 x_2^2 + a_3 x_2^3 &\eq f_1,\\
+a_1 x_1 + a_2 x_1^2 + a_3 x_1^3 &\eq f_1',\\
+a_1 x_2 + a_2 x_2^2 + a_3 x_2^3 &\eq f_2',
+\EA
+\end{subequations}
+for chosen points $x_1$ and $x_2$. In matrix form these equations become
+\EQ
+\begin{bmatrix}
+1 & x_1 & x_1^2 & x_1^3\\
+1 & x_2 & x_2^2 & x_2^3\\
+0 & 1 & 2x_1 & 3x_1^2\\
+0 & 1 & 2x_2 & 3x_2^2
+\end{bmatrix}
+\begin{bmatrix}
+a_0\\
+a_1\\
+a_2\\
+a_3
+\end{bmatrix}
+\eq
+\begin{bmatrix}
+f_1\\
+f_2\\
+f_1'\\
+f_2'
+\end{bmatrix}.
+\EN
+The conditions imposed on the smoothing equations for capillary pressure $f=s_e(p_c)$ are 
+$x_1=2 p_c^0$, $x_2=p_c^0/2$, $f_1 = (s_e)_1$, $f_2 = 1$, $f_1' = (s_e')_1$, $f_2' = 0$.
+For relative permeability $f=k_r(s_e)$, $x_1 = 1$, $x_2 = 0.99$, $f_1 = 1$, $f_2 = (k_r)_2$, $f_1' = 0$, $f_2' = (k_r')_2$. 
+
+\begin{comment}
 \subsection{Kelvin's Equations for Vapor Pressure Lowering} 
  
 Vapor pressure lowering resulting from capillary suction is 
@@ -369,6 +441,7 @@ where $P_v$ represents the vapor pressure, $P_{\rm sat}$ the
 saturation pressure of pure water, $T$ denotes the absolute 
 temperature and $R$ denotes the gas constant. Note that the density 
 of the liquid phase, $n_l$, is represented on a molar basis. 
+\end{comment}
 
 \subsection{Mode: {\tt MPHASE}}
 
@@ -536,7 +609,108 @@ w_i \eq \frac{M_i}{M} \eq \frac{W_i n_i}{\sum W_l n_l} \eq \frac{W_i x_i}{\sum W
 
 \subsection{Mode: {\tt IMMIS}}
 
-The {\tt IMMIS} mode applies to multiple immiscible phases.
+The {\tt IMMIS} mode applies to multiple completely immiscible phases.
+The code PIMS, parallel immiscible multiphase flow simulator, is a simplified version of the  MPHASE mode in which the dependency on thermodynamic relations have been removed, since for immiscible systems the solubility is identically zero for each component. In this case the number of components is equal to the number of phases, or degrees of freedom associated with each node for an isothermal system. The immiscible property removes the variable switching strategy used in MPHASE, which may be the most numerically difficult part of PFLOTRAN, and may cause problems for multi-level solvers. 
+%The code PMIS, parallel miscible single phase flow, applies to a completely miscible multicomponent single phase system.
+
+The governing equations solved by PIMS are given by
+\EQ\label{mass}
+\frac{\p}{\p t}\big(\varphi\rho_\a^{} s_\a^{}\big) + \bnabla\cdot \big(\rho_\a^{} \bq_\a \big) \eq Q_\a,
+\EN
+where the subscript $\a$ denotes an immiscible phase.
+\begin{comment}
+, and for PMIS
+\EQ\label{massmis}
+\frac{\p}{\p t}\big(\varphi\rho x_i^{}\big) + \bnabla\cdot \big(\rho \bq x_i \big) \eq Q_i,
+\EN
+for the $i$th component in a single phase system.
+\end{comment}
+In this equation $\varphi$ is porosity, $s_\a$, $\rho_\a$ refer to the $\a$th phase saturation and density, respectively, $\bq_\a$ is the Darcy velocity of the $\a$th phase given by
+\EQ
+\bq_\a \eq -\frac{kk_\a}{\mu_\a} \big(\bnabla p-\rho_\a g \hat\bz\big), 
+\EN
+with permeability $k$, relative permeability $k_\a$, fluid viscosity $\mu_\a$, and $Q_\a$ is the source/sink term.  
+The selection of primary variables are pressure $p$ and $n\!-\!1$ independent phase saturation variables $s_\a, \a=1,...,n\!-\!1$ with
+\EQ
+\sum_{\a=1}^n s_\a = 1.
+\EN
+The mass conservation equations are coupled to the energy balance equation given by
+\EQ
+\frac{\p}{\p t} \Big(\varphi\sum_\a s_\a\rho_\a U_\a + (1-\varphi) \rho_r C_r T\Big) + \bnabla\cdot\Big(\sum_\a\rho_\a\bq_\a H_\a - \kappa\bnabla T\Big) \eq Q_e,
+\EN
+where $U_\a$, $H_\a$ denote the internal energy and enthalpy of the $\a$th fluid phase, $\kappa$ denotes the thermal conductivity of the bulk porous medium, $\rho_r$, $C_r$ denote the rock density and heat capacity, and $T$ refers to the temperature.
+%, if incompressibility of all phases or one of them is assumed. In this case, the reference pressure has to be specified as a boundary condition.
+%The primary variables also could be $s_i, i=1,...,n$, if suitable EOS are applied to every phases. Then the second type BC could be assigned to all boundaries.
+Thus the number of equations is equal to number of phases plus one, which is equal to the number of unknowns: ($p$, $T$, $s_1$, \ldots, $s_{n-1}$).
+
+\subsection{Mode: {\tt MISCIBLE}}
+
+The miscible mode applies to a mixture of water and proplyene glycol (PPG). In terms of molar density for the mixture $\eta$ and mole fractions $x_i$, $i$=1 (water), $i$=2 (PPG), the mass conservation equations have the form
+\EQ
+\frac{\p}{\p t} \varphi \eta x_i + \bnabla\cdot\left[\bq\eta x_i - \varphi D \eta \bnabla x_i\right] \eq Q_i,
+\EN
+with source/sink term $Q_i$. It should be noted that the mass- and mole-fraction formulations of the conservation equations are not exactly equivalent. This is due to the diffusion term which gives an extra term when transformed from the mole-fraction to mass-fraction gradient.
+
+The molar density $\eta$ is related to the mass density by
+\EQ
+\eta \eq W^{-1} \rho,
+\EN
+and
+\EQ
+W_i\eta x_i \eq \rho y_i.
+\EN
+It follows that
+\EQ
+W_i \eta \bnabla x_i \eq \rho \bnabla y_i + \rho y_i \bnabla \ln W.
+\EN
+The second term on the right-hand side is ignored.
+
+Simple equations of state are provided for density [g/cm$^3$], viscosity [Pa s], and diffusivity [m$^2$/s]. The density is a function of both composition are pressrue with the form
+\BA
+\rho(y_1,\,p) &\eq \rho(y_1,\,p_0) + \left.\frac{\p\rho}{\p p}\right|_{p=p_0} (p-p_0),\\
+&\eq  \rho(y_1,\,p_0) \big(1+\beta (p-p_0)\big),
+\EA
+with the compressibility $\beta(y_1)$ given by
+\BA
+\beta &\eq \left.\frac{1}{\rho}\frac{\p\rho}{\p p}\right|_{p=p_0},\\
+&\eq 4.49758\times 10^{-10} y_1 + 5\times 10^{-10}(1-y_1),
+\EA
+and the mixture density at the reference pressure $p_0$ taken as atmospheric pressure is given by
+\EQ
+\rho(y_1,\,p_0) \eq \Big(\big((0.0806 y_1 - 0.203) y_1 + 0.0873\big) y_1 + 1.0341\Big)10^3,
+\EN
+with mass fraction of water $y_1$. 
+The viscosity and diffusivity have the forms
+\EQ
+\mu(y_1) \eq 10^{\big(1.6743 (1-y_1) - 0.0758\big)} 10^{-3},
+\EN
+and
+\EQ
+D(y_1) \eq \Big(\big(((-4.021 y_1 + 9.1181) y_1 - 5.9703) y_1 
+     + 0.4043\big) y_1 + 0.5687\Big) 10^{-9},
+\EN
+The mass fraction is related to mole fraction according to
+\EQ
+y_1 = \frac{x_1 W_{\rm H_2O}}{W},
+\EN
+where the mean formula weight $W$ is given by
+\EQ
+W = x_1 W_{\rm H_2O} + x_2 W_{\rm PPG},
+\EN
+with formula weights for water and proplyene glycol equal to $W_{\rm H_2O}$ = 18.01534 and $W_{\rm PPG}$ = 76.09 [kg/kmol].
+
+Global mass conservation satisfies the relation
+\EQ
+\frac{d}{dt}M_i \eq -\int\bF_i\cdot\bdS + \int Q_i dV,
+\EN
+with
+\EQ
+M_i \eq \int \varphi \eta x_i dV.
+\EN
+In terms of mass fractions and mass density
+\EQ
+M_i^m \eq W_i M_i \eq \int \varphi \rho y_i dV.
+\EN
 
 \subsection{Mode: {\tt Air-Water}}
 
@@ -638,7 +812,10 @@ Diffusion is assumed to be species independent, but may be different for differe
 \EN
 with bulk permeability of the porous medium $k$ and relative permeability $k_\a$, fluid viscosity $\mu_\a$, pressure $p_\a$, density $\rho_\a$, and acceleration of gravity $g$. The diffusivity/dispersivity tensor $\bD_\a$ is the sum of contributions from molecular diffusion and dispersion which for an isotropic medium has the form
 \EQ
-\bD_\a \eq \varphi s \Big(\tau D_m + a_T \bI + \big(a_L-a_T\big)\frac{\bv\bv}{v}\Big),
+\bD_\a \eq %\varphi s 
+%\Big(
+\tau D_m + a_T \bI + \big(a_L-a_T\big)\frac{\bv\bv}{v},
+%\Big),
 \EN
 with longitudinal and transverse dispersivity coefficients $a_L$, $a_T$, respectively, $\tau$ refers to tortuosity, and $D_m$ to the molecular diffusion coefficient. The temperature dependence of the diffusion coefficient is defined through the relation
 \EQ
@@ -652,6 +829,15 @@ The quantity $Q_j$ denotes a source/sink term
 Q_j \eq \sum_n\frac{q_M}{\rho}\Psi_j \delta(\br-\br_{n}),
 \EN
 where $q_M$ denotes a mass rate in units of kg/s, $\rho$ denotes the fluid density in kg/m$^3$, and $\br_{n}$ refers to the location of the $n$th source/sink. The quantity $S_j$ represents the sorbed concentration of the $j$th primary species considered in more detail in the next section.
+
+Molality $m_i$ and molarity $C_i$ are related by the density of water $\rho_w$
+\EQ
+C_i \eq \rho_w m_i,
+\EN
+The activity of water is calculated from the approximate relation
+\EQ
+a_{\rm H_2O}^{} \eq 1 - 0.017 \sum_i m_i.
+\EN
 
 \subsubsection{Mineral Precipitation and Dissolution}
 
@@ -900,15 +1086,62 @@ with rate constant $k_k$ and where $S_{km}^{\rm eq}$ is a known function of the 
 
 \subsection{Solute Age}
 
-PFLOTRAN implements the Eulerian formulation of solute age for a nonreactive tracer following Goode (1996). PFLOTRAN solves the advection-diffusion/dispersion equation for age given by
+PFLOTRAN implements the Eulerian formulation of solute age for a nonreactive tracer following Goode (1996). PFLOTRAN solves the advection-diffusion/dispersion equation for the mean age given by
 \EQ
 \frac{\p}{\p t} \varphi s AC + \bnabla\cdot\Big(\bq AC - \varphi s D \bnabla (AC)\Big) \eq \varphi s C,
 \EN
 where $A$ denotes the mean age of the solute with concentration $C$. Other quantities appearing in the age equation are identical to the solute transport equation for a partially saturated porous medium with saturation state $s$. The age and solute transport equations are solved simultaneously.
 
+
+\subsection{Thermodynamic Database}
+
+PFLOTRAN reads thermodynamic data from a database that may be customized by the user. Reactions included in the database consist of aqueous complexation, mineral precipitation and dissolution, gaseous reactions, and surface complexation. Ion exchange reactions and their selectivity coefficients are entered directly from the input file. 
+A standard database supplied with the code is referred to as {\tt hanford.dat} and is found in the {\tt ./database} directory in the PFLOTRAN mercurial repository. This database is an ascii text file that can be edited by any editor and is equivalent to the EQ3/6 database:
+\begin{verbatim}
+data0.com.V8.R6
+CII: GEMBOCHS.V2-EQ8-data0.com.V8.R6
+THERMODYNAMIC DATABASE
+generated by GEMBOCHS.V2-Jewel.src.R5 03-dec-1996 14:19:25
+\end{verbatim}
+The database provides equilibrium constants in the form of log $K$ values at a specified set of temperatures listed in the top line of the database. A least squares fit is used to interpolate the log $K$ values between the database temperatures using a Maier-Kelly expansion of the form
+\EQ\label{mk}
+\log K \eq c_{-1} \ln T + c_0 + c_1 T + \frac{c_2}{T} + \frac{c_3}{T^2},
+\EN
+with fit coefficients $c_i$. 
+The thermodynamic database stores all chemical reaction properties (equilibrium constant $\log K_r$, reaction stoichiometry $\nu_{ir}$, species valence $z_i$, Debye parameter $a_i$, mineral molar volume $\overline V_m$, and formula weight $w_i$) used in PFLOTRAN. The database is divided into 5 blocks as listed in Table~\ref{tdatabase}, consisting of
+database primary species, aqueous complex reactions, gaseous reactions, mineral reactions, and surface complexation reactions. 
+Each block is terminated by a line beginning with {\tt 'null'}. 
+The quantity $N_{\rm temp}$ refers to the number of temperatures at which log $K$ values are stored in the database.
+In the {\tt hanford.dat} database $N_{\rm temp}=8$ with equilibrium constants stored at the temperatures: 0, 25, 60, 100, 150, 200, 250, and 300\degc. The pressure is assumed to lie along the saturation curve of pure water for temperatures above 25\degc\ and is equal to 1 bar at lower temperatures.
+Reactions in the database are assumed to be written in the canonical form
+\EQ
+\A_r \arrows \sum_{i=1}^{\rm nspec} \nu_{ir}\A_i,
+\EN
+for species $\A_r$, where {\tt nspec} refers to the number of aqueous or gaseous species $\A_i$ on the right-hand side of the reaction. 
+Redox reactions in the standard database {\tt hanford.dat} are usually written in terms of O$_{2(g)}$.
+Complexation reactions involving redox sensitive species are written in such a manner as to preserve the redox state.
+
+
+\begin{table}[h]\centering
+\caption{Format of thermodynamic database.}\label{tdatabase}
+\vspace{3mm}
+%\footnotesize
+\begin{tabular}{ll}
+\hline
+Primary Species: & name, $a_0$, $z$, $w$\\
+Secondary Species: & name, nspec, ($\nu$(n), name($n$), $n$=1, nspec), log$K$(1:$N_{\rm temp}$), $a_0$, $z$, $w$\\
+Gaseous Species: & name, $\overline V$, nspec, ($\nu$(n), name($n$), $n$=1, nspec), log$K$(1:$N_{\rm temp}$), $w$ \\
+Minerals: & name, $\overline V$, nspec, ($\nu$(n), name($n$), $n$=1, nspec), log$K$(1:$N_{\rm temp}$), $w$\\
+Surface Complexes: & $>$name, nspec, $\nu$, $>$site, 
+($\nu$(n), name($n$), $n$=1, nspec-1), \\
+&\hspace{3in} log$K$(1:$N_{\rm temp}$), $z$, $w$\\
+\hline
+\end{tabular}
+\end{table}
+
 \section{Method of Solution}
 
-The flow and heat equations (Modes: RICHARDS, MPHASE, FLASH2, THC, and 2PH) are solved using a fully implicit backward Euler approach based on Newton-Krylov iteration.
+The flow and heat equations (Modes: RICHARDS, MPHASE, FLASH2, THC, \ldots) are solved using a fully implicit backward Euler approach based on Newton-Krylov iteration.
 Both fully implicit backward Euler and operator splitting solution methods are supported for reactive transport.
 
 \subsection{Fully Implicit}
@@ -1020,7 +1253,7 @@ A flow diagram of the PFLOTRAN code structure is shown in Figure~\ref{fdiag}.
 \end{figure}
 
 Flow diagram definitions:
-\begin{itemize}
+\begin{enumerate}
 \item {\bf Multi-Realization Simulation} object: Highest level data structure providing all information for running simulations composed of multiple realizations
 \item {\bf Simulation} object: Data structure providing all information for running a single simulation
 \item {\bf Timestepper} object: Pointer to Newton-Krylov solver and tolerances associated with time stepping
@@ -1029,18 +1262,36 @@ Flow diagram definitions:
 \item {\bf Level} object: Pointer to discretization and field variables associated with a single level of grid refinement within a realization
 \item {\bf Patch} object: Pointer to discretization and field variables associated with a subset of grid cells within a level
 \item {\bf Auxiliary Data} object: Pointer to auxiliary data within a realization/patch
-\end{itemize}
+\end{enumerate}
 
 
 In order to facilitate code development and better preserve the extensibility and modularity of the code, an object-oriented coding paradigm is employed within PFLOTRAN.  In comparison to traditional procedural paradigms, the object-oriented programming paradigm facilitates code modification and reuse.  Within the context of PFLOTRAN, the utilization of this paradigm greatly accelerates the incorporation of new flow and transport modes through the extension of existing algorithms.  The compartmentalization of methods, processes and data enables the spawning of multi-realization simulations, each of which can be simultaneously run in parallel (i.e. each realization of the multi-realization simulation can be run in parallel utilizing multiple processor cores).
 
 \section{Installation}
 
+It should be possible to build and run PFLOTRAN on essentially any system with 
+modern C and Fortran (95 standard or higher) compilers and an available 
+implementation of the Message Passing Interface (MPI) system.
+Besides these requirements, the major third party library required is 
+the open-source library PETSc---the Portable, Extensible Toolkit for Scientific 
+Computation---that provides the parallel framework on which PFLOTRAN is 
+built.
+Most of the work involved in building PFLOTRAN lies in building PETSc. 
+PETSc uses a sophisticated Python-based build tool, BuildSystem, to perform 
+extensive platform discovery and configuration as well as automatic download 
+and build for any of the open-source third-party libraries that PETSc can 
+use. 
+The PFLOTRAN makefiles use the information generated by BuildSystem as part 
+of the PETSc build process; once PETSc is built, building PFLOTRAN should be 
+straightforward.
+
 \subsection{MacOSX}
 
-This installation requires compiler versions 4.4.2 for gfortran, gcc, and g++. The compiler g++ is needed for installing SAMRAI.
-Define environment variables: {\tt MPI\_HOME}, {\tt PKGS}, \linebreak {\tt HYPRE\_INSTALL\_DIR}
+The installation of PFLOTRAN on MacOSX requires compiler versions 4.4 or later for gfortran and gcc. 
+%The compiler g++ is needed for installing SAMRAI.
+%Define environment variables: {\tt MPI\_HOME}, {\tt PKGS}, \linebreak {\tt HYPRE\_INSTALL\_DIR}
 
+\begin{comment}
 \subsubsection{OpenMPI}
 
 \begin{verbatim}
@@ -1078,14 +1329,41 @@ F77=mpif90
 make
 make install
 \end{verbatim}
+\end{comment}
 
 \subsubsection{PETSc}
 
-The PETSc {\tt ./configure} script can be used not only to install PETSc but also HDF5, Parmetis, and various direct solvers such as Mumps and Trilinos solvers. To use PETSc with PFLOTRAN the PETSc developer version petsc-dev is necessary which can be downloaded from the PETSc web page (http://www.mcs.anl.gov/petsc/petsc-as/developers/index.html). The recommended way to do this is to use the version control program Mercurial \linebreak (http://mercurial.selenic.com/wiki).
+The PETSc {\tt ./configure} script can be used not only to install PETSc but also MPI, HDF5, ParMetis/Metis, and various solvers such as the sparse direct solver Mumps and the Trilinos multilevel solver ML. PFLOTRAN requires the PETSc developer version petsc-dev which can be either downloaded from the PETSc web page \linebreak (http://www.mcs.anl.gov/petsc/developers/index.html), or installed using Mercurial following instructions on the PETSc developer web page. It is recommended to install PETSc using the version control system Mercurial (http://mercurial.selenic.com/wiki).
 
-Define environment variables: $\verb|PETSC_DIR|$ and $\verb|PETSC_ARCH|$ giving the location of the petsc-dev source and the architecture.
+Define environment variables $\verb|PETSC_DIR|$ and $\verb|PETSC_ARCH|$ giving the location of the petsc-dev source and the directory where the libraries for the particular architecture are stored after compiling and installing PETSc.
 
-\paragraph{MacOSX 10.6.6 (SnowLeopard)}
+\paragraph{MacOSX}
+To install ParMetis/Metis on MacOSX it is necessary to first install CMAKE from e.g. MacPorts or Fink.
+
+To install PETSc, MPI using openmpi, HDF5, and ParMetis/Metis with debugging turned off configure PETSc using:
+
+\begin{verbatim}
+./config/configure.py --with-debugging=0 --with-shared-libraries=0 --with-x=0 
+--download-openmpi --download-hdf5=1 --download-metis=1 --download-parmetis=1
+\end{verbatim}
+
+\noindent
+followed by
+
+$\verb|make all|$
+
+\noindent
+and
+
+$\verb|make test|$
+
+Note that ParMetis/Metis is only needed for using the unstructured grid capability in PFLOTRAN. HDF5 is recommended for large problems for use with Visit for (parallel) visualization.
+
+\paragraph{Windows}
+To install PETSc and PFLOTRAN on Windows see instructions on the PFLOTRAN wiki (https://software.lanl.gov/pflotran/trac).
+
+\begin{comment}
+\subsubsection{MacOSX}
 
 \begin{verbatim}
 ./config/configure.py \
@@ -1103,8 +1381,6 @@ Define environment variables: $\verb|PETSC_DIR|$ and $\verb|PETSC_ARCH|$ giving 
 make all
 make test
 \end{verbatim}
-
-\paragraph{MacOSX 10.6.4 (Snow Leopard)}
 
 \begin{enumerate}
 \item Obtain C compiler gcc4.5 or later for snow leopard (e.g. from http://hpc.sourceforge.net). 
@@ -1134,8 +1410,9 @@ then compile with \verb|make all|.
 
 \verb|make pflotran|
 \end{enumerate}
+\end{comment}
 
-\subsubsection{ORNL's Jaguar XT4/5}
+\paragraph{ORNL's Jaguar XT4/5}
 
 \footnotesize
 \begin{verbatim}
@@ -1186,10 +1463,10 @@ The user will need to load the following HDF5 module beforehand: \ \verb|module 
 
 The source code for PFLOTRAN can be downloaded from the LANL web site using Mercurial: \verb|hg clone https://software.lanl.gov/pflotran/hg/pflotran|. PFLOTRAN is compiled with the command:
 
-\verb|make [chuan_co2=1 coll=1 temp=1 dasvyat=1] pflotran|
+\verb|make [options] pflotran|
 
 \noindent
-Options [] are: 
+where several possible options are: 
 
 \begin{tabular}{ll}
 \verb|chuan_co2|: & --enable two-phase supercritical CO$_2$ mode\\
@@ -1198,6 +1475,9 @@ Options [] are:
 \verb|temp|: & --enable temperature dependent log $K$ capability\\
 \verb|dasvyat|: & --enable MFD full permeability tensor capability
 \end{tabular}
+
+\noindent
+See the PFLOTRAN \verb|makefile| for additional options.
 
 \subsection{Running PFLOTRAN}
 
@@ -1219,29 +1499,34 @@ A number of command line options are available:
 
 \subsection*{Updating PFLOTRAN}
 
-Instructions to update PFLOTRAN
+To update the PFLOTRAN source code
+type: {\tt hg pull -u} from within the PFLOTRAN source repository.
 
 \noindent
-From within the PFLOTRAN repository, type: {\tt hg pull -u}
-
-\noindent
-Within {\tt \$PFLOTRAN\_DIR/src/pflotran} recompile PFLOTRAN using:\\
+Recompile PFLOTRAN using:\\
+\indent
 {\tt make clean}\\
+\indent
 {\tt make [options] pflotran}
 
 \subsection*{Multi-Realization Simulation Mode}
 
 To launch 1000 realizations on 100 processor groups using 10,000 processor cores:
 
+\noindent
 {\tt mpirun -np 10000 pflotran -stochastic -num\_realizations 1000 -num\_groups 100}
 
-Each processor group will utilized 100 processor cores and run 10 realizations apiece \linebreak ({\tt num\_realizations/num\_groups}), one after another. Thus, only 100 realizations may be executed simultaneously as each processor group may only simulate a single realization on 100 processor cores at a time. Each processor group continues to run realizations until its allocation of 10 has completed.
+Each processor group will utilize 100 processor cores and run 10 realizations apiece \linebreak ({\tt num\_realizations/num\_groups}), one after another. Thus, 100 realizations are executed simultaneously with each processor group simulating a single realization on 100 processor cores at a time. Each processor group continues to run realizations until its allocation of 10 is completed.
 
 \noindent
-To simulate a specific realization without running in multi-realization stochastic mode:
+To simulate a specific realization without running in multi-realization stochastic mode use:
 
-{\tt mpirun -np 10000 pflotran -realization\_id 5}
+{\tt mpirun -np 10000 pflotran -realization\_id <integer>}
 
+\noindent
+where <integer> specifies the realization id.
+
+\begin{comment}
 \subsection{Building SAMRAI Version 2.4.4}
 
 \noindent
@@ -1435,6 +1720,8 @@ At this point you should have an executable \verb|SAMRAIDriver|.
  
 %\noindent
 %This should run the coupled flow (richards) and transport (15 species).
+
+\end{comment}
 
 \begin{comment}
 The following instructions should aid in installing openmpi, PETSc, HDF5 and PFLOTRAN on a UNIX or Mac computer running MacOSX 10.4 or later.
@@ -2160,7 +2447,8 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 
 \item[MINERAL\_KINETICS] ~
 
-\begin{deflist}{000000000000000000000}
+%\begin{deflist}{000000000000000000000}
+\begin{deflist}{0000}
 \item [Mineral Name]
 \item [RATE\_CONSTANT] \ {\tt Value} [mol/cm$^2$/s] \ \ \ \ {\em If} \ {\tt Value} $<$ 0, {\tt Value} = 10$^{\tt Value}$
 \item [ACTIVATION\_ENERGY] \ {\tt Value} [kJ/mol/K] \ \ \ Referenced to rate constant at 25\degc.
@@ -2260,6 +2548,7 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 
 \item [\keyend]
 
+\item[GEOTHERMAL\_HPT] Use high pressure and temperature thermodynamic database
 \item[DATABASE] {\tt Path/Database\_Name}
 \item[LOG\_FORMULATION]
 \item[NO\_CHECKPOINT\_ACT\_COEFS]
@@ -2608,6 +2897,7 @@ The {\bf FLOW\_CONDITION} keyword specifies scalar or vector data sets to be ass
 \item[FLUX] {\tt [dirichlet, neumann, mass\_rate, hydrostatic, conductance,  \linebreak zero\_gradient, production\_well, seepage, volumetric, \linebreak volumetric\_rate, equilibrium]}
 \item[TEMPERATURE] {\tt [dirichlet, hydrostatic, zero\_gradient]}
 \item[CONCENTRATION] {\tt [dirichlet, hydrostatic, zero\_gradient]}
+\item[SATURATION] {\tt [dirichlet]}
 \item[ENTHALPY (H)] {\tt [dirichlet, hydrostatic, zero\_gradient]}
 \end{deflist}
 \item[(., /, END)]
@@ -2639,6 +2929,7 @@ The {\bf FLOW\_CONDITION} keyword specifies scalar or vector data sets to be ass
 \item[RATE] \ {\tt Value}
 \item[FLUX, VELOCITY, VEL] \ {\tt <float>}
 \item[CONC, CONCENTRATION] \ {\tt <float>}
+\item[SAT,SATURATION] \ {\tt <float>}
 \item[CONDUCTANCE] \ {\tt <float>}
 %\item[CONSTRAINT\_LIST]
 \end{deflist}
@@ -2665,6 +2956,7 @@ The {\bf FLOW\_CONDITION} keyword specifies scalar or vector data sets to be ass
 \bf PRESSURE & Specifies the type of pressure condition.\\
  \bf TEMPERATURE & Specifies the type of temperature condition.\\
     \bf CONCENTRATION & Specifies the type of concentration condition.\\
+    \bf SATURATION & Specifies the type of saturation condition.\\
     \bf ENTHALPY & Specifies the type of enthalpy condition.\\
     \bf END & Terminates type entry.\\
 \midrule\midrule
@@ -2680,6 +2972,7 @@ The {\bf FLOW\_CONDITION} keyword specifies scalar or vector data sets to be ass
 \bf FLUX & Darcy velocity of fluid defining flux across a boundary.\\
 \bf TEMPERATURE & Temperature in $^\circ$C at the datum.\\
 \bf CONCENTRATION & Solute concentration at the datum.\\
+\bf SATURATION & Solute saturation at the datum.\\
 \bf ENTHALPY & Enthalpy at the datum.\\
 \bf CONSTRAINT\_LIST & Specifies a list of concentration constraints for solute transport.\\
 \bf END & Terminates the condition entry.\\
@@ -2822,6 +3115,28 @@ DIFFUSION_ACTIVATION_ENERGY 12.6 ! kJ/K/mol
 \end{description}
 \end{description}
 
+\noindent
+{\bf Format of unstructured grid file:}
+\begin{verbatim}
+! 
+! type: H=hexahedron, T=tetrahedron, W=wedge, P=pyramid
+! vertn(H) = 8
+! vertn(T) = 4
+! vertn(W) = 6
+! vertn(P) = 5
+! -----------------------------------------------------------------
+! num_cells num_vertices  (integers)
+! type vert1 vert2 vert3 ... vertn  ! for cell 1 (integers)
+! type vert1 vert2 vert3 ... vertn  ! for cell 2
+! ...
+! ...
+! type vert1 vert2 vert3 ... vertn  ! for cell num_cells
+! xcoord ycoord zcoord ! coordinates of vertex 1 (real)
+! xcoord ycoord zcoord ! coordinates of vertex 2 (real)
+! ...
+! xcoord ycoord zcoord ! coordinates of vertex num_vertices (real)
+! -----------------------------------------------------------------
+\end{verbatim}
 \noindent
 {\bf Examples:}
 \begin{verbatim}
@@ -3013,7 +3328,7 @@ END
 \item[VOLUME\_FRACTION] \ {\tt float} \ Volume fraction power in mineral surface area
 \item[POROSITY] \ {\tt float} \ Porosity power in mineral surface area
 \end{deflist}
-\item[(., /, END)]
+%\item[(., /, END)]
 \item[RANDOM\_DATASET] \ {\tt permeability\_filename}
 \end{deflist}
 \item[(., /, END)]
@@ -3136,8 +3451,9 @@ MODE THC
 \item[DTOL]
 \item[ITOL (INF\_TOL, ITOL\_RES, INF\_TOL\_RES)]
 \item[ITOL\_UPDATE (INF\_TOL\_UPDATE)]
-\item[MAXIT]
+\item[MAXIT] Cuts time step if the number of iterations exceed this value
 \item[MAXF]
+\item[MAX\_NORM]  Cuts time step if the convergence norm exceeds this value. Only works for THC, MPHASE and MISCIBLE modes. 
 \end{deflist}
 \item[(., /, END)]
 \end{deflist}
@@ -5321,7 +5637,7 @@ make sure that you don't link with the iobuf library.
 
 \end{comment}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+\begin{comment}
 \section{Adaptive Mesh Refinement: SAMRAI}
 
 \subsection{Creating the SAMRAI input file}
@@ -5532,6 +5848,8 @@ TimerManager{
    "RD2T::*::*", "LevelSolver::*::*"
 }
 \end{verbatim}
+\end{comment}
+
 \normalsize
 
 \section{Visualization}
@@ -5793,7 +6111,7 @@ California Regional Meeting of the Society of Petroleum Engineers. Richardson, T
 \item Andreas Voegelin, Vijay M. Vulava, Florian Kuhnen, Ruben Kretzschmar (2000) Multicomponent transport of major cations predicted from binary adsorption experiments, Journal of Contaminant Hydrology, 46, 319--338.
 \end{description}
 
-
+\begin{comment}
 \newpage
 
 \section{Appendix: List of Subroutines in PFLOTRAN}
@@ -6893,7 +7211,7 @@ waypoint.F90:subroutine WaypointListPrint(list,option,output_option)
 waypoint.F90:subroutine WaypointPrint(waypoint,option,output_option)
 waypoint.F90:subroutine WaypointDestroy(waypoint)
 \end{verbatim} 
-
+\end{comment}
 
 \end{document}
 

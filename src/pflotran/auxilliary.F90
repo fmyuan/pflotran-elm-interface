@@ -2,10 +2,12 @@ module Auxilliary_module
   
   use Global_Aux_module
   use THC_Aux_module
+  use THMC_Aux_module
   use Richards_Aux_module
   use Reactive_Transport_Aux_module
   use Mphase_Aux_module
   use Immis_Aux_module
+  use Miscible_Aux_module
   use Flash2_Aux_Module
   use General_Aux_module
   use Material_Aux_module
@@ -23,9 +25,11 @@ module Auxilliary_module
     type(subcontinuum_transport_type), pointer :: ST
 #endif
     type(thc_type), pointer :: THC
+    type(thmc_type), pointer :: THMC
     type(richards_type), pointer :: Richards
     type(mphase_type), pointer :: Mphase
     type(immis_type), pointer :: Immis
+    type(miscible_type), pointer :: Miscible
     type(flash2_type), pointer :: Flash2
     type(general_type), pointer :: General
     type(material_type), pointer :: Material
@@ -55,10 +59,12 @@ subroutine AuxInit(aux)
   nullify(aux%ST)
 #endif
   nullify(aux%THC)
+  nullify(aux%THMC)
   nullify(aux%Richards)
   nullify(aux%Mphase)
   nullify(aux%Immis)
   nullify(aux%Flash2)
+  nullify(aux%Miscible)
   nullify(aux%General)
   nullify(aux%Material)
 
@@ -83,8 +89,10 @@ subroutine AuxDestroy(aux)
   call STAuxDestroy(aux%ST) 
 #endif
   call THCAuxDestroy(aux%THC)
+  call THMCAuxDestroy(aux%THMC)
   call RichardsAuxDestroy(aux%Richards)
-  !call MphaseAuxDestroy(aux%Mphase)
+  call MphaseAuxDestroy(aux%Mphase)
+  call MiscibleAuxDestroy(aux%Miscible)
   call GeneralAuxDestroy(aux%General)
   call MaterialAuxDestroy(aux%Material)
   nullify(aux%Global)
@@ -93,9 +101,11 @@ subroutine AuxDestroy(aux)
   nullify(aux%ST)  
 #endif
   nullify(aux%THC)
+  nullify(aux%THMC)
   nullify(aux%Richards)
   nullify(aux%Mphase)
   nullify(aux%Immis)
+  nullify(aux%Miscible)
   nullify(aux%General)
   nullify(aux%Material)
 

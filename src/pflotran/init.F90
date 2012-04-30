@@ -43,17 +43,20 @@ subroutine Init(simulation)
   use Convergence_module
   use Waypoint_module
   use Patch_module
-  use Mass_Balance_module
+! use Mass_Balance_module
   use Logging_module  
   use Database_module
+  use Database_hpt_module
   use Input_module
   use Condition_Control_module
   
   use Flash2_module
   use MPHASE_module
   use Immis_module
+  use Miscible_module
   use Richards_module
   use THC_module
+  use THMC_module
   use General_module
   
   use Reactive_Transport_module
@@ -64,10 +67,16 @@ subroutine Init(simulation)
   use Utility_module
   use Output_module
     
+#ifdef SURFACE_FLOW
+  use Surface_Field_module
+  use Surface_Flow_Module
+  use Unstructured_Grid_module
+  use Surface_Realization_module
+#endif
   implicit none
   
   type(simulation_type) :: simulation
-  character(len=MAXWORDLENGTH) :: filename, filename_out
+  character(len=MAXSTRINGLENGTH) :: filename, filename_out
 
   type(stepper_type), pointer :: flow_stepper
   type(stepper_type), pointer :: tran_stepper
@@ -89,19 +98,15 @@ subroutine Init(simulation)
   PetscErrorCode :: ierr
   PCSide:: pcside
   PetscReal :: r1, r2, r3, r4, r5, r6
-
-      
-  interface
-
-subroutine SAMRInitializePreconditioner(p_application, which_pc, pc)
-#include "finclude/petscsysdef.h"
-#include "finclude/petscpc.h"
-       PC :: pc
-       PetscFortranAddr :: p_application
-       PetscInt :: which_pc
-     end subroutine SAMRInitializePreconditioner
-
-end interface
+#ifndef HAVE_SNES_API_3_2
+  SNESLineSearch :: linesearch
+#endif
+#ifdef SURFACE_FLOW
+  type(stepper_type), pointer               :: surf_flow_stepper
+  type(solver_type), pointer                :: surf_flow_solver
+  type(surface_field_type), pointer         :: surf_field
+  type(surface_realization_type), pointer   :: surf_realization
+#endif
 
   call PetscLogStagePush(logging%stage(INIT_STAGE),ierr)
   call PetscLogEventBegin(logging%event_init,ierr)
@@ -115,28 +120,45 @@ end interface
   field => realization%field
   debug => realization%debug
   input => realization%input
+#ifdef SURFACE_FLOW
+  surf_realization  => simulation%surf_realization
+  surf_flow_stepper => simulation%surf_flow_stepper
+  surf_field        => surf_realization%surf_field  
+#endif
   
   option%init_stage = PETSC_TRUE
 
   nullify(flow_solver)
   nullify(tran_solver)
-
-
   
-  realization%input => InputCreate(IUNIT1,option%input_filename)
+  if (OptionPrintToScreen(option)) then
+    temp_int = 6
+    call InitPrintPFLOTRANHeader(option,temp_int)
+  endif
+  
+  realization%input => InputCreate(IN_UNIT,option%input_filename,option)
 
   filename_out = trim(option%global_prefix) // trim(option%group_prefix) // &
                  '.out'
 
-  if (option%print_to_file) then
+  if (option%myrank == option%io_rank .and. option%print_to_file) then
     open(option%fid_out, file=filename_out, action="write", status="unknown")
   endif
 
+  if (OptionPrintToFile(option)) then
+    call InitPrintPFLOTRANHeader(option,option%fid_out)
+  endif
+  
   call InitReadHDF5CardsFromInput(realization)
   call Create_IOGroups(option)
 
   ! read required cards
   call InitReadRequiredCardsFromInput(realization)
+#ifdef SURFACE_FLOW
+  surf_realization%input => InputCreate(IN_UNIT,option%input_filename,option)
+  surf_realization%subsurf_filename = realization%discretization%filename
+  call InitReadRequiredCardsFromInputSurf(simulation%surf_realization)
+#endif
 
   patch => realization%patch
 
@@ -164,7 +186,7 @@ end interface
     call TimestepperDestroy(simulation%flow_stepper)
     nullify(flow_stepper)
   endif
-  
+    
   ! initialize transport mode
   if (option%ntrandof > 0) then
     tran_solver => tran_stepper%solver
@@ -172,6 +194,10 @@ end interface
     call TimestepperDestroy(simulation%tran_stepper)
     nullify(tran_stepper)
   endif
+
+#ifdef SURFACE_FLOW
+  surf_flow_solver => surf_flow_stepper%solver
+#endif
 
   ! read in the remainder of the input file
   call InitReadInput(simulation)
@@ -202,8 +228,13 @@ end interface
   
   if (associated(realization%reaction)) then
     if (realization%reaction%use_full_geochemistry) then
-      call DatabaseRead(realization%reaction,option)
-      call BasisInit(realization%reaction,option)    
+!geh      if (realization%reaction%use_geothermal_hpt)then
+!geh        call DatabaseRead_hpt(realization%reaction,option)
+!geh        call BasisInit_hpt(realization%reaction,option)    
+!geh      else
+        call DatabaseRead(realization%reaction,option)
+        call BasisInit(realization%reaction,option)    
+!geh      endif
     else
       ! turn off activity coefficients since the database has not been read
       realization%reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_OFF
@@ -214,13 +245,16 @@ end interface
 
   ! Initialize flow databases (e.g. span wagner, etc.)
   select case(option%iflowmode)
-    case(MPH_MODE, FLASH2_MODE)
+    case(MPH_MODE, FLASH2_MODE, IMS_MODE)
       call init_span_wanger(realization)
   end select
   
 
   ! create grid and allocate vectors
   call RealizationCreateDiscretization(realization)
+#ifdef SURFACE_FLOW
+  call SurfaceRealizationCreateDiscretization(simulation%surf_realization)
+#endif  
 ! deprecated - geh
 !  if (option%compute_mass_balance) then
 !    call MassBalanceCreate(realization)
@@ -247,7 +281,7 @@ end interface
   
     if (flow_solver%J_mat_type == MATAIJ) then
       select case(option%iflowmode)
-        case(MPH_MODE,THC_MODE, IMS_MODE, FLASH2_MODE, G_MODE)
+        case(MPH_MODE,THC_MODE,THMC_MODE,IMS_MODE, FLASH2_MODE, G_MODE, MIS_MODE)
           option%io_buffer = 'AIJ matrix not supported for current mode: '// &
                              option%flowmode
           call printErrMsg(option)
@@ -264,8 +298,12 @@ end interface
           write(*,'(" mode = MPH: p, T, s/X")')
         case(IMS_MODE)
           write(*,'(" mode = IMS: p, T, s")')
+        case(MIS_MODE)
+          write(*,'(" mode = MIS: p, Xs")')
         case(THC_MODE)
           write(*,'(" mode = THC: p, T, s/X")')
+        case(THMC_MODE)
+          write(*,'(" mode = THMC: p, T, s/X")')
         case(RICHARDS_MODE)
           write(*,'(" mode = Richards: p")')  
         case(G_MODE)    
@@ -286,10 +324,6 @@ end interface
       endif
     endif
 
-    if (option%use_samr) then
-       option%samr_mode=0
-    endif
-      
     call DiscretizationCreateJacobian(discretization,NFLOWDOF, &
                                       flow_solver%Jpre_mat_type, &
                                       flow_solver%Jpre, &
@@ -314,6 +348,9 @@ end interface
       case(THC_MODE)
         call SNESSetFunction(flow_solver%snes,field%flow_r,THCResidual, &
                              realization,ierr)
+      case(THMC_MODE)
+        call SNESSetFunction(flow_solver%snes,field%flow_r,THMCResidual, &
+                             realization,ierr)
       case(RICHARDS_MODE)
         select case(realization%discretization%itype)
           case(STRUCTURED_GRID_MIMETIC)
@@ -331,6 +368,9 @@ end interface
       case(IMS_MODE)
         call SNESSetFunction(flow_solver%snes,field%flow_r,ImmisResidual, &
                              realization,ierr)
+      case(MIS_MODE)
+        call SNESSetFunction(flow_solver%snes,field%flow_r,MiscibleResidual, &
+                             realization,ierr)
       case(FLASH2_MODE)
         call SNESSetFunction(flow_solver%snes,field%flow_r,FLASH2Residual, &
                              realization,ierr)
@@ -347,12 +387,14 @@ end interface
       case(THC_MODE)
         call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
                              THCJacobian,realization,ierr)
+      case(THMC_MODE)
+        call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
+                             THMCJacobian,realization,ierr)
       case(RICHARDS_MODE)
         select case(realization%discretization%itype)
           case(STRUCTURED_GRID_MIMETIC)
             call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
                              RichardsJacobianMFDLP,realization,ierr)
-!sp          case(STRUCTURED_GRID,AMR_GRID)
           case default !sp 
             call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
                              RichardsJacobian,realization,ierr)
@@ -364,6 +406,9 @@ end interface
       case(IMS_MODE)
         call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
                              ImmisJacobian,realization,ierr)
+      case(MIS_MODE)
+        call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
+                             MiscibleJacobian,realization,ierr)
       case(FLASH2_MODE)
         call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
                              FLASH2Jacobian,realization,ierr)
@@ -373,9 +418,13 @@ end interface
     end select
     
     ! by default turn off line search
+#ifndef HAVE_SNES_API_3_2
+    call SNESGetSNESLineSearch(flow_solver%snes, linesearch, ierr)
+    call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC, ierr)
+#else
     call SNESLineSearchSet(flow_solver%snes,SNESLineSearchNo, &
                            PETSC_NULL_OBJECT,ierr)
-
+#endif
     ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
     if (option%verbosity >= 1) then
       string = '-flow_snes_view'
@@ -397,17 +446,6 @@ end interface
                    realization%discretization%dm_nflowdof,ierr);
     endif
 
-    ! setup a shell preconditioner and initialize in the case of AMR
-    if (option%use_samr) then
-!     flow_solver%pc_type = PCSHELL
-      pcside = PC_RIGHT
-      if (flow_solver%pc_type==PCSHELL) then
-        call KSPSetPCSide(flow_solver%ksp, pcside,ierr)
-        flowortranpc=0 
-        call SAMRInitializePreconditioner(discretization%amrgrid%p_application, flowortranpc, flow_solver%pc)
-      endif
-    endif
-
     option%io_buffer = 'Solver: ' // trim(flow_solver%ksp_type)
     call printMsg(option)
     option%io_buffer = 'Preconditioner: ' // trim(flow_solver%pc_type)
@@ -420,8 +458,103 @@ end interface
     call SNESSetConvergenceTest(flow_solver%snes,ConvergenceTest, &
                                 flow_stepper%convergence_context, &
                                 PETSC_NULL_FUNCTION,ierr) 
+    
+    if (dabs(option%pressure_dampening_factor) > 0.d0 .or. &
+        dabs(option%saturation_change_limit) > 0.d0) then
+      select case(option%iflowmode)
+        case(RICHARDS_MODE)
+#ifndef HAVE_SNES_API_3_2
+          call SNESGetSNESLineSearch(flow_solver%snes, linesearch, ierr)
+          call SNESLineSearchSetPreCheck(linesearch, &
+                                         RichardsCheckUpdatePre, &
+                                         realization,ierr)
+#else        
+          call SNESLineSearchSetPreCheck(flow_solver%snes, &
+                                         RichardsCheckUpdatePre, &
+                                         realization,ierr)
+#endif
+      end select
+    endif
+    if (option%check_stomp_norm) then
+      select case(option%iflowmode)
+        case(RICHARDS_MODE)
+#ifndef HAVE_SNES_API_3_2
+          call SNESGetSNESLineSearch(flow_solver%snes, linesearch, ierr)
+          call SNESLineSearchSetPostCheck(linesearch, &
+                                          RichardsCheckUpdatePost, &
+                                          realization,ierr)
+#else         
+          call SNESLineSearchSetPostCheck(flow_solver%snes, &
+                                          RichardsCheckUpdatePost, &
+                                          realization,ierr)
+#endif
+      end select
+    endif
+    
     call printMsg(option,"  Finished setting up FLOW SNES ")
 
+#ifdef SURFACE_FLOW
+    call printMsg(option,"  Beginning setup of SURF FLOW SNES ")
+
+    call SolverCreateSNES(surf_flow_solver,option%mycomm)
+    call SNESSetOptionsPrefix(surf_flow_solver%snes, "surf_flow_",ierr)
+    call SolverCheckCommandLine(surf_flow_solver)
+
+    if (surf_flow_solver%Jpre_mat_type == '') then
+      if (surf_flow_solver%J_mat_type /= MATMFFD) then
+        surf_flow_solver%Jpre_mat_type = surf_flow_solver%J_mat_type
+      else
+        surf_flow_solver%Jpre_mat_type = MATBAIJ
+      endif
+    endif
+
+    call DiscretizationCreateJacobian( &
+                                      simulation%surf_realization%discretization, &
+                                      NFLOWDOF, &
+                                      surf_flow_solver%Jpre_mat_type, &
+                                      surf_flow_solver%Jpre, &
+                                      option)
+
+    call MatSetOption(surf_flow_solver%Jpre,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE,ierr)
+    call MatSetOption(surf_flow_solver%Jpre,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)
+
+    call MatSetOptionsPrefix(surf_flow_solver%Jpre,"surf_flow_",ierr)
+
+    if (surf_flow_solver%J_mat_type /= MATMFFD) then
+      surf_flow_solver%J = surf_flow_solver%Jpre
+    endif
+
+    call SNESSetFunction(surf_flow_solver%snes,surf_field%flow_r, &
+                          SurfaceFlowResidual, &
+                          simulation%surf_realization,ierr)
+
+    call SNESSetJacobian(surf_flow_solver%snes,surf_flow_solver%J, &
+                         surf_flow_solver%Jpre, &
+                         SurfaceFlowJacobian,simulation%surf_realization,ierr)
+
+    ! by default turn off line search
+#ifndef HAVE_SNES_API_3_2
+    call SNESGetSNESLineSearch(surf_flow_solver%snes, linesearch, ierr)
+    call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC, ierr)
+#else    
+    call SNESLineSearchSet(surf_flow_solver%snes,SNESLineSearchNo, &
+                           PETSC_NULL_OBJECT,ierr)
+#endif
+
+    ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
+    if (option%verbosity >= 1) then
+      string = '-surf_flow_snes_view'
+      call PetscOptionsInsertString(string, ierr)
+    endif
+
+    call SolverSetSNESOptions(surf_flow_solver)
+
+    option%io_buffer = 'Solver: ' // trim(surf_flow_solver%ksp_type)
+    call printMsg(option)
+    option%io_buffer = 'Preconditioner: ' // trim(surf_flow_solver%pc_type)
+    call printMsg(option)
+
+#endif
   endif
 
   
@@ -434,9 +567,6 @@ end interface
     call SNESSetOptionsPrefix(tran_solver%snes, "tran_",ierr)
     call SolverCheckCommandLine(tran_solver)
       
-     if (option%use_samr) then
-        option%samr_mode=1
-     endif
      if (option%reactive_transport_coupling == GLOBAL_IMPLICIT) then
       if (tran_solver%Jpre_mat_type == '') then
         if (tran_solver%J_mat_type /= MATMFFD) then
@@ -486,8 +616,13 @@ end interface
 
       ! this could be changed in the future if there is a way to ensure that the linesearch
       ! update does not perturb concentrations negative.
+#ifndef HAVE_SNES_API_3_2
+      call SNESGetSNESLineSearch(tran_solver%snes, linesearch, ierr)
+      call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC, ierr)
+#else       
       call SNESLineSearchSet(tran_solver%snes,SNESLineSearchNo, &
                              PETSC_NULL_OBJECT,ierr)
+#endif      
     
       ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
       if (option%verbosity >= 1) then
@@ -500,16 +635,6 @@ end interface
     ! ensure setting of SNES options since they set KSP and PC options too
     call SolverSetSNESOptions(tran_solver)
 
-    ! setup a shell preconditioner and initialize in the case of AMR
-    if (associated(discretization%amrgrid)) then
-!       flow_solver%pc_type = PCSHELL
-       pcside = PC_RIGHT
-       if (tran_solver%pc_type==PCSHELL) then
-          call KSPSetPCSide(tran_solver%ksp, pcside,ierr)
-          flowortranpc=1
-          call SAMRInitializePreconditioner(discretization%amrgrid%p_application, flowortranpc, tran_solver%pc)
-       endif
-    endif
     option%io_buffer = 'Solver: ' // trim(tran_solver%ksp_type)
     call printMsg(option)
     option%io_buffer = 'Preconditioner: ' // trim(tran_solver%pc_type)
@@ -528,9 +653,15 @@ end interface
       ! this update check must be in place, otherwise reactive transport is likely
       ! to fail
       if (associated(realization%reaction)) then
-        if (realization%reaction%check_update .and. .not.(option%use_samr)) then
+        if (realization%reaction%check_update) then
+#ifndef HAVE_SNES_API_3_2
+          call SNESGetSNESLineSearch(tran_solver%snes, linesearch, ierr)
+          call SNESLineSearchSetPreCheck(linesearch,RTCheckUpdate, &
+                                         realization,ierr)
+#else           
           call SNESLineSearchSetPreCheck(tran_solver%snes,RTCheckUpdate, &
                                          realization,ierr)
+#endif          
         endif
       endif
     endif
@@ -547,7 +678,7 @@ end interface
   call readRegionFiles(realization)
   ! clip regions and set up boundary connectivity, distance  
   call RealizationLocalizeRegions(realization)
-  call RealizatonPassFieldPtrToPatches(realization)
+  call RealizatonPassPtrsToPatches(realization)
   ! link conditions with regions through couplers and generate connectivity
   call RealProcessMatPropAndSatFunc(realization)
   call RealizationProcessCouplers(realization)
@@ -601,12 +732,16 @@ end interface
     select case(option%iflowmode)
       case(THC_MODE)
         call THCSetup(realization)
+      case(THMC_MODE)
+        call THMCSetup(realization)
       case(RICHARDS_MODE)
         call RichardsSetup(realization)
       case(MPH_MODE)
         call MphaseSetup(realization)
       case(IMS_MODE)
         call ImmisSetup(realization)
+      case(MIS_MODE)
+        call MiscibleSetup(realization)
       case(FLASH2_MODE)
         call Flash2Setup(realization)
       case(G_MODE)
@@ -625,6 +760,8 @@ end interface
     select case(option%iflowmode)
       case(THC_MODE)
         call THCUpdateAuxVars(realization)
+      case(THMC_MODE)
+        call THMCUpdateAuxVars(realization)
       case(RICHARDS_MODE)
 #ifdef DASVYAT
        if (option%mimetic) then
@@ -638,6 +775,8 @@ end interface
         call MphaseUpdateAuxVars(realization)
       case(IMS_MODE)
         call ImmisUpdateAuxVars(realization)
+      case(MIS_MODE)
+        call MiscibleUpdateAuxVars(realization)
       case(FLASH2_MODE)
         call Flash2UpdateAuxVars(realization)
       case(G_MODE)
@@ -676,7 +815,13 @@ end interface
     ! at this point the auxvars have been computed with activity coef = 1.d0
     ! to use intitial condition with activity coefs /= 1.d0, must update
     ! activity coefs and recompute auxvars
-    if (realization%reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF) then
+    if (realization%reaction%act_coef_update_frequency /= &
+        ACT_COEF_FREQUENCY_OFF) then
+      call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_FALSE,PETSC_TRUE)
+      !geh: you may ask, why call this twice....  We need to iterate at least
+      !     once to ensure that the activity coefficients are more accurate.
+      !     Otherwise, the total component concentrations can be quite
+      !     different from what is defined in the input file.
       call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_FALSE,PETSC_TRUE)
     endif
   endif
@@ -756,6 +901,51 @@ end interface
 #endif !VAMSI_HDF5_READ
 #endif !PETSC_HAVE_HDF5
 
+#ifdef SURFACE_FLOW
+  call readSurfaceRegionFiles(simulation%surf_realization)
+  call SurfaceRealizationMapSurfSubsurfaceGrids(realization,simulation%surf_realization)
+  call SurfaceRealizationLocalizeRegions(simulation%surf_realization)
+  call SurfaceRealizatonPassFieldPtrToPatches(simulation%surf_realization)
+  call SurfaceRealizationProcessMatProp(simulation%surf_realization)
+  call SurfaceRealizationProcessCouplers(simulation%surf_realization)
+  call SurfaceRealizationProcessConditions(simulation%surf_realization)
+  !call RealProcessFluidProperties(simulation%surf_realization)
+  call assignSurfaceMaterialPropToRegions(simulation%surf_realization)
+  call SurfaceRealizationInitAllCouplerAuxVars(simulation%surf_realization)
+  !call SurfaceRealizationPrintCouplers(simulation%surf_realization)
+
+  !call GlobalSetup(simulation%surf_realization)
+  ! initialize FLOW
+  ! set up auxillary variable arrays
+  if (option%nflowdof > 0) then
+    select case(option%iflowmode)
+      case(RICHARDS_MODE)
+        !call SurfaceSetup(realization)
+      case default
+        option%io_buffer = 'For surface-flow on RICHARDS mode is implemented'
+        call printErrMsgByRank(option)
+    end select
+  
+    ! assign initial conditionsRealizAssignFlowInitCond
+    call CondControlAssignFlowInitCondSurface(simulation%surf_realization)
+
+    ! override initial conditions if they are to be read from a file
+    if (len_trim(option%initialize_flow_filename) > 1) then
+        option%io_buffer = 'For surface-flow initial conditions cannot be read from file'
+        call printErrMsgByRank(option)
+    endif
+  
+    select case(option%iflowmode)
+      case(RICHARDS_MODE)
+        !call SurfaceFlowUpdateAuxVars(simulation%surf_realization)
+      case default
+        option%io_buffer = 'For surface-flow on RICHARDS mode is implemented'
+        call printErrMsgByRank(option)
+    end select
+  endif
+
+#endif
+
   call printMsg(option," ")
   call printMsg(option,"  Finished Initialization")
   call PetscLogEventEnd(logging%event_init,ierr)
@@ -784,7 +974,7 @@ subroutine InitReadStochasticCardFromInput(stochastic,option)
   type(input_type), pointer :: input
   PetscBool :: print_warning
   
-  input => InputCreate(IUNIT1,option%input_filename)
+  input => InputCreate(IN_UNIT,option%input_filename,option)
 
   ! MODE information
   string = "STOCHASTIC"
@@ -822,7 +1012,7 @@ subroutine InitReadInputFilenames(option,filenames)
   PetscInt :: filename_count
   type(input_type), pointer :: input
 
-  input => InputCreate(IUNIT1,option%input_filename)
+  input => InputCreate(IN_UNIT,option%input_filename,option)
 
   string = "FILENAMES"
   call InputFindStringInFile(input,option,string) 
@@ -875,10 +1065,13 @@ subroutine InitReadRequiredCardsFromInput(realization)
   use Patch_module
   use Level_module
   use Realization_module
-  use AMR_Grid_module
 
   use Reaction_module  
   use Reaction_Aux_module  
+
+#ifdef SURFACE_FLOW
+  use Surface_Flow_module
+#endif
 
   implicit none
 
@@ -886,7 +1079,7 @@ subroutine InitReadRequiredCardsFromInput(realization)
 
   character(len=MAXSTRINGLENGTH) :: string
   
-  type(patch_type), pointer :: patch 
+  type(patch_type), pointer :: patch, patch2 
   type(level_type), pointer :: level
   type(grid_type), pointer :: grid
   type(discretization_type), pointer :: discretization
@@ -920,8 +1113,16 @@ subroutine InitReadRequiredCardsFromInput(realization)
   call InputFindStringInFile(input,option,string)
   call InputFindStringErrorMsg(input,option,string)
 
-  call DiscretizationRead(discretization,input,PETSC_TRUE,option)
+  call DiscretizationReadRequiredCards(discretization,input,option)
   
+#ifdef SURFACE_FLOW
+  ! SURFACE_FLOW information
+  string = "SURFACE_FLOW"
+  call InputFindStringInFile(input,option,string)
+  call InputFindStringErrorMsg(input,option,string)
+  !call SurfaceFlowReadRequiredCardsFromInput(simulation%surf_realization,input,option)
+#endif
+
   select case(discretization%itype)
     case(STRUCTURED_GRID,UNSTRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
       patch => PatchCreate()
@@ -931,12 +1132,8 @@ subroutine InitReadRequiredCardsFromInput(realization)
       endif
       level => LevelCreate()
       call LevelAddToList(level,realization%level_list)
-      level%patch_list => PatchCreateList()
       call PatchAddToList(patch,level%patch_list)
       realization%patch => patch
-    case(AMR_GRID)
-      realization%level_list => AMRGridCreateLevelPatchLists(discretization%amrgrid)
-      realization%patch => realization%level_list%first%patch_list%first
   end select
 !.........................................................................
 
@@ -1013,7 +1210,6 @@ subroutine InitReadInput(simulation)
   use Field_module
   use Grid_module
   use Structured_Grid_module
-  use AMR_Grid_module
   use Solver_module
   use Material_module
 #ifdef SUBCONTINUUM_MODEL
@@ -1039,6 +1235,9 @@ subroutine InitReadInput(simulation)
   use String_module
   use Units_module
   use Velocity_module
+#ifdef SURFACE_FLOW
+  use Surface_Flow_module
+#endif
  
   implicit none
   
@@ -1156,8 +1355,7 @@ subroutine InitReadInput(simulation)
 
 !....................
       case ('GRID')
-        call DiscretizationRead(realization%discretization,input, &
-                                PETSC_FALSE,option)
+        call DiscretizationRead(realization%discretization,input,option)
 
 !....................
       case ('CHEMISTRY')
@@ -1251,6 +1449,13 @@ subroutine InitReadInput(simulation)
         call InputErrorMsg(input,option,'vely','UNIFORM_VELOCITY')
         call InputReadDouble(input,option,velocity_dataset%values(3,1))
         call InputErrorMsg(input,option,'velz','UNIFORM_VELOCITY')
+        ! read units, if present
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (input%ierr == 0) then
+          units_conversion = UnitsConvertToInternal(word,option) 
+          velocity_dataset%values(:,1) = velocity_dataset%values(:,1) * &
+                                         units_conversion
+        endif
         call VelocityDatasetVerify(option,velocity_dataset)
         realization%velocity_dataset => velocity_dataset
       
@@ -1480,8 +1685,13 @@ subroutine InitReadInput(simulation)
 
 !......................
 
-      case ('NUMERICAL_JACOBIAN')
-        option%numerical_derivatives = PETSC_TRUE
+      case ('NUMERICAL_JACOBIAN_FLOW')
+        option%numerical_derivatives_flow = PETSC_TRUE
+
+!......................
+
+      case ('NUMERICAL_JACOBIAN_RXN')
+        option%numerical_derivatives_rxn = PETSC_TRUE
 
 !......................
 
@@ -1584,6 +1794,7 @@ subroutine InitReadInput(simulation)
         call InputErrorMsg(input,option,'name','SATURATION_FUNCTION')
         call SaturationFunctionRead(saturation_function,input,option)
         call SaturationFunctionComputeSpline(option,saturation_function)
+        call PermFunctionComputeSpline(option,saturation_function)
         call SaturationFunctionAddToList(saturation_function, &
                                          realization%saturation_functions)
         nullify(saturation_function)   
@@ -1709,6 +1920,23 @@ subroutine InitReadInput(simulation)
                 call InputReadFlotranString(input,option)
                 if (InputError(input)) exit
               enddo
+            case('OUTPUT_FILE')
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,'time increment', &
+                                 'OUTPUT,OUTPUT_FILE')
+              call StringToUpper(word)
+              select case(trim(word))
+                case('OFF')
+                  option%print_to_file = PETSC_FALSE
+                case('PERIODIC')
+                  call InputReadInt(input,option,output_option%output_file_imod)
+                  call InputErrorMsg(input,option,'timestep increment', &
+                                     'OUTPUT,PERIODIC,OUTPUT_FILE')
+                case default
+                  option%io_buffer = 'Keyword: ' // trim(word) // &
+                                     ' not recognized in OUTPUT,OUTPUT_FILE.'
+                  call printErrMsg(option)
+              end select
             case('SCREEN')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'time increment','OUTPUT,SCREEN')
@@ -1743,7 +1971,7 @@ subroutine InitReadInput(simulation)
                                                             units_conversion
                   call InputReadWord(input,option,word,PETSC_TRUE)
                   if (input%ierr == 0) then
-                    if (StringCompareIgnoreCase(word,'between',SEVEN_INTEGER)) then
+                    if (StringCompareIgnoreCase(word,'between')) then
 
                       call InputReadDouble(input,option,temp_real)
                       call InputErrorMsg(input,option,'start time', &
@@ -1754,7 +1982,7 @@ subroutine InitReadInput(simulation)
                       units_conversion = UnitsConvertToInternal(word,option) 
                       temp_real = temp_real * units_conversion
                       call InputReadWord(input,option,word,PETSC_TRUE)
-                      if (.not.StringCompareIgnoreCase(word,'and',THREE_INTEGER)) then
+                      if (.not.StringCompareIgnoreCase(word,'and')) then
                         input%ierr = 1
                       endif
                       call InputErrorMsg(input,option,'and', &
@@ -1983,6 +2211,11 @@ subroutine InitReadInput(simulation)
         option%flow_dt = default_stepper%dt_min
         option%tran_dt = default_stepper%dt_min
 
+#ifdef SURFACE_FLOW
+!.....................
+      case ('SURFACE_FLOW')
+        call SurfaceFlowRead(simulation%surf_realization,input,option)
+#endif
 !....................
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
       case ('MAPPING_FILES')
@@ -2030,7 +2263,23 @@ subroutine setFlowMode(option)
       option%iflowmode = THC_MODE
       option%nphase = 1
       option%liquid_phase = 1      
+      option%gas_phase = 2      
       option%nflowdof = 3
+      option%nflowspec = 2
+   case('THMC')
+      option%iflowmode = THMC_MODE
+      option%nphase = 1
+      option%liquid_phase = 1      
+      option%gas_phase = 2      
+      option%nflowdof = 6
+      option%nflowspec = 2
+      option%nmechdof = 3
+    case('MIS','MISCIBLE')
+      option%iflowmode = MIS_MODE
+      option%nphase = 1
+      option%liquid_phase = 1      
+      option%gas_phase = 2      
+      option%nflowdof = 2
       option%nflowspec = 2
     case('RICHARDS')
       option%iflowmode = RICHARDS_MODE
@@ -2191,7 +2440,7 @@ subroutine assignMaterialPropToRegions(realization)
           call readMaterialsFromFile(realization,strata%realization_dependent, &
                                      strata%material_property_filename)
         ! Otherwise, set based on region
-        else if (strata%active) then
+        else
           update_ghosted_material_ids = PETSC_TRUE
           region => strata%region
           material_property => strata%material_property
@@ -2209,7 +2458,12 @@ subroutine assignMaterialPropToRegions(realization)
               local_id = icell
             endif
             ghosted_id = grid%nL2G(local_id)
-            cur_patch%imat(ghosted_id) = material_property%id
+            if (strata%active) then
+              cur_patch%imat(ghosted_id) = material_property%id
+            else
+              ! if not active, set material id to zero
+              cur_patch%imat(ghosted_id) = 0
+            endif
           enddo
         endif
         strata => strata%next
@@ -2240,9 +2494,11 @@ subroutine assignMaterialPropToRegions(realization)
         call GridVecGetArrayF90(grid,field%perm0_xx,perm_xx_p,ierr)
         call GridVecGetArrayF90(grid,field%perm0_yy,perm_yy_p,ierr)
         call GridVecGetArrayF90(grid,field%perm0_zz,perm_zz_p,ierr)
-        call GridVecGetArrayF90(grid,field%perm0_xz,perm_xz_p,ierr)
-        call GridVecGetArrayF90(grid,field%perm0_xy,perm_xy_p,ierr)
-        call GridVecGetArrayF90(grid,field%perm0_yz,perm_yz_p,ierr)
+        if (option%mimetic) then
+          call GridVecGetArrayF90(grid,field%perm0_xz,perm_xz_p,ierr)
+          call GridVecGetArrayF90(grid,field%perm0_xy,perm_xy_p,ierr)
+          call GridVecGetArrayF90(grid,field%perm0_yz,perm_yz_p,ierr)
+        endif
         call GridVecGetArrayF90(grid,field%perm_pow,perm_pow_p,ierr)
       endif
       call GridVecGetArrayF90(grid,field%porosity0,por0_p,ierr)
@@ -2263,21 +2519,23 @@ subroutine assignMaterialPropToRegions(realization)
             option%io_buffer = 'No material property for material id ' // &
                                trim(adjustl(dataset_name)) &
                                //  ' defined in input file.'
-            call printErrMsg(option)
+            call printErrMsgByRank(option)
           endif
         else if (material_id < -998) then 
-          option%io_buffer = 'Uninitialized material id in patch'
-          call printErrMsg(option)
+          write(dataset_name,*) grid%nG2A(ghosted_id)
+          option%io_buffer = 'Uninitialized material id in patch at cell ' // &
+                             trim(adjustl(dataset_name))
+          call printErrMsgByRank(option)
         else if (material_id > size(realization%material_property_array)) then
           write(option%io_buffer,*) material_id
           option%io_buffer = 'Unmatched material id in patch:' // &
             adjustl(trim(option%io_buffer))
-          call printErrMsg(option)
+          call printErrMsgByRank(option)
         else
           option%io_buffer = 'Something messed up with material ids. ' // &
             ' Possibly material ids not assigned to all grid cells. ' // &
             ' Contact Glenn!'
-          call printErrMsg(option)
+          call printErrMsgByRank(option)
         endif
         if (option%nflowdof > 0) then
           patch%sat_func_id(ghosted_id) = material_property%saturation_function_id
@@ -2286,9 +2544,11 @@ subroutine assignMaterialPropToRegions(realization)
           perm_xx_p(local_id) = material_property%permeability(1,1)
           perm_yy_p(local_id) = material_property%permeability(2,2)
           perm_zz_p(local_id) = material_property%permeability(3,3)
-          perm_xz_p(local_id) = material_property%permeability(1,3)
-          perm_xy_p(local_id) = material_property%permeability(1,2)
-          perm_yz_p(local_id) = material_property%permeability(2,3)
+          if (option%mimetic) then
+            perm_xz_p(local_id) = material_property%permeability(1,3)
+            perm_xy_p(local_id) = material_property%permeability(1,2)
+            perm_yz_p(local_id) = material_property%permeability(2,3)
+          endif
 !          perm_pow_p(local_id) = ???
         endif
         por0_p(local_id) = material_property%porosity
@@ -2301,9 +2561,11 @@ subroutine assignMaterialPropToRegions(realization)
         call GridVecRestoreArrayF90(grid,field%perm0_xx,perm_xx_p,ierr)
         call GridVecRestoreArrayF90(grid,field%perm0_yy,perm_yy_p,ierr)
         call GridVecRestoreArrayF90(grid,field%perm0_zz,perm_zz_p,ierr)
-        call GridVecRestoreArrayF90(grid,field%perm0_xz,perm_xz_p,ierr)
-        call GridVecRestoreArrayF90(grid,field%perm0_xy,perm_xy_p,ierr)
-        call GridVecRestoreArrayF90(grid,field%perm0_yz,perm_yz_p,ierr)
+        if (option%mimetic) then
+          call GridVecRestoreArrayF90(grid,field%perm0_xz,perm_xz_p,ierr)
+          call GridVecRestoreArrayF90(grid,field%perm0_xy,perm_xy_p,ierr)
+          call GridVecRestoreArrayF90(grid,field%perm0_yz,perm_yz_p,ierr)
+        endif
         call GridVecRestoreArrayF90(grid,field%perm_pow,perm_pow_p,ierr)
       endif
       call GridVecRestoreArrayF90(grid,field%porosity0,por0_p,ierr)
@@ -2354,13 +2616,15 @@ subroutine assignMaterialPropToRegions(realization)
                                      field%perm_yy_loc,ONEDOF)  
     call DiscretizationGlobalToLocal(discretization,field%perm0_zz, &
                                      field%perm_zz_loc,ONEDOF)   
-     
-    call DiscretizationGlobalToLocal(discretization,field%perm0_xz, &
-                                     field%perm_xz_loc,ONEDOF)  
-    call DiscretizationGlobalToLocal(discretization,field%perm0_xy, &
-                                     field%perm_xy_loc,ONEDOF)  
-    call DiscretizationGlobalToLocal(discretization,field%perm0_yz, &
-                                     field%perm_yz_loc,ONEDOF)   
+    
+    if (option%mimetic) then
+      call DiscretizationGlobalToLocal(discretization,field%perm0_xz, &
+                                       field%perm_xz_loc,ONEDOF)  
+      call DiscretizationGlobalToLocal(discretization,field%perm0_xy, &
+                                       field%perm_xy_loc,ONEDOF)  
+      call DiscretizationGlobalToLocal(discretization,field%perm0_yz, &
+                                       field%perm_yz_loc,ONEDOF)   
+    endif
      
     call DiscretizationLocalToLocal(discretization,field%icap_loc, &
                                     field%icap_loc,ONEDOF)   
@@ -2692,16 +2956,17 @@ subroutine readRegionFiles(realization)
     if (.not.associated(region)) exit
     if (len_trim(region%filename) > 1) then
       if (index(region%filename,'.h5') > 0) then
-      if (region%grid_type == STRUCTURED_GRID) then
-        call HDF5ReadRegionFromFile(realization,region,region%filename)
-    else
-#ifndef SAMR_HAVE_HDF5
-      call HDF5ReadUnstructuredGridRegionFromFile(realization,region,region%filename)
-#else
-     !geh: No.  AMR is entirely structured.
-      ! TO DO: Read region from HDF5 for Unstructured mesh with SAMRAI
+        if (region%grid_type == STRUCTURED_GRID) then
+          call HDF5ReadRegionFromFile(realization,region,region%filename)
+        else
+#if defined(PETSC_HAVE_HDF5)
+          call HDF5ReadUnstructuredGridRegionFromFile(realization,region,region%filename)
 #endif      
-    endif
+        endif
+      else if (index(region%filename,'.ss') > 0) then
+        region%sideset => RegionCreateSideset()
+        call RegionReadFromFile(region%sideset,region%filename, &
+                                realization%option)
       else
         call RegionReadFromFile(region,realization%option, &
                                 region%filename)
@@ -2779,12 +3044,13 @@ subroutine readMaterialsFromFile(realization,realization_dependent,filename)
   else
     call PetscLogEventBegin(logging%event_hash_map,ierr)
     call GridCreateNaturalToGhostedHash(grid,option)
-    input => InputCreate(IUNIT_TEMP,filename)
+    input => InputCreate(IUNIT_TEMP,filename,option)
     do
       call InputReadFlotranString(input,option)
       if (InputError(input)) exit
       call InputReadInt(input,option,natural_id)
       call InputErrorMsg(input,option,'natural id','STRATA')
+      ! natural ids in hash are zero-based
       ghosted_id = GridGetLocalGhostedIdFromHash(grid,natural_id)
       if (ghosted_id > 0) then
         call InputReadInt(input,option,material_id)
@@ -2936,7 +3202,8 @@ subroutine readPermeabilitiesFromFile(realization,material_property)
 
     call PetscLogEventBegin(logging%event_hash_map,ierr)
     call GridCreateNaturalToGhostedHash(grid,option)
-    input => InputCreate(IUNIT_TEMP,material_property%permeability_dataset%filename)
+    input => InputCreate(IUNIT_TEMP, &
+                material_property%permeability_dataset%filename,option)
     do
       call InputReadFlotranString(input,option)
       if (InputError(input)) exit
@@ -3159,7 +3426,7 @@ subroutine readFlowInitialCondition(realization,filename)
       do local_id=1, grid%nlmax
         if (cur_patch%imat(grid%nL2G(local_id)) <= 0) cycle
         if (dabs(vec_p(local_id)) < 1.d-40) then
-          print *,  option%myrank, grid%nL2A(local_id)+1, &
+          print *,  option%myrank, grid%nG2A(grid%nL2G(local_id)), &
                ': Potential error - zero pressure in Initial Condition read from file.'
         endif
         idx = (local_id-1)*option%nflowdof + offset
@@ -3258,7 +3525,7 @@ subroutine readTransportInitialCondition(realization,filename)
         do local_id=1, grid%nlmax
           if (cur_patch%imat(grid%nL2G(local_id)) <= 0) cycle
           if (vec_p(local_id) < 1.d-40) then
-            print *,  option%myrank, grid%nL2A(local_id)+1, &
+            print *,  option%myrank, grid%nG2A(grid%nL2G(local_id)), &
               ': Zero free-ion concentration in Initial Condition read from file.'
           endif
           idx = (local_id-1)*option%ntrandof + offset
@@ -3496,4 +3763,340 @@ subroutine InitReadHDF5CardsFromInput(realization)
 
 end subroutine InitReadHDF5CardsFromInput
 
+#ifdef SURFACE_FLOW
+! ************************************************************************** !
+!> This routine reads the required input file cards related to surface flows
+!!
+!> @author
+!! Gautam Bisht, ORNL
+!!
+!! date: 02/18/12
+! ************************************************************************** !
+
+subroutine InitReadRequiredCardsFromInputSurf(surf_realization)
+
+  use Option_module
+  use Discretization_module
+  use Grid_module
+  use Input_module
+  use String_module
+  use Patch_module
+  use Level_module
+
+  use Surface_Flow_module
+  use Surface_Realization_module
+
+  implicit none
+
+  type(surface_realization_type)     :: surf_realization
+  type(discretization_type), pointer :: discretization
+
+  character(len=MAXSTRINGLENGTH) :: string
+  
+  type(patch_type), pointer   :: patch
+  type(level_type), pointer   :: level
+  type(grid_type), pointer    :: grid
+  type(option_type), pointer  :: option
+  type(input_type), pointer   :: input
+  
+  patch          => surf_realization%patch
+  option         => surf_realization%option
+  discretization => surf_realization%discretization
+  
+  input => surf_realization%input
+  
+! Read in select required cards
+!.........................................................................
+ 
+  ! GRID information
+  string = "GRID"
+  call InputFindStringInFile(input,option,string)
+  call InputFindStringErrorMsg(input,option,string)
+
+  ! SURFACE_FLOW information
+  string = "SURFACE_FLOW"
+  call InputFindStringInFile(input,option,string)
+  call InputFindStringErrorMsg(input,option,string)
+  call SurfaceFlowReadRequiredCardsFromInput(surf_realization,input,option)
+
+  select case(discretization%itype)
+    case(STRUCTURED_GRID,UNSTRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
+      patch => PatchCreate()
+      patch%grid => discretization%grid
+      patch%surf_or_subsurf_flag = SURFACE
+      if (.not.associated(surf_realization%level_list)) then
+        surf_realization%level_list => LevelCreateList()
+      endif
+      level => LevelCreate()
+      call LevelAddToList(level,surf_realization%level_list)
+      call PatchAddToList(patch,level%patch_list)
+      surf_realization%patch => patch
+  end select
+    
+end subroutine InitReadRequiredCardsFromInputSurf
+
+! ************************************************************************** !
+!> This routine assigns surface material properties to associated regions in
+!! the model (similar to assignMaterialPropToRegions)
+!!
+!> @author
+!! Gautam Bisht, ORNL
+!!
+!! date: 02/13/12
+! ************************************************************************** !
+
+subroutine assignSurfaceMaterialPropToRegions(surf_realization)
+
+  use Surface_Realization_module
+  use Discretization_module
+  use Strata_module
+  use Region_module
+  use Material_module
+  use Option_module
+  use Grid_module
+  use Field_module
+  use Patch_module
+  use Level_module
+  use Surface_Field_module
+  use Surface_Material_module
+  
+  use HDF5_module
+
+  implicit none
+  
+  type(surface_realization_type) :: surf_realization
+  
+  PetscReal, pointer :: man0_p(:)
+  PetscReal, pointer :: vec_p(:)
+  
+  PetscInt :: icell, local_id, ghosted_id, natural_id, surf_material_id
+  PetscInt :: istart, iend
+  character(len=MAXSTRINGLENGTH) :: group_name
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  PetscErrorCode :: ierr
+  
+  type(option_type), pointer :: option
+  type(grid_type), pointer :: grid
+  type(discretization_type), pointer :: discretization
+  type(surface_field_type), pointer :: surf_field
+  type(strata_type), pointer :: strata
+  type(patch_type), pointer :: patch  
+  type(level_type), pointer :: cur_level
+  type(patch_type), pointer :: cur_patch
+
+  type(surface_material_property_type), pointer :: surf_material_property
+  type(surface_material_property_type), pointer :: null_surf_material_property
+  type(region_type), pointer :: region
+  PetscBool :: update_ghosted_material_ids
+  
+  option => surf_realization%option
+  discretization => surf_realization%discretization
+  surf_field => surf_realization%surf_field
+
+  ! loop over all patches and allocation material id arrays
+  cur_level => surf_realization%level_list%first
+  do 
+    if (.not.associated(cur_level)) exit
+    cur_patch => cur_level%patch_list%first
+    do
+      if (.not.associated(cur_patch)) exit
+      if (.not.associated(cur_patch%imat)) then
+        allocate(cur_patch%imat(cur_patch%grid%ngmax))
+        ! initialize to "unset"
+        cur_patch%imat = -999
+        ! also allocate saturation function id
+        allocate(cur_patch%sat_func_id(cur_patch%grid%ngmax))
+        cur_patch%sat_func_id = -999
+      endif
+      cur_patch => cur_patch%next
+    enddo
+    cur_level => cur_level%next
+  enddo
+
+  ! if material ids are set based on region, as opposed to being read in
+  ! we must communicate the ghosted ids.  This flag toggles this operation.
+  update_ghosted_material_ids = PETSC_FALSE
+  cur_level => surf_realization%level_list%first
+  do 
+    if (.not.associated(cur_level)) exit
+    cur_patch => cur_level%patch_list%first
+    do
+      if (.not.associated(cur_patch)) exit
+      grid => cur_patch%grid
+      strata => cur_patch%strata%first
+      do
+        if (.not.associated(strata)) exit
+        ! Read in cell by cell material ids if they exist
+        if (.not.associated(strata%region) .and. strata%active) then
+          option%io_buffer = 'Reading of material prop from file for' // &
+            ' surface flow is not implemented.'
+          call printErrMsgByRank(option)
+          !call readMaterialsFromFile(realization,strata%realization_dependent, &
+          !                           strata%material_property_filename)
+        ! Otherwise, set based on region
+        else if (strata%active) then
+          update_ghosted_material_ids = PETSC_TRUE
+          region => strata%region
+          surf_material_property => strata%surf_material_property
+          if (associated(region)) then
+            istart = 1
+            iend = region%num_cells
+          else
+            istart = 1
+            iend = grid%nlmax
+          endif
+          do icell=istart, iend
+            if (associated(region)) then
+              local_id = region%cell_ids(icell)
+            else
+              local_id = icell
+            endif
+            ghosted_id = grid%nL2G(local_id)
+            cur_patch%imat(ghosted_id) = surf_material_property%id
+          enddo
+        endif
+        strata => strata%next
+      enddo
+      cur_patch => cur_patch%next
+    enddo
+    cur_level => cur_level%next
+  enddo
+
+  if (update_ghosted_material_ids) then
+    ! update ghosted material ids
+    call SurfaceRealizationLocalToLocalWithArray(surf_realization,MATERIAL_ID_ARRAY)
+  endif
+
+  ! set cell by cell material properties
+  ! create null material property for inactive cells
+  null_surf_material_property => SurfaceMaterialPropertyCreate()
+  cur_level => surf_realization%level_list%first
+  do
+    if (.not.associated(cur_level)) exit
+    cur_patch => cur_level%patch_list%first
+    do
+      if (.not.associated(cur_patch)) exit
+
+      call GridVecGetArrayF90(grid,surf_field%mannings0,man0_p,ierr)
+
+      do local_id = 1, grid%nlmax
+        ghosted_id = grid%nL2G(local_id)
+        surf_material_id = cur_patch%imat(ghosted_id)
+        if (surf_material_id == 0) then ! accomodate inactive cells
+          surf_material_property = null_surf_material_property
+        else if ( surf_material_id > 0 .and. &
+                  surf_material_id <= &
+                  size(surf_realization%surf_material_property_array)) then
+          surf_material_property => &
+            surf_realization%surf_material_property_array(surf_material_id)%ptr
+          if (.not.associated(surf_material_property)) then
+            write(dataset_name,*) material_id
+            option%io_buffer = 'No material property for surface material id ' // &
+                               trim(adjustl(dataset_name)) &
+                               //  ' defined in input file.'
+            call printErrMsgByRank(option)
+          endif
+        else if (surf_material_id < -998) then 
+          write(dataset_name,*) grid%nG2A(ghosted_id)
+          option%io_buffer = 'Uninitialized surface material id in patch at cell ' // &
+                             trim(adjustl(dataset_name))
+          call printErrMsgByRank(option)
+        else if (surf_material_id > size(surf_realization%surf_material_property_array)) then
+          write(option%io_buffer,*) material_id
+          option%io_buffer = 'Unmatched surface material id in patch:' // &
+            adjustl(trim(option%io_buffer))
+          call printErrMsgByRank(option)
+        else
+          option%io_buffer = 'Something messed up with surface material ids. ' // &
+            ' Possibly material ids not assigned to all grid cells. ' // &
+            ' Contact Glenn!'
+          call printErrMsgByRank(option)
+        endif
+        man0_p(local_id) = surf_material_property%mannings
+      enddo ! local_id - loop
+
+      call GridVecRestoreArrayF90(grid,surf_field%mannings0,man0_p,ierr)
+      
+      cur_patch => cur_patch%next
+    enddo ! looping over patches
+    cur_level => cur_level%next
+  enddo ! looping over levels
+  
+  call SurfaceMaterialPropertyDestroy(null_surf_material_property)
+  nullify(null_surf_material_property)
+
+  call DiscretizationGlobalToLocal(discretization,surf_field%mannings0, &
+                                   surf_field%mannings_loc,ONEDOF)
+
+end subroutine assignSurfaceMaterialPropToRegions
+
+! ************************************************************************** !
+!> This routine reads surface region files
+!!
+!> @author
+!! Gautam Bisht, ORNL
+!!
+!! date: 02/20/12
+! ************************************************************************** !
+subroutine readSurfaceRegionFiles(surf_realization)
+
+  use Surface_Realization_module
+  use Region_module
+  use HDF5_module
+
+  implicit none
+
+  type(surface_realization_type) :: surf_realization
+  
+  type(region_type), pointer :: surf_region
+  
+  surf_region => surf_realization%surf_regions%first
+  do 
+    if (.not.associated(surf_region)) exit
+    if (len_trim(surf_region%filename) > 1) then
+      if (index(surf_region%filename,'.h5') > 0) then
+        if (surf_region%grid_type == STRUCTURED_GRID) then
+          !call HDF5ReadRegionFromFile(surf_realization,surf_region,surf_region%filename)
+        else
+#if defined(PETSC_HAVE_HDF5)
+          !call HDF5ReadUnstructuredGridRegionFromFile(surf_realization,surf_region,surf_region%filename)
+#endif      
+        endif
+      else if (index(surf_region%filename,'.ss') > 0) then
+        surf_region%sideset => RegionCreateSideset()
+        call RegionReadFromFile(surf_region%sideset,surf_region%filename, &
+                                surf_realization%option)
+      else
+        call RegionReadFromFile(surf_region,surf_realization%option, &
+                                surf_region%filename)
+      endif
+    endif
+    surf_region => surf_region%next
+  enddo
+
+end subroutine readSurfaceRegionFiles
+
+#endif ! SURF_FLOW
+
+! ************************************************************************** !
+!
+! InitPrintPFLOTRANHeader: Initializes pflotran
+! author: Glenn Hammond
+! date: 10/23/07
+!
+! ************************************************************************** !
+subroutine InitPrintPFLOTRANHeader(option,fid)
+
+  use Option_module
+  
+  implicit none
+  
+  PetscInt :: fid
+  
+  type(option_type) :: option
+  
+  write(fid,'(" PFLOTRAN Header")') 
+  
+end subroutine InitPrintPFLOTRANHeader
+  
 end module Init_module

@@ -27,10 +27,33 @@ module Transport_module
             TFluxDerivative, &
             TFluxCoef, &
             TSrcSinkCoef, &
-            TSrcSinkCoefNew, &
             TFlux_CD, &
             TFluxDerivative_CD, &
-            TFluxCoef_CD
+            TFluxCoef_CD, &
+            TFluxTVD
+  
+  ! this interface is required for the pointer to procedure employed
+  ! for flux limiters below
+  interface
+    function TFluxLimiterDummy(d)
+      PetscReal :: d
+      PetscReal :: TFluxLimiterDummy
+    end function TFluxLimiterDummy
+  end interface
+  
+  public :: TFluxLimiterDummy, &
+            TFluxLimiter, &
+            TFluxLimitUpwind, &
+            TFluxLimitMinmod, &
+            TFluxLimitMC, &
+            TFluxLimitSuperBee, &
+            TFluxLimitVanLeer
+  
+  PetscInt, parameter, public :: TVD_LIMITER_UPWIND = 1
+  PetscInt, parameter, public :: TVD_LIMITER_MC = 2
+  PetscInt, parameter, public :: TVD_LIMITER_MINMOD = 3
+  PetscInt, parameter, public :: TVD_LIMITER_SUPERBEE = 4
+  PetscInt, parameter, public :: TVD_LIMITER_VAN_LEER = 5
               
 contains
 
@@ -41,8 +64,8 @@ contains
 ! date: 02/24/10
 !
 ! ************************************************************************** !
-subroutine TDiffusion(global_aux_var_up,por_up,tor_up,dist_up, &
-                      global_aux_var_dn,por_dn,tor_dn,dist_dn, &
+subroutine TDiffusion(global_aux_var_up,por_up,tor_up,disp_up,dist_up, &
+                      global_aux_var_dn,por_dn,tor_dn,disp_dn,dist_dn, &
                       rt_parameter,option,velocity,diffusion)
 
   use Option_module
@@ -50,20 +73,20 @@ subroutine TDiffusion(global_aux_var_up,por_up,tor_up,dist_up, &
   implicit none
   
   type(global_auxvar_type) :: global_aux_var_up, global_aux_var_dn 
-  PetscReal :: por_up, tor_up, dist_up
-  PetscReal :: por_dn, tor_dn, dist_dn
+  PetscReal :: por_up, tor_up, disp_up, dist_up
+  PetscReal :: por_dn, tor_dn, disp_dn, dist_dn
   PetscReal :: velocity(*)
   type(option_type) :: option
   type(reactive_transport_param_type) :: rt_parameter
   PetscReal :: diffusion(option%nphase)
   
   PetscInt :: iphase
-  PetscReal :: weight
+  PetscReal :: stp_ave_over_dist, disp_ave_over_dist
   PetscReal :: sat_up, sat_dn
   PetscReal :: stp_up, stp_dn
   PetscReal :: q
 
-#ifdef TEMP_DEPENDENT_LOGK
+#if defined(TEMP_DEPENDENT_LOGK) || defined (CHUAN_HPT)
   PetscReal :: temp_up, temp_dn         
   PetscReal :: Ddiff_up, Ddiff_dn 
   PetscReal :: Ddiff_avg
@@ -79,19 +102,30 @@ subroutine TDiffusion(global_aux_var_up,por_up,tor_up,dist_up, &
   sat_up = global_aux_var_up%sat(iphase)
   sat_dn = global_aux_var_dn%sat(iphase)
 
+  ! Weighted harmonic mean of dispersivity divided by distance
+  !   disp_up/dn = dispersivity
+  !   dist_up/dn = distance
+  if (disp_up > eps .and. disp_dn > eps) then
+    disp_ave_over_dist = (disp_up*disp_dn) / &
+                         (disp_up*dist_dn+disp_dn*dist_up)
+  else
+    disp_ave_over_dist = 0.d0
+  endif
+
   if (sat_up > eps .and. sat_dn > eps) then
     stp_up = sat_up*tor_up*por_up 
     stp_dn = sat_dn*tor_dn*por_dn
     ! units = (m^3 water/m^3 por)*(m^3 por/m^3 bulk)/(m bulk) = m^3 water/m^4 bulk 
-    weight = (stp_up*stp_dn)/(stp_up*dist_dn+stp_dn*dist_up)
+    stp_ave_over_dist = (stp_up*stp_dn)/(stp_up*dist_dn+stp_dn*dist_up)
     ! need to account for multiple phases
     ! units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
-    diffusion(iphase) = rt_parameter%dispersivity*dabs(q)/(dist_up+dist_dn) + &
-                        weight*rt_parameter%diffusion_coefficient(iphase)
+    diffusion(iphase) = disp_ave_over_dist*dabs(q) + &
+                        stp_ave_over_dist* &
+                        rt_parameter%diffusion_coefficient(iphase)
                         
 ! Add the effect of temperature on diffusivity, Satish Karra, 10/29/2011
 
-#ifdef TEMP_DEPENDENT_LOGK
+#if defined(TEMP_DEPENDENT_LOGK) || defined (CHUAN_HPT)
     T_ref_inv = 1.d0/(25.d0 + 273.15d0)
     temp_up = global_aux_var_up%temp(1)  ! getting data from global to local variables
     temp_dn = global_aux_var_dn%temp(1)
@@ -104,7 +138,8 @@ subroutine TDiffusion(global_aux_var_up,por_up,tor_up,dist_up, &
     weight_new = (stp_up*Ddiff_up*stp_dn*Ddiff_dn)/ &
                  (stp_up*Ddiff_up*dist_dn + stp_dn*Ddiff_dn*dist_up)
     diffusion(iphase) = diffusion(iphase) + weight_new - &
-                        weight*rt_parameter%diffusion_coefficient(iphase)
+                        stp_ave_over_dist* &
+                        rt_parameter%diffusion_coefficient(iphase)
 #endif
   endif
 
@@ -123,16 +158,16 @@ subroutine TDiffusion(global_aux_var_up,por_up,tor_up,dist_up, &
         stp_up = sat_up*tor_up*por_up 
         stp_dn = sat_dn*tor_dn*por_dn
     ! units = (m^3 water/m^3 por)*(m^3 por/m^3 bulk)/(m bulk) = m^3 water/m^4 bulk 
-        weight = (stp_up*stp_dn)/(stp_up*dist_dn+stp_dn*dist_up)
+        stp_ave_over_dist = (stp_up*stp_dn)/(stp_up*dist_dn+stp_dn*dist_up)
     ! need to account for multiple phases
     ! units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
-      if (iphase == 2) then
-          diffusion(iphase) = rt_parameter%dispersivity*dabs(q)/ &
-                              (dist_up + dist_dn) + &
-                              weight*rt_parameter%diffusion_coefficient(iphase)
+        if (iphase == 2) then
+          diffusion(iphase) = &
+              disp_ave_over_dist*dabs(q) + &
+              stp_ave_over_dist*rt_parameter%diffusion_coefficient(iphase)
 
 ! Add the effect of temperature on diffusivity, Satish Karra, 11/1/2011
-#ifdef TEMP_DEPENDENT_LOGK
+#if defined(TEMP_DEPENDENT_LOGK) || defined (CHUAN_HPT)
           T_ref_inv = 1.d0/(25.d0 + 273.15d0)
           temp_up = global_aux_var_up%temp(1)      
           temp_dn = global_aux_var_dn%temp(1)
@@ -145,7 +180,8 @@ subroutine TDiffusion(global_aux_var_up,por_up,tor_up,dist_up, &
           weight_new = (stp_up*Ddiff_up*stp_dn*Ddiff_dn)/ &
                        (stp_up*Ddiff_up*dist_dn + stp_dn*Ddiff_dn*dist_up)
           diffusion(iphase) = diffusion(iphase) + weight_new - &
-                              weight*rt_parameter%diffusion_coefficient(iphase)
+                              stp_ave_over_dist* &
+                              rt_parameter%diffusion_coefficient(iphase)
 #endif
         endif
       endif
@@ -163,7 +199,7 @@ end subroutine TDiffusion
 !
 ! ************************************************************************** !
 subroutine TDiffusionBC(ibndtype,global_aux_var_up,global_aux_var_dn, &
-                        por_dn,tor_dn,dist_dn, &
+                        por_dn,tor_dn,disp_dn,dist_dn, &
                         rt_parameter,option,velocity,diffusion)
 
   use Option_module
@@ -172,7 +208,7 @@ subroutine TDiffusionBC(ibndtype,global_aux_var_up,global_aux_var_dn, &
   
   PetscInt :: ibndtype
   type(global_auxvar_type) :: global_aux_var_up, global_aux_var_dn
-  PetscReal :: por_dn, tor_dn,  dist_dn
+  PetscReal :: por_dn, tor_dn, disp_dn, dist_dn
   PetscReal :: velocity(1)
   type(reactive_transport_param_type) :: rt_parameter
   type(option_type) :: option
@@ -180,11 +216,11 @@ subroutine TDiffusionBC(ibndtype,global_aux_var_up,global_aux_var_dn, &
   
   PetscInt :: icomp
   PetscInt :: iphase
-  PetscReal :: weight
+  PetscReal :: stp_ave_over_dist
   PetscReal :: q
   PetscReal :: sat_up, sat_dn
 
-#ifdef TEMP_DEPENDENT_LOGK
+#if defined(TEMP_DEPENDENT_LOGK) || defined (CHUAN_HPT)
   PetscReal :: temp_up                 ! variable to store temperature at the boundary
   PetscReal, parameter :: R_gas_constant = 8.3144621d-3 ! Gas constant in kJ/mol/K
   PetscReal :: T_ref_inv
@@ -200,17 +236,22 @@ subroutine TDiffusionBC(ibndtype,global_aux_var_up,global_aux_var_dn, &
   select case(ibndtype)
     case(DIRICHLET_BC)
       if (sat_up > eps .and. sat_dn > eps) then
-        ! units = (m^3 water/m^3 por)*(m^3 por/m^3 bulk)/(m bulk) = m^3 water/m^4 bulk 
-        weight = tor_dn*por_dn*(sat_up*sat_dn)/((sat_up+sat_dn)*dist_dn)
+        ! units = (m^3 water/m^3 por)*(m^3 por/m^3 bulk)/(m bulk) = m^3 water/m^4 bulk
+        
+        stp_ave_over_dist = tor_dn*por_dn*(sat_up*sat_dn) / &
+                            ((sat_up+sat_dn)*dist_dn)
+        
         ! need to account for multiple phases
         ! units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
-        diffusion(iphase) = rt_parameter%dispersivity*dabs(q)/dist_dn + &
-                            weight*rt_parameter%diffusion_coefficient(iphase)
-#ifdef TEMP_DEPENDENT_LOGK   
+        diffusion(iphase) = disp_dn*dabs(q)/dist_dn + &
+                            stp_ave_over_dist* &
+                            rt_parameter%diffusion_coefficient(iphase)
+                            
+#if defined(TEMP_DEPENDENT_LOGK) || defined (CHUAN_HPT)
         T_ref_inv = 1.d0/(25.d0 + 273.15d0)
         temp_up = global_aux_var_up%temp(1)      
         diffusion(iphase) = diffusion(iphase) + &
-          weight*rt_parameter%diffusion_coefficient(iphase)* &
+          stp_ave_over_dist*rt_parameter%diffusion_coefficient(iphase)* &
           (exp(rt_parameter%diffusion_activation_energy(iphase)/ &
           R_gas_constant*(T_ref_inv-1.d0/(temp_up + 273.15d0))) - 1.d0)
 #endif
@@ -220,17 +261,22 @@ subroutine TDiffusionBC(ibndtype,global_aux_var_up,global_aux_var_dn, &
       if (q >= 0.d0) then
         ! same as dirichlet above
         if (sat_up > eps .and. sat_dn > eps) then
-          ! units = (m^3 water/m^3 por)*(m^3 por/m^3 bulk)/(m bulk) = m^3 water/m^4 bulk 
-          weight = tor_dn*por_dn*(sat_up*sat_dn)/((sat_up+sat_dn)*dist_dn)
+          ! units = (m^3 water/m^3 por)*(m^3 por/m^3 bulk)/(m bulk) = m^3 water/m^4 bulk
+          
+          stp_ave_over_dist = tor_dn*por_dn*(sat_up*sat_dn) / &
+                              ((sat_up+sat_dn)*dist_dn)
+          
           ! need to account for multiple phases
           ! units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
-          diffusion(iphase) = rt_parameter%dispersivity*dabs(q)/dist_dn + &
-                              weight*rt_parameter%diffusion_coefficient(iphase)
-#ifdef TEMP_DEPENDENT_LOGK   
+          diffusion(iphase) = disp_dn*dabs(q)/dist_dn + &
+                              stp_ave_over_dist* &
+                              rt_parameter%diffusion_coefficient(iphase)
+                              
+#if defined(TEMP_DEPENDENT_LOGK) || defined (CHUAN_HPT)  
         T_ref_inv = 1.d0/(25.d0 + 273.15d0)
         temp_up = global_aux_var_up%temp(1)      
         diffusion(iphase) = diffusion(iphase) + &
-          weight*rt_parameter%diffusion_coefficient(iphase)* &
+          stp_ave_over_dist*rt_parameter%diffusion_coefficient(iphase)* &
           (exp(rt_parameter%diffusion_activation_energy(iphase)/ &
           R_gas_constant*(T_ref_inv-1.d0/(temp_up + 273.15d0))) - 1.d0)
 #endif
@@ -256,18 +302,23 @@ subroutine TDiffusionBC(ibndtype,global_aux_var_up,global_aux_var_dn, &
       select case(ibndtype)
         case(DIRICHLET_BC)
           if (sat_up > eps .and. sat_dn > eps) then
-         !  units = (m^3 water/m^3 por)*(m^3 por/m^3 bulk)/(m bulk) = m^3 water/m^4 bulk 
-            weight = tor_dn*por_dn*(sat_up*sat_dn)/((sat_up+sat_dn)*dist_dn)
+         !  units = (m^3 water/m^3 por)*(m^3 por/m^3 bulk)/(m bulk) = m^3 water/m^4 bulk
+         
+            stp_ave_over_dist = tor_dn*por_dn*(sat_up*sat_dn) / &
+                                ((sat_up+sat_dn)*dist_dn)
+            
          !  need to account for multiple phases
          !  units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
             if ( iphase == 2) then
-              diffusion(iphase) = rt_parameter%dispersivity*dabs(q)/dist_dn + &
-                weight*rt_parameter%diffusion_coefficient(iphase)
-#ifdef TEMP_DEPENDENT_LOGK   
+              diffusion(iphase) = disp_dn*dabs(q)/dist_dn + &
+                                  stp_ave_over_dist * &
+                                  rt_parameter%diffusion_coefficient(iphase)
+                
+#if defined(TEMP_DEPENDENT_LOGK) || defined (CHUAN_HPT)
               T_ref_inv = 1.d0/(25.d0 + 273.15d0)
               temp_up = global_aux_var_up%temp(1)      
               diffusion(iphase) = diffusion(iphase) + &
-                weight*rt_parameter%diffusion_coefficient(iphase)* &
+                stp_ave_over_dist*rt_parameter%diffusion_coefficient(iphase)* &
                 (exp(rt_parameter%diffusion_activation_energy(iphase)/ &
                 R_gas_constant*(T_ref_inv-1.d0/(temp_up + 273.15d0))) - 1.d0)
 #endif
@@ -279,17 +330,19 @@ subroutine TDiffusionBC(ibndtype,global_aux_var_up,global_aux_var_dn, &
           ! same as dirichlet above
             if (sat_up > eps .and. sat_dn > eps) then
           !   units = (m^3 water/m^3 por)*(m^3 por/m^3 bulk)/(m bulk) = m^3 water/m^4 bulk 
-              weight = tor_dn*por_dn*(sat_up*sat_dn)/((sat_up+sat_dn)*dist_dn)
+              stp_ave_over_dist = tor_dn*por_dn*(sat_up*sat_dn) / &
+                                  ((sat_up+sat_dn)*dist_dn)
           !   need to account for multiple phases
           !   units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
               if (iphase == 2) then
-                diffusion(iphase) = rt_parameter%dispersivity*dabs(q)/dist_dn +&
-                  weight*rt_parameter%diffusion_coefficient(iphase)
-#ifdef TEMP_DEPENDENT_LOGK   
+                diffusion(iphase) = disp_dn*dabs(q)/dist_dn + &
+                                    stp_ave_over_dist * &
+                                    rt_parameter%diffusion_coefficient(iphase)
+#if defined(TEMP_DEPENDENT_LOGK) || defined (CHUAN_HPT)
                 T_ref_inv = 1.d0/(25.d0 + 273.15d0)
                 temp_up = global_aux_var_up%temp(1)      
                 diffusion(iphase) = diffusion(iphase) + &
-                  weight*rt_parameter%diffusion_coefficient(iphase)* &
+                  stp_ave_over_dist*rt_parameter%diffusion_coefficient(iphase)* &
                   (exp(rt_parameter%diffusion_activation_energy(iphase)/ &
                   R_gas_constant*(T_ref_inv-1.d0/(temp_up + 273.15d0))) - 1.d0)
 #endif
@@ -801,7 +854,6 @@ subroutine TFluxCoef_CD(option,area,velocity,diffusion,fraction_upwind, &
   PetscInt :: iphase
   PetscReal :: coef_up, coef_dn
   PetscReal :: tempreal
-  PetscReal :: weight
   PetscReal :: advection_upwind(option%nphase)
   PetscReal :: advection_downwind(option%nphase)
   PetscReal :: q
@@ -847,87 +899,12 @@ end subroutine TFluxCoef_CD
 ! ************************************************************************** !
 !
 ! TSrcSinkCoef: Computes src/sink coefficients for transport matrix
+!               Here qsrc [m^3/sec] provided by flow.
 ! author: Glenn Hammond
 ! date: 01/12/11
 !
 ! ************************************************************************** !
-subroutine TSrcSinkCoef(option,qsrc,flow_src_sink_type,tran_src_sink_type, &
-                        por,sat,vol,den,scale,T_in,T_out)
-
-  use Option_module
-
-  implicit none
-
-  type(option_type) :: option
-  PetscReal :: qsrc
-  PetscInt :: flow_src_sink_type
-  PetscInt :: tran_src_sink_type
-  PetscReal :: por
-  PetscReal :: sat
-  PetscReal :: vol
-  PetscReal :: den
-  PetscReal :: scale
-  PetscReal :: T_in ! coefficient that scales concentration at cell
-  PetscReal :: T_out ! concentration that scales external concentration
-      
-  PetscReal :: rate
-  
-  T_in = 0.d0 
-  T_out = 0.d0
-     
-  select case(tran_src_sink_type)
-    case(EQUILIBRIUM_SS)
-      ! units should be mol/sec
-      rate = 1.d-6 ! units 1/sec
-      T_in = rate*por*sat*vol*1000.d0 ! units L water/sec
-      T_out = -1.d0*T_in
-    case(MASS_RATE_SS)
-      ! in this case, rt_auxvar_bc%total actually holds the mass rate
-      T_in = 0.d0
-      T_out = -1.d0
-    case default
-      if (qsrc > 0.d0) then ! injection
-        T_in = 0.d0
-        select case(flow_src_sink_type)
-          case(MASS_RATE_SS)
-            T_out = -1.d0*qsrc/den*1000.d0 ! kg water/sec / kg water/m^3 * 1000 L/m^3 -> L/sec
-          case(SCALED_MASS_RATE_SS)
-            T_out = -1.d0*qsrc/den*1000.d0*scale ! kg water/sec / kg water/m^3 * 1000 L/m^3 -> L/sec
-          case(VOLUMETRIC_RATE_SS)
-            T_out = -1.d0*qsrc*1000.d0 ! m^3/sec * 1000 L/m^3 -> L/s
-          case(SCALED_VOLUMETRIC_RATE_SS)
-            T_out = -1.d0*qsrc*1000.d0*scale ! m^3/sec * 1000 L/m^3 -> L/s
-        end select
-      else
-        T_out = 0.d0
-        select case(flow_src_sink_type)
-          case(MASS_RATE_SS)
-            T_in = -1.d0*qsrc/den*1000.d0 ! kg water/sec / kg water/m^3 * 1000 L/m^3 -> L/sec
-          case(SCALED_MASS_RATE_SS)
-            T_in = -1.d0*qsrc/den*1000.d0*scale ! kg water/sec / kg water/m^3 * 1000 L/m^3 -> L/sec
-          case(VOLUMETRIC_RATE_SS)
-            T_in = -1.d0*qsrc*1000.d0 ! m^3/sec * 1000 L/m^3 -> L/s
-          case(SCALED_VOLUMETRIC_RATE_SS)
-            T_in = -1.d0*qsrc*1000.d0*scale ! m^3/sec * 1000 L/m^3 -> L/s
-        end select
-      endif
-  end select
-
-  ! Units of Tin & Tout should be L/s.  When multiplied by Total (M) you get
-  ! moles/sec, the units of the residual.  To get the units of the Jacobian
-  ! kg/sec, one must either scale by dtotal or den/1000. (kg/L).
-
-end subroutine TSrcSinkCoef
-  
-! ************************************************************************** !
-!
-! TSrcSinkCoefNew: Computes src/sink coefficients for transport matrix
-!                  Here qsrc [m^3/sec] provided by flow.
-! author: Glenn Hammond
-! date: 01/12/11
-!
-! ************************************************************************** !
-subroutine TSrcSinkCoefNew(option,qsrc,tran_src_sink_type,T_in,T_out)
+subroutine TSrcSinkCoef(option,qsrc,tran_src_sink_type,T_in,T_out)
 
   use Option_module
 
@@ -969,6 +946,243 @@ subroutine TSrcSinkCoefNew(option,qsrc,tran_src_sink_type,T_in,T_out)
   ! moles/sec, the units of the residual.  To get the units of the Jacobian
   ! kg/sec, one must either scale by dtotal or den/1000. (kg/L).
 
-end subroutine TSrcSinkCoefNew
+end subroutine TSrcSinkCoef
+
+! ************************************************************************** !
+!
+! TFluxTVD: Computes TVD flux term
+! author: Glenn Hammond
+! date: 02/03/12
+!
+! ************************************************************************** !
+subroutine TFluxTVD(rt_parameter,velocity,area,dist, &
+                    total_up2,rt_aux_var_up, & 
+                    rt_aux_var_dn,total_dn2, & 
+#ifdef FORTRAN_2003_COMPLIANT  
+                    TFluxLimitPtr, &
+#endif
+                    option,flux)
+
+  use Option_module
+
+  implicit none
+  
+  type(reactive_transport_param_type) :: rt_parameter
+  PetscReal :: velocity(:), area
+  type(reactive_transport_auxvar_type) :: rt_aux_var_up, rt_aux_var_dn
+  PetscReal, pointer :: total_up2(:,:), total_dn2(:,:)
+  type(option_type) :: option
+  PetscReal :: flux(rt_parameter%ncomp)
+#ifdef FORTRAN_2003_COMPLIANT  
+  procedure (TFluxLimiterDummy), pointer :: TFluxLimitPtr
+#endif
+  PetscReal :: dist(-1:3)    ! list of distance vectors, size(-1:3,num_connections) where
+                            !   -1 = fraction upwind
+                            !   0 = magnitude of distance 
+                            !   1-3 = components of unit vector 
+                            
+  PetscInt :: iphase
+  PetscInt :: idof, ndof
+  PetscReal :: dc, theta, correction, nu, velocity_area
+  
+  ndof = rt_parameter%naqcomp
+
+  ! flux should be in mol/sec
+  
+  do iphase = 1, option%nphase
+    nu = velocity(iphase)*option%tran_dt/dist(0)
+    ! L/sec = m/sec * m^2 * 1000 [L/m^3]
+    velocity_area = velocity(iphase)*area*1000.d0
+    if (velocity_area >= 0.d0) then
+      ! mol/sec = L/sec * mol/L
+      flux = velocity_area*rt_aux_var_up%total(:,iphase)
+      if (associated(total_up2)) then
+        do idof = 1, ndof
+          dc = rt_aux_var_dn%total(idof,iphase) - &
+               rt_aux_var_up%total(idof,iphase)
+          if (dabs(dc) < 1.d-20) then
+            theta = 1.d0
+          else
+            theta = (rt_aux_var_up%total(idof,iphase) - &
+                    total_up2(idof,iphase)) / &
+                    dc
+          endif
+          ! mol/sec = L/sec * mol/L
+          correction = 0.5d0*velocity_area*(1.d0-nu)* &
+#ifdef FORTRAN_2003_COMPLIANT          
+                       TFluxLimitPtr(theta)* &
+#else
+                       TFluxLimiter(theta)* &
+#endif
+                       dc
+          flux(idof) = flux(idof) + correction
+        enddo
+      endif
+    else
+      flux = velocity_area*rt_aux_var_dn%total(:,iphase)
+      if (associated(total_dn2)) then
+        do idof = 1, ndof
+          dc = rt_aux_var_dn%total(idof,iphase) - &
+               rt_aux_var_up%total(idof,iphase)
+          if (dabs(dc) < 1.d-20) then
+            theta = 1.d0
+          else
+            theta = (total_dn2(idof,iphase) - &
+                     rt_aux_var_dn%total(idof,iphase)) / &
+                    dc
+          endif
+          correction = 0.5d0*velocity_area*(1.d0+nu)* &
+#ifdef FORTRAN_2003_COMPLIANT          
+                       TFluxLimitPtr(theta)* &
+#else
+                       TFluxLimiter(theta)* &
+#endif
+                       dc
+          flux(idof) = flux(idof) + correction
+        enddo
+      endif
+    endif
+  enddo
+
+end subroutine TFluxTVD
+
+! ************************************************************************** !
+!
+! TFluxLimiter: Applies flux limiter
+! author: Glenn Hammond
+! date: 02/03/12
+!
+! ************************************************************************** !
+function TFluxLimiter(theta)
+
+  implicit none
+  
+  PetscReal :: theta
+  
+  PetscReal :: TFluxLimiter
+  
+  ! Linear
+  !---------
+  ! upwind
+  TFluxLimiter = 0.d0
+  ! Lax-Wendroff
+  !TFluxLimiter = 1.d0
+  ! Beam-Warming
+  !TFluxLimiter = theta
+  ! Fromm
+  !TFluxLimiter = 0.5d0*(1.d0+theta)
+
+  ! Higher-order
+  !---------
+  ! minmod
+  !TFluxLimiter = max(0.d0,min(1.d0,theta))
+  ! superbee
+  !TFluxLimiter = max(0.d0,min(1.d0,2.d0*theta),min(2.d0,theta))
+  ! MC
+  !TFluxLimiter = max(0.d0,min((1.d0+theta)/2.d0,2.d0,2.d0*theta))
+  ! van Leer
+  !TFluxLimiter = (theta+dabs(theta))/(1.d0+dabs(theta)
+
+end function TFluxLimiter
+
+! ************************************************************************** !
+!
+! TFluxLimitUpwind: Applies an upwind flux limiter
+! author: Glenn Hammond
+! date: 02/03/12
+!
+! ************************************************************************** !
+function TFluxLimitUpwind(theta)
+
+  implicit none
+  
+  PetscReal :: theta
+  
+  PetscReal :: TFluxLimitUpwind
+  
+  ! upwind
+  TFluxLimitUpwind = 0.d0
+
+end function TFluxLimitUpwind
+
+! ************************************************************************** !
+!
+! TFluxLimitMinmod: Applies a minmod flux limiter
+! author: Glenn Hammond
+! date: 02/03/12
+!
+! ************************************************************************** !
+function TFluxLimitMinmod(theta)
+
+  implicit none
+  
+  PetscReal :: theta
+  
+  PetscReal :: TFluxLimitMinmod
+  
+  ! minmod
+  TFluxLimitMinmod = max(0.d0,min(1.d0,theta))
+
+end function TFluxLimitMinmod
+
+! ************************************************************************** !
+!
+! TFluxLimitMC: Applies an MC flux limiter
+! author: Glenn Hammond
+! date: 02/03/12
+!
+! ************************************************************************** !
+function TFluxLimitMC(theta)
+
+  implicit none
+  
+  PetscReal :: theta
+  
+  PetscReal :: TFluxLimitMC
+  
+ ! MC
+  TFluxLimitMC = max(0.d0,min((1.d0+theta)/2.d0,2.d0,2.d0*theta))
+
+end function TFluxLimitMC
+
+! ************************************************************************** !
+!
+! TFluxLimitSuperBee: Applies an superbee flux limiter
+! author: Glenn Hammond
+! date: 02/03/12
+!
+! ************************************************************************** !
+function TFluxLimitSuperBee(theta)
+
+  implicit none
+  
+  PetscReal :: theta
+  
+  PetscReal :: TFluxLimitSuperBee
+  
+  ! superbee
+  TFluxLimitSuperBee =  max(0.d0,min(1.d0,2.d0*theta),min(2.d0,theta))
+
+end function TFluxLimitSuperBee
+
+! ************************************************************************** !
+!
+! TFluxLimitVanLeer: Applies an van Leer flux limiter
+! author: Glenn Hammond
+! date: 02/03/12
+!
+! ************************************************************************** !
+function TFluxLimitVanLeer(theta)
+
+  implicit none
+  
+  PetscReal :: theta
+  
+  PetscReal :: TFluxLimitVanLeer
+  
+  ! superbee
+  TFluxLimitVanLeer = (theta+dabs(theta))/(1.d0+dabs(theta))
+
+end function TFluxLimitVanLeer
 
 end module Transport_module

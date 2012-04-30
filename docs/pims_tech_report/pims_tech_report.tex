@@ -12,8 +12,6 @@
 \usepackage{graphicx}
 \usepackage{longtable}
 \usepackage{subfigure}
-%\usepackage{here}
-\usepackage{ssss}
 \usepackage{booktabs}
 %\usepackage{toc_entr}
 
@@ -216,7 +214,7 @@
 \bc
 \begin{tabular}{r|l}
 ~ & ~\\
-{\em Title:} & {\sl PIMS Tech. Report}\\
+{\em Title:} & {\sl PIMS \& PMIS Technical Report}\\
 ~ & ~\\
 ~ & ~\\
 ~ & ~\\
@@ -264,30 +262,103 @@ Los Alamos National Laboratory, an affirmative action/equal opportunity employer
 
 \clearpage
 
+%\tracingall
 
 
+\section{Governing equations: PIMS \& PMIS}
 
-\section{Governing equations}
-PIMS, parallel immiscible multiphase flow simulator. is a simplified version of PFLOTRAN
-by removing the most dependences on thermodynamic calculations, since for immiscible system, the solubility is zero for every component. Then the number of component is the same as the number of phases,  and the degree of freedom on every node if isothermal system is consider. This totally immiscible assumption also remove the variable switching strategy, which may be the most tricky part of PFLOTRAN, and may cause trouble for multi-level solvers. \\
-The governing equations solved by PIMS could be read as:
+The code PIMS, parallel immiscible multiphase flow simulator, is a simplified version of the PFLOTRAN MPHASE mode in which the dependency on thermodynamic relations have been removed, since for immiscible systems the solubility is identically zero for each component. In this case the number of components is equal to the number of phases, or degrees of freedom associated with each node for an isothermal system. The immiscible property removes the variable switching strategy used in MPHASE, which may be the most numerically difficult part of PFLOTRAN, and may cause problems for multi-level solvers. The code PMIS, parallel miscible single phase flow, applies to a completely miscible multicomponent single phase system.
 
+The governing equations solved by PIMS are given by
 \EQ\label{mass}
-\frac{\p}{\p t}\bigg[\varphi (\rho_i s_i)\bigg] + \bnabla\cdot \bigg(\rho_i  \bq_i \bigg) \eq S_i,
+\frac{\p}{\p t}\big(\varphi\rho_\a^{} s_\a^{}\big) + \bnabla\cdot \big(\rho_\a^{} \bq_\a \big) \eq Q_\a,
 \EN
-where $\varphi$ is porosity,  $s_i$, $\rho_i$ is $i$ phase saturation and density, $q_i$ is $i$ phase velocity, $S_i$ is the source/sink term. Thus, the number of equations is equal to number of phases. 
-The selection of primary variables are pressure $p$ and phase saturations $s_i, i=1,...,n-1$, if incompressibility of all phases or one of them is assumed. In this case, the reference pressure has to be specified as a boundary condition.\\ 
-The primary variables also could be $s_i, i=1,...,n$, if suitable EOS are applied to every phases. Then the second type BC could be assigned to all boundaries.
-Compared with PFLOTRAN, PIMS conserves mass instead of molar numbers. 
+where the subscript $\a$ denotes an immiscible phase, and for PMIS
+\EQ\label{massmis}
+\frac{\p}{\p t}\big(\varphi\rho x_i^{}\big) + \bnabla\cdot \big(\rho \bq x_i \big) \eq Q_i,
+\EN
+for the $i$th component in a single phase system.
+In these equations $\varphi$ is porosity, $s_\a$, $\rho_\a$ refer to the $\a$th phase saturation and density, respectively, $\bq_\a$ is the Darcy velocity of the $\a$th phase given by
+\EQ
+\bq_\a \eq -\frac{kk_\a}{\mu_\a} \big(\bnabla p-\rho_\a g \hat\bz\big), 
+\EN
+with permeability $k$, relative permeability $k_\a$, fluid viscosity $\mu_\a$, and $Q_\a$ is the source/sink term.  
+The selection of primary variables are pressure $p$ and $n\!-\!1$ independent phase saturation variables $s_\a, \a=1,...,n\!-\!1$ with
+\EQ
+\sum_{\a=1}^n s_\a = 1.
+\EN
+The mass conservation equations are coupled to the energy balance equation given by
+\EQ
+\frac{\p}{\p t} \Big(\varphi\sum_\a s_\a\rho_\a U_\a + (1-\varphi) \rho_r C_r T\Big) + \bnabla\cdot\Big(\sum_\a\rho_\a\bq_\a H_\a - \kappa\bnabla T\Big) \eq Q_e,
+\EN
+where $U_\a$, $H_\a$ denote the internal energy and enthalpy of the $\a$th fluid phase, $\kappa$ denotes the thermal conductivity of the bulk porous medium, $\rho_r$, $C_r$ denote the rock density and heat capacity, and $T$ refers to the temperature.
+%, if incompressibility of all phases or one of them is assumed. In this case, the reference pressure has to be specified as a boundary condition.
+%The primary variables also could be $s_i, i=1,...,n$, if suitable EOS are applied to every phases. Then the second type BC could be assigned to all boundaries.
+Thus the number of equations is equal to number of phases plus one, which is equal to the number of unknowns: ($p$, $T$, $s_1$, \ldots, $s_{n-1}$).
+
+\subsection*{Initial \& Boundary Conditions}
+\addcontentsline{toc}{subsection}{\protect\numberline{}{\bf Initial \& Boundary Conditions}} 
+
+At $t=0$ it is necessary to specify the pressure and temperature: $p(\br,\,0)$ and $T(\br,\,0)$, and the phase saturations $s_\a(\br,\,0)$ at position vector $\br$.
+
+Boundary conditions involve specifying Dirichlet, Neumann or zero gradient conditions for the independent variables at the boundary.
+
+\section{Global Mass Conservation}
+
+Compared to the MPHASE mode in PFLOTRAN, PIMS conserves mass instead of molar numbers. Global mass conservation implies the equation
+\EQ
+\frac{dM_i}{dt} \eq \int_V Q_idV - \int_{\p V} \rho_i \bq_i \cdot \bdS
+\EN
+where the total mass of the $i$th phase is defined as
+\EQ
+M_i \eq \int_V \varphi \rho_i s_i dV.
+\EN
+\BA
+\int_0^t \frac{dM_i}{dt}dt &\eq M_i(t)-M_i^0,\\
+&\eq \int_0^t dt \int_V Q_idV - \int_0^t dt \int_{\p V} \rho_i \bq_i \cdot \bdS
+\EA
+\EQ
+M_i(t+\Delta t) = M_i(t) + \Delta t \int_V Q_i dV - \Delta t \int_{\p V} \rho_i \bq_i \cdot \bdS.
+\EN
 
 \section{PETSc Solver}
 PIMS is using PETSc SNES nonlinear solver. 
-Note: the pre-conditioner option "-pc\_factor \_nonzeros\_along\_diagonal" is needed to reduce the chance to get zero pivot. Since for incompressible fluid, if the phase saturation is lower than its residual, the mass balance equation for that phase is independent of pressure and adjacent nodes' saturation. 
+Note: the pre-conditioner option \break {\tt -pc\_factor\_nonzeros\_along\_diagonal} is needed to reduce the chance of getting zero pivot errors. Since for an incompressible fluid, if the phase saturation is lower than its residual, the mass balance equation for that phase is independent of pressure and its adjacent nodes' saturation. 
 
 
 
+\section{Numerical Implementation}
 
+Newton-Raphson equations:
+\EQ
+\left[
+\begin{array}{ccc}
+J_{\rm H_2O,\,\rm H_2O} & J_{\rm H_2O,\,\rm CO_2} & J_{\rm H_2O,\,\rm E}\\
+J_{\rm CO_2,\,\rm H_2O} & J_{\rm CO_2,\,\rm CO_2} & J_{\rm CO_2,\,\rm E}\\
+J_{\rm E,\,\rm H_2O} & J_{\rm E,\,\rm CO_2} & J_{\rm E,\,E}
+\end{array}
+\right]
+\left[
+\begin{array}{c}
+\delta X_{\rm H_2O}\\
+\delta X_{\rm CO_2}\\
+\delta X_{\rm E}
+\end{array}
+\right]
+\eq
+-\left[
+\begin{array}{c}
+R_{\rm H_2O}\\
+R_{\rm CO_2}\\
+R_{\rm E}
+\end{array}
+\right]
+\EN
 
+Residual:
+\EQ
+R_i \eq \Big[(\varphi s_i\rho_i)_n^{k+1} - (\varphi s_i\rho_i)_n^k\Big] V_n + \Delta t \sum_{n'} \rho_{inn'} q_{inn'} A_{nn'} - \Delta t Q_i V_n,
+\EN
 
 
 \end{document}

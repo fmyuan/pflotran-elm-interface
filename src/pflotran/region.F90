@@ -1,5 +1,7 @@
 module Region_module
  
+  use Geometry_module
+  
   implicit none
 
   private
@@ -21,9 +23,13 @@ module Region_module
     PetscInt :: num_cells
     PetscInt, pointer :: cell_ids(:)
     PetscInt, pointer :: faces(:)
+    !TODO(geh): Tear anything to do with structured/unstructured grids other
+    !           than cell id ane face id out of region.
     PetscInt, pointer :: vertex_ids(:,:) ! For Unstructured mesh
     PetscInt :: num_verts              ! For Unstructured mesh
     PetscInt :: grid_type  ! To identify whether region is applicable to a Structured or Unstructred mesh
+    type(region_sideset_type), pointer :: sideset
+    type(polygonal_volume_type), pointer :: polygonal_volume
     type(region_type), pointer :: next
   end type region_type
   
@@ -37,12 +43,11 @@ module Region_module
     type(region_type), pointer :: last
     type(region_type), pointer :: array(:)
   end type region_list_type
-  
-  type, public :: point3d_type
-    PetscReal :: x
-    PetscReal :: y
-    PetscReal :: z
-  end type point3d_type
+
+  type, public :: region_sideset_type
+    PetscInt :: nfaces
+    PetscInt, pointer :: face_vertices(:,:)
+  end type region_sideset_type
   
   interface RegionCreate
     module procedure RegionCreateWithBlock
@@ -54,10 +59,12 @@ module Region_module
   interface RegionReadFromFile
     module procedure RegionReadFromFileId
     module procedure RegionReadFromFilename
+    module procedure RegionReadSideset
   end interface RegionReadFromFile
   
   public :: RegionCreate, RegionDestroy, RegionAddToList, RegionReadFromFile, &
-            RegionInitList, RegionDestroyList, RegionGetPtrFromList, RegionRead
+            RegionInitList, RegionDestroyList, RegionGetPtrFromList, & 
+            RegionRead, RegionReadSideset, RegionCreateSideset
   
 contains
 
@@ -96,11 +103,36 @@ function RegionCreateWithNothing()
   nullify(region%cell_ids)
   nullify(region%faces)
   nullify(region%vertex_ids)
+  nullify(region%sideset)
+  nullify(region%polygonal_volume)
   nullify(region%next)
   
   RegionCreateWithNothing => region
 
 end function RegionCreateWithNothing
+
+! ************************************************************************** !
+!
+! RegionCreateSideset: Creates a sideset
+! author: Glenn Hammond
+! date: 12/19/11
+!
+! ************************************************************************** !
+function RegionCreateSideset()
+
+  implicit none
+  
+  type(region_sideset_type), pointer :: RegionCreateSideset
+  
+  type(region_sideset_type), pointer :: sideset
+  
+  allocate(sideset)
+  sideset%nfaces = 0
+  nullify(sideset%face_vertices)
+  
+  RegionCreateSideset => sideset
+
+end function RegionCreateSideset
 
 ! ************************************************************************** !
 !
@@ -174,7 +206,7 @@ function RegionCreateWithRegion(region)
   type(region_type), pointer :: region
   
   type(region_type), pointer :: new_region
-  PetscInt :: icount
+  PetscInt :: icount, temp_int
   
   new_region => RegionCreateWithNothing()
   
@@ -192,25 +224,46 @@ function RegionCreateWithRegion(region)
   new_region%num_verts = region%num_verts
   new_region%grid_type = region%grid_type
   if (associated(region%coordinates)) then
-    allocate(new_region%coordinates(size(region%coordinates)))
-    do icount = 1, size(new_region%coordinates)
-      new_region%coordinates(icount)%x = region%coordinates(icount)%x
-      new_region%coordinates(icount)%y = region%coordinates(icount)%y
-      new_region%coordinates(icount)%z = region%coordinates(icount)%z
-    enddo
+    call GeometryCopyCoordinates(region%coordinates, &
+                                 new_region%coordinates)
   endif
   if (associated(region%cell_ids)) then
     allocate(new_region%cell_ids(new_region%num_cells))
-    new_region%cell_ids(1:new_region%num_cells) = region%cell_ids(1:region%num_cells)
+    new_region%cell_ids(1:new_region%num_cells) = &
+      region%cell_ids(1:region%num_cells)
   endif
   if (associated(region%faces)) then
     allocate(new_region%faces(new_region%num_cells))
-    new_region%faces(1:new_region%num_cells) = region%faces(1:region%num_cells)
+    new_region%faces(1:new_region%num_cells) = &
+      region%faces(1:region%num_cells)
   endif
   if (associated(region%vertex_ids)) then
     allocate(new_region%vertex_ids(0:MAX_VERT_PER_FACE,1:new_region%num_verts))
     new_region%vertex_ids(0:MAX_VERT_PER_FACE,1:new_region%num_verts) = &
     region%vertex_ids(0:MAX_VERT_PER_FACE,1:new_region%num_verts)
+  endif
+  if (associated(region%sideset)) then
+    new_region%sideset => RegionCreateSideSet()
+    new_region%sideset%nfaces = region%sideset%nfaces
+    allocate(new_region%sideset%face_vertices( &
+               size(region%sideset%face_vertices,1), &
+               size(region%sideset%face_vertices,2)))
+    new_region%sideset%face_vertices = region%sideset%face_vertices
+  endif
+  if (associated(region%polygonal_volume)) then
+    new_region%polygonal_volume => GeometryCreatePolygonalVolume()
+    if (associated(region%polygonal_volume%xy_coordinates)) then
+      call GeometryCopyCoordinates(region%polygonal_volume%xy_coordinates, &
+                                   new_region%polygonal_volume%xy_coordinates)
+    endif
+    if (associated(region%polygonal_volume%xz_coordinates)) then
+      call GeometryCopyCoordinates(region%polygonal_volume%xz_coordinates, &
+                                   new_region%polygonal_volume%xz_coordinates)
+    endif
+    if (associated(region%polygonal_volume%yz_coordinates)) then
+      call GeometryCopyCoordinates(region%polygonal_volume%yz_coordinates, &
+                                   new_region%polygonal_volume%yz_coordinates)
+    endif
   endif
   
   RegionCreateWithRegion => new_region
@@ -279,9 +332,6 @@ subroutine RegionRead(region,input,option)
   type(input_type) :: input
   
   character(len=MAXWORDLENGTH) :: keyword, word
-  PetscInt :: icount
-  PetscInt, parameter :: max_num_coordinates = 30
-  type(point3d_type) :: coordinates(max_num_coordinates)
 
   input%ierr = 0
   do
@@ -330,31 +380,30 @@ subroutine RegionRead(region,input,option)
         call InputReadDouble(input,option,region%coordinates(ONE_INTEGER)%z)
         call InputErrorMsg(input,option,'z-coordinate','REGION')
       case('COORDINATES')
-        icount = 0
-        do
-          call InputReadFlotranString(input,option)
-          call InputReadStringErrorMsg(input,option,'REGION')
-          if (InputCheckExit(input,option)) exit              
-          icount = icount + 1
-          if (icount > max_num_coordinates) then
-            write(option%io_buffer, &
-                  '(''Number of coordinates in region '',a, &
-                &'' exceeds limit of '',i3)') region%name, max_num_coordinates
+        call GeometryReadCoordinates(input,option,region%name, &
+                                     region%coordinates)
+      case('POLYGON')
+        if (.not.associated(region%polygonal_volume)) then
+          region%polygonal_volume => GeometryCreatePolygonalVolume()
+        endif
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'plane','REGION')
+        call StringToUpper(word)
+        select case(word)
+          case('XY')
+            call GeometryReadCoordinates(input,option,region%name, &
+                                       region%polygonal_volume%xy_coordinates)
+          case('XZ')
+            call GeometryReadCoordinates(input,option,region%name, &
+                                       region%polygonal_volume%xz_coordinates)
+          case('YZ')
+            call GeometryReadCoordinates(input,option,region%name, &
+                                       region%polygonal_volume%yz_coordinates)
+          case default
+            option%io_buffer = 'PLANE not recognized for REGION POLYGON.  ' // &
+              'Use either XY, XZ or YZ.'
             call printErrMsg(option)
-          endif
-          call InputReadDouble(input,option,coordinates(icount)%x) 
-          call InputErrorMsg(input,option,'x-coordinate','REGION')
-          call InputReadDouble(input,option,coordinates(icount)%y)
-          call InputErrorMsg(input,option,'y-coordinate','REGION')
-          call InputReadDouble(input,option,coordinates(icount)%z)
-          call InputErrorMsg(input,option,'z-coordinate','REGION')
-        enddo
-        allocate(region%coordinates(icount))
-        do icount = 1, size(region%coordinates)
-          region%coordinates(icount)%x = coordinates(icount)%x
-          region%coordinates(icount)%y = coordinates(icount)%y
-          region%coordinates(icount)%z = coordinates(icount)%z
-        enddo
+        end select
       case('FILE')
         call InputReadNChars(input,option,region%filename,MAXSTRINGLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,'filename','REGION')
@@ -379,7 +428,7 @@ subroutine RegionRead(region,input,option)
           case('TOP')
             region%iface = TOP_FACE
         end select
-    case('GRID')
+    case('GRID','SURF_GRID')
         call InputReadWord(input,option,word,PETSC_TRUE)
         call InputErrorMsg(input,option,'GRID','REGION')
         call StringToUpper(word)
@@ -420,7 +469,7 @@ subroutine RegionReadFromFilename(region,option,filename)
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: filename
   
-  input => InputCreate(IUNIT_TEMP,filename)
+  input => InputCreate(IUNIT_TEMP,filename,option)
   call RegionReadFromFileId(region,input,option)          
   call InputDestroy(input)         
 
@@ -737,6 +786,156 @@ end subroutine RegionReadFromFileId
 
 ! ************************************************************************** !
 !
+! RegionReadSideSet: Reads an unstructured grid sideset
+! author: Glenn Hammond
+! date: 12/19/11
+!
+! ************************************************************************** !
+subroutine RegionReadSideSet(sideset,filename,option)
+
+  use Input_module
+  use Option_module
+  use String_module
+  
+  implicit none
+  
+  type(region_sideset_type) :: sideset
+  character(len=MAXSTRINGLENGTH) :: filename
+  type(option_type) :: option
+  
+  type(input_type), pointer :: input
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: card, word
+  PetscInt :: num_faces_local_save
+  PetscInt :: num_faces_local
+  PetscInt :: num_to_read
+  PetscInt, parameter :: max_nvert_per_face = 4
+  PetscInt, allocatable :: temp_int_array(:,:)
+
+  PetscInt :: iface, ivertex, irank, num_vertices
+  PetscInt :: remainder
+  PetscErrorCode :: ierr
+  PetscMPIInt :: status_mpi(MPI_STATUS_SIZE)
+  PetscMPIInt :: int_mpi
+  PetscInt :: fileid
+  
+  fileid = 86
+  input => InputCreate(fileid,filename,option)
+
+! Format of sideset file
+! type: T=triangle, Q=quadrilateral
+! vertn(Q) = 4
+! vertn(T) = 3
+! -----------------------------------------------------------------
+! num_faces  (integer)
+! type vert1 vert2 ... vertn  ! for face 1 (integers)
+! type vert1 vert2 ... vertn  ! for face 2
+! ...
+! ...
+! type vert1 vert2 ... vertn  ! for face num_faces
+! -----------------------------------------------------------------
+
+  card = 'Unstructured Sideset'
+
+  call InputReadFlotranString(input,option)
+  string = 'unstructured sideset'
+  call InputReadStringErrorMsg(input,option,card)  
+
+  ! read num_faces
+  call InputReadInt(input,option,sideset%nfaces)
+  call InputErrorMsg(input,option,'number of faces',card)
+
+  ! divide faces across ranks
+  num_faces_local = sideset%nfaces/option%mycommsize 
+  num_faces_local_save = num_faces_local
+  remainder = sideset%nfaces - num_faces_local*option%mycommsize
+  if (option%myrank < remainder) num_faces_local = &
+                                 num_faces_local + 1
+
+  ! allocate array to store vertices for each faces
+  allocate(sideset%face_vertices(max_nvert_per_face, &
+                                 num_faces_local))
+  sideset%face_vertices = -999
+
+  ! for now, read all faces from ASCII file through io_rank and communicate
+  ! to other ranks
+  if (option%myrank == option%io_rank) then
+    allocate(temp_int_array(max_nvert_per_face, &
+                            num_faces_local_save+1))
+    ! read for other processors
+    do irank = 0, option%mycommsize-1
+      temp_int_array = -999
+      num_to_read = num_faces_local_save
+      if (irank < remainder) num_to_read = num_to_read + 1
+
+      do iface = 1, num_to_read
+        ! read in the vertices defining the cell face
+        call InputReadFlotranString(input,option)
+        call InputReadStringErrorMsg(input,option,card)  
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'face type',card)
+        call StringToUpper(word)
+        select case(word)
+          case('Q')
+            num_vertices = 4
+          case('T')
+            num_vertices = 3
+        end select
+        do ivertex = 1, num_vertices
+          call InputReadInt(input,option,temp_int_array(ivertex,iface))
+          call InputErrorMsg(input,option,'vertex id',card)
+        enddo
+      enddo
+      ! if the faces reside on io_rank
+      if (irank == option%io_rank) then
+#if UGRID_DEBUG
+        write(string,*) num_faces_local
+        string = trim(adjustl(string)) // ' faces stored on p0'
+        print *, trim(string)
+#endif
+        sideset%nfaces = num_faces_local
+        sideset%face_vertices(:,1:num_faces_local) = &
+          temp_int_array(:,1:num_faces_local)
+      else
+        ! otherwise communicate to other ranks
+#if UGRID_DEBUG
+        write(string,*) num_to_read
+        write(word,*) irank
+        string = trim(adjustl(string)) // ' faces sent from p0 to p' // &
+                 trim(adjustl(word))
+        print *, trim(string)
+#endif
+        int_mpi = num_to_read*max_nvert_per_face
+        call MPI_Send(temp_int_array,int_mpi,MPIU_INTEGER,irank, &
+                      num_to_read,option%mycomm,ierr)
+      endif
+    enddo
+    deallocate(temp_int_array)
+  else
+    ! other ranks post the recv
+#if UGRID_DEBUG
+        write(string,*) num_faces_local
+        write(word,*) option%myrank
+        string = trim(adjustl(string)) // ' faces received from p0 at p' // &
+                 trim(adjustl(word))
+        print *, trim(string)
+#endif
+    sideset%nfaces = num_faces_local
+    int_mpi = num_faces_local*max_nvert_per_face
+    call MPI_Recv(sideset%face_vertices,int_mpi, &
+                  MPIU_INTEGER,option%io_rank, &
+                  MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
+  endif
+
+!  unstructured_grid%nlmax = num_faces_local
+!  unstructured_grid%num_vertices_local = num_vertices_local
+
+  call InputDestroy(input)
+
+end subroutine RegionReadSideSet
+
+! ************************************************************************** !
+!
 ! RegionGetPtrFromList: Returns a pointer to the region matching region_name
 ! author: Glenn Hammond
 ! date: 11/01/07
@@ -770,6 +969,29 @@ function RegionGetPtrFromList(region_name,region_list)
   enddo
   
 end function RegionGetPtrFromList
+
+! ************************************************************************** !
+!
+! RegionDestroySideset: Deallocates a unstructured grid side set
+! author: Glenn Hammond
+! date: 11/01/09
+!
+! ************************************************************************** !
+subroutine RegionDestroySideset(sideset)
+
+  implicit none
+  
+  type(region_sideset_type), pointer :: sideset
+  
+  if (.not.associated(sideset)) return
+  
+  if (associated(sideset%face_vertices)) deallocate(sideset%face_vertices)
+  nullify(sideset%face_vertices)
+  
+  deallocate(sideset)
+  nullify(sideset)
+  
+end subroutine RegionDestroySideset
 
 ! ************************************************************************** !
 !
@@ -826,10 +1048,16 @@ subroutine RegionDestroy(region)
   nullify(region%cell_ids)
   if (associated(region%faces)) deallocate(region%faces)
   nullify(region%faces)
-  nullify(region%next)
+  if (associated(region%coordinates)) deallocate(region%coordinates)
+  nullify(region%coordinates)
+  call RegionDestroySideset(region%sideset)
+  call GeometryDestroyPolygonalVolume(region%polygonal_volume)
+  
   if (associated(region%vertex_ids)) deallocate(region%vertex_ids)
   nullify(region%vertex_ids)
   
+  nullify(region%next)
+
   deallocate(region)
   nullify(region)
 

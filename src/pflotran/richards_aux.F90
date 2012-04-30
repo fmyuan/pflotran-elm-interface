@@ -207,7 +207,8 @@ subroutine RichardsAuxVarCompute(x,aux_var,global_aux_var,&
   type(global_auxvar_type) :: global_aux_var
   PetscReal :: por, perm
 
-  PetscInt :: iphase, i
+  PetscInt :: i
+  PetscBool :: saturated
   PetscErrorCode :: ierr
   PetscReal :: pw,dw_kg,dw_mol,hw,sat_pressure,visl
   PetscReal :: kr, ds_dp, dkr_dp
@@ -241,8 +242,6 @@ subroutine RichardsAuxVarCompute(x,aux_var,global_aux_var,&
   ds_dp = 0.d0
   dkr_dp = 0.d0
   if (aux_var%pc > 0.d0) then
-! if (aux_var%pc > 1.d0) then
-    iphase = 3
 
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
     if(aux_var%bc_alpha.gt.0) then
@@ -251,17 +250,28 @@ subroutine RichardsAuxVarCompute(x,aux_var,global_aux_var,&
     endif
 #endif
 
-    call SaturationFunctionCompute(global_aux_var%pres(1),global_aux_var%sat(1),kr, &
+    saturated = PETSC_FALSE
+    call SaturationFunctionCompute(global_aux_var%pres(1), &
+                                   global_aux_var%sat(1),kr, &
                                    ds_dp,dkr_dp, &
                                    saturation_function, &
-                                   por,perm,option)
+                                   por,perm, &
+                                   saturated, &
+                                   option)
   else
-    iphase = 1
+    saturated = PETSC_TRUE
+  endif  
+  
+  ! the purpose for splitting this condition from the 'else' statement
+  ! above is due to SaturationFunctionCompute switching a cell to
+  ! saturated to prevent unstable (potentially infinite) derivatives when 
+  ! capillary pressure is very small
+  if (saturated) then
     aux_var%pc = 0.d0
     global_aux_var%sat = 1.d0  
     kr = 1.d0    
     pw = global_aux_var%pres(1)
-  endif  
+  endif
 
 !  call wateos_noderiv(option%temp,pw,dw_kg,dw_mol,hw,option%scale,ierr)
 #ifndef DONT_USE_WATEOS
@@ -284,7 +294,7 @@ subroutine RichardsAuxVarCompute(x,aux_var,global_aux_var,&
 !  call VISW_noderiv(option%temp,pw,sat_pressure,visl,ierr)
   call VISW(global_aux_var%temp(1),pw,sat_pressure,visl,dvis_dt,dvis_dp,ierr) 
   dvis_dpsat = -dvis_dp 
-  if (iphase == 3) then !kludge since pw is constant in the unsat zone
+  if (.not.saturated) then !kludge since pw is constant in the unsat zone
     dvis_dp = 0.d0
     dw_dp = 0.d0
     hw_dp = 0.d0
@@ -332,11 +342,13 @@ subroutine RichardsAuxVarCompute(x,aux_var,global_aux_var,&
 ! aux_var%kvr_x =  1123.055414382469
 ! aux_var%kvr_y =  1123.055414382469
 ! aux_var%kvr_z =  1123.055414382469
+! aux_var%kvr =  1123.055414382469
 ! 
 ! aux_var%dden_dp = 0.
-! aux_var%dkvr_x_dp = 0!.01*2*x(1)
-! aux_var%dkvr_y_dp = 0!.01*2*x(1)
+ !aux_var%dkvr_x_dp = 0!.01*2*x(1)
+ !aux_var%dkvr_y_dp = 0!.01*2*x(1)
 ! aux_var%dkvr_z_dp = 0!.01*2*x(1)
+! aux_var%dkvr_dp = 0!.01*2*x(1)
 
 
 !aux_var%dsat_dp = 1e-2
@@ -427,6 +439,9 @@ subroutine RichardsAuxDestroy(aux)
   endif
   nullify(aux%matrix_buffer)
 #endif
+  
+  deallocate(aux)
+  nullify(aux)
     
 end subroutine RichardsAuxDestroy
 
