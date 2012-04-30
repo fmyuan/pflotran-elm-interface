@@ -1,0 +1,920 @@
+#ifdef SURFACE_FLOW
+
+module Surface_Flow_module
+
+  use Global_Aux_module
+  
+  implicit none
+  
+  private
+  
+#include "definitions.h"  
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+#include "finclude/petscmat.h"
+#include "finclude/petscmat.h90"
+#include "finclude/petscsnes.h"
+#include "finclude/petscviewer.h"
+#include "finclude/petsclog.h"
+
+
+! Cutoff parameters
+  PetscReal, parameter :: eps       = 1.D-8
+
+  public SurfaceFlowSetup, &
+         SurfaceFlowReadRequiredCardsFromInput, &
+         SurfaceFlowRead, &
+         SurfaceFluxKinematic, &
+         SurfaceFluxKinematicDerivative, &
+         SurfaceFlowResidual, &
+         SurfaceFlowJacobian
+  
+contains
+
+! ************************************************************************** !
+!
+!
+! ************************************************************************** !
+subroutine SurfaceFlowSetup(surf_realization)
+
+  use Surface_Realization_module
+  
+  type(surface_realization_type) :: surf_realization
+  
+end subroutine SurfaceFlowSetup
+
+! ************************************************************************** !
+!> This routine reads required surface flow data from the input file
+!! grids.
+!!
+!> @author
+!! Gautam Bisht, ORNL
+!!
+!! date: 02/09/12
+! ************************************************************************** !
+subroutine SurfaceFlowReadRequiredCardsFromInput(surf_realization,input,option)
+
+  use Option_module
+  use Input_module
+  use String_module
+  use Surface_Material_module
+  use Surface_Realization_module
+  use Grid_module
+  use Structured_Grid_module
+  use Unstructured_Grid_module
+  use Discretization_module
+  use Region_module
+  use Condition_module
+
+  implicit none
+
+  type(surface_realization_type)               :: surf_realization
+  type(discretization_type),pointer            :: discretization
+  type(grid_type), pointer                     :: grid
+  type(input_type)                             :: input
+  type(option_type)                            :: option
+  type(unstructured_grid_type), pointer        :: un_str_sfgrid
+  character(len=MAXWORDLENGTH)                 :: word
+
+  discretization => surf_realization%discretization
+
+  input%ierr = 0
+! we initialize the word to blanks to avoid error reported by valgrind
+  word = ''
+
+  do
+    call InputReadFlotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+    
+    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword','SURFACE_FLOW')
+    call StringToUpper(word)
+    
+    select case(trim(word))
+      !.........................................................................
+      ! Read surface grid information
+      case ('SURF_GRID')
+        call InputReadFlotranString(input,option)
+        if (InputCheckExit(input,option)) exit
+
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'keyword','SURF_GRID')
+        call StringToUpper(word)
+        select case(trim(word))
+          case ('TYPE')
+            call InputReadWord(input,option,word,PETSC_TRUE)
+            call InputErrorMsg(input,option,'keyword','TYPE')
+            call StringToUpper(word)
+
+            select case(trim(word))
+              case ('UNSTRUCTURED')
+                discretization%itype = UNSTRUCTURED_GRID
+                call InputReadNChars(input,option, &
+                                     discretization%filename, &
+                                     MAXSTRINGLENGTH, &
+                                     PETSC_TRUE)
+                call InputErrorMsg(input,option,'keyword','filename')
+
+                grid => GridCreate()
+                un_str_sfgrid => UGridCreate()
+                un_str_sfgrid%grid_type = TWO_DIM_GRID
+                call UGridReadSurfGrid(un_str_sfgrid, &
+                                       surf_realization%subsurf_filename, &
+                                       discretization%filename, &
+                                       option)
+                grid%unstructured_grid => un_str_sfgrid
+                discretization%grid => grid
+                grid%itype = discretization%itype
+                grid%ctype = discretization%ctype
+
+              case default
+              option%io_buffer = 'Surface-flow supports only unstructured grid'
+              call printErrMsg(option)
+            end select
+          case default
+            option%io_buffer = 'Keyword: ' // trim(word) // &
+              ' not recognized in SURF_GRID '
+            call printErrMsg(option)
+        end select
+        call InputSkipToEND(input,option,trim(word))
+
+    end select
+  enddo
+
+end subroutine SurfaceFlowReadRequiredCardsFromInput
+
+! ************************************************************************** !
+!> This routine reads surface flow data from the input file
+!! grids.
+!!
+!> @author
+!! Gautam Bisht, ORNL
+!!
+!! date: 02/09/12
+! ************************************************************************** !
+subroutine SurfaceFlowRead(surf_realization,input,option)
+
+  use Option_module
+  use Input_module
+  use String_module
+  use Surface_Material_module
+  use Surface_Realization_module
+  use Grid_module
+  use Structured_Grid_module
+  use Unstructured_Grid_module
+  use Discretization_module
+  use Region_module
+  use Condition_module
+  use Coupler_module
+  use Strata_module
+
+  implicit none
+
+  type(surface_realization_type)               :: surf_realization
+  type(discretization_type),pointer            :: discretization
+  type(grid_type), pointer                     :: grid
+  type(input_type)                             :: input
+  type(option_type)                            :: option
+  type(unstructured_grid_type), pointer        :: un_str_sfgrid
+  type(surface_material_property_type),pointer :: surf_material_property
+  type(region_type), pointer                   :: region
+  type(flow_condition_type), pointer           :: flow_condition
+  type(coupler_type), pointer                  :: coupler
+  type(strata_type), pointer                   :: strata
+  character(len=MAXWORDLENGTH)                 :: word
+
+  discretization => surf_realization%discretization
+
+  input%ierr = 0
+! we initialize the word to blanks to avoid error reported by valgrind
+  word = ''
+
+  do
+    call InputReadFlotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword','SURFACE_FLOW')
+    call StringToUpper(word)
+
+    select case(trim(word))
+      !.........................................................................
+      ! Read surface grid information
+      case ('SURF_GRID')
+        call InputSkipToEND(input,option,trim(word))
+
+      !.........................................................................
+      ! Read surface material information
+      case ('SURF_MATERIAL_PROPERTY')
+        surf_material_property => SurfaceMaterialPropertyCreate()
+
+        call InputReadWord(input,option,surf_material_property%name,PETSC_TRUE)
+        call InputErrorMsg(input,option,'name','MATERIAL_PROPERTY')
+        call SurfaceMaterialPropertyRead(surf_material_property,input,option)
+        call SurfaceMaterialPropertyAddToList(surf_material_property, &
+                                          surf_realization%surf_material_properties)
+        nullify(surf_material_property)
+
+      !.........................................................................
+      case ('SURF_REGION')
+        region => RegionCreate()
+        call InputReadWord(input,option,region%name,PETSC_TRUE)
+        call InputErrorMsg(input,option,'name','SURF_REGION')
+        call printMsg(option,region%name)
+        call RegionRead(region,input,option)
+        ! we don't copy regions down to patches quite yet, since we
+        ! don't want to duplicate IO in reading the regions
+        call RegionAddToList(region,surf_realization%surf_regions)
+        nullify(region)
+
+      !.........................................................................
+      case ('SURF_FLOW_CONDITION')
+        flow_condition => FlowConditionCreate(option)
+        call InputReadWord(input,option,flow_condition%name,PETSC_TRUE)
+        call InputErrorMsg(input,option,'SURF_FLOW_CONDITION','name')
+        call printMsg(option,flow_condition%name)
+        if (option%iflowmode == G_MODE) then
+          call FlowConditionGeneralRead(flow_condition,input,option)
+        else
+          call FlowConditionRead(flow_condition,input,option)
+        endif
+        call FlowConditionAddToList(flow_condition,surf_realization%surf_flow_conditions)
+        nullify(flow_condition)
+
+      !.........................................................................
+      case ('SURF_BOUNDARY_CONDITION')
+        coupler => CouplerCreate(BOUNDARY_COUPLER_TYPE)
+        call InputReadWord(input,option,coupler%name,PETSC_TRUE)
+        call InputDefaultMsg(input,option,'Boundary Condition name')
+        call CouplerRead(coupler,input,option)
+        call SurfaceRealizationAddCoupler(surf_realization,coupler)
+        nullify(coupler)
+
+      !.........................................................................
+      case ('STRATIGRAPHY','STRATA')
+        strata => StrataCreate()
+        call StrataRead(strata,input,option)
+        call SurfaceRealizationAddStrata(surf_realization,strata)
+        nullify(strata)
+        
+      !.........................................................................
+      case ('SURF_INITIAL_CONDITION')
+        coupler => CouplerCreate(INITIAL_COUPLER_TYPE)
+        call InputReadWord(input,option,coupler%name,PETSC_TRUE)
+        call InputDefaultMsg(input,option,'Initial Condition name') 
+        call CouplerRead(coupler,input,option)
+        call SurfaceRealizationAddCoupler(surf_realization,coupler)
+        nullify(coupler)        
+
+      case default
+        option%io_buffer = 'Keyword ' // trim(word) // ' in input file ' // &
+                           'not recognized'
+        call printErrMsg(option)
+
+    end select
+  enddo
+
+end subroutine SurfaceFlowRead
+
+
+! ************************************************************************** !
+!
+!
+! ************************************************************************** !
+subroutine SurfaceFlowResidual(snes,xx,r,surf_realization,ierr)
+
+  use Surface_Realization_module
+  use Surface_Field_module
+  use Patch_module
+  use Level_module
+  use Discretization_module
+  use Option_module
+  use Logging_module
+
+  implicit none
+
+  SNES :: snes
+  Vec :: xx
+  Vec :: r
+  type(surface_realization_type) :: surf_realization
+  PetscViewer :: viewer
+  PetscErrorCode :: ierr
+  
+  type(discretization_type), pointer :: discretization
+  type(surface_field_type), pointer :: surf_field
+  type(level_type), pointer :: cur_level
+  type(patch_type), pointer :: cur_patch
+  type(option_type), pointer :: option
+  
+  call PetscLogEventBegin(logging%event_r_residual,ierr)
+  
+  surf_field => surf_realization%surf_field
+  discretization => surf_realization%discretization
+  option => surf_realization%option
+
+  ! pass #1 for internal and boundary flux terms
+  cur_level => surf_realization%level_list%first
+  do
+    if (.not.associated(cur_level)) exit
+    cur_patch => cur_level%patch_list%first
+    do
+      if (.not.associated(cur_patch)) exit
+      surf_realization%patch => cur_patch
+      call SurfaceFlowResidualPatch1(snes,xx,r,surf_realization,ierr)
+      !call SurfaceFlowResidualPatch1(realization)
+      cur_patch => cur_patch%next
+    enddo
+    cur_level => cur_level%next
+  enddo
+
+end subroutine SurfaceFlowResidual
+
+! ************************************************************************** !
+!
+!
+! ************************************************************************** !
+subroutine SurfaceFlowResidualPatch1(snes,xx,r,surf_realization,ierr)
+
+  use water_eos_module
+
+  use Connection_module
+  use Surface_Realization_module
+  use Patch_module
+  use Grid_module
+  use Option_module
+  use Coupler_module  
+  use Surface_Field_module
+  use Debug_module
+  
+  implicit none
+
+  type :: flux_ptrs
+    PetscReal, dimension(:), pointer :: flux_p 
+  end type
+
+  type (flux_ptrs), dimension(0:2) :: fluxes
+  SNES, intent(in) :: snes
+  Vec, intent(inout) :: xx
+  Vec, intent(out) :: r
+  type(surface_realization_type) :: surf_realization
+
+  PetscErrorCode :: ierr
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
+
+  PetscReal, pointer :: r_p(:), mannings_loc_p(:),xx_loc_p(:)
+
+  PetscReal, pointer :: face_fluxes_p(:)
+  PetscInt :: icap_up, icap_dn
+  PetscReal :: dd_up, dd_dn
+  PetscReal :: perm_up, perm_dn
+  PetscReal :: upweight
+  PetscReal :: Res(surf_realization%option%nflowdof), v_darcy
+
+
+  type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
+  type(surface_field_type), pointer :: surf_field
+  type(coupler_type), pointer :: boundary_condition
+  type(connection_set_list_type), pointer :: connection_set_list
+  type(connection_set_type), pointer :: cur_connection_set
+  PetscInt :: iconn
+  PetscInt :: sum_connection
+  PetscReal :: distance, fraction_upwind
+  PetscReal :: distance_gravity
+  PetscReal :: slope_up, slope_dn
+  PetscInt :: axis, side, nlx, nly, nlz, ngx, ngxy, pstart, pend, flux_id
+  PetscInt :: direction, max_x_conn, max_y_conn
+  PetscViewer :: viewer
+  PetscReal :: rho          ! density      [kg/m^3]
+  PetscReal :: hw_up, hw_dn ! water height [m]
+  PetscReal, pointer :: xc(:),yc(:),zc(:)
+  PetscReal :: dx, dy, dz
+  
+  patch => surf_realization%patch
+  grid => patch%grid
+  option => surf_realization%option
+  surf_field => surf_realization%surf_field
+
+  call GridVecGetArrayF90(grid,r, r_p, ierr)
+  call GridVecGetArrayF90(grid, surf_field%mannings_loc, mannings_loc_p, ierr)
+  call GridVecGetArrayF90(grid, surf_field%flow_xx_loc, xx_loc_p, ierr)
+
+  r_p = 0.d0  
+
+  call density(option%reference_temperature,option%reference_pressure,rho)
+  !call nacl_den(option%reference_temperature,option%reference_pressure*1d-6,0.d0,rho)
+  !rho = rho * 1.d3
+  
+  xc => surf_realization%discretization%grid%x
+  yc => surf_realization%discretization%grid%y
+  zc => surf_realization%discretization%grid%z
+
+  ! Interior Flux Terms -----------------------------------
+  !write(*,*),'Interior fluxes:'
+  connection_set_list => grid%internal_connection_set_list
+  cur_connection_set => connection_set_list%first
+  sum_connection = 0  
+  do 
+    if (.not.associated(cur_connection_set)) exit
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+
+      ghosted_id_up = cur_connection_set%id_up(iconn)
+      ghosted_id_dn = cur_connection_set%id_dn(iconn)
+
+      local_id_up = grid%nG2L(ghosted_id_up)
+      local_id_dn = grid%nG2L(ghosted_id_dn)
+      
+      dx = cur_connection_set%intercp(1,iconn) - xc(ghosted_id_up)
+      dy = cur_connection_set%intercp(2,iconn) - yc(ghosted_id_up)
+      dz = cur_connection_set%intercp(3,iconn) - zc(ghosted_id_up)
+      slope_up = dz/sqrt(dx*dx + dy*dy * dz*dz)
+      
+      dx = xc(ghosted_id_dn) - cur_connection_set%intercp(1,iconn)
+      dy = yc(ghosted_id_dn) - cur_connection_set%intercp(2,iconn)
+      dz = zc(ghosted_id_dn) - cur_connection_set%intercp(3,iconn)
+      slope_dn = dz/sqrt(dx*dx + dy*dy * dz*dz)
+
+      hw_up = (xx_loc_p(ghosted_id_up)-option%reference_pressure)/option%gravity(3)/rho
+      hw_dn = (xx_loc_p(ghosted_id_dn)-option%reference_pressure)/option%gravity(3)/rho
+      
+      if(hw_up < eps) hw_up = 0.d0
+      if(hw_dn < eps) hw_dn = 0.d0
+
+      write(*,*),''
+      write(*,*),'dist: ',cur_connection_set%dist(1:3,iconn)
+      write(*,*),'intp: ',cur_connection_set%intercp(1:3,iconn)
+      write(*,'(3I5,5es10.2)'),sum_connection,ghosted_id_up,ghosted_id_dn, &
+        slope_up,slope_dn,mannings_loc_p(ghosted_id_up),&
+        hw_up,hw_dn
+      write(*,*),'hw: ',hw_up,hw_dn
+      write(*,*),'slope: ',slope_up,slope_dn
+      write(*,*),'mannings: ',mannings_loc_p(ghosted_id_up),mannings_loc_p(ghosted_id_dn)
+      call SurfaceFluxKinematic(hw_up,slope_up,mannings_loc_p(ghosted_id_up), &
+                                hw_dn,slope_dn,mannings_loc_p(ghosted_id_dn), &
+                                cur_connection_set%area(iconn),option,Res)
+      write(*,*),'Res = ',Res(1)
+
+      !Res(1) = 1.0d0
+
+      write(*,*),'r_p: ',r_p(local_id_up),r_p(local_id_dn)
+         
+        if (local_id_up>0) then
+          r_p(local_id_up) = r_p(local_id_up) - Res(1)
+        endif
+         
+        if (local_id_dn>0) then
+          r_p(local_id_dn) = r_p(local_id_dn) + Res(1)
+        endif
+      
+      write(*,*),'r_p: ',r_p(local_id_up),r_p(local_id_dn)
+      
+    enddo
+    cur_connection_set => cur_connection_set%next
+  enddo
+
+  ! Boundary Flux Terms -----------------------------------
+  !write(*,*),'Boundary fluxes:'
+  boundary_condition => patch%boundary_conditions%first
+  sum_connection = 0    
+  do 
+    if (.not.associated(boundary_condition)) exit
+    
+    cur_connection_set => boundary_condition%connection_set
+    
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+    
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      !write(*,'(3I5)'),sum_connection,ghosted_id,local_id
+  
+    enddo
+    boundary_condition => boundary_condition%next
+  enddo
+
+  call GridVecRestoreArrayF90(grid,r, r_p, ierr)
+  call GridVecRestoreArrayF90(grid, surf_field%mannings_loc, mannings_loc_p, ierr)
+  call GridVecRestoreArrayF90(grid, surf_field%flow_xx_loc, xx_loc_p, ierr)
+
+  call PetscViewerASCIIOpen(option%mycomm,'r_surfflow.out',viewer,ierr)
+  call VecView(r,viewer,ierr)
+  call PetscViewerDestroy(viewer,ierr)
+
+  !option%io_buffer = 'stopping for debugging'
+  !call printErrMsgByRank(option)
+
+end subroutine SurfaceFlowResidualPatch1  
+
+! ************************************************************************** !
+!
+!
+! ************************************************************************** !
+subroutine SurfaceFlowJacobian(snes,xx,A,B,flag,surf_realization,ierr)
+
+  use Surface_Realization_module
+  use Level_module
+  use Patch_module
+  use Grid_module
+  use Option_module
+  use Logging_module
+
+  implicit none
+
+  SNES :: snes
+  Vec :: xx
+  Mat :: A, B
+  type(surface_realization_type) :: surf_realization
+  MatStructure flag
+  PetscErrorCode :: ierr
+  
+  Mat :: J
+  MatType :: mat_type
+  PetscViewer :: viewer
+  type(level_type), pointer :: cur_level
+  type(patch_type), pointer :: cur_patch
+  type(grid_type),  pointer :: grid
+  type(option_type), pointer :: option
+  PetscReal :: norm
+
+
+  call PetscLogEventBegin(logging%event_r_jacobian,ierr)
+
+  option => surf_realization%option
+
+  flag = SAME_NONZERO_PATTERN
+  call MatGetType(A,mat_type,ierr)
+  if (mat_type == MATMFFD) then
+    J = B
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr)
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr)
+  else
+    J = A
+  endif
+
+  call MatZeroEntries(J,ierr)
+
+  ! pass #1 for internal and boundary flux terms
+  cur_level => surf_realization%level_list%first
+  do
+    if (.not.associated(cur_level)) exit
+    cur_patch => cur_level%patch_list%first
+    do
+      if (.not.associated(cur_patch)) exit
+      surf_realization%patch => cur_patch
+
+      call SurfaceFlowJacobianPatch1(snes,xx,J,J,flag,surf_realization,ierr)
+      cur_patch => cur_patch%next
+    enddo
+    cur_level => cur_level%next
+  enddo
+
+end subroutine SurfaceFlowJacobian
+
+
+! ************************************************************************** !
+!
+!
+! ************************************************************************** !
+
+subroutine SurfaceFlowJacobianPatch1(snes,xx,A,B,flag,surf_realization,ierr)
+       
+  use water_eos_module
+
+  use Connection_module
+  use Surface_Realization_module
+  use Option_module
+  use Patch_module
+  use Grid_module
+  use Coupler_module
+  use Surface_Field_module
+  use Debug_module
+    
+  implicit none
+
+  SNES, intent(in) :: snes
+  Vec, intent(in) :: xx
+  Mat, intent(out) :: A, B
+  type(surface_realization_type) :: surf_realization
+  MatStructure flag
+
+  PetscErrorCode :: ierr
+
+  PetscReal, pointer :: porosity_loc_p(:), &
+                        perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
+  PetscInt :: icap_up,icap_dn
+  PetscReal :: dd_up, dd_dn
+  PetscReal :: perm_up, perm_dn
+  PetscReal :: upweight
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: local_id_up, local_id_dn
+  PetscInt :: ghosted_id_up, ghosted_id_dn
+  
+  PetscReal :: Jup(surf_realization%option%nflowdof,surf_realization%option%nflowdof), &
+               Jdn(surf_realization%option%nflowdof,surf_realization%option%nflowdof)
+  PetscReal :: rho          ! density      [kg/m^3]
+  PetscReal :: hw_up, hw_dn ! water height [m]
+  PetscReal, pointer :: xc(:),yc(:),zc(:)
+  PetscReal, pointer :: mannings_loc_p(:),xx_loc_p(:)
+  PetscReal :: dx, dy, dz
+  PetscReal :: slope_up, slope_dn
+  
+  type(surface_field_type), pointer :: surf_field
+  type(coupler_type), pointer :: boundary_condition, source_sink
+  type(connection_set_list_type), pointer :: connection_set_list
+  type(connection_set_type), pointer :: cur_connection_set
+  PetscInt :: iconn
+  PetscInt :: sum_connection  
+  PetscReal :: distance, fraction_upwind
+  PetscReal :: distance_gravity 
+  type(grid_type), pointer :: grid
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option 
+  !type(field_type), pointer :: field 
+  !type(SurfaceFlow_parameter_type), pointer :: SurfaceFlow_parameter
+  !type(SurfaceFlow_auxvar_type), pointer :: rich_aux_vars(:), rich_aux_vars_bc(:) 
+  !type(global_auxvar_type), pointer :: global_aux_vars(:), global_aux_vars_bc(:) 
+  
+  PetscViewer :: viewer
+
+  patch => surf_realization%patch
+  grid => patch%grid
+  option => surf_realization%option
+
+  surf_field => surf_realization%surf_field
+
+  call GridVecGetArrayF90(grid, surf_field%mannings_loc, mannings_loc_p, ierr)
+  call GridVecGetArrayF90(grid, surf_field%flow_xx_loc, xx_loc_p, ierr)
+
+  call density(option%reference_temperature,option%reference_pressure,rho)
+
+  xc => surf_realization%discretization%grid%x
+  yc => surf_realization%discretization%grid%y
+  zc => surf_realization%discretization%grid%z
+
+  ! Interior Flux Terms -----------------------------------  
+  connection_set_list => grid%internal_connection_set_list
+  cur_connection_set => connection_set_list%first
+  sum_connection = 0    
+  do 
+    if (.not.associated(cur_connection_set)) exit
+    
+    !write(*,*),'cur_connection_set%num_connections : ',cur_connection_set%num_connections
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+    
+      ghosted_id_up = cur_connection_set%id_up(iconn)
+      ghosted_id_dn = cur_connection_set%id_dn(iconn)
+
+      local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
+      local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
+
+      dx = cur_connection_set%intercp(1,iconn) - xc(ghosted_id_up)
+      dy = cur_connection_set%intercp(2,iconn) - yc(ghosted_id_up)
+      dz = cur_connection_set%intercp(3,iconn) - zc(ghosted_id_up)
+      slope_up = dz/sqrt(dx*dx + dy*dy * dz*dz)
+      
+      dx = xc(ghosted_id_dn) - cur_connection_set%intercp(1,iconn)
+      dy = yc(ghosted_id_dn) - cur_connection_set%intercp(2,iconn)
+      dz = zc(ghosted_id_dn) - cur_connection_set%intercp(3,iconn)
+      slope_dn = dz/sqrt(dx*dx + dy*dy * dz*dz)
+
+      hw_up = (xx_loc_p(ghosted_id_up)-option%reference_pressure)/option%gravity(3)/rho
+      hw_dn = (xx_loc_p(ghosted_id_dn)-option%reference_pressure)/option%gravity(3)/rho
+      
+      if(hw_up < eps) hw_up = 0.d0
+      if(hw_dn < eps) hw_dn = 0.d0
+
+      write(*,*),'hw : ',hw_up,hw_dn
+      call SurfaceFluxKinematicDerivative(hw_up,slope_up, mannings_loc_p(ghosted_id_up), &
+                                          hw_dn,slope_dn, mannings_loc_p(ghosted_id_dn), &
+                                          cur_connection_set%area(iconn), &
+                                          option,Jup,Jdn)
+      !Jup = 1.0d0
+      !Jdn = 1.0d0
+
+      if (local_id_dn > 0) then
+        call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
+                              Jdn,ADD_VALUES,ierr)
+        call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
+                               Jup,ADD_VALUES,ierr)
+      endif
+      if (local_id_up > 0) then
+        Jup = -Jup
+        Jdn = -Jdn
+        call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
+                               Jup,ADD_VALUES,ierr)
+        call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
+                               Jdn,ADD_VALUES,ierr)
+      endif
+      
+    enddo
+    cur_connection_set => cur_connection_set%next
+
+  enddo
+   
+  call GridVecRestoreArrayF90(grid, surf_field%mannings_loc, mannings_loc_p, ierr)
+  call GridVecRestoreArrayF90(grid, surf_field%flow_xx_loc, xx_loc_p, ierr)
+
+  !realization%option%io_buffer = 'stopping '
+  !call printErrMsg(realization%option)
+  call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr)
+  call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr)
+
+  call PetscViewerASCIIOpen(option%mycomm,'jacobian_surfflow.out',viewer,ierr)
+  call MatView(A,viewer,ierr)
+  call PetscViewerDestroy(viewer,ierr)
+
+  option%io_buffer = 'stopping for debugging'
+  call printErrMsgByRank(option)
+
+end subroutine SurfaceFlowJacobianPatch1
+
+! ************************************************************************** !
+!
+!
+! ************************************************************************** !
+subroutine SurfaceFluxKinematic(hw_up,slope_up,mannings_up, &
+                                hw_dn,slope_dn,mannings_dn,length,option,Res)
+
+  use Option_module
+  
+  implicit none
+  
+  type(option_type) :: option
+  PetscReal :: hw_up, hw_dn
+  PetscReal :: slope_up, slope_dn
+  PetscReal :: mannings_up, mannings_dn
+  PetscReal :: Res(1:option%nflowdof)
+  PetscReal :: length
+  
+  PetscReal :: flux_up, flux_dn
+  
+  flux_up = max(0.d0, dsign(1.d0,-slope_up)*sqrt(dabs(slope_up))/mannings_up*(hw_up)**(5.d0/3.d0) )
+  flux_dn = max(0.d0, dsign(1.d0,-slope_dn)*sqrt(dabs(slope_dn))/mannings_dn*(hw_dn)**(5.d0/3.d0) )
+  
+  Res(1) = (flux_up - flux_dn)*length
+  write(*,*),'flux: ',flux_up,flux_dn,length,Res(1)
+
+end subroutine SurfaceFluxKinematic
+
+! ************************************************************************** !
+!
+!
+! ************************************************************************** !
+subroutine SurfaceFluxKinematicDerivative(hw_up,slope_up,mannings_up, &
+                                          hw_dn,slope_dn,mannings_dn, &
+                                          length,option,Jup,Jdn)
+
+  use Option_module
+  
+  implicit none
+  
+  type(option_type) :: option
+  PetscReal :: hw_up, hw_dn
+  PetscReal :: slope_up, slope_dn
+  PetscReal :: mannings_up, mannings_dn
+  PetscReal :: length
+  PetscReal :: Jup(option%nflowdof,option%nflowdof), &
+               Jdn(option%nflowdof,option%nflowdof)
+  
+  PetscReal :: flux_up_dh_up, flux_dn_dh_dn
+  
+  flux_up_dh_up = 5.d0/3.d0 * max(0.d0, dsign(1.d0,-slope_up)*sqrt(dabs(slope_up)) &
+                                        /mannings_up*(hw_up)**(2.d0/3.d0) )
+  flux_dn_dh_dn = 5.d0/3.d0 * max(0.d0, dsign(1.d0,-slope_dn)*sqrt(dabs(slope_dn)) &
+                                        /mannings_dn*(hw_dn)**(5.d0/3.d0) )
+  
+  Jup = flux_up_dh_up * length
+  Jdn = flux_dn_dh_dn * length
+
+end subroutine SurfaceFluxKinematicDerivative
+
+end module Surface_Flow_module
+
+! ************************************************************************** !
+!
+!
+! ************************************************************************** !
+subroutine SurfaceFlowInitializeTimestep(surf_realization)
+
+  use Surface_Realization_module
+  use Surface_Field_module 
+  
+  implicit none
+
+  type(surface_realization_type) :: surf_realization
+
+  call SurfaceFlowUpdateFixedAccum(surf_realization)
+
+end subroutine SurfaceFlowInitializeTimestep
+
+! ************************************************************************** !
+!
+!
+! ************************************************************************** !
+subroutine SurfaceFlowUpdateFixedAccum(surf_realization)
+
+  use Surface_Realization_module
+  use Level_module
+  use Patch_module
+
+  type(surface_realization_type) :: surf_realization
+  
+  type(level_type), pointer :: cur_level
+  type(patch_type), pointer :: cur_patch
+  
+  cur_level => surf_realization%level_list%first
+  do
+    if (.not.associated(cur_level)) exit
+    cur_patch => cur_level%patch_list%first
+    do
+      if (.not.associated(cur_patch)) exit
+      surf_realization%patch => cur_patch
+      call SurfaceFlowUpdateFixedAccumPatch(surf_realization)
+      cur_patch => cur_patch%next
+    enddo
+    cur_level => cur_level%next
+  enddo
+
+end subroutine SurfaceFlowUpdateFixedAccum
+
+! ************************************************************************** !
+!
+!
+! ************************************************************************** !
+subroutine SurfaceFlowUpdateFixedAccumPatch(surf_realization)
+
+  use Surface_Realization_module
+  use Patch_module
+  use Option_module
+  use Grid_module
+  use Surface_Field_module
+  use water_eos_module
+
+  implicit none
+
+  type(surface_realization_type) :: surf_realization
+
+  type(option_type), pointer         :: option
+  type(patch_type), pointer          :: patch
+  type(grid_type), pointer           :: grid
+  type(surface_field_type),pointer   :: surf_field
+  
+  PetscInt             :: local_id, ghosted_id
+  PetscReal, pointer   :: accum_p(:),area_p(:),xx_loc_p(:)
+  PetscReal            :: rho          ! density      [kg/m^3]
+  PetscReal            :: head         ! [m]
+
+  PetscErrorCode :: ierr
+
+  option     => surf_realization%option
+  grid       => surf_realization%discretization%grid
+  surf_field => surf_realization%surf_field
+
+  call GridVecGetArrayF90(grid, surf_field%flow_accum, accum_p, ierr)
+  call GridVecGetArrayF90(grid, surf_field%area, area_p,ierr)
+  call GridVecGetArrayF90(grid, surf_field%flow_xx_loc, xx_loc_p, ierr)
+
+  call density(option%reference_temperature,option%reference_pressure,rho)
+
+  do local_id = 1, grid%nlmax
+
+    ghosted_id = grid%nL2G(local_id)
+    
+    head = (xx_loc_p(ghosted_id)-option%reference_pressure)/option%gravity(3)/rho
+    
+    call SurfaceFlowAccumulation(head,area_p(local_id),option, &
+                                 accum_p(local_id:local_id))
+
+  enddo
+
+  call GridVecRestoreArrayF90(grid ,surf_field%flow_accum, accum_p, ierr)
+  call GridVecRestoreArrayF90(grid, surf_field%area, area_p,ierr)
+  call GridVecRestoreArrayF90(grid, surf_field%flow_xx_loc, xx_loc_p, ierr)
+
+end subroutine SurfaceFlowUpdateFixedAccumPatch
+
+! ************************************************************************** !
+!
+!
+! ************************************************************************** !
+subroutine SurfaceFlowAccumulation(head, area, option, Res)
+
+  use Option_module
+
+  implicit none
+
+  type(option_type) :: option
+  PetscReal         :: Res(1:option%nflowdof)
+  PetscReal         :: head, area
+
+  Res(1) = head * area / option%flow_dt
+  write(*,*), 'Res: ',Res(1)
+
+end subroutine SurfaceFlowAccumulation
+#endif
+

@@ -27,12 +27,31 @@ module THC_Aux_module
     PetscReal :: du_dt
     PetscReal, pointer :: xmol(:)
     PetscReal, pointer :: diff(:)
+#ifdef ICE
+    PetscReal :: sat_ice
+    PetscReal :: sat_gas
+    PetscReal :: dsat_dt
+    PetscReal :: dsat_ice_dp
+    PetscReal :: dsat_gas_dp
+    PetscReal :: dsat_ice_dt
+    PetscReal :: dsat_gas_dt
+    PetscReal :: den_ice
+    PetscReal :: dden_ice_dp
+    PetscReal :: dden_ice_dt
+    PetscReal :: u_ice
+    PetscReal :: du_ice_dt
+#endif
   end type thc_auxvar_type
 
   type, public :: thc_parameter_type
     PetscReal, pointer :: dencpr(:)
     PetscReal, pointer :: ckdry(:) ! Thermal conductivity (dry)
-    PetscReal, pointer :: ckwet(:) ! Therman conductivity (wet)
+    PetscReal, pointer :: ckwet(:) ! Thermal conductivity (wet)
+    PetscReal, pointer :: alpha(:)
+#ifdef ICE
+    PetscReal, pointer :: ckfrozen(:) ! Thermal conductivity (frozen soil)
+    PetscReal, pointer :: alpha_fr(:)
+#endif
     PetscReal, pointer :: sir(:,:)
     PetscReal, pointer :: diffusion_coefficient(:)
     PetscReal, pointer :: diffusion_activation_energy(:)
@@ -52,7 +71,11 @@ module THC_Aux_module
 
   public :: THCAuxCreate, THCAuxDestroy, &
             THCAuxVarCompute, THCAuxVarInit, &
-            THCAuxVarCopy
+            THCAuxVarCopy, THCComputeGradient
+
+#ifdef ICE
+  public :: THCAuxVarComputeIce
+#endif
 
 contains
 
@@ -60,7 +83,7 @@ contains
 ! ************************************************************************** !
 !
 ! THCAuxCreate: Allocate and initialize auxilliary object
-! author: Glenn Hammond
+! author: ???
 ! date: 02/14/08
 !
 ! ************************************************************************** !
@@ -100,7 +123,7 @@ end function THCAuxCreate
 ! ************************************************************************** !
 !
 ! THCAuxVarInit: Initialize auxilliary object
-! author: Glenn Hammond
+! author: ???
 ! date: 02/14/08
 !
 ! ************************************************************************** !
@@ -135,13 +158,27 @@ subroutine THCAuxVarInit(aux_var,option)
   aux_var%xmol = 0.d0
   allocate(aux_var%diff(option%nflowspec))
   aux_var%diff = 1.d-9
+#ifdef ICE
+  aux_var%sat_ice = 0.d0
+  aux_var%sat_gas = 0.d0
+  aux_var%dsat_dt = 0.d0
+  aux_var%dsat_ice_dp = 0.d0
+  aux_var%dsat_gas_dp = 0.d0
+  aux_var%dsat_ice_dt = 0.d0
+  aux_var%dsat_gas_dt = 0.d0
+  aux_var%den_ice = 0.d0
+  aux_var%dden_ice_dp = 0.d0
+  aux_var%dden_ice_dt = 0.d0
+  aux_var%u_ice = 0.d0
+  aux_var%du_ice_dt = 0.d0
+#endif
 
 end subroutine THCAuxVarInit
 
 ! ************************************************************************** !
 !
 ! THCAuxVarCopy: Copies an auxilliary variable
-! author: Glenn Hammond
+! author: ???
 ! date: 12/13/07
 !
 ! ************************************************************************** !  
@@ -179,13 +216,27 @@ subroutine THCAuxVarCopy(aux_var,aux_var2,option)
   aux_var2%du_dt = aux_var%du_dt  
   aux_var2%xmol = aux_var%xmol
   aux_var2%diff = aux_var%diff
+#ifdef ICE
+  aux_var2%sat_ice = aux_var%sat_ice 
+  aux_var2%sat_gas = aux_var%sat_gas
+  aux_var2%dsat_dt = aux_var%dsat_dt
+  aux_var2%dsat_ice_dp = aux_var%dsat_ice_dp
+  aux_var2%dsat_gas_dp = aux_var%dsat_gas_dp
+  aux_var2%dsat_ice_dt = aux_var%dsat_ice_dt
+  aux_var2%dsat_gas_dt = aux_var%dsat_gas_dt
+  aux_var2%den_ice = aux_var%den_ice
+  aux_var2%dden_ice_dp = aux_var%dden_ice_dp
+  aux_var2%dden_ice_dt = aux_var%dden_ice_dt
+  aux_var2%u_ice = aux_var%u_ice
+  aux_var2%du_ice_dt = aux_var%du_ice_dt
+#endif
 
 end subroutine THCAuxVarCopy
 
 ! ************************************************************************** !
 !
 ! THCAuxVarCompute: Computes auxilliary variables for each grid cell
-! author: Glenn Hammond
+! author: ???
 ! date: 02/22/08
 !
 ! ************************************************************************** !
@@ -253,7 +304,7 @@ subroutine THCAuxVarCompute(x,aux_var,global_aux_var, &
                                    saturation_function, &
                                    por,perm, &
                                    option)
-    dpw_dp = 0
+    dpw_dp = 0.d0
   else
     iphase = 1
     aux_var%pc = 0.d0
@@ -265,8 +316,16 @@ subroutine THCAuxVarCompute(x,aux_var,global_aux_var, &
   endif  
 
 !  call wateos_noderiv(option%temp,pw,dw_kg,dw_mol,hw,option%scale,ierr)
-  call wateos(global_aux_var%temp(1),pw,dw_kg,dw_mol,dw_dp,dw_dt,hw,hw_dp,hw_dt, &
-              option%scale,ierr)
+!  call wateos(global_aux_var%temp(1),pw,dw_kg,dw_mol,dw_dp,dw_dt,hw,hw_dp,hw_dt, &
+!              option%scale,ierr)
+              
+!  print *, 'wateos:', dw_kg,dw_mol,dw_dp,dw_dt,hw,hw_dp,hw_dt
+
+  call wateos_simple(global_aux_var%temp(1), pw, dw_kg, dw_mol, dw_dp, &
+                         dw_dt, hw, hw_dp, hw_dt, ierr)
+                         
+!  print *, 'wateos_simple', dw_kg,dw_mol,dw_dp,dw_dt,hw,hw_dp,hw_dt
+
 
 ! may need to compute dpsat_dt to pass to VISW
   call psat(global_aux_var%temp(1),sat_pressure,dpsat_dt,ierr)
@@ -314,10 +373,219 @@ subroutine THCAuxVarCompute(x,aux_var,global_aux_var, &
   
 end subroutine THCAuxVarCompute
 
+
+! ************************************************************************** !
+! 
+! THCComputeGradient: Computes the gradient of temperature (for now) using
+! least square fit of values from neighboring cells
+! See:I. Bijelonja, I. Demirdzic, S. Muzaferija -- A finite volume method 
+! for incompressible linear elasticity, CMAME
+! Author: Satish Karra
+! Date: 2/20/12
+!
+! ************************************************************************** !
+
+
+subroutine THCComputeGradient(grid, global_aux_vars, ghosted_id, gradient, &
+                              option) 
+
+
+  use Grid_module
+  use Global_Aux_module
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  type(option_type) :: option
+  type(grid_type), pointer :: grid
+  type(global_auxvar_type), pointer :: global_aux_vars(:)
+
+  
+  PetscInt :: ghosted_neighbors_size, ghosted_id
+  PetscInt :: ghosted_neighbors(26)
+  PetscReal :: gradient(3), disp_vec(3,1), disp_mat(3,3)
+  PetscReal :: temp_weighted(3,1)
+  PetscInt :: i
+  
+  PetscInt :: INDX(3)
+  PetscInt :: D
+   
+  call GridGetGhostedNeighborsWithCorners(grid,ghosted_id, &
+                                         STAR_STENCIL, &
+                                         1,1,1,ghosted_neighbors_size, &
+                                         ghosted_neighbors, &
+                                         option)   
+
+  disp_vec = 0.d0
+  disp_mat = 0.d0
+  temp_weighted = 0.d0
+  do i = 1, ghosted_neighbors_size
+    disp_vec(1,1) = grid%x(ghosted_neighbors(i)) - grid%x(ghosted_id)
+    disp_vec(2,1) = grid%y(ghosted_neighbors(i)) - grid%y(ghosted_id)
+    disp_vec(3,1) = grid%z(ghosted_neighbors(i)) - grid%z(ghosted_id)
+    disp_mat = disp_mat + matmul(disp_vec,transpose(disp_vec))
+    temp_weighted = temp_weighted + disp_vec* &
+                    (global_aux_vars(ghosted_neighbors(i))%temp(1) - &
+                     global_aux_vars(ghosted_id)%temp(1))
+  enddo
+
+  call ludcmp(disp_mat,3,INDX,D)
+  call lubksb(disp_mat,3,INDX,temp_weighted)
+  
+  gradient(:) = temp_weighted(:,1)
+  
+end subroutine THCComputeGradient
+
+! ************************************************************************** !
+! 
+! THCAuxVarComputeIce: Computes auxillary variables for each grid cell when
+!                      ice and vapor phases are present
+! author: Satish Karra
+! Date: 11/16/11
+!
+! ************************************************************************** !
+
+#ifdef ICE
+subroutine THCAuxVarComputeIce(x, aux_var, global_aux_var, iphase, &
+                               saturation_function, por, perm, option)
+
+!sk: Not sure if we need por, perm
+
+  use Option_module
+  use Global_Aux_module
+  use water_eos_module
+  use Saturation_Function_module  
+  
+  implicit none
+
+  type(option_type) :: option
+  type(saturation_function_type) :: saturation_function
+  PetscReal :: x(option%nflowdof)
+  type(thc_auxvar_type) :: aux_var
+  type(global_auxvar_type) :: global_aux_var
+  PetscReal :: por, perm
+  PetscInt :: iphase
+
+  PetscErrorCode :: ierr
+  PetscReal :: pw, dw_kg, dw_mol, hw, sat_pressure, visl
+  PetscReal :: kr, ds_dp, dkr_dp, dkr_dt
+  PetscReal :: dvis_dt, dvis_dp, dvis_dpsat
+  PetscReal :: dw_dp, dw_dt, hw_dp, hw_dt
+  PetscReal :: dpw_dp
+  PetscReal :: dpsat_dt
+  PetscReal :: ice_saturation, gas_saturation
+  PetscReal :: dsl_temp
+  PetscReal :: dsg_pl, dsg_temp
+  PetscReal :: dsi_pl, dsi_temp
+  PetscReal :: den_ice, dden_ice_dT, dden_ice_dP
+  PetscReal :: u_ice, du_ice_dT
+ 
+  global_aux_var%sat = 0.d0
+  global_aux_var%den = 0.d0
+  global_aux_var%den_kg = 0.d0
+
+  aux_var%h = 0.d0
+  aux_var%u = 0.d0
+  aux_var%avgmw = 0.d0
+  aux_var%xmol = 0.d0
+  aux_var%kvr = 0.d0
+  aux_var%diff = 0.d0
+   
+  global_aux_var%pres = x(1)  
+  global_aux_var%temp = x(2)
+ 
+  aux_var%pc = option%reference_pressure - global_aux_var%pres(1)
+  aux_var%xmol(1) = 1.d0
+  if (option%nflowspec > 1) aux_var%xmol(2:option%nflowspec) = x(3:option%nflowspec+1)   
+
+!***************  Liquid phase properties **************************
+  aux_var%avgmw = FMWH2O
+
+  pw = option%reference_pressure
+  ds_dp = 0.d0
+  dkr_dp = 0.d0
+  if (aux_var%pc > 1.d0) then
+    iphase = 3
+    dpw_dp = 0.d0
+  else
+    iphase = 1
+    aux_var%pc = 0.d0
+    pw = global_aux_var%pres(1)
+    dpw_dp = 1.d0
+  endif  
+
+  call SaturationFunctionComputeIce(global_aux_var%pres(1), & 
+                                    global_aux_var%temp(1), ice_saturation, &
+                                    global_aux_var%sat(1), gas_saturation, &
+                                    kr, ds_dp, dsl_temp, dsg_pl, dsg_temp, &
+                                    dsi_pl, dsi_temp, dkr_dp, dkr_dt, &
+                                    saturation_function, option)
+
+
+  call wateos_simple(global_aux_var%temp(1), pw, dw_kg, dw_mol, dw_dp, &
+                         dw_dt, hw, hw_dp, hw_dt, ierr)
+                         
+  call psat(global_aux_var%temp(1), sat_pressure, dpsat_dt, ierr)
+  
+!  call VISW(global_aux_var%temp(1), pw, sat_pressure, visl, dvis_dt, &
+!            dvis_dp, ierr)
+
+  call VISW_temp(global_aux_var%temp(1),visl,dvis_dt,ierr)
+  dvis_dp = 0.d0
+  
+  dvis_dpsat = -dvis_dp 
+  if (iphase == 3) then !kludge since pw is constant in the unsat zone
+    dvis_dp = 0.d0
+    dw_dp = 0.d0
+    hw_dp = 0.d0
+  endif
+
+  global_aux_var%den = dw_mol
+  global_aux_var%den_kg = dw_kg
+  
+  aux_var%h = hw
+  aux_var%u = aux_var%h - pw / dw_mol * option%scale
+  aux_var%kvr = kr/visl
+  aux_var%vis = visl
+  aux_var%dsat_dp = ds_dp
+  aux_var%dden_dt = dw_dt
+  aux_var%dden_dp = dw_dp
+  aux_var%dkvr_dt = -kr/(visl*visl)*(dvis_dt + dvis_dpsat*dpsat_dt) + dkr_dt/visl
+  aux_var%dkvr_dp = dkr_dp/visl - kr/(visl*visl)*dvis_dp
+  aux_var%dh_dp = hw_dp
+  aux_var%du_dp = hw_dp - (dpw_dp/dw_mol - pw/(dw_mol*dw_mol)*dw_dp)* &
+                  option%scale
+  aux_var%dh_dt = hw_dt
+  aux_var%du_dt = hw_dt + pw/(dw_mol*dw_mol)*option%scale*dw_dt
+
+  aux_var%sat_ice = ice_saturation
+  aux_var%sat_gas = gas_saturation
+  aux_var%dsat_dt = dsl_temp
+  aux_var%dsat_ice_dp = dsi_pl
+  aux_var%dsat_gas_dp = dsg_pl
+  aux_var%dsat_ice_dt = dsi_temp
+  aux_var%dsat_gas_dt = dsg_temp
+  
+! Calculate the density, internal energy and derivatives for ice
+  call DensityIce(global_aux_var%temp(1), global_aux_var%pres(1), &
+                  den_ice, dden_ice_dT, dden_ice_dP)
+
+  call InternalEnergyIce(global_aux_var%temp(1), u_ice, du_ice_dT)
+
+  aux_var%den_ice = den_ice
+  aux_var%dden_ice_dt = dden_ice_dT
+  aux_var%dden_ice_dp = dden_ice_dP
+  aux_var%u_ice = u_ice*1.d-3                  !kJ/kmol --> MJ/kmol
+  aux_var%du_ice_dt = du_ice_dT*1.d-3          !kJ/kmol/K --> MJ/kmol/K 
+
+end subroutine THCAuxVarComputeIce
+#endif
+
 ! ************************************************************************** !
 !
 ! AuxVarDestroy: Deallocates a thc auxilliary object
-! author: Glenn Hammond
+! author: ???
 ! date: 02/14/08
 !
 ! ************************************************************************** !
@@ -337,7 +605,7 @@ end subroutine AuxVarDestroy
 ! ************************************************************************** !
 !
 ! THCAuxDestroy: Deallocates a thc auxilliary object
-! author: Glenn Hammond
+! author: ???
 ! date: 02/14/08
 !
 ! ************************************************************************** !
@@ -378,11 +646,22 @@ subroutine THCAuxDestroy(aux)
     nullify(aux%thc_parameter%ckwet)
     if (associated(aux%thc_parameter%ckdry)) deallocate(aux%thc_parameter%ckdry)
     nullify(aux%thc_parameter%ckdry)
+    if (associated(aux%thc_parameter%alpha)) deallocate(aux%thc_parameter%alpha)
+    nullify(aux%thc_parameter%alpha)
+#ifdef ICE
+    if (associated(aux%thc_parameter%ckfrozen)) deallocate(aux%thc_parameter%ckfrozen)
+    nullify(aux%thc_parameter%ckfrozen)
+    if (associated(aux%thc_parameter%alpha_fr)) deallocate(aux%thc_parameter%alpha_fr)
+    nullify(aux%thc_parameter%alpha_fr)
+#endif
     if (associated(aux%thc_parameter%sir)) deallocate(aux%thc_parameter%sir)
     nullify(aux%thc_parameter%sir)
   endif
   nullify(aux%thc_parameter)
-    
-end subroutine THCAuxDestroy
+
+  deallocate(aux)
+  nullify(aux)  
+
+  end subroutine THCAuxDestroy
 
 end module THC_Aux_module

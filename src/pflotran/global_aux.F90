@@ -27,6 +27,7 @@ module Global_Aux_module
     PetscReal, pointer :: reaction_rate(:)
     PetscReal, pointer :: reaction_rate_store(:)
 !   PetscReal, pointer :: reaction_rate_store(:,:)
+    PetscReal, pointer :: displacement(:)
   end type global_auxvar_type
   
   type, public :: global_type
@@ -35,10 +36,15 @@ module Global_Aux_module
     type(global_auxvar_type), pointer :: aux_vars_bc(:)
     type(global_auxvar_type), pointer :: aux_vars_ss(:)
   end type global_type
-
+  
+  interface GlobalAuxVarDestroy
+    module procedure GlobalAuxVarSingleDestroy
+    module procedure GlobalAuxVarArrayDestroy
+  end interface GlobalAuxVarDestroy
+  
   public :: GlobalAuxCreate, GlobalAuxDestroy, &
             GlobalAuxVarInit, GlobalAuxVarCopy, &
-            GlobalAuxVarDestroy
+            GlobalAuxVarDestroy, GlobalAuxVarStrip
 
 contains
 
@@ -104,13 +110,15 @@ subroutine GlobalAuxVarInit(aux_var,option)
   aux_var%sat_store = 0.d0
   allocate(aux_var%den_kg_store(option%nphase,TWO_INTEGER))
   aux_var%den_kg_store = 0.d0
+  allocate(aux_var%displacement(THREE_INTEGER))
+  aux_var%displacement = 0.d0
 
   select case(option%iflowmode)
-    case( IMS_MODE, MPH_MODE, FLASH2_MODE)
+    case(IMS_MODE, MPH_MODE, FLASH2_MODE)
       allocate(aux_var%xmass(option%nphase))
       aux_var%xmass = 1.d0
       allocate(aux_var%pres_store(option%nphase,TWO_INTEGER))
-      aux_var%pres_store = 0.d0
+      aux_var%pres_store = option%reference_pressure
       allocate(aux_var%temp_store(ONE_INTEGER,TWO_INTEGER))
       aux_var%temp_store = 0.d0
       allocate(aux_var%fugacoeff(ONE_INTEGER))
@@ -127,6 +135,33 @@ subroutine GlobalAuxVarInit(aux_var,option)
       aux_var%reaction_rate_store = 0.d0
     ! allocate(aux_var%reaction_rate_store(option%nflowspec,TWO_INTEGER))
     ! aux_var%reaction_rate_store = 0.d0
+    case(THC_MODE,THMC_MODE)
+    ! allocate(aux_var%xmass(option%nphase))
+    ! aux_var%xmass = 1.d0
+      allocate(aux_var%pres_store(option%nphase,TWO_INTEGER))
+      aux_var%pres_store = 0.d0
+      allocate(aux_var%temp_store(ONE_INTEGER,TWO_INTEGER))
+      aux_var%temp_store = 0.d0
+    ! allocate(aux_var%fugacoeff(ONE_INTEGER))
+    ! aux_var%fugacoeff = 1.d0
+    ! allocate(aux_var%fugacoeff_store(ONE_INTEGER,TWO_INTEGER))
+    ! aux_var%fugacoeff_store = 1.d0    
+      allocate(aux_var%den_store(option%nphase,TWO_INTEGER))
+      aux_var%den_store = 0.d0
+    ! allocate(aux_var%m_nacl(TWO_INTEGER))
+    ! aux_var%m_nacl = option%m_nacl
+    ! allocate(aux_var%reaction_rate(option%nflowspec))
+    ! aux_var%reaction_rate = 0.d0
+    ! allocate(aux_var%reaction_rate_store(option%nflowspec))
+    ! aux_var%reaction_rate_store = 0.d0
+    ! allocate(aux_var%reaction_rate_store(option%nflowspec,TWO_INTEGER))
+    ! aux_var%reaction_rate_store = 0.d0
+      nullify(aux_var%xmass)
+      nullify(aux_var%fugacoeff)
+      nullify(aux_var%fugacoeff_store)
+      nullify(aux_var%m_nacl)
+      nullify(aux_var%reaction_rate)
+      nullify(aux_var%reaction_rate_store)  
     case (G_MODE)
       nullify(aux_var%xmass)
       nullify(aux_var%pres_store)
@@ -148,7 +183,7 @@ subroutine GlobalAuxVarInit(aux_var,option)
       nullify(aux_var%reaction_rate)
       nullify(aux_var%reaction_rate_store)
   end select
-
+  
   if (option%iflag /= 0 .and. option%compute_mass_balance_new) then
     allocate(aux_var%mass_balance(option%nflowspec,option%nphase))
     aux_var%mass_balance = 0.d0
@@ -185,6 +220,7 @@ subroutine GlobalAuxVarCopy(aux_var,aux_var2,option)
   aux_var2%den_kg = aux_var%den_kg
   aux_var2%sat_store = aux_var%sat_store
   aux_var2%den_kg_store = aux_var%den_kg_store
+  aux_var2%displacement = aux_var%displacement
   
   if (associated(aux_var%reaction_rate) .and. &
       associated(aux_var2%reaction_rate)) then
@@ -215,7 +251,7 @@ subroutine GlobalAuxVarCopy(aux_var,aux_var2,option)
   endif
   if (associated(aux_var%den_store) .and. &
       associated(aux_var2%den_store)) then
-    aux_var2%pres_store = aux_var%den_store  
+    aux_var2%den_store = aux_var%den_store  
   endif
   if (associated(aux_var%temp_store) .and. &
       associated(aux_var2%temp_store)) then
@@ -233,15 +269,61 @@ subroutine GlobalAuxVarCopy(aux_var,aux_var2,option)
   endif
 
 end subroutine GlobalAuxVarCopy
+
+! ************************************************************************** !
+!
+! GlobalAuxVarSingleDestroy: Deallocates a mode auxilliary object
+! author: Glenn Hammond
+! date: 01/10/12
+!
+! ************************************************************************** !
+subroutine GlobalAuxVarSingleDestroy(aux_var)
+
+  implicit none
+
+  type(global_auxvar_type), pointer :: aux_var
+  
+  if (associated(aux_var)) then
+    call GlobalAuxVarStrip(aux_var)
+    deallocate(aux_var)
+  endif
+  nullify(aux_var)  
+
+end subroutine GlobalAuxVarSingleDestroy
   
 ! ************************************************************************** !
 !
-! GlobalAuxVarDestroy: Deallocates a mode auxilliary object
+! GlobalAuxVarArrayDestroy: Deallocates a mode auxilliary object
 ! author: Glenn Hammond
-! date: 02/14/08
+! date: 01/10/12
 !
 ! ************************************************************************** !
-subroutine GlobalAuxVarDestroy(aux_var)
+subroutine GlobalAuxVarArrayDestroy(aux_vars)
+
+  implicit none
+
+  type(global_auxvar_type), pointer :: aux_vars(:)
+  
+  PetscInt :: iaux
+  
+  if (associated(aux_vars)) then
+    do iaux = 1, size(aux_vars)
+      call GlobalAuxVarStrip(aux_vars(iaux))
+    enddo  
+    deallocate(aux_vars)
+  endif
+  nullify(aux_vars)  
+
+end subroutine GlobalAuxVarArrayDestroy
+  
+! ************************************************************************** !
+!
+! GlobalAuxVarStrip: Deallocates all members of single auxilliary object
+! author: Glenn Hammond
+! date: 01/10/12
+!
+! ************************************************************************** !
+subroutine GlobalAuxVarStrip(aux_var)
 
   implicit none
 
@@ -265,7 +347,9 @@ subroutine GlobalAuxVarDestroy(aux_var)
   nullify(aux_var%xmass)
   if (associated(aux_var%reaction_rate)) deallocate(aux_var%reaction_rate)
   nullify(aux_var%reaction_rate)
-  
+  if (associated(aux_var%displacement)) deallocate(aux_var%displacement)
+  nullify(aux_var%displacement)
+
   if (associated(aux_var%pres_store)) deallocate(aux_var%pres_store)
   nullify(aux_var%pres_store)
   if (associated(aux_var%temp_store)) deallocate(aux_var%temp_store)
@@ -282,7 +366,7 @@ subroutine GlobalAuxVarDestroy(aux_var)
   if (associated(aux_var%mass_balance_delta)) deallocate(aux_var%mass_balance_delta)
   nullify(aux_var%mass_balance_delta)
 
-end subroutine GlobalAuxVarDestroy
+end subroutine GlobalAuxVarStrip
 
 ! ************************************************************************** !
 !
@@ -300,21 +384,13 @@ subroutine GlobalAuxDestroy(aux)
   
   if (.not.associated(aux)) return
   
-  if (associated(aux%aux_vars)) then
-    do iaux = 1, aux%num_aux
-      call GlobalAuxVarDestroy(aux%aux_vars(iaux))
-    enddo  
-    deallocate(aux%aux_vars)
-  endif
-  nullify(aux%aux_vars)
-  if (associated(aux%aux_vars_bc)) then
-    do iaux = 1, aux%num_aux_bc
-      call GlobalAuxVarDestroy(aux%aux_vars_bc(iaux))
-    enddo  
-    deallocate(aux%aux_vars_bc)
-  endif
-  nullify(aux%aux_vars_bc)
-    
+  call GlobalAuxVarDestroy(aux%aux_vars)
+  call GlobalAuxVarDestroy(aux%aux_vars_bc)
+  call GlobalAuxVarDestroy(aux%aux_vars_ss)
+  
+  deallocate(aux)
+  nullify(aux)
+  
 end subroutine GlobalAuxDestroy
 
 end module Global_Aux_module

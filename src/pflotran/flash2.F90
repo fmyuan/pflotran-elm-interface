@@ -43,7 +43,7 @@ module Flash2_module
 
 ! PetscReal, allocatable, save :: Resold_AR(:,:), Resold_FL(:,:), delx(:,:)
   
-  public Flash2Residual,Flash2Jacobian, Flash2ResidualFluxContribPatch,&
+  public Flash2Residual,Flash2Jacobian, &
          Flash2UpdateFixedAccumulation,Flash2TimeCut,&
          Flash2Setup,Flash2UpdateReason,&
          Flash2MaxChange, Flash2UpdateSolution, &
@@ -109,7 +109,7 @@ subroutine Flash2Setup(realization)
        case(0,1,2)
          call initialize_span_wagner(realization%option%itable,realization%option%myrank)
        case(4,5)
-         call initialize_span_wagner(0,realization%option%myrank)
+         call initialize_span_wagner(ZERO_INTEGER,realization%option%myrank)
          call initialize_sw_interp(realization%option%itable, realization%option%myrank)
        case(3)
          call sw_spline_read
@@ -231,7 +231,7 @@ subroutine Flash2SetupPatch(realization)
   enddo
   patch%aux%Flash2%aux_vars_bc => aux_vars_bc
   patch%aux%Flash2%num_aux_bc = sum_connection
-  option%numerical_derivatives = PETSC_TRUE
+  option%numerical_derivatives_flow = PETSC_TRUE
   
   allocate(patch%aux%Flash2%delx(option%nflowdof, grid%ngmax))
   allocate(patch%aux%Flash2%Resold_AR(grid%nlmax,option%nflowdof))
@@ -303,6 +303,7 @@ end subroutine Flash2SetupPatch
 !
 ! ************************************************************************** !
 subroutine Flash2UpdateReasonPatch(reason,realization)
+
    use Realization_module
    use Patch_module
    use Field_module
@@ -1767,27 +1768,6 @@ subroutine Flash2Residual(snes,xx,r,realization,ierr)
 
   implicit none
 
-interface
-subroutine samrpetscobjectstateincrease(vec)
-       implicit none
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-       Vec :: vec
-end subroutine samrpetscobjectstateincrease
-    
-subroutine SAMRCoarsenFaceFluxes(p_application, vec, ierr)
-       implicit none
-#include "finclude/petscsysdef.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-       PetscFortranAddr :: p_application
-       Vec :: vec
-       PetscErrorCode :: ierr
-end subroutine SAMRCoarsenFaceFluxes
-       
-end interface
-
   SNES :: snes
   Vec :: xx
   Vec :: r
@@ -1808,6 +1788,7 @@ end interface
   option => realization%option
   discretization => realization%discretization
   
+  call PetscLogEventBegin(logging%event_r_residual,ierr)  
  
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
 
@@ -1859,25 +1840,6 @@ end interface
     cur_level => cur_level%next
   enddo
 
- ! now coarsen all face fluxes in case we are using SAMRAI to 
-  ! ensure consistent fluxes at coarse-fine interfaces
-  if(option%use_samr) then
-     call SAMRCoarsenFaceFluxes(discretization%amrgrid%p_application, field%flow_face_fluxes, ierr)
-
-     cur_level => realization%level_list%first
-     do
-        if (.not.associated(cur_level)) exit
-        cur_patch => cur_level%patch_list%first
-        do
-           if (.not.associated(cur_patch)) exit
-           realization%patch => cur_patch
-           call Flash2ResidualFluxContribPatch(r,realization,ierr)
-           cur_patch => cur_patch%next
-        enddo
-        cur_level => cur_level%next
-     enddo
-  endif
-
 ! pass #2 for everything else
   cur_level => realization%level_list%first
   do
@@ -1891,10 +1853,6 @@ end interface
     enddo
     cur_level => cur_level%next
   enddo
-
-  if(discretization%itype==AMR_GRID) then
-     call samrpetscobjectstateincrease(r)
-  endif
 
   if (realization%debug%vecview_residual) then
     call PetscViewerASCIIOpen(realization%option%mycomm,'Rresidual.out', &
@@ -2022,7 +1980,7 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
 !  call GridVecGetArrayF90(grid,field%iphas_loc, iphase_loc_p, ierr)
   allocate(Resold_AR(option%nflowdof), Resold_FL(option%nflowdof), delx(option%nflowdof))
  
-! Multiphase flash calculation is more expansive, so calculate once per iterration
+! Multiphase flash calculation is more expensive, so calculate once per iteration
 #if 1
   ! Pertubations for aux terms --------------------------------
   do ng = 1, grid%ngmax
@@ -2056,7 +2014,7 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
      endif
 #endif
 
-     if (option%numerical_derivatives) then
+     if (option%numerical_derivatives_flow) then
         delx(1) = xx_loc_p((ng-1)*option%nflowdof+1)*dfac * 1.D-3
         delx(2) = xx_loc_p((ng-1)*option%nflowdof+2)*dfac
  
@@ -2163,7 +2121,7 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
       if (associated(patch%imat)) then
         if (patch%imat(ghosted_id) <= 0) cycle
       endif
-      call Flash2SourceSink(msrc,nsrcpara, psrc,tsrc1,hsrc1,csrc1,aux_vars(ghosted_id)%aux_var_elem(0),&
+      call Flash2SourceSink(msrc,nsrcpara,psrc,tsrc1,hsrc1,csrc1,aux_vars(ghosted_id)%aux_var_elem(0),&
                             source_sink%flow_condition%itype(1),Res, &
                             patch%ss_fluid_fluxes(:,sum_connection), &
                             enthalpy_flag, option)
@@ -2429,89 +2387,6 @@ end subroutine Flash2ResidualPatch
 
 ! ************************************************************************** !
 !
-! RichardsResidualFluxContribsPatch: should be called only for SAMR
-! author: Bobby Philip
-! date: 02/17/09
-! not working for flash yet!!!!
-! ************************************************************************** !
-subroutine Flash2ResidualFluxContribPatch(r,realization,ierr)
-  use Realization_module
-  use Patch_module
-  use Grid_module
-  use Option_module
-  use Field_module
-  use Debug_module
-  
-  implicit none
-
-  Vec, intent(out) :: r
-  type(realization_type) :: realization
-
-  PetscErrorCode :: ierr
-
-  type :: flux_ptrs
-    PetscReal, dimension(:), pointer :: flux_p 
-  end type
-
-  type (flux_ptrs), dimension(0:2) :: fluxes
-  PetscReal, pointer :: r_p(:)
-  PetscReal, pointer :: face_fluxes_p(:)
-  type(grid_type), pointer :: grid
-  type(patch_type), pointer :: patch
-  type(option_type), pointer :: option
-  type(field_type), pointer :: field
-  PetscInt :: axis, nlx, nly, nlz
-  PetscInt :: iconn, i, j, k
-  PetscInt :: xup, xdn, yup, ydn, zup, zdn
-  PetscInt :: nd
-      
-  patch => realization%patch
-  grid => patch%grid
-  option => realization%option
-  field => realization%field
-! now assign access pointer to local variables
-  call GridVecGetArrayF90(grid,r, r_p, ierr)
-
-  do axis=0,2  
-     call GridVecGetArrayF90(grid,axis,field%flow_face_fluxes, fluxes(axis)%flux_p, ierr)  
-  enddo
-
-  nlx = grid%structured_grid%nlx  
-  nly = grid%structured_grid%nly  
-  nlz = grid%structured_grid%nlz 
-  nd = option%nflowdof
-      
-  iconn=0
-  do k=1,nlz
-     do j=1,nly
-        do i=1,nlx
-           iconn=iconn+nd
-           xup = (((k-1)*nly+j-1)*(nlx+1)+i)*nd
-           xdn = xup+nd
-           yup = (((k-1)*(nly+1)+(j-1))*nlx+i)*nd
-           ydn = yup+nlx*nd
-           zup = (((k-1)*nly+(j-1))*nlx+i)*nd
-           zdn = zup+nlx*nly*nd
-
-           r_p(iconn:iconn+nd-1) = r_p(iconn:iconn+nd-1) &
-                                  +fluxes(0)%flux_p(xdn:xdn+nd-1)-fluxes(0)%flux_p(xup:xup+nd-1) &
-                                  +fluxes(1)%flux_p(ydn:ydn+nd-1)-fluxes(1)%flux_p(yup:yup+nd-1) &
-                                  +fluxes(2)%flux_p(zdn:zdn+nd-1)-fluxes(2)%flux_p(zup:zup+nd-1)
-
-        enddo
-     enddo
-  enddo
-
-  call GridVecRestoreArrayF90(grid,r, r_p, ierr)
-!!$
-!!$  do axis=0,2  
-!!$     call GridVecRestoreArrayF90(grid,axis,field%flow_face_fluxes, fluxes(axis)%flux_p, ierr)  
-!!$  enddo
-
-end subroutine Flash2ResidualFluxContribPatch
-
-! ************************************************************************** !
-!
 ! Flash2Jacobian: Computes the Residual by Flux
 ! author: Chuan Lu
 ! date: 10/10/08
@@ -2530,17 +2405,6 @@ subroutine Flash2ResidualPatch1(snes,xx,r,realization,ierr)
   
   implicit none
   
-  interface
-     PetscInt function samr_patch_at_bc(p_patch, axis, dim)
-     implicit none
-     
-#include "finclude/petscsysdef.h"
-     
-     PetscFortranAddr :: p_patch
-     PetscInt :: axis,dim
-   end function samr_patch_at_bc
-  end interface
-
   type :: flux_ptrs
     PetscReal, dimension(:), pointer :: flux_p 
   end type
@@ -2626,39 +2490,6 @@ subroutine Flash2ResidualPatch1(snes,xx,r,realization,ierr)
   call GridVecGetArrayF90(grid,field%volume, volume_p, ierr)
   call GridVecGetArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
   call GridVecGetArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
-
-  if (option%use_samr) then
-     do axis=0,2  
-        call GridVecGetArrayF90(grid,axis,field%flow_face_fluxes, fluxes(axis)%flux_p, ierr)  
-     enddo
-
-     nlx = grid%structured_grid%nlx  
-     nly = grid%structured_grid%nly  
-     nlz = grid%structured_grid%nlz 
-
-     ngx = grid%structured_grid%ngx   
-     ngxy = grid%structured_grid%ngxy
-
-     if(samr_patch_at_bc(grid%structured_grid%p_samr_patch, ZERO_INTEGER, &
-                        ZERO_INTEGER)==1) nlx = nlx-1
-     if(samr_patch_at_bc(grid%structured_grid%p_samr_patch, ZERO_INTEGER, &
-                        ONE_INTEGER)==1) nlx = nlx-1
-    
-     max_x_conn = (nlx+1)*nly*nlz
-     ! reinitialize nlx
-     nlx = grid%structured_grid%nlx  
-
-     if(samr_patch_at_bc(grid%structured_grid%p_samr_patch, ONE_INTEGER, &
-                        ZERO_INTEGER)==1) nly = nly-1
-     if(samr_patch_at_bc(grid%structured_grid%p_samr_patch, ONE_INTEGER, &
-                        ONE_INTEGER)==1) nly = nly-1
-    
-     max_y_conn = max_x_conn + nlx*(nly+1)*nlz
-
-     ! reinitialize nly
-     nly = grid%structured_grid%nly  
-
-  endif
 
   r_p = 0.d0
  
@@ -2751,68 +2582,9 @@ subroutine Flash2ResidualPatch1(snes,xx,r,realization,ierr)
     patch%aux%Flash2%Resold_BC(local_id,1:option%nflowdof) = &
     patch%aux%Flash2%ResOld_BC(local_id,1:option%nflowdof) - Res(1:option%nflowdof)
 
-
-      if (option%use_samr) then
-         direction =  (boundary_condition%region%faces(iconn)-1)/2
-
-         ! the ghosted_id gives the id of the cell. Since the
-         ! flux_id is based on the ghosted_id of the downwind
-         ! cell this has to be adjusted in the case of the east, 
-         ! north and top faces before the flux_id is computed
-         select case(boundary_condition%region%faces(iconn)) 
-           case(WEST_FACE)
-              flux_id = ((ghosted_id/ngxy)-1)*(nlx+1)*nly + &
-                        ((mod(ghosted_id,ngxy))/ngx-1)*(nlx+1)+ &
-                        mod(mod(ghosted_id,ngxy),ngx)-1
-              istart = flux_id*option%nflowdof
-              iend = istart+option%nflowdof-1
-              fluxes(direction)%flux_p(istart:iend) = Res(1:option%nflowdof)
-           case(EAST_FACE)
-              ghosted_id = ghosted_id+1
-              flux_id = ((ghosted_id/ngxy)-1)*(nlx+1)*nly + &
-                        ((mod(ghosted_id,ngxy))/ngx-1)*(nlx+1)
-              istart = flux_id*option%nflowdof
-              iend = istart+option%nflowdof-1
-              fluxes(direction)%flux_p(istart:iend) = -Res(1:option%nflowdof)
-           case(SOUTH_FACE)
-              flux_id = ((ghosted_id/ngxy)-1)*nlx*(nly+1) + &
-                        ((mod(ghosted_id,ngxy))/ngx-1)*nlx + &
-                        mod(mod(ghosted_id,ngxy),ngx)-1
-              istart = flux_id*option%nflowdof
-              iend = istart+option%nflowdof-1
-              fluxes(direction)%flux_p(istart:iend) = Res(1:option%nflowdof)
-           case(NORTH_FACE)
-              ghosted_id = ghosted_id+ngx
-              flux_id = ((ghosted_id/ngxy)-1)*nlx*(nly+1) + &
-                        ((mod(ghosted_id,ngxy))/ngx-1)*nlx + &
-                        mod(mod(ghosted_id,ngxy),ngx)-1
-              istart = flux_id*option%nflowdof
-              iend = istart+option%nflowdof-1
-              fluxes(direction)%flux_p(istart:iend) = -Res(1:option%nflowdof)
-           case(BOTTOM_FACE)
-              flux_id = ((ghosted_id/ngxy)-1)*nlx*nly &
-                       +((mod(ghosted_id,ngxy))/ngx-1)*nlx &
-                       +mod(mod(ghosted_id,ngxy),ngx)-1
-              istart = flux_id*option%nflowdof
-              iend = istart+option%nflowdof-1
-              fluxes(direction)%flux_p(istart:iend) = Res(1:option%nflowdof)
-           case(TOP_FACE)
-              ghosted_id = ghosted_id+ngxy
-              flux_id = ((ghosted_id/ngxy)-1)*nlx*nly &
-                       +((mod(ghosted_id,ngxy))/ngx-1)*nlx &
-                       +mod(mod(ghosted_id,ngxy),ngx)-1
-              istart = flux_id*option%nflowdof
-              iend = istart+option%nflowdof-1
-              fluxes(direction)%flux_p(istart:iend) = -Res(1:option%nflowdof)
-         end select
-
-!         fluxes(direction)%flux_p(flux_id) = Res(1)
-
-      else
-       iend = local_id*option%nflowdof
-       istart = iend-option%nflowdof+1
-       r_p(istart:iend)= r_p(istart:iend) - Res(1:option%nflowdof)
-      endif 
+    iend = local_id*option%nflowdof
+    istart = iend-option%nflowdof+1
+    r_p(istart:iend)= r_p(istart:iend) - Res(1:option%nflowdof)
   enddo
   boundary_condition => boundary_condition%next
  enddo
@@ -2883,46 +2655,16 @@ subroutine Flash2ResidualPatch1(snes,xx,r,realization,ierr)
       patch%internal_velocities(:,sum_connection) = v_darcy(:)
       patch%aux%Flash2%Resold_FL(sum_connection,1:option%nflowdof)= Res(1:option%nflowdof)
 
-      if (option%use_samr) then
-        if (sum_connection <= max_x_conn) then
-          direction = 0
-          if(mod(mod(ghosted_id_dn,ngxy),ngx) == 0) then
-             flux_id = ((ghosted_id_dn/ngxy)-1)*(nlx+1)*nly + &
-                       ((mod(ghosted_id_dn,ngxy))/ngx-1)*(nlx+1)
-          else
-             flux_id = ((ghosted_id_dn/ngxy)-1)*(nlx+1)*nly + &
-                       ((mod(ghosted_id_dn,ngxy))/ngx-1)*(nlx+1)+ &
-                       mod(mod(ghosted_id_dn,ngxy),ngx)-1
-          endif
-
-        else if (sum_connection <= max_y_conn) then
-          direction = 1
-          flux_id = ((ghosted_id_dn/ngxy)-1)*nlx*(nly+1) + &
-                    ((mod(ghosted_id_dn,ngxy))/ngx-1)*nlx + &
-                    mod(mod(ghosted_id_dn,ngxy),ngx)-1
-        else
-          direction = 2
-          flux_id = ((ghosted_id_dn/ngxy)-1)*nlx*nly &
-                   +((mod(ghosted_id_dn,ngxy))/ngx-1)*nlx &
-                   +mod(mod(ghosted_id_dn,ngxy),ngx)-1
-        endif
-        istart = flux_id*option%nflowdof
-        iend = istart+option%nflowdof-1
-        fluxes(direction)%flux_p(istart:iend) = Res(1:option%nflowdof)
+      if (local_id_up>0) then
+        iend = local_id_up*option%nflowdof
+        istart = iend-option%nflowdof+1
+        r_p(istart:iend) = r_p(istart:iend) + Res(1:option%nflowdof)
       endif
-      
-      if(.not.option%use_samr) then
-        if (local_id_up>0) then
-          iend = local_id_up*option%nflowdof
-          istart = iend-option%nflowdof+1
-          r_p(istart:iend) = r_p(istart:iend) + Res(1:option%nflowdof)
-        endif
    
-        if (local_id_dn>0) then
-          iend = local_id_dn*option%nflowdof
-          istart = iend-option%nflowdof+1
-          r_p(istart:iend) = r_p(istart:iend) - Res(1:option%nflowdof)
-        endif
+      if (local_id_dn>0) then
+        iend = local_id_dn*option%nflowdof
+        istart = iend-option%nflowdof+1
+        r_p(istart:iend) = r_p(istart:iend) - Res(1:option%nflowdof)
       endif
     enddo
     cur_connection_set => cur_connection_set%next
@@ -3027,7 +2769,7 @@ subroutine Flash2ResidualPatch0(snes,xx,r,realization,ierr)
   patch%aux%Flash2%Resold_BC=0.D0
   patch%aux%Flash2%ResOld_FL=0.D0
 
-! Multiphase flash calculation is more expansive, so calculate once per iterration
+! Multiphase flash calculation is more expensive, so calculate once per iteration
 #if 1
   ! Pertubations for aux terms --------------------------------
   do ng = 1, grid%ngmax
@@ -3061,7 +2803,7 @@ subroutine Flash2ResidualPatch0(snes,xx,r,realization,ierr)
     endif
 #endif
 
-    if (option%numerical_derivatives) then
+    if (option%numerical_derivatives_flow) then
       delx(1) = xx_loc_p((ng-1)*option%nflowdof+1)*dfac * 1.D-3
       delx(2) = xx_loc_p((ng-1)*option%nflowdof+2)*dfac
  
@@ -3266,10 +3008,10 @@ subroutine Flash2ResidualPatch2(snes,xx,r,realization,ierr)
                             source_sink%flow_condition%itype(1),Res, &
                             patch%ss_fluid_fluxes(:,sum_connection), &
                             enthalpy_flag, option)
-     if (option%compute_mass_balance_new) then
-         global_aux_vars_ss(sum_connection)%mass_balance_delta(:,1) = &
-         global_aux_vars_ss(sum_connection)%mass_balance_delta(:,1) - &
-         Res(:)/option%flow_dt
+      if (option%compute_mass_balance_new) then
+        global_aux_vars_ss(sum_connection)%mass_balance_delta(:,1) = &
+          global_aux_vars_ss(sum_connection)%mass_balance_delta(:,1) - &
+          Res(:)/option%flow_dt
       endif
       r_p((local_id-1)*option%nflowdof + jh2o) = r_p((local_id-1)*option%nflowdof + jh2o)-Res(jh2o)
       r_p((local_id-1)*option%nflowdof + jco2) = r_p((local_id-1)*option%nflowdof + jco2)-Res(jco2)
@@ -3352,17 +3094,6 @@ subroutine Flash2Jacobian(snes,xx,A,B,flag,realization,ierr)
   
   implicit none
 
-interface
-subroutine SAMRSetCurrentJacobianPatch(mat,patch) 
-#include "finclude/petscsys.h"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-       
-       Mat :: mat
-       PetscFortranAddr :: patch
-end subroutine SAMRSetCurrentJacobianPatch
-end interface
-
   SNES :: snes
   Vec :: xx
   Mat :: A, B, J
@@ -3374,6 +3105,8 @@ end interface
   type(level_type), pointer :: cur_level
   type(patch_type), pointer :: cur_patch
   type(grid_type),  pointer :: grid
+
+  call PetscLogEventBegin(logging%event_r_jacobian,ierr)
 
  flag = SAME_NONZERO_PATTERN
   call MatGetType(A,mat_type,ierr)
@@ -3396,13 +3129,6 @@ end interface
     do
       if (.not.associated(cur_patch)) exit
       realization%patch => cur_patch
-      grid => cur_patch%grid
-      ! need to set the current patch in the Jacobian operator
-      ! so that entries will be set correctly
-      if(associated(grid%structured_grid) .and. &
-        (.not.(grid%structured_grid%p_samr_patch == 0))) then
-         call SAMRSetCurrentJacobianPatch(J, grid%structured_grid%p_samr_patch)
-      endif
       call Flash2JacobianPatch1(snes,xx,J,J,flag,realization,ierr)
       cur_patch => cur_patch%next
     enddo
@@ -3417,13 +3143,6 @@ end interface
     do
       if (.not.associated(cur_patch)) exit
       realization%patch => cur_patch
-      grid => cur_patch%grid
-      ! need to set the current patch in the Jacobian operator
-      ! so that entries will be set correctly
-      if(associated(grid%structured_grid) .and. &
-        (.not.(grid%structured_grid%p_samr_patch == 0))) then
-         call SAMRSetCurrentJacobianPatch(J, grid%structured_grid%p_samr_patch)
-      endif
       call Flash2JacobianPatch2(snes,xx,J,J,flag,realization,ierr)
       cur_patch => cur_patch%next
     enddo
@@ -3511,7 +3230,7 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,flag,realization,ierr)
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
-  PetscInt ::  natural_id_up,natural_id_dn
+  PetscInt :: natural_id_up,natural_id_dn
   
   PetscReal :: Jup(1:realization%option%nflowdof,1:realization%option%nflowdof), &
             Jdn(1:realization%option%nflowdof,1:realization%option%nflowdof)
@@ -3528,7 +3247,7 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,flag,realization,ierr)
   PetscReal :: distance_gravity
   PetscReal :: Res(realization%option%nflowdof) 
   PetscReal :: xxbc(1:realization%option%nflowdof), delxbc(1:realization%option%nflowdof)
-  PetscReal :: ResInc(realization%patch%grid%nlmax,realization%option%nflowdof,&
+  PetscReal :: ResInc(realization%patch%grid%nlmax,realization%option%nflowdof, &
            realization%option%nflowdof)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
@@ -4445,26 +4164,6 @@ subroutine Flash2JacobianPatch2(snes,xx,A,B,flag,realization,ierr)
   
   implicit none
 
-interface
-subroutine SAMRSetJacobianSourceOnPatch(which_pc, index, val, p_application, p_patch) 
-#include "finclude/petscsysdef.h"
-
-       PetscInt :: which_pc
-       PetscInt :: index
-       PetscReal :: val
-       PetscFortranAddr :: p_application
-       PetscFortranAddr :: p_patch
-end subroutine SAMRSetJacobianSourceOnPatch
-
-subroutine SAMRSetJacobianSrcCoeffsOnPatch(which_pc, p_application, p_patch) 
-#include "finclude/petscsysdef.h"
-
-       PetscInt :: which_pc
-       PetscFortranAddr :: p_application
-       PetscFortranAddr :: p_patch
-end subroutine SAMRSetJacobianSrcCoeffsOnPatch
-end interface
-
   SNES :: snes
   Vec :: xx
   Mat :: A, B
@@ -4759,12 +4458,6 @@ end interface
 !    call MatGetRowMaxAbs(A,debug_vec,PETSC_NULL_INTEGER,ierr)
 !    call VecMax(debug_vec,i,norm,ierr)
 !    call VecDestroy(debug_vec,ierr)
-  endif
-
-  if(option%use_samr) then
-     flow_pc = 0
-     call SAMRSetJacobianSrcCoeffsOnPatch(flow_pc, &
-          realization%discretization%amrgrid%p_application, grid%structured_grid%p_samr_patch)
   endif
 
 end subroutine Flash2JacobianPatch2

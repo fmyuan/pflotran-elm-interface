@@ -135,7 +135,7 @@ subroutine ConvergenceTest(snes_,it,xnorm,pnorm,fnorm,reason,context,ierr)
 !typedef enum {/* converged */
 !              SNES_CONVERGED_FNORM_ABS         =  2, /* F < F_minabs */
 !              SNES_CONVERGED_FNORM_RELATIVE    =  3, /* F < F_mintol*F_initial */
-!              SNES_CONVERGED_PNORM_RELATIVE    =  4, /* step size small */
+!              SNES_CONVERGED_SNORM_RELATIVE    =  4, /* step size small */
 !              SNES_CONVERGED_ITS               =  5, /* maximum iterations reached */
 !              SNES_CONVERGED_TR_DELTA          =  7,
 !              /* diverged */
@@ -184,6 +184,22 @@ subroutine ConvergenceTest(snes_,it,xnorm,pnorm,fnorm,reason,context,ierr)
   call SNESDefaultConverged(snes_,it,xnorm,pnorm,fnorm,reason, &
                             PETSC_NULL_OBJECT,ierr)
 
+! Checking if norm exceeds divergence tolerance
+  select case(option%iflowmode)
+    case(THC_MODE,MIS_MODE,MPH_MODE)
+!geh: inorm_residual is being used without being calculated.
+!      if (fnorm > solver%max_norm .or. pnorm > solver%max_norm .or. &
+!        inorm_residual > solver%max_norm) then
+      if (fnorm > solver%max_norm .or. pnorm > solver%max_norm) then
+        reason = -2
+      endif
+  end select  
+  
+  if (option%check_stomp_norm .and. &
+      option%stomp_norm < solver%newton_stomp_tol) then
+    reason = 12
+  endif
+  
 !  if (reason <= 0 .and. solver%check_infinity_norm) then
   if (solver%check_infinity_norm) then
   
@@ -209,6 +225,8 @@ subroutine ConvergenceTest(snes_,it,xnorm,pnorm,fnorm,reason,context,ierr)
     if (option%print_screen_flag .and. solver%print_convergence) then
       i = int(reason)
       select case(i)
+        case(-2)
+          string = 'max_norm'
         case(2)
           string = 'atol'
         case(3)
@@ -219,6 +237,8 @@ subroutine ConvergenceTest(snes_,it,xnorm,pnorm,fnorm,reason,context,ierr)
           string = 'itol_res'
         case(11)
           string = 'itol_upd'
+        case(12)
+          string = 'itol_stomp'
         case default
           write(string,'(i3)') reason
       end select
@@ -252,6 +272,8 @@ subroutine ConvergenceTest(snes_,it,xnorm,pnorm,fnorm,reason,context,ierr)
           string = 'itol_res'
         case(11)
           string = 'itol_upd'
+        case(12)
+          string = 'itol_stomp'
         case default
           write(string,'(i3)') reason
       end select
@@ -365,8 +387,12 @@ subroutine ConvergenceTest(snes_,it,xnorm,pnorm,fnorm,reason,context,ierr)
           string = "SNES_CONVERGED_FNORM_ABS"
         case(SNES_CONVERGED_FNORM_RELATIVE)
           string = "SNES_CONVERGED_FNORM_RELATIVE"
+#ifndef HAVE_SNES_API_3_2
+        case(SNES_CONVERGED_SNORM_RELATIVE)
+#else
         case(SNES_CONVERGED_PNORM_RELATIVE)
-          string = "SNES_CONVERGED_PNORM_RELATIVE"
+#endif
+          string = "SNES_CONVERGED_SNORM_RELATIVE"
         case(SNES_CONVERGED_ITS)
           string = "SNES_CONVERGED_ITS"
         case(SNES_CONVERGED_TR_DELTA)

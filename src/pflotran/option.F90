@@ -51,7 +51,7 @@ module Option_module
     MPI_Comm :: write_group, writers
     PetscMPIInt:: write_grp_size, write_grp_rank, writers_size, writers_rank
     PetscMPIInt :: wcolor, wkey, writer_color, writer_key
-#endif	
+#endif  
 
     character(len=MAXSTRINGLENGTH) :: io_buffer
   
@@ -62,23 +62,15 @@ module Option_module
     PetscInt :: iflowmode
     character(len=MAXWORDLENGTH) :: tranmode
     PetscInt :: itranmode
+    PetscInt :: tvd_flux_limiter
 
-    ! vector centering, used by SAMR
-    ! 0 - CELL CENTERED
-    ! 1 - FACE CENTERED
-    PetscInt :: ivar_centering
-    PetscBool :: use_samr
-    ! the next variable is used by SAMR to determine
-    ! what dof the linear system in operator split mode   
-    ! needs to be formed for
-    PetscInt :: rt_idof
-    PetscInt :: samr_mode
-      
     PetscInt :: nphase
     PetscInt :: liquid_phase
     PetscInt :: gas_phase
     PetscInt :: nflowdof
     PetscInt :: nflowspec
+    PetscInt :: rt_idof
+    PetscInt :: nmechdof
 
     PetscInt :: air_pressure_id
     PetscInt :: capillary_pressure_id
@@ -135,12 +127,13 @@ module Option_module
     PetscReal :: reference_porosity
     PetscReal :: reference_saturation
     
+    PetscReal :: pressure_dampening_factor
+    PetscReal :: saturation_change_limit
+    PetscReal :: stomp_norm
+    PetscBool :: check_stomp_norm
+    
     PetscReal :: minimum_hydrostatic_pressure
     
-    PetscBool :: update_porosity
-    PetscBool :: update_tortuosity
-    PetscBool :: update_permeability
-    PetscBool :: update_mineral_surface_area
     PetscBool :: update_mnrl_surf_with_porosity
     
     PetscBool :: jumpstart_kinetic_sorption
@@ -165,7 +158,8 @@ module Option_module
     
     PetscInt :: log_stage(10)
     
-    PetscBool :: numerical_derivatives
+    PetscBool :: numerical_derivatives_flow
+    PetscBool :: numerical_derivatives_rxn
     PetscBool :: compute_statistics
     PetscBool :: compute_mass_balance_new
     PetscBool :: use_touch_options
@@ -191,7 +185,6 @@ module Option_module
 
     PetscInt :: chunk_size
     PetscInt :: num_threads
-    PetscInt :: test_res
 
   end type option_type
   
@@ -222,6 +215,7 @@ module Option_module
     PetscBool :: print_mad 
 
     PetscInt :: screen_imod
+    PetscInt :: output_file_imod
     
     PetscInt :: periodic_output_ts_imod
     PetscInt :: periodic_tr_output_ts_imod
@@ -236,12 +230,26 @@ module Option_module
     character(len=MAXWORDLENGTH) :: plot_name
 
     character(len=MAXWORDLENGTH), pointer :: plot_variables(:)
+#ifdef GLENN_NEW_IO
+    PetscInt, pointer :: plot_variable_ids(:,:)
+    PetscInt :: num_plot_variables
+#endif
 
   end type output_option_type
 
   interface printMsg
     module procedure printMsg1
     module procedure printMsg2
+  end interface
+
+  interface printMsgAnyRank
+    module procedure printMsgAnyRank1
+    module procedure printMsgAnyRank2
+  end interface
+
+  interface printMsgByRank
+    module procedure printMsgByRank1
+    module procedure printMsgByRank2
   end interface
 
   interface printErrMsgByRank
@@ -266,14 +274,21 @@ module Option_module
             printErrMsgByRank, &
             printWrnMsg, &
             printMsg, &
-            OptionDestroy, &
+            printMsgAnyRank, &
+            printMsgByRank, &
             OptionCheckTouch, &
             OptionPrintToScreen, &
             OptionPrintToFile, &
             OutputOptionDestroy, &
             OptionInitRealization, &
             OptionMeanVariance, &
-            OptionMaxMinMeanVariance
+            OptionMaxMinMeanVariance, &
+#ifdef GLENN_NEW_IO
+            OutputOptionPlotVariablesInit, &
+            OutputOptionPlotVarFinalize, &
+            OutputOptionAddPlotVariable, &
+#endif
+            OptionDestroy
 
 contains
 
@@ -382,7 +397,6 @@ subroutine OptionInitAll(option)
 
   option%chunk_size = 8
   option%num_threads = 1
-  option%test_res = 0 
  
   call OptionInitRealization(option)
 
@@ -416,14 +430,15 @@ subroutine OptionInitRealization(option)
   option%flowmode = ""
   option%iflowmode = NULL_MODE
   option%nflowdof = 0
+  option%nmechdof = 0
 
   option%tranmode = ""
   option%itranmode = NULL_MODE
   option%ntrandof = 0
+  option%tvd_flux_limiter = 1
+  option%rt_idof = -999
   
   option%reactive_transport_coupling = GLOBAL_IMPLICIT
-  option%ivar_centering = CELL_CENTERED
-  option%use_samr = PETSC_FALSE
 
   option%nphase = 0
   option%liquid_phase = 0
@@ -451,11 +466,12 @@ subroutine OptionInitRealization(option)
   option%reference_water_density = 0.d0
   option%reference_porosity = 0.25d0
   option%reference_saturation = 1.d0
-
-  option%update_porosity = PETSC_FALSE
-  option%update_tortuosity = PETSC_FALSE
-  option%update_permeability = PETSC_FALSE
-  option%update_mineral_surface_area = PETSC_FALSE
+  
+  option%pressure_dampening_factor = 0.d0
+  option%saturation_change_limit = 0.d0
+  option%stomp_norm = 0.d0
+  option%check_stomp_norm = PETSC_FALSE
+  
   option%update_mnrl_surf_with_porosity = PETSC_FALSE
     
   option%jumpstart_kinetic_sorption = PETSC_FALSE
@@ -509,7 +525,8 @@ subroutine OptionInitRealization(option)
   
   option%log_stage = 0
   
-  option%numerical_derivatives = PETSC_FALSE
+  option%numerical_derivatives_flow = PETSC_FALSE
+  option%numerical_derivatives_rxn = PETSC_FALSE
   option%compute_statistics = PETSC_FALSE
   option%compute_mass_balance_new = PETSC_FALSE
 
@@ -535,6 +552,8 @@ subroutine OptionInitRealization(option)
   
   option%itable=0
   option%co2eos=EOS_SPAN_WAGNER
+
+! option%idt_switch = 1
   option%idt_switch = -1
 
   option%use_matrix_buffer = PETSC_FALSE
@@ -544,7 +563,7 @@ subroutine OptionInitRealization(option)
   option%mimetic = PETSC_FALSE
  
   option%variables_swapped = PETSC_FALSE
-  option%test_res = 0
+  
 end subroutine OptionInitRealization
 
 ! ************************************************************************** !
@@ -580,6 +599,7 @@ function OutputOptionCreate()
   output_option%print_final = PETSC_TRUE
   output_option%plot_number = 0
   output_option%screen_imod = 1
+  output_option%output_file_imod = 1
   output_option%periodic_output_ts_imod  = 100000000
   output_option%periodic_output_time_incr = 0.d0
   output_option%periodic_tr_output_ts_imod = 100000000
@@ -592,7 +612,11 @@ function OutputOptionCreate()
   output_option%tunit = 's'
   
   nullify(output_option%plot_variables)
-
+#ifdef GLENN_NEW_IO
+  nullify(output_option%plot_variable_ids)
+  output_option%num_plot_variables = 0
+#endif
+  
   OutputOptionCreate => output_option
   
 end function OutputOptionCreate
@@ -636,7 +660,10 @@ subroutine OptionCheckCommandLine(option)
   option_found = PETSC_FALSE
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-use_thc", &
                            option_found, ierr)
-  if (option_found) option%flowmode = "thc"                           
+  if (option_found) option%flowmode = "thc"     
+  call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-use_thmc", &
+                           option_found, ierr)
+  if (option_found) option%flowmode = "thmc"     
   option_found = PETSC_FALSE
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-use_mph", &
                            option_found, ierr)
@@ -667,24 +694,7 @@ subroutine printErrMsg1(option)
   
   type(option_type) :: option
   
-  PetscBool :: petsc_initialized
-  PetscErrorCode :: ierr
-  
-  if (OptionPrintToScreen(option)) then
-#ifndef CLM_PFLOTRAN
-    print *
-    print *, 'ERROR: ' // trim(option%io_buffer)
-    print *, 'Stopping!'
-#else
-    write(iulog,*)
-    write(iulog,*), 'ERROR: ' // trim(option%io_buffer)
-    write(iulog,*), 'Stopping!'
-#endif
-  endif    
-  call MPI_Barrier(option%mycomm,ierr)
-  call PetscInitialized(petsc_initialized, ierr)
-  if (petsc_initialized) call PetscFinalize(ierr)
-  stop
+  call printErrMsg2(option,option%io_buffer)
   
 end subroutine printErrMsg1
 
@@ -779,11 +789,7 @@ subroutine printWrnMsg1(option)
   
   type(option_type) :: option
   
-#ifndef CLM_PFLOTRAN
-  if (OptionPrintToScreen(option)) print *, 'WARNING: ' // trim(option%io_buffer)
-#else
-  if (OptionPrintToScreen(option)) write(iulog,*), 'WARNING: ' // trim(option%io_buffer)
-#endif
+  call printWrnMsg2(option,option%io_buffer)
   
 end subroutine printWrnMsg1
 
@@ -822,11 +828,7 @@ subroutine printMsg1(option)
   
   type(option_type) :: option
   
-#ifndef CLM_PFLOTRAN
-  if (OptionPrintToScreen(option)) print *, trim(option%io_buffer)
-#else
-  if (OptionPrintToScreen(option)) write(iulog,*), trim(option%io_buffer)
-#endif
+  call printMsg2(option,option%io_buffer)
   
 end subroutine printMsg1
 
@@ -852,6 +854,78 @@ subroutine printMsg2(option,string)
   
 end subroutine printMsg2
 
+! ************************************************************************** !
+!
+! printMsgAnyRank1: Prints the message from any processor core
+! author: Glenn Hammond
+! date: 01/12/12
+!
+! ************************************************************************** !
+subroutine printMsgAnyRank1(option)
+
+  implicit none
+  
+  type(option_type) :: option
+  
+  call printMsgAnyRank2(option%io_buffer)
+  
+end subroutine printMsgAnyRank1
+
+! ************************************************************************** !
+!
+! printMsgAnyRank2: Prints the message from any processor core
+! author: Glenn Hammond
+! date: 01/12/12
+!
+! ************************************************************************** !
+subroutine printMsgAnyRank2(string)
+
+  implicit none
+  
+  character(len=*) :: string
+  
+  print *, trim(string)
+  
+end subroutine printMsgAnyRank2
+
+! ************************************************************************** !
+!
+! printMsgByRank1: Prints a message from processor along with rank
+! author: Glenn Hammond
+! date: 03/27/12
+!
+! ************************************************************************** !
+subroutine printMsgByRank1(option)
+
+  implicit none
+  
+  type(option_type) :: option
+  
+  call printMsgByRank2(option,option%io_buffer)
+  
+end subroutine printMsgByRank1
+
+! ************************************************************************** !
+!
+! printMsgByRank2: Prints a message from processor along with rank
+! author: Glenn Hammond
+! date: 03/27/12
+!
+! ************************************************************************** !
+subroutine printMsgByRank2(option,string)
+
+  implicit none
+  
+  type(option_type) :: option
+  character(len=*) :: string
+  
+  character(len=MAXWORDLENGTH) :: word
+  
+  write(word,*) option%myrank
+  print *, '(' // trim(adjustl(word)) // '): ' // trim(option%io_buffer)
+  
+end subroutine printMsgByRank2
+ 
 ! ************************************************************************** !
 !
 ! OptionCheckTouch: Users can steer the code by touching files.
@@ -1004,6 +1078,98 @@ subroutine OptionMeanVariance(value,mean,variance,calculate_variance,option)
   
 end subroutine OptionMeanVariance
 
+#ifdef GLENN_NEW_IO
+! ************************************************************************** !
+!
+! OutputOptionPlotVariablesInit: initializes plot variables array
+! author: Glenn Hammond
+! date: 12/03/11
+!
+! ************************************************************************** !
+subroutine OutputOptionPlotVariablesInit(output_option)
+
+  implicit none
+  
+  type(output_option_type) :: output_option
+  
+  if (associated(output_option%plot_variable_ids)) then
+    deallocate(output_option%plot_variable_ids)
+  endif
+  output_option%num_plot_variables = 0
+  allocate(output_option%plot_variable_ids(3,100))
+  output_option%plot_variable_ids = 0
+  
+end subroutine OutputOptionPlotVariablesInit
+
+! ************************************************************************** !
+!
+! OutputOptionAddPlotVariable: Appends ids for output variables to array
+! author: Glenn Hammond
+! date: 12/03/11
+!
+! ************************************************************************** !
+subroutine OutputOptionAddPlotVariable(output_option,ivar,isubvar,isubsubvar)
+
+  implicit none
+  
+  type(output_option_type) :: output_option
+  PetscInt :: ivar
+  PetscInt :: isubvar
+  PetscInt :: isubsubvar
+  
+  PetscInt :: num_variables
+
+  ! output_option%num_plot_variables: # of variables (if negative, addition 
+  !                                   of plot variables is not complete
+  
+  ! this is a flag indicating that variable addition has not completed
+  if (output_option%num_plot_variables <= 0) then
+    output_option%num_plot_variables = output_option%num_plot_variables - 1
+    num_variables = abs(output_option%num_plot_variables)
+    if (num_variables > 100) then
+      print *, 'Number of plot variables exceeds 100'
+      stop
+    endif
+    output_option%plot_variable_ids(1,num_variables) = ivar
+    if (isubvar > 0) then
+      output_option%plot_variable_ids(2,num_variables) = isubvar
+      if (isubsubvar > 0) then
+        output_option%plot_variable_ids(3,num_variables) = isubsubvar
+      endif
+    endif
+  endif
+  
+end subroutine OutputOptionAddPlotVariable
+
+! ************************************************************************** !
+!
+! OutputOptionPlotVarFinalize: finalizes plot variables array
+! author: Glenn Hammond
+! date: 12/03/11
+!
+! ************************************************************************** !
+subroutine OutputOptionPlotVarFinalize(output_option)
+
+  implicit none
+  
+  type(output_option_type) :: output_option
+  
+  PetscInt, allocatable :: temp_array(:,:)
+
+  if (output_option%num_plot_variables < 0) then
+    output_option%num_plot_variables = abs(output_option%num_plot_variables)
+    allocate(temp_array(3,output_option%num_plot_variables))
+    temp_array = &
+      output_option%plot_variable_ids(:,1:output_option%num_plot_variables)
+    deallocate(output_option%plot_variable_ids)
+    allocate(output_option%plot_variable_ids(3,output_option%num_plot_variables))
+    output_option%plot_variable_ids = temp_array
+    deallocate(temp_array)
+  endif
+  
+end subroutine OutputOptionPlotVarFinalize
+#endif
+
 ! ************************************************************************** !
 !
 ! OutputOptionDestroy: Deallocates an output option
@@ -1020,6 +1186,11 @@ subroutine OutputOptionDestroy(output_option)
   if (associated(output_option%plot_variables)) &
     deallocate(output_option%plot_variables)
   nullify(output_option%plot_variables)
+#ifdef GLENN_NEW_IO  
+  if (associated(output_option%plot_variable_ids)) &
+    deallocate(output_option%plot_variable_ids)
+  nullify(output_option%plot_variable_ids)
+#endif
 
   deallocate(output_option)
   nullify(output_option)

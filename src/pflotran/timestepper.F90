@@ -257,6 +257,16 @@ subroutine TimestepperRead(stepper,input,option)
         call InputReadDouble(input,option,option%dsmxe)
         call InputDefaultMsg(input,option,'dsmxe')
 
+      case('PRESSURE_DAMPENING_FACTOR')
+        call InputReadDouble(input,option,option%pressure_dampening_factor)
+        call InputErrorMsg(input,option,'PRESSURE_DAMPENING_FACTOR', &
+                           'TIMESTEPPER')
+
+      case('SATURATION_CHANGE_LIMIT')
+        call InputReadDouble(input,option,option%saturation_change_limit)
+        call InputErrorMsg(input,option,'SATURATION_CHANGE_LIMIT', &
+                           'TIMESTEPPER')
+
       case default
         option%io_buffer = 'Timestepper option: '//trim(keyword)// &
                            ' not recognized.'
@@ -274,7 +284,11 @@ end subroutine TimestepperRead
 ! date: 10/25/07
 !
 ! ************************************************************************** !
+#ifdef SURFACE_FLOW
+subroutine StepperRun(realization,surf_realization,flow_stepper,tran_stepper,surf_flow_stepper)
+#else
 subroutine StepperRun(realization,flow_stepper,tran_stepper)
+#endif
 
   use Realization_module
 
@@ -282,10 +296,12 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
   use Output_module, only : Output, OutputInit, OutputVectorTecplot, &
                             OutputPermeability, OutputPrintCouplers
   use Logging_module  
-  use Mass_Balance_module
   use Discretization_module
   use Condition_Control_module
-
+#ifdef SURFACE_FLOW
+  use Surface_Flow_module
+  use Surface_Realization_module
+#endif
   implicit none
   
 #include "finclude/petscdef.h"
@@ -296,6 +312,10 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
   type(realization_type) :: realization
   type(stepper_type), pointer :: flow_stepper
   type(stepper_type), pointer :: tran_stepper
+#ifdef SURFACE_FLOW
+  type(stepper_type), pointer :: surf_flow_stepper
+  type(surface_realization_type), pointer :: surf_realization
+#endif
   
   type(stepper_type), pointer :: master_stepper
   type(stepper_type), pointer :: null_stepper
@@ -310,7 +330,7 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
   PetscBool :: transport_read
   PetscBool :: step_to_steady_state
   PetscBool :: run_flow_as_steady_state
-  PetscBool :: failure
+  PetscBool :: failure, surf_failure
   PetscLogDouble :: start_time, end_time
   PetscReal :: tran_dt_save, flow_t0
   PetscReal :: dt_cfl_1, flow_to_tran_ts_ratio
@@ -320,7 +340,7 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
 
   option => realization%option
   output_option => realization%output_option
- 
+
   nullify(master_stepper,null_stepper)
 
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-vecload_block_size", & 
@@ -422,6 +442,14 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
   call StepperUpdateSolution(realization)
 
   if (option%jumpstart_kinetic_sorption .and. option%time < 1.d-40) then
+    ! only user jumpstart for a restarted simulation
+    if (.not. option%restart_flag) then
+      option%io_buffer = 'Only use JUMPSTART_KINETIC_SORPTION on a ' // &
+        'restarted simulation.  ReactionEquilibrateConstraint() will ' // &
+        'appropriately set sorbed initial concentrations for a normal ' // &
+        '(non-restarted) simulation.'
+      call printErrMsg(option)
+    endif
     call StepperJumpStart(realization)
   endif
   
@@ -496,7 +524,8 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
   if (associated(tran_stepper)) then
     if (.not.associated(tran_stepper%cur_waypoint)) then
       option%io_buffer = &
-        'Null transport waypoint list; final time likely equal to start time.'
+        'Null transport waypoint list; final time likely equal to start ' // &
+        'time or simulation time needs to be extended on a restart.'
       call printMsg(option)
       return
     else
@@ -513,8 +542,9 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
     tran_stepper%start_time_step = tran_stepper%steps + 1
   
   if (realization%debug%print_couplers) then
-    call OutputPrintCouplers(realization,0)
-  endif  
+    call OutputPrintCouplers(realization,ZERO_INTEGER)
+  endif
+
   do
 
     if (OptionPrintToScreen(option) .and. &
@@ -524,7 +554,8 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
       option%print_screen_flag = PETSC_FALSE
     endif
 
-    if (OptionPrintToFile(option)) then
+    if (OptionPrintToFile(option) .and. &
+        mod(master_stepper%steps,output_option%output_file_imod) == 0) then
       option%print_file_flag = PETSC_TRUE
     else
       option%print_file_flag = PETSC_FALSE
@@ -536,25 +567,49 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
     
     call StepperSetTargetTimes(flow_stepper,tran_stepper,option,plot_flag, &
                                transient_plot_flag)
+#ifdef SURFACE_FLOW
+    write(*,*),'After StepperSetTargetTimes: ',option%flow_dt, flow_stepper%target_time, flow_stepper%dt_max
+    !call StepperSetTargetTimesSurfaceFlow(surf_flow_stepper,surf_realization%option)
+    surf_flow_stepper%target_time   = flow_stepper%target_time
+    surf_realization%option%flow_dt = option%flow_dt
+    write(*,*),'After StepperSetTargetTimesSurfaceFlow: ',surf_realization%option%flow_dt, &
+      surf_flow_stepper%target_time, surf_flow_stepper%dt_max
+#endif
 
     ! flow solution
-    if (associated(flow_stepper)) then
-      if (.not.flow_stepper%run_as_steady_state) then
-        flow_t0 = option%flow_time
-        call PetscLogStagePush(logging%stage(FLOW_STAGE),ierr)
-        call StepperStepFlowDT(realization,flow_stepper,step_to_steady_state, &
-                               failure)
-        call PetscLogStagePop(ierr)
-        if (failure) return ! if flow solve fails, exit
-        option%flow_time = flow_stepper%target_time
-      endif
+    if (associated(flow_stepper) .and. .not.run_flow_as_steady_state) then
+      flow_t0 = option%flow_time
+      call PetscLogStagePush(logging%stage(FLOW_STAGE),ierr)
+      call StepperStepFlowDT(realization,flow_stepper,step_to_steady_state, &
+                              failure)
+#ifdef SURFACE_FLOW
+      !call SNESSolve(surf_flow_stepper%solver%snes, PETSC_NULL_OBJECT, &
+      !               surf_realization%surf_field%flow_xx, ierr)
+#endif
+      call PetscLogStagePop(ierr)
+      if (failure) return ! if flow solve fails, exit
+      option%flow_time = flow_stepper%target_time
     endif
+    
+#ifdef SURFACE_FLOW
+    ! surface-flow solution
+    if (associated(surf_flow_stepper) .and. .not.run_flow_as_steady_state) then
+      !flow_t0 = option%flow_time
+      !call PetscLogStagePush(logging%stage(FLOW_STAGE),ierr)
+      call StepperStepSurfaceFlowDT(surf_realization,surf_flow_stepper, &
+                              surf_failure)
+      !call PetscLogStagePop(ierr)
+      !if (failure) return ! if flow solve fails, exit
+      !option%flow_time = flow_stepper%target_time
+    endif
+#endif
+    
     ! (reactive) transport solution
     if (associated(tran_stepper)) then
       call PetscLogStagePush(logging%stage(TRAN_STAGE),ierr)
       tran_dt_save = -999.d0
       ! reset transpor time step if flow time step is cut
-      if (associated(flow_stepper)) then
+      if (associated(flow_stepper) .and. .not.run_flow_as_steady_state) then
         if (flow_stepper%time_step_cut_flag) then
           tran_stepper%target_time = flow_stepper%target_time
           option%tran_dt = min(option%tran_dt,option%flow_dt)
@@ -568,7 +623,7 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
       ! if transport time step is less than flow step, but greater than
       ! half the flow time step, might as well cut it down to half the 
       ! flow time step size
-      if (associated(flow_stepper)) then
+      if (associated(flow_stepper) .and. .not.run_flow_as_steady_state) then
         flow_to_tran_ts_ratio = option%flow_dt / option%tran_dt
         if (flow_to_tran_ts_ratio > 1.d0 .and. &
             flow_to_tran_ts_ratio < 2.d0) then
@@ -579,11 +634,13 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
         if (option%reactive_transport_coupling == GLOBAL_IMPLICIT) then
           !global implicit
           call StepperStepTransportDT_GI(realization,tran_stepper, &
-                                      flow_t0,option%flow_time,failure)
+                                         run_flow_as_steady_state, &
+                                         flow_t0,option%flow_time,failure)
         else
           !operator splitting
           call StepperStepTransportDT_OS(realization,tran_stepper, &
-                                      flow_t0,option%flow_time,failure)
+                                         run_flow_as_steady_state, &
+                                         flow_t0,option%flow_time,failure)
         endif
         if (failure) then ! if transport solve fails, exit
           call PetscLogStagePop(ierr)
@@ -633,7 +690,7 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
     
     option%time = master_stepper%target_time
     call StepperUpdateSolution(realization)
-    
+
     ! if a time step cut has occured, need to set the below back to original values
     ! if they changed. 
     if (master_stepper%time_step_cut_flag) then
@@ -762,32 +819,37 @@ subroutine StepperUpdateDT(flow_stepper,tran_stepper,option)
   type(option_type) :: option
   
   PetscReal :: time, dt
-  PetscReal :: fac,dtt,up,utmp,uc,ut,uus
+  PetscReal :: fac,dtt,up,utmp,uc,ut,uus,dt_tfac,dt_p
   PetscBool :: update_time_step
+  PetscInt :: ifac
 
   ! FLOW
   update_time_step = PETSC_TRUE
   if (associated(flow_stepper)) then
-    ! if the time step was cut, set number of constant time steps to 1
-    if (flow_stepper%time_step_cut_flag) then
-      flow_stepper%time_step_cut_flag = PETSC_FALSE
-      flow_stepper%num_constant_time_steps = 1
-    ! otherwise, only increment if teh constant time step counter was
-    ! initialized to 1
-    else if (flow_stepper%num_constant_time_steps > 0) then
-      flow_stepper%num_constant_time_steps = &
-        flow_stepper%num_constant_time_steps + 1
-    endif
-    
-    ! num_constant_time_steps = 0: normal time stepping with growing steps
-    ! num_constant_time_steps > 0: restriction of constant time steps until
-    !                              constant_time_step_threshold is met
-    if (flow_stepper%num_constant_time_steps > &
-        flow_stepper%constant_time_step_threshold) then
-      flow_stepper%num_constant_time_steps = 0
-    else if (flow_stepper%num_constant_time_steps > 0) then
-      ! do not increase time step size
+    if (flow_stepper%run_as_steady_state) then
       update_time_step = PETSC_FALSE
+    else
+      ! if the time step was cut, set number of constant time steps to 1
+      if (flow_stepper%time_step_cut_flag) then
+        flow_stepper%time_step_cut_flag = PETSC_FALSE
+        flow_stepper%num_constant_time_steps = 1
+      ! otherwise, only increment if teh constant time step counter was
+      ! initialized to 1
+      else if (flow_stepper%num_constant_time_steps > 0) then
+        flow_stepper%num_constant_time_steps = &
+          flow_stepper%num_constant_time_steps + 1
+      endif
+    
+      ! num_constant_time_steps = 0: normal time stepping with growing steps
+      ! num_constant_time_steps > 0: restriction of constant time steps until
+      !                              constant_time_step_threshold is met
+      if (flow_stepper%num_constant_time_steps > &
+          flow_stepper%constant_time_step_threshold) then
+        flow_stepper%num_constant_time_steps = 0
+      else if (flow_stepper%num_constant_time_steps > 0) then
+        ! do not increase time step size
+        update_time_step = PETSC_FALSE
+      endif
     endif
     
     if (update_time_step) then
@@ -822,6 +884,17 @@ subroutine StepperUpdateDT(flow_stepper,tran_stepper,option)
             ut = min(up,utmp,uus)
           endif
           dtt = fac * dt * (1.d0 + ut)
+        case(MIS_MODE)   
+          fac = 0.5d0
+          if (flow_stepper%num_newton_iterations >= flow_stepper%iaccel) then
+            fac = 0.33d0
+            ut = 0.d0
+          else
+            up = option%dpmxe/(option%dpmax+0.1)
+            uc = option%dcmxe/(option%dcmax+1.d-6)
+            ut = min(up,uc)
+          endif
+          dtt = fac * dt * (1.d0 + ut)
         case(MPH_MODE)   
           fac = 0.5d0
           if (flow_stepper%num_newton_iterations >= flow_stepper%iaccel) then
@@ -847,21 +920,40 @@ subroutine StepperUpdateDT(flow_stepper,tran_stepper,option)
             ut = min(up,utmp,uus)
           endif
           dtt = fac * dt * (1.d0 + ut)
-        case(RICHARDS_MODE)
+        case(THMC_MODE)
           fac = 0.5d0
-!          write(*,*) "flow_stepper%num_newton_iterations", flow_stepper%num_newton_iterations
-!          write(*,*) "flow_stepper%iaccel", flow_stepper%iaccel
-!          write(*,*) "option%dpmxe", option%dpmxe
-!          write(*,*) "option%dpmax", option%dpmax
           if (flow_stepper%num_newton_iterations >= flow_stepper%iaccel) then
             fac = 0.33d0
             ut = 0.d0
           else
             up = option%dpmxe/(option%dpmax+0.1)
-            ut = up
+            utmp = option%dtmpmxe/(option%dtmpmax+1.d-5)
+            uus= option%dsmxe/(option%dsmax+1.d-6)
+            ut = min(up,utmp,uus)
           endif
           dtt = fac * dt * (1.d0 + ut)
-!              write(*,*) "dtt", dtt
+        case(RICHARDS_MODE)
+          if (flow_stepper%iaccel > 0) then
+            fac = 0.5d0
+            if (flow_stepper%num_newton_iterations >= flow_stepper%iaccel) then
+              fac = 0.33d0
+              ut = 0.d0
+            else
+              up = option%dpmxe/(option%dpmax+0.1)
+              ut = up
+            endif
+            dtt = fac * dt * (1.d0 + ut)
+          else
+            ifac = max(min(flow_stepper%num_newton_iterations, &
+                           flow_stepper%ntfac),1)
+            dt_tfac = flow_stepper%tfac(ifac) * dt
+
+            fac = 0.5d0
+            up = option%dpmxe/(option%dpmax+0.1)
+            dt_p = fac * dt * (1.d0 + up)
+
+            dtt = min(dt_tfac,dt_p)
+          endif
         case(G_MODE)   
           fac = 0.5d0
           if (flow_stepper%num_newton_iterations >= flow_stepper%iaccel) then
@@ -890,16 +982,8 @@ subroutine StepperUpdateDT(flow_stepper,tran_stepper,option)
 
       if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
       if (dtt > flow_stepper%dt_max) dtt = flow_stepper%dt_max
-      ! geh: the issue here is that we do not want pflotran to cut the time step
-      ! (due to dt being large relative to time) if we restart the simulation 
-      ! setting the time back to zero.  the problem is that one cannot key 
-      ! off of option%restart_flag since that flag is also set when time is 
-      ! nonzero....  Therefore, must use option%restart_time
-      if (dabs(option%restart_time) < 1.d-40 .and. flow_stepper%steps <= 5) then
-        ! do nothing
-      else
-        if (dtt>.25d0*time) dtt=.25d0*time
-      endif
+      ! geh: There used to be code here that cut the time step if it is too
+      !      large relative to the simulation time.  This has been removed.
       dt = dtt
 
       option%flow_dt = dt
@@ -955,11 +1039,6 @@ subroutine StepperUpdateDT(flow_stepper,tran_stepper,option)
       if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
       if (dtt > tran_stepper%dt_max) dtt = tran_stepper%dt_max
       ! geh: see comment above under flow stepper
-      if (dabs(option%restart_time) < 1.d-40 .and. tran_stepper%steps <= 5) then
-        ! do nothing
-      else
-        if (dtt>.25d0*time) dtt=.25d0*time
-      endif
       dt = dtt
 
       option%tran_dt = dt
@@ -970,7 +1049,9 @@ subroutine StepperUpdateDT(flow_stepper,tran_stepper,option)
 
   ! ensure that transport time step is not larger than flow time step
   if (associated(flow_stepper) .and. associated(tran_stepper)) then
-    option%tran_dt = min(option%tran_dt,option%flow_dt)
+    if (.not.flow_stepper%run_as_steady_state) then
+      option%tran_dt = min(option%tran_dt,option%flow_dt)
+    endif
   endif
 
 end subroutine StepperUpdateDT
@@ -1068,7 +1149,8 @@ subroutine StepperSetTargetTimes(flow_stepper,tran_stepper,option,plot_flag, &
     if (target_time + tolerance*dt >= cur_waypoint%time .and. &
         (cur_waypoint%update_conditions .or. &
          cur_waypoint%print_output .or. &
-         cur_waypoint%print_tr_output)) then
+         cur_waypoint%print_tr_output .or. &
+         cur_waypoint%final)) then
       ! decrement by time step size
       target_time = target_time - dt
       ! set new time step size based on waypoint time
@@ -1092,11 +1174,17 @@ subroutine StepperSetTargetTimes(flow_stepper,tran_stepper,option,plot_flag, &
   enddo
   ! subtract 1 from max_time_steps since we still have to complete the current
   ! time step
+
   if (cumulative_time_steps >= max_time_step-1) then
     plot_flag = PETSC_TRUE
     nullify(cur_waypoint)
   endif
-    
+
+  ! update maximum time step size to current waypoint value
+  if (associated(cur_waypoint)) then
+    dt_max = cur_waypoint%dt_max
+  endif
+  
   ! target time will always be dictated by the flow solver, if present
   if (associated(flow_stepper)) then
     option%flow_dt = dt
@@ -1132,15 +1220,20 @@ end subroutine StepperSetTargetTimes
 !
 ! ************************************************************************** !
 subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
+
   use Flash2_module, only : Flash2MaxChange, Flash2InitializeTimestep, &
                            Flash2TimeCut, Flash2UpdateReason
   use MPHASE_module, only : MphaseMaxChange, MphaseInitializeTimestep, &
                            MphaseTimeCut, MPhaseUpdateReason
   use Immis_module, only : ImmisMaxChange, ImmisInitializeTimestep, &
                            ImmisTimeCut, ImmisUpdateReason
+  use Miscible_module, only : MiscibleMaxChange, MiscibleInitializeTimestep, &
+                           MiscibleTimeCut
   use Richards_module, only : RichardsMaxChange, RichardsInitializeTimestep, &
                              RichardsTimeCut, RichardsResidual
   use THC_module, only : THCMaxChange, THCInitializeTimestep, THCTimeCut
+  use THMC_module, only : THMCMaxChange, THMCInitializeTimestep, THMCTimeCut
+
   use General_module, only : GeneralMaxChange, GeneralInitializeTimestep, &
                              GeneralTimeCut
   use Global_module
@@ -1243,12 +1336,16 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
     endif
     
     select case(option%iflowmode)
+      case(THMC_MODE)
+        call THMCInitializeTimestep(realization)
       case(THC_MODE)
         call THCInitializeTimestep(realization)
       case(RICHARDS_MODE)
         call RichardsInitializeTimestep(realization)
       case(MPH_MODE)
         call MphaseInitializeTimestep(realization)
+      case(MIS_MODE)
+        call MiscibleInitializeTimestep(realization)
       case(IMS_MODE)
         call ImmisInitializeTimestep(realization)
       case(FLASH2_MODE)
@@ -1263,7 +1360,7 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
       call PetscGetTime(log_start_time, ierr)
 
       select case(option%iflowmode)
-        case(MPH_MODE,THC_MODE,IMS_MODE,FLASH2_MODE,G_MODE)
+        case(MPH_MODE,THC_MODE,THMC_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE)
           call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%flow_xx, ierr)
         case(RICHARDS_MODE)
           if (discretization%itype == STRUCTURED_GRID_MIMETIC) then 
@@ -1301,10 +1398,10 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
 
     write(*,*) "After SNESSolve" 
 
-    if (tempreal2/tempreal > 1e+4) stop
+!    if (tempreal2/tempreal > 1e+4) stop
 
 !     stop
-!      read(*,*)   
+      read(*,*)   
      
 #endif
 
@@ -1333,6 +1430,10 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
           case(FLASH2_MODE)
 !           call Flash2UpdateReason(update_reason,realization)
           case(THC_MODE)
+            update_reason=1
+          case(THMC_MODE)
+            update_reason=1
+          case (MIS_MODE)
             update_reason=1
           case(RICHARDS_MODE,G_MODE)
             update_reason=1
@@ -1377,8 +1478,8 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
 
 #ifndef CLM_PFLOTRAN      
         if (option%print_screen_flag) write(*,'('' -> Cut time step: snes='',i3, &
-          &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.4, '' dt= '', &
-          &   1pe12.4)')  snes_reason,icut,stepper%cumulative_time_step_cuts, &
+          &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
+          &   1pe12.5)')  snes_reason,icut,stepper%cumulative_time_step_cuts, &
               option%flow_time/realization%output_option%tconv, &
               option%flow_dt/realization%output_option%tconv
 #else
@@ -1393,10 +1494,14 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
         select case(option%iflowmode)
           case(THC_MODE)
             call THCTimeCut(realization)
+          case(THMC_MODE)
+            call THMCTimeCut(realization)
           case(RICHARDS_MODE)
             call RichardsTimeCut(realization)
           case(MPH_MODE)
             call MphaseTimeCut(realization)
+          case(MIS_MODE)
+            call MiscibleTimeCut(realization)
           case(IMS_MODE)
             call ImmisTimeCut(realization)
           case(FLASH2_MODE)
@@ -1513,7 +1618,7 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
   call VecNorm(field%flow_r,NORM_INFINITY,inorm,ierr)
   if (option%print_screen_flag) then
 #ifndef CLM_PFLOTRAN
-    write(*, '(/," FLOW ",i6," Time= ",1pe12.4," Dt= ",1pe12.4," [",a1,"]", &
+    write(*, '(/," FLOW ",i6," Time= ",1pe12.5," Dt= ",1pe12.5," [",a1,"]", &
       & " snes_conv_reason: ",i4,/,"  newton = ",i3," [",i8,"]", &
       & " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
       stepper%steps, &
@@ -1536,7 +1641,6 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
       stepper%cumulative_time_step_cuts
 #endif
 
-    ! the grid pointer is null if we are working with SAMRAI
     if (associated(discretization%grid)) then
        scaled_fnorm = fnorm/discretization%grid%nmax 
     else
@@ -1554,7 +1658,7 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
 
   endif
   if (option%print_file_flag) then
-    write(option%fid_out, '(" FLOW ",i6," Time= ",1pe12.4," Dt= ",1pe12.4," [",a1, &
+    write(option%fid_out, '(" FLOW ",i6," Time= ",1pe12.5," Dt= ",1pe12.5," [",a1, &
       & "]"," snes_conv_reason: ",i4,/,"  newton = ",i3," [",i8,"]", &
       & " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
       stepper%steps, &
@@ -1569,6 +1673,13 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
   select case(option%iflowmode)
     case(THC_MODE)
       call THCMaxChange(realization)
+      if (option%print_screen_flag) then
+        write(*,'("  --> max chng: dpmx= ",1pe12.4, &
+          & " dtmpmx= ",1pe12.4," dcmx= ",1pe12.4)') &
+          option%dpmax,option%dtmpmax, option%dcmax
+      endif
+    case(THMC_MODE)
+      call THMCMaxChange(realization)
       if (option%print_screen_flag) then
         write(*,'("  --> max chng: dpmx= ",1pe12.4, &
           & " dtmpmx= ",1pe12.4," dcmx= ",1pe12.4)') &
@@ -1591,12 +1702,14 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
       if (option%print_file_flag) then
         write(option%fid_out,'("  --> max chng: dpmx= ",1pe12.4)') option%dpmax
       endif
-    case(MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE)
+    case(MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE)
       select case(option%iflowmode)
         case(MPH_MODE)
           call MphaseMaxChange(realization)
         case(IMS_MODE)
           call ImmisMaxChange(realization)
+        case(MIS_MODE)
+          call MiscibleMaxChange(realization)
         case(FLASH2_MODE)
           call FLASH2MaxChange(realization)
         case(G_MODE)
@@ -1629,13 +1742,85 @@ end subroutine StepperStepFlowDT
 
 ! ************************************************************************** !
 !
+! ************************************************************************** !
+#ifdef SURFACE_FLOW
+subroutine StepperStepSurfaceFlowDT(surf_realization,stepper,failure)
+  
+  use Surface_Realization_module
+  use Discretization_module
+  use Option_module
+  use Solver_module
+  use Surface_Field_module
+  
+  implicit none
+  
+#include "finclude/petsclog.h"
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+#include "finclude/petscmat.h"
+#include "finclude/petscviewer.h"
+#include "finclude/petscsnes.h"
+
+  type(surface_realization_type) :: surf_realization
+  type(stepper_type)     :: stepper
+  PetscBool              :: failure
+  
+  PetscInt :: icut ! Tracks the number of time step reductions applied
+  PetscInt :: update_reason, tmp_int
+  PetscInt :: sum_newton_iterations, sum_linear_iterations
+  PetscInt :: num_newton_iterations, num_linear_iterations
+  PetscReal :: fnorm, scaled_fnorm, inorm, prev_norm, dif_norm, rel_norm
+  SNESConvergedReason :: snes_reason 
+  PetscErrorCode :: ierr
+
+  PetscViewer :: viewer
+
+  type(option_type), pointer          :: option
+  type(surface_field_type), pointer   :: surf_field 
+  type(discretization_type), pointer  :: discretization 
+  type(solver_type), pointer          :: solver
+
+  option         => surf_realization%option
+  discretization => surf_realization%discretization
+  surf_field     => surf_realization%surf_field
+  solver         => stepper%solver
+
+  icut = 0
+  sum_newton_iterations = 0
+  sum_linear_iterations = 0
+  prev_norm = 1.d20
+
+  !do
+
+    !call DiscretizationLocalToLocal()
+    if (option%print_screen_flag) then
+      write(*,'(/,2("=")," SURFACE_FLOW ",52("="))')
+    endif
+    
+    select case(option%iflowmode)
+      case (RICHARDS_MODE)
+        write(*,*),'call SurfaceFlowInitializeTimestep'
+        call SurfaceFlowInitializeTimestep(surf_realization)
+      case default
+        option%io_buffer = 'ERROR: Incorrect iflowmode in SurfaceFlow'
+        call printErrMsgByRank(option)
+    end select
+
+  !enddo
+  
+end subroutine StepperStepSurfaceFlowDT
+#endif
+
+! ************************************************************************** !
+!
 ! StepperStepTransportDT_GI: Steps forward one step in time
 ! author: Glenn Hammond
 ! date: 02/19/08
 !
 ! ************************************************************************** !
-subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
-                                  failure)
+subroutine StepperStepTransportDT_GI(realization,stepper, &
+                                     steady_flow,flow_t0,flow_t1, &
+                                     failure)
   
   use Reactive_Transport_module
   use Output_module, only : Output
@@ -1662,6 +1847,7 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
   type(realization_type) :: realization
   type(stepper_type) :: stepper
   PetscReal :: flow_t0, flow_t1
+  PetscBool :: steady_flow
   PetscBool :: failure
   
   PetscErrorCode :: ierr
@@ -1708,7 +1894,7 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
   ! interpolate flow parameters/data
   ! this must remain here as these weighted values are used by both
   ! RTInitializeTimestep and RTTimeCut (which calls RTInitializeTimestep)
-  if (option%nflowdof > 0) then
+  if (option%nflowdof > 0 .and. .not.steady_flow) then
     call TimestepperSetTranWeights(option,flow_t0, flow_t1)
     ! set densities and saturations to t
     call GlobalUpdateDenAndSat(realization,option%tran_weight_t0)
@@ -1718,7 +1904,7 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
   ! note: RTUpdateTransportCoefs() is called within RTInitializeTimestep()
 
   ! set densities and saturations to t+dt
-  if (option%nflowdof > 0) then
+  if (option%nflowdof > 0 .and. .not.steady_flow) then
     call GlobalUpdateDenAndSat(realization,option%tran_weight_t1)
   endif
 
@@ -1740,27 +1926,8 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
 !       patch%aux%RT%aux_vars_up_to_date = PETSC_TRUE 
     endif
     if (realization%reaction%use_log_formulation) then
-      if (associated(realization%patch%grid%structured_grid) .and. &
-          (.not.(realization%patch%grid%structured_grid%p_samr_patch == 0))) then
-        cur_level => realization%level_list%first
-        do 
-          if (.not.associated(cur_level)) exit
-          cur_patch => cur_level%patch_list%first
-          do
-            if (.not.associated(cur_patch)) exit
-            call GridVecGetArrayF90(cur_patch%grid,field%tran_xx,xx_p,ierr)
-            call GridVecGetArrayF90(cur_patch%grid,field%tran_log_xx,log_xx_p,ierr)
-            log_xx_p(:) = log(xx_p(:))
-            call GridVecRestoreArrayF90(cur_patch%grid,field%tran_xx,xx_p,ierr)
-            call GridVecRestoreArrayF90(cur_patch%grid,field%tran_log_xx,log_xx_p,ierr)
-            cur_patch => cur_patch%next
-          enddo
-          cur_level => cur_level%next
-        enddo
-      else
-        call VecCopy(field%tran_xx,field%tran_log_xx,ierr)
-        call VecLog(field%tran_log_xx,ierr)
-      endif
+      call VecCopy(field%tran_xx,field%tran_log_xx,ierr)
+      call VecLog(field%tran_log_xx,ierr)
 
       call PetscGetTime(log_start_time, ierr)
       call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%tran_log_xx, ierr)
@@ -1768,27 +1935,8 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
       stepper%cumulative_solver_time = stepper%cumulative_solver_time + &
         (log_end_time - log_start_time)          
         
-      if (associated(realization%patch%grid%structured_grid) .and. &
-          (.not.(realization%patch%grid%structured_grid%p_samr_patch == 0))) then
-        cur_level => realization%level_list%first
-        do 
-          if (.not.associated(cur_level)) exit
-          cur_patch => cur_level%patch_list%first
-          do
-            if (.not.associated(cur_patch)) exit
-            call GridVecGetArrayF90(cur_patch%grid,field%tran_xx,xx_p,ierr)
-            call GridVecGetArrayF90(cur_patch%grid,field%tran_log_xx,log_xx_p,ierr)
-            xx_p(:) = exp(log_xx_p(:))
-            call GridVecRestoreArrayF90(cur_patch%grid,field%tran_xx,xx_p,ierr)
-            call GridVecRestoreArrayF90(cur_patch%grid,field%tran_log_xx,log_xx_p,ierr)
-            cur_patch => cur_patch%next
-          enddo
-          cur_level => cur_level%next
-        enddo
-      else
-        call VecCopy(field%tran_log_xx,field%tran_xx,ierr)
-        call VecExp(field%tran_xx,ierr)
-      endif
+      call VecCopy(field%tran_log_xx,field%tran_xx,ierr)
+      call VecExp(field%tran_xx,ierr)
     else
       call PetscGetTime(log_start_time, ierr)
       call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%tran_xx, ierr)
@@ -1838,8 +1986,8 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
 
 #ifndef CLM_PFLOTRAN
       if (option%print_screen_flag) write(*,'('' -> Cut time step: snes='',i3, &
-        &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.4, '' dt= '', &
-        &   1pe12.4)')  snes_reason,icut,stepper%cumulative_time_step_cuts, &
+        &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
+        &   1pe12.5)')  snes_reason,icut,stepper%cumulative_time_step_cuts, &
             option%tran_time/realization%output_option%tconv, &
             option%tran_dt/realization%output_option%tconv
 #else
@@ -1851,7 +1999,7 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
 #endif
 
       ! recompute weights
-      if (option%nflowdof > 0) then
+      if (option%nflowdof > 0 .and. .not.steady_flow) then
         call TimestepperSetTranWeights(option,flow_t0, flow_t1)
       endif
       call RTTimeCut(realization)
@@ -1882,10 +2030,10 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
   call VecNorm(field%tran_r,NORM_INFINITY,inorm,ierr)
   if (option%print_screen_flag) then
   
-    if (option%nflowdof > 0) then
+    if (option%nflowdof > 0 .and. .not.steady_flow) then
 
-    write(*, '(/," TRAN ",i6," Time= ",1pe12.4," Target= ",1pe12.4, &
-      & " Dt= ",1pe12.4," [",a1,"]", &
+    write(*, '(/," TRAN ",i6," Time= ",1pe12.5," Target= ",1pe12.5, &
+      & " Dt= ",1pe12.5," [",a1,"]", &
       & " snes_conv_reason: ",i4,/,"  newton = ",i3," [",i6,"]", &
       & " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
       stepper%steps, &
@@ -1899,7 +2047,7 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
 
     else
 
-    write(*, '(/," TRAN ",i6," Time= ",1pe12.4," Dt= ",1pe12.4," [",a1,"]", &
+    write(*, '(/," TRAN ",i6," Time= ",1pe12.5," Dt= ",1pe12.5," [",a1,"]", &
       & " snes_conv_reason: ",i4,/,"  newton = ",i3," [",i6,"]", &
       & " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
       stepper%steps, &
@@ -1912,7 +2060,6 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
 
     endif
     
-    ! the grid pointer is null if we are working with SAMRAI
     if (associated(discretization%grid)) then
        scaled_fnorm = fnorm/discretization%grid%nmax   
     else
@@ -1924,7 +2071,7 @@ subroutine StepperStepTransportDT_GI(realization,stepper,flow_t0,flow_t1, &
   endif
 
   if (option%print_file_flag) then
-    write(option%fid_out, '(" TRAN ",i6," Time= ",1pe12.4," Dt= ",1pe12.4, &
+    write(option%fid_out, '(" TRAN ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
       & " [",a1,"]"," snes_conv_reason: ",i4,/,"  newton = ",i3," [",i6,"]", &
       & " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
       stepper%steps, &
@@ -1964,12 +2111,13 @@ end subroutine StepperStepTransportDT_GI
 ! date: 02/19/08
 !
 ! ************************************************************************** !
-subroutine StepperStepTransportDT_OS(realization,stepper,flow_t0,flow_t1, &
-                                  failure)
+subroutine StepperStepTransportDT_OS(realization,stepper, &
+                                     steady_flow, flow_t0,flow_t1, &
+                                     failure)
+
   use Reactive_Transport_module, only : RTUpdateRHSCoefs, RTUpdateAuxVars, &
         RTCalculateRHS_t0, RTUpdateTransportCoefs, RTCalculateRHS_t1, &
-        RTCalculateTransportMatrix, RTTransportResidual, RTReact, &
-        RTTransportMatVec, RTMaxChange
+        RTCalculateTransportMatrix, RTReact, RTMaxChange, RTExplicitAdvection
   use Output_module, only : Output
   
   use Realization_module
@@ -1994,6 +2142,7 @@ subroutine StepperStepTransportDT_OS(realization,stepper,flow_t0,flow_t1, &
   type(realization_type) :: realization
   type(stepper_type) :: stepper
   PetscReal :: flow_t0, flow_t1
+  PetscBool :: steady_flow
   PetscBool :: failure
   
   PetscErrorCode :: ierr
@@ -2029,6 +2178,7 @@ subroutine StepperStepTransportDT_OS(realization,stepper,flow_t0,flow_t1, &
   final_tran_time = option%tran_time + option%tran_dt
    
   sum_linear_iterations = 0
+  ksp_reason = 0
   
   ! do we need this...don't think so - geh
   call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
@@ -2036,118 +2186,102 @@ subroutine StepperStepTransportDT_OS(realization,stepper,flow_t0,flow_t1, &
 
   call PetscGetTime(log_start_time, ierr)
 
-  if (option%nflowdof > 0) then
-    call TimestepperSetTranWeights(option,flow_t0, flow_t1)
+  if (option%nflowdof > 0 .and. .not.steady_flow) then
+    call TimestepperSetTranWeights(option,flow_t0,flow_t1)
     ! set densities and saturations to t
     call GlobalUpdateDenAndSat(realization,option%tran_weight_t0)
   endif
 
-  ! Between the next 3 subroutine calls:
-  ! RTUpdateRHSCoefs()
-  ! RTUpdateAuxVars()
-  ! RTCalculateRHS_t0()
-  ! the t0 portion of the accumulation term is calculated for the RHS vector
-  
   ! update time derivative on RHS
   call RTUpdateRHSCoefs(realization)
-  ! calculate total component concentrations based on t0 densities
-  call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
-  call RTCalculateRHS_t0(realization)
+  if (option%itranmode == EXPLICIT_ADVECTION) then
+    ! update the totals (must be at t0)
+                                   ! cells      bcs         act. coefs.
+    call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_FALSE)
+    ! set densities and saturations to t+dt
+    if (option%nflowdof > 0 .and. .not.steady_flow) then
+      call GlobalUpdateDenAndSat(realization,option%tran_weight_t1)
+    endif
+    call RTExplicitAdvection(realization)
+  else
+  
+    ! Between the next 3 subroutine calls:
+    ! RTUpdateRHSCoefs() -- now calculated prior to conditional
+    ! RTUpdateAuxVars()
+    ! RTCalculateRHS_t0()
+    ! the t0 portion of the accumulation term is calculated for the RHS vector
+  
+    ! calculate total component concentrations based on t0 densities
+                                   ! cells      bcs         act. coefs.
+    call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
+    call RTCalculateRHS_t0(realization)
     
-  ! set densities and saturations to t+dt
-  if (option%nflowdof > 0) then
-    call GlobalUpdateDenAndSat(realization,option%tran_weight_t1)
-  endif
+    ! set densities and saturations to t+dt
+    if (option%nflowdof > 0 .and. .not.steady_flow) then
+      call GlobalUpdateDenAndSat(realization,option%tran_weight_t1)
+    endif
 
-  ! update diffusion/dispersion coefficients
-  call RTUpdateTransportCoefs(realization)
-  ! RTCalculateRHS_t1() updates aux vars to k+1 and calculates RHS fluxes and src/sinks
-  call RTCalculateRHS_t1(realization)
+    ! update diffusion/dispersion coefficients
+    call RTUpdateTransportCoefs(realization)
+    ! RTCalculateRHS_t1() updates aux vars (cell and boundary) to k+1 and calculates 
+    ! RHS fluxes and src/sinks
+    call RTCalculateRHS_t1(realization)
 
-  if (realization%debug%vecview_residual) then
-    call PetscViewerASCIIOpen(realization%option%mycomm,'Trhs.out', &
-                              viewer,ierr)
-    call VecView(field%tran_rhs,viewer,ierr)
-    call PetscViewerDestroy(viewer,ierr)
-  endif
+    if (realization%debug%vecview_residual) then
+      call PetscViewerASCIIOpen(realization%option%mycomm,'Trhs.out', &
+                                viewer,ierr)
+      call VecView(field%tran_rhs,viewer,ierr)
+      call PetscViewerDestroy(viewer,ierr)
+    endif
 
-  if (option%use_samr) then
-    call MatCreateShell(option%mycomm, 0,0, PETSC_DETERMINE, PETSC_DETERMINE, PETSC_NULL, solver%J, ierr)
-    call MatShellSetOperation(solver%J, MATOP_MULT,RTTransportMatVec, ierr)
-    call MatShellSetContext(solver%J, discretization%amrgrid%p_application, ierr)
-    call RTCalculateTransportMatrix(realization,solver%Jpre)
-!  the next line was used to debug why an ludcmp error was showing up
-!     call RTCalculateTransportMatrix(realization,solver%J)
-#ifndef PC_BUG       
-    call SAMRSetPetscTransportMatrix(discretization%amrgrid%p_application, solver%Jpre)
-#endif       
-    call KSPSetOperators(solver%ksp,solver%J,solver%Jpre, &
-                                          DIFFERENT_NONZERO_PATTERN,ierr)
-  else     
     ! RTCalculateTransportMatrix() calculates flux coefficients and the
     ! t^(k+1) coefficient in accumulation term
     call RTCalculateTransportMatrix(realization,solver%J) 
     call KSPSetOperators(solver%ksp,solver%J,solver%Jpre, &
                          SAME_NONZERO_PATTERN,ierr)
-  endif
-    
 
-!  call VecGetArrayF90(field%tran_xx,vec_ptr,ierr)
-!  call VecRestoreArrayF90(field%tran_xx,vec_ptr,ierr)
+  !  call VecGetArrayF90(field%tran_xx,vec_ptr,ierr)
+  !  call VecRestoreArrayF90(field%tran_xx,vec_ptr,ierr)
 
-  ! loop over chemical component and transport
-  do idof = 1, option%ntrandof
+    ! loop over chemical component and transport
+    do idof = 1, option%ntrandof
 
-! for debugging
+  ! for debugging
 #if 0    
-    call RealizationGetDataset(realization,field%work,TOTAL_MOLARITY,idof)
-    call VecGetArrayF90(field%work,vec_ptr,ierr)
-    call VecRestoreArrayF90(field%work,vec_ptr,ierr)
+      call RealizationGetDataset(realization,field%work,TOTAL_MOLARITY,idof)
+      call VecGetArrayF90(field%work,vec_ptr,ierr)
+      call VecRestoreArrayF90(field%work,vec_ptr,ierr)
   
-    call RealizationGetDataset(realization,field%work,TOTAL_MOLALITY,idof)
-    call VecGetArrayF90(field%work,vec_ptr,ierr)
-    call VecRestoreArrayF90(field%work,vec_ptr,ierr)
+      call RealizationGetDataset(realization,field%work,TOTAL_MOLALITY,idof)
+      call VecGetArrayF90(field%work,vec_ptr,ierr)
+      call VecRestoreArrayF90(field%work,vec_ptr,ierr)
   
-    call RealizationGetDataset(realization,field%work,PRIMARY_MOLALITY,idof)
-    call VecGetArrayF90(field%work,vec_ptr,ierr)
-    call VecRestoreArrayF90(field%work,vec_ptr,ierr)
+      call RealizationGetDataset(realization,field%work,PRIMARY_MOLALITY,idof)
+      call VecGetArrayF90(field%work,vec_ptr,ierr)
+      call VecRestoreArrayF90(field%work,vec_ptr,ierr)
 #endif
     
-    call VecStrideGather(field%tran_rhs,idof-1,field%work,INSERT_VALUES,ierr)
-    option%rt_idof = idof
-    call KSPSolve(solver%ksp,field%work,field%work,ierr)
-    ! tran_xx will contain transported totals
-    ! tran_xx_loc will still contain free-ion from previous solution
-    call VecStrideScatter(field%work,idof-1,field%tran_xx,INSERT_VALUES,ierr)
+      call VecStrideGather(field%tran_rhs,idof-1,field%work,INSERT_VALUES,ierr)
+      option%rt_idof = idof
+      call KSPSolve(solver%ksp,field%work,field%work,ierr)
+      ! tran_xx will contain transported totals
+      ! tran_xx_loc will still contain free-ion from previous solution
+      call VecStrideScatter(field%work,idof-1,field%tran_xx,INSERT_VALUES,ierr)
 
-! for debugging
+  ! for debugging
 #if 0
-    call VecGetArrayF90(field%work,vec_ptr,ierr)
-    call VecRestoreArrayF90(field%work,vec_ptr,ierr)
+      call VecGetArrayF90(field%work,vec_ptr,ierr)
+      call VecRestoreArrayF90(field%work,vec_ptr,ierr)
 #endif      
 
-#if 0 
-    ! for testing residual calculation for Bobby
-    ! solution is stored in field%work vector, but we need it in ghosted
-    ! form for the residual calculation
-    call DiscretizationGlobalToLocal(discretization,field%work, &
-                                     field%work_loc,ONEDOF)
-    ! now we use field%work as the residual and field%work_loc as the
-    ! current solution
-    call RTTransportResidual(realization,field%work_loc,field%work,idof)
-    call VecNorm(field%work,NORM_2,euclid_norm,ierr)
-    call VecNorm(field%work,NORM_INFINITY,inf_norm,ierr)
-    print *, trim(realization%reaction%primary_species_names(idof))//': ', &
-      euclid_norm, inf_norm
-#endif
-
-    call KSPGetIterationNumber(solver%ksp,num_linear_iterations,ierr)
-    call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr)
-    sum_linear_iterations = sum_linear_iterations + num_linear_iterations
-  enddo
-  sum_linear_iterations = int(dble(sum_linear_iterations) / option%ntrandof)
-  stepper%cumulative_linear_iterations = &
-    stepper%cumulative_linear_iterations + sum_linear_iterations
+      call KSPGetIterationNumber(solver%ksp,num_linear_iterations,ierr)
+      call KSPGetConvergedReason(solver%ksp,ksp_reason,ierr)
+      sum_linear_iterations = sum_linear_iterations + num_linear_iterations
+    enddo
+    sum_linear_iterations = int(dble(sum_linear_iterations) / option%ntrandof)
+    stepper%cumulative_linear_iterations = &
+      stepper%cumulative_linear_iterations + sum_linear_iterations
+  endif ! if (EXPLICIT_ADVECTION)
 
   if (realization%debug%vecview_solution) then
     call PetscViewerASCIIOpen(realization%option%mycomm,'Txx.out', &
@@ -2180,8 +2314,8 @@ subroutine StepperStepTransportDT_OS(realization,stepper,flow_t0,flow_t1, &
   stepper%steps = stepper%steps + 1     
   
   if (option%print_screen_flag) then
-    write(*, '(" TRAN ",i6," Time= ",1pe12.4," Dt= ", &
-          & 1pe12.4," [",a1,"]"," ksp_conv_reason: ",i4,/," linear = ",i5, &
+    write(*, '(" TRAN ",i6," Time= ",1pe12.5," Dt= ", &
+          & 1pe12.5," [",a1,"]"," ksp_conv_reason: ",i4,/," linear = ",i5, &
           & " [",i10,"]")') stepper%steps, &
 !geh        option%tran_time/realization%output_option%tconv, &
         final_tran_time/realization%output_option%tconv, &
@@ -2191,8 +2325,8 @@ subroutine StepperStepTransportDT_OS(realization,stepper,flow_t0,flow_t1, &
   endif
 
   if (option%print_file_flag) then
-    write(option%fid_out, '(" TRAN ",i6," Time= ",1pe12.4," Dt= ", &
-          & 1pe12.4," [",a1,"]"," ksp_conv_reason = ",i4,/," linear = ",i5, &
+    write(option%fid_out, '(" TRAN ",i6," Time= ",1pe12.5," Dt= ", &
+          & 1pe12.5," [",a1,"]"," ksp_conv_reason = ",i4,/," linear = ",i5, &
           & " [",i10,"]")') stepper%steps, &
 !geh        option%tran_time/realization%output_option%tconv, &
         final_tran_time/realization%output_option%tconv, &
@@ -2214,6 +2348,7 @@ subroutine StepperStepTransportDT_OS(realization,stepper,flow_t0,flow_t1, &
   if (option%print_screen_flag) print *, ""  
 
 end subroutine StepperStepTransportDT_OS
+
 ! ************************************************************************** !
 !
 ! StepperRunSteadyState: Solves steady state solution for flow and transport
@@ -2472,7 +2607,6 @@ subroutine StepperSolveFlowSteadyState(realization,stepper,failure)
   call SNESGetFunctionNorm(solver%snes,fnorm,ierr)
   call VecNorm(field%flow_r,NORM_INFINITY,inorm,ierr)
   if (option%print_screen_flag) then
-    ! the grid pointer is null if we are working with SAMRAI
     if (associated(discretization%grid)) then
        scaled_fnorm = fnorm/discretization%grid%nmax 
     else
@@ -2557,51 +2691,11 @@ subroutine StepperSolveTranSteadyState(realization,stepper,failure)
   endif
 
   if (realization%reaction%use_log_formulation) then
-    if (associated(realization%patch%grid%structured_grid) .and. &
-        (.not.(realization%patch%grid%structured_grid%p_samr_patch == 0))) then
-      cur_level => realization%level_list%first
-      do 
-        if (.not.associated(cur_level)) exit
-        cur_patch => cur_level%patch_list%first
-        do
-          if (.not.associated(cur_patch)) exit
-          call GridVecGetArrayF90(cur_patch%grid,field%tran_xx,xx_p,ierr)
-          call GridVecGetArrayF90(cur_patch%grid,field%tran_log_xx,log_xx_p,ierr)
-          log_xx_p(:) = log(xx_p(:))
-          call GridVecRestoreArrayF90(cur_patch%grid,field%tran_xx,xx_p,ierr)
-          call GridVecRestoreArrayF90(cur_patch%grid,field%tran_log_xx,log_xx_p,ierr)
-          cur_patch => cur_patch%next
-        enddo
-        cur_level => cur_level%next
-      enddo
-    else
-      call VecCopy(field%tran_xx,field%tran_log_xx,ierr)
-      call VecLog(field%tran_log_xx,ierr)
-    endif
-      
+    call VecCopy(field%tran_xx,field%tran_log_xx,ierr)
+    call VecLog(field%tran_log_xx,ierr)
     call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%tran_log_xx, ierr)
-      
-    if (associated(realization%patch%grid%structured_grid) .and. &
-        (.not.(realization%patch%grid%structured_grid%p_samr_patch == 0))) then
-      cur_level => realization%level_list%first
-      do 
-        if (.not.associated(cur_level)) exit
-        cur_patch => cur_level%patch_list%first
-        do
-          if (.not.associated(cur_patch)) exit
-          call GridVecGetArrayF90(cur_patch%grid,field%tran_xx,xx_p,ierr)
-          call GridVecGetArrayF90(cur_patch%grid,field%tran_log_xx,log_xx_p,ierr)
-          xx_p(:) = exp(log_xx_p(:))
-          call GridVecRestoreArrayF90(cur_patch%grid,field%tran_xx,xx_p,ierr)
-          call GridVecRestoreArrayF90(cur_patch%grid,field%tran_log_xx,log_xx_p,ierr)
-          cur_patch => cur_patch%next
-        enddo
-        cur_level => cur_level%next
-      enddo
-    else
-      call VecCopy(field%tran_log_xx,field%tran_xx,ierr)
-      call VecExp(field%tran_xx,ierr)
-    endif
+    call VecCopy(field%tran_log_xx,field%tran_xx,ierr)
+    call VecExp(field%tran_xx,ierr)
   else
     call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%tran_xx, ierr)
   endif
@@ -2626,7 +2720,6 @@ subroutine StepperSolveTranSteadyState(realization,stepper,failure)
   call SNESGetFunctionNorm(solver%snes,fnorm,ierr)
   call VecNorm(field%tran_r,NORM_INFINITY,inorm,ierr)
   if (option%print_screen_flag) then
-    ! the grid pointer is null if we are working with SAMRAI
     if (associated(discretization%grid)) then
        scaled_fnorm = fnorm/discretization%grid%nmax   
     else
@@ -2678,8 +2771,10 @@ subroutine StepperUpdateFlowSolution(realization)
   use Flash2_module, only: Flash2UpdateSolution
   use MPHASE_module, only: MphaseUpdateSolution
   use Immis_module, only: ImmisUpdateSolution
+  use Miscible_module, only: MiscibleUpdateSolution 
   use Richards_module, only : RichardsUpdateSolution
   use THC_module, only : THCUpdateSolution
+  use THMC_module, only : THMCUpdateSolution
   use General_module, only : GeneralUpdateSolution
 
   use Realization_module
@@ -2700,10 +2795,14 @@ subroutine StepperUpdateFlowSolution(realization)
       call MphaseUpdateSolution(realization)
     case(IMS_MODE)
       call ImmisUpdateSolution(realization)
+    case(MIS_MODE)
+      call MiscibleUpdateSolution(realization)
     case(FLASH2_MODE)
       call Flash2UpdateSolution(realization)
     case(THC_MODE)
       call THCUpdateSolution(realization)
+    case(THMC_MODE)
+      call THMCUpdateSolution(realization)
     case(RICHARDS_MODE)
       call RichardsUpdateSolution(realization)
     case(G_MODE)
@@ -2731,10 +2830,10 @@ subroutine StepperUpdateTransportSolution(realization)
   PetscErrorCode :: ierr
   
   call RTUpdateSolution(realization)
-  if (realization%option%update_porosity .or. &
-      realization%option%update_tortuosity .or. &
-      realization%option%update_permeability .or. &
-      realization%option%update_mineral_surface_area) then
+  if (realization%reaction%update_porosity .or. &
+      realization%reaction%update_tortuosity .or. &
+      realization%reaction%update_permeability .or. &
+      realization%reaction%update_mineral_surface_area) then
     call RealizationUpdateProperties(realization)
   endif
 
@@ -2772,8 +2871,10 @@ subroutine StepperUpdateFlowAuxVars(realization)
   use Flash2_module, only: Flash2UpdateAuxVars
   use MPHASE_module, only: MphaseUpdateAuxVars
   use Immis_module, only: ImmisUpdateAuxVars
+  use Miscible_module, only: MiscibleUpdateAuxVars
   use Richards_module, only : RichardsUpdateAuxVars
   use THC_module, only : THCUpdateAuxVars
+  use THMC_module, only : THMCUpdateAuxVars
   use General_module, only : GeneralUpdateAuxVars
 
   use Realization_module
@@ -2796,8 +2897,12 @@ subroutine StepperUpdateFlowAuxVars(realization)
       call ImmisUpdateAuxVars(realization)
     case(MPH_MODE)
       call MphaseUpdateAuxVars(realization)
+    case(MIS_MODE)
+      call MiscibleUpdateAuxVars(realization)
     case(THC_MODE)
       call THCUpdateAuxVars(realization)
+    case(THMC_MODE)
+      call THMCUpdateAuxVars(realization)
     case(RICHARDS_MODE)
       call RichardsUpdateAuxVars(realization)
     case(G_MODE)
@@ -3102,7 +3207,7 @@ end subroutine StepperRestart
 ! date: 01/17/11
 !
 ! ************************************************************************** !
-subroutine TimestepperSetTranWeights(option,flow_t0, flow_t1)
+subroutine TimestepperSetTranWeights(option,flow_t0,flow_t1)
 
   use Option_module
 

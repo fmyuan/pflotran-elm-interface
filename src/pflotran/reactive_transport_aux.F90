@@ -28,17 +28,13 @@ module Reactive_Transport_Aux_module
     PetscReal, pointer :: gas_molal(:)
     
     ! sorption reactions
-    ! PetscReal, pointer :: kinionx_molfrac(:)
-    PetscReal, pointer :: kinsrfcplx_conc(:) ! S_{i\alpha}^k
-    PetscReal, pointer :: kinsrfcplx_conc_kp1(:) ! S_{i\alpha}^k+1
+    PetscReal, pointer :: srfcplxrxn_free_site_conc(:)
+    PetscReal, pointer :: kinsrfcplx_conc(:,:) ! S_{i\alpha}^k
+    PetscReal, pointer :: kinsrfcplx_conc_kp1(:,:) ! S_{i\alpha}^k+1
     PetscReal, pointer :: kinsrfcplx_free_site_conc(:)  ! S_\alpha
     PetscReal, pointer :: eqsrfcplx_conc(:)
-    PetscReal, pointer :: eqsrfcplx_free_site_conc(:)
-!   PetscReal, pointer :: eqsurf_site_density(:)
     PetscReal, pointer :: eqionx_ref_cation_sorbed_conc(:)
     PetscReal, pointer :: eqionx_conc(:,:)
-!   PetscReal, pointer :: eqionx_cec(:)
-    ! PetscReal, pointer :: eqionx_molfrac(:)
     
     ! mineral reactions
     PetscReal, pointer :: mnrl_volfrac0(:)
@@ -57,7 +53,7 @@ module Reactive_Transport_Aux_module
     PetscReal, pointer :: mass_balance(:,:)
     PetscReal, pointer :: mass_balance_delta(:,:)
     
-    PetscReal, pointer :: kinmr_total_sorb(:,:)
+    PetscReal, pointer :: kinmr_total_sorb(:,:,:)
 
     type(colloid_auxvar_type), pointer :: colloid
     
@@ -126,7 +122,6 @@ module Reactive_Transport_Aux_module
     PetscInt :: offset_collcomp
     PetscInt, pointer :: pri_spec_to_coll_spec(:)
     PetscInt, pointer :: coll_spec_to_pri_spec(:)
-    PetscReal :: dispersivity
     PetscReal, pointer :: diffusion_coefficient(:)
     PetscReal, pointer :: diffusion_activation_energy(:)
 #ifdef OS_STATISTICS
@@ -172,10 +167,15 @@ module Reactive_Transport_Aux_module
     type(react_tran_auxvar_chunk_type), pointer :: aux_var_chunk
 #endif
   end type reactive_transport_type
+
+  interface RTAuxVarDestroy
+    module procedure RTAuxVarSingleDestroy
+    module procedure RTAuxVarArrayDestroy
+  end interface RTAuxVarDestroy
   
   public :: RTAuxCreate, RTAuxDestroy, &
             RTAuxVarInit, RTAuxVarCopy, RTAuxVarDestroy, &
-            RTAuxVarChunkDestroy
+            RTAuxVarChunkDestroy, RTAuxVarStrip
             
 contains
 
@@ -219,7 +219,6 @@ function RTAuxCreate(option)
   allocate(aux%rt_parameter%diffusion_activation_energy(option%nphase))
   aux%rt_parameter%diffusion_coefficient = 1.d-9
   aux%rt_parameter%diffusion_activation_energy = 0.d0
-  aux%rt_parameter%dispersivity = 0.d0
   aux%rt_parameter%ncomp = 0
   aux%rt_parameter%naqcomp = 0
   aux%rt_parameter%nimcomp = 0
@@ -253,12 +252,17 @@ subroutine RTAuxVarInit(aux_var,reaction,option)
 
   use Option_module
   use Reaction_Aux_module
+  use Surface_Complexation_Aux_module
 
   implicit none
   
   type(reactive_transport_auxvar_type) :: aux_var
   type(reaction_type) :: reaction
-  type(option_type) :: option  
+  type(option_type) :: option
+  
+  type(surface_complexation_type), pointer :: surface_complexation
+  
+  surface_complexation => reaction%surface_complexation
   
   allocate(aux_var%pri_molal(reaction%naqcomp))
   aux_var%pri_molal = 0.d0
@@ -286,49 +290,45 @@ subroutine RTAuxVarInit(aux_var,reaction,option)
   if (reaction%neqsorb > 0) then  
     allocate(aux_var%total_sorb_eq(reaction%naqcomp))
     aux_var%total_sorb_eq = 0.d0
-    if (reaction%kinmr_nrate <= 0) then
-      allocate(aux_var%dtotal_sorb_eq(reaction%naqcomp,reaction%naqcomp))
-      aux_var%dtotal_sorb_eq = 0.d0
-    else
-      nullify(aux_var%dtotal_sorb_eq)
-    endif
+    allocate(aux_var%dtotal_sorb_eq(reaction%naqcomp,reaction%naqcomp))
+    aux_var%dtotal_sorb_eq = 0.d0
   else
     nullify(aux_var%total_sorb_eq)
     nullify(aux_var%dtotal_sorb_eq)
   endif    
   
-  if (reaction%neqsrfcplxrxn > 0) then
-    allocate(aux_var%eqsrfcplx_conc(reaction%neqsrfcplx))
-    aux_var%eqsrfcplx_conc = 0.d0
-    
-    allocate(aux_var%eqsrfcplx_free_site_conc(reaction%neqsrfcplxrxn))
-    aux_var%eqsrfcplx_free_site_conc = 1.d-9 ! initialize to guess
-    
-!   allocate(aux_var%eqsurf_site_density(reaction%neqsrfcplxrxn))
-!   aux_var%eqsurf_site_density = 0.d0
-  else
-    nullify(aux_var%eqsrfcplx_conc)
-    nullify(aux_var%eqsrfcplx_free_site_conc)
-!   nullify(aux_var%eqsurf_site_density)
-  endif
-  
-  if (reaction%nkinsrfcplxrxn > 0) then
-    allocate(aux_var%kinsrfcplx_conc(reaction%nkinsrfcplx))
-    aux_var%kinsrfcplx_conc = 0.d0
+  ! surface complexation
+  nullify(aux_var%eqsrfcplx_conc)
+  nullify(aux_var%srfcplxrxn_free_site_conc)
+  nullify(aux_var%kinsrfcplx_conc)
+  nullify(aux_var%kinsrfcplx_conc_kp1)
+  nullify(aux_var%kinsrfcplx_free_site_conc)
+  nullify(aux_var%kinmr_total_sorb)
+  if (surface_complexation%nsrfcplxrxn > 0) then
+    allocate(aux_var%srfcplxrxn_free_site_conc(surface_complexation%nsrfcplxrxn))
+    aux_var%srfcplxrxn_free_site_conc = 1.d-9 ! initialize to guess
+    if (surface_complexation%neqsrfcplxrxn > 0) then
+      allocate(aux_var%eqsrfcplx_conc(surface_complexation%nsrfcplx))
+      aux_var%eqsrfcplx_conc = 0.d0
+    endif
+    if (surface_complexation%nkinsrfcplxrxn > 0) then
+      !geh: currently hardwired to only 1 reaction
+      allocate(aux_var%kinsrfcplx_conc(surface_complexation%nkinsrfcplx,1))
+      aux_var%kinsrfcplx_conc = 0.d0
 
-    allocate(aux_var%kinsrfcplx_conc_kp1(reaction%nkinsrfcplx))
-    aux_var%kinsrfcplx_conc_kp1 = 0.d0
-    
-    allocate(aux_var%kinsrfcplx_free_site_conc(reaction%nkinsrfcplxrxn))
-    aux_var%kinsrfcplx_free_site_conc = 0.d0 ! initialize to guess
-    
-!   allocate(aux_var%kinsurf_site_density(reaction%nkinsrfcplxrxn))
-!   aux_var%kinsurf_site_density = 0.d0
-  else
-    nullify(aux_var%kinsrfcplx_conc)
-    nullify(aux_var%kinsrfcplx_conc_kp1)
-    nullify(aux_var%kinsrfcplx_free_site_conc)
-!   nullify(aux_var%kinsurf_site_density)
+      allocate(aux_var%kinsrfcplx_conc_kp1(surface_complexation%nkinsrfcplx,1))
+      aux_var%kinsrfcplx_conc_kp1 = 0.d0
+    endif
+    if (surface_complexation%nkinmrsrfcplxrxn > 0) then
+      ! the zeroth entry here stores the equilibrium concentration used in the 
+      ! update
+      ! the zeroth entry of kinmr_nrate holds the maximum number of rates
+      ! prescribed in a multirate reaction...required for appropriate sizing
+      allocate(aux_var%kinmr_total_sorb(reaction%naqcomp, &
+                                        0:surface_complexation%kinmr_nrate(0), &
+                                        surface_complexation%nkinmrsrfcplxrxn))
+      aux_var%kinmr_total_sorb = 0.d0
+    endif
   endif
   
   if (reaction%neqionxrxn > 0) then
@@ -387,13 +387,6 @@ subroutine RTAuxVarInit(aux_var,reaction,option)
     nullify(aux_var%mass_balance_delta)
   endif
   
-  if (reaction%kinmr_nrate > 0) then
-    allocate(aux_var%kinmr_total_sorb(reaction%naqcomp,reaction%kinmr_nrate))
-    aux_var%kinmr_total_sorb = 0.d0
-  else
-    nullify(aux_var%kinmr_total_sorb)
-  endif
-
   if (reaction%ncollcomp > 0) then
     allocate(aux_var%colloid)
     allocate(aux_var%colloid%conc_mob(reaction%ncoll))
@@ -456,9 +449,12 @@ subroutine RTAuxVarCopy(aux_var,aux_var2,option)
   if (associated(aux_var%gas_molal)) &
     aux_var%gas_molal = aux_var2%gas_molal
   
+  if (associated(aux_var%srfcplxrxn_free_site_conc)) then
+    aux_var%srfcplxrxn_free_site_conc = aux_var2%srfcplxrxn_free_site_conc
+  endif
+  
   if (associated(aux_var%eqsrfcplx_conc)) then
     aux_var%eqsrfcplx_conc = aux_var2%eqsrfcplx_conc
-    aux_var%eqsrfcplx_free_site_conc = aux_var2%eqsrfcplx_free_site_conc
   endif
   
   if (associated(aux_var%kinsrfcplx_conc)) then
@@ -468,7 +464,8 @@ subroutine RTAuxVarCopy(aux_var,aux_var2,option)
   endif
   
   if (associated(aux_var%eqionx_ref_cation_sorbed_conc)) then
-    aux_var%eqionx_ref_cation_sorbed_conc = aux_var2%eqionx_ref_cation_sorbed_conc
+    aux_var%eqionx_ref_cation_sorbed_conc = &
+      aux_var2%eqionx_ref_cation_sorbed_conc
     aux_var%eqionx_conc = aux_var2%eqionx_conc
   endif  
   
@@ -600,12 +597,58 @@ end subroutine RTAuxVarChunkDestroy
 
 ! ************************************************************************** !
 !
-! RTAuxVarDestroy: Deallocates a reactive transport auxilliary object
+! RTAuxVarSingleDestroy: Deallocates a mode auxilliary object
+! author: Glenn Hammond
+! date: 01/10/12
+!
+! ************************************************************************** !
+subroutine RTAuxVarSingleDestroy(aux_var)
+
+  implicit none
+
+  type(reactive_transport_auxvar_type), pointer :: aux_var
+  
+  if (associated(aux_var)) then
+    call RTAuxVarStrip(aux_var)
+    deallocate(aux_var)
+  endif
+  nullify(aux_var)  
+
+end subroutine RTAuxVarSingleDestroy
+  
+! ************************************************************************** !
+!
+! RTAuxVarArrayDestroy: Deallocates a mode auxilliary object
+! author: Glenn Hammond
+! date: 01/10/12
+!
+! ************************************************************************** !
+subroutine RTAuxVarArrayDestroy(aux_vars)
+
+  implicit none
+
+  type(reactive_transport_auxvar_type), pointer :: aux_vars(:)
+  
+  PetscInt :: iaux
+  
+  if (associated(aux_vars)) then
+    do iaux = 1, size(aux_vars)
+      call RTAuxVarStrip(aux_vars(iaux))
+    enddo  
+    deallocate(aux_vars)
+  endif
+  nullify(aux_vars)  
+
+end subroutine RTAuxVarArrayDestroy
+  
+! ************************************************************************** !
+!
+! RTAuxVarStrip: Deallocates all members of single auxilliary object
 ! author: Glenn Hammond
 ! date: 02/14/08
 !
 ! ************************************************************************** !
-subroutine RTAuxVarDestroy(aux_var)
+subroutine RTAuxVarStrip(aux_var)
 
   implicit none
 
@@ -632,9 +675,9 @@ subroutine RTAuxVarDestroy(aux_var)
 
   if (associated(aux_var%eqsrfcplx_conc)) deallocate(aux_var%eqsrfcplx_conc)
   nullify(aux_var%eqsrfcplx_conc)
-  if (associated(aux_var%eqsrfcplx_free_site_conc)) &
-    deallocate(aux_var%eqsrfcplx_free_site_conc)
-  nullify(aux_var%eqsrfcplx_free_site_conc)
+  if (associated(aux_var%srfcplxrxn_free_site_conc)) &
+    deallocate(aux_var%srfcplxrxn_free_site_conc)
+  nullify(aux_var%srfcplxrxn_free_site_conc)
   
   if (associated(aux_var%kinsrfcplx_conc)) deallocate(aux_var%kinsrfcplx_conc)
   nullify(aux_var%kinsrfcplx_conc)
@@ -695,7 +738,7 @@ subroutine RTAuxVarDestroy(aux_var)
     call MatrixBlockAuxVarDestroy(aux_var%colloid%dRic_dSic)
   endif
   
-end subroutine RTAuxVarDestroy
+end subroutine RTAuxVarStrip
 
 ! ************************************************************************** !
 !
@@ -713,27 +756,9 @@ subroutine RTAuxDestroy(aux)
   
   if (.not.associated(aux)) return
   
-  if (associated(aux%aux_vars)) then
-    do iaux = 1, aux%num_aux
-      call RTAuxVarDestroy(aux%aux_vars(iaux))
-    enddo  
-    deallocate(aux%aux_vars)
-  endif
-  nullify(aux%aux_vars)
-  if (associated(aux%aux_vars_bc)) then
-    do iaux = 1, aux%num_aux_bc
-      call RTAuxVarDestroy(aux%aux_vars_bc(iaux))
-    enddo  
-    deallocate(aux%aux_vars_bc)
-  endif
-  nullify(aux%aux_vars_bc)
-  if (associated(aux%aux_vars_ss)) then
-    do iaux = 1, aux%num_aux_ss
-      call RTAuxVarDestroy(aux%aux_vars_ss(iaux))
-    enddo  
-    deallocate(aux%aux_vars_ss)
-  endif
-  nullify(aux%aux_vars_ss)
+  call RTAuxVarDestroy(aux%aux_vars)
+  call RTAuxVarDestroy(aux%aux_vars_bc)
+  call RTAuxVarDestroy(aux%aux_vars_ss)
 #ifdef CHUNK
   if (associated(aux%aux_var_chunk)) then
     call RTAuxVarChunkDestroy(aux%aux_var_chunk)
@@ -759,7 +784,10 @@ subroutine RTAuxDestroy(aux)
     deallocate(aux%rt_parameter)
   endif
   nullify(aux%rt_parameter)
-    
-end subroutine RTAuxDestroy
+
+  deallocate(aux)
+  nullify(aux)  
+
+  end subroutine RTAuxDestroy
 
 end module Reactive_Transport_Aux_module
