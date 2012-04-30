@@ -148,15 +148,10 @@ contains
 #endif
 
     allocate(pflotran_model)
-    write(iulog,*),'allocating stochastic'
     allocate(pflotran_model%stochastic)
-    write(iulog,*),'allocating simulation'
     allocate(pflotran_model%simulation)
-    write(iulog,*),'allocating realization'
     allocate(pflotran_model%realization)
-    write(iulog,*),'allocating option'
     allocate(pflotran_model%option)
-    write(iulog,*),'option ... done'
 #ifdef CLM_PFLOTRAN
     write(iulog,*),'allocating mapping'
     !allocate(pflotran_model%mapping)
