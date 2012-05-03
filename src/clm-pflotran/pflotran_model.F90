@@ -174,7 +174,7 @@ contains
     nullify(pflotran_model%map_pf2clm)
 
     pflotran_model%option => OptionCreate()
-    pflotran_model%option%fid_out = IUNIT2
+    pflotran_model%option%fid_out = 16
     single_inputfile = PETSC_TRUE
 
     pflotran_model%pause_time_1 = -1.0d0
@@ -316,7 +316,7 @@ contains
     pflotran_model%num_pf_cells = -1
     pflotran_model%num_clm_cells= -1
 
-  pflotran_model%realization%input => InputCreate(IUNIT1,pflotran_model%option%input_filename)
+  pflotran_model%realization%input => InputCreate(15,pflotran_model%option%input_filename,pflotran_model%option)
   
   do
   
@@ -1475,10 +1475,12 @@ contains
     allocate(grid_pf_local_or_ghost_nindex  (grid%ngmax))
 
     do local_id = 1,grid%nlmax
-       grid_pf_cell_ids_local_nindex(local_id)   = grid%nL2A(local_id)
+       grid_pf_cell_ids_local_nindex(local_id)   = grid%nG2A(grid%nL2G(local_id))
+                                                  !grid%nL2A(local_id)
     enddo
     do local_id = 1,grid%ngmax
-      grid_pf_cell_ids_ghosted_nindex(local_id) = grid%nG2A(local_id)-1
+      grid_pf_cell_ids_ghosted_nindex(local_id) = grid%nG2A(grid%nL2G(local_id))-1
+                                                  !grid%nG2A(local_id)-1
       if (grid%nG2L(local_id).eq.0) then
         grid_pf_local_or_ghost_nindex(local_id) = 0 ! GHOST
       else
@@ -1604,7 +1606,7 @@ end subroutine pflotranModelInitMapping3
     fileid   = 20
     card     = 'pflotran_interface_main'
 
-    input => InputCreate(fileid,filename)
+    input => InputCreate(fileid,filename,option)
     call InputReadFlotranString(input,option)
     call InputErrorMsg(input,option,'number of cells',card)
 
