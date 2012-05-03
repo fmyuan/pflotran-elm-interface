@@ -3355,7 +3355,6 @@ end subroutine TimestepperDestroy
     use Output_module, only : Output, OutputInit, OutputVectorTecplot, &
          OutputPermeability
     use Logging_module
-    use Mass_Balance_module
     use Discretization_module
     use Reactive_Transport_module, only : RTUpdateAuxVars
   use Condition_Control_module
@@ -3621,7 +3620,6 @@ end subroutine TimestepperDestroy
     use Output_module, only : Output, OutputInit, OutputVectorTecplot, &
          OutputPermeability
     use Logging_module
-    use Mass_Balance_module
     use Discretization_module
 
     !GB
@@ -3789,11 +3787,13 @@ end subroutine TimestepperDestroy
              if (option%reactive_transport_coupling == GLOBAL_IMPLICIT) then
                 !global implicit
                 call StepperStepTransportDT_GI(realization,tran_stepper, &
-                     flow_t0,option%flow_time,failure)
+                                               run_flow_as_steady_state, &
+                                               flow_t0,option%flow_time,failure)
              else
                 !operator splitting
                 call StepperStepTransportDT_OS(realization,tran_stepper, &
-                     flow_t0,option%flow_time,failure)
+                                               run_flow_as_steady_state, &
+                                               flow_t0,option%flow_time,failure)
              endif
              if (failure) then ! if transport solve fails, exit
                 call PetscLogStagePop(ierr)
@@ -3962,7 +3962,6 @@ end subroutine TimestepperDestroy
     use Output_module, only : Output, OutputInit, OutputVectorTecplot, &
          OutputPermeability
     use Logging_module
-    use Mass_Balance_module
     use Discretization_module
 
     implicit none

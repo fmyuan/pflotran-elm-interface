@@ -346,7 +346,7 @@ contains
     if(option%myrank == option%io_rank) then
        
        ! Open the file
-       input => InputCreate(fileid,filename)
+       input => InputCreate(fileid,filename,option)
        call InputReadFlotranString(input,option)
        call InputErrorMsg(input,option,'number of cells',card)
        
@@ -606,7 +606,7 @@ contains
     ! Read ASCII file through io_rank and communicate to other ranks
     if(option%myrank == option%io_rank) then
 
-       input => InputCreate(fileid,filename)
+       input => InputCreate(fileid,filename,option)
        call InputReadFlotranString(input,option)
        call InputErrorMsg(input,option,'number of cells',card)
 
