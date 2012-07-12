@@ -41,13 +41,62 @@ program pflotran_interface_main
   !allocate(clm_pf_idata)
   
   ! Create the model and CLM data
-  pflotran_m => pflotranModelCreate()
+  pflotran_m => pflotranModelCreate(1)
 
-  call pflotranModelStepperRunInit(pflotran_m)
-  do time = 1,10
-     call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 3600.0d0)
-  enddo
-  call pflotranModelStepperRunFinalize(pflotran_m)
+#if 1
+  if (pflotran_m%option%mycommsize == 1) then
+    clm_npts = 30*30*10
+    allocate (clm_cell_ids(clm_npts))
+    do ii = 1,clm_npts
+      clm_cell_ids(ii) = ii-1
+      !clm_cell_ids(ii) = ii
+    enddo
+  else
+    clm_npts = 30*30*10/2
+    allocate (clm_cell_ids(clm_npts))
+    do ii = 1,clm_npts
+      !clm_cell_ids(ii) = ii-1 + 30*30*10/2*pflotran_m%option%myrank
+      clm_cell_ids(ii) = ii + 30*30*10/2*pflotran_m%option%myrank
+    enddo
+  endif
+#endif
+
+#if 0
+  if (pflotran_m%option%mycommsize == 1) then
+    clm_npts = 8
+    allocate(clm_cell_ids(clm_npts))
+    do ii = 1,clm_npts
+      clm_cell_ids(ii) = ii-1
+    enddo
+  else
+    if(pflotran_m%option%myrank == 0) then
+      clm_npts = 5
+      allocate(clm_cell_ids(clm_npts))
+      clm_cell_ids(1) = 4
+      clm_cell_ids(2) = 5
+      clm_cell_ids(3) = 6
+      clm_cell_ids(4) = 7
+      clm_cell_ids(5) = 8
+    else
+      clm_npts = 3
+      allocate(clm_cell_ids(clm_npts))
+      clm_cell_ids(1) = 3
+      clm_cell_ids(2) = 2
+      clm_cell_ids(3) = 1
+    endif
+  endif
+#endif
+  
+  call pflotranModelInitMapping3(pflotran_m, clm_cell_ids, clm_npts,CLM2PF_FLUX_MAP_ID)
+
+
+  !write(*,*), 'Done pflotranModelCreate()'
+
+  !call pflotranModelStepperRunInit(pflotran_m)
+  !do time = 1,10
+  !   call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 3600.0d0)
+  !enddo
+  !call pflotranModelStepperRunFinalize(pflotran_m)
 
   call pflotranModelDestroy(pflotran_m)
 
