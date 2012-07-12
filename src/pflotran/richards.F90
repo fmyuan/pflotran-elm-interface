@@ -10,7 +10,7 @@ module Richards_module
   use clm_varctl      , only : iulog
 #endif
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  use pflotran_clm_interface_type
+  use clm_pflotran_interface_data
 #endif
   implicit none
   
@@ -3221,6 +3221,9 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
   PetscInt :: sum_connection
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  PetscReal, pointer :: qflx_pf_p(:)
+#endif
   
   patch => realization%patch
   grid => patch%grid
@@ -3231,6 +3234,10 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   rich_aux_vars_ss => patch%aux%Richards%aux_vars_ss
   global_aux_vars => patch%aux%Global%aux_vars
   global_aux_vars_ss => patch%aux%Global%aux_vars_ss
+
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  call VecGetArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr)
+#endif
 
 ! now assign access pointer to local variables
   call GridVecGetArrayF90(grid,r, r_p, ierr)
@@ -3282,7 +3289,7 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
       if (patch%imat(ghosted_id) <= 0) cycle
 
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-      qsrc = pf_clm_data%qsrc_flx(local_id)
+      qsrc = qflx_pf_p(local_id)
 #endif
 
       select case(source_sink%flow_condition%rate%itype)
@@ -3335,6 +3342,9 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
   call GridVecRestoreArrayF90(grid,field%volume, volume_p, ierr)
 
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  call VecRestoreArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr)
+#endif
   
 #ifdef DASVYAT
       
@@ -5259,7 +5269,7 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
       if (patch%imat(ghosted_id) <= 0) cycle
       
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-      qsrc = pf_clm_data%qsrc_flx(local_id)
+      !qsrc = pf_clm_data%qsrc_flx(local_id)
 #endif
 
       Jup = 0.d0

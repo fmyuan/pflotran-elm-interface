@@ -202,7 +202,6 @@ common_obj = ${common_src}option.o \
 	${common_src}init.o \
 	${common_src}mapping.o \
   ${common_src}clm_pflotran_interface_data.o \
-  ${common_src}pflotran_clm_interface_type.o \
   ${common_src}pflotran_model.o
 
 pflotran_obj = ${common_obj}\
@@ -299,7 +298,7 @@ surface_complexation_aux.o : option.o string.o database_aux.o
 thc.o : thc_aux.o realization.o saturation_function.o
 thmc.o : thmc_aux.o realization.o saturation_function.o
 richards.o : richards_aux.o realization.o saturation_function.o \
-             matrix_buffer.o logging.o pflotran_clm_interface_type.o
+             matrix_buffer.o logging.o clm_pflotran_interface_data.o
 thc_aux.o : option.o material.o water_eos.o saturation_function.o grid.o
 thmc_aux.o : option.o material.o water_eos.o saturation_function.o grid.o
 richards_aux.o : option.o material.o water_eos.o saturation_function.o \
