@@ -1,4 +1,5 @@
 module THC_Aux_module
+use Secondary_Continuum_module
 
   implicit none
   
@@ -60,18 +61,20 @@ module THC_Aux_module
   type, public :: thc_type
     PetscInt :: n_zero_rows
     PetscInt, pointer :: zero_rows_local(:), zero_rows_local_ghosted(:)
-
     PetscBool :: aux_vars_up_to_date
     PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc
     type(thc_parameter_type), pointer :: thc_parameter
     type(thc_auxvar_type), pointer :: aux_vars(:)
     type(thc_auxvar_type), pointer :: aux_vars_bc(:)
+    type(sec_heat_type), pointer :: sec_heat_vars(:)
   end type thc_type
+
 
   public :: THCAuxCreate, THCAuxDestroy, &
             THCAuxVarCompute, THCAuxVarInit, &
-            THCAuxVarCopy, THCComputeGradient
+            THCSecHeatAuxVarCompute, &
+            THCAuxVarCopy
 
 #ifdef ICE
   public :: THCAuxVarComputeIce
@@ -116,6 +119,8 @@ function THCAuxCreate(option)
   aux%thc_parameter%diffusion_coefficient = 1.d-9
   aux%thc_parameter%diffusion_activation_energy = 0.d0
 
+  nullify(aux%sec_heat_vars)
+  
   THCAuxCreate => aux
   
 end function THCAuxCreate
@@ -136,6 +141,7 @@ subroutine THCAuxVarInit(aux_var,option)
   type(thc_auxvar_type) :: aux_var
   type(option_type) :: option
   
+
   aux_var%avgmw = 0.d0
   aux_var%h = 0.d0
   aux_var%u = 0.d0
@@ -195,7 +201,7 @@ subroutine THCAuxVarCopy(aux_var,aux_var2,option)
 ! aux_var2%temp = aux_var%temp
 ! aux_var2%den = aux_var%den
 ! aux_var2%den_kg = aux_var%den_kg
-  
+    
   aux_var2%avgmw = aux_var%avgmw
   aux_var2%h = aux_var%h
   aux_var2%u = aux_var%u
@@ -318,14 +324,6 @@ subroutine THCAuxVarCompute(x,aux_var,global_aux_var, &
 !  call wateos_noderiv(option%temp,pw,dw_kg,dw_mol,hw,option%scale,ierr)
   call wateos(global_aux_var%temp(1),pw,dw_kg,dw_mol,dw_dp,dw_dt,hw,hw_dp,hw_dt, &
               option%scale,ierr)
-              
-!  print *, 'wateos:', dw_kg,dw_mol,dw_dp,dw_dt,hw,hw_dp,hw_dt
-
-!  call wateos_simple(global_aux_var%temp(1), pw, dw_kg, dw_mol, dw_dp, &
-!                         dw_dt, hw, hw_dp, hw_dt, ierr)
-                         
-!  print *, 'wateos_simple', dw_kg,dw_mol,dw_dp,dw_dt,hw,hw_dp,hw_dt
-
 
 ! may need to compute dpsat_dt to pass to VISW
   call psat(global_aux_var%temp(1),sat_pressure,dpsat_dt,ierr)
@@ -373,69 +371,100 @@ subroutine THCAuxVarCompute(x,aux_var,global_aux_var, &
   
 end subroutine THCAuxVarCompute
 
-
 ! ************************************************************************** !
 ! 
-! THCComputeGradient: Computes the gradient of temperature (for now) using
-! least square fit of values from neighboring cells
-! See:I. Bijelonja, I. Demirdzic, S. Muzaferija -- A finite volume method 
-! for incompressible linear elasticity, CMAME
-! Author: Satish Karra
-! Date: 2/20/12
+! THCSecHeatAuxVarCompute: Computes secondary auxillary variables for each
+!                            grid cell for heat transfer only
+! author: Satish Karra
+! Date: 06/5/12
 !
 ! ************************************************************************** !
+subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_aux_var, &
+                                   therm_conductivity,dencpr, &
+                                   option)
 
-
-subroutine THCComputeGradient(grid, global_aux_vars, ghosted_id, gradient, &
-                              option) 
-
-
-  use Grid_module
+  use Option_module 
   use Global_Aux_module
-  use Option_module
-  use Utility_module
-
+  
   implicit none
-
+  
+  type(sec_heat_type) :: sec_heat_vars
+  type(global_auxvar_type) :: global_aux_var
   type(option_type) :: option
-  type(grid_type), pointer :: grid
-  type(global_auxvar_type), pointer :: global_aux_vars(:)
+  PetscReal :: coeff_left(sec_heat_vars%ncells)
+  PetscReal :: coeff_diag(sec_heat_vars%ncells)
+  PetscReal :: coeff_right(sec_heat_vars%ncells)
+  PetscReal :: rhs(sec_heat_vars%ncells)
+  PetscReal :: sec_temp(sec_heat_vars%ncells)
+  PetscReal :: area(sec_heat_vars%ncells)
+  PetscReal :: vol(sec_heat_vars%ncells)
+  PetscReal :: dm_plus(sec_heat_vars%ncells)
+  PetscReal :: dm_minus(sec_heat_vars%ncells)
+  PetscInt :: i, ngcells
+  PetscReal :: area_fm
+  PetscReal :: alpha, therm_conductivity, dencpr
+  PetscReal :: temp_primary_node
+  PetscReal :: m
+  
+  ngcells = sec_heat_vars%ncells
+  area = sec_heat_vars%area
+  vol = sec_heat_vars%vol
+  dm_plus = sec_heat_vars%dm_plus
+  dm_minus = sec_heat_vars%dm_minus
+  area_fm = sec_heat_vars%interfacial_area
+  temp_primary_node = global_aux_var%temp(1)
+  
+  coeff_left = 0.d0
+  coeff_diag = 0.d0
+  coeff_right = 0.d0
+  rhs = 0.d0
+  sec_temp = 0.d0
+  
+  alpha = option%flow_dt*therm_conductivity/dencpr
 
   
-  PetscInt :: ghosted_neighbors_size, ghosted_id
-  PetscInt :: ghosted_neighbors(26)
-  PetscReal :: gradient(3), disp_vec(3,1), disp_mat(3,3)
-  PetscReal :: temp_weighted(3,1)
-  PetscInt :: i
+  ! Setting the coefficients
+  do i = 2, ngcells-1
+    coeff_left(i) = -alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i))
+    coeff_diag(i) = alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i)) + &
+                    alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i)) + 1.d0
+    coeff_right(i) = -alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i))
+  enddo
   
-  PetscInt :: INDX(3)
-  PetscInt :: D
-   
-  call GridGetGhostedNeighborsWithCorners(grid,ghosted_id, &
-                                         STAR_STENCIL, &
-                                         1,1,1,ghosted_neighbors_size, &
-                                         ghosted_neighbors, &
-                                         option)   
+  coeff_diag(1) = alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1)) + 1.d0
+  coeff_right(1) = -alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1))
+  
+  coeff_left(ngcells) = -alpha*area(ngcells-1)/ &
+                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells))
+  coeff_diag(ngcells) = alpha*area(ngcells-1)/ &
+                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells)) &
+                       + alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells)) &
+                       + 1.d0
 
-  disp_vec = 0.d0
-  disp_mat = 0.d0
-  temp_weighted = 0.d0
-  do i = 1, ghosted_neighbors_size
-    disp_vec(1,1) = grid%x(ghosted_neighbors(i)) - grid%x(ghosted_id)
-    disp_vec(2,1) = grid%y(ghosted_neighbors(i)) - grid%y(ghosted_id)
-    disp_vec(3,1) = grid%z(ghosted_neighbors(i)) - grid%z(ghosted_id)
-    disp_mat = disp_mat + matmul(disp_vec,transpose(disp_vec))
-    temp_weighted = temp_weighted + disp_vec* &
-                    (global_aux_vars(ghosted_neighbors(i))%temp(1) - &
-                     global_aux_vars(ghosted_id)%temp(1))
+                        
+  rhs = sec_heat_vars%sec_temp  ! secondary continuum values from previous time step
+  rhs(ngcells) = rhs(ngcells) + & 
+                 alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells))* &
+                 temp_primary_node
+                
+  ! Thomas algorithm for tridiagonal system
+  ! Forward elimination
+  do i = 2, ngcells
+    m = coeff_left(i)/coeff_diag(i-1)
+    coeff_diag(i) = coeff_diag(i) - m*coeff_right(i-1)
+    rhs(i) = rhs(i) - m*rhs(i-1)
   enddo
 
-  call ludcmp(disp_mat,3,INDX,D)
-  call lubksb(disp_mat,3,INDX,temp_weighted)
+  ! Back substitution
+  ! Calculate temperature in the secondary continuum
+  sec_temp(ngcells) = rhs(ngcells)/coeff_diag(ngcells)
+  do i = ngcells-1, 1, -1
+    sec_temp(i) = (rhs(i) - coeff_right(i)*sec_temp(i+1))/coeff_diag(i)
+  enddo
   
-  gradient(:) = temp_weighted(:,1)
-  
-end subroutine THCComputeGradient
+  sec_heat_vars%sec_temp = sec_temp
+            
+end subroutine THCSecHeatAuxVarCompute
 
 ! ************************************************************************** !
 ! 
@@ -480,6 +509,10 @@ subroutine THCAuxVarComputeIce(x, aux_var, global_aux_var, iphase, &
   PetscReal :: dsi_pl, dsi_temp
   PetscReal :: den_ice, dden_ice_dT, dden_ice_dP
   PetscReal :: u_ice, du_ice_dT
+  PetscBool :: out_of_table_flag
+  PetscReal :: p_th
+  
+  out_of_table_flag = PETSC_FALSE
  
   global_aux_var%sat = 0.d0
   global_aux_var%den = 0.d0
@@ -494,6 +527,13 @@ subroutine THCAuxVarComputeIce(x, aux_var, global_aux_var, iphase, &
    
   global_aux_var%pres = x(1)  
   global_aux_var%temp = x(2)
+  
+  ! Check if the capillary pressure is less than -100MPa
+  
+  if (global_aux_var%pres(1) - option%reference_pressure < -1.d8 + 1.d0) then
+    global_aux_var%pres(1) = -1.d8 + option%reference_pressure + 1.d0
+  endif
+
  
   aux_var%pc = option%reference_pressure - global_aux_var%pres(1)
   aux_var%xmol(1) = 1.d0
@@ -514,18 +554,27 @@ subroutine THCAuxVarComputeIce(x, aux_var, global_aux_var, iphase, &
     pw = global_aux_var%pres(1)
     dpw_dp = 1.d0
   endif  
+  
+  call CapillaryPressureThreshold(saturation_function,p_th,option)
+
 
   call SaturationFunctionComputeIce(global_aux_var%pres(1), & 
                                     global_aux_var%temp(1), ice_saturation, &
                                     global_aux_var%sat(1), gas_saturation, &
                                     kr, ds_dp, dsl_temp, dsg_pl, dsg_temp, &
                                     dsi_pl, dsi_temp, dkr_dp, dkr_dt, &
-                                    saturation_function, option)
+                                    saturation_function, p_th, option)
 
 
   call wateos(global_aux_var%temp(1),pw,dw_kg,dw_mol,dw_dp,dw_dt,hw,hw_dp,hw_dt, &
               option%scale,ierr)
 
+!  call wateos_flag (global_aux_var%temp(1),pw,dw_kg,dw_mol,dw_dp,dw_dt,hw, &
+!                     hw_dp,hw_dt,option%scale,out_of_table_flag,ierr)
+  
+!  if (out_of_table_flag) then  
+!    option%out_of_table = PETSC_TRUE                 
+!  endif
 
 !  call wateos_simple(global_aux_var%temp(1), pw, dw_kg, dw_mol, dw_dp, &
 !                         dw_dt, hw, hw_dp, hw_dt, ierr)
@@ -662,7 +711,9 @@ subroutine THCAuxDestroy(aux)
     nullify(aux%thc_parameter%sir)
   endif
   nullify(aux%thc_parameter)
-
+  
+  nullify(aux%sec_heat_vars)
+  
   deallocate(aux)
   nullify(aux)  
 

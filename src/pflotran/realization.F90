@@ -183,7 +183,9 @@ function RealizationCreate2(option)
   
   nullify(realization%reaction)
 
-  nullify(realization%patch)    
+  nullify(realization%patch)
+  nullify(realization%level_list)
+  nullify(realization%waypoints)
 
   RealizationCreate2 => realization
   
@@ -199,8 +201,8 @@ end function RealizationCreate2
 subroutine RealizationCreateDiscretization(realization)
 
   use Grid_module
-  use Unstructured_Grid_module, only : UGridMapIndices, &
-                                       UGridEnsureRightHandRule
+  use Unstructured_Grid_Aux_module
+  use Unstructured_Grid_module, only : UGridEnsureRightHandRule
   use Structured_Grid_module, only : StructGridCreateTVDGhosts
   use MFD_module
   use Coupler_module
@@ -366,7 +368,10 @@ subroutine RealizationCreateDiscretization(realization)
     case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
       grid => discretization%grid
       ! set up nG2L, nL2G, etc.
-      call GridMapIndices(grid, discretization%dm_1dof%sgdm)
+      call GridMapIndices(grid, discretization%dm_1dof%sgdm, &
+                          discretization%stencil_type,&
+                          discretization%lsm_flux_method, &
+                          option)
       if (option%itranmode == EXPLICIT_ADVECTION) then
         call StructGridCreateTVDGhosts(grid%structured_grid, &
                                        realization%reaction%naqcomp, &
@@ -384,17 +389,23 @@ subroutine RealizationCreateDiscretization(realization)
       if (discretization%itype == STRUCTURED_GRID_MIMETIC) then
           call GridComputeCell2FaceConnectivity(grid, discretization%MFD, option)
       end if
+      if (discretization%lsm_flux_method) call GridComputeNeighbors(grid,option)
     case(UNSTRUCTURED_GRID)
       grid => discretization%grid
       ! set up nG2L, NL2G, etc.
-      call UGridMapIndices(grid%unstructured_grid,discretization%dm_1dof%ugdm, &
+      call UGridMapIndices(grid%unstructured_grid, &
+                           discretization%dm_1dof%ugdm, &
                            grid%nG2L,grid%nL2G,grid%nG2A)
       call GridComputeCoordinates(grid,discretization%origin,option, & 
-                                   discretization%dm_1dof%ugdm) 
-      call UGridEnsureRightHandRule(grid%unstructured_grid,grid%x, &
-                                    grid%y,grid%z,grid%nG2A,grid%nL2G,option)
+                                    discretization%dm_1dof%ugdm) 
+      if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
+        call UGridEnsureRightHandRule(grid%unstructured_grid,grid%x, &
+                                      grid%y,grid%z,grid%nG2A,grid%nL2G, &
+                                      option)
+      endif
       ! set up internal connectivity, distance, etc.
-      call GridComputeInternalConnect(grid,option,discretization%dm_1dof%ugdm) 
+      call GridComputeInternalConnect(grid,option, &
+                                      discretization%dm_1dof%ugdm) 
       call GridComputeVolumes(grid,field%volume,option)
   end select 
  
@@ -1370,6 +1381,14 @@ subroutine RealizationInitAllCouplerAuxVars(realization)
   
   type(realization_type) :: realization
   
+  !geh: Must update conditions prior to initializing the aux vars.  
+  !     Otherwise, datasets will not have been read for routines such as
+  !     hydrostatic and auxvars will be initialized to garbage.
+  call FlowConditionUpdate(realization%flow_conditions,realization%option, &
+                           realization%option%time)
+  call TranConditionUpdate(realization%transport_conditions, &
+                           realization%option, &
+                           realization%option%time)  
   call PatchInitAllCouplerAuxVars(realization%patch,realization%option)
    
 end subroutine RealizationInitAllCouplerAuxVars
@@ -1816,14 +1835,14 @@ subroutine RealizationUpdatePropertiesPatch(realization)
   
     call GridVecGetArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
 
-    if (reaction%nkinmnrl > 0) then
+    if (reaction%mineral%nkinmnrl > 0) then
       do local_id = 1, grid%nlmax
         ghosted_id = grid%nL2G(local_id)
 
         ! Go ahead and compute for inactive cells since their porosity does
         ! not matter (avoid check on active/inactive)
         sum_volfrac = 0.d0
-        do imnrl = 1, reaction%nkinmnrl
+        do imnrl = 1, reaction%mineral%nkinmnrl
           sum_volfrac = sum_volfrac + &
                         rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl)
         enddo 
@@ -1842,7 +1861,7 @@ subroutine RealizationUpdatePropertiesPatch(realization)
       ! if porosity ratio is used in mineral surface area update, we must
       ! recalculate it every time.
       (reaction%update_mineral_surface_area .and. &
-       option%update_mnrl_surf_with_porosity)) then
+       reaction%update_mnrl_surf_with_porosity)) then
     call GridVecGetArrayF90(grid,field%porosity0,porosity0_p,ierr)
     call GridVecGetArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
     call GridVecGetArrayF90(grid,field%work,vec_p,ierr)
@@ -1857,25 +1876,26 @@ subroutine RealizationUpdatePropertiesPatch(realization)
 
   if (reaction%update_mineral_surface_area) then
     porosity_scale = 1.d0
-    if (option%update_mnrl_surf_with_porosity) then
-      ! placing the get/restore array calls within the condition will 
+!   if (option%update_mnrl_surf_with_porosity) then
+    if (reaction%update_mnrl_surf_with_porosity) then
+      ! placing the get/restore array calls within the condition will
       ! avoid improper access.
       call GridVecGetArrayF90(grid,field%work,vec_p,ierr)
     endif
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
-      if (option%update_mnrl_surf_with_porosity) then
+      if (reaction%update_mnrl_surf_with_porosity) then
         porosity_scale = vec_p(local_id)** &
-             reaction%kinmnrl_surf_area_porosity_pwr(imnrl)
+             reaction%mineral%kinmnrl_surf_area_porosity_pwr(imnrl)
 !geh: srf_area_vol_frac_pwr must be defined on a per mineral basis, not
 !     solely material type.
 !          material_property_array(patch%imat(ghosted_id))%ptr%mnrl_surf_area_porosity_pwr
       endif
-      do imnrl = 1, reaction%nkinmnrl
+      do imnrl = 1, reaction%mineral%nkinmnrl
         if (rt_auxvars(ghosted_id)%mnrl_volfrac0(imnrl) > 0.d0) then
           volfrac_scale = (rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl)/ &
                          rt_auxvars(ghosted_id)%mnrl_volfrac0(imnrl))** &
-             reaction%kinmnrl_surf_area_vol_frac_pwr(imnrl)
+             reaction%mineral%kinmnrl_surf_area_vol_frac_pwr(imnrl)
 !geh: srf_area_vol_frac_pwr must be defined on a per mineral basis, not
 !     solely material type.
 !            material_property_array(patch%imat(ghosted_id))%ptr%mnrl_surf_area_volfrac_pwr
@@ -1887,7 +1907,7 @@ subroutine RealizationUpdatePropertiesPatch(realization)
         endif
       enddo
     enddo
-    if (option%update_mnrl_surf_with_porosity) then
+    if (reaction%update_mnrl_surf_with_porosity) then
       call GridVecRestoreArrayF90(grid,field%work,vec_p,ierr)
     endif
 

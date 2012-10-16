@@ -545,7 +545,7 @@ subroutine CondControlAssignTranInitCond(realization)
 
         ! read in heterogeneous mineral volume fractions
         if (associated(constraint_coupler%minerals)) then
-          do imnrl = 1, reaction%nkinmnrl
+          do imnrl = 1, reaction%mineral%nkinmnrl
             if (constraint_coupler%minerals%external_dataset(imnrl)) then
               re_equilibrate_at_each_cell = PETSC_TRUE
               string = 'constraint ' // trim(constraint_coupler%constraint_name)
@@ -651,7 +651,7 @@ subroutine CondControlAssignTranInitCond(realization)
           endif
           ! mineral volume fractions
           if (associated(constraint_coupler%minerals)) then
-            do imnrl = 1, reaction%nkinmnrl
+            do imnrl = 1, reaction%mineral%nkinmnrl
               ! if read from a dataset, the vol frac was set above.  Don't want to
               ! overwrite
               if (.not.constraint_coupler%minerals%external_dataset(imnrl)) then
@@ -830,6 +830,8 @@ subroutine CondControlScaleSourceSink(realization)
 
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
+#include "finclude/petscdmda.h"
+
   
   type(realization_type) :: realization
   
@@ -890,7 +892,7 @@ subroutine CondControlScaleSourceSink(realization)
 
           select case(option%iflowmode)
             case(RICHARDS_MODE,G_MODE)
-               call GridGetGhostedNeighbors(grid,ghosted_id,STAR_STENCIL, &
+               call GridGetGhostedNeighbors(grid,ghosted_id,DMDA_STENCIL_STAR, &
                                             x_width,y_width,z_width, &
                                             x_count,y_count,z_count, &
                                             ghosted_neighbors,option)
@@ -1079,6 +1081,9 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
                   endif
                   xx_p(ibegin:iend) = &
                         initial_condition%flow_aux_real_var(1:option%nflowdof,iconn)
+                  !TODO(gb): Correct the initialization of surface flow condition
+                  xx_p(ibegin:iend) = 101325.d0
+                  xx_p(ibegin:iend) = 0.d0
                   if (option%iflowmode == G_MODE) then
                     cur_patch%aux%Global%aux_vars(ghosted_id)%istate = &
                         iphase_loc_p(ghosted_id)

@@ -18,13 +18,28 @@ module Surface_Field_module
 
     Vec :: work, work_loc
 
-    Vec :: area 
+    Vec :: area
+    
+    Vec :: vol_subsurf_2_surf    ! MPI +ve value => Flow from subsurface to surface
+    Vec :: press_subsurf         ! MPI
+
+    Vec :: Dq                    ! MPI
+    Vec :: por                   ! MPI
+    Vec :: sat_func_id           ! MPI
+    Vec :: perm_xx               ! MPI
+    Vec :: perm_yy               ! MPI
+    Vec :: perm_zz               ! MPI
+    Vec :: subsurf_xx            ! MPI
+    Vec :: subsurf_yy            ! MPI
+    Vec :: subsurf_zz            ! MPI
+
+    Vec :: subsurf_temp_vec      ! MPI
 
     ! residual vectors
     Vec :: flow_r
 
     ! Solution vectors (yy = previous solution, xx = current iterate)
-    Vec :: flow_xx, flow_xx_loc, flow_accum
+    Vec :: flow_xx, flow_xx_loc, flow_dxx, flow_yy, flow_accum
 
   end type surface_field_type
 
@@ -58,11 +73,28 @@ function SurfaceFieldCreate()
   surface_field%work_loc = 0
 
   surface_field%area = 0
-
+  
   surface_field%flow_r = 0
   surface_field%flow_xx = 0
   surface_field%flow_xx_loc = 0
+  surface_field%flow_dxx = 0
+  surface_field%flow_yy = 0
   surface_field%flow_accum = 0
+  
+  surface_field%vol_subsurf_2_surf = 0
+  surface_field%press_subsurf = 0
+
+  surface_field%Dq = 0
+  surface_field%por = 0
+  surface_field%sat_func_id = 0
+  surface_field%perm_xx = 0
+  surface_field%perm_yy = 0
+  surface_field%perm_zz = 0
+  surface_field%subsurf_xx = 0
+  surface_field%subsurf_yy = 0
+  surface_field%subsurf_zz = 0
+  
+  surface_field%subsurf_temp_vec = 0
 
   SurfaceFieldCreate => surface_field
 
@@ -91,11 +123,36 @@ subroutine SurfaceFieldDestroy(surface_field)
   if (surface_field%work_loc  /= 0) call VecDestroy(surface_field%work_loc,ierr)
 
   if (surface_field%area  /= 0) call VecDestroy(surface_field%area,ierr)
+  
+  if (surface_field%vol_subsurf_2_surf /= 0) &
+    call VecDestroy(surface_field%vol_subsurf_2_surf,ierr)
+  if (surface_field%vol_subsurf_2_surf /= 0) &
+    call VecDestroy(surface_field%press_subsurf,ierr)
+  if (surface_field%press_subsurf /= 0) &
+    call VecDestroy(surface_field%press_subsurf,ierr)
+
+  if (surface_field%Dq /= 0) call VecDestroy(surface_field%Dq,ierr)
+
+  if (surface_field%perm_xx/=0) call VecDestroy(surface_field%perm_xx,ierr)
+  if (surface_field%perm_yy/=0) call VecDestroy(surface_field%perm_yy,ierr)
+  if (surface_field%perm_zz/=0) call VecDestroy(surface_field%perm_zz,ierr)
+
+  if (surface_field%por/=0) call VecDestroy(surface_field%por,ierr)
+  if (surface_field%sat_func_id/=0) call VecDestroy(surface_field%sat_func_id,ierr)
+
+  if (surface_field%subsurf_xx/=0) call VecDestroy(surface_field%subsurf_xx,ierr)
+  if (surface_field%subsurf_yy/=0) call VecDestroy(surface_field%subsurf_yy,ierr)
+  if (surface_field%subsurf_zz/=0) call VecDestroy(surface_field%subsurf_zz,ierr)
+    
 
   if (surface_field%flow_r /= 0) call VecDestroy(surface_field%flow_r,ierr)
   if (surface_field%flow_xx /= 0) call VecDestroy(surface_field%flow_xx,ierr)
   if (surface_field%flow_xx_loc /= 0) call VecDestroy(surface_field%flow_xx_loc,ierr)
+  if (surface_field%flow_dxx /= 0) call VecDestroy(surface_field%flow_dxx,ierr)
+  if (surface_field%flow_yy /= 0) call VecDestroy(surface_field%flow_yy,ierr)
   if (surface_field%flow_accum /= 0) call VecDestroy(surface_field%flow_accum,ierr)
+  
+  if (surface_field%subsurf_temp_vec/=0) call VecDestroy(surface_field%subsurf_temp_vec,ierr)
 
 end subroutine SurfaceFieldDestroy
 

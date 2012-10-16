@@ -29,6 +29,7 @@ PetscReal, parameter :: LN_TO_LOG = 0.434294481904d0
 ! constants
 PetscReal, parameter :: IDEAL_GAS_CONST = 8.314472d0   
 PetscReal, parameter :: HEAT_OF_FUSION = 3.34d5  ! J/kg
+PetscReal, parameter :: PI = 3.14159265359d0
 
 PetscInt, parameter :: ZERO_INTEGER = 0
 PetscInt, parameter :: ONE_INTEGER = 1
@@ -102,16 +103,20 @@ PetscInt, parameter :: THMC_MODE = 9
 PetscInt, parameter :: EXPLICIT_ADVECTION = 1
 
 ! grid types
-PetscInt, parameter :: NULL_GRID = 0
-PetscInt, parameter :: STRUCTURED_GRID = 1
-PetscInt, parameter :: UNSTRUCTURED_GRID = 2
-PetscInt, parameter :: CARTESIAN_GRID = 3
-PetscInt, parameter :: CYLINDRICAL_GRID = 4
-PetscInt, parameter :: SPHERICAL_GRID = 5
-PetscInt, parameter :: STRUCTURED_GRID_MIMETIC = 6
-PetscInt, parameter :: UNSTRUCTURED_GRID_MIMETIC = 7
-PetscInt, parameter :: TWO_DIM_GRID = 8
-PetscInt, parameter :: THREE_DIM_GRID = 9
+!geh: moved to grid.F90
+!PetscInt, parameter :: NULL_GRID = 0
+!PetscInt, parameter :: STRUCTURED_GRID = 1
+!PetscInt, parameter :: UNSTRUCTURED_GRID = 2
+!geh: moved to structured_grid.F90 and renumbered
+!PetscInt, parameter :: CARTESIAN_GRID = 3
+!PetscInt, parameter :: CYLINDRICAL_GRID = 4
+!PetscInt, parameter :: SPHERICAL_GRID = 5
+!geh: moved to grid.F90 and renumbered
+!PetscInt, parameter :: STRUCTURED_GRID_MIMETIC = 6
+!PetscInt, parameter :: UNSTRUCTURED_GRID_MIMETIC = 7
+!geh: moved to unstructured_grid_aux.F90 and renumbered
+!PetscInt, parameter :: TWO_DIM_GRID = 8
+!PetscInt, parameter :: THREE_DIM_GRID = 9
 
 ! condition types
 PetscInt, parameter :: NULL_CONDITION = 0
@@ -130,6 +135,7 @@ PetscInt, parameter :: EQUILIBRIUM_SS = 12
 PetscInt, parameter :: CONDUCTANCE_BC = 13
 PetscInt, parameter :: UNIT_GRADIENT_BC = 14
 PetscInt, parameter :: SATURATION_BC = 15
+PetscInt, parameter :: DISTRIBUTED_VOLUMETRIC_RATE_SS = 16
 PetscInt, parameter :: WELL_SS = 100
 
 ! source/sink scaling options
@@ -217,7 +223,7 @@ PetscInt, parameter :: X_COORDINATE =             1
 PetscInt, parameter :: Y_COORDINATE =             2
 PetscInt, parameter :: Z_COORDINATE =             3
 PetscInt, parameter :: TEMPERATURE =              4
-PetscInt, parameter :: PRESSURE =                 5
+PetscInt, parameter :: LIQUID_PRESSURE =          5
 PetscInt, parameter :: LIQUID_SATURATION =        6
 PetscInt, parameter :: GAS_SATURATION =           7
 PetscInt, parameter :: LIQUID_DENSITY =           8
@@ -266,6 +272,10 @@ PetscInt, parameter :: PROCESSOR_ID =            49
 PetscInt, parameter :: ICE_SATURATION =          50
 PetscInt, parameter :: TOTAL_BULK =              51
 PetscInt, parameter :: ICE_DENSITY =             52
+PetscInt, parameter :: GAS_PRESSURE =            53
+PetscInt, parameter :: SECONDARY_TEMPERATURE =   54
+PetscInt, parameter :: SECONDARY_CONCENTRATION = 55
+PetscInt, parameter :: SEC_MIN_VOLFRAC =         56
 
 ! activity coefficients
 PetscInt, parameter :: ACT_COEF_FREQUENCY_OFF = 0
@@ -296,6 +306,7 @@ PetscInt, parameter :: HDF5_READ_BUFFER_SIZE = 1000000
 PetscInt, parameter :: TECPLOT_POINT_FORMAT = 1
 PetscInt, parameter :: TECPLOT_BLOCK_FORMAT = 2
 PetscInt, parameter :: TECPLOT_FEBRICK_FORMAT = 3
+PetscInt, parameter :: TECPLOT_FEQUADRILATERAL_FORMAT = 4
 
 PetscInt, parameter :: OBSERVATION_SCALAR = 1
 PetscInt, parameter :: OBSERVATION_FLUX = 2
@@ -318,10 +329,6 @@ PetscInt, parameter :: SIDE_CENTERED = 1
 ! approaches to coupling reactive transport
 PetscInt, parameter :: GLOBAL_IMPLICIT = 0
 PetscInt, parameter :: OPERATOR_SPLIT = 1
-
-! stencil type
-PetscInt, parameter :: STAR_STENCIL = 1
-PetscInt, parameter :: BOX_STENCIL = 2
 
 ! grid cell type
 PetscInt, parameter :: HEX_TYPE          = 1
@@ -360,4 +367,18 @@ PetscInt, parameter :: CLM_MESH = 1
 PetscInt, parameter :: PF_MESH  = 2
 #endif
 
+PetscInt, parameter :: DECOUPLED     = 0
+PetscInt, parameter :: SEQ_COUPLED   = 1
+PetscInt, parameter :: FULLY_COUPLED = 2
+
+PetscInt, parameter :: KINEMATIC_WAVE = 1
+PetscInt, parameter :: DIFFUSION_WAVE = 2
+
+PetscInt, parameter :: TWO_POINT_FLUX = 0
+PetscInt, parameter :: LSM_FLUX       = 1
+
+! print secondary continuum variable ids
+PetscInt, parameter :: PRINT_SEC_TEMP =           0
+PetscInt, parameter :: PRINT_SEC_CONC =           1
+PetscInt, parameter :: PRINT_SEC_MIN_VOLFRAC =    2
 #define HASH

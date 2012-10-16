@@ -71,7 +71,14 @@ module Option_module
     PetscInt :: nflowspec
     PetscInt :: rt_idof
     PetscInt :: nmechdof
-
+    PetscInt :: nsec_cells
+#ifdef SURFACE_FLOW
+    PetscInt :: nsurfflowdof
+    PetscInt :: subsurf_surf_coupling
+    PetscInt :: surface_flow_formulation
+    PetscReal :: surf_flow_time, surf_flow_dt
+#endif
+    PetscBool :: sec_vars_update
     PetscInt :: air_pressure_id
     PetscInt :: capillary_pressure_id
     PetscInt :: vapor_pressure_id 
@@ -100,6 +107,9 @@ module Option_module
     PetscBool :: use_matrix_free  ! If true, do not form the Jacobian.
     
     PetscBool :: use_isothermal
+    PetscBool :: use_mc           ! If true, multiple continuum formulation is used.
+    PetscBool :: set_secondary_init_temp  ! If true, then secondary init temp is different from prim. init temp
+    PetscBool :: set_secondary_init_conc  ! If true, then secondary init conc is different from prim. init conc.
     
     character(len=MAXWORDLENGTH) :: generalized_grid
     PetscBool :: use_generalized_grid
@@ -129,12 +139,14 @@ module Option_module
     
     PetscReal :: pressure_dampening_factor
     PetscReal :: saturation_change_limit
+    PetscReal :: pressure_change_limit
+    PetscReal :: temperature_change_limit
     PetscReal :: stomp_norm
     PetscBool :: check_stomp_norm
     
     PetscReal :: minimum_hydrostatic_pressure
     
-    PetscBool :: update_mnrl_surf_with_porosity
+!   PetscBool :: update_mnrl_surf_with_porosity
     
     PetscBool :: jumpstart_kinetic_sorption
     PetscBool :: no_checkpoint_kinetic_sorption
@@ -185,6 +197,8 @@ module Option_module
 
     PetscInt :: chunk_size
     PetscInt :: num_threads
+    
+    PetscBool :: out_of_table
 
   end type option_type
   
@@ -233,6 +247,10 @@ module Option_module
 #ifdef GLENN_NEW_IO
     PetscInt, pointer :: plot_variable_ids(:,:)
     PetscInt :: num_plot_variables
+#endif
+
+#ifdef SURFACE_FLOW
+    PetscBool :: print_hydrograph
 #endif
 
   end type output_option_type
@@ -397,6 +415,8 @@ subroutine OptionInitAll(option)
 
   option%chunk_size = 8
   option%num_threads = 1
+  
+  option%out_of_table = PETSC_FALSE
  
   call OptionInitRealization(option)
 
@@ -426,11 +446,21 @@ subroutine OptionInitRealization(option)
   
   option%use_isothermal = PETSC_FALSE
   option%use_matrix_free = PETSC_FALSE
+  option%use_mc = PETSC_FALSE
+  option%set_secondary_init_temp = PETSC_FALSE
   
   option%flowmode = ""
   option%iflowmode = NULL_MODE
   option%nflowdof = 0
   option%nmechdof = 0
+  option%nsec_cells = 0
+#ifdef SURFACE_FLOW
+   option%nsurfflowdof = 0
+   option%subsurf_surf_coupling = DECOUPLED
+   option%surface_flow_formulation = KINEMATIC_WAVE
+   option%surf_flow_dt = 0.d0
+   option%surf_flow_time =0.d0
+#endif
 
   option%tranmode = ""
   option%itranmode = NULL_MODE
@@ -469,11 +499,11 @@ subroutine OptionInitRealization(option)
   
   option%pressure_dampening_factor = 0.d0
   option%saturation_change_limit = 0.d0
+  option%pressure_change_limit = 0.d0
+  option%temperature_change_limit = 0.d0
   option%stomp_norm = 0.d0
   option%check_stomp_norm = PETSC_FALSE
   
-  option%update_mnrl_surf_with_porosity = PETSC_FALSE
-    
   option%jumpstart_kinetic_sorption = PETSC_FALSE
   option%no_checkpoint_kinetic_sorption = PETSC_FALSE
   option%no_restart_kinetic_sorption = PETSC_FALSE
@@ -616,7 +646,11 @@ function OutputOptionCreate()
   nullify(output_option%plot_variable_ids)
   output_option%num_plot_variables = 0
 #endif
-  
+
+#ifdef SURFACE_FLOW
+  output_option%print_hydrograph = PETSC_FALSE
+#endif
+
   OutputOptionCreate => output_option
   
 end function OutputOptionCreate
@@ -645,6 +679,8 @@ subroutine OptionCheckCommandLine(option)
                            option%use_matrix_free, ierr)
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-use_isothermal", &
                            option%use_isothermal, ierr)
+  call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-use_mc", &
+                           option%use_mc, ierr)
                            
   call PetscOptionsGetString(PETSC_NULL_CHARACTER, '-restart', &
                              option%restart_filename, &

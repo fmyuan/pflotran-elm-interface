@@ -23,7 +23,11 @@
 \usepackage{color}
 \usepackage[table]{xcolor}
 %\usepackage{toc_entr}
-\usepackage[debug=false, colorlinks=true, pdfstartview=FitV, linkcolor=blue, citecolor=black, urlcolor=blue]{hyperref}
+\usepackage[debug=false, colorlinks=true, pdfstartview=FitV, linkcolor=teal, citecolor=black, urlcolor=green]{hyperref}
+
+\definecolor{lightgray}{gray}{0.9}
+\definecolor{lightblue}{rgb}{0.93,0.95,1.0}
+
 
 \textwidth 6.5in
 \textheight 9.5in
@@ -45,6 +49,10 @@
 %\cfoot{}
 %\footrulewidth 0.4pt
 \newcommand\keyend{{(., \, /, \, END)}}
+\newcommand\return{{\hfill$\hookrightarrow$}}
+\newcommand\returnb{{\hfill$\nearrow$}}
+%\newcommand\return{{\hfill\bf RETURN}}
+
 \newcommand{\negsp}{\vspace{-4mm}}
 \newcommand\secsp{\vspace{-3 mm}}
 \newcommand\secspb{\vspace{-2 mm}}
@@ -89,6 +97,7 @@
 \newcommand{\J}{{\mathcal J}}
 \newcommand{\jo}{{j_o}}
 \newcommand{\M}{{\mathcal M}}
+\newcommand{\N}{{\mathcal N}}
 \newcommand{\mO}{{\mathcal O}}
 \renewcommand{\P}{{{\mathcal P}}}
 \newcommand{\Q}{{\mathcal Q}}
@@ -303,13 +312,24 @@ PFLOTRAN solves a system of generally nonlinear partial differential equations d
 \EN
 and
 \EQ
-\bq = -\frac{kk_r(s)}{\mu}\bnabla\left(P-\rho g z\right).
+\bq = -\frac{kk_r(s)}{\mu}\bnabla\left(P-W_w\rho g z\right).
 \EN
-Here, $\varphi$ denotes porosity, $s$ saturation, $\rho$ water density, $\bq$ Darcy flux, $k$ intrinsic permeability, $k_r$ relative permeability, $\mu$ viscosity, $P$ pressure, $g$ gravity, and $z$ the vertical component of the position vector.  Supported relative permeability functions $k_r$ for Richards' equation include van Genuchten, Books-Corey and Thomeer-Corey, while the saturation functions include Burdine and Mualem.  Water density and viscosity are computed as a function of temperature and pressure through an equation of state for water. The source/sink term $Q_w$ has the form
+Here, $\varphi$ denotes porosity [-], 
+$s$ saturation [m$^3$m$^{-3}$], 
+$\rho$ water density [kmol m$^{-3}$], 
+$\bq$ Darcy flux [m s$^{-1}$], 
+$k$ intrinsic permeability [m$^2$], 
+$k_r$ relative permeability [-], 
+$\mu$ viscosity [Pa s], 
+$P$ pressure [Pa], 
+$W_w$ formula weight of water [kg kmol$^{-1}$], 
+$g$ gravity [m s$^{-2}$], and 
+$z$ the vertical component of the position vector [m].  
+Supported relative permeability functions $k_r$ for Richards' equation include van Genuchten, Books-Corey and Thomeer-Corey, while the saturation functions include Burdine and Mualem.  Water density and viscosity are computed as a function of temperature and pressure through an equation of state for water. The source/sink term $Q_w$ [kmol m$^{-3}$ s$^{-1}$] has the form
 \EQ
 Q_w \eq \frac{q_M}{W_w} \delta(\br-\br_{ss}),
 \EN
-where $q_M$ denotes a mass rate in kg/s, $W_w$ denotes the formula weight of water, and $\br_{ss}$ denotes the location of the source/sink.
+where $q_M$ denotes a mass rate in kg/m$^{3}$/s, and $\br_{ss}$ denotes the location of the source/sink.
 
 \subsection{Capillary Pressure Relations}
 
@@ -332,9 +352,9 @@ p_c \eq p_c^0 \left(s_e^{-1/m}-1\right)^{1/n}.
 \EN
 The quantities $m$, $n$ and $p_c^0$ are impirical constants determined by fitting to experimental data.
 
-\subsubsection{Brook-Corey Saturation Function} 
+\subsubsection{Brooks-Corey Saturation Function} 
 
-The Brook-Corey saturation function is a limiting form of the van Genuchten relation for $p_c/p_c^0 \gg 1$, with the form
+The Brooks-Corey saturation function is a limiting form of the van Genuchten relation for $p_c/p_c^0 \gg 1$, with the form
 \EQ
 s_e \eq \left(\frac{p_c}{p_c^0}\right)^{-\lambda},
 \EN
@@ -366,13 +386,13 @@ k_{r} \eq \sqrt{s_e} \left\{1 - \left[1- \left( s_e \right)^{1/m} \right]^m \rig
 %k_{rg} \eq 1 - k_{rl}. 
 %\EN 
 
-The Mualem relative permeability function based on the Brook-Corey saturation function is defined by 
+The Mualem relative permeability function based on the Brooks-Corey saturation function is defined by 
 \BA
 k_r &\eq \big(s_e\big)^{5/2+2/\lambda},\\
 &\eq \big(p_c/p_c^0\big)^{-(5\lambda/2+2)}.
 \EA
 
-For the Burdine formulation
+For the Burdine relative permeability function based on the van Genuchten saturation function is given by the expression
 \EQ\label{krl_burdine} 
 k_{r} \eq s_e^2 \left\{1 - \left[1- \left( s_e \right)^{1/m} \right]^m \right\}. 
 \EN 
@@ -770,29 +790,148 @@ Additional constitutive relations are needed to close the set of governing equat
  
 %\subsubsection{Thermal Conductivity} 
  
-Thermal conductivity is determined from the equation (Somerton et 
-al., 1974)  
-\EQ\label{cond} 
+Thermal conductivity is determined from the equation (Somerton et al., 1974)  
+\EQ\label{cond1} 
 \kappa \eq \kappa_{\rm dry} + \sqrt{s_l^{}} (\kappa_{\rm sat} - \kappa_{\rm dry}), 
 \EN 
 where $\kappa_{\rm dry}$ and $\kappa_{\rm sat}$ are dry and fully saturated rock thermal conductivities. 
 
+\subsection{Thermal Conduction Multiple Continuum Model}
+
+A thermal conduction model employing a multiple continuum model has been added to MPHASE and THC. The formulation is based on Pruess and Narasimhan (1985) using a integrated finite volume approach to develop equations for fracture and matrix temperatures $T_\a$ and $T_\b$, respectively. The DCDM (dual continuum discrete matrix) model following the classification given in Lichtner (2000) is implemented. In what follows the matrix porosity is assumed to be zero. Using the control volume configuration shown in Figure~\ref{fminc}, with fracture nodes designated by the subscript $n$ and matrix nodes by $m$, the integrated finite volume form of the heat transport equation for the $n$th fracture control volume is given by
+\begin{subequations}
+\BA\label{pricont}
+&\Big[\varphi \Big(\sum_\a \big(s_\a\rho_\a U_\a\big)_n^{k+1} - \sum_\a \big(s_\a\rho_\a U_\a\big)_n^{k}\Big) + (1-\varphi)\Big(\big(\rho_r C_r T_\a\big)_n^{k+1} - \big(\rho_r C_r T_\a\big)_n^{k}\Big)\Big] \frac{v_n}{\Delta t} \nonumber\\
+&\qquad + \sum_{n'} \Big[ \sum_\a\big(q_\a\rho_\a H_\a\big)_{nn'} + \frac{\kappa_{nn'}^\a}{d_n+d_{n'}}\big(T_{\a n} - T_{\a n'}\big) \Big] A_{nn'}^\a \nonumber\\
+&\qquad + \sum_\b\frac{\kappa_{nM}^{\a\b}}{d_n+d_{M}}\big(T_{\a n}-T_{\b M}\big) A_{nM}^\b \eq 0,
+\EA
+where $v_n$ denotes the fracture volume, and
+\BA
+\Big(\big(\rho_r C_r T_\b\big)_m^{k+1} - \big(\rho_r C_r T_\b\big)_m^{k}\Big) \frac{v_m}{\Delta t} &+ \sum_{m'} \frac{\kappa_{mm'}^\b}{d_m+d_{m'}}\big(T_{\b m} - T_{\b m'}\big) A_{mm'}^\b \nonumber\\
+&+ \delta_{mM}^{}\frac{\kappa_{nM}^{\a\b}}{d_n+d_{M}}\big(T_{\a n} - T_{\b M}\big) A_{nM}^\b \eq 0,
+\EA
+\end{subequations}
+for the $m$th matrix node with volume $v_m$. The matrix node designated by $M$ refers to the outer most node in contact with the fracture. More than one type of matrix geometry is included in the above equations as indicated by the sum over $\b$ in Eqn.\eqref{pricont}.
+
+\begin{figure}[h]\centering
+\includegraphics[scale=0.5]{./figs/mincl}
+\parbox{4in}{\caption{Control volumes in DCDM multiple continuum model with fracture aperture $2\delta$ and matrix block size $d$.}\label{fminc}}
+\end{figure}
+
+Thermal conductivity at the interface between two control volumes is calculated using the harmonic average
+\EQ
+\kappa_{ll'} \eq \frac{\kappa_l \kappa_{l'}(d_l+d_{l'})}{d_l \kappa_{l'}+d_{l'}\kappa_l}.
+\EN
+
+The fracture volume $v_n$ is related to the REV volume $V_n$ by
+\EQ
+\epsilon \eq \frac{v_n}{V_n}.
+\EN
+According to the geometry in Figure~\ref{fminc} assuming a 3D orthogonal set of fractures,
+\EQ
+V_n \eq (d+2\delta)^3,
+\EN
+and
+\EQ
+v_n \eq (d+2\delta)^3 - d^3,
+\EN
+giving
+\begin{subequations}
+\BA
+\epsilon &\eq 1-\frac{d^3}{(d+2\delta)^3} \eq 1-\left(\dfrac{1}{1+\dfrac{2\delta}{d}}\right)^3,\\
+& ~\simeq~ \frac{6\delta}{d}.
+\EA
+\end{subequations}
+The fracture aperture $2\delta$ is found to be in terms of $\epsilon$ and $d$
+\EQ
+2\delta \eq d \left(\frac{1}{(1-\epsilon)^{1/3}} -1\right).
+\EN
+A list of different sub-continua geometries and parameters implemented in PFLOTRAN is given in Table~\ref{tdcdmgeom}. Different independent and dependent parameters for the nested cube geometry are listed in Table~\ref{tnestedcube}.
+The interfacial area $A_{nn'}^\a$ between fracture control volumes is equal to $\Delta y \Delta z$,  $\Delta z \Delta x$, $\Delta x \Delta y$ for $x$, $y$, and $z$ directions, respectively. 
+
+In the case of nested cubes there are four possible parameters $(\epsilon, \, 2\delta, \, l_m,\, l_f)$, where $l_m$ denotes the matrix block size and $l_f$ refers to the fracture spacing, two of which are independent.
+
+The fracture-matrix interfacial area $A_{nM}$ per unit volume is equal to
+\EQ
+A_{nM}^\b \eq \frac{\N_\b}{V} A_\b^0,
+\EN
+where the number density $\N_\b/V$ of secondary continua of type $\b$ is equal to
+\EQ
+\frac{\N_\b}{V} \eq \frac{1}{V} \frac{V_\b}{V_\b^0} \eq \frac{\epsilon_\b}{V_\b^0},
+\EN
+and $A_\b^0$ and $V_\b^0$ refer to the area and volume of each geometric type as listed in Table~\ref{tdcdm}.
+\begin{table}\centering
+\caption{DCDM geometric parameters.}\label{tdcdmgeom}
+\vspace{3mm}
+\begin{tabular}{lcc}
+\toprule
+Geometry & Area $A_\b^0$ & Volume $V_\b^0$\\
+\midrule
+Slab & $A$ & $A l$ \\
+Nested Cubes & $6d^2$ & $d^3$\\
+Nested Spheres & $4 \pi R^2$ & $\frac{4}{3}\pi R^3$\\
+\bottomrule
+\end{tabular}
+\end{table}
+The primary-secondary coupling term can then be written in the form
+\EQ
+\sum_\b\frac{\kappa_{nM}^{\a\b}}{d_n+d_{M}}\big(T_n^\a-T_{M}^\b\big) A_{nM}^\b \eq V_n
+\sum_\b\frac{\epsilon_\b\kappa_{nM}^{\a\b}}{d_n+d_{M}}\big(T_n^\a-T_{M}^\b\big) \frac{A_\b^0}{V_\b^0}.
+\EN
+
+\begin{table}\centering
+\caption{Independent and dependent nested cube parameters.}
+\label{tnestedcube}
+\vspace{3mm}
+\begin{tabular}{lccc}
+\toprule
+\multicolumn{2}{c}{Independent} & \multicolumn{2}{c}{Dependent}\\
+\midrule
+$\epsilon$ & $l_f$ & $2\delta = l_f - l_m$ & $l_m = l_f(1-\epsilon)^{1/3}$\\
+$\epsilon$ & $l_m$ & $2\delta = l_f - l_m$ & $l_f = l_m(1-\epsilon)^{-1/3}$\\
+$2\delta$ & $l_f$ & $\epsilon = 1-(l_m/l_f)^3$ & $l_m = l_f - 2\delta$\\
+$2\delta$ & $l_m$ & $\epsilon = 1-(l_m/_f)^3$ & $l_f = l_m + 2\delta$\\
+$2\delta$ & $\epsilon$ & $l_m = 2\delta \Big(\dfrac{1}{(1-\epsilon)^{1/3}}-1\Big)^{-1}$ & $l_m = l-2\delta$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+In terms of partial differential equations the heat conservation equations may be written as
+\begin{subequations}
+\EQ
+\frac{\p}{\p t} \epsilon \Big[\varphi \sum_\a s_\a \rho_\a U_\a + (1-\varphi) \rho_r C_r T_f\Big] + \bnabla\cdot \Big(\sum_\a \bq_\a \rho_\a H_\a -
+%\epsilon
+\kappa_f\bnabla T_f\Big) \eq -A_{fm} \kappa_{fm}\frac{\p T_m}{\p n},
+\EN
+and
+\EQ
+\frac{\p}{\p t} \rho_r C_r T_m + \frac{\p}{\p\xi} \Big(-\kappa_m\frac{\p T_m}{\p\xi}\Big) \eq 0,
+\EN
+for fracture and matrix temperatures $T_f$ and $T_m$, respectively, where $\xi$ represents the matrix coordinate assumed to be an effective 1D domain. The boundary condition 
+\EQ
+T_m(\xi_d,\,t\,|\,\br) \eq T_f(\br,\,t),
+\EN
+\end{subequations}
+between fracture and matrix continua is imposed, where $\xi_d$ denotes the outer boundary of the matrix.
+
+%The fracture thermal conductivity is defined as
+%\EQ
+%\kappa_f \eq \epsilon^{-1}\kappa.
+%\EN
+
 \subsection{Mode: Reactive Transport (Keyword {\tt CHEMISTRY})}\label{sec:chem}
 
 The governing mass conservation equations for the geochemical transport mode for a multiphase system written in terms of a set of independent aqueous primary or basis species with the form
-\BA\label{rteqn}
-\frac{\p}{\p t}\big(\varphi \sum_\a s_\a \Psi_j^\a\big) &+
-\nabla\cdot\sum_\a\big(\bq_\a - \varphi s_\a \bD_\a\bnabla\big)\Psi_j^\a \nonumber\\
-&\qquad\eq Q_j - \sum_m\nu_{jm} I_m -\frac{\p S_j}{\p t},
-\EA
+\EQ\label{rteqn}
+\frac{\p}{\p t}\big(\varphi \sum_\a s_\a \Psi_j^\a\big) +
+\nabla\cdot\sum_\a\bOmega_j^\a 
+\eq Q_j - \sum_m\nu_{jm} I_m -\frac{\p S_j}{\p t},
+\EN
 and
 \EQ
 \frac{\p\varphi_m}{\p t} \eq \overline V_m I_m,
 \EN
-for minerals with molar volume $\overline V_m$, mineral reaction rate $I_m$ and mineral volume fraction $\varphi_m$ referenced to an REV and satisfying
-\EQ
-\varphi + \sum_m \varphi_m \eq 1. 
-\EN
+for minerals with molar volume $\overline V_m$, mineral reaction rate $I_m$ and mineral volume fraction $\varphi_m$ referenced to an REV. 
 Sums over $\a$ in Eqn.\eqref{rteqn} are over all fluid phases in the system. The quantity $\Psi_j^\a$ denotes the total concentration of the $j$th primary species $\A_j^{\rm pri}$ in the $\a$th fluid phase defined by
 \EQ
 \Psi_j^\a = \delta_{l\a}^{} C_j^l + \sum_{i=1}^{N_{\rm sec}}\nu_{ji}^{\a} C_i^\a.
@@ -806,7 +945,11 @@ yielding
 C_i^\a \eq \frac{K_i^\a}{\gamma_i^\a} \prod_j \Big(\gamma_j^l C_j^l\Big)^{\nu_{ji}^\a},
 \EN
 with equilibrium constant $K_i^\a$, and activity coefficients $\gamma_k^\a$.
-Diffusion is assumed to be species independent, but may be different for different phases, e.g. an aqueous electrolyte solution or gas phase. Dispersivity currently must be described through a diagonal dispersion tensor. The Darcy velocity $\bq_\a$ for phase $\a$ is given by
+The total flux $\bOmega_j^\a$ for species-independent diffusion is given by
+\EQ
+\bOmega_j^\a \eq \big(\bq_\a - \varphi s_\a \bD_\a\bnabla\big)\Psi_j^\a.
+\EN
+The diffusion/dispersion coefficient $\bD_\a$ may be different for different phases, e.g. an aqueous electrolyte solution or gas phase, but is assumed to be species independent. Dispersivity currently must be described through a diagonal dispersion tensor. The Darcy velocity $\bq_\a$ for phase $\a$ is given by
 \EQ
 \bq_a \eq -\frac{kk_\a}{\mu_\a} \bnabla \big(p_\a -\rho_\a g z\big),
 \EN
@@ -817,7 +960,14 @@ with bulk permeability of the porous medium $k$ and relative permeability $k_\a$
 \tau D_m + a_T \bI + \big(a_L-a_T\big)\frac{\bv\bv}{v},
 %\Big),
 \EN
-with longitudinal and transverse dispersivity coefficients $a_L$, $a_T$, respectively, $\tau$ refers to tortuosity, and $D_m$ to the molecular diffusion coefficient. The temperature dependence of the diffusion coefficient is defined through the relation
+with longitudinal and transverse dispersivity coefficients $a_L$, $a_T$, respectively, $\tau$ refers to tortuosity, and $D_m$ to the molecular diffusion coefficient. Currently, only longitudinal dispersion is implemented in PFLOTRAN.
+
+The porosity may be calculated from the mineral volume fractions according to the relation
+\EQ
+\varphi \eq 1 - \sum_m \varphi_m. 
+\EN
+
+The temperature dependence of the diffusion coefficient is defined through the relation
 \EQ
 D_m(T) \eq D_m^\circ\exp\left[\frac{A_D}{R}\left(\frac{1}{T_0}-\frac{1}{T}\right)\right],
 \EN
@@ -861,18 +1011,49 @@ and the quantity $\P_{ml}$ denotes the prefactor for the $l$th parallel reaction
 where the product index $i$ generally runs over both primary and secondary species, the quantities $\a_{il}^m$ and $\b_{il}^m$ refer to prefactor coefficients, and $K_{ml}$ is an attenuation factor.
 The quantity $R$ denotes the gas constant ($8.317\times 10^{-3}$ kJ/mol/K). 
 
-Porosity, permeability and mineral surface area may be updated optionally due to mineral precipitation and dissolution reactions according to the relations
-\EQ
+Porosity, permeability, tortuosity and mineral surface area may be updated optionally due to mineral precipitation and dissolution reactions according to the relations
+\EQ\label{por}
 \varphi \eq 1-\sum_m\varphi_m,
 \EN
 \EQ
 k \eq k_0 \left(\frac{\varphi}{\varphi_0}\right)^a,
 \EN
+\EQ
+\tau \eq \tau_0 \left(\frac{\varphi}{\varphi_0}\right)^b,
+\EN
 and
 \EQ
 a_m \eq a_m^0 \left(\frac{\varphi_m}{\varphi_m^0}\right)^n,
 \EN
-where the super/subscript 0 denotes initial values, with a typical value for $n$ of $2/3$ reflecting the surface to volume ratio. Note that this relation only applies to primary minerals that do not completely dissolve.
+where the super/subscript 0 denotes initial values, with a typical value for $n$ of $2/3$ reflecting the surface to volume ratio. Note that this relation only applies to primary minerals $(\varphi_m^0\ne 0)$.
+
+In PFLOTRAN the solid is represented as an aggregate of minerals described quantitatively by specifying its porosity $\varphi$ and the volume fraction $\varphi_m$ of each primary mineral such that Eqn.\eqref{por} holds. Typically, however, the solid composition is specified by giving the mass fraction $y_m$ of each of the primary minerals making up the solid phase. The volume fraction is related to mole $x_m$ and mass $y_m$ fractions by the expressions
+\begin{subequations}
+\BA
+\varphi_m &\eq (1-\varphi) \frac{x_m \overline V_m}{\sum_{m'} x_{m'} \overline V_{m'}},\\
+&\eq (1-\varphi) \frac{y_m^{} \rho_m^{-1}}{\sum_{m'} y_{m'}^{} \rho_{m'}^{-1}},
+\EA
+\end{subequations}
+where
+\EQ
+\rho_m^{} \eq W_m^{} \overline V_m^{-1}.
+\EN
+In these relations $W_m$ refers to the formula weight and $\overline V_m$ the molar volume of the $m$th mineral. The solid molar density $\eta_s$ is given by
+\EQ
+\eta_s \eq \frac{1}{\sum_m x_m \overline V_m},
+\EN
+which is related to the mass density $\rho_s$ by
+\EQ
+\rho_s \eq W \eta_s,
+\EN
+with the mean molecular weight $W$ equal to
+\EQ
+W \eq \sum_m x_m W_m \eq \frac{1}{\sum_m W_m^{-1} y_m^{}}.
+\EN
+Mass and mole fractions are related by the expression
+\EQ
+W_m x_m \eq W y_m.
+\EN
 
 \subsubsection{Sorption}
 
@@ -1000,7 +1181,7 @@ Q_i\eq\prod_j\big(\gamma_jC_j\big)^{\nu_{ji}}.
 \EN
 The site concentration $\omega_\a$ satisfies the relation
 \EQ\label{totsite}
-\omega_\a \eq S_\a + \sum_i S_{i\a}.
+\omega_\a \eq S_\a + \sum_i S_{i\a},
 \EN
 and is constant.
 The equilibrium sorbed concentration $S_{j\a}^{\rm eq}$ is defined as
@@ -1333,7 +1514,12 @@ make install
 
 \subsubsection{PETSc}
 
-The PETSc {\tt ./configure} script can be used not only to install PETSc but also MPI, HDF5, ParMetis/Metis, and various solvers such as the sparse direct solver Mumps and the Trilinos multilevel solver ML. PFLOTRAN requires the PETSc developer version petsc-dev which can be either downloaded from the PETSc web page \linebreak (http://www.mcs.anl.gov/petsc/developers/index.html), or installed using Mercurial following instructions on the PETSc developer web page. It is recommended to install PETSc using the version control system Mercurial (http://mercurial.selenic.com/wiki).
+The PETSc {\tt ./configure} script can be used not only to install PETSc but also MPI, HDF5, ParMetis/Metis, and various solvers such as the sparse direct solver Mumps and the Trilinos multilevel solver ML. PFLOTRAN requires the PETSc developer version petsc-dev which can be either downloaded from the PETSc web page 
+
+http://www.mcs.anl.gov/petsc/developers/index.html, 
+
+\noindent
+or installed using Mercurial following instructions on the PETSc developer web page. It is recommended to install PETSc using the version control system Mercurial (http://mercurial.selenic.com/wiki).
 
 Define environment variables $\verb|PETSC_DIR|$ and $\verb|PETSC_ARCH|$ giving the location of the petsc-dev source and the directory where the libraries for the particular architecture are stored after compiling and installing PETSc.
 
@@ -1470,11 +1656,12 @@ The source code for PFLOTRAN can be downloaded from the LANL web site using Merc
 where several possible options are: 
 
 \begin{tabular}{ll}
-\verb|chuan_co2|: & --enable two-phase supercritical CO$_2$ mode\\
+\verb|scco2|: & --enable two-phase supercritical CO$_2$ mode\\
 %\verb|hdf5|: & --enable HDF5 I/O capability\\
 \verb|coll|: & --enable colloid-facilitated transport option\\
 \verb|temp|: & --enable temperature dependent log $K$ capability\\
-\verb|dasvyat|: & --enable MFD full permeability tensor capability
+\verb|mfd|: & --enable MFD full permeability tensor capability
+%\verb|ice|:& --enable permafrost hydrology (works only in THC mode)
 \end{tabular}
 
 \noindent
@@ -1903,7 +2090,7 @@ Initial and boundary conditions and material properties are assigned to spatial 
 
 %\begin{tabular}{lll}
 \toprule[1.5pt]
-\multicolumn{1}{c}{\bf Keyword} & \multicolumn{1}{c}{\bf Description}\\
+\multicolumn{1}{c}{\hypertarget{target_key}{\bf Keyword}} & \multicolumn{1}{c}{\bf Description}\\
 \midrule[1pt]
 \hyperlink{target_bcon}{\bf BOUNDARY\_CONDITION} & \\
 \hyperlink{target_brk}{\bf BREAKTHROUGH} & \\
@@ -1921,6 +2108,7 @@ Initial and boundary conditions and material properties are assigned to spatial 
 \hyperlink{target_linsolv}{\bf LINEAR\_SOLVER} & \\
 \hyperlink{target_mat}{\bf MATERIAL\_PROPERTY} & \\
 \hyperlink{target_mode}{\bf MODE} & \\
+\hyperlink{target_mc}{\bf MULTIPLE\_CONTINUUM} & \\
 \hyperlink{target_newt}{\bf NEWTON\_SOLVER} & \\
 \hyperlink{target_numjac}{\bf NUMERICAL\_JACOBIAN} & \\
 \hyperlink{target_observation}{\bf OBSERVATION} & \\
@@ -1945,8 +2133,9 @@ Initial and boundary conditions and material properties are assigned to spatial 
 \end{longtable}
 
 
-\noindent{\bf Conventions and Notation:} Keywords are in boldface with optional modifying keywords in square brackets [\ldots], and user entries in typewriter font.
+\subsection{\bf Conventions and Notation} 
 
+Keywords are in boldface with optional modifying keywords in square brackets [\ldots], and user entries in typewriter font.
 Unless otherwise specified, units in the input file are assumed to be as listed in Table~\ref{tunits}.
 
 \begin{table}[h]\centering
@@ -1955,26 +2144,30 @@ Unless otherwise specified, units in the input file are assumed to be as listed 
 \vspace{3mm}
 
 %\rowcolors{row}{odd-row cyan}{even-row green}
-\rowcolors[]{1}{red!20}{red!10}\rowcolors[]{1}{blue!20}{blue!10}
+%\rowcolors[]{1}{red!20}{red!10}
+%\rowcolors[]{1}{blue!20}{blue!10}
+\rowcolors[]{1}{teal!20}{teal!10}
+%\rowcolors{1}{}{lightgray}
+%\rowcolors{1}{}{teal}
 \begin{tabular}{ll}
 \toprule[2pt]
 %\hline
 %Quantity & \multicolumn{1}{c}{Units}\\
-Quantity & Units\\
+Quantity & \multicolumn{1}{c}{Units}\\
 \midrule[1pt]
 %\hline
 Pressure: & Pascal [Pa] (absolute)\\
 %\rowcolor[rgb]{0.5}
 Temperature: & Celcius [C]\\
-Distance: & meter [m]\\
-Volume: & meter$^3$ [m$^3$]\\
-Time: & second [s]\\
-Velocity: & meter/second [m/s]\\
-Concentration: & molarity [M] or molality [m] (see MOLAL keyword)\\
-Enthalpy: & kilojoule/mole [kJ/mol]\\
-Mass: & kilogram [kg]\\
-Rate: & mass/second [kg/s] or volume/second [m$^3$/s]\\
-Surface Site Density: & mole/meter$^{3}$ [mol/m$^{3}$]\\
+Distance: & Meter [m]\\
+Volume: & Meter$^3$ [m$^3$]\\
+Time: & Second [s]\\
+Velocity: & Meter/Second [m/s]\\
+Concentration: & Molarity [M] or Molality [m] (see MOLAL keyword)\\
+Enthalpy: & KiloJoule/mole [kJ/mol]\\
+Mass: & Kilogram [kg]\\
+Rate: & Kilogram/Second [kg/s] or Cubic Meter/Second [m$^3$/s]\\
+Surface Site Density: & Mole/Meter$^{3}$ [mol/m$^{3}$]\\
 \bottomrule[1.5pt]
 %\hline
 \end{tabular}
@@ -1997,15 +2190,20 @@ Surface Site Density: & mole/meter$^{3}$ [mol/m$^{3}$]\\
 \end{verbatim}
 \end{comment}
 
+\clearpage
+
 \subsection{Example Input File}
 
+\hypertarget{target_input_file}{}
+
 \footnotesize
-:colon denotes a comment line
 :Description: 3D infiltration problem with calcite dissolution
+:colon denotes a comment line\\
 
 \noindent
 : == debugging ================================================================\\
 :\hyperlink{target_dbg}{\bf DEBUG}\\
+%\hypertarget{target_key}{\bf DEBUG}\\
 :MATVIEW\_JACOBIAN\\
 :VECVIEW\_RESIDUAL\\
 :VECVIEW\_SOLUTION\\
@@ -2027,8 +2225,8 @@ Tracer\\
 /\\
 SECONDARY\_SPECIES\\
 OH-\\
-HCO3-\\
-CO3--\\
+HCO3$-$\\
+CO3$-$$-$\\
 CaHCO3+\\
 CaCO3(aq)\\
 /\\
@@ -2068,14 +2266,18 @@ MAX\_STEPS 100000\\
 \noindent
 : == discretization ===========================================================\\
 \hyperlink{target_grid}{\bf GRID}\\
-:TYPE amr ! amr grid\\
+%:TYPE amr ! amr grid\\
 TYPE structured\\
 NXYZ 6 6 6\\
-DXYZ\\
-1.\\
-1.\\
-1.\\
+BOUNDS\\
+0.d0 0.d0 0.d0\\
+1.d0 1.d0 1.d0\\
 /\\
+:DXYZ\\
+:1.\\
+:1.\\
+:1.\\
+:/\\
 /
 
 \noindent
@@ -2121,9 +2323,12 @@ STOL 1.d-30\\
 
 \noindent
 : == fluid properties =========================================================\\
-FLUID\_PROPERTY\\
+\hyperlink{target_fluid_property}{\bf FLUID\_PROPERTY}\\
 DIFFUSION\_COEFFICIENT 1.d-9\\
 /
+
+\noindent
+:\hyperlink{target_unifvel}{\bf UNIFORM\_VELOCITY} 3.84259d-6 0.d0 0.d0  ! 1.38333 cm/h
 
 \noindent
 : == material properties ======================================================\\
@@ -2355,6 +2560,8 @@ REGION ground_surface
 END
 \end{verbatim}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 
 \newpage
@@ -2365,6 +2572,8 @@ END
 \begin{deflist}{000}
 \item[BRINE, BRIN] {\tt Value m\_nacl} [MOLAL, MASS, MOLE]
 \end{deflist}
+
+\hyperlink{target_key}{\return}
 
 %========================================================================
 
@@ -2404,6 +2613,8 @@ CHECKPOINT 1000
 CHECKPOINT 5
 \end{verbatim}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 \newpage
 \protect\hypertarget{target_chem}{}
@@ -2424,48 +2635,72 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 
 \begin{deflist}{000}
 
+\item [OPERATOR\_SPLITTING] \ Toggles operator-splitting mode (Default implicit)
+
+~\\
+
 \item [PRIMARY\_SPECIES] ~
 \item {\tt Name}
 \item [\keyend]
+
+~\\
 
 \item [SECONDARY\_SPECIES] ~
 \item {\tt Name}
 \item [\keyend]
 
+~\\
+
 \item [REDOX\_SPECIES] ~
 \item {\tt Name}
 \item [\keyend]
+
+~\\
 
 \item[GAS\_SPECIES] ~
 \item {\tt Name}
 \item [\keyend]
 
+~\\
+
 \item[MINERALS]
 \item {\tt Name}
 \item [\keyend]
 
+~\\
+
 \item[COLLOIDS]
 \item {\tt Name} \ \ \ \ {\tt Mobile\_Fraction} [---]
 \item [\keyend]
+
+~\\
 
 \item[MINERAL\_KINETICS] ~
 
 %\begin{deflist}{000000000000000000000}
 \begin{deflist}{0000}
 \item [Mineral Name]
-\item [RATE\_CONSTANT] \ {\tt Value} [mol/cm$^2$/s] \ \ \ \ {\em If} \ {\tt Value} $<$ 0, {\tt Value} = 10$^{\tt Value}$
-\item [ACTIVATION\_ENERGY] \ {\tt Value} [kJ/mol/K] \ \ \ Referenced to rate constant at 25\degc.
+\begin{deflist}{0000}
+\item [RATE\_CONSTANT] \ {\tt Value} [mol/cm$^2$/s], \ \ \ \ {\em If} \ {\tt Value} $<$ 0, {\tt Value} = 10$^{\tt Value}$
+\item [ACTIVATION\_ENERGY] \ {\tt Value} [kJ/mol/K], \ \ \ Referenced to rate constant at 25\degc.
 \item [AFFINITY\_THRESHOLD] \ {\tt Value} [---]
+\item [AFFINITY\_POWER] \ {\tt Value} [---]
+\item [TEMPKINS\_CONSTANT] \ {\tt Value} [---]
+\item [SURFACE\_AREA\_POROSITY\_POWER] \ {\tt Value} [---]
+\item [SURFACE\_AREA\_VOL\_FRAC\_POWER] \ {\tt Value} [---]
 \item [RATE\_LIMITER] \ {\tt Value} [---]
 \item [IRREVERSIBLE] \ 
+
+~\\
+
 \item [PREFACTOR] ~
 \begin{deflist}{0000}
-\item [RATE\_CONSTANT] \ {\tt Value} \ \ \ \ {\em If} \ {\tt Value} $<$ 0, {\tt Value} = 10$^{\tt Value}$
+\item [RATE\_CONSTANT] \ {\tt Value} [mol/cm$^2$/s], \ \ \ \ {\em If} \ {\tt Value} $<$ 0, {\tt Value} = 10$^{\tt Value}$
 \item [ACTIVATION\_ENERGY] \ {\tt Value} [kJ/mol/K] 
 \item [PREFACTOR\_SPECIES] \ {\tt Name}
 \begin{deflist}{0000}
-\item [ALPHA] \ {\tt Value}
-\item [BETA] \ {\tt Value}
+\item [ALPHA] \ {\tt Value} [---]
+\item [BETA] \ {\tt Value} [---]
 \item [ATTENUATION\_COEF] \ {\tt Value}
 \end{deflist}
 \item [\keyend]
@@ -2473,10 +2708,16 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 \item [\keyend]
 \end{deflist}
 
+~\\
+
 \item [\keyend]
-\item [\keyend]
+\end{deflist}
+\item [\keyend] ~
+
+~\\
 
 \item[SORPTION] ~
+
 \begin{deflist}{000}
 \item[SURFACE\_COMPLEXATION\_RXN] ~
 
@@ -2492,6 +2733,8 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 \item [RATE, RATES] \ {\tt Value} [1/s] \ \ \ \ \ (Continuation line `$\backslash$')
 \item [MULTIRATE\_SCALE\_FACTOR] {\tt Value} [---]
 
+~\\
+
 \item [MINERAL] {\tt Mineral Name}
 \begin{deflist}{000}
 \item[SITE] {\tt Name} \ \ \ {\tt Site Density} [mol/m$^3$]
@@ -2500,6 +2743,9 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 \item[\tt Complex Name]
 \end{deflist}
 \item [\keyend] ~
+
+~\\
+
 \item[COMPLEX\_KINETICS] ~
 \begin{deflist}{000}
 \item[COMPLEX] {\tt name}
@@ -2509,6 +2755,8 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 \item [\keyend] ~
 \end{deflist}
 \item [\keyend] ~
+
+~\\
 
 \item [COLLOID] {\tt Name}
 \begin{deflist}{000}
@@ -2524,6 +2772,8 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 
 \item [\keyend]
 \end{deflist}
+
+~\\
 
 \begin{deflist}{000}
 \item [ION\_EXCHANGE\_RXN] ~
@@ -2543,6 +2793,8 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 \end{deflist}
 \item [\keyend] ~
 
+~\\
+
 \item[DISTRIBUTION\_COEF] \ (not implemented)
 \item[JUMPSTART\_KINETIC\_SORPTION]
 \item[NO\_CHECKPOINT\_KINETIC\_SORPTION]
@@ -2551,19 +2803,29 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 
 \item [\keyend]
 
+~\\
+
 \item[GEOTHERMAL\_HPT] Use high pressure and temperature thermodynamic database
 \item[DATABASE] {\tt Path/Database\_Name}
 \item[LOG\_FORMULATION]
 \item[NO\_CHECKPOINT\_ACT\_COEFS]
-\item[ACTIVITY\_COEFFICIENTS] [\bf LAG, NEWTON, TIMESTEP, NEWTON\_ITERATION]
+\item[ACTIVITY\_COEFFICIENTS] [{\bf LAG, NEWTON, TIMESTEP, NEWTON\_ITERATION}]
 \item[ACTIVITY\_H2O, ACTIVITY\_WATER]
 \item[MOLAL, MOLALITY]
 \item[NO\_BDOT]
-\item[UPDATE\_POROSITY]
-\item[UPDATE\_TORTUOSITY]
-\item[UPDATE\_PERMEABILITY]
-\item[UPDATE\_MINERAL\_SURFACE\_AREA]
+\item[UPDATE\_POROSITY] {\tt Value}
+\item[UPDATE\_TORTUOSITY] {\tt Value}
+\item[UPDATE\_PERMEABILITY] {\tt Value} \ (Must activate update\_porosity.)
+\item[UPDATE\_MINERAL\_SURFACE\_AREA] {\tt Value} \\
+(Must set SURFACE\_AREA\_VOL\_FRAC\_POWER)
+\item[UPDATE\_MNRL\_SURF\_AREA\_WITH\_POR] {\tt Value} \\
+(Must set SURFACE\_AREA\_POROSITY\_POWER)
+\item[MINIMUM\_POROSITY] {\tt Value}
+%\item[UPDATE\_MINERAL\_SURFACE\_AREA]
 \item[MAX\_DLNC] \rm (Default 5)
+
+~\\
+
 \item[OUTPUT] ~
 \begin{deflist}{000000000000000000000}
 \item[MOLALITY]
@@ -2583,9 +2845,13 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 
 \item [\keyend]
 
+~ 
+
 \end{deflist}
+\begin{deflist}{000000000000000000000}
 \item[MAX\_RELATIVE\_CHANGE\_TOLERANCE] Relative speciation tolerance (Default 1.d-12)
 \item[MAX\_RESIDUAL\_TOLERANCE] Speciation tolerance (Default 1.d-12)
+\end{deflist}
 
 \item [\keyend]
 \end{deflist}
@@ -2713,6 +2979,8 @@ Albite
 END
 \end{verbatim}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 
 \newpage
@@ -2737,6 +3005,8 @@ COMPUTE\_STATISTICS enables the calculation statistical analysis of flow velocit
 COMPUTE_STATISTICS
 \end{verbatim}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 
 \newpage
@@ -2750,26 +3020,20 @@ The keyword {\bf CONSTRAINT} sets up fluid compositions based on various constra
 
 \noindent{\bf Input:}
 \begin{deflist}{000}
-\item [CONSTRAINT] \ {\tt constrain\_name}
+\item [CONSTRAINT] \ {\tt constraint\_name}
 \begin{deflist}{000}
-\item[CONC, CONCENTRATIONS]
+\item[CONC, CONCENTRATIONS] ~
 \begin{deflist}{000}
-\item[{\tt Name, Concentration\_Value, Constraint}] ~\\
-The variable {\tt Constraint} is chosen from the following list:
-\item[F, FREE]
-\item[T, TOTAL] 
-\item[TOTAL\_SORB]
-\item[P, PH]
-\item[L, LOG] 
-\item[M, MINERAL, MNRL]
-\item[G, GAS]
-\item[SC, CONSTRAINT\_SUPERCRIT\_CO2] 
-\item[Z, CHG]
+\item[{\tt Name, Concentration\_Value, Constraint, Name}] ~
 \end{deflist}
-\item[(., /, END)]
+\item[(., /, END)] ~
+
+%~\\
+
 \item[MNRL, MINERALS] ~
+
 \begin{deflist}{000}
-\item[{\tt mineral\_name, volume\_fraction, surface\_area}]
+\item[{\tt mineral\_name}, \ {\tt volume\_fraction} {[---]}, \ {\tt surface\_area} [cm$^{-1}$]]
 \end{deflist}
 \item[(., /, END)]
 \end{deflist}
@@ -2777,6 +3041,22 @@ The variable {\tt Constraint} is chosen from the following list:
 \end{deflist}
 
 \noindent {\bf Explanation:}
+
+The variable {\tt Constraint} is chosen from the following list:
+
+\rowcolors[]{1}{teal!20}{teal!10}
+
+\begin{tabular}{ll}
+F, \ FREE & --Free ion/species concentration\\
+T, \ TOTAL & --Total aqueous concentration\\
+TOTAL\_SORB & --Total aqueous and sorbed concentration\\
+P, \ pH & --pH\\
+L, \ LOG & --Log base 10 of free ion concentration\\
+M, \ MINERAL, \ MNRL & --Mineral equilibrium constraint\\
+G, GAS & --Gaseous species constraint [bars]\\
+SC, \ CONSTRAINT\_SUPERCRIT\_CO2 & --Supercritical CO$_2$ EOS\\
+Z, \ CHG & --Charge balance
+\end{tabular}
 
 \noindent
 {\bf Example:}
@@ -2810,6 +3090,8 @@ Metatorbernite 0.    1.
 /
 \end{verbatim}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 
 \newpage
@@ -2825,6 +3107,8 @@ Metatorbernite 0.    1.
 \begin{deflist}{000}
 \item[DATASET] [permx, permy, permz] [permx\_filename, permy\_filename, permz\_filename]
 \end{deflist}
+
+\hyperlink{target_key}{\return}
 
 %========================================================================
 
@@ -2842,8 +3126,12 @@ Metatorbernite 0.    1.
 \item[PRINT\_JACOBIAN] [MATVIEW\_JACOBIAN, VIEW\_JACOBIAN]
 \item[PRINT\_JACOBIAN\_NORM] [NORM\_JACOBIAN]
 \item[PRINT\_COUPLERS] [PRINT\_COUPLER]
-\item[PRINT\_JACOBIAN\_DETAILED] [MATVIEW\_JACOBIAN\_DETAILED, VIEW\_JACOBIAN\_DETAILED]
-\item  PRINT\_NUMERICAL\_DERIVATIVES] [VIEW\_NUMERICAL\_DERIVATIVES]
+\item[PRINT\_JACOBIAN\_DETAILED] [MATVIEW\_JACOBIAN\_DETAILED, 
+
+VIEW\_JACOBIAN\_DETAILED]
+
+\item[PRINT\_NUMERICAL\_DERIVATIVES] [VIEW\_NUMERICAL\_DERIVATIVES]
+
 \end{deflist}
 \item[\keyend]
 \end{deflist}
@@ -2853,6 +3141,8 @@ Metatorbernite 0.    1.
 \bigskip
 
 {\noindent\bf Examples:}
+
+\hyperlink{target_key}{\return}
 
 %================================================================
 
@@ -2921,18 +3211,18 @@ The {\bf FLOW\_CONDITION} keyword specifies scalar or vector data sets to be ass
 \item[{\bf FILE} \ {\tt file\_name}]
 \end{deflist}
 \item [FLUX]
-\item [TEMP, TEMPERATURE]
-\item [CONC, CONCENTRATION]
-\item [H, ENTHALPY]
+\item [TEMP, \ TEMPERATURE]
+\item [CONC, \ CONCENTRATION]
+\item [H, \ ENTHALPY]
 \end{deflist}
 \item[(., /, END)]
-\item[TEMPERATURE, TEMP] \ {\tt <float>}
+\item[TEMPERATURE, \ TEMP] \ {\tt <float>}
 \item[ENTHALPY, H] \ {\tt <float>}
-\item[PRESSURE, PRES, PRESS] \ {\tt <float>}
+\item[PRESSURE, \ PRES, \ RESS] \ {\tt <float>}
 \item[RATE] \ {\tt Value}
-\item[FLUX, VELOCITY, VEL] \ {\tt <float>}
-\item[CONC, CONCENTRATION] \ {\tt <float>}
-\item[SAT,SATURATION] \ {\tt <float>}
+\item[FLUX, \ VELOCITY, \ VEL] \ {\tt <float>}
+\item[CONC, \ CONCENTRATION] \ {\tt <float>}
+\item[SAT, \ SATURATION] \ {\tt <float>}
 \item[CONDUCTANCE] \ {\tt <float>}
 %\item[CONSTRAINT\_LIST]
 \end{deflist}
@@ -2942,43 +3232,52 @@ The {\bf FLOW\_CONDITION} keyword specifies scalar or vector data sets to be ass
 {\noindent\bf Explanation:}
 
 \begin{center}
+\begin{tabular}{ccc}
+IPHASE & Phases present & CO$_2$ concentration\\
+1 & H$_2$O & $X_{\rm CO_2}^{\rm H_2O}$\\
+2 & SC CO$_2$ & $X_{\rm CO_2}^{\rm SC CO_2}$\\
+3 & H$_2$O -- SC CO$_2$ & \Big($X_{\rm CO_2}^{\rm H_2O}\Big)_{\rm eq}$\\
+\end{tabular}
+\end{center}
+
+\begin{center}
 \begin{tabularx}{\linewidth}{lX}
 \toprule[1.5pt]
 \bf Keyword & \bf Description\\
 \midrule
-\bf FLOW/TRANSPORT\_CONDITION & Initiates a condition entry and defines its name.\\
+\bf FLOW/TRANSPORT\_CONDITION & Initiates a condition entry and defines its name\\
 \midrule
-\bf CYCLIC & Instructs PFLOTRAN to cycle the transient data set should the simulation time exceed the last time in the data set.\\
+\bf CYCLIC & Instructs PFLOTRAN to cycle the transient data set should the simulation time exceed the last time in the data set\\
 \midrule
-\bf INTERPOLATION & Defines the method for interpolating between data set times.\\
+\bf INTERPOLATION & Defines the method for interpolating between data set times\\
 \midrule
-\bf DATUM & Location is space where prescribed scalar (e.g. pressure, temperature concentration, etc.) is defined.\\
+\bf DATUM & Location is space where prescribed scalar (e.g. pressure, temperature concentration, etc.) is defined\\
 \midrule
-\bf TYPE & Specifies the type of condition.\\
+\bf TYPE & Specifies condition type\\
 \midrule
-\bf PRESSURE & Specifies the type of pressure condition.\\
- \bf TEMPERATURE & Specifies the type of temperature condition.\\
-    \bf CONCENTRATION & Specifies the type of concentration condition.\\
-    \bf SATURATION & Specifies the type of saturation condition.\\
-    \bf ENTHALPY & Specifies the type of enthalpy condition.\\
-    \bf END & Terminates type entry.\\
-\midrule\midrule
-\bf GRADIENT & Gradient of the scalar field in 3D space.\\
+\bf PRESSURE & Specifies pressure condition type\\
+ \bf TEMPERATURE & Specifies temperature condition type\\
+    \bf CONCENTRATION & Specifies the type of concentration condition\\
+    \bf SATURATION & Specifies saturation condition type\\
+    \bf ENTHALPY & Specifies enthalpy condition type\\
+    \bf END & Terminates type entry\\
+\toprule[1.5pt]
+\bf GRADIENT & Gradient of the scalar field in 3D space\\
 \midrule
-\bf PRESSURE & Pressure gradient in $x$-, $y$-, and $z$-directions.\\
-\bf TEMPERATURE & Temperature gradient in $x$-, $y$-, and $z$-directions.\\
-\bf CONCENTRATION & Concentration gradient in $x$-, $y$-, and $z$-directions.\\
-\bf ENTHALPY & Enthalpy gradient in $x$-, $y$-, and $z$-directions.\\
-\bf END & Terminates gradient entry.\\
-\midrule\midrule
-\bf PRESSURE & Absolute fluid pressure at the datum.\\
-\bf FLUX & Darcy velocity of fluid defining flux across a boundary.\\
-\bf TEMPERATURE & Temperature in $^\circ$C at the datum.\\
-\bf CONCENTRATION & Solute concentration at the datum.\\
-\bf SATURATION & Solute saturation at the datum.\\
-\bf ENTHALPY & Enthalpy at the datum.\\
-\bf CONSTRAINT\_LIST & Specifies a list of concentration constraints for solute transport.\\
-\bf END & Terminates the condition entry.\\
+\bf PRESSURE & Pressure gradient in $x$-, $y$-, and $z$-directions\\
+\bf TEMPERATURE & Temperature gradient in $x$-, $y$-, and $z$-directions\\
+\bf CONCENTRATION & Concentration gradient in $x$-, $y$-, and $z$-directions\\
+\bf ENTHALPY & Enthalpy gradient in $x$-, $y$-, and $z$-directions\\
+\bf END & Terminates gradient entry\\
+\toprule[1.5pt]
+\bf PRESSURE & Absolute fluid pressure at the datum\\
+\bf FLUX & Darcy velocity of fluid defining flux across specified boundary\\
+\bf TEMPERATURE & Temperature in $^\circ$C at datum\\
+\bf CONCENTRATION & Solute concentration at datum\\
+\bf SATURATION & Solute saturation at datum\\
+\bf ENTHALPY & Enthalpy at datum\\
+\bf CONSTRAINT\_LIST & Specifies list of concentration constraints for solute transport\\
+\bf END & Terminates condition entry\\
 \bottomrule[1.5pt]
 \end{tabularx}
 \end{center}
@@ -3029,6 +3328,8 @@ PRESSURE 101325.d0
 /
 \end{verbatim}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 
 \newpage
@@ -3063,6 +3364,8 @@ DIFFUSION_ACTIVATION_ENERGY 12.6 ! kJ/K/mol
 /
 \end{verbatim}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 
 \newpage
@@ -3089,20 +3392,24 @@ DIFFUSION_ACTIVATION_ENERGY 12.6 ! kJ/K/mol
 
 \item[FILE <filename>:] Name of file containing grid information (unstructured only)
 
+~\\
+
 \item[BOUNDS:] Specifies bounds of structured cartesian grid (see examples below)
 \begin{description}
-\item[<x\_min, x\_max>]~
-\item[<y\_min, y\_max>]~
-\item[<z\_min, z\_max>]~
+\item[<x\_min, \ x\_max>]~
+\item[<y\_min, \ y\_max>]~
+\item[<z\_min, \ z\_max>]~
 \end{description}
 \item[\keyend] ~
+
+~\\
 
 \noindent
 \item[\em Equivalently:] ~
 \item[BOUNDS:] ~
 \begin{description}
-\item[<x\_min, y\_min, z\_min>]~
-\item[<x\_max, y\_max, z\_max>]~
+\item[<x\_min, \ y\_min, \ z\_min>]~
+\item[<x\_max, \ y\_max, \ z\_max>]~
 \end{description}
 \item[\keyend] ~
 
@@ -3171,7 +3478,21 @@ END
 \end{verbatim}
 
 \noindent
+or, equivalently
+
+\begin{verbatim}
+BOUNDS
+0. 0. 0.
+1024. 1. 64.
+END
+\end{verbatim}
+
+\noindent
 By using the {\tt BOUNDS} keyword, the model domain is specified in a grid-independent fashion and, as a result, the grid spacing may be changed by modifying the keyword {\tt NXYZ} only.
+
+\hyperlink{target_key}{\return}
+
+\hyperlink{target_input_file}{\returnb}
 
 %========================================================================
 
@@ -3209,6 +3530,8 @@ TRANSPORT_CONDITION Initial
 REGION all
 END
 \end{verbatim}
+
+\hyperlink{target_key}{\return}
 
 %========================================================================
 
@@ -3293,6 +3616,8 @@ END
 
 \noindent{\bf Example:}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 
 \newpage
@@ -3341,6 +3666,19 @@ END
 \item[POROSITY] \ {\tt float} \ Porosity power in mineral surface area
 \end{deflist}
 %\item[(., /, END)]
+\item[SECONDARY\_CONTINUUM] \ Activate with {\tt MULTIPLE\_CONTINUUM} keyword 
+\begin{deflist}{000}
+\item[TYPE] \ {\tt <char>} (SLAB, NESTED\_CUBES, NESTED\_SPHERES)
+\item[LENGTH] \ {\tt <float>} [m] \ length of SLAB type
+\item[AREA] \ {\tt <float>} [m$^2$] \ cross-section area for SLAB type
+\item[MATRIX\_BLOCK\_SIZE] \ {\tt <float>} [m] \ matrix block size for NESTED\_CUBES type
+\item[FRACTURE\_SPACING] \ {\tt <float>} [m] \ fracture spacing for NESTED\_CUBES type
+\item[RADIUS] \ {\tt <float>} [m] \ radius for NESTED\_SPHERES type
+\item[NUM\_CELLS] \ {\tt <int>} \ Number of secondary continuum grid cells
+\item[EPSILON] \ {\tt <float>} \ Volume fraction of the primary continuum (fracture) in REV
+\item[APERTURE] \ {\tt <float>} \ Fracture aperture (if specified overrides epsilon---applicable for nested cubes only)
+\end{deflist}
+\item[(., /, END)]
 \item[RANDOM\_DATASET] \ {\tt permeability\_filename}
 \end{deflist}
 \item[(., /, END)]
@@ -3361,7 +3699,29 @@ PERM_Y 1.d-12
 PERM_Z 1.d-12
 /
 /
+=============
+MATERIAL_PROPERTY soil1
+ID 1 
+SATURATION_FUNCTION sf1
+POROSITY 0.1
+TORTUOSITY 1.
+PERMEABILITY
+PERM_X 1.d-13
+PERM_Y 1.d-13
+PERM_Z 1.d-13
+/
+SECONDARY_CONTINUUM
+TYPE  SLAB
+LENGTH 50
+AREA 2500
+NUM_CELLS 10
+EPSILON 0.02
+/
+/
 \end{verbatim}
+
+\hyperlink{target_key}{\return}
+%\hyperlink{target_key}{\hfill$\hookrightarrow$}
 
 %========================================================================
 
@@ -3387,6 +3747,8 @@ MAX_CHANGE 5.d4    5.  0.02   0.05
 /
 \end{verbatim}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 
 \newpage
@@ -3394,7 +3756,7 @@ MAX_CHANGE 5.d4    5.  0.02   0.05
 
 \subsection{Keyword: MODE}
 
-\noindent{\bf Description:} determines the flow mode: Richards (variably saturated porous media); MPH, MPHASE, FLASH2 (CO$_2$ + H$_2$O); THC (Thermal-Hydrologic-Chemical, in pro\-gress); IMMIS, THS (Immisible).
+\noindent{\bf Description:} determines the flow mode: Richards (variably saturated porous media); MPH, \linebreak MPHASE, FLASH2 (CO$_2$ + H$_2$O); THC (Thermal-Hydrologic-Chemical, in pro\-gress); IMMIS, THS (Immisible).
 
 \begin{comment}
 \noindent{\bf Input:}
@@ -3413,7 +3775,7 @@ MAX_CHANGE 5.d4    5.  0.02   0.05
 
 %\noindent{\bf Explanation:}
 
-\begin{center}
+%\begin{center}
 \begin{tabularx}{\linewidth}{lX}
 %\toprule[1.5pt]
 \bf MODE <option>\\
@@ -3431,12 +3793,32 @@ MAX_CHANGE 5.d4    5.  0.02   0.05
 \bf IMMIS (IMS, THS) &Immissible CO$_2$-water-energy\\
 %\bottomrule[1.5pt]
 \end{tabularx}
-\end{center}
+%\end{center}
 
 \noindent{\bf Example:}
 \begin{verbatim}
 MODE THC
 \end{verbatim}
+
+\hyperlink{target_key}{\return}
+
+%========================================================================
+
+\newpage
+\protect\hypertarget{target_mc}{}
+
+\subsection{Keyword: MULTIPLE\_CONTINUUM}
+
+\noindent{\bf Description:} 
+This keyword initiates the multiple continuum formulation (implemented currently only for heat equation). The properties of the secondary continuum can be
+specified under the MATERIAL\_PROPERTY keyword.
+
+\begin{tabularx}{\linewidth}{lX}
+%\toprule[1.5pt]
+\bf MULTIPLE\_CONTINUUM & Activate multiple continuum model for heat equation. 
+\end{tabularx}
+
+\hyperlink{target_key}{\return}
 
 %========================================================================
 
@@ -3465,7 +3847,7 @@ MODE THC
 \item[ITOL\_UPDATE (INF\_TOL\_UPDATE)]
 \item[MAXIT] Cuts time step if the number of iterations exceed this value
 \item[MAXF]
-\item[MAX\_NORM]  Cuts time step if the convergence norm exceeds this value. Only works for THC, MPHASE and MISCIBLE modes. 
+\item[MAX\_NORM]  Cuts time step if the convergence norm exceeds this value. 
 \end{deflist}
 \item[(., /, END)]
 \end{deflist}
@@ -3473,6 +3855,8 @@ MODE THC
 \noindent{\bf Explanation:}
 
 \noindent{\bf Example:}
+
+\hyperlink{target_key}{\return}
 
 %========================================================================
 
@@ -3483,6 +3867,8 @@ MODE THC
 \begin{deflist}{0000000000}
 \item[NUMERICAL\_JACOBIAN] \{numerical\_derivatives = .true.\}
 \end{deflist}
+
+\hyperlink{target_key}{\return}
 
 %========================================================================
 
@@ -3503,6 +3889,7 @@ The user must specify either a region or boundary condition to which the observa
 \item[REGION] \ {\tt region name}
 \item[VELOCITY]
 \item[AT\_CELL\_CENTER]
+\item[SECONDARY\_TEMPERATURE]
 \end{deflist}
 \item[(., /, END)]
 \end{deflist}
@@ -3513,6 +3900,7 @@ The user must specify either a region or boundary condition to which the observa
 \item[Keyword REGION] (optional) defines the name of the region (usually a point in space) to which the observation point is linked.
 \item[Keyword BOUNDARY\_CONDITION] (optional) specifies the name of a boundary condition to which the observation point is tied (e.g. to monitor fluxes across a boundary face).
 \item[Keyword VELOCITY] (optional) toggles on the printing of Darcy velocities at the observation point.
+\item[Keyword SECONDARY\_TEMPERATURE] (optional) toggles on the printing of the secondary continuum (matrix nodal) temperatures.
 \end{description}
 
 {\noindent\bf Examples:}
@@ -3527,6 +3915,8 @@ BOUNDARY_CONDITION river
 END
 \end{verbatim}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 
 \newpage
@@ -3536,6 +3926,8 @@ END
 \begin{deflist}{0000000000}
 \item[ORIGIN (ORIG)] X\_DIRECTION Y\_DIRECTION Z\_DIRECTION
 \end{deflist}
+
+\hyperlink{target_key}{\return}
 
 %========================================================================
 
@@ -3627,6 +4019,8 @@ MASS_BALANCE
 /
 \end{verbatim}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 
 \newpage
@@ -3640,6 +4034,8 @@ MASS_BALANCE
 \end{deflist}
 %\end{minipage}
 %}
+
+\hyperlink{target_key}{\return}
 
 %================================================================
 
@@ -3659,6 +4055,8 @@ MASS_BALANCE
 
 {\tt PROC 1 1 8} \ \ \ \ ! Force decomposition in z direction only (1$\times$1$\times$8 decomposition).
 \end{deflist}
+
+\hyperlink{target_key}{\return}
 
 %========================================================================
 
@@ -3750,6 +4148,8 @@ FACE WEST
 END
 \end{verbatim}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 
 \newpage
@@ -3790,6 +4190,8 @@ RESTART restart.chk 0.d0 y
 RESTART pflotran.chk3000
 
 \end{verbatim}
+
+\hyperlink{target_key}{\return}
 
 %========================================================================
 
@@ -3832,6 +4234,8 @@ POWER 1.d0
 /
 \end{verbatim}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 
 \newpage
@@ -3857,6 +4261,8 @@ REGION Well_2-9_1
 /
 \end{verbatim}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 
 \newpage
@@ -3874,6 +4280,8 @@ REGION Well_2-9_1
 \end{deflist}
 %\end{minipage}
 %}
+
+\hyperlink{target_key}{\return}
 
 %========================================================================
 
@@ -3906,6 +4314,9 @@ INITIAL_TIMESTEP_SIZE 1.d-3 h
 MAXIMUM_TIMESTEP_SIZE 1.d0 h
 /
 \end{verbatim}
+
+\hyperlink{target_key}{\return}
+
 %================================================================
 
 \newpage
@@ -3936,6 +4347,8 @@ MAXIMUM_TIMESTEP_SIZE 1.d0 h
 \noindent{\bf Explanation:}
 
 \noindent{\bf Example:}
+
+\hyperlink{target_key}{\return}
 
 %========================================================================
 
@@ -4039,6 +4452,8 @@ Metatorbernite 0.    1.
 /
 \end{verbatim}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 
 \newpage
@@ -4061,6 +4476,8 @@ Metatorbernite 0.    1.
 UNIFORM_VELOCITY 3.84259d-6 0.d0 0.d0  ! 1.38333 cm/h
 \end{verbatim}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 
 \newpage
@@ -4078,6 +4495,8 @@ UNIFORM_VELOCITY 3.84259d-6 0.d0 0.d0  ! 1.38333 cm/h
 \noindent{\bf Explanation:}
 
 \noindent{\bf Example:}
+
+\hyperlink{target_key}{\return}
 
 %========================================================================
 
@@ -4123,6 +4542,8 @@ VELOCITY
 /
 \end{verbatim}
 
+\hyperlink{target_key}{\return}
+
 %========================================================================
 
 \newpage
@@ -4140,6 +4561,9 @@ VELOCITY
 \noindent{\bf Example:} {\tt WALLCLOCK\_STOP 9.5 h}
 
 %========================================================================
+
+\hyperlink{target_key}{\return}
+
 %========================================================================
 %========================================================================
 \newpage
@@ -5937,7 +6361,7 @@ s_{\rm eff} \eq \left[1+\left( \alpha |P_c| \right)^n
 \EN 
 where $s_{\rm 
 eff}$ is defined by 
-\EQ\label{seff}
+\EQ\label{seff1}
 s_{\rm eff} \eq \frac{s - s_r}{1 - s_r}, 
 \EN 
 and where $s_r$ denotes the residual saturation. The quantity $n$ is related to $m$ by the expression 
@@ -6100,10 +6524,7 @@ Source/sink file {\tt src.dat}:
 
 \item Goode, D.J. (1996) Direct simulation of groundwater age, Water Resources Research, 32, 289--296.
 
-\item Hammond, G.E., P.C. Lichtner, C. Lu, and R.T. Mills (2011) PFLOTRAN: Reactive Flow \& Transport Code for Use on Laptops to Leadership-Class Supercomputers, Editors: Zhang, F., G. T. Yeh, and J. C. Parker,
-{\em Ground Water Reactive Transport Models},
-Bentham Science Publishers.
-ISBN 978-1-60805-029-1. 
+\item Hammond, G.E., P.C. Lichtner, C. Lu, and R.T. Mills (2011) PFLOTRAN: Reactive Flow \& Transport Code for Use on Laptops to Leadership-Class Supercomputers, Editors: Zhang, F., G. T. Yeh, and J. C. Parker, {\em Ground Water Reactive Transport Models}, Bentham Science Publishers. ISBN 978-1-60805-029-1. 
 
 \item Khaleel, R., E.J. Freeman (1995) Variability and scaling of hydraulic properties for 200 area soils, Hanford Site. Report WHC-EP-0883. Westinghouse Hanford Company, Richland, WA.
 
@@ -6111,10 +6532,14 @@ ISBN 978-1-60805-029-1.
 
 \item Lichtner, P.C., Yabusaki, S.B., Pruess K., and Steefel, C.I. (2004) Role of Competitive Cation Exchange on Chromatographic Displacement of Cesium in the Vadose Zone Beneath the Hanford S/SX Tank Farm, {\em VJZ}, {\bf 3}, 203--219.
 
+\item Lichtner P.C. (2000)  Critique of Dual Continuum Formulations of Multicomponent Reactive Transport in Fractured Porous Media, Ed. Boris Faybishenko, {\em Dynamics of Fluids in Fractured Rock}, Geophysical Monograph {\bf 122}, 281--298.
+
 \item Peaceman, D.W. (1977) Interpretation of Well-Block Pressures in Numerical Reservoir Simulation with Nonsquare Grid Blocks and Anisotropic Permeability, paper SPE-10528, presented at the Sixth SPE Symposium on Reservoir Simulation of the Society of Petroleum Engineers, New Orleans, LA, January 1982.  
 
 \item Pruess, K., S. Yabusaki, C. Steefel, and P. Lichtner (2002) Fluid flow,
 heat transfer, and solute transport at nuclear waste storage tanks in the Hanford vadose zone. Available at www.vadosezonejournal.org. Vadose Zone J. 1:68--88.
+
+\item Pruess, K., and Narasimhan (1985) A practical method for modeling fluid and heat flow in fractured porous media, SPE 10509, 14--26.
 
 \item Somerton, W.H., A.H. El-Shaarani, and S.M. Mobarak (1974) 
 High temperature behavior of rocks associated with geothermal-type reservoirs. Paper SPE-4897. Proceedings of the 44th Annual 

@@ -6,6 +6,10 @@ module Structured_Grid_module
  
 #include "definitions.h"
 
+  PetscInt, parameter, public :: CARTESIAN_GRID = 3
+  PetscInt, parameter, public :: CYLINDRICAL_GRID = 4
+  PetscInt, parameter, public :: SPHERICAL_GRID = 5
+
   type, public :: structured_grid_type
 
     character(len=MAXWORDLENGTH) :: ctype
@@ -48,42 +52,45 @@ module Structured_Grid_module
     
     PetscReal, pointer :: dx(:), dy(:), dz(:)  ! ghosted grid spacings for each grid cell
     
+    PetscInt, pointer :: cell_neighbors(:,:)
+    
   end type structured_grid_type
 
-  public :: StructuredGridCreate, &
-            StructuredGridDestroy, &
-            StructuredGridCreateDM, &
+  public :: StructGridCreate, &
+            StructGridDestroy, &
+            StructGridCreateDM, &
             StructGridComputeLocalBounds, &
             StructGridComputeInternConnect, &
             StructGridComputeBoundConnect, &
-            StructuredGridCreateVecFromDM, &
-            StructuredGridMapIndices, &
-            StructuredGridComputeSpacing, &
-            StructuredGridComputeCoord, &
-            StructuredGridReadDXYZ, &
-            StructuredGridComputeVolumes, &
+            StructGridCreateVecFromDM, &
+            StructGridMapIndices, &
+            StructGridComputeSpacing, &
+            StructGridComputeCoord, &
+            StructGridReadDXYZ, &
+            StructGridComputeVolumes, &
             StructGridPopulateConnection, &
             StructGridGetIJKFromCoordinate, &
             StructGridGetIJKFromLocalID, &
             StructGridGetIJKFromGhostedID, &
             StructGridGetGhostedNeighbors, &
             StructGridCreateTVDGhosts, &
-            StructGridGetGhostedNeighborsCorners
+            StructGridGetGhostedNeighborsCorners, &
+            StructGridComputeNeighbors
   
 contains
 
 ! ************************************************************************** !
 !
-! StructuredGridCreate: Creates a structured grid object
+! StructGridCreate: Creates a structured grid object
 ! author: Glenn Hammond
 ! date: 10/22/07
 !
 ! ************************************************************************** !
-function StructuredGridCreate()
+function StructGridCreate()
 
   implicit none
   
-  type(structured_grid_type), pointer :: StructuredGridCreate
+  type(structured_grid_type), pointer :: StructGridCreate
 
   type(structured_grid_type), pointer :: structured_grid
 
@@ -160,25 +167,26 @@ function StructuredGridCreate()
   nullify(structured_grid%dy)
   nullify(structured_grid%dz)
   
-  
+  nullify(structured_grid%cell_neighbors)
+ 
   structured_grid%origin = -1.d20
   structured_grid%bounds = -1.d20
   
   structured_grid%invert_z_axis = PETSC_FALSE
   
-  StructuredGridCreate => structured_grid
+  StructGridCreate => structured_grid
   
-end function StructuredGridCreate
+end function StructGridCreate
   
 ! ************************************************************************** !
 !
-! StructuredGridCreateDMs: Creates structured distributed, parallel meshes/grids
+! StructGridCreateDMs: Creates structured distributed, parallel meshes/grids
 ! author: Glenn Hammond
 ! date: 10/22/07
 !
 ! ************************************************************************** !
-subroutine StructuredGridCreateDM(structured_grid,da,ndof,stencil_width, &
-                                  option)
+subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
+                                  stencil_type,option)
 
   use Option_module
         
@@ -194,7 +202,7 @@ subroutine StructuredGridCreateDM(structured_grid,da,ndof,stencil_width, &
   type(structured_grid_type) :: structured_grid
   DM :: da
   PetscInt :: ndof
-  PetscInt :: stencil_width
+  PetscInt :: stencil_width,stencil_type
 
   PetscErrorCode :: ierr
 
@@ -203,7 +211,7 @@ subroutine StructuredGridCreateDM(structured_grid,da,ndof,stencil_width, &
   !-----------------------------------------------------------------------
   ! This code is for the DMDACreate3D() interface in PETSc versions >= 3.2 --RTM
   call DMDACreate3D(option%mycomm,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE, &
-                  DMDA_BOUNDARY_NONE,DMDA_STENCIL_STAR, &
+                  DMDA_BOUNDARY_NONE,stencil_type, &
                   structured_grid%nx,structured_grid%ny,structured_grid%nz, &
                   structured_grid%npx,structured_grid%npy,structured_grid%npz, &
                   ndof,stencil_width, &
@@ -216,7 +224,7 @@ subroutine StructuredGridCreateDM(structured_grid,da,ndof,stencil_width, &
                  PETSC_NULL_INTEGER,PETSC_NULL_INTEGER,PETSC_NULL_INTEGER, &
                  PETSC_NULL_INTEGER,ierr)
 
-end subroutine StructuredGridCreateDM
+end subroutine StructGridCreateDM
 
 ! ************************************************************************** !
 !
@@ -270,12 +278,12 @@ end subroutine StructGridComputeLocalBounds
 
 ! ************************************************************************** !
 !
-! StructuredGridCreateVecFromDM: Creates a PETSc vector from a DM
+! StructGridCreateVecFromDM: Creates a PETSc vector from a DM
 ! author: Glenn Hammond
 ! date: 02/08/08
 !
 ! ************************************************************************** !
-subroutine StructuredGridCreateVecFromDM(da,vector,vector_type)
+subroutine StructGridCreateVecFromDM(da,vector,vector_type)
 
   implicit none
 
@@ -294,16 +302,16 @@ subroutine StructuredGridCreateVecFromDM(da,vector,vector_type)
       call DMDACreateNaturalVector(da,vector,ierr)
   end select
 
-end subroutine StructuredGridCreateVecFromDM
+end subroutine StructGridCreateVecFromDM
 
 ! ************************************************************************** !
 !
-! StructuredGridReadDXYZ: Reads structured grid spacing from input file
+! StructGridReadDXYZ: Reads structured grid spacing from input file
 ! author: Glenn Hammond
 ! date: 10/23/07
 !
 ! ************************************************************************** !
-subroutine StructuredGridReadDXYZ(structured_grid,input,option)
+subroutine StructGridReadDXYZ(structured_grid,input,option)
 
   use Option_module
   use Input_module
@@ -325,13 +333,13 @@ subroutine StructuredGridReadDXYZ(structured_grid,input,option)
   structured_grid%dz_global = 0.d0
 
   word = 'X'
-  call StructuredGridReadArrayNew(structured_grid%dx_global, &
+  call StructGridReadArrayNew(structured_grid%dx_global, &
                                structured_grid%nx,word,input,option)
   word = 'Y'
-  call StructuredGridReadArrayNew(structured_grid%dy_global, &
+  call StructGridReadArrayNew(structured_grid%dy_global, &
                                structured_grid%ny,word,input,option)
   word = 'Z'
-  call StructuredGridReadArrayNew(structured_grid%dz_global, &
+  call StructGridReadArrayNew(structured_grid%dz_global, &
                                structured_grid%nz,word,input,option)
     
   if (OptionPrintToFile(option)) then
@@ -344,17 +352,17 @@ subroutine StructuredGridReadDXYZ(structured_grid,input,option)
       (structured_grid%dz_global(i),i=1,structured_grid%nz)
   endif
 
-end subroutine StructuredGridReadDXYZ
+end subroutine StructGridReadDXYZ
 
 ! ************************************************************************** !
 !
-! StructuredGridReadArray: Reads structured grid spacing along an axis from  
+! StructGridReadArray: Reads structured grid spacing along an axis from  
 !                         input file
 ! author: Glenn Hammond
 ! date: 10/23/07
 !
 ! ************************************************************************** !
-subroutine StructuredGridReadArray(a,n,input,option)
+subroutine StructGridReadArray(a,n,input,option)
 
   use Input_module
   use Option_module
@@ -407,17 +415,17 @@ subroutine StructuredGridReadArray(a,n,input,option)
     if (i2 >= n) exit
   enddo
     
-end subroutine StructuredGridReadArray
+end subroutine StructGridReadArray
 
 ! ************************************************************************** !
 !
-! StructuredGridReadArrayNew: Reads structured grid spacing along an axis from  
+! StructGridReadArrayNew: Reads structured grid spacing along an axis from  
 !                         input file
 ! author: Glenn Hammond
 ! date: 05/21/09
 !
 ! ************************************************************************** !
-subroutine StructuredGridReadArrayNew(array,array_size,axis,input,option)
+subroutine StructGridReadArrayNew(array,array_size,axis,input,option)
 
   use Input_module
   use String_module
@@ -475,10 +483,10 @@ subroutine StructuredGridReadArrayNew(array,array_size,axis,input,option)
         word3 = word(i+1:len_trim(word))
         string2 = word2
         call InputReadInt(string2,option,num_values,input%ierr)
-        call InputErrorMsg(input,option,'# values','StructuredGridReadArrayNew')
+        call InputErrorMsg(input,option,'# values','StructGridReadArrayNew')
         string2 = word3
         call InputReadDouble(string2,option,value,input%ierr)
-        call InputErrorMsg(input,option,'value','StructuredGridReadArrayNew')
+        call InputErrorMsg(input,option,'value','StructGridReadArrayNew')
         do i=1, num_values
           count = count + 1
           array(count) = value
@@ -486,23 +494,23 @@ subroutine StructuredGridReadArrayNew(array,array_size,axis,input,option)
       else
         string2 = word
         call InputReadDouble(string2,option,value,input%ierr)
-        call InputErrorMsg(input,option,'value','StructuredGridReadDXYZ')
+        call InputErrorMsg(input,option,'value','StructGridReadDXYZ')
         count = count + 1
         array(count) = value
       endif
     enddo
   enddo
 
-end subroutine StructuredGridReadArrayNew
+end subroutine StructGridReadArrayNew
 
 ! ************************************************************************** !
 !
-! StructuredGridComputeSpacing: Computes structured grid spacing
+! StructGridComputeSpacing: Computes structured grid spacing
 ! author: Glenn Hammond
 ! date: 10/26/07
 !
 ! ************************************************************************** !
-subroutine StructuredGridComputeSpacing(structured_grid,option)
+subroutine StructGridComputeSpacing(structured_grid,option)
 
   use Option_module
   
@@ -583,16 +591,16 @@ subroutine StructuredGridComputeSpacing(structured_grid,option)
     enddo
   enddo
   
-end subroutine StructuredGridComputeSpacing
+end subroutine StructGridComputeSpacing
 
 ! ************************************************************************** !
 !
-! StructuredGridComputeCoord: Computes structured coordinates in x,y,z
+! StructGridComputeCoord: Computes structured coordinates in x,y,z
 ! author: Glenn Hammond
 ! date: 10/24/07
 !
 ! ************************************************************************** !
-subroutine StructuredGridComputeCoord(structured_grid,option,origin_global, &
+subroutine StructGridComputeCoord(structured_grid,option,origin_global, &
                                       grid_x,grid_y,grid_z, &
                                       x_min,x_max,y_min,y_max,z_min,z_max)
 
@@ -677,7 +685,7 @@ implicit none
       z = z + 0.5d0*(structured_grid%dzg_local(k)+structured_grid%dzg_local(k+1))
   enddo
     
-end subroutine StructuredGridComputeCoord
+end subroutine StructGridComputeCoord
 
 ! ************************************************************************** !
 !
@@ -916,8 +924,7 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
   leny = structured_grid%ngy - 1
   lenz = structured_grid%ngz - 1
 
-  connections => ConnectionCreate(nconn, &
-                                  option%nphase,INTERNAL_CONNECTION_TYPE)
+  connections => ConnectionCreate(nconn,INTERNAL_CONNECTION_TYPE)
   
   ! if using higher order advection, allocate associated arrays
   if (option%itranmode == EXPLICIT_ADVECTION .and. &
@@ -1280,8 +1287,7 @@ function StructGridComputeBoundConnect(structured_grid, xc, yc, zc, option)
 !  stop
 
 
-  connections => ConnectionCreate(nconn, &
-                                  option%nphase,BOUNDARY_CONNECTION_TYPE)
+  connections => ConnectionCreate(nconn,BOUNDARY_CONNECTION_TYPE)
 
 !  StructGridComputeBoundConnect => connections
 
@@ -1659,12 +1665,12 @@ end subroutine StructGridPopulateConnection
 
 ! ************************************************************************** !
 !
-! StructuredGridComputeVolumes: Computes the volumes of cells in structured grid
+! StructGridComputeVolumes: Computes the volumes of cells in structured grid
 ! author: Glenn Hammond
 ! date: 10/25/07
 !
 ! ************************************************************************** !
-subroutine StructuredGridComputeVolumes(radius,structured_grid,option,nL2G,volume)
+subroutine StructGridComputeVolumes(radius,structured_grid,option,nL2G,volume)
 
   use Option_module
   
@@ -1732,22 +1738,33 @@ subroutine StructuredGridComputeVolumes(radius,structured_grid,option,nL2G,volum
         structured_grid%gzs,structured_grid%gze
   endif
 
-end subroutine StructuredGridComputeVolumes
+end subroutine StructGridComputeVolumes
 
 ! ************************************************************************** !
 !
-! StructuredGridMapIndices: maps global, local and natural indices of cells 
+! StructGridMapIndices: maps global, local and natural indices of cells 
 !                          to each other
 ! author: Glenn Hammond
 ! date: 10/24/07
 !
 ! ************************************************************************** !
-subroutine StructuredGridMapIndices(structured_grid,nG2L,nL2G,nG2A)
+subroutine StructGridMapIndices(structured_grid,stencil_type,lsm_flux_method, &
+                                    nG2L,nL2G, &
+                                    nG2A,ghosted_level,option)
+
+  use Option_module
 
   implicit none
+  
+#include "finclude/petscdm.h"
+#include "finclude/petscdm.h90"
+#include "finclude/petscdmda.h"  
 
   type(structured_grid_type) :: structured_grid
-  PetscInt, pointer :: nG2L(:), nL2G(:), nG2A(:)
+  PetscInt :: stencil_type
+  PetscBool :: lsm_flux_method
+  PetscInt, pointer :: nG2L(:), nL2G(:), nG2A(:), ghosted_level(:)
+  type(option_type) :: option
 
   PetscInt :: i, j, k, local_id, ghosted_id, natural_id, count1
   PetscErrorCode :: ierr
@@ -1795,52 +1812,116 @@ subroutine StructuredGridMapIndices(structured_grid,nG2L,nL2G,nG2A)
   enddo
   ! Local(non ghosted)->Natural(natural order starts from 0)
 
-  !geh - set corner ghosted nodes to -1
-  do k=1,structured_grid%ngz
-    do j=1,structured_grid%ngy
-      do i=1,structured_grid%ngx
-        count1 = 0
-        if (i == 1 .and. &
-            abs(structured_grid%lxs-structured_grid%gxs) > 0) &
-          count1 = count1 + 1
-        if (i == structured_grid%ngx .and. &
-            abs(structured_grid%gxe-structured_grid%lxe) > 0) &
-          count1 = count1 + 1
-        if (j == 1 .and. &
-            abs(structured_grid%lys-structured_grid%gys) > 0) &
-          count1 = count1 + 1
-        if (j == structured_grid%ngy .and. &
-            abs(structured_grid%gye-structured_grid%lye) > 0) &
-          count1 = count1 + 1
-        if (k == 1 .and. &
-            abs(structured_grid%lzs-structured_grid%gzs) > 0) &
-          count1 = count1 + 1
-        if (k == structured_grid%ngz .and. &
-            abs(structured_grid%gze-structured_grid%lze) > 0) &
-          count1 = count1 + 1
-        if (count1 > 1) then
-          ghosted_id = i+(j-1)*structured_grid%ngx+(k-1)*structured_grid%ngxy
-          nG2L(ghosted_id) = -1
-        endif
+  ! if STAR stencil, need to set corner ghosted cells to -1
+  if (stencil_type == DMDA_STENCIL_STAR) then
+    !geh - set corner ghosted nodes to -1
+    do k=1,structured_grid%ngz
+      do j=1,structured_grid%ngy
+        do i=1,structured_grid%ngx
+          count1 = 0
+          if (i == 1 .and. &
+              abs(structured_grid%lxs-structured_grid%gxs) > 0) &
+            count1 = count1 + 1
+          if (i == structured_grid%ngx .and. &
+              abs(structured_grid%gxe-structured_grid%lxe) > 0) &
+            count1 = count1 + 1
+          if (j == 1 .and. &
+              abs(structured_grid%lys-structured_grid%gys) > 0) &
+            count1 = count1 + 1
+          if (j == structured_grid%ngy .and. &
+              abs(structured_grid%gye-structured_grid%lye) > 0) &
+            count1 = count1 + 1
+          if (k == 1 .and. &
+              abs(structured_grid%lzs-structured_grid%gzs) > 0) &
+            count1 = count1 + 1
+          if (k == structured_grid%ngz .and. &
+              abs(structured_grid%gze-structured_grid%lze) > 0) &
+            count1 = count1 + 1
+          if (count1 > 1) then
+            ghosted_id = i+(j-1)*structured_grid%ngx+(k-1)*structured_grid%ngxy
+            nG2L(ghosted_id) = -1
+          endif
+        enddo
       enddo
     enddo
-  enddo
+  endif
 
   ! local ghosted -> natural (1-based)
-  local_id=0
+  ghosted_id = 0
   do k=1,structured_grid%ngz
     do j=1,structured_grid%ngy
       do i=1,structured_grid%ngx
-        local_id = local_id + 1
+        ghosted_id = ghosted_id + 1
         natural_id = i + structured_grid%gxs + & ! 1-based
                       (j-1+structured_grid%gys)*structured_grid%nx+ &
                       (k-1+structured_grid%gzs)*structured_grid%nxy
-        nG2A(local_id) = natural_id
+        nG2A(ghosted_id) = natural_id
       enddo
     enddo
   enddo
+  
+  if (lsm_flux_method) then
+  
+    allocate(ghosted_level(structured_grid%ngmax))
+    
+    ! Save information about ghost cell belong in which level of SNES stencil
+    ghosted_level = 0
+    do k=structured_grid%gzs,structured_grid%gze-1
+      do j=structured_grid%gys,structured_grid%gye-1
+        do i=structured_grid%gxs,structured_grid%gxe-1
+          if(i<structured_grid%lxs) then
+            ghosted_id = StructGridGetGhostedIDFromIJK( structured_grid, &
+                                                        i-structured_grid%gxs+1, &
+                                                        j-structured_grid%gys+1, &
+                                                        k-structured_grid%gzs+1)
+            ghosted_level(ghosted_id) = structured_grid%lxs-i
+          endif
+          if(i>structured_grid%lxe-1) then
+            ghosted_id = StructGridGetGhostedIDFromIJK( structured_grid, &
+                                                        i-structured_grid%gxs+1, &
+                                                        j-structured_grid%gys+1, &
+                                                        k-structured_grid%gzs+1)
+            ghosted_level(ghosted_id) = -(structured_grid%lxe-1-i)
+          endif
 
-end subroutine StructuredGridMapIndices
+          if(j<structured_grid%lys) then
+            ghosted_id = StructGridGetGhostedIDFromIJK( structured_grid, &
+                                                        i-structured_grid%gxs+1, &
+                                                        j-structured_grid%gys+1, &
+                                                        k-structured_grid%gzs+1)
+            ghosted_level(ghosted_id) = structured_grid%lys-j
+          endif
+
+          if(j>structured_grid%lye-1) then
+            ghosted_id = StructGridGetGhostedIDFromIJK( structured_grid, &
+                                                        i-structured_grid%gxs+1, &
+                                                        j-structured_grid%gys+1, &
+                                                        k-structured_grid%gzs+1)
+            ghosted_level(ghosted_id) = -(structured_grid%lye-1-j)
+          endif
+
+          if(k<structured_grid%lzs) then
+            ghosted_id = StructGridGetGhostedIDFromIJK( structured_grid, &
+                                                        i-structured_grid%gxs+1, &
+                                                        j-structured_grid%gys+1, &
+                                                        k-structured_grid%gzs+1)
+            ghosted_level(ghosted_id) = structured_grid%lzs-k
+          endif
+
+          if(k>structured_grid%lze-1) then
+            ghosted_id = StructGridGetGhostedIDFromIJK( structured_grid, &
+                                                        i-structured_grid%gxs+1, &
+                                                        j-structured_grid%gys+1, &
+                                                        k-structured_grid%gzs+1)
+            ghosted_level(ghosted_id) = -(structured_grid%lze-1-k)
+          endif
+          
+        enddo ! i-loop
+      enddo ! j-loop
+    enddo ! k-loop
+  endif ! if LSM_FLUX
+
+end subroutine StructGridMapIndices
 
 ! ************************************************************************** !
 !
@@ -1859,6 +1940,7 @@ subroutine StructGridGetGhostedNeighbors(structured_grid,ghosted_id, &
   use Option_module
 
   implicit none
+#include "finclude/petscdmda.h"
   
   type(structured_grid_type) :: structured_grid
   type(option_type) :: option
@@ -1883,7 +1965,7 @@ subroutine StructGridGetGhostedNeighbors(structured_grid,ghosted_id, &
   z_count = 0
   icount = 0
   select case(stencil_type)
-    case(STAR_STENCIL)
+    case(DMDA_STENCIL_STAR)
       do ii = max(i-stencil_width_i,1), min(i+stencil_width_i,structured_grid%ngx)
         if (ii /= i) then
           icount = icount + 1
@@ -1908,8 +1990,8 @@ subroutine StructGridGetGhostedNeighbors(structured_grid,ghosted_id, &
             StructGridGetGhostedIDFromIJK(structured_grid,i,j,kk)
         endif
       enddo
-    case(BOX_STENCIL)
-      option%io_buffer = 'BOX_STENCIL not yet supported in ' // &
+    case(DMDA_STENCIL_BOX)
+      option%io_buffer = 'DMDA_STENCIL_BOX not yet supported in ' // &
         'StructGridGetNeighbors.'
       call printErrMsg(option)
   end select
@@ -1936,6 +2018,7 @@ subroutine StructGridGetGhostedNeighborsCorners(structured_grid,ghosted_id, &
   use Option_module
 
   implicit none
+#include "finclude/petscdmda.h"
   
   type(structured_grid_type) :: structured_grid
   type(option_type) :: option
@@ -1954,14 +2037,15 @@ subroutine StructGridGetGhostedNeighborsCorners(structured_grid,ghosted_id, &
 
   icount = 0
   
-  select case(stencil_type)
-    case(STAR_STENCIL)
-      do ii = max(i-stencil_width_i,1), &
-                min(i+stencil_width_i,structured_grid%ngx)
-        do jj = max(j-stencil_width_j,1), & 
+  ! gb:08/08/13 Dependence on stencil_type is not necessary.
+  !select case(stencil_type)
+  !  case(DMDA_STENCIL_STAR)
+      do kk = max(k-stencil_width_k,1), &
+                min(k+stencil_width_k,structured_grid%ngz)
+        do jj = max(j-stencil_width_j,1), &
                   min(j+stencil_width_j,structured_grid%ngy)
-          do kk = max(k-stencil_width_k,1), &
-                    min(k+stencil_width_k,structured_grid%ngz)
+          do ii = max(i-stencil_width_i,1), &
+                    min(i+stencil_width_i,structured_grid%ngx)
             if (ii == i .and. jj == j .and. kk == k) then
             ! do nothing
             else
@@ -1972,22 +2056,22 @@ subroutine StructGridGetGhostedNeighborsCorners(structured_grid,ghosted_id, &
           enddo
         enddo          
       enddo
-    case(BOX_STENCIL)
-      option%io_buffer = 'BOX_STENCIL not yet supported in ' // &
-        'StructGridGetNeighbors.'
-      call printErrMsg(option)
-  end select
+  !  case(DMDA_STENCIL_BOX)
+  !    option%io_buffer = 'DMDA_STENCIL_BOX not yet supported in ' // &
+  !      'StructGridGetNeighbors.'
+  !    call printErrMsg(option)
+  !end select
 
 end subroutine StructGridGetGhostedNeighborsCorners
 
 ! ************************************************************************** !
 !
-! StructuredGridDestroy: Deallocates a structured grid
+! StructGridDestroy: Deallocates a structured grid
 ! author: Glenn Hammond
 ! date: 11/01/07
 !
 ! ************************************************************************** !
-subroutine StructuredGridDestroy(structured_grid)
+subroutine StructGridDestroy(structured_grid)
 
   implicit none
   
@@ -2019,10 +2103,13 @@ subroutine StructuredGridDestroy(structured_grid)
   if (associated(structured_grid%dz)) deallocate(structured_grid%dz)
   nullify(structured_grid%dz)
   
+  if(associated(structured_grid%cell_neighbors)) deallocate(structured_grid%cell_neighbors)
+  nullify(structured_grid%cell_neighbors)
+  
   deallocate(structured_grid)
   nullify(structured_grid)
 
-end subroutine StructuredGridDestroy
+end subroutine StructGridDestroy
 
 ! ************************************************************************** !
 !
@@ -2386,5 +2473,45 @@ function StructGetTVDGhostConnection(ghosted_id,structured_grid,iface,option)
   StructGetTVDGhostConnection = -index
 
 end function StructGetTVDGhostConnection
+
+! ************************************************************************** !
+!> This routine saves indices (in ghosted order) of neighbors for all ghosted
+!! cells.
+!!
+!> @author
+!! Gautam Bisht, LBNL
+!!
+!! date: 08/24/12
+! ************************************************************************** !
+subroutine StructGridComputeNeighbors(structured_grid,option)
+
+  use Option_module
+
+  implicit none
+  
+#include "finclude/petscdmda.h"
+
+  type(structured_grid_type) :: structured_grid
+  type(option_type) :: option
+  
+  PetscInt :: ghosted_id, ncount, ghosted_neighbors(27)
+  
+  allocate(structured_grid%cell_neighbors(0:27,structured_grid%ngmax))
+  structured_grid%cell_neighbors = 0
+  
+  do ghosted_id = 1,structured_grid%ngmax
+    call StructGridGetGhostedNeighborsCorners(structured_grid,ghosted_id, &
+                                         DMDA_STENCIL_BOX, &
+                                         ONE_INTEGER_MPI, &
+                                         ONE_INTEGER_MPI, &
+                                         ONE_INTEGER_MPI, &
+                                         ncount, &
+                                         ghosted_neighbors, &
+                                         option)
+    structured_grid%cell_neighbors(0,ghosted_id) = ncount
+    structured_grid%cell_neighbors(1:ncount,ghosted_id) = ghosted_neighbors(1:ncount)
+  enddo
+  
+end subroutine
 
 end module Structured_Grid_module
