@@ -2,10 +2,12 @@ module Condition_module
  
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
-  use Surface_Complexation_Aux_module  
   use Global_Aux_module
   use Dataset_Aux_module
   use Time_Series_module
+  
+  use Surface_Complexation_Aux_module  
+  use Mineral_Aux_module
   
   implicit none
 
@@ -914,6 +916,8 @@ subroutine FlowConditionRead(condition,input,option)
                 call printErrMsg(option)
               endif
               sub_condition_ptr%itype = UNIT_GRADIENT_BC
+            case('distributed_volumetric_rate')
+              sub_condition_ptr%itype = DISTRIBUTED_VOLUMETRIC_RATE_SS
             case default
               option%io_buffer = 'bc type "' // trim(word) // &
                                  '" not recognized in condition,type'
@@ -1531,6 +1535,8 @@ subroutine FlowConditionGeneralRead(condition,input,option)
               sub_condition_ptr%itype = VOLUMETRIC_RATE_SS
             case('scaled_volumetric_rate')
               sub_condition_ptr%itype = SCALED_VOLUMETRIC_RATE_SS
+            case('distributed_volumetric_rate')
+              sub_condition_ptr%itype = DISTRIBUTED_VOLUMETRIC_RATE_SS
             case default
               option%io_buffer = 'bc type "' // trim(word) // &
                                  '" not recognized in condition,type'
@@ -2055,7 +2061,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
         
       case('MNRL','MINERALS')
 
-        mineral_constraint => MineralConstraintCreate(reaction,option)
+        mineral_constraint => MineralConstraintCreate(reaction%mineral,option)
 
         imnrl = 0
         do
@@ -2066,7 +2072,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           
           imnrl = imnrl + 1
 
-          if (imnrl > reaction%nkinmnrl) then
+          if (imnrl > reaction%mineral%nkinmnrl) then
             option%io_buffer = &
                      'Number of mineral constraints exceeds number of ' // &
                      'kinetic minerals in constraint: ' // &
@@ -2111,7 +2117,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
         
         enddo  
         
-        if (imnrl < reaction%nkinmnrl) then
+        if (imnrl < reaction%mineral%nkinmnrl) then
           option%io_buffer = &
                    'Mineral lists in constraints must provide a volume ' // &
                    'fraction and surface area for all kinetic minerals ' // &
@@ -2781,6 +2787,8 @@ subroutine FlowConditionPrintSubCondition(subcondition,option)
       string = 'dirichlet'
     case(NEUMANN_BC)
       string = 'neumann'
+    case(DIRICHLET_ZERO_GRADIENT_BC)
+      string = 'dirichlet-zero gradient'
     case(MASS_RATE_SS)
       string = 'mass_rate'
     case(WELL_SS)
@@ -2799,6 +2807,12 @@ subroutine FlowConditionPrintSubCondition(subcondition,option)
       string = 'equilibrium'
     case(UNIT_GRADIENT_BC)
       string = 'unit gradient'
+    case(SCALED_MASS_RATE_SS)
+      string = 'scaled mass rate'
+    case(SCALED_VOLUMETRIC_RATE_SS)
+      string = 'scaled volumetric rate'
+    case(DISTRIBUTED_VOLUMETRIC_RATE_SS)
+      string = 'distributed volumetric rate'
   end select
   100 format(6x,'Type: ',a)  
   write(option%fid_out,100) trim(string)

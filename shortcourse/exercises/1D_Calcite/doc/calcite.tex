@@ -77,7 +77,7 @@
 \def\potassium{K$^+$}
 \def\uranium{UO$_2^{2+}$}
 \def\hion{H$^+$}
-\def\hydroxide{0H$^-$}
+\def\hydroxide{OH$^-$}
 \def\bicarbonate{HCO$_3^-$}
 \def\carbonate{CO$_3^{2-}$}
 \def\cotwo{CO$_2$(aq)}
@@ -144,7 +144,7 @@ The ``1D Calcite Scenario'' simulates solute transport (without flow) along a ho
 \Large
 
 \EQ\label{trans}
-\frac{\p}{\p t} \left(\varphi s \Psi_j + \Psi_{S,j}\right) + \bnabla\cdot\bOmega_j \eq
+\frac{\p}{\p t} \left(\varphi s \Psi_j\right) + \bnabla\cdot\bOmega_j \eq
 \gR\left(c_1,c_2,\ldots,c_n\right)
 \EN
 
@@ -207,12 +207,11 @@ I_j &\eq \text{mineral reaction rate for species } j
 
 \begin{semiverbatim}
 GRID
-  TYPE structured        \bluecomment{! structured grid}
-  NXYZ 100 1 1           \bluecomment{! NX, NY, NZ}
-  BOUNDS          \bluecomment{! define the rectangular domain}
-    0.d0 100.d0   \bluecomment{! xmin xmax}
-    0.d0 1.d0     \bluecomment{! ymin ymax}
-    0.d0 1.d0     \bluecomment{! zmin zmax}
+  TYPE structured     \bluecomment{! structured grid}
+  NXYZ 100 1 1        \bluecomment{! NX, NY, NZ}
+  BOUNDS              \bluecomment{! define the rectangular domain}
+    0.d0 0.d0 0.d0    \bluecomment{! xmin ymin zmin}
+    100.d0 1.d0 1.d0  \bluecomment{! xmax ymax zmax}
   /  \bluecomment{! <-- closes out BOUNDS card}
 END  \bluecomment{! <-- closes out GRID card}
 \end{semiverbatim}
@@ -467,7 +466,7 @@ END
 \begin{frame}[fragile]\frametitle{INITIAL\_CONDITION}
 
 \begin{itemize}
-\item Couple the greencomment{initial} transport condition with region \greencomment{all} for the initial condition
+\item Couple the \greencomment{initial} transport condition with region \greencomment{all} for the initial condition
 \end{itemize}
 
 \begin{semiverbatim}
@@ -591,7 +590,7 @@ END                       \bluecomment{! converted to SI}
 
 \begin{semiverbatim}
 
-UNIFORM_VELOCITY 3.170979d-8 0.d0 0.d0  \bluecomment{! SI units [m/s]}
+UNIFORM_VELOCITY 1.d0 0.d0 0.d0 m/yr  \bluecomment{! 1 m/yr Darcy}
 \end{semiverbatim}
 
 \end{frame}
@@ -707,7 +706,7 @@ FLOW_CONDITION inlet      \bluecomment{! named \greencomment{inlet}}
   TYPE
     FLUX neumann          \bluecomment{! type is \redcomment{neumann} for a flux}
   /
-  FLUX 3.170979d-8        \bluecomment{! Darcy velocity of 1 m/y}
+  FLUX 1.d0 m/yr          \bluecomment{! Darcy velocity of 1 m/y}
 END
 \end{semiverbatim}
 
@@ -823,9 +822,8 @@ GRID
   TYPE structured
   NXYZ \magentacomment{1} 1 \magentacomment{100}     \bluecomment{! Switch to Z}
   BOUNDS
-    0.d0 \magentacomment{1.d0}      \bluecomment{! 1 m in X}
-    0.d0 1.d0
-    0.d0 \magentacomment{10.d0}     \bluecomment{! 10 m in Z}
+    0.d0 0.d0 0.d0
+    \magentacomment{1.d0} 1.d0 \magentacomment{10.d0}  \bluecomment{! 1 m in X, 10 m in Z}
   /
 END
 \end{semiverbatim}
@@ -940,7 +938,7 @@ FLOW_CONDITION \magentacomment{recharge}
   TYPE
     FLUX neumann
   /
-  FLUX \magentacomment{3.170979d-9  ! 10 cm/y}
+  FLUX \magentacomment{10 cm/y}              \bluecomment{! Darcy velocity}
 END
 
 \end{semiverbatim}

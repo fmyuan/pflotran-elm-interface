@@ -188,8 +188,17 @@ subroutine Checkpoint(realization, &
     filename = trim(option%global_prefix) // trim(option%group_prefix) // &
                '.chk' // trim(adjustl(id_string))
   endif
-  call PetscViewerBinaryOpen(option%mycomm, filename, FILE_MODE_WRITE, &
-                             viewer, ierr)
+  !geh: To skip .info file, need to split PetscViewerBinaryOpen() 
+  !     into the routines it calls so that PetscViewerBinarySkipInfo()
+  !     can be called after PetscViewerSetType(), but before
+  !     PetscViewerFileSetName().  See note in PETSc docs.
+  !call PetscViewerBinaryOpen(option%mycomm, filename, FILE_MODE_WRITE, &
+  !                           viewer, ierr)
+  call PetscViewerCreate(option%mycomm,viewer,ierr)
+  call PetscViewerSetType(viewer,PETSCVIEWERBINARY,ierr)
+  call PetscViewerFileSetMode(viewer,FILE_MODE_WRITE,ierr)
+  call PetscViewerBinarySkipInfo(viewer,ierr)
+  call PetscViewerFileSetName(viewer,filename,ierr)
 
   !--------------------------------------------------------------------
   ! Dump some important information such as simulation time, 
@@ -461,8 +470,8 @@ subroutine Checkpoint(realization, &
       enddo
     endif
     ! mineral volume fractions for kinetic minerals
-    if (realization%reaction%nkinmnrl > 0) then
-      do i = 1, realization%reaction%nkinmnrl
+    if (realization%reaction%mineral%nkinmnrl > 0) then
+      do i = 1, realization%reaction%mineral%nkinmnrl
         call RealizationGetDataset(realization,global_vec, &
                                    MINERAL_VOLUME_FRACTION,i)
         call VecView(global_vec,viewer,ierr)
@@ -758,8 +767,8 @@ subroutine Restart(realization, &
       enddo
     endif
     ! mineral volume fractions for kinetic minerals
-    if (realization%reaction%nkinmnrl > 0) then
-      do i = 1, realization%reaction%nkinmnrl
+    if (realization%reaction%mineral%nkinmnrl > 0) then
+      do i = 1, realization%reaction%mineral%nkinmnrl
         ! have to load the vecs no matter what
         call VecLoad(global_vec,viewer,ierr)
         if (.not.option%no_restart_mineral_vol_frac) then

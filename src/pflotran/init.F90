@@ -64,7 +64,7 @@ subroutine Init(simulation)
   use Global_module
 
   use water_eos_module
-  use Utility_module
+!  use Utility_module
   use Output_module
     
 #ifdef SURFACE_FLOW
@@ -196,7 +196,13 @@ subroutine Init(simulation)
   endif
 
 #ifdef SURFACE_FLOW
-  surf_flow_solver => surf_flow_stepper%solver
+  ! initialize surface-flow mode
+  if (option%nsurfflowdof > 0) then
+    surf_flow_solver => surf_flow_stepper%solver
+  else
+    call TimestepperDestroy(simulation%surf_flow_stepper)
+    nullify(surf_flow_solver)
+  endif
 #endif
 
   ! read in the remainder of the input file
@@ -253,7 +259,9 @@ subroutine Init(simulation)
   ! create grid and allocate vectors
   call RealizationCreateDiscretization(realization)
 #ifdef SURFACE_FLOW
-  call SurfaceRealizationCreateDiscretization(simulation%surf_realization)
+  if (option%nsurfflowdof>0) then
+    call SurfaceRealizationCreateDiscretization(simulation%surf_realization)
+  endif
 #endif  
 ! deprecated - geh
 !  if (option%compute_mass_balance) then
@@ -261,18 +269,25 @@ subroutine Init(simulation)
 !  endif  
   
 
-  if (OptionPrintToScreen(option)) then
-    ! general print statements for both flow and transport modes
-    write(*,'(/,"++++++++++++++++++++++++++++++++++++++++++++++++++++&
-      &++++++++")')
-    if ((realization%discretization%itype == STRUCTURED_GRID).or.&
-        (realization%discretization%itype == STRUCTURED_GRID_MIMETIC)) then
-      write(*,'(" Requested processors and decomposition = ",i5,", npx,y,z= ",3i5)') &
-        option%mycommsize,grid%structured_grid%npx,grid%structured_grid%npy, &
-        grid%structured_grid%npz
-      write(*,'(" Actual decomposition: npx,y,z= ",3i5)') &
-        grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
-        grid%structured_grid%npz_final
+  if (realization%discretization%itype == STRUCTURED_GRID .or. &
+      realization%discretization%itype == STRUCTURED_GRID_MIMETIC) then
+    if (OptionPrintToScreen(option)) then
+      write(*,'(/," Requested processors and decomposition = ", &
+               & i5,", npx,y,z= ",3i4)') &
+          option%mycommsize,grid%structured_grid%npx, &
+          grid%structured_grid%npy,grid%structured_grid%npz
+      write(*,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
+          grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
+          grid%structured_grid%npz_final
+    endif
+    if (OptionPrintToScreen(option)) then
+      write(option%fid_out,'(/," Requested processors and decomposition = ", &
+                           & i5,", npx,y,z= ",3i4)') &
+          option%mycommsize,grid%structured_grid%npx,grid%structured_grid%npy, &
+          grid%structured_grid%npz
+      write(option%fid_out,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
+          grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
+          grid%structured_grid%npz_final
     endif
   endif
 
@@ -458,11 +473,13 @@ subroutine Init(simulation)
     call SNESSetConvergenceTest(flow_solver%snes,ConvergenceTest, &
                                 flow_stepper%convergence_context, &
                                 PETSC_NULL_FUNCTION,ierr) 
+
     
-    if (dabs(option%pressure_dampening_factor) > 0.d0 .or. &
-        dabs(option%saturation_change_limit) > 0.d0) then
-      select case(option%iflowmode)
-        case(RICHARDS_MODE)
+ 
+    select case(option%iflowmode)
+      case(RICHARDS_MODE)
+        if (dabs(option%pressure_dampening_factor) > 0.d0 .or. &
+            dabs(option%saturation_change_limit) > 0.d0) then
 #ifndef HAVE_SNES_API_3_2
           call SNESGetSNESLineSearch(flow_solver%snes, linesearch, ierr)
           call SNESLineSearchSetPreCheck(linesearch, &
@@ -473,8 +490,25 @@ subroutine Init(simulation)
                                          RichardsCheckUpdatePre, &
                                          realization,ierr)
 #endif
-      end select
-    endif
+        endif
+      case(THC_MODE)
+        if (dabs(option%pressure_dampening_factor) > 0.d0 .or. &
+            dabs(option%pressure_change_limit) > 0.d0 .or. &
+            dabs(option%temperature_change_limit) > 0.d0) then
+#ifndef HAVE_SNES_API_3_2
+          call SNESGetSNESLineSearch(flow_solver%snes, linesearch, ierr)
+          call SNESLineSearchSetPreCheck(linesearch, &
+                                         THCCheckUpdatePre, &
+                                         realization,ierr)
+#else        
+          call SNESLineSearchSetPreCheck(flow_solver%snes, &
+                                         THCCheckUpdatePre, &
+                                         realization,ierr)
+#endif          
+        endif
+    end select
+    
+    
     if (option%check_stomp_norm) then
       select case(option%iflowmode)
         case(RICHARDS_MODE)
@@ -488,72 +522,91 @@ subroutine Init(simulation)
                                           RichardsCheckUpdatePost, &
                                           realization,ierr)
 #endif
+        case(THC_MODE)
+#ifndef HAVE_SNES_API_3_2
+          call SNESGetSNESLineSearch(flow_solver%snes, linesearch, ierr)
+          call SNESLineSearchSetPostCheck(linesearch, &
+                                          THCCheckUpdatePost, &
+                                          realization,ierr)
+#else         
+          call SNESLineSearchSetPostCheck(flow_solver%snes, &
+                                          THCCheckUpdatePost, &
+                                          realization,ierr)
+#endif        
       end select
     endif
     
     call printMsg(option,"  Finished setting up FLOW SNES ")
 
 #ifdef SURFACE_FLOW
-    call printMsg(option,"  Beginning setup of SURF FLOW SNES ")
+    if(option%nsurfflowdof>0) then
+      call printMsg(option,"  Beginning setup of SURF FLOW SNES ")
+      call SolverCreateSNES(surf_flow_solver,option%mycomm)
+      call SNESSetOptionsPrefix(surf_flow_solver%snes, "surf_flow_",ierr)
+      call SolverCheckCommandLine(surf_flow_solver)
 
-    call SolverCreateSNES(surf_flow_solver,option%mycomm)
-    call SNESSetOptionsPrefix(surf_flow_solver%snes, "surf_flow_",ierr)
-    call SolverCheckCommandLine(surf_flow_solver)
-
-    if (surf_flow_solver%Jpre_mat_type == '') then
-      if (surf_flow_solver%J_mat_type /= MATMFFD) then
-        surf_flow_solver%Jpre_mat_type = surf_flow_solver%J_mat_type
-      else
-        surf_flow_solver%Jpre_mat_type = MATBAIJ
+      if (surf_flow_solver%Jpre_mat_type == '') then
+        if (surf_flow_solver%J_mat_type /= MATMFFD) then
+          surf_flow_solver%Jpre_mat_type = surf_flow_solver%J_mat_type
+        else
+          surf_flow_solver%Jpre_mat_type = MATBAIJ
+        endif
       endif
-    endif
 
-    call DiscretizationCreateJacobian( &
-                                      simulation%surf_realization%discretization, &
-                                      NFLOWDOF, &
-                                      surf_flow_solver%Jpre_mat_type, &
-                                      surf_flow_solver%Jpre, &
-                                      option)
+      call DiscretizationCreateJacobian( &
+                                        simulation%surf_realization%discretization, &
+                                        NFLOWDOF, &
+                                        surf_flow_solver%Jpre_mat_type, &
+                                        surf_flow_solver%Jpre, &
+                                        option)
 
-    call MatSetOption(surf_flow_solver%Jpre,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE,ierr)
-    call MatSetOption(surf_flow_solver%Jpre,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)
+      call MatSetOption(surf_flow_solver%Jpre,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE,ierr)
+      call MatSetOption(surf_flow_solver%Jpre,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)
 
-    call MatSetOptionsPrefix(surf_flow_solver%Jpre,"surf_flow_",ierr)
+      call MatSetOptionsPrefix(surf_flow_solver%Jpre,"surf_flow_",ierr)
 
-    if (surf_flow_solver%J_mat_type /= MATMFFD) then
-      surf_flow_solver%J = surf_flow_solver%Jpre
-    endif
+      if (surf_flow_solver%J_mat_type /= MATMFFD) then
+        surf_flow_solver%J = surf_flow_solver%Jpre
+      endif
 
-    call SNESSetFunction(surf_flow_solver%snes,surf_field%flow_r, &
-                          SurfaceFlowResidual, &
-                          simulation%surf_realization,ierr)
+      call SNESSetFunction(surf_flow_solver%snes,surf_field%flow_r, &
+                            SurfaceFlowResidual, &
+                            simulation%surf_realization,ierr)
 
-    call SNESSetJacobian(surf_flow_solver%snes,surf_flow_solver%J, &
-                         surf_flow_solver%Jpre, &
-                         SurfaceFlowJacobian,simulation%surf_realization,ierr)
-
-    ! by default turn off line search
+      call SNESSetJacobian(surf_flow_solver%snes,surf_flow_solver%J, &
+                          surf_flow_solver%Jpre, &
+                          SurfaceFlowJacobian,simulation%surf_realization,ierr)
+      ! by default turn off line search
 #ifndef HAVE_SNES_API_3_2
-    call SNESGetSNESLineSearch(surf_flow_solver%snes, linesearch, ierr)
-    call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC, ierr)
+      call SNESGetSNESLineSearch(surf_flow_solver%snes, linesearch, ierr)
+      call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC, ierr)
 #else    
-    call SNESLineSearchSet(surf_flow_solver%snes,SNESLineSearchNo, &
-                           PETSC_NULL_OBJECT,ierr)
+      call SNESLineSearchSet(surf_flow_solver%snes,SNESLineSearchNo, &
+                            PETSC_NULL_OBJECT,ierr)
 #endif
 
-    ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
-    if (option%verbosity >= 1) then
-      string = '-surf_flow_snes_view'
-      call PetscOptionsInsertString(string, ierr)
+      ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
+      if (option%verbosity >= 1) then
+        string = '-surf_flow_snes_view'
+        call PetscOptionsInsertString(string, ierr)
+      endif
+
+      call SolverSetSNESOptions(surf_flow_solver)
+
+      option%io_buffer = 'Solver: ' // trim(surf_flow_solver%ksp_type)
+      call printMsg(option)
+      option%io_buffer = 'Preconditioner: ' // trim(surf_flow_solver%pc_type)
+      call printMsg(option)
+
+      ! shell for custom convergence test.  The default SNES convergence test  
+      ! is call within this function. 
+      surf_flow_stepper%convergence_context => &
+        ConvergenceContextCreate(surf_flow_solver,option,grid)
+      call SNESSetConvergenceTest(surf_flow_solver%snes,ConvergenceTest, &
+                                  surf_flow_stepper%convergence_context, &
+                                  PETSC_NULL_FUNCTION,ierr) 
+
     endif
-
-    call SolverSetSNESOptions(surf_flow_solver)
-
-    option%io_buffer = 'Solver: ' // trim(surf_flow_solver%ksp_type)
-    call printMsg(option)
-    option%io_buffer = 'Preconditioner: ' // trim(surf_flow_solver%pc_type)
-    call printMsg(option)
-
 #endif
   endif
 
@@ -802,7 +855,7 @@ subroutine Init(simulation)
     ! initialize densities and saturations
     if (option%nflowdof == 0) then
       call GlobalSetAuxVarScalar(realization,option%reference_pressure, &
-                                 PRESSURE)
+                                 LIQUID_PRESSURE)
       call GlobalSetAuxVarScalar(realization,option%reference_temperature, &
                                  TEMPERATURE)
       call GlobalSetAuxVarScalar(realization,option%reference_saturation, &
@@ -843,6 +896,12 @@ subroutine Init(simulation)
     string = 'Transport Stepper:'
     call TimestepperPrintInfo(tran_stepper,option%fid_out,string,option)
   endif    
+#ifdef SURFACE_FLOW
+  if (associated(surf_flow_stepper)) then
+    string = 'Surface Flow Stepper:'
+    call TimestepperPrintInfo(surf_flow_stepper,option%fid_out,string,option)
+  endif
+#endif
   if (associated(flow_solver)) then
     string = 'Flow Newton Solver:'
     call SolverPrintNewtonInfo(flow_solver,OptionPrintToScreen(option), &
@@ -855,18 +914,28 @@ subroutine Init(simulation)
                                OptionPrintToFile(option),option%fid_out, &
                                string)
   endif    
-  if (associated(flow_solver)) then
-    string = 'Flow Linear Solver:'
-    call SolverPrintLinearInfo(flow_solver,OptionPrintToScreen(option), &
+#ifdef SURFACE_FLOW
+  if (associated(surf_flow_solver)) then
+    string = 'Surface Flow Newton Solver:'
+    call SolverPrintNewtonInfo(surf_flow_solver,OptionPrintToScreen(option), &
                                OptionPrintToFile(option),option%fid_out, &
                                string)
+  endif
+#endif
+  if (associated(flow_solver)) then
+    string = 'Flow Linear Solver:'
+    call SolverPrintLinearInfo(flow_solver,string,option)
   endif    
   if (associated(tran_solver)) then
     string = 'Transport Linear Solver'
-    call SolverPrintLinearInfo(tran_solver,OptionPrintToScreen(option), &
-                               OptionPrintToFile(option),option%fid_out, &
-                               string)
+    call SolverPrintLinearInfo(tran_solver,string,option)
   endif    
+#ifdef SURFACE_FLOW
+  if (associated(surf_flow_solver)) then
+    string = 'Surface Flow Linear Solver:'
+    call SolverPrintLinearInfo(surf_flow_solver,string,option)
+  endif
+#endif
 
   if (debug%print_couplers) then
     call verifyAllCouplers(realization)
@@ -912,22 +981,22 @@ subroutine Init(simulation)
 #endif !PETSC_HAVE_HDF5
 
 #ifdef SURFACE_FLOW
-  call readSurfaceRegionFiles(simulation%surf_realization)
-  call SurfaceRealizationMapSurfSubsurfaceGrids(realization,simulation%surf_realization)
-  call SurfaceRealizationLocalizeRegions(simulation%surf_realization)
-  call SurfaceRealizatonPassFieldPtrToPatches(simulation%surf_realization)
-  call SurfaceRealizationProcessMatProp(simulation%surf_realization)
-  call SurfaceRealizationProcessCouplers(simulation%surf_realization)
-  call SurfaceRealizationProcessConditions(simulation%surf_realization)
-  !call RealProcessFluidProperties(simulation%surf_realization)
-  call assignSurfaceMaterialPropToRegions(simulation%surf_realization)
-  call SurfaceRealizationInitAllCouplerAuxVars(simulation%surf_realization)
-  !call SurfaceRealizationPrintCouplers(simulation%surf_realization)
+  if(option%nsurfflowdof > 0) then
+    call readSurfaceRegionFiles(simulation%surf_realization)
+    call SurfaceRealizationMapSurfSubsurfaceGrids(realization,simulation%surf_realization)
+    call SurfaceRealizationLocalizeRegions(simulation%surf_realization)
+    call SurfaceRealizatonPassFieldPtrToPatches(simulation%surf_realization)
+    call SurfaceRealizationProcessMatProp(simulation%surf_realization)
+    call SurfaceRealizationProcessCouplers(simulation%surf_realization)
+    call SurfaceRealizationProcessConditions(simulation%surf_realization)
+    !call RealProcessFluidProperties(simulation%surf_realization)
+    call assignSurfaceMaterialPropToRegions(simulation%surf_realization)
+    call SurfaceRealizationInitAllCouplerAuxVars(simulation%surf_realization)
+    !call SurfaceRealizationPrintCouplers(simulation%surf_realization)
 
-  !call GlobalSetup(simulation%surf_realization)
-  ! initialize FLOW
-  ! set up auxillary variable arrays
-  if (option%nflowdof > 0) then
+    !call GlobalSetup(simulation%surf_realization)
+    ! initialize FLOW
+    ! set up auxillary variable arrays
     select case(option%iflowmode)
       case(RICHARDS_MODE)
         !call SurfaceSetup(realization)
@@ -935,14 +1004,14 @@ subroutine Init(simulation)
         option%io_buffer = 'For surface-flow on RICHARDS mode is implemented'
         call printErrMsgByRank(option)
     end select
-  
+
     ! assign initial conditionsRealizAssignFlowInitCond
     call CondControlAssignFlowInitCondSurface(simulation%surf_realization)
 
     ! override initial conditions if they are to be read from a file
     if (len_trim(option%initialize_flow_filename) > 1) then
-        option%io_buffer = 'For surface-flow initial conditions cannot be read from file'
-        call printErrMsgByRank(option)
+      option%io_buffer = 'For surface-flow initial conditions cannot be read from file'
+      call printErrMsgByRank(option)
     endif
   
     select case(option%iflowmode)
@@ -952,8 +1021,11 @@ subroutine Init(simulation)
         option%io_buffer = 'For surface-flow on RICHARDS mode is implemented'
         call printErrMsgByRank(option)
     end select
-  endif
-
+    if (surf_realization%option%subsurf_surf_coupling == SEQ_COUPLED) then
+      call SurfaceRealizationCreateSurfaceSubsurfaceVec( &
+                      simulation%realization, simulation%surf_realization)
+    endif
+  endif ! option%nsurfflowdof > 0
 #endif
 
   call printMsg(option," ")
@@ -1125,16 +1197,8 @@ subroutine InitReadRequiredCardsFromInput(realization)
 
   call DiscretizationReadRequiredCards(discretization,input,option)
   
-#ifdef SURFACE_FLOW
-  ! SURFACE_FLOW information
-  string = "SURFACE_FLOW"
-  call InputFindStringInFile(input,option,string)
-  call InputFindStringErrorMsg(input,option,string)
-  !call SurfaceFlowReadRequiredCardsFromInput(simulation%surf_realization,input,option)
-#endif
-
   select case(discretization%itype)
-    case(STRUCTURED_GRID,UNSTRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
+  case(STRUCTURED_GRID,UNSTRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
       patch => PatchCreate()
       patch%grid => discretization%grid
       if (.not.associated(realization%level_list)) then
@@ -1219,6 +1283,7 @@ subroutine InitReadInput(simulation)
   use Option_module
   use Field_module
   use Grid_module
+  use Unstructured_Grid_Aux_module
   use Structured_Grid_module
   use Solver_module
   use Material_module
@@ -1245,8 +1310,12 @@ subroutine InitReadInput(simulation)
   use String_module
   use Units_module
   use Velocity_module
+  use Mineral_module
 #ifdef SURFACE_FLOW
   use Surface_Flow_module
+#endif
+#ifdef SOLID_SOLUTION
+  use Solid_Solution_module, only : SolidSolutionReadFromInputFile
 #endif
  
   implicit none
@@ -1384,7 +1453,12 @@ subroutine InitReadInput(simulation)
             case('OUTPUT')
               call ReactionReadOutput(reaction,input,option)
             case('MINERAL_KINETICS')
-              call ReactionReadMineralKinetics(reaction,input,option)
+              call MineralReadKinetics(reaction%mineral,input,option)
+            case('SOLID_SOLUTIONS')
+#ifdef SOLID_SOLUTION                
+              call SolidSolutionReadFromInputFile(reaction%solid_solution_list, &
+                                                  input,option)
+#endif
             case('SORPTION')
               do
                 call InputReadFlotranString(input,option)
@@ -1525,6 +1599,11 @@ subroutine InitReadInput(simulation)
         
 !....................
       case ('TRANSPORT_CONDITION')
+        if (.not.associated(reaction)) then
+          option%io_buffer = 'TRANSPORT_CONDITIONs not supported without ' // &
+            'CHEMISTRY.'
+          call printErrMsg(option)
+        endif
         tran_condition => TranConditionCreate(option)
         call InputReadWord(input,option,tran_condition%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'TRANSPORT_CONDITION','name') 
@@ -1536,6 +1615,10 @@ subroutine InitReadInput(simulation)
 
 !....................
       case('CONSTRAINT')
+        if (.not.associated(reaction)) then
+          option%io_buffer = 'CONSTRAINTs not supported without CHEMISTRY.'
+          call printErrMsg(option)
+        endif
         tran_constraint => TranConstraintCreate(option)
         call InputReadWord(input,option,tran_constraint%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'constraint','name') 
@@ -1641,6 +1724,11 @@ subroutine InitReadInput(simulation)
 
       case('ISOTHERMAL')
         option%use_isothermal = PETSC_TRUE
+        
+!......................
+
+      case('MULTIPLE_CONTINUUM')
+        option%use_mc = PETSC_TRUE
 
 !......................
 
@@ -2105,7 +2193,7 @@ subroutine InitReadInput(simulation)
                       .and. option%mycommsize > 1) then
                     output_option%tecplot_format = TECPLOT_BLOCK_FORMAT
                   endif
-                  if (grid%itype == UNSTRUCTURED_GRID) then
+                  if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
                     output_option%tecplot_format = TECPLOT_FEBRICK_FORMAT
                   endif
                 case ('VTK')
@@ -2224,7 +2312,10 @@ subroutine InitReadInput(simulation)
 #ifdef SURFACE_FLOW
 !.....................
       case ('SURFACE_FLOW')
-        call SurfaceFlowRead(simulation%surf_realization,input,option)
+        call SurfaceFlowRead(simulation%surf_realization, &
+                             simulation%surf_flow_stepper%solver,input,option)
+        simulation%surf_flow_stepper%dt_min = simulation%surf_realization%dt_min
+        simulation%surf_flow_stepper%dt_max = simulation%surf_realization%dt_max
 #endif
 !....................
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
@@ -2966,17 +3057,25 @@ subroutine readRegionFiles(realization)
     if (.not.associated(region)) exit
     if (len_trim(region%filename) > 1) then
       if (index(region%filename,'.h5') > 0) then
-        if (region%grid_type == STRUCTURED_GRID) then
+        if (region%grid_type == STRUCTURED_GRID_REGION) then
           call HDF5ReadRegionFromFile(realization,region,region%filename)
         else
-#if defined(PETSC_HAVE_HDF5)
-          call HDF5ReadUnstructuredGridRegionFromFile(realization,region,region%filename)
-#endif      
+          !geh: Do not skip this subouroutine if PETSC_HAVE_HDF5 is not 
+          !     defined.  The subroutine prints an error message if not defined
+          !     informing the user of the error.  If you skip the subroutine,
+          !     no error message is printed and the user is unaware of the
+          !     region not being read.
+          call HDF5ReadUnstructuredGridRegionFromFile(realization%option,region, &
+                                                      region%filename)
         endif
       else if (index(region%filename,'.ss') > 0) then
         region%sideset => RegionCreateSideset()
         call RegionReadFromFile(region%sideset,region%filename, &
                                 realization%option)
+      else if (index(region%filename,'.ex') > 0) then
+        call RegionReadFromFile(region%explicit_faceset,region%cell_ids, &
+                                region%filename,realization%option)
+        region%num_cells = size(region%cell_ids)
       else
         call RegionReadFromFile(region,realization%option, &
                                 region%filename)
@@ -3826,6 +3925,9 @@ subroutine InitReadRequiredCardsFromInputSurf(surf_realization)
   ! SURFACE_FLOW information
   string = "SURFACE_FLOW"
   call InputFindStringInFile(input,option,string)
+  if(InputError(input)) return
+  option%nsurfflowdof = 1
+  
   call InputFindStringErrorMsg(input,option,string)
   call SurfaceFlowReadRequiredCardsFromInput(surf_realization,input,option)
 
@@ -4053,6 +4155,7 @@ subroutine readSurfaceRegionFiles(surf_realization)
   use Surface_Realization_module
   use Region_module
   use HDF5_module
+  use Grid_module
 
   implicit none
 
@@ -4069,7 +4172,9 @@ subroutine readSurfaceRegionFiles(surf_realization)
           !call HDF5ReadRegionFromFile(surf_realization,surf_region,surf_region%filename)
         else
 #if defined(PETSC_HAVE_HDF5)
-          !call HDF5ReadUnstructuredGridRegionFromFile(surf_realization,surf_region,surf_region%filename)
+          call HDF5ReadUnstructuredGridRegionFromFile(surf_realization%option, &
+                                                      surf_region, &
+                                                      surf_region%filename)
 #endif      
         endif
       else if (index(surf_region%filename,'.ss') > 0) then

@@ -2,6 +2,7 @@ module Grid_module
 
   use Structured_Grid_module
   use Unstructured_Grid_module
+  use Unstructured_Grid_Aux_module
   use Connection_module
   use MFD_Aux_module
  
@@ -17,10 +18,16 @@ module Grid_module
 #include "finclude/petscmat.h"
 #include "finclude/petscmat.h90"
 
+  PetscInt, parameter, public :: NULL_GRID = 0
+  PetscInt, parameter, public :: STRUCTURED_GRID = 1
+  PetscInt, parameter, public :: UNSTRUCTURED_GRID = 2
+  PetscInt, parameter, public :: STRUCTURED_GRID_MIMETIC = 3
+  PetscInt, parameter, public :: UNSTRUCTURED_GRID_MIMETIC = 4
+
   type, public :: grid_type 
   
     character(len=MAXWORDLENGTH) :: ctype
-    PetscInt :: itype  ! type of grid (e.g. structured, unstructured, etc.)
+    PetscInt :: itype  ! type of grid (e.g. structured_grid, implicit_unstructured_grid, etc.)
     
     PetscInt :: nmax   ! Total number of nodes in global domain
     PetscInt :: nlmax  ! Total number of non-ghosted nodes in local domain.
@@ -66,6 +73,11 @@ module Grid_module
     Vec :: e2f             ! global vector to establish connection between global face_id and cell_id
     Vec :: e2n, e2n_LP     ! global cell connectivity vector
 
+    ! This vector has information regarding how far away a ghost cell is from
+    ! a local cell.
+    ! 1) Zero-value represent a local cell.
+    ! 2) If SNES stencil_width = 2, the maximum value of this vector can be 2.
+    PetscInt,pointer :: ghosted_level(:)
     
     PetscReal, pointer :: x(:), y(:), z(:) ! coordinates of ghosted grid cells
 
@@ -96,7 +108,7 @@ module Grid_module
 #endif
 
   end type grid_type
-
+  
   type, public :: face_type
     type(connection_set_type), pointer :: conn_set_ptr
     PetscInt :: id
@@ -111,7 +123,7 @@ module Grid_module
             GridComputeVolumes, &
             GridComputeAreas, &
             GridLocalizeRegions, &
-            GridLocalizeRegionsForUGrid, &
+            GridLocalizeRegionsFromCellIDsUGrid, &
             GridPopulateConnection, &
             GridPopulateFaces, &
             GridCopyIntegerArrayToVec, &
@@ -127,7 +139,8 @@ module Grid_module
             GridComputeCell2FaceConnectivity, &
             GridComputeGlobalCell2FaceConnectivity, &
             GridGetGhostedNeighbors, &
-            GridGetGhostedNeighborsWithCorners
+            GridGetGhostedNeighborsWithCorners, &
+            GridComputeNeighbors
   
 contains
 
@@ -162,6 +175,7 @@ function GridCreate()
   nullify(grid%nG2L)
   nullify(grid%nG2A)
   nullify(grid%nG2P)
+  nullify(grid%ghosted_level)
 
 #ifdef DASVYAT
   nullify(grid%fL2G)
@@ -219,7 +233,8 @@ end function GridCreate
 subroutine GridComputeInternalConnect(grid,option,ugdm)
 
   use Connection_module
-  use Option_module    
+  use Option_module
+  use Unstructured_Explicit_module
     
   implicit none
   
@@ -238,10 +253,14 @@ subroutine GridComputeInternalConnect(grid,option,ugdm)
       connection_set => &
         StructGridComputeInternConnect( grid%structured_grid, grid%x, grid%y, &
                                     grid%z, option)
-    case(UNSTRUCTURED_GRID) 
+    case(IMPLICIT_UNSTRUCTURED_GRID) 
       connection_set => &
         UGridComputeInternConnect(grid%unstructured_grid,grid%x,grid%y, &
                                   grid%z,ugdm%scatter_ltol,option)
+    case(EXPLICIT_UNSTRUCTURED_GRID)
+      connection_set => &
+        ExplicitUGridSetInternConnect(grid%unstructured_grid%explicit_grid, &
+                                        option)
   end select
   
   allocate(grid%internal_connection_set_list)
@@ -257,7 +276,7 @@ subroutine GridComputeInternalConnect(grid,option,ugdm)
         grid%nlmax_faces = grid%structured_grid%nlmax_faces;
         grid%ngmax_faces = grid%structured_grid%ngmax_faces;
 #endif
-    case(UNSTRUCTURED_GRID) 
+    case(IMPLICIT_UNSTRUCTURED_GRID) 
 !      connection_bound_set => &
 !        UGridComputeBoundConnect(grid%unstructured_grid,option)
   end select
@@ -314,7 +333,7 @@ subroutine GridPopulateConnection(grid,connection,iface,iconn,cell_id_local, &
     case(STRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
       call StructGridPopulateConnection(grid%x,grid%structured_grid,connection, &
                                         iface,iconn,cell_id_ghosted,option)
-    case(UNSTRUCTURED_GRID)
+    case(IMPLICIT_UNSTRUCTURED_GRID)
       call UGridPopulateConnection(grid%unstructured_grid,connection,iface,&
                                    iconn,cell_id_ghosted,option)
   end select
@@ -1209,8 +1228,9 @@ end subroutine CreateMFDStruct4LP
 ! date: 10/24/07
 !
 ! ************************************************************************** !
-subroutine GridMapIndices(grid, sgdm)
+subroutine GridMapIndices(grid, sgdm, stencil_type, lsm_flux_method, option)
 
+use Option_module
 
   implicit none
 #include "finclude/petscvec.h"
@@ -1227,6 +1247,9 @@ subroutine GridMapIndices(grid, sgdm)
   
   type(grid_type) :: grid
   DM :: sgdm
+  PetscInt :: stencil_type
+  PetscBool :: lsm_flux_method
+  type(option_type) :: option
 
   PetscInt :: ierr, icount
   PetscInt, allocatable :: int_tmp(:)
@@ -1236,8 +1259,10 @@ subroutine GridMapIndices(grid, sgdm)
   
   select case(grid%itype)
     case(STRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
-      call StructuredGridMapIndices(grid%structured_grid,grid%nG2L,grid%nL2G, &
-                                    grid%nG2A)
+      call StructGridMapIndices(grid%structured_grid,stencil_type, &
+                                    lsm_flux_method, &
+                                    grid%nG2L,grid%nL2G,grid%nG2A, &
+                                    grid%ghosted_level,option)
 #ifdef DASVYAT
       if ((grid%itype==STRUCTURED_GRID_MIMETIC)) then
          allocate(grid%nG2P(grid%ngmax))
@@ -1253,7 +1278,7 @@ subroutine GridMapIndices(grid, sgdm)
        deallocate(int_tmp)
       end if
 #endif
-    case(UNSTRUCTURED_GRID)
+    case(IMPLICIT_UNSTRUCTURED_GRID)
   end select
  
  
@@ -1277,8 +1302,8 @@ subroutine GridComputeSpacing(grid,option)
   
   select case(grid%itype)
     case(STRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
-      call StructuredGridComputeSpacing(grid%structured_grid,option)
-    case(UNSTRUCTURED_GRID)
+      call StructGridComputeSpacing(grid%structured_grid,option)
+    case(IMPLICIT_UNSTRUCTURED_GRID)
   end select
   
 end subroutine GridComputeSpacing
@@ -1293,40 +1318,44 @@ end subroutine GridComputeSpacing
 subroutine GridComputeCoordinates(grid,origin_global,option,ugdm)
 
   use Option_module
+  use Unstructured_Explicit_module
   
   implicit none
 
   type(grid_type) :: grid
   PetscReal :: origin_global(3)
   type(option_type) :: option
-  type(ugdm_type), optional :: ugdm ! sp  
+  type(ugdm_type), optional :: ugdm ! sp 
+  PetscInt :: icell
   
   PetscErrorCode :: ierr  
+
+  allocate(grid%x(grid%ngmax))
+  grid%x = 0.d0
+  allocate(grid%y(grid%ngmax))
+  grid%y = 0.d0
+  allocate(grid%z(grid%ngmax))
+  grid%z = 0.d0
   
   select case(grid%itype)
     case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
-      allocate(grid%x(grid%ngmax))
-      grid%x = 0.d0
-      allocate(grid%y(grid%ngmax))
-      grid%y = 0.d0
-      allocate(grid%z(grid%ngmax))
-      grid%z = 0.d0
-      call StructuredGridComputeCoord(grid%structured_grid,option, &
+      call StructGridComputeCoord(grid%structured_grid,option, &
                                       origin_global, &
                                       grid%x,grid%y,grid%z, &
                                       grid%x_min_local,grid%x_max_local, &
                                       grid%y_min_local,grid%y_max_local, &
                                       grid%z_min_local,grid%z_max_local)
-    case(UNSTRUCTURED_GRID)
-      allocate(grid%x(grid%ngmax))
-      grid%x = 0.d0
-      allocate(grid%y(grid%ngmax))
-      grid%y = 0.d0
-      allocate(grid%z(grid%ngmax))
-      grid%z = 0.d0
+    case(IMPLICIT_UNSTRUCTURED_GRID)
       call UGridComputeCoord(grid%unstructured_grid,option, &
                              ugdm%scatter_ltol, & !sp 
                              grid%x,grid%y,grid%z, &
+                             grid%x_min_local,grid%x_max_local, &
+                             grid%y_min_local,grid%y_max_local, &
+                             grid%z_min_local,grid%z_max_local)
+    case(EXPLICIT_UNSTRUCTURED_GRID)
+      call ExplicitUGridSetCellCentroids(grid%unstructured_grid% &
+                                         explicit_grid, &
+                                         grid%x,grid%y,grid%z, &
                              grid%x_min_local,grid%x_max_local, &
                              grid%y_min_local,grid%y_max_local, &
                              grid%z_min_local,grid%z_max_local)
@@ -1377,6 +1406,7 @@ end subroutine GridComputeCoordinates
 subroutine GridComputeVolumes(grid,volume,option)
 
   use Option_module
+  use Unstructured_Explicit_module
   
   implicit none
 
@@ -1389,11 +1419,14 @@ subroutine GridComputeVolumes(grid,volume,option)
   
   select case(grid%itype)
     case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
-      call StructuredGridComputeVolumes(grid%x,grid%structured_grid,option, &
+      call StructGridComputeVolumes(grid%x,grid%structured_grid,option, &
                                         grid%nL2G,volume)
-    case(UNSTRUCTURED_GRID)
+    case(IMPLICIT_UNSTRUCTURED_GRID)
       call UGridComputeVolumes(grid%unstructured_grid,option,volume)
       call UGridComputeQuality(grid%unstructured_grid,option)
+    case(EXPLICIT_UNSTRUCTURED_GRID)
+      call ExplicitUGridComputeVolumes(grid%unstructured_grid%explicit_grid, &
+                                       option,volume)
   end select
 
 end subroutine GridComputeVolumes
@@ -1420,9 +1453,9 @@ subroutine GridComputeAreas(grid,area,option)
   
   select case(grid%itype)
     !case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
-      !call StructuredGridComputeVolumes(grid%x,grid%structured_grid,option, &
+      !call StructGridComputeVolumes(grid%x,grid%structured_grid,option, &
       !                                  grid%nL2G,volume)
-    case(UNSTRUCTURED_GRID)
+    case(IMPLICIT_UNSTRUCTURED_GRID)
       call UGridComputeAreas(grid%unstructured_grid,option,area)
       call UGridComputeQuality(grid%unstructured_grid,option)
     case default
@@ -1478,349 +1511,11 @@ subroutine GridLocalizeRegions(grid,region_list,option)
           region%j1 > 0 .and. region%j2 > 0 .and. &
           region%k1 > 0 .and. region%k2 > 0) then
 
-        ! convert indexing from global (entire domain) to local processor
-        region%i1 = region%i1 - grid%structured_grid%lxs
-        region%i2 = region%i2 - grid%structured_grid%lxs
-        region%j1 = region%j1 - grid%structured_grid%lys
-        region%j2 = region%j2 - grid%structured_grid%lys
-        region%k1 = region%k1 - grid%structured_grid%lzs
-        region%k2 = region%k2 - grid%structured_grid%lzs
-          
-        ! clip region to within local processor domain
-        region%i1 = max(region%i1,1)
-        region%i2 = min(region%i2,grid%structured_grid%nlx)
-        region%j1 = max(region%j1,1)
-        region%j2 = min(region%j2,grid%structured_grid%nly)
-        region%k1 = max(region%k1,1)
-        region%k2 = min(region%k2,grid%structured_grid%nlz)
-         
-        count = 0  
-        if (region%i1 <= region%i2 .and. &
-            region%j1 <= region%j2 .and. &
-            region%k1 <= region%k2) then
-          region%num_cells = (region%i2-region%i1+1)* &
-                             (region%j2-region%j1+1)* &
-                             (region%k2-region%k1+1)
-          allocate(region%cell_ids(region%num_cells))
-          if (region%iface /= 0) then
-            allocate(region%faces(region%num_cells))
-            region%faces = region%iface
-          endif
-          region%cell_ids = 0
-          do k=region%k1,region%k2
-            do j=region%j1,region%j2
-              do i=region%i1,region%i2
-                count = count + 1
-                region%cell_ids(count) = &
-                       i + (j-1)*grid%structured_grid%nlx + &
-                       (k-1)*grid%structured_grid%nlxy
-              enddo
-            enddo
-          enddo
-!          if (region%num_cells > 0) then
-!            region%coordinates(1)%x = grid%x(region%cell_ids(ONE_INTEGER))
-!            region%coordinates(1)%y = grid%y(region%cell_ids(ONE_INTEGER))
-!            region%coordinates(1)%z = grid%z(region%cell_ids(ONE_INTEGER))
-!          endif
-        else
-          region%num_cells = 0
-        endif
-     
-        if (count /= region%num_cells) then
-          option%io_buffer = 'Mismatch in number of cells in block region'
-          call printErrMsg(option)
-        endif
+        call GridLocalizeRegionFromBlock(grid,region,option)
 
       else if (associated(region%coordinates)) then
-      
-        ! 1 or 2 coordinates
-        if (size(region%coordinates) <= TWO_INTEGER) then
-          same_point = PETSC_FALSE
-          ! if two coordinates, determine whether they are the same point
-          if (size(region%coordinates) == TWO_INTEGER) then
-            if (dabs(region%coordinates(ONE_INTEGER)%x - &
-                     region%coordinates(TWO_INTEGER)%x) < tol .and. &
-                dabs(region%coordinates(ONE_INTEGER)%y - &
-                     region%coordinates(TWO_INTEGER)%y) < tol .and. &
-                dabs(region%coordinates(ONE_INTEGER)%z - &
-                     region%coordinates(TWO_INTEGER)%z) < tol) then
-              same_point = PETSC_TRUE
-            endif
-          endif
-           
-          ! treat two identical coordinates the same as a single coordinate
-          if (size(region%coordinates) == ONE_INTEGER .or. same_point) then
-            if (region%coordinates(ONE_INTEGER)%x >= grid%x_min_global .and. &
-                region%coordinates(ONE_INTEGER)%x <= grid%x_max_global .and. &
-                region%coordinates(ONE_INTEGER)%y >= grid%y_min_global .and. &
-                region%coordinates(ONE_INTEGER)%y <= grid%y_max_global .and. &
-                region%coordinates(ONE_INTEGER)%z >= grid%z_min_global .and. &
-                region%coordinates(ONE_INTEGER)%z <= grid%z_max_global) then
-              ! If a point is on the corner of 4 or 8 patches in AMR, the region
-              ! will be assigned to all 4/8 patches...a problem.  To avoid this, 
-              ! we are going to perturb all point coordinates slightly upwind, as
-              ! long as they are not on a global boundary (i.e. boundary condition)
-              ! -- shift the coorindate slightly upwind
-              x_shift = region%coordinates(ONE_INTEGER)%x - &
-                        pert*(grid%x_max_global-grid%x_min_global)
-              y_shift = region%coordinates(ONE_INTEGER)%y - &
-                        pert*(grid%y_max_global-grid%y_min_global)
-              z_shift = region%coordinates(ONE_INTEGER)%z - &
-                        pert*(grid%z_max_global-grid%z_min_global)
-              ! if the coodinate is shifted out of the global domain or 
-              ! onto an exterior edge, set it back to the original value
-              if (x_shift - grid%x_min_global < tol) &
-                x_shift = region%coordinates(ONE_INTEGER)%x
-              if (y_shift - grid%y_min_global < tol) &
-                y_shift = region%coordinates(ONE_INTEGER)%y
-              if (z_shift - grid%z_min_global < tol) &
-                z_shift = region%coordinates(ONE_INTEGER)%z
-              select case(grid%itype)
-                case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
-                  call StructGridGetIJKFromCoordinate(grid%structured_grid, &
-                                                      x_shift,y_shift,z_shift, &
-                                                      i,j,k)
-                  if (i > 0 .and. j > 0 .and. k > 0) then
-                    region%num_cells = 1
-                    allocate(region%cell_ids(region%num_cells))
-                    if (region%iface /= 0) then
-                      allocate(region%faces(region%num_cells))
-                      region%faces = region%iface
-                    endif
-                    region%cell_ids = 0
-                    region%cell_ids(1) = i + (j-1)*grid%structured_grid%nlx + &
-                                        (k-1)*grid%structured_grid%nlxy
-                  else
-                    region%num_cells = 0
-                  endif
-  ! the next test as designed will only work on a uniform grid
-                  call MPI_Allreduce(region%num_cells,count, &
-                                      ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
-                                      option%mycomm,ierr)   
-                  if (count == 0) then
-                    write(option%io_buffer,*) 'Region: (coord)', &
-                          region%coordinates(ONE_INTEGER)%x, &
-                          region%coordinates(ONE_INTEGER)%y, &
-                          region%coordinates(ONE_INTEGER)%z, &
-                          ' not found in global domain.', count
-                    call printErrMsg(option)
-                  else if (count > 1) then
-                    write(option%io_buffer,*) 'Region: (coord)', &
-                          region%coordinates(ONE_INTEGER)%x, &
-                          region%coordinates(ONE_INTEGER)%y, &
-                          region%coordinates(ONE_INTEGER)%z, &
-                          ' duplicated across ', count, &
-                          ' procs in global domain.'
-                    call printErrMsg(option)
-                  endif
-                case(UNSTRUCTURED_GRID)
-                  !geh: must check each cell individually
-                  call UGridGetCellFromPoint(region%coordinates(ONE_INTEGER)%x, &
-                                             region%coordinates(ONE_INTEGER)%y, &
-                                             region%coordinates(ONE_INTEGER)%z, &
-                                             grid%unstructured_grid,option,local_id)
-                  if (local_id > 0) then
-                    region%num_cells = 1
-                    allocate(region%cell_ids(region%num_cells))
-                    region%cell_ids(1) = local_id
-                  else
-                    region%num_cells = 0
-                  endif
-              end select
-            endif
-          else ! 2 coordinates
-            x_min = min(region%coordinates(ONE_INTEGER)%x, &
-                        region%coordinates(TWO_INTEGER)%x)
-            x_max = max(region%coordinates(ONE_INTEGER)%x, &
-                        region%coordinates(TWO_INTEGER)%x)
-            y_min = min(region%coordinates(ONE_INTEGER)%y, &
-                        region%coordinates(TWO_INTEGER)%y)
-            y_max = max(region%coordinates(ONE_INTEGER)%y, &
-                        region%coordinates(TWO_INTEGER)%y)
-            z_min = min(region%coordinates(ONE_INTEGER)%z, &
-                        region%coordinates(TWO_INTEGER)%z)
-            z_max = max(region%coordinates(ONE_INTEGER)%z, &
-                        region%coordinates(TWO_INTEGER)%z)
-                        
-            if (grid%itype == STRUCTURED_GRID .or. &
-                grid%itype == STRUCTURED_GRID_MIMETIC) then
-              ! shift box slightly inward
-              x_shift = 1.d-8*(grid%x_max_global-grid%x_min_global)
-              x_min = x_min+x_shift            
-              x_max = x_max-x_shift
-              y_shift = 1.d-8*(grid%y_max_global-grid%y_min_global)
-              y_min = y_min+y_shift            
-              y_max = y_max-y_shift
-              z_shift = 1.d-8*(grid%z_max_global-grid%z_min_global)
-              z_min = z_min+z_shift            
-              z_max = z_max-z_shift
-                 
-              ! if plane or line, ensure it is within the grid cells     
-              if (x_max-x_min < 1.d-10) then
-                x_max = region%coordinates(ONE_INTEGER)%x
-                x_shift = 1.d-8*(grid%x_max_global-grid%x_min_global)
-                if (region%iface == WEST_FACE) then
-                  x_max = x_max + x_shift
-                else if (region%iface == EAST_FACE) then
-                  x_max = x_max - x_shift
-                ! otherwise, shift upwind, unless at upwind physical boundary
-                else
-                  if (x_max > grid%x_min_global + x_shift) then
-                    x_max = x_max - x_shift
-                  else
-                    x_max = x_max + x_shift
-                  endif
-                endif
-                x_min = x_max
-              endif
-              if (y_max-y_min < 1.d-10) then
-                y_max = region%coordinates(ONE_INTEGER)%y
-                y_shift = 1.d-8*(grid%y_max_global-grid%y_min_global)
-                if (region%iface == SOUTH_FACE) then
-                  y_max = y_max + y_shift
-                else if (region%iface == NORTH_FACE) then
-                  y_max = y_max - y_shift
-                ! otherwise, shift upwind, unless at upwind physical boundary
-                else
-                  if (y_max > grid%y_min_global + y_shift) then
-                    y_max = y_max - y_shift
-                  else
-                    y_max = y_max + y_shift
-                  endif
-                endif
-                y_min = y_max
-              endif
-              if (z_max-z_min < 1.d-10) then
-                z_max = region%coordinates(ONE_INTEGER)%z
-                z_shift = 1.d-8*(grid%z_max_global-grid%z_min_global)
-                if (region%iface == BOTTOM_FACE) then
-                  z_max = z_max + z_shift
-                else if (region%iface == TOP_FACE) then
-                  z_max = z_max - z_shift
-                ! otherwise, shift upwind, unless at upwind physical boundary
-                else
-                  if (z_max > grid%z_min_global + z_shift) then
-                    z_max = z_max - z_shift
-                  else
-                    z_max = z_max + z_shift
-                  endif
-                endif
-                z_min = z_max
-              endif
-            endif   
-                     
-            ! ensure overlap
-            if (x_min <= grid%x_max_local .and. &
-                x_max >= grid%x_min_local .and. &
-                y_min <= grid%y_max_local .and. &
-                y_max >= grid%y_min_local .and. &
-                z_min <= grid%z_max_local .and. &
-                z_max >= grid%z_min_local) then
-                
-              ! get I,J,K bounds
-              select case(grid%itype)
-                case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
-                  ! local, non-ghosted i,j,k's are returned
-                  call StructGridGetIJKFromCoordinate(grid%structured_grid, &
-                                            max(x_min,grid%x_min_local+x_shift), &
-                                            max(y_min,grid%y_min_local+y_shift), &
-                                            max(z_min,grid%z_min_local+z_shift), &
-                                                      i_min,j_min,k_min)
-                  call StructGridGetIJKFromCoordinate(grid%structured_grid, &
-                                            min(x_max,grid%x_max_local-x_shift), &
-                                            min(y_max,grid%y_max_local-y_shift), &
-                                            min(z_max,grid%z_max_local-z_shift), &
-                                                      i_max,j_max,k_max)
-                  if (i_min > 0 .and. j_min > 0 .and. k_min > 0 .and. &
-                      i_max > 0 .and. j_max > 0 .and. k_max > 0) then
-                    region%num_cells = (i_max-i_min+1)*(j_max-j_min+1)*(k_max-k_min+1)
-                    allocate(region%cell_ids(region%num_cells))
-                    if (region%iface /= 0) then
-                      allocate(region%faces(region%num_cells))
-                      region%faces = region%iface
-                    endif
-                    region%cell_ids = 0
-                    count = 0
-                    do k = k_min, k_max
-                      do j = j_min, j_max
-                        do i = i_min, i_max
-                          count = count+1
-                          region%cell_ids(count) = i + (j-1)*grid%structured_grid%nlx + &
-                                              (k-1)*grid%structured_grid%nlxy
-                        enddo
-                      enddo
-                    enddo
-                  else
-                    iflag = 1
-                  endif
-                case(UNSTRUCTURED_GRID)
-                  del_x = x_max-x_min
-                  del_y = y_max-y_min
-                  del_z = z_max-z_min
-                  ! 3D box
-                  if (del_x > 1.d-10 .and. &
-                      del_y > 1.d-10 .and. &
-                      del_z > 1.d-10) then
-                    ! geh: if the coordinates define a 3D box, add all cell centers
-                    ! that reside within the box
-                    count = 0
-                    do local_id = 1, grid%nlmax
-                      ghosted_id = grid%nL2G(local_id)
-                      if (grid%x(ghosted_id) >= x_min .and. &
-                          grid%x(ghosted_id) <= x_max .and. &
-                          grid%y(ghosted_id) >= y_min .and. &
-                          grid%y(ghosted_id) <= y_max .and. &
-                          grid%z(ghosted_id) >= z_min .and. &
-                          grid%z(ghosted_id) <= z_max) then
-                        count = count + 1
-                      endif
-                    enddo
-                    allocate(region%cell_ids(count))
-                    region%cell_ids = 0
-                    count = 0
-                    do local_id = 1, grid%nlmax
-                      ghosted_id = grid%nL2G(local_id)
-                      if (grid%x(ghosted_id) >= x_min .and. &
-                          grid%x(ghosted_id) <= x_max .and. &
-                          grid%y(ghosted_id) >= y_min .and. &
-                          grid%y(ghosted_id) <= y_max .and. &
-                          grid%z(ghosted_id) >= z_min .and. &
-                          grid%z(ghosted_id) <= z_max) then
-                        count = count + 1
-                        region%cell_ids(count) = local_id
-                      endif
-                    enddo
-                    region%num_cells = count
-                  ! 2D plane
-                  elseif ((del_x < 1.d-10 .and. del_y > 1.d-10 .and. &
-                           del_z > 1.d-10) .or. &
-                          (del_x > 1.d-10 .and. del_y < 1.d-10 .and. &
-                           del_z > 1.d-10) .or. &
-                          (del_x > 1.d-10 .and. del_y > 1.d-10 .and. &
-                           del_z < 1.d-10)) then
-                    call UGridGetCellsInRectangle(x_min,x_max,y_min,y_max, &
-                                                  z_min,z_max, &
-                                                  grid%unstructured_grid,option, &
-                                                  region%num_cells,region%cell_ids, &
-                                                  region%faces)
-                  endif
-              end select
-            endif
-
-            call MPI_Allreduce(iflag,i,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_MAX, &
-                               option%mycomm,ierr)
-            iflag = i
-            if (iflag > 0) then
-              option%io_buffer = 'GridLocalizeRegions, between two points'
-              call printErrMsg(option)
-            endif
-          endif  
-        else
-          option%io_buffer = 'GridLocalizeRegions: more than 2 coordinates' // &
-                             ' not supported in region object'
-          call printErrMsg(option)
-        endif  
-      endif 
+        call GridLocalizeRegionFromCoordinates(grid,region,option)
+      endif
     else if (associated(region%sideset)) then
       call UGridMapSideSet(grid%unstructured_grid, & 
                            region%sideset%face_vertices, & 
@@ -1835,29 +1530,8 @@ subroutine GridLocalizeRegions(grid,region_list,option)
       region%num_cells = size(region%cell_ids)
     else if (associated(region%cell_ids)) then
       select case(grid%itype) 
-        case(UNSTRUCTURED_GRID)
-          allocate(temp_int_array(region%num_cells))
-!gb The algo commented out does not work when region is read from a HDF5
-!   file with multiple procs, instead call GridLocalizeRegionsForUGrid()
-#if 0
-          temp_int_array = 0
-          local_count=0
-          do count=1,region%num_cells
-            local_id = GridGetLocalIdFromNaturalId( grid, region%cell_ids(count))
-            if (local_id <= 0) cycle
-            if (local_id > grid%unstructured_grid%nlmax) cycle
-            local_count = local_count + 1
-            temp_int_array(local_count) = local_id
-          enddo
-          if (local_count /= region%num_cells) then
-            deallocate(region%cell_ids)
-            allocate(region%cell_ids(local_count))
-            region%num_cells = local_count 
-          endif
-          region%cell_ids(1:local_count) = temp_int_array(1:local_count)
-          deallocate(temp_int_array)
-#endif
-          call GridLocalizeRegionsForUGrid(grid, region, option)
+        case(IMPLICIT_UNSTRUCTURED_GRID)
+          call GridLocalizeRegionsFromCellIDsUGrid(grid,region,option)
 
         case(STRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
 !sp following was commented out 
@@ -1866,6 +1540,7 @@ subroutine GridLocalizeRegions(grid,region_list,option)
 !     in hdf5.F90 for lists of cells from hdf5 files.  If we elect to support ascii
 !     files, we will need this functionality here.
 #if 0
+          allocate(temp_int_array(region%num_cells))
           do count=1,region%num_cells
             i = mod(region%cell_ids(count),grid%structured_grid%nx) - &
                   grid%structured_grid%lxs
@@ -1884,14 +1559,13 @@ subroutine GridLocalizeRegions(grid,region_list,option)
             endif
           enddo
 #endif
+        case(EXPLICIT_UNSTRUCTURED_GRID)
         case default
           option%io_buffer = 'GridLocalizeRegions: define region by list ' // &
             'of cells not implemented: ' // trim(region%name)
           call printErrMsg(option)
       end select
       !sp end 
-    else if (associated(region%vertex_ids)) then
-      call GridLocalizeRegionsForUGrid(grid, region, option)
     endif
     
     if (region%num_cells == 0 .and. associated(region%cell_ids)) then
@@ -1910,13 +1584,14 @@ end subroutine GridLocalizeRegions
 
 ! ************************************************************************** !
 !
-! GridLocalizeRegionsForUGrid: Resticts regions to cells local 
-!    to processor for unstrucutred mesh
+! GridLocalizeRegionsFromCellIDsUGrid: Resticts regions to cells local 
+!    to processor for unstrucutred mesh when the region is defined by a
+!    list of cell ids (in natural order)
 ! author: Gautam Bisht
 ! date: 5/30/2011
 !
 ! ************************************************************************** !
-subroutine GridLocalizeRegionsForUGrid(grid, region, option)
+subroutine GridLocalizeRegionsFromCellIDsUGrid(grid, region, option)
 
   use Option_module
   use Region_module
@@ -2077,620 +1752,16 @@ subroutine GridLocalizeRegionsForUGrid(grid, region, option)
       allocate(region%cell_ids(region%num_cells))
       region%cell_ids = tmp_int_array
       deallocate(tmp_int_array)
-
-      if (region%iface /= 0) then
-        allocate(region%faces(region%num_cells))
-          
-        !
-        ! In unstrucutred mesh, faces for hex are saved in the following order:
-        !   (1) SOUTH
-        !   (2) EAST
-        !   (3) NORTH
-        !   (4) WEST
-        !   (5) BOTTOM
-        !   (6) TOP
-        ! PS: This will not work for WEDGE
-        !
-        select case (region%iface)
-          case(WEST_FACE)
-            region%faces = 4
-          case(EAST_FACE)
-            region%faces = 2
-          case(SOUTH_FACE)
-            region%faces = 1
-          case(NORTH_FACE)
-            region%faces = 3
-          case(BOTTOM_FACE)
-            region%faces = 5
-          case(TOP_FACE)
-            region%faces = 6
-          case(NULL_FACE)
-            region%faces = NULL_FACE
-        end select
-      endif
     endif
     
     call VecRestoreArrayF90(vec_cell_ids_loc,v_loc_p,ierr)
-      
+    
+    call VecDestroy(vec_cell_ids,ierr)
+    call VecDestroy(vec_cell_ids_loc,ierr)
 
   endif
 
-  
-  !
-  !  Region is defined as a collection of faces. Each face is identified by 
-  !  a list of vertices forming it.
-  !
-  if (associated(region%vertex_ids)) then
-    !
-    ! Create a sparse matrix: mat_vert2cell
-    !
-    !  - size(mat_vert2cell) = num_vertices_global x num_cells_global
-    !  - i-th row of mat_vert2cell corresponds to global vertex id in natural
-    !    indexing
-    !  - j-th column of mat_vert2cell corresponds to global cell id in 
-    !    natural indexing
-    !  - mat_vert2cell(i,j) = j (i.e. i-th global vertex constitutes j-th
-    !    cell
-    !
-#ifdef MATCREATE_OLD
-    call MatCreateMPIAIJ(option%mycomm, PETSC_DECIDE, PETSC_DECIDE, &
-#else
-    call MatCreateAIJ(option%mycomm, PETSC_DECIDE, PETSC_DECIDE, &
-#endif
-                          ugrid%num_vertices_global, ugrid%nmax, &
-                          ugrid%max_cells_sharing_a_vertex, &
-                          PETSC_NULL_INTEGER, &
-                          ugrid%max_cells_sharing_a_vertex, &
-                          PETSC_NULL_INTEGER, &
-                          mat_vert2cell, ierr)
-    
-    do ghosted_id = 1, ugrid%ngmax
-      local_id = grid%nG2L(ghosted_id)
-      if (local_id < 1) cycle
-      natural_id = grid%nG2A(ghosted_id)
-      do ii = 1, ugrid%cell_vertices(0, local_id)
-        vertex_id = ugrid%cell_vertices(ii, local_id)
-!geh: I believe that this is incorrect since MatSetValues uses petsc ordering,
-!     unless teh matrix is a local MATSEQXXX matrix
-        call MatSetValues(mat_vert2cell, &
-                          1, &
-                          ugrid%vertex_ids_natural(vertex_id)-1, &
-                          1, &
-                          natural_id-1, &
-                          natural_id-1.0d0, &
-                          INSERT_VALUES, &
-                          ierr)
-      enddo
-    enddo
-      
-    call MatAssemblyBegin(mat_vert2cell, MAT_FINAL_ASSEMBLY, ierr)
-    call MatAssemblyEnd(  mat_vert2cell, MAT_FINAL_ASSEMBLY, ierr)
-
-#if GB_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'mat_vert2cell.out', viewer, ierr)
-    call MatView(mat_vert2cell, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
-#endif      
-
-    call MatGetOwnershipRange(mat_vert2cell, rstart, rend, ierr)
-    if (option%mycommsize > 1) then
-      call MatMPIAIJGetSeqAIJ(mat_vert2cell, mat_vert2cell_diag, &
-                              mat_vert2cell_offdiag, icol, iicol, ierr)
-      call MatGetRowIJF90(mat_vert2cell_diag, ONE_INTEGER, PETSC_FALSE, &
-                          PETSC_FALSE, n, ia_p, ja_p, done, ierr)
-      call MatGetArray(mat_vert2cell_diag, aa, aaa, ierr)
-      ! call MatGetArrayF90(mat_vert2cell_diag, aa, ierr)
-    else 
-      call MatGetRowIJF90(mat_vert2cell, ONE_INTEGER, PETSC_FALSE, &
-                          PETSC_FALSE, n, ia_p, ja_p, done, ierr)
-      call MatGetArray(mat_vert2cell, aa, aaa, ierr)
-      !call MatGetArrayF90(mat_vert2cell, aa, ierr)
-    endif
-      
-    !
-    ! vert2cell_array 
-    !  Let MCSV = MAX_CELLS_SHARING_A_VERTEX
-    !
-    !  - size(vert2cell_array) = No. rows of mat_vert2cell owned by proc x MCSV
-    !  - vert2cell_array((i-1)*MCSV + 1: i*MCSV ) = Cell ids (in natural 
-    !    index) which contain i-th vertex as one of its vertices
-    !
-    allocate(vert2cell_array(1: (rend - rstart)* &
-                                ugrid%max_cells_sharing_a_vertex))
-    vert2cell_array = -1
-    do ii = 1, n
-      count = ia_p(ii + 1) - ia_p(ii)
-      do jj = ia_p(ii), ia_p(ii + 1) - 1
-        found = PETSC_FALSE
-        do kk = 1, ugrid%max_cells_sharing_a_vertex
-          index = (ii - 1)*ugrid%max_cells_sharing_a_vertex + kk
-          if (vert2cell_array(index) == -1) then
-            found = PETSC_TRUE
-            exit
-          endif
-        enddo
-        if (.not.found) then
-          option%io_buffer = 'Increase the value of ' // &
-            'MAX_CELLS_SHARING_A_VERTEX in the input file.'
-          call printErrMsg(option)
-        endif
-        vert2cell_array(index) = aa(aaa+ jj)
-      enddo
-    enddo
-    if (option%mycommsize > 1) then
-      call MatRestoreRowIJF90(mat_vert2cell_diag, ONE_INTEGER, PETSC_FALSE, &
-                              PETSC_FALSE, n, ia_p, ja_p, done, ierr)
-      call MatRestoreArray(mat_vert2cell_diag, aa, aaa, ierr)
-      !call MatRestoreArrayF90(mat_vert2cell_diag, aa, ierr)
-    else
-      call MatRestoreRowIJF90(mat_vert2cell, ONE_INTEGER, PETSC_FALSE, &
-                              PETSC_FALSE, n, ia_p, ja_p, done, ierr)
-      call MatRestoreArray(mat_vert2cell, aa, aaa, ierr)
-      ! call MatRestoreArrayF90(mat_vert2cell, aa, ierr)
-    endif
-      
-    if (option%mycommsize > 1) then
-      call MatGetRowIJF90(mat_vert2cell_offdiag, ONE_INTEGER, PETSC_FALSE, &
-                          PETSC_FALSE, n, ia_p, ja_p, done, ierr)
-      call MatGetArray(mat_vert2cell_offdiag, aa, aaa, ierr)
-      !call MatGetArrayF90(mat_vert2cell_offdiag,aa,ierr)
-      do ii=1, n
-        count = ia_p(ii+1) - ia_p(ii)
-        do jj = ia_p(ii), ia_p(ii+1)-1
-          found = PETSC_FALSE
-          do kk = 1,ugrid%max_cells_sharing_a_vertex
-            if (vert2cell_array( (ii-1)*ugrid%max_cells_sharing_a_vertex + kk) &
-                                  == -1) then
-              found = PETSC_TRUE
-              exit
-            endif
-          enddo
-          if (.not.found) then
-            option%io_buffer = 'Increase the value of ' // &
-              'MAX_CELLS_SHARING_A_VERTEX in the input file.'
-            call printErrMsg(option)
-          endif
-          vert2cell_array( (ii-1)*ugrid%max_cells_sharing_a_vertex + kk ) = &
-            aa(aaa+jj)
-        enddo
-      enddo
-      call MatRestoreRowIJF90(mat_vert2cell_offdiag, ONE_INTEGER, PETSC_FALSE, &
-                              PETSC_FALSE, n, ia_p, ja_p, done, ierr)
-      call MatGetArray(mat_vert2cell_offdiag,aa,aaa,ierr)
-      !call MatGetArrayF90(mat_vert2cell_offdiag,aa,ierr)
-      call MatDestroy(mat_vert2cell, ierr)
-    endif
-            
-    !
-    call VecCreateMPI(option%mycomm, (rend-rstart)*ugrid%max_cells_sharing_a_vertex, &
-      PETSC_DECIDE, vec_vert2cell, ierr)
-      
-    call VecGetArrayF90(vec_vert2cell,v_loc_p,ierr)
-    v_loc_p = vert2cell_array
-    call VecRestoreArrayF90(vec_vert2cell,v_loc_p,ierr)
-
-#if GB_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'vec_vert2cell.out', viewer, ierr)
-    call VecView(vec_vert2cell, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
-#endif
-
-    !
-    ! vec_cell2facevert
-    !   Contains vertices forming face. 
-    !
-    !  i-th cell j-th face vertex-0
-    !  i-th cell j-th face vertex-1
-    !  i-th cell j-th face vertex-2
-    !  i-th cell j-th face vertex-3
-    !  i-th cell j+1-th face vertex-0
-    !  i-th cell j+1-th face vertex-1
-    !  i-th cell j+1-th face vertex-2
-    !  i-th cell j+1-th face vertex-3
-    !  ...
-    !  ...
-    !  ...
-    !  i+1-th cell j-th face vertex-0
-    !  i+1-th cell j-th face vertex-1
-    !  i+1-th cell j-th face vertex-2
-    !  i+1-th cell j-th face vertex-3
-    !
-    call VecCreateMPI(option%mycomm, PETSC_DECIDE, &
-                      ugrid%nmax*ugrid%max_ndual_per_cell*MAX_VERT_PER_FACE, &
-                      vec_cell2facevert, ierr)
-
-    ! Initialize vector
-    call VecSet(vec_cell2facevert, -999.d0, ierr)
-    call VecAssemblyBegin(vec_cell2facevert, ierr) ! vertex-id is 0-based
-    call VecAssemblyEnd(  vec_cell2facevert, ierr) !
-            
-    allocate(tmp_int_array(ugrid%nlmax))
-    tmp_int_array = 0
-      
-    do ii = 1, ugrid%max_ndual_per_cell*ugrid%ngmax
-      ghosted_id = ugrid%face_to_cell_ghosted(1, ii)
-      if (ghosted_id < 0 ) exit
-      local_id   = grid%nG2L(ghosted_id)
-      if (local_id < 1) cycle
-      natural_id = grid%nG2A(ghosted_id) ! 1-based
-      do jj = 1, MAX_VERT_PER_FACE
-!geh        if ( ugrid%face_to_vertex_nindex(jj, ii) > 0 ) then
-!gb     vertex_id_natural = ugrid%vertex_ids_natural(ugrid%face_to_vertex(jj,ii))
-        if (ugrid%face_to_vertex_natural(jj,ii) > 0) then
-          call VecSetValues(vec_cell2facevert,1, &
-                        (natural_id - 1)*ugrid%max_ndual_per_cell*MAX_VERT_PER_FACE + &
-                        tmp_int_array(local_id)*MAX_VERT_PER_FACE + jj - 1, &
-                        ugrid%face_to_vertex_natural(jj, ii) - 1.d0, &
-                        INSERT_VALUES, ierr)
-        endif
-      enddo 
-      tmp_int_array(local_id) = tmp_int_array(local_id) + 1
-    enddo
-      
-    call VecAssemblyBegin(vec_cell2facevert, ierr) ! vertex-id is 0-based
-    call VecAssemblyEnd(  vec_cell2facevert, ierr) !
-    deallocate(tmp_int_array)
-#if GB_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'vec_cell2facevert.out', viewer, ierr)
-    call VecView(vec_cell2facevert, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
-#endif
-      
-    allocate(tmp_int_array(region%num_verts*ugrid%max_cells_sharing_a_vertex))
-    count = 0
-    do ii = 1, region%num_verts
-      do jj = 1, ugrid%max_cells_sharing_a_vertex
-        count = count + 1
-        tmp_int_array(count) = region%vertex_ids(1,ii)*ugrid%max_cells_sharing_a_vertex + jj
-      enddo
-    enddo
-
-    tmp_int_array = tmp_int_array - 1
-    call ISCreateBlock(option%mycomm, 1, &
-                        region%num_verts*ugrid%max_cells_sharing_a_vertex, &
-                        tmp_int_array, PETSC_COPY_VALUES, is_from, ierr)
-    deallocate(tmp_int_array)
-      
-    call VecCreateMPI(option%mycomm, &
-                region%num_verts*ugrid%max_cells_sharing_a_vertex, PETSC_DECIDE, &
-                vec_vert2cell_reg_subset, ierr)
-    call VecGetOwnershipRange(vec_vert2cell_reg_subset, istart, iend, ierr)
-
-    allocate(tmp_int_array(region%num_verts*ugrid%max_cells_sharing_a_vertex))
-    do ii = 1, region%num_verts*ugrid%max_cells_sharing_a_vertex
-      tmp_int_array(ii) = ii + istart
-    enddo
-      
-    tmp_int_array = tmp_int_array - 1
-    call ISCreateBlock(option%mycomm, 1, &
-                        region%num_verts*ugrid%max_cells_sharing_a_vertex, &
-                        tmp_int_array, PETSC_COPY_VALUES, is_to, ierr)
-    deallocate(tmp_int_array)
-      
-    call VecScatterCreate(vec_vert2cell, is_from, vec_vert2cell_reg_subset, &
-                          is_to, vec_scat, ierr)
-    call ISDestroy(is_from, ierr)
-    call ISDestroy(is_to, ierr)
-    
-    call VecScatterBegin(vec_scat, vec_vert2cell, vec_vert2cell_reg_subset, &
-                          INSERT_VALUES, SCATTER_FORWARD, ierr)
-    call VecScatterEnd(  vec_scat, vec_vert2cell, vec_vert2cell_reg_subset, &
-                          INSERT_VALUES, SCATTER_FORWARD, ierr)
-    call VecScatterDestroy(vec_scat, ierr)
-
-#if GB_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'vec_vert2cell_reg_subset.out', &
-                              viewer, ierr)
-    call VecView(vec_vert2cell_reg_subset, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
-#endif
-      
-    call VecGetArrayF90(vec_vert2cell_reg_subset, v_loc_p, ierr)
-    allocate(cell_count(region%num_verts))
-    allocate(cell_ids(region%num_verts*ugrid%max_cells_sharing_a_vertex))
-      
-    ! initialize
-    cell_count    = 0
-    count         = 0
-      
-    do ii = 1,region%num_verts
-      do jj = 1,ugrid%max_cells_sharing_a_vertex
-        if (v_loc_p( (ii-1)*ugrid%max_cells_sharing_a_vertex + jj) == -1) exit
-        count = count + 1
-        cell_count(ii) = cell_count(ii) + 1
-        cell_ids(count) = v_loc_p( (ii-1)*ugrid%max_cells_sharing_a_vertex + jj )
-      enddo
-      if (cell_count(ii) < 0) then
-        option%io_buffer = 'For a given vertex, no cell found. Stopping'
-        call printErrMsg(option)
-      endif
-    enddo
-    call VecRestoreArrayF90(vec_vert2cell_reg_subset, v_loc_p, ierr)
-      
-    allocate(tmp_int_array(count*ugrid%max_ndual_per_cell*MAX_VERT_PER_FACE))
-    kk = 0
-    do ii = 1,count
-      do jj = 1,ugrid%max_ndual_per_cell*MAX_VERT_PER_FACE
-        kk = kk + 1
-        tmp_int_array(kk) = cell_ids(ii) * ugrid%max_ndual_per_cell*MAX_VERT_PER_FACE + jj
-      enddo
-    enddo
-      
-    tmp_int_array = tmp_int_array - 1
-    call ISCreateBlock(option%mycomm, 1, count*ugrid%max_ndual_per_cell*MAX_VERT_PER_FACE,&
-      tmp_int_array, PETSC_COPY_VALUES, is_from, ierr)
-    deallocate(tmp_int_array)
-      
-    call VecCreateMPI(option%mycomm, count*ugrid%max_ndual_per_cell*MAX_VERT_PER_FACE, &
-                      PETSC_DECIDE, vec_cell2facevert_reg_subset, ierr)
-    call VecGetOwnershipRange(vec_cell2facevert_reg_subset, istart, &
-                              iend, ierr)
-    allocate(tmp_int_array(count*ugrid%max_ndual_per_cell*MAX_VERT_PER_FACE))
-    do ii = 1, count*ugrid%max_ndual_per_cell*MAX_VERT_PER_FACE
-      tmp_int_array(ii) = ii + istart
-    enddo
-
-    tmp_int_array = tmp_int_array - 1
-    call ISCreateBlock(option%mycomm, 1, count*ugrid%max_ndual_per_cell*MAX_VERT_PER_FACE, &
-                        tmp_int_array, PETSC_COPY_VALUES, is_to, ierr)
-    deallocate(tmp_int_array)
-      
-    call VecScatterCreate(vec_cell2facevert, &
-                          is_from,vec_cell2facevert_reg_subset, is_to, &
-                          vec_scat, ierr)
-    call ISDestroy(is_from,ierr)
-    call ISDestroy(is_to,ierr)
-    
-    call VecScatterBegin(vec_scat, vec_cell2facevert, &
-                          vec_cell2facevert_reg_subset, INSERT_VALUES, &
-                          SCATTER_FORWARD, ierr)
-    call VecScatterEnd(  vec_scat, vec_cell2facevert, &
-                          vec_cell2facevert_reg_subset, INSERT_VALUES, &
-                          SCATTER_FORWARD, ierr)
-    call VecScatterDestroy(vec_scat, ierr)
-
-#if GB_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, &
-                              'vec_cell2facevert_reg_subset.out', viewer, &
-                              ierr)
-    call VecView(vec_cell2facevert_reg_subset, viewer,ierr)
-    call PetscViewerDestroy(viewer, ierr)
-#endif
-
-    call VecGetArrayF90(vec_cell2facevert_reg_subset, v_loc_p, ierr)
-    istart = 0
-    iend   = 0
-    counter1 = 0
-    counter2 = 0
-      
-    allocate(cell_ids_for_face(region%num_verts))
-    allocate(face_ids_for_face(region%num_verts))
-    do jj = 1,region%num_verts
-      iend   = istart + cell_count(jj) * ugrid%max_ndual_per_cell * MAX_VERT_PER_FACE
-      istart = istart +  1
-      counter1 = (istart-1)/MAX_VERT_PER_FACE/ugrid%max_ndual_per_cell
-      counter2 = 0
-      found  = PETSC_FALSE
-      do ii = istart,iend,MAX_VERT_PER_FACE
-        counter2 = counter2 + 1
-        if (region%vertex_ids(0, jj) == 4) then
-          if ((v_loc_p(ii    ) == region%vertex_ids(1,jj)).and.&
-              (v_loc_p(ii + 1) == region%vertex_ids(2,jj)).and.&
-              (v_loc_p(ii + 2) == region%vertex_ids(3,jj)).and.&
-              (v_loc_p(ii + 3) == region%vertex_ids(4,jj)))      then
-              found = PETSC_TRUE
-              exit
-          endif
-          if ((v_loc_p(ii    ) == region%vertex_ids(2,jj)).and.&
-              (v_loc_p(ii + 1) == region%vertex_ids(3,jj)).and.&
-              (v_loc_p(ii + 2) == region%vertex_ids(4,jj)).and.&
-              (v_loc_p(ii + 3) == region%vertex_ids(1,jj)))      then
-              found = PETSC_TRUE
-              exit
-          endif
-          if ((v_loc_p(ii    ) == region%vertex_ids(3,jj)).and.&
-              (v_loc_p(ii + 1) == region%vertex_ids(4,jj)).and.&
-              (v_loc_p(ii + 2) == region%vertex_ids(2,jj)).and.&
-              (v_loc_p(ii + 3) == region%vertex_ids(1,jj)))      then
-              found = PETSC_TRUE
-              exit
-          endif
-          if ((v_loc_p(ii    ) == region%vertex_ids(4,jj)).and.&
-              (v_loc_p(ii + 1) == region%vertex_ids(1,jj)).and.&
-              (v_loc_p(ii + 2) == region%vertex_ids(2,jj)).and.&
-              (v_loc_p(ii + 3) == region%vertex_ids(3,jj)))      then
-              found = PETSC_TRUE
-              exit
-          endif
-        elseif ( v_loc_p(ii + 3) < 0 ) then
-          if ((v_loc_p(ii    ) == region%vertex_ids(1,jj)).and.&
-              (v_loc_p(ii + 1) == region%vertex_ids(2,jj)).and.&
-              (v_loc_p(ii + 2) == region%vertex_ids(3,jj)))      then
-              found = PETSC_TRUE
-              exit
-          endif
-          if ((v_loc_p(ii    ) == region%vertex_ids(2,jj)).and.&
-              (v_loc_p(ii + 1) == region%vertex_ids(3,jj)).and.&
-              (v_loc_p(ii + 2) == region%vertex_ids(1,jj)))      then
-              found = PETSC_TRUE
-              exit
-          endif
-          if ((v_loc_p(ii    ) == region%vertex_ids(3,jj)).and.&
-              (v_loc_p(ii + 1) == region%vertex_ids(1,jj)).and.&
-              (v_loc_p(ii + 2) == region%vertex_ids(2,jj)))      then
-              found = PETSC_TRUE
-              exit
-          endif
-        endif
-          
-        if (counter2 == ugrid%max_ndual_per_cell) then
-          counter2 = 0
-          counter1 = counter1 + 1
-        endif
-        
-      enddo
-
-      if (.not.found) then
-        option%io_buffer='No cell found for vertex '
-        call printErrMsg(option)
-      endif
-        
-      cell_ids_for_face(jj) = cell_ids(counter1+1)
-      face_ids_for_face(jj) = (ii-istart)/MAX_VERT_PER_FACE & 
-                              - INT((ii-istart)/MAX_VERT_PER_FACE/ &
-                                    ugrid%max_ndual_per_cell)* &
-                                    ugrid%max_ndual_per_cell + 1
-      istart = iend
-    enddo
-    call VecRestoreArrayF90(vec_cell2facevert_reg_subset, v_loc_p, ierr)
-
-
-    call VecCreateMPI(option%mycomm, ugrid%nlmax, PETSC_DECIDE, &
-                      vec_cell_ids, ierr)
-    call VecCreateMPI(option%mycomm, ugrid%nlmax, PETSC_DECIDE, &
-                      vec_cell_ids_loc, ierr)
-    call VecCreateMPI(option%mycomm, ugrid%nlmax, PETSC_DECIDE, &
-                      vec_face_ids, ierr)
-    call VecCreateMPI(option%mycomm, ugrid%nlmax, PETSC_DECIDE, &
-                      vec_face_ids_loc, ierr)
-    
-    call VecSet(vec_cell_ids, 0.d0, ierr)
-    call VecAssemblyBegin(vec_cell_ids, ierr)
-    call VecAssemblyEnd(  vec_cell_ids, ierr)
-    
-    call VecSet(vec_face_ids, 0.d0, ierr)
-    call VecAssemblyBegin(vec_face_ids, ierr)
-    call VecAssemblyEnd(  vec_face_ids, ierr)
-
-    allocate(tmp_int_array(region%num_verts))
-    allocate(tmp_scl_array(region%num_verts))
-
-    do ii = 1, region%num_verts
-      tmp_int_array(ii)  = cell_ids_for_face(ii)
-      tmp_scl_array(ii)  = 1.d0
-    enddo
-
-    call VecSetValues(vec_cell_ids, region%num_verts, tmp_int_array, &
-                      tmp_scl_array, ADD_VALUES, ierr)
-
-    do ii = 1, region%num_verts
-      tmp_int_array(ii) = cell_ids_for_face(ii)
-      tmp_scl_array(ii) = face_ids_for_face(ii)
-    enddo
-
-    call VecSetValues(vec_face_ids, region%num_verts, tmp_int_array, &
-                      tmp_scl_array, ADD_VALUES, ierr)
-    
-    deallocate(tmp_int_array)
-    deallocate(tmp_scl_array)
-
-    call VecAssemblyBegin(vec_cell_ids, ierr)
-    call VecAssemblyEnd(  vec_cell_ids, ierr)
-    call VecAssemblyBegin(vec_face_ids, ierr)
-    call VecAssemblyEnd(  vec_face_ids, ierr)
-
-#if GB_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'vec_cell_ids_aft_2.out', &
-                              viewer, ierr)
-    call VecView(vec_cell_ids, viewer, ierr)
-    call PetscViewerDestroy(viewer, ierr)
-#endif
-
-    allocate(tmp_int_array(ugrid%nlmax))
-    count = 0
-    do ghosted_id=1,ugrid%ngmax
-      local_id = grid%nG2L(ghosted_id)
-      if (local_id < 1) cycle
-      count = count + 1
-      natural_id = grid%nG2A(ghosted_id)
-      tmp_int_array(count) = natural_id
-    enddo
-
-    tmp_int_array = tmp_int_array - 1
-    call ISCreateBlock(option%mycomm, 1, ugrid%nlmax, &
-                      tmp_int_array, PETSC_COPY_VALUES, &
-                      is_from, ierr)
-    
-    call VecGetOwnershipRange(vec_cell_ids_loc, istart, iend, ierr)
-    do ii = 1, ugrid%nlmax
-      tmp_int_array(ii) = ii + istart
-    enddo
-
-    tmp_int_array = tmp_int_array - 1
-    call ISCreateBlock(option%mycomm, 1, ugrid%nlmax, &
-                        tmp_int_array, PETSC_COPY_VALUES, &
-                        is_to, ierr)
-    deallocate(tmp_int_array)
-    
-    call VecScatterCreate(vec_cell_ids, is_from, vec_cell_ids_loc, &
-                          is_to, vec_scat, ierr)
-    call ISDestroy(is_from,ierr)
-    call ISDestroy(is_to,ierr)
-    
-    call VecScatterBegin(vec_scat, vec_cell_ids, vec_cell_ids_loc, &
-                          INSERT_VALUES, SCATTER_FORWARD, ierr)
-    call VecScatterEnd(  vec_scat, vec_cell_ids, vec_cell_ids_loc, &
-                          INSERT_VALUES, SCATTER_FORWARD, ierr)
-    call VecScatterBegin(vec_scat, vec_face_ids, vec_face_ids_loc, &
-                          INSERT_VALUES, SCATTER_FORWARD, ierr)
-    call VecScatterEnd(  vec_scat, vec_face_ids, vec_face_ids_loc, &
-                          INSERT_VALUES, SCATTER_FORWARD, ierr)
-    call VecScatterDestroy(vec_scat, ierr)
-
-#if GB_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'vec_cell_ids_loc_2.out', &
-                              viewer, ierr)
-    call VecView(vec_cell_ids_loc, viewer, ierr)
-    call PetscViewerDestroy(viewer, ierr)
-#endif
-
-    call VecGetArrayF90(vec_cell_ids_loc, v_loc_p, ierr)
-    call VecGetArrayF90(vec_face_ids_loc, v_loc2_p, ierr)
-    count = 0
-    do ii = 1, ugrid%nlmax
-      if (v_loc_p(ii) == 1) count = count + 1
-    enddo
-    
-    region%num_cells = count
-    if (count > 0) then
-      allocate(tmp_int_array(count))
-      allocate(tmp_int_array2(count))
-      count = 0
-      do ii = 1, ugrid%nlmax
-        if (v_loc_p(ii) == 1) then
-          count = count + 1
-          tmp_int_array(count) = ii
-          tmp_int_array2(count) = v_loc2_p(ii)
-        endif
-      enddo
-
-      !deallocate(region%cell_ids)
-      allocate(region%cell_ids(region%num_cells))
-      allocate(region%faces(region%num_cells))
-      region%cell_ids = tmp_int_array
-      region%faces    = tmp_int_array2
-        
-      deallocate(tmp_int_array)
-      deallocate(tmp_int_array2)
-
-    else
-      nullify(region%cell_ids)
-    endif
-    
-    call VecRestoreArrayF90(vec_cell_ids_loc, v_loc_p, ierr)
-
-
-    deallocate(cell_count)
-    deallocate(cell_ids)
-      
-    call VecDestroy(vec_cell2facevert, ierr)
-    call VecDestroy(vec_vert2cell, ierr)
-    deallocate(vert2cell_array)
-
-  endif
-
-
-end subroutine GridLocalizeRegionsForUGrid
+end subroutine GridLocalizeRegionsFromCellIDsUGrid
 
 ! ************************************************************************** !
 !
@@ -3070,7 +2141,7 @@ subroutine GridGetGhostedNeighbors(grid,ghosted_id,stencil_type, &
                                          stencil_width_j,stencil_width_k, &
                                          x_count,y_count,z_count, &
                                          ghosted_neighbors,option)
-    case(UNSTRUCTURED_GRID) 
+    case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID) 
       option%io_buffer = 'GridGetNeighbors not currently supported for ' // &
         'unstructured grids.'
       call printErrMsg(option)
@@ -3114,7 +2185,7 @@ subroutine GridGetGhostedNeighborsWithCorners(grid,ghosted_id,stencil_type, &
                                          stencil_width_k, &
                                          icount, &
                                          ghosted_neighbors,option)
-    case(UNSTRUCTURED_GRID) 
+    case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID) 
       option%io_buffer = 'GridGetNeighbors not currently supported for ' // &
         'unstructured grids.'
       call printErrMsg(option)
@@ -3147,6 +2218,8 @@ subroutine GridDestroy(grid)
   nullify(grid%nG2A)
   if (associated(grid%nG2P)) deallocate(grid%nG2P)
   nullify(grid%nG2P)
+  if (associated(grid%ghosted_level)) deallocate(grid%ghosted_level)
+  nullify(grid%ghosted_level)
 
 #ifdef DASVYAT
   if (associated(grid%fL2G)) deallocate(grid%fL2G)
@@ -3177,7 +2250,7 @@ subroutine GridDestroy(grid)
   if (associated(grid%hash)) call GridDestroyHashTable(grid)
   
   call UGridDestroy(grid%unstructured_grid)    
-  call StructuredGridDestroy(grid%structured_grid)
+  call StructGridDestroy(grid%structured_grid)
                                            
   call ConnectionDestroyList(grid%internal_connection_set_list)
 
@@ -3271,6 +2344,34 @@ function GridIndexToCellID(vec,index,grid,vec_type)
                      
 end function GridIndexToCellID
 
+! ************************************************************************** !
+!> This routine computes the indices of neighbours for all ghosted cells
+!!
+!> @author
+!! Gautam Bisht, LBNL
+!!
+!! date: 08/24/12
+! ************************************************************************** !
+subroutine GridComputeNeighbors(grid,option)
+
+  use Option_module
+  
+  implicit none
+  
+  type(grid_type) :: grid
+  type(option_type) :: option
+
+  select case(grid%itype)
+    case(STRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
+      call StructGridComputeNeighbors(grid%structured_grid,option)
+    case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID) 
+      option%io_buffer = 'GridComputeNeighbors not currently supported for ' // &
+        'unstructured grids.'
+      call printErrMsg(option)
+  end select
+
+end subroutine GridComputeNeighbors
+
 !! ********************************************************************** !
 !!
 !! GridPopulateSubcontinuum: Populate subcontinuum discretization info in
@@ -3346,4 +2447,422 @@ end function GridIndexToCellID
 !  enddo           
 !end subroutine GridPopulateSubcontinuum
 !
+
+! ************************************************************************** !
+!> This routine resticts regions to cells local to processor when the region
+!! was defined using a BLOCK from inputfile.
+!!
+!> @author
+!! Gautam Bisht, LBNL
+!!
+!! date: 09/04/12
+! ************************************************************************** !
+subroutine GridLocalizeRegionFromBlock(grid,region,option)
+
+  use Option_module
+  use Region_module
+
+  implicit none
+  
+  type(region_type), pointer :: region
+  type(grid_type), pointer   :: grid
+  type(option_type)          :: option
+  
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt, allocatable :: temp_int_array(:)
+  PetscInt :: i, j, k, count, local_count, ghosted_id, local_id
+  PetscInt :: i_min, i_max, j_min, j_max, k_min, k_max
+  PetscReal :: x_min, x_max, y_min, y_max, z_min, z_max
+  PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20
+  PetscReal :: x_shift, y_shift, z_shift
+  PetscReal :: del_x, del_y, del_z
+  PetscInt :: iflag
+  PetscBool :: same_point
+  PetscErrorCode :: ierr
+
+  if(grid%itype /= STRUCTURED_GRID .and. &
+     grid%itype /= STRUCTURED_GRID_MIMETIC) then
+     
+     option%io_buffer='Region definition using BLOCK is only supported for ' //&
+       ' structured grids'
+     call printErrMsg(option)
+  endif
+  
+  ! convert indexing from global (entire domain) to local processor
+  region%i1 = region%i1 - grid%structured_grid%lxs
+  region%i2 = region%i2 - grid%structured_grid%lxs
+  region%j1 = region%j1 - grid%structured_grid%lys
+  region%j2 = region%j2 - grid%structured_grid%lys
+  region%k1 = region%k1 - grid%structured_grid%lzs
+  region%k2 = region%k2 - grid%structured_grid%lzs
+          
+  ! clip region to within local processor domain
+  region%i1 = max(region%i1,1)
+  region%i2 = min(region%i2,grid%structured_grid%nlx)
+  region%j1 = max(region%j1,1)
+  region%j2 = min(region%j2,grid%structured_grid%nly)
+  region%k1 = max(region%k1,1)
+  region%k2 = min(region%k2,grid%structured_grid%nlz)
+   
+  count = 0  
+  if (region%i1 <= region%i2 .and. &
+      region%j1 <= region%j2 .and. &
+      region%k1 <= region%k2) then
+    region%num_cells = (region%i2-region%i1+1)* &
+                       (region%j2-region%j1+1)* &
+                       (region%k2-region%k1+1)
+    allocate(region%cell_ids(region%num_cells))
+    if (region%iface /= 0) then
+      allocate(region%faces(region%num_cells))
+      region%faces = region%iface
+    endif
+    region%cell_ids = 0
+    do k=region%k1,region%k2
+      do j=region%j1,region%j2
+        do i=region%i1,region%i2
+          count = count + 1
+          region%cell_ids(count) = &
+                 i + (j-1)*grid%structured_grid%nlx + &
+                 (k-1)*grid%structured_grid%nlxy
+        enddo
+      enddo
+    enddo
+!   if (region%num_cells > 0) then
+!     region%coordinates(1)%x = grid%x(region%cell_ids(ONE_INTEGER))
+!     region%coordinates(1)%y = grid%y(region%cell_ids(ONE_INTEGER))
+!     region%coordinates(1)%z = grid%z(region%cell_ids(ONE_INTEGER))
+!   endif
+  else
+    region%num_cells = 0
+  endif
+
+  if (count /= region%num_cells) then
+    option%io_buffer = 'Mismatch in number of cells in block region'
+    call printErrMsg(option)
+  endif
+
+end subroutine GridLocalizeRegionFromBlock
+
+! ************************************************************************** !
+!> This routine resticts regions to cells local to processor when the region
+!! was defined using COORDINATES from inputfile.
+!!
+!> @author
+!! Gautam Bisht, LBNL
+!!
+!! date: 09/04/12
+! ************************************************************************** !
+subroutine GridLocalizeRegionFromCoordinates(grid,region,option)
+
+  use Option_module
+  use Region_module
+
+  implicit none
+  
+  type(region_type), pointer :: region
+  type(grid_type), pointer   :: grid
+  type(option_type)          :: option
+  
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt, allocatable :: temp_int_array(:)
+  PetscInt :: i, j, k, count, local_count, ghosted_id, local_id
+  PetscInt :: i_min, i_max, j_min, j_max, k_min, k_max
+  PetscReal :: x_min, x_max, y_min, y_max, z_min, z_max
+  PetscReal, parameter :: pert = 1.d-8, tol = 1.d-20
+  PetscReal :: x_shift, y_shift, z_shift
+  PetscReal :: del_x, del_y, del_z
+  PetscInt :: iflag
+  PetscBool :: same_point
+  PetscErrorCode :: ierr
+
+  iflag = 0
+  if (size(region%coordinates) > TWO_INTEGER) then
+    option%io_buffer = 'GridLocalizeRegions: more than 2 coordinates' // &
+                       ' not supported in region object'
+    call printErrMsg(option)
+  endif
+
+  same_point = PETSC_FALSE
+  ! if two coordinates, determine whether they are the same point
+  if (size(region%coordinates) == TWO_INTEGER) then
+    if (dabs(region%coordinates(ONE_INTEGER)%x - &
+             region%coordinates(TWO_INTEGER)%x) < tol .and. &
+        dabs(region%coordinates(ONE_INTEGER)%y - &
+             region%coordinates(TWO_INTEGER)%y) < tol .and. &
+        dabs(region%coordinates(ONE_INTEGER)%z - &
+             region%coordinates(TWO_INTEGER)%z) < tol) then
+      same_point = PETSC_TRUE
+    endif
+  endif
+   
+  ! treat two identical coordinates the same as a single coordinate
+  if (size(region%coordinates) == ONE_INTEGER .or. same_point) then
+    if (region%coordinates(ONE_INTEGER)%x >= grid%x_min_global .and. &
+        region%coordinates(ONE_INTEGER)%x <= grid%x_max_global .and. &
+        region%coordinates(ONE_INTEGER)%y >= grid%y_min_global .and. &
+        region%coordinates(ONE_INTEGER)%y <= grid%y_max_global .and. &
+        region%coordinates(ONE_INTEGER)%z >= grid%z_min_global .and. &
+        region%coordinates(ONE_INTEGER)%z <= grid%z_max_global) then
+      ! If a point is on the corner of 4 or 8 patches in AMR, the region
+      ! will be assigned to all 4/8 patches...a problem.  To avoid this, 
+      ! we are going to perturb all point coordinates slightly upwind, as
+      ! long as they are not on a global boundary (i.e. boundary condition)
+      ! -- shift the coorindate slightly upwind
+      x_shift = region%coordinates(ONE_INTEGER)%x - &
+                pert*(grid%x_max_global-grid%x_min_global)
+      y_shift = region%coordinates(ONE_INTEGER)%y - &
+                pert*(grid%y_max_global-grid%y_min_global)
+      z_shift = region%coordinates(ONE_INTEGER)%z - &
+                pert*(grid%z_max_global-grid%z_min_global)
+      ! if the coodinate is shifted out of the global domain or 
+      ! onto an exterior edge, set it back to the original value
+      if (x_shift - grid%x_min_global < tol) &
+        x_shift = region%coordinates(ONE_INTEGER)%x
+      if (y_shift - grid%y_min_global < tol) &
+        y_shift = region%coordinates(ONE_INTEGER)%y
+      if (z_shift - grid%z_min_global < tol) &
+        z_shift = region%coordinates(ONE_INTEGER)%z
+      select case(grid%itype)
+        case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
+          call StructGridGetIJKFromCoordinate(grid%structured_grid, &
+                                              x_shift,y_shift,z_shift, &
+                                              i,j,k)
+          if (i > 0 .and. j > 0 .and. k > 0) then
+            region%num_cells = 1
+            allocate(region%cell_ids(region%num_cells))
+            if (region%iface /= 0) then
+              allocate(region%faces(region%num_cells))
+              region%faces = region%iface
+            endif
+            region%cell_ids = 0
+            region%cell_ids(1) = i + (j-1)*grid%structured_grid%nlx + &
+                                (k-1)*grid%structured_grid%nlxy
+          else
+            region%num_cells = 0
+          endif
+          ! the next test as designed will only work on a uniform grid
+          call MPI_Allreduce(region%num_cells,count, &
+                              ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM, &
+                              option%mycomm,ierr)   
+          if (count == 0) then
+            write(option%io_buffer,*) 'Region: (coord)', &
+                  region%coordinates(ONE_INTEGER)%x, &
+                  region%coordinates(ONE_INTEGER)%y, &
+                  region%coordinates(ONE_INTEGER)%z, &
+                  ' not found in global domain.', count
+            call printErrMsg(option)
+          else if (count > 1) then
+            write(option%io_buffer,*) 'Region: (coord)', &
+                  region%coordinates(ONE_INTEGER)%x, &
+                  region%coordinates(ONE_INTEGER)%y, &
+                  region%coordinates(ONE_INTEGER)%z, &
+                  ' duplicated across ', count, &
+                  ' procs in global domain.'
+            call printErrMsg(option)
+          endif
+        case(IMPLICIT_UNSTRUCTURED_GRID)
+          !geh: must check each cell individually
+          call UGridGetCellFromPoint(region%coordinates(ONE_INTEGER)%x, &
+                                     region%coordinates(ONE_INTEGER)%y, &
+                                     region%coordinates(ONE_INTEGER)%z, &
+                                     grid%unstructured_grid,option,local_id)
+          if (local_id > 0) then
+            region%num_cells = 1
+            allocate(region%cell_ids(region%num_cells))
+            region%cell_ids(1) = local_id
+          else
+            region%num_cells = 0
+          endif
+      end select
+    endif
+  else ! 2 coordinates
+    x_min = min(region%coordinates(ONE_INTEGER)%x, &
+                region%coordinates(TWO_INTEGER)%x)
+    x_max = max(region%coordinates(ONE_INTEGER)%x, &
+                region%coordinates(TWO_INTEGER)%x)
+    y_min = min(region%coordinates(ONE_INTEGER)%y, &
+                region%coordinates(TWO_INTEGER)%y)
+    y_max = max(region%coordinates(ONE_INTEGER)%y, &
+                region%coordinates(TWO_INTEGER)%y)
+    z_min = min(region%coordinates(ONE_INTEGER)%z, &
+                region%coordinates(TWO_INTEGER)%z)
+    z_max = max(region%coordinates(ONE_INTEGER)%z, &
+                region%coordinates(TWO_INTEGER)%z)
+                
+    if (grid%itype == STRUCTURED_GRID .or. &
+        grid%itype == STRUCTURED_GRID_MIMETIC) then
+      ! shift box slightly inward
+      x_shift = 1.d-8*(grid%x_max_global-grid%x_min_global)
+      x_min = x_min+x_shift            
+      x_max = x_max-x_shift
+      y_shift = 1.d-8*(grid%y_max_global-grid%y_min_global)
+      y_min = y_min+y_shift            
+      y_max = y_max-y_shift
+      z_shift = 1.d-8*(grid%z_max_global-grid%z_min_global)
+      z_min = z_min+z_shift            
+      z_max = z_max-z_shift
+         
+      ! if plane or line, ensure it is within the grid cells     
+      if (x_max-x_min < 1.d-10) then
+        x_max = region%coordinates(ONE_INTEGER)%x
+        x_shift = 1.d-8*(grid%x_max_global-grid%x_min_global)
+        if (region%iface == WEST_FACE) then
+          x_max = x_max + x_shift
+        else if (region%iface == EAST_FACE) then
+          x_max = x_max - x_shift
+        ! otherwise, shift upwind, unless at upwind physical boundary
+        else
+          if (x_max > grid%x_min_global + x_shift) then
+            x_max = x_max - x_shift
+          else
+            x_max = x_max + x_shift
+          endif
+        endif
+        x_min = x_max
+      endif
+      if (y_max-y_min < 1.d-10) then
+        y_max = region%coordinates(ONE_INTEGER)%y
+        y_shift = 1.d-8*(grid%y_max_global-grid%y_min_global)
+        if (region%iface == SOUTH_FACE) then
+          y_max = y_max + y_shift
+        else if (region%iface == NORTH_FACE) then
+          y_max = y_max - y_shift
+        ! otherwise, shift upwind, unless at upwind physical boundary
+        else
+          if (y_max > grid%y_min_global + y_shift) then
+            y_max = y_max - y_shift
+          else
+            y_max = y_max + y_shift
+          endif
+        endif
+        y_min = y_max
+      endif
+      if (z_max-z_min < 1.d-10) then
+        z_max = region%coordinates(ONE_INTEGER)%z
+        z_shift = 1.d-8*(grid%z_max_global-grid%z_min_global)
+        if (region%iface == BOTTOM_FACE) then
+          z_max = z_max + z_shift
+        else if (region%iface == TOP_FACE) then
+          z_max = z_max - z_shift
+        ! otherwise, shift upwind, unless at upwind physical boundary
+        else
+          if (z_max > grid%z_min_global + z_shift) then
+            z_max = z_max - z_shift
+          else
+            z_max = z_max + z_shift
+          endif
+        endif
+        z_min = z_max
+      endif
+    endif   
+             
+    ! ensure overlap
+    if (x_min <= grid%x_max_local .and. &
+        x_max >= grid%x_min_local .and. &
+        y_min <= grid%y_max_local .and. &
+        y_max >= grid%y_min_local .and. &
+        z_min <= grid%z_max_local .and. &
+        z_max >= grid%z_min_local) then
+        
+      ! get I,J,K bounds
+      select case(grid%itype)
+        case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
+          ! local, non-ghosted i,j,k's are returned
+          call StructGridGetIJKFromCoordinate(grid%structured_grid, &
+                                    max(x_min,grid%x_min_local+x_shift), &
+                                    max(y_min,grid%y_min_local+y_shift), &
+                                    max(z_min,grid%z_min_local+z_shift), &
+                                              i_min,j_min,k_min)
+          call StructGridGetIJKFromCoordinate(grid%structured_grid, &
+                                    min(x_max,grid%x_max_local-x_shift), &
+                                    min(y_max,grid%y_max_local-y_shift), &
+                                    min(z_max,grid%z_max_local-z_shift), &
+                                              i_max,j_max,k_max)
+          if (i_min > 0 .and. j_min > 0 .and. k_min > 0 .and. &
+              i_max > 0 .and. j_max > 0 .and. k_max > 0) then
+            region%num_cells = (i_max-i_min+1)*(j_max-j_min+1)*(k_max-k_min+1)
+            allocate(region%cell_ids(region%num_cells))
+            if (region%iface /= 0) then
+              allocate(region%faces(region%num_cells))
+              region%faces = region%iface
+            endif
+            region%cell_ids = 0
+            count = 0
+            do k = k_min, k_max
+              do j = j_min, j_max
+                do i = i_min, i_max
+                  count = count+1
+                  region%cell_ids(count) = i + (j-1)*grid%structured_grid%nlx + &
+                                      (k-1)*grid%structured_grid%nlxy
+                enddo
+              enddo
+            enddo
+          else
+            iflag = 1
+          endif
+        case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID)
+          del_x = x_max-x_min
+          del_y = y_max-y_min
+          del_z = z_max-z_min
+          ! 3D box
+          if (del_x > 1.d-10 .and. &
+              del_y > 1.d-10 .and. &
+              del_z > 1.d-10) then
+            ! geh: if the coordinates define a 3D box, add all cell centers
+            ! that reside within the box
+            count = 0
+            do local_id = 1, grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              if (grid%x(ghosted_id) >= x_min .and. &
+                  grid%x(ghosted_id) <= x_max .and. &
+                  grid%y(ghosted_id) >= y_min .and. &
+                  grid%y(ghosted_id) <= y_max .and. &
+                  grid%z(ghosted_id) >= z_min .and. &
+                  grid%z(ghosted_id) <= z_max) then
+                count = count + 1
+              endif
+            enddo
+            allocate(region%cell_ids(count))
+            region%cell_ids = 0
+            count = 0
+            do local_id = 1, grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              if (grid%x(ghosted_id) >= x_min .and. &
+                  grid%x(ghosted_id) <= x_max .and. &
+                  grid%y(ghosted_id) >= y_min .and. &
+                  grid%y(ghosted_id) <= y_max .and. &
+                  grid%z(ghosted_id) >= z_min .and. &
+                  grid%z(ghosted_id) <= z_max) then
+                count = count + 1
+                region%cell_ids(count) = local_id
+              endif
+            enddo
+            region%num_cells = count
+          ! 2D plane
+          elseif ((del_x < 1.d-10 .and. del_y > 1.d-10 .and. &
+                   del_z > 1.d-10) .or. &
+                  (del_x > 1.d-10 .and. del_y < 1.d-10 .and. &
+                   del_z > 1.d-10) .or. &
+                  (del_x > 1.d-10 .and. del_y > 1.d-10 .and. &
+                   del_z < 1.d-10)) then
+            call UGridGetCellsInRectangle(x_min,x_max,y_min,y_max, &
+                                          z_min,z_max, &
+                                          grid%unstructured_grid,option, &
+                                          region%num_cells,region%cell_ids, &
+                                          region%faces)
+          endif
+      end select
+    endif
+
+    call MPI_Allreduce(iflag,i,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_MAX, &
+                       option%mycomm,ierr)
+    iflag = i
+    if (iflag > 0) then
+      option%io_buffer = 'GridLocalizeRegions, between two points'
+      call printErrMsg(option)
+    endif
+  endif
+
+end subroutine GridLocalizeRegionFromCoordinates
+
 end module Grid_module

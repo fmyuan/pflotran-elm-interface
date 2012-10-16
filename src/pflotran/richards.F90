@@ -753,6 +753,7 @@ end subroutine RichardsUpdateMassBalancePatch
 subroutine RichardsUpdateAuxVars(realization)
 
   use Realization_module
+  use Grid_module, only : STRUCTURED_GRID_MIMETIC
 
   type(realization_type) :: realization
   
@@ -1751,31 +1752,31 @@ subroutine RichardsAccumDerivative(rich_aux_var,global_aux_var,por,vol, &
   PetscReal :: J(option%nflowdof,option%nflowdof)
      
   PetscInt :: ispec 
-  PetscReal :: porXvol
-  PetscReal :: dpor_dp
+  PetscReal :: vol_over_dt
+  PetscReal :: tempreal 
 
   PetscInt :: iphase, ideriv
   type(richards_auxvar_type) :: rich_aux_var_pert
   type(global_auxvar_type) :: global_aux_var_pert
   PetscReal :: x(1), x_pert(1), pert, res(1), res_pert(1), J_pert(1,1)
 
-  porXvol = por*vol/option%flow_dt
+  vol_over_dt = vol/option%flow_dt
       
 !#define USE_COMPRESSIBLITY
 #ifndef USE_COMPRESSIBLITY  
   ! accumulation term units = dkmol/dp
   J(1,1) = (global_aux_var%sat(1)*rich_aux_var%dden_dp+ &
             rich_aux_var%dsat_dp*global_aux_var%den(1))* &
-           porXvol
+           por*vol_over_dt
 
 #else
-  dpor_dp = (por-1.d0)*-1.d-7*exp(-1.d-7*(global_aux_var%pres(1)- &
-                                          option%reference_pressure))
-  J(1,1) = (global_aux_var%sat(1)*rich_aux_var%dden_dp+ &
-            rich_aux_var%dsat_dp*global_aux_var%den(1))* &
-           porXvol + &
-           global_aux_var%sat(1)*global_aux_var%den(1)*dpor_dp* &
-           vol/option%flow_dt
+  tempreal = exp(-1.d-7*(global_aux_var%pres(1)-option%reference_pressure))
+  J(1,1) = ((global_aux_var%sat(1)*rich_aux_var%dden_dp+ &
+             rich_aux_var%dsat_dp*global_aux_var%den(1))* &
+            1.d0-(1.d0-por)*tempreal + &
+            global_aux_var%sat(1)*global_aux_var%den(1)* &
+            (por-1.d0)*-1.d-7*tempreal)* &
+           vol_over_dt
 #endif  
   
   if (option%numerical_derivatives_flow) then
@@ -2410,6 +2411,9 @@ subroutine RichardsBCFlux(ibndtype,aux_vars, &
                           por_dn, sir_dn, perm_dn, &
                           area, dist, option,v_darcy,Res)
   use Option_module
+#ifdef SURFACE_FLOW
+  use water_eos_module
+#endif
  
   implicit none
   
@@ -2434,6 +2438,9 @@ subroutine RichardsBCFlux(ibndtype,aux_vars, &
   PetscReal :: ukvr,diffdp,Dq
   PetscReal :: upweight,cond,gravity,dphi
   PetscInt :: pressure_bc_type
+#ifdef SURFACE_FLOW
+  PetscReal :: rho, v_darcy_allowable
+#endif
   
   fluxm = 0.d0
   v_darcy = 0.d0
@@ -2507,13 +2514,17 @@ subroutine RichardsBCFlux(ibndtype,aux_vars, &
 #endif
        endif
         
-    !   if ( v_darcy== -10.0) 
-    !         write(*,*) "gr", gravity, "up", global_aux_var_up%pres(1), &
-    !                      "dn", global_aux_var_dn%pres(1), "dphi", dphi, "ukvr", ukvr
-     
-        if (ukvr*Dq>floweps) then
-          v_darcy = Dq * ukvr * dphi
+       if (ukvr*Dq>floweps) then
+        v_darcy = Dq * ukvr * dphi
+#ifdef SURFACE_FLOW
+        if(option%nsurfflowdof>0) then
+          call density(option%reference_temperature,option%reference_pressure,rho)
+          v_darcy_allowable = (global_aux_var_up%pres(1)-option%reference_pressure) &
+                              /option%flow_dt/(-option%gravity(3))/rho
+          v_darcy = min(v_darcy,v_darcy_allowable)
         endif
+#endif
+       endif
       endif 
 
     case(NEUMANN_BC)
@@ -3239,7 +3250,7 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   call VecGetArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr)
 #endif
 
-! now assign access pointer to local variables
+  ! now assign access pointer to local variables
   call GridVecGetArrayF90(grid,r, r_p, ierr)
   call GridVecGetArrayF90(grid,field%flow_accum, accum_p, ierr)
   call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
@@ -3247,12 +3258,7 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
 
   ! Accumulation terms ------------------------------------
   if (.not.option%steady_state) then
-#if 1
-    
-
     r_p = r_p - accum_p
-
-!     write(*,*) "accum_p 15", accum_p(15)
 
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
@@ -3263,22 +3269,18 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
                                 porosity_loc_p(ghosted_id), &
                                 volume_p(local_id), &
                                 option,Res) 
-!        if (ghosted_id==77) then
-!            write(*,*) "accum ",accum_p(local_id), "Res ", Res(1),  "diff ", Res(1) - accum_p(local_id)
-!            write(*,*) "Sat", global_aux_vars(ghosted_id)%sat(1), "Pres", global_aux_vars(ghosted_id)%pres(1)
-!        end if
       r_p(local_id) = r_p(local_id) + Res(1)
     enddo
-#endif
   endif
-#if 1
+
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sinks%first
   sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
     
-    qsrc = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(1)
+    if(source_sink%flow_condition%rate%itype/=DISTRIBUTED_VOLUMETRIC_RATE_SS) &
+      qsrc = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(1)
       
     cur_connection_set => source_sink%connection_set
     
@@ -3305,6 +3307,10 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
           ! qsrc1 = m^3/sec
           qsrc_mol = qsrc*global_aux_vars(ghosted_id)%den(1)* & ! den = kmol/m^3
             source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
+        case(DISTRIBUTED_VOLUMETRIC_RATE_SS)
+          ! qsrc1 = m^3/sec
+          qsrc_mol = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)* & ! flow = m^3/s
+                     global_aux_vars(ghosted_id)%den(1)                  ! den  = kmol/m^3
       end select
       if (option%compute_mass_balance_new) then
         ! need to added global aux_var for src/sink
@@ -3319,23 +3325,12 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
-#endif
-
-
-!#ifdef DASVYAT
-!     write(*,*) "richards 2608"
-!     stop
-!#endif
 
   if (patch%aux%Richards%inactive_cells_exist) then
     do i=1,patch%aux%Richards%n_zero_rows
       r_p(patch%aux%Richards%zero_rows_local(i)) = 0.d0
     enddo
   endif
-
-
-!   write(*,*) "FV Residual 15", r_p(15)
-
 
   call GridVecRestoreArrayF90(grid,r, r_p, ierr)
   call GridVecRestoreArrayF90(grid,field%flow_accum, accum_p, ierr)
@@ -5258,7 +5253,8 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
   do 
     if (.not.associated(source_sink)) exit
     
-    qsrc = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(1)
+    if(source_sink%flow_condition%rate%itype/=DISTRIBUTED_VOLUMETRIC_RATE_SS) &
+      qsrc = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(1)
 
     cur_connection_set => source_sink%connection_set
     
@@ -5280,6 +5276,9 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
         case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
           Jup(1,1) = -qsrc*rich_aux_vars(ghosted_id)%dden_dp*FMWH2O* &
             source_sink%flow_aux_real_var(ONE_INTEGER,iconn)
+        case(DISTRIBUTED_VOLUMETRIC_RATE_SS)
+          Jup(1,1) = -source_sink%flow_aux_real_var(ONE_INTEGER,iconn)* &
+                    rich_aux_vars(ghosted_id)%dden_dp*FMWH2O
 
       end select
 #ifdef BUFFER_MATRIX
@@ -5955,7 +5954,7 @@ function RichardsGetTecplotHeader(realization,icolumn)
   endif
   string = trim(string) // trim(string2)
 #ifdef GLENN_NEW_IO
-  call OutputOptionAddPlotVariable(realization%output_option,PRESSURE, &
+  call OutputOptionAddPlotVariable(realization%output_option,LIQUID_PRESSURE, &
                              ZERO_INTEGER,ZERO_INTEGER)
 #endif
 
