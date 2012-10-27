@@ -24,24 +24,80 @@ ifdef glenn
   MYFLAGS += -DOS_STATISTICS -DGLENN -DENABLE_UNSTRUCTURED
 endif
 
+ifdef solid_solution
+  MYFLAGS += -DSOLID_SOLUTION
+endif
+
+ifdef radioactive_decay
+  MYFLAGS += -DRADIOACTIVE_DECAY
+endif
+
+ifdef matcreate_old
+  MYFLAGS += -DMATCREATE_OLD
+endif
+
+ifdef mualem_spline
+  MYFLAGS += -DMUALEM_SPLINE
+endif
+
+ifdef snes_old
+  MYFLAGS += -DHAVE_SNES_API_3_2
+endif
+
+ifdef snes_api_3_2
+  MYFLAGS += -DHAVE_SNES_API_3_2
+endif
+
+ifdef petsc_api_3_3
+  MYFLAGS += -DHAVE_PETSC_API_3_3
+endif
+
+ifdef dbl
+  MYFLAGS += -DDOUBLE_LAYER
+endif
+
+ifdef pcl
+  MYFLAGS += -DPCL -DMUALEM_SPLINE
+endif
+
+ifdef tab
+  MYFLAGS += -DTABLE
+endif
+
 ifdef temp
 MYFLAGS += -DTEMP_DEPENDENT_LOGK
 endif
 
-ifdef chuan_co2
-MYFLAGS += -DCHUAN_CO2
+ifdef ice
+  MYFLAGS += -DICE
 endif
 
-ifdef scott 
-MYFLAGS += -DENABLE_UNSTRUCTURED -DGEH_DEBUG -fbounds-check
+ifdef remove_sat
+  MYFLAGS += -DREMOVE_SATURATION
+endif
+
+ifdef compressibility
+  MYFLAGS += -DUSE_COMPRESSIBILITY
+endif
+
+ifdef no_vapor_diffusion
+  MYFLAGS += -DNO_VAPOR_DIFFUSION
+endif
+
+ifdef scco2
+  MYFLAGS += -DCHUAN_CO2
+endif
+
+ifdef debug_gen
+  MYFLAGS += -DDEBUG_GENERAL
 endif 
 
 ifdef coll
-MYFLAGS += -DCOLL
+  MYFLAGS += -DCOLL
 endif
 
 ifdef dont_use_wateos
-MYFLAGS += -DDONT_USE_WATEOS
+  MYFLAGS += -DDONT_USE_WATEOS
 endif
 
 ifdef vamsi_hdf5
