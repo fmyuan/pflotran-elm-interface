@@ -33,6 +33,7 @@ src/pflotran/pflotran_xcode/pflotran_xcode.xcodeproj/*.mode1v3
 src/pflotran/pflotran_xcode/.git/*
 src/pflotran/pflotran_xcode/pflotran_xcode.xcodeproj/project.xcworkspace/*
 src/pflotran/pflotran_xcode/pflotran_xcode.xcodeproj/xcuserdata/*
+src/pflotran/*xcode/*
 src/pflotran_coupled_ornl_xcode/*
 src/pims/*.o
 src/pims/*.MOD
@@ -41,6 +42,7 @@ src/pims/pims
 src/pims/pims.xcodeproj/*.pbxuser
 src/pims/pims.xcodeproj/*.mode1
 shortcourse/exercises/sx-115/doc/sx115.pdf
+src/pflotran/*xcode/*
 *.toc
 *.aux
 *.log
