@@ -66,10 +66,7 @@ contains
     call MPI_Comm_rank(MPI_COMM_WORLD,rank, ierr)
 
     ! Create MPI Vectors for CLM
-    call VecCreate(mycomm,clm_pf_idata%hksat_x_clm,ierr)
-    call VecSetSizes(clm_pf_idata%hksat_x_clm,clm_pf_idata%nlclm,PETSC_DECIDE,ierr)
-    call VecSetBlockSize(clm_pf_idata%hksat_x_clm,1,ierr)
-    call VecSetFromOptions(clm_pf_idata%hksat_x_clm,ierr)
+    call VecCreateMPI(MPI_COMM_WORLD,clm_pf_idata%nlclm,PETSC_DECIDE,clm_pf_idata%hksat_x_clm,ierr) 
 
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hksat_y_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hksat_z_clm,ierr)
@@ -80,10 +77,7 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%qflx_clm,ierr)
 
     ! Create Seq. Vectors for PFLOTRAN
-    call VecCreate(PETSC_COMM_SELF,clm_pf_idata%hksat_x_pf,ierr)
-    call VecSetSizes(clm_pf_idata%hksat_x_pf,clm_pf_idata%ngpf,PETSC_DECIDE,ierr)
-    call VecSetBlockSize(clm_pf_idata%hksat_x_pf,1,ierr)
-    call VecSetFromOptions(clm_pf_idata%hksat_x_pf,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf,clm_pf_idata%hksat_x_pf,ierr)
 
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%hksat_y_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%hksat_z_pf,ierr)
@@ -95,16 +89,10 @@ contains
 
 
     ! Create MPI Vectors for PFLOTRAN
-    call VecCreate(mycomm,clm_pf_idata%sat_pf,ierr)
-    call VecSetSizes(clm_pf_idata%sat_pf,clm_pf_idata%nlpf,PETSC_DECIDE,ierr)
-    call VecSetBlockSize(clm_pf_idata%sat_pf,1,ierr)
-    call VecSetFromOptions(clm_pf_idata%sat_pf,ierr)
-  
+    call VecCreateMPI(MPI_COMM_WORLD,clm_pf_idata%nlpf,PETSC_DECIDE,clm_pf_idata%sat_pf,ierr)
+ 
     ! Create Seq. Vectors for CLM
-    call VecCreate(PETSC_COMM_SELF,clm_pf_idata%sat_clm,ierr)
-    call VecSetSizes(clm_pf_idata%sat_clm,clm_pf_idata%ngclm,PETSC_DECIDE,ierr)
-    call VecSetBlockSize(clm_pf_idata%sat_clm,1,ierr)
-    call VecSetFromOptions(clm_pf_idata%sat_clm,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm,clm_pf_idata%sat_clm,ierr)
 
   end subroutine clm_pflotran_interface_data_allocate_memory
 
