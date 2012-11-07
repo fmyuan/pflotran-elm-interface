@@ -881,11 +881,9 @@ end subroutine pflotranModelInitMapping3
        !liq_vol_start = liq_vol_start + del_liq_vol
     enddo
 #endif
-
     call StepperRunOneDT(pflotran_model%simulation%realization, &
          pflotran_model%simulation%flow_stepper, &
          pflotran_model%simulation%tran_stepper, pause_time)
-
 #ifdef CLM_PFLOTRAN
     call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
     ! Volume of Water after PFLOTRAN finished
@@ -902,14 +900,14 @@ end subroutine pflotranModelInitMapping3
        !source_sink   = source_sink + pf_clm_data%qsrc_flx(local_id)
     enddo
 
-    write(iulog, *), '===================================================='
-    write(iulog, *), 'Volume of LIQUID water:'
-    write(iulog, *), 'Before PFLOTRAN call: ',liq_vol_start,                        '[m^3/area]'
-    write(iulog, *), 'After  PFLOTRAN call: ',liq_vol_end  ,                        '[m^3/area]'
-    write(iulog, *), 'Change              : ',liq_vol_start-liq_vol_end,            '[m^3/area]'
-    write(iulog, *), 'Rate of change      : ',(liq_vol_end-liq_vol_start)/1800.0d0, '[m^3/area/sec]'
-    write(iulog, *), 'Source_sink         : ',source_sink/998.2d0,                  '[m/sec]'
-    write(iulog, *), '====================================================?'
+    !write(iulog, *), '===================================================='
+    !write(iulog, *), 'Volume of LIQUID water:'
+    !write(iulog, *), 'Before PFLOTRAN call: ',liq_vol_start,                        '[m^3/area]'
+    !write(iulog, *), 'After  PFLOTRAN call: ',liq_vol_end  ,                        '[m^3/area]'
+    !write(iulog, *), 'Change              : ',liq_vol_start-liq_vol_end,            '[m^3/area]'
+    !write(iulog, *), 'Rate of change      : ',(liq_vol_end-liq_vol_start)/1800.0d0, '[m^3/area/sec]'
+    !write(iulog, *), 'Source_sink         : ',source_sink/998.2d0,                  '[m/sec]'
+    !write(iulog, *), '====================================================?'
 
     call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
 #endif

@@ -1,7 +1,7 @@
 program pflotran_interface_main
 
   use pflotran_model_module
-  !use clm_pflotran_interface_data
+  use clm_pflotran_interface_data
   use Mapping_module
   use Input_module
   use HDF5_aux_module
@@ -87,16 +87,25 @@ program pflotran_interface_main
   endif
 #endif
   
-  call pflotranModelInitMapping3(pflotran_m, clm_cell_ids, clm_npts,CLM2PF_FLUX_MAP_ID)
+    clm_pf_idata%nlclm = clm_npts
+    clm_pf_idata%ngclm = clm_npts
+    clm_pf_idata%nlpf  = pflotran_m%realization%patch%grid%nlmax
+    clm_pf_idata%ngpf  = pflotran_m%realization%patch%grid%ngmax
+  call clm_pflotran_interface_data_allocate_memory(1)
+    call pflotranModelInitMapping3(pflotran_m, clm_cell_ids,clm_npts, CLM2PF_FLUX_MAP_ID)
+    call pflotranModelInitMapping3(pflotran_m, clm_cell_ids,clm_npts, CLM2PF_SOIL_MAP_ID)
+    call pflotranModelInitMapping3(pflotran_m, clm_cell_ids,clm_npts, PF2CLM_FLUX_MAP_ID)
+    call pflotranModelSetSoilProp3(pflotran_m)
+  !call pflotranModelInitMapping3(pflotran_m, clm_cell_ids, clm_npts,CLM2PF_FLUX_MAP_ID)
 
 
   !write(*,*), 'Done pflotranModelCreate()'
 
-  !call pflotranModelStepperRunInit(pflotran_m)
-  !do time = 1,10
-  !   call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 3600.0d0)
-  !enddo
-  !call pflotranModelStepperRunFinalize(pflotran_m)
+  call pflotranModelStepperRunInit(pflotran_m)
+  do time = 1,1
+     call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 3600.0d0)
+  enddo
+  call pflotranModelStepperRunFinalize(pflotran_m)
 
   call pflotranModelDestroy(pflotran_m)
 

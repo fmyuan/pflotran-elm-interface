@@ -332,6 +332,7 @@ contains
       deallocate(wts_row_tmp)
       deallocate(wts_col_tmp)
       deallocate(wts_tmp)
+      call InputDestroy(input)
       
     else
       ! Other ranks receive data from io_rank
