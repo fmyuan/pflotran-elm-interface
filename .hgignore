@@ -51,4 +51,5 @@ docs/tecnotes/chemistry/chemistry_implementation.pdf
 docs/user_manual/quick_guide.pdf
 *.bin
 *.bin.info
+*.xmf
 src/clm-pflotran/pflotran

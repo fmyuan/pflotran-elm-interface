@@ -1935,6 +1935,7 @@ subroutine PatchGetDataset1(patch,field,reaction,option,output_option,vec,ivar, 
   use Reactive_Transport_Aux_module  
   use Reaction_module
   use Mineral_module
+  use Output_Aux_module
   
   implicit none
 
@@ -2727,6 +2728,7 @@ function PatchGetDatasetValueAtCell(patch,field,reaction,option, &
   use Reactive_Transport_Aux_module  
   use Reaction_module
   use Mineral_module
+  use Output_Aux_module
 
   implicit none
 
@@ -4366,6 +4368,7 @@ subroutine PatchGetDataset2(patch,surf_field,option,output_option,vec,ivar, &
 
   use Grid_module
   use Option_module
+  use Output_Aux_module
   use Surface_Field_module
   
   use Immis_Aux_module
@@ -4409,7 +4412,7 @@ subroutine PatchGetDataset2(patch,surf_field,option,output_option,vec,ivar, &
   iphase = 1
   
   select case(ivar)
-    case(LIQUID_PRESSURE)
+    case(SURFACE_FLOW_PRESSURE)
       call GridVecGetArrayF90(grid,surf_field%flow_xx_loc,vec_ptr2,ierr)
       do local_id=1,grid%nlmax
         ! gb: grid%nL2G(local_id)
