@@ -3989,8 +3989,10 @@ end subroutine TimestepperDestroy
     use Realization_module
 
     use Option_module
+
     use Output_module, only : Output, OutputInit, OutputVectorTecplot, &
          OutputPermeability
+    use Output_Aux_module
     use Logging_module
     use Discretization_module
     use Reactive_Transport_module, only : RTUpdateAuxVars
@@ -4256,6 +4258,7 @@ end subroutine TimestepperDestroy
     use Option_module
     use Output_module, only : Output, OutputInit, OutputVectorTecplot, &
          OutputPermeability
+    use Output_Aux_module
     use Logging_module
     use Discretization_module
 
@@ -4583,6 +4586,7 @@ end subroutine TimestepperDestroy
     use Option_module
     use Output_module, only : Output, OutputInit, OutputVectorTecplot, &
          OutputPermeability
+    use Output_Aux_module
     use Logging_module
     use Discretization_module
 
