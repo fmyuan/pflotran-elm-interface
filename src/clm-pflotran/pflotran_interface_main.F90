@@ -45,18 +45,16 @@ program pflotran_interface_main
 
 #if 1
   if (pflotran_m%option%mycommsize == 1) then
-    clm_npts = 30*30*10
+    clm_npts = 20*10*10
     allocate (clm_cell_ids(clm_npts))
     do ii = 1,clm_npts
       clm_cell_ids(ii) = ii-1
-      !clm_cell_ids(ii) = ii
     enddo
   else
-    clm_npts = 30*30*10/2
+    clm_npts = 20*10*10/2
     allocate (clm_cell_ids(clm_npts))
     do ii = 1,clm_npts
-      !clm_cell_ids(ii) = ii-1 + 30*30*10/2*pflotran_m%option%myrank
-      clm_cell_ids(ii) = ii + 30*30*10/2*pflotran_m%option%myrank
+      clm_cell_ids(ii) = ii-1 + 20*10*10/2*pflotran_m%option%myrank
     enddo
   endif
 #endif

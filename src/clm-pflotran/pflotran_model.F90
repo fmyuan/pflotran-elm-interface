@@ -350,9 +350,16 @@ contains
 
     type(pflotran_model_type), pointer :: pflotran_model
 
+#ifndef SURFACE_FLOW
     call StepperRunInit(pflotran_model%simulation%realization, &
          pflotran_model%simulation%flow_stepper, &
          pflotran_model%simulation%tran_stepper)
+#else
+    call StepperRunInit(pflotran_model%simulation%realization, &
+         pflotran_model%simulation%surf_realization, &
+         pflotran_model%simulation%flow_stepper, &
+         pflotran_model%simulation%tran_stepper)
+#endif
 
   end subroutine pflotranModelStepperRunInit
 
@@ -881,9 +888,19 @@ end subroutine pflotranModelInitMapping3
        !liq_vol_start = liq_vol_start + del_liq_vol
     enddo
 #endif
+
+#ifndef SURFACE_FLOW
     call StepperRunOneDT(pflotran_model%simulation%realization, &
          pflotran_model%simulation%flow_stepper, &
          pflotran_model%simulation%tran_stepper, pause_time)
+#else
+    call StepperRunOneDT(pflotran_model%simulation%realization, &
+         pflotran_model%simulation%surf_realization, &
+         pflotran_model%simulation%flow_stepper, &
+         pflotran_model%simulation%surf_flow_stepper, &
+         pflotran_model%simulation%tran_stepper, pause_time)
+#endif
+
 #ifdef CLM_PFLOTRAN
     call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
     ! Volume of Water after PFLOTRAN finished
@@ -1075,7 +1092,7 @@ end subroutine pflotranModelInitMapping3
 
     enddo
 
-    call StepperUpdateSolution(realization)
+    !call StepperUpdateSolution(realization)
 
   end subroutine pflotranModelUpdateTopBCHomogeneous
 
