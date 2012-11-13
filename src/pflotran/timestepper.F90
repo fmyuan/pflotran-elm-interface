@@ -3984,7 +3984,11 @@ end subroutine TimestepperDestroy
   ! date:
   !
   ! ************************************************************************** !
+#ifndef SURFACE_FLOW
   subroutine StepperRunInit(realization,flow_stepper,tran_stepper)
+#else
+  subroutine StepperRunInit(realization,surf_realization,flow_stepper,tran_stepper)
+#endif
 
     use Realization_module
 
@@ -3996,7 +4000,10 @@ end subroutine TimestepperDestroy
     use Logging_module
     use Discretization_module
     use Reactive_Transport_module, only : RTUpdateAuxVars
-  use Condition_Control_module
+    use Condition_Control_module
+#ifdef SURFACE_FLOW
+    use Surface_Realization_module
+#endif
 
     implicit none
 
@@ -4006,6 +4013,9 @@ end subroutine TimestepperDestroy
 #include "finclude/petscviewer.h"
 
     type(realization_type) :: realization
+#ifdef SURFACE_FLOW
+    type(surface_realization_type) :: surf_realization
+#endif
     type(stepper_type), pointer :: flow_stepper
     type(stepper_type), pointer :: tran_stepper
     
@@ -4140,7 +4150,11 @@ end subroutine TimestepperDestroy
     endif
 
     ! turn on flag to tell RTUpdateSolution that the code is not timestepping
+#ifdef SURFACE_FLOW
+    call StepperUpdateSolution(realization,surf_realization)
+#else
     call StepperUpdateSolution(realization)
+#endif
 
     if (option%jumpstart_kinetic_sorption .and. option%time < 1.d-40) then
        call StepperJumpStart(realization)
@@ -4251,7 +4265,14 @@ end subroutine TimestepperDestroy
   !
   ! ************************************************************************** !
 
-  subroutine StepperRunOneDT (realization,flow_stepper,tran_stepper, pause_time)
+#ifndef SURFACE_FLOW
+  subroutine StepperRunOneDT (realization,flow_stepper, &
+                              tran_stepper, pause_time)
+#else
+  subroutine StepperRunOneDT (realization,surf_realization, flow_stepper, &
+                              surf_flow_stepper, &
+                              tran_stepper, pause_time)
+#endif
 
     use Realization_module
 
@@ -4266,6 +4287,10 @@ end subroutine TimestepperDestroy
     use Global_Aux_module
     use Grid_module
     use Richards_module
+#ifdef SURFACE_FLOW
+    use Surface_Flow_module
+    use Surface_Realization_module
+#endif
 
     implicit none
 
@@ -4276,6 +4301,10 @@ end subroutine TimestepperDestroy
 
     type(realization_type) :: realization
     type(stepper_type), pointer :: flow_stepper
+#ifdef SURFACE_FLOW
+    type(surface_realization_type) :: surf_realization
+    type(stepper_type), pointer :: surf_flow_stepper
+#endif
     type(stepper_type), pointer :: tran_stepper
     type(stepper_type), pointer :: master_stepper
     type(stepper_type), pointer :: null_stepper
@@ -4374,8 +4403,12 @@ end subroutine TimestepperDestroy
        plot_flag = PETSC_FALSE
        transient_plot_flag = PETSC_FALSE
 
-       call StepperSetTargetTimes(flow_stepper,tran_stepper,option,plot_flag, &
-            transient_plot_flag)
+       call StepperSetTargetTimes(flow_stepper, &
+#ifdef SURFACE_FLOW
+                                 surf_flow_stepper, &
+#endif
+            tran_stepper,option,plot_flag, &
+             transient_plot_flag)
 
        ! flow solution
        if (associated(flow_stepper)) then
@@ -4461,7 +4494,12 @@ end subroutine TimestepperDestroy
        write(iulog, *), ' '
        write(iulog, *),'StepperUpdateSolution()'
 #endif
-       call StepperUpdateSolution(realization)
+
+#ifdef SURFACE_FLOW
+    call StepperUpdateSolution(realization,surf_realization)
+#else
+    call StepperUpdateSolution(realization)
+#endif
        option%time = master_stepper%target_time
        
        ! if a time step cut has occured, need to set the below back to original values
