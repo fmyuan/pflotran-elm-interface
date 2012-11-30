@@ -129,7 +129,7 @@ ifdef dasvyat_test_cut
 endif
 
 ifdef gautam
-  MYFLAGS += -w -g -DCLM_OFFLINE -DGB_DEBUG -DSURFACE_FLOW
+  MYFLAGS += -w -g -DCLM_OFFLINE -DSURFACE_FLOW #-DGB_DEBUG
 endif
 
 CFLAGS		 = 
