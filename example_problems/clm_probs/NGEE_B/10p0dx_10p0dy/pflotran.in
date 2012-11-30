@@ -1,0 +1,120 @@
+:Description: 3D groundwater flow and solute transport
+
+:=========================== flow mode ========================================
+MODE RICHARDS
+:CHECKPOINT 1000000
+:RESTART restart.chk
+
+:=========================== solver options ===================================
+TIMESTEPPER
+END
+
+NEWTON_SOLVER FLOW
+  ITOL_UPDATE 1.d0     ! Convergences with max change in pressure is 1 Pa.
+END
+
+LINEAR_SOLVER FLOW
+END
+
+NEWTON_SOLVER TRANSPORT
+END
+
+LINEAR_SOLVER TRANSPORT
+END
+
+:INITIALIZE_FLOW_FROM_FILE B_10p0dx_10p0dy_10nz_clm_depths_initial_condition.h5
+
+:=========================== discretization ===================================
+GRID
+  TYPE unstructured B_10p0dx_10p0dy_10nz_clm_depths.h5
+END
+
+:=========================== fluid properties =================================
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+:=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 0.5d0
+  SATURATION_FUNCTION sf1
+  PERMEABILITY
+    PERM_X 1.d-10
+    PERM_Y 1.d-10
+    PERM_Z 1.d-11
+  /
+END
+
+:=========================== saturation functions =============================
+SATURATION_FUNCTION sf1
+  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
+  RESIDUAL_SATURATION 0.1d0
+  LAMBDA 0.5d0
+  ALPHA 1.d-4
+  MAX_CAPILLARY_PRESSURE 1.d8
+END
+
+:=========================== output options ===================================
+OUTPUT
+  PERIODIC TIME 3600.d0 s
+   FORMAT HDF5
+END
+
+:=========================== times ============================================
+TIME
+  FINAL_TIME 36000.d0 s
+  INITIAL_TIMESTEP_SIZE 3600. s
+  MAXIMUM_TIMESTEP_SIZE 3600. s        ! produces CFL ~<= 1.
+END
+
+:=========================== regions ==========================================
+REGION all
+  FILE B_10p0dx_10p0dy_10nz_clm_depths.h5
+  GRID unstructured
+END
+
+
+:=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE hydrostatic
+  /
+  INTERPOLATION linear
+  DATUM 0.d0 0.d0 3000.d0
+  PRESSURE 101325.d0
+END
+
+FLOW_CONDITION transpiration
+TYPE
+RATE volumetric_rate
+/
+RATE 0.0d0
+END
+
+:=========================== condition couplers ===============================
+: initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+SOURCE_SINK vegroot
+FLOW_CONDITION transpiration
+REGION all 
+/
+
+:=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+HDF5_READ_GROUP_SIZE 1
+
+MAPPING_FILES                   
+  CLM2PF_FLUX_FILE B_10p0dx_10p0dy_10nz_clm2pf_map.dat
+  CLM2PF_SOIL_FILE B_10p0dx_10p0dy_10nz_clm2pf_map.dat
+  PF2CLM_FLUX_FILE B_10p0dx_10p0dy_10nz_pf2clm_map.dat
+END
