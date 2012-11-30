@@ -1024,19 +1024,10 @@ end subroutine pflotranModelInitMapping3
     enddo
     
     call VecRestoreArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
-#if 0
     call MappingSourceToDestination(pflotran_model%map_pf2clm, &
                                     pflotran_model%option, &
                                     clm_pf_idata%sat_pf, &
                                     clm_pf_idata%sat_clm)
-#endif
-    !call VecGetArrayF90(clm_pf_idata%sat_clm, sat_clm_p, ierr)  
-    !write(*,*),'sat_clm:'
-    !do local_id= 1,clm_pf_idata%ngclm
-    !  write(*,*),local_id,sat_clm_p(local_id)
-    !enddo
-    !call VecRestoreArrayF90(clm_pf_idata%sat_clm, sat_clm_p, ierr)
-
   end subroutine pflotranModelGetSaturation3
 
   ! ************************************************************************** !
