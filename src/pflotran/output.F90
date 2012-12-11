@@ -912,6 +912,7 @@ subroutine OutputVelocitiesTecplotBlock(realization)
   use Option_module
   use Field_module
   use Patch_module
+  use Variables_module
   
   implicit none
 
@@ -1482,6 +1483,7 @@ subroutine OutputVelocitiesTecplotPoint(realization)
   use Option_module
   use Field_module
   use Patch_module
+  use Variables_module
   
   implicit none
 
@@ -1618,6 +1620,7 @@ subroutine OutputVectorTecplot(filename,dataset_name,realization,vector)
   use Grid_module
   use Unstructured_Grid_Aux_module
   use Patch_module
+  use Variables_module
   
   implicit none
 
@@ -1748,6 +1751,7 @@ subroutine WriteTecplotUGridVertices1(fid,realization)
   use Unstructured_Grid_Aux_module
   use Option_module
   use Patch_module
+  use Variables_module
 
   implicit none
 
@@ -2759,7 +2763,8 @@ subroutine WriteObservationDataForCell(fid,realization,local_id)
   use Field_module
   use Patch_module
   use Reaction_Aux_module
-
+  use Variables_module
+  
   implicit none
   
   PetscInt :: fid, i
@@ -3100,6 +3105,7 @@ subroutine WriteObservationDataForCoord(fid,realization,region)
   use Field_module
   use Patch_module
   use Reaction_Aux_module
+  use Variables_module
   
   use Structured_Grid_module
 
@@ -4070,6 +4076,7 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization,local_id,ivar)
   use Grid_module
   use Field_module
   use Patch_module
+  use Variables_module
 
   implicit none
   
@@ -4154,6 +4161,7 @@ subroutine OutputVTK(realization)
   
   use Reactive_Transport_module
   use Reaction_Aux_module
+  use Variables_module
  
   implicit none
 
@@ -4608,6 +4616,7 @@ subroutine OutputVelocitiesVTK(realization)
   use Option_module
   use Field_module
   use Patch_module
+  use Variables_module
   
   implicit none
 
@@ -5450,6 +5459,7 @@ subroutine OutputMAD(realization)
   use Field_module
   use Patch_module
   use Reaction_Aux_module
+  use Variables_module
  
 #if !defined(PETSC_HAVE_HDF5)
   implicit none
@@ -5867,6 +5877,7 @@ end subroutine WriteHDF5Coordinates
 subroutine GetCoordinates(grid,vec,direction)
 
   use Grid_module
+  use Variables_module
   
   implicit none
   
@@ -5908,6 +5919,7 @@ subroutine GetVertexCoordinates(grid,vec,direction,option)
 
   use Grid_module
   use Option_module
+  use Variables_module, only : X_COORDINATE, Y_COORDINATE, Z_COORDINATE
   
   implicit none
   
@@ -6433,6 +6445,7 @@ subroutine ComputeFlowMassBalance(realization)
   use Field_module
   use Patch_module
   use Discretization_module
+  use Variables_module
 
   implicit none
   
@@ -7872,6 +7885,7 @@ subroutine OutputHDF5UGrid(realization)
   use Field_module
   use Patch_module
   use Reaction_Aux_module
+  use Variables_module
 
 #if  !defined(PETSC_HAVE_HDF5)
   implicit none
@@ -8407,7 +8421,9 @@ subroutine OutputHDF5UGridXDMF1(realization)
                                           natural_vec,grp_id,H5T_NATIVE_INTEGER)
     endif
     att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" // trim(string)
-    call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,att_datasetname)
+    if (option%myrank == option%io_rank) then
+      call OutputXMFAttribute(OUTPUT_UNIT,grid%nmax,string,att_datasetname)
+    endif
     cur_variable => cur_variable%next
   enddo
 
@@ -8443,6 +8459,7 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   use Grid_module
   use Option_module
   use Unstructured_Grid_Aux_module
+  use Variables_module
   
   implicit none
   
@@ -8750,6 +8767,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF1(realization,option,file_id)
   use Grid_module
   use Option_module
   use Unstructured_Grid_Aux_module
+  use Variables_module
   
   implicit none
   
@@ -9135,7 +9153,8 @@ subroutine OutputTecplotFEQUAD(surf_realization,realization)
   
   use Reactive_Transport_module
   use Reaction_Aux_module
- 
+  use Variables_module
+  
   implicit none
 
   type(surface_realization_type) :: surf_realization
@@ -9410,6 +9429,7 @@ subroutine WriteTecplotUGridVertices2(fid,surf_realization)
   use Unstructured_Grid_Aux_module
   use Option_module
   use Patch_module
+  use Variables_module
 
   implicit none
 
@@ -10261,11 +10281,14 @@ subroutine OutputHDF5UGridXDMF2(surf_realization,realization)
                                           natural_vec,grp_id,H5T_NATIVE_INTEGER)
     endif
     att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" // trim(string)
-    call OutputXMFAttribute(OUTPUT_UNIT,surf_grid%nmax,string,att_datasetname)
+    if (option%myrank == option%io_rank) then
+      call OutputXMFAttribute(OUTPUT_UNIT,surf_grid%nmax,string,att_datasetname)
+    endif
     cur_variable => cur_variable%next
   enddo
 
   call VecDestroy(global_vec,ierr)
+  call VecDestroy(natural_vec,ierr)
   call h5gclose_f(grp_id,hdf5_err)
 
   call h5fclose_f(file_id,hdf5_err)
@@ -10297,6 +10320,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF2(surf_realization,realization,option,fi
   use Grid_module
   use Option_module
   use Unstructured_Grid_Aux_module
+  use Variables_module
   
   implicit none
   

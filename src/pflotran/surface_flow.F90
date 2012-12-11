@@ -67,6 +67,7 @@ subroutine SurfaceFlowSetPlotVariables(surf_realization)
   
   use Surface_Realization_module
   use Output_Aux_module
+  use Variables_module
     
   implicit none
   
@@ -129,76 +130,55 @@ subroutine SurfaceFlowReadRequiredCardsFromInput(surf_realization,input,option)
   discretization => surf_realization%discretization
 
   input%ierr = 0
-! we initialize the word to blanks to avoid error reported by valgrind
+  ! we initialize the word to blanks to avoid error reported by valgrind
   word = ''
 
-  do
-    call InputReadFlotranString(input,option)
-    if (InputCheckExit(input,option)) exit
+  call InputReadFlotranString(input,option)
+  !if (InputCheckExit(input,option)) exit    
+  call InputReadWord(input,option,word,PETSC_TRUE)
+  call InputErrorMsg(input,option,'keyword','SURFACE_FLOW')
+  call StringToUpper(word)
     
-    call InputReadWord(input,option,word,PETSC_TRUE)
-    call InputErrorMsg(input,option,'keyword','SURFACE_FLOW')
-    call StringToUpper(word)
-    
-    select case(trim(word))
-      !.........................................................................
-      ! Read surface grid information
-      case ('SURF_GRID')
-        call InputReadFlotranString(input,option)
-        if (InputCheckExit(input,option)) exit
+  select case(trim(word))
+    case ('TYPE')
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputErrorMsg(input,option,'keyword','TYPE')
+      call StringToUpper(word)
 
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'keyword','SURF_GRID')
-        call StringToUpper(word)
-        select case(trim(word))
-          case ('TYPE')
-            call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'keyword','TYPE')
-            call StringToUpper(word)
+      select case(trim(word))
+        case ('UNSTRUCTURED')
+          unstructured_grid_itype = IMPLICIT_UNSTRUCTURED_GRID
+          unstructured_grid_ctype = 'implicit unstructured'
+          discretization%itype = UNSTRUCTURED_GRID
+          call InputReadNChars(input,option, &
+                               discretization%filename, &
+                               MAXSTRINGLENGTH, &
+                               PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword','filename')
 
-            select case(trim(word))
-              case ('UNSTRUCTURED')
-                unstructured_grid_itype = IMPLICIT_UNSTRUCTURED_GRID
-                unstructured_grid_ctype = 'implicit unstructured'
-                discretization%itype = UNSTRUCTURED_GRID
-                call InputReadNChars(input,option, &
-                                     discretization%filename, &
-                                     MAXSTRINGLENGTH, &
-                                     PETSC_TRUE)
-                call InputErrorMsg(input,option,'keyword','filename')
-
-                grid => GridCreate()
-                un_str_sfgrid => UGridCreate()
-                un_str_sfgrid%grid_type = TWO_DIM_GRID
-                if (index(discretization%filename,'.h5') > 0) then
-                  call UGridReadHDF5SurfGrid( un_str_sfgrid, &
-                                              !surf_realization%subsurf_filename, &
-                                              discretization%filename, &
-                                              option)
-                else
-                  call UGridReadSurfGrid(un_str_sfgrid, &
-                                        surf_realization%subsurf_filename, &
+          grid => GridCreate()
+          un_str_sfgrid => UGridCreate()
+          un_str_sfgrid%grid_type = TWO_DIM_GRID
+          if (index(discretization%filename,'.h5') > 0) then
+            call UGridReadHDF5SurfGrid( un_str_sfgrid, &
                                         discretization%filename, &
                                         option)
-                endif
-                grid%unstructured_grid => un_str_sfgrid
-                discretization%grid => grid
-                grid%itype = unstructured_grid_itype
-                grid%ctype = unstructured_grid_ctype
+          else
+            call UGridReadSurfGrid(un_str_sfgrid, &
+                                   surf_realization%subsurf_filename, &
+                                   discretization%filename, &
+                                   option)
+          endif
+          grid%unstructured_grid => un_str_sfgrid
+          discretization%grid => grid
+          grid%itype = unstructured_grid_itype
+          grid%ctype = unstructured_grid_ctype
 
-              case default
-              option%io_buffer = 'Surface-flow supports only unstructured grid'
-              call printErrMsg(option)
-            end select
-          case default
-            option%io_buffer = 'Keyword: ' // trim(word) // &
-              ' not recognized in SURF_GRID '
-            call printErrMsg(option)
-        end select
-        call InputSkipToEND(input,option,trim(word))
-
-    end select
-  enddo
+        case default
+          option%io_buffer = 'Surface-flow supports only unstructured grid'
+          call printErrMsg(option)
+      end select
+  end select
 
 end subroutine SurfaceFlowReadRequiredCardsFromInput
 
@@ -285,6 +265,7 @@ subroutine SurfaceFlowRead(surf_realization,surf_flow_solver,input,option)
     call InputReadWord(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','SURFACE_FLOW')
     call StringToUpper(word)
+    write(*,*),'word :: ',trim(word)
 
     select case(trim(word))
       !.........................................................................
@@ -1835,7 +1816,7 @@ subroutine SurfaceFlowDiffusionDerivative(hw_up,zc_up,mannings_up, &
   PetscReal :: head_up, head_dn, dhead
   PetscReal :: Jup_new(option%nflowdof,option%nflowdof), &
                Jdn_new(option%nflowdof,option%nflowdof)
-  PetscReal :: res_pert_up(1),res_pert_dn(1),vel,J_pert_up, J_pert_dn
+  PetscReal :: res_pert_up(1),res_pert_dn(1),vel,Jup_pert,Jdn_pert
   PetscReal :: res(1:option%nflowdof)   ! units: m^3/s
   PetscReal :: dhead_dn_dhw_dn, dhead_up_dhw_up
 
@@ -1906,19 +1887,6 @@ subroutine SurfaceFlowDiffusionDerivative(hw_up,zc_up,mannings_up, &
           (abs((head_dn-head_up) + eps)**(3.d0/2.d0))
   Jdn = -dsign(1.d0,head_dn-head_up)*(1.0d0/mannings_half)*(term1+term2)*length
 
-  call SurfaceFlowDiffusion(hw_up,zc_up,mannings_up, &
-                            hw_dn,zc_dn,mannings_dn, &
-                            dist,length,option,vel,res)
-
-  call SurfaceFlowDiffusion(hw_up+perturbation_tolerance,zc_up,mannings_up, &
-                            hw_dn,zc_dn,mannings_dn, &
-                            dist,length,option,vel,res_pert_up)
-
-  call SurfaceFlowDiffusion(hw_up,zc_up,mannings_up, &
-                            hw_dn+perturbation_tolerance,zc_dn,mannings_dn, &
-                            dist,length,option,vel,res_pert_dn)
-  J_pert_up=(res_pert_up(1)-res(1))/perturbation_tolerance
-  J_pert_dn=(res_pert_dn(1)-res(1))/perturbation_tolerance
 #endif
 
   dhead = head_up-head_dn
@@ -1951,13 +1919,25 @@ subroutine SurfaceFlowDiffusionDerivative(hw_up,zc_up,mannings_up, &
   Jup=Jup_new
   Jdn=Jdn_new
 
-  !write(*,*),'Jup_new: ',term0,term1,term2,Jup_new
-  !write(*,*),'Jdn_new: ',term0,term1,term2,Jdn_new
-  !write(*,*)
-  !write(*,*),' '
-  !
-  !Jup=J_pert_up
-  !Jdn=J_pert_dn
+  if(option%numerical_derivatives_flow) then
+    call SurfaceFlowDiffusion(hw_up,zc_up,mannings_up, &
+                              hw_dn,zc_dn,mannings_dn, &
+                              dist,length,option,vel,res)
+
+    call SurfaceFlowDiffusion(hw_up+perturbation_tolerance,zc_up,mannings_up, &
+                              hw_dn,zc_dn,mannings_dn, &
+                              dist,length,option,vel,res_pert_up)
+
+    call SurfaceFlowDiffusion(hw_up,zc_up,mannings_up, &
+                              hw_dn+perturbation_tolerance,zc_dn,mannings_dn, &
+                              dist,length,option,vel,res_pert_dn)
+    Jup_pert=(res_pert_up(1)-res(1))/perturbation_tolerance
+    Jdn_pert=(res_pert_dn(1)-res(1))/perturbation_tolerance
+
+    Jup=Jup_pert
+    Jdn=Jdn_pert
+  endif
+
 
 end subroutine SurfaceFlowDiffusionDerivative
 
@@ -2101,7 +2081,7 @@ subroutine SurfaceFlowUpdateFixedAccumPatch(surf_realization)
 
   call GridVecRestoreArrayF90(grid ,surf_field%flow_accum, accum_p, ierr)
   call GridVecRestoreArrayF90(grid, surf_field%area, area_p,ierr)
-  call GridVecRestoreArrayF90(grid, surf_field%flow_xx_loc, xx_p, ierr)
+  call GridVecRestoreArrayF90(grid, surf_field%flow_xx, xx_p, ierr)
 
 end subroutine SurfaceFlowUpdateFixedAccumPatch
 
@@ -2228,6 +2208,9 @@ subroutine SurfaceBCFluxDerivative(ibndtype,head,slope,mannings, &
 
   PetscInt :: pressure_bc_type
   PetscReal :: flux_dh
+  PetscReal :: J_pert(1:option%nflowdof),vel
+  PetscReal :: res(1)
+  PetscReal :: res_pert(1)
 
   ! Flow  
   pressure_bc_type = ibndtype(RICHARDS_PRESSURE_DOF)
@@ -2244,6 +2227,18 @@ subroutine SurfaceBCFluxDerivative(ibndtype,head,slope,mannings, &
   end select
 
   J(1) = flux_dh*length
+
+  if(option%numerical_derivatives_flow) then
+    call SurfaceBCFlux(ibndtype,head,slope,mannings, &
+                       length,option,vel,res)
+
+    call SurfaceBCFlux(ibndtype,head+perturbation_tolerance,slope,mannings, &
+                       length,option,vel,res_pert)
+
+    J_pert(1)=(res_pert(1)-res(1))/perturbation_tolerance
+    J(1)=J_pert(1)
+  endif
+
 
 end subroutine SurfaceBCFluxDerivative
 

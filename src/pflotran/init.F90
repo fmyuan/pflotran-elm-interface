@@ -62,7 +62,7 @@ subroutine Init(simulation)
   use Reactive_Transport_module
   
   use Global_module
-
+  use Variables_module
   use water_eos_module
 !  use Utility_module
   use Output_module
@@ -75,6 +75,7 @@ subroutine Init(simulation)
   use Unstructured_Grid_module
   use Surface_Realization_module
 #endif
+
   implicit none
   
   type(simulation_type) :: simulation
@@ -1322,6 +1323,7 @@ subroutine InitReadInput(simulation)
   use Timestepper_module
   use Region_module
   use Condition_module
+  use Constraint_module
   use Coupler_module
   use Strata_module
   use Observation_module
@@ -1469,7 +1471,8 @@ subroutine InitReadInput(simulation)
           call InputErrorMsg(input,option,'word','CHEMISTRY') 
           select case(trim(word))
             case('PRIMARY_SPECIES','SECONDARY_SPECIES','GAS_SPECIES', &
-                 'MINERALS','COLLOIDS','GENERAL_REACTION','MICROBIAL_REACTION')
+                 'MINERALS','COLLOIDS','GENERAL_REACTION', &
+                 'MICROBIAL_REACTION','REACTION_SANDBOX')
               call InputSkipToEND(input,option,card)
             case('REDOX_SPECIES')
               call ReactionReadRedoxSpecies(reaction,input,option)
@@ -3948,7 +3951,8 @@ subroutine InitReadRequiredCardsFromInputSurf(surf_realization)
   if(InputError(input)) return
   option%nsurfflowdof = 1
   
-  call InputFindStringErrorMsg(input,option,string)
+  string = "SURF_GRID"
+  call InputFindStringInFile(input,option,string)
   call SurfaceFlowReadRequiredCardsFromInput(surf_realization,input,option)
 
   select case(discretization%itype)
@@ -4122,7 +4126,7 @@ subroutine assignSurfaceMaterialPropToRegions(surf_realization)
           surf_material_property => &
             surf_realization%surf_material_property_array(surf_material_id)%ptr
           if (.not.associated(surf_material_property)) then
-            write(dataset_name,*) material_id
+            write(dataset_name,*) surf_material_id
             option%io_buffer = 'No material property for surface material id ' // &
                                trim(adjustl(dataset_name)) &
                                //  ' defined in input file.'
@@ -4134,7 +4138,7 @@ subroutine assignSurfaceMaterialPropToRegions(surf_realization)
                              trim(adjustl(dataset_name))
           call printErrMsgByRank(option)
         else if (surf_material_id > size(surf_realization%surf_material_property_array)) then
-          write(option%io_buffer,*) material_id
+          write(option%io_buffer,*) surf_material_id
           option%io_buffer = 'Unmatched surface material id in patch:' // &
             adjustl(trim(option%io_buffer))
           call printErrMsgByRank(option)
