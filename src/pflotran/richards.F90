@@ -5982,6 +5982,7 @@ subroutine RichardsSetPlotVariables(realization)
   
   use Realization_module
   use Output_Aux_module
+  use Variables_module
     
   implicit none
   
