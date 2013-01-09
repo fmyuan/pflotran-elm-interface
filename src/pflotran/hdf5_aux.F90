@@ -35,7 +35,7 @@ module HDF5_Aux_module
             HDF5ReadDatasetMap, &
             HDF5GroupExists, &
 #endif ! PARALLELIO_LIB
-            HDF5MakeStringCompabible
+            HDF5MakeStringCompatible
 
 contains
 
@@ -934,16 +934,14 @@ function HDF5GroupExists(filename,group_name,option)
   
 end function HDF5GroupExists
 
-#endif ! defined(PETSC_HAVE_HDF5)
-
 ! ************************************************************************** !
 !
-! HDF5MakeStringCompabible: Replaces '/' in string with '_' for hdf5 names
+! HDF5MakeStringCompatible: Replaces '/' in string with '_' for hdf5 names
 ! author: Glenn Hammond
 ! date: 10/25/07
 !
 ! ************************************************************************** !
-subroutine HDF5MakeStringCompabible(name)
+subroutine HDF5MakeStringCompatible(name)
 
   implicit none
   
@@ -960,6 +958,8 @@ subroutine HDF5MakeStringCompabible(name)
   
   name = trim(name)
 
-end subroutine HDF5MakeStringCompabible
+end subroutine HDF5MakeStringCompatible
+
+#endif ! defined(PETSC_HAVE_HDF5)
 
 end module HDF5_Aux_module

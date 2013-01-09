@@ -316,7 +316,7 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
   use Option_module
   use Output_Aux_module
   use Output_module, only : Output, OutputInit, OutputVectorTecplot, &
-                            OutputPermeability, OutputPrintCouplers
+                            OutputPrintCouplers
   use Logging_module  
   use Discretization_module
   use Condition_Control_module
@@ -511,21 +511,6 @@ subroutine StepperRun(realization,flow_stepper,tran_stepper)
     transient_plot_flag_surf = PETSC_TRUE
     call Output(surf_realization,realization,plot_flag_surf,transient_plot_flag_surf)
 #endif
-    if (output_option%print_permeability) then
-      call OutputPermeability(realization)
-    endif
-    if (output_option%print_porosity) then
-      if (len_trim(option%group_prefix) > 1) then
-        string = 'porosity-' // trim(option%group_prefix) // '.tec'
-      else
-        string = 'porosity.tec'
-      endif
-      call DiscretizationLocalToGlobal(realization%discretization, &
-                                       realization%field%porosity_loc, &
-                                       realization%field%work,ONEDOF)
-      call OutputVectorTecplot(string,string,realization,realization%field%work)
-    endif
-
   endif
   
   !if TIMESTEPPER->MAX_STEPS < 0, print out initial condition only
@@ -2512,11 +2497,7 @@ subroutine StepperStepTransportDT_GI(realization,stepper, &
 
     sum_newton_iterations = sum_newton_iterations + num_newton_iterations
     sum_linear_iterations = sum_linear_iterations + num_linear_iterations
-    
-    if (snes_reason >= 0 .and. option%use_mc) then
-      option%sec_vars_update = PETSC_TRUE
-    endif
-    
+      
     if (snes_reason <= 0) then
       ! The Newton solver diverged, so try reducing the time step.
       icut = icut + 1
@@ -2964,28 +2945,6 @@ subroutine StepperRunSteadyState(realization,flow_stepper,tran_stepper)
   if (output_option%print_initial) then
     transient_plot_flag = PETSC_FALSE
     call Output(realization,plot_flag,transient_plot_flag)
-    if (output_option%print_permeability) then
-      if (len_trim(option%group_prefix) > 1) then
-        string = 'permeability-' // trim(option%group_prefix) // '.tec'
-      else
-        string = 'permeability.tec'
-      endif
-      call DiscretizationLocalToGlobal(realization%discretization, &
-                                       realization%field%perm_xx_loc, &
-                                       realization%field%work,ONEDOF)
-      call OutputVectorTecplot(string,string,realization,realization%field%work)
-    endif
-    if (output_option%print_porosity) then
-      if (len_trim(option%group_prefix) > 1) then
-        string = 'porosity-' // trim(option%group_prefix) // '.tec'
-      else
-        string = 'porosity.tec'
-      endif
-      call DiscretizationLocalToGlobal(realization%discretization, &
-                                       realization%field%porosity_loc, &
-                                       realization%field%work,ONEDOF)
-      call OutputVectorTecplot(string,string,realization,realization%field%work)
-    endif
   endif
 
   if (OptionPrintToScreen(option)) then
