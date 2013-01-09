@@ -153,9 +153,6 @@ subroutine Init(simulation)
     call InitPrintPFLOTRANHeader(option,option%fid_out)
   endif
   
-  call InitReadHDF5CardsFromInput(realization)
-  call Create_IOGroups(option)
-
   ! read required cards
   call InitReadRequiredCardsFromInput(realization)
 #ifdef SURFACE_FLOW
@@ -213,11 +210,6 @@ subroutine Init(simulation)
   call InitReadInput(simulation)
   call InputDestroy(realization%input)
 
-
-#ifdef VAMSI_HDF5      
-  call Create_IOGroups(option)
-#endif    
-
 #if defined(PARALLELIO_LIB)
   call Create_IOGroups(option)
 #endif    
@@ -238,13 +230,8 @@ subroutine Init(simulation)
   
   if (associated(realization%reaction)) then
     if (realization%reaction%use_full_geochemistry) then
-!geh      if (realization%reaction%use_geothermal_hpt)then
-!geh        call DatabaseRead_hpt(realization%reaction,option)
-!geh        call BasisInit_hpt(realization%reaction,option)    
-!geh      else
         call DatabaseRead(realization%reaction,option)
         call BasisInit(realization%reaction,option)    
-!geh      endif
     else
       ! turn off activity coefficients since the database has not been read
       realization%reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_OFF
@@ -747,13 +734,11 @@ subroutine Init(simulation)
   call RealProcessFluidProperties(realization)
   write(*,*), 'assignMaterialPropToRegions'
   call assignMaterialPropToRegions(realization)
+  if(realization%discretization%lsm_flux_method) &
+    call GridComputeMinv(realization%discretization%grid, &
+                         realization%discretization%stencil_width,option)
 
-#ifdef SUBCONTINUUM_MODEL
-  call RealProcessSubcontinuumProp(realization)
-  call assignSubcontinuumPropToRegions(realization)
-  ! NOTE (Jitu): Check again if this is the right place to call this routine  
-  call GridPopulateSubcontinuum(realization)  
-#endif
+
   call RealizationInitAllCouplerAuxVars(realization)
   if (option%ntrandof > 0) then
     call printMsg(option,"  Setting up TRAN Realization ")
@@ -853,10 +838,6 @@ subroutine Init(simulation)
   if (option%ntrandof > 0) then
     call RTSetup(realization)
 
-#ifdef SUBCONTINUUM_MODEL
-    call STSetup(realization)
-#endif
-
     ! initialize densities and saturations
     if (option%nflowdof == 0) then
       call GlobalSetAuxVarScalar(realization,option%reference_pressure, &
@@ -898,6 +879,12 @@ subroutine Init(simulation)
     call OutputVariableAddToList( &
            realization%output_option%output_variable_list, &
            'Porosity',OUTPUT_GENERIC,'-',POROSITY)  
+  endif
+  if (realization%output_option%print_permeability) then
+    ! add porosity to header
+    call OutputVariableAddToList( &
+           realization%output_option%output_variable_list, &
+           'Permeability X',OUTPUT_GENERIC,'m^2',PERMEABILITY)  
   endif
 
   ! write material ids
@@ -987,19 +974,11 @@ subroutine Init(simulation)
   endif
   
 #if defined(PETSC_HAVE_HDF5)
-#if !defined(HDF5_BROADCAST) && !defined(VAMSI_HDF5_READ)
+#if !defined(HDF5_BROADCAST)
   call printMsg(option,"Default HDF5 method is used in Initialization")
-#elif defined(HDF5_BROADCAST)
-  call printMsg(option,"Glenn's HDF5 broadcast method is used in Initialization")
-#elif defined(VAMSI_HDF5_READ)
-  call printMsg(option,"Vamsi's HDF5 broadcast method is used in Initialization")
-  if (option%myrank == option%io_rank) then
-    write(*,'(" HDF5_READ_GROUP_SIZE = ",i6)') option%hdf5_read_group_size
-    write(*,'(" HDF5_WRITE_GROUP_SIZE = ",i6)') option%hdf5_write_group_size
-  endif  
-#endif !VAMSI_HDF5_READ
 #else
-  call printMsg(option,'No HDF5 available')
+  call printMsg(option,"Glenn's HDF5 broadcast method is used in Initialization")
+#endif
 #endif !PETSC_HAVE_HDF5
 
 #ifdef SURFACE_FLOW
@@ -1313,9 +1292,6 @@ subroutine InitReadInput(simulation)
   use Structured_Grid_module
   use Solver_module
   use Material_module
-#ifdef SUBCONTINUUM_MODEL
-  use Subcontinuum_module
-#endif
   use Saturation_Function_module  
   use Dataset_Aux_module
   use Fluid_module
@@ -1378,9 +1354,6 @@ subroutine InitReadInput(simulation)
   type(waypoint_type), pointer :: waypoint
   
   type(material_property_type), pointer :: material_property
-#ifdef SUBCONTINUUM_MODEL
-  type(subcontinuum_property_type), pointer :: subcontinuum_property
-#endif
   type(fluid_property_type), pointer :: fluid_property
   type(saturation_function_type), pointer :: saturation_function
 
@@ -1803,12 +1776,6 @@ subroutine InitReadInput(simulation)
 
 !......................
 
-      case ('HDF5_READ_GROUP_SIZE')
-        call InputReadInt(input,option,option%hdf5_read_group_size)
-        call InputErrorMsg(input,option,'HDF5_READ_GROUP_SIZE','Group size')
-
-!......................
-
       case ('NUMERICAL_JACOBIAN_FLOW')
         option%numerical_derivatives_flow = PETSC_TRUE
 
@@ -1923,17 +1890,6 @@ subroutine InitReadInput(simulation)
                                          realization%saturation_functions)
         nullify(saturation_function)   
 
-!....................
-#ifdef SUBCONTINUUM_MODEL 
-      case ('SUBCONTINUUM_PROPERTY')
-
-        subcontinuum_property => SubcontinuumPropertyCreate()
-        call InputReadWord(input,option,subcontinuum_property%name,PETSC_TRUE)
-        call InputErrorMsg(input,option,'name','SUBCONTINUUM_PROPERTY')        
-        call SubcontinuumPropertyRead(subcontinuum_property,input,option)
-        call SubcontinuumPropertyAddToList(subcontinuum_property,realization%subcontinuum_properties)
-        nullify(subcontinuum_property)
-#endif
 !....................
       
       case ('MATERIAL_PROPERTY')
@@ -2341,6 +2297,7 @@ subroutine InitReadInput(simulation)
         option%surf_subsurf_coupling_flow_dt = simulation%surf_realization%dt_coupling
         option%surf_flow_dt=simulation%surf_flow_stepper%dt_min
 #endif
+
 !....................
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
       case ('MAPPING_FILES')
@@ -2350,6 +2307,19 @@ subroutine InitReadInput(simulation)
           if (InputCheckExit(input,option)) exit
         enddo
 #endif
+
+
+!......................
+      case ('HDF5_READ_GROUP_SIZE')
+        call InputReadInt(input,option,option%hdf5_read_group_size)
+        call InputErrorMsg(input,option,'HDF5_READ_GROUP_SIZE','Group size')
+
+!......................
+      case ('HDF5_WRITE_GROUP_SIZE')
+        call InputReadInt(input,option,option%hdf5_write_group_size)
+        call InputErrorMsg(input,option,'HDF5_WRITE_GROUP_SIZE','Group size')
+
+
 !....................
       case default
     
@@ -2359,11 +2329,8 @@ subroutine InitReadInput(simulation)
 
     end select
 
-
-
   enddo
-
-                                        
+                                      
 end subroutine InitReadInput
 
 ! ************************************************************************** !
@@ -2764,173 +2731,6 @@ subroutine assignMaterialPropToRegions(realization)
                                    field%tortuosity_loc,ONEDOF)
 
 end subroutine assignMaterialPropToRegions
-
-! *********************************************************************** !
-!
-! assignSubcontinuumPropToRegions: Assigns subcontinuum properties to 
-!                                    associated regions in the model
-! author: Jitendra Kumar 
-! date: 10/14/2010
-!
-! *********************************************************************** !
-subroutine assignSubcontinuumPropToRegions(realization)
-
-
-  use Realization_module
-  use Discretization_module
-  use Strata_module
-  use Region_module
-  use Material_module
-  use Option_module
-  use Grid_module
-  use Field_module
-  use Patch_module
-  use Level_module
-
-  use HDF5_module
-
-  implicit none
-
-  type(realization_type) :: realization
-#ifdef SUBCONTINUUM_MODEL
-  PetscReal, pointer :: ssize_p(:)   !subcontinuum sizes
-  PetscInt, pointer :: scount_p(:)   !subcontinuum unit count for each type
-  PetscInt, pointer :: stype_p(:)    !no. of subcontinuum types
-
-  PetscInt :: icell, local_id, ghosted_id, natural_id, material_id &
-              subcontinuum_id
-  PetscInt :: istart, iend
-  PetscInt :: ssub, scell
-  character(len=MAXSTRINGLENGTH) :: group_name
-  character(len=MAXSTRINGLENGTH) :: dataset_name
-  PetscErrorCode :: ierr
-
-  type(option_type), pointer :: option
-  type(grid_type), pointer :: grid
-  type(discretization_type), pointer :: discretization
-  type(field_type), pointer :: field
-  type(strata_type), pointer :: strata
-  type(patch_type), pointer :: patch
-  type(level_type), pointer :: cur_level
-  type(patch_type), pointer :: cur_patch
-    
-  type(material_property_type), pointer :: material_property,  &
-                                              null_material_property
-  type(region_type), pointer :: region
-  PetscBool :: updated_ghosted_subcontinuum_ids
-
-  option => realization%option
-  discretization =>realization%discretization
-  patch => realization%patch
-  field => realization%field
-
-  ! loop over all patches and allocate arrays for subcontinuum type
-  ! count arrays: This has to be done only for the last and finest level
-  cur _level => realization%level_list%last
-  if (.not.associated(cur_level)) exit
-  cur_patch => cur_level%patch_list%first
-  do
-    ! Allocate storage for the subcontinuum id offset
-    allocate(cur_patch%num_subcontinuum_type(cur_patch%grid%nlmax,2)
-    ssub = 0
-    if (.not.associated(cur_patch)) exit
-    strata => cur_patch%strata%first
-    do
-      if (.not.associated.(strata)) exit
-        ! Calculate num of subcontinuum ids to be stored for this strata
-        ssub = ssub + strata%material_property%num_subcontinuum_type * &
-                                              strata%region%num_cells
-        region => strata%region                                      
-        if (associated(region)) then
-          istart = 1
-          iend = region%num_cells
-        else
-          istart = 1
-          iend = grid%nlmax
-        endif
-        do icell=istart, iend
-          if (associated(region)) then
-            local_id = region%cell_ids(icell)
-          else
-            local_id = icell
-          endif
-          cur_patch%num_subcontinuum_type(local_id,1) = &
-                      strata%material_property%num_subcontinuum_type
-        enddo             
-      strata => strata%next
-    enddo
-    if (.not.associated(cur_patch%num_subcontinuum_type)) then
-      ! TODO (Jitu): come back and check the next two lines
-      ! storage for subcontinuum ids for the cells in the patch            
-      allocate(cur_patch%subcontinuum_type_ids(ssub));
-    endif
-
-    ! Loop through all cells in the patch and calculate the offsets
-    ! for the subcontinuum ids
-    do icell=1, cur_patch%grid%nlmax
-      if (icell == 1)
-        cur_patch%num_subcontinuum_type(icell,2) = 1
-      else
-        cur_patch%num_subcontinuum_type(icell,2) = &
-          cur_patch%num_subcontinuum_type(icell-1, 2) + &
-          cur_patch%num_subcontinuum_type(icell-1, 1)
-    enddo
-    cur_patch => cur_patch%next 
-  enddo 
-
-  ! currently subcontinuum properties are set based on regions only.
-  ! TODO(jitu): Add support to read subcontinuum properties from input file
-  update_ghosted_subcontinuum_ids = PETSC_FALSE
-  cur_level => realization%level_list%last
-  if (.not.associated(cur_level)) exit
-  cur_patch => cur_level%patch_list%first
-  do
-    if (.not.associated.(cur_patch)) exit
-    grid => cur_patch%grid
-    strata => cur_patch%strata%first
-    do
-      if (.not.associated(strata)) exit
-      ! Read in cell by cell subcontunum ids if they exist
-      if (.not.associated(strata%region) .and. strata%active) then
-        ! readSubcontinuumFromFile(realization, &
-        !                        strata%subcontinuum_property_file_name)
-        ! TODO(jitu): Implement the above function
-      else if (strata%active) then
-        update_ghosted_subcontinuum_ids = PETSC_TRUE
-        region => strata%region
-        material_property => strata%material_property
-        subcontinuum_property => strata%subcontinuum_property
-        if (associated(region)) then 
-          istart = 1
-          iend = region%num_cells
-        else 
-          istart =1 
-          iend = grid%nlmax
-        endif 
-        sum = 1  ! reset the offset counter
-        do icell=istart, iend
-          if (associated(region)) then 
-            local_id = region%cell_ids(icell)
-          else
-            local_id = icell
-          endif
-          ! Jump to the appropriate offset and save the subcontinuum ids
-          counter = cur_patch%num_subcontinuum_type(local_id,2)
-          ! save the subcontinuum id
-          do isub=1,strata%material_type%num_subcontinuum_type
-            cur_patch%subcontinuum_type_ids(counter) = & 
-               subcontinuum_property(isub)%id
-            counter = counter + 1   
-          enddo
-        enddo
-      endif
-      strata => strata%next
-    enddo
-    cur_patch => cur_patch%next
-  enddo
-#endif
-                                              
-end subroutine assignSubcontinuumPropToRegions
 
 ! ************************************************************************** !
 !
@@ -3689,7 +3489,6 @@ end subroutine readTransportInitialCondition
 ! date: 07/14/09
 !
 ! ************************************************************************** !
-
 subroutine Create_IOGroups(option)
 
   use Option_module
@@ -3764,136 +3563,8 @@ subroutine Create_IOGroups(option)
     call printMsg(option)      
   call PetscLogEventEnd(logging%event_create_iogroups,ierr)
 #endif   ! PARALLELIO_LIB 
-
-#ifdef VAMSI_HDF5_READ  
-  call PetscLogEventBegin(logging%event_create_iogroups,ierr)
-
-  if (option%hdf5_read_group_size <= 0) then
-    write(option%io_buffer,& 
-          '("The keyword HDF5_READ_GROUP_SIZE & 
-            & in the input file (pflotran.in) is either not set or &
-            & its value is less than or equal to ZERO. &
-            & HDF5_READ_GROUP_SIZE =  ",i6)') &
-             option%hdf5_read_group_size
-    call printErrMsg(option)      
-  endif         
-                  
-  option%rcolor = floor(real(option%myrank / option%hdf5_read_group_size))
-  option%rkey = option%myrank
-  call MPI_Comm_split(option%mycomm,option%rcolor,option%rkey, &
-                      option%read_group,ierr)
-  call MPI_Comm_size(option%read_group,option%read_grp_size,ierr)
-  call MPI_Comm_rank(option%read_group,option%read_grp_rank,ierr)
-
-  if (mod(option%myrank,option%hdf5_read_group_size) == 0) then 
-    option%reader_color = 1
-  else
-    option%reader_color = 0
-  endif
-  option%reader_key = option%myrank
-  call MPI_Comm_split(option%mycomm,option%reader_color, &
-                      option%reader_key,option%readers,ierr)
-  call MPI_Comm_size(option%readers,option%readers_size,ierr)
-  call MPI_Comm_rank(option%readers,option%readers_rank,ierr)
-
-  call PetscLogEventEnd(logging%event_create_iogroups,ierr)
-#ifdef VAMSI_DEBUG    
-  if (option%myrank == 0) write (*,'("Number of readers = ",i6)') option%readers_size
-  if (mod(option%myrank,option%hdf5_read_group_size) == 0) then 
-    write(*,'("I''m a reader, My rank = ",i6)') option%myrank
-  endif   
-#endif
-
-#endif
-
-#ifdef VAMSI_HDF5_WRITE  
-  call PetscLogEventBegin(logging%event_create_iogroups,ierr)
-
-  if (option%hdf5_write_group_size <= 0) then
-    write(option%io_buffer,& 
-          '("The keyword HDF5_WRITE_GROUP_SIZE & 
-            &in the input file (pflotran.in) is either not set or &
-            &its value is less than or equal to ZERO. &
-            &HDF5_WRITE_GROUP_SIZE =  ",i6)') &
-             option%hdf5_write_group_size
-    call printErrMsg(option)      
-  endif         
-                  
-  option%wcolor = floor(real(option%myrank / option%hdf5_write_group_size))
-  option%wkey = option%myrank
-  call MPI_Comm_split(option%mycomm,option%wcolor,option%wkey,option%write_group,ierr)
-  call MPI_Comm_size(option%write_group,option%write_grp_size,ierr)
-  call MPI_Comm_rank(option%write_group,option%write_grp_rank,ierr)
-
-  if (mod(option%myrank,option%hdf5_write_group_size) == 0) then 
-    option%writer_color = 1
-  else
-    option%writer_color = 0
-  endif
-  option%writer_key = option%myrank
-  call MPI_Comm_split(option%mycomm,option%writer_color,option%writer_key,option%writers,ierr)
-  call MPI_Comm_size(option%writers,option%writers_size,ierr)
-  call MPI_Comm_rank(option%writers,option%writers_rank,ierr)
-
-  call PetscLogEventEnd(logging%event_create_iogroups,ierr)
-#endif
  
 end subroutine Create_IOGroups
-
-! ************************************************************************** !
-!
-! InitReadHDF5CardsFromInput: Reads from pflow input file cards related to
-!                             group size for HDF5 read and write.
-! author: Gautam Bisht
-! date: 05/12/11
-!
-! ************************************************************************** !
-subroutine InitReadHDF5CardsFromInput(realization)
-
-  use Simulation_module
-  use Option_module
-  use Input_module
-  use Realization_module
-  
-
-  implicit none
-  
-  type(simulation_type) :: simulation
-
-  PetscErrorCode :: ierr
-  character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: card
-  character(len=MAXSTRINGLENGTH) :: string
-
-  type(realization_type), pointer :: realization
-  type(input_type), pointer :: input
-  type(option_type), pointer :: option
-
-  input => realization%input
-  option => realization%option
-
-!......................
-  string = "HDF5_READ_GROUP_SIZE"
-  call InputFindStringInFile(input,option,string)
-
-  if (.not.InputError(input)) then  
-    ! read in keyword 
-     write(8,*), 'no error'
-        call InputReadInt(input,option,option%hdf5_read_group_size)
-        call InputErrorMsg(input,option,'HDF5_READ_GROUP_SIZE','Group size')
-  endif
-
-!......................
-  string = "HDF5_WRITE_GROUP_SIZE"
-  call InputFindStringInFile(input,option,string)
-
-  if (.not.InputError(input)) then  
-    ! read in keyword 
-        call InputReadInt(input,option,option%hdf5_write_group_size)
-        call InputErrorMsg(input,option,'HDF5_READ_GROUP_SIZE','Group size')
-  endif
-
-end subroutine InitReadHDF5CardsFromInput
 
 #ifdef SURFACE_FLOW
 ! ************************************************************************** !

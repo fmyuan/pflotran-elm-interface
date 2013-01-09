@@ -53,3 +53,4 @@ docs/user_manual/quick_guide.pdf
 *.bin.info
 *.xmf
 src/clm-pflotran/pflotran
+src/pflotran_coupled_gbisht_xcode/*
