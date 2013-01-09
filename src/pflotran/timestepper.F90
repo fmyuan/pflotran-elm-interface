@@ -2274,7 +2274,6 @@ subroutine StepperStepSurfaceFlowDT(surf_realization,stepper,failure)
           print *,"Stopping execution!"
         endif
         surf_realization%output_option%plot_name = 'flow_cut_to_failure'
-        !call Output(surf_realization,PETSC_TRUE,PETSC_FALSE)
         failure = PETSC_TRUE
         return
       endif
@@ -3954,7 +3953,7 @@ end subroutine TimestepperDestroy
     use Option_module
 
     use Output_module, only : Output, OutputInit, OutputVectorTecplot, &
-         OutputPermeability
+                              OutputPrintCouplers
     use Output_Aux_module
     use Logging_module
     use Discretization_module
@@ -3974,6 +3973,7 @@ end subroutine TimestepperDestroy
     type(realization_type) :: realization
 #ifdef SURFACE_FLOW
     type(surface_realization_type) :: surf_realization
+    PetscBool :: plot_flag_surf, transient_plot_flag_surf
 #endif
     type(stepper_type), pointer :: flow_stepper
     type(stepper_type), pointer :: tran_stepper
@@ -4136,30 +4136,20 @@ end subroutine TimestepperDestroy
       return
     endif
 
-    ! print initial condition output if not a restarted sim
-    call OutputInit(realization,master_stepper%steps)
-    if (output_option%plot_number == 0 .and. &
-         master_stepper%max_time_step >= 0 .and. &
-         output_option%print_initial) then
-       plot_flag = PETSC_TRUE
-       transient_plot_flag = PETSC_TRUE
-       call Output(realization,plot_flag,transient_plot_flag)
-       if (output_option%print_permeability) then
-          call OutputPermeability(realization)
-       endif
-       if (output_option%print_porosity) then
-          if (len_trim(option%group_prefix) > 1) then
-             string = 'porosity-' // trim(option%group_prefix) // '.tec'
-          else
-             string = 'porosity.tec'
-          endif
-          call DiscretizationLocalToGlobal(realization%discretization, &
-               realization%field%porosity_loc, &
-               realization%field%work,ONEDOF)
-          call OutputVectorTecplot(string,string,realization,realization%field%work)
-       endif
-
-    endif
+  ! print initial condition output if not a restarted sim
+  call OutputInit(realization,master_stepper%steps)
+  if (output_option%plot_number == 0 .and. &
+      master_stepper%max_time_step >= 0 .and. &
+      output_option%print_initial) then
+    plot_flag = PETSC_TRUE
+    transient_plot_flag = PETSC_TRUE
+    call Output(realization,plot_flag,transient_plot_flag)
+#ifdef SURFACE_FLOW
+    plot_flag_surf = PETSC_TRUE
+    transient_plot_flag_surf = PETSC_TRUE
+    call Output(surf_realization,realization,plot_flag_surf,transient_plot_flag_surf)
+#endif
+  endif
   
     !if TIMESTEPPER->MAX_STEPS < 0, print out initial condition only
     if (master_stepper%max_time_step < 1) then
@@ -4197,6 +4187,10 @@ end subroutine TimestepperDestroy
           tran_stepper%dt_max = tran_stepper%cur_waypoint%dt_max
        endif
     endif
+
+  if (realization%debug%print_couplers) then
+    call OutputPrintCouplers(realization,ZERO_INTEGER)
+  endif
 
 
     ! LOCAL variable:       plot_flag                = PETSC_FALSE
@@ -4237,7 +4231,7 @@ end subroutine TimestepperDestroy
 
     use Option_module
     use Output_module, only : Output, OutputInit, OutputVectorTecplot, &
-         OutputPermeability
+                              OutputPrintCouplers
     use Output_Aux_module
     use Logging_module
     use Discretization_module
@@ -4263,6 +4257,7 @@ end subroutine TimestepperDestroy
 #ifdef SURFACE_FLOW
     type(surface_realization_type) :: surf_realization
     type(stepper_type), pointer :: surf_flow_stepper
+    PetscBool :: plot_flag_surf, transient_plot_flag_surf
 #endif
     type(stepper_type), pointer :: tran_stepper
     type(stepper_type), pointer :: master_stepper
@@ -4448,6 +4443,10 @@ end subroutine TimestepperDestroy
           call PetscLogStagePop(ierr)
        endif
        
+    if (realization%debug%print_couplers) then
+      call OutputPrintCouplers(realization,master_stepper%steps)
+    endif  
+
        ! update solution variables
 #ifdef CLM_PFLOTRAN
        write(iulog, *), ' '
@@ -4482,9 +4481,20 @@ end subroutine TimestepperDestroy
        !      call MassBalanceUpdate(realization,flow_stepper%solver, &
        !                             tran_stepper%solver)
        !    endif
+#ifdef SURFACE_FLOW
+    plot_flag_surf = plot_flag
+    transient_plot_flag_surf = transient_plot_flag
+#endif
        call Output(realization,plot_flag,transient_plot_flag)
 
        call StepperUpdateDT(flow_stepper,tran_stepper,option)
+
+#ifdef SURFACE_FLOW
+    call Output(surf_realization,realization,plot_flag_surf,transient_plot_flag_surf)
+    if(associated(surf_flow_stepper)) then
+      call StepperUpdateSurfaceFlowDT(surf_flow_stepper,option)
+    endif
+#endif
 
        ! if a simulation wallclock duration time is set, check to see that the
        ! next time step will not exceed that value.  If it does, print the
@@ -4581,8 +4591,7 @@ end subroutine TimestepperDestroy
     use Realization_module
 
     use Option_module
-    use Output_module, only : Output, OutputInit, OutputVectorTecplot, &
-         OutputPermeability
+    use Output_module, only : Output, OutputInit, OutputVectorTecplot
     use Output_Aux_module
     use Logging_module
     use Discretization_module
