@@ -1,5 +1,4 @@
 module THC_Aux_module
-use Secondary_Continuum_module
 
   implicit none
   
@@ -63,17 +62,16 @@ use Secondary_Continuum_module
     PetscInt, pointer :: zero_rows_local(:), zero_rows_local_ghosted(:)
     PetscBool :: aux_vars_up_to_date
     PetscBool :: inactive_cells_exist
-    PetscInt :: num_aux, num_aux_bc
+    PetscInt :: num_aux, num_aux_bc, num_aux_ss
     type(thc_parameter_type), pointer :: thc_parameter
     type(thc_auxvar_type), pointer :: aux_vars(:)
     type(thc_auxvar_type), pointer :: aux_vars_bc(:)
-    type(sec_heat_type), pointer :: sec_heat_vars(:)
+    type(thc_auxvar_type), pointer :: aux_vars_ss(:)
   end type thc_type
 
 
   public :: THCAuxCreate, THCAuxDestroy, &
             THCAuxVarCompute, THCAuxVarInit, &
-            THCSecHeatAuxVarCompute, &
             THCAuxVarCopy
 
 #ifdef ICE
@@ -85,7 +83,7 @@ contains
 
 ! ************************************************************************** !
 !
-! THCAuxCreate: Allocate and initialize auxilliary object
+! THCAuxCreate: Allocate and initialize auxiliary object
 ! author: ???
 ! date: 02/14/08
 !
@@ -106,8 +104,10 @@ function THCAuxCreate(option)
   aux%inactive_cells_exist = PETSC_FALSE
   aux%num_aux = 0
   aux%num_aux_bc = 0
+  aux%num_aux_ss = 0
   nullify(aux%aux_vars)
   nullify(aux%aux_vars_bc)
+  nullify(aux%aux_vars_ss)
   aux%n_zero_rows = 0
   allocate(aux%thc_parameter)
   nullify(aux%thc_parameter%sir)
@@ -118,16 +118,14 @@ function THCAuxCreate(option)
   allocate(aux%thc_parameter%diffusion_activation_energy(option%nphase))
   aux%thc_parameter%diffusion_coefficient = 1.d-9
   aux%thc_parameter%diffusion_activation_energy = 0.d0
-
-  nullify(aux%sec_heat_vars)
-  
+ 
   THCAuxCreate => aux
   
 end function THCAuxCreate
 
 ! ************************************************************************** !
 !
-! THCAuxVarInit: Initialize auxilliary object
+! THCAuxVarInit: Initialize auxiliary object
 ! author: ???
 ! date: 02/14/08
 !
@@ -183,7 +181,7 @@ end subroutine THCAuxVarInit
 
 ! ************************************************************************** !
 !
-! THCAuxVarCopy: Copies an auxilliary variable
+! THCAuxVarCopy: Copies an auxiliary variable
 ! author: ???
 ! date: 12/13/07
 !
@@ -241,7 +239,7 @@ end subroutine THCAuxVarCopy
 
 ! ************************************************************************** !
 !
-! THCAuxVarCompute: Computes auxilliary variables for each grid cell
+! THCAuxVarCompute: Computes auxiliary variables for each grid cell
 ! author: ???
 ! date: 02/22/08
 !
@@ -251,7 +249,7 @@ subroutine THCAuxVarCompute(x,aux_var,global_aux_var, &
 
   use Option_module
   use Global_Aux_module
-  use water_eos_module
+  use Water_EOS_module
   use Saturation_Function_module  
   
   implicit none
@@ -373,101 +371,6 @@ end subroutine THCAuxVarCompute
 
 ! ************************************************************************** !
 ! 
-! THCSecHeatAuxVarCompute: Computes secondary auxillary variables for each
-!                            grid cell for heat transfer only
-! author: Satish Karra
-! Date: 06/5/12
-!
-! ************************************************************************** !
-subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_aux_var, &
-                                   therm_conductivity,dencpr, &
-                                   option)
-
-  use Option_module 
-  use Global_Aux_module
-  
-  implicit none
-  
-  type(sec_heat_type) :: sec_heat_vars
-  type(global_auxvar_type) :: global_aux_var
-  type(option_type) :: option
-  PetscReal :: coeff_left(sec_heat_vars%ncells)
-  PetscReal :: coeff_diag(sec_heat_vars%ncells)
-  PetscReal :: coeff_right(sec_heat_vars%ncells)
-  PetscReal :: rhs(sec_heat_vars%ncells)
-  PetscReal :: sec_temp(sec_heat_vars%ncells)
-  PetscReal :: area(sec_heat_vars%ncells)
-  PetscReal :: vol(sec_heat_vars%ncells)
-  PetscReal :: dm_plus(sec_heat_vars%ncells)
-  PetscReal :: dm_minus(sec_heat_vars%ncells)
-  PetscInt :: i, ngcells
-  PetscReal :: area_fm
-  PetscReal :: alpha, therm_conductivity, dencpr
-  PetscReal :: temp_primary_node
-  PetscReal :: m
-  
-  ngcells = sec_heat_vars%ncells
-  area = sec_heat_vars%area
-  vol = sec_heat_vars%vol
-  dm_plus = sec_heat_vars%dm_plus
-  dm_minus = sec_heat_vars%dm_minus
-  area_fm = sec_heat_vars%interfacial_area
-  temp_primary_node = global_aux_var%temp(1)
-  
-  coeff_left = 0.d0
-  coeff_diag = 0.d0
-  coeff_right = 0.d0
-  rhs = 0.d0
-  sec_temp = 0.d0
-  
-  alpha = option%flow_dt*therm_conductivity/dencpr
-
-  
-  ! Setting the coefficients
-  do i = 2, ngcells-1
-    coeff_left(i) = -alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i))
-    coeff_diag(i) = alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i)) + &
-                    alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i)) + 1.d0
-    coeff_right(i) = -alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i))
-  enddo
-  
-  coeff_diag(1) = alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1)) + 1.d0
-  coeff_right(1) = -alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1))
-  
-  coeff_left(ngcells) = -alpha*area(ngcells-1)/ &
-                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells))
-  coeff_diag(ngcells) = alpha*area(ngcells-1)/ &
-                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells)) &
-                       + alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells)) &
-                       + 1.d0
-
-                        
-  rhs = sec_heat_vars%sec_temp  ! secondary continuum values from previous time step
-  rhs(ngcells) = rhs(ngcells) + & 
-                 alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells))* &
-                 temp_primary_node
-                
-  ! Thomas algorithm for tridiagonal system
-  ! Forward elimination
-  do i = 2, ngcells
-    m = coeff_left(i)/coeff_diag(i-1)
-    coeff_diag(i) = coeff_diag(i) - m*coeff_right(i-1)
-    rhs(i) = rhs(i) - m*rhs(i-1)
-  enddo
-
-  ! Back substitution
-  ! Calculate temperature in the secondary continuum
-  sec_temp(ngcells) = rhs(ngcells)/coeff_diag(ngcells)
-  do i = ngcells-1, 1, -1
-    sec_temp(i) = (rhs(i) - coeff_right(i)*sec_temp(i+1))/coeff_diag(i)
-  enddo
-  
-  sec_heat_vars%sec_temp = sec_temp
-            
-end subroutine THCSecHeatAuxVarCompute
-
-! ************************************************************************** !
-! 
 ! THCAuxVarComputeIce: Computes auxillary variables for each grid cell when
 !                      ice and vapor phases are present
 ! author: Satish Karra
@@ -483,7 +386,7 @@ subroutine THCAuxVarComputeIce(x, aux_var, global_aux_var, iphase, &
 
   use Option_module
   use Global_Aux_module
-  use water_eos_module
+  use Water_EOS_module
   use Saturation_Function_module  
   
   implicit none
@@ -637,7 +540,7 @@ end subroutine THCAuxVarComputeIce
 
 ! ************************************************************************** !
 !
-! AuxVarDestroy: Deallocates a thc auxilliary object
+! AuxVarDestroy: Deallocates a thc auxiliary object
 ! author: ???
 ! date: 02/14/08
 !
@@ -657,7 +560,7 @@ end subroutine AuxVarDestroy
 
 ! ************************************************************************** !
 !
-! THCAuxDestroy: Deallocates a thc auxilliary object
+! THCAuxDestroy: Deallocates a thc auxiliary object
 ! author: ???
 ! date: 02/14/08
 !
@@ -677,11 +580,16 @@ subroutine THCAuxDestroy(aux)
   do iaux = 1, aux%num_aux_bc
     call AuxVarDestroy(aux%aux_vars_bc(iaux))
   enddo  
+  do iaux = 1, aux%num_aux_ss
+    call AuxVarDestroy(aux%aux_vars_ss(iaux))
+  enddo  
   
   if (associated(aux%aux_vars)) deallocate(aux%aux_vars)
   nullify(aux%aux_vars)
   if (associated(aux%aux_vars_bc)) deallocate(aux%aux_vars_bc)
   nullify(aux%aux_vars_bc)
+  if (associated(aux%aux_vars_ss)) deallocate(aux%aux_vars_ss)
+  nullify(aux%aux_vars_ss)
   if (associated(aux%zero_rows_local)) deallocate(aux%zero_rows_local)
   nullify(aux%zero_rows_local)
   if (associated(aux%zero_rows_local_ghosted)) deallocate(aux%zero_rows_local_ghosted)
@@ -711,8 +619,6 @@ subroutine THCAuxDestroy(aux)
     nullify(aux%thc_parameter%sir)
   endif
   nullify(aux%thc_parameter)
-  
-  nullify(aux%sec_heat_vars)
   
   deallocate(aux)
   nullify(aux)  

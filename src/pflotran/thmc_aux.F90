@@ -85,7 +85,7 @@ contains
 
 ! ************************************************************************** !
 !
-! THMCAuxCreate: Allocate and initialize auxilliary object
+! THMCAuxCreate: Allocate and initialize auxiliary object
 ! author:
 ! date: 3/2/12
 !
@@ -127,7 +127,7 @@ end function THMCAuxCreate
 
 ! ************************************************************************** !
 !
-! THMCAuxVarInit: Initialize auxilliary object
+! THMCAuxVarInit: Initialize auxiliary object
 ! author:
 ! date: 3/2/12
 !
@@ -182,7 +182,7 @@ end subroutine THMCAuxVarInit
 
 ! ************************************************************************** !
 !
-! THMCAuxVarCopy: Copies an auxilliary variable
+! THMCAuxVarCopy: Copies an auxiliary variable
 ! author:
 ! date: 3/2/12
 !
@@ -235,7 +235,7 @@ end subroutine THMCAuxVarCopy
 
 ! ************************************************************************** !
 !
-! THMCAuxVarCompute: Computes auxilliary variables for each grid cell
+! THMCAuxVarCompute: Computes auxiliary variables for each grid cell
 ! author:
 ! date: 3/2/12
 !
@@ -245,7 +245,7 @@ subroutine THMCAuxVarCompute(x,aux_var,global_aux_var, &
 
   use Option_module
   use Global_Aux_module
-  use water_eos_module
+  use Water_EOS_module
   use Saturation_Function_module  
   
   implicit none
@@ -373,7 +373,7 @@ subroutine THMCAuxVarComputeIce(x, aux_var, global_aux_var, iphase, &
 
   use Option_module
   use Global_Aux_module
-  use water_eos_module
+  use Water_EOS_module
   use Saturation_Function_module  
   
   implicit none
@@ -511,7 +511,7 @@ end subroutine THMCAuxVarComputeIce
 
 ! ************************************************************************** !
 !
-! AuxVarDestroy: Deallocates a thmc auxilliary object
+! AuxVarDestroy: Deallocates a thmc auxiliary object
 ! author:
 ! date: 3/2/12
 !
@@ -531,7 +531,7 @@ end subroutine AuxVarDestroy
 
 ! ************************************************************************** !
 !
-! THMCAuxDestroy: Deallocates a thmc auxilliary object
+! THMCAuxDestroy: Deallocates a thmc auxiliary object
 ! author:
 ! date: 3/2/12
 !

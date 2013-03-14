@@ -37,7 +37,7 @@ module Option_module
     
     PetscInt :: reactive_transport_coupling
 
-#if defined(PARALLELIO_LIB)
+#if defined(SCORPIO)
     PetscMPIInt :: ioread_group_id, iowrite_group_id
 #endif
 
@@ -67,6 +67,8 @@ module Option_module
     PetscReal :: surf_flow_time, surf_flow_dt
     PetscReal :: surf_subsurf_coupling_time
     PetscReal :: surf_subsurf_coupling_flow_dt
+    PetscBool :: surf_flow_explicit
+    character(len=MAXSTRINGLENGTH) :: surf_initialize_flow_filename
 #endif
     PetscBool :: sec_vars_update
     PetscInt :: air_pressure_id
@@ -99,7 +101,7 @@ module Option_module
     PetscBool :: use_isothermal
     PetscBool :: use_mc           ! If true, multiple continuum formulation is used.
     PetscBool :: set_secondary_init_temp  ! If true, then secondary init temp is different from prim. init temp
-    PetscBool :: set_secondary_init_conc  ! If true, then secondary init conc is different from prim. init conc.
+    PetscBool :: set_secondary_init_conc
     
     character(len=MAXWORDLENGTH) :: generalized_grid
     PetscBool :: use_generalized_grid
@@ -134,9 +136,9 @@ module Option_module
     PetscReal :: stomp_norm
     PetscBool :: check_stomp_norm
     
-    PetscReal :: minimum_hydrostatic_pressure
+    PetscReal :: infnorm_res_sec  ! inf. norm of secondary continuum rt residual
     
-!   PetscBool :: update_mnrl_surf_with_porosity
+    PetscReal :: minimum_hydrostatic_pressure
     
     PetscBool :: jumpstart_kinetic_sorption
     PetscBool :: no_checkpoint_kinetic_sorption
@@ -172,6 +174,7 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: initialize_flow_filename
     character(len=MAXSTRINGLENGTH) :: initialize_transport_filename
         
+    character(len=MAXSTRINGLENGTH) :: input_prefix
     character(len=MAXSTRINGLENGTH) :: global_prefix
     character(len=MAXWORDLENGTH) :: group_prefix
     
@@ -184,9 +187,6 @@ module Option_module
     PetscBool :: ani_relative_permeability
     
     PetscBool :: use_upwinding
-
-    PetscInt :: chunk_size
-    PetscInt :: num_threads
     
     PetscBool :: out_of_table
 
@@ -296,8 +296,9 @@ subroutine OptionInitAll(option)
   option%mygroup = 0
   option%mygroup_id = 0
   
-  option%global_prefix = 'pflotran'
+  option%input_prefix = 'pflotran'
   option%group_prefix = ''
+  option%global_prefix = ''
     
   option%broadcast_read = PETSC_FALSE
   option%io_rank = 0
@@ -317,9 +318,6 @@ subroutine OptionInitAll(option)
 
   option%use_upwinding = PETSC_TRUE
 
-  option%chunk_size = 8
-  option%num_threads = 1
-  
   option%out_of_table = PETSC_FALSE
  
   call OptionInitRealization(option)
@@ -352,6 +350,7 @@ subroutine OptionInitRealization(option)
   option%use_matrix_free = PETSC_FALSE
   option%use_mc = PETSC_FALSE
   option%set_secondary_init_temp = PETSC_FALSE
+  option%set_secondary_init_conc = PETSC_FALSE
   
   option%flowmode = ""
   option%iflowmode = NULL_MODE
@@ -366,6 +365,8 @@ subroutine OptionInitRealization(option)
    option%surf_flow_time =0.d0
    option%surf_subsurf_coupling_time = 0.d0
    option%surf_subsurf_coupling_flow_dt = 0.d0
+   option%surf_flow_explicit = PETSC_TRUE
+   option%surf_initialize_flow_filename =""
 #endif
 
   option%tranmode = ""
@@ -409,6 +410,8 @@ subroutine OptionInitRealization(option)
   option%temperature_change_limit = 0.d0
   option%stomp_norm = 0.d0
   option%check_stomp_norm = PETSC_FALSE
+  
+  option%infnorm_res_sec = 0.d0
   
   option%jumpstart_kinetic_sorption = PETSC_FALSE
   option%no_checkpoint_kinetic_sorption = PETSC_FALSE

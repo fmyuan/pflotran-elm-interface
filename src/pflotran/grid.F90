@@ -22,7 +22,6 @@ module Grid_module
   PetscInt, parameter, public :: STRUCTURED_GRID = 1
   PetscInt, parameter, public :: UNSTRUCTURED_GRID = 2
   PetscInt, parameter, public :: STRUCTURED_GRID_MIMETIC = 3
-  PetscInt, parameter, public :: UNSTRUCTURED_GRID_MIMETIC = 4
 
   type, public :: grid_type 
   
@@ -150,7 +149,58 @@ module Grid_module
             GridComputeMinv, &
             GridSaveBoundaryCellInfo
   
+!geh  public :: VecGetArrayReadF90, VecRestoreArrayReadF90
+  
 contains
+
+#if 0
+! ************************************************************************** !
+!
+! VecGetArrayReadF90: Redirects VecGetArrayReadF90 to VecGetArrayF90 for
+!                     older petsc-dev that lacks stubs for the read version
+! author: Glenn Hammond
+! date: 03/04/13
+!
+! ************************************************************************** !
+subroutine VecGetArrayReadF90(vec, f90ptr, ierr)
+
+  implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+  Vec:: vec
+  PetscReal, pointer :: f90ptr(:)
+  PetscErrorCode :: ierr
+
+  call VecGetArrayF90(vec, f90ptr, ierr)
+
+end subroutine VecGetArrayReadF90
+      
+! ************************************************************************** !
+!
+! VecRestoreArrayReadF90: Redirects VecRestoreArrayReadF90 to VecGetArrayF90 
+!                         older petsc-dev that lacks stubs for the read 
+!                         for version
+! author: Glenn Hammond
+! date: 03/04/13
+!
+! ************************************************************************** !
+subroutine VecRestoreArrayReadF90(vec, f90ptr, ierr)
+
+  implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+  Vec:: vec
+  PetscReal, pointer :: f90ptr(:)
+  PetscErrorCode :: ierr
+
+  call VecRestoreArrayF90(vec, f90ptr, ierr)
+  
+end subroutine VecRestoreArrayReadF90
+#endif
 
 ! ************************************************************************** !
 !
@@ -425,7 +475,7 @@ subroutine GridComputeCell2FaceConnectivity(grid, MFD_aux, option)
   type(mfd_type), pointer :: MFD_aux
   
 
-!  type(auxilliary_type) :: aux
+!  type(auxiliary_type) :: aux
   type(option_type) :: option
 
 #ifdef DASVYAT

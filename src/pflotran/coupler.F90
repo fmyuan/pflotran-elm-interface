@@ -3,14 +3,19 @@ module Coupler_module
   use Condition_module
   use Connection_module
   use Region_module
-  use Auxilliary_module
  
   implicit none
 
   private
  
 #include "definitions.h"
- 
+
+  ! coupler types
+  PetscInt, parameter, public :: INITIAL_COUPLER_TYPE = 1
+  PetscInt, parameter, public :: BOUNDARY_COUPLER_TYPE = 2
+  PetscInt, parameter, public :: SRC_SINK_COUPLER_TYPE = 3
+  PetscInt, parameter, public :: COUPLER_IPHASE_INDEX = 1
+
   type, public :: coupler_type
     PetscInt :: id                                      ! id of coupler
     character(len=MAXWORDLENGTH) :: name                ! name of coupler
@@ -23,8 +28,8 @@ module Coupler_module
     PetscInt :: itran_condition                         ! id of condition in condition array/list
     PetscInt :: iregion                                 ! id of region in region array/list
     PetscInt :: iface                                   ! for structured grids only
-    PetscInt, pointer :: flow_aux_int_var(:,:)          ! auxilliary array for integer value
-    PetscReal, pointer :: flow_aux_real_var(:,:)        ! auxilliary array for real values
+    PetscInt, pointer :: flow_aux_int_var(:,:)          ! auxiliary array for integer value
+    PetscReal, pointer :: flow_aux_real_var(:,:)        ! auxiliary array for real values
     type(flow_condition_type), pointer :: flow_condition     ! pointer to condition in condition array/list
     type(tran_condition_type), pointer :: tran_condition     ! pointer to condition in condition array/list
     type(region_type), pointer :: region                ! pointer to region in region array/list
@@ -437,6 +442,7 @@ subroutine CouplerComputeConnectionsFaces(grid,option,coupler)
   use Region_module
   use Grid_module
   use MFD_Aux_module
+  use Structured_Grid_module
   
   implicit none
  

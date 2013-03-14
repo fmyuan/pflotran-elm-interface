@@ -36,6 +36,7 @@ subroutine MicrobialRead(microbial,input,option)
   character(len=MAXWORDLENGTH) :: word
   type(microbial_rxn_type), pointer :: microbial_rxn, cur_microbial_rxn
   type(monod_type), pointer :: monod, prev_monod
+  type(microbial_biomass_type), pointer :: microbial_biomass
   type(inhibition_type), pointer :: inhibition, prev_inhibition
   
   microbial%nrxn = microbial%nrxn + 1
@@ -43,6 +44,7 @@ subroutine MicrobialRead(microbial,input,option)
   microbial_rxn => MicrobialRxnCreate()
   nullify(prev_monod)
   nullify(prev_inhibition)
+  nullify(microbial_biomass)
   do 
     call InputReadFlotranString(input,option)
     if (InputError(input)) exit
@@ -98,12 +100,27 @@ subroutine MicrobialRead(microbial,input,option)
         endif
         prev_inhibition => inhibition
         nullify(inhibition)
+      case('BIOMASS')
+        if (associated(microbial_biomass)) then
+          call MicrobialBiomassDestroy(microbial_biomass)
+        endif
+        microbial_biomass => MicrobialBiomassCreate()
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'species name', &
+                           'CHEMISTRY,MICROBIAL_REACTION,BIOMASS')
+        microbial_biomass%species_name = word
+        call InputReadDouble(input,option,microbial_biomass%yield)  
+        call InputErrorMsg(input,option,'yield', &
+                           'CHEMISTRY,MICROBIAL_REACTION,BIOMASS')
       case default
         option%io_buffer = 'CHEMISTRY,MICROBIAL_REACTION keyword: ' // &
           trim(word) // ' not recognized.'
         call printErrMsg(option)
     end select
-  enddo   
+  enddo
+  
+  ! add linkage to biomass if exists
+  microbial_rxn%biomass => microbial_biomass
   
   ! add to list
   if (.not.associated(microbial%microbial_rxn_list)) then
@@ -134,10 +151,11 @@ end subroutine MicrobialRead
 subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
                       global_auxvar,porosity,volume,reaction,option)
 
-  use Option_module, only : option_type
+  use Option_module, only : option_type, printErrMsg
   use Reactive_Transport_Aux_module, only : reactive_transport_auxvar_type
   use Global_Aux_module, only : global_auxvar_type
   use Reaction_Aux_module, only : reaction_type
+  use Immobile_Aux_module, only : immobile_type
   
   implicit none
   
@@ -154,17 +172,21 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
   PetscInt, parameter :: iphase = 1
   PetscReal :: por_sat_vol
   PetscInt :: irxn, i, ii, icomp, jcomp, ncomp
-  PetscInt :: imonod, iinhibition
+  PetscInt :: imonod, iinhibition, ibiomass
   PetscReal :: Im
   PetscReal :: rate_constant
   PetscReal :: activity
   PetscReal :: act_coef
   PetscReal :: monod(10)
   PetscReal :: inhibition(10)
-  PetscReal :: denominator, dR_dX, dX_dc, dR_dc
+  PetscReal :: biomass_conc
+  PetscInt :: immobile_id
+  PetscReal :: denominator, dR_dX, dX_dc, dR_dc, dR_dbiomass
   type(microbial_type), pointer :: microbial
+  type(immobile_type), pointer :: immobile
   
   microbial => reaction%microbial
+  immobile => reaction%immobile
   
   ! units:
   ! Residual: mol/sec
@@ -172,6 +194,9 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
   
   do irxn = 1, microbial%nrxn
   
+    ! units:
+    !   without biomass: mol/L-sec
+    !   with biomass: mol/L-sec * (m^3 bulk / mol biomass)
     rate_constant = microbial%rate_constant(irxn)
     Im = rate_constant
 
@@ -194,6 +219,14 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
       Im = Im*inhibition(ii)
     enddo
     
+    ! biomass term
+    ibiomass = microbial%biomassid(irxn)
+    if (ibiomass > 0) then
+      immobile_id = reaction%offset_immobile + ibiomass
+      biomass_conc = rt_auxvar%immobile(ibiomass)
+      Im = Im*biomass_conc
+    endif
+    
     ! por_sat_vol units: m^3 water
     por_sat_vol = porosity*global_auxvar%sat(iphase)*volume
 
@@ -206,6 +239,10 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
       icomp = microbial%specid(i,irxn)
       Res(icomp) = Res(icomp) - microbial%stoich(i,irxn)*Im
     enddo
+
+    if (ibiomass > 0) then
+      Res(immobile_id) = Res(immobile_id) - microbial%biomass_yield(irxn)*Im
+    endif
     
     if (.not. compute_derivative) cycle
     
@@ -230,6 +267,10 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
         Jac(icomp,jcomp) = Jac(icomp,jcomp) + &
                             microbial%stoich(i,irxn)*dR_dc
       enddo
+      if (ibiomass > 0) then
+        Jac(immobile_id,jcomp) = Jac(immobile_id,jcomp) + &
+          microbial%biomass_yield(irxn)*dR_dc      
+      endif      
     enddo
 
     ! inhibition expressions
@@ -253,8 +294,26 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
         Jac(icomp,jcomp) = Jac(icomp,jcomp) + &
                             microbial%stoich(i,irxn)*dR_dc
       enddo
+      if (ibiomass > 0) then
+        Jac(immobile_id,jcomp) = Jac(immobile_id,jcomp) + &
+          microbial%biomass_yield(irxn)*dR_dc      
+      endif
     enddo
 
+    ! biomass expression
+    if (ibiomass > 0) then
+      dR_dbiomass = Im / biomass_conc
+      option%io_buffer = "Shouldn't biomass contribution be negative"
+      call printErrMsg(option)
+      do i = 1, ncomp
+        ! units = (mol/sec)*(kg water/mol) = kg water/sec
+        Jac(icomp,immobile_id) = Jac(icomp,immobile_id) + &
+                            microbial%stoich(i,irxn)*dR_dbiomass
+      enddo
+      Jac(immobile_id,immobile_id) = Jac(immobile_id,immobile_id) + &
+        microbial%biomass_yield(irxn)*dR_dbiomass
+    endif
+    
   enddo
     
 end subroutine RMicrobial
