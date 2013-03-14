@@ -181,7 +181,7 @@ subroutine ConvergenceTest(snes_,it,xnorm,pnorm,fnorm,reason,context,ierr)
     endif
   endif
 
-  call SNESDefaultConverged(snes_,it,xnorm,pnorm,fnorm,reason, &
+  call SNESConvergedDefault(snes_,it,xnorm,pnorm,fnorm,reason, &
                             PETSC_NULL_OBJECT,ierr)
 
 ! Checking if norm exceeds divergence tolerance
@@ -199,6 +199,7 @@ subroutine ConvergenceTest(snes_,it,xnorm,pnorm,fnorm,reason,context,ierr)
   if (option%out_of_table) then
     reason = -9
   endif
+   
   
 !  if (reason <= 0 .and. solver%check_infinity_norm) then
   if (solver%check_infinity_norm) then
@@ -225,7 +226,18 @@ subroutine ConvergenceTest(snes_,it,xnorm,pnorm,fnorm,reason,context,ierr)
     if (inorm_residual > solver%max_norm) then
       reason = -10
     endif
-
+    
+    ! This is to check if the secondary continuum residual convergences
+    ! for nonlinear problems specifically transport
+    if (solver%itype == TRANSPORT_CLASS .and. option%use_mc .and. &
+       reason > 0 .and. it > 0) then
+      if (option%infnorm_res_sec > solver%newton_inf_res_tol_sec) then
+        reason = 0
+      else
+        reason = 13
+      endif
+    endif
+  
     if (option%print_screen_flag .and. solver%print_convergence) then
       i = int(reason)
       select case(i)
@@ -245,6 +257,8 @@ subroutine ConvergenceTest(snes_,it,xnorm,pnorm,fnorm,reason,context,ierr)
           string = 'itol_upd'
         case(12)
           string = 'itol_stomp'
+        case(13)
+          string = 'itol_res_sec'
         case default
           write(string,'(i3)') reason
       end select
@@ -266,6 +280,18 @@ subroutine ConvergenceTest(snes_,it,xnorm,pnorm,fnorm,reason,context,ierr)
 #endif
     endif
   else
+  
+    ! This is to check if the secondary continuum residual convergences
+    ! for nonlinear problems specifically transport
+    if (solver%itype == TRANSPORT_CLASS .and. option%use_mc .and. &
+       reason > 0 .and. it > 1) then
+      if (option%infnorm_res_sec > solver%newton_inf_res_tol_sec) then
+        reason = 0
+      else
+        reason = 13
+      endif
+    endif
+    
     if (option%print_screen_flag .and. solver%print_convergence) then
       i = int(reason)
       select case(i)
@@ -283,6 +309,8 @@ subroutine ConvergenceTest(snes_,it,xnorm,pnorm,fnorm,reason,context,ierr)
           string = 'itol_upd'
         case(12)
           string = 'itol_stomp'
+        case(13)
+          string = 'itol_res_sec'
         case default
           write(string,'(i3)') reason
       end select
@@ -396,11 +424,7 @@ subroutine ConvergenceTest(snes_,it,xnorm,pnorm,fnorm,reason,context,ierr)
           string = "SNES_CONVERGED_FNORM_ABS"
         case(SNES_CONVERGED_FNORM_RELATIVE)
           string = "SNES_CONVERGED_FNORM_RELATIVE"
-#ifndef HAVE_SNES_API_3_2
         case(SNES_CONVERGED_SNORM_RELATIVE)
-#else
-        case(SNES_CONVERGED_PNORM_RELATIVE)
-#endif
           string = "SNES_CONVERGED_SNORM_RELATIVE"
         case(SNES_CONVERGED_ITS)
           string = "SNES_CONVERGED_ITS"

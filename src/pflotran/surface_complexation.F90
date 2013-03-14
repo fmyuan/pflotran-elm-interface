@@ -14,6 +14,7 @@ module Surface_Complexation_module
   PetscReal, parameter :: perturbation_tolerance = 1.d-5
   
   public :: SurfaceComplexationRead, &
+            SrfCplxProcessConstraint, &
             RTotalSorbEqSurfCplx, &
             RMultiRateSorption, &
             RKineticSurfCplx, &
@@ -352,6 +353,74 @@ end subroutine SurfaceComplexationRead
 
 ! ************************************************************************** !
 !
+! SrfCplxProcessConstraint: Initializes constraints based on surface complex
+!                           species in system
+! author: Glenn Hammond
+! date: 01/07/13
+!
+! ************************************************************************** !
+subroutine SrfCplxProcessConstraint(surface_complexation,constraint_name, &
+                                    constraint,option)
+
+  use Option_module
+  use Input_module
+  use String_module
+  use Utility_module  
+  
+  implicit none
+  
+  type(surface_complexation_type), pointer :: surface_complexation
+  character(len=MAXWORDLENGTH) :: constraint_name
+  type(srfcplx_constraint_type), pointer :: constraint
+  type(option_type) :: option
+  
+  PetscBool :: found
+  PetscInt :: isrfcplx, jsrfcplx
+  
+  character(len=MAXWORDLENGTH) :: srfcplx_name(surface_complexation%nkinsrfcplx)
+  PetscReal :: constraint_conc(surface_complexation%nkinsrfcplx)
+  
+  if (.not.associated(constraint)) return
+
+  if (surface_complexation%nkinsrfcplx == 0) then
+    option%io_buffer = 'Surface complexation specified in constraint "' // &
+      trim(constraint_name) // '" requires that kinetic surface ' // &
+      'complexation be defined in the CHEMISTRY section.'
+    call printErrMsg(option)
+  endif
+  
+  srfcplx_name = ''
+  do isrfcplx = 1, surface_complexation%nkinsrfcplx
+    found = PETSC_FALSE
+    do jsrfcplx = 1, surface_complexation%nkinsrfcplx
+      if (StringCompare(constraint%names(isrfcplx), &
+                        surface_complexation%srfcplx_names(&
+                          !TODO(geh): fix 0 index
+                        surface_complexation%kinsrfcplx_to_name(jsrfcplx,0)), &
+                        MAXWORDLENGTH)) then
+        found = PETSC_TRUE
+        exit
+      endif
+    enddo
+    if (.not.found) then
+      option%io_buffer = &
+                'Surface complex ' // trim(constraint%names(isrfcplx)) // &
+                'from CONSTRAINT ' // trim(constraint_name) // &
+                ' not found among kinetic surface complexes.'
+      call printErrMsg(option)
+    else
+      constraint_conc(jsrfcplx) = &
+        constraint%constraint_conc(isrfcplx)
+      srfcplx_name(jsrfcplx) = constraint%names(isrfcplx)
+    endif  
+  enddo
+  constraint%names = srfcplx_name
+  constraint%constraint_conc = constraint_conc
+  
+end subroutine SrfCplxProcessConstraint
+
+! ************************************************************************** !
+!
 ! RTotalSorbEqSurfCplx: Computes the total sorbed component concentrations and 
 !                       derivative with respect to free-ion for equilibrium 
 !                       surface complexation
@@ -388,17 +457,6 @@ subroutine RTotalSorbEqSurfCplx(rt_auxvar,global_auxvar,reaction,option)
     nullify(colloid_matrix_block_ptr)
     nullify(colloid_array_ptr)
   endif
-  
-#ifdef TEMP_DEPENDENT_LOGK
-  !TODO(geh): move this outside so it is called only once per cell
-  if (.not.option%use_isothermal) then
-    call ReactionInterpolateLogK(surface_complexation%srfcplx_logKcoef, &
-                                 surface_complexation%srfcplx_logK, &
-                                 global_auxvar%temp(iphase), &
-                                 surface_complexation%nsrfcplx)
-  endif
-! surface reaction in hpt option not functional yet .Chuan 12/29/11 
-#endif  
 
   ! Surface Complexation
   do ieqrxn = 1, surface_complexation%neqsrfcplxrxn
@@ -454,19 +512,6 @@ subroutine RTotalSorbMultiRateAsEQ(rt_auxvar,global_auxvar,reaction,option)
 
   nullify(null_array_ptr)
   nullify(null_matrix_block)
-  
-#ifdef TEMP_DEPENDENT_LOGK
-!TODO(geh): move this outside the surface complexation routines so that 
-!           coefficients/equilibrium constants are calculated only once
-!           instead of over and over.
-  if (.not.option%use_isothermal) then
-    call ReactionInterpolateLogK(surface_complexation%srfcplx_logKcoef, &
-                                 surface_complexation%srfcplx_logK, &
-                                 global_auxvar%temp(iphase), &
-                                 surface_complexation%nsrfcplx)
-! surface reaction in hpt option not functional yet .Chuan 12/29/11 
-  endif
-#endif  
 
   ! Surface Complexation
   do ikinmrrxn = 1, surface_complexation%nkinmrsrfcplxrxn
@@ -531,21 +576,6 @@ subroutine RMultiRateSorption(Res,Jac,compute_derivative,rt_auxvar, &
 
   nullify(null_array_ptr)
   nullify(null_matrix_block)
-  
-#ifdef NEW_SRFCPLX_RXN    
-  ln_conc = log(rt_auxvar%pri_molal)
-  ln_act = ln_conc+log(rt_auxvar%pri_act_coef)
-#endif
-  
-#ifdef TEMP_DEPENDENT_LOGK
-  if (.not.option%use_isothermal) then
-    call ReactionInterpolateLogK(surface_complexation%srfcplx_logKcoef, &
-                                 surface_complexation%srfcplx_logK, &
-                                 global_auxvar%temp(iphase), &
-                                 surface_complexation%nsrfcplx)
-! surface reaction in hpt option not functional yet .Chuan 12/29/11 
-  endif
-#endif  
 
   ! only zero out the zero index.  The other indices hold values from 
   ! the previous time step

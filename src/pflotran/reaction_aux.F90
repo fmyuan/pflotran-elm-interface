@@ -3,18 +3,27 @@ module Reaction_Aux_module
   use Database_Aux_module
   use Mineral_Aux_module
   use Microbial_Aux_module
+  use Immobile_Aux_module
   use Surface_Complexation_Aux_module
   
 #ifdef SOLID_SOLUTION  
   use Solid_Solution_Aux_module
-#endif  
+#endif
 
   implicit none
   
   private 
 
 #include "definitions.h"
-  
+
+  ! activity coefficients
+  PetscInt, parameter, public :: ACT_COEF_FREQUENCY_OFF = 0
+  PetscInt, parameter, public :: ACT_COEF_FREQUENCY_TIMESTEP = 1
+  PetscInt, parameter, public :: ACT_COEF_FREQUENCY_NEWTON_ITER = 2
+  PetscInt, parameter, public :: ACT_COEF_ALGORITHM_LAG = 3
+  PetscInt, parameter, public :: ACT_COEF_ALGORITHM_NEWTON = 4
+  PetscInt, parameter, public :: NO_BDOT = 5
+
   type, public :: species_idx_type
     PetscInt :: h2o_aq_id
     PetscInt :: h_ion_id
@@ -128,7 +137,6 @@ module Reaction_Aux_module
     PetscBool :: print_all_primary_species
     PetscBool :: print_all_secondary_species
     PetscBool :: print_all_gas_species
-    PetscBool :: print_all_mineral_species
     PetscBool :: print_pH
     PetscBool :: print_kd
     PetscBool :: print_total_sorb
@@ -169,6 +177,7 @@ module Reaction_Aux_module
     type(surface_complexation_type), pointer :: surface_complexation
     type(mineral_type), pointer :: mineral
     type(microbial_type), pointer :: microbial
+    type(immobile_type), pointer :: immobile
     
 #ifdef SOLID_SOLUTION    
     type(solid_solution_type), pointer :: solid_solution_list
@@ -179,11 +188,13 @@ module Reaction_Aux_module
     PetscInt :: ncomp
     PetscInt :: naqcomp
     PetscInt :: ncollcomp
+    PetscInt :: nimcomp
     
     ! offsets
-    PetscInt :: offset_aq
-    PetscInt :: offset_coll
+    PetscInt :: offset_aqueous
+    PetscInt :: offset_colloid
     PetscInt :: offset_collcomp
+    PetscInt :: offset_immobile
     
     character(len=MAXWORDLENGTH), pointer :: primary_species_names(:)
     PetscBool, pointer :: primary_species_print(:)
@@ -221,7 +232,10 @@ module Reaction_Aux_module
     PetscReal, pointer :: eqgash2ostoich(:)  ! stoichiometry of water, if present
     PetscReal, pointer :: eqgas_logK(:)
     PetscReal, pointer :: eqgas_logKcoef(:,:)
-    
+!#ifdef CHUAN_CO2
+!   PetscReal :: scco2_eq_logK ! SC CO2 
+!#endif
+
     PetscInt :: nsorb
     PetscInt :: neqsorb
     PetscBool, pointer :: kd_print(:)
@@ -288,7 +302,11 @@ module Reaction_Aux_module
     PetscReal :: minimum_porosity
     PetscBool :: update_mineral_surface_area
     PetscBool :: update_mnrl_surf_with_porosity
-    
+
+    PetscBool :: update_armor_mineral_surface
+    PetscInt :: update_armor_mineral_surface_flag
+
+
     PetscBool :: use_sandbox
     
   end type reaction_type
@@ -310,6 +328,7 @@ module Reaction_Aux_module
             GetColloidCount, &
             GetColloidNames, &
             GetColloidIDFromName, &
+            GetImmobileCount, &
             ReactionFitLogKCoef, &
             ReactionInitializeLogK, &
             ReactionInterpolateLogK, &
@@ -370,7 +389,6 @@ function ReactionCreate()
   reaction%print_all_primary_species = PETSC_FALSE
   reaction%print_all_secondary_species = PETSC_FALSE
   reaction%print_all_gas_species = PETSC_FALSE
-  reaction%print_all_mineral_species = PETSC_FALSE
   reaction%print_pH = PETSC_FALSE
   reaction%print_kd = PETSC_FALSE
   reaction%print_total_sorb = PETSC_FALSE
@@ -409,6 +427,7 @@ function ReactionCreate()
   reaction%surface_complexation => SurfaceComplexationCreate()
   reaction%mineral => MineralCreate()
   reaction%microbial => MicrobialCreate()
+  reaction%immobile => ImmobileCreate()
 #ifdef SOLID_SOLUTION  
   nullify(reaction%solid_solution_list)
 #endif
@@ -433,9 +452,11 @@ function ReactionCreate()
   reaction%naqcomp = 0
   reaction%ncoll = 0
   reaction%ncollcomp = 0
-  reaction%offset_aq = 0
-  reaction%offset_coll = 0
+  reaction%nimcomp = 0
+  reaction%offset_aqueous = 0
+  reaction%offset_colloid = 0
   reaction%offset_collcomp = 0
+  reaction%offset_immobile = 0
   nullify(reaction%primary_spec_a0)
   nullify(reaction%primary_spec_Z)
   nullify(reaction%primary_spec_molar_wt)
@@ -447,6 +468,9 @@ function ReactionCreate()
   nullify(reaction%eqgash2ostoich)
   nullify(reaction%eqgas_logK)
   nullify(reaction%eqgas_logKcoef)
+!#ifdef CHUAN_CO2
+! reaction%scco2_eq_logK = 0.d0
+!#endif
   
   reaction%neqcplx = 0
   nullify(reaction%eqcplxspecid)
@@ -514,6 +538,10 @@ function ReactionCreate()
   reaction%minimum_porosity = 0.d0
   reaction%update_mineral_surface_area = PETSC_FALSE
   reaction%update_mnrl_surf_with_porosity = PETSC_FALSE
+
+  reaction%update_armor_mineral_surface = PETSC_FALSE
+  reaction%update_armor_mineral_surface_flag = 0
+
   reaction%use_sandbox = PETSC_FALSE
 
   ReactionCreate => reaction
@@ -941,7 +969,7 @@ function GetPrimarySpeciesIDFromName(name,reaction,option)
 
   if (GetPrimarySpeciesIDFromName <= 0) then
     option%io_buffer = 'Species "' // trim(name) // &
-      '" not founds among primary species.'
+      '" not founds among primary species in GetPrimarySpeciesIDFromName().'
     call printErrMsg(option)
   endif
   
@@ -1193,9 +1221,29 @@ function GetColloidCount(reaction)
 
 end function GetColloidCount
 
+
 ! ************************************************************************** !
 !
-! ReactionFitLogKCoef: Least squares fit to log K over database temperature range
+! GetImmobileCount: Returns the number of immobile species
+! author: Glenn Hammond
+! date: 01/02/13
+!
+! ************************************************************************** !
+function GetImmobileCount(reaction)
+
+  implicit none
+  
+  PetscInt :: GetImmobileCount
+  type(reaction_type) :: reaction
+
+  GetImmobileCount = ImmobileGetCount(reaction%immobile)
+  
+end function GetImmobileCount
+
+! ************************************************************************** !
+!
+! ReactionFitLogKCoef: Least squares fit to log K over database temperature 
+!                      range
 ! author: P.C. Lichtner
 ! date: 02/13/09
 !
@@ -1238,15 +1286,17 @@ subroutine ReactionFitLogKCoef(coefs,logK,name,option,reaction)
       if (dabs(logK(i) - 500.) < 1.d-10) then
         iflag = 1
         temp_int(i) = ZERO_INTEGER
-        option%io_buffer = 'In ReactionFitLogKCoef: log K .gt. 500 for ' // &
-                           trim(name)
-        call printWrnMsg(option)
       else
         coefs(j) = coefs(j) + vec(j,i)*logK(i)
         temp_int(i) = ONE_INTEGER
       endif
     enddo
   enddo
+
+  if (iflag == 1) then
+    option%io_buffer = 'In ReactionFitLogKCoef: log K = 500 for ' // trim(name)
+    call printWrnMsg(option)
+  endif
 
   do j = 1, FIVE_INTEGER
     do k = j, FIVE_INTEGER
@@ -1612,36 +1662,21 @@ end subroutine KDRxnDestroy
 ! ************************************************************************** !
 subroutine AqueousSpeciesConstraintDestroy(constraint)
 
+  use Utility_module, only: DeallocateArray
+  
   implicit none
   
   type(aq_species_constraint_type), pointer :: constraint
   
   if (.not.associated(constraint)) return
   
-  if (associated(constraint%names)) &
-    deallocate(constraint%names)
-  nullify(constraint%names)
-  if (associated(constraint%constraint_conc)) &
-    deallocate(constraint%constraint_conc)
-  nullify(constraint%constraint_conc)
-  if (associated(constraint%basis_molarity)) &
-    deallocate(constraint%basis_molarity)
-  nullify(constraint%basis_molarity)
-  if (associated(constraint%constraint_type)) &
-    deallocate(constraint%constraint_type)
-  nullify(constraint%constraint_type)
-  if (associated(constraint%constraint_spec_id)) &
-    deallocate(constraint%constraint_spec_id)
-  nullify(constraint%constraint_spec_id)
-  if (associated(constraint%constraint_aux_string)) &
-    deallocate(constraint%constraint_aux_string)
-  nullify(constraint%constraint_aux_string)
-  if (associated(constraint%constraint_aux_string)) &
-    deallocate(constraint%constraint_aux_string)
-  nullify(constraint%constraint_aux_string)
-  if (associated(constraint%external_dataset)) &
-    deallocate(constraint%external_dataset)
-  nullify(constraint%external_dataset)
+  call DeallocateArray(constraint%names)
+  call DeallocateArray(constraint%constraint_conc)
+  call DeallocateArray(constraint%basis_molarity)
+  call DeallocateArray(constraint%constraint_type)
+  call DeallocateArray(constraint%constraint_spec_id)
+  call DeallocateArray(constraint%constraint_aux_string)
+  call DeallocateArray(constraint%external_dataset)
 
   deallocate(constraint)
   nullify(constraint)
@@ -1657,27 +1692,19 @@ end subroutine AqueousSpeciesConstraintDestroy
 ! ************************************************************************** !
 subroutine ColloidConstraintDestroy(constraint)
 
+  use Utility_module, only: DeallocateArray
+
   implicit none
   
   type(colloid_constraint_type), pointer :: constraint
   
   if (.not.associated(constraint)) return
   
-  if (associated(constraint%names)) &
-    deallocate(constraint%names)
-  nullify(constraint%names)
-  if (associated(constraint%constraint_conc_mob)) &
-    deallocate(constraint%constraint_conc_mob)
-  nullify(constraint%constraint_conc_mob)
-  if (associated(constraint%constraint_conc_imb)) &
-    deallocate(constraint%constraint_conc_imb)
-  nullify(constraint%constraint_conc_imb)
-  if (associated(constraint%basis_conc_mob)) &
-    deallocate(constraint%basis_conc_mob)
-  nullify(constraint%basis_conc_mob)
-  if (associated(constraint%basis_conc_imb)) &
-    deallocate(constraint%basis_conc_imb)
-  nullify(constraint%basis_conc_imb)
+  call DeallocateArray(constraint%names)
+  call DeallocateArray(constraint%constraint_conc_mob)
+  call DeallocateArray(constraint%constraint_conc_imb)
+  call DeallocateArray(constraint%basis_conc_mob)
+  call DeallocateArray(constraint%basis_conc_imb)
 
   deallocate(constraint)
   nullify(constraint)
@@ -1776,6 +1803,7 @@ subroutine ReactionDestroy(reaction)
   call SurfaceComplexationDestroy(reaction%surface_complexation)
   call MineralDestroy(reaction%mineral)
   call MicrobialDestroy(reaction%microbial)
+  call ImmobileDestroy(reaction%immobile)
 #ifdef SOLID_SOLUTION  
   call SolidSolutionDestroy(reaction%solid_solution_list)
 #endif  
@@ -1788,7 +1816,7 @@ subroutine ReactionDestroy(reaction)
   if (associated(reaction%redox_species_list)) &
     call AqueousSpeciesListDestroy(reaction%redox_species_list)
   nullify(reaction%redox_species_list)
-
+  
   call DeallocateArray(reaction%primary_species_names)
   call DeallocateArray(reaction%secondary_species_names)
   call DeallocateArray(reaction%gas_species_names)

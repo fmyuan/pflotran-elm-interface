@@ -84,7 +84,7 @@ contains
 
 ! ************************************************************************** !
 !
-! ImmisAuxVarCreate: Allocate and initialize auxilliary object
+! ImmisAuxVarCreate: Allocate and initialize auxiliary object
 ! author: Chuan Lu
 ! date: 02/27/08
 !
@@ -125,7 +125,7 @@ end function ImmisAuxCreate
 
 ! ************************************************************************** !
 !
-! ImmisAuxVarInit: Initialize auxilliary object
+! ImmisAuxVarInit: Initialize auxiliary object
 ! author: Chuan Lu
 ! date: 02/14/08
 !
@@ -182,7 +182,7 @@ end subroutine ImmisAuxVarInit
 
 ! ************************************************************************** !
 !
-! ImmisAuxVarCopy: Copies an auxilliary variable
+! ImmisAuxVarCopy: Copies an auxiliary variable
 ! author: Chuan Lu
 ! date: 10/13/0
 !
@@ -229,7 +229,7 @@ end subroutine ImmisAuxVarCopy
 
 ! ************************************************************************** !
 !
-! ImmisAuxVarCompute_NI: Computes auxilliary variables for each grid cell
+! ImmisAuxVarCompute_NI: Computes auxiliary variables for each grid cell
 !                        No increments 
 ! author: Chuan Lu
 ! date: 10/12/08
@@ -239,11 +239,11 @@ subroutine ImmisAuxVarCompute_NINC(x,aux_var,saturation_function, &
                                    fluid_properties,option)
 
   use Option_module
-  use water_eos_module
-  use gas_eos_module
+  use Water_EOS_module
+  use Gas_EOS_module
   use co2eos_module
-  use span_wagner_module
-  use span_wagner_spline_module, only: sw_prop
+  use co2_span_wagner_module
+  use co2_span_wagner_spline_module, only: sw_prop
   use co2_sw_module, only: co2_sw_interp
   use Saturation_Function_module
   use Fluid_module
@@ -439,7 +439,7 @@ subroutine ImmisAuxVarCompute_WINC(x, delx, aux_var,saturation_function, &
                                     fluid_properties,option)
 
   use Option_module
-  use water_eos_module
+  use Water_EOS_module
   use Saturation_Function_module
   use Fluid_module
   
@@ -465,7 +465,7 @@ end subroutine ImmisAuxVarCompute_WINC
 
 ! ************************************************************************** !
 !
-! AuxVarDestroy: Deallocates a richards auxilliary object
+! AuxVarDestroy: Deallocates a richards auxiliary object
 ! author: Glenn Hammond
 ! date: 02/14/08
 !
@@ -498,7 +498,7 @@ end subroutine ImmisAuxVarDestroy
 
 ! ************************************************************************** !
 !
-! RichardsAuxDestroy: Deallocates a richards auxilliary object
+! RichardsAuxDestroy: Deallocates a richards auxiliary object
 ! author: Glenn Hammond
 ! date: 02/14/08
 !

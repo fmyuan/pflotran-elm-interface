@@ -46,7 +46,7 @@ contains
 ! ************************************************************************** !
 subroutine THCTimeCut(realization)
  
-  use Realization_module
+  use Realization_class
   use Option_module
   use Field_module
  
@@ -76,7 +76,7 @@ end subroutine THCTimeCut
 ! ************************************************************************** !
 subroutine THCSetup(realization)
 
-  use Realization_module
+  use Realization_class
   use Level_module
   use Patch_module
 
@@ -104,14 +104,14 @@ end subroutine THCSetup
   
 ! ************************************************************************** !
 !
-! THCSetupPatch: Creates arrays for auxilliary variables
+! THCSetupPatch: Creates arrays for auxiliary variables
 ! author: ???
 ! date: 02/22/08
 !
 ! ************************************************************************** !
 subroutine THCSetupPatch(realization)
 
-  use Realization_module
+  use Realization_class
   use Patch_module
   use Option_module
   use Grid_module
@@ -119,6 +119,7 @@ subroutine THCSetupPatch(realization)
   use Coupler_module
   use Connection_module
   use Fluid_module
+  use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
  
   implicit none
@@ -130,6 +131,7 @@ subroutine THCSetupPatch(realization)
   type(grid_type), pointer :: grid
   type(coupler_type), pointer :: boundary_condition
   type(thc_auxvar_type), pointer :: thc_aux_vars(:), thc_aux_vars_bc(:)
+  type(thc_auxvar_type), pointer :: thc_aux_vars_ss(:)
   type(fluid_property_type), pointer :: cur_fluid_property
   type(sec_heat_type), pointer :: thc_sec_heat_vars(:)
   type(coupler_type), pointer :: initial_condition
@@ -144,6 +146,7 @@ subroutine THCSetupPatch(realization)
   grid => patch%grid
     
   patch%aux%THC => THCAuxCreate(option)
+  patch%aux%SC_heat => SecondaryAuxHeatCreate(option)
 
 ! option%io_buffer = 'Before THC can be run, the thc_parameter object ' // &
 !                    'must be initialized with the proper variables ' // &
@@ -245,7 +248,9 @@ subroutine THCSetupPatch(realization)
                                   area_per_vol,option)
                                 
       thc_sec_heat_vars(ghosted_id)%interfacial_area = area_per_vol* &
-        (1.d0 - thc_sec_heat_vars(ghosted_id)%epsilon)
+        (1.d0 - thc_sec_heat_vars(ghosted_id)%epsilon)* &
+        realization%material_property_array(1)%ptr% &
+        secondary_continuum_area_scaling
 
     ! Setting the initial values of all secondary node temperatures same as primary node 
     ! temperatures (with initial dirichlet BC only) -- sk 06/26/12
@@ -263,7 +268,7 @@ subroutine THCSetupPatch(realization)
     
     enddo
       
-    patch%aux%THC%sec_heat_vars => thc_sec_heat_vars    
+    patch%aux%SC_heat%sec_heat_vars => thc_sec_heat_vars    
 
   endif
 
@@ -296,6 +301,21 @@ subroutine THCSetupPatch(realization)
   endif
   patch%aux%THC%num_aux_bc = sum_connection
 
+  ! Create aux vars for source/sink
+  sum_connection = CouplerGetNumConnectionsInList(patch%source_sinks)
+  if (sum_connection > 0) then
+    allocate(thc_aux_vars_ss(sum_connection))
+    do iconn = 1, sum_connection
+      call THCAuxVarInit(thc_aux_vars_ss(iconn),option)
+      ! currently, hardwire to first fluid
+      thc_aux_vars_ss(iconn)%diff(1:option%nflowspec) = &
+        realization%fluid_properties%diffusion_coefficient
+    enddo
+    patch%aux%THC%aux_vars_ss => thc_aux_vars_ss
+  endif
+  patch%aux%THC%num_aux_ss = sum_connection
+
+
   ! create zero array for zeroing residual and Jacobian (1 on diagonal)
   ! for inactive cells (and isothermal)
   call THCCreateZeroArray(patch,option)
@@ -321,13 +341,9 @@ end subroutine THCSetupPatch
 ! date: 08/02/12
 !
 ! ************************************************************************** !
-#ifndef HAVE_SNES_API_3_2
 subroutine THCCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
-#else
-subroutine THCCheckUpdatePre(snes_,P,dP,realization,changed,ierr)
-#endif
 
-  use Realization_module
+  use Realization_class
   use Grid_module
   use Field_module
   use Option_module
@@ -336,11 +352,7 @@ subroutine THCCheckUpdatePre(snes_,P,dP,realization,changed,ierr)
  
   implicit none
   
-#ifndef HAVE_SNES_API_3_2
   SNESLineSearch :: line_search
-#else
-  SNES :: snes_
-#endif
   Vec :: P
   Vec :: dP
   ! ignore changed flag for now.
@@ -482,27 +494,18 @@ end subroutine THCCheckUpdatePre
 ! date: 07/25/12
 !
 ! ************************************************************************** !
-#ifndef HAVE_SNES_API_3_2
 subroutine THCCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
                                    P1_changed,realization,ierr)
-#else
-subroutine THCCheckUpdatePost(snes_,P0,dP,P1,realization,dP_changed, &
-                                   P1_changed,ierr)
-#endif
 
-  use Realization_module
+  use Realization_class
   use Grid_module
   use Field_module
   use Option_module
-  use Secondary_Continuum_module
+  use Secondary_Continuum_Aux_module
  
   implicit none
   
-#ifndef HAVE_SNES_API_3_2
   SNESLineSearch :: line_search
-#else
-  SNES :: snes_
-#endif
   Vec :: P0
   Vec :: dP
   Vec :: P1
@@ -539,7 +542,7 @@ subroutine THCCheckUpdatePost(snes_,P0,dP,P1,realization,dP_changed, &
   thc_aux_vars => realization%patch%aux%THC%aux_vars
   thc_parameter => realization%patch%aux%THC%thc_parameter
   global_aux_vars => realization%patch%aux%Global%aux_vars
-  thc_sec_heat_vars => realization%patch%aux%THC%sec_heat_vars
+  thc_sec_heat_vars => realization%patch%aux%SC_heat%sec_heat_vars
 
   
   dP_changed = PETSC_FALSE
@@ -601,7 +604,7 @@ end subroutine THCCheckUpdatePost
 ! ************************************************************************** !
 subroutine THCComputeMassBalance(realization, mass_balance)
 
-  use Realization_module
+  use Realization_class
   use Level_module
   use Patch_module
 
@@ -638,7 +641,7 @@ end subroutine THCComputeMassBalance
 ! ************************************************************************** !
 subroutine THCComputeMassBalancePatch(realization,mass_balance)
  
-  use Realization_module
+  use Realization_class
   use Option_module
   use Patch_module
   use Field_module
@@ -697,7 +700,7 @@ end subroutine THCComputeMassBalancePatch
 ! ************************************************************************** !
 subroutine THCZeroMassBalDeltaPatch(realization)
  
-  use Realization_module
+  use Realization_class
   use Option_module
   use Patch_module
   use Grid_module
@@ -744,7 +747,7 @@ end subroutine THCZeroMassBalDeltaPatch
 ! ************************************************************************** !
 subroutine THCUpdateMassBalancePatch(realization)
  
-  use Realization_module
+  use Realization_class
   use Option_module
   use Patch_module
   use Grid_module
@@ -788,7 +791,7 @@ end subroutine THCUpdateMassBalancePatch
 
 ! ************************************************************************** !
 !
-! THCUpdateAuxVars: Updates the auxilliary variables associated with 
+! THCUpdateAuxVars: Updates the auxiliary variables associated with 
 !                        the THC problem
 ! author: ???
 ! date: 12/10/07
@@ -796,7 +799,7 @@ end subroutine THCUpdateMassBalancePatch
 ! ************************************************************************** !
 subroutine THCUpdateAuxVars(realization)
 
-  use Realization_module
+  use Realization_class
   use Level_module
   use Patch_module
 
@@ -822,7 +825,7 @@ end subroutine THCUpdateAuxVars
 
 ! ************************************************************************** !
 !
-! THCUpdateAuxVarsPatch: Updates the auxilliary variables associated with 
+! THCUpdateAuxVarsPatch: Updates the auxiliary variables associated with 
 !                        the THC problem
 ! author: ???
 ! date: 12/10/07
@@ -830,7 +833,7 @@ end subroutine THCUpdateAuxVars
 ! ************************************************************************** !
 subroutine THCUpdateAuxVarsPatch(realization)
 
-  use Realization_module
+  use Realization_class
   use Patch_module
   use Option_module
   use Field_module
@@ -848,17 +851,22 @@ subroutine THCUpdateAuxVarsPatch(realization)
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
   type(coupler_type), pointer :: boundary_condition
+  type(coupler_type), pointer :: source_sink
   type(connection_set_type), pointer :: cur_connection_set
   type(thc_auxvar_type), pointer :: thc_aux_vars(:)
   type(thc_auxvar_type), pointer :: thc_aux_vars_bc(:)
+  type(thc_auxvar_type), pointer :: thc_aux_vars_ss(:)
   type(global_auxvar_type), pointer :: global_aux_vars(:)
   type(global_auxvar_type), pointer :: global_aux_vars_bc(:)
+  type(global_auxvar_type), pointer :: global_aux_vars_ss(:)
 
   PetscInt :: ghosted_id, local_id, istart, iend, sum_connection, idof, iconn
   PetscInt :: iphasebc, iphase
   PetscReal, pointer :: xx_loc_p(:), icap_loc_p(:), iphase_loc_p(:)
   PetscReal, pointer :: perm_xx_loc_p(:), porosity_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
+  PetscReal, pointer :: xx(:)
+  PetscReal :: tsrc1
   PetscErrorCode :: ierr
   
   !!
@@ -877,8 +885,10 @@ subroutine THCUpdateAuxVarsPatch(realization)
   
   thc_aux_vars => patch%aux%THC%aux_vars
   thc_aux_vars_bc => patch%aux%THC%aux_vars_bc
+  thc_aux_vars_ss => patch%aux%THC%aux_vars_ss
   global_aux_vars => patch%aux%Global%aux_vars
   global_aux_vars_bc => patch%aux%Global%aux_vars_bc
+  global_aux_vars_ss => patch%aux%Global%aux_vars_ss
   
   call GridVecGetArrayF90(grid,field%flow_xx_loc,xx_loc_p, ierr)
   call GridVecGetArrayF90(grid,field%icap_loc,icap_loc_p,ierr)
@@ -896,8 +906,7 @@ subroutine THCUpdateAuxVarsPatch(realization)
     iend = ghosted_id*option%nflowdof
     istart = iend-option%nflowdof+1
     iphase = int(iphase_loc_p(ghosted_id))
-    
-       
+
 #ifdef ICE
     call THCAuxVarComputeIce(xx_loc_p(istart:iend), &
         thc_aux_vars(ghosted_id),global_aux_vars(ghosted_id), &
@@ -970,6 +979,46 @@ subroutine THCUpdateAuxVarsPatch(realization)
     boundary_condition => boundary_condition%next
   enddo
 
+  ! source/sinks
+  source_sink => patch%source_sinks%first
+  sum_connection = 0
+  allocate(xx(option%nflowdof))
+  do
+    if (.not.associated(source_sink)) exit
+    cur_connection_set => source_sink%connection_set
+    do iconn = 1, cur_connection_set%num_connections
+      sum_connection = sum_connection + 1
+      local_id = cur_connection_set%id_dn(iconn)
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+
+      iend = ghosted_id*option%nflowdof
+      istart = iend-option%nflowdof+1
+      iphase = int(iphase_loc_p(ghosted_id))
+
+      tsrc1 = source_sink%flow_condition%temperature%flow_dataset%time_series%cur_value(1)
+      xx = xx_loc_p(istart:iend)
+      xx(2) = tsrc1
+
+#ifdef ICE
+    call THCAuxVarComputeIce(xx, &
+        thc_aux_vars_ss(sum_connection),global_aux_vars_ss(sum_connection), &
+        iphase, &
+        realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+        porosity_loc_p(ghosted_id),perm_xx_loc_p(ghosted_id), &
+        option)
+#else
+    call THCAuxVarCompute(xx, &
+        thc_aux_vars_ss(sum_connection),global_aux_vars_ss(sum_connection), &
+        iphase, &
+        realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+        porosity_loc_p(ghosted_id),perm_xx_loc_p(ghosted_id), &
+        option)
+#endif
+    enddo
+    source_sink => source_sink%next
+  enddo
+  deallocate(xx)
 
   call GridVecRestoreArrayF90(grid,field%flow_xx_loc,xx_loc_p, ierr)
   call GridVecRestoreArrayF90(grid,field%icap_loc,icap_loc_p,ierr)
@@ -992,7 +1041,7 @@ end subroutine THCUpdateAuxVarsPatch
 ! ************************************************************************** !
 subroutine THCInitializeTimestep(realization)
 
-  use Realization_module
+  use Realization_class
   
   implicit none
   
@@ -1011,7 +1060,7 @@ end subroutine THCInitializeTimestep
 ! ************************************************************************** !
 subroutine THCUpdateSolution(realization)
 
-  use Realization_module
+  use Realization_class
   use Field_module
   use Level_module
   use Patch_module
@@ -1055,7 +1104,7 @@ end subroutine THCUpdateSolution
 ! ************************************************************************** !
 subroutine THCUpdateSolutionPatch(realization)
 
-  use Realization_module
+  use Realization_class
     
   implicit none
   
@@ -1077,7 +1126,7 @@ end subroutine THCUpdateSolutionPatch
 ! ************************************************************************** !
 subroutine THCUpdateFixedAccumulation(realization)
 
-  use Realization_module
+  use Realization_class
   use Level_module
   use Patch_module
 
@@ -1111,12 +1160,12 @@ end subroutine THCUpdateFixedAccumulation
 ! ************************************************************************** !
 subroutine THCUpdateFixedAccumPatch(realization)
 
-  use Realization_module
+  use Realization_class
   use Patch_module
   use Option_module
   use Field_module
   use Grid_module
-  use Secondary_Continuum_module
+  use Secondary_Continuum_Aux_module
 
 
   implicit none
@@ -1148,7 +1197,7 @@ subroutine THCUpdateFixedAccumPatch(realization)
   thc_parameter => patch%aux%THC%thc_parameter
   thc_aux_vars => patch%aux%THC%aux_vars
   global_aux_vars => patch%aux%Global%aux_vars
-  thc_sec_heat_vars => patch%aux%THC%sec_heat_vars
+  thc_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
 
           
   call GridVecGetArrayF90(grid,field%flow_xx,xx_p, ierr)
@@ -1231,7 +1280,7 @@ end subroutine THCUpdateFixedAccumPatch
 ! ************************************************************************** !
 subroutine THCNumericalJacobianTest(xx,realization)
 
-  use Realization_module
+  use Realization_class
   use Patch_module
   use Option_module
   use Grid_module
@@ -1327,7 +1376,7 @@ subroutine THCAccumDerivative(thc_aux_var,global_aux_var,por,vol, &
 
   use Option_module
   use Saturation_Function_module
-  use water_eos_module
+  use Water_EOS_module
   
   implicit none
 
@@ -1564,7 +1613,7 @@ subroutine THCAccumulation(aux_var,global_aux_var,por,vol, &
                            rock_dencpr,option,vol_frac_prim,Res)
 
   use Option_module
-  use water_eos_module
+  use Water_EOS_module
   
   implicit none
 
@@ -1654,7 +1703,7 @@ subroutine THCFluxDerivative(aux_var_up,global_aux_var_up,por_up,tor_up, &
                              
   use Option_module 
   use Saturation_Function_module             
-  use water_eos_module       
+  use Water_EOS_module       
   
   implicit none
   
@@ -2266,7 +2315,7 @@ subroutine THCFlux(aux_var_up,global_aux_var_up, &
                   Res)
                   
   use Option_module                              
-  use water_eos_module
+  use Water_EOS_module
 
   implicit none
   
@@ -2459,10 +2508,10 @@ subroutine THCBCFluxDerivative(ibndtype,aux_vars, &
                               aux_var_dn,global_aux_var_dn, &
                               por_dn,tor_dn,sir_dn,dd_up,perm_dn,Dk_dn, &
                               area,dist_gravity,option, &
-                              sat_func_dn,Jdn)
+                              sat_func_dn,Diff_dn,Jdn)
   use Option_module
   use Saturation_Function_module
-  use water_eos_module
+  use Water_EOS_module
  
   implicit none
   
@@ -2883,7 +2932,7 @@ subroutine THCBCFlux(ibndtype,aux_vars,aux_var_up,global_aux_var_up, &
                     area,dist_gravity,option,v_darcy,Diff_dn, &
                     Res)
   use Option_module
-  use water_eos_module 
+  use Water_EOS_module 
  
   implicit none
   
@@ -3088,7 +3137,7 @@ end subroutine THCBCFlux
 ! ************************************************************************** !
 subroutine THCResidual(snes,xx,r,realization,ierr)
 
-  use Realization_module
+  use Realization_class
   use Level_module
   use Patch_module
   use Discretization_module
@@ -3124,22 +3173,7 @@ subroutine THCResidual(snes,xx,r,realization,ierr)
   call DiscretizationLocalToLocal(discretization,field%perm_zz_loc,field%perm_zz_loc,ONEDOF)
   call DiscretizationLocalToLocal(discretization,field%ithrm_loc,field%ithrm_loc,ONEDOF)
   
-  ! Compute internal and boundary flux terms
-  cur_level => realization%level_list%first
-  do
-    if (.not.associated(cur_level)) exit
-    cur_patch => cur_level%patch_list%first
-    do
-      if (.not.associated(cur_patch)) exit
-      realization%patch => cur_patch
-      call THCResidualPatch(snes,xx,r,realization,ierr)
-      cur_patch => cur_patch%next
-    enddo
-    cur_level => cur_level%next
-  enddo
-
-  ! Now make a second pass and compute everything that isn't an internal 
-  ! or boundary flux term
+  ! Compute internal and boundary flux terms as well as source/sink terms
   cur_level => realization%level_list%first
   do
     if (.not.associated(cur_level)) exit
@@ -3164,16 +3198,17 @@ end subroutine THCResidual
 ! ************************************************************************** !
 subroutine THCResidualPatch(snes,xx,r,realization,ierr)
 
-  use water_eos_module
+  use Water_EOS_module
 
   use Connection_module
-  use Realization_module
+  use Realization_class
   use Patch_module
   use Grid_module
   use Option_module
   use Coupler_module  
   use Field_module
   use Debug_module
+  use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
   
   implicit none
@@ -3222,6 +3257,7 @@ subroutine THCResidualPatch(snes,xx,r,realization,ierr)
   type(field_type), pointer :: field
   type(thc_parameter_type), pointer :: thc_parameter
   type(thc_auxvar_type), pointer :: aux_vars(:), aux_vars_bc(:)
+  type(thc_auxvar_type), pointer :: aux_vars_ss(:)
   type(global_auxvar_type), pointer :: global_aux_vars(:), global_aux_vars_bc(:)
   type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_list_type), pointer :: connection_set_list
@@ -3248,10 +3284,11 @@ subroutine THCResidualPatch(snes,xx,r,realization,ierr)
   thc_parameter => patch%aux%THC%thc_parameter
   aux_vars => patch%aux%THC%aux_vars
   aux_vars_bc => patch%aux%THC%aux_vars_bc
+  aux_vars_ss => patch%aux%THC%aux_vars_ss
   global_aux_vars => patch%aux%Global%aux_vars
   global_aux_vars_bc => patch%aux%Global%aux_vars_bc
   
-  thc_sec_heat_vars => patch%aux%THC%sec_heat_vars
+  thc_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
   
   call THCUpdateAuxVarsPatch(realization)
   ! override flags since they will soon be out of date  
@@ -3353,6 +3390,7 @@ subroutine THCResidualPatch(snes,xx,r,realization,ierr)
 #if 1
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sinks%first 
+  sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
     
@@ -3363,7 +3401,7 @@ subroutine THCResidualPatch(snes,xx,r,realization,ierr)
       enthalpy_flag = PETSC_FALSE
     endif
 
-    qsrc1 = source_sink%flow_condition%pressure%flow_dataset%time_series%cur_value(1)
+    qsrc1 = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(1)
     tsrc1 = source_sink%flow_condition%temperature%flow_dataset%time_series%cur_value(1)
     csrc1 = source_sink%flow_condition%concentration%flow_dataset%time_series%cur_value(1)
     if (enthalpy_flag) hsrc1 = source_sink%flow_condition%enthalpy%flow_dataset%time_series%cur_value(1)
@@ -3374,6 +3412,7 @@ subroutine THCResidualPatch(snes,xx,r,realization,ierr)
     cur_connection_set => source_sink%connection_set
     
     do iconn = 1, cur_connection_set%num_connections      
+      sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
       if (associated(patch%imat)) then
@@ -3381,17 +3420,30 @@ subroutine THCResidualPatch(snes,xx,r,realization,ierr)
       endif
       
       if (enthalpy_flag) then
-        r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - hsrc1 * option%flow_dt   
+        r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - hsrc1* &
+                                          option%flow_dt*volume_p(local_id)   
       endif         
 
       if (qsrc1 > 0.d0) then ! injection
-        call wateos_noderiv(tsrc1,global_aux_vars(ghosted_id)%pres(1), &
-                            dw_kg,dw_mol,enth_src_h2o,option%scale,ierr)
+        !call wateos_noderiv(tsrc1,global_aux_vars(ghosted_id)%pres(1), &
+        !                    dw_kg,dw_mol,enth_src_h2o,option%scale,ierr)
 !           units: dw_mol [mol/dm^3]; dw_kg [kg/m^3]
 !           qqsrc = qsrc1/dw_mol ! [kmol/s (mol/dm^3 = kmol/m^3)]
-        r_p((local_id-1)*option%nflowdof + jh2o) = r_p((local_id-1)*option%nflowdof + jh2o) &
-                                               - qsrc1 *option%flow_dt
-        r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - qsrc1*enth_src_h2o*option%flow_dt
+        r_p((local_id-1)*option%nflowdof + jh2o) =  &
+                                     r_p((local_id-1)*option%nflowdof + jh2o) &
+                                     - qsrc1*option%flow_dt*volume_p(local_id)
+        !r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - qsrc1*enth_src_h2o*option%flow_dt
+        r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - &
+          qsrc1*aux_vars_ss(sum_connection)%h*option%flow_dt*volume_p(local_id)
+      else
+        ! extraction
+        r_p((local_id)*option%nflowdof+jh2o) = r_p((local_id-1)*option%nflowdof+jh2o) &
+                                               - qsrc1*option%flow_dt* &
+                                                 volume_p(local_id)
+        r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - &
+                                        qsrc1*aux_vars(ghosted_id)%h* &
+                                        option%flow_dt*volume_p(local_id)
+                                        
       endif  
     
       if (csrc1 > 0.d0) then ! injection
@@ -3639,7 +3691,7 @@ end subroutine THCResidualPatch
 ! ************************************************************************** !
 subroutine THCJacobian(snes,xx,A,B,flag,realization,ierr)
 
-  use Realization_module
+  use Realization_class
   use Patch_module
   use Level_module
   use Grid_module
@@ -3718,17 +3770,17 @@ end subroutine THCJacobian
 ! ************************************************************************** !
 subroutine THCJacobianPatch(snes,xx,A,B,flag,realization,ierr)
        
-  use water_eos_module
+  use Water_EOS_module
 
   use Connection_module
   use Option_module
   use Grid_module
-  use Realization_module
+  use Realization_class
   use Patch_module
   use Coupler_module
   use Field_module
   use Debug_module
-  use Secondary_Continuum_module
+  use Secondary_Continuum_Aux_module
 
   SNES :: snes
   Vec :: xx
@@ -3783,7 +3835,7 @@ subroutine THCJacobianPatch(snes,xx,A,B,flag,realization,ierr)
   type(option_type), pointer :: option 
   type(field_type), pointer :: field 
   type(thc_parameter_type), pointer :: thc_parameter
-  type(thc_auxvar_type), pointer :: aux_vars(:), aux_vars_bc(:)
+  type(thc_auxvar_type), pointer :: aux_vars(:), aux_vars_bc(:),aux_vars_ss(:)
   type(global_auxvar_type), pointer :: global_aux_vars(:), global_aux_vars_bc(:) 
 
   type(sec_heat_type), pointer :: sec_heat_vars(:)
@@ -3804,10 +3856,11 @@ subroutine THCJacobianPatch(snes,xx,A,B,flag,realization,ierr)
   thc_parameter => patch%aux%THC%thc_parameter
   aux_vars => patch%aux%THC%aux_vars
   aux_vars_bc => patch%aux%THC%aux_vars_bc
+  aux_vars_ss => patch%aux%THC%aux_vars_ss
   global_aux_vars => patch%aux%Global%aux_vars
   global_aux_vars_bc => patch%aux%Global%aux_vars_bc
 
-  sec_heat_vars => patch%aux%THC%sec_heat_vars
+  sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
   
 #if 0
    call THCNumericalJacobianTest(xx,realization)
@@ -3878,7 +3931,8 @@ subroutine THCJacobianPatch(snes,xx,A,B,flag,realization,ierr)
 #if 1
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sinks%first 
-  do 
+  sum_connection = 0
+  do
     if (.not.associated(source_sink)) exit
     
     ! check whether enthalpy dof is included
@@ -3888,7 +3942,7 @@ subroutine THCJacobianPatch(snes,xx,A,B,flag,realization,ierr)
       enthalpy_flag = PETSC_FALSE
     endif
 
-    qsrc1 = source_sink%flow_condition%pressure%flow_dataset%time_series%cur_value(1)
+    qsrc1 = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(1)
     tsrc1 = source_sink%flow_condition%temperature%flow_dataset%time_series%cur_value(1)
     csrc1 = source_sink%flow_condition%concentration%flow_dataset%time_series%cur_value(1)
     if (enthalpy_flag) hsrc1 = source_sink%flow_condition%enthalpy%flow_dataset%time_series%cur_value(1)
@@ -3899,6 +3953,7 @@ subroutine THCJacobianPatch(snes,xx,A,B,flag,realization,ierr)
     cur_connection_set => source_sink%connection_set
     
     do iconn = 1, cur_connection_set%num_connections      
+      sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
 
@@ -3911,17 +3966,25 @@ subroutine THCJacobianPatch(snes,xx,A,B,flag,realization,ierr)
 !      endif         
 
       if (qsrc1 > 0.d0) then ! injection
-        call wateos(tsrc1,global_aux_vars(ghosted_id)%pres(1),dw_kg,dw_mol,dw_dp,dw_dt, &
-              enth_src_h2o,hw_dp,hw_dt,option%scale,ierr)        
+        !call wateos(tsrc1,global_aux_vars(ghosted_id)%pres(1),dw_kg,dw_mol,dw_dp,dw_dt, &
+        !      enth_src_h2o,hw_dp,hw_dt,option%scale,ierr)
 !           units: dw_mol [mol/dm^3]; dw_kg [kg/m^3]
 !           qqsrc = qsrc1/dw_mol ! [kmol/s (mol/dm^3 = kmol/m^3)]
         ! base on r_p() = r_p() - qsrc1*enth_src_h2o*option%flow_dt
-        dresT_dp = -qsrc1*hw_dp*option%flow_dt
+        !dresT_dp = -qsrc1*hw_dp*option%flow_dt
+        dresT_dp = -qsrc1*aux_vars_ss(sum_connection)%dh_dp*option%flow_dt
         ! dresT_dt = -qsrc1*hw_dt*option%flow_dt ! since tsrc1 is prescribed, there is no derivative
         istart = ghosted_id*option%nflowdof
         call MatSetValuesLocal(A,1,istart-1,1,istart-option%nflowdof,dresT_dp,ADD_VALUES,ierr)
         ! call MatSetValuesLocal(A,1,istart-1,1,istart-1,dresT_dt,ADD_VALUES,ierr)
-      endif  
+      else
+        ! extraction
+        dresT_dp = -qsrc1*aux_vars(ghosted_id)%dh_dp*option%flow_dt
+        dresT_dt = -qsrc1*aux_vars(ghosted_id)%dh_dt*option%flow_dt
+        istart = ghosted_id*option%nflowdof
+        call MatSetValuesLocal(A,1,istart-1,1,istart-option%nflowdof,dresT_dp,ADD_VALUES,ierr)
+        call MatSetValuesLocal(A,1,istart-1,1,istart-1,dresT_dt,ADD_VALUES,ierr)
+      endif
     
       if (csrc1 > 0.d0) then ! injection
         call printErrMsg(option,"concentration source not yet implemented in THC")
@@ -4101,6 +4164,7 @@ subroutine THCJacobianPatch(snes,xx,A,B,flag,realization,ierr)
                                      cur_connection_set%dist(1:3,iconn))
       icap_dn = int(icap_loc_p(ghosted_id))  
 	  
+      Diff_dn = thc_parameter%diffusion_coefficient(1)
 
       call THCBCFluxDerivative(boundary_condition%flow_condition%itype, &
                                 boundary_condition%flow_aux_real_var(:,iconn), &
@@ -4115,7 +4179,8 @@ subroutine THCJacobianPatch(snes,xx,A,B,flag,realization,ierr)
                                 cur_connection_set%area(iconn), &
                                 distance_gravity,option, &
                                 realization%saturation_function_array(icap_dn)%ptr,&
-                                Jdn)
+                                Diff_dn,Jdn)
+                                
       Jdn = -Jdn
   
 !  scale by the volume of the cell
@@ -4291,7 +4356,7 @@ end subroutine THCCreateZeroArray
 ! ************************************************************************** !
 subroutine THCMaxChange(realization)
 
-  use Realization_module
+  use Realization_class
   use Option_module
   use Field_module
   
@@ -4326,7 +4391,7 @@ end subroutine THCMaxChange
 ! ************************************************************************** !
 subroutine THCResidualToMass(realization)
 
-  use Realization_module
+  use Realization_class
   use Level_module
   use Patch_module
   use Discretization_module
@@ -4396,7 +4461,7 @@ end subroutine THCResidualToMass
 ! ************************************************************************** !
 function THCGetTecplotHeader(realization,icolumn)
 
-  use Realization_module
+  use Realization_class
   use Option_module
   use Field_module
 
@@ -4521,7 +4586,7 @@ end function THCGetTecplotHeader
 ! ************************************************************************** !
 subroutine THCSetPlotVariables(realization)
   
-  use Realization_module
+  use Realization_class
   use Output_Aux_module
   use Variables_module
 
@@ -4710,7 +4775,7 @@ subroutine THCSecondaryHeat(sec_heat_vars,global_aux_var, &
                             
   use Option_module 
   use Global_Aux_module
-  use Secondary_Continuum_module
+  use Secondary_Continuum_Aux_module
   
   implicit none
   
@@ -4805,7 +4870,7 @@ subroutine THCSecondaryHeatJacobian(sec_heat_vars, &
                                     
   use Option_module 
   use Global_Aux_module
-  use Secondary_Continuum_module
+  use Secondary_Continuum_Aux_module
   
   implicit none
   

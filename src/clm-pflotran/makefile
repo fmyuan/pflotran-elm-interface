@@ -283,7 +283,7 @@ misc_obj = \
 	${common_src}strata.o \
 	${common_src}timestepper.o \
 	${common_src}transport.o \
-	${common_src}velocity.o \
+	${common_src}uniform_velocity.o \
 	${common_src}mapping.o \
   ${common_src}clm_pflotran_interface_data.o \
   ${common_src}pflotran_model.o \
@@ -386,7 +386,7 @@ init.o : option.o grid.o debug.o realization.o solver.o timestepper.o \
          coupler.o strata.o pckr_mod.o field.o mphase.o flash2.o \
          richards.o thc.o thmc.o discretization.o logging.o \
          database.o reaction_aux.o string.o units.o stochastic_aux.o \
-         velocity.o dataset.o condition_control.o surface_flow.o \
+         uniform_velocity.o dataset.o condition_control.o surface_flow.o \
          database_hpt.o output_aux.o variables.o constraint.o
 input.o : string.o option.o
 level.o : patch.o option.o
@@ -441,7 +441,7 @@ reactive_transport_aux.o : option.o reaction_aux.o surface_complexation_aux.o \
                            matrix_block_aux.o
 realization.o : grid.o option.o region.o condition.o coupler.o material.o \
                 strata.o waypoint.o field.o hydrostatic.o debug.o \
-                observation.o velocity.o patch.o level.o discretization.o \
+                observation.o uniform_velocity.o patch.o level.o discretization.o \
                 reaction.o reaction_aux.o fluid.o saturation_function.o \
                 dataset.o surface_field.o surface_material.o output_aux.o \
                 constraint.o
@@ -496,7 +496,7 @@ unstructured_grid.o : option.o connection.o unstructured_cell.o \
                       unstructured_grid_aux.o geometry.o
 unstructured_grid_aux.o : unstructured_cell.o geometry.o option.o utility.o
 utility.o : string.o input.o option.o
-velocity.o : option.o input.o string.o logging.o units.o
+uniform_velocity.o : option.o input.o string.o logging.o units.o
 waypoint.o : option.o output_aux.o
 
 
