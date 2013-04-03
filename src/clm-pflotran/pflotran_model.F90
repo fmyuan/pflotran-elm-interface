@@ -1,7 +1,7 @@
 module pflotran_model_module
 
   use Simulation_module
-  use Realization_module
+  use Realization_class
   use Timestepper_module
   use Option_module
   use Input_module
@@ -126,7 +126,7 @@ contains
   function pflotranModelCreate(mpicomm)
 
     use Simulation_module
-    use Realization_module
+    use Realization_class
     use Timestepper_module
     use Option_module
     use Input_module
@@ -148,6 +148,7 @@ contains
 
     PetscBool  :: truth
     PetscBool  :: option_found
+    PetscBool :: input_prefix_option_found, pflotranin_option_found
     PetscBool  :: single_inputfile
     PetscInt   :: i
     PetscInt   :: temp_int
@@ -211,7 +212,35 @@ contains
     ! check for non-default input filename
     pflotran_model%option%input_filename = "pflotran.in"
     string = '-pflotranin'
-    call InputGetCommandLineString(string,pflotran_model%option%input_filename,option_found,pflotran_model%option)
+    call InputGetCommandLineString(string,pflotran_model%option%input_filename, &
+                                  pflotranin_option_found,pflotran_model%option)
+
+    string = '-input_prefix'
+    call InputGetCommandLineString(string,pflotran_model%option%input_prefix, &
+                                  input_prefix_option_found,pflotran_model%option)
+  
+    if (pflotranin_option_found .and. input_prefix_option_found) then
+      pflotran_model%option%io_buffer = 'Cannot specify both "-pflotranin" and ' // &
+        '"-input_prefix" on the command lines.'
+      call printErrMsg(pflotran_model%option)
+    else if (pflotranin_option_found) then
+      !TODO(geh): replace this with StringSplit()
+      i = index(pflotran_model%option%input_filename,'.',PETSC_TRUE)
+      if (i > 1) then
+        i = i-1
+      else
+        ! for some reason len_trim doesn't work on MS Visual Studio in
+        ! this location
+        i = len(trim(pflotran_model%option%input_filename))
+      endif
+      pflotran_model%option%input_prefix = pflotran_model%option%input_filename(1:i)
+    else if (input_prefix_option_found) then
+      pflotran_model%option%input_filename = trim(pflotran_model%option%input_prefix) // '.in'
+    endif
+
+    string = '-output_prefix'
+    call InputGetCommandLineString(string,pflotran_model%option%global_prefix,option_found,pflotran_model%option)
+    if (.not.option_found) pflotran_model%option%global_prefix = pflotran_model%option%input_prefix
 
     string = '-screen_output'
     call InputGetCommandLineTruth(string,pflotran_model%option%print_to_screen,option_found,pflotran_model%option)
@@ -265,6 +294,8 @@ contains
        write(string,*) pflotran_model%option%mygroup_id
        pflotran_model%option%group_prefix = 'G' // trim(adjustl(string))
     endif
+    write(*,*),'option%global_prefix = ',pflotran_model%option%global_prefix
+    write(*,*),'option%group_prefix = ',pflotran_model%option%group_prefix
 
     if (pflotran_model%option%verbosity > 0) then
        call PetscLogBegin(ierr)
@@ -279,7 +310,7 @@ contains
     call OptionCheckCommandLine(pflotran_model%option)
 
     call PetscGetCPUTime(timex(1), ierr)
-    call PetscGetTime(timex_wall(1), ierr)
+    call PetscTime(timex_wall(1), ierr)
     pflotran_model%option%start_time = timex_wall(1)
 
     call Init(pflotran_model%simulation)
@@ -374,7 +405,7 @@ contains
   ! ************************************************************************** !
 subroutine pflotranModelSetICs3(pflotran_model)
 
-    use Realization_module
+    use Realization_class
     use Patch_module
     use Grid_module
     use Richards_Aux_module
@@ -450,7 +481,7 @@ end subroutine pflotranModelSetICs3
 !#ifdef CLM_PFLOTRAN
   subroutine pflotranModelSetSoilProp3(pflotran_model)
 
-    use Realization_module
+    use Realization_class
     use Patch_module
     use Grid_module
     use Richards_Aux_module
@@ -589,7 +620,7 @@ end subroutine pflotranModelSetICs3
 
     use Input_module
     use Option_module
-    use Realization_module
+    use Realization_class
     use Grid_module
     use Patch_module
 
@@ -974,7 +1005,7 @@ end subroutine pflotranModelInitMapping3
   subroutine pflotranModelGetSaturation3 (pflotran_model)
 
     use clm_pflotran_interface_data
-    use Realization_module
+    use Realization_class
     use Patch_module
     use Grid_module
     !use clm_pflotran_interface_type
@@ -1196,7 +1227,7 @@ end subroutine pflotranModelInitMapping3
 
     ! Final Time
     call PetscGetCPUTime(timex(2), ierr)
-    call PetscGetTime(timex_wall(2), ierr)
+    call PetscTime(timex_wall(2), ierr)
 
     if (pflotran_model%option%myrank == pflotran_model%option%io_rank) then
 

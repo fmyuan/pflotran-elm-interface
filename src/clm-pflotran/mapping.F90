@@ -798,7 +798,7 @@ contains
     ! size(wts_mat) = [d_ncells_ghd x s2d_s_ncells_dis]
     !
     call MatCreateSeqAIJ(PETSC_COMM_SELF, map%d_ncells_ghd, &
-         map%s2d_s_ncells_dis, PETSC_NULL, &
+         map%s2d_s_ncells_dis, PETSC_NULL_INTEGER, &
          map%s2d_nonzero_rcount_csr, map%wts_mat, ierr)
 
     do ii = 1,map%s2d_s_ncells

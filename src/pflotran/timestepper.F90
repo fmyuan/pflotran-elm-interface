@@ -2953,8 +2953,6 @@ subroutine StepperStepSurfaceFlowDT(surf_realization,stepper,failure)
       option%io_buffer = 'ERROR: Incorrect iflowmode in SurfaceFlow'
       call printErrMsgByRank(option)
   end select
-  option%io_buffer='stopping for debugging--- SurfaceFlowInitializeTimestep'
-  call printErrMsg(option)
 
   do
     call PetscTime(log_start_time,ierr)
@@ -4764,12 +4762,13 @@ end subroutine TimestepperDestroy
   subroutine StepperRunInit(realization,surf_realization,flow_stepper,tran_stepper)
 #endif
 
-    use Realization_module
+    use Realization_class
 
     use Option_module
 
-    use Output_module, only : Output, OutputInit, OutputVectorTecplot, &
+    use Output_module, only : Output, OutputInit, &
                               OutputPrintCouplers
+    use Output_Tecplot_module, only : OutputVectorTecplot
     use Output_Aux_module
     use Logging_module
     use Discretization_module
@@ -4850,7 +4849,7 @@ end subroutine TimestepperDestroy
 #endif
 
     if (option%restart_flag) then
-       call StepperRestart(realization,flow_stepper,tran_stepper, &
+       call TimeStepperRestart(realization,flow_stepper,tran_stepper, &
             flow_read,transport_read,activity_coefs_read)
        if (associated(flow_stepper)) flow_stepper%cur_waypoint => &
             WaypointSkipToTime(realization%waypoints,option%time)
@@ -4883,8 +4882,7 @@ end subroutine TimestepperDestroy
              write(iulog,*), 'PROBLEM: Currently NOT allowing for steady state solve!!!'
 #endif
              option%flow_dt = master_stepper%dt_min
-             call StepperStepFlowDT(realization,flow_stepper,step_to_steady_state, &
-                  failure)
+             call StepperStepFlowDT(realization,flow_stepper,failure)
              if (failure) then ! if flow solve fails, exit
                 if (OptionPrintToScreen(option)) then
                    write(*,*) ' ERROR: steady state solve failed!!!'
@@ -5043,11 +5041,12 @@ end subroutine TimestepperDestroy
                               tran_stepper, pause_time)
 #endif
 
-    use Realization_module
+    use Realization_class
 
     use Option_module
-    use Output_module, only : Output, OutputInit, OutputVectorTecplot, &
+    use Output_module, only : Output, OutputInit, &
                               OutputPrintCouplers
+    use Output_Tecplot_module, only : OutputVectorTecplot
     use Output_Aux_module
     use Logging_module
     use Discretization_module
@@ -5188,8 +5187,7 @@ end subroutine TimestepperDestroy
 #endif
              flow_t0 = option%flow_time
              call PetscLogStagePush(logging%stage(FLOW_STAGE),ierr)
-             call StepperStepFlowDT(realization,flow_stepper,step_to_steady_state, &
-                  failure)
+             call StepperStepFlowDT(realization,flow_stepper,failure)
              call PetscLogStagePop(ierr)
              if (failure) return ! if flow solve fails, exit
              option%flow_time = flow_stepper%target_time
@@ -5404,10 +5402,11 @@ end subroutine TimestepperDestroy
 
   subroutine StepperRunFinalize (realization,flow_stepper,tran_stepper)
 
-    use Realization_module
+    use Realization_class
 
     use Option_module
-    use Output_module, only : Output, OutputInit, OutputVectorTecplot
+    use Output_module, only : Output, OutputInit
+    use Output_Tecplot_module, only : OutputVectorTecplot  
     use Output_Aux_module
     use Logging_module
     use Discretization_module
@@ -5508,6 +5507,7 @@ end subroutine TimestepperDestroy
   end subroutine StepperRunFinalize
 
 
-#endif ! defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+#endif
+! defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
 
 end module Timestepper_module
