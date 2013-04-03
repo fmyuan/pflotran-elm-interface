@@ -2260,6 +2260,7 @@ function UGridComputeInternConnect(unstructured_grid,grid_x,grid_y,grid_z, &
         endif
         connections%id_up(iconn) = local_id
         connections%id_dn(iconn) = abs(dual_local_id)
+        connections%face_id(iconn) = cell_to_face(iface,local_id)
         if(face_type == LINE_FACE_TYPE) then
 
           point_up%x = grid_x(local_id)
@@ -2586,6 +2587,7 @@ subroutine UGridPopulateConnection(unstructured_grid, connection, iface_cell, &
       connection%intercp(1,iconn)= intercept%x
       connection%intercp(2,iconn)= intercept%y
       connection%intercp(3,iconn)= intercept%z
+      connection%face_id(iconn)  = face_id
       
   end select
   
@@ -2866,6 +2868,7 @@ subroutine UGridEnsureRightHandRule(unstructured_grid,x,y,z,nG2A,nl2G,option)
   type(point_type) :: vertex_8(8)
   PetscInt :: ivertex, vertex_id
   PetscInt :: num_vertices, iface, cell_type, num_faces, face_type, i
+  PetscInt :: num_face_vertices
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: error_found
 
@@ -2884,6 +2887,7 @@ subroutine UGridEnsureRightHandRule(unstructured_grid,x,y,z,nG2A,nl2G,option)
     num_faces = UCellGetNFaces(cell_type,option)
     do iface = 1, num_faces
       face_type = UCellGetFaceType(cell_type,iface,option)
+      num_face_vertices = UCellGetNFaceVertices(cell_type,iface,option)
       call UCellGetFaceVertices(option,cell_type,iface,face_vertex_ids)
       ! Need to find distance of a point (centroid) from a line (formed by
       ! joining vertices of a line)
@@ -2921,7 +2925,7 @@ subroutine UGridEnsureRightHandRule(unstructured_grid,x,y,z,nG2A,nl2G,option)
           ' violates right hand rule at face "' // &
           trim(UCellFaceTypeToWord(face_type,option)) // &
           '" based on face vertices:'
-        do i = 1, num_vertices
+        do i = 1, num_face_vertices
           write(string,'(i13)') face_vertex_ids(i)
           option%io_buffer = trim(option%io_buffer) // ' ' // &
             trim(adjustl(string))

@@ -94,6 +94,7 @@ module Option_module
 
     PetscReal :: uniform_velocity(3)
     PetscBool :: store_solute_fluxes
+    PetscBool :: store_flowrate
 
     ! Program options
     PetscBool :: use_matrix_free  ! If true, do not form the Jacobian.
@@ -164,6 +165,7 @@ module Option_module
     
     PetscBool :: numerical_derivatives_flow
     PetscBool :: numerical_derivatives_rxn
+    PetscBool :: numerical_derivatives_multi_coupling
     PetscBool :: compute_statistics
     PetscBool :: compute_mass_balance_new
     PetscBool :: use_touch_options
@@ -466,8 +468,13 @@ subroutine OptionInitRealization(option)
   
   option%numerical_derivatives_flow = PETSC_FALSE
   option%numerical_derivatives_rxn = PETSC_FALSE
+  option%numerical_derivatives_multi_coupling = PETSC_FALSE
   option%compute_statistics = PETSC_FALSE
   option%compute_mass_balance_new = PETSC_FALSE
+  option%store_flowrate = PETSC_FALSE
+#ifdef STORE_FLOWRATES
+  option%store_flowrate = PETSC_TRUE
+#endif
 
   option%use_touch_options = PETSC_FALSE
   option%overwrite_restart_transport = PETSC_FALSE

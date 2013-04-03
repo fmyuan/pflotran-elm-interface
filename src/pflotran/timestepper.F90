@@ -572,8 +572,8 @@ end subroutine TimestepperInitializeRun
 !
 ! ************************************************************************** !
 #ifdef SURFACE_FLOW
-subroutine TimestepperExecuteRun(realization,surf_realization,flow_stepper, &
-                                 tran_stepper,surf_flow_stepper)
+subroutine TimestepperExecuteRun(realization,surf_realization,master_stepper, &
+                                 flow_stepper,tran_stepper,surf_flow_stepper)
 #else
 subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
                                  tran_stepper)
@@ -607,7 +607,7 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
 #ifdef SURFACE_FLOW
   type(stepper_type), pointer :: surf_flow_stepper
   type(surface_realization_type), pointer :: surf_realization
-  PetscBool :: plot_flag_surf, transient_plot_flag_surf
+  PetscBool :: surf_plot_flag
 !  PetscReal :: surf_flow_time,surf_flow_dt,surf_flow_target_time
 #endif
   
@@ -642,7 +642,7 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
     run_flow_as_steady_state = flow_stepper%run_as_steady_state
   endif
 
-  call PetscGetTime(master_stepper%start_time, ierr)
+  call PetscTime(master_stepper%start_time, ierr)
 
   do
 
@@ -676,7 +676,7 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
           call StepperUpdateSurfaceFlowDTExplicit(surf_realization,option)
         endif
         call SetSurfaceSubsurfaceCouplingTime(flow_stepper,tran_stepper,surf_flow_stepper, &
-                            option,plot_flag,transient_plot_flag)
+                            option,plot_flag,transient_plot_flag,surf_plot_flag)
 
         ! Update subsurface pressure of top soil layer for surface flow model
         if (surf_realization%option%subsurf_surf_coupling == SEQ_COUPLED) then
@@ -913,8 +913,8 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
 !                             tran_stepper%solver)
 !    endif
 #ifdef SURFACE_FLOW
-    plot_flag_surf = plot_flag
-    transient_plot_flag_surf = transient_plot_flag
+    !plot_flag_surf = plot_flag
+    !transient_plot_flag_surf = transient_plot_flag
 #endif
     call Output(realization,plot_flag,transient_plot_flag)
     
@@ -922,8 +922,8 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
     call StepperUpdateDT(flow_stepper,tran_stepper,option)
 
 #ifdef SURFACE_FLOW
-    call OutputSurface(surf_realization,realization,plot_flag_surf, &
-                       transient_plot_flag_surf)
+    call OutputSurface(surf_realization,realization,surf_plot_flag, &
+                       transient_plot_flag)
     if(associated(surf_flow_stepper)) then
       if(option%surf_flow_explicit) then
         call StepperUpdateSurfaceFlowDTExplicit(surf_realization,option)
@@ -937,7 +937,7 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
     ! next time step will not exceed that value.  If it does, print the
     ! checkpoint and exit.
     if (option%wallclock_stop_flag) then
-      call PetscGetTime(current_time, ierr)
+      call PetscTime(current_time, ierr)
       average_step_time = (current_time-master_stepper%start_time)/ &
                           real(master_stepper%steps-&
                                master_stepper%start_time_step+1) &
@@ -1716,7 +1716,7 @@ end subroutine StepperSetTargetTimes
 ! ************************************************************************** !
 #ifdef SURFACE_FLOW
 subroutine StepperSetSurfaceFlowTargetTimes(surf_flow_stepper, &
-                                 option,plot_flag, &
+                                 option,surf_plot_flag, &
                                  transient_plot_flag)
 
   use Option_module
@@ -1725,16 +1725,22 @@ subroutine StepperSetSurfaceFlowTargetTimes(surf_flow_stepper, &
 
   type(stepper_type), pointer :: surf_flow_stepper
   type(option_type) :: option
-  PetscBool :: plot_flag
+  PetscBool :: surf_plot_flag
   PetscBool :: transient_plot_flag
 
   PetscReal :: target_time
   PetscReal :: dt
   PetscReal :: dt_max
+  type(waypoint_type), pointer :: cur_waypoint
+  PetscReal :: tolerance
+
+  cur_waypoint => surf_flow_stepper%cur_waypoint
+
+  surf_plot_flag = PETSC_FALSE
 
   dt = option%surf_flow_dt
   target_time = surf_flow_stepper%target_time + option%surf_flow_dt
-  surf_flow_stepper%target_time = target_time
+  tolerance = surf_flow_stepper%time_step_tolerance
 
   ! Cut timestep to avoid going pass the surface-subsurface coupling time
   if(option%subsurf_surf_coupling==SEQ_COUPLED) then
@@ -1744,6 +1750,25 @@ subroutine StepperSetSurfaceFlowTargetTimes(surf_flow_stepper, &
       surf_flow_stepper%target_time=option%surf_subsurf_coupling_time
     endif
   endif
+
+  if (target_time + tolerance*dt >= cur_waypoint%time .and. &
+      (cur_waypoint%print_output .or. &
+       cur_waypoint%final)) then
+
+    ! decrement by time step size
+    target_time = target_time - dt
+    ! set new time step size based on waypoint time
+    dt = cur_waypoint%time - target_time
+
+    target_time = cur_waypoint%time
+    if (cur_waypoint%print_output) surf_plot_flag = PETSC_TRUE
+    option%match_waypoint = PETSC_TRUE
+    cur_waypoint => cur_waypoint%next
+  endif
+
+  surf_flow_stepper%cur_waypoint => cur_waypoint
+  surf_flow_stepper%target_time = target_time
+  option%surf_flow_dt = dt
 
 end subroutine StepperSetSurfaceFlowTargetTimes
 #endif
@@ -1758,7 +1783,8 @@ end subroutine StepperSetSurfaceFlowTargetTimes
 ! ************************************************************************** !
 #ifdef SURFACE_FLOW
 subroutine SetSurfaceSubsurfaceCouplingTime(flow_stepper,tran_stepper,surf_flow_stepper, &
-                                        option,plot_flag,transient_plot_flag)
+                                        option,plot_flag,transient_plot_flag, &
+                                        surf_plot_flag)
 
   use Option_module
 
@@ -1770,6 +1796,7 @@ subroutine SetSurfaceSubsurfaceCouplingTime(flow_stepper,tran_stepper,surf_flow_
   type(option_type) :: option
   PetscBool :: plot_flag
   PetscBool :: transient_plot_flag
+  PetscBool :: surf_plot_flag
 
   if(option%surf_subsurf_coupling_flow_dt>0.d0) then
     ! Case-I: Coupling time is specified in the input deck, so use it
@@ -1778,7 +1805,7 @@ subroutine SetSurfaceSubsurfaceCouplingTime(flow_stepper,tran_stepper,surf_flow_
 
     ! Set new target time for surface model
     call StepperSetSurfaceFlowTargetTimes(surf_flow_stepper,option, &
-              plot_flag,transient_plot_flag)
+              surf_plot_flag,transient_plot_flag)
 
     if (option%subsurf_surf_coupling==SEQ_COUPLED) then
       ! Set new target time for subsurface model
@@ -1808,14 +1835,14 @@ subroutine SetSurfaceSubsurfaceCouplingTime(flow_stepper,tran_stepper,surf_flow_
 
       ! Set new target time for surface model
       call StepperSetSurfaceFlowTargetTimes(surf_flow_stepper,option, &
-                plot_flag,transient_plot_flag)
+                surf_plot_flag,transient_plot_flag)
 
     else
       ! Case-III: Coupling time not explicitly specified in the input deck, with
       !          only surface simulation 
       ! Set new target time for surface model
       call StepperSetSurfaceFlowTargetTimes(surf_flow_stepper,option, &
-                plot_flag,transient_plot_flag)
+                surf_plot_flag,transient_plot_flag)
 
       option%surf_subsurf_coupling_time=surf_flow_stepper%target_time
 
@@ -1827,7 +1854,7 @@ subroutine SetSurfaceSubsurfaceCouplingTime(flow_stepper,tran_stepper,surf_flow_
 
     endif
   endif
-
+  
 end subroutine SetSurfaceSubsurfaceCouplingTime
 #endif
 
@@ -1953,7 +1980,7 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
 
   do
       
-    call PetscGetTime(log_start_time, ierr)
+    call PetscTime(log_start_time, ierr)
 
     select case(option%iflowmode)
       case(MPH_MODE,TH_MODE,THC_MODE,THMC_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE)
@@ -1966,7 +1993,7 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
         end if
 
     end select
-    call PetscGetTime(log_end_time, ierr)
+    call PetscTime(log_end_time, ierr)
     stepper%cumulative_solver_time = stepper%cumulative_solver_time + &
                                       (log_end_time - log_start_time)
 
@@ -2474,11 +2501,6 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
       endif
     endif
 
-#ifdef DASVYAT
-!     write(*,*) "Flow begins"
-!     read(*,*)
-#endif
-
     if (option%ntrandof > 0) then ! store initial saturations for transport
       call GlobalUpdateAuxVars(realization,TIME_T)
     endif
@@ -2507,7 +2529,7 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
     
     do
       
-      call PetscGetTime(log_start_time, ierr)
+      call PetscTime(log_start_time, ierr)
 
       select case(option%iflowmode)
         case(MPH_MODE,TH_MODE,THC_MODE,THMC_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE)
@@ -2520,45 +2542,32 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
           end if
 
 #if DASVYAT_DEBUG
-
-    call PetscViewerASCIIOpen(realization%option%mycomm,'timestepp_flow_xx_after.out', &
-                              viewer,ierr)
-    if (discretization%itype == STRUCTURED_GRID_MIMETIC) then
-!             call VecView(field%flow_xx_faces, viewer, ierr)
-     !       call VecView(field%flow_xx, viewer, ierr)
-     !        call VecView(field%flow_r_faces, viewer, ierr)
-              call VecNorm(field%flow_r_faces, NORM_2, tempreal, ierr)
-
-             write(*,*) "MFD residual", tempreal
-    else
+          call PetscViewerASCIIOpen(realization%option%mycomm,'timestepp_flow_xx_after.out', &
+                                viewer,ierr)
+          if (discretization%itype == STRUCTURED_GRID_MIMETIC) then
+            !call VecView(field%flow_xx_faces, viewer, ierr)
+            !call VecView(field%flow_xx, viewer, ierr)
+            !call VecView(field%flow_r_faces, viewer, ierr)
+            call VecNorm(field%flow_r_faces, NORM_2, tempreal, ierr)
+            write(*,*) "MFD residual", tempreal
+          else
             call VecView(field%flow_xx, viewer, ierr)
-    end if
+        endif
 
-!    stop
+        call RichardsResidual(solver%snes,field%flow_xx, field%flow_r,realization,ierr)
+        call VecView(field%flow_r, viewer, ierr)
+        call VecNorm(field%flow_r, NORM_2, tempreal2, ierr)
 
-    call RichardsResidual(solver%snes,field%flow_xx, field%flow_r,realization,ierr)
-
-    call VecView(field%flow_r, viewer, ierr)
-    call VecNorm(field%flow_r, NORM_2, tempreal2, ierr)
-
-
-    write(*,*) "FV residual", tempreal2
-
-    call PetscViewerDestroy(viewer,ierr)
-
-    write(*,*) "After SNESSolve" 
-
-!    if (tempreal2/tempreal > 1e+4) stop
-
-!     stop
-      read(*,*)   
-     
+        write(*,*) "FV residual", tempreal2
+        call PetscViewerDestroy(viewer,ierr)
+        write(*,*) "After SNESSolve"
+        read(*,*)     
 #endif
 
 
 
       end select
-      call PetscGetTime(log_end_time, ierr)
+      call PetscTime(log_end_time, ierr)
       stepper%cumulative_solver_time = stepper%cumulative_solver_time + &
                                        (log_end_time - log_start_time)
 
@@ -2865,12 +2874,6 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
       endif
   end select
 
-
-#ifdef DASVYAT_DEBUG
-    write(*,*) "End FLOW" 
-    read(*,*)    
-#endif
-
   if (option%print_screen_flag) print *, ""
   
   ! option%flow_time is updated outside this subroutine
@@ -2954,7 +2957,7 @@ subroutine StepperStepSurfaceFlowDT(surf_realization,stepper,failure)
   call printErrMsg(option)
 
   do
-    call PetscGetTime(log_start_time,ierr)
+    call PetscTime(log_start_time,ierr)
     
     select case(option%iflowmode)
       case (RICHARDS_MODE)
@@ -2964,7 +2967,7 @@ subroutine StepperStepSurfaceFlowDT(surf_realization,stepper,failure)
         call printErrMsgByRank(option)
     end select
 
-    call PetscGetTime(log_end_time,ierr)
+    call PetscTime(log_end_time,ierr)
 
 
     stepper%cumulative_solver_time_surf_flow =  &
@@ -3210,12 +3213,6 @@ subroutine StepperStepTransportDT_GI(realization,stepper, &
   field => realization%field
   solver => stepper%solver
 
-#ifdef DASVYAT
-!write(*,*) "Beginning of StepperStepTransportDT"
-!read(*,*)
-!stop
-#endif
-
 ! PetscReal, pointer :: xx_p(:), conc_p(:), press_p(:), temp_p(:)
 
   call DiscretizationLocalToLocal(discretization,field%porosity_loc, &
@@ -3261,18 +3258,18 @@ subroutine StepperStepTransportDT_GI(realization,stepper, &
       call VecCopy(field%tran_xx,field%tran_log_xx,ierr)
       call VecLog(field%tran_log_xx,ierr)
 
-      call PetscGetTime(log_start_time, ierr)
+      call PetscTime(log_start_time, ierr)
       call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%tran_log_xx, ierr)
-      call PetscGetTime(log_end_time, ierr)
+      call PetscTime(log_end_time, ierr)
       stepper%cumulative_solver_time = stepper%cumulative_solver_time + &
         (log_end_time - log_start_time)          
         
       call VecCopy(field%tran_log_xx,field%tran_xx,ierr)
       call VecExp(field%tran_xx,ierr)
     else
-      call PetscGetTime(log_start_time, ierr)
+      call PetscTime(log_start_time, ierr)
       call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%tran_xx, ierr)
-      call PetscGetTime(log_end_time, ierr)
+      call PetscTime(log_end_time, ierr)
       stepper%cumulative_solver_time = stepper%cumulative_solver_time + &
         (log_end_time - log_start_time)          
     endif
@@ -3516,7 +3513,7 @@ subroutine StepperStepTransportDT_OS(realization,stepper, &
   call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
                                    field%tran_xx_loc,NTRANDOF)
 
-  call PetscGetTime(log_start_time, ierr)
+  call PetscTime(log_start_time, ierr)
 
   if (option%nflowdof > 0 .and. .not.steady_flow) then
     call TimestepperSetTranWeights(option,flow_t0,flow_t1)
@@ -3635,7 +3632,7 @@ subroutine StepperStepTransportDT_OS(realization,stepper, &
   endif
 
   call PetscBarrier(solver%ksp,ierr)
-  call PetscGetTime(log_end_time, ierr)
+  call PetscTime(log_end_time, ierr)
   stepper%cumulative_solver_time = stepper%cumulative_solver_time + &
                                    (log_end_time - log_start_time)          
 
@@ -3749,11 +3746,11 @@ subroutine StepperRunSteadyState(realization,flow_stepper,tran_stepper)
   plot_flag = PETSC_TRUE
     
   if (associated(flow_stepper)) then
-    call PetscGetTime(start_time, ierr)
+    call PetscTime(start_time, ierr)
     call PetscLogStagePush(logging%stage(FLOW_STAGE),ierr)
     call StepperSolveFlowSteadyState(realization,flow_stepper,failure)
     call PetscLogStagePop(ierr)
-    call PetscGetTime(end_time, ierr)
+    call PetscTime(end_time, ierr)
     if (OptionPrintToScreen(option)) then
       write(*, &
          &  '(/,1pe12.4," seconds to solve steady state flow problem",/)') &
@@ -3768,11 +3765,11 @@ subroutine StepperRunSteadyState(realization,flow_stepper,tran_stepper)
   endif
 
   if (associated(tran_stepper)) then
-    call PetscGetTime(start_time, ierr)
+    call PetscTime(start_time, ierr)
     call PetscLogStagePush(logging%stage(TRAN_STAGE),ierr)
     call StepperSolveTranSteadyState(realization,tran_stepper,failure)
     call PetscLogStagePop(ierr)
-    call PetscGetTime(end_time, ierr)
+    call PetscTime(end_time, ierr)
     if (OptionPrintToScreen(option)) then
       write(*, &
          &'(/,1pe12.4," seconds to solve steady state transport problem",/)') &
@@ -5144,7 +5141,7 @@ end subroutine TimestepperDestroy
 
     ! ensure that steady_state flag is off
     step_to_steady_state = PETSC_FALSE
-    call PetscGetTime(stepper_start_time, ierr)
+    call PetscTime(stepper_start_time, ierr)
     !start_step = master_stepper%steps+1
     if (associated(flow_stepper)) &
          flow_stepper%start_time_step = flow_stepper%steps + 1
@@ -5319,7 +5316,7 @@ end subroutine TimestepperDestroy
        ! next time step will not exceed that value.  If it does, print the
        ! checkpoint and exit.
        if (option%wallclock_stop_flag) then
-          call PetscGetTime(current_time, ierr)
+          call PetscTime(current_time, ierr)
           average_step_time = (current_time-stepper_start_time)/ &
                real(master_stepper%steps-&
                master_stepper%start_time_step+1) &

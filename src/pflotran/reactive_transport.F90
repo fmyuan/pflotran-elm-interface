@@ -3636,6 +3636,12 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
   use Field_module
   use Logging_module
   
+#ifdef XINGYUAN_BC
+  use Dataset_module
+  use Dataset_Aux_module
+  use Output_Tecplot_module
+#endif
+  
   implicit none
 
   type(realization_type) :: realization
@@ -3669,6 +3675,16 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
   PetscBool :: skip_equilibrate_constraint
   PetscInt, save :: icall
   
+#ifdef XINGYUAN_BC
+  character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXWORDLENGTH) :: name
+  PetscInt :: idof_aq_dataset
+  type(dataset_type), pointer :: dataset
+  PetscReal :: temp_real
+  PetscBool, save :: first = PETSC_TRUE
+  PetscReal, pointer :: work_p(:)
+#endif  
+  
   data icall/0/
 
   option => realization%option
@@ -3676,6 +3692,11 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
   grid => patch%grid
   field => realization%field
   reaction => realization%reaction
+
+#ifdef XINGYUAN_BC
+!geh  call VecZeroEntries(field%work,ierr)
+!geh  call VecGetArrayReadF90(field%work,work_p,ierr)
+#endif  
   
   call VecGetArrayReadF90(field%tran_xx_loc,xx_loc_p,ierr)
   call VecGetArrayReadF90(field%porosity_loc,porosity_loc_p,ierr)
@@ -3759,6 +3780,25 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
                              cur_constraint_coupler%colloids%basis_conc_mob
       endif
 
+#ifdef XINGYUAN_BC
+      idof_aq_dataset = 0
+      do idof = 1, reaction%naqcomp ! primary aqueous concentrations
+        if (boundary_condition%tran_condition% &
+            cur_constraint_coupler%aqueous_species%external_dataset(idof)) then
+          idof_aq_dataset = idof
+          string = 'constraint ' // trim(boundary_condition%tran_condition% &
+                                         cur_constraint_coupler%constraint_name)
+          dataset => DatasetGetPointer(realization%datasets, &
+                        boundary_condition%tran_condition% &
+                          cur_constraint_coupler%aqueous_species% &
+                          constraint_aux_string(idof), &
+                        string,option)
+          call DatasetLoad(dataset,option)
+          exit
+        endif
+      enddo
+#endif      
+
       do iconn = 1, cur_connection_set%num_connections
         sum_connection = sum_connection + 1
         local_id = cur_connection_set%id_dn(iconn)
@@ -3778,6 +3818,38 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
           istartcoll = offset + istartcoll_loc
           iendcoll = offset + iendcoll_loc
         endif
+
+#ifdef XINGYUAN_BC
+  if (idof_aq_dataset > 0) then
+    call DatasetInterpolateReal(dataset, &
+            grid%x(ghosted_id)- &
+              boundary_condition%connection_set%dist(0,iconn)* &
+              boundary_condition%connection_set%dist(1,iconn), &
+            grid%y(ghosted_id)- &
+              boundary_condition%connection_set%dist(0,iconn)* &
+              boundary_condition%connection_set%dist(2,iconn), &
+            0.d0, &  ! z
+            option%tran_time,temp_real,option)
+!geh    work_p(local_id) = temp_real
+    boundary_condition%tran_condition%cur_constraint_coupler% &
+      aqueous_species%constraint_conc(idof_aq_dataset) = temp_real
+    if (first) patch%aux%RT%aux_vars_bc(sum_connection)%pri_molal = basis_molarity_p
+    call ReactionEquilibrateConstraint( &
+        patch%aux%RT%aux_vars_bc(sum_connection), &
+        patch%aux%Global%aux_vars_bc(sum_connection),reaction, &
+        boundary_condition%tran_condition%cur_constraint_coupler%constraint_name, &
+        boundary_condition%tran_condition%cur_constraint_coupler%aqueous_species, &
+        boundary_condition%tran_condition%cur_constraint_coupler%minerals, &
+        boundary_condition%tran_condition%cur_constraint_coupler%surface_complexes, &
+        boundary_condition%tran_condition%cur_constraint_coupler%colloids, &
+        boundary_condition%tran_condition%cur_constraint_coupler%immobile_species, &
+        porosity_loc_p(ghosted_id), &
+        boundary_condition%tran_condition%cur_constraint_coupler%num_iterations, &
+        PETSC_TRUE,option)
+    basis_molarity_p => boundary_condition%tran_condition% &
+      cur_constraint_coupler%aqueous_species%basis_molarity 
+  endif
+#endif        
 
 !       if (option%iflowmode /= MPH_MODE .or. icall>1) then
         if (option%iflowmode /= MPH_MODE .and. option%iflowmode /= FLASH2_MODE) then
@@ -3937,6 +4009,14 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
 
     call PetscLogEventEnd(logging%event_rt_auxvars_bc,ierr)
 
+#ifdef XINGYUAN_BC
+    first = PETSC_FALSE
+    !call VecRestoreArrayReadF90(field%work,work_p,ierr)
+    !string = 'xingyuan_bc.tec'
+    !name = 'xingyuan_bc'
+    !call OutputVectorTecplot(string,name,realization,field%work)
+#endif
+
   endif 
 
   patch%aux%RT%aux_vars_up_to_date = update_cells .and. update_bcs
@@ -3944,7 +4024,7 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
   call VecRestoreArrayReadF90(field%tran_xx_loc,xx_loc_p, ierr)
   call VecRestoreArrayReadF90(field%porosity_loc,porosity_loc_p,ierr)
   icall = icall+ 1
-
+  
 end subroutine RTUpdateAuxVarsPatch
 
 ! ************************************************************************** !

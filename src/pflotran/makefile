@@ -12,8 +12,7 @@ ifdef uo2
 endif
 
 ifdef glenn
-  MYFLAGS += -DUGRID_DEBUG
-  #MYFLAGS += -DGLENN -DTVD_DEBUG
+  MYFLAGS += -DXINGYUAN_BC
 endif
 
 ifdef solid_solution
@@ -118,6 +117,10 @@ endif
 
 ifdef amanzi_bgd
   MYFLAGS += -DAMANZI_BGD
+endif
+
+ifdef store_flowrates
+  MYFLAGS += -DSTORE_FLOWRATES
 endif
 
 CFLAGS   = 
@@ -308,8 +311,8 @@ surface_obj = \
 	${common_src}surface_global.o \
 	${common_src}surface_material.o \
 	${common_src}surface_realization.o \
-  ${common_src}surface_th_aux.o \
-  ${common_src}surface_th.o
+	${common_src}surface_th_aux.o \
+	${common_src}surface_th.o
 
 pflotran_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
 	$(shared_mode_aux_obj) $(chem_obj) $(grid_obj) \
