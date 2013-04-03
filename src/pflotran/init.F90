@@ -220,7 +220,14 @@ subroutine Init(simulation)
   ! initialize plot variables
   realization%output_option%output_variable_list => OutputVariableListCreate()
   realization%output_option%aveg_output_variable_list => OutputVariableListCreate()
-  
+#ifdef SURFACE_FLOW
+  ! initialize plot variables
+  simulation%surf_realization%output_option%output_variable_list => &
+    OutputVariableListCreate()
+  simulation%surf_realization%output_option%aveg_output_variable_list => &
+    OutputVariableListCreate()
+#endif
+
   ! read in the remainder of the input file
   call InitReadInput(simulation)
   call InputDestroy(realization%input)
@@ -1045,9 +1052,14 @@ subroutine Init(simulation)
     call SurfRealizInitAllCouplerAuxVars(simulation%surf_realization)
     !call SurfaceRealizationPrintCouplers(simulation%surf_realization)
 
-    ! initialize plot variables
-    simulation%surf_realization%output_option%output_variable_list => &
-      OutputVariableListCreate()
+    ! add waypoints associated with boundary conditions, source/sinks etc. to list
+    call SurfRealizAddWaypointsToList(simulation%surf_realization)
+    call WaypointListFillIn(option,simulation%surf_realization%waypoints)
+    call WaypointListRemoveExtraWaypnts(option,simulation%surf_realization%waypoints)
+    if (associated(flow_stepper)) then
+      simulation%surf_flow_stepper%cur_waypoint => simulation%surf_realization%waypoints%first
+    endif
+
     select case(option%iflowmode)
       case(RICHARDS_MODE)
         call SurfaceFlowSetup(simulation%surf_realization)
@@ -1420,7 +1432,11 @@ subroutine InitReadInput(simulation)
   PetscInt :: count, id
   
   PetscBool :: velocities
-  PetscBool :: fluxes
+  PetscBool :: flux_velocities
+  PetscBool :: mass_flowrate
+  PetscBool :: energy_flowrate
+  PetscBool :: aveg_mass_flowrate
+  PetscBool :: aveg_energy_flowrate
   
   type(region_type), pointer :: region
   type(flow_condition_type), pointer :: flow_condition
@@ -1815,6 +1831,11 @@ subroutine InitReadInput(simulation)
 
 !......................
 
+      case ('NUMERICAL_JACOBIAN_MULTI_COUPLE')
+        option%numerical_derivatives_multi_coupling = PETSC_TRUE
+
+!......................
+
       case ('COMPUTE_STATISTICS')
         option%compute_statistics = PETSC_TRUE
 
@@ -1984,7 +2005,11 @@ subroutine InitReadInput(simulation)
 !....................
       case ('OUTPUT')
         velocities = PETSC_FALSE
-        fluxes = PETSC_FALSE
+        flux_velocities = PETSC_FALSE
+        mass_flowrate = PETSC_FALSE
+        energy_flowrate = PETSC_FALSE
+        aveg_mass_flowrate = PETSC_FALSE
+        aveg_energy_flowrate = PETSC_FALSE
         do
           call InputReadFlotranString(input,option)
           call InputReadStringErrorMsg(input,option,card)
@@ -2234,8 +2259,22 @@ subroutine InitReadInput(simulation)
               end select
             case('VELOCITIES')
               velocities = PETSC_TRUE
-            case('FLUXES')
-              fluxes = PETSC_TRUE
+            case('FLUXES_VELOCITIES')
+              flux_velocities = PETSC_TRUE
+            case('FLOWRATES','FLOWRATE')
+              mass_flowrate = PETSC_TRUE
+              energy_flowrate = PETSC_TRUE
+            case('MASS_FLOWRATE')
+              mass_flowrate = PETSC_TRUE
+            case('ENERGY_FLOWRATE')
+              energy_flowrate = PETSC_TRUE
+            case('AVERAGE_FLOWRATES','AVERAGE_FLOWRATE')
+              aveg_mass_flowrate = PETSC_TRUE
+              aveg_energy_flowrate = PETSC_TRUE
+            case('AVERAGE_MASS_FLOWRATE')
+              aveg_mass_flowrate = PETSC_TRUE
+            case('AVERAGE_ENERGY_FLOWRATE')
+              aveg_energy_flowrate = PETSC_TRUE
             case ('HDF5_WRITE_GROUP_SIZE')
               call InputReadInt(input,option,option%hdf5_write_group_size)
               call InputErrorMsg(input,option,'HDF5_WRITE_GROUP_SIZE','Group size')
@@ -2257,7 +2296,7 @@ subroutine InitReadInput(simulation)
           if (output_option%print_vtk) &
             output_option%print_vtk_velocities = PETSC_TRUE
         endif
-        if (fluxes) then
+        if (flux_velocities) then
           if (output_option%print_tecplot) &
             output_option%print_tecplot_flux_velocities = PETSC_TRUE
           if (output_option%print_hdf5) &
@@ -2271,6 +2310,32 @@ subroutine InitReadInput(simulation)
           endif
           if(.not.output_option%print_hdf5) then
             option%io_buffer = 'Keyword: AVERAGE_VARIABLES only defined for FORMAT HDF5'
+            call printErrMsg(option)
+          endif
+        endif
+        if (mass_flowrate.or.energy_flowrate.or.aveg_mass_flowrate.or.aveg_energy_flowrate) then
+          if (output_option%print_hdf5) then
+#ifndef STORE_FLOWRATES
+            option%io_buffer='To output FLOWRATES/MASS_FLOWRATE/ENERGY_FLOWRATE, '// &
+              'compile with -DSTORE_FLOWRATES'
+            call printErrMsg(option)
+#endif
+            output_option%print_hdf5_mass_flowrate = mass_flowrate
+            output_option%print_hdf5_energy_flowrate = energy_flowrate
+            output_option%print_hdf5_aveg_mass_flowrate = aveg_mass_flowrate
+            output_option%print_hdf5_aveg_energy_flowrate = aveg_energy_flowrate
+            if(aveg_mass_flowrate.or.aveg_energy_flowrate) then
+              if(output_option%periodic_output_time_incr==0.d0) then
+                option%io_buffer = 'Keyword: AVEGRAGE_FLOWRATES/ ' // &
+                  'AVEGRAGE_MASS_FLOWRATE/ENERGY_FLOWRATE defined without' // &
+                  ' PERIODIC TIME being set.'
+                call printErrMsg(option)
+              endif
+            endif
+           option%store_flowrate = PETSC_TRUE
+          else
+            option%io_buffer='Output FLOWRATES/MASS_FLOWRATE/ENERGY_FLOWRATE ' // &
+              'only available in HDF5 format'
             call printErrMsg(option)
           endif
         endif
@@ -2358,6 +2423,11 @@ subroutine InitReadInput(simulation)
         simulation%surf_flow_stepper%dt_max = simulation%surf_realization%dt_max
         option%surf_subsurf_coupling_flow_dt = simulation%surf_realization%dt_coupling
         option%surf_flow_dt=simulation%surf_flow_stepper%dt_min
+
+        ! Add first waypoint
+        waypoint => WaypointCreate()
+        waypoint%time = 0.d0
+        call WaypointInsertInList(waypoint,simulation%surf_realization%waypoints)
 
         ! Add final_time waypoint to surface_realization
         waypoint => WaypointCreate()
@@ -3117,6 +3187,7 @@ subroutine readPermeabilitiesFromFile(realization,material_property)
   PetscInt :: fid = 86
   PetscInt :: status
   PetscInt :: idirection
+  PetscInt :: temp_int
   PetscReal :: ratio, scale
   Vec :: global_vec
   PetscErrorCode :: ierr
@@ -3125,6 +3196,7 @@ subroutine readPermeabilitiesFromFile(realization,material_property)
   PetscReal, pointer :: perm_xx_p(:)
   PetscReal, pointer :: perm_yy_p(:)
   PetscReal, pointer :: perm_zz_p(:)
+  PetscReal, pointer :: perm_xyz_p(:)
 
   field => realization%field
   patch => realization%patch
@@ -3173,7 +3245,9 @@ subroutine readPermeabilitiesFromFile(realization,material_property)
       enddo
       call GridVecRestoreArrayF90(grid,global_vec,vec_p,ierr)
     else
-      do idirection = X_DIRECTION,Z_DIRECTION
+      temp_int = Z_DIRECTION
+      if (grid%itype == STRUCTURED_GRID_MIMETIC) temp_int = YZ_DIRECTION
+      do idirection = X_DIRECTION,temp_int
         select case(idirection)
           case(X_DIRECTION)
             dataset_name = 'PermeabilityX'
@@ -3181,6 +3255,15 @@ subroutine readPermeabilitiesFromFile(realization,material_property)
             dataset_name = 'PermeabilityY'
           case(Z_DIRECTION)
             dataset_name = 'PermeabilityZ'
+          case(XY_DIRECTION)
+            dataset_name = 'PermeabilityXY'
+            call GridVecGetArrayF90(grid,field%perm0_xy,perm_xyz_p,ierr)
+          case(XZ_DIRECTION)
+            dataset_name = 'PermeabilityXZ'
+            call GridVecGetArrayF90(grid,field%perm0_xz,perm_xyz_p,ierr)
+          case(YZ_DIRECTION)
+            dataset_name = 'PermeabilityYZ'
+            call GridVecGetArrayF90(grid,field%perm0_yz,perm_xyz_p,ierr)
         end select          
         call HDF5ReadCellIndexedRealArray(realization,global_vec, &
                                           material_property%permeability_dataset%filename, &
@@ -3206,6 +3289,23 @@ subroutine readPermeabilitiesFromFile(realization,material_property)
                 perm_zz_p(local_id) = vec_p(local_id)
               endif
             enddo
+          case(XY_DIRECTION,XZ_DIRECTION,YZ_DIRECTION)
+            do local_id = 1, grid%nlmax
+              if (patch%imat(grid%nL2G(local_id)) == material_property%id) then
+                perm_xyz_p(local_id) = vec_p(local_id)
+              endif
+            enddo
+            select case(idirection)
+              case(XY_DIRECTION)
+                call GridVecRestoreArrayF90(grid,field%perm0_xy,perm_xyz_p, &
+                                            ierr)
+              case(XZ_DIRECTION)
+                call GridVecRestoreArrayF90(grid,field%perm0_xz,perm_xyz_p, &
+                                            ierr)
+              case(YZ_DIRECTION)
+                call GridVecRestoreArrayF90(grid,field%perm0_yz,perm_xyz_p, &
+                                            ierr)
+            end select
         end select
         call GridVecRestoreArrayF90(grid,global_vec,vec_p,ierr)
       enddo

@@ -990,15 +990,24 @@ subroutine HDF5WriteStructuredDataSet(name,array,file_id,data_type,option, &
 
   integer, pointer :: int_array_i4(:)
   PetscReal, pointer :: double_array(:)
+  character(len=128) :: scorpio_string
+
+  name = trim(name) // CHAR(0)
 
 #if defined(SCORPIO_WRITE)
+
+  !geh: kludge to get scorpio to write name properly without garbage appended.
+! scorpio_string(1:len_trim(name)) = name
+
+  scorpio_string = trim(name)
+
+  scorpio_string = trim(scorpio_string) // CHAR(0)
 
 !  write(option%io_buffer,'(" Writing dataset block: ", a, " type - ", i, ".")') trim(name), data_type
 !  call printMsg(option)
 !  write(option%io_buffer,'(" HDF_NATIVE_INTEGER is ", i, " and H5T_NATIVE_DOUBLE is ", i, " and H5T_NATIVE_INTEGER is ", i, ".")') HDF_NATIVE_INTEGER, H5T_NATIVE_DOUBLE, H5T_NATIVE_INTEGER
 !  call printMsg(option)
 
-  name = trim(name) // CHAR(0)
   call PetscLogEventBegin(logging%event_write_struct_dataset_hdf5,ierr)
   
   ny_local_X_nz_local = ny_local*nz_local
@@ -1048,8 +1057,9 @@ subroutine HDF5WriteStructuredDataSet(name,array,file_id,data_type,option, &
        !   '(a," Writing double dataset1: dimensions: ",i9,i9,i9, " Data type and ndims: ",i9, i9)') & 
        !trim(name), dims(1), dims(2), dims(3), SCORPIO_DOUBLE, rank_mpi
        !call printMsg(option)   
+
        call scorpio_write_dataset_block(double_array, SCORPIO_DOUBLE, rank_mpi, &
-              dims, length, start, file_id, name, &
+              dims, length, start, file_id, trim(scorpio_string), &
               option%iowrite_group_id, ierr)
       !call h5dwrite_f(data_set_id,data_type,double_array,dims, &
                       !hdf5_err,memory_space_id,file_space_id,prop_id)  
@@ -1073,7 +1083,7 @@ subroutine HDF5WriteStructuredDataSet(name,array,file_id,data_type,option, &
        !trim(name), dims(1), dims(2), dims(3), SCORPIO_INTEGER, rank_mpi
        !call printMsg(option)   
       call scorpio_write_dataset_block(int_array_i4, SCORPIO_INTEGER, rank_mpi, &
-              dims, length, start, file_id, name, &
+              dims, length, start, file_id, trim(scorpio_string), &
               option%iowrite_group_id, ierr)
       !!call h5dwrite_f(data_set_id,data_type,int_array_i4,dims, &
       !                hdf5_err,memory_space_id,file_space_id,prop_id)
@@ -2218,7 +2228,7 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
           file_id, ierr)
 
   ! Read Cell Ids
-  call PetscGetTime(tstart,ierr)
+  call PetscTime(tstart,ierr)
 
   !if group_name exists
   if (len_trim(group_name) > 1) then
@@ -2228,11 +2238,11 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   endif  
     
   call HDF5ReadIndices(grid,option,file_id,string,grid%nmax,indices)
-  call PetscGetTime(tend,ierr)
+  call PetscTime(tend,ierr)
   write(option%io_buffer,'(f6.2," Seconds to set up indices")') tend-tstart
   call printMsg(option)
 
-  call PetscGetTime(tstart,ierr)
+  call PetscTime(tstart,ierr)
   string = ''
   if (append_realization_id) then
     write(string,'(i6)') option%id
@@ -2252,7 +2262,7 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   call HDF5ReadArray(discretization,grid,option,file_id,string,grid%nmax, &
                      indices,global_vec,HDF_NATIVE_INTEGER)
   
-  call PetscGetTime(tend,ierr)
+  call PetscTime(tend,ierr)
   write(option%io_buffer,'(f6.2," Seconds to read integer array.")') &
     tend-tstart
   call printMsg(option)  
@@ -2293,7 +2303,7 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   endif
 
   ! Read Cell Ids
-  call PetscGetTime(tstart,ierr)
+  call PetscTime(tstart,ierr)
   string = "Cell Ids"
   if (grp_id /= file_id) then
     option%io_buffer = 'Reading dataset: ' // trim(group_name) // '/' &
@@ -2303,12 +2313,12 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   endif
   call printMsg(option)   
   call HDF5ReadIndices(grid,option,grp_id,string,grid%nmax,indices)
-  call PetscGetTime(tend,ierr)
+  call PetscTime(tend,ierr)
   write(option%io_buffer,'(f6.2," Seconds to set up indices")') tend-tstart
   call printMsg(option)
 
 
-  call PetscGetTime(tstart,ierr)
+  call PetscTime(tstart,ierr)
   string = ''
   if (append_realization_id) then
     write(string,'(i6)') option%id
@@ -2324,7 +2334,7 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   call HDF5ReadArray(discretization,grid,option,grp_id,string,grid%nmax, &
                      indices,global_vec,HDF_NATIVE_INTEGER)
   
-  call PetscGetTime(tend,ierr)
+  call PetscTime(tend,ierr)
   write(option%io_buffer,'(f6.2," Seconds to read integer array.")') &
     tend-tstart
   call printMsg(option)  
@@ -2434,7 +2444,7 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
 
 ! only new approach (old approach is removed)
   ! Read Cell Ids
-  call PetscGetTime(tstart,ierr)
+  call PetscTime(tstart,ierr)
 
   !if group_name exists
   if (len_trim(group_name) > 1) then
@@ -2444,11 +2454,11 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   endif  
     
   call HDF5ReadIndices(grid,option,file_id,string,grid%nmax,indices)
-  call PetscGetTime(tend,ierr)
+  call PetscTime(tend,ierr)
   write(option%io_buffer,'(f6.2," Seconds to set up indices")') tend-tstart
   call printMsg(option)
 
-  call PetscGetTime(tstart,ierr)
+  call PetscTime(tstart,ierr)
   string = ''
   if (append_realization_id) then
     write(string,'(i6)') option%id
@@ -2468,7 +2478,7 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   call HDF5ReadArray(discretization,grid,option,file_id,string,grid%nmax, &
                      indices,global_vec,H5T_NATIVE_DOUBLE)
   
-  call PetscGetTime(tend,ierr)
+  call PetscTime(tend,ierr)
   write(option%io_buffer,'(f6.2," Seconds to read real array.")') &
     tend-tstart
   call printMsg(option)  
@@ -2509,7 +2519,7 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   endif
 
   ! Read Cell Ids
-  call PetscGetTime(tstart,ierr)
+  call PetscTime(tstart,ierr)
   string = "Cell Ids"
   if (grp_id /= file_id) then
     option%io_buffer = 'Reading dataset: ' // trim(group_name) // '/' &
@@ -2519,11 +2529,11 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   endif
   call printMsg(option)   
   call HDF5ReadIndices(grid,option,grp_id,string,grid%nmax,indices)
-  call PetscGetTime(tend,ierr)
+  call PetscTime(tend,ierr)
   write(option%io_buffer,'(f6.2," Seconds to set up indices")') tend-tstart
   call printMsg(option)
 
-  call PetscGetTime(tstart,ierr)
+  call PetscTime(tstart,ierr)
   string = ''
   if (append_realization_id) then
     write(string,'(i6)') option%id
@@ -2538,7 +2548,7 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   call printMsg(option)   
   call HDF5ReadArray(discretization,grid,option,file_id,string,grid%nmax, &
                      indices,global_vec,H5T_NATIVE_DOUBLE)
-  call PetscGetTime(tend,ierr)
+  call PetscTime(tend,ierr)
   write(option%io_buffer,'(f6.2," Seconds to read real array")') &
     tend-tstart
   call printMsg(option)  
