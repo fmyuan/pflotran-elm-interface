@@ -21,6 +21,7 @@ program pflotran_interface_main
   !type(clm_pflotran_interface_data_type),pointer    :: clm_pf_idata
 
   
+  PetscErrorCode :: ierr
   PetscInt :: time
 
   PetscInt, pointer                  :: clm_cell_ids(:)
@@ -37,11 +38,13 @@ program pflotran_interface_main
   PetscInt :: PRINT_RANK    
   PRINT_RANK = 0
 
+  call MPI_Init(ierr)
+
   ! A
   allocate(pflotran_m)
   
   ! Create the model
-  pflotran_m => pflotranModelCreate(1)
+  pflotran_m => pflotranModelCreate(MPI_COMM_WORLD)
 
   ! Set up CLM cell ids
   if (pflotran_m%option%mycommsize == 1) then
@@ -101,5 +104,6 @@ program pflotran_interface_main
 
   call pflotranModelDestroy(pflotran_m)
 
+  call MPI_Finalize(ierr)
 
 end program pflotran_interface_main
