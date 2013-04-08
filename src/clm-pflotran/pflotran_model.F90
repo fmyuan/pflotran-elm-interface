@@ -18,10 +18,6 @@ module pflotran_model_module
   use spmdMod, only : masterproc
 #endif  
 
-#if defined (CLM_PFLOTRAN)
-  use Mapping_module
-#endif  
-
 #if defined (CLM_PFLOTRAN) || defined(CLM_OFFLINE)  
   use Richards_Aux_module
 #endif
@@ -43,17 +39,6 @@ module pflotran_model_module
   integer, public :: iulog = 6       ! "stdout" log file unit number, default is 6
   logical, public :: masterproc = .false. ! master io processor
 #endif
-
-  PetscLogDouble :: timex(4), timex_wall(4)
-
-  PetscBool :: truth
-  PetscBool :: option_found
-  PetscBool :: single_inputfile
-  PetscInt  :: i
-  PetscInt  :: temp_int
-
-  character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXSTRINGLENGTH), pointer :: filenames(:)
 
   !#ifdef CLM_PFLOTRAN
   type, public :: inside_each_overlapped_cell
@@ -102,6 +87,8 @@ module pflotran_model_module
 
     PetscInt :: nlclm
     PetscInt :: ngclm
+
+    PetscLogDouble :: timex(4), timex_wall(4)
 
   end type pflotran_model_type
 
@@ -161,7 +148,7 @@ contains
     PetscBool :: clm2pf_soil_file
     PetscBool :: clm2pf_flux_file
     PetscBool :: pf2clm_flux_file
-    
+    PetscInt   :: i
     PetscInt   :: temp_int
     PetscErrorCode :: ierr
     character(len=MAXSTRINGLENGTH)          :: string
@@ -172,18 +159,11 @@ contains
 
 
     allocate(pflotran_model)
-    allocate(pflotran_model%stochastic)
-    allocate(pflotran_model%simulation)
-    allocate(pflotran_model%realization)
-    allocate(pflotran_model%option)
+
 #ifdef CLM_PFLOTRAN
     !allocate(pflotran_model%mapping)
 #endif
-    allocate(pflotran_model%map_clm2pf)
-    allocate(pflotran_model%map_clm2pf_soils)
-    allocate(pflotran_model%map_pf2clm)
 
-    ! TODO(bja): creating memory leaks?
     nullify(pflotran_model%stochastic)
     nullify(pflotran_model%simulation)
     nullify(pflotran_model%realization)
@@ -216,7 +196,7 @@ contains
     pflotran_model%option%mygroup = pflotran_model%option%global_group
 
 #ifndef CLM_PFLOTRAN
-    ! mock the master i/o processor flag
+    ! mock the clm master i/o processor flag
     if (pflotran_model%option%myrank == pflotran_model%option%io_rank) then
        masterproc = .true.
     endif
@@ -320,9 +300,9 @@ contains
 
     call OptionCheckCommandLine(pflotran_model%option)
 
-    call PetscGetCPUTime(timex(1), ierr)
-    call PetscTime(timex_wall(1), ierr)
-    pflotran_model%option%start_time = timex_wall(1)
+    call PetscGetCPUTime(pflotran_model%timex(1), ierr)
+    call PetscTime(pflotran_model%timex_wall(1), ierr)
+    pflotran_model%option%start_time = pflotran_model%timex_wall(1)
 
     call Init(pflotran_model%simulation)
 
@@ -691,7 +671,6 @@ end subroutine pflotranModelSetICs
     option          => pflotran_model%option
     realization     => pflotran_model%simulation%realization
     patch           => realization%patch
-    patch           => realization%patch
     grid            => patch%grid
 
     select case(map_id)
@@ -974,6 +953,8 @@ end subroutine pflotranModelInitMapping
   ! ************************************************************************** !
   subroutine pflotranModelStepperRunFinalize(pflotran_model)
 
+    use Regression_module, only : RegressionOutput
+
     implicit none
 
     type(pflotran_model_type), pointer :: pflotran_model
@@ -981,6 +962,10 @@ end subroutine pflotranModelInitMapping
     call StepperRunFinalize(pflotran_model%simulation%realization, &
          pflotran_model%simulation%flow_stepper, &
          pflotran_model%simulation%tran_stepper)
+
+    call RegressionOutput(pflotran_model%simulation%regression, &
+         pflotran_model%simulation%realization, &
+         pflotran_model%simulation%flow_stepper, pflotran_model%simulation%tran_stepper)
 
   end subroutine pflotranModelStepperRunFinalize
 
@@ -1053,6 +1038,7 @@ end subroutine pflotranModelInitMapping
     type(pflotran_model_type), pointer :: pflotran_model
     PetscInt :: ii, jj
     PetscErrorCode :: ierr
+    PetscLogDouble :: cpu_time, wall_time
 #ifdef CLM_PFLOTRAN
     type(mapping_type),pointer         :: map
 #endif
@@ -1061,34 +1047,31 @@ end subroutine pflotranModelInitMapping
     call SimulationDestroy(pflotran_model%simulation)
 
     ! Final Time
-    call PetscGetCPUTime(timex(2), ierr)
-    call PetscTime(timex_wall(2), ierr)
+    call PetscGetCPUTime(pflotran_model%timex(2), ierr)
+    call PetscTime(pflotran_model%timex_wall(2), ierr)
 
     if (pflotran_model%option%myrank == pflotran_model%option%io_rank) then
-
+       cpu_time = pflotran_model%timex(2) - pflotran_model%timex(1)
+       wall_time = pflotran_model%timex_wall(2) - pflotran_model%timex_wall(1) 
        if (pflotran_model%option%print_to_screen) then
           if (masterproc) then
-             write(iulog,'(/," CPU Time:", 1pe12.4, " [sec] ", &
+             write(iulog, '(/," CPU Time:", 1pe12.4, " [sec] ", &
                   & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-                  timex(2)-timex(1), (timex(2)-timex(1))/60.d0, &
-                  (timex(2)-timex(1))/3600.d0
+                  cpu_time, cpu_time / 60.d0, cpu_time / 3600.d0
 
-             write(iulog,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
+             write(iulog, '(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
                   & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-                  timex_wall(2)-timex_wall(1), (timex_wall(2)-timex_wall(1))/60.d0, &
-                  (timex_wall(2)-timex_wall(1))/3600.d0
+                  wall_time, wall_time / 60.d0, wall_time / 3600.d0
           endif
        endif
        if (pflotran_model%option%print_to_file) then
-          write(pflotran_model%option%fid_out,'(/," CPU Time:", 1pe12.4, " [sec] ", &
-               & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-               timex(2)-timex(1), (timex(2)-timex(1))/60.d0, &
-               (timex(2)-timex(1))/3600.d0
+          write(pflotran_model%option%fid_out, '(/," CPU Time:", 1pe12.4, " [sec] ", &
+                  & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
+                  cpu_time, cpu_time / 60.d0, cpu_time / 3600.d0
 
-          write(pflotran_model%option%fid_out,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
-               & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-               timex_wall(2)-timex_wall(1), (timex_wall(2)-timex_wall(1))/60.d0, &
-               (timex_wall(2)-timex_wall(1))/3600.d0
+          write(pflotran_model%option%fid_out, '(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
+                  & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
+                  wall_time, wall_time / 60.d0, wall_time / 3600.d0
        endif
     endif
 

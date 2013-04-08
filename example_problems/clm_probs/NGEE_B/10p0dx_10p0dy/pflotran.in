@@ -1,5 +1,10 @@
 :Description: 3D groundwater flow and solute transport
 
+:=========================== regression =======================================
+REGRESSION
+  CELLS_PER_PROCESS 5
+END
+
 :=========================== flow mode ========================================
 MODE RICHARDS
 :CHECKPOINT 1000000
