@@ -756,8 +756,13 @@ end subroutine pflotranModelSetICs
         call printErrMsg(option)
     end select
     deallocate(grid_pf_cell_ids_ghosted_nindex)
-    
-    call MappingReadTxtFile(map, map%filename, option)
+
+    ! Read mapping file
+    if (index(map%filename,'.h5') > 0) then
+      call MappingReadHDF5(map, map%filename, option)
+    else
+      call MappingReadTxtFile(map, map%filename, option)
+    endif
     call MappingDecompose(map,option)
     call MappingFindDistinctSourceMeshCellIds(map,option)
     call MappingCreateWeightMatrix(map,option)
