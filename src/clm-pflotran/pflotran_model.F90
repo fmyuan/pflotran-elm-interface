@@ -140,19 +140,22 @@ contains
 #endif
     implicit none
 
-
     type(pflotran_model_type), pointer :: pflotranModelCreate
-
 
     PetscLogDouble :: timex(4), timex_wall(4)
 
-    PetscBool  :: truth
-    PetscBool  :: option_found
-    PetscBool :: input_prefix_option_found, pflotranin_option_found
-    PetscBool  :: single_inputfile
-    PetscInt   :: i
+    PetscBool :: truth
+    PetscBool :: option_found
+    PetscBool :: input_prefix_option_found
+    PetscBool :: pflotranin_option_found
+    PetscBool :: single_inputfile
+    PetscBool :: clm2pf_soil_file
+    PetscBool :: clm2pf_flux_file
+    PetscBool :: pf2clm_flux_file
+    
     PetscInt   :: temp_int
     PetscInt   :: mpicomm
+    
     PetscErrorCode :: ierr
     character(len=MAXSTRINGLENGTH)          :: string
     character(len=MAXSTRINGLENGTH), pointer :: filenames(:)
@@ -294,8 +297,6 @@ contains
        write(string,*) pflotran_model%option%mygroup_id
        pflotran_model%option%group_prefix = 'G' // trim(adjustl(string))
     endif
-    write(*,*),'option%global_prefix = ',pflotran_model%option%global_prefix
-    write(*,*),'option%group_prefix = ',pflotran_model%option%group_prefix
 
     if (pflotran_model%option%verbosity > 0) then
        call PetscLogBegin(ierr)
@@ -324,6 +325,10 @@ contains
 
     pflotran_model%realization%input => InputCreate(15,pflotran_model%option%input_filename,pflotran_model%option)
 
+    ! Read names of mapping file
+    clm2pf_soil_file=PETSC_FALSE
+    clm2pf_flux_file=PETSC_FALSE
+    pf2clm_flux_file=PETSC_FALSE
     do
       call InputReadFlotranString(pflotran_model%realization%input, pflotran_model%option)
       if (pflotran_model%realization%input%ierr /= 0) exit
@@ -338,10 +343,10 @@ contains
                              pflotran_model%option, &
                              pflotran_model%map_clm2pf%filename, PETSC_TRUE)
           pflotran_model%map_clm2pf%filename = trim(pflotran_model%map_clm2pf%filename)//CHAR(0)
-          write(*,*),pflotran_model%map_clm2pf%filename
           call InputErrorMsg(pflotran_model%realization%input, &
                              pflotran_model%option,'type', 'MAPPING_FILES')   
           call StringToLower(pflotran_model%map_clm2pf%filename)
+          clm2pf_flux_file=PETSC_TRUE
         case('CLM2PF_SOIL_FILE')
           call InputReadWord(pflotran_model%realization%input, &
                              pflotran_model%option, &
@@ -349,6 +354,7 @@ contains
           call InputErrorMsg(pflotran_model%realization%input, &
                              pflotran_model%option,'type', 'MAPPING_FILES')   
           call StringToLower(pflotran_model%map_clm2pf_soils%filename)
+          clm2pf_soil_file=PETSC_TRUE
         case('PF2CLM_FLUX_FILE')
           call InputReadWord(pflotran_model%realization%input, &
                              pflotran_model%option, &
@@ -356,14 +362,18 @@ contains
           call InputErrorMsg(pflotran_model%realization%input, &
                              pflotran_model%option,'type', 'MAPPING_FILES')   
           call StringToLower(pflotran_model%map_pf2clm%filename)
+          pf2clm_flux_file=PETSC_TRUE
       end select
 
     enddo
     call InputDestroy(pflotran_model%realization%input)
 
-    pflotranModelCreate => pflotran_model
-    write(*,*),'pflotranModelCreate: done'
+    if((.not.clm2pf_soil_file).or.(.not.clm2pf_flux_file).or.(.not.pf2clm_flux_file)) then
+      pflotran_model%option%io_buffer='One of the mapping files not found'
+      call printErrMsg(pflotran_model%option)
+    endif
 
+    pflotranModelCreate => pflotran_model
 
   end function pflotranModelCreate
 
@@ -864,12 +874,14 @@ end subroutine pflotranModelInitMapping3
   subroutine pflotranModelStepperRunTillPauseTime(pflotran_model, pause_time)
 
     use Richards_module
+    use TH_module
     use Grid_module
     use Patch_module
     use Field_module
     use Global_Aux_module
 
     implicit none
+#include "definitions.h"
 
     type(pflotran_model_type), pointer :: pflotran_model
     type(realization_type), pointer    :: realization
@@ -899,7 +911,16 @@ end subroutine pflotranModelInitMapping3
     call pflotranModelInsertWaypoint(pflotran_model, pause_time)
     call pflotranModelInsertWaypoint(pflotran_model, pause_time + 100.0d0)
 
-    call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
+    select case(pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
+      case (TH_MODE)
+        call THUpdateAuxVars(pflotran_model%simulation%realization)
+      case default
+        pflotran_model%option%io_buffer='pflotranModelStepperRunTillPauseTime ' // &
+          'not implmented for this mode.'
+        call printErrMsg(pflotran_model%option)
+    end select
 
     call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
 #if 1
@@ -933,7 +954,17 @@ end subroutine pflotranModelInitMapping3
 #endif
 
 #ifdef CLM_PFLOTRAN
-    call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
+    select case(pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
+      case (TH_MODE)
+        call THUpdateAuxVars(pflotran_model%simulation%realization)
+      case default
+        pflotran_model%option%io_buffer='pflotranModelStepperRunTillPauseTime ' // &
+          'not implmented for this mode.'
+        call printErrMsg(pflotran_model%option)
+    end select
+
     ! Volume of Water after PFLOTRAN finished
     do local_id= 1,grid%nlmax
        ghosted_id = grid%nL2G(local_id)

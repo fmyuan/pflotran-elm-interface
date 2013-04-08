@@ -5055,6 +5055,7 @@ end subroutine TimestepperDestroy
     use Global_Aux_module
     use Grid_module
     use Richards_module
+    use TH_module
 #ifdef SURFACE_FLOW
     use Surface_Flow_module
     use Surface_Realization_module
@@ -5136,7 +5137,17 @@ end subroutine TimestepperDestroy
          porosity_loc_p, ierr)
     liq_vol_start = 0.0d0
     liq_vol_end   = 0.0d0
-    call RichardsUpdateAuxVars(realization)
+
+    select case(option%iflowmode)
+      case (RICHARDS_MODE)
+        call RichardsUpdateAuxVars(realization)
+      case (TH_MODE)
+        call THUpdateAuxVars(realization)
+      case default
+        option%io_buffer='pflotranModelStepperRunTillPauseTime ' // &
+          'not implmented for this mode.'
+        call printErrMsg(option)
+    end select
 
     ! ensure that steady_state flag is off
     step_to_steady_state = PETSC_FALSE

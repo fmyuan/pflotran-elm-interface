@@ -756,23 +756,15 @@ subroutine Init(simulation)
 
   call PetscLogEventBegin(logging%event_setup,ierr)
   ! read any regions provided in external files
-  write(*,*), 'readRegionFiles'
   call readRegionFiles(realization)
   ! clip regions and set up boundary connectivity, distance  
-  write(*,*), 'RealizationLocalizeRegions'
   call RealizationLocalizeRegions(realization)
-  write(*,*), 'RealizatonPassPtrsToPatches'
   call RealizatonPassPtrsToPatches(realization)
   ! link conditions with regions through couplers and generate connectivity
-  write(*,*), 'RealProcessMatPropAndSatFunc'
   call RealProcessMatPropAndSatFunc(realization)
-  write(*,*), 'RealizationProcessCouplers'
   call RealizationProcessCouplers(realization)
-  write(*,*), 'RealizationProcessConditions'
   call RealizationProcessConditions(realization)
-  write(*,*), 'RealProcessFluidProperties'
   call RealProcessFluidProperties(realization)
-  write(*,*), 'assignMaterialPropToRegions'
   call assignMaterialPropToRegions(realization)
   if(realization%discretization%lsm_flux_method) &
     call GridComputeMinv(realization%discretization%grid, &
