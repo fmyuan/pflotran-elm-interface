@@ -198,14 +198,6 @@ PetscInt, parameter :: INTERPOLATION_LINEAR = 2
 PetscInt, parameter :: SUBSURFACE = 0
 PetscInt, parameter :: SURFACE    = 1
 
-#if defined (CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-PetscInt, parameter :: CLM2PF_FLUX_MAP_ID = 1
-PetscInt, parameter :: CLM2PF_SOIL_MAP_ID = 2
-PetscInt, parameter :: PF2CLM_FLUX_MAP_ID = 3
-PetscInt, parameter :: CLM_MESH = 1
-PetscInt, parameter :: PF_MESH  = 2
-#endif
-
 PetscInt, parameter :: DECOUPLED     = 0
 PetscInt, parameter :: SEQ_COUPLED   = 1
 PetscInt, parameter :: FULLY_COUPLED = 2

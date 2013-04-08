@@ -40,6 +40,13 @@ module pflotran_model_module
   logical, public :: masterproc = .false. ! master io processor
 #endif
 
+  ! module level constants
+  PetscInt, parameter :: CLM2PF_FLUX_MAP_ID = 1
+  PetscInt, parameter :: CLM2PF_SOIL_MAP_ID = 2
+  PetscInt, parameter :: PF2CLM_FLUX_MAP_ID = 3
+  PetscInt, parameter :: CLM_MESH = 1
+  PetscInt, parameter :: PF_MESH  = 2
+
   !#ifdef CLM_PFLOTRAN
   type, public :: inside_each_overlapped_cell
      PetscInt           :: id
