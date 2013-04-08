@@ -125,7 +125,7 @@ END
 
 :===================== mapping files ==============================
 MAPPING_FILES
-  CLM2PF_FLUX_FILE B_10p0dx_10p0dy_10nz_clm2pf_map.dat
-  CLM2PF_SOIL_FILE B_10p0dx_10p0dy_10nz_clm2pf_map.dat
-  PF2CLM_FLUX_FILE B_10p0dx_10p0dy_10nz_pf2clm_map.dat
+  CLM2PF_FLUX_FILE B_10p0dx_10p0dy_10nz_clm2pf_map.h5
+  CLM2PF_SOIL_FILE B_10p0dx_10p0dy_10nz_clm2pf_map.h5
+  PF2CLM_FLUX_FILE B_10p0dx_10p0dy_10nz_pf2clm_map.h5
 END
