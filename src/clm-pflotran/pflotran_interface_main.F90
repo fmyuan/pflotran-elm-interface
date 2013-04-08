@@ -17,14 +17,14 @@ program pflotran_interface_main
 
 #include "finclude/petscsysdef.h"
 
-  type(pflotran_model_type),pointer  :: pflotran_m
+  type(pflotran_model_type), pointer  :: pflotran_m
 
   
   PetscErrorCode :: ierr
   PetscInt :: time
 
   PetscInt, pointer                  :: clm_cell_ids(:)
-  PetscInt                           :: clm_npts, ii,fileid,num_u_a,jj
+  PetscInt                           :: clm_npts, ii, fileid, num_u_a, jj
   PetscInt                           :: npts
   PetscInt           :: ntimes
 
@@ -46,14 +46,14 @@ program pflotran_interface_main
   if (pflotran_m%option%mycommsize == 1) then
     clm_npts = 200*10
     allocate (clm_cell_ids(clm_npts))
-    do ii = 1,clm_npts
+    do ii = 1, clm_npts
       clm_cell_ids(ii) = ii-1
     enddo
   else
     if (pflotran_m%option%mycommsize == 2) then
       clm_npts = 200*10/2
       allocate (clm_cell_ids(clm_npts))
-      do ii = 1,clm_npts
+      do ii = 1, clm_npts
         clm_cell_ids(ii) = ii-1 + 200*10/2*pflotran_m%option%myrank
       enddo
     else
@@ -71,9 +71,9 @@ program pflotran_interface_main
   call CLMPFLOTRANIdataCreate(MPI_COMM_WORLD)
   
   ! Set mapping between CLM and PFLOTRAN
-  call pflotranModelInitMapping(pflotran_m, clm_cell_ids,clm_npts, CLM2PF_FLUX_MAP_ID)
-  call pflotranModelInitMapping(pflotran_m, clm_cell_ids,clm_npts, CLM2PF_SOIL_MAP_ID)
-  call pflotranModelInitMapping(pflotran_m, clm_cell_ids,clm_npts, PF2CLM_FLUX_MAP_ID)
+  call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM2PF_FLUX_MAP_ID)
+  call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM2PF_SOIL_MAP_ID)
+  call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, PF2CLM_FLUX_MAP_ID)
 ! call pflotranModelSetSoilProp(pflotran_m)
 
   ! Initialize PFLOTRAN Stepper
@@ -82,13 +82,13 @@ program pflotran_interface_main
   ! Run PFLOTRAN 'ntimes'. For each time run PFLOTRAN for 3600s and PFLOTRAN
   ! can take multiple smaller steps to reach the 3600s interval.
   ntimes = 10
-  do time = 1,ntimes
+  do time = 1, ntimes
      
      ! When coupled with CLM:
      ! GetSourceSinkFromCLM()
   
      ! Run PFLOTRAN
-     call pflotranModelStepperRunTillPauseTime(pflotran_m,time * 3600.0d0)
+     call pflotranModelStepperRunTillPauseTime(pflotran_m, time * 3600.0d0)
      
      ! When coupled with CLM
      ! PassSaturationValuesToCLM()

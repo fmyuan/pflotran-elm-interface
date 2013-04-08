@@ -94,10 +94,10 @@ module pflotran_model_module
 
   public::pflotranModelCreate,               &
        pflotranModelInitMapping,             &
-       pflotranModelSetSoilProp,             & !
+       pflotranModelSetSoilProp,             &
        pflotranModelSetICs,                  &
-       pflotranModelUpdateSourceSink,        & !
-       pflotranModelGetSaturation,           & !
+       pflotranModelUpdateSourceSink,        &
+       pflotranModelGetSaturation,           &
        pflotranModelStepperRunInit,          &
        pflotranModelStepperRunTillPauseTime, &
        pflotranModelStepperRunFinalize,      &
@@ -148,12 +148,12 @@ contains
     PetscBool :: clm2pf_soil_file
     PetscBool :: clm2pf_flux_file
     PetscBool :: pf2clm_flux_file
-    PetscInt   :: i
-    PetscInt   :: temp_int
+    PetscInt  :: i
+    PetscInt  :: temp_int
     PetscErrorCode :: ierr
     character(len=MAXSTRINGLENGTH)          :: string
     character(len=MAXSTRINGLENGTH), pointer :: filenames(:)
-    character(len=MAXWORDLENGTH) :: word
+    character(len=MAXWORDLENGTH)            :: word
 
     type(pflotran_model_type),      pointer :: pflotran_model
 
@@ -187,9 +187,9 @@ contains
 
     pflotran_model%option%global_comm = mpicomm
 
-    call MPI_Comm_rank(MPI_COMM_WORLD,pflotran_model%option%global_rank, ierr)
-    call MPI_Comm_size(MPI_COMM_WORLD,pflotran_model%option%global_commsize,ierr)
-    call MPI_Comm_group(MPI_COMM_WORLD,pflotran_model%option%global_group,ierr)
+    call MPI_Comm_rank(MPI_COMM_WORLD, pflotran_model%option%global_rank, ierr)
+    call MPI_Comm_size(MPI_COMM_WORLD, pflotran_model%option%global_commsize, ierr)
+    call MPI_Comm_group(MPI_COMM_WORLD, pflotran_model%option%global_group, ierr)
     pflotran_model%option%mycomm = pflotran_model%option%global_comm
     pflotran_model%option%myrank = pflotran_model%option%global_rank
     pflotran_model%option%mycommsize = pflotran_model%option%global_commsize
@@ -206,12 +206,12 @@ contains
     ! check for non-default input filename
     pflotran_model%option%input_filename = "pflotran.in"
     string = '-pflotranin'
-    call InputGetCommandLineString(string,pflotran_model%option%input_filename, &
-                                  pflotranin_option_found,pflotran_model%option)
+    call InputGetCommandLineString(string, pflotran_model%option%input_filename, &
+                                  pflotranin_option_found, pflotran_model%option)
 
     string = '-input_prefix'
-    call InputGetCommandLineString(string,pflotran_model%option%input_prefix, &
-                                  input_prefix_option_found,pflotran_model%option)
+    call InputGetCommandLineString(string, pflotran_model%option%input_prefix, &
+                                  input_prefix_option_found, pflotran_model%option)
   
     if (pflotranin_option_found .and. input_prefix_option_found) then
       pflotran_model%option%io_buffer = 'Cannot specify both "-pflotranin" and ' // &
@@ -219,7 +219,7 @@ contains
       call printErrMsg(pflotran_model%option)
     else if (pflotranin_option_found) then
       !TODO(geh): replace this with StringSplit()
-      i = index(pflotran_model%option%input_filename,'.',PETSC_TRUE)
+      i = index(pflotran_model%option%input_filename, '.', PETSC_TRUE)
       if (i > 1) then
         i = i-1
       else
@@ -233,49 +233,49 @@ contains
     endif
 
     string = '-output_prefix'
-    call InputGetCommandLineString(string,pflotran_model%option%global_prefix,option_found,pflotran_model%option)
-    if (.not.option_found) pflotran_model%option%global_prefix = pflotran_model%option%input_prefix
+    call InputGetCommandLineString(string, pflotran_model%option%global_prefix, option_found, pflotran_model%option)
+    if (.not. option_found) pflotran_model%option%global_prefix = pflotran_model%option%input_prefix
 
     string = '-screen_output'
-    call InputGetCommandLineTruth(string,pflotran_model%option%print_to_screen,option_found,pflotran_model%option)
+    call InputGetCommandLineTruth(string, pflotran_model%option%print_to_screen, option_found, pflotran_model%option)
 
     string = '-file_output'
-    call InputGetCommandLineTruth(string,pflotran_model%option%print_to_file,option_found,pflotran_model%option)
+    call InputGetCommandLineTruth(string, pflotran_model%option%print_to_file, option_found, pflotran_model%option)
 
     string = '-v'
-    call InputGetCommandLineTruth(string,truth,option_found,pflotran_model%option)
+    call InputGetCommandLineTruth(string, truth, option_found, pflotran_model%option)
     if (option_found) pflotran_model%option%verbosity = 1
 
     string = '-multisimulation'
-    call InputGetCommandLineTruth(string,truth,option_found,pflotran_model%option)
+    call InputGetCommandLineTruth(string, truth, option_found, pflotran_model%option)
     if (option_found) then
        single_inputfile = PETSC_FALSE
     endif
 
     string = '-stochastic'
-    call InputGetCommandLineTruth(string,truth,option_found,pflotran_model%option)
+    call InputGetCommandLineTruth(string, truth, option_found, pflotran_model%option)
     if (option_found) pflotran_model%stochastic => StochasticCreate()
 
-    call InitReadStochasticCardFromInput(pflotran_model%stochastic,pflotran_model%option)
+    call InitReadStochasticCardFromInput(pflotran_model%stochastic, pflotran_model%option)
 
     if (associated(pflotran_model%stochastic)) then
-       !  call StochasticInit(stochastic,option)
-       !  call StochasticRun(stochastic,option)
+       !  call StochasticInit(stochastic, option)
+       !  call StochasticRun(stochastic, option)
     endif
 
     if (single_inputfile) then
        if (masterproc) then
-          write(iulog, *),'single_inputfile'
+          write(iulog, *), 'single_inputfile'
        endif
 
        PETSC_COMM_WORLD = MPI_COMM_WORLD
        call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
     else
-       call InitReadInputFilenames(pflotran_model%option,filenames)
+       call InitReadInputFilenames(pflotran_model%option, filenames)
        temp_int = size(filenames)
-       call SimulationCreateProcessorGroups(pflotran_model%option,temp_int)
+       call SimulationCreateProcessorGroups(pflotran_model%option, temp_int)
        pflotran_model%option%input_filename = filenames(pflotran_model%option%mygroup_id)
-       i = index(pflotran_model%option%input_filename,'.',PETSC_TRUE)
+       i = index(pflotran_model%option%input_filename, '.', PETSC_TRUE)
        if (i > 1) then
           i = i-1
        else
@@ -284,7 +284,7 @@ contains
           i = len(trim(pflotran_model%option%input_filename))
        endif
        pflotran_model%option%global_prefix = pflotran_model%option%input_filename(1:i)
-       write(string,*) pflotran_model%option%mygroup_id
+       write(string, *) pflotran_model%option%mygroup_id
        pflotran_model%option%group_prefix = 'G' // trim(adjustl(string))
     endif
 
@@ -313,7 +313,7 @@ contains
     pflotran_model%nlclm = -1
     pflotran_model%ngclm = -1
 
-    pflotran_model%realization%input => InputCreate(15,pflotran_model%option%input_filename,pflotran_model%option)
+    pflotran_model%realization%input => InputCreate(15, pflotran_model%option%input_filename, pflotran_model%option)
 
     ! Read names of mapping file
     clm2pf_soil_file=PETSC_FALSE
@@ -334,7 +334,7 @@ contains
                              pflotran_model%map_clm2pf%filename, PETSC_TRUE)
           pflotran_model%map_clm2pf%filename = trim(pflotran_model%map_clm2pf%filename)//CHAR(0)
           call InputErrorMsg(pflotran_model%realization%input, &
-                             pflotran_model%option,'type', 'MAPPING_FILES')   
+                             pflotran_model%option, 'type', 'MAPPING_FILES')   
           call StringToLower(pflotran_model%map_clm2pf%filename)
           clm2pf_flux_file=PETSC_TRUE
         case('CLM2PF_SOIL_FILE')
@@ -342,7 +342,7 @@ contains
                              pflotran_model%option, &
                              pflotran_model%map_clm2pf_soils%filename, PETSC_TRUE)
           call InputErrorMsg(pflotran_model%realization%input, &
-                             pflotran_model%option,'type', 'MAPPING_FILES')   
+                             pflotran_model%option, 'type', 'MAPPING_FILES')   
           call StringToLower(pflotran_model%map_clm2pf_soils%filename)
           clm2pf_soil_file=PETSC_TRUE
         case('PF2CLM_FLUX_FILE')
@@ -350,7 +350,7 @@ contains
                              pflotran_model%option, &
                              pflotran_model%map_pf2clm%filename, PETSC_TRUE)
           call InputErrorMsg(pflotran_model%realization%input, &
-                             pflotran_model%option,'type', 'MAPPING_FILES')   
+                             pflotran_model%option, 'type', 'MAPPING_FILES')   
           call StringToLower(pflotran_model%map_pf2clm%filename)
           pf2clm_flux_file=PETSC_TRUE
       end select
@@ -358,7 +358,7 @@ contains
     enddo
     call InputDestroy(pflotran_model%realization%input)
 
-    if((.not.clm2pf_soil_file).or.(.not.clm2pf_flux_file).or.(.not.pf2clm_flux_file)) then
+    if ((.not. clm2pf_soil_file) .or. (.not. clm2pf_flux_file) .or. (.not. pf2clm_flux_file)) then
       pflotran_model%option%io_buffer='One of the mapping files not found'
       call printErrMsg(pflotran_model%option)
     endif
@@ -421,18 +421,18 @@ subroutine pflotranModelSetICs(pflotran_model)
 #include "finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    type(realization_type),pointer            :: realization
-    type(patch_type),pointer                  :: patch
-    type(grid_type),pointer                   :: grid
-    type(field_type),pointer                  :: field
+    type(realization_type), pointer           :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(field_type), pointer                 :: field
     type(richards_auxvar_type), pointer       :: aux_var
     type(global_auxvar_type), pointer         :: global_aux_vars(:)
 
 
     PetscErrorCode     :: ierr
-    PetscInt           :: local_id,ghosted_id
+    PetscInt           :: local_id, ghosted_id
     PetscReal          :: den, vis, grav
-    PetscReal,pointer  :: xx_loc_p(:)
+    PetscReal, pointer :: xx_loc_p(:)
 
     PetscScalar, pointer :: press_pf_loc(:) ! Pressure [Pa]
 
@@ -447,14 +447,14 @@ subroutine pflotranModelSetICs(pflotran_model)
                                     clm_pf_idata%press_clm, &
                                     clm_pf_idata%press_pf)
 
-    if(pflotran_model%option%iflowmode.ne.RICHARDS_MODE) then
+    if (pflotran_model%option%iflowmode .ne. RICHARDS_MODE) then
         pflotran_model%option%io_buffer='pflotranModelSetICs ' // &
           'not implmented for this mode.'
         call printErrMsg(pflotran_model%option)
     endif
 
-    call GridVecGetArrayF90(grid,field%flow_xx,xx_loc_p,ierr)
-    call VecGetArrayF90(clm_pf_idata%press_pf,press_pf_loc,ierr)
+    call GridVecGetArrayF90(grid, field%flow_xx, xx_loc_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%press_pf, press_pf_loc, ierr)
 
     do local_id = 1, grid%nlmax
        ghosted_id = grid%nL2G(local_id)
@@ -464,12 +464,12 @@ subroutine pflotranModelSetICs(pflotran_model)
        xx_loc_p(ghosted_id)=press_pf_loc(local_id)
     enddo
 
-    call GridVecRestoreArrayF90(grid,field%flow_xx,xx_loc_p,ierr)
-    call VecRestoreArrayF90(clm_pf_idata%press_pf,press_pf_loc,ierr)
+    call GridVecRestoreArrayF90(grid, field%flow_xx, xx_loc_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%press_pf, press_pf_loc, ierr)
 
     ! update dependent vectors: Saturation
-    call DiscretizationGlobalToLocal(realization%discretization,field%flow_xx, &
-         field%flow_xx_loc,NFLOWDOF)
+    call DiscretizationGlobalToLocal(realization%discretization, field%flow_xx, &
+         field%flow_xx_loc, NFLOWDOF)
     call VecCopy(field%flow_xx, field%flow_yy, ierr)
 
     select case(pflotran_model%option%iflowmode)
@@ -510,18 +510,18 @@ end subroutine pflotranModelSetICs
 #include "finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    type(realization_type),pointer            :: realization
-    type(patch_type),pointer                  :: patch
-    type(grid_type),pointer                   :: grid
-    type(field_type),pointer                  :: field
+    type(realization_type), pointer           :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(field_type), pointer                 :: field
     type(richards_auxvar_type), pointer       :: rich_aux_vars(:)
     type(richards_auxvar_type), pointer       :: aux_var
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id
     PetscReal          :: den, vis, grav
-    PetscReal,pointer  :: porosity_loc_p(:), vol_ovlap_arr(:)
-    PetscReal,pointer  :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
+    PetscReal, pointer :: porosity_loc_p(:), vol_ovlap_arr(:)
+    PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
 
     PetscScalar, pointer :: hksat_x_pf_loc(:) ! hydraulic conductivity in x-dir at saturation (mm H2O /s)
     PetscScalar, pointer :: hksat_y_pf_loc(:) ! hydraulic conductivity in y-dir at saturation (mm H2O /s)
@@ -579,12 +579,12 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
     call VecGetArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
-    call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-    call GridVecGetArrayF90(grid,field%perm_xx_loc,  perm_xx_loc_p,  ierr)
-    call GridVecGetArrayF90(grid,field%perm_yy_loc,  perm_yy_loc_p,  ierr)
-    call GridVecGetArrayF90(grid,field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+    call GridVecGetArrayF90(grid, field%porosity_loc, porosity_loc_p, ierr)
+    call GridVecGetArrayF90(grid, field%perm_xx_loc,  perm_xx_loc_p,  ierr)
+    call GridVecGetArrayF90(grid, field%perm_yy_loc,  perm_yy_loc_p,  ierr)
+    call GridVecGetArrayF90(grid, field%perm_zz_loc,  perm_zz_loc_p,  ierr)
 
-    do local_id = 1,grid%ngmax
+    do local_id = 1, grid%ngmax
 
       aux_var => rich_aux_vars(local_id)
 
@@ -613,10 +613,10 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
     call VecRestoreArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
-    call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-    call GridVecRestoreArrayF90(grid,field%perm_xx_loc,  perm_xx_loc_p,  ierr)
-    call GridVecRestoreArrayF90(grid,field%perm_yy_loc,  perm_yy_loc_p,  ierr)
-    call GridVecRestoreArrayF90(grid,field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+    call GridVecRestoreArrayF90(grid, field%porosity_loc, porosity_loc_p, ierr)
+    call GridVecRestoreArrayF90(grid, field%perm_xx_loc,  perm_xx_loc_p,  ierr)
+    call GridVecRestoreArrayF90(grid, field%perm_yy_loc,  perm_yy_loc_p,  ierr)
+    call GridVecRestoreArrayF90(grid, field%perm_zz_loc,  perm_zz_loc_p,  ierr)
 
   end subroutine pflotranModelSetSoilProp
 !#endif
@@ -647,7 +647,7 @@ end subroutine pflotranModelSetICs
 #include "finclude/petscviewer.h"
 
     type(pflotran_model_type), intent(inout), pointer :: pflotran_model
-    PetscInt, intent(in),pointer                      :: grid_clm_cell_ids_ghosted_nindex(:)
+    PetscInt, intent(in), pointer                     :: grid_clm_cell_ids_ghosted_nindex(:)
     PetscInt, intent(in)                              :: grid_clm_npts_local
     PetscInt, intent(in)                              :: map_id
     character(len=MAXSTRINGLENGTH)                    :: filename
@@ -661,11 +661,11 @@ end subroutine pflotranModelSetICs
     PetscInt, pointer                  :: grid_clm_local_or_ghost_nindex(:)
     PetscInt                           :: count
     PetscErrorCode                     :: ierr
-    type(mapping_type),pointer         :: map
+    type(mapping_type), pointer        :: map
 
     type(option_type), pointer         :: option
     type(realization_type), pointer    :: realization
-    type(grid_type),pointer            :: grid
+    type(grid_type), pointer           :: grid
     type(patch_type), pointer          :: patch
 
     option          => pflotran_model%option
@@ -699,7 +699,7 @@ end subroutine pflotranModelSetICs
     enddo
 
     allocate(grid_pf_cell_ids_ghosted_nindex(grid%ngmax))
-    do local_id = 1,grid%ngmax
+    do local_id = 1, grid%ngmax
       grid_pf_cell_ids_ghosted_nindex(local_id) = grid%nG2A(local_id)-1
     enddo
 
@@ -708,7 +708,7 @@ end subroutine pflotranModelSetICs
 
         allocate(grid_pf_local_or_ghost_nindex  (grid%ngmax))
 
-        do local_id = 1,grid%ngmax
+        do local_id = 1, grid%ngmax
           if (grid%nG2L(local_id) == 0) then
             grid_pf_local_or_ghost_nindex(local_id) = 0 ! GHOST
           else
@@ -737,14 +737,14 @@ end subroutine pflotranModelSetICs
     deallocate(grid_pf_cell_ids_ghosted_nindex)
 
     ! Read mapping file
-    if (index(map%filename,'.h5') > 0) then
+    if (index(map%filename, '.h5') > 0) then
       call MappingReadHDF5(map, map%filename, option)
     else
       call MappingReadTxtFile(map, map%filename, option)
     endif
-    call MappingDecompose(map,option)
-    call MappingFindDistinctSourceMeshCellIds(map,option)
-    call MappingCreateWeightMatrix(map,option)
+    call MappingDecompose(map, option)
+    call MappingFindDistinctSourceMeshCellIds(map, option)
+    call MappingCreateWeightMatrix(map, option)
     call MappingCreateScatterOfSourceMesh(map, option) 
 
 end subroutine pflotranModelInitMapping
@@ -773,8 +773,8 @@ end subroutine pflotranModelInitMapping
 
     type(pflotran_model_type), pointer :: pflotran_model
     type(realization_type), pointer    :: realization
-    type(grid_type),pointer            :: grid
-    type(field_type),pointer           :: field
+    type(grid_type), pointer           :: grid
+    type(field_type), pointer          :: field
     type(global_auxvar_type), pointer  :: global_aux_vars(:)
     type(patch_type), pointer          :: patch
 
@@ -785,7 +785,7 @@ end subroutine pflotranModelInitMapping
     PetscReal  :: liq_vol_end   ! [m^3/m^3]
     PetscReal  :: del_liq_vol, dz, sat, source_sink
     PetscInt   :: local_id, ghosted_id
-    PetscReal,pointer  :: porosity_loc_p(:)
+    PetscReal, pointer  :: porosity_loc_p(:)
 
     realization     => pflotran_model%simulation%realization
     patch           => realization%patch
@@ -794,7 +794,7 @@ end subroutine pflotranModelInitMapping
     field           => realization%field
 
     if (masterproc) then
-       write(iulog,*), '>>>> Inserting waypoint at pause_time = ',pause_time
+       write(iulog, *), '>>>> Inserting waypoint at pause_time = ', pause_time
     endif
 
     call pflotranModelInsertWaypoint(pflotran_model, pause_time)
@@ -839,12 +839,12 @@ end subroutine pflotranModelInitMapping
     ! betweent CLM calls
 #endif
 
-    if(pflotran_model%pause_time_1.gt.0.0d0) then
-       call pflotranModelDeleteWaypoint(pflotran_model,pflotran_model%pause_time_1)
+    if (pflotran_model%pause_time_1.gt.0.0d0) then
+       call pflotranModelDeleteWaypoint(pflotran_model, pflotran_model%pause_time_1)
     endif
 
-    if(pflotran_model%pause_time_2.gt.0.0d0) then
-       call pflotranModelDeleteWaypoint(pflotran_model,pflotran_model%pause_time_2)
+    if (pflotran_model%pause_time_2.gt.0.0d0) then
+       call pflotranModelDeleteWaypoint(pflotran_model, pflotran_model%pause_time_2)
     endif
 
     pflotran_model%pause_time_1 = pause_time
@@ -898,17 +898,17 @@ end subroutine pflotranModelInitMapping
 #include "finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    type(realization_type),pointer            :: realization
-    type(patch_type),pointer                  :: patch
-    type(grid_type),pointer                   :: grid
-    type(field_type),pointer                  :: field
-    type(mapping_type),pointer                :: map
+    type(realization_type), pointer           :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(field_type), pointer                 :: field
+    type(mapping_type), pointer               :: map
     type(richards_auxvar_type), pointer       :: aux_var
     type(global_auxvar_type), pointer         :: global_aux_vars(:)
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
-    PetscReal,pointer  :: sat_pf_p(:)
-    PetscReal,pointer  :: sat_clm_p(:)
+    PetscReal, pointer :: sat_pf_p(:)
+    PetscReal, pointer :: sat_clm_p(:)
 
     realization     => pflotran_model%simulation%realization
     patch           => realization%patch
@@ -928,12 +928,12 @@ end subroutine pflotranModelInitMapping
     end select
 
     ! Save the
-    call VecGetArrayF90(clm_pf_idata%sat_pf,sat_pf_p,ierr)
-    do local_id=1,grid%nlmax
+    call VecGetArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
+    do local_id=1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
       sat_pf_p(local_id)=global_aux_vars(ghosted_id)%sat(1)
     enddo
-    call VecRestoreArrayF90(clm_pf_idata%sat_pf,sat_pf_p,ierr)
+    call VecRestoreArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
 
     call MappingSourceToDestination(pflotran_model%map_pf2clm, &
                                     pflotran_model%option, &
@@ -986,40 +986,40 @@ end subroutine pflotranModelInitMapping
 
     implicit none
 
-    type(pflotran_model_type),pointer :: pflotran_model
-    type(waypoint_type)      ,pointer :: waypoint
-    type(option_type)        ,pointer :: option
-    PetscReal                         :: waypoint_time
-    character(len=MAXWORDLENGTH)      :: word
+    type(pflotran_model_type), pointer :: pflotran_model
+    type(waypoint_type), pointer       :: waypoint
+    type(option_type), pointer         :: option
+    PetscReal                          :: waypoint_time
+    character(len=MAXWORDLENGTH)       :: word
 
     option => pflotran_model%realization%option
     word = 's'
     waypoint => WaypointCreate()
-    waypoint%time              = waypoint_time * UnitsConvertToInternal(word,option)
+    waypoint%time              = waypoint_time * UnitsConvertToInternal(word, option)
     waypoint%update_conditions = PETSC_TRUE
     waypoint%dt_max            = 3153600
 
-    call WaypointInsertInList(waypoint,pflotran_model%realization%waypoints)
+    call WaypointInsertInList(waypoint, pflotran_model%realization%waypoints)
 
 
   end subroutine pflotranModelInsertWaypoint
 
   subroutine pflotranModelDeleteWaypoint(pflotran_model, waypoint_time)
 
-    type(pflotran_model_type),pointer :: pflotran_model
-    type(waypoint_type)      ,pointer :: waypoint
-    type(option_type)        ,pointer :: option
-    PetscReal                         :: waypoint_time
-    character(len=MAXWORDLENGTH)      :: word
+    type(pflotran_model_type), pointer :: pflotran_model
+    type(waypoint_type), pointer       :: waypoint
+    type(option_type), pointer         :: option
+    PetscReal                          :: waypoint_time
+    character(len=MAXWORDLENGTH)       :: word
 
     option => pflotran_model%realization%option
     word = 's'
     waypoint => WaypointCreate()
-    waypoint%time              = waypoint_time * UnitsConvertToInternal(word,option)
+    waypoint%time              = waypoint_time * UnitsConvertToInternal(word, option)
     waypoint%update_conditions = PETSC_TRUE
     waypoint%dt_max            = 3153600
 
-    call WaypointDeleteFromList(waypoint,pflotran_model%realization%waypoints)
+    call WaypointDeleteFromList(waypoint, pflotran_model%realization%waypoints)
 
 
   end subroutine pflotranModelDeleteWaypoint
@@ -1040,7 +1040,7 @@ end subroutine pflotranModelInitMapping
     PetscErrorCode :: ierr
     PetscLogDouble :: cpu_time, wall_time
 #ifdef CLM_PFLOTRAN
-    type(mapping_type),pointer         :: map
+    type(mapping_type), pointer         :: map
 #endif
 
     ! Clean things up.
@@ -1055,32 +1055,34 @@ end subroutine pflotranModelInitMapping
        wall_time = pflotran_model%timex_wall(2) - pflotran_model%timex_wall(1) 
        if (pflotran_model%option%print_to_screen) then
           if (masterproc) then
-             write(iulog, '(/," CPU Time:", 1pe12.4, " [sec] ", &
+             write(iulog, '(/, " CPU Time:", 1pe12.4, " [sec] ", &
                   & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
                   cpu_time, cpu_time / 60.d0, cpu_time / 3600.d0
 
-             write(iulog, '(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
+             write(iulog, '(/, " Wall Clock Time:", 1pe12.4, " [sec] ", &
                   & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
                   wall_time, wall_time / 60.d0, wall_time / 3600.d0
           endif
        endif
        if (pflotran_model%option%print_to_file) then
-          write(pflotran_model%option%fid_out, '(/," CPU Time:", 1pe12.4, " [sec] ", &
+          write(pflotran_model%option%fid_out, '(/, " CPU Time:", 1pe12.4, " [sec] ", &
                   & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
                   cpu_time, cpu_time / 60.d0, cpu_time / 3600.d0
 
-          write(pflotran_model%option%fid_out, '(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
+          write(pflotran_model%option%fid_out, '(/, " Wall Clock Time:", 1pe12.4, " [sec] ", &
                   & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
                   wall_time, wall_time / 60.d0, wall_time / 3600.d0
        endif
     endif
 
-    if (pflotran_model%option%myrank == pflotran_model%option%io_rank .and. pflotran_model%option%print_to_file) &
-         close(pflotran_model%option%fid_out)
+    if (pflotran_model%option%myrank == pflotran_model%option%io_rank .and. &
+         pflotran_model%option%print_to_file) then
+       close(pflotran_model%option%fid_out)
+    end if
 
     call LoggingDestroy()
 
-    call PetscOptionsSetValue('-options_left','no',ierr);
+    call PetscOptionsSetValue('-options_left', 'no', ierr);
 
     call OptionDestroy(pflotran_model%option)
     call PetscFinalize(ierr)
