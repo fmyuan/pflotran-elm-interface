@@ -168,7 +168,6 @@ contains
     PetscBool :: pf2clm_flux_file
     
     PetscInt   :: temp_int
-
     PetscErrorCode :: ierr
     character(len=MAXSTRINGLENGTH)          :: string
     character(len=MAXSTRINGLENGTH), pointer :: filenames(:)
