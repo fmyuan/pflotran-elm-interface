@@ -39,9 +39,6 @@ program pflotran_interface_main
 
   call MPI_Init(ierr)
 
-  ! A
-  allocate(pflotran_m)
-  
   ! Create the model
   pflotran_m => pflotranModelCreate(MPI_COMM_WORLD)
 
