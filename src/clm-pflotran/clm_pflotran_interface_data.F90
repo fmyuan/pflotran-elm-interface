@@ -6,7 +6,7 @@ module clm_pflotran_interface_data
 #include "finclude/petscvec.h"
   private
 
-  type, public :: clm_pflotran_interface_data_type
+  type, public :: clm_pflotran_idata_type
 
   ! Time invariant data:
   
@@ -46,15 +46,17 @@ module clm_pflotran_interface_data
   PetscInt :: nlpf   ! num of local pflotran cells
   PetscInt :: ngpf   ! num of ghosted pflotran cells (ghosted = local+ghosts)
 
-  end type clm_pflotran_interface_data_type
+  end type clm_pflotran_idata_type
 
-  type(clm_pflotran_interface_data_type) , public, target , save :: clm_pf_idata
+  type(clm_pflotran_idata_type) , public, target , save :: clm_pf_idata
   
-  public :: clm_pflotran_interface_data_allocate_memory
+  public :: CLMPFLOTRANIdataCreate
   
 contains
 
-  subroutine clm_pflotran_interface_data_allocate_memory(mycomm)
+  ! ************************************************************************** !
+  ! ************************************************************************** !
+  subroutine CLMPFLOTRANIdataCreate(mycomm)
   
     implicit none
     
@@ -63,10 +65,10 @@ contains
     PetscReal      :: zero = 0.0d0
     Vec :: vec_test
 
-    call MPI_Comm_rank(MPI_COMM_WORLD,rank, ierr)
+    call MPI_Comm_rank(mycomm,rank, ierr)
 
     ! Create MPI Vectors for CLM
-    call VecCreateMPI(MPI_COMM_WORLD,clm_pf_idata%nlclm,PETSC_DECIDE,clm_pf_idata%hksat_x_clm,ierr) 
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm,PETSC_DECIDE,clm_pf_idata%hksat_x_clm,ierr) 
 
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hksat_y_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hksat_z_clm,ierr)
@@ -89,11 +91,11 @@ contains
 
 
     ! Create MPI Vectors for PFLOTRAN
-    call VecCreateMPI(MPI_COMM_WORLD,clm_pf_idata%nlpf,PETSC_DECIDE,clm_pf_idata%sat_pf,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf,PETSC_DECIDE,clm_pf_idata%sat_pf,ierr)
  
     ! Create Seq. Vectors for CLM
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm,clm_pf_idata%sat_clm,ierr)
 
-  end subroutine clm_pflotran_interface_data_allocate_memory
+  end subroutine CLMPFLOTRANIdataCreate
 
 end module clm_pflotran_interface_data
