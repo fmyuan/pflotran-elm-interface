@@ -12,17 +12,15 @@ module pflotran_model_module
   use Waypoint_module
   use Units_module
 
+  use Richards_Aux_module
+
+  use Mapping_module
+
 #if defined (CLM_PFLOTRAN)
   ! some CLM internals that we want to use (e.g. i/o)
   use clm_varctl, only            : iulog
   use spmdMod, only : masterproc
 #endif  
-
-#if defined (CLM_PFLOTRAN) || defined(CLM_OFFLINE)  
-  use Richards_Aux_module
-#endif
-
-  use Mapping_module
 
   implicit none
 
