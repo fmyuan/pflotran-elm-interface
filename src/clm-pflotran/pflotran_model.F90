@@ -13,9 +13,15 @@ module pflotran_model_module
   use Units_module
 
 #if defined (CLM_PFLOTRAN)
+  ! some CLM internals that we want to use (e.g. i/o)
   use clm_varctl, only            : iulog
+  use spmdMod, only : masterproc
+#endif  
+
+#if defined (CLM_PFLOTRAN)
   use Mapping_module
 #endif  
+
 #if defined (CLM_PFLOTRAN) || defined(CLM_OFFLINE)  
   use Richards_Aux_module
   !use pflotran_clm_interface_type
@@ -34,6 +40,12 @@ module pflotran_model_module
 #include "finclude/petscvec.h"
 !#include "finclude/petscvec.h90"
 
+#ifndef CLM_PFLOTRAN
+  ! don't have CLM, so we need to mock a few things
+  integer, public :: iulog = 6       ! "stdout" log file unit number, default is 6
+  logical, public :: masterproc = .false. ! master io processor
+#endif
+
   PetscLogDouble :: timex(4), timex_wall(4)
 
   PetscBool :: truth
@@ -41,7 +53,7 @@ module pflotran_model_module
   PetscBool :: single_inputfile
   PetscInt  :: i
   PetscInt  :: temp_int
-  PetscErrorCode :: ierr
+
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH), pointer :: filenames(:)
 
@@ -140,6 +152,8 @@ contains
 #endif
     implicit none
 
+    PetscInt, intent(in) :: mpicomm
+
     type(pflotran_model_type), pointer :: pflotranModelCreate
 
     PetscLogDouble :: timex(4), timex_wall(4)
@@ -154,8 +168,7 @@ contains
     PetscBool :: pf2clm_flux_file
     
     PetscInt   :: temp_int
-    PetscInt   :: mpicomm
-    
+
     PetscErrorCode :: ierr
     character(len=MAXSTRINGLENGTH)          :: string
     character(len=MAXSTRINGLENGTH), pointer :: filenames(:)
@@ -176,6 +189,7 @@ contains
     allocate(pflotran_model%map_clm2pf_soils)
     allocate(pflotran_model%map_pf2clm)
 
+    ! TODO(bja): creating memory leaks?
     nullify(pflotran_model%stochastic)
     nullify(pflotran_model%simulation)
     nullify(pflotran_model%realization)
@@ -197,12 +211,8 @@ contains
     pflotran_model%pause_time_2 = -1.0d0
 
 
-#ifndef CLM_PFLOTRAN
-    call MPI_Init(ierr)
-    pflotran_model%option%global_comm = MPI_COMM_WORLD
-#else
     pflotran_model%option%global_comm = mpicomm
-#endif
+
     call MPI_Comm_rank(MPI_COMM_WORLD,pflotran_model%option%global_rank, ierr)
     call MPI_Comm_size(MPI_COMM_WORLD,pflotran_model%option%global_commsize,ierr)
     call MPI_Comm_group(MPI_COMM_WORLD,pflotran_model%option%global_group,ierr)
@@ -210,6 +220,13 @@ contains
     pflotran_model%option%myrank = pflotran_model%option%global_rank
     pflotran_model%option%mycommsize = pflotran_model%option%global_commsize
     pflotran_model%option%mygroup = pflotran_model%option%global_group
+
+#ifndef CLM_PFLOTRAN
+    ! mock the master i/o processor flag
+    if (pflotran_model%option%myrank == pflotran_model%option%io_rank) then
+       masterproc = .true.
+    endif
+#endif
 
 
     ! check for non-default input filename
@@ -273,11 +290,10 @@ contains
     endif
 
     if (single_inputfile) then
-#ifdef CLM_PFLOTRAN
-       write(iulog,*),'single_inputfile'
-#else
-       if(pflotran_model%option%myrank == pflotran_model%option%io_rank) write(*,*),'single_inputfile'
-#endif
+       if (masterproc) then
+          write(iulog, *),'single_inputfile'
+       endif
+
        PETSC_COMM_WORLD = MPI_COMM_WORLD
        call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
     else
@@ -297,6 +313,10 @@ contains
        write(string,*) pflotran_model%option%mygroup_id
        pflotran_model%option%group_prefix = 'G' // trim(adjustl(string))
     endif
+
+    ! TODO(bja): debuging output, or do we want this formally written to pflotran/clm output?
+    write(*, *),'option%global_prefix = ',pflotran_model%option%global_prefix
+    write(*, *),'option%group_prefix = ',pflotran_model%option%group_prefix
 
     if (pflotran_model%option%verbosity > 0) then
        call PetscLogBegin(ierr)
@@ -890,6 +910,7 @@ end subroutine pflotranModelInitMapping3
     type(global_auxvar_type), pointer  :: global_aux_vars(:)
     type(patch_type), pointer          :: patch
 
+    PetscErrorCode :: ierr
     PetscReal  :: pause_time
     PetscReal  :: dtime
     PetscReal  :: liq_vol_start ! [m^3/m^3]
@@ -904,9 +925,9 @@ end subroutine pflotranModelInitMapping3
     global_aux_vars => patch%aux%Global%aux_vars
     field           => realization%field
 
-#ifdef CLM_PFLOTRAN
-    write(iulog,*), '>>>> Inserting waypoint at pause_time = ',pause_time
-#endif
+    if (masterproc) then
+       write(iulog,*), '>>>> Inserting waypoint at pause_time = ',pause_time
+    endif
 
     call pflotranModelInsertWaypoint(pflotran_model, pause_time)
     call pflotranModelInsertWaypoint(pflotran_model, pause_time + 100.0d0)
@@ -1238,7 +1259,7 @@ end subroutine pflotranModelInitMapping3
 
     type(pflotran_model_type), pointer :: pflotran_model
     PetscInt :: ii, jj
-
+    PetscErrorCode :: ierr
 #ifdef CLM_PFLOTRAN
     type(mapping_type),pointer         :: map
 
@@ -1263,27 +1284,17 @@ end subroutine pflotranModelInitMapping3
     if (pflotran_model%option%myrank == pflotran_model%option%io_rank) then
 
        if (pflotran_model%option%print_to_screen) then
-#ifdef CLM_PFLOTRAN
-          write(iulog,'(/," CPU Time:", 1pe12.4, " [sec] ", &
-               & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-               timex(2)-timex(1), (timex(2)-timex(1))/60.d0, &
-               (timex(2)-timex(1))/3600.d0
+          if (masterproc) then
+             write(iulog,'(/," CPU Time:", 1pe12.4, " [sec] ", &
+                  & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
+                  timex(2)-timex(1), (timex(2)-timex(1))/60.d0, &
+                  (timex(2)-timex(1))/3600.d0
 
-          write(iulog,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
-               & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-               timex_wall(2)-timex_wall(1), (timex_wall(2)-timex_wall(1))/60.d0, &
-               (timex_wall(2)-timex_wall(1))/3600.d0
-#else
-          write(*,'(/," CPU Time:", 1pe12.4, " [sec] ", &
-               & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-               timex(2)-timex(1), (timex(2)-timex(1))/60.d0, &
-               (timex(2)-timex(1))/3600.d0
-
-          write(*,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
-               & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-               timex_wall(2)-timex_wall(1), (timex_wall(2)-timex_wall(1))/60.d0, &
-               (timex_wall(2)-timex_wall(1))/3600.d0
-#endif
+             write(iulog,'(/," Wall Clock Time:", 1pe12.4, " [sec] ", &
+                  & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
+                  timex_wall(2)-timex_wall(1), (timex_wall(2)-timex_wall(1))/60.d0, &
+                  (timex_wall(2)-timex_wall(1))/3600.d0
+          endif
        endif
        if (pflotran_model%option%print_to_file) then
           write(pflotran_model%option%fid_out,'(/," CPU Time:", 1pe12.4, " [sec] ", &
@@ -1307,9 +1318,6 @@ end subroutine pflotranModelInitMapping3
 
     call OptionDestroy(pflotran_model%option)
     call PetscFinalize(ierr)
-#ifndef CLM_PFLOTRAN
-    call MPI_Finalize(ierr)
-#endif
 
   end subroutine pflotranModelDestroy
   
