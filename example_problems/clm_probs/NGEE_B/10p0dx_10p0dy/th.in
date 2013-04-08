@@ -39,8 +39,8 @@ SATURATION_FUNCTION default
 :========================= output options =========================
 OUTPUT
   :TIMES y 0.25d0 0.5d0 0.75d0 2.d0
-  SCREEN PERIODIC 10
-  PERIODIC_OBSERVATION TIMESTEP 1 
+  :SCREEN PERIODIC 10
+  :PERIODIC_OBSERVATION TIMESTEP 1 
   :FORMAT TECPLOT POINT
   FORMAT HDF5
   :VELOCITIES
@@ -81,11 +81,11 @@ END
 FLOW_CONDITION et
   TYPE
     RATE heterogeneous_mass_rate
-    TEMPERATURE neumann
+    TEMPERATURE dirichlet
 	ENTHALPY dirichlet
   /
   RATE  0.d0
-  TEMPERATURE 25.D0
+  TEMPERATURE 1.D0
   ENTHALPY 0.D0 
 END
 
@@ -121,4 +121,11 @@ END
 STRATA
   REGION all
   MATERIAL soil1
+END
+
+:===================== mapping files ==============================
+MAPPING_FILES
+  CLM2PF_FLUX_FILE B_10p0dx_10p0dy_10nz_clm2pf_map.dat
+  CLM2PF_SOIL_FILE B_10p0dx_10p0dy_10nz_clm2pf_map.dat
+  PF2CLM_FLUX_FILE B_10p0dx_10p0dy_10nz_pf2clm_map.dat
 END
