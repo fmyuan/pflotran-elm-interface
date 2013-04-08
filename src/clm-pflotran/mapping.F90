@@ -90,8 +90,12 @@ contains
 
 
   ! ************************************************************************** !
-  !
-  !
+  !> This routine creates a mapping.
+  !!
+  !> @author
+  !! Gautam Bisht, ORNL
+  !!
+  !! date: 2011
   ! ************************************************************************** !
   function MappingCreate()
 
@@ -108,8 +112,12 @@ contains
 
 
   ! ************************************************************************** !
-  !
-  !
+  !> This routine sets cell ids source mesh.
+  !!
+  !> @author
+  !! Gautam Bisht, ORNL
+  !!
+  !! date: 2011
   ! ************************************************************************** !
   subroutine MappingSetSourceMeshCellIds( map, &
                                           option, &
@@ -136,8 +144,12 @@ contains
   end subroutine MappingSetSourceMeshCellIds
 
   ! ************************************************************************** !
-  !
-  !
+  !> This routine sets the cell ids of destination mesh.
+  !!
+  !> @author
+  !! Gautam Bisht, ORNL
+  !!
+  !! date: 2011
   ! ************************************************************************** !
   subroutine MappingSetDestinationMeshCellIds(map, &
                                               option, &
@@ -200,8 +212,12 @@ contains
   end subroutine MappingSetDestinationMeshCellIds
 
   ! ************************************************************************** !
-  !
-  !
+  !> This routine reads the a ASCII mapping file
+  !!
+  !> @author
+  !! Gautam Bisht, ORNL
+  !!
+  !! date: 2011
   ! ************************************************************************** !
   subroutine MappingReadTxtFile(map,map_filename,option)
   
@@ -358,8 +374,14 @@ contains
   end subroutine MappingReadTxtFile
   
   ! ************************************************************************** !
-  !
-  !
+  !> This routine decomposes the mapping when running on more than processor,
+  !! while accounting for different domain decomposition of source and
+  !! destination grid.
+  !!
+  !> @author
+  !! Gautam Bisht, ORNL
+  !!
+  !! date: 2011
   ! ************************************************************************** !
   subroutine MappingDecompose(map,option)
   
@@ -666,8 +688,12 @@ contains
   end subroutine MappingDecompose
 
   ! ************************************************************************** !
-  !
-  !
+  !> This routine finds distinct cell ids of source mesh
+  !!
+  !> @author
+  !! Gautam Bisht, ORNL
+  !!
+  !! date: 2011
   ! ************************************************************************** !
   subroutine MappingFindDistinctSourceMeshCellIds(map,option)
   
@@ -764,8 +790,13 @@ contains
   end subroutine MappingFindDistinctSourceMeshCellIds
 
   ! ************************************************************************** !
-  !
-  !
+  !> This routine creates a weight matrix to map data from source to destination
+  !! grid.
+  !!
+  !> @author
+  !! Gautam Bisht, ORNL
+  !!
+  !! date: 2011
   ! ************************************************************************** !
   subroutine MappingCreateWeightMatrix(map,option)
   
@@ -822,8 +853,13 @@ contains
 
 
   ! ************************************************************************** !
-  !
-  !
+  !> This routine screates a vector scatter context from source to destination
+  !! grid.
+  !!
+  !> @author
+  !! Gautam Bisht, ORNL
+  !!
+  !! date: 2011
   ! ************************************************************************** !
   subroutine MappingCreateScatterOfSourceMesh(map,option)
   
@@ -1063,8 +1099,12 @@ contains
   end subroutine MappingCreateScatterOfSourceMesh
   
   ! ************************************************************************** !
-  !
-  !
+  !> This routine maps the data from source to destination grid.
+  !!
+  !> @author
+  !! Gautam Bisht, ORNL
+  !!
+  !! date: 2011
   ! ************************************************************************** !
   subroutine MappingSourceToDestination(map,option,s_vec,d_vec)
   
