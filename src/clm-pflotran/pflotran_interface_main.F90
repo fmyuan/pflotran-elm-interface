@@ -18,7 +18,6 @@ program pflotran_interface_main
 #include "finclude/petscsysdef.h"
 
   type(pflotran_model_type),pointer  :: pflotran_m
-  !type(clm_pflotran_interface_data_type),pointer    :: clm_pf_idata
 
   
   PetscErrorCode :: ierr
@@ -72,13 +71,13 @@ program pflotran_interface_main
   clm_pf_idata%ngpf  = pflotran_m%realization%patch%grid%ngmax
 
   ! Allocate memory for CLM-PFLOTRAN data transfer
-  call clm_pflotran_interface_data_allocate_memory(1)
+  call CLMPFLOTRANIdataCreate(MPI_COMM_WORLD)
   
   ! Set mapping between CLM and PFLOTRAN
-  call pflotranModelInitMapping3(pflotran_m, clm_cell_ids,clm_npts, CLM2PF_FLUX_MAP_ID)
-  call pflotranModelInitMapping3(pflotran_m, clm_cell_ids,clm_npts, CLM2PF_SOIL_MAP_ID)
-  call pflotranModelInitMapping3(pflotran_m, clm_cell_ids,clm_npts, PF2CLM_FLUX_MAP_ID)
-! call pflotranModelSetSoilProp3(pflotran_m)
+  call pflotranModelInitMapping(pflotran_m, clm_cell_ids,clm_npts, CLM2PF_FLUX_MAP_ID)
+  call pflotranModelInitMapping(pflotran_m, clm_cell_ids,clm_npts, CLM2PF_SOIL_MAP_ID)
+  call pflotranModelInitMapping(pflotran_m, clm_cell_ids,clm_npts, PF2CLM_FLUX_MAP_ID)
+! call pflotranModelSetSoilProp(pflotran_m)
 
   ! Initialize PFLOTRAN Stepper
   call pflotranModelStepperRunInit(pflotran_m)

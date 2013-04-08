@@ -24,8 +24,6 @@ module pflotran_model_module
 
 #if defined (CLM_PFLOTRAN) || defined(CLM_OFFLINE)  
   use Richards_Aux_module
-  !use pflotran_clm_interface_type
-  !use clm_pflotran_interface_data
 #endif
 
   use Mapping_module
@@ -83,7 +81,6 @@ module pflotran_model_module
     type(mapping_type),                pointer :: map_clm2pf
     type(mapping_type),                pointer :: map_clm2pf_soils
     type(mapping_type),                pointer :: map_pf2clm
-    !type(clm_pflotran_interface_data_type),pointer            :: clm_pf_idata
      
     Vec :: hksat_x_clm
     Vec :: hksat_y_clm
@@ -109,14 +106,13 @@ module pflotran_model_module
   end type pflotran_model_type
 
   public::pflotranModelCreate,               &
-       pflotranModelInitMapping3,            &
-       pflotranModelSetSoilProp3,            & !
-       pflotranModelSetICs3,                 &
-       pflotranModelUpdateSourceSink3,       & !
-       pflotranModelGetSaturation3,          & !
+       pflotranModelInitMapping,             &
+       pflotranModelSetSoilProp,             & !
+       pflotranModelSetICs,                  &
+       pflotranModelUpdateSourceSink,        & !
+       pflotranModelGetSaturation,           & !
        pflotranModelStepperRunInit,          &
        pflotranModelStepperRunTillPauseTime, &
-       pflotranModelUpdateTopBCHomogeneous,  &
        pflotranModelStepperRunFinalize,      &
        pflotranModelInsertWaypoint,          &
        pflotranModelDeleteWaypoint,          &
@@ -127,10 +123,9 @@ contains
   ! ************************************************************************** !
   !
   ! pflotranModelCreate: Allocates and initializes the pflotranModel object.
-  !             It performs the same sequence of commands as done in pflotran.F90
-  !     before model integration is performed by the call to StepperRun()
-  !             routine
-  !
+  !   It performs the same sequence of commands as done in pflotran.F90
+  !   before model integration is performed by the call to StepperRun()
+  !   routine
   !
   ! author: Gautam Bisht
   ! date: 9/10/2010
@@ -313,10 +308,6 @@ contains
        pflotran_model%option%group_prefix = 'G' // trim(adjustl(string))
     endif
 
-    ! TODO(bja): debuging output, or do we want this formally written to pflotran/clm output?
-    write(*, *),'option%global_prefix = ',pflotran_model%option%global_prefix
-    write(*, *),'option%group_prefix = ',pflotran_model%option%group_prefix
-
     if (pflotran_model%option%verbosity > 0) then
        call PetscLogBegin(ierr)
        string = '-log_summary'
@@ -400,8 +391,8 @@ contains
   ! ************************************************************************** !
   !
   ! pflotranModelStepperRunInit: It performs the same execution of commands
-  !             that are carried out in StepperRun() before the model integration
-  !             begins over the entire simulation time interval
+  !   that are carried out in StepperRun() before the model integration
+  !   begins over the entire simulation time interval
   !
   ! author: Gautam Bisht
   ! date: 9/10/2010
@@ -426,13 +417,12 @@ contains
 
   ! ************************************************************************** !
   !
-  ! pflotranModelSetICs3:
-  !
+  ! pflotranModelSetICs: Set initial conditions
   !
   ! author: Gautam Bisht
   ! date: 10/22/2010
   ! ************************************************************************** !
-subroutine pflotranModelSetICs3(pflotran_model)
+subroutine pflotranModelSetICs(pflotran_model)
 
     use Realization_class
     use Patch_module
@@ -443,6 +433,7 @@ subroutine pflotranModelSetICs3(pflotran_model)
     use Global_Aux_module
     use Discretization_module
     use Richards_module
+    use TH_module
 
     implicit none
 
@@ -476,6 +467,12 @@ subroutine pflotranModelSetICs3(pflotran_model)
                                     clm_pf_idata%press_clm, &
                                     clm_pf_idata%press_pf)
 
+    if(pflotran_model%option%iflowmode.ne.RICHARDS_MODE) then
+        pflotran_model%option%io_buffer='pflotranModelSetICs ' // &
+          'not implmented for this mode.'
+        call printErrMsg(pflotran_model%option)
+    endif
+
     call GridVecGetArrayF90(grid,field%flow_xx,xx_loc_p,ierr)
     call VecGetArrayF90(clm_pf_idata%press_pf,press_pf_loc,ierr)
 
@@ -484,7 +481,7 @@ subroutine pflotranModelSetICs3(pflotran_model)
        if (associated(patch%imat)) then
           if (patch%imat(ghosted_id) <= 0) cycle
        endif
-       xx_loc_p(ghosted_id) = press_pf_loc(local_id)
+       xx_loc_p(ghosted_id)=press_pf_loc(local_id)
     enddo
 
     call GridVecRestoreArrayF90(grid,field%flow_xx,xx_loc_p,ierr)
@@ -495,20 +492,30 @@ subroutine pflotranModelSetICs3(pflotran_model)
          field%flow_xx_loc,NFLOWDOF)
     call VecCopy(field%flow_xx, field%flow_yy, ierr)
 
-    call RichardsUpdateAuxVars(realization)
+    select case(pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
+      case (TH_MODE)
+        call THUpdateAuxVars(pflotran_model%simulation%realization)
+      case default
+        pflotran_model%option%io_buffer='pflotranModelSetICs ' // &
+          'not implmented for this mode.'
+        call printErrMsg(pflotran_model%option)
+    end select
 
-end subroutine pflotranModelSetICs3
+end subroutine pflotranModelSetICs
 
   ! ************************************************************************** !
   !
-  ! pflotranModelSetSoilProp3:
+  ! pflotranModelSetSoilProp: Converts hydraulic properties from CLM units
+  !  into PFLOTRAN units.
   !
   !
   ! author: Gautam Bisht
   ! date: 10/22/2010
   ! ************************************************************************** !
 !#ifdef CLM_PFLOTRAN
-  subroutine pflotranModelSetSoilProp3(pflotran_model)
+  subroutine pflotranModelSetSoilProp(pflotran_model)
 
     use Realization_class
     use Patch_module
@@ -610,9 +617,9 @@ end subroutine pflotranModelSetICs3
       
       ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
       ! [m^2]          [mm/sec]
-      perm_xx_loc_p(local_id) = hksat_x_pf_loc(local_id) * vis/ (den * grav) / 1000.d0
-      perm_yy_loc_p(local_id) = hksat_y_pf_loc(local_id) * vis/ (den * grav) / 1000.d0
-      perm_zz_loc_p(local_id) = hksat_z_pf_loc(local_id) * vis/ (den * grav) / 1000.d0
+      perm_xx_loc_p(local_id) = hksat_x_pf_loc(local_id)*vis/(den*grav)/1000.d0
+      perm_yy_loc_p(local_id) = hksat_y_pf_loc(local_id)*vis/(den*grav)/1000.d0
+      perm_zz_loc_p(local_id) = hksat_z_pf_loc(local_id)*vis/(den*grav)/1000.d0
 
       porosity_loc_p(local_id) = watsat_pf_loc(local_id)
 
@@ -631,18 +638,18 @@ end subroutine pflotranModelSetICs3
     call GridVecRestoreArrayF90(grid,field%perm_yy_loc,  perm_yy_loc_p,  ierr)
     call GridVecRestoreArrayF90(grid,field%perm_zz_loc,  perm_zz_loc_p,  ierr)
 
-  end subroutine pflotranModelSetSoilProp3
+  end subroutine pflotranModelSetSoilProp
 !#endif
 
   ! ************************************************************************** !
   !
-  ! pflotranModelInitMapping3:
-  !
+  ! pflotranModelInitMapping: Initialize mapping between the two model grid
+  !  (CLM and PFLTORAN)
   !
   ! author: Gautam Bisht
   ! date: 03/24/2011
   ! ************************************************************************** !
-  subroutine pflotranModelInitMapping3(pflotran_model,  &
+  subroutine pflotranModelInitMapping(pflotran_model,  &
                                        grid_clm_cell_ids_ghosted_nindex, &
                                        grid_clm_npts_local, &
                                        map_id)
@@ -698,7 +705,7 @@ end subroutine pflotranModelSetICs3
         map => pflotran_model%map_pf2clm
         source_id = PF_MESH
       case default
-        option%io_buffer = 'Invalid map_id argument to pflotranModelInitMapping3'
+        option%io_buffer = 'Invalid map_id argument to pflotranModelInitMapping'
         call printErrMsg(option)
     end select
 
@@ -745,7 +752,7 @@ end subroutine pflotranModelSetICs3
                                               grid_clm_cell_ids_ghosted_nindex, &
                                               grid_clm_local_or_ghost_nindex)
       case default
-        option%io_buffer = 'Invalid argument source_id passed to pflotranModelInitMapping3'
+        option%io_buffer = 'Invalid argument source_id passed to pflotranModelInitMapping'
         call printErrMsg(option)
     end select
     deallocate(grid_pf_cell_ids_ghosted_nindex)
@@ -756,129 +763,7 @@ end subroutine pflotranModelSetICs3
     call MappingCreateWeightMatrix(map,option)
     call MappingCreateScatterOfSourceMesh(map, option) 
 
-end subroutine pflotranModelInitMapping3
-
-  ! ************************************************************************** !
-  !
-  ! pflotranModelFindOverlapCells:
-  !
-  !
-  ! author: Gautam Bisht
-  ! date: 01/28/2011
-  ! ************************************************************************** !
-  subroutine pflotranModelFindOverlapCells(grid_cells, grid_npts_ghosted, &
-       grid_cell_ids_ghosted_nindex, ocell_ids, ocell_vol, ocell_count, grid_ocell_count)
-
-    implicit none
-
-    PetscInt                           :: ii,jj,tmp_idx
-    PetscInt                           :: cell_id
-    PetscInt                           :: grid_npts_ghosted
-    PetscInt,pointer                   :: grid_cell_ids_ghosted_nindex(:)
-    PetscInt,intent(out),pointer       :: ocell_ids(:)
-    PetscReal,intent(out),pointer      :: ocell_vol(:)
-    PetscInt,intent(out)               :: ocell_count
-    PetscInt,intent(out),pointer       :: grid_ocell_count(:)
-
-    type(inside_each_overlapped_cell),pointer :: grid_cells(:)
-
-    ocell_count = 0
-    do ii = 1,grid_npts_ghosted
-      cell_id              = grid_cell_ids_ghosted_nindex(ii) + 1
-      ocell_count          = ocell_count + grid_cells(cell_id)%ocell_count
-      grid_ocell_count(ii) = grid_cells(cell_id)%ocell_count
-    enddo
-    
-    allocate(ocell_ids(ocell_count))
-    allocate(ocell_vol(ocell_count))
-
-    tmp_idx = 1
-    do ii = 1,grid_npts_ghosted
-      cell_id = grid_cell_ids_ghosted_nindex(ii) + 1
-      do jj = 1,grid_cells(cell_id)%ocell_count
-        ocell_ids(tmp_idx) = grid_cells(cell_id)%ocell_id(jj)
-        ocell_vol(tmp_idx) = grid_cells(cell_id)%perc_vol_overlap(jj)
-        tmp_idx = tmp_idx + 1
-      enddo
-    enddo
-
-  end subroutine pflotranModelFindOverlapCells
-
-  ! ************************************************************************** !
-  !
-  ! pflotranModelReadMappingFile:
-  !
-  !
-  ! author: Gautam Bisht
-  ! date: 01/28/2011
-  ! ************************************************************************** !
-  subroutine pflotranModelReadMappingFile(option, filename, ocells, num_cells)
-
-    use Input_module
-    use Option_module
-
-    implicit none
-
-    PetscInt  :: cell_id, ocell_id
-    PetscInt  :: num_cells, num_ocells
-    PetscReal :: ocell_vol
-    PetscInt  :: fileid
-    PetscInt  :: ii, jj
-
-    character(len=MAXSTRINGLENGTH)     :: filename
-    character(len=MAXWORDLENGTH)       :: card
-    type(input_type), pointer          :: input
-    type(option_type), pointer         :: option
-    type(inside_each_overlapped_cell),pointer :: ocells(:)
-
-    fileid   = 20
-    card     = 'pflotran_interface_main'
-
-    input => InputCreate(fileid,filename,option)
-    call InputReadFlotranString(input,option)
-    call InputErrorMsg(input,option,'number of cells',card)
-
-    num_cells = -1
-    call InputReadInt(input,option,num_cells)
-
-    allocate(ocells(num_cells))
-
-    do ii = 1,num_cells
-
-       ! Read cell-id and #cells overlapped with
-       call InputReadFlotranString(input,option)
-       call InputReadInt(input,option,cell_id)
-       call InputReadInt(input,option,num_ocells)
-       ocells(ii)%id          = cell_id
-       ocells(ii)%ocell_count = num_ocells
-
-       ! Nullify and allocate memory
-       nullify(ocells(ii)%ocell_id)
-       nullify(ocells(ii)%perc_vol_overlap)
-
-       if ( num_ocells.gt.0) then
-          allocate(ocells(ii)%ocell_id(        num_ocells) )
-          allocate(ocells(ii)%perc_vol_overlap(num_ocells) )
-       endif
-
-       ! Initialize
-       ocells(ii)%total_vol_overlap = 0.0d0
-
-       ! Read overlapped cell ids and volume overlapped
-       do jj = 1,num_ocells
-          call InputReadInt(input,option,ocell_id)
-          call InputReadDouble(input,option,ocell_vol)
-
-          ocells(ii)%ocell_id(jj)         = ocell_id
-          ocells(ii)%perc_vol_overlap(jj) = ocell_vol
-          ocells(ii)%total_vol_overlap  = &
-               ocells(ii)%total_vol_overlap + ocell_vol
-       enddo
-    enddo
-
-  end subroutine pflotranModelReadMappingFile
-
-  !#endif
+end subroutine pflotranModelInitMapping
 
   ! ************************************************************************** !
   !
@@ -942,25 +827,6 @@ end subroutine pflotranModelInitMapping3
         call printErrMsg(pflotran_model%option)
     end select
 
-    call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-#if 1
-    liq_vol_start = 0.d0
-    liq_vol_end   = 0.d0
-    source_sink   = 0.d0
-
-    ! Volume of Water before PFLOTRAN is called
-    do local_id= 1,grid%nlmax
-       ghosted_id = grid%nL2G(local_id)
-       if (associated(patch%imat)) then
-          if (patch%imat(ghosted_id) <= 0) cycle
-       endif
-       !sat           = global_aux_vars(ghosted_id)%sat(1)
-       !dz            = grid%structured_grid%dz(ghosted_id)
-       !del_liq_vol   = sat * porosity_loc_p(ghosted_id) * dz
-       !liq_vol_start = liq_vol_start + del_liq_vol
-    enddo
-#endif
-
 #ifndef SURFACE_FLOW
     call StepperRunOneDT(pflotran_model%simulation%realization, &
          pflotran_model%simulation%flow_stepper, &
@@ -985,39 +851,16 @@ end subroutine pflotranModelInitMapping3
         call printErrMsg(pflotran_model%option)
     end select
 
-    ! Volume of Water after PFLOTRAN finished
-    do local_id= 1,grid%nlmax
-       ghosted_id = grid%nL2G(local_id)
-       if (associated(patch%imat)) then
-          if (patch%imat(ghosted_id) <= 0) cycle
-       endif
-       sat           = global_aux_vars(ghosted_id)%sat(1)
-      !dz            = grid%structured_grid%dz(ghosted_id)
-       del_liq_vol   = sat * porosity_loc_p(ghosted_id) * dz
-       liq_vol_end   = liq_vol_end + del_liq_vol
-
-       !source_sink   = source_sink + pf_clm_data%qsrc_flx(local_id)
-    enddo
-
-    !write(iulog, *), '===================================================='
-    !write(iulog, *), 'Volume of LIQUID water:'
-    !write(iulog, *), 'Before PFLOTRAN call: ',liq_vol_start,                        '[m^3/area]'
-    !write(iulog, *), 'After  PFLOTRAN call: ',liq_vol_end  ,                        '[m^3/area]'
-    !write(iulog, *), 'Change              : ',liq_vol_start-liq_vol_end,            '[m^3/area]'
-    !write(iulog, *), 'Rate of change      : ',(liq_vol_end-liq_vol_start)/1800.0d0, '[m^3/area/sec]'
-    !write(iulog, *), 'Source_sink         : ',source_sink/998.2d0,                  '[m/sec]'
-    !write(iulog, *), '====================================================?'
-
-    call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
+    ! TODO(GB): Use XXXUpdateMassBalancePatch() to ensure mass balance
+    ! betweent CLM calls
 #endif
 
-
     if(pflotran_model%pause_time_1.gt.0.0d0) then
-       call pflotranModelDeleteWaypoint(pflotran_model, pflotran_model%pause_time_1)
+       call pflotranModelDeleteWaypoint(pflotran_model,pflotran_model%pause_time_1)
     endif
 
     if(pflotran_model%pause_time_2.gt.0.0d0) then
-       call pflotranModelDeleteWaypoint(pflotran_model, pflotran_model%pause_time_2)
+       call pflotranModelDeleteWaypoint(pflotran_model,pflotran_model%pause_time_2)
     endif
 
     pflotran_model%pause_time_1 = pause_time
@@ -1026,42 +869,42 @@ end subroutine pflotranModelInitMapping3
   end subroutine pflotranModelStepperRunTillPauseTime
 
   ! ************************************************************************** !
-  !
+  ! pflotranModelUpdateSourceSink: Update the source/sink term
   !
   ! author: Gautam Bisht
   ! date: 11/22/2011
   ! ************************************************************************** !
-  subroutine pflotranModelUpdateSourceSink3 (pflotran_model)
+  subroutine pflotranModelUpdateSourceSink(pflotran_model)
 
     use clm_pflotran_interface_data
 
     implicit none
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    !type(clm_pflotran_interface_data_type),pointer :: clm_pf_idata
-#if 0
+
     call MappingSourceToDestination(pflotran_model%map_clm2pf, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qflx_clm, &
                                     clm_pf_idata%qflx_pf)
-#endif
-  end subroutine pflotranModelUpdateSourceSink3
+
+  end subroutine pflotranModelUpdateSourceSink
 
   ! ************************************************************************** !
-  !
+  ! pflotranModelGetSaturation: Extract soil saturation values simulated by 
+  !   PFLOTRAN in a PETSc vector.
   !
   ! author: Gautam Bisht
   ! date: 11/22/2011
   ! ************************************************************************** !
-  subroutine pflotranModelGetSaturation3 (pflotran_model)
+  subroutine pflotranModelGetSaturation(pflotran_model)
 
     use clm_pflotran_interface_data
     use Realization_class
     use Patch_module
     use Grid_module
-    !use clm_pflotran_interface_type
     use Richards_module
     use Richards_Aux_module
+    use TH_module
     use Global_Aux_module
     use Field_module
 
@@ -1077,14 +920,9 @@ end subroutine pflotranModelInitMapping3
     type(field_type),pointer                  :: field
     type(mapping_type),pointer                :: map
     type(richards_auxvar_type), pointer       :: aux_var
-    !type(inside_each_pflotran_cell), pointer  :: pf_cell
-    !type(inside_each_clm_cell),pointer        :: clm_cell
     type(global_auxvar_type), pointer         :: global_aux_vars(:)
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
-    !PetscInt           :: i, g, lev
-    !PetscReal          :: sat, vol_ovp, tmp
-    !PetscReal,pointer  :: porosity_loc_p(:)
     PetscReal,pointer  :: sat_pf_p(:)
     PetscReal,pointer  :: sat_clm_p(:)
 
@@ -1093,81 +931,32 @@ end subroutine pflotranModelInitMapping3
     grid            => patch%grid
     global_aux_vars => patch%aux%Global%aux_vars
     field           => realization%field
-
-    call RichardsUpdateAuxVars(realization)
-    !call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)  
-
-    !write(*,*),'sat_pf:'
-    do local_id= 1,grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      sat_pf_p(local_id) = global_aux_vars(ghosted_id)%sat(1)
-      !write(*,*),local_id,ghosted_id,sat_pf_p(local_id)
-    enddo
     
-    call VecRestoreArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
+    select case(pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
+      case (TH_MODE)
+        call THUpdateAuxVars(pflotran_model%simulation%realization)
+      case default
+        pflotran_model%option%io_buffer='pflotranModelGetSaturation ' // &
+          'not implmented for this mode.'
+        call printErrMsg(pflotran_model%option)
+    end select
+
+    ! Save the
+    call VecGetArrayF90(clm_pf_idata%sat_pf,sat_pf_p,ierr)
+    do local_id=1,grid%nlmax
+      ghosted_id=grid%nL2G(local_id)
+      sat_pf_p(local_id)=global_aux_vars(ghosted_id)%sat(1)
+    enddo
+    call VecRestoreArrayF90(clm_pf_idata%sat_pf,sat_pf_p,ierr)
+
     call MappingSourceToDestination(pflotran_model%map_pf2clm, &
                                     pflotran_model%option, &
                                     clm_pf_idata%sat_pf, &
                                     clm_pf_idata%sat_clm)
-  end subroutine pflotranModelGetSaturation3
 
-  ! ************************************************************************** !
-  !
-  !
-  ! author: Gautam Bisht
-  ! date: 9/22/2010
-  ! ************************************************************************** !
-  subroutine pflotranModelUpdateTopBCHomogeneous(pflotran_model, flux_value)
-
-    use Condition_module
-
-    implicit none
-
-    type(pflotran_model_type), pointer        :: pflotran_model
-    type(realization_type),pointer            :: realization
-    type(condition_list_type),pointer         :: condition_list
-    type(flow_condition_type), pointer        :: condition
-    type(flow_sub_condition_type), pointer    :: sub_condition
-    type(flow_condition_dataset_type),pointer :: dataset
-    type(option_type),pointer                 :: option
-
-
-    PetscReal                                 :: flux_value
-    PetscInt                                  :: isub_condition
-
-    realization => pflotran_model%realization
-    condition_list => realization%flow_conditions
-    option => realization%option
-
-    condition => condition_list%first
-    do
-       if (.not.associated(condition)) exit
-
-       if (trim(condition%name) == 'top') then
-
-          do isub_condition = 1, condition%num_sub_conditions
-
-             sub_condition => condition%sub_condition_ptr(isub_condition)%ptr
-
-             if (associated(sub_condition)) then
-                !dataset => sub_condition%dataset
-                !dataset%values(1,1) = flux_value
-                !dataset%rate = flux_value
-                print *,'In UpdateTopBCHomogeneous: ', flux_value
-                !call FlowSubConditionUpdateDataset(option,1.0d0,sub_condition%dataset)
-             endif
-
-          enddo
-       endif
-
-       condition => condition%next
-
-    enddo
-
-    !call StepperUpdateSolution(realization)
-
-  end subroutine pflotranModelUpdateTopBCHomogeneous
+  end subroutine pflotranModelGetSaturation
 
   ! ************************************************************************** !
   !
@@ -1261,16 +1050,6 @@ end subroutine pflotranModelInitMapping3
     PetscErrorCode :: ierr
 #ifdef CLM_PFLOTRAN
     type(mapping_type),pointer         :: map
-
-    !map         => pflotran_model%mapping
-
-    !deallocate ( pf_clm_data%zwt      )
-    !deallocate ( pf_clm_data%alpha    )
-    !deallocate ( pf_clm_data%lambda   )
-    !deallocate ( pf_clm_data%qsrc_flx )
-    !deallocate ( pf_clm_data%sat_new  )
-    !deallocate ( map%pf2clm )
-    !deallocate ( map%clm2pf )
 #endif
 
     ! Clean things up.
