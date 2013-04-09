@@ -318,7 +318,8 @@ contains
     pflotran_model%nlclm = -1
     pflotran_model%ngclm = -1
 
-    pflotran_model%realization%input => InputCreate(15, pflotran_model%option%input_filename, pflotran_model%option)
+    pflotran_model%realization%input => InputCreate(15, &
+                    pflotran_model%option%input_filename, pflotran_model%option)
 
     ! Read names of mapping file
     clm2pf_soil_file=PETSC_FALSE
