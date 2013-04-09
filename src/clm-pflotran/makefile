@@ -127,6 +127,10 @@ ifdef clm_offline
   MYFLAGS += -DCLM_OFFLINE
 endif
 
+ifdef map_debug
+  MYFLAGS += -DMAP_DEBUG
+endif
+
 CFLAGS   =
 FFLAGS   =
 CPPFLAGS = ${MYFLAGS}
