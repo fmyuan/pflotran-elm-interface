@@ -23,8 +23,8 @@ program pflotran_interface_main
   PetscErrorCode :: ierr
   PetscInt :: time
 
-  PetscInt, pointer                  :: clm_cell_ids(:)
-  PetscInt                           :: clm_npts, ii, fileid, num_u_a, jj
+  PetscInt, pointer                  :: clm_cell_ids(:), clm_surf_cell_ids(:)
+  PetscInt                           :: clm_npts, clm_surf_npts, ii, fileid, num_u_a, jj
   PetscInt                           :: npts
   PetscInt           :: ntimes
 
@@ -45,16 +45,26 @@ program pflotran_interface_main
   ! Set up CLM cell ids
   if (pflotran_m%option%mycommsize == 1) then
     clm_npts = 200*10
+    clm_surf_npts = 200
     allocate (clm_cell_ids(clm_npts))
+    allocate (clm_surf_cell_ids(clm_surf_npts))
     do ii = 1, clm_npts
       clm_cell_ids(ii) = ii-1
+    enddo
+    do ii = 1, clm_surf_npts
+      clm_surf_cell_ids(ii) = (ii-1)*10
     enddo
   else
     if (pflotran_m%option%mycommsize == 2) then
       clm_npts = 200*10/2
+      clm_surf_npts = 100
       allocate (clm_cell_ids(clm_npts))
+      allocate (clm_surf_cell_ids(clm_surf_npts))
       do ii = 1, clm_npts
         clm_cell_ids(ii) = ii-1 + 200*10/2*pflotran_m%option%myrank
+      enddo
+      do ii = 1, clm_surf_npts
+        clm_surf_cell_ids(ii) = (ii-1)*10 + 100*10*pflotran_m%option%myrank
       enddo
     else
       pflotran_m%option%io_buffer = 'The example can only run with max 2 procs.'
@@ -74,6 +84,7 @@ program pflotran_interface_main
   call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM2PF_FLUX_MAP_ID)
   call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM2PF_SOIL_MAP_ID)
   call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, PF2CLM_FLUX_MAP_ID)
+  call pflotranModelInitMapping(pflotran_m, clm_surf_cell_ids, clm_surf_npts, CLM2PF_GFLUX_MAP_ID)
 ! call pflotranModelSetSoilProp(pflotran_m)
 
   ! Initialize PFLOTRAN Stepper
