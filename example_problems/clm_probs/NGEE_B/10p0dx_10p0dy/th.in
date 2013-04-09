@@ -48,7 +48,7 @@ OUTPUT
 
 :======================== times ====================================
 TIME
-  FINAL_TIME 1 s
+  FINAL_TIME 36000 s
   INITIAL_TIMESTEP_SIZE 3600.0 s
   MAXIMUM_TIMESTEP_SIZE 3600.0 s        ! produces CFL ~<= 1.
 /
