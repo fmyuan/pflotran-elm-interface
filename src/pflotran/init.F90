@@ -2456,16 +2456,7 @@ subroutine InitReadInput(simulation)
 
 !....................
       case ('MAPPING_FILES')
-        option%io_buffer = 'Skipping keyword ' // trim(word) // ' in input file. ' // &
-                           'It will be processed by the CLM interface.'
-        call printMsg(option)
-        ! skip the rest of the lines in this section
-        do
-          call InputReadFlotranString(input,option)
-          call InputReadStringErrorMsg(input,option,card)
-          if (InputCheckExit(input,option)) exit
-        enddo
-
+        call InputSkipToEnd(input,option,'MAPPING_FILES')
 
 !......................
       case ('HDF5_READ_GROUP_SIZE')
