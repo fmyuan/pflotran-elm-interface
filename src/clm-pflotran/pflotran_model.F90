@@ -105,6 +105,7 @@ module pflotran_model_module
        pflotranModelSetSoilProp,             &
        pflotranModelSetICs,                  &
        pflotranModelUpdateSourceSink,        &
+       pflotranModelUpdateFlowConds,         &
        pflotranModelGetSaturation,           &
        pflotranModelStepperRunInit,          &
        pflotranModelStepperRunTillPauseTime, &
@@ -919,7 +920,7 @@ end subroutine pflotranModelSetICs
         if (.not.associated(boundary_condition)) exit
         cur_connection_set => boundary_condition%connection_set
 
-        if(StringCompare(boundary_condition%name,'gflux_bc')) then
+        if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then
 
           found=PETSC_TRUE
 
@@ -942,6 +943,14 @@ end subroutine pflotranModelSetICs
         endif
         boundary_condition => boundary_condition%next
       enddo
+
+      ! Setting the number of cells constituting the surface of the 3D
+      ! subsurface domain for each model.
+      clm_pf_idata%nlclm_surf_3d = grid_clm_npts_local
+      clm_pf_idata%ngclm_surf_3d = grid_clm_npts_local
+      clm_pf_idata%nlpf_surf_3d  = grid_pf_npts_local
+      clm_pf_idata%ngpf_surf_3d  = grid_pf_npts_local
+
     else
 
       ! Source mesh is PF_SURF_MESH
@@ -951,7 +960,7 @@ end subroutine pflotranModelSetICs
     endif
 
     if(.not.found) then
-      pflotran_model%option%io_buffer = 'gflux_bc not found in boundary conditions'
+      pflotran_model%option%io_buffer = 'clm_gflux_bc not found in boundary conditions'
       call printErrMsg(pflotran_model%option)
     endif
     
@@ -1081,7 +1090,7 @@ end subroutine pflotranModelSetICs
     allocate(v_loc(grid_clm_npts_local))
     v_loc = 1.d0
     call VecCreateSeq(PETSC_COMM_SELF, grid_clm_npts_local, surf_ids_loc, ierr)
-    call VecCreateMPI(option%mycomm, clm_pf_idata%nlclm, PETSC_DECIDE, surf_ids, ierr)
+    call VecCreateMPI(option%mycomm, clm_pf_idata%nlclm_3d, PETSC_DECIDE, surf_ids, ierr)
     call VecSet(surf_ids, -1.d0, ierr)
 
     ! Set 1.0 to all cells that make up surface of CLM subsurface domain
@@ -1094,7 +1103,7 @@ end subroutine pflotranModelSetICs
 
     call VecGetArrayF90(surf_ids, v_loc, ierr)
     count = 0
-    do local_id=1,clm_pf_idata%nlclm
+    do local_id=1,clm_pf_idata%nlclm_3d
       if(v_loc(local_id) == 1.d0) count = count + 1
     enddo
 
@@ -1103,7 +1112,7 @@ end subroutine pflotranModelSetICs
                     option%mycomm, ierr)
 
     count = 0
-    do local_id=1,clm_pf_idata%nlclm
+    do local_id=1,clm_pf_idata%nlclm_3d
       if(v_loc(local_id) == 1.d0) then
         v_loc(local_id) = istart + count
         count = count + 1
@@ -1349,6 +1358,34 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%qflx_pf)
 
   end subroutine pflotranModelUpdateSourceSink
+
+  ! ************************************************************************** !
+  !> This routine Updates boundary and source/sink condtions for PFLOTRAN that
+  !! are prescribed by CLM
+  !!
+  !> @author
+  !! Gautam Bisht, LBNL
+  !!
+  !! date: 4/10/2013
+  ! ************************************************************************** !
+  subroutine pflotranModelUpdateFlowConds(pflotran_model)
+
+    use clm_pflotran_interface_data
+
+    implicit none
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+
+    call pflotranModelUpdateSourceSink(pflotran_model)
+
+    if(pflotran_model%option%iflowmode==TH_MODE) then
+      call MappingSourceToDestination(pflotran_model%map_clm2pf_gflux, &
+                                      pflotran_model%option, &
+                                      clm_pf_idata%gflux_clm, &
+                                      clm_pf_idata%gflux_pf)
+    endif
+
+  end subroutine pflotranModelUpdateFlowConds
 
   ! ************************************************************************** !
   ! pflotranModelGetSaturation: Extract soil saturation values simulated by 
