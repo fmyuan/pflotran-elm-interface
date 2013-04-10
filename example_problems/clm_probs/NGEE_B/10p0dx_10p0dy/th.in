@@ -80,7 +80,7 @@ END
 
 FLOW_CONDITION et
   TYPE
-    RATE heterogeneous_mass_rate
+    RATE mass_rate
     TEMPERATURE dirichlet
 	ENTHALPY dirichlet
   /
@@ -92,7 +92,7 @@ END
 FLOW_CONDITION gflux
   TYPE
    PRESSURE neumann
-   TEMPERATURE heterogeneous_dirichlet 
+   TEMPERATURE neumann
    ENTHALPY dirichlet
   /
   FLUX  0.D0
@@ -107,12 +107,12 @@ INITIAL_CONDITION initial_copuler
   REGION all
 END
 
-SOURCE_SINK root_uptake
+SOURCE_SINK clm_et_ss
   FLOW_CONDITION et
   REGION all
 END
 
-BOUNDARY_CONDITION gflux_bc
+BOUNDARY_CONDITION clm_gflux_bc
   FLOW_CONDITION gflux
   REGION top
 END

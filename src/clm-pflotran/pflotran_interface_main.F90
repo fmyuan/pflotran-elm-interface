@@ -72,14 +72,24 @@ program pflotran_interface_main
     endif
   endif
 
-  clm_pf_idata%nlclm = clm_npts
-  clm_pf_idata%ngclm = clm_npts
-  clm_pf_idata%nlpf  = pflotran_m%realization%patch%grid%nlmax
-  clm_pf_idata%ngpf  = pflotran_m%realization%patch%grid%ngmax
+  call CLMPFLOTRANIDataInit()
 
-  ! Allocate memory for CLM-PFLOTRAN data transfer
-  call CLMPFLOTRANIdataCreate(MPI_COMM_WORLD)
-  
+  clm_pf_idata%nlclm_3d = clm_npts
+  clm_pf_idata%ngclm_3d = clm_npts
+  clm_pf_idata%nlpf_3d  = pflotran_m%realization%patch%grid%nlmax
+  clm_pf_idata%ngpf_3d  = pflotran_m%realization%patch%grid%ngmax
+
+  ! These values are set in pflotranModelInitMappingSurf()
+!  clm_pf_idata%nlclm_surf_3d = clm_surf_npts
+!  clm_pf_idata%ngclm_surf_3d = clm_surf_npts
+!  clm_pf_idata%nlpf_surf_3d  = clm_surf_npts
+!  clm_pf_idata%ngpf_surf_3d  = clm_surf_npts
+
+  clm_pf_idata%nlclm_2d = clm_surf_npts
+  clm_pf_idata%ngclm_2d = clm_surf_npts
+  clm_pf_idata%nlpf_2d  = clm_surf_npts
+  clm_pf_idata%ngpf_2d  = clm_surf_npts
+
   ! Set mapping between CLM and PFLOTRAN
   call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM2PF_FLUX_MAP_ID)
   call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM2PF_SOIL_MAP_ID)
@@ -87,6 +97,9 @@ program pflotran_interface_main
   call pflotranModelInitMapping(pflotran_m, clm_surf_cell_ids, clm_surf_npts, CLM2PF_GFLUX_MAP_ID)
 ! call pflotranModelSetSoilProp(pflotran_m)
 
+  ! Allocate memory for CLM-PFLOTRAN data transfer
+  call CLMPFLOTRANIDataCreateVec(MPI_COMM_WORLD)
+  
   ! Initialize PFLOTRAN Stepper
   call pflotranModelStepperRunInit(pflotran_m)
   
@@ -108,6 +121,8 @@ program pflotran_interface_main
   
   ! Finalize PFLOTRAN Stepper
   call pflotranModelStepperRunFinalize(pflotran_m)
+
+  call CLMPFLOTRANIDataDestroy()
 
   call pflotranModelDestroy(pflotran_m)
 

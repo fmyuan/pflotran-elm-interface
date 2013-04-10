@@ -2202,10 +2202,6 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
 
       if (patch%imat(ghosted_id) <= 0) cycle
       
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-      !qsrc = pf_clm_data%qsrc_flx(local_id)
-#endif
-
       Jup = 0.d0
       select case(source_sink%flow_condition%rate%itype)
         case(MASS_RATE_SS,SCALED_MASS_RATE_SS,HET_MASS_RATE_SS)
