@@ -1036,7 +1036,7 @@ end subroutine pflotranModelSetICs
     call VecDestroy(surf_ids_loc, ierr)
 
     !
-    ! Step-2: Recompute 'map%s2d_jscr'
+    ! Step-2: Recompute 'map%s2d_iscr'
     !
     call VecCreateSeq(PETSC_COMM_SELF, map%s2d_nwts, surf_ids_loc, ierr)
     allocate(int_array(map%s2d_nwts))
@@ -1048,7 +1048,7 @@ end subroutine pflotranModelSetICs
 
 
     do iconn = 1, map%s2d_nwts
-      int_array(iconn) = map%s2d_jcsr(iconn)
+      int_array(iconn) = map%s2d_icsr(iconn)
     enddo
     call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
                          PETSC_COPY_VALUES, is_from, ierr)
@@ -1071,7 +1071,7 @@ end subroutine pflotranModelSetICs
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
         count = count + 1
-        map%s2d_jcsr(count) = INT(v_loc(iconn))
+        map%s2d_icsr(count) = INT(v_loc(iconn))
       endif
     enddo
     call VecRestoreArrayF90(surf_ids_loc, v_loc, ierr)
@@ -1158,7 +1158,7 @@ end subroutine pflotranModelSetICs
 
 
     !
-    ! Step-4: Recompute 'map%s2d_iscr'
+    ! Step-4: Recompute 'map%s2d_jscr'
     !
     call VecCreateSeq(PETSC_COMM_SELF, map%s2d_nwts, surf_ids_loc, ierr)
     allocate(int_array(map%s2d_nwts))
@@ -1170,7 +1170,7 @@ end subroutine pflotranModelSetICs
 
 
     do iconn = 1, map%s2d_nwts
-      int_array(iconn) = map%s2d_icsr(iconn)
+      int_array(iconn) = map%s2d_jcsr(iconn)
     enddo
     call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
                          PETSC_COPY_VALUES, is_from, ierr)
@@ -1193,7 +1193,7 @@ end subroutine pflotranModelSetICs
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
         count = count + 1
-        map%s2d_icsr(count) = INT(v_loc(iconn))
+        map%s2d_jcsr(count) = INT(v_loc(iconn))
       endif
     enddo
     call VecRestoreArrayF90(surf_ids_loc, v_loc, ierr)
