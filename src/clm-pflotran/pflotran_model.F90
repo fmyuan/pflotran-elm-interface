@@ -104,9 +104,8 @@ module pflotran_model_module
        pflotranModelInitMapping,             &
        pflotranModelSetSoilProp,             &
        pflotranModelSetICs,                  &
-       pflotranModelUpdateSourceSink,        &
        pflotranModelUpdateFlowConds,         &
-       pflotranModelGetSaturation,           &
+       pflotranModelGetUpdatedStates,        &
        pflotranModelStepperRunInit,          &
        pflotranModelStepperRunTillPauseTime, &
        pflotranModelStepperRunFinalize,      &
@@ -1077,6 +1076,7 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(surf_ids_loc, v_loc, ierr)
     call VecDestroy(surf_ids_loc, ierr)
     
+    write(*,*),count,map%s2d_nwts
     if(count /= map%s2d_nwts) then
       option%io_buffer='No. of surface cells in mapping dataset does not ' // &
         'match surface cells on which BC is applied.'
@@ -1376,6 +1376,8 @@ end subroutine pflotranModelSetICs
 
     type(pflotran_model_type), pointer        :: pflotran_model
 
+    if(masterproc) write(iulog,*),'In pflotranModelUpdateFlowConds()'
+
     call pflotranModelUpdateSourceSink(pflotran_model)
 
     if(pflotran_model%option%iflowmode==TH_MODE) then
@@ -1386,6 +1388,47 @@ end subroutine pflotranModelSetICs
     endif
 
   end subroutine pflotranModelUpdateFlowConds
+
+  ! ************************************************************************** !
+  !> This routine get updated states evoloved by PFLOTRAN.
+  !!
+  !> @author
+  !! Gautam Bisht, LBNL
+  !!
+  !! date: 5/14/2013
+  ! ************************************************************************** !
+  subroutine pflotranModelGetUpdatedStates(pflotran_model)
+
+    use clm_pflotran_interface_data
+    use Richards_module
+    use Richards_Aux_module
+    use TH_module
+    use TH_Aux_module
+
+    type(pflotran_model_type), pointer  :: pflotran_model
+    type(realization_type), pointer     :: realization
+
+    realization     => pflotran_model%simulation%realization
+
+    if(masterproc) write(iulog,*),'In pflotranModelGetUpdatedStates()'
+
+    select case(pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
+        call pflotranModelGetSaturation(pflotran_model)
+      case (TH_MODE)
+        call THUpdateAuxVars(pflotran_model%simulation%realization)
+        write(*,*),'call pflotranModelGetSaturation()'
+        call pflotranModelGetSaturation(pflotran_model)
+        call pflotranModelGetTemperature(pflotran_model)
+      case default
+        pflotran_model%option%io_buffer='pflotranModelGetSaturation ' // &
+          'not implmented for this mode.'
+        call printErrMsg(pflotran_model%option)
+    end select
+
+  end subroutine pflotranModelGetUpdatedStates
+
 
   ! ************************************************************************** !
   ! pflotranModelGetSaturation: Extract soil saturation values simulated by 
@@ -1400,11 +1443,7 @@ end subroutine pflotranModelSetICs
     use Realization_class
     use Patch_module
     use Grid_module
-    use Richards_module
-    use Richards_Aux_module
-    use TH_module
     use Global_Aux_module
-    use Field_module
 
     implicit none
 
@@ -1415,9 +1454,6 @@ end subroutine pflotranModelSetICs
     type(realization_type), pointer           :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
-    type(field_type), pointer                 :: field
-    type(mapping_type), pointer               :: map
-    type(richards_auxvar_type), pointer       :: aux_var
     type(global_auxvar_type), pointer         :: global_aux_vars(:)
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
@@ -1428,20 +1464,8 @@ end subroutine pflotranModelSetICs
     patch           => realization%patch
     grid            => patch%grid
     global_aux_vars => patch%aux%Global%aux_vars
-    field           => realization%field
     
-    select case(pflotran_model%option%iflowmode)
-      case (RICHARDS_MODE)
-        call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
-      case (TH_MODE)
-        call THUpdateAuxVars(pflotran_model%simulation%realization)
-      case default
-        pflotran_model%option%io_buffer='pflotranModelGetSaturation ' // &
-          'not implmented for this mode.'
-        call printErrMsg(pflotran_model%option)
-    end select
-
-    ! Save the
+    ! Save the saturation values
     call VecGetArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
     do local_id=1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
@@ -1455,6 +1479,70 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%sat_clm)
 
   end subroutine pflotranModelGetSaturation
+
+  ! ************************************************************************** !
+  !> This routine get updated states evoloved by PFLOTRAN.
+  !!
+  !> @author
+  !! Gautam Bisht, LBNL
+  !!
+  !! date: 5/14/2013
+  ! ************************************************************************** !
+  subroutine pflotranModelGetTemperature(pflotran_model)
+
+    use clm_pflotran_interface_data
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Global_Aux_module
+    use TH_Aux_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    type(realization_type), pointer           :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(global_auxvar_type), pointer         :: global_aux_vars(:)
+    type(th_auxvar_type), pointer             :: th_aux_vars(:)
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id
+    PetscReal, pointer :: temp_pf_p(:)
+    PetscReal, pointer :: sat_ice_pf_p(:)
+
+    realization     => pflotran_model%simulation%realization
+    patch           => realization%patch
+    grid            => patch%grid
+    global_aux_vars => patch%aux%Global%aux_vars
+    th_aux_vars     => patch%aux%TH%aux_vars
+
+    call VecGetArrayF90(clm_pf_idata%temp_pf,temp_pf_p,ierr)
+    call VecGetArrayF90(clm_pf_idata%sat_ice_pf,temp_pf_p,ierr)
+
+    do local_id=1,grid%nlmax
+       ghosted_id = grid%nL2G(local_id)
+       temp_pf_p(local_id) = global_aux_vars(ghosted_id)%temp(1)
+       !sat_ice_pf_p(local_id) = th_aux_vars(ghosted_id)%sat_ice
+    enddo
+
+    call VecRestoreArrayF90(clm_pf_idata%temp_pf,temp_pf_p,ierr)
+    call VecRestoreArrayF90(clm_pf_idata%sat_ice_pf,sat_ice_pf_p,ierr)
+
+    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%temp_pf, &
+                                    clm_pf_idata%temp_clm)
+
+    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%sat_ice_pf, &
+                                    clm_pf_idata%sat_ice_clm)
+
+  end subroutine pflotranModelGetTemperature
 
   ! ************************************************************************** !
   !
