@@ -127,6 +127,10 @@ ifdef clm_offline
   MYFLAGS += -DCLM_OFFLINE
 endif
 
+ifdef clm_pflotran
+  MYFLAGS += -DCLM_PFLOTRAN
+endif
+
 ifdef map_debug
   MYFLAGS += -DMAP_DEBUG
 endif
@@ -331,10 +335,18 @@ pflotran_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
 	$(relations_obj) $(properties_obj) $(dataset_obj) \
 	$(io_obj) $(misc_obj) $(surface_obj) ${pflotran_src}pflotran_interface_main.o
 
+lib_pflotran_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
+	$(shared_mode_aux_obj) $(chem_obj) $(grid_obj) \
+	$(relations_obj) $(properties_obj) $(dataset_obj) \
+	$(io_obj) $(misc_obj) $(surface_obj)
+
 pflotran_rxn_obj = ${pflotran_src}pflotran_rxn.o
 
 pflotran : $(pflotran_obj)
 	${FLINKER} -o pflotran $(pflotran_obj) ${PETSC_LIB} ${LIBS} 
+
+libpflotran.a : $(lib_pflotran_obj)
+	$(AR) $(ARFLAGS) $@ $(lib_pflotran_obj)
 
 libpflotranchem.a : $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
 	$(AR) $(ARFLAGS) $@ $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
