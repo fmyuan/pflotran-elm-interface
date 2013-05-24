@@ -447,7 +447,7 @@ subroutine Init(simulation)
     end select
     
     ! by default turn off line search
-    call SNESGetSNESLineSearch(flow_solver%snes, linesearch, ierr)
+    call SNESGetLineSearch(flow_solver%snes, linesearch, ierr)
     call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC, ierr)
     ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
     if (option%verbosity >= 1) then
@@ -489,13 +489,13 @@ subroutine Init(simulation)
       case(RICHARDS_MODE)
         if (dabs(option%pressure_dampening_factor) > 0.d0 .or. &
             dabs(option%saturation_change_limit) > 0.d0) then
-          call SNESGetSNESLineSearch(flow_solver%snes, linesearch, ierr)
+          call SNESGetLineSearch(flow_solver%snes, linesearch, ierr)
           call SNESLineSearchSetPreCheck(linesearch, &
                                          RichardsCheckUpdatePre, &
                                          realization,ierr)
         endif
       case(G_MODE)
-        call SNESGetSNESLineSearch(flow_solver%snes, linesearch, ierr)
+        call SNESGetLineSearch(flow_solver%snes, linesearch, ierr)
         call SNESLineSearchSetPreCheck(linesearch, &
                                        GeneralCheckUpdatePre, &
                                        realization,ierr)
@@ -503,7 +503,7 @@ subroutine Init(simulation)
         if (dabs(option%pressure_dampening_factor) > 0.d0 .or. &
             dabs(option%pressure_change_limit) > 0.d0 .or. &
             dabs(option%temperature_change_limit) > 0.d0) then
-          call SNESGetSNESLineSearch(flow_solver%snes, linesearch, ierr)
+          call SNESGetLineSearch(flow_solver%snes, linesearch, ierr)
           call SNESLineSearchSetPreCheck(linesearch, &
                                          THCheckUpdatePre, &
                                          realization,ierr)
@@ -512,7 +512,7 @@ subroutine Init(simulation)
         if (dabs(option%pressure_dampening_factor) > 0.d0 .or. &
             dabs(option%pressure_change_limit) > 0.d0 .or. &
             dabs(option%temperature_change_limit) > 0.d0) then
-          call SNESGetSNESLineSearch(flow_solver%snes, linesearch, ierr)
+          call SNESGetLineSearch(flow_solver%snes, linesearch, ierr)
           call SNESLineSearchSetPreCheck(linesearch, &
                                          THCCheckUpdatePre, &
                                          realization,ierr)
@@ -523,22 +523,22 @@ subroutine Init(simulation)
     if (option%check_stomp_norm) then
       select case(option%iflowmode)
         case(RICHARDS_MODE)
-          call SNESGetSNESLineSearch(flow_solver%snes, linesearch, ierr)
+          call SNESGetLineSearch(flow_solver%snes, linesearch, ierr)
           call SNESLineSearchSetPostCheck(linesearch, &
                                           RichardsCheckUpdatePost, &
                                           realization,ierr)
         case(G_MODE)
-          call SNESGetSNESLineSearch(flow_solver%snes, linesearch, ierr)
+          call SNESGetLineSearch(flow_solver%snes, linesearch, ierr)
           call SNESLineSearchSetPostCheck(linesearch, &
                                           GeneralCheckUpdatePost, &
                                           realization,ierr)
         case(TH_MODE)
-          call SNESGetSNESLineSearch(flow_solver%snes, linesearch, ierr)
+          call SNESGetLineSearch(flow_solver%snes, linesearch, ierr)
           call SNESLineSearchSetPostCheck(linesearch, &
                                           THCheckUpdatePost, &
                                           realization,ierr)
         case(THC_MODE)
-          call SNESGetSNESLineSearch(flow_solver%snes, linesearch, ierr)
+          call SNESGetLineSearch(flow_solver%snes, linesearch, ierr)
           call SNESLineSearchSetPostCheck(linesearch, &
                                           THCCheckUpdatePost, &
                                           realization,ierr)
@@ -613,7 +613,7 @@ subroutine Init(simulation)
                             surf_flow_solver%Jpre, &
                             SurfaceFlowJacobian,simulation%surf_realization,ierr)
         ! by default turn off line search
-        call SNESGetSNESLineSearch(surf_flow_solver%snes, linesearch, ierr)
+        call SNESGetLineSearch(surf_flow_solver%snes, linesearch, ierr)
         call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC, ierr)
 
         ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
@@ -701,7 +701,7 @@ subroutine Init(simulation)
 
       ! this could be changed in the future if there is a way to ensure that the linesearch
       ! update does not perturb concentrations negative.
-      call SNESGetSNESLineSearch(tran_solver%snes, linesearch, ierr)
+      call SNESGetLineSearch(tran_solver%snes, linesearch, ierr)
       call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC, ierr)
       
       if (option%use_mc) then
@@ -740,7 +740,7 @@ subroutine Init(simulation)
       ! to fail
       if (associated(realization%reaction)) then
         if (realization%reaction%check_update) then
-          call SNESGetSNESLineSearch(tran_solver%snes, linesearch, ierr)
+          call SNESGetLineSearch(tran_solver%snes, linesearch, ierr)
           call SNESLineSearchSetPreCheck(linesearch,RTCheckUpdate, &
                                          realization,ierr)
         endif
@@ -1397,6 +1397,7 @@ subroutine InitReadInput(simulation)
   use Regression_module
   use Output_Aux_module
   use Output_Tecplot_module
+  use Mass_Transfer_module
   
 #ifdef SURFACE_FLOW
   use Surface_Flow_module
@@ -1459,6 +1460,7 @@ subroutine InitReadInput(simulation)
   type(output_option_type), pointer :: output_option
   type(uniform_velocity_dataset_type), pointer :: uniform_velocity_dataset
   type(dataset_type), pointer :: dataset
+  type(mass_transfer_type), pointer :: mass_transfer
   type(input_type), pointer :: input
 
   nullify(flow_stepper)
@@ -1678,6 +1680,16 @@ subroutine InitReadInput(simulation)
         nullify(coupler)        
       
 !....................
+      case ('MASS_TRANSFER')
+        mass_transfer => MassTransferCreate()
+        call InputReadWord(input,option,mass_transfer%name,PETSC_TRUE)
+        call InputDefaultMsg(input,option,'Mass Transfer name') 
+        call MassTransferRead(mass_transfer,input,option)
+        call MassTransferAddToList(mass_transfer, &
+                                   realization%mass_transfer_list)
+        nullify(mass_transfer)        
+      
+!....................
       case ('STRATIGRAPHY','STRATA')
         strata => StrataCreate()
         call StrataRead(strata,input,option)
@@ -1872,6 +1884,13 @@ subroutine InitReadInput(simulation)
       case ('COMPUTE_STATISTICS')
         option%compute_statistics = PETSC_TRUE
 
+!....................
+
+      case ('CO2_DATABASE')
+        call InputReadNChars(input,option,option%co2_database_filename, &
+                             MAXSTRINGLENGTH,PETSC_TRUE)
+        call InputErrorMsg(input,option,'CO2_DATABASE','filename')
+        
 !....................
 
       case ('TIMESTEPPER')
@@ -3010,13 +3029,16 @@ subroutine verifyCoupler(realization,patch,coupler_list)
     if (associated(coupler%connection_set)) then
       do iconn = 1, coupler%connection_set%num_connections
         local_id = coupler%connection_set%id_dn(iconn)
-        vec_ptr(local_id) = coupler%id
+!        vec_ptr(local_id) = coupler%id
+!geh: let's sum the # of connections
+         vec_ptr(local_id) = vec_ptr(local_id) + 1
       enddo
     else
       if (associated(coupler%region)) then
         do icell = 1, coupler%region%num_cells
           local_id = coupler%region%cell_ids(icell)
-          vec_ptr(local_id) = coupler%id
+!          vec_ptr(local_id) = coupler%id
+         vec_ptr(local_id) = vec_ptr(local_id) + 1
         enddo
       endif
     endif
