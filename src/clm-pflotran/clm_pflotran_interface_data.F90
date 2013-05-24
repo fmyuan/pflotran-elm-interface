@@ -48,6 +48,14 @@ module clm_pflotran_interface_data
   Vec :: sat_clm    ! seq vec
   Vec :: sat_pf     ! mpi vec
 
+  ! (v) Subsurface temperature
+  Vec :: temp_clm   ! seq vec
+  Vec :: temp_pf    ! mpi vec
+
+  ! (vi) Ice saturation
+  Vec :: sat_ice_clm ! seq vec
+  Vec :: sat_ice_pf  ! mpi vec
+
   ! Number of cells for the 3D subsurface domain
   PetscInt :: nlclm_3d  ! num of local clm cells
   PetscInt :: ngclm_3d  ! num of ghosted clm cells (ghosted = local+ghosts)
@@ -131,6 +139,13 @@ contains
     clm_pf_idata%sat_clm = 0
     clm_pf_idata%sat_pf = 0
 
+    clm_pf_idata%temp_clm = 0
+    clm_pf_idata%temp_pf = 0
+
+    clm_pf_idata%sat_ice_clm = 0
+    clm_pf_idata%sat_ice_pf = 0
+
+
   end subroutine CLMPFLOTRANIDataInit
 
   ! ************************************************************************** !
@@ -197,11 +212,17 @@ contains
 
     ! Create MPI Vectors for PFLOTRAN
     call VecCreateMPI(mycomm,clm_pf_idata%nlpf_3d,PETSC_DECIDE,clm_pf_idata%sat_pf,ierr)
-     call VecSet(clm_pf_idata%sat_pf,0.d0,ierr)
+    call VecSet(clm_pf_idata%sat_pf,0.d0,ierr)
+
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%temp_pf,ierr)
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%sat_ice_pf,ierr)
 
     ! Create Seq. Vectors for CLM
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_3d,clm_pf_idata%sat_clm,ierr)
-     call VecSet(clm_pf_idata%sat_clm,0.d0,ierr)
+    call VecSet(clm_pf_idata%sat_clm,0.d0,ierr)
+
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%temp_clm,ierr)
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%sat_ice_clm,ierr)
 
   end subroutine CLMPFLOTRANIDataCreateVec
 
@@ -247,6 +268,11 @@ contains
     if(clm_pf_idata%sat_clm  /= 0) call VecDestroy(clm_pf_idata%sat_clm,ierr)
     if(clm_pf_idata%sat_pf  /= 0) call VecDestroy(clm_pf_idata%sat_pf,ierr)
 
+    if(clm_pf_idata%temp_clm  /= 0) call VecDestroy(clm_pf_idata%temp_clm,ierr)
+    if(clm_pf_idata%temp_pf  /= 0) call VecDestroy(clm_pf_idata%temp_pf,ierr)
+
+    if(clm_pf_idata%sat_ice_clm  /= 0) call VecDestroy(clm_pf_idata%sat_ice_clm,ierr)
+    if(clm_pf_idata%sat_ice_pf  /= 0) call VecDestroy(clm_pf_idata%sat_ice_pf,ierr)
 
   end subroutine CLMPFLOTRANIDataDestroy
 
