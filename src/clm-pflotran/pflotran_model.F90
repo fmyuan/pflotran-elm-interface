@@ -18,8 +18,7 @@ module pflotran_model_module
 
 #if defined (CLM_PFLOTRAN)
   ! some CLM internals that we want to use (e.g. i/o)
-  use clm_varctl, only            : iulog
-  use spmdMod, only : masterproc
+  !use spmdMod, only : masterproc
 #endif  
 
   implicit none
@@ -34,7 +33,6 @@ module pflotran_model_module
 
 #ifndef CLM_PFLOTRAN
   ! don't have CLM, so we need to mock a few things
-  integer, public :: iulog = 6       ! "stdout" log file unit number, default is 6
   logical, public :: masterproc = .false. ! master io processor
 #endif
 
@@ -274,9 +272,6 @@ contains
     endif
 
     if (single_inputfile) then
-       if (masterproc) then
-          write(iulog, *), 'single_inputfile'
-       endif
 
        PETSC_COMM_WORLD = MPI_COMM_WORLD
        call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
@@ -1279,8 +1274,8 @@ end subroutine pflotranModelSetICs
     global_aux_vars => patch%aux%Global%aux_vars
     field           => realization%field
 
-    if (masterproc) then
-       write(iulog, *), '>>>> Inserting waypoint at pause_time = ', pause_time
+    if (pflotran_model%option%io_rank==pflotran_model%option%myrank) then
+       write(pflotran_model%option%fid_out, *), '>>>> Inserting waypoint at pause_time = ', pause_time
     endif
 
     call pflotranModelInsertWaypoint(pflotran_model, pause_time)
@@ -1376,7 +1371,8 @@ end subroutine pflotranModelSetICs
 
     type(pflotran_model_type), pointer        :: pflotran_model
 
-    if(masterproc) write(iulog,*),'In pflotranModelUpdateFlowConds()'
+    if(pflotran_model%option%io_rank==pflotran_model%option%myrank) &
+      write(pflotran_model%option%fid_out,*),'In pflotranModelUpdateFlowConds()'
 
     call pflotranModelUpdateSourceSink(pflotran_model)
 
@@ -1410,7 +1406,8 @@ end subroutine pflotranModelSetICs
 
     realization     => pflotran_model%simulation%realization
 
-    if(masterproc) write(iulog,*),'In pflotranModelGetUpdatedStates()'
+    if(pflotran_model%option%io_rank==pflotran_model%option%myrank) &
+      write(pflotran_model%option%fid_out,*),'In pflotranModelGetUpdatedStates()'
 
     select case(pflotran_model%option%iflowmode)
       case (RICHARDS_MODE)
@@ -1656,12 +1653,12 @@ end subroutine pflotranModelSetICs
        cpu_time = pflotran_model%timex(2) - pflotran_model%timex(1)
        wall_time = pflotran_model%timex_wall(2) - pflotran_model%timex_wall(1) 
        if (pflotran_model%option%print_to_screen) then
-          if (masterproc) then
-             write(iulog, '(/, " CPU Time:", 1pe12.4, " [sec] ", &
+          if (pflotran_model%option%io_rank==pflotran_model%option%myrank) then
+             write(pflotran_model%option%fid_out, '(/, " CPU Time:", 1pe12.4, " [sec] ", &
                   & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
                   cpu_time, cpu_time / 60.d0, cpu_time / 3600.d0
 
-             write(iulog, '(/, " Wall Clock Time:", 1pe12.4, " [sec] ", &
+             write(pflotran_model%option%fid_out, '(/, " Wall Clock Time:", 1pe12.4, " [sec] ", &
                   & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
                   wall_time, wall_time / 60.d0, wall_time / 3600.d0
           endif

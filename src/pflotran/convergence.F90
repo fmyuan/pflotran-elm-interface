@@ -4,10 +4,6 @@ module Convergence_module
   use Option_module
   use Grid_module
 
-#ifdef CLM_PFLOTRAN
-  use clm_varctl      , only : iulog
-#endif
-  
   implicit none
 
   private
@@ -262,7 +258,6 @@ subroutine ConvergenceTest(snes_,it,xnorm,pnorm,fnorm,reason,context,ierr)
         case default
           write(string,'(i3)') reason
       end select
-#ifndef CLM_PFLOTRAN
       if (option%use_mc .and. option%ntrandof > 0) then
         write(*,'(i3," fnrm:",es9.2, &
                 & " xnrm:",es9.2, &
@@ -282,14 +277,6 @@ subroutine ConvergenceTest(snes_,it,xnorm,pnorm,fnorm,reason,context,ierr)
                 & " rsn: ",a)') it, fnorm, xnorm, pnorm, inorm_residual, &
                                 inorm_update, trim(string)        
       endif
-#else
-      write(iulog,'(i3," fnrm:",es9.2, &
-              & " pnrm:",es9.2, &
-              & " inrmr:",es9.2, &
-              & " inrmu:",es9.2, &
-              & " rsn: ",a)') it, fnorm, pnorm, inorm_residual, inorm_update, &
-                              trim(string)
-#endif
     endif
   else
   
@@ -326,17 +313,10 @@ subroutine ConvergenceTest(snes_,it,xnorm,pnorm,fnorm,reason,context,ierr)
         case default
           write(string,'(i3)') reason
       end select
-#ifndef CLM_PFLOTRAN
       write(*,'(i3," fnrm:",es10.2, &
               & " pnrm:",es10.2, &
               & 32x, &
               & " rsn: ",a)') it, fnorm, pnorm, trim(string)
-#else
-      write(iulog,'(i3," fnrm:",es10.2, &
-              & " pnrm:",es10.2, &
-              & 32x, &
-              & " rsn: ",a)') it, fnorm, pnorm, trim(string)
-#endif
       if (solver%print_linear_iterations) then
         call KSPGetIterationNumber(solver%ksp,i,ierr)
         write(option%io_buffer,'("   Linear Solver Iterations: ",i6)') i

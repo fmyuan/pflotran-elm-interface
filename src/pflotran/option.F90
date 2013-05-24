@@ -3,9 +3,6 @@ module Option_module
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
 
 ! The exception to above NOTE is in the case of coupling PFLOTRAN with CLM  
-#ifdef CLM_PFLOTRAN
-  use clm_varctl, only : iulog
-#endif 
   implicit none
 
   private
@@ -615,16 +612,10 @@ subroutine printErrMsg2(option,string)
   PetscErrorCode :: ierr
   
   if (OptionPrintToScreen(option)) then
-#ifndef CLM_PFLOTRAN
     print *
     print *, 'ERROR: ' // trim(string)
     print *, 'Stopping!'
-#else
-    write(iulog,*)
-    write(iulog,*), 'ERROR: ' // trim(string)
-    write(iulog,*), 'Stopping!'
-#endif
-  endif    
+  endif
   call MPI_Barrier(option%mycomm,ierr)
   call PetscInitialized(petsc_initialized, ierr)
   if (petsc_initialized) call PetscFinalize(ierr)
@@ -706,11 +697,7 @@ subroutine printWrnMsg2(option,string)
   type(option_type) :: option
   character(len=*) :: string
   
-#ifndef CLM_PFLOTRAN
   if (OptionPrintToScreen(option)) print *, 'WARNING: ' // trim(string)
-#else
-  if (OptionPrintToScreen(option)) write(iulog,*), 'WARNING: ' // trim(string)
-#endif
   
 end subroutine printWrnMsg2
 
@@ -745,11 +732,7 @@ subroutine printMsg2(option,string)
   type(option_type) :: option
   character(len=*) :: string
   
-#ifndef CLM_PFLOTRAN
   if (OptionPrintToScreen(option)) print *, trim(string)
-#else
-  if (OptionPrintToScreen(option)) write(iulog,*), trim(string)
-#endif
   
 end subroutine printMsg2
 

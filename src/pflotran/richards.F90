@@ -7,9 +7,6 @@ module Richards_module
   use Matrix_Buffer_module
 #endif
   
-#ifdef CLM_PFLOTRAN
-  use clm_varctl      , only : iulog
-#endif
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   use clm_pflotran_interface_data
 #endif
