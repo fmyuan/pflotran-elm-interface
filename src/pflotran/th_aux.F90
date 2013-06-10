@@ -41,6 +41,10 @@ module TH_Aux_module
     PetscReal :: u_ice
     PetscReal :: du_ice_dt
 #endif
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
+    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda
+#endif
   end type TH_auxvar_type
 
   type, public :: TH_parameter_type
@@ -176,6 +180,10 @@ subroutine THAuxVarInit(aux_var,option)
   aux_var%u_ice = 0.d0
   aux_var%du_ice_dt = 0.d0
 #endif
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  aux_var%bc_alpha  = 0.0d0
+  aux_var%bc_lambda  = 0.0d0
+#endif
 
 end subroutine THAuxVarInit
 
@@ -233,6 +241,10 @@ subroutine THAuxVarCopy(aux_var,aux_var2,option)
   aux_var2%dden_ice_dt = aux_var%dden_ice_dt
   aux_var2%u_ice = aux_var%u_ice
   aux_var2%du_ice_dt = aux_var%du_ice_dt
+#endif
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  aux_var2%bc_alpha  = aux_var%bc_alpha
+  aux_var2%bc_lambda = aux_var%bc_lambda
 #endif
 
 end subroutine THAuxVarCopy
@@ -303,6 +315,12 @@ subroutine THAuxVarCompute(x,aux_var,global_aux_var, &
 !  if (aux_var%pc > 0.d0) then
   if (aux_var%pc > 1.d0) then
     iphase = 3
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    if(aux_var%bc_alpha.gt.0) then
+       saturation_function%alpha  = aux_var%bc_alpha
+       saturation_function%lambda = aux_var%bc_lambda
+    endif
+#endif
     call SaturationFunctionCompute(global_aux_var%pres(1),global_aux_var%sat(1), &
                                    kr,ds_dp,dkr_dp, &
                                    saturation_function, &
@@ -461,6 +479,12 @@ subroutine THAuxVarComputeIce(x, aux_var, global_aux_var, iphase, &
   call CapillaryPressureThreshold(saturation_function,p_th,option)
 
 
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    if(aux_var%bc_alpha.gt.0) then
+       saturation_function%alpha  = aux_var%bc_alpha
+       saturation_function%lambda = aux_var%bc_lambda
+    endif
+#endif
   call SaturationFunctionComputeIce(global_aux_var%pres(1), & 
                                     global_aux_var%temp(1), ice_saturation, &
                                     global_aux_var%sat(1), gas_saturation, &
