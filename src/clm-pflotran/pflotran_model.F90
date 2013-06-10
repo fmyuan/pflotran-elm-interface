@@ -109,6 +109,7 @@ module pflotran_model_module
        pflotranModelStepperRunFinalize,      &
        pflotranModelInsertWaypoint,          &
        pflotranModelDeleteWaypoint,          &
+       pflotranModelNSurfCells3DDomain,      &
        pflotranModelDestroy
 
 contains
@@ -167,17 +168,10 @@ contains
 
     allocate(pflotran_model)
 
-#ifdef CLM_PFLOTRAN
-    !allocate(pflotran_model%mapping)
-#endif
-
     nullify(pflotran_model%stochastic)
     nullify(pflotran_model%simulation)
     nullify(pflotran_model%realization)
     nullify(pflotran_model%option)
-#ifdef CLM_PFLOTRAN
-    !nullify(pflotran_model%mapping)
-#endif
     nullify(pflotran_model%pf_cells)
     nullify(pflotran_model%clm_cells)
     nullify(pflotran_model%map_clm2pf)
@@ -192,12 +186,11 @@ contains
     pflotran_model%pause_time_1 = -1.0d0
     pflotran_model%pause_time_2 = -1.0d0
 
-
     pflotran_model%option%global_comm = mpicomm
 
-    call MPI_Comm_rank(MPI_COMM_WORLD, pflotran_model%option%global_rank, ierr)
-    call MPI_Comm_size(MPI_COMM_WORLD, pflotran_model%option%global_commsize, ierr)
-    call MPI_Comm_group(MPI_COMM_WORLD, pflotran_model%option%global_group, ierr)
+    call MPI_Comm_rank(mpicomm, pflotran_model%option%global_rank, ierr)
+    call MPI_Comm_size(mpicomm, pflotran_model%option%global_commsize, ierr)
+    call MPI_Comm_group(mpicomm, pflotran_model%option%global_group, ierr)
     pflotran_model%option%mycomm = pflotran_model%option%global_comm
     pflotran_model%option%myrank = pflotran_model%option%global_rank
     pflotran_model%option%mycommsize = pflotran_model%option%global_commsize
@@ -272,9 +265,12 @@ contains
     endif
 
     if (single_inputfile) then
-
-       PETSC_COMM_WORLD = MPI_COMM_WORLD
+       PETSC_COMM_WORLD = mpicomm
        call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
+#ifdef CLM_PFLOTRAN
+       ! GB: Hack to get communicator correctly setup on gautam's Mac
+       PETSC_COMM_SELF = MPI_COMM_SELF
+#endif
     else
        call InitReadInputFilenames(pflotran_model%option, filenames)
        temp_int = size(filenames)
@@ -532,6 +528,7 @@ end subroutine pflotranModelSetICs
     use Patch_module
     use Grid_module
     use Richards_Aux_module
+    use TH_Aux_module
     use Field_module
     use clm_pflotran_interface_data
 
@@ -546,13 +543,16 @@ end subroutine pflotranModelSetICs
     type(grid_type), pointer                  :: grid
     type(field_type), pointer                 :: field
     type(richards_auxvar_type), pointer       :: rich_aux_vars(:)
-    type(richards_auxvar_type), pointer       :: aux_var
+    type(richards_auxvar_type), pointer       :: rich_aux_var
+    type(th_auxvar_type), pointer             :: th_aux_vars(:)
+    type(th_auxvar_type), pointer             :: th_aux_var
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id
     PetscReal          :: den, vis, grav
     PetscReal, pointer :: porosity_loc_p(:), vol_ovlap_arr(:)
     PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
+    PetscReal          :: bc_lambda, bc_alpha
 
     PetscScalar, pointer :: hksat_x_pf_loc(:) ! hydraulic conductivity in x-dir at saturation (mm H2O /s)
     PetscScalar, pointer :: hksat_y_pf_loc(:) ! hydraulic conductivity in y-dir at saturation (mm H2O /s)
@@ -570,7 +570,16 @@ end subroutine pflotranModelSetICs
     patch           => realization%patch
     grid            => patch%grid
     field           => realization%field
-    rich_aux_vars   => patch%aux%Richards%aux_vars
+
+    select case(pflotran_model%option%iflowmode)
+      case(RICHARDS_MODE)
+        rich_aux_vars   => patch%aux%Richards%aux_vars
+      case(TH_MODE)
+        th_aux_vars   => patch%aux%TH%aux_vars
+      case default
+        call printErrMsg(pflotran_model%option, &
+          'Current PFLOTRAN mode not supported by pflotranModelSetSoilProp')
+    end select
 
     call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
                                     pflotran_model%option, &
@@ -617,15 +626,24 @@ end subroutine pflotranModelSetICs
 
     do local_id = 1, grid%ngmax
 
-      aux_var => rich_aux_vars(local_id)
-
       ! bc_alpha [1/Pa]; while sucsat [mm of H20]
       ! [Pa] = [mm of H20] * 0.001 [m/mm] * 1000 [kg/m^3] * 9.81 [m/sec^2]
-      aux_var%bc_alpha = 1.d0/(sucsat_pf_loc(local_id)*grav) 
+      bc_alpha = 1.d0/(sucsat_pf_loc(local_id)*grav)
 
       ! bc_lambda = 1/bsw
-      aux_var%bc_lambda = 1.d0/bsw_pf_loc(local_id)
+      bc_lambda = 1.d0/bsw_pf_loc(local_id)
       
+      select case(pflotran_model%option%iflowmode)
+        case(RICHARDS_MODE)
+          rich_aux_var => rich_aux_vars(local_id)
+          rich_aux_var%bc_alpha = bc_alpha
+          rich_aux_var%bc_lambda = bc_lambda
+        case(TH_MODE)
+          th_aux_var => th_aux_vars(local_id)
+          th_aux_var%bc_alpha = bc_alpha
+          th_aux_var%bc_lambda = bc_lambda
+      end select
+
       ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
       ! [m^2]          [mm/sec]
       perm_xx_loc_p(local_id) = hksat_x_pf_loc(local_id)*vis/(den*grav)/1000.d0
@@ -1371,9 +1389,6 @@ end subroutine pflotranModelSetICs
 
     type(pflotran_model_type), pointer        :: pflotran_model
 
-    if(pflotran_model%option%io_rank==pflotran_model%option%myrank) &
-      write(pflotran_model%option%fid_out,*),'In pflotranModelUpdateFlowConds()'
-
     call pflotranModelUpdateSourceSink(pflotran_model)
 
     if(pflotran_model%option%iflowmode==TH_MODE) then
@@ -1406,16 +1421,12 @@ end subroutine pflotranModelSetICs
 
     realization     => pflotran_model%simulation%realization
 
-    if(pflotran_model%option%io_rank==pflotran_model%option%myrank) &
-      write(pflotran_model%option%fid_out,*),'In pflotranModelGetUpdatedStates()'
-
     select case(pflotran_model%option%iflowmode)
       case (RICHARDS_MODE)
         call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
         call pflotranModelGetSaturation(pflotran_model)
       case (TH_MODE)
         call THUpdateAuxVars(pflotran_model%simulation%realization)
-        write(*,*),'call pflotranModelGetSaturation()'
         call pflotranModelGetSaturation(pflotran_model)
         call pflotranModelGetTemperature(pflotran_model)
       case default
@@ -1508,7 +1519,7 @@ end subroutine pflotranModelSetICs
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
-    PetscReal, pointer :: temp_pf_p(:)
+    PetscScalar, pointer :: temp_pf_p(:)
     PetscReal, pointer :: sat_ice_pf_p(:)
 
     realization     => pflotran_model%simulation%realization
@@ -1517,27 +1528,27 @@ end subroutine pflotranModelSetICs
     global_aux_vars => patch%aux%Global%aux_vars
     th_aux_vars     => patch%aux%TH%aux_vars
 
-    call VecGetArrayF90(clm_pf_idata%temp_pf,temp_pf_p,ierr)
-    call VecGetArrayF90(clm_pf_idata%sat_ice_pf,temp_pf_p,ierr)
-
     do local_id=1,grid%nlmax
        ghosted_id = grid%nL2G(local_id)
-       temp_pf_p(local_id) = global_aux_vars(ghosted_id)%temp(1)
-       !sat_ice_pf_p(local_id) = th_aux_vars(ghosted_id)%sat_ice
+       call VecSetValues(clm_pf_idata%temp_pf,1,local_id-1, &
+                        global_aux_vars(ghosted_id)%temp(1),INSERT_VALUES,ierr)
+       !call VecSetValues(clm_pf_idata%sat_ice_pf,1,local_id-1, &
+       !                 global_aux_vars(ghosted_id)%sat_ice(1),INSERT_VALUES,ierr)
     enddo
 
-    call VecRestoreArrayF90(clm_pf_idata%temp_pf,temp_pf_p,ierr)
-    call VecRestoreArrayF90(clm_pf_idata%sat_ice_pf,sat_ice_pf_p,ierr)
-
+    call VecAssemblyBegin(clm_pf_idata%temp_pf,ierr)
+    call VecAssemblyEnd(clm_pf_idata%temp_pf,ierr)
     call MappingSourceToDestination(pflotran_model%map_pf2clm, &
                                     pflotran_model%option, &
                                     clm_pf_idata%temp_pf, &
                                     clm_pf_idata%temp_clm)
 
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%sat_ice_pf, &
-                                    clm_pf_idata%sat_ice_clm)
+!    call VecAssemblyBegin(clm_pf_idata%sat_ice_pf,ierr)
+!    call VecAssemblyEnd(clm_pf_idata%sat_ice_pf,ierr)
+!    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+!                                    pflotran_model%option, &
+!                                    clm_pf_idata%sat_ice_pf, &
+!                                    clm_pf_idata%sat_ice_clm)
 
   end subroutine pflotranModelGetTemperature
 
@@ -1622,6 +1633,49 @@ end subroutine pflotranModelSetICs
 
 
   end subroutine pflotranModelDeleteWaypoint
+
+  ! ************************************************************************** !
+  !> This function returns the number of control volumes forming surface of
+  !! the sub-surface domain. It assumes a boundary condition named 'clm_gflux_bc'
+  !! is defined in the inputdeck.
+  !!
+  !> @author
+  !! Gautam Bisht, LBNL
+  !!
+  !! date: 6/03/2013
+  ! ************************************************************************** !
+  function pflotranModelNSurfCells3DDomain(pflotran_model)
+
+    use Coupler_module
+    use String_module
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: pflotran_model
+
+    type(coupler_list_type), pointer :: coupler_list
+    type(coupler_type), pointer :: coupler
+    PetscInt :: pflotranModelNSurfCells3DDomain
+    PetscBool :: found
+
+    coupler_list => pflotran_model%realization%patch%boundary_conditions
+    coupler => coupler_list%first
+    found = PETSC_FALSE
+
+    do
+      if (.not.associated(coupler)) exit
+      if(StringCompare(coupler%name,'clm_gflux_bc')) then
+        pflotranModelNSurfCells3DDomain=coupler%connection_set%num_connections
+        found = PETSC_TRUE
+      endif
+      coupler => coupler%next
+    enddo
+
+    if(.not.found)  &
+      call printErrMsg(pflotran_model%option, &
+            'Missing from the input deck a BC named clm_gflux_bc')
+
+  end function pflotranModelNSurfCells3DDomain
 
   ! ************************************************************************** !
   !

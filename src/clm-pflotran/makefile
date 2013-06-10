@@ -128,7 +128,7 @@ ifdef clm_offline
 endif
 
 ifdef clm_pflotran
-  MYFLAGS += -DCLM_PFLOTRAN
+  MYFLAGS += -DCLM_PFLOTRAN -g
 endif
 
 ifdef map_debug

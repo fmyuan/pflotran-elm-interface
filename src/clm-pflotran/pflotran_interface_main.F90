@@ -90,6 +90,9 @@ program pflotran_interface_main
   clm_pf_idata%nlpf_2d  = clm_surf_npts
   clm_pf_idata%ngpf_2d  = clm_surf_npts
 
+  ! Allocate memory for CLM-PFLOTRAN data transfer
+  call CLMPFLOTRANIDataCreateVec(MPI_COMM_WORLD)
+
   ! Set mapping between CLM and PFLOTRAN
   call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM2PF_FLUX_MAP_ID)
   call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM2PF_SOIL_MAP_ID)
@@ -97,8 +100,6 @@ program pflotran_interface_main
   call pflotranModelInitMapping(pflotran_m, clm_surf_cell_ids, clm_surf_npts, CLM2PF_GFLUX_MAP_ID)
 ! call pflotranModelSetSoilProp(pflotran_m)
 
-  ! Allocate memory for CLM-PFLOTRAN data transfer
-  call CLMPFLOTRANIDataCreateVec(MPI_COMM_WORLD)
   
   ! Initialize PFLOTRAN Stepper
   call pflotranModelStepperRunInit(pflotran_m)

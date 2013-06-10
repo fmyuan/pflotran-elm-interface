@@ -3342,7 +3342,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
       ! If this source/sink corresponds to CLM condition, update the source/sink
       ! term
-      if(clm_condition) qsrc1 = qflx_pf_p(local_id)
+      if(clm_condition) qsrc1 = qflx_pf_p(local_id)*0.d0
 #endif
       if (enthalpy_flag) then
         r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - hsrc1* &

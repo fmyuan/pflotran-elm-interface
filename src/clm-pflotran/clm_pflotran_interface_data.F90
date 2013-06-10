@@ -4,6 +4,7 @@ module clm_pflotran_interface_data
 
 #include "finclude/petscsys.h"
 #include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
   private
 
   type, public :: clm_pflotran_idata_type

@@ -119,7 +119,7 @@ END
 HDF5_READ_GROUP_SIZE 1
 
 MAPPING_FILES                   
-  CLM2PF_FLUX_FILE B_10p0dx_10p0dy_10nz_clm2pf_map.dat
-  CLM2PF_SOIL_FILE B_10p0dx_10p0dy_10nz_clm2pf_map.dat
-  PF2CLM_FLUX_FILE B_10p0dx_10p0dy_10nz_pf2clm_map.dat
+  CLM2PF_FLUX_FILE B_10p0dx_10p0dy_10nz_clm2pf_map_c130501.dat
+  CLM2PF_SOIL_FILE B_10p0dx_10p0dy_10nz_clm2pf_map_c130501.dat
+  PF2CLM_FLUX_FILE B_10p0dx_10p0dy_10nz_pf2clm_map_c130501.dat
 END
