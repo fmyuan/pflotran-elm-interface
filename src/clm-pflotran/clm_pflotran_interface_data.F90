@@ -30,6 +30,12 @@ module clm_pflotran_interface_data
   Vec :: bsw_pf
   Vec :: press_pf
 
+  ! (ii) Mesh property
+
+  ! Area of top face
+  Vec :: area_top_face_clm ! seq vec
+  Vec :: area_top_face_pf  ! mpi vec
+
   ! Time variant data
   
   ! (i) Sink/Source of water for PFLOTRAN's 3D subsurface domain
@@ -217,6 +223,7 @@ contains
 
     call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%temp_pf,ierr)
     call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%sat_ice_pf,ierr)
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%area_top_face_pf,ierr)
 
     ! Create Seq. Vectors for CLM
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_3d,clm_pf_idata%sat_clm,ierr)
@@ -224,6 +231,7 @@ contains
 
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%temp_clm,ierr)
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%sat_ice_clm,ierr)
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%area_top_face_clm,ierr)
 
   end subroutine CLMPFLOTRANIDataCreateVec
 
@@ -274,6 +282,11 @@ contains
 
     if(clm_pf_idata%sat_ice_clm  /= 0) call VecDestroy(clm_pf_idata%sat_ice_clm,ierr)
     if(clm_pf_idata%sat_ice_pf  /= 0) call VecDestroy(clm_pf_idata%sat_ice_pf,ierr)
+
+    if(clm_pf_idata%area_top_face_clm  /= 0) &
+      call VecDestroy(clm_pf_idata%area_top_face_clm,ierr)
+    if(clm_pf_idata%area_top_face_pf  /= 0) &
+      call VecDestroy(clm_pf_idata%area_top_face_pf,ierr)
 
   end subroutine CLMPFLOTRANIDataDestroy
 

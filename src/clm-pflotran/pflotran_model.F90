@@ -110,6 +110,7 @@ module pflotran_model_module
        pflotranModelInsertWaypoint,          &
        pflotranModelDeleteWaypoint,          &
        pflotranModelNSurfCells3DDomain,      &
+       pflotranModelGetTopFaceArea,          &
        pflotranModelDestroy
 
 contains
@@ -1528,12 +1529,14 @@ end subroutine pflotranModelSetICs
     global_aux_vars => patch%aux%Global%aux_vars
     th_aux_vars     => patch%aux%TH%aux_vars
 
-    do local_id=1,grid%nlmax
-       ghosted_id = grid%nL2G(local_id)
-       call VecSetValues(clm_pf_idata%temp_pf,1,local_id-1, &
+    do ghosted_id=1,grid%ngmax
+      local_id = grid%nG2L(ghosted_id)
+      if (local_id>0) then
+        call VecSetValues(clm_pf_idata%temp_pf,1,local_id-1, &
                         global_aux_vars(ghosted_id)%temp(1),INSERT_VALUES,ierr)
-       !call VecSetValues(clm_pf_idata%sat_ice_pf,1,local_id-1, &
-       !                 global_aux_vars(ghosted_id)%sat_ice(1),INSERT_VALUES,ierr)
+        !call VecSetValues(clm_pf_idata%sat_ice_pf,1,local_id-1, &
+        !                 global_aux_vars(ghosted_id)%sat_ice(1),INSERT_VALUES,ierr)
+      endif
     enddo
 
     call VecAssemblyBegin(clm_pf_idata%temp_pf,ierr)
@@ -1676,6 +1679,134 @@ end subroutine pflotranModelSetICs
             'Missing from the input deck a BC named clm_gflux_bc')
 
   end function pflotranModelNSurfCells3DDomain
+
+  ! ************************************************************************** !
+  !> This subroutine
+  !!
+  !> @author
+  !! Gautam Bisht, LBNL
+  !!
+  !! date: 6/10/2013
+  ! ************************************************************************** !
+  subroutine pflotranModelGetTopFaceArea(pflotran_model)
+
+    use Option_module
+    use Patch_module
+    use Discretization_module
+    use Unstructured_Grid_Aux_module
+    use Unstructured_Cell_module
+    use Unstructured_Grid_module
+    use Grid_module
+    use clm_pflotran_interface_data
+    use Utility_module, only : DotProduct, CrossProduct
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: pflotran_model
+
+    type(option_type), pointer :: option
+    type(realization_type), pointer :: realization
+    type(discretization_type), pointer :: discretization
+    type(patch_type), pointer :: patch
+    type(grid_type), pointer :: grid
+    type(point_type) :: point1, point2, point3, point4
+
+    PetscInt :: local_id
+    PetscInt :: ghosted_id
+    PetscInt :: iface
+    PetscInt :: cell_type
+    PetscInt :: vertex_ids(4)
+
+    PetscReal :: v1(3), v2(3), v3(3), n1(3), n2(3), n_up_dn(3)
+    PetscReal :: vcross(3), magnitude
+    PetscReal :: area1, area2
+
+    PetscScalar, pointer :: area_p(:)
+    PetscErrorCode :: ierr
+
+    option => pflotran_model%option
+    realization => pflotran_model%simulation%realization
+    discretization => realization%discretization
+    patch => realization%patch
+    grid => patch%grid
+
+    if(grid%discretization_itype == STRUCTURED_GRID) then
+      ! Structured grid
+      do ghosted_id=1,grid%ngmax
+        local_id = grid%nG2L(ghosted_id)
+        if(local_id>0) then
+          area1 = grid%structured_grid%dx(ghosted_id)* &
+                  grid%structured_grid%dy(ghosted_id)
+          call VecSetValues(clm_pf_idata%area_top_face_pf,1,local_id-1, &
+                        area1,INSERT_VALUES,ierr)
+        endif
+      enddo
+    else if (grid%discretization_itype == UNSTRUCTURED_GRID) then
+      ! Unstructured grid
+      do local_id=1,grid%nlmax
+        cell_type = grid%unstructured_grid%cell_type(local_id)
+
+        ! Find iface
+        if (cell_type == HEX_TYPE) then
+          iface = 6
+        else if (cell_type == WEDGE_TYPE) then
+          iface = 5
+        else
+          call printErrMsg(pflotran_model%option, &
+            'Only hex and wedge cell_type supported in CLM-PFLOTRAN')
+        endif
+
+        ! Get vertex_id
+        call UCellGetFaceVertices(option,cell_type,iface,vertex_ids)
+
+        point1 = grid%unstructured_grid%vertices(vertex_ids(1))
+        point2 = grid%unstructured_grid%vertices(vertex_ids(2))
+        point3 = grid%unstructured_grid%vertices(vertex_ids(3))
+
+        v1(1) = point3%x-point2%x
+        v1(2) = point3%y-point2%y
+        v1(3) = point3%z-point2%z
+        v2(1) = point1%x-point2%x
+        v2(2) = point1%y-point2%y
+        v2(3) = point1%z-point2%z
+        !geh: area = 0.5 * |v1 x v2|
+        vcross = CrossProduct(v1,v2)
+        !geh: but then we have to project the area onto the vector between
+        !     the cell centers (n_up_dn)
+        magnitude = sqrt(DotProduct(vcross,vcross))
+        n1 = vcross/magnitude
+        area1 = 0.5d0*magnitude
+        area1 = dabs(area1*DotProduct(n1,n_up_dn))
+
+        if(cell_type == HEX_TYPE) then
+          point4 = grid%unstructured_grid%vertices(vertex_ids(4))
+          v1(1) = point1%x-point4%x
+          v1(2) = point1%y-point4%y
+          v1(3) = point1%z-point4%z
+          v2(1) = point3%x-point4%x
+          v2(2) = point3%y-point4%y
+          v2(3) = point3%z-point4%z
+          magnitude = sqrt(DotProduct(vcross,vcross))
+          n2 = vcross/magnitude
+          area2 = 0.5d0*magnitude
+          area2 = dabs(area2*DotProduct(n2,n_up_dn))
+        else
+          area2 = 0.0d0
+        endif
+
+        call VecSetValues(clm_pf_idata%area_top_face_pf,1,local_id-1, &
+                       area1+area2,INSERT_VALUES,ierr)
+      enddo
+    endif
+
+    call VecAssemblyBegin(clm_pf_idata%area_top_face_pf,ierr)
+    call VecAssemblyEnd(clm_pf_idata%area_top_face_pf,ierr)
+    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%area_top_face_pf, &
+                                    clm_pf_idata%area_top_face_clm)
+
+  end subroutine pflotranModelGetTopFaceArea
 
   ! ************************************************************************** !
   !
