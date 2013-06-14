@@ -140,7 +140,7 @@ FFLAGS   =
 CPPFLAGS = ${MYFLAGS}
 FPPFLAGS = ${MYFLAGS}
 
-CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log
+CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log libpflotran.a
 
 ifdef petscrel
  include ${PETSC_DIR}/bmake/common/base
