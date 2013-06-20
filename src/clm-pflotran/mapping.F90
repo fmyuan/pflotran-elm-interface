@@ -16,7 +16,7 @@ module Mapping_module
   type, public  :: mapping_type
 
     !
-    ! Linear Mapping from Source mest to Destination mesh is matrix-vector product and
+    ! Linear Mapping from Source mesh to Destination mesh is matrix-vector product and
     ! can be written as:
     !
     !                W * s = d                                 Eq[1]

@@ -797,6 +797,7 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
   type(patch_type), pointer            :: cur_patch 
   type(region_type), pointer           :: cur_region, top_region
   type(region_type), pointer           :: patch_region
+  type(dm_ptr_type), pointer :: dm_ptr
 
   Mat :: Mat_vert_to_face_subsurf
   Mat :: Mat_vert_to_face_subsurf_transp
@@ -804,6 +805,8 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
   Mat :: Mat_vert_to_face_surf_transp
   Mat :: prod
   Vec :: subsurf_petsc_ids, surf_petsc_ids
+  Vec :: subsurf_nat_ids, surf_nat_ids
+  Vec :: corr_subsurf_nat_ids, corr_surf_nat_ids
 
   PetscViewer :: viewer
 
@@ -820,6 +823,7 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
   PetscInt :: ivertex, vertex_id_local
   PetscReal :: real_array4(4)
   PetscReal, pointer :: vec_ptr(:)
+  PetscReal, pointer :: vec_ptr2(:)
 
   PetscErrorCode :: ierr
   PetscBool :: found
@@ -874,10 +878,15 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
 
   call VecCreateMPI(option%mycomm,top_region%num_cells,PETSC_DETERMINE, &
                     subsurf_petsc_ids,ierr)  
+  call VecCreateMPI(option%mycomm,top_region%num_cells,PETSC_DETERMINE, &
+                    subsurf_nat_ids,ierr)
+  call VecCreateMPI(option%mycomm,top_region%num_cells,PETSC_DETERMINE, &
+                    corr_surf_nat_ids,ierr)
   call MatZeroEntries(Mat_vert_to_face_subsurf,ierr)
   real_array4 = 1.d0
 
   call VecGetArrayF90(subsurf_petsc_ids,vec_ptr,ierr)
+  call VecGetArrayF90(subsurf_nat_ids,vec_ptr2,ierr)
 
   offset=0
   call MPI_Exscan(top_region%num_cells,offset, &
@@ -888,6 +897,7 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
     vec_ptr(ii) = subsurf_grid%cell_ids_petsc(local_id)
     iface    = top_region%faces(ii)
     cell_type = subsurf_grid%cell_type(local_id)
+    vec_ptr2(ii) = subsurf_grid%cell_ids_natural(local_id)
     !nfaces = UCellGetNFaces(cell_type,option)
 
     call UCellGetNFaceVertsandVerts(option,cell_type,iface,nvertices, &
@@ -907,6 +917,7 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
   enddo
 
   call VecRestoreArrayF90(subsurf_petsc_ids,vec_ptr,ierr)
+  call VecRestoreArrayF90(subsurf_nat_ids,vec_ptr2,ierr)
 
   call MatAssemblyBegin(Mat_vert_to_face_subsurf,MAT_FINAL_ASSEMBLY,ierr)
   call MatAssemblyEnd(Mat_vert_to_face_subsurf,MAT_FINAL_ASSEMBLY,ierr)
@@ -946,16 +957,22 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
                        ierr)
 
   call VecCreateMPI(option%mycomm,surf_grid%nlmax,PETSC_DETERMINE, &
-                    surf_petsc_ids,ierr)  
+                    surf_petsc_ids,ierr)
+  call VecCreateMPI(option%mycomm,surf_grid%nlmax,PETSC_DETERMINE, &
+                    surf_nat_ids,ierr)
+  call VecCreateMPI(option%mycomm,surf_grid%nlmax,PETSC_DETERMINE, &
+                    corr_subsurf_nat_ids,ierr)
   offset=0
   call MPI_Exscan(surf_grid%nlmax,offset, &
                   ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
 
   call VecGetArrayF90(surf_petsc_ids,vec_ptr,ierr)
+  call VecGetArrayF90(surf_nat_ids,vec_ptr2,ierr)
 
   do local_id = 1, surf_grid%nlmax
     cell_type = surf_grid%cell_type(local_id)
     vec_ptr(local_id) = surf_grid%cell_ids_petsc(local_id)
+    vec_ptr2(local_id)= surf_grid%cell_ids_natural(local_id)
     
     int_array4_0 = 0
     nvertices = surf_grid%cell_vertices(0,local_id)
@@ -970,6 +987,7 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
   enddo
 
   call VecRestoreArrayF90(surf_petsc_ids,vec_ptr,ierr)
+  call VecRestoreArrayF90(surf_nat_ids,vec_ptr2,ierr)
 
   call MatAssemblyBegin(Mat_vert_to_face_surf,MAT_FINAL_ASSEMBLY,ierr)
   call MatAssemblyEnd(Mat_vert_to_face_surf,MAT_FINAL_ASSEMBLY,ierr)
@@ -984,7 +1002,7 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
   call PetscViewerASCIIOpen(option%mycomm,string,viewer,ierr)
   call VecView(surf_petsc_ids,viewer,ierr)
   call PetscViewerDestroy(viewer,ierr)
-#endif  
+#endif
 
   call MatTranspose(Mat_vert_to_face_surf,MAT_INITIAL_MATRIX, &
                     Mat_vert_to_face_surf_transp,ierr)
@@ -1022,6 +1040,36 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
   call SurfRealizMapSurfSubsurfGrid(realization, surf_realization, prod, THREE_DIM_GRID, &
                                         subsurf_petsc_ids)
 
+  ! For each control volume in surface mesh, get the corresponding natural ids of
+  ! subsurface control volume
+  dm_ptr => DiscretizationGetDMPtrFromIndex(realization%discretization,ONEDOF)
+  call VecScatterBegin(dm_ptr%ugdm%scatter_bet_grids_1dof, &
+                       subsurf_nat_ids, corr_subsurf_nat_ids, &
+                      INSERT_VALUES,SCATTER_FORWARD,ierr)
+  call VecScatterEnd(dm_ptr%ugdm%scatter_bet_grids_1dof, &
+                       subsurf_nat_ids, corr_subsurf_nat_ids, &
+                      INSERT_VALUES,SCATTER_FORWARD,ierr)
+
+  dm_ptr => DiscretizationGetDMPtrFromIndex(surf_realization%discretization,ONEDOF)
+  call VecScatterBegin(dm_ptr%ugdm%scatter_bet_grids_1dof, &
+                       surf_nat_ids, corr_surf_nat_ids, &
+                      INSERT_VALUES,SCATTER_FORWARD,ierr)
+  call VecScatterEnd(dm_ptr%ugdm%scatter_bet_grids_1dof, &
+                       surf_nat_ids, corr_surf_nat_ids, &
+                      INSERT_VALUES,SCATTER_FORWARD,ierr)
+
+  ! Save the natural ids
+  allocate(surf_grid%nat_ids_of_other_grid(surf_grid%nlmax))
+  allocate(subsurf_grid%nat_ids_of_other_grid(top_region%num_cells))
+
+  call VecGetArrayF90(corr_subsurf_nat_ids,vec_ptr,ierr)
+  call VecGetArrayF90(corr_surf_nat_ids,vec_ptr2,ierr)
+  surf_grid%nat_ids_of_other_grid = vec_ptr
+  subsurf_grid%nat_ids_of_other_grid = vec_ptr2
+  call VecRestoreArrayF90(corr_subsurf_nat_ids,vec_ptr,ierr)
+  call VecRestoreArrayF90(corr_surf_nat_ids,vec_ptr2,ierr)
+
+  ! Free up the memory
   call MatDestroy(prod,ierr)
 
   call MatDestroy(Mat_vert_to_face_subsurf,ierr)
@@ -1031,6 +1079,10 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
 
   call VecDestroy(subsurf_petsc_ids,ierr)
   call VecDestroy(surf_petsc_ids,ierr)
+  call VecDestroy(subsurf_nat_ids,ierr)
+  call VecDestroy(surf_nat_ids,ierr)
+  call VecDestroy(corr_subsurf_nat_ids,ierr)
+  call VecDestroy(corr_surf_nat_ids,ierr)
   
 end subroutine SurfRealizMapSurfSubsurfGrids
 

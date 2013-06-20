@@ -650,7 +650,7 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   call printMsg(option)
 
   ! Open dataset
-  call h5dopen_f(file_id, "Region/top", data_set_id, hdf5_err)
+  call h5dopen_f(file_id, "Regions/top", data_set_id, hdf5_err)
 
   ! Get dataset's dataspace
   call h5dget_space_f(data_set_id, data_space_id, hdf5_err)

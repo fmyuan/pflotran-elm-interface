@@ -44,8 +44,8 @@ program pflotran_interface_main
 
   ! Set up CLM cell ids
   if (pflotran_m%option%mycommsize == 1) then
-    clm_npts = 200*10
-    clm_surf_npts = 200
+    clm_npts = 5000*10
+    clm_surf_npts = 5000
     allocate (clm_cell_ids(clm_npts))
     allocate (clm_surf_cell_ids(clm_surf_npts))
     do ii = 1, clm_npts
@@ -56,15 +56,15 @@ program pflotran_interface_main
     enddo
   else
     if (pflotran_m%option%mycommsize == 2) then
-      clm_npts = 200*10/2
-      clm_surf_npts = 100
+      clm_surf_npts = 5000/2
+      clm_npts       = clm_surf_npts*10
       allocate (clm_cell_ids(clm_npts))
       allocate (clm_surf_cell_ids(clm_surf_npts))
       do ii = 1, clm_npts
-        clm_cell_ids(ii) = ii-1 + 200*10/2*pflotran_m%option%myrank
+        clm_cell_ids(ii) = ii-1 + clm_npts*pflotran_m%option%myrank
       enddo
       do ii = 1, clm_surf_npts
-        clm_surf_cell_ids(ii) = (ii-1)*10 + 100*10*pflotran_m%option%myrank
+        clm_surf_cell_ids(ii) = (ii-1)*10 + clm_npts*pflotran_m%option%myrank
       enddo
     else
       pflotran_m%option%io_buffer = 'The example can only run with max 2 procs.'
@@ -79,28 +79,27 @@ program pflotran_interface_main
   clm_pf_idata%nlpf_3d  = pflotran_m%realization%patch%grid%nlmax
   clm_pf_idata%ngpf_3d  = pflotran_m%realization%patch%grid%ngmax
 
-  ! These values are set in pflotranModelInitMappingSurf()
-!  clm_pf_idata%nlclm_surf_3d = clm_surf_npts
-!  clm_pf_idata%ngclm_surf_3d = clm_surf_npts
-!  clm_pf_idata%nlpf_surf_3d  = clm_surf_npts
-!  clm_pf_idata%ngpf_surf_3d  = clm_surf_npts
-
-  clm_pf_idata%nlclm_2d = clm_surf_npts
-  clm_pf_idata%ngclm_2d = clm_surf_npts
-  clm_pf_idata%nlpf_2d  = clm_surf_npts
-  clm_pf_idata%ngpf_2d  = clm_surf_npts
-
   ! Allocate memory for CLM-PFLOTRAN data transfer
   call CLMPFLOTRANIDataCreateVec(MPI_COMM_WORLD)
 
   ! Set mapping between CLM and PFLOTRAN
-  call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM2PF_FLUX_MAP_ID)
-  call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM2PF_SOIL_MAP_ID)
-  call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, PF2CLM_FLUX_MAP_ID)
-  call pflotranModelInitMapping(pflotran_m, clm_surf_cell_ids, clm_surf_npts, CLM2PF_GFLUX_MAP_ID)
+  !call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM2PF_FLUX_MAP_ID)
+  !call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM2PF_SOIL_MAP_ID)
+  !call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, PF2CLM_FLUX_MAP_ID)
+  !call pflotranModelInitMapping(pflotran_m, clm_surf_cell_ids, clm_surf_npts, CLM2PF_GFLUX_MAP_ID)
+#ifdef SURFACE_FLOW
+  clm_pf_idata%nlclm_2d = clm_surf_npts
+  clm_pf_idata%ngclm_2d = clm_surf_npts
+  if(pflotran_m%option%nsurfflowdof>0) then
+    clm_pf_idata%nlpf_2d  = pflotran_m%simulation%surf_realization%patch%grid%nlmax
+    clm_pf_idata%ngpf_2d  = pflotran_m%simulation%surf_realization%patch%grid%ngmax
+    call pflotranModelInitMapping(pflotran_m, clm_surf_cell_ids, clm_surf_npts, PF2CLM_SURF_MAP_ID)
+    call pflotranModelInitMapping(pflotran_m, clm_surf_cell_ids, clm_surf_npts, CLM2PF_RFLUX_MAP_ID)
+  endif
+#endif
+
 ! call pflotranModelSetSoilProp(pflotran_m)
 
-  
   ! Initialize PFLOTRAN Stepper
   call pflotranModelStepperRunInit(pflotran_m)
   
@@ -121,7 +120,7 @@ program pflotran_interface_main
   enddo
   
   ! Finalize PFLOTRAN Stepper
-  call pflotranModelStepperRunFinalize(pflotran_m)
+  !call pflotranModelStepperRunFinalize(pflotran_m)
 
   call CLMPFLOTRANIDataDestroy()
 
