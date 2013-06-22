@@ -415,6 +415,7 @@ contains
       call printErrMsg(pflotran_model%option)
     endif
 
+#ifdef SURFACE_FLOW
     if( (pflotran_model%option%nsurfflowdof>0)) then
        if ((.not. clm2pf_rflux_file)) then
         pflotran_model%option%io_buffer='Running in surface flow without a ' // &
@@ -427,6 +428,7 @@ contains
         call printErrMsg(pflotran_model%option)
        endif
     endif
+#endif
     pflotranModelCreate => pflotran_model
 
   end function pflotranModelCreate
@@ -1395,6 +1397,11 @@ end subroutine pflotranModelSetICs
     option          => pflotran_model%option
     realization     => pflotran_model%simulation%realization
 
+#ifndef SURFACE_FLOW
+    option%io_buffer='To support dest_mesh == PF_SURF_2D_MESH, need to '// &
+         'compiled with -DSURFACE_FLOW.'
+    call printErrMsg(option)
+#else
     allocate(grid_clm_cell_ids_nindex_copy(grid_clm_npts_local))
     grid_clm_cell_ids_nindex_copy = grid_clm_cell_ids_nindex
 
@@ -1431,15 +1438,9 @@ end subroutine pflotranModelSetICs
     enddo
 
     ! Mapping to/from surface of PFLOTRAN domain
-#ifdef SURFACE_FLOW
-        ! Destination mesh is surface-mesh
-        patch => pflotran_model%simulation%surf_realization%patch
-        grid => patch%grid
-#else
-        option%io_buffer='To support dest_mesh == PF_SURF_2D_MESH, need to '// &
-          'compiled with -DSURFACE_FLOW.'
-        call printErrMsg(option)
-#endif
+    ! Destination mesh is surface-mesh
+    patch => pflotran_model%simulation%surf_realization%patch
+    grid => patch%grid
 
     !
     ! Step-1: Find surface cells-ids of PFLOTRAN surface domain
@@ -1674,6 +1675,7 @@ end subroutine pflotranModelSetICs
     call MappingFindDistinctSourceMeshCellIds(map, option)
     call MappingCreateWeightMatrix(map, option)
     call MappingCreateScatterOfSourceMesh(map, option)
+#endif
 
   end subroutine pflotranModelInitMappingSurf2D
 
