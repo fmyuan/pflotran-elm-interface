@@ -78,7 +78,8 @@ module Timestepper_module
             StepperRunInit, StepperRunOneDT, StepperRunFinalize, &
             StepperUpdateSolution, & ! Added by GB
 #endif
-            TimestepperRead, TimestepperPrintInfo, TimestepperReset
+            TimestepperRead, TimestepperPrintInfo, TimestepperReset, &
+            StepperCheckpoint
 
 contains
 
@@ -4385,11 +4386,12 @@ end subroutine StepperSandbox
 ! date: 03/07/08 
 !
 ! ************************************************************************** !
-subroutine StepperCheckpoint(realization,flow_stepper,tran_stepper,id)
+subroutine StepperCheckpoint(realization,flow_stepper,tran_stepper,id, id_stamp)
 
   use Realization_class
   use Checkpoint_module
   use Option_module
+  use String_module, only : StringNull
 
   implicit none
 
@@ -4398,6 +4400,8 @@ subroutine StepperCheckpoint(realization,flow_stepper,tran_stepper,id)
   type(stepper_type), pointer :: tran_stepper
   PetscInt :: num_const_timesteps, num_newton_iterations  
   PetscInt :: id
+  ! NOTE(bja, 2013-06-27) : in this branch MAXWORDLENGTH != 32....
+  character(len=32), optional, intent(in) :: id_stamp
 
   type(option_type), pointer :: option
   PetscInt :: flow_steps, flow_cumulative_newton_iterations, &
@@ -4408,6 +4412,7 @@ subroutine StepperCheckpoint(realization,flow_stepper,tran_stepper,id)
               tran_num_const_time_steps, tran_num_newton_iterations
   PetscReal :: flow_cumulative_solver_time, flow_prev_dt
   PetscReal :: tran_cumulative_solver_time,tran_prev_dt
+  character(len=MAXWORDLENGTH) :: id_string
   
   option => realization%option
 
@@ -4432,6 +4437,18 @@ subroutine StepperCheckpoint(realization,flow_stepper,tran_stepper,id)
     tran_prev_dt = tran_stepper%prev_dt
   endif
   
+  ! most common use case is to use the time step as a the id string
+  id_string = ''
+  if (id >= 0) then
+     write(id_string,'(i8)') id
+  end if
+  ! if a different id stamp was provide we over ride the default
+  if (present(id_stamp)) then
+     if (.not. StringNull(id_stamp)) then
+        id_string = id_stamp
+     end if
+  end if
+
   call Checkpoint(realization, &
                   flow_steps,flow_cumulative_newton_iterations, &
                   flow_cumulative_time_step_cuts,flow_cumulative_linear_iterations, &
@@ -4441,7 +4458,7 @@ subroutine StepperCheckpoint(realization,flow_stepper,tran_stepper,id)
                   tran_cumulative_time_step_cuts,tran_cumulative_linear_iterations, &
                   tran_num_const_time_steps,tran_num_newton_iterations, &
                   tran_cumulative_solver_time,tran_prev_dt, &
-                  id)
+                  id_string)
                       
 end subroutine StepperCheckpoint
 

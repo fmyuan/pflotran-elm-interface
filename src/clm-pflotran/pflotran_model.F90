@@ -113,6 +113,7 @@ module pflotran_model_module
        pflotranModelStepperRunInit,          &
        pflotranModelStepperRunTillPauseTime, &
        pflotranModelStepperRunFinalize,      &
+       pflotranModelStepperCheckpoint,       &
        pflotranModelInsertWaypoint,          &
        pflotranModelDeleteWaypoint,          &
        pflotranModelNSurfCells3DDomain,      &
@@ -131,7 +132,7 @@ contains
   ! author: Gautam Bisht
   ! date: 9/10/2010
   ! ************************************************************************** !
-  function pflotranModelCreate(mpicomm)
+  function pflotranModelCreate(mpicomm, pflotran_prefix)
 
     use Simulation_module
     use Realization_class
@@ -149,6 +150,7 @@ contains
     implicit none
 
     PetscInt, intent(in) :: mpicomm
+    character(len=256), intent(in) :: pflotran_prefix
 
     type(pflotran_model_type), pointer :: pflotranModelCreate
 
@@ -225,6 +227,19 @@ contains
     call InputGetCommandLineString(string, pflotran_model%option%input_prefix, &
                                   input_prefix_option_found, pflotran_model%option)
   
+    ! NOTE(bja) 2013-06-25 : external driver must provide an input
+    ! prefix string. If the driver wants to use pflotran.in, then it
+    ! should explicitly request that.
+    if (len(trim(pflotran_prefix)) > 1) then
+       pflotranin_option_found = .false.
+       input_prefix_option_found = .true.
+       pflotran_model%option%input_prefix = trim(pflotran_prefix)
+    else
+       pflotran_model%option%io_buffer = 'The external driver must provide the ' // &
+            'pflotran input file prefix.'
+       call printErrMsg(pflotran_model%option)
+    end if
+
     if (pflotranin_option_found .and. input_prefix_option_found) then
       pflotran_model%option%io_buffer = 'Cannot specify both "-pflotranin" and ' // &
         '"-input_prefix" on the command lines.'
@@ -481,6 +496,32 @@ contains
 #endif
 
   end subroutine pflotranModelStepperRunInit
+
+
+  ! ************************************************************************** !
+  !
+  ! pflotranModelStepperCheckpoint: wrapper around StepperCheckpoint
+  !
+  ! NOTE(bja, 2013-06-27) : the date stamp is 32 characters which
+  ! should correspond to pflotran's MAXWORDLENGTH, but doesn't in this
+  ! branch...
+  !
+  ! **************************************************************************
+  subroutine pflotranModelStepperCheckpoint(pflotran_model, date_stamp)
+
+    use Timestepper_module, only : StepperCheckpoint
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: pflotran_model
+    character(len=32), intent(in) :: date_stamp
+
+    call StepperCheckpoint(pflotran_model%realization, &
+         pflotran_model%simulation%flow_stepper, &
+         pflotran_model%simulation%tran_stepper, &
+         NEG_ONE_INTEGER, date_stamp)
+
+  end subroutine pflotranModelStepperCheckpoint
 
 
   ! ************************************************************************** !
