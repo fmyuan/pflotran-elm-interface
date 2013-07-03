@@ -517,7 +517,8 @@ subroutine TimestepperInitializeRun(realization,master_stepper, &
   if (associated(flow_stepper)) then
     if (.not.associated(flow_stepper%cur_waypoint)) then
       option%io_buffer = &
-        'Null flow waypoint list; final time likely equal to start time.'
+        'Null flow waypoint list; final time likely equal to start time ' // &
+        'or simulation time needs to be extended on a restart.'
       call printMsg(option)
       init_status = TIMESTEPPER_INIT_FAIL
       return

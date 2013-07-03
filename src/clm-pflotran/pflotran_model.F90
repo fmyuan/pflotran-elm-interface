@@ -112,6 +112,7 @@ module pflotran_model_module
        pflotranModelGetUpdatedStates,        &
        pflotranModelStepperRunInit,          &
        pflotranModelStepperRunTillPauseTime, &
+       pflotranModelSetupRestart,            &
        pflotranModelStepperRunFinalize,      &
        pflotranModelStepperCheckpoint,       &
        pflotranModelInsertWaypoint,          &
@@ -1822,6 +1823,41 @@ end subroutine pflotranModelSetICs
     pflotran_model%pause_time_2 = pause_time + 100.0d0
 
   end subroutine pflotranModelStepperRunTillPauseTime
+
+  ! ************************************************************************** !
+  !
+  !  pflotranModelSetupRestart()
+  !
+  !  This checks to see if a restart file stamp was provided by the
+  !  driver. If so, we set the restart flag and reconstruct the
+  !  restart file name. The actual restart is handled by the standard
+  !  pflotran mechanism in TimeStepperInitializeRun()
+  !
+  !  NOTE: this must be called between pflotranModelCreate() and
+  !  pflotranModelStepperRunInit()
+  !
+  ! ************************************************************************** !
+  subroutine pflotranModelSetupRestart(pflotran_model, restart_stamp)
+
+    use Option_module
+    use String_module
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: pflotran_model
+    ! NOTE(bja 2013-07-02) this version of pflotran doesn't set
+    ! MAXWORDLENGTH to 32 as expected...
+    character(len=32) :: restart_stamp
+
+    if (.not. StringNull(restart_stamp)) then
+       pflotran_model%option%restart_flag = PETSC_TRUE
+       pflotran_model%option%restart_filename = &
+            trim(pflotran_model%option%global_prefix) // &
+            trim(pflotran_model%option%group_prefix) // &
+            '.' // trim(restart_stamp) // '.chk'
+    end if
+
+  end subroutine pflotranModelSetupRestart
 
   ! ************************************************************************** !
   ! pflotranModelUpdateSourceSink: Update the source/sink term
