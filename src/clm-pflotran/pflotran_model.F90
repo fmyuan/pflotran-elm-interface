@@ -743,7 +743,7 @@ end subroutine pflotranModelSetICs
           rich_aux_var%bc_lambda = bc_lambda
         case(TH_MODE)
           th_aux_var => th_aux_vars(local_id)
-          th_aux_var%bc_alpha = bc_alpha
+          th_aux_var%bc_alpha = min(bc_alpha,10.d-4)
           th_aux_var%bc_lambda = bc_lambda
       end select
 
