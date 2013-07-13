@@ -182,7 +182,7 @@ end subroutine RichardsUpdateCellPressure
 !   use Grid_module
 !   use Connection_module
 !   use MFD_module
-!   use MFD_aux_module
+!   use MFD_Aux_module
 !   
 !   implicit none
 ! 
@@ -319,7 +319,7 @@ subroutine RichardsUpdateCellPressurePatch(realization)
   use Grid_module
   use Connection_module
   use MFD_module
-  use MFD_aux_module
+  use MFD_Aux_module
   
   implicit none
 
@@ -437,7 +437,7 @@ subroutine RichardsUpdateAuxVarsPatchMFDLP(realization)
   use Material_module
   use Logging_module
   use MFD_module
-  use MFD_aux_module
+  use MFD_Aux_module
   
   implicit none
 
@@ -671,6 +671,7 @@ use Logging_module
   use Option_module
   use Grid_module
   use Connection_module
+  use Mass_Transfer_module, only : mass_transfer_type  
 
   implicit none
 
@@ -680,12 +681,13 @@ use Logging_module
   Vec :: xx
   Vec :: r
   type(realization_type) :: realization
+  PetscReal, pointer :: v_p(:)
   PetscViewer :: viewer
   PetscErrorCode :: ierr
 
 #if DASVYAT
 
-  PetscInt :: i, iface
+  PetscInt :: i, iface, icell
   PetscReal, pointer :: flow_xx_loc_p(:), r_p(:)
   PetscReal :: rnorm
   
@@ -693,6 +695,7 @@ use Logging_module
   type(field_type), pointer :: field
   type(option_type), pointer :: option
   type(connection_set_type), pointer :: conn
+  type(mass_transfer_type), pointer :: cur_mass_transfer
   
   field => realization%field
   discretization => realization%discretization
@@ -732,6 +735,23 @@ use Logging_module
   ! pass #2 for boundary and source data
    call RichardsResidualPatchMFDLP2(snes,xx,r,realization,ierr)
   !call RichardsCheckMassBalancePatch(realization)
+
+  ! Mass Transfer
+  if (associated(realization%flow_mass_transfer_list)) then
+    cur_mass_transfer => realization%flow_mass_transfer_list
+    call VecGetArrayF90(field%flow_r_loc_faces,r_p,ierr)
+    do
+      if (.not.associated(cur_mass_transfer)) exit
+      call VecGetArrayF90(cur_mass_transfer%vec,v_p,ierr)
+      do icell=1,realization%patch%grid%nlmax
+        r_p(icell+realization%patch%grid%ngmax_faces) = &
+            r_p(icell+realization%patch%grid%ngmax_faces) + v_p(icell)
+      enddo
+      call VecRestoreArrayF90(cur_mass_transfer%vec,v_p,ierr)
+      cur_mass_transfer => cur_mass_transfer%next
+    enddo
+    call VecRestoreArrayF90(field%flow_r_loc_faces,r_p,ierr)
+  endif  
 
    call VecScatterBegin( discretization%MFD%scatter_gtol_LP, field%flow_r_loc_faces, r, &
                                 ADD_VALUES,SCATTER_REVERSE, ierr)
@@ -965,7 +985,7 @@ subroutine RichardsResidualPatchMFD2(snes,xx,r,realization,ierr)
   use Field_module
   use Debug_module
   use MFD_module
-  use MFD_aux_module
+  use MFD_Aux_module
   
   implicit none
 
@@ -1459,7 +1479,7 @@ subroutine RichardsResidualPatchMFDLP2(snes,xx,r,realization,ierr)
   use Field_module
   use Debug_module
   use MFD_module
-  use MFD_aux_module
+  use MFD_Aux_module
   
   implicit none
 
@@ -1901,7 +1921,7 @@ end subroutine RichardsJacobianMFDLP
 subroutine RichardsJacobianPatchMFD (snes,xx,A,B,flag,realization,ierr)
        
   use Water_EOS_module
-  use mfd_aux_module
+  use MFD_Aux_module
   use Connection_module
   use Realization_class
   use Option_module
@@ -2097,7 +2117,7 @@ end subroutine RichardsJacobianPatchMFD
 subroutine RichardsJacobianPatchMFDLP (snes,xx,A,B,flag,realization,ierr)
        
   use Water_EOS_module
-  use mfd_aux_module
+  use MFD_Aux_module
   use Connection_module
   use Realization_class
   use Option_module

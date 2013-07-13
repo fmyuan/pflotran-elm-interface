@@ -14,9 +14,8 @@ module Init_module
 #include "finclude/petscpc.h"
 #include "finclude/petscts.h"
 
-
-  public :: Init, InitReadStochasticCardFromInput, InitReadInputFilenames
-
+  public :: Init
+  
 contains
 
 ! ************************************************************************** !
@@ -52,7 +51,7 @@ subroutine Init(simulation)
   use Condition_Control_module
   
   use Flash2_module
-  use MPHASE_module
+  use Mphase_module
   use Immis_module
   use Miscible_module
   use Richards_module
@@ -77,7 +76,7 @@ subroutine Init(simulation)
     
 #ifdef SURFACE_FLOW
   use Surface_Field_module
-  use Surface_Flow_Module
+  use Surface_Flow_module
   use Surface_Global_module
   use Surface_Init_module
   use Surface_Realization_class
@@ -139,8 +138,6 @@ subroutine Init(simulation)
   surf_field        => surf_realization%surf_field  
 #endif
   
-  option%init_stage = PETSC_TRUE
-
   nullify(flow_solver)
   nullify(tran_solver)
   
@@ -450,7 +447,7 @@ subroutine Init(simulation)
     call SNESGetLineSearch(flow_solver%snes, linesearch, ierr)
     call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC, ierr)
     ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
-    if (option%verbosity >= 1) then
+    if (option%verbosity >= 2) then
       string = '-flow_snes_view'
       call PetscOptionsInsertString(string, ierr)
     endif
@@ -551,92 +548,24 @@ subroutine Init(simulation)
 #ifdef SURFACE_FLOW
     if(option%nsurfflowdof>0) then
 
+      ! Setup PETSc TS for explicit surface flow solution
+      call printMsg(option,"  Beginning setup of SURF FLOW TS ")
 
-      if(option%surf_flow_explicit) then
+      call SolverCreateTS(surf_flow_solver,option%mycomm)
+      call TSSetProblemType(surf_flow_solver%ts,TS_NONLINEAR,ierr)
+      select case(option%iflowmode)
+        case (RICHARDS_MODE)
+          call TSSetRHSFunction(surf_flow_solver%ts,PETSC_NULL_OBJECT, &
+                                SurfaceFlowRHSFunction, &
+                                simulation%surf_realization,ierr)
+        case (TH_MODE)
+          call TSSetRHSFunction(surf_flow_solver%ts,PETSC_NULL_OBJECT, &
+                                SurfaceTHRHSFunction, &
+                                simulation%surf_realization,ierr)
+      end select
+      call TSSetDuration(surf_flow_solver%ts,ONE_INTEGER, &
+                         simulation%surf_realization%waypoints%last%time,ierr)
 
-        ! Setup PETSc TS for explicit surface flow solution
-        call printMsg(option,"  Beginning setup of SURF FLOW TS ")
-
-        call SolverCreateTS(surf_flow_solver,option%mycomm)
-        call TSSetProblemType(surf_flow_solver%ts,TS_NONLINEAR,ierr)
-        select case(option%iflowmode)
-          case (RICHARDS_MODE)
-            call TSSetRHSFunction(surf_flow_solver%ts,PETSC_NULL_OBJECT, &
-                                  SurfaceFlowRHSFunction, &
-                                  simulation%surf_realization,ierr)
-          case (TH_MODE)
-            call TSSetRHSFunction(surf_flow_solver%ts,PETSC_NULL_OBJECT, &
-                                  SurfaceTHRHSFunction, &
-                                  simulation%surf_realization,ierr)
-        end select
-        call TSSetDuration(surf_flow_solver%ts,ONE_INTEGER, &
-                           simulation%surf_realization%waypoints%last%time,ierr)
-
-      else
-
-        ! Setup PETSc SNES for implicit surface flow solution
-        call printMsg(option,"  Beginning setup of SURF FLOW SNES ")
-
-        call SolverCreateSNES(surf_flow_solver,option%mycomm)
-        call SNESSetOptionsPrefix(surf_flow_solver%snes, "surf_flow_",ierr)
-        call SolverCheckCommandLine(surf_flow_solver)
-
-        if (surf_flow_solver%Jpre_mat_type == '') then
-          if (surf_flow_solver%J_mat_type /= MATMFFD) then
-            surf_flow_solver%Jpre_mat_type = surf_flow_solver%J_mat_type
-          else
-            surf_flow_solver%Jpre_mat_type = MATBAIJ
-          endif
-        endif
-
-        call DiscretizationCreateJacobian( &
-                                  simulation%surf_realization%discretization, &
-                                  NFLOWDOF, &
-                                  surf_flow_solver%Jpre_mat_type, &
-                                  surf_flow_solver%Jpre, &
-                                  option)
-
-        call MatSetOption(surf_flow_solver%Jpre,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE,ierr)
-        call MatSetOption(surf_flow_solver%Jpre,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)
-
-        call MatSetOptionsPrefix(surf_flow_solver%Jpre,"surf_flow_",ierr)
-
-        if (surf_flow_solver%J_mat_type /= MATMFFD) then
-          surf_flow_solver%J = surf_flow_solver%Jpre
-        endif
-
-        call SNESSetFunction(surf_flow_solver%snes,surf_field%flow_r, &
-                              SurfaceFlowResidual, &
-                              simulation%surf_realization,ierr)
-
-        call SNESSetJacobian(surf_flow_solver%snes,surf_flow_solver%J, &
-                            surf_flow_solver%Jpre, &
-                            SurfaceFlowJacobian,simulation%surf_realization,ierr)
-        ! by default turn off line search
-        call SNESGetLineSearch(surf_flow_solver%snes, linesearch, ierr)
-        call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC, ierr)
-
-        ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
-        if (option%verbosity >= 1) then
-          string = '-surf_flow_snes_view'
-          call PetscOptionsInsertString(string, ierr)
-        endif
-
-        call SolverSetSNESOptions(surf_flow_solver)
-
-        option%io_buffer = 'Solver: ' // trim(surf_flow_solver%ksp_type)
-        call printMsg(option)
-        option%io_buffer = 'Preconditioner: ' // trim(surf_flow_solver%pc_type)
-        call printMsg(option)
-
-        ! shell for custom convergence test.  The default SNES convergence test
-        ! is call within this function.
-        surf_flow_stepper%convergence_context => &
-          ConvergenceContextCreate(surf_flow_solver,option,grid)
-        call SNESSetConvergenceTest(surf_flow_solver%snes,ConvergenceTest, &
-                                    surf_flow_stepper%convergence_context, &
-                                    PETSC_NULL_FUNCTION,ierr)
-      endif ! if(option%surface_flow_explicit)
     endif ! if(option%nsurfflowdof>0)
 #endif
 
@@ -711,7 +640,7 @@ subroutine Init(simulation)
       endif
       
       ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
-      if (option%verbosity >= 1) then
+      if (option%verbosity >= 2) then
         string = '-tran_snes_view'
         call PetscOptionsInsertString(string, ierr)
       endif
@@ -918,9 +847,35 @@ subroutine Init(simulation)
   endif
   if (realization%output_option%print_permeability) then
     ! add permeability to header
-    call OutputVariableAddToList( &
-           realization%output_option%output_variable_list, &
-           'Permeability X',OUTPUT_GENERIC,'m^2',PERMEABILITY)
+    if (MaterialAnisotropyExists(realization%material_properties)) then
+      call OutputVariableAddToList( &
+             realization%output_option%output_variable_list, &
+             'Permeability X',OUTPUT_GENERIC,'m^2',PERMEABILITY)
+      call OutputVariableAddToList( &
+             realization%output_option%output_variable_list, &
+             'Permeability Y',OUTPUT_GENERIC,'m^2',PERMEABILITY_Y)
+      call OutputVariableAddToList( &
+             realization%output_option%output_variable_list, &
+             'Permeability Z',OUTPUT_GENERIC,'m^2',PERMEABILITY_Z)
+#ifdef DASVYAT
+      if(realization%discretization%itype == STRUCTURED_GRID_MIMETIC .or. &
+         realization%discretization%itype == UNSTRUCTURED_GRID_MIMETIC) then
+        call OutputVariableAddToList( &
+               realization%output_option%output_variable_list, &
+               'Permeability XY',OUTPUT_GENERIC,'m^2',PERMEABILITY_XY)
+        call OutputVariableAddToList( &
+               realization%output_option%output_variable_list, &
+               'Permeability XZ',OUTPUT_GENERIC,'m^2',PERMEABILITY_XZ)
+        call OutputVariableAddToList( &
+               realization%output_option%output_variable_list, &
+               'Permeability YZ',OUTPUT_GENERIC,'m^2',PERMEABILITY_YZ)
+      endif
+#endif
+    else
+      call OutputVariableAddToList( &
+             realization%output_option%output_variable_list, &
+             'Permeability',OUTPUT_GENERIC,'m^2',PERMEABILITY)
+    endif
   endif
   if (realization%output_option%print_iproc) then
     output_variable => OutputVariableCreate('Processor ID',OUTPUT_DISCRETE,'', &
@@ -967,14 +922,6 @@ subroutine Init(simulation)
                                OptionPrintToFile(option),option%fid_out, &
                                string)
   endif    
-#ifdef SURFACE_FLOW
-  if (associated(surf_flow_solver).and.(.not.option%surf_flow_explicit)) then
-    string = 'Surface Flow Newton Solver:'
-    call SolverPrintNewtonInfo(surf_flow_solver,OptionPrintToScreen(option), &
-                               OptionPrintToFile(option),option%fid_out, &
-                               string)
-  endif
-#endif
   if (associated(flow_solver)) then
     string = 'Flow Linear Solver:'
     call SolverPrintLinearInfo(flow_solver,string,option)
@@ -984,11 +931,7 @@ subroutine Init(simulation)
     call SolverPrintLinearInfo(tran_solver,string,option)
   endif    
 #ifdef SURFACE_FLOW
-  if (associated(surf_flow_solver).and.(.not.option%surf_flow_explicit)) then
-    string = 'Surface Flow Linear Solver:'
-    call SolverPrintLinearInfo(surf_flow_solver,string,option)
-  endif
-  if (associated(surf_flow_solver).and.option%surf_flow_explicit) then
+  if (associated(surf_flow_solver)) then
     string = 'Surface Flow TS Solver:'
     if (OptionPrintToScreen(option)) then
       write(*,*),' '
@@ -1097,46 +1040,6 @@ subroutine Init(simulation)
   call PetscLogEventEnd(logging%event_init,ierr)
 
 end subroutine Init
-
-! ************************************************************************** !
-!
-! InitReadStochasticCardFromInput: Reads stochastic card from input file
-! author: Glenn Hammond
-! date: 02/04/09
-!
-! ************************************************************************** !
-subroutine InitReadStochasticCardFromInput(stochastic,option)
-
-  use Option_module
-  use Input_module
-  use Stochastic_Aux_module
-
-  implicit none
-  
-  type(stochastic_type), pointer :: stochastic
-  type(option_type) :: option
-  
-  character(len=MAXSTRINGLENGTH) :: string
-  type(input_type), pointer :: input
-  PetscBool :: print_warning
-  
-  input => InputCreate(IN_UNIT,option%input_filename,option)
-
-  ! MODE information
-  string = "STOCHASTIC"
-  print_warning = PETSC_FALSE
-  call InputFindStringInFile(input,option,string,print_warning)
-
-  if (.not.InputError(input)) then
-    if (.not.associated(stochastic)) then
-      stochastic => StochasticCreate()
-    endif
-    call StochasticRead(stochastic,input,option)
-  endif
-  
-  call InputDestroy(input)
-
-end subroutine InitReadStochasticCardFromInput
 
 ! ************************************************************************** !
 !
@@ -1373,7 +1276,9 @@ subroutine InitReadInput(simulation)
   use Solver_module
   use Material_module
   use Saturation_Function_module  
-  use Dataset_Aux_module
+  use Dataset_Base_class
+  use Dataset_module
+  use Dataset_Common_HDF5_class
   use Fluid_module
   use Realization_class
   use Timestepper_module
@@ -1459,8 +1364,9 @@ subroutine InitReadInput(simulation)
   type(reaction_type), pointer :: reaction
   type(output_option_type), pointer :: output_option
   type(uniform_velocity_dataset_type), pointer :: uniform_velocity_dataset
-  type(dataset_type), pointer :: dataset
-  type(mass_transfer_type), pointer :: mass_transfer
+  class(dataset_base_type), pointer :: dataset
+  type(mass_transfer_type), pointer :: flow_mass_transfer
+  type(mass_transfer_type), pointer :: rt_mass_transfer
   type(input_type), pointer :: input
 
   nullify(flow_stepper)
@@ -1680,14 +1586,24 @@ subroutine InitReadInput(simulation)
         nullify(coupler)        
       
 !....................
-      case ('MASS_TRANSFER')
-        mass_transfer => MassTransferCreate()
-        call InputReadWord(input,option,mass_transfer%name,PETSC_TRUE)
-        call InputDefaultMsg(input,option,'Mass Transfer name') 
-        call MassTransferRead(mass_transfer,input,option)
-        call MassTransferAddToList(mass_transfer, &
-                                   realization%mass_transfer_list)
-        nullify(mass_transfer)        
+      case ('FLOW_MASS_TRANSFER')
+        flow_mass_transfer => MassTransferCreate()
+        call InputReadWord(input,option,flow_mass_transfer%name,PETSC_TRUE)
+        call InputDefaultMsg(input,option,'Flow Mass Transfer name') 
+        call MassTransferRead(flow_mass_transfer,input,option)
+        call MassTransferAddToList(flow_mass_transfer, &
+                                   realization%flow_mass_transfer_list)
+        nullify(flow_mass_transfer)
+      
+!....................
+      case ('RT_MASS_TRANSFER')
+        rt_mass_transfer => MassTransferCreate()
+        call InputReadWord(input,option,rt_mass_transfer%name,PETSC_TRUE)
+        call InputDefaultMsg(input,option,'RT Mass Transfer name')
+        call MassTransferRead(rt_mass_transfer,input,option)
+        call MassTransferAddToList(rt_mass_transfer, &
+                                   realization%rt_mass_transfer_list)
+        nullify(rt_mass_transfer)
       
 !....................
       case ('STRATIGRAPHY','STRATA')
@@ -1697,12 +1613,10 @@ subroutine InitReadInput(simulation)
         nullify(strata)
         
 !.....................
-      case ('DATASET') 
-        dataset => DatasetCreate()
-        call InputReadWord(input,option,dataset%name,PETSC_TRUE)
-        call InputDefaultMsg(input,option,'Dataset name') 
-        call DatasetRead(dataset,input,option)
-        call DatasetAddToList(dataset,realization%datasets)
+      case ('DATASET')
+        nullify(dataset)
+        call DatasetRead(input,dataset,option)
+        call DatasetBaseAddToList(dataset,realization%datasets)
         nullify(dataset)
         
 !....................
@@ -3919,5 +3833,5 @@ subroutine InitReadVelocityField(realization)
   enddo
   
 end subroutine InitReadVelocityField
-            
+
 end module Init_module

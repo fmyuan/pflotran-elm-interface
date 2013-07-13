@@ -1,5 +1,9 @@
 #include "finclude/petscsys.h"
 
+! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS MODIFIED TO PREVENT
+! COMPATIBILITY ISSUES - geh.
+PetscInt, parameter :: CHECKPOINT_REVISION_NUMBER = 5
+
 PetscInt, parameter :: MAXHEADERLENGTH = 4096
 PetscInt, parameter :: MAXSTRINGLENGTH = 512
 PetscInt, parameter :: MAXWORDLENGTH = 512
@@ -127,6 +131,8 @@ PetscInt, parameter :: SATURATION_BC = 15
 PetscInt, parameter :: HET_VOL_RATE_SS = 16
 PetscInt, parameter :: HET_MASS_RATE_SS = 17
 PetscInt, parameter :: HET_DIRICHLET = 18
+PetscInt, parameter :: ENERGY_RATE_SS = 19
+PetscInt, parameter :: HET_ENERGY_RATE_SS = 20
 PetscInt, parameter :: WELL_SS = 100
 
 ! source/sink scaling options
@@ -213,4 +219,10 @@ PetscInt, parameter :: LSM_FLUX       = 1
 PetscInt, parameter :: PRINT_SEC_TEMP =           0
 PetscInt, parameter :: PRINT_SEC_CONC =           1
 PetscInt, parameter :: PRINT_SEC_MIN_VOLFRAC =    2
+
+
+PetscInt, parameter :: PROCEED = 0
+PetscInt, parameter :: DONE = 1
+PetscInt, parameter :: FAIL = 2
+
 #define HASH

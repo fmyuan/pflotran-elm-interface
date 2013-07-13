@@ -1,6 +1,6 @@
 module Material_module
  
-  use Dataset_Aux_module
+  use Dataset_Common_HDF5_class
 
   implicit none
 
@@ -16,10 +16,10 @@ module Material_module
     PetscReal :: vertical_anisotropy_ratio ! (vertical / horizontal)
     PetscReal :: permeability_scaling_factor
     character(len=MAXWORDLENGTH) :: permeability_dataset_name
-    type(dataset_type), pointer :: permeability_dataset
+    class(dataset_common_hdf5_type), pointer :: permeability_dataset
     PetscReal :: porosity
     character(len=MAXWORDLENGTH) :: porosity_dataset_name
-    type(dataset_type), pointer :: porosity_dataset
+    class(dataset_common_hdf5_type), pointer :: porosity_dataset
     PetscReal :: tortuosity
     PetscInt :: saturation_function_id
     character(len=MAXWORDLENGTH) :: saturation_function_name
@@ -79,6 +79,7 @@ module Material_module
             MaterialPropGetPtrFromList, &
             MaterialPropGetPtrFromArray, &
             MaterialPropConvertListToArray, &
+            MaterialAnisotropyExists, &
             MaterialPropertyRead
   
 contains
@@ -101,7 +102,8 @@ function MaterialPropertyCreate()
   allocate(material_property)
   material_property%id = 0
   material_property%name = ''
-  material_property%permeability = 0.d0
+  ! initialize to -999.d0 to catch bugs
+  material_property%permeability = -999.d0
   material_property%isotropic_permeability = PETSC_TRUE
   material_property%vertical_anisotropy_ratio = 0.d0
   material_property%permeability_scaling_factor = 0.d0
@@ -110,7 +112,8 @@ function MaterialPropertyCreate()
   material_property%permeability_min_scale_fac = 1.d0
   material_property%permeability_dataset_name = ''
   nullify(material_property%permeability_dataset)
-  material_property%porosity = 0.d0
+  ! initialize to -999.d0 to catch bugs
+  material_property%porosity = -999.d0
   material_property%porosity_dataset_name = ''
   nullify(material_property%porosity_dataset)
   material_property%tortuosity = 1.d0
@@ -178,7 +181,6 @@ subroutine MaterialPropertyRead(material_property,input,option)
   
   character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: string
-  type(dataset_type), pointer :: dataset
 
   PetscInt :: length
 
@@ -779,6 +781,38 @@ function MaterialPropGetPtrFromArray(material_property_name, &
   enddo
   
 end function MaterialPropGetPtrFromArray
+
+! ************************************************************************** !
+!
+! MaterialAnisotropyExists: Determines whether any of the material 
+!                           properties are anisotropic
+! author: Glenn Hammond
+! date: 07/11/13
+!
+! ************************************************************************** !
+function MaterialAnisotropyExists(material_property_list)
+
+  implicit none
+  
+  type(material_property_type), pointer :: material_property_list
+
+  PetscBool :: MaterialAnisotropyExists
+  
+  type(material_property_type), pointer :: cur_material_property
+    
+  MaterialAnisotropyExists = PETSC_FALSE
+  
+  cur_material_property => material_property_list
+  do 
+    if (.not.associated(cur_material_property)) exit
+    if (.not. cur_material_property%isotropic_permeability) then
+      MaterialAnisotropyExists = PETSC_TRUE
+      return
+    endif
+    cur_material_property => cur_material_property%next
+  enddo
+  
+end function MaterialAnisotropyExists
 
 ! ************************************************************************** !
 !

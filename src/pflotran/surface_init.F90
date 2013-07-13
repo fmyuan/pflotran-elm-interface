@@ -207,7 +207,9 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
   use Grid_module
   use Structured_Grid_module
   use Unstructured_Grid_module
-  use Dataset_Aux_module
+  use Dataset_Base_class
+  use Dataset_module
+  use Dataset_Common_HDF5_class
   use Unstructured_Grid_Aux_module
   use Discretization_module
   use Region_module
@@ -238,7 +240,7 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
   type(flow_condition_type), pointer           :: flow_condition
   type(coupler_type), pointer                  :: coupler
   type(strata_type), pointer                   :: strata
-  type(dataset_type), pointer                  :: dataset
+  class(dataset_base_type), pointer            :: dataset
 
   type(patch_type), pointer                    :: patch
   type(output_option_type), pointer            :: output_option
@@ -754,14 +756,22 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
         enddo
       !.........................................................................
       case ('SURF_DATASET')
-      dataset => DatasetCreate()
-      call InputReadWord(input,option,dataset%name,PETSC_TRUE)
-      call InputDefaultMsg(input,option,'Dataset name')
-      call DatasetRead(dataset,input,option)
-      call DatasetAddToList(dataset,surf_realization%datasets)
+      nullify(dataset)
+      call DatasetRead(input,dataset,option)
+      call DatasetBaseAddToList(dataset,surf_realization%datasets)
       nullify(dataset)
       
       !.........................................................................
+      case ('SURF_RESTART')
+        option%surf_restart_flag = PETSC_TRUE
+        call InputReadNChars(input,option,option%surf_restart_filename,MAXSTRINGLENGTH, &
+                             PETSC_TRUE)
+        call InputErrorMsg(input,option,'SURF_RESTART','Surfae restart file name') 
+        call InputReadDouble(input,option,option%restart_time)
+        if (input%ierr == 0) then
+          call printErrMsg(option,'Setting time to value not supported in surface-flow')
+        endif
+
       case default
         option%io_buffer = 'Keyword ' // trim(word) // ' in input file ' // &
                            'not recognized'
@@ -769,6 +779,11 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
 
     end select
   enddo
+
+  if(option%restart_flag .neqv. option%surf_restart_flag) then
+    option%io_buffer='option%restart_flag /= option%surf_restart_flag'
+    call printErrMsg(option)
+  endif
 
 end subroutine SurfaceInitReadInput
 

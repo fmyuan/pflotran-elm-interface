@@ -347,6 +347,7 @@ subroutine TimestepperInitializeRun(realization,master_stepper, &
   type(stepper_type), pointer :: surf_flow_stepper
   type(surface_realization_type), pointer :: surf_realization
   PetscBool :: plot_flag_surf, transient_plot_flag_surf
+  PetscBool :: surf_flow_read
 #endif
 
   type(option_type), pointer :: option
@@ -392,6 +393,12 @@ subroutine TimestepperInitializeRun(realization,master_stepper, &
   if (option%restart_flag) then
     call TimestepperRestart(realization,flow_stepper,tran_stepper, &
                             flow_read,transport_read,activity_coefs_read)
+#ifdef SURFACE_FLOW
+    surf_flow_read = PETSC_FALSE
+    call TimestepperRestartSurface(surf_realization,surf_flow_stepper, &
+                                   surf_flow_read)
+#endif
+
   else if (master_stepper%init_to_steady_state) then
     option%print_screen_flag = OptionPrintToScreen(option)
     option%print_file_flag = OptionPrintToFile(option)
@@ -440,9 +447,9 @@ subroutine TimestepperInitializeRun(realization,master_stepper, &
 
   ! turn on flag to tell RTUpdateSolution that the code is not timestepping
 #ifdef SURFACE_FLOW
-  call StepperUpdateSolution(realization,surf_realization)
+  call StepperUpdateSolution(realization,surf_realization,PETSC_FALSE)
 #else
-  call StepperUpdateSolution(realization)
+  call StepperUpdateSolution(realization,PETSC_FALSE)
 #endif
 
   if (option%jumpstart_kinetic_sorption .and. option%time < 1.d-40) then
@@ -479,9 +486,10 @@ subroutine TimestepperInitializeRun(realization,master_stepper, &
   endif
 
   ! print initial condition output if not a restarted sim
-  call OutputInit(realization,master_stepper%steps)
+  call OutputInit(master_stepper%steps)
 #ifdef SURFACE_FLOW
-  call OutputSurfaceInit(realization,master_stepper%steps)
+!  call OutputSurfaceInit(realization,master_stepper%steps)
+  call OutputSurfaceInit(master_stepper%steps)
 #endif
   if (output_option%plot_number == 0 .and. &
       master_stepper%max_time_step >= 0 .and. &
@@ -621,6 +629,7 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
   PetscBool :: failure, surf_failure
   PetscReal :: tran_dt_save, flow_t0
   PetscReal :: flow_to_tran_ts_ratio
+  PetscReal :: tmp
 
   PetscLogDouble :: stepper_start_time, current_time, average_step_time
   PetscErrorCode :: ierr
@@ -670,11 +679,10 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
       if (associated(surf_flow_stepper) .and. .not.run_flow_as_steady_state) then
 
         ! Update model coupling time
-        if(option%surf_flow_explicit) then
-          call StepperUpdateSurfaceFlowDTExplicit(surf_realization,option)
-        endif
+        call StepperUpdateSurfaceFlowDTExplicit(realization,surf_realization,option)
         call SetSurfaceSubsurfaceCouplingTime(flow_stepper,tran_stepper,surf_flow_stepper, &
                             option,plot_flag,transient_plot_flag,surf_plot_flag)
+        surf_plot_flag = plot_flag
 
         ! Update subsurface pressure of top soil layer for surface flow model
         if (surf_realization%option%subsurf_surf_coupling == SEQ_COUPLED) then
@@ -694,15 +702,17 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
           if (surf_realization%option%subsurf_surf_coupling == SEQ_COUPLED) then
             select case(option%iflowmode)
               case (RICHARDS_MODE)
-                call SurfaceFlowSurf2SubsurfFlux(realization,surf_realization)
+                call SurfaceFlowSurf2SubsurfFlux(realization,surf_realization, &
+                                                 tmp)
               case (TH_MODE)
                call SurfaceTHSurf2SubsurfFlux(realization,surf_realization)
             end select
           endif
           
           ! Solve surface flow
-          call StepperStepSurfaceFlowDT(surf_realization,surf_flow_stepper, &
-                                        surf_failure)
+          call StepperStepSurfaceFlowExplicitDT(surf_realization, &
+                                                surf_flow_stepper, &
+                                                surf_failure)
 
           if(surf_failure) return
           ! update time for surface flow model
@@ -716,9 +726,7 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
           call StepperUpdateSurfaceFlowSolution(surf_realization)
 
           ! Set new target time for surface model
-          if(option%surf_flow_explicit) then
-            call StepperUpdateSurfaceFlowDTExplicit(surf_realization,option)
-          endif
+          call StepperUpdateSurfaceFlowDTExplicit(realization,surf_realization,option)
           call StepperSetSurfaceFlowTargetTimes(surf_flow_stepper, &
                                           option,plot_flag,transient_plot_flag)
         enddo
@@ -737,8 +745,8 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
             call SurfaceFlowUpdateSubsurfSS(realization,surf_realization, &
                   option%surf_subsurf_coupling_time-option%flow_time)
           case (TH_MODE)
-!            call SurfaceTHUpdateSubsurfSS(realization,surf_realization, &
-!                  option%surf_subsurf_coupling_time-option%flow_time)
+            call SurfaceTHUpdateSubsurfSS(realization,surf_realization, &
+                  option%surf_subsurf_coupling_time-option%flow_time)
         end select
 
         do
@@ -848,7 +856,7 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
         if ((tran_stepper%target_time-option%tran_time) / &
             option%tran_time < 1.d-10) exit
 
-        call StepperUpdateTransportSolution(realization)
+        call StepperUpdateTransportSolution(realization,PETSC_TRUE)
         
         ! if still stepping, update the time step size based on convergence
         ! criteria
@@ -871,7 +879,8 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
       ! if substepping occured and time step size was modified to 
       ! to match the stepper target time, need to set the transport
       ! step size back to the pre-modified value
-      if (tran_dt_save > -998.d0) option%tran_dt = tran_dt_save
+      !geh: moved below
+      !geh: if (tran_dt_save > -998.d0) option%tran_dt = tran_dt_save
       option%tran_time = tran_stepper%target_time
       call PetscLogStagePop(ierr)
     endif
@@ -884,10 +893,17 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
     
     option%time = master_stepper%target_time
 #ifdef SURFACE_FLOW
-    call StepperUpdateSolution(realization,surf_realization)
+    call StepperUpdateSolution(realization,surf_realization,PETSC_TRUE)
 #else
-    call StepperUpdateSolution(realization)
+    call StepperUpdateSolution(realization,PETSC_TRUE)
 #endif
+
+    if (associated(tran_stepper)) then
+      !geh: must revert tran_dt back after update of solution.  Otherwise,
+      !     explicit update of mineral vol fracs, etc. will be updated based
+      !     on incorrect dt
+      if (tran_dt_save > -998.d0) option%tran_dt = tran_dt_save
+    endif
 
     ! if a time step cut has occured, need to set the below back to original values
     ! if they changed. 
@@ -912,6 +928,7 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
 !    endif
 #ifdef SURFACE_FLOW
     !plot_flag_surf = plot_flag
+    surf_plot_flag = plot_flag
     !transient_plot_flag_surf = transient_plot_flag
 #endif
     call Output(realization,plot_flag,transient_plot_flag)
@@ -923,11 +940,7 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
     call OutputSurface(surf_realization,realization,surf_plot_flag, &
                        transient_plot_flag)
     if(associated(surf_flow_stepper)) then
-      if(option%surf_flow_explicit) then
-        call StepperUpdateSurfaceFlowDTExplicit(surf_realization,option)
-      else
-        call StepperUpdateSurfaceFlowDT(surf_flow_stepper,option)
-      endif
+      call StepperUpdateSurfaceFlowDTExplicit(realization,surf_realization,option)
     endif
 #endif
 
@@ -951,6 +964,11 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
         mod(master_stepper%steps,option%checkpoint_frequency) == 0) then
       call StepperCheckpoint(realization,flow_stepper,tran_stepper, &
                              master_stepper%steps)  
+#ifdef SURFACE_FLOW
+      if(option%nsurfflowdof>0) &
+        call StepperCheckpointSurface(surf_realization,flow_stepper, &
+                                      master_stepper%steps)
+#endif
     endif
     
     ! if at end of waypoint list (i.e. cur_waypoint = null), we are done!
@@ -1028,6 +1046,11 @@ subroutine TimestepperFinalizeRun(realization,master_stepper,flow_stepper, &
   if (option%checkpoint_flag) then
     call StepperCheckpoint(realization,flow_stepper,tran_stepper, &
                            NEG_ONE_INTEGER)  
+#ifdef SURFACE_FLOW
+      if(option%nsurfflowdof>0) &
+        call StepperCheckpointSurface(surf_realization,flow_stepper, &
+                                      NEG_ONE_INTEGER)
+#endif
   endif
 
   if (OptionPrintToScreen(option)) then
@@ -1427,15 +1450,17 @@ end subroutine StepperUpdateSurfaceFlowDT
 !!
 !! date:
 ! ************************************************************************** !
-subroutine StepperUpdateSurfaceFlowDTExplicit(surf_realization,option)
+subroutine StepperUpdateSurfaceFlowDTExplicit(realization,surf_realization,option)
 
   use Surface_Realization_class
   use Surface_Flow_module
   use Surface_TH_module
   use Option_module
+  use Realization_class
   
   implicit none
 
+  type(realization_type) :: realization
   type(surface_realization_type), pointer :: surf_realization
   type(option_type) :: option
 
@@ -1444,6 +1469,8 @@ subroutine StepperUpdateSurfaceFlowDTExplicit(surf_realization,option)
 
   select case (option%iflowmode)
     case (RICHARDS_MODE)
+      if (surf_realization%option%subsurf_surf_coupling == SEQ_COUPLED) then
+      endif
       call SurfaceFlowComputeMaxDt(surf_realization,dt_max)
     case (TH_MODE)
       call SurfaceTHComputeMaxDt(surf_realization,dt_max)
@@ -1606,6 +1633,7 @@ subroutine StepperSetTargetTimes(flow_stepper,tran_stepper, &
 
 #ifdef SURFACE_FLOW
   if(associated(surf_flow_stepper)) then
+    surf_flow_stepper%prev_dt = option%surf_flow_dt
     if (option%surf_subsurf_coupling_flow_dt>0.d0) then
 
       !if next waypoint is a very close, increase the timestep to match it
@@ -1742,10 +1770,9 @@ subroutine StepperSetSurfaceFlowTargetTimes(surf_flow_stepper, &
 
   ! Cut timestep to avoid going pass the surface-subsurface coupling time
   if(option%subsurf_surf_coupling==SEQ_COUPLED) then
-    if((surf_flow_stepper%target_time-option%surf_subsurf_coupling_time) &
-        /option%surf_flow_dt>1.d-10) then
-      option%surf_flow_dt=option%surf_subsurf_coupling_time-option%surf_flow_time
-      surf_flow_stepper%target_time=option%surf_subsurf_coupling_time
+    if(target_time>option%surf_subsurf_coupling_time) then
+      dt=option%surf_subsurf_coupling_time-option%surf_flow_time
+      target_time=option%surf_subsurf_coupling_time
     endif
   endif
 
@@ -1867,7 +1894,7 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
 
   use Flash2_module, only : Flash2MaxChange, Flash2InitializeTimestep, &
                            Flash2TimeCut, Flash2UpdateReason
-  use MPHASE_module, only : MphaseMaxChange, MphaseInitializeTimestep, &
+  use Mphase_module, only : MphaseMaxChange, MphaseInitializeTimestep, &
                            MphaseTimeCut, MPhaseUpdateReason
   use Immis_module, only : ImmisMaxChange, ImmisInitializeTimestep, &
                            ImmisTimeCut, ImmisUpdateReason
@@ -1952,7 +1979,8 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
   endif
 
   if (option%ntrandof > 0) then ! store initial saturations for transport
-    call GlobalUpdateAuxVars(realization,TIME_T)
+    call GlobalUpdateAuxVars(realization,TIME_T, &
+                             stepper%target_time-option%flow_dt)
   endif
     
   select case(option%iflowmode)
@@ -2107,7 +2135,7 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
   stepper%num_linear_iterations = num_linear_iterations
 
   if (option%ntrandof > 0) then ! store final saturations, etc. for transport
-    call GlobalUpdateAuxVars(realization,TIME_TpDT)
+    call GlobalUpdateAuxVars(realization,TIME_TpDT,stepper%target_time)
   endif
     
 ! print screen output
@@ -2376,7 +2404,7 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
 
   use Flash2_module, only : Flash2MaxChange, Flash2InitializeTimestep, &
                            Flash2TimeCut, Flash2UpdateReason
-  use MPHASE_module, only : MphaseMaxChange, MphaseInitializeTimestep, &
+  use Mphase_module, only : MphaseMaxChange, MphaseInitializeTimestep, &
                            MphaseTimeCut, MPhaseUpdateReason
   use Immis_module, only : ImmisMaxChange, ImmisInitializeTimestep, &
                            ImmisTimeCut, ImmisUpdateReason
@@ -2478,7 +2506,8 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
     endif
 
     if (option%ntrandof > 0) then ! store initial saturations for transport
-      call GlobalUpdateAuxVars(realization,TIME_T)
+      call GlobalUpdateAuxVars(realization,TIME_T, &
+                               stepper%target_time-option%flow_dt)
     endif
     
     select case(option%iflowmode)
@@ -2749,7 +2778,7 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
   stepper%num_linear_iterations = num_linear_iterations
 
   if (option%ntrandof > 0) then ! store final saturations, etc. for transport
-    call GlobalUpdateAuxVars(realization,TIME_TpDT)
+    call GlobalUpdateAuxVars(realization,TIME_TpDT,stepper%target_time)
   endif
     
 ! print screen output
@@ -2857,208 +2886,14 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
 end subroutine StepperStepFlowDT
 #endif
 
-! ************************************************************************** !
-!
-! ************************************************************************** !
 #ifdef SURFACE_FLOW
-subroutine StepperStepSurfaceFlowDT(surf_realization,stepper,failure)
-  
-  use Surface_Realization_class
-  use Surface_Flow_module
-  use Discretization_module
-  use Option_module
-  use Solver_module
-  use Surface_Field_module
-  use Grid_module
-  use Output_module, only : Output
-  
-  implicit none
-  
-#include "finclude/petsclog.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscviewer.h"
-#include "finclude/petscsnes.h"
-
-  type(surface_realization_type) :: surf_realization
-  type(stepper_type)     :: stepper
-  PetscBool              :: failure
-  
-  PetscInt :: icut ! Tracks the number of time step reductions applied
-  PetscInt :: update_reason, tmp_int
-  PetscInt :: sum_newton_iterations, sum_linear_iterations
-  PetscInt :: num_newton_iterations, num_linear_iterations
-  PetscReal :: fnorm, scaled_fnorm, inorm, prev_norm, dif_norm, rel_norm
-  SNESConvergedReason :: snes_reason 
-  PetscErrorCode :: ierr
-  !PetscLogDouble :: start_time, end_time
-  PetscLogDouble :: log_start_time, log_end_time
-
-  PetscViewer :: viewer
-
-  type(option_type), pointer          :: option
-  type(surface_field_type), pointer   :: surf_field 
-  type(discretization_type), pointer  :: discretization 
-  type(solver_type), pointer          :: solver
-  character(len=MAXSTRINGLENGTH)      :: string
-
-  option         => surf_realization%option
-  discretization => surf_realization%discretization
-  surf_field     => surf_realization%surf_field
-  solver         => stepper%solver
-
-  icut = 0
-  sum_newton_iterations = 0
-  sum_linear_iterations = 0
-  prev_norm = 1.d20
-
-  if(option%surf_flow_explicit) then
-    call StepperStepSurfaceFlowExplicitDT(surf_realization,stepper,failure)
-    return
-  endif
-
-  if (option%print_screen_flag) then
-    write(*,'(/,2("=")," SURFACE_FLOW ",52("="))')
-  endif
-
-  select case(option%iflowmode)
-    case (RICHARDS_MODE)
-      call SurfaceFlowInitializeTimestep(surf_realization)
-    case default
-      option%io_buffer = 'ERROR: Incorrect iflowmode in SurfaceFlow'
-      call printErrMsgByRank(option)
-  end select
-
-  do
-    call PetscTime(log_start_time,ierr)
-    
-    select case(option%iflowmode)
-      case (RICHARDS_MODE)
-        call SNESSolve(solver%snes,PETSC_NULL_OBJECT,surf_field%flow_xx,ierr)
-      case default
-        option%io_buffer = 'ERROR: Incorrect iflowmode in SurfaceFlow'
-        call printErrMsgByRank(option)
-    end select
-
-    call PetscTime(log_end_time,ierr)
-
-
-    stepper%cumulative_solver_time_surf_flow =  &
-                                  stepper%cumulative_solver_time_surf_flow + &
-                                  (log_end_time - log_start_time)
-    call SNESGetIterationNumber(solver%snes,num_newton_iterations, ierr)
-    call SNESGetLinearSolveIterations(solver%snes,num_linear_iterations, ierr)
-    call SNESGetConvergedReason(solver%snes, snes_reason, ierr)
-
-    sum_newton_iterations = sum_newton_iterations + num_newton_iterations
-    sum_linear_iterations = sum_linear_iterations + num_linear_iterations
-    update_reason = 1
-
-    if (snes_reason >= 0) then
-      select case(option%iflowmode)
-        case(RICHARDS_MODE)
-          update_reason=1
-      end select
-    !if (option%print_screen_flag) print *,'update_reason: ',update_reason
-    endif
-
-    if (snes_reason <= 0 .or. update_reason <= 0) then
-      ! The Newton solver diverged, so try reducing the time step.
-      icut=icut+1
-      stepper%time_step_cut_flag=PETSC_TRUE
-
-      if (icut > stepper%max_time_step_cuts .or. option%flow_dt<1.d-20) then
-        if (option%print_screen_flag) then
-          print *,"--> max_time_step_cuts exceeded: icut/icutmax= ",icut, &
-                  stepper%max_time_step_cuts, "t= ", &
-                  stepper%target_time/surf_realization%output_option%tconv, " dt= ", &
-                  option%flow_dt/surf_realization%output_option%tconv
-          print *,"Stopping execution!"
-        endif
-        surf_realization%output_option%plot_name = 'flow_cut_to_failure'
-        failure = PETSC_TRUE
-        return
-      endif
-
-      ! Revert back the target time and decrease the time step
-      stepper%target_time = stepper%target_time - option%flow_dt
-      option%surf_flow_dt = 0.5d0 * option%surf_flow_dt
-
-      if (option%print_screen_flag) write(*,'('' -> Cut time step: snes='',i3, &
-        &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
-        &   1pe12.5)')  snes_reason,icut,stepper%cumulative_time_step_cuts, &
-            option%surf_flow_time/surf_realization%output_option%tconv, &
-            option%surf_flow_dt/surf_realization%output_option%tconv
-
-      ! Set new target time
-      stepper%target_time = stepper%target_time + option%surf_flow_dt
-
-      select case(option%iflowmode)
-        case(RICHARDS_MODE)
-          call SurfaceFlowTimeCut(surf_realization)
-        case default
-          option%io_buffer = 'ERROR: TimeCut for this iflowmode in SurfaceFlow ' // &
-            ' not incorporated.'
-          call printErrMsg(option)
-      end select
-    else
-      ! The Newton solver converged, so we can exit.
-      exit
-    endif
-  enddo
-
-  stepper%steps_surf_flow = stepper%steps_surf_flow + 1
-  stepper%cumulative_newton_iterations_surf_flow = &
-    stepper%cumulative_newton_iterations_surf_flow + sum_newton_iterations
-  stepper%cumulative_linear_iterations_surf_flow = &
-    stepper%cumulative_linear_iterations_surf_flow + sum_linear_iterations
-  stepper%cumulative_time_step_cuts_surf_flow = &
-    stepper%cumulative_time_step_cuts_surf_flow + icut
-
-  stepper%num_newton_iterations_surf_flow = num_newton_iterations
-  stepper%num_linear_iterations_surf_flow = num_linear_iterations
-
-! print screen output
-  call SNESGetFunctionNorm(solver%snes,fnorm,ierr)
-  call VecNorm(surf_field%flow_r,NORM_INFINITY,inorm,ierr)
-  if (option%print_screen_flag) then
-    write(*, '(/," SURFACE FLOW ",i6," Time= ",1pe12.5," Dt= ",1pe12.5," [",a1,"]", &
-      & " snes_conv_reason: ",i4,/,"  newton = ",i3," [",i8,"]", &
-      & " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
-      stepper%steps_surf_flow, &
-      !stepper%target_time/surf_realization%output_option%tconv, &
-      option%surf_flow_time+option%surf_flow_dt, &
-      option%surf_flow_dt/surf_realization%output_option%tconv, &
-      surf_realization%output_option%tunit,snes_reason,sum_newton_iterations, &
-      stepper%cumulative_newton_iterations_surf_flow,sum_linear_iterations, &
-      stepper%cumulative_linear_iterations_surf_flow,icut, &
-      stepper%cumulative_time_step_cuts_surf_flow
-
-    if (associated(discretization%grid)) then
-       scaled_fnorm = fnorm/discretization%grid%nmax 
-    else
-       scaled_fnorm = fnorm
-    endif
-    print *,' --> SNES Linear/Non-Linear Iterations = ', &
-             num_linear_iterations,' / ',num_newton_iterations
-    write(*,'("  --> SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm 
-  endif
-  
-  select case(option%iflowmode)
-    case(RICHARDS_MODE)
-    call SurfaceFlowMaxChange(surf_realization)
-    if (option%print_screen_flag) then
-      write(*,'("  --> max chng: dpmx= ",1pe12.4)') option%dpmax
-    endif
-  end select
-
-  if (option%print_screen_flag) print *, ""
-
-end subroutine StepperStepSurfaceFlowDT
-
 ! ************************************************************************** !
-!
+!> This subroutine steps forward surface-flow one step in time.
+!!
+!> @author
+!! Gautam Bisht, LBNL
+!!
+!! date: 02/02/13
 ! ************************************************************************** !
 subroutine StepperStepSurfaceFlowExplicitDT(surf_realization,stepper,failure)
   
@@ -3080,6 +2915,7 @@ subroutine StepperStepSurfaceFlowExplicitDT(surf_realization,stepper,failure)
 #include "finclude/petscmat.h"
 #include "finclude/petscviewer.h"
 #include "finclude/petscts.h"
+#include "finclude/petscts.h90"
 
   type(surface_realization_type) :: surf_realization
   type(stepper_type)     :: stepper
@@ -3091,15 +2927,46 @@ subroutine StepperStepSurfaceFlowExplicitDT(surf_realization,stepper,failure)
   type(discretization_type), pointer  :: discretization 
   type(solver_type), pointer          :: solver
   character(len=MAXSTRINGLENGTH)      :: string
+  PetscReal, pointer :: xx_p(:)
+  PetscInt :: local_id
+  PetscInt :: istart, iend
+  PetscReal :: time
+  PetscReal :: dtime
 
   option         => surf_realization%option
   discretization => surf_realization%discretization
   surf_field     => surf_realization%surf_field
   solver         => stepper%solver
 
+  if (option%print_screen_flag) then
+    write(*,'(/,2("=")," SURFACE FLOW ",66("="))')
+  endif
+
   call TSSetTimeStep(solver%ts,option%surf_flow_dt,ierr)
   call TSSolve(solver%ts,surf_field%flow_xx, ierr)
+  call TSGetTime(solver%ts,time,ierr)
+  call TSGetTimeStep(solver%ts,dtime,ierr)
 
+  stepper%steps = stepper%steps + 1
+  if (option%print_screen_flag) then
+    write(*, '(" SURFACE FLOW ",i6," Time= ",1pe12.5," Dt= ",1pe12.5," [",a1,"]")') &
+      stepper%steps, &
+      time/surf_realization%output_option%tconv, &
+      dtime/surf_realization%output_option%tconv, &
+      surf_realization%output_option%tunit
+  endif
+
+  ! Ensure evolved solution is +ve
+  call VecGetArrayF90(surf_field%flow_xx,xx_p,ierr)
+  do local_id=1,surf_realization%discretization%grid%nlmax
+    iend = local_id*option%nflowdof
+    istart = iend-option%nflowdof+1
+    if(xx_p(istart)<1.d-15) then
+      xx_p(istart) = 0.d0
+      xx_p(iend) = 0.d0
+    endif
+  enddo
+  call VecRestoreArrayF90(surf_field%flow_xx,xx_p,ierr)
 
   ! First, update the solution vector
   call DiscretizationGlobalToLocal(discretization,surf_field%flow_xx, &
@@ -3110,6 +2977,7 @@ subroutine StepperStepSurfaceFlowExplicitDT(surf_realization,stepper,failure)
       call SurfaceFlowUpdateAuxVars(surf_realization)
     case(TH_MODE)
       ! Then, update the aux vars
+      call SurfaceTHUpdateTemperature(surf_realization)
       call SurfaceTHUpdateAuxVars(surf_realization)
       ! override flags since they will soon be out of date
       surf_realization%patch%surf_aux%SurfaceTH%aux_vars_up_to_date = PETSC_FALSE
@@ -3673,9 +3541,9 @@ subroutine StepperRunSteadyState(realization,flow_stepper,tran_stepper)
 
   ! print initial condition output if not a restarted sim
   if (associated(flow_stepper)) then
-    call OutputInit(realization,flow_stepper%steps)
+    call OutputInit(flow_stepper%steps)
   else
-    call OutputInit(realization,tran_stepper%steps)
+    call OutputInit(tran_stepper%steps)
   endif
   transient_plot_flag = PETSC_FALSE
   plot_flag = PETSC_TRUE
@@ -3874,8 +3742,9 @@ subroutine StepperSolveFlowSteadyState(realization,stepper,failure)
   stepper%cumulative_linear_iterations = num_linear_iterations
 
   if (option%ntrandof > 0) then ! store final saturations, etc. for transport
-    call GlobalUpdateAuxVars(realization,TIME_T)
-    call GlobalUpdateAuxVars(realization,TIME_TpDT)
+    call GlobalUpdateAuxVars(realization,TIME_T, &
+                             stepper%target_time-option%flow_dt)
+    call GlobalUpdateAuxVars(realization,TIME_TpDT,stepper%target_time)
   endif
     
 ! print screen output
@@ -4018,9 +3887,9 @@ end subroutine StepperSolveTranSteadyState
 !
 ! ************************************************************************** !
 #ifdef SURFACE_FLOW
-subroutine StepperUpdateSolution(realization,surf_realization)
+subroutine StepperUpdateSolution(realization,surf_realization,update_kinetics)
 #else
-subroutine StepperUpdateSolution(realization)
+subroutine StepperUpdateSolution(realization,update_kinetics)
 #endif
 
   use Realization_class
@@ -4032,6 +3901,7 @@ subroutine StepperUpdateSolution(realization)
   implicit none
   
   type(realization_type) :: realization
+  PetscBool :: update_kinetics
 #ifdef SURFACE_FLOW
   type(surface_realization_type) :: surf_realization
 #endif
@@ -4041,10 +3911,10 @@ subroutine StepperUpdateSolution(realization)
   if (realization%option%nflowdof > 0) &
     call StepperUpdateFlowSolution(realization)
   if (realization%option%ntrandof > 0) &
-    call StepperUpdateTransportSolution(realization)
+    call StepperUpdateTransportSolution(realization,update_kinetics)
 
 #ifdef SURFACE_FLOW
-  if (realization%option%nsurfflowdof > 0) then
+  if(surf_realization%option%nsurfflowdof > 0) then
     call SurfRealizUpdate(surf_realization)
     call StepperUpdateSurfaceFlowSolution(surf_realization)
   endif
@@ -4062,7 +3932,7 @@ end subroutine StepperUpdateSolution
 subroutine StepperUpdateFlowSolution(realization)
   
   use Flash2_module, only: Flash2UpdateSolution
-  use MPHASE_module, only: MphaseUpdateSolution
+  use Mphase_module, only: MphaseUpdateSolution
   use Immis_module, only: ImmisUpdateSolution
   use Miscible_module, only: MiscibleUpdateSolution 
   use Richards_module, only : RichardsUpdateSolution
@@ -4152,24 +4022,32 @@ end subroutine StepperUpdateSurfaceFlowSolution
 ! date: 02/19/08 
 !
 ! ************************************************************************** !
-subroutine StepperUpdateTransportSolution(realization)
+subroutine StepperUpdateTransportSolution(realization,update_kinetics)
 
   use Realization_class
-  use Reactive_Transport_module, only : RTUpdateSolution
-
+  use Reactive_Transport_module, only : RTUpdateEquilibriumState, &
+                                        RTUpdateKineticState, &
+                                        RTUpdateMassBalance
   implicit none
 
   type(realization_type) :: realization
+  PetscBool :: update_kinetics
 
   PetscErrorCode :: ierr
   
-  call RTUpdateSolution(realization)
+  call RTUpdateEquilibriumState(realization)
+  if (update_kinetics) &
+    call RTUpdateKineticState(realization)
   if (realization%reaction%update_porosity .or. &
       realization%reaction%update_tortuosity .or. &
       realization%reaction%update_permeability .or. &
       realization%reaction%update_mineral_surface_area) then
     call RealizationUpdateProperties(realization)
   endif
+  
+  if (realization%option%compute_mass_balance_new) then
+    call RTUpdateMassBalance(realization)
+  endif  
 
 end subroutine StepperUpdateTransportSolution
 
@@ -4203,7 +4081,7 @@ end subroutine StepperJumpStart
 subroutine StepperUpdateFlowAuxVars(realization)
   
   use Flash2_module, only: Flash2UpdateAuxVars
-  use MPHASE_module, only: MphaseUpdateAuxVars
+  use Mphase_module, only: MphaseUpdateAuxVars
   use Immis_module, only: ImmisUpdateAuxVars
   use Miscible_module, only: MiscibleUpdateAuxVars
   use Richards_module, only : RichardsUpdateAuxVars
@@ -4438,16 +4316,12 @@ subroutine StepperCheckpoint(realization,flow_stepper,tran_stepper,id, id_stamp)
     tran_prev_dt = tran_stepper%prev_dt
   endif
   
-  ! most common use case is to use the time step as a the id string
+  ! default null id_string --> global_prefix-restart.chk
   id_string = ''
-  if (id >= 0) then
-     write(id_string,'(i8)') id
-  end if
-  ! if a different id stamp was provide we over ride the default
   if (present(id_stamp)) then
-     if (.not. StringNull(id_stamp)) then
-        id_string = id_stamp
-     end if
+     id_string = id_stamp
+  else if (id >= 0) then
+     write(id_string,'(i8)') id
   end if
 
   call Checkpoint(realization, &
@@ -4584,6 +4458,87 @@ subroutine TimestepperRestart(realization,flow_stepper,tran_stepper, &
   endif  
     
 end subroutine TimestepperRestart
+
+#ifdef SURFACE_FLOW
+! ************************************************************************** !
+!> This subroutine writes a checkpoint file for surface-flow.
+!!
+!> @author
+!! Gautam Bisht, LBNL
+!!
+!! date: 06/11/13
+! ************************************************************************** !
+subroutine StepperCheckpointSurface(surf_realization, flow_stepper, id)
+
+  use Surface_Realization_class
+  use Surface_Checkpoint_module
+  use Option_module
+
+  implicit none
+
+  type(surface_realization_type) :: surf_realization
+  type(stepper_type), pointer :: flow_stepper
+  PetscInt :: id
+
+  type(option_type), pointer :: option
+
+  option => surf_realization%option
+
+  call SurfaceCheckpoint(surf_realization,flow_stepper%prev_dt,id)
+
+end subroutine StepperCheckpointSurface
+
+! ************************************************************************** !
+!> This subroutine reads a checkpoint file and restarts surface-flow
+!! simulation.
+!!
+!> @author
+!! Gautam Bisht, LBNL
+!!
+!! date: 06/11/13
+! ************************************************************************** !
+
+subroutine TimestepperRestartSurface(surf_realization,surf_flow_stepper, &
+                                     surf_flow_read)
+
+  use Surface_Realization_class
+  use Surface_Checkpoint_module
+  use Option_module
+
+  implicit none
+#include "finclude/petscts.h"
+#include "finclude/petscts.h90"
+
+  type(surface_realization_type) :: surf_realization
+  type(stepper_type), pointer :: surf_flow_stepper
+  PetscBool :: surf_flow_read
+  PetscErrorCode :: ierr
+
+  type(option_type), pointer :: option
+  PetscReal :: surf_flow_prev_dt
+  
+  option => surf_realization%option
+
+  call SurfaceRestart(surf_realization,surf_flow_prev_dt,surf_flow_read)
+
+  if(option%time /= option%surf_flow_time) then
+    option%io_buffer = 'option%time does not match option%surf_flow_time' // &
+      ' while restarting simulation. Check the restart files.'
+    call printErrMsg(option)
+  endif
+
+  if (associated(surf_flow_stepper) .and. surf_flow_read) then
+    surf_flow_stepper%prev_dt = surf_flow_prev_dt
+  endif
+  
+  if (surf_flow_read) then
+    surf_flow_stepper%target_time = option%surf_flow_time
+    call TSSetTime(surf_flow_stepper%solver%ts,option%surf_flow_time,ierr)
+  endif
+
+end subroutine TimestepperRestartSurface
+
+#endif
 
 ! ************************************************************************** !
 !

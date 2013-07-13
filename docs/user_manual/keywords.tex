@@ -21,6 +21,7 @@ Initial and boundary conditions and material properties are assigned to spatial 
 \hyperlink{target_ckpt}{\bf CHECKPOINT} & \\
 \hyperlink{target_chem}{\bf CHEMISTRY} & \\
 \hyperlink{target_stat}{\bf COMPUTE\_STATISTICS} & \\
+\hyperlink{target_co2dat}{\bf CO2\_DATABASE} & \\
 \hyperlink{target_constraint}{\bf CONSTRAINT} & transport (optional)\\
 \hyperlink{target_datset}{\bf DATASET} & \\
 \hyperlink{target_dbg}{\bf DEBUG} & \\
@@ -986,6 +987,7 @@ END
 \newpage
 \protect\hypertarget{target_stat}{}
 
+
 \subsection{Keyword: COMPUTE\_STATISTICS}
 
 \noindent
@@ -1009,6 +1011,27 @@ COMPUTE_STATISTICS
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
+
+
+%========================================================================
+
+\newpage
+\protect\hypertarget{target_co2dat}{}
+
+
+\subsection{Keyword: CO2\_DATABASE}
+
+\noindent
+{\bf Description:}
+CO2\_DATABASE  is for specifying the path to CO$_2$ database file. This keyword is required for MPHASE, FLASH2 and IMMIS modes.
+
+\noindent{\bf Input:}
+\begin{deflist}{000}
+\item [CO2\_DATABASE] \{\tt Path/Database\_Name\}
+\end{deflist}
+
+\hyperlink{target_key}{\return}
+
 
 %========================================================================
 
@@ -2028,7 +2051,7 @@ MAX_CHANGE 5.d4    5.  0.02   0.05
 %\midrule
 \bf MPHASE (MPH) &Multiphase supercritical CO$_2$-brine-energy based on variable switching for phase changes\\
 %\midrule
-\bf FLASH2 &Multiphase supercritical CO$_2$-brine-energy based on the flash method for phase changes with a persistent set of unknowns---required for AMR\\
+\bf FLASH2 &Multiphase supercritical CO$_2$-brine-energy based on the flash method for phase changes with a persistent set of unknowns\\
 %\midrule
 \bf THC &Thermo-Hydro-Chemical coupled groundwater flow, thermal and solute transport\\
 %\midrule
@@ -2362,7 +2385,7 @@ END
 \item[NO\_PRINT\_INITIAL] \ the initial state of the system will not be printed to the output file if this card is activated
 \item[NO\_PRINT\_FINAL] \ the final state of the system will not be printed to the output file if this card is activated
 \item[PRINT\_COLUMN\_IDS] print column numbers in observation and mass balance output files
-\item[FORMAT] \ <file format>: \ specify the snapshot in time file type. Options available are: 
+\item[FORMAT] \ <file format>: \ specify the snapshot in time file type. File formats available are: 
 \begin{deflist}{0000000000000000000000000}
 \item[TECPLOT BLOCK] -TecPlot block format
 \item[TECPLOT POINT] -TecPlot point format (requires a single processor)
@@ -2602,8 +2625,8 @@ Examples:}
 \begin{mdframed}
 
 \begin{verbatim}
-: restart the simulation from the end of the previous simulation, /
-  but set the time back to 0.
+: restart the simulation from the end of the previous /
+  simulation, but set the time back to 0.
 
 RESTART restart.chk 0.d0 y
 
@@ -2635,8 +2658,11 @@ RESTART pflotran.chk3000
 \item[SATURATION\_FUNCTION\_TYPE] \ [{\bf VAN\_GENUCHTEN}, \ {\bf BROOKS\_COREY}, 
 
 {\bf THOMEER\_COREY}, \ {\bf NMT\_EXP}, \ {\bf PRUESS\_1}]
-\item[PERMEABILITY\_FUNCTION\_TYPE] \ [{\bf VAN\_GENUCHTEN}, \ {\bf MUALEM}, \ {\bf BURDINE}]
-\item[RESIDUAL\_SATURATION] \ {\tt <Value>}
+
+\item[PERMEABILITY\_FUNCTION\_TYPE] \ [{\bf VAN\_GENUCHTEN}, \ {\bf MUALEM}, \ {\bf BURDINE}, \ {\bf NMT\_EXP}, \ {\bf PRUESS\_1}]
+\item[RESIDUAL\_SATURATION] \ {\tt <Value>} \ \ MODES: RICHARDS, TH, THC
+\item[RESIDUAL\_SATURATION\_LIQUID] \ {\tt <Value>} \ \ MODES: MPHASE
+\item[RESIDUAL\_SATURATION\_GAS] \ {\tt <Value>} \ \ MODES: MPHASE
 \item[LAMBDA] \ {\tt <Value>} [---]
 \item[ALPHA] \ {\tt <Value>} [Pa$^{-1}$]
 \item[MAX\_CAPILLARY\_PRESSURE] \ {\tt <Value>} [Pa]
