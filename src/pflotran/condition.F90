@@ -3,7 +3,7 @@ module Condition_module
 !  use Reaction_Aux_module
 !  use Reactive_Transport_Aux_module
   use Global_Aux_module
-  use Dataset_Aux_module
+  use Dataset_Base_class
   use Time_Series_module
   
   use Constraint_module
@@ -22,7 +22,7 @@ module Condition_module
 
   type, public :: flow_condition_dataset_type
     type(time_series_type), pointer :: time_series
-    type(dataset_type), pointer ::  dataset
+    class(dataset_base_type), pointer ::  dataset
   end type flow_condition_dataset_type
   
   type, public :: flow_condition_type
@@ -41,6 +41,7 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: temperature
     type(flow_sub_condition_type), pointer :: concentration
     type(flow_sub_condition_type), pointer :: enthalpy
+    type(flow_sub_condition_type), pointer :: energy_rate
     type(flow_sub_condition_type), pointer :: displacement_x
     type(flow_sub_condition_type), pointer :: displacement_y
     type(flow_sub_condition_type), pointer :: displacement_z
@@ -59,6 +60,7 @@ module Condition_module
     type(flow_sub_condition_type), pointer :: mole_fraction
     type(flow_sub_condition_type), pointer :: temperature
     type(flow_sub_condition_type), pointer :: rate
+    type(flow_sub_condition_type), pointer :: energy_rate
     type(flow_sub_condition_type), pointer :: flux
   end type flow_general_condition_type
     
@@ -148,6 +150,7 @@ function FlowConditionCreate(option)
   nullify(condition%pressure)
   nullify(condition%saturation)
   nullify(condition%rate)
+  nullify(condition%energy_rate)
   nullify(condition%well)
   nullify(condition%temperature)
   nullify(condition%concentration)
@@ -527,6 +530,7 @@ end subroutine FlowConditionDatasetVerify
 subroutine FlowConditionDatasetGetTimes(option, sub_condition, &
                                         max_sim_time, times)
   use Option_module
+  use Time_Storage_module
 
   implicit none
   
@@ -550,8 +554,8 @@ subroutine FlowConditionDatasetGetTimes(option, sub_condition, &
                             times)
   endif
   if (associated(flow_dataset%dataset)) then
-    call DatasetGetTimes(option, flow_dataset%dataset, max_sim_time, &
-                            times)
+    call TimeStorageGetTimes(flow_dataset%dataset%time_storage, option, &
+                             max_sim_time, times)
   endif
  
 end subroutine FlowConditionDatasetGetTimes
@@ -582,7 +586,7 @@ subroutine FlowConditionRead(condition,input,option)
                                        concentration, enthalpy, rate, well,&
                                        sub_condition_ptr, saturation, &
                                        displacement_x, displacement_y, &
-                                       displacement_z
+                                       displacement_z, energy_rate
   PetscReal :: default_time
   PetscInt :: default_iphase
   type(flow_condition_dataset_type) :: default_flow_dataset
@@ -620,6 +624,8 @@ subroutine FlowConditionRead(condition,input,option)
   flux => pressure
   rate => FlowSubConditionCreate(option%nflowspec)
   rate%name = 'rate'
+  energy_rate => FlowSubConditionCreate(option%nflowspec)
+  rate%name = 'energy_rate'
   well => FlowSubConditionCreate(default_well%time_series%rank)
   well%name = 'well'
   saturation => FlowSubConditionCreate(option%nphase)
@@ -642,6 +648,7 @@ subroutine FlowConditionRead(condition,input,option)
   condition%length_units = 'm'
   pressure%units = 'Pa'
   rate%units = 'kg/s'
+  energy_rate%units = 'W/s'
   well%units = 'Pa'
   saturation%units = ' '
   temperature%units = 'C'
@@ -682,6 +689,8 @@ subroutine FlowConditionRead(condition,input,option)
               pressure%units = trim(word)
             case('kg/s','kg/yr')
               rate%units = trim(word)
+            case('W/s','W/yr')
+              energy_rate%units = trim(word)
             case('m/s','m/yr')
               flux%units = trim(word)
             case('C','K')
@@ -722,6 +731,8 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr => pressure
             case('RATE')
               sub_condition_ptr => rate
+            case('ENERGY_RATE')
+              sub_condition_ptr => energy_rate
             case('WELL')
               sub_condition_ptr => well
             case('FLUX')
@@ -756,6 +767,10 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr%itype = NEUMANN_BC
             case('mass_rate')
               sub_condition_ptr%itype = MASS_RATE_SS
+            case('energy_rate')
+              sub_condition_ptr%itype = ENERGY_RATE_SS
+            case('heterogeneous_energy_rate')
+              sub_condition_ptr%itype = HET_ENERGY_RATE_SS
             case('scaled_mass_rate')
               sub_condition_ptr%itype = SCALED_MASS_RATE_SS
               call InputReadWord(input,option,word,PETSC_TRUE)
@@ -858,6 +873,8 @@ subroutine FlowConditionRead(condition,input,option)
               sub_condition_ptr => pressure
             case('RATE')
               sub_condition_ptr => rate
+            case('ENERGY_RATE')
+              sub_condition_ptr => energy_rate
             case('WELL')
               sub_condition_ptr => well
             case('FLUX')
@@ -894,6 +911,10 @@ subroutine FlowConditionRead(condition,input,option)
         call FlowConditionReadValues(input,option,word,string, &
                                      rate%flow_dataset, &
                                      rate%units)
+      case('ENERGY_RATE')
+        call FlowConditionReadValues(input,option,word,string, &
+                                     energy_rate%flow_dataset, &
+                                     energy_rate%units)
       case('WELL')
         call FlowConditionReadValues(input,option,word,string, &
                                      well%flow_dataset, &
@@ -988,6 +1009,11 @@ subroutine FlowConditionRead(condition,input,option)
                               default_ctype, default_itype, &
                               default_flow_dataset, &
                               default_datum, default_gradient,PETSC_TRUE)
+  word = 'energy_rate'
+  call FlowSubConditionVerify(option,condition,word,energy_rate,default_time, &
+                              default_ctype, default_itype, &
+                              default_flow_dataset, &
+                              default_datum, default_gradient,PETSC_TRUE)
   word = 'well'
   call FlowSubConditionVerify(option,condition,word,well,default_time, &
                               default_ctype, default_itype, &
@@ -1056,12 +1082,17 @@ subroutine FlowConditionRead(condition,input,option)
       endif
      
       
-      if (.not.associated(temperature)) then
-        option%io_buffer = 'temperature condition null in condition: ' // &
+      if (.not.associated(temperature) .and. .not.associated(energy_rate)) then
+        option%io_buffer = 'temperature and energy rate condition null in condition: ' // &
                             trim(condition%name)      
         call printErrMsg(option)
       endif                         
-      condition%temperature => temperature
+      if (associated(temperature)) then
+        condition%temperature => temperature
+      endif
+      if (associated(energy_rate)) then
+        condition%energy_rate => energy_rate
+      endif
       
       if (.not.associated(concentration)) then
         option%io_buffer = 'concentration condition null in condition: ' // &
@@ -1092,6 +1123,8 @@ subroutine FlowConditionRead(condition,input,option)
       condition%sub_condition_ptr(TWO_INTEGER)%ptr => temperature
       condition%sub_condition_ptr(THREE_INTEGER)%ptr => concentration
       if (associated(enthalpy)) condition%sub_condition_ptr(FOUR_INTEGER)%ptr => enthalpy
+      if (associated(energy_rate)) &
+        condition%sub_condition_ptr(FOUR_INTEGER)%ptr => energy_rate
         
       allocate(condition%itype(FIVE_INTEGER))
       condition%itype = 0
@@ -1103,6 +1136,7 @@ subroutine FlowConditionRead(condition,input,option)
       condition%itype(TWO_INTEGER) = temperature%itype
       condition%itype(THREE_INTEGER) = concentration%itype
       if (associated(enthalpy)) condition%itype(FOUR_INTEGER) = concentration%itype
+      if (associated(energy_rate)) condition%itype(FOUR_INTEGER) = energy_rate%itype
 
     case(TH_MODE)
       if (.not.associated(pressure) .and. .not.associated(rate)&
@@ -1125,23 +1159,29 @@ subroutine FlowConditionRead(condition,input,option)
         condition%saturation => saturation
       endif
 
-      if (.not.associated(temperature)) then
-        option%io_buffer = 'temperature condition null in condition: ' // &
+      if (.not.associated(temperature) .and. .not.associated(energy_rate) ) then
+        option%io_buffer = 'temperature and energy_rate condition null in condition: ' // &
                             trim(condition%name)
         call printErrMsg(option)
       endif
-      condition%temperature => temperature
+      if (associated(temperature) .and. associated(energy_rate) ) then
+        option%io_buffer = 'Both, temperature and energy_rate cannot be ' // &
+                            'specified in condition: ' // trim(condition%name)
+        call printErrMsg(option)
+      endif
+      if (associated(temperature)) condition%temperature => temperature
+      if (associated(energy_rate)) condition%energy_rate => energy_rate
 
-      if (.not.associated(enthalpy)) then
-        option%io_buffer = 'enthalpy condition null in condition: ' // &
+      if (associated(enthalpy)) then
+        option%io_buffer = 'enthalpy condition not supported in TH mode: ' // &
                             trim(condition%name)
         call printErrMsg(option)
       endif
-      condition%enthalpy => enthalpy
+      if (associated(enthalpy)) condition%enthalpy => enthalpy
       
-      condition%num_sub_conditions = THREE_INTEGER
+      condition%num_sub_conditions = TWO_INTEGER
       allocate(condition%sub_condition_ptr(condition%num_sub_conditions))
-      do idof = 1, 3
+      do idof = 1, 2
         nullify(condition%sub_condition_ptr(idof)%ptr)
       enddo
 
@@ -1151,18 +1191,19 @@ subroutine FlowConditionRead(condition,input,option)
       if (associated(well)) condition%sub_condition_ptr(ONE_INTEGER)%ptr => well
       if (associated(saturation)) condition%sub_condition_ptr(ONE_INTEGER)%ptr &
                                   => saturation
-      condition%sub_condition_ptr(TWO_INTEGER)%ptr => temperature
-      if (associated(enthalpy)) condition%sub_condition_ptr(THREE_INTEGER)%ptr => enthalpy
+      if ( associated(temperature)) &
+        condition%sub_condition_ptr(TWO_INTEGER)%ptr => temperature
+      if (associated(energy_rate)) condition%sub_condition_ptr(TWO_INTEGER)%ptr => energy_rate
 
-      allocate(condition%itype(THREE_INTEGER))
+      allocate(condition%itype(TWO_INTEGER))
       condition%itype = 0
       if (associated(pressure)) condition%itype(ONE_INTEGER) = pressure%itype
       if (associated(rate)) condition%itype(ONE_INTEGER) = rate%itype
       if (associated(well)) condition%itype(ONE_INTEGER) = well%itype
       if (associated(saturation)) condition%itype(ONE_INTEGER) = &
                                     saturation%itype
-      condition%itype(TWO_INTEGER) = temperature%itype
-      if (associated(enthalpy)) condition%itype(THREE_INTEGER) = enthalpy%itype
+      if (associated(temperature)) condition%itype(TWO_INTEGER) = temperature%itype
+      if (associated(energy_rate)) condition%itype(TWO_INTEGER) = energy_rate%itype
 
 !#if 0
     case(MIS_MODE)
@@ -1942,6 +1983,7 @@ subroutine FlowConditionReadValues(input,option,keyword,string,flow_dataset, &
   use Logging_module
   use HDF5_Aux_module
   use Units_module
+  use Dataset_Base_class
 #if defined(PETSC_HAVE_HDF5)
   use hdf5
 #endif
@@ -2080,7 +2122,7 @@ subroutine FlowConditionReadValues(input,option,keyword,string,flow_dataset, &
     input%err_buf2 = trim(keyword) // ', DATASET'
     input%err_buf = 'dataset name'
     call InputErrorMsg(input,option)
-    flow_dataset%dataset => DatasetCreate()
+    flow_dataset%dataset => DatasetBaseCreate()
     flow_dataset%dataset%name = word
   else if (length==FOUR_INTEGER .and. StringCompare(word,'list',length)) then  !sp 
     if (flow_dataset%time_series%rank <= 3) then
@@ -2496,6 +2538,10 @@ subroutine FlowConditionPrintSubCondition(subcondition,option)
       string = 'heterogeneous mass rate'
     case(HET_DIRICHLET)
       string = 'heterogeneous dirichlet'
+    case(ENERGY_RATE_SS)
+      string = 'energy rate'
+    case(HET_ENERGY_RATE_SS)
+      string = 'heterogeneous energy rate'
   end select
   100 format(6x,'Type: ',a)  
   write(option%fid_out,100) trim(string)
@@ -2507,7 +2553,9 @@ subroutine FlowConditionPrintSubCondition(subcondition,option)
     call TimeSeriesPrint(subcondition%datum%time_series,option)
   endif
   if (associated(subcondition%datum%dataset)) then
-    call DatasetPrint(subcondition%datum%dataset,option)
+!geh    call DatasetPrint(subcondition%datum%dataset,option)
+    option%io_buffer = 'TODO(geh): add DatasetPrint()'
+    call printMsg(option)
   endif
   
   write(option%fid_out,110) 'Gradient:'
@@ -2515,7 +2563,9 @@ subroutine FlowConditionPrintSubCondition(subcondition,option)
     call TimeSeriesPrint(subcondition%gradient%time_series,option)
   endif
   if (associated(subcondition%gradient%dataset)) then
-    call DatasetPrint(subcondition%gradient%dataset,option)
+!geh    call DatasetPrint(subcondition%gradient%dataset,option)
+    option%io_buffer = 'TODO(geh): add DatasetPrint()'
+    call printMsg(option)
   endif
 
   write(option%fid_out,110) 'Dataset:'
@@ -2523,7 +2573,9 @@ subroutine FlowConditionPrintSubCondition(subcondition,option)
     call TimeSeriesPrint(subcondition%flow_dataset%time_series,option)
   endif
   if (associated(subcondition%flow_dataset%dataset)) then
-    call DatasetPrint(subcondition%flow_dataset%dataset,option)
+!geh    call DatasetPrint(subcondition%flow_dataset%dataset,option)
+    option%io_buffer = 'TODO(geh): add DatasetPrint()'
+    call printMsg(option)
   endif
             
 end subroutine FlowConditionPrintSubCondition
@@ -2609,13 +2661,18 @@ end subroutine FlowConditionUpdate
 subroutine FlowSubConditionUpdateDataset(option,time,flow_condition_dataset)
 
   use Option_module
-  use Dataset_module
+  use Dataset_XYZ_class
+  use Dataset_Map_class
+  use Dataset_Common_HDF5_class
   
   implicit none
   
   type(option_type) :: option
   PetscReal :: time
   type(flow_condition_dataset_type) :: flow_condition_dataset
+
+  class(dataset_xyz_type), pointer :: dataset_xyz
+  class(dataset_map_type), pointer :: dataset_map
 
   if (associated(flow_condition_dataset%time_series)) then
     if (time < 1.d-40 .or. &
@@ -2625,11 +2682,21 @@ subroutine FlowSubConditionUpdateDataset(option,time,flow_condition_dataset)
   endif
   
   if (associated(flow_condition_dataset%dataset)) then
-    if ((time < 1.d-40 .or. &
-         flow_condition_dataset%dataset%is_transient) .and. &
-        .not.flow_condition_dataset%dataset%is_cell_indexed) then
-      call DatasetLoad(flow_condition_dataset%dataset,option)
-    endif
+    select type(dataset=>flow_condition_dataset%dataset)
+      class is(dataset_common_hdf5_type)
+        if ((time < 1.d-40 .or. &
+             dataset%is_transient) .and. &
+            .not.dataset%is_cell_indexed) then
+          select type(common_hdf5_dataset=>dataset)
+            class is(dataset_xyz_type)
+              dataset_xyz => common_hdf5_dataset
+              call DatasetXYZLoad(dataset_xyz,option)
+            class is(dataset_map_type)
+              dataset_map => common_hdf5_dataset
+              call DatasetMapLoad(dataset_map,option)
+          end select
+        endif
+    end select
   endif
   
 end subroutine FlowSubConditionUpdateDataset
@@ -2903,6 +2970,8 @@ end function FlowSubConditionIsTransient
 ! ************************************************************************** !
 function FlowDatasetIsTransient(flow_dataset)
 
+  use Dataset_Common_HDF5_class
+
   implicit none
   
   type(flow_condition_dataset_type) :: flow_dataset
@@ -2917,9 +2986,12 @@ function FlowDatasetIsTransient(flow_dataset)
     endif
   endif
   if (associated(flow_dataset%dataset)) then
-    if (flow_dataset%dataset%is_transient) then
-      FlowDatasetIsTransient = PETSC_TRUE
-    endif
+    select type(dataset=>flow_dataset%dataset)
+      class is(dataset_common_hdf5_type)
+        if (dataset%is_transient) then
+          FlowDatasetIsTransient = PETSC_TRUE
+        endif
+    end select
   endif
   
 end function FlowDatasetIsTransient
@@ -2990,6 +3062,7 @@ subroutine FlowConditionDestroy(condition)
   
   nullify(condition%pressure)
   nullify(condition%rate)
+  nullify(condition%energy_rate)
   nullify(condition%well)
   nullify(condition%saturation)
   nullify(condition%temperature)

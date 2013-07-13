@@ -26,7 +26,9 @@ module Reactive_Transport_module
   public :: RTTimeCut, &
             RTSetup, &
             RTMaxChange, &
-            RTUpdateSolution, &
+            RTUpdateEquilibriumState, &
+            RTUpdateKineticState, &
+            RTUpdateMassBalance, &
             RTResidual, &
             RTJacobian, &
             RTInitializeTimestep, &
@@ -56,17 +58,21 @@ contains
 subroutine RTTimeCut(realization)
  
   use Realization_class
+  use Option_module
   use Field_module
   use Global_module
+  use Secondary_Continuum_module, only : SecondaryRTTimeCut
  
   implicit none
   
   type(realization_type) :: realization
   type(field_type), pointer :: field
+  type(option_type), pointer :: option
   
   PetscErrorCode :: ierr
 
   field => realization%field
+  option => realization%option
  
   ! copy previous solution back to current solution
   call VecCopy(field%tran_yy,field%tran_xx,ierr)
@@ -86,6 +92,10 @@ subroutine RTTimeCut(realization)
   endif
 
   call RTUpdateTransportCoefs(realization)
+  
+  if (option%use_mc) then
+    call SecondaryRTTimeCut(realization)
+  endif
  
 end subroutine RTTimeCut
 
@@ -97,24 +107,6 @@ end subroutine RTTimeCut
 !
 ! ************************************************************************** !
 subroutine RTSetup(realization)
-
-  use Realization_class
-
-  type(realization_type) :: realization
-  
-  call RTSetupPatch(realization)
-  call RTSetPlotVariables(realization)
-
-end subroutine RTSetup
-
-! ************************************************************************** !
-!
-! RTSetupPatch: 
-! author: Glenn Hammond
-! date: 02/22/08
-!
-! ************************************************************************** !
-subroutine RTSetupPatch(realization)
 
   use Realization_class
   use Patch_module
@@ -149,7 +141,7 @@ subroutine RTSetupPatch(realization)
   type(tran_constraint_type), pointer :: sec_tran_constraint
 
   PetscInt :: ghosted_id, iconn, sum_connection
-  PetscInt :: iphase
+  PetscInt :: iphase, local_id
   
   option => realization%option
   patch => realization%patch
@@ -186,11 +178,11 @@ subroutine RTSetupPatch(realization)
   if (option%use_mc) then
     patch%aux%SC_RT => SecondaryAuxRTCreate(option)
     initial_condition => patch%initial_conditions%first
-    allocate(rt_sec_transport_vars(grid%ngmax))  
-    do ghosted_id = 1, grid%ngmax
+    allocate(rt_sec_transport_vars(grid%nlmax))  
+    do local_id = 1, grid%nlmax
     ! Assuming the same secondary continuum type for all regions
       call SecondaryRTAuxVarInit(realization%material_property_array(1)%ptr, &
-                                 rt_sec_transport_vars(ghosted_id), &
+                                 rt_sec_transport_vars(local_id), &
                                  reaction,initial_condition, &
                                  sec_tran_constraint,option)
     enddo      
@@ -253,8 +245,9 @@ subroutine RTSetupPatch(realization)
     cur_fluid_property => cur_fluid_property%next
   enddo
   
-end subroutine RTSetupPatch
-
+  call RTSetPlotVariables(realization)
+  
+end subroutine RTSetup
 
 ! ************************************************************************** !
 !
@@ -266,31 +259,6 @@ end subroutine RTSetupPatch
 ! ************************************************************************** !
 subroutine RTCheckUpdate(line_search,C,dC,changed,realization,ierr)
  
-  use Realization_class
- 
-  implicit none
-  
-  SNESLineSearch :: line_search
-  Vec :: C
-  Vec :: dC
-  PetscBool :: changed
-  type(realization_type) :: realization
-  PetscErrorCode :: ierr
-
-  call RTCheckUpdatePatch(line_search,C,dC,changed,realization,ierr)
-
-end subroutine RTCheckUpdate
-
-! ************************************************************************** !
-!
-! RTCheckUpdatePatch: In the case of the log formulation, ensures that the 
-!                     update vector does not exceed a prescribed tolerance
-! author: Glenn Hammond
-! date: 03/16/09
-!
-! ************************************************************************** !
-subroutine RTCheckUpdatePatch(line_search,C,dC,changed,realization,ierr)
-
   use Realization_class
   use Grid_module
  
@@ -354,7 +322,7 @@ subroutine RTCheckUpdatePatch(line_search,C,dC,changed,realization,ierr)
 
   call VecRestoreArrayF90(dC,dC_p,ierr)
 
-end subroutine RTCheckUpdatePatch
+end subroutine RTCheckUpdate
 
 ! ************************************************************************** !
 !
@@ -366,38 +334,15 @@ end subroutine RTCheckUpdatePatch
 subroutine RTComputeMassBalance(realization,mass_balance)
 
   use Realization_class
-
-  type(realization_type) :: realization
-  PetscReal :: mass_balance(realization%option%ntrandof, &
-                            realization%option%nphase)
-  
-  mass_balance = 0.d0
-  
-  call RTComputeMassBalancePatch(realization,mass_balance)
-
-end subroutine RTComputeMassBalance
-
-! ************************************************************************** !
-!
-! RTComputeMassBalancePatch: Initializes mass balance
-! author: Glenn Hammond
-! date: 12/23/08
-!
-! ************************************************************************** !
-subroutine RTComputeMassBalancePatch(realization,mass_balance)
- 
-  use Realization_class
   use Option_module
   use Patch_module
   use Field_module
   use Grid_module
- 
-  implicit none
-  
+
   type(realization_type) :: realization
   PetscReal :: mass_balance(realization%option%ntrandof, &
                             realization%option%nphase)
-
+  
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(field_type), pointer :: field
@@ -414,6 +359,8 @@ subroutine RTComputeMassBalancePatch(realization,mass_balance)
   PetscInt :: iphase
   PetscInt :: i, icomp, imnrl, ncomp, irate, irxn
 
+  mass_balance = 0.d0
+  
   iphase = 1
   option => realization%option
   patch => realization%patch
@@ -479,16 +426,16 @@ subroutine RTComputeMassBalancePatch(realization,mass_balance)
   call VecRestoreArrayReadF90(field%volume,volume_p,ierr)
   call VecRestoreArrayReadF90(field%porosity_loc,porosity_loc_p,ierr)
   
-end subroutine RTComputeMassBalancePatch
+end subroutine RTComputeMassBalance
 
 ! ************************************************************************** !
 !
-! RTZeroMassBalanceDeltaPatch: Zeros mass balance delta array
+! RTZeroMassBalanceDelta: Zeros mass balance delta array
 ! author: Glenn Hammond
 ! date: 12/19/08
 !
 ! ************************************************************************** !
-subroutine RTZeroMassBalanceDeltaPatch(realization)
+subroutine RTZeroMassBalanceDelta(realization)
  
   use Realization_class
   use Option_module
@@ -526,16 +473,16 @@ subroutine RTZeroMassBalanceDeltaPatch(realization)
     rt_aux_vars_ss(iconn)%mass_balance_delta = 0.d0
   enddo
 
-end subroutine RTZeroMassBalanceDeltaPatch
+end subroutine RTZeroMassBalanceDelta
 
 ! ************************************************************************** !
 !
-! RTUpdateMassBalancePatch: Updates mass balance
+! RTUpdateMassBalance: Updates mass balance
 ! author: Glenn Hammond
 ! date: 12/19/08
 !
 ! ************************************************************************** !
-subroutine RTUpdateMassBalancePatch(realization)
+subroutine RTUpdateMassBalance(realization)
  
   use Realization_class
   use Option_module
@@ -579,7 +526,7 @@ subroutine RTUpdateMassBalancePatch(realization)
       rt_aux_vars_ss(iconn)%mass_balance_delta*option%tran_dt
   enddo
 
-end subroutine RTUpdateMassBalancePatch
+end subroutine RTUpdateMassBalance
 
 ! ************************************************************************** !
 !
@@ -594,71 +541,24 @@ subroutine RTInitializeTimestep(realization)
 
   type(realization_type) :: realization
   
-  call RTInitializeTimestepPatch(realization)
+  call RTUpdateFixedAccumulation(realization)
+  ! geh: never use transport coefs evaluated at time k
+!  call RTUpdateTransportCoefs(realization)
 
 end subroutine RTInitializeTimestep
 
 ! ************************************************************************** !
 !
-! RTInitializeTimestepPatch: Update data in module prior to time step
-! author: Glenn Hammond
-! date: 02/20/08
-!
-! ************************************************************************** !
-subroutine RTInitializeTimestepPatch(realization)
-
-  use Realization_class
-  
-  implicit none
-  
-  type(realization_type) :: realization
-
-  call RTUpdateFixedAccumulationPatch(realization)
-  
-  ! geh: never use transport coefs evaluated at time k
-!  call RTUpdateTransportCoefsPatch(realization)
-
-end subroutine RTInitializeTimestepPatch
-  
-! ************************************************************************** !
-!
-! RTUpdateSolution: Updates data in module after a successful time step
-! author: Glenn Hammond
-! date: 02/13/08
-!
-! ************************************************************************** !
-subroutine RTUpdateSolution(realization)
-
-  use Realization_class
-  use Discretization_module
-  use Field_module
-  
-  implicit none
-  
-  type(realization_type) :: realization
-
-  PetscErrorCode :: ierr
-  
-  call VecCopy(realization%field%tran_xx,realization%field%tran_yy,ierr)
-  call DiscretizationGlobalToLocal(realization%discretization, &
-                                   realization%field%tran_xx, &
-                                   realization%field%tran_xx_loc,NTRANDOF)
-  
-  ! update mineral volume fractions
-  call RTUpdateSolutionPatch(realization)
-
-end subroutine RTUpdateSolution
-
-! ************************************************************************** !
-!
-! RTUpdateSolutionPatch: 
+! RTUpdateEquilibriumState:  Updates equilibrium state variables after a 
+!                            successful time step
 ! author: Glenn Hammond
 ! date: 09/04/08
 !
 ! ************************************************************************** !
-subroutine RTUpdateSolutionPatch(realization)
+subroutine RTUpdateEquilibriumState(realization)
 
   use Realization_class
+  use Discretization_module
   use Patch_module
   use Option_module
   use Grid_module
@@ -666,7 +566,95 @@ subroutine RTUpdateSolutionPatch(realization)
   !geh: please leave the "only" clauses for Secondary_Continuum_XXX as this
   !      resolves a bug in the Intel Visual Fortran compiler.
   use Secondary_Continuum_Aux_module, only : sec_transport_type
-  use Secondary_Continuum_module, only : SecondaryRTUpdateTimestep
+  use Secondary_Continuum_module, only : SecondaryRTUpdateEquilState
+ 
+  implicit none
+
+  type(realization_type) :: realization
+
+  type(patch_type), pointer :: patch
+  type(option_type), pointer :: option
+  type(reaction_type), pointer :: reaction
+  type(grid_type), pointer :: grid
+  type(reactive_transport_auxvar_type), pointer :: rt_aux_vars(:)
+  type(global_auxvar_type), pointer :: global_aux_vars(:)  
+  type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
+  PetscInt :: ghosted_id, local_id
+  PetscReal :: conc, max_conc, min_conc
+  PetscErrorCode :: ierr
+  
+  option => realization%option
+  patch => realization%patch
+  reaction => realization%reaction
+  grid => patch%grid
+
+  call VecCopy(realization%field%tran_xx,realization%field%tran_yy,ierr)
+  call DiscretizationGlobalToLocal(realization%discretization, &
+                                   realization%field%tran_xx, &
+                                   realization%field%tran_xx_loc,NTRANDOF)
+  
+  rt_aux_vars => patch%aux%RT%aux_vars
+  global_aux_vars => patch%aux%Global%aux_vars
+
+  ! update:                             cells      bcs         act. coefs.
+  call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
+
+!geh: for debugging max/min concentrations
+#if 0
+  max_conc = -1.d20
+  min_conc = 1.d20
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    conc = rt_aux_vars(ghosted_id)%total(1,1)
+    max_conc = max(conc,max_conc)
+    min_conc = min(conc,min_conc)
+  enddo
+  call MPI_Allreduce(max_conc,conc,ONE_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
+  max_conc = conc
+  call MPI_Allreduce(min_conc,conc,ONE_INTEGER_MPI, &
+                     MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
+  min_conc = conc
+  if (option%print_screen_flag) then
+    write(*,'("Time: ",1pe12.5," Max: ",1pe12.5," Min: ",1pe12.5)') &
+      option%tran_time/realization%output_option%tconv,max_conc, min_conc
+  endif
+#endif
+
+  ! update secondary continuum variables
+  if (option%use_mc) then
+    rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+        call SecondaryRTUpdateEquilState(rt_sec_transport_vars(local_id), &
+                                          global_aux_vars(local_id), &
+                                          reaction,option)                     
+    enddo
+  endif
+  
+end subroutine RTUpdateEquilibriumState
+
+! ************************************************************************** !
+!
+! RTUpdateKineticState:  Updates kinetic state variables for reactive 
+!                        transport
+! author: Glenn Hammond
+! date: 06/27/13
+!
+! ************************************************************************** !
+subroutine RTUpdateKineticState(realization)
+
+  use Realization_class
+  use Discretization_module
+  use Patch_module
+  use Option_module
+  use Grid_module
+  use Reaction_module
+  !geh: please leave the "only" clauses for Secondary_Continuum_XXX as this
+  !      resolves a bug in the Intel Visual Fortran compiler.
+  use Secondary_Continuum_Aux_module, only : sec_transport_type
+  use Secondary_Continuum_module, only : SecondaryRTUpdateKineticState
  
   implicit none
 
@@ -691,83 +679,50 @@ subroutine RTUpdateSolutionPatch(realization)
 
   rt_aux_vars => patch%aux%RT%aux_vars
   global_aux_vars => patch%aux%Global%aux_vars
-  if (option%use_mc) then
-    rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
-  endif
 
-  ! update:                             cells      bcs         act. coefs.
-  call RTUpdateAuxVarsPatch(realization,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
-
-!geh: for debugging max/min concentrations
-#if 0
-  max_conc = -1.d20
-  min_conc = 1.d20
+  ! update mineral volume fractions, multirate sorption concentrations, 
+  ! kinetic sorption concentration etc.  These updates must take place
+  ! within reaction so that auxiliary variables are updated when only
+  ! run in reaction mode.
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
-    conc = rt_aux_vars(ghosted_id)%total(1,1)
-    max_conc = max(conc,max_conc)
-    min_conc = min(conc,min_conc)
+    if (patch%imat(ghosted_id) <= 0) cycle
+
+    if (.not.option%use_isothermal) then
+      call RUpdateTempDependentCoefs(global_aux_vars(ghosted_id),reaction, &
+                                    PETSC_FALSE,option)
+    endif
+
+    call RUpdateKineticState(rt_aux_vars(ghosted_id), &
+                             global_aux_vars(ghosted_id),reaction,option)
   enddo
-  call MPI_Allreduce(max_conc,conc,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_MAX,option%mycomm,ierr)
-  max_conc = conc
-  call MPI_Allreduce(min_conc,conc,ONE_INTEGER_MPI, &
-                     MPI_DOUBLE_PRECISION,MPI_MIN,option%mycomm,ierr)
-  min_conc = conc
-  if (option%print_screen_flag) then
-    write(*,'("Time: ",1pe12.5," Max: ",1pe12.5," Min: ",1pe12.5)') &
-      option%tran_time/realization%output_option%tconv,max_conc, min_conc
-  endif
-#endif
-
-  if (.not.option%init_stage) then
-
-    ! update mineral volume fractions, multirate sorption concentrations, 
-    ! kinetic sorption concentration etc.  These updates must take place
-    ! within reaction so that auxiliary variables are updated when only
-    ! run in reaction mode.
+  
+  ! update secondary continuum variables
+  if (option%use_mc) then
+    rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
+        sec_porosity = realization%material_property_array(1)%ptr% &
+                        secondary_continuum_porosity
 
-      if (.not.option%use_isothermal) then
-        call RUpdateTempDependentCoefs(global_aux_vars(ghosted_id),reaction, &
-                                     PETSC_FALSE,option)
-      endif
-
-      call RUpdateSolution(rt_aux_vars(ghosted_id), &
-                           global_aux_vars(ghosted_id),reaction,option)
+        call SecondaryRTUpdateKineticState(rt_sec_transport_vars(local_id), &
+                                           global_aux_vars(local_id), &
+                                           reaction,sec_porosity,option)                     
     enddo
-  
-    ! update secondary continuum variables
-    if (option%use_mc) then
-      do ghosted_id = 1, grid%ngmax
-        if (patch%imat(ghosted_id) <= 0) cycle
-          sec_porosity = realization%material_property_array(1)%ptr% &
-                         secondary_continuum_porosity
-
-          call SecondaryRTUpdateTimestep(rt_sec_transport_vars(ghosted_id), &
-                                         global_aux_vars(ghosted_id), &
-                                         reaction,sec_porosity,option)                     
-      enddo
-    endif
-  endif
-
-  if (option%compute_mass_balance_new) then
-    call RTUpdateMassBalancePatch(realization)
   endif
   
-end subroutine RTUpdateSolutionPatch
+end subroutine RTUpdateKineticState
 
 ! ************************************************************************** !
 !
-! RTUpdateFixedAccumulationPatch: Computes derivative of accumulation term in 
-!                           residual function 
+! RTUpdateFixedAccumulation: Computes derivative of accumulation term in 
+!                            residual function 
 ! author: Glenn Hammond
 ! date: 02/15/08
 !
 ! ************************************************************************** !
-subroutine RTUpdateFixedAccumulationPatch(realization)
+subroutine RTUpdateFixedAccumulation(realization)
 
   use Realization_class
   use Patch_module
@@ -819,7 +774,7 @@ subroutine RTUpdateFixedAccumulationPatch(realization)
   
   vol_frac_prim = 1.d0
   
-! Do not use RTUpdateAuxVarsPatch() as it loops over ghosted ids
+! Do not use RTUpdateAuxVars() as it loops over ghosted ids
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -851,7 +806,7 @@ subroutine RTUpdateFixedAccumulationPatch(realization)
     endif
     
     if (option%use_mc) then
-      vol_frac_prim = rt_sec_transport_vars(ghosted_id)%epsilon
+      vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
     endif
 
     if (.not.option%use_isothermal) then
@@ -885,33 +840,16 @@ subroutine RTUpdateFixedAccumulationPatch(realization)
 
   call VecRestoreArrayF90(field%tran_accum, accum_p, ierr)
 
-end subroutine RTUpdateFixedAccumulationPatch
+end subroutine RTUpdateFixedAccumulation
 
 ! ************************************************************************** !
 !
-! RTUpdateTransportCoefs: 
-! author: Glenn Hammond
-! date: 03/09/10
-!
-! ************************************************************************** !
-subroutine RTUpdateTransportCoefs(realization)
-
-  use Realization_class
-
-  type(realization_type) :: realization
-  
-  call RTUpdateTransportCoefsPatch(realization)
-
-end subroutine RTUpdateTransportCoefs
-
-! ************************************************************************** !
-!
-! RTUpdateTransportCoefsPatch: Calculates coefficients for transport matrix 
+! RTUpdateTransportCoefs: Calculates coefficients for transport matrix 
 ! author: Glenn Hammond
 ! date: 02/24/10
 !
 ! ************************************************************************** !
-subroutine RTUpdateTransportCoefsPatch(realization)
+subroutine RTUpdateTransportCoefs(realization)
 
   use Realization_class
   use Patch_module
@@ -1045,35 +983,17 @@ subroutine RTUpdateTransportCoefsPatch(realization)
   call VecRestoreArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)
   call VecRestoreArrayReadF90(field%tortuosity_loc, tor_loc_p, ierr)
 
-end subroutine RTUpdateTransportCoefsPatch
+end subroutine RTUpdateTransportCoefs
 
 ! ************************************************************************** !
 !
-! RTUpdateRHSCoefs: Updates coefficients for the right hand side of linear
-!                   transport equation
+! RTUpdateRHSCoefs: Updates coefficients for the right hand side of 
+!                   linear transport equation
 ! author: Glenn Hammond
 ! date: 04/25/10
 !
 ! ************************************************************************** !
 subroutine RTUpdateRHSCoefs(realization)
-
-  use Realization_class
-
-  type(realization_type) :: realization
-  
-  call RTUpdateRHSCoefsPatch(realization)
-
-end subroutine RTUpdateRHSCoefs
-
-! ************************************************************************** !
-!
-! RTUpdateRHSCoefsPatch: Updates coefficients for the right hand side of 
-!                        linear transport equation
-! author: Glenn Hammond
-! date: 04/25/10
-!
-! ************************************************************************** !
-subroutine RTUpdateRHSCoefsPatch(realization)
 
   use Realization_class
   use Patch_module
@@ -1125,35 +1045,17 @@ subroutine RTUpdateRHSCoefsPatch(realization)
   call VecRestoreArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)  
   call VecRestoreArrayReadF90(field%volume,volume_p,ierr)
 
-end subroutine RTUpdateRHSCoefsPatch
+end subroutine RTUpdateRHSCoefs
 
 ! ************************************************************************** !
 !
 ! RTCalculateRHS_t0: Calculate porition of RHS of transport system
-!                  at time t0 or time level k
-! author: Glenn Hammond
-! date: 04/25/10
-!
-! ************************************************************************** !
-subroutine RTCalculateRHS_t0(realization)
-
-  use Realization_class
-
-  type(realization_type) :: realization
-  
-  call RTCalculateRHS_t0Patch(realization)
-
-end subroutine RTCalculateRHS_t0
-
-! ************************************************************************** !
-!
-! RTCalculateRHS_t0Patch: Calculate porition of RHS of transport system
 !                         at time t0 or time level k
 ! author: Glenn Hammond
 ! date: 04/25/10
 !
 ! ************************************************************************** !
-subroutine RTCalculateRHS_t0Patch(realization)
+subroutine RTCalculateRHS_t0(realization)
 
   use Realization_class
   use Patch_module
@@ -1206,35 +1108,17 @@ subroutine RTCalculateRHS_t0Patch(realization)
   call VecRestoreArrayReadF90(field%tran_rhs_coef,rhs_coef_p,ierr)
   call VecRestoreArrayF90(field%tran_rhs,rhs_p,ierr)
 
-end subroutine RTCalculateRHS_t0Patch
+end subroutine RTCalculateRHS_t0
 
 ! ************************************************************************** !
 !
 ! RTCalculateRHS_t1: Calculate porition of RHS of transport system
-!                    at time t1 or time level k+1
-! author: Glenn Hammond
-! date: 04/25/10
-!
-! ************************************************************************** !
-subroutine RTCalculateRHS_t1(realization)
-
-  use Realization_class
-
-  type(realization_type) :: realization
-  
-  call RTCalculateRHS_t1Patch(realization)
-
-end subroutine RTCalculateRHS_t1
-
-! ************************************************************************** !
-!
-! RTCalculateRHS_t1Patch: Calculate porition of RHS of transport system
 !                         at time level k+1
 ! author: Glenn Hammond
 ! date: 04/25/10
 !
 ! ************************************************************************** !
-subroutine RTCalculateRHS_t1Patch(realization)
+subroutine RTCalculateRHS_t1(realization)
 
   use Realization_class
   use Patch_module
@@ -1293,11 +1177,11 @@ subroutine RTCalculateRHS_t1Patch(realization)
 
 !geh - activity coef updates must always be off!!!
 !geh    ! update:                             cells      bcs        act. coefs.
-!  call RTUpdateAuxVarsPatch(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
+!  call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
   if (reaction%act_coef_update_frequency /= ACT_COEF_FREQUENCY_OFF) then
-    call RTUpdateAuxVarsPatch(realization,PETSC_FALSE,PETSC_TRUE,PETSC_TRUE)
+    call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_TRUE)
   else
-    call RTUpdateAuxVarsPatch(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
+    call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
   endif
 
   ! Get vectors
@@ -1448,8 +1332,8 @@ subroutine RTCalculateRHS_t1Patch(realization)
   call VecRestoreArrayReadF90(field%porosity_loc,porosity_loc_p,ierr)
 
   ! Mass Transfer
-  if (associated(realization%mass_transfer_list)) then
-    cur_mass_transfer => realization%mass_transfer_list
+  if (associated(realization%rt_mass_transfer_list)) then
+    cur_mass_transfer => realization%rt_mass_transfer_list
     do
       if (.not.associated(cur_mass_transfer)) exit
       call VecStrideScatter(cur_mass_transfer%vec,cur_mass_transfer%idof-1, &
@@ -1458,7 +1342,7 @@ subroutine RTCalculateRHS_t1Patch(realization)
     enddo
   endif  
   
-end subroutine RTCalculateRHS_t1Patch
+end subroutine RTCalculateRHS_t1
 
 ! ************************************************************************** !
 !
@@ -1472,60 +1356,17 @@ subroutine RTCalculateTransportMatrix(realization,T)
   use Realization_class
   use Option_module
   use Grid_module
+  use Patch_module
+  use Field_module
+  use Coupler_module
+  use Connection_module
 
   implicit none
       
   type(realization_type) :: realization
   Mat :: T
   
-  type(grid_type), pointer :: grid
-  type(option_type), pointer :: option 
-  PetscViewer :: viewer
-  PetscErrorCode :: ierr
-
-  option => realization%option
- 
-  call MatZeroEntries(T,ierr)
-  
-  call RTCalculateTranMatrixPatch1(realization,T)
-  call RTCalculateTranMatrixPatch2(realization,T)
-
-  if (realization%debug%matview_Jacobian) then
-#if 1
-    call PetscViewerASCIIOpen(realization%option%mycomm,'Tmatrix.out', &
-                              viewer,ierr)
-#else
-    call PetscViewerBinaryOpen(realization%option%mycomm,'Tmatrix.bin', &
-                               FILE_MODE_WRITE,viewer,ierr)
-#endif
-    call MatView(T,viewer,ierr)
-    call PetscViewerDestroy(viewer,ierr)
-  endif  
-  
-end subroutine RTCalculateTransportMatrix
-
-! ************************************************************************** !
-!
-! RTCalculateTranMatrixPatch: Calculate transport matrix
-! author: Glenn Hammond
-! date: 04/25/10
-!
-! ************************************************************************** !
-subroutine RTCalculateTranMatrixPatch1(realization,T)
-
-  use Realization_class
-  use Patch_module
-  use Connection_module
-  use Coupler_module
-  use Option_module
-  use Field_module  
-  use Grid_module  
-
-  implicit none
-  
-  type(realization_type) :: realization
-  Mat :: T
-  
+  type(global_auxvar_type), pointer :: global_aux_vars(:)
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -1543,14 +1384,22 @@ subroutine RTCalculateTranMatrixPatch1(realization,T)
   PetscInt :: sum_connection, iconn
   PetscReal :: coef
   PetscReal :: coef_up(1), coef_dn(1)
+  PetscReal :: qsrc
+  PetscBool :: volumetric  
+  PetscInt :: flow_pc
+  PetscInt :: flow_src_sink_type
+  PetscReal :: coef_in, coef_out
+  PetscViewer :: viewer
   PetscErrorCode :: ierr
-    
-  ! Get vectors
+  
   option => realization%option
   field => realization%field
   patch => realization%patch
-  grid => patch%grid
+  global_aux_vars => patch%aux%Global%aux_vars
+  grid => patch%grid  
 
+  call MatZeroEntries(T,ierr)
+  
   ! Get vectors
   call VecGetArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)  
   call VecGetArrayReadF90(field%volume,volume_p,ierr)
@@ -1634,81 +1483,7 @@ subroutine RTCalculateTranMatrixPatch1(realization,T)
     enddo
     boundary_condition => boundary_condition%next
   enddo
-
-  ! Restore vectors
-  call VecRestoreArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)  
-  call VecRestoreArrayReadF90(field%volume,volume_p,ierr)
-
-  call MatAssemblyBegin(T,MAT_FINAL_ASSEMBLY,ierr)
-  call MatAssemblyEnd(T,MAT_FINAL_ASSEMBLY,ierr)
-
-  if (patch%aux%RT%inactive_cells_exist) then
-    coef = 1.d0
-    call MatZeroRowsLocal(T,patch%aux%RT%n_zero_rows, &
-                          patch%aux%RT%zero_rows_local_ghosted,coef, &
-                          PETSC_NULL_OBJECT,PETSC_NULL_OBJECT,ierr) 
-  endif
   
-end subroutine RTCalculateTranMatrixPatch1
-
-
-! ************************************************************************** !
-!
-! RTCalculateTranMatrixPatch: Calculate transport matrix
-! author: Glenn Hammond
-! date: 04/25/10
-!
-! ************************************************************************** !
-subroutine RTCalculateTranMatrixPatch2(realization,T)
-
-  use Realization_class
-  use Patch_module
-  use Connection_module
-  use Coupler_module
-  use Option_module
-  use Field_module  
-  use Grid_module  
-
-  implicit none
- 
-  type(realization_type) :: realization
-  Mat :: T
-  
-  type(global_auxvar_type), pointer :: global_aux_vars(:)
-  type(option_type), pointer :: option
-  type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid
-  type(field_type), pointer :: field
-  PetscReal, pointer :: porosity_loc_p(:)
-  PetscReal, pointer :: volume_p(:)
-  PetscInt :: local_id, ghosted_id
-  PetscInt :: iphase
-  
-  type(coupler_type), pointer :: boundary_condition
-  type(connection_set_list_type), pointer :: connection_set_list
-  type(connection_set_type), pointer :: cur_connection_set
-  type(coupler_type), pointer :: source_sink  
-  PetscInt :: sum_connection, iconn
-  PetscReal :: coef
-  PetscReal :: coef_dn(1)
-  PetscReal :: qsrc
-  PetscBool :: volumetric  
-  PetscErrorCode :: ierr
-  PetscInt :: flow_pc
-  PetscInt :: flow_src_sink_type
-  PetscReal :: coef_in, coef_out
-    
-  ! Get vectors
-  option => realization%option
-  field => realization%field
-  patch => realization%patch
-  global_aux_vars => patch%aux%Global%aux_vars
-  grid => patch%grid
-
-  ! Get vectors
-  call VecGetArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)  
-  call VecGetArrayReadF90(field%volume,volume_p,ierr)
-
   ! Accumulation term
   iphase = 1
   do local_id = 1, grid%nlmax
@@ -1783,8 +1558,20 @@ subroutine RTCalculateTranMatrixPatch2(realization,T)
                           patch%aux%RT%zero_rows_local_ghosted,coef, &
                           PETSC_NULL_OBJECT,PETSC_NULL_OBJECT,ierr) 
   endif
+
+  if (realization%debug%matview_Jacobian) then
+#if 1
+    call PetscViewerASCIIOpen(realization%option%mycomm,'Tmatrix.out', &
+                              viewer,ierr)
+#else
+    call PetscViewerBinaryOpen(realization%option%mycomm,'Tmatrix.bin', &
+                               FILE_MODE_WRITE,viewer,ierr)
+#endif
+    call MatView(T,viewer,ierr)
+    call PetscViewerDestroy(viewer,ierr)
+  endif  
   
-end subroutine RTCalculateTranMatrixPatch2
+end subroutine RTCalculateTransportMatrix
 
 ! ************************************************************************** !
 !
@@ -1796,17 +1583,45 @@ end subroutine RTCalculateTranMatrixPatch2
 subroutine RTReact(realization)
 
   use Realization_class
-  use Field_module
-  use Discretization_module    
+  use Patch_module
+  use Connection_module
+  use Coupler_module
   use Option_module
+  use Field_module  
+  use Grid_module  
+  use Secondary_Continuum_Aux_module
   use Logging_module
-
+  
+!$ use omp_lib
+     
   implicit none
-
+  
   type(realization_type) :: realization
-  type(discretization_type), pointer :: discretization
-  type(field_type), pointer ::field
+  
+  type(global_auxvar_type), pointer :: global_aux_vars(:)
+  type(reactive_transport_auxvar_type), pointer :: rt_aux_vars(:)
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(field_type), pointer :: field
+  type(reaction_type), pointer :: reaction
   type(option_type), pointer :: option
+  type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
+  PetscInt :: local_id, ghosted_id
+  PetscInt :: istart, iend, iendaq
+  PetscInt :: iphase
+  PetscInt :: ithread, vector_length
+  PetscReal, pointer :: tran_xx_p(:)
+  PetscReal, pointer :: volume_p(:)
+  PetscReal, pointer :: porosity_loc_p(:)
+  PetscReal, pointer :: mask_p(:)
+  PetscInt :: num_iterations
+#ifdef OS_STATISTICS
+  PetscInt :: sum_iterations
+  PetscInt :: max_iterations
+#endif
+  PetscInt :: icount
+  PetscErrorCode :: ierr
+  PetscReal :: vol_frac_prim
 
 #ifdef OS_STATISTICS
   PetscInt :: call_count
@@ -1819,24 +1634,97 @@ subroutine RTReact(realization)
   PetscInt :: temp_int_out(3)
 #endif
   
-  PetscErrorCode :: ierr
-  
   call PetscLogEventBegin(logging%event_rt_react,ierr)
                           
-  discretization => realization%discretization
-  option => realization%option
-  field => realization%field
-      
 #ifdef OS_STATISTICS
   call_count = 0
   sum_newton_iterations = 0
   max_newton_iterations_in_a_cell = -99999999
   max_newton_iterations_on_a_core = -99999999
   min_newton_iterations_on_a_core = 99999999
-#endif  
+#endif   
+  
+  option => realization%option
+  field => realization%field
+  patch => realization%patch
+  global_aux_vars => patch%aux%Global%aux_vars
+  rt_aux_vars => patch%aux%RT%aux_vars
+  grid => patch%grid
+  reaction => realization%reaction
+  if (option%use_mc) then
+    rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
+  endif
 
-  call RTReactPatch(realization)
+  ! need up update aux vars based on current density/saturation,
+  ! but NOT activity coefficients
+  call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
 
+  ! Get vectors
+  call VecGetArrayReadF90(field%tran_xx,tran_xx_p,ierr)
+  call VecGetArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)  
+  call VecGetArrayReadF90(field%volume,volume_p,ierr)
+      
+  vol_frac_prim = 1.d0    
+  iphase = 1
+  ithread = 1
+#ifdef OS_STATISTICS
+  sum_iterations = 0
+  max_iterations = 0
+  icount = 0
+#endif
+
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    
+    istart = (local_id-1)*reaction%ncomp+1
+    iend = istart + reaction%ncomp - 1
+    iendaq = istart + reaction%naqcomp - 1
+    
+    if (option%use_mc) then
+      vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
+    endif
+    
+    call RReact(rt_aux_vars(ghosted_id),global_aux_vars(ghosted_id), &
+                tran_xx_p(istart:iend),volume_p(local_id), &
+                porosity_loc_p(ghosted_id), &
+                num_iterations,reaction,option,vol_frac_prim)
+    ! set primary dependent var back to free-ion molality
+    tran_xx_p(istart:iendaq) = rt_aux_vars(ghosted_id)%pri_molal
+    if (reaction%nimcomp > 0) then
+      tran_xx_p(reaction%offset_immobile: &
+                reaction%offset_immobile + reaction%nimcomp) = &
+        rt_aux_vars(ghosted_id)%immobile
+    endif
+#ifdef OS_STATISTICS
+    if (num_iterations > max_iterations) then
+      max_iterations = num_iterations
+    endif
+    sum_iterations = sum_iterations + num_iterations
+    icount = icount + 1
+#endif
+  enddo
+  
+#ifdef OS_STATISTICS
+  patch%aux%RT%rt_parameter%newton_call_count = icount
+  patch%aux%RT%rt_parameter%sum_newton_call_count = &
+    patch%aux%RT%rt_parameter%sum_newton_call_count + dble(icount)
+  patch%aux%RT%rt_parameter%newton_iterations = sum_iterations
+  patch%aux%RT%rt_parameter%sum_newton_iterations = &
+    patch%aux%RT%rt_parameter%sum_newton_iterations + dble(sum_iterations)
+  patch%aux%RT%rt_parameter%max_newton_iterations = max_iterations
+#endif
+  
+  ! Restore vectors
+  call VecRestoreArrayReadF90(field%tran_xx,tran_xx_p,ierr)
+  call VecRestoreArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)  
+  call VecRestoreArrayReadF90(field%volume,volume_p,ierr)
+
+  if (option%compute_mass_balance_new) then
+    call RTZeroMassBalanceDelta(realization)
+    call RTComputeBCMassBalanceOS(realization)
+  endif
+  
 #ifdef OS_STATISTICS
   call_count = call_count + cur_patch%aux%RT%rt_parameter%newton_call_count
   sum_newton_iterations = sum_newton_iterations + &
@@ -1897,151 +1785,19 @@ subroutine RTReact(realization)
                min_newton_iterations_on_a_core
   endif
 
-#endif 
+#endif   
 
 end subroutine RTReact
 
 ! ************************************************************************** !
 !
-! RTReactPatch: Calculate reaction
-! author: Glenn Hammond
-! date: 05/03/10
-!
-! ************************************************************************** !
-subroutine RTReactPatch(realization)
-
-  use Realization_class
-  use Patch_module
-  use Connection_module
-  use Coupler_module
-  use Option_module
-  use Field_module  
-  use Grid_module  
-  use Secondary_Continuum_Aux_module
-  
-!$ use omp_lib
-     
-  implicit none
-  
-  type(realization_type) :: realization
-  
-  type(global_auxvar_type), pointer :: global_aux_vars(:)
-  type(reactive_transport_auxvar_type), pointer :: rt_aux_vars(:)
-  type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid
-  type(field_type), pointer :: field
-  type(reaction_type), pointer :: reaction
-  type(option_type), pointer :: option
-  type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
-  PetscInt :: local_id, ghosted_id
-  PetscInt :: istart, iend, iendaq
-  PetscInt :: iphase
-  PetscInt :: ithread, vector_length
-  PetscReal, pointer :: tran_xx_p(:)
-  PetscReal, pointer :: volume_p(:)
-  PetscReal, pointer :: porosity_loc_p(:)
-  PetscReal, pointer :: mask_p(:)
-  PetscInt :: num_iterations
-#ifdef OS_STATISTICS
-  PetscInt :: sum_iterations
-  PetscInt :: max_iterations
-#endif
-  PetscInt :: icount
-  PetscErrorCode :: ierr
-  PetscReal :: vol_frac_prim
-
-  option => realization%option
-  field => realization%field
-  patch => realization%patch
-  global_aux_vars => patch%aux%Global%aux_vars
-  rt_aux_vars => patch%aux%RT%aux_vars
-  grid => patch%grid
-  reaction => realization%reaction
-  if (option%use_mc) then
-    rt_sec_transport_vars => patch%aux%SC_RT%sec_transport_vars
-  endif
-
-  ! need up update aux vars based on current density/saturation,
-  ! but NOT activity coefficients
-  call RTUpdateAuxVarsPatch(realization,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
-
-  ! Get vectors
-  call VecGetArrayReadF90(field%tran_xx,tran_xx_p,ierr)
-  call VecGetArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)  
-  call VecGetArrayReadF90(field%volume,volume_p,ierr)
-      
-  vol_frac_prim = 1.d0    
-  iphase = 1
-  ithread = 1
-#ifdef OS_STATISTICS
-  sum_iterations = 0
-  max_iterations = 0
-  icount = 0
-#endif
-
-  do local_id = 1, grid%nlmax
-    ghosted_id = grid%nL2G(local_id)
-    if (patch%imat(ghosted_id) <= 0) cycle
-    
-    istart = (local_id-1)*reaction%ncomp+1
-    iend = istart + reaction%ncomp - 1
-    iendaq = istart + reaction%naqcomp - 1
-    
-    if (option%use_mc) then
-      vol_frac_prim = rt_sec_transport_vars(ghosted_id)%epsilon
-    endif
-    
-    call RReact(rt_aux_vars(ghosted_id),global_aux_vars(ghosted_id), &
-                tran_xx_p(istart:iend),volume_p(local_id), &
-                porosity_loc_p(ghosted_id), &
-                num_iterations,reaction,option,vol_frac_prim)
-    ! set primary dependent var back to free-ion molality
-    tran_xx_p(istart:iendaq) = rt_aux_vars(ghosted_id)%pri_molal
-    if (reaction%nimcomp > 0) then
-      tran_xx_p(reaction%offset_immobile: &
-                reaction%offset_immobile + reaction%nimcomp) = &
-        rt_aux_vars(ghosted_id)%immobile
-    endif
-#ifdef OS_STATISTICS
-    if (num_iterations > max_iterations) then
-      max_iterations = num_iterations
-    endif
-    sum_iterations = sum_iterations + num_iterations
-    icount = icount + 1
-#endif
-  enddo
-  
-#ifdef OS_STATISTICS
-  patch%aux%RT%rt_parameter%newton_call_count = icount
-  patch%aux%RT%rt_parameter%sum_newton_call_count = &
-    patch%aux%RT%rt_parameter%sum_newton_call_count + dble(icount)
-  patch%aux%RT%rt_parameter%newton_iterations = sum_iterations
-  patch%aux%RT%rt_parameter%sum_newton_iterations = &
-    patch%aux%RT%rt_parameter%sum_newton_iterations + dble(sum_iterations)
-  patch%aux%RT%rt_parameter%max_newton_iterations = max_iterations
-#endif
-  
-  ! Restore vectors
-  call VecRestoreArrayReadF90(field%tran_xx,tran_xx_p,ierr)
-  call VecRestoreArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)  
-  call VecRestoreArrayReadF90(field%volume,volume_p,ierr)
-
-  if (option%compute_mass_balance_new) then
-    call RTZeroMassBalanceDeltaPatch(realization)
-    call RTComputeBCMassBalanceOSPatch(realization)
-  endif
-
-end subroutine RTReactPatch
-
-! ************************************************************************** !
-!
-! RTComputeBCMassBalanceOSPatch: Calculates mass balance at boundary 
-!                                conditions for operator split mode
+! RTComputeBCMassBalanceOS: Calculates mass balance at boundary 
+!                           conditions for operator split mode
 ! author: Glenn Hammond
 ! date: 05/04/10
 !
 ! ************************************************************************** !
-subroutine RTComputeBCMassBalanceOSPatch(realization)
+subroutine RTComputeBCMassBalanceOS(realization)
 
   use Realization_class
   use Patch_module
@@ -2191,7 +1947,7 @@ subroutine RTComputeBCMassBalanceOSPatch(realization)
   call VecRestoreArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)  
   call VecRestoreArrayReadF90(field%volume,volume_p,ierr)
 
-end subroutine RTComputeBCMassBalanceOSPatch
+end subroutine RTComputeBCMassBalanceOS
 
 ! ************************************************************************** !
 !
@@ -2336,10 +2092,10 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
   endif
 
   ! pass #1 for internal and boundary flux terms
-  call RTResidualPatch1(snes,xx,r,realization,ierr)
+  call RTResidualFlux(snes,xx,r,realization,ierr)
 
   ! pass #2 for everything else
-  call RTResidualPatch2(snes,xx,r,realization,ierr)
+  call RTResidualNonFlux(snes,xx,r,realization,ierr)
   
   if (realization%debug%vecview_residual) then
     call PetscViewerASCIIOpen(realization%option%mycomm,'RTresidual.out', &
@@ -2350,7 +2106,7 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
   if (realization%debug%vecview_solution) then
     call PetscViewerASCIIOpen(realization%option%mycomm,'RTxx.out', &
                               viewer,ierr)
-    call VecView(xx,viewer,ierr)
+    call VecView(field%tran_xx,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
   endif
   
@@ -2360,12 +2116,13 @@ end subroutine RTResidual
 
 ! ************************************************************************** !
 !
-! RTResidualPatch1: Computes residual function for reactive transport
+! RTResidualFlux: Computes the flux terms in the residual function for 
+!                 reactive transport
 ! author: Glenn Hammond
 ! date: 02/14/08
 !
 ! ************************************************************************** !
-subroutine RTResidualPatch1(snes,xx,r,realization,ierr)
+subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 
   use Realization_class
   use Patch_module
@@ -2455,16 +2212,16 @@ subroutine RTResidualPatch1(snes,xx,r,realization,ierr)
   if (.not.patch%aux%RT%aux_vars_up_to_date) then
     if (reaction%act_coef_update_frequency == ACT_COEF_FREQUENCY_NEWTON_ITER) then
       ! update: cells      bcs        act. coefs.
-      call RTUpdateAuxVarsPatch(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
+      call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
     else 
       ! update: cells      bcs        act. coefs.
-      call RTUpdateAuxVarsPatch(realization,PETSC_TRUE,PETSC_TRUE,PETSC_FALSE)
+      call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_FALSE)
     endif
   endif
   patch%aux%RT%aux_vars_up_to_date = PETSC_FALSE 
   
   if (option%compute_mass_balance_new) then
-    call RTZeroMassBalanceDeltaPatch(realization)
+    call RTZeroMassBalanceDelta(realization)
   endif
   
   ! Get pointer to Vector data
@@ -2499,7 +2256,7 @@ subroutine RTResidualPatch1(snes,xx,r,realization,ierr)
       ! time step.
       
       if (option%use_mc) then
-        vol_frac_prim = rt_sec_transport_vars(ghosted_id_up)%epsilon
+        vol_frac_prim = rt_sec_transport_vars(local_id_up)%epsilon
       endif  
       
       
@@ -2587,7 +2344,7 @@ subroutine RTResidualPatch1(snes,xx,r,realization,ierr)
       if (patch%imat(ghosted_id) <= 0) cycle
 
       if (option%use_mc) then
-        vol_frac_prim = rt_sec_transport_vars(ghosted_id)%epsilon
+        vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
       endif  
       
 #ifndef CENTRAL_DIFFERENCE
@@ -2665,16 +2422,17 @@ subroutine RTResidualPatch1(snes,xx,r,realization,ierr)
   call VecRestoreArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)
   call VecRestoreArrayReadF90(field%tortuosity_loc, tor_loc_p, ierr)
 
-end subroutine RTResidualPatch1
+end subroutine RTResidualFlux
 
 ! ************************************************************************** !
 !
-! RTResidualPatch2: Computes residual function for reactive transport
+! RTResidualNonFlux: Computes the non-flux terms in the residual function for 
+!                    reactive transport
 ! author: Glenn Hammond
 ! date: 02/14/08
 !
 ! ************************************************************************** !
-subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
+subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 
   use Realization_class
   use Patch_module
@@ -2780,7 +2538,7 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
       iendall = offset + reaction%ncomp
 
       if (option%use_mc) then
-        vol_frac_prim = rt_sec_transport_vars(ghosted_id)%epsilon
+        vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
       endif  
       call RTAccumulation(rt_aux_vars(ghosted_id), &
                           global_aux_vars(ghosted_id), &
@@ -2811,7 +2569,7 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
 
 ! ========== Secondary continuum transport source terms -- MULTICOMPONENT ======
   if (option%use_mc) then
-  ! Secondary continuum contribution (SK 1/31/2012)
+  ! Secondary continuum contribution (SK 1/31/2013)
   ! only one secondary continuum for now for each primary continuum node
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
@@ -2829,9 +2587,9 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
       sec_porosity = realization%material_property_array(1)%ptr% &
                      secondary_continuum_porosity
 
-      call SecondaryRTResJacMulti(rt_sec_transport_vars(ghosted_id), &
-                                  rt_aux_vars(ghosted_id), &
-                                  global_aux_vars(ghosted_id), &
+      call SecondaryRTResJacMulti(rt_sec_transport_vars(local_id), &
+                                  rt_aux_vars(local_id), &
+                                  global_aux_vars(local_id), &
                                   volume_p(local_id), &
                                   reaction, &
                                   sec_diffusion_coefficient, &
@@ -2840,7 +2598,7 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
 
       r_p(istartall:iendall) = r_p(istartall:iendall) - &
                                res_sec_transport(1:reaction%ncomp) ! in mol/s
-
+                               
     enddo   
   endif
 ! ============== end secondary continuum coupling terms ========================
@@ -2968,7 +2726,7 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
                      porosity_loc_p(ghosted_id), &
                      volume_p(local_id),reaction,option)
       if (option%use_mc) then
-        vol_frac_prim = rt_sec_transport_vars(ghosted_id)%epsilon
+        vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
         Res = Res*vol_frac_prim
       endif 
       r_p(istartall:iendall) = r_p(istartall:iendall) + Res(1:reaction%ncomp)                    
@@ -2993,8 +2751,8 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
   call VecRestoreArrayReadF90(field%volume, volume_p, ierr)
   
   ! Mass Transfer
-  if (associated(realization%mass_transfer_list)) then
-    cur_mass_transfer => realization%mass_transfer_list
+  if (associated(realization%rt_mass_transfer_list)) then
+    cur_mass_transfer => realization%rt_mass_transfer_list
     do
       if (.not.associated(cur_mass_transfer)) exit
       call VecGetArrayF90(cur_mass_transfer%vec, r_p, ierr)
@@ -3005,7 +2763,7 @@ subroutine RTResidualPatch2(snes,xx,r,realization,ierr)
     enddo
   endif
 
-end subroutine RTResidualPatch2
+end subroutine RTResidualNonFlux
 
 ! ************************************************************************** !
 !
@@ -3060,13 +2818,13 @@ subroutine RTJacobian(snes,xx,A,B,flag,realization,ierr)
 
 
   ! pass #1 for internal and boundary flux terms  
-  call RTJacobianPatch1(snes,xx,J,J,flag,realization,ierr)
+  call RTJacobianFlux(snes,xx,J,J,flag,realization,ierr)
 
   call PetscLogEventEnd(logging%event_rt_jacobian1,ierr)
   call PetscLogEventBegin(logging%event_rt_jacobian2,ierr)
   
   ! pass #2 for everything else
-  call RTJacobianPatch2(snes,xx,J,J,flag,realization,ierr)
+  call RTJacobianNonFlux(snes,xx,J,J,flag,realization,ierr)
 
   call PetscLogEventEnd(logging%event_rt_jacobian2,ierr)
     
@@ -3105,12 +2863,13 @@ end subroutine RTJacobian
 
 ! ************************************************************************** !
 !
-! RTJacobianPatch1: Computes Jacobian for reactive transport
+! RTJacobianFlux: Computes the flux term entries in the Jacobian for 
+!                 reactive transport
 ! author: Glenn Hammond
 ! date: 02/14/08
 !
 ! ************************************************************************** !
-subroutine RTJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
+subroutine RTJacobianFlux(snes,xx,A,B,flag,realization,ierr)
 
   use Realization_class
   use Patch_module
@@ -3219,7 +2978,7 @@ subroutine RTJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
           patch%imat(ghosted_id_dn) <= 0) cycle
 
       if (option%use_mc) then
-        vol_frac_prim = rt_sec_transport_vars(ghosted_id_up)%epsilon
+        vol_frac_prim = rt_sec_transport_vars(local_id_up)%epsilon
       endif 
 
 #ifndef CENTRAL_DIFFERENCE
@@ -3306,7 +3065,7 @@ subroutine RTJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
       if (patch%imat(ghosted_id) <= 0) cycle
     
       if (option%use_mc) then
-        vol_frac_prim = rt_sec_transport_vars(ghosted_id)%epsilon
+        vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
       endif 
 
 #ifndef CENTRAL_DIFFERENCE
@@ -3354,16 +3113,17 @@ subroutine RTJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
   call VecRestoreArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)
   call VecRestoreArrayReadF90(field%tortuosity_loc, tor_loc_p, ierr)
 
-end subroutine RTJacobianPatch1
+end subroutine RTJacobianFlux
 
 ! ************************************************************************** !
 !
-! RTJacobianPatch2: Computes Jacobian for reactive transport
+! RTJacobianNonFlux: Computes non-flux term entries in the Jacobian for 
+!                    reactive transport
 ! author: Glenn Hammond
 ! date: 02/14/08
 !
 ! ************************************************************************** !
-subroutine RTJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
+subroutine RTJacobianNonFlux(snes,xx,A,B,flag,realization,ierr)
 
   use Realization_class
   use Patch_module
@@ -3453,7 +3213,7 @@ subroutine RTJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
       if (patch%imat(ghosted_id) <= 0) cycle
       
       if (option%use_mc) then    
-        vol_frac_prim = rt_sec_transport_vars(ghosted_id)%epsilon
+        vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
       endif      
       
       call RTAccumulationDerivative(rt_aux_vars(ghosted_id), &
@@ -3482,8 +3242,8 @@ subroutine RTJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
           call printErrMsg(option)
         endif
         
-        if (rt_sec_transport_vars(ghosted_id)%sec_jac_update) then
-          jac_transport = rt_sec_transport_vars(ghosted_id)%sec_jac
+        if (rt_sec_transport_vars(local_id)%sec_jac_update) then
+          jac_transport = rt_sec_transport_vars(local_id)%sec_jac
         else
           option%io_buffer = 'RT secondary continuum term in primary '// &
                              'jacobian not updated'
@@ -3567,7 +3327,7 @@ subroutine RTJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
                                porosity_loc_p(ghosted_id), &
                                volume_p(local_id),reaction,option)
       if (option%use_mc) then
-        vol_frac_prim = rt_sec_transport_vars(ghosted_id)%epsilon
+        vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
         Jup = Jup*vol_frac_prim
       endif
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1, &
@@ -3627,7 +3387,7 @@ subroutine RTJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
     call PetscLogEventEnd(logging%event_rt_jacobian_zero,ierr)                          
   endif
 
-end subroutine RTJacobianPatch2
+end subroutine RTJacobianNonFlux
 
 ! ************************************************************************** !
 !
@@ -3641,30 +3401,6 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
                            update_activity_coefs)
 
   use Realization_class
-
-  type(realization_type) :: realization
-  PetscBool :: update_cells
-  PetscBool :: update_bcs
-  PetscBool :: update_activity_coefs
-  
-  ! PETSC_TRUE to update cells
-  call RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
-                            update_activity_coefs)
-  
-end subroutine RTUpdateAuxVars
-
-! ************************************************************************** !
-!
-! RTUpdateAuxVarsPatch: Updates the auxiliary variables associated with 
-!                       reactive transport
-! author: Glenn Hammond
-! date: 02/15/08
-!
-! ************************************************************************** !
-subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
-                                compute_activity_coefs)
-
-  use Realization_class
   use Patch_module
   use Grid_module
   use Coupler_module
@@ -3674,8 +3410,8 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
   use Logging_module
   
 #ifdef XINGYUAN_BC
-  use Dataset_module
-  use Dataset_Aux_module
+!  use Dataset_module
+!  use Dataset_Aux_module
   use Output_Tecplot_module
 #endif
   
@@ -3684,7 +3420,7 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
   type(realization_type) :: realization
   PetscBool :: update_bcs
   PetscBool :: update_cells
-  PetscBool :: compute_activity_coefs
+  PetscBool :: update_activity_coefs
   
   type(option_type), pointer :: option
   type(field_type), pointer :: field
@@ -3716,7 +3452,7 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: name
   PetscInt :: idof_aq_dataset
-  type(dataset_type), pointer :: dataset
+  class(dataset_type), pointer :: dataset
   PetscReal :: temp_real
   PetscBool, save :: first = PETSC_TRUE
   PetscReal, pointer :: work_p(:)
@@ -3770,7 +3506,7 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
                                        reaction,PETSC_FALSE, &
                                        option)
       endif
-      if (compute_activity_coefs) then
+      if (update_activity_coefs) then
         call RActivityCoefficients(patch%aux%RT%aux_vars(ghosted_id), &
                                    patch%aux%Global%aux_vars(ghosted_id), &
                                    reaction,option)
@@ -3953,7 +3689,7 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
                                            reaction,PETSC_FALSE, &
                                            option)
           endif          
-          if (compute_activity_coefs) then
+          if (update_activity_coefs) then
             call RActivityCoefficients(patch%aux%RT%aux_vars_bc(sum_connection), &
                                         patch%aux%Global%aux_vars_bc(sum_connection), &
                                         reaction,option)
@@ -4062,7 +3798,7 @@ subroutine RTUpdateAuxVarsPatch(realization,update_cells,update_bcs, &
   call VecRestoreArrayReadF90(field%porosity_loc,porosity_loc_p,ierr)
   icall = icall+ 1
   
-end subroutine RTUpdateAuxVarsPatch
+end subroutine RTUpdateAuxVars
 
 ! ************************************************************************** !
 !
@@ -4490,26 +4226,6 @@ end subroutine RTSetPlotVariables
 subroutine RTJumpStartKineticSorption(realization)
 
   use Realization_class
-
-  type(realization_type) :: realization
-  
-  call RTJumpStartKineticSorptionPatch(realization)
-                              
-end subroutine RTJumpStartKineticSorption
-
-! ************************************************************************** !
-!
-! RTJumpStartKineticSorptionPatch: Calculates the concentrations of species 
-!                                  sorbing through kinetic sorption processes 
-!                                  within a patch based on equilibrium with
-!                                  the aqueous phase.
-! author: Glenn Hammond
-! date: 08/05/09
-!
-! ************************************************************************** !
-subroutine RTJumpStartKineticSorptionPatch(realization)
-
-  use Realization_class
   use Patch_module
   use Grid_module
   use Option_module
@@ -4547,7 +4263,7 @@ subroutine RTJumpStartKineticSorptionPatch(realization)
     enddo
   endif
 
-end subroutine RTJumpStartKineticSorptionPatch
+end subroutine RTJumpStartKineticSorption
 
 ! ************************************************************************** !
 !
@@ -4649,22 +4365,6 @@ subroutine RTExplicitAdvection(realization)
 
   use Realization_class
 
-  type(realization_type) :: realization
-  
-  call RTExplicitAdvectionPatch(realization)
-
-end subroutine RTExplicitAdvection
-
-! ************************************************************************** !
-!
-! RTExplicitAdvectionPatch: Updates advective transport explicitly
-! author: Glenn Hammond
-! date: 02/03/12
-!
-! ************************************************************************** !
-subroutine RTExplicitAdvectionPatch(realization)
-
-  use Realization_class
   use Discretization_module
   use Patch_module
   use Option_module
@@ -4805,22 +4505,22 @@ subroutine RTExplicitAdvectionPatch(realization)
   
   if (reaction%ncoll > 0) then
     option%io_buffer = &
-      'Need to add colloidal source/sinks to RTExplicitAdvectionPatch()'
+      'Need to add colloidal source/sinks to RTExplicitAdvection()'
     call printErrMsg(option)
   endif
   if (option%nphase > 1) then
     option%io_buffer = &
-      'Need to add multiphase source/sinks to RTExplicitAdvectionPatch()'
+      'Need to add multiphase source/sinks to RTExplicitAdvection()'
     call printErrMsg(option)
   endif
   if (reaction%ncomp /= reaction%naqcomp) then
     option%io_buffer = &
-      'Need to account for non-aqueous species to RTExplicitAdvectionPatch()'
+      'Need to account for non-aqueous species to RTExplicitAdvection()'
     call printErrMsg(option)
   endif
   if (option%compute_mass_balance_new) then  
     option%io_buffer = &
-      'Mass balance not yet supported in RTExplicitAdvectionPatch()'
+      'Mass balance not yet supported in RTExplicitAdvection()'
     call printErrMsg(option)
   endif
   
@@ -4989,7 +4689,7 @@ subroutine RTExplicitAdvectionPatch(realization)
     local_start = local_end-ntvddof+1
 !    do iphase = 1, option%nphase
       ! psv_t must have same units [mol/sec] and be consistent with rhs_coef_p
-      ! in RTUpdateRHSCoefsPatch()
+      ! in RTUpdateRHSCoefs()
       psv_t = porosity_loc_p(ghosted_id)* &
               global_aux_vars(ghosted_id)%sat(iphase)* &
               1000.d0* &
@@ -5014,7 +4714,7 @@ subroutine RTExplicitAdvectionPatch(realization)
   call VecRestoreArrayF90(field%tran_xx,tran_xx_p,ierr)
   call VecRestoreArrayReadF90(field%tran_rhs_coef,rhs_coef_p,ierr)
   
-end subroutine RTExplicitAdvectionPatch
+end subroutine RTExplicitAdvection
 
 ! ************************************************************************** !
 !
@@ -5112,7 +4812,6 @@ subroutine RTDestroy(realization)
       cur_patch%aux%RT%rt_parameter%overall_max_newton_iterations
   endif
 #endif
-  call RTDestroyPatch(realization)
 
 #ifdef OS_STATISTICS
   if (option%reactive_transport_coupling == OPERATOR_SPLIT) then
@@ -5172,24 +4871,5 @@ subroutine RTDestroy(realization)
 
 
 end subroutine RTDestroy
-
-! ************************************************************************** !
-!
-! RTDestroyPatch: Deallocates variables associated with Reactive Transport
-! author: Glenn Hammond
-! date: 02/03/09
-!
-! ************************************************************************** !
-subroutine RTDestroyPatch(realization)
-
-  use Realization_class
-
-  implicit none
-
-  type(realization_type) :: realization
-  
-  ! taken care of in auxiliary.F90
-  
-end subroutine RTDestroyPatch
 
 end module Reactive_Transport_module

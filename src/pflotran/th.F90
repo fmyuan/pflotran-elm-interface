@@ -141,7 +141,7 @@ subroutine THSetupPatch(realization)
   PetscReal :: area_per_vol
 
   PetscInt :: ghosted_id, iconn, sum_connection
-  PetscInt :: i, iphase
+  PetscInt :: i, iphase, local_id
   
   
   option => realization%option
@@ -206,14 +206,14 @@ subroutine THSetupPatch(realization)
  
   if (option%use_mc) then
     initial_condition => patch%initial_conditions%first
-    allocate(TH_sec_heat_vars(grid%ngmax))
+    allocate(TH_sec_heat_vars(grid%nlmax))
   
-    do ghosted_id = 1, grid%ngmax
+    do local_id = 1, grid%nlmax
   
     ! Assuming the same secondary continuum for all regions (need to make it an array)
     ! S. Karra 07/18/12
       call SecondaryContinuumSetProperties( &
-        TH_sec_heat_vars(ghosted_id)%sec_continuum, &
+        TH_sec_heat_vars(local_id)%sec_continuum, &
         realization%material_property_array(1)%ptr%secondary_continuum_name, &
         realization%material_property_array(1)%ptr%secondary_continuum_length, &
         realization%material_property_array(1)%ptr%secondary_continuum_matrix_block_size, &
@@ -222,54 +222,54 @@ subroutine THSetupPatch(realization)
         realization%material_property_array(1)%ptr%secondary_continuum_area, &
         option)
         
-      TH_sec_heat_vars(ghosted_id)%ncells = &
+      TH_sec_heat_vars(local_id)%ncells = &
         realization%material_property_array(1)%ptr%secondary_continuum_ncells
-      TH_sec_heat_vars(ghosted_id)%aperture = &
+      TH_sec_heat_vars(local_id)%aperture = &
         realization%material_property_array(1)%ptr%secondary_continuum_aperture
-      TH_sec_heat_vars(ghosted_id)%epsilon = &
+      TH_sec_heat_vars(local_id)%epsilon = &
         realization%material_property_array(1)%ptr%secondary_continuum_epsilon
-      TH_sec_heat_vars(ghosted_id)%log_spacing = &
+      TH_sec_heat_vars(local_id)%log_spacing = &
         realization%material_property_array(1)%ptr%secondary_continuum_log_spacing
-      TH_sec_heat_vars(ghosted_id)%outer_spacing = &
+      TH_sec_heat_vars(local_id)%outer_spacing = &
         realization%material_property_array(1)%ptr%secondary_continuum_outer_spacing
                 
-      allocate(TH_sec_heat_vars(ghosted_id)%area(TH_sec_heat_vars(ghosted_id)%ncells))
-      allocate(TH_sec_heat_vars(ghosted_id)%vol(TH_sec_heat_vars(ghosted_id)%ncells))
-      allocate(TH_sec_heat_vars(ghosted_id)%dm_minus(TH_sec_heat_vars(ghosted_id)%ncells))
-      allocate(TH_sec_heat_vars(ghosted_id)%dm_plus(TH_sec_heat_vars(ghosted_id)%ncells))
-      allocate(TH_sec_heat_vars(ghosted_id)%sec_continuum% &
-             distance(TH_sec_heat_vars(ghosted_id)%ncells))
+      allocate(TH_sec_heat_vars(local_id)%area(TH_sec_heat_vars(local_id)%ncells))
+      allocate(TH_sec_heat_vars(local_id)%vol(TH_sec_heat_vars(local_id)%ncells))
+      allocate(TH_sec_heat_vars(local_id)%dm_minus(TH_sec_heat_vars(local_id)%ncells))
+      allocate(TH_sec_heat_vars(local_id)%dm_plus(TH_sec_heat_vars(local_id)%ncells))
+      allocate(TH_sec_heat_vars(local_id)%sec_continuum% &
+             distance(TH_sec_heat_vars(local_id)%ncells))
     
-      call SecondaryContinuumType(TH_sec_heat_vars(ghosted_id)%sec_continuum, &
-                                  TH_sec_heat_vars(ghosted_id)%ncells, &
-                                  TH_sec_heat_vars(ghosted_id)%area, &
-                                  TH_sec_heat_vars(ghosted_id)%vol, &
-                                  TH_sec_heat_vars(ghosted_id)%dm_minus, &
-                                  TH_sec_heat_vars(ghosted_id)%dm_plus, &
-                                  TH_sec_heat_vars(ghosted_id)%aperture, &
-                                  TH_sec_heat_vars(ghosted_id)%epsilon, &
-                                  TH_sec_heat_vars(ghosted_id)%log_spacing, &
-                                  TH_sec_heat_vars(ghosted_id)%outer_spacing, &
+      call SecondaryContinuumType(TH_sec_heat_vars(local_id)%sec_continuum, &
+                                  TH_sec_heat_vars(local_id)%ncells, &
+                                  TH_sec_heat_vars(local_id)%area, &
+                                  TH_sec_heat_vars(local_id)%vol, &
+                                  TH_sec_heat_vars(local_id)%dm_minus, &
+                                  TH_sec_heat_vars(local_id)%dm_plus, &
+                                  TH_sec_heat_vars(local_id)%aperture, &
+                                  TH_sec_heat_vars(local_id)%epsilon, &
+                                  TH_sec_heat_vars(local_id)%log_spacing, &
+                                  TH_sec_heat_vars(local_id)%outer_spacing, &
                                   area_per_vol,option)
                                 
-      TH_sec_heat_vars(ghosted_id)%interfacial_area = area_per_vol* &
-        (1.d0 - TH_sec_heat_vars(ghosted_id)%epsilon)* &
+      TH_sec_heat_vars(local_id)%interfacial_area = area_per_vol* &
+        (1.d0 - TH_sec_heat_vars(local_id)%epsilon)* &
         realization%material_property_array(1)%ptr% &
         secondary_continuum_area_scaling
 
     ! Setting the initial values of all secondary node temperatures same as primary node 
     ! temperatures (with initial dirichlet BC only) -- sk 06/26/12
-      allocate(TH_sec_heat_vars(ghosted_id)%sec_temp(TH_sec_heat_vars(ghosted_id)%ncells))
+      allocate(TH_sec_heat_vars(local_id)%sec_temp(TH_sec_heat_vars(local_id)%ncells))
       
       if (option%set_secondary_init_temp) then
-        TH_sec_heat_vars(ghosted_id)%sec_temp = &
+        TH_sec_heat_vars(local_id)%sec_temp = &
           realization%material_property_array(1)%ptr%secondary_continuum_init_temp
       else
-        TH_sec_heat_vars(ghosted_id)%sec_temp = &
+        TH_sec_heat_vars(local_id)%sec_temp = &
         initial_condition%flow_condition%temperature%flow_dataset%time_series%cur_value(1)
       endif
       
-      TH_sec_heat_vars(ghosted_id)%sec_temp_update = PETSC_FALSE
+      TH_sec_heat_vars(local_id)%sec_temp_update = PETSC_FALSE
     
     enddo
       
@@ -997,11 +997,27 @@ subroutine THUpdateAuxVarsPatch(realization)
       istart = iend-option%nflowdof+1
       iphase = int(iphase_loc_p(ghosted_id))
 
-      if(source_sink%flow_condition%temperature%itype/=HET_DIRICHLET) then
-        tsrc1 = source_sink%flow_condition%temperature%flow_dataset%time_series%cur_value(1)
+      if (associated(source_sink%flow_condition%temperature)) then
+        if(source_sink%flow_condition%temperature%itype/=HET_DIRICHLET) then
+          tsrc1 = source_sink%flow_condition%temperature%flow_dataset%time_series%cur_value(1)
+        else
+          tsrc1 = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
+        endif
       else
-        tsrc1 = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
+          tsrc1 = xx_loc_p((ghosted_id-1)*option%nflowdof+1)
       endif
+      select case(source_sink%flow_condition%itype(TH_TEMPERATURE_DOF))
+        case (HET_DIRICHLET)
+          tsrc1 = source_sink%flow_condition%temperature%flow_dataset%time_series%cur_value(1)
+        case (DIRICHLET_BC)
+          tsrc1 = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
+        case (ENERGY_RATE_SS,HET_ENERGY_RATE_SS)
+          tsrc1 = xx_loc_p((ghosted_id-1)*option%nflowdof+2)
+        case default
+          option%io_buffer='Unsupported temperature flow condtion for ' // &
+            'a source-sink in TH mode: ' // trim(source_sink%name)
+          call printErrMsg(option)
+      end select
       xx = xx_loc_p(istart:iend)
       xx(2) = tsrc1
 
@@ -1032,7 +1048,7 @@ subroutine THUpdateAuxVarsPatch(realization)
   call GridVecRestoreArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
   
   patch%aux%TH%aux_vars_up_to_date = PETSC_TRUE
-    
+
 !  deallocate(gradient)
 
 end subroutine THUpdateAuxVarsPatch
@@ -1248,7 +1264,7 @@ subroutine THUpdateFixedAccumPatch(realization)
 
 
     if (option%use_mc) then
-      vol_frac_prim = TH_sec_heat_vars(ghosted_id)%epsilon
+      vol_frac_prim = TH_sec_heat_vars(local_id)%epsilon
     endif
     
     iphase_loc_p(ghosted_id) = iphase
@@ -3151,7 +3167,8 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   PetscReal :: alpha_fr_up, alpha_fr_dn
   PetscReal :: Diff_up, Diff_dn  ! "Diffusion" constants at upstream, downstream faces.
   PetscReal :: dw_kg, dw_mol
-  PetscReal :: tsrc1, qsrc1, csrc1, enth_src_h2o, enth_src_co2 , hsrc1
+  PetscReal :: qsrc1, csrc1, enth_src_h2o, enth_src_co2 , esrc1
+
   PetscReal :: upweight
   PetscReal :: Res(realization%option%nflowdof), v_darcy
   PetscViewer :: viewer
@@ -3171,7 +3188,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
   character(len=MAXSTRINGLENGTH) :: string
 
-  PetscBool :: enthalpy_flag
   PetscInt :: iconn, idof, istart, iend
   PetscInt :: sum_connection
   PetscReal :: distance, fraction_upwind
@@ -3253,7 +3269,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
 
 
     if (option%use_mc) then
-      vol_frac_prim = TH_sec_heat_vars(ghosted_id)%epsilon
+      vol_frac_prim = TH_sec_heat_vars(local_id)%epsilon
     endif
 
     call THAccumulation(aux_vars(ghosted_id),global_aux_vars(ghosted_id), &
@@ -3277,20 +3293,20 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
     
-      sec_dencpr = TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id))) ! secondary rho*c_p same as primary for now
+      sec_dencpr = TH_parameter%dencpr(int(ithrm_loc_p(local_id))) ! secondary rho*c_p same as primary for now
 
       if (option%sec_vars_update) then
-        call THSecHeatAuxVarCompute(TH_sec_heat_vars(ghosted_id), &
-                            global_aux_vars(ghosted_id), &
-                            TH_parameter%ckwet(int(ithrm_loc_p(ghosted_id))), &
+        call THSecHeatAuxVarCompute(TH_sec_heat_vars(local_id), &
+                            global_aux_vars(local_id), &
+                            TH_parameter%ckwet(int(ithrm_loc_p(local_id))), &
                             sec_dencpr, &
                             option)
       endif       
     
-      call THSecondaryHeat(TH_sec_heat_vars(ghosted_id), &
-                          global_aux_vars(ghosted_id), &
-!                         TH_parameter%ckdry(int(ithrm_loc_p(ghosted_id))), &
-                          TH_parameter%ckwet(int(ithrm_loc_p(ghosted_id))), &
+      call THSecondaryHeat(TH_sec_heat_vars(local_id), &
+                          global_aux_vars(local_id), &
+!                         TH_parameter%ckdry(int(ithrm_loc_p(local_id))), &
+                          TH_parameter%ckwet(int(ithrm_loc_p(local_id))), &
                           sec_dencpr, &
                           option,res_sec_heat)
 
@@ -3308,21 +3324,10 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   do 
     if (.not.associated(source_sink)) exit
     
-    ! check whether enthalpy dof is included
-    if (source_sink%flow_condition%num_sub_conditions > TH_TEMPERATURE_DOF) then
-      enthalpy_flag = PETSC_TRUE
-    else
-      enthalpy_flag = PETSC_FALSE
-    endif
-
     if(source_sink%flow_condition%rate%itype/=HET_MASS_RATE_SS) then
       qsrc1 = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(1)
       qsrc1 = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
     endif
-    if(source_sink%flow_condition%temperature%itype/=HET_DIRICHLET) &
-      tsrc1 = source_sink%flow_condition%temperature%flow_dataset%time_series%cur_value(1)
-
-    if (enthalpy_flag) hsrc1 = source_sink%flow_condition%enthalpy%flow_dataset%time_series%cur_value(1)
 
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
       clm_condition=PETSC_FALSE
@@ -3344,10 +3349,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       ! term
       if(clm_condition) qsrc1 = qflx_pf_p(local_id)*0.d0
 #endif
-      if (enthalpy_flag) then
-        r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - hsrc1* &
-                                        volume_p(local_id)   
-      endif
 
       select case (source_sink%flow_condition%rate%itype)
         case(MASS_RATE_SS)
@@ -3365,15 +3366,14 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
           trim(adjustl(string)) // ', not implemented.'
       end select
 
-      select case (source_sink%flow_condition%temperature%itype)
-        case(HET_DIRICHLET)
-          tsrc1 = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
-        case (DIRICHLET_BC)
-        case default
-          write(string,*),source_sink%flow_condition%temperature%itype
-          option%io_buffer='TH mode source_sink%flow_condition%temperature%itype = ' // &
-          trim(adjustl(string)) // ', not implemented.'
+      esrc1 = 0.d0
+      select case(source_sink%flow_condition%itype(TH_TEMPERATURE_DOF))
+        case (ENERGY_RATE_SS)
+          esrc1 = source_sink%flow_condition%energy_rate%flow_dataset%time_series%cur_value(1)
+        case (HET_ENERGY_RATE_SS)
+          esrc1 = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
       end select
+      r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - esrc1
 
       ! Update residual term associated with T
       if (qsrc1 > 0.d0) then ! injection
@@ -3757,7 +3757,7 @@ subroutine THJacobianPatch(snes,xx,A,B,flag,realization,ierr)
   PetscInt :: icap,iphas,icap_up,icap_dn
   PetscInt :: ii, jj
   PetscReal :: dw_kg,dw_mol,enth_src_co2,enth_src_h2o,rho
-  PetscReal :: tsrc1,qsrc1,csrc1,hsrc1
+  PetscReal :: qsrc1,csrc1
   PetscReal :: dd_up, dd_dn, dd, f_up, f_dn
   PetscReal :: perm_up, perm_dn
   PetscReal :: dw_dp,dw_dt,hw_dp,hw_dt,dresT_dp,dresT_dt
@@ -3782,7 +3782,6 @@ subroutine THJacobianPatch(snes,xx,A,B,flag,realization,ierr)
   type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
-  PetscBool :: enthalpy_flag
   PetscInt :: iconn, idof
   PetscInt :: sum_connection  
   PetscReal :: distance, fraction_upwind
@@ -3850,7 +3849,7 @@ subroutine THJacobianPatch(snes,xx,A,B,flag,realization,ierr)
     icap = int(icap_loc_p(ghosted_id))
     
     if (option%use_mc) then    
-      vol_frac_prim = sec_heat_vars(ghosted_id)%epsilon
+      vol_frac_prim = sec_heat_vars(local_id)%epsilon
     endif
 
     call THAccumDerivative(aux_vars(ghosted_id),global_aux_vars(ghosted_id), &
@@ -3862,9 +3861,9 @@ subroutine THJacobianPatch(snes,xx,A,B,flag,realization,ierr)
                             vol_frac_prim,Jup) 
 
     if (option%use_mc) then
-      call THSecondaryHeatJacobian(sec_heat_vars(ghosted_id), &
-                        TH_parameter%ckwet(int(ithrm_loc_p(ghosted_id))), &
-                        TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+      call THSecondaryHeatJacobian(sec_heat_vars(local_id), &
+                        TH_parameter%ckwet(int(ithrm_loc_p(local_id))), &
+                        TH_parameter%dencpr(int(ithrm_loc_p(local_id))), &
                         option,jac_sec_heat)
                         
       Jup(option%nflowdof,2) = Jup(option%nflowdof,2) - &
@@ -3893,20 +3892,10 @@ subroutine THJacobianPatch(snes,xx,A,B,flag,realization,ierr)
   do
     if (.not.associated(source_sink)) exit
     
-    ! check whether enthalpy dof is included
-    if (source_sink%flow_condition%num_sub_conditions > TH_TEMPERATURE_DOF) then
-      enthalpy_flag = PETSC_TRUE
-    else
-      enthalpy_flag = PETSC_FALSE
-    endif
-
     if(source_sink%flow_condition%rate%itype/=HET_MASS_RATE_SS) then
       qsrc1 = source_sink%flow_condition%rate%flow_dataset%time_series%cur_value(1)
       qsrc1 = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
     endif
-    if(source_sink%flow_condition%temperature%itype/=HET_DIRICHLET) &
-      tsrc1 = source_sink%flow_condition%temperature%flow_dataset%time_series%cur_value(1)
-    if (enthalpy_flag) hsrc1 = source_sink%flow_condition%enthalpy%flow_dataset%time_series%cur_value(1)
 
     cur_connection_set => source_sink%connection_set
     

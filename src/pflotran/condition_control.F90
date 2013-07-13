@@ -38,7 +38,8 @@ subroutine CondControlAssignFlowInitCond(realization)
   use Field_module
   use Coupler_module
   use Condition_module
-  use Dataset_Aux_module
+  use Dataset_Base_class
+  use Dataset_Common_HDF5_class
   use Grid_module
   use Level_module
   use Patch_module
@@ -73,7 +74,7 @@ subroutine CondControlAssignFlowInitCond(realization)
   type(level_type), pointer :: cur_level
   type(patch_type), pointer :: cur_patch
   type(flow_general_condition_type), pointer :: general
-  type(dataset_type), pointer :: dataset
+  class(dataset_base_type), pointer :: dataset
   type(global_auxvar_type) :: global_aux
   type(general_auxvar_type) :: general_aux
   PetscBool :: use_dataset
@@ -276,14 +277,17 @@ subroutine CondControlAssignFlowInitCond(realization)
                                  sub_condition_ptr(idof)%ptr% &
                                  flow_dataset%dataset
                 if (associated(dataset)) then
-                  if (dataset%is_cell_indexed) then
-                    use_dataset = PETSC_TRUE
-                    dataset_flag(idof) = PETSC_TRUE
-                    call ConditionControlMapDatasetToVec(realization, &
-                           initial_condition%flow_condition% &
-                             sub_condition_ptr(idof)%ptr% &
-                             flow_dataset%dataset,idof,field%flow_xx,GLOBAL)
-                  endif
+                  select type(dataset)
+                    class is(dataset_common_hdf5_type)
+                      if (dataset%is_cell_indexed) then
+                        use_dataset = PETSC_TRUE
+                        dataset_flag(idof) = PETSC_TRUE
+                        call ConditionControlMapDatasetToVec(realization, &
+                              initial_condition%flow_condition% &
+                              sub_condition_ptr(idof)%ptr% &
+                              flow_dataset%dataset,idof,field%flow_xx,GLOBAL)
+                    endif
+                  end select
                 endif
               enddo
               if (.not.associated(initial_condition%flow_aux_real_var)) then
@@ -359,14 +363,12 @@ subroutine CondControlAssignFlowInitCond(realization)
                                  sub_condition_ptr(idof)%ptr% &
                                  flow_dataset%dataset
                 if (associated(dataset)) then
-                  if (dataset%is_cell_indexed) then
-                    use_dataset = PETSC_TRUE
-                    dataset_flag(idof) = PETSC_TRUE
-                    call ConditionControlMapDatasetToVec(realization, &
-                           initial_condition%flow_condition% &
-                             sub_condition_ptr(idof)%ptr% &
-                             flow_dataset%dataset,idof,field%flow_xx,GLOBAL)
-                  endif
+                  use_dataset = PETSC_TRUE
+                  dataset_flag(idof) = PETSC_TRUE
+                  call ConditionControlMapDatasetToVec(realization, &
+                          initial_condition%flow_condition% &
+                            sub_condition_ptr(idof)%ptr% &
+                            flow_dataset%dataset,idof,field%flow_xx,GLOBAL)
                 endif
               enddo            
               if (.not.associated(initial_condition%flow_aux_real_var) .and. &
@@ -480,7 +482,7 @@ subroutine CondControlAssignTranInitCond(realization)
   use Condition_module
   use Constraint_module
   use Grid_module
-  use Dataset_Aux_module
+  use Dataset_Base_class
   use Level_module
   use Patch_module
   use Reactive_Transport_Aux_module
@@ -519,7 +521,7 @@ subroutine CondControlAssignTranInitCond(realization)
   PetscInt :: offset
   PetscBool :: re_equilibrate_at_each_cell
   character(len=MAXSTRINGLENGTH) :: string, string2
-  type(dataset_type), pointer :: dataset
+  class(dataset_base_type), pointer :: dataset
   PetscInt :: aq_dataset_to_idof(realization%reaction%naqcomp)
   PetscInt :: iaqdataset, num_aq_datasets
   PetscBool :: use_aq_dataset
@@ -570,7 +572,7 @@ subroutine CondControlAssignTranInitCond(realization)
             re_equilibrate_at_each_cell = PETSC_TRUE
             use_aq_dataset = PETSC_TRUE
             string = 'constraint ' // trim(constraint_coupler%constraint_name)
-            dataset => DatasetGetPointer(realization%datasets, &
+            dataset => DatasetBaseGetPointer(realization%datasets, &
                          constraint_coupler%aqueous_species%constraint_aux_string(idof), &
                          string,option)
             call ConditionControlMapDatasetToVec(realization,dataset,idof, &
@@ -584,16 +586,12 @@ subroutine CondControlAssignTranInitCond(realization)
             if (constraint_coupler%minerals%external_dataset(imnrl)) then
               re_equilibrate_at_each_cell = PETSC_TRUE
               string = 'constraint ' // trim(constraint_coupler%constraint_name)
-              dataset => DatasetGetPointer(realization%datasets, &
+              dataset => DatasetBaseGetPointer(realization%datasets, &
                            constraint_coupler%minerals%constraint_aux_string(imnrl), &
                            string,option)
-              string = '' ! group name
-              string2 = dataset%h5_dataset_name ! dataset name
-              call HDF5ReadCellIndexedRealArray(realization,field%work, &
-                                                dataset%filename, &
-                                                string,string2, &
-                                                dataset%realization_dependent)
-              call DiscretizationGlobalToLocal(discretization,field%work,field%work_loc,ONEDOF)
+              idof = ONE_INTEGER
+              call ConditionControlMapDatasetToVec(realization,dataset,idof, &
+                                                   field%work_loc,LOCAL)
               call GridVecGetArrayF90(grid,field%work_loc,vec_p,ierr)
               do icell=1,initial_condition%region%num_cells
                 local_id = initial_condition%region%cell_ids(icell)
@@ -612,16 +610,12 @@ subroutine CondControlAssignTranInitCond(realization)
             if (constraint_coupler%immobile_species%external_dataset(iimmobile)) then
               ! no need to requilibrate at each cell
               string = 'constraint ' // trim(constraint_coupler%constraint_name)
-              dataset => DatasetGetPointer(realization%datasets, &
+              dataset => DatasetBaseGetPointer(realization%datasets, &
                   constraint_coupler%immobile_species%constraint_aux_string(iimmobile), &
                   string,option)
-              string = '' ! group name
-              string2 = dataset%h5_dataset_name ! dataset name
-              call HDF5ReadCellIndexedRealArray(realization,field%work, &
-                                                dataset%filename, &
-                                                string,string2, &
-                                                dataset%realization_dependent)
-              call DiscretizationGlobalToLocal(discretization,field%work,field%work_loc,ONEDOF)
+              idof = ONE_INTEGER
+              call ConditionControlMapDatasetToVec(realization,dataset,idof, &
+                                                   field%work_loc,LOCAL)
               call GridVecGetArrayF90(grid,field%work_loc,vec_p,ierr)
               do icell=1,initial_condition%region%num_cells
                 local_id = initial_condition%region%cell_ids(icell)
@@ -821,9 +815,18 @@ subroutine CondControlAssignTranInitCond(realization)
           string2 = trim(string2) // &
             '" has zero concentration (' // &
             trim(adjustl(string)) // ').'
-        call printMsg(option)
+        call printMsg(option,string2)
       endif
     enddo
+    option%io_buffer = ''
+    call printMsg(option)
+    option%io_buffer = '*** Begin Note'
+    call printMsg(option)
+    option%io_buffer = 'If concentrations = -999., they have not ' // &
+              'been initialized properly.'
+    call printMsg(option)
+    option%io_buffer = '*** End Note'
+    call printMsg(option)
     option%io_buffer = 'Free ion concentations must be positive.  Try ' // &
       'using a small value such as 1.e-20 or 1.e-40 instead of zero.'
     call printErrMsg(option)
@@ -849,7 +852,8 @@ subroutine ConditionControlMapDatasetToVec(realization,dataset,idof, &
   use Realization_class
   use Option_module
   use Field_module
-  use Dataset_Aux_module
+  use Dataset_Common_HDF5_class
+  use Dataset_Base_class
   use HDF5_module
   use Discretization_module
 
@@ -859,7 +863,7 @@ subroutine ConditionControlMapDatasetToVec(realization,dataset,idof, &
 #include "finclude/petscvec.h90"  
   
   type(realization_type) :: realization
-  type(dataset_type), pointer :: dataset
+  class(dataset_base_type), pointer :: dataset
   PetscInt :: idof
   Vec :: mdof_vec
   PetscInt :: vec_type
@@ -873,23 +877,30 @@ subroutine ConditionControlMapDatasetToVec(realization,dataset,idof, &
   option => realization%option
   
   if (associated(dataset)) then
-    string = '' ! group name
-    ! have to copy to string2 due to mismatch in string size
-    string2 = dataset%h5_dataset_name
-    call HDF5ReadCellIndexedRealArray(realization,field%work, &
-                                      dataset%filename, &
-                                      string,string2, &
-                                      dataset%realization_dependent)
-    if (vec_type == GLOBAL) then
-      call VecStrideScatter(field%work,idof-1,mdof_vec, &
-                            INSERT_VALUES,ierr)    
-    else
-      call DiscretizationGlobalToLocal(realization%discretization, &
-                                       field%work, &
-                                       field%work_loc,ONEDOF)
-      call VecStrideScatter(field%work_loc,idof-1,mdof_vec, &
-                            INSERT_VALUES,ierr)    
-    endif
+    select type(dataset)
+      class is (dataset_common_hdf5_type)
+        string = '' ! group name
+        ! have to copy to string2 due to mismatch in string size
+        string2 = dataset%hdf5_dataset_name
+        call HDF5ReadCellIndexedRealArray(realization,field%work, &
+                                          dataset%filename, &
+                                          string,string2, &
+                                          dataset%realization_dependent)
+        if (vec_type == GLOBAL) then
+          call VecStrideScatter(field%work,idof-1,mdof_vec, &
+                                INSERT_VALUES,ierr)    
+        else
+          call DiscretizationGlobalToLocal(realization%discretization, &
+                                           field%work, &
+                                           field%work_loc,ONEDOF)
+          call VecStrideScatter(field%work_loc,idof-1,mdof_vec, &
+                                INSERT_VALUES,ierr)    
+        endif
+      class default
+        option%io_buffer = 'Dataset "' // trim(dataset%name) // &
+          '" not supported in ConditionControlMapDatasetToVec.'
+        call printErrMsg(option)
+    end select
   endif
 
 end subroutine ConditionControlMapDatasetToVec
@@ -1078,6 +1089,8 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
   use Level_module
   use Patch_module
   use Water_EOS_module
+  use Surface_TH_Aux_module
+  use Surface_Global_Aux_module
   
   implicit none
 
@@ -1092,6 +1105,9 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
   PetscErrorCode :: ierr
   
   PetscReal :: temperature, p_sat
+  PetscReal :: pw, dw_kg, dw_mol, hw
+  PetscReal :: temp
+  PetscReal :: dpsat_dt
   character(len=MAXSTRINGLENGTH) :: string
   
   type(option_type), pointer :: option
@@ -1103,12 +1119,18 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
   type(level_type), pointer :: cur_level
   type(patch_type), pointer :: cur_patch
   type(flow_general_condition_type), pointer :: general
+  type(Surface_TH_auxvar_type), pointer :: surf_th_aux_vars(:)
+  type(surface_global_auxvar_type), pointer :: surf_global_aux_vars(:)
 
   option => surf_realization%option
   discretization => surf_realization%discretization
   surf_field => surf_realization%surf_field
   patch => surf_realization%patch
 
+  if (option%iflowmode == TH_MODE) then
+    surf_th_aux_vars => patch%surf_aux%SurfaceTH%aux_vars
+    surf_global_aux_vars => patch%surf_aux%SurfaceGlobal%aux_vars
+  endif
 
   cur_level => surf_realization%level_list%first
   do 
@@ -1149,14 +1171,26 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
                     cycle
                   endif
                   do idof = 1, option%nflowdof
-                    xx_p(ibegin+idof-1) = &
+                    select case (idof)
+                      case (ONE_INTEGER)
+                        xx_p(ibegin+idof-1) = &
                           initial_condition%flow_condition% &
                           sub_condition_ptr(idof)%ptr%flow_dataset%time_series%cur_value(1)
-                    !TODO(GB): Correct the initialization of surface flow condition
-                    if (idof == 1) xx_p(ibegin+idof-1) = 0.d0
-                    !if (idof == 1.and.option%iflowmode==TH_MODE) then
-                    !  xx_p(ibegin+idof-1) = 0.d0+option%reference_pressure
-                    !endif
+                      case (TWO_INTEGER)
+                        temp = &
+                          initial_condition%flow_condition% &
+                          sub_condition_ptr(idof)%ptr%flow_dataset%time_series%cur_value(1)
+                        pw = option%reference_pressure
+                        
+                        call wateos_noderiv(temp, pw, dw_kg, &
+                                            dw_mol, hw, option%scale, ierr)
+                        ! [rho*h*T*Cw]
+                        xx_p(ibegin+idof-1) = dw_kg*xx_p(ibegin)* &
+                                              (temp + 273.15d0)* &
+                                              surf_th_aux_vars(ghosted_id)%Cw
+                        surf_global_aux_vars(ghosted_id)%den_kg(1) = dw_kg
+                        surf_global_aux_vars(ghosted_id)%temp(1) = temp
+                    end select
                   enddo
                 enddo
               else
@@ -1194,7 +1228,8 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
   enddo
    
   ! update dependent vectors
-  call DiscretizationGlobalToLocal(discretization,surf_field%flow_xx,surf_field%flow_xx_loc,NFLOWDOF)
+  call DiscretizationGlobalToLocal(discretization, surf_field%flow_xx, &
+                                   surf_field%flow_xx_loc, NFLOWDOF)
 
 end subroutine CondControlAssignFlowInitCondSurface
 #endif

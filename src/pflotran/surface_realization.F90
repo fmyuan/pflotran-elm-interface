@@ -15,7 +15,7 @@ module Surface_Realization_class
   use Surface_Field_module
   use Surface_Material_module
   use Waypoint_module
-  use Dataset_Aux_module
+  use Dataset_Base_class
   use Reaction_Aux_module
   use Output_Aux_module
   
@@ -42,7 +42,7 @@ private
     character(len=MAXSTRINGLENGTH)                    :: surf_filename
     character(len=MAXSTRINGLENGTH)                    :: subsurf_filename
 
-    type(dataset_type), pointer                       :: datasets
+    class(dataset_base_type), pointer :: datasets
     
     PetscReal :: dt_max
     PetscReal :: dt_min
@@ -369,6 +369,7 @@ subroutine SurfRealizCreateDiscretization(surf_realization)
   use Coupler_module
   use Discretization_module
   use Unstructured_Cell_module
+  use DM_Kludge_module
   
   implicit none
 
@@ -404,9 +405,7 @@ subroutine SurfRealizCreateDiscretization(surf_realization)
                                      surf_field%work)
 
   call DiscretizationDuplicateVector(discretization,surf_field%flow_xx, &
-                                     surf_field%vol_subsurf_2_surf)
-  call DiscretizationDuplicateVector(discretization,surf_field%flow_xx, &
-                                     surf_field%press_subsurf)
+                                     surf_field%exchange_subsurf_2_surf)
 
   ! 1 degree of freedom, global
   call DiscretizationCreateVector(discretization,ONEDOF,surf_field%mannings0, &
@@ -426,7 +425,9 @@ subroutine SurfRealizCreateDiscretization(surf_realization)
   call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
                                      surf_field%por)
   call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%sat_func_id)
+                                     surf_field%icap_loc)
+  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
+                                     surf_field%ithrm_loc)
   call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
                                      surf_field%subsurf_xx)
   call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
@@ -434,7 +435,25 @@ subroutine SurfRealizCreateDiscretization(surf_realization)
   call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
                                      surf_field%subsurf_zz)
   call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
+                                     surf_field%surf2subsurf_dist)
+  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
                                      surf_field%surf2subsurf_dist_gravity)
+  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
+                                     surf_field%press_subsurf)
+  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
+                                     surf_field%temp_subsurf)
+  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
+                                     surf_field%sat_ice)
+  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
+                                     surf_field%ckwet)
+  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
+                                     surf_field%ckdry)
+  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
+                                     surf_field%ckice)
+  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
+                                     surf_field%th_alpha)
+  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
+                                     surf_field%th_alpha_fr)
 
   ! n degrees of freedom, local
   call DiscretizationCreateVector(discretization,NFLOWDOF,surf_field%flow_xx_loc, &
@@ -616,6 +635,7 @@ end subroutine SurfRealizLocalToLocalWithArray
 ! ************************************************************************** !
 subroutine SurfRealizProcessFlowConditions(surf_realization)
 
+  use Dataset_Base_class
   use Dataset_module
 
   implicit none
@@ -627,7 +647,7 @@ subroutine SurfRealizProcessFlowConditions(surf_realization)
   type(option_type), pointer             :: option
   character(len=MAXSTRINGLENGTH)         :: string
   character(len=MAXWORDLENGTH)           :: dataset_name
-  type(dataset_type), pointer            :: dataset
+  class(dataset_base_type), pointer      :: dataset
   PetscInt                               :: i
   
   option => surf_realization%option
@@ -651,10 +671,11 @@ subroutine SurfRealizProcessFlowConditions(surf_realization)
             ! get dataset from list
             string = 'flow_condition ' // trim(cur_surf_flow_condition%name)
             dataset => &
-              DatasetGetPointer(surf_realization%datasets,dataset_name,string,option)
+              DatasetBaseGetPointer(surf_realization%datasets,dataset_name,string,option)
             cur_surf_flow_condition%sub_condition_ptr(i)%ptr%flow_dataset%dataset => &
               dataset
-            call DatasetLoad(dataset,option)
+            !call DatasetLoad(dataset,surf_realization%discretization%dm_1dof, &
+            !                 option)
           endif
           if (associated(cur_surf_flow_condition%sub_condition_ptr(i)%ptr% &
                           datum%dataset)) then
@@ -666,10 +687,10 @@ subroutine SurfRealizProcessFlowConditions(surf_realization)
             ! get dataset from list
             string = 'flow_condition ' // trim(cur_surf_flow_condition%name)
             dataset => &
-              DatasetGetPointer(surf_realization%datasets,dataset_name,string,option)
+              DatasetBaseGetPointer(surf_realization%datasets,dataset_name,string,option)
             cur_surf_flow_condition%sub_condition_ptr(i)%ptr%datum%dataset => &
               dataset
-            call DatasetLoad(dataset,option)
+            !call DatasetXYZLoad(dataset,option)
           endif
           if (associated(cur_surf_flow_condition%sub_condition_ptr(i)%ptr% &
                           gradient%dataset)) then
@@ -681,10 +702,11 @@ subroutine SurfRealizProcessFlowConditions(surf_realization)
             ! get dataset from list
             string = 'flow_condition ' // trim(cur_surf_flow_condition%name)
             dataset => &
-              DatasetGetPointer(surf_realization%datasets,dataset_name,string,option)
+              DatasetBaseGetPointer(surf_realization%datasets,dataset_name,string,option)
             cur_surf_flow_condition%sub_condition_ptr(i)%ptr%gradient%dataset => &
               dataset
-            call DatasetLoad(dataset,option)
+            !call DatasetLoad(dataset,surf_realization%discretization%dm_1dof, &
+            !                 option)
           endif
         enddo
       case default
@@ -714,6 +736,10 @@ subroutine SurfRealizInitAllCouplerAuxVars(surf_realization)
   
   type(level_type), pointer :: cur_level
   type(patch_type), pointer :: cur_patch
+
+  call FlowConditionUpdate(surf_realization%surf_flow_conditions, &
+                           surf_realization%option, &
+                           surf_realization%option%time)
 
   cur_level => surf_realization%level_list%first
   do 
@@ -779,6 +805,7 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
   use Level_module
   use Patch_module
   use Region_module
+  use DM_Kludge_module, only : dm_ptr_type
 
   implicit none
   
@@ -1117,6 +1144,7 @@ subroutine SurfRealizMapSurfSubsurfGrid( &
   use Unstructured_Grid_module
   use Discretization_module
   use Unstructured_Grid_Aux_module
+  use DM_Kludge_module
 
   implicit none
   
