@@ -1518,7 +1518,7 @@ subroutine WriteTecplotUGridElements(fid,realization_base)
   Vec :: global_cconn_vec
   type(ugdm_type), pointer :: ugdm_element
   PetscReal, pointer :: vec_ptr(:)
-  PetscErrorCode :: ierr
+  PetscErrorCode :: ierr  
   
   Vec :: global_vec
   Vec :: natural_vec
@@ -1995,6 +1995,7 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
 
   use Realization_Base_class, only : realization_base_type
   use Grid_module
+  use Unstructured_Grid_Aux_module
   use Option_module
   use Field_module
   use Patch_module
@@ -2008,41 +2009,58 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(output_option_type), pointer :: output_option
-  character(len=MAXSTRINGLENGTH) :: filename
-  PetscReal, pointer :: vec_ptr(:)
+  character(len=MAXSTRINGLENGTH) :: filename,string
+
   PetscErrorCode :: ierr  
   PetscInt :: iconn
+  PetscInt :: count
+  PetscReal, pointer :: flowrates(:,:)
+  PetscInt, pointer :: ids_up(:),ids_dn(:)
+  Vec :: vec_flowrates
+  PetscInt :: i, idof
   
   patch => realization_base%patch
   grid => patch%grid
   option => realization_base%option
   field => realization_base%field
   output_option => realization_base%output_option
-
-  filename = OutputFilename(output_option,option,'dat','rates')
   
-  call OutputGetExplicitFlowrates(realization_base)
+  filename = trim(option%global_prefix) // &
+             trim(option%group_prefix) // &
+             '-' // 'rates' // '-' // &
+             trim(OutputFilenameID(output_option,option)) 
   
+  call OutputGetExplicitFlowrates(realization_base,count, &
+                                  ids_up,ids_dn,flowrates)
+  
+    
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write rate output file: ' // &
                        trim(filename)
     call printMsg(option)                       
-    open(unit=OUTPUT_UNIT,file=filename,action="write")
   endif
   
+  
 1000 format(es13.6,1x)
+1001 format(i10,1x)
 1009 format('')
 
-  call VecGetArrayF90(field%flowrate_inst,vec_ptr,ierr)
-  if (option%myrank == option%io_rank) then
-    do iconn = 1,size(grid%unstructured_grid%explicit_grid%connections,2)
-      write(OUTPUT_UNIT,1000,advance='no') vec_ptr(iconn)
-      write(OUTPUT_UNIT,1009) 
+  write(string,*) option%myrank
+  string = trim(filename) // '-rank' // trim(adjustl(string)) // '.dat'
+  open(unit=OUTPUT_UNIT,file=trim(string),action="write")
+  do i = 1, count
+    write(OUTPUT_UNIT,1001,advance='no') ids_up(i)
+    write(OUTPUT_UNIT,1001,advance='no') ids_dn(i)
+    do idof = 1, option%nflowdof
+      write(OUTPUT_UNIT,1000,advance='no') flowrates(i,idof)
+      write(OUTPUT_UNIT,1009)
     enddo
-  endif
-  call VecRestoreArrayF90(field%flowrate_inst,vec_ptr,ierr)
-    
-  if (option%myrank == option%io_rank) close(OUTPUT_UNIT)
+  enddo                     
+  close(OUTPUT_UNIT)
+                                                                                                           
+  deallocate(flowrates)
+  deallocate(ids_up)
+  deallocate(ids_dn)
 
 end subroutine OutputPrintExplicitFlowrates
 
