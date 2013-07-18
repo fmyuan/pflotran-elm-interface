@@ -6,7 +6,7 @@ PetscInt, parameter :: CHECKPOINT_REVISION_NUMBER = 5
 
 PetscInt, parameter :: MAXHEADERLENGTH = 4096
 PetscInt, parameter :: MAXSTRINGLENGTH = 512
-PetscInt, parameter :: MAXWORDLENGTH = 512
+PetscInt, parameter :: MAXWORDLENGTH = 32
 PetscInt, parameter :: OUT_UNIT = 15
 PetscInt, parameter :: OUTPUT_UNIT = 16
 PetscInt, parameter :: IN_UNIT = 17

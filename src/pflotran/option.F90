@@ -2,7 +2,6 @@ module Option_module
 
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
 
-! The exception to above NOTE is in the case of coupling PFLOTRAN with CLM  
   implicit none
 
   private
@@ -1098,8 +1097,6 @@ end subroutine OptionInitPetsc
 ! ************************************************************************** !
 subroutine OptionBeginTiming(option)
 
-  use Logging_module
-  
   implicit none
   
 #include "finclude/petsclog.h"
@@ -1123,8 +1120,6 @@ end subroutine OptionBeginTiming
 ! ************************************************************************** !
 subroutine OptionEndTiming(option)
 
-  use Logging_module
-  
   implicit none
   
 #include "finclude/petsclog.h"
@@ -1242,8 +1237,6 @@ end subroutine OptionCreateProcessorGroups
 !
 ! ************************************************************************** !
 subroutine OptionFinalize(option)
-
-  use Logging_module
 
   implicit none
   

@@ -4274,8 +4274,7 @@ subroutine StepperCheckpoint(realization,flow_stepper,tran_stepper,id, id_stamp)
   type(stepper_type), pointer :: tran_stepper
   PetscInt :: num_const_timesteps, num_newton_iterations  
   PetscInt :: id
-  ! NOTE(bja, 2013-06-27) : in this branch MAXWORDLENGTH != 32....
-  character(len=32), optional, intent(in) :: id_stamp
+  character(len=MAXWORDLENGTH), optional, intent(in) :: id_stamp
 
   type(option_type), pointer :: option
   PetscInt :: flow_steps, flow_cumulative_newton_iterations, &
