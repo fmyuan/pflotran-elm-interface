@@ -4,20 +4,22 @@ program pflotran_interface_main
   use clm_pflotran_interface_data
   use Mapping_module
   use Input_module
-  use HDF5_aux_module
-  use hdf5
-  use Grid_module
-  use Field_module
-  use Richards_Aux_module
-  use Richards_module
-  use Discretization_module
   use Option_module
   
+  use Simulation_Base_class, only : simulation_base_type
+  use Subsurface_Simulation_class, only : subsurface_simulation_type
+  use Surface_Simulation_class, only : surface_simulation_type
+  use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+  use Realization_Base_class, only : realization_base_type
+  use Surface_Realization_class, only : surface_realization_type
+
   implicit none
 
 #include "finclude/petscsysdef.h"
 
   type(pflotran_model_type), pointer  :: pflotran_m
+  class(realization_base_type), pointer :: realization
+  class(surface_realization_type), pointer :: surf_realization
 
   
   PetscErrorCode :: ierr
@@ -40,7 +42,25 @@ program pflotran_interface_main
   call MPI_Init(ierr)
 
   ! Create the model
-  pflotran_m => pflotranModelCreate(MPI_COMM_WORLD)
+  filename = 'pflotran'
+  pflotran_m => pflotranModelCreate(MPI_COMM_WORLD, filename)
+
+  select type (simulation => pflotran_m%simulation)
+    class is (subsurface_simulation_type)
+       realization => simulation%realization
+       nullify(surf_realization)
+    class is (surfsubsurface_simulation_type)
+       realization => simulation%realization
+       surf_realization => simulation%surf_realization
+    class is (surface_simulation_type)
+       nullify(realization)
+       surf_realization => simulation%surf_realization
+    class default
+       nullify(realization)
+       nullify(surf_realization)
+       pflotran_m%option%io_buffer = "ERROR: pflotran model only works on combinations of subsurface and surface simulations."
+       call printErrMsg(pflotran_m%option)
+   end select
 
   ! Set up CLM cell ids
   if (pflotran_m%option%mycommsize == 1) then
@@ -76,8 +96,8 @@ program pflotran_interface_main
 
   clm_pf_idata%nlclm_3d = clm_npts
   clm_pf_idata%ngclm_3d = clm_npts
-  clm_pf_idata%nlpf_3d  = pflotran_m%realization%patch%grid%nlmax
-  clm_pf_idata%ngpf_3d  = pflotran_m%realization%patch%grid%ngmax
+  clm_pf_idata%nlpf_3d  = realization%patch%grid%nlmax
+  clm_pf_idata%ngpf_3d  = realization%patch%grid%ngmax
 
   ! Allocate memory for CLM-PFLOTRAN data transfer
   call CLMPFLOTRANIDataCreateVec(MPI_COMM_WORLD)
@@ -91,8 +111,8 @@ program pflotran_interface_main
   clm_pf_idata%nlclm_2d = clm_surf_npts
   clm_pf_idata%ngclm_2d = clm_surf_npts
   if(pflotran_m%option%nsurfflowdof>0) then
-    clm_pf_idata%nlpf_2d  = pflotran_m%simulation%surf_realization%patch%grid%nlmax
-    clm_pf_idata%ngpf_2d  = pflotran_m%simulation%surf_realization%patch%grid%ngmax
+    clm_pf_idata%nlpf_2d  = surf_realization%patch%grid%nlmax
+    clm_pf_idata%ngpf_2d  = surf_realization%patch%grid%ngmax
     call pflotranModelInitMapping(pflotran_m, clm_surf_cell_ids, clm_surf_npts, PF2CLM_SURF_MAP_ID)
     call pflotranModelInitMapping(pflotran_m, clm_surf_cell_ids, clm_surf_npts, CLM2PF_RFLUX_MAP_ID)
   endif
