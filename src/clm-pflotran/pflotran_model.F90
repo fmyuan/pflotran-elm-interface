@@ -1,40 +1,18 @@
 module pflotran_model_module
 
-  use Simulation_module
-  use Realization_class
-  use Timestepper_module
-  use Option_module
-  use Input_module
-  use Init_module
-  use Logging_module
-  use Stochastic_module
-  use Stochastic_Aux_module
-  use Waypoint_module
-  use Units_module
-
-  use Richards_Aux_module
-
-  use Mapping_module
-
-#if defined (CLM_PFLOTRAN)
-  ! some CLM internals that we want to use (e.g. i/o)
-  !use spmdMod, only : masterproc
-#endif  
+  use Option_module, only : option_type
+  use Simulation_Base_class, only : simulation_base_type
+  use Realization_Base_class, only : realization_base_type
+  use Mapping_module, only : mapping_type
 
   implicit none
 
 #include "definitions.h"
-!  include "piof.h"
 #include "finclude/petsclog.h"
 #include "finclude/petscsysdef.h"
 #include "finclude/petscviewer.h"
 #include "finclude/petscvec.h"
 !#include "finclude/petscvec.h90"
-
-#ifndef CLM_PFLOTRAN
-  ! don't have CLM, so we need to mock a few things
-  logical, public :: masterproc = .false. ! master io processor
-#endif
 
   ! module level constants
   PetscInt, parameter :: CLM2PF_FLUX_MAP_ID  = 1 ! 3D --> 3D
@@ -49,7 +27,6 @@ module pflotran_model_module
   PetscInt, parameter :: PF_SURF_3D_MESH  = 3
   PetscInt, parameter :: PF_SURF_2D_MESH  = 4
 
-  !#ifdef CLM_PFLOTRAN
   type, public :: inside_each_overlapped_cell
      PetscInt           :: id
      PetscInt           :: ocell_count
@@ -58,16 +35,11 @@ module pflotran_model_module
      PetscReal          :: total_vol_overlap
   end type inside_each_overlapped_cell
 
-  !#endif
-
   type, public :: pflotran_model_type
-    type(stochastic_type),  pointer :: stochastic
-    type(simulation_type),  pointer :: simulation
-    type(realization_type), pointer :: realization
+    class(simulation_base_type),  pointer :: simulation
+    !TODO(bja, 2013-07-16) realization pointer should go away
+    class(realization_base_type), pointer :: realization
     type(option_type),      pointer :: option
-#ifdef CLM_PFLOTRAN
-    !type(mapping_type),     pointer :: mapping
-#endif
     PetscReal :: pause_time_1
     PetscReal :: pause_time_2
     type(inside_each_overlapped_cell), pointer :: pf_cells(:)
@@ -115,11 +87,13 @@ module pflotran_model_module
        pflotranModelSetupRestart,            &
        pflotranModelStepperRunFinalize,      &
        pflotranModelStepperCheckpoint,       &
-       pflotranModelInsertWaypoint,          &
-       pflotranModelDeleteWaypoint,          &
        pflotranModelNSurfCells3DDomain,      &
        pflotranModelGetTopFaceArea,          &
        pflotranModelDestroy
+
+  private :: &
+       pflotranModelSetupMappingFiles
+
 
 contains
 
@@ -135,217 +109,135 @@ contains
   ! ************************************************************************** !
   function pflotranModelCreate(mpicomm, pflotran_prefix)
 
-    use Simulation_module
-    use Realization_class
-    use Timestepper_module
     use Option_module
-    use Input_module
-    use Init_module
-    use Logging_module
-    use Stochastic_module
-    use Stochastic_Aux_module
-    use String_module
-#ifdef CLM_PFLOTRAN
-    !use pflotran_clm_interface_type
-#endif
+    use Simulation_Base_class
+    use PFLOTRAN_Factory_module
+    use Subsurface_Factory_module, only : SubsurfaceInitialize
+    use Hydrogeophysics_Factory_module
+    use Surface_Factory_module
+    use Surf_Subsurf_Factory_module
+  
     implicit none
+
+#include "definitions.h"
 
     PetscInt, intent(in) :: mpicomm
     character(len=256), intent(in) :: pflotran_prefix
 
     type(pflotran_model_type), pointer :: pflotranModelCreate
 
-    PetscLogDouble :: timex(4), timex_wall(4)
+    type(pflotran_model_type),      pointer :: model
 
-    PetscBool :: truth
-    PetscBool :: option_found
-    PetscBool :: input_prefix_option_found
-    PetscBool :: pflotranin_option_found
-    PetscBool :: single_inputfile
+    allocate(model)
+
+    nullify(model%simulation)
+    nullify(model%option)
+
+    model%option => OptionCreate()
+    call OptionInitMPI(model%option, mpicomm)
+    call PFLOTRANInitialize(model%option)
+
+    ! NOTE(bja) 2013-06-25 : external driver must provide an input
+    ! prefix string. If the driver wants to use pflotran.in, then it
+    ! should explicitly request that with 'pflotran'.
+    if (len(trim(pflotran_prefix)) > 1) then
+      model%option%input_prefix = trim(pflotran_prefix)
+      model%option%input_filename = trim(model%option%input_prefix) // '.in'
+    else
+      model%option%io_buffer = 'The external driver must provide the ' // &
+           'pflotran input file prefix.'
+      call printErrMsg(model%option)
+    end if
+
+    ! TODO(bja, 2013-07-15) this needs to be left alone for pflotran
+    ! to deal with, or we need a valid unit number from the driver as
+    ! a function parameter.
+!!$    model%option%fid_out = 16
+
+    model%pause_time_1 = -1.0d0
+    model%pause_time_2 = -1.0d0
+
+    ! FIXME(bja, 2013-07-17) hard code subsurface for now....
+    model%option%simulation_mode = 'SUBSURFACE'
+    select case(model%option%simulation_mode)
+      case('SUBSURFACE')
+         call SubsurfaceInitialize(model%simulation, model%option)
+      case('HYDROGEOPHYSICS')
+         call HydrogeophysicsInitialize(model%simulation, model%option)
+      case('SURFACE')
+         call SurfaceInitialize(model%simulation, model%option)
+      case('SURFACE_SUBSURFACE')
+         call SurfSubsurfaceInitialize(model%simulation, model%option)
+      case default
+         model%option%io_buffer = 'Simulation Mode not recognized : ' // model%option%simulation_mode
+         call printErrMsg(model%option)
+    end select
+    ! NOTE(bja, 2013-07-15) needs to go before InitializeRun()...?
+    call pflotranModelSetupMappingFiles(model)
+
+    pflotranModelCreate => model
+
+  end function pflotranModelCreate
+
+
+  ! ************************************************************************** !
+  !
+  ! pflotranModelSetupMappingFiles
+  !   create the mapping objects, reopen the input file and read the file names
+  !   before model integration is performed by the call to StepperRun()
+  !   routine
+  !
+  !  NOTE(bja, 2013-07) this really needs to be moved out of pflotran
+  !  CLM should be responsible for passing data in the correct
+  !  format. That may require pflotran to provide a call back function
+  !  for grid info.
+  !
+  ! author: Gautam Bisht
+  ! date: 9/10/2010
+  ! ************************************************************************** !
+  subroutine pflotranModelSetupMappingFiles(model)
+
+    use String_module
+    use Option_module
+    use Input_module
+    use Mapping_module
+
+    implicit none
+
+#include "definitions.h"
+
+    type(pflotran_model_type), pointer, intent(inout) :: model
+
     PetscBool :: clm2pf_flux_file
     PetscBool :: clm2pf_soil_file
     PetscBool :: clm2pf_gflux_file
     PetscBool :: clm2pf_rflux_file
     PetscBool :: pf2clm_flux_file
     PetscBool :: pf2clm_surf_file
-    PetscInt  :: i
-    PetscInt  :: temp_int
-    PetscErrorCode :: ierr
-    character(len=MAXSTRINGLENGTH)          :: string
-    character(len=MAXSTRINGLENGTH), pointer :: filenames(:)
-    character(len=MAXWORDLENGTH)            :: word
+    character(len=MAXSTRINGLENGTH) :: string
+    character(len=MAXWORDLENGTH) :: word
 
-    type(pflotran_model_type),      pointer :: pflotran_model
+    nullify(model%pf_cells)
+    nullify(model%clm_cells)
+    nullify(model%map_clm2pf)
+    nullify(model%map_clm2pf_soils)
+    nullify(model%map_clm2pf_gflux)
+    nullify(model%map_clm2pf_rflux)
+    nullify(model%map_pf2clm)
+    nullify(model%map_pf2clm_surf)
 
+    model%map_clm2pf       => MappingCreate()
+    model%map_clm2pf_soils => MappingCreate()
+    model%map_clm2pf_gflux => MappingCreate()
+    model%map_clm2pf_rflux => MappingCreate()
+    model%map_pf2clm       => MappingCreate()
+    model%map_pf2clm_surf  => MappingCreate()
 
-    allocate(pflotran_model)
+    model%nlclm = -1
+    model%ngclm = -1
 
-    nullify(pflotran_model%stochastic)
-    nullify(pflotran_model%simulation)
-    nullify(pflotran_model%realization)
-    nullify(pflotran_model%option)
-    nullify(pflotran_model%pf_cells)
-    nullify(pflotran_model%clm_cells)
-    nullify(pflotran_model%map_clm2pf)
-    nullify(pflotran_model%map_clm2pf_soils)
-    nullify(pflotran_model%map_clm2pf_gflux)
-    nullify(pflotran_model%map_clm2pf_rflux)
-    nullify(pflotran_model%map_pf2clm)
-    nullify(pflotran_model%map_pf2clm_surf)
-
-    pflotran_model%option => OptionCreate()
-    pflotran_model%option%fid_out = 16
-    single_inputfile = PETSC_TRUE
-
-    pflotran_model%pause_time_1 = -1.0d0
-    pflotran_model%pause_time_2 = -1.0d0
-
-    pflotran_model%option%global_comm = mpicomm
-
-    call MPI_Comm_rank(mpicomm, pflotran_model%option%global_rank, ierr)
-    call MPI_Comm_size(mpicomm, pflotran_model%option%global_commsize, ierr)
-    call MPI_Comm_group(mpicomm, pflotran_model%option%global_group, ierr)
-    pflotran_model%option%mycomm = pflotran_model%option%global_comm
-    pflotran_model%option%myrank = pflotran_model%option%global_rank
-    pflotran_model%option%mycommsize = pflotran_model%option%global_commsize
-    pflotran_model%option%mygroup = pflotran_model%option%global_group
-
-#ifndef CLM_PFLOTRAN
-    ! mock the clm master i/o processor flag
-    if (pflotran_model%option%myrank == pflotran_model%option%io_rank) then
-       masterproc = .true.
-    endif
-#endif
-
-
-    ! check for non-default input filename
-    pflotran_model%option%input_filename = "pflotran.in"
-    string = '-pflotranin'
-    call InputGetCommandLineString(string, pflotran_model%option%input_filename, &
-                                  pflotranin_option_found, pflotran_model%option)
-
-    string = '-input_prefix'
-    call InputGetCommandLineString(string, pflotran_model%option%input_prefix, &
-                                  input_prefix_option_found, pflotran_model%option)
-  
-    ! NOTE(bja) 2013-06-25 : external driver must provide an input
-    ! prefix string. If the driver wants to use pflotran.in, then it
-    ! should explicitly request that.
-    if (len(trim(pflotran_prefix)) > 1) then
-       pflotranin_option_found = .false.
-       input_prefix_option_found = .true.
-       pflotran_model%option%input_prefix = trim(pflotran_prefix)
-    else
-       pflotran_model%option%io_buffer = 'The external driver must provide the ' // &
-            'pflotran input file prefix.'
-       call printErrMsg(pflotran_model%option)
-    end if
-
-    if (pflotranin_option_found .and. input_prefix_option_found) then
-      pflotran_model%option%io_buffer = 'Cannot specify both "-pflotranin" and ' // &
-        '"-input_prefix" on the command lines.'
-      call printErrMsg(pflotran_model%option)
-    else if (pflotranin_option_found) then
-      !TODO(geh): replace this with StringSplit()
-      i = index(pflotran_model%option%input_filename, '.', PETSC_TRUE)
-      if (i > 1) then
-        i = i-1
-      else
-        ! for some reason len_trim doesn't work on MS Visual Studio in
-        ! this location
-        i = len(trim(pflotran_model%option%input_filename))
-      endif
-      pflotran_model%option%input_prefix = pflotran_model%option%input_filename(1:i)
-    else if (input_prefix_option_found) then
-      pflotran_model%option%input_filename = trim(pflotran_model%option%input_prefix) // '.in'
-    endif
-
-    string = '-output_prefix'
-    call InputGetCommandLineString(string, pflotran_model%option%global_prefix, option_found, pflotran_model%option)
-    if (.not. option_found) pflotran_model%option%global_prefix = pflotran_model%option%input_prefix
-
-    string = '-screen_output'
-    call InputGetCommandLineTruth(string, pflotran_model%option%print_to_screen, option_found, pflotran_model%option)
-
-    string = '-file_output'
-    call InputGetCommandLineTruth(string, pflotran_model%option%print_to_file, option_found, pflotran_model%option)
-
-    string = '-v'
-    call InputGetCommandLineTruth(string, truth, option_found, pflotran_model%option)
-    if (option_found) pflotran_model%option%verbosity = 1
-
-    string = '-multisimulation'
-    call InputGetCommandLineTruth(string, truth, option_found, pflotran_model%option)
-    if (option_found) then
-       single_inputfile = PETSC_FALSE
-    endif
-
-    string = '-stochastic'
-    call InputGetCommandLineTruth(string, truth, option_found, pflotran_model%option)
-    if (option_found) pflotran_model%stochastic => StochasticCreate()
-
-    call InitReadStochasticCardFromInput(pflotran_model%stochastic, pflotran_model%option)
-
-    if (associated(pflotran_model%stochastic)) then
-       !  call StochasticInit(stochastic, option)
-       !  call StochasticRun(stochastic, option)
-    endif
-
-    if (single_inputfile) then
-       PETSC_COMM_WORLD = mpicomm
-       call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
-#ifdef CLM_PFLOTRAN
-       ! GB: Hack to get communicator correctly setup on gautam's Mac
-       PETSC_COMM_SELF = MPI_COMM_SELF
-#endif
-    else
-       call InitReadInputFilenames(pflotran_model%option, filenames)
-       temp_int = size(filenames)
-       call SimulationCreateProcessorGroups(pflotran_model%option, temp_int)
-       pflotran_model%option%input_filename = filenames(pflotran_model%option%mygroup_id)
-       i = index(pflotran_model%option%input_filename, '.', PETSC_TRUE)
-       if (i > 1) then
-          i = i-1
-       else
-          ! for some reason len_trim doesn't work on MS Visual Studio in
-          ! this location
-          i = len(trim(pflotran_model%option%input_filename))
-       endif
-       pflotran_model%option%global_prefix = pflotran_model%option%input_filename(1:i)
-       write(string, *) pflotran_model%option%mygroup_id
-       pflotran_model%option%group_prefix = 'G' // trim(adjustl(string))
-    endif
-
-    if (pflotran_model%option%verbosity > 0) then
-       call PetscLogBegin(ierr)
-       string = '-log_summary'
-       call PetscOptionsInsertString(string, ierr)
-    endif
-    call LoggingCreate()
-
-    pflotran_model%simulation => SimulationCreate(pflotran_model%option)
-    pflotran_model%realization => pflotran_model%simulation%realization
-
-    call OptionCheckCommandLine(pflotran_model%option)
-
-    call PetscGetCPUTime(pflotran_model%timex(1), ierr)
-    call PetscTime(pflotran_model%timex_wall(1), ierr)
-    pflotran_model%option%start_time = pflotran_model%timex_wall(1)
-
-    call Init(pflotran_model%simulation)
-
-    pflotran_model%map_clm2pf       => MappingCreate()
-    pflotran_model%map_clm2pf_soils => MappingCreate()
-    pflotran_model%map_clm2pf_gflux => MappingCreate()
-    pflotran_model%map_clm2pf_rflux => MappingCreate()
-    pflotran_model%map_pf2clm       => MappingCreate()
-    pflotran_model%map_pf2clm_surf  => MappingCreate()
-
-    pflotran_model%nlclm = -1
-    pflotran_model%ngclm = -1
-
-    pflotran_model%realization%input => InputCreate(15, &
-                    pflotran_model%option%input_filename, pflotran_model%option)
+    model%realization%input => InputCreate(15, &
+                    model%option%input_filename, model%option)
 
     ! Read names of mapping file
     clm2pf_flux_file=PETSC_FALSE
@@ -356,98 +248,96 @@ contains
     pf2clm_surf_file=PETSC_FALSE
     
     string = "MAPPING_FILES"
-    call InputFindStringInFile(pflotran_model%realization%input,pflotran_model%option,string)
+    call InputFindStringInFile(model%realization%input,model%option,string)
 
     do
-      call InputReadFlotranString(pflotran_model%realization%input, pflotran_model%option)
-      if (InputCheckExit(pflotran_model%realization%input, pflotran_model%option)) exit
-      if (pflotran_model%realization%input%ierr /= 0) exit
+      call InputReadFlotranString(model%realization%input, model%option)
+      if (InputCheckExit(model%realization%input, model%option)) exit
+      if (model%realization%input%ierr /= 0) exit
 
-      call InputReadWord(pflotran_model%realization%input, pflotran_model%option, word, PETSC_TRUE)
-      call InputErrorMsg(pflotran_model%realization%input, pflotran_model%option, 'keyword', 'MAPPING_FILES')
+      call InputReadWord(model%realization%input, model%option, word, PETSC_TRUE)
+      call InputErrorMsg(model%realization%input, model%option, 'keyword', 'MAPPING_FILES')
       call StringToUpper(word)
 
       select case(trim(word))
         case('CLM2PF_FLUX_FILE')
-          call InputReadWord(pflotran_model%realization%input, &
-                             pflotran_model%option, &
-                             pflotran_model%map_clm2pf%filename, PETSC_TRUE)
-          pflotran_model%map_clm2pf%filename = trim(pflotran_model%map_clm2pf%filename)//CHAR(0)
-          call InputErrorMsg(pflotran_model%realization%input, &
-                             pflotran_model%option, 'type', 'MAPPING_FILES')   
+          call InputReadWord(model%realization%input, &
+                             model%option, &
+                             model%map_clm2pf%filename, PETSC_TRUE)
+          model%map_clm2pf%filename = trim(model%map_clm2pf%filename)//CHAR(0)
+          call InputErrorMsg(model%realization%input, &
+                             model%option, 'type', 'MAPPING_FILES')   
           clm2pf_flux_file=PETSC_TRUE
         case('CLM2PF_SOIL_FILE')
-          call InputReadWord(pflotran_model%realization%input, &
-                             pflotran_model%option, &
-                             pflotran_model%map_clm2pf_soils%filename, PETSC_TRUE)
-          call InputErrorMsg(pflotran_model%realization%input, &
-                             pflotran_model%option, 'type', 'MAPPING_FILES')   
+          call InputReadWord(model%realization%input, &
+                             model%option, &
+                             model%map_clm2pf_soils%filename, PETSC_TRUE)
+          call InputErrorMsg(model%realization%input, &
+                             model%option, 'type', 'MAPPING_FILES')   
           clm2pf_soil_file=PETSC_TRUE
         case('CLM2PF_GFLUX_FILE')
-          call InputReadWord(pflotran_model%realization%input, &
-                             pflotran_model%option, &
-                             pflotran_model%map_clm2pf_gflux%filename, PETSC_TRUE)
-          call InputErrorMsg(pflotran_model%realization%input, &
-                             pflotran_model%option, 'type', 'MAPPING_FILES')
+          call InputReadWord(model%realization%input, &
+                             model%option, &
+                             model%map_clm2pf_gflux%filename, PETSC_TRUE)
+          call InputErrorMsg(model%realization%input, &
+                             model%option, 'type', 'MAPPING_FILES')
           clm2pf_gflux_file=PETSC_TRUE
         case('CLM2PF_RFLUX_FILE')
-          call InputReadWord(pflotran_model%realization%input, &
-                             pflotran_model%option, &
-                             pflotran_model%map_clm2pf_rflux%filename, PETSC_TRUE)
-          call InputErrorMsg(pflotran_model%realization%input, &
-                             pflotran_model%option, 'type', 'MAPPING_FILES')
+          call InputReadWord(model%realization%input, &
+                             model%option, &
+                             model%map_clm2pf_rflux%filename, PETSC_TRUE)
+          call InputErrorMsg(model%realization%input, &
+                             model%option, 'type', 'MAPPING_FILES')
           clm2pf_rflux_file=PETSC_TRUE
         case('PF2CLM_SURF_FILE')
-          call InputReadWord(pflotran_model%realization%input, &
-                             pflotran_model%option, &
-                             pflotran_model%map_pf2clm_surf%filename, PETSC_TRUE)
-          call InputErrorMsg(pflotran_model%realization%input, &
-                             pflotran_model%option, 'type', 'MAPPING_FILES')
+          call InputReadWord(model%realization%input, &
+                             model%option, &
+                             model%map_pf2clm_surf%filename, PETSC_TRUE)
+          call InputErrorMsg(model%realization%input, &
+                             model%option, 'type', 'MAPPING_FILES')
           pf2clm_surf_file=PETSC_TRUE
         case('PF2CLM_FLUX_FILE')
-          call InputReadWord(pflotran_model%realization%input, &
-                             pflotran_model%option, &
-                             pflotran_model%map_pf2clm%filename, PETSC_TRUE)
-          call InputErrorMsg(pflotran_model%realization%input, &
-                             pflotran_model%option, 'type', 'MAPPING_FILES')   
+          call InputReadWord(model%realization%input, &
+                             model%option, &
+                             model%map_pf2clm%filename, PETSC_TRUE)
+          call InputErrorMsg(model%realization%input, &
+                             model%option, 'type', 'MAPPING_FILES')   
           pf2clm_flux_file=PETSC_TRUE
         case default
-          pflotran_model%option%io_buffer='Keyword ' // trim(word) // &
+          model%option%io_buffer='Keyword ' // trim(word) // &
             ' in input file not recognized'
-          call printErrMsg(pflotran_model%option)
+          call printErrMsg(model%option)
       end select
 
     enddo
-    call InputDestroy(pflotran_model%realization%input)
+    call InputDestroy(model%realization%input)
 
     if ((.not. clm2pf_soil_file) .or. (.not. clm2pf_flux_file) .or. &
         (.not. pf2clm_flux_file) ) then
-      pflotran_model%option%io_buffer='One of the mapping files not found'
-      call printErrMsg(pflotran_model%option)
+      model%option%io_buffer='One of the mapping files not found'
+      call printErrMsg(model%option)
     endif
     
-    if(pflotran_model%option%iflowmode==TH_MODE.and.(.not.clm2pf_gflux_file)) then
-      pflotran_model%option%io_buffer='Running in TH_MODE without a CLM2PF_GFLUX_FILE'
-      call printErrMsg(pflotran_model%option)
+    if(model%option%iflowmode==TH_MODE.and.(.not.clm2pf_gflux_file)) then
+      model%option%io_buffer='Running in TH_MODE without a CLM2PF_GFLUX_FILE'
+      call printErrMsg(model%option)
     endif
 
 #ifdef SURFACE_FLOW
-    if( (pflotran_model%option%nsurfflowdof>0)) then
+    if( (model%option%nsurfflowdof>0)) then
        if ((.not. clm2pf_rflux_file)) then
-        pflotran_model%option%io_buffer='Running in surface flow without a ' // &
+        model%option%io_buffer='Running in surface flow without a ' // &
           'CLM2PF_RFLUX_FILE'
-        call printErrMsg(pflotran_model%option)
+        call printErrMsg(model%option)
        endif
        if ((.not. pf2clm_surf_file)) then
-        pflotran_model%option%io_buffer='Running in surface flow without a ' // &
+        model%option%io_buffer='Running in surface flow without a ' // &
           'PF2CLM_SURF_FILE'
-        call printErrMsg(pflotran_model%option)
+        call printErrMsg(model%option)
        endif
     endif
 #endif
-    pflotranModelCreate => pflotran_model
-
-  end function pflotranModelCreate
+  end subroutine pflotranModelSetupMappingFiles
 
 
   ! ************************************************************************** !
@@ -459,42 +349,11 @@ contains
   ! author: Gautam Bisht
   ! date: 9/10/2010
   ! ************************************************************************** !
-  subroutine pflotranModelStepperRunInit(pflotran_model)
+  subroutine pflotranModelStepperRunInit(model)
 
-    type(pflotran_model_type), pointer :: pflotran_model
-    type(stepper_type), pointer :: master_stepper
-    PetscInt :: init_status
+    type(pflotran_model_type), pointer, intent(inout) :: model
 
-#if 1
-#ifdef SURFACE_FLOW
-    call TimestepperInitializeRun(pflotran_model%simulation%realization, &
-                                  pflotran_model%simulation%surf_realization, &
-                                  master_stepper, &
-                                  pflotran_model%simulation%flow_stepper, &
-                                  pflotran_model%simulation%tran_stepper, &
-                                  pflotran_model%simulation%surf_flow_stepper, &
-                                  init_status)
-#else
-    call TimestepperInitializeRun(pflotran_model%simulation%realization, &
-                                  master_stepper, &
-                                  pflotran_model%simulation%flow_stepper, &
-                                  pflotran_model%simulation%tran_stepper, &
-                                  init_status)
-#endif
-#endif
-
-#if 0
-#ifndef SURFACE_FLOW
-    call StepperRunInit(pflotran_model%simulation%realization, &
-         pflotran_model%simulation%flow_stepper, &
-         pflotran_model%simulation%tran_stepper)
-#else
-    call StepperRunInit(pflotran_model%simulation%realization, &
-         pflotran_model%simulation%surf_realization, &
-         pflotran_model%simulation%flow_stepper, &
-         pflotran_model%simulation%tran_stepper)
-#endif
-#endif
+    call model%simulation%InitializeRun()
 
   end subroutine pflotranModelStepperRunInit
 
@@ -508,19 +367,22 @@ contains
   ! branch...
   !
   ! **************************************************************************
-  subroutine pflotranModelStepperCheckpoint(pflotran_model, date_stamp)
+  subroutine pflotranModelStepperCheckpoint(model, date_stamp)
 
+    use Option_module
     use Timestepper_module, only : StepperCheckpoint
 
     implicit none
 
-    type(pflotran_model_type), pointer :: pflotran_model
+    type(pflotran_model_type), pointer :: model
     character(len=32), intent(in) :: date_stamp
 
-    call StepperCheckpoint(pflotran_model%realization, &
-         pflotran_model%simulation%flow_stepper, &
-         pflotran_model%simulation%tran_stepper, &
-         NEG_ONE_INTEGER, date_stamp)
+    model%option%io_buffer = 'ERROR: checkpoint is not implemented in pflotran.'
+    call printErrMsg(model%option)
+!!$    call StepperCheckpoint(model%realization, &
+!!$         model%simulation%flow_stepper, &
+!!$         model%simulation%tran_stepper, &
+!!$         NEG_ONE_INTEGER, date_stamp)
 
   end subroutine pflotranModelStepperCheckpoint
 
@@ -544,6 +406,12 @@ subroutine pflotranModelSetICs(pflotran_model)
     use Discretization_module
     use Richards_module
     use TH_module
+    use Option_module
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Mapping_module
 
     implicit none
 
@@ -551,13 +419,13 @@ subroutine pflotranModelSetICs(pflotran_model)
 #include "finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    type(realization_type), pointer           :: realization
+    class(realization_type), pointer           :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(field_type), pointer                 :: field
     type(richards_auxvar_type), pointer       :: aux_var
     type(global_auxvar_type), pointer         :: global_aux_vars(:)
-
+    type(simulation_base_type), pointer :: simulation
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
@@ -566,7 +434,16 @@ subroutine pflotranModelSetICs(pflotran_model)
 
     PetscScalar, pointer :: press_pf_loc(:) ! Pressure [Pa]
 
-    realization     => pflotran_model%simulation%realization
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: pflotranModelSetICs only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
     patch           => realization%patch
     grid            => patch%grid
     field           => realization%field
@@ -604,9 +481,9 @@ subroutine pflotranModelSetICs(pflotran_model)
 
     select case(pflotran_model%option%iflowmode)
       case (RICHARDS_MODE)
-        call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
+        call RichardsUpdateAuxVars(realization)
       case (TH_MODE)
-        call THUpdateAuxVars(pflotran_model%simulation%realization)
+        call THUpdateAuxVars(realization)
       case default
         pflotran_model%option%io_buffer='pflotranModelSetICs ' // &
           'not implmented for this mode.'
@@ -633,7 +510,14 @@ end subroutine pflotranModelSetICs
     use Richards_Aux_module
     use TH_Aux_module
     use Field_module
+    use Option_module
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+
     use clm_pflotran_interface_data
+    use Mapping_module
 
     implicit none
 
@@ -641,7 +525,7 @@ end subroutine pflotranModelSetICs
 #include "finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    type(realization_type), pointer           :: realization
+    class(realization_type), pointer           :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(field_type), pointer                 :: field
@@ -649,6 +533,7 @@ end subroutine pflotranModelSetICs
     type(richards_auxvar_type), pointer       :: rich_aux_var
     type(th_auxvar_type), pointer             :: th_aux_vars(:)
     type(th_auxvar_type), pointer             :: th_aux_var
+    type(simulation_base_type), pointer :: simulation
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id
@@ -669,7 +554,17 @@ end subroutine pflotranModelSetICs
     vis = 0.001002d0    ! [N s/m^2] @ 20 degC
     grav = 9.81d0       ! [m/S^2]
 
-    realization     => pflotran_model%simulation%realization
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: pflotranModelSetSoilProp only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+
     patch           => realization%patch
     grid            => patch%grid
     field           => realization%field
@@ -794,6 +689,11 @@ end subroutine pflotranModelSetICs
     use Coupler_module
     use Connection_module
     use String_module
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Mapping_module
 !    use clm_pflotran_interface_data
 
     implicit none
@@ -818,14 +718,23 @@ end subroutine pflotranModelSetICs
 
     type(mapping_type), pointer        :: map
     type(option_type), pointer         :: option
-    type(realization_type), pointer    :: realization
+    class(realization_type), pointer    :: realization
     type(grid_type), pointer           :: grid
     type(patch_type), pointer          :: patch
     type(coupler_type), pointer        :: boundary_condition
     type(connection_set_type), pointer :: cur_connection_set
 
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
     option          => pflotran_model%option
-    realization     => pflotran_model%simulation%realization
     patch           => realization%patch
     grid            => patch%grid
 
@@ -954,6 +863,11 @@ end subroutine pflotranModelSetICs
     use Connection_module
     use String_module
     use clm_pflotran_interface_data
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Mapping_module
 
     implicit none
 
@@ -993,7 +907,7 @@ end subroutine pflotranModelSetICs
 
     type(mapping_type), pointer        :: map
     type(option_type), pointer         :: option
-    type(realization_type), pointer    :: realization
+    class(realization_type), pointer    :: realization
     type(grid_type), pointer           :: grid
     type(patch_type), pointer          :: patch
     type(coupler_type), pointer        :: boundary_condition
@@ -1001,7 +915,17 @@ end subroutine pflotranModelSetICs
     type(connection_set_type), pointer :: cur_connection_set
 
     option          => pflotran_model%option
-    realization     => pflotran_model%simulation%realization
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
 
     allocate(grid_clm_cell_ids_nindex_copy(grid_clm_npts_local))
     grid_clm_cell_ids_nindex_copy = grid_clm_cell_ids_nindex
@@ -1389,7 +1313,15 @@ end subroutine pflotranModelSetICs
     use Coupler_module
     use Connection_module
     use String_module
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Surface_Realization_class, only : surface_realization_type
     use clm_pflotran_interface_data
+    use Realization_class, only : realization_type
+    use Surface_Realization_class, only : surface_realization_type
+    use Mapping_module
 
     implicit none
 
@@ -1429,7 +1361,8 @@ end subroutine pflotranModelSetICs
 
     type(mapping_type), pointer        :: map
     type(option_type), pointer         :: option
-    type(realization_type), pointer    :: realization
+    class(realization_type), pointer    :: realization
+    class(surface_realization_type), pointer :: surf_realization
     type(grid_type), pointer           :: grid
     type(patch_type), pointer          :: patch
     type(coupler_type), pointer        :: boundary_condition
@@ -1437,7 +1370,17 @@ end subroutine pflotranModelSetICs
     type(connection_set_type), pointer :: cur_connection_set
 
     option          => pflotran_model%option
-    realization     => pflotran_model%simulation%realization
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
 
 #ifndef SURFACE_FLOW
     option%io_buffer='To support dest_mesh == PF_SURF_2D_MESH, need to '// &
@@ -1481,7 +1424,18 @@ end subroutine pflotranModelSetICs
 
     ! Mapping to/from surface of PFLOTRAN domain
     ! Destination mesh is surface-mesh
-    patch => pflotran_model%simulation%surf_realization%patch
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on surface simulations."
+         call printErrMsg(pflotran_model%option)
+      class is (surfsubsurface_simulation_type)
+         surf_realization => simulation%surf_realization
+      class is (surface_simulation_type)
+         surf_realization => simulation%surf_realization
+      class default
+    end select
+    patch => surf_realization%patch
     grid => patch%grid
 
     !
@@ -1496,7 +1450,7 @@ end subroutine pflotranModelSetICs
     
     grid_pf_local_nindex = 1
     call VecCreateMPI(option%mycomm, &
-                      pflotran_model%simulation%realization%patch%grid%nlmax, &
+                      patch%grid%nlmax, &
                       PETSC_DECIDE, &
                       surf_ids, &
                       ierr)
@@ -1731,96 +1685,21 @@ end subroutine pflotranModelSetICs
   ! author: Gautam Bisht
   ! date: 9/10/2010
   ! ************************************************************************** !
-  subroutine pflotranModelStepperRunTillPauseTime(pflotran_model, pause_time)
+  subroutine pflotranModelStepperRunTillPauseTime(model, pause_time)
 
-    use Richards_module
-    use TH_module
-    use Grid_module
-    use Patch_module
-    use Field_module
-    use Global_Aux_module
 
     implicit none
+
 #include "definitions.h"
+#include "finclude/petscvec.h90"
 
-    type(pflotran_model_type), pointer :: pflotran_model
-    type(realization_type), pointer    :: realization
-    type(grid_type), pointer           :: grid
-    type(field_type), pointer          :: field
-    type(global_auxvar_type), pointer  :: global_aux_vars(:)
-    type(patch_type), pointer          :: patch
+    type(pflotran_model_type), pointer :: model
+    PetscReal, intent(in) :: pause_time
 
-    PetscErrorCode :: ierr
-    PetscReal  :: pause_time
-    PetscReal  :: dtime
-    PetscReal  :: liq_vol_start ! [m^3/m^3]
-    PetscReal  :: liq_vol_end   ! [m^3/m^3]
-    PetscReal  :: del_liq_vol, dz, sat, source_sink
-    PetscInt   :: local_id, ghosted_id
-    PetscReal, pointer  :: porosity_loc_p(:)
-
-    realization     => pflotran_model%simulation%realization
-    patch           => realization%patch
-    grid            => patch%grid
-    global_aux_vars => patch%aux%Global%aux_vars
-    field           => realization%field
-
-    if (pflotran_model%option%io_rank==pflotran_model%option%myrank) then
-       write(pflotran_model%option%fid_out, *), '>>>> Inserting waypoint at pause_time = ', pause_time
-    endif
-
-    call pflotranModelInsertWaypoint(pflotran_model, pause_time)
-    call pflotranModelInsertWaypoint(pflotran_model, pause_time + 100.0d0)
-
-    select case(pflotran_model%option%iflowmode)
-      case (RICHARDS_MODE)
-        call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
-      case (TH_MODE)
-        call THUpdateAuxVars(pflotran_model%simulation%realization)
-      case default
-        pflotran_model%option%io_buffer='pflotranModelStepperRunTillPauseTime ' // &
-          'not implmented for this mode.'
-        call printErrMsg(pflotran_model%option)
-    end select
-
-#ifndef SURFACE_FLOW
-    call StepperRunOneDT(pflotran_model%simulation%realization, &
-         pflotran_model%simulation%flow_stepper, &
-         pflotran_model%simulation%tran_stepper, pause_time)
-#else
-    call StepperRunOneDT(pflotran_model%simulation%realization, &
-         pflotran_model%simulation%surf_realization, &
-         pflotran_model%simulation%flow_stepper, &
-         pflotran_model%simulation%surf_flow_stepper, &
-         pflotran_model%simulation%tran_stepper, pause_time)
-#endif
-
-#ifdef CLM_PFLOTRAN
-    select case(pflotran_model%option%iflowmode)
-      case (RICHARDS_MODE)
-        call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
-      case (TH_MODE)
-        call THUpdateAuxVars(pflotran_model%simulation%realization)
-      case default
-        pflotran_model%option%io_buffer='pflotranModelStepperRunTillPauseTime ' // &
-          'not implmented for this mode.'
-        call printErrMsg(pflotran_model%option)
-    end select
+    call model%simulation%RunToTime(pause_time)
 
     ! TODO(GB): Use XXXUpdateMassBalancePatch() to ensure mass balance
     ! betweent CLM calls
-#endif
-
-    if (pflotran_model%pause_time_1.gt.0.0d0) then
-       call pflotranModelDeleteWaypoint(pflotran_model, pflotran_model%pause_time_1)
-    endif
-
-    if (pflotran_model%pause_time_2.gt.0.0d0) then
-       call pflotranModelDeleteWaypoint(pflotran_model, pflotran_model%pause_time_2)
-    endif
-
-    pflotran_model%pause_time_1 = pause_time
-    pflotran_model%pause_time_2 = pause_time + 100.0d0
 
   end subroutine pflotranModelStepperRunTillPauseTime
 
@@ -1837,25 +1716,28 @@ end subroutine pflotranModelSetICs
   !  pflotranModelStepperRunInit()
   !
   ! ************************************************************************** !
-  subroutine pflotranModelSetupRestart(pflotran_model, restart_stamp)
+  subroutine pflotranModelSetupRestart(model, restart_stamp)
 
     use Option_module
     use String_module
 
     implicit none
 
-    type(pflotran_model_type), pointer :: pflotran_model
+    type(pflotran_model_type), pointer :: model
     ! NOTE(bja 2013-07-02) this version of pflotran doesn't set
     ! MAXWORDLENGTH to 32 as expected...
     character(len=32) :: restart_stamp
 
-    if (.not. StringNull(restart_stamp)) then
-       pflotran_model%option%restart_flag = PETSC_TRUE
-       pflotran_model%option%restart_filename = &
-            trim(pflotran_model%option%global_prefix) // &
-            trim(pflotran_model%option%group_prefix) // &
-            '.' // trim(restart_stamp) // '.chk'
-    end if
+    model%option%io_buffer = 'ERROR: restart is not implemented in pflotran.'
+    call printErrMsg(model%option)
+
+!!$    if (.not. StringNull(restart_stamp)) then
+!!$       model%option%restart_flag = PETSC_TRUE
+!!$       model%option%restart_filename = &
+!!$            trim(model%option%global_prefix) // &
+!!$            trim(model%option%group_prefix) // &
+!!$            '.' // trim(restart_stamp) // '.chk'
+!!$    end if
 
   end subroutine pflotranModelSetupRestart
 
@@ -1868,6 +1750,7 @@ end subroutine pflotranModelSetICs
   subroutine pflotranModelUpdateSourceSink(pflotran_model)
 
     use clm_pflotran_interface_data
+    use Mapping_module
 
     implicit none
 
@@ -1892,6 +1775,7 @@ end subroutine pflotranModelSetICs
   subroutine pflotranModelUpdateFlowConds(pflotran_model)
 
     use clm_pflotran_interface_data
+    use Mapping_module
 
     implicit none
 
@@ -1918,23 +1802,39 @@ end subroutine pflotranModelSetICs
   ! ************************************************************************** !
   subroutine pflotranModelGetUpdatedStates(pflotran_model)
 
-    use clm_pflotran_interface_data
+    use Option_module
     use Richards_module
     use Richards_Aux_module
     use TH_module
     use TH_Aux_module
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Surface_Realization_class, only : surface_realization_type
+    use clm_pflotran_interface_data
+    use Realization_class, only : realization_type
 
     type(pflotran_model_type), pointer  :: pflotran_model
-    type(realization_type), pointer     :: realization
+    class(realization_type), pointer     :: realization
 
-    realization     => pflotran_model%simulation%realization
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
 
     select case(pflotran_model%option%iflowmode)
       case (RICHARDS_MODE)
-        call RichardsUpdateAuxVars(pflotran_model%simulation%realization)
+        call RichardsUpdateAuxVars(realization)
         call pflotranModelGetSaturation(pflotran_model)
       case (TH_MODE)
-        call THUpdateAuxVars(pflotran_model%simulation%realization)
+        call THUpdateAuxVars(realization)
         call pflotranModelGetSaturation(pflotran_model)
         call pflotranModelGetTemperature(pflotran_model)
       case default
@@ -1955,11 +1855,18 @@ end subroutine pflotranModelSetICs
   ! ************************************************************************** !
   subroutine pflotranModelGetSaturation(pflotran_model)
 
-    use clm_pflotran_interface_data
+    use Option_module
     use Realization_class
     use Patch_module
     use Grid_module
     use Global_Aux_module
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Surface_Realization_class, only : surface_realization_type
+    use clm_pflotran_interface_data
+    use Mapping_module
 
     implicit none
 
@@ -1967,7 +1874,7 @@ end subroutine pflotranModelSetICs
 #include "finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    type(realization_type), pointer           :: realization
+    class(realization_type), pointer          :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(global_auxvar_type), pointer         :: global_aux_vars(:)
@@ -1976,7 +1883,16 @@ end subroutine pflotranModelSetICs
     PetscReal, pointer :: sat_pf_p(:)
     PetscReal, pointer :: sat_clm_p(:)
 
-    realization     => pflotran_model%simulation%realization
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
     patch           => realization%patch
     grid            => patch%grid
     global_aux_vars => patch%aux%Global%aux_vars
@@ -2006,12 +1922,19 @@ end subroutine pflotranModelSetICs
   ! ************************************************************************** !
   subroutine pflotranModelGetTemperature(pflotran_model)
 
-    use clm_pflotran_interface_data
+    use Option_module
     use Realization_class
     use Patch_module
     use Grid_module
     use Global_Aux_module
     use TH_Aux_module
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Surface_Realization_class, only : surface_realization_type
+    use clm_pflotran_interface_data
+    use Mapping_module
 
     implicit none
 
@@ -2019,7 +1942,7 @@ end subroutine pflotranModelSetICs
 #include "finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    type(realization_type), pointer           :: realization
+    class(realization_type), pointer           :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(global_auxvar_type), pointer         :: global_aux_vars(:)
@@ -2030,7 +1953,16 @@ end subroutine pflotranModelSetICs
     PetscScalar, pointer :: temp_pf_p(:)
     PetscReal, pointer :: sat_ice_pf_p(:)
 
-    realization     => pflotran_model%simulation%realization
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
     patch           => realization%patch
     grid            => patch%grid
     global_aux_vars => patch%aux%Global%aux_vars
@@ -2071,78 +2003,17 @@ end subroutine pflotranModelSetICs
   ! author: Gautam Bisht
   ! date: 9/10/2010
   ! ************************************************************************** !
-  subroutine pflotranModelStepperRunFinalize(pflotran_model)
-
-    use Regression_module, only : RegressionOutput
+  subroutine pflotranModelStepperRunFinalize(model)
 
     implicit none
 
-    type(pflotran_model_type), pointer :: pflotran_model
+    type(pflotran_model_type), pointer :: model
 
-    call StepperRunFinalize(pflotran_model%simulation%realization, &
-         pflotran_model%simulation%flow_stepper, &
-         pflotran_model%simulation%tran_stepper)
-
-    call RegressionOutput(pflotran_model%simulation%regression, &
-         pflotran_model%simulation%realization, &
-         pflotran_model%simulation%flow_stepper, pflotran_model%simulation%tran_stepper)
+    call model%simulation%FinalizeRun()
 
   end subroutine pflotranModelStepperRunFinalize
 
 
-
-  ! ************************************************************************** !
-  !
-  ! pflotranModelInsertWaypoint: Inserts a waypoint within the waypoint list
-  !             so that the model integration can be paused when that waypoint is
-  !             reached
-  !
-  ! NOTE: It is assumed the 'waypoint_time' is in seconds
-  !
-  ! author: Gautam Bisht
-  ! date: 9/10/2010
-  ! ************************************************************************** !
-  subroutine pflotranModelInsertWaypoint(pflotran_model, waypoint_time)
-
-    implicit none
-
-    type(pflotran_model_type), pointer :: pflotran_model
-    type(waypoint_type), pointer       :: waypoint
-    type(option_type), pointer         :: option
-    PetscReal                          :: waypoint_time
-    character(len=MAXWORDLENGTH)       :: word
-
-    option => pflotran_model%realization%option
-    word = 's'
-    waypoint => WaypointCreate()
-    waypoint%time              = waypoint_time * UnitsConvertToInternal(word, option)
-    waypoint%update_conditions = PETSC_TRUE
-    waypoint%dt_max            = 3153600
-
-    call WaypointInsertInList(waypoint, pflotran_model%realization%waypoints)
-
-
-  end subroutine pflotranModelInsertWaypoint
-
-  subroutine pflotranModelDeleteWaypoint(pflotran_model, waypoint_time)
-
-    type(pflotran_model_type), pointer :: pflotran_model
-    type(waypoint_type), pointer       :: waypoint
-    type(option_type), pointer         :: option
-    PetscReal                          :: waypoint_time
-    character(len=MAXWORDLENGTH)       :: word
-
-    option => pflotran_model%realization%option
-    word = 's'
-    waypoint => WaypointCreate()
-    waypoint%time              = waypoint_time * UnitsConvertToInternal(word, option)
-    waypoint%update_conditions = PETSC_TRUE
-    waypoint%dt_max            = 3153600
-
-    call WaypointDeleteFromList(waypoint, pflotran_model%realization%waypoints)
-
-
-  end subroutine pflotranModelDeleteWaypoint
 
   ! ************************************************************************** !
   !> This function returns the number of control volumes forming surface of
@@ -2156,6 +2027,7 @@ end subroutine pflotranModelSetICs
   ! ************************************************************************** !
   function pflotranModelNSurfCells3DDomain(pflotran_model)
 
+    use Option_module
     use Coupler_module
     use String_module
 
@@ -2206,13 +2078,20 @@ end subroutine pflotranModelSetICs
     use Grid_module
     use clm_pflotran_interface_data
     use Utility_module, only : DotProduct, CrossProduct
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Surface_Realization_class, only : surface_realization_type
+    use Realization_class, only : realization_type
+    use Mapping_module
 
     implicit none
 
     type(pflotran_model_type), pointer :: pflotran_model
 
     type(option_type), pointer :: option
-    type(realization_type), pointer :: realization
+    class(realization_type), pointer :: realization
     type(discretization_type), pointer :: discretization
     type(patch_type), pointer :: patch
     type(grid_type), pointer :: grid
@@ -2232,7 +2111,16 @@ end subroutine pflotranModelSetICs
     PetscErrorCode :: ierr
 
     option => pflotran_model%option
-    realization => pflotran_model%simulation%realization
+    select type (simulation => pflotran_model%simulation)
+      type is (subsurface_simulation_type)
+         realization => simulation%realization
+      type is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
     discretization => realization%discretization
     patch => realization%patch
     grid => patch%grid
@@ -2322,61 +2210,27 @@ end subroutine pflotranModelSetICs
   ! author: Gautam Bisht
   ! date: 9/10/2010
   ! ************************************************************************** !
-  subroutine pflotranModelDestroy(pflotran_model)
+  subroutine pflotranModelDestroy(model)
+
+    use PFLOTRAN_Factory_module, only : PFLOTRANFinalize
+    use Option_module, only : OptionFinalize
 
     implicit none
 
-    type(pflotran_model_type), pointer :: pflotran_model
-    PetscInt :: ii, jj
-    PetscErrorCode :: ierr
-    PetscLogDouble :: cpu_time, wall_time
-#ifdef CLM_PFLOTRAN
-    type(mapping_type), pointer         :: map
-#endif
+    type(pflotran_model_type), pointer :: model
 
-    ! Clean things up.
-    call SimulationDestroy(pflotran_model%simulation)
+    ! FIXME(bja, 2013-07) none of the mapping information appears to
+    ! be cleaned up, so we are leaking memory....
 
-    ! Final Time
-    call PetscGetCPUTime(pflotran_model%timex(2), ierr)
-    call PetscTime(pflotran_model%timex_wall(2), ierr)
+    call model%simulation%FinalizeRun()
+    call model%simulation%Strip()
+    deallocate(model%simulation)
+    nullify(model%simulation)
+  
+    call PFLOTRANFinalize(model%option)
+    call OptionFinalize(model%option)
 
-    if (pflotran_model%option%myrank == pflotran_model%option%io_rank) then
-       cpu_time = pflotran_model%timex(2) - pflotran_model%timex(1)
-       wall_time = pflotran_model%timex_wall(2) - pflotran_model%timex_wall(1) 
-       if (pflotran_model%option%print_to_screen) then
-          if (pflotran_model%option%io_rank==pflotran_model%option%myrank) then
-             write(pflotran_model%option%fid_out, '(/, " CPU Time:", 1pe12.4, " [sec] ", &
-                  & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-                  cpu_time, cpu_time / 60.d0, cpu_time / 3600.d0
-
-             write(pflotran_model%option%fid_out, '(/, " Wall Clock Time:", 1pe12.4, " [sec] ", &
-                  & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-                  wall_time, wall_time / 60.d0, wall_time / 3600.d0
-          endif
-       endif
-       if (pflotran_model%option%print_to_file) then
-          write(pflotran_model%option%fid_out, '(/, " CPU Time:", 1pe12.4, " [sec] ", &
-                  & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-                  cpu_time, cpu_time / 60.d0, cpu_time / 3600.d0
-
-          write(pflotran_model%option%fid_out, '(/, " Wall Clock Time:", 1pe12.4, " [sec] ", &
-                  & 1pe12.4, " [min] ", 1pe12.4, " [hr]")') &
-                  wall_time, wall_time / 60.d0, wall_time / 3600.d0
-       endif
-    endif
-
-    if (pflotran_model%option%myrank == pflotran_model%option%io_rank .and. &
-         pflotran_model%option%print_to_file) then
-       close(pflotran_model%option%fid_out)
-    end if
-
-    call LoggingDestroy()
-
-    call PetscOptionsSetValue('-options_left', 'no', ierr);
-
-    call OptionDestroy(pflotran_model%option)
-    call PetscFinalize(ierr)
+    deallocate(model)
 
   end subroutine pflotranModelDestroy
   
