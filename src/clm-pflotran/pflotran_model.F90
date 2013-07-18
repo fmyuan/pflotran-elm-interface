@@ -362,9 +362,7 @@ contains
   !
   ! pflotranModelStepperCheckpoint: wrapper around StepperCheckpoint
   !
-  ! NOTE(bja, 2013-06-27) : the date stamp is 32 characters which
-  ! should correspond to pflotran's MAXWORDLENGTH, but doesn't in this
-  ! branch...
+  ! NOTE(bja, 2013-06-27) : the date stamp from clm is 32 characters
   !
   ! **************************************************************************
   subroutine pflotranModelStepperCheckpoint(model, date_stamp)
@@ -375,7 +373,7 @@ contains
     implicit none
 
     type(pflotran_model_type), pointer :: model
-    character(len=32), intent(in) :: date_stamp
+    character(len=MAXWORDLENGTH), intent(in) :: date_stamp
 
     model%option%io_buffer = 'ERROR: checkpoint is not implemented in pflotran.'
     call printErrMsg(model%option)
@@ -1724,9 +1722,7 @@ end subroutine pflotranModelSetICs
     implicit none
 
     type(pflotran_model_type), pointer :: model
-    ! NOTE(bja 2013-07-02) this version of pflotran doesn't set
-    ! MAXWORDLENGTH to 32 as expected...
-    character(len=32) :: restart_stamp
+    character(len=MAXWORDLENGTH) :: restart_stamp
 
     model%option%io_buffer = 'ERROR: restart is not implemented in pflotran.'
     call printErrMsg(model%option)
