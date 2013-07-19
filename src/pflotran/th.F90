@@ -1010,7 +1010,7 @@ subroutine THUpdateAuxVarsPatch(realization)
         case (HET_DIRICHLET)
           tsrc1 = source_sink%flow_condition%temperature%flow_dataset%time_series%cur_value(1)
         case (DIRICHLET_BC)
-          tsrc1 = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
+          tsrc1 = source_sink%flow_condition%temperature%flow_dataset%time_series%cur_value(1)
         case (ENERGY_RATE_SS,HET_ENERGY_RATE_SS)
           tsrc1 = xx_loc_p((ghosted_id-1)*option%nflowdof+2)
         case default
