@@ -37,8 +37,6 @@ module pflotran_model_module
 
   type, public :: pflotran_model_type
     class(simulation_base_type),  pointer :: simulation
-    !TODO(bja, 2013-07-16) realization pointer should go away
-    class(realization_base_type), pointer :: realization
     type(option_type),      pointer :: option
     PetscReal :: pause_time_1
     PetscReal :: pause_time_2
@@ -158,7 +156,7 @@ contains
     model%pause_time_2 = -1.0d0
 
     ! FIXME(bja, 2013-07-17) hard code subsurface for now....
-    model%option%simulation_mode = 'SUBSURFACE'
+    model%option%simulation_mode = 'SURFACE_SUBSURFACE'
     select case(model%option%simulation_mode)
       case('SUBSURFACE')
          call SubsurfaceInitialize(model%simulation, model%option)
@@ -176,6 +174,11 @@ contains
     call pflotranModelSetupMappingFiles(model)
 
     pflotranModelCreate => model
+
+    ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
+    ! setup on mpich/mac. should be generally ok, but may need an
+    ! apple/mpich ifdef if it cause problems elsewhere.
+    PETSC_COMM_SELF = MPI_COMM_SELF
 
   end function pflotranModelCreate
 
@@ -207,6 +210,7 @@ contains
 #include "definitions.h"
 
     type(pflotran_model_type), pointer, intent(inout) :: model
+    type(input_type), pointer :: input
 
     PetscBool :: clm2pf_flux_file
     PetscBool :: clm2pf_soil_file
@@ -236,7 +240,7 @@ contains
     model%nlclm = -1
     model%ngclm = -1
 
-    model%realization%input => InputCreate(15, &
+    input => InputCreate(15, &
                     model%option%input_filename, model%option)
 
     ! Read names of mapping file
@@ -248,59 +252,53 @@ contains
     pf2clm_surf_file=PETSC_FALSE
     
     string = "MAPPING_FILES"
-    call InputFindStringInFile(model%realization%input,model%option,string)
+    call InputFindStringInFile(input,model%option,string)
 
     do
-      call InputReadFlotranString(model%realization%input, model%option)
-      if (InputCheckExit(model%realization%input, model%option)) exit
-      if (model%realization%input%ierr /= 0) exit
+      call InputReadFlotranString(input, model%option)
+      if (InputCheckExit(input, model%option)) exit
+      if (input%ierr /= 0) exit
 
-      call InputReadWord(model%realization%input, model%option, word, PETSC_TRUE)
-      call InputErrorMsg(model%realization%input, model%option, 'keyword', 'MAPPING_FILES')
+      call InputReadWord(input, model%option, word, PETSC_TRUE)
+      call InputErrorMsg(input, model%option, 'keyword', 'MAPPING_FILES')
       call StringToUpper(word)
 
       select case(trim(word))
         case('CLM2PF_FLUX_FILE')
-          call InputReadWord(model%realization%input, &
-                             model%option, &
-                             model%map_clm2pf%filename, PETSC_TRUE)
+          call InputReadNChars(input, model%option, model%map_clm2pf%filename, &
+               MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_clm2pf%filename = trim(model%map_clm2pf%filename)//CHAR(0)
-          call InputErrorMsg(model%realization%input, &
+          call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')   
           clm2pf_flux_file=PETSC_TRUE
         case('CLM2PF_SOIL_FILE')
-          call InputReadWord(model%realization%input, &
-                             model%option, &
-                             model%map_clm2pf_soils%filename, PETSC_TRUE)
-          call InputErrorMsg(model%realization%input, &
+          call InputReadNChars(input, model%option, model%map_clm2pf_soils%filename, &
+               MAXSTRINGLENGTH, PETSC_TRUE)
+          call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')   
           clm2pf_soil_file=PETSC_TRUE
         case('CLM2PF_GFLUX_FILE')
-          call InputReadWord(model%realization%input, &
-                             model%option, &
-                             model%map_clm2pf_gflux%filename, PETSC_TRUE)
-          call InputErrorMsg(model%realization%input, &
+          call InputReadNChars(input, model%option, model%map_clm2pf_gflux%filename, &
+               MAXSTRINGLENGTH, PETSC_TRUE)
+          call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_gflux_file=PETSC_TRUE
         case('CLM2PF_RFLUX_FILE')
-          call InputReadWord(model%realization%input, &
-                             model%option, &
-                             model%map_clm2pf_rflux%filename, PETSC_TRUE)
-          call InputErrorMsg(model%realization%input, &
+          call InputReadNChars(input, model%option, model%map_clm2pf_rflux%filename, &
+               MAXSTRINGLENGTH, PETSC_TRUE)
+          call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_rflux_file=PETSC_TRUE
         case('PF2CLM_SURF_FILE')
-          call InputReadWord(model%realization%input, &
-                             model%option, &
-                             model%map_pf2clm_surf%filename, PETSC_TRUE)
-          call InputErrorMsg(model%realization%input, &
+          call InputReadNChars(input, model%option, model%map_pf2clm_surf%filename, &
+               MAXSTRINGLENGTH, PETSC_TRUE)
+          call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           pf2clm_surf_file=PETSC_TRUE
         case('PF2CLM_FLUX_FILE')
-          call InputReadWord(model%realization%input, &
-                             model%option, &
-                             model%map_pf2clm%filename, PETSC_TRUE)
-          call InputErrorMsg(model%realization%input, &
+          call InputReadNChars(input, model%option, model%map_pf2clm%filename, &
+               MAXSTRINGLENGTH, PETSC_TRUE)
+          call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')   
           pf2clm_flux_file=PETSC_TRUE
         case default
@@ -310,7 +308,7 @@ contains
       end select
 
     enddo
-    call InputDestroy(model%realization%input)
+    call InputDestroy(input)
 
     if ((.not. clm2pf_soil_file) .or. (.not. clm2pf_flux_file) .or. &
         (.not. pf2clm_flux_file) ) then
@@ -375,8 +373,8 @@ contains
     type(pflotran_model_type), pointer :: model
     character(len=MAXWORDLENGTH), intent(in) :: date_stamp
 
-    model%option%io_buffer = 'ERROR: checkpoint is not implemented in pflotran.'
-    call printErrMsg(model%option)
+    model%option%io_buffer = 'checkpoint is not implemented for clm-pflotran.'
+    call printWrnMsg(model%option)
 !!$    call StepperCheckpoint(model%realization, &
 !!$         model%simulation%flow_stepper, &
 !!$         model%simulation%tran_stepper, &
@@ -1724,8 +1722,8 @@ end subroutine pflotranModelSetICs
     type(pflotran_model_type), pointer :: model
     character(len=MAXWORDLENGTH) :: restart_stamp
 
-    model%option%io_buffer = 'ERROR: restart is not implemented in pflotran.'
-    call printErrMsg(model%option)
+    model%option%io_buffer = 'restart is not implemented in clm-pflotran.'
+    call printWrnMsg(model%option)
 
 !!$    if (.not. StringNull(restart_stamp)) then
 !!$       model%option%restart_flag = PETSC_TRUE
@@ -2026,17 +2024,34 @@ end subroutine pflotranModelSetICs
     use Option_module
     use Coupler_module
     use String_module
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Realization_class
 
     implicit none
 
     type(pflotran_model_type), pointer :: pflotran_model
 
+    class(realization_type), pointer :: realization
     type(coupler_list_type), pointer :: coupler_list
     type(coupler_type), pointer :: coupler
+    type(simulation_base_type), pointer :: simulation
     PetscInt :: pflotranModelNSurfCells3DDomain
     PetscBool :: found
 
-    coupler_list => pflotran_model%realization%patch%boundary_conditions
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    coupler_list => realization%patch%boundary_conditions
     coupler => coupler_list%first
     found = PETSC_FALSE
 
