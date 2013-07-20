@@ -135,6 +135,11 @@ contains
     call OptionInitMPI(model%option, mpicomm)
     call PFLOTRANInitialize(model%option)
 
+    ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
+    ! setup on mpich/mac. should be generally ok, but may need an
+    ! apple/mpich ifdef if it cause problems elsewhere.
+    PETSC_COMM_SELF = MPI_COMM_SELF
+
     ! NOTE(bja) 2013-06-25 : external driver must provide an input
     ! prefix string. If the driver wants to use pflotran.in, then it
     ! should explicitly request that with 'pflotran'.
@@ -174,11 +179,6 @@ contains
     call pflotranModelSetupMappingFiles(model)
 
     pflotranModelCreate => model
-
-    ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
-    ! setup on mpich/mac. should be generally ok, but may need an
-    ! apple/mpich ifdef if it cause problems elsewhere.
-    PETSC_COMM_SELF = MPI_COMM_SELF
 
   end function pflotranModelCreate
 
