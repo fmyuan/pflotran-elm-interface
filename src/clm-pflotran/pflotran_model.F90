@@ -146,6 +146,7 @@ contains
     if (len(trim(pflotran_prefix)) > 1) then
       model%option%input_prefix = trim(pflotran_prefix)
       model%option%input_filename = trim(model%option%input_prefix) // '.in'
+      model%option%global_prefix = model%option%input_prefix
     else
       model%option%io_buffer = 'The external driver must provide the ' // &
            'pflotran input file prefix.'
