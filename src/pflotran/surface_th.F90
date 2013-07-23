@@ -648,6 +648,7 @@ subroutine SurfaceTHSurf2SubsurfFlux(realization,surf_realization)
   PetscReal :: dtemp
   PetscReal :: Cw
   PetscReal :: temp_half
+  PetscReal :: Ke_fr_up
   PetscReal, parameter :: epsilon = 1.d-6
     
   PetscBool :: coupler_found = PETSC_FALSE
@@ -803,7 +804,7 @@ subroutine SurfaceTHSurf2SubsurfFlux(realization,surf_realization)
           k_eff_up = ckdry_p(local_id) + &
                       (ckwet_p(local_id) - ckdry_p(local_id))*Ke_up
 #ifdef ICE
-          Ke_fr_up = (sat_ice(local_id) + epsilon)**th_alpha_fr_p(local_id)
+          Ke_fr_up = (sat_ice_p(local_id) + epsilon)**th_alpha_fr_p(local_id)
           k_eff_up = ckwet_p(local_id)*Ke_up + ckice_p(local_id)*Ke_fr_up + &
                      ckdry_p(local_id)*(1.d0 - Ke_up - Ke_fr_up)
 #endif
