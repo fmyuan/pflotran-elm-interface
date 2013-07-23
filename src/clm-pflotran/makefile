@@ -209,13 +209,14 @@ mode_aux_obj = \
 	${common_src}immis_aux.o \
 	${common_src}miscible_aux.o \
 	${common_src}mphase_aux.o \
-        ${common_src}process_model_base.o \
-        ${common_src}process_model_richards.o \
-        ${common_src}process_model_rt.o \
-        ${common_src}process_model_surface_flow.o \
-        ${common_src}process_model_top.o \
-        ${common_src}process_model_th.o \
-        ${common_src}process_model_thc.o \
+	${common_src}process_model_base.o \
+	${common_src}process_model_richards.o \
+	${common_src}process_model_rt.o \
+	${common_src}process_model_surface_flow.o \
+	${common_src}process_model_surface_th.o \
+	${common_src}process_model_top.o \
+	${common_src}process_model_th.o \
+	${common_src}process_model_thc.o \
 	${common_src}richards_aux.o \
 	${common_src}th_aux.o \
 	${common_src}thc_aux.o \
@@ -668,7 +669,7 @@ pmc_subsurface.o : option.o pmc_base.o realization.o utility.o
 pmc_surface.o : option.o output.o pmc_base.o process_model_base.o \
                 process_model_surface_flow.o realization.o surface_flow.o \
                 surface_realization.o surface_th.o timestepper_base.o \
-                timestepper_surface.o utility.o
+                timestepper_surface.o utility.o process_model_surface_th.o
 process_model_base.o : option.o output_aux.o realization_base.o
 process_model_richards.o : communicator_base.o condition.o discretization.o \
                            global.o grid.o option.o process_model_base.o \
@@ -682,6 +683,12 @@ process_model_surface_flow.o : communicator_base.o condition.o \
                                discretization.o grid.o option.o \
                                process_model_base.o realization.o \
                                surface_field.o surface_flow.o \
+                               surface_realization.o \
+                               unstructured_communicator.o
+process_model_surface_th.o : communicator_base.o condition.o \
+                               discretization.o grid.o option.o \
+                               process_model_base.o realization.o \
+                               surface_field.o surface_th.o \
                                surface_realization.o \
                                unstructured_communicator.o
 process_model_th.o : communicator_base.o condition.o discretization.o global.o \
