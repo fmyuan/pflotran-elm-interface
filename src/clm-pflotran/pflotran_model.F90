@@ -82,6 +82,8 @@ module pflotran_model_module
        pflotranModelGetUpdatedStates,        &
        pflotranModelStepperRunInit,          &
        pflotranModelStepperRunTillPauseTime, &
+       pflotranModelInsertWaypoint,          &
+       pflotranModelDeleteWaypoint,          &
        pflotranModelSetupRestart,            &
        pflotranModelStepperRunFinalize,      &
        pflotranModelStepperCheckpoint,       &
@@ -1677,7 +1679,12 @@ end subroutine pflotranModelSetICs
   ! pflotranModelStepperRunTillPauseTime: It performs the model integration
   !             till the specified pause_time.
   !
-  ! NOTE: It is assumed 'pause_time' is in seconds
+  ! NOTE: It is assumed 'pause_time' is in seconds.
+  !
+  ! NOTE(bja, 2013-07) the strange waypoint insertion of t+30min /
+  ! deletion of t is to ensure that we always have a valid waypoint in
+  ! front of us, but pflotran does not delete them, so we don't want
+  ! to accumulate too large of a list.
   !
   ! author: Gautam Bisht
   ! date: 9/10/2010
@@ -1693,12 +1700,152 @@ end subroutine pflotranModelSetICs
     type(pflotran_model_type), pointer :: model
     PetscReal, intent(in) :: pause_time
 
+    PetscReal :: pause_time1
+
+    if (model%option%io_rank == model%option%myrank) then
+       write(model%option%fid_out, *), '>>>> Inserting waypoint at pause_time = ', pause_time
+    endif
+
+    pause_time1 = pause_time + 1800.0d0
+    call pflotranModelInsertWaypoint(model, pause_time1)
+
     call model%simulation%RunToTime(pause_time)
+
+    call pflotranModelDeleteWaypoint(model, pause_time)
 
     ! TODO(GB): Use XXXUpdateMassBalancePatch() to ensure mass balance
     ! betweent CLM calls
 
   end subroutine pflotranModelStepperRunTillPauseTime
+
+  ! ************************************************************************** !
+  !
+  ! pflotranModelInsertWaypoint: Inserts a waypoint within the waypoint list
+  !             so that the model integration can be paused when that waypoint is
+  !             reached
+  !
+  ! NOTE: It is assumed the 'waypoint_time' is in seconds
+  !
+  ! author: Gautam Bisht
+  ! date: 9/10/2010
+  ! ************************************************************************** !
+  subroutine pflotranModelInsertWaypoint(model, waypoint_time)
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+
+    use Realization_class, only : realization_type
+    use Surface_Realization_class, only : surface_realization_type
+    use Surface_Realization_class, only : surface_realization_type
+
+    use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointInsertInList
+    use Units_module, only : UnitsConvertToInternal
+    use Option_module, only : printErrMsg
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: model
+    type(waypoint_type), pointer       :: waypoint
+    PetscReal                          :: waypoint_time
+    character(len=MAXWORDLENGTH)       :: word
+
+    class(realization_type), pointer    :: realization
+    class(surface_realization_type), pointer :: surf_realization
+
+    select type (simulation => model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+         nullify(surf_realization)
+      class is (surface_simulation_type)
+         nullify(realization)
+         surf_realization => simulation%surf_realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+         surf_realization => simulation%surf_realization
+      class default
+         nullify(realization)
+         nullify(surf_realization)
+         model%option%io_buffer = "pflotranModelInsertWaypoint only " // &
+              "works on combinations of surface and subsurface simulations."
+         call printErrMsg(model%option)
+    end select
+
+    word = 's'
+    waypoint => WaypointCreate()
+    waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
+    waypoint%update_conditions = PETSC_TRUE
+    waypoint%dt_max            = 3153600
+
+    if (associated(realization)) then
+       call WaypointInsertInList(waypoint, realization%waypoints)
+    end if
+
+    if (associated(surf_realization)) then
+       call WaypointInsertInList(waypoint, surf_realization%waypoints)
+    end if
+
+  end subroutine pflotranModelInsertWaypoint
+
+  subroutine pflotranModelDeleteWaypoint(model, waypoint_time)
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+
+    use Realization_class, only : realization_type
+    use Surface_Realization_class, only : surface_realization_type
+    use Surface_Realization_class, only : surface_realization_type
+
+    use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointDeleteFromList
+    use Units_module, only : UnitsConvertToInternal
+    use Option_module, only : printErrMsg
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: model
+    type(waypoint_type), pointer       :: waypoint
+    PetscReal                          :: waypoint_time
+    character(len=MAXWORDLENGTH)       :: word
+
+    class(realization_type), pointer    :: realization
+    class(surface_realization_type), pointer :: surf_realization
+
+    select type (simulation => model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+         nullify(surf_realization)
+      class is (surface_simulation_type)
+         nullify(realization)
+         surf_realization => simulation%surf_realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+         surf_realization => simulation%surf_realization
+      class default
+         nullify(realization)
+         nullify(surf_realization)
+         model%option%io_buffer = "pflotranModelDeleteWaypoint only " // &
+              "works on combinations of surface and subsurface simulations."
+         call printErrMsg(model%option)
+    end select
+
+    word = 's'
+    waypoint => WaypointCreate()
+    waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
+    waypoint%update_conditions = PETSC_TRUE
+    waypoint%dt_max            = 3153600
+
+    if (associated(realization)) then
+       call WaypointDeleteFromList(waypoint, realization%waypoints)
+    end if
+
+    if (associated(surf_realization)) then
+       call WaypointDeleteFromList(waypoint, surf_realization%waypoints)
+    end if
+
+  end subroutine pflotranModelDeleteWaypoint
 
   ! ************************************************************************** !
   !
