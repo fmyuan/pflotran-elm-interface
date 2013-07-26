@@ -1,6 +1,9 @@
 program pflotran_interface_main
 
-  use pflotran_model_module
+  use pflotran_model_module, only : pflotran_model_type, pflotranModelCreate, &
+       pflotranModelInitMapping, pflotranModelStepperRunInit, &
+       pflotranModelStepperRunTillPauseTime, pflotranModelDestroy, &
+       CLM2PF_RFLUX_MAP_ID, PF2CLM_SURF_MAP_ID
   use clm_pflotran_interface_data
   use Mapping_module
   use Input_module
@@ -15,7 +18,8 @@ program pflotran_interface_main
 
   implicit none
 
-#include "finclude/petscsysdef.h"
+#include "definitions.h"
+#include "finclude/petscvec.h"
 
   type(pflotran_model_type), pointer  :: pflotran_m
   class(realization_base_type), pointer :: realization
@@ -29,6 +33,7 @@ program pflotran_interface_main
   PetscInt                           :: clm_npts, clm_surf_npts, ii, fileid, num_u_a, jj
   PetscInt                           :: npts
   PetscInt           :: ntimes
+  Vec :: myvec
 
   ! To read HDF5 soil properties  
   character(len=MAXSTRINGLENGTH)     :: filename
