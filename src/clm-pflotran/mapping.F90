@@ -106,6 +106,38 @@ contains
     type(mapping_type), pointer :: map
 
     allocate(map)
+
+    map%s_ncells_loc = 0
+    nullify(map%s_ids_loc_nidx)
+
+    ! Destination mesh
+    map%d_ncells_loc = 0
+    map%d_ncells_gh = 0
+    map%d_ncells_ghd = 0
+
+    ! natuaral-index starting with 0
+    nullify(map%d_ids_ghd_nidx)
+    nullify(map%d_ids_nidx_sor)
+    nullify(map%d_nGhd2Sor)
+    nullify(map%d_nSor2Ghd)
+    nullify(map%d_loc_or_gh)
+
+    ! Mapping from Source-to-Destination mesh
+    map%s2d_s_ncells = 0
+    map%s2d_s_ncells_dis = 0
+    nullify(map%s2d_s_ids_nidx)
+    nullify(map%s2d_s_ids_nidx_dis)
+
+    ! Compressed Sparse Row (CSR) Matrix
+    nullify(map%s2d_wts)
+    map%s2d_nwts = 0
+    nullify(map%s2d_jcsr)
+    nullify(map%s2d_icsr)
+    nullify(map%s2d_nonzero_rcount_csr)
+
+    map%wts_mat = 0
+    map%s2d_scat_s_gb2disloc = 0
+    map%s_disloc_vec = 0
     
     MappingCreate => map
 
@@ -898,93 +930,89 @@ contains
       map%s2d_nonzero_rcount_csr(ii) = INT(vloc1(ii))
     enddo
     map%s2d_s_ncells = count
-    
-    if (map%s2d_s_ncells > 0) then
+
+    ! Allocate memory
+    deallocate(map%s2d_wts)
       
-      ! Allocate memory
-      deallocate(map%s2d_wts)
+    allocate(map%s2d_s_ids_nidx(map%s2d_s_ncells))
+    allocate(map%s2d_wts(map%s2d_s_ncells))
+    allocate(tmp_int_array(map%s2d_s_ncells))
       
-      allocate(map%s2d_s_ids_nidx(map%s2d_s_ncells))
-      allocate(map%s2d_wts(map%s2d_s_ncells))
-      allocate(tmp_int_array(map%s2d_s_ncells))
-      
-      ! For each cell in destination mesh, save indices of MPI Vectors, which
-      ! contain data read from mapping file, for all overlapped cells of 
-      ! of source mesh
-      kk = 0
-      do ii = 1,map%d_ncells_ghd
-        do jj = 1,INT(vloc1(ii))
+    ! For each cell in destination mesh, save indices of MPI Vectors, which
+    ! contain data read from mapping file, for all overlapped cells of 
+    ! of source mesh
+    kk = 0
+    do ii = 1,map%d_ncells_ghd
+       do jj = 1,INT(vloc1(ii))
           kk = kk + 1
           tmp_int_array(kk) = INT(vloc2(ii)) - INT(vloc1(ii)) + jj - 1
-        enddo
-      enddo
+       enddo
+    enddo
 
-      ! Create an index set to scatter from
-      call ISCreateBlock(option%mycomm,1,map%s2d_s_ncells,tmp_int_array, &
-                         PETSC_COPY_VALUES,is_from,ierr)
+    ! Create an index set to scatter from
+    call ISCreateBlock(option%mycomm,1,map%s2d_s_ncells,tmp_int_array, &
+         PETSC_COPY_VALUES,is_from,ierr)
 #ifdef GB_DEBUG
-      call PetscViewerASCIIOpen(option%mycomm, 'is_from2.out', viewer, ierr)
-      call ISView(is_from,viewer,ierr)
-      call PetscViewerDestroy(viewer, ierr)
+    call PetscViewerASCIIOpen(option%mycomm, 'is_from2.out', viewer, ierr)
+    call ISView(is_from,viewer,ierr)
+    call PetscViewerDestroy(viewer, ierr)
 #endif
 
-      do ii=1,map%s2d_s_ncells
-        tmp_int_array(ii) = ii-1
-      enddo
+    do ii=1,map%s2d_s_ncells
+       tmp_int_array(ii) = ii-1
+    enddo
 
-      call ISCreateBlock(option%mycomm,1,map%s2d_s_ncells,tmp_int_array, &
-                         PETSC_COPY_VALUES,is_to,ierr)
-      deallocate(tmp_int_array)
+    call ISCreateBlock(option%mycomm,1,map%s2d_s_ncells,tmp_int_array, &
+         PETSC_COPY_VALUES,is_to,ierr)
+    deallocate(tmp_int_array)
 #ifdef GB_DEBUG
-      call PetscViewerASCIIOpen(option%mycomm, 'is_to2.out', viewer, ierr)
-      call ISView(is_to,viewer,ierr)
-      call PetscViewerDestroy(viewer, ierr)
+    call PetscViewerASCIIOpen(option%mycomm, 'is_to2.out', viewer, ierr)
+    call ISView(is_to,viewer,ierr)
+    call PetscViewerDestroy(viewer, ierr)
 #endif
 
-      ! Allocate memory
-      call VecCreateSeq(PETSC_COMM_SELF,map%s2d_s_ncells,row_loc_vec,ierr)
-      call VecCreateSeq(PETSC_COMM_SELF,map%s2d_s_ncells,col_loc_vec,ierr)
-      call VecCreateSeq(PETSC_COMM_SELF,map%s2d_s_ncells,wts_loc_vec,ierr)
+    ! Allocate memory
+    call VecCreateSeq(PETSC_COMM_SELF,map%s2d_s_ncells,row_loc_vec,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,map%s2d_s_ncells,col_loc_vec,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,map%s2d_s_ncells,wts_loc_vec,ierr)
 
-      ! Create scatter context
-      call VecScatterCreate(row_vec,is_from,row_loc_vec,is_to,vec_scat,ierr)
+    ! Create scatter context
+    call VecScatterCreate(row_vec,is_from,row_loc_vec,is_to,vec_scat,ierr)
 #ifdef GB_DEBUG
-      call PetscViewerASCIIOpen(option%mycomm, 'scatter_wts_data.out', viewer, ierr)
-      call VecScatterView(vec_scat, viewer,ierr)
-      call PetscViewerDestroy(viewer, ierr)
+    call PetscViewerASCIIOpen(option%mycomm, 'scatter_wts_data.out', viewer, ierr)
+    call VecScatterView(vec_scat, viewer,ierr)
+    call PetscViewerDestroy(viewer, ierr)
 #endif
 
-      ! Scatter the data
-      call VecScatterBegin(vec_scat,col_vec,col_loc_vec, INSERT_VALUES, &
-                           SCATTER_FORWARD,ierr)
-      call VecScatterEnd(vec_scat,col_vec,col_loc_vec, INSERT_VALUES, &
-                           SCATTER_FORWARD,ierr)
-      call VecScatterBegin(vec_scat,wts_vec,wts_loc_vec, INSERT_VALUES, &
-                           SCATTER_FORWARD,ierr)
-      call VecScatterEnd(vec_scat,wts_vec,wts_loc_vec, INSERT_VALUES, &
-                           SCATTER_FORWARD,ierr)
+    ! Scatter the data
+    call VecScatterBegin(vec_scat,col_vec,col_loc_vec, INSERT_VALUES, &
+         SCATTER_FORWARD,ierr)
+    call VecScatterEnd(vec_scat,col_vec,col_loc_vec, INSERT_VALUES, &
+         SCATTER_FORWARD,ierr)
+    call VecScatterBegin(vec_scat,wts_vec,wts_loc_vec, INSERT_VALUES, &
+         SCATTER_FORWARD,ierr)
+    call VecScatterEnd(vec_scat,wts_vec,wts_loc_vec, INSERT_VALUES, &
+         SCATTER_FORWARD,ierr)
 
-      ! Attach to the local copy of the scatterd data
-      call VecGetArrayF90(col_loc_vec,vloc3,ierr)
-      call VecGetArrayF90(wts_loc_vec,vloc4,ierr)
+    ! Attach to the local copy of the scatterd data
+    call VecGetArrayF90(col_loc_vec,vloc3,ierr)
+    call VecGetArrayF90(wts_loc_vec,vloc4,ierr)
 
-      ! Save the scattered data
-      do ii = 1,map%s2d_s_ncells
-        map%s2d_s_ids_nidx(ii) = INT(vloc3(ii))
-        map%s2d_wts(ii)        = vloc4(ii)
-      enddo 
+    ! Save the scattered data
+    do ii = 1,map%s2d_s_ncells
+       map%s2d_s_ids_nidx(ii) = INT(vloc3(ii))
+       map%s2d_wts(ii)        = vloc4(ii)
+    enddo
 
-      ! Restore data
-      call VecRestoreArrayF90(col_loc_vec,vloc3,ierr)
-      call VecRestoreArrayF90(wts_loc_vec,vloc4,ierr)
+    ! Restore data
+    call VecRestoreArrayF90(col_loc_vec,vloc3,ierr)
+    call VecRestoreArrayF90(wts_loc_vec,vloc4,ierr)
 
-      ! Free memory
-      call VecDestroy(row_loc_vec,ierr)
-      call VecDestroy(col_loc_vec,ierr)
-      call VecDestroy(wts_loc_vec,ierr)
+    ! Free memory
+    call VecDestroy(row_loc_vec,ierr)
+    call VecDestroy(col_loc_vec,ierr)
+    call VecDestroy(wts_loc_vec,ierr)
     
-    endif
-
     ! Restore data
     call VecRestoreArrayF90(nonzero_row_count_loc_vec,vloc1,ierr)
     call VecRestoreArrayF90(cumsum_nonzero_row_count_loc_vec,vloc2,ierr)
@@ -1025,7 +1053,11 @@ contains
     Vec :: xx, yy
     
     ! No overlapped cells with Source Mesh, then return
-    if(map%s2d_s_ncells == 0) return
+    if(map%s2d_s_ncells == 0) then
+       map%s2d_s_ncells_dis = 0
+       call VecCreateSeq(PETSC_COMM_SELF, map%s2d_s_ncells_dis, map%s_disloc_vec, ierr)
+       return
+    end if
 
     ! Allocate memory
     allocate(map%s2d_jcsr( map%s2d_s_ncells))
@@ -1089,7 +1121,7 @@ contains
     map%s2d_jcsr = int_array4
 
     ! Create a sequential vector
-    call VecCreateSeq(PETSC_COMM_SELF,map%s2d_s_ncells_dis,map%s_disloc_vec,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF, map%s2d_s_ncells_dis, map%s_disloc_vec, ierr)
 
     ! Free memory
     deallocate(int_array)
@@ -1430,18 +1462,21 @@ contains
     ! local variables
     PetscErrorCode              :: ierr
     
-    ! Initialize local vector
-    call VecSet(map%s_disloc_vec,0.d0,ierr)
-    
+    if (map%s2d_s_ncells > 0) then  
+       ! Initialize local vector
+       call VecSet(map%s_disloc_vec, 0.d0, ierr)
+    end if
+
     ! Scatter the source vector
-    call VecScatterBegin(map%s2d_scat_s_gb2disloc,s_vec,map%s_disloc_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr)
-    call VecScatterEnd(map%s2d_scat_s_gb2disloc,s_vec,map%s_disloc_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr)
+    call VecScatterBegin(map%s2d_scat_s_gb2disloc, s_vec, map%s_disloc_vec, &
+         INSERT_VALUES, SCATTER_FORWARD, ierr)
+    call VecScatterEnd(map%s2d_scat_s_gb2disloc, s_vec, map%s_disloc_vec, &
+         INSERT_VALUES, SCATTER_FORWARD, ierr)
     
-    ! Perform Matrix-Vector product
-    call MatMult(map%wts_mat,map%s_disloc_vec,d_vec,ierr)
-    
+    if (map%s2d_s_ncells > 0) then  
+       ! Perform Matrix-Vector product
+       call MatMult(map%wts_mat, map%s_disloc_vec, d_vec, ierr)
+    end if
   end subroutine
 
 end module Mapping_module
