@@ -192,7 +192,10 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
   this%option%surf_flow_time = this%timestepper%target_time
 
   if (associated(this%Synchronize2)) then
-    call this%Synchronize2()
+     !call this%Synchronize2()
+     !geh: PGI requires cast to base
+      pmc_base => this%CastToBase()
+      call pmc_base%Synchronize2()
   endif
 
   ! Run neighboring process model couplers
