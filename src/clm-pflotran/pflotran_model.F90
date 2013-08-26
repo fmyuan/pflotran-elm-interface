@@ -78,6 +78,7 @@ module pflotran_model_module
        pflotranModelInitMapping,             &
        pflotranModelSetSoilProp,             &
        pflotranModelSetICs,                  &
+       pflotranModelSetInitialConcentrations,&
        pflotranModelUpdateFlowConds,         &
        pflotranModelGetUpdatedStates,        &
        pflotranModelStepperRunInit,          &
@@ -666,6 +667,333 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelSetSoilProp
 !#endif
+
+  ! ************************************************************************** !
+  !
+  ! pflotranModelSetInitialConcentrations: 
+  !  Converts biogeochemical properties (C, N pool concentrations) from CLM units
+  !  into PFLOTRAN units.
+  !
+  ! author: Guoping Tang
+  ! date: 08/16/2013
+  ! ************************************************************************** !
+  subroutine pflotranModelSetInitialConcentrations(pflotran_model)
+
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Option_module
+    use Field_module
+    use Reaction_Aux_module
+    use Immobile_Aux_module
+    use Reactive_Transport_module, only : RTUpdateAuxVars
+    use Reactive_Transport_Aux_module
+    use Discretization_module
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(field_type), pointer                 :: field
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(simulation_base_type), pointer       :: simulation
+!    type(reactive_transport_auxvar_type), pointer :: rt_aux_vars(:)
+!    type(reactive_transport_auxvar_type), pointer :: rt_aux_var
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id
+    PetscReal, pointer :: xx_p(:)
+
+    PetscScalar, pointer :: decomp_cpools_vr_lit1_pf_loc(:) ! (gC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_lit2_pf_loc(:) ! (gC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_lit3_pf_loc(:) ! (gC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_cwd_pf_loc(:)  ! (gC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_som1_pf_loc(:) ! (gC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_som2_pf_loc(:) ! (gC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_som3_pf_loc(:) ! (gC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_som4_pf_loc(:) ! (gC/m3)
+    PetscScalar, pointer :: decomp_npools_vr_lit1_pf_loc(:) ! (gN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_lit2_pf_loc(:) ! (gN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_lit3_pf_loc(:) ! (gN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_cwd_pf_loc(:)  ! (gN/m3)
+    PetscScalar, pointer :: sminn_vr_pf_loc(:)              ! (gN/m3)
+    PetscScalar, pointer :: col_ntrunc_vr_pf_loc(:)         ! (gN/m3)
+    PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (gN/m3)
+    PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
+
+    PetscInt :: ispec_c, ispec_n, ispec_no3, ispec_nh4, offset, offsetim
+    PetscInt :: ispec_lit1c, ispec_lit2c, ispec_lit3c
+    PetscInt :: ispec_lit1n, ispec_lit2n, ispec_lit3n
+    PetscInt :: ispec_som1, ispec_som2, ispec_som3, ispec_som4
+
+    character(len=MAXWORDLENGTH) :: word
+    PetscReal, parameter :: C_molecular_weight = 12.0107d0
+    PetscReal, parameter :: N_molecular_weight = 14.0067d0
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer &
+          = "ERROR: SetInitialConcentrations not supported under this mode.."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    patch => realization%patch
+    grid  => patch%grid
+    field => realization%field
+
+!    if(associated(patch%aux%RT%aux_vars)) then
+!        rt_aux_vars  => patch%aux%RT%aux_vars
+!    else
+!        pflotran_model%option%io_buffer = "No reactions, no bgc exchange!"
+!        call printErrMsg(pflotran_model%option)
+!        return
+!    endif
+
+    word = "LabileC"
+    ispec_lit1c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = "CelluloseC"
+    ispec_lit2c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = "LigninC"
+    ispec_lit3c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = "LabileN"
+    ispec_lit1n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = "CelluloseN"
+    ispec_lit2n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = "LigninN"
+    ispec_lit3n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = "SOM1"
+    ispec_som1  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = "SOM2"
+    ispec_som2  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = "SOM3"
+    ispec_som3  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+
+    word = "SOM4"
+    ispec_som4  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = "N"
+    ispec_n  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+!    word = "NO3-"
+!    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
+!                  realization%reaction,realization%option)
+
+!    word = "NH4+"
+!    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
+!                  realization%reaction,realization%option)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%decomp_cpools_vr_lit1_clm, &
+                                    clm_pf_idata%decomp_cpools_vr_lit1_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%decomp_cpools_vr_lit2_clm, &
+                                    clm_pf_idata%decomp_cpools_vr_lit2_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%decomp_cpools_vr_lit3_clm, &
+                                    clm_pf_idata%decomp_cpools_vr_lit3_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%decomp_cpools_vr_cwd_clm, &
+                                    clm_pf_idata%decomp_cpools_vr_cwd_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%decomp_cpools_vr_som1_clm, &
+                                    clm_pf_idata%decomp_cpools_vr_som1_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%decomp_cpools_vr_som2_clm, &
+                                    clm_pf_idata%decomp_cpools_vr_som2_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%decomp_cpools_vr_som3_clm, &
+                                    clm_pf_idata%decomp_cpools_vr_som3_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%decomp_cpools_vr_som4_clm, &
+                                    clm_pf_idata%decomp_cpools_vr_som4_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%decomp_npools_vr_lit1_clm, &
+                                    clm_pf_idata%decomp_npools_vr_lit1_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%decomp_npools_vr_lit2_clm, &
+                                    clm_pf_idata%decomp_npools_vr_lit2_pf)
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%decomp_npools_vr_lit3_clm, &
+                                    clm_pf_idata%decomp_npools_vr_lit3_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%decomp_npools_vr_cwd_clm, &
+                                    clm_pf_idata%decomp_npools_vr_cwd_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%sminn_vr_clm, &
+                                    clm_pf_idata%sminn_vr_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%col_ntrunc_vr_clm, &
+                                    clm_pf_idata%col_ntrunc_vr_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%smin_no3_vr_clm, &
+                                    clm_pf_idata%smin_no3_vr_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%smin_nh4_vr_clm, &
+                                    clm_pf_idata%smin_nh4_vr_pf)
+
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pf, &
+                        decomp_cpools_vr_lit1_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pf, &
+                        decomp_cpools_vr_lit2_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit3_pf, &
+                        decomp_cpools_vr_lit3_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_cwd_pf,  &
+                        decomp_cpools_vr_cwd_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som1_pf, &
+                        decomp_cpools_vr_som1_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som2_pf, &
+                        decomp_cpools_vr_som2_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pf, &
+                        decomp_cpools_vr_som3_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pf, &
+                        decomp_cpools_vr_som4_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pf, &
+                        decomp_npools_vr_lit1_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pf, &
+                        decomp_npools_vr_lit2_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pf, &
+                        decomp_npools_vr_lit3_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pf, &
+                        decomp_npools_vr_cwd_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%sminn_vr_pf, sminn_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%col_ntrunc_vr_pf,col_ntrunc_vr_pf_loc,ierr)
+    call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pf, smin_no3_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pf, smin_nh4_vr_pf_loc, ierr)
+
+!    call GridVecGetArrayF90(grid,field%tran_xx,xx_p,ierr)
+    call VecGetArrayF90(field%tran_xx,xx_p,ierr)
+
+    do local_id = 1, grid%ngmax
+      if (grid%nG2L(local_id) < 0) cycle ! bypass ghosted corner cells
+      !geh - Ignore inactive cells with inactive materials
+
+      if (patch%imat(local_id) <= 0) cycle
+
+      offset = (local_id - 1)*realization%reaction%ncomp
+      
+!      xx_p(offset + ispec_no3) = smin_no3_vr_pf_loc(local_id)
+!      xx_p(offset + ispec_nh4) = smin_nh4_vr_pf_loc(local_id)
+
+      offsetim = offset + realization%reaction%offset_immobile
+
+      xx_p(offsetim + ispec_lit1c) = max(decomp_cpools_vr_lit1_pf_loc(local_id) &
+                                        / C_molecular_weight, 1.0d-20)
+      xx_p(offsetim + ispec_lit2c) = max(decomp_cpools_vr_lit2_pf_loc(local_id) &
+                                        / C_molecular_weight, 1.0d-20)
+      xx_p(offsetim + ispec_lit3c) = max(decomp_cpools_vr_lit3_pf_loc(local_id) &
+                                        / C_molecular_weight, 1.0d-20)
+      xx_p(offsetim + ispec_lit1n) = max(decomp_npools_vr_lit1_pf_loc(local_id) &
+                                        / N_molecular_weight, 1.0d-20)
+      xx_p(offsetim + ispec_lit2n) = max(decomp_npools_vr_lit2_pf_loc(local_id) &
+                                        / N_molecular_weight, 1.0d-20)
+      xx_p(offsetim + ispec_lit3n) = max(decomp_npools_vr_lit3_pf_loc(local_id) &
+                                        / N_molecular_weight, 1.0d-20)
+      xx_p(offsetim + ispec_som1) = max(decomp_cpools_vr_som1_pf_loc(local_id) &
+                                        / C_molecular_weight, 1.0d-20)
+      xx_p(offsetim + ispec_som2) = max(decomp_cpools_vr_som2_pf_loc(local_id) &
+                                        / C_molecular_weight, 1.0d-20)
+      xx_p(offsetim + ispec_som3) = max(decomp_cpools_vr_som3_pf_loc(local_id) &
+                                        / C_molecular_weight, 1.0d-20)
+      xx_p(offsetim + ispec_som4) = max(decomp_cpools_vr_som4_pf_loc(local_id) &
+                                        / C_molecular_weight, 1.0d-20)
+      xx_p(offsetim + ispec_n) = max(sminn_vr_pf_loc(local_id) &
+                                        / N_molecular_weight, 1.0d-20)
+    enddo
+
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pf, decomp_cpools_vr_lit1_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pf, decomp_cpools_vr_lit2_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit3_pf, decomp_cpools_vr_lit3_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_cwd_pf,  decomp_cpools_vr_cwd_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som1_pf, decomp_cpools_vr_som1_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som2_pf, decomp_cpools_vr_som2_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pf, decomp_cpools_vr_som3_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pf, decomp_cpools_vr_som4_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pf, decomp_npools_vr_lit1_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pf, decomp_npools_vr_lit2_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pf, decomp_npools_vr_lit3_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pf,  decomp_npools_vr_cwd_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%sminn_vr_pf, sminn_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%col_ntrunc_vr_pf, col_ntrunc_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pf, smin_no3_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pf, smin_nh4_vr_pf_loc, ierr)
+
+!    call GridVecRestoreArrayF90(grid,field%tran_xx,xx_p,ierr)
+    call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
+
+    call DiscretizationGlobalToLocal(realization%discretization,field%tran_xx, &
+                                   field%tran_xx_loc,NTRANDOF)
+
+                                   ! cells     bcs        act coefs.
+    call VecCopy(field%tran_xx,field%tran_yy,ierr)
+    call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
+
+  end subroutine pflotranModelSetInitialConcentrations
 
   ! ************************************************************************** !
   !
