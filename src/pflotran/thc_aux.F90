@@ -1,10 +1,12 @@
 module THC_Aux_module
 
+  use PFLOTRAN_Constants_module
+
   implicit none
   
   private 
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
   type, public :: thc_auxvar_type
     PetscReal :: avgmw
@@ -373,7 +375,7 @@ end subroutine THCAuxVarCompute
 ! 
 ! THCAuxVarComputeIce: Computes auxillary variables for each grid cell when
 !                      ice and vapor phases are present
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! Date: 11/16/11
 !
 ! ************************************************************************** !

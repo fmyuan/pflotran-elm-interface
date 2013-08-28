@@ -4,11 +4,13 @@ module Output_Tecplot_module
   use Output_Aux_module
   use Output_Common_module
   
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
   PetscInt, parameter, public :: TECPLOT_POINT_FORMAT = 1
   PetscInt, parameter, public :: TECPLOT_BLOCK_FORMAT = 2
   PetscInt, parameter, public :: TECPLOT_FEBRICK_FORMAT = 3
@@ -406,14 +408,14 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
              '"X [m]",' // &
              '"Y [m]",' // &
              '"Z [m]",' // &
-             '"vlx [m/' // trim(output_option%tunit) // ']",' // &
-             '"vly [m/' // trim(output_option%tunit) // ']",' // &
-             '"vlz [m/' // trim(output_option%tunit) // ']"'
+             '"qlx [m/' // trim(output_option%tunit) // ']",' // &
+             '"qly [m/' // trim(output_option%tunit) // ']",' // &
+             '"qlz [m/' // trim(output_option%tunit) // ']"'
     if (option%nphase > 1) then
       string = trim(string) // &
-               ',"vgx [m/' // trim(output_option%tunit) // ']",' // &
-               '"vgy [m/' // trim(output_option%tunit) // ']",' // &
-               '"vgz [m/' // trim(output_option%tunit) // ']"'
+               ',"qgx [m/' // trim(output_option%tunit) // ']",' // &
+               '"qgy [m/' // trim(output_option%tunit) // ']",' // &
+               '"qgz [m/' // trim(output_option%tunit) // ']"'
     endif
 
     string = trim(string) // ',"Material_ID"'
@@ -563,9 +565,9 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   
   select case(iphase)
     case(LIQUID_PHASE)
-      filename = trim(filename) // 'vl'
+      filename = trim(filename) // 'ql'
     case(GAS_PHASE)
-      filename = trim(filename) // 'vg'
+      filename = trim(filename) // 'qg'
   end select
   
   select case(direction)
@@ -605,11 +607,11 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
   
     select case(direction)
       case(X_DIRECTION)
-        string = trim(string) // ' vlx [m/' // trim(output_option%tunit) // ']"'
+        string = trim(string) // ' qlx [m/' // trim(output_option%tunit) // ']"'
       case(Y_DIRECTION)
-        string = trim(string) // ' vly [m/' // trim(output_option%tunit) // ']"'
+        string = trim(string) // ' qly [m/' // trim(output_option%tunit) // ']"'
       case(Z_DIRECTION)
-        string = trim(string) // ' vlz [m/' // trim(output_option%tunit) // ']"'
+        string = trim(string) // ' qlz [m/' // trim(output_option%tunit) // ']"'
     end select 
     
     write(OUTPUT_UNIT,'(a)') trim(string)
@@ -944,10 +946,12 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
   PetscInt :: ghosted_id
   PetscReal :: value  
   Vec :: global_vec_vx, global_vec_vy, global_vec_vz
-  PetscErrorCode :: ierr  
+  Vec :: global_vec_vgx, global_vec_vgy, global_vec_vgz
+  PetscErrorCode :: ierr
 
   PetscReal, pointer :: vec_ptr_vx(:), vec_ptr_vy(:), vec_ptr_vz(:)
-  
+  PetscReal, pointer :: vec_ptr_vgx(:), vec_ptr_vgy(:), vec_ptr_vgz(:)
+
   patch => realization_base%patch
   grid => patch%grid
   field => realization_base%field
@@ -972,14 +976,14 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
              '"X [m]",' // &
              '"Y [m]",' // &
              '"Z [m]",' // &
-             '"vlx [m/' // trim(output_option%tunit) // ']",' // &
-             '"vly [m/' // trim(output_option%tunit) // ']",' // &
-             '"vlz [m/' // trim(output_option%tunit) // ']"'
+             '"qlx [m/' // trim(output_option%tunit) // ']",' // &
+             '"qly [m/' // trim(output_option%tunit) // ']",' // &
+             '"qlz [m/' // trim(output_option%tunit) // ']"'
     if (option%nphase > 1) then
       string = trim(string) // &
-               ',"vgx [m/' // trim(output_option%tunit) // ']",' // &
-               '"vgy [m/' // trim(output_option%tunit) // ']",' // &
-               '"vgz [m/' // trim(output_option%tunit) // ']"'
+               ',"qgx [m/' // trim(output_option%tunit) // ']",' // &
+               '"qgy [m/' // trim(output_option%tunit) // ']",' // &
+               '"qgz [m/' // trim(output_option%tunit) // ']"'
     endif
     
     string = trim(string) // ',"Material_ID"'
@@ -1007,15 +1011,32 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
   call OutputGetCellCenteredVelocities(realization_base,global_vec_vy,LIQUID_PHASE,Y_DIRECTION)
   call OutputGetCellCenteredVelocities(realization_base,global_vec_vz,LIQUID_PHASE,Z_DIRECTION)
 
-  call GridVecGetArrayF90(grid,global_vec_vx,vec_ptr_vx,ierr)
-  call GridVecGetArrayF90(grid,global_vec_vy,vec_ptr_vy,ierr)
-  call GridVecGetArrayF90(grid,global_vec_vz,vec_ptr_vz,ierr)
+  call VecGetArrayF90(global_vec_vx,vec_ptr_vx,ierr)
+  call VecGetArrayF90(global_vec_vy,vec_ptr_vy,ierr)
+  call VecGetArrayF90(global_vec_vz,vec_ptr_vz,ierr)
 
   ! write points
 1000 format(es13.6,1x)
 1001 format(i4,1x)
 1002 format(3(es13.6,1x))
 1009 format('')
+
+  if (option%nphase > 1) then
+    call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vgx,GLOBAL, &
+                                  option)  
+    call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vgy,GLOBAL, &
+                                  option)  
+    call DiscretizationCreateVector(discretization,ONEDOF,global_vec_vgz,GLOBAL, &
+                                  option)  
+  
+    call OutputGetCellCenteredVelocities(realization_base,global_vec_vgx,GAS_PHASE,X_DIRECTION)
+    call OutputGetCellCenteredVelocities(realization_base,global_vec_vgy,GAS_PHASE,Y_DIRECTION)
+    call OutputGetCellCenteredVelocities(realization_base,global_vec_vgz,GAS_PHASE,Z_DIRECTION)
+
+    call VecGetArrayF90(global_vec_vgx,vec_ptr_vgx,ierr)
+    call VecGetArrayF90(global_vec_vgy,vec_ptr_vgy,ierr)
+    call VecGetArrayF90(global_vec_vgz,vec_ptr_vgz,ierr)
+  endif
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)  ! local and ghosted are same for non-parallel
@@ -1027,22 +1048,37 @@ subroutine OutputVelocitiesTecplotPoint(realization_base)
     write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vy(ghosted_id)
     write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vz(ghosted_id)
 
+    if (option%nphase > 1) then
+      write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vgx(ghosted_id)
+      write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vgy(ghosted_id)
+      write(OUTPUT_UNIT,1000,advance='no') vec_ptr_vgz(ghosted_id)
+    endif
+
     ! material id
     value = RealizGetDatasetValueAtCell(realization_base,MATERIAL_ID, &
                                         ZERO_INTEGER,ghosted_id)
     write(OUTPUT_UNIT,1001,advance='no') int(value)
   
     write(OUTPUT_UNIT,1009)
-    
   enddo
   
-  call GridVecRestoreArrayF90(grid,global_vec_vx,vec_ptr_vx,ierr)
-  call GridVecRestoreArrayF90(grid,global_vec_vy,vec_ptr_vy,ierr)
-  call GridVecRestoreArrayF90(grid,global_vec_vz,vec_ptr_vz,ierr)
+  call VecRestoreArrayF90(global_vec_vx,vec_ptr_vx,ierr)
+  call VecRestoreArrayF90(global_vec_vy,vec_ptr_vy,ierr)
+  call VecRestoreArrayF90(global_vec_vz,vec_ptr_vz,ierr)
   
   call VecDestroy(global_vec_vx,ierr)
   call VecDestroy(global_vec_vy,ierr)
   call VecDestroy(global_vec_vz,ierr)
+
+  if (option%nphase > 1) then
+    call VecRestoreArrayF90(global_vec_vgx,vec_ptr_vgx,ierr)
+    call VecRestoreArrayF90(global_vec_vgy,vec_ptr_vgy,ierr)
+    call VecRestoreArrayF90(global_vec_vgz,vec_ptr_vgz,ierr)
+  
+    call VecDestroy(global_vec_vgx,ierr)
+    call VecDestroy(global_vec_vgy,ierr)
+    call VecDestroy(global_vec_vgz,ierr)
+  endif
 
   if (option%myrank == option%io_rank) close(OUTPUT_UNIT)
   
@@ -1577,7 +1613,7 @@ subroutine GetCellConnectionsTecplot(grid, vec)
   
   ugrid => grid%unstructured_grid
   
-  call GridVecGetArrayF90(grid, vec, vec_ptr, ierr)
+  call VecGetArrayF90( vec, vec_ptr, ierr)
 
   ! initialize
   vec_ptr = -999.d0
@@ -1652,7 +1688,7 @@ subroutine GetCellConnectionsTecplot(grid, vec)
     end select
   enddo
 
-  call GridVecRestoreArrayF90(grid, vec, vec_ptr, ierr)
+  call VecRestoreArrayF90( vec, vec_ptr, ierr)
 
 end subroutine GetCellConnectionsTecplot
 
@@ -1987,7 +2023,7 @@ end subroutine WriteTecplotDataSetNumPerLine
 ! for explicit grid. This will be used for particle tracking.
 ! Prints out natural id of the two nodes and the value of the flow rate
 ! author: Satish Karra, LANL
-! date: 04/24/13
+! date: 04/24/13, 08/21/13 (Updated to Walkabout format)
 !
 ! ************************************************************************** !
 subroutine OutputPrintExplicitFlowrates(realization_base)
@@ -2008,7 +2044,7 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(output_option_type), pointer :: output_option
-  character(len=MAXSTRINGLENGTH) :: filename,string
+  character(len=MAXSTRINGLENGTH) :: filename,string,filename2
 
   PetscErrorCode :: ierr  
   PetscInt :: iconn
@@ -2016,9 +2052,11 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
   PetscReal, pointer :: flowrates(:,:)
   PetscReal, pointer :: darcy(:)
   PetscInt, pointer :: nat_ids_up(:),nat_ids_dn(:)
-  PetscReal, pointer :: por(:),sat(:)
+  PetscReal, pointer :: density(:)
   Vec :: vec_proc
-  PetscInt :: i, idof
+  PetscInt :: i, idof, icell, num_cells
+  PetscInt, pointer :: ids(:)
+  PetscReal, pointer :: sat(:), por(:), pressure(:)
   
   patch => realization_base%patch
   grid => patch%grid
@@ -2028,15 +2066,20 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
   
   filename = trim(option%global_prefix) // &
              trim(option%group_prefix) // &
-             '-' // 'rates' // '-' // &
+             '-' // 'darcyvel' // '-' // &
              trim(OutputFilenameID(output_option,option)) 
+             
+  filename2 = trim(option%global_prefix) // &
+              trim(option%group_prefix) // &
+              '-' // 'cellinfo' // '-' // &
+              trim(OutputFilenameID(output_option,option)) 
   
   call OutputGetExplicitIDsFlowrates(realization_base,count,vec_proc, &
                                      nat_ids_up,nat_ids_dn)
   call OutputGetExplicitFlowrates(realization_base,count,vec_proc,flowrates, &
                                   darcy)
   call OutputGetExplicitAuxVars(realization_base,count,vec_proc, &
-                                sat,por)
+                                density)
     
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write rate output file: ' // &
@@ -2049,32 +2092,53 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
 1001 format(i10,1x)
 1009 format('')
  
- ! Order of printing
- ! id1 id2 darcy_vel porosity saturation
-
+ ! Order of printing for the 1st file
+ ! id1 id2 darcy_vel[m/s] density[kg/m3]
+ 
   write(string,*) option%myrank
   string = trim(filename) // '-rank' // trim(adjustl(string)) // '.dat'
   open(unit=OUTPUT_UNIT,file=trim(string),action="write")
   do i = 1, count
+    density(i) = density(i)*FMWH2O
     write(OUTPUT_UNIT,1001,advance='no') nat_ids_up(i)
     write(OUTPUT_UNIT,1001,advance='no') nat_ids_dn(i)
-!    do idof = 1, option%nflowdof
-!      write(OUTPUT_UNIT,1000,advance='no') flowrates(i,idof)
-!      write(OUTPUT_UNIT,1009)
-!    enddo
     write(OUTPUT_UNIT,1000,advance='no') darcy(i)
-    write(OUTPUT_UNIT,1000,advance='no') por(i)
-    write(OUTPUT_UNIT,1000,advance='no') sat(i)
+    write(OUTPUT_UNIT,1000,advance='no') density(i)
     write(OUTPUT_UNIT,'(a)')
   enddo                     
   close(OUTPUT_UNIT)
-                                                                                                           
+                                    
   deallocate(flowrates)
   deallocate(darcy)
   deallocate(nat_ids_up)
   deallocate(nat_ids_dn)
-  deallocate(por)
+  deallocate(density)
+  
+ ! Order of printing for the 2nd file
+ ! cellid saturation porosity density[kg/m3] pressure[Pa]
+  
+  call OutputGetExplicitCellInfo(realization_base,num_cells,ids,sat,por, &
+                                 density,pressure) 
+ 
+  write(string,*) option%myrank
+  string = trim(filename2) // '-rank' // trim(adjustl(string)) // '.dat'
+  open(unit=OUTPUT_UNIT,file=trim(string),action="write")
+  do icell = 1, num_cells
+    density(icell) = density(icell)*FMWH2O
+    write(OUTPUT_UNIT,1001,advance='no') ids(icell)
+    write(OUTPUT_UNIT,1000,advance='no') sat(icell)
+    write(OUTPUT_UNIT,1000,advance='no') por(icell)
+    write(OUTPUT_UNIT,1000,advance='no') density(icell)
+    write(OUTPUT_UNIT,1000,advance='no') pressure(icell)
+    write(OUTPUT_UNIT,'(a)')
+  enddo                     
+  close(OUTPUT_UNIT)
+  
+  deallocate(ids)
   deallocate(sat)
+  deallocate(por)
+  deallocate(density)
+  deallocate(pressure)
 
 end subroutine OutputPrintExplicitFlowrates
 

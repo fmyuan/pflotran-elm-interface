@@ -4,11 +4,13 @@ module Unstructured_Grid_Aux_module
   use Unstructured_Cell_module
   use Geometry_module
   
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private 
   
-#include "definitions.h"
+#include "finclude/petscsys.h"
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
 #include "finclude/petscis.h"
@@ -16,13 +18,7 @@ module Unstructured_Grid_Aux_module
 #if defined(SCORPIO)
   include "scorpiof.h"
 #endif
-
-  PetscInt, parameter, public :: TWO_DIM_GRID = 1
-  PetscInt, parameter, public :: THREE_DIM_GRID = 2 
   
-  PetscInt, parameter, public :: IMPLICIT_UNSTRUCTURED_GRID = 4
-  PetscInt, parameter, public :: EXPLICIT_UNSTRUCTURED_GRID = 5
-
   type, public :: unstructured_grid_type
     ! variables for all unstructured grids
     PetscInt :: num_ghost_cells   ! number of ghost cells (only) on processor
@@ -41,6 +37,7 @@ module Unstructured_Grid_Aux_module
     PetscInt :: grid_type         ! 3D subsurface (default) or 2D surface grid
     PetscInt :: num_vertices_global ! number of vertices in entire problem domain
     PetscInt :: num_vertices_local  ! number of vertices in local grid cells
+    PetscInt :: num_vertices_natural ! number of vertices read initially
     PetscInt :: max_ndual_per_cell
     PetscInt :: max_nvert_per_cell
     PetscInt :: max_cells_sharing_a_vertex

@@ -4,11 +4,13 @@ module Unstructured_Grid_module
   use Unstructured_Grid_Aux_module
   use Unstructured_Cell_module
   
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private 
   
-#include "definitions.h"
+#include "finclude/petscsys.h"
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
 #include "finclude/petscis.h"
@@ -1138,7 +1140,7 @@ subroutine UGridReadHDF5PIOLib(unstructured_grid, filename, &
   use hdf5
 #endif
 
-!#include "definitions.h"
+#include "finclude/petscsys.h"
 
 ! 64-bit stuff
 #ifdef PETSC_USE_64BIT_INDICES
@@ -1649,7 +1651,7 @@ subroutine UGridDecompose(unstructured_grid,option)
   
   ! permute the local ids calculated earlier in the int_array4
   call VecGetArrayF90(elements_local,vec_ptr,ierr)
-  do ghosted_id=1, unstructured_grid%ngmax
+  do ghosted_id = 1, unstructured_grid%ngmax
     do ivertex = 1, unstructured_grid%max_nvert_per_cell
       ! extract the original vertex id
       vertex_id = int(vec_ptr(ivertex + vertex_ids_offset + (ghosted_id-1)*stride))
@@ -1743,6 +1745,7 @@ subroutine UGridDecompose(unstructured_grid,option)
   deallocate(int_array)
 
   ! resize vertex array to new size
+  unstructured_grid%num_vertices_natural = unstructured_grid%num_vertices_local
   unstructured_grid%num_vertices_local = vertex_count
   allocate(unstructured_grid%vertices(vertex_count))
   do ivertex = 1, vertex_count
@@ -1854,7 +1857,7 @@ subroutine UGridDecompose(unstructured_grid,option)
       option%io_buffer = 'Grid type not recognized: '
       call printErrMsg(option)
   end select
-
+  
 end subroutine UGridDecompose
 
 ! ************************************************************************** !

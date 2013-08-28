@@ -19,12 +19,14 @@ module Surface_Realization_class
   use Reaction_Aux_module
   use Output_Aux_module
   
+  use PFLOTRAN_Constants_module
+
   implicit none
   
 private
 
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
   PetscReal, parameter :: eps       = 1.D-8
 
@@ -893,7 +895,7 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
 
   call MatCreateAIJ(option%mycomm, &
                        top_region%num_cells, &
-                       PETSC_DETERMINE, &
+                       PETSC_DECIDE, &
                        PETSC_DETERMINE, &
                        subsurf_grid%num_vertices_global, &
                        4, &
@@ -973,7 +975,7 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
 
   call MatCreateAIJ(option%mycomm, &
                        surf_grid%nlmax, &
-                       PETSC_DETERMINE, &
+                       PETSC_DECIDE, &
                        PETSC_DETERMINE, &
                        subsurf_grid%num_vertices_global, &
                        4, &

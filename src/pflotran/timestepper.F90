@@ -4,11 +4,13 @@ module Timestepper_module
   use Waypoint_module
   use Convergence_module
  
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
   
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
   PetscInt, parameter, public :: TIMESTEPPER_INIT_PROCEED = 0
   PetscInt, parameter, public :: TIMESTEPPER_INIT_DONE = 1
@@ -74,6 +76,23 @@ module Timestepper_module
   public :: TimestepperCreate, TimestepperDestroy, &
             TimestepperExecuteRun, &
             TimestepperInitializeRun, TimestepperFinalizeRun, &
+#ifdef GEOMECH
+            FlowStepperStepToSteadyState, &
+            StepperCheckpoint, &
+            StepperJumpStart, &
+            StepperRunSteadyState, &
+            StepperSetTargetTimes, &
+            StepperStepFlowDT, &
+            StepperStepTransportDT_GI, &
+            StepperStepTransportDT_OS, &
+            StepperUpdateDT, &
+            StepperUpdateDTMax, &
+            StepperUpdateSolution, &
+            StepperUpdateTransportSolution, &
+            TimestepperCheckCFLLimit, &
+            TimestepperEnforceCFLLimit, &
+            TimestepperRestart, &
+#endif
             TimestepperRead, TimestepperPrintInfo, TimestepperReset, &
             StepperCheckpoint
 
@@ -143,7 +162,7 @@ function TimestepperCreate()
   
   stepper%solver => SolverCreate()
   
-  TimeStepperCreate => stepper
+  TimestepperCreate => stepper
   
 end function TimestepperCreate 
 
@@ -464,7 +483,7 @@ subroutine TimestepperInitializeRun(realization,master_stepper, &
   call PetscLogStagePop(ierr)
   option%init_stage = PETSC_FALSE
 
-  ! popped in TimeStepperFinalizeRun()
+  ! popped in TimestepperFinalizeRun()
   call PetscLogStagePush(logging%stage(TS_STAGE),ierr)
 
   !if TIMESTEPPER->MAX_STEPS < 0, print out solution composition only
@@ -698,8 +717,7 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
           if (surf_realization%option%subsurf_surf_coupling == SEQ_COUPLED) then
             select case(option%iflowmode)
               case (RICHARDS_MODE)
-                call SurfaceFlowSurf2SubsurfFlux(realization,surf_realization, &
-                                                 tmp)
+                call SurfaceFlowSurf2SubsurfFlux(realization,surf_realization)
               case (TH_MODE)
                call SurfaceTHSurf2SubsurfFlux(realization,surf_realization)
             end select
@@ -802,7 +820,7 @@ subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
       option%flow_time = flow_stepper%target_time
     endif
 #endif
-    
+
     ! (reactive) transport solution
     if (associated(tran_stepper)) then
       call PetscLogStagePush(logging%stage(TRAN_STAGE),ierr)
@@ -1086,8 +1104,9 @@ subroutine TimestepperFinalizeRun(realization,master_stepper,flow_stepper, &
     endif            
   endif
 
-  ! pushed in TimeStepperInitializeRun
-  call PetscLogStagePop(ierr)
+  ! pushed in TimestepperInitializeRun
+  !geh: Now called in OptionFinalize()
+  !call PetscLogStagePop(ierr)
 
 end subroutine TimestepperFinalizeRun
 
@@ -1211,18 +1230,6 @@ subroutine StepperUpdateDT(flow_stepper,tran_stepper,option)
           endif
           dtt = fac * dt * (1.d0 + ut)
         case(THC_MODE)
-          fac = 0.5d0
-          if (flow_stepper%num_newton_iterations >= flow_stepper%iaccel) then
-            fac = 0.33d0
-            ut = 0.d0
-          else
-            up = option%dpmxe/(option%dpmax+0.1)
-            utmp = option%dtmpmxe/(option%dtmpmax+1.d-5)
-            uus= option%dsmxe/(option%dsmax+1.d-6)
-            ut = min(up,utmp,uus)
-          endif
-          dtt = fac * dt * (1.d0 + ut)
-        case(THMC_MODE)
           fac = 0.5d0
           if (flow_stepper%num_newton_iterations >= flow_stepper%iaccel) then
             fac = 0.33d0
@@ -1899,7 +1906,6 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
                              RichardsTimeCut, RichardsResidual
   use TH_module, only : THMaxChange, THInitializeTimestep, THTimeCut
   use THC_module, only : THCMaxChange, THCInitializeTimestep, THCTimeCut
-  use THMC_module, only : THMCMaxChange, THMCInitializeTimestep, THMCTimeCut
 
   use General_module, only : GeneralMaxChange, GeneralInitializeTimestep, &
                              GeneralTimeCut
@@ -1912,7 +1918,6 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
   use Option_module
   use Solver_module
   use Field_module
-  use Grid_module, only : STRUCTURED_GRID_MIMETIC, UNSTRUCTURED_GRID_MIMETIC
   
   implicit none
 
@@ -1979,8 +1984,6 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
   endif
     
   select case(option%iflowmode)
-    case(THMC_MODE)
-      call THMCInitializeTimestep(realization)
     case(TH_MODE)
       call THInitializeTimestep(realization)
     case(THC_MODE)
@@ -2004,7 +2007,7 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
     call PetscTime(log_start_time, ierr)
 
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,THC_MODE,THMC_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE)
+      case(MPH_MODE,TH_MODE,THC_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE)
         call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%flow_xx, ierr)
       case(RICHARDS_MODE)
         if (discretization%itype == STRUCTURED_GRID_MIMETIC.or. &
@@ -2047,8 +2050,6 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
           if (option%use_mc) then
             option%sec_vars_update = PETSC_TRUE
           endif
-        case(THMC_MODE)
-          update_reason=1
         case (MIS_MODE)
           update_reason=1
         case(RICHARDS_MODE,G_MODE)
@@ -2095,8 +2096,6 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
           call THTimeCut(realization)
         case(THC_MODE)
           call THCTimeCut(realization)
-        case(THMC_MODE)
-          call THMCTimeCut(realization)
         case(RICHARDS_MODE)
           call RichardsTimeCut(realization)
         case(MPH_MODE)
@@ -2187,18 +2186,6 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
           & " dtmpmx= ",1pe12.4," dcmx= ",1pe12.4)') &
           option%dpmax,option%dtmpmax, option%dcmax
       endif
-    case(THMC_MODE)
-      call THMCMaxChange(realization)
-      if (option%print_screen_flag) then
-        write(*,'("  --> max chng: dpmx= ",1pe12.4, &
-          & " dtmpmx= ",1pe12.4," dcmx= ",1pe12.4)') &
-          option%dpmax,option%dtmpmax, option%dcmax
-      endif
-      if (option%print_file_flag) then 
-        write(option%fid_out,'("  --> max chng: dpmx= ",1pe12.4, &
-          & " dtmpmx= ",1pe12.4," dcmx= ",1pe12.4)') &
-          option%dpmax,option%dtmpmax,option%dcmax
-      endif
     case(RICHARDS_MODE)
       call RichardsMaxChange(realization)
       if (option%print_screen_flag) then
@@ -2254,7 +2241,6 @@ subroutine FlowStepperStepToSteadyState(realization,stepper,failure)
   use Option_module
   use Solver_module
   use Field_module
-  use Grid_module, only : STRUCTURED_GRID_MIMETIC
   
   implicit none
 
@@ -2409,7 +2395,6 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
                              RichardsTimeCut, RichardsResidual
   use TH_module, only : THMaxChange, THInitializeTimestep, THTimeCut
   use THC_module, only : THCMaxChange, THCInitializeTimestep, THCTimeCut
-  use THMC_module, only : THMCMaxChange, THMCInitializeTimestep, THMCTimeCut
 
   use General_module, only : GeneralMaxChange, GeneralInitializeTimestep, &
                              GeneralTimeCut
@@ -2422,7 +2407,6 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
   use Option_module
   use Solver_module
   use Field_module
-  use Grid_module, only : STRUCTURED_GRID_MIMETIC
   
   implicit none
 
@@ -2506,8 +2490,6 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
     endif
     
     select case(option%iflowmode)
-      case(THMC_MODE)
-        call THMCInitializeTimestep(realization)
       case(TH_MODE)
         call THInitializeTimestep(realization)
       case(THC_MODE)
@@ -2532,7 +2514,7 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
       call PetscTime(log_start_time, ierr)
 
       select case(option%iflowmode)
-        case(MPH_MODE,TH_MODE,THC_MODE,THMC_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE)
+        case(MPH_MODE,TH_MODE,THC_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE)
           call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%flow_xx, ierr)
         case(RICHARDS_MODE)
           if (discretization%itype == STRUCTURED_GRID_MIMETIC) then 
@@ -2601,8 +2583,6 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
             if (option%use_mc) then
               option%sec_vars_update = PETSC_TRUE
             endif
-          case(THMC_MODE)
-            update_reason=1
           case (MIS_MODE)
             update_reason=1
           case(RICHARDS_MODE,G_MODE)
@@ -2657,8 +2637,6 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
             call THTimeCut(realization)
           case(THC_MODE)
             call THCTimeCut(realization)
-          case(THMC_MODE)
-            call THMCTimeCut(realization)
           case(RICHARDS_MODE)
             call RichardsTimeCut(realization)
           case(MPH_MODE)
@@ -2827,18 +2805,6 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
         write(*,'("  --> max chng: dpmx= ",1pe12.4, &
           & " dtmpmx= ",1pe12.4," dcmx= ",1pe12.4)') &
           option%dpmax,option%dtmpmax, option%dcmax
-      endif
-    case(THMC_MODE)
-      call THMCMaxChange(realization)
-      if (option%print_screen_flag) then
-        write(*,'("  --> max chng: dpmx= ",1pe12.4, &
-          & " dtmpmx= ",1pe12.4," dcmx= ",1pe12.4)') &
-          option%dpmax,option%dtmpmax, option%dcmax
-      endif
-      if (option%print_file_flag) then 
-        write(option%fid_out,'("  --> max chng: dpmx= ",1pe12.4, &
-          & " dtmpmx= ",1pe12.4," dcmx= ",1pe12.4)') &
-          option%dpmax,option%dtmpmax,option%dcmax
       endif
     case(RICHARDS_MODE)
       call RichardsMaxChange(realization)
@@ -3654,7 +3620,6 @@ subroutine StepperSolveFlowSteadyState(realization,stepper,failure)
   use Option_module
   use Solver_module
   use Field_module
-  use Grid_module, only : STRUCTURED_GRID_MIMETIC, UNSTRUCTURED_GRID_MIMETIC
   use Richards_module, only : RichardsInitializeTimestep
 
   implicit none
@@ -3709,7 +3674,7 @@ subroutine StepperSolveFlowSteadyState(realization,stepper,failure)
   end select
 
   select case(option%iflowmode)
-    case(MPH_MODE,TH_MODE,THC_MODE,THMC_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE)
+    case(MPH_MODE,TH_MODE,THC_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE)
       call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%flow_xx, ierr)
     case(RICHARDS_MODE)
       if (discretization%itype == STRUCTURED_GRID_MIMETIC.or. &
@@ -3933,7 +3898,6 @@ subroutine StepperUpdateFlowSolution(realization)
   use Richards_module, only : RichardsUpdateSolution
   use TH_module, only : THUpdateSolution
   use THC_module, only : THCUpdateSolution
-  use THMC_module, only : THMCUpdateSolution
   use General_module, only : GeneralUpdateSolution
 
   use Realization_class
@@ -3962,8 +3926,6 @@ subroutine StepperUpdateFlowSolution(realization)
       call THUpdateSolution(realization)
     case(THC_MODE)
       call THCUpdateSolution(realization)
-    case(THMC_MODE)
-      call THMCUpdateSolution(realization)
     case(RICHARDS_MODE)
       call RichardsUpdateSolution(realization)
     case(G_MODE)
@@ -4082,7 +4044,6 @@ subroutine StepperUpdateFlowAuxVars(realization)
   use Richards_module, only : RichardsUpdateAuxVars
   use TH_module, only : THUpdateAuxVars
   use THC_module, only : THCUpdateAuxVars
-  use THMC_module, only : THMCUpdateAuxVars
   use General_module, only : GeneralUpdateAuxVars
 
   use Realization_class
@@ -4111,8 +4072,6 @@ subroutine StepperUpdateFlowAuxVars(realization)
       call THUpdateAuxVars(realization)
     case(THC_MODE)
       call THCUpdateAuxVars(realization)
-    case(THMC_MODE)
-      call THMCUpdateAuxVars(realization)
     case(RICHARDS_MODE)
       call RichardsUpdateAuxVars(realization)
     case(G_MODE)
@@ -4204,9 +4163,9 @@ subroutine StepperSandbox(realization)
                                    ! cells     bcs        act coefs.
   call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
 
-  call GridVecGetArrayF90(grid,field%tran_xx,tran_xx_p,ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)  
-  call GridVecGetArrayF90(grid,field%volume,volume_p,ierr)
+  call VecGetArrayF90(field%tran_xx,tran_xx_p,ierr)
+  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)  
+  call VecGetArrayF90(field%volume,volume_p,ierr)
   
   vol_frac_prim = 1.d0
 
@@ -4242,9 +4201,9 @@ subroutine StepperSandbox(realization)
     tran_xx_p(istart:iend) = rt_aux_vars(ghosted_id)%pri_molal
   enddo
 
-  call GridVecRestoreArrayF90(grid,field%tran_xx,tran_xx_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)  
-  call GridVecRestoreArrayF90(grid,field%volume,volume_p,ierr)
+  call VecRestoreArrayF90(field%tran_xx,tran_xx_p,ierr)
+  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)  
+  call VecRestoreArrayF90(field%volume,volume_p,ierr)
   call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
                                    field%tran_xx_loc,NTRANDOF)
 
@@ -4432,9 +4391,9 @@ subroutine TimestepperRestart(realization,flow_stepper,tran_stepper, &
   endif
   
   if (associated(flow_stepper)) flow_stepper%cur_waypoint => &
-    WaypointSkipToTime(realization%waypoints,option%time)
+    WaypointReturnAtTime(realization%waypoints,option%time)
   if (associated(tran_stepper)) tran_stepper%cur_waypoint => &
-    WaypointSkipToTime(realization%waypoints,option%time)
+    WaypointReturnAtTime(realization%waypoints,option%time)
 
   if (flow_read) then
     flow_stepper%target_time = option%flow_time

@@ -1,12 +1,14 @@
 module Option_module
 
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
+ 
+  use PFLOTRAN_Constants_module
 
   implicit none
 
   private
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
 
   type, public :: option_type 
@@ -68,6 +70,11 @@ module Option_module
     PetscBool :: surf_restart_flag
     character(len=MAXSTRINGLENGTH) :: surf_initialize_flow_filename
     character(len=MAXSTRINGLENGTH) :: surf_restart_filename
+#endif
+
+#ifdef GEOMECH
+    PetscInt :: ngeomechdof
+    PetscReal :: geomech_time
 #endif
     PetscBool :: sec_vars_update
     PetscInt :: air_pressure_id
@@ -410,6 +417,11 @@ subroutine OptionInitRealization(option)
   option%surf_restart_time = -999.0
 #endif
 
+#ifdef GEOMECH
+  option%ngeomechdof = 0
+  option%geomech_time = 0.d0
+#endif
+
   option%tranmode = ""
   option%itranmode = NULL_MODE
   option%ntrandof = 0
@@ -598,9 +610,6 @@ subroutine OptionCheckCommandLine(option)
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-use_thc", &
                            option_found, ierr)
   if (option_found) option%flowmode = "thc"     
-  call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-use_thmc", &
-                           option_found, ierr)
-  if (option_found) option%flowmode = "thmc"     
   option_found = PETSC_FALSE
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-use_mph", &
                            option_found, ierr)
@@ -1244,6 +1253,8 @@ subroutine OptionFinalize(option)
   
   PetscErrorCode :: ierr
   
+  ! pushed in FinalizeRun()
+  call PetscLogStagePop(ierr)
   call PetscOptionsSetValue('-options_left','no',ierr)
   ! list any PETSc objects that have not been freed - for debugging
   call PetscOptionsSetValue('-objects_left','yes',ierr)

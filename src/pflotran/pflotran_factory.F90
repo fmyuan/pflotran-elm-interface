@@ -1,10 +1,12 @@
 module PFLOTRAN_Factory_module
 
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
   public :: PFLOTRANInitialize, &
             PFLOTRANInitializePrePetsc, &
@@ -92,7 +94,10 @@ subroutine PFLOTRANInitializePostPetsc(simulation, master_stepper, option, &
   use Timestepper_module
   use Option_module
   use Init_module
-
+#ifdef GEOMECH  
+  use Geomechanics_Timestepper_module
+#endif
+  
   implicit none
 
   type(simulation_type), pointer :: simulation
@@ -111,6 +116,15 @@ subroutine PFLOTRANInitializePostPetsc(simulation, master_stepper, option, &
                                 simulation%tran_stepper, &
                                 simulation%surf_flow_stepper, &
                                 init_status)
+#elif GEOMECH
+  call GeomechTimestepperInitializeRun(simulation%realization, &
+                                simulation%geomech_realization, &
+                                master_stepper, &
+                                simulation%flow_stepper, &
+                                simulation%tran_stepper, &
+                                simulation%geomech_stepper, &
+                                init_status)
+
 #else
   call TimestepperInitializeRun(simulation%realization, &
                                 master_stepper, &
@@ -133,7 +147,10 @@ subroutine PFLOTRANRun(simulation, master_stepper, init_status)
 
   use Simulation_module
   use Timestepper_module
-
+#ifdef GEOMECH  
+  use Geomechanics_Timestepper_module
+#endif
+  
   implicit none
 
   type(simulation_type) :: simulation
@@ -155,6 +172,20 @@ subroutine PFLOTRANRun(simulation, master_stepper, init_status)
                                     simulation%flow_stepper, &
                                     simulation%tran_stepper, &
                                     simulation%surf_flow_stepper)
+#elif GEOMECH
+      call  GeomechTimestepperExecuteRun(simulation%realization, &
+                                  simulation%geomech_realization, &
+                                  master_stepper, &
+                                  simulation%flow_stepper, &
+                                  simulation%tran_stepper, &
+                                  simulation%geomech_stepper)
+      call  GeomechTimestepperFinalizeRun(simulation%realization, &
+                                    simulation%geomech_realization, &
+                                    master_stepper, &
+                                    simulation%flow_stepper, &
+                                    simulation%tran_stepper, &
+                                    simulation%geomech_stepper)
+                                    
 #else
       call  TimestepperExecuteRun(simulation%realization, &
                                   master_stepper, &

@@ -3,7 +3,6 @@ module Auxiliary_module
   use Global_Aux_module
   use TH_Aux_module
   use THC_Aux_module
-  use THMC_Aux_module
   use Richards_Aux_module
   use Reactive_Transport_Aux_module
   use Mphase_Aux_module
@@ -14,18 +13,19 @@ module Auxiliary_module
   use Material_Aux_module
   use Secondary_Continuum_Aux_module
   
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
   type, public :: auxiliary_type 
     type(global_type), pointer :: Global
     type(reactive_transport_type), pointer :: RT
     type(th_type), pointer :: TH
     type(thc_type), pointer :: THC
-    type(thmc_type), pointer :: THMC
     type(richards_type), pointer :: Richards
     type(mphase_type), pointer :: Mphase
     type(immis_type), pointer :: Immis
@@ -59,7 +59,6 @@ subroutine AuxInit(aux)
   nullify(aux%RT)
   nullify(aux%TH)
   nullify(aux%THC)
-  nullify(aux%THMC)
   nullify(aux%Richards)
   
   nullify(aux%Mphase)
@@ -90,7 +89,6 @@ subroutine AuxDestroy(aux)
   call RTAuxDestroy(aux%RT)
   call THAuxDestroy(aux%TH)
   call THCAuxDestroy(aux%THC)
-  call THMCAuxDestroy(aux%THMC)
   call RichardsAuxDestroy(aux%Richards)
   call MphaseAuxDestroy(aux%Mphase)
   call MiscibleAuxDestroy(aux%Miscible)
@@ -101,7 +99,6 @@ subroutine AuxDestroy(aux)
   nullify(aux%Global)
   nullify(aux%RT)
   nullify(aux%THC)
-  nullify(aux%THMC)
   nullify(aux%Richards)
   nullify(aux%Mphase)
   nullify(aux%Immis)

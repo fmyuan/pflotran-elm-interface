@@ -4,11 +4,13 @@ module Richards_LSM_module
   use Richards_Common_module
   use Global_Aux_module
   
+  use PFLOTRAN_Constants_module
+
   implicit none
   
   private 
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
   
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
@@ -95,9 +97,9 @@ subroutine RichardsUpdateLSMAuxVarsPatch(realization)
   global_aux_vars_bc => patch%aux%Global%aux_vars_bc
   global_aux_vars_ss => patch%aux%Global%aux_vars_ss
     
-  call GridVecGetArrayF90(grid,field%flow_xx_loc,xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_xx_loc,perm_xx_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)  
+  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr)
+  call VecGetArrayF90(field%perm_xx_loc,perm_xx_loc_p,ierr)
+  call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)  
 
   select case(grid%itype)
     case(STRUCTURED_GRID)
@@ -156,9 +158,9 @@ subroutine RichardsUpdateLSMAuxVarsPatch(realization)
     endif
   enddo
 
-  call GridVecRestoreArrayF90(grid,field%flow_xx_loc,xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_xx_loc,perm_xx_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_xx_loc,perm_xx_loc_p,ierr)
+  call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
 
 end subroutine RichardsUpdateLSMAuxVarsPatch
 

@@ -3,11 +3,13 @@ module Structured_Communicator_class
   use Communicator_Base_module
   use Structured_Grid_module  
   
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
   
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
@@ -140,8 +142,8 @@ subroutine StructuredLocalToLocal(this,source,destination)
 
   PetscErrorCode :: ierr
   
-  call DMDALocalToLocalBegin(this%dm,source,INSERT_VALUES,destination,ierr)
-  call DMDALocalToLocalEnd(this%dm,source,INSERT_VALUES,destination,ierr)
+  call DMLocalToLocalBegin(this%dm,source,INSERT_VALUES,destination,ierr)
+  call DMLocalToLocalEnd(this%dm,source,INSERT_VALUES,destination,ierr)
   
 end subroutine StructuredLocalToLocal
 

@@ -1,11 +1,13 @@
 module Saturation_Function_module
  
 
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
  
   type, public :: saturation_function_type
     PetscInt :: id
@@ -207,7 +209,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
             call InputReadDouble(input,option,saturation_function%Sr(iphase))
             word = trim(keyword) // ' residual saturation'
             call InputErrorMsg(input,option,word,'SATURATION_FUNCTION')
-          case(RICHARDS_MODE,TH_MODE,THC_MODE,THMC_MODE,G_MODE)
+          case(RICHARDS_MODE,TH_MODE,THC_MODE,G_MODE)
             call InputReadDouble(input,option,saturation_function%Sr(1))
             call InputErrorMsg(input,option,'residual saturation','SATURATION_FUNCTION')
         end select
@@ -791,7 +793,7 @@ end subroutine SaturationFunctionCompute3
 !                              and liquid water given the saturation function
 !                              temperature, water vapor pressure and liquid
 !                              water pressure 
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! date: 11/14/11
 !
 ! ************************************************************************** !
@@ -1027,7 +1029,7 @@ end subroutine SatFuncGetRelPermFromSat
 ! This threshold value depends only on van Genuchten parameters alpha and lambda
 ! This is used mainly for ice problem, so that the pressure doesnt go to large
 ! negative values
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! date: 09/12/12
 !
 ! ************************************************************************** !
@@ -1074,7 +1076,7 @@ end subroutine CapillaryPressureThreshold
 !
 ! ResidualCapPressThre: Computes the residual to calculate capillary pressure
 ! thresold in the subroutine CapillaryPressureThreshold
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! date: 09/12/12
 !
 ! ************************************************************************** !
@@ -1095,7 +1097,7 @@ end subroutine ResidualCapPressThre
 !
 ! JacobianCapPressThre: Computes the jacobian to calculate capillary pressure
 ! thresold in the subroutine CapillaryPressureThreshold
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! date: 09/12/12
 !
 ! ************************************************************************** !

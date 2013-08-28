@@ -2,11 +2,13 @@ module Dataset_XYZ_class
  
   use Dataset_Common_HDF5_class
   
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
   type, public, extends(dataset_common_hdf5_type) :: dataset_xyz_type
     PetscBool :: is_cell_centered
@@ -217,6 +219,11 @@ subroutine DatasetXYZReadData(this,option)
       call h5aread_f(attribute_id,H5T_NATIVE_DOUBLE,this%origin, &
                      attribute_dim,hdf5_err)
       call h5aclose_f(attribute_id,hdf5_err)
+    endif
+    attribute_name = "Cell Centered"
+    call H5aexists_f(grp_id,attribute_name,attribute_exists,hdf5_err)
+    if (attribute_exists) then
+      this%is_cell_centered = PETSC_TRUE
     endif
   endif ! this%data_dim == DIM_NULL
   

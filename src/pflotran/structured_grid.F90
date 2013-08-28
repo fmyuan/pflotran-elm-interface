@@ -1,10 +1,12 @@
 module Structured_Grid_module
 
+  use PFLOTRAN_Constants_module
+
   implicit none
  
   private
  
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
 ! structured grid faces
   PetscInt, parameter, public :: NULL_FACE = 0
@@ -2022,7 +2024,7 @@ end subroutine StructGridGetGhostedNeighbors
 ! StructGridGetGhostedNeighborsCorners: Returns an array of neighboring cells
 ! including the corner nodes
 ! Note that the previous subroutine does not return the corner nodes
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! date: 02/19/12
 !
 ! ************************************************************************** !

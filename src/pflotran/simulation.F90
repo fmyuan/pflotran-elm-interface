@@ -8,9 +8,17 @@ module Simulation_module
 #ifdef SURFACE_FLOW
   use Surface_Realization_class
 #endif
+
+#ifdef GEOMECH
+  use Geomechanics_Realization_module
+#endif
+
+  use PFLOTRAN_Constants_module
+
+
   implicit none
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
   
   private
 
@@ -24,6 +32,10 @@ module Simulation_module
 #endif
 #ifdef SURFACE_FLOW
     type(surface_realization_type), pointer :: surf_realization
+#endif
+#ifdef GEOMECH
+    type(geomech_realization_type), pointer :: geomech_realization
+    type(stepper_type), pointer :: geomech_stepper
 #endif
     type(regression_type), pointer :: regression
   end type simulation_type
@@ -88,6 +100,10 @@ function SimulationCreate2(option)
   simulation%surf_flow_stepper => TimestepperCreate()
   simulation%surf_realization => SurfRealizCreate(option)
 #endif
+#ifdef GEOMECH
+  simulation%geomech_realization => GeomechRealizCreate(option)
+  simulation%geomech_stepper => TimestepperCreate()
+#endif
   nullify(simulation%regression)
   
   SimulationCreate2 => simulation
@@ -135,6 +151,11 @@ subroutine SimulationDestroy(simulation)
 
 #ifdef SURFACE_FLOW
   call SurfRealizDestroy(simulation%surf_realization)
+#endif
+
+#ifdef GEOMECH
+  call GeomechRealizDestroy(simulation%geomech_realization)
+  call TimestepperDestroy(simulation%geomech_stepper)
 #endif
 
   call RegressionDestroy(simulation%regression)

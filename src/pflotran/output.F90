@@ -9,11 +9,13 @@ module Output_module
   use Output_VTK_module
   use Output_Observation_module
   
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
 #include "finclude/petscdm.h"
@@ -77,8 +79,6 @@ subroutine Output(realization_base,plot_flag,transient_plot_flag)
 
   use Realization_Base_class, only : realization_base_type
   use Option_module, only : OptionCheckTouch, option_type, printMsg
-  use Grid_module, only : UNSTRUCTURED_GRID,UNSTRUCTURED_GRID_MIMETIC
-  use Unstructured_Grid_Aux_module, only: EXPLICIT_UNSTRUCTURED_GRID
   
   implicit none
   
@@ -741,7 +741,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
         grid => cur_patch%grid
         coupler => CouplerGetPtrFromList(word,cur_patch%boundary_conditions)
         call VecZeroEntries(field%work,ierr)
-        call GridVecGetArrayF90(grid,field%work,vec_ptr,ierr)
+        call VecGetArrayF90(field%work,vec_ptr,ierr)
         if (associated(coupler)) then
           cur_connection_set => coupler%connection_set
           do iconn = 1, cur_connection_set%num_connections
@@ -750,7 +750,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
             vec_ptr(local_id) = coupler%flow_aux_real_var(iauxvar,iconn)
           enddo
         endif
-        call GridVecRestoreArrayF90(grid,field%work,vec_ptr,ierr)
+        call VecRestoreArrayF90(field%work,vec_ptr,ierr)
         cur_patch => cur_patch%next
       enddo
       cur_level => cur_level%next
@@ -788,7 +788,6 @@ subroutine OutputAvegVars(realization_base)
   use Output_Aux_module
   use Output_Common_module, only : OutputGetVarFromArray  
   use Field_module
-  use Grid_module, only : UNSTRUCTURED_GRID,UNSTRUCTURED_GRID_MIMETIC
 
   implicit none
   

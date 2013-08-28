@@ -4,11 +4,13 @@ module Surface_Global_module
 
   use Surface_Global_Aux_module
 
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
   
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
   public SurfaceGlobalSetup, &
          SurfaceGlobalSetAuxVarScalar, &
@@ -321,7 +323,7 @@ subroutine SurfaceGlobalSetAuxVarVecLocPatch(surf_realization,vec_loc,ivar,isubv
   grid => patch%grid
   option => surf_realization%option
   
-  call GridVecGetArrayF90(grid,vec_loc,vec_loc_p,ierr)
+  call VecGetArrayF90(vec_loc,vec_loc_p,ierr)
   
   select case(ivar)
     case(SURFACE_LIQUID_HEAD)
@@ -349,7 +351,7 @@ subroutine SurfaceGlobalSetAuxVarVecLocPatch(surf_realization,vec_loc,ivar,isubv
       end select
   end select
 
-  call GridVecRestoreArrayF90(grid,vec_loc,vec_loc_p,ierr)
+  call VecRestoreArrayF90(vec_loc,vec_loc_p,ierr)
 
 end subroutine SurfaceGlobalSetAuxVarVecLocPatch
 

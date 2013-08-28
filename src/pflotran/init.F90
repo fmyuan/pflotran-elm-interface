@@ -1,10 +1,12 @@
 module Init_module
 
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
@@ -58,7 +60,6 @@ subroutine Init(simulation)
   use Richards_MFD_module
   use TH_module
   use THC_module
-  use THMC_module
   use General_module
   
   use Reactive_Transport_module
@@ -82,6 +83,16 @@ subroutine Init(simulation)
   use Surface_Realization_class
   use Surface_TH_module
   use Unstructured_Grid_module
+#endif
+
+#ifdef GEOMECH
+  use Geomechanics_Realization_module
+  use Geomechanics_Init_module 
+  use Geomechanics_Grid_module
+  use Geomechanics_Discretization_module
+  use Geomechanics_Field_module
+  use Geomechanics_Global_module
+  use Geomechanics_Force_module
 #endif
 
   implicit none
@@ -118,6 +129,12 @@ subroutine Init(simulation)
   type(surface_field_type), pointer         :: surf_field
   type(surface_realization_type), pointer   :: surf_realization
 #endif
+#ifdef GEOMECH
+  type(solver_type), pointer                :: geomech_solver
+  type(stepper_type), pointer               :: geomech_stepper
+  type(geomech_field_type), pointer         :: geomech_field
+  type(geomech_realization_type), pointer   :: geomech_realization
+#endif
 
   ! popped in TimestepperInitializeRun()
   call PetscLogStagePush(logging%stage(INIT_STAGE),ierr)
@@ -136,6 +153,11 @@ subroutine Init(simulation)
   surf_realization  => simulation%surf_realization
   surf_flow_stepper => simulation%surf_flow_stepper
   surf_field        => surf_realization%surf_field  
+#endif
+#ifdef GEOMECH
+  geomech_realization => simulation%geomech_realization
+  geomech_stepper => simulation%geomech_stepper
+  geomech_field => geomech_realization%geomech_field
 #endif
   
   nullify(flow_solver)
@@ -165,6 +187,11 @@ subroutine Init(simulation)
   surf_realization%input => InputCreate(IN_UNIT,option%input_filename,option)
   surf_realization%subsurf_filename = realization%discretization%filename
   call SurfaceInitReadRequiredCards(simulation%surf_realization)
+#endif
+
+#ifdef GEOMECH
+  geomech_realization%input => InputCreate(IN_UNIT,option%input_filename,option)
+  call GeomechicsInitReadRequiredCards(simulation%geomech_realization)
 #endif
 
   patch => realization%patch
@@ -214,6 +241,18 @@ subroutine Init(simulation)
   endif
 #endif
 
+#ifdef GEOMECH
+  ! initialize surface-flow mode
+  if (option%ngeomechdof > 0) then
+    geomech_solver => geomech_stepper%solver
+    waypoint_list => WaypointListCreate()
+    geomech_realization%waypoints => waypoint_list
+  else
+    call TimestepperDestroy(simulation%geomech_stepper)
+    nullify(geomech_solver)
+  endif
+#endif
+
   ! initialize plot variables
   realization%output_option%output_variable_list => OutputVariableListCreate()
   realization%output_option%aveg_output_variable_list => OutputVariableListCreate()
@@ -222,6 +261,10 @@ subroutine Init(simulation)
   simulation%surf_realization%output_option%output_variable_list => &
     OutputVariableListCreate()
   simulation%surf_realization%output_option%aveg_output_variable_list => &
+    OutputVariableListCreate()
+#endif
+#ifdef GEOMECH
+  geomech_realization%output_option%output_variable_list => &
     OutputVariableListCreate()
 #endif
 
@@ -270,6 +313,14 @@ subroutine Init(simulation)
   endif
 #endif  
 
+#ifdef GEOMECH
+  if (option%ngeomechdof > 0) then
+    call CopySubsurfaceGridtoGeomechGrid(realization%discretization%grid%&
+      unstructured_grid,geomech_realization%discretization%grid,option)
+    call GeomechRealizCreateDiscretization(geomech_realization)
+  endif
+#endif
+
   call RegressionCreateMapping(simulation%regression,realization)
 
   if (realization%discretization%itype == STRUCTURED_GRID .or. &
@@ -299,7 +350,7 @@ subroutine Init(simulation)
   
     if (flow_solver%J_mat_type == MATAIJ) then
       select case(option%iflowmode)
-        case(MPH_MODE,TH_MODE,THC_MODE,THMC_MODE,IMS_MODE, FLASH2_MODE, G_MODE, MIS_MODE)
+        case(MPH_MODE,TH_MODE,THC_MODE,IMS_MODE, FLASH2_MODE, G_MODE, MIS_MODE)
           option%io_buffer = 'AIJ matrix not supported for current mode: '// &
                              option%flowmode
           call printErrMsg(option)
@@ -319,11 +370,9 @@ subroutine Init(simulation)
         case(MIS_MODE)
           write(*,'(" mode = MIS: p, Xs")')
         case(TH_MODE)
-          write(*,'(" mode = THC: p, T")')
+          write(*,'(" mode = TH: p, T")')
         case(THC_MODE)
           write(*,'(" mode = THC: p, T, s/X")')
-        case(THMC_MODE)
-          write(*,'(" mode = THMC: p, T, s/X")')
         case(RICHARDS_MODE)
           write(*,'(" mode = Richards: p")')  
         case(G_MODE)    
@@ -371,9 +420,6 @@ subroutine Init(simulation)
       case(THC_MODE)
         call SNESSetFunction(flow_solver%snes,field%flow_r,THCResidual, &
                              realization,ierr)
-      case(THMC_MODE)
-        call SNESSetFunction(flow_solver%snes,field%flow_r,THMCResidual, &
-                             realization,ierr)
       case(RICHARDS_MODE)
         select case(realization%discretization%itype)
           case(STRUCTURED_GRID_MIMETIC,UNSTRUCTURED_GRID_MIMETIC)
@@ -413,9 +459,6 @@ subroutine Init(simulation)
       case(THC_MODE)
         call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
                              THCJacobian,realization,ierr)
-      case(THMC_MODE)
-        call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
-                             THMCJacobian,realization,ierr)
       case(RICHARDS_MODE)
         select case(realization%discretization%itype)
           case(STRUCTURED_GRID_MIMETIC,UNSTRUCTURED_GRID_MIMETIC)
@@ -571,7 +614,71 @@ subroutine Init(simulation)
 
   endif
 
+#ifdef GEOMECH
+  ! update geomechanics mode based on optional input
+  if (option%ngeomechdof > 0) then
+
+    if (geomech_solver%J_mat_type == MATAIJ) then
+      option%io_buffer = 'AIJ matrix not supported for geomechanics.'
+      call printErrMsg(option)
+    endif
+
+    call printMsg(option,"  Beginning setup of GEOMECH SNES ")
+    
+    call SolverCreateSNES(geomech_solver,option%mycomm)  
+    call SNESSetOptionsPrefix(geomech_solver%snes, "geomech_",ierr)
+    call SolverCheckCommandLine(geomech_solver)
+        
+    if (geomech_solver%Jpre_mat_type == '') then
+      geomech_solver%Jpre_mat_type = geomech_solver%J_mat_type
+    endif
+    call GeomechDiscretizationCreateJacobian(geomech_realization% &
+                                             discretization,NGEODOF, &
+                                             geomech_solver%Jpre_mat_type, &
+                                             geomech_solver%Jpre,option)
+
+    geomech_solver%J = geomech_solver%Jpre
+    call MatSetOptionsPrefix(geomech_solver%Jpre,"geomech_",ierr)
+    
+
+    call SNESSetFunction(geomech_solver%snes,geomech_field%disp_r, &
+                         GeomechForceResidual, &
+                         simulation%geomech_realization,ierr)
+
+    call SNESSetJacobian(geomech_solver%snes,geomech_solver%J, &
+                         geomech_solver%Jpre,GeomechForceJacobian, &
+                         simulation%geomech_realization,ierr)
+    ! by default turn off line search
+    call SNESGetLineSearch(geomech_solver%snes,linesearch, ierr)
+    call SNESLineSearchSetType(linesearch,SNESLINESEARCHBASIC,ierr)
+
+    ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
+    if (option%verbosity >= 1) then
+      string = '-geomech_snes_view'
+      call PetscOptionsInsertString(string, ierr)
+    endif
+
+    call SolverSetSNESOptions(geomech_solver)
+
+    option%io_buffer = 'Solver: ' // trim(geomech_solver%ksp_type)
+    call printMsg(option)
+    option%io_buffer = 'Preconditioner: ' // trim(geomech_solver%pc_type)
+    call printMsg(option)
+
+    ! shell for custom convergence test.  The default SNES convergence test
+    ! is call within this function.
+    geomech_stepper%convergence_context => &
+    ConvergenceContextCreate(geomech_solver,option,grid) ! Need to change this for geomech
+    call SNESSetConvergenceTest(geomech_solver%snes,ConvergenceTest, &
+                                geomech_stepper%convergence_context, &
+                                PETSC_NULL_FUNCTION,ierr)
+
+    call printMsg(option,"  Finished setting up GEOMECH SNES ")
   
+  endif
+
+#endif
+
   ! update transport mode based on optional input
   if (option%ntrandof > 0) then
 
@@ -742,8 +849,6 @@ subroutine Init(simulation)
         call THSetup(realization)
       case(THC_MODE)
         call THCSetup(realization)
-      case(THMC_MODE)
-        call THMCSetup(realization)
       case(RICHARDS_MODE)
         call RichardsSetup(realization)
       case(MPH_MODE)
@@ -772,8 +877,6 @@ subroutine Init(simulation)
         call THUpdateAuxVars(realization)
       case(THC_MODE)
         call THCUpdateAuxVars(realization)
-      case(THMC_MODE)
-        call THMCUpdateAuxVars(realization)
       case(RICHARDS_MODE)
 #ifdef DASVYAT
        if (option%mimetic) then
@@ -910,6 +1013,7 @@ subroutine Init(simulation)
     call TimestepperPrintInfo(surf_flow_stepper,option%fid_out,string,option)
   endif
 #endif
+
   if (associated(flow_solver)) then
     string = 'Flow Newton Solver:'
     call SolverPrintNewtonInfo(flow_solver,OptionPrintToScreen(option), &
@@ -922,6 +1026,17 @@ subroutine Init(simulation)
                                OptionPrintToFile(option),option%fid_out, &
                                string)
   endif    
+#ifdef GEOMECH
+  if (option%ngeomechdof > 0) then
+    if (associated(geomech_solver)) then
+      string = 'Geomechanics Newton Solver:'
+      call SolverPrintNewtonInfo(geomech_solver,OptionPrintToScreen(option), &
+                                 OptionPrintToFile(option),option%fid_out, &
+                                 string)
+    endif
+  endif
+#endif
+
   if (associated(flow_solver)) then
     string = 'Flow Linear Solver:'
     call SolverPrintLinearInfo(flow_solver,string,option)
@@ -930,6 +1045,14 @@ subroutine Init(simulation)
     string = 'Transport Linear Solver'
     call SolverPrintLinearInfo(tran_solver,string,option)
   endif    
+#ifdef GEOMECH
+  if (option%ngeomechdof > 0) then
+    if (associated(geomech_solver)) then
+      string = 'Geomechanics Linear Solver:'
+      call SolverPrintLinearInfo(geomech_solver,string,option)
+    endif
+  endif
+#endif
 #ifdef SURFACE_FLOW
   if (associated(surf_flow_solver)) then
     string = 'Surface Flow TS Solver:'
@@ -1022,11 +1145,18 @@ subroutine Init(simulation)
           call SurfaceFlowCreateSurfSubsurfVec( &
                           simulation%realization, simulation%surf_realization)
         endif
+        if (surf_realization%option%subsurf_surf_coupling == SEQ_COUPLED_NEW) then
+          call SurfaceFlowCreateSurfSubsurfVecNew( &
+                          simulation%realization, simulation%surf_realization)
+        endif
       case(TH_MODE)
         call SurfaceTHUpdateAuxVars(surf_realization)
         if (surf_realization%option%subsurf_surf_coupling == SEQ_COUPLED) then
           call SurfaceTHCreateSurfSubsurfVec( &
                           simulation%realization, simulation%surf_realization)
+        endif
+        if (surf_realization%option%subsurf_surf_coupling == SEQ_COUPLED_NEW) then
+          call printErrMsg(option,'SEQ_COUPLED_NEW not implemented in Surface-TH mode')
         endif
       case default
         option%io_buffer = 'For surface-flow only RICHARDS and TH mode implemented'
@@ -1043,6 +1173,30 @@ subroutine Init(simulation)
            simulation%surf_realization%output_option%output_variable_list,output_variable)
   endif
 
+#endif
+
+#ifdef GEOMECH
+  if (option%ngeomechdof > 0) then
+    call GeomechRealizLocalizeRegions(simulation%geomech_realization)
+    call GeomechRealizPassFieldPtrToPatch(simulation%geomech_realization)
+    call GeomechRealizProcessMatProp(simulation%geomech_realization)
+    call GeomechRealizProcessGeomechCouplers(simulation%geomech_realization)
+    call GeomechRealizProcessGeomechConditions(simulation%geomech_realization)
+    call GeomechInitMatPropToGeomechRegions(simulation%geomech_realization)
+    call GeomechRealizInitAllCouplerAuxVars(simulation%geomech_realization)  
+    call GeomechRealizPrintCouplers(simulation%geomech_realization)  
+    call GeomechRealizAddWaypointsToList(simulation%geomech_realization)
+    call WaypointListFillIn(option,simulation%geomech_realization%waypoints)
+    call WaypointListRemoveExtraWaypnts(option, &
+                                    simulation%geomech_realization%waypoints)
+    call GeomechForceSetup(simulation%geomech_realization)
+    call GeomechGlobalSetup(simulation%geomech_realization)
+    
+    ! SK: We are solving quasi-steady state solution for geomechanics.
+    ! Initial condition is not needed, hence CondControlAssignFlowInitCondGeomech
+    ! is not needed, at this point.
+    call GeomechForceUpdateAuxVars(simulation%geomech_realization)
+  endif
 #endif
 
   call printMsg(option," ")
@@ -1318,6 +1472,10 @@ subroutine InitReadInput(simulation)
   use Surface_Flow_module
   use Surface_Init_module
 #endif
+#ifdef GEOMECH
+  use Geomechanics_Init_module
+  use Geomechanics_Realization_module
+#endif
 #ifdef SOLID_SOLUTION
   use Solid_Solution_module, only : SolidSolutionReadFromInputFile
 #endif
@@ -1378,6 +1536,10 @@ subroutine InitReadInput(simulation)
   type(mass_transfer_type), pointer :: flow_mass_transfer
   type(mass_transfer_type), pointer :: rt_mass_transfer
   type(input_type), pointer :: input
+  
+#ifdef GEOMECH
+  type(geomech_realization_type), pointer :: geomech_realization
+#endif
 
   nullify(flow_stepper)
   nullify(tran_stepper)
@@ -1386,6 +1548,10 @@ subroutine InitReadInput(simulation)
   
   realization => simulation%realization
   patch => realization%patch
+  
+#ifdef GEOMECH
+  geomech_realization => simulation%geomech_realization
+#endif
 
   if (associated(patch)) grid => patch%grid
 
@@ -2309,20 +2475,20 @@ subroutine InitReadInput(simulation)
               endif
             endif
            option%store_flowrate = PETSC_TRUE
-          else
-            if (associated(grid%unstructured_grid%explicit_grid)) then
-#ifndef STORE_FLOWRATES
-              option%io_buffer='To output FLOWRATES/MASS_FLOWRATE/ENERGY_FLOWRATE, '// &
-                'compile with -DSTORE_FLOWRATES'
-              call printErrMsg(option)
-#endif
-              output_option%print_explicit_flowrate = mass_flowrate
-            else
-              option%io_buffer='Output FLOWRATES/MASS_FLOWRATE/ENERGY_FLOWRATE ' // &
-                'only available in HDF5 format for implicit grid' 
-              call printErrMsg(option)
-            endif
           endif
+          if (associated(grid%unstructured_grid%explicit_grid)) then
+#ifndef STORE_FLOWRATES
+            option%io_buffer='To output FLOWRATES/MASS_FLOWRATE/ENERGY_FLOWRATE, '// &
+              'compile with -DSTORE_FLOWRATES'
+            call printErrMsg(option)
+#endif
+            output_option%print_explicit_flowrate = mass_flowrate
+          else
+            option%io_buffer='Output FLOWRATES/MASS_FLOWRATE/ENERGY_FLOWRATE ' // &
+              'only available in HDF5 format for implicit grid' 
+            call printErrMsg(option)
+          endif
+        
         endif
 
 !.....................
@@ -2427,6 +2593,24 @@ subroutine InitReadInput(simulation)
         call InputSkipToEnd(input,option,'MAPPING_FILES')
 
 !......................
+#ifdef GEOMECH
+      case ('GEOMECHANICS')
+        call GeomechanicsInitReadInput(geomech_realization, &
+                         simulation%geomech_stepper%solver,input,option)
+        ! Add first waypoint
+        waypoint => WaypointCreate()
+        waypoint%time = 0.d0
+        call WaypointInsertInList(waypoint,simulation%geomech_realization%waypoints)
+
+        ! Add final_time waypoint to geomech_realization
+        waypoint => WaypointCreate()
+        waypoint%final = PETSC_TRUE
+        waypoint%time = realization%waypoints%last%time
+        waypoint%print_output = PETSC_TRUE
+        call WaypointInsertInList(waypoint,simulation%geomech_realization%waypoints)
+#endif
+
+!......................
       case ('HDF5_READ_GROUP_SIZE')
         call InputReadInt(input,option,option%hdf5_read_group_size)
         call InputErrorMsg(input,option,'HDF5_READ_GROUP_SIZE','Group size')
@@ -2483,15 +2667,6 @@ subroutine setFlowMode(option)
       option%gas_phase = 2      
       option%nflowdof = 3
       option%nflowspec = 2
-      option%use_isothermal = PETSC_FALSE
-   case('THMC')
-      option%iflowmode = THMC_MODE
-      option%nphase = 1
-      option%liquid_phase = 1      
-      option%gas_phase = 2      
-      option%nflowdof = 6
-      option%nflowspec = 2
-      option%nmechdof = 3
       option%use_isothermal = PETSC_FALSE
     case('MIS','MISCIBLE')
       option%iflowmode = MIS_MODE
@@ -2708,20 +2883,20 @@ subroutine assignMaterialPropToRegions(realization)
       if (.not.associated(cur_patch)) exit
       grid => cur_patch%grid
       if (option%nflowdof > 0) then
-        call GridVecGetArrayF90(grid,field%icap_loc,icap_loc_p,ierr)
-        call GridVecGetArrayF90(grid,field%ithrm_loc,ithrm_loc_p,ierr)
-        call GridVecGetArrayF90(grid,field%perm0_xx,perm_xx_p,ierr)
-        call GridVecGetArrayF90(grid,field%perm0_yy,perm_yy_p,ierr)
-        call GridVecGetArrayF90(grid,field%perm0_zz,perm_zz_p,ierr)
+        call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr)
+        call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr)
+        call VecGetArrayF90(field%perm0_xx,perm_xx_p,ierr)
+        call VecGetArrayF90(field%perm0_yy,perm_yy_p,ierr)
+        call VecGetArrayF90(field%perm0_zz,perm_zz_p,ierr)
         if (option%mimetic) then
-          call GridVecGetArrayF90(grid,field%perm0_xz,perm_xz_p,ierr)
-          call GridVecGetArrayF90(grid,field%perm0_xy,perm_xy_p,ierr)
-          call GridVecGetArrayF90(grid,field%perm0_yz,perm_yz_p,ierr)
+          call VecGetArrayF90(field%perm0_xz,perm_xz_p,ierr)
+          call VecGetArrayF90(field%perm0_xy,perm_xy_p,ierr)
+          call VecGetArrayF90(field%perm0_yz,perm_yz_p,ierr)
         endif
-        call GridVecGetArrayF90(grid,field%perm_pow,perm_pow_p,ierr)
+        call VecGetArrayF90(field%perm_pow,perm_pow_p,ierr)
       endif
-      call GridVecGetArrayF90(grid,field%porosity0,por0_p,ierr)
-      call GridVecGetArrayF90(grid,field%tortuosity0,tor0_p,ierr)
+      call VecGetArrayF90(field%porosity0,por0_p,ierr)
+      call VecGetArrayF90(field%tortuosity0,tor0_p,ierr)
         
       do local_id = 1, grid%nlmax
         ghosted_id = grid%nL2G(local_id)
@@ -2775,20 +2950,20 @@ subroutine assignMaterialPropToRegions(realization)
       enddo
 
       if (option%nflowdof > 0) then
-        call GridVecRestoreArrayF90(grid,field%icap_loc,icap_loc_p,ierr)
-        call GridVecRestoreArrayF90(grid,field%ithrm_loc,ithrm_loc_p,ierr)
-        call GridVecRestoreArrayF90(grid,field%perm0_xx,perm_xx_p,ierr)
-        call GridVecRestoreArrayF90(grid,field%perm0_yy,perm_yy_p,ierr)
-        call GridVecRestoreArrayF90(grid,field%perm0_zz,perm_zz_p,ierr)
+        call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr)
+        call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr)
+        call VecRestoreArrayF90(field%perm0_xx,perm_xx_p,ierr)
+        call VecRestoreArrayF90(field%perm0_yy,perm_yy_p,ierr)
+        call VecRestoreArrayF90(field%perm0_zz,perm_zz_p,ierr)
         if (option%mimetic) then
-          call GridVecRestoreArrayF90(grid,field%perm0_xz,perm_xz_p,ierr)
-          call GridVecRestoreArrayF90(grid,field%perm0_xy,perm_xy_p,ierr)
-          call GridVecRestoreArrayF90(grid,field%perm0_yz,perm_yz_p,ierr)
+          call VecRestoreArrayF90(field%perm0_xz,perm_xz_p,ierr)
+          call VecRestoreArrayF90(field%perm0_xy,perm_xy_p,ierr)
+          call VecRestoreArrayF90(field%perm0_yz,perm_yz_p,ierr)
         endif
-        call GridVecRestoreArrayF90(grid,field%perm_pow,perm_pow_p,ierr)
+        call VecRestoreArrayF90(field%perm_pow,perm_pow_p,ierr)
       endif
-      call GridVecRestoreArrayF90(grid,field%porosity0,por0_p,ierr)
-      call GridVecRestoreArrayF90(grid,field%tortuosity0,tor0_p,ierr)
+      call VecRestoreArrayF90(field%porosity0,por0_p,ierr)
+      call VecRestoreArrayF90(field%tortuosity0,tor0_p,ierr)
         
       ! read in any user-defined property fields
       do material_id = 1, size(realization%material_property_array)
@@ -2806,16 +2981,16 @@ subroutine assignMaterialPropToRegions(realization)
                        group_name, &
                        dataset_name, &
                        material_property%porosity_dataset%realization_dependent)
-            call GridVecGetArrayF90(grid,field%work,vec_p,ierr)
-            call GridVecGetArrayF90(grid,field%porosity0,por0_p,ierr)
+            call VecGetArrayF90(field%work,vec_p,ierr)
+            call VecGetArrayF90(field%porosity0,por0_p,ierr)
             do local_id = 1, grid%nlmax
               if (patch%imat(grid%nL2G(local_id)) == &
                   material_property%id) then
                 por0_p(local_id) = vec_p(local_id)
               endif
             enddo
-            call GridVecRestoreArrayF90(grid,field%work,vec_p,ierr)
-            call GridVecRestoreArrayF90(grid,field%porosity0,por0_p,ierr)
+            call VecRestoreArrayF90(field%work,vec_p,ierr)
+            call VecRestoreArrayF90(field%porosity0,por0_p,ierr)
           endif
         endif
       enddo
@@ -3185,9 +3360,9 @@ subroutine readPermeabilitiesFromFile(realization,material_property)
   option => realization%option
   discretization => realization%discretization
 
-  call GridVecGetArrayF90(grid,field%perm0_xx,perm_xx_p,ierr)
-  call GridVecGetArrayF90(grid,field%perm0_yy,perm_yy_p,ierr)
-  call GridVecGetArrayF90(grid,field%perm0_zz,perm_zz_p,ierr)
+  call VecGetArrayF90(field%perm0_xx,perm_xx_p,ierr)
+  call VecGetArrayF90(field%perm0_yy,perm_yy_p,ierr)
+  call VecGetArrayF90(field%perm0_zz,perm_zz_p,ierr)
   
   if (index(material_property%permeability_dataset%filename,'.h5') > 0) then
     group_name = ''
@@ -3206,7 +3381,7 @@ subroutine readPermeabilitiesFromFile(realization,material_property)
       call HDF5ReadCellIndexedRealArray(realization,global_vec, &
                           material_property%permeability_dataset%filename, &
                           group_name,dataset_name,append_realization_id)
-      call GridVecGetArrayF90(grid,global_vec,vec_p,ierr)
+      call VecGetArrayF90(global_vec,vec_p,ierr)
       ratio = 1.d0
       scale = 1.d0
       !TODO(geh): fix so that ratio and scale work for perms outside
@@ -3224,7 +3399,7 @@ subroutine readPermeabilitiesFromFile(realization,material_property)
           perm_zz_p(local_id) = vec_p(local_id)*ratio*scale
         endif
       enddo
-      call GridVecRestoreArrayF90(grid,global_vec,vec_p,ierr)
+      call VecRestoreArrayF90(global_vec,vec_p,ierr)
     else
       temp_int = Z_DIRECTION
       if (grid%itype == STRUCTURED_GRID_MIMETIC) temp_int = YZ_DIRECTION
@@ -3238,19 +3413,19 @@ subroutine readPermeabilitiesFromFile(realization,material_property)
             dataset_name = 'PermeabilityZ'
           case(XY_DIRECTION)
             dataset_name = 'PermeabilityXY'
-            call GridVecGetArrayF90(grid,field%perm0_xy,perm_xyz_p,ierr)
+            call VecGetArrayF90(field%perm0_xy,perm_xyz_p,ierr)
           case(XZ_DIRECTION)
             dataset_name = 'PermeabilityXZ'
-            call GridVecGetArrayF90(grid,field%perm0_xz,perm_xyz_p,ierr)
+            call VecGetArrayF90(field%perm0_xz,perm_xyz_p,ierr)
           case(YZ_DIRECTION)
             dataset_name = 'PermeabilityYZ'
-            call GridVecGetArrayF90(grid,field%perm0_yz,perm_xyz_p,ierr)
+            call VecGetArrayF90(field%perm0_yz,perm_xyz_p,ierr)
         end select          
         call HDF5ReadCellIndexedRealArray(realization,global_vec, &
                                           material_property%permeability_dataset%filename, &
                                           group_name, &
                                           dataset_name,append_realization_id)
-        call GridVecGetArrayF90(grid,global_vec,vec_p,ierr)
+        call VecGetArrayF90(global_vec,vec_p,ierr)
         select case(idirection)
           case(X_DIRECTION)
             do local_id = 1, grid%nlmax
@@ -3278,17 +3453,17 @@ subroutine readPermeabilitiesFromFile(realization,material_property)
             enddo
             select case(idirection)
               case(XY_DIRECTION)
-                call GridVecRestoreArrayF90(grid,field%perm0_xy,perm_xyz_p, &
+                call VecRestoreArrayF90(field%perm0_xy,perm_xyz_p, &
                                             ierr)
               case(XZ_DIRECTION)
-                call GridVecRestoreArrayF90(grid,field%perm0_xz,perm_xyz_p, &
+                call VecRestoreArrayF90(field%perm0_xz,perm_xyz_p, &
                                             ierr)
               case(YZ_DIRECTION)
-                call GridVecRestoreArrayF90(grid,field%perm0_yz,perm_xyz_p, &
+                call VecRestoreArrayF90(field%perm0_yz,perm_xyz_p, &
                                             ierr)
             end select
         end select
-        call GridVecRestoreArrayF90(grid,global_vec,vec_p,ierr)
+        call VecRestoreArrayF90(global_vec,vec_p,ierr)
       enddo
     endif
     call VecDestroy(global_vec,ierr)
@@ -3322,9 +3497,9 @@ subroutine readPermeabilitiesFromFile(realization,material_property)
     call PetscLogEventEnd(logging%event_hash_map,ierr)
   endif
   
-  call GridVecRestoreArrayF90(grid,field%perm0_xx,perm_xx_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%perm0_yy,perm_yy_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%perm0_zz,perm_zz_p,ierr)
+  call VecRestoreArrayF90(field%perm0_xx,perm_xx_p,ierr)
+  call VecRestoreArrayF90(field%perm0_yy,perm_yy_p,ierr)
+  call VecRestoreArrayF90(field%perm0_zz,perm_zz_p,ierr)
   
 end subroutine readPermeabilitiesFromFile
 
@@ -3507,7 +3682,7 @@ subroutine readFlowInitialCondition(realization,filename)
       grid => cur_patch%grid
 
        ! assign initial conditions values to domain
-      call GridVecGetArrayF90(grid,field%flow_xx, xx_p, ierr); CHKERRQ(ierr)
+      call VecGetArrayF90(field%flow_xx, xx_p, ierr); CHKERRQ(ierr)
 
       ! Pressure for all modes 
       offset = 1
@@ -3516,7 +3691,7 @@ subroutine readFlowInitialCondition(realization,filename)
       call HDF5ReadCellIndexedRealArray(realization,field%work, &
                                         filename,group_name, &
                                         dataset_name,option%id>0)
-      call GridVecGetArrayF90(grid,field%work,vec_p,ierr)
+      call VecGetArrayF90(field%work,vec_p,ierr)
       do local_id=1, grid%nlmax
         if (cur_patch%imat(grid%nL2G(local_id)) <= 0) cycle
         if (dabs(vec_p(local_id)) < 1.d-40) then
@@ -3526,9 +3701,9 @@ subroutine readFlowInitialCondition(realization,filename)
         idx = (local_id-1)*option%nflowdof + offset
         xx_p(idx) = vec_p(local_id)
       enddo
-      call GridVecRestoreArrayF90(grid,field%work,vec_p,ierr)
+      call VecRestoreArrayF90(field%work,vec_p,ierr)
 
-      call GridVecRestoreArrayF90(grid,field%flow_xx,xx_p, ierr)
+      call VecRestoreArrayF90(field%flow_xx,xx_p, ierr)
         
       cur_patch => cur_patch%next
     enddo
@@ -3604,7 +3779,7 @@ subroutine readTransportInitialCondition(realization,filename)
       grid => cur_patch%grid
 
        ! assign initial conditions values to domain
-      call GridVecGetArrayF90(grid,field%tran_xx,xx_p, ierr); CHKERRQ(ierr)
+      call VecGetArrayF90(field%tran_xx,xx_p, ierr); CHKERRQ(ierr)
 
       ! Primary species concentrations for all modes 
       do idof = 1, option%ntrandof ! primary aqueous concentrations
@@ -3614,7 +3789,7 @@ subroutine readTransportInitialCondition(realization,filename)
         call HDF5ReadCellIndexedRealArray(realization,field%work, &
                                           filename,group_name, &
                                           dataset_name,option%id>0)
-        call GridVecGetArrayF90(grid,field%work,vec_p,ierr)
+        call VecGetArrayF90(field%work,vec_p,ierr)
         do local_id=1, grid%nlmax
           if (cur_patch%imat(grid%nL2G(local_id)) <= 0) cycle
           if (vec_p(local_id) < 1.d-40) then
@@ -3624,11 +3799,11 @@ subroutine readTransportInitialCondition(realization,filename)
           idx = (local_id-1)*option%ntrandof + offset
           xx_p(idx) = vec_p(local_id)
         enddo
-        call GridVecRestoreArrayF90(grid,field%work,vec_p,ierr)
+        call VecRestoreArrayF90(field%work,vec_p,ierr)
      
       enddo     
 
-      call GridVecRestoreArrayF90(grid,field%tran_xx,xx_p, ierr)
+      call VecRestoreArrayF90(field%tran_xx,xx_p, ierr)
         
       cur_patch => cur_patch%next
     enddo
@@ -3806,7 +3981,7 @@ subroutine InitReadVelocityField(realization)
                                       group_name,dataset_name,PETSC_FALSE)
     call DiscretizationGlobalToLocal(discretization,field%work,field%work_loc, &
                                      ONEDOF)
-    call GridVecGetArrayF90(grid,field%work_loc,vec_loc_p,ierr)
+    call VecGetArrayF90(field%work_loc,vec_loc_p,ierr)
     connection_set_list => grid%internal_connection_set_list
     cur_connection_set => connection_set_list%first
     sum_connection = 0  
@@ -3821,7 +3996,7 @@ subroutine InitReadVelocityField(realization)
       enddo
       cur_connection_set => cur_connection_set%next
     enddo
-    call GridVecRestoreArrayF90(grid,field%work_loc,vec_loc_p,ierr)
+    call VecRestoreArrayF90(field%work_loc,vec_loc_p,ierr)
   enddo
   
   boundary_condition => patch%boundary_conditions%first
@@ -3831,14 +4006,14 @@ subroutine InitReadVelocityField(realization)
     dataset_name = boundary_condition%name
     call HDF5ReadCellIndexedRealArray(realization,field%work,filename, &
                                       group_name,dataset_name,PETSC_FALSE)
-    call GridVecGetArrayF90(grid,field%work,vec_p,ierr)
+    call VecGetArrayF90(field%work,vec_p,ierr)
     cur_connection_set => boundary_condition%connection_set
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       patch%boundary_velocities(1,sum_connection) = vec_p(local_id)
     enddo
-    call GridVecRestoreArrayF90(grid,field%work,vec_p,ierr)
+    call VecRestoreArrayF90(field%work,vec_p,ierr)
     boundary_condition => boundary_condition%next
   enddo
   

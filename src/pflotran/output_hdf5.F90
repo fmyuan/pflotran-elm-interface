@@ -4,11 +4,13 @@ module Output_HDF5_module
   use Output_Aux_module
   use Output_Common_module
   
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
 #if defined(SCORPIO_WRITE)
   include "scorpiof.h"
@@ -21,6 +23,7 @@ module Output_HDF5_module
   public :: OutputHDF5Init, &
             OutputHDF5, &
             OutputHDF5UGridXDMF, &
+            OutputHDF5FilenameID, &
             OutputHDF5UGridXDMFExplicit
 
 contains
@@ -2885,7 +2888,7 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id,var_list_type
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
 #include "finclude/petsclog.h"
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
   class(realization_base_type) :: realization_base
   type(option_type), pointer :: option

@@ -4,11 +4,13 @@ module Secondary_Continuum_Aux_module
 
   use Reactive_Transport_Aux_module
 
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
   type, public :: slab_type
     PetscReal :: length                       ! input - length of slab
@@ -89,7 +91,7 @@ contains
 !
 ! SecondaryAuxHeatCreate: Allocate and initialize secondary continuum heat
 ! auxiliary object
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! date: 01/10/13
 !
 ! ************************************************************************** !
@@ -115,7 +117,7 @@ end function SecondaryAuxHeatCreate
 !
 ! SecondaryAuxHeatDestroy: Deallocates a secondary continuum heat
 ! auxiliary object
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! date: 01/10/13
 !
 ! ************************************************************************** !
@@ -137,7 +139,7 @@ end subroutine SecondaryAuxHeatDestroy
 !
 ! SecondaryAuxRTCreate: Allocate and initialize secondary continuum
 ! reactive transport auxiliary object
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! date: 01/10/13
 !
 ! ************************************************************************** !
@@ -163,7 +165,7 @@ end function SecondaryAuxRTCreate
 !
 ! SecondaryAuxVarRTDestroy: Deallocates a secondary continuum reactive 
 ! transport auxiliary variable object
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! date: 02/10/13
 !
 ! ************************************************************************** !
@@ -192,7 +194,7 @@ end subroutine SecondaryAuxVarRTDestroy
 !
 ! SecondaryAuxRTDestroy: Deallocates a secondary continuum reactive 
 ! transport auxiliary object
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! date: 01/10/13
 !
 ! ************************************************************************** !

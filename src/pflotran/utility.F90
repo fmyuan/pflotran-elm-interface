@@ -1,6 +1,10 @@
 module Utility_module
 
-#include "definitions.h"
+  use PFLOTRAN_Constants_module
+
+  implicit none
+
+#include "finclude/petscsys.h"
 
   interface DotProduct
     module procedure DotProduct1
@@ -36,8 +40,11 @@ contains
 
 function rnd()
 
+  implicit none
+
 !  common/rndnr/iseed
   integer*8 iseed
+  PetscReal :: rnd
 
   iseed = iseed*125
   iseed = iseed - (iseed/2796203) * 2796203
@@ -100,10 +107,13 @@ end function ran1
 
 function ran2(idum)
       
-!  implicit none
+  implicit none
 
 !-----Minimal random number generator of Park and Miller 
 !     in the range (0,1)
+
+  PetscReal :: ran2, AM, EPS, RNMX, temp
+  PetscInt :: IA, IM, IQ, IR, NTAB, idum, iy, j, k, iv(32), NDIV
 
   parameter (IA = 16807)
   parameter (IM = 2147483647)
@@ -115,7 +125,7 @@ function ran2(idum)
   parameter (EPS  = 1.2e-7)
   parameter (RNMX = 1.0-EPS)
 
-  dimension iv(NTAB)
+  !dimension iv(NTAB)
 
   iy = 0
   if (idum.le.0 .or. iy.eq.0) then
@@ -1494,5 +1504,121 @@ subroutine DeallocateArray2DString(array)
   nullify(array)
 
 end subroutine DeallocateArray2DString
+
+! ************************************************************************** !
+!
+! ConvertMatrixToVector: Converts a given matrix A to a vec
+! This vec is different from PETSc Vec
+! A = [a1 a2 a3 .... am], where ai, i = 1, m are the columns
+! then vec(A) = [a1
+!                a2
+!                 .
+!                 .
+!                 .
+!                am]
+! author: Satish Karra, LANL
+! date: 6/19/2013
+!
+! ************************************************************************** !
+subroutine ConvertMatrixToVector(A,vecA)
+
+  PetscReal :: A(:,:)
+  PetscReal, pointer :: vecA(:,:)
+  PetscInt :: m, n, i, j
+  
+  m = size(A,1)
+  n = size(A,2)
+  
+  allocate(vecA(m*n,1))
+  
+  vecA = reshape(A,(/m*n,1/))
+
+end subroutine ConvertMatrixToVector
+
+! ************************************************************************** !
+!
+! Kron: Returns the Kronecker product of two matrices A, B
+! Reference: The ubiquitous Kronecker product, by Charles F.Van Loan
+! for basics of Kronecker product
+! Also see wikipedia page: http://en.wikipedia.org/wiki/Kronecker_product
+! author: Satish Karra, LANL
+! date: 6/19/2013
+!
+! ************************************************************************** !
+subroutine Kron(A,B,K)
+
+  PetscReal :: A(:,:),B(:,:)
+  PetscReal, pointer :: K(:,:)
+  PetscInt :: mA,nA,mB,nB
+  PetscInt :: iA,jA,iB,jB,iK,jK
+  
+  mA = size(A,1)
+  nA = size(A,2)
+  mB = size(B,1)
+  nB = size(B,2)
+  
+  allocate(K(mA*mB,nA*nB))
+  
+  do iB = 1, mB
+    do jB = 1, nB
+      do iA = 1, mA
+        do jA = 1, nA
+          iK = iB + (iA-1)*mB
+          jK = jB + (jA-1)*nB
+          K(iK,jK) = A(iA,jA)*B(iB,jB)
+        enddo
+      enddo
+    enddo
+  enddo
+  
+end subroutine Kron
+
+! ************************************************************************** !
+!
+! Transposer: Transposer Converts vec of a matrix to vec of its transpose
+! author: Satish Karra, LANL
+! date: 6/19/2013
+!
+! ************************************************************************** !
+subroutine Transposer(m,n,T)
+
+  PetscReal, pointer :: T(:,:)
+  PetscInt :: m,n
+  PetscInt :: i,j
+  PetscReal :: A(m,n)
+  PetscReal, pointer :: vecA(:,:)
+  
+  allocate(T(m*n,m*n))
+  T = 0.d0
+  
+  do i = 1,m
+    do j = 1,n
+      A = 0.d0
+      A(i,j) = 1.d0
+      call ConvertMatrixToVector(transpose(A),vecA)
+      T(:,i+m*(j-1)) = vecA(:,1)
+    enddo
+  enddo
+  
+end subroutine Transposer
+
+! ************************************************************************** !
+!
+! Determinant: Determinant of a 3x3 matrix
+! author: Satish Karra, LANL
+! date: 6/24/2013
+!
+! ************************************************************************** !
+subroutine Determinant(A,detA)
+
+  PetscReal :: A(3,3)
+  PetscReal :: detA  
+ 
+  detA = A(1,1)*(A(2,2)*A(3,3) - A(3,2)*A(2,3)) &
+       + A(1,2)*(A(3,1)*A(2,3) - A(2,1)*A(3,3))  &
+       + A(1,3)*(A(2,1)*A(3,2) - A(3,1)*A(2,2))
+  
+
+end subroutine Determinant
 
 end module Utility_module

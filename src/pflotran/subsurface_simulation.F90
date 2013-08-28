@@ -7,9 +7,11 @@ module Subsurface_Simulation_class
   use PMC_Base_class
   use Realization_class
 
+  use PFLOTRAN_Constants_module
+
   implicit none
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
   
   private
 
@@ -24,7 +26,7 @@ module Subsurface_Simulation_class
     type(regression_type), pointer :: regression
   contains
     procedure, public :: Init => SubsurfaceSimulationInit
-    procedure, public :: InitializeRun => SubsurfaceInitializeRun
+!    procedure, public :: InitializeRun => SubsurfaceInitializeRun
 !    procedure, public :: ExecuteRun
 !    procedure, public :: RunToTime
     procedure, public :: FinalizeRun => SubsurfaceFinalizeRun
