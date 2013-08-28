@@ -1,8 +1,10 @@
 module Mapping_module
 
+  use PFLOTRAN_Constants_module
+
   implicit none
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 #include "finclude/petsclog.h"
 #include "finclude/petscviewer.h"
 #include "finclude/petscvec.h"

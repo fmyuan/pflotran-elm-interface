@@ -5,9 +5,13 @@ module pflotran_model_module
   use Realization_Base_class, only : realization_base_type
   use Mapping_module, only : mapping_type
 
+  use PFLOTRAN_Constants_module
+
   implicit none
 
-#include "definitions.h"
+  private
+
+#include "finclude/petscsys.h"
 #include "finclude/petsclog.h"
 #include "finclude/petscsysdef.h"
 #include "finclude/petscviewer.h"
@@ -15,17 +19,17 @@ module pflotran_model_module
 !#include "finclude/petscvec.h90"
 
   ! module level constants
-  PetscInt, parameter :: CLM2PF_FLUX_MAP_ID  = 1 ! 3D --> 3D
-  PetscInt, parameter :: CLM2PF_SOIL_MAP_ID  = 2 ! 3D --> extended 3D
-  PetscInt, parameter :: PF2CLM_FLUX_MAP_ID  = 3 ! 3D --> 3D
-  PetscInt, parameter :: CLM2PF_GFLUX_MAP_ID = 4 ! 3D --> SURF-3D
-  PetscInt, parameter :: CLM2PF_RFLUX_MAP_ID = 5 ! 3D --> SURF-2D
-  PetscInt, parameter :: PF2CLM_SURF_MAP_ID  = 6 ! SURF-2D --> 3D
+  PetscInt, parameter, public :: CLM2PF_FLUX_MAP_ID  = 1 ! 3D --> 3D
+  PetscInt, parameter, public :: CLM2PF_SOIL_MAP_ID  = 2 ! 3D --> extended 3D
+  PetscInt, parameter, public :: PF2CLM_FLUX_MAP_ID  = 3 ! 3D --> 3D
+  PetscInt, parameter, public :: CLM2PF_GFLUX_MAP_ID = 4 ! 3D --> SURF-3D
+  PetscInt, parameter, public :: CLM2PF_RFLUX_MAP_ID = 5 ! 3D --> SURF-2D
+  PetscInt, parameter, public :: PF2CLM_SURF_MAP_ID  = 6 ! SURF-2D --> 3D
 
-  PetscInt, parameter :: CLM_3D_MESH      = 1
-  PetscInt, parameter :: PF_3D_MESH       = 2
-  PetscInt, parameter :: PF_SURF_3D_MESH  = 3
-  PetscInt, parameter :: PF_SURF_2D_MESH  = 4
+  PetscInt, parameter, public :: CLM_3D_MESH      = 1
+  PetscInt, parameter, public :: PF_3D_MESH       = 2
+  PetscInt, parameter, public :: PF_SURF_3D_MESH  = 3
+  PetscInt, parameter, public :: PF_SURF_2D_MESH  = 4
 
   type, public :: inside_each_overlapped_cell
      PetscInt           :: id
@@ -119,7 +123,7 @@ contains
   
     implicit none
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
     PetscInt, intent(in) :: mpicomm
     character(len=256), intent(in) :: pflotran_prefix
@@ -210,7 +214,7 @@ contains
 
     implicit none
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
     type(pflotran_model_type), pointer, intent(inout) :: model
     type(input_type), pointer :: input
@@ -459,7 +463,7 @@ subroutine pflotranModelSetICs(pflotran_model)
         call printErrMsg(pflotran_model%option)
     endif
 
-    call GridVecGetArrayF90(grid, field%flow_xx, xx_loc_p, ierr)
+    call VecGetArrayF90(field%flow_xx, xx_loc_p, ierr)
     call VecGetArrayF90(clm_pf_idata%press_pf, press_pf_loc, ierr)
 
     do local_id = 1, grid%nlmax
@@ -470,7 +474,7 @@ subroutine pflotranModelSetICs(pflotran_model)
        xx_loc_p(ghosted_id)=press_pf_loc(local_id)
     enddo
 
-    call GridVecRestoreArrayF90(grid, field%flow_xx, xx_loc_p, ierr)
+    call VecRestoreArrayF90(field%flow_xx, xx_loc_p, ierr)
     call VecRestoreArrayF90(clm_pf_idata%press_pf, press_pf_loc, ierr)
 
     ! update dependent vectors: Saturation
@@ -616,10 +620,10 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
     call VecGetArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
-    call GridVecGetArrayF90(grid, field%porosity_loc, porosity_loc_p, ierr)
-    call GridVecGetArrayF90(grid, field%perm_xx_loc,  perm_xx_loc_p,  ierr)
-    call GridVecGetArrayF90(grid, field%perm_yy_loc,  perm_yy_loc_p,  ierr)
-    call GridVecGetArrayF90(grid, field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+    call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+    call VecGetArrayF90(field%perm_xx_loc,  perm_xx_loc_p,  ierr)
+    call VecGetArrayF90(field%perm_yy_loc,  perm_yy_loc_p,  ierr)
+    call VecGetArrayF90(field%perm_zz_loc,  perm_zz_loc_p,  ierr)
 
     do local_id = 1, grid%ngmax
 
@@ -659,10 +663,10 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
     call VecRestoreArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
-    call GridVecRestoreArrayF90(grid, field%porosity_loc, porosity_loc_p, ierr)
-    call GridVecRestoreArrayF90(grid, field%perm_xx_loc,  perm_xx_loc_p,  ierr)
-    call GridVecRestoreArrayF90(grid, field%perm_yy_loc,  perm_yy_loc_p,  ierr)
-    call GridVecRestoreArrayF90(grid, field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+    call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+    call VecRestoreArrayF90(field%perm_xx_loc,  perm_xx_loc_p,  ierr)
+    call VecRestoreArrayF90(field%perm_yy_loc,  perm_yy_loc_p,  ierr)
+    call VecRestoreArrayF90(field%perm_zz_loc,  perm_zz_loc_p,  ierr)
 
   end subroutine pflotranModelSetSoilProp
 !#endif
@@ -1694,7 +1698,7 @@ end subroutine pflotranModelSetICs
 
     implicit none
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 #include "finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer :: model

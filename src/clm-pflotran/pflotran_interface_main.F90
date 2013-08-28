@@ -16,9 +16,11 @@ program pflotran_interface_main
   use Realization_Base_class, only : realization_base_type
   use Surface_Realization_class, only : surface_realization_type
 
+  use PFLOTRAN_Constants_module
+
   implicit none
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 #include "finclude/petscvec.h"
 
   type(pflotran_model_type), pointer  :: pflotran_m
