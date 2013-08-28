@@ -77,6 +77,11 @@ module Variables_module
   PetscInt, parameter, public :: EH = 65
   PetscInt, parameter, public :: PE = 66
   PetscInt, parameter, public :: O2 = 67
+  
+  PetscInt, parameter, public :: GEOMECH_DISP_X          = 68
+  PetscInt, parameter, public :: GEOMECH_DISP_Y          = 69
+  PetscInt, parameter, public :: GEOMECH_DISP_Z          = 70
+    
 
   PetscInt, parameter, public :: PERMEABILITY_XY =         68
   PetscInt, parameter, public :: PERMEABILITY_YZ =         69

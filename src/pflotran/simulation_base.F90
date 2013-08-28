@@ -4,10 +4,13 @@ module Simulation_Base_class
   use Option_module
   use Output_Aux_module
   use Output_module
+  use Simulation_Aux_module
   
+  use PFLOTRAN_Constants_module
+
   implicit none
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
   
   private
 
@@ -16,6 +19,7 @@ module Simulation_Base_class
     type(output_option_type), pointer :: output_option
     PetscInt :: stop_flag
     class(pmc_base_type), pointer :: process_model_coupler_list
+    type(simulation_aux_type), pointer :: sim_aux
   contains
     procedure, public :: Init => SimulationBaseInit
     procedure, public :: InitializeRun
@@ -75,6 +79,7 @@ subroutine SimulationBaseInit(this,option)
   this%option => option
   nullify(this%output_option)
   nullify(this%process_model_coupler_list)
+  this%sim_aux => SimAuxCreate()
   this%stop_flag = 0 
 
 end subroutine SimulationBaseInit
@@ -92,44 +97,30 @@ subroutine InitializeRun(this)
 
   implicit none
   
+#include "finclude/petscviewer.h"  
+
   class(simulation_base_type) :: this
 
   class(pmc_base_type), pointer :: cur_process_model_coupler
+  PetscViewer :: viewer
   PetscErrorCode :: ierr
   
   call printMsg(this%option,'Simulation%InitializeRun()')
   
-  cur_process_model_coupler => this%process_model_coupler_list
-  do
-    if (.not.associated(cur_process_model_coupler)) exit
-    call cur_process_model_coupler%InitializeRun()
-    cur_process_model_coupler => cur_process_model_coupler%next
-  enddo
+  call this%process_model_coupler_list%InitializeRun()  
 
   !TODO(geh): place logic here to stop if only initial state desired (e.g.
   !           solution composition, etc.).
   
-  !TODO(geh): replace integer arguments with logical
-#ifndef SIMPLIFY  
-  if (this%option%restart_flag) then
-    call OutputInit(1) ! number greater than 0
-  else
-    call OutputInit(0)
-  endif
-#endif
+  ! update solutions?
   
-  if (this%output_option%print_initial) then
-    cur_process_model_coupler => this%process_model_coupler_list
-    do
-      if (.not.associated(cur_process_model_coupler)) exit
-      ! arg1 = plot_flag
-      ! arg2 = transient_plot_flag
-!      call cur_process_model_coupler%Output(PETSC_TRUE,PETSC_TRUE)
-      cur_process_model_coupler => cur_process_model_coupler%next
-    enddo
-  endif
+  !TODO(geh): Place I/O reoutines here
   
   !TODO(geh): place logic here to stop if only initial condition desired
+  
+  if (this%option%restart_flag) then
+    call this%process_model_coupler_list%Restart(viewer)
+  endif
   
   ! pushed in Init()
   call PetscLogStagePop(ierr)
@@ -200,17 +191,24 @@ end subroutine ExecuteRun
 subroutine RunToTime(this,target_time)
 
   use Option_module
+  use Simulation_Aux_module
 
   implicit none
   
+#include "finclude/petscviewer.h" 
+
   class(simulation_base_type) :: this
   PetscReal :: target_time
   
   class(pmc_base_type), pointer :: cur_process_model_coupler
+  PetscViewer :: viewer
   
   call printMsg(this%option,'RunToTime()')
   
   call this%process_model_coupler_list%RunToTime(target_time,this%stop_flag)
+  if (this%option%checkpoint_flag) then
+    call this%process_model_coupler_list%Checkpoint(viewer,-1)
+  endif
 
 end subroutine RunToTime
 
@@ -223,6 +221,8 @@ end subroutine RunToTime
 ! ************************************************************************** !
 subroutine SimulationBaseFinalizeRun(this)
 
+  use Logging_module
+  
   implicit none
   
   class(simulation_base_type) :: this
@@ -233,15 +233,12 @@ subroutine SimulationBaseFinalizeRun(this)
 
   call printMsg(this%option,'SimulationBaseFinalizeRun()')
   
-  cur_process_model_coupler => this%process_model_coupler_list
-  do
-    if (.not.associated(cur_process_model_coupler)) exit
-    call cur_process_model_coupler%FinalizeRun()
-    cur_process_model_coupler => cur_process_model_coupler%next
-  enddo
+  call this%process_model_coupler_list%FinalizeRun()
   
   ! pushed in InitializeRun()
   call PetscLogStagePop(ierr)
+  ! popped in OptionFinalize()
+  call PetscLogStagePush(logging%stage(FINAL_STAGE),ierr)
   
 end subroutine SimulationBaseFinalizeRun
 
@@ -296,6 +293,7 @@ subroutine SimulationBaseStrip(this)
   class(simulation_base_type) :: this
   
   call printMsg(this%option,'SimulationBaseStrip()')
+  call SimAuxDestroy(this%sim_aux)
   
 end subroutine SimulationBaseStrip
 

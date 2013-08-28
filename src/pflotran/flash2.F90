@@ -3,11 +3,13 @@ module Flash2_module
   use Flash2_Aux_module
   use Global_Aux_module
 
+  use PFLOTRAN_Constants_module
+
   implicit none
   
   private 
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
   
 !#include "include/petscf90.h"
 #include "finclude/petscvec.h"
@@ -316,7 +318,8 @@ subroutine Flash2UpdateReasonPatch(reason,realization)
    use Grid_module
 
   implicit none
- 
+
+
   PetscInt, intent(out):: reason
   type(realization_type) :: realization  
   type(patch_type),pointer :: patch
@@ -336,8 +339,8 @@ subroutine Flash2UpdateReasonPatch(reason,realization)
   re=1
  
   if(re>0)then
-     call GridVecGetArrayF90(grid,field%flow_xx, xx_p, ierr); CHKERRQ(ierr)
-     call GridVecGetArrayF90(grid,field%flow_yy, yy_p, ierr)
+     call VecGetArrayF90(field%flow_xx, xx_p, ierr); CHKERRQ(ierr)
+     call VecGetArrayF90(field%flow_yy, yy_p, ierr)
 
      do n = 1,grid%nlmax
 !**** clu-Ignore inactive cells with inactive materials **************
@@ -368,8 +371,8 @@ subroutine Flash2UpdateReasonPatch(reason,realization)
      end do
   
     !if(re<=0) print *,'Sat out of Region at: ',n,iipha,xx_p(n0+1:n0+3)
-    call GridVecRestoreArrayF90(grid,field%flow_xx, xx_p, ierr); CHKERRQ(ierr)
-    call GridVecRestoreArrayF90(grid,field%flow_yy, yy_p, ierr)
+    call VecRestoreArrayF90(field%flow_xx, xx_p, ierr); CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%flow_yy, yy_p, ierr)
 
    endif
   ! reason = re!; print *,'reason:',reason
@@ -464,7 +467,7 @@ end subroutine Flash2UpdateReason
     option => realization%option
     field => realization%field
     
-    call GridVecGetArrayF90(grid,field%flow_xx,xx_p, ierr)
+    call VecGetArrayF90(field%flow_xx,xx_p, ierr)
     
     ipass=1
     do local_id = 1, grid%nlmax
@@ -489,7 +492,7 @@ end subroutine Flash2UpdateReason
        endif
     enddo
 
-    call GridVecRestoreArrayF90(grid,field%flow_xx,xx_p, ierr)
+    call VecRestoreArrayF90(field%flow_xx,xx_p, ierr)
     Flash2InitGuessCheckPatch = ipass
   end function Flash2InitGuessCheckPatch
 
@@ -577,8 +580,8 @@ subroutine Flash2UpdateAuxVarsPatch(realization)
   global_aux_vars_bc => patch%aux%Global%aux_vars_bc
 
   
-  call GridVecGetArrayF90(grid,field%flow_xx_loc,xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc,icap_loc_p,ierr)
+  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr)
+  call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr)
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -688,8 +691,8 @@ subroutine Flash2UpdateAuxVarsPatch(realization)
     boundary_condition => boundary_condition%next
   enddo
 
-  call GridVecRestoreArrayF90(grid,field%flow_xx_loc,xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc,icap_loc_p,ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr)
   
   patch%aux%Flash2%aux_vars_up_to_date = PETSC_TRUE
 
@@ -817,14 +820,14 @@ subroutine Flash2UpdateFixedAccumPatch(realization)
   Flash2_parameter => patch%aux%Flash2%Flash2_parameter
   aux_vars => patch%aux%Flash2%aux_vars
     
-  call GridVecGetArrayF90(grid,field%flow_xx,xx_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc,icap_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%tortuosity_loc,tortuosity_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%volume,volume_p,ierr)
-  call GridVecGetArrayF90(grid,field%ithrm_loc,ithrm_loc_p,ierr)
+  call VecGetArrayF90(field%flow_xx,xx_p, ierr)
+  call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr)
+  call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+  call VecGetArrayF90(field%tortuosity_loc,tortuosity_loc_p,ierr)
+  call VecGetArrayF90(field%volume,volume_p,ierr)
+  call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr)
 
-  call GridVecGetArrayF90(grid,field%flow_accum, accum_p, ierr)
+  call VecGetArrayF90(field%flow_accum, accum_p, ierr)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -843,14 +846,14 @@ subroutine Flash2UpdateFixedAccumPatch(realization)
                               option,ZERO_INTEGER, accum_p(istart:iend)) 
   enddo
 
-  call GridVecRestoreArrayF90(grid,field%flow_xx,xx_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc,icap_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%tortuosity_loc,tortuosity_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%volume,volume_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%ithrm_loc,ithrm_loc_p,ierr)
+  call VecRestoreArrayF90(field%flow_xx,xx_p, ierr)
+  call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr)
+  call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+  call VecRestoreArrayF90(field%tortuosity_loc,tortuosity_loc_p,ierr)
+  call VecRestoreArrayF90(field%volume,volume_p,ierr)
+  call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr)
 
-  call GridVecRestoreArrayF90(grid,field%flow_accum, accum_p, ierr)
+  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr)
 
 #if 0
 !  call Flash2NumericalJacobianTest(field%flow_xx,realization)
@@ -1969,20 +1972,20 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
  ! patch%Flash2Aux%aux_vars_up_to_date = PETSC_FALSE 
 
 ! now assign access pointer to local variables
-  call GridVecGetArrayF90(grid,field%flow_xx_loc, xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,r, r_p, ierr)
-  call GridVecGetArrayF90(grid,field%flow_accum, accum_p, ierr)
+  call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
+  call VecGetArrayF90(r, r_p, ierr)
+  call VecGetArrayF90(field%flow_accum, accum_p, ierr)
  
-  call GridVecGetArrayF90(grid,field%flow_yy,yy_p,ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%tortuosity_loc, tortuosity_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%volume, volume_p, ierr)
-  call GridVecGetArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
-!  call GridVecGetArrayF90(grid,field%iphas_loc, iphase_loc_p, ierr)
+  call VecGetArrayF90(field%flow_yy,yy_p,ierr)
+  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecGetArrayF90(field%tortuosity_loc, tortuosity_loc_p, ierr)
+  call VecGetArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+  call VecGetArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+  call VecGetArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
+  call VecGetArrayF90(field%volume, volume_p, ierr)
+  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
+  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr)
+!  call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr)
   allocate(Resold_AR(option%nflowdof), Resold_FL(option%nflowdof), delx(option%nflowdof))
  
 ! Multiphase flash calculation is more expensive, so calculate once per iteration
@@ -2363,19 +2366,19 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
     enddo
   endif
 
-  call GridVecRestoreArrayF90(grid,r, r_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%flow_yy, yy_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%flow_xx_loc, xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%flow_accum, accum_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%tortuosity_loc, tortuosity_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%volume, volume_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
-!  call GridVecRestoreArrayF90(grid,field%iphas_loc, iphase_loc_p, ierr)
+  call VecRestoreArrayF90(r, r_p, ierr)
+  call VecRestoreArrayF90(field%flow_yy, yy_p, ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr)
+  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecRestoreArrayF90(field%tortuosity_loc, tortuosity_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
+  call VecRestoreArrayF90(field%volume, volume_p, ierr)
+  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
+  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr)
+!  call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr)
   deallocate(Resold_AR, Resold_FL, delx)
   
   if (realization%debug%vecview_residual) then
@@ -2485,16 +2488,16 @@ subroutine Flash2ResidualPatch1(snes,xx,r,realization,ierr)
  ! patch%Flash2Aux%aux_vars_up_to_date = PETSC_FALSE 
 
 ! now assign access pointer to local variables
-  call GridVecGetArrayF90(grid,field%flow_xx_loc, xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid, r, r_p, ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%tortuosity_loc, tortuosity_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%volume, volume_p, ierr)
-  call GridVecGetArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
+  call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
+  call VecGetArrayF90( r, r_p, ierr)
+  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecGetArrayF90(field%tortuosity_loc, tortuosity_loc_p, ierr)
+  call VecGetArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+  call VecGetArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+  call VecGetArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
+  call VecGetArrayF90(field%volume, volume_p, ierr)
+  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
+  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr)
 
   r_p = 0.d0
  
@@ -2676,16 +2679,16 @@ subroutine Flash2ResidualPatch1(snes,xx,r,realization,ierr)
   enddo    
 #endif
 
-  call GridVecRestoreArrayF90(grid,field%flow_xx_loc, xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid, r, r_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%tortuosity_loc, tortuosity_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%volume, volume_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
+  call VecRestoreArrayF90( r, r_p, ierr)
+  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecRestoreArrayF90(field%tortuosity_loc, tortuosity_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
+  call VecRestoreArrayF90(field%volume, volume_p, ierr)
+  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
+  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr)
 
 end subroutine Flash2ResidualPatch1
 
@@ -2765,8 +2768,8 @@ subroutine Flash2ResidualPatch0(snes,xx,r,realization,ierr)
  ! patch%Flash2Aux%aux_vars_up_to_date = PETSC_FALSE 
 
 ! now assign access pointer to local variables
-  call GridVecGetArrayF90(grid,field%flow_xx_loc, xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
+  call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
+  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr)
 
   allocate(delx(option%nflowdof))
 
@@ -2841,8 +2844,8 @@ subroutine Flash2ResidualPatch0(snes,xx,r,realization,ierr)
   enddo
 #endif
   deallocate(delx)
-  call GridVecRestoreArrayF90(grid,field%flow_xx_loc, xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr)
 
 end subroutine Flash2ResidualPatch0
 
@@ -2929,11 +2932,11 @@ subroutine Flash2ResidualPatch2(snes,xx,r,realization,ierr)
  ! patch%Flash2Aux%aux_vars_up_to_date = PETSC_FALSE 
 
 ! now assign access pointer to local variables
-  call GridVecGetArrayF90(grid,r, r_p, ierr)
-  call GridVecGetArrayF90(grid,field%flow_accum, accum_p, ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%volume, volume_p, ierr)
-  call GridVecGetArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
+  call VecGetArrayF90(r, r_p, ierr)
+  call VecGetArrayF90(field%flow_accum, accum_p, ierr)
+  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecGetArrayF90(field%volume, volume_p, ierr)
+  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
  
   ! Accumulation terms (include reaction------------------------------------
   if (.not.option%steady_state) then
@@ -3072,11 +3075,11 @@ subroutine Flash2ResidualPatch2(snes,xx,r,realization,ierr)
     enddo
   endif
  
-  call GridVecRestoreArrayF90(grid,r, r_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%flow_accum, accum_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%volume, volume_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
+  call VecRestoreArrayF90(r, r_p, ierr)
+  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr)
+  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecRestoreArrayF90(field%volume, volume_p, ierr)
+  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
  
 end subroutine Flash2ResidualPatch2
 
@@ -3305,17 +3308,17 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,flag,realization,ierr)
  ! print *,'*********** In Jacobian ********************** '
   call MatZeroEntries(A,ierr)
 
-  call GridVecGetArrayF90(grid,field%flow_xx_loc, xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%tortuosity_loc, tortuosity_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%volume, volume_p, ierr)
+  call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
+  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecGetArrayF90(field%tortuosity_loc, tortuosity_loc_p, ierr)
+  call VecGetArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+  call VecGetArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+  call VecGetArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
+  call VecGetArrayF90(field%volume, volume_p, ierr)
 
-  call GridVecGetArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
-!  call GridVecGetArrayF90(grid,field%iphas_loc, iphase_loc_p, ierr)
+  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
+  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr)
+!  call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr)
 
  ResInc = 0.D0
 #if 1
@@ -3672,18 +3675,18 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,flag,realization,ierr)
   endif
 #endif
   
-  call GridVecRestoreArrayF90(grid,field%flow_xx_loc, xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%tortuosity_loc, tortuosity_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%volume, volume_p, ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecRestoreArrayF90(field%tortuosity_loc, tortuosity_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
+  call VecRestoreArrayF90(field%volume, volume_p, ierr)
 
    
-  call GridVecRestoreArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
-! call GridVecRestoreArrayF90(grid,field%iphas_loc, iphase_loc_p, ierr)
+  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
+  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr)
+! call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr)
 ! print *,'end jac'
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr)
@@ -3861,17 +3864,17 @@ subroutine Flash2JacobianPatch1(snes,xx,A,B,flag,realization,ierr)
  ! MatzeroEntries has been called in Flash2Jacobin ! clu removed on 11/04/2010 
  !  call MatZeroEntries(A,ierr)
 
-  call GridVecGetArrayF90(grid,field%flow_xx_loc, xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%tortuosity_loc, tortuosity_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%volume, volume_p, ierr)
+  call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
+  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecGetArrayF90(field%tortuosity_loc, tortuosity_loc_p, ierr)
+  call VecGetArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+  call VecGetArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+  call VecGetArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
+  call VecGetArrayF90(field%volume, volume_p, ierr)
 
-  call GridVecGetArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
-!  call GridVecGetArrayF90(grid,field%iphas_loc, iphase_loc_p, ierr)
+  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
+  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr)
+!  call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr)
 
  ResInc = 0.D0
 
@@ -4135,17 +4138,17 @@ subroutine Flash2JacobianPatch1(snes,xx,A,B,flag,realization,ierr)
     call PetscViewerDestroy(viewer,ierr)
   endif
   
-  call GridVecRestoreArrayF90(grid,field%flow_xx_loc, xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%tortuosity_loc, tortuosity_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%volume, volume_p, ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecRestoreArrayF90(field%tortuosity_loc, tortuosity_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
+  call VecRestoreArrayF90(field%volume, volume_p, ierr)
 
    
-  call GridVecRestoreArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
+  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
+  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr)
 
 end subroutine Flash2JacobianPatch1
 
@@ -4267,11 +4270,11 @@ subroutine Flash2JacobianPatch2(snes,xx,A,B,flag,realization,ierr)
  ! print *,'*********** In Jacobian ********************** '
 !  call MatZeroEntries(A,ierr)
 
-  call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-   call GridVecGetArrayF90(grid,field%volume, volume_p, ierr)
-  call GridVecGetArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
-!  call GridVecGetArrayF90(grid,field%iphas_loc, iphase_loc_p, ierr)
+  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+   call VecGetArrayF90(field%volume, volume_p, ierr)
+  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
+  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr)
+!  call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr)
 
  ResInc = 0.D0
 #if 1
@@ -4403,11 +4406,11 @@ subroutine Flash2JacobianPatch2(snes,xx,A,B,flag,realization,ierr)
     call PetscViewerDestroy(viewer,ierr)
   endif
   
-  call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%volume, volume_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
-! call GridVecRestoreArrayF90(grid,field%iphas_loc, iphase_loc_p, ierr)
+  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecRestoreArrayF90(field%volume, volume_p, ierr)
+  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
+  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr)
+! call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr)
 ! print *,'end jac'
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr)

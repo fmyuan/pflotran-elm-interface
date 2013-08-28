@@ -7,11 +7,13 @@ module Process_Model_Richards_class
   use Communicator_Base_module
   use Option_module
   
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
@@ -41,6 +43,8 @@ module Process_Model_Richards_class
     procedure, public :: UpdateSolution => PMRichardsUpdateSolution
     procedure, public :: MaxChange => PMRichardsMaxChange
     procedure, public :: ComputeMassBalance => PMRichardsComputeMassBalance
+    procedure, public :: Checkpoint => PMRichardsCheckpoint    
+    procedure, public :: Restart => PMRichardsRestart  
     procedure, public :: Destroy => PMRichardsDestroy
   end type pm_richards_type
   
@@ -419,7 +423,6 @@ end subroutine PMRichardsFinalizeRun
 subroutine PMRichardsResidual(this,snes,xx,r,ierr)
 
   use Richards_module, only : RichardsResidual
-  use Grid_module, only : STRUCTURED_GRID_MIMETIC
 
   implicit none
   
@@ -452,7 +455,6 @@ end subroutine PMRichardsResidual
 subroutine PMRichardsJacobian(this,snes,xx,A,B,flag,ierr)
 
   use Richards_module, only : RichardsJacobian
-  use Grid_module, only : STRUCTURED_GRID_MIMETIC
 
   implicit none
   
@@ -574,7 +576,7 @@ end subroutine PMRichardsTimeCut
 ! ************************************************************************** !
 subroutine PMRichardsUpdateSolution(this)
 
-  use Richards_module, only : RichardsUpdateSolution
+  use Richards_module, only : RichardsUpdateSolution, RichardsUpdateSurfacePress
   use Condition_module
 
   implicit none
@@ -598,6 +600,10 @@ subroutine PMRichardsUpdateSolution(this)
   endif  
   ! end from RealizationUpdate()
   call RichardsUpdateSolution(this%realization)
+#ifdef SURFACE_FLOW
+  if(this%option%nsurfflowdof>0) &
+    call RichardsUpdateSurfacePress(this%realization)
+#endif
 
 end subroutine PMRichardsUpdateSolution     
 
@@ -649,6 +655,52 @@ subroutine PMRichardsComputeMassBalance(this,mass_balance_array)
 #endif
 
 end subroutine PMRichardsComputeMassBalance
+
+! ************************************************************************** !
+!
+! PMRichardsCheckpoint: Checkpoints data associated with Richards PM
+! author: Glenn Hammond
+! date: 07/26/13
+!
+! ************************************************************************** !
+subroutine PMRichardsCheckpoint(this,viewer)
+
+  use Checkpoint_module
+
+  implicit none
+#include "finclude/petscviewer.h"      
+
+  class(pm_richards_type) :: this
+  PetscViewer :: viewer
+  
+  call CheckpointFlowProcessModel(viewer,this%realization) 
+  
+end subroutine PMRichardsCheckpoint
+
+
+! ************************************************************************** !
+!
+! PMRichardsRestart: Restarts data associated with Richards PM
+! author: Glenn Hammond
+! date: 07/30/13
+!
+! ************************************************************************** !
+subroutine PMRichardsRestart(this,viewer)
+
+  use Checkpoint_module
+  use Richards_module, only : RichardsUpdateAuxVars
+
+  implicit none
+#include "finclude/petscviewer.h"      
+
+  class(pm_richards_type) :: this
+  PetscViewer :: viewer
+  
+  call RestartFlowProcessModel(viewer,this%realization)
+  call RichardsUpdateAuxVars(this%realization)
+  call this%UpdateSolution()
+  
+end subroutine PMRichardsRestart
 
 ! ************************************************************************** !
 !

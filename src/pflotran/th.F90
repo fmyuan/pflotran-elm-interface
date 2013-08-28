@@ -3,6 +3,8 @@ module TH_module
   use TH_Aux_module
   use Global_Aux_module
   
+  use PFLOTRAN_Constants_module
+
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   use clm_pflotran_interface_data
 #endif
@@ -10,7 +12,7 @@ module TH_module
   
   private 
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
   
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
@@ -342,7 +344,7 @@ end subroutine THSetupPatch
 ! ************************************************************************** !
 !
 ! THCheckUpdatePre: Checks update prior to update
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! date: 08/02/12
 !
 ! ************************************************************************** !
@@ -389,8 +391,8 @@ subroutine THCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
 
     patch => realization%patch
 
-    call GridVecGetArrayF90(grid,dP,dP_p,ierr)
-    call GridVecGetArrayF90(grid,P,P_p,ierr)
+    call VecGetArrayF90(dP,dP_p,ierr)
+    call VecGetArrayF90(P,P_p,ierr)
 
     press_limit = dabs(option%pressure_change_limit)
     do local_id = 1, grid%nlmax
@@ -409,8 +411,8 @@ subroutine THCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
       dP_p(istart) = delP
     enddo
     
-    call GridVecRestoreArrayF90(grid,dP,dP_p,ierr)
-    call GridVecRestoreArrayF90(grid,P,P_p,ierr)
+    call VecRestoreArrayF90(dP,dP_p,ierr)
+    call VecRestoreArrayF90(P,P_p,ierr)
 
   endif
   
@@ -418,8 +420,8 @@ subroutine THCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
       
     patch => realization%patch
 
-    call GridVecGetArrayF90(grid,dP,dP_p,ierr)
-    call GridVecGetArrayF90(grid,P,P_p,ierr)
+    call VecGetArrayF90(dP,dP_p,ierr)
+    call VecGetArrayF90(P,P_p,ierr)
 
     temp_limit = dabs(option%temperature_change_limit)
     do local_id = 1, grid%nlmax
@@ -437,8 +439,8 @@ subroutine THCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
       dP_p(iend) = delP
     enddo
     
-    call GridVecRestoreArrayF90(grid,dP,dP_p,ierr)
-    call GridVecRestoreArrayF90(grid,P,P_p,ierr)
+    call VecRestoreArrayF90(dP,dP_p,ierr)
+    call VecRestoreArrayF90(P,P_p,ierr)
     
   endif
 
@@ -448,9 +450,9 @@ subroutine THCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
     P_R = option%reference_pressure
     scale = option%pressure_dampening_factor
 
-    call GridVecGetArrayF90(grid,dP,dP_p,ierr)
-    call GridVecGetArrayF90(grid,P,P_p,ierr)
-    call GridVecGetArrayF90(grid,field%flow_r,r_p,ierr)
+    call VecGetArrayF90(dP,dP_p,ierr)
+    call VecGetArrayF90(P,P_p,ierr)
+    call VecGetArrayF90(field%flow_r,r_p,ierr)
     do local_id = 1, grid%nlmax
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
@@ -485,9 +487,9 @@ subroutine THCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
         dP_p(istart) = scale*delP
       endif
     enddo
-    call GridVecRestoreArrayF90(grid,dP,dP_p,ierr)
-    call GridVecRestoreArrayF90(grid,P,P_p,ierr)
-    call GridVecGetArrayF90(grid,field%flow_r,r_p,ierr)
+    call VecRestoreArrayF90(dP,dP_p,ierr)
+    call VecRestoreArrayF90(P,P_p,ierr)
+    call VecGetArrayF90(field%flow_r,r_p,ierr)
   endif
 
 end subroutine THCheckUpdatePre
@@ -495,7 +497,7 @@ end subroutine THCheckUpdatePre
 ! ************************************************************************** !
 !
 ! THCheckUpdatePost: Checks update after each update
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! date: 07/25/12
 !
 ! ************************************************************************** !
@@ -554,12 +556,12 @@ subroutine THCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
   P1_changed = PETSC_FALSE
   
   if (option%check_stomp_norm) then
-    call GridVecGetArrayF90(grid,dP,dP_p,ierr)
-    call GridVecGetArrayF90(grid,P1,P1_p,ierr)
-    call GridVecGetArrayF90(grid,field%volume,volume_p,ierr)
-    call GridVecGetArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
-    call GridVecGetArrayF90(grid,field%ithrm_loc,ithrm_loc_p,ierr)
-    call GridVecGetArrayF90(grid,field%flow_r,r_p,ierr)
+    call VecGetArrayF90(dP,dP_p,ierr)
+    call VecGetArrayF90(P1,P1_p,ierr)
+    call VecGetArrayF90(field%volume,volume_p,ierr)
+    call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+    call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr)
+    call VecGetArrayF90(field%flow_r,r_p,ierr)
     
     inf_norm = 0.d0
     vol_frac_prim = 1.d0
@@ -590,11 +592,11 @@ subroutine THCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
     call MPI_Allreduce(inf_norm,option%stomp_norm,ONE_INTEGER_MPI, &
                        MPI_DOUBLE_PRECISION, &
                        MPI_MAX,option%mycomm,ierr)
-    call GridVecRestoreArrayF90(grid,dP,dP_p,ierr)
-    call GridVecRestoreArrayF90(grid,P1,P1_p,ierr)
-    call GridVecRestoreArrayF90(grid,field%volume,volume_p,ierr)
-    call GridVecRestoreArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
-    call GridVecGetArrayF90(grid,field%flow_r,r_p,ierr)
+    call VecRestoreArrayF90(dP,dP_p,ierr)
+    call VecRestoreArrayF90(P1,P1_p,ierr)
+    call VecRestoreArrayF90(field%volume,volume_p,ierr)
+    call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+    call VecGetArrayF90(field%flow_r,r_p,ierr)
   endif
   
 end subroutine THCheckUpdatePost
@@ -675,8 +677,8 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
 
   global_aux_vars => patch%aux%Global%aux_vars
 
-  call GridVecGetArrayF90(grid,field%volume,volume_p,ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
+  call VecGetArrayF90(field%volume,volume_p,ierr)
+  call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -691,15 +693,15 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
       porosity_loc_p(ghosted_id)*volume_p(local_id)
   enddo
 
-  call GridVecRestoreArrayF90(grid,field%volume,volume_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
+  call VecRestoreArrayF90(field%volume,volume_p,ierr)
+  call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
   
 end subroutine THComputeMassBalancePatch
 
 ! ************************************************************************** !
 !
 ! THZeroMassBalDeltaPatch: Zeros mass balance delta array
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! date: 12/13/11
 !
 ! ************************************************************************** !
@@ -895,11 +897,11 @@ subroutine THUpdateAuxVarsPatch(realization)
   global_aux_vars_bc => patch%aux%Global%aux_vars_bc
   global_aux_vars_ss => patch%aux%Global%aux_vars_ss
   
-  call GridVecGetArrayF90(grid,field%flow_xx_loc,xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc,icap_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%iphas_loc,iphase_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%perm_xx_loc,perm_xx_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
+  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr)
+  call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr)
+  call VecGetArrayF90(field%iphas_loc,iphase_loc_p,ierr)
+  call VecGetArrayF90(field%perm_xx_loc,perm_xx_loc_p,ierr)
+  call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -1041,11 +1043,11 @@ subroutine THUpdateAuxVarsPatch(realization)
   enddo
   deallocate(xx)
 
-  call GridVecRestoreArrayF90(grid,field%flow_xx_loc,xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc,icap_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%iphas_loc,iphase_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_xx_loc,perm_xx_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr)
+  call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p,ierr)
+  call VecRestoreArrayF90(field%perm_xx_loc,perm_xx_loc_p,ierr)
+  call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
   
   patch%aux%TH%aux_vars_up_to_date = PETSC_TRUE
 
@@ -1119,7 +1121,7 @@ end subroutine THUpdateSolution
 !
 ! THUpdateSolutionPatch: Updates data in module after a successful time 
 !                             step
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! date: 12/13/11
 !
 ! ************************************************************************** !
@@ -1221,16 +1223,16 @@ subroutine THUpdateFixedAccumPatch(realization)
   TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
 
           
-  call GridVecGetArrayF90(grid,field%flow_xx,xx_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc,icap_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%iphas_loc,iphase_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%tortuosity_loc,tor_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%volume,volume_p,ierr)
-  call GridVecGetArrayF90(grid,field%ithrm_loc,ithrm_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%perm_xx_loc,perm_xx_loc_p,ierr)
+  call VecGetArrayF90(field%flow_xx,xx_p, ierr)
+  call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr)
+  call VecGetArrayF90(field%iphas_loc,iphase_loc_p,ierr)
+  call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+  call VecGetArrayF90(field%tortuosity_loc,tor_loc_p,ierr)
+  call VecGetArrayF90(field%volume,volume_p,ierr)
+  call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr)
+  call VecGetArrayF90(field%perm_xx_loc,perm_xx_loc_p,ierr)
 
-  call GridVecGetArrayF90(grid,field%flow_accum, accum_p, ierr)
+  call VecGetArrayF90(field%flow_accum, accum_p, ierr)
 
 
   vol_frac_prim = 1.d0
@@ -1275,16 +1277,16 @@ subroutine THUpdateFixedAccumPatch(realization)
                               option,vol_frac_prim,accum_p(istart:iend)) 
   enddo
 
-  call GridVecRestoreArrayF90(grid,field%flow_xx,xx_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc,icap_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%iphas_loc,iphase_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%tortuosity_loc,tor_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%volume,volume_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%ithrm_loc,ithrm_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_xx_loc,perm_xx_loc_p,ierr)
+  call VecRestoreArrayF90(field%flow_xx,xx_p, ierr)
+  call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr)
+  call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p,ierr)
+  call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+  call VecRestoreArrayF90(field%tortuosity_loc,tor_loc_p,ierr)
+  call VecRestoreArrayF90(field%volume,volume_p,ierr)
+  call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr)
+  call VecRestoreArrayF90(field%perm_xx_loc,perm_xx_loc_p,ierr)
 
-  call GridVecRestoreArrayF90(grid,field%flow_accum, accum_p, ierr)
+  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr)
 
 #if 0
    call THNumericalJacobianTest(field%flow_xx,realization)
@@ -1345,7 +1347,7 @@ subroutine THNumericalJacobianTest(xx,realization)
   call MatSetFromOptions(A,ierr)
     
   call THResidual(PETSC_NULL_OBJECT,xx,res,realization,ierr)
-  call GridVecGetArrayF90(grid,res,vec2_p,ierr)
+  call VecGetArrayF90(res,vec2_p,ierr)
   do icell = 1,grid%nlmax
     if (associated(patch%imat)) then
       if (patch%imat(grid%nL2G(icell)) <= 0) cycle
@@ -1367,7 +1369,7 @@ subroutine THNumericalJacobianTest(xx,realization)
       call VecRestoreArrayF90(res_pert,vec_p,ierr)
     enddo
   enddo
-  call GridVecRestoreArrayF90(grid,res,vec2_p,ierr)
+  call VecRestoreArrayF90(res,vec2_p,ierr)
 
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr)
@@ -3229,20 +3231,20 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
 
 
 ! now assign access pointer to local variables
-  call GridVecGetArrayF90(grid,field%flow_xx_loc, xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid, r, r_p, ierr)
-  call GridVecGetArrayF90(grid,field%flow_accum, accum_p, ierr)
+  call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
+  call VecGetArrayF90( r, r_p, ierr)
+  call VecGetArrayF90(field%flow_accum, accum_p, ierr)
  
-  call GridVecGetArrayF90(grid,field%flow_yy,yy_p,ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%tortuosity_loc, tor_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%volume, volume_p, ierr)
-  call GridVecGetArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%iphas_loc, iphase_loc_p, ierr)
+  call VecGetArrayF90(field%flow_yy,yy_p,ierr)
+  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecGetArrayF90(field%tortuosity_loc, tor_loc_p, ierr)
+  call VecGetArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+  call VecGetArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+  call VecGetArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
+  call VecGetArrayF90(field%volume, volume_p, ierr)
+  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
+  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr)
+  call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr)
   !print *,' Finished scattering non deriv'
   
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
@@ -3607,19 +3609,19 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
     enddo
   endif
 
-  call GridVecRestoreArrayF90(grid,r, r_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%flow_yy, yy_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%flow_xx_loc, xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%flow_accum, accum_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%tortuosity_loc, tor_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%volume, volume_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%iphas_loc, iphase_loc_p, ierr)
+  call VecRestoreArrayF90(r, r_p, ierr)
+  call VecRestoreArrayF90(field%flow_yy, yy_p, ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr)
+  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecRestoreArrayF90(field%tortuosity_loc, tor_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
+  call VecRestoreArrayF90(field%volume, volume_p, ierr)
+  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
+  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr)
+  call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr)
 
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   call VecRestoreArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr)
@@ -3823,17 +3825,17 @@ subroutine THJacobianPatch(snes,xx,A,B,flag,realization,ierr)
    call THNumericalJacobianTest(xx,realization)
 #endif
 
-  call GridVecGetArrayF90(grid,field%flow_xx_loc, xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%tortuosity_loc, tor_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%volume, volume_p, ierr)
+  call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
+  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecGetArrayF90(field%tortuosity_loc, tor_loc_p, ierr)
+  call VecGetArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+  call VecGetArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+  call VecGetArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
+  call VecGetArrayF90(field%volume, volume_p, ierr)
 
-  call GridVecGetArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%iphas_loc, iphase_loc_p, ierr)
+  call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
+  call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr)
+  call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr)
   
   vol_frac_prim = 1.d0
 
@@ -4139,18 +4141,18 @@ subroutine THJacobianPatch(snes,xx,A,B,flag,realization,ierr)
     call PetscViewerDestroy(viewer,ierr)
   endif
   
-  call GridVecRestoreArrayF90(grid,field%flow_xx_loc, xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%tortuosity_loc, tor_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%volume, volume_p, ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecRestoreArrayF90(field%tortuosity_loc, tor_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
+  call VecRestoreArrayF90(field%volume, volume_p, ierr)
 
    
-  call GridVecRestoreArrayF90(grid,field%ithrm_loc, ithrm_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%icap_loc, icap_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%iphas_loc, iphase_loc_p, ierr)
+  call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
+  call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr)
+  call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr)
 
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr)
@@ -4369,7 +4371,7 @@ subroutine THResidualToMass(realization)
       grid => cur_patch%grid
       aux_vars => cur_patch%aux%TH%aux_vars
 
-      call GridVecGetArrayF90(grid,field%flow_ts_mass_balance,mass_balance_p, ierr)
+      call VecGetArrayF90(field%flow_ts_mass_balance,mass_balance_p, ierr)
   
       do local_id = 1, grid%nlmax
         ghosted_id = grid%nL2G(local_id)
@@ -4381,7 +4383,7 @@ subroutine THResidualToMass(realization)
                                  global_aux_vars(ghosted_id)%den_kg(1)
       enddo
 
-      call GridVecRestoreArrayF90(grid,field%flow_ts_mass_balance,mass_balance_p, ierr)
+      call VecRestoreArrayF90(field%flow_ts_mass_balance,mass_balance_p, ierr)
 
       cur_patch => cur_patch%next
     enddo
@@ -4640,7 +4642,7 @@ end subroutine THSetPlotVariables
 ! least square fit of values from neighboring cells
 ! See:I. Bijelonja, I. Demirdzic, S. Muzaferija -- A finite volume method 
 ! for incompressible linear elasticity, CMAME
-! Author: Satish Karra
+! Author: Satish Karra, LANL
 ! Date: 2/20/12
 !
 ! ************************************************************************** !
@@ -4703,7 +4705,7 @@ end subroutine THComputeGradient
 !
 ! THSecondaryHeat: Calculates the source term contribution due to secondary
 ! continuum in the primary continuum residual 
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! date: 06/2/12
 !
 ! ************************************************************************** !
@@ -4797,7 +4799,7 @@ end subroutine THSecondaryHeat
 !
 ! THSecondaryHeatJacobian: Calculates the source term jacobian contribution 
 ! due to secondary continuum in the primary continuum residual 
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! date: 06/6/12
 !
 ! ************************************************************************** !

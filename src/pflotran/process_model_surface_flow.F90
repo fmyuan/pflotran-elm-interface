@@ -10,11 +10,13 @@ module Process_Model_Surface_Flow_class
   use Communicator_Base_module
   use Option_module
 
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
@@ -230,6 +232,8 @@ subroutine PMSurfaceFlowUpdateSolution(this)
   call FlowConditionUpdate(this%surf_realization%surf_flow_conditions, &
                            this%surf_realization%option, &
                            this%surf_realization%option%time)
+
+  call SurfRealizAllCouplerAuxVars(this%surf_realization,force_update_flag)
 
   call SurfaceFlowUpdateSolution(this%surf_realization)
 

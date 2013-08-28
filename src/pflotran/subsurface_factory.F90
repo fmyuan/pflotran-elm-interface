@@ -2,11 +2,13 @@ module Subsurface_Factory_module
 
   use Subsurface_Simulation_class
   
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
   public :: SubsurfaceInitialize, &
             SubsurfaceInitializePostPETSc, &
@@ -38,6 +40,9 @@ subroutine SubsurfaceInitialize(simulation_base,option)
   ! NOTE: PETSc must already have been initialized here!
   simulation => SubsurfaceSimulationCreate(option)
   call SubsurfaceInitializePostPetsc(simulation,option)
+  
+  ! set first process model coupler as the master
+  simulation%process_model_coupler_list%is_master = PETSC_TRUE
   
   simulation_base => simulation
 
@@ -182,6 +187,7 @@ subroutine HijackSimulation(simulation_old,simulation)
     flow_process_model_coupler%pm_list => cur_process_model
     flow_process_model_coupler%pm_ptr%ptr => cur_process_model
 !    flow_process_model_coupler%timestepper => simulation_old%flow_stepper
+    flow_process_model_coupler%realization => realization
     call HijackTimestepper(simulation_old%flow_stepper, &
                            flow_process_model_coupler%timestepper)
     nullify(cur_process_model)
@@ -198,6 +204,7 @@ subroutine HijackSimulation(simulation_old,simulation)
     tran_process_model_coupler%pm_list => cur_process_model
     tran_process_model_coupler%pm_ptr%ptr => cur_process_model
 !    tran_process_model_coupler%timestepper => simulation_old%tran_stepper
+    tran_process_model_coupler%realization => realization
     call HijackTimestepper(simulation_old%tran_stepper, &
                            tran_process_model_coupler%timestepper)
     nullify(cur_process_model)
@@ -303,7 +310,6 @@ subroutine SubsurfaceJumpStart(simulation)
   use Timestepper_BE_class
   use Output_Aux_module
   use Output_module, only : Output, OutputInit, OutputPrintCouplers
-  use Logging_module  
   use Condition_Control_module
   use Reactive_Transport_module, only : RTJumpStartKineticSorption  
 
@@ -376,10 +382,10 @@ subroutine SubsurfaceJumpStart(simulation)
   transport_read = PETSC_FALSE
   failure = PETSC_FALSE
   
+#if 0      
   if (option%restart_flag) then
     call SubsurfaceRestart(realization,flow_stepper,tran_stepper, &
                            flow_read,transport_read,activity_coefs_read)
-#if 0      
   else if (master_stepper%init_to_steady_state) then
     option%print_screen_flag = OptionPrintToScreen(option)
     option%print_file_flag = OptionPrintToFile(option)
@@ -417,8 +423,8 @@ subroutine SubsurfaceJumpStart(simulation)
       endif
     endif
 ! #if 0
-#endif
   endif
+#endif
 
   if (flow_read .and. option%overwrite_restart_flow) then
     call RealizationRevertFlowParameters(realization)
@@ -450,12 +456,6 @@ subroutine SubsurfaceJumpStart(simulation)
     call RTJumpStartKineticSorption(realization)
   endif
   
-  ! pushed in Init()
-  call PetscLogStagePop(ierr)
-
-  ! popped in TimeStepperFinalizeRun()
-  call PetscLogStagePush(logging%stage(TS_STAGE),ierr)
-
   !if TIMESTEPPER->MAX_STEPS < 0, print out solution composition only
   if (master_stepper%max_time_step < 0) then
     call printMsg(option,'')
@@ -557,7 +557,6 @@ subroutine SubsurfaceRestart(realization,flow_stepper,tran_stepper, &
   use Richards_module, only : RichardsUpdateAuxVars
   use TH_module, only : THUpdateAuxVars
   use THC_module, only : THCUpdateAuxVars
-  use THMC_module, only : THMCUpdateAuxVars
   use General_module, only : GeneralUpdateAuxVars  
 
   implicit none
@@ -648,9 +647,9 @@ subroutine SubsurfaceRestart(realization,flow_stepper,tran_stepper, &
   endif
   
   if (associated(flow_stepper)) flow_stepper%cur_waypoint => &
-    WaypointSkipToTime(realization%waypoints,option%time)
+    WaypointReturnAtTime(realization%waypoints,option%time)
   if (associated(tran_stepper)) tran_stepper%cur_waypoint => &
-    WaypointSkipToTime(realization%waypoints,option%time)
+    WaypointReturnAtTime(realization%waypoints,option%time)
 
   if (flow_read) then
     flow_stepper%target_time = option%flow_time
@@ -667,8 +666,6 @@ subroutine SubsurfaceRestart(realization,flow_stepper,tran_stepper, &
         call THUpdateAuxVars(realization)
       case(THC_MODE)
         call THCUpdateAuxVars(realization)
-      case(THMC_MODE)
-        call THMCUpdateAuxVars(realization)
       case(RICHARDS_MODE)
         call RichardsUpdateAuxVars(realization)
       case(G_MODE)                            ! do not update state
@@ -708,7 +705,7 @@ subroutine HijackTimestepper(stepper_old,stepper_base)
   
   class(stepper_BE_type), pointer :: stepper
 
-  stepper => TimeStepperBECreate()
+  stepper => TimestepperBECreate()
   
   stepper%steps = stepper_old%steps
   stepper%num_newton_iterations = stepper_old%num_newton_iterations

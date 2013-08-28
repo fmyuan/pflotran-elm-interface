@@ -3,11 +3,13 @@ module Waypoint_module
   use Option_module
   use Output_Aux_module
   
+  use PFLOTRAN_Constants_module
+
   implicit none
   
   private
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
   ! linked-list for waypoints in the simulation
   type, public :: waypoint_type
@@ -42,6 +44,7 @@ module Waypoint_module
             WaypointListFillIn, &
             WaypointListRemoveExtraWaypnts, &
             WaypointConvertTimes, &
+            WaypointReturnAtTime, &
             WaypointSkipToTime, &
             WaypointForceMatchToTime, &
             WaypointListCopy, &
@@ -459,19 +462,19 @@ end subroutine WaypointMerge
 
 ! ************************************************************************** !
 !
-! WaypointSkipToTime: Returns a pointer to the first waypoint after time
+! WaypointReturnAtTime: Returns a pointer to the first waypoint after time
 ! author: Glenn Hammond
 ! date: 1/03/08
 !
 ! ************************************************************************** !
-function WaypointSkipToTime(list,time)
+function WaypointReturnAtTime(list,time)
 
   implicit none
 
   type(waypoint_list_type), pointer :: list
   PetscReal :: time
 
-  type(waypoint_type), pointer :: WaypointSkipToTime
+  type(waypoint_type), pointer :: WaypointReturnAtTime
   type(waypoint_type), pointer :: waypoint
   
   waypoint => list%first
@@ -482,12 +485,34 @@ function WaypointSkipToTime(list,time)
   enddo
 
   if (associated(waypoint)) then
-    WaypointSkipToTime => waypoint
+    WaypointReturnAtTime => waypoint
   else
-    nullify(WaypointSkipToTime)
+    nullify(WaypointReturnAtTime)
   endif
 
-end function WaypointSkipToTime
+end function WaypointReturnAtTime
+
+! ************************************************************************** !
+!
+! WaypointSkipToTime: Skips the waypoint ahead to the correct time.
+! author: Glenn Hammond
+! date: 07/31/13
+!
+! ************************************************************************** !
+subroutine WaypointSkipToTime(cur_waypoint,time)
+
+  implicit none
+
+  PetscReal :: time
+  type(waypoint_type), pointer :: cur_waypoint
+  
+  do 
+    if (.not.associated(cur_waypoint)) exit
+    if (cur_waypoint%time > time) exit
+    cur_waypoint => cur_waypoint%next
+  enddo
+
+end subroutine WaypointSkipToTime
 
 ! ************************************************************************** !
 !

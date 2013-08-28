@@ -7,6 +7,8 @@ module Richards_module
   use Matrix_Buffer_module
 #endif
   
+  use PFLOTRAN_Constants_module
+
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   use clm_pflotran_interface_data
 #endif
@@ -14,7 +16,7 @@ module Richards_module
   
   private 
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
   
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
@@ -41,7 +43,8 @@ module Richards_module
          RichardsComputeMassBalance, &
          RichardsDestroy, &
          RichardsCheckUpdatePre, &
-         RichardsCheckUpdatePost
+         RichardsCheckUpdatePost, &
+         RichardsUpdateSurfacePress
 
 contains
 
@@ -237,8 +240,8 @@ subroutine RichardsCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
 
     patch => realization%patch
 
-    call GridVecGetArrayF90(grid,dP,dP_p,ierr)
-    call GridVecGetArrayF90(grid,P,P_p,ierr)
+    call VecGetArrayF90(dP,dP_p,ierr)
+    call VecGetArrayF90(P,P_p,ierr)
 
     pert =dabs(option%saturation_change_limit)
     do local_id = 1, grid%nlmax
@@ -261,8 +264,8 @@ subroutine RichardsCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
       dP_p(local_id) = delP
     enddo
     
-    call GridVecRestoreArrayF90(grid,dP,dP_p,ierr)
-    call GridVecRestoreArrayF90(grid,P,P_p,ierr)
+    call VecRestoreArrayF90(dP,dP_p,ierr)
+    call VecRestoreArrayF90(P,P_p,ierr)
 
   endif
 
@@ -271,9 +274,9 @@ subroutine RichardsCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
     P_R = option%reference_pressure
     scale = option%pressure_dampening_factor
 
-    call GridVecGetArrayF90(grid,dP,dP_p,ierr)
-    call GridVecGetArrayF90(grid,P,P_p,ierr)
-    call GridVecGetArrayF90(grid,field%flow_r,r_p,ierr)
+    call VecGetArrayF90(dP,dP_p,ierr)
+    call VecGetArrayF90(P,P_p,ierr)
+    call VecGetArrayF90(field%flow_r,r_p,ierr)
     do local_id = 1, grid%nlmax
       delP = dP_p(local_id)
       P0 = P_p(local_id)
@@ -306,9 +309,9 @@ subroutine RichardsCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
         dP_p(local_id) = scale*delP
       endif
     enddo
-    call GridVecRestoreArrayF90(grid,dP,dP_p,ierr)
-    call GridVecRestoreArrayF90(grid,P,P_p,ierr)
-    call GridVecGetArrayF90(grid,field%flow_r,r_p,ierr)
+    call VecRestoreArrayF90(dP,dP_p,ierr)
+    call VecRestoreArrayF90(P,P_p,ierr)
+    call VecGetArrayF90(field%flow_r,r_p,ierr)
   endif
 
 end subroutine RichardsCheckUpdatePre
@@ -364,11 +367,11 @@ subroutine RichardsCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
   P1_changed = PETSC_FALSE
   
   if (option%check_stomp_norm) then
-    call GridVecGetArrayF90(grid,dP,dP_p,ierr)
-    call GridVecGetArrayF90(grid,P1,P1_p,ierr)
-    call GridVecGetArrayF90(grid,field%volume,volume_p,ierr)
-    call GridVecGetArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
-    call GridVecGetArrayF90(grid,field%flow_r,r_p,ierr)
+    call VecGetArrayF90(dP,dP_p,ierr)
+    call VecGetArrayF90(P1,P1_p,ierr)
+    call VecGetArrayF90(field%volume,volume_p,ierr)
+    call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+    call VecGetArrayF90(field%flow_r,r_p,ierr)
     
     inf_norm = 0.d0
     do local_id = 1, grid%nlmax
@@ -386,11 +389,11 @@ subroutine RichardsCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
     call MPI_Allreduce(inf_norm,option%stomp_norm,ONE_INTEGER_MPI, &
                        MPI_DOUBLE_PRECISION, &
                        MPI_MAX,option%mycomm,ierr)
-    call GridVecRestoreArrayF90(grid,dP,dP_p,ierr)
-    call GridVecRestoreArrayF90(grid,P1,P1_p,ierr)
-    call GridVecRestoreArrayF90(grid,field%volume,volume_p,ierr)
-    call GridVecRestoreArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
-    call GridVecGetArrayF90(grid,field%flow_r,r_p,ierr)
+    call VecRestoreArrayF90(dP,dP_p,ierr)
+    call VecRestoreArrayF90(P1,P1_p,ierr)
+    call VecRestoreArrayF90(field%volume,volume_p,ierr)
+    call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+    call VecGetArrayF90(field%flow_r,r_p,ierr)
   endif
   
 end subroutine RichardsCheckUpdatePost
@@ -453,8 +456,8 @@ subroutine RichardsComputeMassBalancePatch(realization,mass_balance)
 
   global_aux_vars => patch%aux%Global%aux_vars
 
-  call GridVecGetArrayF90(grid,field%volume,volume_p,ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
+  call VecGetArrayF90(field%volume,volume_p,ierr)
+  call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -467,8 +470,8 @@ subroutine RichardsComputeMassBalancePatch(realization,mass_balance)
       porosity_loc_p(ghosted_id)*volume_p(local_id)
   enddo
 
-  call GridVecRestoreArrayF90(grid,field%volume,volume_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
+  call VecRestoreArrayF90(field%volume,volume_p,ierr)
+  call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
   
 end subroutine RichardsComputeMassBalancePatch
 
@@ -587,7 +590,7 @@ end subroutine RichardsUpdateMassBalancePatch
 ! ************************************************************************** !
 !
 ! RichardsUpdatePermPatch: Updates the permeability based on pressure
-! author: Satish Karra
+! author: Satish Karra, LANL
 ! Date: 01/09/12
 !
 ! ************************************************************************** !
@@ -633,13 +636,13 @@ subroutine RichardsUpdatePermPatch(realization)
     call printErrMsg(option)
   endif
   
-  call GridVecGetArrayF90(grid,field%perm0_xx,perm0_xx_p,ierr)
-  call GridVecGetArrayF90(grid,field%perm0_zz,perm0_zz_p,ierr)
-  call GridVecGetArrayF90(grid,field%perm0_yy,perm0_yy_p,ierr)
-  call GridVecGetArrayF90(grid,field%perm_xx_loc,perm_xx_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%perm_zz_loc,perm_zz_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%perm_yy_loc,perm_yy_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%flow_xx_loc,xx_loc_p, ierr)
+  call VecGetArrayF90(field%perm0_xx,perm0_xx_p,ierr)
+  call VecGetArrayF90(field%perm0_zz,perm0_zz_p,ierr)
+  call VecGetArrayF90(field%perm0_yy,perm0_yy_p,ierr)
+  call VecGetArrayF90(field%perm_xx_loc,perm_xx_loc_p,ierr)
+  call VecGetArrayF90(field%perm_zz_loc,perm_zz_loc_p,ierr)
+  call VecGetArrayF90(field%perm_yy_loc,perm_yy_loc_p,ierr)
+  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr)
   
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -662,13 +665,13 @@ subroutine RichardsUpdatePermPatch(realization)
     perm_zz_loc_p(ghosted_id) = perm0_zz_p(local_id)*scale
   enddo
   
-  call GridVecRestoreArrayF90(grid,field%perm0_xx,perm0_xx_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%perm0_zz,perm0_zz_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%perm0_yy,perm0_yy_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_xx_loc,perm_xx_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_zz_loc,perm_zz_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_yy_loc,perm_yy_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%flow_xx_loc,xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm0_xx,perm0_xx_p,ierr)
+  call VecRestoreArrayF90(field%perm0_zz,perm0_zz_p,ierr)
+  call VecRestoreArrayF90(field%perm0_yy,perm0_yy_p,ierr)
+  call VecRestoreArrayF90(field%perm_xx_loc,perm_xx_loc_p,ierr)
+  call VecRestoreArrayF90(field%perm_zz_loc,perm_zz_loc_p,ierr)
+  call VecRestoreArrayF90(field%perm_yy_loc,perm_yy_loc_p,ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr)
 
   call DiscretizationLocalToLocal(discretization,field%perm_xx_loc, &
                                   field%perm_xx_loc,ONEDOF)
@@ -692,7 +695,6 @@ subroutine RichardsUpdateAuxVars(realization)
 
   use Realization_class
   use Richards_MFD_module
-  use Grid_module, only : STRUCTURED_GRID_MIMETIC
 
   type(realization_type) :: realization
   
@@ -765,10 +767,10 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
   global_aux_vars_bc => patch%aux%Global%aux_vars_bc
   global_aux_vars_ss => patch%aux%Global%aux_vars_ss
     
-  call GridVecGetArrayF90(grid,field%flow_xx, xx_p, ierr)
-  call GridVecGetArrayF90(grid,field%flow_xx_loc,xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_xx_loc,perm_xx_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)  
+  call VecGetArrayF90(field%flow_xx, xx_p, ierr)
+  call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr)
+  call VecGetArrayF90(field%perm_xx_loc,perm_xx_loc_p,ierr)
+  call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)  
 
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
@@ -800,7 +802,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
       if (patch%imat(ghosted_id) <= 0) cycle
 
       select case(boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF))
-        case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
+        case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC,HET_SURF_SEEPAGE_BC)
           xxbc(1) = boundary_condition%flow_aux_real_var(RICHARDS_PRESSURE_DOF,iconn)
         case(NEUMANN_BC,ZERO_GRADIENT_BC,UNIT_GRADIENT_BC)
           xxbc(1) = xx_loc_p(ghosted_id)
@@ -837,10 +839,10 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
     source_sink => source_sink%next
   enddo
 
-  call GridVecRestoreArrayF90(grid,field%flow_xx, xx_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%flow_xx_loc,xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_xx_loc,perm_xx_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)  
+  call VecRestoreArrayF90(field%flow_xx, xx_p, ierr)
+  call VecRestoreArrayF90(field%flow_xx_loc,xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_xx_loc,perm_xx_loc_p,ierr)
+  call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)  
 
   ! Compute gradient using a least squares approach at each control volume
   if(realization%discretization%lsm_flux_method) then
@@ -1012,15 +1014,15 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
   rich_aux_vars => patch%aux%Richards%aux_vars
   global_aux_vars => patch%aux%Global%aux_vars
     
-  call GridVecGetArrayF90(grid,field%flow_xx,xx_p, ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%tortuosity_loc,tor_loc_p,ierr)
-  call GridVecGetArrayF90(grid,field%volume,volume_p,ierr)
-  call GridVecGetArrayF90(grid,field%perm_xx_loc,perm_xx_loc_p,ierr)  
+  call VecGetArrayF90(field%flow_xx,xx_p, ierr)
+  call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+  call VecGetArrayF90(field%tortuosity_loc,tor_loc_p,ierr)
+  call VecGetArrayF90(field%volume,volume_p,ierr)
+  call VecGetArrayF90(field%perm_xx_loc,perm_xx_loc_p,ierr)  
 
 !  call VecGetArrayF90(field%flow_xx_loc_faces, xx_faces_p, ierr)
 
-  call GridVecGetArrayF90(grid,field%flow_accum, accum_p, ierr)
+  call VecGetArrayF90(field%flow_accum, accum_p, ierr)
 
 !  numfaces = 6     ! hex only
 !  allocate(sq_faces(numfaces))
@@ -1043,16 +1045,16 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
                               option,accum_p(local_id:local_id))
   enddo
 
-  call GridVecRestoreArrayF90(grid,field%flow_xx,xx_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc,porosity_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%tortuosity_loc,tor_loc_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%volume,volume_p,ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_xx_loc,perm_xx_loc_p,ierr)  
+  call VecRestoreArrayF90(field%flow_xx,xx_p, ierr)
+  call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+  call VecRestoreArrayF90(field%tortuosity_loc,tor_loc_p,ierr)
+  call VecRestoreArrayF90(field%volume,volume_p,ierr)
+  call VecRestoreArrayF90(field%perm_xx_loc,perm_xx_loc_p,ierr)  
 
 
 !  call VecRestoreArrayF90(field%flow_xx_loc_faces, xx_faces_p, ierr)
 
-  call GridVecRestoreArrayF90(grid,field%flow_accum, accum_p, ierr)
+  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr)
 
 #if 0
 !  call RichardsNumericalJacTest(field%flow_xx,realization)
@@ -1113,7 +1115,7 @@ subroutine RichardsNumericalJacTest(xx,realization)
   call MatSetFromOptions(A,ierr)
     
   call RichardsResidual(PETSC_NULL_OBJECT,xx,res,realization,ierr)
-  call GridVecGetArrayF90(grid,res,vec2_p,ierr)
+  call VecGetArrayF90(res,vec2_p,ierr)
   do icell = 1,grid%nlmax
     if (patch%imat(grid%nL2G(icell)) <= 0) cycle
      idof = icell
@@ -1131,10 +1133,10 @@ subroutine RichardsNumericalJacTest(xx,realization)
           call matsetvalue(a,idof2-1,idof-1,derivative,insert_values,ierr)
         endif
       enddo
-      call GridVecRestoreArrayF90(grid,res_pert,vec_p,ierr)
+      call VecRestoreArrayF90(res_pert,vec_p,ierr)
 !    enddo
   enddo
-  call GridVecRestoreArrayF90(grid,res,vec2_p,ierr)
+  call VecRestoreArrayF90(res,vec2_p,ierr)
 
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr)
@@ -1328,11 +1330,11 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
 !  write(*,*) "RichardsResidual"
 !  read(*,*)
 ! now assign access pointer to local variables
-  call GridVecGetArrayF90(grid,r, r_p, ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
+  call VecGetArrayF90(r, r_p, ierr)
+  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecGetArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+  call VecGetArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+  call VecGetArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
 
   r_p = 0.d0
 
@@ -1517,11 +1519,11 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
     boundary_condition => boundary_condition%next
   enddo
 
-  call GridVecRestoreArrayF90(grid,r, r_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
+  call VecRestoreArrayF90(r, r_p, ierr)
+  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
 
   !read(*,*) local_id
 
@@ -1598,10 +1600,10 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
 #endif
 
   ! now assign access pointer to local variables
-  call GridVecGetArrayF90(grid,r, r_p, ierr)
-  call GridVecGetArrayF90(grid,field%flow_accum, accum_p, ierr)
-  call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%volume, volume_p, ierr)
+  call VecGetArrayF90(r, r_p, ierr)
+  call VecGetArrayF90(field%flow_accum, accum_p, ierr)
+  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecGetArrayF90(field%volume, volume_p, ierr)
 
   ! Accumulation terms ------------------------------------
   if (.not.option%steady_state) then
@@ -1691,10 +1693,10 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   print *, r_p(:)
 #endif
 
-  call GridVecRestoreArrayF90(grid,r, r_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%flow_accum, accum_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%volume, volume_p, ierr)
+  call VecRestoreArrayF90(r, r_p, ierr)
+  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr)
+  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecRestoreArrayF90(field%volume, volume_p, ierr)
 
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   call VecRestoreArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr)
@@ -1893,10 +1895,10 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
       call printErrMsg(option)
   end select
 
-  call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
+  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecGetArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+  call VecGetArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+  call VecGetArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
   
 #if 1
   ! Interior Flux Terms -----------------------------------  
@@ -2124,10 +2126,10 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
     call PetscViewerDestroy(viewer,ierr)
   endif
   
-  call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%perm_zz_loc, perm_zz_loc_p, ierr)
+  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+  call VecRestoreArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
 
 end subroutine RichardsJacobianPatch1
 
@@ -2190,8 +2192,8 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
   rich_aux_vars => patch%aux%Richards%aux_vars
   global_aux_vars => patch%aux%Global%aux_vars
 
-  call GridVecGetArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecGetArrayF90(grid,field%volume, volume_p, ierr)
+  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecGetArrayF90(field%volume, volume_p, ierr)
   
   if (.not.option%steady_state) then
 #if 1
@@ -2292,8 +2294,8 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
     call PetscViewerDestroy(viewer,ierr)
   endif
   
-  call GridVecRestoreArrayF90(grid,field%porosity_loc, porosity_loc_p, ierr)
-  call GridVecRestoreArrayF90(grid,field%volume, volume_p, ierr)
+  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+  call VecRestoreArrayF90(field%volume, volume_p, ierr)
 
 #ifdef BUFFER_MATRIX
   if (option%use_matrix_buffer) then
@@ -2509,6 +2511,104 @@ subroutine RichardsPrintAuxVars(richards_auxvar,global_auxvar,cell_id)
   print *, '   dden_dp: ', richards_auxvar%dden_dp
 
 end subroutine RichardsPrintAuxVars
+
+! ************************************************************************** !
+!> This routine updates the boundary pressure condition corresponding on
+!! the top surface of the subsurface domain accounting for the amount of
+!! infilitration/exfiltration in the previous subsurface timestep.
+!!
+!> @author
+!! Gautam Bisht, LBNL
+!!
+!! date: 07/31/13
+! ************************************************************************** !
+subroutine RichardsUpdateSurfacePress(realization)
+
+  use Realization_class
+  use Patch_module
+  use Option_module
+  use Field_module
+  use Grid_module
+  use Coupler_module
+  use Connection_module
+  use Material_module
+  use Logging_module
+  use String_module
+  use Water_EOS_module
+
+  implicit none
+
+  type(realization_type) :: realization
+
+#ifdef SURFACE_FLOW
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(coupler_type), pointer :: boundary_condition
+  type(connection_set_type), pointer :: cur_connection_set
+  type(richards_auxvar_type), pointer :: rich_aux_vars_bc(:)
+  type(global_auxvar_type), pointer :: global_aux_vars_bc(:)  
+  PetscInt :: ghosted_id
+  PetscInt :: local_id
+  PetscInt :: sum_connection
+  PetscInt :: iconn
+  PetscReal :: den
+  PetscReal :: surfpress_old
+  PetscReal :: surfpress_new
+  PetscErrorCode :: ierr
+  
+  option => realization%option
+  patch => realization%patch
+  grid => patch%grid
+
+  rich_aux_vars_bc => patch%aux%Richards%aux_vars_bc
+  global_aux_vars_bc => patch%aux%Global%aux_vars_bc
+    
+
+  call density(option%reference_temperature,option%reference_pressure,den)
+
+  ! boundary conditions
+  boundary_condition => patch%boundary_conditions%first
+  sum_connection = 0    
+  do 
+    if (.not.associated(boundary_condition)) exit
+    cur_connection_set => boundary_condition%connection_set
+    if(StringCompare(boundary_condition%name,'from_surface_bc')) then
+
+      if(boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF) /= &
+         HET_SURF_SEEPAGE_BC) then
+        call printErrMsg(option,'from_surface_bc is not of type ' // &
+                        'HET_SURF_SEEPAGE_BC')
+      endif
+
+      do iconn = 1, cur_connection_set%num_connections
+        sum_connection = sum_connection + 1
+        local_id = cur_connection_set%id_dn(iconn)
+        ghosted_id = grid%nL2G(local_id)
+
+        surfpress_old = &
+          boundary_condition%flow_aux_real_var(RICHARDS_PRESSURE_DOF,iconn)
+
+        surfpress_new = surfpress_old - &
+          patch%boundary_velocities(1,sum_connection)*option%flow_dt* &
+          (abs(option%gravity(3)))*den
+
+        surfpress_new = max(surfpress_new,option%reference_pressure)
+
+        boundary_condition%flow_aux_real_var(RICHARDS_PRESSURE_DOF,iconn) = &
+          surfpress_new
+      enddo
+        
+    else
+      sum_connection = sum_connection + cur_connection_set%num_connections
+    endif
+ 
+    boundary_condition => boundary_condition%next
+
+  enddo
+#endif
+
+end subroutine RichardsUpdateSurfacePress
 
 ! ************************************************************************** !
 !

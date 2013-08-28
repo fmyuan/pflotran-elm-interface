@@ -1,10 +1,12 @@
 module Hydrostatic_module
  
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
   public :: HydrostaticUpdateCoupler, &
             HydrostaticTest
@@ -75,7 +77,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   nullify(pressure_array)
   nullify(datum_dataset)
   
-  delta_z = min((grid%z_max_global-grid%z_min_global/500),1.d0)
+  delta_z = min((grid%z_max_global-grid%z_min_global)/500,1.d0)
   temperature_at_datum = option%reference_temperature
   concentration_at_datum = 0.d0
   
@@ -204,7 +206,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum+1,num_pressures
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE,THC_MODE,THMC_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE, MIS_MODE)
+        case(TH_MODE,THC_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE, MIS_MODE)
           temperature = temperature + temperature_gradient(Z_DIRECTION)*delta_z
       end select
       call nacl_den(temperature,pressure0*1.d-6,xm_nacl,dw_kg) 
@@ -236,7 +238,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     ! compute pressures above datum, if any
     pressure0 = pressure_array(idatum)
     select case(option%iflowmode)
-      case(TH_MODE,THC_MODE,THMC_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,MIS_MODE,G_MODE)
+      case(TH_MODE,THC_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,MIS_MODE,G_MODE)
         temperature = temperature_at_datum
     end select
     dist_z = 0.d0
@@ -244,7 +246,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum-1,1,-1
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE,THC_MODE,THMC_MODE,MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE)
+        case(TH_MODE,THC_MODE,MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE)
           temperature = temperature - temperature_gradient(Z_DIRECTION)*delta_z
       end select
       call nacl_den(temperature,pressure0*1.d-6,xm_nacl,dw_kg) 
@@ -384,7 +386,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
     ! assign other dofs
     select case(option%iflowmode)
-      case(THC_MODE,THMC_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE)
+      case(THC_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE)
         temperature = temperature_at_datum + &
                     temperature_gradient(X_DIRECTION)*dist_x + & ! gradient in K/m
                     temperature_gradient(Y_DIRECTION)*dist_y + &
@@ -481,7 +483,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       endif
 
       select case(option%iflowmode)
-        case(TH_MODE,THC_MODE,THMC_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE)
+        case(TH_MODE,THC_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE)
            temperature = temperature_at_datum + &
                       temperature_gradient(X_DIRECTION)*dist_x + & ! gradient in K/m
                       temperature_gradient(Y_DIRECTION)*dist_y + &

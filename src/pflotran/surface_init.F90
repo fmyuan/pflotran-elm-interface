@@ -2,9 +2,11 @@
 
 module Surface_Init_module
 
+  use PFLOTRAN_Constants_module
+
   implicit none
 
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
@@ -389,6 +391,8 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
             option%subsurf_surf_coupling = SEQ_COUPLED
           case('FULLY_COUPLED')
             option%subsurf_surf_coupling = FULLY_COUPLED
+          case('SEQ_COUPLED_NEW')
+            option%subsurf_surf_coupling = SEQ_COUPLED_NEW
           case default
             option%io_buffer = 'Invalid value for SURF_SUBSURFACE_COUPLING'
             call printErrMsg(option)
@@ -931,7 +935,7 @@ subroutine SurfaceInitMatPropToRegions(surf_realization)
     do
       if (.not.associated(cur_patch)) exit
 
-      call GridVecGetArrayF90(grid,surf_field%mannings0,man0_p,ierr)
+      call VecGetArrayF90(surf_field%mannings0,man0_p,ierr)
 
       do local_id = 1, grid%nlmax
         ghosted_id = grid%nL2G(local_id)
@@ -969,7 +973,7 @@ subroutine SurfaceInitMatPropToRegions(surf_realization)
         man0_p(local_id) = surf_material_property%mannings
       enddo ! local_id - loop
 
-      call GridVecRestoreArrayF90(grid,surf_field%mannings0,man0_p,ierr)
+      call VecRestoreArrayF90(surf_field%mannings0,man0_p,ierr)
       
       cur_patch => cur_patch%next
     enddo ! looping over patches
