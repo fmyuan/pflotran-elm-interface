@@ -73,9 +73,6 @@ subroutine PMCSurfaceInit(this)
   call PMCBaseInit(this)
   nullify(this%surf_realization)
   nullify(this%subsurf_realization)
-  this%Synchronize1 => PMCSurfaceSynchronize1
-  this%Synchronize2 => PMCSurfaceSynchronize2
-  this%Synchronize3 => PMCSurfaceSynchronize3
 !  nullify(this%surf_timestepper)
 
 end subroutine PMCSurfaceInit
@@ -112,18 +109,13 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
   PetscBool :: plot_flag
   PetscBool :: transient_plot_flag
   class(pm_base_type), pointer :: cur_pm
-  PetscReal :: dt_max
+  PetscReal :: dt_max_loc
+  PetscReal :: dt_max_glb
+  PetscErrorCode :: ierr
   
   this%option%io_buffer = trim(this%name) // ':' // trim(this%pm_list%name)
   call printVerboseMsg(this%option)
   
-  if (associated(this%Synchronize1)) then
-    !geh: PGI requires cast to base
-    !call this%Synchronize1()
-    pmc_base => this%CastToBase()
-    !call pmc_base%Synchronize1()
-  endif
-
   ! Get data of other process-model
   call this%GetAuxData()
 
@@ -140,24 +132,24 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
 
     select case(this%option%iflowmode)
       case (RICHARDS_MODE)
-        call SurfaceFlowComputeMaxDt(this%surf_realization,dt_max)
+        call SurfaceFlowComputeMaxDt(this%surf_realization,dt_max_loc)
       case (TH_MODE)
-        call SurfaceTHComputeMaxDt(this%surf_realization,dt_max)
+        call SurfaceTHComputeMaxDt(this%surf_realization,dt_max_loc)
     end select
+
+    ! Find mininum allowable timestep across all processors
+    call MPI_Allreduce(dt_max_loc,dt_max_glb,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION,&
+                     MPI_MIN,this%option%mycomm,ierr)
+
     select type(timestepper => this%timestepper)
       class is(timestepper_surface_type)
-        timestepper%dt_max_allowable = dt_max
+        timestepper%dt_max_allowable = dt_max_glb
     end select
     call this%timestepper%SetTargetTime(sync_time,this%option, &
                                         local_stop_flag,plot_flag, &
                                         transient_plot_flag)
 
     this%option%surf_flow_dt = this%timestepper%dt
-    if (associated(this%Synchronize2)) then
-      !geh: PGI requires cast to base
-      pmc_base => this%CastToBase()
-      !call pmc_base%Synchronize2()
-    endif
 
     ! Accumulate data needed by process-model
     call this%AccumulateAuxData()
@@ -214,10 +206,6 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
   
   this%option%surf_flow_time = this%timestepper%target_time
 
-  if (associated(this%Synchronize3)) then
-    !call this%Synchronize3()
-  endif
-
   ! Set data needed by process-model
   call this%SetAuxData()
 
@@ -229,156 +217,6 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
   stop_flag = max(stop_flag,local_stop_flag)
   
 end subroutine PMCSurfaceRunToTime
-
-! ************************************************************************** !
-!> This routine
-!!
-!> @author
-!! Gautam Bisht, LBNL
-!!
-!! date: 07/08/13
-! ************************************************************************** !
-subroutine PMCSurfaceSynchronize1(this)
-
-  use Surface_Flow_module
-  use Surface_TH_module
-  use Option_module
-
-  implicit none
-  
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-
-  class(pmc_base_type), pointer :: this
-  PetscErrorCode :: ierr
-
-  PetscReal :: dt
-
-  if(this%option%subsurf_surf_coupling == SEQ_COUPLED) then
-    select type(pmc => this)
-      class is(pmc_surface_type)
-        select case(this%option%iflowmode)
-          case (RICHARDS_MODE)
-            call SurfaceFlowUpdateSurfBC(pmc%subsurf_realization, &
-                                             pmc%surf_realization)
-          case (TH_MODE)
-            call SurfaceTHUpdateSurfBC(pmc%subsurf_realization, &
-                                           pmc%surf_realization)
-        end select
-    end select
-  endif
-
-  if (this%option%subsurf_surf_coupling == SEQ_COUPLED_NEW) then
-    dt = this%option%surf_subsurf_coupling_flow_dt
-    select type(pmc => this)
-      class is(pmc_surface_type)
-        select case(this%option%iflowmode)
-          case (RICHARDS_MODE)
-            call SurfaceFlowUpdateSurfState(pmc%subsurf_realization, &
-                                             pmc%surf_realization, dt)
-          case (TH_MODE)
-            call printErrMsg(this%option, &
-            'Added code in PMCSurfaceSynchronize1 for SEQ_COUPLED_NEW in TH')
-        end select
-    end select
-  endif
-
-end subroutine PMCSurfaceSynchronize1
-
-! ************************************************************************** !
-!> This routine
-!!
-!> @author
-!! Gautam Bisht, LBNL
-!!
-!! date: 07/08/13
-! ************************************************************************** !
-subroutine PMCSurfaceSynchronize2(this)
-
-  use Surface_Flow_module
-  use Surface_TH_module
-  use Option_module
-
-  implicit none
-  
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-
-  class(pmc_base_type), pointer :: this
-  PetscErrorCode :: ierr
-
-  if(this%option%subsurf_surf_coupling == SEQ_COUPLED) then
-    select type(pmc => this)
-      class is(pmc_surface_type)
-        select case(this%option%iflowmode)
-          case (RICHARDS_MODE)
-            call SurfaceFlowSurf2SubsurfFlux(pmc%subsurf_realization, &
-                                             pmc%surf_realization)
-          case (TH_MODE)
-            call SurfaceTHSurf2SubsurfFlux(pmc%subsurf_realization, &
-                                           pmc%surf_realization)
-        end select
-    end select
-  endif
-
-end subroutine PMCSurfaceSynchronize2
-
-! ************************************************************************** !
-!> This routine
-!!
-!> @author
-!! Gautam Bisht, LBNL
-!!
-!! date: 07/08/13
-! ************************************************************************** !
-subroutine PMCSurfaceSynchronize3(this)
-
-  use Surface_Flow_module
-  use Surface_TH_module
-  use Option_module
-
-  implicit none
-  
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-
-  class(pmc_base_type), pointer :: this
-  PetscReal :: dt
-  PetscErrorCode :: ierr
-
-  dt = this%option%surf_subsurf_coupling_flow_dt
-
-  if(this%option%subsurf_surf_coupling == SEQ_COUPLED) then
-    select type(pmc => this)
-      class is(pmc_surface_type)
-        select case(this%option%iflowmode)
-          case (RICHARDS_MODE)
-            call SurfaceFlowUpdateSubsurfSS(pmc%subsurf_realization, &
-                                            pmc%surf_realization, &
-                                            dt)
-          case (TH_MODE)
-            call SurfaceTHUpdateSubsurfSS(pmc%subsurf_realization, &
-                                            pmc%surf_realization,dt)
-          end select
-    end select
-  endif
-  
-  if (this%option%subsurf_surf_coupling == SEQ_COUPLED_NEW) then
-    select type(pmc => this)
-      class is(pmc_surface_type)
-        select case(this%option%iflowmode)
-          case (RICHARDS_MODE)
-            call SurfaceFlowUpdateSubsurfBC(pmc%subsurf_realization, &
-                                            pmc%surf_realization)
-          case (TH_MODE)
-            call printErrMsg(this%option, &
-              'Added code in PMCSurfaceSynchronize3 for SEQ_COUPLED_NEW in TH mode')
-          end select
-    end select
-  endif
-
-end subroutine PMCSurfaceSynchronize3
-
 
 ! ************************************************************************** !
 !> This routine
@@ -444,7 +282,7 @@ subroutine PMCSurfaceGetAuxData(this)
 
   PetscErrorCode :: ierr
 
-  if(this%option%subsurf_surf_coupling == SEQ_COUPLED) then
+  if(this%option%subsurf_surf_coupling == SEQ_COUPLED_NEW) then
     select type(pmc => this)
       class is(pmc_surface_type)
         select case(this%option%iflowmode)
@@ -457,6 +295,7 @@ subroutine PMCSurfaceGetAuxData(this)
                                pmc%sim_aux%subsurf_pres_top_bc, &
                                pmc%surf_realization%surf_field%press_subsurf, &
                                INSERT_VALUES,SCATTER_FORWARD,ierr)
+            call SurfaceFlowUpdateSurfStateNew(pmc%surf_realization)
           case (TH_MODE)
             call SurfaceTHUpdateSurfBC(pmc%subsurf_realization, &
                                            pmc%surf_realization)
@@ -507,6 +346,23 @@ subroutine PMCSurfaceSetAuxData(this)
                                pmc%sim_aux%surf_mflux_exchange_with_subsurf, &
                                pmc%sim_aux%subsurf_mflux_exchange_with_surf, &
                                INSERT_VALUES,SCATTER_FORWARD,ierr)
+
+          case (TH_MODE)
+            call SurfaceTHUpdateSubsurfSS(pmc%subsurf_realization, &
+                                            pmc%surf_realization,dt)
+            this%option%io_buffer='Extend PMCSurfaceGetAuxData for TH'
+            call printErrMsg(this%option)
+        end select
+    end select
+  endif
+
+  if(this%option%subsurf_surf_coupling == SEQ_COUPLED_NEW) then
+    select type(pmc => this)
+      class is(pmc_surface_type)
+        select case(this%option%iflowmode)
+          case (RICHARDS_MODE)
+            call VecCopy(pmc%surf_realization%surf_field%flow_xx, &
+                         pmc%sim_aux%surf_head, ierr)
           case (TH_MODE)
             call SurfaceTHUpdateSubsurfSS(pmc%subsurf_realization, &
                                             pmc%surf_realization,dt)

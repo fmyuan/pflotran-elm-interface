@@ -77,13 +77,13 @@ private
 !            SurfRealizUpdateSubsurfBC, &
 !            SurfRealizUpdateSurfBC, &
 !            SurfRealizSurf2SubsurfFlux, &
-            SurfRealizGetDataset
+            SurfRealizGetVariable
 
   !TODO(intel)
-!  public :: SurfaceRealizationGetDataset     
+!  public :: SurfaceRealizationGetVariable     
   
-!  interface SurfaceRealizationGetDataset
-!    module procedure :: RealizationGetDataset ! from Realization_Base_class
+!  interface SurfaceRealizationGetVariable
+!    module procedure :: RealizationGetVariable ! from Realization_Base_class
 !  end interface
   
 contains
@@ -905,6 +905,18 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
                        Mat_vert_to_face_subsurf, &
                        ierr)
 
+   call MatCreateAIJ(option%mycomm, &
+                     PETSC_DECIDE, &
+                     top_region%num_cells, &
+                     subsurf_grid%num_vertices_global, &
+                     PETSC_DETERMINE, &
+                     12, &
+                     PETSC_NULL_INTEGER, &
+                     12, &
+                     PETSC_NULL_INTEGER, &
+                     Mat_vert_to_face_subsurf_transp, &
+                     ierr)
+
   call VecCreateMPI(option%mycomm,top_region%num_cells,PETSC_DETERMINE, &
                     subsurf_petsc_ids,ierr)  
   call VecCreateMPI(option%mycomm,top_region%num_cells,PETSC_DETERMINE, &
@@ -940,8 +952,15 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
       int_array4_0(ivertex,1) = &
         subsurf_grid%vertex_ids_natural(vertex_id_local)-1
     enddo
-    call MatSetValues(Mat_vert_to_face_subsurf,1,ii-1+offset, &
-                      nvertices,int_array4_0,real_array4, &
+    call MatSetValues(Mat_vert_to_face_subsurf, &
+                      1,ii-1+offset, &
+                      nvertices,int_array4_0, &
+                      real_array4, &
+                      INSERT_VALUES,ierr)
+    call MatSetValues(Mat_vert_to_face_subsurf_transp, &
+                      nvertices,int_array4_0, &
+                      1,ii-1+offset, &
+                      real_array4, &
                       INSERT_VALUES,ierr)
   enddo
 
@@ -950,6 +969,8 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
 
   call MatAssemblyBegin(Mat_vert_to_face_subsurf,MAT_FINAL_ASSEMBLY,ierr)
   call MatAssemblyEnd(Mat_vert_to_face_subsurf,MAT_FINAL_ASSEMBLY,ierr)
+  call MatAssemblyBegin(Mat_vert_to_face_subsurf_transp,MAT_FINAL_ASSEMBLY,ierr)
+  call MatAssemblyEnd(Mat_vert_to_face_subsurf_transp,MAT_FINAL_ASSEMBLY,ierr)
 
 #if UGRID_DEBUG
   string = 'Mat_vert_to_face_subsurf.out'
@@ -958,8 +979,8 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
   call PetscViewerDestroy(viewer,ierr)
 #endif  
 
-  call MatTranspose(Mat_vert_to_face_subsurf,MAT_INITIAL_MATRIX, &
-                    Mat_vert_to_face_subsurf_transp,ierr)
+  !call MatTranspose(Mat_vert_to_face_subsurf,MAT_INITIAL_MATRIX, &
+  !                  Mat_vert_to_face_subsurf_transp,ierr)
 
 #if UGRID_DEBUG
   string = 'Mat_vert_to_face_subsurf_transp.out'
@@ -984,6 +1005,18 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
                        PETSC_NULL_INTEGER, &
                        Mat_vert_to_face_surf, &
                        ierr)
+
+  call MatCreateAIJ(option%mycomm, &
+                    PETSC_DECIDE, &
+                    surf_grid%nlmax, &
+                    subsurf_grid%num_vertices_global, &
+                    PETSC_DETERMINE, &
+                    12, &
+                    PETSC_NULL_INTEGER, &
+                    12, &
+                    PETSC_NULL_INTEGER, &
+                    Mat_vert_to_face_surf_transp, &
+                    ierr)
 
   call VecCreateMPI(option%mycomm,surf_grid%nlmax,PETSC_DETERMINE, &
                     surf_petsc_ids,ierr)
@@ -1013,6 +1046,11 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
    call MatSetValues(Mat_vert_to_face_surf,1,local_id-1+offset, &
                      nvertices,int_array4_0,real_array4, &
                      INSERT_VALUES,ierr)
+   call MatSetValues(Mat_vert_to_face_surf_transp, &
+                     nvertices,int_array4_0, &
+                     1,local_id-1+offset, &
+                     real_array4, &
+                     INSERT_VALUES,ierr)
   enddo
 
   call VecRestoreArrayF90(surf_petsc_ids,vec_ptr,ierr)
@@ -1020,6 +1058,9 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
 
   call MatAssemblyBegin(Mat_vert_to_face_surf,MAT_FINAL_ASSEMBLY,ierr)
   call MatAssemblyEnd(Mat_vert_to_face_surf,MAT_FINAL_ASSEMBLY,ierr)
+
+  call MatAssemblyBegin(Mat_vert_to_face_surf_transp,MAT_FINAL_ASSEMBLY,ierr)
+  call MatAssemblyEnd(Mat_vert_to_face_surf_transp,MAT_FINAL_ASSEMBLY,ierr)
 
 #if UGRID_DEBUG
   string = 'Mat_vert_to_face_surf.out'
@@ -1033,8 +1074,8 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
   call PetscViewerDestroy(viewer,ierr)
 #endif
 
-  call MatTranspose(Mat_vert_to_face_surf,MAT_INITIAL_MATRIX, &
-                    Mat_vert_to_face_surf_transp,ierr)
+  !call MatTranspose(Mat_vert_to_face_surf,MAT_INITIAL_MATRIX, &
+  !                  Mat_vert_to_face_surf_transp,ierr)
 
 #if UGRID_DEBUG
   string = 'Mat_vert_to_face_surf_transp.out'
@@ -1411,7 +1452,7 @@ end subroutine SurfRealizUpdate
 !!
 !! date: 05/22/12
 ! ************************************************************************** !
-subroutine SurfRealizGetDataset(surf_realization,vec,ivar,isubvar,isubvar1)
+subroutine SurfRealizGetVariable(surf_realization,vec,ivar,isubvar,isubvar1)
 
   use Option_module
   use Surface_Field_module
@@ -1424,14 +1465,14 @@ subroutine SurfRealizGetDataset(surf_realization,vec,ivar,isubvar,isubvar1)
   PetscInt :: isubvar
   PetscInt, optional :: isubvar1
 
-  call PatchGetDataset(surf_realization%patch, &
+  call PatchGetVariable(surf_realization%patch, &
                        surf_realization%surf_field, &
                        !surf_realization%reaction, &
                        surf_realization%option, &
                        surf_realization%output_option, &
                        vec,ivar,isubvar,isubvar1)
 
-end subroutine SurfRealizGetDataset
+end subroutine SurfRealizGetVariable
 
 ! ************************************************************************** !
 !> This routine creates waypoints assocated with source/sink, boundary 
