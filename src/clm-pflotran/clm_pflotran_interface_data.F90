@@ -64,6 +64,29 @@ module clm_pflotran_interface_data
     Vec :: col_ntrunc_vr_pf         ! (gN/m3) vertically-resolved column-level sink for N truncation
     Vec :: smin_no3_vr_pf           ! (gN/m3) vertically-resolved soil mineral NO3
     Vec :: smin_nh4_vr_pf           ! (gN/m3) vertically-resolved soil mineral NH4
+
+  !(ia) Biogeochemistry flux/rates
+    Vec :: rate_lit1c_clm
+    Vec :: rate_lit2c_clm
+    Vec :: rate_lit3c_clm
+    Vec :: rate_lit1n_clm
+    Vec :: rate_lit2n_clm
+    Vec :: rate_lit3n_clm
+    Vec :: rate_cwdc_clm
+    Vec :: rate_cwdn_clm
+    Vec :: rate_minn_clm
+    Vec :: rate_plantnuptake_clm
+
+    Vec :: rate_lit1c_pf
+    Vec :: rate_lit2c_pf
+    Vec :: rate_lit3c_pf
+    Vec :: rate_lit1n_pf
+    Vec :: rate_lit2n_pf
+    Vec :: rate_lit3n_pf
+    Vec :: rate_cwdc_pf
+    Vec :: rate_cwdn_pf
+    Vec :: rate_minn_pf
+    Vec :: rate_plantnuptake_pf
  
   ! (ii) Mesh property
 
@@ -203,6 +226,28 @@ contains
     clm_pf_idata%col_ntrunc_vr_pf     = 0
     clm_pf_idata%smin_no3_vr_pf       = 0
     clm_pf_idata%smin_nh4_vr_pf       = 0
+
+    clm_pf_idata%rate_lit1c_clm = 0
+    clm_pf_idata%rate_lit2c_clm = 0
+    clm_pf_idata%rate_lit3c_clm = 0
+    clm_pf_idata%rate_lit1n_clm = 0
+    clm_pf_idata%rate_lit2n_clm = 0
+    clm_pf_idata%rate_lit3n_clm = 0
+    clm_pf_idata%rate_cwdc_clm = 0
+    clm_pf_idata%rate_cwdn_clm = 0
+    clm_pf_idata%rate_minn_clm = 0
+    clm_pf_idata%rate_plantnuptake_clm = 0
+
+    clm_pf_idata%rate_lit1c_pf = 0
+    clm_pf_idata%rate_lit2c_pf = 0
+    clm_pf_idata%rate_lit3c_pf = 0
+    clm_pf_idata%rate_lit1n_pf = 0
+    clm_pf_idata%rate_lit2n_pf = 0
+    clm_pf_idata%rate_lit3n_pf = 0
+    clm_pf_idata%rate_cwdc_pf = 0
+    clm_pf_idata%rate_cwdn_pf = 0
+    clm_pf_idata%rate_minn_pf = 0
+    clm_pf_idata%rate_plantnuptake_pf = 0
  
   ! (ii) Mesh property
     clm_pf_idata%qflx_clm = 0
@@ -279,6 +324,17 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%col_ntrunc_vr_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%smin_no3_vr_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%smin_nh4_vr_clm,ierr)
+    
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_lit1c_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_lit2c_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_lit3c_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_cwdc_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_lit1n_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_lit2n_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_lit3n_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_cwdn_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_minn_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_plantnuptake_clm,ierr)
 
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_surf_3d,PETSC_DECIDE,clm_pf_idata%gflux_clm,ierr)
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2d,PETSC_DECIDE,clm_pf_idata%rain_clm,ierr)
@@ -314,6 +370,17 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%col_ntrunc_vr_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%smin_no3_vr_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%smin_nh4_vr_pf,ierr)
+
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_lit1c_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_lit2c_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_lit3c_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_lit1n_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_lit2n_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_lit3n_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_cwdc_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_cwdn_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_minn_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_plantnuptake_pf,ierr)
 
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_surf_3d,clm_pf_idata%gflux_pf,ierr)
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2d,clm_pf_idata%rain_pf,ierr)

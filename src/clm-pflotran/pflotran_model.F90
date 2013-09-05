@@ -79,6 +79,7 @@ module pflotran_model_module
        pflotranModelSetSoilProp,             &
        pflotranModelSetICs,                  &
        pflotranModelSetInitialConcentrations,&
+       pflotranModelSetBGCRates,             &
        pflotranModelUpdateFlowConds,         &
        pflotranModelGetUpdatedStates,        &
        pflotranModelStepperRunInit,          &
@@ -671,9 +672,8 @@ end subroutine pflotranModelSetICs
   ! ************************************************************************** !
   !
   ! pflotranModelSetInitialConcentrations: 
-  !  Converts biogeochemical properties (C, N pool concentrations) from CLM units
-  !  into PFLOTRAN units.
-  !
+  !  Get CLM concentrations (C, N), converts from CLM units into PFLOTRAN units.
+  !  and set concentrations in PFLOTRAN
   ! author: Guoping Tang
   ! date: 08/16/2013
   ! ************************************************************************** !
@@ -994,6 +994,200 @@ end subroutine pflotranModelSetICs
     call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
 
   end subroutine pflotranModelSetInitialConcentrations
+
+  ! ************************************************************************** !
+  !
+  ! pflotranModelSetBGCRates: 
+  !  Get CLM litter, som, mineral N production and plant demand rates
+  !  Convert from CLM units into PFLOTRAN units.
+  !  Set values in PFLOTRAN
+  ! author: Guoping Tang
+  ! date: 09/03/2013
+  ! ************************************************************************** !
+  subroutine pflotranModelSetBGCRates(pflotran_model)
+
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Option_module
+    use Field_module
+    use Reaction_Aux_module
+    use Immobile_Aux_module
+    use Reactive_Transport_module, only : RTUpdateAuxVars
+    use Reactive_Transport_Aux_module
+    use Discretization_module
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Mass_Transfer_module, only : mass_transfer_type  
+
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer  :: pflotran_model
+    class(realization_type), pointer    :: realization
+    type(field_type), pointer           :: field
+    type(patch_type), pointer           :: patch
+    type(grid_type), pointer            :: grid
+    type(simulation_base_type), pointer :: simulation
+    type(mass_transfer_type), pointer   :: cur_mass_transfer
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id
+
+    PetscScalar, pointer :: rate_pf_loc(:)   !
+!    PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
+
+    PetscReal, pointer :: v_p(:)
+    PetscReal, pointer :: volume_p(:)
+
+    character(len=MAXWORDLENGTH) :: word
+    PetscReal, parameter :: C_molecular_weight = 12.0107d0
+    PetscReal, parameter :: N_molecular_weight = 14.0067d0
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer &
+          = "ERROR: SetInitialConcentrations not supported under this mode.."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    patch => realization%patch
+    grid  => patch%grid
+    field => realization%field
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rate_lit1c_clm, &
+                                    clm_pf_idata%rate_lit1c_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rate_lit2c_clm, &
+                                    clm_pf_idata%rate_lit2c_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rate_lit3c_clm, &
+                                    clm_pf_idata%rate_lit3c_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rate_cwdc_clm, &
+                                    clm_pf_idata%rate_cwdc_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rate_lit1n_clm, &
+                                    clm_pf_idata%rate_lit1n_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rate_lit2n_clm, &
+                                    clm_pf_idata%rate_lit2n_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rate_lit3n_clm, &
+                                    clm_pf_idata%rate_lit3n_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rate_cwdn_clm, &
+                                    clm_pf_idata%rate_cwdn_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rate_minn_clm, &
+                                    clm_pf_idata%rate_minn_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rate_plantnuptake_clm, &
+                                    clm_pf_idata%rate_plantnuptake_pf)
+!   get cell volume as mass transfer rate unit is mol/s
+    call VecGetArrayReadF90(field%volume,volume_p,ierr)
+
+    if (associated(realization%rt_mass_transfer_list)) then
+       cur_mass_transfer => realization%rt_mass_transfer_list
+       do
+         if (.not.associated(cur_mass_transfer)) exit
+         call VecGetArrayF90(cur_mass_transfer%vec,v_p,ierr)
+
+!         select case (trim(cur_mass_transfer%dataset_name))
+!           case("LabileC")
+!           case("CelluloseC") 
+!           case("LigninC") 
+!           case("LabileN") 
+!           case("CelluloseN") 
+!           case("LigninN") 
+!           case("N") 
+
+         select case (cur_mass_transfer%idof)
+            case(7) 
+             call VecGetArrayF90(clm_pf_idata%rate_lit1c_pf, rate_pf_loc, ierr)
+            case(8) 
+             call VecGetArrayF90(clm_pf_idata%rate_lit2c_pf, rate_pf_loc, ierr)
+            case(9) 
+             call VecGetArrayF90(clm_pf_idata%rate_lit3c_pf, rate_pf_loc, ierr)
+            case(10) 
+             call VecGetArrayF90(clm_pf_idata%rate_lit1n_pf, rate_pf_loc, ierr)
+            case(11) 
+             call VecGetArrayF90(clm_pf_idata%rate_lit2n_pf, rate_pf_loc, ierr)
+            case(12) 
+             call VecGetArrayF90(clm_pf_idata%rate_lit3n_pf, rate_pf_loc, ierr)
+!            case(1) 
+!             call VecGetArrayF90(clm_pf_idata%rate_minn_pf, rate_pf_loc, ierr)
+!           case default
+!                    pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
+!                    call printErrMsg(pflotran_model%option)
+         end select  
+
+         do local_id = 1, grid%ngmax
+            if (grid%nG2L(local_id) < 0) cycle ! bypass ghosted corner cells
+            !geh - Ignore inactive cells with inactive materials
+            if (patch%imat(local_id) <= 0) cycle
+            v_p(local_id) = rate_pf_loc(local_id)*volume_p(local_id)  ! mol/m3s * m3 
+         enddo
+         call VecRestoreArrayF90(cur_mass_transfer%vec,v_p,ierr)
+
+         select case (cur_mass_transfer%idof)
+            case(7) 
+             call VecRestoreArrayF90(clm_pf_idata%rate_lit1c_pf, rate_pf_loc, ierr)
+            case(8) 
+             call VecRestoreArrayF90(clm_pf_idata%rate_lit2c_pf, rate_pf_loc, ierr)
+            case(9) 
+             call VecRestoreArrayF90(clm_pf_idata%rate_lit3c_pf, rate_pf_loc, ierr)
+            case(10) 
+             call VecRestoreArrayF90(clm_pf_idata%rate_lit1n_pf, rate_pf_loc, ierr)
+            case(11) 
+             call VecRestoreArrayF90(clm_pf_idata%rate_lit2n_pf, rate_pf_loc, ierr)
+            case(12) 
+             call VecRestoreArrayF90(clm_pf_idata%rate_lit3n_pf, rate_pf_loc, ierr)
+!             call VecRestoreArrayF90(clm_pf_idata%rate_minn_pf, rate_pf_loc, ierr)
+!           case default
+!                    pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
+!                    call printErrMsg(pflotran_model%option)
+         end select  
+
+         cur_mass_transfer => cur_mass_transfer%next
+       enddo
+    endif  
+
+    call VecRestoreArrayReadF90(field%volume,volume_p,ierr)
+
+  end subroutine pflotranModelSetBGCRates
 
   ! ************************************************************************** !
   !
