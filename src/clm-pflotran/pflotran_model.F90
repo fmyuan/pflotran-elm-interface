@@ -57,6 +57,7 @@ module pflotran_model_module
     Vec :: bsw_clm
     Vec :: qflx_clm
     Vec :: sat_clm
+    Vec :: temp_clm         ! soil temperature (F.-M. Yuan)
 
     Vec :: hksat_x_pf
     Vec :: hksat_y_pf
@@ -66,6 +67,7 @@ module pflotran_model_module
     Vec :: bsw_pf
     Vec :: qflx_pf
     Vec :: sat_pf
+    Vec :: temp_pf         ! soil temperature (F.-M. Yuan)
 
     PetscInt :: nlclm
     PetscInt :: ngclm
@@ -78,7 +80,7 @@ module pflotran_model_module
        pflotranModelInitMapping,             &
        pflotranModelSetSoilProp,             &
        pflotranModelSetICs,                  &
-       pflotranModelSetInitialConcentrations,&
+       pflotranModelSetInitialConcentrations,&    ! for Soil BGC
        pflotranModelSetBGCRates,             &
        pflotranModelUpdateFlowConds,         &
        pflotranModelGetUpdatedStates,        &
@@ -321,7 +323,8 @@ contains
       call printErrMsg(model%option)
     endif
     
-    if(model%option%iflowmode==TH_MODE.and.(.not.clm2pf_gflux_file)) then
+    if((model%option%iflowmode==TH_MODE .or. model%option%iflowmode==THC_MODE) &
+       .and. (.not.clm2pf_gflux_file)) then
       model%option%io_buffer='Running in TH_MODE without a CLM2PF_GFLUX_FILE'
       call printErrMsg(model%option)
     endif
@@ -455,7 +458,8 @@ subroutine pflotranModelSetICs(pflotran_model)
                                     clm_pf_idata%press_clm, &
                                     clm_pf_idata%press_pf)
 
-    if (pflotran_model%option%iflowmode .ne. RICHARDS_MODE) then
+    if (pflotran_model%option%iflowmode .ne. RICHARDS_MODE .or. &
+        pflotran_model%option%iflowmode .ne. TH_MODE) then
         pflotran_model%option%io_buffer='pflotranModelSetICs ' // &
           'not implmented for this mode.'
         call printErrMsg(pflotran_model%option)
@@ -487,7 +491,7 @@ subroutine pflotranModelSetICs(pflotran_model)
         call THUpdateAuxVars(realization)
       case default
         pflotran_model%option%io_buffer='pflotranModelSetICs ' // &
-          'not implmented for this mode.'
+          'implmented without specific FLOW mode'
         call printErrMsg(pflotran_model%option)
     end select
 
@@ -576,8 +580,15 @@ end subroutine pflotranModelSetICs
       case(TH_MODE)
         th_aux_vars   => patch%aux%TH%aux_vars
       case default
-        call printErrMsg(pflotran_model%option, &
-          'Current PFLOTRAN mode not supported by pflotranModelSetSoilProp')
+!        call printErrMsg(pflotran_model%option, &
+!          'Current PFLOTRAN mode not supported by pflotranModelSetSoilProp')
+         !F.-M. Yuan: if no flowmode AND no reactive-transport, then let crash the run
+        ! because 'uniform_velocity' with [0, 0, 0] velocity transport doesn't need specific flowmode,
+        ! which is used for BGC coupling only (i.e., no TH coupling)
+          if(pflotran_model%option%ntrandof.le.0) then
+              call printErrMsg(pflotran_model%option, &
+               'Current PFLOTRAN mode not supported by pflotranModelSetSoilProp')
+          endif
     end select
 
     call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
@@ -619,9 +630,13 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
     call GridVecGetArrayF90(grid, field%porosity_loc, porosity_loc_p, ierr)
-    call GridVecGetArrayF90(grid, field%perm_xx_loc,  perm_xx_loc_p,  ierr)
-    call GridVecGetArrayF90(grid, field%perm_yy_loc,  perm_yy_loc_p,  ierr)
-    call GridVecGetArrayF90(grid, field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+    if(pflotran_model%option%iflowmode==RICHARDS_MODE .or. &
+       pflotran_model%option%iflowmode==TH_MODE .or. &    ! F.-M. Yuan: without flowmode, the folllowing will throw
+       pflotran_model%option%iflowmode==THC_MODE) then    ! out segementation fault error
+       call GridVecGetArrayF90(grid, field%perm_xx_loc,  perm_xx_loc_p,  ierr)
+       call GridVecGetArrayF90(grid, field%perm_yy_loc,  perm_yy_loc_p,  ierr)
+       call GridVecGetArrayF90(grid, field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+    endif
 
     do local_id = 1, grid%ngmax
 
@@ -641,13 +656,20 @@ end subroutine pflotranModelSetICs
           th_aux_var => th_aux_vars(local_id)
           th_aux_var%bc_alpha = min(bc_alpha,10.d-4)
           th_aux_var%bc_lambda = bc_lambda
+        case default
+          call printMsg(pflotran_model%option, &
+          'bc_alpha and bc_lambda are not specified!')
       end select
 
       ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
       ! [m^2]          [mm/sec]
-      perm_xx_loc_p(local_id) = hksat_x_pf_loc(local_id)*vis/(den*grav)/1000.d0
-      perm_yy_loc_p(local_id) = hksat_y_pf_loc(local_id)*vis/(den*grav)/1000.d0
-      perm_zz_loc_p(local_id) = hksat_z_pf_loc(local_id)*vis/(den*grav)/1000.d0
+      if(pflotran_model%option%iflowmode==RICHARDS_MODE .or. &
+         pflotran_model%option%iflowmode==TH_MODE .or. &    ! F.-M. Yuan: without flowmode, the folllowing will throw
+         pflotran_model%option%iflowmode==THC_MODE) then    ! out segementation fault error
+         perm_xx_loc_p(local_id) = hksat_x_pf_loc(local_id)*vis/(den*grav)/1000.d0
+         perm_yy_loc_p(local_id) = hksat_y_pf_loc(local_id)*vis/(den*grav)/1000.d0
+         perm_zz_loc_p(local_id) = hksat_z_pf_loc(local_id)*vis/(den*grav)/1000.d0
+      endif
 
       porosity_loc_p(local_id) = watsat_pf_loc(local_id)
 
@@ -662,9 +684,13 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
     call GridVecRestoreArrayF90(grid, field%porosity_loc, porosity_loc_p, ierr)
-    call GridVecRestoreArrayF90(grid, field%perm_xx_loc,  perm_xx_loc_p,  ierr)
-    call GridVecRestoreArrayF90(grid, field%perm_yy_loc,  perm_yy_loc_p,  ierr)
-    call GridVecRestoreArrayF90(grid, field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+    if(pflotran_model%option%iflowmode==RICHARDS_MODE .or. &
+       pflotran_model%option%iflowmode==TH_MODE .or. &    ! F.-M. Yuan: without flowmode, the folllowing will throw
+       pflotran_model%option%iflowmode==THC_MODE) then    ! out segementation fault error
+       call GridVecRestoreArrayF90(grid, field%perm_xx_loc,  perm_xx_loc_p,  ierr)
+       call GridVecRestoreArrayF90(grid, field%perm_yy_loc,  perm_yy_loc_p,  ierr)
+       call GridVecRestoreArrayF90(grid, field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+    endif
 
   end subroutine pflotranModelSetSoilProp
 !#endif
@@ -2406,6 +2432,93 @@ end subroutine pflotranModelSetICs
   end subroutine pflotranModelSetupRestart
 
   ! ************************************************************************** !
+  !> This routine Updates TH drivers for PFLOTRAN that are from CLM
+  !! for testing PFLOTRAN-BGC mode
+  !!
+  !> @author
+  !! F.-M. Yuan
+  !!
+  !! date: 9/3/2013
+  ! ************************************************************************** !
+  subroutine pflotranModelUpdateTHfromCLM(pflotran_model, pf_hmode, pf_tmode)
+
+    use Option_module
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Global_Aux_module
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Surface_Realization_class, only : surface_realization_type
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(global_auxvar_type), pointer         :: global_aux_vars(:)
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id
+    PetscReal, pointer :: sat_pf_p(:)
+    PetscReal, pointer :: sat_clm_p(:)
+    PetscReal, pointer :: temp_pf_p(:)
+    PetscReal, pointer :: temp_clm_p(:)
+
+    logical, intent(in):: pf_hmode, pf_tmode
+    !---------------------------------------------------------------------
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+    patch           => realization%patch
+    grid            => patch%grid
+    global_aux_vars => patch%aux%Global%aux_vars
+
+    ! Save the liq saturation values from CLM to PFLOTRAN, if needed
+    if (.not.pf_hmode) then
+        call MappingSourceToDestination(pflotran_model%map_clm2pf, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%sat_clm, &
+                                    clm_pf_idata%sat_pf)
+        call VecGetArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
+        do local_id=1, grid%nlmax
+            ghosted_id=grid%nL2G(local_id)
+            global_aux_vars(ghosted_id)%sat(1)=sat_pf_p(local_id)
+        enddo
+        !call VecRestoreArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
+    endif
+
+    ! Save soil temperature values from CLM to PFLOTRAN, if needed
+    if (.not.pf_tmode) then
+        call MappingSourceToDestination(pflotran_model%map_clm2pf, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%temp_clm, &
+                                    clm_pf_idata%temp_pf)
+        call VecGetArrayF90(clm_pf_idata%temp_pf, temp_pf_p, ierr)
+        do local_id=1, grid%nlmax
+            ghosted_id=grid%nL2G(local_id)
+            global_aux_vars(ghosted_id)%temp(1)=temp_pf_p(local_id)
+        enddo
+        !call VecRestoreArrayF90(clm_pf_idata%sat_ice_pf, sat_ice_pf_p, ierr)
+    endif
+
+  end subroutine pflotranModelUpdateTHfromCLM
+
+  ! ************************************************************************** !
   ! pflotranModelUpdateSourceSink: Update the source/sink term
   !
   ! author: Gautam Bisht
@@ -2435,6 +2548,7 @@ end subroutine pflotranModelSetICs
   !! Gautam Bisht, LBNL
   !!
   !! date: 4/10/2013
+  !  revised by: Fengming Yuan 9/3/2013
   ! ************************************************************************** !
   subroutine pflotranModelUpdateFlowConds(pflotran_model)
 
@@ -2444,17 +2558,41 @@ end subroutine pflotranModelSetICs
     implicit none
 
     type(pflotran_model_type), pointer        :: pflotran_model
+    logical :: pf_hmode, pf_tmode
 
-    call pflotranModelUpdateSourceSink(pflotran_model)
+!    call pflotranModelUpdateSourceSink(pflotran_model)
 
-    if(pflotran_model%option%iflowmode==TH_MODE) then
+    ! hydroloigcal source/sink from CLM
+    call MappingSourceToDestination(pflotran_model%map_clm2pf, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%qflx_clm, &
+                                    clm_pf_idata%qflx_pf)
+
+    ! thermal 'gflux' from CLM
+    if(pflotran_model%option%iflowmode==TH_MODE .or. &
+       pflotran_model%option%iflowmode==THC_MODE) then
       call MappingSourceToDestination(pflotran_model%map_clm2pf_gflux, &
                                       pflotran_model%option, &
                                       clm_pf_idata%gflux_clm, &
                                       clm_pf_idata%gflux_pf)
     endif
 
+    ! bgc fluxes from CLM-CN
+    ! (i) first decide if using soil TH from CLM: can be as input, or, the following modes not on
+    if(.not.(pflotran_model%option%iflowmode==RICHARDS_MODE)) pf_hmode=.false.
+    if(.not.(pflotran_model%option%iflowmode==TH_MODE) .or. &
+       .not.(pflotran_model%option%iflowmode==THC_MODE)) then
+      pf_tmode = .false.
+      pf_hmode = .false.
+    endif
+    if (.not.pf_hmode .or. .not.pf_tmode) then
+      call pflotranModelUpdateTHfromCLM(pflotran_model, pf_hmode, pf_tmode)
+    endif
+
+    ! (ii) C/N fluxes from CLM-CN (TODO)
+
   end subroutine pflotranModelUpdateFlowConds
+
 
   ! ************************************************************************** !
   !> This routine get updated states evoloved by PFLOTRAN.
@@ -2471,6 +2609,8 @@ end subroutine pflotranModelSetICs
     use Richards_Aux_module
     use TH_module
     use TH_Aux_module
+    use THC_module
+    use THC_Aux_module
     use Simulation_Base_class, only : simulation_base_type
     use Subsurface_Simulation_class, only : subsurface_simulation_type
     use Surface_Simulation_class, only : surface_simulation_type
@@ -2501,10 +2641,24 @@ end subroutine pflotranModelSetICs
         call THUpdateAuxVars(realization)
         call pflotranModelGetSaturation(pflotran_model)
         call pflotranModelGetTemperature(pflotran_model)
+      case (THC_MODE)
+        call THCUpdateAuxVars(realization)
+        call pflotranModelGetSaturation(pflotran_model)
+        call pflotranModelGetTemperature(pflotran_model)
       case default
-        pflotran_model%option%io_buffer='pflotranModelGetSaturation ' // &
-          'not implmented for this mode.'
-        call printErrMsg(pflotran_model%option)
+        !F.-M. Yuan: if no flowmode AND no reactive-transport, then let crash the run
+        ! because 'uniform_velocity' with [0, 0, 0] velocity transport doesn't need specific flowmode,
+        ! which is used for BGC coupling only (i.e., no TH coupling)
+        if (pflotran_model%option%ntrandof .le. 0) then
+            pflotran_model%option%io_buffer='pflotranModelGetUpdatedStates ' // &
+             'implmentation in this mode is not supported!'
+
+            call printErrMsg(pflotran_model%option)
+        endif
+!      case default
+!        pflotran_model%option%io_buffer='pflotranModelGetSaturation ' // &
+!          'not implmented for this mode.'
+!        call printErrMsg(pflotran_model%option)
     end select
 
   end subroutine pflotranModelGetUpdatedStates
@@ -2546,6 +2700,8 @@ end subroutine pflotranModelSetICs
     PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: sat_pf_p(:)
     PetscReal, pointer :: sat_clm_p(:)
+    PetscReal, pointer :: sat_ice_pf_p(:)
+    PetscReal, pointer :: sat_ice_clm_p(:)
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -2561,7 +2717,7 @@ end subroutine pflotranModelSetICs
     grid            => patch%grid
     global_aux_vars => patch%aux%Global%aux_vars
     
-    ! Save the saturation values
+    ! Save the liquid saturation values
     call VecGetArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
     do local_id=1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
@@ -2573,6 +2729,22 @@ end subroutine pflotranModelSetICs
                                     pflotran_model%option, &
                                     clm_pf_idata%sat_pf, &
                                     clm_pf_idata%sat_clm)
+
+    if (pflotran_model%option%iflowmode == TH_MODE) then
+        ! Save the ice saturation values
+        call VecGetArrayF90(clm_pf_idata%sat_ice_pf, sat_ice_pf_p, ierr)
+        do local_id=1, grid%nlmax
+            ghosted_id=grid%nL2G(local_id)
+            sat_ice_pf_p(local_id)=global_aux_vars(ghosted_id)%sat(1)
+        enddo
+        call VecRestoreArrayF90(clm_pf_idata%sat_ice_pf, sat_ice_pf_p, ierr)
+
+        call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%sat_ice_pf, &
+                                    clm_pf_idata%sat_ice_clm)
+
+    endif
 
   end subroutine pflotranModelGetSaturation
 
@@ -2657,6 +2829,149 @@ end subroutine pflotranModelSetICs
 !                                    clm_pf_idata%sat_ice_clm)
 
   end subroutine pflotranModelGetTemperature
+
+  ! ************************************************************************** !
+  !> @author
+  !! Fengming Yuan
+  !!
+  !! date: 9/5/2013
+  ! ************************************************************************** !
+  subroutine pflotranModelGetBgcStates(pflotran_model)
+
+    use Option_module
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Global_Aux_module
+    use TH_Aux_module
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Surface_Realization_class, only : surface_realization_type
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer           :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(global_auxvar_type), pointer         :: global_aux_vars(:)
+    type(th_auxvar_type), pointer             :: th_aux_vars(:)
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id
+    PetscScalar, pointer :: temp_pf_p(:)
+    PetscReal, pointer :: sat_ice_pf_p(:)
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+    patch           => realization%patch
+    grid            => patch%grid
+    global_aux_vars => patch%aux%Global%aux_vars
+    th_aux_vars     => patch%aux%TH%aux_vars
+
+    do ghosted_id=1,grid%ngmax
+      local_id = grid%nG2L(ghosted_id)
+      if (local_id>0) then
+        call VecSetValues(clm_pf_idata%temp_pf,1,local_id-1, &
+                        global_aux_vars(ghosted_id)%temp(1),INSERT_VALUES,ierr)
+      endif
+    enddo
+
+    call VecAssemblyBegin(clm_pf_idata%temp_pf,ierr)
+    call VecAssemblyEnd(clm_pf_idata%temp_pf,ierr)
+    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%temp_pf, &
+                                    clm_pf_idata%temp_clm)
+
+  end subroutine pflotranModelGetBgcStates
+
+  ! ************************************************************************** !
+  !!
+  !> @author
+  !! Fengming Yuan
+  !!
+  !! date: 9/5/2013
+  ! ************************************************************************** !
+  subroutine pflotranModelGetBgcFluxes(pflotran_model)
+
+    use Option_module
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Global_Aux_module
+    use TH_Aux_module
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Surface_Realization_class, only : surface_realization_type
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer           :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(global_auxvar_type), pointer         :: global_aux_vars(:)
+    type(th_auxvar_type), pointer             :: th_aux_vars(:)
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id
+    PetscScalar, pointer :: temp_pf_p(:)
+    PetscReal, pointer :: sat_ice_pf_p(:)
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+    patch           => realization%patch
+    grid            => patch%grid
+    global_aux_vars => patch%aux%Global%aux_vars
+    th_aux_vars     => patch%aux%TH%aux_vars
+
+    do ghosted_id=1,grid%ngmax
+      local_id = grid%nG2L(ghosted_id)
+      if (local_id>0) then
+        call VecSetValues(clm_pf_idata%temp_pf,1,local_id-1, &
+                        global_aux_vars(ghosted_id)%temp(1),INSERT_VALUES,ierr)
+      endif
+    enddo
+
+    call VecAssemblyBegin(clm_pf_idata%temp_pf,ierr)
+    call VecAssemblyEnd(clm_pf_idata%temp_pf,ierr)
+    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%temp_pf, &
+                                    clm_pf_idata%temp_clm)
+
+  end subroutine pflotranModelGetBgcFluxes
 
   ! ************************************************************************** !
   !
