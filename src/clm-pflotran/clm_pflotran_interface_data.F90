@@ -76,7 +76,6 @@ module clm_pflotran_interface_data
   Vec :: decomp_npools_vr_lit2_clm     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
   Vec :: decomp_npools_vr_lit3_clm     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
   !Vec :: decomp_npools_vr_cwd_clm     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: hrc_vr_clm                    ! (gN/m3) vertically-resolved soil heterotrophic respiration C
   Vec :: sminn_vr_clm                  ! (gN/m3) vertically-resolved soil mineral N
   !Vec :: smin_no3_vr_clm               ! (gN/m3) vertically-resolved soil mineral NO3
   !Vec :: smin_nh4_vr_clm               ! (gN/m3) vertically-resolved soil mineral NH4
@@ -93,7 +92,6 @@ module clm_pflotran_interface_data
   Vec :: decomp_npools_vr_lit2_pf      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
   Vec :: decomp_npools_vr_lit3_pf      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
   !Vec :: decomp_npools_vr_cwd_pf       ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: hrc_vr_pf                     ! (gN/m3) vertically-resolved soil heterotrophic respiration C
   Vec :: sminn_vr_pf                   ! (gN/m3) vertically-resolved soil mineral N
   !Vec :: smin_no3_vr_pf                ! (gN/m3) vertically-resolved soil mineral NO3
   !Vec :: smin_nh4_vr_pf                ! (gN/m3) vertically-resolved soil mineral NH4
@@ -120,6 +118,10 @@ module clm_pflotran_interface_data
     !Vec :: rate_cwdn_pf
     Vec :: rate_minn_pf
     Vec :: rate_plantnuptake_pf
+
+    Vec :: hrc_vr_clm_prv                ! (gN/m3) vertically-resolved soil heterotrophic respiration C at previous time-step
+    Vec :: hrc_vr_clm                    ! (gN/m3) vertically-resolved soil heterotrophic respiration C
+    Vec :: hrc_vr_pf                     ! (gN/m3) vertically-resolved soil heterotrophic respiration C
 
   ! Number of cells for the 3D subsurface domain
   PetscInt :: nlclm_3d  ! num of local clm cells
@@ -223,10 +225,12 @@ contains
     clm_pf_idata%decomp_npools_vr_lit2_clm = 0
     clm_pf_idata%decomp_npools_vr_lit3_clm = 0
     !clm_pf_idata%decomp_npools_vr_cwd_clm  = 0
-    clm_pf_idata%hrc_vr_clm           = 0
     clm_pf_idata%sminn_vr_clm         = 0
     !clm_pf_idata%smin_no3_vr_clm      = 0
     !clm_pf_idata%smin_nh4_vr_clm      = 0
+
+    clm_pf_idata%hrc_vr_clm_prv       = 0
+    clm_pf_idata%hrc_vr_clm           = 0
 
     clm_pf_idata%decomp_cpools_vr_lit1_pf = 0
     clm_pf_idata%decomp_cpools_vr_lit2_pf = 0
@@ -240,10 +244,11 @@ contains
     clm_pf_idata%decomp_npools_vr_lit2_pf = 0
     clm_pf_idata%decomp_npools_vr_lit3_pf = 0
     !clm_pf_idata%decomp_npools_vr_cwd_pf  = 0
-    clm_pf_idata%hrc_vr_pf            = 0
     clm_pf_idata%sminn_vr_pf          = 0
     !clm_pf_idata%smin_no3_vr_pf       = 0
     !clm_pf_idata%smin_nh4_vr_pf       = 0
+
+    clm_pf_idata%hrc_vr_pf            = 0
 
    ! (viii) ground/soil C/N rates (G.-P. Tang)
     clm_pf_idata%rate_lit1c_clm            = 0
@@ -332,7 +337,6 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%decomp_npools_vr_lit2_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%decomp_npools_vr_lit3_clm,ierr)
     !call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%decomp_npools_vr_cwd_clm,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hrc_vr_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%sminn_vr_clm,ierr)
     !call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%smin_no3_vr_clm,ierr)
     !call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%smin_nh4_vr_clm,ierr)
@@ -348,6 +352,9 @@ contains
     !call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_cwdn_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_minn_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_plantnuptake_clm,ierr)
+
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hrc_vr_clm_prv,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hrc_vr_clm,ierr)
 
 ! Create Seq. Vectors for PFLOTRAN -----------------------------------------------------
     ! (i) soil TH variables - parameters
@@ -386,7 +393,6 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%decomp_npools_vr_lit2_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%decomp_npools_vr_lit3_pf,ierr)
     !call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%decomp_npools_vr_cwd_pf,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%hrc_vr_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%sminn_vr_pf,ierr)
     !call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%smin_no3_vr_pf,ierr)
     !call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%smin_nh4_vr_pf,ierr)
@@ -403,6 +409,7 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_minn_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_plantnuptake_pf,ierr)
 
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%hrc_vr_pf,ierr)
 
   end subroutine CLMPFLOTRANIDataCreateVec
 
@@ -484,8 +491,6 @@ contains
        call VecDestroy(clm_pf_idata%decomp_npools_vr_lit3_clm,ierr)
     !if(clm_pf_idata%decomp_npools_vr_cwd_clm  /= 0) &
     !   call VecDestroy(clm_pf_idata%decomp_npools_vr_cwd_clm,ierr)
-    if(clm_pf_idata%hrc_vr_clm /= 0) &
-       call VecDestroy(clm_pf_idata%hrc_vr_clm,ierr)
     if(clm_pf_idata%sminn_vr_clm /= 0) &
        call VecDestroy(clm_pf_idata%sminn_vr_clm,ierr)
     !if(clm_pf_idata%smin_no3_vr_clm /= 0) &
@@ -517,8 +522,6 @@ contains
        call VecDestroy(clm_pf_idata%decomp_npools_vr_lit3_pf,ierr)
     !if(clm_pf_idata%decomp_npools_vr_cwd_pf  /= 0) &
     !   call VecDestroy(clm_pf_idata%decomp_npools_vr_cwd_pf,ierr)
-    if(clm_pf_idata%hrc_vr_pf /= 0) &
-       call VecDestroy(clm_pf_idata%hrc_vr_pf,ierr)
     if(clm_pf_idata%sminn_vr_pf /= 0) &
        call VecDestroy(clm_pf_idata%sminn_vr_pf,ierr)
     !if(clm_pf_idata%smin_no3_vr_pf /= 0) &
@@ -548,6 +551,11 @@ contains
     if(clm_pf_idata%rate_plantnuptake_clm /= 0) &
        call VecDestroy(clm_pf_idata%rate_plantnuptake_clm,ierr)
 
+    if(clm_pf_idata%hrc_vr_clm_prv /= 0) &
+       call VecDestroy(clm_pf_idata%hrc_vr_clm_prv,ierr)
+    if(clm_pf_idata%hrc_vr_clm /= 0) &
+       call VecDestroy(clm_pf_idata%hrc_vr_clm,ierr)
+
     if(clm_pf_idata%rate_lit1c_pf /= 0) &
        call VecDestroy(clm_pf_idata%rate_lit1c_pf,ierr)
     if(clm_pf_idata%rate_lit2c_pf /= 0) &
@@ -568,6 +576,9 @@ contains
        call VecDestroy(clm_pf_idata%rate_minn_pf,ierr)
     if(clm_pf_idata%rate_plantnuptake_pf /= 0) &
        call VecDestroy(clm_pf_idata%rate_plantnuptake_pf,ierr)
+
+    if(clm_pf_idata%hrc_vr_pf /= 0) &
+       call VecDestroy(clm_pf_idata%hrc_vr_pf,ierr)
 
   end subroutine CLMPFLOTRANIDataDestroy
 
