@@ -119,7 +119,6 @@ module clm_pflotran_interface_data
     Vec :: rate_minn_pf
     Vec :: rate_plantnuptake_pf
 
-    Vec :: hrc_vr_clm_prv                ! (gN/m3) vertically-resolved soil heterotrophic respiration C at previous time-step
     Vec :: hrc_vr_clm                    ! (gN/m3) vertically-resolved soil heterotrophic respiration C
     Vec :: hrc_vr_pf                     ! (gN/m3) vertically-resolved soil heterotrophic respiration C
 
@@ -229,7 +228,6 @@ contains
     !clm_pf_idata%smin_no3_vr_clm      = 0
     !clm_pf_idata%smin_nh4_vr_clm      = 0
 
-    clm_pf_idata%hrc_vr_clm_prv       = 0
     clm_pf_idata%hrc_vr_clm           = 0
 
     clm_pf_idata%decomp_cpools_vr_lit1_pf = 0
@@ -353,7 +351,6 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_minn_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_plantnuptake_clm,ierr)
 
-    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hrc_vr_clm_prv,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hrc_vr_clm,ierr)
 
 ! Create Seq. Vectors for PFLOTRAN -----------------------------------------------------
@@ -551,8 +548,6 @@ contains
     if(clm_pf_idata%rate_plantnuptake_clm /= 0) &
        call VecDestroy(clm_pf_idata%rate_plantnuptake_clm,ierr)
 
-    if(clm_pf_idata%hrc_vr_clm_prv /= 0) &
-       call VecDestroy(clm_pf_idata%hrc_vr_clm_prv,ierr)
     if(clm_pf_idata%hrc_vr_clm /= 0) &
        call VecDestroy(clm_pf_idata%hrc_vr_clm,ierr)
 
