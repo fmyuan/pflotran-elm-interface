@@ -2525,9 +2525,7 @@ end subroutine pflotranModelSetICs
 
 !   get cell volume as mass transfer rate unit is mol/s
     call VecGetArrayReadF90(field%volume,volume_p,ierr)
-    call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
 
-!    write(*, *) (rate_plantnuptake_pf_loc(local_id), local_id=1,grid%ngmax)
     if (associated(realization%rt_mass_transfer_list)) then
        cur_mass_transfer => realization%rt_mass_transfer_list
        do
@@ -2537,21 +2535,22 @@ end subroutine pflotranModelSetICs
          !call VecGetArrayF90(cur_mass_transfer%vec,v_p,ierr)
 
          select case (cur_mass_transfer%idof)
-            case(7)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pf, rate_pf_loc, ierr)
             case(8)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pf, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pf, rate_pf_loc, ierr)
             case(9)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pf, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pf, rate_pf_loc, ierr)
             case(10)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pf, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pf, rate_pf_loc, ierr)
             case(11)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pf, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pf, rate_pf_loc, ierr)
             case(12)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pf, rate_pf_loc, ierr)
-            case(1)
-             call VecGetArrayReadF90(clm_pf_idata%rate_minn_pf, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pf, rate_pf_loc, ierr)
             case(13)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pf, rate_pf_loc, ierr)
+            case(2)
+             call VecGetArrayReadF90(clm_pf_idata%rate_minn_pf, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
+            case(14)
              call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_pf_loc, ierr)
             case default
                     pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
@@ -2565,14 +2564,10 @@ end subroutine pflotranModelSetICs
             !v_p(local_id) = rate_pf_loc(local_id)*volume_p(local_id)  ! mol/m3s * m3
             cur_mass_transfer%dataset%rarray(local_id) = &
                         rate_pf_loc(local_id)*volume_p(local_id)  ! mol/m3s * m3
-            if(cur_mass_transfer%idof .eq. 1) then
+           if(cur_mass_transfer%idof .eq. 2) then
                cur_mass_transfer%dataset%rarray(local_id) = &
-                        cur_mass_transfer%dataset%rarray(local_id) + &
+                        cur_mass_transfer%dataset%rarray(local_id) - &
                         rate_plantnuptake_pf_loc(local_id)*volume_p(local_id)  ! mol/m3s * m3
-            endif 
-            if(cur_mass_transfer%idof .eq. 13) then
-               cur_mass_transfer%dataset%rarray(local_id) = &
-                        cur_mass_transfer%dataset%rarray(local_id) * (-1.0d0)
             endif 
          enddo
          ! F.-M. Yuan: the following call IS useless, because 'MasstransferUpdate' will always update 'v_p' and 'vec'
@@ -2580,22 +2575,23 @@ end subroutine pflotranModelSetICs
          !call VecRestoreArrayF90(cur_mass_transfer%vec,v_p,ierr)
 
          select case (cur_mass_transfer%idof)
-            case(7)
-             call VecRestoreArrayF90(clm_pf_idata%rate_lit1c_pf, rate_pf_loc, ierr)
             case(8)
-             call VecRestoreArrayF90(clm_pf_idata%rate_lit2c_pf, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pf, rate_pf_loc, ierr)
             case(9)
-             call VecRestoreArrayF90(clm_pf_idata%rate_lit3c_pf, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pf, rate_pf_loc, ierr)
             case(10)
-             call VecRestoreArrayF90(clm_pf_idata%rate_lit1n_pf, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pf, rate_pf_loc, ierr)
             case(11)
-             call VecRestoreArrayF90(clm_pf_idata%rate_lit2n_pf, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pf, rate_pf_loc, ierr)
             case(12)
-             call VecRestoreArrayF90(clm_pf_idata%rate_lit3n_pf, rate_pf_loc, ierr)
-            case(1)
-             call VecRestoreArrayF90(clm_pf_idata%rate_minn_pf, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pf, rate_pf_loc, ierr)
             case(13)
-             call VecRestoreArrayF90(clm_pf_idata%rate_plantnuptake_pf, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pf, rate_pf_loc, ierr)
+            case(2)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_minn_pf, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
+            case(14)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_pf_loc, ierr)
             case default
                pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
                call printErrMsg(pflotran_model%option)
@@ -2606,7 +2602,6 @@ end subroutine pflotranModelSetICs
     endif
 
     call VecRestoreArrayReadF90(field%volume,volume_p,ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
 
   end subroutine pflotranModelSetBGCRates
 
