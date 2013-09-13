@@ -73,7 +73,7 @@ module Reaction_Sandbox_Base_class
     end subroutine Base_SkipBlock 
     
     subroutine Base_React(this,Res,Jac,compute_derivative,rt_auxvar, &
-                          global_auxvar,porosity,volume,reaction,option)
+                          global_auxvar,porosity,volume,reaction,option,local_id)
 
       use Option_module
       use Reaction_Aux_module
@@ -93,6 +93,7 @@ module Reaction_Sandbox_Base_class
       PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
       PetscReal :: porosity
       PetscReal :: volume
+      PetscReal :: local_id
       type(reactive_transport_auxvar_type) :: rt_auxvar
       type(global_auxvar_type) :: global_auxvar
       
@@ -155,7 +156,7 @@ contains
   end subroutine Base_SkipBlock   
     
   subroutine Base_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
-                        global_auxvar,porosity,volume,reaction,option)
+                        global_auxvar,porosity,volume,reaction,option,local_id)
     use Option_module
     use Reaction_Aux_module
     use Reactive_Transport_Aux_module
@@ -172,6 +173,7 @@ contains
     PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
     PetscReal :: porosity
     PetscReal :: volume
+    PetscInt :: local_id
     type(reactive_transport_auxvar_type) :: rt_auxvar
     type(global_auxvar_type) :: global_auxvar
       

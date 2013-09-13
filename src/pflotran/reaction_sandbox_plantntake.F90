@@ -146,12 +146,16 @@ end subroutine PlantNTakeSetup
 ! ************************************************************************** !
 subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,porosity,volume,reaction, &
-                         option)
+                         option,local_id)
 
   use Option_module
   use Reaction_Aux_module
+  use clm_pflotran_interface_data !, only : rate_plantnuptake_pf 
   
   implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
   
   class(reaction_sandbox_plantntake_type) :: this  
   type(option_type) :: option
@@ -163,10 +167,20 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: rate, drate, concN
   PetscReal :: volume, porosity
+  PetscInt :: local_id
+  PetscErrorCode     :: ierr
+  PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
+
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
 
-  rate = this%rate
+  call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
+
+!  rate = this%rate
+  rate = -1.0 * rate_plantnuptake_pf_loc(local_id) * volume ! mol/m3/s * m3
+
+  call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
+
   if(this%half_saturation .GT. 1.0d-20) then
      concN = rt_auxvar%immobile(this%ispec_mineralN)
      rate = rate * concN/(concN + this%half_saturation) 

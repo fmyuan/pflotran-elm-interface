@@ -180,7 +180,7 @@ end subroutine ExampleSetup
 ! ************************************************************************** !
 subroutine ExampleReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,porosity,volume,reaction, &
-                         option)
+                         option,local_id)
 
   use Option_module
   use Reaction_Aux_module
@@ -196,6 +196,7 @@ subroutine ExampleReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: porosity
   PetscReal :: volume
+  PetscInt :: local_id
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
 

@@ -468,7 +468,7 @@ end subroutine CLM_CN_Map
 !
 ! ************************************************************************** !
 subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
-                        global_auxvar,porosity,volume,reaction,option)
+                        global_auxvar,porosity,volume,reaction,option,local_id)
 
   use Option_module
   use Reaction_Aux_module, only : reaction_type
@@ -484,6 +484,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: porosity
   PetscReal :: volume
+  PetscInt :: local_id
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
 

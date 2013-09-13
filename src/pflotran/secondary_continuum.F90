@@ -931,7 +931,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,aux_var, &
     rt_auxvar%pri_molal = conc_upd(:,i) ! in mol/kg
     call RTotal(rt_auxvar,global_aux_var,reaction,option)
     call RReaction(res_react,jac_react,PETSC_TRUE, &
-                   rt_auxvar,global_aux_var,porosity,vol(i),reaction,option)                     
+                   rt_auxvar,global_aux_var,porosity,vol(i),reaction,option, i)                     
     do j = 1, ncomp
       res(j+(i-1)*ncomp) = res(j+(i-1)*ncomp) + res_react(j) 
     enddo
@@ -1464,7 +1464,7 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars,global_aux_vars, &
   do i = 1, ngcells
     call RReaction(res_react,jac_react,PETSC_FALSE, &
                    sec_transport_vars%sec_rt_auxvar(i), &
-                   global_aux_vars,porosity,vol(i),reaction,option)
+                   global_aux_vars,porosity,vol(i),reaction,option,i)
   enddo
   
   if (reaction%mineral%nkinmnrl > 0) then
@@ -1619,7 +1619,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,aux_var, &
     rt_auxvar%pri_molal = conc_upd(:,i) ! in mol/kg
     call RTotal(rt_auxvar,global_aux_var,reaction,option)
     call RReaction(res_react,jac_react,PETSC_FALSE, &
-                   rt_auxvar,global_aux_var,porosity,vol(i),reaction,option)                     
+                   rt_auxvar,global_aux_var,porosity,vol(i),reaction,option,i)                     
     do j = 1, ncomp
       res(j+(i-1)*ncomp) = res(j+(i-1)*ncomp) + res_react(j) 
     enddo
