@@ -2,6 +2,7 @@ module Reaction_Sandbox_module
 
   use Reaction_Sandbox_Base_class
   use Reaction_Sandbox_CLM_CN_class
+  use Reaction_Sandbox_PlantNTake_class
   use Reaction_Sandbox_Example_class
   
   ! Add new reacton sandbox classes here.
@@ -145,6 +146,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
       case('CLM-CN')
         new_sandbox => CLM_CN_Create()
       ! Add new cases statements for new reacton sandbox classes here.
+      case('PLANTNTAKE')
+        new_sandbox => PlantNTakeCreate()
       case('EXAMPLE')
         new_sandbox => EXAMPLECreate()
       case default
@@ -204,7 +207,7 @@ end subroutine RSandboxSkipInput
 !
 ! ************************************************************************** !
 subroutine RSandbox(Residual,Jacobian,compute_derivative,rt_auxvar, &
-                    global_auxvar,porosity,volume,reaction,option)
+                    global_auxvar,porosity,volume,reaction,option,local_id)
 
   use Option_module
   use Reaction_Aux_module
@@ -220,6 +223,7 @@ subroutine RSandbox(Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: porosity
   PetscReal :: volume
+  PetscInt :: local_id
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   
@@ -232,7 +236,7 @@ subroutine RSandbox(Residual,Jacobian,compute_derivative,rt_auxvar, &
 !      class is(reaction_sandbox_clm_cn_type)
         call cur_reaction%Evaluate(Residual,Jacobian,compute_derivative, &
                                    rt_auxvar,global_auxvar,porosity,volume, &
-                                   reaction,option)
+                                   reaction,option,local_id)
 !    end select
     cur_reaction => cur_reaction%next
   enddo

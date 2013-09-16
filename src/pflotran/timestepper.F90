@@ -4197,7 +4197,7 @@ subroutine StepperSandbox(realization)
     call RReact(rt_aux_vars(ghosted_id),global_aux_vars(ghosted_id), &
                 tran_xx_p(istart:iend),volume_p(local_id), &
                 porosity_loc_p(ghosted_id), &
-                num_iterations,reaction,option,vol_frac_prim)
+                num_iterations,reaction,option,vol_frac_prim,local_id)
     tran_xx_p(istart:iend) = rt_aux_vars(ghosted_id)%pri_molal
   enddo
 
