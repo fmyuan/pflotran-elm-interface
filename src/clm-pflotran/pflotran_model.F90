@@ -168,8 +168,8 @@ contains
     model%pause_time_2 = -1.0d0
 
     ! FIXME(bja, 2013-07-17) hard code subsurface for now....
-    !model%option%simulation_mode = 'SURFACE_SUBSURFACE'
-    model%option%simulation_mode = 'SUBSURFACE'
+    model%option%simulation_mode = 'SURFACE_SUBSURFACE'
+    !model%option%simulation_mode = 'SUBSURFACE'
     select case(model%option%simulation_mode)
       case('SUBSURFACE')
          call SubsurfaceInitialize(model%simulation, model%option)
