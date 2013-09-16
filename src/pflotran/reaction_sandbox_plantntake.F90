@@ -4,12 +4,13 @@ module Reaction_Sandbox_PlantNTake_class
   
   use Global_Aux_module
   use Reactive_Transport_Aux_module
+  use PFLOTRAN_Constants_module
   
   implicit none
   
   private
   
-#include "definitions.h"
+#include "finclude/petscsys.h"
 
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_plantntake_type
@@ -150,12 +151,17 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 
   use Option_module
   use Reaction_Aux_module
+
+#ifdef CLM_PFLOTRAN
   use clm_pflotran_interface_data !, only : rate_plantnuptake_pf 
+#endif
   
   implicit none
 
+#ifdef CLM_PFLOTRAN
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
+#endif
   
   class(reaction_sandbox_plantntake_type) :: this  
   type(option_type) :: option
@@ -169,17 +175,20 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: volume, porosity
   PetscInt :: local_id
   PetscErrorCode     :: ierr
-  PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
 
+#ifdef CLM_PFLOTRAN
+  PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
   call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
 
-!  rate = this%rate
   rate = -1.0 * rate_plantnuptake_pf_loc(local_id) * volume ! mol/m3/s * m3
 
   call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
+#else
+  rate = this%rate
+#endif
 
   if(this%half_saturation .GT. 1.0d-20) then
      concN = rt_auxvar%immobile(this%ispec_mineralN)
@@ -199,7 +208,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   Jacobian(this%ispec_mineralN,this%ispec_mineralN) = &
       Jacobian(this%ispec_mineralN,this%ispec_mineralN) + drate
 
-  Jacobian(this%ispec_mineralN,this%ispec_mineralN) = &
+  Jacobian(this%ispec_plantN,this%ispec_mineralN) = &
       Jacobian(this%ispec_plantN,this%ispec_mineralN) - drate
   
 end subroutine PlantNTakeReact
