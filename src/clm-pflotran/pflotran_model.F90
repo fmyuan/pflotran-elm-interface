@@ -1454,7 +1454,7 @@ end subroutine pflotranModelSetICs
     
     grid_pf_local_nindex = 1
     call VecCreateMPI(option%mycomm, &
-                      patch%grid%nlmax, &
+                      realization%patch%grid%nlmax, &
                       PETSC_DECIDE, &
                       surf_ids, &
                       ierr)
