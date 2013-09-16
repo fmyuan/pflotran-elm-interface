@@ -633,14 +633,18 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
     call VecGetArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
-    call GridVecGetArrayF90(grid, field%porosity_loc, porosity_loc_p, ierr)
+!    call GridVecGetArrayF90(grid, field%porosity_loc, porosity_loc_p, ierr)
+    call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
 
     if(pflotran_model%option%iflowmode==RICHARDS_MODE .or. &
        pflotran_model%option%iflowmode==TH_MODE .or. &    ! F.-M. Yuan: without flowmode, the folllowing will throw
        pflotran_model%option%iflowmode==THC_MODE) then    ! out segementation fault error
-         call GridVecGetArrayF90(grid, field%perm_xx_loc,  perm_xx_loc_p,  ierr)
-         call GridVecGetArrayF90(grid, field%perm_yy_loc,  perm_yy_loc_p,  ierr)
-         call GridVecGetArrayF90(grid, field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+!         call GridVecGetArrayF90(grid, field%perm_xx_loc,  perm_xx_loc_p,  ierr)
+!         call GridVecGetArrayF90(grid, field%perm_yy_loc,  perm_yy_loc_p,  ierr)
+!         call GridVecGetArrayF90(grid, field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+         call VecGetArrayF90(field%perm_xx_loc,  perm_xx_loc_p,  ierr)
+         call VecGetArrayF90(field%perm_yy_loc,  perm_yy_loc_p,  ierr)
+         call VecGetArrayF90(field%perm_zz_loc,  perm_zz_loc_p,  ierr)
     endif
 
     do local_id = 1, grid%ngmax
@@ -685,13 +689,17 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
     call VecRestoreArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
-    call GridVecRestoreArrayF90(grid, field%porosity_loc, porosity_loc_p, ierr)
+!    call GridVecRestoreArrayF90(grid, field%porosity_loc, porosity_loc_p, ierr)
+    call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
     if(pflotran_model%option%iflowmode==RICHARDS_MODE .or. &
        pflotran_model%option%iflowmode==TH_MODE .or. &    ! F.-M. Yuan: without flowmode, the folllowing will throw
        pflotran_model%option%iflowmode==THC_MODE) then    ! out segementation fault error
-        call GridVecRestoreArrayF90(grid, field%perm_xx_loc,  perm_xx_loc_p,  ierr)
-        call GridVecRestoreArrayF90(grid, field%perm_yy_loc,  perm_yy_loc_p,  ierr)
-        call GridVecRestoreArrayF90(grid, field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+!        call GridVecRestoreArrayF90(grid, field%perm_xx_loc,  perm_xx_loc_p,  ierr)
+!        call GridVecRestoreArrayF90(grid, field%perm_yy_loc,  perm_yy_loc_p,  ierr)
+!        call GridVecRestoreArrayF90(grid, field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+        call VecRestoreArrayF90(field%perm_xx_loc,  perm_xx_loc_p,  ierr)
+        call VecRestoreArrayF90(field%perm_yy_loc,  perm_yy_loc_p,  ierr)
+        call VecRestoreArrayF90(field%perm_zz_loc,  perm_zz_loc_p,  ierr)
     endif
 
   end subroutine pflotranModelSetSoilProp
