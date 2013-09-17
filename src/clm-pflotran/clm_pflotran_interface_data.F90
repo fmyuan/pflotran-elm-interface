@@ -96,7 +96,7 @@ module clm_pflotran_interface_data
   !Vec :: smin_no3_vr_pf                ! (gN/m3) vertically-resolved soil mineral NO3
   !Vec :: smin_nh4_vr_pf                ! (gN/m3) vertically-resolved soil mineral NH4
 
-  ! (viii) ground/soil C/N rates (G.-P. Tang)
+  ! (viii) ground/soil C/N rates (G.-P. Tang) (Units: moleC(N)/m3/s)
     Vec :: rate_lit1c_clm
     Vec :: rate_lit2c_clm
     Vec :: rate_lit3c_clm
@@ -120,9 +120,14 @@ module clm_pflotran_interface_data
     Vec :: rate_plantnuptake_pf
 
     ! 'hrc' is accumulative in 'PFLOTRAN', so needs previous time-step to calculate 'hr' fluxes for CLM-CN
-    Vec :: hrc_vr_clm_prv                ! (gN/m3) vertically-resolved soil heterotrophic respiration C at previous time-step
-    Vec :: hrc_vr_clm                    ! (gN/m3) vertically-resolved soil heterotrophic respiration C
-    Vec :: hrc_vr_pf                     ! (gN/m3) vertically-resolved soil heterotrophic respiration C
+    Vec :: hrc_vr_clm_prv                ! (gC/m3) vertically-resolved soil heterotrophic respiration C at previous time-step
+    Vec :: hrc_vr_clm                    ! (gC/m3) vertically-resolved soil heterotrophic respiration C
+    Vec :: hrc_vr_pf                     ! (gC/m3) vertically-resolved soil heterotrophic respiration C
+
+    ! 'accextrn' is accumulative N extract in 'PFLOTRAN', so needs previous time-step to calculate 'sminn_to_plant' fluxes for CLM-CN
+    Vec :: accextrn_vr_clm_prv           ! (gN/m3) vertically-resolved root extraction N at previous time-step
+    Vec :: accextrn_vr_clm               ! (gN/m3) vertically-resolved root extraction N at previous time-step
+    Vec :: accextrn_vr_pf                ! (gN/m3) vertically-resolved root extraction N at previous time-step
 
   ! Number of cells for the 3D subsurface domain
   PetscInt :: nlclm_3d  ! num of local clm cells
@@ -232,6 +237,8 @@ contains
 
     clm_pf_idata%hrc_vr_clm_prv       = 0
     clm_pf_idata%hrc_vr_clm           = 0
+    clm_pf_idata%accextrn_vr_clm_prv  = 0
+    clm_pf_idata%accextrn_vr_clm      = 0
 
     clm_pf_idata%decomp_cpools_vr_lit1_pf = 0
     clm_pf_idata%decomp_cpools_vr_lit2_pf = 0
@@ -250,6 +257,7 @@ contains
     !clm_pf_idata%smin_nh4_vr_pf       = 0
 
     clm_pf_idata%hrc_vr_pf            = 0
+    clm_pf_idata%accextrn_vr_pf       = 0
 
    ! (viii) ground/soil C/N rates (G.-P. Tang)
     clm_pf_idata%rate_lit1c_clm            = 0
@@ -357,6 +365,9 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hrc_vr_clm_prv,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hrc_vr_clm,ierr)
 
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%accextrn_vr_clm_prv,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%accextrn_vr_clm,ierr)
+
 ! Create Seq. Vectors for PFLOTRAN -----------------------------------------------------
     ! (i) soil TH variables - parameters
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_3d,clm_pf_idata%hksat_x_pf,ierr)
@@ -411,6 +422,7 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_plantnuptake_pf,ierr)
 
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%hrc_vr_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%accextrn_vr_pf,ierr)
 
   end subroutine CLMPFLOTRANIDataCreateVec
 
@@ -557,6 +569,11 @@ contains
     if(clm_pf_idata%hrc_vr_clm /= 0) &
        call VecDestroy(clm_pf_idata%hrc_vr_clm,ierr)
 
+    if(clm_pf_idata%accextrn_vr_clm_prv /= 0) &
+       call VecDestroy(clm_pf_idata%accextrn_vr_clm_prv,ierr)
+    if(clm_pf_idata%accextrn_vr_clm /= 0) &
+       call VecDestroy(clm_pf_idata%accextrn_vr_clm,ierr)
+
     if(clm_pf_idata%rate_lit1c_pf /= 0) &
        call VecDestroy(clm_pf_idata%rate_lit1c_pf,ierr)
     if(clm_pf_idata%rate_lit2c_pf /= 0) &
@@ -580,6 +597,9 @@ contains
 
     if(clm_pf_idata%hrc_vr_pf /= 0) &
        call VecDestroy(clm_pf_idata%hrc_vr_pf,ierr)
+
+    if(clm_pf_idata%accextrn_vr_pf /= 0) &
+       call VecDestroy(clm_pf_idata%accextrn_vr_pf,ierr)
 
   end subroutine CLMPFLOTRANIDataDestroy
 

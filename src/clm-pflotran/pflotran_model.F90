@@ -767,11 +767,13 @@ end subroutine pflotranModelSetICs
     PetscScalar, pointer :: hrc_vr_pf_loc(:)                ! (gN/m3)
     !PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (gN/m3)
     !PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
+    PetscScalar, pointer :: accextrn_vr_pf_loc(:)            ! (gN/m3)
 
     PetscInt :: ispec_c, ispec_n, ispec_no3, ispec_nh4, offset, offsetim
     PetscInt :: ispec_lit1c, ispec_lit2c, ispec_lit3c
     PetscInt :: ispec_lit1n, ispec_lit2n, ispec_lit3n
     PetscInt :: ispec_som1, ispec_som2, ispec_som3, ispec_som4
+    PetscInt :: ispec_plantn
 
     character(len=MAXWORDLENGTH) :: word
     PetscReal, parameter :: C_molecular_weight = 12.0107d0
@@ -858,6 +860,10 @@ end subroutine pflotranModelSetICs
 !    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
 !                  realization%reaction,realization%option)
 
+    word = "PlantN"
+    ispec_plantn  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
     call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_lit1_clm, &
@@ -937,6 +943,11 @@ end subroutine pflotranModelSetICs
     !                                clm_pf_idata%smin_nh4_vr_clm, &
     !                                clm_pf_idata%smin_nh4_vr_pf)
 
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%accextrn_vr_clm, &
+                                    clm_pf_idata%accextrn_vr_pf)
+
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pf, &
                         decomp_cpools_vr_lit1_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pf, &
@@ -965,6 +976,7 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%hrc_vr_pf, hrc_vr_pf_loc,ierr)
     !call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pf, smin_no3_vr_pf_loc, ierr)
     !call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pf, smin_nh4_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%accextrn_vr_pf, accextrn_vr_pf_loc, ierr)
 
 !    call GridVecGetArrayF90(grid,field%tran_xx,xx_p,ierr)
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)
@@ -1006,6 +1018,8 @@ end subroutine pflotranModelSetICs
                                         / N_molecular_weight, 1.0d-20)
       xx_p(offsetim + ispec_c) = max(hrc_vr_pf_loc(local_id) &
                                         / C_molecular_weight, 1.0d-20)
+      xx_p(offsetim + ispec_plantn) = max(accextrn_vr_pf_loc(local_id) &
+                                        / N_molecular_weight, 1.0d-20)
 
     enddo
 
@@ -1025,6 +1039,7 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%hrc_vr_pf, hrc_vr_pf_loc, ierr)
     !call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pf, smin_no3_vr_pf_loc, ierr)
     !call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pf, smin_nh4_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%accextrn_vr_pf, accextrn_vr_pf_loc, ierr)
 
 !    call GridVecRestoreArrayF90(grid,field%tran_xx,xx_p,ierr)
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
@@ -2461,7 +2476,7 @@ end subroutine pflotranModelSetICs
     PetscInt           :: local_id
 
     PetscScalar, pointer :: rate_pf_loc(:)   !
-!    PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
+    PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
 
 !    PetscReal, pointer :: v_p(:)
     PetscReal, pointer :: volume_p(:)
@@ -2562,9 +2577,7 @@ end subroutine pflotranModelSetICs
              call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pf, rate_pf_loc, ierr)
             case(2)
              call VecGetArrayReadF90(clm_pf_idata%rate_minn_pf, rate_pf_loc, ierr)
-!             call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
-!            case(14)
-!             call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
             case default
                     pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
                     call printErrMsg(pflotran_model%option)
@@ -2602,9 +2615,7 @@ end subroutine pflotranModelSetICs
              call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pf, rate_pf_loc, ierr)
             case(2)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_minn_pf, rate_pf_loc, ierr)
-!             call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
-!            case(14)
-!             call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
             case default
                pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
                call printErrMsg(pflotran_model%option)
@@ -2889,11 +2900,13 @@ end subroutine pflotranModelSetICs
     PetscScalar, pointer :: hrc_vr_pf_loc(:)                ! (gN/m3)
     !PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (gN/m3)
     !PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
+    PetscScalar, pointer :: accextrn_vr_pf_loc(:)            ! (gN/m3)
 
     PetscInt :: ispec_c, ispec_n, ispec_no3, ispec_nh4, offset, offsetim
     PetscInt :: ispec_lit1c, ispec_lit2c, ispec_lit3c
     PetscInt :: ispec_lit1n, ispec_lit2n, ispec_lit3n
     PetscInt :: ispec_som1, ispec_som2, ispec_som3, ispec_som4
+    PetscInt :: ispec_plantn
 
     character(len=MAXWORDLENGTH) :: word
     PetscReal, parameter :: C_molecular_weight = 12.0107d0
@@ -2973,7 +2986,11 @@ end subroutine pflotranModelSetICs
 !    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
 !                  realization%reaction,realization%option)
 
-    ! (ii) get the original 'pf' vecs (needed??? - F.-M. Yuan)
+    word = "PlantN"
+    ispec_plantn  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    ! (ii) get the original 'pf' vecs
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pf, &
                         decomp_cpools_vr_lit1_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pf, &
@@ -3002,6 +3019,7 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%hrc_vr_pf, hrc_vr_pf_loc,ierr)
     !call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pf, smin_no3_vr_pf_loc, ierr)
     !call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pf, smin_nh4_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%accextrn_vr_pf, accextrn_vr_pf_loc, ierr)
 
     ! (iii) pass the data from internal to PFLOTRAN vecs
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)  ! extract data from pflotran internal portion
@@ -3043,6 +3061,8 @@ end subroutine pflotranModelSetICs
                                         * N_molecular_weight
       hrc_vr_pf_loc(local_id)   = max(xx_p(offsetim + ispec_c), 1.0d-20) &
                                         * C_molecular_weight
+      accextrn_vr_pf_loc(local_id) = max(xx_p(offsetim + ispec_plantn), 1.0d-20) &
+                                        * N_molecular_weight
 
     enddo
 
@@ -3062,6 +3082,7 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%hrc_vr_pf, hrc_vr_pf_loc, ierr)
     !call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pf, smin_no3_vr_pf_loc, ierr)
     !call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pf, smin_nh4_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%accextrn_vr_pf, accextrn_vr_pf_loc, ierr)
 
    ! (iv) pass the 'pf' vecs to 'clm' vecs, which then can be passed to CLMCN (implemented in 'clm_pflotran_interfaceMod'
     call MappingSourceToDestination(pflotran_model%map_pf2clm, &
@@ -3142,6 +3163,11 @@ end subroutine pflotranModelSetICs
     !                                pflotran_model%option, &
     !                                clm_pf_idata%smin_nh4_vr_pf, &
     !                                clm_pf_idata%smin_nh4_vr_clm)
+
+    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%accextrn_vr_pf, &
+                                    clm_pf_idata%accextrn_vr_clm)
 
   end subroutine pflotranModelGetBgcVariables
 
