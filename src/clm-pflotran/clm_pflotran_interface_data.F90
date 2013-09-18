@@ -383,6 +383,7 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%press_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%sat_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%sat_ice_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%area_top_face_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%temp_pf,ierr)
 
     ! (iii) soil TH variables - fluxes
