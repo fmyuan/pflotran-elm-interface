@@ -63,6 +63,10 @@ module clm_pflotran_interface_data
   Vec :: sat_ice_clm ! seq vec
   Vec :: sat_ice_pf  ! mpi vec
 
+  ! (vii) Stand water head
+  Vec :: h2osfc_clm ! seq vec
+  Vec :: h2osfc_pf  ! mpi vec
+
   ! Number of cells for the 3D subsurface domain
   PetscInt :: nlclm_3d  ! num of local clm cells
   PetscInt :: ngclm_3d  ! num of ghosted clm cells (ghosted = local+ghosts)
@@ -152,6 +156,8 @@ contains
     clm_pf_idata%sat_ice_clm = 0
     clm_pf_idata%sat_ice_pf = 0
 
+    clm_pf_idata%h2osfc_clm = 0
+    clm_pf_idata%h2osfc_pf = 0
 
   end subroutine CLMPFLOTRANIDataInit
 
@@ -218,6 +224,7 @@ contains
     !
 
     ! Create MPI Vectors for PFLOTRAN
+    ! 3D Subsurface PFLOTRAN ---to--- 3D Subsurface CLM
     call VecCreateMPI(mycomm,clm_pf_idata%nlpf_3d,PETSC_DECIDE,clm_pf_idata%sat_pf,ierr)
     call VecSet(clm_pf_idata%sat_pf,0.d0,ierr)
 
@@ -225,13 +232,22 @@ contains
     call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%sat_ice_pf,ierr)
     call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%area_top_face_pf,ierr)
 
+    ! 2D Surface PFLOTRAN ---to--- 2D Surface CLM
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_2d,PETSC_DECIDE,clm_pf_idata%h2osfc_pf,ierr)
+    call VecSet(clm_pf_idata%h2osfc_pf,0.d0,ierr)
+
     ! Create Seq. Vectors for CLM
+    ! 3D Subsurface PFLOTRAN ---to--- 3D Subsurface CLM
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_3d,clm_pf_idata%sat_clm,ierr)
     call VecSet(clm_pf_idata%sat_clm,0.d0,ierr)
 
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%temp_clm,ierr)
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%sat_ice_clm,ierr)
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%area_top_face_clm,ierr)
+
+    ! 2D Surface PFLOTRAN ---to--- 2D Surface CLM
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%nlclm_surf_3d,clm_pf_idata%h2osfc_clm,ierr)
+    call VecSet(clm_pf_idata%h2osfc_clm,0.d0,ierr)
 
   end subroutine CLMPFLOTRANIDataCreateVec
 
@@ -282,6 +298,9 @@ contains
 
     if(clm_pf_idata%sat_ice_clm  /= 0) call VecDestroy(clm_pf_idata%sat_ice_clm,ierr)
     if(clm_pf_idata%sat_ice_pf  /= 0) call VecDestroy(clm_pf_idata%sat_ice_pf,ierr)
+
+    if(clm_pf_idata%h2osfc_clm  /= 0) call VecDestroy(clm_pf_idata%h2osfc_clm,ierr)
+    if(clm_pf_idata%h2osfc_pf  /= 0) call VecDestroy(clm_pf_idata%h2osfc_pf,ierr)
 
     if(clm_pf_idata%area_top_face_clm  /= 0) &
       call VecDestroy(clm_pf_idata%area_top_face_clm,ierr)

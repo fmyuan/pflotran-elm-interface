@@ -1947,7 +1947,98 @@ end subroutine pflotranModelSetICs
                                       clm_pf_idata%gflux_pf)
     endif
 
+    if(pflotran_model%option%nsurfflowdof>0) then
+      call pflotranModelSurfaceSource(pflotran_model)
+    endif
+
   end subroutine pflotranModelUpdateFlowConds
+
+  ! ************************************************************************** !
+  !> This routine updates source condtion for 'mass' equation of PFLOTRAN
+  !! surface-flow model from CLM.
+  !!
+  !> @author
+  !! Gautam Bisht, LBNL
+  !!
+  !! date: 9/18/2013
+  ! ************************************************************************** !
+  subroutine pflotranModelSurfaceSource(pflotran_model)
+
+    use clm_pflotran_interface_data
+    use Coupler_module
+    use Connection_module
+    use Mapping_module
+    use Option_module
+    use Realization_class, only : realization_type
+    use String_module
+    use Simulation_Base_class, only : simulation_base_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Surface_Realization_class, only : surface_realization_type
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+
+    type(coupler_type), pointer               :: source_sink
+    type(connection_set_list_type), pointer   :: connection_set_list
+    type(connection_set_type), pointer        :: cur_connection_set
+    class(surface_realization_type), pointer  :: surf_realization
+    PetscScalar, pointer                      :: rain_pf_loc(:)
+    PetscBool                                 :: found
+    PetscInt                                  :: iconn
+    PetscErrorCode                            :: ierr
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_rflux, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rain_clm, &
+                                    clm_pf_idata%rain_pf)
+
+    select type (simulation => pflotran_model%simulation)
+      class is (surfsubsurface_simulation_type)
+         surf_realization => simulation%surf_realization
+      class default
+         nullify(surf_realization)
+         pflotran_model%option%io_buffer = "pflotranModelSurfaceSource only " // &
+              "works on combinations of surfsubsurface_simulation_type."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    ! Source/sink terms -------------------------------------
+    call VecGetArrayF90(clm_pf_idata%rain_pf,rain_pf_loc,ierr)
+    found = PETSC_FALSE
+    source_sink => surf_realization%patch%source_sinks%first
+    do
+      if (.not.associated(source_sink)) exit
+
+      cur_connection_set => source_sink%connection_set
+
+      ! Find appropriate Source/Sink from the list of Source/Sinks
+      if(StringCompare(source_sink%name,'rain_from_clm_ss')) then
+
+        found = PETSC_TRUE
+        if (source_sink%flow_condition%rate%itype /= HET_VOL_RATE_SS) then
+          call printErrMsg(pflotran_model%option,'rain_from_clm_ss is not of ' // &
+                           'HET_VOL_RATE_SS')
+        endif
+
+        do iconn = 1, cur_connection_set%num_connections
+          source_sink%flow_aux_real_var(ONE_INTEGER,iconn) = rain_pf_loc(iconn)
+        enddo
+      endif
+
+      source_sink => source_sink%next
+    enddo
+    call VecRestoreArrayF90(clm_pf_idata%rain_pf,rain_pf_loc,ierr)
+
+    if(.not.found) &
+      call printErrMsg(pflotran_model%option,'rain_from_clm_ss not found in ' // &
+                       'source-sink list of surface-flow model.')
+
+  end subroutine pflotranModelSurfaceSource
+
 
   ! ************************************************************************** !
   !> This routine get updated states evoloved by PFLOTRAN.
@@ -1971,17 +2062,23 @@ end subroutine pflotranModelSetICs
     use Surface_Realization_class, only : surface_realization_type
     use clm_pflotran_interface_data
     use Realization_class, only : realization_type
+    use Surface_Realization_class, only : surface_realization_type
 
     type(pflotran_model_type), pointer  :: pflotran_model
+
     class(realization_type), pointer     :: realization
+    class(surface_realization_type), pointer  :: surf_realization
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
          realization => simulation%realization
+         nullify(surf_realization)
       class is (surfsubsurface_simulation_type)
          realization => simulation%realization
+         surf_realization => simulation%surf_realization
       class default
          nullify(realization)
+         nullify(surf_realization)
          pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
          call printErrMsg(pflotran_model%option)
     end select
@@ -1990,6 +2087,9 @@ end subroutine pflotranModelSetICs
       case (RICHARDS_MODE)
         call RichardsUpdateAuxVars(realization)
         call pflotranModelGetSaturation(pflotran_model)
+        if (pflotran_model%option%nsurfflowdof>0) then
+          call pflotranModelGetSurfaceFlowHead(pflotran_model)
+        endif
       case (TH_MODE)
         call THUpdateAuxVars(realization)
         call pflotranModelGetSaturation(pflotran_model)
@@ -2068,6 +2168,75 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%sat_clm)
 
   end subroutine pflotranModelGetSaturation
+
+  ! ************************************************************************** !
+  !> This routine returns updated surface-flow standing head of water evoloved
+  !! by PFLOTRAN.
+  !!
+  !> @author
+  !! Gautam Bisht, LBNL
+  !!
+  !! date: 9/18/2013
+  ! ************************************************************************** !
+  subroutine pflotranModelGetSurfaceFlowHead(pflotran_model)
+
+    use Option_module
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Global_Aux_module
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Surface_Realization_class, only : surface_realization_type
+    use clm_pflotran_interface_data
+    use Surface_Global_Aux_module
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+
+    class(surface_realization_type), pointer  :: surf_realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(surface_global_auxvar_type), pointer   :: surf_global_aux_vars(:)
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id
+    PetscReal, pointer :: h2osfc_pf_p(:)
+
+    select type (simulation => pflotran_model%simulation)
+      class is (surfsubsurface_simulation_type)
+         surf_realization => simulation%surf_realization
+      class default
+         nullify(surf_realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on " // &
+            "surfsubsurface_simulation_type simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+    patch           => surf_realization%patch
+    grid            => patch%grid
+    surf_global_aux_vars => patch%surf_aux%SurfaceGlobal%aux_vars
+
+    ! Save the standing head of water values
+    call VecGetArrayF90(clm_pf_idata%h2osfc_pf, h2osfc_pf_p, ierr)
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      ! Convert 'm' to 'mm'
+      h2osfc_pf_p(local_id) = surf_global_aux_vars(ghosted_id)%head(1)*1000.d0
+    enddo
+    call VecRestoreArrayF90(clm_pf_idata%h2osfc_pf, h2osfc_pf_p, ierr)
+
+    call MappingSourceToDestination(pflotran_model%map_pf2clm_surf, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%h2osfc_pf, &
+                                    clm_pf_idata%h2osfc_clm)
+
+  end subroutine pflotranModelGetSurfaceFlowHead
 
   ! ************************************************************************** !
   !> This routine get updated states evoloved by PFLOTRAN.
