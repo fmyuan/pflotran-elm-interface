@@ -1753,6 +1753,7 @@ end subroutine pflotranModelSetICs
 
     type(pflotran_model_type), pointer :: model
     type(waypoint_type), pointer       :: waypoint
+    type(waypoint_type), pointer       :: waypoint2
     PetscReal                          :: waypoint_time
     character(len=MAXWORDLENGTH)       :: word
 
@@ -1781,18 +1782,25 @@ end subroutine pflotranModelSetICs
     waypoint => WaypointCreate()
     waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
     waypoint%update_conditions = PETSC_TRUE
-    waypoint%dt_max            = 3153600
+    waypoint%dt_max            = 3153600.d0
+    waypoint2 => WaypointCreate(waypoint)
 
     if (associated(realization)) then
        call WaypointInsertInList(waypoint, realization%waypoints)
     end if
 
     if (associated(surf_realization)) then
-       call WaypointInsertInList(waypoint, surf_realization%waypoints)
+       call WaypointInsertInList(waypoint2, surf_realization%waypoints)
     end if
 
   end subroutine pflotranModelInsertWaypoint
 
+  ! ************************************************************************** !
+  ! pflotranModelDeleteWaypoint: Delets a waypoint within the waypoint list
+  !
+  ! author: Gautam Bisht
+  ! date: 9/10/2010
+  ! ************************************************************************** !
   subroutine pflotranModelDeleteWaypoint(model, waypoint_time)
 
     use Simulation_Base_class, only : simulation_base_type
@@ -1812,6 +1820,7 @@ end subroutine pflotranModelSetICs
 
     type(pflotran_model_type), pointer :: model
     type(waypoint_type), pointer       :: waypoint
+    type(waypoint_type), pointer       :: waypoint2
     PetscReal                          :: waypoint_time
     character(len=MAXWORDLENGTH)       :: word
 
@@ -1840,14 +1849,15 @@ end subroutine pflotranModelSetICs
     waypoint => WaypointCreate()
     waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
     waypoint%update_conditions = PETSC_TRUE
-    waypoint%dt_max            = 3153600
+    waypoint%dt_max            = 3153600.d0
+    waypoint2 => WaypointCreate(waypoint)
 
     if (associated(realization)) then
        call WaypointDeleteFromList(waypoint, realization%waypoints)
     end if
 
     if (associated(surf_realization)) then
-       call WaypointDeleteFromList(waypoint, surf_realization%waypoints)
+       call WaypointDeleteFromList(waypoint2, surf_realization%waypoints)
     end if
 
   end subroutine pflotranModelDeleteWaypoint
