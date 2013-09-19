@@ -183,7 +183,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
   call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
 
-  rate = -1.0 * rate_plantnuptake_pf_loc(local_id) * volume ! mol/m3/s * m3
+  rate = rate_plantnuptake_pf_loc(local_id) * volume ! mol/m3/s * m3
 
   call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
 #else
