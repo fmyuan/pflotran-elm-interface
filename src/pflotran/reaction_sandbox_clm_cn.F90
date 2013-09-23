@@ -628,6 +628,10 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     rate = rt_auxvar%immobile(ispecC_pool_up) * &
            scaled_rate_const * N_inhibition
 
+    if(rt_auxvar%immobile(ispecC_pool_up) .LE. 1.0d-20) then
+      rate = 0.0d0
+    endif
+
     ! calculation of residual
     
     ! carbon

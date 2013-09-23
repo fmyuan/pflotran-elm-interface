@@ -119,7 +119,7 @@ subroutine TimestepperBaseInit(this)
   this%steps = 0
   this%num_constant_time_steps = 0
 
-  this%max_time_step = 999999
+  this%max_time_step = 9999999
   this%max_time_step_cuts = 16
   this%constant_time_step_threshold = 5
 
