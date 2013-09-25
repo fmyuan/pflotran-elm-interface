@@ -2477,6 +2477,9 @@ end subroutine pflotranModelSetICs
 
     PetscScalar, pointer :: rate_pf_loc(:)   !
     PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
+    PetscScalar, pointer :: rate_nleached_pf_loc(:)   !
+    PetscScalar, pointer :: rate_ndeni_decomp_pf_loc(:)   !
+    PetscScalar, pointer :: rate_ndeni_excess_pf_loc(:)   !
 
 !    PetscReal, pointer :: v_p(:)
     PetscReal, pointer :: volume_p(:)
@@ -2550,6 +2553,21 @@ end subroutine pflotranModelSetICs
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_plantnuptake_clm, &
                                     clm_pf_idata%rate_plantnuptake_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rate_nleached_clm, &
+                                    clm_pf_idata%rate_nleached_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rate_ndeni_decomp_clm, &
+                                    clm_pf_idata%rate_ndeni_decomp_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rate_ndeni_excess_clm, &
+                                    clm_pf_idata%rate_ndeni_excess_pf)
 
 !   get cell volume as mass transfer rate unit is mol/s
     call VecGetArrayReadF90(field%volume,volume_p,ierr)

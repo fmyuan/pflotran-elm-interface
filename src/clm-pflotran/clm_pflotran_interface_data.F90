@@ -107,6 +107,9 @@ module clm_pflotran_interface_data
     !Vec :: rate_cwdn_clm
     Vec :: rate_minn_clm
     Vec :: rate_plantnuptake_clm
+    Vec :: rate_nleached_clm
+    Vec :: rate_ndeni_decomp_clm
+    Vec :: rate_ndeni_excess_clm
 
     Vec :: rate_lit1c_pf
     Vec :: rate_lit2c_pf
@@ -118,6 +121,9 @@ module clm_pflotran_interface_data
     !Vec :: rate_cwdn_pf
     Vec :: rate_minn_pf
     Vec :: rate_plantnuptake_pf
+    Vec :: rate_nleached_pf
+    Vec :: rate_ndeni_decomp_pf
+    Vec :: rate_ndeni_excess_pf
 
     ! 'hrc' is accumulative in 'PFLOTRAN', so needs previous time-step to calculate 'hr' fluxes for CLM-CN
     Vec :: hrc_vr_clm_prv                ! (gC/m3) vertically-resolved soil heterotrophic respiration C at previous time-step
@@ -270,6 +276,9 @@ contains
     !clm_pf_idata%rate_cwdn_clm            = 0
     clm_pf_idata%rate_minn_clm             = 0
     clm_pf_idata%rate_plantnuptake_clm     = 0
+    clm_pf_idata%rate_nleached_clm         = 0
+    clm_pf_idata%rate_ndeni_decomp_clm     = 0
+    clm_pf_idata%rate_ndeni_excess_clm     = 0
 
     clm_pf_idata%rate_lit1c_pf            = 0
     clm_pf_idata%rate_lit2c_pf            = 0
@@ -281,6 +290,9 @@ contains
     !clm_pf_idata%rate_cwdn_pf            = 0
     clm_pf_idata%rate_minn_pf             = 0
     clm_pf_idata%rate_plantnuptake_pf     = 0
+    clm_pf_idata%rate_nleached_pf         = 0
+    clm_pf_idata%rate_ndeni_decomp_pf     = 0
+    clm_pf_idata%rate_ndeni_excess_pf     = 0
 
   end subroutine CLMPFLOTRANIDataInit
 
@@ -361,6 +373,9 @@ contains
     !call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_cwdn_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_minn_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_plantnuptake_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_nleached_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_ndeni_decomp_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%rate_ndeni_excess_clm,ierr)
 
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hrc_vr_clm_prv,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hrc_vr_clm,ierr)
@@ -421,6 +436,9 @@ contains
     !call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_cwdn_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_minn_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_plantnuptake_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_nleached_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_ndeni_decomp_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%rate_ndeni_excess_pf,ierr)
 
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%hrc_vr_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%accextrn_vr_pf,ierr)
@@ -564,6 +582,12 @@ contains
        call VecDestroy(clm_pf_idata%rate_minn_clm,ierr)
     if(clm_pf_idata%rate_plantnuptake_clm /= 0) &
        call VecDestroy(clm_pf_idata%rate_plantnuptake_clm,ierr)
+    if(clm_pf_idata%rate_nleached_clm /= 0) &
+       call VecDestroy(clm_pf_idata%rate_nleached_clm,ierr)
+    if(clm_pf_idata%rate_ndeni_decomp_clm /= 0) &
+       call VecDestroy(clm_pf_idata%rate_ndeni_decomp_clm,ierr)
+    if(clm_pf_idata%rate_ndeni_excess_clm /= 0) &
+       call VecDestroy(clm_pf_idata%rate_ndeni_excess_clm,ierr)
 
     if(clm_pf_idata%hrc_vr_clm_prv /= 0) &
        call VecDestroy(clm_pf_idata%hrc_vr_clm_prv,ierr)
@@ -595,6 +619,12 @@ contains
        call VecDestroy(clm_pf_idata%rate_minn_pf,ierr)
     if(clm_pf_idata%rate_plantnuptake_pf /= 0) &
        call VecDestroy(clm_pf_idata%rate_plantnuptake_pf,ierr)
+    if(clm_pf_idata%rate_nleached_pf /= 0) &
+       call VecDestroy(clm_pf_idata%rate_nleached_pf,ierr)
+    if(clm_pf_idata%rate_ndeni_decomp_pf /= 0) &
+       call VecDestroy(clm_pf_idata%rate_ndeni_decomp_pf,ierr)
+    if(clm_pf_idata%rate_ndeni_excess_pf /= 0) &
+       call VecDestroy(clm_pf_idata%rate_ndeni_excess_pf,ierr)
 
     if(clm_pf_idata%hrc_vr_pf /= 0) &
        call VecDestroy(clm_pf_idata%hrc_vr_pf,ierr)
