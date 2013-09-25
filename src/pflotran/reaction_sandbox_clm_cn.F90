@@ -509,6 +509,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal, parameter :: theta_min = 0.01d0     ! 1/nat log(0.01d0)
   PetscReal, parameter :: one_over_log_theta_min = -2.17147241d-1
   PetscReal, parameter :: twelve_over_14 = 0.857142857143d0
+  PetscReal, parameter :: eps = 1.0d-80
 
   PetscReal :: CN_ratio_up, CN_ratio_down
   PetscBool :: constant_CN_ratio_up
@@ -571,7 +572,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ispecC_pool_up = this%pool_id_to_species_id(CARBON_INDEX,ipool_up)
       ispecN_pool_up = this%pool_id_to_species_id(NITROGEN_INDEX,ipool_up)
       CN_ratio_up = rt_auxvar%immobile(ispecC_pool_up) / &
-                    rt_auxvar%immobile(ispecN_pool_up)
+                    max(rt_auxvar%immobile(ispecN_pool_up),eps)
     else
       ! upstream pool is an SOM pool with one species
       !
@@ -584,7 +585,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     ! a = fraction_C_up = 1.
     stoich_upstreamC_pool = 1.d0
     ! b = a / CN_ratio_up
-    stoich_upstreamN_pool = stoich_upstreamC_pool / CN_ratio_up
+    stoich_upstreamN_pool = stoich_upstreamC_pool / max(CN_ratio_up,eps)
 
     ! downstream pool
     ipool_down = this%downstream_pool_id(irxn)
@@ -606,7 +607,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     ! d = resp_frac * a
     stoich_C = resp_frac * stoich_upstreamC_pool
     ! e = b - c / CN_ratio_dn
-    stoich_N = stoich_upstreamN_pool - stoich_downstreamC_pool / CN_ratio_down
+    stoich_N = stoich_upstreamN_pool - stoich_downstreamC_pool / max(CN_ratio_down,eps)
  
     ! Inhibition by nitrogen (inhibition concentration > 0 and N is a reactant)
     ! must be calculated here as the sign on the stoichiometry for N is 
@@ -720,14 +721,14 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
         ! Since CN_ratio is a function of unknowns, other derivatives to 
         ! calculate
-        dCN_ratio_up_dC_pool_up = 1.d0 / rt_auxvar%immobile(ispecN_pool_up)
+        dCN_ratio_up_dC_pool_up = 1.d0 / max(rt_auxvar%immobile(ispecN_pool_up),eps)
         dCN_ratio_up_dN_pool_up = -1.d0 * CN_ratio_up / &
-                                  rt_auxvar%immobile(ispecN_pool_up)
+                                  max(rt_auxvar%immobile(ispecN_pool_up),eps)
         
         ! stoich_upstreamC_pool = 1.d0 (for upstream litter pool)
         ! dstoich_upstreamC_pool_dC_up = 0.
         ! stoich_upstreamN_pool = stoich_upstreamC_pool / CN_ratio_up
-        temp_real = -1.d0 * stoich_upstreamN_pool / CN_ratio_up
+        temp_real = -1.d0 * stoich_upstreamN_pool / max(CN_ratio_up,eps)
         dstoich_upstreamN_pool_dC_pool_up = temp_real * dCN_ratio_up_dC_pool_up
         dstoich_upstreamN_pool_dN_pool_up = temp_real * dCN_ratio_up_dN_pool_up        
 
