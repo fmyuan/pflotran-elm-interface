@@ -509,7 +509,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal, parameter :: theta_min = 0.01d0     ! 1/nat log(0.01d0)
   PetscReal, parameter :: one_over_log_theta_min = -2.17147241d-1
   PetscReal, parameter :: twelve_over_14 = 0.857142857143d0
-  PetscReal, parameter :: eps = 1.0d-80
+  PetscReal, parameter :: eps = 1.0d-15
 
   PetscReal :: CN_ratio_up, CN_ratio_down
   PetscBool :: constant_CN_ratio_up
@@ -626,12 +626,18 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     endif
     
     ! residual units: (mol/sec) = (m^3 bulk/s) * (mol/m^3 bulk)
+    if(rt_auxvar%immobile(ispecC_pool_up) .LE. eps) then
+      rate = 0.0d0
+      return
+    endif
+
+    if(use_N_inhibition .and. rt_auxvar%immobile(ispec_N) .LE. eps) then
+      rate = 0.0d0
+      return
+    endif
+
     rate = rt_auxvar%immobile(ispecC_pool_up) * &
            scaled_rate_const * N_inhibition
-
-    if(rt_auxvar%immobile(ispecC_pool_up) .LE. 1.0d-20) then
-      rate = 0.0d0
-    endif
 
     ! calculation of residual
     
