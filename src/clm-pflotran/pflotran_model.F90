@@ -378,7 +378,7 @@ contains
   ! NOTE(bja, 2013-06-27) : the date stamp from clm is 32 characters
   !
   ! **************************************************************************
-  subroutine pflotranModelStepperCheckpoint(model, date_stamp)
+  subroutine pflotranModelStepperCheckpoint(model, id_stamp)
 
     use Option_module
     use Timestepper_module, only : StepperCheckpoint
@@ -386,14 +386,10 @@ contains
     implicit none
 
     type(pflotran_model_type), pointer :: model
-    character(len=MAXWORDLENGTH), intent(in) :: date_stamp
+    character(len=MAXWORDLENGTH), intent(in) :: id_stamp
+    PetscViewer :: viewer
 
-    model%option%io_buffer = 'checkpoint is not implemented for clm-pflotran.'
-    call printWrnMsg(model%option)
-!!$    call StepperCheckpoint(model%realization, &
-!!$         model%simulation%flow_stepper, &
-!!$         model%simulation%tran_stepper, &
-!!$         NEG_ONE_INTEGER, date_stamp)
+    call model%simulation%process_model_coupler_list%Checkpoint(viewer, -1, id_stamp)
 
   end subroutine pflotranModelStepperCheckpoint
 
@@ -2256,16 +2252,15 @@ end subroutine pflotranModelSetICs
     type(pflotran_model_type), pointer :: model
     character(len=MAXWORDLENGTH) :: restart_stamp
 
-    model%option%io_buffer = 'restart is not implemented in clm-pflotran.'
     call printWrnMsg(model%option)
 
-!!$    if (.not. StringNull(restart_stamp)) then
-!!$       model%option%restart_flag = PETSC_TRUE
-!!$       model%option%restart_filename = &
-!!$            trim(model%option%global_prefix) // &
-!!$            trim(model%option%group_prefix) // &
-!!$            '.' // trim(restart_stamp) // '.chk'
-!!$    end if
+    if (.not. StringNull(restart_stamp)) then
+       model%option%restart_flag = PETSC_TRUE
+       model%option%restart_filename = &
+            trim(model%option%global_prefix) // &
+            trim(model%option%group_prefix) // &
+            '-' // trim(restart_stamp) // '.chk'
+    end if
 
   end subroutine pflotranModelSetupRestart
 
