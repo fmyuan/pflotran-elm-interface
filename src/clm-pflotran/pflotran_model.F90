@@ -371,7 +371,7 @@ contains
   ! NOTE(bja, 2013-06-27) : the date stamp from clm is 32 characters
   !
   ! **************************************************************************
-  subroutine pflotranModelStepperCheckpoint(model, date_stamp)
+  subroutine pflotranModelStepperCheckpoint(model, id_stamp)
 
     use Option_module
     use Timestepper_module, only : StepperCheckpoint
@@ -379,14 +379,10 @@ contains
     implicit none
 
     type(pflotran_model_type), pointer :: model
-    character(len=MAXWORDLENGTH), intent(in) :: date_stamp
+    character(len=MAXWORDLENGTH), intent(in) :: id_stamp
+    PetscViewer :: viewer
 
-    model%option%io_buffer = 'checkpoint is not implemented for clm-pflotran.'
-    call printWrnMsg(model%option)
-!!$    call StepperCheckpoint(model%realization, &
-!!$         model%simulation%flow_stepper, &
-!!$         model%simulation%tran_stepper, &
-!!$         NEG_ONE_INTEGER, date_stamp)
+    call model%simulation%process_model_coupler_list%Checkpoint(viewer, -1, id_stamp)
 
   end subroutine pflotranModelStepperCheckpoint
 
@@ -1795,12 +1791,6 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelInsertWaypoint
 
-  ! ************************************************************************** !
-  ! pflotranModelDeleteWaypoint: Delets a waypoint within the waypoint list
-  !
-  ! author: Gautam Bisht
-  ! date: 9/10/2010
-  ! ************************************************************************** !
   subroutine pflotranModelDeleteWaypoint(model, waypoint_time)
 
     use Simulation_Base_class, only : simulation_base_type
@@ -1820,7 +1810,6 @@ end subroutine pflotranModelSetICs
 
     type(pflotran_model_type), pointer :: model
     type(waypoint_type), pointer       :: waypoint
-    type(waypoint_type), pointer       :: waypoint2
     PetscReal                          :: waypoint_time
     character(len=MAXWORDLENGTH)       :: word
 
@@ -1849,15 +1838,14 @@ end subroutine pflotranModelSetICs
     waypoint => WaypointCreate()
     waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
     waypoint%update_conditions = PETSC_TRUE
-    waypoint%dt_max            = 3153600.d0
-    waypoint2 => WaypointCreate(waypoint)
+    waypoint%dt_max            = 3153600
 
     if (associated(realization)) then
        call WaypointDeleteFromList(waypoint, realization%waypoints)
     end if
 
     if (associated(surf_realization)) then
-       call WaypointDeleteFromList(waypoint2, surf_realization%waypoints)
+       call WaypointDeleteFromList(waypoint, surf_realization%waypoints)
     end if
 
   end subroutine pflotranModelDeleteWaypoint
@@ -1885,16 +1873,15 @@ end subroutine pflotranModelSetICs
     type(pflotran_model_type), pointer :: model
     character(len=MAXWORDLENGTH) :: restart_stamp
 
-    model%option%io_buffer = 'restart is not implemented in clm-pflotran.'
     call printWrnMsg(model%option)
 
-!!$    if (.not. StringNull(restart_stamp)) then
-!!$       model%option%restart_flag = PETSC_TRUE
-!!$       model%option%restart_filename = &
-!!$            trim(model%option%global_prefix) // &
-!!$            trim(model%option%group_prefix) // &
-!!$            '.' // trim(restart_stamp) // '.chk'
-!!$    end if
+    if (.not. StringNull(restart_stamp)) then
+       model%option%restart_flag = PETSC_TRUE
+       model%option%restart_filename = &
+            trim(model%option%global_prefix) // &
+            trim(model%option%group_prefix) // &
+            '-' // trim(restart_stamp) // '.chk'
+    end if
 
   end subroutine pflotranModelSetupRestart
 
@@ -1945,10 +1932,6 @@ end subroutine pflotranModelSetICs
                                       pflotran_model%option, &
                                       clm_pf_idata%gflux_clm, &
                                       clm_pf_idata%gflux_pf)
-    endif
-
-    if(pflotran_model%option%nsurfflowdof>0) then
-      call pflotranModelSurfaceSource(pflotran_model)
     endif
 
   end subroutine pflotranModelUpdateFlowConds
@@ -2039,7 +2022,6 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelSurfaceSource
 
-
   ! ************************************************************************** !
   !> This routine get updated states evoloved by PFLOTRAN.
   !!
@@ -2062,23 +2044,17 @@ end subroutine pflotranModelSetICs
     use Surface_Realization_class, only : surface_realization_type
     use clm_pflotran_interface_data
     use Realization_class, only : realization_type
-    use Surface_Realization_class, only : surface_realization_type
 
     type(pflotran_model_type), pointer  :: pflotran_model
-
     class(realization_type), pointer     :: realization
-    class(surface_realization_type), pointer  :: surf_realization
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
          realization => simulation%realization
-         nullify(surf_realization)
       class is (surfsubsurface_simulation_type)
          realization => simulation%realization
-         surf_realization => simulation%surf_realization
       class default
          nullify(realization)
-         nullify(surf_realization)
          pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
          call printErrMsg(pflotran_model%option)
     end select
@@ -2087,9 +2063,6 @@ end subroutine pflotranModelSetICs
       case (RICHARDS_MODE)
         call RichardsUpdateAuxVars(realization)
         call pflotranModelGetSaturation(pflotran_model)
-        if (pflotran_model%option%nsurfflowdof>0) then
-          call pflotranModelGetSurfaceFlowHead(pflotran_model)
-        endif
       case (TH_MODE)
         call THUpdateAuxVars(realization)
         call pflotranModelGetSaturation(pflotran_model)
