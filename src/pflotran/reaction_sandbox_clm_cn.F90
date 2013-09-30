@@ -509,7 +509,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal, parameter :: theta_min = 0.01d0     ! 1/nat log(0.01d0)
   PetscReal, parameter :: one_over_log_theta_min = -2.17147241d-1
   PetscReal, parameter :: twelve_over_14 = 0.857142857143d0
-  PetscReal, parameter :: eps = 1.0d-15
+!  PetscReal, parameter :: eps = 1.0d-50
 
   PetscReal :: CN_ratio_up, CN_ratio_down
   PetscBool :: constant_CN_ratio_up
@@ -577,7 +577,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ispecC_pool_up = this%pool_id_to_species_id(CARBON_INDEX,ipool_up)
       ispecN_pool_up = this%pool_id_to_species_id(NITROGEN_INDEX,ipool_up)
       CN_ratio_up = rt_auxvar%immobile(ispecC_pool_up) / &
-                    max(rt_auxvar%immobile(ispecN_pool_up),eps)
+                    rt_auxvar%immobile(ispecN_pool_up)
     else
       ! upstream pool is an SOM pool with one species
       !
@@ -590,7 +590,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     ! a = fraction_C_up = 1.
     stoich_upstreamC_pool = 1.d0
     ! b = a / CN_ratio_up
-    stoich_upstreamN_pool = stoich_upstreamC_pool / max(CN_ratio_up,eps)
+    stoich_upstreamN_pool = stoich_upstreamC_pool / CN_ratio_up
 
     ! downstream pool
     ipool_down = this%downstream_pool_id(irxn)
@@ -612,7 +612,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     ! d = resp_frac * a
     stoich_C = resp_frac * stoich_upstreamC_pool
     ! e = b - c / CN_ratio_dn
-    stoich_N = stoich_upstreamN_pool - stoich_downstreamC_pool / max(CN_ratio_down,eps)
+    stoich_N = stoich_upstreamN_pool - stoich_downstreamC_pool / CN_ratio_down
  
     ! Inhibition by nitrogen (inhibition concentration > 0 and N is a reactant)
     ! must be calculated here as the sign on the stoichiometry for N is 
@@ -631,15 +631,15 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     endif
     
     ! residual units: (mol/sec) = (m^3 bulk/s) * (mol/m^3 bulk)
-    if(rt_auxvar%immobile(ispecC_pool_up) .LE. eps) then
-      rate = 0.0d0
-      return
-    endif
+!    if(rt_auxvar%immobile(ispecC_pool_up) .LE. eps) then
+!      rate = 0.0d0
+!      continue
+!    endif
 
-    if(use_N_inhibition .and. rt_auxvar%immobile(ispec_N) .LE. eps) then
-      rate = 0.0d0
-      return
-    endif
+!    if(use_N_inhibition .and. rt_auxvar%immobile(ispec_N) .LE. eps) then
+!      rate = 0.0d0
+!      continue
+!    endif
 
     rate = rt_auxvar%immobile(ispecC_pool_up) * &
            scaled_rate_const * N_inhibition
@@ -696,7 +696,10 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         ! scaled by negative one since it is a reactant 
         (-1.d0) * stoich_upstreamC_pool * drate
       if (use_N_inhibition) then
-        drate_dN_inhibition = rate / N_inhibition * d_N_inhibition
+!        drate_dN_inhibition = rate / N_inhibition * d_N_inhibition
+        drate_dN_inhibition = rt_auxvar%immobile(ispecC_pool_up) * &
+           scaled_rate_const * d_N_inhibition
+
         ! scaled by negative one since it is a reactant 
         Jacobian(iresC_pool_up,ires_N) = &
           Jacobian(iresC_pool_up,ires_N) - &
@@ -732,25 +735,30 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
         ! Since CN_ratio is a function of unknowns, other derivatives to 
         ! calculate
-        dCN_ratio_up_dC_pool_up = 1.d0 / max(rt_auxvar%immobile(ispecN_pool_up),eps)
+        dCN_ratio_up_dC_pool_up = 1.d0 / rt_auxvar%immobile(ispecN_pool_up)
         dCN_ratio_up_dN_pool_up = -1.d0 * CN_ratio_up / &
-                                  max(rt_auxvar%immobile(ispecN_pool_up),eps)
+                                  rt_auxvar%immobile(ispecN_pool_up)
         
         ! stoich_upstreamC_pool = 1.d0 (for upstream litter pool)
         ! dstoich_upstreamC_pool_dC_up = 0.
         ! stoich_upstreamN_pool = stoich_upstreamC_pool / CN_ratio_up
-        temp_real = -1.d0 * stoich_upstreamN_pool / max(CN_ratio_up,eps)
+        temp_real = -1.d0 * stoich_upstreamN_pool / CN_ratio_up
         dstoich_upstreamN_pool_dC_pool_up = temp_real * dCN_ratio_up_dC_pool_up
         dstoich_upstreamN_pool_dN_pool_up = temp_real * dCN_ratio_up_dN_pool_up        
 
         Jacobian(iresN_pool_up,iresC_pool_up) = &
           Jacobian(iresN_pool_up,iresC_pool_up) - &
           ! scaled by negative one since it is a reactant 
-          (-1.d0) * dstoich_upstreamN_pool_dC_pool_up * rate
+!          (-1.d0) * dstoich_upstreamN_pool_dC_pool_up * rate
+          (-1.d0) * (-1.d0) * rt_auxvar%immobile(ispecN_pool_up)/ &
+                              rt_auxvar%immobile(ispecC_pool_up)* &
+                              scaled_rate_const * N_inhibition
+
         Jacobian(iresN_pool_up,iresN_pool_up) = &
           Jacobian(iresN_pool_up,iresN_pool_up) - &
           ! scaled by negative one since it is a reactant 
-          (-1.d0) * dstoich_upstreamN_pool_dN_pool_up * rate
+!          (-1.d0) * dstoich_upstreamN_pool_dN_pool_up * rate
+          (-1.d0) * scaled_rate_const * N_inhibition
 
         ! stoich_C = resp_frac * stoich_upstreamC_pool
         ! dstoichC_dC_pool_up = 0.
@@ -763,9 +771,14 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         dstoichN_dC_pool_up = dstoich_upstreamN_pool_dC_pool_up
         dstoichN_dN_pool_up = dstoich_upstreamN_pool_dN_pool_up
         Jacobian(ires_N,iresC_pool_up) = Jacobian(ires_N,iresC_pool_up) - &
-          dstoichN_dC_pool_up * rate
+!          dstoichN_dC_pool_up * rate
+          (-1.d0) * rt_auxvar%immobile(ispecN_pool_up)/ &
+                    rt_auxvar%immobile(ispecC_pool_up)* &
+                    scaled_rate_const * N_inhibition
+
         Jacobian(ires_N,iresN_pool_up) = Jacobian(ires_N,iresN_pool_up) - &
-          dstoichN_dN_pool_up * rate
+!          dstoichN_dN_pool_up * rate
+          scaled_rate_const * N_inhibition
       endif
       
       ! carbon
