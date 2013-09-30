@@ -336,14 +336,17 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%sat_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%temp_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%sat_ice_clm,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%area_top_face_clm,ierr)
+
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%area_top_face_clm,ierr)  ! 2-D or 3-D (fmy?)
 
     ! (iii) soil TH variables - fluxes
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%qflx_clm,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%gflux_clm,ierr)
 
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2d,PETSC_DECIDE,clm_pf_idata%rain_clm,ierr)
     call VecSet(clm_pf_idata%rain_clm,0.d0,ierr)
+
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_surf_3d,PETSC_DECIDE, clm_pf_idata%gflux_clm,ierr)
+    call VecSet(clm_pf_idata%gflux_clm,0.d0,ierr)   ! 2-D or 3-D (fmy?)
 
     ! (iv) bgc variables - states
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%decomp_cpools_vr_lit1_clm,ierr)
@@ -403,10 +406,12 @@ contains
 
     ! (iii) soil TH variables - fluxes
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%qflx_pf,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%gflux_pf,ierr)
 
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2d,clm_pf_idata%rain_pf,ierr)
     call VecSet(clm_pf_idata%rain_pf,0.d0,ierr)
+
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_surf_3d,clm_pf_idata%gflux_pf,ierr)
+    call VecSet(clm_pf_idata%gflux_pf,0.d0,ierr)   ! 2-D or 3-D (fmy?)
 
     ! (iv) soil bgc variables - states
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%decomp_cpools_vr_lit1_pf,ierr)

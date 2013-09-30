@@ -203,7 +203,7 @@ subroutine RunToTime(this,target_time)
   class(pmc_base_type), pointer :: cur_process_model_coupler
   PetscViewer :: viewer
   
-  call printMsg(this%option,'RunToTime()')
+  !call printMsg(this%option,'RunToTime()')
   
   call this%process_model_coupler_list%RunToTime(target_time,this%stop_flag)
   if (this%option%checkpoint_flag) then

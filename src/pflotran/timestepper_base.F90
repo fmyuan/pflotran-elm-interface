@@ -323,7 +323,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
   type(waypoint_type), pointer :: cur_waypoint
 
   option%io_buffer = 'StepperSetTargetTime()'
-  call printMsg(option)
+  !call printMsg(option)
   
   if (this%time_step_cut_flag) then
     this%time_step_cut_flag = PETSC_FALSE

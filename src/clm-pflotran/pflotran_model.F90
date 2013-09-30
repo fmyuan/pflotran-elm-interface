@@ -86,6 +86,7 @@ module pflotran_model_module
        pflotranModelInitMapping,             &
        pflotranModelSetSoilProp,             &
        pflotranModelSetICs,                  &
+       pflotranModelSetInitialTStatesfromCLM, &  ! F.-M. Yuan: initializing from CLM
        pflotranModelSetInitialConcentrations,&    ! for soil BGC
        pflotranModelUpdateFlowConds,         &
        pflotranModelSetBGCRates,             &    ! for soil BGC
@@ -381,6 +382,7 @@ contains
   subroutine pflotranModelStepperCheckpoint(model, id_stamp)
 
     use Option_module
+    use String_module
     use Timestepper_module, only : StepperCheckpoint
 
     implicit none
@@ -389,7 +391,17 @@ contains
     character(len=MAXWORDLENGTH), intent(in) :: id_stamp
     PetscViewer :: viewer
 
-    call model%simulation%process_model_coupler_list%Checkpoint(viewer, -1, id_stamp)
+    model%option%io_buffer = 'checkpoint is not implemented for clm-pflotran.'
+    if (StringNull(id_stamp)) then
+       call printWrnMsg(model%option)
+    else
+       !model%option%checkpoint_flag = .true.
+    !$$   call StepperCheckpoint(realization, &
+    !$$     simulation%flow_stepper, &
+    !$$     simulation%tran_stepper, &
+    !$$     NEG_ONE_INTEGER, date_stamp)
+       call model%simulation%process_model_coupler_list%Checkpoint(viewer, -1, id_stamp)
+    end if
 
   end subroutine pflotranModelStepperCheckpoint
 
@@ -633,8 +645,8 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
 
     if(pflotran_model%option%iflowmode==RICHARDS_MODE .or. &
-       pflotran_model%option%iflowmode==TH_MODE .or. &    ! F.-M. Yuan: without flowmode, the folllowing will throw
-       pflotran_model%option%iflowmode==THC_MODE) then    ! out segementation fault error
+       pflotran_model%option%iflowmode==TH_MODE) then
+       ! F.-M. Yuan: without flowmode, the folllowing will throw out segementation fault error
 !         call GridVecGetArrayF90(grid, field%perm_xx_loc,  perm_xx_loc_p,  ierr)
 !         call GridVecGetArrayF90(grid, field%perm_yy_loc,  perm_yy_loc_p,  ierr)
 !         call GridVecGetArrayF90(grid, field%perm_zz_loc,  perm_zz_loc_p,  ierr)
@@ -666,8 +678,8 @@ end subroutine pflotranModelSetICs
       ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
       ! [m^2]          [mm/sec]
       if(pflotran_model%option%iflowmode==RICHARDS_MODE .or. &
-         pflotran_model%option%iflowmode==TH_MODE .or. &    ! F.-M. Yuan: without flowmode, the folllowing will throw
-         pflotran_model%option%iflowmode==THC_MODE) then    ! out segementation fault error
+         pflotran_model%option%iflowmode==TH_MODE) then
+           ! F.-M. Yuan: without flowmode, the folllowing will throw out segementation fault error
            perm_xx_loc_p(local_id) = hksat_x_pf_loc(local_id)*vis/(den*grav)/1000.d0
            perm_yy_loc_p(local_id) = hksat_y_pf_loc(local_id)*vis/(den*grav)/1000.d0
            perm_zz_loc_p(local_id) = hksat_z_pf_loc(local_id)*vis/(den*grav)/1000.d0
@@ -688,8 +700,8 @@ end subroutine pflotranModelSetICs
 !    call GridVecRestoreArrayF90(grid, field%porosity_loc, porosity_loc_p, ierr)
     call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
     if(pflotran_model%option%iflowmode==RICHARDS_MODE .or. &
-       pflotran_model%option%iflowmode==TH_MODE .or. &    ! F.-M. Yuan: without flowmode, the folllowing will throw
-       pflotran_model%option%iflowmode==THC_MODE) then    ! out segementation fault error
+       pflotran_model%option%iflowmode==TH_MODE) then
+           ! F.-M. Yuan: without flowmode, the folllowing will throw out segementation fault error
 !        call GridVecRestoreArrayF90(grid, field%perm_xx_loc,  perm_xx_loc_p,  ierr)
 !        call GridVecRestoreArrayF90(grid, field%perm_yy_loc,  perm_yy_loc_p,  ierr)
 !        call GridVecRestoreArrayF90(grid, field%perm_zz_loc,  perm_zz_loc_p,  ierr)
@@ -2252,7 +2264,7 @@ end subroutine pflotranModelSetICs
     type(pflotran_model_type), pointer :: model
     character(len=MAXWORDLENGTH) :: restart_stamp
 
-    call printWrnMsg(model%option)
+    model%option%io_buffer = 'restart is not implemented in clm-pflotran.'
 
     if (.not. StringNull(restart_stamp)) then
        model%option%restart_flag = PETSC_TRUE
@@ -2260,7 +2272,12 @@ end subroutine pflotranModelSetICs
             trim(model%option%global_prefix) // &
             trim(model%option%group_prefix) // &
             '-' // trim(restart_stamp) // '.chk'
+
+    else
+       call printWrnMsg(model%option)
+
     end if
+
 
   end subroutine pflotranModelSetupRestart
 
@@ -2287,7 +2304,110 @@ end subroutine pflotranModelSetICs
   end subroutine pflotranModelUpdateSourceSink
 
   ! ************************************************************************** !
-  !> This routine Updates TH drivers for PFLOTRAN that are from CLM
+  !
+  ! pflotranModelSetInitialTHStatesfromCLM: Set initial TH States from CLM
+  !
+  ! Note: This subroutine directly set initial soil temperature and saturation from CLM
+  !       It's needed because of uniform initialization of TH states in PFLOTRAN, which
+  !       are from the input card.
+  ! (This is different from the 'pflotranModelUpdateTHfromCLM', which pass TH from CLM to
+  !   pflotran's global variables and will not affect the internal vec of TH mode).
+
+  ! author: Fengming YUAN
+  ! date: 9/23/2013
+  ! ************************************************************************** !
+subroutine pflotranModelSetInitialTStatesfromCLM(pflotran_model)
+
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Field_module
+    use Discretization_module
+    use TH_Aux_module
+    use TH_module
+    use Option_module
+
+    use clm_pflotran_interface_data
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(field_type), pointer                 :: field
+    type(simulation_base_type), pointer :: simulation
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id, istart, iend
+    PetscReal, pointer :: xx_loc_p(:)
+
+    PetscScalar, pointer :: temp_pf_loc(:)    ! temperature [oC]
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = 'ERROR: pflotranModelSetInitialTStatesfromCLM ' // &
+               'only works on subsurface simulations.'
+         call printErrMsg(pflotran_model%option)
+    end select
+    patch           => realization%patch
+    grid            => patch%grid
+    field           => realization%field
+
+     if (pflotran_model%option%iflowmode .ne. TH_MODE)  then
+
+        pflotran_model%option%io_buffer='pflotranModelSetInitialTStatesfromCLM ' // &
+          'not implmented for this mode.'
+        call printErrMsg(pflotran_model%option)
+
+     else
+
+        call MappingSourceToDestination(pflotran_model%map_clm2pf, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%temp_clm, &
+                                    clm_pf_idata%temp_pf)
+
+    end if
+
+    call VecGetArrayF90(field%flow_xx, xx_loc_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%temp_pf, temp_pf_loc, ierr)
+
+    do local_id = 1, grid%nlmax
+       ghosted_id = grid%nL2G(local_id)
+       if (associated(patch%imat)) then
+          if (patch%imat(ghosted_id) <= 0) cycle
+       endif
+
+       iend = ghosted_id*pflotran_model%option%nflowdof
+       istart = iend-pflotran_model%option%nflowdof+1
+
+       xx_loc_p(istart+1)=temp_pf_loc(local_id)
+
+    enddo
+
+    call VecRestoreArrayF90(field%flow_xx, xx_loc_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%temp_pf, temp_pf_loc, ierr)
+
+    call THUpdateAuxVars(realization)
+
+end subroutine pflotranModelSetInitialTStatesfromCLM
+
+
+  ! ************************************************************************** !
+  !> This routine Updates TH drivers for PFLOTRAN bgc that are from CLM
   !! for testing PFLOTRAN-BGC mode
   !!
   !> @author
@@ -2400,8 +2520,7 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%qflx_pf)
 
     ! thermal 'gflux' from CLM
-    if(pflotran_model%option%iflowmode==TH_MODE .or. &
-       pflotran_model%option%iflowmode==THC_MODE) then
+    if(pflotran_model%option%iflowmode==TH_MODE) then
       call MappingSourceToDestination(pflotran_model%map_clm2pf_gflux, &
                                       pflotran_model%option, &
                                       clm_pf_idata%gflux_clm, &
@@ -2411,8 +2530,7 @@ end subroutine pflotranModelSetICs
     ! TH drivers for bgc fluxes from CLM-CN
     ! Decide if using soil TH from CLM: can be as input, or, the following modes not on
     if(.not.(pflotran_model%option%iflowmode==RICHARDS_MODE)) pf_hmode=.false.
-    if(.not.(pflotran_model%option%iflowmode==TH_MODE) .or. &
-       .not.(pflotran_model%option%iflowmode==THC_MODE)) then
+    if(.not.(pflotran_model%option%iflowmode==TH_MODE)) then
       pf_tmode = .false.
       pf_hmode = .false.
     endif
@@ -2472,9 +2590,6 @@ end subroutine pflotranModelSetICs
 
     PetscScalar, pointer :: rate_pf_loc(:)   !
     PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
-    PetscScalar, pointer :: rate_nleached_pf_loc(:)   !
-    PetscScalar, pointer :: rate_ndeni_decomp_pf_loc(:)   !
-    PetscScalar, pointer :: rate_ndeni_excess_pf_loc(:)   !
 
 !    PetscReal, pointer :: v_p(:)
     PetscReal, pointer :: volume_p(:)
@@ -2548,21 +2663,6 @@ end subroutine pflotranModelSetICs
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_plantnuptake_clm, &
                                     clm_pf_idata%rate_plantnuptake_pf)
-
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%rate_nleached_clm, &
-                                    clm_pf_idata%rate_nleached_pf)
-
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%rate_ndeni_decomp_clm, &
-                                    clm_pf_idata%rate_ndeni_decomp_pf)
-
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%rate_ndeni_excess_clm, &
-                                    clm_pf_idata%rate_ndeni_excess_pf)
 
 !   get cell volume as mass transfer rate unit is mol/s
     call VecGetArrayReadF90(field%volume,volume_p,ierr)
@@ -2657,8 +2757,6 @@ end subroutine pflotranModelSetICs
     use Richards_Aux_module
     use TH_module
     use TH_Aux_module
-    use THC_module
-    use THC_Aux_module
     use Simulation_Base_class, only : simulation_base_type
     use Subsurface_Simulation_class, only : subsurface_simulation_type
     use Surface_Simulation_class, only : surface_simulation_type
@@ -2687,10 +2785,6 @@ end subroutine pflotranModelSetICs
         call pflotranModelGetSaturation(pflotran_model)
       case (TH_MODE)
         call THUpdateAuxVars(realization)
-        call pflotranModelGetSaturation(pflotran_model)
-        call pflotranModelGetTemperature(pflotran_model)
-      case (THC_MODE)
-        call THCUpdateAuxVars(realization)
         call pflotranModelGetSaturation(pflotran_model)
         call pflotranModelGetTemperature(pflotran_model)
       case default
