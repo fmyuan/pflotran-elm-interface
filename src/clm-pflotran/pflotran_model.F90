@@ -450,6 +450,7 @@ subroutine pflotranModelSetICs(pflotran_model)
     PetscInt           :: local_id, ghosted_id
     PetscReal          :: den, vis, grav
     PetscReal, pointer :: xx_loc_p(:)
+    PetscInt           :: istart, iend   ! F.-M. Yuan (Sep 2013)
 
     PetscScalar, pointer :: press_pf_loc(:) ! Pressure [Pa]
 
@@ -473,7 +474,8 @@ subroutine pflotranModelSetICs(pflotran_model)
                                     clm_pf_idata%press_clm, &
                                     clm_pf_idata%press_pf)
 
-    if (pflotran_model%option%iflowmode .ne. RICHARDS_MODE) then
+    if (pflotran_model%option%iflowmode .ne. RICHARDS_MODE .and. &
+        pflotran_model%option%iflowmode .ne. TH_MODE) then
         pflotran_model%option%io_buffer='pflotranModelSetICs ' // &
           'not implmented for this mode.'
         call printErrMsg(pflotran_model%option)
@@ -487,7 +489,10 @@ subroutine pflotranModelSetICs(pflotran_model)
        if (associated(patch%imat)) then
           if (patch%imat(ghosted_id) <= 0) cycle
        endif
-       xx_loc_p(ghosted_id)=press_pf_loc(local_id)
+       iend = ghosted_id*pflotran_model%option%nflowdof     !F.-M. Yuan (Sep. 2013): need to get the right index
+       istart = iend-pflotran_model%option%nflowdof+1
+       !xx_loc_p(ghosted_id)=press_pf_loc(local_id)
+       xx_loc_p(istart)=press_pf_loc(local_id)
     enddo
 
     call VecRestoreArrayF90(field%flow_xx, xx_loc_p, ierr)
@@ -2529,10 +2534,11 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
 
     ! TH drivers for bgc fluxes from CLM-CN
     ! Decide if using soil TH from CLM: can be as input, or, the following modes not on
-    if(.not.(pflotran_model%option%iflowmode==RICHARDS_MODE)) pf_hmode=.false.
     if(.not.(pflotran_model%option%iflowmode==TH_MODE)) then
       pf_tmode = .false.
-      pf_hmode = .false.
+      if(.not.(pflotran_model%option%iflowmode==RICHARDS_MODE) .and. pf_hmode) then
+         pf_hmode=.false.
+      endif
     endif
     if (.not.pf_hmode .or. .not.pf_tmode) then
       call pflotranModelUpdateTHfromCLM(pflotran_model, pf_hmode, pf_tmode)
