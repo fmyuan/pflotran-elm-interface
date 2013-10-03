@@ -486,7 +486,6 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: porosity
   PetscReal :: volume
-  PetscInt :: local_id
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
 
@@ -499,6 +498,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscInt :: ispec_N
   PetscReal :: drate, scaled_rate_const, rate
   PetscInt :: irxn
+  PetscInt :: local_id
   
   ! inhibition variables
   PetscReal :: F_t
@@ -509,7 +509,6 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal, parameter :: theta_min = 0.01d0     ! 1/nat log(0.01d0)
   PetscReal, parameter :: one_over_log_theta_min = -2.17147241d-1
   PetscReal, parameter :: twelve_over_14 = 0.857142857143d0
-!  PetscReal, parameter :: eps = 1.0d-50
 
   PetscReal :: CN_ratio_up, CN_ratio_down
   PetscBool :: constant_CN_ratio_up
@@ -537,18 +536,17 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   ! Equation: F_t = exp(308.56*(1/17.02 - 1/(T - 227.13)))
   temp_K = global_auxvar%temp(1) + 273.15d0
 
-  if(temp_K .GT. 227.15d0) then 
+  if(temp_K .GT. 227.15d0) then
      F_t = exp(308.56d0*(one_over_71_02 - 1.d0/(temp_K - 227.13d0)))
   else
-     F_t = 0.0d0
+     F_t = 0.0
+     return
   endif
-
   ! inhibition due to moisture content
   ! Equation: F_theta = log(theta_min/theta) / log(theta_min/theta_max)
   ! Assumptions: theta is saturation
   !              theta_min = 0.01, theta_max = 1.
-  F_theta = log(theta_min/max(theta_min,global_auxvar%sat(1))) &  ! theta could be zero, which will cause math issue
-          * one_over_log_theta_min
+  F_theta = log(theta_min/max(global_auxvar%sat(1),theta_min)) * one_over_log_theta_min 
   
   constant_inhibition = F_t * F_theta
   
