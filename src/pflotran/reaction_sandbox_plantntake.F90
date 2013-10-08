@@ -129,12 +129,10 @@ subroutine PlantNTakeSetup(this,reaction,option)
   word = 'N'
   this%ispec_mineralN = GetImmobileSpeciesIDFromName(word, &
                                reaction%immobile, PETSC_FALSE,option)
-  this%ispec_mineralN = this%ispec_mineralN + reaction%offset_immobile      
 
   word = 'PlantN'
   this%ispec_plantN = GetImmobileSpeciesIDFromName(word, &
                                reaction%immobile, PETSC_FALSE,option)
-  this%ispec_plantN = this%ispec_plantN + reaction%offset_immobile      
       
 end subroutine PlantNTakeSetup
 
@@ -166,6 +164,8 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   class(reaction_sandbox_plantntake_type) :: this  
   type(option_type) :: option
   type(reaction_type) :: reaction
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
   PetscBool :: compute_derivative
 
   ! the following arrays must be declared after reaction
@@ -174,10 +174,8 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: rate, drate, concN
   PetscReal :: volume, porosity
   PetscInt :: local_id
-  PetscErrorCode     :: ierr
-
-  type(reactive_transport_auxvar_type) :: rt_auxvar
-  type(global_auxvar_type) :: global_auxvar
+  PetscInt :: ires_mineralN, ires_plantN
+  PetscErrorCode :: ierr
 
 #ifdef CLM_PFLOTRAN
   PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
@@ -195,8 +193,11 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
      rate = rate * concN/(concN + this%half_saturation) 
   endif
 
-  Residual(this%ispec_mineralN) = Residual(this%ispec_mineralN) - (-1.0) * rate
-  Residual(this%ispec_plantN) = Residual(this%ispec_plantN) - rate
+  ires_mineralN = this%ispec_mineralN + reaction%offset_immobile      
+  ires_plantN = this%ispec_plantN + reaction%offset_immobile      
+
+  Residual(ires_mineralN) = Residual(ires_mineralN) - (-1.0) * rate
+  Residual(ires_plantN) = Residual(ires_plantN) - rate
 
   if (compute_derivative) return
 
@@ -205,11 +206,9 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   drate = rate * this%half_saturation / concN / (concN + this%half_saturation) 
 
     ! always add contribution to Jacobian
-  Jacobian(this%ispec_mineralN,this%ispec_mineralN) = &
-      Jacobian(this%ispec_mineralN,this%ispec_mineralN) + drate
+  Jacobian(ires_mineralN,ires_mineralN) = Jacobian(ires_mineralN,ires_mineralN) + drate
 
-  Jacobian(this%ispec_plantN,this%ispec_mineralN) = &
-      Jacobian(this%ispec_plantN,this%ispec_mineralN) - drate
+  Jacobian(ires_plantN,ires_mineralN) = Jacobian(ires_plantN,ires_mineralN) - drate
 
 end subroutine PlantNTakeReact
 
