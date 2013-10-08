@@ -73,3 +73,4 @@ shortcourse/exercises/CLM-CN/doc/CLM-CN.pdf
 src/clm-pflotran/libpflotran.a
 src/pflotran/pflotran_dependencies.txt
 src/pflotran/pflotran_source_files.txt
+src/*xcode
