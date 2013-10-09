@@ -77,7 +77,14 @@ module Mapping_module
     Vec                :: s_disloc_vec              ! Sequential vector to save "distinct" local
                                                     ! component of source vector
 
-    end type mapping_type
+    ! Header information about number of layers mapped
+    PetscInt           :: clm_nlevsoi               ! Number of CLM nlevsoi
+    PetscInt           :: clm_nlevgrnd              ! Number of CLM nlevgrnd
+    PetscInt           :: clm_nlev_mapped           ! Number of CLM layers mapped
+    PetscInt           :: pflotran_nlev             ! Number of PFLOTRAN layers
+    PetscInt           :: pflotran_nlev_mapped      ! Number of PFLOTRAN layers mapped
+
+  end type mapping_type
 
   public :: MappingCreate, &
             MappingSetSourceMeshCellIds, &
@@ -140,6 +147,12 @@ contains
     map%wts_mat = 0
     map%s2d_scat_s_gb2disloc = 0
     map%s_disloc_vec = 0
+
+    map%clm_nlevsoi = 0
+    map%clm_nlevgrnd = 0
+    map%clm_nlev_mapped = 0
+    map%pflotran_nlev = 0
+    map%pflotran_nlev_mapped = 0
     
     MappingCreate => map
 
@@ -258,6 +271,8 @@ contains
   
     use Input_module
     use Option_module
+    use String_module
+    use PFLOTRAN_Constants_module
     
     implicit none
     
@@ -270,6 +285,10 @@ contains
     type(input_type), pointer       :: input
     character(len=MAXSTRINGLENGTH)  :: card
     character(len=MAXSTRINGLENGTH)  :: string
+    character(len=MAXWORDLENGTH)    :: word
+    character(len=MAXSTRINGLENGTH)  :: hint
+    PetscInt                        :: temp_int
+    PetscInt                        :: temp_int_array(5)
     PetscInt                        :: nwts
     PetscInt                        :: nread
     PetscInt                        :: remainder, prev_row
@@ -279,7 +298,7 @@ contains
     PetscInt                        :: nwts_tmp
     PetscInt,pointer                :: wts_row_tmp(:), wts_col_tmp(:)
     PetscReal,pointer               :: wts_tmp(:)
-    
+    PetscInt                        :: nheader
     
     PetscMPIInt                     :: status_mpi(MPI_STATUS_SIZE)
     PetscErrorCode                  :: ierr
@@ -290,12 +309,48 @@ contains
     if(option%myrank == option%io_rank) then
 
       input => InputCreate(20,map_filename,option)
-      call InputReadFlotranString(input,option)
-      call InputErrorMsg(input,option,'number of cells',card)
-      
+
       nwts     = -1
       prev_row = -1
-      call InputReadInt(input,option,nwts)
+
+      ! Read first six entries in the mapping file.
+      do nheader = 1, 6
+        call InputReadFlotranString(input,option)
+        call InputReadWord(input,option,card,PETSC_TRUE)
+        call StringToLower(card)
+
+        select case (trim(card))
+          case('clm_nlevsoi')
+            hint = 'clm_nlevsoi'
+            call InputReadInt(input,option,map%clm_nlevsoi)
+            call InputErrorMsg(input,option,'CLM nlevsoi',hint)
+          case('clm_nlevgrnd')
+            hint = 'clm_nlevgrnd'
+            call InputReadInt(input,option,map%clm_nlevgrnd)
+            call InputErrorMsg(input,option,'CLM nlevgrnd',hint)
+          case('clm_nlev_mapped')
+            hint = 'clm_nlev_mapped'
+            call InputReadInt(input,option,map%clm_nlev_mapped)
+            call InputErrorMsg(input,option,'CLM nlev mapped',hint)
+          case('pflotran_nlev')
+            hint = 'pflotran_nlev'
+            call InputReadInt(input,option,map%pflotran_nlev)
+            call InputErrorMsg(input,option,'PFLOTRAN nlev',hint)
+          case('pflotran_nlev_mapped')
+            hint = 'pflotran_nlev_mapped'
+            call InputReadInt(input,option,map%pflotran_nlev_mapped)
+            call InputErrorMsg(input,option,'PFLOTRAN nlev mapped',hint)
+          case('num_weights')
+            hint = 'num_weights'
+            call InputReadInt(input,option,nwts)
+            call InputErrorMsg(input,option,'Number of weights',hint)
+            write(*,*),'nwts = ',nwts
+          case default
+            option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
+              '" in explicit grid file.'
+            call printErrMsgByRank(option)
+        end select
+      enddo
       
       nwts_tmp = nwts/option%mycommsize
       remainder= nwts - nwts_tmp*option%mycommsize
@@ -405,7 +460,23 @@ contains
                     option%mycomm,status_mpi,ierr)
                     
     endif
+
+  ! Broadcast from root information regarding CLM/PFLOTRAN num soil layers
+  temp_int_array(1) = map%clm_nlevsoi
+  temp_int_array(2) = map%clm_nlevgrnd
+  temp_int_array(3) = map%clm_nlev_mapped
+  temp_int_array(4) = map%pflotran_nlev
+  temp_int_array(5) = map%pflotran_nlev_mapped
+
+  call MPI_Bcast(temp_int_array,FIVE_INTEGER,MPI_INTEGER,option%io_rank, &
+                 option%mycomm,ierr)
     
+  map%clm_nlevsoi = temp_int_array(1)
+  map%clm_nlevgrnd = temp_int_array(2)
+  map%clm_nlev_mapped = temp_int_array(3)
+  map%pflotran_nlev = temp_int_array(4)
+  map%pflotran_nlev_mapped = temp_int_array(5)
+
   end subroutine MappingReadTxtFile
   
   ! ************************************************************************** !
