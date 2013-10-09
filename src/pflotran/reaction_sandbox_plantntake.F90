@@ -203,7 +203,8 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 
   if(this%half_saturation .LT. 1.0d-20) return
 
-  drate = rate * this%half_saturation / concN / (concN + this%half_saturation) 
+  drate = rate * this%half_saturation / (concN + this%half_saturation) & 
+                                      / (concN + this%half_saturation) 
 
     ! always add contribution to Jacobian
   Jacobian(ires_mineralN,ires_mineralN) = Jacobian(ires_mineralN,ires_mineralN) + drate
