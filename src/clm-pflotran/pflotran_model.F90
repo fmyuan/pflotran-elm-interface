@@ -80,6 +80,8 @@ module pflotran_model_module
 
     PetscLogDouble :: timex(4), timex_wall(4)
 
+    PetscBool :: b_out_bgc_rate
+
   end type pflotran_model_type
 
   public::pflotranModelCreate,               &
@@ -194,6 +196,13 @@ contains
     ! NOTE(bja, 2013-07-15) needs to go before InitializeRun()...?
     call pflotranModelSetupMappingFiles(model)
 
+!  for debug only, to be removed or replaced with h5 file
+    if (.false.) then
+    open(unit=100,file="bgc_rate_clm_to_pflotran.txt",form="formatted",status="replace")
+        write(100, *) '# Lit1C Lit2C Lit3C Lit1N Lit2N Lit3N mineralN plantN leachedN DenitrifiedN'
+    endif
+
+    model%b_out_bgc_rate = PETSC_FALSE
     pflotranModelCreate => model
 
   end function pflotranModelCreate
@@ -2595,7 +2604,16 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
     PetscInt           :: local_id
 
     PetscScalar, pointer :: rate_pf_loc(:)   !
+    PetscScalar, pointer :: rate_lit1c_pf_loc(:)   !
+    PetscScalar, pointer :: rate_lit2c_pf_loc(:)   !
+    PetscScalar, pointer :: rate_lit3c_pf_loc(:)   !
+    PetscScalar, pointer :: rate_lit1n_pf_loc(:)   !
+    PetscScalar, pointer :: rate_lit2n_pf_loc(:)   !
+    PetscScalar, pointer :: rate_lit3n_pf_loc(:)   !
+    PetscScalar, pointer :: rate_minn_pf_loc(:)   !
     PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
+    PetscScalar, pointer :: rate_nleached_pf_loc(:)   !
+    PetscScalar, pointer :: rate_ndenitri_pf_loc(:)   !
 
 !    PetscReal, pointer :: v_p(:)
     PetscReal, pointer :: volume_p(:)
@@ -2670,8 +2688,56 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
                                     clm_pf_idata%rate_plantnuptake_clm, &
                                     clm_pf_idata%rate_plantnuptake_pf)
 
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rate_nleached_clm, &
+                                    clm_pf_idata%rate_nleached_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rate_ndenitri_clm, &
+                                    clm_pf_idata%rate_ndenitri_pf)
+
 !   get cell volume as mass transfer rate unit is mol/s
     call VecGetArrayReadF90(field%volume,volume_p,ierr)
+
+!   output rate for debug
+    call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pf, rate_lit1c_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pf, rate_lit2c_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pf, rate_lit3c_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pf, rate_lit1n_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pf, rate_lit2n_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pf, rate_lit3n_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%rate_minn_pf,  rate_minn_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%rate_nleached_pf,  rate_nleached_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%rate_ndenitri_pf,  rate_ndenitri_pf_loc, ierr)
+   
+    if (pflotran_model%b_out_bgc_rate) then
+    do local_id = 1, grid%ngmax
+       write(100, *) rate_lit1c_pf_loc(local_id), &
+                     rate_lit2c_pf_loc(local_id), &
+                     rate_lit3c_pf_loc(local_id), &
+                     rate_lit1n_pf_loc(local_id), &
+                     rate_lit2n_pf_loc(local_id), &
+                     rate_lit3n_pf_loc(local_id), &
+                     rate_minn_pf_loc(local_id), &
+                     rate_plantnuptake_pf_loc(local_id), & 
+                     rate_nleached_pf_loc(local_id), & 
+                     rate_ndenitri_pf_loc(local_id) 
+    enddo
+    endif
+
+    call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pf, rate_lit1c_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pf, rate_lit2c_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pf, rate_lit3c_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pf, rate_lit1n_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pf, rate_lit2n_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pf, rate_lit3n_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%rate_minn_pf,  rate_minn_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%rate_nleached_pf, rate_nleached_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%rate_ndenitri_pf, rate_ndenitri_pf_loc, ierr)
 
     if (associated(realization%rt_mass_transfer_list)) then
        cur_mass_transfer => realization%rt_mass_transfer_list
@@ -2696,7 +2762,7 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
              call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pf, rate_pf_loc, ierr)
             case(2)
              call VecGetArrayReadF90(clm_pf_idata%rate_minn_pf, rate_pf_loc, ierr)
-             call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
+!             call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
             case default
                     pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
                     call printErrMsg(pflotran_model%option)
@@ -2707,8 +2773,21 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
             !geh - Ignore inactive cells with inactive materials
             if (patch%imat(local_id) <= 0) cycle
             !v_p(local_id) = rate_pf_loc(local_id)*volume_p(local_id)  ! mol/m3s * m3
+            if(cur_mass_transfer%idof .eq. 2 .or. &
+               cur_mass_transfer%idof .eq. 8 .or. &
+               cur_mass_transfer%idof .eq. 9 .or. &
+               cur_mass_transfer%idof .eq. 10 .or. &
+               cur_mass_transfer%idof .eq. 11 .or. &
+               cur_mass_transfer%idof .eq. 12 .or. &
+               cur_mass_transfer%idof .eq. 13 &
+!               cur_mass_transfer%idof .eq. 11 &
+!            if(cur_mass_transfer%idof .eq. 11 &
+               ) then
+!             if(rate_pf_loc(local_id) > 0.0d0) then
             cur_mass_transfer%dataset%rarray(local_id) = &
                         rate_pf_loc(local_id)*volume_p(local_id)  ! mol/m3s * m3
+!             endif
+            endif
 !           if(cur_mass_transfer%idof .eq. 2) then
 !               cur_mass_transfer%dataset%rarray(local_id) = &
 !                        cur_mass_transfer%dataset%rarray(local_id) - &
@@ -2734,7 +2813,7 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
              call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pf, rate_pf_loc, ierr)
             case(2)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_minn_pf, rate_pf_loc, ierr)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
+!             call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
             case default
                pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
                call printErrMsg(pflotran_model%option)
@@ -3500,7 +3579,11 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
     call model%simulation%Strip()
     deallocate(model%simulation)
     nullify(model%simulation)
-  
+
+    if (model%b_out_bgc_rate) then
+    close(100)
+    endif
+
     call PFLOTRANFinalize(model%option)
     call OptionFinalize(model%option)
 

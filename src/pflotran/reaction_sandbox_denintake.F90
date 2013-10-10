@@ -129,12 +129,10 @@ subroutine DeniNTakeSetup(this,reaction,option)
   word = 'N'
   this%ispec_mineralN = GetImmobileSpeciesIDFromName(word, &
                                reaction%immobile, PETSC_FALSE,option)
-  this%ispec_mineralN = this%ispec_mineralN + reaction%offset_immobile      
 
   word = 'DeniN'
   this%ispec_deniN = GetImmobileSpeciesIDFromName(word, &
                                reaction%immobile, PETSC_FALSE,option)
-  this%ispec_deniN = this%ispec_deniN + reaction%offset_immobile      
       
 end subroutine DeniNTakeSetup
 
@@ -173,36 +171,41 @@ subroutine DeniNTakeReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: rate, drate, concN
   PetscReal :: volume, porosity
-  PetscInt :: local_id
+  PetscInt :: local_id, ires_mineralN, ires_deniN
   PetscErrorCode     :: ierr
 
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
 
 #ifdef CLM_PFLOTRAN
-  PetscScalar, pointer :: rate_ndeni_decomp_pf_loc(:)   !
-  call VecGetArrayReadF90(clm_pf_idata%rate_ndeni_decomp_pf, rate_ndeni_decomp_pf_loc, ierr)
+  PetscScalar, pointer :: rate_ndenitri_pf_loc(:)   !
+  PetscScalar, pointer :: rate_nleached_pf_loc(:)   !
+  call VecGetArrayReadF90(clm_pf_idata%rate_ndenitri_pf, rate_ndenitri_pf_loc, ierr)
+  call VecGetArrayReadF90(clm_pf_idata%rate_nleached_pf, rate_nleached_pf_loc, ierr)
 
-  rate = rate_ndeni_decomp_pf_loc(local_id) * volume ! mol/m3/s * m3
+  rate = (rate_ndenitri_pf_loc(local_id)+rate_nleached_pf_loc(local_id))*volume ! mol/m3/s * m3
 
-  call VecRestoreArrayReadF90(clm_pf_idata%rate_ndeni_decomp_pf, rate_ndeni_decomp_pf_loc, ierr)
+  call VecRestoreArrayReadF90(clm_pf_idata%rate_ndenitri_pf, rate_ndenitri_pf_loc, ierr)
+  call VecRestoreArrayReadF90(clm_pf_idata%rate_nleached_pf, rate_nleached_pf_loc, ierr)
 #else
   rate = this%rate
 #endif
 
   if(this%half_saturation .GT. 1.0d-20) then
      concN = rt_auxvar%immobile(this%ispec_mineralN)
-     rate = rate * concN/(concN + this%half_saturation) 
+     rate = rate * concN / (concN + this%half_saturation) 
   endif
 
-  Residual(this%ispec_mineralN) = Residual(this%ispec_mineralN) - (-1.0) * rate
-  Residual(this%ispec_deniN) = Residual(this%ispec_deniN) - rate
+  ires_mineralN = this%ispec_mineralN + reaction%offset_immobile      
+  ires_deniN = this%ispec_deniN + reaction%offset_immobile      
+  Residual(ires_mineralN) = Residual(ires_mineralN) - (-1.0) * rate
+  Residual(ires_deniN) = Residual(ires_deniN) - rate
 
   if (compute_derivative) return
 
   if(this%half_saturation .LT. 1.0d-20) return
 
-  drate = rate * this%half_saturation / concN / (concN + this%half_saturation) 
+  drate = rate * this%half_saturation / (concN + this%half_saturation) / (concN + this%half_saturation) 
 
     ! always add contribution to Jacobian
   Jacobian(this%ispec_mineralN,this%ispec_mineralN) = &
