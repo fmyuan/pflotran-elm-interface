@@ -171,7 +171,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
-  PetscReal :: rate, drate, concN
+  PetscReal :: rate, drate, concN, rate0
   PetscReal :: volume, porosity
   PetscInt :: local_id
   PetscInt :: ires_mineralN, ires_plantN
@@ -181,16 +181,16 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
   call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
 
-  rate = rate_plantnuptake_pf_loc(local_id) * volume ! mol/m3/s * m3
+  rate0 = rate_plantnuptake_pf_loc(local_id) * volume ! mol/m3/s * m3
 
   call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
 #else
-  rate = this%rate
+  rate0 = this%rate
 #endif
 
   if(this%half_saturation .GT. 1.0d-20) then
      concN = rt_auxvar%immobile(this%ispec_mineralN)
-     rate = rate * concN/(concN + this%half_saturation) 
+     rate = rate0 * concN/(concN + this%half_saturation) 
   endif
 
   ires_mineralN = this%ispec_mineralN + reaction%offset_immobile      
@@ -203,13 +203,13 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 
   if(this%half_saturation .LT. 1.0d-20) return
 
-  drate = rate * this%half_saturation / (concN + this%half_saturation) & 
+  drate = rate0 * this%half_saturation / (concN + this%half_saturation) & 
                                       / (concN + this%half_saturation) 
 
     ! always add contribution to Jacobian
-  Jacobian(ires_mineralN,ires_mineralN) = Jacobian(ires_mineralN,ires_mineralN) + drate
+  Jacobian(ires_mineralN,ires_mineralN) = Jacobian(ires_mineralN,ires_mineralN) - drate
 
-  Jacobian(ires_plantN,ires_mineralN) = Jacobian(ires_plantN,ires_mineralN) - drate
+  Jacobian(ires_plantN,ires_mineralN) = Jacobian(ires_plantN,ires_mineralN) + drate
 
 end subroutine PlantNTakeReact
 

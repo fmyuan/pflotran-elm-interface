@@ -197,12 +197,12 @@ contains
     call pflotranModelSetupMappingFiles(model)
 
 !  for debug only, to be removed or replaced with h5 file
-    if (.false.) then
+    model%b_out_bgc_rate = PETSC_FALSE
+    if (model%b_out_bgc_rate) then
     open(unit=100,file="bgc_rate_clm_to_pflotran.txt",form="formatted",status="replace")
         write(100, *) '# Lit1C Lit2C Lit3C Lit1N Lit2N Lit3N mineralN plantN leachedN DenitrifiedN'
     endif
 
-    model%b_out_bgc_rate = PETSC_FALSE
     pflotranModelCreate => model
 
   end function pflotranModelCreate
