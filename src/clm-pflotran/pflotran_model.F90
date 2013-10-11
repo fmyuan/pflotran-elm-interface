@@ -87,8 +87,8 @@ module pflotran_model_module
   public::pflotranModelCreate,               &
        pflotranModelInitMapping,             &
        pflotranModelSetSoilProp,             &
-       pflotranModelSetICs,                  &
-       pflotranModelSetInitialTStatesfromCLM, &  ! F.-M. Yuan: initializing from CLM
+       pflotranModelSetICs,                  &   ! F.-M. Yuan: initializing W.Press. from CLM
+       pflotranModelSetInitialTStatesfromCLM, &  ! F.-M. Yuan: initializing T from CLM
        pflotranModelSetInitialConcentrations,&    ! for soil BGC
        pflotranModelUpdateFlowConds,         &
        pflotranModelSetBGCRates,             &    ! for soil BGC
@@ -104,6 +104,8 @@ module pflotran_model_module
        pflotranModelNSurfCells3DDomain,      &
        pflotranModelGetTopFaceArea,          &
        pflotranModelDestroy
+
+  public :: pflotranModelUpdateTHfromCLM
 
   private :: &
        pflotranModelSetupMappingFiles
@@ -2513,9 +2515,8 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
   !! Gautam Bisht, LBNL
   !! date: 4/10/2013
   !!
-  !! switches for using TH from CLM added (F.-M. Yuan, Aug 30. 2013)
   ! ************************************************************************** !
-  subroutine pflotranModelUpdateFlowConds(pflotran_model, pf_hmode, pf_tmode)
+  subroutine pflotranModelUpdateFlowConds(pflotran_model)
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -2523,8 +2524,6 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
     implicit none
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    logical :: pf_hmode, pf_tmode         ! pf_hmode =.true.: pf_HMODE is on,
-                                          ! pf_tmode =.true.: pf_TMODE is on
 
     !--------------------------------------------------------------------------
     ! hydroloigcal source/sink from CLM
@@ -2540,20 +2539,6 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
                                       clm_pf_idata%gflux_clm, &
                                       clm_pf_idata%gflux_pf)
     endif
-
-    ! TH drivers for bgc fluxes from CLM-CN
-    ! Decide if using soil TH from CLM: can be as input, or, the following modes not on
-    if(.not.(pflotran_model%option%iflowmode==TH_MODE)) then
-      pf_tmode = .false.
-      if(.not.(pflotran_model%option%iflowmode==RICHARDS_MODE) .and. pf_hmode) then
-         pf_hmode=.false.
-      endif
-    endif
-    if (.not.pf_hmode .or. .not.pf_tmode) then
-      call pflotranModelUpdateTHfromCLM(pflotran_model, pf_hmode, pf_tmode)
-    endif
-
-    ! (NOTE that the bgc fluxes from CLM-CN will be done in the following subroutine)
 
   end subroutine pflotranModelUpdateFlowConds
 
