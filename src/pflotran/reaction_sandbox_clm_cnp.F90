@@ -746,7 +746,7 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
   PetscInt :: ires_uc, ires_un, ires_up, ires_dc, ires_dn, ires_dp
   PetscReal :: conc, c_up, c_N
   PetscReal :: L_water
-  PetscReal :: rate, drate 
+  PetscReal :: rate, drate, drate_uc 
   PetscReal :: tmp_real
 !  PetscReal :: stoich_mineral_n_sign 
 
@@ -780,17 +780,22 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 
   rate = this%rate_constant * volume * F_t * F_theta
 
+  drate_uc = rate
+
   c_up = rt_auxvar%immobile(this%upstream_ispec_c) 
 
-  if(c_up .LT. eps) then
-     rate = 0.0d0
-     return 
-  endif
+!  if(c_up .LE. 0.0d0) then
+!     rate = 0.0d0
+!     return 
+!  endif
        
 ! first order term
   do i = 1, this%nFirstOrder
      conc = rt_auxvar%immobile(this%ispec_1st(i))  
      rate = rate * conc 
+     if(this%ispec_1st(i) .ne. this%upstream_ispec_c) then
+       drate_uc = drate_uc * conc 
+     endif
   enddo 
 
 ! monod term
@@ -813,7 +818,7 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
           write(option%fid_out,*) 'Upstream C concentration is 0 in CN ratio calculation.'
        endif 
        this%upstream_stoich_n = rt_auxvar%immobile(this%upstream_ispec_n) & 
-                  /(rt_auxvar%immobile(this%upstream_ispec_c) + eps)
+                  /rt_auxvar%immobile(this%upstream_ispec_c)
     endif
 
 ! downstream CN
@@ -824,7 +829,7 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
              write(option%fid_out,*) 'Downtream C concentration 0 in CN ratio calculation.'
           endif 
           this%downstream_stoich_n(i)=rt_auxvar%immobile(this%downstream_ispec_n(i)) & 
-                 / (rt_auxvar%immobile(this%downstream_ispec_c(i)) + eps)
+                 / rt_auxvar%immobile(this%downstream_ispec_c(i))
        endif
        this%mineral_n_stoich = this%mineral_n_stoich - this%downstream_stoich_n(i) &
                  * this%downstream_stoich_c(i)
@@ -844,7 +849,7 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
           write(option%fid_out,*) 'Upstream C concentration is 0 in CP ratio calculation.'
        endif 
        this%upstream_stoich_p = rt_auxvar%immobile(this%upstream_ispec_p) & 
-                  / (rt_auxvar%immobile(this%upstream_ispec_c) + eps)
+                  / rt_auxvar%immobile(this%upstream_ispec_c)
     endif
 
 ! downstream CP
@@ -855,7 +860,7 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
              write(option%fid_out,*) 'Downtream C concentration 0 in CP ratio calculation.'
           endif 
           this%downstream_stoich_p(i)=rt_auxvar%immobile(this%downstream_ispec_p(i)) & 
-                 / (rt_auxvar%immobile(this%downstream_ispec_c(i)) + eps)
+                 / rt_auxvar%immobile(this%downstream_ispec_c(i))
        endif
        this%mineral_p_stoich = this%mineral_p_stoich - this%downstream_stoich_p(i) &
                  * this%downstream_stoich_c(i)
@@ -885,7 +890,7 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
   if(this%bNEnabled) then
 ! upstream N
      if(.not.this%bfixed_upstream_cn) then
-        ires = reaction%offset_immobile + this%upstream_ispec_n      
+        ires = reaction%offset_immobile + this%upstream_ispec_n
         Residual(ires) = Residual(ires) + rate * this%upstream_stoich_n      
      endif
 ! mineral N
@@ -895,7 +900,7 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
      do i = 1, this%nDownstream
        if(.not.this%bfixed_downstream_cn(i)) then
           ires = reaction%offset_immobile + this%downstream_ispec_n(i)      
-          Residual(ires) = Residual(ires) - rate * this%downstream_stoich_n(i)      
+          Residual(ires) = Residual(ires) - rate * this%downstream_stoich_n(i)
        endif
      enddo 
   endif
@@ -926,14 +931,14 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
         ires_uc = reaction%offset_immobile + this%upstream_ispec_c
         ires_un = reaction%offset_immobile + this%upstream_ispec_n
         tmp_real = rt_auxvar%immobile(this%upstream_ispec_n) &
-                 / (rt_auxvar%immobile(this%upstream_ispec_c) + eps) &
-                 / (rt_auxvar%immobile(this%upstream_ispec_c) + eps)
-        Jacobian(ires_un,ires_uc) = Jacobian(ires_un,ires_uc) - rate * tmp_real
-        Jacobian(ires_n, ires_uc) = Jacobian(ires_n, ires_uc) + rate * tmp_real
-        Jacobian(ires_un,ires_un) = Jacobian(ires_un,ires_un) + rate / & 
-                                    (rt_auxvar%immobile(this%upstream_ispec_c) + eps)
-        Jacobian(ires_n,ires_un) = Jacobian(ires_n,ires_un) - rate / & 
-                                    (rt_auxvar%immobile(this%upstream_ispec_c) + eps)
+                 / (rt_auxvar%immobile(this%upstream_ispec_c)) !&
+!                 / (rt_auxvar%immobile(this%upstream_ispec_c))
+        Jacobian(ires_un,ires_uc) = Jacobian(ires_un,ires_uc) - drate_uc * tmp_real !rate * tmp_real
+        Jacobian(ires_n, ires_uc) = Jacobian(ires_n, ires_uc) + drate_uc * tmp_real !rate * tmp_real
+        Jacobian(ires_un,ires_un) = Jacobian(ires_un,ires_un) + drate_uc !rate / & 
+                                    !rt_auxvar%immobile(this%upstream_ispec_c)
+        Jacobian(ires_n,ires_un) = Jacobian(ires_n,ires_un) - drate_uc   !rate / & 
+                                    !rt_auxvar%immobile(this%upstream_ispec_c)
      endif
 
      do i = 1, this%nDownstream
@@ -941,14 +946,14 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
            ires_dc = reaction%offset_immobile + this%downstream_ispec_c(i)
            ires_dn = reaction%offset_immobile + this%downstream_ispec_n(i)
            tmp_real = rt_auxvar%immobile(this%downstream_ispec_n(i)) &
-                    / (rt_auxvar%immobile(this%downstream_ispec_c(i)) + eps) &
-                    / (rt_auxvar%immobile(this%downstream_ispec_c(i)) + eps)
+                    / rt_auxvar%immobile(this%downstream_ispec_c(i)) &
+                    / rt_auxvar%immobile(this%downstream_ispec_c(i))
            Jacobian(ires_dn,ires_dc) = Jacobian(ires_dn,ires_dc) + rate * tmp_real
            Jacobian(ires_n, ires_dc) = Jacobian(ires_n, ires_dc) - rate * tmp_real
            Jacobian(ires_dn,ires_dn) = Jacobian(ires_dn,ires_dn) - rate / & 
-                                    (rt_auxvar%immobile(this%downstream_ispec_c(i)) + eps)
+                                    rt_auxvar%immobile(this%downstream_ispec_c(i))
            Jacobian(ires_n, ires_dn) = Jacobian(ires_n, ires_dn) + rate / &
-                                    (rt_auxvar%immobile(this%downstream_ispec_c(i)) + eps)
+                                    rt_auxvar%immobile(this%downstream_ispec_c(i))
         endif
      enddo 
   endif
@@ -958,14 +963,14 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
         ires_uc = reaction%offset_immobile + this%upstream_ispec_c
         ires_up = reaction%offset_immobile + this%upstream_ispec_p
         tmp_real = rt_auxvar%immobile(this%upstream_ispec_p) &
-                 / rt_auxvar%immobile(this%upstream_ispec_c) &
-                 / rt_auxvar%immobile(this%upstream_ispec_c)
-        Jacobian(ires_up,ires_uc) = Jacobian(ires_up,ires_uc) - rate * tmp_real
-        Jacobian(ires_p, ires_uc) = Jacobian(ires_p, ires_uc) + rate * tmp_real
-        Jacobian(ires_up,ires_up) = Jacobian(ires_up,ires_up) + rate / & 
-                                    (rt_auxvar%immobile(this%upstream_ispec_c) + eps)
-        Jacobian(ires_p, ires_up) = Jacobian(ires_p, ires_up) - rate / &
-                                    (rt_auxvar%immobile(this%upstream_ispec_c) + eps)
+                 / rt_auxvar%immobile(this%upstream_ispec_c) !&
+!                 / rt_auxvar%immobile(this%upstream_ispec_c)
+        Jacobian(ires_up,ires_uc) = Jacobian(ires_up,ires_uc) - drate_uc * tmp_real !rate * tmp_real
+        Jacobian(ires_p, ires_uc) = Jacobian(ires_p, ires_uc) + drate_uc * tmp_real !rate * tmp_real
+        Jacobian(ires_up,ires_up) = Jacobian(ires_up,ires_up) + drate_uc !rate / & 
+!                                    rt_auxvar%immobile(this%upstream_ispec_c)
+        Jacobian(ires_p, ires_up) = Jacobian(ires_p, ires_up) - drate_uc !rate / &
+!                                    rt_auxvar%immobile(this%upstream_ispec_c)
      endif
 
      do i = 1, this%nDownstream
@@ -973,14 +978,14 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
            ires_dc = reaction%offset_immobile + this%downstream_ispec_c(i)
            ires_dp = reaction%offset_immobile + this%downstream_ispec_p(i)
            tmp_real = rt_auxvar%immobile(this%downstream_ispec_p(i)) &
-                    / (rt_auxvar%immobile(this%downstream_ispec_c(i)) + eps) &
-                    / (rt_auxvar%immobile(this%downstream_ispec_c(i)) + eps)
+                    / rt_auxvar%immobile(this%downstream_ispec_c(i)) &
+                    / rt_auxvar%immobile(this%downstream_ispec_c(i))
            Jacobian(ires_dp,ires_dc) = Jacobian(ires_dp,ires_dc) + rate * tmp_real
            Jacobian(ires_p, ires_dc) = Jacobian(ires_p, ires_dc) - rate * tmp_real
            Jacobian(ires_dp,ires_dp) = Jacobian(ires_dp,ires_dp) - rate / & 
-                                    (rt_auxvar%immobile(this%downstream_ispec_c(i)) + eps)
+                                    rt_auxvar%immobile(this%downstream_ispec_c(i))
            Jacobian(ires_p, ires_dp) = Jacobian(ires_p, ires_dp) + rate / &
-                                    (rt_auxvar%immobile(this%downstream_ispec_c(i)) + eps)
+                                    rt_auxvar%immobile(this%downstream_ispec_c(i))
         endif
      enddo 
   endif
@@ -988,7 +993,12 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 !  first order terms
   do j = 1, this%nFirstOrder
      conc = rt_auxvar%immobile(this%ispec_1st(j))  
-     drate = rate / (conc + eps) 
+     if(this%ispec_1st(i) .eq. this%upstream_ispec_c) then
+       drate = drate_uc 
+     else
+       drate = rate / conc 
+     endif
+
      ires_j = reaction%offset_immobile + this%ispec_1st(j) 
 
 ! upstream C
