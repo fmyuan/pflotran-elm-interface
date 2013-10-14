@@ -775,7 +775,8 @@ reaction_sandbox_clm_cn.o : global_aux.o immobile_aux.o input.o option.o \
 reaction_sandbox_clm_cnp.o : global_aux.o immobile_aux.o input.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_sandbox_base.o reactive_transport_aux.o \
-                            string.o units.o utility.o
+                            string.o units.o utility.o \
+                            clm_pflotran_interface_data.o
 reaction_sandbox_plantntake.o : global_aux.o immobile_aux.o input.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_sandbox_base.o reactive_transport_aux.o \
