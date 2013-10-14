@@ -63,6 +63,7 @@ module pflotran_model_module
     Vec :: sat_clm
     Vec :: sat_ice_clm      ! soil ice water saturation (F.-M. Yuan)
     Vec :: temp_clm         ! soil temperature (F.-M. Yuan)
+    Vec :: soilpsi_clm
 
     Vec :: hksat_x_pf
     Vec :: hksat_y_pf
@@ -74,6 +75,7 @@ module pflotran_model_module
     Vec :: sat_pf
     Vec :: sat_ice_pf      ! soil ice water saturation (F.-M. Yuan)
     Vec :: temp_pf         ! soil temperature (F.-M. Yuan)
+    Vec :: soilpsi_pf
 
     PetscInt :: nlclm
     PetscInt :: ngclm
@@ -584,6 +586,7 @@ end subroutine pflotranModelSetICs
     PetscScalar, pointer :: sucsat_pf_loc(:)  ! volumetric soil water at saturation (porosity)
     PetscScalar, pointer :: bsw_pf_loc(:)     ! Clapp and Hornberger "b"
     PetscScalar, pointer :: bsw_clm_loc(:)    ! Clapp and Hornberger "b"
+    PetscScalar, pointer :: soilpsi_pf_loc(:)  ! minimum soil suction (mm)
 
     den = 998.2d0       ! [kg/m^3]  @ 20 degC
     vis = 0.001002d0    ! [N s/m^2] @ 20 degC
@@ -648,6 +651,11 @@ end subroutine pflotranModelSetICs
                                     pflotran_model%option, &
                                     clm_pf_idata%watsat_clm, &
                                     clm_pf_idata%watsat_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%soilpsi_clm, &
+                                    clm_pf_idata%soilpsi_pf)
 
     call VecGetArrayF90(clm_pf_idata%hksat_x_pf, hksat_x_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%hksat_y_pf, hksat_y_pf_loc, ierr)
@@ -2490,6 +2498,11 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
             ghosted_id=grid%nL2G(local_id)
             global_aux_vars(ghosted_id)%sat(1)=sat_pf_p(local_id)
         enddo
+        ! pass soilpsi for moisture response function calculation
+        call MappingSourceToDestination(pflotran_model%map_clm2pf, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%soilpsi_clm, &
+                                    clm_pf_idata%soilpsi_pf)
     endif
 
     ! Save soil temperature values from CLM to PFLOTRAN, if needed

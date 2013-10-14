@@ -727,6 +727,10 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
   use Option_module
   use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
   
+#ifdef CLM_PFLOTRAN
+  use clm_pflotran_interface_data !, only : rate_plantnuptake_pf 
+#endif
+  
   implicit none
   
   class(reaction_sandbox_CLM_CNP_type) :: this  
@@ -752,29 +756,55 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscReal :: F_t
   PetscReal :: F_theta
-  PetscReal :: temp_K
+  PetscReal :: temp_K, tc
   PetscReal, parameter :: eps = 1.0d-150
   PetscReal, parameter :: one_over_71_02 = 1.408054069d-2
   PetscReal, parameter :: theta_min = 0.01d0     ! 1/nat log(0.01d0)
   PetscReal, parameter :: one_over_log_theta_min = -2.17147241d-1
   PetscReal, parameter :: twelve_over_14 = 0.857142857143d0
   PetscInt :: local_id
+  PetscReal :: maxpsi, psi
+  PetscReal, parameter :: minpsi = -10.0d0  ! MPa
+  PetscScalar, pointer :: sucsat_pf_loc(:)   !
+  PetscScalar, pointer :: soilpsi_pf_loc(:)   !
+  PetscErrorCode :: ierr
 
+! CLM4.5 temperature response function
+  tc = global_auxvar%temp(1)
+  F_t = 1.5d0 ** ((tc - 25.0d0) / 10.0d0)
+ 
+! CLM-CN temperature response function
   ! inhibition due to temperature
   ! Equation: F_t = exp(308.56*(1/17.02 - 1/(T - 227.13)))
-  temp_K = global_auxvar%temp(1) + 273.15d0
 
-  if(temp_K .GT. 227.15d0) then
-     F_t = exp(308.56d0*(one_over_71_02 - 1.d0/(temp_K - 227.13d0)))
-  else
-     F_t = 0.0d0
-  endif
+!  temp_K = global_auxvar%temp(1) + 273.15d0
+
+!  if(temp_K .GT. 227.15d0) then
+!     F_t = exp(308.56d0*(one_over_71_02 - 1.d0/(temp_K - 227.13d0)))
+!  else
+!     F_t = 0.0d0
+!  endif
   ! inhibition due to moisture content
   ! Equation: F_theta = log(theta_min/theta) / log(theta_min/theta_max)
   ! Assumptions: theta is saturation
   !              theta_min = 0.01, theta_max = 1.
-  F_theta = log(theta_min/max(theta_min,global_auxvar%sat(1))) &  ! theta could be zero, which will cause math issue
-          * one_over_log_theta_min
+
+#ifdef CLM_PFLOTRAN
+  call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
+  call VecGetArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
+
+  maxpsi = sucsat_pf_loc(local_id) * (-9.8d-6)
+  psi = min(soilpsi_pf_loc(local_id), maxpsi)
+  F_theta = log(minpsi/psi)/log(minpsi/maxpsi)
+
+  call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
+  call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
+#else
+  F_theta = 1.0d0 
+#endif
+
+!  F_theta = log(theta_min/max(theta_min,global_auxvar%sat(1))) &  ! theta could be zero, which will cause math issue
+!          * one_over_log_theta_min
 
   offset = reaction%offset_immobile
 
