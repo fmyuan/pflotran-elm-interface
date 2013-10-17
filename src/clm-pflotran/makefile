@@ -157,7 +157,7 @@ FFLAGS   =
 CPPFLAGS = ${MYFLAGS}
 FPPFLAGS = ${MYFLAGS}
 
-CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log libpflotran.a
+CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log libpflotran.a pflotran_interface
 
 include ${PETSC_DIR}/conf/variables
 include ${PETSC_DIR}/conf/rules

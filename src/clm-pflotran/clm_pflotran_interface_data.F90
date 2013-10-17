@@ -65,7 +65,11 @@ module clm_pflotran_interface_data
   Vec :: sat_ice_clm ! seq vec
   Vec :: sat_ice_pf  ! mpi vec
 
-  ! (vii) ground/soil C/N pools (G.-P. Tang)
+  ! (vii) Stand water head
+  Vec :: h2osfc_clm ! seq vec
+  Vec :: h2osfc_pf  ! mpi vec
+
+  ! (viii) ground/soil C/N pools (G.-P. Tang)
   Vec :: decomp_cpools_vr_lit1_clm     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
   Vec :: decomp_cpools_vr_lit2_clm     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
   Vec :: decomp_cpools_vr_lit3_clm     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
@@ -226,7 +230,10 @@ contains
     clm_pf_idata%sat_ice_clm = 0
     clm_pf_idata%sat_ice_pf = 0
 
-   ! (vii) soil C/N pools
+    clm_pf_idata%h2osfc_clm = 0
+    clm_pf_idata%h2osfc_pf = 0
+   
+   ! (viii) soil C/N pools
     clm_pf_idata%decomp_cpools_vr_lit1_clm = 0
     clm_pf_idata%decomp_cpools_vr_lit2_clm = 0
     clm_pf_idata%decomp_cpools_vr_lit3_clm = 0
@@ -414,6 +421,7 @@ contains
 
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_surf_3d,clm_pf_idata%gflux_pf,ierr)
     call VecSet(clm_pf_idata%gflux_pf,0.d0,ierr)   ! 2-D or 3-D (fmy?)
+    ! 3D Subsurface PFLOTRAN ---to--- 3D Subsurface CLM
 
     ! (iv) soil bgc variables - states
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%decomp_cpools_vr_lit1_pf,ierr)
@@ -448,6 +456,15 @@ contains
 
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%hrc_vr_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%accextrn_vr_pf,ierr)
+
+    ! 2D Surface PFLOTRAN ---to--- 2D Surface CLM
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%nlclm_surf_3d,clm_pf_idata%h2osfc_clm,ierr)
+    call VecSet(clm_pf_idata%h2osfc_clm,0.d0,ierr)
+
+    ! Create Seq. Vectors for CLM
+    ! 3D Subsurface PFLOTRAN ---to--- 3D Subsurface CLM
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_3d,clm_pf_idata%sat_clm,ierr)
+    call VecSet(clm_pf_idata%sat_clm,0.d0,ierr)
 
   end subroutine CLMPFLOTRANIDataCreateVec
 
@@ -500,6 +517,9 @@ contains
 
     if(clm_pf_idata%sat_ice_clm  /= 0) call VecDestroy(clm_pf_idata%sat_ice_clm,ierr)
     if(clm_pf_idata%sat_ice_pf  /= 0) call VecDestroy(clm_pf_idata%sat_ice_pf,ierr)
+
+    if(clm_pf_idata%h2osfc_clm  /= 0) call VecDestroy(clm_pf_idata%h2osfc_clm,ierr)
+    if(clm_pf_idata%h2osfc_pf  /= 0) call VecDestroy(clm_pf_idata%h2osfc_pf,ierr)
 
     if(clm_pf_idata%area_top_face_clm  /= 0) &
       call VecDestroy(clm_pf_idata%area_top_face_clm,ierr)
