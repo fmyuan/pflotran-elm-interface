@@ -615,6 +615,8 @@ subroutine CLM_CNPSetup(this,reaction,option)
 !              this%downstream_stoich_n(icount) = 1.0d0/this%downstream_cn(icount)
               this%downstream_stoich_n(icount) = 1.0d0/this%Upstream%ratio_cn
            endif
+        else
+           this%b_downstream_cn_follow_upstream(icount) = PETSC_FALSE
         endif
 
         if(trim(cur_pool%name_n) /= '') then
@@ -644,6 +646,8 @@ subroutine CLM_CNPSetup(this,reaction,option)
 !              this%downstream_stoich_p(icount) = 1.0d0/this%downstream_cp(icount)
               this%downstream_stoich_p(icount) = 1.0d0/this%Upstream%ratio_cp
            endif
+        else
+           this%b_downstream_cp_follow_upstream(icount) = PETSC_FALSE
         endif
 
         if(trim(cur_pool%name_p) /= '') then
