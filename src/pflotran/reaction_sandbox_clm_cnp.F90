@@ -810,7 +810,7 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
   PetscInt :: ires_uc, ires_un, ires_up, ires_dc, ires_dn, ires_dp
   PetscReal :: conc, c_up, c_N
   PetscReal :: L_water
-  PetscReal :: rate, drate, drate_uc 
+  PetscReal :: rate, drate, drate_uc, drate_n, drate_p 
   PetscReal :: tmp_real
 !  PetscReal :: stoich_mineral_n_sign 
 
@@ -900,6 +900,9 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 ! monod term
   do i = 1, this%nMonod
      conc = rt_auxvar%immobile(this%ispec_mnd(i))  
+     if(this%ispec_mnd(i) /= this%upstream_ispec_c) then
+       drate_uc = drate_uc * conc/(conc + this%half_saturation(i))  
+     endif
      rate = rate * conc/(conc + this%half_saturation(i))  
   enddo 
 
@@ -940,6 +943,8 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 
     if(this%mineral_n_stoich < 0.0d0 .and. this%NInhibitionCoef > 0.0d0) then
        conc = rt_auxvar%immobile(this%mineral_n_ispec)  
+       drate_n = rate / (conc + this%NInhibitionCoef) 
+       drate_uc = drate_uc * conc/(conc + this%NInhibitionCoef)  
        rate = rate * conc/(conc + this%NInhibitionCoef)  ! N limiting  
     endif
   endif
@@ -975,7 +980,10 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 
     if(this%mineral_p_stoich < 0.0d0 .and. this%PInhibitionCoef < 0.0d0) then
        conc = rt_auxvar%immobile(this%mineral_p_ispec)  
+       drate_p = rate / (conc + this%PInhibitionCoef) 
        rate = rate * conc/(conc + this%PInhibitionCoef)  ! P limiting  
+       drate_n = drate_n * conc / (conc + this%PInhibitionCoef) 
+       drate_uc = drate_uc * conc / (conc + this%PInhibitionCoef)  
     endif
   endif
 
@@ -1370,7 +1378,8 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 ! r     = r0 * x / (k + x)     
 ! dr/dx = r0 * k / (k + x) / (k + x) = r * k / x / (k + x)
      conc = rt_auxvar%immobile(this%mineral_n_ispec)  
-     drate = rate * this%NInhibitionCoef / conc / (this%NInhibitionCoef + conc)
+     drate = drate_n * this%NInhibitionCoef / (this%NInhibitionCoef + conc)
+!     drate = rate * this%NInhibitionCoef / conc / (this%NInhibitionCoef + conc)
 !     ires_n = reaction%offset_immobile + this%mineral_n_ispec      
 
 ! upstream C
@@ -1431,7 +1440,8 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 ! r     = r0 * x / (k + x)     
 ! dr/dx = r0 * k / (k + x) / (k + x) = r * k / x / (k + x)
      conc = rt_auxvar%immobile(this%mineral_p_ispec)  
-     drate = rate * this%PInhibitionCoef / conc / (this%PInhibitionCoef + conc)
+     drate = drate_p * this%PInhibitionCoef / (this%PInhibitionCoef + conc)
+!     drate = rate * this%PInhibitionCoef / conc / (this%PInhibitionCoef + conc)
 !     ires_p = reaction%offset_immobile + this%mineral_p_ispec      
 
 ! upstream C
