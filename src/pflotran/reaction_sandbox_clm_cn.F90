@@ -18,9 +18,15 @@ module Reaction_Sandbox_CLM_CN_class
   PetscInt, parameter :: CARBON_INDEX = 1
   PetscInt, parameter :: NITROGEN_INDEX = 2
   PetscInt, parameter :: SOM_INDEX = 1
+  PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1 
+  PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2 
 
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_clm_cn_type
+
+    PetscInt :: temperature_response_function
+    PetscReal :: Q10
+
     PetscInt :: nrxn
     PetscInt :: npool
     PetscReal, pointer :: CN_ratio(:)
@@ -74,6 +80,10 @@ function CLM_CN_Create()
   type(reaction_sandbox_clm_cn_type), pointer :: CLM_CN_Create
   
   allocate(CLM_CN_Create)
+
+  CLM_CN_Create%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
+  CLM_CN_Create%Q10 = 1.5d0
+
   CLM_CN_Create%nrxn = 0
   CLM_CN_Create%npool = 0
   nullify(CLM_CN_Create%CN_ratio)
@@ -136,6 +146,32 @@ subroutine CLM_CN_Read(this,input,option)
     call StringToUpper(word)   
 
     select case(trim(word))
+      case('TEMPERATURE_RESPONSE_FUNCTION')
+        do
+         call InputReadFlotranString(input,option)
+         if (InputError(input)) exit
+         if (InputCheckExit(input,option)) exit
+
+         call InputReadWord(input,option,word,PETSC_TRUE)
+         call InputErrorMsg(input,option,'keyword', &
+                       'CHEMISTRY,REACTION_SANDBOX,CLM_CNP,TEMPERATURE RESPONSE FUNCTION')
+         call StringToUpper(word)   
+
+            select case(trim(word))
+              case('CLM4')
+                  this%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4    
+              case('Q10')
+                  this%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_Q10    
+                  call InputReadDouble(input,option,this%Q10)  
+                  call InputErrorMsg(input,option,'Q10', &
+                        'CHEMISTRY,REACTION_SANDBOX_CLM_CNP,TEMPERATURE RESPONSE FUNCTION')
+              case default
+                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                                     trim(word) // ' not recognized.'
+                  call printErrMsg(option)
+            end select
+         enddo 
+
       case('POOLS')
         do
           call InputReadFlotranString(input,option)
@@ -474,6 +510,10 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   use Option_module
   use Reaction_Aux_module, only : reaction_type
+#ifdef CLM_PFLOTRAN
+  use clm_pflotran_interface_data !, only : rate_plantnuptake_pf 
+#endif
+  
   
   implicit none
   
@@ -499,7 +539,12 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: drate, scaled_rate_const, rate
   PetscInt :: irxn
   PetscInt :: local_id
-  
+  PetscReal :: maxpsi, psi, tc
+  PetscReal, parameter :: minpsi = -10.0d0  ! MPa
+  PetscScalar, pointer :: sucsat_pf_loc(:)   !
+  PetscScalar, pointer :: soilpsi_pf_loc(:)   !
+  PetscErrorCode :: ierr
+
   ! inhibition variables
   PetscReal :: F_t
   PetscReal :: F_theta
@@ -532,22 +577,54 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: sumC
   PetscReal :: sumN
   
+  ! temperature response function 
+  select case(this%temperature_response_function)
+      case(TEMPERATURE_RESPONSE_FUNCTION_Q10)
+! CLM4.5 temperature response function
+          tc = global_auxvar%temp(1)
+          F_t = this%Q10 ** ((tc - 25.0d0) / 10.0d0)
+      case(TEMPERATURE_RESPONSE_FUNCTION_CLM4) 
+  
   ! inhibition due to temperature
   ! Equation: F_t = exp(308.56*(1/17.02 - 1/(T - 227.13)))
-  temp_K = global_auxvar%temp(1) + 273.15d0
+          temp_K = global_auxvar%temp(1) + 273.15d0
 
-  if(temp_K > 227.15d0) then
-     F_t = exp(308.56d0*(one_over_71_02 - 1.d0/(temp_K - 227.13d0)))
+          if(temp_K > 227.15d0) then
+              F_t = exp(308.56d0*(one_over_71_02 - 1.d0/(temp_K - 227.13d0)))
+          else
+              F_t = 0.0
+              return
+          endif
+  end select
+
+#ifdef CLM_PFLOTRAN
+  call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
+  call VecGetArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
+
+  maxpsi = sucsat_pf_loc(local_id) * (-9.8d-6)
+  psi = min(soilpsi_pf_loc(local_id), maxpsi)
+
+  if(psi > minpsi) then
+     F_theta = log(minpsi/psi)/log(minpsi/maxpsi)
   else
-     F_t = 0.0
+     F_theta = 0.0d0
+     call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
+     call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
      return
   endif
+
+  call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
+  call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
+#else
+
   ! inhibition due to moisture content
   ! Equation: F_theta = log(theta_min/theta) / log(theta_min/theta_max)
   ! Assumptions: theta is saturation
   !              theta_min = 0.01, theta_max = 1.
   F_theta = log(theta_min/max(global_auxvar%sat(1),theta_min)) * one_over_log_theta_min 
   
+#endif
+
   constant_inhibition = F_t * F_theta
   
   ! indices for C and N species

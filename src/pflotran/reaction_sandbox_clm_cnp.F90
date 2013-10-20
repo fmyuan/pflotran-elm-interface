@@ -20,6 +20,9 @@ module Reaction_Sandbox_CLM_CNP_class
                           ! 30.973762 /12.011
   PetscReal, parameter :: CP_ratio_mass_to_mol = 2.578783d0 
   
+  PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1 
+  PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2 
+
   type, public :: pool_type
     character(len=MAXWORDLENGTH) :: name_c
     character(len=MAXWORDLENGTH) :: name_n
@@ -40,6 +43,9 @@ module Reaction_Sandbox_CLM_CNP_class
 
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_CLM_CNP_type
+
+    PetscInt :: temperature_response_function
+    PetscReal :: Q10
 
 ! pools
 
@@ -137,6 +143,9 @@ function CLM_CNPCreate()
   allocate(CLM_CNPCreate)
 
   nullify(CLM_CNPCreate%Upstream)
+
+  CLM_CNPCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_Q10
+  CLM_CNPCreate%Q10 = 1.5d0
 
   CLM_CNPCreate%upstream_ispec_c = -1
   CLM_CNPCreate%upstream_ispec_n = -1
@@ -292,6 +301,33 @@ subroutine CLM_CNPRead(this,input,option)
     call StringToUpper(word)   
 
     select case(trim(word))
+      case('TEMPERATURE_RESPONSE_FUNCTION')
+        do
+         call InputReadFlotranString(input,option)
+         if (InputError(input)) exit
+         if (InputCheckExit(input,option)) exit
+
+         call InputReadWord(input,option,word,PETSC_TRUE)
+         call InputErrorMsg(input,option,'keyword', &
+                       'CHEMISTRY,REACTION_SANDBOX,CLM_CNP,TEMPERATURE RESPONSE FUNCTION')
+         call StringToUpper(word)   
+
+            select case(trim(word))
+              case('CLM4')
+                  this%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4    
+              case('Q10')
+                  this%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_Q10    
+                  call InputReadDouble(input,option,tmp_real)  
+                  call InputErrorMsg(input,option,'Q10', &
+                        'CHEMISTRY,REACTION_SANDBOX_CLM_CNP,TEMPERATURE RESPONSE FUNCTION')
+                  this%Q10 = tmp_real
+              case default
+                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                                     trim(word) // ' not recognized.'
+                  call printErrMsg(option)
+            end select
+         enddo 
+
       case('UPSTREAM')
         if (.not.associated(this%Upstream)) then
             pool => PoolCreate()
@@ -830,21 +866,26 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
   PetscBool :: is_pool_in_rxn
   PetscErrorCode :: ierr
 
+  ! temperature response function 
+  select case(this%temperature_response_function)
+      case(TEMPERATURE_RESPONSE_FUNCTION_Q10)
 ! CLM4.5 temperature response function
-  tc = global_auxvar%temp(1)
-  F_t = 1.5d0 ** ((tc - 25.0d0) / 10.0d0)
- 
+          tc = global_auxvar%temp(1)
+          F_t = this%Q10 ** ((tc - 25.0d0) / 10.0d0)
+      case(TEMPERATURE_RESPONSE_FUNCTION_CLM4) 
 ! CLM-CN temperature response function
   ! inhibition due to temperature
   ! Equation: F_t = exp(308.56*(1/17.02 - 1/(T - 227.13)))
 
-!  temp_K = global_auxvar%temp(1) + 273.15d0
+          temp_K = global_auxvar%temp(1) + 273.15d0
 
-!  if(temp_K .GT. 227.15d0) then
-!     F_t = exp(308.56d0*(one_over_71_02 - 1.d0/(temp_K - 227.13d0)))
-!  else
-!     F_t = 0.0d0
-!  endif
+          if(temp_K .GT. 227.15d0) then
+            F_t = exp(308.56d0*(one_over_71_02 - 1.d0/(temp_K - 227.13d0)))
+          else
+            F_t = 0.0d0
+            return
+          endif
+  end select     
   ! inhibition due to moisture content
   ! Equation: F_theta = log(theta_min/theta) / log(theta_min/theta_max)
   ! Assumptions: theta is saturation
@@ -978,7 +1019,7 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
                  * this%downstream_stoich_c(i)
     enddo         
 
-    if(this%mineral_p_stoich < 0.0d0 .and. this%PInhibitionCoef < 0.0d0) then
+    if(this%mineral_p_stoich < 0.0d0 .and. this%PInhibitionCoef > 0.0d0) then
        conc = rt_auxvar%immobile(this%mineral_p_ispec)  
        drate_p = rate / (conc + this%PInhibitionCoef) 
        rate = rate * conc/(conc + this%PInhibitionCoef)  ! P limiting  
