@@ -42,6 +42,7 @@ STANDARD_CFG = \
 	default/multicontinuum/multicontinuum.cfg \
 	default/mphase/mphase.cfg \
 	ngee/ngee.cfg \
+	ngee/clmcnp/clmcnp.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \

@@ -1,0 +1,53 @@
+-- CONCENTRATION: Total A(aq) --
+      Max:   1.0000000000000E-40
+      Min:   1.0000000000000E-40
+     Mean:   1.0000000000000E-40
+        1:   1.0000000000000E-40
+-- CONCENTRATION: C --
+      Max:   4.0615792032336E-02
+      Min:   4.0615792032336E-02
+     Mean:   4.0615792032336E-02
+        1:   4.0615792032336E-02
+-- CONCENTRATION: N --
+      Max:   6.3223551552781E-03
+      Min:   6.3223551552781E-03
+     Mean:   6.3223551552781E-03
+        1:   6.3223551552781E-03
+-- CONCENTRATION: Lit1C --
+      Max:   8.1056943506831E-02
+      Min:   8.1056943506831E-02
+     Mean:   8.1056943506831E-02
+        1:   8.1056943506831E-02
+-- CONCENTRATION: Lit1N --
+      Max:   2.2275515996531E-03
+      Min:   2.2275515996531E-03
+     Mean:   2.2275515996531E-03
+        1:   2.2275515996531E-03
+-- CONCENTRATION: SOM1 --
+      Max:   6.3527264460833E-02
+      Min:   6.3527264460833E-02
+     Mean:   6.3527264460833E-02
+        1:   6.3527264460833E-02
+-- CONCENTRATION: P --
+      Max:   1.3404264455300E-89
+      Min:   1.3404264455300E-89
+     Mean:   1.3404264455300E-89
+        1:   1.3404264455300E-89
+-- CONCENTRATION: Lit1P --
+      Max:   3.9215454310000E-05
+      Min:   3.9215454310000E-05
+     Mean:   3.9215454310000E-05
+        1:   3.9215454310000E-05
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   5.1803112030029E-02
+   Time Steps:           57
+   Newton Iterations:           60
+   Solver Iterations:           60
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.1090770794517E-01
+   Residual 2-Norm:   8.1103585451348E-07

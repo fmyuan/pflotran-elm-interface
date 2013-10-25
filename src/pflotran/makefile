@@ -953,7 +953,7 @@ clean-tests : FORCE
 		$(MAKE) --directory=$(pflotran_test_dir) $(MAKECMDGOALS); \
 	fi
 
-# user lever tests to verify pflotran is built correctly
+# user level tests to verify pflotran is built correctly
 check : FORCE
 	@if [ -d $(pflotran_test_dir) ]; then \
 		$(MAKE) --directory=$(pflotran_test_dir) $(MAKECMDGOALS); \

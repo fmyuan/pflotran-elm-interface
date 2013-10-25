@@ -20,6 +20,7 @@ module Reaction_Sandbox_CLM_CNP_class
                           ! 30.973762 /12.011
   PetscReal, parameter :: CP_ratio_mass_to_mol = 2.578783d0 
   
+  
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1 
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2 
 
@@ -30,6 +31,8 @@ module Reaction_Sandbox_CLM_CNP_class
     PetscReal                    :: stoich
     PetscReal                    :: ratio_cn
     PetscReal                    :: ratio_cp
+    PetscReal                    :: ratio_nc
+    PetscReal                    :: ratio_pc
     PetscBool                    :: bratio_cn_follow_upstream
     PetscBool                    :: bratio_cp_follow_upstream
     type(pool_type), pointer     :: next
@@ -55,6 +58,22 @@ module Reaction_Sandbox_CLM_CNP_class
     PetscInt :: upstream_ispec_n
     PetscInt :: upstream_ispec_p
    
+    PetscInt :: upstream_ires_c
+    PetscInt :: upstream_ires_n
+    PetscInt :: upstream_ires_p
+   
+    PetscBool :: upstream_isaqueous_c
+    PetscBool :: upstream_isaqueous_n
+    PetscBool :: upstream_isaqueous_p
+
+    character(len=MAXWORDLENGTH) :: name_mc
+    character(len=MAXWORDLENGTH) :: name_mn
+    character(len=MAXWORDLENGTH) :: name_mp
+
+    PetscBool :: isaqueous_mc
+    PetscBool :: isaqueous_mn
+    PetscBool :: isaqueous_mp
+   
     PetscReal :: upstream_stoich_c    !cu
     PetscReal :: upstream_stoich_n    !nu
     PetscReal :: upstream_stoich_p    !pu
@@ -68,6 +87,14 @@ module Reaction_Sandbox_CLM_CNP_class
     PetscInt, pointer :: downstream_ispec_c(:)
     PetscInt, pointer :: downstream_ispec_n(:)
     PetscInt, pointer :: downstream_ispec_p(:)
+
+    PetscInt, pointer :: downstream_ires_c(:)
+    PetscInt, pointer :: downstream_ires_n(:)
+    PetscInt, pointer :: downstream_ires_p(:)
+
+    PetscBool, pointer :: downstream_isaqueous_c(:)
+    PetscBool, pointer :: downstream_isaqueous_n(:)
+    PetscBool, pointer :: downstream_isaqueous_p(:)
 
     PetscReal, pointer :: downstream_stoich_c(:) !ci
     PetscReal, pointer :: downstream_stoich_n(:) !ni
@@ -89,9 +116,13 @@ module Reaction_Sandbox_CLM_CNP_class
     PetscReal :: NInhibitionCoef
     PetscReal :: PInhibitionCoef
 
-    PetscInt  :: mineral_c_ispec
-    PetscInt  :: mineral_n_ispec
-    PetscInt  :: mineral_p_ispec
+    PetscInt  :: ispec_mc
+    PetscInt  :: ispec_mn
+    PetscInt  :: ispec_mp
+
+    PetscInt  :: ires_mc
+    PetscInt  :: ires_mn
+    PetscInt  :: ires_mp
 
     PetscReal :: mineral_c_stoich  !respiration fraction
     PetscReal :: mineral_n_stoich
@@ -112,6 +143,10 @@ module Reaction_Sandbox_CLM_CNP_class
     PetscInt, pointer :: ispec_1st(:)
     PetscInt, pointer :: ispec_mnd(:)
     PetscInt, pointer :: ispec_inh(:)
+
+    PetscBool, pointer :: isaqueous_1st(:)
+    PetscBool, pointer :: isaqueous_mnd(:)
+    PetscBool, pointer :: isaqueous_inh(:)
 
     PetscReal, pointer :: half_saturation(:)
     PetscReal, pointer :: inhibition_coef(:)
@@ -151,6 +186,18 @@ function CLM_CNPCreate()
   CLM_CNPCreate%upstream_ispec_n = -1
   CLM_CNPCreate%upstream_ispec_p = -1
   
+  CLM_CNPCreate%upstream_ires_c = -1
+  CLM_CNPCreate%upstream_ires_n = -1
+  CLM_CNPCreate%upstream_ires_p = -1
+  
+  CLM_CNPCreate%upstream_isaqueous_c = PETSC_FALSE
+  CLM_CNPCreate%upstream_isaqueous_n = PETSC_FALSE
+  CLM_CNPCreate%upstream_isaqueous_p = PETSC_FALSE
+
+  CLM_CNPCreate%isaqueous_mc = PETSC_FALSE
+  CLM_CNPCreate%isaqueous_mn = PETSC_FALSE
+  CLM_CNPCreate%isaqueous_mp = PETSC_FALSE
+  
   CLM_CNPCreate%upstream_stoich_c = -1.d0
   CLM_CNPCreate%upstream_stoich_n = -1.d0
   CLM_CNPCreate%upstream_stoich_p = -1.d0
@@ -165,6 +212,15 @@ function CLM_CNPCreate()
   nullify(CLM_CNPCreate%downstream_ispec_c)
   nullify(CLM_CNPCreate%downstream_ispec_n)
   nullify(CLM_CNPCreate%downstream_ispec_p)
+
+  nullify(CLM_CNPCreate%downstream_ires_c)
+  nullify(CLM_CNPCreate%downstream_ires_n)
+  nullify(CLM_CNPCreate%downstream_ires_p)
+
+  nullify(CLM_CNPCreate%downstream_isaqueous_c)
+  nullify(CLM_CNPCreate%downstream_isaqueous_n)
+  nullify(CLM_CNPCreate%downstream_isaqueous_p)
+
   nullify(CLM_CNPCreate%downstream_stoich_c)
   nullify(CLM_CNPCreate%downstream_stoich_n)
   nullify(CLM_CNPCreate%downstream_stoich_p)
@@ -180,9 +236,17 @@ function CLM_CNPCreate()
   CLM_CNPCreate%NInhibitionCoef = -1.0d0
   CLM_CNPCreate%PInhibitionCoef = -1.0d0
   
-  CLM_CNPCreate%mineral_c_ispec = -1
-  CLM_CNPCreate%mineral_n_ispec = -1
-  CLM_CNPCreate%mineral_p_ispec = -1
+  CLM_CNPCreate%name_mc = 'C'
+  CLM_CNPCreate%name_mn = 'N'
+  CLM_CNPCreate%name_mp = 'P'
+
+  CLM_CNPCreate%ispec_mc = -1
+  CLM_CNPCreate%ispec_mn = -1
+  CLM_CNPCreate%ispec_mp = -1
+
+  CLM_CNPCreate%ires_mc = -1
+  CLM_CNPCreate%ires_mn = -1
+  CLM_CNPCreate%ires_mp = -1
 
   CLM_CNPCreate%mineral_c_stoich = -1.0d0
   CLM_CNPCreate%mineral_n_stoich = -1.0d0
@@ -202,6 +266,10 @@ function CLM_CNPCreate()
   nullify(CLM_CNPCreate%ispec_mnd)
   nullify(CLM_CNPCreate%ispec_inh)
 
+  nullify(CLM_CNPCreate%isaqueous_1st)
+  nullify(CLM_CNPCreate%isaqueous_mnd)
+  nullify(CLM_CNPCreate%isaqueous_inh)
+
   nullify(CLM_CNPCreate%half_saturation)
   nullify(CLM_CNPCreate%inhibition_coef)
 
@@ -219,6 +287,8 @@ function PoolCreate()
   PoolCreate%stoich = -1.d0
   PoolCreate%ratio_cn = -1.d0
   PoolCreate%ratio_cp = -1.d0
+  PoolCreate%ratio_nc = -1.d0
+  PoolCreate%ratio_pc = -1.d0
   PoolCreate%bratio_cn_follow_upstream = PETSC_FALSE
   PoolCreate%bratio_cp_follow_upstream = PETSC_FALSE
   nullify(PoolCreate%next)
@@ -328,6 +398,24 @@ subroutine CLM_CNPRead(this,input,option)
             end select
          enddo 
 
+      case('MINERALC')
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'mineral c', &
+                           'CHEMISTRY,REACTION_SANDBOX_CLM_CNP,UPSTREAM,MINERALC')
+          this%name_mc = word
+
+      case('MINERALN')
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'mineral n', &
+                           'CHEMISTRY,REACTION_SANDBOX_CLM_CNP,UPSTREAM,MINERALN')
+          this%name_mn = word
+
+      case('MINERALP')
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'mineral p', &
+                           'CHEMISTRY,REACTION_SANDBOX_CLM_CNP,UPSTREAM,MINERALP')
+          this%name_mp = word
+
       case('UPSTREAM')
         if (.not.associated(this%Upstream)) then
             pool => PoolCreate()
@@ -372,6 +460,16 @@ subroutine CLM_CNPRead(this,input,option)
                   call InputErrorMsg(input,option,'CP ratio', &
                         'CHEMISTRY,REACTION_SANDBOX_CLM_CNP,UPSTREAMCPOOL')
                   this%Upstream%ratio_cp = tmp_real*CP_ratio_mass_to_mol
+              case('NCRATIO')
+                  call InputReadDouble(input,option,tmp_real)  
+                  call InputErrorMsg(input,option,'NC ratio', &
+                        'CHEMISTRY,REACTION_SANDBOX_CLM_CNP,UPSTREAMCPOOL')
+                  this%Upstream%ratio_nc = tmp_real/CN_ratio_mass_to_mol
+              case('PCRATIO')
+                  call InputReadDouble(input,option,tmp_real)  
+                  call InputErrorMsg(input,option,'CP ratio', &
+                        'CHEMISTRY,REACTION_SANDBOX_CLM_CNP,UPSTREAMCPOOL')
+                  this%Upstream%ratio_pc = tmp_real/CP_ratio_mass_to_mol
               case default
                   option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP,UPSTREAM keyword: ' // &
                                      trim(word) // ' not recognized.'
@@ -422,6 +520,16 @@ subroutine CLM_CNPRead(this,input,option)
                call InputErrorMsg(input,option,'CP ratio', &
                         'CHEMISTRY,REACTION_SANDBOX_CLM_CNP,DOWNSTREAMCPOOL')
                pool%ratio_cp = tmp_real*CP_ratio_mass_to_mol
+            case('NCRATIO')
+                call InputReadDouble(input,option,tmp_real)  
+                call InputErrorMsg(input,option,'NC ratio', &
+                        'CHEMISTRY,REACTION_SANDBOX_CLM_CNP,DOWNSTREAMCPOOL')
+                pool%ratio_nc = tmp_real/CN_ratio_mass_to_mol
+            case('PCRATIO')
+                call InputReadDouble(input,option,tmp_real)  
+                call InputErrorMsg(input,option,'CP ratio', &
+                        'CHEMISTRY,REACTION_SANDBOX_CLM_CNP,DOWNSTREAMCPOOL')
+                pool%ratio_pc = tmp_real/CP_ratio_mass_to_mol
             case('CNRATIO_FOLLOW_UPSTREAM')
                pool%bratio_cn_follow_upstream = PETSC_TRUE
             case('CPRATIO_FOLLOW_UPSTREAM')
@@ -573,14 +681,33 @@ subroutine CLM_CNPSetup(this,reaction,option)
   type(pool_type), pointer             :: cur_pool
   type(rate_type), pointer             :: cur_rate
 
-  PetscInt :: i, icount
+  PetscInt :: i, icount, ispec
   PetscReal :: sum_stoich_c_prod
+  PetscReal, parameter :: eps = 1.0d-150
 
   character(len=MAXWORDLENGTH) :: word
 
-  word = 'C'
-  this%mineral_c_ispec = GetImmobileSpeciesIDFromName( &
-         word,reaction%immobile,PETSC_FALSE,option)  
+! mineral C  
+  ispec = GetImmobileSpeciesIDFromName( &
+          this%name_mc,reaction%immobile,PETSC_FALSE,option)  
+
+  if(ispec > 0) then
+       this%ispec_mc = ispec
+       this%ires_mc = ispec + reaction%offset_immobile
+       this%isaqueous_mc = PETSC_FALSE
+  else
+       ispec = GetPrimarySpeciesIDFromName(this%name_mc,reaction,PETSC_FALSE,option)
+       if(ispec > 0) then
+          this%ispec_mc = ispec
+          this%ires_mc = ispec
+          this%isaqueous_mc = PETSC_TRUE
+       else
+          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP check: ' // &
+           'mineral c species ' // trim(this%name_mc)// &
+           ' is neither an immobile species nor an aqueous species.'
+          call printErrMsg(option)
+       endif
+  endif 
 
 ! upstream
   if(.not.associated(this%Upstream)) then
@@ -588,28 +715,91 @@ subroutine CLM_CNPSetup(this,reaction,option)
        ' upstream pool is not specified.'
      call printErrMsg(option)
   else
-     this%upstream_ispec_c = GetImmobileSpeciesIDFromName( &
-         this%Upstream%name_c,reaction%immobile,PETSC_FALSE,option)  
-     if(trim(this%Upstream%name_n) /= '') then
-       this%upstream_ispec_n = GetImmobileSpeciesIDFromName( &
-         this%Upstream%name_n,reaction%immobile,PETSC_FALSE,option)  
+!     this%upstream_ispec_c = GetImmobileSpeciesIDFromName( &
+!         this%Upstream%name_c,reaction%immobile,PETSC_FALSE,option)  
+     ispec = GetImmobileSpeciesIDFromName( &
+         this%Upstream%name_c,reaction%immobile,PETSC_FALSE,option)
+     
+     if(ispec > 0) then
+          this%upstream_ispec_c = ispec
+          this%upstream_ires_c = ispec + reaction%offset_immobile
+          this%upstream_isaqueous_c = PETSC_FALSE
      else
-         if(this%Upstream%ratio_cn > 1.0d-10) then
-            this%bfixed_upstream_cn = PETSC_TRUE
-!           option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP check:' // &
-!            ' upstream CN ratio is zero.'
-!          call printErrMsg(option)
-!         else
+          ispec = GetPrimarySpeciesIDFromName(this%Upstream%name_c,reaction,PETSC_FALSE,option)
+          if(ispec > 0) then
+             this%upstream_ispec_c = ispec
+             this%upstream_ires_c = ispec
+             this%upstream_isaqueous_c = PETSC_TRUE
+          else
+             option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP check: ' // &
+              'upstream c pool ' // trim(this%Upstream%name_c)// &
+              ' is neither an immobile species nor an aqueous species.'
+             call printErrMsg(option)
+          endif
+     endif
+
+     if(trim(this%Upstream%name_n) /= '') then
+!       this%upstream_ispec_n = GetImmobileSpeciesIDFromName( &
+!         this%Upstream%name_n,reaction%immobile,PETSC_FALSE,option)  
+       ispec = GetImmobileSpeciesIDFromName( &
+         this%Upstream%name_n,reaction%immobile,PETSC_FALSE,option)  
+       if(ispec > 0) then
+          this%upstream_ispec_n = ispec
+          this%upstream_ires_n = ispec + reaction%offset_immobile
+          this%upstream_isaqueous_n = PETSC_FALSE
+       else
+          ispec = GetPrimarySpeciesIDFromName(this%Upstream%name_n,reaction,PETSC_FALSE,option)
+          if(ispec > 0) then
+             this%upstream_ispec_n = ispec
+             this%upstream_ires_n = ispec
+             this%upstream_isaqueous_n = PETSC_TRUE
+          else
+             option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP check: ' // &
+              'upstream N pool ' // trim(this%Upstream%name_n)// &
+              ' is neither an immobile species nor an aqueous species.'
+             call printErrMsg(option)
+          endif
+       endif
+     else
+         this%bfixed_upstream_cn = PETSC_TRUE
+         if(this%Upstream%ratio_cn > eps) then
             this%upstream_stoich_n = 1.0d0/this%Upstream%ratio_cn
+         elseif (this%Upstream%ratio_nc > eps) then
+            this%upstream_stoich_n = this%Upstream%ratio_nc
+         else
+            this%upstream_stoich_n = 0.0d0 
          endif 
      endif
      if(trim(this%Upstream%name_p) /= '') then
-       this%upstream_ispec_p = GetImmobileSpeciesIDFromName( &
+!       this%upstream_ispec_p = GetImmobileSpeciesIDFromName( &
+!         this%Upstream%name_p,reaction%immobile,PETSC_FALSE,option)  
+       ispec = GetImmobileSpeciesIDFromName( &
          this%Upstream%name_p,reaction%immobile,PETSC_FALSE,option)  
+       if(ispec > 0) then
+          this%upstream_ispec_p = ispec
+          this%upstream_ires_p = ispec + reaction%offset_immobile
+          this%upstream_isaqueous_p = PETSC_FALSE
+       else
+          ispec = GetPrimarySpeciesIDFromName(this%Upstream%name_p,reaction,PETSC_FALSE,option)
+          if(ispec > 0) then
+             this%upstream_ispec_p = ispec
+             this%upstream_ires_p = ispec
+             this%upstream_isaqueous_p = PETSC_TRUE
+          else
+             option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP check: ' // &
+              'upstream P pool ' // trim(this%Upstream%name_p)// &
+              ' is neither an immobile species nor an aqueous species.'
+             call printErrMsg(option)
+          endif
+       endif
      else
-         if(this%Upstream%ratio_cp > 1.0d-10) then
-            this%bfixed_upstream_cp = PETSC_TRUE
+         this%bfixed_upstream_cp = PETSC_TRUE
+         if(this%Upstream%ratio_cp > eps) then
             this%upstream_stoich_p = 1.0d0/this%Upstream%ratio_cp
+         elseif(this%Upstream%ratio_pc > eps) then
+            this%upstream_stoich_p = this%Upstream%ratio_pc
+         else
+            this%upstream_stoich_p = 0.0d0 
          endif
      endif
   endif   
@@ -620,6 +810,14 @@ subroutine CLM_CNPSetup(this,reaction,option)
      allocate(this%downstream_ispec_c(this%nDownstream))
      allocate(this%downstream_ispec_n(this%nDownstream))
      allocate(this%downstream_ispec_p(this%nDownstream))
+
+     allocate(this%downstream_ires_c(this%nDownstream))
+     allocate(this%downstream_ires_n(this%nDownstream))
+     allocate(this%downstream_ires_p(this%nDownstream))
+
+     allocate(this%downstream_isaqueous_c(this%nDownstream))
+     allocate(this%downstream_isaqueous_n(this%nDownstream))
+     allocate(this%downstream_isaqueous_p(this%nDownstream))
 
      allocate(this%downstream_stoich_c(this%nDownstream))
      allocate(this%downstream_stoich_n(this%nDownstream))
@@ -637,39 +835,76 @@ subroutine CLM_CNPSetup(this,reaction,option)
      cur_pool => this%Downstream
      icount = 1
      do
-        if(.not.associated(cur_pool)) exit
-        this%downstream_ispec_c(icount) = GetImmobileSpeciesIDFromName( &
-                    cur_pool%name_c,reaction%immobile,PETSC_FALSE,option)
-        this%downstream_stoich_c(icount) = cur_pool%stoich
-        sum_stoich_c_prod = sum_stoich_c_prod + cur_pool%stoich
+       if(.not.associated(cur_pool)) exit
+!        this%downstream_ispec_c(icount) = GetImmobileSpeciesIDFromName( &
+!                    cur_pool%name_c,reaction%immobile,PETSC_FALSE,option)
+       ispec = GetImmobileSpeciesIDFromName( &
+          cur_pool%name_c,reaction%immobile,PETSC_FALSE,option) 
+       if(ispec > 0) then
+          this%downstream_ispec_c(icount) = ispec
+          this%downstream_ires_c(icount) = ispec + reaction%offset_immobile
+          this%downstream_isaqueous_c(icount) = PETSC_FALSE
+       else
+          ispec = GetPrimarySpeciesIDFromName(cur_pool%name_c,reaction,PETSC_FALSE,option)
+          if(ispec > 0) then
+             this%downstream_ispec_c(icount) = ispec
+             this%downstream_ires_c(icount) = ispec
+             this%downstream_isaqueous_c(icount) = PETSC_TRUE
+          else
+             option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP check: ' // &
+              'downstream C pool ' // trim(cur_pool%name_c)// &
+              ' is neither an immobile species nor an aqueous species.'
+             call printErrMsg(option)
+          endif
+       endif
+       this%downstream_stoich_c(icount) = cur_pool%stoich
+       sum_stoich_c_prod = sum_stoich_c_prod + cur_pool%stoich
 
-        if(cur_pool%bratio_cn_follow_upstream) then
+       if(cur_pool%bratio_cn_follow_upstream) then
            this%b_downstream_cn_follow_upstream(icount) = PETSC_TRUE
            if(this%bfixed_upstream_cn) then
               this%b_downstream_cn_fixed(icount) = PETSC_TRUE
 !              this%downstream_cn(icount) = this%Upstream%ratio_cn 
 !              this%downstream_stoich_n(icount) = 1.0d0/this%downstream_cn(icount)
-              this%downstream_stoich_n(icount) = 1.0d0/this%Upstream%ratio_cn
+              this%downstream_stoich_n(icount) = this%upstream_stoich_n  !1.0d0/this%Upstream%ratio_cn
            endif
         else
            this%b_downstream_cn_follow_upstream(icount) = PETSC_FALSE
         endif
 
         if(trim(cur_pool%name_n) /= '') then
-           this%downstream_ispec_n(icount) = GetImmobileSpeciesIDFromName( &
-                    cur_pool%name_n,reaction%immobile,PETSC_FALSE,option)  
+!           this%downstream_ispec_n(icount) = GetImmobileSpeciesIDFromName( &
+!                    cur_pool%name_n,reaction%immobile,PETSC_FALSE,option)  
+          ispec = GetImmobileSpeciesIDFromName( &
+          cur_pool%name_n,reaction%immobile,PETSC_FALSE,option) 
+          if(ispec > 0) then
+             this%downstream_ispec_n(icount) = ispec
+             this%downstream_ires_n(icount) = ispec + reaction%offset_immobile
+             this%downstream_isaqueous_n(icount) = PETSC_FALSE
+          else
+             ispec = GetPrimarySpeciesIDFromName(cur_pool%name_n,reaction,PETSC_FALSE,option)
+             if(ispec > 0) then
+                this%downstream_ispec_n(icount) = ispec
+                this%downstream_ires_n(icount) = ispec
+                this%downstream_isaqueous_n(icount) = PETSC_TRUE
+             else
+                option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP check: ' // &
+                 'downstream N pool ' // trim(cur_pool%name_n)// &
+                 ' is neither an immobile species nor an aqueous species.'
+                call printErrMsg(option)
+             endif
+          endif
         else
            if(.not. (this%b_downstream_cn_follow_upstream(icount))) then
 !             this%downstream_cn(icount) = cur_pool%ratio_cn
 !             if(this%downstream_cn(icount) .GT. 1.0d-10) then
-             if(cur_pool%ratio_cn > 1.0d-10) then
-!             option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP check:' // &
-!               ' downstream CN ratio is zero.'
-!             call printErrMsg(option)
-!           else
-!              this%downstream_stoich_n(icount) = 1.0d0/this%downstream_cn(icount)
+             this%b_downstream_cn_fixed(icount) = PETSC_TRUE
+             if(cur_pool%ratio_cn > eps) then
               this%downstream_stoich_n(icount) = 1.0d0/cur_pool%ratio_cn
-              this%b_downstream_cn_fixed(icount) = PETSC_TRUE
+             elseif(cur_pool%ratio_nc > eps) then
+              this%downstream_stoich_n(icount) = cur_pool%ratio_nc 
+             else
+              this%downstream_stoich_n(icount) = 0.0d0
              endif 
            endif
         endif
@@ -680,23 +915,47 @@ subroutine CLM_CNPSetup(this,reaction,option)
               this%b_downstream_cp_fixed(icount) = PETSC_TRUE
 !              this%downstream_cp(icount) = this%Upstream%ratio_cp 
 !              this%downstream_stoich_p(icount) = 1.0d0/this%downstream_cp(icount)
-              this%downstream_stoich_p(icount) = 1.0d0/this%Upstream%ratio_cp
+              this%downstream_stoich_p(icount) = this%upstream_stoich_p  !1.0d0/this%Upstream%ratio_cp
            endif
         else
            this%b_downstream_cp_follow_upstream(icount) = PETSC_FALSE
         endif
 
         if(trim(cur_pool%name_p) /= '') then
-           this%downstream_ispec_p(icount) = GetImmobileSpeciesIDFromName( &
-                    cur_pool%name_p,reaction%immobile,PETSC_FALSE,option)  
+!           this%downstream_ispec_p(icount) = GetImmobileSpeciesIDFromName( &
+!                    cur_pool%name_p,reaction%immobile,PETSC_FALSE,option)  
+          ispec = GetImmobileSpeciesIDFromName( &
+          cur_pool%name_p,reaction%immobile,PETSC_FALSE,option) 
+          if(ispec > 0) then
+             this%downstream_ispec_p(icount) = ispec
+             this%downstream_ires_p(icount) = ispec + reaction%offset_immobile
+             this%downstream_isaqueous_p(icount) = PETSC_FALSE
+          else
+             ispec = GetPrimarySpeciesIDFromName(cur_pool%name_p,reaction,PETSC_FALSE,option)
+             if(ispec > 0) then
+                this%downstream_ispec_p(icount) = ispec
+                this%downstream_ires_p(icount) = ispec
+                this%downstream_isaqueous_p(icount) = PETSC_TRUE
+             else
+                option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP check: ' // &
+                 'downstream P pool ' // trim(cur_pool%name_p)// &
+                 ' is neither an immobile species nor an aqueous species.'
+                call printErrMsg(option)
+             endif
+          endif
         else
            if(.not. (this%b_downstream_cp_follow_upstream(icount))) then
 !             this%downstream_cp(icount) = cur_pool%ratio_cp
 !             if(this%downstream_cp(icount) .GT. 1.0d-10) then
-             if(cur_pool%ratio_cp > 1.0d-10) then
+             this%b_downstream_cp_fixed(icount) = PETSC_TRUE
+             if(cur_pool%ratio_cp > eps) then
               this%b_downstream_cp_fixed(icount) = PETSC_TRUE
 !              this%downstream_stoich_p(icount) = 1.0d0/this%downstream_cp(icount)
               this%downstream_stoich_p(icount) = 1.0d0/cur_pool%ratio_cp
+             elseif(cur_pool%ratio_pc > eps) then
+              this%downstream_stoich_p(icount) = cur_pool%ratio_pc
+             else
+              this%downstream_stoich_p(icount) = 0.0d0
              endif
            endif
         endif
@@ -730,9 +989,33 @@ subroutine CLM_CNPSetup(this,reaction,option)
         endif
      enddo
      this%bNEnabled = PETSC_TRUE  
-     word = 'N'
-     this%mineral_n_ispec = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)  
+     
+!     word = 'N'
+!     this%ispec_mn = GetImmobileSpeciesIDFromName( &
+!            word,reaction%immobile,PETSC_FALSE,option)  
+!     word = 'NH3(aq)'
+!     this%ispec_mn = GetPrimarySpeciesIDFromName(word,reaction,option)
+! mineral N  
+     ispec = GetImmobileSpeciesIDFromName( &
+             this%name_mn,reaction%immobile,PETSC_FALSE,option)  
+
+     if(ispec > 0) then
+       this%ispec_mn = ispec
+       this%ires_mn = ispec + reaction%offset_immobile
+       this%isaqueous_mn = PETSC_FALSE
+     else
+       ispec = GetPrimarySpeciesIDFromName(this%name_mn,reaction,PETSC_FALSE,option)
+       if(ispec > 0) then
+          this%ispec_mn = ispec
+          this%ires_mn = ispec
+          this%isaqueous_mn = PETSC_TRUE
+       else
+          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP check: ' // &
+           'mineral n species ' // trim(this%name_mc)// &
+          ' is neither an immobile species nor an aqueous species.'
+          call printErrMsg(option)
+       endif
+     endif 
   endif
 
 ! check if P is included
@@ -748,21 +1031,59 @@ subroutine CLM_CNPSetup(this,reaction,option)
         endif
      enddo
      this%bPEnabled = PETSC_TRUE  
-     word = 'P'
-     this%mineral_p_ispec = GetImmobileSpeciesIDFromName( &
-            word,reaction%immobile,PETSC_FALSE,option)  
+!     word = 'P'
+!     this%ispec_mp = GetImmobileSpeciesIDFromName( &
+!            word,reaction%immobile,PETSC_FALSE,option)  
+     ispec = GetImmobileSpeciesIDFromName( &
+             this%name_mp,reaction%immobile,PETSC_FALSE,option)  
+
+     if(ispec > 0) then
+       this%ispec_mp = ispec
+       this%ires_mp = ispec + reaction%offset_immobile
+       this%isaqueous_mp = PETSC_FALSE
+     else
+       ispec = GetPrimarySpeciesIDFromName(this%name_mp,reaction,PETSC_FALSE,option)
+       if(ispec > 0) then
+          this%ispec_mp = ispec
+          this%ires_mp = ispec
+          this%isaqueous_mp = PETSC_TRUE
+       else
+          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP check: ' // &
+           'mineral p species ' // trim(this%name_mc)// &
+           ' is neither an immobile species nor an aqueous species.'
+          call printErrMsg(option)
+       endif
+     endif 
   endif
 
 ! first order rate terms
   if(this%nFirstOrder >= 1) then
      allocate(this%ispec_1st(this%nFirstOrder))
+     allocate(this%isaqueous_1st(this%nFirstOrder))
 
      cur_rate => this%FirstOrder
      icount = 1
      do
         if(.not.associated(cur_rate)) exit
-        this%ispec_1st(icount) = GetImmobileSpeciesIDFromName( &
-                    cur_rate%name,reaction%immobile,PETSC_FALSE,option)
+!        this%ispec_1st(icount) = GetImmobileSpeciesIDFromName( &
+!                    cur_rate%name,reaction%immobile,PETSC_FALSE,option)
+        ispec = GetImmobileSpeciesIDFromName( &
+            cur_rate%name,reaction%immobile,PETSC_FALSE,option) 
+        if(ispec > 0) then
+             this%ispec_1st(icount) = ispec
+             this%isaqueous_1st(icount) = PETSC_FALSE
+        else
+             ispec = GetPrimarySpeciesIDFromName(cur_rate%name,reaction,PETSC_FALSE,option)
+             if(ispec > 0) then
+                this%ispec_1st(icount) = ispec
+                this%isaqueous_1st(icount) = PETSC_TRUE
+             else
+                option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP check: ' // &
+                 'First order term C pool ' // trim(cur_rate%name)// &
+                 ' is neither an immobile species nor an aqueous species.'
+                call printErrMsg(option)
+             endif
+        endif
         cur_rate => cur_rate%next
         icount = icount + 1
      enddo 
@@ -772,13 +1093,31 @@ subroutine CLM_CNPSetup(this,reaction,option)
   if(this%nMonod >= 1) then
      allocate(this%ispec_mnd(this%nMonod))
      allocate(this%half_saturation(this%nMonod))
+     allocate(this%isaqueous_mnd(this%nMonod))
 
      cur_rate => this%Monod
      icount = 1
      do
         if(.not.associated(cur_rate)) exit
-        this%ispec_mnd(icount) = GetImmobileSpeciesIDFromName( &
-                    cur_rate%name,reaction%immobile,PETSC_FALSE,option)
+!        this%ispec_mnd(icount) = GetImmobileSpeciesIDFromName( &
+!                    cur_rate%name,reaction%immobile,PETSC_FALSE,option)
+        ispec = GetImmobileSpeciesIDFromName( &
+                cur_rate%name,reaction%immobile,PETSC_FALSE,option) 
+        if(ispec > 0) then
+             this%ispec_mnd(icount) = ispec
+             this%isaqueous_mnd(icount) = PETSC_FALSE
+        else
+             ispec = GetPrimarySpeciesIDFromName(cur_rate%name,reaction,PETSC_FALSE,option)
+             if(ispec > 0) then
+                this%ispec_mnd(icount) = ispec
+                this%isaqueous_mnd(icount) = PETSC_TRUE
+             else
+                option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP check: ' // &
+                 'Monod term C pool ' // trim(cur_rate%name)// &
+                 ' is neither an immobile species nor an aqueous species.'
+                call printErrMsg(option)
+             endif
+        endif
         this%half_saturation(icount) = cur_rate%value
         cur_rate => cur_rate%next
         icount = icount + 1
@@ -789,13 +1128,31 @@ subroutine CLM_CNPSetup(this,reaction,option)
   if(this%nInhibition >= 1) then
      allocate(this%ispec_inh(this%nInhibition))
      allocate(this%inhibition_coef(this%nInhibition))
+     allocate(this%isaqueous_inh(this%nInhibition))
 
      cur_rate => this%Inhibition
      icount = 1
      do
         if(.not.associated(cur_rate)) exit
-        this%ispec_inh(icount) = GetImmobileSpeciesIDFromName( &
-                    cur_rate%name,reaction%immobile,PETSC_FALSE,option)
+!        this%ispec_inh(icount) = GetImmobileSpeciesIDFromName( &
+!                    cur_rate%name,reaction%immobile,PETSC_FALSE,option)
+        ispec = GetImmobileSpeciesIDFromName( &
+                cur_rate%name,reaction%immobile,PETSC_FALSE,option) 
+        if(ispec > 0) then
+             this%ispec_inh(icount) = ispec
+             this%isaqueous_inh(icount) = PETSC_FALSE
+        else
+             ispec = GetPrimarySpeciesIDFromName(cur_rate%name,reaction,PETSC_FALSE,option)
+             if(ispec > 0) then
+                this%ispec_inh(icount) = ispec
+                this%isaqueous_inh(icount) = PETSC_TRUE
+             else
+                option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP check: ' // &
+                 'Inhibition term C pool ' // trim(cur_rate%name)// &
+                 ' is neither an immobile species nor an aqueous species.'
+                call printErrMsg(option)
+             endif
+        endif
         this%inhibition_coef(icount) = cur_rate%value
         cur_rate => cur_rate%next
         icount = icount + 1
@@ -842,13 +1199,12 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscInt, parameter :: iphase = 1
   PetscInt :: offset 
-  PetscInt :: i, j, ires, ires_j, ires_c, ires_n, ires_p, ires_cdi, ires_ndi, ires_pdi
+  PetscInt :: i, j, ires, ires_j, ires_mc, ires_mn, ires_mp
   PetscInt :: ires_uc, ires_un, ires_up, ires_dc, ires_dn, ires_dp
-  PetscReal :: conc, c_up, c_N
+  PetscReal :: conc, c_uc, c_un, c_up, c_mc, c_mn, c_mp, c_dc, c_dn, c_dp
   PetscReal :: L_water
   PetscReal :: rate, drate, drate_uc, drate_n, drate_p 
   PetscReal :: tmp_real
-!  PetscReal :: stoich_mineral_n_sign 
 
   PetscReal :: F_t
   PetscReal :: F_theta
@@ -864,7 +1220,9 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
   PetscScalar, pointer :: sucsat_pf_loc(:)   !
   PetscScalar, pointer :: soilpsi_pf_loc(:)   !
   PetscBool :: is_pool_in_rxn
+  PetscBool :: isaqueous
   PetscErrorCode :: ierr
+  PetscReal :: Lwater_m3
 
   ! temperature response function 
   select case(this%temperature_response_function)
@@ -918,20 +1276,27 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 
   offset = reaction%offset_immobile
 
+  Lwater_m3 = porosity * global_auxvar%sat(iphase)*1.d3
+
   rate = this%rate_constant * volume * F_t * F_theta
 
   drate_uc = rate    ! to avoid rate/upstream c when upstream c goes to 0
 
-  c_up = rt_auxvar%immobile(this%upstream_ispec_c) 
-
-!  if(c_up .LE. 0.0d0) then
-!     rate = 0.0d0
-!     return 
-!  endif
+  if(this%upstream_isaqueous_c) then
+     c_uc = rt_auxvar%total(this%upstream_ispec_c,iphase)
+     c_uc = c_uc * Lwater_m3 
+  else 
+     c_uc = rt_auxvar%immobile(this%upstream_ispec_c) 
+  endif
        
 ! first order term
   do i = 1, this%nFirstOrder
-     conc = rt_auxvar%immobile(this%ispec_1st(i))  
+     if(this%isaqueous_1st(i)) then
+        conc = rt_auxvar%total(this%ispec_1st(i), iphase) 
+        conc = conc * Lwater_m3 
+     else
+        conc = rt_auxvar%immobile(this%ispec_1st(i))  
+     endif
      rate = rate * conc 
      if(this%ispec_1st(i) /= this%upstream_ispec_c) then
        drate_uc = drate_uc * conc 
@@ -940,7 +1305,12 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 
 ! monod term
   do i = 1, this%nMonod
-     conc = rt_auxvar%immobile(this%ispec_mnd(i))  
+     if(this%isaqueous_mnd(i)) then
+        conc = rt_auxvar%total(this%ispec_mnd(i), iphase) 
+        conc = conc * Lwater_m3 
+     else
+        conc = rt_auxvar%immobile(this%ispec_mnd(i))  
+     endif
      if(this%ispec_mnd(i) /= this%upstream_ispec_c) then
        drate_uc = drate_uc * conc/(conc + this%half_saturation(i))  
      endif
@@ -949,7 +1319,12 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 
 ! inhibition term
   do i = 1, this%nInhibition
-     conc = rt_auxvar%immobile(this%ispec_inh(i))  
+     if(this%isaqueous_inh(i)) then
+        conc = rt_auxvar%total(this%ispec_inh(i),iphase) 
+        conc = conc * Lwater_m3 
+     else
+        conc = rt_auxvar%immobile(this%ispec_inh(i))
+     endif
      rate = rate * this%inhibition_coef(i)/(conc + this%inhibition_coef(i))  
   enddo 
 
@@ -957,11 +1332,27 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
   if((this%bNEnabled)) then
 ! upstream CN
     if(.not.this%bfixed_upstream_cn) then
-       if(rt_auxvar%immobile(this%upstream_ispec_c) < eps) then
+!       if(rt_auxvar%immobile(this%upstream_ispec_c) < eps) then
+       if(this%upstream_isaqueous_n) then
+          c_un = rt_auxvar%total(this%upstream_ispec_n, iphase)
+          c_un = c_un * Lwater_m3 
+       else 
+          c_un = rt_auxvar%immobile(this%upstream_ispec_n) 
+       endif
+       if(c_uc < eps) then
           write(option%fid_out,*) 'Upstream C concentration is 0 in CN ratio calculation.'
        endif 
-       this%upstream_stoich_n = rt_auxvar%immobile(this%upstream_ispec_n) & 
-                  /rt_auxvar%immobile(this%upstream_ispec_c)
+!       this%upstream_stoich_n = rt_auxvar%immobile(this%upstream_ispec_n) & 
+!                  /rt_auxvar%immobile(this%upstream_ispec_c)
+       this%upstream_stoich_n = c_un/c_uc 
+    endif
+
+! mineral N
+    if(this%isaqueous_mn) then
+       c_mn = rt_auxvar%total(this%ispec_mn, iphase)
+       c_mn = c_mn * Lwater_m3 
+    else
+       c_mn = rt_auxvar%immobile(this%ispec_mn) 
     endif
 
 ! downstream CN
@@ -971,11 +1362,26 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
          if(this%b_downstream_cn_follow_upstream(i)) then
           this%downstream_stoich_n(i) = this%upstream_stoich_n  
          else
-          if(rt_auxvar%immobile(this%downstream_ispec_c(i)) < eps) then
+          if(this%downstream_isaqueous_c(i)) then
+             c_dc = rt_auxvar%total(this%downstream_ispec_c(i), iphase)
+             c_dc = c_dc * Lwater_m3 
+          else 
+             c_dc = rt_auxvar%immobile(this%downstream_ispec_c(i)) 
+          endif
+          if(this%downstream_isaqueous_n(i)) then
+             c_dn = rt_auxvar%total(this%downstream_ispec_n(i), iphase)
+             c_dn = c_dn * Lwater_m3 
+          else 
+             c_dn = rt_auxvar%immobile(this%downstream_ispec_n(i)) 
+          endif
+
+!          if(rt_auxvar%immobile(this%downstream_ispec_c(i)) < eps) then
+          if(c_dc < eps) then
              write(option%fid_out,*) 'Downtream C concentration 0 in CN ratio calculation.'
           endif 
-          this%downstream_stoich_n(i)=rt_auxvar%immobile(this%downstream_ispec_n(i)) & 
-                 / rt_auxvar%immobile(this%downstream_ispec_c(i))
+!          this%downstream_stoich_n(i)=rt_auxvar%immobile(this%downstream_ispec_n(i)) & 
+!                 / rt_auxvar%immobile(this%downstream_ispec_c(i))
+          this%downstream_stoich_n(i) = c_dn / c_dc
          endif
        endif
        this%mineral_n_stoich = this%mineral_n_stoich - this%downstream_stoich_n(i) &
@@ -983,10 +1389,13 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
     enddo         
 
     if(this%mineral_n_stoich < 0.0d0 .and. this%NInhibitionCoef > 0.0d0) then
-       conc = rt_auxvar%immobile(this%mineral_n_ispec)  
-       drate_n = rate / (conc + this%NInhibitionCoef) 
-       drate_uc = drate_uc * conc/(conc + this%NInhibitionCoef)  
-       rate = rate * conc/(conc + this%NInhibitionCoef)  ! N limiting  
+!       conc = rt_auxvar%immobile(this%ispec_mn)  
+!       drate_n = rate / (conc + this%NInhibitionCoef) 
+!       drate_uc = drate_uc * conc/(conc + this%NInhibitionCoef)  
+!       rate = rate * conc/(conc + this%NInhibitionCoef)  ! N limiting  
+       drate_n = rate / (c_mn + this%NInhibitionCoef) 
+       drate_uc = drate_uc * c_mn/(c_mn + this%NInhibitionCoef)  
+       rate = rate * c_mn/(c_mn + this%NInhibitionCoef)  ! N limiting  
     endif
   endif
 
@@ -994,11 +1403,27 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
   if((this%bPEnabled)) then
 ! upstream CP
     if(.not.this%bfixed_upstream_cp) then
-       if(rt_auxvar%immobile(this%upstream_ispec_c) < eps) then
+!       if(rt_auxvar%immobile(this%upstream_ispec_c) < eps) then
+       if(this%upstream_isaqueous_p) then
+          c_up = rt_auxvar%total(this%upstream_ispec_p, iphase)
+          c_up = c_up * Lwater_m3 
+       else 
+          c_up = rt_auxvar%immobile(this%upstream_ispec_p) 
+       endif
+       if(c_uc < eps) then
           write(option%fid_out,*) 'Upstream C concentration is 0 in CP ratio calculation.'
        endif 
-       this%upstream_stoich_p = rt_auxvar%immobile(this%upstream_ispec_p) & 
-                  / rt_auxvar%immobile(this%upstream_ispec_c)
+!       this%upstream_stoich_p = rt_auxvar%immobile(this%upstream_ispec_p) & 
+!                  / rt_auxvar%immobile(this%upstream_ispec_c)
+       this%upstream_stoich_p = c_up / c_uc
+    endif
+
+! mineral P
+    if(this%isaqueous_mp) then
+       c_mp = rt_auxvar%total(this%ispec_mp, iphase)
+       c_mp = c_mp * Lwater_m3 
+    else
+       c_mp = rt_auxvar%immobile(this%ispec_mp) 
     endif
 
 ! downstream CP
@@ -1008,11 +1433,26 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
          if(this%b_downstream_cp_follow_upstream(i)) then
           this%downstream_stoich_p(i) = this%upstream_stoich_p  
          else
-          if(rt_auxvar%immobile(this%downstream_ispec_c(i)) < eps) then
+          if(this%downstream_isaqueous_c(i)) then
+             c_dc = rt_auxvar%total(this%downstream_ispec_c(i), iphase)
+             c_dc = c_dc * Lwater_m3 
+          else 
+             c_dc = rt_auxvar%immobile(this%downstream_ispec_c(i)) 
+          endif
+          if(this%downstream_isaqueous_p(i)) then
+             c_dp = rt_auxvar%total(this%downstream_ispec_p(i), iphase)
+             c_dp = c_dp * Lwater_m3 
+          else 
+             c_dp = rt_auxvar%immobile(this%downstream_ispec_p(i)) 
+          endif
+
+!          if(rt_auxvar%immobile(this%downstream_ispec_c(i)) < eps) then
+          if(c_dc < eps) then
              write(option%fid_out,*) 'Downtream C concentration 0 in CP ratio calculation.'
           endif 
-          this%downstream_stoich_p(i)=rt_auxvar%immobile(this%downstream_ispec_p(i)) & 
-                 / rt_auxvar%immobile(this%downstream_ispec_c(i))
+!          this%downstream_stoich_p(i)=rt_auxvar%immobile(this%downstream_ispec_p(i)) & 
+!                 / rt_auxvar%immobile(this%downstream_ispec_c(i))
+          this%downstream_stoich_p(i) = c_dp / c_dc
          endif
        endif
        this%mineral_p_stoich = this%mineral_p_stoich - this%downstream_stoich_p(i) &
@@ -1020,56 +1460,50 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
     enddo         
 
     if(this%mineral_p_stoich < 0.0d0 .and. this%PInhibitionCoef > 0.0d0) then
-       conc = rt_auxvar%immobile(this%mineral_p_ispec)  
-       drate_p = rate / (conc + this%PInhibitionCoef) 
-       rate = rate * conc/(conc + this%PInhibitionCoef)  ! P limiting  
-       drate_n = drate_n * conc / (conc + this%PInhibitionCoef) 
-       drate_uc = drate_uc * conc / (conc + this%PInhibitionCoef)  
+!       conc = rt_auxvar%immobile(this%ispec_mp)  
+!       drate_p = rate / (conc + this%PInhibitionCoef) 
+!       rate = rate * conc/(conc + this%PInhibitionCoef)  ! P limiting  
+!       drate_n = drate_n * conc / (conc + this%PInhibitionCoef) 
+!       drate_uc = drate_uc * conc / (conc + this%PInhibitionCoef)  
+       drate_p = rate / (c_mp + this%PInhibitionCoef) 
+       rate = rate * c_mp/(c_mp + this%PInhibitionCoef)  ! P limiting  
+       drate_n = drate_n * c_mp / (c_mp + this%PInhibitionCoef) 
+       drate_uc = drate_uc * c_mp / (c_mp + this%PInhibitionCoef)  
     endif
   endif
 
 ! residuals
-  ires_uc = reaction%offset_immobile + this%upstream_ispec_c
-  ires_c  = reaction%offset_immobile + this%mineral_c_ispec
 
-  if(this%bNEnabled) then
-    ires_un = reaction%offset_immobile + this%upstream_ispec_n
-    ires_n  = reaction%offset_immobile + this%mineral_n_ispec      
-  endif
-
-  if(this%bNEnabled) then
-    ires_up = reaction%offset_immobile + this%upstream_ispec_p
-    ires_p  = reaction%offset_immobile + this%mineral_p_ispec      
-  endif
-
-! upstream C
-!  ires = reaction%offset_immobile + this%upstream_ispec_c
+  ires_uc = this%upstream_ires_c
   Residual(ires_uc) = Residual(ires_uc) + rate
 
 ! mineral C
-!  ires_c = reaction%offset_immobile + this%mineral_c_ispec
-  Residual(ires_c) = Residual(ires_c) - rate * this%mineral_c_stoich
+  ires_mc = this%ires_mc 
+  Residual(ires_mc) = Residual(ires_mc) - rate * this%mineral_c_stoich
 
 ! downstream C
   do i = 1, this%nDownstream
-     ires_cdi = reaction%offset_immobile + this%downstream_ispec_c(i)
-     Residual(ires_cdi) = Residual(ires_cdi) - rate * this%downstream_stoich_c(i)
+     ires_dc = this%downstream_ires_c(i)
+     Residual(ires_dc) = Residual(ires_dc) - rate * this%downstream_stoich_c(i)
   enddo 
 
   if(this%bNEnabled) then
 ! upstream N
      if(.not.this%bfixed_upstream_cn) then
-!        ires = reaction%offset_immobile + this%upstream_ispec_n
+        ires_un = this%upstream_ires_n
         Residual(ires_un) = Residual(ires_un) + rate * this%upstream_stoich_n
      endif
+
 ! mineral N
-!     ires_n = reaction%offset_immobile + this%mineral_n_ispec      
-     Residual(ires_n) = Residual(ires_n) - rate * this%mineral_n_stoich
+     ires_mn = this%ires_mn
+
+     Residual(ires_mn) = Residual(ires_mn) - rate * this%mineral_n_stoich
+
 ! downstream N
      do i = 1, this%nDownstream
        if(.not.this%b_downstream_cn_fixed(i)) then
-          ires_ndi = reaction%offset_immobile + this%downstream_ispec_n(i)      
-          Residual(ires_ndi) = Residual(ires_ndi) - rate * &
+          ires_dn = this%downstream_ires_n(i)
+          Residual(ires_dn) = Residual(ires_dn) - rate * &
                                this%downstream_stoich_n(i) * &
                                this%downstream_stoich_c(i)
        endif
@@ -1077,19 +1511,22 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
   if(this%bPEnabled) then
+
 ! upstream P
      if(.not.this%bfixed_upstream_cp) then
-!        ires = reaction%offset_immobile + this%upstream_ispec_p      
+        ires_up = this%upstream_ires_p
         Residual(ires_up) = Residual(ires_up) + rate * this%upstream_stoich_p
      endif
-! mineral P
-!     ires_p = reaction%offset_immobile + this%mineral_p_ispec      
-     Residual(ires_p) = Residual(ires_p) - rate * this%mineral_p_stoich
+
+     ires_mp = this%ires_mp
+      
+     Residual(ires_mp) = Residual(ires_mp) - rate * this%mineral_p_stoich
+
 ! downstream P
      do i = 1, this%nDownstream
        if(.not.this%b_downstream_cp_fixed(i)) then
-          ires_pdi = reaction%offset_immobile + this%downstream_ispec_p(i)      
-          Residual(ires_pdi) = Residual(ires_pdi) - rate * &
+          ires_dp = this%downstream_ires_p(i)
+          Residual(ires_dp) = Residual(ires_dp) - rate * &
                                this%downstream_stoich_p(i) * & 
                                this%downstream_stoich_c(i)      
        endif
@@ -1101,25 +1538,59 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 
   if(this%bNEnabled) then
      if(.not.this%bfixed_upstream_cn) then
-!        ires_uc = reaction%offset_immobile + this%upstream_ispec_c
-!        ires_un = reaction%offset_immobile + this%upstream_ispec_n
-        tmp_real = rt_auxvar%immobile(this%upstream_ispec_n) &
-                 / (rt_auxvar%immobile(this%upstream_ispec_c)) !&
-!                 / (rt_auxvar%immobile(this%upstream_ispec_c))
-        Jacobian(ires_un,ires_uc) = Jacobian(ires_un,ires_uc) - drate_uc * tmp_real !rate * tmp_real  dnu/dunRuc
-        Jacobian(ires_n, ires_uc) = Jacobian(ires_n, ires_uc) + drate_uc * tmp_real !rate * tmp_real  dnu/dmnRuc 
-        Jacobian(ires_un,ires_un) = Jacobian(ires_un,ires_un) + drate_uc !rate / &                    dnu/dunRun   
+        tmp_real = c_un / c_uc
+        if(this%upstream_isaqueous_c) then
+           Jacobian(ires_un,ires_uc) = Jacobian(ires_un,ires_uc) - drate_uc * tmp_real * & 
+                       rt_auxvar%aqueous%dtotal(ires_un,ires_uc,iphase)
+           Jacobian(ires_mn,ires_uc) = Jacobian(ires_mn,ires_uc) + drate_uc * tmp_real * &
+                       rt_auxvar%aqueous%dtotal(ires_mn,ires_uc,iphase)
+        else
+           Jacobian(ires_un,ires_uc) = Jacobian(ires_un,ires_uc) - drate_uc * tmp_real !rate * tmp_real  dnu/dunRuc
+           Jacobian(ires_mn,ires_uc) = Jacobian(ires_mn, ires_uc) + drate_uc * tmp_real !rate * tmp_real  dnu/dmnRuc 
+        endif
+
+        if(this%upstream_isaqueous_n) then
+           Jacobian(ires_un,ires_un) = Jacobian(ires_un,ires_un) + drate_uc * & 
+                       rt_auxvar%aqueous%dtotal(ires_un,ires_un,iphase)
+           Jacobian(ires_mn,ires_un) = Jacobian(ires_mn,ires_un) - drate_uc  * &
+                       rt_auxvar%aqueous%dtotal(ires_mn,ires_un,iphase)
+        else
+           Jacobian(ires_un,ires_un) = Jacobian(ires_un,ires_un) + drate_uc !rate / &                    dnu/dunRun   
                                     !rt_auxvar%immobile(this%upstream_ispec_c)                        
-        Jacobian(ires_n,ires_un) = Jacobian(ires_n,ires_un) - drate_uc   !rate / &                    dnu/dmnRun  
+           Jacobian(ires_mn,ires_un) = Jacobian(ires_mn,ires_un) - drate_uc   !rate / &                    dnu/dmnRun  
                                     !rt_auxvar%immobile(this%upstream_ispec_c)
+        endif
 
         do i = 1, this%nDownstream
            if(this%b_downstream_cn_follow_upstream(i)) then
-              ires_ndi = reaction%offset_immobile + this%downstream_ispec_n(i)
-              Jacobian(ires_ndi,ires_uc) = Jacobian(ires_ndi,ires_uc) + drate_uc * tmp_real * this%downstream_stoich_c(i) 
-              Jacobian(ires_n,  ires_uc) = Jacobian(ires_n,  ires_uc) - drate_uc * tmp_real * this%downstream_stoich_c(i)
-              Jacobian(ires_ndi,ires_un) = Jacobian(ires_ndi,ires_un) - drate_uc *  this%downstream_stoich_c(i) 
-              Jacobian(ires_n,  ires_un) = Jacobian(ires_n,  ires_un) + drate_uc * this%downstream_stoich_c(i)  
+              ires_dn = this%downstream_ires_n(i)
+            if(this%upstream_isaqueous_c) then
+              Jacobian(ires_dn,ires_uc) = Jacobian(ires_dn,ires_uc) + &
+                       drate_uc * tmp_real * this%downstream_stoich_c(i) * & 
+                       rt_auxvar%aqueous%dtotal(ires_dn,ires_uc,iphase)
+              Jacobian(ires_mn, ires_uc) = Jacobian(ires_mn,  ires_uc) - &
+                       drate_uc * tmp_real * this%downstream_stoich_c(i) * &
+                       rt_auxvar%aqueous%dtotal(ires_mn,ires_uc,iphase)
+            else
+              Jacobian(ires_dn,ires_uc) = Jacobian(ires_dn,ires_uc) + & 
+                       drate_uc * tmp_real * this%downstream_stoich_c(i) 
+              Jacobian(ires_mn,ires_uc) = Jacobian(ires_mn,ires_uc) - &
+                       drate_uc * tmp_real * this%downstream_stoich_c(i)
+            endif
+
+            if(this%upstream_isaqueous_n) then
+              Jacobian(ires_dn,ires_un) = Jacobian(ires_dn,ires_un) - &
+                       drate_uc * this%downstream_stoich_c(i) * & 
+                       rt_auxvar%aqueous%dtotal(ires_dn,ires_un,iphase)
+              Jacobian(ires_mn,ires_un) = Jacobian(ires_mn,ires_un) + &
+                       drate_uc * this%downstream_stoich_c(i) * &
+                       rt_auxvar%aqueous%dtotal(ires_mn,ires_un,iphase)
+            else
+              Jacobian(ires_dn,ires_un) = Jacobian(ires_dn,ires_un) - &
+                       drate_uc * this%downstream_stoich_c(i) 
+              Jacobian(ires_mn,ires_un) = Jacobian(ires_mn,ires_un) + &
+                       drate_uc * this%downstream_stoich_c(i)  
+            endif
            endif
         enddo
      endif
@@ -1127,41 +1598,113 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
      do i = 1, this%nDownstream
         if((.not.this%b_downstream_cn_fixed(i)).and. &
            (.not.this%b_downstream_cn_follow_upstream(i))) then
-           ires_dc = reaction%offset_immobile + this%downstream_ispec_c(i)
-           ires_dn = reaction%offset_immobile + this%downstream_ispec_n(i)
-           tmp_real = rt_auxvar%immobile(this%downstream_ispec_n(i)) &
-                    / rt_auxvar%immobile(this%downstream_ispec_c(i)) &
-                    / rt_auxvar%immobile(this%downstream_ispec_c(i))
-           Jacobian(ires_dn,ires_dc) = Jacobian(ires_dn,ires_dc) + rate * tmp_real * this%downstream_stoich_c(i)
-           Jacobian(ires_n, ires_dc) = Jacobian(ires_n, ires_dc) - rate * tmp_real * this%downstream_stoich_c(i)
-           Jacobian(ires_dn,ires_dn) = Jacobian(ires_dn,ires_dn) - rate / & 
-                                    rt_auxvar%immobile(this%downstream_ispec_c(i)) * this%downstream_stoich_c(i)
-           Jacobian(ires_n, ires_dn) = Jacobian(ires_n, ires_dn) + rate / &
-                                    rt_auxvar%immobile(this%downstream_ispec_c(i)) * this%downstream_stoich_c(i)
+
+          if(this%downstream_isaqueous_c(i)) then
+             ires_dc = this%downstream_ispec_c(i)
+             c_dc = rt_auxvar%total(this%downstream_ispec_c(i), iphase)
+             c_dc = c_dc * Lwater_m3 
+          else 
+             ires_dc = this%downstream_ires_c(i) !reaction%offset_immobile + this%downstream_ispec_c(i)
+             c_dc = rt_auxvar%immobile(this%downstream_ispec_c(i)) 
+          endif
+
+          if(this%downstream_isaqueous_n(i)) then
+             ires_dn = this%downstream_ispec_n(i)
+             c_dn = rt_auxvar%total(this%downstream_ispec_n(i), iphase)
+             c_dn = c_dn * Lwater_m3 
+          else 
+             ires_dn = this%downstream_ires_n(i)  !reaction%offset_immobile + this%downstream_ispec_n(i)
+             c_dn = rt_auxvar%immobile(this%downstream_ispec_n(i)) 
+          endif
+
+           tmp_real = c_dn / c_dc / c_dc
+           
+          if(this%downstream_isaqueous_c(i)) then
+           Jacobian(ires_dn,ires_dc) = Jacobian(ires_dn,ires_dc) + &
+                    rate * tmp_real * this%downstream_stoich_c(i) * &
+                    rt_auxvar%aqueous%dtotal(ires_dn,ires_dc,iphase)
+           Jacobian(ires_mn,ires_dc) = Jacobian(ires_mn, ires_dc) - &
+                    rate * tmp_real * this%downstream_stoich_c(i) * &
+                    rt_auxvar%aqueous%dtotal(ires_mn,ires_dc,iphase)
+          else
+           Jacobian(ires_dn,ires_dc) = Jacobian(ires_dn,ires_dc) + &
+                    rate * tmp_real * this%downstream_stoich_c(i)
+           Jacobian(ires_mn, ires_dc) = Jacobian(ires_mn, ires_dc) - &
+                    rate * tmp_real * this%downstream_stoich_c(i)
+          endif
+
+          if(this%downstream_isaqueous_n(i)) then
+           Jacobian(ires_dn,ires_dn) = Jacobian(ires_dn,ires_dn) - &
+                    rate / c_dc * this%downstream_stoich_c(i) * &
+                    rt_auxvar%aqueous%dtotal(ires_dn,ires_dn,iphase)
+           Jacobian(ires_mn,ires_dn) = Jacobian(ires_mn,ires_dn) + &
+                    rate / c_dc * this%downstream_stoich_c(i) * &
+                    rt_auxvar%aqueous%dtotal(ires_mn,ires_dn,iphase)
+          else
+           Jacobian(ires_dn,ires_dn) = Jacobian(ires_dn,ires_dn) - &
+                    rate / c_dc * this%downstream_stoich_c(i)
+           Jacobian(ires_mn,ires_dn) = Jacobian(ires_mn,ires_dn) + &
+                    rate / c_dc * this%downstream_stoich_c(i)
+          endif
         endif
      enddo 
   endif
 
   if(this%bPEnabled) then
      if(.not.this%bfixed_upstream_cp) then
-!        ires_uc = reaction%offset_immobile + this%upstream_ispec_c
-!        ires_up = reaction%offset_immobile + this%upstream_ispec_p
-        tmp_real = rt_auxvar%immobile(this%upstream_ispec_p) &
-                 / rt_auxvar%immobile(this%upstream_ispec_c) !&
-!                 / rt_auxvar%immobile(this%upstream_ispec_c)
+        tmp_real = c_up /c_uc
+       if(this%upstream_isaqueous_c) then
+        Jacobian(ires_up,ires_uc) = Jacobian(ires_up,ires_uc) - &
+                 drate_uc * tmp_real * rt_auxvar%aqueous%dtotal(ires_up,ires_uc,iphase)
+        Jacobian(ires_mp, ires_uc) = Jacobian(ires_mp, ires_uc) + &
+                 drate_uc * tmp_real * rt_auxvar%aqueous%dtotal(ires_mp,ires_uc,iphase) 
+       else
         Jacobian(ires_up,ires_uc) = Jacobian(ires_up,ires_uc) - drate_uc * tmp_real !rate * tmp_real
-        Jacobian(ires_p, ires_uc) = Jacobian(ires_p, ires_uc) + drate_uc * tmp_real !rate * tmp_real
+        Jacobian(ires_mp, ires_uc) = Jacobian(ires_mp, ires_uc) + drate_uc * tmp_real !rate * tmp_real
+       endif
+
+       if(this%upstream_isaqueous_p) then
+        Jacobian(ires_up,ires_up) = Jacobian(ires_up,ires_up) + &
+                 drate_uc * rt_auxvar%aqueous%dtotal(ires_up,ires_up,iphase) 
+        Jacobian(ires_mp,ires_up) = Jacobian(ires_mp,ires_up) - &
+                 drate_uc * rt_auxvar%aqueous%dtotal(ires_mp,ires_up,iphase)
+       else
         Jacobian(ires_up,ires_up) = Jacobian(ires_up,ires_up) + drate_uc !rate / & 
 !                                    rt_auxvar%immobile(this%upstream_ispec_c)
-        Jacobian(ires_p, ires_up) = Jacobian(ires_p, ires_up) - drate_uc !rate / &
+        Jacobian(ires_mp,ires_up) = Jacobian(ires_mp,ires_up) - drate_uc !rate / &
 !                                    rt_auxvar%immobile(this%upstream_ispec_c)
+       endif
         do i = 1, this%nDownstream
            if(this%b_downstream_cp_follow_upstream(i)) then
-              ires_pdi = reaction%offset_immobile + this%downstream_ispec_p(i)
-              Jacobian(ires_pdi,ires_uc) = Jacobian(ires_pdi,ires_uc) + drate_uc * tmp_real * this%downstream_stoich_c(i) 
-              Jacobian(ires_p,  ires_uc) = Jacobian(ires_p,  ires_uc) - drate_uc * tmp_real * this%downstream_stoich_c(i)
-              Jacobian(ires_pdi,ires_up) = Jacobian(ires_pdi,ires_up) - drate_uc * this%downstream_stoich_c(i) 
-              Jacobian(ires_p,  ires_up) = Jacobian(ires_p,  ires_up) + drate_uc * this%downstream_stoich_c(i)  
+               ires_dp = this%downstream_ires_p(i)
+
+             if(this%upstream_isaqueous_c) then
+              Jacobian(ires_dp,ires_uc) = Jacobian(ires_dp,ires_uc) + &
+                       drate_uc * tmp_real * this%downstream_stoich_c(i) * &
+                       rt_auxvar%aqueous%dtotal(ires_dp, ires_uc, iphase) 
+              Jacobian(ires_mp,ires_uc) = Jacobian(ires_mp,ires_uc) - &
+                       drate_uc * tmp_real * this%downstream_stoich_c(i) * &
+                       rt_auxvar%aqueous%dtotal(ires_mp, ires_uc, iphase) 
+             else
+              Jacobian(ires_dp,ires_uc) = Jacobian(ires_dp,ires_uc) + &
+                       drate_uc * tmp_real * this%downstream_stoich_c(i) 
+              Jacobian(ires_mp,ires_uc) = Jacobian(ires_mp,ires_uc) - &
+                       drate_uc * tmp_real * this%downstream_stoich_c(i)
+             endif
+
+             if(this%upstream_isaqueous_p) then
+              Jacobian(ires_dp,ires_up) = Jacobian(ires_dp,ires_up) - &
+                       drate_uc * this%downstream_stoich_c(i) * &
+                       rt_auxvar%aqueous%dtotal(ires_dp, ires_up, iphase) 
+              Jacobian(ires_mp,ires_up) = Jacobian(ires_mp,ires_up) + &
+                       drate_uc * this%downstream_stoich_c(i) * & 
+                       rt_auxvar%aqueous%dtotal(ires_mp, ires_up, iphase) 
+             else
+              Jacobian(ires_dp,ires_up) = Jacobian(ires_dp,ires_up) - &
+                       drate_uc * this%downstream_stoich_c(i) 
+              Jacobian(ires_mp,ires_up) = Jacobian(ires_mp,ires_up) + &
+                       drate_uc * this%downstream_stoich_c(i)  
+             endif
            endif
         enddo
      endif
@@ -1169,17 +1712,52 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
      do i = 1, this%nDownstream
         if((.not.this%b_downstream_cp_fixed(i)) .and. &
            (.not.this%b_downstream_cn_follow_upstream(i))) then
-           ires_dc = reaction%offset_immobile + this%downstream_ispec_c(i)
-           ires_dp = reaction%offset_immobile + this%downstream_ispec_p(i)
-           tmp_real = rt_auxvar%immobile(this%downstream_ispec_p(i)) &
-                    / rt_auxvar%immobile(this%downstream_ispec_c(i)) &
-                    / rt_auxvar%immobile(this%downstream_ispec_c(i))
-           Jacobian(ires_dp,ires_dc) = Jacobian(ires_dp,ires_dc) + rate * tmp_real * this%downstream_stoich_c(i)
-           Jacobian(ires_p, ires_dc) = Jacobian(ires_p, ires_dc) - rate * tmp_real * this%downstream_stoich_c(i)
-           Jacobian(ires_dp,ires_dp) = Jacobian(ires_dp,ires_dp) - rate / & 
-                                    rt_auxvar%immobile(this%downstream_ispec_c(i)) * this%downstream_stoich_c(i)
-           Jacobian(ires_p, ires_dp) = Jacobian(ires_p, ires_dp) + rate / &
-                                    rt_auxvar%immobile(this%downstream_ispec_c(i)) * this%downstream_stoich_c(i)
+          if(this%downstream_isaqueous_c(i)) then
+             ires_dc = this%downstream_ispec_c(i)
+             c_dc = rt_auxvar%total(this%downstream_ispec_c(i), iphase)
+             c_dc = c_dc * Lwater_m3 
+          else 
+             ires_dc = this%downstream_ires_c(i) !reaction%offset_immobile + this%downstream_ispec_c(i)
+             c_dc = rt_auxvar%immobile(this%downstream_ispec_c(i)) 
+          endif
+
+          if(this%downstream_isaqueous_p(i)) then
+             ires_dp = this%downstream_ispec_p(i)
+             c_dp = rt_auxvar%total(this%downstream_ispec_p(i), iphase)
+             c_dp = c_dp * Lwater_m3 
+          else 
+             ires_dp = this%downstream_ires_p(i) !reaction%offset_immobile + this%downstream_ispec_p(i)
+             c_dp = rt_auxvar%immobile(this%downstream_ispec_p(i)) 
+          endif
+          tmp_real = c_dp / c_dc / c_dc
+
+          if(this%downstream_isaqueous_c(i)) then
+           Jacobian(ires_dp,ires_dc) = Jacobian(ires_dp,ires_dc) + &
+                    rate * tmp_real * this%downstream_stoich_c(i) * &
+                    rt_auxvar%aqueous%dtotal(ires_dp, ires_dc, iphase) 
+           Jacobian(ires_mp,ires_dc) = Jacobian(ires_mp,ires_dc) - &
+                    rate * tmp_real * this%downstream_stoich_c(i) * &
+                    rt_auxvar%aqueous%dtotal(ires_mp, ires_dc, iphase) 
+          else
+           Jacobian(ires_dp,ires_dc) = Jacobian(ires_dp,ires_dc) + &
+                    rate * tmp_real * this%downstream_stoich_c(i)
+           Jacobian(ires_mp,ires_dc) = Jacobian(ires_mp,ires_dc) - &
+                    rate * tmp_real * this%downstream_stoich_c(i)
+          endif
+
+          if(this%downstream_isaqueous_p(i)) then
+           Jacobian(ires_dp,ires_dp) = Jacobian(ires_dp,ires_dp) - &
+                    rate / c_dc * this%downstream_stoich_c(i) * &
+                    rt_auxvar%aqueous%dtotal(ires_dp, ires_dp, iphase) 
+           Jacobian(ires_mp, ires_dp) = Jacobian(ires_mp, ires_dp) + &
+                    rate / c_dc * this%downstream_stoich_c(i) * &
+                    rt_auxvar%aqueous%dtotal(ires_mp, ires_dp, iphase)
+          else
+           Jacobian(ires_dp,ires_dp) = Jacobian(ires_dp,ires_dp) - &
+                    rate / c_dc * this%downstream_stoich_c(i)
+           Jacobian(ires_mp, ires_dp) = Jacobian(ires_mp, ires_dp) + &
+                    rate / c_dc * this%downstream_stoich_c(i)
+          endif 
         endif
      enddo 
   endif
@@ -1187,13 +1765,25 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 !  first order terms
   do j = 1, this%nFirstOrder
      is_pool_in_rxn = PETSC_FALSE
+     isaqueous = PETSC_FALSE
      if(this%ispec_1st(j) == this%upstream_ispec_c) then
        drate = drate_uc
-       is_pool_in_rxn = PETSC_FALSE
+       ires_j = ires_uc
+       is_pool_in_rxn = PETSC_TRUE
+       isaqueous = this%upstream_isaqueous_c
      else
        do i = 1, this%nDownstream
             if(this%ispec_1st(j) == this%downstream_ispec_c(i)) then
-               conc = rt_auxvar%immobile(this%ispec_1st(j))  
+!               isaqueous = this%downstream_isaqueous_c(this%ispec_1st(j))
+               isaqueous = this%downstream_isaqueous_c(i)
+               if(isaqueous) then
+                  ires_j = this%ispec_1st(j)
+                  conc = rt_auxvar%total(this%ispec_1st(j), iphase)
+                  conc = conc * Lwater_m3  
+               else
+                  ires_j = this%ispec_1st(j) + reaction%offset_immobile
+                  conc = rt_auxvar%immobile(this%ispec_1st(j))  
+               endif
                drate = rate / conc
                is_pool_in_rxn = PETSC_TRUE
                exit
@@ -1202,38 +1792,75 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
      endif
 
      if(.not.is_pool_in_rxn) then
-       continue
+       cycle
      endif
 
-     ires_j = reaction%offset_immobile + this%ispec_1st(j) 
-
 ! upstream C
-!     ires = reaction%offset_immobile + this%upstream_ispec_c
-     Jacobian(ires_uc,ires_j) = Jacobian(ires_uc,ires_j) + drate
+     if(isaqueous) then
+        Jacobian(ires_uc,ires_j) = Jacobian(ires_uc,ires_j) + drate * &
+                 rt_auxvar%aqueous%dtotal(ires_uc,ires_j, iphase)
+     else
+        Jacobian(ires_uc,ires_j) = Jacobian(ires_uc,ires_j) + drate
+     endif
        
 ! mineral C
-     Jacobian(ires_c, ires_j) = Jacobian(ires_c, ires_j) - drate * this%mineral_c_stoich
+     if(isaqueous) then
+        Jacobian(ires_mc, ires_j) = Jacobian(ires_mc, ires_j) - &
+                 drate * this%mineral_c_stoich * &
+                 rt_auxvar%aqueous%dtotal(ires_mc,ires_j, iphase)
+     else
+        Jacobian(ires_mc, ires_j) = Jacobian(ires_mc, ires_j) - &
+                 drate * this%mineral_c_stoich
+     endif
 
 ! downstream C
      do i = 1, this%nDownstream
-        ires = reaction%offset_immobile + this%downstream_ispec_c(i)
-        Jacobian(ires,ires_j) = Jacobian(ires,ires_j) - drate * this%downstream_stoich_c(i)
+        ires_dc = this%downstream_ires_c(i)
+       if(isaqueous) then
+        Jacobian(ires_dc,ires_j) = Jacobian(ires_dc,ires_j) - &
+                 drate * this%downstream_stoich_c(i) * &
+                 rt_auxvar%aqueous%dtotal(ires_dc,ires_j,iphase)
+       else
+        Jacobian(ires_dc,ires_j) = Jacobian(ires_dc,ires_j) - &
+                 drate * this%downstream_stoich_c(i)
+       endif
      enddo 
 
      if(this%bNEnabled) then
 ! upstream N
         if(.not.this%bfixed_upstream_cn) then
-!           ires = reaction%offset_immobile + this%upstream_ispec_n      
-           Jacobian(ires_un,ires_j) = Jacobian(ires_un,ires_j) + drate * this%upstream_stoich_n      
+          if(isaqueous) then
+           Jacobian(ires_un,ires_j) = Jacobian(ires_un,ires_j) + &
+                    drate * this%upstream_stoich_n * &
+                    rt_auxvar%aqueous%dtotal(ires_un,ires_j,iphase)
+          else
+           Jacobian(ires_un,ires_j) = Jacobian(ires_un,ires_j) + &
+                    drate * this%upstream_stoich_n      
+          endif
         endif 
 ! mineral N
-        Jacobian(ires_n,ires_j) = Jacobian(ires_n,ires_j) - drate * this%mineral_n_stoich
+        if(isaqueous) then
+          Jacobian(ires_mn,ires_j) = Jacobian(ires_mn,ires_j) - &
+                   drate * this%mineral_n_stoich * &
+                   rt_auxvar%aqueous%dtotal(ires_mn,ires_j,iphase)
+        else
+          Jacobian(ires_mn,ires_j) = Jacobian(ires_mn,ires_j) - &
+                   drate * this%mineral_n_stoich
+        endif
 ! downstream N      
         do i = 1, this%nDownstream
            if(.not.this%b_downstream_cn_fixed(i)) then
-             ires = reaction%offset_immobile + this%downstream_ispec_n(i)      
-             Jacobian(ires,ires_j) = Jacobian(ires,ires_j) - drate * this%downstream_stoich_n(i) * &
-                                     this%downstream_stoich_c(i)
+             ires_dn = this%downstream_ires_n(i)      
+             if(isaqueous) then
+                Jacobian(ires_dn,ires_j) = Jacobian(ires_dn,ires_j) - &
+                      drate * this%downstream_stoich_n(i) * &
+                      this%downstream_stoich_c(i) * &
+                      rt_auxvar%aqueous%dtotal(ires_dn,ires_j,iphase)
+             else
+                Jacobian(ires_dn,ires_j) = Jacobian(ires_dn,ires_j) - &
+                      drate * this%downstream_stoich_n(i) * &
+                      this%downstream_stoich_c(i)
+             endif
            endif
         enddo 
      endif
@@ -1241,17 +1868,38 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
      if(this%bPEnabled) then
 ! upstream P
         if(.not.this%bfixed_upstream_cp) then
-           ires = reaction%offset_immobile + this%upstream_ispec_p      
-           Jacobian(ires,ires_j) = Jacobian(ires,ires_j) + drate * this%upstream_stoich_p      
+          if(isaqueous) then
+             Jacobian(ires_up,ires_j) = Jacobian(ires_up,ires_j) + &
+                      drate * this%upstream_stoich_p * &
+                      rt_auxvar%aqueous%dtotal(ires_up,ires_j,iphase)
+          else
+             Jacobian(ires_up,ires_j) = Jacobian(ires_up,ires_j) + &
+                      drate * this%upstream_stoich_p      
+          endif
         endif 
 ! mineral P
-        Jacobian(ires_p,ires_j) = Jacobian(ires_p,ires_j) - drate * this%mineral_p_stoich
+        if(isaqueous) then
+           Jacobian(ires_mp,ires_j) = Jacobian(ires_mp,ires_j) - &
+                    drate * this%mineral_p_stoich * &
+                    rt_auxvar%aqueous%dtotal(ires_mp,ires_j,iphase)
+        else
+           Jacobian(ires_mp,ires_j) = Jacobian(ires_mp,ires_j) - &
+                    drate * this%mineral_p_stoich
+        endif
 ! downstream P      
         do i = 1, this%nDownstream
            if(.not.this%b_downstream_cp_fixed(i)) then
-             ires = reaction%offset_immobile + this%downstream_ispec_p(i)      
-             Jacobian(ires,ires_j) = Jacobian(ires,ires_j) - drate * this%downstream_stoich_p(i) * &
-                                     this%downstream_stoich_c(i)
+             ires_dp = this%downstream_ires_p(i)
+             if(isaqueous) then
+                Jacobian(ires_dp,ires_j) = Jacobian(ires_dp,ires_j) - &
+                         drate * this%downstream_stoich_p(i) * &
+                         this%downstream_stoich_c(i) * &
+                         rt_auxvar%aqueous%dtotal(ires_dp,ires_j,iphase)
+             else
+                Jacobian(ires_dp,ires_j) = Jacobian(ires_dp,ires_j) - &
+                         drate * this%downstream_stoich_p(i) * &
+                         this%downstream_stoich_c(i)
+             endif
            endif
         enddo 
      endif
@@ -1260,55 +1908,105 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 !  monod terms
   do j = 1, this%nMonod
      is_pool_in_rxn = PETSC_FALSE
+     isaqueous = PETSC_FALSE
      if(this%ispec_mnd(j) == this%upstream_ispec_c) then
-       is_pool_in_rxn = PETSC_FALSE
+       is_pool_in_rxn = PETSC_TRUE
+       conc = c_uc
+       ires_j = ires_uc
+       isaqueous = this%upstream_isaqueous_c
      else
        do i = 1, this%nDownstream
             if(this%ispec_mnd(j) == this%downstream_ispec_c(i)) then
+               isaqueous = this%downstream_isaqueous_c(i)
+               if(isaqueous) then
+                   conc = rt_auxvar%total(this%ispec_mnd(j),iphase)
+                   conc = conc * Lwater_m3  
+               else
+                   conc = rt_auxvar%immobile(this%ispec_mnd(j))  
+               endif    
                is_pool_in_rxn = PETSC_TRUE
+               ires_j = this%downstream_ires_c(j)
                exit
             endif 
        enddo
      endif
 
      if(.not.is_pool_in_rxn) then
-       continue
+        cycle
      endif
 
 ! r     = r0 * x / (k + x)     
 ! dr/dx = r0 * k / (k + x) / (k + x) = r * k / x / (k + x)
-     conc = rt_auxvar%immobile(this%ispec_mnd(j))  
      drate = rate * this%half_saturation(j) / conc / (this%half_saturation(j) + conc) 
-     ires_j = reaction%offset_immobile + this%ispec_mnd(j) 
 
 ! upstream C
-!     ires = reaction%offset_immobile + this%upstream_ispec_c      
-     Jacobian(ires_uc, ires_j) = Jacobian(ires_uc, ires_j) + drate       
+     if(isaqueous) then 
+        Jacobian(ires_uc, ires_j) = Jacobian(ires_uc, ires_j) + drate * &
+                 rt_auxvar%aqueous%dtotal(ires_uc,ires_j,iphase)
+     else
+        Jacobian(ires_uc, ires_j) = Jacobian(ires_uc, ires_j) + drate       
+     endif
 
 ! mineral C
-     Jacobian(ires_c, ires_j) = Jacobian(ires, ires_j) - drate * this%mineral_c_stoich
+     if(isaqueous) then 
+        Jacobian(ires_mc, ires_j) = Jacobian(ires_mc, ires_j) - &
+                 drate * this%mineral_c_stoich * &
+                 rt_auxvar%aqueous%dtotal(ires_mc, ires_j,iphase)
+     else
+        Jacobian(ires_mc, ires_j) = Jacobian(ires_mc, ires_j) - &
+                 drate * this%mineral_c_stoich
+     endif
 
 ! downstream C
      do i = 1, this%nDownstream
-        ires = reaction%offset_immobile + this%downstream_ispec_c(i)      
-        Jacobian(ires,ires_j) = Jacobian(ires,ires_j) - drate * this%downstream_stoich_c(i)
+        ires_dc = this%downstream_ires_c(i)
+       if(isaqueous) then
+        Jacobian(ires_dc,ires_j) = Jacobian(ires_dc,ires_j) - &
+                 drate * this%downstream_stoich_c(i) * &
+                 rt_auxvar%aqueous%dtotal(ires_dc, ires_j,iphase)
+       else
+        Jacobian(ires_dc,ires_j) = Jacobian(ires_dc,ires_j) - &
+                 drate * this%downstream_stoich_c(i)
+       endif
      enddo 
 
      if(this%bNEnabled) then
 ! upstream N
        if(.not.this%bfixed_upstream_cn) then
-          ires = reaction%offset_immobile + this%upstream_ispec_n      
-          Jacobian(ires,ires_j) = Jacobian(ires,ires_j) + drate * this%upstream_stoich_n
+         if(isaqueous) then
+          Jacobian(ires_un,ires_j) = Jacobian(ires_un,ires_j) + &
+                   drate * this%upstream_stoich_n * &
+                   rt_auxvar%aqueous%dtotal(ires_un,ires_j,iphase)
+         else
+          Jacobian(ires_un,ires_j) = Jacobian(ires_un,ires_j) + &
+                   drate * this%upstream_stoich_n
+         endif
        endif
+
  ! mineral N
-       Jacobian(ires_n,ires_j) = Jacobian(ires_n,ires_j) - drate * this%mineral_n_stoich      
+       if(isaqueous) then
+          Jacobian(ires_mn,ires_j) = Jacobian(ires_mn,ires_j) - &
+                   drate * this%mineral_n_stoich * &     
+                   rt_auxvar%aqueous%dtotal(ires_mn,ires_j,iphase)
+       else
+          Jacobian(ires_mn,ires_j) = Jacobian(ires_mn,ires_j) - &
+                   drate * this%mineral_n_stoich
+       endif
 
 ! downstream N       
        do i = 1, this%nDownstream
         if(.not.this%b_downstream_cn_fixed(i)) then
-          ires = reaction%offset_immobile + this%downstream_ispec_n(i)      
-          Jacobian(ires,ires_j) = Jacobian(ires,ires_j) - drate * this%downstream_stoich_n(i) * &
-                                  this%downstream_stoich_c(i)      
+          ires_dn = this%downstream_ires_n(i)
+          if(isaqueous) then
+             Jacobian(ires_dn,ires_j) = Jacobian(ires_dn,ires_j) - &
+                      drate * this%downstream_stoich_n(i) * &
+                      this%downstream_stoich_c(i) * & 
+                      rt_auxvar%aqueous%dtotal(ires_dn,ires_j,iphase)
+          else
+             Jacobian(ires_dn,ires_j) = Jacobian(ires_dn,ires_j) - &
+                      drate * this%downstream_stoich_n(i) * &
+                      this%downstream_stoich_c(i)      
+          endif
         endif
        enddo 
      endif
@@ -1316,18 +2014,40 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
      if(this%bPEnabled) then
 ! upstream P
        if(.not.this%bfixed_upstream_cp) then
-          ires = reaction%offset_immobile + this%upstream_ispec_p      
-          Jacobian(ires,ires_j) = Jacobian(ires,ires_j) + drate * this%upstream_stoich_p
+          if(isaqueous) then
+             Jacobian(ires_up,ires_j) = Jacobian(ires_up,ires_j) + &
+                      drate * this%upstream_stoich_p * &
+                      rt_auxvar%aqueous%dtotal(ires_up,ires_j,iphase)
+          else
+             Jacobian(ires_up,ires_j) = Jacobian(ires_up,ires_j) + &
+                      drate * this%upstream_stoich_p
+          endif
        endif
+
  ! mineral P
-       Jacobian(ires_p,ires_j) = Jacobian(ires_p,ires_j) - drate * this%mineral_p_stoich      
+       if(isaqueous) then
+          Jacobian(ires_mp,ires_j) = Jacobian(ires_mp,ires_j) - &
+                   drate * this%mineral_p_stoich * &
+                   rt_auxvar%aqueous%dtotal(ires_mp,ires_j,iphase)
+       else
+          Jacobian(ires_mp,ires_j) = Jacobian(ires_mp,ires_j) - &
+                   drate * this%mineral_p_stoich      
+       endif
 
 ! downstream P       
        do i = 1, this%nDownstream
         if(.not.this%b_downstream_cp_fixed(i)) then
-          ires = reaction%offset_immobile + this%downstream_ispec_p(i)      
-          Jacobian(ires,ires_j) = Jacobian(ires,ires_j) - drate * this%downstream_stoich_p(i) * &     
-                                  this%downstream_stoich_c(i)      
+          ires_dp = this%downstream_ires_p(i)
+          if(isaqueous) then
+             Jacobian(ires_dp,ires_j) = Jacobian(ires_dp,ires_j) - &
+                   drate * this%downstream_stoich_p(i) * &     
+                   this%downstream_stoich_c(i) * &
+                   rt_auxvar%aqueous%dtotal(ires_dp,ires_j,iphase)
+          else
+             Jacobian(ires_dp,ires_j) = Jacobian(ires_dp,ires_j) - &
+                   drate * this%downstream_stoich_p(i) * &     
+                   this%downstream_stoich_c(i)      
+          endif
         endif
        enddo 
      endif
@@ -1336,11 +2056,23 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 !  inhibition terms
    do j = 1, this%nInhibition
      is_pool_in_rxn = PETSC_FALSE
+     isaqueous = PETSC_FALSE
      if(this%ispec_inh(j) == this%upstream_ispec_c) then
-       is_pool_in_rxn = PETSC_FALSE
+       conc = c_uc
+       ires_j = ires_uc
+       is_pool_in_rxn = PETSC_TRUE
+       isaqueous = this%upstream_isaqueous_c
      else
        do i = 1, this%nDownstream
             if(this%ispec_inh(j) == this%downstream_ispec_c(i)) then
+               isaqueous = this%downstream_isaqueous_c(i)
+               if(isaqueous) then
+                   conc = rt_auxvar%total(this%ispec_inh(j),iphase)
+                   conc = conc * Lwater_m3  
+               else
+                   conc = rt_auxvar%immobile(this%ispec_inh(j))  
+               endif    
+               ires_j = this%downstream_ires_c(i)
                is_pool_in_rxn = PETSC_TRUE
                exit
             endif 
@@ -1348,46 +2080,81 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
      endif
 
      if(.not.is_pool_in_rxn) then
-       continue
+       cycle !continue
      endif
 
 ! r     = r0 * k / (k + x)     
 ! dr/dx = - r0 * k / (k + x) / (k + x) = - r / (k + x)
-     conc = rt_auxvar%immobile(this%ispec_inh(j))  
      drate = -rate / (this%inhibition_coef(j) + conc) 
-     ires_j = reaction%offset_immobile + this%ispec_inh(j) 
 
 ! upstream C
-     ires = reaction%offset_immobile + this%upstream_ispec_c      
-     Jacobian(ires, ires_j) = Jacobian(ires, ires_j) + drate       
+     if(isaqueous) then
+        Jacobian(ires_uc, ires_j) = Jacobian(ires_uc, ires_j) + drate * &
+                 rt_auxvar%aqueous%dtotal(ires_uc,ires_j,iphase)
+     else
+        Jacobian(ires_uc, ires_j) = Jacobian(ires_uc, ires_j) + drate       
+     endif
 
 ! mineral C
-     ires_c = reaction%offset_immobile + this%mineral_c_ispec      
-     Jacobian(ires_c, ires_j) = Jacobian(ires_c, ires_j) - drate * this%mineral_c_stoich      
+     if(isaqueous) then
+        Jacobian(ires_mc, ires_j) = Jacobian(ires_mc, ires_j) - &
+                 drate * this%mineral_c_stoich * &     
+                 rt_auxvar%aqueous%dtotal(ires_mc,ires_j,iphase)
+     else
+        Jacobian(ires_mc, ires_j) = Jacobian(ires_mc, ires_j) - &
+                 drate * this%mineral_c_stoich      
+     endif
 
 ! downstream C
      do i = 1, this%nDownstream
-        ires = reaction%offset_immobile + this%downstream_ispec_c(i)      
-        Jacobian(ires,ires_j) = Jacobian(ires,ires_j) - drate * this%downstream_stoich_c(i)
+        ires_dc = this%downstream_ires_c(i)
+        if(isaqueous) then
+           Jacobian(ires_dc,ires_j) = Jacobian(ires_dc,ires_j) - &
+                    drate * this%downstream_stoich_c(i) * &
+                    rt_auxvar%aqueous%dtotal(ires_dc,ires_j,iphase)
+        else
+           Jacobian(ires_dc,ires_j) = Jacobian(ires_dc,ires_j) - &
+                    drate * this%downstream_stoich_c(i)
+        endif
      enddo 
 
      if(this%bNEnabled) then
 ! upstream N
        if(.not.this%bfixed_upstream_cn) then
-          ires = reaction%offset_immobile + this%upstream_ispec_n      
-          Jacobian(ires,ires_j) = Jacobian(ires,ires_j) + drate * this%upstream_stoich_n      
+         if(isaqueous) then
+          Jacobian(ires_un,ires_j) = Jacobian(ires_un,ires_j) + &
+                   drate * this%upstream_stoich_n * &
+                   rt_auxvar%aqueous%dtotal(ires_un,ires_j,iphase)
+         else
+          Jacobian(ires_un,ires_j) = Jacobian(ires_un,ires_j) + &
+                   drate * this%upstream_stoich_n      
+         endif
        endif
 
 ! mineral N 
-       ires_n = reaction%offset_immobile + this%mineral_n_ispec      
-       Jacobian(ires_n,ires_j) = Jacobian(ires_n,ires_j) - drate * this%mineral_n_stoich      
+       if(isaqueous) then
+          Jacobian(ires_mn,ires_j) = Jacobian(ires_mn,ires_j) - &
+                   drate * this%mineral_n_stoich * &     
+                   rt_auxvar%aqueous%dtotal(ires_mn,ires_j,iphase)
+       else
+          Jacobian(ires_mn,ires_j) = Jacobian(ires_mn,ires_j) - &
+                   drate * this%mineral_n_stoich      
+       endif
 
 ! downstream N       
        do i = 1, this%nDownstream
         if(.not.this%b_downstream_cn_fixed(i)) then
-          ires = reaction%offset_immobile + this%downstream_ispec_n(i)      
-          Jacobian(ires,ires_j) = Jacobian(ires,ires_j) - drate * this%downstream_stoich_n(i) * &
-                                  this%downstream_stoich_c(i)      
+          ires_dn = this%downstream_ires_n(i)
+          if(isaqueous) then
+             Jacobian(ires_dn,ires_j) = Jacobian(ires_dn,ires_j) - &
+                      drate * this%downstream_stoich_n(i) * &
+                      this%downstream_stoich_c(i) * &      
+                      rt_auxvar%aqueous%dtotal(ires_dn,ires_j,iphase)
+          else
+             Jacobian(ires_dn,ires_j) = Jacobian(ires_dn,ires_j) - &
+                      drate * this%downstream_stoich_n(i) * &
+                      this%downstream_stoich_c(i)      
+          endif
         endif
        enddo 
      endif
@@ -1395,19 +2162,31 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
      if(this%bPEnabled) then
 ! upstream P
        if(.not.this%bfixed_upstream_cp) then
-          ires = reaction%offset_immobile + this%upstream_ispec_p      
-          Jacobian(ires,ires_j) = Jacobian(ires,ires_j) + drate * this%upstream_stoich_p      
+         if(isaqueous) then
+          Jacobian(ires_up,ires_j) = Jacobian(ires_up,ires_j) + &
+                   drate * this%upstream_stoich_p * &     
+                   rt_auxvar%aqueous%dtotal(ires_up,ires_j,iphase)
+         else
+          Jacobian(ires_up,ires_j) = Jacobian(ires_up,ires_j) + &
+                   drate * this%upstream_stoich_p      
+         endif
        endif
 
 ! mineral P 
-       ires_p = reaction%offset_immobile + this%mineral_p_ispec      
-       Jacobian(ires_p,ires_j) = Jacobian(ires_p,ires_j) - drate * this%mineral_p_stoich      
+       if(isaqueous) then
+         Jacobian(ires_mp,ires_j) = Jacobian(ires_mp,ires_j) - &
+                  drate * this%mineral_p_stoich * &     
+                  rt_auxvar%aqueous%dtotal(ires_mp,ires_j,iphase)
+       else
+         Jacobian(ires_mp,ires_j) = Jacobian(ires_mp,ires_j) - &
+                drate * this%mineral_p_stoich      
+       endif
 
 ! downstream P       
        do i = 1, this%nDownstream
         if(.not.this%b_downstream_cp_fixed(i)) then
-          ires = reaction%offset_immobile + this%downstream_ispec_p(i)      
-          Jacobian(ires,ires_j) = Jacobian(ires,ires_j) - drate * this%downstream_stoich_p(i) * &      
+          ires_dp = this%downstream_ires_p(i)
+          Jacobian(ires_dp,ires_j) = Jacobian(ires_dp,ires_j) - drate * this%downstream_stoich_p(i) * &      
                                   this%downstream_stoich_c(i)      
         endif
        enddo 
@@ -1418,124 +2197,266 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
    if(this%bNEnabled .and. this%mineral_n_stoich < 0.0d0 .and. this%NInhibitionCoef > 0.0d0) then
 ! r     = r0 * x / (k + x)     
 ! dr/dx = r0 * k / (k + x) / (k + x) = r * k / x / (k + x)
-     conc = rt_auxvar%immobile(this%mineral_n_ispec)  
+     conc = c_mn
      drate = drate_n * this%NInhibitionCoef / (this%NInhibitionCoef + conc)
-!     drate = rate * this%NInhibitionCoef / conc / (this%NInhibitionCoef + conc)
-!     ires_n = reaction%offset_immobile + this%mineral_n_ispec      
 
+     if(this%isaqueous_mn) then
 ! upstream C
-!     ires = reaction%offset_immobile + this%upstream_ispec_c
-     Jacobian(ires_uc, ires_n) = Jacobian(ires_uc, ires_n) + drate
+       Jacobian(ires_uc, ires_mn) = Jacobian(ires_uc, ires_mn) + drate * &
+                rt_auxvar%aqueous%dtotal(ires_uc,ires_mn,iphase)
 
 ! mineral C
-!     ires_c = reaction%offset_immobile + this%mineral_c_ispec      
-     Jacobian(ires_c, ires_n) = Jacobian(ires_c, ires_n) - drate * this%mineral_c_stoich
+       Jacobian(ires_mc, ires_mn) = Jacobian(ires_mc, ires_mn) - &
+                drate * this%mineral_c_stoich * &
+                rt_auxvar%aqueous%dtotal(ires_mc,ires_mn,iphase)
 
 ! downstream C
-     do i = 1, this%nDownstream
-        ires = reaction%offset_immobile + this%downstream_ispec_c(i)      
-        Jacobian(ires,ires_n) = Jacobian(ires,ires_n) - drate * this%downstream_stoich_c(i)
-     enddo 
+       do i = 1, this%nDownstream
+        ires_dc = this%downstream_ires_c(i)
+        Jacobian(ires_dc,ires_mn) = Jacobian(ires_dc,ires_mn) - &
+                 drate * this%downstream_stoich_c(i) * &
+                 rt_auxvar%aqueous%dtotal(ires_dc,ires_mn,iphase)
+       enddo 
 
-     if(.not.this%bfixed_upstream_cn) then
+       if(.not.this%bfixed_upstream_cn) then
 ! upstream N
-!       ires = reaction%offset_immobile + this%upstream_ispec_n      
-       Jacobian(ires_un,ires_n) = Jacobian(ires_un,ires_n) + drate * this%upstream_stoich_n      
+         Jacobian(ires_un,ires_mn) = Jacobian(ires_un,ires_mn) + &
+                  drate * this%upstream_stoich_n * &     
+                  rt_auxvar%aqueous%dtotal(ires_un,ires_mn,iphase)
 
 ! mineral N       
-       Jacobian(ires_n,ires_n) = Jacobian(ires_n,ires_n) - drate * this%mineral_n_stoich
-     endif 
+         Jacobian(ires_mn,ires_mn) = Jacobian(ires_mn,ires_mn) - &
+                  drate * this%mineral_n_stoich * &
+                  rt_auxvar%aqueous%dtotal(ires_mn,ires_mn,iphase)
+       endif 
 
 ! downstream N
-     do i = 1, this%nDownstream
+       do i = 1, this%nDownstream
         if(.not.this%b_downstream_cn_fixed(i)) then
-          ires = reaction%offset_immobile + this%downstream_ispec_n(i)      
-          Jacobian(ires,ires_n) = Jacobian(ires,ires_n) - drate * this%downstream_stoich_n(i) * &
-                                  this%downstream_stoich_c(i)
+          ires_dn = this%downstream_ires_n(i) !reaction%offset_immobile + this%downstream_ispec_n(i)      
+          Jacobian(ires_dn,ires_mn) = Jacobian(ires_dn,ires_mn) - &
+                   drate * this%downstream_stoich_n(i) * &
+                   this%downstream_stoich_c(i) * &
+                   rt_auxvar%aqueous%dtotal(ires_dn,ires_mn,iphase)
         endif
-     enddo 
+       enddo 
      
-     if(this%bPEnabled) then
+       if(this%bPEnabled) then
 ! upstream P
         if(.not.this%bfixed_upstream_cp) then
-!          ires = reaction%offset_immobile + this%upstream_ispec_p      
-          Jacobian(ires_up,ires_n) = Jacobian(ires_up,ires_n) + drate * this%upstream_stoich_p      
+          Jacobian(ires_up,ires_mn) = Jacobian(ires_up,ires_mn) + &
+                   drate * this%upstream_stoich_p * &     
+                   rt_auxvar%aqueous%dtotal(ires_up,ires_mn,iphase)
 
 ! mineral P       
-          Jacobian(ires_p,ires_n) = Jacobian(ires_p,ires_n) - drate * this%mineral_p_stoich
+          Jacobian(ires_mp,ires_mn) = Jacobian(ires_mp,ires_mn) - &
+                   drate * this%mineral_p_stoich * &
+                   rt_auxvar%aqueous%dtotal(ires_mp,ires_mn,iphase)
         endif 
 
 ! downstream P
         do i = 1, this%nDownstream
            if(.not.this%b_downstream_cp_fixed(i)) then
-               ires = reaction%offset_immobile + this%downstream_ispec_p(i)
-               Jacobian(ires,ires_n) = Jacobian(ires,ires_n) - drate * this%downstream_stoich_p(i) * &
-                                  this%downstream_stoich_c(i)
+!               ires = reaction%offset_immobile + this%downstream_ispec_p(i)
+               ires_dp = this%downstream_ires_p(i)
+               Jacobian(ires_dp,ires_mn) = Jacobian(ires_dp,ires_mn) - &
+                        drate * this%downstream_stoich_p(i) * &
+                        this%downstream_stoich_c(i) * &
+                        rt_auxvar%aqueous%dtotal(ires_dp,ires_mn,iphase)
            endif
         enddo 
-     endif
+       endif
+     else  ! aqueous
+! upstream C
+       Jacobian(ires_uc, ires_mn) = Jacobian(ires_uc, ires_mn) + drate
+
+! mineral C
+       Jacobian(ires_mc, ires_mn) = Jacobian(ires_mc, ires_mn) - &
+                drate * this%mineral_c_stoich
+
+! downstream C
+       do i = 1, this%nDownstream
+        ires_dc = this%downstream_ires_c(i)
+        Jacobian(ires_dc,ires_mn) = Jacobian(ires_dc,ires_mn) - &
+                 drate * this%downstream_stoich_c(i)
+       enddo 
+
+       if(.not.this%bfixed_upstream_cn) then
+! upstream N
+         Jacobian(ires_un,ires_mn) = Jacobian(ires_un,ires_mn) + &
+                  drate * this%upstream_stoich_n
+
+! mineral N       
+         Jacobian(ires_mn,ires_mn) = Jacobian(ires_mn,ires_mn) - &
+                  drate * this%mineral_n_stoich
+       endif 
+
+! downstream N
+       do i = 1, this%nDownstream
+        if(.not.this%b_downstream_cn_fixed(i)) then
+          ires_dn = this%downstream_ires_n(i) !reaction%offset_immobile + this%downstream_ispec_n(i)      
+          Jacobian(ires_dn,ires_mn) = Jacobian(ires_dn,ires_mn) - &
+                   drate * this%downstream_stoich_n(i) * &
+                   this%downstream_stoich_c(i)
+        endif
+       enddo 
+     
+       if(this%bPEnabled) then
+! upstream P
+        if(.not.this%bfixed_upstream_cp) then
+          Jacobian(ires_up,ires_mn) = Jacobian(ires_up,ires_mn) + &
+                   drate * this%upstream_stoich_p
+
+! mineral P       
+          Jacobian(ires_mp,ires_mn) = Jacobian(ires_mp,ires_mn) - &
+                   drate * this%mineral_p_stoich
+        endif 
+
+! downstream P
+        do i = 1, this%nDownstream
+           if(.not.this%b_downstream_cp_fixed(i)) then
+               ires_dp = this%downstream_ires_p(i)
+               Jacobian(ires_dp,ires_mn) = Jacobian(ires_dp,ires_mn) - &
+                        drate * this%downstream_stoich_p(i) * &
+                        this%downstream_stoich_c(i)
+           endif
+        enddo 
+       endif
+     endif  ! if aqueous
    endif  ! if N limiting
 
 ! P limiting
    if(this%bPEnabled .and. this%mineral_p_stoich < 0.0d0 .and. this%PInhibitionCoef > 0.0d0) then
 ! r     = r0 * x / (k + x)     
 ! dr/dx = r0 * k / (k + x) / (k + x) = r * k / x / (k + x)
-     conc = rt_auxvar%immobile(this%mineral_p_ispec)  
+     conc = c_mp
      drate = drate_p * this%PInhibitionCoef / (this%PInhibitionCoef + conc)
-!     drate = rate * this%PInhibitionCoef / conc / (this%PInhibitionCoef + conc)
-!     ires_p = reaction%offset_immobile + this%mineral_p_ispec      
 
+     if(this%isaqueous_mp) then
 ! upstream C
-!     ires = reaction%offset_immobile + this%upstream_ispec_c
-     Jacobian(ires_uc, ires_p) = Jacobian(ires_uc, ires_p) + drate
+        Jacobian(ires_uc, ires_mp) = Jacobian(ires_uc, ires_mp) + drate * &
+                rt_auxvar%aqueous%dtotal(ires_uc,ires_mp,iphase)
 
 ! mineral C
-!     ires_c = reaction%offset_immobile + this%mineral_c_ispec      
-     Jacobian(ires_c, ires_p) = Jacobian(ires_c, ires_p) - drate * this%mineral_c_stoich
+!     ires_c = reaction%offset_immobile + this%ispec_mc      
+        Jacobian(ires_mc, ires_mp) = Jacobian(ires_mc, ires_mp) - &
+                 drate * this%mineral_c_stoich * &
+                 rt_auxvar%aqueous%dtotal(ires_mc,ires_mp,iphase)
 
 ! downstream C
-     do i = 1, this%nDownstream
-        ires = reaction%offset_immobile + this%downstream_ispec_c(i)      
-        Jacobian(ires,ires_p) = Jacobian(ires,ires_p) - drate * this%downstream_stoich_c(i)
-     enddo 
+        do i = 1, this%nDownstream
+!        ires = reaction%offset_immobile + this%downstream_ispec_c(i)      
+           ires_dc = this%downstream_ires_c(i)
+           Jacobian(ires_dc,ires_mp) = Jacobian(ires_dc,ires_mp) - &
+                    drate * this%downstream_stoich_c(i) * &
+                    rt_auxvar%aqueous%dtotal(ires_dc,ires_mp,iphase)
+        enddo 
 
-     if(.not.this%bfixed_upstream_cp) then
+        if(.not.this%bfixed_upstream_cp) then
 ! upstream P
-!       ires = reaction%offset_immobile + this%upstream_ispec_p      
-       Jacobian(ires_up,ires_p) = Jacobian(ires_up,ires_p) + drate * this%upstream_stoich_p      
+           Jacobian(ires_up,ires_mp) = Jacobian(ires_up,ires_mp) + &
+                    drate * this%upstream_stoich_p * &
+                    rt_auxvar%aqueous%dtotal(ires_up,ires_mp,iphase)
 
 ! mineral P       
-       Jacobian(ires_p,ires_p) = Jacobian(ires_p,ires_p) - drate * this%mineral_p_stoich      
-     endif 
-
-! downstream P
-     do i = 1, this%nDownstream
-        if(.not.this%b_downstream_cp_fixed(i)) then
-          ires = reaction%offset_immobile + this%downstream_ispec_p(i)      
-          Jacobian(ires,ires_p) = Jacobian(ires,ires_p) - drate * this%downstream_stoich_p(i) * &
-                                  this%downstream_stoich_c(i)
-        endif
-     enddo 
-
-     if(this%bNEnabled) then
-       if(.not.this%bfixed_upstream_cn) then
-! upstream N
-!          ires = reaction%offset_immobile + this%upstream_ispec_n      
-          Jacobian(ires_un,ires_p) = Jacobian(ires_un,ires_p) + drate * this%upstream_stoich_n      
-
-! mineral N       
-          Jacobian(ires_n,ires_p) = Jacobian(ires_n,ires_p) - drate * this%mineral_n_stoich      
+           Jacobian(ires_mp,ires_mp) = Jacobian(ires_mp,ires_mp) - &
+                    drate * this%mineral_p_stoich * &
+                    rt_auxvar%aqueous%dtotal(ires_mp,ires_mp,iphase)
         endif 
 
-! downstream N
+! downstream P
         do i = 1, this%nDownstream
-           if(.not.this%b_downstream_cn_fixed(i)) then
-             ires = reaction%offset_immobile + this%downstream_ispec_n(i)      
-             Jacobian(ires,ires_p) = Jacobian(ires,ires_p) - drate * this%downstream_stoich_n(i) * &
-                                  this%downstream_stoich_c(i)
+           if(.not.this%b_downstream_cp_fixed(i)) then
+             ires_dp = this%downstream_ires_p(i)
+             Jacobian(ires_dp,ires_mp) = Jacobian(ires_dp,ires_mp) - &
+                      drate * this%downstream_stoich_p(i) * &
+                      this%downstream_stoich_c(i) * &
+                      rt_auxvar%aqueous%dtotal(ires_dp,ires_mp,iphase)
            endif
         enddo 
-     endif
+
+        if(this%bNEnabled) then
+          if(.not.this%bfixed_upstream_cn) then
+! upstream N
+             Jacobian(ires_un,ires_mp) = Jacobian(ires_un,ires_mp) + &
+                      drate * this%upstream_stoich_n * &     
+                      rt_auxvar%aqueous%dtotal(ires_un,ires_mp,iphase)
+
+! mineral N       
+             Jacobian(ires_mn,ires_mp) = Jacobian(ires_mn,ires_mp) - &
+                      drate * this%mineral_n_stoich * &
+                      rt_auxvar%aqueous%dtotal(ires_mn,ires_mp,iphase)
+          endif 
+
+! downstream N
+           do i = 1, this%nDownstream
+              if(.not.this%b_downstream_cn_fixed(i)) then
+                ires_dn = this%downstream_ires_n(i)
+!             ires = reaction%offset_immobile + this%downstream_ispec_n(i)      
+                Jacobian(ires_dn,ires_mp) = Jacobian(ires_dn,ires_mp) - &
+                         drate * this%downstream_stoich_n(i) * &
+                         this%downstream_stoich_c(i) * &
+                         rt_auxvar%aqueous%dtotal(ires_dn,ires_mp,iphase)
+              endif
+           enddo 
+        endif
+      else  !if aqueous
+        Jacobian(ires_uc, ires_mp) = Jacobian(ires_uc, ires_mp) + drate
+
+! mineral C
+        Jacobian(ires_mc, ires_mp) = Jacobian(ires_mc, ires_mp) - &
+                 drate * this%mineral_c_stoich
+
+! downstream C
+        do i = 1, this%nDownstream
+           ires_dc = this%downstream_ires_c(i)
+           Jacobian(ires_dc,ires_mp) = Jacobian(ires_dc,ires_mp) - &
+                    drate * this%downstream_stoich_c(i)
+        enddo 
+
+        if(.not.this%bfixed_upstream_cp) then
+! upstream P
+           Jacobian(ires_up,ires_mp) = Jacobian(ires_up,ires_mp) + &
+                    drate * this%upstream_stoich_p      
+
+! mineral P       
+           Jacobian(ires_mp,ires_mp) = Jacobian(ires_mp,ires_mp) - &
+                    drate * this%mineral_p_stoich      
+        endif 
+
+! downstream P
+        do i = 1, this%nDownstream
+           if(.not.this%b_downstream_cp_fixed(i)) then
+             ires_dp = this%downstream_ires_p(i)
+             Jacobian(ires_dp,ires_mp) = Jacobian(ires_dp,ires_mp) - &
+                      drate * this%downstream_stoich_p(i) * &
+                      this%downstream_stoich_c(i)
+           endif
+        enddo 
+
+        if(this%bNEnabled) then
+          if(.not.this%bfixed_upstream_cn) then
+! upstream N
+             Jacobian(ires_un,ires_mp) = Jacobian(ires_un,ires_mp) + &
+                      drate * this%upstream_stoich_n      
+
+! mineral N       
+             Jacobian(ires_mn,ires_mp) = Jacobian(ires_mn,ires_mp) - &
+                      drate * this%mineral_n_stoich      
+          endif 
+
+! downstream N
+           do i = 1, this%nDownstream
+              if(.not.this%b_downstream_cn_fixed(i)) then
+                ires_dn = this%downstream_ires_n(i)
+!             ires = reaction%offset_immobile + this%downstream_ispec_n(i)      
+                Jacobian(ires_dn,ires_mp) = Jacobian(ires_dn,ires_mp) - &
+                         drate * this%downstream_stoich_n(i) * &
+                         this%downstream_stoich_c(i)
+              endif
+           enddo 
+        endif
+      endif !if aqueous
    endif  ! if P limiting
 end subroutine CLM_CNPReact
 
@@ -1601,6 +2522,14 @@ subroutine CLM_CNPDestroy(this)
   call DeallocateArray(this%downstream_ispec_n) 
   call DeallocateArray(this%downstream_ispec_p) 
 
+  call DeallocateArray(this%downstream_ires_c) 
+  call DeallocateArray(this%downstream_ires_n) 
+  call DeallocateArray(this%downstream_ires_p) 
+
+  call DeallocateArray(this%downstream_isaqueous_c) 
+  call DeallocateArray(this%downstream_isaqueous_n) 
+  call DeallocateArray(this%downstream_isaqueous_p) 
+
   call DeallocateArray(this%downstream_stoich_c) 
   call DeallocateArray(this%downstream_stoich_n) 
   call DeallocateArray(this%downstream_stoich_p) 
@@ -1617,6 +2546,10 @@ subroutine CLM_CNPDestroy(this)
   call DeallocateArray(this%ispec_1st) 
   call DeallocateArray(this%ispec_mnd) 
   call DeallocateArray(this%ispec_inh) 
+
+  call DeallocateArray(this%isaqueous_1st) 
+  call DeallocateArray(this%isaqueous_mnd) 
+  call DeallocateArray(this%isaqueous_inh) 
 
   call DeallocateArray(this%half_saturation) 
   call DeallocateArray(this%inhibition_coef) 

@@ -316,6 +316,11 @@ module Reaction_Aux_module
     
   end type reaction_type
 
+ interface GetPrimarySpeciesIDFromName
+    module procedure GetPrimarySpeciesIDFromName1
+    module procedure GetPrimarySpeciesIDFromName2
+  end interface
+
   public :: ReactionCreate, &
             SpeciesIndexCreate, &
             GasSpeciesCreate, &
@@ -935,7 +940,7 @@ end function GetPrimarySpeciesCount
 ! date: 10/30/12
 !
 ! ************************************************************************** !
-function GetPrimarySpeciesIDFromName(name,reaction,option)
+function GetPrimarySpeciesIDFromName1(name,reaction,option)
 
   use Option_module
   use String_module
@@ -946,19 +951,39 @@ function GetPrimarySpeciesIDFromName(name,reaction,option)
   type(reaction_type) :: reaction
   type(option_type) :: option
 
-  PetscInt :: GetPrimarySpeciesIDFromName
+  PetscInt :: GetPrimarySpeciesIDFromName1
+
+  GetPrimarySpeciesIDFromName1 = GetPrimarySpeciesIDFromName2(name,reaction, &
+          PETSC_TRUE, option) 
+
+end function GetPrimarySpeciesIDFromName1
+
+function GetPrimarySpeciesIDFromName2(name,reaction,return_error,option)
+
+  use Option_module
+  use String_module
+  
+  implicit none
+  
+  character(len=MAXWORDLENGTH) :: name
+  type(reaction_type) :: reaction
+  type(option_type) :: option
+
+  PetscInt :: GetPrimarySpeciesIDFromName2
 
   type(aq_species_type), pointer :: species
   PetscInt :: i
 
-  GetPrimarySpeciesIDFromName = -999
+  PetscBool :: return_error
+
+  GetPrimarySpeciesIDFromName2 = -999
   
   ! if the primary species name list exists
   if (associated(reaction%primary_species_names)) then
     do i = 1, size(reaction%primary_species_names)
       if (StringCompare(name,reaction%primary_species_names(i), &
                         MAXWORDLENGTH)) then
-        GetPrimarySpeciesIDFromName = i
+        GetPrimarySpeciesIDFromName2 = i
         exit
       endif
     enddo
@@ -969,20 +994,20 @@ function GetPrimarySpeciesIDFromName(name,reaction,option)
       if (.not.associated(species)) exit
       i = i + 1
       if (StringCompare(name,species%name,MAXWORDLENGTH)) then
-        GetPrimarySpeciesIDFromName = i
+        GetPrimarySpeciesIDFromName2 = i
         exit
       endif
       species => species%next
     enddo
   endif
 
-  if (GetPrimarySpeciesIDFromName <= 0) then
+  if (return_error .and. GetPrimarySpeciesIDFromName2 <= 0) then
     option%io_buffer = 'Species "' // trim(name) // &
       '" not founds among primary species in GetPrimarySpeciesIDFromName().'
     call printErrMsg(option)
   endif
   
-end function GetPrimarySpeciesIDFromName
+end function GetPrimarySpeciesIDFromName2
 
 ! ************************************************************************** !
 !
