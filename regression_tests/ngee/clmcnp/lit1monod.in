@@ -1,0 +1,145 @@
+:Description: Batch CLM-CNP simulation
+
+:=========================== regression =======================================
+REGRESSION
+  CELLS
+    1
+  /
+END
+
+:=========================== useful tranport parameters =======================
+UNIFORM_VELOCITY 0.d0 0.d0 0.d0 
+
+REFERENCE_DENSITY 1.d3
+
+:=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    A(aq)
+  /
+  IMMOBILE_SPECIES
+    C
+    SOM1
+    Lit1
+    MBC
+  /
+  REACTION_SANDBOX
+    CLM-CNP
+      UPSTREAM
+        CPOOL Lit1
+      /
+      DOWNSTREAM
+        CPOOL SOM1 0.56
+      /
+      DOWNSTREAM
+        CPOOL MBC  0.05
+      /
+     FIRSTORDER MBC
+     MONOD Lit1 1.0d-4
+     RATE_CONSTANT 7.0 1/d 
+    /
+  /
+:  LOG_FORMULATION
+  DATABASE ../CLM-CN_database.dat
+  OUTPUT
+    all
+  /
+END
+
+:=========================== solver options ===================================
+LINEAR_SOLVER TRANSPORT
+  SOLVER DIRECT
+END
+
+NEWTON_SOLVER TRANSPORT
+  ATOL 1.d-50
+:  RTOL 1.d-12
+END
+
+:=========================== discretization ===================================
+GRID
+  TYPE structured
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 1.d0
+    0.d0 1.d0
+    0.d0 1.d0
+  /
+END
+
+:=========================== fluid properties =================================
+FLUID_PROPERTY 
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+:=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+END
+
+:=========================== output options ===================================
+OUTPUT
+  PERIODIC_OBSERVATION TIMESTEP 1
+END
+
+:=========================== times ============================================
+TIME
+  FINAL_TIME 50.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d-2 h
+  MAXIMUM_TIMESTEP_SIZE 1.d-1 d
+END
+
+:=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+REGION obs_pt
+  COORDINATE 0.5 0.5 0.5
+END
+
+:=========================== observation points ===============================
+OBSERVATION
+  REGION obs_pt
+END
+
+:=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE zero_gradient
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+:=========================== transport constraints ============================
+CONSTRAINT initial
+  CONCENTRATIONS
+    A(aq)  1.d-40     T  ! moles/L
+  /
+  IMMOBILE
+    C     1.d-6
+    SOM1  1.d-10 ! moles C/m^3
+    Lit1  1.d-3    
+    MBC   1.d-6
+  /
+END
+
+:=========================== condition couplers ===============================
+: initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+:=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+
