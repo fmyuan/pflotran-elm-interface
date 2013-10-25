@@ -50,7 +50,7 @@ CHEMISTRY
     /
   /
 :  LOG_FORMULATION
-  DATABASE ./CLM-CN_database.dat
+  DATABASE ../CLM-CN_database.dat
   OUTPUT
     all
   /
