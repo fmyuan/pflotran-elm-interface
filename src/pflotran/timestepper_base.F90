@@ -161,7 +161,7 @@ end subroutine TimestepperBaseInit
 subroutine TimestepperBaseRead(this,input,option)
 
   use Option_module
-  use Input_module
+  use Input_Aux_module
   
   implicit none
 
@@ -185,7 +185,7 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
 
   use Option_module
   use String_module
-  use Input_module
+  use Input_Aux_module
   
   implicit none
   
@@ -322,8 +322,9 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
   PetscBool :: revert_due_to_sync_time
   type(waypoint_type), pointer :: cur_waypoint
 
-  option%io_buffer = 'StepperSetTargetTime()'
-  call printMsg(option)
+!geh: for debugging
+!  option%io_buffer = 'StepperSetTargetTime()'
+!  call printMsg(option)
   
   if (this%time_step_cut_flag) then
     this%time_step_cut_flag = PETSC_FALSE
