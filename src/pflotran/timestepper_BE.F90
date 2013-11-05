@@ -137,7 +137,7 @@ subroutine TimestepperBERead(this,input,option)
 
   use Option_module
   use String_module
-  use Input_module
+  use Input_Aux_module
   use Utility_module
   
   implicit none
@@ -152,7 +152,7 @@ subroutine TimestepperBERead(this,input,option)
   input%ierr = 0
   do
   
-    call InputReadFlotranString(input,option)
+    call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
@@ -277,10 +277,11 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   solver => this%solver
   option => process_model%option
   
-  write(process_model%option%io_buffer,'(es12.5)') this%dt
-  process_model%option%io_buffer = 'StepperStepDT(' // &
-    trim(adjustl(process_model%option%io_buffer)) // ')'
-  call printMsg(process_model%option)  
+!geh: for debugging
+!  write(process_model%option%io_buffer,'(es12.5)') this%dt
+!  process_model%option%io_buffer = 'StepperStepDT(' // &
+!    trim(adjustl(process_model%option%io_buffer)) // ')'
+!  call printMsg(process_model%option)  
 
   tconv = process_model%output_option%tconv
   tunit = process_model%output_option%tunit
