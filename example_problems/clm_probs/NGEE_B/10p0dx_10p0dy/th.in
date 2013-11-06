@@ -69,35 +69,29 @@ FLOW_CONDITION initial
   TYPE
     PRESSURE hydrostatic
     TEMPERATURE dirichlet
-    ENTHALPY dirichlet
   /
   INTERPOLATION linear
   DATUM 0.d0 0.d0 3000.d0
   PRESSURE 101325.d0
   TEMPERATURE 100.D0
-  ENTHALPY 0.D0
 END
 
 FLOW_CONDITION et
   TYPE
     RATE mass_rate
     TEMPERATURE dirichlet
-	ENTHALPY dirichlet
   /
   RATE  0.d0
   TEMPERATURE 1.D0
-  ENTHALPY 0.D0 
 END
 
 FLOW_CONDITION gflux
   TYPE
    PRESSURE neumann
    TEMPERATURE neumann
-   ENTHALPY dirichlet
   /
   FLUX  0.D0
   TEMPERATURE 0.d0
-  ENTHALPY 0.D0 
 END
 
 :========================== initial and boundary conditions =================
