@@ -269,7 +269,7 @@ contains
   ! ************************************************************************** !
   subroutine MappingReadTxtFile(map,map_filename,option)
   
-    use Input_module
+    use Input_Aux_module
     use Option_module
     use String_module
     use PFLOTRAN_Constants_module
@@ -315,7 +315,7 @@ contains
 
       ! Read first six entries in the mapping file.
       do nheader = 1, 6
-        call InputReadFlotranString(input,option)
+        call InputReadPflotranString(input,option)
         call InputReadWord(input,option,card,PETSC_TRUE)
         call StringToLower(card)
 
@@ -367,7 +367,7 @@ contains
         
         ! Read the data
         do ii = 1,nread
-          call InputReadFlotranString(input,option)
+          call InputReadPflotranString(input,option)
           call InputReadInt(input,option,wts_row_tmp(ii))
           call InputReadInt(input,option,wts_col_tmp(ii))
           call InputReadDouble(input,option,wts_tmp(ii))
@@ -500,7 +500,7 @@ contains
 #define HDF_NATIVE_INTEGER H5T_NATIVE_INTEGER
 #endif
 
-    use Input_module
+    use Input_Aux_module
     use Option_module
     
     implicit none

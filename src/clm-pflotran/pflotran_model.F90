@@ -168,8 +168,8 @@ contains
     model%pause_time_2 = -1.0d0
 
     ! FIXME(bja, 2013-07-17) hard code subsurface for now....
-    model%option%simulation_mode = 'SURFACE_SUBSURFACE'
-    !model%option%simulation_mode = 'SUBSURFACE'
+    !model%option%simulation_mode = 'SURFACE_SUBSURFACE'
+    model%option%simulation_mode = 'SUBSURFACE'
     select case(model%option%simulation_mode)
       case('SUBSURFACE')
          call SubsurfaceInitialize(model%simulation, model%option)
@@ -184,7 +184,8 @@ contains
          call printErrMsg(model%option)
     end select
     ! NOTE(bja, 2013-07-15) needs to go before InitializeRun()...?
-    call pflotranModelSetupMappingFiles(model)
+    !call pflotranModelSetupMappingFiles(model)
+    call printErrMsg(model%option,'debugging')
 
     pflotranModelCreate => model
 
@@ -210,7 +211,7 @@ contains
 
     use String_module
     use Option_module
-    use Input_module
+    use Input_Aux_module
     use Mapping_module
 
     implicit none
@@ -263,7 +264,7 @@ contains
     call InputFindStringInFile(input,model%option,string)
 
     do
-      call InputReadFlotranString(input, model%option)
+      call InputReadPflotranString(input, model%option)
       if (InputCheckExit(input, model%option)) exit
       if (input%ierr /= 0) exit
 
@@ -374,7 +375,7 @@ contains
   subroutine pflotranModelStepperCheckpoint(model, id_stamp)
 
     use Option_module
-    use Timestepper_module, only : StepperCheckpoint
+    !use Timestepper_module, only : StepperCheckpoint
 
     implicit none
 
@@ -382,7 +383,9 @@ contains
     character(len=MAXWORDLENGTH), intent(in) :: id_stamp
     PetscViewer :: viewer
 
-    call model%simulation%process_model_coupler_list%Checkpoint(viewer, -1, id_stamp)
+    ! Note(GB, 2013-11-05): In process-model approach, subroutine 
+    !                       Checkpoint() is not defined
+    !call model%simulation%process_model_coupler_list%Checkpoint(viewer, -1, id_stamp)
 
   end subroutine pflotranModelStepperCheckpoint
 
@@ -681,7 +684,7 @@ end subroutine pflotranModelSetICs
                                       grid_clm_npts_local, &
                                       map_id)
 
-    use Input_module
+    use Input_Aux_module
     use Option_module
     use Realization_class
     use Grid_module
@@ -854,7 +857,7 @@ end subroutine pflotranModelSetICs
                                             grid_clm_npts_local, &
                                             map_id)
 
-    use Input_module
+    use Input_Aux_module
     use Option_module
     use Realization_class
     use Grid_module
@@ -1305,7 +1308,7 @@ end subroutine pflotranModelSetICs
                                             grid_clm_npts_local, &
                                             map_id)
 
-    use Input_module
+    use Input_Aux_module
     use Option_module
     use Realization_class
     use Grid_module

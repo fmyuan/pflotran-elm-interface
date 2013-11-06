@@ -6,7 +6,7 @@ program pflotran_interface_main
        CLM2PF_RFLUX_MAP_ID, PF2CLM_SURF_MAP_ID
   use clm_pflotran_interface_data
   use Mapping_module
-  use Input_module
+  use Input_Aux_module
   use Option_module
   
   use Simulation_Base_class, only : simulation_base_type
@@ -51,6 +51,7 @@ program pflotran_interface_main
   ! Create the model
   filename = 'pflotran'
   pflotran_m => pflotranModelCreate(MPI_COMM_WORLD, filename)
+  call printErrMsg(pflotran_m%option,'debugging')
 
   select type (simulation => pflotran_m%simulation)
     class is (subsurface_simulation_type)
@@ -110,7 +111,7 @@ program pflotran_interface_main
   call CLMPFLOTRANIDataCreateVec(MPI_COMM_WORLD)
 
   ! Set mapping between CLM and PFLOTRAN
-  !call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM2PF_FLUX_MAP_ID)
+  call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, 1)
   !call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM2PF_SOIL_MAP_ID)
   !call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, PF2CLM_FLUX_MAP_ID)
   !call pflotranModelInitMapping(pflotran_m, clm_surf_cell_ids, clm_surf_npts, CLM2PF_GFLUX_MAP_ID)
