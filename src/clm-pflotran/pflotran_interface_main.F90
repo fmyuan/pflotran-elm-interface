@@ -51,7 +51,6 @@ program pflotran_interface_main
   ! Create the model
   filename = 'pflotran'
   pflotran_m => pflotranModelCreate(MPI_COMM_WORLD, filename)
-  call printErrMsg(pflotran_m%option,'debugging')
 
   select type (simulation => pflotran_m%simulation)
     class is (subsurface_simulation_type)
