@@ -888,7 +888,7 @@ contains
     call VecAssemblyEnd(nonzero_row_count_vec,ierr)
     deallocate(row)
     deallocate(row_count)
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm, 'nonzero_row_count_vec.out', viewer, ierr)
     call VecView(nonzero_row_count_vec, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
@@ -919,7 +919,7 @@ contains
     call VecRestoreArrayF90(nonzero_row_count_vec,vloc1,ierr)
     call VecRestoreArrayF90(cumsum_nonzero_row_count_vec,vloc2,ierr)
 
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm, 'cumsum_nonzero_row_count_vec.out', viewer, ierr)
     call VecView(cumsum_nonzero_row_count_vec, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
@@ -949,7 +949,7 @@ contains
                        PETSC_COPY_VALUES,is_to,ierr)
     deallocate(tmp_int_array)
     
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm, 'is_to.out', viewer, ierr)
     call ISView(is_to,viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
@@ -958,7 +958,7 @@ contains
     call ISCreateBlock(option%mycomm,1,map%d_ncells_ghd, &
                       map%d_ids_ghd_nidx, PETSC_COPY_VALUES,is_from,ierr)
 
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm, 'is_from.out', viewer, ierr)
     call ISView(is_from, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
@@ -970,7 +970,7 @@ contains
                           vec_scat,ierr)
     call ISDestroy(is_from,ierr)
     call ISDestroy(is_to,ierr)
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm, 'vec_scat.out', viewer, ierr)
     call VecScatterView(vec_scat, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
@@ -1025,7 +1025,7 @@ contains
     ! Create an index set to scatter from
     call ISCreateBlock(option%mycomm,1,map%s2d_s_ncells,tmp_int_array, &
          PETSC_COPY_VALUES,is_from,ierr)
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm, 'is_from2.out', viewer, ierr)
     call ISView(is_from,viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
@@ -1038,7 +1038,7 @@ contains
     call ISCreateBlock(option%mycomm,1,map%s2d_s_ncells,tmp_int_array, &
          PETSC_COPY_VALUES,is_to,ierr)
     deallocate(tmp_int_array)
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm, 'is_to2.out', viewer, ierr)
     call ISView(is_to,viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
@@ -1051,7 +1051,7 @@ contains
 
     ! Create scatter context
     call VecScatterCreate(row_vec,is_from,row_loc_vec,is_to,vec_scat,ierr)
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm, 'scatter_wts_data.out', viewer, ierr)
     call VecScatterView(vec_scat, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
@@ -1256,7 +1256,7 @@ contains
   
     deallocate(index)
 
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     write(string,*) option%myrank
     string = 'mat_wts' // trim(adjustl(string)) // '.out'
     call PetscViewerASCIIOpen(PETSC_COMM_SELF, trim(string), viewer, ierr)
@@ -1355,7 +1355,7 @@ contains
        v_loc(ii) = map%s_ids_loc_nidx(ii)
     enddo
     call VecRestoreArrayF90(nindex,v_loc,ierr)
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm,'nindex.out',viewer,ierr)
     call VecView(nindex,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
@@ -1368,7 +1368,7 @@ contains
        v_loc(ii) = istart + ii - 1
     enddo
     call VecRestoreArrayF90(pindex,v_loc,ierr)
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm,'pindex.out',viewer,ierr)
     call VecView(pindex,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
@@ -1381,7 +1381,7 @@ contains
     enddo
     call ISCreateBlock(option%mycomm, 1, map%s_ncells_loc, tmp_int_array, PETSC_COPY_VALUES, &
          is_from, ierr)
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm,'is_from.out', &
                               viewer,ierr)
     call ISView(is_from,viewer,ierr)
@@ -1395,7 +1395,7 @@ contains
     call ISCreateBlock(option%mycomm, 1, map%s_ncells_loc, tmp_int_array, PETSC_COPY_VALUES, &
          is_to, ierr)
     deallocate(tmp_int_array)
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm,'is_to.out', &
                               viewer,ierr)
     call ISView(is_to,viewer,ierr)
@@ -1406,7 +1406,7 @@ contains
     call VecScatterCreate(nindex, is_from, N2P, is_to, vscat, ierr)
     call ISDestroy(is_to,ierr)
     call ISDestroy(is_from,ierr)
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm, 'vscat.out', viewer, ierr)
     call VecScatterView(vscat, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
@@ -1416,7 +1416,7 @@ contains
     call VecScatterBegin(vscat, pindex, N2P, INSERT_VALUES, SCATTER_FORWARD, ierr)
     call VecScatterEnd(  vscat, pindex, N2P, INSERT_VALUES, SCATTER_FORWARD, ierr)
     call VecScatterDestroy(vscat,ierr)
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm,'N2P.out',viewer,ierr)
     call VecView(N2P,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
@@ -1449,7 +1449,7 @@ contains
     ! Create 'is_to'
     call ISCreateBlock(option%mycomm, 1, map%s2d_s_ncells_dis, map%s2d_s_ids_nidx_dis, &
          PETSC_COPY_VALUES, is_to, ierr)
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm, 'is_to1.out', viewer, ierr)
     call ISView(is_to, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
@@ -1463,7 +1463,7 @@ contains
     enddo
     call ISCreateBlock(option%mycomm, 1, map%s2d_s_ncells_dis, tmp_int_array, &
          PETSC_COPY_VALUES, is_from, ierr)
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm, 'is_from1.out', viewer, ierr)
     call ISView(is_from, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
@@ -1473,7 +1473,7 @@ contains
     call VecScatterCreate(N2P, is_to, pindex_req, is_from, vscat, ierr)
     call ISDestroy(is_to,ierr)
     call ISDestroy(is_from, ierr)
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm,'vscat.out',viewer,ierr)
     call VecScatterView(vscat,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
@@ -1482,7 +1482,7 @@ contains
     ! Scatter data
     call VecScatterBegin(vscat, N2P, pindex_req, INSERT_VALUES, SCATTER_FORWARD, ierr)
     call VecScatterEnd(  vscat, N2P, pindex_req, INSERT_VALUES, SCATTER_FORWARD, ierr)
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm,'pindex_req.out',viewer,ierr)
     call VecView(pindex_req,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
@@ -1499,7 +1499,7 @@ contains
     call VecRestoreArrayF90(pindex_req,v_loc,ierr)
 
     call VecScatterCreate(N2P, is_to, pindex_req, is_from, map%s2d_scat_s_gb2disloc, ierr)
-#ifdef GB_DEBUG
+#ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm,'s2d_scat_s_gb2disloc.out',viewer,ierr)
     call VecScatterView(map%s2d_scat_s_gb2disloc,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
