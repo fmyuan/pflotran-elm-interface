@@ -374,7 +374,6 @@ contains
   subroutine pflotranModelStepperCheckpoint(model, id_stamp)
 
     use Option_module
-    !use Timestepper_module, only : StepperCheckpoint
 
     implicit none
 
@@ -382,9 +381,7 @@ contains
     character(len=MAXWORDLENGTH), intent(in) :: id_stamp
     PetscViewer :: viewer
 
-    ! Note(GB, 2013-11-05): In process-model approach, subroutine 
-    !                       Checkpoint() is not defined
-    !call model%simulation%process_model_coupler_list%Checkpoint(viewer, -1, id_stamp)
+    call model%simulation%process_model_coupler_list%Checkpoint(viewer, -1, id_stamp)
 
   end subroutine pflotranModelStepperCheckpoint
 
