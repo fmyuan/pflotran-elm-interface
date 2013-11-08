@@ -1929,8 +1929,8 @@ end subroutine pflotranModelSetICs
     if(pflotran_model%option%iflowmode==TH_MODE) then
       call MappingSourceToDestination(pflotran_model%map_clm2pf_gflux, &
                                       pflotran_model%option, &
-                                      clm_pf_idata%gflux_clm, &
-                                      clm_pf_idata%gflux_pf)
+                                      clm_pf_idata%gflux_subsurf_clm, &
+                                      clm_pf_idata%gflux_subsurf_pf)
     endif
 
   end subroutine pflotranModelUpdateFlowConds
