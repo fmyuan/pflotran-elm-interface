@@ -3135,7 +3135,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
 
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   PetscReal, pointer :: qflx_pf_p(:)
-  PetscReal, pointer :: gflux_pf_p(:)
+  PetscReal, pointer :: gflux_subsurf_pf_p(:)
   PetscBool :: clm_condition
 #endif
   
@@ -3181,7 +3181,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   call VecGetArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr)
-  call VecGetArrayF90(clm_pf_idata%gflux_pf, gflux_pf_p, ierr)
+  call VecGetArrayF90(clm_pf_idata%gflux_subsurf_pf, gflux_subsurf_pf_p, ierr)
 #endif
   
   ! Calculating volume fractions for primary and secondary continua
@@ -3483,7 +3483,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       ! boundary condition for heat equation
       if(clm_condition) then
         boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
-          gflux_pf_p(iconn)
+          gflux_subsurf_pf_p(iconn)
       endif
 #endif
 
@@ -3557,7 +3557,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
 
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   call VecRestoreArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr)
-  call VecRestoreArrayF90(clm_pf_idata%gflux_pf, gflux_pf_p, ierr)
+  call VecRestoreArrayF90(clm_pf_idata%gflux_subsurf_pf, gflux_subsurf_pf_p, ierr)
 #endif
 
   if (realization%debug%vecview_residual) then
