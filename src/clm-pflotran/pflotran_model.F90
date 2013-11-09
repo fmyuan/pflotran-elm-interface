@@ -18,13 +18,31 @@ module pflotran_model_module
 #include "finclude/petscvec.h"
 !#include "finclude/petscvec.h90"
 
-  ! module level constants
-  PetscInt, parameter, public :: CLM2PF_FLUX_MAP_ID  = 1 ! 3D --> 3D
-  PetscInt, parameter, public :: CLM2PF_SOIL_MAP_ID  = 2 ! 3D --> extended 3D
-  PetscInt, parameter, public :: PF2CLM_FLUX_MAP_ID  = 3 ! 3D --> 3D
-  PetscInt, parameter, public :: CLM2PF_GFLUX_MAP_ID = 4 ! 3D --> SURF-3D
-  PetscInt, parameter, public :: CLM2PF_RFLUX_MAP_ID = 5 ! 3D --> SURF-2D
-  PetscInt, parameter, public :: PF2CLM_SURF_MAP_ID  = 6 ! SURF-2D --> 3D
+  ! Note:
+  !
+  ! CLM has the following:
+  !   (i) 3D subsurface grid (CLM_SUB);
+  !   (ii) 2D surface grid (CLM_SRF).
+  ! CLM decomposes the 3D subsurface grid across processors in a 2D (i.e.
+  ! cells in Z are not split across processors). Thus, the surface cells of
+  ! 3D subsurface grid are on the same processors as the 2D surface grid.
+  !
+  ! PFLOTRAN has the following:
+  !   (i) 3D subsurface grid (PF_SUB);
+  !   (ii) surface control volumes of 3D subsurface grid (PF_2DSUB);
+  !   (iii) 2D surface grid (PF_SRF).
+  ! In PFLOTRAN, control volumes in PF_2DSUB and PF_SRF may reside on different
+  ! processors. PF_SUB and PF_2DSUB are derived from simulation%realization;
+  ! while PF_SRF refers to simulation%surf_realization.
+
+  ! map level constants
+  PetscInt, parameter, public :: CLM_SUB_TO_PF_SUB           = 1 ! 3D --> 3D
+  PetscInt, parameter, public :: CLM_SUB_TO_PF_EXTENDED_SUB  = 2 ! 3D --> extended 3D
+  PetscInt, parameter, public :: CLM_SRF_TO_PF_2DSUB         = 3 ! 2D --> SURF of 3D grid
+  PetscInt, parameter, public :: CLM_SRF_TO_PF_SRF           = 4 ! 2D --> 2D SURF grid
+  PetscInt, parameter, public :: PF_SUB_TO_CLM_SUB           = 5 ! 3D --> 3D
+  PetscInt, parameter, public :: PF_SRF_TO_CLM_SRF           = 6 ! 2D SURF grid --> 2D
+
 
   PetscInt, parameter, public :: CLM_3D_MESH      = 1
   PetscInt, parameter, public :: PF_3D_MESH       = 2
@@ -46,12 +64,12 @@ module pflotran_model_module
     PetscReal :: pause_time_2
     type(inside_each_overlapped_cell), pointer :: pf_cells(:)
     type(inside_each_overlapped_cell), pointer :: clm_cells(:)
-    type(mapping_type),                pointer :: map_clm2pf
-    type(mapping_type),                pointer :: map_clm2pf_soils
-    type(mapping_type),                pointer :: map_clm2pf_gflux
-    type(mapping_type),                pointer :: map_clm2pf_rflux
-    type(mapping_type),                pointer :: map_pf2clm
-    type(mapping_type),                pointer :: map_pf2clm_surf
+    type(mapping_type),                pointer :: map_clm_sub_to_pf_sub
+    type(mapping_type),                pointer :: map_clm_sub_to_pf_extended_sub
+    type(mapping_type),                pointer :: map_clm_srf_to_pf_2dsub
+    type(mapping_type),                pointer :: map_clm_srf_to_pf_srf
+    type(mapping_type),                pointer :: map_pf_sub_to_clm_sub
+    type(mapping_type),                pointer :: map_pf_srf_to_clm_srf
      
     Vec :: hksat_x_clm
     Vec :: hksat_y_clm
@@ -231,19 +249,19 @@ contains
 
     nullify(model%pf_cells)
     nullify(model%clm_cells)
-    nullify(model%map_clm2pf)
-    nullify(model%map_clm2pf_soils)
-    nullify(model%map_clm2pf_gflux)
-    nullify(model%map_clm2pf_rflux)
-    nullify(model%map_pf2clm)
-    nullify(model%map_pf2clm_surf)
+    nullify(model%map_clm_sub_to_pf_sub)
+    nullify(model%map_clm_sub_to_pf_extended_sub)
+    nullify(model%map_clm_srf_to_pf_2dsub)
+    nullify(model%map_clm_srf_to_pf_srf)
+    nullify(model%map_pf_sub_to_clm_sub)
+    nullify(model%map_pf_srf_to_clm_srf)
 
-    model%map_clm2pf       => MappingCreate()
-    model%map_clm2pf_soils => MappingCreate()
-    model%map_clm2pf_gflux => MappingCreate()
-    model%map_clm2pf_rflux => MappingCreate()
-    model%map_pf2clm       => MappingCreate()
-    model%map_pf2clm_surf  => MappingCreate()
+    model%map_clm_sub_to_pf_sub          => MappingCreate()
+    model%map_clm_sub_to_pf_extended_sub => MappingCreate()
+    model%map_clm_srf_to_pf_2dsub        => MappingCreate()
+    model%map_clm_srf_to_pf_srf          => MappingCreate()
+    model%map_pf_sub_to_clm_sub          => MappingCreate()
+    model%map_pf_srf_to_clm_srf          => MappingCreate()
 
     model%nlclm = -1
     model%ngclm = -1
@@ -273,38 +291,38 @@ contains
 
       select case(trim(word))
         case('CLM2PF_FLUX_FILE')
-          call InputReadNChars(input, model%option, model%map_clm2pf%filename, &
+          call InputReadNChars(input, model%option, model%map_clm_sub_to_pf_sub%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
-          model%map_clm2pf%filename = trim(model%map_clm2pf%filename)//CHAR(0)
+          model%map_clm_sub_to_pf_sub%filename = trim(model%map_clm_sub_to_pf_sub%filename)//CHAR(0)
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')   
           clm2pf_flux_file=PETSC_TRUE
         case('CLM2PF_SOIL_FILE')
-          call InputReadNChars(input, model%option, model%map_clm2pf_soils%filename, &
+          call InputReadNChars(input, model%option, model%map_clm_sub_to_pf_extended_sub%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')   
           clm2pf_soil_file=PETSC_TRUE
         case('CLM2PF_GFLUX_FILE')
-          call InputReadNChars(input, model%option, model%map_clm2pf_gflux%filename, &
+          call InputReadNChars(input, model%option, model%map_clm_srf_to_pf_2dsub%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_gflux_file=PETSC_TRUE
         case('CLM2PF_RFLUX_FILE')
-          call InputReadNChars(input, model%option, model%map_clm2pf_rflux%filename, &
+          call InputReadNChars(input, model%option, model%map_clm_srf_to_pf_srf%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_rflux_file=PETSC_TRUE
         case('PF2CLM_SURF_FILE')
-          call InputReadNChars(input, model%option, model%map_pf2clm_surf%filename, &
+          call InputReadNChars(input, model%option, model%map_pf_srf_to_clm_srf%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           pf2clm_surf_file=PETSC_TRUE
         case('PF2CLM_FLUX_FILE')
-          call InputReadNChars(input, model%option, model%map_pf2clm%filename, &
+          call InputReadNChars(input, model%option, model%map_pf_sub_to_clm_sub%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')   
@@ -448,7 +466,7 @@ subroutine pflotranModelSetICs(pflotran_model)
     field           => realization%field
     global_aux_vars  => patch%aux%Global%aux_vars
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%press_clm, &
                                     clm_pf_idata%press_pf)
@@ -578,32 +596,32 @@ end subroutine pflotranModelSetICs
           'Current PFLOTRAN mode not supported by pflotranModelSetSoilProp')
     end select
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%hksat_x_clm, &
                                     clm_pf_idata%hksat_x_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%hksat_y_clm, &
                                     clm_pf_idata%hksat_y_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%hksat_z_clm, &
                                     clm_pf_idata%hksat_z_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%sucsat_clm, &
                                     clm_pf_idata%sucsat_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%bsw_clm, &
                                     clm_pf_idata%bsw_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%watsat_clm, &
                                     clm_pf_idata%watsat_pf)
@@ -737,7 +755,7 @@ end subroutine pflotranModelSetICs
     patch           => realization%patch
     grid            => patch%grid
 
-    if(map_id==CLM2PF_GFLUX_MAP_ID) then
+    if(map_id==CLM_SRF_TO_PF_2DSUB) then
       call pflotranModelInitMappingSurf3D(pflotran_model,  &
                                           grid_clm_cell_ids_nindex, &
                                           grid_clm_npts_local, &
@@ -745,7 +763,7 @@ end subroutine pflotranModelSetICs
       return
     endif
 
-    if(map_id==CLM2PF_RFLUX_MAP_ID .or. map_id==PF2CLM_SURF_MAP_ID) then
+    if(map_id==CLM_SRF_TO_PF_SRF .or. map_id==PF_SRF_TO_CLM_SRF) then
       call pflotranModelInitMappingSurf2D(pflotran_model,  &
                                           grid_clm_cell_ids_nindex, &
                                           grid_clm_npts_local, &
@@ -759,16 +777,16 @@ end subroutine pflotranModelSetICs
 
     ! Choose the appriopriate map
     select case(map_id)
-      case(CLM2PF_FLUX_MAP_ID)
-        map => pflotran_model%map_clm2pf
+      case(CLM_SUB_TO_PF_SUB)
+        map => pflotran_model%map_clm_sub_to_pf_sub
         source_mesh_id = CLM_3D_MESH
         dest_mesh_id = PF_3D_MESH
-      case(CLM2PF_SOIL_MAP_ID)
-        map => pflotran_model%map_clm2pf_soils
+      case(CLM_SUB_TO_PF_EXTENDED_SUB)
+        map => pflotran_model%map_clm_sub_to_pf_extended_sub
         source_mesh_id = CLM_3D_MESH
         dest_mesh_id = PF_3D_MESH
-      case(PF2CLM_FLUX_MAP_ID)
-        map => pflotran_model%map_pf2clm
+      case(PF_SUB_TO_CLM_SUB)
+        map => pflotran_model%map_pf_sub_to_clm_sub
         source_mesh_id = PF_3D_MESH
       case default
         option%io_buffer = 'Invalid map_id argument to pflotranModelInitMapping'
@@ -931,8 +949,8 @@ end subroutine pflotranModelSetICs
 
     ! Choose the appriopriate map
     select case(map_id)
-      case(CLM2PF_GFLUX_MAP_ID)
-        map => pflotran_model%map_clm2pf_gflux
+      case(CLM_SRF_TO_PF_2DSUB)
+        map => pflotran_model%map_clm_srf_to_pf_2dsub
         source_mesh_id = CLM_3D_MESH
         dest_mesh_id = PF_SURF_3D_MESH
       case default
@@ -1391,12 +1409,12 @@ end subroutine pflotranModelSetICs
 
     ! Choose the appriopriate map
     select case(map_id)
-      case(CLM2PF_RFLUX_MAP_ID)
-        map => pflotran_model%map_clm2pf_rflux
+      case(CLM_SRF_TO_PF_SRF)
+        map => pflotran_model%map_clm_srf_to_pf_srf
         source_mesh_id = CLM_3D_MESH
         dest_mesh_id = PF_SURF_2D_MESH
-      case(PF2CLM_SURF_MAP_ID)
-        map => pflotran_model%map_pf2clm_surf
+      case(PF_SRF_TO_CLM_SRF)
+        map => pflotran_model%map_pf_srf_to_clm_srf
         source_mesh_id = PF_SURF_2D_MESH
         dest_mesh_id = CLM_3D_MESH
       case default
@@ -1934,7 +1952,7 @@ end subroutine pflotranModelSetICs
     PetscErrorCode                            :: ierr
     PetscInt                                  :: press_dof
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qflx_clm, &
                                     clm_pf_idata%qflx_pf)
@@ -2064,7 +2082,7 @@ end subroutine pflotranModelSetICs
     PetscInt                                  :: press_dof
 
     ! Map ground-heat flux from CLM--to--PF grid
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_gflux, &
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%gflux_subsurf_clm, &
                                     clm_pf_idata%gflux_subsurf_pf)
@@ -2154,7 +2172,7 @@ end subroutine pflotranModelSetICs
     PetscInt                                  :: iconn
     PetscErrorCode                            :: ierr
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_rflux, &
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_srf, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rain_clm, &
                                     clm_pf_idata%rain_pf)
@@ -2315,7 +2333,7 @@ end subroutine pflotranModelSetICs
     enddo
     call VecRestoreArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
 
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%sat_pf, &
                                     clm_pf_idata%sat_clm)
@@ -2384,7 +2402,7 @@ end subroutine pflotranModelSetICs
     enddo
     call VecRestoreArrayF90(clm_pf_idata%h2osfc_pf, h2osfc_pf_p, ierr)
 
-    call MappingSourceToDestination(pflotran_model%map_pf2clm_surf, &
+    call MappingSourceToDestination(pflotran_model%map_pf_srf_to_clm_srf, &
                                     pflotran_model%option, &
                                     clm_pf_idata%h2osfc_pf, &
                                     clm_pf_idata%h2osfc_clm)
@@ -2459,14 +2477,14 @@ end subroutine pflotranModelSetICs
 
     call VecAssemblyBegin(clm_pf_idata%temp_pf,ierr)
     call VecAssemblyEnd(clm_pf_idata%temp_pf,ierr)
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%temp_pf, &
                                     clm_pf_idata%temp_clm)
 
 !    call VecAssemblyBegin(clm_pf_idata%sat_ice_pf,ierr)
 !    call VecAssemblyEnd(clm_pf_idata%sat_ice_pf,ierr)
-!    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+!    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
 !                                    pflotran_model%option, &
 !                                    clm_pf_idata%sat_ice_pf, &
 !                                    clm_pf_idata%sat_ice_clm)
@@ -2670,7 +2688,7 @@ end subroutine pflotranModelSetICs
 
     call VecAssemblyBegin(clm_pf_idata%area_top_face_pf,ierr)
     call VecAssemblyEnd(clm_pf_idata%area_top_face_pf,ierr)
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%area_top_face_pf, &
                                     clm_pf_idata%area_top_face_clm)
