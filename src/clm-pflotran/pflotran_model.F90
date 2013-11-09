@@ -43,11 +43,12 @@ module pflotran_model_module
   PetscInt, parameter, public :: PF_SUB_TO_CLM_SUB           = 5 ! 3D --> 3D
   PetscInt, parameter, public :: PF_SRF_TO_CLM_SRF           = 6 ! 2D SURF grid --> 2D
 
-
-  PetscInt, parameter, public :: CLM_3D_MESH      = 1
-  PetscInt, parameter, public :: PF_3D_MESH       = 2
-  PetscInt, parameter, public :: PF_SURF_3D_MESH  = 3
-  PetscInt, parameter, public :: PF_SURF_2D_MESH  = 4
+  ! mesh ids
+  PetscInt, parameter, public :: CLM_SUB_MESH   = 1
+  PetscInt, parameter, public :: CLM_SRF_MESH   = 2
+  PetscInt, parameter, public :: PF_SUB_MESH    = 3
+  PetscInt, parameter, public :: PF_2DSUB_MESH  = 4
+  PetscInt, parameter, public :: PF_SRF_MESH    = 5
 
   type, public :: inside_each_overlapped_cell
      PetscInt           :: id
@@ -779,15 +780,15 @@ end subroutine pflotranModelSetICs
     select case(map_id)
       case(CLM_SUB_TO_PF_SUB)
         map => pflotran_model%map_clm_sub_to_pf_sub
-        source_mesh_id = CLM_3D_MESH
-        dest_mesh_id = PF_3D_MESH
+        source_mesh_id = CLM_SUB_MESH
+        dest_mesh_id = PF_SUB_MESH
       case(CLM_SUB_TO_PF_EXTENDED_SUB)
         map => pflotran_model%map_clm_sub_to_pf_extended_sub
-        source_mesh_id = CLM_3D_MESH
-        dest_mesh_id = PF_3D_MESH
+        source_mesh_id = CLM_SUB_MESH
+        dest_mesh_id = PF_SUB_MESH
       case(PF_SUB_TO_CLM_SUB)
         map => pflotran_model%map_pf_sub_to_clm_sub
-        source_mesh_id = PF_3D_MESH
+        source_mesh_id = PF_SUB_MESH
       case default
         option%io_buffer = 'Invalid map_id argument to pflotranModelInitMapping'
         call printErrMsg(option)
@@ -828,14 +829,14 @@ end subroutine pflotranModelSetICs
     enddo
 
     select case(source_mesh_id)
-      case(CLM_3D_MESH)
+      case(CLM_SUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
                                          grid_clm_cell_ids_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
-      case(PF_3D_MESH)
+      case(PF_SUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
                                         grid_pf_cell_ids_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
@@ -951,8 +952,8 @@ end subroutine pflotranModelSetICs
     select case(map_id)
       case(CLM_SRF_TO_PF_2DSUB)
         map => pflotran_model%map_clm_srf_to_pf_2dsub
-        source_mesh_id = CLM_3D_MESH
-        dest_mesh_id = PF_SURF_3D_MESH
+        source_mesh_id = CLM_SUB_MESH
+        dest_mesh_id = PF_2DSUB_MESH
       case default
         option%io_buffer = 'Invalid map_id argument to ' // &
           'pflotranModelInitMappingSurf3D'
@@ -982,12 +983,12 @@ end subroutine pflotranModelSetICs
 
     select case (dest_mesh_id)
 
-      case(PF_SURF_3D_MESH)
+      case(PF_2DSUB_MESH)
 
         patch => realization%patch
         grid => patch%grid
 
-        ! Destination mesh is PF_SURF_3D_MESH
+        ! Destination mesh is PF_2DSUB_MESH
         boundary_condition => patch%boundary_conditions%first
         sum_connection = 0
         do 
@@ -1279,14 +1280,14 @@ end subroutine pflotranModelSetICs
     call VecDestroy(surf_ids, ierr)
 
     select case(source_mesh_id)
-      case(CLM_3D_MESH)
+      case(CLM_SUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
                                          grid_clm_cell_ids_nindex_copy)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
-      case(PF_3D_MESH)
+      case(PF_SUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
                                         grid_pf_cell_ids_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
@@ -1400,7 +1401,7 @@ end subroutine pflotranModelSetICs
     end select
 
 #ifndef SURFACE_FLOW
-    option%io_buffer='To support dest_mesh == PF_SURF_2D_MESH, need to '// &
+    option%io_buffer='To support dest_mesh == PF_SRF_MESH, need to '// &
          'compiled with -DSURFACE_FLOW.'
     call printErrMsg(option)
 #else
@@ -1411,12 +1412,12 @@ end subroutine pflotranModelSetICs
     select case(map_id)
       case(CLM_SRF_TO_PF_SRF)
         map => pflotran_model%map_clm_srf_to_pf_srf
-        source_mesh_id = CLM_3D_MESH
-        dest_mesh_id = PF_SURF_2D_MESH
+        source_mesh_id = CLM_SRF_MESH
+        dest_mesh_id = PF_SRF_MESH
       case(PF_SRF_TO_CLM_SRF)
         map => pflotran_model%map_pf_srf_to_clm_srf
-        source_mesh_id = PF_SURF_2D_MESH
-        dest_mesh_id = CLM_3D_MESH
+        source_mesh_id = PF_SRF_MESH
+        dest_mesh_id = CLM_SRF_MESH
       case default
         option%io_buffer = 'Invalid map_id argument to ' // &
           'pflotranModelInitMappingSurf2D'
@@ -1502,7 +1503,7 @@ end subroutine pflotranModelSetICs
                          PETSC_COPY_VALUES, is_to, ierr)
 
     do iconn = 1, map%s2d_nwts
-      if (source_mesh_id == PF_SURF_2D_MESH) then
+      if (source_mesh_id == PF_SRF_MESH) then
         int_array(iconn) = map%s2d_jcsr(iconn)
       else
         int_array(iconn) = map%s2d_icsr(iconn)
@@ -1529,7 +1530,7 @@ end subroutine pflotranModelSetICs
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
         count = count + 1
-        if (source_mesh_id == PF_SURF_2D_MESH) then
+        if (source_mesh_id == PF_SRF_MESH) then
           map%s2d_jcsr(count) = INT(v_loc(iconn))
         else
           map%s2d_icsr(count) = INT(v_loc(iconn))
@@ -1632,7 +1633,7 @@ end subroutine pflotranModelSetICs
 
 
     do iconn = 1, map%s2d_nwts
-      if (source_mesh_id == PF_SURF_2D_MESH) then
+      if (source_mesh_id == PF_SRF_MESH) then
         int_array(iconn) = map%s2d_icsr(iconn)
       else
         int_array(iconn) = map%s2d_jcsr(iconn)
@@ -1659,7 +1660,7 @@ end subroutine pflotranModelSetICs
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
         count = count + 1
-        if (source_mesh_id == PF_SURF_2D_MESH) then
+        if (source_mesh_id == PF_SRF_MESH) then
           map%s2d_icsr(count) = INT(v_loc(iconn))
         else
           map%s2d_jcsr(count) = INT(v_loc(iconn))
@@ -1677,14 +1678,14 @@ end subroutine pflotranModelSetICs
     call VecDestroy(surf_ids, ierr)
 
     select case(source_mesh_id)
-      case(CLM_3D_MESH)
+      case(CLM_SRF_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
                                          grid_clm_cell_ids_nindex_copy)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
-      case(PF_SURF_2D_MESH)
+      case(PF_SRF_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
                                         grid_pf_cell_ids_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
