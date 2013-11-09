@@ -9,6 +9,7 @@ MYFLAGS = -I.
 MYFLAGS += -DPROCESS_MODEL
 MYFLAGS += -DSURFACE_FLOW
 MYFLAGS += -DCLM_PFLOTRAN
+MYFLAGS += -DSTORE_FLOWRATES
 
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
 # PFLOTRAN_RXN_FLAG 
@@ -385,11 +386,6 @@ clm_interface_obj = \
 
 # End Source Block
 
-pflotran_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
-	$(shared_mode_aux_obj) $(chem_obj) $(grid_obj) \
-	$(relations_obj) $(properties_obj) $(dataset_obj) \
-	$(io_obj) $(misc_obj) $(surface_obj) ${pflotran_src}pflotran_new.o
-
 lib_pflotran_obj = \
 	${clm_interface_obj} \
 	$(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
@@ -400,9 +396,6 @@ lib_pflotran_obj = \
 pflotran_interface_test_obj = ${pflotran_src}pflotran_interface_main.o
 
 pflotran_rxn_obj = ${pflotran_src}pflotran_rxn.o
-
-pflotran : $(pflotran_obj)
-	${FLINKER} -o pflotran $(pflotran_obj) ${PETSC_LIB} ${LIBS} 
 
 libpflotran.a : $(lib_pflotran_obj)
 	$(AR) $(ARFLAGS) $@ $(lib_pflotran_obj)
