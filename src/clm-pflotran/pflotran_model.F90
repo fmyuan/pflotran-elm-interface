@@ -1484,7 +1484,11 @@ end subroutine pflotranModelSetICs
                          PETSC_COPY_VALUES, is_to, ierr)
 
     do iconn = 1, map%s2d_nwts
-      int_array(iconn) = map%s2d_icsr(iconn)
+      if (source_mesh_id == PF_SURF_2D_MESH) then
+        int_array(iconn) = map%s2d_jcsr(iconn)
+      else
+        int_array(iconn) = map%s2d_icsr(iconn)
+      endif
     enddo
     call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
                          PETSC_COPY_VALUES, is_from, ierr)
@@ -1507,7 +1511,11 @@ end subroutine pflotranModelSetICs
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
         count = count + 1
-        map%s2d_icsr(count) = INT(v_loc(iconn))
+        if (source_mesh_id == PF_SURF_2D_MESH) then
+          map%s2d_jcsr(count) = INT(v_loc(iconn))
+        else
+          map%s2d_icsr(count) = INT(v_loc(iconn))
+        endif
       endif
     enddo
     call VecRestoreArrayF90(surf_ids_loc, v_loc, ierr)
@@ -1606,7 +1614,11 @@ end subroutine pflotranModelSetICs
 
 
     do iconn = 1, map%s2d_nwts
-      int_array(iconn) = map%s2d_jcsr(iconn)
+      if (source_mesh_id == PF_SURF_2D_MESH) then
+        int_array(iconn) = map%s2d_icsr(iconn)
+      else
+        int_array(iconn) = map%s2d_jcsr(iconn)
+      endif
     enddo
     call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
                          PETSC_COPY_VALUES, is_from, ierr)
@@ -1629,7 +1641,11 @@ end subroutine pflotranModelSetICs
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
         count = count + 1
-        map%s2d_jcsr(count) = INT(v_loc(iconn))
+        if (source_mesh_id == PF_SURF_2D_MESH) then
+          map%s2d_icsr(count) = INT(v_loc(iconn))
+        else
+          map%s2d_jcsr(count) = INT(v_loc(iconn))
+        endif
       endif
     enddo
     call VecRestoreArrayF90(surf_ids_loc, v_loc, ierr)
