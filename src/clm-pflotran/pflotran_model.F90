@@ -1893,16 +1893,87 @@ end subroutine pflotranModelSetICs
   subroutine pflotranModelUpdateSourceSink(pflotran_model)
 
     use clm_pflotran_interface_data
+    use Connection_module
+    use Coupler_module
     use Mapping_module
+    use Option_module
+    use Realization_class, only : realization_type
+    use Simulation_Base_class, only : simulation_base_type
+    use String_module
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
 
     implicit none
 
     type(pflotran_model_type), pointer        :: pflotran_model
 
+    class(realization_type), pointer          :: subsurf_realization
+    type(coupler_type), pointer               :: source_sink
+    type(connection_set_type), pointer        :: cur_connection_set
+    PetscScalar, pointer                      :: qflx_pf_loc(:)
+    PetscBool                                 :: found
+    PetscInt                                  :: iconn
+    PetscErrorCode                            :: ierr
+    PetscInt                                  :: press_dof
+
     call MappingSourceToDestination(pflotran_model%map_clm2pf, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qflx_clm, &
                                     clm_pf_idata%qflx_pf)
+
+    ! Get pointer to subsurface-realization
+    select type (simulation => pflotran_model%simulation)
+      class is (surfsubsurface_simulation_type)
+         subsurf_realization => simulation%realization
+      class is (subsurface_simulation_type)
+         subsurf_realization => simulation%realization
+      class default
+         pflotran_model%option%io_buffer = " Unsupported simulation_type " // &
+            " in pflotranModelUpdateSourceSink."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    ! Find value of pressure-dof depending on flow mode
+    select case (pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        press_dof = RICHARDS_PRESSURE_DOF
+      case (TH_MODE)
+        press_dof = TH_PRESSURE_DOF
+      case default
+        pflotran_model%option%io_buffer = 'Unsupported Flow mode'
+        call printErrMsg(pflotran_model%option)
+    end select
+
+    ! Update the 'clm_et_ss' source/sink term
+    call VecGetArrayF90(clm_pf_idata%qflx_pf,qflx_pf_loc,ierr)
+    found = PETSC_FALSE
+    source_sink => subsurf_realization%patch%source_sinks%first
+    do
+      if (.not.associated(source_sink)) exit
+
+      cur_connection_set => source_sink%connection_set
+
+      ! Find appropriate Source/Sink from the list of Source/Sinks
+      if(StringCompare(source_sink%name,'clm_et_ss')) then
+
+        found = PETSC_TRUE
+        if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS) then
+          call printErrMsg(pflotran_model%option,'clm_et_ss is not of ' // &
+                           'HET_MASS_RATE_SS')
+        endif
+
+        do iconn = 1, cur_connection_set%num_connections
+          source_sink%flow_aux_real_var(press_dof,iconn) = qflx_pf_loc(iconn)
+        enddo
+      endif
+
+      source_sink => source_sink%next
+    enddo
+    call VecRestoreArrayF90(clm_pf_idata%qflx_pf,qflx_pf_loc,ierr)
+
+    if(.not.found) &
+      call printErrMsg(pflotran_model%option,'clm_et_ss not found in ' // &
+                       'source-sink list of subsurface model.')
 
   end subroutine pflotranModelUpdateSourceSink
 
