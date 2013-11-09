@@ -1020,10 +1020,10 @@ end subroutine pflotranModelSetICs
 
         ! Setting the number of cells constituting the surface of the 3D
         ! subsurface domain for each model.
-        clm_pf_idata%nlclm_surf_3d = grid_clm_npts_local
-        clm_pf_idata%ngclm_surf_3d = grid_clm_npts_local
-        clm_pf_idata%nlpf_surf_3d  = grid_pf_npts_local
-        clm_pf_idata%ngpf_surf_3d  = grid_pf_npts_local
+        clm_pf_idata%nlclm_2dsub = grid_clm_npts_local
+        clm_pf_idata%ngclm_2dsub = grid_clm_npts_local
+        clm_pf_idata%nlpf_2dsub  = grid_pf_npts_local
+        clm_pf_idata%ngpf_2dsub  = grid_pf_npts_local
 
       case default
         option%io_buffer='Unknown source mesh'
@@ -1162,7 +1162,7 @@ end subroutine pflotranModelSetICs
     allocate(v_loc(grid_clm_npts_local))
     v_loc = 1.d0
     call VecCreateSeq(PETSC_COMM_SELF, grid_clm_npts_local, surf_ids_loc, ierr)
-    call VecCreateMPI(option%mycomm, clm_pf_idata%nlclm_3d, PETSC_DECIDE, surf_ids, ierr)
+    call VecCreateMPI(option%mycomm, clm_pf_idata%nlclm_sub, PETSC_DECIDE, surf_ids, ierr)
     call VecSet(surf_ids, -1.d0, ierr)
 
     ! Set 1.0 to all cells that make up surface of CLM subsurface domain
@@ -1175,7 +1175,7 @@ end subroutine pflotranModelSetICs
 
     call VecGetArrayF90(surf_ids, v_loc, ierr)
     count = 0
-    do local_id=1,clm_pf_idata%nlclm_3d
+    do local_id=1,clm_pf_idata%nlclm_sub
       if(v_loc(local_id) == 1.d0) count = count + 1
     enddo
 
@@ -1184,7 +1184,7 @@ end subroutine pflotranModelSetICs
                     option%mycomm, ierr)
 
     count = 0
-    do local_id=1,clm_pf_idata%nlclm_3d
+    do local_id=1,clm_pf_idata%nlclm_sub
       if(v_loc(local_id) == 1.d0) then
         v_loc(local_id) = istart + count
         count = count + 1
@@ -1553,7 +1553,7 @@ end subroutine pflotranModelSetICs
     allocate(v_loc(grid_clm_npts_local))
     v_loc = 1.d0
     call VecCreateSeq(PETSC_COMM_SELF, grid_clm_npts_local, surf_ids_loc, ierr)
-    call VecCreateMPI(option%mycomm, clm_pf_idata%nlclm_3d, PETSC_DECIDE, surf_ids, ierr)
+    call VecCreateMPI(option%mycomm, clm_pf_idata%nlclm_sub, PETSC_DECIDE, surf_ids, ierr)
     call VecSet(surf_ids, -1.d0, ierr)
 
     ! Set 1.0 to all cells that make up surface of CLM subsurface domain
@@ -1566,7 +1566,7 @@ end subroutine pflotranModelSetICs
 
     call VecGetArrayF90(surf_ids, v_loc, ierr)
     count = 0
-    do local_id=1,clm_pf_idata%nlclm_3d
+    do local_id=1,clm_pf_idata%nlclm_sub
       if(v_loc(local_id) == 1.d0) count = count + 1
     enddo
 
@@ -1575,7 +1575,7 @@ end subroutine pflotranModelSetICs
                     option%mycomm, ierr)
 
     count = 0
-    do local_id=1,clm_pf_idata%nlclm_3d
+    do local_id=1,clm_pf_idata%nlclm_sub
       if(v_loc(local_id) == 1.d0) then
         v_loc(local_id) = istart + count
         count = count + 1
