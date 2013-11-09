@@ -2526,9 +2526,9 @@ end subroutine pflotranModelSetICs
     ! Determine the BC coupler name to search from list of BCs depending on
     ! subsurface or surface-subsurface simulation.
     if (pflotran_model%option%nsurfflowdof == 0) then
-      condition_name = 'clm_gflux_bc'// CHAR(0)
+      condition_name = 'clm_gflux_bc'
     else
-      condition_name = 'from_surface_bc'// CHAR(0)
+      condition_name = 'from_surface_bc'
     endif
 
     coupler_list => realization%patch%boundary_conditions
