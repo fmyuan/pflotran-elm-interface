@@ -2480,8 +2480,10 @@ end subroutine pflotranModelSetICs
 
   ! ************************************************************************** !
   !> This function returns the number of control volumes forming surface of
-  !! the sub-surface domain. It assumes a boundary condition named 'clm_gflux_bc'
-  !! is defined in the inputdeck.
+  !! the sub-surface domain. The subroutines assumes the following boundary
+  !! condition is specified in inputdeck:
+  !!  - 'clm_gflux_bc': when running subsurface only simulation.
+  !!  - 'from_surface_bc': when running surface-subsurface simulation.
   !!
   !> @author
   !! Gautam Bisht, LBNL
@@ -2506,6 +2508,7 @@ end subroutine pflotranModelSetICs
     type(coupler_list_type), pointer :: coupler_list
     type(coupler_type), pointer :: coupler
     type(simulation_base_type), pointer :: simulation
+    character(len=MAXWORDLENGTH) :: condition_name
     PetscInt :: pflotranModelNSurfCells3DDomain
     PetscBool :: found
 
@@ -2520,13 +2523,21 @@ end subroutine pflotranModelSetICs
          call printErrMsg(pflotran_model%option)
     end select
 
+    ! Determine the BC coupler name to search from list of BCs depending on
+    ! subsurface or surface-subsurface simulation.
+    if (pflotran_model%option%nsurfflowdof == 0) then
+      condition_name = 'clm_gflux_bc'// CHAR(0)
+    else
+      condition_name = 'from_surface_bc'// CHAR(0)
+    endif
+
     coupler_list => realization%patch%boundary_conditions
     coupler => coupler_list%first
     found = PETSC_FALSE
 
     do
       if (.not.associated(coupler)) exit
-      if(StringCompare(coupler%name,'clm_gflux_bc')) then
+      if (StringCompare(coupler%name,trim(condition_name))) then
         pflotranModelNSurfCells3DDomain=coupler%connection_set%num_connections
         found = PETSC_TRUE
       endif
