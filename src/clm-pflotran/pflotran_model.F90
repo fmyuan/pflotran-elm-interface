@@ -1904,6 +1904,8 @@ end subroutine pflotranModelSetICs
     use Subsurface_Simulation_class, only : subsurface_simulation_type
 
     implicit none
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
 
@@ -1990,6 +1992,7 @@ end subroutine pflotranModelSetICs
 
     use clm_pflotran_interface_data
     use Mapping_module
+    use Option_module
 
     implicit none
 
@@ -1997,14 +2000,105 @@ end subroutine pflotranModelSetICs
 
     call pflotranModelUpdateSourceSink(pflotran_model)
 
-    if(pflotran_model%option%iflowmode==TH_MODE) then
-      call MappingSourceToDestination(pflotran_model%map_clm2pf_gflux, &
-                                      pflotran_model%option, &
-                                      clm_pf_idata%gflux_subsurf_clm, &
-                                      clm_pf_idata%gflux_subsurf_pf)
+    if (pflotran_model%option%iflowmode==TH_MODE) then
+      if (pflotran_model%option%nsurfflowdof == 0) then
+        call pflotranModelUpdateSubsurfTCond(pflotran_model)
+      else
+        !call pflotranModelUpdateSurfTCond(pflotran_model)
+      endif
     endif
 
   end subroutine pflotranModelUpdateFlowConds
+
+  ! ************************************************************************** !
+  !> This routine updates subsurface boundary condtions of PFLOTRAN related to
+  !! energy equation.
+  !!
+  !> @author
+  !! Gautam Bisht, LBNL
+  !!
+  !! date: 11/08/2013
+  ! ************************************************************************** !
+  subroutine pflotranModelUpdateSubsurfTCond(pflotran_model)
+
+    use clm_pflotran_interface_data
+    use Connection_module
+    use Coupler_module
+    use Mapping_module
+    use Option_module
+    use Realization_class, only : realization_type
+    use Simulation_Base_class, only : simulation_base_type
+    use String_module
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+
+    implicit none
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+
+    class(realization_type), pointer          :: subsurf_realization
+    type(coupler_type), pointer               :: boundary_condition
+    type(connection_set_type), pointer        :: cur_connection_set
+    PetscScalar, pointer                      :: gflux_subsurf_pf_loc(:)
+    PetscBool                                 :: found
+    PetscInt                                  :: iconn
+    PetscErrorCode                            :: ierr
+    PetscInt                                  :: press_dof
+
+    ! Map ground-heat flux from CLM--to--PF grid
+    call MappingSourceToDestination(pflotran_model%map_clm2pf_gflux, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%gflux_subsurf_clm, &
+                                    clm_pf_idata%gflux_subsurf_pf)
+
+    ! Get pointer to subsurface-realization
+    select type (simulation => pflotran_model%simulation)
+      class is (surfsubsurface_simulation_type)
+         subsurf_realization => simulation%realization
+      class is (subsurface_simulation_type)
+         subsurf_realization => simulation%realization
+      class default
+         pflotran_model%option%io_buffer = " Unsupported simulation_type " // &
+            " in pflotranModelUpdateSourceSink."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    ! Update the 'clm_et_ss' source/sink term
+    call VecGetArrayF90(clm_pf_idata%gflux_subsurf_pf,gflux_subsurf_pf_loc,ierr)
+    found = PETSC_FALSE
+    boundary_condition => subsurf_realization%patch%boundary_conditions%first
+    do
+      if (.not.associated(boundary_condition)) exit
+
+      cur_connection_set => boundary_condition%connection_set
+
+      ! Find appropriate BC from the list of boundary conditions
+      if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then
+
+        if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+            /= NEUMANN_BC) then
+          call printErrMsg(pflotran_model%option,'clm_gflux_bc is not of ' // &
+                           'NEUMANN_BC')
+        endif
+        found = PETSC_TRUE
+
+        do iconn = 1, cur_connection_set%num_connections
+          boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+            gflux_subsurf_pf_loc(iconn)
+        enddo
+      endif
+
+      boundary_condition => boundary_condition%next
+    enddo
+    call VecRestoreArrayF90(clm_pf_idata%gflux_subsurf_pf,gflux_subsurf_pf_loc,ierr)
+
+    if(.not.found) &
+      call printErrMsg(pflotran_model%option,'clm_gflux_bc not found in ' // &
+                       'source-sink list of subsurface model.')
+
+  end subroutine pflotranModelUpdateSubsurfTCond
 
   ! ************************************************************************** !
   !> This routine updates source condtion for 'mass' equation of PFLOTRAN

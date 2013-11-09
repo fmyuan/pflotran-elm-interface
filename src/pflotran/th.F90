@@ -5,9 +5,6 @@ module TH_module
   
   use PFLOTRAN_Constants_module
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  use clm_pflotran_interface_data
-#endif
   implicit none
   
   private 
@@ -3133,12 +3130,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   PetscReal :: sec_dencpr
   PetscReal :: res_sec_heat
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  PetscReal, pointer :: qflx_pf_p(:)
-  PetscReal, pointer :: gflux_subsurf_pf_p(:)
-  PetscBool :: clm_condition
-#endif
-  
   patch => realization%patch
   grid => patch%grid
   option => realization%option
@@ -3178,11 +3169,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr)
   call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr)
   !print *,' Finished scattering non deriv'
-  
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  call VecGetArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr)
-  call VecGetArrayF90(clm_pf_idata%gflux_subsurf_pf, gflux_subsurf_pf_p, ierr)
-#endif
   
   ! Calculating volume fractions for primary and secondary continua
 
@@ -3263,11 +3249,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       qsrc1 = qsrc1 / FMWH2O ! [kg/s -> kmol/s; fmw -> g/mol = kg/kmol]
     endif
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-      clm_condition=PETSC_FALSE
-      if(StringCompare(source_sink%name,'clm_et_ss')) clm_condition=PETSC_TRUE
-#endif
-
     cur_connection_set => source_sink%connection_set
     
     do iconn = 1, cur_connection_set%num_connections      
@@ -3278,12 +3259,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
         if (patch%imat(ghosted_id) <= 0) cycle
       endif
       
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-      ! If this source/sink corresponds to CLM condition, update the source/sink
-      ! term
-      if(clm_condition) qsrc1 = qflx_pf_p(local_id)*0.d0
-#endif
-
       select case (source_sink%flow_condition%rate%itype)
         case(MASS_RATE_SS)
           r_p((local_id-1)*option%nflowdof + jh2o) = &
@@ -3440,11 +3415,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   do 
     if (.not.associated(boundary_condition)) exit
     
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-      clm_condition=PETSC_FALSE
-      if(StringCompare(boundary_condition%name,'clm_gflux_bc')) clm_condition=PETSC_TRUE
-#endif
-
     cur_connection_set => boundary_condition%connection_set
     
     do iconn = 1, cur_connection_set%num_connections
@@ -3477,15 +3447,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
                                      cur_connection_set%dist(1:3,iconn))
 
       icap_dn = int(icap_loc_p(ghosted_id))
-
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-      ! If this boundary condition corresponds to CLM condition, update the
-      ! boundary condition for heat equation
-      if(clm_condition) then
-        boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
-          gflux_subsurf_pf_p(iconn)
-      endif
-#endif
 
       call THBCFlux(boundary_condition%flow_condition%itype, &
                                 boundary_condition%flow_aux_real_var(:,iconn), &
@@ -3554,11 +3515,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
   call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr)
   call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr)
-
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  call VecRestoreArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr)
-  call VecRestoreArrayF90(clm_pf_idata%gflux_subsurf_pf, gflux_subsurf_pf_p, ierr)
-#endif
 
   if (realization%debug%vecview_residual) then
     call PetscViewerASCIIOpen(option%mycomm,'THresidual.out',viewer,ierr)
