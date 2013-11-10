@@ -712,13 +712,8 @@ end subroutine pflotranModelSetICs
     use Surface_Simulation_class, only : surface_simulation_type
     use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
     use Mapping_module
-!    use clm_pflotran_interface_data
 
     implicit none
-
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscviewer.h"
 
     type(pflotran_model_type), intent(inout), pointer :: pflotran_model
     PetscInt, intent(in), pointer                     :: grid_clm_cell_ids_nindex(:)
@@ -726,6 +721,65 @@ end subroutine pflotranModelSetICs
     PetscInt, intent(in)                              :: map_id
     character(len=MAXSTRINGLENGTH)                    :: filename
     
+    select case (map_id)
+      case (CLM_SUB_TO_PF_SUB, CLM_SUB_TO_PF_EXTENDED_SUB, PF_SUB_TO_CLM_SUB)
+        call pflotranModelInitMappingSub2Sub(pflotran_model,  &
+                                      grid_clm_cell_ids_nindex, &
+                                      grid_clm_npts_local, &
+                                      map_id)
+      case (CLM_SRF_TO_PF_2DSUB)
+        call pflotranModelInitMapSrfTo2DSub(pflotran_model,  &
+                                            grid_clm_cell_ids_nindex, &
+                                            grid_clm_npts_local, &
+                                            map_id)
+      case (CLM_SRF_TO_PF_SRF, PF_SRF_TO_CLM_SRF)
+        call pflotranModelInitMapSrfToSrf(pflotran_model,  &
+                                            grid_clm_cell_ids_nindex, &
+                                            grid_clm_npts_local, &
+                                            map_id)
+      case default
+        pflotran_model%option%io_buffer = 'Invalid map_id argument to ' // &
+          'pflotranModelInitMapping'
+        call printErrMsg(pflotran_model%option)
+    end select
+
+  end subroutine pflotranModelInitMapping
+
+  ! ************************************************************************** !
+  !
+  ! pflotranModelInitMappingSub2Sub: Initialize mapping between 3D subsurface
+  ! CLM grid and 3D subsurface PFLOTRAN grid.
+  !
+  ! author: Gautam Bisht
+  ! date: 11/09/2013
+  ! ************************************************************************** !
+  subroutine pflotranModelInitMappingSub2Sub(pflotran_model,  &
+                                      grid_clm_cell_ids_nindex, &
+                                      grid_clm_npts_local, &
+                                      map_id)
+
+    use Input_Aux_module
+    use Option_module
+    use Realization_class
+    use Grid_module
+    use Patch_module
+    use Coupler_module
+    use Connection_module
+    use String_module
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Mapping_module
+
+    implicit none
+
+    type(pflotran_model_type), intent(inout), pointer :: pflotran_model
+    PetscInt, intent(in), pointer                     :: grid_clm_cell_ids_nindex(:)
+    PetscInt, intent(in)                              :: grid_clm_npts_local
+    PetscInt, intent(in)                              :: map_id
+    character(len=MAXSTRINGLENGTH)                    :: filename
+
     ! local
     PetscInt                           :: local_id, grid_pf_npts_local, grid_pf_npts_ghost
     PetscInt                           :: grid_clm_npts_ghost, source_mesh_id
@@ -755,22 +809,6 @@ end subroutine pflotranModelSetICs
     option          => pflotran_model%option
     patch           => realization%patch
     grid            => patch%grid
-
-    if(map_id==CLM_SRF_TO_PF_2DSUB) then
-      call pflotranModelInitMappingSurf3D(pflotran_model,  &
-                                          grid_clm_cell_ids_nindex, &
-                                          grid_clm_npts_local, &
-                                          map_id)
-      return
-    endif
-
-    if(map_id==CLM_SRF_TO_PF_SRF .or. map_id==PF_SRF_TO_CLM_SRF) then
-      call pflotranModelInitMappingSurf2D(pflotran_model,  &
-                                          grid_clm_cell_ids_nindex, &
-                                          grid_clm_npts_local, &
-                                          map_id)
-      return
-    endif
 
     !
     ! Mapping to/from entire PFLOTRAN 3D subsurface domain
@@ -856,7 +894,7 @@ end subroutine pflotranModelSetICs
     call MappingCreateWeightMatrix(map, option)
     call MappingCreateScatterOfSourceMesh(map, option)
 
-  end subroutine pflotranModelInitMapping
+  end subroutine pflotranModelInitMappingSub2Sub
 
   ! ************************************************************************** !
   !> This routine maps CLM surface grid onto surface of PFLOTRAN 3D subsurface 
@@ -867,7 +905,7 @@ end subroutine pflotranModelSetICs
   !!
   !! date: 04/09/13
   ! ************************************************************************** !
-  subroutine pflotranModelInitMappingSurf3D(pflotran_model,  &
+  subroutine pflotranModelInitMapSrfTo2DSub(pflotran_model,  &
                                             grid_clm_cell_ids_nindex, &
                                             grid_clm_npts_local, &
                                             map_id)
@@ -1308,20 +1346,21 @@ end subroutine pflotranModelSetICs
     call MappingCreateWeightMatrix(map, option)
     call MappingCreateScatterOfSourceMesh(map, option)
 
-  end subroutine pflotranModelInitMappingSurf3D
+  end subroutine pflotranModelInitMapSrfTo2DSub
 
   ! ************************************************************************** !
-  !> This routine maps CLM surface grid onto PFLOTRAN 2D surface grid.
+  !> This routine maps CLM surface grid onto PFLOTRAN 2D surface grid or
+  !! vice-versa.
   !!
   !> @author
   !! Gautam Bisht, LBNL
   !!
   !! date: 04/09/13
   ! ************************************************************************** !
-  subroutine pflotranModelInitMappingSurf2D(pflotran_model,  &
-                                            grid_clm_cell_ids_nindex, &
-                                            grid_clm_npts_local, &
-                                            map_id)
+  subroutine pflotranModelInitMapSrfToSrf(pflotran_model,  &
+                                          grid_clm_cell_ids_nindex, &
+                                          grid_clm_npts_local, &
+                                          map_id)
 
     use Input_Aux_module
     use Option_module
@@ -1707,7 +1746,7 @@ end subroutine pflotranModelSetICs
     call MappingCreateScatterOfSourceMesh(map, option)
 #endif
 
-  end subroutine pflotranModelInitMappingSurf2D
+  end subroutine pflotranModelInitMapSrfToSrf
 
   ! ************************************************************************** !
   !
