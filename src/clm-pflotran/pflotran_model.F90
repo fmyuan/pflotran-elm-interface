@@ -2073,16 +2073,115 @@ end subroutine pflotranModelSetICs
     type(pflotran_model_type), pointer        :: pflotran_model
 
     call pflotranModelUpdateSourceSink(pflotran_model)
+    if (pflotran_model%option%nsurfflowdof > 0) then
+      call pflotranModelUpdateSurfSource(pflotran_model)
+    endif
 
-    if (pflotran_model%option%iflowmode==TH_MODE) then
+    if (pflotran_model%option%iflowmode == TH_MODE) then
       if (pflotran_model%option%nsurfflowdof == 0) then
         call pflotranModelUpdateSubsurfTCond(pflotran_model)
       else
+        call printErrMsg(pflotran_model%option,'Add pflotranModelUpdateSurfTCond')
         !call pflotranModelUpdateSurfTCond(pflotran_model)
       endif
     endif
 
   end subroutine pflotranModelUpdateFlowConds
+
+  ! ************************************************************************** !
+  !> This routine updates surface source condition related to mass equation.
+  !!
+  !> @author
+  !! Gautam Bisht, LBNL
+  !!
+  !! date: 11/11/2013
+  ! ************************************************************************** !
+  subroutine pflotranModelUpdateSurfSource(pflotran_model)
+
+    use clm_pflotran_interface_data
+    use Connection_module
+    use Coupler_module
+    use Mapping_module
+    use Option_module
+    use Surface_Realization_class, only : surface_realization_type
+    use Simulation_Base_class, only : simulation_base_type
+    use String_module
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+
+    implicit none
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+
+    class(surface_realization_type), pointer  :: surf_realization
+    type(coupler_type), pointer               :: source_sink
+    type(connection_set_type), pointer        :: cur_connection_set
+    PetscScalar, pointer                      :: rain_pf_loc(:)
+    PetscBool                                 :: found
+    PetscInt                                  :: iconn
+    PetscErrorCode                            :: ierr
+    PetscInt                                  :: press_dof
+
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_srf, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rain_clm, &
+                                    clm_pf_idata%rain_pf)
+
+    ! Get pointer to surface-realization
+    select type (simulation => pflotran_model%simulation)
+      class is (surfsubsurface_simulation_type)
+         surf_realization => simulation%surf_realization
+      class default
+         pflotran_model%option%io_buffer = " Unsupported simulation_type " // &
+            " in pflotranModelUpdateSurfSource."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    ! Find value of pressure-dof depending on flow mode
+    select case (pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        press_dof = RICHARDS_PRESSURE_DOF
+      case (TH_MODE)
+        press_dof = TH_PRESSURE_DOF
+      case default
+        pflotran_model%option%io_buffer = 'Unsupported Flow mode'
+        call printErrMsg(pflotran_model%option)
+    end select
+
+    ! Update the 'clm_et_ss' source/sink term
+    call VecGetArrayF90(clm_pf_idata%rain_pf,rain_pf_loc,ierr)
+    found = PETSC_FALSE
+    source_sink => surf_realization%patch%source_sinks%first
+    do
+      if (.not.associated(source_sink)) exit
+
+      cur_connection_set => source_sink%connection_set
+
+      ! Find appropriate Source/Sink from the list of Source/Sinks
+      if(StringCompare(source_sink%name,'clm_rain_srf_ss')) then
+
+        found = PETSC_TRUE
+        if (source_sink%flow_condition%rate%itype /= HET_VOL_RATE_SS) then
+          call printErrMsg(pflotran_model%option,'clm_et_ss is not of ' // &
+                           'HET_VOL_RATE_SS')
+        endif
+
+        do iconn = 1, cur_connection_set%num_connections
+          source_sink%flow_aux_real_var(press_dof,iconn) = rain_pf_loc(iconn)
+        enddo
+      endif
+
+      source_sink => source_sink%next
+    enddo
+    call VecRestoreArrayF90(clm_pf_idata%rain_pf,rain_pf_loc,ierr)
+
+    if(.not.found) &
+      call printErrMsg(pflotran_model%option,'clm_rain_srf_ss not found in ' // &
+                       'source-sink list of surface model.')
+
+  end subroutine pflotranModelUpdateSurfSource
 
   ! ************************************************************************** !
   !> This routine updates subsurface boundary condtions of PFLOTRAN related to
