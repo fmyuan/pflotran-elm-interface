@@ -51,8 +51,12 @@ module clm_pflotran_interface_data
   Vec :: gflux_subsurf_clm  ! mpi vec
   Vec :: gflux_subsurf_pf   ! seq vec
   !       When running PFLOTRAN surface-subsurface simulation, ground heat flux
-  !       is SS for PFLOTRAN's surface domain
-  Vec :: gflux_surf_clm  ! mpi vec
+  !       is a SS for PFLOTRAN's surface domain.
+  !
+  !       Note: CLM decomposes the domain across processors in a horizontal.
+  !       Thus, nlclm_2dsub = nlclm_srf across all processors. Thus, there is
+  !       no need for 'gflux_surf_clm'
+  !
   Vec :: gflux_surf_pf   ! seq vec
 
   ! (iv) Saturation
@@ -150,7 +154,6 @@ contains
     
     clm_pf_idata%gflux_subsurf_clm = 0
     clm_pf_idata%gflux_subsurf_pf = 0
-    clm_pf_idata%gflux_surf_clm = 0
     clm_pf_idata%gflux_surf_pf = 0
 
     clm_pf_idata%sat_clm = 0
@@ -204,10 +207,8 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%qflx_clm,ierr)
 
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE,clm_pf_idata%gflux_subsurf_clm,ierr)
-    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%gflux_surf_clm,ierr)
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_clm,ierr)
     call VecSet(clm_pf_idata%gflux_subsurf_clm,0.d0,ierr)
-    call VecSet(clm_pf_idata%gflux_surf_clm,0.d0,ierr)
     call VecSet(clm_pf_idata%rain_clm,0.d0,ierr)
 
     ! Create Seq. Vectors for PFLOTRAN
@@ -299,7 +300,6 @@ contains
     
     if(clm_pf_idata%gflux_subsurf_clm  /= 0) call VecDestroy(clm_pf_idata%gflux_subsurf_clm,ierr)
     if(clm_pf_idata%gflux_subsurf_pf  /= 0) call VecDestroy(clm_pf_idata%gflux_subsurf_pf,ierr)
-    if(clm_pf_idata%gflux_surf_clm  /= 0) call VecDestroy(clm_pf_idata%gflux_surf_clm,ierr)
     if(clm_pf_idata%gflux_surf_pf  /= 0) call VecDestroy(clm_pf_idata%gflux_surf_pf,ierr)
 
     if(clm_pf_idata%sat_clm  /= 0) call VecDestroy(clm_pf_idata%sat_clm,ierr)
