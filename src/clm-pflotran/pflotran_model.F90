@@ -2303,12 +2303,14 @@ end subroutine pflotranModelSetICs
     type(coupler_type), pointer               :: source_sink
     type(connection_set_type), pointer        :: cur_connection_set
     PetscScalar, pointer                      :: gflux_surf_pf_loc(:)
+    PetscScalar, pointer                      :: rain_temp_pf_loc(:)
     PetscBool                                 :: found
     PetscInt                                  :: iconn
     PetscErrorCode                            :: ierr
     PetscInt                                  :: press_dof
     PetscInt                                  :: temp_dof
 
+    ! 1) Mapping energy flux
     call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_srf, &
                                     pflotran_model%option, &
                                     clm_pf_idata%gflux_subsurf_clm, &
@@ -2362,9 +2364,48 @@ end subroutine pflotranModelSetICs
     enddo
     call VecRestoreArrayF90(clm_pf_idata%gflux_surf_pf,gflux_surf_pf_loc,ierr)
 
-    if(.not.found) &
+    if (.not.found) &
       call printErrMsg(pflotran_model%option,'clm_energy_srf_ss not found in ' // &
                        'source-sink list of surface model.')
+
+    ! 2) Map temperature of rain water
+    write(*,*),'call MappingSourceToDestination()'
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_srf, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%rain_temp_clm, &
+                                    clm_pf_idata%rain_temp_pf)
+
+    ! Update the 'clm_rain_srf_ss' source/sink term
+    call VecGetArrayF90(clm_pf_idata%rain_temp_pf,rain_temp_pf_loc,ierr)
+    found = PETSC_FALSE
+    source_sink => surf_realization%patch%source_sinks%first
+    do
+      if (.not.associated(source_sink)) exit
+
+      cur_connection_set => source_sink%connection_set
+
+      ! Find appropriate Source/Sink from the list of Source/Sinks
+      if(StringCompare(source_sink%name,'clm_rain_srf_ss')) then
+
+        found = PETSC_TRUE
+        if (source_sink%flow_condition%temperature%itype /= HET_DIRICHLET) then
+          call printErrMsg(pflotran_model%option,'clm_rain_srf_ss is not of ' // &
+                           'HET_DIRICHLET')
+        endif
+
+        do iconn = 1, cur_connection_set%num_connections
+          source_sink%flow_aux_real_var(temp_dof,iconn) = rain_temp_pf_loc(iconn)
+        enddo
+      endif
+
+      source_sink => source_sink%next
+    enddo
+    call VecRestoreArrayF90(clm_pf_idata%rain_temp_pf,rain_temp_pf_loc,ierr)
+
+    if (.not.found) &
+      call printErrMsg(pflotran_model%option,'clm_rain_srf_ss not found in ' // &
+                       'source-sink list of surface model.')
+
 
   end subroutine pflotranModelUpdateSurfTCond
 

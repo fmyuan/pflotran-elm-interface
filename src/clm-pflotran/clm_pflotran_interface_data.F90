@@ -42,9 +42,11 @@ module clm_pflotran_interface_data
   Vec :: qflx_clm   ! mpi vec
   Vec :: qflx_pf    ! seq vec
   
-  ! (ii) Source of water for PFLOTRAN's 2D surface domain
+  ! (ii) Source of water and temperature of rain for PFLOTRAN's 2D surface domain
   Vec :: rain_clm   ! mpi vec
   Vec :: rain_pf    ! seq vec
+  Vec :: rain_temp_clm ! seq vec
+  Vec :: rain_temp_pf  ! mpi vec
   
   ! (iii) Ground heat flux BC for PFLOTRAN's subsurface domain
   !       This BC is applied on top surface of the subsurface domain
@@ -151,6 +153,8 @@ contains
     
     clm_pf_idata%rain_clm = 0
     clm_pf_idata%rain_pf = 0
+    clm_pf_idata%rain_temp_clm = 0
+    clm_pf_idata%rain_temp_pf = 0
     
     clm_pf_idata%gflux_subsurf_clm = 0
     clm_pf_idata%gflux_subsurf_pf = 0
@@ -208,8 +212,10 @@ contains
 
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE,clm_pf_idata%gflux_subsurf_clm,ierr)
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_clm,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_temp_clm,ierr)
     call VecSet(clm_pf_idata%gflux_subsurf_clm,0.d0,ierr)
     call VecSet(clm_pf_idata%rain_clm,0.d0,ierr)
+    call VecSet(clm_pf_idata%rain_temp_clm,0.d0,ierr)
 
     ! Create Seq. Vectors for PFLOTRAN
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%hksat_x_pf,ierr)
@@ -226,9 +232,11 @@ contains
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dsub,clm_pf_idata%gflux_subsurf_pf,ierr)
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf,clm_pf_idata%gflux_surf_pf,ierr)
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf,clm_pf_idata%rain_pf,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf,clm_pf_idata%rain_temp_pf,ierr)
     call VecSet(clm_pf_idata%gflux_subsurf_pf,0.d0,ierr)
     call VecSet(clm_pf_idata%gflux_surf_pf,0.d0,ierr)
     call VecSet(clm_pf_idata%rain_pf,0.d0,ierr)
+    call VecSet(clm_pf_idata%rain_temp_pf,0.d0,ierr)
 
     !
     ! For data transfer from PFLOTRAN to CLM
@@ -297,6 +305,8 @@ contains
     
     if(clm_pf_idata%rain_clm  /= 0) call VecDestroy(clm_pf_idata%rain_clm,ierr)
     if(clm_pf_idata%rain_pf  /= 0) call VecDestroy(clm_pf_idata%rain_pf,ierr)
+    if(clm_pf_idata%rain_temp_clm  /= 0) call VecDestroy(clm_pf_idata%rain_temp_clm,ierr)
+    if(clm_pf_idata%rain_temp_pf  /= 0) call VecDestroy(clm_pf_idata%rain_temp_pf,ierr)
     
     if(clm_pf_idata%gflux_subsurf_clm  /= 0) call VecDestroy(clm_pf_idata%gflux_subsurf_clm,ierr)
     if(clm_pf_idata%gflux_subsurf_pf  /= 0) call VecDestroy(clm_pf_idata%gflux_subsurf_pf,ierr)
