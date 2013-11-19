@@ -39,7 +39,9 @@ function PMCSubsurfaceCreate()
   
   class(pmc_subsurface_type), pointer :: pmc
 
+#ifdef DEBUG
   print *, 'PMCSubsurface%Create()'
+#endif
   
   allocate(pmc)
   call pmc%Init()
@@ -61,7 +63,9 @@ subroutine PMCSubsurfaceInit(this)
   
   class(pmc_subsurface_type) :: this
   
+#ifdef DEBUG
   print *, 'PMCSubsurface%Init()'
+#endif
   
   call PMCBaseInit(this)
   this%name = 'PMCSubsurface'
@@ -150,7 +154,9 @@ subroutine PMCSubsurfaceGetAuxDataFromSurf(this)
   PetscReal, pointer                   :: temp_p(:)
   PetscErrorCode                       :: ierr
 
-!  print *, 'PMCSubsurfaceGetAuxData()'
+#ifdef DEBUG
+  print *, 'PMCSubsurfaceGetAuxData()'
+#endif
 
 #ifdef SURFACE_FLOW
   dt = this%option%surf_subsurf_coupling_flow_dt
@@ -263,6 +269,15 @@ subroutine PMCSubsurfaceGetAuxDataFromSurf(this)
                                pmc%sim_aux%subsurf_temp_top_bc, &
                                INSERT_VALUES,SCATTER_FORWARD,ierr)
 
+            call VecScatterBegin(pmc%sim_aux%surf_to_subsurf, &
+                                 pmc%sim_aux%surf_hflux_exchange_with_subsurf, &
+                                 pmc%sim_aux%subsurf_mflux_exchange_with_surf, &
+                                 INSERT_VALUES,SCATTER_FORWARD,ierr)
+            call VecScatterEnd(pmc%sim_aux%surf_to_subsurf, &
+                               pmc%sim_aux%surf_hflux_exchange_with_subsurf, &
+                               pmc%sim_aux%subsurf_mflux_exchange_with_surf, &
+                               INSERT_VALUES,SCATTER_FORWARD,ierr)
+
             coupler_list => patch%boundary_conditions
             coupler => coupler_list%first
             do
@@ -301,6 +316,22 @@ subroutine PMCSubsurfaceGetAuxDataFromSurf(this)
                                       temp_p,ierr)
                 endif
               endif
+
+              if(StringCompare(coupler%name,'from_atm_subsurface_bc')) then
+                coupler_found = PETSC_TRUE
+
+                call VecGetArrayF90(pmc%sim_aux%subsurf_mflux_exchange_with_surf, &
+                                    mflux_p,ierr)
+
+                do iconn = 1,coupler%connection_set%num_connections
+                  coupler%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                    mflux_p(iconn)
+                enddo
+
+                call VecRestoreArrayF90(pmc%sim_aux%subsurf_mflux_exchange_with_surf, &
+                                    mflux_p,ierr)
+              endif
+
               coupler => coupler%next
             enddo
 
@@ -370,7 +401,9 @@ subroutine PMCSubsurfaceSetAuxDataForSurf(this)
   PetscReal, pointer                   :: head_p(:)
   PetscErrorCode                       :: ierr
 
-!  print *, 'PMCSubsurfaceSetAuxData()'
+#ifdef DEBUG
+  print *, 'PMCSubsurfaceSetAuxData()'
+#endif
 
   if (associated(this%sim_aux)) then
 
@@ -510,7 +543,9 @@ recursive subroutine PMCSubsurfaceFinalizeRun(this)
   
   class(pmc_subsurface_type) :: this
   
+#ifdef DEBUG
   call printMsg(this%option,'PMCSubsurface%FinalizeRun()')
+#endif
   
   nullify(this%realization)
   
@@ -532,7 +567,9 @@ recursive subroutine Destroy(this)
   
   class(pmc_subsurface_type) :: this
   
+#ifdef DEBUG
   call printMsg(this%option,'PMCSubsurface%Destroy()')
+#endif
   
   if (associated(this%next)) then
     call this%next%Destroy()
