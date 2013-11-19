@@ -3282,7 +3282,8 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
         case (HET_ENERGY_RATE_SS)
           esrc1 = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
       end select
-      r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - esrc1
+      ! convert J/s --> MJ/s
+      r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - esrc1*option%scale
 
       ! Update residual term associated with T
       if (qsrc1 > 0.d0) then ! injection
@@ -4788,6 +4789,8 @@ subroutine THUpdateSurfaceBC(realization)
   PetscInt :: local_id
   PetscInt :: sum_connection
   PetscInt :: iconn
+  PetscInt :: iter
+  PetscInt :: niter
   PetscReal :: eflux
   PetscReal :: area
   PetscReal :: den
@@ -4814,6 +4817,9 @@ subroutine THUpdateSurfaceBC(realization)
 
   ! GB: Should probably add this as a member of option
   Cwi = 4.188d3 ! [J/kg/K]
+
+  ! Maximum no. of iterations to compute updated temperature of surface-flow
+  niter = 20
 
   ! boundary conditions
   boundary_condition => patch%boundary_conditions%first
@@ -4848,23 +4854,26 @@ subroutine THUpdateSurfaceBC(realization)
           boundary_condition%flow_aux_real_var(TH_PRESSURE_DOF,iconn)
         surftemp_old = &
           boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn)
-
         call density(surftemp_old,option%reference_pressure,den)
 
-        surfpress_new = surfpress_old - &
-          patch%boundary_velocities(1,sum_connection)*option%flow_dt* &
-          (abs(option%gravity(3)))*den
+        head_old = (surfpress_old - option%reference_pressure)/den/abs(option%gravity(3)) ! [m]
+        head_new = head_old - &
+          patch%boundary_velocities(1,sum_connection)*option%flow_dt ! [m]
 
-        surfpress_new = max(surfpress_new,option%reference_pressure)
-        if (surfpress_new <= option%reference_pressure) then
+        if (head_new <= 0.d0) then
           surfpress_new = option%reference_pressure
           surftemp_new = 0.d0
         else
-          head_old = surfpress_old/den/abs(option%gravity(3)) ! [m]
-          head_new = surfpress_new/den/abs(option%gravity(3)) ! [m]
-          energy_old = den*Cwi*(surftemp_old+273.15d0)*head_old
+          call density(surftemp_old,option%reference_pressure,den)
+          energy_old = den*Cwi*(surftemp_old + 273.15d0)*head_old
           energy_new = energy_old - eflux*option%flow_dt/area
-          surftemp_new = energy_new/(den*Cwi*head_new) - 273.15d0
+          ! Perform iteration to get updated temperature for surface-water
+          do iter = 1,niter
+            surftemp_new = energy_new/(den*Cwi*head_new) - 273.15d0
+            call density(surftemp_new,option%reference_pressure,den)
+          enddo
+          surfpress_new = head_new*(abs(option%gravity(3)))*den + &
+            option%reference_pressure
         endif
 
         boundary_condition%flow_aux_real_var(TH_PRESSURE_DOF,iconn) = &
