@@ -2886,6 +2886,8 @@ end subroutine pflotranModelSetICs
     use Mapping_module
 
     implicit none
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer :: pflotran_model
 
@@ -2957,7 +2959,7 @@ end subroutine pflotranModelSetICs
         area_p(local_id) = grid%unstructured_grid%face_area(face_id)
       enddo
     endif
-    call VecGetArrayF90(clm_pf_idata%area_top_face_pf, area_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%area_top_face_pf, area_p, ierr)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
