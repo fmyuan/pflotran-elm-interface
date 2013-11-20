@@ -482,7 +482,8 @@ subroutine PMCSurfaceSetAuxData(this)
               if (associated(source_sink%flow_aux_real_var)) then
                 cur_connection_set => source_sink%connection_set
 
-                if (StringCompare(source_sink%name,'atm_energy_ss')) then
+                if (StringCompare(source_sink%name,'atm_energy_ss') .or. &
+                    StringCompare(source_sink%name,'clm_energy_srf_ss')) then
 
                   do iconn = 1, cur_connection_set%num_connections
 
@@ -493,8 +494,8 @@ subroutine PMCSurfaceSetAuxData(this)
                       case (HET_ENERGY_RATE_SS)
                         esrc = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
                       case default
-                        this%option%io_buffer = 'atm_energy_ss does not have '// &
-                          'a temperature condition that is either a ' // &
+                        this%option%io_buffer = 'atm_energy_ss/clm_energy_srf_ss' // &
+                          ' does not have a temperature condition that is either a ' // &
                           ' ENERGY_RATE_SS or HET_ENERGY_RATE_SS'
                     end select
 
@@ -524,7 +525,8 @@ subroutine PMCSurfaceSetAuxData(this)
                                 surf_hflux_p, ierr)
 
             if (.not.(found)) then
-              this%option%io_buffer = 'atm_energy_ss not found in surface-flow model'
+              this%option%io_buffer = 'atm_energy_ss/clm_energy_srf_ss not ' // &
+                'found in surface-flow model'
               call printErrMsg(this%option)
             endif
         end select
