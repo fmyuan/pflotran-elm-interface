@@ -2740,18 +2740,17 @@ end subroutine pflotranModelSetICs
     global_aux_vars => patch%aux%Global%aux_vars
     th_aux_vars     => patch%aux%TH%aux_vars
 
+    call VecGetArrayF90(clm_pf_idata%temp_pf, temp_pf_p, ierr)
     do ghosted_id=1,grid%ngmax
       local_id = grid%nG2L(ghosted_id)
       if (local_id>0) then
-        call VecSetValues(clm_pf_idata%temp_pf,1,local_id-1, &
-                        global_aux_vars(ghosted_id)%temp(1),INSERT_VALUES,ierr)
         !call VecSetValues(clm_pf_idata%sat_ice_pf,1,local_id-1, &
         !                 global_aux_vars(ghosted_id)%sat_ice(1),INSERT_VALUES,ierr)
+        temp_pf_p(local_id) = global_aux_vars(ghosted_id)%temp(1)
       endif
     enddo
+    call VecRestoreArrayF90(clm_pf_idata%temp_pf, temp_pf_p, ierr)
 
-    call VecAssemblyBegin(clm_pf_idata%temp_pf,ierr)
-    call VecAssemblyEnd(clm_pf_idata%temp_pf,ierr)
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%temp_pf, &
@@ -2924,6 +2923,7 @@ end subroutine pflotranModelSetICs
     patch => realization%patch
     grid => patch%grid
 
+    call VecGetArrayF90(clm_pf_idata%area_top_face_pf, area_p, ierr)
     if(grid%discretization_itype == STRUCTURED_GRID) then
       ! Structured grid
       do ghosted_id=1,grid%ngmax
@@ -2931,8 +2931,7 @@ end subroutine pflotranModelSetICs
         if(local_id>0) then
           area1 = grid%structured_grid%dx(ghosted_id)* &
                   grid%structured_grid%dy(ghosted_id)
-          call VecSetValues(clm_pf_idata%area_top_face_pf,1,local_id-1, &
-                        area1,INSERT_VALUES,ierr)
+          area_p(local_id) = area1
         endif
       enddo
     else if (grid%discretization_itype == UNSTRUCTURED_GRID) then
@@ -2955,14 +2954,11 @@ end subroutine pflotranModelSetICs
         face_id = grid%unstructured_grid%cell_to_face_ghosted(iface, ghosted_id)
 
         ! Save face area
-        call VecSetValues(clm_pf_idata%area_top_face_pf,1,local_id-1, &
-                          grid%unstructured_grid%face_area(face_id), &
-                          INSERT_VALUES,ierr)
+        area_p(local_id) = grid%unstructured_grid%face_area(face_id)
       enddo
     endif
+    call VecGetArrayF90(clm_pf_idata%area_top_face_pf, area_p, ierr)
 
-    call VecAssemblyBegin(clm_pf_idata%area_top_face_pf,ierr)
-    call VecAssemblyEnd(clm_pf_idata%area_top_face_pf,ierr)
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%area_top_face_pf, &
