@@ -99,7 +99,7 @@ subroutine RSandboxRead1(input,option)
 
   use Option_module
   use String_module
-  use Input_module
+  use Input_Aux_module
   use Utility_module
   
   implicit none
@@ -122,7 +122,7 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
 
   use Option_module
   use String_module
-  use Input_module
+  use Input_Aux_module
   use Utility_module
   
   implicit none
@@ -137,7 +137,7 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
   
   nullify(new_sandbox)
   do 
-    call InputReadFlotranString(input,option)
+    call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
@@ -192,7 +192,7 @@ subroutine RSandboxSkipInput(input,option)
 
   use Option_module
   use String_module
-  use Input_module
+  use Input_Aux_module
   use Utility_module
   
   implicit none
