@@ -258,6 +258,7 @@ chem_obj = \
 	${common_src}reaction_sandbox_base.o \
 	${common_src}reaction_sandbox_clm_cn.o \
 	${common_src}reaction_sandbox_clm_cnp.o \
+	${common_src}reaction_sandbox_clm_cn_bf.o \
 	${common_src}reaction_sandbox_denintake.o \
 	${common_src}reaction_sandbox_plantntake.o \
 	${common_src}reaction_sandbox_example.o \
@@ -763,6 +764,7 @@ reaction_sandbox.o : global_aux.o input.o option.o pflotran_constants.o \
                      reaction_aux.o reaction_sandbox_base.o \
                      reaction_sandbox_clm_cn.o reaction_sandbox_example.o \
                      reaction_sandbox_clm_cnp.o \
+                     reaction_sandbox_clm_cn_bf.o \
                      reaction_sandbox_denintake.o \
                      reaction_sandbox_plantntake.o \
                      reactive_transport_aux.o string.o utility.o
@@ -774,6 +776,11 @@ reaction_sandbox_clm_cn.o : global_aux.o immobile_aux.o input.o option.o \
                             string.o units.o utility.o \
                             clm_pflotran_interface_data.o
 reaction_sandbox_clm_cnp.o : global_aux.o immobile_aux.o input.o option.o \
+                            pflotran_constants.o reaction_aux.o \
+                            reaction_sandbox_base.o reactive_transport_aux.o \
+                            string.o units.o utility.o \
+                            clm_pflotran_interface_data.o
+reaction_sandbox_clm_cn_bf.o : global_aux.o immobile_aux.o input.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_sandbox_base.o reactive_transport_aux.o \
                             string.o units.o utility.o \
