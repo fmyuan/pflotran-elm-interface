@@ -370,7 +370,15 @@ contains
     call VecSet(clm_pf_idata%rain_clm,0.d0,ierr)
     call VecSet(clm_pf_idata%rain_temp_clm,0.d0,ierr)
 
-    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_surf_3d,PETSC_DECIDE, clm_pf_idata%gflux_clm,ierr)
+!    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_surf_2d,PETSC_DECIDE, clm_pf_idata%gflux_clm,ierr)
+
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE,clm_pf_idata%gflux_subsurf_clm,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_clm,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_temp_clm,ierr)
+    call VecSet(clm_pf_idata%gflux_subsurf_clm,0.d0,ierr)
+    call VecSet(clm_pf_idata%rain_clm,0.d0,ierr)
+    call VecSet(clm_pf_idata%rain_temp_clm,0.d0,ierr)
+
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%hksat_x_pf,ierr)
 
     ! (iv) bgc variables - states
@@ -441,8 +449,8 @@ contains
     call VecSet(clm_pf_idata%rain_pf,0.d0,ierr)
     call VecSet(clm_pf_idata%rain_temp_pf,0.d0,ierr)
 
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_surf_3d,clm_pf_idata%gflux_pf,ierr)
-    call VecSet(clm_pf_idata%gflux_pf,0.d0,ierr)   ! 2-D or 3-D (fmy?)
+!    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_surf_3d,clm_pf_idata%gflux_pf,ierr)
+!    call VecSet(clm_pf_idata%gflux_pf,0.d0,ierr)   ! 2-D or 3-D (fmy?)
     ! 3D Subsurface PFLOTRAN ---to--- 3D Subsurface CLM
     call VecCreateMPI(mycomm,clm_pf_idata%nlpf_sub,PETSC_DECIDE,clm_pf_idata%sat_pf,ierr)
 

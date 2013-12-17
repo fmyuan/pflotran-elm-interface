@@ -670,7 +670,7 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%watsat_clm, &
                                     clm_pf_idata%watsat_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%soilpsi_clm, &
                                     clm_pf_idata%soilpsi_pf)
@@ -914,86 +914,86 @@ end subroutine pflotranModelSetICs
     ispec_plantn  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_lit1_clm, &
                                     clm_pf_idata%decomp_cpools_vr_lit1_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_lit2_clm, &
                                     clm_pf_idata%decomp_cpools_vr_lit2_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_lit3_clm, &
                                     clm_pf_idata%decomp_cpools_vr_lit3_pf)
 
-    !call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    !call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
     !                                pflotran_model%option, &
     !                                clm_pf_idata%decomp_cpools_vr_cwd_clm, &
     !                                clm_pf_idata%decomp_cpools_vr_cwd_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_som1_clm, &
                                     clm_pf_idata%decomp_cpools_vr_som1_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_som2_clm, &
                                     clm_pf_idata%decomp_cpools_vr_som2_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_som3_clm, &
                                     clm_pf_idata%decomp_cpools_vr_som3_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_som4_clm, &
                                     clm_pf_idata%decomp_cpools_vr_som4_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_npools_vr_lit1_clm, &
                                     clm_pf_idata%decomp_npools_vr_lit1_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_npools_vr_lit2_clm, &
                                     clm_pf_idata%decomp_npools_vr_lit2_pf)
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_npools_vr_lit3_clm, &
                                     clm_pf_idata%decomp_npools_vr_lit3_pf)
 
-    !call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    !call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
     !                                pflotran_model%option, &
     !                                clm_pf_idata%decomp_npools_vr_cwd_clm, &
     !                                clm_pf_idata%decomp_npools_vr_cwd_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%sminn_vr_clm, &
                                     clm_pf_idata%sminn_vr_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%hrc_vr_clm, &
                                     clm_pf_idata%hrc_vr_pf)
 
-    !call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    !call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
     !                                pflotran_model%option, &
     !                                clm_pf_idata%smin_no3_vr_clm, &
     !                                clm_pf_idata%smin_no3_vr_pf)
 
-    !call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    !call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
     !                                pflotran_model%option, &
     !                                clm_pf_idata%smin_nh4_vr_clm, &
     !                                clm_pf_idata%smin_nh4_vr_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%accextrn_vr_clm, &
                                     clm_pf_idata%accextrn_vr_pf)
@@ -2547,7 +2547,7 @@ subroutine pflotranModelSetInitialTStatesfromCLM(pflotran_model)
 
      else
 
-        call MappingSourceToDestination(pflotran_model%map_clm2pf, &
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%temp_clm, &
                                     clm_pf_idata%temp_pf)
@@ -2637,7 +2637,7 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
 
     ! Save the liq saturation values from CLM to PFLOTRAN, if needed
     if (.not.pf_hmode) then
-        call MappingSourceToDestination(pflotran_model%map_clm2pf, &
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%sat_clm, &
                                     clm_pf_idata%sat_pf)
@@ -2647,7 +2647,7 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
             global_aux_vars(ghosted_id)%sat(1)=sat_pf_p(local_id)
         enddo
         ! pass soilpsi for moisture response function calculation
-        call MappingSourceToDestination(pflotran_model%map_clm2pf, &
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%soilpsi_clm, &
                                     clm_pf_idata%soilpsi_pf)
@@ -2655,7 +2655,7 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
 
     ! Save soil temperature values from CLM to PFLOTRAN, if needed
     if (.not.pf_tmode) then
-        call MappingSourceToDestination(pflotran_model%map_clm2pf, &
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%temp_clm, &
                                     clm_pf_idata%temp_pf)
@@ -2694,7 +2694,7 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
     
     !--------------------------------------------------------------------------
     ! hydroloigcal source/sink from CLM
-    call MappingSourceToDestination(pflotran_model%map_clm2pf, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qflx_clm, &
                                     clm_pf_idata%qflx_pf)
@@ -3198,62 +3198,62 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
     grid  => patch%grid
     field => realization%field
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_lit1c_clm, &
                                     clm_pf_idata%rate_lit1c_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_lit2c_clm, &
                                     clm_pf_idata%rate_lit2c_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_lit3c_clm, &
                                     clm_pf_idata%rate_lit3c_pf)
 
-    !call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    !call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
     !                                pflotran_model%option, &
     !                                clm_pf_idata%rate_cwdc_clm, &
     !                                clm_pf_idata%rate_cwdc_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_lit1n_clm, &
                                     clm_pf_idata%rate_lit1n_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_lit2n_clm, &
                                     clm_pf_idata%rate_lit2n_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_lit3n_clm, &
                                     clm_pf_idata%rate_lit3n_pf)
 
-    !call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    !call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
     !                                pflotran_model%option, &
     !                                clm_pf_idata%rate_cwdn_clm, &
     !                                clm_pf_idata%rate_cwdn_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_minn_clm, &
                                     clm_pf_idata%rate_minn_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_plantnuptake_clm, &
                                     clm_pf_idata%rate_plantnuptake_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_nleached_clm, &
                                     clm_pf_idata%rate_nleached_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm2pf_soils, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_ndenitri_clm, &
                                     clm_pf_idata%rate_ndenitri_pf)
@@ -3905,86 +3905,86 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
     call VecRestoreArrayF90(clm_pf_idata%accextrn_vr_pf, accextrn_vr_pf_loc, ierr)
 
    ! (iv) pass the 'pf' vecs to 'clm' vecs, which then can be passed to CLMCN (implemented in 'clm_pflotran_interfaceMod'
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_lit1_pf, &
                                     clm_pf_idata%decomp_cpools_vr_lit1_clm)
 
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_lit2_pf, &
                                     clm_pf_idata%decomp_cpools_vr_lit2_clm)
 
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_lit3_pf, &
                                     clm_pf_idata%decomp_cpools_vr_lit3_clm)
 
-    !call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    !call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
     !                                pflotran_model%option, &
     !                                clm_pf_idata%decomp_cpools_vr_cwd_pf, &
     !                                clm_pf_idata%decomp_cpools_vr_cwd_clm)
 
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_som1_pf, &
                                     clm_pf_idata%decomp_cpools_vr_som1_clm)
 
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_som2_pf, &
                                     clm_pf_idata%decomp_cpools_vr_som2_clm)
 
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_som3_pf, &
                                     clm_pf_idata%decomp_cpools_vr_som3_clm)
 
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_som4_pf, &
                                     clm_pf_idata%decomp_cpools_vr_som4_clm)
 
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_npools_vr_lit1_pf, &
                                     clm_pf_idata%decomp_npools_vr_lit1_clm)
 
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_npools_vr_lit2_pf, &
                                     clm_pf_idata%decomp_npools_vr_lit2_clm)
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_npools_vr_lit3_pf, &
                                     clm_pf_idata%decomp_npools_vr_lit3_clm)
 
-    !call MappingSourceToDestination(pflotran_model%map_pf2clm_soils, &
+    !call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub_soils, &
     !                                pflotran_model%option, &
     !                                clm_pf_idata%decomp_npools_vr_cwd_pf, &
     !                                clm_pf_idata%decomp_npools_vr_cwd_clm)
 
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%sminn_vr_pf, &
                                     clm_pf_idata%sminn_vr_clm)
 
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%hrc_vr_pf, &
                                     clm_pf_idata%hrc_vr_clm)
 
-    !call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    !call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
     !                                pflotran_model%option, &
     !                                clm_pf_idata%smin_no3_vr_pf, &
     !                                clm_pf_idata%smin_no3_vr_clm)
 
-    !call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    !call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
     !                                pflotran_model%option, &
     !                                clm_pf_idata%smin_nh4_vr_pf, &
     !                                clm_pf_idata%smin_nh4_vr_clm)
 
-    call MappingSourceToDestination(pflotran_model%map_pf2clm, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%accextrn_vr_pf, &
                                     clm_pf_idata%accextrn_vr_clm)

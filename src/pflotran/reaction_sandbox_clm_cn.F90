@@ -148,7 +148,7 @@ subroutine CLM_CN_Read(this,input,option)
     select case(trim(word))
       case('TEMPERATURE_RESPONSE_FUNCTION')
         do
-         call InputReadFlotranString(input,option)
+         call InputReadPflotranString(input,option)
          if (InputError(input)) exit
          if (InputCheckExit(input,option)) exit
 

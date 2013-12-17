@@ -332,7 +332,7 @@ subroutine CLM_CNPRead(this,input,option)
 
   use Option_module
   use String_module
-  use Input_module
+  use Input_Aux_module
   use Units_module, only : UnitsConvertToInternal
   
   implicit none
@@ -361,7 +361,7 @@ subroutine CLM_CNPRead(this,input,option)
   rate_constant = 0.d0
 
   do 
-    call InputReadFlotranString(input,option)
+    call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
@@ -373,7 +373,7 @@ subroutine CLM_CNPRead(this,input,option)
     select case(trim(word))
       case('TEMPERATURE_RESPONSE_FUNCTION')
         do
-         call InputReadFlotranString(input,option)
+         call InputReadPflotranString(input,option)
          if (InputError(input)) exit
          if (InputCheckExit(input,option)) exit
 
@@ -424,7 +424,7 @@ subroutine CLM_CNPRead(this,input,option)
         endif
 
         do
-         call InputReadFlotranString(input,option)
+         call InputReadPflotranString(input,option)
          if (InputError(input)) exit
          if (InputCheckExit(input,option)) exit
 
@@ -481,7 +481,7 @@ subroutine CLM_CNPRead(this,input,option)
         pool => PoolCreate()
 
         do
-          call InputReadFlotranString(input,option)
+          call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
