@@ -112,7 +112,7 @@ subroutine CLM_CN_Read(this,input,option)
 
   use Option_module
   use String_module
-  use Input_module
+  use Input_Aux_module
   use Utility_module
   use Units_module, only : UnitsConvertToInternal
   
@@ -136,7 +136,7 @@ subroutine CLM_CN_Read(this,input,option)
   nullify(prev_reaction)
   
   do 
-    call InputReadFlotranString(input,option)
+    call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
@@ -148,7 +148,7 @@ subroutine CLM_CN_Read(this,input,option)
     select case(trim(word))
       case('TEMPERATURE_RESPONSE_FUNCTION')
         do
-         call InputReadFlotranString(input,option)
+         call InputReadPflotranString(input,option)
          if (InputError(input)) exit
          if (InputCheckExit(input,option)) exit
 
@@ -174,7 +174,7 @@ subroutine CLM_CN_Read(this,input,option)
 
       case('POOLS')
         do
-          call InputReadFlotranString(input,option)
+          call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit   
 
@@ -217,7 +217,7 @@ subroutine CLM_CN_Read(this,input,option)
         rate_constant = 0.d0
         
         do 
-          call InputReadFlotranString(input,option)
+          call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
 
@@ -593,12 +593,12 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   ! Equation: F_t = exp(308.56*(1/17.02 - 1/(T - 227.13)))
           temp_K = global_auxvar%temp(1) + 273.15d0
 
-          if(temp_K > 227.15d0) then
-              F_t = exp(308.56d0*(one_over_71_02 - 1.d0/(temp_K - 227.13d0)))
-          else
-              F_t = 0.0
-              return
-          endif
+  if(temp_K > 227.15d0) then
+    F_t = exp(308.56d0*(one_over_71_02 - 1.d0/(temp_K - 227.13d0)))
+  else
+    F_t = 0.0
+    return
+  endif
   end select
 
 #ifdef CLM_PFLOTRAN
@@ -625,7 +625,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   ! Equation: F_theta = log(theta_min/theta) / log(theta_min/theta_max)
   ! Assumptions: theta is saturation
   !              theta_min = 0.01, theta_max = 1.
-  F_theta = log(theta_min/max(global_auxvar%sat(1),theta_min)) * one_over_log_theta_min 
+  F_theta = log(theta_min/max(theta_min,global_auxvar%sat(1))) * one_over_log_theta_min 
   
 #endif
 
@@ -775,7 +775,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         ! scaled by negative one since it is a reactant 
         (-1.d0) * stoich_upstreamC_pool * drate
       if (use_N_inhibition) then
-!        drate_dN_inhibition = rate / N_inhibition * d_N_inhibition
+!       revision to avoid division by 0 when N -> 0 (N_inhibition -> 0)
         drate_dN_inhibition = rt_auxvar%immobile(ispecC_pool_up) * &
            scaled_rate_const * d_N_inhibition
 
@@ -828,7 +828,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         Jacobian(iresN_pool_up,iresC_pool_up) = &
           Jacobian(iresN_pool_up,iresC_pool_up) - &
           ! scaled by negative one since it is a reactant 
-!          (-1.d0) * dstoich_upstreamN_pool_dC_pool_up * rate
+!     revision to avoid division by 0 when upstream N -> 0 (line 727, 734, 735)
           (-1.d0) * (-1.d0) * rt_auxvar%immobile(ispecN_pool_up)/ &
                               rt_auxvar%immobile(ispecC_pool_up)* &
                               scaled_rate_const * N_inhibition
@@ -836,7 +836,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         Jacobian(iresN_pool_up,iresN_pool_up) = &
           Jacobian(iresN_pool_up,iresN_pool_up) - &
           ! scaled by negative one since it is a reactant 
-!          (-1.d0) * dstoich_upstreamN_pool_dN_pool_up * rate
+!     revision to avoid division by 0 when upstream N -> 0 (line 727, 734, 735)
           (-1.d0) * scaled_rate_const * N_inhibition
 
         ! stoich_C = resp_frac * stoich_upstreamC_pool
@@ -850,13 +850,13 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         dstoichN_dC_pool_up = dstoich_upstreamN_pool_dC_pool_up
         dstoichN_dN_pool_up = dstoich_upstreamN_pool_dN_pool_up
         Jacobian(ires_N,iresC_pool_up) = Jacobian(ires_N,iresC_pool_up) - &
-!          dstoichN_dC_pool_up * rate
+!     revision to avoid division by 0 when upstream N -> 0 (line 727, 734, 735)
           (-1.d0) * rt_auxvar%immobile(ispecN_pool_up)/ &
                     rt_auxvar%immobile(ispecC_pool_up)* &
                     scaled_rate_const * N_inhibition
 
         Jacobian(ires_N,iresN_pool_up) = Jacobian(ires_N,iresN_pool_up) - &
-!          dstoichN_dN_pool_up * rate
+!     revision to avoid division by 0 when upstream N -> 0 (line 727, 734, 735)
           scaled_rate_const * N_inhibition
       endif
       

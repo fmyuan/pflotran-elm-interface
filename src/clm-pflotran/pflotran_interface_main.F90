@@ -3,10 +3,10 @@ program pflotran_interface_main
   use pflotran_model_module, only : pflotran_model_type, pflotranModelCreate, &
        pflotranModelInitMapping, pflotranModelStepperRunInit, &
        pflotranModelStepperRunTillPauseTime, pflotranModelDestroy, &
-       CLM2PF_RFLUX_MAP_ID, PF2CLM_SURF_MAP_ID
+       CLM_SRF_TO_PF_SRF, PF_SRF_TO_CLM_SRF
   use clm_pflotran_interface_data
   use Mapping_module
-  use Input_module
+  use Input_Aux_module
   use Option_module
   
   use Simulation_Base_class, only : simulation_base_type
@@ -101,27 +101,27 @@ program pflotran_interface_main
 
   call CLMPFLOTRANIDataInit()
 
-  clm_pf_idata%nlclm_3d = clm_npts
-  clm_pf_idata%ngclm_3d = clm_npts
-  clm_pf_idata%nlpf_3d  = realization%patch%grid%nlmax
-  clm_pf_idata%ngpf_3d  = realization%patch%grid%ngmax
+  clm_pf_idata%nlclm_sub = clm_npts
+  clm_pf_idata%ngclm_sub = clm_npts
+  clm_pf_idata%nlpf_sub  = realization%patch%grid%nlmax
+  clm_pf_idata%ngpf_sub  = realization%patch%grid%ngmax
 
   ! Allocate memory for CLM-PFLOTRAN data transfer
   call CLMPFLOTRANIDataCreateVec(MPI_COMM_WORLD)
 
   ! Set mapping between CLM and PFLOTRAN
-  !call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM2PF_FLUX_MAP_ID)
-  !call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM2PF_SOIL_MAP_ID)
-  !call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, PF2CLM_FLUX_MAP_ID)
-  !call pflotranModelInitMapping(pflotran_m, clm_surf_cell_ids, clm_surf_npts, CLM2PF_GFLUX_MAP_ID)
+  call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, 1)
+  !call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, CLM_SUB_TO_PF_EXTENDED_SUB)
+  !call pflotranModelInitMapping(pflotran_m, clm_cell_ids, clm_npts, PF_SUB_TO_CLM_SUB)
+  !call pflotranModelInitMapping(pflotran_m, clm_surf_cell_ids, clm_surf_npts, CLM_SRF_TO_PF_2DSUB)
 #ifdef SURFACE_FLOW
-  clm_pf_idata%nlclm_2d = clm_surf_npts
-  clm_pf_idata%ngclm_2d = clm_surf_npts
+  clm_pf_idata%nlclm_srf = clm_surf_npts
+  clm_pf_idata%ngclm_srf = clm_surf_npts
   if(pflotran_m%option%nsurfflowdof>0) then
-    clm_pf_idata%nlpf_2d  = surf_realization%patch%grid%nlmax
-    clm_pf_idata%ngpf_2d  = surf_realization%patch%grid%ngmax
-    call pflotranModelInitMapping(pflotran_m, clm_surf_cell_ids, clm_surf_npts, PF2CLM_SURF_MAP_ID)
-    call pflotranModelInitMapping(pflotran_m, clm_surf_cell_ids, clm_surf_npts, CLM2PF_RFLUX_MAP_ID)
+    clm_pf_idata%nlpf_srf  = surf_realization%patch%grid%nlmax
+    clm_pf_idata%ngpf_srf  = surf_realization%patch%grid%ngmax
+    call pflotranModelInitMapping(pflotran_m, clm_surf_cell_ids, clm_surf_npts, PF_SRF_TO_CLM_SRF)
+    call pflotranModelInitMapping(pflotran_m, clm_surf_cell_ids, clm_surf_npts, CLM_SRF_TO_PF_SRF)
   endif
 #endif
 

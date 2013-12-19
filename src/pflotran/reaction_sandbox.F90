@@ -3,6 +3,7 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_Base_class
   use Reaction_Sandbox_CLM_CN_class
   use Reaction_Sandbox_CLM_CNP_class
+  use Reaction_Sandbox_CLM_CN_BF_class
   use Reaction_Sandbox_PlantNTake_class
   use Reaction_Sandbox_DeniNTake_class
   use Reaction_Sandbox_Example_class
@@ -98,7 +99,7 @@ subroutine RSandboxRead1(input,option)
 
   use Option_module
   use String_module
-  use Input_module
+  use Input_Aux_module
   use Utility_module
   
   implicit none
@@ -121,7 +122,7 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
 
   use Option_module
   use String_module
-  use Input_module
+  use Input_Aux_module
   use Utility_module
   
   implicit none
@@ -136,7 +137,7 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
   
   nullify(new_sandbox)
   do 
-    call InputReadFlotranString(input,option)
+    call InputReadPflotranString(input,option)
     if (InputError(input)) exit
     if (InputCheckExit(input,option)) exit
 
@@ -147,6 +148,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
     select case(trim(word))
       case('CLM-CN')
         new_sandbox => CLM_CN_Create()
+      case('CLM-CN-BF')
+        new_sandbox => CLM_CN_BFCreate()
       case('CLM-CNP')
         new_sandbox => CLM_CNPCreate()
       ! Add new cases statements for new reacton sandbox classes here.
@@ -189,7 +192,7 @@ subroutine RSandboxSkipInput(input,option)
 
   use Option_module
   use String_module
-  use Input_module
+  use Input_Aux_module
   use Utility_module
   
   implicit none

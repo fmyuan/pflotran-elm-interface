@@ -44,14 +44,24 @@ module clm_pflotran_interface_data
   Vec :: qflx_clm   ! mpi vec
   Vec :: qflx_pf    ! seq vec
   
-  ! (ii) Source of water for PFLOTRAN's 2D surface domain
+  ! (ii) Source of water and temperature of rain for PFLOTRAN's 2D surface domain
   Vec :: rain_clm   ! mpi vec
   Vec :: rain_pf    ! seq vec
+  Vec :: rain_temp_clm ! seq vec
+  Vec :: rain_temp_pf  ! mpi vec
   
   ! (iii) Ground heat flux BC for PFLOTRAN's subsurface domain
   !       This BC is applied on top surface of the subsurface domain
-  Vec :: gflux_clm  ! mpi vec
-  Vec :: gflux_pf   ! seq vec
+  Vec :: gflux_subsurf_clm  ! mpi vec
+  Vec :: gflux_subsurf_pf   ! seq vec
+  !       When running PFLOTRAN surface-subsurface simulation, ground heat flux
+  !       is a SS for PFLOTRAN's surface domain.
+  !
+  !       Note: CLM decomposes the domain across processors in a horizontal.
+  !       Thus, nlclm_2dsub = nlclm_srf across all processors. Thus, there is
+  !       no need for 'gflux_surf_clm'
+  !
+  Vec :: gflux_surf_pf   ! seq vec
 
   ! (iv) Saturation
   Vec :: sat_clm    ! seq vec
@@ -140,22 +150,22 @@ module clm_pflotran_interface_data
     Vec :: accextrn_vr_pf                ! (gN/m3) vertically-resolved root extraction N at previous time-step
 
   ! Number of cells for the 3D subsurface domain
-  PetscInt :: nlclm_3d  ! num of local clm cells
-  PetscInt :: ngclm_3d  ! num of ghosted clm cells (ghosted = local+ghosts)
-  PetscInt :: nlpf_3d   ! num of local pflotran cells
-  PetscInt :: ngpf_3d   ! num of ghosted pflotran cells (ghosted = local+ghosts)
+  PetscInt :: nlclm_sub ! num of local clm cells
+  PetscInt :: ngclm_sub ! num of ghosted clm cells (ghosted = local+ghosts)
+  PetscInt :: nlpf_sub  ! num of local pflotran cells
+  PetscInt :: ngpf_sub   ! num of ghosted pflotran cells (ghosted = local+ghosts)
 
   ! Number of cells for the surface of the 3D subsurface domain
-  PetscInt :: nlclm_surf_3d  ! num of local clm cells
-  PetscInt :: ngclm_surf_3d  ! num of ghosted clm cells (ghosted = local+ghosts)
-  PetscInt :: nlpf_surf_3d   ! num of local pflotran cells
-  PetscInt :: ngpf_surf_3d   ! num of ghosted pflotran cells (ghosted = local+ghosts)
+  PetscInt :: nlclm_2dsub  ! num of local clm cells
+  PetscInt :: ngclm_2dsub  ! num of ghosted clm cells (ghosted = local+ghosts)
+  PetscInt :: nlpf_2dsub   ! num of local pflotran cells
+  PetscInt :: ngpf_2dsub   ! num of ghosted pflotran cells (ghosted = local+ghosts)
 
   ! Number of cells for the 2D surface domain
-  PetscInt :: nlclm_2d  ! num of local clm cells
-  PetscInt :: ngclm_2d  ! num of ghosted clm cells (ghosted = local+ghosts)
-  PetscInt :: nlpf_2d   ! num of local pflotran cells
-  PetscInt :: ngpf_2d   ! num of ghosted pflotran cells (ghosted = local+ghosts)
+  PetscInt :: nlclm_srf  ! num of local clm cells
+  PetscInt :: ngclm_srf  ! num of ghosted clm cells (ghosted = local+ghosts)
+  PetscInt :: nlpf_srf   ! num of local pflotran cells
+  PetscInt :: ngpf_srf   ! num of ghosted pflotran cells (ghosted = local+ghosts)
 
   end type clm_pflotran_idata_type
 
@@ -179,20 +189,20 @@ contains
   
     implicit none
 
-    clm_pf_idata%nlclm_3d = 0
-    clm_pf_idata%ngclm_3d = 0
-    clm_pf_idata%nlpf_3d = 0
-    clm_pf_idata%ngpf_3d = 0
+    clm_pf_idata%nlclm_sub = 0
+    clm_pf_idata%ngclm_sub = 0
+    clm_pf_idata%nlpf_sub = 0
+    clm_pf_idata%ngpf_sub = 0
 
-    clm_pf_idata%nlclm_surf_3d = 0
-    clm_pf_idata%ngclm_surf_3d = 0
-    clm_pf_idata%nlpf_surf_3d = 0
-    clm_pf_idata%ngpf_surf_3d = 0
+    clm_pf_idata%nlclm_2dsub = 0
+    clm_pf_idata%ngclm_2dsub = 0
+    clm_pf_idata%nlpf_2dsub = 0
+    clm_pf_idata%ngpf_2dsub = 0
 
-    clm_pf_idata%nlclm_2d = 0
-    clm_pf_idata%ngclm_2d = 0
-    clm_pf_idata%nlpf_2d = 0
-    clm_pf_idata%ngpf_2d = 0
+    clm_pf_idata%nlclm_srf = 0
+    clm_pf_idata%ngclm_srf = 0
+    clm_pf_idata%nlpf_srf = 0
+    clm_pf_idata%ngpf_srf = 0
 
     clm_pf_idata%hksat_x_clm = 0
     clm_pf_idata%hksat_y_clm = 0
@@ -217,9 +227,12 @@ contains
     
     clm_pf_idata%rain_clm = 0
     clm_pf_idata%rain_pf = 0
+    clm_pf_idata%rain_temp_clm = 0
+    clm_pf_idata%rain_temp_pf = 0
     
-    clm_pf_idata%gflux_clm = 0
-    clm_pf_idata%gflux_pf = 0
+    clm_pf_idata%gflux_subsurf_clm = 0
+    clm_pf_idata%gflux_subsurf_pf = 0
+    clm_pf_idata%gflux_surf_pf = 0
 
     clm_pf_idata%sat_clm = 0
     clm_pf_idata%sat_pf = 0
@@ -329,7 +342,7 @@ contains
     !
     ! Create MPI Vectors for CLM ---------------------------------------------------------------
     ! (i) soil TH variables - parameters
-    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_3d,PETSC_DECIDE,clm_pf_idata%hksat_x_clm,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_sub,PETSC_DECIDE,clm_pf_idata%hksat_x_clm,ierr)
     call VecSet(clm_pf_idata%hksat_x_clm,0.d0,ierr)
 
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%hksat_y_clm,ierr)
@@ -350,11 +363,23 @@ contains
     ! (iii) soil TH variables - fluxes
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%qflx_clm,ierr)
 
-    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2d,PETSC_DECIDE,clm_pf_idata%rain_clm,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE,clm_pf_idata%gflux_subsurf_clm,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_clm,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_temp_clm,ierr)
+    call VecSet(clm_pf_idata%gflux_subsurf_clm,0.d0,ierr)
     call VecSet(clm_pf_idata%rain_clm,0.d0,ierr)
+    call VecSet(clm_pf_idata%rain_temp_clm,0.d0,ierr)
 
-    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_surf_3d,PETSC_DECIDE, clm_pf_idata%gflux_clm,ierr)
-    call VecSet(clm_pf_idata%gflux_clm,0.d0,ierr)   ! 2-D or 3-D (fmy?)
+!    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_surf_2d,PETSC_DECIDE, clm_pf_idata%gflux_clm,ierr)
+
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE,clm_pf_idata%gflux_subsurf_clm,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_clm,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_temp_clm,ierr)
+    call VecSet(clm_pf_idata%gflux_subsurf_clm,0.d0,ierr)
+    call VecSet(clm_pf_idata%rain_clm,0.d0,ierr)
+    call VecSet(clm_pf_idata%rain_temp_clm,0.d0,ierr)
+
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%hksat_x_pf,ierr)
 
     ! (iv) bgc variables - states
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%decomp_cpools_vr_lit1_clm,ierr)
@@ -396,7 +421,6 @@ contains
 
 ! Create Seq. Vectors for PFLOTRAN -----------------------------------------------------
     ! (i) soil TH variables - parameters
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_3d,clm_pf_idata%hksat_x_pf,ierr)
     call VecSet(clm_pf_idata%hksat_x_pf,0.d0,ierr)
 
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%hksat_y_pf,ierr)
@@ -416,12 +440,19 @@ contains
     ! (iii) soil TH variables - fluxes
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%qflx_pf,ierr)
 
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2d,clm_pf_idata%rain_pf,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dsub,clm_pf_idata%gflux_subsurf_pf,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf,clm_pf_idata%gflux_surf_pf,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf,clm_pf_idata%rain_pf,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf,clm_pf_idata%rain_temp_pf,ierr)
+    call VecSet(clm_pf_idata%gflux_subsurf_pf,0.d0,ierr)
+    call VecSet(clm_pf_idata%gflux_surf_pf,0.d0,ierr)
     call VecSet(clm_pf_idata%rain_pf,0.d0,ierr)
+    call VecSet(clm_pf_idata%rain_temp_pf,0.d0,ierr)
 
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_surf_3d,clm_pf_idata%gflux_pf,ierr)
-    call VecSet(clm_pf_idata%gflux_pf,0.d0,ierr)   ! 2-D or 3-D (fmy?)
+!    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_surf_3d,clm_pf_idata%gflux_pf,ierr)
+!    call VecSet(clm_pf_idata%gflux_pf,0.d0,ierr)   ! 2-D or 3-D (fmy?)
     ! 3D Subsurface PFLOTRAN ---to--- 3D Subsurface CLM
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_sub,PETSC_DECIDE,clm_pf_idata%sat_pf,ierr)
 
     ! (iv) soil bgc variables - states
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%decomp_cpools_vr_lit1_pf,ierr)
@@ -458,14 +489,15 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%accextrn_vr_pf,ierr)
 
     ! 2D Surface PFLOTRAN ---to--- 2D Surface CLM
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%nlclm_surf_3d,clm_pf_idata%h2osfc_clm,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_srf,PETSC_DECIDE,clm_pf_idata%h2osfc_pf,ierr)
     call VecSet(clm_pf_idata%h2osfc_clm,0.d0,ierr)
 
     ! Create Seq. Vectors for CLM
     ! 3D Subsurface PFLOTRAN ---to--- 3D Subsurface CLM
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_3d,clm_pf_idata%sat_clm,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_sub,clm_pf_idata%sat_clm,ierr)
     call VecSet(clm_pf_idata%sat_clm,0.d0,ierr)
 
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%nlclm_2dsub,clm_pf_idata%h2osfc_clm,ierr)
   end subroutine CLMPFLOTRANIDataCreateVec
 
   ! ************************************************************************** !
@@ -505,9 +537,12 @@ contains
     
     if(clm_pf_idata%rain_clm  /= 0) call VecDestroy(clm_pf_idata%rain_clm,ierr)
     if(clm_pf_idata%rain_pf  /= 0) call VecDestroy(clm_pf_idata%rain_pf,ierr)
+    if(clm_pf_idata%rain_temp_clm  /= 0) call VecDestroy(clm_pf_idata%rain_temp_clm,ierr)
+    if(clm_pf_idata%rain_temp_pf  /= 0) call VecDestroy(clm_pf_idata%rain_temp_pf,ierr)
     
-    if(clm_pf_idata%gflux_clm  /= 0) call VecDestroy(clm_pf_idata%gflux_clm,ierr)
-    if(clm_pf_idata%gflux_pf  /= 0) call VecDestroy(clm_pf_idata%gflux_pf,ierr)
+    if(clm_pf_idata%gflux_subsurf_clm  /= 0) call VecDestroy(clm_pf_idata%gflux_subsurf_clm,ierr)
+    if(clm_pf_idata%gflux_subsurf_pf  /= 0) call VecDestroy(clm_pf_idata%gflux_subsurf_pf,ierr)
+    if(clm_pf_idata%gflux_surf_pf  /= 0) call VecDestroy(clm_pf_idata%gflux_surf_pf,ierr)
 
     if(clm_pf_idata%sat_clm  /= 0) call VecDestroy(clm_pf_idata%sat_clm,ierr)
     if(clm_pf_idata%sat_pf  /= 0) call VecDestroy(clm_pf_idata%sat_pf,ierr)

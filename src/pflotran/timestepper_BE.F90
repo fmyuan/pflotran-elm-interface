@@ -137,7 +137,7 @@ subroutine TimestepperBERead(this,input,option)
 
   use Option_module
   use String_module
-  use Input_module
+  use Input_Aux_module
   use Utility_module
   
   implicit none
@@ -152,7 +152,7 @@ subroutine TimestepperBERead(this,input,option)
   input%ierr = 0
   do
   
-    call InputReadFlotranString(input,option)
+    call InputReadPflotranString(input,option)
 
     if (InputCheckExit(input,option)) exit  
 
@@ -277,10 +277,13 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   solver => this%solver
   option => process_model%option
   
+!geh: for debugging
+#ifdef DEBUG
   write(process_model%option%io_buffer,'(es12.5)') this%dt
   process_model%option%io_buffer = 'StepperStepDT(' // &
     trim(adjustl(process_model%option%io_buffer)) // ')'
   !call printMsg(process_model%option)
+#endif
 
   tconv = process_model%output_option%tconv
   tunit = process_model%output_option%tunit
@@ -373,9 +376,9 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   call SNESGetFunctionNorm(solver%snes,fnorm,ierr)
   call VecNorm(process_model%residual_vec,NORM_INFINITY,inorm,ierr)
   if (option%print_screen_flag) then
-    write(*, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5," [",a1,"]", &
-      & " snes_conv_reason: ",i4,/,"  newton = ",i3," [",i8,"]", &
-      & " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
+    write(*, '(/," Step ",i16," Time= ",1pe15.8," Dt= ",1pe12.5," [",a1,"]", &
+      & " snes_conv_reason: ",i4,/,"  newton = ",i3," [",i16,"]", &
+      & " linear = ",i5," [",i16,"]"," cuts = ",i2," [",i16,"]")') &
       this%steps, &
       this%target_time/tconv, &
       this%dt/tconv, &
@@ -384,24 +387,22 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
       this%cumulative_linear_iterations,icut, &
       this%cumulative_time_step_cuts
 
-#if 0    
-    if (associated(discretization%grid)) then
-       scaled_fnorm = fnorm/discretization%grid%nmax 
+    if (associated(process_model%realization_base%discretization%grid)) then
+       scaled_fnorm = fnorm/process_model%realization_base% &
+                        discretization%grid%nmax 
     else
        scaled_fnorm = fnorm
     endif
-#endif
-    scaled_fnorm = fnorm
 
     print *,' --> SNES Linear/Non-Linear Iterations = ', &
              num_linear_iterations,' / ',num_newton_iterations
     write(*,'("  --> SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm 
   endif
   if (option%print_file_flag) then
-    write(option%fid_out, '(" Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
+    write(option%fid_out, '(" Step ",i16," Time= ",1pe15.8," Dt= ",1pe12.5, &
       & " [",a1, &
-      & "]"," snes_conv_reason: ",i4,/,"  newton = ",i3," [",i8,"]", &
-      & " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
+      & "]"," snes_conv_reason: ",i4,/,"  newton = ",i3," [",i16,"]", &
+      & " linear = ",i5," [",i16,"]"," cuts = ",i2," [",i16,"]")') &
       this%steps, &
       this%target_time/tconv, &
       this%dt/tconv, &
@@ -639,7 +640,9 @@ recursive subroutine TimestepperBEFinalizeRun(this,option)
   
   character(len=MAXSTRINGLENGTH) :: string
   
-  call printMsg(option,'TSBE%FinalizeRun()')
+#ifdef DEBUG
+  call printMsg(option,'TimestepperBEFinalizeRun()')
+#endif
   
   if (OptionPrintToScreen(option)) then
     write(*,'(/," TS BE steps = ",i6," newton = ",i8," linear = ",i10, &
