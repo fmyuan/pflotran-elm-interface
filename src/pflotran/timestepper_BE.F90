@@ -376,9 +376,9 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   call SNESGetFunctionNorm(solver%snes,fnorm,ierr)
   call VecNorm(process_model%residual_vec,NORM_INFINITY,inorm,ierr)
   if (option%print_screen_flag) then
-    write(*, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5," [",a1,"]", &
-      & " snes_conv_reason: ",i4,/,"  newton = ",i3," [",i8,"]", &
-      & " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
+    write(*, '(/," Step ",i16," Time= ",1pe15.8," Dt= ",1pe12.5," [",a1,"]", &
+      & " snes_conv_reason: ",i4,/,"  newton = ",i3," [",i16,"]", &
+      & " linear = ",i5," [",i16,"]"," cuts = ",i2," [",i16,"]")') &
       this%steps, &
       this%target_time/tconv, &
       this%dt/tconv, &
@@ -399,10 +399,10 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
     write(*,'("  --> SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm 
   endif
   if (option%print_file_flag) then
-    write(option%fid_out, '(" Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
+    write(option%fid_out, '(" Step ",i16," Time= ",1pe15.8," Dt= ",1pe12.5, &
       & " [",a1, &
-      & "]"," snes_conv_reason: ",i4,/,"  newton = ",i3," [",i8,"]", &
-      & " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
+      & "]"," snes_conv_reason: ",i4,/,"  newton = ",i3," [",i16,"]", &
+      & " linear = ",i5," [",i16,"]"," cuts = ",i2," [",i16,"]")') &
       this%steps, &
       this%target_time/tconv, &
       this%dt/tconv, &

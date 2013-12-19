@@ -121,7 +121,7 @@ function TimestepperCreate()
   stepper%num_linear_iterations = 0
   stepper%num_constant_time_steps = 0
 
-  stepper%max_time_step = 9999999
+  stepper%max_time_step = 999999999
   stepper%max_time_step_cuts = 16
   stepper%constant_time_step_threshold = 5
   stepper%iaccel = 5
