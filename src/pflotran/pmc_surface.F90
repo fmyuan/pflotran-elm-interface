@@ -304,7 +304,7 @@ subroutine PMCSurfaceGetAuxData(this)
 
   PetscErrorCode :: ierr
 
-  print *, 'PMCSurfaceGetAuxData()'
+  !print *, 'PMCSurfaceGetAuxData()'
   if (this%option%subsurf_surf_coupling == SEQ_COUPLED) then
     select type(pmc => this)
       class is(pmc_surface_type)
@@ -570,7 +570,7 @@ subroutine PMCSurfaceGetAuxDataAfterRestart(this)
   PetscErrorCode :: ierr
   type(Surface_TH_auxvar_type), pointer :: surf_aux_vars(:)
 
-  print *, 'PMCSurfaceGetAuxDataAfterRestart()'
+  !print *, 'PMCSurfaceGetAuxDataAfterRestart()'
   if (this%option%subsurf_surf_coupling == SEQ_COUPLED) then
     select type(pmc => this)
       class is(pmc_surface_type)

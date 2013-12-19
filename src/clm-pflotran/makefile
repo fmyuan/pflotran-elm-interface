@@ -723,7 +723,8 @@ process_model_surface_flow.o : communicator_base.o condition.o \
                                pflotran_constants.o process_model_base.o \
                                realization.o surface_field.o surface_flow.o \
                                surface_realization.o \
-                               unstructured_communicator.o
+                               unstructured_communicator.o \
+                               surface_checkpoint.o
 process_model_surface_th.o : communicator_base.o condition.o discretization.o \
                              grid.o option.o pflotran_constants.o \
                              process_model_base.o realization.o \
