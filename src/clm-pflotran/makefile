@@ -8,7 +8,7 @@ pflotran_test_dir = ../../regression_tests_refactor
 MYFLAGS = -I.
 MYFLAGS += -DPROCESS_MODEL
 MYFLAGS += -DSURFACE_FLOW
-MYFLAGS += -DCLM_PFLOTRAN
+#MYFLAGS += -DCLM_PFLOTRAN
 MYFLAGS += -DSTORE_FLOWRATES
 
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
@@ -401,6 +401,14 @@ pflotran_interface_test_obj = ${pflotran_src}pflotran_interface_main.o
 
 pflotran_rxn_obj = ${pflotran_src}pflotran_rxn.o
 
+pflotran_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
+	$(shared_mode_aux_obj) $(chem_obj) $(grid_obj) \
+	$(relations_obj) $(properties_obj) $(dataset_obj) \
+	$(io_obj) $(misc_obj) $(surface_obj) ${pflotran_src}pflotran.o
+
+pflotran : $(pflotran_obj)
+	${FLINKER} -o pflotran $(pflotran_obj) ${PETSC_LIB} ${LIBS} 
+
 libpflotran.a : $(lib_pflotran_obj)
 	$(AR) $(ARFLAGS) $@ $(lib_pflotran_obj)
 
@@ -680,12 +688,12 @@ patch.o : auxiliary.o condition.o connection.o constraint.o coupler.o \
           saturation.o saturation_function.o strata.o surface_auxiliary.o \
           surface_complexation_aux.o surface_field.o surface_material.o \
           th_aux.o thc_aux.o utility.o variables.o water_eos.o
+pflotran.o : hydrogeophysics_factory.o option.o pflotran_constants.o \
+             pflotran_factory.o simulation_base.o subsurface_factory.o \
+             surface_factory.o surfsubsurface_factory.o
 pflotran_constants.o :
 pflotran_factory.o : init.o input_aux.o logging.o option.o pflotran_constants.o \
                      regression.o simulation.o string.o timestepper.o
-pflotran_new.o : hydrogeophysics_factory.o option.o pflotran_constants.o \
-                 pflotran_factory.o simulation_base.o subsurface_factory.o \
-                 surface_factory.o surfsubsurface_factory.o
 pmc_base.o : checkpoint.o logging.o option.o output.o output_aux.o \
              pflotran_constants.o process_model_base.o process_model_top.o \
              simulation_aux.o timestepper_base.o utility.o waypoint.o
