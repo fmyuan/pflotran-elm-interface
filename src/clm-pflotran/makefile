@@ -212,7 +212,11 @@ mode_aux_obj = \
 	${common_src}miscible_aux.o \
 	${common_src}mphase_aux.o \
 	${common_src}process_model_base.o \
-  ${common_src}process_model_mphase.o \
+  ${common_src}process_model_general.o \
+	${common_src}process_model_flash2.o \
+	${common_src}process_model_immis.o \
+	${common_src}process_model_mphase.o \
+	${common_src}process_model_miscible.o \
 	${common_src}process_model_richards.o \
 	${common_src}process_model_rt.o \
 	${common_src}process_model_surface_flow.o \
@@ -698,8 +702,28 @@ pmc_surface.o : option.o output.o output_surface.o pflotran_constants.o \
                 utility.o
 process_model_base.o : option.o output_aux.o pflotran_constants.o \
                        realization_base.o
+process_model_general.o : checkpoint.o communicator_base.o condition.o \
+                           discretization.o general.o global.o grid.o option.o \
+                           pflotran_constants.o process_model_base.o \
+                           realization.o structured_communicator.o \
+                           unstructured_communicator.o
+process_model_flash2.o : checkpoint.o communicator_base.o condition.o \
+                         discretization.o global.o grid.o flash2.o option.o \
+                         pflotran_constants.o process_model_base.o \
+                         realization.o structured_communicator.o \
+                         unstructured_communicator.o
+process_model_immis.o : checkpoint.o communicator_base.o condition.o \
+                         discretization.o global.o grid.o immis.o option.o \
+                         pflotran_constants.o process_model_base.o \
+                         realization.o structured_communicator.o \
+                         unstructured_communicator.o
 process_model_mphase.o : checkpoint.o communicator_base.o condition.o \
                          discretization.o global.o grid.o mphase.o option.o \
+                         pflotran_constants.o process_model_base.o \
+                         realization.o structured_communicator.o \
+                         unstructured_communicator.o
+process_model_miscible.o : checkpoint.o communicator_base.o condition.o \
+                         discretization.o global.o grid.o miscible.o option.o \
                          pflotran_constants.o process_model_base.o \
                          realization.o structured_communicator.o \
                          unstructured_communicator.o
@@ -858,7 +882,10 @@ subsurface_factory.o : checkpoint.o condition_control.o flash2.o general.o \
                        immis.o init.o input_aux.o miscible.o mphase.o option.o \
                        output.o output_aux.o pflotran_constants.o pmc_base.o \
                        pmc_subsurface.o process_model_base.o \
-                       process_model_mphase.o process_model_richards.o process_model_rt.o \
+                       process_model_general.o \
+                       process_model_flash2.o process_model_immis.o \
+                       process_model_mphase.o process_model_miscible.o \
+                       process_model_richards.o process_model_rt.o \
                        process_model_th.o process_model_thc.o \
                        process_model_top.o reactive_transport.o realization.o \
                        richards.o simulation.o simulation_base.o \
