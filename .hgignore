@@ -293,3 +293,11 @@ src/clm-pflotran/variables.F90
 src/clm-pflotran/water_eos.F90
 src/clm-pflotran/waypoint.F90
 
+src/clm-pflotran/process_model_flash2.F90
+src/clm-pflotran/process_model_general.F90
+src/clm-pflotran/process_model_immis.F90
+src/clm-pflotran/process_model_miscible.F90
+src/clm-pflotran/reaction_sandbox_clm_cn_bf.F90
+src/clm-pflotran/reaction_sandbox_clm_cnp.F90
+src/clm-pflotran/reaction_sandbox_denintake.F90
+src/clm-pflotran/reaction_sandbox_plantntake.F90
