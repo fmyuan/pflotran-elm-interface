@@ -830,7 +830,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                   case(TH_MODE)
                     allocate(coupler%flow_aux_real_var(option%nflowdof,num_connections))
                     coupler%flow_aux_real_var = 0.d0
-                  case(MPH_MODE)
+                  case(MPH_MODE,FLASH2_MODE,MIS_MODE,IMS_MODE)
                     ! do nothing
                   case default
                     string = GetSubConditionName(coupler%flow_condition%rate%itype)
@@ -985,7 +985,7 @@ end subroutine PatchUpdateCouplerAuxVars
 ! PatchUpdateCouplerAuxVarsG: Updates flow auxiliary variables associated
 !                             with a coupler for G_MODE
 ! author: Glenn Hammond
-! date: 11/26/07
+! date: 11/26/13
 !
 ! ************************************************************************** !
 subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
@@ -1134,13 +1134,17 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
           dof3 = PETSC_TRUE
       end select
     case(ANY_STATE)
-      do iconn = 1, num_connections
-        coupler%flow_aux_real_var(1:3,iconn) = &
-            general%temperature%dataset%rarray(1:3)
-      enddo
-      dof1 = PETSC_TRUE
-      dof2 = PETSC_TRUE
-      dof3 = PETSC_TRUE
+      if (associated(general%flux)) then
+        
+      else
+        do iconn = 1, num_connections
+          coupler%flow_aux_real_var(1:3,iconn) = &
+              general%temperature%dataset%rarray(1:3)
+        enddo
+        dof1 = PETSC_TRUE
+        dof2 = PETSC_TRUE
+        dof3 = PETSC_TRUE
+      endif
   end select  
   !geh: is this really correct, or should it be .or.
   if (.not.dof1 .or. .not.dof2 .or. .not.dof3) then
@@ -1151,8 +1155,8 @@ end subroutine PatchUpdateCouplerAuxVarsG
 
 ! ************************************************************************** !
 !
-! PatchUpdateCouplerAuxVarsG: Updates flow auxiliary variables associated
-!                             with a coupler for MPH_MODE
+! PatchUpdateCouplerAuxVarsMPH: Updates flow auxiliary variables associated
+!                               with a coupler for MPH_MODE
 ! author: Glenn Hammond
 ! date: 11/26/07
 !
@@ -1256,8 +1260,8 @@ end subroutine PatchUpdateCouplerAuxVarsMPH
 
 ! ************************************************************************** !
 !
-! PatchUpdateCouplerAuxVarsG: Updates flow auxiliary variables associated
-!                             with a coupler for IMS_MODE
+! PatchUpdateCouplerAuxVarsIMS: Updates flow auxiliary variables associated
+!                               with a coupler for IMS_MODE
 ! author: Glenn Hammond
 ! date: 11/26/07
 !
@@ -1361,8 +1365,8 @@ end subroutine PatchUpdateCouplerAuxVarsIMS
 
 ! ************************************************************************** !
 !
-! PatchUpdateCouplerAuxVarsG: Updates flow auxiliary variables associated
-!                             with a coupler for FLASH2_MODE
+! PatchUpdateCouplerAuxVarsFLASH2: Updates flow auxiliary variables associated
+!                                  with a coupler for FLASH2_MODE
 ! author: Glenn Hammond
 ! date: 11/26/07
 !
@@ -1466,8 +1470,8 @@ end subroutine PatchUpdateCouplerAuxVarsFLASH2
 
 ! ************************************************************************** !
 !
-! PatchUpdateCouplerAuxVarsG: Updates flow auxiliary variables associated
-!                             with a coupler for THC_MODE
+! PatchUpdateCouplerAuxVarsTHC: Updates flow auxiliary variables associated
+!                               with a coupler for THC_MODE
 ! author: Glenn Hammond
 ! date: 11/26/07
 !
@@ -1571,8 +1575,8 @@ end subroutine PatchUpdateCouplerAuxVarsTHC
 
 ! ************************************************************************** !
 !
-! PatchUpdateCouplerAuxVarsG: Updates flow auxiliary variables associated
-!                             with a coupler for TH_MODE
+! PatchUpdateCouplerAuxVarsTH: Updates flow auxiliary variables associated
+!                              with a coupler for TH_MODE
 ! author: Glenn Hammond
 ! date: 11/26/07
 !
@@ -1725,8 +1729,8 @@ end subroutine PatchUpdateCouplerAuxVarsTH
 
 ! ************************************************************************** !
 !
-! PatchUpdateCouplerAuxVarsG: Updates flow auxiliary variables associated
-!                             with a coupler for MIS_MODE
+! PatchUpdateCouplerAuxVarsMIS: Updates flow auxiliary variables associated
+!                               with a coupler for MIS_MODE
 ! author: Glenn Hammond
 ! date: 11/26/07
 !
@@ -1806,7 +1810,7 @@ end subroutine PatchUpdateCouplerAuxVarsMIS
 
 ! ************************************************************************** !
 !
-! PatchUpdateCouplerAuxVarsG: Updates flow auxiliary variables associated
+! PatchUpdateCouplerAuxVarsRich: Updates flow auxiliary variables associated
 !                             with a coupler for RICHARDS_MODE
 ! author: Glenn Hammond
 ! date: 11/26/07
@@ -2985,6 +2989,14 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%Immis%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%u(1)
             enddo
+          case(LIQUID_VISCOSITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%Immis%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%vis(1)
+            enddo
+          case(LIQUID_MOBILITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%Immis%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%kvr(1)
+            enddo
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%Global%aux_vars(grid%nL2G(local_id))%sat(2)
@@ -2996,6 +3008,14 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
           case(GAS_DENSITY) 
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%Global%aux_vars(grid%nL2G(local_id))%den_kg(2)
+            enddo
+          case(GAS_VISCOSITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%Immis%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%vis(2)
+            enddo
+          case(GAS_MOBILITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%Immis%aux_vars(grid%nL2G(local_id))%aux_var_elem(0)%kvr(2)
             enddo
         end select
       else if (associated(patch%aux%General)) then
@@ -3507,6 +3527,12 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
         vec_ptr(local_id) = vec_ptr2(local_id)
       enddo
       call VecRestoreArrayF90(field%volume,vec_ptr2,ierr)
+    case(TORTUOSITY)
+      call VecGetArrayF90(field%tortuosity_loc,vec_ptr2,ierr)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = vec_ptr2(grid%nL2G(local_id))
+      enddo
+      call VecRestoreArrayF90(field%tortuosity_loc,vec_ptr2,ierr)
     case default
       write(option%io_buffer, &
             '(''IVAR ('',i3,'') not found in PatchGetVariable'')') ivar
@@ -4100,6 +4126,15 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
       local_id = grid%nG2L(ghosted_id)        
       value = patch%aux%SC_RT%sec_transport_vars(local_id)% &
               sec_rt_auxvar(isubvar)%mnrl_volfrac(isubvar1)
+    case(TORTUOSITY)
+      call VecGetArrayF90(field%tortuosity_loc,vec_ptr2,ierr)
+      value = vec_ptr2(ghosted_id)
+      call VecRestoreArrayF90(field%tortuosity_loc,vec_ptr2,ierr)
+    case(VOLUME)
+      call VecGetArrayF90(field%volume,vec_ptr2,ierr)
+      local_id = grid%nG2L(ghosted_id)
+      value = vec_ptr2(local_id)
+      call VecRestoreArrayF90(field%volume,vec_ptr2,ierr)
      case default
       write(option%io_buffer, &
             '(''IVAR ('',i3,'') not found in PatchGetVariableValueAtCell'')') &
