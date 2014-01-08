@@ -675,6 +675,34 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%soilpsi_clm, &
                                     clm_pf_idata%soilpsi_pf)
 
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%watfc_clm, &
+                                    clm_pf_idata%watfc_pf)
+
+    if(clm_pf_idata%use_lch4) then
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%o2_decomp_depth_unsat_clm, &
+                                    clm_pf_idata%o2_decomp_depth_unsat_pf)
+
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%conc_o2_unsat_clm, &
+                                    clm_pf_idata%conc_o2_unsat_pf)
+
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%o2_decomp_depth_sat_clm, &
+                                    clm_pf_idata%o2_decomp_depth_sat_pf)
+
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%conc_o2_sat_clm, &
+                                    clm_pf_idata%conc_o2_sat_pf)
+
+    endif
+
     call VecGetArrayF90(clm_pf_idata%hksat_x_pf, hksat_x_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%hksat_y_pf, hksat_y_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%hksat_z_pf, hksat_z_pf_loc, ierr)
