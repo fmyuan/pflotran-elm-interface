@@ -77,7 +77,6 @@ module clm_pflotran_interface_data
   Vec :: h2osfc_clm ! seq vec
   Vec :: h2osfc_pf  ! mpi vec
 
-
   ! Number of cells for the 3D subsurface domain
   PetscInt :: nlclm_sub ! num of local clm cells
   PetscInt :: ngclm_sub ! num of ghosted clm cells (ghosted = local+ghosts)
@@ -133,44 +132,44 @@ module clm_pflotran_interface_data
   ! ground/soil C/N rates (G.-P. Tang) (Units: moleC(N)/m3/s)
   Vec :: rate_lit1c_clm
   Vec :: rate_lit2c_clm
-    Vec :: rate_lit3c_clm
-    Vec :: rate_lit1n_clm
-    Vec :: rate_lit2n_clm
-    Vec :: rate_lit3n_clm
-    Vec :: rate_cwdc_clm
-    Vec :: rate_cwdn_clm
-    Vec :: rate_minn_clm
-    Vec :: rate_plantnuptake_clm
-    Vec :: rate_nleached_clm
-    Vec :: rate_ndenitri_clm
+  Vec :: rate_lit3c_clm
+  Vec :: rate_lit1n_clm
+  Vec :: rate_lit2n_clm
+  Vec :: rate_lit3n_clm
+  Vec :: rate_cwdc_clm
+  Vec :: rate_cwdn_clm
+  Vec :: rate_minn_clm
+  Vec :: rate_plantnuptake_clm
+  Vec :: rate_nleached_clm
+  Vec :: rate_ndenitri_clm
 
-    Vec :: rate_lit1c_pf
-    Vec :: rate_lit2c_pf
-    Vec :: rate_lit3c_pf
-    Vec :: rate_lit1n_pf
-    Vec :: rate_lit2n_pf
-    Vec :: rate_lit3n_pf
-    Vec :: rate_cwdc_pf
-    Vec :: rate_cwdn_pf
-    Vec :: rate_minn_pf
-    Vec :: rate_plantnuptake_pf
-    Vec :: rate_nleached_pf
-    Vec :: rate_ndenitri_pf
+  Vec :: rate_lit1c_pf
+  Vec :: rate_lit2c_pf
+  Vec :: rate_lit3c_pf
+  Vec :: rate_lit1n_pf
+  Vec :: rate_lit2n_pf
+  Vec :: rate_lit3n_pf
+  Vec :: rate_cwdc_pf
+  Vec :: rate_cwdn_pf
+  Vec :: rate_minn_pf
+  Vec :: rate_plantnuptake_pf
+  Vec :: rate_nleached_pf
+  Vec :: rate_ndenitri_pf
 
-    ! 'hrc' is accumulative in 'PFLOTRAN', so needs previous time-step to calculate 'hr' fluxes for CLM-CN
-    Vec :: hrc_vr_clm_prv                ! (gC/m3) vertically-resolved soil heterotrophic respiration C at previous time-step
-    Vec :: hrc_vr_clm                    ! (gC/m3) vertically-resolved soil heterotrophic respiration C
-    Vec :: hrc_vr_pf                     ! (gC/m3) vertically-resolved soil heterotrophic respiration C
+  ! 'hrc' is accumulative in 'PFLOTRAN', so needs previous time-step to calculate 'hr' fluxes for CLM-CN
+  Vec :: hrc_vr_clm_prv                ! (gC/m3) vertically-resolved soil heterotrophic respiration C at previous time-step
+  Vec :: hrc_vr_clm                    ! (gC/m3) vertically-resolved soil heterotrophic respiration C
+  Vec :: hrc_vr_pf                     ! (gC/m3) vertically-resolved soil heterotrophic respiration C
 
-    ! 'accextrn' is accumulative N extract in 'PFLOTRAN', so needs previous time-step to calculate 'sminn_to_plant' fluxes for CLM-CN
-    Vec :: accextrn_vr_clm_prv           ! (gN/m3) vertically-resolved root extraction N at previous time-step
-    Vec :: accextrn_vr_clm               ! (gN/m3) vertically-resolved root extraction N at previous time-step
-    Vec :: accextrn_vr_pf                ! (gN/m3) vertically-resolved root extraction N at previous time-step
+  ! 'accextrn' is accumulative N extract in 'PFLOTRAN', so needs previous time-step to calculate 'sminn_to_plant' fluxes for CLM-CN
+  Vec :: accextrn_vr_clm_prv           ! (gN/m3) vertically-resolved root extraction N at previous time-step
+  Vec :: accextrn_vr_clm               ! (gN/m3) vertically-resolved root extraction N at previous time-step
+  Vec :: accextrn_vr_pf                ! (gN/m3) vertically-resolved root extraction N at previous time-step
 
-    ! misc. for bgc
-    Vec :: soilpsi_clm
-    Vec :: soilpsi_pf
-   !---------------------------------------------------------------
+  ! misc. for bgc
+  Vec :: soilpsi_clm
+  Vec :: soilpsi_pf
+  !---------------------------------------------------------------
 
   end type clm_pflotran_idata_type
 
@@ -249,7 +248,8 @@ contains
     clm_pf_idata%h2osfc_clm = 0
     clm_pf_idata%h2osfc_pf = 0
    
-   ! (viii) soil C/N pools
+   !--------------------------------------------------------------------
+   ! soil C/N pools
     clm_pf_idata%decomp_cpools_vr_lit1_clm = 0
     clm_pf_idata%decomp_cpools_vr_lit2_clm = 0
     clm_pf_idata%decomp_cpools_vr_lit3_clm = 0
@@ -265,11 +265,6 @@ contains
     clm_pf_idata%sminn_vr_clm         = 0
     clm_pf_idata%smin_no3_vr_clm      = 0
     clm_pf_idata%smin_nh4_vr_clm      = 0
-
-    clm_pf_idata%hrc_vr_clm_prv       = 0
-    clm_pf_idata%hrc_vr_clm           = 0
-    clm_pf_idata%accextrn_vr_clm_prv  = 0
-    clm_pf_idata%accextrn_vr_clm      = 0
 
     clm_pf_idata%decomp_cpools_vr_lit1_pf = 0
     clm_pf_idata%decomp_cpools_vr_lit2_pf = 0
@@ -287,10 +282,7 @@ contains
     clm_pf_idata%smin_no3_vr_pf       = 0
     clm_pf_idata%smin_nh4_vr_pf       = 0
 
-    clm_pf_idata%hrc_vr_pf            = 0
-    clm_pf_idata%accextrn_vr_pf       = 0
-
-   ! (viii) ground/soil C/N rates (G.-P. Tang)
+   !ground/soil C/N rates (G.-P. Tang)
     clm_pf_idata%rate_lit1c_clm            = 0
     clm_pf_idata%rate_lit2c_clm            = 0
     clm_pf_idata%rate_lit3c_clm            = 0
@@ -316,6 +308,20 @@ contains
     clm_pf_idata%rate_plantnuptake_pf     = 0
     clm_pf_idata%rate_nleached_pf         = 0
     clm_pf_idata%rate_ndenitri_pf         = 0
+
+    ! for soil hr calculation
+    clm_pf_idata%hrc_vr_clm_prv       = 0
+    clm_pf_idata%hrc_vr_clm           = 0
+    clm_pf_idata%hrc_vr_pf            = 0
+
+    ! for root N extraction calculation
+    clm_pf_idata%accextrn_vr_clm_prv  = 0
+    clm_pf_idata%accextrn_vr_clm      = 0
+    clm_pf_idata%accextrn_vr_pf       = 0
+
+    ! misc. for bgc
+    clm_pf_idata%soilpsi_clm   = 0
+    clm_pf_idata%soilpsi_pf    = 0
 
   end subroutine CLMPFLOTRANIDataInit
 
@@ -412,6 +418,92 @@ contains
     ! 2D Surface PFLOTRAN ---to--- 2D Surface CLM
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%nlclm_2dsub,clm_pf_idata%h2osfc_clm,ierr)
     call VecSet(clm_pf_idata%h2osfc_clm,0.d0,ierr)
+
+    !------------------------------------------------------
+    !NOTES (fmy): above mpi vecs vs. seq. vecs for passing data in one-way?
+    ! why not all mpi vecs for CLM while all seq vecs for PF so that two-way passing by same variables?
+    ! (i) BGC state variables: 3D subsurface PFLOTRAN ---to--- 3D subsurface CLM
+    ! MPI Vecs for PFLOTRAN
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_sub,PETSC_DECIDE,clm_pf_idata%decomp_cpools_vr_lit1_pf,ierr)
+    call VecSet(clm_pf_idata%decomp_cpools_vr_lit1_pf,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pf,clm_pf_idata%decomp_cpools_vr_lit2_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pf,clm_pf_idata%decomp_cpools_vr_lit3_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pf,clm_pf_idata%decomp_cpools_vr_cwd_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pf,clm_pf_idata%decomp_cpools_vr_som1_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pf,clm_pf_idata%decomp_cpools_vr_som2_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pf,clm_pf_idata%decomp_cpools_vr_som3_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pf,clm_pf_idata%decomp_npools_vr_lit1_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pf,clm_pf_idata%decomp_npools_vr_lit2_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pf,clm_pf_idata%decomp_npools_vr_lit3_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pf,clm_pf_idata%decomp_npools_vr_cwd_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pf,clm_pf_idata%sminn_vr_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pf,clm_pf_idata%smin_no3_vr_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pf,clm_pf_idata%smin_nh4_vr_pf,ierr)
+    ! Seq. Vecs for CLM
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_sub,clm_pf_idata%decomp_cpools_vr_lit1_clm,ierr)
+    call VecSet(clm_pf_idata%decomp_cpools_vr_lit1_clm,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clm,clm_pf_idata%decomp_cpools_vr_lit2_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clm,clm_pf_idata%decomp_cpools_vr_lit3_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clm,clm_pf_idata%decomp_cpools_vr_cwd_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clm,clm_pf_idata%decomp_cpools_vr_som1_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clm,clm_pf_idata%decomp_cpools_vr_som2_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clm,clm_pf_idata%decomp_cpools_vr_som3_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clm,clm_pf_idata%decomp_npools_vr_lit1_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clm,clm_pf_idata%decomp_npools_vr_lit2_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clm,clm_pf_idata%decomp_npools_vr_lit3_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clm,clm_pf_idata%decomp_npools_vr_cwd_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clm,clm_pf_idata%sminn_vr_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clm,clm_pf_idata%smin_no3_vr_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clm,clm_pf_idata%smin_nh4_vr_clm,ierr)
+
+    ! (ii) BGC interface source/sink (rates): 3D subsurface CLM ---to--- 3D subsurface PFLOTRAN
+    ! Seq. Vecs for PFLOTRAN
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%rate_lit1c_pf,ierr)
+    call VecSet(clm_pf_idata%rate_lit1c_pf,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pf,clm_pf_idata%rate_lit2c_pf,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pf,clm_pf_idata%rate_lit3c_pf,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pf,clm_pf_idata%rate_lit1n_pf,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pf,clm_pf_idata%rate_lit2n_pf,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pf,clm_pf_idata%rate_lit3n_pf,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pf,clm_pf_idata%rate_cwdc_pf,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pf,clm_pf_idata%rate_cwdn_pf,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pf,clm_pf_idata%rate_minn_pf,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pf,clm_pf_idata%rate_plantnuptake_pf,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pf,clm_pf_idata%rate_nleached_pf,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pf,clm_pf_idata%rate_ndenitri_pf,ierr)
+    ! MPI Vecs for CLM
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_sub,PETSC_DECIDE,clm_pf_idata%rate_lit1c_clm,ierr)
+    call VecSet(clm_pf_idata%rate_lit1c_clm,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clm,clm_pf_idata%rate_lit2c_clm,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clm,clm_pf_idata%rate_lit3c_clm,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clm,clm_pf_idata%rate_lit1n_clm,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clm,clm_pf_idata%rate_lit2n_clm,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clm,clm_pf_idata%rate_lit3n_clm,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clm,clm_pf_idata%rate_cwdc_clm,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clm,clm_pf_idata%rate_cwdn_clm,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clm,clm_pf_idata%rate_minn_clm,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clm,clm_pf_idata%rate_plantnuptake_clm,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clm,clm_pf_idata%rate_nleached_clm,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clm,clm_pf_idata%rate_ndenitri_clm,ierr)
+
+    ! (iii) BGC flux variables: 3D subsurface PFLOTRAN ---to--- 3D subsurface CLM
+    ! MPI Vecs for PFLOTRAN
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_sub,PETSC_DECIDE,clm_pf_idata%hrc_vr_pf,ierr)
+    call VecSet(clm_pf_idata%hrc_vr_pf,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%hrc_vr_pf,clm_pf_idata%accextrn_vr_pf,ierr)
+
+    ! Seq. Vecs for CLM
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_sub,clm_pf_idata%hrc_vr_clm,ierr)
+    call VecSet(clm_pf_idata%hrc_vr_clm,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%hrc_vr_clm,clm_pf_idata%hrc_vr_clm_prv,ierr)
+    call VecDuplicate(clm_pf_idata%hrc_vr_clm,clm_pf_idata%accextrn_vr_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hrc_vr_clm,clm_pf_idata%accextrn_vr_clm_prv,ierr)
+
+    ! (iv) misc.
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pf,clm_pf_idata%soilpsi_pf,ierr)   ! from CLM--to--PF
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clm,clm_pf_idata%soilpsi_clm,ierr)
+
+    !---------------------------------------------
 
   end subroutine CLMPFLOTRANIDataCreateVec
 
@@ -573,6 +665,9 @@ contains
     if(clm_pf_idata%accextrn_vr_clm /= 0) &
        call VecDestroy(clm_pf_idata%accextrn_vr_clm,ierr)
 
+    if(clm_pf_idata%soilpsi_pf /= 0) &
+       call VecDestroy(clm_pf_idata%soilpsi_pf,ierr)
+
     if(clm_pf_idata%rate_lit1c_pf /= 0) &
        call VecDestroy(clm_pf_idata%rate_lit1c_pf,ierr)
     if(clm_pf_idata%rate_lit2c_pf /= 0) &
@@ -603,6 +698,9 @@ contains
 
     if(clm_pf_idata%accextrn_vr_pf /= 0) &
        call VecDestroy(clm_pf_idata%accextrn_vr_pf,ierr)
+
+    if(clm_pf_idata%soilpsi_pf /= 0) &
+       call VecDestroy(clm_pf_idata%soilpsi_pf,ierr)
 
   end subroutine CLMPFLOTRANIDataDestroy
 
