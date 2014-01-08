@@ -127,6 +127,7 @@ module pflotran_model_module
        pflotranModelDestroy
 
   public :: pflotranModelUpdateTHfromCLM
+  public :: pflotranModelUpdateO2fromCLM
 
   private :: &
        pflotranModelSetupMappingFiles
@@ -691,10 +692,11 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%conc_o2_unsat_clm, &
                                     clm_pf_idata%conc_o2_unsat_pf)
 
-       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%o2_decomp_depth_sat_clm, &
-                                    clm_pf_idata%o2_decomp_depth_sat_pf)
+!for some reason, o2_decomp_depth_sat is nan
+!       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+!                                    pflotran_model%option, &
+!                                    clm_pf_idata%o2_decomp_depth_sat_clm, &
+!                                    clm_pf_idata%o2_decomp_depth_sat_pf)
 
        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
@@ -2695,6 +2697,49 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
     endif
 
   end subroutine pflotranModelUpdateTHfromCLM
+
+  ! ************************************************************************** !
+  !> This routine Updates O2 for PFLOTRAN bgc that are from CLM
+  !! for testing PFLOTRAN-BGC mode
+  !!
+  !> @author
+  !! Guoping Tang
+  !!
+  !! date: 1/6/2014
+  ! ************************************************************************** !
+  subroutine pflotranModelUpdateO2fromCLM(pflotran_model)
+
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%o2_decomp_depth_unsat_clm, &
+                                    clm_pf_idata%o2_decomp_depth_unsat_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%conc_o2_unsat_clm, &
+                                    clm_pf_idata%conc_o2_unsat_pf)
+
+!    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+!                                    pflotran_model%option, &
+!                                    clm_pf_idata%o2_decomp_depth_sat_clm, &
+!                                    clm_pf_idata%o2_decomp_depth_sat_pf)
+!   because of NaN t6g 
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%conc_o2_sat_clm, &
+                                    clm_pf_idata%conc_o2_sat_pf)
+
+  end subroutine pflotranModelUpdateO2fromCLM
 
   ! ************************************************************************** !
   !> This routine Updates boundary and source/sink condtions for PFLOTRAN that

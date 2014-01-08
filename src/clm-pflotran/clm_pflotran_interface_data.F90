@@ -522,8 +522,10 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%accextrn_vr_pf,ierr)
 
     ! 2D Surface PFLOTRAN ---to--- 2D Surface CLM
-    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_srf,PETSC_DECIDE,clm_pf_idata%h2osfc_pf,ierr)
-    call VecSet(clm_pf_idata%h2osfc_clm,0.d0,ierr)
+    if(clm_pf_idata%nlpf_srf > 0) then
+      call VecCreateMPI(mycomm,clm_pf_idata%nlpf_srf,PETSC_DECIDE,clm_pf_idata%h2osfc_pf,ierr)
+      call VecSet(clm_pf_idata%h2osfc_clm,0.d0,ierr)
+    endif
 
     ! Create Seq. Vectors for CLM
     ! 3D Subsurface PFLOTRAN ---to--- 3D Subsurface CLM
