@@ -485,7 +485,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
 !         k_nitr_vr(c,j) = k_nitr_max * k_nitr_t_vr(c,j) * k_nitr_h2o_vr(c,j) * k_nitr_ph_vr(c,j)
 
   concN = rt_auxvar%immobile(this%ispec_nh3)
-  rate = k_nitr_max * F_t * F_ph * F_theta * anaerobic_frac * concN
+  rate = k_nitr_max * F_t * F_ph * F_theta * (1.0 - anaerobic_frac) * concN
 
   if(this%half_saturation > 1.0d-20) then
 !    f = k N N/(s + N)
