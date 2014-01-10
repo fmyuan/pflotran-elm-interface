@@ -7,6 +7,7 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_PlantNTake_class
   use Reaction_Sandbox_DeniNTake_class
   use Reaction_Sandbox_Nitrification_class
+  use Reaction_Sandbox_Denitrification_class
   use Reaction_Sandbox_Example_class
   
   ! Add new reacton sandbox classes here.
@@ -160,6 +161,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => DeniNTakeCreate()
       case('NITRIFICATION')
         new_sandbox => NitrificationCreate()
+      case('DENITRIFICATION')
+        new_sandbox => DenitrificationCreate()
       case('EXAMPLE')
         new_sandbox => EXAMPLECreate()
       case default

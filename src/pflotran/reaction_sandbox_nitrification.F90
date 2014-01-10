@@ -495,7 +495,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
      drate =  rate  * (2.0 * this%half_saturation + concN) / tmp_real / tmp_real
      rate = rate * concN / (concN + this%half_saturation) 
   else
-     drate = k_nitr_max * F_t * F_ph * F_theta * anaerobic_frac
+     drate = k_nitr_max * F_t * F_ph * F_theta * (1.0 - anaerobic_frac)
   endif
 
 !         ! limit to non-frozen soil layers

@@ -23,6 +23,13 @@ module clm_pflotran_interface_data
   Vec :: press_clm
   Vec :: soilpsi_clm
 
+  ! pflotran has rock (solid) density, not bulk density,
+  ! there could be issues with influence of soil organic content, ice on bulk density
+  ! this will be temporaily used for calculation needed in denitrification calculation
+  ! following clm4.5.35
+  Vec :: bulkdensity_dry_clm   
+                            
+
   ! Local for PFLOTRAN - seq. vec
   Vec :: hksat_x_pf
   Vec :: hksat_y_pf
@@ -33,6 +40,7 @@ module clm_pflotran_interface_data
   Vec :: bsw_pf
   Vec :: press_pf
   Vec :: soilpsi_pf
+  Vec :: bulkdensity_dry_pf   
 
   ! (ii) Mesh property
 
@@ -228,6 +236,7 @@ contains
     clm_pf_idata%bsw_clm = 0
     clm_pf_idata%press_clm = 0
     clm_pf_idata%soilpsi_clm = 0
+    clm_pf_idata%bulkdensity_dry_clm = 0
 
     clm_pf_idata%hksat_x_pf = 0
     clm_pf_idata%hksat_y_pf = 0
@@ -237,7 +246,7 @@ contains
     clm_pf_idata%watfc_pf = 0
     clm_pf_idata%bsw_pf = 0
     clm_pf_idata%press_pf = 0
-    clm_pf_idata%soilpsi_pf = 0
+    clm_pf_idata%bulkdensity_dry_pf = 0
 
     clm_pf_idata%qflx_clm = 0
     clm_pf_idata%qflx_pf = 0
@@ -383,6 +392,7 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%watfc_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%bsw_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%soilpsi_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%bulkdensity_dry_clm,ierr)
 
     ! (ii) soil TH variables - states
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%press_clm,ierr)
@@ -462,6 +472,7 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%watfc_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%bsw_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%soilpsi_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%bulkdensity_dry_pf,ierr)
 
     ! (ii) soil TH variables - states
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%press_pf,ierr)
@@ -575,6 +586,7 @@ contains
     if(clm_pf_idata%bsw_clm  /= 0) call VecDestroy(clm_pf_idata%bsw_clm,ierr)
     if(clm_pf_idata%press_clm  /= 0) call VecDestroy(clm_pf_idata%press_clm,ierr)
     if(clm_pf_idata%soilpsi_clm  /= 0) call VecDestroy(clm_pf_idata%soilpsi_clm,ierr)
+    if(clm_pf_idata%bulkdensity_dry_clm  /= 0) call VecDestroy(clm_pf_idata%bulkdensity_dry_clm,ierr)
 
     if(clm_pf_idata%hksat_x_pf  /= 0) call VecDestroy(clm_pf_idata%hksat_x_pf,ierr)
     if(clm_pf_idata%hksat_y_pf  /= 0) call VecDestroy(clm_pf_idata%hksat_y_pf,ierr)
@@ -585,6 +597,7 @@ contains
     if(clm_pf_idata%bsw_pf  /= 0) call VecDestroy(clm_pf_idata%bsw_pf,ierr)
     if(clm_pf_idata%press_pf  /= 0) call VecDestroy(clm_pf_idata%press_pf,ierr)
     if(clm_pf_idata%soilpsi_pf  /= 0) call VecDestroy(clm_pf_idata%soilpsi_pf,ierr)
+    if(clm_pf_idata%bulkdensity_dry_pf  /= 0) call VecDestroy(clm_pf_idata%bulkdensity_dry_pf,ierr)
 
     if(clm_pf_idata%qflx_clm  /= 0) call VecDestroy(clm_pf_idata%qflx_clm,ierr)
     if(clm_pf_idata%qflx_pf  /= 0) call VecDestroy(clm_pf_idata%qflx_pf,ierr)

@@ -680,6 +680,11 @@ end subroutine pflotranModelSetICs
                                     pflotran_model%option, &
                                     clm_pf_idata%watfc_clm, &
                                     clm_pf_idata%watfc_pf)
+! for denitrification
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%bulkdensity_dry_clm, &
+                                    clm_pf_idata%bulkdensity_dry_pf)
 
     if(clm_pf_idata%use_lch4) then
        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
