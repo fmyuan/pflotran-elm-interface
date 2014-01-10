@@ -50,14 +50,15 @@ contains
 #if defined(PETSC_HAVE_HDF5)
 
 ! ************************************************************************** !
-!
-! HDF5ReadNDimRealArray: Read in an n-dimensional array from an hdf5 file
-! author: Glenn Hammond
-! date: 01/13/10
-!
-! ************************************************************************** !
+
 subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
                                  real_array)
+  ! 
+  ! Read in an n-dimensional array from an hdf5 file
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 01/13/10
+  ! 
 
   use hdf5
   
@@ -146,15 +147,15 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
 end subroutine HDF5ReadNDimRealArray
 
 #if defined(SCORPIO)
+
 ! ************************************************************************** !
-!
-! HDF5ReadDatasetInteger2D: 
-! author: Gautam Bisht
-! date: 05/13/2010
-!
-! ************************************************************************** !
+
 subroutine HDF5ReadDatasetInteger2D(filename,dataset_name,read_option,option, &
            data,data_dims,dataset_dims)
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 05/13/2010
+  ! 
 
   use hdf5
   use Option_module
@@ -240,7 +241,6 @@ end subroutine HDF5ReadDatasetInteger2D
 
 subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
            data,data_dims,dataset_dims)
-
   use hdf5
   use Option_module
   
@@ -312,7 +312,6 @@ subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
 
 end subroutine HDF5ReadDatasetReal2D
 #endif
-! SCORPIO
 
 #if defined(PARALLELIO_LIB)
 
@@ -406,6 +405,13 @@ end subroutine HDF5ReadDatasetReal1D
 !
 ! ************************************************************************** !
 function HDF5GroupExists(filename,group_name,option)
+  ! 
+  ! SCORPIO
+  ! Returns true if a group exists
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/26/2012
+  ! 
 
   use hdf5
   use Option_module
@@ -491,13 +497,14 @@ function HDF5GroupExists(filename,group_name,option)
 end function HDF5GroupExists
 
 ! ************************************************************************** !
-!
-! HDF5MakeStringCompatible: Replaces '/' in string with '_' for hdf5 names
-! author: Glenn Hammond
-! date: 10/25/07
-!
-! ************************************************************************** !
+
 subroutine HDF5MakeStringCompatible(name)
+  ! 
+  ! Replaces '/' in string with '_' for hdf5 names
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/25/07
+  ! 
 
   implicit none
   
