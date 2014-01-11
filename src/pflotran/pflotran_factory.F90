@@ -44,6 +44,7 @@ subroutine PFLOTRANInitialize(option)
 end subroutine PFLOTRANInitialize
 
 #ifdef PROCESS_MODEL
+
 ! ************************************************************************** !
 
 subroutine PFLOTRANInitializePrePetsc(multisimulation,option)
@@ -95,6 +96,7 @@ subroutine PFLOTRANInitializePrePetsc(option)
 end subroutine PFLOTRANInitializePrePetsc
 
 #ifdef PROCESS_MODEL
+
 ! ************************************************************************** !
 
 subroutine PFLOTRANInitializePostPetsc(multisimulation,option)

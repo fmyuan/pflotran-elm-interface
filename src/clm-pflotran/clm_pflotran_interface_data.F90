@@ -105,15 +105,15 @@ module clm_pflotran_interface_data
   
 contains
 
-  ! ************************************************************************** !
-  !> This routine initialized the data transfer type.
-  !!
-  !> @author
-  !! Gautam Bisht, LBNL
-  !!
-  !! date: 4/10/2013
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine CLMPFLOTRANIDataInit()
+  ! 
+  ! This routine initialized the data transfer type.
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 4/10/2013
+  ! 
   
     implicit none
 
@@ -174,16 +174,16 @@ contains
 
   end subroutine CLMPFLOTRANIDataInit
 
-  ! ************************************************************************** !
-  !> This routine creates PETSc vectors required for data transfer between
-  !! CLM and PFLOTRAN.
-  !!
-  !> @author
-  !! Gautam Bisht, ORNL
-  !!
-  !! date: 2011
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine CLMPFLOTRANIDataCreateVec(mycomm)
+  ! 
+  ! This routine creates PETSc vectors required for data transfer between
+  ! CLM and PFLOTRAN.
+  ! 
+  ! Author: Gautam Bisht, ORNL
+  ! Date: 2011
+  ! 
   
     implicit none
     
@@ -270,15 +270,15 @@ contains
 
   end subroutine CLMPFLOTRANIDataCreateVec
 
-  ! ************************************************************************** !
-  !> This routine destroys PETSc vectors that were created for data transfer.
-  !!
-  !> @author
-  !! Gautam Bisht, LBNL
-  !!
-  !! date: 4/10/2013
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine CLMPFLOTRANIDataDestroy()
+  ! 
+  ! This routine destroys PETSc vectors that were created for data transfer.
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 4/10/2013
+  ! 
   
     implicit none
     
