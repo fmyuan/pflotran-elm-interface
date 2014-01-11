@@ -232,15 +232,13 @@ end subroutine HDF5ReadDatasetInteger2D
 #if defined(SCORPIO)
 
 ! ************************************************************************** !
-!
-! HDF5ReadDatasetReal2D: 
-! author: Gautam Bisht
-! date: 05/13/2010
-!
-! ************************************************************************** !
 
 subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
            data,data_dims,dataset_dims)
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 05/13/2010
+  ! 
   use hdf5
   use Option_module
   
@@ -316,15 +314,13 @@ end subroutine HDF5ReadDatasetReal2D
 #if defined(PARALLELIO_LIB)
 
 ! ************************************************************************** !
-!
-! HDF5ReadDatasetReal1D: 
-! author: Gautam Bisht
-! date: 05/13/2010
-!
-! ************************************************************************** !
 
 subroutine HDF5ReadDatasetReal1D(filename,dataset_name,read_option,option, &
            data,data_dims,dataset_dims)
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 05/13/2010
+  ! 
 
   use hdf5
   use Option_module
@@ -398,13 +394,14 @@ end subroutine HDF5ReadDatasetReal1D
 #endif ! PARALLELIO_LIB
 
 ! ************************************************************************** !
-!
-! HDF5GroupExists: Returns true if a group exists
-! author: Glenn Hammond
-! date: 03/26/2012
-!
-! ************************************************************************** !
+
 function HDF5GroupExists(filename,group_name,option)
+  ! 
+  ! Returns true if a group exists
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/26/2012
+  ! 
   ! 
   ! SCORPIO
   ! Returns true if a group exists

@@ -335,6 +335,8 @@ subroutine TimestepperInitializeRun(realization,surf_realization, &
                                     init_status)
 #else
 
+! ************************************************************************** !
+
 subroutine TimestepperInitializeRun(realization,master_stepper, &
                                     flow_stepper,tran_stepper, &
                                     init_status)
@@ -599,6 +601,8 @@ end subroutine TimestepperInitializeRun
 subroutine TimestepperExecuteRun(realization,surf_realization,master_stepper, &
                                  flow_stepper,tran_stepper,surf_flow_stepper)
 #else
+
+! ************************************************************************** !
 
 subroutine TimestepperExecuteRun(realization,master_stepper,flow_stepper, &
                                  tran_stepper)
@@ -1021,6 +1025,8 @@ subroutine TimestepperFinalizeRun(realization,surf_realization, &
                                   master_stepper,flow_stepper,tran_stepper, &
                                   surf_flow_stepper)
 #else
+
+! ************************************************************************** !
 
 subroutine TimestepperFinalizeRun(realization,master_stepper,flow_stepper, &
                                   tran_stepper)
@@ -3887,6 +3893,8 @@ end subroutine StepperSolveTranSteadyState
 subroutine StepperUpdateSolution(realization,surf_realization,update_kinetics)
 
 #else
+
+! ************************************************************************** !
 
 subroutine StepperUpdateSolution(realization,update_kinetics)
 #endif
