@@ -200,15 +200,6 @@ src/clm-pflotran/pmc_base.F90
 src/clm-pflotran/pmc_hydrogeophysics.F90
 src/clm-pflotran/pmc_subsurface.F90
 src/clm-pflotran/pmc_surface.F90
-src/clm-pflotran/process_model_base.F90
-src/clm-pflotran/process_model_mphase.F90
-src/clm-pflotran/process_model_richards.F90
-src/clm-pflotran/process_model_rt.F90
-src/clm-pflotran/process_model_surface_flow.F90
-src/clm-pflotran/process_model_surface_th.F90
-src/clm-pflotran/process_model_th.F90
-src/clm-pflotran/process_model_thc.F90
-src/clm-pflotran/process_model_top.F90
 src/clm-pflotran/reaction.F90
 src/clm-pflotran/reaction_aux.F90
 src/clm-pflotran/reaction_chunk.F90
