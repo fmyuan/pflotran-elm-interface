@@ -2,6 +2,7 @@ module pflotran_model_module
 
   use Option_module, only : option_type
   use Simulation_Base_class, only : simulation_base_type
+  use Multi_Simulation_module, only : multi_simulation_type
   use Realization_Base_class, only : realization_base_type
   use Mapping_module, only : mapping_type
 
@@ -60,6 +61,7 @@ module pflotran_model_module
 
   type, public :: pflotran_model_type
     class(simulation_base_type),  pointer :: simulation
+    type(multi_simulation_type), pointer :: multisimulation
     type(option_type),      pointer :: option
     PetscReal :: pause_time_1
     PetscReal :: pause_time_2
@@ -134,6 +136,7 @@ contains
 
     use Option_module
     use Simulation_Base_class
+    use Multi_Simulation_module
     use PFLOTRAN_Factory_module
     use Subsurface_Factory_module, only : SubsurfaceInitialize
     use Hydrogeophysics_Factory_module
@@ -154,16 +157,12 @@ contains
     allocate(model)
 
     nullify(model%simulation)
+    nullify(model%multisimulation)
     nullify(model%option)
 
     model%option => OptionCreate()
     call OptionInitMPI(model%option, mpicomm)
-    call PFLOTRANInitialize(model%option)
-
-    ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
-    ! setup on mpich/mac. should be generally ok, but may need an
-    ! apple/mpich ifdef if it cause problems elsewhere.
-    PETSC_COMM_SELF = MPI_COMM_SELF
+    call PFLOTRANInitializePrePetsc(model%multisimulation, model%option)
 
     ! NOTE(bja) 2013-06-25 : external driver must provide an input
     ! prefix string. If the driver wants to use pflotran.in, then it
@@ -177,6 +176,14 @@ contains
            'pflotran input file prefix.'
       call printErrMsg(model%option)
     end if
+
+    call OptionInitPetsc(model%option)
+    call PFLOTRANInitializePostPetsc(model%multisimulation, model%option)
+
+    ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
+    ! setup on mpich/mac. should be generally ok, but may need an
+    ! apple/mpich ifdef if it cause problems elsewhere.
+    PETSC_COMM_SELF = MPI_COMM_SELF
 
     ! TODO(bja, 2013-07-15) this needs to be left alone for pflotran
     ! to deal with, or we need a valid unit number from the driver as
