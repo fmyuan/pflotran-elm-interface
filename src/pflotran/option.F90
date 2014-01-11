@@ -1291,6 +1291,8 @@ subroutine OptionFinalize(option)
   ! Date: 06/07/13
   ! 
 
+  use Logging_module
+
   implicit none
   
   type(option_type), pointer :: option
