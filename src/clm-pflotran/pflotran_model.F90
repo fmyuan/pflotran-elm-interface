@@ -3739,20 +3739,20 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
     call VecGetArrayReadF90(field%volume,volume_p,ierr)
 
 !   output rate for debug
-    call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfl, rate_lit1c_pf_loc, ierr)
-    call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pfl, rate_lit2c_pf_loc, ierr)
-    call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pfl, rate_lit3c_pf_loc, ierr)
-    call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfl, rate_lit1n_pf_loc, ierr)
-    call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfl, rate_lit2n_pf_loc, ierr)
-    call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pfl, rate_lit3n_pf_loc, ierr)
-    call VecGetArrayReadF90(clm_pf_idata%rate_minn_pfl,  rate_minn_pf_loc, ierr)
-    call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
-    call VecGetArrayReadF90(clm_pf_idata%rate_nleached_pf,  rate_nleached_pf_loc, ierr)
-    call VecGetArrayReadF90(clm_pf_idata%rate_ndenitri_pf,  rate_ndenitri_pf_loc, ierr)
-
     if (pflotran_model%b_out_bgc_rate) then
-    do local_id = 1, grid%ngmax
-       write(100, *) rate_lit1c_pf_loc(local_id), &
+        call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfl, rate_lit1c_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pfl, rate_lit2c_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pfl, rate_lit3c_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfl, rate_lit1n_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfl, rate_lit2n_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pfl, rate_lit3n_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_minn_pfl,  rate_minn_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_nleached_pf,  rate_nleached_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_ndenitri_pf,  rate_ndenitri_pf_loc, ierr)
+
+        do local_id = 1, grid%ngmax
+            write(100, *) rate_lit1c_pf_loc(local_id), &
                      rate_lit2c_pf_loc(local_id), &
                      rate_lit3c_pf_loc(local_id), &
                      rate_lit1n_pf_loc(local_id), &
@@ -3762,19 +3762,20 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
                      rate_plantnuptake_pf_loc(local_id), &
                      rate_nleached_pf_loc(local_id), &
                      rate_ndenitri_pf_loc(local_id)
-    enddo
-    endif
+        enddo
 
-    call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfl, rate_lit1c_pf_loc, ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfl, rate_lit2c_pf_loc, ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfl, rate_lit3c_pf_loc, ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfl, rate_lit1n_pf_loc, ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfl, rate_lit2n_pf_loc, ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfl, rate_lit3n_pf_loc, ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%rate_minn_pfl,  rate_minn_pf_loc, ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%rate_nleached_pf, rate_nleached_pf_loc, ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%rate_ndenitri_pf, rate_ndenitri_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfl, rate_lit1c_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfl, rate_lit2c_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfl, rate_lit3c_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfl, rate_lit1n_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfl, rate_lit2n_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfl, rate_lit3n_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_minn_pfl,  rate_minn_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_nleached_pf, rate_nleached_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_ndenitri_pf, rate_ndenitri_pf_loc, ierr)
+
+    endif
 
     if (associated(realization%rt_mass_transfer_list)) then
        cur_mass_transfer => realization%rt_mass_transfer_list
@@ -3813,15 +3814,11 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
                cur_mass_transfer%idof .eq. 13 &
                ) then
 !             if(rate_pf_loc(local_id) > 0.0d0) then
-            cur_mass_transfer%dataset%rarray(local_id) = &
+               cur_mass_transfer%dataset%rarray(local_id) = &
                         rate_pf_loc(local_id)*volume_p(local_id)  ! mol/m3s * m3
 !             endif
             endif
-           if(cur_mass_transfer%idof .eq. 2) then
-               cur_mass_transfer%dataset%rarray(local_id) = &
-                        cur_mass_transfer%dataset%rarray(local_id) - &
-                        rate_plantnuptake_pf_loc(local_id)*volume_p(local_id)  ! mol/m3s * m3
-           endif
+
          enddo
 
          select case (cur_mass_transfer%idof)
@@ -3839,7 +3836,6 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
              call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfl, rate_pf_loc, ierr)
             case(2)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_minn_pfl, rate_pf_loc, ierr)
-             !call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pfl, rate_plantnuptake_pf_loc, ierr)
             case default
                pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
                call printErrMsg(pflotran_model%option)
