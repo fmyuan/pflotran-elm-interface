@@ -223,7 +223,7 @@ contains
 !  for debug only, to be removed or replaced with h5 file
     model%b_out_bgc_rate = PETSC_FALSE
     if (model%b_out_bgc_rate) then
-    open(unit=100,file="bgc_rate_clm_to_pflotran.txt",form="formatted",status="replace")
+        open(unit=100,file="bgc_rate_clm_to_pflotran.txt",form="formatted",status="replace")
         write(100, *) '# Lit1C Lit2C Lit3C Lit1N Lit2N Lit3N mineralN plantN leachedN DenitrifiedN'
     endif
 
@@ -3652,7 +3652,6 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
     PetscScalar, pointer :: rate_nleached_pf_loc(:)   !
     PetscScalar, pointer :: rate_ndenitri_pf_loc(:)   !
 
-!    PetscReal, pointer :: v_p(:)
     PetscReal, pointer :: volume_p(:)
 
     character(len=MAXWORDLENGTH) :: word
@@ -3887,26 +3886,26 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
     type(simulation_base_type), pointer       :: simulation
 
     PetscErrorCode     :: ierr
-    PetscInt           :: local_id
+    PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: xx_p(:)
 
-    PetscScalar, pointer :: decomp_cpools_vr_lit1_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_lit2_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_lit3_pf_loc(:) ! (gC/m3)
-    !PetscScalar, pointer :: decomp_cpools_vr_cwd_pf_loc(:)  ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som1_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som2_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som3_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som4_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_npools_vr_lit1_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_lit2_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_lit3_pf_loc(:) ! (gN/m3)
-    !PetscScalar, pointer :: decomp_npools_vr_cwd_pf_loc(:)  ! (gN/m3)
-    PetscScalar, pointer :: sminn_vr_pf_loc(:)              ! (gN/m3)
-    PetscScalar, pointer :: hrc_vr_pf_loc(:)                ! (gN/m3)
-    !PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (gN/m3)
-    !PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
-    PetscScalar, pointer :: accextrn_vr_pf_loc(:)            ! (gN/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_lit1_pf_p(:) ! (gC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_lit2_pf_p(:) ! (gC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_lit3_pf_p(:) ! (gC/m3)
+    !PetscScalar, pointer :: decomp_cpools_vr_cwd_pf_p(:)  ! (gC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_som1_pf_p(:) ! (gC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_som2_pf_p(:) ! (gC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_som3_pf_p(:) ! (gC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_som4_pf_p(:) ! (gC/m3)
+    PetscScalar, pointer :: decomp_npools_vr_lit1_pf_p(:) ! (gN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_lit2_pf_p(:) ! (gN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_lit3_pf_p(:) ! (gN/m3)
+    !PetscScalar, pointer :: decomp_npools_vr_cwd_pf_p(:)  ! (gN/m3)
+    PetscScalar, pointer :: sminn_vr_pf_p(:)              ! (gN/m3)
+    PetscScalar, pointer :: hrc_vr_pf_p(:)                ! (gN/m3)
+    !PetscScalar, pointer :: smin_no3_vr_pf_p(:)           ! (gN/m3)
+    !PetscScalar, pointer :: smin_nh4_vr_pf_p(:)           ! (gN/m3)
+    PetscScalar, pointer :: accextrn_vr_pf_p(:)            ! (gN/m3)
 
     PetscInt :: ispec_c, ispec_n, ispec_no3, ispec_nh4, offset, offsetim
     PetscInt :: ispec_lit1c, ispec_lit2c, ispec_lit3c
@@ -3998,97 +3997,91 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
 
     ! (ii) get the original 'pf' vecs
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfg, &
-                        decomp_cpools_vr_lit1_pf_loc, ierr)
+                        decomp_cpools_vr_lit1_pf_p, ierr)
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pfg, &
-                        decomp_cpools_vr_lit2_pf_loc, ierr)
+                        decomp_cpools_vr_lit2_pf_p, ierr)
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit3_pfg, &
-                        decomp_cpools_vr_lit3_pf_loc, ierr)
+                        decomp_cpools_vr_lit3_pf_p, ierr)
     !call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_cwd_pfg,  &
-    !                    decomp_cpools_vr_cwd_pf_loc, ierr)
+    !                    decomp_cpools_vr_cwd_pf_p, ierr)
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som1_pfg, &
-                        decomp_cpools_vr_som1_pf_loc, ierr)
+                        decomp_cpools_vr_som1_pf_p, ierr)
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som2_pfg, &
-                        decomp_cpools_vr_som2_pf_loc, ierr)
+                        decomp_cpools_vr_som2_pf_p, ierr)
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfg, &
-                        decomp_cpools_vr_som3_pf_loc, ierr)
+                        decomp_cpools_vr_som3_pf_p, ierr)
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfg, &
-                        decomp_cpools_vr_som4_pf_loc, ierr)
+                        decomp_cpools_vr_som4_pf_p, ierr)
     call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfg, &
-                        decomp_npools_vr_lit1_pf_loc, ierr)
+                        decomp_npools_vr_lit1_pf_p, ierr)
     call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pfg, &
-                        decomp_npools_vr_lit2_pf_loc, ierr)
+                        decomp_npools_vr_lit2_pf_p, ierr)
     call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pfg, &
-                        decomp_npools_vr_lit3_pf_loc, ierr)
+                        decomp_npools_vr_lit3_pf_p, ierr)
     !call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pfg, &
-    !                    decomp_npools_vr_cwd_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%sminn_vr_pfg, sminn_vr_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%hrc_vr_pfg, hrc_vr_pf_loc,ierr)
-    !call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfg, smin_no3_vr_pf_loc, ierr)
-    !call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfg, smin_nh4_vr_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%accextrn_vr_pfg, accextrn_vr_pf_loc, ierr)
+    !                    decomp_npools_vr_cwd_pf_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%sminn_vr_pfg, sminn_vr_pf_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%hrc_vr_pfg, hrc_vr_pf_p,ierr)
+    !call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfg, smin_no3_vr_pf_p, ierr)
+    !call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfg, smin_nh4_vr_pf_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%accextrn_vr_pfg, accextrn_vr_pf_p, ierr)
 
     ! (iii) pass the data from internal to PFLOTRAN vecs
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)  ! extract data from pflotran internal portion
 
-    do local_id = 1, grid%ngmax
-      if (grid%nG2L(local_id) < 0) cycle ! bypass ghosted corner cells
-      !geh - Ignore inactive cells with inactive materials
+    do ghosted_id=1,grid%ngmax
+        local_id = grid%nG2L(ghosted_id)
 
-      if (patch%imat(local_id) <= 0) cycle
+        offset = (local_id - 1)*realization%reaction%ncomp
 
-      offset = (local_id - 1)*realization%reaction%ncomp
+        offsetim = offset + realization%reaction%offset_immobile
 
-!      xx_p(offset + ispec_no3) = smin_no3_vr_pf_loc(local_id)
-!      xx_p(offset + ispec_nh4) = smin_nh4_vr_pf_loc(local_id)
-
-      offsetim = offset + realization%reaction%offset_immobile
-
-      decomp_cpools_vr_lit1_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit1c), 1.0d-20) &
+        decomp_cpools_vr_lit1_pf_p(local_id) = max(xx_p(offsetim + ispec_lit1c), 1.0d-20) &
                                         * C_molecular_weight
-      decomp_cpools_vr_lit2_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit2c), 1.0d-20) &
+        decomp_cpools_vr_lit2_pf_p(local_id) = max(xx_p(offsetim + ispec_lit2c), 1.0d-20) &
                                         * C_molecular_weight
-      decomp_cpools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3c), 1.0d-20) &
+        decomp_cpools_vr_lit3_pf_p(local_id) = max(xx_p(offsetim + ispec_lit3c), 1.0d-20) &
                                         * C_molecular_weight
-      decomp_npools_vr_lit1_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit1n), 1.0d-20) &
+        decomp_npools_vr_lit1_pf_p(local_id) = max(xx_p(offsetim + ispec_lit1n), 1.0d-20) &
                                         * N_molecular_weight
-      decomp_npools_vr_lit2_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit2n), 1.0d-20) &
+        decomp_npools_vr_lit2_pf_p(local_id) = max(xx_p(offsetim + ispec_lit2n), 1.0d-20) &
                                         * N_molecular_weight
-      decomp_npools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3n), 1.0d-20) &
+        decomp_npools_vr_lit3_pf_p(local_id) = max(xx_p(offsetim + ispec_lit3n), 1.0d-20) &
                                         * N_molecular_weight
-      decomp_cpools_vr_som1_pf_loc(local_id) = max(xx_p(offsetim + ispec_som1), 1.0d-20) &
+        decomp_cpools_vr_som1_pf_p(local_id) = max(xx_p(offsetim + ispec_som1), 1.0d-20) &
                                         * C_molecular_weight
-      decomp_cpools_vr_som2_pf_loc(local_id) = max(xx_p(offsetim + ispec_som2), 1.0d-20) &
+        decomp_cpools_vr_som2_pf_p(local_id) = max(xx_p(offsetim + ispec_som2), 1.0d-20) &
                                         * C_molecular_weight
-      decomp_cpools_vr_som3_pf_loc(local_id) = max(xx_p(offsetim + ispec_som3), 1.0d-20) &
+        decomp_cpools_vr_som3_pf_p(local_id) = max(xx_p(offsetim + ispec_som3), 1.0d-20) &
                                         * C_molecular_weight
-      decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4), 1.0d-20) &
+        decomp_cpools_vr_som4_pf_p(local_id) = max(xx_p(offsetim + ispec_som4), 1.0d-20) &
                                         * C_molecular_weight
-      sminn_vr_pf_loc(local_id) = max(xx_p(offsetim + ispec_n), 1.0d-20) &
+        sminn_vr_pf_p(local_id) = max(xx_p(offsetim + ispec_n), 1.0d-20) &
                                         * N_molecular_weight
-      hrc_vr_pf_loc(local_id)   = max(xx_p(offsetim + ispec_c), 1.0d-20) &
+        hrc_vr_pf_p(local_id)   = max(xx_p(offsetim + ispec_c), 1.0d-20) &
                                         * C_molecular_weight
-      accextrn_vr_pf_loc(local_id) = max(xx_p(offsetim + ispec_plantn), 1.0d-20) &
+        accextrn_vr_pf_p(local_id) = max(xx_p(offsetim + ispec_plantn), 1.0d-20) &
                                         * N_molecular_weight
 
     enddo
 
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfg, decomp_cpools_vr_lit1_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pfg, decomp_cpools_vr_lit2_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit3_pfg, decomp_cpools_vr_lit3_pf_loc, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_cwd_pfg,  decomp_cpools_vr_cwd_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som1_pfg, decomp_cpools_vr_som1_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som2_pfg, decomp_cpools_vr_som2_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfg, decomp_cpools_vr_som3_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfg, decomp_cpools_vr_som4_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfg, decomp_npools_vr_lit1_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pfg, decomp_npools_vr_lit2_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pfg, decomp_npools_vr_lit3_pf_loc, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pfg,  decomp_npools_vr_cwd_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%sminn_vr_pfg, sminn_vr_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%hrc_vr_pfg, hrc_vr_pf_loc, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfg, smin_no3_vr_pf_loc, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfg, smin_nh4_vr_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%accextrn_vr_pfg, accextrn_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfg, decomp_cpools_vr_lit1_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pfg, decomp_cpools_vr_lit2_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit3_pfg, decomp_cpools_vr_lit3_pf_p, ierr)
+    !call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_cwd_pfg,  decomp_cpools_vr_cwd_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som1_pfg, decomp_cpools_vr_som1_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som2_pfg, decomp_cpools_vr_som2_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfg, decomp_cpools_vr_som3_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfg, decomp_cpools_vr_som4_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfg, decomp_npools_vr_lit1_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pfg, decomp_npools_vr_lit2_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pfg, decomp_npools_vr_lit3_pf_p, ierr)
+    !call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pfg,  decomp_npools_vr_cwd_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%sminn_vr_pfg, sminn_vr_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%hrc_vr_pfg, hrc_vr_pf_p, ierr)
+    !call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfg, smin_no3_vr_pf_p, ierr)
+    !call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfg, smin_nh4_vr_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%accextrn_vr_pfg, accextrn_vr_pf_p, ierr)
 
    ! (iv) pass the 'pf' vecs to 'clm' vecs, which then can be passed to CLMCN (implemented in 'clm_pflotran_interfaceMod'
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
