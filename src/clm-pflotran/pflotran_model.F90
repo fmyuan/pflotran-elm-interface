@@ -482,7 +482,6 @@ subroutine pflotranModelSetICs(pflotran_model)
     PetscInt           :: local_id, ghosted_id
     PetscReal          :: den, vis, grav
     PetscReal, pointer :: xx_loc_p(:)
-    PetscInt           :: istart, iend   ! F.-M. Yuan (Sep 2013)
 
     PetscScalar, pointer :: press_pf_loc(:) ! Pressure [Pa]
 
@@ -521,10 +520,7 @@ subroutine pflotranModelSetICs(pflotran_model)
        if (associated(patch%imat)) then
           if (patch%imat(ghosted_id) <= 0) cycle
        endif
-       iend = ghosted_id*pflotran_model%option%nflowdof     !F.-M. Yuan (Sep. 2013): need to get the right index
-       istart = iend-pflotran_model%option%nflowdof+1
-       !xx_loc_p(ghosted_id)=press_pf_loc(local_id)
-       xx_loc_p(istart)=press_pf_loc(local_id)
+       xx_loc_p(ghosted_id)=press_pf_loc(local_id)
     enddo
 
     call VecRestoreArrayF90(field%flow_xx, xx_loc_p, ierr)
@@ -3242,105 +3238,105 @@ end subroutine pflotranModelSetICs
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_lit1_clmg, &
-                                    clm_pf_idata%decomp_cpools_vr_lit1_pfl)
+                                    clm_pf_idata%decomp_cpools_vr_lit1_clmp, &
+                                    clm_pf_idata%decomp_cpools_vr_lit1_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_lit2_clmg, &
-                                    clm_pf_idata%decomp_cpools_vr_lit2_pfl)
+                                    clm_pf_idata%decomp_cpools_vr_lit2_clmp, &
+                                    clm_pf_idata%decomp_cpools_vr_lit2_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_lit3_clmg, &
-                                    clm_pf_idata%decomp_cpools_vr_lit3_pfl)
+                                    clm_pf_idata%decomp_cpools_vr_lit3_clmp, &
+                                    clm_pf_idata%decomp_cpools_vr_lit3_pfs)
 
     !call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
     !                                pflotran_model%option, &
-    !                                clm_pf_idata%decomp_cpools_vr_cwd_clmg, &
-    !                                clm_pf_idata%decomp_cpools_vr_cwd_pfl)
+    !                                clm_pf_idata%decomp_cpools_vr_cwd_clmp, &
+    !                                clm_pf_idata%decomp_cpools_vr_cwd_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_som1_clmg, &
-                                    clm_pf_idata%decomp_cpools_vr_som1_pfl)
+                                    clm_pf_idata%decomp_cpools_vr_som1_clmp, &
+                                    clm_pf_idata%decomp_cpools_vr_som1_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_som2_clmg, &
-                                    clm_pf_idata%decomp_cpools_vr_som2_pfl)
+                                    clm_pf_idata%decomp_cpools_vr_som2_clmp, &
+                                    clm_pf_idata%decomp_cpools_vr_som2_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_som3_clmg, &
-                                    clm_pf_idata%decomp_cpools_vr_som3_pfl)
+                                    clm_pf_idata%decomp_cpools_vr_som3_clmp, &
+                                    clm_pf_idata%decomp_cpools_vr_som3_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_som4_clmg, &
-                                    clm_pf_idata%decomp_cpools_vr_som4_pfl)
+                                    clm_pf_idata%decomp_cpools_vr_som4_clmp, &
+                                    clm_pf_idata%decomp_cpools_vr_som4_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_npools_vr_lit1_clmg, &
-                                    clm_pf_idata%decomp_npools_vr_lit1_pfl)
+                                    clm_pf_idata%decomp_npools_vr_lit1_clmp, &
+                                    clm_pf_idata%decomp_npools_vr_lit1_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_npools_vr_lit2_clmg, &
-                                    clm_pf_idata%decomp_npools_vr_lit2_pfl)
+                                    clm_pf_idata%decomp_npools_vr_lit2_clmp, &
+                                    clm_pf_idata%decomp_npools_vr_lit2_pfs)
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_npools_vr_lit3_clmg, &
-                                    clm_pf_idata%decomp_npools_vr_lit3_pfl)
+                                    clm_pf_idata%decomp_npools_vr_lit3_clmp, &
+                                    clm_pf_idata%decomp_npools_vr_lit3_pfs)
 
     !call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
     !                                pflotran_model%option, &
-    !                                clm_pf_idata%decomp_npools_vr_cwd_clmg, &
-    !                                clm_pf_idata%decomp_npools_vr_cwd_pfl)
+    !                                clm_pf_idata%decomp_npools_vr_cwd_clmp, &
+    !                                clm_pf_idata%decomp_npools_vr_cwd_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%sminn_vr_clmg, &
-                                    clm_pf_idata%sminn_vr_pfl)
+                                    clm_pf_idata%sminn_vr_clmp, &
+                                    clm_pf_idata%sminn_vr_pfs)
 
     !call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
     !                                pflotran_model%option, &
-    !                                clm_pf_idata%smin_no3_vr_clmg, &
-    !                                clm_pf_idata%smin_no3_vr_pfl)
+    !                                clm_pf_idata%smin_no3_vr_clmp, &
+    !                                clm_pf_idata%smin_no3_vr_pfs)
 
     !call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
     !                                pflotran_model%option, &
-    !                                clm_pf_idata%smin_nh4_vr_clmg, &
-    !                                clm_pf_idata%smin_nh4_vr_pfl)
+    !                                clm_pf_idata%smin_nh4_vr_clmp, &
+    !                                clm_pf_idata%smin_nh4_vr_pfs)
 
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfl, &
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfs, &
                         decomp_cpools_vr_lit1_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pfl, &
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pfs, &
                         decomp_cpools_vr_lit2_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit3_pfl, &
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit3_pfs, &
                         decomp_cpools_vr_lit3_pf_loc, ierr)
-    !call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_cwd_pfl,  &
+    !call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_cwd_pfs,  &
     !                    decomp_cpools_vr_cwd_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som1_pfl, &
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som1_pfs, &
                         decomp_cpools_vr_som1_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som2_pfl, &
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som2_pfs, &
                         decomp_cpools_vr_som2_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfl, &
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfs, &
                         decomp_cpools_vr_som3_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfl, &
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfs, &
                         decomp_cpools_vr_som4_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfl, &
+    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfs, &
                         decomp_npools_vr_lit1_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pfl, &
+    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pfs, &
                         decomp_npools_vr_lit2_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pfl, &
+    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pfs, &
                         decomp_npools_vr_lit3_pf_loc, ierr)
-    !call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pfl, &
+    !call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pfs, &
     !                    decomp_npools_vr_cwd_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%sminn_vr_pfl, sminn_vr_pf_loc, ierr)
-    !call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfl, smin_no3_vr_pf_loc, ierr)
-    !call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfl, smin_nh4_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%sminn_vr_pfs, sminn_vr_pf_loc, ierr)
+    !call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
+    !call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
 
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)
 
@@ -3382,21 +3378,21 @@ end subroutine pflotranModelSetICs
 
     enddo
 
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfl, decomp_cpools_vr_lit1_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pfl, decomp_cpools_vr_lit2_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit3_pfl, decomp_cpools_vr_lit3_pf_loc, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_cwd_pfl,  decomp_cpools_vr_cwd_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som1_pfl, decomp_cpools_vr_som1_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som2_pfl, decomp_cpools_vr_som2_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfl, decomp_cpools_vr_som3_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfl, decomp_cpools_vr_som4_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfl, decomp_npools_vr_lit1_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pfl, decomp_npools_vr_lit2_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pfl, decomp_npools_vr_lit3_pf_loc, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pfl,  decomp_npools_vr_cwd_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%sminn_vr_pfl, sminn_vr_pf_loc, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfl, smin_no3_vr_pf_loc, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfl, smin_nh4_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfs, decomp_cpools_vr_lit1_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pfs, decomp_cpools_vr_lit2_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit3_pfs, decomp_cpools_vr_lit3_pf_loc, ierr)
+    !call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_cwd_pfs,  decomp_cpools_vr_cwd_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som1_pfs, decomp_cpools_vr_som1_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som2_pfs, decomp_cpools_vr_som2_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfs, decomp_cpools_vr_som3_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfs, decomp_cpools_vr_som4_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfs, decomp_npools_vr_lit1_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pfs, decomp_npools_vr_lit2_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pfs, decomp_npools_vr_lit3_pf_loc, ierr)
+    !call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pfs,  decomp_npools_vr_cwd_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%sminn_vr_pfs, sminn_vr_pf_loc, ierr)
+    !call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
+    !call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
 
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
 
@@ -3444,8 +3440,8 @@ end subroutine pflotranModelSetICs
     type(global_auxvar_type), pointer         :: global_aux_vars(:)
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
-    PetscReal, pointer :: sat_pf_p(:)
-    PetscReal, pointer :: temp_pf_p(:)
+    PetscReal, pointer :: soillsat_pf_loc(:), soilisat_pf_loc(:)
+    PetscReal, pointer :: soilt_pf_loc(:)
 
     logical, intent(in):: pf_hmode, pf_tmode
     !---------------------------------------------------------------------
@@ -3467,28 +3463,28 @@ end subroutine pflotranModelSetICs
     if (.not.pf_hmode) then
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%soillsat_clmg, &
-                                    clm_pf_idata%soillsat_pfl)
-        call VecGetArrayF90(clm_pf_idata%soillsat_pfl, sat_pf_p, ierr)
-        do local_id=1, grid%nlmax
+                                    clm_pf_idata%soillsat_clmp, &
+                                    clm_pf_idata%soillsat_pfs)
+        call VecGetArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
+        do local_id=1, grid%ngmax
             ghosted_id=grid%nL2G(local_id)
-            global_aux_vars(ghosted_id)%sat(1)=sat_pf_p(local_id)
+            global_aux_vars(ghosted_id)%sat(1)=soillsat_pf_loc(local_id)
         enddo
-        call VecRestoreArrayF90(clm_pf_idata%soillsat_pfl, sat_pf_p, ierr)
+        call VecRestoreArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
     endif
 
     ! Save soil temperature values from CLM to PFLOTRAN, if needed
     if (.not.pf_tmode) then
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%soilt_clmg, &
-                                    clm_pf_idata%soilt_pfl)
-        call VecGetArrayF90(clm_pf_idata%soilt_pfl, temp_pf_p, ierr)
-        do local_id=1, grid%nlmax
+                                    clm_pf_idata%soilt_clmp, &
+                                    clm_pf_idata%soilt_pfs)
+        call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
+        do local_id=1, grid%ngmax
             ghosted_id=grid%nL2G(local_id)
-            global_aux_vars(ghosted_id)%temp(1)=temp_pf_p(local_id)
+            global_aux_vars(ghosted_id)%temp(1)=soilt_pf_loc(local_id)
         enddo
-        call VecRestoreArrayF90(clm_pf_idata%soilt_pfl, temp_pf_p, ierr)
+        call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
     endif
 
   end subroutine pflotranModelUpdateTHfromCLM
@@ -3540,7 +3536,7 @@ subroutine pflotranModelSetInitialTStatesfromCLM(pflotran_model)
     PetscInt           :: local_id, ghosted_id, istart, iend
     PetscReal, pointer :: xx_loc_p(:)
 
-    PetscScalar, pointer :: temp_pf_loc(:)    ! temperature [oC]
+    PetscScalar, pointer :: soilt_pf_loc(:)    ! temperature [oC]
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -3567,15 +3563,15 @@ subroutine pflotranModelSetInitialTStatesfromCLM(pflotran_model)
 
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%soilt_clmg, &
-                                    clm_pf_idata%soilt_pfl)
+                                    clm_pf_idata%soilt_clmp, &
+                                    clm_pf_idata%soilt_pfs)
 
     end if
 
     call VecGetArrayF90(field%flow_xx, xx_loc_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%temp_pf, temp_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
 
-    do local_id = 1, grid%nlmax
+    do local_id = 1, grid%ngmax
        ghosted_id = grid%nL2G(local_id)
        if (associated(patch%imat)) then
           if (patch%imat(ghosted_id) <= 0) cycle
@@ -3584,12 +3580,12 @@ subroutine pflotranModelSetInitialTStatesfromCLM(pflotran_model)
        iend = ghosted_id*pflotran_model%option%nflowdof
        istart = iend-pflotran_model%option%nflowdof+1
 
-       xx_loc_p(istart+1)=temp_pf_loc(local_id)
+       xx_loc_p(istart+1)=soilt_pf_loc(local_id)
 
     enddo
 
     call VecRestoreArrayF90(field%flow_xx, xx_loc_p, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%temp_pf, temp_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
 
     call THUpdateAuxVars(realization)
 
@@ -3640,6 +3636,8 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
     PetscErrorCode     :: ierr
     PetscInt           :: local_id
 
+    PetscInt:: ghosted_id, offset, offsetim
+
     PetscScalar, pointer :: rate_pf_loc(:)   !
     PetscScalar, pointer :: rate_lit1c_pf_loc(:)   !
     PetscScalar, pointer :: rate_lit2c_pf_loc(:)   !
@@ -3676,62 +3674,62 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%rate_lit1c_clmg, &
-                                    clm_pf_idata%rate_lit1c_pfl)
+                                    clm_pf_idata%rate_lit1c_clmp, &
+                                    clm_pf_idata%rate_lit1c_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%rate_lit2c_clmg, &
-                                    clm_pf_idata%rate_lit2c_pfl)
+                                    clm_pf_idata%rate_lit2c_clmp, &
+                                    clm_pf_idata%rate_lit2c_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%rate_lit3c_clmg, &
-                                    clm_pf_idata%rate_lit3c_pfl)
+                                    clm_pf_idata%rate_lit3c_clmp, &
+                                    clm_pf_idata%rate_lit3c_pfs)
 
     !call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
     !                                pflotran_model%option, &
-    !                                clm_pf_idata%rate_cwdc_clmg, &
-    !                                clm_pf_idata%rate_cwdc_pfl)
+    !                                clm_pf_idata%rate_cwdc_clmp, &
+    !                                clm_pf_idata%rate_cwdc_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%rate_lit1n_clmg, &
-                                    clm_pf_idata%rate_lit1n_pfl)
+                                    clm_pf_idata%rate_lit1n_clmp, &
+                                    clm_pf_idata%rate_lit1n_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%rate_lit2n_clmg, &
-                                    clm_pf_idata%rate_lit2n_pfl)
+                                    clm_pf_idata%rate_lit2n_clmp, &
+                                    clm_pf_idata%rate_lit2n_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%rate_lit3n_clmg, &
-                                    clm_pf_idata%rate_lit3n_pfl)
+                                    clm_pf_idata%rate_lit3n_clmp, &
+                                    clm_pf_idata%rate_lit3n_pfs)
 
     !call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
     !                                pflotran_model%option, &
-    !                                clm_pf_idata%rate_cwdn_clmg, &
-    !                                clm_pf_idata%rate_cwdn_pfl)
+    !                                clm_pf_idata%rate_cwdn_clmp, &
+    !                                clm_pf_idata%rate_cwdn_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%rate_minn_clmg, &
-                                    clm_pf_idata%rate_minn_pfl)
+                                    clm_pf_idata%rate_minn_clmp, &
+                                    clm_pf_idata%rate_minn_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%rate_plantnuptake_clmg, &
+                                    clm_pf_idata%rate_plantnuptake_clmp, &
                                     clm_pf_idata%rate_plantnuptake_pf)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%rate_nleached_clmg, &
+                                    clm_pf_idata%rate_nleached_clmp, &
                                     clm_pf_idata%rate_nleached_pf)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%rate_ndenitri_clmg, &
+                                    clm_pf_idata%rate_ndenitri_clmp, &
                                     clm_pf_idata%rate_ndenitri_pf)
 
 !   get cell volume as mass transfer rate unit is mol/s
@@ -3739,13 +3737,13 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
 
 !   output rate for debug
     if (pflotran_model%b_out_bgc_rate) then
-        call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfl, rate_lit1c_pf_loc, ierr)
-        call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pfl, rate_lit2c_pf_loc, ierr)
-        call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pfl, rate_lit3c_pf_loc, ierr)
-        call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfl, rate_lit1n_pf_loc, ierr)
-        call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfl, rate_lit2n_pf_loc, ierr)
-        call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pfl, rate_lit3n_pf_loc, ierr)
-        call VecGetArrayReadF90(clm_pf_idata%rate_minn_pfl,  rate_minn_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_lit1c_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_lit2c_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_lit3c_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_lit1n_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_lit2n_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_lit3n_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_minn_pfs,  rate_minn_pf_loc, ierr)
         call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
         call VecGetArrayReadF90(clm_pf_idata%rate_nleached_pf,  rate_nleached_pf_loc, ierr)
         call VecGetArrayReadF90(clm_pf_idata%rate_ndenitri_pf,  rate_ndenitri_pf_loc, ierr)
@@ -3763,13 +3761,13 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
                      rate_ndenitri_pf_loc(local_id)
         enddo
 
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfl, rate_lit1c_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfl, rate_lit2c_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfl, rate_lit3c_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfl, rate_lit1n_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfl, rate_lit2n_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfl, rate_lit3n_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_minn_pfl,  rate_minn_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_lit1c_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_lit2c_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_lit3c_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_lit1n_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_lit2n_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_lit3n_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_minn_pfs,  rate_minn_pf_loc, ierr)
         call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
         call VecRestoreArrayReadF90(clm_pf_idata%rate_nleached_pf, rate_nleached_pf_loc, ierr)
         call VecRestoreArrayReadF90(clm_pf_idata%rate_ndenitri_pf, rate_ndenitri_pf_loc, ierr)
@@ -3783,19 +3781,19 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
 
          select case (cur_mass_transfer%idof)
             case(8)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfl, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
             case(9)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pfl, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
             case(10)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pfl, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
             case(11)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfl, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
             case(12)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfl, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
             case(13)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pfl, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
             case(2)
-             call VecGetArrayReadF90(clm_pf_idata%rate_minn_pfl, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_minn_pfs, rate_pf_loc, ierr)
             case default
                     pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
                     call printErrMsg(pflotran_model%option)
@@ -3822,19 +3820,19 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
 
          select case (cur_mass_transfer%idof)
             case(8)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfl, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
             case(9)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfl, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
             case(10)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfl, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
             case(11)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfl, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
             case(12)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfl, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
             case(13)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfl, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
             case(2)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_minn_pfl, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_minn_pfs, rate_pf_loc, ierr)
             case default
                pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
                call printErrMsg(pflotran_model%option)
@@ -3933,6 +3931,8 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
     grid  => patch%grid
     field => realization%field
 
+#if defined (CMODE)
+
     ! (i) indices of bgc variables in PFLOTRAN immobiles
     word = "LabileC"
     ispec_lit1c = GetImmobileSpeciesIDFromName(word, &
@@ -3996,41 +3996,70 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     ! (ii) get the original 'pf' vecs
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfg, &
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfp, &
                         decomp_cpools_vr_lit1_pf_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pfg, &
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pfp, &
                         decomp_cpools_vr_lit2_pf_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit3_pfg, &
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit3_pfp, &
                         decomp_cpools_vr_lit3_pf_p, ierr)
-    !call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_cwd_pfg,  &
+    !call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_cwd_pfp,  &
     !                    decomp_cpools_vr_cwd_pf_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som1_pfg, &
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som1_pfp, &
                         decomp_cpools_vr_som1_pf_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som2_pfg, &
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som2_pfp, &
                         decomp_cpools_vr_som2_pf_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfg, &
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfp, &
                         decomp_cpools_vr_som3_pf_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfg, &
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfp, &
                         decomp_cpools_vr_som4_pf_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfg, &
+    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfp, &
                         decomp_npools_vr_lit1_pf_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pfg, &
+    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pfp, &
                         decomp_npools_vr_lit2_pf_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pfg, &
+    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pfp, &
                         decomp_npools_vr_lit3_pf_p, ierr)
-    !call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pfg, &
+    !call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pfp, &
     !                    decomp_npools_vr_cwd_pf_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%sminn_vr_pfg, sminn_vr_pf_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%hrc_vr_pfg, hrc_vr_pf_p,ierr)
-    !call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfg, smin_no3_vr_pf_p, ierr)
-    !call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfg, smin_nh4_vr_pf_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%accextrn_vr_pfg, accextrn_vr_pf_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%sminn_vr_pfp, sminn_vr_pf_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%hrc_vr_pfp, hrc_vr_pf_p,ierr)
+    !call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfp, smin_no3_vr_pf_p, ierr)
+    !call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfp, smin_nh4_vr_pf_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%accextrn_vr_pfp, accextrn_vr_pf_p, ierr)
 
     ! (iii) pass the data from internal to PFLOTRAN vecs
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)  ! extract data from pflotran internal portion
 
-    do ghosted_id=1,grid%ngmax
-        local_id = grid%nG2L(ghosted_id)
+!    do local_id = 1, grid%ngmax
+!      if (grid%nG2L(local_id) < 0) cycle ! bypass ghosted corner cells
+!      !geh - Ignore inactive cells with inactive materials
+
+!      if (patch%imat(local_id) <= 0) cycle
+
+!      offset = (local_id - 1)*realization%reaction%ncomp
+
+!    do local_id=1, grid%nlmax
+!      ghosted_id=grid%nL2G(local_id)
+!      sat_pf_p(local_id)=global_aux_vars(ghosted_id)%sat(1)
+!    enddo
+
+
+!    do local_id = 1, grid%nlmax
+!       ghosted_id = grid%nL2G(local_id)
+!       if (associated(patch%imat)) then
+!          if (patch%imat(ghosted_id) <= 0) cycle
+!       endif
+!       iend = ghosted_id*pflotran_model%option%nflowdof     !F.-M. Yuan (Sep. 2013): need to get the right index
+!       istart = iend-pflotran_model%option%nflowdof+1
+!       !xx_loc_p(ghosted_id)=press_pf_loc(local_id)
+!       xx_loc_p(istart)=press_pf_loc(local_id)
+!    enddo
+
+
+    do local_id=1,grid%nlmax
+        ghosted_id = grid%nL2G(local_id)
+        if (associated(patch%imat)) then
+           if (patch%imat(ghosted_id) <= 0) cycle
+        endif
 
         offset = (local_id - 1)*realization%reaction%ncomp
 
@@ -4062,111 +4091,111 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
                                         * C_molecular_weight
         accextrn_vr_pf_p(local_id) = max(xx_p(offsetim + ispec_plantn), 1.0d-20) &
                                         * N_molecular_weight
-
     enddo
 
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfg, decomp_cpools_vr_lit1_pf_p, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pfg, decomp_cpools_vr_lit2_pf_p, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit3_pfg, decomp_cpools_vr_lit3_pf_p, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_cwd_pfg,  decomp_cpools_vr_cwd_pf_p, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som1_pfg, decomp_cpools_vr_som1_pf_p, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som2_pfg, decomp_cpools_vr_som2_pf_p, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfg, decomp_cpools_vr_som3_pf_p, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfg, decomp_cpools_vr_som4_pf_p, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfg, decomp_npools_vr_lit1_pf_p, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pfg, decomp_npools_vr_lit2_pf_p, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pfg, decomp_npools_vr_lit3_pf_p, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pfg,  decomp_npools_vr_cwd_pf_p, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%sminn_vr_pfg, sminn_vr_pf_p, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%hrc_vr_pfg, hrc_vr_pf_p, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfg, smin_no3_vr_pf_p, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfg, smin_nh4_vr_pf_p, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%accextrn_vr_pfg, accextrn_vr_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfp, decomp_cpools_vr_lit1_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pfp, decomp_cpools_vr_lit2_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit3_pfp, decomp_cpools_vr_lit3_pf_p, ierr)
+    !call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_cwd_pfp,  decomp_cpools_vr_cwd_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som1_pfp, decomp_cpools_vr_som1_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som2_pfp, decomp_cpools_vr_som2_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfp, decomp_cpools_vr_som3_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfp, decomp_cpools_vr_som4_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfp, decomp_npools_vr_lit1_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pfp, decomp_npools_vr_lit2_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pfp, decomp_npools_vr_lit3_pf_p, ierr)
+    !call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pfp,  decomp_npools_vr_cwd_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%sminn_vr_pfp, sminn_vr_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%hrc_vr_pfp, hrc_vr_pf_p, ierr)
+    !call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfp, smin_no3_vr_pf_p, ierr)
+    !call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfp, smin_nh4_vr_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%accextrn_vr_pfp, accextrn_vr_pf_p, ierr)
 
    ! (iv) pass the 'pf' vecs to 'clm' vecs, which then can be passed to CLMCN (implemented in 'clm_pflotran_interfaceMod'
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_lit1_pfg, &
-                                    clm_pf_idata%decomp_cpools_vr_lit1_clml)
+                                    clm_pf_idata%decomp_cpools_vr_lit1_pfp, &
+                                    clm_pf_idata%decomp_cpools_vr_lit1_clms)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_lit2_pfg, &
-                                    clm_pf_idata%decomp_cpools_vr_lit2_clml)
+                                    clm_pf_idata%decomp_cpools_vr_lit2_pfp, &
+                                    clm_pf_idata%decomp_cpools_vr_lit2_clms)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_lit3_pfg, &
-                                    clm_pf_idata%decomp_cpools_vr_lit3_clml)
+                                    clm_pf_idata%decomp_cpools_vr_lit3_pfp, &
+                                    clm_pf_idata%decomp_cpools_vr_lit3_clms)
 
     !call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
     !                                pflotran_model%option, &
-    !                                clm_pf_idata%decomp_cpools_vr_cwd_pfg, &
-    !                                clm_pf_idata%decomp_cpools_vr_cwd_clm)
+    !                                clm_pf_idata%decomp_cpools_vr_cwd_pfp, &
+    !                                clm_pf_idata%decomp_cpools_vr_cwd_clms)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_som1_pfg, &
-                                    clm_pf_idata%decomp_cpools_vr_som1_clml)
+                                    clm_pf_idata%decomp_cpools_vr_som1_pfp, &
+                                    clm_pf_idata%decomp_cpools_vr_som1_clms)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_som2_pfg, &
-                                    clm_pf_idata%decomp_cpools_vr_som2_clml)
+                                    clm_pf_idata%decomp_cpools_vr_som2_pfp, &
+                                    clm_pf_idata%decomp_cpools_vr_som2_clms)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_som3_pfg, &
-                                    clm_pf_idata%decomp_cpools_vr_som3_clml)
+                                    clm_pf_idata%decomp_cpools_vr_som3_pfp, &
+                                    clm_pf_idata%decomp_cpools_vr_som3_clms)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_som4_pfg, &
-                                    clm_pf_idata%decomp_cpools_vr_som4_clml)
+                                    clm_pf_idata%decomp_cpools_vr_som4_pfp, &
+                                    clm_pf_idata%decomp_cpools_vr_som4_clms)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_npools_vr_lit1_pfg, &
-                                    clm_pf_idata%decomp_npools_vr_lit1_clml)
+                                    clm_pf_idata%decomp_npools_vr_lit1_pfp, &
+                                    clm_pf_idata%decomp_npools_vr_lit1_clms)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_npools_vr_lit2_pfg, &
-                                    clm_pf_idata%decomp_npools_vr_lit2_clml)
+                                    clm_pf_idata%decomp_npools_vr_lit2_pfp, &
+                                    clm_pf_idata%decomp_npools_vr_lit2_clms)
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%decomp_npools_vr_lit3_pfg, &
-                                    clm_pf_idata%decomp_npools_vr_lit3_clml)
-
-    !call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub_soils, &
-    !                                pflotran_model%option, &
-    !                                clm_pf_idata%decomp_npools_vr_cwd_pfg, &
-    !                                clm_pf_idata%decomp_npools_vr_cwd_clml)
-
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%sminn_vr_pfg, &
-                                    clm_pf_idata%sminn_vr_clml)
-
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%hrc_vr_pfg, &
-                                    clm_pf_idata%hrc_vr_clml)
+                                    clm_pf_idata%decomp_npools_vr_lit3_pfp, &
+                                    clm_pf_idata%decomp_npools_vr_lit3_clms)
 
     !call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
     !                                pflotran_model%option, &
-    !                                clm_pf_idata%smin_no3_vr_pfg, &
-    !                                clm_pf_idata%smin_no3_vr_clml)
-
-    !call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-    !                                pflotran_model%option, &
-    !                                clm_pf_idata%smin_nh4_vr_pfg, &
-    !                                clm_pf_idata%smin_nh4_vr_clml)
+    !                                clm_pf_idata%decomp_npools_vr_cwd_pfp, &
+    !                                clm_pf_idata%decomp_npools_vr_cwd_clms)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%accextrn_vr_pfg, &
-                                    clm_pf_idata%accextrn_vr_clml)
+                                    clm_pf_idata%sminn_vr_pfp, &
+                                    clm_pf_idata%sminn_vr_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%hrc_vr_pfp, &
+                                    clm_pf_idata%hrc_vr_clms)
+
+    !call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+    !                                pflotran_model%option, &
+    !                                clm_pf_idata%smin_no3_vr_pfp, &
+    !                                clm_pf_idata%smin_no3_vr_clms)
+
+    !call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+    !                                pflotran_model%option, &
+    !                                clm_pf_idata%smin_nh4_vr_pfp, &
+    !                                clm_pf_idata%smin_nh4_vr_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%accextrn_vr_pfp, &
+                                    clm_pf_idata%accextrn_vr_clms)
+#endif
 
   end subroutine pflotranModelGetBgcVariables
 
