@@ -21,14 +21,12 @@ module clm_pflotran_interface_data
   Vec :: watfc_clm
   Vec :: bsw_clm
   Vec :: press_clm
-  Vec :: soilpsi_clm
 
   ! pflotran has rock (solid) density, not bulk density,
   ! there could be issues with influence of soil organic content, ice on bulk density
   ! this will be temporaily used for calculation needed in denitrification calculation
   ! following clm4.5.35
-  Vec :: bulkdensity_dry_clm   
-                            
+  Vec :: bulkdensity_dry_clm
 
   ! Local for PFLOTRAN - seq. vec
   Vec :: hksat_x_pf
@@ -39,7 +37,6 @@ module clm_pflotran_interface_data
   Vec :: watfc_pf
   Vec :: bsw_pf
   Vec :: press_pf
-  Vec :: soilpsi_pf
   Vec :: bulkdensity_dry_pf   
 
   ! (ii) Mesh property
@@ -294,7 +291,6 @@ contains
     clm_pf_idata%watfc_clm = 0
     clm_pf_idata%bsw_clm = 0
     clm_pf_idata%press_clm = 0
-    clm_pf_idata%soilpsi_clm = 0
     clm_pf_idata%bulkdensity_dry_clm = 0
 
     clm_pf_idata%hksat_x_pf = 0
@@ -458,19 +454,20 @@ contains
     clm_pf_idata%accextrn_vr_clms_prv  = 0
     clm_pf_idata%accextrn_vr_clms      = 0
 
+    ! for nitrification-denitrification
     clm_pf_idata%use_lch4 = PETSC_TRUE
     clm_pf_idata%cellorg_clm = 0
-    clm_pf_idata%cellorg_pf = 0
+    clm_pf_idata%cellorg_pf  = 0
 
     clm_pf_idata%o2_decomp_depth_unsat_clm = 0 
-    clm_pf_idata%conc_o2_unsat_clm = 0
-    clm_pf_idata%o2_decomp_depth_unsat_pf = 0 
-    clm_pf_idata%conc_o2_unsat_pf = 0
+    clm_pf_idata%conc_o2_unsat_clm         = 0
+    clm_pf_idata%o2_decomp_depth_unsat_pf  = 0
+    clm_pf_idata%conc_o2_unsat_pf          = 0
     
     clm_pf_idata%o2_decomp_depth_sat_clm = 0 
-    clm_pf_idata%conc_o2_sat_clm = 0
-    clm_pf_idata%o2_decomp_depth_sat_pf = 0 
-    clm_pf_idata%conc_o2_sat_pf = 0
+    clm_pf_idata%conc_o2_sat_clm         = 0
+    clm_pf_idata%o2_decomp_depth_sat_pf  = 0
+    clm_pf_idata%conc_o2_sat_pf          = 0
 
   end subroutine CLMPFLOTRANIDataInit
 

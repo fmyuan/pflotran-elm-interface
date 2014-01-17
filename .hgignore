@@ -301,3 +301,5 @@ src/clm-pflotran/reaction_sandbox_clm_cn_bf.F90
 src/clm-pflotran/reaction_sandbox_clm_cnp.F90
 src/clm-pflotran/reaction_sandbox_denintake.F90
 src/clm-pflotran/reaction_sandbox_plantntake.F90
+reaction_sandbox_denitrification.F90
+reaction_sandbox_nitrification.F90

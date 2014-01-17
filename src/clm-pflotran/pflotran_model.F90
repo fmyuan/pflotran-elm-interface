@@ -16,7 +16,6 @@ module pflotran_model_module
 #include "finclude/petscsysdef.h"
 #include "finclude/petscviewer.h"
 #include "finclude/petscvec.h"
-!#include "finclude/petscvec.h90"
 
   ! Note:
   !
@@ -122,15 +121,13 @@ module pflotran_model_module
        pflotranModelGetTopFaceArea,          &
        pflotranModelDestroy
 
-  public :: pflotranModelUpdateTHfromCLM
-  public :: pflotranModelUpdateO2fromCLM
-
   private :: &
        pflotranModelSetupMappingFiles
 
   public ::  &
        pflotranModelSetInitialConcentrations, &
        pflotranModelUpdateTHfromCLM,          &    ! dynamically update TH from CLM to drive BGC only pflotran
+       pflotranModelUpdateO2fromCLM,          &
        pflotranModelSetInitialTStatesfromCLM, &    ! initializing T from CLM
        pflotranModelSetBGCRates,              &
        pflotranModelGetBgcVariables
@@ -668,11 +665,6 @@ end subroutine pflotranModelSetICs
                                     pflotran_model%option, &
                                     clm_pf_idata%watsat_clm, &
                                     clm_pf_idata%watsat_pf)
-
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%soilpsi_clm, &
-                                    clm_pf_idata%soilpsi_pf)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
                                     pflotran_model%option, &
@@ -3522,6 +3514,49 @@ end subroutine pflotranModelSetICs
     endif
 
   end subroutine pflotranModelUpdateTHfromCLM
+
+  ! ************************************************************************** !
+  !> This routine Updates O2 for PFLOTRAN bgc that are from CLM
+  !! for testing PFLOTRAN-BGC mode
+  !!
+  !> @author
+  !! Guoping Tang
+  !!
+  !! date: 1/6/2014
+  ! ************************************************************************** !
+  subroutine pflotranModelUpdateO2fromCLM(pflotran_model)
+
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%o2_decomp_depth_unsat_clm, &
+                                    clm_pf_idata%o2_decomp_depth_unsat_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%conc_o2_unsat_clm, &
+                                    clm_pf_idata%conc_o2_unsat_pf)
+
+!    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+!                                    pflotran_model%option, &
+!                                    clm_pf_idata%o2_decomp_depth_sat_clmp, &
+!                                    clm_pf_idata%o2_decomp_depth_sat_pfs)
+!   because of NaN t6g
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%conc_o2_sat_clm, &
+                                    clm_pf_idata%conc_o2_sat_pf)
+
+  end subroutine pflotranModelUpdateO2fromCLM
 
   ! ************************************************************************** !
   !
