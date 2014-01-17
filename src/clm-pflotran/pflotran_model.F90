@@ -671,34 +671,38 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%watfc_clm, &
                                     clm_pf_idata%watfc_pf)
 ! for denitrification
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &    ! 'extended' for 'physical' (?)
                                     pflotran_model%option, &
                                     clm_pf_idata%bulkdensity_dry_clm, &
                                     clm_pf_idata%bulkdensity_dry_pf)
 
-    if(clm_pf_idata%use_lch4) then
-       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &    ! 'non-extended' for 'bgc' (?)
                                     pflotran_model%option, &
-                                    clm_pf_idata%o2_decomp_depth_unsat_clm, &
-                                    clm_pf_idata%o2_decomp_depth_unsat_pf)
+                                    clm_pf_idata%cellorg_clm, &
+                                    clm_pf_idata%cellorg_pf)
+!    if(clm_pf_idata%use_lch4) then
+!       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+!                                    pflotran_model%option, &
+!                                    clm_pf_idata%o2_decomp_depth_unsat_clm, &
+!                                    clm_pf_idata%o2_decomp_depth_unsat_pf)
 
-       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%conc_o2_unsat_clm, &
-                                    clm_pf_idata%conc_o2_unsat_pf)
+!       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+!                                    pflotran_model%option, &
+!                                    clm_pf_idata%conc_o2_unsat_clm, &
+!                                    clm_pf_idata%conc_o2_unsat_pf)
 
 !for some reason, o2_decomp_depth_sat is nan
-!       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+!       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
 !                                    pflotran_model%option, &
 !                                    clm_pf_idata%o2_decomp_depth_sat_clm, &
 !                                    clm_pf_idata%o2_decomp_depth_sat_pf)
 
-       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%conc_o2_sat_clm, &
-                                    clm_pf_idata%conc_o2_sat_pf)
-
-    endif
+!       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+!                                    pflotran_model%option, &
+!                                    clm_pf_idata%conc_o2_sat_clm, &
+!                                    clm_pf_idata%conc_o2_sat_pf)
+!
+!    endif
 
     call VecGetArrayF90(clm_pf_idata%hksat_x_pf, hksat_x_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%hksat_y_pf, hksat_y_pf_loc, ierr)

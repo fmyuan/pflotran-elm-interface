@@ -237,14 +237,14 @@ module clm_pflotran_interface_data
   Vec :: cellorg_clm
   Vec :: cellorg_pf
 
-  Vec :: o2_decomp_depth_unsat_clm         !O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
+  Vec :: o2_decomp_depth_unsat_clm         ! O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
   Vec :: conc_o2_unsat_clm                 ! O2 conc in each soil layer (mol/m3) (nlevsoi)
-  Vec :: o2_decomp_depth_unsat_pf         !O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
-  Vec :: conc_o2_unsat_pf                 ! O2 conc in each soil layer (mol/m3) (nlevsoi)
-  Vec :: o2_decomp_depth_sat_clm         !O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
-  Vec :: conc_o2_sat_clm                 ! O2 conc in each soil layer (mol/m3) (nlevsoi)
-  Vec :: o2_decomp_depth_sat_pf         !O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
-  Vec :: conc_o2_sat_pf                 ! O2 conc in each soil layer (mol/m3) (nlevsoi)
+  Vec :: o2_decomp_depth_unsat_pf          ! O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
+  Vec :: conc_o2_unsat_pf                  ! O2 conc in each soil layer (mol/m3) (nlevsoi)
+  Vec :: o2_decomp_depth_sat_clm           ! O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
+  Vec :: conc_o2_sat_clm                   ! O2 conc in each soil layer (mol/m3) (nlevsoi)
+  Vec :: o2_decomp_depth_sat_pf            ! O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
+  Vec :: conc_o2_sat_pf                    ! O2 conc in each soil layer (mol/m3) (nlevsoi)
 
   end type clm_pflotran_idata_type
 
@@ -507,6 +507,9 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%press_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%qflx_clm,ierr)
 
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%watfc_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%bulkdensity_dry_clm,ierr)
+
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE,clm_pf_idata%gflux_subsurf_clm,ierr)
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_clm,ierr)
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_temp_clm,ierr)
@@ -525,6 +528,9 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%bsw_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%press_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%qflx_pf,ierr)
+
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%watfc_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%bulkdensity_dry_pf,ierr)
 
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dsub,clm_pf_idata%gflux_subsurf_pf,ierr)
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf,clm_pf_idata%gflux_surf_pf,ierr)
@@ -591,6 +597,12 @@ contains
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%soilisat_clmp,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%soilt_clmp,ierr)
 
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%cellorg_clm,ierr)               ! for nitrification-denitrification
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%o2_decomp_depth_unsat_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%conc_o2_unsat_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%o2_decomp_depth_sat_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%conc_o2_sat_clm,ierr)
+
     ! Seq. Vecs for PFLOTRAN
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%decomp_cpools_vr_lit1_pfs,ierr)
     call VecSet(clm_pf_idata%decomp_cpools_vr_lit1_pfs,0.d0,ierr)
@@ -613,6 +625,12 @@ contains
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%soillsat_pfs,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%soilisat_pfs,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%soilt_pfs,ierr)
+
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%cellorg_pf,ierr)               ! for nitrification-denitrification
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%o2_decomp_depth_unsat_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%conc_o2_unsat_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%o2_decomp_depth_sat_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%conc_o2_sat_pf,ierr)
 
     ! (ii) BGC interface source/sink (rates): 3D subsurface CLM ---to--- 3D subsurface PFLOTRAN
     ! MPI Vecs for CLM
@@ -730,10 +748,13 @@ contains
     if(clm_pf_idata%hksat_x_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_x_clm,ierr)
     if(clm_pf_idata%hksat_y_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_y_clm,ierr)
     if(clm_pf_idata%hksat_z_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_z_clm,ierr)
-    if(clm_pf_idata%hksat_z_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_z_clm,ierr)
-    if(clm_pf_idata%hksat_z_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_z_clm,ierr)
-    if(clm_pf_idata%hksat_z_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_z_clm,ierr)
-    if(clm_pf_idata%hksat_z_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_z_clm,ierr)
+    if(clm_pf_idata%sucsat_clm  /= 0) call VecDestroy(clm_pf_idata%sucsat_clm,ierr)
+    if(clm_pf_idata%watsat_clm  /= 0) call VecDestroy(clm_pf_idata%watsat_clm,ierr)
+    if(clm_pf_idata%bsw_clm  /= 0) call VecDestroy(clm_pf_idata%bsw_clm,ierr)
+    if(clm_pf_idata%press_clm  /= 0) call VecDestroy(clm_pf_idata%press_clm,ierr)
+
+    if(clm_pf_idata%watfc_clm  /= 0) call VecDestroy(clm_pf_idata%watfc_clm,ierr)
+    if(clm_pf_idata%bulkdensity_dry_clm  /= 0) call VecDestroy(clm_pf_idata%bulkdensity_dry_clm,ierr)
 
     if(clm_pf_idata%hksat_x_pf  /= 0) call VecDestroy(clm_pf_idata%hksat_x_pf,ierr)
     if(clm_pf_idata%hksat_y_pf  /= 0) call VecDestroy(clm_pf_idata%hksat_y_pf,ierr)
@@ -742,6 +763,9 @@ contains
     if(clm_pf_idata%watsat_pf  /= 0) call VecDestroy(clm_pf_idata%watsat_pf,ierr)
     if(clm_pf_idata%bsw_pf  /= 0) call VecDestroy(clm_pf_idata%bsw_pf,ierr)
     if(clm_pf_idata%press_pf  /= 0) call VecDestroy(clm_pf_idata%press_pf,ierr)
+
+    if(clm_pf_idata%watfc_pf  /= 0) call VecDestroy(clm_pf_idata%watfc_pf,ierr)
+    if(clm_pf_idata%bulkdensity_dry_pf  /= 0) call VecDestroy(clm_pf_idata%bulkdensity_dry_pf,ierr)
 
     if(clm_pf_idata%qflx_clm  /= 0) call VecDestroy(clm_pf_idata%qflx_clm,ierr)
     if(clm_pf_idata%qflx_pf  /= 0) call VecDestroy(clm_pf_idata%qflx_pf,ierr)
