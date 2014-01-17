@@ -255,6 +255,8 @@ chem_obj = \
 	${common_src}reaction_sandbox_clm_cn_bf.o \
 	${common_src}reaction_sandbox_plantntake.o \
 	${common_src}reaction_sandbox_denintake.o \
+	${common_src}reaction_sandbox_nitrification.o \
+	${common_src}reaction_sandbox_denitrification.o \
 	${common_src}reaction_sandbox_example.o \
 	${common_src}solid_solution.o \
 	${common_src}solid_solution_aux.o \
@@ -753,6 +755,8 @@ reaction_sandbox.o : global_aux.o input_aux.o option.o pflotran_constants.o \
                      reaction_sandbox_clm_cn_bf.o \
                      reaction_sandbox_plantntake.o \
                      reaction_sandbox_denintake.o \
+                     reaction_sandbox_nitrification.o \
+                     reaction_sandbox_denitrification.o \
                      reactive_transport_aux.o string.o utility.o
 reaction_sandbox_base.o : global_aux.o input_aux.o option.o pflotran_constants.o \
                           reaction_aux.o reactive_transport_aux.o
@@ -773,6 +777,14 @@ reaction_sandbox_plantntake.o : global_aux.o immobile_aux.o input_aux.o option.o
                             reaction_sandbox_base.o reactive_transport_aux.o \
                             string.o units.o utility.o
 reaction_sandbox_denintake.o : global_aux.o immobile_aux.o input_aux.o option.o \
+                            pflotran_constants.o reaction_aux.o \
+                            reaction_sandbox_base.o reactive_transport_aux.o \
+                            string.o units.o utility.o
+reaction_sandbox_nitrification.o : global_aux.o immobile_aux.o input_aux.o option.o \
+                            pflotran_constants.o reaction_aux.o \
+                            reaction_sandbox_base.o reactive_transport_aux.o \
+                            string.o units.o utility.o
+reaction_sandbox_denitrification.o : global_aux.o immobile_aux.o input_aux.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_sandbox_base.o reactive_transport_aux.o \
                             string.o units.o utility.o

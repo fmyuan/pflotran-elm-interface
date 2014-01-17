@@ -122,6 +122,9 @@ module pflotran_model_module
        pflotranModelGetTopFaceArea,          &
        pflotranModelDestroy
 
+  public :: pflotranModelUpdateTHfromCLM
+  public :: pflotranModelUpdateO2fromCLM
+
   private :: &
        pflotranModelSetupMappingFiles
 
@@ -665,6 +668,45 @@ end subroutine pflotranModelSetICs
                                     pflotran_model%option, &
                                     clm_pf_idata%watsat_clm, &
                                     clm_pf_idata%watsat_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%soilpsi_clm, &
+                                    clm_pf_idata%soilpsi_pf)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%watfc_clm, &
+                                    clm_pf_idata%watfc_pf)
+! for denitrification
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%bulkdensity_dry_clm, &
+                                    clm_pf_idata%bulkdensity_dry_pf)
+
+    if(clm_pf_idata%use_lch4) then
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%o2_decomp_depth_unsat_clm, &
+                                    clm_pf_idata%o2_decomp_depth_unsat_pf)
+
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%conc_o2_unsat_clm, &
+                                    clm_pf_idata%conc_o2_unsat_pf)
+
+!for some reason, o2_decomp_depth_sat is nan
+!       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+!                                    pflotran_model%option, &
+!                                    clm_pf_idata%o2_decomp_depth_sat_clm, &
+!                                    clm_pf_idata%o2_decomp_depth_sat_pf)
+
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%conc_o2_sat_clm, &
+                                    clm_pf_idata%conc_o2_sat_pf)
+
+    endif
 
     call VecGetArrayF90(clm_pf_idata%hksat_x_pf, hksat_x_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%hksat_y_pf, hksat_y_pf_loc, ierr)
@@ -3166,14 +3208,6 @@ end subroutine pflotranModelSetICs
     patch => realization%patch
     grid  => patch%grid
     field => realization%field
-
-!    if(associated(patch%aux%RT%aux_vars)) then
-!        rt_aux_vars  => patch%aux%RT%aux_vars
-!    else
-!        pflotran_model%option%io_buffer = "No reactions, no bgc exchange!"
-!        call printErrMsg(pflotran_model%option)
-!        return
-!    endif
 
     word = "LabileC"
     ispec_lit1c = GetImmobileSpeciesIDFromName(word, &
