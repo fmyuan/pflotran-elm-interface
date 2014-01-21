@@ -2695,7 +2695,7 @@ end subroutine pflotranModelSetICs
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: sat_pf_p(:)
-    PetscReal, pointer :: sat_clm_p(:)
+    PetscReal, pointer :: press_pf_p(:)
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -2723,6 +2723,19 @@ end subroutine pflotranModelSetICs
                                     pflotran_model%option, &
                                     clm_pf_idata%sat_pf, &
                                     clm_pf_idata%sat_clm)
+
+    ! Save the pressure values
+    call VecGetArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
+    do local_id=1, grid%nlmax
+      ghosted_id=grid%nL2G(local_id)
+      press_pf_p(local_id)=global_aux_vars(ghosted_id)%pres(1)
+    enddo
+    call VecRestoreArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%press_pfp, &
+                                    clm_pf_idata%press_clms)
 
   end subroutine pflotranModelGetSaturation
 
