@@ -3104,7 +3104,7 @@ end subroutine RJumpStartKineticSorption
 ! ************************************************************************** !
 
 subroutine RReact(rt_auxvar,global_auxvar,tran_xx_p,volume,porosity, &
-                  num_iterations_,reaction,option,vol_frac_prim)
+                  num_iterations_,reaction,option,vol_frac_prim,local_id)
   ! 
   ! Solves reaction portion of operator splitting using Newton-Raphson
   ! 
@@ -3141,6 +3141,7 @@ subroutine RReact(rt_auxvar,global_auxvar,tran_xx_p,volume,porosity, &
   PetscInt :: immobile_start, immobile_end
   PetscReal :: ratio, min_ratio
   PetscReal :: scale
+  PetscInt  :: local_id
   
   PetscInt, parameter :: iphase = 1
   PetscReal :: vol_frac_prim
@@ -3223,7 +3224,7 @@ subroutine RReact(rt_auxvar,global_auxvar,tran_xx_p,volume,porosity, &
                          ! derivative
     call RReaction(residual,J,PETSC_TRUE,rt_auxvar,global_auxvar, &
                    porosity, volume, &
-                   reaction,option)
+                   reaction,option,local_id)
     
     if (maxval(abs(residual)) < reaction%max_residual_tolerance) exit
 
@@ -3298,13 +3299,14 @@ end subroutine RReact
 ! ************************************************************************** !
 
 subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar,porosity, &
-                     volume,reaction,option)
+                     volume,reaction,option,local_id)
   ! 
   ! Computes reactions
   ! 
   ! Author: Glenn Hammond
   ! Date: 09/30/08
   ! 
+  ! add local_id t6g 09/13/2013
 
   use Option_module
   use Reaction_Sandbox_module, only : RSandbox, sandbox_list
@@ -3320,6 +3322,7 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar,porosity, &
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
   PetscReal :: porosity
   PetscReal :: volume
+  PetscInt  :: local_id
 
   if (reaction%mineral%nkinmnrl > 0) then
     call RKineticMineral(Res,Jac,derivative,rt_auxvar,global_auxvar, &
@@ -3353,7 +3356,7 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar,porosity, &
   
   if (associated(sandbox_list)) then
     call RSandbox(Res,Jac,derivative,rt_auxvar,global_auxvar,porosity, &
-                  volume,reaction,option)
+                  volume,reaction,option,local_id)
   endif
   
   ! add new reactions here and in RReactionDerivative
@@ -3363,7 +3366,7 @@ end subroutine RReaction
 ! ************************************************************************** !
 
 subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar,porosity, &
-                               volume,reaction,option)
+                               volume,reaction,option,local_id)
   ! 
   ! RReaction: Computes reactions
   ! 
@@ -3384,6 +3387,7 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar,porosity, &
   PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
   PetscReal :: porosity
   PetscReal :: volume
+  PetscInt  :: local_id
    
   PetscReal :: Res_orig(reaction%ncomp)
   PetscReal :: Res_pert(reaction%ncomp)
@@ -3397,7 +3401,7 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar,porosity, &
   if (.not.option%numerical_derivatives_rxn) then ! analytical derivative
     compute_derivative = PETSC_TRUE
     call RReaction(Res,Jac,compute_derivative,rt_auxvar, &
-                   global_auxvar,porosity,volume,reaction,option)  
+                   global_auxvar,porosity,volume,reaction,option,local_id)
 
     ! add only in RReaction
 
@@ -3409,7 +3413,7 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar,porosity, &
     call RTAuxVarCopy(rt_auxvar_pert,rt_auxvar,option)
 
     call RReaction(Res_orig,Jac_dummy,compute_derivative,rt_auxvar, &
-                   global_auxvar,porosity,volume,reaction,option)     
+                   global_auxvar,porosity,volume,reaction,option,local_id)
 
     ! aqueous species
     do jcomp = 1, reaction%naqcomp
@@ -3423,7 +3427,7 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar,porosity, &
                                                 reaction,option)
 
       call RReaction(Res_pert,Jac_dummy,compute_derivative,rt_auxvar_pert, &
-                     global_auxvar,porosity,volume,reaction,option)    
+                     global_auxvar,porosity,volume,reaction,option,local_id)
 
       do icomp = 1, reaction%ncomp
         Jac(icomp,jcomp) = Jac(icomp,jcomp) + &
@@ -3438,7 +3442,7 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar,porosity, &
       pert = rt_auxvar_pert%immobile(jcomp)*perturbation_tolerance
       rt_auxvar_pert%immobile(jcomp) = rt_auxvar_pert%immobile(jcomp) + pert
       call RReaction(Res_pert,Jac_dummy,compute_derivative,rt_auxvar_pert, &
-                     global_auxvar,porosity,volume,reaction,option)    
+                     global_auxvar,porosity,volume,reaction,option,local_id)
 
       ! j is the index in the residual vector and Jacobian
       joffset = reaction%offset_immobile + jcomp
@@ -4979,7 +4983,7 @@ subroutine RCalculateCompression(global_auxvar,rt_auxvar,reaction,option)
   endif
 
   call RReaction(residual,J,PETSC_TRUE,rt_auxvar,global_auxvar,por,vol, &
-                 reaction,option)
+                 reaction,option,1)
  
   do jj = 1, reaction%ncomp
     do i = 1, reaction%ncomp

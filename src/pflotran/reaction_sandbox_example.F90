@@ -180,7 +180,7 @@ end subroutine ExampleSetup
 
 subroutine ExampleReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,porosity,volume,reaction, &
-                         option)
+                         option,local_id)
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
   ! 
@@ -207,6 +207,7 @@ subroutine ExampleReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscInt, parameter :: iphase = 1
   PetscReal :: L_water
+  PetscInt  :: local_id
   
   ! Description of subroutine arguments:
 

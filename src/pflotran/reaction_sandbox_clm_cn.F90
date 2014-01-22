@@ -505,7 +505,7 @@ end subroutine CLM_CN_Map
 ! ************************************************************************** !
 
 subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
-                        global_auxvar,porosity,volume,reaction,option)
+                        global_auxvar,porosity,volume,reaction,option, local_id)
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
   ! 

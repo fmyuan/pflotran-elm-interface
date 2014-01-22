@@ -696,7 +696,7 @@ subroutine CLM_CNPSetup(this,reaction,option)
        this%ires_mc = ispec + reaction%offset_immobile
        this%isaqueous_mc = PETSC_FALSE
   else
-       ispec = GetPrimarySpeciesIDFromName(this%name_mc,reaction,PETSC_FALSE,option)
+       ispec = GetPrimarySpeciesIDFromName(this%name_mc,reaction,option)
        if(ispec > 0) then
           this%ispec_mc = ispec
           this%ires_mc = ispec
@@ -725,7 +725,7 @@ subroutine CLM_CNPSetup(this,reaction,option)
           this%upstream_ires_c = ispec + reaction%offset_immobile
           this%upstream_isaqueous_c = PETSC_FALSE
      else
-          ispec = GetPrimarySpeciesIDFromName(this%Upstream%name_c,reaction,PETSC_FALSE,option)
+          ispec = GetPrimarySpeciesIDFromName(this%Upstream%name_c,reaction,option)
           if(ispec > 0) then
              this%upstream_ispec_c = ispec
              this%upstream_ires_c = ispec
@@ -748,7 +748,7 @@ subroutine CLM_CNPSetup(this,reaction,option)
           this%upstream_ires_n = ispec + reaction%offset_immobile
           this%upstream_isaqueous_n = PETSC_FALSE
        else
-          ispec = GetPrimarySpeciesIDFromName(this%Upstream%name_n,reaction,PETSC_FALSE,option)
+          ispec = GetPrimarySpeciesIDFromName(this%Upstream%name_n,reaction,option)
           if(ispec > 0) then
              this%upstream_ispec_n = ispec
              this%upstream_ires_n = ispec
@@ -780,7 +780,7 @@ subroutine CLM_CNPSetup(this,reaction,option)
           this%upstream_ires_p = ispec + reaction%offset_immobile
           this%upstream_isaqueous_p = PETSC_FALSE
        else
-          ispec = GetPrimarySpeciesIDFromName(this%Upstream%name_p,reaction,PETSC_FALSE,option)
+          ispec = GetPrimarySpeciesIDFromName(this%Upstream%name_p,reaction,option)
           if(ispec > 0) then
              this%upstream_ispec_p = ispec
              this%upstream_ires_p = ispec
@@ -845,7 +845,7 @@ subroutine CLM_CNPSetup(this,reaction,option)
           this%downstream_ires_c(icount) = ispec + reaction%offset_immobile
           this%downstream_isaqueous_c(icount) = PETSC_FALSE
        else
-          ispec = GetPrimarySpeciesIDFromName(cur_pool%name_c,reaction,PETSC_FALSE,option)
+          ispec = GetPrimarySpeciesIDFromName(cur_pool%name_c,reaction,option)
           if(ispec > 0) then
              this%downstream_ispec_c(icount) = ispec
              this%downstream_ires_c(icount) = ispec
@@ -882,7 +882,7 @@ subroutine CLM_CNPSetup(this,reaction,option)
              this%downstream_ires_n(icount) = ispec + reaction%offset_immobile
              this%downstream_isaqueous_n(icount) = PETSC_FALSE
           else
-             ispec = GetPrimarySpeciesIDFromName(cur_pool%name_n,reaction,PETSC_FALSE,option)
+             ispec = GetPrimarySpeciesIDFromName(cur_pool%name_n,reaction,option)
              if(ispec > 0) then
                 this%downstream_ispec_n(icount) = ispec
                 this%downstream_ires_n(icount) = ispec
@@ -931,7 +931,7 @@ subroutine CLM_CNPSetup(this,reaction,option)
              this%downstream_ires_p(icount) = ispec + reaction%offset_immobile
              this%downstream_isaqueous_p(icount) = PETSC_FALSE
           else
-             ispec = GetPrimarySpeciesIDFromName(cur_pool%name_p,reaction,PETSC_FALSE,option)
+             ispec = GetPrimarySpeciesIDFromName(cur_pool%name_p,reaction,option)
              if(ispec > 0) then
                 this%downstream_ispec_p(icount) = ispec
                 this%downstream_ires_p(icount) = ispec
@@ -1004,7 +1004,7 @@ subroutine CLM_CNPSetup(this,reaction,option)
        this%ires_mn = ispec + reaction%offset_immobile
        this%isaqueous_mn = PETSC_FALSE
      else
-       ispec = GetPrimarySpeciesIDFromName(this%name_mn,reaction,PETSC_FALSE,option)
+       ispec = GetPrimarySpeciesIDFromName(this%name_mn,reaction,option)
        if(ispec > 0) then
           this%ispec_mn = ispec
           this%ires_mn = ispec
@@ -1042,7 +1042,7 @@ subroutine CLM_CNPSetup(this,reaction,option)
        this%ires_mp = ispec + reaction%offset_immobile
        this%isaqueous_mp = PETSC_FALSE
      else
-       ispec = GetPrimarySpeciesIDFromName(this%name_mp,reaction,PETSC_FALSE,option)
+       ispec = GetPrimarySpeciesIDFromName(this%name_mp,reaction,option)
        if(ispec > 0) then
           this%ispec_mp = ispec
           this%ires_mp = ispec
@@ -1073,7 +1073,7 @@ subroutine CLM_CNPSetup(this,reaction,option)
              this%ispec_1st(icount) = ispec
              this%isaqueous_1st(icount) = PETSC_FALSE
         else
-             ispec = GetPrimarySpeciesIDFromName(cur_rate%name,reaction,PETSC_FALSE,option)
+             ispec = GetPrimarySpeciesIDFromName(cur_rate%name,reaction,option)
              if(ispec > 0) then
                 this%ispec_1st(icount) = ispec
                 this%isaqueous_1st(icount) = PETSC_TRUE
@@ -1107,7 +1107,7 @@ subroutine CLM_CNPSetup(this,reaction,option)
              this%ispec_mnd(icount) = ispec
              this%isaqueous_mnd(icount) = PETSC_FALSE
         else
-             ispec = GetPrimarySpeciesIDFromName(cur_rate%name,reaction,PETSC_FALSE,option)
+             ispec = GetPrimarySpeciesIDFromName(cur_rate%name,reaction,option)
              if(ispec > 0) then
                 this%ispec_mnd(icount) = ispec
                 this%isaqueous_mnd(icount) = PETSC_TRUE
@@ -1142,7 +1142,7 @@ subroutine CLM_CNPSetup(this,reaction,option)
              this%ispec_inh(icount) = ispec
              this%isaqueous_inh(icount) = PETSC_FALSE
         else
-             ispec = GetPrimarySpeciesIDFromName(cur_rate%name,reaction,PETSC_FALSE,option)
+             ispec = GetPrimarySpeciesIDFromName(cur_rate%name,reaction,option)
              if(ispec > 0) then
                 this%ispec_inh(icount) = ispec
                 this%isaqueous_inh(icount) = PETSC_TRUE

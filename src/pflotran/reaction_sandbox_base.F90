@@ -95,7 +95,7 @@ module Reaction_Sandbox_Base_class
       PetscReal :: Jac(reaction%ncomp,reaction%ncomp)
       PetscReal :: porosity
       PetscReal :: volume
-      PetscReal :: local_id
+      PetscInt :: local_id
       type(reactive_transport_auxvar_type) :: rt_auxvar
       type(global_auxvar_type) :: global_auxvar
       
