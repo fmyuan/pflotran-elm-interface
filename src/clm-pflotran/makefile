@@ -9,7 +9,6 @@ MYFLAGS = -I.
 MYFLAGS += -DPROCESS_MODEL
 MYFLAGS += -DSURFACE_FLOW
 MYFLAGS += -DCHUAN_CO2
-MYFLAGS += -DCLM_PFLOTRAN
 MYFLAGS += -DSTORE_FLOWRATES
 
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
