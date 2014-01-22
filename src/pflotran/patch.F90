@@ -119,13 +119,14 @@ module Patch_module
 contains
 
 ! ************************************************************************** !
-!
-! PatchCreate: Allocates and initializes a new Patch object
-! author: Glenn Hammond
-! date: 02/22/08
-!
-! ************************************************************************** !
+
 function PatchCreate()
+  ! 
+  ! Allocates and initializes a new Patch object
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/22/08
+  ! 
 
   implicit none
   
@@ -192,13 +193,14 @@ function PatchCreate()
 end function PatchCreate
 
 ! ************************************************************************** !
-!
-! PatchListCreate: Creates a patch list
-! author: Glenn Hammond
-! date: 02/22/08
-!
-! ************************************************************************** !
+
 function PatchCreateList()
+  ! 
+  ! PatchListCreate: Creates a patch list
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/22/08
+  ! 
 
   implicit none
 
@@ -217,13 +219,14 @@ function PatchCreateList()
 end function PatchCreateList
 
 ! ************************************************************************** !
-!
-! PatchAddToList: Adds a new patch to list
-! author: Glenn Hammond
-! date: 02/22/08
-!
-! ************************************************************************** !
+
 subroutine PatchAddToList(new_patch,patch_list)
+  ! 
+  ! Adds a new patch to list
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/22/08
+  ! 
 
   implicit none
   
@@ -240,14 +243,15 @@ subroutine PatchAddToList(new_patch,patch_list)
 end subroutine PatchAddToList
 
 ! ************************************************************************** !
-!
-! PatchConvertListToArray: Creates an array of pointers to the 
-!                               patchs in the patch list
-! author: Glenn Hammond
-! date: 02/22/08
-!
-! ************************************************************************** !
+
 subroutine PatchConvertListToArray(patch_list)
+  ! 
+  ! Creates an array of pointers to the
+  ! patchs in the patch list
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/22/08
+  ! 
 
   implicit none
   
@@ -269,13 +273,14 @@ subroutine PatchConvertListToArray(patch_list)
 end subroutine PatchConvertListToArray
 
 ! ************************************************************************** !
-!
-! PatchLocalizeRegions: Localizes regions within each patch
-! author: Glenn Hammond
-! date: 02/22/08
-!
-! ************************************************************************** !
+
 subroutine PatchLocalizeRegions(patch,regions,option)
+  ! 
+  ! Localizes regions within each patch
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/22/08
+  ! 
 
   use Option_module
   use Region_module
@@ -304,14 +309,15 @@ subroutine PatchLocalizeRegions(patch,regions,option)
 end subroutine PatchLocalizeRegions
 
 ! ************************************************************************** !
-!
-! PatchProcessCouplers: Assigns conditions and regions to couplers
-! author: Glenn Hammond
-! date: 02/22/08
-!
-! ************************************************************************** !
+
 subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
                                 option)
+  ! 
+  ! Assigns conditions and regions to couplers
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/22/08
+  ! 
 
   use Option_module
   use Material_module
@@ -680,14 +686,15 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
 end subroutine PatchProcessCouplers
 
 ! ************************************************************************** !
-!
-! PatchInitAllCouplerAuxVars: Initializes coupler auxillary variables 
-!                                within list
-! author: Glenn Hammond
-! date: 02/22/08
-!
-! ************************************************************************** !
+
 subroutine PatchInitAllCouplerAuxVars(patch,option)
+  ! 
+  ! Initializes coupler auxillary variables
+  ! within list
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/22/08
+  ! 
 
   use Option_module
   use Reaction_Aux_module
@@ -716,14 +723,15 @@ subroutine PatchInitAllCouplerAuxVars(patch,option)
 end subroutine PatchInitAllCouplerAuxVars
 
 ! ************************************************************************** !
-!
-! PatchInitCouplerAuxVars: Initializes coupler auxillary variables 
-!                                within list
-! author: Glenn Hammond
-! date: 02/22/08
-!
-! ************************************************************************** !
+
 subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
+  ! 
+  ! Initializes coupler auxillary variables
+  ! within list
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/22/08
+  ! 
 
   use Option_module
   use Connection_module
@@ -880,14 +888,15 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
 end subroutine PatchInitCouplerAuxVars
 
 ! ************************************************************************** !
-!
-! PatchUpdateAllCouplerAuxVars: Updates auxiliary variables associated 
-!                                  with couplers in list
-! author: Glenn Hammond
-! date: 02/22/08
-!
-! ************************************************************************** !
+
 subroutine PatchUpdateAllCouplerAuxVars(patch,force_update_flag,option)
+  ! 
+  ! Updates auxiliary variables associated
+  ! with couplers in list
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/22/08
+  ! 
 
   use Option_module
   
@@ -910,25 +919,26 @@ subroutine PatchUpdateAllCouplerAuxVars(patch,force_update_flag,option)
 end subroutine PatchUpdateAllCouplerAuxVars
 
 ! ************************************************************************** !
-!
-! PatchUpdateCouplerAuxVars: Updates auxiliary variables associated 
-!                                  with couplers in list
-! author: Glenn Hammond
-! date: 11/26/07
-!
-! ************************************************************************** !
+
 subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
                                      option)
+  ! 
+  ! Updates auxiliary variables associated
+  ! with couplers in list
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/26/07
+  ! 
   use Option_module
   use Condition_module
   use Hydrostatic_module
   use Saturation_module
-  use Water_EOS_module
+  
   
   use General_Aux_module
   use Grid_module
   use Dataset_Common_HDF5_class
-  use Dataset_Gridded_class
+  use Dataset_Gridded_HDF5_class
 
   implicit none
   
@@ -981,25 +991,26 @@ subroutine PatchUpdateCouplerAuxVars(patch,coupler_list,force_update_flag, &
 end subroutine PatchUpdateCouplerAuxVars
 
 ! ************************************************************************** !
-!
-! PatchUpdateCouplerAuxVarsG: Updates flow auxiliary variables associated
-!                             with a coupler for G_MODE
-! author: Glenn Hammond
-! date: 11/26/13
-!
-! ************************************************************************** !
+
 subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
+  ! 
+  ! Updates flow auxiliary variables associated
+  ! with a coupler for G_MODE
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/26/13
+  ! 
 
   use Option_module
   use Condition_module
   use Hydrostatic_module
   use Saturation_module
-  use Water_EOS_module
+  use EOS_Water_module
   
   use General_Aux_module
   use Grid_module
   use Dataset_Common_HDF5_class
-  use Dataset_Gridded_class
+  use Dataset_Gridded_HDF5_class
 
   implicit none
   
@@ -1054,7 +1065,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
       select case(general%temperature%itype)
         case(DIRICHLET_BC)
           temperature = general%temperature%dataset%rarray(1)
-          call psat(temperature,p_sat,ierr)
+          call EOSWaterSaturationPressure(temperature,p_sat,ierr)
           coupler%flow_aux_real_var(GENERAL_AIR_PRESSURE_DOF,1:num_connections) = &
             general%gas_pressure%dataset%rarray(1) - p_sat
           dof3 = PETSC_TRUE
@@ -1154,25 +1165,26 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
 end subroutine PatchUpdateCouplerAuxVarsG
 
 ! ************************************************************************** !
-!
-! PatchUpdateCouplerAuxVarsMPH: Updates flow auxiliary variables associated
-!                               with a coupler for MPH_MODE
-! author: Glenn Hammond
-! date: 11/26/07
-!
-! ************************************************************************** !
+
 subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
+  ! 
+  ! Updates flow auxiliary variables associated
+  ! with a coupler for MPH_MODE
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/26/07
+  ! 
 
   use Option_module
   use Condition_module
   use Hydrostatic_module
   use Saturation_module
-  use Water_EOS_module
+  
   
   use General_Aux_module
   use Grid_module
   use Dataset_Common_HDF5_class
-  use Dataset_Gridded_class
+  use Dataset_Gridded_HDF5_class
 
   implicit none
   
@@ -1259,25 +1271,26 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
 end subroutine PatchUpdateCouplerAuxVarsMPH
 
 ! ************************************************************************** !
-!
-! PatchUpdateCouplerAuxVarsIMS: Updates flow auxiliary variables associated
-!                               with a coupler for IMS_MODE
-! author: Glenn Hammond
-! date: 11/26/07
-!
-! ************************************************************************** !
+
 subroutine PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
+  ! 
+  ! Updates flow auxiliary variables associated
+  ! with a coupler for IMS_MODE
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/26/07
+  ! 
 
   use Option_module
   use Condition_module
   use Hydrostatic_module
   use Saturation_module
-  use Water_EOS_module
+  
   
   use General_Aux_module
   use Grid_module
   use Dataset_Common_HDF5_class
-  use Dataset_Gridded_class
+  use Dataset_Gridded_HDF5_class
 
   implicit none
   
@@ -1364,25 +1377,26 @@ subroutine PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
 end subroutine PatchUpdateCouplerAuxVarsIMS
 
 ! ************************************************************************** !
-!
-! PatchUpdateCouplerAuxVarsFLASH2: Updates flow auxiliary variables associated
-!                                  with a coupler for FLASH2_MODE
-! author: Glenn Hammond
-! date: 11/26/07
-!
-! ************************************************************************** !
+
 subroutine PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
+  ! 
+  ! Updates flow auxiliary variables associated
+  ! with a coupler for FLASH2_MODE
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/26/07
+  ! 
 
   use Option_module
   use Condition_module
   use Hydrostatic_module
   use Saturation_module
-  use Water_EOS_module
+  
   
   use General_Aux_module
   use Grid_module
   use Dataset_Common_HDF5_class
-  use Dataset_Gridded_class
+  use Dataset_Gridded_HDF5_class
 
   implicit none
   
@@ -1469,25 +1483,26 @@ subroutine PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
 end subroutine PatchUpdateCouplerAuxVarsFLASH2
 
 ! ************************************************************************** !
-!
-! PatchUpdateCouplerAuxVarsTHC: Updates flow auxiliary variables associated
-!                               with a coupler for THC_MODE
-! author: Glenn Hammond
-! date: 11/26/07
-!
-! ************************************************************************** !
+
 subroutine PatchUpdateCouplerAuxVarsTHC(patch,coupler,option)
+  ! 
+  ! Updates flow auxiliary variables associated
+  ! with a coupler for THC_MODE
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/26/07
+  ! 
 
   use Option_module
   use Condition_module
   use Hydrostatic_module
   use Saturation_module
-  use Water_EOS_module
+  
   
   use General_Aux_module
   use Grid_module
   use Dataset_Common_HDF5_class
-  use Dataset_Gridded_class
+  use Dataset_Gridded_HDF5_class
 
   implicit none
   
@@ -1574,25 +1589,26 @@ subroutine PatchUpdateCouplerAuxVarsTHC(patch,coupler,option)
 end subroutine PatchUpdateCouplerAuxVarsTHC
 
 ! ************************************************************************** !
-!
-! PatchUpdateCouplerAuxVarsTH: Updates flow auxiliary variables associated
-!                              with a coupler for TH_MODE
-! author: Glenn Hammond
-! date: 11/26/07
-!
-! ************************************************************************** !
+
 subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
+  ! 
+  ! Updates flow auxiliary variables associated
+  ! with a coupler for TH_MODE
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/26/07
+  ! 
 
   use Option_module
   use Condition_module
   use Hydrostatic_module
   use Saturation_module
-  use Water_EOS_module
+  
   
   use General_Aux_module
   use Grid_module
   use Dataset_Common_HDF5_class
-  use Dataset_Gridded_class
+  use Dataset_Gridded_HDF5_class
 
   implicit none
   
@@ -1634,7 +1650,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
       case(HET_DIRICHLET)
         call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
-                flow_condition%temperature%dataset, &
+                flow_condition%pressure%dataset, &
                 num_connections,TH_PRESSURE_DOF,option)
       case(HET_SURF_SEEPAGE_BC)
         ! Do nothing, since this BC type is only used for coupling of
@@ -1728,25 +1744,26 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
 end subroutine PatchUpdateCouplerAuxVarsTH
 
 ! ************************************************************************** !
-!
-! PatchUpdateCouplerAuxVarsMIS: Updates flow auxiliary variables associated
-!                               with a coupler for MIS_MODE
-! author: Glenn Hammond
-! date: 11/26/07
-!
-! ************************************************************************** !
+
 subroutine PatchUpdateCouplerAuxVarsMIS(patch,coupler,option)
+  ! 
+  ! Updates flow auxiliary variables associated
+  ! with a coupler for MIS_MODE
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/26/07
+  ! 
 
   use Option_module
   use Condition_module
   use Hydrostatic_module
   use Saturation_module
-  use Water_EOS_module
+  
   
   use General_Aux_module
   use Grid_module
   use Dataset_Common_HDF5_class
-  use Dataset_Gridded_class
+  use Dataset_Gridded_HDF5_class
 
   implicit none
   
@@ -1809,25 +1826,26 @@ subroutine PatchUpdateCouplerAuxVarsMIS(patch,coupler,option)
 end subroutine PatchUpdateCouplerAuxVarsMIS
 
 ! ************************************************************************** !
-!
-! PatchUpdateCouplerAuxVarsRich: Updates flow auxiliary variables associated
-!                             with a coupler for RICHARDS_MODE
-! author: Glenn Hammond
-! date: 11/26/07
-!
-! ************************************************************************** !
+
 subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
+  ! 
+  ! Updates flow auxiliary variables associated
+  ! with a coupler for RICHARDS_MODE
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/26/07
+  ! 
 
   use Option_module
   use Condition_module
   use Hydrostatic_module
   use Saturation_module
-  use Water_EOS_module
+  
   
   use General_Aux_module
   use Grid_module
   use Dataset_Common_HDF5_class
-  use Dataset_Gridded_class
+  use Dataset_Gridded_HDF5_class
 
   implicit none
   
@@ -1866,7 +1884,7 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
         else
           select type(dataset => &
                       flow_condition%pressure%dataset)
-            class is(dataset_gridded_type)
+            class is(dataset_gridded_hdf5_type)
               call PatchUpdateCouplerFromDataset(coupler,option, &
                                               patch%grid,dataset, &
                                               RICHARDS_PRESSURE_DOF)
@@ -1897,25 +1915,26 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
 end subroutine PatchUpdateCouplerAuxVarsRich
 
 ! ************************************************************************** !
-!
-! PatchUpdateCouplerFromDataset: Updates auxiliary variables from dataset.
-! author: Glenn Hammond
-! date: 11/26/07
-!
-! ************************************************************************** !
+
 subroutine PatchUpdateCouplerFromDataset(coupler,option,grid,dataset,dof)
+  ! 
+  ! Updates auxiliary variables from dataset.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/26/07
+  ! 
 
   use Option_module
   use Grid_module
   use Coupler_module
-  use Dataset_Gridded_class
+  use Dataset_Gridded_HDF5_class
   
   implicit none
 
   type(coupler_type) :: coupler
   type(option_type) :: option
   type(grid_type) :: grid
-  class(dataset_gridded_type) :: dataset
+  class(dataset_gridded_hdf5_type) :: dataset
   PetscInt :: dof
   
   PetscReal :: temp_real
@@ -1926,24 +1945,25 @@ subroutine PatchUpdateCouplerFromDataset(coupler,option,grid,dataset,dof)
   do iconn = 1, coupler%connection_set%num_connections
     local_id = coupler%connection_set%id_dn(iconn)
     ghosted_id = grid%nL2G(local_id)
-    call DatasetGriddedInterpolateReal(dataset, &
-                                       grid%x(ghosted_id), &
-                                       grid%y(ghosted_id), &
-                                       grid%z(ghosted_id), &
-                                       0.d0,temp_real,option)
+    call DatasetGriddedHDF5InterpolateReal(dataset, &
+                                            grid%x(ghosted_id), &
+                                            grid%y(ghosted_id), &
+                                            grid%z(ghosted_id), &
+                                            0.d0,temp_real,option)
     coupler%flow_aux_real_var(dof,iconn) = temp_real
   enddo
   
 end subroutine PatchUpdateCouplerFromDataset
 
 ! ************************************************************************** !
-!
-! PatchScaleSourceSink: Scales select source/sinks based on perms*volume
-! author: Glenn Hammond
-! date: 01/12/11
-!
-! ************************************************************************** !
+
 subroutine PatchScaleSourceSink(patch,source_sink,option)
+  ! 
+  ! Scales select source/sinks based on perms*volume
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 01/12/11
+  ! 
 
   use Option_module
   use Field_module
@@ -2078,15 +2098,15 @@ subroutine PatchScaleSourceSink(patch,source_sink,option)
 end subroutine PatchScaleSourceSink
 
 ! ************************************************************************** !
-!> This subroutine updates aux vars for distributed copuler_type
-!!
-!> @author
-!! Gautam Bisht, LBL
-!!
-!! date: 10/03/2012
-! ************************************************************************** !
+
 subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
                                           sum_connection,isub_condition,option)
+  ! 
+  ! This subroutine updates aux vars for distributed copuler_type
+  ! 
+  ! Author: Gautam Bisht, LBL
+  ! Date: 10/03/2012
+  ! 
 
   use Option_module
   use Field_module
@@ -2095,7 +2115,7 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
   use Condition_module
   use Grid_module
   use Dataset_module
-  use Dataset_Map_class
+  use Dataset_Map_HDF5_class
   use Dataset_Base_class
   use Dataset_Ascii_class
 
@@ -2119,7 +2139,7 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
   PetscInt,pointer::cell_ids_nat(:)
   type(flow_sub_condition_type) :: flow_sub_condition
 
-  class(dataset_map_type), pointer :: dataset_map
+  class(dataset_map_hdf5_type), pointer :: dataset_map_hdf5
   class(dataset_ascii_type), pointer :: dataset_ascii
 
   grid => patch%grid
@@ -2139,11 +2159,11 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
   cur_connection_set => coupler%connection_set
 
   select type(selector=>dataset_base)
-    class is(dataset_map_type)
-      dataset_map => selector
+    class is(dataset_map_hdf5_type)
+      dataset_map_hdf5 => selector
 
       ! If called for the first time, create the map
-      if (dataset_map%first_time) then
+      if (dataset_map_hdf5%first_time) then
         allocate(cell_ids_nat(cur_connection_set%num_connections))
         do iconn=1,cur_connection_set%num_connections
           sum_connection = sum_connection + 1
@@ -2152,10 +2172,10 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
           cell_ids_nat(iconn)=grid%nG2A(ghosted_id)
         enddo
 
-        call PatchCreateFlowConditionDatasetMap(patch%grid,dataset_map,&
+        call PatchCreateFlowConditionDatasetMap(patch%grid,dataset_map_hdf5,&
                 cell_ids_nat,cur_connection_set%num_connections,option)
 
-        dataset_map%first_time = PETSC_FALSE
+        dataset_map_hdf5%first_time = PETSC_FALSE
         deallocate(cell_ids_nat)
 
       endif
@@ -2163,7 +2183,7 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
       ! Save the data in the array
       do iconn=1,cur_connection_set%num_connections
         coupler%flow_aux_real_var(isub_condition,iconn) = &
-          dataset_map%rarray(dataset_map%datatocell_ids(iconn))
+          dataset_map_hdf5%rarray(dataset_map_hdf5%datatocell_ids(iconn))
       enddo
 
     class is(dataset_ascii_type)
@@ -2185,17 +2205,17 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
 end subroutine PatchUpdateHetroCouplerAuxVars
 
 ! ************************************************************************** !
-!> This routine creates dataset-map for flow condition
-!!
-!> @author
-!! Gautam Bisht, LBL
-!!
-!! date: 10/26/12
-! ************************************************************************** !
-subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map,cell_ids,ncells,option)
+
+subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,ncells,option)
+  ! 
+  ! This routine creates dataset-map for flow condition
+  ! 
+  ! Author: Gautam Bisht, LBL
+  ! Date: 10/26/12
+  ! 
 
   use Grid_module
-  use Dataset_Map_class
+  use Dataset_Map_HDF5_class
   use Option_module
   
   implicit none
@@ -2206,7 +2226,7 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map,cell_ids,ncells,o
 #include "finclude/petscviewer.h"
 
   type(grid_type) :: grid
-  class(dataset_map_type) :: dataset_map
+  class(dataset_map_hdf5_type) :: dataset_map_hdf5
   type(option_type):: option
   PetscInt,pointer :: cell_ids(:)
   PetscInt :: ncells
@@ -2225,34 +2245,34 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map,cell_ids,ncells,o
   PetscViewer :: viewer
   
   ! Step-1: Rearrange map dataset
-  nloc = maxval(dataset_map%mapping(2,:))
+  nloc = maxval(dataset_map_hdf5%mapping(2,:))
   call MPI_Allreduce(nloc,nglo,ONE_INTEGER,MPIU_INTEGER,MPI_Max,option%mycomm,ierr)
-  call VecCreateMPI(option%mycomm,dataset_map%map_dims_local(2),&
+  call VecCreateMPI(option%mycomm,dataset_map_hdf5%map_dims_local(2),&
                     PETSC_DETERMINE,map_ids_1,ierr)
   call VecCreateMPI(option%mycomm,PETSC_DECIDE,nglo,map_ids_2,ierr)
   call VecSet(map_ids_2,0,ierr)
 
   istart = 0
-  call MPI_Exscan(dataset_map%map_dims_local(2), istart, ONE_INTEGER_MPI, &
+  call MPI_Exscan(dataset_map_hdf5%map_dims_local(2), istart, ONE_INTEGER_MPI, &
                   MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
 
-  allocate(int_array(dataset_map%map_dims_local(2)))
-  do ii=1,dataset_map%map_dims_local(2)
+  allocate(int_array(dataset_map_hdf5%map_dims_local(2)))
+  do ii=1,dataset_map_hdf5%map_dims_local(2)
     int_array(ii)=ii+istart
   enddo
   int_array=int_array-1
   
-  call ISCreateBlock(option%mycomm,1,dataset_map%map_dims_local(2), &
+  call ISCreateBlock(option%mycomm,1,dataset_map_hdf5%map_dims_local(2), &
                      int_array,PETSC_COPY_VALUES,is_from,ierr)
   deallocate(int_array)
   
-  allocate(int_array(dataset_map%map_dims_local(2)))
-  do ii=1,dataset_map%map_dims_local(2)
-    int_array(ii)=dataset_map%mapping(2,ii)
+  allocate(int_array(dataset_map_hdf5%map_dims_local(2)))
+  do ii=1,dataset_map_hdf5%map_dims_local(2)
+    int_array(ii)=dataset_map_hdf5%mapping(2,ii)
   enddo
   int_array=int_array-1
 
-  call ISCreateBlock(option%mycomm,1,dataset_map%map_dims_local(2), &
+  call ISCreateBlock(option%mycomm,1,dataset_map_hdf5%map_dims_local(2), &
                      int_array,PETSC_COPY_VALUES,is_to,ierr)
   deallocate(int_array)
 
@@ -2265,8 +2285,8 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map,cell_ids,ncells,o
   call ISDestroy(is_to,ierr)
 
   call VecGetArrayF90(map_ids_1,vec_ptr,ierr)
-  do ii=1,dataset_map%map_dims_local(2)
-    vec_ptr(ii)=dataset_map%mapping(1,ii)
+  do ii=1,dataset_map_hdf5%map_dims_local(2)
+    vec_ptr(ii)=dataset_map_hdf5%mapping(1,ii)
   enddo
   call VecRestoreArrayF90(map_ids_1,vec_ptr,ierr)
 
@@ -2278,7 +2298,7 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map,cell_ids,ncells,o
 
   ! Step-2: Get ids in map dataset for cells
   allocate(int_array(ncells))
-  allocate(dataset_map%cell_ids_local(ncells))
+  allocate(dataset_map_hdf5%cell_ids_local(ncells))
   int_array=cell_ids-1
 
   call ISCreateBlock(option%mycomm,1,ncells,int_array,PETSC_COPY_VALUES,is_from,ierr)
@@ -2309,10 +2329,10 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map,cell_ids,ncells,o
   call VecScatterDestroy(vec_scatter,ierr)
 
   ! Step-3: Save the datatocell_ids
-  allocate(dataset_map%datatocell_ids(ncells))
+  allocate(dataset_map_hdf5%datatocell_ids(ncells))
   call VecGetArrayF90(map_ids_3,vec_ptr,ierr)
   do local_id=1,ncells
-    dataset_map%datatocell_ids(local_id) = int(vec_ptr(local_id))
+    dataset_map_hdf5%datatocell_ids(local_id) = int(vec_ptr(local_id))
   enddo
   call VecRestoreArrayF90(map_ids_3,vec_ptr,ierr)
   
@@ -2323,13 +2343,14 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map,cell_ids,ncells,o
 end subroutine PatchCreateFlowConditionDatasetMap
 
 ! ************************************************************************** !
-!
-! PatchInitConstraints: Initializes constraint concentrations
-! author: Glenn Hammond
-! date: 12/04/08
-!
-! ************************************************************************** !
+
 subroutine PatchInitConstraints(patch,reaction,option)
+  ! 
+  ! Initializes constraint concentrations
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/04/08
+  ! 
 
   use Reaction_Aux_module
     
@@ -2351,21 +2372,23 @@ subroutine PatchInitConstraints(patch,reaction,option)
 end subroutine PatchInitConstraints
 
 ! ************************************************************************** !
-!
-! PatchInitCouplerConstraints: Initializes constraint concentrations
-!                              for a given coupler
-! author: Glenn Hammond
-! date: 12/04/08
-!
-! ************************************************************************** !
+
 subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
+  ! 
+  ! Initializes constraint concentrations
+  ! for a given coupler
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/04/08
+  ! 
 
   use Reaction_module
   use Reactive_Transport_Aux_module
   use Reaction_Aux_module
   use Global_Aux_module
   use Constraint_module
-  use Water_EOS_module
+  
+  use EOS_Water_module
     
   implicit none
 
@@ -2377,7 +2400,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
   type(global_auxvar_type), pointer :: global_auxvar
   type(coupler_type), pointer :: cur_coupler
   type(tran_constraint_coupler_type), pointer :: cur_constraint_coupler
-  PetscReal :: r1, r2, r3, r4, r5, r6
+  PetscReal :: dum1
   PetscErrorCode :: ierr
   
   cur_coupler => coupler_list%first
@@ -2422,11 +2445,12 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
         endif
 
 #ifndef DONT_USE_WATEOS
-        call wateos(global_auxvar%temp(1),global_auxvar%pres(1), &
-                    global_auxvar%den_kg(1),r1,r2,r3,r4,r5,r6, &
-                    option%scale,ierr)
+        call EOSWaterDensity(global_auxvar%temp(1), &
+                             global_auxvar%pres(1), &
+                             global_auxvar%den_kg(1), &
+                             dum1,option%scale,ierr)
 #else
-        call density(global_auxvar%temp(1),global_auxvar%pres(1), &
+        call EOSWaterdensity(global_auxvar%temp(1),global_auxvar%pres(1), &
                      global_auxvar%den_kg(1))
 #endif                     
       else
@@ -2454,14 +2478,15 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
 end subroutine PatchInitCouplerConstraints
 
 ! ************************************************************************** !
-!
-! PatchUpdateUniformVelocity: Assigns uniform velocity in connection list
-!                        darcy velocities
-! author: Glenn Hammond
-! date: 02/20/08
-!
-! ************************************************************************** !
+
 subroutine PatchUpdateUniformVelocity(patch,velocity,option)
+  ! 
+  ! Assigns uniform velocity in connection list
+  ! darcy velocities
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/20/08
+  ! 
 
   use Option_module
   use Coupler_module
@@ -2514,13 +2539,14 @@ subroutine PatchUpdateUniformVelocity(patch,velocity,option)
 end subroutine PatchUpdateUniformVelocity
 
 ! ************************************************************************** !
-!
-! PatchAuxVarsUpToDate: Checks to see if aux vars are up to date
-! author: Glenn Hammond
-! date: 09/12/08
-!
-! ************************************************************************** !
+
 function PatchAuxVarsUpToDate(patch)
+  ! 
+  ! Checks to see if aux vars are up to date
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/12/08
+  ! 
 
   use Grid_module
   use Option_module
@@ -2563,14 +2589,15 @@ function PatchAuxVarsUpToDate(patch)
 end function PatchAuxVarsUpToDate
 
 ! ************************************************************************** !
-!
-! PatchGetVariable: Extracts variables indexed by ivar and isubvar from a patch
-! author: Glenn Hammond
-! date: 09/12/08
-!
-! ************************************************************************** !
+
 subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar, &
                            isubvar,isubvar1)
+  ! 
+  ! PatchGetVariable: Extracts variables indexed by ivar and isubvar from a patch
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/12/08
+  ! 
 
   use Grid_module
   use Option_module
@@ -2651,22 +2678,24 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
             enddo
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
-#ifdef ICE
-              vec_ptr(local_id) = patch%aux%THC%aux_vars(grid%nL2G(local_id))%sat_gas
-#else
-              vec_ptr(local_id) = 0.d0
-#endif 
+               if (option%use_th_freezing) then
+                  vec_ptr(local_id) = patch%aux%THC%aux_vars(grid%nL2G(local_id))%sat_gas
+               else
+                  vec_ptr(local_id) = 0.d0
+               endif
             enddo
-#ifdef ICE
           case(ICE_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%THC%aux_vars(grid%nL2G(local_id))%sat_ice
-            enddo
+             if (option%use_th_freezing) then
+                do local_id=1,grid%nlmax
+                   vec_ptr(local_id) = patch%aux%THC%aux_vars(grid%nL2G(local_id))%sat_ice
+                enddo
+             endif
           case(ICE_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%THC%aux_vars(grid%nL2G(local_id))%den_ice*FMWH2O
-            enddo
-#endif
+             if (option%use_th_freezing) then
+                do local_id=1,grid%nlmax
+                   vec_ptr(local_id) = patch%aux%THC%aux_vars(grid%nL2G(local_id))%den_ice*FMWH2O
+                enddo
+             endif
           case(LIQUID_VISCOSITY)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%THC%aux_vars(grid%nL2G(local_id))%vis
@@ -2709,22 +2738,24 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
             enddo
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
-#ifdef ICE
-              vec_ptr(local_id) = patch%aux%TH%aux_vars(grid%nL2G(local_id))%sat_gas
-#else
-              vec_ptr(local_id) = 0.d0
-#endif 
+               if (option%use_th_freezing) then
+                  vec_ptr(local_id) = patch%aux%TH%aux_vars(grid%nL2G(local_id))%sat_gas
+               else
+                  vec_ptr(local_id) = 0.d0
+               endif
             enddo
-#ifdef ICE
           case(ICE_SATURATION)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TH%aux_vars(grid%nL2G(local_id))%sat_ice
-            enddo
+             if (option%use_th_freezing) then
+                do local_id=1,grid%nlmax
+                   vec_ptr(local_id) = patch%aux%TH%aux_vars(grid%nL2G(local_id))%sat_ice
+                enddo
+             endif
           case(ICE_DENSITY)
-            do local_id=1,grid%nlmax
-              vec_ptr(local_id) = patch%aux%TH%aux_vars(grid%nL2G(local_id))%den_ice*FMWH2O
-            enddo
-#endif
+             if (option%use_th_freezing) then
+                do local_id=1,grid%nlmax
+                   vec_ptr(local_id) = patch%aux%TH%aux_vars(grid%nL2G(local_id))%den_ice*FMWH2O
+                enddo
+             endif
           case(LIQUID_VISCOSITY)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%TH%aux_vars(grid%nL2G(local_id))%vis
@@ -2768,8 +2799,6 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
             call printErrMsg(option,'LIQUID_VISCOSITY not supported by Richards')
           case(GAS_VISCOSITY)
             call printErrMsg(option,'GAS_VISCOSITY not supported by Richards')
-          case(LIQUID_MOBILITY)
-            call printErrMsg(option,'LIQUID_MOBILITY not supported by Richards')
           case(GAS_MOBILITY)
             call printErrMsg(option,'GAS_MOBILITY not supported by Richards')
           case(LIQUID_PRESSURE)
@@ -2787,8 +2816,11 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
               vec_ptr(local_id) = &
                 patch%aux%Global%aux_vars(grid%nL2G(local_id))%den_kg(1)
             enddo
+          case(LIQUID_MOBILITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%Richards%aux_vars(grid%nL2G(local_id))%kvr
+            enddo
         end select
-        
       else if (associated(patch%aux%Flash2)) then
       
         select case(ivar)
@@ -3544,16 +3576,17 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
 end subroutine PatchGetVariable1
 
 ! ************************************************************************** !
-!
-! PatchGetVariableValueAtCell: Returns variables indexed by ivar,
-!                             isubvar, local id from Reactive Transport type
-! author: Glenn Hammond
-! date: 02/11/08
-!
-! ************************************************************************** !
+
 function PatchGetVariableValueAtCell(patch,field,reaction,option, &
                                     output_option, &
                                     ivar,isubvar,ghosted_id,isubvar1)
+  ! 
+  ! Returns variables indexed by ivar,
+  ! isubvar, local id from Reactive Transport type
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/11/08
+  ! 
 
   use Grid_module
   use Option_module
@@ -3636,17 +3669,19 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY) ! still need implementation
             value = 0.d0
           case(GAS_SATURATION)
-#ifdef ICE
-            value = patch%aux%THC%aux_vars(ghosted_id)%sat_gas
-#else
-            value = 0.d0
-#endif
-#ifdef ICE
+             if (option%use_th_freezing) then
+                value = patch%aux%THC%aux_vars(ghosted_id)%sat_gas
+             else
+                value = 0.d0
+             endif
           case(ICE_SATURATION)
-            value = patch%aux%THC%aux_vars(ghosted_id)%sat_ice
+             if (option%use_th_freezing) then
+                value = patch%aux%THC%aux_vars(ghosted_id)%sat_ice
+             endif
           case(ICE_DENSITY)
-            value = patch%aux%THC%aux_vars(ghosted_id)%den_ice*FMWH2O
-#endif
+             if (option%use_th_freezing) then
+                value = patch%aux%THC%aux_vars(ghosted_id)%den_ice*FMWH2O
+             endif
           case(LIQUID_MOLE_FRACTION)
             value = patch%aux%THC%aux_vars(ghosted_id)%xmol(isubvar)
           case(LIQUID_ENERGY)
@@ -3672,17 +3707,19 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY) ! still need implementation
             value = 0.d0
           case(GAS_SATURATION)
-#ifdef ICE
-            value = patch%aux%TH%aux_vars(ghosted_id)%sat_gas
-#else
-            value = 0.d0
-#endif
-#ifdef ICE
+             if (option%use_th_freezing) then
+                value = patch%aux%TH%aux_vars(ghosted_id)%sat_gas
+             else
+                value = 0.d0
+             endif
           case(ICE_SATURATION)
-            value = patch%aux%TH%aux_vars(ghosted_id)%sat_ice
+             if (option%use_th_freezing) then
+                value = patch%aux%TH%aux_vars(ghosted_id)%sat_ice
+             endif
           case(ICE_DENSITY)
-            value = patch%aux%TH%aux_vars(ghosted_id)%den_ice*FMWH2O
-#endif
+             if (option%use_th_freezing) then
+                value = patch%aux%TH%aux_vars(ghosted_id)%den_ice*FMWH2O
+             endif
           case(LIQUID_MOLE_FRACTION)
             value = patch%aux%TH%aux_vars(ghosted_id)%xmol(isubvar)
           case(LIQUID_ENERGY)
@@ -3713,13 +3750,15 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             value = patch%aux%Global%aux_vars(ghosted_id)%sat(1)
           case(LIQUID_DENSITY)
             value = patch%aux%Global%aux_vars(ghosted_id)%den_kg(1)
+          case(LIQUID_MOBILITY)
+            value = patch%aux%Richards%aux_vars(ghosted_id)%kvr
         end select
       else if (associated(patch%aux%Flash2)) then
         select case(ivar)
           case(TEMPERATURE)
             value = patch%aux%Global%aux_vars(ghosted_id)%temp(1)
           case(LIQUID_PRESSURE)
-            value = patch%aux%Global%aux_vars(ghosted_id)%pres(2)
+            value = patch%aux%Global%aux_vars(ghosted_id)%pres(1)
           case(LIQUID_SATURATION)
             value = patch%aux%Global%aux_vars(ghosted_id)%sat(1)
           case(LIQUID_DENSITY)
@@ -3728,6 +3767,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             value = patch%aux%Flash2%aux_vars(ghosted_id)%aux_var_elem(0)%vis(1)
           case(LIQUID_MOBILITY)
             value = patch%aux%Flash2%aux_vars(ghosted_id)%aux_var_elem(0)%kvr(1)
+          case(GAS_PRESSURE)
+            value = patch%aux%Global%aux_vars(ghosted_id)%pres(2)
           case(GAS_SATURATION)
             value = patch%aux%Global%aux_vars(ghosted_id)%sat(2)
           case(GAS_MOLE_FRACTION)
@@ -3802,6 +3843,8 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(TEMPERATURE)
             value = patch%aux%Global%aux_vars(ghosted_id)%temp(1)
           case(LIQUID_PRESSURE)
+            value = patch%aux%Global%aux_vars(ghosted_id)%pres(1)
+          case(GAS_PRESSURE)
             value = patch%aux%Global%aux_vars(ghosted_id)%pres(2)
           case(LIQUID_SATURATION)
             value = patch%aux%Global%aux_vars(ghosted_id)%sat(1)
@@ -4147,13 +4190,14 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
 end function PatchGetVariableValueAtCell
 
 ! ************************************************************************** !
-!
-! PatchSetVariable: Sets variables indexed by ivar and isubvar within a patch
-! author: Glenn Hammond
-! date: 09/12/08
-!
-! ************************************************************************** !
+
 subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
+  ! 
+  ! Sets variables indexed by ivar and isubvar within a patch
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/12/08
+  ! 
 
   use Grid_module
   use Option_module
@@ -4239,40 +4283,41 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             endif
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY) ! still need implementation
           case(GAS_SATURATION)
-#ifdef ICE
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%THC%aux_vars(grid%nL2G(local_id))%sat_gas = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%THC%aux_vars(ghosted_id)%sat_gas = vec_ptr(ghosted_id)
-              enddo
-            endif
-#else
-#endif
-#ifdef ICE
+             if (option%use_th_freezing) then
+                if (vec_format == GLOBAL) then
+                   do local_id=1,grid%nlmax
+                      patch%aux%THC%aux_vars(grid%nL2G(local_id))%sat_gas = vec_ptr(local_id)
+                   enddo
+                else if (vec_format == LOCAL) then
+                   do ghosted_id=1,grid%ngmax
+                      patch%aux%THC%aux_vars(ghosted_id)%sat_gas = vec_ptr(ghosted_id)
+                   enddo
+                endif
+             endif
           case(ICE_SATURATION)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%THC%aux_vars(grid%nL2G(local_id))%sat_ice = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%THC%aux_vars(ghosted_id)%sat_ice = vec_ptr(ghosted_id)
-              enddo
-            endif
+             if (option%use_th_freezing) then
+                if (vec_format == GLOBAL) then
+                   do local_id=1,grid%nlmax
+                      patch%aux%THC%aux_vars(grid%nL2G(local_id))%sat_ice = vec_ptr(local_id)
+                   enddo
+                else if (vec_format == LOCAL) then
+                   do ghosted_id=1,grid%ngmax
+                      patch%aux%THC%aux_vars(ghosted_id)%sat_ice = vec_ptr(ghosted_id)
+                   enddo
+                endif
+             endif
           case(ICE_DENSITY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%THC%aux_vars(grid%nL2G(local_id))%den_ice = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%THC%aux_vars(ghosted_id)%den_ice = vec_ptr(ghosted_id)
-              enddo
-            endif
-#endif
+             if (option%use_th_freezing) then
+                if (vec_format == GLOBAL) then
+                   do local_id=1,grid%nlmax
+                      patch%aux%THC%aux_vars(grid%nL2G(local_id))%den_ice = vec_ptr(local_id)
+                   enddo
+                else if (vec_format == LOCAL) then
+                   do ghosted_id=1,grid%ngmax
+                      patch%aux%THC%aux_vars(ghosted_id)%den_ice = vec_ptr(ghosted_id)
+                   enddo
+                endif
+             endif
           case(LIQUID_VISCOSITY)
           case(GAS_VISCOSITY)
           case(LIQUID_MOLE_FRACTION)
@@ -4340,40 +4385,41 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             endif
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY) ! still need implementation
           case(GAS_SATURATION)
-#ifdef ICE
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%TH%aux_vars(grid%nL2G(local_id))%sat_gas = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%TH%aux_vars(ghosted_id)%sat_gas = vec_ptr(ghosted_id)
-              enddo
-            endif
-#else
-#endif
-#ifdef ICE
+             if (option%use_th_freezing) then
+                if (vec_format == GLOBAL) then
+                   do local_id=1,grid%nlmax
+                      patch%aux%TH%aux_vars(grid%nL2G(local_id))%sat_gas = vec_ptr(local_id)
+                   enddo
+                else if (vec_format == LOCAL) then
+                   do ghosted_id=1,grid%ngmax
+                      patch%aux%TH%aux_vars(ghosted_id)%sat_gas = vec_ptr(ghosted_id)
+                   enddo
+                endif
+             endif
           case(ICE_SATURATION)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%TH%aux_vars(grid%nL2G(local_id))%sat_ice = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%TH%aux_vars(ghosted_id)%sat_ice = vec_ptr(ghosted_id)
-              enddo
-            endif
+             if (option%use_th_freezing) then
+                if (vec_format == GLOBAL) then
+                   do local_id=1,grid%nlmax
+                      patch%aux%TH%aux_vars(grid%nL2G(local_id))%sat_ice = vec_ptr(local_id)
+                   enddo
+                else if (vec_format == LOCAL) then
+                   do ghosted_id=1,grid%ngmax
+                      patch%aux%TH%aux_vars(ghosted_id)%sat_ice = vec_ptr(ghosted_id)
+                   enddo
+                endif
+             endif
           case(ICE_DENSITY)
-            if (vec_format == GLOBAL) then
-              do local_id=1,grid%nlmax
-                patch%aux%TH%aux_vars(grid%nL2G(local_id))%den_ice = vec_ptr(local_id)
-              enddo
-            else if (vec_format == LOCAL) then
-              do ghosted_id=1,grid%ngmax
-                patch%aux%TH%aux_vars(ghosted_id)%den_ice = vec_ptr(ghosted_id)
-              enddo
-            endif
-#endif
+             if (option%use_th_freezing) then
+                if (vec_format == GLOBAL) then
+                   do local_id=1,grid%nlmax
+                      patch%aux%TH%aux_vars(grid%nL2G(local_id))%den_ice = vec_ptr(local_id)
+                   enddo
+                else if (vec_format == LOCAL) then
+                   do ghosted_id=1,grid%ngmax
+                      patch%aux%TH%aux_vars(ghosted_id)%den_ice = vec_ptr(ghosted_id)
+                   enddo
+                endif
+             endif
           case(LIQUID_VISCOSITY)
           case(GAS_VISCOSITY)
           case(LIQUID_MOLE_FRACTION)
@@ -4413,8 +4459,6 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             call printErrMsg(option,'LIQUID_VISCOSITY not supported by Richards')
           case(GAS_VISCOSITY)
             call printErrMsg(option,'GAS_VISCOSITY not supported by Richards')
-          case(LIQUID_MOBILITY)
-            call printErrMsg(option,'LIQUID_MOBILITY not supported by Richards')
           case(GAS_MOBILITY)
             call printErrMsg(option,'GAS_MOBILITY not supported by Richards')
           case(LIQUID_ENERGY)
@@ -4449,6 +4493,16 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             else if (vec_format == LOCAL) then
               do ghosted_id=1,grid%ngmax
                 patch%aux%Global%aux_vars(ghosted_id)%den_kg(1) = vec_ptr(ghosted_id)
+              enddo
+            endif
+          case(LIQUID_MOBILITY)
+            if (vec_format == GLOBAL) then
+              do local_id=1,grid%nlmax
+                patch%aux%Richards%aux_vars(grid%nL2G(local_id))%kvr = vec_ptr(local_id)
+              enddo
+            else if (vec_format == LOCAL) then
+              do ghosted_id=1,grid%ngmax
+                patch%aux%Richards%aux_vars(ghosted_id)%kvr = vec_ptr(ghosted_id)
               enddo
             endif
         end select
@@ -4979,13 +5033,14 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
 end subroutine PatchSetVariable
 
 ! ************************************************************************** !
-!
-! PatchCountCells: Counts # of active and inactive grid cells 
-! author: Glenn Hammond
-! date: 06/01/10
-!
-! ************************************************************************** !
+
 subroutine PatchCountCells(patch,total_count,active_count)
+  ! 
+  ! Counts # of active and inactive grid cells
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 06/01/10
+  ! 
 
   use Option_module
 
@@ -5011,14 +5066,15 @@ subroutine PatchCountCells(patch,total_count,active_count)
 end subroutine PatchCountCells
 
 ! ************************************************************************** !
-!
-! PatchCalculateCFL1Timestep: Calculates largest time step to preserves a 
-!                                CFL # of 1 in a patch
-! author: Glenn Hammond
-! date: 10/06/11
-!
-! ************************************************************************** !
+
 subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
+  ! 
+  ! Calculates largest time step to preserves a
+  ! CFL # of 1 in a patch
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/06/11
+  ! 
 
   use Option_module
   use Connection_module
@@ -5128,13 +5184,14 @@ subroutine PatchCalculateCFL1Timestep(patch,option,max_dt_cfl_1)
 end subroutine PatchCalculateCFL1Timestep
 
 ! ************************************************************************** !
-!
-! PatchGetVarNameFromKeyword: Returns the name of variable defined by keyword
-! author: Glenn Hammond
-! date: 07/28/11
-!
-! ************************************************************************** !
+
 function PatchGetVarNameFromKeyword(keyword,option)
+  ! 
+  ! Returns the name of variable defined by keyword
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 07/28/11
+  ! 
  
   use Option_module
 
@@ -5160,14 +5217,15 @@ function PatchGetVarNameFromKeyword(keyword,option)
 end function PatchGetVarNameFromKeyword
 
 ! ************************************************************************** !
-!
-! PatchGetIvarsFromKeyword: Returns the ivar and isubvars for extracting
-!                            datasets using PatchGet/PatchSet routines
-! author: Glenn Hammond
-! date: 07/28/11
-!
-! ************************************************************************** !
+
 subroutine PatchGetIvarsFromKeyword(keyword,ivar,isubvar,var_type,option)
+  ! 
+  ! Returns the ivar and isubvars for extracting
+  ! datasets using PatchGet/PatchSet routines
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 07/28/11
+  ! 
  
   use Option_module
   use Variables_module
@@ -5194,13 +5252,14 @@ subroutine PatchGetIvarsFromKeyword(keyword,ivar,isubvar,var_type,option)
 end subroutine
 
 ! ************************************************************************** !
-!
-! PatchDestroyList: Deallocates a patch list and array of patches
-! author: Glenn Hammond
-! date: 10/15/07
-!
-! ************************************************************************** !
+
 subroutine PatchDestroyList(patch_list)
+  ! 
+  ! Deallocates a patch list and array of patches
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/15/07
+  ! 
 
   implicit none
   
@@ -5231,13 +5290,14 @@ subroutine PatchDestroyList(patch_list)
 end subroutine PatchDestroyList
 
 ! ************************************************************************** !
-!
-! PatchDestroy: Deallocates a patch object
-! author: Glenn Hammond
-! date: 02/22/08
-!
-! ************************************************************************** !
+
 subroutine PatchDestroy(patch)
+  ! 
+  ! Deallocates a patch object
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/22/08
+  ! 
 
   use Utility_module, only : DeallocateArray
 
@@ -5304,15 +5364,17 @@ subroutine PatchDestroy(patch)
 end subroutine PatchDestroy
 
 #ifdef SURFACE_FLOW
+
 ! ************************************************************************** !
-!
-! PatchGetVariable: Extracts variables indexed by ivar and isubvar from a patch
-! author: Glenn Hammond
-! date: 09/12/08
-!
-! ************************************************************************** !
+
 subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec,ivar, &
                            isubvar,isubvar1)
+  ! 
+  ! PatchGetVariable: Extracts variables indexed by ivar and isubvar from a patch
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 09/12/08
+  ! 
 
   use Grid_module
   use Option_module

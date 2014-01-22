@@ -2,6 +2,7 @@ module pflotran_model_module
 
   use Option_module, only : option_type
   use Simulation_Base_class, only : simulation_base_type
+  use Multi_Simulation_module, only : multi_simulation_type
   use Realization_Base_class, only : realization_base_type
   use Mapping_module, only : mapping_type
 
@@ -59,6 +60,7 @@ module pflotran_model_module
 
   type, public :: pflotran_model_type
     class(simulation_base_type),  pointer :: simulation
+    type(multi_simulation_type), pointer :: multisimulation
     type(option_type),      pointer :: option
     PetscReal :: pause_time_1
     PetscReal :: pause_time_2
@@ -79,9 +81,6 @@ module pflotran_model_module
     Vec :: bsw_clm
     Vec :: qflx_clm
     Vec :: sat_clm
-    Vec :: sat_ice_clm      ! soil ice water saturation (F.-M. Yuan)
-    Vec :: temp_clm         ! soil temperature (F.-M. Yuan)
-    Vec :: soilpsi_clm
 
     Vec :: hksat_x_pf
     Vec :: hksat_y_pf
@@ -91,9 +90,6 @@ module pflotran_model_module
     Vec :: bsw_pf
     Vec :: qflx_pf
     Vec :: sat_pf
-    Vec :: sat_ice_pf      ! soil ice water saturation (F.-M. Yuan)
-    Vec :: temp_pf         ! soil temperature (F.-M. Yuan)
-    Vec :: soilpsi_pf
 
     PetscInt :: nlclm
     PetscInt :: ngclm
@@ -135,20 +131,22 @@ module pflotran_model_module
 
 contains
 
-  ! ************************************************************************** !
-  !
-  ! pflotranModelCreate: Allocates and initializes the pflotranModel object.
-  !   It performs the same sequence of commands as done in pflotran.F90
-  !   before model integration is performed by the call to StepperRun()
-  !   routine
-  !
-  ! author: Gautam Bisht
-  ! date: 9/10/2010
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   function pflotranModelCreate(mpicomm, pflotran_prefix)
+  ! 
+  ! Allocates and initializes the pflotranModel object.
+  ! It performs the same sequence of commands as done in pflotran.F90
+  ! before model integration is performed by the call to StepperRun()
+  ! routine
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  ! 
 
     use Option_module
     use Simulation_Base_class
+    use Multi_Simulation_module
     use PFLOTRAN_Factory_module
     use Subsurface_Factory_module, only : SubsurfaceInitialize
     use Hydrogeophysics_Factory_module
@@ -169,16 +167,12 @@ contains
     allocate(model)
 
     nullify(model%simulation)
+    nullify(model%multisimulation)
     nullify(model%option)
 
     model%option => OptionCreate()
     call OptionInitMPI(model%option, mpicomm)
-    call PFLOTRANInitialize(model%option)
-
-    ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
-    ! setup on mpich/mac. should be generally ok, but may need an
-    ! apple/mpich ifdef if it cause problems elsewhere.
-    PETSC_COMM_SELF = MPI_COMM_SELF
+    call PFLOTRANInitializePrePetsc(model%multisimulation, model%option)
 
     ! NOTE(bja) 2013-06-25 : external driver must provide an input
     ! prefix string. If the driver wants to use pflotran.in, then it
@@ -193,6 +187,14 @@ contains
       call printErrMsg(model%option)
     end if
 
+    call OptionInitPetsc(model%option)
+    call PFLOTRANInitializePostPetsc(model%multisimulation, model%option)
+
+    ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
+    ! setup on mpich/mac. should be generally ok, but may need an
+    ! apple/mpich ifdef if it cause problems elsewhere.
+    PETSC_COMM_SELF = MPI_COMM_SELF
+
     ! TODO(bja, 2013-07-15) this needs to be left alone for pflotran
     ! to deal with, or we need a valid unit number from the driver as
     ! a function parameter.
@@ -202,8 +204,8 @@ contains
     model%pause_time_2 = -1.0d0
 
     ! FIXME(bja, 2013-07-17) hard code subsurface for now....
-!    model%option%simulation_mode = 'SURFACE_SUBSURFACE'
-    model%option%simulation_mode = 'SUBSURFACE'
+    model%option%simulation_mode = 'SURFACE_SUBSURFACE'
+    !model%option%simulation_mode = 'SUBSURFACE'
     select case(model%option%simulation_mode)
       case('SUBSURFACE')
          call SubsurfaceInitialize(model%simulation, model%option)
@@ -231,23 +233,22 @@ contains
 
   end function pflotranModelCreate
 
+! ************************************************************************** !
 
-  ! ************************************************************************** !
-  !
-  ! pflotranModelSetupMappingFiles
-  !   create the mapping objects, reopen the input file and read the file names
-  !   before model integration is performed by the call to StepperRun()
-  !   routine
-  !
-  !  NOTE(bja, 2013-07) this really needs to be moved out of pflotran
-  !  CLM should be responsible for passing data in the correct
-  !  format. That may require pflotran to provide a call back function
-  !  for grid info.
-  !
-  ! author: Gautam Bisht
-  ! date: 9/10/2010
-  ! ************************************************************************** !
   subroutine pflotranModelSetupMappingFiles(model)
+  ! 
+  ! pflotranModelSetupMappingFiles
+  ! create the mapping objects, reopen the input file and read the file names
+  ! before model integration is performed by the call to StepperRun()
+  ! routine
+  ! NOTE(bja, 2013-07) this really needs to be moved out of pflotran
+  ! CLM should be responsible for passing data in the correct
+  ! format. That may require pflotran to provide a call back function
+  ! for grid info.
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  ! 
 
     use String_module
     use Option_module
@@ -386,17 +387,17 @@ contains
 #endif
   end subroutine pflotranModelSetupMappingFiles
 
+! ************************************************************************** !
 
-  ! ************************************************************************** !
-  !
-  ! pflotranModelStepperRunInit: It performs the same execution of commands
-  !   that are carried out in StepperRun() before the model integration
-  !   begins over the entire simulation time interval
-  !
-  ! author: Gautam Bisht
-  ! date: 9/10/2010
-  ! ************************************************************************** !
   subroutine pflotranModelStepperRunInit(model)
+  ! 
+  ! It performs the same execution of commands
+  ! that are carried out in StepperRun() before the model integration
+  ! begins over the entire simulation time interval
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  ! 
 
     type(pflotran_model_type), pointer, intent(inout) :: model
 
@@ -404,18 +405,15 @@ contains
 
   end subroutine pflotranModelStepperRunInit
 
+! ************************************************************************** !
 
-  ! ************************************************************************** !
-  !
-  ! pflotranModelStepperCheckpoint: wrapper around StepperCheckpoint
-  !
-  ! NOTE(bja, 2013-06-27) : the date stamp from clm is 32 characters
-  !
-  ! **************************************************************************
   subroutine pflotranModelStepperCheckpoint(model, id_stamp)
+  ! 
+  ! wrapper around StepperCheckpoint
+  ! NOTE(bja, 2013-06-27) : the date stamp from clm is 32 characters
+  ! 
 
     use Option_module
-    use String_module
 
     implicit none
 
@@ -423,29 +421,19 @@ contains
     character(len=MAXWORDLENGTH), intent(in) :: id_stamp
     PetscViewer :: viewer
 
-    model%option%io_buffer = 'checkpoint is not implemented for clm-pflotran.'
-    if (StringNull(id_stamp)) then
-       call printWrnMsg(model%option)
-    else
-       !model%option%checkpoint_flag = .true.
-    !$$   call StepperCheckpoint(realization, &
-    !$$     simulation%flow_stepper, &
-    !$$     simulation%tran_stepper, &
-    !$$     NEG_ONE_INTEGER, date_stamp)
-       call model%simulation%process_model_coupler_list%Checkpoint(viewer, -1, id_stamp)
-    end if
+    call model%simulation%process_model_coupler_list%Checkpoint(viewer, -1, id_stamp)
 
   end subroutine pflotranModelStepperCheckpoint
 
+! ************************************************************************** !
 
-  ! ************************************************************************** !
-  !
-  ! pflotranModelSetICs: Set initial conditions
-  !
-  ! author: Gautam Bisht
-  ! date: 10/22/2010
-  ! ************************************************************************** !
 subroutine pflotranModelSetICs(pflotran_model)
+  ! 
+  ! Set initial conditions
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 10/22/2010
+  ! 
 
     use Realization_class
     use Patch_module
@@ -544,17 +532,17 @@ subroutine pflotranModelSetICs(pflotran_model)
 
 end subroutine pflotranModelSetICs
 
-  ! ************************************************************************** !
-  !
-  ! pflotranModelSetSoilProp: Converts hydraulic properties from CLM units
-  !  into PFLOTRAN units.
-  !
-  !
-  ! author: Gautam Bisht
-  ! date: 10/22/2010
-  ! ************************************************************************** !
-!#ifdef CLM_PFLOTRAN
+! ************************************************************************** !
+
   subroutine pflotranModelSetSoilProp(pflotran_model)
+  ! 
+  ! Converts hydraulic properties from CLM units
+  ! into PFLOTRAN units.
+  ! #ifdef CLM_PFLOTRAN
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 10/22/2010
+  ! 
 
     use Realization_class
     use Patch_module
@@ -712,7 +700,6 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
 !    call VecGetArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
-!    call GridVecGetArrayF90(grid, field%porosity_loc, porosity_loc_p, ierr)
     call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
 
     if(pflotran_model%option%iflowmode==RICHARDS_MODE .or. &
@@ -765,7 +752,6 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
 !    call VecRestoreArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
-!    call GridVecRestoreArrayF90(grid, field%porosity_loc, porosity_loc_p, ierr)
     call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
     if(pflotran_model%option%iflowmode==RICHARDS_MODE .or. &
        pflotran_model%option%iflowmode==TH_MODE) then
@@ -776,20 +762,21 @@ end subroutine pflotranModelSetICs
     endif
 
   end subroutine pflotranModelSetSoilProp
-!#endif
 
-  ! ************************************************************************** !
-  !
-  ! pflotranModelInitMapping: Initialize mapping between the two model grid
-  !  (CLM and PFLTORAN)
-  !
-  ! author: Gautam Bisht
-  ! date: 03/24/2011
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelInitMapping(pflotran_model,  &
                                       grid_clm_cell_ids_nindex, &
                                       grid_clm_npts_local, &
                                       map_id)
+  ! 
+  ! #endif
+  ! Initialize mapping between the two model grid
+  ! (CLM and PFLTORAN)
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 03/24/2011
+  ! 
 
     use Input_Aux_module
     use Option_module
@@ -837,18 +824,19 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelInitMapping
 
-  ! ************************************************************************** !
-  !
-  ! pflotranModelInitMappingSub2Sub: Initialize mapping between 3D subsurface
-  ! CLM grid and 3D subsurface PFLOTRAN grid.
-  !
-  ! author: Gautam Bisht
-  ! date: 11/09/2013
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelInitMappingSub2Sub(pflotran_model,  &
                                       grid_clm_cell_ids_nindex, &
                                       grid_clm_npts_local, &
                                       map_id)
+  ! 
+  ! Initialize mapping between 3D subsurface
+  ! CLM grid and 3D subsurface PFLOTRAN grid.
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 11/09/2013
+  ! 
 
     use Input_Aux_module
     use Option_module
@@ -988,19 +976,19 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelInitMappingSub2Sub
 
-  ! ************************************************************************** !
-  !> This routine maps CLM surface grid onto surface of PFLOTRAN 3D subsurface 
-  !! grid.
-  !!
-  !> @author
-  !! Gautam Bisht, LBNL
-  !!
-  !! date: 04/09/13
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelInitMapSrfTo2DSub(pflotran_model,  &
                                             grid_clm_cell_ids_nindex, &
                                             grid_clm_npts_local, &
                                             map_id)
+  ! 
+  ! This routine maps CLM surface grid onto surface of PFLOTRAN 3D subsurface
+  ! grid.
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 04/09/13
+  ! 
 
     use Input_Aux_module
     use Option_module
@@ -1440,19 +1428,19 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelInitMapSrfTo2DSub
 
-  ! ************************************************************************** !
-  !> This routine maps CLM surface grid onto PFLOTRAN 2D surface grid or
-  !! vice-versa.
-  !!
-  !> @author
-  !! Gautam Bisht, LBNL
-  !!
-  !! date: 04/09/13
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelInitMapSrfToSrf(pflotran_model,  &
                                           grid_clm_cell_ids_nindex, &
                                           grid_clm_npts_local, &
                                           map_id)
+  ! 
+  ! This routine maps CLM surface grid onto PFLOTRAN 2D surface grid or
+  ! vice-versa.
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 04/09/13
+  ! 
 
     use Input_Aux_module
     use Option_module
@@ -1840,22 +1828,21 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelInitMapSrfToSrf
 
-  ! ************************************************************************** !
-  !
-  ! pflotranModelStepperRunTillPauseTime: It performs the model integration
-  !             till the specified pause_time.
-  !
+! ************************************************************************** !
+
+  subroutine pflotranModelStepperRunTillPauseTime(model, pause_time)
+  ! 
+  ! It performs the model integration
+  ! till the specified pause_time.
   ! NOTE: It is assumed 'pause_time' is in seconds.
-  !
   ! NOTE(bja, 2013-07) the strange waypoint insertion of t+30min /
   ! deletion of t is to ensure that we always have a valid waypoint in
   ! front of us, but pflotran does not delete them, so we don't want
   ! to accumulate too large of a list.
-  !
-  ! author: Gautam Bisht
-  ! date: 9/10/2010
-  ! ************************************************************************** !
-  subroutine pflotranModelStepperRunTillPauseTime(model, pause_time)
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  ! 
 
 
     implicit none
@@ -1884,18 +1871,18 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelStepperRunTillPauseTime
 
-  ! ************************************************************************** !
-  !
-  ! pflotranModelInsertWaypoint: Inserts a waypoint within the waypoint list
-  !             so that the model integration can be paused when that waypoint is
-  !             reached
-  !
-  ! NOTE: It is assumed the 'waypoint_time' is in seconds
-  !
-  ! author: Gautam Bisht
-  ! date: 9/10/2010
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelInsertWaypoint(model, waypoint_time)
+  ! 
+  ! Inserts a waypoint within the waypoint list
+  ! so that the model integration can be paused when that waypoint is
+  ! reached
+  ! NOTE: It is assumed the 'waypoint_time' is in seconds
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  ! 
 
     use Simulation_Base_class, only : simulation_base_type
     use Subsurface_Simulation_class, only : subsurface_simulation_type
@@ -1956,6 +1943,8 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelInsertWaypoint
 
+! ************************************************************************** !
+
   subroutine pflotranModelDeleteWaypoint(model, waypoint_time)
 
     use Simulation_Base_class, only : simulation_base_type
@@ -2015,20 +2004,18 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelDeleteWaypoint
 
-  ! ************************************************************************** !
-  !
-  !  pflotranModelSetupRestart()
-  !
-  !  This checks to see if a restart file stamp was provided by the
-  !  driver. If so, we set the restart flag and reconstruct the
-  !  restart file name. The actual restart is handled by the standard
-  !  pflotran mechanism in TimeStepperInitializeRun()
-  !
-  !  NOTE: this must be called between pflotranModelCreate() and
-  !  pflotranModelStepperRunInit()
-  !
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelSetupRestart(model, restart_stamp)
+  ! 
+  ! pflotranModelSetupRestart()
+  ! This checks to see if a restart file stamp was provided by the
+  ! driver. If so, we set the restart flag and reconstruct the
+  ! restart file name. The actual restart is handled by the standard
+  ! pflotran mechanism in TimeStepperInitializeRun()
+  ! NOTE: this must be called between pflotranModelCreate() and
+  ! pflotranModelStepperRunInit()
+  ! 
 
     use Option_module
     use String_module
@@ -2055,13 +2042,15 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelSetupRestart
 
-  ! ************************************************************************** !
-  ! pflotranModelUpdateSourceSink: Update the source/sink term
-  !
-  ! author: Gautam Bisht
-  ! date: 11/22/2011
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelUpdateSourceSink(pflotran_model)
+  ! 
+  ! Update the source/sink term
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 11/22/2011
+  ! 
 
     use clm_pflotran_interface_data
     use Connection_module
@@ -2150,16 +2139,16 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelUpdateSourceSink
 
-  ! ************************************************************************** !
-  !> This routine Updates boundary and source/sink condtions for PFLOTRAN that
-  !! are prescribed by CLM
-  !!
-  !> @author
-  !! Gautam Bisht, LBNL
-  !! date: 4/10/2013
-  !!
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelUpdateFlowConds(pflotran_model)
+  ! 
+  ! This routine Updates boundary and source/sink condtions for PFLOTRAN that
+  ! are prescribed by CLM
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 4/10/2013
+  ! 
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -2174,14 +2163,6 @@ end subroutine pflotranModelSetICs
       call pflotranModelUpdateSurfSource(pflotran_model)
     endif
 
-    !--------------------------------------------------------------------------
-    ! hydroloigcal source/sink from CLM
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%qflx_clm, &
-                                    clm_pf_idata%qflx_pf)
-
-    ! thermal 'gflux' from CLM
     if (pflotran_model%option%iflowmode == TH_MODE) then
       if (pflotran_model%option%nsurfflowdof == 0) then
         call pflotranModelUpdateSubsurfTCond(pflotran_model)
@@ -2192,15 +2173,15 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelUpdateFlowConds
 
-  ! ************************************************************************** !
-  !> This routine updates surface source condition related to mass equation.
-  !!
-  !> @author
-  !! Gautam Bisht, LBNL
-  !!
-  !! date: 11/11/2013
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelUpdateSurfSource(pflotran_model)
+  ! 
+  ! This routine updates surface source condition related to mass equation.
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 11/11/2013
+  ! 
 
     use clm_pflotran_interface_data
     use Connection_module
@@ -2287,16 +2268,16 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelUpdateSurfSource
 
-  ! ************************************************************************** !
-  !> This routine updates subsurface boundary condtions of PFLOTRAN related to
-  !! energy equation.
-  !!
-  !> @author
-  !! Gautam Bisht, LBNL
-  !!
-  !! date: 11/08/2013
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelUpdateSubsurfTCond(pflotran_model)
+  ! 
+  ! This routine updates subsurface boundary condtions of PFLOTRAN related to
+  ! energy equation.
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 11/08/2013
+  ! 
 
     use clm_pflotran_interface_data
     use Connection_module
@@ -2377,15 +2358,15 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelUpdateSubsurfTCond
 
-  ! ************************************************************************** !
-  !> This routine updates surface source condition related to mass equation.
-  !!
-  !> @author
-  !! Gautam Bisht, LBNL
-  !!
-  !! date: 11/11/2013
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelUpdateSurfTCond(pflotran_model)
+  ! 
+  ! This routine updates surface source condition related to mass equation.
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 11/11/2013
+  ! 
 
     use clm_pflotran_interface_data
     use Connection_module
@@ -2514,16 +2495,16 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelUpdateSurfTCond
 
-  ! ************************************************************************** !
-  !> This routine updates source condtion for 'mass' equation of PFLOTRAN
-  !! surface-flow model from CLM.
-  !!
-  !> @author
-  !! Gautam Bisht, LBNL
-  !!
-  !! date: 9/18/2013
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelSurfaceSource(pflotran_model)
+  ! 
+  ! This routine updates source condtion for 'mass' equation of PFLOTRAN
+  ! surface-flow model from CLM.
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 9/18/2013
+  ! 
 
     use clm_pflotran_interface_data
     use Coupler_module
@@ -2600,15 +2581,15 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelSurfaceSource
 
-  ! ************************************************************************** !
-  !> This routine get updated states evoloved by PFLOTRAN.
-  !!
-  !> @author
-  !! Gautam Bisht, LBNL
-  !!
-  !! date: 5/14/2013
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelGetUpdatedStates(pflotran_model)
+  ! 
+  ! This routine get updated states evoloved by PFLOTRAN.
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 5/14/2013
+  ! 
 
     use Option_module
     use Richards_module
@@ -2659,15 +2640,16 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelGetUpdatedStates
 
+! ************************************************************************** !
 
-  ! ************************************************************************** !
-  ! pflotranModelGetSaturation: Extract soil saturation values simulated by
-  !   PFLOTRAN in a PETSc vector.
-  !
-  ! author: Gautam Bisht
-  ! date: 11/22/2011
-  ! ************************************************************************** !
   subroutine pflotranModelGetSaturation(pflotran_model)
+  ! 
+  ! Extract soil saturation values simulated by
+  ! PFLOTRAN in a PETSc vector.
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 11/22/2011
+  ! 
 
     use Option_module
     use Realization_class
@@ -2739,16 +2721,16 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelGetSaturation
 
-  ! ************************************************************************** !
-  !> This routine returns updated surface-flow standing head of water evoloved
-  !! by PFLOTRAN.
-  !!
-  !> @author
-  !! Gautam Bisht, LBNL
-  !!
-  !! date: 9/18/2013
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelGetSurfaceFlowHead(pflotran_model)
+  ! 
+  ! This routine returns updated surface-flow standing head of water evoloved
+  ! by PFLOTRAN.
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 9/18/2013
+  ! 
 
     use Option_module
     use Realization_class
@@ -2808,15 +2790,15 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelGetSurfaceFlowHead
 
-  ! ************************************************************************** !
-  !> This routine get updated states evoloved by PFLOTRAN.
-  !!
-  !> @author
-  !! Gautam Bisht, LBNL
-  !!
-  !! date: 5/14/2013
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelGetTemperature(pflotran_model)
+  ! 
+  ! This routine get updated states evoloved by PFLOTRAN.
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 5/14/2013
+  ! 
 
     use Option_module
     use Realization_class
@@ -2889,16 +2871,17 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelGetTemperature
 
-  ! ************************************************************************** !
-  !
-  ! pflotranModelStepperRunFinalize: It performs the same execution of commands
-  !             that are carried out in StepperRun() once the model integration is
-  !             finished
-  !
-  ! author: Gautam Bisht
-  ! date: 9/10/2010
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelStepperRunFinalize(model)
+  ! 
+  ! It performs the same execution of commands
+  ! that are carried out in StepperRun() once the model integration is
+  ! finished
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  ! 
 
     implicit none
 
@@ -2908,19 +2891,19 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelStepperRunFinalize
 
-  ! ************************************************************************** !
-  !> This function returns the number of control volumes forming surface of
-  !! the sub-surface domain. The subroutines assumes the following boundary
-  !! condition is specified in inputdeck:
-  !!  - 'clm_gflux_bc': when running subsurface only simulation.
-  !!  - 'from_surface_bc': when running surface-subsurface simulation.
-  !!
-  !> @author
-  !! Gautam Bisht, LBNL
-  !!
-  !! date: 6/03/2013
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   function pflotranModelNSurfCells3DDomain(pflotran_model)
+  ! 
+  ! This function returns the number of control volumes forming surface of
+  ! the sub-surface domain. The subroutines assumes the following boundary
+  ! condition is specified in inputdeck:
+  ! - 'clm_gflux_bc': when running subsurface only simulation.
+  ! - 'from_surface_bc': when running surface-subsurface simulation.
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 6/03/2013
+  ! 
 
     use Option_module
     use Coupler_module
@@ -2980,15 +2963,15 @@ end subroutine pflotranModelSetICs
 
   end function pflotranModelNSurfCells3DDomain
 
-  ! ************************************************************************** !
-  !> This subroutine
-  !!
-  !> @author
-  !! Gautam Bisht, LBNL
-  !!
-  !! date: 6/10/2013
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelGetTopFaceArea(pflotran_model)
+  ! 
+  ! This subroutine
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 6/10/2013
+  ! 
 
     use Option_module
     use Patch_module
@@ -3090,14 +3073,15 @@ end subroutine pflotranModelSetICs
 
   end subroutine pflotranModelGetTopFaceArea
 
-  ! ************************************************************************** !
-  !
-  ! pflotranModelDestroy: Deallocates the pflotranModel object
-  !
-  ! author: Gautam Bisht
-  ! date: 9/10/2010
-  ! ************************************************************************** !
+! ************************************************************************** !
+
   subroutine pflotranModelDestroy(model)
+  ! 
+  ! Deallocates the pflotranModel object
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  ! 
 
     use PFLOTRAN_Factory_module, only : PFLOTRANFinalize
     use Option_module, only : OptionFinalize
