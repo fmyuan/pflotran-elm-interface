@@ -124,7 +124,7 @@ module pflotran_model_module
        pflotranModelSetInitialConcentrations, &
        pflotranModelUpdateTHfromCLM,          &    ! dynamically update TH from CLM to drive BGC only pflotran
        pflotranModelUpdateO2fromCLM,          &
-       pflotranModelSetInitialTStatesfromCLM, &    ! initializing T from CLM
+       pflotranModelSetInitialTHStatesfromCLM, &    ! initializing TH from CLM
        pflotranModelSetBGCRates,              &
        pflotranModelGetBgcVariables
 
@@ -3479,7 +3479,7 @@ end subroutine pflotranModelSetICs
          realization => simulation%realization
       class default
          nullify(realization)
-         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface/surfsubsurface simulations."
          call printErrMsg(pflotran_model%option)
     end select
     patch           => realization%patch
@@ -3572,7 +3572,7 @@ end subroutine pflotranModelSetICs
   ! author: Fengming YUAN
   ! date: 9/23/2013
   ! ************************************************************************** !
-subroutine pflotranModelSetInitialTStatesfromCLM(pflotran_model)
+subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
 
     use Realization_class
     use Patch_module
@@ -3581,6 +3581,8 @@ subroutine pflotranModelSetInitialTStatesfromCLM(pflotran_model)
     use Discretization_module
     use TH_Aux_module
     use TH_module
+    use Richards_module
+    use Richards_Aux_module
     use Option_module
 
     use clm_pflotran_interface_data
@@ -3607,6 +3609,7 @@ subroutine pflotranModelSetInitialTStatesfromCLM(pflotran_model)
     PetscReal, pointer :: xx_loc_p(:)
 
     PetscScalar, pointer :: soilt_pf_loc(:)    ! temperature [oC]
+    PetscScalar, pointer :: soilpsi_pf_loc(:)  ! water pressure (Pa)-reference pressure
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -3616,29 +3619,37 @@ subroutine pflotranModelSetInitialTStatesfromCLM(pflotran_model)
       class default
          nullify(realization)
          pflotran_model%option%io_buffer = 'ERROR: pflotranModelSetInitialTStatesfromCLM ' // &
-               'only works on subsurface simulations.'
+               'only works on subsurface/surfsubsurface simulations.'
          call printErrMsg(pflotran_model%option)
     end select
     patch           => realization%patch
     grid            => patch%grid
     field           => realization%field
 
-     if (pflotran_model%option%iflowmode .ne. TH_MODE)  then
-
-        pflotran_model%option%io_buffer='pflotranModelSetInitialTStatesfromCLM ' // &
-          'not implmented for this mode.'
-        call printErrMsg(pflotran_model%option)
-
-     else
-
+    select case(pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%soilpsi_clmp, &
+                                    clm_pf_idata%soilpsi_pf)
+      case (TH_MODE)
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%soilt_clmp, &
                                     clm_pf_idata%soilt_pfs)
 
-    end if
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%soilpsi_clmp, &
+                                    clm_pf_idata%soilpsi_pf)
+      case default
+        pflotran_model%option%io_buffer='pflotranModelSetInitialTHStatesfromCLM ' // &
+          'not implmented for this mode.'
+        call printErrMsg(pflotran_model%option)
+    end select
 
     call VecGetArrayF90(field%flow_xx, xx_loc_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
 
     do local_id = 1, grid%ngmax
@@ -3650,16 +3661,32 @@ subroutine pflotranModelSetInitialTStatesfromCLM(pflotran_model)
        iend = ghosted_id*pflotran_model%option%nflowdof
        istart = iend-pflotran_model%option%nflowdof+1
 
-       xx_loc_p(istart+1)=soilt_pf_loc(local_id)
-
+       xx_loc_p(istart)  = soilpsi_pf_loc(local_id)+pflotran_model%option%reference_pressure
+       if (pflotran_model%option%iflowmode .eq. TH_MODE)  then
+            xx_loc_p(istart+1)= soilt_pf_loc(local_id)
+       end if
     enddo
 
     call VecRestoreArrayF90(field%flow_xx, xx_loc_p, ierr)
     call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
 
-    call THUpdateAuxVars(realization)
+    call DiscretizationGlobalToLocal(realization%discretization, field%flow_xx, &
+         field%flow_xx_loc, NFLOWDOF)
+    call VecCopy(field%flow_xx, field%flow_yy, ierr)
 
-end subroutine pflotranModelSetInitialTStatesfromCLM
+    select case(pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        call RichardsUpdateAuxVars(realization)
+      case (TH_MODE)
+        call THUpdateAuxVars(realization)
+      case default
+        pflotran_model%option%io_buffer='pflotranModelSetInitialTHStatesfromCLM ' // &
+          'not implmented for this mode.'
+        call printErrMsg(pflotran_model%option)
+    end select
+
+end subroutine pflotranModelSetInitialTHStatesfromCLM
 
   ! ************************************************************************** !
   ! pflotranModelSetBGCRates:
