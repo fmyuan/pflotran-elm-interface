@@ -121,11 +121,12 @@ module pflotran_model_module
        pflotranModelSetupMappingFiles
 
   public ::  &
-       pflotranModelSetInitialConcentrations, &
-       pflotranModelUpdateTHfromCLM,          &    ! dynamically update TH from CLM to drive BGC only pflotran
-       pflotranModelUpdateO2fromCLM,          &
-       pflotranModelSetInitialTHStatesfromCLM, &    ! initializing TH from CLM
-       pflotranModelSetBGCRates,              &
+       pflotranModelGetSoilProp,               &
+       pflotranModelSetInitialTHStatesfromCLM, &    ! initializing TH from CLM to PFLOTRAN flow mode
+       pflotranModelSetInitialConcentrations,  &
+       pflotranModelUpdateTHfromCLM,           &     ! dynamically update TH from CLM to drive PFLOTRAN BGC
+       pflotranModelUpdateO2fromCLM,           &
+       pflotranModelSetBGCRates,               &
        pflotranModelGetBgcVariables
 
 
@@ -1830,7 +1831,7 @@ end subroutine pflotranModelSetICs
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelStepperRunTillPauseTime(model, pause_time)
+  subroutine pflotranModelStepperRunTillPauseTime(model, pause_time, dtime)
   ! 
   ! It performs the model integration
   ! till the specified pause_time.
@@ -1852,6 +1853,7 @@ end subroutine pflotranModelSetICs
 
     type(pflotran_model_type), pointer :: model
     PetscReal, intent(in) :: pause_time
+    PetscReal, intent(in) :: dtime
 
     PetscReal :: pause_time1
 
@@ -1859,7 +1861,7 @@ end subroutine pflotranModelSetICs
        write(model%option%fid_out, *), '>>>> Inserting waypoint at pause_time = ', pause_time
     endif
 
-    pause_time1 = pause_time + 1800.0d0
+    pause_time1 = pause_time + dtime!1800.0d0
     call pflotranModelInsertWaypoint(model, pause_time1)
 
     call model%simulation%RunToTime(pause_time)
@@ -1930,7 +1932,7 @@ end subroutine pflotranModelSetICs
     waypoint => WaypointCreate()
     waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
     waypoint%update_conditions = PETSC_TRUE
-    waypoint%dt_max            = 3153600.d0
+    waypoint%dt_max            = waypoint_time * UnitsConvertToInternal(word, model%option)!3153600.d0
     waypoint2 => WaypointCreate(waypoint)
 
     if (associated(realization)) then
@@ -3687,6 +3689,134 @@ subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
     end select
 
 end subroutine pflotranModelSetInitialTHStatesfromCLM
+
+! ************************************************************************** !
+
+subroutine pflotranModelGetSoilProp(pflotran_model)
+  !
+  ! Pass physical properties from PFLOTRAN to CLM
+  !
+  ! Author: Fengming Yuan
+  ! Date: 1/30/2014
+  !
+
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Richards_Aux_module
+    use TH_Aux_module
+    use Field_module
+    use Option_module
+    use Saturation_Function_module
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(field_type), pointer                 :: field
+    type(simulation_base_type), pointer :: simulation
+    type(saturation_function_type), pointer :: saturation_function
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id
+
+    ! pf interval variables
+    PetscReal, pointer :: porosity_loc_p(:)
+
+    ! clm-pf-interface Vecs for MVM parameters
+    PetscScalar, pointer :: porosity_loc_pfp(:)  ! soil porosity
+    PetscScalar, pointer :: sr_loc_pfp(:)        ! residual soil vwc
+    PetscScalar, pointer :: alpha_loc_pfp(:)     ! alfa
+    PetscScalar, pointer :: lamda_loc_pfp(:)     ! lamda
+    PetscScalar, pointer :: pcwmax_loc_pfp(:)    ! max. capillary pressure
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: pflotranModelGetSoilProp doesn't support."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    patch           => realization%patch
+    grid            => patch%grid
+    field           => realization%field
+
+    call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+
+    call VecGetArrayF90(clm_pf_idata%porosity_pfp, porosity_loc_pfp, ierr)
+    call VecGetArrayF90(clm_pf_idata%sr_pfp, sr_loc_pfp, ierr)
+    call VecGetArrayF90(clm_pf_idata%alpha_pfp, alpha_loc_pfp, ierr)
+    call VecGetArrayF90(clm_pf_idata%lamda_pfp, lamda_loc_pfp, ierr)
+    call VecGetArrayF90(clm_pf_idata%pcwmax_pfp, pcwmax_loc_pfp, ierr)
+
+    do local_id=1,grid%nlmax
+        ghosted_id = grid%nL2G(local_id)
+        if (associated(patch%imat)) then
+           if (patch%imat(ghosted_id) <= 0) cycle
+        endif
+
+        porosity_loc_pfp(local_id) = porosity_loc_p(ghosted_id)
+
+        saturation_function => patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
+
+        sr_loc_pfp(local_id) = saturation_function%Sr(pflotran_model%option%nphase)
+        alpha_loc_pfp(local_id) = saturation_function%alpha
+        lamda_loc_pfp(local_id) = saturation_function%lambda
+        pcwmax_loc_pfp(local_id) = saturation_function%pcwmax
+
+    enddo
+
+    call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+    call VecRestoreArrayF90(clm_pf_idata%porosity_pfp, porosity_loc_pfp, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%sr_pfp, sr_loc_pfp, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%alpha_pfp, alpha_loc_pfp, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%lamda_pfp, lamda_loc_pfp, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%pcwmax_pfp, pcwmax_loc_pfp, ierr)
+
+    !
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%porosity_pfp, &
+                                    clm_pf_idata%porosity_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%sr_pfp, &
+                                    clm_pf_idata%sr_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%alpha_pfp, &
+                                    clm_pf_idata%alpha_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%lamda_pfp, &
+                                    clm_pf_idata%lamda_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%pcwmax_pfp, &
+                                    clm_pf_idata%pcwmax_clms)
+
+  end subroutine pflotranModelGetSoilProp
+
 
   ! ************************************************************************** !
   ! pflotranModelSetBGCRates:
