@@ -57,11 +57,16 @@ module clm_pflotran_interface_data
   Vec :: rain_temp_clm ! seq vec
   Vec :: rain_temp_pf  ! mpi vec
 
-  ! water pressure on the top/bottom of 3-D subsurface domain as boundary conditions from CLM to PF
-  Vec :: press_subsurf_clm    ! mpi vec
-  Vec :: press_subsurf_pf     ! seq vec
-  Vec :: press_subbase_clm    ! mpi vec
-  Vec :: press_subbase_pf     ! seq vec
+  ! (ii-b) BC: water pressure on the top/bottom of 3-D subsurface domain as boundary conditions from CLM to PF
+  Vec :: press_subsurf_clmp    ! mpi vec
+  Vec :: press_subsurf_pfs     ! seq vec
+  Vec :: press_subbase_clmp    ! mpi vec
+  Vec :: press_subbase_pfs     ! seq vec
+  ! OR, BC: water infiltration/recharge(drainage) on the top/bottom of 3-D subsurface domain as boundary conditions from CLM to PF
+  Vec :: qflux_subsurf_clmp    ! mpi vec
+  Vec :: qflux_subsurf_pfs     ! seq vec
+  Vec :: qflux_subbase_clmp    ! mpi vec
+  Vec :: qflux_subbase_pfs     ! seq vec
   
   ! (iii) Ground heat flux BC for PFLOTRAN's subsurface domain
   !       This BC is applied on top surface of the subsurface domain
@@ -343,10 +348,14 @@ contains
     clm_pf_idata%qflx_clm = 0
     clm_pf_idata%qflx_pf = 0
 
-    clm_pf_idata%press_subsurf_clm = 0
-    clm_pf_idata%press_subsurf_pf  = 0
-    clm_pf_idata%press_subbase_clm = 0
-    clm_pf_idata%press_subbase_pf  = 0
+    clm_pf_idata%press_subsurf_clmp = 0
+    clm_pf_idata%press_subsurf_pfs  = 0
+    clm_pf_idata%press_subbase_clmp = 0
+    clm_pf_idata%press_subbase_pfs  = 0
+    clm_pf_idata%qflux_subsurf_clmp = 0
+    clm_pf_idata%qflux_subsurf_pfs  = 0
+    clm_pf_idata%qflux_subbase_clmp = 0
+    clm_pf_idata%qflux_subbase_pfs  = 0
     
     clm_pf_idata%rain_clm = 0
     clm_pf_idata%rain_pf = 0
@@ -588,9 +597,11 @@ contains
     call VecSet(clm_pf_idata%rain_clm,0.d0,ierr)
     call VecSet(clm_pf_idata%rain_temp_clm,0.d0,ierr)
 
-    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE,clm_pf_idata%press_subsurf_clm,ierr)
-    call VecSet(clm_pf_idata%press_subsurf_clm,0.d0,ierr)
-    call VecDuplicate(clm_pf_idata%press_subsurf_clm,clm_pf_idata%press_subbase_clm,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE,clm_pf_idata%press_subsurf_clmp,ierr)
+    call VecSet(clm_pf_idata%press_subsurf_clmp,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%press_subbase_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%qflux_subsurf_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%qflux_subbase_clmp,ierr)
 
     ! Create Seq. Vectors for PFLOTRAN
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%hksat_x_pf,ierr)
@@ -616,9 +627,11 @@ contains
     call VecSet(clm_pf_idata%rain_pf,0.d0,ierr)
     call VecSet(clm_pf_idata%rain_temp_pf,0.d0,ierr)
 
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dsub,clm_pf_idata%press_subsurf_pf,ierr)
-    call VecSet(clm_pf_idata%press_subsurf_pf,0.d0,ierr)
-    call VecDuplicate(clm_pf_idata%press_subsurf_pf,clm_pf_idata%press_subbase_pf,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dsub,clm_pf_idata%press_subsurf_pfs,ierr)
+    call VecSet(clm_pf_idata%press_subsurf_pfs,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%press_subbase_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%qflux_subsurf_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%qflux_subbase_pfs,ierr)
 
     !
     ! For data transfer from PFLOTRAN to CLM
@@ -890,10 +903,14 @@ contains
     if(clm_pf_idata%gflux_subsurf_pf  /= 0) call VecDestroy(clm_pf_idata%gflux_subsurf_pf,ierr)
     if(clm_pf_idata%gflux_surf_pf  /= 0) call VecDestroy(clm_pf_idata%gflux_surf_pf,ierr)
 
-    if(clm_pf_idata%press_subsurf_clm  /= 0) call VecDestroy(clm_pf_idata%press_subsurf_clm,ierr)
-    if(clm_pf_idata%press_subsurf_pf  /= 0) call VecDestroy(clm_pf_idata%press_subsurf_pf,ierr)
-    if(clm_pf_idata%press_subbase_clm  /= 0) call VecDestroy(clm_pf_idata%press_subbase_clm,ierr)
-    if(clm_pf_idata%press_subbase_pf  /= 0) call VecDestroy(clm_pf_idata%press_subbase_pf,ierr)
+    if(clm_pf_idata%press_subsurf_clmp  /= 0) call VecDestroy(clm_pf_idata%press_subsurf_clmp,ierr)
+    if(clm_pf_idata%press_subsurf_pfs  /= 0) call VecDestroy(clm_pf_idata%press_subsurf_pfs,ierr)
+    if(clm_pf_idata%press_subbase_clmp  /= 0) call VecDestroy(clm_pf_idata%press_subbase_clmp,ierr)
+    if(clm_pf_idata%press_subbase_pfs  /= 0) call VecDestroy(clm_pf_idata%press_subbase_pfs,ierr)
+    if(clm_pf_idata%qflux_subsurf_clmp  /= 0) call VecDestroy(clm_pf_idata%qflux_subsurf_clmp,ierr)
+    if(clm_pf_idata%qflux_subsurf_pfs  /= 0) call VecDestroy(clm_pf_idata%qflux_subsurf_pfs,ierr)
+    if(clm_pf_idata%qflux_subbase_clmp  /= 0) call VecDestroy(clm_pf_idata%qflux_subbase_clmp,ierr)
+    if(clm_pf_idata%qflux_subbase_pfs  /= 0) call VecDestroy(clm_pf_idata%qflux_subbase_pfs,ierr)
 
     if(clm_pf_idata%sat_clm  /= 0) call VecDestroy(clm_pf_idata%sat_clm,ierr)
     if(clm_pf_idata%sat_pf  /= 0) call VecDestroy(clm_pf_idata%sat_pf,ierr)

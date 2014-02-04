@@ -127,7 +127,8 @@ module pflotran_model_module
        pflotranModelUpdateTHfromCLM,           &     ! dynamically update TH from CLM to drive PFLOTRAN BGC
        pflotranModelUpdateO2fromCLM,           &
        pflotranModelSetBGCRates,               &
-       pflotranModelGetBgcVariables
+       pflotranModelGetBgcVariables,           &
+       pflotranModelSetSoilHbcs
 
 
 contains
@@ -2325,7 +2326,7 @@ end subroutine pflotranModelSetICs
          call printErrMsg(pflotran_model%option)
     end select
 
-    ! Update the 'clm_et_ss' source/sink term
+    ! Update the 'clm_gflux_bc' ground heat flux BC term
     call VecGetArrayF90(clm_pf_idata%gflux_subsurf_pf,gflux_subsurf_pf_loc,ierr)
     found = PETSC_FALSE
     boundary_condition => subsurf_realization%patch%boundary_conditions%first
@@ -2356,7 +2357,7 @@ end subroutine pflotranModelSetICs
 
     if(.not.found) &
       call printErrMsg(pflotran_model%option,'clm_gflux_bc not found in ' // &
-                       'source-sink list of subsurface model.')
+                       'boundary-condition list of subsurface model.')
 
   end subroutine pflotranModelUpdateSubsurfTCond
 
@@ -3689,6 +3690,152 @@ subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
     end select
 
 end subroutine pflotranModelSetInitialTHStatesfromCLM
+
+  ! ************************************************************************** !
+  ! pflotranModelSetSoilHbcs()
+  ! refresh Hydrological BC variables from CLM to PF
+  !
+  ! by 1-18-2013: only water pressure-head type (dirichlet) available
+  ! ************************************************************************** !
+subroutine pflotranModelSetSoilHbcs(pflotran_model)
+
+    use Realization_class
+    use Option_module
+    use Patch_module
+    use Grid_module
+    use Field_module
+    use Coupler_module
+    use Connection_module
+
+    use TH_Aux_module
+    use TH_module
+    use Richards_module
+    use Richards_Aux_module
+
+    use String_module
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(field_type), pointer                 :: field
+    type(simulation_base_type), pointer :: simulation
+
+    type(coupler_type), pointer :: boundary_condition
+    type(connection_set_type), pointer :: cur_connection_set
+    PetscInt :: ghosted_id, local_id, sum_connection, press_dof, iconn
+
+    PetscErrorCode     :: ierr
+
+    PetscScalar, pointer :: press_subsurf_pf_loc(:)     ! subsurface top boundary pressure-head (Pa) (dirichlet BC)
+    PetscScalar, pointer :: qflux_subsurf_pf_loc(:)     ! subsurface top boundary infiltration rate (m/s) (neumann BC)
+    !PetscScalar, pointer :: press_subbase_pf_loc(:)    ! bottom boundary pressure-head (Pa)
+
+    !------------------------------------------------------------------------------------
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: pflotranModelSetSoilTHbcs only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    patch           => realization%patch
+    grid            => patch%grid
+    field           => realization%field
+
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%press_subsurf_clmp, &
+                                    clm_pf_idata%press_subsurf_pfs)
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%qflux_subsurf_clmp, &
+                                    clm_pf_idata%qflux_subsurf_pfs)
+
+    !call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+    !                                pflotran_model%option, &
+    !                                clm_pf_idata%press_subbase_clmp, &
+    !                                clm_pf_idata%press_subbase_pfs)
+
+    ! interface vecs of PF
+    call VecGetArrayF90(clm_pf_idata%press_subsurf_pfs,  press_subsurf_pf_loc,  ierr)
+    call VecGetArrayF90(clm_pf_idata%qflux_subsurf_pfs,  qflux_subsurf_pf_loc,  ierr)
+    !call VecGetArrayF90(clm_pf_idata%press_subbase_pfs,  press_subbase_pf_loc,  ierr)
+
+    ! passing from interface to internal
+    select case(pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        press_dof = RICHARDS_PRESSURE_DOF
+      case (TH_MODE)
+        press_dof = TH_PRESSURE_DOF
+      case default
+        pflotran_model%option%io_buffer='pflotranModelSetTHbcs ' // &
+          'not implmented for this mode.'
+        call printErrMsg(pflotran_model%option)
+    end select
+
+    boundary_condition => patch%boundary_conditions%first
+    do
+       if (.not.associated(boundary_condition)) exit
+
+       cur_connection_set => boundary_condition%connection_set
+       if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then
+
+           do iconn = 1, cur_connection_set%num_connections
+              local_id = cur_connection_set%id_dn(iconn)
+              ghosted_id = grid%nL2G(local_id)
+              if (patch%imat(ghosted_id) <= 0) cycle
+
+              if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
+                   boundary_condition%flow_aux_real_var(press_dof,iconn)= &
+                       press_subsurf_pf_loc(iconn)
+              else if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
+                   boundary_condition%flow_aux_real_var(press_dof,iconn)= &
+                       qflux_subsurf_pf_loc(iconn)
+              end if
+
+           enddo
+
+       endif
+
+       boundary_condition => boundary_condition%next
+
+    enddo
+
+    call VecRestoreArrayF90(clm_pf_idata%press_subsurf_pfs, press_subsurf_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%qflux_subsurf_pfs, qflux_subsurf_pf_loc, ierr)
+    !call VecRestoreArrayF90(clm_pf_idata%press_subbase_pfs, press_subbase_pf_loc, ierr)
+
+    select case(pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        call RichardsUpdateAuxVars(realization)
+      case (TH_MODE)
+        call THUpdateAuxVars(realization)
+      case default
+        pflotran_model%option%io_buffer='pflotranModelSetTHbcs ' // &
+          'not implmented for this mode.'
+        call printErrMsg(pflotran_model%option)
+    end select
+
+end subroutine pflotranModelSetSoilHbcs
+
 
 ! ************************************************************************** !
 
