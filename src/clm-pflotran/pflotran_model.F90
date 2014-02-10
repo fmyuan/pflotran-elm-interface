@@ -3612,7 +3612,7 @@ subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
     PetscReal, pointer :: xx_loc_p(:)
 
     PetscScalar, pointer :: soilt_pf_loc(:)    ! temperature [oC]
-    PetscScalar, pointer :: soilpsi_pf_loc(:)  ! water pressure (Pa)-reference pressure
+    PetscScalar, pointer :: soilpress_pf_loc(:)  ! water pressure (Pa)
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -3633,8 +3633,8 @@ subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
       case (RICHARDS_MODE)
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%soilpsi_clmp, &
-                                    clm_pf_idata%soilpsi_pf)
+                                    clm_pf_idata%press_clm, &
+                                    clm_pf_idata%press_pf)
       case (TH_MODE)
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
@@ -3643,8 +3643,8 @@ subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
 
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%soilpsi_clmp, &
-                                    clm_pf_idata%soilpsi_pf)
+                                    clm_pf_idata%press_clm, &
+                                    clm_pf_idata%press_pf)
       case default
         pflotran_model%option%io_buffer='pflotranModelSetInitialTHStatesfromCLM ' // &
           'not implmented for this mode.'
@@ -3652,7 +3652,7 @@ subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
     end select
 
     call VecGetArrayF90(field%flow_xx, xx_loc_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%press_pf, soilpress_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
 
     do local_id = 1, grid%ngmax
@@ -3664,7 +3664,7 @@ subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
        iend = ghosted_id*pflotran_model%option%nflowdof
        istart = iend-pflotran_model%option%nflowdof+1
 
-       xx_loc_p(istart)  = soilpsi_pf_loc(local_id)+pflotran_model%option%reference_pressure
+       xx_loc_p(istart)  = soilpress_pf_loc(local_id)
        if (pflotran_model%option%iflowmode .eq. TH_MODE)  then
             xx_loc_p(istart+1)= soilt_pf_loc(local_id)
        end if
@@ -3672,7 +3672,7 @@ subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
 
     call VecRestoreArrayF90(field%flow_xx, xx_loc_p, ierr)
     call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%press_pf, soilpress_pf_loc, ierr)
 
     call DiscretizationGlobalToLocal(realization%discretization, field%flow_xx, &
          field%flow_xx_loc, NFLOWDOF)
