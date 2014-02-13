@@ -2,6 +2,8 @@ module Reaction_Sandbox_module
 
   use Reaction_Sandbox_Base_class
   use Reaction_Sandbox_CLM_CN_class
+  use Reaction_Sandbox_CLMCND_class
+  use Reaction_Sandbox_CLM45_class
   use Reaction_Sandbox_CLM_CNP_class
   use Reaction_Sandbox_CLM_CN_BF_class
   use Reaction_Sandbox_PlantNTake_class
@@ -154,6 +156,10 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
     select case(trim(word))
       case('CLM-CN')
         new_sandbox => CLM_CN_Create()
+      case('CLMCND')
+        new_sandbox => CLMCND_Create()
+      case('CLM45')
+        new_sandbox => CLM45_Create()
       case('CLM-CN-BF')
         new_sandbox => CLM_CN_BFCreate()
       case('CLM-CNP')

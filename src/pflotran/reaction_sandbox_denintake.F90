@@ -201,7 +201,7 @@ subroutine DeniNTakeReact(this,Residual,Jacobian,compute_derivative, &
   Residual(ires_mineralN) = Residual(ires_mineralN) - (-1.0) * rate
   Residual(ires_deniN) = Residual(ires_deniN) - rate
 
-  if (compute_derivative) return
+  if (.not.compute_derivative) return
 
   if(this%half_saturation .LT. 1.0d-20) return
 
@@ -209,9 +209,9 @@ subroutine DeniNTakeReact(this,Residual,Jacobian,compute_derivative, &
 
     ! always add contribution to Jacobian
   Jacobian(ires_mineralN,ires_mineralN) = &
-      Jacobian(ires_mineralN,ires_mineralN) - drate
+      Jacobian(ires_mineralN,ires_mineralN) + drate
 
-  Jacobian(ires_deniN,ires_mineralN) = Jacobian(ires_deniN,ires_mineralN) + drate
+  Jacobian(ires_deniN,ires_mineralN) = Jacobian(ires_deniN,ires_mineralN) - drate
 
 end subroutine DeniNTakeReact
 
