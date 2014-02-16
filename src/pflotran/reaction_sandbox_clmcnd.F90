@@ -65,6 +65,10 @@ module Reaction_Sandbox_CLMCND_class
     PetscInt :: species_id_n2
     PetscInt :: species_id_nplant
 
+    PetscBool :: no_n2o_decomp
+    PetscBool :: no_denitrification
+    PetscBool :: no_nitrification
+
     type(pool_type), pointer :: pools
     type(clmcnd_reaction_type), pointer :: reactions
   contains
@@ -135,6 +139,9 @@ function CLMCND_Create()
   CLMCND_Create%species_id_n2o = 0
   CLMCND_Create%species_id_n2 = 0
   CLMCND_Create%species_id_nplant = 0
+  CLMCND_Create%no_n2o_decomp = PETSC_FALSE
+  CLMCND_Create%no_denitrification = PETSC_FALSE
+  CLMCND_Create%no_nitrification = PETSC_FALSE
   nullify(CLMCND_Create%next)
   nullify(CLMCND_Create%pools)
   nullify(CLMCND_Create%reactions)
@@ -220,6 +227,15 @@ subroutine CLMCND_Read(this,input,option)
          call InputReadDouble(input,option,this%x0eps)
          call InputErrorMsg(input,option,'x0eps', &
                      'CHEMISTRY,REACTION_SANDBOX,CLMCND,REACTION')
+
+     case('NO_N2O_DECOMPOSITION')
+         this%no_n2o_decomp = PETSC_TRUE
+
+     case('NO_NITRIFICATION')
+         this%no_nitrification = PETSC_TRUE
+
+     case('NO_DENITRIFICATION')
+         this%no_denitrification = PETSC_TRUE
 
      case('AMMONIA_HALF_SATURATION')
          call InputReadDouble(input,option,this%half_saturation_nh3)
@@ -611,12 +627,15 @@ subroutine CLMCND_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   call CLMCND_Decomposition(this,Residual,Jacobian,compute_derivative,&
            rt_auxvar,global_auxvar,porosity,volume,reaction,option, local_id)
 
+  if(.not. this%no_nitrification) then
   call CLMCND_Nitrification(this,Residual,Jacobian,compute_derivative,&
            rt_auxvar,global_auxvar,porosity,volume,reaction,option, local_id)
+  endif
 
+  if(.not. this%no_denitrification) then
   call CLMCND_Denitrification(this,Residual,Jacobian,compute_derivative,&
            rt_auxvar,global_auxvar,porosity,volume,reaction,option, local_id)
-
+  endif
 end subroutine CLMCND_React
 
 ! ************************************************************************** !
@@ -1206,6 +1225,10 @@ subroutine CLMCND_Decomposition(this,Residual,Jacobian,compute_derivative,&
 
 !  return
 
+  if(this%no_n2o_decomp) then
+     return
+  endif
+
   if(this%species_id_n2o > 0 .and. net_n_mineralization_rate > 0.0d0) then
   ! temperature response function (Parton et al. 1996)
     f_t = -0.06d0 + 0.13d0 * exp( 0.07d0 * tc )
@@ -1301,12 +1324,15 @@ subroutine CLMCND_Nitrification(this,Residual,Jacobian,compute_derivative,&
 
   tc = global_auxvar%temp(1) 
 
+  c_nh3     = rt_auxvar%total(this%species_id_nh3, iphase)
+
 ! nitrification (Dickinson et al. 2002)
   if(this%species_id_no3 > 0) then
     f_t = exp(0.08d0 * (tc - 298.0d0 + 273.15d0))
     f_w = saturation * (1.0d0 - saturation)
 
-    rate_nitri = f_t * f_w * this%k_nitr_max * c_nh3
+    rate_nitri = f_t * f_w * this%k_nitr_max * c_nh3 * c_nh3 / &
+         (0.25d0 * c_nh3 + 1.0d0)
     Residual(ires_nh3) = Residual(ires_nh3) + rate_nitri
     Residual(ires_no3) = Residual(ires_no3) - rate_nitri
    
@@ -1333,7 +1359,6 @@ subroutine CLMCND_Nitrification(this,Residual,Jacobian,compute_derivative,&
 !             mole/L * 1000 L/m3 * g/mol / kg/m3 = g/kg = mg/g = 1000 ug/g  
 !  c_nh3_ugg = c_nh3 / theta *1000.0d0 * N_molecular_weight / rho_b * 1000.0d0
   temp_real  = 1.0d0 / theta *1000.0d0 * N_molecular_weight / rho_b * 1000.0d0
-  c_nh3     = rt_auxvar%total(this%species_id_nh3, iphase)
   c_nh3_ugg = c_nh3 * temp_real
 
   if(this%species_id_n2o > 0.0d0 .and. c_nh3_ugg > 3.0d0 ) then 
