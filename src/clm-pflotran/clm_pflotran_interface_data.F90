@@ -112,6 +112,11 @@ module clm_pflotran_interface_data
   PetscInt :: nlpf_2dsub   ! num of local pflotran cells
   PetscInt :: ngpf_2dsub   ! num of ghosted pflotran cells (ghosted = local+ghosts)
 
+  PetscInt :: nlclm_bottom  ! num of local clm cells
+  PetscInt :: ngclm_bottom  ! num of ghosted clm cells (ghosted = local+ghosts)
+  PetscInt :: nlpf_bottom   ! num of local pflotran cells
+  PetscInt :: ngpf_bottom   ! num of ghosted pflotran cells (ghosted = local+ghosts)
+
   ! Number of cells for the 2D surface domain
   PetscInt :: nlclm_srf  ! num of local clm cells
   PetscInt :: ngclm_srf  ! num of ghosted clm cells (ghosted = local+ghosts)
@@ -319,6 +324,11 @@ contains
     clm_pf_idata%ngclm_2dsub = 0
     clm_pf_idata%nlpf_2dsub = 0
     clm_pf_idata%ngpf_2dsub = 0
+
+    clm_pf_idata%nlclm_bottom = 0
+    clm_pf_idata%ngclm_bottom = 0
+    clm_pf_idata%nlpf_bottom = 0
+    clm_pf_idata%ngpf_bottom = 0
 
     clm_pf_idata%nlclm_srf = 0
     clm_pf_idata%ngclm_srf = 0
@@ -599,9 +609,11 @@ contains
 
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE,clm_pf_idata%press_subsurf_clmp,ierr)
     call VecSet(clm_pf_idata%press_subsurf_clmp,0.d0,ierr)
-    call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%press_subbase_clmp,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%qflux_subsurf_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%qflux_subbase_clmp,ierr)
+
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_bottom,PETSC_DECIDE,clm_pf_idata%press_subbase_clmp,ierr)
+    call VecSet(clm_pf_idata%press_subbase_clmp,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%press_subbase_clmp,clm_pf_idata%qflux_subbase_clmp,ierr)
 
     ! Create Seq. Vectors for PFLOTRAN
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%hksat_x_pf,ierr)
@@ -629,9 +641,11 @@ contains
 
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dsub,clm_pf_idata%press_subsurf_pfs,ierr)
     call VecSet(clm_pf_idata%press_subsurf_pfs,0.d0,ierr)
-    call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%press_subbase_pfs,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%qflux_subsurf_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%qflux_subbase_pfs,ierr)
+
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_bottom,clm_pf_idata%press_subbase_pfs,ierr)
+    call VecSet(clm_pf_idata%press_subbase_pfs,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%press_subbase_pfs,clm_pf_idata%qflux_subbase_pfs,ierr)
 
     !
     ! For data transfer from PFLOTRAN to CLM
