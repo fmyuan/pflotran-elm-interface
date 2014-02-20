@@ -199,7 +199,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   Residual(ires_mineralN) = Residual(ires_mineralN) - (-1.0) * rate
   Residual(ires_plantN) = Residual(ires_plantN) - rate
 
-  if (compute_derivative) return
+  if (.not.compute_derivative) return
 
   if(this%half_saturation .LT. 1.0d-20) return
 
@@ -207,9 +207,9 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
                                       / (concN + this%half_saturation) 
 
     ! always add contribution to Jacobian
-  Jacobian(ires_mineralN,ires_mineralN) = Jacobian(ires_mineralN,ires_mineralN) - drate
+  Jacobian(ires_mineralN,ires_mineralN) = Jacobian(ires_mineralN,ires_mineralN) + drate
 
-  Jacobian(ires_plantN,ires_mineralN) = Jacobian(ires_plantN,ires_mineralN) + drate
+  Jacobian(ires_plantN,ires_mineralN) = Jacobian(ires_plantN,ires_mineralN) - drate
 
 end subroutine PlantNTakeReact
 

@@ -631,7 +631,6 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   ! Assumptions: theta is saturation
   !              theta_min = 0.01, theta_max = 1.
   F_theta = log(theta_min/max(theta_min,global_auxvar%sat(1))) * one_over_log_theta_min 
-  
 #endif
 
   constant_inhibition = F_t * F_theta

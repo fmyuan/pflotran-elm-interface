@@ -3152,6 +3152,7 @@ end subroutine pflotranModelSetICs
   ! ************************************************************************** !
   subroutine pflotranModelSetInitialConcentrations(pflotran_model)
 
+    use Global_Aux_module
     use Realization_class
     use Patch_module
     use Grid_module
@@ -3181,11 +3182,13 @@ end subroutine pflotranModelSetICs
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(simulation_base_type), pointer       :: simulation
+    type(global_auxvar_type), pointer :: global_aux_vars(:)
 !    type(reactive_transport_auxvar_type), pointer :: rt_aux_vars(:)
 !    type(reactive_transport_auxvar_type), pointer :: rt_aux_var
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id
+    PetscInt           :: ghosted_id
     PetscReal, pointer :: xx_p(:)
 
     PetscScalar, pointer :: decomp_cpools_vr_lit1_pf_loc(:) ! (gC/m3)
@@ -3201,8 +3204,10 @@ end subroutine pflotranModelSetICs
     PetscScalar, pointer :: decomp_npools_vr_lit3_pf_loc(:) ! (gN/m3)
     !PetscScalar, pointer :: decomp_npools_vr_cwd_pf_loc(:)  ! (gN/m3)
     PetscScalar, pointer :: sminn_vr_pf_loc(:)              ! (gN/m3)
-    !PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (gN/m3)
-    !PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
+    PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (gN/m3)
+    PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
+
+    PetscReal, pointer :: porosity_loc_p(:)
 
     PetscInt :: ispec_c, ispec_n, ispec_no3, ispec_nh4, offset, offsetim
     PetscInt :: ispec_lit1c, ispec_lit2c, ispec_lit3c
@@ -3213,6 +3218,7 @@ end subroutine pflotranModelSetICs
     character(len=MAXWORDLENGTH) :: word
     PetscReal, parameter :: C_molecular_weight = 12.0107d0
     PetscReal, parameter :: N_molecular_weight = 14.0067d0
+    PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -3229,6 +3235,7 @@ end subroutine pflotranModelSetICs
     patch => realization%patch
     grid  => patch%grid
     field => realization%field
+    global_aux_vars  => patch%aux%Global%aux_vars
 
     word = "LabileC"
     ispec_lit1c = GetImmobileSpeciesIDFromName(word, &
@@ -3279,13 +3286,13 @@ end subroutine pflotranModelSetICs
     ispec_c  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-!    word = "NO3-"
-!    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
-!                  realization%reaction,realization%option)
+    word = "Nitrate"
+    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
 
-!    word = "NH4+"
-!    ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
-!                  realization%reaction,realization%option)
+    word = "Ammonia"
+    ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
 
     word = "PlantN"
     ispec_plantn  = GetImmobileSpeciesIDFromName(word, &
@@ -3350,20 +3357,26 @@ end subroutine pflotranModelSetICs
     !                                clm_pf_idata%decomp_npools_vr_cwd_clmp, &
     !                                clm_pf_idata%decomp_npools_vr_cwd_pfs)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+    if(ispec_n > 0) then
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%sminn_vr_clmp, &
                                     clm_pf_idata%sminn_vr_pfs)
+    endif
 
-    !call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-    !                                pflotran_model%option, &
-    !                                clm_pf_idata%smin_no3_vr_clmp, &
-    !                                clm_pf_idata%smin_no3_vr_pfs)
+    if(ispec_no3 > 0) then
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%smin_no3_vr_clmp, &
+                                    clm_pf_idata%smin_no3_vr_pfs)
+    endif
 
-    !call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-    !                                pflotran_model%option, &
-    !                                clm_pf_idata%smin_nh4_vr_clmp, &
-    !                                clm_pf_idata%smin_nh4_vr_pfs)
+    if(ispec_nh4 > 0) then
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%smin_nh4_vr_clmp, &
+                                    clm_pf_idata%smin_nh4_vr_pfs)
+    endif
 
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfs, &
                         decomp_cpools_vr_lit1_pf_loc, ierr)
@@ -3389,13 +3402,24 @@ end subroutine pflotranModelSetICs
                         decomp_npools_vr_lit3_pf_loc, ierr)
     !call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pfs, &
     !                    decomp_npools_vr_cwd_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%sminn_vr_pfs, sminn_vr_pf_loc, ierr)
-    !call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
-    !call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
+    if(ispec_n > 0) then
+      call VecGetArrayF90(clm_pf_idata%sminn_vr_pfs, sminn_vr_pf_loc, ierr)
+    endif
+
+    if(ispec_no3 > 0) then
+       call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
+    endif
+
+    if(ispec_nh4 > 0) then
+       call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
+    endif
 
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)
 
+    call VecGetArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)
+
     do local_id = 1, grid%nlmax
+      ghosted_id=grid%nL2G(local_id)
       if (grid%nG2L(local_id) < 0) cycle ! bypass ghosted corner cells
       !geh - Ignore inactive cells with inactive materials
 
@@ -3403,8 +3427,19 @@ end subroutine pflotranModelSetICs
 
       offset = (local_id - 1)*realization%reaction%ncomp
 
-!      xx_p(offset + ispec_no3) = smin_no3_vr_pf_loc(local_id)
-!      xx_p(offset + ispec_nh4) = smin_nh4_vr_pf_loc(local_id)
+      saturation = global_aux_vars(ghosted_id)%sat(1)
+      porosity = porosity_loc_p(local_id)
+      theta = saturation * porosity
+
+      if(ispec_no3 > 0) then
+         xx_p(offset + ispec_no3) = smin_no3_vr_pf_loc(local_id) / &
+                                    N_molecular_weight / theta / 1000.0d0 
+      endif
+
+      if(ispec_nh4 > 0) then
+         xx_p(offset + ispec_nh4) = smin_nh4_vr_pf_loc(local_id) / &
+                                    N_molecular_weight / theta / 1000.d0 
+      endif
 
       offsetim = offset + realization%reaction%offset_immobile
 
@@ -3428,9 +3463,10 @@ end subroutine pflotranModelSetICs
                                         / C_molecular_weight, 1.0d-20)
       xx_p(offsetim + ispec_som4) = max(decomp_cpools_vr_som4_pf_loc(local_id) &
                                         / C_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_n) = max(sminn_vr_pf_loc(local_id) &
+      if(ispec_n > 0) then
+         xx_p(offsetim + ispec_n) = max(sminn_vr_pf_loc(local_id) &
                                         / N_molecular_weight, 1.0d-20)
-
+      endif
     enddo
 
     call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfs, decomp_cpools_vr_lit1_pf_loc, ierr)
@@ -3445,11 +3481,20 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pfs, decomp_npools_vr_lit2_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pfs, decomp_npools_vr_lit3_pf_loc, ierr)
     !call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pfs,  decomp_npools_vr_cwd_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%sminn_vr_pfs, sminn_vr_pf_loc, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
+    if(ispec_n > 0) then
+       call VecRestoreArrayF90(clm_pf_idata%sminn_vr_pfs, sminn_vr_pf_loc, ierr)
+    endif
+
+    if(ispec_no3 > 0) then
+       call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
+    endif
+
+    if(ispec_nh4 > 0) then
+       call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
+    endif
 
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
+    call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
 
     call DiscretizationGlobalToLocal(realization%discretization,field%tran_xx, &
                                    field%tran_xx_loc,NTRANDOF)
@@ -4035,6 +4080,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscErrorCode     :: ierr
     PetscInt           :: local_id
 
+    PetscInt:: ispec_nh4
     PetscInt:: ghosted_id, offset, offsetim
 
     PetscScalar, pointer :: rate_pf_loc(:)   !
@@ -4173,12 +4219,18 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     endif
 
+    ! temperarily used to differentiate clm-cnd from clmcn
+    word = "Ammonia"
+    ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+
     if (associated(realization%rt_mass_transfer_list)) then
        cur_mass_transfer => realization%rt_mass_transfer_list
        do
          if (.not.associated(cur_mass_transfer)) exit
 
-         select case (cur_mass_transfer%idof)
+         if(ispec_nh4 < 0) then
+           select case (cur_mass_transfer%idof)
             case(2)
              call VecGetArrayReadF90(clm_pf_idata%rate_minn_pfs, rate_pf_loc, ierr)
             case(8)
@@ -4196,12 +4248,35 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
             case default
                     pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
                     call printErrMsg(pflotran_model%option)
-         end select
+           end select
+         else
+           select case (cur_mass_transfer%idof)
+            case(1)
+             call VecGetArrayReadF90(clm_pf_idata%rate_minn_pfs, rate_pf_loc, ierr)
+            case(10)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
+            case(11)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
+            case(12)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
+            case(13)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
+            case(14)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
+            case(15)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
+            case default
+                    pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
+                    call printErrMsg(pflotran_model%option)
+           end select
+         endif
 
          do local_id = 1, grid%nlmax
             if (grid%nG2L(local_id) < 0) cycle ! bypass ghosted corner cells
             if (patch%imat(local_id) <= 0) cycle
-            if(cur_mass_transfer%idof .eq. 2 .or. &
+
+            if(ispec_nh4 < 0) then
+              if(cur_mass_transfer%idof .eq. 2 .or. &
                cur_mass_transfer%idof .eq. 8 .or. &
                cur_mass_transfer%idof .eq. 9 .or. &
                cur_mass_transfer%idof .eq. 10 .or. &
@@ -4213,11 +4288,24 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                cur_mass_transfer%dataset%rarray(local_id) = &
                         rate_pf_loc(local_id)*volume_p(local_id)  ! mol/m3s * m3
 !             endif
+              endif
+            else
+              if(cur_mass_transfer%idof .eq. 1 .or. &
+               cur_mass_transfer%idof .eq. 10 .or. &
+               cur_mass_transfer%idof .eq. 11 .or. &
+               cur_mass_transfer%idof .eq. 12 .or. &
+               cur_mass_transfer%idof .eq. 13 .or. &
+               cur_mass_transfer%idof .eq. 14 .or. &
+               cur_mass_transfer%idof .eq. 15 &
+               ) then
+               cur_mass_transfer%dataset%rarray(local_id) = &
+                        rate_pf_loc(local_id)*volume_p(local_id)  ! mol/m3s * m3
+              endif
             endif
-
          enddo
 
-         select case (cur_mass_transfer%idof)
+         if(ispec_nh4 < 0) then
+           select case (cur_mass_transfer%idof)
             case(2)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_minn_pfs, rate_pf_loc, ierr)
             case(8)
@@ -4235,7 +4323,28 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
             case default
                pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
                call printErrMsg(pflotran_model%option)
-         end select
+           end select
+         else
+           select case (cur_mass_transfer%idof)
+            case(1)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_minn_pfs, rate_pf_loc, ierr)
+            case(10)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
+            case(11)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
+            case(12)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
+            case(13)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
+            case(14)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
+            case(15)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
+            case default
+               pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
+               call printErrMsg(pflotran_model%option)
+           end select
+         endif
 
          cur_mass_transfer => cur_mass_transfer%next
        enddo
@@ -4254,6 +4363,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
   !! date: 9/9/2013
   ! ************************************************************************** !
   subroutine pflotranModelGetBgcVariables(pflotran_model)
+
+    use Global_Aux_module
     use Realization_class
     use Patch_module
     use Grid_module
@@ -4281,6 +4392,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(simulation_base_type), pointer       :: simulation
+    type(global_auxvar_type), pointer :: global_aux_vars(:)
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
@@ -4300,15 +4412,19 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     !PetscScalar, pointer :: decomp_npools_vr_cwd_pf_loc(:)  ! (gN/m3)
     PetscScalar, pointer :: sminn_vr_pf_loc(:)              ! (gN/m3)
     PetscScalar, pointer :: hrc_vr_pf_loc(:)                ! (gN/m3)
-    !PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (gN/m3)
-    !PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
+    PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (gN/m3)
+    PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
     PetscScalar, pointer :: accextrn_vr_pf_loc(:)            ! (gN/m3)
+    PetscReal, pointer :: porosity_loc_p(:)
 
     PetscInt :: ispec_c, ispec_n, ispec_no3, ispec_nh4, offset, offsetim
     PetscInt :: ispec_lit1c, ispec_lit2c, ispec_lit3c
     PetscInt :: ispec_lit1n, ispec_lit2n, ispec_lit3n
     PetscInt :: ispec_som1, ispec_som2, ispec_som3, ispec_som4
-    PetscInt :: ispec_plantn
+    PetscInt :: ispec_plantn, ispec_co2
+
+    PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
+    PetscReal :: conc
 
     character(len=MAXWORDLENGTH) :: word
     PetscReal, parameter :: C_molecular_weight = 12.0107d0
@@ -4329,6 +4445,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     patch => realization%patch
     grid  => patch%grid
     field => realization%field
+    global_aux_vars  => patch%aux%Global%aux_vars
 
     ! (i) indices of bgc variables in PFLOTRAN immobiles
     word = "LabileC"
@@ -4380,13 +4497,17 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     ispec_c  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-!    word = "NO3-"
-!    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
-!                  realization%reaction,realization%option)
+    word = "CO2(aq)"
+    ispec_co2  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
 
-!    word = "NH4+"
-!    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
-!                  realization%reaction,realization%option)
+    word = "Nitrate"
+    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+
+    word = "Ammonia"
+    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
 
     word = "PlantN"
     ispec_plantn  = GetImmobileSpeciesIDFromName(word, &
@@ -4419,18 +4540,23 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     !                    decomp_npools_vr_cwd_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%sminn_vr_pfp, sminn_vr_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%hrc_vr_pfp, hrc_vr_pf_loc,ierr)
-    !call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfp, smin_no3_vr_pf_loc, ierr)
-    !call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfp, smin_nh4_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfp, smin_no3_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfp, smin_nh4_vr_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%accextrn_vr_pfp, accextrn_vr_pf_loc, ierr)
 
     ! (iii) pass the data from internal to PFLOTRAN vecs
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)  ! extract data from pflotran internal portion
+    call VecGetArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)
 
     do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
         if (associated(patch%imat)) then
            if (patch%imat(ghosted_id) <= 0) cycle
         endif
+
+        saturation = global_aux_vars(ghosted_id)%sat(1)
+        porosity = porosity_loc_p(local_id)
+        theta = saturation * porosity
 
         offset = (local_id - 1)*realization%reaction%ncomp
 
@@ -4456,10 +4582,31 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                         * C_molecular_weight
         decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4), 1.0d-20) &
                                         * C_molecular_weight
-        sminn_vr_pf_loc(local_id) = max(xx_p(offsetim + ispec_n), 1.0d-20) &
+        if(ispec_n > 0) then
+           sminn_vr_pf_loc(local_id) = max(xx_p(offsetim + ispec_n), 1.0d-20) &
                                         * N_molecular_weight
-        hrc_vr_pf_loc(local_id)   = max(xx_p(offsetim + ispec_c), 1.0d-20) &
+        endif
+
+        if(ispec_c > 0) then
+           hrc_vr_pf_loc(local_id)   = max(xx_p(offsetim + ispec_c), 1.0d-20) &
                                         * C_molecular_weight
+        endif
+
+        if(ispec_co2 > 0) then
+           conc = xx_p(offset + ispec_c) * theta * 1000.0d0  
+           hrc_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * C_molecular_weight
+        endif
+
+        if(ispec_nh4 > 0) then
+           conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0  
+           smin_nh4_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+        endif
+
+        if(ispec_no3 > 0) then
+           conc = xx_p(offset + ispec_no3) * theta * 1000.0d0  
+           smin_no3_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+        endif
+
         accextrn_vr_pf_loc(local_id) = max(xx_p(offsetim + ispec_plantn), 1.0d-20) &
                                         * N_molecular_weight
     enddo
@@ -4476,10 +4623,21 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pfp, decomp_npools_vr_lit2_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pfp, decomp_npools_vr_lit3_pf_loc, ierr)
     !call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pfp,  decomp_npools_vr_cwd_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%sminn_vr_pfp, sminn_vr_pf_loc, ierr)
+
+    if (ispec_n > 0) then
+      call VecRestoreArrayF90(clm_pf_idata%sminn_vr_pfp, sminn_vr_pf_loc, ierr)
+    endif
+
     call VecRestoreArrayF90(clm_pf_idata%hrc_vr_pfp, hrc_vr_pf_loc, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfp, smin_no3_vr_pf_loc, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfp, smin_nh4_vr_pf_loc, ierr)
+
+    if(ispec_no3 > 0) then
+      call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfp, smin_no3_vr_pf_loc, ierr)
+    endif
+
+    if(ispec_nh4 > 0) then
+      call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfp, smin_nh4_vr_pf_loc, ierr)
+    endif
+
     call VecRestoreArrayF90(clm_pf_idata%accextrn_vr_pfp, accextrn_vr_pf_loc, ierr)
 
    ! (iv) pass the 'pf' vecs to 'clm' vecs, which then can be passed to CLMCN (implemented in 'clm_pflotran_interfaceMod'
@@ -4542,25 +4700,31 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     !                                clm_pf_idata%decomp_npools_vr_cwd_pfp, &
     !                                clm_pf_idata%decomp_npools_vr_cwd_clms)
 
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+    if(ispec_n > 0) then
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%sminn_vr_pfp, &
                                     clm_pf_idata%sminn_vr_clms)
+    endif
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%hrc_vr_pfp, &
                                     clm_pf_idata%hrc_vr_clms)
 
-    !call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-    !                                pflotran_model%option, &
-    !                                clm_pf_idata%smin_no3_vr_pfp, &
-    !                                clm_pf_idata%smin_no3_vr_clms)
+    if(ispec_no3 > 0) then
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%smin_no3_vr_pfp, &
+                                    clm_pf_idata%smin_no3_vr_clms)
+    endif
 
-    !call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-    !                                pflotran_model%option, &
-    !                                clm_pf_idata%smin_nh4_vr_pfp, &
-    !                                clm_pf_idata%smin_nh4_vr_clms)
+    if(ispec_nh4 > 0) then
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%smin_nh4_vr_pfp, &
+                                    clm_pf_idata%smin_nh4_vr_clms)
+    endif
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
