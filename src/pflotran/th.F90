@@ -3290,7 +3290,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
             r_p((local_id-1)*option%nflowdof + jh2o) - &
             qsrc1
         case default
-          write(string,*),source_sink%flow_condition%rate%itype
+          write(string,*) source_sink%flow_condition%rate%itype
           option%io_buffer='TH mode source_sink%flow_condition%rate%itype = ' // &
           trim(adjustl(string)) // ', not implemented.'
       end select
@@ -3820,7 +3820,7 @@ subroutine THJacobianPatch(snes,xx,A,B,flag,realization,ierr)
         case(HET_MASS_RATE_SS)
           qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
         case default
-          write(string,*),source_sink%flow_condition%rate%itype
+          write(string,*) source_sink%flow_condition%rate%itype
           option%io_buffer='TH mode source_sink%flow_condition%rate%itype = ' // &
           trim(adjustl(string)) // ', not implemented.'
       end select
@@ -4574,9 +4574,11 @@ subroutine THComputeGradient(grid, global_aux_vars, ghosted_id, gradient, &
   
   PetscInt :: INDX(3)
   PetscInt :: D
-   
+  PetscInt :: stencil_type
+  
+  stencil_type = DMDA_STENCIL_STAR 
   call GridGetGhostedNeighborsWithCorners(grid,ghosted_id, &
-                                         DMDA_STENCIL_STAR, &
+                                         stencil_type, &
                                          ONE_INTEGER,ONE_INTEGER,ONE_INTEGER, &
                                          ghosted_neighbors_size, &
                                          ghosted_neighbors, &
