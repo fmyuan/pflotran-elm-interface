@@ -1621,7 +1621,7 @@ subroutine ConvertMatrixToVector(A,vecA)
   vecA = reshape(A,(/m*n,ONE_INTEGER/))
 
   deallocate(vecA)
-  nullify(vecA)
+
 end subroutine ConvertMatrixToVector
 
 ! ************************************************************************** !
