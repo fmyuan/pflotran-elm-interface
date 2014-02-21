@@ -1924,7 +1924,7 @@ subroutine GridCreateNaturalToGhostedHash(grid,option)
   max_num_ids_per_hash = 0
   ! initial guess of 10% of ids per hash
   ! must be at least 5 so that reallocation (*1.2) works below
-  num_ids_per_hash = max(grid%nlmax/(grid%num_hash_bins/10),5)
+  num_ids_per_hash = max(grid%nlmax/(grid%num_hash_bins/10),5*ONE_INTEGER)
 
   allocate(hash(2,0:num_ids_per_hash,grid%num_hash_bins))
   hash(:,:,:) = 0
@@ -2413,11 +2413,11 @@ subroutine GridLocalizeRegionFromBlock(grid,region,option)
   region%k2 = region%k2 - grid%structured_grid%lzs
           
   ! clip region to within local processor domain
-  region%i1 = max(region%i1,1)
+  region%i1 = max(region%i1,ONE_INTEGER)
   region%i2 = min(region%i2,grid%structured_grid%nlx)
-  region%j1 = max(region%j1,1)
+  region%j1 = max(region%j1,ONE_INTEGER)
   region%j2 = min(region%j2,grid%structured_grid%nly)
-  region%k1 = max(region%k1,1)
+  region%k1 = max(region%k1,ONE_INTEGER)
   region%k2 = min(region%k2,grid%structured_grid%nlz)
    
   count = 0  

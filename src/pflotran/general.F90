@@ -1775,7 +1775,8 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
   PetscReal :: fmw_phase(option%nphase)
   PetscReal :: qsrc_mol(option%nphase)
   PetscReal :: den, den_kg, enthalpy, internal_energy
-  PetscInt :: icomp, ierr
+  PetscInt :: icomp!, ierr
+  PetscErrorCode :: ierr
   
 
   fmw_phase(option%liquid_phase) = FMWH2O

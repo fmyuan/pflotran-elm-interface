@@ -536,11 +536,11 @@ recursive subroutine PMCBaseCheckpoint(this,viewer,id,id_stamp)
   enddo
   
   if (associated(this%below)) then
-    call this%below%Checkpoint(viewer,-999)
+    call this%below%Checkpoint(viewer,-999*ONE_INTEGER)
   endif
   
   if (associated(this%next)) then
-    call this%next%Checkpoint(viewer,-999)
+    call this%next%Checkpoint(viewer,-999*ONE_INTEGER)
   endif
   
   if (this%is_master) then
@@ -732,10 +732,10 @@ subroutine PMCBaseGetHeader(this,header)
   ! Check the value of 'times_per_h5_file'
   if (header%times_per_h5_file /= &
       this%pm_list%realization_base%output_option%times_per_h5_file) then
-    write(string,*),header%times_per_h5_file
+    write(string,*) header%times_per_h5_file
     this%option%io_buffer = 'From checkpoint file: times_per_h5_file ' // trim(string)
     call printMsg(this%option)
-    write(string,*),this%pm_list%realization_base%output_option%times_per_h5_file
+    write(string,*) this%pm_list%realization_base%output_option%times_per_h5_file
     this%option%io_buffer = 'From inputdeck      : times_per_h5_file ' // trim(string)
     call printMsg(this%option)
     this%option%io_buffer = 'times_per_h5_file specified in inputdeck does not ' // &

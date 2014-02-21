@@ -478,7 +478,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
   if (clm_pf_idata%use_lch4) then
      if (organic_max > 0.0) then
-        om_frac = min(cellorg(local_id)/organic_max, 1.0)
+        om_frac = min(cellorg(local_id)/organic_max, 1.0d0)
      else
         om_frac = 1.0
      end if
@@ -560,7 +560,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
 ! assume denitrification temp function equal to the HR scalar
 !  k_nitr_t_vr(c,j) = min(t_scalar(c,j), 1._r8)
-  F_t = min(F_t, 1.0)
+  F_t = min(F_t, 1.0d0)
  
 #ifdef CLM_PFLOTRAN
   call VecGetArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity_dry, ierr)
@@ -683,7 +683,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
 ! now calculate the ratio of N2O to N2 from denitrifictaion, following Del Grosso et al., 2000
 ! diffusivity constant (figure 6b)
-  ratio_k1 = max(1.7, 38.4 - 350.0 * diffus)
+  ratio_k1 = max(1.7d0, 38.4 - 350.0 * diffus)
 
 ! ratio function (figure 7c)
   if ( rate_co2 > 0.0 ) then
@@ -694,8 +694,8 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
 ! total water limitation function (Del Grosso et al., 2000, figure 7a)
-  wfps_vr = max(min(h2osoi_vol/porosity, 1.0), 0.0) * 100.0
-  fr_WFPS = max(0.1, 0.015 * wfps_vr - 0.32)
+  wfps_vr = max(min(h2osoi_vol/porosity, 1.0d0), 0.0d0) * 100.0
+  fr_WFPS = max(0.1d0, 0.015 * wfps_vr - 0.32)
 !         if (use_lch4) then
 !            if (anoxia_wtsat) then
 !               fr_WFPS(c,j) = fr_WFPS(c,j)*(1._r8 - finundated(c)) + finundated(c)*1.18_r8
@@ -703,7 +703,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 !         end if
 
          ! final ratio expression 
-  n2_n2o_ratio = ratio_k1 * max(0.16, exp(-0.8 * ratio_no3_co2)) * fr_WFPS
+  n2_n2o_ratio = ratio_k1 * max(0.16d0, exp(-0.8 * ratio_no3_co2)) * fr_WFPS
   stoich_n2 = n2_n2o_ratio/(1.0 + n2_n2o_ratio)
   stoich_n2o = 1.0 - stoich_n2
 

@@ -400,7 +400,7 @@ subroutine SecondaryContinuumCalcLogSpacing(matrix_size,outer_grid_size, &
   PetscInt :: i 
   
   
-  if (mod(sec_num_cells,2) /= 0) then
+  if (mod(sec_num_cells,TWO_INTEGER) /= 0) then
      option%io_buffer = 'NUM_CELLS under SECONDARY_CONTINUUM has to be' // &
                         ' even for logarithmic grid spacing'
       call printErrMsg(option)
@@ -522,7 +522,8 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
   PetscInt :: i, cell
   PetscReal :: area_per_vol
   PetscReal :: dum1
-  PetscInt :: num_iterations, ierr
+  PetscInt :: num_iterations!, ierr
+  PetscErrorCode :: ierr
   
   num_iterations = 0
 
@@ -1037,7 +1038,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,aux_var, &
       enddo
       coeff_left(:,:,ngcells) = 0.d0
       call bl3dfac(ngcells,ncomp,coeff_right,coeff_diag,coeff_left,pivot)  
-      call bl3dsolf(ngcells,ncomp,coeff_right,coeff_diag,coeff_left,pivot,1,rhs)
+      call bl3dsolf(ngcells,ncomp,coeff_right,coeff_diag,coeff_left,pivot,ONE_INTEGER,rhs)
     case(2)
       call decbt(ncomp,ngcells,ncomp,coeff_diag,coeff_right,coeff_left,pivot,ier)
       if (ier /= 0) then
@@ -1250,7 +1251,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,aux_var, &
         call bl3dfac(ngcells,ncomp,coeff_right_pert,coeff_diag_pert, &
                       coeff_left_pert,pivot)  
         call bl3dsolf(ngcells,ncomp,coeff_right_pert,coeff_diag_pert, &
-                       coeff_left_pert,pivot,1,rhs)
+                       coeff_left_pert,pivot,ONE_INTEGER,rhs)
       case(2)
         call decbt(ncomp,ngcells,ncomp,coeff_diag_pert,coeff_right_pert, &
                     coeff_left_pert,pivot,ier)
@@ -1741,7 +1742,7 @@ subroutine SecondaryRTAuxVarComputeMulti(sec_transport_vars, &
     
   select case (option%secondary_continuum_solver)
     case(1) 
-      call bl3dsolb(ngcells,ncomp,coeff_right,coeff_diag,coeff_left,pivot,1,rhs)
+      call bl3dsolb(ngcells,ncomp,coeff_right,coeff_diag,coeff_left,pivot,ONE_INTEGER,rhs)
     case(2)
       call solbtb(ncomp,ngcells,ncomp,coeff_diag,coeff_right,coeff_left,pivot,rhs)
     case(3)

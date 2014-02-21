@@ -1966,7 +1966,9 @@ subroutine HDF5ReadUnstructuredGridRegionFromFile(option,region,filename)
   integer(HID_T) :: memory_space_id
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: length(2), offset(2)
+  integer(HID_T) :: ndims_h5
 #endif
+  PetscReal, pointer :: double_buffer_1d(:), double_buffer_2d(:,:)
 
   !option => realization%option
 
@@ -1998,7 +2000,8 @@ subroutine HDF5ReadUnstructuredGridRegionFromFile(option,region,filename)
   call h5dget_space_f(data_set_id,data_space_id,hdf5_err)
   
   ! Get number of dimensions and check
-  call h5sget_simple_extent_ndims_f(data_space_id,ndims,hdf5_err)
+  call h5sget_simple_extent_ndims_f(data_space_id,ndims_h5,hdf5_err)
+  ndims = ndims_h5
   if ((ndims > 2).or.(ndims < 1)) then
     option%io_buffer='Dimension of '//string//' dataset in ' // trim(filename) // &
      ' is > 2 or < 1.'
@@ -2045,7 +2048,7 @@ subroutine HDF5ReadUnstructuredGridRegionFromFile(option,region,filename)
   
     ! Initialize data buffer
     allocate(int_buffer_1d(length(1)))
-    
+    allocate(double_buffer_1d(length(1)))
     ! Create property list
     call h5pcreate_f(H5P_DATASET_XFER_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
@@ -2053,9 +2056,11 @@ subroutine HDF5ReadUnstructuredGridRegionFromFile(option,region,filename)
 #endif
   
     ! Read the dataset collectively
-    call h5dread_f(data_set_id,H5T_NATIVE_INTEGER,int_buffer_1d,&
+    call h5dread_f(data_set_id,H5T_NATIVE_INTEGER,double_buffer_1d,&
                    dims_h5,hdf5_err,memory_space_id,data_space_id)
-
+    int_buffer_1d = INT(double_buffer_1d)
+    deallocate(double_buffer_1d)
+    nullify(double_buffer_1d)
     ! allocate array to store vertices for each cell
     allocate(region%cell_ids(region%num_cells))
     region%cell_ids = 0
@@ -2113,7 +2118,7 @@ subroutine HDF5ReadUnstructuredGridRegionFromFile(option,region,filename)
   
      ! Initialize data buffer
      allocate(int_buffer_2d(length(1),length(2)))
-  
+     allocate(double_buffer_2d(length(1),length(2)))
      ! Create property list
      call h5pcreate_f(H5P_DATASET_XFER_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
@@ -2121,8 +2126,11 @@ subroutine HDF5ReadUnstructuredGridRegionFromFile(option,region,filename)
 #endif
   
      ! Read the dataset collectively
-     call h5dread_f(data_set_id,H5T_NATIVE_INTEGER,int_buffer_2d,&
+     call h5dread_f(data_set_id,H5T_NATIVE_INTEGER,double_buffer_2d,&
           dims_h5,hdf5_err,memory_space_id,data_space_id)
+     int_buffer_2d = INT(double_buffer_2d)
+     deallocate(double_buffer_2d)
+     nullify(double_buffer_2d)
      
      if (dims_h5(1) == 2) then
        !
@@ -2786,7 +2794,7 @@ subroutine HDF5WriteUnstructuredDataSetFromVec(name,option,vec,file_id,data_type
     call VecRestoreArrayF90(vec,vec_ptr,ierr)
   
     call PetscLogEventBegin(logging%event_h5dwrite_f,ierr)
-    call h5dwrite_f(data_set_id,data_type,int_array,dims, &
+    call h5dwrite_f(data_set_id,data_type,real(int_array),dims, &
                     hdf5_err,memory_space_id,file_space_id,prop_id)
     call PetscLogEventEnd(logging%event_h5dwrite_f,ierr)
 

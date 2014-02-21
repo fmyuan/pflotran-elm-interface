@@ -204,7 +204,7 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
   ! 
 
   use Option_module
-        
+      
   implicit none
 
 #include "finclude/petscvec.h"
@@ -212,6 +212,7 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
 #include "finclude/petscdm.h"
 #include "finclude/petscdm.h90"
 #include "finclude/petscdmda.h"
+#include "finclude/petscdmda.h90"
 
   type(option_type) :: option
   type(structured_grid_type) :: structured_grid
@@ -225,8 +226,8 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
   ! Generate the DM object that will manage communication.
   !-----------------------------------------------------------------------
   ! This code is for the DMDACreate3D() interface in PETSc versions >= 3.2 --RTM
-  call DMDACreate3D(option%mycomm,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE, &
-                  DMDA_BOUNDARY_NONE,stencil_type, &
+  call DMDACreate3D(option%mycomm,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE, &
+                  DM_BOUNDARY_NONE,stencil_type, &
                   structured_grid%nx,structured_grid%ny,structured_grid%nz, &
                   structured_grid%npx,structured_grid%npy,structured_grid%npz, &
                   ndof,stencil_width, &
@@ -2007,7 +2008,7 @@ subroutine StructGridGetGhostedNeighbors(structured_grid,ghosted_id, &
   icount = 0
   select case(stencil_type)
     case(DMDA_STENCIL_STAR)
-      do ii = max(i-stencil_width_i,1), min(i+stencil_width_i,structured_grid%ngx)
+      do ii = max(i-stencil_width_i,ONE_INTEGER), min(i+stencil_width_i,structured_grid%ngx)
         if (ii /= i) then
           icount = icount + 1
           x_count = x_count + 1
@@ -2015,7 +2016,7 @@ subroutine StructGridGetGhostedNeighbors(structured_grid,ghosted_id, &
             StructGridGetGhostedIDFromIJK(structured_grid,ii,j,k)
         endif
       enddo
-      do jj = max(j-stencil_width_j,1), min(j+stencil_width_j,structured_grid%ngy)
+      do jj = max(j-stencil_width_j,ONE_INTEGER), min(j+stencil_width_j,structured_grid%ngy)
         if (jj /= j) then
           icount = icount + 1
           y_count = y_count + 1
@@ -2023,7 +2024,7 @@ subroutine StructGridGetGhostedNeighbors(structured_grid,ghosted_id, &
             StructGridGetGhostedIDFromIJK(structured_grid,i,jj,k)
         endif
       enddo
-      do kk = max(k-stencil_width_k,1), min(k+stencil_width_k,structured_grid%ngz)
+      do kk = max(k-stencil_width_k,ONE_INTEGER), min(k+stencil_width_k,structured_grid%ngz)
         if (kk /= k) then
           icount = icount + 1
           z_count = z_count + 1
@@ -2081,11 +2082,11 @@ subroutine StructGridGetGhostedNeighborsCorners(structured_grid,ghosted_id, &
   ! gb:08/08/13 Dependence on stencil_type is not necessary.
   !select case(stencil_type)
   !  case(DMDA_STENCIL_STAR)
-      do kk = max(k-stencil_width_k,1), &
+      do kk = max(k-stencil_width_k,ONE_INTEGER), &
                 min(k+stencil_width_k,structured_grid%ngz)
-        do jj = max(j-stencil_width_j,1), &
+        do jj = max(j-stencil_width_j,ONE_INTEGER), &
                   min(j+stencil_width_j,structured_grid%ngy)
-          do ii = max(i-stencil_width_i,1), &
+          do ii = max(i-stencil_width_i,ONE_INTEGER), &
                     min(i+stencil_width_i,structured_grid%ngx)
             if (ii == i .and. jj == j .and. kk == k) then
             ! do nothing
@@ -2544,8 +2545,13 @@ subroutine StructGridComputeNeighbors(structured_grid,nG2L,is_bnd_vec,option)
   
   PetscInt :: ghosted_id, ncount, ghosted_neighbors(26)
   PetscInt :: local_id
+  PetscInt :: stencil_type
+  PetscInt :: stencil_width_i
+  PetscInt :: stencil_width_j
+  PetscInt :: stencil_width_k
   PetscScalar, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
+
   
   allocate(structured_grid%cell_neighbors(0:26,structured_grid%ngmax))
   structured_grid%cell_neighbors = 0
@@ -2553,11 +2559,23 @@ subroutine StructGridComputeNeighbors(structured_grid,nG2L,is_bnd_vec,option)
   call VecGetArrayF90(is_bnd_vec,vec_ptr,ierr)
   do ghosted_id = 1,structured_grid%ngmax
     local_id=nG2L(ghosted_id)
+
+    !PetscInt is INTEGER(8), those constant from Petsc appear INTEGER(4) (needs
+    !further confirmation ?)
+    stencil_type = DMDA_STENCIL_BOX
+    stencil_width_i = ONE_INTEGER_MPI
+    stencil_width_j = ONE_INTEGER_MPI 
+    stencil_width_k = ONE_INTEGER_MPI 
+ 
     call StructGridGetGhostedNeighborsCorners(structured_grid,ghosted_id, &
-                                         DMDA_STENCIL_BOX, &
-                                         ONE_INTEGER_MPI, &
-                                         ONE_INTEGER_MPI, &
-                                         ONE_INTEGER_MPI, &
+                                        ! DMDA_STENCIL_BOX, &
+                                        ! ONE_INTEGER_MPI, &
+                                        ! ONE_INTEGER_MPI, &
+                                        ! ONE_INTEGER_MPI, &
+                                         stencil_type, &
+                                         stencil_width_i, &
+                                         stencil_width_j, &
+                                         stencil_width_k, &
                                          ncount, &
                                          ghosted_neighbors, &
                                          option)

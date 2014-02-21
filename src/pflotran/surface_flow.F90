@@ -377,9 +377,9 @@ subroutine SurfaceFlowRHSFunction(ts,t,xx,ff,surf_realization,ierr)
       
       if(surf_global_aux_vars(ghosted_id_up)%head(1)<0.d0 .or. &
          surf_global_aux_vars(ghosted_id_dn)%head(1)<0.d0) then
-        write(*,*),'In SurfaceFlowFlux: ', surf_global_aux_vars(ghosted_id_up)%head(1), &
-          surf_global_aux_vars(ghosted_id_dn)%head(1),ghosted_id_up,ghosted_id_dn
-          option%io_buffer='stopping: -ve head values '
+          write(*,*) 'In SurfaceFlowFlux: ', surf_global_aux_vars(ghosted_id_up)%head(1), &
+            surf_global_aux_vars(ghosted_id_dn)%head(1),ghosted_id_up,ghosted_id_dn
+            option%io_buffer='stopping: -ve head values '
           call printErrMsg(option)
       endif
 
