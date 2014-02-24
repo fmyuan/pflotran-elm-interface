@@ -317,6 +317,7 @@ subroutine PMFlash2UpdateTimestep(this,dt,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
+  PetscInt :: size_tfac
   
   PetscReal :: fac
   PetscReal :: ut
@@ -347,7 +348,8 @@ subroutine PMFlash2UpdateTimestep(this,dt,dt_max,iacceleration, &
     endif
     dtt = fac * dt * (1.d0 + ut)
   else
-    ifac = max(min(num_newton_iterations,size(tfac)),1)
+    size_tfac = size(tfac)
+    ifac = max(min(num_newton_iterations,size_tfac),ONE_INTEGER)
     dt_tfac = tfac(ifac) * dt
 
     fac = 0.5d0

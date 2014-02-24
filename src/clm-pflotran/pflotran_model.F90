@@ -23,6 +23,7 @@ module pflotran_model_module
   ! CLM has the following:
   !   (i) 3D subsurface grid (CLM_SUB);
   !   (ii) 2D surface grid (CLM_SRF).
+  !   (iii) 2D bottom grid (CLM_BOT)
   ! CLM decomposes the 3D subsurface grid across processors in a 2D (i.e.
   ! cells in Z are not split across processors). Thus, the surface cells of
   ! 3D subsurface grid are on the same processors as the 2D surface grid.
@@ -31,6 +32,7 @@ module pflotran_model_module
   !   (i) 3D subsurface grid (PF_SUB);
   !   (ii) surface control volumes of 3D subsurface grid (PF_2DSUB);
   !   (iii) 2D surface grid (PF_SRF).
+  !   (iv) bottom control volumes of 3D subsurface grid (PF_2DBOT);
   ! In PFLOTRAN, control volumes in PF_2DSUB and PF_SRF may reside on different
   ! processors. PF_SUB and PF_2DSUB are derived from simulation%realization;
   ! while PF_SRF refers to simulation%surf_realization.
@@ -43,12 +45,17 @@ module pflotran_model_module
   PetscInt, parameter, public :: PF_SUB_TO_CLM_SUB           = 5 ! 3D --> 3D
   PetscInt, parameter, public :: PF_SRF_TO_CLM_SRF           = 6 ! 2D SURF grid --> 2D
 
+  PetscInt, parameter, public :: CLM_BOT_TO_PF_2DBOT         = 11 ! 2D CLM BOT --> BOTTOM of 3D grid
+
   ! mesh ids
   PetscInt, parameter, public :: CLM_SUB_MESH   = 1
   PetscInt, parameter, public :: CLM_SRF_MESH   = 2
   PetscInt, parameter, public :: PF_SUB_MESH    = 3
   PetscInt, parameter, public :: PF_2DSUB_MESH  = 4
   PetscInt, parameter, public :: PF_SRF_MESH    = 5
+
+  PetscInt, parameter, public :: CLM_FACE_MESH   = 11
+  PetscInt, parameter, public :: PF_FACE_MESH    = 12
 
   type, public :: inside_each_overlapped_cell
      PetscInt           :: id
@@ -72,6 +79,8 @@ module pflotran_model_module
     type(mapping_type),                pointer :: map_clm_srf_to_pf_srf
     type(mapping_type),                pointer :: map_pf_sub_to_clm_sub
     type(mapping_type),                pointer :: map_pf_srf_to_clm_srf
+
+    type(mapping_type),                pointer :: map_clm_bot_to_pf_2dbot
      
     Vec :: hksat_x_clm
     Vec :: hksat_y_clm
@@ -121,12 +130,15 @@ module pflotran_model_module
        pflotranModelSetupMappingFiles
 
   public ::  &
-       pflotranModelSetInitialConcentrations, &
-       pflotranModelUpdateTHfromCLM,          &    ! dynamically update TH from CLM to drive BGC only pflotran
-       pflotranModelUpdateO2fromCLM,          &
-       pflotranModelSetInitialTStatesfromCLM, &    ! initializing T from CLM
-       pflotranModelSetBGCRates,              &
-       pflotranModelGetBgcVariables
+       pflotranModelGetSoilProp,               &
+       pflotranModelSetInitialTHStatesfromCLM, &    ! initializing TH from CLM to PFLOTRAN flow mode
+       pflotranModelSetInitialConcentrations,  &
+       pflotranModelUpdateTHfromCLM,           &     ! dynamically update TH from CLM to drive PFLOTRAN BGC
+       pflotranModelUpdateO2fromCLM,           &
+       pflotranModelSetBGCRates,               &
+       pflotranModelGetBgcVariables,           &
+       pflotranModelSetSoilHbcs,               &
+       pflotranModelNFaceCells3DDomainPF
 
 
 contains
@@ -268,6 +280,7 @@ contains
     PetscBool :: clm2pf_rflux_file
     PetscBool :: pf2clm_flux_file
     PetscBool :: pf2clm_surf_file
+    PetscBool :: clm2pf_bcbot_file
     character(len=MAXSTRINGLENGTH) :: string
     character(len=MAXWORDLENGTH) :: word
 
@@ -279,6 +292,7 @@ contains
     nullify(model%map_clm_srf_to_pf_srf)
     nullify(model%map_pf_sub_to_clm_sub)
     nullify(model%map_pf_srf_to_clm_srf)
+    nullify(model%map_clm_bot_to_pf_2dbot)
 
     model%map_clm_sub_to_pf_sub          => MappingCreate()
     model%map_clm_sub_to_pf_extended_sub => MappingCreate()
@@ -286,6 +300,7 @@ contains
     model%map_clm_srf_to_pf_srf          => MappingCreate()
     model%map_pf_sub_to_clm_sub          => MappingCreate()
     model%map_pf_srf_to_clm_srf          => MappingCreate()
+    model%map_clm_bot_to_pf_2dbot        => MappingCreate()
 
     model%nlclm = -1
     model%ngclm = -1
@@ -300,6 +315,7 @@ contains
     clm2pf_rflux_file=PETSC_FALSE
     pf2clm_flux_file=PETSC_FALSE
     pf2clm_surf_file=PETSC_FALSE
+    clm2pf_bcbot_file=PETSC_FALSE
     
     string = "MAPPING_FILES"
     call InputFindStringInFile(input,model%option,string)
@@ -351,6 +367,12 @@ contains
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')   
           pf2clm_flux_file=PETSC_TRUE
+        case('CLM2PF_BCBOT_FILE')
+          call InputReadNChars(input, model%option, model%map_clm_bot_to_pf_2dbot%filename, &
+               MAXSTRINGLENGTH, PETSC_TRUE)
+          call InputErrorMsg(input, &
+                             model%option, 'type', 'MAPPING_FILES')
+          clm2pf_bcbot_file=PETSC_TRUE
         case default
           model%option%io_buffer='Keyword ' // trim(word) // &
             ' in input file not recognized'
@@ -813,6 +835,11 @@ end subroutine pflotranModelSetICs
                                             map_id)
       case (CLM_SRF_TO_PF_SRF, PF_SRF_TO_CLM_SRF)
         call pflotranModelInitMapSrfToSrf(pflotran_model,  &
+                                            grid_clm_cell_ids_nindex, &
+                                            grid_clm_npts_local, &
+                                            map_id)
+      case (CLM_BOT_TO_PF_2DBOT)
+        call pflotranModelInitMapFaceToFace(pflotran_model,  &
                                             grid_clm_cell_ids_nindex, &
                                             grid_clm_npts_local, &
                                             map_id)
@@ -1830,7 +1857,7 @@ end subroutine pflotranModelSetICs
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelStepperRunTillPauseTime(model, pause_time)
+  subroutine pflotranModelStepperRunTillPauseTime(model, pause_time, dtime)
   ! 
   ! It performs the model integration
   ! till the specified pause_time.
@@ -1852,6 +1879,7 @@ end subroutine pflotranModelSetICs
 
     type(pflotran_model_type), pointer :: model
     PetscReal, intent(in) :: pause_time
+    PetscReal, intent(in) :: dtime
 
     PetscReal :: pause_time1
 
@@ -1859,7 +1887,7 @@ end subroutine pflotranModelSetICs
        write(model%option%fid_out, *), '>>>> Inserting waypoint at pause_time = ', pause_time
     endif
 
-    pause_time1 = pause_time + 1800.0d0
+    pause_time1 = pause_time + dtime!1800.0d0
     call pflotranModelInsertWaypoint(model, pause_time1)
 
     call model%simulation%RunToTime(pause_time)
@@ -1930,7 +1958,7 @@ end subroutine pflotranModelSetICs
     waypoint => WaypointCreate()
     waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
     waypoint%update_conditions = PETSC_TRUE
-    waypoint%dt_max            = 3153600.d0
+    waypoint%dt_max            = waypoint_time * UnitsConvertToInternal(word, model%option)!3153600.d0
     waypoint2 => WaypointCreate(waypoint)
 
     if (associated(realization)) then
@@ -2323,7 +2351,7 @@ end subroutine pflotranModelSetICs
          call printErrMsg(pflotran_model%option)
     end select
 
-    ! Update the 'clm_et_ss' source/sink term
+    ! Update the 'clm_gflux_bc' ground heat flux BC term
     call VecGetArrayF90(clm_pf_idata%gflux_subsurf_pf,gflux_subsurf_pf_loc,ierr)
     found = PETSC_FALSE
     boundary_condition => subsurf_realization%patch%boundary_conditions%first
@@ -2354,7 +2382,7 @@ end subroutine pflotranModelSetICs
 
     if(.not.found) &
       call printErrMsg(pflotran_model%option,'clm_gflux_bc not found in ' // &
-                       'source-sink list of subsurface model.')
+                       'boundary-condition list of subsurface model.')
 
   end subroutine pflotranModelUpdateSubsurfTCond
 
@@ -3524,7 +3552,7 @@ end subroutine pflotranModelSetICs
          realization => simulation%realization
       class default
          nullify(realization)
-         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface/surfsubsurface simulations."
          call printErrMsg(pflotran_model%option)
     end select
     patch           => realization%patch
@@ -3617,7 +3645,7 @@ end subroutine pflotranModelSetICs
   ! author: Fengming YUAN
   ! date: 9/23/2013
   ! ************************************************************************** !
-subroutine pflotranModelSetInitialTStatesfromCLM(pflotran_model)
+subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
 
     use Realization_class
     use Patch_module
@@ -3626,6 +3654,8 @@ subroutine pflotranModelSetInitialTStatesfromCLM(pflotran_model)
     use Discretization_module
     use TH_Aux_module
     use TH_module
+    use Richards_module
+    use Richards_Aux_module
     use Option_module
 
     use clm_pflotran_interface_data
@@ -3652,6 +3682,7 @@ subroutine pflotranModelSetInitialTStatesfromCLM(pflotran_model)
     PetscReal, pointer :: xx_loc_p(:)
 
     PetscScalar, pointer :: soilt_pf_loc(:)    ! temperature [oC]
+    PetscScalar, pointer :: soilpress_pf_loc(:)  ! water pressure (Pa)
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -3661,29 +3692,37 @@ subroutine pflotranModelSetInitialTStatesfromCLM(pflotran_model)
       class default
          nullify(realization)
          pflotran_model%option%io_buffer = 'ERROR: pflotranModelSetInitialTStatesfromCLM ' // &
-               'only works on subsurface simulations.'
+               'only works on subsurface/surfsubsurface simulations.'
          call printErrMsg(pflotran_model%option)
     end select
     patch           => realization%patch
     grid            => patch%grid
     field           => realization%field
 
-     if (pflotran_model%option%iflowmode .ne. TH_MODE)  then
-
-        pflotran_model%option%io_buffer='pflotranModelSetInitialTStatesfromCLM ' // &
-          'not implmented for this mode.'
-        call printErrMsg(pflotran_model%option)
-
-     else
-
+    select case(pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%press_clm, &
+                                    clm_pf_idata%press_pf)
+      case (TH_MODE)
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%soilt_clmp, &
                                     clm_pf_idata%soilt_pfs)
 
-    end if
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%press_clm, &
+                                    clm_pf_idata%press_pf)
+      case default
+        pflotran_model%option%io_buffer='pflotranModelSetInitialTHStatesfromCLM ' // &
+          'not implmented for this mode.'
+        call printErrMsg(pflotran_model%option)
+    end select
 
     call VecGetArrayF90(field%flow_xx, xx_loc_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%press_pf, soilpress_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
 
     do local_id = 1, grid%ngmax
@@ -3695,16 +3734,306 @@ subroutine pflotranModelSetInitialTStatesfromCLM(pflotran_model)
        iend = ghosted_id*pflotran_model%option%nflowdof
        istart = iend-pflotran_model%option%nflowdof+1
 
-       xx_loc_p(istart+1)=soilt_pf_loc(local_id)
-
+       xx_loc_p(istart)  = soilpress_pf_loc(local_id)
+       if (pflotran_model%option%iflowmode .eq. TH_MODE)  then
+            xx_loc_p(istart+1)= soilt_pf_loc(local_id)
+       end if
     enddo
 
     call VecRestoreArrayF90(field%flow_xx, xx_loc_p, ierr)
     call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%press_pf, soilpress_pf_loc, ierr)
 
-    call THUpdateAuxVars(realization)
+    call DiscretizationGlobalToLocal(realization%discretization, field%flow_xx, &
+         field%flow_xx_loc, NFLOWDOF)
+    call VecCopy(field%flow_xx, field%flow_yy, ierr)
 
-end subroutine pflotranModelSetInitialTStatesfromCLM
+    select case(pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        call RichardsUpdateAuxVars(realization)
+      case (TH_MODE)
+        call THUpdateAuxVars(realization)
+      case default
+        pflotran_model%option%io_buffer='pflotranModelSetInitialTHStatesfromCLM ' // &
+          'not implmented for this mode.'
+        call printErrMsg(pflotran_model%option)
+    end select
+
+end subroutine pflotranModelSetInitialTHStatesfromCLM
+
+  ! ************************************************************************** !
+  ! pflotranModelSetSoilHbcs()
+  ! refresh Hydrological BC variables from CLM to PF
+  !
+  ! by 1-18-2013: only water pressure-head type (dirichlet) available
+  ! ************************************************************************** !
+subroutine pflotranModelSetSoilHbcs(pflotran_model)
+
+    use Realization_class
+    use Option_module
+    use Patch_module
+    use Grid_module
+    use Field_module
+    use Coupler_module
+    use Connection_module
+
+    use TH_Aux_module
+    use TH_module
+    use Richards_module
+    use Richards_Aux_module
+
+    use String_module
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(field_type), pointer                 :: field
+    type(simulation_base_type), pointer :: simulation
+
+    type(coupler_type), pointer :: boundary_condition
+    type(connection_set_type), pointer :: cur_connection_set
+    PetscInt :: ghosted_id, local_id, sum_connection, press_dof, iconn
+
+    PetscErrorCode     :: ierr
+
+    PetscScalar, pointer :: press_subsurf_pf_loc(:)     ! subsurface top boundary pressure-head (Pa) (dirichlet BC)
+    PetscScalar, pointer :: qflux_subsurf_pf_loc(:)     ! subsurface top boundary infiltration rate (m/s) (neumann BC)
+    !PetscScalar, pointer :: press_subbase_pf_loc(:)    ! bottom boundary pressure-head (Pa)
+
+    !------------------------------------------------------------------------------------
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: pflotranModelSetSoilTHbcs only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    patch           => realization%patch
+    grid            => patch%grid
+    field           => realization%field
+
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%press_subsurf_clmp, &
+                                    clm_pf_idata%press_subsurf_pfs)
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%qflux_subsurf_clmp, &
+                                    clm_pf_idata%qflux_subsurf_pfs)
+
+    !call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+    !                                pflotran_model%option, &
+    !                                clm_pf_idata%press_subbase_clmp, &
+    !                                clm_pf_idata%press_subbase_pfs)
+
+    ! interface vecs of PF
+    call VecGetArrayF90(clm_pf_idata%press_subsurf_pfs,  press_subsurf_pf_loc,  ierr)
+    call VecGetArrayF90(clm_pf_idata%qflux_subsurf_pfs,  qflux_subsurf_pf_loc,  ierr)
+    !call VecGetArrayF90(clm_pf_idata%press_subbase_pfs,  press_subbase_pf_loc,  ierr)
+
+    ! passing from interface to internal
+    select case(pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        press_dof = RICHARDS_PRESSURE_DOF
+      case (TH_MODE)
+        press_dof = TH_PRESSURE_DOF
+      case default
+        pflotran_model%option%io_buffer='pflotranModelSetTHbcs ' // &
+          'not implmented for this mode.'
+        call printErrMsg(pflotran_model%option)
+    end select
+
+    boundary_condition => patch%boundary_conditions%first
+    do
+       if (.not.associated(boundary_condition)) exit
+
+       cur_connection_set => boundary_condition%connection_set
+       if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then
+
+           do iconn = 1, cur_connection_set%num_connections
+              local_id = cur_connection_set%id_dn(iconn)
+              ghosted_id = grid%nL2G(local_id)
+              if (patch%imat(ghosted_id) <= 0) cycle
+
+              if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
+                   boundary_condition%flow_aux_real_var(press_dof,iconn)= &
+                       press_subsurf_pf_loc(iconn)
+              else if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
+                   boundary_condition%flow_aux_real_var(press_dof,iconn)= &
+                       qflux_subsurf_pf_loc(iconn)
+              end if
+
+           enddo
+
+       endif
+
+       boundary_condition => boundary_condition%next
+
+    enddo
+
+    call VecRestoreArrayF90(clm_pf_idata%press_subsurf_pfs, press_subsurf_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%qflux_subsurf_pfs, qflux_subsurf_pf_loc, ierr)
+    !call VecRestoreArrayF90(clm_pf_idata%press_subbase_pfs, press_subbase_pf_loc, ierr)
+
+    select case(pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        call RichardsUpdateAuxVars(realization)
+      case (TH_MODE)
+        call THUpdateAuxVars(realization)
+      case default
+        pflotran_model%option%io_buffer='pflotranModelSetTHbcs ' // &
+          'not implmented for this mode.'
+        call printErrMsg(pflotran_model%option)
+    end select
+
+end subroutine pflotranModelSetSoilHbcs
+
+
+! ************************************************************************** !
+
+subroutine pflotranModelGetSoilProp(pflotran_model)
+  !
+  ! Pass physical properties from PFLOTRAN to CLM
+  !
+  ! Author: Fengming Yuan
+  ! Date: 1/30/2014
+  !
+
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Richards_Aux_module
+    use TH_Aux_module
+    use Field_module
+    use Option_module
+    use Saturation_Function_module
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(field_type), pointer                 :: field
+    type(simulation_base_type), pointer :: simulation
+    type(saturation_function_type), pointer :: saturation_function
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id
+
+    ! pf interval variables
+    PetscReal, pointer :: porosity_loc_p(:)
+
+    ! clm-pf-interface Vecs for MVM parameters
+    PetscScalar, pointer :: porosity_loc_pfp(:)  ! soil porosity
+    PetscScalar, pointer :: sr_loc_pfp(:)        ! residual soil vwc
+    PetscScalar, pointer :: alpha_loc_pfp(:)     ! alfa
+    PetscScalar, pointer :: lamda_loc_pfp(:)     ! lamda
+    PetscScalar, pointer :: pcwmax_loc_pfp(:)    ! max. capillary pressure
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: pflotranModelGetSoilProp doesn't support."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    patch           => realization%patch
+    grid            => patch%grid
+    field           => realization%field
+
+    call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+
+    call VecGetArrayF90(clm_pf_idata%porosity_pfp, porosity_loc_pfp, ierr)
+    call VecGetArrayF90(clm_pf_idata%sr_pfp, sr_loc_pfp, ierr)
+    call VecGetArrayF90(clm_pf_idata%alpha_pfp, alpha_loc_pfp, ierr)
+    call VecGetArrayF90(clm_pf_idata%lamda_pfp, lamda_loc_pfp, ierr)
+    call VecGetArrayF90(clm_pf_idata%pcwmax_pfp, pcwmax_loc_pfp, ierr)
+
+    do local_id=1,grid%nlmax
+        ghosted_id = grid%nL2G(local_id)
+        if (associated(patch%imat)) then
+           if (patch%imat(ghosted_id) <= 0) cycle
+        endif
+
+        porosity_loc_pfp(local_id) = porosity_loc_p(ghosted_id)
+
+        saturation_function => patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
+
+        sr_loc_pfp(local_id) = saturation_function%Sr(pflotran_model%option%nphase)
+        alpha_loc_pfp(local_id) = saturation_function%alpha
+        lamda_loc_pfp(local_id) = saturation_function%lambda
+        pcwmax_loc_pfp(local_id) = saturation_function%pcwmax
+
+    enddo
+
+    call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+    call VecRestoreArrayF90(clm_pf_idata%porosity_pfp, porosity_loc_pfp, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%sr_pfp, sr_loc_pfp, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%alpha_pfp, alpha_loc_pfp, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%lamda_pfp, lamda_loc_pfp, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%pcwmax_pfp, pcwmax_loc_pfp, ierr)
+
+    !
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%porosity_pfp, &
+                                    clm_pf_idata%porosity_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%sr_pfp, &
+                                    clm_pf_idata%sr_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%alpha_pfp, &
+                                    clm_pf_idata%alpha_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%lamda_pfp, &
+                                    clm_pf_idata%lamda_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%pcwmax_pfp, &
+                                    clm_pf_idata%pcwmax_clms)
+
+  end subroutine pflotranModelGetSoilProp
+
 
   ! ************************************************************************** !
   ! pflotranModelSetBGCRates:
@@ -4403,6 +4732,535 @@ end subroutine pflotranModelSetInitialTStatesfromCLM
                                     clm_pf_idata%accextrn_vr_clms)
 
   end subroutine pflotranModelGetBgcVariables
+
+  ! ************************************************************************** !
+
+  subroutine pflotranModelInitMapFaceToFace(pflotran_model,  &
+                                            grid_clm_cell_ids_nindex, &
+                                            grid_clm_npts_local, &
+                                            map_id)
+  !
+  ! This routine maps CLM grids/columns structure onto BC faces (TOP, BOTTOM, EAST, WEST, NORTH, SOUTH) of PFLOTRAN 3D Domain
+  ! grid.
+  !
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 04/09/13
+  !
+  ! 02/14/2014 - TOP/BOTTOM faces, from CLM => PF, finished
+
+    use Input_Aux_module
+    use Option_module
+    use Realization_class
+    use Grid_module
+    use Patch_module
+    use Coupler_module
+    use Connection_module
+    use String_module
+    use clm_pflotran_interface_data
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+#include "finclude/petscviewer.h"
+
+    type(pflotran_model_type), intent(inout), pointer :: pflotran_model
+    PetscInt, intent(in), pointer                     :: grid_clm_cell_ids_nindex(:)
+    PetscInt, intent(in)                              :: grid_clm_npts_local
+    PetscInt, intent(in)                              :: map_id
+    character(len=MAXSTRINGLENGTH)                    :: filename
+
+    ! local
+    PetscInt                           :: local_id, grid_pf_npts_local, grid_pf_npts_ghost
+    PetscInt                           :: grid_clm_npts_ghost, source_mesh_id
+    PetscInt                           :: dest_mesh_id
+    PetscInt, pointer                  :: grid_pf_cell_ids_nindex(:)
+    PetscInt, pointer                  :: grid_pf_local_nindex(:)
+    PetscInt, pointer                  :: grid_clm_local_nindex(:)
+    PetscInt, pointer                  :: grid_clm_cell_ids_nindex_copy(:)
+    PetscInt                           :: count
+    PetscInt                           :: sum_connection
+    PetscInt                           :: ghosted_id
+    PetscInt                           :: iconn
+    PetscInt                           :: istart
+    PetscInt, pointer                  :: int_array(:)
+    PetscBool                          :: found
+    PetscScalar,pointer                :: v_loc(:)
+    PetscErrorCode                     :: ierr
+
+    Vec                                :: face_ids
+    Vec                                :: face_ids_loc
+    IS                                 :: is_from
+    IS                                 :: is_to
+    VecScatter                         :: vec_scat
+
+    type(mapping_type), pointer        :: map
+    type(option_type), pointer         :: option
+    class(realization_type), pointer   :: realization
+    type(grid_type), pointer           :: grid
+    type(patch_type), pointer          :: patch
+    type(coupler_type), pointer        :: boundary_condition
+    type(coupler_type), pointer        :: source_sink
+    type(connection_set_type), pointer :: cur_connection_set
+    character(len=MAXSTRINGLENGTH)     :: condition_name
+
+    option          => pflotran_model%option
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    allocate(grid_clm_cell_ids_nindex_copy(grid_clm_npts_local))
+    grid_clm_cell_ids_nindex_copy = grid_clm_cell_ids_nindex
+
+    ! Choose the appriopriate map
+    select case(map_id)
+      case(CLM_SRF_TO_PF_2DSUB)
+        map => pflotran_model%map_clm_srf_to_pf_2dsub
+        source_mesh_id = CLM_FACE_MESH
+        dest_mesh_id = PF_FACE_MESH
+        condition_name = 'clm_gflux_bc'
+      case(CLM_BOT_TO_PF_2DBOT)
+        map => pflotran_model%map_clm_bot_to_pf_2dbot
+        source_mesh_id = CLM_FACE_MESH
+        dest_mesh_id = PF_FACE_MESH
+        condition_name = 'clm_bflux_bc'
+      case default
+        option%io_buffer = 'Invalid map_id argument to ' // &
+          'pflotranModelInitMappingFaceToFace'
+        call printErrMsg(option)
+    end select
+
+    ! Read mapping file
+    if (index(map%filename, '.h5') > 0) then
+      call MappingReadHDF5(map, map%filename, option)
+    else
+      call MappingReadTxtFile(map, map%filename, option)
+    endif
+
+    grid_clm_npts_ghost=0
+
+    ! Allocate memory to identify if CLM cells are local or ghosted.
+    ! Note: Presently all CLM cells are local
+    allocate(grid_clm_local_nindex(grid_clm_npts_local))
+    do local_id = 1, grid_clm_npts_local
+      grid_clm_local_nindex(local_id) = 1 ! LOCAL
+    enddo
+
+    found=PETSC_FALSE
+    grid_pf_npts_local = 0
+    grid_pf_npts_ghost = 0
+
+    select case (dest_mesh_id)
+
+      ! Mapping to face of PFLOTRAN domain
+      case(PF_FACE_MESH)
+
+        patch => realization%patch
+        grid => patch%grid
+
+        ! Destination mesh is PF_FACE_MESH
+        boundary_condition => patch%boundary_conditions%first
+        sum_connection = 0
+        do
+          if (.not.associated(boundary_condition)) exit
+          cur_connection_set => boundary_condition%connection_set
+
+          if(StringCompare(trim(boundary_condition%name),trim(condition_name))) then
+
+            found=PETSC_TRUE
+
+            ! Allocate memory to save cell ids and flag for local cells
+            allocate(grid_pf_cell_ids_nindex(cur_connection_set%num_connections))
+            allocate(grid_pf_local_nindex(cur_connection_set%num_connections))
+            grid_pf_npts_local = cur_connection_set%num_connections
+
+            ! Save cell ids in application order 0-based
+            do iconn=1,cur_connection_set%num_connections
+              sum_connection = sum_connection + 1
+              local_id = cur_connection_set%id_dn(iconn)
+              ghosted_id = grid%nL2G(local_id)
+              if (patch%imat(ghosted_id) <= 0) cycle
+              grid_pf_cell_ids_nindex(iconn) = grid%nG2A(ghosted_id) - 1
+              grid_pf_local_nindex(iconn) = 1
+            enddo
+          else
+            sum_connection = sum_connection + cur_connection_set%num_connections
+          endif
+          boundary_condition => boundary_condition%next
+        enddo
+
+        ! Setting the number of cells constituting the face of the 3D
+        ! subsurface domain for each model.
+        select case(map_id)
+            case(CLM_SRF_TO_PF_2DSUB)
+                clm_pf_idata%nlclm_2dsub = grid_clm_npts_local
+                clm_pf_idata%ngclm_2dsub = grid_clm_npts_local
+                clm_pf_idata%nlpf_2dsub  = grid_pf_npts_local
+                clm_pf_idata%ngpf_2dsub  = grid_pf_npts_local
+            case(CLM_BOT_TO_PF_2DBOT)
+                clm_pf_idata%nlclm_bottom = grid_clm_npts_local
+                clm_pf_idata%ngclm_bottom = grid_clm_npts_local
+                clm_pf_idata%nlpf_bottom  = grid_pf_npts_local
+                clm_pf_idata%ngpf_bottom  = grid_pf_npts_local
+            case default
+                option%io_buffer = 'Invalid map_id argument to ' // &
+                        'pflotranModelInitMappingFaceToFace'
+                call printErrMsg(option)
+        end select
+
+      case default
+        option%io_buffer='Unknown source mesh'
+        call printErrMsg(option)
+
+    end select
+
+    if(.not.found) then
+      pflotran_model%option%io_buffer = 'condition name not found in boundary conditions'
+      call printErrMsg(pflotran_model%option)
+    endif
+
+    !
+    ! Step-1: Find face cells-ids of PFLOTRAN subsurface domain
+    !
+    allocate(v_loc(grid_pf_npts_local))
+    v_loc = 1.d0
+    call VecCreateSeq(PETSC_COMM_SELF, grid_pf_npts_local, face_ids_loc, ierr)
+    call VecCreateMPI(option%mycomm, grid%nlmax, PETSC_DECIDE, face_ids, ierr)
+    call VecSet(face_ids, -1.d0, ierr)
+
+    ! Set 1.0 to all cells that make up a face of PFLOTRAN subsurface domain
+    call VecSetValues(face_ids, grid_pf_npts_local, grid_pf_cell_ids_nindex, &
+                      v_loc, INSERT_VALUES, ierr)
+    deallocate(v_loc)
+    call VecAssemblyBegin(face_ids, ierr)
+    call VecAssemblyEnd(face_ids, ierr)
+
+    call VecGetArrayF90(face_ids, v_loc, ierr)
+    count = 0
+    do local_id=1,grid%nlmax
+      if(v_loc(local_id) == 1.d0) count = count + 1
+    enddo
+
+    istart = 0
+    call MPI_Exscan(count, istart, ONE_INTEGER_MPI, MPIU_INTEGER, MPI_SUM, &
+                    option%mycomm, ierr)
+
+    count = 0
+    do local_id=1,grid%nlmax
+      if(v_loc(local_id) == 1.d0) then
+        v_loc(local_id) = istart + count
+        count = count + 1
+      endif
+    enddo
+    call VecRestoreArrayF90(face_ids, v_loc, ierr)
+
+    !
+    allocate(int_array(grid_pf_npts_local))
+    do iconn = 1, grid_pf_npts_local
+      int_array(iconn) = iconn - 1
+    enddo
+    call ISCreateGeneral(option%mycomm, grid_pf_npts_local, int_array, &
+                         PETSC_COPY_VALUES, is_to, ierr)
+    deallocate(int_array)
+
+    call ISCreateGeneral(option%mycomm, grid_pf_npts_local, grid_pf_cell_ids_nindex, &
+                         PETSC_COPY_VALUES, is_from, ierr)
+
+
+    ! create scatter context
+    call VecScatterCreate(face_ids, is_from, face_ids_loc, is_to, vec_scat, &
+                          ierr)
+    call ISDestroy(is_from, ierr)
+    call ISDestroy(is_to, ierr)
+
+    call VecScatterBegin(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
+                        SCATTER_FORWARD, ierr)
+    call VecScatterEnd(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
+                        SCATTER_FORWARD, ierr)
+    call VecScatterDestroy(vec_scat, ierr)
+
+    call VecGetArrayF90(face_ids_loc, v_loc, ierr)
+    count = 0
+    do iconn = 1, grid_pf_npts_local
+      if (v_loc(iconn)>-1) then
+        count = count + 1
+        grid_pf_cell_ids_nindex(count) = INT(v_loc(iconn))
+      endif
+    enddo
+    call VecRestoreArrayF90(face_ids_loc, v_loc, ierr)
+    call VecDestroy(face_ids_loc, ierr)
+
+    !
+    ! Step-2: Recompute 'map%s2d_iscr'
+    !
+    call VecCreateSeq(PETSC_COMM_SELF, map%s2d_nwts, face_ids_loc, ierr)
+    allocate(int_array(map%s2d_nwts))
+    do iconn = 1, map%s2d_nwts
+      int_array(iconn) = iconn - 1
+    enddo
+    call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
+                         PETSC_COPY_VALUES, is_to, ierr)
+
+
+    do iconn = 1, map%s2d_nwts
+      int_array(iconn) = map%s2d_icsr(iconn)
+    enddo
+    call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
+                         PETSC_COPY_VALUES, is_from, ierr)
+    deallocate(int_array)
+
+    ! create scatter context
+    call VecScatterCreate(face_ids, is_from, face_ids_loc, is_to, vec_scat, &
+                          ierr)
+    call ISDestroy(is_from, ierr)
+    call ISDestroy(is_to, ierr)
+
+    call VecScatterBegin(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
+                        SCATTER_FORWARD, ierr)
+    call VecScatterEnd(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
+                        SCATTER_FORWARD, ierr)
+    call VecScatterDestroy(vec_scat, ierr)
+
+    call VecGetArrayF90(face_ids_loc, v_loc, ierr)
+    count = 0
+    do iconn = 1, map%s2d_nwts
+      if (v_loc(iconn)>-1) then
+        count = count + 1
+        map%s2d_icsr(count) = INT(v_loc(iconn))
+      endif
+    enddo
+    call VecRestoreArrayF90(face_ids_loc, v_loc, ierr)
+    call VecDestroy(face_ids_loc, ierr)
+
+    if(count /= map%s2d_nwts) then
+      option%io_buffer='No. of face cells in mapping dataset does not ' // &
+        'match face cells on which BC is applied.'
+      call printErrMsg(option)
+    endif
+    call VecDestroy(face_ids, ierr)
+
+    !
+    ! Step-3: Find face cells-ids of CLM soil/below-ground domain
+    !
+    allocate(v_loc(grid_clm_npts_local))
+    v_loc = 1.d0
+    call VecCreateSeq(PETSC_COMM_SELF, grid_clm_npts_local, face_ids_loc, ierr)
+    call VecCreateMPI(option%mycomm, clm_pf_idata%nlclm_sub, PETSC_DECIDE, face_ids, ierr)
+    call VecSet(face_ids, -1.d0, ierr)
+
+    ! Set 1.0 to all cells that make up surface of CLM subsurface domain
+    call VecSetValues(face_ids, grid_clm_npts_local, grid_clm_cell_ids_nindex_copy, &
+                      v_loc, INSERT_VALUES, ierr)
+
+    deallocate(v_loc)
+    call VecAssemblyBegin(face_ids, ierr)
+    call VecAssemblyEnd(face_ids, ierr)
+
+    call VecGetArrayF90(face_ids, v_loc, ierr)
+    count = 0
+    do local_id=1,clm_pf_idata%nlclm_sub
+      if(v_loc(local_id) == 1.d0) count = count + 1
+    enddo
+
+    istart = 0
+    call MPI_Exscan(count, istart, ONE_INTEGER_MPI, MPIU_INTEGER, MPI_SUM, &
+                    option%mycomm, ierr)
+
+    count = 0
+    do local_id=1,clm_pf_idata%nlclm_sub
+      if(v_loc(local_id) == 1.d0) then
+        v_loc(local_id) = istart + count
+        count = count + 1
+      endif
+    enddo
+    call VecRestoreArrayF90(face_ids, v_loc, ierr)
+
+    !
+    allocate(int_array(grid_clm_npts_local))
+    do iconn = 1, grid_clm_npts_local
+      int_array(iconn) = iconn - 1
+    enddo
+    call ISCreateGeneral(option%mycomm, grid_clm_npts_local, int_array, &
+                         PETSC_COPY_VALUES, is_to, ierr)
+    deallocate(int_array)
+
+    call ISCreateGeneral(option%mycomm, grid_clm_npts_local, grid_clm_cell_ids_nindex_copy, &
+                         PETSC_COPY_VALUES, is_from, ierr)
+
+
+    ! create scatter context
+    call VecScatterCreate(face_ids, is_from, face_ids_loc, is_to, vec_scat, &
+                          ierr)
+    call ISDestroy(is_from, ierr)
+    call ISDestroy(is_to, ierr)
+
+    call VecScatterBegin(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
+                        SCATTER_FORWARD, ierr)
+    call VecScatterEnd(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
+                        SCATTER_FORWARD, ierr)
+    call VecScatterDestroy(vec_scat, ierr)
+
+    call VecGetArrayF90(face_ids_loc, v_loc, ierr)
+    count = 0
+    do iconn = 1, grid_clm_npts_local
+      if (v_loc(iconn)>-1) then
+        count = count + 1
+        grid_clm_cell_ids_nindex_copy(count) = INT(v_loc(iconn))
+      endif
+    enddo
+    call VecRestoreArrayF90(face_ids_loc, v_loc, ierr)
+    call VecDestroy(face_ids_loc, ierr)
+
+    !
+    ! Step-4: Recompute 'map%s2d_jscr'
+    !
+    call VecCreateSeq(PETSC_COMM_SELF, map%s2d_nwts, face_ids_loc, ierr)
+    allocate(int_array(map%s2d_nwts))
+    do iconn = 1, map%s2d_nwts
+      int_array(iconn) = iconn - 1
+    enddo
+    call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
+                         PETSC_COPY_VALUES, is_to, ierr)
+
+
+    do iconn = 1, map%s2d_nwts
+      int_array(iconn) = map%s2d_jcsr(iconn)
+    enddo
+    call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
+                         PETSC_COPY_VALUES, is_from, ierr)
+    deallocate(int_array)
+
+    ! create scatter context
+    call VecScatterCreate(face_ids, is_from, face_ids_loc, is_to, vec_scat, &
+                          ierr)
+    call ISDestroy(is_from, ierr)
+    call ISDestroy(is_to, ierr)
+
+    call VecScatterBegin(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
+                        SCATTER_FORWARD, ierr)
+    call VecScatterEnd(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
+                        SCATTER_FORWARD, ierr)
+    call VecScatterDestroy(vec_scat, ierr)
+
+    call VecGetArrayF90(face_ids_loc, v_loc, ierr)
+    count = 0
+    do iconn = 1, map%s2d_nwts
+      if (v_loc(iconn)>-1) then
+        count = count + 1
+        map%s2d_jcsr(count) = INT(v_loc(iconn))
+      endif
+    enddo
+    call VecRestoreArrayF90(face_ids_loc, v_loc, ierr)
+    call VecDestroy(face_ids_loc, ierr)
+
+    if(count /= map%s2d_nwts) then
+      option%io_buffer='No. of face cells in mapping dataset does not ' // &
+        'match face cells on which BC is applied.'
+      call printErrMsg(option)
+    endif
+    call VecDestroy(face_ids, ierr)
+
+    select case(source_mesh_id)
+      case(CLM_FACE_MESH)
+        call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
+                                         grid_clm_cell_ids_nindex_copy)
+        call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
+                                              grid_pf_npts_ghost, &
+                                              grid_pf_cell_ids_nindex, &
+                                              grid_pf_local_nindex)
+      case default
+        option%io_buffer = 'Invalid argument source_mesh_id passed to ' // &
+          'pflotranModelInitMappingFaceToFace'
+        call printErrMsg(option)
+    end select
+
+    deallocate(grid_pf_cell_ids_nindex)
+    deallocate(grid_pf_local_nindex)
+
+    call MappingDecompose(map, option)
+    call MappingFindDistinctSourceMeshCellIds(map, option)
+    call MappingCreateWeightMatrix(map, option)
+    call MappingCreateScatterOfSourceMesh(map, option)
+
+  end subroutine pflotranModelInitMapFaceToFace
+
+  ! ************************************************************************** !
+  !
+  function pflotranModelNFaceCells3DDomainPF(pflotran_model, condition_name)
+  !
+  ! This function returns the number of control volumes forming a 'face' of
+  ! the 3D sub-surface domain of PFLOTRAN.
+
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 6/03/2013
+  !
+
+    use Option_module
+    use Coupler_module
+    use String_module
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Realization_class
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: pflotran_model
+
+
+    class(realization_type), pointer :: realization
+    type(coupler_list_type), pointer :: coupler_list
+    type(coupler_type), pointer :: coupler
+    type(simulation_base_type), pointer :: simulation
+    character(len=MAXWORDLENGTH) :: condition_name
+    PetscInt :: pflotranModelNFaceCells3DDomainPF
+    PetscBool :: found
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    coupler_list => realization%patch%boundary_conditions
+    coupler => coupler_list%first
+    found = PETSC_FALSE
+
+    do
+      if (.not.associated(coupler)) exit
+      if (StringCompare(trim(coupler%name),trim(condition_name))) then
+        pflotranModelNFaceCells3DDomainPF=coupler%connection_set%num_connections
+        found = PETSC_TRUE
+      endif
+      coupler => coupler%next
+    enddo
+
+    if(.not.found)  then
+        pflotran_model%option%io_buffer=trim(condition_name) // &
+            ' - Missing from the input deck as a valid BC name '
+        call printMsg(pflotran_model%option)
+        pflotranModelNFaceCells3DDomainPF = ZERO_INTEGER
+    endif
+
+  end function pflotranModelNFaceCells3DDomainPF
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++!
   

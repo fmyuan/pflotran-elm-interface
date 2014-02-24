@@ -1257,7 +1257,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   ! geh: this assumes that the number of ghost cells will not exceed the number
   !      of local and 100 is used to ensure that if this is not true, the array
   !       is still large enough
-  max_ghost_cell_count = max(num_cells_local_new,100)
+  max_ghost_cell_count = max(num_cells_local_new,100*ONE_INTEGER)
   allocate(int_array_pointer(max_ghost_cell_count))
   int_array_pointer = 0
   ! loop over all duals and find the off-processor cells on the other

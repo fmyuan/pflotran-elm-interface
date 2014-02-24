@@ -1224,14 +1224,14 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   call RichardsResidualPatch2(snes,xx,r,realization,ierr)
 
   if (realization%debug%vecview_residual) then
-     if(option%myrank == option%io_rank) write(*,*), 'Rresidual.out'
+     if(option%myrank == option%io_rank) write(*,*) 'Rresidual.out'
     call PetscViewerASCIIOpen(realization%option%mycomm,'Rresidual.out', &
                               viewer,ierr)
     call VecView(r,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
   endif
   if (realization%debug%vecview_solution) then
-     if(option%myrank == option%io_rank) write(*,*), 'Rxx.out'
+     if(option%myrank == option%io_rank) write(*,*) 'Rxx.out'
     call PetscViewerASCIIOpen(realization%option%mycomm,'Rxx.out', &
                               viewer,ierr)
     call VecView(xx,viewer,ierr)
@@ -1785,7 +1785,7 @@ subroutine RichardsJacobian(snes,xx,A,B,flag,realization,ierr)
 
   if (realization%debug%matview_Jacobian) then
 #if 1  
-     if(option%myrank == option%io_rank) write(*,*), 'Rjacobian.out'
+     if(option%myrank == option%io_rank) write(*,*) 'Rjacobian.out'
     call PetscViewerASCIIOpen(realization%option%mycomm,'Rjacobian.out', &
                               viewer,ierr)
 #else

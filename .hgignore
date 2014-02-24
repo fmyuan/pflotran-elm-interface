@@ -318,3 +318,5 @@ src/clm-pflotran/reaction_sandbox_denintake.F90
 src/clm-pflotran/reaction_sandbox_plantntake.F90
 reaction_sandbox_denitrification.F90
 reaction_sandbox_nitrification.F90
+reaction_sandbox_clm45.F90
+reaction_sandbox_clmcnd.F90

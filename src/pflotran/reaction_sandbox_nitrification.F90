@@ -460,7 +460,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
 ! assume nitrification temp function equal to the HR scalar
 !  k_nitr_t_vr(c,j) = min(t_scalar(c,j), 1._r8)
-  F_t = min(F_t, 1.0)
+  if (F_t > 1.0) F_t = 1.0
  
 ! ph function from Parton et al., (2001, 1996)
 !  k_nitr_ph_vr(c,j) = 0.56 + atan(rpi * 0.45 * (-5.+ pH(c)))/rpi

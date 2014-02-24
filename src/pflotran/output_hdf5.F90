@@ -180,8 +180,8 @@ subroutine OutputHDF5(realization_base,var_list_type)
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod((option%time-output_option%periodic_output_time_incr)/ &
-                output_option%periodic_output_time_incr, &
+        if (mod(real((option%time-output_option%periodic_output_time_incr)/ &
+                output_option%periodic_output_time_incr), &
                 real(output_option%times_per_h5_file))==0) then
           first = PETSC_TRUE
         else
@@ -910,8 +910,8 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod((option%time-output_option%periodic_output_time_incr)/ &
-                output_option%periodic_output_time_incr, &
+        if (mod(real((option%time-output_option%periodic_output_time_incr)/ &
+                output_option%periodic_output_time_incr), &
                 real(output_option%times_per_h5_file))==0) then
           first = PETSC_TRUE
         else
@@ -1238,8 +1238,8 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod((option%time-output_option%periodic_output_time_incr)/ &
-                output_option%periodic_output_time_incr, &
+        if (mod(real((option%time-output_option%periodic_output_time_incr)/ &
+                output_option%periodic_output_time_incr), &
                 real(output_option%times_per_h5_file))==0) then
           first = PETSC_TRUE
         else
@@ -2037,7 +2037,7 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   enddo
   
   call PetscLogEventBegin(logging%event_h5dwrite_f,ierr)
-  call h5dwrite_f(data_set_id,H5T_NATIVE_INTEGER,int_array,dims, &
+  call h5dwrite_f(data_set_id,H5T_NATIVE_INTEGER,REAL(int_array),dims, &
                   hdf5_err,memory_space_id,file_space_id,prop_id)
   call PetscLogEventEnd(logging%event_h5dwrite_f,ierr)
 
@@ -2343,7 +2343,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   enddo
 
   call PetscLogEventBegin(logging%event_h5dwrite_f,ierr)
-  call h5dwrite_f(data_set_id,H5T_NATIVE_INTEGER,int_array,dims, &
+  call h5dwrite_f(data_set_id,H5T_NATIVE_INTEGER,REAL(int_array),dims, &
                   hdf5_err,memory_space_id,file_space_id,prop_id)
   call PetscLogEventEnd(logging%event_h5dwrite_f,ierr)
 
@@ -2847,7 +2847,7 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option,file_id
   enddo
 
   call PetscLogEventBegin(logging%event_h5dwrite_f,ierr)
-  call h5dwrite_f(data_set_id,H5T_NATIVE_INTEGER,int_array,dims, &
+  call h5dwrite_f(data_set_id,H5T_NATIVE_INTEGER,REAL(int_array),dims, &
                   hdf5_err,memory_space_id,file_space_id,prop_id)
   call PetscLogEventEnd(logging%event_h5dwrite_f,ierr)
 

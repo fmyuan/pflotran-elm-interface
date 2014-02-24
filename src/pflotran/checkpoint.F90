@@ -540,10 +540,10 @@ subroutine Restart(realization, &
 
   ! Check the value of 'times_per_h5_file'
   if (header%times_per_h5_file /= output_option%times_per_h5_file) then
-    write(string,*),header%times_per_h5_file
+    write(string,*) header%times_per_h5_file
     option%io_buffer = 'From checkpoint file: times_per_h5_file ' // trim(string)
     call printMsg(option)
-    write(string,*),output_option%times_per_h5_file
+    write(string,*) output_option%times_per_h5_file
     option%io_buffer = 'From inputdeck      : times_per_h5_file ' // trim(string)
     call printMsg(option)
     option%io_buffer = 'times_per_h5_file specified in inputdeck does not ' // &
