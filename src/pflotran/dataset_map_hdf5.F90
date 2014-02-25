@@ -444,7 +444,6 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   PetscInt :: nids_local, remainder, istart, iend
   PetscErrorCode :: ierr
   character(len=MAXWORDLENGTH) :: dataset_name
-  PetscReal, pointer :: double_buffer(:,:)
 
   !TODO(geh): add to event log
   !call PetscLogEventBegin(logging%event_read_datset_hdf5,ierr)
@@ -532,13 +531,10 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   
   ! Initialize data buffer
   allocate(this%mapping(length(1), length(2)))
-  allocate(double_buffer(length(1), length(2)))
+
   ! Read the dataset collectively
-  call h5dread_f(dataset_id, H5T_NATIVE_INTEGER, double_buffer, &
+  call h5dread_f(dataset_id, H5T_NATIVE_INTEGER, this%mapping, &
                  dims_h5, hdf5_err, memory_space_id, file_space_id,prop_id)
-  this%mapping = INT(double_buffer)
-  deallocate(double_buffer)
-  nullify(double_buffer)
 
   call h5pclose_f(prop_id,hdf5_err)
 

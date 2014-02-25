@@ -7,7 +7,6 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_CLM_CNP_class
   use Reaction_Sandbox_CLM_CN_BF_class
   use Reaction_Sandbox_PlantNTake_class
-  use Reaction_Sandbox_DeniNTake_class
   use Reaction_Sandbox_Nitrification_class
   use Reaction_Sandbox_Denitrification_class
   use Reaction_Sandbox_Example_class
@@ -167,8 +166,6 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
       ! Add new cases statements for new reacton sandbox classes here.
       case('PLANTNTAKE')
         new_sandbox => PlantNTakeCreate()
-      case('DENINTAKE')
-        new_sandbox => DeniNTakeCreate()
       case('NITRIFICATION')
         new_sandbox => NitrificationCreate()
       case('DENITRIFICATION')
