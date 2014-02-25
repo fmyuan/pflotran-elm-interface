@@ -123,6 +123,7 @@ subroutine RTSetup(realization)
   use Fluid_module
   use Material_module
   use Material_Aux_class
+  use Surface_Complexation_Aux_module
   !geh: please leave the "only" clauses for Secondary_Continuum_XXX as this
   !      resolves a bug in the Intel Visual Fortran compiler.
   use Secondary_Continuum_Aux_module, only : sec_transport_type, &
@@ -146,7 +147,7 @@ subroutine RTSetup(realization)
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: ghosted_id, iconn, sum_connection
-  PetscInt :: iphase, local_id
+  PetscInt :: iphase, local_id, i
   PetscBool :: error_found
   PetscInt :: flag(10)  
   
@@ -206,6 +207,20 @@ subroutine RTSetup(realization)
         flag(4) = 1
         option%io_buffer = 'Non-initialized soil particle density.'
         call printMsg(option)
+      endif
+    endif
+    if (associated(reaction%surface_complexation)) then
+      if (associated(reaction%surface_complexation%srfcplxrxn_surf_type)) then
+        do i = 1, size(reaction%surface_complexation%srfcplxrxn_surf_type)
+          if (reaction%surface_complexation%srfcplxrxn_surf_type(i) == &
+              ROCK_SURFACE .and. &
+              material_auxvars(ghosted_id)%soil_particle_density < 0.d0 .and. &
+              flag(4) == 0) then
+            flag(4) = 1
+            option%io_buffer = 'Non-initialized soil particle density.'
+            call printMsg(option)
+          endif
+        enddo
       endif
     endif
   enddo  
@@ -4280,6 +4295,7 @@ subroutine RTJumpStartKineticSorption(realization)
       if (patch%imat(ghosted_id) <= 0) cycle
       call RJumpStartKineticSorption(patch%aux%RT%auxvars(ghosted_id), &
                                      patch%aux%Global%auxvars(ghosted_id), &
+                                     patch%aux%Material%auxvars(ghosted_id), &
                                      reaction,option)
     enddo
   endif
