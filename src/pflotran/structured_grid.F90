@@ -225,8 +225,8 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
   ! Generate the DM object that will manage communication.
   !-----------------------------------------------------------------------
   ! This code is for the DMDACreate3D() interface in PETSc versions >= 3.2 --RTM
-  call DMDACreate3D(option%mycomm,DM_BOUNDARY_NONE,DM_BOUNDARY_NONE, &
-                  DM_BOUNDARY_NONE,stencil_type, &
+  call DMDACreate3D(option%mycomm,DMDA_BOUNDARY_NONE,DMDA_BOUNDARY_NONE, &
+                  DMDA_BOUNDARY_NONE,stencil_type, &
                   structured_grid%nx,structured_grid%ny,structured_grid%nz, &
                   structured_grid%npx,structured_grid%npy,structured_grid%npz, &
                   ndof,stencil_width, &
