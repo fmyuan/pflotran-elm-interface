@@ -3716,9 +3716,11 @@ subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
                                     clm_pf_idata%press_clm, &
                                     clm_pf_idata%press_pf)
       case default
-        pflotran_model%option%io_buffer='pflotranModelSetInitialTHStatesfromCLM ' // &
-          'not implmented for this mode.'
-        call printErrMsg(pflotran_model%option)
+        if(pflotran_model%option%ntrandof.le.0) then
+            pflotran_model%option%io_buffer='pflotranModelSetInitialTHStatesfromCLM ' // &
+              'not implmented for this mode.'
+            call printErrMsg(pflotran_model%option)
+        endif
     end select
 
     call VecGetArrayF90(field%flow_xx, xx_loc_p, ierr)
@@ -3754,9 +3756,11 @@ subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
       case (TH_MODE)
         call THUpdateAuxVars(realization)
       case default
-        pflotran_model%option%io_buffer='pflotranModelSetInitialTHStatesfromCLM ' // &
-          'not implmented for this mode.'
-        call printErrMsg(pflotran_model%option)
+        if(pflotran_model%option%ntrandof.le.0) then
+           pflotran_model%option%io_buffer='pflotranModelSetInitialTHStatesfromCLM ' // &
+                 'not implmented for this mode.'
+           call printErrMsg(pflotran_model%option)
+        endif
     end select
 
 end subroutine pflotranModelSetInitialTHStatesfromCLM
