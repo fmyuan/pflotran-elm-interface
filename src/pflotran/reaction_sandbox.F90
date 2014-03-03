@@ -2,6 +2,7 @@ module Reaction_Sandbox_module
 
   use Reaction_Sandbox_Base_class
   use Reaction_Sandbox_CLM_CN_class
+  use Reaction_Sandbox_CLM_Decomp_class
   use Reaction_Sandbox_CLMCND_class
   use Reaction_Sandbox_CLM45_class
   use Reaction_Sandbox_CLM_CNP_class
@@ -9,6 +10,7 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_PlantNTake_class
   use Reaction_Sandbox_Nitrification_class
   use Reaction_Sandbox_Denitrification_class
+  use Reaction_Sandbox_Microbial_class
   use Reaction_Sandbox_Example_class
   
   ! Add new reacton sandbox classes here.
@@ -159,6 +161,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => CLMCND_Create()
       case('CLM45')
         new_sandbox => CLM45_Create()
+      case('CLM-DECOMP')
+        new_sandbox => CLM_Decomp_Create()
       case('CLM-CN-BF')
         new_sandbox => CLM_CN_BFCreate()
       case('CLM-CNP')
@@ -170,6 +174,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => NitrificationCreate()
       case('DENITRIFICATION')
         new_sandbox => DenitrificationCreate()
+      case('MICROBIAL')
+        new_sandbox => MicrobialCreate()
       case('EXAMPLE')
         new_sandbox => EXAMPLECreate()
       case default

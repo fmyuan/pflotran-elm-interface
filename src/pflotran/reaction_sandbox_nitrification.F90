@@ -19,7 +19,9 @@ module Reaction_Sandbox_Nitrification_class
     extends(reaction_sandbox_base_type) :: reaction_sandbox_nitrification_type
     PetscInt :: ispec_nh3
     PetscInt :: ispec_no3
-    PetscReal :: rate_constant
+    PetscInt :: ispec_n2o
+    PetscReal :: k_nitr_max
+    PetscReal :: k_nitr_n2o
     PetscReal :: half_saturation
     PetscInt :: temperature_response_function
     PetscReal :: Q10
@@ -53,7 +55,8 @@ function NitrificationCreate()
   allocate(NitrificationCreate)
   NitrificationCreate%ispec_nh3 = 0
   NitrificationCreate%ispec_no3 = 0
-  NitrificationCreate%rate_constant = 0.d0
+  NitrificationCreate%k_nitr_max = 1.d-6
+  NitrificationCreate%k_nitr_n2o = 3.5d-8
   NitrificationCreate%half_saturation = 1.0d-10
   NitrificationCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   NitrificationCreate%Q10 = 1.5d0
@@ -120,15 +123,14 @@ subroutine NitrificationRead(this,input,option)
                   call printErrMsg(option)
             end select
         enddo 
-
-      case('RATE_CONSTANT')
-          call InputReadDouble(input,option,this%rate_constant)
-          call InputErrorMsg(input,option,'rate constant', &
-                 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
-      case('N_INHIBITION')
-          call InputReadDouble(input,option,this%half_saturation)
-          call InputErrorMsg(input,option,'inhibition coefficient', &
-                 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
+     case('NITRIFICATION_RATE_COEF')
+         call InputReadDouble(input,option,this%k_nitr_max)
+         call InputErrorMsg(input,option,'nitrification rate coefficient', &
+                     'CHEMISTRY,REACTION_SANDBOX,CLMCND,REACTION')
+     case('N2O_RATE_COEF_NITRIFICATION')
+         call InputReadDouble(input,option,this%k_nitr_n2o)
+         call InputErrorMsg(input,option,'N2O rate coefficient from nirification', &
+                     'CHEMISTRY,REACTION_SANDBOX,CLMCND,REACTION')
       case default
           option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,' // &
             'REACTION keyword: ' // trim(word) // ' not recognized.'
@@ -159,15 +161,37 @@ subroutine NitrificationSetup(this,reaction,option)
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: word
- 
-  word = 'N'
-  this%ispec_nh3 = GetImmobileSpeciesIDFromName(word, &
-                               reaction%immobile, PETSC_FALSE,option)
 
-  word = 'Nitrate'
-  this%ispec_no3 = GetImmobileSpeciesIDFromName(word, &
-                               reaction%immobile, PETSC_FALSE,option)
-      
+  word = 'NH4+'
+  this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+
+  word = 'NO3-'
+  this%ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+
+  word = 'N2O(aq)'
+  this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+
+  if(this%ispec_nh3 < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION: ' // &
+                        ' NH4+ is not specified in the input file.'
+     call printErrMsg(option)
+  endif
+
+  if(this%ispec_no3 < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION: ' // &
+                        ' NO3- is not specified in the input file.'
+     call printErrMsg(option)
+  endif
+
+  if(this%ispec_n2o < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION: ' // &
+                        ' N2O(aq) is not specified in the input file.'
+     call printErrMsg(option)
+  endif
+
 end subroutine NitrificationSetup
 
 ! ************************************************************************** !
@@ -185,7 +209,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   use Reaction_Aux_module
 
 #ifdef CLM_PFLOTRAN
-  use clm_pflotran_interface_data !, only : rate_ndeni_decomp_pf 
+  use clm_pflotran_interface_data
 #endif
   
   implicit none
@@ -200,9 +224,147 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   type(reaction_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
-  PetscBool :: compute_derivative
 
-  ! the following arrays must be declared after reaction
+  PetscBool :: compute_derivative
+  PetscReal :: Residual(reaction%ncomp)
+  PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
+  PetscReal :: porosity
+  PetscReal :: volume
+  PetscInt :: local_id
+  PetscErrorCode :: ierr
+
+  PetscInt, parameter :: iphase = 1
+  PetscReal, parameter :: rpi = 3.14159265358979323846
+  PetscReal, parameter :: N_molecular_weight = 14.0067d0
+  PetscReal :: temp_real
+
+  PetscInt :: ires_nh3, ires_no3, ires_n2o
+
+  PetscScalar, pointer :: bulkdensity(:)
+  PetscReal :: rho_b
+  PetscReal :: theta
+  PetscReal :: c_nh3      ! mole/L
+  PetscReal :: c_nh3_ugg  ! ug ammonia N / g soil
+  PetscReal :: ph
+  PetscReal :: rate_n2o, drate_n2o
+  PetscReal :: rate_nitri, drate_nitri
+  PetscReal :: f_t, f_w, f_ph
+  PetscReal :: dfw_dnh3
+  PetscReal :: saturation
+  PetscReal :: tc
+
+  ! indices for C and N species
+  ires_nh3 = this%ispec_nh3
+  ires_no3 = this%ispec_no3
+  ires_n2o = this%ispec_n2o
+
+  saturation = global_auxvar%sat(1)
+  theta = saturation * porosity
+
+  tc = global_auxvar%temp(1)
+
+  c_nh3     = rt_auxvar%total(this%ispec_nh3, iphase)
+
+! nitrification (Dickinson et al. 2002)
+  if(this%ispec_no3 > 0) then
+    f_t = exp(0.08d0 * (tc - 298.0d0 + 273.15d0))
+    f_w = saturation * (1.0d0 - saturation)
+
+!    rate_nitri = f_t * f_w * this%k_nitr_max * c_nh3 * c_nh3 / &
+    rate_nitri = f_t * f_w * this%k_nitr_max * c_nh3 * c_nh3 / &
+         (0.25d0 * c_nh3 + 1.0d0)
+    Residual(ires_nh3) = Residual(ires_nh3) + rate_nitri
+    Residual(ires_no3) = Residual(ires_no3) - rate_nitri
+    if (compute_derivative) then
+     drate_nitri = f_t*f_w*this%k_nitr_max*(0.25d0*c_nh3*c_nh3+2.0d0*c_nh3) &
+                 / (0.25d0*c_nh3+1.0d0) / (0.25d0 * c_nh3 + 1.0d0)
+
+     Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_nitri * &
+        rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_nh3,iphase)
+
+     Jacobian(ires_no3,ires_nh3) = Jacobian(ires_no3,ires_nh3) - drate_nitri * &
+        rt_auxvar%aqueous%dtotal(this%ispec_no3,this%ispec_nh3,iphase)
+    endif
+  endif
+
+! N2O production from nitrification (Parton et al. 1996)
+#ifdef CLM_PFLOTRAN
+  call VecGetArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity, ierr)
+  rho_b = bulkdensity(local_id) ! kg/m3
+  call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity, ierr)
+#else
+  rho_b = 1.0d0
+#endif
+!             mole/L * 1000 L/m3 * g/mol / kg/m3 = g/kg = mg/g = 1000 ug/g  
+!  c_nh3_ugg = c_nh3 / theta *1000.0d0 * N_molecular_weight / rho_b * 1000.0d0
+  temp_real  = 1.0d0 / theta *1000.0d0 * N_molecular_weight / rho_b * 1000.0d0
+  c_nh3_ugg = c_nh3 * temp_real
+
+  if(this%ispec_n2o > 0.0d0 .and. c_nh3_ugg > 3.0d0 ) then
+  ! temperature response function (Parton et al. 1996)
+    f_t = -0.06d0 + 0.13d0 * exp( 0.07d0 * tc )
+
+    f_w = ((1.27d0 - saturation)/0.67d0)**(3.1777d0) * &
+        ((saturation - 0.0012d0)/0.5988d0)**2.84d0
+
+    ph = 6.5d0
+    f_ph = 0.56 + atan(rpi * 0.45 * (-5.0 + ph))/rpi
+
+    if(f_t > 0.0d0 .and. f_w > 0.0d0 .and. f_ph > 0.0d0) then
+       if(f_w > 1.0d0) then
+          f_w = 1.0d0
+       endif
+
+       if(f_ph > 1.0d0) then
+          f_ph = 1.0d0
+       endif
+       rate_n2o = 1.0 - exp(-0.0105d0 * c_nh3_ugg)  ! need to change units 
+       rate_n2o = rate_n2o * f_t * f_w * f_ph * this%k_nitr_n2o
+
+       Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o
+       Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
+
+       if (compute_derivative) then
+           drate_n2o = 0.0105d0 * exp(-0.0105d0 * c_nh3_ugg) * temp_real
+           drate_n2o = drate_n2o * f_t * f_w * f_ph * this%k_nitr_n2o
+
+           Jacobian(ires_nh3,ires_nh3)=Jacobian(ires_nh3,ires_nh3)+drate_n2o * &
+           rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_nh3,iphase)
+
+           Jacobian(ires_n2o,ires_nh3)=Jacobian(ires_n2o,ires_nh3)- &
+           0.5d0 * drate_n2o * &
+           rt_auxvar%aqueous%dtotal(this%ispec_n2o,this%ispec_nh3,iphase)
+       endif
+     endif
+  endif
+
+end subroutine NitrificationReact
+
+subroutine NitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
+                         rt_auxvar,global_auxvar,porosity,volume,reaction, &
+                         option,local_id)
+
+  use Option_module
+  use Reaction_Aux_module
+
+#ifdef CLM_PFLOTRAN
+  use clm_pflotran_interface_data
+#endif
+  
+  implicit none
+
+#ifdef CLM_PFLOTRAN
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+#endif
+  
+  class(reaction_sandbox_nitrification_type) :: this  
+  type(option_type) :: option
+  type(reaction_type) :: reaction
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+
+  PetscBool :: compute_derivative
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: rate, drate, concN, rate0
@@ -516,7 +678,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
   Jacobian(ires_no3,ires_nh3) = Jacobian(ires_no3,ires_nh3) + drate
 
-end subroutine NitrificationReact
+end subroutine NitrificationReact_CLM45
 
 ! ************************************************************************** !
 !

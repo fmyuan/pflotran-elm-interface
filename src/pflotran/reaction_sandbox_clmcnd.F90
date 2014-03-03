@@ -1217,6 +1217,12 @@ subroutine CLMCND_Decomposition(this,Residual,Jacobian,compute_derivative,&
 !  enddo
 !        endif
       endif  ! jacobian calculation for N immobilization reaction with NO3 uptake
+
+!  write(*,*)(Residual(j), j = 1, reaction%ncomp)
+!  do i = 1, reaction%ncomp
+!     write(*,*)(Jacobian(i, j), j = 1, reaction%ncomp)
+!  enddo
+
     endif    ! jacobian calculation
  
 ! save net N mineralization and N2O calculation 
@@ -1255,8 +1261,8 @@ subroutine CLMCND_Decomposition(this,Residual,Jacobian,compute_derivative,&
 
       if (compute_derivative) then
         drate_n2o = temp_real * net_n_mineralization_rate * d_nh3
-        Jacobian(ires_nh3,ires_n2o) = Jacobian(ires_nh3,ires_n2o) + drate_n2o
-        Jacobian(ires_n2o,ires_n2o) = Jacobian(ires_n2o,ires_n2o) - &
+        Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_n2o
+        Jacobian(ires_n2o,ires_nh3) = Jacobian(ires_n2o,ires_nh3) - &
                                       0.5d0 * drate_n2o
       endif
     endif

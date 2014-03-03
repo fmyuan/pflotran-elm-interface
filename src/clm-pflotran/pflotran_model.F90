@@ -3289,10 +3289,20 @@ end subroutine pflotranModelSetICs
     word = "Nitrate"
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
+    if(ispec_no3 < 0) then
+       word = "NO3-"
+       ispec_no3  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
 
     word = "Ammonia"
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
+    if(ispec_nh4 < 0) then
+       word = "NH4+"
+       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
 
     word = "PlantN"
     ispec_plantn  = GetImmobileSpeciesIDFromName(word, &
@@ -4084,7 +4094,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscErrorCode     :: ierr
     PetscInt           :: local_id
 
-    PetscInt:: ispec_nh4
+    PetscInt:: ispec_nh4, ispec_no3
     PetscInt:: ghosted_id, offset, offsetim
 
     PetscScalar, pointer :: rate_pf_loc(:)   !
@@ -4227,6 +4237,22 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     word = "Ammonia"
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
+   
+    if(ispec_nh4 < 0) then
+      word = "NH4+"
+      ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif 
+
+    word = "Nitrate"
+    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+   
+    if(ispec_no3 < 0) then
+      word = "NO3-"
+      ispec_no3  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif 
 
     if (associated(realization%rt_mass_transfer_list)) then
        cur_mass_transfer => realization%rt_mass_transfer_list
@@ -4260,16 +4286,22 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
             case(2)
              call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
             case(10)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
-            case(11)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_minn_pfs, rate_pf_loc, ierr)
+! this will be modified for NH4+
+            case(2)
+!             call VecGetArrayReadF90(clm_pf_idata%rate_minn_pfs, rate_pf_loc, ierr)
+! this will be modified for NO3-
             case(12)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
             case(13)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
             case(14)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
             case(15)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
+            case(16)
+             call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
+            case(17)
              call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
             case default
                     pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
@@ -4297,13 +4329,12 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
               endif
             else
               if(cur_mass_transfer%idof .eq. 1 .or. &
-               cur_mass_transfer%idof .eq. 2 .or. &
-               cur_mass_transfer%idof .eq. 10 .or. &
-               cur_mass_transfer%idof .eq. 11 .or. &
                cur_mass_transfer%idof .eq. 12 .or. &
                cur_mass_transfer%idof .eq. 13 .or. &
                cur_mass_transfer%idof .eq. 14 .or. &
-               cur_mass_transfer%idof .eq. 15 &
+               cur_mass_transfer%idof .eq. 15 .or. &
+               cur_mass_transfer%idof .eq. 16 .or. &
+               cur_mass_transfer%idof .eq. 17 &
                ) then
                cur_mass_transfer%dataset%rarray(local_id) = &
                         rate_pf_loc(local_id)*volume_p(local_id)  ! mol/m3s * m3
@@ -4338,16 +4369,20 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
             case(2)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
             case(10)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
-            case(11)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_minn_pfs, rate_pf_loc, ierr)
+            case(2) 
+             ! for NO3-, 1 for NH4+
             case(12)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
             case(13)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
             case(14)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
             case(15)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
+            case(16)
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
+            case(17)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
             case default
                pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
@@ -4516,14 +4551,35 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     ispec_co2  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
+    if( ispec_co2 < 0 ) then
+      word = "CO2(aq)*"
+      ispec_co2  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
+
     word = "Nitrate"
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
+    
+    if(ispec_no3 < 0) then
+      word = "NO3-"
+      ispec_no3  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
 
     word = "Ammonia"
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
+    if(ispec_nh4 < 0) then
+      word = "NH4+"
+      ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
+
+    word = "PlantN"
+    ispec_plantn  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
     word = "N2(aq)"
     ispec_n2  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
