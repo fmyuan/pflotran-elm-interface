@@ -38,6 +38,7 @@ module Reaction_Sandbox_Denitrification_class
     PetscReal :: half_saturation
     PetscInt :: temperature_response_function
     PetscReal :: Q10
+    PetscReal :: k_deni_max                 ! denitrification rate
 
   contains
     procedure, public :: ReadInput => DenitrificationRead
@@ -85,6 +86,8 @@ function DenitrificationCreate()
   DenitrificationCreate%half_saturation = 1.0d-10
   DenitrificationCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   DenitrificationCreate%Q10 = 1.5d0
+  DenitrificationCreate% k_deni_max = 2.5d-5  ! denitrification rate
+
   nullify(DenitrificationCreate%next)  
       
 end function DenitrificationCreate
@@ -188,6 +191,151 @@ subroutine DenitrificationSetup(this,reaction,option)
 
   character(len=MAXWORDLENGTH) :: word
  
+  word = 'NO3-'
+  this%ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+
+  word = 'N2O(aq)'
+  this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+
+  word = 'N2(aq)'
+  this%ispec_n2 = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+
+  if(this%ispec_n2 < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION: ' // &
+                        ' N2(aq) is not specified in the input file.'
+     call printErrMsg(option)
+  endif
+
+  if(this%ispec_no3 < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION: ' // &
+                        ' NO3- is not specified in the input file.'
+     call printErrMsg(option)
+  endif
+
+  if(this%ispec_n2o < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DeNITRIFICATION: ' // &
+                        ' N2O(aq) is not specified in the input file.'
+     call printErrMsg(option)
+  endif
+
+end subroutine DenitrificationSetup
+
+
+subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
+                         rt_auxvar,global_auxvar,porosity,volume,reaction, &
+                         option,local_id)
+  use Option_module
+  use Reaction_Aux_module
+
+#ifdef CLM_PFLOTRAN
+  use clm_pflotran_interface_data
+#endif
+
+  implicit none
+
+#ifdef CLM_PFLOTRAN
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+#endif
+
+  class(reaction_sandbox_denitrification_type) :: this
+  type(option_type) :: option
+  type(reaction_type) :: reaction
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+
+  PetscBool :: compute_derivative
+  PetscReal :: Residual(reaction%ncomp)
+  PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
+  PetscReal :: porosity
+  PetscReal :: volume
+  PetscInt :: local_id
+  PetscErrorCode :: ierr
+
+  PetscReal :: temp_real
+
+  PetscInt :: ires_no3, ires_n2o, ires_n2
+
+  PetscScalar, pointer :: bsw(:)
+  PetscScalar, pointer :: bulkdensity(:)
+
+  PetscReal :: s_min
+  PetscReal :: tc
+  PetscReal :: f_t, f_w
+
+  PetscReal :: c_no3      ! mole/L
+  PetscReal :: rate_deni, drate_deni
+  PetscReal :: saturation
+  PetscInt, parameter :: iphase = 1
+
+  ! indices for C and N species
+  ires_no3 = this%ispec_no3
+  ires_n2o = this%ispec_n2o
+  ires_n2 = this%ispec_n2
+
+! denitrification (Dickinson et al. 2002)
+  if(this%ispec_n2 < 0) return
+
+#ifdef CLM_PFLOTRAN
+  call VecGetArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
+  temp_real = bsw(local_id)
+  call VecRestoreArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
+#else
+  temp_real = 1.0d0
+#endif
+
+  tc = global_auxvar%temp(1)
+  f_t = exp(0.08d0 * (tc - 298.0d0 + 273.15d0))
+
+  saturation = global_auxvar%sat(1)
+  s_min = 0.6d0
+  if(saturation > s_min) then
+     f_w = (saturation - s_min)/(1.0d0 - s_min)
+     f_w = f_w ** temp_real
+  else
+     return
+  endif
+
+  c_no3     = rt_auxvar%total(this%ispec_no3, iphase)
+
+  if(f_w > 0.0d0) then
+     rate_deni = this%k_deni_max * c_no3 * f_t * f_w
+
+     Residual(ires_no3) = Residual(ires_no3) + rate_deni
+     Residual(ires_n2) = Residual(ires_n2) - 0.5d0*rate_deni
+
+    if (compute_derivative) then
+
+       drate_deni = f_t*f_w*this%k_deni_max
+
+       Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) + drate_deni * &
+        rt_auxvar%aqueous%dtotal(this%ispec_no3,this%ispec_no3,iphase)
+
+       Jacobian(ires_n2,ires_no3)=Jacobian(ires_n2,ires_no3)-0.5d0*drate_deni * &
+        rt_auxvar%aqueous%dtotal(this%ispec_n2,this%ispec_no3,iphase)
+
+    endif
+  endif
+
+end subroutine DenitrificationReact
+
+subroutine DenitrificationSetup_CLM45(this,reaction,option)
+
+  use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Option_module
+  use Immobile_Aux_module, only : GetImmobileSpeciesIDFromName 
+
+  implicit none
+  
+  class(reaction_sandbox_denitrification_type) :: this
+  type(reaction_type) :: reaction
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: word
+ 
   word = 'Nitrate'
   this%ispec_no3 = GetImmobileSpeciesIDFromName(word, &
                                reaction%immobile, PETSC_FALSE,option)
@@ -244,7 +392,7 @@ subroutine DenitrificationSetup(this,reaction,option)
   this%ispec_som4 = GetImmobileSpeciesIDFromName(word, &
                                reaction%immobile, PETSC_FALSE,option)
 
-end subroutine DenitrificationSetup
+end subroutine DenitrificationSetup_CLM45
 
 ! ************************************************************************** !
 !
@@ -253,7 +401,7 @@ end subroutine DenitrificationSetup
 ! date: 01/09/2014
 !
 ! ************************************************************************** !
-subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
+subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,porosity,volume,reaction, &
                          option,local_id)
 
@@ -752,7 +900,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
     endif
   endif
 
-end subroutine DenitrificationReact
+end subroutine DenitrificationReact_CLM45
 
 ! ************************************************************************** !
 !

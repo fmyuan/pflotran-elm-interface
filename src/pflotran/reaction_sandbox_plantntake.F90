@@ -14,10 +14,12 @@ module Reaction_Sandbox_PlantNTake_class
 
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_plantntake_type
-    PetscInt :: ispec_mineralN
-    PetscInt :: ispec_plantN
     PetscReal :: rate
-    PetscReal :: half_saturation
+    PetscReal :: half_saturation_mn
+    PetscReal :: half_saturation_nh3
+    PetscReal :: half_saturation_no3
+    PetscReal :: inhibition_nh3_no3
+    PetscReal :: x0eps
   contains
     procedure, public :: ReadInput => PlantNTakeRead
     procedure, public :: Setup => PlantNTakeSetup
@@ -45,10 +47,12 @@ function PlantNTakeCreate()
 ! 4. Add code to allocate object and initialized all variables to zero and
 !    nullify all pointers. E.g.
   allocate(PlantNTakeCreate)
-  PlantNTakeCreate%ispec_mineralN = 0
-  PlantNTakeCreate%ispec_plantN = 0
   PlantNTakeCreate%rate = 0.d0
-  PlantNTakeCreate%half_saturation = -10.d0
+  PlantNTakeCreate%half_saturation_mn  = 1.d-15
+  PlantNTakeCreate%half_saturation_nh3 = 1.d-15
+  PlantNTakeCreate%half_saturation_no3 = 1.d-15
+  PlantNTakeCreate%inhibition_nh3_no3  = 1.d-15
+  PlantNTakeCreate%x0eps  = 1.d-20
   nullify(PlantNTakeCreate%next)  
       
 end function PlantNTakeCreate
@@ -87,18 +91,31 @@ subroutine PlantNTakeRead(this,input,option)
     call StringToUpper(word)   
 
     select case(trim(word))
-           case('RATE')
-              call InputReadDouble(input,option,this%rate)
-              call InputErrorMsg(input,option,'rate', &
+      case('RATE')
+          call InputReadDouble(input,option,this%rate)
+          call InputErrorMsg(input,option,'rate', &
+                  'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+! this will be removed when original clm-cn is removed
+      case('N_INHIBITION')
+          call InputReadDouble(input,option,this%half_saturation_mn)
+          call InputErrorMsg(input,option,'inhibition coefficient', &
                      'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
-           case('N_INHIBITION')
-              call InputReadDouble(input,option,this%half_saturation)
-              call InputErrorMsg(input,option,'inhibition coefficient', &
+      case('HALF_SATURATION_AMMONIA')
+          call InputReadDouble(input,option,this%half_saturation_nh3)
+          call InputErrorMsg(input,option,'half saturation for ammonia', &
                      'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
-           case default
-              option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,' // &
+      case('HALF_SATURATION_NITRATE')
+          call InputReadDouble(input,option,this%half_saturation_no3)
+          call InputErrorMsg(input,option,'half saturation for nitrate', &
+                     'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+      case('AMMONIA_INHIBITION_NITRATE')
+          call InputReadDouble(input,option,this%inhibition_nh3_no3)
+          call InputErrorMsg(input,option,'ammonia inhibition on nitrate', &
+                     'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+      case default
+          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,' // &
                 'REACTION keyword: ' // trim(word) // ' not recognized.'
-              call printErrMsg(option)
+          call printErrMsg(option)
     end select
   enddo
   
@@ -114,9 +131,9 @@ end subroutine PlantNTakeRead
 ! ************************************************************************** !
 subroutine PlantNTakeSetup(this,reaction,option)
 
-  use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Reaction_Aux_module
   use Option_module
-  use Immobile_Aux_module, only : GetImmobileSpeciesIDFromName 
+  use Immobile_Aux_module
 
   implicit none
   
@@ -126,14 +143,6 @@ subroutine PlantNTakeSetup(this,reaction,option)
 
   character(len=MAXWORDLENGTH) :: word
  
-  word = 'N'
-  this%ispec_mineralN = GetImmobileSpeciesIDFromName(word, &
-                               reaction%immobile, PETSC_FALSE,option)
-
-  word = 'PlantN'
-  this%ispec_plantN = GetImmobileSpeciesIDFromName(word, &
-                               reaction%immobile, PETSC_FALSE,option)
-      
 end subroutine PlantNTakeSetup
 
 ! ************************************************************************** !
@@ -149,9 +158,10 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 
   use Option_module
   use Reaction_Aux_module
+  use Immobile_Aux_module
 
 #ifdef CLM_PFLOTRAN
-  use clm_pflotran_interface_data !, only : rate_plantnuptake_pf 
+  use clm_pflotran_interface_data
 #endif
   
   implicit none
@@ -174,42 +184,146 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: rate, drate, concN, rate0
   PetscReal :: volume, porosity
   PetscInt :: local_id
-  PetscInt :: ires_mineralN, ires_plantN
   PetscErrorCode :: ierr
+
+  character(len=MAXWORDLENGTH) :: word
+
+  PetscInt, parameter :: iphase = 1
+  PetscInt :: ispec_mn, ispec_nh3, ispec_no3, ispec_plantn
+  PetscInt :: ires_mn, ires_nh3, ires_no3, ires_plantn
+
+  PetscReal :: c_mn          ! concentration (mole/m3)
+  PetscReal :: f_mn          ! mn / (half_saturation + mn)
+  PetscReal :: d_mn          ! half_saturation / (half_saturation + mn)^2
+  PetscReal :: c_nh3         ! concentration (mole/L)
+  PetscReal :: f_nh3         ! nh3 / (half_saturation + nh3)
+  PetscReal :: d_nh3         ! half_saturation / (half_saturation + nh3)^2
+  PetscReal :: f_nh3_inhibit ! inhibition_coef/(inhibition_coef + nh3)
+  PetscReal :: c_no3         ! concentration (mole/L)
+  PetscReal :: f_no3         ! no3 / (half_saturation + no3)
+  PetscReal :: d_no3         ! half_saturation/(no3 + half_saturation)^2 
+  PetscReal :: temp_real
+
+  PetscReal :: rate_nplant
+  PetscReal :: rate_nplant_no3
+  PetscReal :: drate_nplant       !drate/dnh4+ 
+  PetscReal :: drate_nplant_no3   !drate/dno3-
 
 #ifdef CLM_PFLOTRAN
   PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
-  call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
+#endif 
 
-  rate0 = rate_plantnuptake_pf_loc(local_id) * volume ! mol/m3/s * m3
+  word = 'N'
+  ispec_mn = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
+             PETSC_FALSE, option)
 
-  call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
-#else
-  rate0 = this%rate
-#endif
+  word = 'Ammonia'
+  ispec_nh3 = GetPrimarySpeciesIDFromName(word, reaction, PETSC_FALSE, option)
 
-  if(this%half_saturation .GT. 1.0d-20) then
-     concN = rt_auxvar%immobile(this%ispec_mineralN)
-     rate = rate0 * concN/(concN + this%half_saturation) 
+  word = 'Nitrate'
+  ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction, PETSC_FALSE,option)
+
+  word = 'PlantN'
+  ispec_plantn = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
+                 PETSC_FALSE,option)
+
+  if(ispec_plantn < 0) then
+    write(*, *) 'Warning: PlantN is not specified in the chemical species!'
+    return
+  else
+     ires_plantn = ispec_plantn + reaction%offset_immobile
   endif
 
-  ires_mineralN = this%ispec_mineralN + reaction%offset_immobile      
-  ires_plantN = this%ispec_plantN + reaction%offset_immobile      
+  if (ispec_mn > 0) then
+     c_mn = rt_auxvar%immobile(ispec_mn)
+     temp_real = c_mn - this%x0eps + this%half_saturation_mn
+     f_mn     = (c_mn - this%x0eps) / temp_real
+     d_mn     = this%half_saturation_mn / temp_real / temp_real
+     ires_mn = ispec_mn +  reaction%offset_immobile
+  endif
 
-  Residual(ires_mineralN) = Residual(ires_mineralN) - (-1.0) * rate
-  Residual(ires_plantN) = Residual(ires_plantN) - rate
+  if (ispec_nh3 > 0) then
+     c_nh3     = rt_auxvar%total(ispec_nh3, iphase)
+     temp_real = c_nh3 - this%x0eps + this%half_saturation_mn
+     f_nh3     = (c_nh3 - this%x0eps) / temp_real
+     d_nh3     = this%half_saturation_mn / temp_real / temp_real
+     ires_nh3 = ispec_nh3
+  endif
 
-  if (.not.compute_derivative) return
+  if (ispec_no3 > 0) then
+      c_no3 = rt_auxvar%total(ispec_no3, iphase)
+      temp_real = c_no3 -this%x0eps + this%half_saturation_no3
+      f_no3 = (c_no3 - this%x0eps) / temp_real
+      d_no3 = this%half_saturation_no3 / temp_real / temp_real
 
-  if(this%half_saturation .LT. 1.0d-20) return
+      ires_no3 = ispec_no3
 
-  drate = rate0 * this%half_saturation / (concN + this%half_saturation) & 
-                                      / (concN + this%half_saturation) 
+      if(ispec_nh3 > 0) then
+        temp_real = this%inhibition_nh3_no3 + c_nh3
+        f_nh3_inhibit = this%inhibition_nh3_no3/temp_real
+      else
+        f_nh3_inhibit = 1.0d0
+      endif
+  endif
 
-    ! always add contribution to Jacobian
-  Jacobian(ires_mineralN,ires_mineralN) = Jacobian(ires_mineralN,ires_mineralN) + drate
 
-  Jacobian(ires_plantN,ires_mineralN) = Jacobian(ires_plantN,ires_mineralN) - drate
+#ifdef CLM_PFLOTRAN
+  call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, &
+       rate_plantnuptake_pf_loc, ierr)
+
+  rate_nplant = rate_plantnuptake_pf_loc(local_id) * volume ! mol/m3/s * m3
+
+  call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, &
+       rate_plantnuptake_pf_loc, ierr)
+#else
+  rate_nplant = this%rate
+#endif
+
+  if(ispec_mn > 0) then
+     drate_nplant = rate_nplant * d_mn
+     rate_nplant  = rate_nplant * f_mn
+
+     Residual(ires_mn) = Residual(ires_mn) + rate_nplant
+     Residual(ires_plantn) = Residual(ires_plantn) - rate_nplant
+
+    if (compute_derivative) then
+       Jacobian(ires_mn,ires_mn) = Jacobian(ires_mn,ires_mn)+drate_nplant
+       Jacobian(ires_plantn,ires_mn)=Jacobian(ires_plantn,ires_mn)-drate_nplant
+    endif
+    return  ! if N is specified, NH4 and NO3 will not be used, for CLM-CN only, to be removed
+  endif
+
+  rate_nplant_no3 = rate_nplant * f_nh3_inhibit   ! NO3 uptake rate
+
+  if(ispec_nh3 > 0) then
+    drate_nplant = rate_nplant * d_nh3
+    rate_nplant = rate_nplant * f_nh3
+
+    Residual(ires_nh3) = Residual(ires_nh3) + rate_nplant
+    Residual(ires_plantn) = Residual(ires_plantn) - rate_nplant
+
+    if (compute_derivative) then
+       Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3)+drate_nplant * &
+         rt_auxvar%aqueous%dtotal(ispec_nh3,ispec_nh3,iphase)
+
+       Jacobian(ires_plantn,ires_nh3)=Jacobian(ires_plantn,ires_nh3)-drate_nplant
+    endif
+  endif
+
+  if(ispec_no3 > 0) then
+    drate_nplant_no3 = rate_nplant_no3 * d_no3
+    rate_nplant_no3  = rate_nplant_no3 * f_no3
+
+    Residual(ires_no3) = Residual(ires_no3) + rate_nplant_no3
+    Residual(ires_plantn) = Residual(ires_plantn) - rate_nplant_no3
+
+    if (compute_derivative) then
+     Jacobian(ires_no3,ires_no3)=Jacobian(ires_no3,ires_no3)+drate_nplant_no3* &
+       rt_auxvar%aqueous%dtotal(ispec_no3,ispec_no3,iphase)
+
+     Jacobian(ires_plantn,ires_no3)=Jacobian(ires_plantn,ires_no3)-drate_nplant_no3
+    endif
+  endif
 
 end subroutine PlantNTakeReact
 
