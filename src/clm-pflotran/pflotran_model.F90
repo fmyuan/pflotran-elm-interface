@@ -4285,12 +4285,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
              call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
             case(2)
              call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
-            case(10)
-             call VecGetArrayReadF90(clm_pf_idata%rate_minn_pfs, rate_pf_loc, ierr)
-! this will be modified for NH4+
-            case(2)
-!             call VecGetArrayReadF90(clm_pf_idata%rate_minn_pfs, rate_pf_loc, ierr)
-! this will be modified for NO3-
             case(12)
              call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
             case(13)
@@ -4329,6 +4323,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
               endif
             else
               if(cur_mass_transfer%idof .eq. 1 .or. &
+               cur_mass_transfer%idof .eq. 2 .or. &
                cur_mass_transfer%idof .eq. 12 .or. &
                cur_mass_transfer%idof .eq. 13 .or. &
                cur_mass_transfer%idof .eq. 14 .or. &
@@ -4368,10 +4363,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
             case(2)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
-            case(10)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_minn_pfs, rate_pf_loc, ierr)
-            case(2) 
-             ! for NO3-, 1 for NH4+
             case(12)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
             case(13)
