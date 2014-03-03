@@ -5,20 +5,20 @@ common_src   = ./
 regression_test_dir = ../../regression_tests
 unit_test_dir = ./unittests
 
-include ${PETSC_DIR}/conf/petscvariables
+#include ${PETSC_DIR}/conf/petscvariables
 include ${PETSC_DIR}/conf/variables
 include ${PETSC_DIR}/conf/rules
 
-HOSTNAME=$(shell hostname -s)
-
-ifneq (,$(findstring mira, $HOSTNAME))
- FC_DEFINE_FLAG=-D
- default:
- $(info Using default -D preprocessor option)
-else
-mira:
- $(info "Using -WF,-D preprocessor option on Mira")
-endif
+#HOSTNAME=$(shell hostname -s)
+#
+#ifneq (,$(findstring mira, $HOSTNAME))
+# FC_DEFINE_FLAG=-D
+# default:
+# $(info Using default -D preprocessor option)
+#else
+#mira:
+# $(info "Using -WF,-D preprocessor option on Mira")
+#endif
 
 MYFLAGS = -I.
 MYFLAGS += ${FC_DEFINE_FLAG}PROCESS_MODEL
