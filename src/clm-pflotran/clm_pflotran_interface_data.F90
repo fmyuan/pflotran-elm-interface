@@ -162,7 +162,6 @@ module clm_pflotran_interface_data
   Vec :: decomp_npools_vr_lit2_clmp     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
   Vec :: decomp_npools_vr_lit3_clmp     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
   Vec :: decomp_npools_vr_cwd_clmp      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: sminn_vr_clmp                  ! (gN/m3) vertically-resolved soil mineral N
   Vec :: smin_no3_vr_clmp               ! (gN/m3) vertically-resolved soil mineral NO3
   Vec :: smin_nh4_vr_clmp               ! (gN/m3) vertically-resolved soil mineral NH4
   Vec :: decomp_cpools_vr_lit1_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
@@ -177,7 +176,6 @@ module clm_pflotran_interface_data
   Vec :: decomp_npools_vr_lit2_pfs      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
   Vec :: decomp_npools_vr_lit3_pfs      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
   Vec :: decomp_npools_vr_cwd_pfs       ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: sminn_vr_pfs                   ! (gN/m3) vertically-resolved soil mineral N
   Vec :: smin_no3_vr_pfs                ! (gN/m3) vertically-resolved soil mineral NO3
   Vec :: smin_nh4_vr_pfs                ! (gN/m3) vertically-resolved soil mineral NH4
   ! time-varying ground/soil C/N rates from CLM (mpi) to PF (seq) (Units: moleC(N)/m3/s)
@@ -189,12 +187,9 @@ module clm_pflotran_interface_data
   Vec :: rate_lit3n_clmp
   Vec :: rate_cwdc_clmp
   Vec :: rate_cwdn_clmp
-  Vec :: rate_minn_clmp
   Vec :: rate_smin_no3_clmp
   Vec :: rate_smin_nh4_clmp
   Vec :: rate_plantnuptake_clmp
-!  Vec :: rate_nleached_clmp
-!  Vec :: rate_ndenitri_clmp
   Vec :: rate_lit1c_pfs
   Vec :: rate_lit2c_pfs
   Vec :: rate_lit3c_pfs
@@ -203,12 +198,9 @@ module clm_pflotran_interface_data
   Vec :: rate_lit3n_pfs
   Vec :: rate_cwdc_pfs
   Vec :: rate_cwdn_pfs
-  Vec :: rate_minn_pfs
   Vec :: rate_smin_no3_pfs
   Vec :: rate_smin_nh4_pfs
   Vec :: rate_plantnuptake_pf
-!  Vec :: rate_nleached_pf
-!  Vec :: rate_ndenitri_pf
 
   ! -----BGC vecs from PF (mpi, ghosted) to CLM (seq, local) --------------------
   ! TH properties
@@ -237,7 +229,6 @@ module clm_pflotran_interface_data
   Vec :: decomp_npools_vr_lit2_pfp
   Vec :: decomp_npools_vr_lit3_pfp
   Vec :: decomp_npools_vr_cwd_pfp
-  Vec :: sminn_vr_pfp
   Vec :: smin_no3_vr_pfp
   Vec :: smin_nh4_vr_pfp
   !
@@ -253,7 +244,6 @@ module clm_pflotran_interface_data
   Vec :: decomp_npools_vr_lit2_clms     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
   Vec :: decomp_npools_vr_lit3_clms     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
   Vec :: decomp_npools_vr_cwd_clms      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: sminn_vr_clms                  ! (gN/m3) vertically-resolved soil mineral N
   Vec :: smin_no3_vr_clms               ! (gN/m3) vertically-resolved soil mineral NO3
   Vec :: smin_nh4_vr_clms               ! (gN/m3) vertically-resolved soil mineral NH4
   !
@@ -269,7 +259,6 @@ module clm_pflotran_interface_data
   Vec :: decomp_npools_vr_lit2_clms_prv
   Vec :: decomp_npools_vr_lit3_clms_prv
   Vec :: decomp_npools_vr_cwd_clms_prv
-  Vec :: sminn_vr_clms_prv
   Vec :: smin_no3_vr_clms_prv
   Vec :: smin_nh4_vr_clms_prv
 
@@ -442,7 +431,6 @@ contains
     clm_pf_idata%decomp_npools_vr_lit2_clmp = 0
     clm_pf_idata%decomp_npools_vr_lit3_clmp = 0
     clm_pf_idata%decomp_npools_vr_cwd_clmp  = 0
-    clm_pf_idata%sminn_vr_clmp         = 0
     clm_pf_idata%smin_no3_vr_clmp      = 0
     clm_pf_idata%smin_nh4_vr_clmp      = 0
 
@@ -458,7 +446,6 @@ contains
     clm_pf_idata%decomp_npools_vr_lit2_pfs = 0
     clm_pf_idata%decomp_npools_vr_lit3_pfs = 0
     clm_pf_idata%decomp_npools_vr_cwd_pfs  = 0
-    clm_pf_idata%sminn_vr_pfs          = 0
     clm_pf_idata%smin_no3_vr_pfs       = 0
     clm_pf_idata%smin_nh4_vr_pfs       = 0
 
@@ -471,7 +458,6 @@ contains
     clm_pf_idata%rate_lit3n_clmp            = 0
     clm_pf_idata%rate_cwdc_clmp             = 0
     clm_pf_idata%rate_cwdn_clmp             = 0
-    clm_pf_idata%rate_minn_clmp             = 0
     clm_pf_idata%rate_smin_no3_clmp         = 0
     clm_pf_idata%rate_smin_nh4_clmp         = 0
     clm_pf_idata%rate_plantnuptake_clmp     = 0
@@ -484,7 +470,6 @@ contains
     clm_pf_idata%rate_lit3n_pfs            = 0
     clm_pf_idata%rate_cwdc_pfs             = 0
     clm_pf_idata%rate_cwdn_pfs             = 0
-    clm_pf_idata%rate_minn_pfs             = 0
     clm_pf_idata%rate_smin_no3_pfs         = 0
     clm_pf_idata%rate_smin_nh4_pfs         = 0
     clm_pf_idata%rate_plantnuptake_pf      = 0
@@ -515,7 +500,6 @@ contains
     clm_pf_idata%decomp_npools_vr_lit2_pfp = 0
     clm_pf_idata%decomp_npools_vr_lit3_pfp = 0
     clm_pf_idata%decomp_npools_vr_cwd_pfp  = 0
-    clm_pf_idata%sminn_vr_pfp          = 0
     clm_pf_idata%smin_no3_vr_pfp       = 0
     clm_pf_idata%smin_nh4_vr_pfp       = 0
     clm_pf_idata%decomp_cpools_vr_lit1_clms = 0
@@ -530,7 +514,6 @@ contains
     clm_pf_idata%decomp_npools_vr_lit2_clms = 0
     clm_pf_idata%decomp_npools_vr_lit3_clms = 0
     clm_pf_idata%decomp_npools_vr_cwd_clms  = 0
-    clm_pf_idata%sminn_vr_clms         = 0
     clm_pf_idata%smin_no3_vr_clms      = 0
     clm_pf_idata%smin_nh4_vr_clms      = 0
     clm_pf_idata%decomp_cpools_vr_lit1_clms_prv = 0
@@ -545,7 +528,6 @@ contains
     clm_pf_idata%decomp_npools_vr_lit2_clms_prv = 0
     clm_pf_idata%decomp_npools_vr_lit3_clms_prv = 0
     clm_pf_idata%decomp_npools_vr_cwd_clms_prv  = 0
-    clm_pf_idata%sminn_vr_clms_prv         = 0
     clm_pf_idata%smin_no3_vr_clms_prv      = 0
     clm_pf_idata%smin_nh4_vr_clms_prv      = 0
 
@@ -721,7 +703,6 @@ contains
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%decomp_npools_vr_lit2_clmp,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%decomp_npools_vr_lit3_clmp,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%decomp_npools_vr_cwd_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%sminn_vr_clmp,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%smin_no3_vr_clmp,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%smin_nh4_vr_clmp,ierr)
 
@@ -757,7 +738,6 @@ contains
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%decomp_npools_vr_lit2_pfs,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%decomp_npools_vr_lit3_pfs,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%decomp_npools_vr_cwd_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%sminn_vr_pfs,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%smin_no3_vr_pfs,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%smin_nh4_vr_pfs,ierr)
 
@@ -790,7 +770,6 @@ contains
     call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_lit3n_clmp,ierr)
     call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_cwdc_clmp,ierr)
     call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_cwdn_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_minn_clmp,ierr)
     call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_smin_no3_clmp,ierr)
     call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_smin_nh4_clmp,ierr)
     call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_plantnuptake_clmp,ierr)
@@ -805,7 +784,6 @@ contains
     call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_lit3n_pfs,ierr)
     call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_cwdc_pfs,ierr)
     call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_cwdn_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_minn_pfs,ierr)
     call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_smin_no3_pfs,ierr)
     call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_smin_nh4_pfs,ierr)
     call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_plantnuptake_pf,ierr)
@@ -825,7 +803,6 @@ contains
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%decomp_npools_vr_lit2_pfp,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%decomp_npools_vr_lit3_pfp,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%decomp_npools_vr_cwd_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%sminn_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%smin_no3_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%smin_nh4_vr_pfp,ierr)
     ! Seq. Vecs for CLM
@@ -842,7 +819,6 @@ contains
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_lit2_clms,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_lit3_clms,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_cwd_clms,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%sminn_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%smin_no3_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%smin_nh4_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_lit1_clms_prv,ierr)
@@ -857,7 +833,6 @@ contains
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_lit2_clms_prv,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_lit3_clms_prv,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_cwd_clms_prv,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%sminn_vr_clms_prv,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%smin_no3_vr_clms_prv,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%smin_nh4_vr_clms_prv,ierr)
 
@@ -1006,8 +981,6 @@ contains
        call VecDestroy(clm_pf_idata%decomp_npools_vr_lit3_clmp,ierr)
     if(clm_pf_idata%decomp_npools_vr_cwd_clmp  /= 0) &
        call VecDestroy(clm_pf_idata%decomp_npools_vr_cwd_clmp,ierr)
-    if(clm_pf_idata%sminn_vr_clmp /= 0) &
-       call VecDestroy(clm_pf_idata%sminn_vr_clmp,ierr)
     if(clm_pf_idata%smin_no3_vr_clmp /= 0) &
        call VecDestroy(clm_pf_idata%smin_no3_vr_clmp,ierr)
     if(clm_pf_idata%smin_nh4_vr_clmp /= 0) &
@@ -1057,8 +1030,6 @@ contains
        call VecDestroy(clm_pf_idata%decomp_npools_vr_lit3_pfs,ierr)
     if(clm_pf_idata%decomp_npools_vr_cwd_pfs  /= 0) &
        call VecDestroy(clm_pf_idata%decomp_npools_vr_cwd_pfs,ierr)
-    if(clm_pf_idata%sminn_vr_pfs /= 0) &
-       call VecDestroy(clm_pf_idata%sminn_vr_pfs,ierr)
     if(clm_pf_idata%smin_no3_vr_pfs /= 0) &
        call VecDestroy(clm_pf_idata%smin_no3_vr_pfs,ierr)
     if(clm_pf_idata%smin_nh4_vr_pfs /= 0) &
@@ -1101,8 +1072,6 @@ contains
        call VecDestroy(clm_pf_idata%rate_lit3n_clmp,ierr)
     if(clm_pf_idata%rate_cwdn_clmp /= 0) &
        call VecDestroy(clm_pf_idata%rate_cwdn_clmp,ierr)
-    if(clm_pf_idata%rate_minn_clmp /= 0) &
-       call VecDestroy(clm_pf_idata%rate_minn_clmp,ierr)
     if(clm_pf_idata%rate_plantnuptake_clmp /= 0) &
        call VecDestroy(clm_pf_idata%rate_plantnuptake_clmp,ierr)
     if(clm_pf_idata%rate_smin_no3_clmp /= 0) &
@@ -1125,8 +1094,6 @@ contains
        call VecDestroy(clm_pf_idata%rate_lit3n_pfs,ierr)
     if(clm_pf_idata%rate_cwdn_pfs /= 0) &
        call VecDestroy(clm_pf_idata%rate_cwdn_pfs,ierr)
-    if(clm_pf_idata%rate_minn_pfs /= 0) &
-       call VecDestroy(clm_pf_idata%rate_minn_pfs,ierr)
     if(clm_pf_idata%rate_plantnuptake_pf /= 0) &
        call VecDestroy(clm_pf_idata%rate_plantnuptake_pf,ierr)
     if(clm_pf_idata%rate_smin_no3_pfs /= 0) &
@@ -1182,8 +1149,6 @@ contains
        call VecDestroy(clm_pf_idata%decomp_npools_vr_lit3_pfp,ierr)
     if(clm_pf_idata%decomp_npools_vr_cwd_pfp /= 0) &
        call VecDestroy(clm_pf_idata%decomp_npools_vr_cwd_pfp,ierr)
-    if(clm_pf_idata%sminn_vr_pfp /= 0) &
-       call VecDestroy(clm_pf_idata%sminn_vr_pfp,ierr)
     if(clm_pf_idata%smin_no3_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%smin_no3_vr_pfp,ierr)
     if(clm_pf_idata%smin_nh4_vr_pfp /= 0) &
@@ -1213,8 +1178,6 @@ contains
        call VecDestroy(clm_pf_idata%decomp_npools_vr_lit3_clms,ierr)
     if(clm_pf_idata%decomp_npools_vr_cwd_clms  /= 0) &
        call VecDestroy(clm_pf_idata%decomp_npools_vr_cwd_clms,ierr)
-    if(clm_pf_idata%sminn_vr_clms /= 0) &
-       call VecDestroy(clm_pf_idata%sminn_vr_clms,ierr)
     if(clm_pf_idata%smin_no3_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%smin_no3_vr_clms,ierr)
     if(clm_pf_idata%smin_nh4_vr_clms /= 0) &
@@ -1244,8 +1207,6 @@ contains
        call VecDestroy(clm_pf_idata%decomp_npools_vr_lit3_clms_prv,ierr)
     if(clm_pf_idata%decomp_npools_vr_cwd_clms_prv /= 0) &
        call VecDestroy(clm_pf_idata%decomp_npools_vr_cwd_clms_prv,ierr)
-    if(clm_pf_idata%sminn_vr_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%sminn_vr_clms_prv,ierr)
     if(clm_pf_idata%smin_no3_vr_clms_prv /= 0) &
        call VecDestroy(clm_pf_idata%smin_no3_vr_clms_prv,ierr)
     if(clm_pf_idata%smin_nh4_vr_clms_prv /= 0) &
