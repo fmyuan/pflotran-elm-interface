@@ -179,7 +179,7 @@ util_obj  = \
 	${common_src}option_flow.o \
 	${common_src}option_transport.o \
 	${common_src}output_aux.o \
-    ${common_src}pflotran_constants.o \
+	${common_src}pflotran_constants.o \
 	${common_src}string.o \
 	${common_src}units.o \
 	${common_src}utility.o \
