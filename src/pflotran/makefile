@@ -149,9 +149,6 @@ FPPFLAGS = ${MYFLAGS}
 
 CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log
 
-include ${PETSC_DIR}/conf/variables
-include ${PETSC_DIR}/conf/rules
-
 ifdef have_hdf5
 LIBS +=  -L${HDF5_LIB} -lhdf5_fortran -lhdf5 -lz 
 endif
