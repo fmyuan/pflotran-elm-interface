@@ -213,14 +213,12 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
 #endif 
 
-  word = 'N'
-  ispec_mn = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
-             PETSC_FALSE, option)
+  ispec_mn = -999
 
-  word = 'Ammonia'
+  word = 'AmmoniaH4+'
   ispec_nh3 = GetPrimarySpeciesIDFromName(word, reaction, PETSC_FALSE, option)
 
-  word = 'Nitrate'
+  word = 'NO3-'
   ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction, PETSC_FALSE,option)
 
   word = 'PlantN'

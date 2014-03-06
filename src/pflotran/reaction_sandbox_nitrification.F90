@@ -162,7 +162,7 @@ subroutine NitrificationSetup(this,reaction,option)
 
   character(len=MAXWORDLENGTH) :: word
 
-  word = 'NH4+'
+  word = 'AmmoniaH4+'
   this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
@@ -176,7 +176,7 @@ subroutine NitrificationSetup(this,reaction,option)
 
   if(this%ispec_nh3 < 0) then
      option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION: ' // &
-                        ' NH4+ is not specified in the input file.'
+                        ' AmmoniaH4+ is not specified in the input file.'
      call printErrMsg(option)
   endif
 
