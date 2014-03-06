@@ -1687,7 +1687,7 @@ end subroutine pflotranModelSetICs
     call VecDestroy(surf_ids_loc, ierr)
     
     if(count /= map%s2d_nwts) then
-      write(*,*),'count = ',option%myrank,count,map%s2d_nwts
+      write(*,*) 'count = ',option%myrank,count,map%s2d_nwts
       option%io_buffer='No. of surface cells in mapping dataset does not ' // &
         'match surface cells on which BC is applied. [pflotranModelInitMappingSurf2D]'
       call printErrMsg(option)
@@ -1816,7 +1816,7 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(surf_ids_loc, v_loc, ierr)
     
     if(count /= map%s2d_nwts) then
-      write(*,*),'count = ',option%myrank,count,map%s2d_nwts
+      write(*,*) 'count = ',option%myrank,count,map%s2d_nwts
       option%io_buffer='No. of surface cells in mapping dataset does not ' // &
         'match surface cells on which BC is applied. [pflotranModelInitMappingSurf2D]'
       call printErrMsgByRank(option)
@@ -1884,7 +1884,7 @@ end subroutine pflotranModelSetICs
     PetscReal :: pause_time1
 
     if (model%option%io_rank == model%option%myrank) then
-       write(model%option%fid_out, *), '>>>> Inserting waypoint at pause_time = ', pause_time
+       write(model%option%fid_out, *) '>>>> Inserting waypoint at pause_time = ', pause_time
     endif
 
     pause_time1 = pause_time + dtime!1800.0d0
@@ -2483,7 +2483,7 @@ end subroutine pflotranModelSetICs
                        'source-sink list of surface model.')
 
     ! 2) Map temperature of rain water
-    write(*,*),'call MappingSourceToDestination()'
+    write(*,*) 'call MappingSourceToDestination()'
     call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_srf, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rain_temp_clm, &

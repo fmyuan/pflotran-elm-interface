@@ -320,3 +320,6 @@ reaction_sandbox_denitrification.F90
 reaction_sandbox_nitrification.F90
 reaction_sandbox_clm45.F90
 reaction_sandbox_clmcnd.F90
+clm_bgc.F90
+reaction_sandbox_clm_decomp.F90
+reaction_sandbox_microbial.F90

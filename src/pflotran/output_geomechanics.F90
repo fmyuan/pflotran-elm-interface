@@ -1339,8 +1339,8 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod((option%time-output_option%periodic_output_time_incr)/ &
-                output_option%periodic_output_time_incr, &
+        if (mod(real((option%time-output_option%periodic_output_time_incr)/ &
+                output_option%periodic_output_time_incr), &
                 real(output_option%times_per_h5_file))==0) then
           first = PETSC_TRUE
         else
@@ -1619,7 +1619,7 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   call VecGetArrayF90(global_z_vertex_vec,vec_z_ptr,ierr)
 
 #if defined(SCORPIO_WRITE)
-  write(*,*),'SCORPIO_WRITE'
+  write(*,*) 'SCORPIO_WRITE'
   option%io_buffer = 'WriteHDF5CoordinatesUGrid not supported for SCORPIO_WRITE'
   call printErrMsg(option)
 #else

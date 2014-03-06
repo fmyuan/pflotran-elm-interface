@@ -283,7 +283,7 @@ subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
   
   data_dims(1) = dataset_dims(1)/option%mycommsize
   data_dims(2) = dataset_dims(2)
-  !write(*,*), 'dataset_dims ',dataset_dims(:)
+  !write(*,*) 'dataset_dims ',dataset_dims(:)
 
   remainder = dataset_dims(1) - data_dims(1)*option%mycommsize
   if (option%myrank < remainder) data_dims(1) = data_dims(1) + 1

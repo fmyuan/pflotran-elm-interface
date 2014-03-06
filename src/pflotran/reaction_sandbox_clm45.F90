@@ -1545,9 +1545,9 @@ subroutine GetAnaerobicFraction(saturation, porosity, tc, f_t, f_w, local_id, co
 
 !  if (clm_pf_idata%use_lch4) then
   if (organic_max > 0.0) then
-     om_frac = min(cellorg(local_id)/organic_max, 1.0)
+     om_frac = min(cellorg(local_id)/organic_max, 1.0d0)
   else
-     om_frac = 1.0
+     om_frac = 1.0d0
   end if
 
   diffus = (d_con_g_1_o2 + d_con_g_2_o2*tk) * 1.d-4 * &
