@@ -56,7 +56,7 @@ ifdef dbl
 endif
 
 ifdef pcl
-  MYFLAGS += ${FC_DEFINE_FLAG}PCL -DMUALEM_SPLINE
+  MYFLAGS += ${FC_DEFINE_FLAG}PCL ${FC_DEFINE_FLAG}MUALEM_SPLINE
 endif
 
 ifdef condnr
