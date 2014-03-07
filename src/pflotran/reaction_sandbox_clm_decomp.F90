@@ -29,6 +29,7 @@ module Reaction_Sandbox_CLM_Decomp_class
     extends(reaction_sandbox_base_type) :: reaction_sandbox_clm_decomp_type
 
     PetscInt :: temperature_response_function
+    PetscInt :: moisture_response_function
     PetscReal :: Q10
     PetscInt :: litter_decomp_type          ! CLM-CN or CLM-Microbe
     PetscReal :: half_saturation_nh3
@@ -240,6 +241,29 @@ subroutine CLM_Decomp_Read(this,input,option)
                   call printErrMsg(option)
             end select
          enddo 
+      case('MOISTURE_RESPONSE_FUNCTION')
+        do
+         call InputReadPflotranString(input,option)
+         if (InputError(input)) exit
+         if (InputCheckExit(input,option)) exit
+
+         call InputReadWord(input,option,word,PETSC_TRUE)
+         call InputErrorMsg(input,option,'keyword', &
+                       'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,MOISTURE RESPONSE FUNCTION')
+         call StringToUpper(word)   
+
+            select case(trim(word))
+              case('CLM4')
+                  this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLM4    
+              case('DLEM')
+                  this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_DLEM    
+              case default
+                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                                     trim(word) // ' not recognized.'
+                  call printErrMsg(option)
+            end select
+         enddo 
+
 #endif
 
      case('CLM-MICROBE-LITTER-DECOMPOSITION')
@@ -896,7 +920,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
   ! moisture response function 
 #ifdef CLM_PFLOTRAN
-  f_w = GetMoistureResponse(theta, local_id)
+  f_w = GetMoistureResponse(theta, local_id, this%moisture_response_function)
 #else
   f_w = 1.0d0
 #endif

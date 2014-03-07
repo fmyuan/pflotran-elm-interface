@@ -31,6 +31,7 @@ module Reaction_Sandbox_CLM_CN_class
 
     PetscInt :: temperature_response_function
     PetscReal :: Q10
+    PetscInt :: moisture_response_function
 
     PetscInt :: nrxn
     PetscInt :: npool
@@ -88,6 +89,7 @@ function CLM_CN_Create()
   allocate(CLM_CN_Create)
 #ifdef CLM_PFLOTRAN
   CLM_CN_Create%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
+  CLM_CN_Create%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLM4
 #endif
 
   CLM_CN_Create%Q10 = 1.5d0
@@ -164,7 +166,7 @@ subroutine CLM_CN_Read(this,input,option)
 
          call InputReadWord(input,option,word,PETSC_TRUE)
          call InputErrorMsg(input,option,'keyword', &
-                       'CHEMISTRY,REACTION_SANDBOX,CLM_CNP,TEMPERATURE RESPONSE FUNCTION')
+                       'CHEMISTRY,REACTION_SANDBOX,CLM_CN,TEMPERATURE RESPONSE FUNCTION')
          call StringToUpper(word)   
 
             select case(trim(word))
@@ -174,13 +176,37 @@ subroutine CLM_CN_Read(this,input,option)
                   this%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_Q10    
                   call InputReadDouble(input,option,this%Q10)  
                   call InputErrorMsg(input,option,'Q10', &
-                        'CHEMISTRY,REACTION_SANDBOX_CLM_CNP,TEMPERATURE RESPONSE FUNCTION')
+                        'CHEMISTRY,REACTION_SANDBOX_CLM_CN,TEMPERATURE RESPONSE FUNCTION')
               case default
-                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CNP,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CN,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
                                      trim(word) // ' not recognized.'
                   call printErrMsg(option)
             end select
          enddo 
+
+      case('MOISTURE_RESPONSE_FUNCTION')
+        do
+         call InputReadPflotranString(input,option)
+         if (InputError(input)) exit
+         if (InputCheckExit(input,option)) exit
+
+         call InputReadWord(input,option,word,PETSC_TRUE)
+         call InputErrorMsg(input,option,'keyword', &
+                       'CHEMISTRY,REACTION_SANDBOX,CLM_CN,MOISTURE RESPONSE FUNCTION')
+         call StringToUpper(word)   
+
+            select case(trim(word))
+              case('CLM4')
+                  this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLM4    
+              case('DLEM')
+                  this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_DLEM    
+              case default
+                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_CN,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                                     trim(word) // ' not recognized.'
+                  call printErrMsg(option)
+            end select
+         enddo 
+
 #endif
       case('POOLS')
         do
@@ -609,7 +635,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   ! moisture response function 
 #ifdef CLM_PFLOTRAN
   theta = global_auxvar%sat(1) * porosity 
-  F_theta = GetMoistureResponse(theta, local_id)
+  F_theta = GetMoistureResponse(theta, local_id, this%moisture_response_function)
 #else
   f_theta = 1.0d0
 #endif
