@@ -264,11 +264,8 @@ chem_obj = \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
 	${common_src}reaction_sandbox_clm_cn.o \
-	${common_src}reaction_sandbox_clmcnd.o \
 	${common_src}reaction_sandbox_clm_decomp.o \
-	${common_src}reaction_sandbox_clm45.o \
 	${common_src}reaction_sandbox_clm_cnp.o \
-	${common_src}reaction_sandbox_clm_cn_bf.o \
 	${common_src}reaction_sandbox_plantntake.o \
 	${common_src}reaction_sandbox_nitrification.o \
 	${common_src}reaction_sandbox_denitrification.o \
@@ -797,9 +794,6 @@ reaction_sandbox.o : global_aux.o input_aux.o option.o pflotran_constants.o \
                      reaction_sandbox_clm_cn.o reaction_sandbox_example.o \
                      reaction_sandbox_clm_cnp.o \
                      reaction_sandbox_clm_decomp.o \
-                     reaction_sandbox_clmcnd.o \
-                     reaction_sandbox_clm45.o \
-                     reaction_sandbox_clm_cn_bf.o \
                      reaction_sandbox_plantntake.o \
                      reaction_sandbox_nitrification.o \
                      reaction_sandbox_denitrification.o \
@@ -814,16 +808,6 @@ reaction_sandbox_clm_cn.o : global_aux.o immobile_aux.o input_aux.o option.o \
                             string.o units.o utility.o \
                             clm_bgc.o \
                             clm_pflotran_interface_data.o
-reaction_sandbox_clmcnd.o : global_aux.o immobile_aux.o input_aux.o option.o \
-                            pflotran_constants.o reaction_aux.o \
-                            reaction_sandbox_base.o reactive_transport_aux.o \
-                            string.o units.o utility.o \
-                            clm_pflotran_interface_data.o
-reaction_sandbox_clm45.o : global_aux.o immobile_aux.o input_aux.o option.o \
-                            pflotran_constants.o reaction_aux.o \
-                            reaction_sandbox_base.o reactive_transport_aux.o \
-                            string.o units.o utility.o \
-                            clm_pflotran_interface_data.o
 reaction_sandbox_clm_decomp.o : global_aux.o immobile_aux.o input_aux.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_sandbox_base.o reactive_transport_aux.o \
@@ -831,11 +815,6 @@ reaction_sandbox_clm_decomp.o : global_aux.o immobile_aux.o input_aux.o option.o
                             clm_bgc.o \
                             clm_pflotran_interface_data.o
 reaction_sandbox_clm_cnp.o : global_aux.o immobile_aux.o input_aux.o option.o \
-                            pflotran_constants.o reaction_aux.o \
-                            reaction_sandbox_base.o reactive_transport_aux.o \
-                            string.o units.o utility.o \
-                            clm_pflotran_interface_data.o
-reaction_sandbox_clm_cn_bf.o : global_aux.o immobile_aux.o input_aux.o option.o \
                             pflotran_constants.o reaction_aux.o \
                             reaction_sandbox_base.o reactive_transport_aux.o \
                             string.o units.o utility.o \

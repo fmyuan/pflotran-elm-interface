@@ -740,16 +740,16 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
      endif
   enddo
 
-  word = 'CO2(aq)*'
+  word = 'HCO3-'
   this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
-  word = 'NH4+'
+  word = 'AmmoniaH4+'
   this%species_id_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
   if(this%species_id_nh3 <= 0) then
-    option%io_buffer = 'NH4+ is not defined in the database for CLM_Decomp'
+    option%io_buffer = 'AmmoniaH4+ is not defined in the database for CLM_Decomp'
     call printErrMsg(option)
   endif
 

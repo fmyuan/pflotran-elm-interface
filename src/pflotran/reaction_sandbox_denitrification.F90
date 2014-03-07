@@ -336,20 +336,16 @@ subroutine DenitrificationSetup_CLM45(this,reaction,option)
 
   character(len=MAXWORDLENGTH) :: word
  
-  word = 'Nitrate'
+  word = 'NO3-'
   this%ispec_no3 = GetImmobileSpeciesIDFromName(word, &
                                reaction%immobile, PETSC_FALSE,option)
       
-  word = 'N2O'
+  word = 'N2O(aq)'
   this%ispec_n2o = GetImmobileSpeciesIDFromName(word, &
                                reaction%immobile, PETSC_FALSE,option)
 
-  word = 'N2'
+  word = 'N2(aq)'
   this%ispec_n2 = GetImmobileSpeciesIDFromName(word, &
-                               reaction%immobile, PETSC_FALSE,option)
-
-  word = 'N'
-  this%ispec_n = GetImmobileSpeciesIDFromName(word, &
                                reaction%immobile, PETSC_FALSE,option)
 
   word = 'LabileC'

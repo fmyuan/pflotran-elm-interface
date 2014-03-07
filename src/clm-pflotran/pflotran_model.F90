@@ -3277,23 +3277,13 @@ end subroutine pflotranModelSetICs
     ispec_som4  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-    word = "Nitrate"
+    word = "NO3-"
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
-    if(ispec_no3 < 0) then
-       word = "NO3-"
-       ispec_no3  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-    endif
 
-    word = "Ammonia"
+    word = "AmmoniaH4+"
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
-    if(ispec_nh4 < 0) then
-       word = "NH4+"
-       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-    endif
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
@@ -4196,25 +4186,13 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     endif
 
     ! temperarily used to differentiate clm-cnd from clmcn
-    word = "Ammonia"
+    word = "AmmoniaH4+"
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
-   
-    if(ispec_nh4 < 0) then
-      word = "NH4+"
-      ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-    endif 
 
-    word = "Nitrate"
+    word = "NO3-"
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
-   
-    if(ispec_no3 < 0) then
-      word = "NO3-"
-      ispec_no3  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-    endif 
 
     if (associated(realization%rt_mass_transfer_list)) then
        cur_mass_transfer => realization%rt_mass_transfer_list
@@ -4222,21 +4200,21 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
          if (.not.associated(cur_mass_transfer)) exit
 
          select case (cur_mass_transfer%idof)
-            case(1)
+            case(8)
              call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
-            case(2)
+            case(4)
              call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
-            case(12)
+            case(23)
              call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
-            case(13)
+            case(24)
              call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
-            case(14)
+            case(25)
              call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
-            case(15)
+            case(26)
              call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
-            case(16)
+            case(27)
              call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
-            case(17)
+            case(28)
              call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
             case default
                     pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
@@ -4247,14 +4225,14 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
             if (grid%nG2L(local_id) < 0) cycle ! bypass ghosted corner cells
             if (patch%imat(local_id) <= 0) cycle
 
-            if(cur_mass_transfer%idof .eq. 1 .or. &
-               cur_mass_transfer%idof .eq. 2 .or. &
-               cur_mass_transfer%idof .eq. 12 .or. &
-               cur_mass_transfer%idof .eq. 13 .or. &
-               cur_mass_transfer%idof .eq. 14 .or. &
-               cur_mass_transfer%idof .eq. 15 .or. &
-               cur_mass_transfer%idof .eq. 16 .or. &
-               cur_mass_transfer%idof .eq. 17 &
+            if(cur_mass_transfer%idof .eq. 8 .or. &
+               cur_mass_transfer%idof .eq. 4 .or. &
+               cur_mass_transfer%idof .eq. 23 .or. &
+               cur_mass_transfer%idof .eq. 24 .or. &
+               cur_mass_transfer%idof .eq. 25 .or. &
+               cur_mass_transfer%idof .eq. 26 .or. &
+               cur_mass_transfer%idof .eq. 27 .or. &
+               cur_mass_transfer%idof .eq. 28 &
                ) then
 
                cur_mass_transfer%dataset%rarray(local_id) = &
@@ -4264,21 +4242,21 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
          enddo
 
          select case (cur_mass_transfer%idof)
-            case(1)
+            case(8)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
-            case(2)
+            case(4)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
-            case(12)
+            case(23)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
-            case(13)
+            case(24)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
-            case(14)
+            case(25)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
-            case(15)
+            case(26)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
-            case(16)
+            case(27)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
-            case(17)
+            case(28)
              call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
             case default
                pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
@@ -4443,25 +4421,13 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                   realization%reaction,PETSC_FALSE,realization%option)
     endif
 
-    word = "Nitrate"
+    word = "NO3-"
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
     
-    if(ispec_no3 < 0) then
-      word = "NO3-"
-      ispec_no3  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-    endif
-
-    word = "Ammonia"
+    word = "AmmoniaH4+"
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
-
-    if(ispec_nh4 < 0) then
-      word = "NH4+"
-      ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-    endif
 
     word = "PlantN"
     ispec_plantn  = GetImmobileSpeciesIDFromName(word, &
