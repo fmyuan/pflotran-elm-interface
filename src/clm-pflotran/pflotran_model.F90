@@ -235,7 +235,7 @@ contains
     call pflotranModelSetupMappingFiles(model)
 
 !  for debug only, to be removed or replaced with h5 file
-    model%b_out_bgc_rate = PETSC_FALSE
+    model%b_out_bgc_rate = PETSC_TRUE
     if (model%b_out_bgc_rate) then
         open(unit=100,file="bgc_rate_clm_to_pflotran.txt",form="formatted",status="replace")
         write(100, *) '# Lit1C Lit2C Lit3C Lit1N Lit2N Lit3N mineralN plantN leachedN DenitrifiedN'
@@ -3285,6 +3285,18 @@ end subroutine pflotranModelSetICs
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
+    if(ispec_nh4 < 0) then
+       word = "NH4+"
+       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
+
+    if(ispec_nh4 < 0) then
+       word = "NH3(aq)"
+       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
+
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_lit1_clmp, &
@@ -4190,6 +4202,18 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
+    if(ispec_nh4 < 0) then
+       word = "NH4+"
+       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
+
+    if(ispec_nh4 < 0) then
+       word = "NH3(aq)"
+       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
+
     word = "NO3-"
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
@@ -4428,6 +4452,18 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     word = "AmmoniaH4+"
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
+
+    if(ispec_nh4 < 0) then
+       word = "NH4+"
+       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
+
+    if(ispec_nh4 < 0) then
+       word = "NH3(aq)"
+       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
 
     word = "PlantN"
     ispec_plantn  = GetImmobileSpeciesIDFromName(word, &

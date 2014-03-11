@@ -20,11 +20,13 @@ module Reaction_Sandbox_Nitrification_class
     PetscInt :: ispec_nh3
     PetscInt :: ispec_no3
     PetscInt :: ispec_n2o
+    PetscInt :: ispec_nnit
     PetscReal :: k_nitr_max
     PetscReal :: k_nitr_n2o
     PetscReal :: half_saturation
     PetscInt :: temperature_response_function
     PetscReal :: Q10
+    PetscReal :: x0eps
 
   contains
     procedure, public :: ReadInput => NitrificationRead
@@ -55,11 +57,13 @@ function NitrificationCreate()
   allocate(NitrificationCreate)
   NitrificationCreate%ispec_nh3 = 0
   NitrificationCreate%ispec_no3 = 0
+  NitrificationCreate%ispec_nnit = 0
   NitrificationCreate%k_nitr_max = 1.d-6
   NitrificationCreate%k_nitr_n2o = 3.5d-8
   NitrificationCreate%half_saturation = 1.0d-10
   NitrificationCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   NitrificationCreate%Q10 = 1.5d0
+  NitrificationCreate%x0eps = 1.0d-20
   nullify(NitrificationCreate%next)  
       
 end function NitrificationCreate
@@ -166,6 +170,18 @@ subroutine NitrificationSetup(this,reaction,option)
   this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
+  if(this%ispec_nh3 < 0) then
+     word = 'NH3(aq)'
+     this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+  endif
+ 
+  if(this%ispec_nh3 < 0) then
+     word = 'NH4+'
+     this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+  endif
+ 
   word = 'NO3-'
   this%ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
@@ -173,6 +189,11 @@ subroutine NitrificationSetup(this,reaction,option)
   word = 'N2O(aq)'
   this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
+  if(this%ispec_n2o < 0) then
+     word = 'NO2-'
+     this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+  endif
 
   if(this%ispec_nh3 < 0) then
      option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION: ' // &
@@ -192,6 +213,10 @@ subroutine NitrificationSetup(this,reaction,option)
      call printErrMsg(option)
   endif
 
+  word = 'Nnitri'
+  this%ispec_nnit = GetImmobileSpeciesIDFromName( &
+            word,reaction%immobile,PETSC_FALSE,option)
+ 
 end subroutine NitrificationSetup
 
 ! ************************************************************************** !
@@ -236,7 +261,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscInt, parameter :: iphase = 1
   PetscReal, parameter :: rpi = 3.14159265358979323846
   PetscReal, parameter :: N_molecular_weight = 14.0067d0
-  PetscReal :: temp_real
+  PetscReal :: M_2_ug_per_g
 
   PetscInt :: ires_nh3, ires_no3, ires_n2o
 
@@ -245,6 +270,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: theta
   PetscReal :: c_nh3      ! mole/L
   PetscReal :: c_nh3_ugg  ! ug ammonia N / g soil
+  PetscReal :: c_nh3_0
   PetscReal :: ph
   PetscReal :: rate_n2o, drate_n2o
   PetscReal :: rate_nitri, drate_nitri
@@ -252,19 +278,21 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: dfw_dnh3
   PetscReal :: saturation
   PetscReal :: tc
+  PetscInt :: ires_nnit
 
   ! indices for C and N species
   ires_nh3 = this%ispec_nh3
   ires_no3 = this%ispec_no3
   ires_n2o = this%ispec_n2o
+  ires_nnit = this%ispec_nnit + reaction%offset_immobile
 
   saturation = global_auxvar%sat(1)
   theta = saturation * porosity
 
   tc = global_auxvar%temp(1)
 
-  c_nh3     = rt_auxvar%total(this%ispec_nh3, iphase)
-
+  c_nh3 = rt_auxvar%total(this%ispec_nh3, iphase)
+  c_nh3 = c_nh3 - this%x0eps
 ! nitrification (Dickinson et al. 2002)
   if(this%ispec_no3 > 0) then
     f_t = exp(0.08d0 * (tc - 298.0d0 + 273.15d0))
@@ -297,10 +325,12 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
 #endif
 !             mole/L * 1000 L/m3 * g/mol / kg/m3 = g/kg = mg/g = 1000 ug/g  
 !  c_nh3_ugg = c_nh3 / theta *1000.0d0 * N_molecular_weight / rho_b * 1000.0d0
-  temp_real  = 1.0d0 / theta *1000.0d0 * N_molecular_weight / rho_b * 1000.0d0
-  c_nh3_ugg = c_nh3 * temp_real
+  M_2_ug_per_g  = 1.0d0 / theta *1000.0d0 * N_molecular_weight / rho_b * 1000.0d0
+  c_nh3_ugg = c_nh3 * M_2_ug_per_g
+  c_nh3_0 = 3.0d0 / M_2_ug_per_g 
 
   if(this%ispec_n2o > 0.0d0 .and. c_nh3_ugg > 3.0d0 ) then
+!  if(this%ispec_n2o > 0.0d0) then
   ! temperature response function (Parton et al. 1996)
     f_t = -0.06d0 + 0.13d0 * exp( 0.07d0 * tc )
 
@@ -318,14 +348,20 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
        if(f_ph > 1.0d0) then
           f_ph = 1.0d0
        endif
-       rate_n2o = 1.0 - exp(-0.0105d0 * c_nh3_ugg)  ! need to change units 
+
+       rate_n2o = 1.0 - exp(-0.0105d0 * (c_nh3 - c_nh3_0) * M_2_ug_per_g)  ! need to change units 
        rate_n2o = rate_n2o * f_t * f_w * f_ph * this%k_nitr_n2o
 
        Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o
        Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
+       
+       if(this%ispec_nnit > 0) then
+          Residual(ires_nnit) = Residual(ires_nnit) - 0.5d0 * rate_n2o
+       endif
 
        if (compute_derivative) then
-           drate_n2o = 0.0105d0 * exp(-0.0105d0 * c_nh3_ugg) * temp_real
+           drate_n2o = 0.0105d0*exp(-0.0105d0*(c_nh3-c_nh3_0)*M_2_ug_per_g) &
+                     * M_2_ug_per_g
            drate_n2o = drate_n2o * f_t * f_w * f_ph * this%k_nitr_n2o
 
            Jacobian(ires_nh3,ires_nh3)=Jacobian(ires_nh3,ires_nh3)+drate_n2o * &
@@ -334,6 +370,11 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
            Jacobian(ires_n2o,ires_nh3)=Jacobian(ires_n2o,ires_nh3)- &
            0.5d0 * drate_n2o * &
            rt_auxvar%aqueous%dtotal(this%ispec_n2o,this%ispec_nh3,iphase)
+      
+           if(this%ispec_nnit > 0) then
+             Jacobian(ires_nnit,ires_nh3)=Jacobian(ires_nnit,ires_nh3)- &
+                 0.5d0 * drate_n2o
+           endif
        endif
      endif
   endif

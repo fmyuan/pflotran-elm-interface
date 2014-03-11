@@ -20,6 +20,7 @@ module Reaction_Sandbox_Denitrification_class
     PetscInt :: ispec_no3
     PetscInt :: ispec_n2
     PetscInt :: ispec_n2o
+    PetscInt :: ispec_deni
 
 !   for co2 respiration calculation
     PetscInt :: ispec_n
@@ -39,6 +40,7 @@ module Reaction_Sandbox_Denitrification_class
     PetscInt :: temperature_response_function
     PetscReal :: Q10
     PetscReal :: k_deni_max                 ! denitrification rate
+    PetscReal :: x0eps
 
   contains
     procedure, public :: ReadInput => DenitrificationRead
@@ -70,6 +72,7 @@ function DenitrificationCreate()
   DenitrificationCreate%ispec_no3 = 0
   DenitrificationCreate%ispec_n2o = 0
   DenitrificationCreate%ispec_n2 = 0
+  DenitrificationCreate%ispec_deni = 0
 
   DenitrificationCreate%ispec_n = 0
   DenitrificationCreate%ispec_lit1c = 0
@@ -86,7 +89,8 @@ function DenitrificationCreate()
   DenitrificationCreate%half_saturation = 1.0d-10
   DenitrificationCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   DenitrificationCreate%Q10 = 1.5d0
-  DenitrificationCreate% k_deni_max = 2.5d-5  ! denitrification rate
+  DenitrificationCreate%k_deni_max = 2.5d-5  ! denitrification rate
+  DenitrificationCreate%x0eps = 1.0d-20
 
   nullify(DenitrificationCreate%next)  
       
@@ -199,6 +203,12 @@ subroutine DenitrificationSetup(this,reaction,option)
   this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
+  if(this%ispec_n2o < 0) then
+     word = 'NO2-'
+     this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+  endif
+
   word = 'N2(aq)'
   this%ispec_n2 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
@@ -215,12 +225,16 @@ subroutine DenitrificationSetup(this,reaction,option)
      call printErrMsg(option)
   endif
 
-  if(this%ispec_n2o < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DeNITRIFICATION: ' // &
-                        ' N2O(aq) is not specified in the input file.'
-     call printErrMsg(option)
-  endif
+!  if(this%ispec_n2o < 0) then
+!     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DeNITRIFICATION: ' // &
+!                        ' N2O(aq) is not specified in the input file.'
+!     call printErrMsg(option)
+!  endif
 
+  word = 'Ndeni'
+  this%ispec_deni = GetImmobileSpeciesIDFromName( &
+            word,reaction%immobile,PETSC_FALSE,option)
+ 
 end subroutine DenitrificationSetup
 
 
@@ -258,6 +272,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: temp_real
 
   PetscInt :: ires_no3, ires_n2o, ires_n2
+  PetscInt :: ires_deni
 
   PetscScalar, pointer :: bsw(:)
   PetscScalar, pointer :: bulkdensity(:)
@@ -275,6 +290,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   ires_no3 = this%ispec_no3
   ires_n2o = this%ispec_n2o
   ires_n2 = this%ispec_n2
+  ires_deni = this%ispec_deni + reaction%offset_immobile
 
 ! denitrification (Dickinson et al. 2002)
   if(this%ispec_n2 < 0) return
@@ -299,13 +315,19 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
      return
   endif
 
-  c_no3     = rt_auxvar%total(this%ispec_no3, iphase)
+  c_no3 = rt_auxvar%total(this%ispec_no3, iphase)
+  c_no3 = c_no3 - this%x0eps
 
   if(f_w > 0.0d0) then
      rate_deni = this%k_deni_max * c_no3 * f_t * f_w
 
      Residual(ires_no3) = Residual(ires_no3) + rate_deni
      Residual(ires_n2) = Residual(ires_n2) - 0.5d0*rate_deni
+    
+     if(this%ispec_deni > 0) then
+        Residual(ires_deni) = Residual(ires_deni) - 0.5d0*rate_deni
+     endif
+
 
     if (compute_derivative) then
 
@@ -316,7 +338,10 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
        Jacobian(ires_n2,ires_no3)=Jacobian(ires_n2,ires_no3)-0.5d0*drate_deni * &
         rt_auxvar%aqueous%dtotal(this%ispec_n2,this%ispec_no3,iphase)
-
+    
+       if(this%ispec_deni > 0) then
+         Jacobian(ires_deni,ires_no3)=Jacobian(ires_deni,ires_no3)-0.5d0*drate_deni
+       endif
     endif
   endif
 
