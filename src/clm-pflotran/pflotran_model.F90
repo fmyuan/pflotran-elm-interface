@@ -305,7 +305,7 @@ contains
     model%nlclm = -1
     model%ngclm = -1
 
-    input => InputCreate(15, &
+    input => InputCreate(OUTPUT_UNIT, &
                     model%option%input_filename, model%option)
 
     ! Read names of mapping file
@@ -4402,7 +4402,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     ispec_som3  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-
     word = "SOM4"
     ispec_som4  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
@@ -4411,16 +4410,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     ispec_plantn  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-    word = "CO2(aq)"
-    ispec_co2  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-
-    if( ispec_co2 < 0 ) then
-      word = "CO2(aq)*"
-      ispec_co2  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-    endif
-
+    ! primary species
     word = "NO3-"
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
@@ -4429,9 +4419,10 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
-    word = "PlantN"
-    ispec_plantn  = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    word = "CO2(aq)"
+    ispec_co2  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+
     word = "N2(aq)"
     ispec_n2  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
