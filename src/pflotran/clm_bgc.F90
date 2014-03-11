@@ -16,6 +16,15 @@ module CLM_BGC_module
 ! temperature response function
   PetscInt, parameter, public :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1 
   PetscInt, parameter, public :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2 
+  PetscInt, parameter, public :: TEMPERATURE_RESPONSE_FUNCTION_DLEM = 3
+
+! moisture response function
+  PetscInt, parameter, public :: MOISTURE_RESPONSE_FUNCTION_CLM4 = 1 
+  PetscInt, parameter, public :: MOISTURE_RESPONSE_FUNCTION_DLEM = 2
+
+! pH response function
+  PetscInt, parameter, public :: PH_RESPONSE_FUNCTION_CENTURY = 1 
+  PetscInt, parameter, public :: PH_RESPONSE_FUNCTION_DLEM = 2
 
 ! molecular weight
   PetscReal, parameter, public :: N_molecular_weight = 14.0067d0
@@ -54,6 +63,18 @@ function GetTemperatureResponse(tc, itype, Q10)
           else
               Ft = 0.d0
           endif
+!     DLEM temperature response function for methane oxidation
+! Tian et al. 2010 Biogeosciences, 7, 2673-2694 Eq. 12
+      case(TEMPERATURE_RESPONSE_FUNCTION_DLEM)
+          if(tc < -5.0d0) then
+            Ft = 0.0d0
+          elseif(tc >= 30.0d0) then
+            Ft = 1.0d0
+          else
+            Ft = Q10 ** ((tc - 30.0d0) / 10.0d0)
+          endif
+       case default
+            Ft = 1.0d0
   end select
   GetTemperatureResponse = Ft 
 
@@ -61,7 +82,7 @@ end function GetTemperatureResponse
   
 ! ************************************************************************** !
 
-Function GetMoistureResponse(theta, local_id)
+Function GetMoistureResponse(theta, local_id, itype)
 
 #ifdef CLM_PFLOTRAN
   use clm_pflotran_interface_data
@@ -80,36 +101,65 @@ Function GetMoistureResponse(theta, local_id)
   PetscReal, parameter :: one_over_log_theta_min = -2.17147241d-1
   PetscReal, parameter :: twelve_over_14 = 0.857142857143d0
 
-  PetscInt :: local_id
+  PetscInt :: local_id, itype
   PetscReal :: maxpsi, psi, tc
   PetscReal, parameter :: minpsi = -10.0d0  ! MPa
 
 #ifdef CLM_PFLOTRAN
-  PetscScalar, pointer :: sucsat_pf_loc(:)   !
+  PetscScalar, pointer :: sucsat_pf_loc(:)    !
   PetscScalar, pointer :: soilpsi_pf_loc(:)   !
+  PetscScalar, pointer :: watfc_pf_loc(:)     !
+  PetscScalar, pointer :: watsat_pf_loc(:)    !
+  PetscReal :: thetar, thetas, se
 #endif
 
   PetscErrorCode :: ierr
 
-
 #ifdef CLM_PFLOTRAN
-  call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
-  call VecGetArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
 
-  maxpsi = sucsat_pf_loc(local_id) * (-9.8d-6)
-  psi = min(soilpsi_pf_loc(local_id), maxpsi)
+  select case(itype)
+!   CLM-CN
+    case(MOISTURE_RESPONSE_FUNCTION_CLM4) 
+      call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
+      maxpsi = sucsat_pf_loc(local_id) * (-9.8d-6)
+      psi = min(soilpsi_pf_loc(local_id), maxpsi)
+      if(psi > minpsi) then
+        F_theta = log(minpsi/psi)/log(minpsi/maxpsi)
+      else
+        F_theta = 0.0d0
+        call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
+      endif
+      call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
 
-  if(psi > minpsi) then
-     F_theta = log(minpsi/psi)/log(minpsi/maxpsi)
-  else
-     F_theta = 0.0d0
-     call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
-     call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
-  endif
+! DLEM 
+! Tian et al. 2010 Biogeosciences, 7, 2673-2694 Eq. 13
+    case(MOISTURE_RESPONSE_FUNCTION_DLEM) 
+      call VecGetArrayReadF90(clm_pf_idata%watsat_pf, watsat_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%watfc_pf, watfc_pf_loc, ierr)
+      thetas = watsat_pf_loc(local_id)
+      thetar = watfc_pf_loc(local_id)
+      if(theta >= thetas) then
+        F_theta = 1.0d0
+      elseif (theta <= thetar) then
+        F_theta = 0.0d0
+      else
+        se = (theta - thetar)/(thetas - thetar)
+        F_theta = 1.0 - se * se * 0.368 * exp(se)
 
-  call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
-  call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
+        if(F_theta < 0.0d0) then
+           F_theta = 0.0d0
+        endif
 
+        if(F_theta > 1.0d0) then
+           F_theta = 1.0d0
+        endif
+      endif
+    case default
+        F_theta = 1.0d0
+  end select
 #else
 
   ! inhibition due to moisture content
@@ -124,18 +174,42 @@ Function GetMoistureResponse(theta, local_id)
 
 end function GetMoistureResponse
 
-Function GetpHResponse(pH)
+Function GetpHResponse(pH, itype)
 
   PetscReal :: f_ph, pH, GetpHResponse
+  PetscInt :: itype
 
 ! ph function from Parton et al., (2001, 1996)
 !  k_nitr_ph_vr(c,j) = 0.56 + atan(rpi * 0.45 * (-5.+ pH(c)))/rpi
 #ifdef CLM_PFLOTRAN
-  f_ph = 0.56 + atan(rpi * 0.45 * (-5.0 + pH))/rpi
+  select case(itype)
+      case(PH_RESPONSE_FUNCTION_CENTURY)
+          f_ph = 0.56 + atan(rpi * 0.45 * (-5.0 + pH))/rpi
+
+!     DLEM temperature response function for methane oxidation
+! Tian et al. 2010 Biogeosciences, 7, 2673-2694 Eq. 12
+      case(PH_RESPONSE_FUNCTION_DLEM)
+          if(pH <= 4.0d0 .or. pH >= 10.0d0) then
+            f_ph = 0.0d0
+          elseif(pH < 7.0d0) then
+            f_ph = 1.02d0 /(1.0d0 + 1.0d6 * exp(-2.5d0 * pH))
+          else
+            f_ph = 1.02d0 /(1.0d0 + 1.0d6 * exp(-2.5d0 * (14.0d0 - pH)))
+          endif
+      case default
+          f_ph = 1.0d0
+  end select
 #else
   f_ph = 1.0
 #endif
 
+  if(f_ph < 0.0d0) then
+     f_ph = 0.0d0
+  endif
+
+  if(f_ph > 1.0d0) then
+     f_ph = 1.0d0
+  endif
   GetpHResponse = f_ph
 
 end function GetpHResponse

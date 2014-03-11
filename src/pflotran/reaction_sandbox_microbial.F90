@@ -28,6 +28,9 @@ module Reaction_Sandbox_Microbial_class
 
     PetscInt :: temperature_response_function
     PetscReal :: Q10
+    PetscInt :: moisture_response_function
+    PetscInt :: ph_response_function
+    PetscReal :: fixed_ph
 
     character(len=MAXSTRINGLENGTH) :: str_reaction
     type(database_rxn_type), pointer ::dbase_rxn
@@ -82,7 +85,9 @@ function MicrobialCreate()
   allocate(MicrobialCreate)
 
 #ifdef CLM_PFLOTRAN
-  MicrobialCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_Q10
+  MicrobialCreate%temperature_response_function = -1
+  MicrobialCreate%moisture_response_function = -1
+  MicrobialCreate%ph_response_function = -1
 #endif
 
   MicrobialCreate%Q10 = 1.5d0
@@ -93,6 +98,7 @@ function MicrobialCreate()
 
   MicrobialCreate%rate_constant = 0.d0
   MicrobialCreate%x0eps = 1.d-20
+  MicrobialCreate%fixed_ph = -1.0d0
 
   MicrobialCreate%electron_donor_name = ''
   MicrobialCreate%electron_donor_half_saturation = 1.0d-6
@@ -199,12 +205,69 @@ subroutine MicrobialRead(this,input,option)
                   call InputErrorMsg(input,option,'Q10', &
                         'CHEMISTRY,REACTION_SANDBOX_Microbial,TEMPERATURE RESPONSE FUNCTION')
                   this%Q10 = tmp_real
+              case('DLEM')
+                  this%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_DLEM    
+                  call InputReadDouble(input,option,tmp_real)  
+                  call InputErrorMsg(input,option,'Q10', &
+                        'CHEMISTRY,REACTION_SANDBOX_Microbial,TEMPERATURE RESPONSE FUNCTION')
+                  this%Q10 = tmp_real
               case default
                   option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,Microbial,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
                                      trim(word) // ' not recognized.'
                   call printErrMsg(option)
             end select
          enddo 
+
+      case('MOISTURE_RESPONSE_FUNCTION')
+        do
+         call InputReadPflotranString(input,option)
+         if (InputError(input)) exit
+         if (InputCheckExit(input,option)) exit
+
+         call InputReadWord(input,option,word,PETSC_TRUE)
+         call InputErrorMsg(input,option,'keyword', &
+                       'CHEMISTRY,REACTION_SANDBOX,Microbial,MOISTURE RESPONSE FUNCTION')
+         call StringToUpper(word)   
+
+            select case(trim(word))
+              case('CLM4')
+                  this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLM4    
+              case('DLEM')
+                  this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_DLEM    
+              case default
+                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,Microbial,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                                     trim(word) // ' not recognized.'
+                  call printErrMsg(option)
+            end select
+         enddo 
+
+      case('PH_RESPONSE_FUNCTION')
+        do
+         call InputReadPflotranString(input,option)
+         if (InputError(input)) exit
+         if (InputCheckExit(input,option)) exit
+
+         call InputReadWord(input,option,word,PETSC_TRUE)
+         call InputErrorMsg(input,option,'keyword', &
+                       'CHEMISTRY,REACTION_SANDBOX,Microbial,PH RESPONSE FUNCTION')
+         call StringToUpper(word)   
+
+            select case(trim(word))
+              case('CENTURY')
+                  this%ph_response_function = PH_RESPONSE_FUNCTION_CENTURY    
+              case('DLEM')
+                  this%ph_response_function = PH_RESPONSE_FUNCTION_DLEM    
+              case default
+                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,Microbial,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                                     trim(word) // ' not recognized.'
+                  call printErrMsg(option)
+            end select
+         enddo 
+
+      case('FIXED_PH')
+        call InputReadDouble(input,option,this%fixed_ph)
+        call InputErrorMsg(input,option,'fixed ph', &
+               'CHEMISTRY,REACTION_SANDBOX,Microbial,RATE_CONSTANT')
 #endif
 
       case('REACTION')
@@ -416,6 +479,7 @@ subroutine MicrobialReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscReal :: f_t
   PetscReal :: f_w
+  PetscReal :: f_ph, ph
 #ifdef CLM_PFLOTRAN
   PetscReal :: tc, theta
 #endif
@@ -434,19 +498,40 @@ subroutine MicrobialReact(this,Residual,Jacobian,compute_derivative, &
   ! moisture response function 
 #ifdef CLM_PFLOTRAN
   theta = global_auxvar%sat(1) * porosity 
-  f_w = GetMoistureResponse(theta, local_id)
+  f_w = GetMoistureResponse(theta, local_id, this%moisture_response_function)
 #else
   f_w = 1.0d0
 #endif
 
-  if(f_t < 1.0d-20 .or. f_w < 1.0d-20) then
+#ifdef CLM_PFLOTRAN
+  if(this%ph_response_function > 0) then
+    if(this%fixed_ph > 0.0d0) then
+       ph = this%fixed_ph
+    else
+      if (reaction%species_idx%h_ion_id > 0) then
+        ph = &
+          -log10(rt_auxvar%pri_molal(reaction%species_idx%h_ion_id)* &
+                 rt_auxvar%pri_act_coef(reaction%species_idx%h_ion_id))
+      else if (reaction%species_idx%h_ion_id < 0) then
+        ph = &
+          -log10(rt_auxvar%sec_molal(abs(reaction%species_idx%h_ion_id))* &
+                 rt_auxvar%sec_act_coef(abs(reaction%species_idx%h_ion_id)))
+      endif
+    endif
+      f_ph = GetpHResponse(ph, this%ph_response_function)  
+  endif 
+#else
+  f_ph = 1.0d0
+#endif 
+  
+  if(f_t < 1.0d-20 .or. f_w < 1.0d-20 .or. f_ph < 1.0d-20) then
      return
   endif
 
 ! residual
   Lwater = porosity * global_auxvar%sat(iphase)*volume*1.d3
 
-  rate = this%rate_constant * Lwater * f_t * f_w
+  rate = this%rate_constant * Lwater * f_t * f_w * f_ph
 
 !  write(*, *) this%rate_constant
 

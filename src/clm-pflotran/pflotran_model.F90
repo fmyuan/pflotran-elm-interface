@@ -3285,6 +3285,18 @@ end subroutine pflotranModelSetICs
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
+    if(ispec_nh4 < 0) then
+       word = "NH4+"
+       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
+
+    if(ispec_nh4 < 0) then
+       word = "NH3(aq)"
+       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
+
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_lit1_clmp, &
@@ -4190,6 +4202,18 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
+    if(ispec_nh4 < 0) then
+       word = "NH4+"
+       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
+
+    if(ispec_nh4 < 0) then
+       word = "NH3(aq)"
+       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
+
     word = "NO3-"
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
@@ -4411,6 +4435,16 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     ! primary species
+    word = "CO2(aq)"
+    ispec_co2  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+
+    if( ispec_co2 < 0 ) then
+      word = "CO2(aq)*"
+      ispec_co2  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
+
     word = "NO3-"
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
@@ -4419,10 +4453,21 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
-    word = "CO2(aq)"
-    ispec_co2  = GetPrimarySpeciesIDFromName(word, &
+    if(ispec_nh4 < 0) then
+       word = "NH4+"
+       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
+    endif
 
+    if(ispec_nh4 < 0) then
+       word = "NH3(aq)"
+       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
+
+    word = "PlantN"
+    ispec_plantn  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
     word = "N2(aq)"
     ispec_n2  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
