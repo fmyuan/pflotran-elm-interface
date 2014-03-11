@@ -4465,9 +4465,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                   realization%reaction,PETSC_FALSE,realization%option)
     endif
 
-    word = "PlantN"
-    ispec_plantn  = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
     word = "N2(aq)"
     ispec_n2  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
