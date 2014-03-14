@@ -3796,9 +3796,11 @@ subroutine pflotranModelSetSoilHbcs(pflotran_model)
 
     PetscErrorCode     :: ierr
 
+    PetscScalar, pointer :: press_maxponding_pf_loc(:)  ! subsurface top boundary max. ponding pressure (Pa) (seepage BC)
     PetscScalar, pointer :: press_subsurf_pf_loc(:)     ! subsurface top boundary pressure-head (Pa) (dirichlet BC)
     PetscScalar, pointer :: qflux_subsurf_pf_loc(:)     ! subsurface top boundary infiltration rate (m/s) (neumann BC)
-    !PetscScalar, pointer :: press_subbase_pf_loc(:)    ! bottom boundary pressure-head (Pa)
+    PetscScalar, pointer :: press_subbase_pf_loc(:)     ! bottom boundary pressure-head (Pa) (dirichlet BC)
+    PetscScalar, pointer :: qflux_subbase_pf_loc(:)     ! botoom boundary drainage flow rate (m/s) (neumann BC)
 
     !------------------------------------------------------------------------------------
 
@@ -3826,15 +3828,27 @@ subroutine pflotranModelSetSoilHbcs(pflotran_model)
                                     clm_pf_idata%qflux_subsurf_clmp, &
                                     clm_pf_idata%qflux_subsurf_pfs)
 
-    !call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
-    !                                pflotran_model%option, &
-    !                                clm_pf_idata%press_subbase_clmp, &
-    !                                clm_pf_idata%press_subbase_pfs)
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%press_maxponding_clmp, &
+                                    clm_pf_idata%press_maxponding_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_bot_to_pf_2dbot, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%press_subbase_clmp, &
+                                    clm_pf_idata%press_subbase_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_bot_to_pf_2dbot, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%qflux_subbase_clmp, &
+                                    clm_pf_idata%qflux_subbase_pfs)
 
     ! interface vecs of PF
     call VecGetArrayF90(clm_pf_idata%press_subsurf_pfs,  press_subsurf_pf_loc,  ierr)
     call VecGetArrayF90(clm_pf_idata%qflux_subsurf_pfs,  qflux_subsurf_pf_loc,  ierr)
-    !call VecGetArrayF90(clm_pf_idata%press_subbase_pfs,  press_subbase_pf_loc,  ierr)
+    call VecGetArrayF90(clm_pf_idata%press_subbase_pfs,  press_subbase_pf_loc,  ierr)
+    call VecGetArrayF90(clm_pf_idata%qflux_subbase_pfs, qflux_subbase_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%press_maxponding_pfs, press_maxponding_pf_loc, ierr)
 
     ! passing from interface to internal
     select case(pflotran_model%option%iflowmode)
@@ -3872,13 +3886,50 @@ subroutine pflotranModelSetSoilHbcs(pflotran_model)
 
        endif
 
+!       if(StringCompare(boundary_condition%name,'clm_gflux_overflow')) then
+!
+!           do iconn = 1, cur_connection_set%num_connections
+!              local_id = cur_connection_set%id_dn(iconn)
+!              ghosted_id = grid%nL2G(local_id)
+!              if (patch%imat(ghosted_id) <= 0) cycle
+!
+!              if (boundary_condition%flow_condition%itype(press_dof) == SEEPAGE_BC) then
+!                   boundary_condition%flow_aux_real_var(press_dof,iconn)= &
+!                       press_maxponding_pf_loc(iconn)
+!              end if
+!
+!           enddo
+!
+!       endif
+
+       if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then
+
+           do iconn = 1, cur_connection_set%num_connections
+              local_id = cur_connection_set%id_dn(iconn)
+              ghosted_id = grid%nL2G(local_id)
+              if (patch%imat(ghosted_id) <= 0) cycle
+
+              if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
+                   boundary_condition%flow_aux_real_var(press_dof,iconn)= &
+                       press_subbase_pf_loc(iconn)
+              else if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
+                   boundary_condition%flow_aux_real_var(press_dof,iconn)= &
+                       qflux_subbase_pf_loc(iconn)
+              end if
+
+           enddo
+
+       endif
+
        boundary_condition => boundary_condition%next
 
     enddo
 
     call VecRestoreArrayF90(clm_pf_idata%press_subsurf_pfs, press_subsurf_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%qflux_subsurf_pfs, qflux_subsurf_pf_loc, ierr)
-    !call VecRestoreArrayF90(clm_pf_idata%press_subbase_pfs, press_subbase_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%press_subbase_pfs, press_subbase_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%qflux_subbase_pfs, qflux_subbase_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%press_maxponding_pfs, press_maxponding_pf_loc, ierr)
 
     select case(pflotran_model%option%iflowmode)
       case (RICHARDS_MODE)

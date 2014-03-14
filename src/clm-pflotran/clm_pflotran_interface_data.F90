@@ -62,6 +62,8 @@ module clm_pflotran_interface_data
   Vec :: press_subsurf_pfs     ! seq vec
   Vec :: press_subbase_clmp    ! mpi vec
   Vec :: press_subbase_pfs     ! seq vec
+  Vec :: press_maxponding_clmp    ! mpi vec
+  Vec :: press_maxponding_pfs     ! seq vec
   ! OR, BC: water infiltration/recharge(drainage) on the top/bottom of 3-D subsurface domain as boundary conditions from CLM to PF
   Vec :: qflux_subsurf_clmp    ! mpi vec
   Vec :: qflux_subsurf_pfs     ! seq vec
@@ -382,6 +384,8 @@ contains
     clm_pf_idata%qflx_clm = 0
     clm_pf_idata%qflx_pf = 0
 
+    clm_pf_idata%press_maxponding_clmp = 0
+    clm_pf_idata%press_maxponding_pfs  = 0
     clm_pf_idata%press_subsurf_clmp = 0
     clm_pf_idata%press_subsurf_pfs  = 0
     clm_pf_idata%press_subbase_clmp = 0
@@ -658,6 +662,7 @@ contains
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE,clm_pf_idata%press_subsurf_clmp,ierr)
     call VecSet(clm_pf_idata%press_subsurf_clmp,0.d0,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%qflux_subsurf_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%press_maxponding_clmp,ierr)
 
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_bottom,PETSC_DECIDE,clm_pf_idata%press_subbase_clmp,ierr)
     call VecSet(clm_pf_idata%press_subbase_clmp,0.d0,ierr)
@@ -690,6 +695,7 @@ contains
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dsub,clm_pf_idata%press_subsurf_pfs,ierr)
     call VecSet(clm_pf_idata%press_subsurf_pfs,0.d0,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%qflux_subsurf_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%press_maxponding_pfs,ierr)
 
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_bottom,clm_pf_idata%press_subbase_pfs,ierr)
     call VecSet(clm_pf_idata%press_subbase_pfs,0.d0,ierr)
@@ -989,6 +995,8 @@ contains
     if(clm_pf_idata%gflux_subsurf_pf  /= 0) call VecDestroy(clm_pf_idata%gflux_subsurf_pf,ierr)
     if(clm_pf_idata%gflux_surf_pf  /= 0) call VecDestroy(clm_pf_idata%gflux_surf_pf,ierr)
 
+    if(clm_pf_idata%press_maxponding_clmp  /= 0) call VecDestroy(clm_pf_idata%press_maxponding_clmp,ierr)
+    if(clm_pf_idata%press_maxponding_pfs  /= 0) call VecDestroy(clm_pf_idata%press_maxponding_pfs,ierr)
     if(clm_pf_idata%press_subsurf_clmp  /= 0) call VecDestroy(clm_pf_idata%press_subsurf_clmp,ierr)
     if(clm_pf_idata%press_subsurf_pfs  /= 0) call VecDestroy(clm_pf_idata%press_subsurf_pfs,ierr)
     if(clm_pf_idata%press_subbase_clmp  /= 0) call VecDestroy(clm_pf_idata%press_subbase_clmp,ierr)
