@@ -57,14 +57,14 @@ module clm_pflotran_interface_data
   Vec :: rain_temp_clm ! seq vec
   Vec :: rain_temp_pf  ! mpi vec
 
-  ! (ii-b) BC: water pressure on the top/bottom of 3-D subsurface domain as boundary conditions from CLM to PF
+  ! (ii-b) BC: water pressure (Pa) on the top/bottom of 3-D subsurface domain as boundary conditions from CLM to PF
   Vec :: press_subsurf_clmp    ! mpi vec
   Vec :: press_subsurf_pfs     ! seq vec
   Vec :: press_subbase_clmp    ! mpi vec
   Vec :: press_subbase_pfs     ! seq vec
   Vec :: press_maxponding_clmp    ! mpi vec
   Vec :: press_maxponding_pfs     ! seq vec
-  ! OR, BC: water infiltration/recharge(drainage) on the top/bottom of 3-D subsurface domain as boundary conditions from CLM to PF
+  ! OR, BC: water infiltration/recharge(drainage) (kgH2O/sec) on the top/bottom of 3-D subsurface domain as boundary conditions from CLM to PF
   Vec :: qflux_subsurf_clmp    ! mpi vec
   Vec :: qflux_subsurf_pfs     ! seq vec
   Vec :: qflux_subbase_clmp    ! mpi vec
@@ -218,7 +218,7 @@ module clm_pflotran_interface_data
   Vec :: pcwmax_clms
   Vec :: porosity_clms
   Vec :: press_ref_clms
-  !
+  ! BGC state variables
   Vec :: decomp_cpools_vr_lit1_pfp
   Vec :: decomp_cpools_vr_lit2_pfp
   Vec :: decomp_cpools_vr_lit3_pfp
@@ -303,6 +303,23 @@ module clm_pflotran_interface_data
   Vec :: accndeni_vr_pfp               ! (gN/m3) vertically-resolved N2O-N from denitrification
   Vec :: accndeni_vr_clms_prv          ! (gN/m3) vertically-resolved N2O-N from denitrification at previous time-step
   Vec :: accndeni_vr_clms              ! (gN/m3) vertically-resolved N2O-N from denitrification
+
+  ! actual mass water flow rate (kgH2O/sec) through the top/bottom BC of 3-D subsurface domain
+  ! (+ in, - out)
+  Vec :: qflux_subsurf_pfp    ! mpi vec
+  Vec :: qflux_subsurf_clms   ! seq vec
+  Vec :: qflux_subbase_pfp    ! mpi vec
+  Vec :: qflux_subbase_clms   ! seq vec
+  ! actual aqeuous N mass flow rate(gN/m2/sec) at the top (runoff)/bottom (leaching) of 3-D subsurface domain
+  ! (+ in, - out)
+  Vec :: f_nh4_subsurf_pfp    ! mpi vec
+  Vec :: f_nh4_subsurf_clms   ! seq vec
+  Vec :: f_nh4_subbase_pfp    ! mpi vec
+  Vec :: f_nh4_subbase_clms   ! seq vec
+  Vec :: f_no3_subsurf_pfp    ! mpi vec
+  Vec :: f_no3_subsurf_clms   ! seq vec
+  Vec :: f_no3_subbase_pfp    ! mpi vec
+  Vec :: f_no3_subbase_clms   ! seq vec
 
   !---------------------------------------------------------------
 
@@ -595,6 +612,20 @@ contains
     clm_pf_idata%accndeni_vr_pfp       = 0
     clm_pf_idata%accndeni_vr_clms_prv  = 0
     clm_pf_idata%accndeni_vr_clms      = 0
+
+    ! water & aq. chemical species boundary flow
+    clm_pf_idata%qflux_subsurf_pfp   = 0
+    clm_pf_idata%qflux_subsurf_clms  = 0
+    clm_pf_idata%qflux_subbase_pfp   = 0
+    clm_pf_idata%qflux_subbase_clms  = 0
+    clm_pf_idata%f_nh4_subsurf_pfp   = 0
+    clm_pf_idata%f_nh4_subsurf_clms  = 0
+    clm_pf_idata%f_nh4_subbase_pfp   = 0
+    clm_pf_idata%f_nh4_subbase_clms  = 0
+    clm_pf_idata%f_no3_subsurf_pfp   = 0
+    clm_pf_idata%f_no3_subsurf_clms  = 0
+    clm_pf_idata%f_no3_subbase_pfp   = 0
+    clm_pf_idata%f_no3_subbase_clms  = 0
 
     ! for nitrification-denitrification
     clm_pf_idata%use_lch4 = PETSC_TRUE
@@ -942,6 +973,29 @@ contains
 
     call VecDuplicate(clm_pf_idata%hrc_vr_clms,clm_pf_idata%accndeni_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%hrc_vr_clms,clm_pf_idata%accndeni_vr_clms_prv,ierr)
+
+    ! (v) BC flow variables: 2D faces of subsurface PFLOTRAN ---to--- 2D faces of subsurface CLM
+    ! MPI Vecs for PFLOTRAN
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_2dsub,PETSC_DECIDE,clm_pf_idata%qflux_subsurf_pfp,ierr)
+    call VecSet(clm_pf_idata%qflux_subsurf_pfp,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%qflux_subsurf_pfp,clm_pf_idata%f_nh4_subsurf_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%qflux_subsurf_pfp,clm_pf_idata%f_no3_subsurf_pfp,ierr)
+
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_bottom,PETSC_DECIDE,clm_pf_idata%qflux_subbase_pfp,ierr)
+    call VecSet(clm_pf_idata%qflux_subbase_pfp,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%qflux_subbase_pfp,clm_pf_idata%f_nh4_subbase_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%qflux_subbase_pfp,clm_pf_idata%f_no3_subbase_pfp,ierr)
+
+    ! Seq. Vecs for CLM
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_2dsub,clm_pf_idata%qflux_subsurf_clms,ierr)
+    call VecSet(clm_pf_idata%qflux_subsurf_clms,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%qflux_subsurf_clms,clm_pf_idata%f_nh4_subsurf_clms,ierr)
+    call VecDuplicate(clm_pf_idata%qflux_subsurf_clms,clm_pf_idata%f_no3_subsurf_clms,ierr)
+
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_bottom,clm_pf_idata%qflux_subbase_clms,ierr)
+    call VecSet(clm_pf_idata%qflux_subbase_clms,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%qflux_subbase_clms,clm_pf_idata%f_nh4_subbase_clms,ierr)
+    call VecDuplicate(clm_pf_idata%qflux_subbase_clms,clm_pf_idata%f_no3_subbase_clms,ierr)
 
     !---------------------------------------------
 
@@ -1346,6 +1400,34 @@ contains
        call VecDestroy(clm_pf_idata%accndeni_vr_clms_prv,ierr)
     if(clm_pf_idata%accndeni_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%accndeni_vr_clms,ierr)
+
+    !
+    if(clm_pf_idata%qflux_subsurf_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%qflux_subsurf_pfp,ierr)
+    if(clm_pf_idata%qflux_subsurf_clms /= 0) &
+       call VecDestroy(clm_pf_idata%qflux_subsurf_clms,ierr)
+    if(clm_pf_idata%qflux_subbase_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%qflux_subbase_pfp,ierr)
+    if(clm_pf_idata%qflux_subbase_clms /= 0) &
+       call VecDestroy(clm_pf_idata%qflux_subbase_clms,ierr)
+
+    if(clm_pf_idata%f_nh4_subsurf_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%f_nh4_subsurf_pfp,ierr)
+    if(clm_pf_idata%f_nh4_subsurf_clms /= 0) &
+       call VecDestroy(clm_pf_idata%f_nh4_subsurf_clms,ierr)
+    if(clm_pf_idata%f_nh4_subbase_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%f_nh4_subbase_pfp,ierr)
+    if(clm_pf_idata%f_nh4_subbase_clms /= 0) &
+       call VecDestroy(clm_pf_idata%f_nh4_subbase_clms,ierr)
+
+    if(clm_pf_idata%f_no3_subsurf_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%f_no3_subsurf_pfp,ierr)
+    if(clm_pf_idata%f_no3_subsurf_clms /= 0) &
+       call VecDestroy(clm_pf_idata%f_no3_subsurf_clms,ierr)
+    if(clm_pf_idata%f_no3_subbase_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%f_no3_subbase_pfp,ierr)
+    if(clm_pf_idata%f_no3_subbase_clms /= 0) &
+       call VecDestroy(clm_pf_idata%f_no3_subbase_clms,ierr)
 
     !----------------------------------------------------------------------------------
 

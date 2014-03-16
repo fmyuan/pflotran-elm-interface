@@ -960,9 +960,13 @@ subroutine RichardsUpdateSolutionPatch(realization)
   
   type(realization_type) :: realization
 
+#ifndef CLM_PFLOTRAN
   if (realization%option%compute_mass_balance_new) then
+#endif
     call RichardsUpdateMassBalancePatch(realization)
+#ifndef CLM_PFLOTRAN
   endif
+#endif
   
   if (realization%option%update_flow_perm) then
     call RichardsUpdatePermPatch(realization)
@@ -1336,9 +1340,13 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
   call RichardsUpdateAuxVarsPatch(realization)
   patch%aux%Richards%aux_vars_up_to_date = PETSC_FALSE ! override flags since they will soon be out of date
   patch%aux%Richards%aux_vars_cell_pressures_up_to_date = PETSC_FALSE ! override flags since they will soon be out of date
+#ifndef CLM_PFLOTRAN
   if (option%compute_mass_balance_new) then
+#endif
     call RichardsZeroMassBalDeltaPatch(realization)
+#ifndef CLM_PFLOTRAN
   endif
+#endif
 
   select case(grid%itype)
     case(STRUCTURED_GRID)
@@ -1523,14 +1531,18 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
       patch%boundary_fluxes(1,1,sum_connection) = Res(1)
 #endif
 
+#ifndef CLM_PFLOTRAN
       if (option%compute_mass_balance_new) then
+#endif
         ! contribution to boundary
         global_aux_vars_bc(sum_connection)%mass_balance_delta(1,1) = &
           global_aux_vars_bc(sum_connection)%mass_balance_delta(1,1) - Res(1)
         ! contribution to internal 
 !        global_aux_vars(ghosted_id)%mass_balance_delta(1) = &
 !          global_aux_vars(ghosted_id)%mass_balance_delta(1) + Res(1)
+#ifndef CLM_PFLOTRAN
       endif
+#endif
 
 #ifdef PM_RICHARDS_DEBUG
   print *, 'Res bc', local_id
@@ -1693,12 +1705,16 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
         case(HET_MASS_RATE_SS)
           qsrc_mol = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O ! kg/sec -> kmol/sec
       end select
+#ifndef CLM_PFLOTRAN
       if (option%compute_mass_balance_new) then
+#endif
         ! need to added global aux_var for src/sink
         global_aux_vars_ss(sum_connection)%mass_balance_delta(1,1) = &
           global_aux_vars_ss(sum_connection)%mass_balance_delta(1,1) - &
           qsrc_mol
+#ifndef CLM_PFLOTRAN
       endif
+#endif
       r_p(local_id) = r_p(local_id) - qsrc_mol
       ! fluid flux [m^3/sec] = qsrc_mol [kmol/sec] / den [kmol/m^3]
       patch%ss_fluid_fluxes(1,sum_connection) = qsrc_mol / &

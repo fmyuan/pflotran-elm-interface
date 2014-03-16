@@ -46,6 +46,8 @@ module pflotran_model_module
   PetscInt, parameter, public :: PF_SRF_TO_CLM_SRF           = 6 ! 2D SURF grid --> 2D
 
   PetscInt, parameter, public :: CLM_BOT_TO_PF_2DBOT         = 11 ! 2D CLM BOT --> BOTTOM of 3D grid
+  PetscInt, parameter, public :: PF_2DSUB_TO_CLM_SRF         = 12 ! SURF of 3D PF grid -> 2D CLM SURF
+  PetscInt, parameter, public :: PF_2DBOT_TO_CLM_BOT         = 13 ! BOT of PF 3D grid -> 2D CLM BOT
 
   ! mesh ids
   PetscInt, parameter, public :: CLM_SUB_MESH   = 1
@@ -81,6 +83,8 @@ module pflotran_model_module
     type(mapping_type),                pointer :: map_pf_srf_to_clm_srf
 
     type(mapping_type),                pointer :: map_clm_bot_to_pf_2dbot
+    type(mapping_type),                pointer :: map_pf_2dsub_to_clm_srf
+    type(mapping_type),                pointer :: map_pf_2dbot_to_clm_bot
      
     Vec :: hksat_x_clm
     Vec :: hksat_y_clm
@@ -138,6 +142,7 @@ module pflotran_model_module
        pflotranModelSetBGCRates,               &
        pflotranModelGetBgcVariables,           &
        pflotranModelSetSoilHbcs,               &
+       pflotranModelGetBCMassBalanceDelta,     &
        pflotranModelNFaceCells3DDomainPF
 
 
@@ -280,7 +285,11 @@ contains
     PetscBool :: clm2pf_rflux_file
     PetscBool :: pf2clm_flux_file
     PetscBool :: pf2clm_surf_file
+
+    PetscBool :: pf2clm_gflux_file
     PetscBool :: clm2pf_bcbot_file
+    PetscBool :: pf2clm_bcbot_file
+
     character(len=MAXSTRINGLENGTH) :: string
     character(len=MAXWORDLENGTH) :: word
 
@@ -292,7 +301,10 @@ contains
     nullify(model%map_clm_srf_to_pf_srf)
     nullify(model%map_pf_sub_to_clm_sub)
     nullify(model%map_pf_srf_to_clm_srf)
+    !
     nullify(model%map_clm_bot_to_pf_2dbot)
+    nullify(model%map_pf_2dbot_to_clm_bot)
+    nullify(model%map_pf_2dsub_to_clm_srf)
 
     model%map_clm_sub_to_pf_sub          => MappingCreate()
     model%map_clm_sub_to_pf_extended_sub => MappingCreate()
@@ -300,7 +312,10 @@ contains
     model%map_clm_srf_to_pf_srf          => MappingCreate()
     model%map_pf_sub_to_clm_sub          => MappingCreate()
     model%map_pf_srf_to_clm_srf          => MappingCreate()
+    !
     model%map_clm_bot_to_pf_2dbot        => MappingCreate()
+    model%map_pf_2dbot_to_clm_bot        => MappingCreate()
+    model%map_pf_2dsub_to_clm_srf        => MappingCreate()
 
     model%nlclm = -1
     model%ngclm = -1
@@ -315,7 +330,10 @@ contains
     clm2pf_rflux_file=PETSC_FALSE
     pf2clm_flux_file=PETSC_FALSE
     pf2clm_surf_file=PETSC_FALSE
+    !
     clm2pf_bcbot_file=PETSC_FALSE
+    pf2clm_bcbot_file=PETSC_FALSE
+    pf2clm_gflux_file=PETSC_FALSE
     
     string = "MAPPING_FILES"
     call InputFindStringInFile(input,model%option,string)
@@ -373,6 +391,18 @@ contains
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_bcbot_file=PETSC_TRUE
+        case('PF2CLM_BCBOT_FILE')
+          call InputReadNChars(input, model%option, model%map_pf_2dbot_to_clm_bot%filename, &
+               MAXSTRINGLENGTH, PETSC_TRUE)
+          call InputErrorMsg(input, &
+                             model%option, 'type', 'MAPPING_FILES')
+          pf2clm_bcbot_file=PETSC_TRUE
+        case('PF2CLM_GFLUX_FILE')
+          call InputReadNChars(input, model%option, model%map_pf_2dsub_to_clm_srf%filename, &
+               MAXSTRINGLENGTH, PETSC_TRUE)
+          call InputErrorMsg(input, &
+                             model%option, 'type', 'MAPPING_FILES')
+          pf2clm_gflux_file=PETSC_TRUE
         case default
           model%option%io_buffer='Keyword ' // trim(word) // &
             ' in input file not recognized'
@@ -3753,8 +3783,9 @@ end subroutine pflotranModelSetInitialTHStatesfromCLM
   ! refresh Hydrological BC variables from CLM to PF
   !
   ! by 1-18-2013: only water pressure-head type (dirichlet) available
+
   ! ************************************************************************** !
-subroutine pflotranModelSetSoilHbcs(pflotran_model)
+  subroutine pflotranModelSetSoilHbcs(pflotran_model)
 
     use Realization_class
     use Option_module
@@ -3942,7 +3973,159 @@ subroutine pflotranModelSetSoilHbcs(pflotran_model)
         call printErrMsg(pflotran_model%option)
     end select
 
-end subroutine pflotranModelSetSoilHbcs
+  end subroutine pflotranModelSetSoilHbcs
+
+! ************************************************************************** !
+
+  subroutine pflotranModelGetBCMassBalanceDelta(pflotran_model)
+  !
+  ! Calculate mass balance at BC for passing flow rates to CLM
+  !
+  ! Author: Fengming Yuan
+  ! Date: 03/14/2014
+  !
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Option_module
+    use Coupler_module
+    use Utility_module
+    use String_module
+
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+
+    use Global_Aux_module
+    use Reactive_Transport_Aux_module
+    use Reaction_Aux_module
+
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: pflotran_model
+    class(realization_type), pointer :: realization
+
+    type(option_type), pointer :: option
+    type(patch_type), pointer :: patch
+    type(grid_type), pointer :: grid
+    type(reaction_type), pointer :: reaction
+
+    type(coupler_type), pointer :: boundary_condition
+    type(global_auxvar_type), pointer :: global_aux_vars_bc(:)
+    type(reactive_transport_auxvar_type), pointer :: rt_aux_vars_bc(:)
+
+    PetscScalar, pointer :: qflux_subsurf_pf_loc(:)
+    PetscScalar, pointer :: qflux_subbase_pf_loc(:)
+    PetscScalar, pointer :: f_nh4_subsurf_pf_loc(:)
+    PetscScalar, pointer :: f_no3_subsurf_pf_loc(:)
+    PetscScalar, pointer :: f_nh4_subbase_pf_loc(:)
+    PetscScalar, pointer :: f_no3_subbase_pf_loc(:)
+
+    PetscInt :: iconn
+    PetscInt :: offset
+    PetscErrorCode :: ierr
+
+    !
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer &
+          = "ERROR: GetMassBalance not supported under this mode.."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    patch => realization%patch
+    grid => patch%grid
+    option => realization%option
+    reaction => realization%reaction
+    !
+    boundary_condition => patch%boundary_conditions%first
+    global_aux_vars_bc => patch%aux%Global%aux_vars_bc
+    if (option%ntrandof > 0) then
+       rt_aux_vars_bc => patch%aux%RT%aux_vars_bc
+    endif
+
+    call VecGetArrayF90(clm_pf_idata%qflux_subsurf_pfp, qflux_subsurf_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%qflux_subbase_pfp, qflux_subbase_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%f_nh4_subsurf_pfp, f_nh4_subsurf_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%f_nh4_subbase_pfp, f_nh4_subbase_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%f_no3_subsurf_pfp, f_nh4_subsurf_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%f_no3_subbase_pfp, f_nh4_subbase_pf_loc, ierr)
+
+    do
+      if (.not.associated(boundary_condition)) exit
+
+      offset = boundary_condition%connection_set%offset
+
+      if (option%nflowdof > 0) then
+          ! retrieving H2O flux
+          qflux_subsurf_pf_loc(:) = 0.d0
+          if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then          ! potential infilitration
+            do iconn = 1, boundary_condition%connection_set%num_connections
+                qflux_subsurf_pf_loc(iconn) = -global_aux_vars_bc(offset+iconn)%    &
+                                        mass_balance_delta(1,option%liquid_phase)
+            enddo
+          endif
+
+          if(StringCompare(boundary_condition%name,'clm_gflux_overflow')) then    ! surface overflow (after actual infiltration)
+            do iconn = 1, boundary_condition%connection_set%num_connections
+                qflux_subsurf_pf_loc(iconn) = qflux_subsurf_pf_loc(iconn) &
+                     -global_aux_vars_bc(offset+iconn)%mass_balance_delta(1,option%liquid_phase)
+            enddo
+          endif
+          ! mass_balance_delta units = delta kmol h2o; must convert to delta kg h2o
+          qflux_subsurf_pf_loc = qflux_subsurf_pf_loc*FMWH2O
+
+          qflux_subbase_pf_loc(:) = 0.d0
+          if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then          ! bottom water flux
+            do iconn = 1, boundary_condition%connection_set%num_connections
+                qflux_subbase_pf_loc(iconn) = -global_aux_vars_bc(offset+iconn)%  &
+                                           mass_balance_delta(1,option%liquid_phase)
+            enddo
+          endif
+          ! mass_balance_delta units = delta kmol h2o; must convert to delta kg h2o
+          qflux_subbase_pf_loc = qflux_subbase_pf_loc*FMWH2O
+
+      endif
+
+!    if (option%ntrandof > 0) then
+!
+!      ! boundary chemical flux
+!      do iconn = 1, boundary_condition%connection_set%num_connections
+!        sum_mol = rt_aux_vars_bc(offset+iconn)%mass_balance_delta
+!      enddo
+!
+!    endif
+
+       boundary_condition => boundary_condition%next
+
+    enddo
+
+    call VecRestoreArrayF90(clm_pf_idata%qflux_subsurf_pfp, qflux_subsurf_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%qflux_subbase_pfp, qflux_subbase_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%f_nh4_subsurf_pfp, f_nh4_subsurf_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%f_nh4_subbase_pfp, f_nh4_subbase_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%f_no3_subsurf_pfp, f_nh4_subsurf_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%f_no3_subbase_pfp, f_nh4_subbase_pf_loc, ierr)
+
+    ! pass vecs to CLM
+    call MappingSourceToDestination(pflotran_model%map_pf_2dsub_to_clm_srf, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%qflux_subsurf_pfp, &
+                                    clm_pf_idata%qflux_subsurf_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_2dbot_to_clm_bot, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%qflux_subbase_pfp, &
+                                    clm_pf_idata%qflux_subbase_clms)
+
+  end subroutine pflotranModelGetBCMassBalanceDelta
 
 
 ! ************************************************************************** !
@@ -4505,7 +4688,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     word = "NO3-"
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
-    
+
     word = "AmmoniaH4+"
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
@@ -5334,7 +5517,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     implicit none
 
     type(pflotran_model_type), pointer :: pflotran_model
-
 
     class(realization_type), pointer :: realization
     type(coupler_list_type), pointer :: coupler_list

@@ -329,15 +329,19 @@ subroutine RTAuxVarInit(aux_var,reaction,option)
 ! initialize ln activity H2O
   aux_var%ln_act_h2o = 0.d0
   
+#ifndef CLM_PFLOTRAN
   if (option%iflag /= 0 .and. option%compute_mass_balance_new) then
+#endif
     allocate(aux_var%mass_balance(reaction%ncomp,option%nphase))
     aux_var%mass_balance = 0.d0
     allocate(aux_var%mass_balance_delta(reaction%ncomp,option%nphase))
     aux_var%mass_balance_delta = 0.d0
+#ifndef CLM_PFLOTRAN
   else
     nullify(aux_var%mass_balance)
     nullify(aux_var%mass_balance_delta)
   endif
+#endif
   
   if (reaction%ncollcomp > 0) then
     allocate(aux_var%colloid)
