@@ -269,6 +269,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: rho_b
   PetscReal :: theta
   PetscReal :: c_nh3      ! mole/L
+  PetscReal :: s_nh3      ! mole/m3
   PetscReal :: c_nh3_ugg  ! ug ammonia N / g soil
   PetscReal :: c_nh3_0
   PetscReal :: ph
@@ -292,6 +293,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   tc = global_auxvar%temp(1)
 
   c_nh3 = rt_auxvar%total(this%ispec_nh3, iphase)
+  s_nh3 = rt_auxvar%total_sorb_eq(this%ispec_nh3)
   c_nh3 = c_nh3 - this%x0eps
 ! nitrification (Dickinson et al. 2002)
   if(this%ispec_no3 > 0) then
@@ -326,8 +328,8 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
 !             mole/L * 1000 L/m3 * g/mol / kg/m3 = g/kg = mg/g = 1000 ug/g  
 !  c_nh3_ugg = c_nh3 / theta *1000.0d0 * N_molecular_weight / rho_b * 1000.0d0
   M_2_ug_per_g  = 1.0d0 / theta *1000.0d0 * N_molecular_weight / rho_b * 1000.0d0
-  c_nh3_ugg = c_nh3 * M_2_ug_per_g
-  c_nh3_0 = 3.0d0 / M_2_ug_per_g 
+  c_nh3_ugg = (c_nh3 + s_nh3 / theta / 1000.0d0)* M_2_ug_per_g
+!  c_nh3_0 = 3.0d0 / M_2_ug_per_g 
 
   if(this%ispec_n2o > 0.0d0 .and. c_nh3_ugg > 3.0d0 ) then
 !  if(this%ispec_n2o > 0.0d0) then
@@ -349,7 +351,8 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
           f_ph = 1.0d0
        endif
 
-       rate_n2o = 1.0 - exp(-0.0105d0 * (c_nh3 - c_nh3_0) * M_2_ug_per_g)  ! need to change units 
+!       rate_n2o = 1.0 - exp(-0.0105d0 * (c_nh3 - c_nh3_0) * M_2_ug_per_g)  ! need to change units 
+       rate_n2o = 1.0 - exp(-0.0105d0 * c_nh3_ugg)  ! need to change units 
        rate_n2o = rate_n2o * f_t * f_w * f_ph * this%k_nitr_n2o
 
        Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o
@@ -360,7 +363,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
        endif
 
        if (compute_derivative) then
-           drate_n2o = 0.0105d0*exp(-0.0105d0*(c_nh3-c_nh3_0)*M_2_ug_per_g) &
+           drate_n2o = 0.0105d0*exp(-0.0105d0*c_nh3_ugg) &
                      * M_2_ug_per_g
            drate_n2o = drate_n2o * f_t * f_w * f_ph * this%k_nitr_n2o
 
