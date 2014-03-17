@@ -4016,7 +4016,8 @@ end subroutine pflotranModelSetInitialTHStatesfromCLM
     type(global_auxvar_type), pointer :: global_aux_vars_bc(:)
     type(reactive_transport_auxvar_type), pointer :: rt_aux_vars_bc(:)
 
-    PetscScalar, pointer :: qflux_subsurf_pf_loc(:)
+    PetscScalar, pointer :: qinfl_subsurf_pf_loc(:)
+    PetscScalar, pointer :: qsurf_subsurf_pf_loc(:)
     PetscScalar, pointer :: qflux_subbase_pf_loc(:)
     PetscScalar, pointer :: f_nh4_subsurf_pf_loc(:)
     PetscScalar, pointer :: f_no3_subsurf_pf_loc(:)
@@ -4051,7 +4052,8 @@ end subroutine pflotranModelSetInitialTHStatesfromCLM
        rt_aux_vars_bc => patch%aux%RT%aux_vars_bc
     endif
 
-    call VecGetArrayF90(clm_pf_idata%qflux_subsurf_pfp, qflux_subsurf_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%qinfl_subsurf_pfp, qinfl_subsurf_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%qsurf_subsurf_pfp, qsurf_subsurf_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%qflux_subbase_pfp, qflux_subbase_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%f_nh4_subsurf_pfp, f_nh4_subsurf_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%f_nh4_subbase_pfp, f_nh4_subbase_pf_loc, ierr)
@@ -4064,24 +4066,29 @@ end subroutine pflotranModelSetInitialTHStatesfromCLM
       offset = boundary_condition%connection_set%offset
 
       if (option%nflowdof > 0) then
-          ! retrieving H2O flux
-          qflux_subsurf_pf_loc(:) = 0.d0
-          if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then          ! potential infilitration
+          ! retrieving H2O flux at top BC
+          qinfl_subsurf_pf_loc(:) = 0.d0
+          qsurf_subsurf_pf_loc(:) = 0.d0
+          if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then          ! potential infilitration (+)
             do iconn = 1, boundary_condition%connection_set%num_connections
-                qflux_subsurf_pf_loc(iconn) = -global_aux_vars_bc(offset+iconn)%    &
+                qinfl_subsurf_pf_loc(iconn) = -global_aux_vars_bc(offset+iconn)%    &
                                         mass_balance_delta(1,option%liquid_phase)
             enddo
           endif
 
-          if(StringCompare(boundary_condition%name,'clm_gflux_overflow')) then    ! surface overflow (after actual infiltration)
+          if(StringCompare(boundary_condition%name,'clm_gflux_overflow')) then    ! surface overflow (after actual infiltration) (-)
             do iconn = 1, boundary_condition%connection_set%num_connections
-                qflux_subsurf_pf_loc(iconn) = qflux_subsurf_pf_loc(iconn) &
-                     -global_aux_vars_bc(offset+iconn)%mass_balance_delta(1,option%liquid_phase)
+                qsurf_subsurf_pf_loc(iconn) = -global_aux_vars_bc(offset+iconn)%  &
+                                        mass_balance_delta(1,option%liquid_phase)
+                qinfl_subsurf_pf_loc(iconn) = qinfl_subsurf_pf_loc(iconn)         &
+                                              +qsurf_subsurf_pf_loc(iconn)        ! 'qsurf_' should be negative
             enddo
           endif
           ! mass_balance_delta units = delta kmol h2o; must convert to delta kg h2o
-          qflux_subsurf_pf_loc = qflux_subsurf_pf_loc*FMWH2O
+          qinfl_subsurf_pf_loc = qinfl_subsurf_pf_loc*FMWH2O
+          qsurf_subsurf_pf_loc = qsurf_subsurf_pf_loc*FMWH2O
 
+          ! retrieving H2O flux at bottom BC
           qflux_subbase_pf_loc(:) = 0.d0
           if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then          ! bottom water flux
             do iconn = 1, boundary_condition%connection_set%num_connections
@@ -4107,7 +4114,8 @@ end subroutine pflotranModelSetInitialTHStatesfromCLM
 
     enddo
 
-    call VecRestoreArrayF90(clm_pf_idata%qflux_subsurf_pfp, qflux_subsurf_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%qinfl_subsurf_pfp, qinfl_subsurf_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%qsurf_subsurf_pfp, qsurf_subsurf_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%qflux_subbase_pfp, qflux_subbase_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%f_nh4_subsurf_pfp, f_nh4_subsurf_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%f_nh4_subbase_pfp, f_nh4_subbase_pf_loc, ierr)
@@ -4117,8 +4125,13 @@ end subroutine pflotranModelSetInitialTHStatesfromCLM
     ! pass vecs to CLM
     call MappingSourceToDestination(pflotran_model%map_pf_2dsub_to_clm_srf, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%qflux_subsurf_pfp, &
-                                    clm_pf_idata%qflux_subsurf_clms)
+                                    clm_pf_idata%qinfl_subsurf_pfp, &
+                                    clm_pf_idata%qinfl_subsurf_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_2dsub_to_clm_srf, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%qsurf_subsurf_pfp, &
+                                    clm_pf_idata%qsurf_subsurf_clms)
 
     call MappingSourceToDestination(pflotran_model%map_pf_2dbot_to_clm_bot, &
                                     pflotran_model%option, &
