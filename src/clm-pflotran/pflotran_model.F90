@@ -46,8 +46,8 @@ module pflotran_model_module
   PetscInt, parameter, public :: PF_SRF_TO_CLM_SRF           = 6 ! 2D SURF grid --> 2D
 
   PetscInt, parameter, public :: CLM_BOT_TO_PF_2DBOT         = 11 ! 2D CLM BOT --> BOTTOM of 3D grid
-  PetscInt, parameter, public :: PF_2DSUB_TO_CLM_SRF         = 12 ! SURF of 3D PF grid -> 2D CLM SURF
-  PetscInt, parameter, public :: PF_2DBOT_TO_CLM_BOT         = 13 ! BOT of PF 3D grid -> 2D CLM BOT
+  PetscInt, parameter, public :: PF_2D_SUB_TO_CLM_SRF        = 12 ! SURF of 3D PF grid -> 2D CLM SURF
+  PetscInt, parameter, public :: PF_2D_BOT_TO_CLM_BOT        = 13 ! BOT of PF 3D grid -> 2D CLM BOT
 
   ! mesh ids
   PetscInt, parameter, public :: CLM_SUB_MESH   = 1
@@ -873,6 +873,17 @@ end subroutine pflotranModelSetICs
                                             grid_clm_cell_ids_nindex, &
                                             grid_clm_npts_local, &
                                             map_id)
+!      case (PF_2DSUB_TO_CLM_SRF)
+!        call pflotranModelInitMapSrfTo2DSub(pflotran_model,  &
+!                                            grid_clm_cell_ids_nindex, &
+!                                            grid_clm_npts_local, &
+!                                            map_id)
+!      case (PF_2DBOT_TO_CLM_BOT)
+!        call pflotranModelInitMapFaceToFace(pflotran_model,  &
+!                                            grid_clm_cell_ids_nindex, &
+!                                            grid_clm_npts_local, &
+!                                            map_id)
+
       case default
         pflotran_model%option%io_buffer = 'Invalid map_id argument to ' // &
           'pflotranModelInitMapping'
