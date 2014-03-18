@@ -4247,44 +4247,30 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     if (associated(realization%rt_mass_transfer_list)) then
-       offset = (local_id - 1)*realization%reaction%ncomp
 
-       offsetim = offset + realization%reaction%offset_immobile
+       offsetim = realization%reaction%offset_immobile
 
        cur_mass_transfer => realization%rt_mass_transfer_list
 
        do
          if (.not.associated(cur_mass_transfer)) exit
 
-!         select case (cur_mass_transfer%idof)
-!            case(ispec_nh4)
          if(cur_mass_transfer%idof == ispec_nh4) then
            call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
-!            case(ispec_no3)
          elseif(cur_mass_transfer%idof == ispec_no3) then
            call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
-!            case(ispec_lit1c+offsetim)
          elseif(cur_mass_transfer%idof == ispec_lit1c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
-!            case(ispec_lit2c+offsetim)
          elseif(cur_mass_transfer%idof == ispec_lit2c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
-!            case(ispec_lit3c+offsetim)
          elseif(cur_mass_transfer%idof == ispec_lit3c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
-!            case(ispec_lit1n+offsetim)
          elseif(cur_mass_transfer%idof == ispec_lit1n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
-!            case(ispec_lit2n+offsetim)
          elseif(cur_mass_transfer%idof == ispec_lit2n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
-!            case(ispec_lit2n+offsetim)
          elseif(cur_mass_transfer%idof == ispec_lit3n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
-!            case default
-!                    pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
-!                    call printErrMsg(pflotran_model%option)
-!         end select
          endif
 
          do local_id = 1, grid%nlmax
@@ -4307,35 +4293,22 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
             endif
          enddo
 
-!         select case (cur_mass_transfer%idof)
-!            case(ispec_nh4)
          if(cur_mass_transfer%idof == ispec_nh4) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
-!            case(ispec_no3)
          elseif(cur_mass_transfer%idof == ispec_no3) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
-!            case(ispec_lit1c+offsetim)
          elseif(cur_mass_transfer%idof == ispec_lit1c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
-!            case(ispec_lit2c+offsetim)
          elseif(cur_mass_transfer%idof == ispec_lit2c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
-!            case(ispec_lit3c+offsetim)
          elseif(cur_mass_transfer%idof == ispec_lit3c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
-!            case(ispec_lit1n+offsetim)
          elseif(cur_mass_transfer%idof == ispec_lit1n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
-!            case(ispec_lit2n+offsetim)
          elseif(cur_mass_transfer%idof == ispec_lit2n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
-!            case(ispec_lit3n+offsetim)
          elseif(cur_mass_transfer%idof == ispec_lit3n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
-!            case default
-!               pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
-!               call printErrMsg(pflotran_model%option)
-!         end select
          endif
 
          cur_mass_transfer => cur_mass_transfer%next
