@@ -26,7 +26,8 @@ endif
 
 ifdef glenn
 #  MYFLAGS += ${FC_DEFINE_FLAG}XINGYUAN_BC
-  MYFLAGS += ${FC_DEFINE_FLAG}YE_FLUX
+#  MYFLAGS += ${FC_DEFINE_FLAG}YE_FLUX
+  MYFLAGS += ${FC_DEFINE_FLAG}BROADCAST_DATASET
 endif
 
 ifdef solid_solution
@@ -144,12 +145,17 @@ ifdef mfd_ugrid
   MYFLAGS += ${FC_DEFINE_FLAG}MFD_UGRID
 endif
 
+UPDATE_PROVENANCE=0
+ifdef provenance
+  UPDATE_PROVENANCE=1
+endif
+
 CFLAGS   = 
 FFLAGS   =
 CPPFLAGS = ${MYFLAGS}
 FPPFLAGS = ${MYFLAGS}
 
-CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log
+CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log pflotran_provenance.F90
 
 ifdef have_hdf5
 LIBS +=  -L${HDF5_LIB} -lhdf5_fortran -lhdf5 -lz 
@@ -180,6 +186,7 @@ util_obj  = \
 	${common_src}option_transport.o \
 	${common_src}output_aux.o \
 	${common_src}pflotran_constants.o \
+	${common_src}pflotran_provenance.o \
 	${common_src}string.o \
 	${common_src}units.o \
 	${common_src}utility.o \
@@ -420,6 +427,16 @@ libpflotranchem.a : $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
 
 pflotran_rxn : libpflotranchem.a $(pflotran_rxn_obj)
 	${FLINKER} -o $@ $(pflotran_rxn_obj) -L. -lpflotranchem ${PETSC_LIB} ${LIBS} 
+
+pflotran_provenance.F90 : FORCE
+ifeq ($(UPDATE_PROVENANCE),1)
+	@-rm pflotran_provenance.o pflotran_provenance_module.mod pflotran_provenance.F90
+	$(PYTHON) ./pflotran-provenance.py \
+		--pflotran-fflags "${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS}" \
+		--petsc-config "${CONFIGURE_OPTIONS}"
+else
+	@[[ -f pflotran_provenance.F90 ]] || cp pflotran_no_provenance.F90 pflotran_provenance.F90
+endif
 
 # do these files exist anymore?
 #test: functions.o test.o
@@ -741,8 +758,9 @@ output_geomechanics.o : geomech_grid.o geomech_grid_aux.o \
                         output_tecplot.o pflotran_constants.o string.o \
                         unstructured_cell.o variables.o
 output_hdf5.o : connection.o coupler.o discretization.o field.o grid.o hdf5.o \
-                hdf5_aux.o logging.o option.o output_aux.o output_common.o \
-                patch.o pflotran_constants.o reaction_aux.o realization_base.o \
+                hdf5_aux.o input_aux.o logging.o option.o output_aux.o output_common.o \
+                patch.o pflotran_constants.o pflotran_provenance.o \
+                reaction_aux.o realization_base.o \
                 string.o unstructured_cell.o unstructured_grid_aux.o \
                 variables.o
 output_observation.o : connection.o coupler.o discretization.o field.o \
@@ -783,8 +801,10 @@ patch.o : auxiliary.o condition.o connection.o constraint.o coupler.o \
 pflotran.o : geomechanics_factory.o hydrogeophysics_factory.o \
              multisimulation.o option.o pflotran_constants.o \
              pflotran_factory.o simulation_base.o subsurface_factory.o \
-             surface_factory.o surfsubsurface_factory.o
+             surface_factory.o surfsubsurface_factory.o \
+             pflotran_provenance.o
 pflotran_constants.o :
+pflotran_provenance.o :
 pflotran_factory.o : geomechanics_timestepper.o init.o input_aux.o \
                      multisimulation.o option.o pflotran_constants.o \
                      regression.o simulation.o string.o timestepper.o
