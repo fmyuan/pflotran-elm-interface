@@ -1114,9 +1114,13 @@ subroutine THUpdateSolutionPatch(realization)
   
   type(realization_type) :: realization
 
+#ifndef CLM_PFLOTRAN
   if (realization%option%compute_mass_balance_new) then
+#endif
     call THUpdateMassBalancePatch(realization)
+#ifndef CLM_PFLOTRAN
   endif
+#endif
 
 end subroutine THUpdateSolutionPatch
 
@@ -3168,10 +3172,13 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   ! override flags since they will soon be out of date  
   patch%aux%TH%aux_vars_up_to_date = PETSC_FALSE
 
+#ifndef CLM_PFLOTRAN
   if (option%compute_mass_balance_new) then
+#endif
     call THZeroMassBalDeltaPatch(realization)
+#ifndef CLM_PFLOTRAN
   endif
-
+#endif
 
 ! now assign access pointer to local variables
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr)

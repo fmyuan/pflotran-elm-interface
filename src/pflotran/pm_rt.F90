@@ -678,10 +678,13 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
                           this%realization%patch%grid, &
                           this%realization%option)
   
+#ifndef CLM_PFLOTRAN
   if (this%realization%option%compute_mass_balance_new) then
+#endif
     call RTUpdateMassBalance(this%realization)
+#ifndef CLM_PFLOTRAN
   endif  
-
+#endif
 end subroutine PMRTUpdateSolution2     
 
 ! ************************************************************************** !

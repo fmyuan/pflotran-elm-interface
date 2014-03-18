@@ -4055,9 +4055,13 @@ subroutine StepperUpdateTransportSolution(realization,update_kinetics)
     call RealizationUpdateProperties(realization)
   endif
   
+#ifndef CLM_PFLOTRAN
   if (realization%option%compute_mass_balance_new) then
+#endif
     call RTUpdateMassBalance(realization)
+#ifndef CLM_PFLOTRAN
   endif  
+#endif
 
 end subroutine StepperUpdateTransportSolution
 

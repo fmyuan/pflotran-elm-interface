@@ -1732,10 +1732,14 @@ subroutine RTReact(realization)
   call VecRestoreArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)  
   call VecRestoreArrayReadF90(field%volume,volume_p,ierr)
 
+#ifndef CLM_PFLOTRAN
   if (option%compute_mass_balance_new) then
+#endif
     call RTZeroMassBalanceDelta(realization)
     call RTComputeBCMassBalanceOS(realization)
+#ifndef CLM_PFLOTRAN
   endif
+#endif
   
 #ifdef OS_STATISTICS
   call_count = call_count + cur_patch%aux%RT%rt_parameter%newton_call_count
@@ -1945,14 +1949,18 @@ subroutine RTComputeBCMassBalanceOS(realization)
       Res = coef_in*rt_aux_vars(ghosted_id)%total(:,iphase) + &
             coef_out*source_sink%tran_condition%cur_constraint_coupler% &
             rt_auxvar%total(:,iphase)
+#ifndef CLM_PFLOTRAN
       if (option%compute_mass_balance_new) then
+#endif
         ! contribution to boundary 
         rt_aux_vars_ss(sum_connection)%mass_balance_delta(:,iphase) = &
           rt_aux_vars_ss(sum_connection)%mass_balance_delta(:,iphase) + Res
         ! contribution to internal 
 !        rt_aux_vars(ghosted_id)%mass_balance_delta(:,iphase) = &
 !          rt_aux_vars(ghosted_id)%mass_balance_delta(:,iphase) - Res
+#ifndef CLM_PFLOTRAN
         endif
+#endif
     enddo
     source_sink => source_sink%next
   enddo
@@ -2236,9 +2244,13 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   endif
   patch%aux%RT%aux_vars_up_to_date = PETSC_FALSE 
   
+#ifndef CLM_PFLOTRAN
   if (option%compute_mass_balance_new) then
+#endif
     call RTZeroMassBalanceDelta(realization)
+#ifndef CLM_PFLOTRAN
   endif
+#endif
   
   ! Get pointer to Vector data
   call VecGetArrayF90(r, r_p, ierr)
@@ -2387,14 +2399,18 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
             -Res(1:reaction%ncomp)
       endif
 
+#ifndef CLM_PFLOTRAN
       if (option%compute_mass_balance_new) then
+#endif
       ! contribution to boundary 
         rt_aux_vars_bc(sum_connection)%mass_balance_delta(:,iphase) = &
           rt_aux_vars_bc(sum_connection)%mass_balance_delta(:,iphase) - Res
 !        ! contribution to internal 
 !        rt_aux_vars(ghosted_id)%mass_balance_delta(:,iphase) = &
 !          rt_aux_vars(ghosted_id)%mass_balance_delta(:,iphase) + Res
-        endif  
+#ifndef CLM_PFLOTRAN
+      endif
+#endif
 
 #else
       call TFluxCoef_CD(option,cur_connection_set%area(iconn), &
@@ -2417,14 +2433,18 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
         patch%boundary_fluxes(iphase,1:reaction%ncomp,sum_connection) = &
             Res_2(1:reaction%ncomp)
       endif
+#ifndef CLM_PFLOTRAN
       if (option%compute_mass_balance_new) then
+#endif
       ! contribution to boundary 
         rt_aux_vars_bc(sum_connection)%mass_balance_delta(:,iphase) = &
           rt_aux_vars_bc(sum_connection)%mass_balance_delta(:,iphase) - Res_2
 !        ! contribution to internal 
 !        rt_aux_vars(ghosted_id)%mass_balance_delta(:,iphase) = &
 !          rt_aux_vars(ghosted_id)%mass_balance_delta(:,iphase) + Res
+#ifndef CLM_PFLOTRAN
         endif  
+#endif
       
 #endif                   
      
@@ -2662,14 +2682,18 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       istartall = offset + 1
       iendall = offset + reaction%ncomp
       r_p(istartall:iendall) = r_p(istartall:iendall) + Res(1:reaction%ncomp)                                  
+#ifndef CLM_PFLOTRAN
       if (option%compute_mass_balance_new) then
+#endif
         ! contribution to boundary 
         rt_aux_vars_ss(sum_connection)%mass_balance_delta(:,iphase) = &
           rt_aux_vars_ss(sum_connection)%mass_balance_delta(:,iphase) + Res
         ! contribution to internal 
 !        rt_aux_vars(ghosted_id)%mass_balance_delta(:,iphase) = &
 !          rt_aux_vars(ghosted_id)%mass_balance_delta(:,iphase) - Res
-        endif
+#ifndef CLM_PFLOTRAN
+      endif
+#endif
     enddo
     source_sink => source_sink%next
   enddo
@@ -4546,11 +4570,15 @@ subroutine RTExplicitAdvection(realization)
       'Need to account for non-aqueous species to RTExplicitAdvection()'
     call printErrMsg(option)
   endif
+#ifndef CLM_PFLOTRAN
   if (option%compute_mass_balance_new) then  
+#endif
     option%io_buffer = &
       'Mass balance not yet supported in RTExplicitAdvection()'
     call printErrMsg(option)
+#ifndef CLM_PFLOTRAN
   endif
+#endif
   
 ! Interior Flux Terms -----------------------------------
   call VecGetArrayF90(field%tvd_ghosts,tvd_ghosts_p,ierr)
