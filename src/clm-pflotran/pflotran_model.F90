@@ -4503,9 +4503,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     if (associated(realization%rt_mass_transfer_list)) then
-       offset = (local_id - 1)*realization%reaction%ncomp
 
-       offsetim = offset + realization%reaction%offset_immobile
+       offsetim = realization%reaction%offset_immobile
 
        cur_mass_transfer => realization%rt_mass_transfer_list
 
