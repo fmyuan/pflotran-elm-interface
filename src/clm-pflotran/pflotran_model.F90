@@ -3463,13 +3463,15 @@ end subroutine pflotranModelSetICs
       theta = saturation * porosity
 
       if(ispec_no3 > 0) then
-         xx_p(offset + ispec_no3) = smin_no3_vr_pf_loc(local_id) / &
-                                    N_molecular_weight / theta / 1000.0d0 
+         xx_p(offset + ispec_no3) = max(smin_no3_vr_pf_loc(local_id) / &
+                                    N_molecular_weight / theta / 1000.0d0, & 
+                                    1.0d-20)
       endif
 
       if(ispec_nh4 > 0) then
-         xx_p(offset + ispec_nh4) = smin_nh4_vr_pf_loc(local_id) / &
-                                    N_molecular_weight / theta / 1000.d0 
+         xx_p(offset + ispec_nh4) = max(smin_nh4_vr_pf_loc(local_id) / &
+                                    N_molecular_weight / theta / 1000.d0, & 
+                                    1.0d-20)
       endif
 
       offsetim = offset + realization%reaction%offset_immobile
@@ -4326,6 +4328,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscInt           :: local_id
 
     PetscInt:: ispec_nh4, ispec_no3
+    PetscInt:: ispec_lit1c, ispec_lit2c, ispec_lit3c
+    PetscInt:: ispec_lit1n, ispec_lit2n, ispec_lit3n
     PetscInt:: ghosted_id, offset, offsetim
 
     PetscScalar, pointer :: rate_pf_loc(:)   !
@@ -4342,8 +4346,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscReal, pointer :: volume_p(:)
 
     character(len=MAXWORDLENGTH) :: word
-    PetscReal, parameter :: C_molecular_weight = 12.0107d0
-    PetscReal, parameter :: N_molecular_weight = 14.0067d0
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -4476,45 +4478,70 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
+    word = "LabileC"
+    ispec_lit1c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = "CelluloseC"
+    ispec_lit2c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = "LigninC"
+    ispec_lit3c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = "LabileN"
+    ispec_lit1n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = "CelluloseN"
+    ispec_lit2n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = "LigninN"
+    ispec_lit3n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
     if (associated(realization%rt_mass_transfer_list)) then
+       offset = (local_id - 1)*realization%reaction%ncomp
+
+       offsetim = offset + realization%reaction%offset_immobile
+
        cur_mass_transfer => realization%rt_mass_transfer_list
+
        do
          if (.not.associated(cur_mass_transfer)) exit
 
-         select case (cur_mass_transfer%idof)
-            case(8)
-             call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
-            case(4)
-             call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
-            case(23)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
-            case(24)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
-            case(25)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
-            case(26)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
-            case(27)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
-            case(28)
-             call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
-            case default
-                    pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
-                    call printErrMsg(pflotran_model%option)
-         end select
+         if(cur_mass_transfer%idof == ispec_nh4) then
+           call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
+         elseif(cur_mass_transfer%idof == ispec_no3) then
+           call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
+         elseif(cur_mass_transfer%idof == ispec_lit1c+offsetim) then
+           call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
+         elseif(cur_mass_transfer%idof == ispec_lit2c+offsetim) then
+           call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
+         elseif(cur_mass_transfer%idof == ispec_lit3c+offsetim) then
+           call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
+         elseif(cur_mass_transfer%idof == ispec_lit1n+offsetim) then
+           call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
+         elseif(cur_mass_transfer%idof == ispec_lit2n+offsetim) then
+           call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
+         elseif(cur_mass_transfer%idof == ispec_lit3n+offsetim) then
+           call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
+         endif
 
          do local_id = 1, grid%nlmax
             if (grid%nG2L(local_id) < 0) cycle ! bypass ghosted corner cells
             if (patch%imat(local_id) <= 0) cycle
 
-            if(cur_mass_transfer%idof .eq. 8 .or. &
-               cur_mass_transfer%idof .eq. 4 .or. &
-               cur_mass_transfer%idof .eq. 23 .or. &
-               cur_mass_transfer%idof .eq. 24 .or. &
-               cur_mass_transfer%idof .eq. 25 .or. &
-               cur_mass_transfer%idof .eq. 26 .or. &
-               cur_mass_transfer%idof .eq. 27 .or. &
-               cur_mass_transfer%idof .eq. 28 &
+            if(cur_mass_transfer%idof == ispec_nh4 .or. &
+               cur_mass_transfer%idof == ispec_no3 .or. &
+               cur_mass_transfer%idof == ispec_lit1c+offsetim .or. &
+               cur_mass_transfer%idof == ispec_lit2c+offsetim .or. &
+               cur_mass_transfer%idof == ispec_lit3c+offsetim .or. &
+               cur_mass_transfer%idof == ispec_lit1n+offsetim .or. &
+               cur_mass_transfer%idof == ispec_lit2n+offsetim .or. &
+               cur_mass_transfer%idof == ispec_lit3n+offsetim &
                ) then
 
                cur_mass_transfer%dataset%rarray(local_id) = &
@@ -4523,27 +4550,23 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
             endif
          enddo
 
-         select case (cur_mass_transfer%idof)
-            case(8)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
-            case(4)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
-            case(23)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
-            case(24)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
-            case(25)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
-            case(26)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
-            case(27)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
-            case(28)
-             call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
-            case default
-               pflotran_model%option%io_buffer = 'Error: set PFLOTRAN BGC rates using CLM'
-               call printErrMsg(pflotran_model%option)
-         end select
+         if(cur_mass_transfer%idof == ispec_nh4) then
+           call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
+         elseif(cur_mass_transfer%idof == ispec_no3) then
+           call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
+         elseif(cur_mass_transfer%idof == ispec_lit1c+offsetim) then
+           call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
+         elseif(cur_mass_transfer%idof == ispec_lit2c+offsetim) then
+           call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
+         elseif(cur_mass_transfer%idof == ispec_lit3c+offsetim) then
+           call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
+         elseif(cur_mass_transfer%idof == ispec_lit1n+offsetim) then
+           call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
+         elseif(cur_mass_transfer%idof == ispec_lit2n+offsetim) then
+           call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
+         elseif(cur_mass_transfer%idof == ispec_lit3n+offsetim) then
+           call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
+         endif
 
          cur_mass_transfer => cur_mass_transfer%next
        enddo
