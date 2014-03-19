@@ -78,10 +78,6 @@ ifdef remove_sat
   MYFLAGS += ${FC_DEFINE_FLAG}REMOVE_SATURATION
 endif
 
-ifdef compressibility
-  MYFLAGS += ${FC_DEFINE_FLAG}USE_COMPRESSIBILITY
-endif
-
 ifdef no_vapor_diffusion
   MYFLAGS += ${FC_DEFINE_FLAG}NO_VAPOR_DIFFUSION
 endif
