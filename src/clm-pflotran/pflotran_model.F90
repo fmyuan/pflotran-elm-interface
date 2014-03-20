@@ -137,7 +137,8 @@ module pflotran_model_module
        pflotranModelGetSoilProp,               &
        pflotranModelSetInitialTHStatesfromCLM, &    ! initializing TH from CLM to PFLOTRAN flow mode
        pflotranModelSetInitialConcentrations,  &
-       pflotranModelUpdateTHfromCLM,           &     ! dynamically update TH from CLM to drive PFLOTRAN BGC
+       pflotranModelUpdateTHfromCLM,           &    ! dynamically update TH from CLM to drive PFLOTRAN BGC
+       pflotranModelUpdateAqGasesFromCLM,      &
        pflotranModelUpdateO2fromCLM,           &
        pflotranModelSetBGCRates,               &
        pflotranModelGetBgcVariables,           &
@@ -3616,6 +3617,183 @@ end subroutine pflotranModelSetICs
   end subroutine pflotranModelUpdateTHfromCLM
 
   ! ************************************************************************** !
+  !> This routine reset aqueous gas concenctration after emission adjusting
+  !> in CLM-PFLOTRAN interface
+  !! Note: this is a temporary work-around, because PF doesn't have BGC gas
+  !!       processes at this moment
+  !> @author
+  !! F.-M. Yuan
+  !!
+  !! date: 3/19/2014
+  ! ************************************************************************** !
+  subroutine pflotranModelUpdateAqGasesFromCLM(pflotran_model)
+
+    use Global_Aux_module
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Option_module
+    use Field_module
+    use Discretization_module
+    use Reaction_Aux_module
+    use Reactive_Transport_module, only : RTUpdateAuxVars
+    use Reactive_Transport_Aux_module
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(field_type), pointer                 :: field
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(simulation_base_type), pointer       :: simulation
+    type(global_auxvar_type), pointer :: global_aux_vars(:)
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id
+    PetscReal, pointer :: xx_p(:)
+
+    PetscScalar, pointer :: aqco2_vr_pf_loc(:)              ! (gC/m3)
+    PetscScalar, pointer :: aqn2_vr_pf_loc(:)               ! (gN2-N/m3)
+    PetscScalar, pointer :: aqn2o_vr_pf_loc(:)              ! (gN2O-N/m3)
+    PetscReal, pointer :: porosity_loc_p(:)
+
+    PetscInt :: offset
+    PetscInt :: ispec_co2, ispec_n2, ispec_n2o
+
+    PetscReal :: porosity, saturation, theta ! for concentration conversion from g/m3 soil to mol/Lwater (M)
+
+    character(len=MAXWORDLENGTH) :: word
+    PetscReal, parameter :: C_molecular_weight = 12.0107d0
+    PetscReal, parameter :: N_molecular_weight = 14.0067d0
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer &
+          = "ERROR: SetInitialConcentrations not supported under this mode.."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    patch => realization%patch
+    grid  => patch%grid
+    field => realization%field
+    global_aux_vars  => patch%aux%Global%aux_vars
+
+    ! (i) indices of bgc variables in PFLOTRAN immobiles
+
+    ! primary species
+    word = "CO2(aq)"
+    ispec_co2  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+
+    if( ispec_co2 < 0 ) then
+      word = "CO2(aq)*"
+      ispec_co2  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
+
+    word = "N2(aq)"
+    ispec_n2  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+
+    word = "N2O(aq)"
+    ispec_n2o = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+
+    ! mapping CLM vecs to PF vecs
+    if(ispec_co2 > 0) then
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%aqco2_vr_clmp, &
+                                    clm_pf_idata%aqco2_vr_pfs)
+    endif
+
+    if(ispec_n2o > 0) then
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%aqn2o_vr_clmp, &
+                                    clm_pf_idata%aqn2o_vr_pfs)
+    endif
+
+    if(ispec_n2 > 0) then
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%aqn2_vr_clmp, &
+                                    clm_pf_idata%aqn2_vr_pfs)
+    endif
+
+    ! (iii) get the 'PF' vecs for resetting data
+    call VecGetArrayF90(clm_pf_idata%aqco2_vr_pfs, aqco2_vr_pf_loc,ierr)
+    call VecGetArrayF90(clm_pf_idata%aqn2_vr_pfs, aqn2_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%aqn2o_vr_pfs, aqn2o_vr_pf_loc, ierr)
+
+    call VecGetArrayF90(field%tran_xx,xx_p,ierr)  ! extract data from pflotran internal portion
+    call VecGetArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)
+
+    do local_id=1,grid%nlmax
+        ghosted_id = grid%nL2G(local_id)
+        if (associated(patch%imat)) then
+           if (patch%imat(ghosted_id) <= 0) cycle
+        endif
+
+        saturation = global_aux_vars(ghosted_id)%sat(1)
+        porosity = porosity_loc_p(local_id)
+        theta = saturation * porosity
+
+        offset = (local_id - 1)*realization%reaction%ncomp
+
+        if(ispec_co2 > 0) then
+            xx_p(offset + ispec_co2) = max(aqco2_vr_pf_loc(local_id) / &
+                                          C_molecular_weight / theta / 1000.0d0, &
+                                          1.0d-20)
+        endif
+
+        if(ispec_n2 > 0) then
+            xx_p(offset + ispec_n2) = max(aqn2_vr_pf_loc(local_id) / &
+                                          N_molecular_weight / theta / 1000.0d0, &
+                                          1.0d-20)
+        endif
+
+        if(ispec_n2o > 0) then
+            xx_p(offset + ispec_n2o) = max(aqn2o_vr_pf_loc(local_id) / &
+                                          N_molecular_weight / theta / 1000.0d0, &
+                                          1.0d-20)
+        endif
+
+    enddo
+
+    call VecRestoreArrayF90(clm_pf_idata%aqco2_vr_pfs, aqco2_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%aqn2_vr_pfs, aqn2_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%aqn2o_vr_pfs, aqn2o_vr_pf_loc, ierr)
+    !
+    call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
+    call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+
+    !
+    call DiscretizationGlobalToLocal(realization%discretization,field%tran_xx, &
+                                   field%tran_xx_loc,NTRANDOF)
+
+    call VecCopy(field%tran_xx,field%tran_yy,ierr)
+    call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
+
+  end subroutine pflotranModelUpdateAqGasesFromCLM
+
+  ! ************************************************************************** !
   !> This routine Updates O2 for PFLOTRAN bgc that are from CLM
   !! for testing PFLOTRAN-BGC mode
   !!
@@ -4575,7 +4753,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
   end subroutine pflotranModelSetBGCRates
 
-    ! ************************************************************************** !
+  ! ************************************************************************** !
   !> This routine get updated bgc states/fluxes evoloved by PFLOTRAN.
   !!
   !> @author
@@ -4631,12 +4809,12 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscScalar, pointer :: decomp_npools_vr_lit2_pf_loc(:) ! (gN/m3)
     PetscScalar, pointer :: decomp_npools_vr_lit3_pf_loc(:) ! (gN/m3)
     !PetscScalar, pointer :: decomp_npools_vr_cwd_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: hrc_vr_pf_loc(:)                ! (gC/m3)
     PetscScalar, pointer :: accextrn_vr_pf_loc(:)           ! (gN/m3)
     PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (gN/m3)
     PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
-    PetscScalar, pointer :: accn2_vr_pf_loc(:)              ! (gN2-N/m3)
-    PetscScalar, pointer :: accn2o_vr_pf_loc(:)             ! (gN2O-N/m3)
+    PetscScalar, pointer :: aqco2_vr_pf_loc(:)              ! (gC/m3)
+    PetscScalar, pointer :: aqn2_vr_pf_loc(:)               ! (gN2-N/m3)
+    PetscScalar, pointer :: aqn2o_vr_pf_loc(:)              ! (gN2O-N/m3)
     PetscScalar, pointer :: accnmin_vr_pf_loc(:)            ! (gN/m3)
     PetscScalar, pointer :: accnimm_vr_pf_loc(:)            ! (gN/m3)
     PetscScalar, pointer :: accndecomp_vr_pf_loc(:)         ! (gN/m3)
@@ -4808,9 +4986,9 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfp, smin_no3_vr_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfp, smin_nh4_vr_pf_loc, ierr)
     !
-    call VecGetArrayF90(clm_pf_idata%hrc_vr_pfp, hrc_vr_pf_loc,ierr)
-    call VecGetArrayF90(clm_pf_idata%accn2_vr_pfp, accn2_vr_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%accn2o_vr_pfp, accn2o_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%aqco2_vr_pfp, aqco2_vr_pf_loc,ierr)
+    call VecGetArrayF90(clm_pf_idata%aqn2_vr_pfp, aqn2_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%aqn2o_vr_pfp, aqn2o_vr_pf_loc, ierr)
     !
     call VecGetArrayF90(clm_pf_idata%accextrn_vr_pfp, accextrn_vr_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
@@ -4863,7 +5041,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
         if(ispec_co2 > 0) then
            conc = xx_p(offset + ispec_co2) * theta * 1000.0d0
-           hrc_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * C_molecular_weight
+           aqco2_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * C_molecular_weight
         endif
 
         if(ispec_nh4 > 0) then
@@ -4878,12 +5056,12 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
         if(ispec_n2 > 0) then
            conc = xx_p(offset + ispec_n2) * theta * 1000.0d0
-           accn2_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+           aqn2_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
         endif
 
         if(ispec_n2o > 0) then
            conc = xx_p(offset + ispec_n2o) * theta * 1000.0d0
-           accn2o_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+           aqn2o_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
         endif
 
         ! tracking N bgc reaction fluxes
@@ -4930,9 +5108,9 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfp, smin_no3_vr_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfp, smin_nh4_vr_pf_loc, ierr)
     !
-    call VecRestoreArrayF90(clm_pf_idata%hrc_vr_pfp, hrc_vr_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%accn2_vr_pfp, accn2_vr_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%accn2o_vr_pfp, accn2o_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%aqco2_vr_pfp, aqco2_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%aqn2_vr_pfp, aqn2_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%aqn2o_vr_pfp, aqn2o_vr_pf_loc, ierr)
     !
     call VecRestoreArrayF90(clm_pf_idata%accextrn_vr_pfp, accextrn_vr_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
@@ -5003,8 +5181,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%hrc_vr_pfp, &
-                                    clm_pf_idata%hrc_vr_clms)
+                                    clm_pf_idata%aqco2_vr_pfp, &
+                                    clm_pf_idata%aqco2_vr_clms)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
@@ -5028,15 +5206,15 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     if(ispec_n2 > 0) then
          call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%accn2_vr_pfp, &
-                                    clm_pf_idata%accn2_vr_clms)
+                                    clm_pf_idata%aqn2_vr_pfp, &
+                                    clm_pf_idata%aqn2_vr_clms)
     endif
 
     if(ispec_n2o > 0) then
          call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%accn2o_vr_pfp, &
-                                    clm_pf_idata%accn2o_vr_clms)
+                                    clm_pf_idata%aqn2o_vr_pfp, &
+                                    clm_pf_idata%aqn2o_vr_clms)
     endif
 
     if(ispec_nmin > 0) then
