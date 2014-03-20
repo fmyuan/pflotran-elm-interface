@@ -442,7 +442,7 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, fir
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod(real(option%time-output_option%periodic_output_time_incr/ &
+        if (mod(real((option%time-output_option%periodic_output_time_incr)/ &
                 output_option%periodic_output_time_incr), &
                 real(output_option%times_per_h5_file))==0) then
           first = PETSC_TRUE
