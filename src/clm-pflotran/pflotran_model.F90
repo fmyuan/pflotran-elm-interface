@@ -3663,19 +3663,14 @@ end subroutine pflotranModelSetICs
     PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: xx_p(:)
 
-    PetscScalar, pointer :: aqco2_vr_pf_loc(:)              ! (gC/m3)
-    PetscScalar, pointer :: aqn2_vr_pf_loc(:)               ! (gN2-N/m3)
-    PetscScalar, pointer :: aqn2o_vr_pf_loc(:)              ! (gN2O-N/m3)
-    PetscReal, pointer :: porosity_loc_p(:)
+    PetscScalar, pointer :: aqco2_vr_pf_loc(:)              ! (molC/L)
+    PetscScalar, pointer :: aqn2_vr_pf_loc(:)               ! (molN2-N/L)
+    PetscScalar, pointer :: aqn2o_vr_pf_loc(:)              ! (molN2O-N/L)
 
     PetscInt :: offset
     PetscInt :: ispec_co2, ispec_n2, ispec_n2o
 
-    PetscReal :: porosity, saturation, theta ! for concentration conversion from g/m3 soil to mol/Lwater (M)
-
     character(len=MAXWORDLENGTH) :: word
-    PetscReal, parameter :: C_molecular_weight = 12.0107d0
-    PetscReal, parameter :: N_molecular_weight = 14.0067d0
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -3743,7 +3738,6 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%aqn2o_vr_pfs, aqn2o_vr_pf_loc, ierr)
 
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)  ! extract data from pflotran internal portion
-    call VecGetArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)
 
     do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
@@ -3751,28 +3745,18 @@ end subroutine pflotranModelSetICs
            if (patch%imat(ghosted_id) <= 0) cycle
         endif
 
-        saturation = global_aux_vars(ghosted_id)%sat(1)
-        porosity = porosity_loc_p(local_id)
-        theta = saturation * porosity
-
         offset = (local_id - 1)*realization%reaction%ncomp
 
         if(ispec_co2 > 0) then
-            xx_p(offset + ispec_co2) = max(aqco2_vr_pf_loc(local_id) / &
-                                          C_molecular_weight / theta / 1000.0d0, &
-                                          1.0d-20)
+            xx_p(offset + ispec_co2) = max(aqco2_vr_pf_loc(local_id), 1.0d-20)
         endif
 
         if(ispec_n2 > 0) then
-            xx_p(offset + ispec_n2) = max(aqn2_vr_pf_loc(local_id) / &
-                                          N_molecular_weight / theta / 1000.0d0, &
-                                          1.0d-20)
+            xx_p(offset + ispec_n2) = max(aqn2_vr_pf_loc(local_id), 1.0d-20)
         endif
 
         if(ispec_n2o > 0) then
-            xx_p(offset + ispec_n2o) = max(aqn2o_vr_pf_loc(local_id) / &
-                                          N_molecular_weight / theta / 1000.0d0, &
-                                          1.0d-20)
+            xx_p(offset + ispec_n2o) = max(aqn2o_vr_pf_loc(local_id), 1.0d-20)
         endif
 
     enddo
@@ -3782,7 +3766,6 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%aqn2o_vr_pfs, aqn2o_vr_pf_loc, ierr)
     !
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
-    call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
 
     !
     call DiscretizationGlobalToLocal(realization%discretization,field%tran_xx, &
@@ -4248,8 +4231,8 @@ end subroutine pflotranModelSetInitialTHStatesfromCLM
     call VecGetArrayF90(clm_pf_idata%qflux_subbase_pfp, qflux_subbase_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%f_nh4_subsurf_pfp, f_nh4_subsurf_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%f_nh4_subbase_pfp, f_nh4_subbase_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%f_no3_subsurf_pfp, f_nh4_subsurf_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%f_no3_subbase_pfp, f_nh4_subbase_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%f_no3_subsurf_pfp, f_no3_subsurf_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%f_no3_subbase_pfp, f_no3_subbase_pf_loc, ierr)
 
     do
       if (.not.associated(boundary_condition)) exit
@@ -4310,8 +4293,8 @@ end subroutine pflotranModelSetInitialTHStatesfromCLM
     call VecRestoreArrayF90(clm_pf_idata%qflux_subbase_pfp, qflux_subbase_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%f_nh4_subsurf_pfp, f_nh4_subsurf_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%f_nh4_subbase_pfp, f_nh4_subbase_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%f_no3_subsurf_pfp, f_nh4_subsurf_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%f_no3_subbase_pfp, f_nh4_subbase_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%f_no3_subsurf_pfp, f_no3_subsurf_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%f_no3_subbase_pfp, f_no3_subbase_pf_loc, ierr)
 
     ! pass vecs to CLM
     call MappingSourceToDestination(pflotran_model%map_pf_2dsub_to_clm_srf, &
@@ -4812,9 +4795,9 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscScalar, pointer :: accextrn_vr_pf_loc(:)           ! (gN/m3)
     PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (gN/m3)
     PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
-    PetscScalar, pointer :: aqco2_vr_pf_loc(:)              ! (gC/m3)
-    PetscScalar, pointer :: aqn2_vr_pf_loc(:)               ! (gN2-N/m3)
-    PetscScalar, pointer :: aqn2o_vr_pf_loc(:)              ! (gN2O-N/m3)
+    PetscScalar, pointer :: aqco2_vr_pf_loc(:)              ! (molC/m3)
+    PetscScalar, pointer :: aqn2_vr_pf_loc(:)               ! (molN2-N/m3)
+    PetscScalar, pointer :: aqn2o_vr_pf_loc(:)              ! (molN2O-N/m3)
     PetscScalar, pointer :: accnmin_vr_pf_loc(:)            ! (gN/m3)
     PetscScalar, pointer :: accnimm_vr_pf_loc(:)            ! (gN/m3)
     PetscScalar, pointer :: accndecomp_vr_pf_loc(:)         ! (gN/m3)
@@ -5039,11 +5022,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         accextrn_vr_pf_loc(local_id) = max(xx_p(offsetim + ispec_plantn), 1.0d-20) &
                                         * N_molecular_weight
 
-        if(ispec_co2 > 0) then
-           conc = xx_p(offset + ispec_co2) * theta * 1000.0d0
-           aqco2_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * C_molecular_weight
-        endif
-
         if(ispec_nh4 > 0) then
            conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0
            smin_nh4_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
@@ -5054,14 +5032,20 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
            smin_no3_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
         endif
 
+        ! aqueous gas solution in mol/L to aovid 'theta' inconsistence (due to porosity) during unit conversion
+        if(ispec_co2 > 0) then
+           conc = xx_p(offset + ispec_co2) !* theta * 1000.0d0                    ! unit: M (molC/L)
+           aqco2_vr_pf_loc(local_id)   = max(conc, 1.0d-20) !* C_molecular_weight
+        endif
+
         if(ispec_n2 > 0) then
-           conc = xx_p(offset + ispec_n2) * theta * 1000.0d0
-           aqn2_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+           conc = xx_p(offset + ispec_n2) !* theta * 1000.0d0                    ! unit: M (molN/L)
+           aqn2_vr_pf_loc(local_id)   = max(conc, 1.0d-20) !* N_molecular_weight
         endif
 
         if(ispec_n2o > 0) then
-           conc = xx_p(offset + ispec_n2o) * theta * 1000.0d0
-           aqn2o_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+           conc = xx_p(offset + ispec_n2o) ! * theta * 1000.0d0                  ! unit: M (molN/L)
+           aqn2o_vr_pf_loc(local_id)   = max(conc, 1.0d-20) !* N_molecular_weight
         endif
 
         ! tracking N bgc reaction fluxes
