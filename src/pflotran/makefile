@@ -10,7 +10,6 @@ include ${PETSC_DIR}/conf/rules
 
 MYFLAGS = -I.
 MYFLAGS += ${FC_DEFINE_FLAG}PROCESS_MODEL
-MYFLAGS += ${FC_DEFINE_FLAG}SURFACE_FLOW
 MYFLAGS += ${FC_DEFINE_FLAG}CHUAN_CO2
 MYFLAGS += ${FC_DEFINE_FLAG}GEOMECH
 
@@ -123,10 +122,6 @@ endif
 
 ifdef ugrid_debug
   MYFLAGS += ${FC_DEFINE_FLAG}UGRID_DEBUG
-endif
-
-ifdef surface_flow
-  MYFLAGS += ${FC_DEFINE_FLAG}SURFACE_FLOW -w -g
 endif
 
 ifdef amanzi_bgd
