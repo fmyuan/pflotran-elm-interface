@@ -839,9 +839,9 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod(real((option%time-output_option%periodic_output_time_incr)/ &
-                output_option%periodic_output_time_incr), &
-                real(output_option%times_per_h5_file))==0) then
+        if (mod((option%time-output_option%periodic_output_time_incr)/ &
+                output_option%periodic_output_time_incr, &
+                dble(output_option%times_per_h5_file))==0) then
           first = PETSC_TRUE
         else
           first = PETSC_FALSE
