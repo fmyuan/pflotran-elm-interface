@@ -9,6 +9,9 @@ include ${PETSC_DIR}/conf/rules
 
 # FC_DEFINE_FLAG is defined in PETSC_DIR/conf/variables above
 # e.g. '-WF,-D' for xl compilers, or '-D' for others.
+ifeq ($(strip $(FC_DEFINE_FLAG)),)   #this is default, if PETSC not defined
+   FC_DEFINE_FLAG := -D
+endif 
 
 MYFLAGS = -I.
 MYFLAGS += ${FC_DEFINE_FLAG}PROCESS_MODEL 
@@ -188,7 +191,7 @@ util_obj  = \
 	${common_src}matrix_block_aux.o \
 	${common_src}option.o \
 	${common_src}output_aux.o \
-        ${common_src}pflotran_constants.o \
+    ${common_src}pflotran_constants.o \
 	${common_src}string.o \
 	${common_src}units.o \
 	${common_src}utility.o \
