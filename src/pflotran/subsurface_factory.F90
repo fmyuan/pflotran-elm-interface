@@ -77,9 +77,13 @@ subroutine SubsurfaceInitializePostPetsc(simulation, option)
   simulation_old => SimulationCreate(option)
   call Init(simulation_old)
   call HijackSimulation(simulation_old,simulation)
-  ! no longer need simulation
-  deallocate(simulation_old)
   call SubsurfaceJumpStart(simulation)
+  
+  ! no longer need simulation
+  ! nullify realization and regression so that it is not destroyed
+  nullify(simulation_old%realization)
+  nullify(simulation_old%regression)
+  call SimulationDestroy(simulation_old)
   
 end subroutine SubsurfaceInitializePostPetsc
 
@@ -143,7 +147,6 @@ subroutine HijackSimulation(simulation_old,simulation)
   use PM_Richards_class
   use PM_RT_class
   use PM_TH_class
-  use PM_THC_class
   use PM_Base_class
   use PM_module
   use Timestepper_BE_class
@@ -193,8 +196,6 @@ subroutine HijackSimulation(simulation_old,simulation)
         cur_process_model => PMRichardsCreate()
       case(TH_MODE)
         cur_process_model => PMTHCreate()
-      case(THC_MODE)
-        cur_process_model => PMTHCCreate()
     end select
     cur_process_model%option => realization%option
     cur_process_model%output_option => realization%output_option
@@ -272,8 +273,6 @@ subroutine HijackSimulation(simulation_old,simulation)
             call cur_process_model%PMRTSetRealization(realization)
           class is (pm_th_type)
             call cur_process_model%PMTHSetRealization(realization)
-          class is (pm_thc_type)
-            call cur_process_model%PMTHCSetRealization(realization)
         end select
         ! set time stepper
         select type(cur_process_model)
@@ -426,7 +425,8 @@ subroutine SubsurfaceJumpStart(simulation)
 !    call simulation%rt_process_model_coupler%UpdateSolution()
 !  endif
 
-  if (option%jumpstart_kinetic_sorption .and. option%time < 1.d-40) then
+  if (option%transport%jumpstart_kinetic_sorption .and. &
+      option%time < 1.d-40) then
     ! only user jumpstart for a restarted simulation
     if (.not. option%restart_flag) then
       option%io_buffer = 'Only use JUMPSTART_KINETIC_SORPTION on a ' // &

@@ -8,6 +8,7 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_Nitrification_class
   use Reaction_Sandbox_Denitrification_class
   use Reaction_Sandbox_Microbial_class
+  use Reaction_Sandbox_UFD_WP_class
   use Reaction_Sandbox_Example_class
   
   ! Add new reacton sandbox classes here.
@@ -167,6 +168,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => DenitrificationCreate()
       case('MICROBIAL')
         new_sandbox => MicrobialCreate()
+      case('UFD-WP')
+        new_sandbox => WastePackageCreate()
       case('EXAMPLE')
         new_sandbox => EXAMPLECreate()
       case default
@@ -222,7 +225,7 @@ end subroutine RSandboxSkipInput
 ! ************************************************************************** !
 
 subroutine RSandbox(Residual,Jacobian,compute_derivative,rt_auxvar, &
-                    global_auxvar,porosity,volume,reaction,option,local_id)
+                    global_auxvar,material_auxvar,reaction,option)
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
   ! 
@@ -234,6 +237,7 @@ subroutine RSandbox(Residual,Jacobian,compute_derivative,rt_auxvar, &
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
+  use Material_Aux_class, only: material_auxvar_type
   
   implicit none
 
@@ -244,9 +248,9 @@ subroutine RSandbox(Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: porosity
   PetscReal :: volume
-  PetscInt  :: local_id
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
   
   class(reaction_sandbox_base_type), pointer :: cur_reaction
   
@@ -256,8 +260,8 @@ subroutine RSandbox(Residual,Jacobian,compute_derivative,rt_auxvar, &
 !    select type(cur_reaction)
 !      class is(reaction_sandbox_clm_cn_type)
         call cur_reaction%Evaluate(Residual,Jacobian,compute_derivative, &
-                                   rt_auxvar,global_auxvar,porosity,volume, &
-                                   reaction,option,local_id)
+                                   rt_auxvar,global_auxvar,material_auxvar, &
+                                   reaction,option)
 !    end select
     cur_reaction => cur_reaction%next
   enddo

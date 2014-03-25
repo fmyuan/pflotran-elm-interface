@@ -5,12 +5,10 @@ module Simulation_module
   use Solver_module
   use Regression_module
 
-#ifdef SURFACE_FLOW
   use Surface_Realization_class
-#endif
 
 #ifdef GEOMECH
-  use Geomechanics_Realization_module
+  use Geomechanics_Realization_class
 #endif
 
   use PFLOTRAN_Constants_module
@@ -27,12 +25,8 @@ module Simulation_module
     type(realization_type), pointer :: realization
     type(stepper_type), pointer :: flow_stepper
     type(stepper_type), pointer :: tran_stepper
-#ifdef SURFACE_FLOW
     type(stepper_type), pointer :: surf_flow_stepper
-#endif
-#ifdef SURFACE_FLOW
     type(surface_realization_type), pointer :: surf_realization
-#endif
 #ifdef GEOMECH
     type(geomech_realization_type), pointer :: geomech_realization
     type(stepper_type), pointer :: geomech_stepper
@@ -98,10 +92,8 @@ function SimulationCreate2(option)
   simulation%realization => RealizationCreate(option)
   simulation%flow_stepper => TimestepperCreate()
   simulation%tran_stepper => TimestepperCreate()
-#ifdef SURFACE_FLOW
   simulation%surf_flow_stepper => TimestepperCreate()
   simulation%surf_realization => SurfRealizCreate(option)
-#endif
 #ifdef GEOMECH
   simulation%geomech_realization => GeomechRealizCreate(option)
   simulation%geomech_stepper => TimestepperCreate()
@@ -132,33 +124,30 @@ subroutine SimulationDestroy(simulation)
   
   if (.not.associated(simulation)) return
 
-  if (simulation%realization%option%nflowdof > 0) then
-    select case(simulation%realization%option%iflowmode)
-      case(RICHARDS_MODE)
-        call RichardsDestroy(simulation%realization)
-      case(G_MODE)
-        call GeneralDestroy(simulation%realization)
-    end select
-  endif
+  if (associated(simulation%realization)) then
+    if (simulation%realization%option%nflowdof > 0) then
+      select case(simulation%realization%option%iflowmode)
+        case(RICHARDS_MODE)
+          call RichardsDestroy(simulation%realization)
+        case(G_MODE)
+          call GeneralDestroy(simulation%realization)
+      end select
+    endif
 
-  if (simulation%realization%option%ntrandof > 0) then
-    call RTDestroy(simulation%realization)
-  endif
+    if (simulation%realization%option%ntrandof > 0) then
+      call RTDestroy(simulation%realization)
+    endif
 
-  call RealizationDestroy(simulation%realization)
+    call RealizationDestroyLegacy(simulation%realization)
+  endif
   call TimestepperDestroy(simulation%flow_stepper)
   call TimestepperDestroy(simulation%tran_stepper)
-#ifdef SURFACE_FLOW
   call TimestepperDestroy(simulation%surf_flow_stepper)
-#endif
-
-#ifdef SURFACE_FLOW
   call SurfRealizDestroy(simulation%surf_realization)
-#endif
 
 #ifdef GEOMECH
-  call GeomechRealizDestroy(simulation%geomech_realization)
   call TimestepperDestroy(simulation%geomech_stepper)
+  call GeomechRealizDestroy(simulation%geomech_realization)
 #endif
 
   call RegressionDestroy(simulation%regression)

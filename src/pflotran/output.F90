@@ -118,9 +118,7 @@ subroutine Output(realization_base,plot_flag,transient_plot_flag)
       if (realization_base%discretization%itype == UNSTRUCTURED_GRID .or. &
           realization_base%discretization%itype == UNSTRUCTURED_GRID_MIMETIC) then
         if (realization_base%discretization%grid%itype == EXPLICIT_UNSTRUCTURED_GRID) then
-          if (option%print_explicit_primal_grid) then
-            call OutputHDF5UGridXDMFExplicit(realization_base,INSTANTANEOUS_VARS)
-          endif
+          call OutputHDF5UGridXDMFExplicit(realization_base,INSTANTANEOUS_VARS)
         else
           call OutputHDF5UGridXDMF(realization_base,INSTANTANEOUS_VARS)
         endif
@@ -432,8 +430,8 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
   discretization => realization_base%discretization
     
   allocate(sum_area(grid%nlmax))
-  call DiscretizationDuplicateVector(discretization,field%porosity0,global_vec)
-  call DiscretizationDuplicateVector(discretization,field%porosity0,global_vec2)
+  call DiscretizationDuplicateVector(discretization,field%work,global_vec)
+  call DiscretizationDuplicateVector(discretization,field%work,global_vec2)
 
   do iphase = 1,option%nphase
 
@@ -591,8 +589,8 @@ subroutine ComputeFlowFluxVelocityStats(realization_base)
   field => realization_base%field
   output_option => realization_base%output_option
   
-  call DiscretizationDuplicateVector(discretization,field%porosity0,global_vec) 
-  call DiscretizationDuplicateVector(discretization,field%porosity0,global_vec2) 
+  call DiscretizationDuplicateVector(discretization,field%work,global_vec) 
+  call DiscretizationDuplicateVector(discretization,field%work,global_vec2) 
 
   do iphase = 1,option%nphase
     do direction = 1,3
