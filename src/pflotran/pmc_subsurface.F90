@@ -17,6 +17,7 @@ module PMC_Subsurface_class
     procedure, public :: Init => PMCSubsurfaceInit
     procedure, public :: GetAuxData => PMCSubsurfaceGetAuxData
     procedure, public :: SetAuxData => PMCSubsurfaceSetAuxData
+    procedure, public :: Destroy => PMCSubsurfaceDestroy
   end type pmc_subsurface_type
   
   public :: PMCSubsurfaceCreate
@@ -87,7 +88,10 @@ subroutine PMCSubsurfaceGetAuxData(this)
 
   class(pmc_subsurface_type) :: this
 
-  call PMCSubsurfaceGetAuxDataFromSurf(this)
+  if (this%option%nsurfflowdof > 0) call PMCSubsurfaceGetAuxDataFromSurf(this)
+#ifdef GEOMECH
+  if (this%option%ngeomechdof > 0) call PMCSubsurfaceGetAuxDataFromGeomech(this)
+#endif
 
 end subroutine PMCSubsurfaceGetAuxData
 
@@ -103,7 +107,10 @@ subroutine PMCSubsurfaceSetAuxData(this)
 
   class(pmc_subsurface_type) :: this
 
-  call PMCSubsurfaceSetAuxDataForSurf(this)
+  if (this%option%nsurfflowdof > 0) call PMCSubsurfaceSetAuxDataForSurf(this)
+#ifdef GEOMECH
+  if (this%option%ngeomechdof > 0) call PMCSubsurfaceSetAuxDataForGeomech(this)
+#endif
 
 end subroutine PMCSubsurfaceSetAuxData
 
@@ -158,9 +165,7 @@ subroutine PMCSubsurfaceGetAuxDataFromSurf(this)
   print *, 'PMCSubsurfaceGetAuxData()'
 #endif
 
-#ifdef SURFACE_FLOW
   dt = this%option%surf_subsurf_coupling_flow_dt
-#endif  
 
   if (associated(this%sim_aux)) then
 
@@ -198,6 +203,7 @@ subroutine PMCSubsurfaceGetAuxDataFromSurf(this)
             call EOSWaterdensity(option%reference_temperature, &
                                  option%reference_pressure, den)
 
+#if 0
             coupler_list => patch%source_sinks
             coupler => coupler_list%first
             do
@@ -213,7 +219,7 @@ subroutine PMCSubsurfaceGetAuxDataFromSurf(this)
                   call VecGetArrayF90(pmc%sim_aux%subsurf_mflux_exchange_with_surf, &
                                       mflux_p,ierr)
                   do iconn = 1,coupler%connection_set%num_connections
-                    coupler%flow_aux_real_var(ONE_INTEGER,iconn) = -mflux_p(iconn)/dt*den
+                    !coupler%flow_aux_real_var(ONE_INTEGER,iconn) = -mflux_p(iconn)/dt*den
                   enddo
                   call VecRestoreArrayF90(pmc%sim_aux%subsurf_mflux_exchange_with_surf, &
                                           mflux_p,ierr)
@@ -224,6 +230,7 @@ subroutine PMCSubsurfaceGetAuxDataFromSurf(this)
 
               coupler => coupler%next
             enddo
+#endif
 
             coupler_list => patch%boundary_conditions
             coupler => coupler_list%first
@@ -419,6 +426,7 @@ subroutine PMCSubsurfaceSetAuxDataForSurf(this)
           field      => pmc%realization%field
           option     => pmc%realization%option
 
+#if 0
           coupler_list => pmc%realization%patch%source_sinks
           coupler => coupler_list%first
           do
@@ -469,6 +477,7 @@ subroutine PMCSubsurfaceSetAuxDataForSurf(this)
 
             coupler => coupler%next
           enddo
+#endif
 
           call EOSWaterdensity(option%reference_temperature, option%reference_pressure, &
                                den)
@@ -528,7 +537,190 @@ subroutine PMCSubsurfaceSetAuxDataForSurf(this)
 end subroutine PMCSubsurfaceSetAuxDataForSurf
 
 ! ************************************************************************** !
+!> This routine updates subsurface data from geomechanics process model.
+!!
+!> @author
+!! Gautam Bisht, LBNL
+!!
+!! date: 01/04/14
+! ************************************************************************** !
+#ifdef GEOMECH
+subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
 
+  use Discretization_module, only : DiscretizationLocalToLocal
+  use Field_module
+  use Grid_module
+  use Option_module
+  use Realization_class
+  use PFLOTRAN_Constants_module
+
+  implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+#include "finclude/petscviewer.h"
+
+  class (pmc_subsurface_type) :: this
+
+  type(realization_type)      :: subsurf_realization
+  type(grid_type), pointer    :: subsurf_grid
+  type(option_type), pointer  :: option
+  type(field_type), pointer   :: subsurf_field
+
+  PetscScalar, pointer        :: sub_por_loc_p(:)
+  PetscScalar, pointer        :: sim_por_p(:)
+
+  PetscInt                    :: local_id
+  PetscInt                    :: ghosted_id
+
+  PetscErrorCode              :: ierr
+  PetscViewer :: viewer
+
+  if (associated(this%sim_aux)) then
+    select type (pmc => this)
+      class is (pmc_subsurface_type)
+        option        => pmc%option
+        subsurf_grid  => pmc%realization%discretization%grid
+        subsurf_field => pmc%realization%field
+
+        if (pmc%timestepper%steps == 0) return
+
+        if (option%geomech_subsurf_coupling == GEOMECH_TWO_WAY_COUPLED) then
+
+          call VecGetArrayF90(subsurf_field%porosity_loc, sub_por_loc_p, ierr)
+          call VecGetArrayF90(pmc%sim_aux%subsurf_por, sim_por_p, ierr)
+
+          do local_id = 1, subsurf_grid%nlmax
+            ghosted_id = subsurf_grid%nL2G(local_id)
+            sub_por_loc_p(ghosted_id) = sim_por_p(local_id)
+          enddo
+
+          call VecRestoreArrayF90(subsurf_field%porosity_loc, sub_por_loc_p, ierr)
+          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por, sim_por_p, ierr)
+
+          call PetscViewerBinaryOpen(pmc%realization%option%mycomm, &
+                                     'por_before.bin',FILE_MODE_WRITE,viewer,ierr)
+          call VecView(subsurf_field%porosity_loc,viewer,ierr)
+          call PetscViewerDestroy(viewer,ierr)
+
+          call DiscretizationLocalToLocal(pmc%realization%discretization, &
+                                          subsurf_field%porosity_loc, &
+                                          subsurf_field%porosity_loc, ONEDOF)
+
+          call PetscViewerBinaryOpen(pmc%realization%option%mycomm, &
+                                     'por_after.bin',FILE_MODE_WRITE,viewer,ierr)
+          call VecView(subsurf_field%porosity_loc,viewer,ierr)
+          call PetscViewerDestroy(viewer,ierr)
+
+        endif
+    end select
+  endif
+
+end subroutine PMCSubsurfaceGetAuxDataFromGeomech
+#endif
+! ************************************************************************** !
+!> This routine sets auxiliary needed by geomechanics process model.
+!!
+!> @author
+!! Gautam Bisht, LBNL
+!!
+!! date: 01/03/14
+! ************************************************************************** !
+#ifdef GEOMECH
+subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
+
+  use Option_module
+  use Realization_class
+  use Grid_module
+  use Field_module
+  use PFLOTRAN_Constants_module
+
+  implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+  class (pmc_subsurface_type) :: this
+
+  type(realization_type)                       :: subsurf_realization
+  type(grid_type), pointer                     :: subsurf_grid
+  type(option_type), pointer                   :: option
+  type(field_type), pointer                    :: subsurf_field
+
+  PetscScalar, pointer                         :: xx_loc_p(:)
+  PetscScalar, pointer                         :: pres_p(:)
+  PetscScalar, pointer                         :: temp_p(:)
+  PetscScalar, pointer                         :: sub_por_loc_p(:)
+  PetscScalar, pointer                         :: sim_por0_p(:)
+
+  PetscInt                                     :: local_id
+  PetscInt                                     :: ghosted_id
+  PetscInt                                     :: pres_dof
+  PetscInt                                     :: temp_dof
+
+  PetscErrorCode                               :: ierr
+
+  select case(this%option%iflowmode)
+    case (TH_MODE)
+      pres_dof = TH_PRESSURE_DOF
+      temp_dof = TH_TEMPERATURE_DOF
+    case (MPH_MODE)
+      pres_dof = MPH_PRESSURE_DOF
+      temp_dof = MPH_TEMPERATURE_DOF
+    case default
+      this%option%io_buffer = 'PMCSubsurfaceSetAuxDataForGeomech() not ' // &
+        'supported for ' // trim(this%option%flowmode)
+      call printErrMsg(this%option)
+  end select
+
+  if (associated(this%sim_aux)) then
+
+    select type (pmc => this)
+      class is (pmc_subsurface_type)
+
+        option        => pmc%option
+        subsurf_grid  => pmc%realization%discretization%grid
+        subsurf_field => pmc%realization%field
+
+
+        ! Extract pressure, temperature and porosity from subsurface realization
+        call VecGetArrayF90(subsurf_field%flow_xx_loc, xx_loc_p, ierr)
+        call VecGetArrayF90(pmc%sim_aux%subsurf_pres, pres_p, ierr)
+        call VecGetArrayF90(pmc%sim_aux%subsurf_temp, temp_p, ierr)
+
+        do local_id = 1, subsurf_grid%nlmax
+          ghosted_id = subsurf_grid%nL2G(local_id)
+          pres_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + pres_dof)
+          temp_p(local_id) = xx_loc_p(option%nflowdof*(ghosted_id - 1) + temp_dof)
+        enddo
+
+        call VecRestoreArrayF90(subsurf_field%flow_xx_loc, xx_loc_p, ierr)
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_pres, pres_p, ierr)
+        call VecRestoreArrayF90(pmc%sim_aux%subsurf_temp, temp_p, ierr)
+
+        if (pmc%timestepper%steps == 0) then
+          call VecGetArrayF90(subsurf_field%porosity_loc, sub_por_loc_p, ierr)
+          call VecGetArrayF90(pmc%sim_aux%subsurf_por0, sim_por0_p, ierr)
+          do local_id = 1, subsurf_grid%nlmax
+            ghosted_id = subsurf_grid%nL2G(local_id)
+            sim_por0_p(local_id) = sub_por_loc_p(ghosted_id)
+          enddo
+          call VecRestoreArrayF90(subsurf_field%porosity_loc, sub_por_loc_p, ierr)
+          call VecRestoreArrayF90(pmc%sim_aux%subsurf_por0, sim_por0_p, ierr)
+        endif
+    end select
+  endif
+
+end subroutine PMCSubsurfaceSetAuxDataForGeomech
+#endif
+
+! ************************************************************************** !
+!
+! PMCSubsurfaceFinalizeRun: Finalizes the time stepping
+! author: Glenn Hammond
+! date: 03/18/13
+!
+! ************************************************************************** !
 recursive subroutine PMCSubsurfaceFinalizeRun(this)
   ! 
   ! Finalizes the time stepping
@@ -553,16 +745,31 @@ end subroutine PMCSubsurfaceFinalizeRun
 
 ! ************************************************************************** !
 
-recursive subroutine Destroy(this)
+subroutine PMCSubsurfaceStrip(this)
+  !
+  ! Deallocates members of PMC Subsurface.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/13/14
+  
+  implicit none
+  
+  class(pmc_subsurface_type) :: this
+
+  call PMCBaseStrip(this)
+  nullify(this%realization)
+
+end subroutine PMCSubsurfaceStrip
+
+! ************************************************************************** !
+
+recursive subroutine PMCSubsurfaceDestroy(this)
   ! 
   ! ProcessModelCouplerDestroy: Deallocates a process_model_coupler object
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/14/13
   ! 
-
-  use Utility_module, only: DeallocateArray
-  use Option_module
 
   implicit none
   
@@ -571,11 +778,23 @@ recursive subroutine Destroy(this)
 #ifdef DEBUG
   call printMsg(this%option,'PMCSubsurface%Destroy()')
 #endif
+
+  call PMCSubsurfaceStrip(this)
+  
+  if (associated(this%below)) then
+    call this%below%Destroy()
+    ! destroy does not currently destroy; it strips
+    deallocate(this%below)
+    nullify(this%below)
+  endif 
   
   if (associated(this%next)) then
     call this%next%Destroy()
-  endif 
+    ! destroy does not currently destroy; it strips
+    deallocate(this%next)
+    nullify(this%next)
+  endif
   
-end subroutine Destroy
+end subroutine PMCSubsurfaceDestroy
   
 end module PMC_Subsurface_class

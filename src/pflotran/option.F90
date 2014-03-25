@@ -3,6 +3,8 @@ module Option_module
 ! IMPORTANT NOTE: This module can have no dependencies on other modules!!!
  
   use PFLOTRAN_Constants_module
+  use Option_Flow_module
+  use Option_Transport_module
 
   implicit none
 
@@ -12,6 +14,9 @@ module Option_module
 
 
   type, public :: option_type 
+  
+    type(flow_option_type), pointer :: flow
+    type(transport_option_type), pointer :: transport
   
     PetscInt :: id                         ! id of realization
   
@@ -33,8 +38,6 @@ module Option_module
     PetscMPIInt :: hdf5_read_group_size, hdf5_write_group_size
     PetscBool :: broadcast_read
     
-    PetscInt :: reactive_transport_coupling
-
 #if defined(SCORPIO)
     PetscMPIInt :: ioread_group_id, iowrite_group_id
 #endif
@@ -49,19 +52,16 @@ module Option_module
     PetscInt :: iflowmode
     character(len=MAXWORDLENGTH) :: tranmode
     PetscInt :: itranmode
-    PetscInt :: tvd_flux_limiter
 
     PetscInt :: nphase
     PetscInt :: liquid_phase
     PetscInt :: gas_phase
     PetscInt :: nflowdof
     PetscInt :: nflowspec
-    PetscInt :: rt_idof
     PetscInt :: nmechdof
     PetscInt :: nsec_cells
     PetscBool :: use_th_freezing
 
-#ifdef SURFACE_FLOW
     PetscInt :: nsurfflowdof
     PetscInt :: subsurf_surf_coupling
     PetscInt :: surface_flow_formulation
@@ -72,7 +72,6 @@ module Option_module
     PetscBool :: surf_restart_flag
     character(len=MAXSTRINGLENGTH) :: surf_initialize_flow_filename
     character(len=MAXSTRINGLENGTH) :: surf_restart_filename
-#endif
 
 #ifdef GEOMECH
     PetscInt  :: ngeomechdof
@@ -85,6 +84,7 @@ module Option_module
     PetscInt :: air_pressure_id
     PetscInt :: capillary_pressure_id
     PetscInt :: vapor_pressure_id 
+    PetscInt :: saturation_pressure_id 
     PetscInt :: water_id  ! index of water component dof
     PetscInt :: air_id  ! index of air component dof
     PetscInt :: energy_id  ! index of energy dof
@@ -109,7 +109,6 @@ module Option_module
     PetscInt, pointer :: garbage ! for some reason, Intel will not compile without this
 
     PetscReal :: uniform_velocity(3)
-    PetscBool :: store_solute_fluxes
     PetscBool :: store_flowrate
 
     ! Program options
@@ -122,11 +121,11 @@ module Option_module
     
     PetscBool :: update_flow_perm ! If true, permeability changes due to pressure    
     
-    PetscBool :: use_ice_new      ! use new formulation for ice partitioning
+    PetscInt :: ice_model         ! specify water/ice/vapor phase partitioning model
       
     PetscReal :: flow_time, tran_time, time  ! The time elapsed in the simulation.
-    PetscReal :: tran_weight_t0, tran_weight_t1
-    PetscReal :: flow_dt, tran_dt ! The size of the time step.
+    PetscReal :: flow_dt ! The size of the time step.
+    PetscReal :: tran_dt  
     PetscReal :: dt
     PetscBool :: match_waypoint
     PetscReal :: refactor_dt
@@ -153,18 +152,12 @@ module Option_module
     PetscReal :: saturation_change_limit
     PetscReal :: pressure_change_limit
     PetscReal :: temperature_change_limit
-    PetscReal :: stomp_norm
-    PetscBool :: check_stomp_norm
+    PetscBool :: converged
     
     PetscReal :: infnorm_res_sec  ! inf. norm of secondary continuum rt residual
     
     PetscReal :: minimum_hydrostatic_pressure
     
-    PetscBool :: jumpstart_kinetic_sorption
-    PetscBool :: no_checkpoint_kinetic_sorption
-    PetscBool :: no_restart_kinetic_sorption
-    PetscBool :: no_restart_mineral_vol_frac
-        
 !   table lookup
     PetscInt :: itable
     PetscInt :: co2eos
@@ -209,6 +202,8 @@ module Option_module
     PetscBool :: out_of_table
     
     PetscBool :: use_process_model
+    !TODO(geh): remove this once all modes have bee refactored
+    PetscBool :: use_refactored_material_auxvars
         
     ! Specify secondary continuum solver
     PetscBool :: print_explicit_primal_grid    ! prints primal grid if true
@@ -301,7 +296,9 @@ function OptionCreate()
   type(option_type), pointer :: option
   
   allocate(option)
-
+  option%flow => OptionFlowCreate()
+  option%transport => OptionTransportCreate()
+  
   ! DO NOT initialize members of the option type here.  One must decide 
   ! whether the member needs initialization once for all stochastic 
   ! simulations or initialization for every realization (e.g. within multiple 
@@ -328,6 +325,9 @@ subroutine OptionInitAll(option)
   
   ! These variables should only be initialized once at the beginning of a
   ! PFLOTRAN run (regardless of whether stochastic)
+  
+  call OptionFlowInitAll(option%flow)
+  call OptionTransportInitAll(option%transport)
   
   option%id = 0
 
@@ -368,6 +368,7 @@ subroutine OptionInitAll(option)
   
   option%simulation_mode = 'SUBSURFACE'
   option%use_process_model = PETSC_FALSE
+  option%use_refactored_material_auxvars = PETSC_FALSE
   option%subsurface_simulation_type = SUBSURFACE_SIM_TYPE
  
   call OptionInitRealization(option)
@@ -391,7 +392,10 @@ subroutine OptionInitRealization(option)
   
   ! These variables should be initialized once at the beginning of every 
   ! PFLOTRAN realization or simulation of a single realization
-    
+  call OptionFlowInitRealization(option%flow)  
+  call OptionTransportInitRealization(option%transport)  
+  
+  
   option%fid_out = OUT_UNIT
 
   option%iflag = 0
@@ -401,7 +405,7 @@ subroutine OptionInitRealization(option)
   option%use_matrix_free = PETSC_FALSE
   option%use_mc = PETSC_FALSE
   option%set_secondary_init_temp = PETSC_FALSE
-  option%use_ice_new = PETSC_FALSE
+  option%ice_model = PAINTER_EXPLICIT
   option%set_secondary_init_conc = PETSC_FALSE
   
   option%update_flow_perm = PETSC_FALSE
@@ -413,10 +417,9 @@ subroutine OptionInitRealization(option)
   option%nsec_cells = 0
   option%use_th_freezing = PETSC_FALSE
 
-#ifdef SURFACE_FLOW
   option%nsurfflowdof = 0
   option%subsurf_surf_coupling = DECOUPLED
-  option%surface_flow_formulation = KINEMATIC_WAVE
+  option%surface_flow_formulation = DIFFUSION_WAVE
   option%surf_flow_dt = 0.d0
   option%surf_flow_time =0.d0
   option%surf_subsurf_coupling_time = 0.d0
@@ -425,7 +428,6 @@ subroutine OptionInitRealization(option)
   option%surf_restart_filename = ""
   option%surf_restart_flag = PETSC_FALSE
   option%surf_restart_time = -999.0
-#endif
 
 #ifdef GEOMECH
   option%ngeomechdof = 0
@@ -439,11 +441,7 @@ subroutine OptionInitRealization(option)
   option%tranmode = ""
   option%itranmode = NULL_MODE
   option%ntrandof = 0
-  option%tvd_flux_limiter = 1
-  option%rt_idof = -999
   
-  option%reactive_transport_coupling = GLOBAL_IMPLICIT
-
   option%nphase = 0
   option%liquid_phase = 0
   option%gas_phase = 0
@@ -451,13 +449,13 @@ subroutine OptionInitRealization(option)
   option%air_pressure_id = 0
   option%capillary_pressure_id = 0
   option%vapor_pressure_id = 0
+  option%saturation_pressure_id = 0
 
   option%water_id = 0
   option%air_id = 0
   option%energy_id = 0
   
   option%uniform_velocity = 0.d0
-  option%store_solute_fluxes = PETSC_FALSE
   
 !-----------------------------------------------------------------------
       ! Initialize some parameters to sensible values.  These are parameters
@@ -475,15 +473,9 @@ subroutine OptionInitRealization(option)
   option%saturation_change_limit = 0.d0
   option%pressure_change_limit = 0.d0
   option%temperature_change_limit = 0.d0
-  option%stomp_norm = 0.d0
-  option%check_stomp_norm = PETSC_FALSE
+  option%converged = PETSC_FALSE
   
   option%infnorm_res_sec = 0.d0
-  
-  option%jumpstart_kinetic_sorption = PETSC_FALSE
-  option%no_checkpoint_kinetic_sorption = PETSC_FALSE
-  option%no_restart_kinetic_sorption = PETSC_FALSE
-  option%no_restart_mineral_vol_frac = PETSC_FALSE
   
   option%minimum_hydrostatic_pressure = -1.d20
 
@@ -545,8 +537,6 @@ subroutine OptionInitRealization(option)
   option%flow_time = 0.d0
   option%tran_time = 0.d0
   option%time = 0.d0
-  option%tran_weight_t0 = 0.d0
-  option%tran_weight_t1 = 0.d0
   option%flow_dt = 0.d0
   option%tran_dt = 0.d0
   option%dt = 0.d0
@@ -1130,9 +1120,7 @@ subroutine OptionInitPetsc(option)
     call PetscOptionsInsertString(string, ierr)
   endif 
 
-#ifdef PROCESS_MODEL
   call LoggingCreate()
-#endif
 
 end subroutine OptionInitPetsc
 
@@ -1301,9 +1289,7 @@ subroutine OptionFinalize(option)
   
   ! pushed in FinalizeRun()
   call PetscLogStagePop(ierr)
-#ifdef PROCESS_MODEL
   call LoggingDestroy()
-#endif
   call PetscOptionsSetValue('-options_left','no',ierr)
   ! list any PETSc objects that have not been freed - for debugging
   call PetscOptionsSetValue('-objects_left','yes',ierr)
@@ -1329,6 +1315,8 @@ subroutine OptionDestroy(option)
   
   type(option_type), pointer :: option
   
+  call OptionFlowDestroy(option%flow)
+  call OptionTransportDestroy(option%transport)
   ! all kinds of stuff needs to be added here.
 
   ! all the below should be placed somewhere other than option.F90

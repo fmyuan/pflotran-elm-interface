@@ -19,6 +19,7 @@ src/.DS_Store
 src/pflotran/*.o
 src/pflotran/*.MOD
 src/pflotran/pflotran
+src/pflotran/pflotran_provenance.F90
 src/pflotran/pflotran_fc
 src/pflotran/pflow
 src/pflotran/ptran
@@ -73,6 +74,10 @@ shortcourse/exercises/CLM-CN/doc/CLM-CN.pdf
 src/clm-pflotran/libpflotran.a
 src/pflotran/pflotran_dependencies.txt
 src/pflotran/pflotran_source_files.txt
+.git
+.gitignore
+*.rej
+*.pyc
 src/*xcode
 src/clm-pflotran/amrgrid.F90
 src/clm-pflotran/amrstubs.F90

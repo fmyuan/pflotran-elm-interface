@@ -539,7 +539,7 @@ end subroutine CLM_CN_Map
 ! ************************************************************************** !
 
 subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
-                        global_auxvar,porosity,volume,reaction,option, local_id)
+                        global_auxvar,material_auxvar,reaction,option,local_id)
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
   ! 
@@ -549,6 +549,8 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   use Option_module
   use Reaction_Aux_module, only : reaction_type
+  use Material_Aux_class, only : material_auxvar_type
+
 #ifdef CLM_PFLOTRAN
   use clm_pflotran_interface_data !, only : rate_plantnuptake_pf 
 #endif
@@ -567,10 +569,9 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   ! the following arrays must be declared after reaction
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
-  PetscReal :: porosity
-  PetscReal :: volume
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
 
   PetscInt, parameter :: iphase = 1
   PetscInt :: ipool_up, ipool_down
@@ -634,7 +635,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   ! moisture response function 
 #ifdef CLM_PFLOTRAN
-  theta = global_auxvar%sat(1) * porosity 
+  theta = global_auxvar%sat(1) * material_auxvar%porosity 
   F_theta = GetMoistureResponse(theta, local_id, this%moisture_response_function)
 #else
   f_theta = 1.0d0
@@ -657,7 +658,8 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     sumN = 0.d0
   
     ! scaled_rate_const units: (m^3 bulk / s) = (1/s) * (m^3 bulk)
-    scaled_rate_const = this%rate_constant(irxn)*volume*constant_inhibition
+    scaled_rate_const = this%rate_constant(irxn)*material_auxvar%volume* &
+                        constant_inhibition
     resp_frac = this%respiration_fraction(irxn)
     
     ipool_up = this%upstream_pool_id(irxn)
