@@ -8,6 +8,12 @@ unit_test_dir = ./unittests
 include ${PETSC_DIR}/conf/variables
 include ${PETSC_DIR}/conf/rules
 
+# FC_DEFINE_FLAG is defined in PETSC_DIR/conf/variables above
+# e.g. '-WF,-D' for xl compilers, or '-D' for others.
+ifeq ($(strip $(FC_DEFINE_FLAG)),)   #this is default, if PETSC not defined 'FC_DEFINE_FLAG'
+   FC_DEFINE_FLAG := -D
+endif 
+
 MYFLAGS = -I.
 MYFLAGS += ${FC_DEFINE_FLAG}PROCESS_MODEL
 MYFLAGS += ${FC_DEFINE_FLAG}CHUAN_CO2
@@ -426,7 +432,7 @@ ifeq ($(UPDATE_PROVENANCE),1)
 		--pflotran-fflags "${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS}" \
 		--petsc-config "${CONFIGURE_OPTIONS}"
 else
-	@[[ -f pflotran_provenance.F90 ]] || cp pflotran_no_provenance.F90 pflotran_provenance.F90
+	@if test ! -f pflotran_provenance.F90; then cp pflotran_no_provenance.F90 pflotran_provenance.F90; fi
 endif
 
 # do these files exist anymore?
