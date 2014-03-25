@@ -178,7 +178,7 @@ end subroutine WastePackageSetup
 
 subroutine WastePackageReact(this,Residual,Jacobian,compute_derivative, &
                              rt_auxvar,global_auxvar,material_auxvar, &
-                             reaction,option)
+                             reaction,option,local_id)
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
   ! 
@@ -207,6 +207,7 @@ subroutine WastePackageReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: drate
   PetscInt :: idof_aqueous
   PetscInt :: idof_immobile
+  PetscInt :: local_id
   
   ! mol/sec
   rate = this%rate_constant * &  ! 1/sec

@@ -1739,8 +1739,8 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
 
       end select
 #ifndef CLM_PFLOTRAN
-      
       if (option%compute_mass_balance_new) then
+#endif
         ! need to added global auxvar for src/sink
         global_auxvars_ss(sum_connection)%mass_balance_delta(1,1) = &
           global_auxvars_ss(sum_connection)%mass_balance_delta(1,1) - &

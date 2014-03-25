@@ -163,8 +163,8 @@ FPPFLAGS = ${MYFLAGS}
 
 CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log pflotran_provenance.F90
 
-include ${PETSC_DIR}/conf/variables
-include ${PETSC_DIR}/conf/rules
+#include ${PETSC_DIR}/conf/variables
+#include ${PETSC_DIR}/conf/rules
 
 ifdef have_hdf5
 LIBS +=  -L${HDF5_LIB} -lhdf5_fortran -lhdf5 -lz 
@@ -956,6 +956,7 @@ reaction_sandbox_microbial.o : global_aux.o immobile_aux.o input_aux.o material_
                             pflotran_constants.o reaction_aux.o \
                             reaction_sandbox_base.o reactive_transport_aux.o \
                             clm_bgc.o \
+                            string.o units.o utility.o
 reaction_sandbox_example.o : global_aux.o input_aux.o material_aux.o option.o \
                              pflotran_constants.o reaction_aux.o \
                              reaction_sandbox_base.o reactive_transport_aux.o \

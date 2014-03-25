@@ -227,11 +227,12 @@ end subroutine NitrificationSetup
 !
 ! ************************************************************************** !
 subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
-                         rt_auxvar,global_auxvar,porosity,volume,reaction, &
+                         rt_auxvar,global_auxvar,material_auxvar,reaction, &
                          option,local_id)
 
   use Option_module
   use Reaction_Aux_module
+  use Material_Aux_class, only : material_auxvar_type
 
 #ifdef CLM_PFLOTRAN
   use clm_pflotran_interface_data
@@ -249,6 +250,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   type(reaction_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
 
   PetscBool :: compute_derivative
   PetscReal :: Residual(reaction%ncomp)
@@ -280,6 +282,9 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: saturation
   PetscReal :: tc
   PetscInt :: ires_nnit
+
+  porosity = material_auxvar%porosity
+  volume = material_auxvar%volume
 
   ! indices for C and N species
   ires_nh3 = this%ispec_nh3

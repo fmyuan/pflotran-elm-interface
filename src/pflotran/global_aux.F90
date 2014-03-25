@@ -201,7 +201,6 @@ subroutine GlobalAuxVarInit(auxvar,option)
     allocate(auxvar%mass_balance_delta(option%nflowspec,option%nphase))
     auxvar%mass_balance_delta = 0.d0
 #ifndef CLM_PFLOTRAN
-#ifndef CLM_PFLOTRAN
   else
     nullify(auxvar%mass_balance)
     nullify(auxvar%mass_balance_delta)

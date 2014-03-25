@@ -5048,7 +5048,7 @@ subroutine RCalculateCompression(global_auxvar,rt_auxvar,material_auxvar, &
   endif
 
   call RReaction(residual,J,PETSC_TRUE,rt_auxvar,global_auxvar, &
-                 material_auxvar,reaction,option)
+                 material_auxvar,reaction,option,ONE_INTEGER)
  
   do jj = 1, reaction%ncomp
     do i = 1, reaction%ncomp
