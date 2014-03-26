@@ -1138,13 +1138,9 @@ subroutine THUpdateSolutionPatch(realization)
     TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
   endif
 
-#ifndef CLM_PFLOTRAN
   if (realization%option%compute_mass_balance_new) then
-#endif
     call THUpdateMassBalancePatch(realization)
-#ifndef CLM_PFLOTRAN
   endif
-#endif
 
   if (option%use_mc) then
     call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr)  
@@ -3363,13 +3359,9 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   ! override flags since they will soon be out of date  
   patch%aux%TH%auxvars_up_to_date = PETSC_FALSE
 
-#ifndef CLM_PFLOTRAN
   if (option%compute_mass_balance_new) then
-#endif
     call THZeroMassBalDeltaPatch(realization)
-#ifndef CLM_PFLOTRAN
   endif
-#endif
 
 ! now assign access pointer to local variables
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr)

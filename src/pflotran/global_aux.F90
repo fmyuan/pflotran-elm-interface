@@ -193,19 +193,15 @@ subroutine GlobalAuxVarInit(auxvar,option)
       nullify(auxvar%reaction_rate_store)
   end select
 
-#ifndef CLM_PFLOTRAN
   if (option%iflag /= 0 .and. option%compute_mass_balance_new) then
-#endif
     allocate(auxvar%mass_balance(option%nflowspec,option%nphase))
     auxvar%mass_balance = 0.d0
     allocate(auxvar%mass_balance_delta(option%nflowspec,option%nphase))
     auxvar%mass_balance_delta = 0.d0
-#ifndef CLM_PFLOTRAN
   else
     nullify(auxvar%mass_balance)
     nullify(auxvar%mass_balance_delta)
   endif
-#endif
   
 end subroutine GlobalAuxVarInit
 
