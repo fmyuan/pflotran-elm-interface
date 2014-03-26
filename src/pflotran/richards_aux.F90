@@ -28,6 +28,10 @@ module Richards_Aux_module
 #endif
     PetscReal :: dsat_dp
     PetscReal :: dden_dp
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
+    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda    
+#endif
 
   end type richards_auxvar_type
   
@@ -135,6 +139,11 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%dsat_dp = 0.d0
   auxvar%dden_dp = 0.d0
 
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  auxvar%bc_alpha  = 0.0d0
+  auxvar%bc_lambda  = 0.0d0
+#endif 
+
 end subroutine RichardsAuxVarInit
 
 ! ************************************************************************** !
@@ -171,6 +180,11 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%dsat_dp = auxvar%dsat_dp
   auxvar2%dden_dp = auxvar%dden_dp
  
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  auxvar2%bc_alpha  = auxvar%bc_alpha
+  auxvar2%bc_lambda = auxvar%bc_lambda
+#endif
+
 end subroutine RichardsAuxVarCopy
 
 ! ************************************************************************** !
@@ -235,6 +249,14 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   ds_dp = 0.d0
   dkr_dp = 0.d0
   if (auxvar%pc > 0.d0) then
+
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    if(aux_var%bc_alpha.gt.0) then
+       saturation_function%alpha  = auxvar%bc_alpha
+       saturation_function%lambda = auxvar%bc_lambda
+    endif
+#endif
+
     saturated = PETSC_FALSE
     call SaturationFunctionCompute(auxvar%pc, &
                                 global_auxvar%sat(1),kr, &

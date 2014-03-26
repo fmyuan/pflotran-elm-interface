@@ -24,10 +24,6 @@ ifdef BACKTRACE
 	TEST_OPTIONS += --backtrace
 endif
 
-ifdef TIMEOUT
-	TEST_OPTIONS += --timeout $(TIMEOUT)
-endif
-
 ifneq ($(strip $(MPIEXEC)),)
 	TEST_OPTIONS += --mpiexec $(MPIEXEC)
 endif
@@ -41,24 +37,16 @@ STANDARD_CFG = \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
-	default/eos/eos.cfg \
-	default/materials/materials.cfg \
-	default/materials/soil_compressibility/soil_compressibility.cfg \
 	default/infiltrometer/infiltrometer.cfg \
 	default/condition/condition.cfg \
 	default/multicontinuum/multicontinuum.cfg \
-	default/scco2/mphase/mphase.cfg \
-	default/scco2/flash2/flash2.cfg \
-	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
-        general/general.cfg \
+	default/mphase/mphase.cfg \
 	ngee/ngee.cfg \
 	ngee/clmcnp/clmcnp.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \
-	shortcourse/copper_leaching/cu_leaching.cfg \
-	wipp/nuts/nuts.cfg \
-	surfaceflow/surface_flow_only/surface_only.cfg
+	shortcourse/copper_leaching/cu_leaching.cfg 
 
 ifneq ($(strip $(PARMETIS_LIB)),)
 	STANDARD_CFG += \
@@ -76,20 +64,14 @@ GEOCHEMISTRY_CFG = \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
 	default/multicontinuum/multicontinuum.cfg \
-	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
-        ngee/ngee.cfg \
+	ngee/ngee.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
-	shortcourse/copper_leaching/cu_leaching.cfg \
-	wipp/nuts/nuts.cfg
+	shortcourse/copper_leaching/cu_leaching.cfg 
 
 FLOW_CFG = \
 	default/543/543.cfg \
 	default/condition/condition.cfg \
-	default/eos/eos.cfg \
 	default/infiltrometer/infiltrometer.cfg \
-	default/scco2/mphase/mphase.cfg \
-	default/scco2/flash2/flash2.cfg \
-	general/general.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg
 
@@ -103,6 +85,9 @@ MESH_CFG = \
 
 MFD_CFG = \
 	mfd/mfd.cfg
+
+SCCO2_CFG = \
+	scco2/scco2.cfg
 
 CHECK_CFG = \
 	ascem/1d/1d-calcite/1d-calcite.cfg
@@ -163,6 +148,10 @@ test_mimetic :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(MFD_CFG)
 
+test_scco2 :
+	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
+		--config-files $(SCCO2_CFG)
+
 #
 # Try to cleanup the regression test output.
 #
@@ -181,12 +170,12 @@ clean-tests :
 	-find . -type f -name '*~' -print0 | xargs -0 rm
 	-find . -type f -name 'tmp-restart-*' -print0 | xargs -0 rm
 	-find . -type f -name '*.chk' -print0 | xargs -0 rm
-	-find . -type f -name '*.pyc' -print0 | xargs -0 rm
-	-find . -type d -name '__pycache__' -print0 | xargs -0 rm -r
 	-rm -f default/anisothermal/thc_1d.h5
 	-rm -f default/anisothermal/th_1d.h5
 	-rm -f mfd/mfd-mas.dat
 	-rm -f mfd/mfd.h5
+	-rm -f scco2/scco2.h5
+	-rm -f scco2/scco2-mas.dat
 	-rm -f default/543/543_flow_and_tracer-np8.h5
 	-rm -f default/543/543_flow_and_tracer.h5
 	-rm -f default/discretization/mixed_implicit-np4.h5

@@ -2673,6 +2673,10 @@ subroutine InitReadInput(simulation)
         waypoint%print_output = PETSC_TRUE
         call WaypointInsertInList(waypoint,simulation%surf_realization%waypoints)
 
+!....................
+      case ('MAPPING_FILES')
+        call InputSkipToEnd(input,option,'MAPPING_FILES')
+
 !......................
 #ifdef GEOMECH
       case ('GEOMECHANICS')
@@ -2700,6 +2704,7 @@ subroutine InitReadInput(simulation)
       case ('HDF5_WRITE_GROUP_SIZE')
         call InputReadInt(input,option,option%hdf5_write_group_size)
         call InputErrorMsg(input,option,'HDF5_WRITE_GROUP_SIZE','Group size')
+
 
 !....................
       case default

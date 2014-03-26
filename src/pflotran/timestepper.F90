@@ -91,7 +91,6 @@ module Timestepper_module
 #endif
 #endif
             TimestepperRead, TimestepperPrintInfo, TimestepperReset
-        
 
 contains
 
@@ -117,7 +116,7 @@ function TimestepperCreate()
   stepper%num_linear_iterations = 0
   stepper%num_constant_time_steps = 0
 
-  stepper%max_time_step = 999999
+  stepper%max_time_step = 999999999
   stepper%max_time_step_cuts = 16
   stepper%constant_time_step_threshold = 5
   stepper%iaccel = 5
@@ -1634,6 +1633,7 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
              num_linear_iterations,' / ',num_newton_iterations
     write(*,'("  --> SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm 
   endif
+
   if (option%print_file_flag) then
     write(option%fid_out, '(" FLOW ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
       & " [",a1, &
@@ -2498,13 +2498,12 @@ subroutine StepperStepTransportDT_GI(realization,stepper, &
       endif
 
       option%tran_dt = 0.5d0 * option%tran_dt
-    
+
       if (option%print_screen_flag) write(*,'('' -> Cut time step: snes='',i3, &
         &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
         &   1pe12.5)')  snes_reason,icut,stepper%cumulative_time_step_cuts, &
             option%tran_time/realization%output_option%tconv, &
             option%tran_dt/realization%output_option%tconv
-
 
       ! recompute weights
       if (option%nflowdof > 0 .and. .not.steady_flow) then

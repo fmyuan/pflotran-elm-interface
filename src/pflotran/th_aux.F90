@@ -43,6 +43,10 @@ module TH_Aux_module
     PetscReal :: dden_ice_dt
     PetscReal :: u_ice
     PetscReal :: du_ice_dt
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
+    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda
+#endif
   end type TH_auxvar_type
 
   type, public :: TH_parameter_type
@@ -185,6 +189,10 @@ subroutine THAuxVarInit(auxvar,option)
   auxvar%dden_ice_dt = 0.d0
   auxvar%u_ice = 0.d0
   auxvar%du_ice_dt = 0.d0
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  auxvar%bc_alpha  = 0.0d0
+  auxvar%bc_lambda = 0.0d0
+#endif
 
 end subroutine THAuxVarInit
 
@@ -245,6 +253,10 @@ subroutine THAuxVarCopy(auxvar,auxvar2,option)
      auxvar2%u_ice = auxvar%u_ice
      auxvar2%du_ice_dt = auxvar%du_ice_dt
   endif
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  auxvar2%bc_alpha  = auxvar%bc_alpha
+  auxvar2%bc_lambda = auxvar%bc_lambda
+#endif
 
 end subroutine THAuxVarCopy
 
@@ -319,6 +331,12 @@ subroutine THAuxVarCompute(x,auxvar,global_auxvar, &
 !  if (auxvar%pc > 0.d0) then
   if (auxvar%pc > 1.d0) then
     iphase = 3
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    if(aux_var%bc_alpha.gt.0) then
+       saturation_function%alpha  = auxvar%bc_alpha
+       saturation_function%lambda = auxvar%bc_lambda
+    endif
+#endif
     call SaturationFunctionCompute(auxvar%pc,global_auxvar%sat(1), &
                                    kr,ds_dp,dkr_dp, &
                                    saturation_function, &
@@ -519,6 +537,12 @@ subroutine THAuxVarComputeIce(x, auxvar, global_auxvar, &
 
 !  call EOSWaterDensityEnthalpy(global_auxvar%temp(1),pw,dw_kg,dw_mol,hw, &
 !                               dw_dp,dw_dt,hw_dp,hw_dt,ierr)
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    if(auxvar%bc_alpha.gt.0) then
+       saturation_function%alpha  = auxvar%bc_alpha
+       saturation_function%lambda = auxvar%bc_lambda
+    endif
+#endif
 
   call EOSWaterDensityEnthalpyPainter(global_auxvar%temp(1),pw,dw_kg,dw_mol, &
                                       hw,PETSC_TRUE,dw_dp,dw_dt,hw_dp,hw_dt,ierr)

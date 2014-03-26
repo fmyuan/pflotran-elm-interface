@@ -3267,11 +3267,12 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   use Patch_module
   use Grid_module
   use Option_module
-  use Coupler_module  
+  use Coupler_module
   use Field_module
   use Debug_module
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
+  use String_module
   
   implicit none
 
@@ -3362,7 +3363,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
     call THZeroMassBalDeltaPatch(realization)
   endif
 
-
 ! now assign access pointer to local variables
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
   call VecGetArrayF90( r, r_p, ierr)
@@ -3373,7 +3373,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr)
   call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr)
   !print *,' Finished scattering non deriv'
-  
   
   ! Calculating volume fractions for primary and secondary continua
 

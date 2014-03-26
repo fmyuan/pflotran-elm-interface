@@ -1,0 +1,43 @@
+-- CONCENTRATION: Total A(aq) --
+      Max:   1.0000000000000E-40
+      Min:   1.0000000000000E-40
+     Mean:   1.0000000000000E-40
+        1:   1.0000000000000E-40
+-- CONCENTRATION: C --
+      Max:   3.9100000000000E-04
+      Min:   3.9100000000000E-04
+     Mean:   3.9100000000000E-04
+        1:   3.9100000000000E-04
+-- CONCENTRATION: SOM1 --
+      Max:   5.6000010000000E-04
+      Min:   5.6000010000000E-04
+     Mean:   5.6000010000000E-04
+        1:   5.6000010000000E-04
+-- CONCENTRATION: Lit1 --
+      Max:   1.4716101983897E-80
+      Min:   1.4716101983897E-80
+     Mean:   1.4716101983897E-80
+        1:   1.4716101983897E-80
+-- CONCENTRATION: MBC --
+      Max:   4.1000000000000E-05
+      Min:   4.1000000000000E-05
+     Mean:   4.1000000000000E-05
+        1:   4.1000000000000E-05
+-- CONCENTRATION: Enzyme --
+      Max:   1.0100000000000E-05
+      Min:   1.0100000000000E-05
+     Mean:   1.0100000000000E-05
+        1:   1.0100000000000E-05
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   3.9807367324829E-01
+   Time Steps:          407
+   Newton Iterations:          531
+   Solver Iterations:          531
+   Time Step Cuts:            0
+   Solution 2-Norm:   6.8429826976254E-04
+   Residual 2-Norm:   8.2327099375271E-85

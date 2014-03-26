@@ -1747,7 +1747,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
         string = GetSubConditionName(flow_condition%energy_rate%itype)
         option%io_buffer='For TH mode: flow_condition%energy_rate%itype = "' // &
           trim(adjustl(string)) // '", not implemented.'
-          write(*,*)  trim(string)
+          write(*,*) trim(string)
         call printErrMsg(option)
     end select
   endif
