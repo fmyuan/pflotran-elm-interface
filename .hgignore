@@ -74,3 +74,9 @@ src/pflotran/pflotran_source_files.txt
 .gitignore
 *.rej
 *.pyc
+tpls/pfunit/source/DependencyCheck-1.tmp
+tpls/pfunit/source/libpfunit.a
+tpls/pfunit/source/AssertComplex.F90
+tpls/pfunit/source/AssertInteger1.F90
+tpls/pfunit/source/AssertReal.F90
+tpls/pfunit/source/dependencies.inc
