@@ -515,8 +515,8 @@ subroutine pflotranModelSetICs(pflotran_model)
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(field_type), pointer                 :: field
-    type(richards_auxvar_type), pointer       :: aux_var
-    type(global_auxvar_type), pointer         :: global_aux_vars(:)
+    type(richards_auxvar_type), pointer       :: rich_auxvar
+    type(global_auxvar_type), pointer         :: global_auxvars(:)
     type(simulation_base_type), pointer :: simulation
 
     PetscErrorCode     :: ierr
@@ -539,7 +539,7 @@ subroutine pflotranModelSetICs(pflotran_model)
     patch           => realization%patch
     grid            => patch%grid
     field           => realization%field
-    global_aux_vars  => patch%aux%Global%aux_vars
+    global_auxvars  => patch%aux%Global%auxvars
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
@@ -622,10 +622,10 @@ end subroutine pflotranModelSetICs
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(field_type), pointer                 :: field
-    type(richards_auxvar_type), pointer       :: rich_aux_vars(:)
-    type(richards_auxvar_type), pointer       :: rich_aux_var
-    type(th_auxvar_type), pointer             :: th_aux_vars(:)
-    type(th_auxvar_type), pointer             :: th_aux_var
+    type(richards_auxvar_type), pointer       :: rich_auxvars(:)
+    type(richards_auxvar_type), pointer       :: rich_auxvar
+    type(th_auxvar_type), pointer             :: th_auxvars(:)
+    type(th_auxvar_type), pointer             :: th_auxvar
     type(simulation_base_type), pointer :: simulation
 
     PetscErrorCode     :: ierr
@@ -664,9 +664,9 @@ end subroutine pflotranModelSetICs
 
     select case(pflotran_model%option%iflowmode)
       case(RICHARDS_MODE)
-        rich_aux_vars   => patch%aux%Richards%aux_vars
+        rich_auxvars   => patch%aux%Richards%auxvars
       case(TH_MODE)
-        th_aux_vars   => patch%aux%TH%aux_vars
+        th_auxvars   => patch%aux%TH%auxvars
       case default
         !F.-M. Yuan: if no flowmode AND no reactive-transport, then let crash the run
         ! because 'uniform_velocity' with [0, 0, 0] velocity transport doesn't need specific flowmode,
@@ -774,13 +774,13 @@ end subroutine pflotranModelSetICs
       
       select case(pflotran_model%option%iflowmode)
         case(RICHARDS_MODE)
-          rich_aux_var => rich_aux_vars(local_id)
-          rich_aux_var%bc_alpha = bc_alpha
-          rich_aux_var%bc_lambda = bc_lambda
+          rich_auxvar => rich_auxvars(local_id)
+          rich_auxvar%bc_alpha = bc_alpha
+          rich_auxvar%bc_lambda = bc_lambda
         case(TH_MODE)
-          th_aux_var => th_aux_vars(local_id)
-          th_aux_var%bc_alpha = min(bc_alpha,10.d-4)
-          th_aux_var%bc_lambda = bc_lambda
+          th_auxvar => th_auxvars(local_id)
+          th_auxvar%bc_alpha = min(bc_alpha,10.d-4)
+          th_auxvar%bc_lambda = bc_lambda
       end select
 
       ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
@@ -2743,7 +2743,7 @@ end subroutine pflotranModelSetICs
     class(realization_type), pointer          :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
-    type(global_auxvar_type), pointer         :: global_aux_vars(:)
+    type(global_auxvar_type), pointer         :: global_auxvars(:)
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: sat_pf_p(:)
@@ -2761,13 +2761,13 @@ end subroutine pflotranModelSetICs
     end select
     patch           => realization%patch
     grid            => patch%grid
-    global_aux_vars => patch%aux%Global%aux_vars
+    global_auxvars  => patch%aux%Global%auxvars
 
     ! Save the saturation values
     call VecGetArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
     do local_id=1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
-      sat_pf_p(local_id)=global_aux_vars(ghosted_id)%sat(1)
+      sat_pf_p(local_id)=global_auxvars(ghosted_id)%sat(1)
     enddo
     call VecRestoreArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
 
@@ -2780,7 +2780,7 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
     do local_id=1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
-      press_pf_p(local_id)=global_aux_vars(ghosted_id)%pres(1)
+      press_pf_p(local_id)=global_auxvars(ghosted_id)%pres(1)
     enddo
     call VecRestoreArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
 
@@ -2826,7 +2826,7 @@ end subroutine pflotranModelSetICs
     class(surface_realization_type), pointer  :: surf_realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
-    type(surface_global_auxvar_type), pointer   :: surf_global_aux_vars(:)
+    type(surface_global_auxvar_type), pointer :: surf_global_auxvars(:)
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: h2osfc_pf_p(:)
@@ -2842,14 +2842,14 @@ end subroutine pflotranModelSetICs
     end select
     patch           => surf_realization%patch
     grid            => patch%grid
-    surf_global_aux_vars => patch%surf_aux%SurfaceGlobal%aux_vars
+    surf_global_auxvars => patch%surf_aux%SurfaceGlobal%auxvars
 
     ! Save the standing head of water values
     call VecGetArrayF90(clm_pf_idata%h2osfc_pf, h2osfc_pf_p, ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       ! Convert 'm' to 'mm'
-      h2osfc_pf_p(local_id) = surf_global_aux_vars(ghosted_id)%head(1)*1000.d0
+      h2osfc_pf_p(local_id) = surf_global_auxvars(ghosted_id)%head(1)*1000.d0
     enddo
     call VecRestoreArrayF90(clm_pf_idata%h2osfc_pf, h2osfc_pf_p, ierr)
 
@@ -2893,8 +2893,8 @@ end subroutine pflotranModelSetICs
     class(realization_type), pointer           :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
-    type(global_auxvar_type), pointer         :: global_aux_vars(:)
-    type(th_auxvar_type), pointer             :: th_aux_vars(:)
+    type(global_auxvar_type), pointer         :: global_auxvars(:)
+    type(th_auxvar_type), pointer             :: th_auxvars(:)
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
@@ -2913,8 +2913,8 @@ end subroutine pflotranModelSetICs
     end select
     patch           => realization%patch
     grid            => patch%grid
-    global_aux_vars => patch%aux%Global%aux_vars
-    th_aux_vars     => patch%aux%TH%aux_vars
+    global_auxvars  => patch%aux%Global%auxvars
+    th_auxvars      => patch%aux%TH%auxvars
 
     call VecGetArrayF90(clm_pf_idata%temp_pf, temp_pf_p, ierr)
     do ghosted_id=1,grid%ngmax
@@ -2922,7 +2922,7 @@ end subroutine pflotranModelSetICs
       if (local_id>0) then
         !call VecSetValues(clm_pf_idata%sat_ice_pf,1,local_id-1, &
         !                 global_aux_vars(ghosted_id)%sat_ice(1),INSERT_VALUES,ierr)
-        temp_pf_p(local_id) = global_aux_vars(ghosted_id)%temp(1)
+        temp_pf_p(local_id) = global_auxvars(ghosted_id)%temp(1)
       endif
     enddo
     call VecRestoreArrayF90(clm_pf_idata%temp_pf, temp_pf_p, ierr)
@@ -3224,9 +3224,7 @@ end subroutine pflotranModelSetICs
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(simulation_base_type), pointer       :: simulation
-    type(global_auxvar_type), pointer :: global_aux_vars(:)
-!    type(reactive_transport_auxvar_type), pointer :: rt_aux_vars(:)
-!    type(reactive_transport_auxvar_type), pointer :: rt_aux_var
+    type(global_auxvar_type), pointer :: global_auxvars(:)
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id
@@ -3276,7 +3274,7 @@ end subroutine pflotranModelSetICs
     patch => realization%patch
     grid  => patch%grid
     field => realization%field
-    global_aux_vars  => patch%aux%Global%aux_vars
+    global_auxvars  => patch%aux%Global%auxvars
 
     word = "LabileC"
     ispec_lit1c = GetImmobileSpeciesIDFromName(word, &
@@ -3459,7 +3457,7 @@ end subroutine pflotranModelSetICs
 
       offset = (local_id - 1)*realization%reaction%ncomp
 
-      saturation = global_aux_vars(ghosted_id)%sat(1)
+      saturation = global_auxvars(ghosted_id)%sat(1)
       porosity = porosity_loc_p(local_id)
       theta = saturation * porosity
 
@@ -3564,7 +3562,7 @@ end subroutine pflotranModelSetICs
     class(realization_type), pointer          :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
-    type(global_auxvar_type), pointer         :: global_aux_vars(:)
+    type(global_auxvar_type), pointer         :: global_auxvars(:)
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: soillsat_pf_loc(:), soilisat_pf_loc(:)
@@ -3584,7 +3582,7 @@ end subroutine pflotranModelSetICs
     end select
     patch           => realization%patch
     grid            => patch%grid
-    global_aux_vars => patch%aux%Global%aux_vars
+    global_auxvars  => patch%aux%Global%auxvars
 
     ! Save the liq saturation values from CLM to PFLOTRAN, if needed
     if (.not.pf_hmode) then
@@ -3595,7 +3593,7 @@ end subroutine pflotranModelSetICs
         call VecGetArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
         do local_id=1, grid%nlmax
             ghosted_id=grid%nL2G(local_id)
-            global_aux_vars(ghosted_id)%sat(1)=soillsat_pf_loc(local_id)
+            global_auxvars(ghosted_id)%sat(1)=soillsat_pf_loc(local_id)
         enddo
         call VecRestoreArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
     endif
@@ -3609,7 +3607,7 @@ end subroutine pflotranModelSetICs
         call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
         do local_id=1, grid%nlmax
             ghosted_id=grid%nL2G(local_id)
-            global_aux_vars(ghosted_id)%temp(1)=soilt_pf_loc(local_id)
+            global_auxvars(ghosted_id)%temp(1)=soilt_pf_loc(local_id)
         enddo
         call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
     endif
@@ -3657,7 +3655,7 @@ end subroutine pflotranModelSetICs
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(simulation_base_type), pointer       :: simulation
-    type(global_auxvar_type), pointer :: global_aux_vars(:)
+    type(global_auxvar_type), pointer :: global_auxvars(:)
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
@@ -3687,7 +3685,7 @@ end subroutine pflotranModelSetICs
     patch => realization%patch
     grid  => patch%grid
     field => realization%field
-    global_aux_vars  => patch%aux%Global%aux_vars
+    global_auxvars  => patch%aux%Global%auxvars
 
     ! (i) indices of bgc variables in PFLOTRAN immobiles
 
@@ -4187,8 +4185,8 @@ end subroutine pflotranModelSetInitialTHStatesfromCLM
     type(reaction_type), pointer :: reaction
 
     type(coupler_type), pointer :: boundary_condition
-    type(global_auxvar_type), pointer :: global_aux_vars_bc(:)
-    type(reactive_transport_auxvar_type), pointer :: rt_aux_vars_bc(:)
+    type(global_auxvar_type), pointer :: global_auxvars_bc(:)
+    type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc(:)
 
     PetscScalar, pointer :: qinfl_subsurf_pf_loc(:)
     PetscScalar, pointer :: qsurf_subsurf_pf_loc(:)
@@ -4221,9 +4219,9 @@ end subroutine pflotranModelSetInitialTHStatesfromCLM
     reaction => realization%reaction
     !
     boundary_condition => patch%boundary_conditions%first
-    global_aux_vars_bc => patch%aux%Global%aux_vars_bc
+    global_auxvars_bc => patch%aux%Global%auxvars_bc
     if (option%ntrandof > 0) then
-       rt_aux_vars_bc => patch%aux%RT%aux_vars_bc
+       rt_auxvars_bc => patch%aux%RT%auxvars_bc
     endif
 
     call VecGetArrayF90(clm_pf_idata%qinfl_subsurf_pfp, qinfl_subsurf_pf_loc, ierr)
@@ -4245,14 +4243,14 @@ end subroutine pflotranModelSetInitialTHStatesfromCLM
           qsurf_subsurf_pf_loc(:) = 0.d0
           if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then          ! potential infilitration (+)
             do iconn = 1, boundary_condition%connection_set%num_connections
-                qinfl_subsurf_pf_loc(iconn) = -global_aux_vars_bc(offset+iconn)%    &
+                qinfl_subsurf_pf_loc(iconn) = -global_auxvars_bc(offset+iconn)%    &
                                         mass_balance_delta(1,option%liquid_phase)
             enddo
           endif
 
           if(StringCompare(boundary_condition%name,'clm_gflux_overflow')) then    ! surface overflow (after actual infiltration) (-)
             do iconn = 1, boundary_condition%connection_set%num_connections
-                qsurf_subsurf_pf_loc(iconn) = -global_aux_vars_bc(offset+iconn)%  &
+                qsurf_subsurf_pf_loc(iconn) = -global_auxvars_bc(offset+iconn)%  &
                                         mass_balance_delta(1,option%liquid_phase)
                 qinfl_subsurf_pf_loc(iconn) = qinfl_subsurf_pf_loc(iconn)         &
                                               +qsurf_subsurf_pf_loc(iconn)        ! 'qsurf_' should be negative
@@ -4266,7 +4264,7 @@ end subroutine pflotranModelSetInitialTHStatesfromCLM
           qflux_subbase_pf_loc(:) = 0.d0
           if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then          ! bottom water flux
             do iconn = 1, boundary_condition%connection_set%num_connections
-                qflux_subbase_pf_loc(iconn) = -global_aux_vars_bc(offset+iconn)%  &
+                qflux_subbase_pf_loc(iconn) = -global_auxvars_bc(offset+iconn)%  &
                                            mass_balance_delta(1,option%liquid_phase)
             enddo
           endif
@@ -4774,7 +4772,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(simulation_base_type), pointer       :: simulation
-    type(global_auxvar_type), pointer :: global_aux_vars(:)
+    type(global_auxvar_type), pointer :: global_auxvars(:)
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
@@ -4834,7 +4832,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     patch => realization%patch
     grid  => patch%grid
     field => realization%field
-    global_aux_vars  => patch%aux%Global%aux_vars
+    global_auxvars  => patch%aux%Global%auxvars
 
     ! (i) indices of bgc variables in PFLOTRAN immobiles
     word = "LabileC"
@@ -4990,7 +4988,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
            if (patch%imat(ghosted_id) <= 0) cycle
         endif
 
-        saturation = global_aux_vars(ghosted_id)%sat(1)
+        saturation = global_auxvars(ghosted_id)%sat(1)
         porosity = porosity_loc_p(local_id)
         theta = saturation * porosity
 

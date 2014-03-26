@@ -317,3 +317,4 @@ tpls/pfunit/source/AssertComplex.F90
 tpls/pfunit/source/AssertInteger1.F90
 tpls/pfunit/source/AssertReal.F90
 tpls/pfunit/source/dependencies.inc
+libpflotran.a

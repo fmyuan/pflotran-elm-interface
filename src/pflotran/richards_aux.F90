@@ -28,7 +28,7 @@ module Richards_Aux_module
 #endif
     PetscReal :: dsat_dp
     PetscReal :: dden_dp
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+#ifdef CLM_PFLOTRAN
     PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
     PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda    
 #endif
@@ -139,7 +139,7 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%dsat_dp = 0.d0
   auxvar%dden_dp = 0.d0
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+#ifdef CLM_PFLOTRAN
   auxvar%bc_alpha  = 0.0d0
   auxvar%bc_lambda  = 0.0d0
 #endif 
@@ -180,7 +180,7 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%dsat_dp = auxvar%dsat_dp
   auxvar2%dden_dp = auxvar%dden_dp
  
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+#ifdef CLM_PFLOTRAN
   auxvar2%bc_alpha  = auxvar%bc_alpha
   auxvar2%bc_lambda = auxvar%bc_lambda
 #endif
@@ -250,7 +250,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   dkr_dp = 0.d0
   if (auxvar%pc > 0.d0) then
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+#ifdef CLM_PFLOTRAN
     if(aux_var%bc_alpha.gt.0) then
        saturation_function%alpha  = auxvar%bc_alpha
        saturation_function%lambda = auxvar%bc_lambda
