@@ -320,7 +320,7 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
     endif
     
   enddo
-    
+
 end subroutine RMicrobial
 
 end module Microbial_module
