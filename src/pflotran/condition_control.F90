@@ -949,7 +949,7 @@ subroutine CondControlScaleSourceSink(realization)
   PetscInt :: icount
   PetscInt :: x_count, y_count, z_count
   PetscInt, parameter :: x_width = 1, y_width = 1, z_width = 0
-  PetscInt :: stencil_type  
+  
   PetscInt :: ghosted_neighbors(0:27)
   
   option => realization%option
@@ -984,8 +984,7 @@ subroutine CondControlScaleSourceSink(realization)
 
         select case(option%iflowmode)
           case(RICHARDS_MODE,G_MODE)
-              stencil_type = DMDA_STENCIL_STAR
-              call GridGetGhostedNeighbors(grid,ghosted_id,stencil_type, &
+              call GridGetGhostedNeighbors(grid,ghosted_id,DMDA_STENCIL_STAR, &
                                           x_width,y_width,z_width, &
                                           x_count,y_count,z_count, &
                                           ghosted_neighbors,option)

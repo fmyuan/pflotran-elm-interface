@@ -1728,7 +1728,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
       ! log/linear.  This improves convergence of linear problems or 
       ! primary components with no complexes, reactions, etc. (e.g. tracers)
       if (num_iterations > 3 .and. num_iterations < 9) then
-        use_log_formulation = (mod(num_iterations,TWO_INTEGER) == 0)
+        use_log_formulation = (mod(num_iterations,2) == 0)
       else
         use_log_formulation = PETSC_TRUE
       endif
@@ -1811,7 +1811,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     
     num_iterations = num_iterations + 1
     
-    if (mod(num_iterations,1000*ONE_INTEGER) == 0) then
+    if (mod(num_iterations,1000) == 0) then
 100   format('Constraint iteration count has exceeded: ',i5)
       write(option%io_buffer,100) num_iterations
       call printMsg(option)

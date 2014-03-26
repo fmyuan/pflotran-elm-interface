@@ -323,7 +323,7 @@ subroutine OutputTecplotHeader(fid,surf_realization,icolumn)
     if (iachar(header(i:i)) == 34) then
       quote_count = quote_count + 1
     ! 44 = ','
-    else if (iachar(header(i:i)) == 44 .and. mod(quote_count,TWO_INTEGER) == 0) then
+    else if (iachar(header(i:i)) == 44 .and. mod(quote_count,2) == 0) then
       comma_count = comma_count + 1
     endif
   enddo
@@ -839,9 +839,9 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod(real((option%time-output_option%periodic_output_time_incr)/ &
-                      output_option%periodic_output_time_incr), &
-                real(output_option%times_per_h5_file))==0) then
+        if (mod((option%time-output_option%periodic_output_time_incr)/ &
+                output_option%periodic_output_time_incr, &
+                dble(output_option%times_per_h5_file))==0) then
           first = PETSC_TRUE
         else
           first = PETSC_FALSE
@@ -1299,7 +1299,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
   enddo
 
   call PetscLogEventBegin(logging%event_h5dwrite_f,ierr)
-  call h5dwrite_f(data_set_id,H5T_NATIVE_INTEGER,REAL(int_array),dims, &
+  call h5dwrite_f(data_set_id,H5T_NATIVE_INTEGER,int_array,dims, &
                   hdf5_err,memory_space_id,file_space_id,prop_id)
   call PetscLogEventEnd(logging%event_h5dwrite_f,ierr)
 

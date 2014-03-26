@@ -15,7 +15,6 @@ endif
 
 MYFLAGS = -I.
 MYFLAGS += ${FC_DEFINE_FLAG}PROCESS_MODEL 
-MYFLAGS += ${FC_DEFINE_FLAG}SURFACE_FLOW
 MYFLAGS += ${FC_DEFINE_FLAG}CHUAN_CO2
 MYFLAGS += ${FC_DEFINE_FLAG}STORE_FLOWRATES
 
@@ -148,10 +147,6 @@ endif
 
 ifdef clm_offline
   MYFLAGS += ${FC_DEFINE_FLAG}CLM_OFFLINE
-endif
-
-ifdef clm_pflotran
-  MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN -g
 endif
 
 ifdef map_debug

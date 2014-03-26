@@ -218,7 +218,7 @@ subroutine RunToTime(this,target_time)
   
   call this%process_model_coupler_list%RunToTime(target_time,this%stop_flag)
   if (this%option%checkpoint_flag) then
-    call this%process_model_coupler_list%Checkpoint(viewer,-1*ONE_INTEGER)
+    call this%process_model_coupler_list%Checkpoint(viewer,-1)
   endif
 
 end subroutine RunToTime

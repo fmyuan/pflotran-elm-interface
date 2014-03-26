@@ -192,7 +192,7 @@ subroutine GlobalAuxVarInit(auxvar,option)
       nullify(auxvar%reaction_rate)
       nullify(auxvar%reaction_rate_store)
   end select
-
+  
   if (option%iflag /= 0 .and. option%compute_mass_balance_new) then
     allocate(auxvar%mass_balance(option%nflowspec,option%nphase))
     auxvar%mass_balance = 0.d0

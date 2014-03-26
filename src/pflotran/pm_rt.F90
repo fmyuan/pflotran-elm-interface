@@ -681,6 +681,7 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
   if (this%realization%option%compute_mass_balance_new) then
     call RTUpdateMassBalance(this%realization)
   endif  
+
 end subroutine PMRTUpdateSolution2     
 
 ! ************************************************************************** !

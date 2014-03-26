@@ -98,7 +98,7 @@ subroutine OutputTecplotHeader(fid,realization_base,icolumn)
     if (iachar(header(i:i)) == 34) then
       quote_count = quote_count + 1
     ! 44 = ','
-    else if (iachar(header(i:i)) == 44 .and. mod(quote_count,TWO_INTEGER) == 0) then
+    else if (iachar(header(i:i)) == 44 .and. mod(quote_count,2) == 0) then
       comma_count = comma_count + 1
     endif
   enddo
@@ -1319,7 +1319,7 @@ subroutine WriteTecplotStructuredGrid(fid,realization_base)
         temp_real = realization_base%discretization%origin(X_DIRECTION)
         write(fid,1000,advance='no') temp_real
         count = count + 1
-        if (mod(count,10*ONE_INTEGER) == 0) then
+        if (mod(count,10) == 0) then
           write(fid,'(a)') ""
           count = 0
         endif
@@ -1327,7 +1327,7 @@ subroutine WriteTecplotStructuredGrid(fid,realization_base)
           temp_real = temp_real + grid%structured_grid%dx_global(i)
           write(fid,1000,advance='no') temp_real
           count = count + 1
-          if (mod(count,10*ONE_INTEGER) == 0) then
+          if (mod(count,10) == 0) then
             write(fid,'(a)') ""
             count = 0
           endif
@@ -1342,7 +1342,7 @@ subroutine WriteTecplotStructuredGrid(fid,realization_base)
       do i=1,nx+1
         write(fid,1000,advance='no') temp_real
         count = count + 1
-        if (mod(count,10*ONE_INTEGER) == 0) then
+        if (mod(count,10) == 0) then
           write(fid,'(a)') ""
           count = 0
         endif
@@ -1352,7 +1352,7 @@ subroutine WriteTecplotStructuredGrid(fid,realization_base)
         do i=1,nx+1
           write(fid,1000,advance='no') temp_real
           count = count + 1
-          if (mod(count,10*ONE_INTEGER) == 0) then
+          if (mod(count,10) == 0) then
             write(fid,'(a)') ""
             count = 0
           endif
@@ -1366,7 +1366,7 @@ subroutine WriteTecplotStructuredGrid(fid,realization_base)
     do i=1,(nx+1)*(ny+1)
       write(fid,1000,advance='no') temp_real
       count = count + 1
-      if (mod(count,10*ONE_INTEGER) == 0) then
+      if (mod(count,10) == 0) then
         write(fid,'(a)') ""
         count = 0
       endif
@@ -1377,7 +1377,7 @@ subroutine WriteTecplotStructuredGrid(fid,realization_base)
         do i=1,nx+1
           write(fid,1000,advance='no') temp_real
           count = count + 1
-          if (mod(count,10*ONE_INTEGER) == 0) then
+          if (mod(count,10) == 0) then
             write(fid,'(a)') ""
             count = 0
           endif
@@ -1463,7 +1463,7 @@ subroutine WriteTecplotUGridVertices(fid,realization_base)
         write(fid,1000,advance='no') grid%unstructured_grid%explicit_grid% &
                                      vertex_coordinates(icell)%x
         count = count + 1
-        if (mod(count,10*ONE_INTEGER) == 0) then
+        if (mod(count,10) == 0) then
           write(fid,'(a)') ""
           count = 0
         endif
@@ -1474,7 +1474,7 @@ subroutine WriteTecplotUGridVertices(fid,realization_base)
         write(fid,1000,advance='no') grid%unstructured_grid%explicit_grid% &
                                      vertex_coordinates(icell)%y
         count = count + 1
-        if (mod(count,10*ONE_INTEGER) == 0) then
+        if (mod(count,10) == 0) then
           write(fid,'(a)') ""
           count = 0
         endif
@@ -1485,7 +1485,7 @@ subroutine WriteTecplotUGridVertices(fid,realization_base)
         write(fid,1000,advance='no') grid%unstructured_grid%explicit_grid% &
                                      vertex_coordinates(icell)%z
         count = count + 1
-        if (mod(count,10*ONE_INTEGER) == 0) then
+        if (mod(count,10) == 0) then
           write(fid,'(a)') ""
           count = 0
         endif

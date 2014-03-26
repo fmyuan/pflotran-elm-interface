@@ -720,16 +720,16 @@ subroutine DatasetGriddedHDF5GetIndices(this,xx,yy,zz,i,j,k,x,y,z)
   if (this%is_cell_centered) then
     i = int((x - this%origin(1))/ &
             this%discretization(1) + 0.5d0)
-    i = max(ONE_INTEGER,min(i,this%dims(1)-1))
+    i = max(1,min(i,this%dims(1)-1))
     if (this%data_dim > DIM_Z) then ! at least 2D
       j = int((y - this%origin(2))/ &
               this%discretization(2) + 0.5d0)
-      j = max(ONE_INTEGER,min(j,this%dims(2)-1))
+      j = max(1,min(j,this%dims(2)-1))
     endif
     if (this%data_dim > DIM_YZ) then ! at least 3D
       k = int((z - this%origin(3))/ &
               this%discretization(3) + 0.5d0)
-      k = max(ONE_INTEGER,min(k,this%dims(3)-1))
+      k = max(1,min(k,this%dims(3)-1))
     endif
   else
     i = int((x - this%origin(1))/ &

@@ -541,11 +541,11 @@ recursive subroutine PMCBaseCheckpoint(this,viewer,id,id_stamp)
   enddo
   
   if (associated(this%below)) then
-    call this%below%Checkpoint(viewer,-999*ONE_INTEGER)
+    call this%below%Checkpoint(viewer,-999)
   endif
   
   if (associated(this%next)) then
-    call this%next%Checkpoint(viewer,-999*ONE_INTEGER)
+    call this%next%Checkpoint(viewer,-999)
   endif
   
   if (this%is_master) then

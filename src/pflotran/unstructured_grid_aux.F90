@@ -62,9 +62,6 @@ module Unstructured_Grid_Aux_module
     type(point_type), pointer :: vertices(:)
     type(point_type), pointer :: face_centroid(:)
     PetscReal, pointer :: face_area(:)
-#ifdef SURFACE_FLOW
-    PetscInt, pointer :: nat_ids_of_other_grid(:)
-#endif
   end type unstructured_grid_type
   
   type, public :: unstructured_explicit_type
@@ -226,10 +223,7 @@ function UGridCreate()
   nullify(unstructured_grid%connection_to_face)
   nullify(unstructured_grid%face_centroid)
   nullify(unstructured_grid%face_area)
-#ifdef SURFACE_FLOW
-  nullify(unstructured_grid%nat_ids_of_other_grid)
-#endif
-
+  
   UGridCreate => unstructured_grid
   
 end function UGridCreate
@@ -1253,7 +1247,7 @@ subroutine UGridNaturalToPetsc(ugrid,option,elements_old,elements_local, &
   ! geh: this assumes that the number of ghost cells will not exceed the number
   !      of local and 100 is used to ensure that if this is not true, the array
   !       is still large enough
-  max_ghost_cell_count = max(num_cells_local_new,100*ONE_INTEGER)
+  max_ghost_cell_count = max(num_cells_local_new,100)
   allocate(int_array_pointer(max_ghost_cell_count))
   int_array_pointer = 0
   ! loop over all duals and find the off-processor cells on the other
@@ -1569,10 +1563,7 @@ subroutine UGridDestroy(unstructured_grid)
     deallocate(unstructured_grid%face_centroid)
   nullify(unstructured_grid%face_centroid)  
   call DeallocateArray(unstructured_grid%face_area)
-#ifdef SURFACE_FLOW
-  call DeallocateArray(unstructured_grid%nat_ids_of_other_grid)
-#endif
-
+  
   deallocate(unstructured_grid)
   nullify(unstructured_grid)
 

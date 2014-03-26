@@ -3340,7 +3340,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   PetscReal :: sec_density
   PetscReal :: sec_dencpr
   PetscReal :: res_sec_heat
-
+  
   patch => realization%patch
   grid => patch%grid
   option => realization%option
@@ -3627,7 +3627,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
                                      cur_connection_set%dist(1:3,iconn))
 
       icap_dn = int(icap_loc_p(ghosted_id))
-
+	
       call THBCFlux(boundary_condition%flow_condition%itype, &
                                 boundary_condition%flow_aux_real_var(:,iconn), &
                                 auxvars_bc(sum_connection), &
@@ -4704,11 +4704,9 @@ subroutine THComputeGradient(grid, global_auxvars, ghosted_id, gradient, &
   
   PetscInt :: INDX(3)
   PetscInt :: D
-  PetscInt :: stencil_type
-  
-  stencil_type = DMDA_STENCIL_STAR 
+   
   call GridGetGhostedNeighborsWithCorners(grid,ghosted_id, &
-                                         stencil_type, &
+                                         DMDA_STENCIL_STAR, &
                                          ONE_INTEGER,ONE_INTEGER,ONE_INTEGER, &
                                          ghosted_neighbors_size, &
                                          ghosted_neighbors, &

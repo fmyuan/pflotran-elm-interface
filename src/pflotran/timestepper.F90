@@ -1020,7 +1020,7 @@ subroutine StepperUpdateDT(flow_stepper,tran_stepper,option)
             dtt = fac * dt * (1.d0 + ut)
           else
             ifac = max(min(flow_stepper%num_newton_iterations, &
-                           flow_stepper%ntfac),ONE_INTEGER)
+                           flow_stepper%ntfac),1)
             dt_tfac = flow_stepper%tfac(ifac) * dt
 
             fac = 0.5d0
@@ -1594,7 +1594,7 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
     endif
   enddo
   
-  stepper%steps = stepper%steps + 1
+  stepper%steps = stepper%steps + 1      
   stepper%cumulative_newton_iterations = &
     stepper%cumulative_newton_iterations + sum_newton_iterations
   stepper%cumulative_linear_iterations = &

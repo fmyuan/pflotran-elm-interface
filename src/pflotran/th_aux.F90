@@ -535,6 +535,8 @@ subroutine THAuxVarComputeIce(x, auxvar, global_auxvar, &
       call printErrMsg(option)
   end select
 
+!  call EOSWaterDensityEnthalpy(global_auxvar%temp(1),pw,dw_kg,dw_mol,hw, &
+!                               dw_dp,dw_dt,hw_dp,hw_dt,ierr)
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
     if(auxvar%bc_alpha.gt.0) then
        saturation_function%alpha  = auxvar%bc_alpha

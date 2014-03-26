@@ -855,7 +855,7 @@ subroutine BasisInit(reaction,option)
   PetscInt :: ispec, itemp
   PetscInt :: spec_id
   PetscInt :: ncomp_h2o, ncomp_secondary
-  PetscInt :: icount_old, icount_new, icount, icount2, icount3, size_rates
+  PetscInt :: icount_old, icount_new, icount, icount2, icount3
   PetscInt :: i, j, irow, icol
   PetscInt :: icomp, icplx, irxn, ieqrxn
   PetscInt :: ipri_spec, isec_spec, imnrl, igas_spec, ikinmnrl, icoll
@@ -2540,8 +2540,7 @@ subroutine BasisInit(reaction,option)
         case(SRFCMPLX_RXN_KINETIC)
           icount3 = max(icount3,isrfcplx)
         case(SRFCMPLX_RXN_MULTIRATE_KINETIC)
-          size_rates = size(cur_srfcplx_rxn%rates)
-          icount2 = max(size_rates,icount2)
+          icount2 = max(size(cur_srfcplx_rxn%rates),icount2)
       end select      
       cur_srfcplx_rxn => cur_srfcplx_rxn%next
     enddo

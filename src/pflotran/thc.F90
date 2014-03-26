@@ -4722,11 +4722,9 @@ subroutine THCComputeGradient(grid, global_auxvars, ghosted_id, gradient, &
   
   PetscInt :: INDX(3)
   PetscInt :: D
-  PetscInt :: stencil_type
-
-  stencil_type = DMDA_STENCIL_STAR   
+   
   call GridGetGhostedNeighborsWithCorners(grid,ghosted_id, &
-                                         stencil_type, &
+                                         DMDA_STENCIL_STAR, &
                                          ONE_INTEGER,ONE_INTEGER,ONE_INTEGER, &
                                          ghosted_neighbors_size, &
                                          ghosted_neighbors, &

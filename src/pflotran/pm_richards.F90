@@ -315,7 +315,7 @@ subroutine PMRichardsUpdateTimestep(this,dt,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
-  PetscInt :: size_tfac
+  
   PetscReal :: fac
   PetscReal :: ut
   PetscReal :: up
@@ -339,8 +339,7 @@ subroutine PMRichardsUpdateTimestep(this,dt,dt_max,iacceleration, &
     endif
     dtt = fac * dt * (1.d0 + ut)
   else
-    size_tfac = size(tfac)
-    ifac = max(min(num_newton_iterations,size_tfac),ONE_INTEGER)
+    ifac = max(min(num_newton_iterations,size(tfac)),1)
     dt_tfac = tfac(ifac) * dt
 
     fac = 0.5d0

@@ -191,7 +191,7 @@ subroutine SurfSubsurfaceExecuteRun(this)
 
   endif
   if (this%option%checkpoint_flag) then
-    call this%process_model_coupler_list%Checkpoint(viewer,-1*ONE_INTEGER)
+    call this%process_model_coupler_list%Checkpoint(viewer,-1)
   endif
 
 end subroutine SurfSubsurfaceExecuteRun

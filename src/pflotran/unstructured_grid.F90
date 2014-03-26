@@ -627,7 +627,6 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   integer(HSIZE_T) :: num_data_in_file
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: offset(2), length(2), stride(2), block(2), dims(2)
-  integer(HID_T) :: ndims_h5
 #endif
 
   ! Initialize FORTRAN predefined datatypes
@@ -660,8 +659,7 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
   
   ! Get number of dimensions and check
-  call h5sget_simple_extent_ndims_f(data_space_id, ndims_h5, hdf5_err)
-  ndims = ndims_h5
+  call h5sget_simple_extent_ndims_f(data_space_id, ndims, hdf5_err)
   if (ndims /= 2) then
     option%io_buffer='Dimension of Domain/Cells dataset in ' // trim(filename) // &
           ' is not equal to 2.'
@@ -713,7 +711,7 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   
   ! Initialize data buffer
   allocate(int_buffer(length(1), length(2)))
-  allocate(double_buffer(length(1), length(2)))
+  
   ! Create property list
   call h5pcreate_f(H5P_DATASET_XFER_F, prop_id, hdf5_err)
 #ifndef SERIAL_HDF5
@@ -721,9 +719,9 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
 #endif
   
   ! Read the dataset collectively
-  call h5dread_f(data_set_id, H5T_NATIVE_INTEGER, double_buffer, &
+  call h5dread_f(data_set_id, H5T_NATIVE_INTEGER, int_buffer, &
                  dims_h5, hdf5_err, memory_space_id, data_space_id)
-  int_buffer = INT(double_buffer)
+  
   ! allocate array to store vertices for each cell
   allocate(unstructured_grid%cell_vertices(max_nvert_per_cell, &
                                              num_cells_local))
@@ -738,9 +736,7 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   call h5dclose_f(data_set_id, hdf5_err)
   
   deallocate(int_buffer)
-  deallocate(double_buffer)
   nullify(int_buffer)
-  nullify(double_buffer)
   deallocate(dims_h5)
   deallocate(max_dims_h5)
 
@@ -755,8 +751,7 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
   call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
   
   ! Get number of dimensions and check
-  call h5sget_simple_extent_ndims_f(data_space_id, ndims_h5, hdf5_err)
-  ndims = ndims_h5
+  call h5sget_simple_extent_ndims_f(data_space_id, ndims, hdf5_err)
   if (ndims /= 2) then
     option%io_buffer='Dimension of Domain/Vertices dataset in ' // trim(filename) // &
           ' is not equal to 2.'
@@ -910,7 +905,6 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   integer(HSIZE_T) :: num_data_in_file
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: offset(2), length(2), stride(2), block(2), dims(2)
-  integer(HID_T) :: ndims_h5
 #endif
 
   ! Initialize FORTRAN predefined datatypes
@@ -943,8 +937,7 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
   
   ! Get number of dimensions and check
-  call h5sget_simple_extent_ndims_f(data_space_id, ndims_h5, hdf5_err)
-  ndims = ndims_h5
+  call h5sget_simple_extent_ndims_f(data_space_id, ndims, hdf5_err)
   if (ndims /= 2) then
     option%io_buffer='Dimension of Domain/Cells dataset in ' // trim(filename) // &
           ' is not equal to 2.'
@@ -996,7 +989,6 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   
   ! Initialize data buffer
   allocate(int_buffer(length(1), length(2)))
-  allocate(double_buffer(length(1), length(2)))
   
   ! Create property list
   call h5pcreate_f(H5P_DATASET_XFER_F, prop_id, hdf5_err)
@@ -1005,9 +997,9 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
 #endif
   
   ! Read the dataset collectively
-  call h5dread_f(data_set_id, H5T_NATIVE_INTEGER, double_buffer, &
+  call h5dread_f(data_set_id, H5T_NATIVE_INTEGER, int_buffer, &
                  dims_h5, hdf5_err, memory_space_id, data_space_id)
-  int_buffer = INT(double_buffer)
+  
   ! allocate array to store vertices for each cell
   allocate(unstructured_grid%cell_vertices(max_nvert_per_cell, &
                                              num_cells_local))
@@ -1022,9 +1014,7 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   call h5dclose_f(data_set_id, hdf5_err)
   
   deallocate(int_buffer)
-  deallocate(double_buffer)
   nullify(int_buffer)
-  nullify(double_buffer)
   deallocate(dims_h5)
   deallocate(max_dims_h5)
 
@@ -1039,8 +1029,7 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
   call h5dget_space_f(data_set_id, data_space_id, hdf5_err)
   
   ! Get number of dimensions and check
-  call h5sget_simple_extent_ndims_f(data_space_id, ndims_h5, hdf5_err)
-  ndims = ndims_h5
+  call h5sget_simple_extent_ndims_f(data_space_id, ndims, hdf5_err)
   if (ndims /= 2) then
     option%io_buffer='Dimension of Domain/Vertices dataset in ' // trim(filename) // &
           ' is not equal to 2.'

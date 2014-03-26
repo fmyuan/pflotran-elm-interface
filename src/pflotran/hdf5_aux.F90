@@ -33,8 +33,6 @@ module HDF5_Aux_module
 #ifdef SCORPIO
             HDF5ReadDatasetInteger2D, &
             HDF5ReadDatasetReal2D, &
-            HDF5ReadDatasetReal1D, &
-            HDF5ReadDataset
             HDF5GroupExists, &
 #else
             HDF5GroupExists, &
@@ -235,10 +233,6 @@ end subroutine HDF5ReadDatasetInteger2D
 
 subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
            data,data_dims,dataset_dims)
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 05/13/2010
-  ! 
   use hdf5
   use Option_module
   
@@ -283,7 +277,6 @@ subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
   
   data_dims(1) = dataset_dims(1)/option%mycommsize
   data_dims(2) = dataset_dims(2)
-  !write(*,*) 'dataset_dims ',dataset_dims(:)
 
   remainder = dataset_dims(1) - data_dims(1)*option%mycommsize
   if (option%myrank < remainder) data_dims(1) = data_dims(1) + 1
@@ -311,97 +304,9 @@ subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
 end subroutine HDF5ReadDatasetReal2D
 #endif
 
-#if defined(PARALLELIO_LIB)
-
-! ************************************************************************** !
-
-subroutine HDF5ReadDatasetReal1D(filename,dataset_name,read_option,option, &
-           data,data_dims,dataset_dims)
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 05/13/2010
-  ! 
-
-  use hdf5
-  use Option_module
-  
-  implicit none
-  
-#if defined(PARALLELIO_LIB)
-  include "piof.h"  
-#endif
-
-  ! in
-  character(len=MAXSTRINGLENGTH) :: filename
-  character(len=MAXSTRINGLENGTH) :: dataset_name
-  integer                        :: read_option
-  type(option_type)              :: option
-  
-  ! out
-  PetscReal,pointer              :: data(:)
-  PetscInt                       :: data_dims(1)
-  PetscInt                       :: dataset_dims(1)
-  
-  ! local
-  integer :: file_id
-  integer :: ndims
-  PetscInt :: ii, remainder
-
-  PetscErrorCode :: ierr
-  
-  ! Open file collectively
-  filename = trim(filename) // CHAR(0)
-  call parallelIO_open_file(filename, option%ioread_group_id, FILE_READONLY, file_id, ierr)
-
-  ! Get dataset dimnesions
-  call parallelIO_get_dataset_ndims(ndims, file_id, dataset_name, option%ioread_group_id, ierr)
-  if (ndims.ne.1) then
-    option%io_buffer='Dimension of ' // dataset_name // ' dataset in ' // filename // &
-	   ' is not equal to 1.'
-	call printErrMsg(option)
-  endif
-  
-  ! Get size of each dimension
-  call parallelIO_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
-  
-  data_dims(1) = dataset_dims(1)/option%mycommsize
-
-  remainder = dataset_dims(1) - data_dims(1)*option%mycommsize
-  if (option%myrank < remainder) data_dims(1) = data_dims(1) + 1
-
-  
-  allocate(data(data_dims(1)))
-  
-  !call parallelIO_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
-
-  ! Read the dataset collectively
-  call parallelIO_read_dataset( data, PIO_DOUBLE, ndims, dataset_dims, data_dims, & 
-            file_id, dataset_name, option%ioread_group_id, NONUNIFORM_CONTIGUOUS_READ, ierr)
-  
-  !data_dims(1) = data_dims(1) + data_dims(2)
-  !data_dims(2) = data_dims(1) - data_dims(2)
-  !data_dims(1) = data_dims(1) - data_dims(2)
-
-  !dataset_dims(1) = dataset_dims(1) + dataset_dims(2)
-  !dataset_dims(2) = dataset_dims(1) - dataset_dims(2)
-  !dataset_dims(1) = dataset_dims(1) - dataset_dims(2)
-
-  ! Close file
-  call parallelIO_close_file( file_id, option%ioread_group_id, ierr)  
-
-end subroutine HDF5ReadDatasetReal1D
-
-#endif ! PARALLELIO_LIB
-
 ! ************************************************************************** !
 
 function HDF5GroupExists(filename,group_name,option)
-  ! 
-  ! Returns true if a group exists
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/26/2012
-  ! 
   ! 
   ! SCORPIO
   ! Returns true if a group exists

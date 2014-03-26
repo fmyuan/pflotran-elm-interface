@@ -1968,9 +1968,7 @@ subroutine HDF5ReadUnstructuredGridRegionFromFile(option,region,filename)
   integer(HID_T) :: memory_space_id
   integer(HSIZE_T), allocatable :: dims_h5(:), max_dims_h5(:)
   integer(HSIZE_T) :: length(2), offset(2)
-  integer(HID_T) :: ndims_h5
 #endif
-  PetscReal, pointer :: double_buffer_1d(:), double_buffer_2d(:,:)
 
   !option => realization%option
 
@@ -2002,8 +2000,7 @@ subroutine HDF5ReadUnstructuredGridRegionFromFile(option,region,filename)
   call h5dget_space_f(data_set_id,data_space_id,hdf5_err)
   
   ! Get number of dimensions and check
-  call h5sget_simple_extent_ndims_f(data_space_id,ndims_h5,hdf5_err)
-  ndims = ndims_h5
+  call h5sget_simple_extent_ndims_f(data_space_id,ndims,hdf5_err)
   if ((ndims > 2).or.(ndims < 1)) then
     option%io_buffer='Dimension of '//string//' dataset in ' // trim(filename) // &
      ' is > 2 or < 1.'
