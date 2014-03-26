@@ -251,7 +251,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (auxvar%pc > 0.d0) then
 
 #ifdef CLM_PFLOTRAN
-    if(aux_var%bc_alpha.gt.0) then
+    if(auxvar%bc_alpha.gt.0) then
        saturation_function%alpha  = auxvar%bc_alpha
        saturation_function%lambda = auxvar%bc_lambda
     endif
