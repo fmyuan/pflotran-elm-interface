@@ -444,11 +444,12 @@ end subroutine MicrobialSetup
 !
 ! ************************************************************************** !
 subroutine MicrobialReact(this,Residual,Jacobian,compute_derivative, &
-                         rt_auxvar,global_auxvar,porosity,volume,reaction, &
+                         rt_auxvar,global_auxvar,material_auxvar,reaction, &
                          option,local_id)
 
   use Option_module
   use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Material_Aux_class, only : material_auxvar_type
   
 #ifdef CLM_PFLOTRAN
   use clm_pflotran_interface_data
@@ -471,6 +472,7 @@ subroutine MicrobialReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: volume
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
 
   PetscInt, parameter :: iphase = 1
   PetscReal :: Lwater
@@ -486,6 +488,9 @@ subroutine MicrobialReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscInt :: local_id, i, icomp, ires
   PetscErrorCode :: ierr
+
+  porosity = material_auxvar%porosity
+  volume = material_auxvar%volume
 
 ! temperature response function 
 #ifdef CLM_PFLOTRAN 

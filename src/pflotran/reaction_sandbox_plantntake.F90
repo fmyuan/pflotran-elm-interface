@@ -143,12 +143,13 @@ end subroutine PlantNTakeSetup
 !
 ! ************************************************************************** !
 subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
-                         rt_auxvar,global_auxvar,porosity,volume,reaction, &
+                         rt_auxvar,global_auxvar,material_auxvar,reaction, &
                          option,local_id)
 
   use Option_module
   use Reaction_Aux_module
   use Immobile_Aux_module
+  use Material_Aux_class, only : material_auxvar_type
 
 #ifdef CLM_PFLOTRAN
   use clm_pflotran_interface_data
@@ -166,6 +167,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   type(reaction_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
   PetscBool :: compute_derivative
 
   PetscReal :: Residual(reaction%ncomp)
@@ -202,6 +204,9 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   PetscScalar, pointer :: rate_smin_nh4_pf_loc(:)   !
   PetscScalar, pointer :: rate_smin_no3_pf_loc(:)   !
 #endif 
+
+  porosity = material_auxvar%porosity
+  volume = material_auxvar%volume
 
   word = 'AmmoniaH4+'
   ispec_nh3 = GetPrimarySpeciesIDFromName(word, reaction, PETSC_FALSE, option)

@@ -1830,7 +1830,7 @@ subroutine RTReact(realization)
     call RReact(rt_auxvars(ghosted_id),global_auxvars(ghosted_id), &
                 material_auxvars(ghosted_id), &
                 tran_xx_p(istart:iend), &
-                num_iterations,reaction,option)
+                num_iterations,reaction,option,local_id)
     ! set primary dependent var back to free-ion molality
     tran_xx_p(istart:iendaq) = rt_auxvars(ghosted_id)%pri_molal
     if (reaction%nimcomp > 0) then
@@ -2882,7 +2882,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       call RReaction(Res,Jup,PETSC_FALSE,rt_auxvars(ghosted_id), &
                      global_auxvars(ghosted_id), &
                      material_auxvars(ghosted_id), &
-                     reaction,option)
+                     reaction,option,local_id)
       if (option%use_mc) then
         vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
         Res = Res*vol_frac_prim
@@ -3470,7 +3470,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,flag,realization,ierr)
       call RReactionDerivative(Res,Jup,rt_auxvars(ghosted_id), &
                                global_auxvars(ghosted_id), &
                                material_auxvars(ghosted_id), &
-                               reaction,option)
+                               reaction,option,local_id)
       if (option%use_mc) then
         vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
         Jup = Jup*vol_frac_prim

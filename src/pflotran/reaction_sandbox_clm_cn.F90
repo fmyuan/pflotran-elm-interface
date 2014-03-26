@@ -539,7 +539,7 @@ end subroutine CLM_CN_Map
 ! ************************************************************************** !
 
 subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
-                        global_auxvar,material_auxvar,reaction,option)
+                        global_auxvar,material_auxvar,reaction,option,local_id)
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
   ! 
@@ -549,10 +549,11 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   use Option_module
   use Reaction_Aux_module, only : reaction_type
+  use Material_Aux_class, only : material_auxvar_type
+
 #ifdef CLM_PFLOTRAN
   use clm_pflotran_interface_data !, only : rate_plantnuptake_pf 
 #endif
-  use Material_Aux_class, only : material_auxvar_type
   
   implicit none
   
@@ -634,7 +635,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   ! moisture response function 
 #ifdef CLM_PFLOTRAN
-  theta = global_auxvar%sat(1) * porosity 
+  theta = global_auxvar%sat(1) * material_auxvar%porosity 
   F_theta = GetMoistureResponse(theta, local_id, this%moisture_response_function)
 #else
   f_theta = 1.0d0

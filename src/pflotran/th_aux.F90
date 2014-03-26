@@ -536,19 +536,11 @@ subroutine THAuxVarComputeIce(x, auxvar, global_auxvar, &
   end select
 
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-    if(aux_var%bc_alpha.gt.0) then
+    if(auxvar%bc_alpha.gt.0) then
        saturation_function%alpha  = auxvar%bc_alpha
        saturation_function%lambda = auxvar%bc_lambda
     endif
 #endif
-  call SaturationFunctionComputeIce(global_aux_var%pres(1), & 
-                                    global_aux_var%temp(1), ice_saturation, &
-                                    global_aux_var%sat(1), gas_saturation, &
-                                    kr, ds_dp, dsl_temp, dsg_pl, dsg_temp, &
-                                    dsi_pl, dsi_temp, dkr_dp, dkr_dt, &
-                                    saturation_function, p_th, option)
-!  call EOSWaterDensityEnthalpy(global_auxvar%temp(1),pw,dw_kg,dw_mol,hw, &
-!                               dw_dp,dw_dt,hw_dp,hw_dt,ierr)
 
   call EOSWaterDensityEnthalpyPainter(global_auxvar%temp(1),pw,dw_kg,dw_mol, &
                                       hw,PETSC_TRUE,dw_dp,dw_dt,hw_dp,hw_dt,ierr)

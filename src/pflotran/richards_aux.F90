@@ -248,7 +248,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   pw = option%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
-  if (aux_var%pc > 0.d0) then
+  if (auxvar%pc > 0.d0) then
 
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
     if(aux_var%bc_alpha.gt.0) then
