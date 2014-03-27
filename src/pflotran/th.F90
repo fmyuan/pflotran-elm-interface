@@ -1879,11 +1879,19 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     dgravity_dden_up = upweight*auxvar_up%avgmw*dist_gravity
     dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
+    if (option%ice_model /= DALL_AMICO) then
     dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
     dphi_dp_up = 1.d0 + dgravity_dden_up*auxvar_up%dden_dp
     dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
     dphi_dt_up = dgravity_dden_up*auxvar_up%dden_dt
     dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
+    else
+      dphi = auxvar_up%pres_fh2o - auxvar_dn%pres_fh2o + gravity
+      dphi_dp_up =  auxvar_up%dpres_fh2o_dp + dgravity_dden_up*auxvar_up%dden_dp
+      dphi_dp_dn = -auxvar_dn%dpres_fh2o_dp + dgravity_dden_dn*auxvar_dn%dden_dp
+      dphi_dt_up =  auxvar_up%dpres_fh2o_dt + dgravity_dden_up*auxvar_up%dden_dt
+      dphi_dt_dn = -auxvar_dn%dpres_fh2o_dt + dgravity_dden_dn*auxvar_dn%dden_dt
+    endif
 
 ! note uxmol only contains one phase xmol
     if (dphi>=0.D0) then
@@ -2394,7 +2402,11 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
               (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
               * dist_gravity
 
+    if (option%ice_model /= DALL_AMICO) then
     dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
+    else
+      dphi = auxvar_up%pres_fh2o - auxvar_dn%pres_fh2o + gravity
+    endif
 
 !   note uxmol only contains one component xmol
     if (dphi >= 0.D0) then
@@ -2659,9 +2671,15 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                   * dist_gravity
         dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
 
+        if (option%ice_model /= DALL_AMICO) then
         dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
         dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
         dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
+        else
+          dphi = auxvar_up%pres_fh2o - auxvar_dn%pres_fh2o + gravity
+          dphi_dp_dn = -auxvar_dn%dpres_fh2o_dp + dgravity_dden_dn*auxvar_dn%dden_dp
+          dphi_dt_dn = -auxvar_dn%dpres_fh2o_dt + dgravity_dden_dn*auxvar_dn%dden_dt
+        endif
 
         if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC .or. &
             ibndtype(TH_PRESSURE_DOF) == HET_SURF_SEEPAGE_BC) then
@@ -3046,7 +3064,11 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
                   (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
                   * dist_gravity
 
+        if (option%ice_model /= DALL_AMICO) then
         dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
+        else
+          dphi = auxvar_up%pres_fh2o - auxvar_dn%pres_fh2o + gravity
+        endif
 
         if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC .or. &
             ibndtype(TH_PRESSURE_DOF) == HET_SURF_SEEPAGE_BC) then
@@ -4583,20 +4605,22 @@ subroutine THSetPlotVariables(realization)
                                LIQUID_SATURATION)
 
   if (realization%option%use_th_freezing) then
-     name = 'Gas Saturation'
-     units = ''
-     call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
+    if (realization%option%ice_model /= DALL_AMICO) then
+      name = 'Gas Saturation'
+      units = ''
+      call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
           GAS_SATURATION)
+    endif
 
-     name = 'Ice Saturation'
-     units = ''
-     call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
-          ICE_SATURATION)
+    name = 'Ice Saturation'
+    units = ''
+    call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
+        ICE_SATURATION)
 
-     name = 'Ice Density'
-     units = 'kg/m^3'
-     call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
-          ICE_DENSITY)
+    name = 'Ice Density'
+    units = 'kg/m^3'
+    call OutputVariableAddToList(list,name,OUTPUT_SATURATION,units, &
+        ICE_DENSITY)
   endif
 
   name = 'Liquid Density'
