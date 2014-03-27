@@ -765,6 +765,7 @@ end subroutine pflotranModelSetICs
 
     do local_id = 1, grid%ngmax
 
+    !(TODO) need a better way to generate MVM parameters from CLM inputs (temporarily off - fmyuan)
       ! bc_alpha [1/Pa]; while sucsat [mm of H20]
       ! [Pa] = [mm of H20] * 0.001 [m/mm] * 1000 [kg/m^3] * 9.81 [m/sec^2]
       bc_alpha = 1.d0/(sucsat_pf_loc(local_id)*grav)
@@ -775,12 +776,12 @@ end subroutine pflotranModelSetICs
       select case(pflotran_model%option%iflowmode)
         case(RICHARDS_MODE)
           rich_auxvar => rich_auxvars(local_id)
-          rich_auxvar%bc_alpha = bc_alpha
-          rich_auxvar%bc_lambda = bc_lambda
+      !    rich_auxvar%bc_alpha = bc_alpha
+      !    rich_auxvar%bc_lambda = bc_lambda
         case(TH_MODE)
           th_auxvar => th_auxvars(local_id)
-          th_auxvar%bc_alpha = min(bc_alpha,10.d-4)
-          th_auxvar%bc_lambda = bc_lambda
+      !    th_auxvar%bc_alpha = min(bc_alpha,10.d-4)
+      !    th_auxvar%bc_lambda = bc_lambda
       end select
 
       ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
