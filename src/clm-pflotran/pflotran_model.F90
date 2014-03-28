@@ -166,10 +166,13 @@ contains
     use Simulation_Base_class
     use Multi_Simulation_module
     use PFLOTRAN_Factory_module
-    use Subsurface_Factory_module, only : SubsurfaceInitialize
+    use Subsurface_Factory_module
     use Hydrogeophysics_Factory_module
     use Surface_Factory_module
     use Surf_Subsurf_Factory_module
+    use PFLOTRAN_Constants_module
+    use Output_Aux_module, only : INSTANTANEOUS_VARS
+    use PFLOTRAN_Provenance_module, only : PrintProvenanceToScreen
   
     implicit none
 
@@ -206,6 +209,10 @@ contains
     end if
 
     call OptionInitPetsc(model%option)
+    if (model%option%myrank == model%option%io_rank .and. &
+        model%option%print_to_screen) then
+      call PrintProvenanceToScreen()
+    end if
     call PFLOTRANInitializePostPetsc(model%multisimulation, model%option)
 
     ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
