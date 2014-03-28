@@ -473,16 +473,12 @@ endif
 # the long list below is easier to update from the main makefile.
 clm_pflotran_interface_data.o :
 mapping.o : option.o pflotran_constants.o input_aux.o
-pflotran_model.o : option.o input_aux.o pflotran_constants.o \
-                   timestepper.o patch.o grid.o richards_aux.o field.o global_aux.o \
-                   discretization.o richards.o th.o th_aux.o \
-                   pflotran_factory.o \
-                   realization_base.o surface_realization.o realization.o \
-                   simulation_base.o subsurface_simulation.o surface_simulation.o \
-                   surfsubsurface_simulation.o \
-                   subsurface_factory.o surface_factory.o surfsubsurface_factory.o \
-                   hydrogeophysics_factory.o \
-                   mapping.o clm_pflotran_interface_data.o
+pflotran_model.o : geomechanics_factory.o hydrogeophysics_factory.o \
+             multisimulation.o option.o pflotran_constants.o \
+             pflotran_factory.o simulation_base.o subsurface_factory.o \
+             surface_factory.o surfsubsurface_factory.o \
+             pflotran_provenance.o \
+             mapping.o clm_pflotran_interface_data.o
 
 # Dependencies stemming from "use" statements.
 # These ensure that the module files are built in the correct order.

@@ -134,6 +134,7 @@ module pflotran_model_module
        pflotranModelSetupMappingFiles
 
   public ::  &
+       pflotranModelResetSoilPorosity,         &
        pflotranModelGetSoilProp,               &
        pflotranModelSetInitialTHStatesfromCLM, &    ! initializing TH from CLM to PFLOTRAN flow mode
        pflotranModelSetInitialConcentrations,  &
@@ -431,7 +432,6 @@ contains
       call printErrMsg(model%option)
     endif
 
-#ifdef SURFACE_FLOW
     if( (model%option%nsurfflowdof>0)) then
        if ((.not. clm2pf_rflux_file)) then
         model%option%io_buffer='Running in surface flow without a ' // &
@@ -444,7 +444,7 @@ contains
         call printErrMsg(model%option)
        endif
     endif
-#endif
+
   end subroutine pflotranModelSetupMappingFiles
 
 ! ************************************************************************** !
@@ -603,14 +603,22 @@ end subroutine pflotranModelSetICs
   ! Author: Gautam Bisht
   ! Date: 10/22/2010
   ! 
+  ! (fmy) 4/28/2014: modifications after updating to pflotran-dev
 
     use Realization_class
+    use Discretization_module
     use Patch_module
     use Grid_module
     use Richards_Aux_module
     use TH_Aux_module
     use Field_module
     use Option_module
+    use Material_module
+    use Material_Aux_class
+    use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, &
+                               PERMEABILITY_Z, PERMEABILITY_XY, &
+                               PERMEABILITY_YZ, PERMEABILITY_XZ, &
+                               TORTUOSITY, POROSITY
 
     use Simulation_Base_class, only : simulation_base_type
     use Subsurface_Simulation_class, only : subsurface_simulation_type
@@ -625,7 +633,8 @@ end subroutine pflotranModelSetICs
 #include "finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer           :: realization
+    class(realization_type), pointer          :: realization
+    type(discretization_type), pointer        :: discretization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(field_type), pointer                 :: field
@@ -636,7 +645,7 @@ end subroutine pflotranModelSetICs
     type(simulation_base_type), pointer :: simulation
 
     PetscErrorCode     :: ierr
-    PetscInt           :: local_id
+    PetscInt           :: local_id, ghosted_id
     PetscReal          :: den, vis, grav
     PetscReal, pointer :: porosity_loc_p(:), vol_ovlap_arr(:)
     PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
@@ -648,7 +657,6 @@ end subroutine pflotranModelSetICs
     PetscScalar, pointer :: watsat_pf_loc(:)  ! minimum soil suction (mm)
     PetscScalar, pointer :: sucsat_pf_loc(:)  ! volumetric soil water at saturation (porosity)
     PetscScalar, pointer :: bsw_pf_loc(:)     ! Clapp and Hornberger "b"
-!    PetscScalar, pointer :: bsw_clm_loc(:)    ! Clapp and Hornberger "b"
 
     den = 998.2d0       ! [kg/m^3]  @ 20 degC
     vis = 0.001002d0    ! [N s/m^2] @ 20 degC
@@ -666,6 +674,7 @@ end subroutine pflotranModelSetICs
     end select
 
     patch           => realization%patch
+    discretization  => realization%discretization
     grid            => patch%grid
     field           => realization%field
 
@@ -718,7 +727,7 @@ end subroutine pflotranModelSetICs
                                     pflotran_model%option, &
                                     clm_pf_idata%watfc_clm, &
                                     clm_pf_idata%watfc_pf)
-! for denitrification
+
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &    ! 'extended' for 'physical' (?)
                                     pflotran_model%option, &
                                     clm_pf_idata%bulkdensity_dry_clm, &
@@ -728,29 +737,6 @@ end subroutine pflotranModelSetICs
                                     pflotran_model%option, &
                                     clm_pf_idata%cellorg_clm, &
                                     clm_pf_idata%cellorg_pf)
-!    if(clm_pf_idata%use_lch4) then
-!       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-!                                    pflotran_model%option, &
-!                                    clm_pf_idata%o2_decomp_depth_unsat_clm, &
-!                                    clm_pf_idata%o2_decomp_depth_unsat_pf)
-
-!       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-!                                    pflotran_model%option, &
-!                                    clm_pf_idata%conc_o2_unsat_clm, &
-!                                    clm_pf_idata%conc_o2_unsat_pf)
-
-!for some reason, o2_decomp_depth_sat is nan
-!       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-!                                    pflotran_model%option, &
-!                                    clm_pf_idata%o2_decomp_depth_sat_clm, &
-!                                    clm_pf_idata%o2_decomp_depth_sat_pf)
-
-!       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-!                                    pflotran_model%option, &
-!                                    clm_pf_idata%conc_o2_sat_clm, &
-!                                    clm_pf_idata%conc_o2_sat_pf)
-!
-!    endif
 
     call VecGetArrayF90(clm_pf_idata%hksat_x_pf, hksat_x_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%hksat_y_pf, hksat_y_pf_loc, ierr)
@@ -758,19 +744,19 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%sucsat_pf,  sucsat_pf_loc,  ierr)
     call VecGetArrayF90(clm_pf_idata%watsat_pf,  watsat_pf_loc,  ierr)
     call VecGetArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
-!    call VecGetArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
-    call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+    call VecGetArrayF90(field%porosity0, porosity_loc_p, ierr)
 
     if(pflotran_model%option%iflowmode==RICHARDS_MODE .or. &
        pflotran_model%option%iflowmode==TH_MODE) then
        ! F.-M. Yuan: without flowmode, the folllowing will throw out segementation fault error
-         call VecGetArrayF90(field%perm_xx_loc,  perm_xx_loc_p,  ierr)
-         call VecGetArrayF90(field%perm_yy_loc,  perm_yy_loc_p,  ierr)
-         call VecGetArrayF90(field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+         call VecGetArrayF90(field%perm0_xx,  perm_xx_loc_p,  ierr)
+         call VecGetArrayF90(field%perm0_yy,  perm_yy_loc_p,  ierr)
+         call VecGetArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
     endif
 
     do local_id = 1, grid%ngmax
+      ghosted_id = grid%nL2G(local_id)
 
     !(TODO) need a better way to generate MVM parameters from CLM inputs (temporarily off - fmyuan)
       ! bc_alpha [1/Pa]; while sucsat [mm of H20]
@@ -796,12 +782,12 @@ end subroutine pflotranModelSetICs
       if(pflotran_model%option%iflowmode==RICHARDS_MODE .or. &
          pflotran_model%option%iflowmode==TH_MODE) then
            ! F.-M. Yuan: without flowmode, the folllowing will throw out segementation fault error
-           perm_xx_loc_p(local_id) = hksat_x_pf_loc(local_id)*vis/(den*grav)/1000.d0
-           perm_yy_loc_p(local_id) = hksat_y_pf_loc(local_id)*vis/(den*grav)/1000.d0
-           perm_zz_loc_p(local_id) = hksat_z_pf_loc(local_id)*vis/(den*grav)/1000.d0
+           perm_xx_loc_p(ghosted_id) = hksat_x_pf_loc(local_id)*vis/(den*grav)/1000.d0
+           perm_yy_loc_p(ghosted_id) = hksat_y_pf_loc(local_id)*vis/(den*grav)/1000.d0
+           perm_zz_loc_p(ghosted_id) = hksat_z_pf_loc(local_id)*vis/(den*grav)/1000.d0
       endif
 
-      porosity_loc_p(local_id) = watsat_pf_loc(local_id)
+      porosity_loc_p(ghosted_id) = watsat_pf_loc(local_id)
 
     enddo
 
@@ -813,14 +799,42 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
 !    call VecRestoreArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
-    call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+    call VecRestoreArrayF90(field%porosity0, porosity_loc_p, ierr)
     if(pflotran_model%option%iflowmode==RICHARDS_MODE .or. &
        pflotran_model%option%iflowmode==TH_MODE) then
            ! F.-M. Yuan: without flowmode, the folllowing will throw out segementation fault error
-        call VecRestoreArrayF90(field%perm_xx_loc,  perm_xx_loc_p,  ierr)
-        call VecRestoreArrayF90(field%perm_yy_loc,  perm_yy_loc_p,  ierr)
-        call VecRestoreArrayF90(field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+        call VecRestoreArrayF90(field%perm0_xx,  perm_xx_loc_p,  ierr)
+        call VecRestoreArrayF90(field%perm0_yy,  perm_yy_loc_p,  ierr)
+        call VecRestoreArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
     endif
+
+    ! update ghosted values after resetting soil physical properties from CLM
+    if (pflotran_model%option%nflowdof > 0) then
+        call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
+                                     field%work_loc,ONEDOF)
+        call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_X,0)
+        call DiscretizationGlobalToLocal(discretization,field%perm0_yy, &
+                                     field%work_loc,ONEDOF)
+        call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_Y,0)
+        call DiscretizationGlobalToLocal(discretization,field%perm0_zz, &
+                                     field%work_loc,ONEDOF)
+        call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_Z,0)
+    endif
+    if (.not.pflotran_model%option%use_refactored_material_auxvars) then
+      call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
+                                       field%perm_xx_loc,ONEDOF)
+      call DiscretizationGlobalToLocal(discretization,field%perm0_yy, &
+                                       field%perm_yy_loc,ONEDOF)
+      call DiscretizationGlobalToLocal(discretization,field%perm0_zz, &
+                                       field%perm_zz_loc,ONEDOF)
+    endif
+    call DiscretizationGlobalToLocal(discretization,field%porosity0, &
+                               field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                               POROSITY,0)
 
   end subroutine pflotranModelSetSoilProp
 
@@ -4388,7 +4402,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     grid            => patch%grid
     field           => realization%field
 
-    call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+    call VecGetArrayF90(field%porosity0,porosity_loc_p,ierr)
 
     call VecGetArrayF90(clm_pf_idata%porosity_pfp, porosity_loc_pfp, ierr)
     call VecGetArrayF90(clm_pf_idata%sr_pfp, sr_loc_pfp, ierr)
@@ -4413,7 +4427,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     enddo
 
-    call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+    call VecRestoreArrayF90(field%porosity0,porosity_loc_p,ierr)
     call VecRestoreArrayF90(clm_pf_idata%porosity_pfp, porosity_loc_pfp, ierr)
     call VecRestoreArrayF90(clm_pf_idata%sr_pfp, sr_loc_pfp, ierr)
     call VecRestoreArrayF90(clm_pf_idata%alpha_pfp, alpha_loc_pfp, ierr)
@@ -4448,6 +4462,81 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
   end subroutine pflotranModelGetSoilProp
 
+! ************************************************************************** !
+
+  subroutine pflotranModelResetSoilPorosity(pflotran_model)
+  !
+  ! Resetting soil porosity in pflotran's internval vecs due to changes from CLM
+  ! Note: this is used to adjust porosity of ice from total, when Thermal mode is NOT used in PFLOTRAN
+  ! F.-M. YUAN:  4/28/2014
+
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Field_module
+    use Option_module
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(field_type), pointer                 :: field
+    type(simulation_base_type), pointer :: simulation
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id
+    PetscReal, pointer :: porosity_loc_p(:)
+
+    PetscScalar, pointer :: porosity_pfs_loc(:)
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: pflotranModelSetSoilProp only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    patch           => realization%patch
+    grid            => patch%grid
+    field           => realization%field
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%porosity_clmp, &
+                                    clm_pf_idata%porosity_pfs)
+    ! clm-pflotran interface vec
+    call VecGetArrayF90(clm_pf_idata%porosity_pfs,  porosity_pfs_loc,  ierr)
+    ! PF's interval vec
+    call VecGetArrayF90(field%porosity0, porosity_loc_p, ierr)
+
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      porosity_loc_p(ghosted_id) = porosity_pfs_loc(local_id)
+    enddo
+    call VecRestoreArrayF90(clm_pf_idata%porosity_pfs,  porosity_pfs_loc,  ierr)
+    call VecRestoreArrayF90(field%porosity0, porosity_loc_p, ierr)
+
+! not sure if the following is needed, further checking (TODO)
+!    call Discretization:LocalToLocal(realization%discretization,field%porosity0, &
+!                               field%porosity0,ONEDOF)
+
+  end subroutine pflotranModelResetSoilPorosity
 
   ! ************************************************************************** !
   ! pflotranModelSetBGCRates:
