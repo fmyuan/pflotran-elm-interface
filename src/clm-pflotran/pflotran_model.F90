@@ -5077,7 +5077,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     ! (iii) pass the data from internal to PFLOTRAN vecs
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)  ! extract data from pflotran internal portion
-    call VecGetArrayReadF90(field%porosity_loc, porosity_loc_p, ierr)
+    call VecGetArrayReadF90(field%porosity0, porosity_loc_p, ierr)
 
     do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
@@ -5197,6 +5197,9 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call VecRestoreArrayF90(clm_pf_idata%accndecomp_vr_pfp, accndecomp_vr_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%accnnitri_vr_pfp, accnnitri_vr_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%accndeni_vr_pfp, accndeni_vr_pf_loc, ierr)
+    !
+    call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
+    call VecRestoreArrayReadF90(field%porosity0, porosity_loc_p, ierr)
 
    ! (iv) pass the 'pf' vecs to 'clm' vecs, which then can be passed to CLMCN (implemented in 'clm_pflotran_interfaceMod'
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
