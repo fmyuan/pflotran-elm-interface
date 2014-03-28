@@ -17,7 +17,6 @@ endif
 MYFLAGS = -I.
 MYFLAGS += ${FC_DEFINE_FLAG}PROCESS_MODEL 
 MYFLAGS += ${FC_DEFINE_FLAG}CHUAN_CO2
-MYFLAGS += ${FC_DEFINE_FLAG}STORE_FLOWRATES
 MYFLAGS += ${FC_DEFINE_FLAG}GEOMECH
 
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
@@ -418,6 +417,7 @@ geomech_obj = \
 	${common_src}geomechanics_factory.o \
 	${common_src}geomechanics_simulation.o \
 	${common_src}timestepper_geomechanics.o
+
 clm_interface_obj = \
 	${common_src}pflotran_model.o \
 	${common_src}clm_pflotran_interface_data.o \
@@ -954,39 +954,36 @@ reaction_sandbox_clm_cn.o : global_aux.o immobile_aux.o input_aux.o \
                             reactive_transport_aux.o string.o units.o \
                             utility.o clm_bgc.o
 reaction_sandbox_clm_decomp.o : global_aux.o immobile_aux.o input_aux.o option.o \
-                            pflotran_constants.o reaction_aux.o \
+                            material_aux.o pflotran_constants.o reaction_aux.o \
                             reaction_sandbox_base.o reactive_transport_aux.o \
-                            string.o units.o utility.o \
-                            clm_bgc.o \
+                            string.o units.o utility.o clm_bgc.o \
                             clm_pflotran_interface_data.o
 reaction_sandbox_clm_cnp.o : global_aux.o immobile_aux.o input_aux.o option.o \
-                            pflotran_constants.o reaction_aux.o \
+                            material_aux.o pflotran_constants.o reaction_aux.o \
                             reaction_sandbox_base.o reactive_transport_aux.o \
-                            string.o units.o utility.o
-reaction_sandbox_example.o : global_aux.o input_aux.o option.o \
-                             pflotran_constants.o reaction_aux.o \
-                             reaction_sandbox_base.o reactive_transport_aux.o \
-                             string.o units.o
-reaction_sandbox_plantntake.o : global_aux.o immobile_aux.o input_aux.o option.o \
-                            pflotran_constants.o reaction_aux.o \
-                            reaction_sandbox_base.o reactive_transport_aux.o \
-                            string.o units.o utility.o \
-                            clm_pflotran_interface_data.o
-reaction_sandbox_nitrification.o : global_aux.o immobile_aux.o input_aux.o option.o \
-                            pflotran_constants.o reaction_aux.o \
-                            reaction_sandbox_base.o reactive_transport_aux.o \
-                            string.o units.o utility.o \
-                            clm_pflotran_interface_data.o
+                            string.o units.o utility.o clm_bgc.o
 reaction_sandbox_denitrification.o : global_aux.o immobile_aux.o input_aux.o option.o \
-                            pflotran_constants.o reaction_aux.o \
+                            material_aux.o pflotran_constants.o reaction_aux.o \
                             reaction_sandbox_base.o reactive_transport_aux.o \
-                            string.o units.o utility.o \
+                            string.o units.o utility.o clm_bgc.o \
                             clm_pflotran_interface_data.o
+reaction_sandbox_example.o : global_aux.o immobile_aux.o input_aux.o option.o \
+                             material_aux.o pflotran_constants.o reaction_aux.o \
+                             reaction_sandbox_base.o reactive_transport_aux.o \
+                             string.o units.o 
 reaction_sandbox_microbial.o : global_aux.o immobile_aux.o input_aux.o option.o \
-                            pflotran_constants.o reaction_aux.o \
+                            material_aux.o pflotran_constants.o reaction_aux.o \
                             reaction_sandbox_base.o reactive_transport_aux.o \
-                            clm_bgc.o \
-                            string.o units.o utility.o
+                            string.o units.o utility.o clm_bgc.o
+reaction_sandbox_nitrification.o : global_aux.o immobile_aux.o input_aux.o option.o \
+                            material_aux.o pflotran_constants.o reaction_aux.o \
+                            reaction_sandbox_base.o reactive_transport_aux.o \
+                            string.o units.o utility.o clm_bgc.o \
+                            clm_pflotran_interface_data.o
+reaction_sandbox_plantntake.o : global_aux.o immobile_aux.o input_aux.o option.o \
+                            material_aux.o pflotran_constants.o reaction_aux.o \
+                            reaction_sandbox_base.o reactive_transport_aux.o \
+                            string.o units.o utility.o clm_bgc.o
 reaction_sandbox_ufd_wp.o : global_aux.o immobile_aux.o input_aux.o \
                             material_aux.o option.o pflotran_constants.o \
                             reaction_aux.o reaction_sandbox_base.o \
@@ -1024,8 +1021,7 @@ richards.o : connection.o coupler.o debug.o discretization.o eos_water.o \
              material_aux.o matrix_buffer.o option.o output_aux.o patch.o \
              pflotran_constants.o realization.o realization_base.o \
              richards_aux.o richards_common.o richards_lsm.o richards_mfd.o \
-             saturation_function.o string.o variables.o \
-             clm_pflotran_interface_data.o
+             saturation_function.o string.o variables.o
 richards_aux.o : eos_water.o global_aux.o material_aux.o matrix_buffer.o \
                  option.o pflotran_constants.o saturation_function.o utility.o
 richards_common.o : connection.o eos_water.o global_aux.o material.o \
