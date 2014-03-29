@@ -4675,7 +4675,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                     clm_pf_idata%rate_smin_nh4_pfs)
 
 !   get cell volume as mass transfer rate unit is mol/s
-    call VecGetArrayReadF90(field%volume,volume_p,ierr)
+    call VecGetArrayReadF90(field%volume0,volume_p,ierr)
 
 !   output rate for debug
     if (pflotran_model%b_out_bgc_rate) then
@@ -4827,7 +4827,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
        enddo
     endif
 
-    call VecRestoreArrayReadF90(field%volume,volume_p,ierr)
+    call VecRestoreArrayReadF90(field%volume0,volume_p,ierr)
 
   end subroutine pflotranModelSetBGCRates
 
