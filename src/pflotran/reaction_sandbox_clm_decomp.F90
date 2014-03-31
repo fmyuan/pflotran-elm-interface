@@ -771,7 +771,7 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
      endif
   enddo
 
-  word = 'HCO3-'
+  word = 'CO2(aq)'
   this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
