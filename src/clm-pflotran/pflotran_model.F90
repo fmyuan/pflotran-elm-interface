@@ -2742,12 +2742,15 @@ end subroutine pflotranModelSetICs
   ! Author: Gautam Bisht
   ! Date: 11/22/2011
   ! 
+  ! 4/28/2014: fmy - updates
 
     use Option_module
     use Realization_class
     use Patch_module
     use Grid_module
     use Global_Aux_module
+    use Richards_Aux_module
+    use TH_Aux_module
     use Simulation_Base_class, only : simulation_base_type
     use Subsurface_Simulation_class, only : subsurface_simulation_type
     use Surface_Simulation_class, only : surface_simulation_type
@@ -2766,10 +2769,13 @@ end subroutine pflotranModelSetICs
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(global_auxvar_type), pointer         :: global_auxvars(:)
+    type(richards_auxvar_type), pointer       :: rich_auxvars(:)
+    type(TH_auxvar_type), pointer             :: th_auxvars(:)
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
-    PetscReal, pointer :: sat_pf_p(:)
+    PetscReal, pointer :: soillsat_pf_p(:)
     PetscReal, pointer :: press_pf_p(:)
+    PetscReal, pointer :: soilpsi_pf_p(:)
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -2781,35 +2787,56 @@ end subroutine pflotranModelSetICs
          pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
          call printErrMsg(pflotran_model%option)
     end select
+
     patch           => realization%patch
     grid            => patch%grid
     global_auxvars  => patch%aux%Global%auxvars
+    select case(pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+         rich_auxvars => patch%aux%Richards%auxvars
+      case (TH_MODE)
+         th_auxvars => patch%aux%TH%auxvars
+      case default
 
-    ! Save the saturation values
-    call VecGetArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
+    end select
+
+    ! Save the saturation/pc/pressure values
+    call VecGetArrayF90(clm_pf_idata%soillsat_pfp, soillsat_pf_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%soilpsi_pfp, soilpsi_pf_p, ierr)
     do local_id=1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
-      sat_pf_p(local_id)=global_auxvars(ghosted_id)%sat(1)
-    enddo
-    call VecRestoreArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
 
+      soillsat_pf_p(local_id)=global_auxvars(ghosted_id)%sat(1)
+      press_pf_p(local_id)   =global_auxvars(ghosted_id)%pres(1)
+
+      if (pflotran_model%option%iflowmode == RICHARDS_MODE) then
+        soilpsi_pf_p(local_id) = rich_auxvars(ghosted_id)%pc
+
+      else if (pflotran_model%option%iflowmode == TH_MODE) then
+        soilpsi_pf_p(local_id) = th_auxvars(ghosted_id)%pc
+
+      endif
+    enddo
+    call VecRestoreArrayF90(clm_pf_idata%soillsat_pfp, soillsat_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%soilpsi_pfp, soilpsi_pf_p, ierr)
+
+    ! mapping to CLM vecs (seq)
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%sat_pf, &
-                                    clm_pf_idata%sat_clm)
-
-    ! Save the pressure values
-    call VecGetArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
-    do local_id=1, grid%nlmax
-      ghosted_id=grid%nL2G(local_id)
-      press_pf_p(local_id)=global_auxvars(ghosted_id)%pres(1)
-    enddo
-    call VecRestoreArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
+                                    clm_pf_idata%soillsat_pfp, &
+                                    clm_pf_idata%soillsat_clms)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%press_pfp, &
                                     clm_pf_idata%press_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%soilpsi_pfp, &
+                                    clm_pf_idata%soilpsi_clms)
 
   end subroutine pflotranModelGetSaturation
 
@@ -2912,7 +2939,7 @@ end subroutine pflotranModelSetICs
 #include "finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer           :: realization
+    class(realization_type), pointer          :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(global_auxvar_type), pointer         :: global_auxvars(:)
@@ -2920,8 +2947,9 @@ end subroutine pflotranModelSetICs
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
-    PetscScalar, pointer :: temp_pf_p(:)
-    PetscReal, pointer :: sat_ice_pf_p(:)
+    !PetscScalar, pointer :: temp_pf_p(:)
+    PetscReal, pointer :: soilisat_pf_p(:)
+    PetscReal, pointer :: soilt_pf_p(:)
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -2938,28 +2966,27 @@ end subroutine pflotranModelSetICs
     global_auxvars  => patch%aux%Global%auxvars
     th_auxvars      => patch%aux%TH%auxvars
 
-    call VecGetArrayF90(clm_pf_idata%temp_pf, temp_pf_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%soilt_pfp, soilt_pf_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
     do ghosted_id=1,grid%ngmax
       local_id = grid%nG2L(ghosted_id)
       if (local_id>0) then
-        !call VecSetValues(clm_pf_idata%sat_ice_pf,1,local_id-1, &
-        !                 global_aux_vars(ghosted_id)%sat_ice(1),INSERT_VALUES,ierr)
-        temp_pf_p(local_id) = global_auxvars(ghosted_id)%temp(1)
+        soilt_pf_p(local_id) = global_auxvars(ghosted_id)%temp(1)
+        soilisat_pf_p(local_id) = th_auxvars(ghosted_id)%sat_ice
       endif
     enddo
-    call VecRestoreArrayF90(clm_pf_idata%temp_pf, temp_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%soilt_pfp, soilt_pf_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%temp_pf, &
-                                    clm_pf_idata%temp_clm)
+                                    clm_pf_idata%soilt_pfp, &
+                                    clm_pf_idata%soilt_clms)
 
-!    call VecAssemblyBegin(clm_pf_idata%sat_ice_pf,ierr)
-!    call VecAssemblyEnd(clm_pf_idata%sat_ice_pf,ierr)
-!    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-!                                    pflotran_model%option, &
-!                                    clm_pf_idata%sat_ice_pf, &
-!                                    clm_pf_idata%sat_ice_clm)
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%soilisat_pfp, &
+                                    clm_pf_idata%soilisat_clms)
 
   end subroutine pflotranModelGetTemperature
 
@@ -4662,7 +4689,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_plantnuptake_clmp, &
-                                    clm_pf_idata%rate_plantnuptake_pf)
+                                    clm_pf_idata%rate_plantnuptake_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
@@ -4685,7 +4712,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_lit1n_pf_loc, ierr)
         call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_lit2n_pf_loc, ierr)
         call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_lit3n_pf_loc, ierr)
-        call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
+        call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, rate_plantnuptake_pf_loc, ierr)
         call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs,  rate_smin_no3_pf_loc, ierr)
         call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs,  rate_smin_nh4_pf_loc, ierr)
 
@@ -4707,7 +4734,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_lit1n_pf_loc, ierr)
         call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_lit2n_pf_loc, ierr)
         call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_lit3n_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, rate_plantnuptake_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, rate_plantnuptake_pf_loc, ierr)
         call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_smin_no3_pf_loc, ierr)
         call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_smin_nh4_pf_loc, ierr)
 

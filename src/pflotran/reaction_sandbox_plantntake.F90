@@ -272,12 +272,12 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 
 
 #ifdef CLM_PFLOTRAN
-  call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, &
+  call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, &
        rate_plantnuptake_pf_loc, ierr)
 
   rate_nplant = rate_plantnuptake_pf_loc(local_id) * volume ! mol/m3/s * m3
 
-  call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pf, &
+  call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, &
        rate_plantnuptake_pf_loc, ierr)
 #else
   rate_nplant = this%rate
