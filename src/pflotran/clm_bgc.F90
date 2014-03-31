@@ -121,7 +121,7 @@ Function GetMoistureResponse(theta, local_id, itype)
 !   CLM-CN
     case(MOISTURE_RESPONSE_FUNCTION_CLM4) 
       call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
-      call VecGetArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi_pf_loc, ierr)
       maxpsi = sucsat_pf_loc(local_id) * (-9.8d-6)
       psi = min(soilpsi_pf_loc(local_id), maxpsi)
       if(psi > minpsi) then
@@ -129,10 +129,10 @@ Function GetMoistureResponse(theta, local_id, itype)
       else
         F_theta = 0.0d0
         call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
+        call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi_pf_loc, ierr)
       endif
       call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
-      call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi_pf_loc, ierr)
 
 ! DLEM 
 ! Tian et al. 2010 Biogeosciences, 7, 2673-2694 Eq. 13
