@@ -581,9 +581,6 @@ subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative,
      F_theta = log(minpsi/psi)/log(minpsi/maxpsi)
   else
      F_theta = 0.0d0
-     call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat, ierr)
-     call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi, ierr)
-     return
   endif
 
   call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat, ierr)

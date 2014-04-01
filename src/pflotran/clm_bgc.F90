@@ -128,8 +128,6 @@ Function GetMoistureResponse(theta, local_id, itype)
         F_theta = log(minpsi/psi)/log(minpsi/maxpsi)
       else
         F_theta = 0.0d0
-        call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi_pf_loc, ierr)
       endif
       call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
       call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi_pf_loc, ierr)
@@ -157,6 +155,8 @@ Function GetMoistureResponse(theta, local_id, itype)
            F_theta = 1.0d0
         endif
       endif
+      call VecGetArrayReadF90(clm_pf_idata%watsat_pf, watsat_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%watfc_pf, watfc_pf_loc, ierr)
     case default
         F_theta = 1.0d0
   end select

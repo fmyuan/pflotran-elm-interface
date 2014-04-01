@@ -3639,6 +3639,12 @@ end subroutine pflotranModelSetICs
                                     pflotran_model%option, &
                                     clm_pf_idata%soillsat_clmp, &
                                     clm_pf_idata%soillsat_pfs)
+
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%soilpsi_clmp, &
+                                    clm_pf_idata%soilpsi_pfs)
+
         call VecGetArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
         do local_id=1, grid%nlmax
             ghosted_id=grid%nL2G(local_id)
@@ -5360,7 +5366,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                     clm_pf_idata%accndeni_vr_pfp, &
                                     clm_pf_idata%accndeni_vr_clms)
     endif
-
 
   end subroutine pflotranModelGetBgcVariables
 
