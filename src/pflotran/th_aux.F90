@@ -43,10 +43,10 @@ module TH_Aux_module
     PetscReal :: dden_ice_dt
     PetscReal :: u_ice
     PetscReal :: du_ice_dt
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
-    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda
-#endif
+    ! For DallAmico model
+    PetscReal :: pres_fh2o
+    PetscReal :: dpres_fh2o_dp
+    PetscReal :: dpres_fh2o_dt
   end type TH_auxvar_type
 
   type, public :: TH_parameter_type
@@ -189,10 +189,9 @@ subroutine THAuxVarInit(auxvar,option)
   auxvar%dden_ice_dt = 0.d0
   auxvar%u_ice = 0.d0
   auxvar%du_ice_dt = 0.d0
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  auxvar%bc_alpha  = 0.0d0
-  auxvar%bc_lambda = 0.0d0
-#endif
+  auxvar%pres_fh2o = 0.d0
+  auxvar%dpres_fh2o_dp = 0.d0
+  auxvar%dpres_fh2o_dt = 0.d0
 
 end subroutine THAuxVarInit
 
@@ -252,11 +251,10 @@ subroutine THAuxVarCopy(auxvar,auxvar2,option)
      auxvar2%dden_ice_dt = auxvar%dden_ice_dt
      auxvar2%u_ice = auxvar%u_ice
      auxvar2%du_ice_dt = auxvar%du_ice_dt
+     auxvar2%pres_fh2o = auxvar%pres_fh2o
+     auxvar2%dpres_fh2o_dp = auxvar%dpres_fh2o_dp
+     auxvar2%dpres_fh2o_dt = auxvar%dpres_fh2o_dt
   endif
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  auxvar2%bc_alpha  = auxvar%bc_alpha
-  auxvar2%bc_lambda = auxvar%bc_lambda
-#endif
 
 end subroutine THAuxVarCopy
 
@@ -328,15 +326,8 @@ subroutine THAuxVarCompute(x,auxvar,global_auxvar, &
   pw = option%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
-!  if (auxvar%pc > 0.d0) then
-  if (auxvar%pc > 1.d0) then
+  if (auxvar%pc > 0.d0) then
     iphase = 3
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-    if(aux_var%bc_alpha.gt.0) then
-       saturation_function%alpha  = auxvar%bc_alpha
-       saturation_function%lambda = auxvar%bc_lambda
-    endif
-#endif
     call SaturationFunctionCompute(auxvar%pc,global_auxvar%sat(1), &
                                    kr,ds_dp,dkr_dp, &
                                    saturation_function, &
@@ -529,7 +520,18 @@ subroutine THAuxVarComputeIce(x, auxvar, global_auxvar, &
                                        kr, ds_dp, dsl_temp, dsg_pl, dsg_temp, &
                                        dsi_pl, dsi_temp, dkr_dp, dkr_dt, &
                                        saturation_function, p_th, option) 
-    
+    case (DALL_AMICO)
+      ! Model from Dall'Amico (2010) and Dall' Amico et al. (2011)
+      call SatFuncComputeIceDallAmico(global_auxvar%pres(1), &
+                                      global_auxvar%temp(1), &
+                                      auxvar%pres_fh2o, &
+                                      auxvar%dpres_fh2o_dp, &
+                                      auxvar%dpres_fh2o_dt, &
+                                      ice_saturation, &
+                                      global_auxvar%sat(1), gas_saturation, &
+                                      kr, ds_dp, dsl_temp, dsg_pl, dsg_temp, &
+                                      dsi_pl, dsi_temp, dkr_dp, dkr_dt, &
+                                      saturation_function, option)
     case default
       option%io_buffer = 'THCAuxVarComputeIce: Ice model not recognized.'
       call printErrMsg(option)
@@ -537,12 +539,6 @@ subroutine THAuxVarComputeIce(x, auxvar, global_auxvar, &
 
 !  call EOSWaterDensityEnthalpy(global_auxvar%temp(1),pw,dw_kg,dw_mol,hw, &
 !                               dw_dp,dw_dt,hw_dp,hw_dt,ierr)
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-    if(auxvar%bc_alpha.gt.0) then
-       saturation_function%alpha  = auxvar%bc_alpha
-       saturation_function%lambda = auxvar%bc_lambda
-    endif
-#endif
 
   call EOSWaterDensityEnthalpyPainter(global_auxvar%temp(1),pw,dw_kg,dw_mol, &
                                       hw,PETSC_TRUE,dw_dp,dw_dt,hw_dp,hw_dt,ierr)
@@ -601,6 +597,14 @@ subroutine THAuxVarComputeIce(x, auxvar, global_auxvar, &
   auxvar%dden_ice_dp = dden_ice_dP
   auxvar%u_ice = u_ice*1.d-3                  !kJ/kmol --> MJ/kmol
   auxvar%du_ice_dt = du_ice_dT*1.d-3          !kJ/kmol/K --> MJ/kmol/K 
+
+  if (option%ice_model == DALL_AMICO) then
+    auxvar%den_ice = dw_mol
+    auxvar%dden_ice_dt = auxvar%dden_dt
+    auxvar%dden_ice_dp = auxvar%dden_dp
+    auxvar%u_ice = auxvar%u
+    auxvar%du_ice_dt = auxvar%du_dt
+  endif
 
 end subroutine THAuxVarComputeIce
 

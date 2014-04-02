@@ -572,7 +572,7 @@ subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative,
 !moisture response function
 #ifdef CLM_PFLOTRAN
   call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat, ierr)
-  call VecGetArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi, ierr)
+  call VecGetArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi, ierr)
 
   maxpsi = sucsat(local_id) * (-9.8d-6)
   psi = min(soilpsi(local_id), maxpsi)
@@ -581,13 +581,10 @@ subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative,
      F_theta = log(minpsi/psi)/log(minpsi/maxpsi)
   else
      F_theta = 0.0d0
-     call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat, ierr)
-     call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi, ierr)
-     return
   endif
 
   call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat, ierr)
-  call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi, ierr)
+  call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi, ierr)
 #else
 
   ! inhibition due to moisture content
@@ -641,7 +638,7 @@ subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative,
   call VecGetArrayReadF90(clm_pf_idata%watfc_pf, watfc, ierr)
   call VecGetArrayReadF90(clm_pf_idata%cellorg_pf, cellorg, ierr)
   call VecGetArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
-  call VecGetArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi, ierr)
+  call VecGetArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi, ierr)
   call VecGetArrayReadF90(clm_pf_idata%o2_decomp_depth_unsat_pf, o2_decomp_depth_unsat, ierr)
   call VecGetArrayReadF90(clm_pf_idata%o2_decomp_depth_sat_pf, o2_decomp_depth_sat, ierr)
   call VecGetArrayReadF90(clm_pf_idata%conc_o2_unsat_pf, conc_o2_unsat, ierr)
@@ -717,7 +714,7 @@ subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative,
   call VecRestoreArrayReadF90(clm_pf_idata%watfc_pf, watfc, ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%cellorg_pf, cellorg, ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
-  call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi, ierr)
+  call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi, ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%o2_decomp_depth_unsat_pf, o2_decomp_depth_unsat, ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%o2_decomp_depth_sat_pf, o2_decomp_depth_sat, ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%conc_o2_unsat_pf, conc_o2_unsat, ierr)

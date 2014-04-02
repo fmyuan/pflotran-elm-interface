@@ -1256,7 +1256,7 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
 
 #ifdef CLM_PFLOTRAN
   call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
-  call VecGetArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
+  call VecGetArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi_pf_loc, ierr)
 
   maxpsi = sucsat_pf_loc(local_id) * (-9.8d-6)
   psi = min(soilpsi_pf_loc(local_id), maxpsi)
@@ -1265,13 +1265,10 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
      F_theta = log(minpsi/psi)/log(minpsi/maxpsi)
   else
      F_theta = 0.0d0
-     call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
-     call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
-     return
   endif
 
   call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
-  call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pf, soilpsi_pf_loc, ierr)
+  call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi_pf_loc, ierr)
 #else
   F_theta = 1.0d0 
 #endif
