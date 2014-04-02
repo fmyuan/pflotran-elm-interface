@@ -1606,16 +1606,17 @@ subroutine InputReadToBuffer(input, buffer)
   
   type(input_type), pointer :: input
   character(len=MAXSTRINGLENGTH) :: buffer(:)
+  character(len=MAXSTRINGLENGTH) :: string
   PetscInt :: line
 
   rewind(input%fid)
-  line = 1
+  line = 0
   do
-     read(input%fid, '(a512)', iostat=input%ierr) buffer(line)
-     if (InputError(input)) exit
-     line = line + 1
+    read(input%fid, '(a512)', iostat=input%ierr) string
+    if (InputError(input)) exit
+    line = line + 1
+    buffer(line) = string
   end do
-  
   
 end subroutine InputReadToBuffer
 
