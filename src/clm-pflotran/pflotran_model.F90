@@ -808,7 +808,15 @@ end subroutine pflotranModelSetICs
         call VecRestoreArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
     endif
 
+    call DiscretizationGlobalToLocal(discretization,field%porosity0, &
+                               field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                               POROSITY,0)
     ! update ghosted values after resetting soil physical properties from CLM
+    call DiscretizationGlobalToLocal(discretization,field%porosity0, &
+                               field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                               POROSITY,0)
     if (pflotran_model%option%nflowdof > 0) then
         call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
                                      field%work_loc,ONEDOF)
@@ -823,18 +831,6 @@ end subroutine pflotranModelSetICs
         call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  PERMEABILITY_Z,0)
     endif
-    if (.not.pflotran_model%option%use_refactored_material_auxvars) then
-      call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
-                                       field%perm_xx_loc,ONEDOF)
-      call DiscretizationGlobalToLocal(discretization,field%perm0_yy, &
-                                       field%perm_yy_loc,ONEDOF)
-      call DiscretizationGlobalToLocal(discretization,field%perm0_zz, &
-                                       field%perm_zz_loc,ONEDOF)
-    endif
-    call DiscretizationGlobalToLocal(discretization,field%porosity0, &
-                               field%work_loc,ONEDOF)
-    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,0)
 
   end subroutine pflotranModelSetSoilProp
 

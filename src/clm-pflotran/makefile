@@ -735,7 +735,7 @@ mass_transfer.o : dataset_base.o dataset_common_hdf5.o dataset_global_hdf5.o \
 material.o : communicator_base.o dataset_common_hdf5.o input_aux.o \
              material_aux.o option.o pflotran_constants.o \
              saturation_function.o string.o variables.o
-material_aux.o : option.o pflotran_constants.o utility.o
+material_aux.o : option.o pflotran_constants.o utility.o variables.o
 matrix_block_aux.o : option.o pflotran_constants.o utility.o
 matrix_buffer.o : grid.o pflotran_constants.o structured_grid.o
 mfd.o : connection.o eos_water.o field.o global_aux.o grid.o mfd_aux.o \
