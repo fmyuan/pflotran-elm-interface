@@ -3759,7 +3759,8 @@ end subroutine pflotranModelSetICs
     ! (i) indices of bgc variables in PFLOTRAN immobiles
 
     ! primary species
-    word = "CO2(aq)"
+    !word = "CO2(aq)"
+    word = "HCO3-"
     ispec_co2  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
@@ -5034,7 +5035,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     ! primary species
-    word = "CO2(aq)"
+    !word = "CO2(aq)"
+    word = "HCO3-"
     ispec_co2  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
