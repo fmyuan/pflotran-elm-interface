@@ -3735,7 +3735,7 @@ end subroutine pflotranModelSetICs
     PetscScalar, pointer :: aqn2o_vr_pf_loc(:)              ! (molN2O-N/L)
 
     PetscInt :: offset
-    PetscInt :: ispec_co2, ispec_n2, ispec_n2o
+    PetscInt :: ispec_co2, ispec_n2, ispec_n2o, ispec_ph
 
     character(len=MAXWORDLENGTH) :: word
 
@@ -3775,6 +3775,10 @@ end subroutine pflotranModelSetICs
 
     word = "N2O(aq)"
     ispec_n2o = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+
+    word = "H+"
+    ispec_ph = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
     ! mapping CLM vecs to PF vecs
@@ -3824,6 +3828,12 @@ end subroutine pflotranModelSetICs
 
         if(ispec_n2o > 0) then
             xx_p(offset + ispec_n2o) = max(aqn2o_vr_pf_loc(local_id), 1.0d-20)
+        endif
+
+        ! the following will reset pH to 6.5 so that HCO3- <==> CO2(aq) will not going away
+        ! when pflotran figured out the issue, this will go out
+        if(ispec_ph > 0) then
+           xx_p(offset + ispec_ph) = 3.16227d-07
         endif
 
     enddo
