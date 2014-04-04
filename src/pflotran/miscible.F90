@@ -284,8 +284,8 @@ subroutine MiscibleComputeMassBalancePatch(realization,mass_balance)
   global_auxvars => patch%aux%Global%auxvars
   miscible_auxvars => patch%aux%Miscible%auxvars
 
-  call VecGetArrayF90(field%volume,volume_p,ierr)
-  call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+!geh refactor  call VecGetArrayF90(field%volume,volume_p,ierr)
+!geh refactor  call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
 
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
@@ -304,8 +304,8 @@ subroutine MiscibleComputeMassBalancePatch(realization,mass_balance)
   mass_balance(jh2o,1) = mass_balance(jh2o,1)*FMWH2O
   mass_balance(jglyc,1) = mass_balance(jglyc,1)*FMWGLYC
 
-  call VecRestoreArrayF90(field%volume,volume_p,ierr)
-  call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+!geh refactor  call VecRestoreArrayF90(field%volume,volume_p,ierr)
+!geh refactor  call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
   
 end subroutine MiscibleComputeMassBalancePatch
 
@@ -818,9 +818,9 @@ subroutine MiscibleUpdateFixedAccumPatch(realization)
     
   call VecGetArrayF90(field%flow_xx,xx_p, ierr)
   call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr)
-  call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
-  call VecGetArrayF90(field%tortuosity_loc,tortuosity_loc_p,ierr)
-  call VecGetArrayF90(field%volume,volume_p,ierr)
+!geh refactor  call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+!geh refactor  call VecGetArrayF90(field%tortuosity_loc,tortuosity_loc_p,ierr)
+!geh refactor  call VecGetArrayF90(field%volume,volume_p,ierr)
   call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr)
   call VecGetArrayF90(field%flow_accum, accum_p, ierr)
 
@@ -843,9 +843,9 @@ subroutine MiscibleUpdateFixedAccumPatch(realization)
 
   call VecRestoreArrayF90(field%flow_xx,xx_p, ierr)
   call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr)
-  call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
-  call VecRestoreArrayF90(field%tortuosity_loc,tortuosity_loc_p,ierr)
-  call VecRestoreArrayF90(field%volume,volume_p,ierr)
+!geh refactor  call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
+!geh refactor  call VecRestoreArrayF90(field%tortuosity_loc,tortuosity_loc_p,ierr)
+!geh refactor  call VecRestoreArrayF90(field%volume,volume_p,ierr)
   call VecRestoreArrayF90(field%ithrm_loc,ithrm_loc_p,ierr)
 
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr)
@@ -1359,9 +1359,9 @@ subroutine MiscibleResidual(snes,xx,r,realization,ierr)
 !  call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
   call DiscretizationLocalToLocal(discretization,field%icap_loc,field%icap_loc,ONEDOF)
 
-  call DiscretizationLocalToLocal(discretization,field%perm_xx_loc,field%perm_xx_loc,ONEDOF)
-  call DiscretizationLocalToLocal(discretization,field%perm_yy_loc,field%perm_yy_loc,ONEDOF)
-  call DiscretizationLocalToLocal(discretization,field%perm_zz_loc,field%perm_zz_loc,ONEDOF)
+!geh refactor  call DiscretizationLocalToLocal(discretization,field%perm_xx_loc,field%perm_xx_loc,ONEDOF)
+!geh refactor  call DiscretizationLocalToLocal(discretization,field%perm_yy_loc,field%perm_yy_loc,ONEDOF)
+!geh refactor  call DiscretizationLocalToLocal(discretization,field%perm_zz_loc,field%perm_zz_loc,ONEDOF)
   call DiscretizationLocalToLocal(discretization,field%ithrm_loc,field%ithrm_loc,ONEDOF)
 
 !  call DiscretizationLocalToLocal(discretization,field%iphas_loc,field%iphas_loc,ONEDOF)
@@ -1513,12 +1513,12 @@ subroutine MiscibleResidualPatch1(snes,xx,r,realization,ierr)
 ! now assign access pointer to local variables
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
   call VecGetArrayF90( r, r_p, ierr)
-  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
-  call VecGetArrayF90(field%tortuosity_loc, tortuosity_loc_p, ierr)
-  call VecGetArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call VecGetArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call VecGetArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call VecGetArrayF90(field%volume, volume_p, ierr)
+!geh refactor  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+!geh refactor  call VecGetArrayF90(field%tortuosity_loc, tortuosity_loc_p, ierr)
+!geh refactor  call VecGetArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+!geh refactor  call VecGetArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+!geh refactor  call VecGetArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
+!geh refactor  call VecGetArrayF90(field%volume, volume_p, ierr)
   call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
   call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr)
 
@@ -1694,12 +1694,12 @@ subroutine MiscibleResidualPatch1(snes,xx,r,realization,ierr)
 
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
   call VecRestoreArrayF90( r, r_p, ierr)
-  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
-  call VecRestoreArrayF90(field%tortuosity_loc, tortuosity_loc_p, ierr)
-  call VecRestoreArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call VecRestoreArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call VecRestoreArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call VecRestoreArrayF90(field%volume, volume_p, ierr)
+!geh refactor  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+!geh refactor  call VecRestoreArrayF90(field%tortuosity_loc, tortuosity_loc_p, ierr)
+!geh refactor  call VecRestoreArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+!geh refactor  call VecRestoreArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+!geh refactor  call VecRestoreArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
+!geh refactor  call VecRestoreArrayF90(field%volume, volume_p, ierr)
   call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
   call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr)
 
@@ -1962,8 +1962,8 @@ subroutine MiscibleResidualPatch2(snes,xx,r,realization,ierr)
 ! now assign access pointer to local variables
   call VecGetArrayF90(r, r_p, ierr)
   call VecGetArrayF90(field%flow_accum, accum_p, ierr)
-  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
-  call VecGetArrayF90(field%volume, volume_p, ierr)
+!geh refactor  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+!geh refactor  call VecGetArrayF90(field%volume, volume_p, ierr)
   call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
 
 ! call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr); 
@@ -2118,15 +2118,15 @@ subroutine MiscibleResidualPatch2(snes,xx,r,realization,ierr)
  
   call VecRestoreArrayF90(r, r_p, ierr)
   call VecRestoreArrayF90(field%flow_accum, accum_p, ierr)
-  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
-  call VecRestoreArrayF90(field%volume, volume_p, ierr)
+!geh refactor  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+!geh refactor  call VecRestoreArrayF90(field%volume, volume_p, ierr)
   call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
  
 end subroutine MiscibleResidualPatch2
 
 ! ************************************************************************** !
 
-subroutine MiscibleJacobian(snes,xx,A,B,flag,realization,ierr)
+subroutine MiscibleJacobian(snes,xx,A,B,realization,ierr)
   ! 
   ! Computes the Jacobian
   ! 
@@ -2147,7 +2147,6 @@ subroutine MiscibleJacobian(snes,xx,A,B,flag,realization,ierr)
   Mat :: A, B, J
   MatType :: mat_type
   type(realization_type) :: realization
-  MatStructure flag
   PetscErrorCode :: ierr
   PetscViewer :: viewer
   type(patch_type), pointer :: cur_patch
@@ -2155,7 +2154,6 @@ subroutine MiscibleJacobian(snes,xx,A,B,flag,realization,ierr)
 
   call PetscLogEventBegin(logging%event_r_jacobian,ierr)
 
- flag = SAME_NONZERO_PATTERN
   call MatGetType(A,mat_type,ierr)
   if (mat_type == MATMFFD) then
     J = B
@@ -2173,7 +2171,7 @@ subroutine MiscibleJacobian(snes,xx,A,B,flag,realization,ierr)
   do
     if (.not.associated(cur_patch)) exit
     realization%patch => cur_patch
-    call MiscibleJacobianPatch1(snes,xx,J,J,flag,realization,ierr)
+    call MiscibleJacobianPatch1(snes,xx,J,J,realization,ierr)
     cur_patch => cur_patch%next
   enddo
 
@@ -2182,7 +2180,7 @@ subroutine MiscibleJacobian(snes,xx,A,B,flag,realization,ierr)
   do
     if (.not.associated(cur_patch)) exit
     realization%patch => cur_patch
-    call MiscibleJacobianPatch2(snes,xx,J,J,flag,realization,ierr)
+    call MiscibleJacobianPatch2(snes,xx,J,J,realization,ierr)
     cur_patch => cur_patch%next
   enddo
 
@@ -2220,7 +2218,7 @@ end subroutine MiscibleJacobian
 
 ! ************************************************************************** !
 
-subroutine MiscibleJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
+subroutine MiscibleJacobianPatch1(snes,xx,A,B,realization,ierr)
   ! 
   ! Computes the Jacobian: Flux term
   ! 
@@ -2243,7 +2241,6 @@ subroutine MiscibleJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
   Vec :: xx
   Mat :: A, B
   type(realization_type) :: realization
-  MatStructure flag
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
@@ -2339,12 +2336,12 @@ subroutine MiscibleJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
  !  call MatZeroEntries(A,ierr)
 
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
-  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
-  call VecGetArrayF90(field%tortuosity_loc, tortuosity_loc_p, ierr)
-  call VecGetArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call VecGetArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call VecGetArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call VecGetArrayF90(field%volume, volume_p, ierr)
+!geh refactor  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+!geh refactor  call VecGetArrayF90(field%tortuosity_loc, tortuosity_loc_p, ierr)
+!geh refactor  call VecGetArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+!geh refactor  call VecGetArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+!geh refactor  call VecGetArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
+!geh refactor  call VecGetArrayF90(field%volume, volume_p, ierr)
 
   call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
   call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr)
@@ -2596,12 +2593,12 @@ subroutine MiscibleJacobianPatch1(snes,xx,A,B,flag,realization,ierr)
   endif
   
   call VecRestoreArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
-  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
-  call VecRestoreArrayF90(field%tortuosity_loc, tortuosity_loc_p, ierr)
-  call VecRestoreArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
-  call VecRestoreArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
-  call VecRestoreArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
-  call VecRestoreArrayF90(field%volume, volume_p, ierr)
+!geh refactor  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+!geh refactor  call VecRestoreArrayF90(field%tortuosity_loc, tortuosity_loc_p, ierr)
+!geh refactor  call VecRestoreArrayF90(field%perm_xx_loc, perm_xx_loc_p, ierr)
+!geh refactor  call VecRestoreArrayF90(field%perm_yy_loc, perm_yy_loc_p, ierr)
+!geh refactor  call VecRestoreArrayF90(field%perm_zz_loc, perm_zz_loc_p, ierr)
+!geh refactor  call VecRestoreArrayF90(field%volume, volume_p, ierr)
 
    
   call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
@@ -2611,7 +2608,7 @@ end subroutine MiscibleJacobianPatch1
 
 ! ************************************************************************** !
 
-subroutine MiscibleJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
+subroutine MiscibleJacobianPatch2(snes,xx,A,B,realization,ierr)
   ! 
   ! Computes the Jacobian: Accum, source, reaction
   ! 
@@ -2634,7 +2631,6 @@ subroutine MiscibleJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
   Vec :: xx
   Mat :: A, B
   type(realization_type) :: realization
-  MatStructure flag
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
@@ -2728,8 +2724,8 @@ subroutine MiscibleJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
  ! print *,'*********** In Jacobian ********************** '
 !  call MatZeroEntries(A,ierr)
 
-  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
-  call VecGetArrayF90(field%volume, volume_p, ierr)
+!geh refactor  call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+!geh refactor  call VecGetArrayF90(field%volume, volume_p, ierr)
   call VecGetArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
   call VecGetArrayF90(field%icap_loc, icap_loc_p, ierr)
 ! call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr)
@@ -2862,8 +2858,8 @@ subroutine MiscibleJacobianPatch2(snes,xx,A,B,flag,realization,ierr)
     call PetscViewerDestroy(viewer,ierr)
   endif
   
-  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
-  call VecRestoreArrayF90(field%volume, volume_p, ierr)
+!geh refactor  call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+!geh refactor  call VecRestoreArrayF90(field%volume, volume_p, ierr)
   call VecRestoreArrayF90(field%ithrm_loc, ithrm_loc_p, ierr)
   call VecRestoreArrayF90(field%icap_loc, icap_loc_p, ierr)
 ! call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr)

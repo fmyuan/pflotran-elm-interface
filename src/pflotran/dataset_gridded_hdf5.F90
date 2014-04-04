@@ -186,12 +186,18 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   PetscBool :: first_time
   PetscMPIInt :: hdf5_err
   PetscErrorCode :: ierr
+  PetscLogDouble :: tstart, tend
   character(len=MAXWORDLENGTH) :: attribute_name, dataset_name, word
 
   !TODO(geh): add to event log
   !call PetscLogEventBegin(logging%event_read_datset_hdf5,ierr)
 
   first_time = (this%data_dim == DIM_NULL)
+
+!#define TIME_DATASET
+#ifdef TIME_DATASET
+  call PetscTime(tstart,ierr)
+#endif
 
 #define BROADCAST_DATASET
 #ifdef BROADCAST_DATASET
@@ -206,7 +212,10 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   ! set read file access property
   call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
 #ifndef SERIAL_HDF5
-  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
+!geh: I don't believe that we ever need this
+!  if (first_time) then
+!  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
+!  endif
 #endif
   call h5fopen_f(this%filename,H5F_ACC_RDONLY_F,file_id,hdf5_err,prop_id)
   call h5pclose_f(prop_id,hdf5_err)
@@ -280,7 +289,13 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
       this%max_buffer_size = default_max_buffer_size
     endif
   endif ! this%data_dim == DIM_NULL
-  
+
+#ifdef BROADCAST_DATASET
+  endif
+#endif
+
+  ! num_times and time_dim must be calcualted by all processes; does not 
+  ! require communication  
   num_spatial_dims = DatasetGriddedHDF5GetNDimensions(this)
   time_dim = -1
   num_times = 1
@@ -289,6 +304,9 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
     time_dim = num_spatial_dims + 1
   endif
   
+#ifdef BROADCAST_DATASET
+  if (first_time .or. option%myrank == option%io_rank) then
+#endif
   ! open the "data" dataset
   dataset_name = 'Data'
   if (this%realization_dependent) then
@@ -352,6 +370,18 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
 
 #ifdef BROADCAST_DATASET
   endif
+#endif
+
+#ifdef TIME_DATASET
+  call MPI_Barrier(option%mycomm,ierr)
+  call PetscTime(tend,ierr)
+  write(option%io_buffer,'(f6.2," Seconds to set up dataset ",a,".")') &
+    tend-tstart, trim(this%hdf5_dataset_name) // ' (' // &
+    trim(option%group_prefix) // ')'
+  if (option%myrank == option%io_rank) then
+    print *, trim(option%io_buffer)
+  endif
+  call PetscTime(tstart,ierr)
 #endif
 
   call PetscLogEventBegin(logging%event_h5dread_f,ierr)
@@ -452,7 +482,19 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   call h5close_f(hdf5_err)
 #ifdef BROADCAST_DATASET
   endif
-#endif  
+#endif
+
+#ifdef TIME_DATASET
+  call MPI_Barrier(option%mycomm,ierr)
+  call PetscTime(tend,ierr)
+  write(option%io_buffer,'(f6.2," Seconds to read dataset ",a,".")') &
+    tend-tstart, trim(this%hdf5_dataset_name) // ' (' // &
+    trim(option%group_prefix) // ')'
+  if (option%myrank == option%io_rank) then
+    print *, trim(option%io_buffer)
+  endif
+#endif
+
   
   !TODO(geh): add to event log
   !call PetscLogEventEnd(logging%event_read_ndim_real_array_hdf5,ierr)

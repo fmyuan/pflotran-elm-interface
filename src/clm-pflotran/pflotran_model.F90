@@ -808,7 +808,15 @@ end subroutine pflotranModelSetICs
         call VecRestoreArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
     endif
 
+    call DiscretizationGlobalToLocal(discretization,field%porosity0, &
+                               field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                               POROSITY,0)
     ! update ghosted values after resetting soil physical properties from CLM
+    call DiscretizationGlobalToLocal(discretization,field%porosity0, &
+                               field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                               POROSITY,0)
     if (pflotran_model%option%nflowdof > 0) then
         call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
                                      field%work_loc,ONEDOF)
@@ -823,18 +831,6 @@ end subroutine pflotranModelSetICs
         call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  PERMEABILITY_Z,0)
     endif
-    if (.not.pflotran_model%option%use_refactored_material_auxvars) then
-      call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
-                                       field%perm_xx_loc,ONEDOF)
-      call DiscretizationGlobalToLocal(discretization,field%perm0_yy, &
-                                       field%perm_yy_loc,ONEDOF)
-      call DiscretizationGlobalToLocal(discretization,field%perm0_zz, &
-                                       field%perm_zz_loc,ONEDOF)
-    endif
-    call DiscretizationGlobalToLocal(discretization,field%porosity0, &
-                               field%work_loc,ONEDOF)
-    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,0)
 
   end subroutine pflotranModelSetSoilProp
 
@@ -2392,16 +2388,22 @@ end subroutine pflotranModelSetICs
     type(coupler_type), pointer               :: boundary_condition
     type(connection_set_type), pointer        :: cur_connection_set
     PetscScalar, pointer                      :: gflux_subsurf_pf_loc(:)
+    PetscScalar, pointer                      :: gtemp_subsurf_pf_loc(:)
     PetscBool                                 :: found
     PetscInt                                  :: iconn
     PetscErrorCode                            :: ierr
-    PetscInt                                  :: press_dof
 
     ! Map ground-heat flux from CLM--to--PF grid
     call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%gflux_subsurf_clm, &
                                     clm_pf_idata%gflux_subsurf_pf)
+
+    ! Map ground temperature from CLM--to--PF grid
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%gtemp_subsurf_clmp, &
+                                    clm_pf_idata%gtemp_subsurf_pfs)
 
     ! Get pointer to subsurface-realization
     select type (simulation => pflotran_model%simulation)
@@ -2417,6 +2419,7 @@ end subroutine pflotranModelSetICs
 
     ! Update the 'clm_gflux_bc' ground heat flux BC term
     call VecGetArrayF90(clm_pf_idata%gflux_subsurf_pf,gflux_subsurf_pf_loc,ierr)
+    call VecGetArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
     found = PETSC_FALSE
     boundary_condition => subsurf_realization%patch%boundary_conditions%first
     do
@@ -2427,22 +2430,33 @@ end subroutine pflotranModelSetICs
       ! Find appropriate BC from the list of boundary conditions
       if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then
 
-        if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
-            /= NEUMANN_BC) then
-          call printErrMsg(pflotran_model%option,'clm_gflux_bc is not of ' // &
-                           'NEUMANN_BC')
-        endif
+        !if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+        !    /= NEUMANN_BC) then
+          !call printErrMsg(pflotran_model%option,'clm_gflux_bc is not of ' // &
+          !                 'NEUMANN_BC')
+        !endif
         found = PETSC_TRUE
 
         do iconn = 1, cur_connection_set%num_connections
-          boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
-            gflux_subsurf_pf_loc(iconn)
+            if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+                == NEUMANN_BC) then
+                 boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          gflux_subsurf_pf_loc(iconn)
+
+            elseif (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+                == DIRICHLET_BC) then
+                 boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          gtemp_subsurf_pf_loc(iconn)
+
+            end if
+
         enddo
       endif
 
       boundary_condition => boundary_condition%next
     enddo
     call VecRestoreArrayF90(clm_pf_idata%gflux_subsurf_pf,gflux_subsurf_pf_loc,ierr)
+    call VecRestoreArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
 
     if(.not.found) &
       call printErrMsg(pflotran_model%option,'clm_gflux_bc not found in ' // &
@@ -3721,7 +3735,7 @@ end subroutine pflotranModelSetICs
     PetscScalar, pointer :: aqn2o_vr_pf_loc(:)              ! (molN2O-N/L)
 
     PetscInt :: offset
-    PetscInt :: ispec_co2, ispec_n2, ispec_n2o
+    PetscInt :: ispec_co2, ispec_n2, ispec_n2o, ispec_ph
 
     character(len=MAXWORDLENGTH) :: word
 
@@ -3745,7 +3759,8 @@ end subroutine pflotranModelSetICs
     ! (i) indices of bgc variables in PFLOTRAN immobiles
 
     ! primary species
-    word = "CO2(aq)"
+    !word = "CO2(aq)"
+    word = "HCO3-"
     ispec_co2  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
@@ -3761,6 +3776,10 @@ end subroutine pflotranModelSetICs
 
     word = "N2O(aq)"
     ispec_n2o = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+
+    word = "H+"
+    ispec_ph = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
     ! mapping CLM vecs to PF vecs
@@ -3810,6 +3829,12 @@ end subroutine pflotranModelSetICs
 
         if(ispec_n2o > 0) then
             xx_p(offset + ispec_n2o) = max(aqn2o_vr_pf_loc(local_id), 1.0d-20)
+        endif
+
+        ! the following will reset pH to 6.5 so that HCO3- <==> CO2(aq) will not going away
+        ! when pflotran figured out the issue, this will go out
+        if(ispec_ph > 0) then
+           xx_p(offset + ispec_ph) = 3.16227d-07
         endif
 
     enddo
@@ -5010,7 +5035,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     ! primary species
-    word = "CO2(aq)"
+    !word = "CO2(aq)"
+    word = "HCO3-"
     ispec_co2  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
