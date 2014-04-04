@@ -139,7 +139,7 @@ subroutine LangmuirSetup(this,reaction,option)
   this%ispec_nh4a = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
-  word = 'Nsorb'
+  word = 'NH4sorb'
   this%ispec_nh4s = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
  

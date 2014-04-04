@@ -71,7 +71,7 @@ module Reaction_Sandbox_CLM_Decomp_class
 
     PetscInt :: species_id_nmin
     PetscInt :: species_id_nimm
-    PetscInt :: species_id_ndecomp
+    PetscInt :: species_id_ngasmin
 
     type(pool_type), pointer :: pools
     type(clm_decomp_reaction_type), pointer :: reactions
@@ -153,13 +153,12 @@ function CLM_Decomp_Create()
   CLM_Decomp_Create%species_id_nh3 = 0
   CLM_Decomp_Create%species_id_no3 = 0
   CLM_Decomp_Create%species_id_n2o = 0
-!  CLM_Decomp_Create%species_id_n2 = 0
   CLM_Decomp_Create%species_id_dom = 0
   CLM_Decomp_Create%species_id_bacteria = 0
   CLM_Decomp_Create%species_id_fungi = 0
   CLM_Decomp_Create%species_id_nmin = 0
   CLM_Decomp_Create%species_id_nimm = 0
-  CLM_Decomp_Create%species_id_ndecomp = 0
+  CLM_Decomp_Create%species_id_ngasmin = 0
 
   nullify(CLM_Decomp_Create%next)
 
@@ -820,8 +819,8 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
   this%species_id_nimm = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
  
-  word = 'Ndecomp'
-  this%species_id_ndecomp = GetImmobileSpeciesIDFromName( &
+  word = 'NGASmin'
+  this%species_id_ngasmin = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
  
 end subroutine CLM_Decomp_Setup
@@ -889,7 +888,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   PetscInt :: ispec_uc, ispec_un, ispec_d   ! species id for upstream C, N, and downstream
   PetscInt :: ires_uc, ires_un, ires_d      ! id used for residual and Jacobian
   PetscInt :: ires_co2, ires_nh3, ires_n2o, ires_no3
-  PetscInt :: ires_nmin, ires_nimm, ires_ndecomp
+  PetscInt :: ires_nmin, ires_nimm, ires_ngasmin
 !  PetscReal :: stoich_un, stoich_dc, stoich_mineraln, stoich_co2
   PetscReal :: stoich_c, stoich_n
 
@@ -951,8 +950,8 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
      ires_nimm = this%species_id_nimm + reaction%offset_immobile
   endif
 
-  if(this%species_id_ndecomp > 0) then
-     ires_ndecomp = this%species_id_ndecomp + reaction%offset_immobile
+  if(this%species_id_ngasmin > 0) then
+     ires_ngasmin = this%species_id_ngasmin + reaction%offset_immobile
   endif
 
 ! temperature response function 
@@ -1673,8 +1672,8 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
       Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
 
-      if(this%species_id_ndecomp > 0) then
-         Residual(ires_ndecomp) = Residual(ires_ndecomp) - 0.5d0 * rate_n2o
+      if(this%species_id_ngasmin > 0) then
+         Residual(ires_ngasmin) = Residual(ires_ngasmin) - 0.5d0 * rate_n2o
       endif
 
       if (compute_derivative) then
@@ -1682,8 +1681,8 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
         Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_n2o
         Jacobian(ires_n2o,ires_nh3) = Jacobian(ires_n2o,ires_nh3) - &
                                       0.5d0 * drate_n2o
-        if(this%species_id_ndecomp > 0) then
-           Jacobian(ires_ndecomp,ires_nh3) = Jacobian(ires_ndecomp,ires_nh3) - &
+        if(this%species_id_ngasmin > 0) then
+           Jacobian(ires_ngasmin,ires_nh3) = Jacobian(ires_ngasmin,ires_nh3) - &
                                       0.5d0 * drate_n2o
         endif
       endif
