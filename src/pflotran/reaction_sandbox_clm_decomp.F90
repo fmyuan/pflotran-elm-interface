@@ -791,7 +791,7 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
   endif
 
   if(this%species_id_nh3 <= 0) then
-    option%io_buffer = 'AmmoniaH4+ is not defined in the database for CLM_Decomp'
+    option%io_buffer = 'one of AmmoniaH4+/NH4+/NH3(aq) is not defined in the database for CLM_Decomp'
     call printErrMsg(option)
   endif
 

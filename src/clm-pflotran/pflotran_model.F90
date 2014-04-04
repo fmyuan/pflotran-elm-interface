@@ -4771,7 +4771,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     endif
 
-    ! temperarily used to differentiate clm-cnd from clmcn
     word = "AmmoniaH4+"
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
