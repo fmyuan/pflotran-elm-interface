@@ -15,9 +15,9 @@ ifeq ($(strip $(FC_DEFINE_FLAG)),)   #this is default, if PETSC not defined
 endif 
 
 MYFLAGS = -I.
-MYFLAGS += ${FC_DEFINE_FLAG}PROCESS_MODEL 
-MYFLAGS += ${FC_DEFINE_FLAG}CHUAN_CO2
-MYFLAGS += ${FC_DEFINE_FLAG}GEOMECH
+MYFLAGS += $(FC_DEFINE_FLAG)PROCESS_MODEL
+MYFLAGS += $(FC_DEFINE_FLAG)CHUAN_CO2
+MYFLAGS += $(FC_DEFINE_FLAG)GEOMECH
 
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
 # PFLOTRAN_RXN_FLAG 
@@ -26,120 +26,120 @@ ifneq (,$(filter libpflotranchem.a pflotran_rxn,$(MAKECMDGOALS)))
 endif
 
 ifdef uo2
-  MYFLAGS += ${FC_DEFINE_FLAG}COMPUTE_INTERNAL_MASS_FLUX
+  MYFLAGS += $(FC_DEFINE_FLAG)COMPUTE_INTERNAL_MASS_FLUX
 endif
 
 ifdef glenn
-#  MYFLAGS += ${FC_DEFINE_FLAG}XINGYUAN_BC
-#  MYFLAGS += ${FC_DEFINE_FLAG}YE_FLUX
-  MYFLAGS += ${FC_DEFINE_FLAG}BROADCAST_DATASET
+#  MYFLAGS += $(FC_DEFINE_FLAG)XINGYUAN_BC
+#  MYFLAGS += $(FC_DEFINE_FLAG)YE_FLUX
+  MYFLAGS += $(FC_DEFINE_FLAG)BROADCAST_DATASET
 endif
 
 ifdef solid_solution
-  MYFLAGS += ${FC_DEFINE_FLAG}SOLID_SOLUTION
+  MYFLAGS += $(FC_DEFINE_FLAG)SOLID_SOLUTION
 endif
 
 ifdef radioactive_decay
-  MYFLAGS += ${FC_DEFINE_FLAG}RADIOACTIVE_DECAY
+  MYFLAGS += $(FC_DEFINE_FLAG)RADIOACTIVE_DECAY
 endif
 
 ifdef mualem_spline
-  MYFLAGS += ${FC_DEFINE_FLAG}MUALEM_SPLINE
+  MYFLAGS += $(FC_DEFINE_FLAG)MUALEM_SPLINE
 endif
 
 ifdef petsc_api_3_3
-  MYFLAGS += ${FC_DEFINE_FLAG}HAVE_PETSC_API_3_3
+  MYFLAGS += $(FC_DEFINE_FLAG)HAVE_PETSC_API_3_3
 endif
 
 ifdef have_petscpcmg_h
-	MYFLAGS += ${FC_DEFINE_FLAG}HAVE_PETSCPCMG_H
+	MYFLAGS += $(FC_DEFINE_FLAG)HAVE_PETSCPCMG_H
 endif
 
 ifdef dbl
-  MYFLAGS += ${FC_DEFINE_FLAG}DOUBLE_LAYER
+  MYFLAGS += $(FC_DEFINE_FLAG)DOUBLE_LAYER
 endif
 
 ifdef pcl
-  MYFLAGS += ${FC_DEFINE_FLAG}PCL ${FC_DEFINE_FLAG}MUALEM_SPLINE
+  MYFLAGS += $(FC_DEFINE_FLAG)PCL $(FC_DEFINE_FLAG)MUALEM_SPLINE
 endif
 
 ifdef condnr
-  MYFLAGS += ${FC_DEFINE_FLAG}CONDNR
+  MYFLAGS += $(FC_DEFINE_FLAG)CONDNR
 endif
 
 ifdef perm
-  MYFLAGS += ${FC_DEFINE_FLAG}PERM
+  MYFLAGS += $(FC_DEFINE_FLAG)PERM
 endif
 
 ifdef tab
-  MYFLAGS += ${FC_DEFINE_FLAG}TABLE
+  MYFLAGS += $(FC_DEFINE_FLAG)TABLE
 endif
 
 ifdef temp
-  MYFLAGS += ${FC_DEFINE_FLAG}TEMP_DEPENDENT_LOGK
+  MYFLAGS += $(FC_DEFINE_FLAG)TEMP_DEPENDENT_LOGK
 endif
 
 ifdef remove_sat
-  MYFLAGS += ${FC_DEFINE_FLAG}REMOVE_SATURATION
+  MYFLAGS += $(FC_DEFINE_FLAG)REMOVE_SATURATION
 endif
 
 ifdef no_vapor_diffusion
-  MYFLAGS += ${FC_DEFINE_FLAG}NO_VAPOR_DIFFUSION
+  MYFLAGS += $(FC_DEFINE_FLAG)NO_VAPOR_DIFFUSION
 endif
 
 ifdef scco2
-  MYFLAGS += ${FC_DEFINE_FLAG}CHUAN_CO2
+  MYFLAGS += $(FC_DEFINE_FLAG)CHUAN_CO2
 endif
 
 ifdef debug_gen
-  MYFLAGS += ${FC_DEFINE_FLAG}DEBUG_GENERAL
+  MYFLAGS += $(FC_DEFINE_FLAG)DEBUG_GENERAL
   ifeq ($(debug_gen),2)
-    MYFLAGS += ${FC_DEFINE_FLAG}DEBUG_GENERAL_INFO
+    MYFLAGS += $(FC_DEFINE_FLAG)DEBUG_GENERAL_INFO
   endif
 endif 
 
 ifdef coll
-  MYFLAGS += ${FC_DEFINE_FLAG}COLL
+  MYFLAGS += $(FC_DEFINE_FLAG)COLL
 endif
 
 ifdef dont_use_wateos
-  MYFLAGS += ${FC_DEFINE_FLAG}DONT_USE_WATEOS
+  MYFLAGS += $(FC_DEFINE_FLAG)DONT_USE_WATEOS
 endif
 
 ifdef have_hdf5
-  MYFLAGS += -I$(HDF5_INCLUDE) -I$(HDF5_LIB) ${FC_DEFINE_FLAG}PETSC_HAVE_HDF5
+  MYFLAGS += -I$(HDF5_INCLUDE) -I$(HDF5_LIB) $(FC_DEFINE_FLAG)PETSC_HAVE_HDF5
 endif
 
 ifdef gpu
-  MYFLAGS += ${FC_DEFINE_FLAG}CHUNK
+  MYFLAGS += $(FC_DEFINE_FLAG)CHUNK
 endif
 
 ifdef mfd
-  MYFLAGS += ${FC_DEFINE_FLAG}DASVYAT
+  MYFLAGS += $(FC_DEFINE_FLAG)DASVYAT
 endif
 
 ifdef dasvyat_debug
-  MYFLAGS += ${FC_DEFINE_FLAG}DASVYAT_DEBUG
+  MYFLAGS += $(FC_DEFINE_FLAG)DASVYAT_DEBUG
 endif
 
 ifdef dasvyat_test_cut
-  MYFLAGS += ${FC_DEFINE_FLAG}DASVYAT_TEST_CUT
+  MYFLAGS += $(FC_DEFINE_FLAG)DASVYAT_TEST_CUT
 endif
 
 ifdef ugrid_debug
-  MYFLAGS += ${FC_DEFINE_FLAG}UGRID_DEBUG
+  MYFLAGS += $(FC_DEFINE_FLAG)UGRID_DEBUG
 endif
 
 ifdef amanzi_bgd
-  MYFLAGS += ${FC_DEFINE_FLAG}AMANZI_BGD
+  MYFLAGS += $(FC_DEFINE_FLAG)AMANZI_BGD
 endif
 
 ifdef store_flowrates
-  MYFLAGS += ${FC_DEFINE_FLAG}STORE_FLOWRATES
+  MYFLAGS += $(FC_DEFINE_FLAG)STORE_FLOWRATES
 endif
 
 ifdef mfd_ugrid
-  MYFLAGS += ${FC_DEFINE_FLAG}MFD_UGRID
+  MYFLAGS += $(FC_DEFINE_FLAG)MFD_UGRID
 endif
 
 UPDATE_PROVENANCE=0
@@ -162,8 +162,8 @@ endif
 # SCORPIO_DIR=${HOME}/soft/scorpio
 ifdef scorpio
   LIBS += -L${SCORPIO_DIR}/lib -lscorpio
-  MYFLAGS += ${FC_DEFINE_FLAG}SCORPIO
-  MYFLAGS += ${FC_DEFINE_FLAG}SCORPIO_WRITE 
+  MYFLAGS += $(FC_DEFINE_FLAG)SCORPIO
+  MYFLAGS += $(FC_DEFINE_FLAG)SCORPIO_WRITE 
   MYFLAGS += -I${SCORPIO_DIR}/include
 endif
 
@@ -196,6 +196,7 @@ eos_obj = \
 	${common_src}co2_span_wagner.o \
 	${common_src}co2_span_wagner_spline.o \
 	${common_src}eos.o \
+	${common_src}eos_gas.o \
 	${common_src}eos_water.o \
 	${common_src}gas_eos_mod.o 
 
@@ -535,7 +536,7 @@ e4d_mat_inv.o :
 e4d_run.o : e4d_vars.o
 e4d_setup.o : e4d_vars.o
 e4d_vars.o :
-eos.o : eos_water.o input_aux.o option.o pflotran_constants.o string.o
+eos.o : eos_water.o input_aux.o option.o pflotran_constants.o string.o eos_gas.o
 eos_water.o : pflotran_constants.o
 field.o : pflotran_constants.o
 flash2.o : co2_span_wagner.o co2_span_wagner_spline.o co2_sw.o co2eos.o \
@@ -555,7 +556,7 @@ general.o : connection.o coupler.o debug.o discretization.o eos_water.o \
             pflotran_constants.o realization.o saturation_function.o \
             variables.o
 general_aux.o : eos_water.o gas_eos_mod.o global_aux.o material_aux.o option.o \
-                pflotran_constants.o saturation_function.o utility.o
+                pflotran_constants.o saturation_function.o utility.o eos_gas.o
 geomech_grid.o : gauss.o geomech_grid_aux.o geomechanics_region.o input_aux.o \
                  logging.o option.o pflotran_constants.o unstructured_cell.o \
                  unstructured_grid_aux.o utility.o
@@ -697,7 +698,8 @@ init.o : condition.o condition_control.o connection.o constraint.o \
          string.o structured_grid.o surface_field.o surface_flow.o \
          surface_global.o surface_init.o surface_realization.o surface_th.o \
          th.o timestepper.o uniform_velocity.o units.o \
-         unstructured_grid.o unstructured_grid_aux.o variables.o waypoint.o
+         unstructured_grid.o unstructured_grid_aux.o variables.o waypoint.o \
+         eos_gas.o
 input_aux.o : option.o pflotran_constants.o string.o
 logging.o : pflotran_constants.o
 mass_transfer.o : dataset_base.o dataset_common_hdf5.o dataset_global_hdf5.o \

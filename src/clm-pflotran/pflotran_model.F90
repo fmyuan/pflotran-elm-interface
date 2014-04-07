@@ -808,7 +808,15 @@ end subroutine pflotranModelSetICs
         call VecRestoreArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
     endif
 
+    call DiscretizationGlobalToLocal(discretization,field%porosity0, &
+                               field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                               POROSITY,0)
     ! update ghosted values after resetting soil physical properties from CLM
+    call DiscretizationGlobalToLocal(discretization,field%porosity0, &
+                               field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                               POROSITY,0)
     if (pflotran_model%option%nflowdof > 0) then
         call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
                                      field%work_loc,ONEDOF)
@@ -823,18 +831,6 @@ end subroutine pflotranModelSetICs
         call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  PERMEABILITY_Z,0)
     endif
-    if (.not.pflotran_model%option%use_refactored_material_auxvars) then
-      call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
-                                       field%perm_xx_loc,ONEDOF)
-      call DiscretizationGlobalToLocal(discretization,field%perm0_yy, &
-                                       field%perm_yy_loc,ONEDOF)
-      call DiscretizationGlobalToLocal(discretization,field%perm0_zz, &
-                                       field%perm_zz_loc,ONEDOF)
-    endif
-    call DiscretizationGlobalToLocal(discretization,field%porosity0, &
-                               field%work_loc,ONEDOF)
-    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,0)
 
   end subroutine pflotranModelSetSoilProp
 
@@ -2392,16 +2388,22 @@ end subroutine pflotranModelSetICs
     type(coupler_type), pointer               :: boundary_condition
     type(connection_set_type), pointer        :: cur_connection_set
     PetscScalar, pointer                      :: gflux_subsurf_pf_loc(:)
+    PetscScalar, pointer                      :: gtemp_subsurf_pf_loc(:)
     PetscBool                                 :: found
     PetscInt                                  :: iconn
     PetscErrorCode                            :: ierr
-    PetscInt                                  :: press_dof
 
     ! Map ground-heat flux from CLM--to--PF grid
     call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%gflux_subsurf_clm, &
                                     clm_pf_idata%gflux_subsurf_pf)
+
+    ! Map ground temperature from CLM--to--PF grid
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%gtemp_subsurf_clmp, &
+                                    clm_pf_idata%gtemp_subsurf_pfs)
 
     ! Get pointer to subsurface-realization
     select type (simulation => pflotran_model%simulation)
@@ -2417,6 +2419,7 @@ end subroutine pflotranModelSetICs
 
     ! Update the 'clm_gflux_bc' ground heat flux BC term
     call VecGetArrayF90(clm_pf_idata%gflux_subsurf_pf,gflux_subsurf_pf_loc,ierr)
+    call VecGetArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
     found = PETSC_FALSE
     boundary_condition => subsurf_realization%patch%boundary_conditions%first
     do
@@ -2427,22 +2430,33 @@ end subroutine pflotranModelSetICs
       ! Find appropriate BC from the list of boundary conditions
       if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then
 
-        if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
-            /= NEUMANN_BC) then
-          call printErrMsg(pflotran_model%option,'clm_gflux_bc is not of ' // &
-                           'NEUMANN_BC')
-        endif
+        !if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+        !    /= NEUMANN_BC) then
+          !call printErrMsg(pflotran_model%option,'clm_gflux_bc is not of ' // &
+          !                 'NEUMANN_BC')
+        !endif
         found = PETSC_TRUE
 
         do iconn = 1, cur_connection_set%num_connections
-          boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
-            gflux_subsurf_pf_loc(iconn)
+            if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+                == NEUMANN_BC) then
+                 boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          gflux_subsurf_pf_loc(iconn)
+
+            elseif (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+                == DIRICHLET_BC) then
+                 boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          gtemp_subsurf_pf_loc(iconn)
+
+            end if
+
         enddo
       endif
 
       boundary_condition => boundary_condition%next
     enddo
     call VecRestoreArrayF90(clm_pf_idata%gflux_subsurf_pf,gflux_subsurf_pf_loc,ierr)
+    call VecRestoreArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
 
     if(.not.found) &
       call printErrMsg(pflotran_model%option,'clm_gflux_bc not found in ' // &
@@ -3721,7 +3735,7 @@ end subroutine pflotranModelSetICs
     PetscScalar, pointer :: aqn2o_vr_pf_loc(:)              ! (molN2O-N/L)
 
     PetscInt :: offset
-    PetscInt :: ispec_co2, ispec_n2, ispec_n2o
+    PetscInt :: ispec_co2, ispec_n2, ispec_n2o, ispec_ph
 
     character(len=MAXWORDLENGTH) :: word
 
@@ -3745,7 +3759,8 @@ end subroutine pflotranModelSetICs
     ! (i) indices of bgc variables in PFLOTRAN immobiles
 
     ! primary species
-    word = "CO2(aq)"
+    !word = "CO2(aq)"
+    word = "HCO3-"
     ispec_co2  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
@@ -3761,6 +3776,10 @@ end subroutine pflotranModelSetICs
 
     word = "N2O(aq)"
     ispec_n2o = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+
+    word = "H+"
+    ispec_ph = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
     ! mapping CLM vecs to PF vecs
@@ -3810,6 +3829,12 @@ end subroutine pflotranModelSetICs
 
         if(ispec_n2o > 0) then
             xx_p(offset + ispec_n2o) = max(aqn2o_vr_pf_loc(local_id), 1.0d-20)
+        endif
+
+        ! the following will reset pH to 6.5 so that HCO3- <==> CO2(aq) will not going away
+        ! when pflotran figured out the issue, this will go out
+        if(ispec_ph > 0) then
+           xx_p(offset + ispec_ph) = 3.16227d-07
         endif
 
     enddo
@@ -4746,7 +4771,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     endif
 
-    ! temperarily used to differentiate clm-cnd from clmcn
     word = "AmmoniaH4+"
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
@@ -4923,22 +4947,25 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscScalar, pointer :: accextrn_vr_pf_loc(:)           ! (gN/m3)
     PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (gN/m3)
     PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
+    PetscScalar, pointer :: smin_nh4sorb_vr_pf_loc(:)       ! (gN/m3)
     PetscScalar, pointer :: aqco2_vr_pf_loc(:)              ! (molC/m3)
     PetscScalar, pointer :: aqn2_vr_pf_loc(:)               ! (molN2-N/m3)
     PetscScalar, pointer :: aqn2o_vr_pf_loc(:)              ! (molN2O-N/m3)
     PetscScalar, pointer :: accnmin_vr_pf_loc(:)            ! (gN/m3)
     PetscScalar, pointer :: accnimm_vr_pf_loc(:)            ! (gN/m3)
-    PetscScalar, pointer :: accndecomp_vr_pf_loc(:)         ! (gN/m3)
-    PetscScalar, pointer :: accnnitri_vr_pf_loc(:)          ! (gN/m3)
-    PetscScalar, pointer :: accndeni_vr_pf_loc(:)           ! (gN/m3)
+    PetscScalar, pointer :: accngasmin_vr_pf_loc(:)         ! (gN/m3)
+    PetscScalar, pointer :: accngasnitr_vr_pf_loc(:)        ! (gN/m3)
+    PetscScalar, pointer :: accngasdeni_vr_pf_loc(:)        ! (gN/m3)
     PetscReal, pointer :: porosity_loc_p(:)
 
-    PetscInt :: ispec_no3, ispec_nh4, offset, offsetim
+    PetscInt :: offset, offsetim
+    PetscInt :: ispec_no3, ispec_nh4, ispec_nh4sorb
     PetscInt :: ispec_lit1c, ispec_lit2c, ispec_lit3c
     PetscInt :: ispec_lit1n, ispec_lit2n, ispec_lit3n
     PetscInt :: ispec_som1, ispec_som2, ispec_som3, ispec_som4
     PetscInt :: ispec_plantn, ispec_co2, ispec_n2, ispec_n2o
-    PetscInt :: ispec_nmin, ispec_nimm, ispec_ndecomp, ispec_nnitri, ispec_ndeni
+    PetscInt :: ispec_nmin, ispec_nimm
+    PetscInt :: ispec_ngasmin, ispec_ngasnitr, ispec_ngasdeni
 
     PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
     PetscReal :: conc
@@ -5010,7 +5037,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     ! primary species
-    word = "CO2(aq)"
+    !word = "CO2(aq)"
+    word = "HCO3-"
     ispec_co2  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
@@ -5040,6 +5068,10 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                   realization%reaction,PETSC_FALSE,realization%option)
     endif
 
+    word = 'NH4sorb'
+    ispec_nh4sorb = GetImmobileSpeciesIDFromName(word, &
+            realization%reaction%immobile,PETSC_FALSE,realization%option)
+
     word = "N2(aq)"
     ispec_n2  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
@@ -5057,16 +5089,16 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     ispec_nimm = GetImmobileSpeciesIDFromName(word, &
             realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-    word = 'Ndecomp'
-    ispec_ndecomp = GetImmobileSpeciesIDFromName(word, &
+    word = 'NGASmin'
+    ispec_ngasmin = GetImmobileSpeciesIDFromName(word, &
            realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-    word = 'Nnitri'
-    ispec_nnitri = GetImmobileSpeciesIDFromName( word, &
+    word = 'NGASnitr'
+    ispec_ngasnitr = GetImmobileSpeciesIDFromName( word, &
            realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-    word = 'Ndeni'
-    ispec_ndeni = GetImmobileSpeciesIDFromName( word, &
+    word = 'NGASdeni'
+    ispec_ngasdeni = GetImmobileSpeciesIDFromName( word, &
            realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     ! (ii) get the original 'pf' vecs
@@ -5096,6 +5128,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     !                    decomp_npools_vr_cwd_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfp, smin_no3_vr_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfp, smin_nh4_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%smin_nh4sorb_vr_pfp, smin_nh4sorb_vr_pf_loc, ierr)
     !
     call VecGetArrayF90(clm_pf_idata%aqco2_vr_pfp, aqco2_vr_pf_loc,ierr)
     call VecGetArrayF90(clm_pf_idata%aqn2_vr_pfp, aqn2_vr_pf_loc, ierr)
@@ -5104,9 +5137,9 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call VecGetArrayF90(clm_pf_idata%accextrn_vr_pfp, accextrn_vr_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%accndecomp_vr_pfp, accndecomp_vr_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%accnnitri_vr_pfp, accnnitri_vr_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%accndeni_vr_pfp, accndeni_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%accngasmin_vr_pfp, accngasmin_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%accngasnitr_vr_pfp, accngasnitr_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%accngasdeni_vr_pfp, accngasdeni_vr_pf_loc, ierr)
 
     ! (iii) pass the data from internal to PFLOTRAN vecs
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)  ! extract data from pflotran internal portion
@@ -5187,19 +5220,24 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
            accnimm_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
         endif
 
-        if(ispec_ndecomp > 0) then
-           conc = xx_p(offset + ispec_ndecomp)
-           accndecomp_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+        if(ispec_nh4sorb > 0) then
+           conc = xx_p(offset + ispec_nh4sorb)
+           smin_nh4sorb_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
         endif
 
-        if(ispec_nnitri > 0) then
-           conc = xx_p(offset + ispec_nnitri)
-           accnnitri_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+        if(ispec_ngasmin > 0) then
+           conc = xx_p(offset + ispec_ngasmin)
+           accngasmin_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
         endif
 
-        if(ispec_ndeni > 0) then
-           conc = xx_p(offset + ispec_ndeni)
-           accndeni_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+        if(ispec_ngasnitr > 0) then
+           conc = xx_p(offset + ispec_ngasnitr)
+           accngasnitr_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+        endif
+
+        if(ispec_ngasdeni > 0) then
+           conc = xx_p(offset + ispec_ngasdeni)
+           accngasdeni_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
         endif
 
     enddo
@@ -5219,6 +5257,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     !
     call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfp, smin_no3_vr_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfp, smin_nh4_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%smin_nh4sorb_vr_pfp, smin_nh4sorb_vr_pf_loc, ierr)
     !
     call VecRestoreArrayF90(clm_pf_idata%aqco2_vr_pfp, aqco2_vr_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%aqn2_vr_pfp, aqn2_vr_pf_loc, ierr)
@@ -5227,9 +5266,9 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call VecRestoreArrayF90(clm_pf_idata%accextrn_vr_pfp, accextrn_vr_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%accndecomp_vr_pfp, accndecomp_vr_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%accnnitri_vr_pfp, accnnitri_vr_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%accndeni_vr_pfp, accndeni_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%accngasmin_vr_pfp, accngasmin_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%accngasnitr_vr_pfp, accngasnitr_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%accngasdeni_vr_pfp, accngasdeni_vr_pf_loc, ierr)
     !
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
     call VecRestoreArrayReadF90(field%porosity0, porosity_loc_p, ierr)
@@ -5318,6 +5357,13 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                     clm_pf_idata%smin_nh4_vr_clms)
     endif
 
+    if(ispec_nh4sorb > 0) then
+         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%smin_nh4sorb_vr_pfp, &
+                                    clm_pf_idata%smin_nh4sorb_vr_clms)
+    endif
+
     if(ispec_n2 > 0) then
          call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
@@ -5346,25 +5392,25 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                     clm_pf_idata%accnimm_vr_clms)
     endif
 
-    if(ispec_ndecomp > 0) then
+    if(ispec_ngasmin > 0) then
          call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%accndecomp_vr_pfp, &
-                                    clm_pf_idata%accndecomp_vr_clms)
+                                    clm_pf_idata%accngasmin_vr_pfp, &
+                                    clm_pf_idata%accngasmin_vr_clms)
     endif
 
-    if(ispec_nnitri > 0) then
+    if(ispec_ngasnitr > 0) then
          call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%accnnitri_vr_pfp, &
-                                    clm_pf_idata%accnnitri_vr_clms)
+                                    clm_pf_idata%accngasnitr_vr_pfp, &
+                                    clm_pf_idata%accngasnitr_vr_clms)
     endif
 
-    if(ispec_ndeni > 0) then
+    if(ispec_ngasdeni > 0) then
          call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%accndeni_vr_pfp, &
-                                    clm_pf_idata%accndeni_vr_clms)
+                                    clm_pf_idata%accngasdeni_vr_pfp, &
+                                    clm_pf_idata%accngasdeni_vr_clms)
     endif
 
   end subroutine pflotranModelGetBgcVariables

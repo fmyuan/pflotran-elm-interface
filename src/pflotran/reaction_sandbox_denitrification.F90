@@ -20,7 +20,7 @@ module Reaction_Sandbox_Denitrification_class
     PetscInt :: ispec_no3
     PetscInt :: ispec_n2
     PetscInt :: ispec_n2o
-    PetscInt :: ispec_deni
+    PetscInt :: ispec_ngasdeni
 
 !   for co2 respiration calculation
     PetscInt :: ispec_n
@@ -72,7 +72,7 @@ function DenitrificationCreate()
   DenitrificationCreate%ispec_no3 = 0
   DenitrificationCreate%ispec_n2o = 0
   DenitrificationCreate%ispec_n2 = 0
-  DenitrificationCreate%ispec_deni = 0
+  DenitrificationCreate%ispec_ngasdeni = 0
 
   DenitrificationCreate%ispec_n = 0
   DenitrificationCreate%ispec_lit1c = 0
@@ -231,8 +231,8 @@ subroutine DenitrificationSetup(this,reaction,option)
 !     call printErrMsg(option)
 !  endif
 
-  word = 'Ndeni'
-  this%ispec_deni = GetImmobileSpeciesIDFromName( &
+  word = 'NGASdeni'
+  this%ispec_ngasdeni = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
  
 end subroutine DenitrificationSetup
@@ -274,7 +274,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: temp_real
 
   PetscInt :: ires_no3, ires_n2o, ires_n2
-  PetscInt :: ires_deni
+  PetscInt :: ires_ngasdeni
 
   PetscScalar, pointer :: bsw(:)
   PetscScalar, pointer :: bulkdensity(:)
@@ -295,7 +295,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   ires_no3 = this%ispec_no3
   ires_n2o = this%ispec_n2o
   ires_n2 = this%ispec_n2
-  ires_deni = this%ispec_deni + reaction%offset_immobile
+  ires_ngasdeni = this%ispec_ngasdeni + reaction%offset_immobile
 
 ! denitrification (Dickinson et al. 2002)
   if(this%ispec_n2 < 0) return
@@ -329,8 +329,8 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
      Residual(ires_no3) = Residual(ires_no3) + rate_deni
      Residual(ires_n2) = Residual(ires_n2) - 0.5d0*rate_deni
     
-     if(this%ispec_deni > 0) then
-        Residual(ires_deni) = Residual(ires_deni) - 0.5d0*rate_deni
+     if(this%ispec_ngasdeni > 0) then
+        Residual(ires_ngasdeni) = Residual(ires_ngasdeni) - 0.5d0*rate_deni
      endif
 
 
@@ -344,8 +344,8 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
        Jacobian(ires_n2,ires_no3)=Jacobian(ires_n2,ires_no3)-0.5d0*drate_deni * &
         rt_auxvar%aqueous%dtotal(this%ispec_n2,this%ispec_no3,iphase)
     
-       if(this%ispec_deni > 0) then
-         Jacobian(ires_deni,ires_no3)=Jacobian(ires_deni,ires_no3)-0.5d0*drate_deni
+       if(this%ispec_ngasdeni > 0) then
+         Jacobian(ires_ngasdeni,ires_no3)=Jacobian(ires_ngasdeni,ires_no3)-0.5d0*drate_deni
        endif
     endif
   endif

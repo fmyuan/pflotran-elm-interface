@@ -514,8 +514,6 @@ subroutine THCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
   
   PetscReal, pointer :: P1_p(:)
   PetscReal, pointer :: dP_p(:)
-  PetscReal, pointer :: volume_p(:)
-  PetscReal, pointer :: porosity_loc_p(:)
   PetscReal, pointer :: ithrm_loc_p(:)
   PetscReal, pointer :: r_p(:)
   type(grid_type), pointer :: grid
@@ -1230,8 +1228,7 @@ subroutine THUpdateFixedAccumPatch(realization)
 
   PetscInt :: ghosted_id, local_id, istart, iend, iphase
   PetscReal, pointer :: xx_p(:), icap_loc_p(:), iphase_loc_p(:)
-  PetscReal, pointer :: porosity_loc_p(:), tor_loc_p(:), volume_p(:), &
-                          ithrm_loc_p(:), accum_p(:), perm_xx_loc_p(:)
+  PetscReal, pointer :: ithrm_loc_p(:), accum_p(:)
   PetscReal :: vol_frac_prim
                           
   PetscErrorCode :: ierr
@@ -1425,7 +1422,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
 
   type(TH_auxvar_type) :: TH_auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(material_auxvar_type) :: material_auxvar
+  class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   PetscReal :: vol,por,rock_dencpr
   type(saturation_function_type) :: sat_func
@@ -1437,6 +1434,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   PetscInt :: iphase, ideriv
   type(TH_auxvar_type) :: TH_auxvar_pert
   type(global_auxvar_type) :: global_auxvar_pert
+  ! leave as type
   type(material_auxvar_type) :: material_auxvar_pert
   PetscReal :: x(option%nflowdof), x_pert(option%nflowdof), pert
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
@@ -1615,7 +1613,7 @@ subroutine THAccumulation(auxvar,global_auxvar, &
 
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
-  type(material_auxvar_type) :: material_auxvar
+  class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
   PetscReal :: Res(1:option%nflowdof) 
   PetscReal ::rock_dencpr,por1
@@ -3310,12 +3308,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
 
   PetscReal, pointer :: accum_p(:)
 
-  PetscReal, pointer :: r_p(:), porosity_loc_p(:), volume_p(:), &
-               xx_loc_p(:), xx_p(:), yy_p(:),&
-               tor_loc_p(:),&
-               perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
-                          
-               
+  PetscReal, pointer :: r_p(:), xx_loc_p(:), xx_p(:), yy_p(:)
   PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
 
   PetscInt :: iphase
@@ -3598,7 +3591,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
 
       patch%internal_velocities(1,sum_connection) = v_darcy
 #ifdef STORE_FLOWRATES
-      patch%internal_fluxes(TH_PRESSURE_DOF,1,sum_connection) = Res(TH_PRESSURE_DOF)
+      patch%internal_fluxes(TH_PRESSURE_DOF,1,sum_connection) = Res(TH_PRESSURE_DOF)*FMWH2O
       patch%internal_fluxes(TH_TEMPERATURE_DOF,1,sum_connection) = Res(TH_TEMPERATURE_DOF)
 #endif
 
@@ -3666,7 +3659,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
 
       patch%boundary_velocities(1,sum_connection) = v_darcy
 #ifdef STORE_FLOWRATES
-      patch%boundary_fluxes(TH_PRESSURE_DOF,1,sum_connection) = Res(TH_PRESSURE_DOF)
+      patch%boundary_fluxes(TH_PRESSURE_DOF,1,sum_connection) = Res(TH_PRESSURE_DOF)*FMWH2O
       patch%boundary_fluxes(TH_TEMPERATURE_DOF,1,sum_connection) = Res(TH_TEMPERATURE_DOF)
 #endif
 
@@ -3727,7 +3720,7 @@ end subroutine THResidualPatch
 
 ! ************************************************************************** !
 
-subroutine THJacobian(snes,xx,A,B,flag,realization,ierr)
+subroutine THJacobian(snes,xx,A,B,realization,ierr)
   ! 
   ! Computes the Jacobian
   ! 
@@ -3746,7 +3739,6 @@ subroutine THJacobian(snes,xx,A,B,flag,realization,ierr)
   Vec :: xx
   Mat :: A, B
   type(realization_type) :: realization
-  MatStructure flag
   PetscErrorCode :: ierr
   
   Mat :: J
@@ -3757,7 +3749,6 @@ subroutine THJacobian(snes,xx,A,B,flag,realization,ierr)
   type(option_type),  pointer :: option
   PetscReal :: norm
   
-  flag = SAME_NONZERO_PATTERN
   call MatGetType(A,mat_type,ierr)
   if (mat_type == MATMFFD) then
     J = B
@@ -3773,7 +3764,7 @@ subroutine THJacobian(snes,xx,A,B,flag,realization,ierr)
   do
     if (.not.associated(cur_patch)) exit
     realization%patch => cur_patch
-    call THJacobianPatch(snes,xx,J,J,flag,realization,ierr)
+    call THJacobianPatch(snes,xx,J,J,realization,ierr)
     cur_patch => cur_patch%next
   enddo
   
@@ -3800,7 +3791,7 @@ end subroutine THJacobian
 
 ! ************************************************************************** !
 
-subroutine THJacobianPatch(snes,xx,A,B,flag,realization,ierr)
+subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   ! 
   ! Computes the Jacobian
   ! 
@@ -3824,16 +3815,13 @@ subroutine THJacobianPatch(snes,xx,A,B,flag,realization,ierr)
   Vec :: xx
   Mat :: A, B
   type(realization_type) :: realization
-  MatStructure flag
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
   PetscInt :: ithrm_up, ithrm_dn, i
   PetscInt :: ip1, ip2 
 
-  PetscReal, pointer :: porosity_loc_p(:), volume_p(:), &
-                          xx_loc_p(:), tor_loc_p(:),&
-                          perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
+  PetscReal, pointer :: xx_loc_p(:)
   PetscReal, pointer :: iphase_loc_p(:), icap_loc_p(:), ithrm_loc_p(:)
   PetscInt :: icap,iphas,icap_up,icap_dn
   PetscInt :: ii, jj

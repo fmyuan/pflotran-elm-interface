@@ -20,7 +20,7 @@ module Reaction_Sandbox_Nitrification_class
     PetscInt :: ispec_nh3
     PetscInt :: ispec_no3
     PetscInt :: ispec_n2o
-    PetscInt :: ispec_nnit
+    PetscInt :: ispec_ngasnit
     PetscReal :: k_nitr_max
     PetscReal :: k_nitr_n2o
     PetscReal :: half_saturation
@@ -57,7 +57,7 @@ function NitrificationCreate()
   allocate(NitrificationCreate)
   NitrificationCreate%ispec_nh3 = 0
   NitrificationCreate%ispec_no3 = 0
-  NitrificationCreate%ispec_nnit = 0
+  NitrificationCreate%ispec_ngasnit = 0
   NitrificationCreate%k_nitr_max = 1.d-6
   NitrificationCreate%k_nitr_n2o = 3.5d-8
   NitrificationCreate%half_saturation = 1.0d-10
@@ -213,8 +213,8 @@ subroutine NitrificationSetup(this,reaction,option)
      call printErrMsg(option)
   endif
 
-  word = 'Nnitri'
-  this%ispec_nnit = GetImmobileSpeciesIDFromName( &
+  word = 'NGASnitr'
+  this%ispec_ngasnit = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
  
 end subroutine NitrificationSetup
@@ -281,7 +281,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: dfw_dnh3
   PetscReal :: saturation
   PetscReal :: tc
-  PetscInt :: ires_nnit
+  PetscInt :: ires_ngasnit
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
@@ -290,7 +290,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   ires_nh3 = this%ispec_nh3
   ires_no3 = this%ispec_no3
   ires_n2o = this%ispec_n2o
-  ires_nnit = this%ispec_nnit + reaction%offset_immobile
+  ires_ngasnit = this%ispec_ngasnit + reaction%offset_immobile
 
   saturation = global_auxvar%sat(1)
   theta = saturation * porosity
@@ -363,8 +363,8 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
        Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o
        Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
        
-       if(this%ispec_nnit > 0) then
-          Residual(ires_nnit) = Residual(ires_nnit) - 0.5d0 * rate_n2o
+       if(this%ispec_ngasnit > 0) then
+          Residual(ires_ngasnit) = Residual(ires_ngasnit) - 0.5d0 * rate_n2o
        endif
 
        if (compute_derivative) then
@@ -379,8 +379,8 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
            0.5d0 * drate_n2o * &
            rt_auxvar%aqueous%dtotal(this%ispec_n2o,this%ispec_nh3,iphase)
       
-           if(this%ispec_nnit > 0) then
-             Jacobian(ires_nnit,ires_nh3)=Jacobian(ires_nnit,ires_nh3)- &
+           if(this%ispec_ngasnit > 0) then
+             Jacobian(ires_ngasnit,ires_nh3)=Jacobian(ires_ngasnit,ires_nh3)- &
                  0.5d0 * drate_n2o
            endif
        endif
