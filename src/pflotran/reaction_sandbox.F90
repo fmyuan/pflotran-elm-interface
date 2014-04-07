@@ -9,6 +9,7 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_Denitrification_class
   use Reaction_Sandbox_Microbial_class
   use Reaction_Sandbox_Langmuir_class
+  use Reaction_Sandbox_degas_class
   use Reaction_Sandbox_UFD_WP_class
   use Reaction_Sandbox_Example_class
   
@@ -171,6 +172,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => MicrobialCreate()
       case('LANGMUIR')
         new_sandbox => LangmuirCreate()
+      case('DEGAS')
+        new_sandbox => degasCreate()
       case('UFD-WP')
         new_sandbox => WastePackageCreate()
       case('EXAMPLE')
