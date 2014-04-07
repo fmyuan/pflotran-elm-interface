@@ -913,8 +913,6 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   PetscReal :: ph, f_ph
   PetscReal :: rate_n2o, drate_n2o
 
-!  PetscReal, parameter :: rpi = 3.14159265358979323846
-
   PetscReal :: c_uc, c_un
   PetscReal :: nc_bacteria, nc_fungi
 

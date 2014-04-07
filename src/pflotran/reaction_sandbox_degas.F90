@@ -223,10 +223,8 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
   
   if (reaction%initialize_with_molality) then
     convert_molal_to_molar = global_auxvar%den_kg(iphase)*xmass/1000.d0
-!    convert_molar_to_molal = 1.d0
   else
     convert_molal_to_molar = 1.d0
-!    convert_molar_to_molal = 1000.d0/global_auxvar%den_kg(iphase)/xmass
   endif
 
 #ifdef CLM_PFLOTRAN 
@@ -256,38 +254,20 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
   c_hco3_eq =  xmole_co2/H2O_kg_mol
 
   temp_real = volume * 1000.0d0 * porosity * global_auxvar%sat(1)
-!  rate = this%k_kinetic_co2 * (c_hco3 - c_hco3_eq) * temp_real 
   rate = this%k_kinetic_co2 * (c_hco3/c_hco3_eq - 1.0d0) * temp_real 
-
-!  if(rate > 0.0) then
 
     Residual(ires_co2a) = Residual(ires_co2a) + rate
     Residual(ires_co2g) = Residual(ires_co2g) - rate
 
     if (compute_derivative) then
-!     drate = -1.0d0 * this%k_kinetic_co2 * temp_real 
      drate = this%k_kinetic_co2 /c_hco3_eq * temp_real 
-
-!     if(rate < 0.0) then
-!        drate = drate * s_hco3/(1.0d-15 + s_hco3)
-!     endif
 
      Jacobian(ires_co2a,ires_co2a) = Jacobian(ires_co2a,ires_co2a) + drate * &
         rt_auxvar%aqueous%dtotal(this%ispec_co2a,this%ispec_co2a,iphase)
 
      Jacobian(ires_co2g,ires_co2a) = Jacobian(ires_co2g,ires_co2a) - drate
 
-!     if(rate < 0.0) then
-!        drate = this%k_kinetic_co2 * (c_hco3 - c_hco3_eq) * temp_real * &
-!                1.0d-15 /(1.0d-15 + s_hco3)/(1.0d-15+s_hco3) 
-!
-!        Jacobian(ires_co2a,ires_co2g) = Jacobian(ires_co2a,ires_co2g) + drate
-
-!        Jacobian(ires_co2g,ires_co2g) = Jacobian(ires_co2g,ires_co2g) - drate
-!     endif
-
     endif
-! endif
 
   if(this%b_fixph) then
     ires_proton = this%ispec_proton
@@ -297,7 +277,6 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
     c_h_fix = 10.0d0 ** (-1.0d0 * this%fixph) / rt_auxvar%pri_act_coef(this%ispec_proton)
 
-!    rate = this%k_kinetic_h * (c_h - c_h_fix) * temp_real
     rate = this%k_kinetic_h * (c_h/c_h_fix - 1.0d0) * temp_real
      
     Residual(ires_proton) = Residual(ires_proton) + rate
@@ -305,7 +284,6 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
     if (compute_derivative) then
 
-!       drate = -1.0d0 * this%k_kinetic_h * temp_real 
        drate = this%k_kinetic_h * convert_molal_to_molar /c_h_fix * temp_real 
 
        Jacobian(ires_proton,ires_proton) = Jacobian(ires_proton,ires_proton) + drate
