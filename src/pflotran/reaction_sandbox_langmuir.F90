@@ -139,6 +139,12 @@ subroutine LangmuirSetup(this,reaction,option)
   this%ispec_nh4a = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
+  if(this%ispec_nh4a < 0) then
+     word = 'NH3(aq)'
+     this%ispec_nh4a = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+  endif
+
   word = 'Nsorb'
   this%ispec_nh4s = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
@@ -188,38 +194,44 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscInt, parameter :: iphase = 1
 
-  PetscInt :: ires_nh4a, ires_nh4s
+  PetscInt :: ires_nh4a, ires_nh4s, i, j
 
   PetscReal :: c_nh4      ! mole/L
   PetscReal :: s_nh4      ! mole/m3
+  PetscReal :: c_nh4_eq      ! mole/L
   PetscReal :: s_nh4_eq      ! mole/m3
-  PetscReal :: kc, rate, drate_a, drate_s
+  PetscReal :: kc, rate, drate_a, drate_s, temp_real
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
+  temp_real = volume * 1000.0d0 * porosity * global_auxvar%sat(1)
 
   ires_nh4a = this%ispec_nh4a
   ires_nh4s = this%ispec_nh4s + reaction%offset_immobile
 
   c_nh4 = rt_auxvar%total(this%ispec_nh4a, iphase)
   s_nh4 = rt_auxvar%immobile(this%ispec_nh4s)
-  c_nh4 = c_nh4 - this%x0eps
+!  c_nh4 = c_nh4 - this%x0eps
 
   kc = this%k_equilibrium * c_nh4
-  s_nh4_eq = this%s_max * kc / (1.0d0 + kc)
+!  s_nh4_eq = this%s_max * kc / (1.0d0 + kc)
+  c_nh4_eq = s_nh4 / (this%s_max - s_nh4) / this%k_equilibrium 
 
-  if(s_nh4 >= s_nh4_eq) then
-    return
-  endif
-
-  rate = this%k_kinetic * (s_nh4_eq - s_nh4) * volume 
+!  rate = this%k_kinetic * (s_nh4_eq - s_nh4) * volume 
+  rate = this%k_kinetic * (c_nh4 - c_nh4_eq) * temp_real
 
   Residual(ires_nh4a) = Residual(ires_nh4a) + rate
   Residual(ires_nh4s) = Residual(ires_nh4s) - rate
 
   if (compute_derivative) then
-     drate_a = this%k_kinetic * this%k_equilibrium * this%s_max / kc / kc
-     drate_s = -1.0d0 * this%k_kinetic
+!     drate_a = this%k_kinetic * volume * this%k_equilibrium * this%s_max / kc / kc
+!     drate_s = -1.0d0 * this%k_kinetic * volume
+     drate_a = this%k_kinetic * temp_real
+     drate_s = -1.0d0 * this%k_kinetic * this%s_max / this%k_equilibrium &
+             / (this%s_max - s_nh4) / (this%s_max - s_nh4)
+
+!     write(*,*)c_nh4, c_nh4_eq, s_nh4, s_nh4_eq
+!     write(*,*)(Residual(j), j = 1, reaction%ncomp)
 
      Jacobian(ires_nh4a,ires_nh4a) = Jacobian(ires_nh4a,ires_nh4a) + drate_a * &
         rt_auxvar%aqueous%dtotal(this%ispec_nh4a,this%ispec_nh4a,iphase)
@@ -229,6 +241,10 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
      Jacobian(ires_nh4a,ires_nh4s) = Jacobian(ires_nh4a,ires_nh4s) + drate_s
 
      Jacobian(ires_nh4s,ires_nh4s) = Jacobian(ires_nh4s,ires_nh4s) - drate_s
+
+!     do i = 1, reaction%ncomp
+!        write(*,*)(Jacobian(i, j), j = 1, reaction%ncomp)
+!     enddo
 
   endif
 
