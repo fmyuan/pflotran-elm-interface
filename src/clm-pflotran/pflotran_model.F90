@@ -5068,10 +5068,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                   realization%reaction,PETSC_FALSE,realization%option)
     endif
 
-    word = 'NH4sorb'
-    ispec_nh4sorb = GetImmobileSpeciesIDFromName(word, &
-            realization%reaction%immobile,PETSC_FALSE,realization%option)
-
     word = "N2(aq)"
     ispec_n2  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
@@ -5218,11 +5214,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         if(ispec_nimm > 0) then
            conc = xx_p(offset + ispec_nimm)
            accnimm_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
-        endif
-
-        if(ispec_nh4sorb > 0) then
-           conc = xx_p(offset + ispec_nh4sorb)
-           smin_nh4sorb_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
         endif
 
         if(ispec_ngasmin > 0) then
