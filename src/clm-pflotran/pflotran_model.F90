@@ -541,6 +541,9 @@ end subroutine pflotranModelSetICs
 
     use clm_pflotran_interface_data
     use Mapping_module
+    use Material_module
+    use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
+                               PERMEABILITY_Z
 
     implicit none
 
@@ -564,6 +567,7 @@ end subroutine pflotranModelSetICs
     PetscReal, pointer :: porosity_loc_p(:), vol_ovlap_arr(:)
     PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
     PetscReal          :: bc_lambda, bc_alpha
+    Vec                :: porosity_loc, perm_xx_loc, perm_yy_loc, perm_zz_loc
 
     PetscScalar, pointer :: hksat_x_pf_loc(:) ! hydraulic conductivity in x-dir at saturation (mm H2O /s)
     PetscScalar, pointer :: hksat_y_pf_loc(:) ! hydraulic conductivity in y-dir at saturation (mm H2O /s)
@@ -640,10 +644,24 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
     call VecGetArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
-    !call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
-    !call VecGetArrayF90(field%perm_xx_loc,  perm_xx_loc_p,  ierr)
-    !call VecGetArrayF90(field%perm_yy_loc,  perm_yy_loc_p,  ierr)
-    !call VecGetArrayF90(field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+    call VecDuplicate(field%work_loc, porosity_loc, ierr)
+    call VecDuplicate(field%work_loc, perm_xx_loc, ierr)
+    call VecDuplicate(field%work_loc, perm_yy_loc, ierr)
+    call VecDuplicate(field%work_loc, perm_zz_loc, ierr)
+
+    call MaterialGetAuxVarVecLoc(realization%patch%aux%Material,porosity_loc, &
+                                 POROSITY,ZERO_INTEGER)
+    call MaterialGetAuxVarVecLoc(realization%patch%aux%Material,perm_xx_loc, &
+                                 PERMEABILITY_X,ZERO_INTEGER)
+    call MaterialGetAuxVarVecLoc(realization%patch%aux%Material,perm_yy_loc, &
+                                 PERMEABILITY_Y,ZERO_INTEGER)
+    call MaterialGetAuxVarVecLoc(realization%patch%aux%Material,perm_zz_loc, &
+                                 PERMEABILITY_Z,ZERO_INTEGER)
+
+    call VecGetArrayF90(porosity_loc, porosity_loc_p, ierr)
+    call VecGetArrayF90(perm_xx_loc,  perm_xx_loc_p,  ierr)
+    call VecGetArrayF90(perm_yy_loc,  perm_yy_loc_p,  ierr)
+    call VecGetArrayF90(perm_zz_loc,  perm_zz_loc_p,  ierr)
 
     do local_id = 1, grid%ngmax
 
@@ -683,10 +701,22 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
     call VecRestoreArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
-    !call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
-    !call VecRestoreArrayF90(field%perm_xx_loc,  perm_xx_loc_p,  ierr)
-    !call VecRestoreArrayF90(field%perm_yy_loc,  perm_yy_loc_p,  ierr)
-    !call VecRestoreArrayF90(field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+    call VecRestoreArrayF90(porosity_loc, porosity_loc_p, ierr)
+    call VecRestoreArrayF90(perm_xx_loc,  perm_xx_loc_p,  ierr)
+    call VecRestoreArrayF90(perm_yy_loc,  perm_yy_loc_p,  ierr)
+    call VecRestoreArrayF90(perm_zz_loc,  perm_zz_loc_p,  ierr)
+
+    call MaterialSetAuxVarVecLoc(realization%patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_X,ZERO_INTEGER)
+    call MaterialSetAuxVarVecLoc(realization%patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_Y,ZERO_INTEGER)
+    call MaterialSetAuxVarVecLoc(realization%patch%aux%Material,perm_zz_loc, &
+                                 PERMEABILITY_Z,ZERO_INTEGER)
+
+    call VecDestroy(porosity_loc, ierr)
+    call VecDestroy(perm_xx_loc, ierr)
+    call VecDestroy(perm_yy_loc, ierr)
+    call VecDestroy(perm_zz_loc, ierr)
 
   end subroutine pflotranModelSetSoilProp
 
