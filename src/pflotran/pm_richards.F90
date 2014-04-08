@@ -168,6 +168,8 @@ subroutine PMRichardsInitializeTimestep(this)
 
   use Richards_module, only : RichardsInitializeTimestep
   use Global_module
+  use Material_module
+  use Variables_module
   
   implicit none
   
@@ -181,8 +183,9 @@ subroutine PMRichardsInitializeTimestep(this)
 
 #ifndef SIMPLIFY  
   ! update porosity
-  call this%comm1%LocalToLocal(this%realization%field%porosity_loc, &
-                              this%realization%field%porosity_loc)
+  call MaterialAuxVarCommunicate(this%comm1, &
+                                 this%realization%patch%aux%Material, &
+                                 this%realization%field%work_loc,POROSITY,0)
 #endif
 
   if (this%option%print_screen_flag) then
@@ -447,7 +450,7 @@ end subroutine PMRichardsResidual
 
 ! ************************************************************************** !
 
-subroutine PMRichardsJacobian(this,snes,xx,A,B,flag,ierr)
+subroutine PMRichardsJacobian(this,snes,xx,A,B,ierr)
   ! 
   ! Author: Glenn Hammond
   ! Date: 03/14/13
@@ -461,7 +464,6 @@ subroutine PMRichardsJacobian(this,snes,xx,A,B,flag,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  MatStructure flag
   PetscErrorCode :: ierr
   
 #ifdef PM_RICHARDS_DEBUG  
@@ -470,9 +472,9 @@ subroutine PMRichardsJacobian(this,snes,xx,A,B,flag,ierr)
   
   select case(this%realization%discretization%itype)
     case(STRUCTURED_GRID_MIMETIC)
-!      call RichardsJacobianMFDLP(snes,xx,A,B,flag,this%realization,ierr)
+!      call RichardsJacobianMFDLP(snes,xx,A,B,this%realization,ierr)
     case default
-      call RichardsJacobian(snes,xx,A,B,flag,this%realization,ierr)
+      call RichardsJacobian(snes,xx,A,B,this%realization,ierr)
   end select
 
 end subroutine PMRichardsJacobian
@@ -595,10 +597,8 @@ subroutine PMRichardsUpdateSolution(this)
   endif  
   ! end from RealizationUpdate()
   call RichardsUpdateSolution(this%realization)
-#ifdef SURFACE_FLOW
   if(this%option%nsurfflowdof>0) &
     call RichardsUpdateSurfacePress(this%realization)
-#endif
 
 end subroutine PMRichardsUpdateSolution     
 

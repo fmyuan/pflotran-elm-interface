@@ -1,4 +1,3 @@
-#ifdef SURFACE_FLOW
 module Surf_Subsurf_Simulation_class
 
   use Surface_Simulation_class
@@ -172,8 +171,13 @@ subroutine SurfSubsurfaceExecuteRun(this)
 
   else
 
+    ! If simulation is decoupled surface-subsurface simulation, set
+    ! dt_coupling to be dt_max
+    if (this%surf_realization%dt_coupling == 0.d0) &
+      this%surf_realization%dt_coupling = this%surf_realization%dt_max
+
     do
-      if(time+this%surf_realization%dt_coupling > final_time) then
+      if (time + this%surf_realization%dt_coupling > final_time) then
         dt = final_time-time
       else
         dt = this%surf_realization%dt_coupling
@@ -265,7 +269,9 @@ subroutine SurfSubsurfaceSimulationRunToTime(this,target_time)
   class(pmc_base_type), pointer :: cur_process_model_coupler
   PetscViewer :: viewer
 
+#ifdef DEBUG
   call printMsg(this%option,'RunToTime()')
+#endif
   call this%process_model_coupler_list%RunToTime(target_time,this%stop_flag)
 
 end subroutine SurfSubsurfaceSimulationRunToTime
@@ -295,4 +301,3 @@ subroutine SurfSubsurfaceSimulationDestroy(simulation)
 end subroutine SurfSubsurfaceSimulationDestroy
 
 end module Surf_Subsurf_Simulation_class
-#endif

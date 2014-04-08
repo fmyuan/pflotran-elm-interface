@@ -19,12 +19,10 @@
 ! Send all bug reports/questions/comments to:
 !
 ! Peter C. Lichtner
-! Los Alamos National Laboratory
-! Earth and Environmental Sciences
-! EES-16, MS: D469
-! (505) 667-3420
-! lichtner@lanl.gov
-! Los Alamos, NM
+! OFM Research
+! (505) 692-4029 (cell)
+! peter.lichtner@gmail.com
+! Santa Fe, New Mexico
 
 ! or
 
@@ -45,12 +43,14 @@ program pflotran
   use PFLOTRAN_Factory_module
   use Subsurface_Factory_module
   use Hydrogeophysics_Factory_module
-#ifdef SURFACE_FLOW  
   use Surface_Factory_module
   use Surf_Subsurf_Factory_module
-#endif  
-  
+#ifdef GEOMECH
+  use Geomechanics_Factory_module
+#endif
   use PFLOTRAN_Constants_module
+  use Output_Aux_module, only : INSTANTANEOUS_VARS
+  use PFLOTRAN_Provenance_module, only : PrintProvenanceToScreen
 
   implicit none
 
@@ -69,6 +69,10 @@ program pflotran
   call OptionInitMPI(option)
   call PFLOTRANInitializePrePetsc(multisimulation,option)
   call OptionInitPetsc(option)
+  if (option%myrank == option%io_rank .and. option%print_to_screen) then
+    call PrintProvenanceToScreen()
+  endif
+
   do ! multi-simulation loop
     call PFLOTRANInitializePostPetsc(multisimulation,option)
     select case(option%simulation_mode)
@@ -76,16 +80,19 @@ program pflotran
         call SubsurfaceInitialize(simulation,option)
       case('HYDROGEOPHYSICS')
         call HydrogeophysicsInitialize(simulation,option)
-#ifdef SURFACE_FLOW      
       case('SURFACE')
         call SurfaceInitialize(simulation,option)
       case('SURFACE_SUBSURFACE')
         call SurfSubsurfaceInitialize(simulation,option)
-#endif      
+#ifdef GEOMECH
+      case ('GEOMECHANICS')
+        call GeomechanicsInitialize(simulation,option)
+#endif
       case default
         option%io_buffer = 'Simulation Mode not recognized.'
         call printErrMsg(option)
     end select
+
     call simulation%InitializeRun()
 
     if (option%status == PROCEED) then

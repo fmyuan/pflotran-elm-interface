@@ -42,15 +42,22 @@ STANDARD_CFG = \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
 	default/eos/eos.cfg \
+	default/materials/materials.cfg \
+	default/materials/soil_compressibility/soil_compressibility.cfg \
 	default/infiltrometer/infiltrometer.cfg \
 	default/condition/condition.cfg \
 	default/multicontinuum/multicontinuum.cfg \
+	default/scco2/mphase/mphase.cfg \
+	default/scco2/flash2/flash2.cfg \
+	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
+        general/general.cfg \
 	ngee/ngee.cfg \
-	shortcourse/1D_Calcite/calcite.cfg \
+        shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
-	wipp/nuts/nuts.cfg
+	wipp/nuts/nuts.cfg \
+	surfaceflow/surface_flow_only/surface_only.cfg
 
 ifneq ($(strip $(PARMETIS_LIB)),)
 	STANDARD_CFG += \
@@ -68,7 +75,8 @@ GEOCHEMISTRY_CFG = \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
 	default/multicontinuum/multicontinuum.cfg \
-	ngee/ngee.cfg \
+	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
+        ngee/ngee.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
 	wipp/nuts/nuts.cfg
@@ -78,6 +86,9 @@ FLOW_CFG = \
 	default/condition/condition.cfg \
 	default/eos/eos.cfg \
 	default/infiltrometer/infiltrometer.cfg \
+	default/scco2/mphase/mphase.cfg \
+	default/scco2/flash2/flash2.cfg \
+	general/general.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg
 
@@ -169,6 +180,8 @@ clean-tests :
 	-find . -type f -name '*~' -print0 | xargs -0 rm
 	-find . -type f -name 'tmp-restart-*' -print0 | xargs -0 rm
 	-find . -type f -name '*.chk' -print0 | xargs -0 rm
+	-find . -type f -name '*.pyc' -print0 | xargs -0 rm
+	-find . -type d -name '__pycache__' -print0 | xargs -0 rm -r
 	-rm -f default/anisothermal/thc_1d.h5
 	-rm -f default/anisothermal/th_1d.h5
 	-rm -f mfd/mfd-mas.dat

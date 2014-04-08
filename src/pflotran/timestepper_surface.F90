@@ -1,5 +1,3 @@
-#ifdef SURFACE_FLOW
-
 module Timestepper_Surface_class
 
   use Timestepper_Base_class
@@ -22,6 +20,7 @@ module Timestepper_Surface_class
     procedure, public :: Checkpoint => TimestepperSurfaceCheckpoint
     procedure, public :: Init => TimestepperSurfaceInit
     procedure, public :: Restart => TimestepperSurfaceRestart
+    procedure, public :: Reset => TimestepperSurfaceReset
     procedure, public :: SetTargetTime => TimestepperSurfaceSetTargetTime
     procedure, public :: StepDT => TimestepperSurfaceStepDT
   end type timestepper_surface_type
@@ -195,7 +194,7 @@ subroutine TimestepperSurfaceSetTargetTime(this,sync_time, &
   this%dt = dt
   this%target_time = target_time
   this%cur_waypoint => cur_waypoint
-  if (.not.associated(cur_waypoint)) stop_flag = 1
+  if (.not.associated(cur_waypoint)) stop_flag = TS_STOP_END_SIMULATION
 
 end subroutine TimestepperSurfaceSetTargetTime
 
@@ -236,13 +235,7 @@ subroutine TimestepperSurfaceStepDT(this,process_model,stop_flag)
   option => process_model%option
 
   call process_model%PreSolve()
-#if 0  
-  if(option%subsurf_surf_coupling==SEQ_COUPLED .and. &
-     associated(process_model%subsurf_realization)) then
-    call SurfaceFlowSurf2SubsurfFlux(process_model%subsurf_realization, &
-                                     process_model%surf_realization)
-   endif
-#endif  
+
   call TSSetTimeStep(solver%ts,option%surf_flow_dt,ierr)
   call TSSolve(solver%ts,process_model%solution_vec,ierr)
   call TSGetTime(solver%ts,time,ierr)
@@ -423,6 +416,29 @@ subroutine TimestepperSurfaceGetHeader(this,header)
 
 end subroutine TimestepperSurfaceGetHeader
 
-end module Timestepper_Surface_class
+! ************************************************************************** !
 
+subroutine TimestepperSurfaceReset(this)
+
+  implicit none
+
+  class(timestepper_surface_type) :: this
+
+  PetscErrorCode :: ierr
+
+#if 0
+  !TODO(Gautam): set these back to their initial values as if a simulation
+  !              were initialized, but not yet run
+  this%dt_max_allowable = header%dt_max_allowable
+  this%surf_subsurf_coupling_flow_dt = header%surf_subsurf_coupling_flow_dt
+
+  call TimestepperBaseReset(this)
+
+  !TODO(Gautam): this%target_time is set to 0.d0 in TimestepperBaseReset(). Is
+  !              that OK? - Glenn
+  call TSSetTime(this%solver%ts,this%target_time,ierr)
 #endif
+
+end subroutine TimestepperSurfaceReset
+
+end module Timestepper_Surface_class

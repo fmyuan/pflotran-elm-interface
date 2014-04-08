@@ -62,7 +62,8 @@ private
   end interface
   
   public :: RealizationCreate, &
-            RealizationDestroy, &
+            RealizationStrip, &
+            RealizationDestroyLegacy, &
             RealizationProcessCouplers, &
             RealizationInitAllCouplerAuxVars, &
             RealizationProcessConditions, &
@@ -187,6 +188,7 @@ subroutine RealizationCreateDiscretization(realization)
   use Discretization_module
   use Unstructured_Cell_module
   use DM_Kludge_module
+  use Variables_module, only : VOLUME
   
   implicit none
   
@@ -217,72 +219,48 @@ subroutine RealizationCreateDiscretization(realization)
   call DiscretizationCreateDMs(discretization,option)
 
   ! 1 degree of freedom, global
-  call DiscretizationCreateVector(discretization,ONEDOF,field%porosity0, &
+  call DiscretizationCreateVector(discretization,ONEDOF,field%work, &
                                   GLOBAL,option)
- 
-  call DiscretizationDuplicateVector(discretization,field%porosity0, &
+  call DiscretizationDuplicateVector(discretization,field%work, &
+                                     field%porosity0)
+  call DiscretizationDuplicateVector(discretization,field%work, &
                                      field%tortuosity0)
-  call DiscretizationDuplicateVector(discretization,field%porosity0, &
-                                     field%volume)
+  call DiscretizationDuplicateVector(discretization,field%work, &
+                                     field%volume0)
 
-  call DiscretizationDuplicateVector(discretization,field%porosity0, &
-                                     field%work)
-  
   ! 1 degree of freedom, local
-  call DiscretizationCreateVector(discretization,ONEDOF,field%porosity_loc, &
+  call DiscretizationCreateVector(discretization,ONEDOF,field%work_loc, &
                                   LOCAL,option)
-  call DiscretizationDuplicateVector(discretization,field%porosity_loc, &
-                                     field%tortuosity_loc)
-
-  call DiscretizationDuplicateVector(discretization,field%porosity_loc, &
-                                     field%work_loc)
   
   if (option%nflowdof > 0) then
 
     ! 1-dof global  
-    call DiscretizationDuplicateVector(discretization,field%porosity0, &
+    call DiscretizationDuplicateVector(discretization,field%work, &
                                        field%perm0_xx)
-    call DiscretizationDuplicateVector(discretization,field%porosity0, &
+    call DiscretizationDuplicateVector(discretization,field%work, &
                                        field%perm0_yy)
-    call DiscretizationDuplicateVector(discretization,field%porosity0, &
+    call DiscretizationDuplicateVector(discretization,field%work, &
                                        field%perm0_zz)
     if (discretization%itype == STRUCTURED_GRID_MIMETIC.or. &
         discretization%itype == UNSTRUCTURED_GRID_MIMETIC) then
-      call DiscretizationDuplicateVector(discretization,field%porosity0, &
+      call DiscretizationDuplicateVector(discretization,field%work, &
                                          field%perm0_xz)
-      call DiscretizationDuplicateVector(discretization,field%porosity0, &
+      call DiscretizationDuplicateVector(discretization,field%work, &
                                          field%perm0_xy)
-      call DiscretizationDuplicateVector(discretization,field%porosity0, &
+      call DiscretizationDuplicateVector(discretization,field%work, &
                                          field%perm0_yz)
     endif
-    call DiscretizationDuplicateVector(discretization,field%porosity0, &
-                                       field%perm_pow)
 
     ! 1-dof local
-    call DiscretizationDuplicateVector(discretization,field%porosity_loc, &
+    call DiscretizationDuplicateVector(discretization,field%work_loc, &
                                        field%ithrm_loc)
-    call DiscretizationDuplicateVector(discretization,field%porosity_loc, &
+    call DiscretizationDuplicateVector(discretization,field%work_loc, &
                                        field%icap_loc)
-    call DiscretizationDuplicateVector(discretization,field%porosity_loc, &
+    call DiscretizationDuplicateVector(discretization,field%work_loc, &
                                        field%iphas_loc)
-    call DiscretizationDuplicateVector(discretization,field%porosity_loc, &
+    call DiscretizationDuplicateVector(discretization,field%work_loc, &
                                        field%iphas_old_loc)
-    call DiscretizationDuplicateVector(discretization,field%porosity_loc, &
-                                       field%perm_xx_loc)
-    call DiscretizationDuplicateVector(discretization,field%porosity_loc, &
-                                       field%perm_yy_loc)
-    call DiscretizationDuplicateVector(discretization,field%porosity_loc, &
-                                       field%perm_zz_loc)
-    if (discretization%itype == STRUCTURED_GRID_MIMETIC.or. &
-        discretization%itype == UNSTRUCTURED_GRID_MIMETIC) then
-      call DiscretizationDuplicateVector(discretization,field%porosity_loc, &
-                                         field%perm_xz_loc)
-      call DiscretizationDuplicateVector(discretization,field%porosity_loc, &
-                                         field%perm_xy_loc)
-      call DiscretizationDuplicateVector(discretization,field%porosity_loc, &
-                                         field%perm_yz_loc)
-    endif
-
+    
     ! ndof degrees of freedom, global
     call DiscretizationCreateVector(discretization,NFLOWDOF,field%flow_xx, &
                                     GLOBAL,option)
@@ -301,7 +279,7 @@ subroutine RealizationCreateDiscretization(realization)
   endif
 
   if (option%ntrandof > 0) then
-    if (option%reactive_transport_coupling == GLOBAL_IMPLICIT) then
+    if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
       ! ndof degrees of freedom, global
       call DiscretizationCreateVector(discretization,NTRANDOF,field%tran_xx, &
                                       GLOBAL,option)
@@ -369,14 +347,14 @@ subroutine RealizationCreateDiscretization(realization)
       endif
       call GridComputeSpacing(grid,option)
       call GridComputeCoordinates(grid,discretization%origin,option)
-      call GridComputeVolumes(grid,field%volume,option)
+      call GridComputeVolumes(grid,field%volume0,option)
       ! set up internal connectivity, distance, etc.
       call GridComputeInternalConnect(grid,option)
       if (discretization%itype == STRUCTURED_GRID_MIMETIC) then
           call GridComputeCell2FaceConnectivity(grid, discretization%MFD, option)
       end if
       if (discretization%lsm_flux_method) then
-        call DiscretizationDuplicateVector(discretization,field%porosity_loc, &
+        call DiscretizationDuplicateVector(discretization,field%work_loc, &
                                           is_bnd_vec)
         call GridComputeNeighbors(grid,field%work_loc,option)
         call DiscretizationLocalToLocal(discretization,field%work_loc,is_bnd_vec,ONEDOF)
@@ -401,11 +379,11 @@ subroutine RealizationCreateDiscretization(realization)
       ! set up internal connectivity, distance, etc.
       call GridComputeInternalConnect(grid,option, &
                                       discretization%dm_1dof%ugdm) 
-      call GridComputeVolumes(grid,field%volume,option)
+      call GridComputeVolumes(grid,field%volume0,option)
 #ifdef MFD_UGRID
       call GridComputeCell2FaceConnectivity(discretization%grid,discretization%MFD,option)
 #endif
-  end select 
+  end select
  
   ! Vectors with face degrees of freedom
 #ifdef DASVYAT
@@ -456,7 +434,7 @@ subroutine RealizationCreateDiscretization(realization)
     allocate(field%avg_vars_vec(field%nvars))
 
     do ivar=1,field%nvars
-      call DiscretizationDuplicateVector(discretization,field%porosity0, &
+      call DiscretizationDuplicateVector(discretization,field%work, &
                                          field%avg_vars_vec(ivar))
       call VecSet(field%avg_vars_vec(ivar),0.d0,ierr)
     enddo
@@ -1410,7 +1388,7 @@ subroutine RealizationUpdate(realization)
   if (associated(realization%uniform_velocity_dataset)) then
     call RealizUpdateUniformVelocity(realization)
   endif
-! currently don't use aux_vars, just condition for src/sinks
+! currently don't use auxvars, just condition for src/sinks
 !  call RealizationUpdateSrcSinks(realization)
 
   call MassTransferUpdate(realization%flow_mass_transfer_list, &
@@ -1436,6 +1414,8 @@ subroutine RealizationRevertFlowParameters(realization)
   use Option_module
   use Field_module
   use Discretization_module
+  use Material_Aux_class
+  use Variables_module
 
   implicit none
   
@@ -1444,24 +1424,31 @@ subroutine RealizationRevertFlowParameters(realization)
   type(field_type), pointer :: field
   type(option_type), pointer :: option
   type(discretization_type), pointer :: discretization
+  type(material_type), pointer :: Material
   
   option => realization%option
   field => realization%field
   discretization => realization%discretization
+  Material => realization%patch%aux%Material
 
   if (option%nflowdof > 0) then
     call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
-                           field%perm_xx_loc,ONEDOF)  
+                                     field%work_loc,ONEDOF)  
+    call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_X,0)
     call DiscretizationGlobalToLocal(discretization,field%perm0_yy, &
-                           field%perm_yy_loc,ONEDOF)  
+                                     field%work_loc,ONEDOF)  
+    call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_Y,0)
     call DiscretizationGlobalToLocal(discretization,field%perm0_zz, &
-                           field%perm_zz_loc,ONEDOF)   
+                                     field%work_loc,ONEDOF)  
+    call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_Z,0)
   endif   
   call DiscretizationGlobalToLocal(discretization,field%porosity0, &
-                                   field%porosity_loc,ONEDOF)
+                                    field%work_loc,ONEDOF)  
+  call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY,0)
   call DiscretizationGlobalToLocal(discretization,field%tortuosity0, &
-                                   field%tortuosity_loc,ONEDOF)
-                           
+                                    field%work_loc,ONEDOF)  
+  call MaterialSetAuxVarVecLoc(Material,field%work_loc,TORTUOSITY,0)
+
 end subroutine RealizationRevertFlowParameters
 
 ! ************************************************************************** !
@@ -1701,7 +1688,8 @@ subroutine RealizationUpdateProperties(realization)
   ! Author: Glenn Hammond
   ! Date: 08/05/09
   ! 
-
+  use Variables_module
+  
   implicit none
 
   type(realization_type) :: realization
@@ -1718,7 +1706,10 @@ subroutine RealizationUpdateProperties(realization)
   
   ! perform check to ensure that porosity is bounded between 0 and 1
   ! since it is calculated as 1.d-sum_volfrac, it cannot be > 1
-  call VecMin(realization%field%porosity_loc,ivalue,min_value,ierr)
+  call MaterialGetAuxVarVecLoc(realization%patch%aux%Material, &
+                               realization%field%work_loc,POROSITY, &
+                               ZERO_INTEGER)
+  call VecMin(realization%field%work_loc,ivalue,min_value,ierr)
   if (min_value < 0.d0) then
     write(option%io_buffer,*) 'Sum of mineral volume fractions has ' // &
       'exceeded 1.d0 at cell (note PETSc numbering): ', ivalue
@@ -1739,6 +1730,9 @@ subroutine RealizationUpdatePropertiesPatch(realization)
 
   use Grid_module
   use Reactive_Transport_Aux_module
+  use Material_Aux_class
+  use Variables_module, only : POROSITY, TORTUOSITY, PERMEABILITY_X, &
+                               PERMEABILITY_Y, PERMEABILITY_Z
  
   implicit none
   
@@ -1752,17 +1746,17 @@ subroutine RealizationUpdatePropertiesPatch(realization)
   type(material_property_ptr_type), pointer :: material_property_array(:)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:) 
   type(discretization_type), pointer :: discretization
+  class(material_auxvar_type), pointer :: material_auxvars(:)
 
   PetscInt :: local_id, ghosted_id
-  PetscInt :: imnrl, imnrl1, imnrl_armor
+  PetscInt :: imnrl, imnrl1, imnrl_armor, imat
   PetscReal :: sum_volfrac
   PetscReal :: scale, porosity_scale, volfrac_scale
   PetscBool :: porosity_updated
   PetscReal, pointer :: vec_p(:)
-  PetscReal, pointer :: porosity_loc_p(:), porosity0_p(:)
-  PetscReal, pointer :: tortuosity_loc_p(:), tortuosity0_p(:)
+  PetscReal, pointer :: porosity0_p(:)
+  PetscReal, pointer :: tortuosity0_p(:)
   PetscReal, pointer :: perm0_xx_p(:), perm0_yy_p(:), perm0_zz_p(:)
-  PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
   PetscErrorCode :: ierr
 
   option => realization%option
@@ -1772,7 +1766,8 @@ subroutine RealizationUpdatePropertiesPatch(realization)
   reaction => realization%reaction
   grid => patch%grid
   material_property_array => realization%material_property_array
-  rt_auxvars => patch%aux%RT%aux_vars
+  rt_auxvars => patch%aux%RT%auxvars
+  material_auxvars => patch%aux%Material%auxvars
 
   if (.not.associated(patch%imat)) then
     option%io_buffer = 'Materials IDs not present in run.  Material ' // &
@@ -1784,8 +1779,6 @@ subroutine RealizationUpdatePropertiesPatch(realization)
   if (reaction%update_porosity) then
     porosity_updated = PETSC_TRUE
   
-    call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
-
     if (reaction%mineral%nkinmnrl > 0) then
       do local_id = 1, grid%nlmax
         ghosted_id = grid%nL2G(local_id)
@@ -1797,12 +1790,10 @@ subroutine RealizationUpdatePropertiesPatch(realization)
           sum_volfrac = sum_volfrac + &
                         rt_auxvars(ghosted_id)%mnrl_volfrac(imnrl)
         enddo 
-        porosity_loc_p(ghosted_id) = max(1.d0-sum_volfrac, &
-                                         reaction%minimum_porosity)
+        material_auxvars(ghosted_id)%porosity = &
+          max(1.d0-sum_volfrac,reaction%minimum_porosity)
       enddo
     endif
-
-    call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
     
   endif
   
@@ -1814,14 +1805,13 @@ subroutine RealizationUpdatePropertiesPatch(realization)
       (reaction%update_mineral_surface_area .and. &
        reaction%update_mnrl_surf_with_porosity)) then
     call VecGetArrayF90(field%porosity0,porosity0_p,ierr)
-    call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
     call VecGetArrayF90(field%work,vec_p,ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
-      vec_p(local_id) = porosity_loc_p(ghosted_id)/porosity0_p(local_id)
+      vec_p(local_id) = material_auxvars(ghosted_id)%porosity / &
+                        porosity0_p(local_id)
     enddo
     call VecRestoreArrayF90(field%porosity0,porosity0_p,ierr)
-    call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
     call VecRestoreArrayF90(field%work,vec_p,ierr)
   endif      
 
@@ -1914,49 +1904,58 @@ subroutine RealizationUpdatePropertiesPatch(realization)
       call VecRestoreArrayF90(field%work,vec_p,ierr)
     endif
 
-    call DiscretizationLocalToLocal(discretization,field%tortuosity_loc, &
-                                     field%tortuosity_loc,ONEDOF)
+    call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 TORTUOSITY,ZERO_INTEGER)
+    call DiscretizationLocalToLocal(discretization,field%work_loc, &
+                                    field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 TORTUOSITY,ZERO_INTEGER)
   endif
       
   if (reaction%update_tortuosity) then
-    call VecGetArrayF90(field%tortuosity_loc,tortuosity_loc_p,ierr)  
     call VecGetArrayF90(field%tortuosity0,tortuosity0_p,ierr)  
     call VecGetArrayF90(field%work,vec_p,ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       scale = vec_p(local_id)** &
         material_property_array(patch%imat(ghosted_id))%ptr%tortuosity_pwr
-      tortuosity_loc_p(ghosted_id) = tortuosity0_p(local_id)*scale
+      material_auxvars(ghosted_id)%tortuosity = &
+        tortuosity0_p(local_id)*scale
     enddo
-    call VecRestoreArrayF90(field%tortuosity_loc,tortuosity_loc_p,ierr)  
     call VecRestoreArrayF90(field%tortuosity0,tortuosity0_p,ierr)  
     call VecRestoreArrayF90(field%work,vec_p,ierr)
-
-    call DiscretizationLocalToLocal(discretization,field%tortuosity_loc, &
-                                     field%tortuosity_loc,ONEDOF)
+    call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 TORTUOSITY,ZERO_INTEGER)
+    call DiscretizationLocalToLocal(discretization,field%work_loc, &
+                                    field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 TORTUOSITY,ZERO_INTEGER)
   endif
       
   if (reaction%update_permeability) then
     call VecGetArrayF90(field%porosity0,porosity0_p,ierr)
-    call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
     call VecGetArrayF90(field%perm0_xx,perm0_xx_p,ierr)
     call VecGetArrayF90(field%perm0_zz,perm0_zz_p,ierr)
     call VecGetArrayF90(field%perm0_yy,perm0_yy_p,ierr)
-    call VecGetArrayF90(field%perm_xx_loc,perm_xx_loc_p,ierr)
-    call VecGetArrayF90(field%perm_zz_loc,perm_zz_loc_p,ierr)
-    call VecGetArrayF90(field%perm_yy_loc,perm_yy_loc_p,ierr)
 !   call VecGetArrayF90(field%work,vec_p,ierr)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
-      if (porosity_loc_p(ghosted_id) >= material_property_array(patch%imat(ghosted_id))%ptr%permeability_crit_por) then
-        scale = ((porosity_loc_p(ghosted_id)-material_property_array(patch%imat(ghosted_id))%ptr%permeability_crit_por) &
-        /(porosity0_p(local_id)-material_property_array(patch%imat(ghosted_id))%ptr%permeability_crit_por))** &
-        material_property_array(patch%imat(ghosted_id))%ptr%permeability_pwr
+      imat = patch%imat(ghosted_id)
+      if (material_auxvars(ghosted_id)%porosity >= &
+          material_property_array(imat)%ptr%permeability_crit_por) then
+        scale = ((material_auxvars(ghosted_id)%porosity - &
+                  material_property_array(imat)%ptr%permeability_crit_por) &
+                /(porosity0_p(local_id) - &
+                  material_property_array(imat)%ptr%permeability_crit_por))** &
+                material_property_array(imat)%ptr%permeability_pwr
 
 #ifdef PERM
-        scale = scale*((1.001-porosity0_p(local_id)**2)/(1.001-porosity_loc_p(ghosted_id)**2))
+        scale = scale*((1.001-porosity0_p(local_id)**2.d0) / &
+                (1.001-material_auxvars(ghosted_id)%porosity**2.d0))
 #endif
-
+      option%io_buffer = 'Incorrect scaling in RealizationUpdatePropertiesPatch()'
+      call printErrMsg(option)
+      !geh: I am not sure who wrote this but it cannot possibly be correct!!!
         if (scale < material_property_array(patch%imat(ghosted_id))%ptr%permeability_min_scale_fac) &
           scale = material_property_array(patch%imat(ghosted_id))%ptr%permeability_min_scale_fac
       else
@@ -1964,26 +1963,36 @@ subroutine RealizationUpdatePropertiesPatch(realization)
       endif
 !     scale = vec_p(local_id)** &
 !             material_property_array(patch%imat(ghosted_id))%ptr%permeability_pwr
-      perm_xx_loc_p(ghosted_id) = perm0_xx_p(local_id)*scale
-      perm_yy_loc_p(ghosted_id) = perm0_yy_p(local_id)*scale
-      perm_zz_loc_p(ghosted_id) = perm0_zz_p(local_id)*scale
+      material_auxvars(ghosted_id)%permeability(perm_xx_index) = &
+        perm0_xx_p(local_id)*scale
+      material_auxvars(ghosted_id)%permeability(perm_yy_index) = &
+        perm0_yy_p(local_id)*scale
+      material_auxvars(ghosted_id)%permeability(perm_zz_index) = &
+        perm0_zz_p(local_id)*scale
     enddo
     call VecRestoreArrayF90(field%porosity0,porosity0_p,ierr)
-    call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
     call VecRestoreArrayF90(field%perm0_xx,perm0_xx_p,ierr)
     call VecRestoreArrayF90(field%perm0_zz,perm0_zz_p,ierr)
     call VecRestoreArrayF90(field%perm0_yy,perm0_yy_p,ierr)
-    call VecRestoreArrayF90(field%perm_xx_loc,perm_xx_loc_p,ierr)
-    call VecRestoreArrayF90(field%perm_zz_loc,perm_zz_loc_p,ierr)
-    call VecRestoreArrayF90(field%perm_yy_loc,perm_yy_loc_p,ierr)
-!   call VecRestoreArrayF90(field%work,vec_p,ierr)
 
-    call DiscretizationLocalToLocal(discretization,field%perm_xx_loc, &
-                                    field%perm_xx_loc,ONEDOF)
-    call DiscretizationLocalToLocal(discretization,field%perm_yy_loc, &
-                                    field%perm_yy_loc,ONEDOF)
-    call DiscretizationLocalToLocal(discretization,field%perm_zz_loc, &
-                                    field%perm_zz_loc,ONEDOF)
+    call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_X,ZERO_INTEGER)
+    call DiscretizationLocalToLocal(discretization,field%work_loc, &
+                                    field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_X,ZERO_INTEGER)
+    call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_Y,ZERO_INTEGER)
+    call DiscretizationLocalToLocal(discretization,field%work_loc, &
+                                    field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_Y,ZERO_INTEGER)
+    call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_Z,ZERO_INTEGER)
+    call DiscretizationLocalToLocal(discretization,field%work_loc, &
+                                    field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_Z,ZERO_INTEGER)
   endif  
   
 end subroutine RealizationUpdatePropertiesPatch
@@ -2105,7 +2114,7 @@ subroutine RealizationSetUpBC4Faces(realization)
   type(field_type), pointer :: field
   
 
-  type(mfd_auxvar_type), pointer :: aux_var
+  type(mfd_auxvar_type), pointer :: auxvar
   type(connection_set_type), pointer :: conn
   type(coupler_type), pointer ::  boundary_condition
 
@@ -2133,9 +2142,9 @@ subroutine RealizationSetUpBC4Faces(realization)
       local_id = boundary_condition%region%cell_ids(iconn)
       ghosted_id = grid%nL2G(local_id)
 
-      aux_var => grid%MFD%aux_vars(local_id)
-      do j = 1, aux_var%numfaces
-        ghost_face_id = aux_var%face_id_gh(j)
+      auxvar => grid%MFD%auxvars(local_id)
+      do j = 1, auxvar%numfaces
+        ghost_face_id = auxvar%face_id_gh(j)
         local_face_id = grid%fG2L(ghost_face_id)
         conn => grid%faces(ghost_face_id)%conn_set_ptr
         jface = grid%faces(ghost_face_id)%id
@@ -2478,7 +2487,7 @@ end subroutine RealizationNonInitializedData
 
 ! ************************************************************************** !
 
-subroutine RealizationDestroy(realization)
+subroutine RealizationDestroyLegacy(realization)
   ! 
   ! Deallocates a realization
   ! 
@@ -2541,6 +2550,56 @@ subroutine RealizationDestroy(realization)
   deallocate(realization)
   nullify(realization)
   
-end subroutine RealizationDestroy
+end subroutine RealizationDestroyLegacy
+
+! ************************************************************************** !
+
+subroutine RealizationStrip(this)
+  ! 
+  ! Deallocates a realization
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/01/07
+  ! 
+
+  use Dataset_module
+
+  implicit none
+  
+  class(realization_type) :: this
+  
+  call RealizationBaseStrip(this)
+  call RegionDestroyList(this%regions)
+  
+  call FlowConditionDestroyList(this%flow_conditions)
+  call TranConditionDestroyList(this%transport_conditions)
+  call TranConstraintDestroyList(this%transport_constraints)
+
+  if (associated(this%fluid_property_array)) &
+    deallocate(this%fluid_property_array)
+  nullify(this%fluid_property_array)
+  call FluidPropertyDestroy(this%fluid_properties)
+  
+  if (associated(this%material_property_array)) &
+    deallocate(this%material_property_array)
+  nullify(this%material_property_array)
+  call MaterialPropertyDestroy(this%material_properties)
+
+  if (associated(this%saturation_function_array)) &
+    deallocate(this%saturation_function_array)
+  nullify(this%saturation_function_array)
+  call SaturationFunctionDestroy(this%saturation_functions)
+
+  call DatasetDestroy(this%datasets)
+  
+  call UniformVelocityDatasetDestroy(this%uniform_velocity_dataset)
+  
+  call ReactionDestroy(this%reaction)
+  
+  call TranConstraintDestroy(this%sec_transport_constraint)
+  
+  call WaypointListDestroy(this%waypoints)
+  
+end subroutine RealizationStrip
 
 end module Realization_class

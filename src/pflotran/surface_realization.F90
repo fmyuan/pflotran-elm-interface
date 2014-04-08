@@ -1,5 +1,3 @@
-#ifdef SURFACE_FLOW
-
 module Surface_Realization_class
 
   use Realization_Base_class
@@ -109,11 +107,14 @@ function SurfRealizCreate(option)
   nullify(surf_realization%input)
 
   surf_realization%surf_field => SurfaceFieldCreate()
-  surf_realization%debug => DebugCreate()
-  surf_realization%output_option => OutputOptionCreate()
-  surf_realization%patch_list => PatchCreateList()
+  !geh: debug, output_option, patch_list already allocated in 
+  !     RealizationBaseInit()
+  !geh: surf_realization%debug => DebugCreate()
+  !geh: surf_realization%output_option => OutputOptionCreate()
+  !geh: surf_realization%patch_list => PatchCreateList()
 
   nullify(surf_realization%surf_material_properties)
+  nullify(surf_realization%surf_material_property_array)
 
   allocate(surf_realization%surf_regions)
   call RegionInitList(surf_realization%surf_regions)
@@ -372,57 +373,17 @@ subroutine SurfRealizCreateDiscretization(surf_realization)
   call DiscretizationDuplicateVector(discretization,surf_field%flow_xx, &
                                      surf_field%work)
 
-  call DiscretizationDuplicateVector(discretization,surf_field%flow_xx, &
-                                     surf_field%exchange_subsurf_2_surf)
-
   ! 1 degree of freedom, global
   call DiscretizationCreateVector(discretization,ONEDOF,surf_field%mannings0, &
                                   GLOBAL,option)
   call VecSet(surf_field%mannings0,0.d0,ierr)
 
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
+   call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
                                      surf_field%area)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%Dq)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%perm_xx)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%perm_yy)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%perm_zz)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%por)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%icap_loc)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%ithrm_loc)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%subsurf_xx)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%subsurf_yy)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%subsurf_zz)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%surf2subsurf_dist)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%surf2subsurf_dist_gravity)
   call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
                                      surf_field%press_subsurf)
   call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
                                      surf_field%temp_subsurf)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%sat_ice)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%ckwet)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%ckdry)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%ckice)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%th_alpha)
-  call DiscretizationDuplicateVector(discretization,surf_field%mannings0, &
-                                     surf_field%th_alpha_fr)
-
   ! n degrees of freedom, local
   call DiscretizationCreateVector(discretization,NFLOWDOF,surf_field%flow_xx_loc, &
                                   LOCAL,option)
@@ -440,7 +401,7 @@ subroutine SurfRealizCreateDiscretization(surf_realization)
   ! set up nG2L, NL2G, etc.
   call UGridMapIndices(grid%unstructured_grid,discretization%dm_1dof%ugdm, &
                         grid%nG2L,grid%nL2G,grid%nG2A,grid%nG2P,option)
-  call GridComputeCoordinates(grid,discretization%origin,option, & 
+  call GridComputeCoordinates(grid,discretization%origin,option, &
                               discretization%dm_1dof%ugdm) 
   call UGridEnsureRightHandRule(grid%unstructured_grid,grid%x, &
                                 grid%y,grid%z,grid%nG2A,grid%nL2G,option)
@@ -1012,36 +973,6 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
   call SurfRealizMapSurfSubsurfGrid(realization, surf_realization, prod, THREE_DIM_GRID, &
                                         subsurf_petsc_ids)
 
-  ! For each control volume in surface mesh, get the corresponding natural ids of
-  ! subsurface control volume
-  dm_ptr => DiscretizationGetDMPtrFromIndex(realization%discretization,ONEDOF)
-  call VecScatterBegin(dm_ptr%ugdm%scatter_bet_grids_1dof, &
-                       subsurf_nat_ids, corr_subsurf_nat_ids, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr)
-  call VecScatterEnd(dm_ptr%ugdm%scatter_bet_grids_1dof, &
-                       subsurf_nat_ids, corr_subsurf_nat_ids, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr)
-
-  dm_ptr => DiscretizationGetDMPtrFromIndex(surf_realization%discretization,ONEDOF)
-  call VecScatterBegin(dm_ptr%ugdm%scatter_bet_grids_1dof, &
-                       surf_nat_ids, corr_surf_nat_ids, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr)
-  call VecScatterEnd(dm_ptr%ugdm%scatter_bet_grids_1dof, &
-                       surf_nat_ids, corr_surf_nat_ids, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr)
-
-  ! Save the natural ids
-  allocate(surf_grid%nat_ids_of_other_grid(surf_grid%nlmax))
-  allocate(subsurf_grid%nat_ids_of_other_grid(top_region%num_cells))
-
-  call VecGetArrayF90(corr_subsurf_nat_ids,vec_ptr,ierr)
-  call VecGetArrayF90(corr_surf_nat_ids,vec_ptr2,ierr)
-  surf_grid%nat_ids_of_other_grid = vec_ptr
-  subsurf_grid%nat_ids_of_other_grid = vec_ptr2
-  call VecRestoreArrayF90(corr_subsurf_nat_ids,vec_ptr,ierr)
-  call VecRestoreArrayF90(corr_surf_nat_ids,vec_ptr2,ierr)
-
-  ! Free up the memory
   call MatDestroy(prod,ierr)
 
   call MatDestroy(Mat_vert_to_face_subsurf,ierr)
@@ -1051,10 +982,6 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
 
   call VecDestroy(subsurf_petsc_ids,ierr)
   call VecDestroy(surf_petsc_ids,ierr)
-  call VecDestroy(subsurf_nat_ids,ierr)
-  call VecDestroy(surf_nat_ids,ierr)
-  call VecDestroy(corr_subsurf_nat_ids,ierr)
-  call VecDestroy(corr_surf_nat_ids,ierr)
   
 end subroutine SurfRealizMapSurfSubsurfGrids
 
@@ -1296,6 +1223,9 @@ subroutine SurfRealizDestroy(surf_realization)
   
   if(.not.associated(surf_realization)) return
   
+  !geh: deallocate everything in base
+  call RealizationBaseStrip(surf_realization)
+  
   call SurfaceFieldDestroy(surf_realization%surf_field)
   
   call RegionDestroyList(surf_realization%surf_regions)
@@ -1506,5 +1436,3 @@ subroutine SurfRealizAddWaypointsToList(surf_realization)
 end subroutine SurfRealizAddWaypointsToList
 
 end module Surface_Realization_class
-
-#endif

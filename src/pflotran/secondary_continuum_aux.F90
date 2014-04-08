@@ -35,7 +35,6 @@ module Secondary_Continuum_Aux_module
   end type sec_continuum_type                 ! farthest is the cell center closest to interface between prim. and sec. continuua
 
   type, public :: sec_heat_type  
-    PetscBool :: sec_temp_update               ! flag to check if the temp is updated
     PetscInt :: ncells                         ! number of secondary grid cells
     PetscReal :: aperture                      ! fracture aperture
     PetscReal :: epsilon                       ! vol. frac. of primary continuum
@@ -69,7 +68,7 @@ module Secondary_Continuum_Aux_module
     PetscReal, pointer :: cxp(:,:,:)           ! stores the coeff of right diag in block triag system (ncomp x ncomp x ncells-1)
     PetscReal, pointer :: cdl(:,:,:)           ! stores the coeff of central diag in block triag system (ncomp x ncomp x ncells)
     PetscReal, pointer :: r(:)                 ! stores the solution of the forward solve
-    PetscReal, pointer :: updated_conc(:,:)    ! stores the update of molalities at end of each primary iteration
+    PetscReal, pointer :: updated_conc(:,:)    ! stores the update of molalities at end of each primary iteration       
   end type sec_transport_type  
         
 
@@ -164,7 +163,7 @@ end function SecondaryAuxRTCreate
 
 ! ************************************************************************** !
 
-subroutine SecondaryAuxVarRTDestroy(aux_var)
+subroutine SecondaryAuxVarRTDestroy(auxvar)
   ! 
   ! Deallocates a secondary continuum reactive
   ! transport auxiliary variable object
@@ -177,18 +176,18 @@ subroutine SecondaryAuxVarRTDestroy(aux_var)
 
   implicit none
   
-  type(sec_transport_type) :: aux_var
+  type(sec_transport_type) :: auxvar
   
-  call RTAuxVarDestroy(aux_var%sec_rt_auxvar)
-  call DeallocateArray(aux_var%area)
-  call DeallocateArray(aux_var%vol)
-  call DeallocateArray(aux_var%dm_plus)
-  call DeallocateArray(aux_var%dm_minus)
-  call DeallocateArray(aux_var%sec_jac)
-  call DeallocateArray(aux_var%cxm)
-  call DeallocateArray(aux_var%cxp)
-  call DeallocateArray(aux_var%cdl)
-  call DeallocateArray(aux_var%r)
+  call RTAuxVarDestroy(auxvar%sec_rt_auxvar)
+  call DeallocateArray(auxvar%area)
+  call DeallocateArray(auxvar%vol)
+  call DeallocateArray(auxvar%dm_plus)
+  call DeallocateArray(auxvar%dm_minus)
+  call DeallocateArray(auxvar%sec_jac)
+  call DeallocateArray(auxvar%cxm)
+  call DeallocateArray(auxvar%cxp)
+  call DeallocateArray(auxvar%cdl)
+  call DeallocateArray(auxvar%r)
   
 end subroutine SecondaryAuxVarRTDestroy
 
