@@ -139,10 +139,28 @@ subroutine LangmuirSetup(this,reaction,option)
   this%ispec_nh4a = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
+  if(this%ispec_nh4a < 0) then
+     word = 'NH4+'
+     this%ispec_nh4a = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+  endif
+
   word = 'NH4sorb'
   this%ispec_nh4s = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
- 
+
+  if(this%ispec_nh4a < 0) then 
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,LANGMUIR,' // &
+            'NH4+ or NH3(aq) is  not defined as primary species!.'
+     call printErrMsg(option)
+  endif
+
+  if(this%ispec_nh4s < 0) then 
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,LANGMUIR,' // &
+            'NH4sorb is  not defined as primary species!.'
+     call printErrMsg(option)
+  endif
+
 end subroutine LangmuirSetup
 
 ! ************************************************************************** !

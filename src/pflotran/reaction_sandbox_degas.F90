@@ -143,18 +143,50 @@ subroutine degasSetup(this,reaction,option)
   this%ispec_co2a = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
-  word = 'H+'
-  this%ispec_proton = GetPrimarySpeciesIDFromName(word,reaction, &
+  if(this%ispec_co2a < 0) then
+     word = 'CO2(aq)'
+     this%ispec_co2a = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
+  endif
+
+  if(this%ispec_co2a < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
+            'aqueous species, either HCO3- or CO2(aq) is not defined!'
+     call printErrMsg(option)
+  endif
 
   word = 'Cimm'
   this%ispec_co2g = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
  
-  word = 'Himm'
-  this%ispec_himm = GetImmobileSpeciesIDFromName( &
+  if(this%ispec_co2g < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
+            'gas species Cimm is not defined!'
+     call printErrMsg(option)
+  endif
+
+  if(this%b_fixph) then
+     word = 'H+'
+     this%ispec_proton = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+
+     word = 'Himm'
+     this%ispec_himm = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
+   
+     if(this%ispec_proton < 0) then
+        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
+            'H+ is not defined even though pH needs to be fixed!'
+        call printErrMsg(option)
+     endif
  
+     if(this%ispec_himm < 0) then
+        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
+            'Himm is not defined even though pH needs to be fixed!'
+        call printErrMsg(option)
+     endif
+  endif
+
 end subroutine degasSetup
 
 ! ************************************************************************** !
