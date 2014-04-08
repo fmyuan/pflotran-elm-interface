@@ -19,6 +19,7 @@ src/.DS_Store
 src/pflotran/*.o
 src/pflotran/*.MOD
 src/pflotran/pflotran
+src/pflotran/pflotran_provenance.F90
 src/pflotran/pflotran_fc
 src/pflotran/pflow
 src/pflotran/ptran
@@ -308,3 +309,7 @@ src/clm-pflotran/pm_th.F90
 src/clm-pflotran/pm_thc.F90
 src/clm-pflotran/pm_top.F90
 
+.git
+.gitignore
+*.rej
+*.pyc

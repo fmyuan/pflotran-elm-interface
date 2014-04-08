@@ -168,6 +168,8 @@ subroutine PMImmisInitializeTimestep(this)
 
   use Immis_module, only : ImmisInitializeTimestep
   use Global_module
+  use Material_module
+  use Variables_module, only : POROSITY
   
   implicit none
   
@@ -181,8 +183,10 @@ subroutine PMImmisInitializeTimestep(this)
 
 #ifndef SIMPLIFY  
   ! update porosity
-  call this%comm1%LocalToLocal(this%realization%field%porosity_loc, &
-                              this%realization%field%porosity_loc)
+  call MaterialAuxVarCommunicate(this%comm1, &
+                                 this%realization%patch%aux%Material, &
+                                 this%realization%field%work_loc, &
+                                 POROSITY,ZERO_INTEGER)
 #endif
 
   if (this%option%print_screen_flag) then
@@ -458,7 +462,7 @@ end subroutine PMImmisResidual
 
 ! ************************************************************************** !
 
-subroutine PMImmisJacobian(this,snes,xx,A,B,flag,ierr)
+subroutine PMImmisJacobian(this,snes,xx,A,B,ierr)
   ! 
   ! Author: Gautam Bisht
   ! Date: 11/27/13
@@ -472,7 +476,6 @@ subroutine PMImmisJacobian(this,snes,xx,A,B,flag,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  MatStructure flag
   PetscErrorCode :: ierr
   
 #ifdef PM_IMMIS_DEBUG  
@@ -481,9 +484,9 @@ subroutine PMImmisJacobian(this,snes,xx,A,B,flag,ierr)
   
   select case(this%realization%discretization%itype)
     case(STRUCTURED_GRID_MIMETIC)
-!      call ImmisJacobianMFDLP(snes,xx,A,B,flag,this%realization,ierr)
+!      call ImmisJacobianMFDLP(snes,xx,A,B,this%realization,ierr)
     case default
-      call ImmisJacobian(snes,xx,A,B,flag,this%realization,ierr)
+      call ImmisJacobian(snes,xx,A,B,this%realization,ierr)
   end select
 
 end subroutine PMImmisJacobian

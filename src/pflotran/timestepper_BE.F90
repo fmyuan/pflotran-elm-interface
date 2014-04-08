@@ -36,6 +36,7 @@ module Timestepper_BE_class
     procedure, public :: UpdateDT => TimestepperBEUpdateDT
     procedure, public :: Checkpoint => TimestepperBECheckpoint
     procedure, public :: Restart => TimestepperBERestart
+    procedure, public :: Reset => TimestepperBEReset
     procedure, public :: FinalizeRun => TimestepperBEFinalizeRun
     procedure, public :: Destroy => TimestepperBEDestroy
     
@@ -326,6 +327,10 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
       ! The Newton solver diverged, so try reducing the time step.
       icut = icut + 1
       this%time_step_cut_flag = PETSC_TRUE
+      ! if a cut occurs on the last time step, the stop_flag will have been
+      ! set to TS_STOP_END_SIMULATION.  Set back to TS_CONTINUE to prevent
+      ! premature ending of simulation.
+      stop_flag = TS_CONTINUE
 
       if (icut > this%max_time_step_cuts .or. &
           this%dt < 1.d-20) then
@@ -341,7 +346,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
         plot_flag = PETSC_TRUE
         transient_plot_flag = PETSC_FALSE
         call Output(process_model%realization_base,plot_flag,transient_plot_flag)
-        stop_flag = 2
+        stop_flag = TS_STOP_FAILURE
         return
       endif
  
@@ -634,6 +639,28 @@ end subroutine TimestepperBEGetHeader
 
 ! ************************************************************************** !
 
+subroutine TimestepperBEReset(this)
+  ! 
+  ! Zeros timestepper object members.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 01/20/14
+  ! 
+
+  implicit none
+
+  class(stepper_BE_type) :: this
+  
+  this%cumulative_newton_iterations = 0
+  this%cumulative_linear_iterations = 0
+  this%num_newton_iterations = 0
+
+  call TimestepperBaseReset(this)
+  
+end subroutine TimestepperBEReset
+
+! ************************************************************************** !
+
 recursive subroutine TimestepperBEFinalizeRun(this,option)
   ! 
   ! Finalizes the time stepping
@@ -682,6 +709,7 @@ subroutine TimestepperBEStrip(this)
   
   class(stepper_BE_type) :: this
   
+  call TimestepperBaseStrip(this)
   call SolverDestroy(this%solver)
   call ConvergenceContextDestroy(this%convergence_context)
 
@@ -704,7 +732,7 @@ subroutine TimestepperBEDestroy(this)
   
   class(stepper_BE_type) :: this
   
-  call TimestepperBaseStrip(this)
+  call TimestepperBEStrip(this)
   
 !  deallocate(this)
 !  nullify(this)

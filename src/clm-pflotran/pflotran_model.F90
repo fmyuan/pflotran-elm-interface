@@ -470,7 +470,7 @@ subroutine pflotranModelSetICs(pflotran_model)
     patch           => realization%patch
     grid            => patch%grid
     field           => realization%field
-    global_aux_vars  => patch%aux%Global%aux_vars
+    global_aux_vars  => patch%aux%Global%auxvars
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
@@ -594,9 +594,9 @@ end subroutine pflotranModelSetICs
 
     select case(pflotran_model%option%iflowmode)
       case(RICHARDS_MODE)
-        rich_aux_vars   => patch%aux%Richards%aux_vars
+        rich_aux_vars   => patch%aux%Richards%auxvars
       case(TH_MODE)
-        th_aux_vars   => patch%aux%TH%aux_vars
+        th_aux_vars   => patch%aux%TH%auxvars
       case default
         call printErrMsg(pflotran_model%option, &
           'Current PFLOTRAN mode not supported by pflotranModelSetSoilProp')
@@ -640,10 +640,10 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
     call VecGetArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
-    call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
-    call VecGetArrayF90(field%perm_xx_loc,  perm_xx_loc_p,  ierr)
-    call VecGetArrayF90(field%perm_yy_loc,  perm_yy_loc_p,  ierr)
-    call VecGetArrayF90(field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+    !call VecGetArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+    !call VecGetArrayF90(field%perm_xx_loc,  perm_xx_loc_p,  ierr)
+    !call VecGetArrayF90(field%perm_yy_loc,  perm_yy_loc_p,  ierr)
+    !call VecGetArrayF90(field%perm_zz_loc,  perm_zz_loc_p,  ierr)
 
     do local_id = 1, grid%ngmax
 
@@ -683,10 +683,10 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
     call VecRestoreArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
-    call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
-    call VecRestoreArrayF90(field%perm_xx_loc,  perm_xx_loc_p,  ierr)
-    call VecRestoreArrayF90(field%perm_yy_loc,  perm_yy_loc_p,  ierr)
-    call VecRestoreArrayF90(field%perm_zz_loc,  perm_zz_loc_p,  ierr)
+    !call VecRestoreArrayF90(field%porosity_loc, porosity_loc_p, ierr)
+    !call VecRestoreArrayF90(field%perm_xx_loc,  perm_xx_loc_p,  ierr)
+    !call VecRestoreArrayF90(field%perm_yy_loc,  perm_yy_loc_p,  ierr)
+    !call VecRestoreArrayF90(field%perm_zz_loc,  perm_zz_loc_p,  ierr)
 
   end subroutine pflotranModelSetSoilProp
 
@@ -2607,7 +2607,7 @@ end subroutine pflotranModelSetICs
     end select
     patch           => realization%patch
     grid            => patch%grid
-    global_aux_vars => patch%aux%Global%aux_vars
+    global_aux_vars => patch%aux%Global%auxvars
     
     ! Save the saturation values
     call VecGetArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
@@ -2675,7 +2675,7 @@ end subroutine pflotranModelSetICs
     end select
     patch           => surf_realization%patch
     grid            => patch%grid
-    surf_global_aux_vars => patch%surf_aux%SurfaceGlobal%aux_vars
+    surf_global_aux_vars => patch%surf_aux%SurfaceGlobal%auxvars
 
     ! Save the standing head of water values
     call VecGetArrayF90(clm_pf_idata%h2osfc_pf, h2osfc_pf_p, ierr)
@@ -2746,8 +2746,8 @@ end subroutine pflotranModelSetICs
     end select
     patch           => realization%patch
     grid            => patch%grid
-    global_aux_vars => patch%aux%Global%aux_vars
-    th_aux_vars     => patch%aux%TH%aux_vars
+    global_aux_vars => patch%aux%Global%auxvars
+    th_aux_vars     => patch%aux%TH%auxvars
 
     call VecGetArrayF90(clm_pf_idata%temp_pf, temp_pf_p, ierr)
     do ghosted_id=1,grid%ngmax

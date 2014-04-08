@@ -1,5 +1,3 @@
-#ifdef SURFACE_FLOW
-
 module Surface_Init_module
 
   use PFLOTRAN_Constants_module
@@ -281,7 +279,7 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
     call InputReadWord(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','SURFACE_FLOW')
     call StringToUpper(word)
-    write(*,*),'word :: ',trim(word)
+    write(*,*) 'word :: ',trim(word)
 
     select case(trim(word))
       !.........................................................................
@@ -293,8 +291,8 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
         call InputReadWord(input,option,word,PETSC_TRUE)
         call StringToUpper(word)
         select case(trim(word))
-          case ('KINEMATIC')
-            option%surface_flow_formulation = KINEMATIC_WAVE
+          !case ('KINEMATIC')
+          !  option%surface_flow_formulation = KINEMATIC_WAVE
           case ('DIFFUSIVE')
             option%surface_flow_formulation = DIFFUSION_WAVE
           case default
@@ -384,12 +382,10 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
         select case(trim(word))
           case('DECOUPLED')
             option%subsurf_surf_coupling = DECOUPLED
-          case('SEQ_COUPLED')
-            option%subsurf_surf_coupling = SEQ_COUPLED
           case('FULLY_COUPLED')
             option%subsurf_surf_coupling = FULLY_COUPLED
-          case('SEQ_COUPLED_NEW')
-            option%subsurf_surf_coupling = SEQ_COUPLED_NEW
+          case('SEQ_COUPLED')
+            option%subsurf_surf_coupling = SEQ_COUPLED
           case default
             option%io_buffer = 'Invalid value for SURF_SUBSURFACE_COUPLING'
             call printErrMsg(option)
@@ -443,7 +439,7 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
                     waypoint => WaypointCreate()
                     waypoint%time = temp_real*units_conversion
                     waypoint%print_output = PETSC_TRUE
-                    write(*,*),'Inserting waypoint in surf_realization: ',waypoint%time
+                    write(*,*) 'Inserting waypoint in surf_realization: ',waypoint%time
                     call WaypointInsertInList(waypoint,surf_realization%waypoints)
                   endif
                 enddo
@@ -529,7 +525,7 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
                         waypoint => WaypointCreate()
                         waypoint%time = temp_real
                         waypoint%print_output = PETSC_TRUE
-                        write(*,*),'Inserting waypoint in surf_realization: >>>>>>>> ',waypoint%time
+                        write(*,*) 'Inserting waypoint in surf_realization: >>>>>>>> ',waypoint%time
                         call WaypointInsertInList(waypoint,surf_realization%waypoints)
                         temp_real = temp_real + output_option%periodic_output_time_incr
                         if (temp_real > temp_real2) exit
@@ -1081,5 +1077,3 @@ subroutine SurfaceInitReadRegionFiles(surf_realization)
 end subroutine SurfaceInitReadRegionFiles
 
 end module Surface_Init_module
-
-#endif

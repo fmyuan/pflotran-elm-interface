@@ -37,9 +37,11 @@ module Solver_module
     PetscReal :: newton_rtol       ! relative tolerance
     PetscReal :: newton_stol       ! relative tolerance (relative to previous iteration)
     PetscReal :: newton_dtol       ! divergence tolerance
-    PetscReal :: newton_stomp_tol  ! tolerance based on STOMP convergence
     PetscReal :: newton_inf_res_tol    ! infinity tolerance for residual
     PetscReal :: newton_inf_upd_tol    ! infinity tolerance for update
+    PetscReal :: newton_inf_rel_update_tol ! infinity norm on relative update (c(i)-c(i-1))/c(i-1)
+    PetscReal :: newton_inf_scaled_res_tol ! infinity norm on scale residual (r(i)/accum(i))
+    PetscBool :: check_post_convergence ! toggle for checking convergence in XXXCheckUpdatePost()
     PetscReal :: newton_inf_res_tol_sec  ! infinity tolerance for secondary continuum residual
     PetscInt :: newton_maxit     ! maximum number of iterations
     PetscInt :: newton_maxf      ! maximum number of function evaluations
@@ -131,7 +133,9 @@ function SolverCreate()
   solver%max_norm = 1.d20     ! set to a large value
   solver%newton_inf_res_tol = 1.d-50 ! arbitrarily set by geh
   solver%newton_inf_upd_tol = 1.d-50 ! arbitrarily set by geh
-  solver%newton_stomp_tol = 1.d-6 ! the default in STOMP
+  solver%newton_inf_rel_update_tol = 1.d-50 ! arbitrarily set by geh
+  solver%newton_inf_scaled_res_tol = 1.d-50 ! arbitrarily set by geh
+  solver%check_post_convergence = PETSC_FALSE
   solver%newton_inf_res_tol_sec = 1.d-10
   solver%newton_maxit = PETSC_DEFAULT_INTEGER
   solver%newton_maxf = PETSC_DEFAULT_INTEGER
@@ -698,11 +702,18 @@ subroutine SolverReadNewton(solver,input,option)
       case('ITOL_UPDATE', 'INF_TOL_UPDATE')
         call InputReadDouble(input,option,solver%newton_inf_upd_tol)
         call InputDefaultMsg(input,option,'newton_inf_upd_tol')
-   
-      case('ITOL_STOMP')
-        option%check_stomp_norm = PETSC_TRUE
-        call InputReadDouble(input,option,solver%newton_stomp_tol)
-        call InputDefaultMsg(input,option,'newton_stomp_tol')
+
+      case('ITOL_SCALED_RESIDUAL')
+        solver%check_post_convergence = PETSC_TRUE
+        call InputReadDouble(input,option,solver%newton_inf_scaled_res_tol)
+        call InputDefaultMsg(input,option, &
+                             'infinity scaled residual tolerance')
+          
+      case('ITOL_RELATIVE_UPDATE')
+        solver%check_post_convergence = PETSC_TRUE
+        call InputReadDouble(input,option,solver%newton_inf_rel_update_tol)
+        call InputDefaultMsg(input,option, &
+                             'infinity relative update tolerance')
 
       case('ITOL_SEC','ITOL_RES_SEC','INF_TOL_SEC')
         if (.not.option%use_mc) then

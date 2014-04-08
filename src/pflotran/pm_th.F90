@@ -170,7 +170,10 @@ subroutine PMTHInitializeTimestep(this)
 
   use TH_module, only : THInitializeTimestep
   use Global_module
-  
+  use Variables_module, only : POROSITY, TORTUOSITY, PERMEABILITY_X, &
+                               PERMEABILITY_Y, PERMEABILITY_Z
+  use Material_module, only : MaterialAuxVarCommunicate
+
   implicit none
   
   class(pm_th_type) :: this
@@ -183,16 +186,30 @@ subroutine PMTHInitializeTimestep(this)
 
 #ifndef SIMPLIFY  
   ! update porosity
-  call this%comm1%LocalToLocal(this%realization%field%porosity_loc, &
-                              this%realization%field%porosity_loc)
-  call this%comm1%LocalToLocal(this%realization%field%tortuosity_loc, &
-                              this%realization%field%tortuosity_loc)
   call this%comm1%LocalToLocal(this%realization%field%icap_loc, &
                               this%realization%field%icap_loc)
   call this%comm1%LocalToLocal(this%realization%field%ithrm_loc, &
                               this%realization%field%ithrm_loc)
   call this%comm1%LocalToLocal(this%realization%field%iphas_loc, &
                               this%realization%field%iphas_loc)
+  call MaterialAuxVarCommunicate(this%comm1, &
+                                 this%realization%patch%aux%Material, &
+                                 this%realization%field%work_loc,POROSITY,0)
+  call MaterialAuxVarCommunicate(this%comm1, &
+                                 this%realization%patch%aux%Material, &
+                                 this%realization%field%work_loc,TORTUOSITY,0)
+  call MaterialAuxVarCommunicate(this%comm1, &
+                                 this%realization%patch%aux%Material, &
+                                 this%realization%field%work_loc, &
+                                 PERMEABILITY_X,0)
+  call MaterialAuxVarCommunicate(this%comm1, &
+                                 this%realization%patch%aux%Material, &
+                                 this%realization%field%work_loc, &
+                                 PERMEABILITY_Y,0)
+  call MaterialAuxVarCommunicate(this%comm1, &
+                                 this%realization%patch%aux%Material, &
+                                 this%realization%field%work_loc, &
+                                 PERMEABILITY_Z,0)
 #endif
 
   if (this%option%print_screen_flag) then
@@ -334,7 +351,6 @@ subroutine PMTHUpdateTimestep(this,dt,dt_max,iacceleration, &
   PetscReal :: ut
   PetscReal :: up
   PetscReal :: utmp
-  PetscReal :: uus
   PetscReal :: dtt
   PetscReal :: dt_p
   PetscReal :: dt_tfac
@@ -351,8 +367,7 @@ subroutine PMTHUpdateTimestep(this,dt,dt_max,iacceleration, &
   else
     up = this%option%dpmxe/(this%option%dpmax+0.1)
     utmp = this%option%dtmpmxe/(this%option%dtmpmax+1.d-5)
-    uus= this%option%dsmxe/(this%option%dsmax+1.d-6)
-    ut = min(up,utmp,uus)
+    ut = min(up,utmp)
   endif
   dtt = fac * dt * (1.d0 + ut)
 
@@ -454,7 +469,7 @@ end subroutine PMTHResidual
 
 ! ************************************************************************** !
 
-subroutine PMTHJacobian(this,snes,xx,A,B,flag,ierr)
+subroutine PMTHJacobian(this,snes,xx,A,B,ierr)
   ! 
   ! This routine
   ! 
@@ -470,14 +485,13 @@ subroutine PMTHJacobian(this,snes,xx,A,B,flag,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  MatStructure flag
   PetscErrorCode :: ierr
   
 #ifdef PM_TH_DEBUG
   call printMsg(this%option,'PMTH%Jacobian()')
 #endif
   
-  call THJacobian(snes,xx,A,B,flag,this%realization,ierr)
+  call THJacobian(snes,xx,A,B,this%realization,ierr)
 
 end subroutine PMTHJacobian
 
@@ -607,10 +621,8 @@ subroutine PMTHUpdateSolution(this)
   endif  
   ! end from RealizationUpdate()
   call THUpdateSolution(this%realization)
-#ifdef SURFACE_FLOW
   if(this%option%nsurfflowdof>0) &
     call THUpdateSurfaceBC(this%realization)
-#endif
 
 end subroutine PMTHUpdateSolution     
 

@@ -17,7 +17,8 @@ module PMC_Hydrogeophysics_class
   type, public, extends(pmc_base_type) :: pmc_hydrogeophysics_type
     class(realization_type), pointer :: realization
     Vec :: solution_seq
-    Vec :: solution_mpi
+    ! a pointer to solution_mpi in hydrogeophysics_simulation_type
+    Vec :: solution_mpi 
     VecScatter :: pf_to_e4d_scatter
     PetscMPIInt :: pf_to_e4d_master_comm
   contains
@@ -77,7 +78,8 @@ subroutine PMCHydrogeophysicsInit(this)
   this%solution_mpi = 0
   this%solution_seq = 0
   this%pf_to_e4d_scatter = 0
-
+  this%pf_to_e4d_master_comm = 0
+  
 end subroutine PMCHydrogeophysicsInit
 
 ! ************************************************************************** !
@@ -117,6 +119,7 @@ recursive subroutine PMCHydrogeophysicsRunToTime(this,sync_time,stop_flag)
   ! 
 
   use Hydrogeophysics_Wrapper_module, only : HydrogeophysicsWrapperStep
+  use Timestepper_Base_class, only : TS_CONTINUE
 
   implicit none
   
@@ -132,7 +135,7 @@ recursive subroutine PMCHydrogeophysicsRunToTime(this,sync_time,stop_flag)
   
   call this%GetAuxData()
   
-  local_stop_flag = 0
+  local_stop_flag = TS_CONTINUE
   
   call HydrogeophysicsWrapperStep(sync_time,this%solution_mpi, &
                                   this%solution_seq, &
@@ -248,6 +251,37 @@ end subroutine PMCHydrogeophysicsFinalizeRun
 
 ! ************************************************************************** !
 
+subroutine PMCHydrogeophysicsStrip(this)
+  !
+  ! Deallocates members of PMC Subsurface.
+  !
+  ! Author: Glenn Hammond
+  ! Date: 01/13/14
+  
+  implicit none
+  
+  class(pmc_hydrogeophysics_type) :: this
+  
+  PetscErrorCode :: ierr
+
+  call PMCBaseStrip(this)
+  nullify(this%realization)
+  ! created in HydrogeophysicsInitialize()
+  if (this%solution_seq /= 0) &
+    call VecDestroy(this%solution_seq,ierr)
+  this%solution_seq = 0
+  ! created in HydrogeophysicsInitialize()
+  if (this%pf_to_e4d_scatter /= 0) &
+    call VecScatterDestroy(this%pf_to_e4d_scatter, ierr)
+  this%pf_to_e4d_scatter = 0
+  ! these are solely pointers set in HydrogeophysicsInitialize()
+  this%pf_to_e4d_master_comm = 0
+  this%solution_mpi = 0
+  
+end subroutine PMCHydrogeophysicsStrip
+
+! ************************************************************************** !
+
 recursive subroutine PMCHydrogeophysicsDestroy(this)
   ! 
   ! Deallocates a process_model_coupler object
@@ -266,19 +300,16 @@ recursive subroutine PMCHydrogeophysicsDestroy(this)
   
   call printMsg(this%option,'PMCHydrogeophysics%Destroy()')
   
-  nullify(this%realization)
+  call PMCHydrogeophysicsStrip(this)
+  
+  if (associated(this%below)) then
+    call this%below%Destroy()
+  endif 
   
   if (associated(this%next)) then
     call this%next%Destroy()
-  endif 
+  endif  
 
-  if (this%solution_seq /= 0) &
-    call VecDestroy(this%solution_seq,ierr)
-  this%solution_seq = 0
-  if (this%pf_to_e4d_scatter /= 0) &
-    call VecScatterDestroy(this%pf_to_e4d_scatter, ierr)
-  this%pf_to_e4d_scatter = 0
-  
 end subroutine PMCHydrogeophysicsDestroy
   
 end module PMC_Hydrogeophysics_class

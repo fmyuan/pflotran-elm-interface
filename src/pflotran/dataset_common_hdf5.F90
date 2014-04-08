@@ -75,7 +75,7 @@ subroutine DatasetCommonHDF5Init(this)
   call DatasetBaseInit(this)
   this%hdf5_dataset_name = ''
   this%realization_dependent = PETSC_FALSE
-  this%max_buffer_size = 10
+  this%max_buffer_size = -999
   this%is_cell_indexed = PETSC_FALSE
   this%data_type = DATASET_REAL
     
@@ -269,9 +269,15 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   PetscInt :: temp_int, num_times_read_by_iorank
   PetscMPIInt :: hdf5_err, h5fopen_err
   PetscBool :: attribute_exists, group_exists
+  PetscLogDouble :: tstart, tend  
   PetscErrorCode :: ierr
   
   call PetscLogEventBegin(logging%event_read_array_hdf5,ierr)
+  
+!#define TIME_READING_TIMES
+#ifdef TIME_READING_TIMES
+  call PetscTime(tstart,ierr)
+#endif  
   
   h5fopen_err = 0
   if (option%myrank == option%io_rank) then
@@ -386,6 +392,17 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   int_mpi = num_times
   call MPI_Bcast(time_storage%times,int_mpi,MPI_DOUBLE_PRECISION, &
                  option%io_rank,option%mycomm,ierr)
+
+#ifdef TIME_READING_TIMES
+  call MPI_Barrier(option%mycomm,ierr)
+  call PetscTime(tend,ierr)
+  write(option%io_buffer,'(f6.2," Seconds to read dataset times",a,".")') &
+    tend-tstart, trim(dataset_name) // ' (' // trim(option%group_prefix) // &
+    ')'
+  if (option%myrank == option%io_rank) then
+    print *, trim(option%io_buffer)
+  endif
+#endif
 
   call PetscLogEventEnd(logging%event_read_array_hdf5,ierr)
   
