@@ -338,8 +338,7 @@ subroutine THAuxVarCompute(x,auxvar,global_auxvar, &
   pw = option%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
-!  if (auxvar%pc > 0.d0) then
-  if (auxvar%pc > 1.d0) then
+  if (auxvar%pc > 0.d0) then
     iphase = 3
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
     if(auxvar%bc_alpha > 0.d0) then

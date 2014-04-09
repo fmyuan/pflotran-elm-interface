@@ -212,6 +212,7 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
 #include "finclude/petscdm.h"
 #include "finclude/petscdm.h90"
 #include "finclude/petscdmda.h"
+#include "finclude/petscdmda.h90"
 
   type(option_type) :: option
   type(structured_grid_type) :: structured_grid

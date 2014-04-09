@@ -18,8 +18,15 @@ module clm_pflotran_interface_data
   Vec :: hksat_z_clm
   Vec :: sucsat_clm
   Vec :: watsat_clm
+  Vec :: watfc_clm
   Vec :: bsw_clm
   Vec :: press_clm
+
+  ! pflotran has rock (solid) density, not bulk density,
+  ! there could be issues with influence of soil organic content, ice on bulk density
+  ! this will be temporaily used for calculation needed in denitrification calculation
+  ! following clm4.5.35
+  Vec :: bulkdensity_dry_clm
 
   ! Local for PFLOTRAN - seq. vec
   Vec :: hksat_x_pf
@@ -27,8 +34,10 @@ module clm_pflotran_interface_data
   Vec :: hksat_z_pf
   Vec :: sucsat_pf
   Vec :: watsat_pf
+  Vec :: watfc_pf
   Vec :: bsw_pf
   Vec :: press_pf
+  Vec :: bulkdensity_dry_pf   
 
   ! (ii) Mesh property
 
@@ -47,7 +56,7 @@ module clm_pflotran_interface_data
   Vec :: rain_pf    ! seq vec
   Vec :: rain_temp_clm ! seq vec
   Vec :: rain_temp_pf  ! mpi vec
-  
+
   ! (iii) Ground heat flux BC for PFLOTRAN's subsurface domain
   !       This BC is applied on top surface of the subsurface domain
   Vec :: gflux_subsurf_clm  ! mpi vec
@@ -89,11 +98,269 @@ module clm_pflotran_interface_data
   PetscInt :: nlpf_2dsub   ! num of local pflotran cells
   PetscInt :: ngpf_2dsub   ! num of ghosted pflotran cells (ghosted = local+ghosts)
 
+  PetscInt :: nlclm_bottom  ! num of local clm cells
+  PetscInt :: ngclm_bottom  ! num of ghosted clm cells (ghosted = local+ghosts)
+  PetscInt :: nlpf_bottom   ! num of local pflotran cells
+  PetscInt :: ngpf_bottom   ! num of ghosted pflotran cells (ghosted = local+ghosts)
+
   ! Number of cells for the 2D surface domain
   PetscInt :: nlclm_srf  ! num of local clm cells
   PetscInt :: ngclm_srf  ! num of ghosted clm cells (ghosted = local+ghosts)
   PetscInt :: nlpf_srf   ! num of local pflotran cells
   PetscInt :: ngpf_srf   ! num of ghosted pflotran cells (ghosted = local+ghosts)
+
+  !-------------------------------------------------------------------------------------
+  ! note: mapping ONLY can do from MPI vecs to Seq. vecs now
+  ! -----BGC vecs from CLM to PF --------------------
+  ! TH properties
+  Vec :: sr_clmp    ! MVM soil hydraulic properties
+  Vec :: lamda_clmp
+  Vec :: alpha_clmp
+  Vec :: pcwmax_clmp
+  Vec :: porosity_clmp
+  Vec :: press_ref_clmp
+  Vec :: sr_pfs    ! MVM soil hydraulic properties
+  Vec :: lamda_pfs
+  Vec :: alpha_pfs
+  Vec :: pcwmax_pfs
+  Vec :: porosity_pfs
+  Vec :: press_ref_pfs
+
+  ! TH state vecs from CLM (mpi) to PF (seq) for bgc
+  Vec :: press_clmp                     ! water pressure head (Pa)
+  Vec :: soilpsi_clmp                   ! soil matric potential (Pa)
+  Vec :: soillsat_clmp                  ! soil liq. water saturation (0 - 1)
+  Vec :: soilisat_clmp                  ! soil ice water saturation (0 - 1)
+  Vec :: soilt_clmp                     ! soil temperature (degC)
+  Vec :: press_pfs
+  Vec :: soilpsi_pfs
+  Vec :: soillsat_pfs
+  Vec :: soilisat_pfs
+  Vec :: soilt_pfs
+  ! initial ground/soil C/N pools from CLM (mpi) to PF (seq)
+  Vec :: decomp_cpools_vr_lit1_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_lit2_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_lit3_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_cwd_clmp      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som1_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som2_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som3_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som4_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_npools_vr_lit1_clmp     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_lit2_clmp     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_lit3_clmp     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_cwd_clmp      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: smin_no3_vr_clmp               ! (gN/m3) vertically-resolved soil mineral NO3
+  Vec :: smin_nh4_vr_clmp               ! (gN/m3) vertically-resolved soil mineral NH4
+  Vec :: decomp_cpools_vr_lit1_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_lit2_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_lit3_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_cwd_pfs       ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som1_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som2_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som3_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som4_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_npools_vr_lit1_pfs      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_lit2_pfs      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_lit3_pfs      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_cwd_pfs       ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: smin_no3_vr_pfs                ! (gN/m3) vertically-resolved soil mineral NO3
+  Vec :: smin_nh4_vr_pfs                ! (gN/m3) vertically-resolved soil mineral NH4
+  ! time-varying ground/soil C/N rates from CLM (mpi) to PF (seq) (Units: moleC(N)/m3/s)
+  Vec :: rate_lit1c_clmp
+  Vec :: rate_lit2c_clmp
+  Vec :: rate_lit3c_clmp
+  Vec :: rate_lit1n_clmp
+  Vec :: rate_lit2n_clmp
+  Vec :: rate_lit3n_clmp
+  Vec :: rate_cwdc_clmp
+  Vec :: rate_cwdn_clmp
+  Vec :: rate_smin_no3_clmp
+  Vec :: rate_smin_nh4_clmp
+  Vec :: rate_plantnuptake_clmp
+  Vec :: rate_lit1c_pfs
+  Vec :: rate_lit2c_pfs
+  Vec :: rate_lit3c_pfs
+  Vec :: rate_lit1n_pfs
+  Vec :: rate_lit2n_pfs
+  Vec :: rate_lit3n_pfs
+  Vec :: rate_cwdc_pfs
+  Vec :: rate_cwdn_pfs
+  Vec :: rate_smin_no3_pfs
+  Vec :: rate_smin_nh4_pfs
+  Vec :: rate_plantnuptake_pfs
+
+  ! BC: water pressure (Pa) on the top/bottom of 3-D subsurface domain as boundary conditions from CLM to PF
+  Vec :: press_subsurf_clmp    ! mpi vec
+  Vec :: press_subbase_clmp    ! mpi vec
+  Vec :: press_maxponding_clmp ! mpi vec
+  Vec :: press_subsurf_pfs     ! seq vec
+  Vec :: press_subbase_pfs     ! seq vec
+  Vec :: press_maxponding_pfs     ! seq vec
+  ! OR, BC: water infiltration/recharge(drainage) (mH2O/sec) on the top/bottom of 3-D subsurface domain as boundary conditions from CLM to PF
+  Vec :: qflux_subsurf_clmp    ! mpi vec
+  Vec :: qflux_subbase_clmp    ! mpi vec
+  Vec :: qflux_subsurf_pfs     ! seq vec
+  Vec :: qflux_subbase_pfs     ! seq vec
+
+  ! if ground temperature at the subsurface interface is known
+  Vec :: gtemp_subsurf_clmp  ! mpi vec
+  Vec :: gtemp_subsurf_pfs   ! seq vec
+  ! if bottom heat flux at the subsurface interface is known
+  Vec :: gflux_subbase_clmp  ! mpi vec
+  Vec :: gflux_subbase_pfs   ! seq vec
+  ! bottom temperature at the subsurface domain interface is known
+  Vec :: gtemp_subbase_clmp  ! mpi vec
+  Vec :: gtemp_subbase_pfs   ! seq vec
+
+  ! -----BGC vecs from PF (mpi, ghosted) to CLM (seq, local) --------------------
+  ! TH properties
+  Vec :: sr_pfp    ! MVM soil hydraulic properties
+  Vec :: lamda_pfp
+  Vec :: alpha_pfp
+  Vec :: pcwmax_pfp
+  Vec :: porosity_pfp
+  Vec :: press_ref_pfp
+  Vec :: sr_clms    ! MVM soil hydraulic properties
+  Vec :: lamda_clms
+  Vec :: alpha_clms
+  Vec :: pcwmax_clms
+  Vec :: porosity_clms
+  Vec :: press_ref_clms
+
+  ! TH state vecs from PF (mpi) to CLM (seq)
+  Vec :: press_pfp                     ! water pressure head (Pa)
+  Vec :: soilpsi_pfp                   ! soil matric potential (Pa) (negative)
+  Vec :: soillsat_pfp                  ! soil liq. water saturation (0-1)
+  Vec :: soilisat_pfp                  ! soil ice water saturation (0-1)
+  Vec :: soilt_pfp                     ! soil temperature (degC)
+  Vec :: press_clms
+  Vec :: soilpsi_clms
+  Vec :: soillsat_clms
+  Vec :: soilisat_clms
+  Vec :: soilt_clms
+
+  ! BGC state variables
+  Vec :: decomp_cpools_vr_lit1_pfp
+  Vec :: decomp_cpools_vr_lit2_pfp
+  Vec :: decomp_cpools_vr_lit3_pfp
+  Vec :: decomp_cpools_vr_cwd_pfp
+  Vec :: decomp_cpools_vr_som1_pfp
+  Vec :: decomp_cpools_vr_som2_pfp
+  Vec :: decomp_cpools_vr_som3_pfp
+  Vec :: decomp_cpools_vr_som4_pfp
+  Vec :: decomp_npools_vr_lit1_pfp
+  Vec :: decomp_npools_vr_lit2_pfp
+  Vec :: decomp_npools_vr_lit3_pfp
+  Vec :: decomp_npools_vr_cwd_pfp
+  Vec :: smin_no3_vr_pfp
+  Vec :: smin_nh4_vr_pfp
+  !
+  Vec :: decomp_cpools_vr_lit1_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_lit2_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_lit3_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_cwd_clms      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som1_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som2_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som3_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som4_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_npools_vr_lit1_clms     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_lit2_clms     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_lit3_clms     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_cwd_clms      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: smin_no3_vr_clms               ! (gN/m3) vertically-resolved soil mineral NO3
+  Vec :: smin_nh4_vr_clms               ! (gN/m3) vertically-resolved soil mineral NH4
+  !
+  Vec :: decomp_cpools_vr_lit1_clms_prv ! C/N states at previous time-step for pool-change calculation
+  Vec :: decomp_cpools_vr_lit2_clms_prv
+  Vec :: decomp_cpools_vr_lit3_clms_prv
+  Vec :: decomp_cpools_vr_cwd_clms_prv
+  Vec :: decomp_cpools_vr_som1_clms_prv
+  Vec :: decomp_cpools_vr_som2_clms_prv
+  Vec :: decomp_cpools_vr_som3_clms_prv
+  Vec :: decomp_cpools_vr_som4_clms_prv
+  Vec :: decomp_npools_vr_lit1_clms_prv
+  Vec :: decomp_npools_vr_lit2_clms_prv
+  Vec :: decomp_npools_vr_lit3_clms_prv
+  Vec :: decomp_npools_vr_cwd_clms_prv
+  Vec :: smin_no3_vr_clms_prv
+  Vec :: smin_nh4_vr_clms_prv
+  ! 'accextrn' is accumulative N extract by plant roots in 'PFLOTRAN', so needs previous time-step to calculate 'sminn_to_plant' fluxes for CLM-CN
+  Vec :: accextrn_vr_pfp                ! (gN/m3) vertically-resolved root extraction N
+  Vec :: accextrn_vr_clms_prv           ! (gN/m3) vertically-resolved root extraction N at previous time-step
+  Vec :: accextrn_vr_clms               ! (gN/m3) vertically-resolved root extraction N
+
+  ! gases in water (aqueous solution of gases)
+  ! gases species is accumulative in 'PFLOTRAN', so needs to calculate their fluxes in the CLM-PF interface and reset back to PFLOTRAN
+  Vec :: aqco2_vr_pfp                   ! (gC/m3) vertically-resolved soil heterotrophic respiration C
+  Vec :: aqco2_vr_clms                  ! (gC/m3) vertically-resolved soil heterotrophic respiration C
+  Vec :: aqco2_vr_clmp                  ! (gC/m3) vertically-resolved soil heterotrophic respiration C, after gas emission
+  Vec :: aqco2_vr_pfs                   ! (gC/m3) vertically-resolved soil heterotrophic respiration C, after gas emission
+
+  Vec :: aqn2_vr_pfp                    ! (gN/m3) vertically-resolved N2-N
+  Vec :: aqn2_vr_clms                   ! (gN/m3) vertically-resolved N2-N
+  Vec :: aqn2_vr_clmp                   ! (gN/m3) vertically-resolved N2-N, after gas emission
+  Vec :: aqn2_vr_pfs                    ! (gN/m3) vertically-resolved N2-N, after gas emission
+
+  Vec :: aqn2o_vr_pfp                   ! (gN/m3) vertically-resolved N2O-N
+  Vec :: aqn2o_vr_clms                  ! (gN/m3) vertically-resolved N2O-N
+  Vec :: aqn2o_vr_clmp                  ! (gN/m3) vertically-resolved N2O-N, after gas emission
+  Vec :: aqn2o_vr_pfs                   ! (gN/m3) vertically-resolved N2O-N, after gas emission
+
+  ! some tracking variables from PFLOTRAN bgc to obtain reaction flux rates which needed by CLM
+  Vec :: accnmin_vr_pfp                ! (gN/m3) vertically-resolved N mineralization
+  Vec :: accnmin_vr_clms_prv           ! (gN/m3) vertically-resolved N mineralization at previous time-step
+  Vec :: accnmin_vr_clms               ! (gN/m3) vertically-resolved N mineralization
+
+  Vec :: accnimm_vr_pfp                ! (gN/m3) vertically-resolved N immoblization
+  Vec :: accnimm_vr_clms_prv           ! (gN/m3) vertically-resolved N immoblization at previous time-step
+  Vec :: accnimm_vr_clms               ! (gN/m3) vertically-resolved N immoblization
+
+  Vec :: accndecomp_vr_pfp              ! (gN/m3) vertically-resolved N2O-N from mineralization
+  Vec :: accndecomp_vr_clms_prv         ! (gN/m3) vertically-resolved N2O-N from mineralization at previous time-step
+  Vec :: accndecomp_vr_clms             ! (gN/m3) vertically-resolved N2O-N from mineralization
+
+  Vec :: accnnitri_vr_pfp              ! (gN/m3) vertically-resolved N2O-N from nitrification
+  Vec :: accnnitri_vr_clms_prv         ! (gN/m3) vertically-resolved N2O-N from nitrification at previous time-step
+  Vec :: accnnitri_vr_clms             ! (gN/m3) vertically-resolved N2O-N from nitrification
+
+  Vec :: accndeni_vr_pfp               ! (gN/m3) vertically-resolved N2O-N from denitrification
+  Vec :: accndeni_vr_clms_prv          ! (gN/m3) vertically-resolved N2O-N from denitrification at previous time-step
+  Vec :: accndeni_vr_clms              ! (gN/m3) vertically-resolved N2O-N from denitrification
+
+  ! actual mass water flow rate (kgH2O/sec) through the top/bottom BC of 3-D subsurface domain
+  ! (+ in, - out)
+  Vec :: qinfl_subsurf_pfp    ! mpi vec: actual infiltration (+)
+  Vec :: qinfl_subsurf_clms   ! seq vec
+  Vec :: qsurf_subsurf_pfp    ! mpi vec: actual overland flow - potential-actual infiltration or water upwarding (-)
+  Vec :: qsurf_subsurf_clms   ! seq vec
+  Vec :: qflux_subbase_pfp    ! mpi vec
+  Vec :: qflux_subbase_clms   ! seq vec
+  ! actual aqeuous N mass flow rate(gN/m2/sec) at the top (runoff)/bottom (leaching) of 3-D subsurface domain
+  ! (+ in, - out)
+  Vec :: f_nh4_subsurf_pfp    ! mpi vec
+  Vec :: f_nh4_subsurf_clms   ! seq vec
+  Vec :: f_nh4_subbase_pfp    ! mpi vec
+  Vec :: f_nh4_subbase_clms   ! seq vec
+  Vec :: f_no3_subsurf_pfp    ! mpi vec
+  Vec :: f_no3_subsurf_clms   ! seq vec
+  Vec :: f_no3_subbase_pfp    ! mpi vec
+  Vec :: f_no3_subbase_clms   ! seq vec
+
+  !---------------------------------------------------------------
+
+  PetscBool :: use_lch4
+  Vec :: cellorg_clm
+  Vec :: cellorg_pf
+
+  Vec :: o2_decomp_depth_unsat_clm         ! O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
+  Vec :: conc_o2_unsat_clm                 ! O2 conc in each soil layer (mol/m3) (nlevsoi)
+  Vec :: o2_decomp_depth_unsat_pf          ! O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
+  Vec :: conc_o2_unsat_pf                  ! O2 conc in each soil layer (mol/m3) (nlevsoi)
+  Vec :: o2_decomp_depth_sat_clm           ! O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
+  Vec :: conc_o2_sat_clm                   ! O2 conc in each soil layer (mol/m3) (nlevsoi)
+  Vec :: o2_decomp_depth_sat_pf            ! O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
+  Vec :: conc_o2_sat_pf                    ! O2 conc in each soil layer (mol/m3) (nlevsoi)
 
   end type clm_pflotran_idata_type
 
@@ -127,6 +394,11 @@ contains
     clm_pf_idata%nlpf_2dsub = 0
     clm_pf_idata%ngpf_2dsub = 0
 
+    clm_pf_idata%nlclm_bottom = 0
+    clm_pf_idata%ngclm_bottom = 0
+    clm_pf_idata%nlpf_bottom = 0
+    clm_pf_idata%ngpf_bottom = 0
+
     clm_pf_idata%nlclm_srf = 0
     clm_pf_idata%ngclm_srf = 0
     clm_pf_idata%nlpf_srf = 0
@@ -137,20 +409,24 @@ contains
     clm_pf_idata%hksat_z_clm = 0
     clm_pf_idata%sucsat_clm = 0
     clm_pf_idata%watsat_clm = 0
+    clm_pf_idata%watfc_clm = 0
     clm_pf_idata%bsw_clm = 0
     clm_pf_idata%press_clm = 0
+    clm_pf_idata%bulkdensity_dry_clm = 0
 
     clm_pf_idata%hksat_x_pf = 0
     clm_pf_idata%hksat_y_pf = 0
     clm_pf_idata%hksat_z_pf = 0
     clm_pf_idata%sucsat_pf = 0
     clm_pf_idata%watsat_pf = 0
+    clm_pf_idata%watfc_pf = 0
     clm_pf_idata%bsw_pf = 0
     clm_pf_idata%press_pf = 0
+    clm_pf_idata%bulkdensity_dry_pf = 0
 
     clm_pf_idata%qflx_clm = 0
     clm_pf_idata%qflx_pf = 0
-    
+
     clm_pf_idata%rain_clm = 0
     clm_pf_idata%rain_pf = 0
     clm_pf_idata%rain_temp_clm = 0
@@ -171,6 +447,248 @@ contains
 
     clm_pf_idata%h2osfc_clm = 0
     clm_pf_idata%h2osfc_pf = 0
+   
+   !--------------------------------------------------------------------
+    clm_pf_idata%sr_clmp       = 0
+    clm_pf_idata%lamda_clmp    = 0
+    clm_pf_idata%alpha_clmp    = 0
+    clm_pf_idata%pcwmax_clmp   = 0
+    clm_pf_idata%porosity_clmp = 0
+    clm_pf_idata%press_ref_clmp= 0
+    clm_pf_idata%sr_pfs         = 0
+    clm_pf_idata%lamda_pfs      = 0
+    clm_pf_idata%alpha_pfs      = 0
+    clm_pf_idata%pcwmax_pfs     = 0
+    clm_pf_idata%porosity_pfs   = 0
+    clm_pf_idata%press_ref_pfs  = 0
+
+   ! soil TH and C/N pools
+    clm_pf_idata%press_clmp    = 0
+    clm_pf_idata%soilpsi_clmp  = 0
+    clm_pf_idata%soillsat_clmp = 0
+    clm_pf_idata%soilisat_clmp = 0
+    clm_pf_idata%soilt_clmp    = 0
+    clm_pf_idata%press_pfs      = 0
+    clm_pf_idata%soilpsi_pfs    = 0
+    clm_pf_idata%soillsat_pfs   = 0
+    clm_pf_idata%soilisat_pfs   = 0
+    clm_pf_idata%soilt_pfs      = 0
+
+    clm_pf_idata%decomp_cpools_vr_lit1_clmp = 0
+    clm_pf_idata%decomp_cpools_vr_lit2_clmp = 0
+    clm_pf_idata%decomp_cpools_vr_lit3_clmp = 0
+    clm_pf_idata%decomp_cpools_vr_cwd_clmp  = 0
+    clm_pf_idata%decomp_cpools_vr_som1_clmp = 0
+    clm_pf_idata%decomp_cpools_vr_som2_clmp = 0
+    clm_pf_idata%decomp_cpools_vr_som3_clmp = 0
+    clm_pf_idata%decomp_cpools_vr_som4_clmp = 0
+    clm_pf_idata%decomp_npools_vr_lit1_clmp = 0
+    clm_pf_idata%decomp_npools_vr_lit2_clmp = 0
+    clm_pf_idata%decomp_npools_vr_lit3_clmp = 0
+    clm_pf_idata%decomp_npools_vr_cwd_clmp  = 0
+    clm_pf_idata%smin_no3_vr_clmp      = 0
+    clm_pf_idata%smin_nh4_vr_clmp      = 0
+
+    clm_pf_idata%decomp_cpools_vr_lit1_pfs = 0
+    clm_pf_idata%decomp_cpools_vr_lit2_pfs = 0
+    clm_pf_idata%decomp_cpools_vr_lit3_pfs = 0
+    clm_pf_idata%decomp_cpools_vr_cwd_pfs  = 0
+    clm_pf_idata%decomp_cpools_vr_som1_pfs = 0
+    clm_pf_idata%decomp_cpools_vr_som2_pfs = 0
+    clm_pf_idata%decomp_cpools_vr_som3_pfs = 0
+    clm_pf_idata%decomp_cpools_vr_som4_pfs = 0
+    clm_pf_idata%decomp_npools_vr_lit1_pfs = 0
+    clm_pf_idata%decomp_npools_vr_lit2_pfs = 0
+    clm_pf_idata%decomp_npools_vr_lit3_pfs = 0
+    clm_pf_idata%decomp_npools_vr_cwd_pfs  = 0
+    clm_pf_idata%smin_no3_vr_pfs       = 0
+    clm_pf_idata%smin_nh4_vr_pfs       = 0
+
+    !ground/soil C/N rates as source/sink
+    clm_pf_idata%rate_lit1c_clmp            = 0
+    clm_pf_idata%rate_lit2c_clmp            = 0
+    clm_pf_idata%rate_lit3c_clmp            = 0
+    clm_pf_idata%rate_lit1n_clmp            = 0
+    clm_pf_idata%rate_lit2n_clmp            = 0
+    clm_pf_idata%rate_lit3n_clmp            = 0
+    clm_pf_idata%rate_cwdc_clmp             = 0
+    clm_pf_idata%rate_cwdn_clmp             = 0
+    clm_pf_idata%rate_smin_no3_clmp         = 0
+    clm_pf_idata%rate_smin_nh4_clmp         = 0
+    clm_pf_idata%rate_plantnuptake_clmp     = 0
+
+    clm_pf_idata%rate_lit1c_pfs            = 0
+    clm_pf_idata%rate_lit2c_pfs            = 0
+    clm_pf_idata%rate_lit3c_pfs            = 0
+    clm_pf_idata%rate_lit1n_pfs            = 0
+    clm_pf_idata%rate_lit2n_pfs            = 0
+    clm_pf_idata%rate_lit3n_pfs            = 0
+    clm_pf_idata%rate_cwdc_pfs             = 0
+    clm_pf_idata%rate_cwdn_pfs             = 0
+    clm_pf_idata%rate_smin_no3_pfs         = 0
+    clm_pf_idata%rate_smin_nh4_pfs         = 0
+    clm_pf_idata%rate_plantnuptake_pfs     = 0
+
+    clm_pf_idata%press_maxponding_clmp = 0
+    clm_pf_idata%press_maxponding_pfs  = 0
+    clm_pf_idata%press_subsurf_clmp = 0
+    clm_pf_idata%press_subsurf_pfs  = 0
+    clm_pf_idata%press_subbase_clmp = 0
+    clm_pf_idata%press_subbase_pfs  = 0
+    clm_pf_idata%qflux_subsurf_clmp = 0
+    clm_pf_idata%qflux_subsurf_pfs  = 0
+    clm_pf_idata%qflux_subbase_clmp = 0
+    clm_pf_idata%qflux_subbase_pfs  = 0
+
+    clm_pf_idata%gtemp_subsurf_clmp = 0
+    clm_pf_idata%gtemp_subsurf_pfs  = 0
+    clm_pf_idata%gflux_subbase_clmp = 0
+    clm_pf_idata%gflux_subbase_pfs  = 0
+    clm_pf_idata%gtemp_subbase_clmp = 0
+    clm_pf_idata%gtemp_subbase_pfs  = 0
+
+    ! for updating bgc/TH states from PF to CLM
+    clm_pf_idata%sr_pfp       = 0
+    clm_pf_idata%lamda_pfp    = 0
+    clm_pf_idata%alpha_pfp    = 0
+    clm_pf_idata%pcwmax_pfp   = 0
+    clm_pf_idata%porosity_pfp = 0
+    clm_pf_idata%press_ref_pfp= 0
+    clm_pf_idata%sr_clms       = 0
+    clm_pf_idata%lamda_clms    = 0
+    clm_pf_idata%alpha_clms    = 0
+    clm_pf_idata%pcwmax_clms   = 0
+    clm_pf_idata%porosity_clms = 0
+    clm_pf_idata%press_ref_clms= 0
+
+    clm_pf_idata%press_pfp    = 0
+    clm_pf_idata%soilpsi_pfp  = 0
+    clm_pf_idata%soillsat_pfp = 0
+    clm_pf_idata%soilisat_pfp = 0
+    clm_pf_idata%soilt_pfp    = 0
+    clm_pf_idata%press_clms     = 0
+    clm_pf_idata%soilpsi_clms   = 0
+    clm_pf_idata%soillsat_clms  = 0
+    clm_pf_idata%soilisat_clms  = 0
+    clm_pf_idata%soilt_clms     = 0
+
+    clm_pf_idata%decomp_cpools_vr_lit1_pfp = 0
+    clm_pf_idata%decomp_cpools_vr_lit2_pfp = 0
+    clm_pf_idata%decomp_cpools_vr_lit3_pfp = 0
+    clm_pf_idata%decomp_cpools_vr_cwd_pfp  = 0
+    clm_pf_idata%decomp_cpools_vr_som1_pfp = 0
+    clm_pf_idata%decomp_cpools_vr_som2_pfp = 0
+    clm_pf_idata%decomp_cpools_vr_som3_pfp = 0
+    clm_pf_idata%decomp_cpools_vr_som4_pfp = 0
+    clm_pf_idata%decomp_npools_vr_lit1_pfp = 0
+    clm_pf_idata%decomp_npools_vr_lit2_pfp = 0
+    clm_pf_idata%decomp_npools_vr_lit3_pfp = 0
+    clm_pf_idata%decomp_npools_vr_cwd_pfp  = 0
+    clm_pf_idata%smin_no3_vr_pfp       = 0
+    clm_pf_idata%smin_nh4_vr_pfp       = 0
+    clm_pf_idata%decomp_cpools_vr_lit1_clms = 0
+    clm_pf_idata%decomp_cpools_vr_lit2_clms = 0
+    clm_pf_idata%decomp_cpools_vr_lit3_clms = 0
+    clm_pf_idata%decomp_cpools_vr_cwd_clms  = 0
+    clm_pf_idata%decomp_cpools_vr_som1_clms = 0
+    clm_pf_idata%decomp_cpools_vr_som2_clms = 0
+    clm_pf_idata%decomp_cpools_vr_som3_clms = 0
+    clm_pf_idata%decomp_cpools_vr_som4_clms = 0
+    clm_pf_idata%decomp_npools_vr_lit1_clms = 0
+    clm_pf_idata%decomp_npools_vr_lit2_clms = 0
+    clm_pf_idata%decomp_npools_vr_lit3_clms = 0
+    clm_pf_idata%decomp_npools_vr_cwd_clms  = 0
+    clm_pf_idata%smin_no3_vr_clms      = 0
+    clm_pf_idata%smin_nh4_vr_clms      = 0
+    clm_pf_idata%decomp_cpools_vr_lit1_clms_prv = 0
+    clm_pf_idata%decomp_cpools_vr_lit2_clms_prv = 0
+    clm_pf_idata%decomp_cpools_vr_lit3_clms_prv = 0
+    clm_pf_idata%decomp_cpools_vr_cwd_clms_prv  = 0
+    clm_pf_idata%decomp_cpools_vr_som1_clms_prv = 0
+    clm_pf_idata%decomp_cpools_vr_som2_clms_prv = 0
+    clm_pf_idata%decomp_cpools_vr_som3_clms_prv = 0
+    clm_pf_idata%decomp_cpools_vr_som4_clms_prv = 0
+    clm_pf_idata%decomp_npools_vr_lit1_clms_prv = 0
+    clm_pf_idata%decomp_npools_vr_lit2_clms_prv = 0
+    clm_pf_idata%decomp_npools_vr_lit3_clms_prv = 0
+    clm_pf_idata%decomp_npools_vr_cwd_clms_prv  = 0
+    clm_pf_idata%smin_no3_vr_clms_prv      = 0
+    clm_pf_idata%smin_nh4_vr_clms_prv      = 0
+
+    ! for root N extraction calculation
+    clm_pf_idata%accextrn_vr_pfp       = 0
+    clm_pf_idata%accextrn_vr_clms_prv  = 0
+    clm_pf_idata%accextrn_vr_clms      = 0
+
+    ! for soil hr calculation
+    clm_pf_idata%aqco2_vr_pfp            = 0
+    clm_pf_idata%aqco2_vr_clms           = 0
+    clm_pf_idata%aqco2_vr_clmp           = 0
+    clm_pf_idata%aqco2_vr_pfs            = 0
+
+    ! for N2 gas emission calculation
+    clm_pf_idata%aqn2_vr_pfp       = 0
+    clm_pf_idata%aqn2_vr_clms      = 0
+    clm_pf_idata%aqn2_vr_clmp      = 0
+    clm_pf_idata%aqn2_vr_pfs       = 0
+
+    ! for N2O gas emission calculation
+    clm_pf_idata%aqn2o_vr_pfp       = 0
+    clm_pf_idata%aqn2o_vr_clms      = 0
+    clm_pf_idata%aqn2o_vr_clmp      = 0
+    clm_pf_idata%aqn2o_vr_pfs       = 0
+
+    ! tracking variables in N cycle
+    clm_pf_idata%accnmin_vr_pfp       = 0
+    clm_pf_idata%accnmin_vr_clms_prv  = 0
+    clm_pf_idata%accnmin_vr_clms      = 0
+
+    clm_pf_idata%accnimm_vr_pfp       = 0
+    clm_pf_idata%accnimm_vr_clms_prv  = 0
+    clm_pf_idata%accnimm_vr_clms      = 0
+
+    clm_pf_idata%accndecomp_vr_pfp       = 0
+    clm_pf_idata%accndecomp_vr_clms_prv  = 0
+    clm_pf_idata%accndecomp_vr_clms      = 0
+
+    clm_pf_idata%accnnitri_vr_pfp       = 0
+    clm_pf_idata%accnnitri_vr_clms_prv  = 0
+    clm_pf_idata%accnnitri_vr_clms      = 0
+
+    clm_pf_idata%accndeni_vr_pfp       = 0
+    clm_pf_idata%accndeni_vr_clms_prv  = 0
+    clm_pf_idata%accndeni_vr_clms      = 0
+
+    ! water & aq. chemical species boundary flow
+    clm_pf_idata%qinfl_subsurf_pfp   = 0
+    clm_pf_idata%qinfl_subsurf_clms  = 0
+    clm_pf_idata%qsurf_subsurf_pfp   = 0
+    clm_pf_idata%qsurf_subsurf_clms  = 0
+    clm_pf_idata%qflux_subbase_pfp   = 0
+    clm_pf_idata%qflux_subbase_clms  = 0
+    clm_pf_idata%f_nh4_subsurf_pfp   = 0
+    clm_pf_idata%f_nh4_subsurf_clms  = 0
+    clm_pf_idata%f_nh4_subbase_pfp   = 0
+    clm_pf_idata%f_nh4_subbase_clms  = 0
+    clm_pf_idata%f_no3_subsurf_pfp   = 0
+    clm_pf_idata%f_no3_subsurf_clms  = 0
+    clm_pf_idata%f_no3_subbase_pfp   = 0
+    clm_pf_idata%f_no3_subbase_clms  = 0
+
+    ! for nitrification-denitrification
+    clm_pf_idata%use_lch4 = PETSC_TRUE
+    clm_pf_idata%cellorg_clm = 0
+    clm_pf_idata%cellorg_pf  = 0
+
+    clm_pf_idata%o2_decomp_depth_unsat_clm = 0 
+    clm_pf_idata%conc_o2_unsat_clm         = 0
+    clm_pf_idata%o2_decomp_depth_unsat_pf  = 0
+    clm_pf_idata%conc_o2_unsat_pf          = 0
+    
+    clm_pf_idata%o2_decomp_depth_sat_clm = 0 
+    clm_pf_idata%conc_o2_sat_clm         = 0
+    clm_pf_idata%o2_decomp_depth_sat_pf  = 0
+    clm_pf_idata%conc_o2_sat_pf          = 0
 
   end subroutine CLMPFLOTRANIDataInit
 
@@ -210,6 +728,9 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%press_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%qflx_clm,ierr)
 
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%watfc_clm,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%bulkdensity_dry_clm,ierr)
+
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE,clm_pf_idata%gflux_subsurf_clm,ierr)
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_clm,ierr)
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_temp_clm,ierr)
@@ -228,6 +749,9 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%bsw_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%press_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%qflx_pf,ierr)
+
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%watfc_pf,ierr)
+    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%bulkdensity_dry_pf,ierr)
 
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dsub,clm_pf_idata%gflux_subsurf_pf,ierr)
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf,clm_pf_idata%gflux_surf_pf,ierr)
@@ -268,6 +792,293 @@ contains
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%nlclm_2dsub,clm_pf_idata%h2osfc_clm,ierr)
     call VecSet(clm_pf_idata%h2osfc_clm,0.d0,ierr)
 
+    !--------------------------------------------------------------------------------------------------------------------------
+    !
+    ! The following block of data definition is for THC coupled clm-pflotran
+    !
+    !NOTES (fmy): From mpi vecs To seq. vecs for passing data IS in one-way only at this momment
+    !
+    ! (i) BGC state variables: 3D subsurface CLM ---to--- 3D subsurface PFLOTRAN (e.g., initialization or abiotic factors)
+    ! MPI Vecs for CLM
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_sub,PETSC_DECIDE,clm_pf_idata%decomp_cpools_vr_lit1_clmp,ierr)
+    call VecSet(clm_pf_idata%decomp_cpools_vr_lit1_clmp,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%decomp_cpools_vr_lit2_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%decomp_cpools_vr_lit3_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%decomp_cpools_vr_cwd_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%decomp_cpools_vr_som1_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%decomp_cpools_vr_som2_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%decomp_cpools_vr_som3_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%decomp_cpools_vr_som4_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%decomp_npools_vr_lit1_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%decomp_npools_vr_lit2_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%decomp_npools_vr_lit3_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%decomp_npools_vr_cwd_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%smin_no3_vr_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%smin_nh4_vr_clmp,ierr)
+
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%cellorg_clm,ierr)               ! for nitrification-denitrification
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%o2_decomp_depth_unsat_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%conc_o2_unsat_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%o2_decomp_depth_sat_clm,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%conc_o2_sat_clm,ierr)
+
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_sub,PETSC_DECIDE,clm_pf_idata%porosity_clmp,ierr)     ! soil physical properties (3D)
+    call VecSet(clm_pf_idata%porosity_clmp,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clmp,clm_pf_idata%sr_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clmp,clm_pf_idata%lamda_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clmp,clm_pf_idata%alpha_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clmp,clm_pf_idata%pcwmax_clmp,ierr)
+
+    call VecDuplicate(clm_pf_idata%porosity_clmp,clm_pf_idata%press_clmp,ierr)                        ! TH states (3D)
+    call VecDuplicate(clm_pf_idata%porosity_clmp,clm_pf_idata%soilpsi_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clmp,clm_pf_idata%soillsat_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clmp,clm_pf_idata%soilisat_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clmp,clm_pf_idata%soilt_clmp,ierr)
+
+    ! Seq. Vecs for PFLOTRAN
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%decomp_cpools_vr_lit1_pfs,ierr)
+    call VecSet(clm_pf_idata%decomp_cpools_vr_lit1_pfs,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%decomp_cpools_vr_lit2_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%decomp_cpools_vr_lit3_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%decomp_cpools_vr_cwd_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%decomp_cpools_vr_som1_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%decomp_cpools_vr_som2_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%decomp_cpools_vr_som3_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%decomp_cpools_vr_som4_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%decomp_npools_vr_lit1_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%decomp_npools_vr_lit2_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%decomp_npools_vr_lit3_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%decomp_npools_vr_cwd_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%smin_no3_vr_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%smin_nh4_vr_pfs,ierr)
+
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%cellorg_pf,ierr)               ! for nitrification-denitrification
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%o2_decomp_depth_unsat_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%conc_o2_unsat_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%o2_decomp_depth_sat_pf,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%conc_o2_sat_pf,ierr)
+
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%porosity_pfs,ierr)
+    call VecSet(clm_pf_idata%porosity_pfs,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfs,clm_pf_idata%sr_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfs,clm_pf_idata%lamda_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfs,clm_pf_idata%alpha_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfs,clm_pf_idata%pcwmax_pfs,ierr)
+
+    call VecDuplicate(clm_pf_idata%porosity_pfs,clm_pf_idata%press_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfs,clm_pf_idata%soilpsi_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfs,clm_pf_idata%soillsat_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfs,clm_pf_idata%soilisat_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfs,clm_pf_idata%soilt_pfs,ierr)
+
+    ! (ii) BGC/TH interface source/sink (rate) or BC (pressure/flux): 3D subsurface CLM ---to--- 3D subsurface PFLOTRAN
+    ! MPI Vecs for CLM
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_sub,PETSC_DECIDE,clm_pf_idata%rate_lit1c_clmp,ierr)
+    call VecSet(clm_pf_idata%rate_lit1c_clmp,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_lit2c_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_lit3c_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_lit1n_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_lit2n_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_lit3n_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_cwdc_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_cwdn_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_smin_no3_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_smin_nh4_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_plantnuptake_clmp,ierr)
+
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE,clm_pf_idata%press_subsurf_clmp,ierr)    ! TH top BC (2D)
+    call VecSet(clm_pf_idata%press_subsurf_clmp,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%qflux_subsurf_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%press_maxponding_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%gtemp_subsurf_clmp,ierr)
+
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_bottom,PETSC_DECIDE,clm_pf_idata%press_subbase_clmp,ierr)    ! TH bottom BC (2D)
+    call VecSet(clm_pf_idata%press_subbase_clmp,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%press_subbase_clmp,clm_pf_idata%qflux_subbase_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%press_subbase_clmp,clm_pf_idata%gflux_subbase_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%press_subbase_clmp,clm_pf_idata%gtemp_subbase_clmp,ierr)
+
+    ! Seq. Vecs for PFLOTRAN
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%rate_lit1c_pfs,ierr)
+    call VecSet(clm_pf_idata%rate_lit1c_pfs,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_lit2c_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_lit3c_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_lit1n_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_lit2n_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_lit3n_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_cwdc_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_cwdn_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_smin_no3_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_smin_nh4_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_plantnuptake_pfs,ierr)
+
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dsub,clm_pf_idata%press_subsurf_pfs,ierr)   ! H
+    call VecSet(clm_pf_idata%press_subsurf_pfs,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%qflux_subsurf_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%press_maxponding_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%gtemp_subsurf_pfs,ierr)            ! T
+
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_bottom,clm_pf_idata%press_subbase_pfs,ierr)  ! H
+    call VecSet(clm_pf_idata%press_subbase_pfs,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%press_subbase_pfs,clm_pf_idata%qflux_subbase_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%press_subbase_pfs,clm_pf_idata%gflux_subbase_pfs,ierr)            ! T
+    call VecDuplicate(clm_pf_idata%press_subbase_pfs,clm_pf_idata%gtemp_subbase_pfs,ierr)
+
+    ! (iii) BGC state variables: 3D subsurface PFLOTRAN ---to--- 3D subsurface CLM
+    ! MPI Vecs for PFLOTRAN
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_sub,PETSC_DECIDE,clm_pf_idata%decomp_cpools_vr_lit1_pfp,ierr)
+    call VecSet(clm_pf_idata%decomp_cpools_vr_lit1_pfp,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%decomp_cpools_vr_lit2_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%decomp_cpools_vr_lit3_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%decomp_cpools_vr_cwd_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%decomp_cpools_vr_som1_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%decomp_cpools_vr_som2_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%decomp_cpools_vr_som3_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%decomp_cpools_vr_som4_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%decomp_npools_vr_lit1_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%decomp_npools_vr_lit2_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%decomp_npools_vr_lit3_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%decomp_npools_vr_cwd_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%smin_no3_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfp,clm_pf_idata%smin_nh4_vr_pfp,ierr)
+    ! Seq. Vecs for CLM
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_sub,clm_pf_idata%decomp_cpools_vr_lit1_clms,ierr)
+    call VecSet(clm_pf_idata%decomp_cpools_vr_lit1_clms,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_lit2_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_lit3_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_cwd_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_som1_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_som2_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_som3_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_som4_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_lit1_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_lit2_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_lit3_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_cwd_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%smin_no3_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%smin_nh4_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_lit1_clms_prv,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_lit2_clms_prv,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_lit3_clms_prv,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_cwd_clms_prv,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_som1_clms_prv,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_som2_clms_prv,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_som3_clms_prv,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_som4_clms_prv,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_lit1_clms_prv,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_lit2_clms_prv,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_lit3_clms_prv,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_cwd_clms_prv,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%smin_no3_vr_clms_prv,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%smin_nh4_vr_clms_prv,ierr)
+
+    ! (iv) TH parameters: 3D subsurface PFLOTRAN ---to--- 3D subsurface CLM
+    ! MPI Vecs for PFLOTRAN
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_sub,PETSC_DECIDE,clm_pf_idata%porosity_pfp,ierr)
+    call VecSet(clm_pf_idata%porosity_pfp,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfp,clm_pf_idata%sr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfp,clm_pf_idata%alpha_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfp,clm_pf_idata%lamda_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfp,clm_pf_idata%pcwmax_pfp,ierr)
+
+    call VecDuplicate(clm_pf_idata%porosity_pfp,clm_pf_idata%press_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfp,clm_pf_idata%soilpsi_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfp,clm_pf_idata%soillsat_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfp,clm_pf_idata%soilisat_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfp,clm_pf_idata%soilt_pfp,ierr)
+
+    ! Seq. Vecs for CLM
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_sub,clm_pf_idata%porosity_clms,ierr)
+    call VecSet(clm_pf_idata%porosity_clms,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clms,clm_pf_idata%sr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clms,clm_pf_idata%alpha_clms,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clms,clm_pf_idata%lamda_clms,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clms,clm_pf_idata%pcwmax_clms,ierr)
+
+    call VecDuplicate(clm_pf_idata%porosity_clms,clm_pf_idata%press_clms,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clms,clm_pf_idata%soilpsi_clms,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clms,clm_pf_idata%soillsat_clms,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clms,clm_pf_idata%soilisat_clms,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clms,clm_pf_idata%soilt_clms,ierr)
+
+    ! (v) BGC flux variables: 3D subsurface PFLOTRAN ---to--- 3D subsurface CLM
+    ! MPI Vecs for PFLOTRAN
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_sub,PETSC_DECIDE,clm_pf_idata%aqco2_vr_pfp,ierr)
+    call VecSet(clm_pf_idata%aqco2_vr_pfp,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_pfp,clm_pf_idata%aqn2_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_pfp,clm_pf_idata%aqn2o_vr_pfp,ierr)
+    !
+    call VecDuplicate(clm_pf_idata%aqco2_vr_pfp,clm_pf_idata%accextrn_vr_pfp,ierr)
+    !
+    call VecDuplicate(clm_pf_idata%aqco2_vr_pfp,clm_pf_idata%accnmin_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_pfp,clm_pf_idata%accnimm_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_pfp,clm_pf_idata%accndecomp_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_pfp,clm_pf_idata%accnnitri_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_pfp,clm_pf_idata%accndeni_vr_pfp,ierr)
+
+    ! Seq. Vecs for CLM
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_sub,clm_pf_idata%aqco2_vr_clms,ierr)
+    call VecSet(clm_pf_idata%aqco2_vr_clms,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_clms,clm_pf_idata%aqn2_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_clms,clm_pf_idata%aqn2o_vr_clms,ierr)
+    !
+    call VecDuplicate(clm_pf_idata%aqco2_vr_clms,clm_pf_idata%accextrn_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_clms,clm_pf_idata%accextrn_vr_clms_prv,ierr)
+
+    !
+    call VecDuplicate(clm_pf_idata%aqco2_vr_clms,clm_pf_idata%accnmin_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_clms,clm_pf_idata%accnmin_vr_clms_prv,ierr)
+
+    call VecDuplicate(clm_pf_idata%aqco2_vr_clms,clm_pf_idata%accnimm_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_clms,clm_pf_idata%accnimm_vr_clms_prv,ierr)
+
+    call VecDuplicate(clm_pf_idata%aqco2_vr_clms,clm_pf_idata%accndecomp_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_clms,clm_pf_idata%accndecomp_vr_clms_prv,ierr)
+
+    call VecDuplicate(clm_pf_idata%aqco2_vr_clms,clm_pf_idata%accnnitri_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_clms,clm_pf_idata%accnnitri_vr_clms_prv,ierr)
+
+    call VecDuplicate(clm_pf_idata%aqco2_vr_clms,clm_pf_idata%accndeni_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_clms,clm_pf_idata%accndeni_vr_clms_prv,ierr)
+
+    ! MPI Vecs for CLM to pass reset aq. conc back to PF
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_sub,PETSC_DECIDE,clm_pf_idata%aqco2_vr_clmp,ierr)
+    call VecSet(clm_pf_idata%aqco2_vr_clmp,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_clmp,clm_pf_idata%aqn2_vr_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_clmp,clm_pf_idata%aqn2o_vr_clmp,ierr)
+    ! Seq. Vecs for PFLOTRAN to get reset aq. conc back from CLM
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%aqco2_vr_pfs,ierr)
+    call VecSet(clm_pf_idata%aqco2_vr_pfs,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_pfs,clm_pf_idata%aqn2_vr_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%aqco2_vr_pfs,clm_pf_idata%aqn2o_vr_pfs,ierr)
+
+    ! (v) BC flow variables: 2D faces of subsurface PFLOTRAN ---to--- 2D faces of subsurface CLM
+    ! MPI Vecs for PFLOTRAN
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_2dsub,PETSC_DECIDE,clm_pf_idata%qinfl_subsurf_pfp,ierr)
+    call VecSet(clm_pf_idata%qinfl_subsurf_pfp,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%qinfl_subsurf_pfp,clm_pf_idata%qsurf_subsurf_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%qinfl_subsurf_pfp,clm_pf_idata%f_nh4_subsurf_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%qinfl_subsurf_pfp,clm_pf_idata%f_no3_subsurf_pfp,ierr)
+
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_bottom,PETSC_DECIDE,clm_pf_idata%qflux_subbase_pfp,ierr)
+    call VecSet(clm_pf_idata%qflux_subbase_pfp,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%qflux_subbase_pfp,clm_pf_idata%f_nh4_subbase_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%qflux_subbase_pfp,clm_pf_idata%f_no3_subbase_pfp,ierr)
+
+    ! Seq. Vecs for CLM
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_2dsub,clm_pf_idata%qinfl_subsurf_clms,ierr)
+    call VecSet(clm_pf_idata%qinfl_subsurf_clms,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%qinfl_subsurf_clms,clm_pf_idata%qsurf_subsurf_clms,ierr)
+    call VecDuplicate(clm_pf_idata%qinfl_subsurf_clms,clm_pf_idata%f_nh4_subsurf_clms,ierr)
+    call VecDuplicate(clm_pf_idata%qinfl_subsurf_clms,clm_pf_idata%f_no3_subsurf_clms,ierr)
+
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_bottom,clm_pf_idata%qflux_subbase_clms,ierr)
+    call VecSet(clm_pf_idata%qflux_subbase_clms,0.d0,ierr)
+    call VecDuplicate(clm_pf_idata%qflux_subbase_clms,clm_pf_idata%f_nh4_subbase_clms,ierr)
+    call VecDuplicate(clm_pf_idata%qflux_subbase_clms,clm_pf_idata%f_no3_subbase_clms,ierr)
+
+    !---------------------------------------------
+
   end subroutine CLMPFLOTRANIDataCreateVec
 
 ! ************************************************************************** !
@@ -287,10 +1098,13 @@ contains
     if(clm_pf_idata%hksat_x_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_x_clm,ierr)
     if(clm_pf_idata%hksat_y_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_y_clm,ierr)
     if(clm_pf_idata%hksat_z_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_z_clm,ierr)
-    if(clm_pf_idata%hksat_z_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_z_clm,ierr)
-    if(clm_pf_idata%hksat_z_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_z_clm,ierr)
-    if(clm_pf_idata%hksat_z_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_z_clm,ierr)
-    if(clm_pf_idata%hksat_z_clm  /= 0) call VecDestroy(clm_pf_idata%hksat_z_clm,ierr)
+    if(clm_pf_idata%sucsat_clm  /= 0) call VecDestroy(clm_pf_idata%sucsat_clm,ierr)
+    if(clm_pf_idata%watsat_clm  /= 0) call VecDestroy(clm_pf_idata%watsat_clm,ierr)
+    if(clm_pf_idata%bsw_clm  /= 0) call VecDestroy(clm_pf_idata%bsw_clm,ierr)
+    if(clm_pf_idata%press_clm  /= 0) call VecDestroy(clm_pf_idata%press_clm,ierr)
+
+    if(clm_pf_idata%watfc_clm  /= 0) call VecDestroy(clm_pf_idata%watfc_clm,ierr)
+    if(clm_pf_idata%bulkdensity_dry_clm  /= 0) call VecDestroy(clm_pf_idata%bulkdensity_dry_clm,ierr)
 
     if(clm_pf_idata%hksat_x_pf  /= 0) call VecDestroy(clm_pf_idata%hksat_x_pf,ierr)
     if(clm_pf_idata%hksat_y_pf  /= 0) call VecDestroy(clm_pf_idata%hksat_y_pf,ierr)
@@ -299,6 +1113,9 @@ contains
     if(clm_pf_idata%watsat_pf  /= 0) call VecDestroy(clm_pf_idata%watsat_pf,ierr)
     if(clm_pf_idata%bsw_pf  /= 0) call VecDestroy(clm_pf_idata%bsw_pf,ierr)
     if(clm_pf_idata%press_pf  /= 0) call VecDestroy(clm_pf_idata%press_pf,ierr)
+
+    if(clm_pf_idata%watfc_pf  /= 0) call VecDestroy(clm_pf_idata%watfc_pf,ierr)
+    if(clm_pf_idata%bulkdensity_dry_pf  /= 0) call VecDestroy(clm_pf_idata%bulkdensity_dry_pf,ierr)
 
     if(clm_pf_idata%qflx_clm  /= 0) call VecDestroy(clm_pf_idata%qflx_clm,ierr)
     if(clm_pf_idata%qflx_pf  /= 0) call VecDestroy(clm_pf_idata%qflx_pf,ierr)
@@ -328,6 +1145,457 @@ contains
       call VecDestroy(clm_pf_idata%area_top_face_clm,ierr)
     if(clm_pf_idata%area_top_face_pf  /= 0) &
       call VecDestroy(clm_pf_idata%area_top_face_pf,ierr)
+
+    ! -----------------------------------------------------------------------------------------------------------
+    ! soil C/N pools (initial)
+    if(clm_pf_idata%decomp_cpools_vr_lit1_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit1_clmp,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_lit2_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit2_clmp,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_lit3_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit3_clmp,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_cwd_clmp  /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_cwd_clmp,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som1_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som1_clmp,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som2_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som2_clmp,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som3_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som3_clmp,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som4_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som4_clmp,ierr)
+    if(clm_pf_idata%decomp_npools_vr_lit1_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit1_clmp,ierr)
+    if(clm_pf_idata%decomp_npools_vr_lit2_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit2_clmp,ierr)
+    if(clm_pf_idata%decomp_npools_vr_lit3_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit3_clmp,ierr)
+    if(clm_pf_idata%decomp_npools_vr_cwd_clmp  /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_cwd_clmp,ierr)
+    if(clm_pf_idata%smin_no3_vr_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%smin_no3_vr_clmp,ierr)
+    if(clm_pf_idata%smin_nh4_vr_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%smin_nh4_vr_clmp,ierr)
+
+    if(clm_pf_idata%sr_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%sr_clmp,ierr)
+    if(clm_pf_idata%lamda_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%lamda_clmp,ierr)
+    if(clm_pf_idata%alpha_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%alpha_clmp,ierr)
+    if(clm_pf_idata%pcwmax_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%pcwmax_clmp,ierr)
+    if(clm_pf_idata%porosity_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%porosity_clmp,ierr)
+
+    if(clm_pf_idata%press_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%press_clmp,ierr)
+    if(clm_pf_idata%soilpsi_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%soilpsi_clmp,ierr)
+    if(clm_pf_idata%soillsat_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%soillsat_clmp,ierr)
+    if(clm_pf_idata%soilisat_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%soilisat_clmp,ierr)
+    if(clm_pf_idata%soilt_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%soilt_clmp,ierr)
+!
+    if(clm_pf_idata%decomp_cpools_vr_lit1_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit1_pfs,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_lit2_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit2_pfs,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_lit3_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit3_pfs,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_cwd_pfs  /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_cwd_pfs,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som1_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som1_pfs,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som2_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som2_pfs,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som3_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som3_pfs,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som4_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som4_pfs,ierr)
+    if(clm_pf_idata%decomp_npools_vr_lit1_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit1_pfs,ierr)
+    if(clm_pf_idata%decomp_npools_vr_lit2_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit2_pfs,ierr)
+    if(clm_pf_idata%decomp_npools_vr_lit3_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit3_pfs,ierr)
+    if(clm_pf_idata%decomp_npools_vr_cwd_pfs  /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_cwd_pfs,ierr)
+    if(clm_pf_idata%smin_no3_vr_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%smin_no3_vr_pfs,ierr)
+    if(clm_pf_idata%smin_nh4_vr_pfs /= 0) &
+      call VecDestroy(clm_pf_idata%smin_nh4_vr_pfs,ierr)
+
+    if(clm_pf_idata%sr_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%sr_pfs,ierr)
+    if(clm_pf_idata%lamda_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%lamda_pfs,ierr)
+    if(clm_pf_idata%alpha_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%alpha_pfs,ierr)
+    if(clm_pf_idata%pcwmax_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%pcwmax_pfs,ierr)
+    if(clm_pf_idata%porosity_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%porosity_pfs,ierr)
+
+    if(clm_pf_idata%press_pfs /= 0) &
+      call VecDestroy(clm_pf_idata%press_pfs,ierr)
+    if(clm_pf_idata%soilpsi_pfs /= 0) &
+      call VecDestroy(clm_pf_idata%soilpsi_pfs,ierr)
+    if(clm_pf_idata%soillsat_pfs /= 0) &
+      call VecDestroy(clm_pf_idata%soillsat_pfs,ierr)
+    if(clm_pf_idata%soilisat_pfs /= 0) &
+      call VecDestroy(clm_pf_idata%soilisat_pfs,ierr)
+    if(clm_pf_idata%soilt_pfs /= 0) &
+      call VecDestroy(clm_pf_idata%soilt_pfs,ierr)
+
+    ! soil C/N fluxes at interface (source/sink)
+    if(clm_pf_idata%rate_lit1c_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%rate_lit1c_clmp,ierr)
+    if(clm_pf_idata%rate_lit2c_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%rate_lit2c_clmp,ierr)
+    if(clm_pf_idata%rate_lit3c_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%rate_lit3c_clmp,ierr)
+    if(clm_pf_idata%rate_cwdc_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%rate_cwdc_clmp,ierr)
+    if(clm_pf_idata%rate_lit1n_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%rate_lit1n_clmp,ierr)
+    if(clm_pf_idata%rate_lit2n_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%rate_lit2n_clmp,ierr)
+    if(clm_pf_idata%rate_lit3n_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%rate_lit3n_clmp,ierr)
+    if(clm_pf_idata%rate_cwdn_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%rate_cwdn_clmp,ierr)
+    if(clm_pf_idata%rate_plantnuptake_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%rate_plantnuptake_clmp,ierr)
+    if(clm_pf_idata%rate_smin_no3_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%rate_smin_no3_clmp,ierr)
+    if(clm_pf_idata%rate_smin_nh4_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%rate_smin_nh4_clmp,ierr)
+    if(clm_pf_idata%rate_lit1c_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%rate_lit1c_pfs,ierr)
+    if(clm_pf_idata%rate_lit2c_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%rate_lit2c_pfs,ierr)
+    if(clm_pf_idata%rate_lit3c_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%rate_lit3c_pfs,ierr)
+    if(clm_pf_idata%rate_cwdc_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%rate_cwdc_pfs,ierr)
+    if(clm_pf_idata%rate_lit1n_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%rate_lit1n_pfs,ierr)
+    if(clm_pf_idata%rate_lit2n_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%rate_lit2n_pfs,ierr)
+    if(clm_pf_idata%rate_lit3n_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%rate_lit3n_pfs,ierr)
+    if(clm_pf_idata%rate_cwdn_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%rate_cwdn_pfs,ierr)
+    if(clm_pf_idata%rate_plantnuptake_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%rate_plantnuptake_pfs,ierr)
+    if(clm_pf_idata%rate_smin_no3_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%rate_smin_no3_pfs,ierr)
+    if(clm_pf_idata%rate_smin_nh4_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%rate_smin_nh4_pfs,ierr)
+
+    if(clm_pf_idata%press_maxponding_clmp  /= 0) &
+       call VecDestroy(clm_pf_idata%press_maxponding_clmp,ierr)
+    if(clm_pf_idata%press_maxponding_pfs  /= 0) &
+       call VecDestroy(clm_pf_idata%press_maxponding_pfs,ierr)
+    if(clm_pf_idata%press_subsurf_clmp  /= 0) &
+       call VecDestroy(clm_pf_idata%press_subsurf_clmp,ierr)
+    if(clm_pf_idata%press_subsurf_pfs  /= 0) &
+       call VecDestroy(clm_pf_idata%press_subsurf_pfs,ierr)
+    if(clm_pf_idata%press_subbase_clmp  /= 0) &
+       call VecDestroy(clm_pf_idata%press_subbase_clmp,ierr)
+    if(clm_pf_idata%press_subbase_pfs  /= 0) &
+       call VecDestroy(clm_pf_idata%press_subbase_pfs,ierr)
+    if(clm_pf_idata%qflux_subsurf_clmp  /= 0) &
+       call VecDestroy(clm_pf_idata%qflux_subsurf_clmp,ierr)
+    if(clm_pf_idata%qflux_subsurf_pfs  /= 0) &
+       call VecDestroy(clm_pf_idata%qflux_subsurf_pfs,ierr)
+    if(clm_pf_idata%qflux_subbase_clmp  /= 0) &
+       call VecDestroy(clm_pf_idata%qflux_subbase_clmp,ierr)
+    if(clm_pf_idata%qflux_subbase_pfs  /= 0) &
+       call VecDestroy(clm_pf_idata%qflux_subbase_pfs,ierr)
+
+    if(clm_pf_idata%gtemp_subsurf_clmp  /= 0) &
+       call VecDestroy(clm_pf_idata%gtemp_subsurf_clmp,ierr)
+    if(clm_pf_idata%gtemp_subsurf_pfs  /= 0) &
+       call VecDestroy(clm_pf_idata%gtemp_subsurf_pfs,ierr)
+    if(clm_pf_idata%gflux_subbase_clmp  /= 0) &
+       call VecDestroy(clm_pf_idata%gflux_subbase_clmp,ierr)
+    if(clm_pf_idata%gflux_subbase_pfs  /= 0) &
+       call VecDestroy(clm_pf_idata%gflux_subbase_pfs,ierr)
+    if(clm_pf_idata%gtemp_subbase_clmp  /= 0) &
+       call VecDestroy(clm_pf_idata%gtemp_subbase_clmp,ierr)
+    if(clm_pf_idata%gtemp_subbase_pfs  /= 0) &
+       call VecDestroy(clm_pf_idata%gtemp_subbase_pfs,ierr)
+
+    !
+    if(clm_pf_idata%sr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%sr_pfp,ierr)
+    if(clm_pf_idata%lamda_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%lamda_pfp,ierr)
+    if(clm_pf_idata%alpha_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%alpha_pfp,ierr)
+    if(clm_pf_idata%pcwmax_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%pcwmax_pfp,ierr)
+    if(clm_pf_idata%porosity_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%porosity_pfp,ierr)
+
+    if(clm_pf_idata%sr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%sr_clms,ierr)
+    if(clm_pf_idata%lamda_clms /= 0) &
+       call VecDestroy(clm_pf_idata%lamda_clms,ierr)
+    if(clm_pf_idata%alpha_clms /= 0) &
+       call VecDestroy(clm_pf_idata%alpha_clms,ierr)
+    if(clm_pf_idata%pcwmax_clms /= 0) &
+       call VecDestroy(clm_pf_idata%pcwmax_clms,ierr)
+    if(clm_pf_idata%porosity_clms /= 0) &
+       call VecDestroy(clm_pf_idata%porosity_clms,ierr)
+
+    ! update TH-BGC states
+    if(clm_pf_idata%press_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%press_pfp,ierr)
+    if(clm_pf_idata%soilpsi_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%soilpsi_pfp,ierr)
+    if(clm_pf_idata%soillsat_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%soillsat_pfp,ierr)
+    if(clm_pf_idata%soilisat_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%soilisat_pfp,ierr)
+    if(clm_pf_idata%soilt_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%soilt_pfp,ierr)
+
+    if(clm_pf_idata%press_clms /= 0) &
+       call VecDestroy(clm_pf_idata%press_clms,ierr)
+    if(clm_pf_idata%soilpsi_clms /= 0) &
+       call VecDestroy(clm_pf_idata%soilpsi_clms,ierr)
+    if(clm_pf_idata%soillsat_clms /= 0) &
+       call VecDestroy(clm_pf_idata%soillsat_clms,ierr)
+    if(clm_pf_idata%soilisat_clms /= 0) &
+       call VecDestroy(clm_pf_idata%soilisat_clms,ierr)
+    if(clm_pf_idata%soilt_clms /= 0) &
+       call VecDestroy(clm_pf_idata%soilt_clms,ierr)
+
+    if(clm_pf_idata%decomp_cpools_vr_lit1_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit1_pfp,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_lit2_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit2_pfp,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_lit3_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit3_pfp,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_cwd_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_cwd_pfp,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som1_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som1_pfp,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som2_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som2_pfp,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som3_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som3_pfp,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som4_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som4_pfp,ierr)
+    if(clm_pf_idata%decomp_npools_vr_lit1_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit1_pfp,ierr)
+    if(clm_pf_idata%decomp_npools_vr_lit2_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit2_pfp,ierr)
+    if(clm_pf_idata%decomp_npools_vr_lit3_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit3_pfp,ierr)
+    if(clm_pf_idata%decomp_npools_vr_cwd_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_cwd_pfp,ierr)
+    if(clm_pf_idata%smin_no3_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%smin_no3_vr_pfp,ierr)
+    if(clm_pf_idata%smin_nh4_vr_pfp /= 0) &
+      call VecDestroy(clm_pf_idata%smin_nh4_vr_pfp,ierr)
+
+    if(clm_pf_idata%decomp_cpools_vr_lit1_clms /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit1_clms,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_lit2_clms /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit2_clms,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_lit3_clms /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit3_clms,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_cwd_clms  /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_cwd_clms,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som1_clms /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som1_clms,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som2_clms /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som2_clms,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som3_clms /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som3_clms,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som4_clms /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som4_clms,ierr)
+    if(clm_pf_idata%decomp_npools_vr_lit1_clms /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit1_clms,ierr)
+    if(clm_pf_idata%decomp_npools_vr_lit2_clms /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit2_clms,ierr)
+    if(clm_pf_idata%decomp_npools_vr_lit3_clms /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit3_clms,ierr)
+    if(clm_pf_idata%decomp_npools_vr_cwd_clms  /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_cwd_clms,ierr)
+    if(clm_pf_idata%smin_no3_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%smin_no3_vr_clms,ierr)
+    if(clm_pf_idata%smin_nh4_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%smin_nh4_vr_clms,ierr)
+
+    if(clm_pf_idata%decomp_cpools_vr_lit1_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit1_clms_prv,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_lit2_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit2_clms_prv,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_lit3_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit3_clms_prv,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_cwd_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_cwd_clms_prv,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som1_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som1_clms_prv,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som2_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som2_clms_prv,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som3_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som3_clms_prv,ierr)
+    if(clm_pf_idata%decomp_cpools_vr_som4_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som4_clms_prv,ierr)
+    if(clm_pf_idata%decomp_npools_vr_lit1_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit1_clms_prv,ierr)
+    if(clm_pf_idata%decomp_npools_vr_lit2_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit2_clms_prv,ierr)
+    if(clm_pf_idata%decomp_npools_vr_lit3_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit3_clms_prv,ierr)
+    if(clm_pf_idata%decomp_npools_vr_cwd_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_cwd_clms_prv,ierr)
+    if(clm_pf_idata%smin_no3_vr_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%smin_no3_vr_clms_prv,ierr)
+    if(clm_pf_idata%smin_nh4_vr_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%smin_nh4_vr_clms_prv,ierr)
+
+    ! update BGC fluxes
+    if(clm_pf_idata%accextrn_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%accextrn_vr_pfp,ierr)
+    if(clm_pf_idata%accextrn_vr_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%accextrn_vr_clms_prv,ierr)
+    if(clm_pf_idata%accextrn_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%accextrn_vr_clms,ierr)
+
+    if(clm_pf_idata%aqco2_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%aqco2_vr_pfp,ierr)
+    if(clm_pf_idata%aqco2_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%aqco2_vr_clms,ierr)
+    if(clm_pf_idata%aqco2_vr_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%aqco2_vr_clmp,ierr)
+    if(clm_pf_idata%aqco2_vr_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%aqco2_vr_pfs,ierr)
+
+    if(clm_pf_idata%aqn2_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%aqn2_vr_pfp,ierr)
+    if(clm_pf_idata%aqn2_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%aqn2_vr_clms,ierr)
+    if(clm_pf_idata%aqn2_vr_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%aqn2_vr_clmp,ierr)
+    if(clm_pf_idata%aqn2_vr_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%aqn2_vr_pfs,ierr)
+
+    if(clm_pf_idata%aqn2o_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%aqn2o_vr_pfp,ierr)
+    if(clm_pf_idata%aqn2o_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%aqn2o_vr_clms,ierr)
+    if(clm_pf_idata%aqn2o_vr_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%aqn2o_vr_clmp,ierr)
+    if(clm_pf_idata%aqn2o_vr_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%aqn2o_vr_pfs,ierr)
+
+    if(clm_pf_idata%accnmin_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%accnmin_vr_pfp,ierr)
+    if(clm_pf_idata%accnmin_vr_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%accnmin_vr_clms_prv,ierr)
+    if(clm_pf_idata%accnmin_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%accnmin_vr_clms,ierr)
+
+    if(clm_pf_idata%accnimm_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%accnimm_vr_pfp,ierr)
+    if(clm_pf_idata%accnimm_vr_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%accnimm_vr_clms_prv,ierr)
+    if(clm_pf_idata%accnimm_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%accnimm_vr_clms,ierr)
+
+    if(clm_pf_idata%accndecomp_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%accndecomp_vr_pfp,ierr)
+    if(clm_pf_idata%accndecomp_vr_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%accndecomp_vr_clms_prv,ierr)
+    if(clm_pf_idata%accndecomp_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%accndecomp_vr_clms,ierr)
+
+    if(clm_pf_idata%accnnitri_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%accnnitri_vr_pfp,ierr)
+    if(clm_pf_idata%accnnitri_vr_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%accnnitri_vr_clms_prv,ierr)
+    if(clm_pf_idata%accnnitri_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%accnnitri_vr_clms,ierr)
+
+    if(clm_pf_idata%accndeni_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%accndeni_vr_pfp,ierr)
+    if(clm_pf_idata%accndeni_vr_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%accndeni_vr_clms_prv,ierr)
+    if(clm_pf_idata%accndeni_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%accndeni_vr_clms,ierr)
+
+    !
+    if(clm_pf_idata%qinfl_subsurf_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%qinfl_subsurf_pfp,ierr)
+    if(clm_pf_idata%qinfl_subsurf_clms /= 0) &
+       call VecDestroy(clm_pf_idata%qinfl_subsurf_clms,ierr)
+    if(clm_pf_idata%qsurf_subsurf_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%qsurf_subsurf_pfp,ierr)
+    if(clm_pf_idata%qsurf_subsurf_clms /= 0) &
+       call VecDestroy(clm_pf_idata%qsurf_subsurf_clms,ierr)
+    if(clm_pf_idata%qflux_subbase_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%qflux_subbase_pfp,ierr)
+    if(clm_pf_idata%qflux_subbase_clms /= 0) &
+       call VecDestroy(clm_pf_idata%qflux_subbase_clms,ierr)
+
+    if(clm_pf_idata%f_nh4_subsurf_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%f_nh4_subsurf_pfp,ierr)
+    if(clm_pf_idata%f_nh4_subsurf_clms /= 0) &
+       call VecDestroy(clm_pf_idata%f_nh4_subsurf_clms,ierr)
+    if(clm_pf_idata%f_nh4_subbase_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%f_nh4_subbase_pfp,ierr)
+    if(clm_pf_idata%f_nh4_subbase_clms /= 0) &
+       call VecDestroy(clm_pf_idata%f_nh4_subbase_clms,ierr)
+
+    if(clm_pf_idata%f_no3_subsurf_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%f_no3_subsurf_pfp,ierr)
+    if(clm_pf_idata%f_no3_subsurf_clms /= 0) &
+       call VecDestroy(clm_pf_idata%f_no3_subsurf_clms,ierr)
+    if(clm_pf_idata%f_no3_subbase_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%f_no3_subbase_pfp,ierr)
+    if(clm_pf_idata%f_no3_subbase_clms /= 0) &
+       call VecDestroy(clm_pf_idata%f_no3_subbase_clms,ierr)
+
+    !----------------------------------------------------------------------------------
+
+    if(clm_pf_idata%cellorg_clm /= 0) &
+       call VecDestroy(clm_pf_idata%cellorg_clm, ierr)
+
+    if(clm_pf_idata%cellorg_pf /= 0) &
+       call VecDestroy(clm_pf_idata%cellorg_pf, ierr)
+
+    if(clm_pf_idata%o2_decomp_depth_unsat_clm /= 0) &
+       call VecDestroy(clm_pf_idata%o2_decomp_depth_unsat_clm,ierr)
+
+    if(clm_pf_idata%conc_o2_unsat_clm /= 0) &
+       call VecDestroy(clm_pf_idata%conc_o2_unsat_clm,ierr)
+
+    if(clm_pf_idata%o2_decomp_depth_unsat_pf /= 0) &
+       call VecDestroy(clm_pf_idata%o2_decomp_depth_unsat_pf,ierr)
+
+    if(clm_pf_idata%conc_o2_unsat_pf /= 0) &
+       call VecDestroy(clm_pf_idata%conc_o2_unsat_pf,ierr)
+
+    if(clm_pf_idata%o2_decomp_depth_sat_clm /= 0) &
+       call VecDestroy(clm_pf_idata%o2_decomp_depth_sat_clm,ierr)
+
+    if(clm_pf_idata%conc_o2_sat_clm /= 0) &
+       call VecDestroy(clm_pf_idata%conc_o2_sat_clm,ierr)
+
+    if(clm_pf_idata%o2_decomp_depth_sat_pf /= 0) &
+       call VecDestroy(clm_pf_idata%o2_decomp_depth_sat_pf,ierr)
+
+    if(clm_pf_idata%conc_o2_sat_pf /= 0) &
+       call VecDestroy(clm_pf_idata%conc_o2_sat_pf,ierr)
 
   end subroutine CLMPFLOTRANIDataDestroy
 

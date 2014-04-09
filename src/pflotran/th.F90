@@ -3378,7 +3378,6 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
     call THZeroMassBalDeltaPatch(realization)
   endif
 
-
 ! now assign access pointer to local variables
   call VecGetArrayF90(field%flow_xx_loc, xx_loc_p, ierr)
   call VecGetArrayF90( r, r_p, ierr)

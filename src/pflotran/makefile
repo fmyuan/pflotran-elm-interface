@@ -5,11 +5,19 @@ common_src   = ./
 regression_test_dir = ../../regression_tests
 unit_test_dir = ./unittests
 
+include ${PETSC_DIR}/conf/variables
+include ${PETSC_DIR}/conf/rules
+
+# FC_DEFINE_FLAG is defined in PETSC_DIR/conf/variables above
+# e.g. '-WF,-D' for xl compilers, or '-D' for others.
+ifeq ($(strip $(FC_DEFINE_FLAG)),)   #this is default, if PETSC not defined
+   FC_DEFINE_FLAG := -D
+endif 
 
 MYFLAGS = -I.
-MYFLAGS += -DPROCESS_MODEL
-MYFLAGS += -DCHUAN_CO2
-MYFLAGS += -DGEOMECH
+MYFLAGS += $(FC_DEFINE_FLAG)PROCESS_MODEL
+MYFLAGS += $(FC_DEFINE_FLAG)CHUAN_CO2
+MYFLAGS += $(FC_DEFINE_FLAG)GEOMECH
 
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
 # PFLOTRAN_RXN_FLAG 
@@ -18,120 +26,120 @@ ifneq (,$(filter libpflotranchem.a pflotran_rxn,$(MAKECMDGOALS)))
 endif
 
 ifdef uo2
-  MYFLAGS += -DCOMPUTE_INTERNAL_MASS_FLUX
+  MYFLAGS += $(FC_DEFINE_FLAG)COMPUTE_INTERNAL_MASS_FLUX
 endif
 
 ifdef glenn
-#  MYFLAGS += -DXINGYUAN_BC
-#  MYFLAGS += -DYE_FLUX
-  MYFLAGS += -DBROADCAST_DATASET
+#  MYFLAGS += $(FC_DEFINE_FLAG)XINGYUAN_BC
+#  MYFLAGS += $(FC_DEFINE_FLAG)YE_FLUX
+  MYFLAGS += $(FC_DEFINE_FLAG)BROADCAST_DATASET
 endif
 
 ifdef solid_solution
-  MYFLAGS += -DSOLID_SOLUTION
+  MYFLAGS += $(FC_DEFINE_FLAG)SOLID_SOLUTION
 endif
 
 ifdef radioactive_decay
-  MYFLAGS += -DRADIOACTIVE_DECAY
+  MYFLAGS += $(FC_DEFINE_FLAG)RADIOACTIVE_DECAY
 endif
 
 ifdef mualem_spline
-  MYFLAGS += -DMUALEM_SPLINE
+  MYFLAGS += $(FC_DEFINE_FLAG)MUALEM_SPLINE
 endif
 
 ifdef petsc_api_3_3
-  MYFLAGS += -DHAVE_PETSC_API_3_3
+  MYFLAGS += $(FC_DEFINE_FLAG)HAVE_PETSC_API_3_3
 endif
 
 ifdef have_petscpcmg_h
-	MYFLAGS += -DHAVE_PETSCPCMG_H
+	MYFLAGS += $(FC_DEFINE_FLAG)HAVE_PETSCPCMG_H
 endif
 
 ifdef dbl
-  MYFLAGS += -DDOUBLE_LAYER
+  MYFLAGS += $(FC_DEFINE_FLAG)DOUBLE_LAYER
 endif
 
 ifdef pcl
-  MYFLAGS += -DPCL -DMUALEM_SPLINE
+  MYFLAGS += $(FC_DEFINE_FLAG)PCL $(FC_DEFINE_FLAG)MUALEM_SPLINE
 endif
 
 ifdef condnr
-  MYFLAGS += -DCONDNR
+  MYFLAGS += $(FC_DEFINE_FLAG)CONDNR
 endif
 
 ifdef perm
-  MYFLAGS += -DPERM
+  MYFLAGS += $(FC_DEFINE_FLAG)PERM
 endif
 
 ifdef tab
-  MYFLAGS += -DTABLE
+  MYFLAGS += $(FC_DEFINE_FLAG)TABLE
 endif
 
 ifdef temp
-  MYFLAGS += -DTEMP_DEPENDENT_LOGK
+  MYFLAGS += $(FC_DEFINE_FLAG)TEMP_DEPENDENT_LOGK
 endif
 
 ifdef remove_sat
-  MYFLAGS += -DREMOVE_SATURATION
+  MYFLAGS += $(FC_DEFINE_FLAG)REMOVE_SATURATION
 endif
 
 ifdef no_vapor_diffusion
-  MYFLAGS += -DNO_VAPOR_DIFFUSION
+  MYFLAGS += $(FC_DEFINE_FLAG)NO_VAPOR_DIFFUSION
 endif
 
 ifdef scco2
-  MYFLAGS += -DCHUAN_CO2
+  MYFLAGS += $(FC_DEFINE_FLAG)CHUAN_CO2
 endif
 
 ifdef debug_gen
-  MYFLAGS += -DDEBUG_GENERAL
+  MYFLAGS += $(FC_DEFINE_FLAG)DEBUG_GENERAL
   ifeq ($(debug_gen),2)
-    MYFLAGS += -DDEBUG_GENERAL_INFO
+    MYFLAGS += $(FC_DEFINE_FLAG)DEBUG_GENERAL_INFO
   endif
 endif 
 
 ifdef coll
-  MYFLAGS += -DCOLL
+  MYFLAGS += $(FC_DEFINE_FLAG)COLL
 endif
 
 ifdef dont_use_wateos
-  MYFLAGS += -DDONT_USE_WATEOS
+  MYFLAGS += $(FC_DEFINE_FLAG)DONT_USE_WATEOS
 endif
 
 ifdef have_hdf5
-  MYFLAGS += -I$(HDF5_INCLUDE) -I$(HDF5_LIB) -DPETSC_HAVE_HDF5
+  MYFLAGS += -I$(HDF5_INCLUDE) -I$(HDF5_LIB) $(FC_DEFINE_FLAG)PETSC_HAVE_HDF5
 endif
 
 ifdef gpu
-  MYFLAGS += -DCHUNK
+  MYFLAGS += $(FC_DEFINE_FLAG)CHUNK
 endif
 
 ifdef mfd
-  MYFLAGS += -DDASVYAT
+  MYFLAGS += $(FC_DEFINE_FLAG)DASVYAT
 endif
 
 ifdef dasvyat_debug
-  MYFLAGS += -DDASVYAT_DEBUG
+  MYFLAGS += $(FC_DEFINE_FLAG)DASVYAT_DEBUG
 endif
 
 ifdef dasvyat_test_cut
-  MYFLAGS += -DDASVYAT_TEST_CUT
+  MYFLAGS += $(FC_DEFINE_FLAG)DASVYAT_TEST_CUT
 endif
 
 ifdef ugrid_debug
-  MYFLAGS += -DUGRID_DEBUG
+  MYFLAGS += $(FC_DEFINE_FLAG)UGRID_DEBUG
 endif
 
 ifdef amanzi_bgd
-  MYFLAGS += -DAMANZI_BGD
+  MYFLAGS += $(FC_DEFINE_FLAG)AMANZI_BGD
 endif
 
 ifdef store_flowrates
-  MYFLAGS += -DSTORE_FLOWRATES
+  MYFLAGS += $(FC_DEFINE_FLAG)STORE_FLOWRATES
 endif
 
 ifdef mfd_ugrid
-  MYFLAGS += -DMFD_UGRID
+  MYFLAGS += $(FC_DEFINE_FLAG)MFD_UGRID
 endif
 
 UPDATE_PROVENANCE=0
@@ -146,9 +154,6 @@ FPPFLAGS = ${MYFLAGS}
 
 CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log pflotran_provenance.F90
 
-include ${PETSC_DIR}/conf/variables
-include ${PETSC_DIR}/conf/rules
-
 ifdef have_hdf5
 LIBS +=  -L${HDF5_LIB} -lhdf5_fortran -lhdf5 -lz 
 endif
@@ -157,8 +162,8 @@ endif
 # SCORPIO_DIR=${HOME}/soft/scorpio
 ifdef scorpio
   LIBS += -L${SCORPIO_DIR}/lib -lscorpio
-  MYFLAGS += -DSCORPIO
-  MYFLAGS += -DSCORPIO_WRITE 
+  MYFLAGS += $(FC_DEFINE_FLAG)SCORPIO
+  MYFLAGS += $(FC_DEFINE_FLAG)SCORPIO_WRITE 
   MYFLAGS += -I${SCORPIO_DIR}/include
 endif
 
@@ -251,6 +256,12 @@ chem_obj = \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
 	${common_src}reaction_sandbox_clm_cn.o \
+	${common_src}reaction_sandbox_clm_decomp.o \
+	${common_src}reaction_sandbox_clm_cnp.o \
+	${common_src}reaction_sandbox_plantntake.o \
+	${common_src}reaction_sandbox_nitrification.o \
+	${common_src}reaction_sandbox_denitrification.o \
+	${common_src}reaction_sandbox_microbial.o \
 	${common_src}reaction_sandbox_example.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
 	${common_src}solid_solution.o \
@@ -451,6 +462,7 @@ checkpoint.o : discretization.o field.o flash2.o grid.o immis.o logging.o \
                material.o miscible.o mphase.o option.o output_aux.o \
                pflotran_constants.o reaction_aux.o reactive_transport.o \
                realization.o realization_base.o string.o variables.o
+clm_bgc.o :
 co2_span_wagner.o : co2_sw_rtsafe.o option.o pflotran_constants.o
 co2_span_wagner_spline.o : pflotran_constants.o spline.o
 co2_sw.o : co2_span_wagner.o pflotran_constants.o
@@ -893,7 +905,13 @@ reaction_sandbox.o : global_aux.o input_aux.o material_aux.o option.o \
                      pflotran_constants.o reaction_aux.o \
                      reaction_sandbox_base.o reaction_sandbox_clm_cn.o \
                      reaction_sandbox_example.o reaction_sandbox_ufd_wp.o \
-                     reactive_transport_aux.o string.o utility.o
+                     reactive_transport_aux.o string.o utility.o \
+                     reaction_sandbox_clm_decomp.o \
+                     reaction_sandbox_clm_cnp.o \
+                     reaction_sandbox_plantntake.o \
+                     reaction_sandbox_nitrification.o \
+                     reaction_sandbox_denitrification.o \
+                     reaction_sandbox_microbial.o
 reaction_sandbox_base.o : global_aux.o input_aux.o material_aux.o option.o \
                           pflotran_constants.o reaction_aux.o \
                           reactive_transport_aux.o
@@ -901,11 +919,35 @@ reaction_sandbox_clm_cn.o : global_aux.o immobile_aux.o input_aux.o \
                             material_aux.o option.o pflotran_constants.o \
                             reaction_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \
-                            utility.o
-reaction_sandbox_example.o : global_aux.o input_aux.o material_aux.o option.o \
-                             pflotran_constants.o reaction_aux.o \
+                            utility.o clm_bgc.o
+reaction_sandbox_clm_decomp.o : global_aux.o immobile_aux.o input_aux.o option.o \
+                            material_aux.o pflotran_constants.o reaction_aux.o \
+                            reaction_sandbox_base.o reactive_transport_aux.o \
+                            string.o units.o utility.o clm_bgc.o
+reaction_sandbox_clm_cnp.o : global_aux.o immobile_aux.o input_aux.o option.o \
+                            material_aux.o pflotran_constants.o reaction_aux.o \
+                            reaction_sandbox_base.o reactive_transport_aux.o \
+                            string.o units.o utility.o clm_bgc.o
+reaction_sandbox_denitrification.o : global_aux.o immobile_aux.o input_aux.o option.o \
+                            material_aux.o pflotran_constants.o reaction_aux.o \
+                            reaction_sandbox_base.o reactive_transport_aux.o \
+                            string.o units.o utility.o clm_bgc.o
+reaction_sandbox_example.o : global_aux.o immobile_aux.o input_aux.o option.o \
+                             material_aux.o pflotran_constants.o reaction_aux.o \
                              reaction_sandbox_base.o reactive_transport_aux.o \
-                             string.o units.o
+                             string.o units.o 
+reaction_sandbox_microbial.o : global_aux.o immobile_aux.o input_aux.o option.o \
+                            material_aux.o pflotran_constants.o reaction_aux.o \
+                            reaction_sandbox_base.o reactive_transport_aux.o \
+                            string.o units.o utility.o clm_bgc.o
+reaction_sandbox_nitrification.o : global_aux.o immobile_aux.o input_aux.o option.o \
+                            material_aux.o pflotran_constants.o reaction_aux.o \
+                            reaction_sandbox_base.o reactive_transport_aux.o \
+                            string.o units.o utility.o clm_bgc.o
+reaction_sandbox_plantntake.o : global_aux.o immobile_aux.o input_aux.o option.o \
+                            material_aux.o pflotran_constants.o reaction_aux.o \
+                            reaction_sandbox_base.o reactive_transport_aux.o \
+                            string.o units.o utility.o clm_bgc.o
 reaction_sandbox_ufd_wp.o : global_aux.o immobile_aux.o input_aux.o \
                             material_aux.o option.o pflotran_constants.o \
                             reaction_aux.o reaction_sandbox_base.o \

@@ -37,8 +37,7 @@
       DO     100 I = 1, N-1
         DO    90 J = I+1, N
           DO  80 K = 1, N
-            B(INDX(J),K) = B(INDX(J),K)
-     *                    -A(INDX(J),I)*B(INDX(I),K)
+            B(INDX(J),K) = B(INDX(J),K)-A(INDX(J),I)*B(INDX(I),K)
    80     CONTINUE
    90   CONTINUE
   100 CONTINUE

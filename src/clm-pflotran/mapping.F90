@@ -342,7 +342,7 @@ contains
             hint = 'num_weights'
             call InputReadInt(input,option,nwts)
             call InputErrorMsg(input,option,'Number of weights',hint)
-            write(*,*),'nwts = ',nwts
+            write(*,*) 'nwts = ',nwts
           case default
             option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
               '" in explicit grid file.'
@@ -372,26 +372,26 @@ contains
           
           !Perform checks on the data read
           if(wts_row_tmp(ii) < 1) then
-            write(*,string),'Row entry for ii = ',ii,' less than 1'
+            write(*,string) 'Row entry for ii = ',ii,' less than 1'
             option%io_buffer = string
             call printErrMsg(option)
           endif
           
           if(wts_col_tmp(ii) < 1) then
-            write(*,string),'Col entry for ii = ',ii,' less than 1'
+            write(*,string) 'Col entry for ii = ',ii,' less than 1'
             option%io_buffer = string
             call printErrMsg(option)
           endif
           
           if((wts_tmp(ii) < 0.d0).or.(wts_tmp(ii) > 1.d0)) then
-            write(*,string),'Invalid wt value for ii = ',ii
+            write(*,string) 'Invalid wt value for ii = ',ii
             option%io_buffer = string
             call printErrMsg(option)
           endif
           
           ! ensure that row values in the data are stored in ascending order
           if(wts_row_tmp(ii) < prev_row) then
-            write(*,string),'Row value in the mapping data not store in ascending order: ii ',ii
+            write(*,string) 'Row value in the mapping data not store in ascending order: ii ',ii
             option%io_buffer = string
             call printErrMsg(option) 
           endif
