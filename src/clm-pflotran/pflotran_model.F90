@@ -3684,7 +3684,7 @@ end subroutine pflotranModelSetICs
   end subroutine pflotranModelUpdateTHfromCLM
 
   ! ************************************************************************** !
-  !> This routine reset aqueous gas concenctration after emission adjusting
+  !> This routine reset gas concenctration (as immobile species) after emission adjusting
   !> in CLM-PFLOTRAN interface
   !! Note: this is a temporary work-around, because PF doesn't have BGC gas
   !!       processes at this moment
@@ -3703,6 +3703,7 @@ end subroutine pflotranModelSetICs
     use Field_module
     use Discretization_module
     use Reaction_Aux_module
+    use Immobile_Aux_module
     use Reactive_Transport_module, only : RTUpdateAuxVars
     use Reactive_Transport_Aux_module
 
@@ -3730,9 +3731,9 @@ end subroutine pflotranModelSetICs
     PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: xx_p(:)
 
-    PetscScalar, pointer :: aqco2_vr_pf_loc(:)              ! (molC/L)
-    PetscScalar, pointer :: aqn2_vr_pf_loc(:)               ! (molN2-N/L)
-    PetscScalar, pointer :: aqn2o_vr_pf_loc(:)              ! (molN2O-N/L)
+    PetscScalar, pointer :: gco2_vr_pf_loc(:)              ! (molC/m3 bulk soil)
+    PetscScalar, pointer :: gn2_vr_pf_loc(:)               ! (molN2-N/m3 bulk soil)
+    PetscScalar, pointer :: gn2o_vr_pf_loc(:)              ! (molN2O-N/m3 bulk soil)
 
     PetscInt :: offset
     PetscInt :: ispec_co2, ispec_n2, ispec_n2o
@@ -3758,52 +3759,45 @@ end subroutine pflotranModelSetICs
 
     ! (i) indices of bgc variables in PFLOTRAN immobiles
 
-    ! primary species
-    !word = "CO2(aq)"
-    word = "HCO3-"
-    ispec_co2  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
+    ! immobile species
+    word = "CO2g"
+    ispec_co2  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-    if( ispec_co2 < 0 ) then
-      word = "CO2(aq)*"
-      ispec_co2  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-    endif
+    word = "N2g"
+    ispec_n2  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-    word = "N2(aq)"
-    ispec_n2  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-
-    word = "N2O(aq)"
-    ispec_n2o = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
+    word = "N2Og"
+    ispec_n2o = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     ! mapping CLM vecs to PF vecs
     if(ispec_co2 > 0) then
        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%aqco2_vr_clmp, &
-                                    clm_pf_idata%aqco2_vr_pfs)
+                                    clm_pf_idata%gco2_vr_clmp, &
+                                    clm_pf_idata%gco2_vr_pfs)
     endif
 
     if(ispec_n2o > 0) then
        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%aqn2o_vr_clmp, &
-                                    clm_pf_idata%aqn2o_vr_pfs)
+                                    clm_pf_idata%gn2o_vr_clmp, &
+                                    clm_pf_idata%gn2o_vr_pfs)
     endif
 
     if(ispec_n2 > 0) then
        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%aqn2_vr_clmp, &
-                                    clm_pf_idata%aqn2_vr_pfs)
+                                    clm_pf_idata%gn2_vr_clmp, &
+                                    clm_pf_idata%gn2_vr_pfs)
     endif
 
     ! (iii) get the 'PF' vecs for resetting data
-    call VecGetArrayF90(clm_pf_idata%aqco2_vr_pfs, aqco2_vr_pf_loc,ierr)
-    call VecGetArrayF90(clm_pf_idata%aqn2_vr_pfs, aqn2_vr_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%aqn2o_vr_pfs, aqn2o_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%gco2_vr_pfs, gco2_vr_pf_loc,ierr)
+    call VecGetArrayF90(clm_pf_idata%gn2_vr_pfs, gn2_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%gn2o_vr_pfs, gn2o_vr_pf_loc, ierr)
 
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)  ! extract data from pflotran internal portion
 
@@ -3813,25 +3807,25 @@ end subroutine pflotranModelSetICs
            if (patch%imat(ghosted_id) <= 0) cycle
         endif
 
-        offset = (local_id - 1)*realization%reaction%ncomp
+        offset = (local_id - 1)*realization%reaction%offset_immobile
 
         if(ispec_co2 > 0) then
-            xx_p(offset + ispec_co2) = max(aqco2_vr_pf_loc(local_id), 1.0d-20)
+            xx_p(offset + ispec_co2) = max(gco2_vr_pf_loc(local_id), 1.0d-20)
         endif
 
         if(ispec_n2 > 0) then
-            xx_p(offset + ispec_n2) = max(aqn2_vr_pf_loc(local_id), 1.0d-20)
+            xx_p(offset + ispec_n2) = max(gn2_vr_pf_loc(local_id), 1.0d-20)
         endif
 
         if(ispec_n2o > 0) then
-            xx_p(offset + ispec_n2o) = max(aqn2o_vr_pf_loc(local_id), 1.0d-20)
+            xx_p(offset + ispec_n2o) = max(gn2o_vr_pf_loc(local_id), 1.0d-20)
         endif
 
     enddo
 
-    call VecRestoreArrayF90(clm_pf_idata%aqco2_vr_pfs, aqco2_vr_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%aqn2_vr_pfs, aqn2_vr_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%aqn2o_vr_pfs, aqn2o_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%gco2_vr_pfs, gco2_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%gn2_vr_pfs, gn2_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%gn2o_vr_pfs, gn2o_vr_pf_loc, ierr)
     !
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
 
@@ -4938,9 +4932,9 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (gN/m3)
     PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
     PetscScalar, pointer :: smin_nh4sorb_vr_pf_loc(:)       ! (gN/m3)
-    PetscScalar, pointer :: aqco2_vr_pf_loc(:)              ! (molC/m3)
-    PetscScalar, pointer :: aqn2_vr_pf_loc(:)               ! (molN2-N/m3)
-    PetscScalar, pointer :: aqn2o_vr_pf_loc(:)              ! (molN2O-N/m3)
+    PetscScalar, pointer :: gco2_vr_pf_loc(:)              ! (molC/m3)
+    PetscScalar, pointer :: gn2_vr_pf_loc(:)               ! (molN2-N/m3)
+    PetscScalar, pointer :: gn2o_vr_pf_loc(:)              ! (molN2O-N/m3)
     PetscScalar, pointer :: accnmin_vr_pf_loc(:)            ! (gN/m3)
     PetscScalar, pointer :: accnimm_vr_pf_loc(:)            ! (gN/m3)
     PetscScalar, pointer :: accngasmin_vr_pf_loc(:)         ! (gN/m3)
@@ -5027,17 +5021,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     ! primary species
-    !word = "CO2(aq)"
-    word = "HCO3-"
-    ispec_co2  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-
-    if( ispec_co2 < 0 ) then
-      word = "CO2(aq)*"
-      ispec_co2  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-    endif
-
     word = "NO3-"
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
@@ -5058,13 +5041,17 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                   realization%reaction,PETSC_FALSE,realization%option)
     endif
 
-    word = "N2(aq)"
-    ispec_n2  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
+    !immobile species for gas
+    word = "CO2g"
+    ispec_co2  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    word = "N2g"
+    ispec_n2  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-    word = "N2O(aq)"
-    ispec_n2o = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
+    word = "N2Og"
+    ispec_n2o = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     ! N bgc reaction fluxes tracking (immoble species)
     word = 'Nmin'
@@ -5116,9 +5103,9 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfp, smin_nh4_vr_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%smin_nh4sorb_vr_pfp, smin_nh4sorb_vr_pf_loc, ierr)
     !
-    call VecGetArrayF90(clm_pf_idata%aqco2_vr_pfp, aqco2_vr_pf_loc,ierr)
-    call VecGetArrayF90(clm_pf_idata%aqn2_vr_pfp, aqn2_vr_pf_loc, ierr)
-    call VecGetArrayF90(clm_pf_idata%aqn2o_vr_pfp, aqn2o_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%gco2_vr_pfp, gco2_vr_pf_loc,ierr)
+    call VecGetArrayF90(clm_pf_idata%gn2_vr_pfp, gn2_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%gn2o_vr_pfp, gn2o_vr_pf_loc, ierr)
     !
     call VecGetArrayF90(clm_pf_idata%accextrn_vr_pfp, accextrn_vr_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
@@ -5179,45 +5166,45 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
            smin_no3_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
         endif
 
-        ! aqueous gas solution in mol/L to aovid 'theta' inconsistence (due to porosity) during unit conversion
+        ! immobile gas conc in mol/m3 bulk soil to aovid 'theta' inconsistence (due to porosity) during unit conversion
         if(ispec_co2 > 0) then
-           conc = xx_p(offset + ispec_co2) !* theta * 1000.0d0                    ! unit: M (molC/L)
-           aqco2_vr_pf_loc(local_id)   = max(conc, 1.0d-20) !* C_molecular_weight
+           conc = xx_p(offsetim + ispec_co2) !* theta * 1000.0d0                    ! unit: M (molC/m3)
+           gco2_vr_pf_loc(local_id)   = max(conc, 1.0d-20)
         endif
 
         if(ispec_n2 > 0) then
-           conc = xx_p(offset + ispec_n2) !* theta * 1000.0d0                    ! unit: M (molN/L)
-           aqn2_vr_pf_loc(local_id)   = max(conc, 1.0d-20) !* N_molecular_weight
+           conc = xx_p(offsetim + ispec_n2) !* theta * 1000.0d0                    ! unit: M (molN/m3)
+           gn2_vr_pf_loc(local_id)   = max(conc, 1.0d-20)
         endif
 
         if(ispec_n2o > 0) then
-           conc = xx_p(offset + ispec_n2o) ! * theta * 1000.0d0                  ! unit: M (molN/L)
-           aqn2o_vr_pf_loc(local_id)   = max(conc, 1.0d-20) !* N_molecular_weight
+           conc = xx_p(offsetim + ispec_n2o) ! * theta * 1000.0d0                  ! unit: M (molN/m3)
+           gn2o_vr_pf_loc(local_id)   = max(conc, 1.0d-20)
         endif
 
         ! tracking N bgc reaction fluxes
         if(ispec_nmin > 0) then
-           conc = xx_p(offset + ispec_nmin)
+           conc = xx_p(offsetim + ispec_nmin)
            accnmin_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
         endif
 
         if(ispec_nimm > 0) then
-           conc = xx_p(offset + ispec_nimm)
+           conc = xx_p(offsetim + ispec_nimm)
            accnimm_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
         endif
 
         if(ispec_ngasmin > 0) then
-           conc = xx_p(offset + ispec_ngasmin)
+           conc = xx_p(offsetim + ispec_ngasmin)
            accngasmin_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
         endif
 
         if(ispec_ngasnitr > 0) then
-           conc = xx_p(offset + ispec_ngasnitr)
+           conc = xx_p(offsetim + ispec_ngasnitr)
            accngasnitr_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
         endif
 
         if(ispec_ngasdeni > 0) then
-           conc = xx_p(offset + ispec_ngasdeni)
+           conc = xx_p(offsetim + ispec_ngasdeni)
            accngasdeni_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
         endif
 
@@ -5240,9 +5227,9 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfp, smin_nh4_vr_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%smin_nh4sorb_vr_pfp, smin_nh4sorb_vr_pf_loc, ierr)
     !
-    call VecRestoreArrayF90(clm_pf_idata%aqco2_vr_pfp, aqco2_vr_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%aqn2_vr_pfp, aqn2_vr_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%aqn2o_vr_pfp, aqn2o_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%gco2_vr_pfp, gco2_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%gn2_vr_pfp, gn2_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%gn2o_vr_pfp, gn2o_vr_pf_loc, ierr)
     !
     call VecRestoreArrayF90(clm_pf_idata%accextrn_vr_pfp, accextrn_vr_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
@@ -5316,8 +5303,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%aqco2_vr_pfp, &
-                                    clm_pf_idata%aqco2_vr_clms)
+                                    clm_pf_idata%gco2_vr_pfp, &
+                                    clm_pf_idata%gco2_vr_clms)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
@@ -5348,15 +5335,15 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     if(ispec_n2 > 0) then
          call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%aqn2_vr_pfp, &
-                                    clm_pf_idata%aqn2_vr_clms)
+                                    clm_pf_idata%gn2_vr_pfp, &
+                                    clm_pf_idata%gn2_vr_clms)
     endif
 
     if(ispec_n2o > 0) then
          call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%aqn2o_vr_pfp, &
-                                    clm_pf_idata%aqn2o_vr_clms)
+                                    clm_pf_idata%gn2o_vr_pfp, &
+                                    clm_pf_idata%gn2o_vr_clms)
     endif
 
     if(ispec_nmin > 0) then
