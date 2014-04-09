@@ -706,9 +706,11 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(perm_yy_loc,  perm_yy_loc_p,  ierr)
     call VecRestoreArrayF90(perm_zz_loc,  perm_zz_loc_p,  ierr)
 
-    call MaterialSetAuxVarVecLoc(realization%patch%aux%Material,field%work_loc, &
+    call MaterialSetAuxVarVecLoc(realization%patch%aux%Material,porosity_loc, &
+                                 POROSITY,ZERO_INTEGER)
+    call MaterialSetAuxVarVecLoc(realization%patch%aux%Material,perm_xx_loc, &
                                  PERMEABILITY_X,ZERO_INTEGER)
-    call MaterialSetAuxVarVecLoc(realization%patch%aux%Material,field%work_loc, &
+    call MaterialSetAuxVarVecLoc(realization%patch%aux%Material,perm_yy_loc, &
                                  PERMEABILITY_Y,ZERO_INTEGER)
     call MaterialSetAuxVarVecLoc(realization%patch%aux%Material,perm_zz_loc, &
                                  PERMEABILITY_Z,ZERO_INTEGER)
