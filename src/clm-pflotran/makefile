@@ -438,6 +438,8 @@ lib_pflotran_obj = \
 	$(relations_obj) $(properties_obj) $(dataset_obj) \
 	$(io_obj) $(misc_obj) $(surface_obj)
 
+pflotran_interface_test_obj = ${pflotran_src}pflotran_interface_main.o
+
 pflotran_rxn_obj = ${pflotran_src}pflotran_rxn.o
 
 pflotran : $(pflotran_obj)
@@ -448,6 +450,9 @@ libpflotran.a : $(lib_pflotran_obj)
 
 libpflotranchem.a : $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
 	$(AR) $(ARFLAGS) $@ $(util_obj) $(shared_mode_aux_obj) $(chem_obj)
+
+pflotran_interface : libpflotran.a $(pflotran_interface_test_obj)
+	${FLINKER} -o $@ libpflotran.a $(pflotran_interface_test_obj) ${PETSC_LIB} ${LIBS} 
 
 pflotran_rxn : libpflotranchem.a $(pflotran_rxn_obj)
 	${FLINKER} -o $@ $(pflotran_rxn_obj) -L. -lpflotranchem ${PETSC_LIB} ${LIBS} 
@@ -807,7 +812,7 @@ output_observation.o : connection.o coupler.o discretization.o field.o \
                        reaction_aux.o reactive_transport.o \
                        reactive_transport_aux.o realization.o \
                        realization_base.o region.o richards.o \
-                       structured_grid.o th.o utility.o variables.o
+                       structured_grid.o th.o utility.o variables.o flash2.o
 output_surface.o : connection.o coupler.o discretization.o field.o grid.o \
                    hdf5.o hdf5_aux.o input_aux.o logging.o option.o \
                    output_aux.o output_common.o output_hdf5.o output_tecplot.o \
