@@ -3765,7 +3765,7 @@ end subroutine pflotranModelSetICs
                   realization%reaction,PETSC_FALSE,realization%option)
 
     if( ispec_co2 < 0 ) then
-      word = "CO2(aq)*"
+      word = "CO2(aq)"
       ispec_co2  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
     endif
@@ -5033,7 +5033,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                   realization%reaction,PETSC_FALSE,realization%option)
 
     if( ispec_co2 < 0 ) then
-      word = "CO2(aq)*"
+      word = "CO2(aq)"
       ispec_co2  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
     endif
@@ -5042,15 +5042,9 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
-    word = "AmmoniaH4+"
+    word = "NH4+"
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
-
-    if(ispec_nh4 < 0) then
-       word = "NH4+"
-       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-    endif
 
     if(ispec_nh4 < 0) then
        word = "NH3(aq)"

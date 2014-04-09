@@ -279,14 +279,20 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 ! here co2_p = 350.0d-6 for demonstration 
   co2_p = 350.0d-6 * 101325.d0
 
-  call duanco2(tc,co2_p, co2_rho, co2_fg, co2_xphi)     ! only need 'co2_xphi' (fugacity coefficient) for the follwong call
+!  call duanco2(tc,co2_p, co2_rho, co2_fg, co2_xphi)     ! only need 'co2_xphi' (fugacity coefficient) for the follwong call
 
-  call Henry_CO2_noderiv(xmole_co2,xmass_co2,tc,co2_p,co2_xphi,co2_henry,co2_poyn)   ! 'xmolco2': mol fraction; 'xmco2': mass fraction (CO2:CO2+H2O)
+!  call Henry_CO2_noderiv(xmole_co2,xmass_co2,tc,co2_p,co2_xphi,co2_henry,co2_poyn)   ! 'xmolco2': mol fraction; 'xmco2': mass fraction (CO2:CO2+H2O)
 
-  c_hco3_eq =  xmole_co2/H2O_kg_mol
+!  c_hco3_eq =  xmole_co2/H2O_kg_mol
 
+! as duanco2 breaks the simulation, use a constant value for test
+  c_hco3_eq = 1.0d-6 
+ 
   temp_real = volume * 1000.0d0 * porosity * global_auxvar%sat(1)
   rate = this%k_kinetic_co2 * (c_hco3/c_hco3_eq - 1.0d0) * temp_real 
+
+! degas occurs only when oversaturated, not considering uptake of CO2 from atmosphere
+  if(rate > 0) then
 
     Residual(ires_co2a) = Residual(ires_co2a) + rate
     Residual(ires_co2g) = Residual(ires_co2g) - rate
@@ -300,6 +306,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
      Jacobian(ires_co2g,ires_co2a) = Jacobian(ires_co2g,ires_co2a) - drate
 
     endif
+  endif 
 
   if(this%b_fixph) then
     ires_proton = this%ispec_proton
