@@ -319,3 +319,5 @@ tpls/pfunit/source/AssertReal.F90
 tpls/pfunit/source/dependencies.inc
 libpflotran.a
 eos_gas.F90
+src/clm-pflotran/reaction_sandbox_degas.F90
+src/clm-pflotran/reaction_sandbox_langmuir.F90
