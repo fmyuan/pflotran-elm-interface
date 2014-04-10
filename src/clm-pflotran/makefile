@@ -267,8 +267,8 @@ chem_obj = \
 	${common_src}reaction_sandbox_nitrification.o \
 	${common_src}reaction_sandbox_denitrification.o \
 	${common_src}reaction_sandbox_microbial.o \
-	${common_src}reaction_sandbox_degas.o \
 	${common_src}reaction_sandbox_langmuir.o \
+	${common_src}reaction_sandbox_degas.o \
 	${common_src}reaction_sandbox_example.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
 	${common_src}solid_solution.o \
@@ -565,7 +565,7 @@ discretization.o : dm_kludge.o grid.o input_aux.o mfd.o mfd_aux.o option.o \
 dm_kludge.o : pflotran_constants.o unstructured_grid_aux.o
 e4d_mat_inv.o :
 e4d_run.o : e4d_vars.o
-e4d_setup.o : e4d_vars.o
+e4d_setup.o : e4d_vars.o e4d_mat_inv.o
 e4d_vars.o :
 eos.o : eos_water.o input_aux.o option.o pflotran_constants.o string.o eos_gas.o
 eos_water.o : pflotran_constants.o
@@ -944,9 +944,9 @@ reaction_sandbox.o : global_aux.o input_aux.o material_aux.o option.o \
                      reaction_sandbox_plantntake.o \
                      reaction_sandbox_nitrification.o \
                      reaction_sandbox_denitrification.o \
-                     reaction_sandbox_degas.o \
+                     reaction_sandbox_microbial.o \
                      reaction_sandbox_langmuir.o \
-                     reaction_sandbox_microbial.o
+                     reaction_sandbox_degas.o
 reaction_sandbox_base.o : global_aux.o input_aux.o material_aux.o option.o \
                           pflotran_constants.o reaction_aux.o \
                           reactive_transport_aux.o

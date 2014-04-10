@@ -321,3 +321,4 @@ libpflotran.a
 eos_gas.F90
 reaction_sandbox_langmuir.F90
 reaction_sandbox_degas.F90
+e4d_mat_inv.F90
