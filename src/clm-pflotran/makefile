@@ -156,7 +156,8 @@ FFLAGS   =
 CPPFLAGS = ${MYFLAGS}
 FPPFLAGS = ${MYFLAGS}
 
-CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log libpflotran.a pflotran_interface pflotran_provenance.F90
+CLEANFILES       = pflotran pflotran_rxn libpflotranchem.a make.log libpflotran.a \
+                   pflotran_interface pflotran_provenance.F90
 
 ifdef have_hdf5
 LIBS +=  -L${HDF5_LIB} -lhdf5_fortran -lhdf5 -lz 
@@ -435,7 +436,7 @@ pflotran_obj = $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
 
 lib_pflotran_obj = \
 	${clm_interface_obj} \
-    $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
+        $(util_obj) $(eos_obj) $(mode_aux_obj) $(mode_obj) \
 	$(shared_mode_aux_obj) $(chem_obj) $(geomech_obj) $(grid_obj) \
 	$(relations_obj) $(properties_obj) $(dataset_obj) \
 	$(io_obj) $(misc_obj) $(surface_obj)
