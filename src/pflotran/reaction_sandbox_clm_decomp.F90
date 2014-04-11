@@ -774,15 +774,15 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
   this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
-  word = 'AmmoniaH4+'
-  this%species_id_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
-
-  if(this%species_id_nh3 < 0) then
-    word = 'NH4+'
-    this%species_id_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
+  if(this%species_id_co2 < 0) then
+     word = 'CO2(aq)'
+     this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
   endif
+
+  word = 'NH4+'
+  this%species_id_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
 
   if(this%species_id_nh3 < 0) then
     word = 'NH3(aq)'

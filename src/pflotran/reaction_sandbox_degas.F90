@@ -143,19 +143,51 @@ subroutine degasSetup(this,reaction,option)
   this%ispec_co2a = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
-  word = 'H+'
-  this%ispec_proton = GetPrimarySpeciesIDFromName(word,reaction, &
+  if(this%ispec_co2a < 0) then
+     word = 'CO2(aq)'
+     this%ispec_co2a = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
+  endif
+
+  if(this%ispec_co2a < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
+            'aqueous species, either HCO3- or CO2(aq) is not defined!'
+     call printErrMsg(option)
+  endif
 
   ! (TODO) currently, gas CO2 related process not ready, so it's assumed as immobile species.
   word = 'CO2imm'
   this%ispec_co2g = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
  
-  word = 'Himm'
-  this%ispec_himm = GetImmobileSpeciesIDFromName( &
+  if(this%ispec_co2g < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
+            'gas species Cimm is not defined!'
+     call printErrMsg(option)
+  endif
+
+  if(this%b_fixph) then
+     word = 'H+'
+     this%ispec_proton = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+
+     word = 'Himm'
+     this%ispec_himm = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
+   
+     if(this%ispec_proton < 0) then
+        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
+            'H+ is not defined even though pH needs to be fixed!'
+        call printErrMsg(option)
+     endif
  
+     if(this%ispec_himm < 0) then
+        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
+            'Himm is not defined even though pH needs to be fixed!'
+        call printErrMsg(option)
+     endif
+  endif
+
 end subroutine degasSetup
 
 ! ************************************************************************** !
@@ -263,14 +295,20 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
   tc = max(min(tc,65.d0), 1.d-20)                                   ! 'duanco2' only functions from 0 - 65oC
 
-  call duanco2(tc,co2_p, co2_rho, co2_fg, co2_xphi)     ! only need 'co2_xphi' (fugacity coefficient) for the follwong call
+!  call duanco2(tc,co2_p, co2_rho, co2_fg, co2_xphi)     ! only need 'co2_xphi' (fugacity coefficient) for the follwong call
 
-  call Henry_CO2_noderiv(xmole_co2,xmass_co2,tc,co2_p,co2_xphi,co2_henry,co2_poyn)   ! 'xmolco2': mol fraction; 'xmco2': mass fraction (CO2:CO2+H2O)
+!  call Henry_CO2_noderiv(xmole_co2,xmass_co2,tc,co2_p,co2_xphi,co2_henry,co2_poyn)   ! 'xmolco2': mol fraction; 'xmco2': mass fraction (CO2:CO2+H2O)
 
-  c_hco3_eq =  xmole_co2/H2O_kg_mol
+!  c_hco3_eq =  xmole_co2/H2O_kg_mol
 
+! as duanco2 breaks the simulation, use a constant value for test
+  c_hco3_eq = 1.0d-6 
+ 
   temp_real = volume * 1000.0d0 * porosity * global_auxvar%sat(1)
   rate = this%k_kinetic_co2 * (c_hco3/c_hco3_eq - 1.0d0) * temp_real
+
+! degas occurs only when oversaturated, not considering uptake of CO2 from atmosphere
+  if(rate > 0) then
 
     Residual(ires_co2a) = Residual(ires_co2a) + rate
     Residual(ires_co2g) = Residual(ires_co2g) - rate
@@ -284,6 +322,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
      Jacobian(ires_co2g,ires_co2a) = Jacobian(ires_co2g,ires_co2a) - drate
 
     endif
+  endif 
 
   ! the following is for setting pH at a fixed value from input
   ! (TODO) if PFLOTRAN H+/OH- related processes are in place, this should be removed
