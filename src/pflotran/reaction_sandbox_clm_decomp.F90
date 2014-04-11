@@ -36,9 +36,6 @@ module Reaction_Sandbox_CLM_Decomp_class
     PetscReal :: half_saturation_no3
     PetscReal :: inhibition_nh3_no3
     PetscReal :: n2o_frac_mineralization    ! fraction of n2o from net N mineralization
-!    PetscReal :: k_nitr_max                 ! nitrification rate
-!    PetscReal :: k_nitr_n2o                 ! N2O production rate with nitrification
-!    PetscReal :: k_deni_max                 ! denitrification rate
     PetscReal :: x0eps
 
     PetscInt :: npool                       ! litter or variable CN ration pools
@@ -72,6 +69,7 @@ module Reaction_Sandbox_CLM_Decomp_class
     PetscInt :: species_id_nmin
     PetscInt :: species_id_nimm
     PetscInt :: species_id_ngasmin
+    PetscInt :: species_id_proton
 
     type(pool_type), pointer :: pools
     type(clm_decomp_reaction_type), pointer :: reactions
@@ -154,6 +152,7 @@ function CLM_Decomp_Create()
   CLM_Decomp_Create%species_id_no3 = 0
   CLM_Decomp_Create%species_id_n2o = 0
   CLM_Decomp_Create%species_id_dom = 0
+  CLM_Decomp_Create%species_id_proton = 0
   CLM_Decomp_Create%species_id_bacteria = 0
   CLM_Decomp_Create%species_id_fungi = 0
   CLM_Decomp_Create%species_id_nmin = 0
@@ -802,7 +801,11 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
   word = 'N2O(aq)'
   this%species_id_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
- 
+
+  word = 'H+'
+  this%species_id_proton = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+
   word = 'Bacteria'
   this%species_id_bacteria = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
@@ -822,7 +825,7 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
   word = 'NGASmin'
   this%species_id_ngasmin = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
- 
+
 end subroutine CLM_Decomp_Setup
 
 ! ************************************************************************** !
@@ -1636,17 +1639,25 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
  
   enddo      !reactions
 
-  !if(this%no_n2o_decomp) then
-!     return
- ! endif
-
   if(this%species_id_n2o > 0 .and. net_n_mineralization_rate > 0.0d0) then
   ! temperature response function (Parton et al. 1996)
 #ifdef CLM_PFLOTRAN
     f_t = -0.06d0 + 0.13d0 * exp( 0.07d0 * tc )
     f_w = ((1.27d0 - saturation)/0.67d0)**(3.1777d0) * &
         ((saturation - 0.0012d0)/0.5988d0)**2.84d0  
-    ph = 6.5d0
+
+    ph = 7.0d0       ! default
+    if (this%species_id_proton > 0) then
+      if (reaction%species_idx%h_ion_id > 0) then
+        ph = &
+          -log10(rt_auxvar%pri_molal(reaction%species_idx%h_ion_id)* &
+                 rt_auxvar%pri_act_coef(reaction%species_idx%h_ion_id))
+      else if (reaction%species_idx%h_ion_id < 0) then
+        ph = &
+          -log10(rt_auxvar%sec_molal(abs(reaction%species_idx%h_ion_id))* &
+                 rt_auxvar%sec_act_coef(abs(reaction%species_idx%h_ion_id)))
+      endif
+    endif
     f_ph = 0.56 + atan(rpi * 0.45 * (-5.0 + ph))/rpi
 #else
     f_t = 1.0d0
@@ -1654,7 +1665,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     f_ph = 1.0d0
 #endif
 
-    if(f_t > 0.0d0 .and. f_w > 0.0d0 .and. f_ph > 0.0d0) then 
+    if(f_t > 1.0d-20 .and. f_w > 1.0d-20 .and. f_ph > 1.0d-20) then
       temp_real = f_t * f_w * f_ph
 
       if(temp_real > 1.0d0) then

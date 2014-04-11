@@ -139,19 +139,14 @@ subroutine degasSetup(this,reaction,option)
 
   character(len=MAXWORDLENGTH) :: word
 
-  word = 'HCO3-'
+  word = 'CO2(aq)'
   this%ispec_co2a = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
-  if(this%ispec_co2a < 0) then
-     word = 'CO2(aq)'
-     this%ispec_co2a = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
-  endif
 
   if(this%ispec_co2a < 0) then
      option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
-            'aqueous species, either HCO3- or CO2(aq) is not defined!'
+            'aqueous species, either CO2(aq) is not defined!'
      call printErrMsg(option)
   endif
 
@@ -162,7 +157,7 @@ subroutine degasSetup(this,reaction,option)
  
   if(this%ispec_co2g < 0) then
      option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
-            'gas species Cimm is not defined!'
+            'gas species CO2imm is not defined!'
      call printErrMsg(option)
   endif
 
@@ -240,7 +235,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
   PetscInt :: ires_co2a, ires_co2g
   PetscInt :: ires_proton, ires_himm
 
-  PetscReal :: c_hco3     ! mole/L
+  PetscReal :: c_hco3         ! mole/L
   PetscReal :: c_hco3_eq      ! mole/m3
   PetscReal :: tc, pres, rate, drate
   PetscReal :: co2_p, co2_rho, co2_fg, co2_xphi
@@ -288,27 +283,26 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
   c_hco3 = rt_auxvar%total(this%ispec_co2a, iphase)
 
-  air_vol = max(0.01d0, porosity * (1.d0-global_auxvar%sat(1)))    ! min. 0.01 to avoid math. issue
-  co2_molar = rt_auxvar%immobile(this%ispec_co2g)/air_vol          ! molCO2/m3 bulk soil --> mol/m3 air space
-  air_molar = pres/rgas/(tc+273.15d0)                              ! molAir/m3
-  co2_p = co2_molar/air_molar
+  if (this%ispec_co2g > 0) then
+     air_vol = max(0.01d0, porosity * (1.d0-global_auxvar%sat(1)))    ! min. 0.01 to avoid math. issue
+     co2_molar = rt_auxvar%immobile(this%ispec_co2g)/air_vol          ! molCO2/m3 bulk soil --> mol/m3 air space
+     air_molar = pres/rgas/(tc+273.15d0)                              ! molAir/m3
+     co2_p = co2_molar/air_molar*pres                                 ! mole fraction --> Pa
+  endif
 
-  tc = max(min(tc,65.d0), 1.d-20)                                   ! 'duanco2' only functions from 0 - 65oC
+  temp_real = max(min(tc,65.d0), 1.d-20)                                   ! 'duanco2' only functions from 0 - 65oC
 
-!  call duanco2(tc,co2_p, co2_rho, co2_fg, co2_xphi)     ! only need 'co2_xphi' (fugacity coefficient) for the follwong call
+  call duanco2(temp_real,co2_p, co2_rho, co2_fg, co2_xphi)     ! only need 'co2_xphi' (fugacity coefficient) for the follwong call
 
-!  call Henry_CO2_noderiv(xmole_co2,xmass_co2,tc,co2_p,co2_xphi,co2_henry,co2_poyn)   ! 'xmolco2': mol fraction; 'xmco2': mass fraction (CO2:CO2+H2O)
+  call Henry_CO2_noderiv(xmole_co2,xmass_co2,tc,co2_p,co2_xphi,co2_henry,co2_poyn)   ! 'xmolco2': mol fraction; 'xmco2': mass fraction (CO2:CO2+H2O)
 
-!  c_hco3_eq =  xmole_co2/H2O_kg_mol
+  c_hco3_eq =  xmole_co2/H2O_kg_mol
 
-! as duanco2 breaks the simulation, use a constant value for test
-  c_hco3_eq = 1.0d-6 
- 
   temp_real = volume * 1000.0d0 * porosity * global_auxvar%sat(1)
   rate = this%k_kinetic_co2 * (c_hco3/c_hco3_eq - 1.0d0) * temp_real
 
 ! degas occurs only when oversaturated, not considering uptake of CO2 from atmosphere
-  if(rate > 0) then
+  if(abs(rate) > 1.0d-20) then
 
     Residual(ires_co2a) = Residual(ires_co2a) + rate
     Residual(ires_co2g) = Residual(ires_co2g) - rate
@@ -322,7 +316,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
      Jacobian(ires_co2g,ires_co2a) = Jacobian(ires_co2g,ires_co2a) - drate
 
     endif
-  endif 
+  endif
 
   ! the following is for setting pH at a fixed value from input
   ! (TODO) if PFLOTRAN H+/OH- related processes are in place, this should be removed
@@ -336,17 +330,19 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
     rate = this%k_kinetic_h * (c_h/c_h_fix - 1.0d0) * temp_real
      
-    Residual(ires_proton) = Residual(ires_proton) + rate
-    Residual(ires_himm) = Residual(ires_himm) - rate
+    if(abs(rate) > 1.0d-20) then
+       Residual(ires_proton) = Residual(ires_proton) + rate
+       Residual(ires_himm) = Residual(ires_himm) - rate
 
-    if (compute_derivative) then
+       if (compute_derivative) then
 
-       drate = this%k_kinetic_h * convert_molal_to_molar /c_h_fix * temp_real 
+         drate = this%k_kinetic_h * convert_molal_to_molar /c_h_fix * temp_real
 
-       Jacobian(ires_proton,ires_proton) = Jacobian(ires_proton,ires_proton) + drate
+         Jacobian(ires_proton,ires_proton) = Jacobian(ires_proton,ires_proton) + drate
 
-       Jacobian(ires_himm,ires_proton) = Jacobian(ires_proton,ires_himm) - drate
+         Jacobian(ires_himm,ires_proton) = Jacobian(ires_proton,ires_himm) - drate
 
+      endif
     endif
 
   endif 
