@@ -802,7 +802,7 @@ output_hdf5.o : connection.o coupler.o discretization.o field.o grid.o hdf5.o \
                 reaction_aux.o realization_base.o \
                 string.o unstructured_cell.o unstructured_grid_aux.o \
                 variables.o
-output_observation.o : connection.o coupler.o discretization.o field.o \
+output_observation.o : connection.o coupler.o discretization.o field.o flash2.o \
                        general.o global_aux.o grid.o immis.o logging.o \
                        miscible.o mphase.o observation.o option.o output_aux.o \
                        output_common.o patch.o pflotran_constants.o \
