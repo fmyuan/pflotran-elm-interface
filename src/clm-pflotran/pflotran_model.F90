@@ -4755,15 +4755,9 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     endif
 
-    word = "AmmoniaH4+"
+    word = "NH4+"
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
-
-    if(ispec_nh4 < 0) then
-       word = "NH4+"
-       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-    endif
 
     if(ispec_nh4 < 0) then
        word = "NH3(aq)"
@@ -5030,26 +5024,20 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                   realization%reaction,PETSC_FALSE,realization%option)
 
     if(ispec_nh4 < 0) then
-       word = "NH4+"
-       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-    endif
-
-    if(ispec_nh4 < 0) then
        word = "NH3(aq)"
        ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
     endif
 
     !immobile species for gas
-    word = "CO2g"
+    word = "CO2imm"
     ispec_co2  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
-    word = "N2g"
+    word = "N2imm"
     ispec_n2  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-    word = "N2Og"
+    word = "N2Oimm"
     ispec_n2o = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
@@ -5168,17 +5156,17 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
         ! immobile gas conc in mol/m3 bulk soil to aovid 'theta' inconsistence (due to porosity) during unit conversion
         if(ispec_co2 > 0) then
-           conc = xx_p(offsetim + ispec_co2) !* theta * 1000.0d0                    ! unit: M (molC/m3)
+           conc = xx_p(offsetim + ispec_co2)                    ! unit: M (molC/m3)
            gco2_vr_pf_loc(local_id)   = max(conc, 1.0d-20)
         endif
 
         if(ispec_n2 > 0) then
-           conc = xx_p(offsetim + ispec_n2) !* theta * 1000.0d0                    ! unit: M (molN/m3)
+           conc = xx_p(offsetim + ispec_n2)                     ! unit: M (molN/m3)
            gn2_vr_pf_loc(local_id)   = max(conc, 1.0d-20)
         endif
 
         if(ispec_n2o > 0) then
-           conc = xx_p(offsetim + ispec_n2o) ! * theta * 1000.0d0                  ! unit: M (molN/m3)
+           conc = xx_p(offsetim + ispec_n2o)                    ! unit: M (molN/m3)
            gn2o_vr_pf_loc(local_id)   = max(conc, 1.0d-20)
         endif
 

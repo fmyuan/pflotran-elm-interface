@@ -261,13 +261,17 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
   pres = option%reference_pressure
   co2_p = 350.0d-6 * option%reference_pressure
   if (option%iflowmode == RICHARDS_MODE .or. &
-      option%iflowmode == TH_MODE .or. &
-      option%ntrandof.gt.0 ) then
+      option%iflowmode == TH_MODE) then
 
       pres = global_auxvar%pres(1)      ! water pressure or total (air)gas pressure
       if (option%iflowmode == TH_MODE) then
          tc = global_auxvar%temp(1)
       endif
+#ifdef CLM_PFLOTRAN
+  elseif (option%ntrandof.gt.0 ) then
+      pres = global_auxvar%pres(1)      ! water pressure or total (air)gas pressure
+      tc = global_auxvar%temp(1)
+#endif
   else
       option%io_buffer='reaction_sandbox_degas ' // &
                  'not supported for the modes applied for.'
@@ -283,12 +287,15 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
   c_hco3 = rt_auxvar%total(this%ispec_co2a, iphase)
 
+#ifdef CLM_PFLOTRAN
+  ! resetting 'co2g' from CLM after adjusting
   if (this%ispec_co2g > 0) then
      air_vol = max(0.01d0, porosity * (1.d0-global_auxvar%sat(1)))    ! min. 0.01 to avoid math. issue
      co2_molar = rt_auxvar%immobile(this%ispec_co2g)/air_vol          ! molCO2/m3 bulk soil --> mol/m3 air space
      air_molar = pres/rgas/(tc+273.15d0)                              ! molAir/m3
-     co2_p = co2_molar/air_molar*pres                                 ! mole fraction --> Pa
+     !co2_p = co2_molar/air_molar*pres                                 ! mole fraction --> Pa
   endif
+#endif
 
   temp_real = max(min(tc,65.d0), 1.d-20)                                   ! 'duanco2' only functions from 0 - 65oC
 
@@ -328,6 +335,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
     c_h_fix = 10.0d0 ** (-1.0d0 * this%fixph) / rt_auxvar%pri_act_coef(this%ispec_proton)
 
+    temp_real = volume * 1000.0d0 * porosity * global_auxvar%sat(1)
     rate = this%k_kinetic_h * (c_h/c_h_fix - 1.0d0) * temp_real
      
     if(abs(rate) > 1.0d-20) then
