@@ -3384,15 +3384,9 @@ end subroutine pflotranModelSetICs
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
 
-    word = "AmmoniaH4+"
+    word = "NH4+"
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
-
-    if(ispec_nh4 < 0) then
-       word = "NH4+"
-       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-    endif
 
     if(ispec_nh4 < 0) then
        word = "NH3(aq)"
@@ -3630,6 +3624,7 @@ end subroutine pflotranModelSetICs
     PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: soillsat_pf_loc(:), soilisat_pf_loc(:)
     PetscReal, pointer :: soilt_pf_loc(:)
+    PetscReal, pointer :: soilpress_pf_loc(:)
 
     logical, intent(in):: pf_hmode, pf_tmode
     !---------------------------------------------------------------------
@@ -3659,12 +3654,21 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%soilpsi_clmp, &
                                     clm_pf_idata%soilpsi_pfs)
 
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%press_clmp, &
+                                    clm_pf_idata%press_pfs)
+
         call VecGetArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
+        call VecGetArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
         do local_id=1, grid%nlmax
             ghosted_id=grid%nL2G(local_id)
             global_auxvars(ghosted_id)%sat(1)=soillsat_pf_loc(local_id)
+            global_auxvars(ghosted_id)%pres(1)=soilpress_pf_loc(local_id)
+
         enddo
         call VecRestoreArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
+        call VecRestoreArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
     endif
 
     ! Save soil temperature values from CLM to PFLOTRAN, if needed
@@ -3760,15 +3764,15 @@ end subroutine pflotranModelSetICs
     ! (i) indices of bgc variables in PFLOTRAN immobiles
 
     ! immobile species
-    word = "CO2g"
+    word = "CO2imm"
     ispec_co2  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-    word = "N2g"
+    word = "N2imm"
     ispec_n2  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-    word = "N2Og"
+    word = "N2Oimm"
     ispec_n2o = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
@@ -3807,18 +3811,19 @@ end subroutine pflotranModelSetICs
            if (patch%imat(ghosted_id) <= 0) cycle
         endif
 
-        offset = (local_id - 1)*realization%reaction%offset_immobile
+        offset = (local_id-1) * realization%reaction%ncomp &
+                + realization%reaction%offset_immobile
 
         if(ispec_co2 > 0) then
             xx_p(offset + ispec_co2) = max(gco2_vr_pf_loc(local_id), 1.0d-20)
         endif
 
         if(ispec_n2 > 0) then
-            xx_p(offset + ispec_n2) = max(gn2_vr_pf_loc(local_id), 1.0d-20)
+            !xx_p(offset + ispec_n2) = max(gn2_vr_pf_loc(local_id), 1.0d-20)
         endif
 
         if(ispec_n2o > 0) then
-            xx_p(offset + ispec_n2o) = max(gn2o_vr_pf_loc(local_id), 1.0d-20)
+            !xx_p(offset + ispec_n2o) = max(gn2o_vr_pf_loc(local_id), 1.0d-20)
         endif
 
     enddo
@@ -3952,8 +3957,8 @@ subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
       case (RICHARDS_MODE)
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%press_clm, &
-                                    clm_pf_idata%press_pf)
+                                    clm_pf_idata%press_clmp, &
+                                    clm_pf_idata%press_pfs)
       case (TH_MODE)
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
@@ -3962,8 +3967,8 @@ subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
 
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%press_clm, &
-                                    clm_pf_idata%press_pf)
+                                    clm_pf_idata%press_clmp, &
+                                    clm_pf_idata%press_pfs)
       case default
         if(pflotran_model%option%ntrandof.le.0) then
             pflotran_model%option%io_buffer='pflotranModelSetInitialTHStatesfromCLM ' // &
@@ -3973,7 +3978,7 @@ subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
     end select
 
     call VecGetArrayF90(field%flow_xx, xx_loc_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%press_pf, soilpress_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
 
     do local_id = 1, grid%ngmax
@@ -3993,7 +3998,7 @@ subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
 
     call VecRestoreArrayF90(field%flow_xx, xx_loc_p, ierr)
     call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%press_pf, soilpress_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
 
     call DiscretizationGlobalToLocal(realization%discretization, field%flow_xx, &
          field%flow_xx_loc, NFLOWDOF)
@@ -4019,7 +4024,7 @@ end subroutine pflotranModelSetInitialTHStatesfromCLM
   ! refresh Hydrological BC variables from CLM to PF
   !
   ! by 1-18-2013: only water pressure-head type (dirichlet) available
-
+  ! by 4-11-2013: dirichlet/neumman both available
   ! ************************************************************************** !
   subroutine pflotranModelSetSoilHbcs(pflotran_model)
 
