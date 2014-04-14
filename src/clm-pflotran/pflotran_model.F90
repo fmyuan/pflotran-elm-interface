@@ -473,7 +473,6 @@ subroutine pflotranModelSetICs(pflotran_model)
     global_aux_vars  => patch%aux%Global%auxvars
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%press_clm, &
                                     clm_pf_idata%press_pf)
 
@@ -607,32 +606,26 @@ end subroutine pflotranModelSetICs
     end select
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%hksat_x_clm, &
                                     clm_pf_idata%hksat_x_pf)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%hksat_y_clm, &
                                     clm_pf_idata%hksat_y_pf)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%hksat_z_clm, &
                                     clm_pf_idata%hksat_z_pf)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%sucsat_clm, &
                                     clm_pf_idata%sucsat_pf)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%bsw_clm, &
                                     clm_pf_idata%bsw_pf)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%watsat_clm, &
                                     clm_pf_idata%watsat_pf)
 
@@ -907,16 +900,16 @@ end subroutine pflotranModelSetICs
 
     select case(source_mesh_id)
       case(CLM_SUB_MESH)
-        call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
+        call MappingSetSourceMeshCellIds(map, grid_clm_npts_local, &
                                          grid_clm_cell_ids_nindex)
-        call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
+        call MappingSetDestinationMeshCellIds(map, grid_pf_npts_local, &
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
       case(PF_SUB_MESH)
-        call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
+        call MappingSetSourceMeshCellIds(map, grid_pf_npts_local, &
                                         grid_pf_cell_ids_nindex)
-        call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
+        call MappingSetDestinationMeshCellIds(map, grid_clm_npts_local, &
                                               grid_clm_npts_ghost, &
                                               grid_clm_cell_ids_nindex, &
                                               grid_clm_local_nindex)
@@ -928,10 +921,10 @@ end subroutine pflotranModelSetICs
     deallocate(grid_pf_cell_ids_nindex)
     deallocate(grid_pf_local_nindex)
 
-    call MappingDecompose(map, option)
-    call MappingFindDistinctSourceMeshCellIds(map, option)
-    call MappingCreateWeightMatrix(map, option)
-    call MappingCreateScatterOfSourceMesh(map, option)
+    call MappingDecompose(map, option%mycomm)
+    call MappingFindDistinctSourceMeshCellIds(map)
+    call MappingCreateWeightMatrix(map, option%myrank)
+    call MappingCreateScatterOfSourceMesh(map, option%mycomm)
 
   end subroutine pflotranModelInitMappingSub2Sub
 
@@ -1358,16 +1351,16 @@ end subroutine pflotranModelSetICs
 
     select case(source_mesh_id)
       case(CLM_SUB_MESH)
-        call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
+        call MappingSetSourceMeshCellIds(map, grid_clm_npts_local, &
                                          grid_clm_cell_ids_nindex_copy)
-        call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
+        call MappingSetDestinationMeshCellIds(map, grid_pf_npts_local, &
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
       case(PF_SUB_MESH)
-        call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
+        call MappingSetSourceMeshCellIds(map, grid_pf_npts_local, &
                                         grid_pf_cell_ids_nindex)
-        call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
+        call MappingSetDestinationMeshCellIds(map, grid_clm_npts_local, &
                                               grid_clm_npts_ghost, &
                                               grid_clm_cell_ids_nindex_copy, &
                                               grid_clm_local_nindex)
@@ -1380,10 +1373,10 @@ end subroutine pflotranModelSetICs
     deallocate(grid_pf_cell_ids_nindex)
     deallocate(grid_pf_local_nindex)
 
-    call MappingDecompose(map, option)
-    call MappingFindDistinctSourceMeshCellIds(map, option)
-    call MappingCreateWeightMatrix(map, option)
-    call MappingCreateScatterOfSourceMesh(map, option)
+    call MappingDecompose(map, option%mycomm)
+    call MappingFindDistinctSourceMeshCellIds(map)
+    call MappingCreateWeightMatrix(map, option%myrank)
+    call MappingCreateScatterOfSourceMesh(map, option%mycomm)
 
   end subroutine pflotranModelInitMapSrfTo2DSub
 
@@ -1757,16 +1750,16 @@ end subroutine pflotranModelSetICs
 
     select case(source_mesh_id)
       case(CLM_SRF_MESH)
-        call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
+        call MappingSetSourceMeshCellIds(map, grid_clm_npts_local, &
                                          grid_clm_cell_ids_nindex_copy)
-        call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
+        call MappingSetDestinationMeshCellIds(map, grid_pf_npts_local, &
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
       case(PF_SRF_MESH)
-        call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
+        call MappingSetSourceMeshCellIds(map, grid_pf_npts_local, &
                                         grid_pf_cell_ids_nindex)
-        call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
+        call MappingSetDestinationMeshCellIds(map, grid_clm_npts_local, &
                                               grid_clm_npts_ghost, &
                                               grid_clm_cell_ids_nindex_copy, &
                                               grid_clm_local_nindex)
@@ -1779,10 +1772,10 @@ end subroutine pflotranModelSetICs
     deallocate(grid_pf_local_nindex)
     deallocate(grid_clm_cell_ids_nindex_copy)
 
-    call MappingDecompose(map, option)
-    call MappingFindDistinctSourceMeshCellIds(map, option)
-    call MappingCreateWeightMatrix(map, option)
-    call MappingCreateScatterOfSourceMesh(map, option)
+    call MappingDecompose(map, option%mycomm)
+    call MappingFindDistinctSourceMeshCellIds(map)
+    call MappingCreateWeightMatrix(map, option%myrank)
+    call MappingCreateScatterOfSourceMesh(map, option%mycomm)
 #endif
 
   end subroutine pflotranModelInitMapSrfToSrf
@@ -2033,7 +2026,6 @@ end subroutine pflotranModelSetICs
     PetscInt                                  :: press_dof
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%qflx_clm, &
                                     clm_pf_idata%qflx_pf)
 
@@ -2164,7 +2156,6 @@ end subroutine pflotranModelSetICs
     PetscInt                                  :: press_dof
 
     call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_srf, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%rain_clm, &
                                     clm_pf_idata%rain_pf)
 
@@ -2261,7 +2252,6 @@ end subroutine pflotranModelSetICs
 
     ! Map ground-heat flux from CLM--to--PF grid
     call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%gflux_subsurf_clm, &
                                     clm_pf_idata%gflux_subsurf_pf)
 
@@ -2352,7 +2342,6 @@ end subroutine pflotranModelSetICs
 
     ! 1) Mapping energy flux
     call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_srf, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%gflux_subsurf_clm, &
                                     clm_pf_idata%gflux_surf_pf)
 
@@ -2409,9 +2398,7 @@ end subroutine pflotranModelSetICs
                        'source-sink list of surface model.')
 
     ! 2) Map temperature of rain water
-    write(*,*),'call MappingSourceToDestination()'
     call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_srf, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%rain_temp_clm, &
                                     clm_pf_idata%rain_temp_pf)
 
@@ -2488,7 +2475,6 @@ end subroutine pflotranModelSetICs
     PetscErrorCode                            :: ierr
 
     call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_srf, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%rain_clm, &
                                     clm_pf_idata%rain_pf)
 
@@ -2650,7 +2636,6 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%sat_pf, sat_pf_p, ierr)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%sat_pf, &
                                     clm_pf_idata%sat_clm)
 
@@ -2719,7 +2704,6 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%h2osfc_pf, h2osfc_pf_p, ierr)
 
     call MappingSourceToDestination(pflotran_model%map_pf_srf_to_clm_srf, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%h2osfc_pf, &
                                     clm_pf_idata%h2osfc_clm)
 
@@ -2793,7 +2777,6 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%temp_pf, temp_pf_p, ierr)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%temp_pf, &
                                     clm_pf_idata%temp_clm)
 
@@ -3002,7 +2985,6 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%area_top_face_pf, area_p, ierr)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%area_top_face_pf, &
                                     clm_pf_idata%area_top_face_clm)
 
