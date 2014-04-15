@@ -198,6 +198,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
   use Option_module
   use Reaction_Aux_module
+  use TH_Aux_module
   use Material_Aux_class, only : material_auxvar_type
   use co2eos_module, only: duanco2, HENRY_co2_noderiv     ! co2eos.F90
 
@@ -218,6 +219,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
   type(reaction_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
+  type(TH_auxvar_type) :: th_auxvar
   class(material_auxvar_type) :: material_auxvar
 
   PetscBool :: compute_derivative
@@ -237,7 +239,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscReal :: c_hco3         ! mole/L
   PetscReal :: c_hco3_eq      ! mole/m3
-  PetscReal :: tc, pres, rate, drate
+  PetscReal :: tc, pres, lsat, isat, rate, drate
   PetscReal :: co2_p, co2_rho, co2_fg, co2_xphi
   PetscReal :: air_vol, air_molar, co2_molar
   PetscReal :: xmole_co2, xmass_co2, co2_henry, co2_poyn
@@ -259,24 +261,28 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
   !default values for calculating gas solubility
   tc = option%reference_temperature
   pres = option%reference_pressure
+  lsat = 0.50d0  ! 50% saturation assumed as default
+  isat = 0.d0
   co2_p = 350.0d-6 * option%reference_pressure
   if (option%iflowmode == RICHARDS_MODE .or. &
       option%iflowmode == TH_MODE) then
 
       pres = global_auxvar%pres(1)      ! water pressure or total (air)gas pressure
+      lsat = global_auxvar%sat(1)
       if (option%iflowmode == TH_MODE) then
          tc = global_auxvar%temp(1)
+         !isat = th_auxvar%sat_ice       ! (TODO) not yet figure out how to point to 'th_auxvar'
       endif
 #ifdef CLM_PFLOTRAN
   elseif (option%ntrandof.gt.0 ) then
       pres = global_auxvar%pres(1)      ! water pressure or total (air)gas pressure
+      lsat = global_auxvar%sat(1)
       tc = global_auxvar%temp(1)
-#endif
   else
       option%io_buffer='reaction_sandbox_degas ' // &
                  'not supported for the modes applied for.'
       call printErrMsg(option)
-
+#endif
   endif
 
   porosity = material_auxvar%porosity
@@ -290,10 +296,11 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 #ifdef CLM_PFLOTRAN
   ! resetting 'co2g' from CLM after adjusting
   if (this%ispec_co2g > 0) then
-     air_vol = max(0.01d0, porosity * (1.d0-global_auxvar%sat(1)))    ! min. 0.01 to avoid math. issue
+     !air_vol = max(0.01d0, porosity * (1.d0-lsat-isat))               ! min. 0.01 to avoid math. issue
+     air_vol = 1.d0                                                   ! atm. air volume fraction (no adjusting of soil air volume)
      co2_molar = rt_auxvar%immobile(this%ispec_co2g)/air_vol          ! molCO2/m3 bulk soil --> mol/m3 air space
      air_molar = pres/rgas/(tc+273.15d0)                              ! molAir/m3
-     !co2_p = co2_molar/air_molar*pres                                 ! mole fraction --> Pa
+     co2_p = co2_molar/air_molar*pres                                 ! mole fraction --> Pa
   endif
 #endif
 
@@ -305,7 +312,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
   c_hco3_eq =  xmole_co2/H2O_kg_mol
 
-  temp_real = volume * 1000.0d0 * porosity * global_auxvar%sat(1)
+  temp_real = volume * 1000.0d0 * porosity * lsat
   rate = this%k_kinetic_co2 * (c_hco3/c_hco3_eq - 1.0d0) * temp_real
 
 ! degas occurs only when oversaturated, not considering uptake of CO2 from atmosphere
