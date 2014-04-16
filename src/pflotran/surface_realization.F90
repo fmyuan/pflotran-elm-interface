@@ -973,6 +973,36 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
   call SurfRealizMapSurfSubsurfGrid(realization, surf_realization, prod, THREE_DIM_GRID, &
                                         subsurf_petsc_ids)
 
+  ! For each control volume in surface mesh, get the corresponding natural ids of
+  ! subsurface control volume
+  dm_ptr => DiscretizationGetDMPtrFromIndex(realization%discretization,ONEDOF)
+  call VecScatterBegin(dm_ptr%ugdm%scatter_bet_grids_1dof, &
+                       subsurf_nat_ids, corr_subsurf_nat_ids, &
+                      INSERT_VALUES,SCATTER_FORWARD,ierr)
+  call VecScatterEnd(dm_ptr%ugdm%scatter_bet_grids_1dof, &
+                       subsurf_nat_ids, corr_subsurf_nat_ids, &
+                      INSERT_VALUES,SCATTER_FORWARD,ierr)
+
+  dm_ptr => DiscretizationGetDMPtrFromIndex(surf_realization%discretization,ONEDOF)
+  call VecScatterBegin(dm_ptr%ugdm%scatter_bet_grids_1dof, &
+                       surf_nat_ids, corr_surf_nat_ids, &
+                      INSERT_VALUES,SCATTER_FORWARD,ierr)
+  call VecScatterEnd(dm_ptr%ugdm%scatter_bet_grids_1dof, &
+                       surf_nat_ids, corr_surf_nat_ids, &
+                      INSERT_VALUES,SCATTER_FORWARD,ierr)
+
+  ! Save the natural ids
+  allocate(surf_grid%nat_ids_of_other_grid(surf_grid%nlmax))
+  allocate(subsurf_grid%nat_ids_of_other_grid(top_region%num_cells))
+
+  call VecGetArrayF90(corr_subsurf_nat_ids,vec_ptr,ierr)
+  call VecGetArrayF90(corr_surf_nat_ids,vec_ptr2,ierr)
+  surf_grid%nat_ids_of_other_grid = int(vec_ptr)
+  subsurf_grid%nat_ids_of_other_grid = int(vec_ptr2)
+  call VecRestoreArrayF90(corr_subsurf_nat_ids,vec_ptr,ierr)
+  call VecRestoreArrayF90(corr_surf_nat_ids,vec_ptr2,ierr)
+
+  ! Free up the memory
   call MatDestroy(prod,ierr)
 
   call MatDestroy(Mat_vert_to_face_subsurf,ierr)
