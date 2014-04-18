@@ -312,8 +312,11 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
   c_hco3_eq =  xmole_co2/H2O_kg_mol
 
-  temp_real = volume * 1000.0d0 * porosity * lsat
-  rate = this%k_kinetic_co2 * (c_hco3/c_hco3_eq - 1.0d0) * temp_real
+  if (PETSC_FALSE) then
+    rate = this%k_kinetic_co2 * (c_hco3/c_hco3_eq - 1.0d0) * temp_real
+  else
+    rate = this%k_kinetic_co2 * (c_hco3 - c_hco3_eq) * temp_real
+  endif
 
 ! degas occurs only when oversaturated, not considering uptake of CO2 from atmosphere
   if(abs(rate) > 1.0d-20) then
@@ -322,12 +325,16 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
     Residual(ires_co2g) = Residual(ires_co2g) - rate
 
     if (compute_derivative) then
-     drate = this%k_kinetic_co2 /c_hco3_eq * temp_real 
+        if (PETSC_FALSE) then
+            drate = this%k_kinetic_co2 /c_hco3_eq * temp_real 
+        else
+            drate = this%k_kinetic_co2 * temp_real 
+        endif
 
-     Jacobian(ires_co2a,ires_co2a) = Jacobian(ires_co2a,ires_co2a) + drate * &
+        Jacobian(ires_co2a,ires_co2a) = Jacobian(ires_co2a,ires_co2a) + drate * &
         rt_auxvar%aqueous%dtotal(this%ispec_co2a,this%ispec_co2a,iphase)
 
-     Jacobian(ires_co2g,ires_co2a) = Jacobian(ires_co2g,ires_co2a) - drate
+        Jacobian(ires_co2g,ires_co2a) = Jacobian(ires_co2g,ires_co2a) - drate
 
     endif
   endif
@@ -342,8 +349,11 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
     c_h_fix = 10.0d0 ** (-1.0d0 * this%fixph) / rt_auxvar%pri_act_coef(this%ispec_proton)
 
-    temp_real = volume * 1000.0d0 * porosity * global_auxvar%sat(1)
-    rate = this%k_kinetic_h * (c_h/c_h_fix - 1.0d0) * temp_real
+    if(PETSC_FALSE) then
+      rate = this%k_kinetic_h * (c_h/c_h_fix - 1.0d0) * temp_real
+    else
+      rate = this%k_kinetic_h * (c_h - c_h_fix) * temp_real
+    endif  
      
     if(abs(rate) > 1.0d-20) then
        Residual(ires_proton) = Residual(ires_proton) + rate
@@ -351,9 +361,14 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
        if (compute_derivative) then
 
-         drate = this%k_kinetic_h * convert_molal_to_molar /c_h_fix * temp_real
+       if (PETSC_FALSE) then
+           drate = this%k_kinetic_h * convert_molal_to_molar /c_h_fix * temp_real
+       else
+           drate = this%k_kinetic_h * convert_molal_to_molar * temp_real
+       endif
 
-         Jacobian(ires_proton,ires_proton) = Jacobian(ires_proton,ires_proton) + drate
+
+       Jacobian(ires_proton,ires_proton) = Jacobian(ires_proton,ires_proton) + drate
 
          Jacobian(ires_himm,ires_proton) = Jacobian(ires_proton,ires_himm) - drate
 
