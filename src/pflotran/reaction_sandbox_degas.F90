@@ -14,11 +14,11 @@ module Reaction_Sandbox_degas_class
 
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_degas_type
-    PetscInt  :: ispec_co2a
-    PetscInt  :: ispec_co2g    
+    PetscInt  :: ispec_co2a, ispec_n2oa, ispec_n2a
+    PetscInt  :: ispec_co2g, ispec_n2og, ispec_n2g
     PetscInt  :: ispec_proton
     PetscInt  :: ispec_himm
-    PetscReal :: k_kinetic_co2
+    PetscReal :: k_kinetic_co2, k_kinetic_n2o, k_kinetic_n2
     PetscReal :: k_kinetic_h
     PetscBool :: b_fixph
     PetscReal :: fixph
@@ -52,8 +52,14 @@ function degasCreate()
   allocate(degasCreate)
   degasCreate%ispec_co2a = 0
   degasCreate%ispec_co2g = 0
+  degasCreate%ispec_n2oa = 0
+  degasCreate%ispec_n2og = 0
+  degasCreate%ispec_n2a = 0
+  degasCreate%ispec_n2g = 0
   degasCreate%ispec_proton = 0
   degasCreate%k_kinetic_co2 = 1.d-5
+  degasCreate%k_kinetic_n2o = 1.d-5
+  degasCreate%k_kinetic_n2 = 1.d-5
   degasCreate%k_kinetic_h = 1.d-5
   degasCreate%fixph = 6.5d0
   degasCreate%b_fixph = PETSC_FALSE
@@ -99,6 +105,14 @@ subroutine degasRead(this,input,option)
          call InputReadDouble(input,option,this%k_kinetic_co2)
          call InputErrorMsg(input,option,'CO2 degas kinetic rate constant', &
                      'CHEMISTRY,REACTION_SANDBOX,DEGAS,REACTION')
+      case('KINETIC_CONSTANT_N2O')
+         call InputReadDouble(input,option,this%k_kinetic_n2o)
+         call InputErrorMsg(input,option,'N2O degas kinetic rate constant', &
+                     'CHEMISTRY,REACTION_SANDBOX,DEGAS,REACTION')
+      case('KINETIC_CONSTANT_N2')
+         call InputReadDouble(input,option,this%k_kinetic_n2)
+         call InputErrorMsg(input,option,'N2 degas kinetic rate constant', &
+                     'CHEMISTRY,REACTION_SANDBOX,DEGAS,REACTION')
       case('KINETIC_CONSTANT_H+')
          call InputReadDouble(input,option,this%k_kinetic_h)
          call InputErrorMsg(input,option,'H+ fix pH  kinetic rate constant', &
@@ -142,11 +156,27 @@ subroutine degasSetup(this,reaction,option)
   word = 'CO2(aq)'
   this%ispec_co2a = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
-
-
   if(this%ispec_co2a < 0) then
      option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
-            'aqueous species, either CO2(aq) is not defined!'
+            'aqueous species CO2(aq) is not defined!'
+     call printErrMsg(option)
+  endif
+
+  word = 'N2O(aq)'
+  this%ispec_n2oa = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+  if(this%ispec_n2oa < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
+            'aqueous species N2O(aq) is not defined!'
+     call printErrMsg(option)
+  endif
+
+  word = 'N2(aq)'
+  this%ispec_n2a = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+  if(this%ispec_n2a < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
+            'aqueous species N2(aq) is not defined!'
      call printErrMsg(option)
   endif
 
@@ -158,6 +188,26 @@ subroutine degasSetup(this,reaction,option)
   if(this%ispec_co2g < 0) then
      option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
             'gas species CO2imm is not defined!'
+     call printErrMsg(option)
+  endif
+
+  word = 'N2Oimm'
+  this%ispec_n2og = GetImmobileSpeciesIDFromName( &
+            word,reaction%immobile,PETSC_FALSE,option)
+
+  if(this%ispec_n2og < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
+            'gas species N2Oimm is not defined!'
+     call printErrMsg(option)
+  endif
+
+  word = 'N2imm'
+  this%ispec_n2g = GetImmobileSpeciesIDFromName( &
+            word,reaction%immobile,PETSC_FALSE,option)
+
+  if(this%ispec_n2g < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
+            'gas species N2imm is not defined!'
      call printErrMsg(option)
   endif
 
@@ -225,8 +275,6 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
   PetscBool :: compute_derivative
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
-  PetscReal :: porosity
-  PetscReal :: volume
   PetscInt :: local_id
   PetscErrorCode :: ierr
 
@@ -235,16 +283,23 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal, parameter :: rgas = 8.3144621d0       ! m3 Pa K-1 mol-1
 
   PetscInt :: ires_co2a, ires_co2g
+  PetscInt :: ires_n2oa, ires_n2og
+  PetscInt :: ires_n2a, ires_n2g
   PetscInt :: ires_proton, ires_himm
 
-  PetscReal :: c_hco3         ! mole/L
-  PetscReal :: c_hco3_eq      ! mole/m3
-  PetscReal :: tc, pres, lsat, isat, rate, drate
-  PetscReal :: co2_p, co2_rho, co2_fg, co2_xphi
-  PetscReal :: air_vol, air_molar, co2_molar
-  PetscReal :: xmole_co2, xmass_co2, co2_henry, co2_poyn
-  PetscReal :: temp_real, s_hco3
+  PetscReal :: c_co2_aq, c_n2o_aq, c_n2_aq         ! actual gas solution conc.: mole/L
+  PetscReal :: c_co2_eq, c_n2o_eq, c_n2_eq         ! gas solubility: mole/L
+  PetscReal :: tc
+  PetscReal :: volume, porosity, lsat, isat, total_sal
+  PetscReal :: air_press, air_vol, air_molar
+  PetscReal :: co2_p, co2_molar, xmole_co2, xmass_co2   ! in air, or in solution (x)
+  PetscReal :: co2_rho, co2_fg, co2_xphi, co2_henry, co2_poyn
+  PetscReal :: n2o_p, n2o_molar, xmole_n2o, xmass_n2o   ! in air, or in solution (x)
+  PetscReal :: n2o_fg, n2o_xphi, n2o_henry
+  PetscReal :: n2_p, n2_molar, xmole_n2, xmass_n2       ! in air, or in solution (x)
+  PetscReal :: n2_fg, n2_xphi, n2_henry
   PetscReal :: c_h, c_h_fix
+  PetscReal :: temp_real, rate, drate
   PetscReal :: convert_molal_to_molar
   PetscReal :: xmass
  
@@ -260,14 +315,14 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
   !default values for calculating gas solubility
   tc = option%reference_temperature
-  pres = option%reference_pressure
+  air_press = option%reference_pressure
   lsat = 0.50d0  ! 50% saturation assumed as default
   isat = 0.d0
-  co2_p = 350.0d-6 * option%reference_pressure
+
   if (option%iflowmode == RICHARDS_MODE .or. &
       option%iflowmode == TH_MODE) then
 
-      pres = global_auxvar%pres(1)      ! water pressure or total (air)gas pressure
+      air_press = max(air_press, global_auxvar%pres(1))      ! total (air)gas pressure: water pressure if over atm. press., otherwise atm. press.
       lsat = global_auxvar%sat(1)
       if (option%iflowmode == TH_MODE) then
          tc = global_auxvar%temp(1)
@@ -275,7 +330,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
       endif
 #ifdef CLM_PFLOTRAN
   elseif (option%ntrandof.gt.0 ) then
-      pres = global_auxvar%pres(1)      ! water pressure or total (air)gas pressure
+      air_press = max(air_press, global_auxvar%pres(1))      ! total (air)gas pressure: water pressure if over atm. press., otherwise atm. press.
       lsat = global_auxvar%sat(1)
       tc = global_auxvar%temp(1)
   else
@@ -287,38 +342,41 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
+  !air_vol = max(0.01d0, porosity * (1.d0-lsat-isat))               ! min. 0.01 to avoid math. issue (temporarily off - TODO)
+  air_vol = 1.d0                                                    ! atm. air volume fraction (no adjusting of soil air volume)
+  air_molar = air_press/rgas/(tc+273.15d0)                          ! molAir/m3
 
+!
+!------------------------------------------------------------------------------------
+! co2(aq) <==> co2(g)
+!
   ires_co2a = this%ispec_co2a
   ires_co2g = this%ispec_co2g + reaction%offset_immobile
 
-  c_hco3 = rt_auxvar%total(this%ispec_co2a, iphase)
+  c_co2_aq = rt_auxvar%total(this%ispec_co2a, iphase)
 
+  co2_p = 350.0d-6 * option%reference_pressure
 #ifdef CLM_PFLOTRAN
   ! resetting 'co2g' from CLM after adjusting
   if (this%ispec_co2g > 0) then
-     !air_vol = max(0.01d0, porosity * (1.d0-lsat-isat))               ! min. 0.01 to avoid math. issue
-     air_vol = 1.d0                                                   ! atm. air volume fraction (no adjusting of soil air volume)
      co2_molar = rt_auxvar%immobile(this%ispec_co2g)/air_vol          ! molCO2/m3 bulk soil --> mol/m3 air space
-     air_molar = pres/rgas/(tc+273.15d0)                              ! molAir/m3
-     co2_p = co2_molar/air_molar*pres                                 ! mole fraction --> Pa
+     co2_p = co2_molar/air_molar*air_press                            ! mole fraction --> Pa
   endif
 #endif
 
   temp_real = max(min(tc,65.d0), 1.d-20)                                   ! 'duanco2' only functions from 0 - 65oC
-
   call duanco2(temp_real,co2_p, co2_rho, co2_fg, co2_xphi)     ! only need 'co2_xphi' (fugacity coefficient) for the follwong call
+  call Henry_CO2_noderiv(xmole_co2,xmass_co2,temp_real,co2_p,co2_xphi,co2_henry,co2_poyn)   ! 'xmolco2': mol fraction; 'xmco2': mass fraction (CO2:CO2+H2O)
+  c_co2_eq =  xmole_co2/H2O_kg_mol
 
-  call Henry_CO2_noderiv(xmole_co2,xmass_co2,tc,co2_p,co2_xphi,co2_henry,co2_poyn)   ! 'xmolco2': mol fraction; 'xmco2': mass fraction (CO2:CO2+H2O)
-
-  c_hco3_eq =  xmole_co2/H2O_kg_mol
-
+  temp_real = volume * 1000.0d0 * porosity * lsat        ! kgH2O
   if (PETSC_FALSE) then
-    rate = this%k_kinetic_co2 * (c_hco3/c_hco3_eq - 1.0d0) * temp_real
+    rate = this%k_kinetic_co2 * (c_co2_aq/c_co2_eq - 1.0d0) * temp_real
   else
-    rate = this%k_kinetic_co2 * (c_hco3 - c_hco3_eq) * temp_real
+    rate = this%k_kinetic_co2 * (c_co2_aq - c_co2_eq) * temp_real
   endif
 
-! degas occurs only when oversaturated, not considering uptake of CO2 from atmosphere
+! degas occurs if over-saturated, or gas dissolves if high gas conc.
   if(abs(rate) > 1.0d-20) then
 
     Residual(ires_co2a) = Residual(ires_co2a) + rate
@@ -326,19 +384,74 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
     if (compute_derivative) then
         if (PETSC_FALSE) then
-            drate = this%k_kinetic_co2 /c_hco3_eq * temp_real 
+            drate = this%k_kinetic_co2 /c_co2_eq * temp_real
         else
-            drate = this%k_kinetic_co2 * temp_real 
+            drate = this%k_kinetic_co2 * temp_real
         endif
 
         Jacobian(ires_co2a,ires_co2a) = Jacobian(ires_co2a,ires_co2a) + drate * &
-        rt_auxvar%aqueous%dtotal(this%ispec_co2a,this%ispec_co2a,iphase)
+                rt_auxvar%aqueous%dtotal(this%ispec_co2a,this%ispec_co2a,iphase)
 
         Jacobian(ires_co2g,ires_co2a) = Jacobian(ires_co2g,ires_co2a) - drate
 
     endif
   endif
 
+!
+!------------------------------------------------------------------------------------
+! n2o(aq) <==> n2o(g)
+!
+  ires_n2oa = this%ispec_n2oa
+  ires_n2og = this%ispec_n2og + reaction%offset_immobile
+
+  c_n2o_aq = rt_auxvar%total(this%ispec_n2oa, iphase)
+
+  n2o_p = 310.0d-9 * option%reference_pressure                        ! default (310 ppbv N2O in atm. in about 1990s)
+#ifdef CLM_PFLOTRAN
+  ! resetting 'n2og' from CLM after adjusting via 'N2Oimm'
+  if (this%ispec_n2og > 0) then
+     n2o_molar = rt_auxvar%immobile(this%ispec_n2og)/air_vol          ! molN2O/m3 bulk soil --> mol/m3 air space
+     n2o_p = n2o_molar/air_molar*air_press                            ! mole fraction --> Pa
+  endif
+#endif
+
+  temp_real = max(min(tc,65.d0), 1.d-20)
+  total_sal = 1.0d-20
+  call weiss_price_n2o (temp_real, air_press, total_sal, n2o_p, &
+         xmole_n2o, xmass_n2o, n2o_henry, n2o_fg, n2o_xphi)
+  c_n2o_eq =  xmole_n2o/H2O_kg_mol
+
+  temp_real = volume * 1000.0d0 * porosity * lsat        ! kgH2O
+  if (PETSC_FALSE) then
+    rate = this%k_kinetic_n2o * (c_n2o_aq/c_n2o_eq - 1.0d0) * temp_real
+  else
+    rate = this%k_kinetic_n2o * (c_n2o_aq - c_n2o_eq) * temp_real
+  endif
+
+! degas occurs if over-saturated, or gas dissolves if high gas conc.
+  if(abs(rate) > 1.0d-20) then
+
+    Residual(ires_n2oa) = Residual(ires_n2oa) + rate
+    Residual(ires_n2og) = Residual(ires_n2og) - rate
+
+    if (compute_derivative) then
+        if (PETSC_FALSE) then
+            drate = this%k_kinetic_n2o /c_n2o_eq * temp_real
+        else
+            drate = this%k_kinetic_n2o * temp_real
+        endif
+
+        Jacobian(ires_n2oa,ires_n2oa) = Jacobian(ires_n2oa,ires_n2oa) + drate * &
+            rt_auxvar%aqueous%dtotal(this%ispec_n2oa,this%ispec_n2oa,iphase)
+
+        Jacobian(ires_n2og,ires_n2oa) = Jacobian(ires_n2og,ires_n2oa) - drate
+
+    endif
+  endif
+
+!
+!------------------------------------------------------------------------------------------------
+!
   ! the following is for setting pH at a fixed value from input
   ! (TODO) if PFLOTRAN H+/OH- related processes are in place, this should be removed
   if(this%b_fixph) then
@@ -349,6 +462,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
     c_h_fix = 10.0d0 ** (-1.0d0 * this%fixph) / rt_auxvar%pri_act_coef(this%ispec_proton)
 
+    temp_real = volume * 1000.0d0 * porosity * lsat        ! kgH2O
     if(PETSC_FALSE) then
       rate = this%k_kinetic_h * (c_h/c_h_fix - 1.0d0) * temp_real
     else
@@ -360,19 +474,15 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
        Residual(ires_himm) = Residual(ires_himm) - rate
 
        if (compute_derivative) then
-
-       if (PETSC_FALSE) then
-           drate = this%k_kinetic_h * convert_molal_to_molar /c_h_fix * temp_real
-       else
-           drate = this%k_kinetic_h * convert_molal_to_molar * temp_real
+          if (PETSC_FALSE) then
+             drate = this%k_kinetic_h * convert_molal_to_molar /c_h_fix * temp_real
+          else
+             drate = this%k_kinetic_h * convert_molal_to_molar * temp_real
+          endif
+          Jacobian(ires_proton,ires_proton) = Jacobian(ires_proton,ires_proton) + drate
+          Jacobian(ires_himm,ires_proton) = Jacobian(ires_proton,ires_himm) - drate
        endif
 
-
-       Jacobian(ires_proton,ires_proton) = Jacobian(ires_proton,ires_proton) + drate
-
-         Jacobian(ires_himm,ires_proton) = Jacobian(ires_proton,ires_himm) - drate
-
-      endif
     endif
 
   endif 
