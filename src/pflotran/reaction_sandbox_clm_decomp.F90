@@ -1646,7 +1646,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     f_w = ((1.27d0 - saturation)/0.67d0)**(3.1777d0) * &
         ((saturation - 0.0012d0)/0.5988d0)**2.84d0  
 
-    ph = 7.0d0       ! default
+    ph = 6.5d0       ! default
     if (this%species_id_proton > 0) then
       if (reaction%species_idx%h_ion_id > 0) then
         ph = &

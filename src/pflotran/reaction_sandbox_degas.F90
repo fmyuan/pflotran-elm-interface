@@ -450,6 +450,58 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
 !
+!------------------------------------------------------------------------------------
+! n2(aq) <==> no(g)
+!
+  ires_n2a = this%ispec_n2a
+  ires_n2g = this%ispec_n2g + reaction%offset_immobile
+
+  c_n2_aq = rt_auxvar%total(this%ispec_n2a, iphase)
+
+  n2_p = 0.78084d0 * option%reference_pressure                        ! default
+#ifdef CLM_PFLOTRAN
+  ! resetting 'n2og' from CLM after adjusting via 'N2Oimm'
+  if (this%ispec_n2g > 0) then
+     n2_molar = rt_auxvar%immobile(this%ispec_n2g)/air_vol          ! molN2O/m3 bulk soil --> mol/m3 air space
+     n2_p = n2o_molar/air_molar*air_press                            ! mole fraction --> Pa
+  endif
+#endif
+
+  temp_real = max(min(tc,40.d0), -2.d0)
+  total_sal = 1.0d-20
+  call weiss_n2(temp_real, air_press, total_sal, n2_p, &
+         xmole_n2, xmass_n2, n2_henry)
+  c_n2_eq =  xmole_n2/H2O_kg_mol
+
+  temp_real = volume * 1000.0d0 * porosity * lsat        ! kgH2O
+  if (PETSC_FALSE) then
+    rate = this%k_kinetic_n2 * (c_n2_aq/c_n2_eq - 1.0d0) * temp_real
+  else
+    rate = this%k_kinetic_n2 * (c_n2_aq - c_n2_eq) * temp_real
+  endif
+
+! degas occurs if over-saturated, or gas dissolves if high gas conc.
+  if(abs(rate) > 1.0d-20) then
+
+    Residual(ires_n2oa) = Residual(ires_n2oa) + rate
+    Residual(ires_n2og) = Residual(ires_n2og) - rate
+
+    if (compute_derivative) then
+        if (PETSC_FALSE) then
+            drate = this%k_kinetic_n2 /c_n2_eq * temp_real
+        else
+            drate = this%k_kinetic_n2 * temp_real
+        endif
+
+        Jacobian(ires_n2a,ires_n2a) = Jacobian(ires_n2a,ires_n2a) + drate * &
+            rt_auxvar%aqueous%dtotal(this%ispec_n2a,this%ispec_n2a,iphase)
+
+        Jacobian(ires_n2g,ires_n2a) = Jacobian(ires_n2g,ires_n2a) - drate
+
+    endif
+  endif
+
+!
 !------------------------------------------------------------------------------------------------
 !
   ! the following is for setting pH at a fixed value from input
@@ -529,7 +581,7 @@ end subroutine degasDestroy
       PetscReal, intent(in) :: tt, tp, ts, pn2o
       PetscReal, intent(out):: xmole, xmass, kh, fg, phi
 
-      PetscReal, parameter :: atm  = 1.0314d5         ! Pa of 1 atm
+      PetscReal, parameter :: atm  = 1.01325d5        ! Pa of 1 atm
       PetscReal, parameter :: rgas = 0.08205601       ! L atm mol-1 K-1
       PetscReal, parameter :: xmwn2o  = 44.01287d-3   ! kg mol-1
       PetscReal, parameter :: xmwh2o  = 18.01534d-3   ! kg mol-1
@@ -575,7 +627,7 @@ end subroutine degasDestroy
       k0 = k0/atm                                   ! mol/L/pa
 
       ! solubility
-      vbar = dexp((1.0d0-tp/atm)*32.3d-3/rgas/tk)    ! 32.3 is in cm3/mol (unit inconsistency??)
+      vbar = dexp((1.0d0-tp/atm)*32.3d-3/rgas/tk)    ! 32.3 is in cm3/mol for converting dissolved n2o molar to vol in solution (unit inconsistency??)
       cn2o = k0*fg*vbar                              ! eq. (1): mol/L
       xmole = cn2o/(1.d0/xmwh2o)                     ! mole fraction: assuming solution volume is all water (1L=1kgH2O)
       xmass = xmole*xmwn2o/(xmole*xmwn2o+(1.d0-xmole)*xmwh2o)    ! mass fraction
@@ -587,5 +639,72 @@ end subroutine degasDestroy
       return
 
     end subroutine weiss_price_n2o
+
+! ************************************************************************** !
+
+  subroutine weiss_n2 (tt, tp, ts, pn2, xmole, xmass, kh)
+  !
+  ! Weiss, R. F., 1970. The solubility of nitrogen, oxygen and argon in water and seawater.
+  ! Deep-Sea Research, 17(1970)721-735.
+  !
+  ! Input: tt   [C]        temperature (-2 ~ 40 oC)
+  !        tp   [Pa]       total air pressure
+  !        ts   [%o]       total salinity (parts per thousands, per mil) ( 0 - 40)
+  !        pn2  [Pa]       N2 partial pressure
+  ! Output:
+  !         kh  [Pa]       N2 Henry's Law Constant
+  !         xmole  [-]     mole fraction of N2 solubility
+  !         xmass  [-]     mass fraction of N2 solubility
+
+      implicit none
+
+#include "finclude/petscsys.h"
+
+      PetscReal, intent(in) :: tt, tp, ts, pn2
+      PetscReal, intent(out):: xmole, xmass, kh
+
+      PetscReal, parameter :: atm  = 1.01325d5         ! Pa of 1 atm
+      PetscReal, parameter :: rgas = 0.08205601       ! L atm mol-1 K-1
+      PetscReal, parameter :: xmwn2   = 28.01344d-3   ! kg mol-1
+      PetscReal, parameter :: xmwh2o  = 18.01534d-3   ! kg mol-1
+
+      PetscReal :: tk, tk_100k
+      PetscReal :: k0
+      PetscReal :: cn2
+
+      PetscReal :: a1,a2,a3,a4,b1,b2,b3
+
+      ! empirical parameters for temperature effect, under moist air at 1 atm.
+      data a1    /-172.4965d0/
+      data a2    / 248.4262d0/
+      data a3    / 143.3483d0/
+      data a4    /-21.7120d0/
+      ! empirical parameters for salt-water effect, under moist air at 1 atm
+      data b1    /-0.049781d0/
+      data b2    /-0.025018d0/
+      data b3    /-0.0034861d0/
+
+      ! variable values transformation
+      tk = tt + 273.15d0
+      tk_100k = tk/100.d0
+
+      ! solubility at STP (0.101325 MPa and 298.15 K) in Weiss (1970)'s paper
+      k0 = a1+a2/tk_100k+a3*dlog(tk_100k) + a4*tk_100k + &
+           ts*(b1+b2*tk_100k+b3*tk_100k*tk_100k)    ! eq. (4): ln(ml-n2(STP)/L-H2O)
+      k0 = dexp(k0)                                 ! ml-N2(STP)/L-H2O
+      k0 = (k0*1.d-3)/rgas/298.15d0                 ! mol-N2(STP)/L-H2O
+
+      ! solubility at tc and tp
+      cn2 = k0                                      ! mol/L
+      xmole = cn2/(1.d0/xmwh2o)                     ! mole fraction: assuming solution volume is all water (1L=1kgH2O)
+      xmass = xmole*xmwn2/(xmole*xmwn2+(1.d0-xmole)*xmwh2o)    ! mass fraction
+
+      ! Henry's Law constant: kh = pn2/[xmole]
+      kh = 1.d0/k0                      ! Pa L mol-1: pn2 in pa, solubility in mol/L
+      kh = kh*(1.0d0/xmwh2o)            ! Pa (pa mol mol-1): pn2 in pa, solubility in mole fraction (1Lsolution = 1kgH2O)
+
+      return
+
+    end subroutine weiss_n2
 
 end module Reaction_Sandbox_degas_class

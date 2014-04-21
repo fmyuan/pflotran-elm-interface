@@ -17,7 +17,9 @@ module Reaction_Sandbox_Nitrification_class
 
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_nitrification_type
+    PetscInt :: ispec_proton
     PetscInt :: ispec_nh3
+    PetscInt :: ispec_nh4sorb
     PetscInt :: ispec_no3
     PetscInt :: ispec_n2o
     PetscInt :: ispec_ngasnit
@@ -55,7 +57,9 @@ function NitrificationCreate()
 ! 4. Add code to allocate object and initialized all variables to zero and
 !    nullify all pointers. E.g.
   allocate(NitrificationCreate)
+  NitrificationCreate%ispec_proton = 0
   NitrificationCreate%ispec_nh3 = 0
+  NitrificationCreate%ispec_nh4sorb = 0
   NitrificationCreate%ispec_no3 = 0
   NitrificationCreate%ispec_ngasnit = 0
   NitrificationCreate%k_nitr_max = 1.d-6
@@ -166,22 +170,24 @@ subroutine NitrificationSetup(this,reaction,option)
 
   character(len=MAXWORDLENGTH) :: word
 
-  word = 'AmmoniaH4+'
-  this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
+  word = 'H+'
+  this%ispec_proton = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
-  if(this%ispec_nh3 < 0) then
-     word = 'NH3(aq)'
-     this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
+  word = 'NH3(aq)'
+  this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
-  endif
- 
   if(this%ispec_nh3 < 0) then
      word = 'NH4+'
      this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
   endif
- 
+   if(this%ispec_nh3 > 0) then
+     word = 'NH4sorb'   ! this is the immobile species from 'reaction_sandbox_langmuir'
+     this%ispec_nh4sorb = GetImmobileSpeciesIDFromName(word,reaction%immobile, &
+                        PETSC_FALSE,option)
+  endif
+
   word = 'NO3-'
   this%ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
@@ -299,13 +305,16 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
   c_nh3 = rt_auxvar%total(this%ispec_nh3, iphase)
 
-  if (associated(reaction%ion_exchange_rxn_list)) then
+  if (associated(rt_auxvar%total_sorb_eq)) then           ! original absorption-reactions in PF used
      s_nh3 = rt_auxvar%total_sorb_eq(this%ispec_nh3)
+  elseif (this%ispec_nh4sorb>0) then                      ! 'reaction_sandbox_langmuir' used
+     s_nh3 = rt_auxvar%immobile(this%ispec_nh4sorb)
   else
      s_nh3 = 1.d-20
   endif
   c_nh3 = c_nh3 - this%x0eps
-! nitrification (Dickinson et al. 2002)
+
+  ! nitrification (Dickinson et al. 2002)
   if(this%ispec_no3 > 0) then
     f_t = exp(0.08d0 * (tc - 298.0d0 + 273.15d0))
     f_w = saturation * (1.0d0 - saturation)
@@ -345,7 +354,18 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
     f_w = ((1.27d0 - saturation)/0.67d0)**(3.1777d0) * &
         ((saturation - 0.0012d0)/0.5988d0)**2.84d0
 
-    ph = 6.5d0
+    ph = 6.5d0       ! default
+    if (this%ispec_proton > 0) then
+      if (reaction%species_idx%h_ion_id > 0) then
+        ph = &
+          -log10(rt_auxvar%pri_molal(reaction%species_idx%h_ion_id)* &
+                 rt_auxvar%pri_act_coef(reaction%species_idx%h_ion_id))
+      else if (reaction%species_idx%h_ion_id < 0) then
+        ph = &
+          -log10(rt_auxvar%sec_molal(abs(reaction%species_idx%h_ion_id))* &
+                 rt_auxvar%sec_act_coef(abs(reaction%species_idx%h_ion_id)))
+      endif
+    endif
     f_ph = 0.56 + atan(rpi * 0.45 * (-5.0 + ph))/rpi
 
     if(f_t > 0.0d0 .and. f_w > 0.0d0 .and. f_ph > 0.0d0) then
@@ -673,6 +693,18 @@ subroutine NitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
 ! ph function from Parton et al., (2001, 1996)
 !  k_nitr_ph_vr(c,j) = 0.56 + atan(rpi * 0.45 * (-5.+ pH(c)))/rpi
 #ifdef CLM_PFLOTRAN
+  ph = 6.5d0       ! default
+  if (this%ispec_proton > 0) then
+      if (reaction%species_idx%h_ion_id > 0) then
+        ph = &
+          -log10(rt_auxvar%pri_molal(reaction%species_idx%h_ion_id)* &
+                 rt_auxvar%pri_act_coef(reaction%species_idx%h_ion_id))
+      else if (reaction%species_idx%h_ion_id < 0) then
+        ph = &
+          -log10(rt_auxvar%sec_molal(abs(reaction%species_idx%h_ion_id))* &
+                 rt_auxvar%sec_act_coef(abs(reaction%species_idx%h_ion_id)))
+      endif
+  endif
   F_ph = 0.56 + atan(rpi * 0.45 * (-5.0 + pH))/rpi
 #else
   F_ph = 1.0

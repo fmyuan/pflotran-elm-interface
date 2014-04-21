@@ -3819,11 +3819,11 @@ end subroutine pflotranModelSetICs
         endif
 
         if(ispec_n2 > 0) then
-            !xx_p(offset + ispec_n2) = max(gn2_vr_pf_loc(local_id), 1.0d-20)
+            xx_p(offset + ispec_n2) = max(gn2_vr_pf_loc(local_id), 1.0d-20)
         endif
 
         if(ispec_n2o > 0) then
-            !xx_p(offset + ispec_n2o) = max(gn2o_vr_pf_loc(local_id), 1.0d-20)
+            xx_p(offset + ispec_n2o) = max(gn2o_vr_pf_loc(local_id), 1.0d-20)
         endif
 
     enddo
@@ -4887,7 +4887,9 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     use Grid_module
     use Option_module
     use Field_module
+    use Reaction_module
     use Reaction_Aux_module
+    use Reactive_Transport_Aux_module
     use Immobile_Aux_module
     use Discretization_module
 
@@ -4909,7 +4911,9 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(simulation_base_type), pointer       :: simulation
-    type(global_auxvar_type), pointer :: global_auxvars(:)
+    type(reaction_type), pointer              :: reaction
+    type(global_auxvar_type), pointer :: global_auxvar
+    type(reactive_transport_auxvar_type), pointer :: rt_auxvar
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
@@ -4952,6 +4956,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
     PetscReal :: conc
+    PetscInt :: icomp
 
     character(len=MAXWORDLENGTH) :: word
     PetscReal, parameter :: C_molecular_weight = 12.0107d0
@@ -4972,7 +4977,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     patch => realization%patch
     grid  => patch%grid
     field => realization%field
-    global_auxvars  => patch%aux%Global%auxvars
+    reaction => realization%reaction
 
     ! (i) indices of bgc variables in PFLOTRAN immobiles
     word = "LabileC"
@@ -5027,11 +5032,15 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     word = "NH4+"
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
-
     if(ispec_nh4 < 0) then
        word = "NH3(aq)"
        ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
+    endif
+    if (ispec_nh4 > 0) then
+       word = 'NH4sorb'   ! if using 'reaction_sandbox_langumir' for NH4 sorption reaction
+       ispec_nh4sorb = GetImmobileSpeciesIDFromName( word, &
+            realization%reaction%immobile,PETSC_FALSE,realization%option)
     endif
 
     !immobile species for gas
@@ -5117,7 +5126,10 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
            if (patch%imat(ghosted_id) <= 0) cycle
         endif
 
-        saturation = global_auxvars(ghosted_id)%sat(1)
+        global_auxvar  => patch%aux%Global%auxvars(ghosted_id)
+        rt_auxvar => patch%aux%RT%auxvars(ghosted_id)
+
+        saturation = global_auxvar%sat(1)
         porosity = porosity_loc_p(local_id)
         theta = saturation * porosity
 
@@ -5150,8 +5162,23 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                         * N_molecular_weight
 
         if(ispec_nh4 > 0) then
-           conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0
-           smin_nh4_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+!           conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0
+
+            ! the following approach appears more like what output module does in pflotran
+            ! but needs further checking if it efficient as directly read from 'xx_p' as above
+            ! the issue here is that 'xx_p' array ONLY for tranportable ?
+            conc = rt_auxvar%pri_molal(ispec_nh4) * theta * 1000.0d0
+            smin_nh4_vr_pf_loc(local_id) = max(conc, 1.0d-20) * N_molecular_weight
+
+            if (associated(rt_auxvar%total_sorb_eq)) then    ! equilibrium-sorption reactions used
+                conc = rt_auxvar%total_sorb_eq(ispec_nh4)
+                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 1.0d-20) * N_molecular_weight
+
+            else if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction used for soil NH4+ absorption
+                conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (molC/m3)
+                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 1.0d-20) * N_molecular_weight
+            endif
+
         endif
 
         if(ispec_no3 > 0) then
