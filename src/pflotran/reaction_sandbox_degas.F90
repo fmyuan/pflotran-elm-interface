@@ -415,7 +415,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
   endif
 #endif
 
-  temp_real = max(min(tc,65.d0), 1.d-20)
+  temp_real = max(min(tc,40.d0), 1.d-20)
   total_sal = 1.0d-20
   call weiss_price_n2o (temp_real, air_press, total_sal, n2o_p, &
          xmole_n2o, xmass_n2o, n2o_henry, n2o_fg, n2o_xphi)
@@ -460,10 +460,10 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
   n2_p = 0.78084d0 * option%reference_pressure                        ! default
 #ifdef CLM_PFLOTRAN
-  ! resetting 'n2og' from CLM after adjusting via 'N2Oimm'
+  ! resetting 'n2g' from CLM after adjusting via 'N2imm'
   if (this%ispec_n2g > 0) then
      n2_molar = rt_auxvar%immobile(this%ispec_n2g)/air_vol          ! molN2O/m3 bulk soil --> mol/m3 air space
-     n2_p = n2o_molar/air_molar*air_press                            ! mole fraction --> Pa
+     n2_p = n2_molar/air_molar*air_press                            ! mole fraction --> Pa
   endif
 #endif
 
@@ -483,8 +483,8 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 ! degas occurs if over-saturated, or gas dissolves if high gas conc.
   if(abs(rate) > 1.0d-20) then
 
-    Residual(ires_n2oa) = Residual(ires_n2oa) + rate
-    Residual(ires_n2og) = Residual(ires_n2og) - rate
+    Residual(ires_n2a) = Residual(ires_n2a) + rate
+    Residual(ires_n2g) = Residual(ires_n2g) - rate
 
     if (compute_derivative) then
         if (PETSC_FALSE) then

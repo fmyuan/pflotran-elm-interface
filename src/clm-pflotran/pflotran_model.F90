@@ -4956,7 +4956,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
     PetscReal :: conc
-    PetscInt :: icomp
 
     character(len=MAXWORDLENGTH) :: word
     PetscReal, parameter :: C_molecular_weight = 12.0107d0
