@@ -208,13 +208,8 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
 
-  word = 'AmmoniaH4+'
+  word = 'NH4+'
   ispec_nh3 = GetPrimarySpeciesIDFromName(word, reaction, PETSC_FALSE, option)
-
-  if (ispec_nh3 < 0) then
-      word = 'NH4+'
-      ispec_nh3 = GetPrimarySpeciesIDFromName(word, reaction, PETSC_FALSE, option)
-  endif
 
   if (ispec_nh3 < 0) then
       word = 'NH3(aq)'

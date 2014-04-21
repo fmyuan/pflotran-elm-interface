@@ -271,7 +271,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal, parameter :: N_molecular_weight = 14.0067d0
   PetscReal :: M_2_ug_per_g
 
-  PetscInt :: ires_nh3, ires_no3, ires_n2o
+  PetscInt :: ires_nh3s, ires_nh3, ires_no3, ires_n2o
 
   PetscScalar, pointer :: bulkdensity(:)
   PetscReal :: rho_b
@@ -296,6 +296,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   ires_nh3 = this%ispec_nh3
   ires_no3 = this%ispec_no3
   ires_n2o = this%ispec_n2o
+  ires_nh3s = this%ispec_nh4sorb + reaction%offset_immobile
   ires_ngasnit = this%ispec_ngasnit + reaction%offset_immobile
 
   saturation = global_auxvar%sat(1)
@@ -341,7 +342,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   rho_b = bulkdensity(local_id) ! kg/m3
   call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity, ierr)
 #else
-  rho_b = 1.0d0
+  rho_b = 1.25d0
 #endif
 !             mole/L * 1000 L/m3 * g/mol / kg/m3 = g/kg = mg/g = 1000 ug/g  
   M_2_ug_per_g  = 1.0d0 / theta *1000.0d0 * N_molecular_weight / rho_b * 1000.0d0
