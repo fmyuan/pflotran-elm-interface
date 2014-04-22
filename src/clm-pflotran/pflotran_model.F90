@@ -4936,8 +4936,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
     PetscScalar, pointer :: smin_nh4sorb_vr_pf_loc(:)       ! (gN/m3)
     PetscScalar, pointer :: gco2_vr_pf_loc(:)              ! (molC/m3)
-    PetscScalar, pointer :: gn2_vr_pf_loc(:)               ! (molN2-N/m3)
-    PetscScalar, pointer :: gn2o_vr_pf_loc(:)              ! (molN2O-N/m3)
+    PetscScalar, pointer :: gn2_vr_pf_loc(:)               ! (molN2/m3)
+    PetscScalar, pointer :: gn2o_vr_pf_loc(:)              ! (molN2O/m3)
     PetscScalar, pointer :: accnmin_vr_pf_loc(:)            ! (gN/m3)
     PetscScalar, pointer :: accnimm_vr_pf_loc(:)            ! (gN/m3)
     PetscScalar, pointer :: accngasmin_vr_pf_loc(:)         ! (gN/m3)
@@ -5192,12 +5192,12 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         endif
 
         if(ispec_n2 > 0) then
-           conc = xx_p(offsetim + ispec_n2)                     ! unit: M (molN/m3)
+           conc = xx_p(offsetim + ispec_n2)                     ! unit: M (molN2/m3)
            gn2_vr_pf_loc(local_id)   = max(conc, 1.0d-20)
         endif
 
         if(ispec_n2o > 0) then
-           conc = xx_p(offsetim + ispec_n2o)                    ! unit: M (molN/m3)
+           conc = xx_p(offsetim + ispec_n2o)                    ! unit: M (molN2O/m3)
            gn2o_vr_pf_loc(local_id)   = max(conc, 1.0d-20)
         endif
 

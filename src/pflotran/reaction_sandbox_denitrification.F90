@@ -198,16 +198,15 @@ subroutine DenitrificationSetup(this,reaction,option)
   word = 'NO3-'
   this%ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
+  if(this%ispec_no3 < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION: ' // &
+                        ' NO3- is not specified in the input file.'
+     call printErrMsg(option)
+  endif
 
   word = 'N2O(aq)'
   this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
-
-  if(this%ispec_n2o < 0) then
-     word = 'NO2-'
-     this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
-  endif
 
   word = 'N2(aq)'
   this%ispec_n2 = GetPrimarySpeciesIDFromName(word,reaction, &
@@ -219,25 +218,13 @@ subroutine DenitrificationSetup(this,reaction,option)
      call printErrMsg(option)
   endif
 
-  if(this%ispec_no3 < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION: ' // &
-                        ' NO3- is not specified in the input file.'
-     call printErrMsg(option)
-  endif
-
-!  if(this%ispec_n2o < 0) then
-!     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DeNITRIFICATION: ' // &
-!                        ' N2O(aq) is not specified in the input file.'
-!     call printErrMsg(option)
-!  endif
-
   word = 'NGASdeni'
   this%ispec_ngasdeni = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
  
 end subroutine DenitrificationSetup
 
-
+!********************************************************************************************!
 subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
                          option,local_id)

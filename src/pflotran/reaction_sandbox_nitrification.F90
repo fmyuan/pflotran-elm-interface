@@ -346,7 +346,8 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
 #endif
 !             mole/L * 1000 L/m3 * g/mol / kg/m3 = g/kg = mg/g = 1000 ug/g  
   M_2_ug_per_g  = 1.0d0 / theta *1000.0d0 * N_molecular_weight / rho_b * 1000.0d0
-  c_nh3_ugg = (c_nh3 + s_nh3 / theta / 1000.0d0)* M_2_ug_per_g
+  !c_nh3_ugg = (c_nh3 + s_nh3 / theta / 1000.0d0)* M_2_ug_per_g
+  c_nh3_ugg = c_nh3 * M_2_ug_per_g
 
   if(this%ispec_n2o > 0.0d0 .and. c_nh3_ugg > 3.0d0 ) then
   ! temperature response function (Parton et al. 1996)
@@ -379,7 +380,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
        endif
 
        rate_n2o = 1.0 - exp(-0.0105d0 * c_nh3_ugg)  ! need to change units 
-       rate_n2o = rate_n2o * f_t * f_w * f_ph * this%k_nitr_n2o
+       rate_n2o = rate_n2o * f_t * f_w * f_ph * c_nh3*this%k_nitr_n2o
 
        Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o
        Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
@@ -391,7 +392,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
        if (compute_derivative) then
            drate_n2o = 0.0105d0*exp(-0.0105d0*c_nh3_ugg) &
                      * M_2_ug_per_g
-           drate_n2o = drate_n2o * f_t * f_w * f_ph * this%k_nitr_n2o
+           drate_n2o = drate_n2o * f_t * f_w * f_ph * c_nh3*this%k_nitr_n2o
 
            Jacobian(ires_nh3,ires_nh3)=Jacobian(ires_nh3,ires_nh3)+drate_n2o * &
            rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_nh3,iphase)

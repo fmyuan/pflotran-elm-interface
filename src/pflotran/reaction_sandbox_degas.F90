@@ -419,9 +419,9 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
   total_sal = 1.0d-20
   call weiss_price_n2o (temp_real, air_press, total_sal, n2o_p, &
          xmole_n2o, xmass_n2o, n2o_henry, n2o_fg, n2o_xphi)
-  c_n2o_eq =  xmole_n2o/H2O_kg_mol
+  c_n2o_eq =  xmole_n2o/H2O_kg_mol                            ! moleN2O/mole solution -> moleN2O/kg (L) water solution
 
-  temp_real = volume * 1000.0d0 * porosity * lsat        ! kgH2O
+  temp_real = volume * 1000.0d0 * porosity * lsat                     ! kgH2O (L)
   if (PETSC_FALSE) then
     rate = this%k_kinetic_n2o * (c_n2o_aq/c_n2o_eq - 1.0d0) * temp_real
   else
@@ -451,18 +451,18 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
 !
 !------------------------------------------------------------------------------------
-! n2(aq) <==> no(g)
+! n2(aq) <==> n2(g)
 !
   ires_n2a = this%ispec_n2a
   ires_n2g = this%ispec_n2g + reaction%offset_immobile
 
-  c_n2_aq = rt_auxvar%total(this%ispec_n2a, iphase)
+  c_n2_aq = rt_auxvar%total(this%ispec_n2a, iphase)                   ! M (mole-N/L)
 
   n2_p = 0.78084d0 * option%reference_pressure                        ! default
 #ifdef CLM_PFLOTRAN
   ! resetting 'n2g' from CLM after adjusting via 'N2imm'
   if (this%ispec_n2g > 0) then
-     n2_molar = rt_auxvar%immobile(this%ispec_n2g)/air_vol          ! molN2O/m3 bulk soil --> mol/m3 air space
+     n2_molar = rt_auxvar%immobile(this%ispec_n2g)/air_vol          ! molN2-N/m3 bulk soil --> mol/m3 air space
      n2_p = n2_molar/air_molar*air_press                            ! mole fraction --> Pa
   endif
 #endif
@@ -471,9 +471,9 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
   total_sal = 1.0d-20
   call weiss_n2(temp_real, air_press, total_sal, n2_p, &
          xmole_n2, xmass_n2, n2_henry)
-  c_n2_eq =  xmole_n2/H2O_kg_mol
+  c_n2_eq =  xmole_n2/H2O_kg_mol                            ! moleN2/mole solution -> moleN2/kg (L) water solution
 
-  temp_real = volume * 1000.0d0 * porosity * lsat        ! kgH2O
+  temp_real = volume * porosity * lsat * 1.d3                       ! kgH2O (L) <== m3
   if (PETSC_FALSE) then
     rate = this%k_kinetic_n2 * (c_n2_aq/c_n2_eq - 1.0d0) * temp_real
   else
