@@ -4424,7 +4424,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
 
-    ! pf interval variables
+    ! pf internal variables
     PetscReal, pointer :: porosity_loc_p(:)
 
     ! clm-pf-interface Vecs for MVM parameters
@@ -4513,15 +4513,22 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
   subroutine pflotranModelResetSoilPorosity(pflotran_model)
   !
-  ! Resetting soil porosity in pflotran's internval vecs due to changes from CLM
+  ! Resetting soil porosity in pflotran's internal vecs due to changes from CLM
   ! Note: this is used to adjust porosity of ice from total, when Thermal mode is NOT used in PFLOTRAN
   ! F.-M. YUAN:  4/28/2014
 
     use Realization_class
+    use Discretization_module
     use Patch_module
     use Grid_module
     use Field_module
     use Option_module
+    use Material_module
+    use Material_Aux_class
+    use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, &
+                               PERMEABILITY_Z, PERMEABILITY_XY, &
+                               PERMEABILITY_YZ, PERMEABILITY_XZ, &
+                               TORTUOSITY, POROSITY
 
     use Simulation_Base_class, only : simulation_base_type
     use Subsurface_Simulation_class, only : subsurface_simulation_type
@@ -4537,6 +4544,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_type), pointer          :: realization
+    type(discretization_type), pointer        :: discretization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(field_type), pointer                 :: field
@@ -4546,7 +4554,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: porosity_loc_p(:)
 
-    PetscScalar, pointer :: porosity_pfs_loc(:)
+    PetscScalar, pointer :: porosity_pfs_loc(:), porosity_pfp_loc(:)
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -4560,6 +4568,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     end select
 
     patch           => realization%patch
+    discretization  => realization%discretization
     grid            => patch%grid
     field           => realization%field
 
@@ -4568,20 +4577,31 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                     clm_pf_idata%porosity_clmp, &
                                     clm_pf_idata%porosity_pfs)
     ! clm-pflotran interface vec
-    call VecGetArrayF90(clm_pf_idata%porosity_pfs,  porosity_pfs_loc,  ierr)
+    call VecGetArrayF90(clm_pf_idata%porosity_pfs,  porosity_pfs_loc,  ierr)   !seq. vec (to receive '_clmp' vec)
+    call VecGetArrayF90(clm_pf_idata%porosity_pfp,  porosity_pfp_loc,  ierr)   !mpi vec (to pass to '_clms' vec)
     ! PF's interval vec
     call VecGetArrayF90(field%porosity0, porosity_loc_p, ierr)
 
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       porosity_loc_p(ghosted_id) = porosity_pfs_loc(local_id)
+
+      porosity_pfp_loc(local_id) = porosity_loc_p(ghosted_id)
     enddo
     call VecRestoreArrayF90(clm_pf_idata%porosity_pfs,  porosity_pfs_loc,  ierr)
+    call VecRestoreArrayF90(clm_pf_idata%porosity_pfp,  porosity_pfp_loc,  ierr)
     call VecRestoreArrayF90(field%porosity0, porosity_loc_p, ierr)
 
-! not sure if the following is needed, further checking (TODO)
-!    call Discretization:LocalToLocal(realization%discretization,field%porosity0, &
-!                               field%porosity0,ONEDOF)
+    call DiscretizationGlobalToLocal(discretization,field%porosity0, &
+                               field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                               POROSITY,0)
+
+    ! mapping back to CLM
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%porosity_pfp, &
+                                    clm_pf_idata%porosity_clms)
 
   end subroutine pflotranModelResetSoilPorosity
 
