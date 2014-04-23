@@ -4958,6 +4958,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscScalar, pointer :: gco2_vr_pf_loc(:)              ! (molC/m3)
     PetscScalar, pointer :: gn2_vr_pf_loc(:)               ! (molN2/m3)
     PetscScalar, pointer :: gn2o_vr_pf_loc(:)              ! (molN2O/m3)
+    PetscScalar, pointer :: acchr_vr_pf_loc(:)              ! (gC/m3)
     PetscScalar, pointer :: accnmin_vr_pf_loc(:)            ! (gN/m3)
     PetscScalar, pointer :: accnimm_vr_pf_loc(:)            ! (gN/m3)
     PetscScalar, pointer :: accngasmin_vr_pf_loc(:)         ! (gN/m3)
@@ -4971,7 +4972,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscInt :: ispec_lit1n, ispec_lit2n, ispec_lit3n
     PetscInt :: ispec_som1, ispec_som2, ispec_som3, ispec_som4
     PetscInt :: ispec_plantn, ispec_co2, ispec_n2, ispec_n2o
-    PetscInt :: ispec_nmin, ispec_nimm
+    PetscInt :: ispec_hrimm, ispec_nmin, ispec_nimm
     PetscInt :: ispec_ngasmin, ispec_ngasnitr, ispec_ngasdeni
 
     PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
@@ -5074,6 +5075,11 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     ispec_n2o = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
+    ! CO2 productin from C decomposition reaction network tracking (immoble species)
+    word = 'HRimm'
+    ispec_hrimm = GetImmobileSpeciesIDFromName(word, &
+            realization%reaction%immobile,PETSC_FALSE,realization%option)
+
     ! N bgc reaction fluxes tracking (immoble species)
     word = 'Nmin'
     ispec_nmin = GetImmobileSpeciesIDFromName(word, &
@@ -5129,6 +5135,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call VecGetArrayF90(clm_pf_idata%gn2o_vr_pfp, gn2o_vr_pf_loc, ierr)
     !
     call VecGetArrayF90(clm_pf_idata%accextrn_vr_pfp, accextrn_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%acchr_vr_pfp, acchr_vr_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%accngasmin_vr_pfp, accngasmin_vr_pf_loc, ierr)
@@ -5222,6 +5229,11 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         endif
 
         ! tracking N bgc reaction fluxes
+        if(ispec_hrimm > 0) then
+           conc = xx_p(offsetim + ispec_hrimm)
+           acchr_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * C_molecular_weight
+        endif
+
         if(ispec_nmin > 0) then
            conc = xx_p(offsetim + ispec_nmin)
            accnmin_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
@@ -5271,6 +5283,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call VecRestoreArrayF90(clm_pf_idata%gn2o_vr_pfp, gn2o_vr_pf_loc, ierr)
     !
     call VecRestoreArrayF90(clm_pf_idata%accextrn_vr_pfp, accextrn_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%acchr_vr_pfp, acchr_vr_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%accngasmin_vr_pfp, accngasmin_vr_pf_loc, ierr)
@@ -5390,6 +5403,13 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                     pflotran_model%option, &
                                     clm_pf_idata%accnmin_vr_pfp, &
                                     clm_pf_idata%accnmin_vr_clms)
+    endif
+
+    if(ispec_hrimm > 0) then
+         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%acchr_vr_pfp, &
+                                    clm_pf_idata%acchr_vr_clms)
     endif
 
     if(ispec_nimm > 0) then

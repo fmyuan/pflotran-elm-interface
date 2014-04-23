@@ -295,10 +295,10 @@ module clm_pflotran_interface_data
 
   ! gases in water (aqueous solution of gases)
   ! gases species is accumulative in 'PFLOTRAN', so needs to calculate their fluxes in the CLM-PF interface and reset back to PFLOTRAN
-  Vec :: gco2_vr_pfp                   ! (gC/m3) vertically-resolved soil heterotrophic respiration C
-  Vec :: gco2_vr_clms                  ! (gC/m3) vertically-resolved soil heterotrophic respiration C
-  Vec :: gco2_vr_clmp                  ! (gC/m3) vertically-resolved soil heterotrophic respiration C, after gas emission
-  Vec :: gco2_vr_pfs                   ! (gC/m3) vertically-resolved soil heterotrophic respiration C, after gas emission
+  Vec :: gco2_vr_pfp                   ! (gC/m3) vertically-resolved soil CO2 C
+  Vec :: gco2_vr_clms                  ! (gC/m3) vertically-resolved soil CO2 C
+  Vec :: gco2_vr_clmp                  ! (gC/m3) vertically-resolved soil CO2 C, after gas emission
+  Vec :: gco2_vr_pfs                   ! (gC/m3) vertically-resolved soil CO2 C, after gas emission
 
   Vec :: gn2_vr_pfp                    ! (gN/m3) vertically-resolved N2-N
   Vec :: gn2_vr_clms                   ! (gN/m3) vertically-resolved N2-N
@@ -311,6 +311,10 @@ module clm_pflotran_interface_data
   Vec :: gn2o_vr_pfs                   ! (gN/m3) vertically-resolved N2O-N, after gas emission
 
   ! some tracking variables from PFLOTRAN bgc to obtain reaction flux rates which needed by CLM
+  Vec :: acchr_vr_pfp                 ! (gC/m3) vertically-resolved heterotrophic resp. C from decomposition
+  Vec :: acchr_vr_clms_prv            ! (gC/m3) vertically-resolved heterotrophic resp. C from decomposition at previous time-step
+  Vec :: acchr_vr_clms                ! (gC/m3) vertically-resolved heterotrophic resp. C from decomposition
+
   Vec :: accnmin_vr_pfp                ! (gN/m3) vertically-resolved N mineralization
   Vec :: accnmin_vr_clms_prv           ! (gN/m3) vertically-resolved N mineralization at previous time-step
   Vec :: accnmin_vr_clms               ! (gN/m3) vertically-resolved N mineralization
@@ -644,7 +648,11 @@ contains
     clm_pf_idata%gn2o_vr_clmp      = 0
     clm_pf_idata%gn2o_vr_pfs       = 0
 
-    ! tracking variables in N cycle
+    ! tracking variables in C-N cycle
+    clm_pf_idata%acchr_vr_pfp       = 0
+    clm_pf_idata%acchr_vr_clms_prv  = 0
+    clm_pf_idata%acchr_vr_clms      = 0
+
     clm_pf_idata%accnmin_vr_pfp       = 0
     clm_pf_idata%accnmin_vr_clms_prv  = 0
     clm_pf_idata%accnmin_vr_clms      = 0
@@ -1019,6 +1027,7 @@ contains
     !
     call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%accextrn_vr_pfp,ierr)
     !
+    call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%acchr_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%accnmin_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%accnimm_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%accngasmin_vr_pfp,ierr)
@@ -1035,6 +1044,9 @@ contains
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accextrn_vr_clms_prv,ierr)
 
     !
+    call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%acchr_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%acchr_vr_clms_prv,ierr)
+
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accnmin_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accnmin_vr_clms_prv,ierr)
 
@@ -1512,6 +1524,13 @@ contains
        call VecDestroy(clm_pf_idata%gn2o_vr_clmp,ierr)
     if(clm_pf_idata%gn2o_vr_pfs /= 0) &
        call VecDestroy(clm_pf_idata%gn2o_vr_pfs,ierr)
+
+    if(clm_pf_idata%acchr_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%acchr_vr_pfp,ierr)
+    if(clm_pf_idata%acchr_vr_clms_prv /= 0) &
+       call VecDestroy(clm_pf_idata%acchr_vr_clms_prv,ierr)
+    if(clm_pf_idata%acchr_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%acchr_vr_clms,ierr)
 
     if(clm_pf_idata%accnmin_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%accnmin_vr_pfp,ierr)

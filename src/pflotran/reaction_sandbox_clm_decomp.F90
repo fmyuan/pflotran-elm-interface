@@ -66,6 +66,7 @@ module Reaction_Sandbox_CLM_Decomp_class
     PetscInt :: species_id_bacteria
     PetscInt :: species_id_fungi
 
+    PetscInt :: species_id_hrimm
     PetscInt :: species_id_nmin
     PetscInt :: species_id_nimm
     PetscInt :: species_id_ngasmin
@@ -155,6 +156,7 @@ function CLM_Decomp_Create()
   CLM_Decomp_Create%species_id_proton = 0
   CLM_Decomp_Create%species_id_bacteria = 0
   CLM_Decomp_Create%species_id_fungi = 0
+  CLM_Decomp_Create%species_id_hrimm = 0
   CLM_Decomp_Create%species_id_nmin = 0
   CLM_Decomp_Create%species_id_nimm = 0
   CLM_Decomp_Create%species_id_ngasmin = 0
@@ -814,6 +816,10 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
   this%species_id_fungi = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
  
+  word = 'HRimm'
+  this%species_id_hrimm = GetImmobileSpeciesIDFromName( &
+            word,reaction%immobile,PETSC_FALSE,option)
+
   word = 'Nmin'
   this%species_id_nmin = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
@@ -891,7 +897,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   PetscInt :: ispec_uc, ispec_un, ispec_d   ! species id for upstream C, N, and downstream
   PetscInt :: ires_uc, ires_un, ires_d      ! id used for residual and Jacobian
   PetscInt :: ires_co2, ires_nh3, ires_n2o, ires_no3
-  PetscInt :: ires_nmin, ires_nimm, ires_ngasmin
+  PetscInt :: ires_hrimm, ires_nmin, ires_nimm, ires_ngasmin
 !  PetscReal :: stoich_un, stoich_dc, stoich_mineraln, stoich_co2
   PetscReal :: stoich_c, stoich_n
 
@@ -942,6 +948,10 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   ires_nh3 = this%species_id_nh3
   ires_no3 = this%species_id_no3
   ires_n2o = this%species_id_n2o
+
+  if(this%species_id_hrimm > 0) then
+     ires_hrimm = this%species_id_hrimm + reaction%offset_immobile
+  endif
 
   if(this%species_id_nmin > 0) then
      ires_nmin = this%species_id_nmin + reaction%offset_immobile
@@ -1085,6 +1095,9 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     ! calculation of residual
     ! carbon
     Residual(ires_co2) = Residual(ires_co2) - this%mineral_c_stoich(irxn) * rate
+    if (this%species_id_hrimm > 0) then
+       Residual(ires_hrimm) = Residual(ires_hrimm) - this%mineral_c_stoich(irxn) * rate
+    endif
     
     ! nitrogen
     Residual(ires_nh3) = Residual(ires_nh3) - this%mineral_n_stoich(irxn) * rate
@@ -1133,6 +1146,9 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     ! residuals
     ! carbon
        Residual(ires_co2) = Residual(ires_co2) - this%mineral_c_stoich(irxn) * rate_no3
+       if (this%species_id_hrimm > 0) then
+           Residual(ires_hrimm) = Residual(ires_hrimm) - this%mineral_c_stoich(irxn) * rate_no3
+       endif
     
     ! nitrogen
        Residual(ires_no3) = Residual(ires_no3) - this%mineral_n_stoich(irxn) * rate_no3
@@ -1188,6 +1204,18 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 ! R dc/dLit1C =  - R Lit1N/Lit1C^2 CN_ratio_microbe  = -dR/dLit1C u CN_ratio_microbe
            Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) + &
             drate_uc * this%upstream_nc(irxn) * CN_ratio_microbe 
+        endif
+      endif
+
+      if(this%species_id_hrimm > 0) then
+        Jacobian(ires_hrimm,ires_uc) = Jacobian(ires_hrimm,ires_uc) - &
+          this%mineral_c_stoich(irxn) * drate_uc
+
+        if(this%is_litter_decomp(irxn) .and. &
+           this%litter_decomp_type == LITTER_DECOMP_CLMMICROBE .and. &
+           resp_frac < CUE_max) then
+           Jacobian(ires_hrimm,ires_uc) = Jacobian(ires_hrimm,ires_uc) + &
+            drate_uc * this%upstream_nc(irxn) * CN_ratio_microbe
         endif
       endif
 
@@ -1367,7 +1395,12 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
         Jacobian(ires_co2,ires_nh3) = Jacobian(ires_co2,ires_nh3) - &
           this%mineral_c_stoich(irxn) * drate_nh3 * &
           rt_auxvar%aqueous%dtotal(this%species_id_co2,this%species_id_nh3,iphase)
-  
+
+        if(this%species_id_hrimm > 0) then
+          Jacobian(ires_hrimm,ires_nh3) = Jacobian(ires_hrimm,ires_nh3) - &
+            this%mineral_c_stoich(irxn) * drate_nh3
+        endif
+
         ! nitrogen
         Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) - &
           this%mineral_n_stoich(irxn) * drate_nh3 * &
@@ -1421,9 +1454,16 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
           Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - &
             this%mineral_c_stoich(irxn) * drate_uc_no3 * &
             rt_auxvar%aqueous%dtotal(this%species_id_co2,ispec_uc,iphase)
+
         else
           Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - &
             this%mineral_c_stoich(irxn) * drate_uc_no3
+
+        endif
+
+        if(this%species_id_hrimm > 0) then
+            Jacobian(ires_hrimm,ires_uc) = Jacobian(ires_hrimm,ires_uc) - &
+               this%mineral_c_stoich(irxn) * drate_uc_no3
         endif
 
       ! nitrogen
@@ -1529,6 +1569,11 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
             this%mineral_c_stoich(irxn) * drate_no3 * &
             rt_auxvar%aqueous%dtotal(this%species_id_co2,this%species_id_no3,iphase)
   
+        if(this%species_id_hrimm > 0) then
+            Jacobian(ires_hrimm,ires_no3) = Jacobian(ires_hrimm,ires_no3) - &
+               this%mineral_c_stoich(irxn) * drate_no3
+        endif
+
         ! nitrogen
         Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) - &
             this%mineral_n_stoich(irxn) * drate_no3 * &
@@ -1581,7 +1626,12 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
         Jacobian(ires_co2,ires_nh3) = Jacobian(ires_co2,ires_nh3) - &
           this%mineral_c_stoich(irxn) * drate_nh3_no3 * &
           rt_auxvar%aqueous%dtotal(this%species_id_co2,this%species_id_nh3,iphase)
-  
+
+        if(this%species_id_hrimm > 0) then
+          Jacobian(ires_hrimm,ires_nh3) = Jacobian(ires_hrimm,ires_nh3) - &
+             this%mineral_c_stoich(irxn) * drate_nh3_no3
+        endif
+
         ! nitrogen
         Jacobian(ires_no3,ires_nh3) = Jacobian(ires_no3,ires_nh3) - &
           this%mineral_n_stoich(irxn) * drate_nh3_no3 * &
