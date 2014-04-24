@@ -156,60 +156,27 @@ subroutine degasSetup(this,reaction,option)
   word = 'CO2(aq)'
   this%ispec_co2a = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
-  if(this%ispec_co2a < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
-            'aqueous species CO2(aq) is not defined!'
-     call printErrMsg(option)
-  endif
 
   word = 'N2O(aq)'
   this%ispec_n2oa = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
-  if(this%ispec_n2oa < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
-            'aqueous species N2O(aq) is not defined!'
-     call printErrMsg(option)
-  endif
 
   word = 'N2(aq)'
   this%ispec_n2a = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
-  if(this%ispec_n2a < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
-            'aqueous species N2(aq) is not defined!'
-     call printErrMsg(option)
-  endif
 
   ! (TODO) currently, gas CO2 related process not ready, so it's assumed as immobile species.
   word = 'CO2imm'
   this%ispec_co2g = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
  
-  if(this%ispec_co2g < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
-            'gas species CO2imm is not defined!'
-     call printErrMsg(option)
-  endif
-
   word = 'N2Oimm'
   this%ispec_n2og = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
 
-  if(this%ispec_n2og < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
-            'gas species N2Oimm is not defined!'
-     call printErrMsg(option)
-  endif
-
   word = 'N2imm'
   this%ispec_n2g = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
-
-  if(this%ispec_n2g < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
-            'gas species N2imm is not defined!'
-     call printErrMsg(option)
-  endif
 
   if(this%b_fixph) then
      word = 'H+'
@@ -350,39 +317,41 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 !------------------------------------------------------------------------------------
 ! co2(aq) <==> co2(g)
 !
-  ires_co2a = this%ispec_co2a
-  ires_co2g = this%ispec_co2g + reaction%offset_immobile
+  if (this%ispec_co2a > 0 .and. this%ispec_co2g > 0) then
 
-  c_co2_aq = rt_auxvar%total(this%ispec_co2a, iphase)
+    ires_co2a = this%ispec_co2a
+    ires_co2g = this%ispec_co2g + reaction%offset_immobile
 
-  co2_p = 350.0d-6 * option%reference_pressure
+    c_co2_aq = rt_auxvar%total(this%ispec_co2a, iphase)
+
+    co2_p = 350.0d-6 * option%reference_pressure
 #ifdef CLM_PFLOTRAN
-  ! resetting 'co2g' from CLM after adjusting
-  if (this%ispec_co2g > 0) then
-     co2_molar = rt_auxvar%immobile(this%ispec_co2g)/air_vol          ! molCO2/m3 bulk soil --> mol/m3 air space
-     co2_p = co2_molar/air_molar*air_press                            ! mole fraction --> Pa
-  endif
+    ! resetting 'co2g' from CLM after adjusting
+    if (this%ispec_co2g > 0) then
+       co2_molar = rt_auxvar%immobile(this%ispec_co2g)/air_vol          ! molCO2/m3 bulk soil --> mol/m3 air space
+       co2_p = co2_molar/air_molar*air_press                            ! mole fraction --> Pa
+    endif
 #endif
 
-  temp_real = max(min(tc,65.d0), 1.d-20)                                   ! 'duanco2' only functions from 0 - 65oC
-  call duanco2(temp_real,co2_p, co2_rho, co2_fg, co2_xphi)     ! only need 'co2_xphi' (fugacity coefficient) for the follwong call
-  call Henry_CO2_noderiv(xmole_co2,xmass_co2,temp_real,co2_p,co2_xphi,co2_henry,co2_poyn)   ! 'xmolco2': mol fraction; 'xmco2': mass fraction (CO2:CO2+H2O)
-  c_co2_eq =  xmole_co2/H2O_kg_mol
+    temp_real = max(min(tc,65.d0), 1.d-20)                                   ! 'duanco2' only functions from 0 - 65oC
+    call duanco2(temp_real,co2_p, co2_rho, co2_fg, co2_xphi)     ! only need 'co2_xphi' (fugacity coefficient) for the follwong call
+    call Henry_CO2_noderiv(xmole_co2,xmass_co2,temp_real,co2_p,co2_xphi,co2_henry,co2_poyn)   ! 'xmolco2': mol fraction; 'xmco2': mass fraction (CO2:CO2+H2O)
+    c_co2_eq =  xmole_co2/H2O_kg_mol
 
-  temp_real = volume * 1000.0d0 * porosity * lsat        ! kgH2O
-  if (PETSC_FALSE) then
-    rate = this%k_kinetic_co2 * (c_co2_aq/c_co2_eq - 1.0d0) * temp_real
-  else
-    rate = this%k_kinetic_co2 * (c_co2_aq - c_co2_eq) * temp_real
-  endif
+    temp_real = volume * 1000.0d0 * porosity * lsat        ! kgH2O
+    if (PETSC_FALSE) then
+      rate = this%k_kinetic_co2 * (c_co2_aq/c_co2_eq - 1.0d0) * temp_real
+    else
+      rate = this%k_kinetic_co2 * (c_co2_aq - c_co2_eq) * temp_real
+    endif
 
 ! degas occurs if over-saturated, or gas dissolves if high gas conc.
-  if(abs(rate) > 1.0d-20) then
+    if(abs(rate) > 1.0d-20) then
 
-    Residual(ires_co2a) = Residual(ires_co2a) + rate
-    Residual(ires_co2g) = Residual(ires_co2g) - rate
+      Residual(ires_co2a) = Residual(ires_co2a) + rate
+      Residual(ires_co2g) = Residual(ires_co2g) - rate
 
-    if (compute_derivative) then
+      if (compute_derivative) then
         if (PETSC_FALSE) then
             drate = this%k_kinetic_co2 /c_co2_eq * temp_real
         else
@@ -393,48 +362,52 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
                 rt_auxvar%aqueous%dtotal(this%ispec_co2a,this%ispec_co2a,iphase)
 
         Jacobian(ires_co2g,ires_co2a) = Jacobian(ires_co2g,ires_co2a) - drate
+      endif
 
     endif
-  endif
+
+  endif ! end of 'if (this%ispec_co2a > 0 .and. this%ispec_co2g > 0)' block
 
 !
 !------------------------------------------------------------------------------------
 ! n2o(aq) <==> n2o(g)
 !
-  ires_n2oa = this%ispec_n2oa
-  ires_n2og = this%ispec_n2og + reaction%offset_immobile
+  if (this%ispec_n2oa > 0 .and. this%ispec_n2og > 0) then
 
-  c_n2o_aq = rt_auxvar%total(this%ispec_n2oa, iphase)
+    ires_n2oa = this%ispec_n2oa
+    ires_n2og = this%ispec_n2og + reaction%offset_immobile
 
-  n2o_p = 310.0d-9 * option%reference_pressure                        ! default (310 ppbv N2O in atm. in about 1990s)
+    c_n2o_aq = rt_auxvar%total(this%ispec_n2oa, iphase)
+
+    n2o_p = 310.0d-9 * option%reference_pressure                        ! default (310 ppbv N2O in atm. in about 1990s)
 #ifdef CLM_PFLOTRAN
-  ! resetting 'n2og' from CLM after adjusting via 'N2Oimm'
-  if (this%ispec_n2og > 0) then
-     n2o_molar = rt_auxvar%immobile(this%ispec_n2og)/air_vol          ! molN2O/m3 bulk soil --> mol/m3 air space
-     n2o_p = n2o_molar/air_molar*air_press                            ! mole fraction --> Pa
-  endif
+    ! resetting 'n2og' from CLM after adjusting via 'N2Oimm'
+    if (this%ispec_n2og > 0) then
+       n2o_molar = rt_auxvar%immobile(this%ispec_n2og)/air_vol          ! molN2O/m3 bulk soil --> mol/m3 air space
+       n2o_p = n2o_molar/air_molar*air_press                            ! mole fraction --> Pa
+    endif
 #endif
 
-  temp_real = max(min(tc,40.d0), 1.d-20)
-  total_sal = 1.0d-20
-  call weiss_price_n2o (temp_real, air_press, total_sal, n2o_p, &
+    temp_real = max(min(tc,40.d0), 1.d-20)
+    total_sal = 1.0d-20
+    call weiss_price_n2o (temp_real, air_press, total_sal, n2o_p, &
          xmole_n2o, xmass_n2o, n2o_henry, n2o_fg, n2o_xphi)
-  c_n2o_eq =  xmole_n2o/H2O_kg_mol                            ! moleN2O/mole solution -> moleN2O/kg (L) water solution
+    c_n2o_eq =  xmole_n2o/H2O_kg_mol                            ! moleN2O/mole solution -> moleN2O/kg (L) water solution
 
-  temp_real = volume * 1000.0d0 * porosity * lsat                     ! kgH2O (L)
-  if (PETSC_FALSE) then
-    rate = this%k_kinetic_n2o * (c_n2o_aq/c_n2o_eq - 1.0d0) * temp_real
-  else
-    rate = this%k_kinetic_n2o * (c_n2o_aq - c_n2o_eq) * temp_real
-  endif
+    temp_real = volume * 1000.0d0 * porosity * lsat                     ! kgH2O (L)
+    if (PETSC_FALSE) then
+      rate = this%k_kinetic_n2o * (c_n2o_aq/c_n2o_eq - 1.0d0) * temp_real
+    else
+      rate = this%k_kinetic_n2o * (c_n2o_aq - c_n2o_eq) * temp_real
+    endif
 
-! degas occurs if over-saturated, or gas dissolves if high gas conc.
-  if(abs(rate) > 1.0d-20) then
+    ! degas occurs if over-saturated, or gas dissolves if high gas conc.
+    if(abs(rate) > 1.0d-20) then
 
-    Residual(ires_n2oa) = Residual(ires_n2oa) + rate
-    Residual(ires_n2og) = Residual(ires_n2og) - rate
+      Residual(ires_n2oa) = Residual(ires_n2oa) + rate
+      Residual(ires_n2og) = Residual(ires_n2og) - rate
 
-    if (compute_derivative) then
+      if (compute_derivative) then
         if (PETSC_FALSE) then
             drate = this%k_kinetic_n2o /c_n2o_eq * temp_real
         else
@@ -445,48 +418,51 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
             rt_auxvar%aqueous%dtotal(this%ispec_n2oa,this%ispec_n2oa,iphase)
 
         Jacobian(ires_n2og,ires_n2oa) = Jacobian(ires_n2og,ires_n2oa) - drate
+      endif
 
     endif
-  endif
+
+  endif ! end of 'if (this%ispec_n2oa > 0 .and. this%ispec_n2og > 0)' block
 
 !
 !------------------------------------------------------------------------------------
 ! n2(aq) <==> n2(g)
 !
-  ires_n2a = this%ispec_n2a
-  ires_n2g = this%ispec_n2g + reaction%offset_immobile
+  if (this%ispec_n2a > 0 .and. this%ispec_n2g > 0) then
+    ires_n2a = this%ispec_n2a
+    ires_n2g = this%ispec_n2g + reaction%offset_immobile
 
-  c_n2_aq = rt_auxvar%total(this%ispec_n2a, iphase)                   ! M (mole-N/L)
+    c_n2_aq = rt_auxvar%total(this%ispec_n2a, iphase)                   ! M (mole-N/L)
 
-  n2_p = 0.78084d0 * option%reference_pressure                        ! default
+    n2_p = 0.78084d0 * option%reference_pressure                        ! default
 #ifdef CLM_PFLOTRAN
-  ! resetting 'n2g' from CLM after adjusting via 'N2imm'
-  if (this%ispec_n2g > 0) then
-     n2_molar = rt_auxvar%immobile(this%ispec_n2g)/air_vol          ! molN2-N/m3 bulk soil --> mol/m3 air space
-     n2_p = n2_molar/air_molar*air_press                            ! mole fraction --> Pa
-  endif
+    ! resetting 'n2g' from CLM after adjusting via 'N2imm'
+    if (this%ispec_n2g > 0) then
+       n2_molar = rt_auxvar%immobile(this%ispec_n2g)/air_vol          ! molN2-N/m3 bulk soil --> mol/m3 air space
+       n2_p = n2_molar/air_molar*air_press                            ! mole fraction --> Pa
+    endif
 #endif
 
-  temp_real = max(min(tc,40.d0), -2.d0)
-  total_sal = 1.0d-20
-  call weiss_n2(temp_real, air_press, total_sal, n2_p, &
+    temp_real = max(min(tc,40.d0), -2.d0)
+    total_sal = 1.0d-20
+    call weiss_n2(temp_real, air_press, total_sal, n2_p, &
          xmole_n2, xmass_n2, n2_henry)
-  c_n2_eq =  xmole_n2/H2O_kg_mol                            ! moleN2/mole solution -> moleN2/kg (L) water solution
+    c_n2_eq =  xmole_n2/H2O_kg_mol                            ! moleN2/mole solution -> moleN2/kg (L) water solution
 
-  temp_real = volume * porosity * lsat * 1.d3                       ! kgH2O (L) <== m3
-  if (PETSC_FALSE) then
-    rate = this%k_kinetic_n2 * (c_n2_aq/c_n2_eq - 1.0d0) * temp_real
-  else
-    rate = this%k_kinetic_n2 * (c_n2_aq - c_n2_eq) * temp_real
-  endif
+    temp_real = volume * porosity * lsat * 1.d3                       ! kgH2O (L) <== m3
+    if (PETSC_FALSE) then
+      rate = this%k_kinetic_n2 * (c_n2_aq/c_n2_eq - 1.0d0) * temp_real
+    else
+      rate = this%k_kinetic_n2 * (c_n2_aq - c_n2_eq) * temp_real
+    endif
 
 ! degas occurs if over-saturated, or gas dissolves if high gas conc.
-  if(abs(rate) > 1.0d-20) then
+    if(abs(rate) > 1.0d-20) then
 
-    Residual(ires_n2a) = Residual(ires_n2a) + rate
-    Residual(ires_n2g) = Residual(ires_n2g) - rate
+      Residual(ires_n2a) = Residual(ires_n2a) + rate
+      Residual(ires_n2g) = Residual(ires_n2g) - rate
 
-    if (compute_derivative) then
+      if (compute_derivative) then
         if (PETSC_FALSE) then
             drate = this%k_kinetic_n2 /c_n2_eq * temp_real
         else
@@ -498,8 +474,10 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
         Jacobian(ires_n2g,ires_n2a) = Jacobian(ires_n2g,ires_n2a) - drate
 
+      endif
     endif
-  endif
+
+  endif ! end of 'if(this%ispec_n2a > 0 .and. this%ispec_n2g > 0)' block
 
 !
 !------------------------------------------------------------------------------------------------
