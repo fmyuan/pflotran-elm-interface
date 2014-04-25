@@ -1,0 +1,33 @@
+-- GENERIC: pH --
+      Max:   1.0516939488773E+01
+      Min:   1.0516939488773E+01
+     Mean:   1.0516939488773E+01
+        1:   1.0516939488773E+01
+-- CONCENTRATION: Total H+ --
+      Max:  -9.5279223557198E-04
+      Min:  -9.5279223557198E-04
+     Mean:  -9.5279223557198E-04
+        1:  -9.5279223557198E-04
+-- CONCENTRATION: Total NH4+ --
+      Max:   6.5311288932953E-04
+      Min:   6.5311288932953E-04
+     Mean:   6.5311288932953E-04
+        1:   6.5311288932953E-04
+-- CONCENTRATION: NH4sorb --
+      Max:   8.6721778180025E-02
+      Min:   8.6721778180025E-02
+     Mean:   8.6721778180025E-02
+        1:   8.6721778180025E-02
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   3.0639667510986E+00
+   Time Steps:         1136
+   Newton Iterations:         1851
+   Solver Iterations:         1851
+   Time Step Cuts:            0
+   Solution 2-Norm:   8.6721784404522E-02
+   Residual 2-Norm:   3.8332335417084E-21

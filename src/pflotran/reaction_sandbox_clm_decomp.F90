@@ -36,9 +36,6 @@ module Reaction_Sandbox_CLM_Decomp_class
     PetscReal :: half_saturation_no3
     PetscReal :: inhibition_nh3_no3
     PetscReal :: n2o_frac_mineralization    ! fraction of n2o from net N mineralization
-!    PetscReal :: k_nitr_max                 ! nitrification rate
-!    PetscReal :: k_nitr_n2o                 ! N2O production rate with nitrification
-!    PetscReal :: k_deni_max                 ! denitrification rate
     PetscReal :: x0eps
 
     PetscInt :: npool                       ! litter or variable CN ration pools
@@ -69,9 +66,11 @@ module Reaction_Sandbox_CLM_Decomp_class
     PetscInt :: species_id_bacteria
     PetscInt :: species_id_fungi
 
+    PetscInt :: species_id_hrimm
     PetscInt :: species_id_nmin
     PetscInt :: species_id_nimm
-    PetscInt :: species_id_ndecomp
+    PetscInt :: species_id_ngasmin
+    PetscInt :: species_id_proton
 
     type(pool_type), pointer :: pools
     type(clm_decomp_reaction_type), pointer :: reactions
@@ -153,13 +152,14 @@ function CLM_Decomp_Create()
   CLM_Decomp_Create%species_id_nh3 = 0
   CLM_Decomp_Create%species_id_no3 = 0
   CLM_Decomp_Create%species_id_n2o = 0
-!  CLM_Decomp_Create%species_id_n2 = 0
   CLM_Decomp_Create%species_id_dom = 0
+  CLM_Decomp_Create%species_id_proton = 0
   CLM_Decomp_Create%species_id_bacteria = 0
   CLM_Decomp_Create%species_id_fungi = 0
+  CLM_Decomp_Create%species_id_hrimm = 0
   CLM_Decomp_Create%species_id_nmin = 0
   CLM_Decomp_Create%species_id_nimm = 0
-  CLM_Decomp_Create%species_id_ndecomp = 0
+  CLM_Decomp_Create%species_id_ngasmin = 0
 
   nullify(CLM_Decomp_Create%next)
 
@@ -775,15 +775,15 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
   this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
-  word = 'AmmoniaH4+'
-  this%species_id_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
-
-  if(this%species_id_nh3 < 0) then
-    word = 'NH4+'
-    this%species_id_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
+  if(this%species_id_co2 < 0) then
+     word = 'CO2(aq)'
+     this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
   endif
+
+  word = 'NH4+'
+  this%species_id_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
 
   if(this%species_id_nh3 < 0) then
     word = 'NH3(aq)'
@@ -792,7 +792,7 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
   endif
 
   if(this%species_id_nh3 <= 0) then
-    option%io_buffer = 'AmmoniaH4+ is not defined in the database for CLM_Decomp'
+    option%io_buffer = 'one of AmmoniaH4+/NH4+/NH3(aq) is not defined in the database for CLM_Decomp'
     call printErrMsg(option)
   endif
 
@@ -803,7 +803,11 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
   word = 'N2O(aq)'
   this%species_id_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
- 
+
+  word = 'H+'
+  this%species_id_proton = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+
   word = 'Bacteria'
   this%species_id_bacteria = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
@@ -812,6 +816,10 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
   this%species_id_fungi = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
  
+  word = 'HRimm'
+  this%species_id_hrimm = GetImmobileSpeciesIDFromName( &
+            word,reaction%immobile,PETSC_FALSE,option)
+
   word = 'Nmin'
   this%species_id_nmin = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
@@ -820,10 +828,10 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
   this%species_id_nimm = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
  
-  word = 'Ndecomp'
-  this%species_id_ndecomp = GetImmobileSpeciesIDFromName( &
+  word = 'NGASmin'
+  this%species_id_ngasmin = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
- 
+
 end subroutine CLM_Decomp_Setup
 
 ! ************************************************************************** !
@@ -889,7 +897,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   PetscInt :: ispec_uc, ispec_un, ispec_d   ! species id for upstream C, N, and downstream
   PetscInt :: ires_uc, ires_un, ires_d      ! id used for residual and Jacobian
   PetscInt :: ires_co2, ires_nh3, ires_n2o, ires_no3
-  PetscInt :: ires_nmin, ires_nimm, ires_ndecomp
+  PetscInt :: ires_hrimm, ires_nmin, ires_nimm, ires_ngasmin
 !  PetscReal :: stoich_un, stoich_dc, stoich_mineraln, stoich_co2
   PetscReal :: stoich_c, stoich_n
 
@@ -913,8 +921,6 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   PetscReal :: net_n_mineralization_rate
   PetscReal :: ph, f_ph
   PetscReal :: rate_n2o, drate_n2o
-
-!  PetscReal, parameter :: rpi = 3.14159265358979323846
 
   PetscReal :: c_uc, c_un
   PetscReal :: nc_bacteria, nc_fungi
@@ -943,6 +949,10 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   ires_no3 = this%species_id_no3
   ires_n2o = this%species_id_n2o
 
+  if(this%species_id_hrimm > 0) then
+     ires_hrimm = this%species_id_hrimm + reaction%offset_immobile
+  endif
+
   if(this%species_id_nmin > 0) then
      ires_nmin = this%species_id_nmin + reaction%offset_immobile
   endif
@@ -951,8 +961,8 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
      ires_nimm = this%species_id_nimm + reaction%offset_immobile
   endif
 
-  if(this%species_id_ndecomp > 0) then
-     ires_ndecomp = this%species_id_ndecomp + reaction%offset_immobile
+  if(this%species_id_ngasmin > 0) then
+     ires_ngasmin = this%species_id_ngasmin + reaction%offset_immobile
   endif
 
 ! temperature response function 
@@ -1085,6 +1095,9 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     ! calculation of residual
     ! carbon
     Residual(ires_co2) = Residual(ires_co2) - this%mineral_c_stoich(irxn) * rate
+    if (this%species_id_hrimm > 0) then
+       Residual(ires_hrimm) = Residual(ires_hrimm) - this%mineral_c_stoich(irxn) * rate
+    endif
     
     ! nitrogen
     Residual(ires_nh3) = Residual(ires_nh3) - this%mineral_n_stoich(irxn) * rate
@@ -1133,6 +1146,9 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     ! residuals
     ! carbon
        Residual(ires_co2) = Residual(ires_co2) - this%mineral_c_stoich(irxn) * rate_no3
+       if (this%species_id_hrimm > 0) then
+           Residual(ires_hrimm) = Residual(ires_hrimm) - this%mineral_c_stoich(irxn) * rate_no3
+       endif
     
     ! nitrogen
        Residual(ires_no3) = Residual(ires_no3) - this%mineral_n_stoich(irxn) * rate_no3
@@ -1188,6 +1204,18 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 ! R dc/dLit1C =  - R Lit1N/Lit1C^2 CN_ratio_microbe  = -dR/dLit1C u CN_ratio_microbe
            Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) + &
             drate_uc * this%upstream_nc(irxn) * CN_ratio_microbe 
+        endif
+      endif
+
+      if(this%species_id_hrimm > 0) then
+        Jacobian(ires_hrimm,ires_uc) = Jacobian(ires_hrimm,ires_uc) - &
+          this%mineral_c_stoich(irxn) * drate_uc
+
+        if(this%is_litter_decomp(irxn) .and. &
+           this%litter_decomp_type == LITTER_DECOMP_CLMMICROBE .and. &
+           resp_frac < CUE_max) then
+           Jacobian(ires_hrimm,ires_uc) = Jacobian(ires_hrimm,ires_uc) + &
+            drate_uc * this%upstream_nc(irxn) * CN_ratio_microbe
         endif
       endif
 
@@ -1367,7 +1395,12 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
         Jacobian(ires_co2,ires_nh3) = Jacobian(ires_co2,ires_nh3) - &
           this%mineral_c_stoich(irxn) * drate_nh3 * &
           rt_auxvar%aqueous%dtotal(this%species_id_co2,this%species_id_nh3,iphase)
-  
+
+        if(this%species_id_hrimm > 0) then
+          Jacobian(ires_hrimm,ires_nh3) = Jacobian(ires_hrimm,ires_nh3) - &
+            this%mineral_c_stoich(irxn) * drate_nh3
+        endif
+
         ! nitrogen
         Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) - &
           this%mineral_n_stoich(irxn) * drate_nh3 * &
@@ -1421,9 +1454,16 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
           Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - &
             this%mineral_c_stoich(irxn) * drate_uc_no3 * &
             rt_auxvar%aqueous%dtotal(this%species_id_co2,ispec_uc,iphase)
+
         else
           Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - &
             this%mineral_c_stoich(irxn) * drate_uc_no3
+
+        endif
+
+        if(this%species_id_hrimm > 0) then
+            Jacobian(ires_hrimm,ires_uc) = Jacobian(ires_hrimm,ires_uc) - &
+               this%mineral_c_stoich(irxn) * drate_uc_no3
         endif
 
       ! nitrogen
@@ -1529,6 +1569,11 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
             this%mineral_c_stoich(irxn) * drate_no3 * &
             rt_auxvar%aqueous%dtotal(this%species_id_co2,this%species_id_no3,iphase)
   
+        if(this%species_id_hrimm > 0) then
+            Jacobian(ires_hrimm,ires_no3) = Jacobian(ires_hrimm,ires_no3) - &
+               this%mineral_c_stoich(irxn) * drate_no3
+        endif
+
         ! nitrogen
         Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) - &
             this%mineral_n_stoich(irxn) * drate_no3 * &
@@ -1581,7 +1626,12 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
         Jacobian(ires_co2,ires_nh3) = Jacobian(ires_co2,ires_nh3) - &
           this%mineral_c_stoich(irxn) * drate_nh3_no3 * &
           rt_auxvar%aqueous%dtotal(this%species_id_co2,this%species_id_nh3,iphase)
-  
+
+        if(this%species_id_hrimm > 0) then
+          Jacobian(ires_hrimm,ires_nh3) = Jacobian(ires_hrimm,ires_nh3) - &
+             this%mineral_c_stoich(irxn) * drate_nh3_no3
+        endif
+
         ! nitrogen
         Jacobian(ires_no3,ires_nh3) = Jacobian(ires_no3,ires_nh3) - &
           this%mineral_n_stoich(irxn) * drate_nh3_no3 * &
@@ -1639,17 +1689,25 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
  
   enddo      !reactions
 
-  !if(this%no_n2o_decomp) then
-!     return
- ! endif
-
   if(this%species_id_n2o > 0 .and. net_n_mineralization_rate > 0.0d0) then
   ! temperature response function (Parton et al. 1996)
 #ifdef CLM_PFLOTRAN
     f_t = -0.06d0 + 0.13d0 * exp( 0.07d0 * tc )
     f_w = ((1.27d0 - saturation)/0.67d0)**(3.1777d0) * &
         ((saturation - 0.0012d0)/0.5988d0)**2.84d0  
-    ph = 6.5d0
+
+    ph = 6.5d0       ! default
+    if (this%species_id_proton > 0) then
+      if (reaction%species_idx%h_ion_id > 0) then
+        ph = &
+          -log10(rt_auxvar%pri_molal(reaction%species_idx%h_ion_id)* &
+                 rt_auxvar%pri_act_coef(reaction%species_idx%h_ion_id))
+      else if (reaction%species_idx%h_ion_id < 0) then
+        ph = &
+          -log10(rt_auxvar%sec_molal(abs(reaction%species_idx%h_ion_id))* &
+                 rt_auxvar%sec_act_coef(abs(reaction%species_idx%h_ion_id)))
+      endif
+    endif
     f_ph = 0.56 + atan(rpi * 0.45 * (-5.0 + ph))/rpi
 #else
     f_t = 1.0d0
@@ -1657,7 +1715,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     f_ph = 1.0d0
 #endif
 
-    if(f_t > 0.0d0 .and. f_w > 0.0d0 .and. f_ph > 0.0d0) then 
+    if(f_t > 1.0d-20 .and. f_w > 1.0d-20 .and. f_ph > 1.0d-20) then
       temp_real = f_t * f_w * f_ph
 
       if(temp_real > 1.0d0) then
@@ -1673,8 +1731,8 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
       Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
 
-      if(this%species_id_ndecomp > 0) then
-         Residual(ires_ndecomp) = Residual(ires_ndecomp) - 0.5d0 * rate_n2o
+      if(this%species_id_ngasmin > 0) then
+         Residual(ires_ngasmin) = Residual(ires_ngasmin) - 0.5d0 * rate_n2o
       endif
 
       if (compute_derivative) then
@@ -1682,8 +1740,8 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
         Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_n2o
         Jacobian(ires_n2o,ires_nh3) = Jacobian(ires_n2o,ires_nh3) - &
                                       0.5d0 * drate_n2o
-        if(this%species_id_ndecomp > 0) then
-           Jacobian(ires_ndecomp,ires_nh3) = Jacobian(ires_ndecomp,ires_nh3) - &
+        if(this%species_id_ngasmin > 0) then
+           Jacobian(ires_ngasmin,ires_nh3) = Jacobian(ires_ngasmin,ires_nh3) - &
                                       0.5d0 * drate_n2o
         endif
       endif

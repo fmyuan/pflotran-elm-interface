@@ -17,10 +17,12 @@ module Reaction_Sandbox_Nitrification_class
 
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_nitrification_type
+    PetscInt :: ispec_proton
     PetscInt :: ispec_nh3
+    PetscInt :: ispec_nh4sorb
     PetscInt :: ispec_no3
     PetscInt :: ispec_n2o
-    PetscInt :: ispec_nnit
+    PetscInt :: ispec_ngasnit
     PetscReal :: k_nitr_max
     PetscReal :: k_nitr_n2o
     PetscReal :: half_saturation
@@ -55,9 +57,11 @@ function NitrificationCreate()
 ! 4. Add code to allocate object and initialized all variables to zero and
 !    nullify all pointers. E.g.
   allocate(NitrificationCreate)
+  NitrificationCreate%ispec_proton = 0
   NitrificationCreate%ispec_nh3 = 0
+  NitrificationCreate%ispec_nh4sorb = 0
   NitrificationCreate%ispec_no3 = 0
-  NitrificationCreate%ispec_nnit = 0
+  NitrificationCreate%ispec_ngasnit = 0
   NitrificationCreate%k_nitr_max = 1.d-6
   NitrificationCreate%k_nitr_n2o = 3.5d-8
   NitrificationCreate%half_saturation = 1.0d-10
@@ -166,22 +170,24 @@ subroutine NitrificationSetup(this,reaction,option)
 
   character(len=MAXWORDLENGTH) :: word
 
-  word = 'AmmoniaH4+'
-  this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
+  word = 'H+'
+  this%ispec_proton = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
-  if(this%ispec_nh3 < 0) then
-     word = 'NH3(aq)'
-     this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
+  word = 'NH3(aq)'
+  this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
-  endif
- 
   if(this%ispec_nh3 < 0) then
      word = 'NH4+'
      this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
   endif
- 
+   if(this%ispec_nh3 > 0) then
+     word = 'NH4sorb'   ! this is the immobile species from 'reaction_sandbox_langmuir'
+     this%ispec_nh4sorb = GetImmobileSpeciesIDFromName(word,reaction%immobile, &
+                        PETSC_FALSE,option)
+  endif
+
   word = 'NO3-'
   this%ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
@@ -213,8 +219,8 @@ subroutine NitrificationSetup(this,reaction,option)
      call printErrMsg(option)
   endif
 
-  word = 'Nnitri'
-  this%ispec_nnit = GetImmobileSpeciesIDFromName( &
+  word = 'NGASnitr'
+  this%ispec_ngasnit = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
  
 end subroutine NitrificationSetup
@@ -265,7 +271,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal, parameter :: N_molecular_weight = 14.0067d0
   PetscReal :: M_2_ug_per_g
 
-  PetscInt :: ires_nh3, ires_no3, ires_n2o
+  PetscInt :: ires_nh3s, ires_nh3, ires_no3, ires_n2o
 
   PetscScalar, pointer :: bulkdensity(:)
   PetscReal :: rho_b
@@ -281,7 +287,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: dfw_dnh3
   PetscReal :: saturation
   PetscReal :: tc
-  PetscInt :: ires_nnit
+  PetscInt :: ires_ngasnit
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
@@ -290,7 +296,8 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   ires_nh3 = this%ispec_nh3
   ires_no3 = this%ispec_no3
   ires_n2o = this%ispec_n2o
-  ires_nnit = this%ispec_nnit + reaction%offset_immobile
+  ires_nh3s = this%ispec_nh4sorb + reaction%offset_immobile
+  ires_ngasnit = this%ispec_ngasnit + reaction%offset_immobile
 
   saturation = global_auxvar%sat(1)
   theta = saturation * porosity
@@ -298,14 +305,21 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   tc = global_auxvar%temp(1)
 
   c_nh3 = rt_auxvar%total(this%ispec_nh3, iphase)
-  s_nh3 = rt_auxvar%total_sorb_eq(this%ispec_nh3)
+
+  if (associated(rt_auxvar%total_sorb_eq)) then           ! original absorption-reactions in PF used
+     s_nh3 = rt_auxvar%total_sorb_eq(this%ispec_nh3)
+  elseif (this%ispec_nh4sorb>0) then                      ! 'reaction_sandbox_langmuir' used
+     s_nh3 = rt_auxvar%immobile(this%ispec_nh4sorb)
+  else
+     s_nh3 = 1.d-20
+  endif
   c_nh3 = c_nh3 - this%x0eps
-! nitrification (Dickinson et al. 2002)
+
+  ! nitrification (Dickinson et al. 2002)
   if(this%ispec_no3 > 0) then
     f_t = exp(0.08d0 * (tc - 298.0d0 + 273.15d0))
     f_w = saturation * (1.0d0 - saturation)
 
-!    rate_nitri = f_t * f_w * this%k_nitr_max * c_nh3 * c_nh3 / &
     rate_nitri = f_t * f_w * this%k_nitr_max * c_nh3 * c_nh3 / &
          (0.25d0 * c_nh3 + 1.0d0)
     Residual(ires_nh3) = Residual(ires_nh3) + rate_nitri
@@ -328,23 +342,32 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   rho_b = bulkdensity(local_id) ! kg/m3
   call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity, ierr)
 #else
-  rho_b = 1.0d0
+  rho_b = 1.25d0
 #endif
 !             mole/L * 1000 L/m3 * g/mol / kg/m3 = g/kg = mg/g = 1000 ug/g  
-!  c_nh3_ugg = c_nh3 / theta *1000.0d0 * N_molecular_weight / rho_b * 1000.0d0
   M_2_ug_per_g  = 1.0d0 / theta *1000.0d0 * N_molecular_weight / rho_b * 1000.0d0
-  c_nh3_ugg = (c_nh3 + s_nh3 / theta / 1000.0d0)* M_2_ug_per_g
-!  c_nh3_0 = 3.0d0 / M_2_ug_per_g 
+  !c_nh3_ugg = (c_nh3 + s_nh3 / theta / 1000.0d0)* M_2_ug_per_g
+  c_nh3_ugg = c_nh3 * M_2_ug_per_g
 
   if(this%ispec_n2o > 0.0d0 .and. c_nh3_ugg > 3.0d0 ) then
-!  if(this%ispec_n2o > 0.0d0) then
   ! temperature response function (Parton et al. 1996)
     f_t = -0.06d0 + 0.13d0 * exp( 0.07d0 * tc )
 
     f_w = ((1.27d0 - saturation)/0.67d0)**(3.1777d0) * &
         ((saturation - 0.0012d0)/0.5988d0)**2.84d0
 
-    ph = 6.5d0
+    ph = 6.5d0       ! default
+    if (this%ispec_proton > 0) then
+      if (reaction%species_idx%h_ion_id > 0) then
+        ph = &
+          -log10(rt_auxvar%pri_molal(reaction%species_idx%h_ion_id)* &
+                 rt_auxvar%pri_act_coef(reaction%species_idx%h_ion_id))
+      else if (reaction%species_idx%h_ion_id < 0) then
+        ph = &
+          -log10(rt_auxvar%sec_molal(abs(reaction%species_idx%h_ion_id))* &
+                 rt_auxvar%sec_act_coef(abs(reaction%species_idx%h_ion_id)))
+      endif
+    endif
     f_ph = 0.56 + atan(rpi * 0.45 * (-5.0 + ph))/rpi
 
     if(f_t > 0.0d0 .and. f_w > 0.0d0 .and. f_ph > 0.0d0) then
@@ -356,21 +379,20 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
           f_ph = 1.0d0
        endif
 
-!       rate_n2o = 1.0 - exp(-0.0105d0 * (c_nh3 - c_nh3_0) * M_2_ug_per_g)  ! need to change units 
        rate_n2o = 1.0 - exp(-0.0105d0 * c_nh3_ugg)  ! need to change units 
-       rate_n2o = rate_n2o * f_t * f_w * f_ph * this%k_nitr_n2o
+       rate_n2o = rate_n2o * f_t * f_w * f_ph * c_nh3*this%k_nitr_n2o
 
        Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o
        Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
        
-       if(this%ispec_nnit > 0) then
-          Residual(ires_nnit) = Residual(ires_nnit) - 0.5d0 * rate_n2o
+       if(this%ispec_ngasnit > 0) then
+          Residual(ires_ngasnit) = Residual(ires_ngasnit) - 0.5d0 * rate_n2o
        endif
 
        if (compute_derivative) then
            drate_n2o = 0.0105d0*exp(-0.0105d0*c_nh3_ugg) &
                      * M_2_ug_per_g
-           drate_n2o = drate_n2o * f_t * f_w * f_ph * this%k_nitr_n2o
+           drate_n2o = drate_n2o * f_t * f_w * f_ph * c_nh3*this%k_nitr_n2o
 
            Jacobian(ires_nh3,ires_nh3)=Jacobian(ires_nh3,ires_nh3)+drate_n2o * &
            rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_nh3,iphase)
@@ -379,8 +401,8 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
            0.5d0 * drate_n2o * &
            rt_auxvar%aqueous%dtotal(this%ispec_n2o,this%ispec_nh3,iphase)
       
-           if(this%ispec_nnit > 0) then
-             Jacobian(ires_nnit,ires_nh3)=Jacobian(ires_nnit,ires_nh3)- &
+           if(this%ispec_ngasnit > 0) then
+             Jacobian(ires_ngasnit,ires_nh3)=Jacobian(ires_ngasnit,ires_nh3)- &
                  0.5d0 * drate_n2o
            endif
        endif
@@ -673,6 +695,18 @@ subroutine NitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
 ! ph function from Parton et al., (2001, 1996)
 !  k_nitr_ph_vr(c,j) = 0.56 + atan(rpi * 0.45 * (-5.+ pH(c)))/rpi
 #ifdef CLM_PFLOTRAN
+  ph = 6.5d0       ! default
+  if (this%ispec_proton > 0) then
+      if (reaction%species_idx%h_ion_id > 0) then
+        ph = &
+          -log10(rt_auxvar%pri_molal(reaction%species_idx%h_ion_id)* &
+                 rt_auxvar%pri_act_coef(reaction%species_idx%h_ion_id))
+      else if (reaction%species_idx%h_ion_id < 0) then
+        ph = &
+          -log10(rt_auxvar%sec_molal(abs(reaction%species_idx%h_ion_id))* &
+                 rt_auxvar%sec_act_coef(abs(reaction%species_idx%h_ion_id)))
+      endif
+  endif
   F_ph = 0.56 + atan(rpi * 0.45 * (-5.0 + pH))/rpi
 #else
   F_ph = 1.0
