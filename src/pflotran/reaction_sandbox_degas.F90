@@ -592,8 +592,8 @@ end subroutine degasDestroy
 
       ! fugacity of n2o gas
       epsilon = 65.0d0 - 0.1338d0*tk                ! eq.(6): cm3/mol
-      bt = -905.95d0+4.1685d0*tk-0.0052734d0*tk2   ! eq.(4): cm3/mol
-      fg = pn2o*dexp((bt+2.d0*x2*x2*epsilon)*p_rt)   ! eq.(5): Pa (so, pn2o is moist-air based)
+      bt = -905.95d0+4.1685d0*tk-0.0052734d0*tk2    ! eq.(4): cm3/mol
+      fg = pn2o*dexp((bt+2.d0*x2*x2*epsilon)*p_rt)  ! eq.(5): Pa (so, pn2o is moist-air based)
 
       ! fugacity coefficient
       phi = fg / pn2o
@@ -641,13 +641,14 @@ end subroutine degasDestroy
       PetscReal, intent(in) :: tt, tp, ts, pn2
       PetscReal, intent(out):: xmole, xmass, kh
 
+      PetscReal, parameter :: atmn2= 0.78084d0         ! mole fraction of N2 in atm
       PetscReal, parameter :: atm  = 1.01325d5         ! Pa of 1 atm
       PetscReal, parameter :: rgas = 0.08205601       ! L atm mol-1 K-1
       PetscReal, parameter :: xmwn2   = 28.01344d-3   ! kg mol-1
       PetscReal, parameter :: xmwh2o  = 18.01534d-3   ! kg mol-1
 
       PetscReal :: tk, tk_100k
-      PetscReal :: k0
+      PetscReal :: k0, phi
       PetscReal :: cn2
 
       PetscReal :: a1,a2,a3,a4,b1,b2,b3
@@ -672,14 +673,20 @@ end subroutine degasDestroy
       k0 = dexp(k0)                                 ! ml-N2(STP)/L-H2O
       k0 = (k0*1.d-3)/rgas/298.15d0                 ! mol-N2(STP)/L-H2O
 
-      ! solubility at tc and tp
-      cn2 = k0                                      ! mol/L
+      ! Henry's Law constant at STP (and atm. pN2) : kh = pn2/[xmole]
+      kh = (atmn2*atm)/k0               ! Pa L mol-1: pn2 in pa, solubility in mol/L
+      kh = kh*(1.0d0/xmwh2o)            ! Pa (pa mol mol-1): pn2 in pa, solubility in mole fraction (1Lsolution = 1kgH2O)
+
+      ! fugacity coefficient(not yet - TODO)
+      phi = 1.d0
+
+      ! tp adjusting (not yet - TODO)
+
+
+      ! solubility at pN2 as input, assuming ideal gas and constant Kh
+      cn2 = (pn2*phi)/kh                            ! mol/L
       xmole = cn2/(1.d0/xmwh2o)                     ! mole fraction: assuming solution volume is all water (1L=1kgH2O)
       xmass = xmole*xmwn2/(xmole*xmwn2+(1.d0-xmole)*xmwh2o)    ! mass fraction
-
-      ! Henry's Law constant: kh = pn2/[xmole]
-      kh = 1.d0/k0                      ! Pa L mol-1: pn2 in pa, solubility in mol/L
-      kh = kh*(1.0d0/xmwh2o)            ! Pa (pa mol mol-1): pn2 in pa, solubility in mole fraction (1Lsolution = 1kgH2O)
 
       return
 
