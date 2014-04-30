@@ -105,7 +105,7 @@ Function GetMoistureResponse(thetapsi, local_id, itype)
 
   PetscInt :: local_id, itype
   PetscReal :: maxpsi, psi, theta, tc
-  PetscReal, parameter :: minpsi = -10.0d0  ! MPa
+  PetscReal, parameter :: minpsi = -10.0d6    ! Pa
 
 #ifdef CLM_PFLOTRAN
   PetscScalar, pointer :: sucsat_pf_loc(:)    !
@@ -122,7 +122,9 @@ Function GetMoistureResponse(thetapsi, local_id, itype)
 !   CLM-CN
     case(MOISTURE_RESPONSE_FUNCTION_CLM4) 
       call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
-      maxpsi = sucsat_pf_loc(local_id) * (-9.8d-6)
+      ! sucsat [mm of H20] from CLM is the suction (positive) at water saturated (called air-entry pressure)
+      ! [Pa] = [mm of H20] * 0.001 [m/mm] * 1000 [kg/m^3] * 9.81 [m/sec^2]
+      maxpsi = sucsat_pf_loc(local_id) * (-9.81d0)
       psi = min(thetapsi, maxpsi)                     ! thetapsi IS psi (-Pa)
       if(psi > minpsi) then
         F_theta = log(minpsi/psi)/log(minpsi/maxpsi)
