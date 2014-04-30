@@ -117,6 +117,7 @@ function CLM_Decomp_Create()
 
 #ifdef CLM_PFLOTRAN
   CLM_Decomp_Create%temperature_response_function=TEMPERATURE_RESPONSE_FUNCTION_CLM4
+  CLM_Decomp_Create%moisture_response_function=MOISTURE_RESPONSE_FUNCTION_CLM4
 #endif
 
   CLM_Decomp_Create%Q10 = 1.5d0
@@ -250,16 +251,16 @@ subroutine CLM_Decomp_Read(this,input,option)
          enddo 
       case('MOISTURE_RESPONSE_FUNCTION')
         do
-         call InputReadPflotranString(input,option)
-         if (InputError(input)) exit
-         if (InputCheckExit(input,option)) exit
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
 
-         call InputReadWord(input,option,word,PETSC_TRUE)
-         call InputErrorMsg(input,option,'keyword', &
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword', &
                        'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,MOISTURE RESPONSE FUNCTION')
-         call StringToUpper(word)   
+          call StringToUpper(word)
 
-            select case(trim(word))
+          select case(trim(word))
               case('CLM4')
                   this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLM4    
               case('DLEM')
@@ -268,8 +269,8 @@ subroutine CLM_Decomp_Read(this,input,option)
                   option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
                                      trim(word) // ' not recognized.'
                   call printErrMsg(option)
-            end select
-         enddo 
+          end select
+        enddo
 
 #endif
 
@@ -873,7 +874,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   PetscReal :: porosity
   PetscReal :: volume
   PetscReal :: saturation
-  PetscReal :: theta
+  PetscReal :: theta, psi
   PetscInt :: local_id
   PetscErrorCode :: ierr
   PetscInt, parameter :: iphase = 1
@@ -979,11 +980,16 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 #endif
 
   saturation = global_auxvar%sat(1)
-  theta = saturation * porosity 
+  theta = saturation * porosity
+  psi = min(global_auxvar%pres(1) - option%reference_pressure, -1.d-20)     ! if positive, saturated soil's psi is nearly zero
 
   ! moisture response function 
 #ifdef CLM_PFLOTRAN
-  f_w = GetMoistureResponse(theta, local_id, this%moisture_response_function)
+  if(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_CLM4) then
+     f_w = GetMoistureResponse(psi, local_id, this%moisture_response_function)
+  else if(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_DLEM) then
+     f_w = GetMoistureResponse(theta, local_id, this%moisture_response_function)
+  endif
 #else
   f_w = 1.0d0
 #endif
@@ -1090,11 +1096,35 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     rate     = scaled_rate_const * (c_uc - this%x0eps)
     drate_uc = scaled_rate_const 
 
-    ! NH3 limiting on decomposition/mineralization
     if(this%mineral_n_stoich(irxn) < 0.0d0) then
+
+       ! NH3 limiting on decomposition/mineralization
        rate      = scaled_rate_const * (c_uc - this%x0eps) * f_nh3
        drate_uc  = scaled_rate_const * f_nh3
        drate_nh3 = scaled_rate_const * (c_uc - this%x0eps) * d_nh3
+
+       if (c_nh3 < 1.d-20) then
+           if (this%species_id_no3 > 0) then
+              if (c_no3 < 1.d-20) cycle
+
+              rate = 0.d0           ! this virtually would by-pass all reactions until NO3 immobilization
+              drate_uc = 0.d0
+              drate_nh3 = 0.d0
+           else
+              cycle
+           endif
+       endif
+
+       ! if nitrate is defined in the reaction network, N immobilization may occur
+       ! with rate depending on NH3 (reduced rate if NH3 is abundant, i.e. by f_nh3_no3_inhibit,
+       ! because mirobial immobilization prefers NH3)
+       if (this%species_id_no3 > 0) then
+          rate_no3     = scaled_rate_const * (c_uc - this%x0eps) * f_no3 * f_nh3_no3_inhibit
+          drate_uc_no3 = scaled_rate_const * f_no3 * f_nh3_no3_inhibit
+          drate_no3    = scaled_rate_const * (c_uc - this%x0eps) * d_no3 * f_nh3_no3_inhibit
+          drate_nh3_no3= scaled_rate_const * (c_uc - this%x0eps) * f_no3 * d_nh3_no3_inhibit
+       endif
+
     endif 
 
     !-----------------------------------------------------------------------------------------------------
@@ -1138,12 +1168,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
     ! if nitrate is defined in the reaction network, N immobilization may occur
     ! with rate depending on NH3 (reduced rate if NH3 is abundant, i.e. by f_nh3_no3_inhibit)
-    if(this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0) then
-
-       rate_no3     = scaled_rate_const * (c_uc - this%x0eps) * f_no3 * f_nh3_no3_inhibit
-       drate_uc_no3 = scaled_rate_const * f_no3 * f_nh3_no3_inhibit
-       drate_no3    = scaled_rate_const * (c_uc - this%x0eps) * d_no3 * f_nh3_no3_inhibit
-       drate_nh3_no3= scaled_rate_const * (c_uc - this%x0eps) * f_no3 * d_nh3_no3_inhibit
+    if(this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0 .and. c_no3 > 1.d-20) then
 
        ! CO2
        Residual(ires_co2) = Residual(ires_co2) - this%mineral_c_stoich(irxn) * rate_no3
@@ -1438,7 +1463,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
       endif  ! end of NH4 limiting, if any
 
       ! ---- Jacobians for NO3 immobilization, if any -----
-      if(this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0) then
+      if(this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0 .and. c_no3 > 1.d-20) then
 
         ! --- with respect to upstream ('drate_uc_no3')
         ! CO2 (co2 - uc)
@@ -1665,9 +1690,10 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
   if(this%species_id_n2o > 0 .and. net_n_mineralization_rate > 1.0d-20 .and. this%species_id_ngasmin>0) then
 
-    ! temperature response function (Parton et al. 1996)
 #ifdef CLM_PFLOTRAN
+    ! temperature/moisture/pH response functions (Parton et al. 1996)
     f_t = -0.06d0 + 0.13d0 * exp( 0.07d0 * tc )
+
     f_w = ((1.27d0 - saturation)/0.67d0)**(3.1777d0) * &
         ((saturation - 0.0012d0)/0.5988d0)**2.84d0  
 

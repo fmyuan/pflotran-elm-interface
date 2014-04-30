@@ -82,7 +82,7 @@ end function GetTemperatureResponse
   
 ! ************************************************************************** !
 
-Function GetMoistureResponse(theta, local_id, itype)
+Function GetMoistureResponse(thetapsi, local_id, itype)
 
 #ifdef CLM_PFLOTRAN
   use clm_pflotran_interface_data
@@ -95,19 +95,20 @@ Function GetMoistureResponse(theta, local_id, itype)
 #include "finclude/petscvec.h90"
 #endif
 
-  PetscReal :: F_theta, theta
+  PetscReal :: F_theta
+! thetapsi IS either 'theta' (soil VWC: 0 - porosity) or 'psi' (matric potential, -Pa), upon 'moisture_response_function type'
+  PetscReal :: thetapsi
   PetscReal :: GetMoistureResponse
   PetscReal, parameter :: theta_min = 0.01d0     ! 1/nat log(0.01d0)
   PetscReal, parameter :: one_over_log_theta_min = -2.17147241d-1
   PetscReal, parameter :: twelve_over_14 = 0.857142857143d0
 
   PetscInt :: local_id, itype
-  PetscReal :: maxpsi, psi, tc
+  PetscReal :: maxpsi, psi, theta, tc
   PetscReal, parameter :: minpsi = -10.0d0  ! MPa
 
 #ifdef CLM_PFLOTRAN
   PetscScalar, pointer :: sucsat_pf_loc(:)    !
-  PetscScalar, pointer :: soilpsi_pf_loc(:)   !
   PetscScalar, pointer :: watfc_pf_loc(:)     !
   PetscScalar, pointer :: watsat_pf_loc(:)    !
   PetscReal :: thetar, thetas, se
@@ -121,16 +122,14 @@ Function GetMoistureResponse(theta, local_id, itype)
 !   CLM-CN
     case(MOISTURE_RESPONSE_FUNCTION_CLM4) 
       call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
-      call VecGetArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi_pf_loc, ierr)
       maxpsi = sucsat_pf_loc(local_id) * (-9.8d-6)
-      psi = min(soilpsi_pf_loc(local_id), maxpsi)
+      psi = min(thetapsi, maxpsi)                     ! thetapsi IS psi (-Pa)
       if(psi > minpsi) then
         F_theta = log(minpsi/psi)/log(minpsi/maxpsi)
       else
         F_theta = 0.0d0
       endif
       call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
-      call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi_pf_loc, ierr)
 
 ! DLEM 
 ! Tian et al. 2010 Biogeosciences, 7, 2673-2694 Eq. 13
@@ -139,6 +138,7 @@ Function GetMoistureResponse(theta, local_id, itype)
       call VecGetArrayReadF90(clm_pf_idata%watfc_pf, watfc_pf_loc, ierr)
       thetas = watsat_pf_loc(local_id)
       thetar = watfc_pf_loc(local_id)
+      theta = thetapsi                           ! thetapsi IS 'theta'
       if(theta >= thetas) then
         F_theta = 1.0d0
       elseif (theta <= thetar) then
