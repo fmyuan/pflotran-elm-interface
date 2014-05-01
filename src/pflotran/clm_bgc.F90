@@ -105,7 +105,7 @@ Function GetMoistureResponse(thetapsi, local_id, itype)
 
   PetscInt :: local_id, itype
   PetscReal :: maxpsi, psi, theta, tc
-  PetscReal, parameter :: minpsi = -10.0d6    ! Pa
+  PetscReal, parameter :: minpsi = -15.0d6    ! Pa
 
 #ifdef CLM_PFLOTRAN
   PetscScalar, pointer :: sucsat_pf_loc(:)    !
