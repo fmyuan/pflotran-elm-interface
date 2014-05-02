@@ -1676,7 +1676,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-  if(this%species_id_n2o > 0 .and. net_n_mineralization_rate > 1.0d-20 .and. this%species_id_ngasmin>0) then
+  if(this%species_id_n2o > 0 .and. net_n_mineralization_rate > 1.0d-20) then
 
 #ifdef CLM_PFLOTRAN
     ! temperature/moisture/pH response functions (Parton et al. 1996)

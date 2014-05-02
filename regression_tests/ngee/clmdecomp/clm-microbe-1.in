@@ -1,0 +1,270 @@
+:Description: Batch CLM-microbe simulation
+
+:=========================== regression =======================================
+REGRESSION
+  CELLS
+    1
+  /
+END
+
+:=========================== useful tranport parameters =======================
+UNIFORM_VELOCITY 0.d0 0.d0 0.d0 
+
+REFERENCE_DENSITY 1.d3
+
+:=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    H+
+    NH4+
+    NO3-
+    CO2(aq)
+    DOM
+  END
+
+  SECONDARY_SPECIES
+    NH3(aq)
+    HCO3-
+    OH-
+  END
+
+  REDOX_SPECIES
+    NO3-
+  END
+
+  IMMOBILE_SPECIES
+    Lit1C
+    Lit1N
+    Lit2C
+    Lit2N
+    Lit3C
+    Lit3N
+    SOM1
+    SOM2
+    SOM3
+    SOM4
+    Bacteria
+    Fungi
+  END
+
+  REACTION_SANDBOX
+    CLM-DECOMP
+      POOLS
+        Lit1
+        Lit2
+        Lit3
+        SOM1 12.d0
+        SOM2 12.d0
+        SOM3 10.d0
+        SOM4 10.d0
+        Bacteria  5.0d0
+        Fungi    15.0d0
+        DOM      10.0d0
+      END
+
+      CLM-MICROBE-LITTER-DECOMPOSITION
+
+: Lit1 -> 0.61 SOM1 + 0.39 CO2 
+      REACTION
+        UPSTREAM_POOL Lit1
+        DOWNSTREAM_POOL Bacteria 0.1d0
+        DOWNSTREAM_POOL Fungi 0.1d0
+        RATE_CONSTANT 0.7 1/d 
+      END
+
+: Lit2 -> 0.45 SOM2 + 0.55 CO2 
+      REACTION
+        UPSTREAM_POOL Lit2
+        DOWNSTREAM_POOL Bacteria 0.1d0
+        DOWNSTREAM_POOL Fungi 0.1d0
+        RATE_CONSTANT 0.07 1/d 
+      END
+
+: Lit3 -> 0.71 SOM3 + 0.29 CO2 
+      REACTION
+        UPSTREAM_POOL Lit3
+        DOWNSTREAM_POOL Bacteria 0.1d0
+        DOWNSTREAM_POOL Fungi 0.1d0
+        RATE_CONSTANT 0.014 1/d 
+      END
+
+: SOM1 -> 0.72 SOM2 + 0.28 CO2 
+      REACTION
+        UPSTREAM_POOL SOM1
+        DOWNSTREAM_POOL Bacteria 0.245d0
+        DOWNSTREAM_POOL Fungi 0.475d0
+        RATE_CONSTANT 0.07 1/d 
+      END
+
+: SOM2 -> 0.54 SOM3 + 0.46 CO2 
+      REACTION
+        UPSTREAM_POOL SOM2
+        DOWNSTREAM_POOL Bacteria 0.184d0
+        DOWNSTREAM_POOL Fungi 0.356d0
+        RATE_CONSTANT 0.014 1/d 
+      END
+
+: SOM3 -> 0.45 SOM4 + 0.55 CO2 
+      REACTION
+        UPSTREAM_POOL SOM3
+        DOWNSTREAM_POOL Bacteria 0.153d0
+        DOWNSTREAM_POOL Fungi 0.297d0
+        RATE_CONSTANT 0.0014 1/d 
+      END
+
+: SOM4 -> 1.0 CO2 
+      REACTION
+        UPSTREAM_POOL SOM4
+        DOWNSTREAM_POOL Bacteria 0.34d0
+        DOWNSTREAM_POOL Fungi 0.66d0
+        RATE_CONSTANT 0.0001 1/d 
+      END
+
+      REACTION
+        UPSTREAM_POOL Bacteria
+        DOWNSTREAM_POOL SOM1 0.10d0
+        DOWNSTREAM_POOL SOM2 0.15d0
+        DOWNSTREAM_POOL SOM3 0.20d0
+        DOWNSTREAM_POOL SOM4 0.45d0
+        DOWNSTREAM_POOL DOM  0.05d0
+        RATE_CONSTANT 0.07 1/d 
+      END
+
+      REACTION
+        UPSTREAM_POOL Fungi
+        DOWNSTREAM_POOL SOM1 0.10d0
+        DOWNSTREAM_POOL SOM2 0.15d0
+        DOWNSTREAM_POOL SOM3 0.20d0
+        DOWNSTREAM_POOL SOM4 0.45d0
+        DOWNSTREAM_POOL DOM  0.05d0
+        RATE_CONSTANT 0.07 1/d 
+      END
+
+      REACTION
+        UPSTREAM_POOL DOM
+        DOWNSTREAM_POOL SOM1     0.10d0
+        DOWNSTREAM_POOL SOM2     0.08d0
+        DOWNSTREAM_POOL SOM3     0.08d0
+        DOWNSTREAM_POOL SOM4     0.04d0
+        DOWNSTREAM_POOL Bacteria 0.35d0
+        DOWNSTREAM_POOL Fungi    0.35d0
+        RATE_CONSTANT 0.014 1/d
+      END
+    END
+  END
+
+:  LOG_FORMULATION
+  DATABASE ./hanford-clm.dat 
+  OUTPUT
+    all
+  /
+END
+
+:=========================== solver options ===================================
+LINEAR_SOLVER TRANSPORT
+  SOLVER DIRECT
+END
+
+NEWTON_SOLVER TRANSPORT
+  ATOL 1.d-50
+:  RTOL 1.d-12
+END
+
+:=========================== discretization ===================================
+GRID
+  TYPE structured
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+:=========================== fluid properties =================================
+FLUID_PROPERTY 
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+:=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+END
+
+:=========================== output options ===================================
+OUTPUT
+  PERIODIC_OBSERVATION TIMESTEP 1
+END
+
+:=========================== times ============================================
+TIME
+  FINAL_TIME 400.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d-2 h
+  MAXIMUM_TIMESTEP_SIZE 1.d0 d
+END
+
+:=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+REGION obs_pt
+  COORDINATE 0.5 0.5 0.5
+END
+
+:=========================== observation points ===============================
+OBSERVATION
+  REGION obs_pt
+END
+
+:=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE zero_gradient
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+:=========================== transport constraints ============================
+CONSTRAINT initial
+  CONCENTRATIONS
+    H+         7.0   pH
+    NH4+     4.d-5    T  ! moles/L
+    NO3-     4.d-5    T
+    CO2(aq) 1.d-20    T  ! moles/L
+    DOM     1.d-20    T  ! moles/L
+  /
+  IMMOBILE
+    Lit1C     0.1852d-0
+    Lit1N     0.00508954d-0
+    Lit2C     0.4578d-0
+    Lit2N     0.01258096d-0
+    Lit3C     0.2662d-0
+    Lit3N     0.00731553d-0
+    SOM1      1.d-20
+    SOM2      1.d-20
+    SOM3      1.d-20
+    SOM4      1.d-20
+    Bacteria  1.d-20
+    Fungi     2.d-20
+  /
+END
+
+:=========================== condition couplers ===============================
+: initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+:=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+
