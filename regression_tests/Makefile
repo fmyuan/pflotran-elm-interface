@@ -53,6 +53,7 @@ STANDARD_CFG = \
         general/general.cfg \
 	ngee/ngee.cfg \
 	ngee/clmcnp/clmcnp.cfg \
+	ngee/clmdecomp/clmdecomp.cfg \
 	ngee/langmuir/langmuir.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
