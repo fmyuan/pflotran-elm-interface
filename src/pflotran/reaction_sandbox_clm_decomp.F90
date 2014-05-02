@@ -1103,18 +1103,6 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
        drate_uc  = scaled_rate_const * f_nh3
        drate_nh3 = scaled_rate_const * (c_uc - this%x0eps) * d_nh3
 
-       if (c_nh3 < 1.d-20) then
-           if (this%species_id_no3 > 0) then
-              if (c_no3 < 1.d-20) cycle
-
-              rate = 0.d0           ! this virtually would by-pass all reactions until NO3 immobilization
-              drate_uc = 0.d0
-              drate_nh3 = 0.d0
-           else
-              cycle
-           endif
-       endif
-
        ! if nitrate is defined in the reaction network, N immobilization may occur
        ! with rate depending on NH3 (reduced rate if NH3 is abundant, i.e. by f_nh3_no3_inhibit,
        ! because mirobial immobilization prefers NH3)
@@ -1168,7 +1156,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
     ! if nitrate is defined in the reaction network, N immobilization may occur
     ! with rate depending on NH3 (reduced rate if NH3 is abundant, i.e. by f_nh3_no3_inhibit)
-    if(this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0 .and. c_no3 > 1.d-20) then
+    if(this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0) then
 
        ! CO2
        Residual(ires_co2) = Residual(ires_co2) - this%mineral_c_stoich(irxn) * rate_no3
@@ -1463,7 +1451,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
       endif  ! end of NH4 limiting, if any
 
       ! ---- Jacobians for NO3 immobilization, if any -----
-      if(this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0 .and. c_no3 > 1.d-20) then
+      if(this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0) then
 
         ! --- with respect to upstream ('drate_uc_no3')
         ! CO2 (co2 - uc)
