@@ -2335,8 +2335,9 @@ subroutine SatFuncGetCapillaryPressure(capillary_pressure,saturation, &
   Sr = saturation_function%Sr(iphase)
   if (saturation <= Sr) then
 ! comment out the following: Sr is NOT consistent with pcwmax. Actually by MVM eq., Sr is corresponding to 'inf'.
-!    capillary_pressure = saturation_function%pcwmax
-!    return
+    capillary_pressure = saturation_function%pcwmax
+    return
+!     saturation = Sr*1.0001d0
   else if (saturation >= 1.d0) then
     capillary_pressure = 0.d0
     return
@@ -2405,7 +2406,7 @@ subroutine SatFuncGetCapillaryPressure(capillary_pressure,saturation, &
   end select
 
 ! comment out the following: Sr is NOT consistent with pcwmax. Actually by MVM eq., Sr is corresponding to 'inf'.
-!  capillary_pressure = min(capillary_pressure,saturation_function%pcwmax)
+  capillary_pressure = min(capillary_pressure,saturation_function%pcwmax)
 
 end subroutine SatFuncGetCapillaryPressure
 
