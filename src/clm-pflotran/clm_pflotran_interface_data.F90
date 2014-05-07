@@ -218,11 +218,11 @@ module clm_pflotran_interface_data
   Vec :: sr_pcwmax_pfp     ! MVM soil hydraulic properties
   Vec :: pcwmax_pfp
   Vec :: porosity_pfp
-  Vec :: press_ref_pfp
   Vec :: sr_pcwmax_clms    ! MVM soil hydraulic properties
   Vec :: pcwmax_clms
   Vec :: porosity_clms
-  Vec :: press_ref_clms
+
+  PetscReal :: pressure_reference
 
   ! TH state vecs from PF (mpi) to CLM (seq)
   Vec :: press_pfp                     ! water pressure head (Pa)
@@ -554,11 +554,11 @@ contains
     clm_pf_idata%sr_pcwmax_pfp= 0
     clm_pf_idata%pcwmax_pfp   = 0
     clm_pf_idata%porosity_pfp = 0
-    clm_pf_idata%press_ref_pfp= 0
     clm_pf_idata%sr_pcwmax_clms= 0
     clm_pf_idata%pcwmax_clms   = 0
     clm_pf_idata%porosity_clms = 0
-    clm_pf_idata%press_ref_clms= 0
+
+    clm_pf_idata%pressure_reference = 1.01325d5
 
     clm_pf_idata%press_pfp    = 0
     clm_pf_idata%soilpsi_pfp  = 0
@@ -897,6 +897,7 @@ contains
     call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%qflux_subsurf_clmp,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%press_maxponding_clmp,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%gtemp_subsurf_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%press_ref_clmp,ierr)
 
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_bottom,PETSC_DECIDE,clm_pf_idata%press_subbase_clmp,ierr)    ! TH bottom BC (2D)
     call VecSet(clm_pf_idata%press_subbase_clmp,0.d0,ierr)
@@ -923,6 +924,7 @@ contains
     call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%qflux_subsurf_pfs,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%press_maxponding_pfs,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%gtemp_subsurf_pfs,ierr)            ! T
+    call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%press_ref_pfs,ierr)
 
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_bottom,clm_pf_idata%press_subbase_pfs,ierr)  ! H
     call VecSet(clm_pf_idata%press_subbase_pfs,0.d0,ierr)

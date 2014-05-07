@@ -4497,6 +4497,9 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                     clm_pf_idata%pcwmax_pfp, &
                                     clm_pf_idata%pcwmax_clms)
 
+    ! reference pressure
+    clm_pf_idata%pressure_reference = pflotran_model%option%reference_pressure
+
   end subroutine pflotranModelGetSoilProp
 
 ! ************************************************************************** !

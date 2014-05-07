@@ -138,7 +138,7 @@ subroutine Output(realization_base,plot_flag,transient_plot_flag)
                                option%hdf5_write_group_size
 #endif
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') tend-tstart
-      call printMsg(option)
+      !call printMsg(option)
     endif
    
     if (realization_base%output_option%print_tecplot) then
@@ -882,7 +882,7 @@ subroutine OutputAvegVars(realization_base)
       call PetscLogEventEnd(logging%event_output_hdf5,ierr)    
       call PetscTime(tend,ierr)
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') tend-tstart
-      call printMsg(option)
+!      call printMsg(option)
     endif
 
     ! Reset the vectors to zero
