@@ -136,7 +136,7 @@ module pflotran_model_module
   public ::  &
        pflotranModelResetSoilPorosity,         &
        pflotranModelGetSoilProp,               &
-       pflotranModelSetInitialTHStatesfromCLM, &    ! initializing TH from CLM to PFLOTRAN flow mode
+       pflotranModelSetInternalTHStatesfromCLM, &    ! initializing TH from CLM to PFLOTRAN flow mode
        pflotranModelSetInitialConcentrations,  &
        pflotranModelUpdateTHfromCLM,           &    ! dynamically update TH from CLM to drive PFLOTRAN BGC
        pflotranModelUpdateAqGasesFromCLM,      &
@@ -3888,7 +3888,7 @@ end subroutine pflotranModelSetICs
 
   ! ************************************************************************** !
   !
-  ! pflotranModelSetInitialTHStatesfromCLM: Set initial TH States from CLM
+  ! pflotranModelSetInternalTHStatesfromCLM: Set initial TH States from CLM
   !
   ! Note: This subroutine directly set initial soil temperature and saturation from CLM
   !       It's needed because of uniform initialization of TH states in PFLOTRAN, which
@@ -3899,7 +3899,7 @@ end subroutine pflotranModelSetICs
   ! author: Fengming YUAN
   ! date: 9/23/2013
   ! ************************************************************************** !
-subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
+subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
 
     use Realization_class
     use Patch_module
@@ -4017,7 +4017,7 @@ subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
         endif
     end select
 
-end subroutine pflotranModelSetInitialTHStatesfromCLM
+end subroutine pflotranModelSetInternalTHStatesfromCLM
 
   ! ************************************************************************** !
   ! pflotranModelSetSoilHbcs()
