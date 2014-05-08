@@ -4596,6 +4596,12 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                     clm_pf_idata%porosity_pfp, &
                                     clm_pf_idata%porosity_clms)
 
+    ! need to save ice saturation data for convenience
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%soilisat_pfp, &
+                                    clm_pf_idata%soilisat_clms)
+
   end subroutine pflotranModelResetSoilPorosity
 
   ! ************************************************************************** !
