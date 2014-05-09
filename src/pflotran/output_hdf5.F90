@@ -511,7 +511,7 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
   endif
-  call printMsg(option)
+!  call printMsg(option)
 
 #endif
 !PETSC_HAVE_HDF5
@@ -711,7 +711,7 @@ subroutine OutputHDF5UGrid(realization_base)
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
   endif
-  call printMsg(option)
+!  call printMsg(option)
 
   if (first) then
     ! create a group for the coordinates data set
@@ -756,7 +756,7 @@ subroutine OutputHDF5UGrid(realization_base)
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
   endif
-  call printMsg(option)
+!  call printMsg(option)
 
   if (first) then
     ! create a group for the coordinates data set
@@ -1063,7 +1063,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
   endif
-  call printMsg(option)
+!  call printMsg(option)
 
   if (first) then
     ! create a group for the coordinates data set
@@ -1391,7 +1391,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
   endif
-  call printMsg(option)
+  !call printMsg(option)
   
   new_filename = trim(option%global_prefix) // '-domain.h5'
   

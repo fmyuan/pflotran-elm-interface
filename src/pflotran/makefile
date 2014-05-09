@@ -216,6 +216,7 @@ mode_aux_obj = \
 	${common_src}pm_subsurface.o \
 	${common_src}pm_surface_flow.o \
 	${common_src}pm_surface_th.o \
+	${common_src}pm_surface.o \
 	${common_src}pm_top.o \
 	${common_src}pm_th.o \
 	${common_src}richards_aux.o \
@@ -283,6 +284,7 @@ grid_obj = \
 	${common_src}unstructured_explicit.o \
 	${common_src}unstructured_grid_aux.o \
 	${common_src}unstructured_grid.o \
+  ${common_src}unstructured_polyhedra.o \
 	${common_src}structured_communicator.o \
 	${common_src}structured_grid.o 
 
@@ -494,7 +496,8 @@ endif
 convergence.o : grid.o option.o pflotran_constants.o solver.o
 coupler.o : condition.o connection.o grid.o input_aux.o mfd_aux.o option.o \
             pflotran_constants.o region.o string.o structured_grid.o \
-            unstructured_explicit.o unstructured_grid_aux.o utility.o
+            unstructured_explicit.o unstructured_grid_aux.o unstructured_polyhedra.o \
+            utility.o
 database.o : database_aux.o immobile.o immobile_aux.o input_aux.o microbial.o \
              microbial_aux.o mineral.o mineral_aux.o option.o \
              pflotran_constants.o reaction.o reaction_aux.o reaction_sandbox.o \
@@ -527,7 +530,7 @@ debug.o : input_aux.o option.o pflotran_constants.o
 discretization.o : dm_kludge.o grid.o input_aux.o mfd.o mfd_aux.o option.o \
                    pflotran_constants.o string.o structured_grid.o \
                    unstructured_explicit.o unstructured_grid.o \
-                   unstructured_grid_aux.o
+                   unstructured_grid_aux.o unstructured_polyhedra.o
 dm_kludge.o : pflotran_constants.o unstructured_grid_aux.o
 e4d_mat_inv.o :
 e4d_run.o : e4d_vars.o
@@ -651,7 +654,7 @@ global_aux.o : option.o pflotran_constants.o utility.o
 grid.o : connection.o dm_kludge.o logging.o mfd_aux.o option.o \
          pflotran_constants.o region.o structured_grid.o unstructured_cell.o \
          unstructured_explicit.o unstructured_grid.o unstructured_grid_aux.o \
-         utility.o
+         utility.o unstructured_polyhedra.o
 hdf5.o : discretization.o field.o grid.o hdf5_aux.o logging.o option.o patch.o \
          pflotran_constants.o realization.o realization_base.o region.o \
          unstructured_cell.o utility.o
@@ -838,14 +841,16 @@ pm_subsurface.o : checkpoint.o communicator_base.o condition.o \
                   pflotran_constants.o pm_base.o realization.o \
                   structured_communicator.o unstructured_communicator.o \
                   variables.o
-pm_surface_flow.o : communicator_base.o condition.o discretization.o grid.o \
-                    option.o pflotran_constants.o pm_base.o realization.o \
-                    surface_checkpoint.o surface_field.o surface_flow.o \
-                    surface_realization.o unstructured_communicator.o
+pm_surface.o : communicator_base.o condition.o discretization.o global.o \
+               grid.o option.o pflotran_constants.o pm_base.o \
+               surface_checkpoint.o surface_realization.o \
+               unstructured_communicator.o
+pm_surface_flow.o : condition.o discretization.o pflotran_constants.o \
+                    pm_base.o pm_surface.o surface_field.o surface_flow.o
 pm_surface_th.o : communicator_base.o condition.o discretization.o grid.o \
-                  option.o pflotran_constants.o pm_base.o realization.o \
-                  surface_checkpoint.o surface_field.o surface_realization.o \
-                  surface_th.o unstructured_communicator.o
+                  option.o pflotran_constants.o pm_base.o pm_surface.o \
+                  realization.o surface_field.o surface_realization.o \
+                  surface_th.o
 pm_th.o : communicator_base.o discretization.o global.o grid.o option.o \
           pflotran_constants.o pm_base.o pm_subsurface.o realization.o \
           structured_communicator.o th.o unstructured_communicator.o
@@ -1065,11 +1070,12 @@ surface_complexation_aux.o : database_aux.o option.o pflotran_constants.o \
                              utility.o
 surface_factory.o : condition_control.o init.o input_aux.o logging.o option.o \
                     output.o output_aux.o output_surface.o \
-                    pflotran_constants.o pm_base.o pm_surface_flow.o \
-                    pm_surface_th.o pm_top.o pmc_base.o pmc_surface.o \
-                    simulation.o simulation_base.o surface_checkpoint.o \
-                    surface_realization.o surface_simulation.o timestepper.o \
-                    timestepper_base.o timestepper_surface.o
+                    pflotran_constants.o pm_base.o pm_surface.o \
+                    pm_surface_flow.o pm_surface_th.o pm_top.o pmc_base.o \
+                    pmc_surface.o simulation.o simulation_base.o \
+                    surface_checkpoint.o surface_realization.o \
+                    surface_simulation.o timestepper.o timestepper_base.o \
+                    timestepper_surface.o
 surface_field.o : pflotran_constants.o
 surface_flow.o : connection.o coupler.o debug.o discretization.o dm_kludge.o \
                  eos_water.o global_aux.o grid.o logging.o option.o \
@@ -1171,6 +1177,9 @@ unstructured_grid.o : connection.o geometry.o hdf5_aux.o input_aux.o option.o \
                       unstructured_grid_aux.o utility.o
 unstructured_grid_aux.o : geometry.o option.o pflotran_constants.o \
                           unstructured_cell.o utility.o
+unstructured_polyhedra.o : connection.o geometry.o input_aux.o option.o \
+                          pflotran_constants.o string.o \
+                          unstructured_grid_aux.o utility.o
 utility.o : input_aux.o option.o pflotran_constants.o string.o
 variables.o :
 waypoint.o : option.o output_aux.o pflotran_constants.o utility.o

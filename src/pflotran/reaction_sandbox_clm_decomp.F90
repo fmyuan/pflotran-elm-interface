@@ -117,6 +117,7 @@ function CLM_Decomp_Create()
 
 #ifdef CLM_PFLOTRAN
   CLM_Decomp_Create%temperature_response_function=TEMPERATURE_RESPONSE_FUNCTION_CLM4
+  CLM_Decomp_Create%moisture_response_function=MOISTURE_RESPONSE_FUNCTION_CLM4
 #endif
 
   CLM_Decomp_Create%Q10 = 1.5d0
@@ -250,16 +251,16 @@ subroutine CLM_Decomp_Read(this,input,option)
          enddo 
       case('MOISTURE_RESPONSE_FUNCTION')
         do
-         call InputReadPflotranString(input,option)
-         if (InputError(input)) exit
-         if (InputCheckExit(input,option)) exit
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
 
-         call InputReadWord(input,option,word,PETSC_TRUE)
-         call InputErrorMsg(input,option,'keyword', &
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword', &
                        'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,MOISTURE RESPONSE FUNCTION')
-         call StringToUpper(word)   
+          call StringToUpper(word)
 
-            select case(trim(word))
+          select case(trim(word))
               case('CLM4')
                   this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLM4    
               case('DLEM')
@@ -268,8 +269,8 @@ subroutine CLM_Decomp_Read(this,input,option)
                   option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
                                      trim(word) // ' not recognized.'
                   call printErrMsg(option)
-            end select
-         enddo 
+          end select
+        enddo
 
 #endif
 
@@ -873,7 +874,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   PetscReal :: porosity
   PetscReal :: volume
   PetscReal :: saturation
-  PetscReal :: theta
+  PetscReal :: theta, psi
   PetscInt :: local_id
   PetscErrorCode :: ierr
   PetscInt, parameter :: iphase = 1
@@ -881,11 +882,11 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   PetscReal :: c_nh3         ! concentration (mole/L)
   PetscReal :: f_nh3         ! nh3 / (half_saturation + nh3)
   PetscReal :: d_nh3         ! half_saturation / (half_saturation + nh3)^2
-  PetscReal :: f_nh3_inhibit ! inhibition_coef/(inhibition_coef + nh3)
-  PetscReal :: d_nh3_inhibit ! -inhibition_coef/(inhibition_coef + nh3)^2
   PetscReal :: c_no3         ! concentration (mole/L)
   PetscReal :: f_no3         ! no3 / (half_saturation + no3)
   PetscReal :: d_no3         ! half_saturation/(no3 + half_saturation)^2 
+  PetscReal :: f_nh3_no3_inhibit ! inhibition_coef/(inhibition_coef + nh3)
+  PetscReal :: d_nh3_no3_inhibit ! -inhibition_coef/(inhibition_coef + nh3)^2
   PetscReal :: temp_real
 
   PetscInt :: irxn
@@ -898,7 +899,6 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   PetscInt :: ires_uc, ires_un, ires_d      ! id used for residual and Jacobian
   PetscInt :: ires_co2, ires_nh3, ires_n2o, ires_no3
   PetscInt :: ires_hrimm, ires_nmin, ires_nimm, ires_ngasmin
-!  PetscReal :: stoich_un, stoich_dc, stoich_mineraln, stoich_co2
   PetscReal :: stoich_c, stoich_n
 
   PetscReal :: scaled_rate_const
@@ -906,7 +906,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   PetscReal :: drate_uc   ! d Rate / d upstream c
   PetscReal :: drate_nh3  ! d Rate / d nh3 ammonia limitation
 
-! for N immobilization reactions with NO3 as N source 
+  ! for N immobilization reactions with NO3 as N source
   PetscReal :: rate_no3      ! mole/s
   PetscReal :: drate_no3     ! d Rate_no3 / d no3 
   PetscReal :: drate_uc_no3  ! d Rate_no3 / d uc 
@@ -917,7 +917,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   PetscReal :: f_t    ! temperature response function
   PetscReal :: f_w    ! moisture response function
 
-! save mineral N fraction and decomposition rate for net N mineralization and N2O calculation 
+ ! save mineral N fraction and decomposition rate for net N mineralization and N2O calculation
   PetscReal :: net_n_mineralization_rate
   PetscReal :: ph, f_ph
   PetscReal :: rate_n2o, drate_n2o
@@ -925,6 +925,9 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   PetscReal :: c_uc, c_un
   PetscReal :: nc_bacteria, nc_fungi
 
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  !------------------------------------------------------------------------------------------------
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
 
@@ -940,10 +943,11 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
       d_no3 = this%half_saturation_no3 / temp_real / temp_real 
 
       temp_real = this%inhibition_nh3_no3 + c_nh3
-      f_nh3_inhibit = this%inhibition_nh3_no3/temp_real
-      d_nh3_inhibit = -1.0d0*this%inhibition_nh3_no3/temp_real/temp_real
+      f_nh3_no3_inhibit = this%inhibition_nh3_no3/temp_real
+      d_nh3_no3_inhibit = -1.0d0*this%inhibition_nh3_no3/temp_real/temp_real
   endif 
 
+  !----------------------------------------------------------------------------------------------
   ires_co2 = this%species_id_co2
   ires_nh3 = this%species_id_nh3
   ires_no3 = this%species_id_no3
@@ -965,7 +969,8 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
      ires_ngasmin = this%species_id_ngasmin + reaction%offset_immobile
   endif
 
-! temperature response function 
+  !----------------------------------------------------------------------------------------
+  ! temperature response function
   tc = global_auxvar%temp(1) 
 
 #ifdef CLM_PFLOTRAN 
@@ -975,11 +980,16 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 #endif
 
   saturation = global_auxvar%sat(1)
-  theta = saturation * porosity 
+  theta = saturation * porosity
+  psi = min(global_auxvar%pres(1) - option%reference_pressure, -1.d-20)     ! if positive, saturated soil's psi is nearly zero
 
   ! moisture response function 
 #ifdef CLM_PFLOTRAN
-  f_w = GetMoistureResponse(theta, local_id, this%moisture_response_function)
+  if(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_CLM4) then
+     f_w = GetMoistureResponse(psi, local_id, this%moisture_response_function)
+  else if(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_DLEM) then
+     f_w = GetMoistureResponse(theta, local_id, this%moisture_response_function)
+  endif
 #else
   f_w = 1.0d0
 #endif
@@ -988,10 +998,15 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
      return
   endif
 
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
   net_n_mineralization_rate = 0.0d0
 
   do irxn = 1, this%nrxn
   
+    !-----------------------------------------------------------------------------------------------------
+    ! calculate rate
+
     ! scaled_rate_const units: (m^3 bulk / s) = (1/s) * (m^3 bulk)
     scaled_rate_const = this%rate_constant(irxn)*volume*f_t*f_w
 
@@ -1007,7 +1022,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
     if(c_uc < 1.0d-20) cycle
 
-!   for litter decomposition reactions, stoich needs to be calculated on the fly
+    ! for litter decomposition reactions, stoich needs to be calculated on the fly
     if(this%is_litter_decomp(irxn)) then
 
       ispec_un = this%upstream_n_id(irxn)
@@ -1019,8 +1034,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
       endif
 
       if(this%litter_decomp_type == LITTER_DECOMP_CLMCN) then
-
-!    calculate respiration factor (CO2 stoichiometry)
+        !    calculate respiration factor (CO2 stoichiometry)
         stoich_c = 1.0d0
 
         do j = 1, this%n_downstream_pools(irxn)
@@ -1031,10 +1045,9 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
            option%io_buffer = 'CLM_Decomp litter decomposition reaction has negative respiration fraction!'
            call printErrMsg(option)
         endif
-
         this%mineral_c_stoich(irxn) = stoich_c
 
-!     calculate N stoichiometry 
+        ! calculate N stoichiometry
         stoich_n = this%upstream_nc(irxn)
 
         do j = 1, this%n_downstream_pools(irxn)
@@ -1046,14 +1059,12 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
       elseif(this%litter_decomp_type == LITTER_DECOMP_CLMMICROBE) then
 
-!    Sinsabaugh et al. 2013 Ecology Letters, 16, 930-939
+        ! Sinsabaugh et al. 2013 Ecology Letters, 16, 930-939
         resp_frac = CN_ratio_microbe * this%upstream_nc(irxn) !c_un/c_uc
-
         if(resp_frac > CUE_max) then
           resp_frac = CUE_max
         endif
 
-!    c pools     
         this%mineral_c_stoich(irxn) = resp_frac
        
         if(this%n_downstream_pools(irxn) .ne. 2) then
@@ -1070,7 +1081,6 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
         enddo
 
         stoich_n = this%upstream_nc(irxn)
-
         do j = 1, this%n_downstream_pools(irxn)
            stoich_n = stoich_n - this%downstream_stoich(irxn, j) * &
                               this%downstream_nc(irxn, j)
@@ -1078,47 +1088,58 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
         this%mineral_n_stoich(irxn) = stoich_n
 
-      endif
-    endif
+      endif ! end of 'litter_decomp_type'
+
+    endif ! end of 'is_litter_decomp' (NOTE: 'mineral_n_stoich' for non-litter species IS constant, which are calc. in 'setup')
 
     ! residual units: (mol/sec) = (m^3 bulk/s) * (mol/m^3 bulk)
     rate     = scaled_rate_const * (c_uc - this%x0eps)
     drate_uc = scaled_rate_const 
 
-!   NH3 limiting
     if(this%mineral_n_stoich(irxn) < 0.0d0) then
-       drate_nh3 = rate * d_nh3 
-       rate      = rate * f_nh3
-       drate_uc  = drate_uc * f_nh3
+
+       ! NH3 limiting on decomposition/mineralization
+       rate      = scaled_rate_const * (c_uc - this%x0eps) * f_nh3
+       drate_uc  = scaled_rate_const * f_nh3
+       drate_nh3 = scaled_rate_const * (c_uc - this%x0eps) * d_nh3
+
+       ! if nitrate is defined in the reaction network, N immobilization may occur
+       ! with rate depending on NH3 (reduced rate if NH3 is abundant, i.e. by f_nh3_no3_inhibit,
+       ! because mirobial immobilization prefers NH3)
+       if (this%species_id_no3 > 0) then
+          rate_no3     = scaled_rate_const * (c_uc - this%x0eps) * f_no3 * f_nh3_no3_inhibit
+          drate_uc_no3 = scaled_rate_const * f_no3 * f_nh3_no3_inhibit
+          drate_no3    = scaled_rate_const * (c_uc - this%x0eps) * d_no3 * f_nh3_no3_inhibit
+          drate_nh3_no3= scaled_rate_const * (c_uc - this%x0eps) * f_no3 * d_nh3_no3_inhibit
+       endif
+
     endif 
 
+    !-----------------------------------------------------------------------------------------------------
     ! calculation of residual
-    ! carbon
+    ! CO2
     Residual(ires_co2) = Residual(ires_co2) - this%mineral_c_stoich(irxn) * rate
-    if (this%species_id_hrimm > 0) then
+    if (this%species_id_hrimm > 0) then    ! for tracking
        Residual(ires_hrimm) = Residual(ires_hrimm) - this%mineral_c_stoich(irxn) * rate
     endif
     
-    ! nitrogen
+    ! inorg. nitrogen (NH4+/NH3(aq))
     Residual(ires_nh3) = Residual(ires_nh3) - this%mineral_n_stoich(irxn) * rate
-
-    if(this%species_id_nimm > 0 .and. this%mineral_n_stoich(irxn) < 0.0d0) then
-       Residual(ires_nimm) = Residual(ires_nimm) + this%mineral_n_stoich(irxn) * rate
+    if(this%species_id_nimm > 0) then      ! for tracking
+       if(this%mineral_n_stoich(irxn) < 0.0d0) then
+          Residual(ires_nimm) = Residual(ires_nimm) + this%mineral_n_stoich(irxn) * rate
+       else
+          Residual(ires_nmin) = Residual(ires_nmin) - this%mineral_n_stoich(irxn) * rate
+       endif
     endif
 
-    if(this%species_id_nmin > 0 .and. this%mineral_n_stoich(irxn) > 0.0d0) then
-       Residual(ires_nmin) = Residual(ires_nmin) - this%mineral_n_stoich(irxn) * rate
-    endif
-
-    ! upstream c
+    ! upstream
     Residual(ires_uc) = Residual(ires_uc) - (-1.d0) * rate
-
-    ! upstream n
     if(this%is_litter_decomp(irxn)) then
       Residual(ires_un) = Residual(ires_un) - (-1.d0) * this%upstream_nc(irxn) * rate
     endif
     
-!   downstream pools
+    ! downstream
     do j = 1, this%n_downstream_pools(irxn)
        ispec_d = this%downstream_id(irxn, j)
        if(this%downstream_is_aqueous(irxn, j)) then
@@ -1133,39 +1154,29 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
     net_n_mineralization_rate=net_n_mineralization_rate+this%mineral_n_stoich(irxn)*rate
 
-!   start residual calculation for N immobilization reaction with NO3 uptake
-!   if nitrate is available, N immobilization decomposition reactions occurs
-!   with rate depending on NH3, with reduced rate if NH3 is abundent  
+    ! if nitrate is defined in the reaction network, N immobilization may occur
+    ! with rate depending on NH3 (reduced rate if NH3 is abundant, i.e. by f_nh3_no3_inhibit)
     if(this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0) then
 
-       rate_no3     = scaled_rate_const * (c_uc - this%x0eps) * f_no3 * f_nh3_inhibit
-       drate_uc_no3 = scaled_rate_const * 1.0d0 * f_no3 * f_nh3_inhibit
-       drate_no3    = scaled_rate_const * c_uc  * d_no3 * f_nh3_inhibit
-       drate_nh3_no3= scaled_rate_const * c_uc  * f_no3 * d_nh3_inhibit
-
-    ! residuals
-    ! carbon
+       ! CO2
        Residual(ires_co2) = Residual(ires_co2) - this%mineral_c_stoich(irxn) * rate_no3
        if (this%species_id_hrimm > 0) then
            Residual(ires_hrimm) = Residual(ires_hrimm) - this%mineral_c_stoich(irxn) * rate_no3
        endif
     
-    ! nitrogen
+       ! NO3
        Residual(ires_no3) = Residual(ires_no3) - this%mineral_n_stoich(irxn) * rate_no3
-
        if(this%species_id_nimm > 0) then
           Residual(ires_nimm) = Residual(ires_nimm) + this%mineral_n_stoich(irxn) * rate_no3
        endif
 
-    ! upstream c 
+       ! upstream
        Residual(ires_uc) = Residual(ires_uc) - (-1.d0) * rate_no3
-    
-    ! upstream n
        if(this%is_litter_decomp(irxn)) then
          Residual(ires_un) = Residual(ires_un)+this%upstream_nc(irxn)*rate_no3
        endif
     
-!   downstream pools
+       ! downstream
        do j = 1, this%n_downstream_pools(irxn)
          ispec_d = this%downstream_id(irxn, j)
          if(this%downstream_is_aqueous(irxn, j)) then
@@ -1179,18 +1190,21 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
        enddo
 
        net_n_mineralization_rate=net_n_mineralization_rate+this%mineral_n_stoich(irxn)*rate_no3
-    endif 
-!   end residual calculation for N immobilization reaction with NO3 uptake
 
+    endif   !   end residual calculation for N immobilization reaction with NO3 uptake
+
+    !-----------------------------------------------------------------------------------------------------
+    ! calculate jacobians
     if (compute_derivative) then
  
-! with respect to upstream c    
-      ! carbon
+      ! ----- SOM decomposition network --------------------------------------------------------
+
+      ! -- with respect to upstream C ('drate_uc', substrate regulated)
+      ! CO2 (co2 - uc)
       if(this%upstream_is_aqueous(irxn)) then
         Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - &
           this%mineral_c_stoich(irxn) * drate_uc * &
           rt_auxvar%aqueous%dtotal(this%species_id_co2,ispec_uc,iphase)
-
       else
         Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - &
           this%mineral_c_stoich(irxn) * drate_uc
@@ -1198,19 +1212,18 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
         if(this%is_litter_decomp(irxn) .and. &
            this%litter_decomp_type == LITTER_DECOMP_CLMMICROBE .and. &
            resp_frac < CUE_max) then
-! dRco2/dLit1C = dcR/dLit1C = cdR/dLit1C + R dc/dLit1C 
-! c = min(CUEmax, Lit1N/Lit1C*CN_ratio_microbe)
-! dc/dLit1C =  - Lit1N/Lit1C^2 CN_ratio_microbe  
-! R dc/dLit1C =  - R Lit1N/Lit1C^2 CN_ratio_microbe  = -dR/dLit1C u CN_ratio_microbe
+           ! dRco2/dLit1C = dcR/dLit1C = cdR/dLit1C + R dc/dLit1C
+           ! c = min(CUEmax, Lit1N/Lit1C*CN_ratio_microbe)
+           ! dc/dLit1C =  - Lit1N/Lit1C^2 CN_ratio_microbe
+           ! R dc/dLit1C =  - R Lit1N/Lit1C^2 CN_ratio_microbe  = -dR/dLit1C u CN_ratio_microbe
            Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) + &
-            drate_uc * this%upstream_nc(irxn) * CN_ratio_microbe 
+                 drate_uc * this%upstream_nc(irxn) * CN_ratio_microbe
         endif
       endif
 
-      if(this%species_id_hrimm > 0) then
+      if(this%species_id_hrimm > 0) then   ! for tracking
         Jacobian(ires_hrimm,ires_uc) = Jacobian(ires_hrimm,ires_uc) - &
           this%mineral_c_stoich(irxn) * drate_uc
-
         if(this%is_litter_decomp(irxn) .and. &
            this%litter_decomp_type == LITTER_DECOMP_CLMMICROBE .and. &
            resp_frac < CUE_max) then
@@ -1219,53 +1232,67 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
         endif
       endif
 
-      ! nitrogen
-         ! dR_N/dC_u = d nR/dC_u = dn/dC_u R + n dR/dC_u
-         ! first, n dR/dC_u
+      ! NH4+/NH3(aq) (nh3 - uc/un)
+      ! We have: dR_N/dC_u = d nR/dC_u = dn/dC_u R + n dR/dC_u
+      !
+      ! first term: n dR/dC_u
       if(this%upstream_is_aqueous(irxn)) then
-        Jacobian(ires_nh3,ires_uc) = Jacobian(ires_nh3,ires_uc) - &
-          this%mineral_n_stoich(irxn) * drate_uc * &
-          rt_auxvar%aqueous%dtotal(this%species_id_nh3,ispec_uc,iphase)
+           Jacobian(ires_nh3,ires_uc) = Jacobian(ires_nh3,ires_uc) - &
+             this%mineral_n_stoich(irxn) * drate_uc * &
+             rt_auxvar%aqueous%dtotal(this%species_id_nh3,ispec_uc,iphase)
       else
-        Jacobian(ires_nh3,ires_uc) = Jacobian(ires_nh3,ires_uc) - &
-          this%mineral_n_stoich(irxn) * drate_uc
+             Jacobian(ires_nh3,ires_uc) = Jacobian(ires_nh3,ires_uc) - &
+             this%mineral_n_stoich(irxn) * drate_uc
       endif
 
-      if(this%species_id_nimm > 0 .and. this%mineral_n_stoich(irxn) < 0.0d0) then
-        Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) + &
-          this%mineral_n_stoich(irxn) * drate_uc
+      if(this%species_id_nimm > 0) then   ! for tracking
+            if(this%mineral_n_stoich(irxn) < 0.0d0) then
+              Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) + &
+                 this%mineral_n_stoich(irxn) * drate_uc
+            else
+              Jacobian(ires_nmin,ires_uc) = Jacobian(ires_nmin,ires_uc) - &
+                 this%mineral_n_stoich(irxn) * drate_uc
+            endif
       endif
 
-      if(this%species_id_nmin > 0 .and. this%mineral_n_stoich(irxn) > 0.0d0) then
-        Jacobian(ires_nmin,ires_uc) = Jacobian(ires_nmin,ires_uc) - &
-          this%mineral_n_stoich(irxn) * drate_uc
-      endif
-
+      ! second term: dn/dC_u R
+      !      n = u - (1 - f)d, dn/dC_u = du/dC_u = -N_u/C_u^2 = -u/C_u
+      !      dn/dC_u R = -u R/C_u = -u drate_uc
+      !      (note: for fixed-n, dn/dC_u = 0)
       if(this%is_litter_decomp(irxn)) then
-         ! litter pool is immobile
-         ! second, dn/dC_u R, n = u - (1 - f)d, dn/dC_u = du/dC_u = -N_u/C_u^2 = -u/C_u
-         ! dn/dC_u R = -u R/C_u = -u drate_uc 
+
          if(this%litter_decomp_type == LITTER_DECOMP_CLMCN) then
            Jacobian(ires_nh3,ires_uc) = Jacobian(ires_nh3,ires_uc) - &
             (-1.d0) * this%upstream_nc(irxn) * drate_uc
 
-           if(this%species_id_nimm > 0 .and. this%mineral_n_stoich(irxn) < 0.0d0) then
-             Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) + &
-            (-1.d0) * this%upstream_nc(irxn) * drate_uc
+           if(this%species_id_nimm > 0) then      ! for tracking
+              if(this%mineral_n_stoich(irxn) < 0.0d0) then
+                 Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) + &
+                          (-1.d0) * this%upstream_nc(irxn) * drate_uc
+              else
+                 Jacobian(ires_nmin,ires_uc) = Jacobian(ires_nmin,ires_uc) - &
+                          (-1.d0) * this%upstream_nc(irxn) * drate_uc
+              endif
            endif
 
-           if(this%species_id_nmin > 0 .and. this%mineral_n_stoich(irxn) > 0.0d0) then
-             Jacobian(ires_nmin,ires_uc) = Jacobian(ires_nmin,ires_uc) - &
-            (-1.d0) * this%upstream_nc(irxn) * drate_uc
+           ! mineral N, dR_N/dNu = d nR/du = Rd (u - (1-f)d)/dNu = dR/dCu
+           Jacobian(ires_nh3,ires_un) = Jacobian(ires_nh3,ires_un) - drate_uc
+
+           if(this%species_id_nimm > 0) then    ! for tracking
+               if(this%mineral_n_stoich(irxn) < 0.0d0) then   ! for tracking
+                  Jacobian(ires_nimm,ires_un) = Jacobian(ires_nimm,ires_un) + drate_uc
+               else
+                  Jacobian(ires_nmin,ires_un) = Jacobian(ires_nmin,ires_un) - drate_uc
+               endif
            endif
 
          else  ! litter decomposition CLM-MICROBE
            if(resp_frac < CUE_max) then
-! dRN/dLit1C = dnR/dLit1C = ndR/dLit1C + R dn/dLit1C 
-! n = u - b nb - f nf = u - g(1-c)n_b - (1 - g)(1 - c) n_f
-! dn/dLit1C =  - Lit1N/Lit1C^2 + (g n_b + (1-g)n_f)dc/dLit1C
-! R dn/dLit1C =  - dR/dLit1C u - (g n_b + (1 - g) n_f) dR/dLit1C u CN_ratio_microbe
-! R dn/dLit1C =  - dR/dLit1C u (1 + (g n_b + (1 - g) n_f) CN_ratio_microbe)
+             ! dRN/dLit1C = dnR/dLit1C = ndR/dLit1C + R dn/dLit1C
+             ! n = u - b nb - f nf = u - g(1-c)n_b - (1 - g)(1 - c) n_f
+             ! dn/dLit1C =  - Lit1N/Lit1C^2 + (g n_b + (1-g)n_f)dc/dLit1C
+             ! R dn/dLit1C =  - dR/dLit1C u - (g n_b + (1 - g) n_f) dR/dLit1C u CN_ratio_microbe
+             ! R dn/dLit1C =  - dR/dLit1C u (1 + (g n_b + (1 - g) n_f) CN_ratio_microbe)
              do i = 1, this%n_downstream_pools(irxn)
                 if(this%downstream_id(irxn, i) == this%species_id_bacteria) then
                   nc_bacteria = this%downstream_nc(irxn, i)
@@ -1274,42 +1301,44 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
                 endif
              enddo
 
-             Jacobian(ires_nh3,ires_uc) = Jacobian(ires_nh3,ires_uc) + &
-               this%upstream_nc(irxn) * drate_uc * (1.0d0 + &
-               (fraction_bacteria * nc_bacteria + &
+             temp_real = this%upstream_nc(irxn) * drate_uc *  &
+               (1.0d0 + (fraction_bacteria * nc_bacteria + &
                (1.0d0 - fraction_bacteria) * nc_fungi) * CN_ratio_microbe)
 
-             if(this%species_id_nimm > 0 .and. this%mineral_n_stoich(irxn) < 0.0d0) then
-               Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) - &
-               this%upstream_nc(irxn) * drate_uc * (1.0d0 + &
-               (fraction_bacteria * nc_bacteria + &
-               (1.0d0 - fraction_bacteria) * nc_fungi) * CN_ratio_microbe)
+             Jacobian(ires_nh3,ires_uc) = Jacobian(ires_nh3,ires_uc) + temp_real
+
+             if(this%species_id_nimm > 0 ) then     ! for tracking
+                 if(this%mineral_n_stoich(irxn) < 0.0d0) then
+                    Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) - temp_real
+                 else
+                    Jacobian(ires_nmin,ires_uc) = Jacobian(ires_nmin,ires_uc) + temp_real
+                 endif
              endif
 
-             if(this%species_id_nmin > 0 .and. this%mineral_n_stoich(irxn) > 0.0d0) then
-               Jacobian(ires_nmin,ires_uc) = Jacobian(ires_nmin,ires_uc) + &
-               this%upstream_nc(irxn) * drate_uc * (1.0d0 + &
-               (fraction_bacteria * nc_bacteria + &
-               (1.0d0 - fraction_bacteria) * nc_fungi) * CN_ratio_microbe)
-             endif
-           else
+           else   ! resp_frac >= CUE_max
+
              Jacobian(ires_nh3,ires_uc) = Jacobian(ires_nh3,ires_uc) - &
               (-1.d0) * this%upstream_nc(irxn) * drate_uc
 
-             if(this%species_id_nimm > 0 .and. this%mineral_n_stoich(irxn) < 0.0d0) then
-               Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) + &
-               (-1.d0) * this%upstream_nc(irxn) * drate_uc
+             if(this%species_id_nimm > 0) then     ! for tracking
+                 if(this%mineral_n_stoich(irxn) < 0.0d0) then
+                      Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) + &
+                         (-1.d0) * this%upstream_nc(irxn) * drate_uc
+                 else
+                      Jacobian(ires_nmin,ires_uc) = Jacobian(ires_nmin,ires_uc) - &
+                         (-1.d0) * this%upstream_nc(irxn) * drate_uc
+                 endif
              endif
 
-             if(this%species_id_nmin > 0 .and. this%mineral_n_stoich(irxn) > 0.0d0) then
-               Jacobian(ires_nmin,ires_uc) = Jacobian(ires_nmin,ires_uc) - &
-                (-1.d0) * this%upstream_nc(irxn) * drate_uc
-             endif
-           endif
-         endif
+           endif  ! end of 'resp_frac >= CUE_max
+
+           !??? no 'Jacobian(ires_nh3, ires_un)'????
+
+         endif ! end of 'litter_decomposion_type'
+
       endif
 
-      ! upstream C pool
+      ! upstream (uc - uc, un - un)
       if(this%upstream_is_aqueous(irxn)) then
         Jacobian(ires_uc,ires_uc) = Jacobian(ires_uc,ires_uc) - (-1.d0) * drate_uc * &
           rt_auxvar%aqueous%dtotal(ispec_uc,ispec_uc,iphase)
@@ -1317,22 +1346,17 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
         Jacobian(ires_uc,ires_uc) = Jacobian(ires_uc,ires_uc) - (-1.d0) * drate_uc
       endif
 
-      ! upstream N pool
       if(this%is_litter_decomp(irxn)) then
-        ! litter pools are immobile
-        ! R_Nu = Nu/Cu * R_Cu, dR_Nu/dCu = Nu/Cu dR_Cu/dCu - Nu/Cu^2 R_Cu
-        ! R_Cu = k Cu,         dR_Cu/dCu = k
-        ! dR_Nu/dCu = Nu/Cu k - Nu/Cu kCu/Cu = 0
          if(this%litter_decomp_type == LITTER_DECOMP_CLMCN) then
-!        Jacobian(ires_un,ires_uc) = Jacobian(ires_un,ires_uc) - &
-!          (-1.d0) * stoich_un * drate_uc 
+             ! upstream n, dR_Nu/dNu = d uR/dNu = R/Cu = dR/dCu
+             Jacobian(ires_un,ires_un) = Jacobian(ires_un,ires_un) -(-1.d0)*drate_uc
          else   ! litter decomposition CLM-MICROBE
-
+             ! ??? Jacobian(ires_un, ires_un) ????
          endif 
       endif
 
-!   downstream pools
-      do j = 1, this%n_downstream_pools(irxn)
+      ! downstream (d - uc)
+      do j = 1, this%n_downstream_pools(irxn)   ! maybe multiple downstream pools
          ispec_d = this%downstream_id(irxn, j)
          if(ispec_d < 0) then
            cycle
@@ -1349,6 +1373,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
                Jacobian(ires_d,ires_uc) = Jacobian(ires_d,ires_uc) - &
                  this%downstream_stoich(irxn, j) * drate_uc * &
                  rt_auxvar%aqueous%dtotal(ispec_d,ispec_uc,iphase)
+
          else
             Jacobian(ires_d,ires_uc) = Jacobian(ires_d,ires_uc) - &
                this%downstream_stoich(irxn, j) * drate_uc
@@ -1358,60 +1383,39 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
                resp_frac < CUE_max) then
                if(ispec_d == this%species_id_bacteria) then
                  Jacobian(ires_d,ires_uc) = Jacobian(ires_d,ires_uc)-drate_uc* &
-                 fraction_bacteria * this%upstream_nc(irxn) * CN_ratio_microbe
+                   fraction_bacteria * this%upstream_nc(irxn) * CN_ratio_microbe
                elseif(ispec_d == this%species_id_fungi) then
                  Jacobian(ires_d,ires_uc) = Jacobian(ires_d,ires_uc)-drate_uc* &
-               (1.0d0-fraction_bacteria)*this%upstream_nc(irxn)*CN_ratio_microbe
-               else
+                   (1.0d0-fraction_bacteria)*this%upstream_nc(irxn)*CN_ratio_microbe
                endif
             endif
+
          endif
       enddo
 
-!with respect to upstream n (due to variable CN ratio)
-      if(this%is_litter_decomp(irxn)) then
-         if(this%litter_decomp_type == LITTER_DECOMP_CLMCN) then
-        ! upstream n, dR_Nu/dNu = d uR/dNu = R/Cu = dR/dCu
-           Jacobian(ires_un,ires_un) = Jacobian(ires_un,ires_un) -(-1.d0)*drate_uc
-        ! mineral N, dR_N/dNu = d nR/du = Rd (u - (1-f)d)/dNu = dR/dCu 
-           Jacobian(ires_nh3,ires_un) = Jacobian(ires_nh3,ires_un) - drate_uc
-
-             if(this%species_id_nimm > 0 .and. this%mineral_n_stoich(irxn) < 0.0d0) then
-               Jacobian(ires_nimm,ires_un) = Jacobian(ires_nimm,ires_un) + drate_uc
-             endif
-
-             if(this%species_id_nmin > 0 .and. this%mineral_n_stoich(irxn) > 0.0d0) then
-               Jacobian(ires_nmin,ires_un) = Jacobian(ires_nmin,ires_un) - drate_uc
-             endif
-
-         else   ! litter decomposition CLM-MICROBE
-
-         endif 
-      endif
-
-!with respect to nh3
+      ! ---- with respect to nh3-N ('drate_nh3')
       if(this%mineral_n_stoich(irxn) < 0.0d0) then
-        ! carbon
+        ! CO2 (co2 - nh3)
         Jacobian(ires_co2,ires_nh3) = Jacobian(ires_co2,ires_nh3) - &
           this%mineral_c_stoich(irxn) * drate_nh3 * &
           rt_auxvar%aqueous%dtotal(this%species_id_co2,this%species_id_nh3,iphase)
 
-        if(this%species_id_hrimm > 0) then
+        if(this%species_id_hrimm > 0) then   ! for tracking
           Jacobian(ires_hrimm,ires_nh3) = Jacobian(ires_hrimm,ires_nh3) - &
             this%mineral_c_stoich(irxn) * drate_nh3
         endif
 
-        ! nitrogen
+        ! NH4+/NH3(aq) (nh3 - nh3)
         Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) - &
           this%mineral_n_stoich(irxn) * drate_nh3 * &
           rt_auxvar%aqueous%dtotal(this%species_id_nh3,this%species_id_nh3,iphase)
   
-          if(this%species_id_nimm > 0) then
+          if(this%species_id_nimm > 0) then   ! for tracking
             Jacobian(ires_nimm,ires_nh3) = Jacobian(ires_nimm,ires_nh3) + &
               this%mineral_n_stoich(irxn) * drate_nh3
           endif
 
-        ! upstream C pool
+        ! upstream (uc/un - nh3)
         if(this%upstream_is_aqueous(irxn)) then
           Jacobian(ires_uc,ires_nh3) = Jacobian(ires_uc,ires_nh3) - &
             (-1.d0) * drate_nh3 * &
@@ -1420,14 +1424,13 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
           Jacobian(ires_uc,ires_nh3) = Jacobian(ires_uc,ires_nh3) - &
             (-1.d0) * drate_nh3
         endif
- 
-        ! upstream N pool
+
         if(this%is_litter_decomp(irxn)) then
           Jacobian(ires_un,ires_nh3) = Jacobian(ires_un,ires_nh3) - &
             (-1.d0) * this%upstream_nc(irxn) * drate_nh3 
         endif
 
-!   downstream pools
+        ! downstream (d - nh3)
         do j = 1, this%n_downstream_pools(irxn)
            ispec_d = this%downstream_id(irxn, j)
            if(ispec_d < 0) then
@@ -1444,12 +1447,14 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
                   this%downstream_stoich(irxn, j) * drate_nh3
            endif
         enddo
-      endif
 
-!   start jacobian calculation for N immobilization reaction with NO3 uptake
+      endif  ! end of NH4 limiting, if any
+
+      ! ---- Jacobians for NO3 immobilization, if any -----
       if(this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0) then
-! with respect to upstream c    
-      ! carbon
+
+        ! --- with respect to upstream ('drate_uc_no3')
+        ! CO2 (co2 - uc)
         if(this%upstream_is_aqueous(irxn)) then
           Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - &
             this%mineral_c_stoich(irxn) * drate_uc_no3 * &
@@ -1461,45 +1466,56 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
         endif
 
-        if(this%species_id_hrimm > 0) then
+        if(this%species_id_hrimm > 0) then   ! for tracking
             Jacobian(ires_hrimm,ires_uc) = Jacobian(ires_hrimm,ires_uc) - &
                this%mineral_c_stoich(irxn) * drate_uc_no3
         endif
 
-      ! nitrogen
+        ! NO3 (no3 - uc, no3 - un)
+        ! We have: dR_N/dC_u = d nR/dC_u = dn/dC_u R + n dR/dC_u
+        !
+        ! first term: n dR/dC_u
         if(this%upstream_is_aqueous(irxn)) then
-          Jacobian(ires_no3,ires_uc) = Jacobian(ires_no3,ires_uc) - &
-            this%mineral_n_stoich(irxn) * drate_uc_no3 * &
-            rt_auxvar%aqueous%dtotal(this%species_id_no3,ispec_uc,iphase)
+            Jacobian(ires_no3,ires_uc) = Jacobian(ires_no3,ires_uc) - &
+              this%mineral_n_stoich(irxn) * drate_uc_no3 * &
+              rt_auxvar%aqueous%dtotal(this%species_id_no3,ispec_uc,iphase)
         else
-          Jacobian(ires_no3,ires_uc) = Jacobian(ires_no3,ires_uc) - &
-            this%mineral_n_stoich(irxn) * drate_uc_no3
+            Jacobian(ires_no3,ires_uc) = Jacobian(ires_no3,ires_uc) - &
+              this%mineral_n_stoich(irxn) * drate_uc_no3
         endif
 
-          if(this%species_id_nimm > 0) then
+        if(this%species_id_nimm > 0) then   ! for tracking
             Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) + &
               this%mineral_n_stoich(irxn) * drate_uc_no3
-          endif
+        endif
 
+        ! second term: dn/dC_u R
+        !      n = u - (1 - f)d, dn/dC_u = du/dC_u = -N_u/C_u^2 = -u/C_u
+        !      dn/dC_u R = -u R/C_u = -u drate_uc
+        !      (note: for fixed-n, dn/dC_u = 0)
         if(this%is_litter_decomp(irxn)) then
-         ! litter pool is immobile
-         ! second, dn/dC_u R, n = u - (1 - f)d, dn/dC_u = du/dC_u = -N_u/C_u^2 = -u/C_u
-         ! dn/dC_u R = -u R/C_u = -u drate_uc 
           if(this%litter_decomp_type == LITTER_DECOMP_CLMCN) then
             Jacobian(ires_no3,ires_uc) = Jacobian(ires_no3,ires_uc) - &
              (-1.d0) * this%upstream_nc(irxn) * drate_uc_no3
 
-            if(this%species_id_nimm > 0) then
+            if(this%species_id_nimm > 0) then   ! for tracking
               Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) + &
                (-1.d0) * this%upstream_nc(irxn) * drate_uc_no3
             endif
 
+            ! mineral N, dR_N/dNu = d nR/du = Rd (u - (1-f)d)/dNu = dR/dCu
+            Jacobian(ires_no3,ires_un) = Jacobian(ires_no3,ires_un) - drate_uc_no3
+            if(this%species_id_nimm > 0) then   ! for tracking
+              Jacobian(ires_nimm,ires_un) = Jacobian(ires_nimm,ires_un) + drate_uc_no3
+            endif
+
           else  ! litter decomposition CLM-MICROBE
-
+            ! ????
           endif
-        endif
 
-      ! upstream C pool
+        endif ! end of 'is_litter_decomp'
+
+        ! upstream (uc - uc, un - un)
         if(this%upstream_is_aqueous(irxn)) then
           Jacobian(ires_uc,ires_uc) = Jacobian(ires_uc,ires_uc) + drate_uc_no3 * &
             rt_auxvar%aqueous%dtotal(ispec_uc,ispec_uc,iphase)
@@ -1507,21 +1523,16 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
           Jacobian(ires_uc,ires_uc) = Jacobian(ires_uc,ires_uc) + drate_uc_no3
         endif
 
-      ! upstream N pool
         if(this%is_litter_decomp(irxn)) then
-        ! litter pools are immobile
-        ! R_Nu = Nu/Cu * R_Cu, dR_Nu/dCu = Nu/Cu dR_Cu/dCu - Nu/Cu^2 R_Cu
-        ! R_Cu = k Cu,         dR_Cu/dCu = k
-        ! dR_Nu/dCu = Nu/Cu k - Nu/Cu kCu/Cu = 0
           if(this%litter_decomp_type == LITTER_DECOMP_CLMCN) then
-!        Jacobian(ires_un,ires_uc) = Jacobian(ires_un,ires_uc) - &
-!          (-1.d0) * stoich_un * drate_uc 
+            ! upstream n, dR_Nu/dNu = d uR/dNu = R/Cu = dR/dCu
+            Jacobian(ires_un,ires_un) = Jacobian(ires_un,ires_un) -(-1.d0)*drate_uc_no3
           else   ! litter decomposition CLM-MICROBE
-
+            ! ??????
           endif 
         endif
 
-!   downstream pools
+        ! downstream (d - uc)
         do j = 1, this%n_downstream_pools(irxn)
            ispec_d = this%downstream_id(irxn, j)
            if(ispec_d < 0) then
@@ -1545,46 +1556,28 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
            endif
         enddo
 
-!with respect to upstream n (due to variable CN ratio)
-        if(this%is_litter_decomp(irxn)) then
-          if(this%litter_decomp_type == LITTER_DECOMP_CLMCN) then
-        ! upstream n, dR_Nu/dNu = d uR/dNu = R/Cu = dR/dCu
-            Jacobian(ires_un,ires_un) = Jacobian(ires_un,ires_un) -(-1.d0)*drate_uc_no3
-        ! mineral N, dR_N/dNu = d nR/du = Rd (u - (1-f)d)/dNu = dR/dCu 
-            Jacobian(ires_no3,ires_un) = Jacobian(ires_no3,ires_un) - drate_uc_no3
-
-            if(this%species_id_nimm > 0) then
-              Jacobian(ires_nimm,ires_un) = Jacobian(ires_nimm,ires_un) + drate_uc_no3
-            endif
-
-          else   ! litter decomposition CLM-MICROBE
-
-          endif 
-        endif
-
-!with respect to no3
-!        if(stoich_mineraln < 0.0d0) then
-        ! carbon
+        ! --- with respect to no3 ('drate_no3')
+        ! CO2 (co2 - no3)
         Jacobian(ires_co2,ires_no3) = Jacobian(ires_co2,ires_no3) - &
             this%mineral_c_stoich(irxn) * drate_no3 * &
             rt_auxvar%aqueous%dtotal(this%species_id_co2,this%species_id_no3,iphase)
   
-        if(this%species_id_hrimm > 0) then
+        if(this%species_id_hrimm > 0) then   ! for tracking
             Jacobian(ires_hrimm,ires_no3) = Jacobian(ires_hrimm,ires_no3) - &
                this%mineral_c_stoich(irxn) * drate_no3
         endif
 
-        ! nitrogen
+        ! NO3 (no3 - no3)
         Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) - &
             this%mineral_n_stoich(irxn) * drate_no3 * &
             rt_auxvar%aqueous%dtotal(this%species_id_no3,this%species_id_no3,iphase)
   
-        if(this%species_id_nimm > 0) then
+        if(this%species_id_nimm > 0) then   ! for tracking
            Jacobian(ires_nimm,ires_no3) = Jacobian(ires_nimm,ires_no3) + &
             this%mineral_n_stoich(irxn) * drate_no3
         endif
 
-        ! upstream C pool
+        ! upstream (uc/un - no3)
         if(this%upstream_is_aqueous(irxn)) then
            Jacobian(ires_uc,ires_no3) = Jacobian(ires_uc,ires_no3) - &
             (-1.d0) * drate_no3 * &
@@ -1594,17 +1587,14 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
             (-1.d0) * drate_no3
         endif
  
-        ! upstream N pool
         if(this%is_litter_decomp(irxn)) then
            Jacobian(ires_un,ires_no3) = Jacobian(ires_un,ires_no3) - &
              (-1.d0) * this%upstream_nc(irxn) * drate_no3
         endif
   
-!   downstream pools
+        ! downstream (d - no3)
         do j = 1, this%n_downstream_pools(irxn)
-
            ispec_d = this%downstream_id(irxn, j)
-
            if(ispec_d < 0) then
              cycle
            endif
@@ -1621,28 +1611,28 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
            endif
         enddo
 
-! with respect to nh3
-        ! carbon
+        ! ---- with respect to nh3 ('drate_nh3_no3' for NH4 inhibited NO3 immobilization)
+        ! CO2 (co2 - nh3)
         Jacobian(ires_co2,ires_nh3) = Jacobian(ires_co2,ires_nh3) - &
           this%mineral_c_stoich(irxn) * drate_nh3_no3 * &
           rt_auxvar%aqueous%dtotal(this%species_id_co2,this%species_id_nh3,iphase)
 
-        if(this%species_id_hrimm > 0) then
+        if(this%species_id_hrimm > 0) then   ! for tracking
           Jacobian(ires_hrimm,ires_nh3) = Jacobian(ires_hrimm,ires_nh3) - &
              this%mineral_c_stoich(irxn) * drate_nh3_no3
         endif
 
-        ! nitrogen
+        ! NO3 (no3 - nh3)
         Jacobian(ires_no3,ires_nh3) = Jacobian(ires_no3,ires_nh3) - &
           this%mineral_n_stoich(irxn) * drate_nh3_no3 * &
           rt_auxvar%aqueous%dtotal(this%species_id_no3,this%species_id_nh3,iphase)
   
-        if(this%species_id_nimm > 0) then
+        if(this%species_id_nimm > 0) then   ! for tracking
            Jacobian(ires_nimm,ires_nh3) = Jacobian(ires_nimm,ires_nh3) + &
             this%mineral_n_stoich(irxn) * drate_nh3_no3
         endif
 
-        ! upstream C pool
+        ! upstream (uc/un - nh3)
         if(this%upstream_is_aqueous(irxn)) then
           Jacobian(ires_uc,ires_nh3) = Jacobian(ires_uc,ires_nh3) - &
           (-1.d0) * drate_nh3_no3 * &
@@ -1652,17 +1642,15 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
           (-1.d0) * drate_nh3_no3
         endif
   
-        ! upstream N pool
         if(this%is_litter_decomp(irxn)) then
            Jacobian(ires_un,ires_nh3) = Jacobian(ires_un,ires_nh3) - &
              (-1.d0) * this%upstream_nc(irxn) * drate_nh3_no3 
         endif
   
-!   downstream pools
+        ! downstream (d - nh3)
         do j = 1, this%n_downstream_pools(irxn)
 
            ispec_d = this%downstream_id(irxn, j)
-
            if(ispec_d < 0) then
              cycle
            endif
@@ -1678,21 +1666,22 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
                   this%downstream_stoich(irxn, j) * drate_nh3_no3
            endif
         enddo
-      endif  ! jacobian calculation for N immobilization reaction with NO3 uptake
 
-!  write(*,*)(Residual(j), j = 1, reaction%ncomp)
-!  do i = 1, reaction%ncomp
-!     write(*,*)(Jacobian(i, j), j = 1, reaction%ncomp)
-!  enddo
+      endif  ! end of jacobian calculation for NO3 immobilization, if any
 
-    endif    ! jacobian calculation
+    endif ! end of all jacobian calculations
  
-  enddo      !reactions
+  enddo ! reactions loop
 
-  if(this%species_id_n2o > 0 .and. net_n_mineralization_rate > 0.0d0) then
-  ! temperature response function (Parton et al. 1996)
+!++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+  if(this%species_id_n2o > 0 .and. net_n_mineralization_rate > 1.0d-20) then
+
 #ifdef CLM_PFLOTRAN
+    ! temperature/moisture/pH response functions (Parton et al. 1996)
     f_t = -0.06d0 + 0.13d0 * exp( 0.07d0 * tc )
+
     f_w = ((1.27d0 - saturation)/0.67d0)**(3.1777d0) * &
         ((saturation - 0.0012d0)/0.5988d0)**2.84d0  
 
@@ -1724,17 +1713,16 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
       temp_real = temp_real * this%n2o_frac_mineralization 
     
-    ! residuals 
+      ! residuals
       rate_n2o = temp_real * net_n_mineralization_rate * f_nh3
- 
+
       Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o 
-
       Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
-
       if(this%species_id_ngasmin > 0) then
          Residual(ires_ngasmin) = Residual(ires_ngasmin) - 0.5d0 * rate_n2o
       endif
 
+      ! jacobians
       if (compute_derivative) then
         drate_n2o = temp_real * net_n_mineralization_rate * d_nh3
         Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_n2o
@@ -1745,8 +1733,10 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
                                       0.5d0 * drate_n2o
         endif
       endif
-    endif
-  endif
+
+    endif  ! end of 'f_t/f_w/f_ph > 1.0d-20'
+
+  endif ! end of 'species_id_n2o > 0'
 
 end subroutine CLM_Decomp_React
 

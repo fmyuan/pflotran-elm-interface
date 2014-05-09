@@ -214,19 +214,15 @@ module clm_pflotran_interface_data
   Vec :: gtemp_subbase_pfs   ! seq vec
 
   ! -----BGC vecs from PF (mpi, ghosted) to CLM (seq, local) --------------------
-  ! TH properties
-  Vec :: sr_pfp    ! MVM soil hydraulic properties
-  Vec :: lamda_pfp
-  Vec :: alpha_pfp
+  ! TH properties (useful to do some calculation in the interface)
+  Vec :: sr_pcwmax_pfp     ! MVM soil hydraulic properties
   Vec :: pcwmax_pfp
   Vec :: porosity_pfp
-  Vec :: press_ref_pfp
-  Vec :: sr_clms    ! MVM soil hydraulic properties
-  Vec :: lamda_clms
-  Vec :: alpha_clms
+  Vec :: sr_pcwmax_clms    ! MVM soil hydraulic properties
   Vec :: pcwmax_clms
   Vec :: porosity_clms
-  Vec :: press_ref_clms
+
+  PetscReal :: pressure_reference
 
   ! TH state vecs from PF (mpi) to CLM (seq)
   Vec :: press_pfp                     ! water pressure head (Pa)
@@ -555,18 +551,14 @@ contains
     clm_pf_idata%gtemp_subbase_pfs  = 0
 
     ! for updating bgc/TH states from PF to CLM
-    clm_pf_idata%sr_pfp       = 0
-    clm_pf_idata%lamda_pfp    = 0
-    clm_pf_idata%alpha_pfp    = 0
+    clm_pf_idata%sr_pcwmax_pfp= 0
     clm_pf_idata%pcwmax_pfp   = 0
     clm_pf_idata%porosity_pfp = 0
-    clm_pf_idata%press_ref_pfp= 0
-    clm_pf_idata%sr_clms       = 0
-    clm_pf_idata%lamda_clms    = 0
-    clm_pf_idata%alpha_clms    = 0
+    clm_pf_idata%sr_pcwmax_clms= 0
     clm_pf_idata%pcwmax_clms   = 0
     clm_pf_idata%porosity_clms = 0
-    clm_pf_idata%press_ref_clms= 0
+
+    clm_pf_idata%pressure_reference = 1.01325d5
 
     clm_pf_idata%press_pfp    = 0
     clm_pf_idata%soilpsi_pfp  = 0
@@ -905,6 +897,7 @@ contains
     call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%qflux_subsurf_clmp,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%press_maxponding_clmp,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%gtemp_subsurf_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%press_ref_clmp,ierr)
 
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_bottom,PETSC_DECIDE,clm_pf_idata%press_subbase_clmp,ierr)    ! TH bottom BC (2D)
     call VecSet(clm_pf_idata%press_subbase_clmp,0.d0,ierr)
@@ -931,6 +924,7 @@ contains
     call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%qflux_subsurf_pfs,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%press_maxponding_pfs,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%gtemp_subsurf_pfs,ierr)            ! T
+    call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%press_ref_pfs,ierr)
 
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_bottom,clm_pf_idata%press_subbase_pfs,ierr)  ! H
     call VecSet(clm_pf_idata%press_subbase_pfs,0.d0,ierr)
@@ -993,9 +987,7 @@ contains
     ! MPI Vecs for PFLOTRAN
     call VecCreateMPI(mycomm,clm_pf_idata%nlpf_sub,PETSC_DECIDE,clm_pf_idata%porosity_pfp,ierr)
     call VecSet(clm_pf_idata%porosity_pfp,0.d0,ierr)
-    call VecDuplicate(clm_pf_idata%porosity_pfp,clm_pf_idata%sr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%porosity_pfp,clm_pf_idata%alpha_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%porosity_pfp,clm_pf_idata%lamda_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfp,clm_pf_idata%sr_pcwmax_pfp,ierr)
     call VecDuplicate(clm_pf_idata%porosity_pfp,clm_pf_idata%pcwmax_pfp,ierr)
 
     call VecDuplicate(clm_pf_idata%porosity_pfp,clm_pf_idata%press_pfp,ierr)
@@ -1007,9 +999,7 @@ contains
     ! Seq. Vecs for CLM
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_sub,clm_pf_idata%porosity_clms,ierr)
     call VecSet(clm_pf_idata%porosity_clms,0.d0,ierr)
-    call VecDuplicate(clm_pf_idata%porosity_clms,clm_pf_idata%sr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%porosity_clms,clm_pf_idata%alpha_clms,ierr)
-    call VecDuplicate(clm_pf_idata%porosity_clms,clm_pf_idata%lamda_clms,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clms,clm_pf_idata%sr_pcwmax_clms,ierr)
     call VecDuplicate(clm_pf_idata%porosity_clms,clm_pf_idata%pcwmax_clms,ierr)
 
     call VecDuplicate(clm_pf_idata%porosity_clms,clm_pf_idata%press_clms,ierr)
@@ -1352,23 +1342,15 @@ contains
        call VecDestroy(clm_pf_idata%gtemp_subbase_pfs,ierr)
 
     !
-    if(clm_pf_idata%sr_pfp /= 0) &
-       call VecDestroy(clm_pf_idata%sr_pfp,ierr)
-    if(clm_pf_idata%lamda_pfp /= 0) &
-       call VecDestroy(clm_pf_idata%lamda_pfp,ierr)
-    if(clm_pf_idata%alpha_pfp /= 0) &
-       call VecDestroy(clm_pf_idata%alpha_pfp,ierr)
+    if(clm_pf_idata%sr_pcwmax_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%sr_pcwmax_pfp,ierr)
     if(clm_pf_idata%pcwmax_pfp /= 0) &
        call VecDestroy(clm_pf_idata%pcwmax_pfp,ierr)
     if(clm_pf_idata%porosity_pfp /= 0) &
        call VecDestroy(clm_pf_idata%porosity_pfp,ierr)
 
-    if(clm_pf_idata%sr_clms /= 0) &
-       call VecDestroy(clm_pf_idata%sr_clms,ierr)
-    if(clm_pf_idata%lamda_clms /= 0) &
-       call VecDestroy(clm_pf_idata%lamda_clms,ierr)
-    if(clm_pf_idata%alpha_clms /= 0) &
-       call VecDestroy(clm_pf_idata%alpha_clms,ierr)
+    if(clm_pf_idata%sr_pcwmax_clms /= 0) &
+       call VecDestroy(clm_pf_idata%sr_pcwmax_clms,ierr)
     if(clm_pf_idata%pcwmax_clms /= 0) &
        call VecDestroy(clm_pf_idata%pcwmax_clms,ierr)
     if(clm_pf_idata%porosity_clms /= 0) &

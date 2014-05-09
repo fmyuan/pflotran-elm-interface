@@ -136,7 +136,7 @@ module pflotran_model_module
   public ::  &
        pflotranModelResetSoilPorosity,         &
        pflotranModelGetSoilProp,               &
-       pflotranModelSetInitialTHStatesfromCLM, &    ! initializing TH from CLM to PFLOTRAN flow mode
+       pflotranModelSetInternalTHStatesfromCLM, &    ! initializing TH from CLM to PFLOTRAN flow mode
        pflotranModelSetInitialConcentrations,  &
        pflotranModelUpdateTHfromCLM,           &    ! dynamically update TH from CLM to drive PFLOTRAN BGC
        pflotranModelUpdateAqGasesFromCLM,      &
@@ -3888,7 +3888,7 @@ end subroutine pflotranModelSetICs
 
   ! ************************************************************************** !
   !
-  ! pflotranModelSetInitialTHStatesfromCLM: Set initial TH States from CLM
+  ! pflotranModelSetInternalTHStatesfromCLM: Set initial TH States from CLM
   !
   ! Note: This subroutine directly set initial soil temperature and saturation from CLM
   !       It's needed because of uniform initialization of TH states in PFLOTRAN, which
@@ -3899,7 +3899,7 @@ end subroutine pflotranModelSetICs
   ! author: Fengming YUAN
   ! date: 9/23/2013
   ! ************************************************************************** !
-subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
+subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
 
     use Realization_class
     use Patch_module
@@ -4017,7 +4017,7 @@ subroutine pflotranModelSetInitialTHStatesfromCLM(pflotran_model)
         endif
     end select
 
-end subroutine pflotranModelSetInitialTHStatesfromCLM
+end subroutine pflotranModelSetInternalTHStatesfromCLM
 
   ! ************************************************************************** !
   ! pflotranModelSetSoilHbcs()
@@ -4423,15 +4423,14 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
+    PetscReal          :: tempreal
 
     ! pf internal variables
     PetscReal, pointer :: porosity_loc_p(:)
 
-    ! clm-pf-interface Vecs for MVM parameters
+    ! clm-pf-interface Vecs for PF thermal-hydroloical parameters used in CLM-PFLOTRAN interface
     PetscScalar, pointer :: porosity_loc_pfp(:)  ! soil porosity
-    PetscScalar, pointer :: sr_loc_pfp(:)        ! residual soil vwc
-    PetscScalar, pointer :: alpha_loc_pfp(:)     ! alfa
-    PetscScalar, pointer :: lamda_loc_pfp(:)     ! lamda
+    PetscScalar, pointer :: sr_pcwmax_loc_pfp(:) ! soil vwc at max. capillary pressure (note: not 'Sr')
     PetscScalar, pointer :: pcwmax_loc_pfp(:)    ! max. capillary pressure
 
     select type (simulation => pflotran_model%simulation)
@@ -4452,9 +4451,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call VecGetArrayF90(field%porosity0,porosity_loc_p,ierr)
 
     call VecGetArrayF90(clm_pf_idata%porosity_pfp, porosity_loc_pfp, ierr)
-    call VecGetArrayF90(clm_pf_idata%sr_pfp, sr_loc_pfp, ierr)
-    call VecGetArrayF90(clm_pf_idata%alpha_pfp, alpha_loc_pfp, ierr)
-    call VecGetArrayF90(clm_pf_idata%lamda_pfp, lamda_loc_pfp, ierr)
+    call VecGetArrayF90(clm_pf_idata%sr_pcwmax_pfp, sr_pcwmax_loc_pfp, ierr)
     call VecGetArrayF90(clm_pf_idata%pcwmax_pfp, pcwmax_loc_pfp, ierr)
 
     do local_id=1,grid%nlmax
@@ -4463,22 +4460,25 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
            if (patch%imat(ghosted_id) <= 0) cycle
         endif
 
+        ! PF's porosity
         porosity_loc_pfp(local_id) = porosity_loc_p(ghosted_id)
 
         saturation_function => patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
 
-        sr_loc_pfp(local_id) = saturation_function%Sr(pflotran_model%option%nphase)
-        alpha_loc_pfp(local_id) = saturation_function%alpha
-        lamda_loc_pfp(local_id) = saturation_function%lambda
+        ! PF's limits on soil matrix potential (Capillary pressure)
         pcwmax_loc_pfp(local_id) = saturation_function%pcwmax
+
+        ! PF's limits on soil water at pcwmax (NOT: not 'Sr', at which PC is nearly 'inf')
+        call SaturationFunctionCompute(saturation_function%pcwmax, tempreal, &
+                                      saturation_function, &
+                                      pflotran_model%option)
+        sr_pcwmax_loc_pfp(local_id) = tempreal
 
     enddo
 
     call VecRestoreArrayF90(field%porosity0,porosity_loc_p,ierr)
     call VecRestoreArrayF90(clm_pf_idata%porosity_pfp, porosity_loc_pfp, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%sr_pfp, sr_loc_pfp, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%alpha_pfp, alpha_loc_pfp, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%lamda_pfp, lamda_loc_pfp, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%sr_pcwmax_pfp, sr_pcwmax_loc_pfp, ierr)
     call VecRestoreArrayF90(clm_pf_idata%pcwmax_pfp, pcwmax_loc_pfp, ierr)
 
     !
@@ -4489,23 +4489,16 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%sr_pfp, &
-                                    clm_pf_idata%sr_clms)
-
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%alpha_pfp, &
-                                    clm_pf_idata%alpha_clms)
-
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%lamda_pfp, &
-                                    clm_pf_idata%lamda_clms)
+                                    clm_pf_idata%sr_pcwmax_pfp, &
+                                    clm_pf_idata%sr_pcwmax_clms)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%pcwmax_pfp, &
                                     clm_pf_idata%pcwmax_clms)
+
+    ! reference pressure
+    clm_pf_idata%pressure_reference = pflotran_model%option%reference_pressure
 
   end subroutine pflotranModelGetSoilProp
 
@@ -4602,6 +4595,12 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                     pflotran_model%option, &
                                     clm_pf_idata%porosity_pfp, &
                                     clm_pf_idata%porosity_clms)
+
+    ! need to save ice saturation data for convenience
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%soilisat_pfp, &
+                                    clm_pf_idata%soilisat_clms)
 
   end subroutine pflotranModelResetSoilPorosity
 

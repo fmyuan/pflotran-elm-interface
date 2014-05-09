@@ -80,7 +80,7 @@ subroutine Output(realization_base,plot_flag,transient_plot_flag)
   ! 
 
   use Realization_Base_class, only : realization_base_type
-  use Option_module, only : OptionCheckTouch, option_type, printMsg
+  use Option_module, only : OptionCheckTouch, option_type, printMsg, printErrMsg
   
   implicit none
   
@@ -117,11 +117,16 @@ subroutine Output(realization_base,plot_flag,transient_plot_flag)
       call PetscLogEventBegin(logging%event_output_hdf5,ierr)    
       if (realization_base%discretization%itype == UNSTRUCTURED_GRID .or. &
           realization_base%discretization%itype == UNSTRUCTURED_GRID_MIMETIC) then
-        if (realization_base%discretization%grid%itype == EXPLICIT_UNSTRUCTURED_GRID) then
-          call OutputHDF5UGridXDMFExplicit(realization_base,INSTANTANEOUS_VARS)
-        else
-          call OutputHDF5UGridXDMF(realization_base,INSTANTANEOUS_VARS)
-        endif
+        select case (realization_base%discretization%grid%itype)
+          case (EXPLICIT_UNSTRUCTURED_GRID)
+            if (option%print_explicit_primal_grid) then
+              call OutputHDF5UGridXDMFExplicit(realization_base,INSTANTANEOUS_VARS)
+            endif
+          case (IMPLICIT_UNSTRUCTURED_GRID)
+            call OutputHDF5UGridXDMF(realization_base,INSTANTANEOUS_VARS)
+          case (POLYHEDRA_UNSTRUCTURED_GRID)
+            call printErrMsg(option,'Add code for HDF5 output for Polyhedra mesh')
+        end select
       else
         call OutputHDF5(realization_base,INSTANTANEOUS_VARS)
       endif      
@@ -133,7 +138,7 @@ subroutine Output(realization_base,plot_flag,transient_plot_flag)
                                option%hdf5_write_group_size
 #endif
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') tend-tstart
-      call printMsg(option)
+      !call printMsg(option)
     endif
    
     if (realization_base%output_option%print_tecplot) then
@@ -877,7 +882,7 @@ subroutine OutputAvegVars(realization_base)
       call PetscLogEventEnd(logging%event_output_hdf5,ierr)    
       call PetscTime(tend,ierr)
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') tend-tstart
-      call printMsg(option)
+!      call printMsg(option)
     endif
 
     ! Reset the vectors to zero

@@ -24,6 +24,7 @@ PFLOTRAN_OBJS = \
 	$(SRC_DIR)/option.o \
 	$(SRC_DIR)/option_flow.o \
 	$(SRC_DIR)/option_transport.o \
+	$(SRC_DIR)/saturation_function.o \
 	$(SRC_DIR)/string.o \
 	$(SRC_DIR)/utility.o
 
@@ -45,7 +46,7 @@ unittests : testSuites.inc $(TEST_OBJS) $(PFLOTRAN_OBJS)
 # generic rules for converting from .pf --> .F90 --> .o
 #
 %.F90 : %.pf
-	$(PFUNIT_DIR)/bin/pFUnitParser.py $< $@
+	$(PYTHON) $(PFUNIT_DIR)/bin/pFUnitParser.py $< $@
 
 %$(OBJ_EXT) : %.F90
 	$(FC) -c $(FC_FLAGS) $(FFLAGS) ${FCPPFLAGS} $<
