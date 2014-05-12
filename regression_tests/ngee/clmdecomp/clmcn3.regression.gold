@@ -9,10 +9,10 @@
      Mean:   1.0624995715301E-05
         1:   1.0624995715301E-05
 -- CONCENTRATION: Total NO3- --
-      Max:   9.9999998657356E-21
-      Min:   9.9999998657356E-21
-     Mean:   9.9999998657356E-21
-        1:   9.9999998657356E-21
+      Max:   9.9999999079614E-21
+      Min:   9.9999999079614E-21
+     Mean:   9.9999999079614E-21
+        1:   9.9999999079614E-21
 -- CONCENTRATION: Total N2O(aq) --
       Max:   1.0841833179472E-07
       Min:   1.0841833179472E-07
@@ -74,10 +74,10 @@
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   1.0558509826660E-01
+   Time (seconds):   1.2572693824768E-01
    Time Steps:           56
    Newton Iterations:          203
    Solver Iterations:          203
    Time Step Cuts:            0
    Solution 2-Norm:   2.3677536766785E-01
-   Residual 2-Norm:   9.2178726919534E-23
+   Residual 2-Norm:   9.2658918007114E-23

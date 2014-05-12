@@ -1,0 +1,38 @@
+-- CONCENTRATION: Total NH3(aq) --
+      Max:   1.0000000000000E-20
+      Min:   1.0000000000000E-20
+     Mean:   1.0000000000000E-20
+        1:   1.0000000000000E-20
+-- CONCENTRATION: Total NO3- --
+      Max:   1.0000000000000E-20
+      Min:   1.0000000000000E-20
+     Mean:   1.0000000000000E-20
+        1:   1.0000000000000E-20
+-- CONCENTRATION: Total HCO3- --
+      Max:   9.7957451861985E-04
+      Min:   9.7957451861985E-04
+     Mean:   9.7957451861985E-04
+        1:   9.7957451861985E-04
+-- CONCENTRATION: SOM1 --
+      Max:   1.2537989270821E-01
+      Min:   1.2537989270821E-01
+     Mean:   1.2537989270821E-01
+        1:   1.2537989270821E-01
+-- CONCENTRATION: SOM2 --
+      Max:   6.2972647725009E-01
+      Min:   6.2972647725009E-01
+     Mean:   6.2972647725009E-01
+        1:   6.2972647725009E-01
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   1.1290931701660E-01
+   Time Steps:          205
+   Newton Iterations:          227
+   Solver Iterations:          227
+   Time Step Cuts:            0
+   Solution 2-Norm:   6.4208762113248E-01
+   Residual 2-Norm:   0.0000000000000E+00
