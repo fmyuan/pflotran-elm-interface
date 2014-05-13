@@ -46,8 +46,8 @@ module pflotran_model_module
   PetscInt, parameter, public :: PF_SRF_TO_CLM_SRF           = 6 ! 2D SURF grid --> 2D
 
   PetscInt, parameter, public :: CLM_BOT_TO_PF_2DBOT         = 11 ! 2D CLM BOT --> BOTTOM of 3D grid
-  PetscInt, parameter, public :: PF_2D_SUB_TO_CLM_SRF        = 12 ! SURF of 3D PF grid -> 2D CLM SURF
-  PetscInt, parameter, public :: PF_2D_BOT_TO_CLM_BOT        = 13 ! BOT of PF 3D grid -> 2D CLM BOT
+  PetscInt, parameter, public :: PF_2DSUB_TO_CLM_SRF         = 12 ! SURF of 3D PF grid -> 2D CLM SURF
+  PetscInt, parameter, public :: PF_2DBOT_TO_CLM_BOT         = 13 ! BOT of PF 3D grid -> 2D CLM BOT
 
   ! mesh ids
   PetscInt, parameter, public :: CLM_SUB_MESH   = 1
@@ -877,7 +877,7 @@ end subroutine pflotranModelSetICs
                                       grid_clm_cell_ids_nindex, &
                                       grid_clm_npts_local, &
                                       map_id)
-      case (CLM_SRF_TO_PF_2DSUB)
+      case (CLM_SRF_TO_PF_2DSUB, PF_2DSUB_TO_CLM_SRF)
         call pflotranModelInitMapSrfTo2DSub(pflotran_model,  &
                                             grid_clm_cell_ids_nindex, &
                                             grid_clm_npts_local, &
@@ -887,21 +887,11 @@ end subroutine pflotranModelSetICs
                                             grid_clm_cell_ids_nindex, &
                                             grid_clm_npts_local, &
                                             map_id)
-      case (CLM_BOT_TO_PF_2DBOT)
+      case (CLM_BOT_TO_PF_2DBOT, PF_2DBOT_TO_CLM_BOT)
         call pflotranModelInitMapFaceToFace(pflotran_model,  &
                                             grid_clm_cell_ids_nindex, &
                                             grid_clm_npts_local, &
                                             map_id)
-!      case (PF_2DSUB_TO_CLM_SRF)
-!        call pflotranModelInitMapSrfTo2DSub(pflotran_model,  &
-!                                            grid_clm_cell_ids_nindex, &
-!                                            grid_clm_npts_local, &
-!                                            map_id)
-!      case (PF_2DBOT_TO_CLM_BOT)
-!        call pflotranModelInitMapFaceToFace(pflotran_model,  &
-!                                            grid_clm_cell_ids_nindex, &
-!                                            grid_clm_npts_local, &
-!                                            map_id)
 
       case default
         pflotran_model%option%io_buffer = 'Invalid map_id argument to ' // &
@@ -1159,9 +1149,13 @@ end subroutine pflotranModelSetICs
         map => pflotran_model%map_clm_srf_to_pf_2dsub
         source_mesh_id = CLM_SUB_MESH
         dest_mesh_id = PF_2DSUB_MESH
+      case(PF_2DSUB_TO_CLM_SRF)
+        map => pflotran_model%map_pf_2dsub_to_clm_srf
+        source_mesh_id = PF_2DSUB_MESH
+        dest_mesh_id = CLM_SUB_MESH
       case default
         option%io_buffer = 'Invalid map_id argument to ' // &
-          'pflotranModelInitMappingSurf3D'
+          'pflotranModelInitMappingSurfTo2DSub'
         call printErrMsg(option)
     end select
 
@@ -1180,20 +1174,22 @@ end subroutine pflotranModelSetICs
     do local_id = 1, grid_clm_npts_local
       grid_clm_local_nindex(local_id) = 1 ! LOCAL
     enddo
+    clm_pf_idata%nlclm_2dsub = grid_clm_npts_local
+    clm_pf_idata%ngclm_2dsub = grid_clm_npts_local
 
+    ! Find cell IDs for PFLOTRAN 3D-grid's surface
     ! Mapping to/from surface of PFLOTRAN domain
     found=PETSC_FALSE
     grid_pf_npts_local = 0
     grid_pf_npts_ghost = 0
 
-    select case (dest_mesh_id)
-
-      case(PF_2DSUB_MESH)
+    !select case (dest_mesh_id)
+    if (source_mesh_id == PF_2DSUB_MESH .or.  &!  case(PF_2DSUB_MESH)
+        dest_mesh_id == PF_2DSUB_MESH) then        ! mesh is PF_2DSUB_MESH
 
         patch => realization%patch
         grid => patch%grid
 
-        ! Destination mesh is PF_2DSUB_MESH
         boundary_condition => patch%boundary_conditions%first
         sum_connection = 0
         do 
@@ -1226,16 +1222,14 @@ end subroutine pflotranModelSetICs
 
         ! Setting the number of cells constituting the surface of the 3D
         ! subsurface domain for each model.
-        clm_pf_idata%nlclm_2dsub = grid_clm_npts_local
-        clm_pf_idata%ngclm_2dsub = grid_clm_npts_local
         clm_pf_idata%nlpf_2dsub  = grid_pf_npts_local
         clm_pf_idata%ngpf_2dsub  = grid_pf_npts_local
 
-      case default
-        option%io_buffer='Unknown source mesh'
+      else !case default
+        option%io_buffer='Unknown mesh'
         call printErrMsg(option)
       
-    end select
+    endif !end select
 
     if(.not.found) then
       pflotran_model%option%io_buffer = 'clm_gflux_bc not found in boundary conditions'
@@ -1314,7 +1308,7 @@ end subroutine pflotranModelSetICs
     call VecDestroy(surf_ids_loc, ierr)
 
     !
-    ! Step-2: Recompute 'map%s2d_iscr'
+    ! Step-2: Recompute 'map%s2d_i/jscr' for pf mesh
     !
     call VecCreateSeq(PETSC_COMM_SELF, map%s2d_nwts, surf_ids_loc, ierr)
     allocate(int_array(map%s2d_nwts))
@@ -1326,7 +1320,11 @@ end subroutine pflotranModelSetICs
 
 
     do iconn = 1, map%s2d_nwts
-      int_array(iconn) = map%s2d_icsr(iconn)
+      if (dest_mesh_id == PF_2DSUB_MESH) then
+         int_array(iconn) = map%s2d_icsr(iconn)
+      elseif (source_mesh_id == PF_2DSUB_MESH) then
+         int_array(iconn) = map%s2d_jcsr(iconn)
+      endif
     enddo
     call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
                          PETSC_COPY_VALUES, is_from, ierr)
@@ -1349,7 +1347,11 @@ end subroutine pflotranModelSetICs
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
         count = count + 1
-        map%s2d_icsr(count) = INT(v_loc(iconn))
+        if (dest_mesh_id == PF_2DSUB_MESH) then
+            map%s2d_icsr(count) = INT(v_loc(iconn))
+        elseif (source_mesh_id == PF_2DSUB_MESH) then
+            map%s2d_jcsr(count) = INT(v_loc(iconn))
+        endif
       endif
     enddo
     call VecRestoreArrayF90(surf_ids_loc, v_loc, ierr)
@@ -1436,7 +1438,7 @@ end subroutine pflotranModelSetICs
 
 
     !
-    ! Step-4: Recompute 'map%s2d_jscr'
+    ! Step-4: Recompute 'map%s2d_i/jscr' for clm mesh
     !
     call VecCreateSeq(PETSC_COMM_SELF, map%s2d_nwts, surf_ids_loc, ierr)
     allocate(int_array(map%s2d_nwts))
@@ -1448,7 +1450,11 @@ end subroutine pflotranModelSetICs
 
 
     do iconn = 1, map%s2d_nwts
-      int_array(iconn) = map%s2d_jcsr(iconn)
+      if (source_mesh_id == CLM_SUB_MESH) then
+         int_array(iconn) = map%s2d_jcsr(iconn)
+      elseif (dest_mesh_id == CLM_SUB_MESH) then
+         int_array(iconn) = map%s2d_icsr(iconn)
+      endif
     enddo
     call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
                          PETSC_COPY_VALUES, is_from, ierr)
@@ -1471,7 +1477,11 @@ end subroutine pflotranModelSetICs
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
         count = count + 1
-        map%s2d_jcsr(count) = INT(v_loc(iconn))
+        if (source_mesh_id == CLM_SUB_MESH) then
+           map%s2d_jcsr(count) = INT(v_loc(iconn))
+        elseif (dest_mesh_id == CLM_SUB_MESH) then
+           map%s2d_icsr(count) = INT(v_loc(iconn))
+        endif
       endif
     enddo
     call VecRestoreArrayF90(surf_ids_loc, v_loc, ierr)
@@ -1492,7 +1502,7 @@ end subroutine pflotranModelSetICs
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
-      case(PF_SUB_MESH)
+      case(PF_2DSUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
                                         grid_pf_cell_ids_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
@@ -1501,7 +1511,7 @@ end subroutine pflotranModelSetICs
                                               grid_clm_local_nindex)
       case default
         option%io_buffer = 'Invalid argument source_mesh_id passed to ' // &
-          'pflotranModelInitMappingSurf3D'
+          'pflotranModelInitMappingSurfTo2DSub'
         call printErrMsg(option)
     end select
 
@@ -4145,7 +4155,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
               local_id = cur_connection_set%id_dn(iconn)
               ghosted_id = grid%nL2G(local_id)
               if (patch%imat(ghosted_id) <= 0) cycle
-
+!(TODO-- is 'iconn' containing 'cell' id information??
               if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
                    boundary_condition%flow_aux_real_var(press_dof,iconn)= &
                        press_subsurf_pf_loc(iconn)
@@ -4167,7 +4177,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 !
 !              if (boundary_condition%flow_condition%itype(press_dof) == SEEPAGE_BC) then
 !                   boundary_condition%flow_aux_real_var(press_dof,iconn)= &
-!                       press_maxponding_pf_loc(iconn)
+!                       press_maxponding_pf_loc(local_id)
 !              end if
 !
 !           enddo
@@ -4183,7 +4193,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
               if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
                    boundary_condition%flow_aux_real_var(press_dof,iconn)= &
-                       press_subbase_pf_loc(iconn)
+                       press_subbase_pf_loc(iconn)                                                 !'local_id' or 'ghosted_id'??? - needs further checking
               else if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
                    boundary_condition%flow_aux_real_var(press_dof,iconn)= &
                        qflux_subbase_pf_loc(iconn)
@@ -4229,6 +4239,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Patch_module
     use Grid_module
     use Option_module
+    use Connection_module
     use Coupler_module
     use Utility_module
     use String_module
@@ -4245,27 +4256,30 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     implicit none
 
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
     type(pflotran_model_type), pointer :: pflotran_model
     class(realization_type), pointer :: realization
 
     type(option_type), pointer :: option
     type(patch_type), pointer :: patch
     type(grid_type), pointer :: grid
-    type(reaction_type), pointer :: reaction
 
     type(coupler_type), pointer :: boundary_condition
+    type(connection_set_type), pointer :: cur_connection_set
     type(global_auxvar_type), pointer :: global_auxvars_bc(:)
     type(reactive_transport_auxvar_type), pointer :: rt_auxvars_bc(:)
 
-    PetscScalar, pointer :: qinfl_subsurf_pf_loc(:)
-    PetscScalar, pointer :: qsurf_subsurf_pf_loc(:)
-    PetscScalar, pointer :: qflux_subbase_pf_loc(:)
-    PetscScalar, pointer :: f_nh4_subsurf_pf_loc(:)
-    PetscScalar, pointer :: f_no3_subsurf_pf_loc(:)
-    PetscScalar, pointer :: f_nh4_subbase_pf_loc(:)
-    PetscScalar, pointer :: f_no3_subbase_pf_loc(:)
+    PetscReal, pointer :: qinfl_subsurf_pf_loc(:)
+    PetscReal, pointer :: qsurf_subsurf_pf_loc(:)
+    PetscReal, pointer :: qflux_subbase_pf_loc(:)
+    PetscReal, pointer :: f_nh4_subsurf_pf_loc(:)
+    PetscReal, pointer :: f_no3_subsurf_pf_loc(:)
+    PetscReal, pointer :: f_nh4_subbase_pf_loc(:)
+    PetscReal, pointer :: f_no3_subbase_pf_loc(:)
 
-    PetscInt :: iconn
+    PetscInt :: local_id, ghosted_id, iconn
     PetscInt :: offset
     PetscErrorCode :: ierr
 
@@ -4285,14 +4299,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     patch => realization%patch
     grid => patch%grid
     option => realization%option
-    reaction => realization%reaction
     !
-    boundary_condition => patch%boundary_conditions%first
-    global_auxvars_bc => patch%aux%Global%auxvars_bc
-    if (option%ntrandof > 0) then
-       rt_auxvars_bc => patch%aux%RT%auxvars_bc
-    endif
-
     call VecGetArrayF90(clm_pf_idata%qinfl_subsurf_pfp, qinfl_subsurf_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%qsurf_subsurf_pfp, qsurf_subsurf_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%qflux_subbase_pfp, qflux_subbase_pf_loc, ierr)
@@ -4301,44 +4308,53 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecGetArrayF90(clm_pf_idata%f_no3_subsurf_pfp, f_no3_subsurf_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%f_no3_subbase_pfp, f_no3_subbase_pf_loc, ierr)
 
+    qinfl_subsurf_pf_loc(:) = 0.d0
+    qsurf_subsurf_pf_loc(:) = 0.d0
+    qflux_subbase_pf_loc(:) = 0.d0
+
+    !
+    boundary_condition => patch%boundary_conditions%first
+    global_auxvars_bc => patch%aux%Global%auxvars_bc
+    if (option%ntrandof > 0) then
+       rt_auxvars_bc => patch%aux%RT%auxvars_bc
+    endif
+
     do
       if (.not.associated(boundary_condition)) exit
 
-      offset = boundary_condition%connection_set%offset
+      cur_connection_set => boundary_condition%connection_set
+
+      offset = cur_connection_set%offset
 
       if (option%nflowdof > 0) then
-          ! retrieving H2O flux at top BC
-          qinfl_subsurf_pf_loc(:) = 0.d0
-          qsurf_subsurf_pf_loc(:) = 0.d0
-          if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then          ! potential infilitration (+)
-            do iconn = 1, boundary_condition%connection_set%num_connections
-                qinfl_subsurf_pf_loc(iconn) = -global_auxvars_bc(offset+iconn)%    &
-                                        mass_balance_delta(1,option%liquid_phase)
-            enddo
-          endif
 
-          if(StringCompare(boundary_condition%name,'clm_gflux_overflow')) then    ! surface overflow (after actual infiltration) (-)
-            do iconn = 1, boundary_condition%connection_set%num_connections
-                qsurf_subsurf_pf_loc(iconn) = -global_auxvars_bc(offset+iconn)%  &
-                                        mass_balance_delta(1,option%liquid_phase)
+          ! retrieving H2O flux at top BC
+          do iconn = 1, cur_connection_set%num_connections
+             local_id = cur_connection_set%id_dn(iconn)
+             ghosted_id = grid%nL2G(local_id)
+             if (patch%imat(ghosted_id) <= 0) cycle
+
+             if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then          ! potential infilitration (+)
+                qinfl_subsurf_pf_loc(iconn) = &
+                               -global_auxvars_bc(offset+iconn)%mass_balance(1,1)                        !(TODO-checking if accumulative)
+             endif
+
+             if(StringCompare(boundary_condition%name,'clm_gflux_overflow')) then    ! surface overflow (after actual infiltration) (-)
+                qsurf_subsurf_pf_loc(iconn) = &
+                               -global_auxvars_bc(offset+iconn)%mass_balance(1,1)                                !(TODO-checking if accumulative)
+                ! if 'surfflow' defined, 'qinfl_' above is the potential, which needs adjusting below
                 qinfl_subsurf_pf_loc(iconn) = qinfl_subsurf_pf_loc(iconn)         &
                                               +qsurf_subsurf_pf_loc(iconn)        ! 'qsurf_' should be negative
-            enddo
-          endif
-          ! mass_balance_delta units = delta kmol h2o; must convert to delta kg h2o
-          qinfl_subsurf_pf_loc = qinfl_subsurf_pf_loc*FMWH2O
-          qsurf_subsurf_pf_loc = qsurf_subsurf_pf_loc*FMWH2O
+             endif
 
-          ! retrieving H2O flux at bottom BC
-          qflux_subbase_pf_loc(:) = 0.d0
-          if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then          ! bottom water flux
-            do iconn = 1, boundary_condition%connection_set%num_connections
-                qflux_subbase_pf_loc(iconn) = -global_auxvars_bc(offset+iconn)%  &
-                                           mass_balance_delta(1,option%liquid_phase)
-            enddo
-          endif
-          ! mass_balance_delta units = delta kmol h2o; must convert to delta kg h2o
-          qflux_subbase_pf_loc = qflux_subbase_pf_loc*FMWH2O
+             ! retrieving H2O flux at bottom BC
+             if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then          ! bottom water flux (TODO-checking if accumulative)
+                qflux_subbase_pf_loc(iconn) = &
+                               -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
+             endif
+
+          enddo
+
 
       endif
 
@@ -5455,6 +5471,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
   ! Date: 04/09/13
   !
   ! 02/14/2014 - TOP/BOTTOM faces, from CLM => PF, finished
+  ! 05/12/2014 - TOP/BOTTOM faces, from PF => CLM, finished
 
     use Input_Aux_module
     use Option_module
@@ -5540,13 +5557,27 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         source_mesh_id = CLM_FACE_MESH
         dest_mesh_id = PF_FACE_MESH
         condition_name = 'clm_gflux_bc'
+
+      case(PF_2DSUB_TO_CLM_SRF)
+        map => pflotran_model%map_pf_2dsub_to_clm_srf
+        source_mesh_id = PF_FACE_MESH
+        dest_mesh_id = CLM_FACE_MESH
+        condition_name = 'clm_gflux_bc'
+
       case(CLM_BOT_TO_PF_2DBOT)
         map => pflotran_model%map_clm_bot_to_pf_2dbot
         source_mesh_id = CLM_FACE_MESH
         dest_mesh_id = PF_FACE_MESH
         condition_name = 'clm_bflux_bc'
+
+      case(PF_2DBOT_TO_CLM_BOT)
+        map => pflotran_model%map_pf_2dbot_to_clm_bot
+        source_mesh_id = PF_FACE_MESH
+        dest_mesh_id = CLM_FACE_MESH
+        condition_name = 'clm_bflux_bc'
+
       case default
-        option%io_buffer = 'Invalid map_id argument to ' // &
+        option%io_buffer = 'map_id argument NOT yet support ' // &
           'pflotranModelInitMappingFaceToFace'
         call printErrMsg(option)
     end select
@@ -5571,15 +5602,14 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     grid_pf_npts_local = 0
     grid_pf_npts_ghost = 0
 
-    select case (dest_mesh_id)
-
-      ! Mapping to face of PFLOTRAN domain
-      case(PF_FACE_MESH)
+    ! find the specified face of PFLOTRAN domain, by BC condition name
+    if (source_mesh_id == PF_FACE_MESH .or. &
+        dest_mesh_id == PF_FACE_MESH) then
 
         patch => realization%patch
         grid => patch%grid
 
-        ! Destination mesh is PF_FACE_MESH
+        ! mesh is PF_FACE_MESH, 'FACE' type is defined by BC 'condition_name'
         boundary_condition => patch%boundary_conditions%first
         sum_connection = 0
         do
@@ -5610,34 +5640,34 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
           boundary_condition => boundary_condition%next
         enddo
 
+        if(.not.found) then
+          pflotran_model%option%io_buffer = 'condition name not found in boundary conditions'
+          call printErrMsg(pflotran_model%option)
+        endif
+
         ! Setting the number of cells constituting the face of the 3D
         ! subsurface domain for each model.
         select case(map_id)
-            case(CLM_SRF_TO_PF_2DSUB)
+            case(CLM_SRF_TO_PF_2DSUB, PF_2DSUB_TO_CLM_SRF)
                 clm_pf_idata%nlclm_2dsub = grid_clm_npts_local
                 clm_pf_idata%ngclm_2dsub = grid_clm_npts_local
                 clm_pf_idata%nlpf_2dsub  = grid_pf_npts_local
                 clm_pf_idata%ngpf_2dsub  = grid_pf_npts_local
-            case(CLM_BOT_TO_PF_2DBOT)
+            case(CLM_BOT_TO_PF_2DBOT, PF_2DBOT_TO_CLM_BOT)
                 clm_pf_idata%nlclm_bottom = grid_clm_npts_local
                 clm_pf_idata%ngclm_bottom = grid_clm_npts_local
                 clm_pf_idata%nlpf_bottom  = grid_pf_npts_local
                 clm_pf_idata%ngpf_bottom  = grid_pf_npts_local
             case default
-                option%io_buffer = 'Invalid map_id argument to ' // &
+                option%io_buffer = 'map_id argument NOT yet supported in ' // &
                         'pflotranModelInitMappingFaceToFace'
                 call printErrMsg(option)
         end select
 
-      case default
-        option%io_buffer='Unknown source mesh'
+      else
+        option%io_buffer='Unknown PFLOTRAN face mesh id'
         call printErrMsg(option)
 
-    end select
-
-    if(.not.found) then
-      pflotran_model%option%io_buffer = 'condition name not found in boundary conditions'
-      call printErrMsg(pflotran_model%option)
     endif
 
     !
@@ -5712,7 +5742,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call VecDestroy(face_ids_loc, ierr)
 
     !
-    ! Step-2: Recompute 'map%s2d_iscr'
+    ! Step-2: Recompute 'map%s2d_i/jscr' for pf mesh
     !
     call VecCreateSeq(PETSC_COMM_SELF, map%s2d_nwts, face_ids_loc, ierr)
     allocate(int_array(map%s2d_nwts))
@@ -5724,7 +5754,11 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
 
     do iconn = 1, map%s2d_nwts
-      int_array(iconn) = map%s2d_icsr(iconn)
+      if (dest_mesh_id == PF_FACE_MESH) then
+         int_array(iconn) = map%s2d_icsr(iconn)
+      elseif (source_mesh_id == PF_FACE_MESH) then
+         int_array(iconn) = map%s2d_jcsr(iconn)
+      endif
     enddo
     call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
                          PETSC_COPY_VALUES, is_from, ierr)
@@ -5747,7 +5781,11 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
         count = count + 1
-        map%s2d_icsr(count) = INT(v_loc(iconn))
+        if (dest_mesh_id == PF_FACE_MESH) then
+          map%s2d_icsr(count) = INT(v_loc(iconn))
+        elseif (source_mesh_id == PF_FACE_MESH) then
+          map%s2d_jcsr(count) = INT(v_loc(iconn))
+        endif
       endif
     enddo
     call VecRestoreArrayF90(face_ids_loc, v_loc, ierr)
@@ -5755,7 +5793,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     if(count /= map%s2d_nwts) then
       option%io_buffer='No. of face cells in mapping dataset does not ' // &
-        'match face cells on which BC is applied.'
+        'match face cells on which BC is applied - PFLOTRAN.'
       call printErrMsg(option)
     endif
     call VecDestroy(face_ids, ierr)
@@ -5833,7 +5871,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call VecDestroy(face_ids_loc, ierr)
 
     !
-    ! Step-4: Recompute 'map%s2d_jscr'
+    ! Step-4: Recompute 'map%s2d_i/jscr' for clm mesh
     !
     call VecCreateSeq(PETSC_COMM_SELF, map%s2d_nwts, face_ids_loc, ierr)
     allocate(int_array(map%s2d_nwts))
@@ -5845,7 +5883,11 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
 
     do iconn = 1, map%s2d_nwts
-      int_array(iconn) = map%s2d_jcsr(iconn)
+      if (source_mesh_id == CLM_FACE_MESH) then
+         int_array(iconn) = map%s2d_jcsr(iconn)
+      elseif (dest_mesh_id == CLM_FACE_MESH) then
+         int_array(iconn) = map%s2d_icsr(iconn)
+      endif
     enddo
     call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
                          PETSC_COPY_VALUES, is_from, ierr)
@@ -5868,7 +5910,11 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
         count = count + 1
-        map%s2d_jcsr(count) = INT(v_loc(iconn))
+        if (source_mesh_id == CLM_FACE_MESH) then
+           map%s2d_jcsr(count) = INT(v_loc(iconn))
+        elseif (dest_mesh_id == CLM_FACE_MESH) then
+           map%s2d_icsr(count) = INT(v_loc(iconn))
+        endif
       endif
     enddo
     call VecRestoreArrayF90(face_ids_loc, v_loc, ierr)
@@ -5876,11 +5922,12 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     if(count /= map%s2d_nwts) then
       option%io_buffer='No. of face cells in mapping dataset does not ' // &
-        'match face cells on which BC is applied.'
+        'match face cells on which BC is applied - CLM.'
       call printErrMsg(option)
     endif
     call VecDestroy(face_ids, ierr)
 
+    !
     select case(source_mesh_id)
       case(CLM_FACE_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
@@ -5889,6 +5936,13 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
+      case(PF_FACE_MESH)
+        call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
+                                         grid_pf_cell_ids_nindex)
+        call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
+                                              grid_clm_npts_ghost, &
+                                              grid_clm_cell_ids_nindex_copy, &
+                                              grid_clm_local_nindex)
       case default
         option%io_buffer = 'Invalid argument source_mesh_id passed to ' // &
           'pflotranModelInitMappingFaceToFace'
