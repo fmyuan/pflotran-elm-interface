@@ -4336,21 +4336,33 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
              if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then          ! potential infilitration (+)
                 qinfl_subsurf_pf_loc(iconn) = &
-                               -global_auxvars_bc(offset+iconn)%mass_balance(1,1)                        !(TODO-checking if accumulative)
+                               -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
+
+                ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
+                global_auxvars_bc(offset+iconn)%mass_balance(1,1) = 0.d0
+
              endif
 
              if(StringCompare(boundary_condition%name,'clm_gflux_overflow')) then    ! surface overflow (after actual infiltration) (-)
                 qsurf_subsurf_pf_loc(iconn) = &
-                               -global_auxvars_bc(offset+iconn)%mass_balance(1,1)                                !(TODO-checking if accumulative)
+                               -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
+
+                 ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
+                global_auxvars_bc(offset+iconn)%mass_balance(1,1) = 0.d0
+
                 ! if 'surfflow' defined, 'qinfl_' above is the potential, which needs adjusting below
                 qinfl_subsurf_pf_loc(iconn) = qinfl_subsurf_pf_loc(iconn)         &
                                               +qsurf_subsurf_pf_loc(iconn)        ! 'qsurf_' should be negative
              endif
 
              ! retrieving H2O flux at bottom BC
-             if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then          ! bottom water flux (TODO-checking if accumulative)
+             if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then          ! bottom water flux
                 qflux_subbase_pf_loc(iconn) = &
                                -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
+
+                ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
+                global_auxvars_bc(offset+iconn)%mass_balance(1,1) = 0.d0
+
              endif
 
           enddo
