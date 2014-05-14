@@ -2403,6 +2403,8 @@ end subroutine pflotranModelSetICs
     PetscInt                                  :: iconn
     PetscErrorCode                            :: ierr
 
+    if (clm_pf_idata%nlpf_2dsub <= 0 .and. clm_pf_idata%ngpf_2dsub <= 0 ) return
+
     ! Map ground-heat flux from CLM--to--PF grid
     call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
                                     pflotran_model%option, &
@@ -4086,6 +4088,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     !------------------------------------------------------------------------------------
 
+    if (clm_pf_idata%nlpf_2dsub <= 0 .and. clm_pf_idata%ngpf_2dsub <= 0    &
+        .and. clm_pf_idata%nlpf_bottom <= 0 .and. clm_pf_idata%ngpf_bottom <= 0) then
+        return
+    endif
+
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
          realization => simulation%realization
@@ -4101,29 +4108,35 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     grid            => patch%grid
     field           => realization%field
 
-    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+    if (clm_pf_idata%nlpf_2dsub > 0 .and. clm_pf_idata%ngpf_2dsub > 0 ) then
+      call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%press_subsurf_clmp, &
                                     clm_pf_idata%press_subsurf_pfs)
-    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+
+      call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qflux_subsurf_clmp, &
                                     clm_pf_idata%qflux_subsurf_pfs)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+      call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%press_maxponding_clmp, &
                                     clm_pf_idata%press_maxponding_pfs)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_bot_to_pf_2dbot, &
+    endif
+
+    if (clm_pf_idata%nlpf_bottom > 0 .and. clm_pf_idata%ngpf_bottom > 0 ) then
+       call MappingSourceToDestination(pflotran_model%map_clm_bot_to_pf_2dbot, &
                                     pflotran_model%option, &
                                     clm_pf_idata%press_subbase_clmp, &
                                     clm_pf_idata%press_subbase_pfs)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_bot_to_pf_2dbot, &
+       call MappingSourceToDestination(pflotran_model%map_clm_bot_to_pf_2dbot, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qflux_subbase_clmp, &
                                     clm_pf_idata%qflux_subbase_pfs)
+    endif
 
     ! interface vecs of PF
     call VecGetArrayF90(clm_pf_idata%press_subsurf_pfs,  press_subsurf_pf_loc,  ierr)
@@ -4155,7 +4168,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
               local_id = cur_connection_set%id_dn(iconn)
               ghosted_id = grid%nL2G(local_id)
               if (patch%imat(ghosted_id) <= 0) cycle
-!(TODO-- is 'iconn' containing 'cell' id information??
+
               if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
                    boundary_condition%flow_aux_real_var(press_dof,iconn)= &
                        press_subsurf_pf_loc(iconn)
@@ -4283,6 +4296,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscInt :: offset
     PetscErrorCode :: ierr
 
+    !------------------------------------------------------------------------------------
+
+    if (clm_pf_idata%nlpf_2dsub <= 0 .and. clm_pf_idata%ngpf_2dsub <= 0    &
+        .and. clm_pf_idata%nlpf_bottom <= 0 .and. clm_pf_idata%ngpf_bottom <= 0) then
+        return
+    endif
+
     !
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -4392,21 +4412,24 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecRestoreArrayF90(clm_pf_idata%f_no3_subbase_pfp, f_no3_subbase_pf_loc, ierr)
 
     ! pass vecs to CLM
-    call MappingSourceToDestination(pflotran_model%map_pf_2dsub_to_clm_srf, &
+    if (clm_pf_idata%nlpf_2dsub > 0 .and. clm_pf_idata%ngpf_2dsub > 0 ) then
+      call MappingSourceToDestination(pflotran_model%map_pf_2dsub_to_clm_srf, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qinfl_subsurf_pfp, &
                                     clm_pf_idata%qinfl_subsurf_clms)
 
-    call MappingSourceToDestination(pflotran_model%map_pf_2dsub_to_clm_srf, &
+      call MappingSourceToDestination(pflotran_model%map_pf_2dsub_to_clm_srf, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qsurf_subsurf_pfp, &
                                     clm_pf_idata%qsurf_subsurf_clms)
+    endif
 
-    call MappingSourceToDestination(pflotran_model%map_pf_2dbot_to_clm_bot, &
+    if (clm_pf_idata%nlpf_bottom > 0 .and. clm_pf_idata%ngpf_bottom > 0 ) then
+      call MappingSourceToDestination(pflotran_model%map_pf_2dbot_to_clm_bot, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qflux_subbase_pfp, &
                                     clm_pf_idata%qflux_subbase_clms)
-
+    endif
   end subroutine pflotranModelGetBCMassBalanceDelta
 
 
