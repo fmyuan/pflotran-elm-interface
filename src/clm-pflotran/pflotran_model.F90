@@ -4570,9 +4570,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     use Material_module
     use Material_Aux_class
     use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, &
-                               PERMEABILITY_Z, PERMEABILITY_XY, &
-                               PERMEABILITY_YZ, PERMEABILITY_XZ, &
-                               TORTUOSITY, POROSITY
+                               PERMEABILITY_Z, POROSITY
 
     use Simulation_Base_class, only : simulation_base_type
     use Subsurface_Simulation_class, only : subsurface_simulation_type
@@ -4597,8 +4595,14 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: porosity_loc_p(:)
+    PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
+    PetscReal          :: unitconv, perm_adj, tempreal
 
     PetscScalar, pointer :: porosity_pfs_loc(:), porosity_pfp_loc(:)
+    PetscScalar, pointer :: hksat_x_pf_loc(:), hksat_y_pf_loc(:), hksat_z_pf_loc(:)
+    PetscScalar, pointer :: watsat_pf_loc(:), bsw_pf_loc(:)
+
+    !---------------------------------------------------------------------------------
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -4620,26 +4624,87 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                     pflotran_model%option, &
                                     clm_pf_idata%porosity_clmp, &
                                     clm_pf_idata%porosity_pfs)
-    ! clm-pflotran interface vec
+    ! for adjusting porosity
     call VecGetArrayF90(clm_pf_idata%porosity_pfs,  porosity_pfs_loc,  ierr)   !seq. vec (to receive '_clmp' vec)
     call VecGetArrayF90(clm_pf_idata%porosity_pfp,  porosity_pfp_loc,  ierr)   !mpi vec (to pass to '_clms' vec)
-    ! PF's interval vec
     call VecGetArrayF90(field%porosity0, porosity_loc_p, ierr)
+
+    ! for adjusting permissivity
+    if (pflotran_model%option%nflowdof > 0) then
+
+        unitconv  = 0.001002d0/(998.2d0*9.81d0)/1000.d0    ! from hydraulic conductivity (mmH2O/sec) to permissivity (kg/sec)
+        perm_adj  = 1.0d0
+
+        call VecGetArrayF90(clm_pf_idata%hksat_x_pf, hksat_x_pf_loc, ierr)
+        call VecGetArrayF90(clm_pf_idata%hksat_y_pf, hksat_y_pf_loc, ierr)
+        call VecGetArrayF90(clm_pf_idata%hksat_z_pf, hksat_z_pf_loc, ierr)
+        call VecGetArrayF90(clm_pf_idata%watsat_pf,  watsat_pf_loc,  ierr)
+        call VecGetArrayF90(clm_pf_idata%bsw_pf,  bsw_pf_loc,  ierr)
+
+        call VecGetArrayF90(field%perm0_xx,  perm_xx_loc_p,  ierr)
+        call VecGetArrayF90(field%perm0_yy,  perm_yy_loc_p,  ierr)
+        call VecGetArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
+    endif
 
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       porosity_loc_p(ghosted_id) = porosity_pfs_loc(local_id)
-
       porosity_pfp_loc(local_id) = porosity_loc_p(ghosted_id)
+
+      if (pflotran_model%option%nflowdof > 0) then
+           ! Ksat is based on actaul porosity, so when porosity is using the effective one, Ksat should be effective as well
+           ! This will prevent large hydraulic conductivity in PFLOTRAN when shrinking pore size
+           ! because PFLOTRAN uses pressure (saturation) in its rel. perm calculation.
+           tempreal = porosity_pfs_loc(local_id)/watsat_pf_loc(local_id)
+           perm_adj = tempreal**(2.0d0*bsw_pf_loc(local_id)+3.0d0)        ! assuming shrunk pore as VWC to estimate K, by Clapp-Hornberger Eq.
+           perm_adj = max(0.d0, min(perm_adj*perm_adj, 1.0d0))
+           perm_xx_loc_p(ghosted_id) = perm_adj*hksat_x_pf_loc(local_id)*unitconv
+           perm_yy_loc_p(ghosted_id) = perm_adj*hksat_y_pf_loc(local_id)*unitconv
+           perm_zz_loc_p(ghosted_id) = perm_adj*hksat_z_pf_loc(local_id)*unitconv
+
+write(100,*) 'local_id=',local_id,'tempreal=',tempreal, 'perm_adj=',perm_adj, &
+'poro_adj=',porosity_pfs_loc(local_id)
+
+      endif
+
     enddo
+
     call VecRestoreArrayF90(clm_pf_idata%porosity_pfs,  porosity_pfs_loc,  ierr)
     call VecRestoreArrayF90(clm_pf_idata%porosity_pfp,  porosity_pfp_loc,  ierr)
     call VecRestoreArrayF90(field%porosity0, porosity_loc_p, ierr)
+    !
+    if (pflotran_model%option%nflowdof > 0) then
+        call VecRestoreArrayF90(clm_pf_idata%hksat_x_pf, hksat_x_pf_loc, ierr)
+        call VecRestoreArrayF90(clm_pf_idata%hksat_y_pf, hksat_y_pf_loc, ierr)
+        call VecRestoreArrayF90(clm_pf_idata%hksat_z_pf, hksat_z_pf_loc, ierr)
+        call VecRestoreArrayF90(clm_pf_idata%watsat_pf,  watsat_pf_loc,  ierr)
+        call VecRestoreArrayF90(clm_pf_idata%bsw_pf,  bsw_pf_loc,  ierr)
 
+        call VecRestoreArrayF90(field%perm0_xx,  perm_xx_loc_p,  ierr)
+        call VecRestoreArrayF90(field%perm0_yy,  perm_yy_loc_p,  ierr)
+        call VecRestoreArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
+    endif
+
+    !
     call DiscretizationGlobalToLocal(discretization,field%porosity0, &
                                field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                POROSITY,0)
+
+    if (pflotran_model%option%nflowdof > 0) then
+        call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
+                                     field%work_loc,ONEDOF)
+        call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_X,0)
+        call DiscretizationGlobalToLocal(discretization,field%perm0_yy, &
+                                     field%work_loc,ONEDOF)
+        call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_Y,0)
+        call DiscretizationGlobalToLocal(discretization,field%perm0_zz, &
+                                     field%work_loc,ONEDOF)
+        call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                                 PERMEABILITY_Z,0)
+    endif
 
     ! mapping back to CLM
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
