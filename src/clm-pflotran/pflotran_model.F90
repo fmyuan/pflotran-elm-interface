@@ -4662,9 +4662,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
            perm_yy_loc_p(ghosted_id) = perm_adj*hksat_y_pf_loc(local_id)*unitconv
            perm_zz_loc_p(ghosted_id) = perm_adj*hksat_z_pf_loc(local_id)*unitconv
 
-write(100,*) 'local_id=',local_id,'tempreal=',tempreal, 'perm_adj=',perm_adj, &
-'poro_adj=',porosity_pfs_loc(local_id)
-
       endif
 
     enddo
