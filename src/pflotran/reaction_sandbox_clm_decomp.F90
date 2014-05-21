@@ -1096,12 +1096,11 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     
     ! inorg. nitrogen (NH4+/NH3(aq))
     Residual(ires_nh3) = Residual(ires_nh3) - this%mineral_n_stoich(irxn) * rate
-    if(this%species_id_nimm > 0) then      ! for tracking
-       if(this%mineral_n_stoich(irxn) < 0.0d0) then
+    if(this%species_id_nimm > 0 .and. this%mineral_n_stoich(irxn) < 0.0d0) then      ! for tracking
           Residual(ires_nimm) = Residual(ires_nimm) + this%mineral_n_stoich(irxn) * rate
-       else
+    endif
+    if(this%species_id_nmin > 0 .and. this%mineral_n_stoich(irxn) > 0.0d0) then      ! for tracking
           Residual(ires_nmin) = Residual(ires_nmin) - this%mineral_n_stoich(irxn) * rate
-       endif
     endif
 
     ! upstream
@@ -1169,14 +1168,13 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     if (compute_derivative) then
 
 
-       ! ----- SOM decomposition network --------------------------------------------------------
+      ! ----- SOM decomposition network --------------------------------------------------------
 
-      ! -- with respect to upstream C ('drate_uc', substrate regulated)
-
+      ! -- some derivatives with flexible C/N pools
       if(this%is_litter_decomp(irxn)) then
          if(this%litter_decomp_type == LITTER_DECOMP_CLMCN) then
-           ! Lit1C + u Lit1N -> di SOMi + (1 - di) CO2 + n N
-           ! Rdu/duc = R (-1) Lit1N/Lit1C^2 =-u dR/duc 
+           ! LitC + u LitN -> di SOMi + (1 - di) CO2 + n N
+           ! Rdu/duc = R (-1) LitN/LitC^2 =-u dR/duc
            Rdu_duc = -1.0d0 * this%upstream_nc(irxn) * drate_uc
          
            ! n = u - (1 - di) ni
@@ -1241,6 +1239,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
       endif   
 
+      ! -- with respect to upstream C ('drate_uc', substrate regulated)
       ! CO2 (co2 - uc/un)
       if(this%upstream_is_aqueous(irxn)) then
         Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - &
@@ -1251,7 +1250,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
           this%mineral_c_stoich(irxn) * drate_uc
         if(this%is_litter_decomp(irxn) .and. &
            this%litter_decomp_type == LITTER_DECOMP_CLMMICROBE) then
-!          dRco2/dLitC = dcR/dLitC = cdR/dLitC + R dc/dLitC
+           ! dRco2/dLitC = dcR/dLitC = cdR/dLitC + R dc/dLitC
            Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - Rdc_duc
         endif
       endif
@@ -1267,17 +1266,12 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
       if(this%is_litter_decomp(irxn) .and. &
          this%litter_decomp_type == LITTER_DECOMP_CLMMICROBE) then
-          ! CO2 dR_co2/dNu = d cR/dNu = Rdc/Nu
+           ! CO2 dR_co2/dNu = d cR/dNu = Rdc/Nu
            Jacobian(ires_co2,ires_un) = Jacobian(ires_co2,ires_un) - Rdc_dun
 
            if(this%species_id_hrimm > 0) then ! for tracking
              Jacobian(ires_hrimm,ires_un) = Jacobian(ires_hrimm,ires_un) - Rdc_dun
            endif
-
-           ! bacteria dRbacteria/dNu = Rdb/dNu
-           Jacobian(ires_b,ires_un) = Jacobian(ires_b,ires_un) - Rdb_dun
-           ! fungi dRfungi/dNu = Rdf/dNu
-           Jacobian(ires_f,ires_un) = Jacobian(ires_f,ires_un) - Rdf_dun
 
       endif
 
@@ -1347,6 +1341,13 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
       if(this%is_litter_decomp(irxn)) then
         ! to upstream n -
         Jacobian(ires_un,ires_un) = Jacobian(ires_un,ires_un) + Rdu_dun
+
+         if (this%litter_decomp_type == LITTER_DECOMP_CLMMICROBE) then
+           ! bacteria dRbacteria/dNu = Rdb/dNu
+           Jacobian(ires_b,ires_un) = Jacobian(ires_b,ires_un) - Rdb_dun
+           ! fungi dRfungi/dNu = Rdf/dNu
+           Jacobian(ires_f,ires_un) = Jacobian(ires_f,ires_un) - Rdf_dun
+        endif
 
       endif
 
