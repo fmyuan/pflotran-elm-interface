@@ -4086,6 +4086,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscScalar, pointer :: press_subbase_pf_loc(:)     ! bottom boundary pressure-head (Pa) (dirichlet BC)
     PetscScalar, pointer :: qflux_subbase_pf_loc(:)     ! botoom boundary drainage flow rate (m/s) (neumann BC)
 
+    PetscScalar, pointer :: toparea_p(:)                ! subsurface top area saved
+
     !------------------------------------------------------------------------------------
 
     if (clm_pf_idata%nlpf_2dsub <= 0 .and. clm_pf_idata%ngpf_2dsub <= 0    &
@@ -4145,6 +4147,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecGetArrayF90(clm_pf_idata%qflux_subbase_pfs, qflux_subbase_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%press_maxponding_pfs, press_maxponding_pf_loc, ierr)
 
+    call VecGetArrayF90(clm_pf_idata%area_top_face_pf, toparea_p, ierr)
+
     ! passing from interface to internal
     select case(pflotran_model%option%iflowmode)
       case (RICHARDS_MODE)
@@ -4162,59 +4166,58 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
        if (.not.associated(boundary_condition)) exit
 
        cur_connection_set => boundary_condition%connection_set
-       if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then
 
-           do iconn = 1, cur_connection_set%num_connections
-              local_id = cur_connection_set%id_dn(iconn)
-              ghosted_id = grid%nL2G(local_id)
-              if (patch%imat(ghosted_id) <= 0) cycle
+       do iconn = 1, cur_connection_set%num_connections
+          local_id = cur_connection_set%id_dn(iconn)
+          ghosted_id = grid%nL2G(local_id)
+          if (patch%imat(ghosted_id) <= 0) cycle
 
-              if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
-                   boundary_condition%flow_aux_real_var(press_dof,iconn)= &
-                       press_subsurf_pf_loc(iconn)
-              else if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
+          if(StringCompare(boundary_condition%name,'clm_gflux_bc') .and. &
+             boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
                    boundary_condition%flow_aux_real_var(press_dof,iconn)= &
                        qflux_subsurf_pf_loc(iconn)
+
+             cur_connection_set%area(iconn) = toparea_p(iconn)     ! normally it's ON
+             if(qflux_subsurf_pf_loc(iconn) > 1.d-50) then         ! shut-off the BC by resetting the BC 'area' to a tiny value
+                cur_connection_set%area(iconn) = 1.d-50
+             endif
+
+          endif
+
+          if(StringCompare(boundary_condition%name,'clm_gpress_bc') .and. &
+             boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
+                   boundary_condition%flow_aux_real_var(press_dof,iconn)= &
+                       press_subsurf_pf_loc(iconn)
+
+             cur_connection_set%area(iconn) = 1.d-50               ! normally shut-off this BC
+             if(press_subsurf_pf_loc(iconn) > pflotran_model%option%reference_pressure) then
+                cur_connection_set%area(iconn) = toparea_p(iconn)
+             endif
+
+          endif
+
+          if(StringCompare(boundary_condition%name,'clm_gflux_overflow')) then
+              if (boundary_condition%flow_condition%itype(press_dof) == SEEPAGE_BC) then
+                   clm_pf_idata%topbc_seepage = PETSC_TRUE
+                   boundary_condition%flow_aux_real_var(press_dof,iconn) = &
+                       max(press_maxponding_pf_loc(local_id), &
+                           pflotran_model%option%reference_pressure)
+              else
+                   clm_pf_idata%topbc_seepage = PETSC_FALSE
               end if
+          endif
 
-           enddo
-
-       endif
-
-!       if(StringCompare(boundary_condition%name,'clm_gflux_overflow')) then
-!
-!           do iconn = 1, cur_connection_set%num_connections
-!              local_id = cur_connection_set%id_dn(iconn)
-!              ghosted_id = grid%nL2G(local_id)
-!              if (patch%imat(ghosted_id) <= 0) cycle
-!
-!              if (boundary_condition%flow_condition%itype(press_dof) == SEEPAGE_BC) then
-!                   boundary_condition%flow_aux_real_var(press_dof,iconn)= &
-!                       press_maxponding_pf_loc(local_id)
-!              end if
-!
-!           enddo
-!
-!       endif
-
-       if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then
-
-           do iconn = 1, cur_connection_set%num_connections
-              local_id = cur_connection_set%id_dn(iconn)
-              ghosted_id = grid%nL2G(local_id)
-              if (patch%imat(ghosted_id) <= 0) cycle
-
+          if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then
               if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
                    boundary_condition%flow_aux_real_var(press_dof,iconn)= &
-                       press_subbase_pf_loc(iconn)                                                 !'local_id' or 'ghosted_id'??? - needs further checking
+                       press_subbase_pf_loc(iconn)
               else if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
                    boundary_condition%flow_aux_real_var(press_dof,iconn)= &
                        qflux_subbase_pf_loc(iconn)
               end if
+          endif
 
-           enddo
-
-       endif
+       enddo
 
        boundary_condition => boundary_condition%next
 
@@ -4225,6 +4228,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecRestoreArrayF90(clm_pf_idata%press_subbase_pfs, press_subbase_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%qflux_subbase_pfs, qflux_subbase_pf_loc, ierr)
     call VecRestoreArrayF90(clm_pf_idata%press_maxponding_pfs, press_maxponding_pf_loc, ierr)
+
+    call VecRestoreArrayF90(clm_pf_idata%area_top_face_pf, toparea_p, ierr)
 
     select case(pflotran_model%option%iflowmode)
       case (RICHARDS_MODE)
@@ -4354,7 +4359,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
              ghosted_id = grid%nL2G(local_id)
              if (patch%imat(ghosted_id) <= 0) cycle
 
-             if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then          ! potential infilitration (+)
+             if(StringCompare(boundary_condition%name,'clm_gpress_bc')) then          ! infilitration (+)
                 qinfl_subsurf_pf_loc(iconn) = &
                                -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
 
@@ -4363,16 +4368,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
              endif
 
-             if(StringCompare(boundary_condition%name,'clm_gflux_overflow')) then    ! surface overflow (after actual infiltration) (-)
+             if(StringCompare(boundary_condition%name,'clm_gflux_overflow')) then    ! surface overflow (-)
                 qsurf_subsurf_pf_loc(iconn) = &
                                -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
 
                  ! 'mass_balance' IS accumulative, so need to reset to Zero for next desired time-step
                 global_auxvars_bc(offset+iconn)%mass_balance(1,1) = 0.d0
 
-                ! if 'surfflow' defined, 'qinfl_' above is the potential, which needs adjusting below
-                qinfl_subsurf_pf_loc(iconn) = qinfl_subsurf_pf_loc(iconn)         &
-                                              +qsurf_subsurf_pf_loc(iconn)        ! 'qsurf_' should be negative
              endif
 
              ! retrieving H2O flux at bottom BC
