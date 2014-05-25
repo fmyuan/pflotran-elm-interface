@@ -196,8 +196,9 @@ module clm_pflotran_interface_data
   Vec :: press_maxponding_clmp ! mpi vec
   Vec :: press_subsurf_pfs     ! seq vec
   Vec :: press_subbase_pfs     ! seq vec
-  Vec :: press_maxponding_pfs     ! seq vec
+  Vec :: press_maxponding_pfs  ! seq vec
   ! OR, BC: water infiltration/recharge(drainage) (mH2O/sec) on the top/bottom of 3-D subsurface domain as boundary conditions from CLM to PF
+  PetscBool :: topbc_seepage   ! use 'seepage' top-BC to calculate surface-overflow by PFLOTRAN
   Vec :: qflux_subsurf_clmp    ! mpi vec
   Vec :: qflux_subbase_clmp    ! mpi vec
   Vec :: qflux_subsurf_pfs     ! seq vec
@@ -538,6 +539,7 @@ contains
     clm_pf_idata%press_subsurf_pfs  = 0
     clm_pf_idata%press_subbase_clmp = 0
     clm_pf_idata%press_subbase_pfs  = 0
+    clm_pf_idata%topbc_seepage  = PETSC_FALSE
     clm_pf_idata%qflux_subsurf_clmp = 0
     clm_pf_idata%qflux_subsurf_pfs  = 0
     clm_pf_idata%qflux_subbase_clmp = 0

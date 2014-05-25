@@ -777,6 +777,7 @@ subroutine Init(simulation)
   call RealProcessMatPropAndSatFunc(realization)
   call RealizationProcessCouplers(realization)
   call RealizationProcessConditions(realization)
+  call SandboxesSetup(realization)
   call RealProcessFluidProperties(realization)
   call assignMaterialPropToRegions(realization)
   ! assignVolumesToMaterialAuxVars() must be called after 
@@ -1457,6 +1458,7 @@ subroutine InitReadInput(simulation)
   use Mass_Transfer_module
   use EOS_module
   use EOS_Water_module
+  use SrcSink_Sandbox_module
   
   use Surface_Flow_module
   use Surface_Init_module, only : SurfaceInitReadInput
@@ -1794,6 +1796,11 @@ subroutine InitReadInput(simulation)
         call CouplerRead(coupler,input,option)
         call RealizationAddCoupler(realization,coupler)
         nullify(coupler)        
+      
+!....................
+      case ('SOURCE_SINK_SANDBOX')
+        call SSSandboxInit(option)
+        call SSSandboxRead(input,option)
       
 !....................
       case ('FLOW_MASS_TRANSFER')
@@ -2273,6 +2280,21 @@ subroutine InitReadInput(simulation)
               output_option%print_tortuosity = PETSC_TRUE
             case('MASS_BALANCE')
               option%compute_mass_balance_new = PETSC_TRUE
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputDefaultMsg(input,option, &
+                                 'MASS_BALANCE,DETAILED,OUTPUT')
+              if (len_trim(word) > 0) then
+                call StringToUpper(word)
+                select case(trim(word))
+                  case('DETAILED')
+                    option%mass_bal_detailed = PETSC_TRUE
+                  case('DEFAULT')
+                    option%io_buffer = 'Keyword: ' // trim(word) // &
+                      ' not recognized in OUTPUT,'// &
+                      'MASS_BALANCE,DETAILED.'
+                    call printErrMsg(option)
+                end select
+              endif
             case('PRINT_COLUMN_IDS')
               output_option%print_column_ids = PETSC_TRUE
             case('TIMES')
@@ -2462,7 +2484,7 @@ subroutine InitReadInput(simulation)
                         endif
                       case default
                         option%io_buffer = 'HDF5 keyword (' // trim(word) // &
-                          ') not recongnized.  Use "SINGLE_FILE" or ' // &
+                          ') not recognized.  Use "SINGLE_FILE" or ' // &
                           '"MULTIPLE_FILES".'
                         call printErrMsg(option)
                     end select
@@ -4186,5 +4208,23 @@ subroutine InitReadVelocityField(realization)
   enddo
   
 end subroutine InitReadVelocityField
+
+! ************************************************************************** !
+
+subroutine SandboxesSetup(realization)
+  ! 
+  ! Initializes sandbox objects.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 05/06/14
+
+  use Realization_class
+  use SrcSink_Sandbox_module
+  
+  type(realization_type) :: realization
+  
+  call SSSandboxSetup(realization%patch%regions,realization%option)
+  
+end subroutine SandboxesSetup
 
 end module Init_module

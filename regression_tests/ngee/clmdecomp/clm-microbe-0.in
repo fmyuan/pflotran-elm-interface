@@ -1,18 +1,18 @@
-:Description: Batch CLM-microbe simulation
+#Description - Batch CLM-microbe simulation
 
-:=========================== regression =======================================
+#=========================== regression =======================================
 REGRESSION
   CELLS
     1
   /
 END
 
-:=========================== useful tranport parameters =======================
+#=========================== useful tranport parameters =======================
 UNIFORM_VELOCITY 0.d0 0.d0 0.d0 
 
 REFERENCE_DENSITY 1.d3
 
-:=========================== chemistry ========================================
+#=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
     H+
@@ -64,7 +64,7 @@ CHEMISTRY
 
       CLM-MICROBE-LITTER-DECOMPOSITION
 
-: Lit1 -> 0.61 SOM1 + 0.39 CO2 
+# Lit1 -> 0.61 SOM1 + 0.39 CO2 
       REACTION
         UPSTREAM_POOL Lit1
         DOWNSTREAM_POOL Bacteria 0.1d0
@@ -72,7 +72,7 @@ CHEMISTRY
         RATE_CONSTANT 0.7 1/d 
       END
 
-: Lit2 -> 0.45 SOM2 + 0.55 CO2 
+# Lit2 -> 0.45 SOM2 + 0.55 CO2 
       REACTION
         UPSTREAM_POOL Lit2
         DOWNSTREAM_POOL Bacteria 0.1d0
@@ -80,7 +80,7 @@ CHEMISTRY
         RATE_CONSTANT 0.07 1/d 
       END
 
-: Lit3 -> 0.71 SOM3 + 0.29 CO2 
+# Lit3 -> 0.71 SOM3 + 0.29 CO2 
       REACTION
         UPSTREAM_POOL Lit3
         DOWNSTREAM_POOL Bacteria 0.1d0
@@ -88,7 +88,7 @@ CHEMISTRY
         RATE_CONSTANT 0.014 1/d 
       END
 
-: SOM1 -> 0.72 SOM2 + 0.28 CO2 
+# SOM1 -> 0.72 SOM2 + 0.28 CO2 
       REACTION
         UPSTREAM_POOL SOM1
         DOWNSTREAM_POOL Bacteria 0.245d0
@@ -96,7 +96,7 @@ CHEMISTRY
         RATE_CONSTANT 0.07 1/d 
       END
 
-: SOM2 -> 0.54 SOM3 + 0.46 CO2 
+# SOM2 -> 0.54 SOM3 + 0.46 CO2 
       REACTION
         UPSTREAM_POOL SOM2
         DOWNSTREAM_POOL Bacteria 0.184d0
@@ -104,7 +104,7 @@ CHEMISTRY
         RATE_CONSTANT 0.014 1/d 
       END
 
-: SOM3 -> 0.45 SOM4 + 0.55 CO2 
+# SOM3 -> 0.45 SOM4 + 0.55 CO2 
       REACTION
         UPSTREAM_POOL SOM3
         DOWNSTREAM_POOL Bacteria 0.153d0
@@ -112,7 +112,7 @@ CHEMISTRY
         RATE_CONSTANT 0.0014 1/d 
       END
 
-: SOM4 -> 1.0 CO2 
+# SOM4 -> 1.0 CO2 
       REACTION
         UPSTREAM_POOL SOM4
         DOWNSTREAM_POOL Bacteria 0.34d0
@@ -153,24 +153,24 @@ CHEMISTRY
     END
   END
 
-:  LOG_FORMULATION
+#  LOG_FORMULATION
   DATABASE ./hanford-clm.dat 
   OUTPUT
     all
   /
 END
 
-:=========================== solver options ===================================
+#=========================== solver options ===================================
 LINEAR_SOLVER TRANSPORT
   SOLVER DIRECT
 END
 
 NEWTON_SOLVER TRANSPORT
   ATOL 1.d-50
-:  RTOL 1.d-12
+#  RTOL 1.d-12
 END
 
-:=========================== discretization ===================================
+#=========================== discretization ===================================
 GRID
   TYPE structured
   NXYZ 1 1 1
@@ -180,31 +180,31 @@ GRID
   /
 END
 
-:=========================== fluid properties =================================
+#=========================== fluid properties =================================
 FLUID_PROPERTY 
   DIFFUSION_COEFFICIENT 1.d-9
 END
 
-:=========================== material properties ==============================
+#=========================== material properties ==============================
 MATERIAL_PROPERTY soil1
   ID 1
   POROSITY 0.25d0
   TORTUOSITY 1.d0
 END
 
-:=========================== output options ===================================
+#=========================== output options ===================================
 OUTPUT
   PERIODIC_OBSERVATION TIMESTEP 1
 END
 
-:=========================== times ============================================
+#=========================== times ============================================
 TIME
   FINAL_TIME 400.d0 d
   INITIAL_TIMESTEP_SIZE 1.d-2 h
   MAXIMUM_TIMESTEP_SIZE 1.d0 d
 END
 
-:=========================== regions ==========================================
+#=========================== regions ==========================================
 REGION all
   COORDINATES
     0.d0 0.d0 0.d0
@@ -216,12 +216,12 @@ REGION obs_pt
   COORDINATE 0.5 0.5 0.5
 END
 
-:=========================== observation points ===============================
+#=========================== observation points ===============================
 OBSERVATION
   REGION obs_pt
 END
 
-:=========================== transport conditions =============================
+#=========================== transport conditions =============================
 TRANSPORT_CONDITION initial
   TYPE zero_gradient
   CONSTRAINT_LIST
@@ -229,7 +229,7 @@ TRANSPORT_CONDITION initial
   /
 END
 
-:=========================== transport constraints ============================
+#=========================== transport constraints ============================
 CONSTRAINT initial
   CONCENTRATIONS
     H+         7.0   pH
@@ -254,14 +254,14 @@ CONSTRAINT initial
   /
 END
 
-:=========================== condition couplers ===============================
-: initial condition
+#=========================== condition couplers ===============================
+# initial condition
 INITIAL_CONDITION
   TRANSPORT_CONDITION initial
   REGION all
 END
 
-:=========================== stratigraphy couplers ============================
+#=========================== stratigraphy couplers ============================
 STRATA
   REGION all
   MATERIAL soil1
