@@ -658,7 +658,9 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
           ! If running with surface-flow model, ensure (darcy_velocity*dt) does
           ! not exceed depth of standing water.
           ! LET this constrain for ALL 'PRESSURE-type' BCs, but needs modification of 'rho', if flow is outward.
-          !if(pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) then
+#ifndef CLM_PFLOTRAN
+          if(pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) then
+#endif
             call EOSWaterdensity(option%reference_temperature, &
                                  option%reference_pressure,rho,dum1,ierr)
             v_darcy_allowable = (global_auxvar_up%pres(1)-option%reference_pressure) &
@@ -669,7 +671,9 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
               Dq = 0.d0
               v_darcy = v_darcy_allowable
             endif
-          !endif
+#ifndef CLM_PFLOTRAN
+          endif
+#endif
           q = v_darcy * area
           dq_dp_dn = Dq*(dukvr_dp_dn*dphi + ukvr*dphi_dp_dn)*area
         endif
@@ -917,13 +921,17 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
         v_darcy = Dq * ukvr * dphi
         ! If running with surface-flow model, ensure (darcy_velocity*dt) does
         ! not exceed depth of standing water. LET this constrain for ALL 'PRESSURE-type' BCs
-        !if(pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) then
+#ifndef CLM_PFLOTRAN
+        if(pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) then
+#endif
           call EOSWaterdensity(option%reference_temperature, &
                                option%reference_pressure,rho,dum1,ierr)
           v_darcy_allowable = (global_auxvar_up%pres(1)-option%reference_pressure) &
                               /option%flow_dt/(-option%gravity(3))/rho
           if (v_darcy > v_darcy_allowable) v_darcy = v_darcy_allowable
-        !endif
+#ifndef CLM_PFLOTRAN
+        endif
+#endif
        endif
       endif 
 
