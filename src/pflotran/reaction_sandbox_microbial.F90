@@ -494,7 +494,7 @@ subroutine MicrobialReact(this,Residual,Jacobian,compute_derivative, &
 
 ! temperature response function 
 #ifdef CLM_PFLOTRAN 
-  tc = global_auxvar%temp(1) 
+  tc = global_auxvar%temp
   f_t = GetTemperatureResponse(tc, this%temperature_response_function, this%Q10) 
 #else
   f_t = 1.0d0

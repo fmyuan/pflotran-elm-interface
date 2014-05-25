@@ -2997,7 +2997,7 @@ end subroutine pflotranModelSetICs
     do ghosted_id=1,grid%ngmax
       local_id = grid%nG2L(ghosted_id)
       if (local_id>0) then
-        soilt_pf_p(local_id) = global_auxvars(ghosted_id)%temp(1)
+        soilt_pf_p(local_id) = global_auxvars(ghosted_id)%temp
         soilisat_pf_p(local_id) = th_auxvars(ghosted_id)%sat_ice
       endif
     enddo
@@ -3692,7 +3692,7 @@ end subroutine pflotranModelSetICs
         call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
         do local_id=1, grid%nlmax
             ghosted_id=grid%nL2G(local_id)
-            global_auxvars(ghosted_id)%temp(1)=soilt_pf_loc(local_id)
+            global_auxvars(ghosted_id)%temp=soilt_pf_loc(local_id)
         enddo
         call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
     endif

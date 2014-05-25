@@ -295,7 +295,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   temp_real = 1.0d0
 #endif
 
-  tc = global_auxvar%temp(1)
+  tc = global_auxvar%temp
   f_t = exp(0.08d0 * (tc - 298.0d0 + 273.15d0))
 
   saturation = global_auxvar%sat(1)
@@ -532,7 +532,7 @@ subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative,
   PetscReal ::  d_stoich_n2o_d_no3, d_stoich_n2_d_no3
 
   ! temperature response function 
-  tc = global_auxvar%temp(1)
+  tc = global_auxvar%temp
   tk = tc + 273.15d0
   if(tk <= 273.15d0) then
   ! limit to non-frozen soil layers

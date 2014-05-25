@@ -938,7 +938,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
   !----------------------------------------------------------------------------------------
   ! temperature response function
-  tc = global_auxvar%temp(1) 
+  tc = global_auxvar%temp
 
 #ifdef CLM_PFLOTRAN 
   f_t = GetTemperatureResponse(tc, this%temperature_response_function, this%Q10) 
