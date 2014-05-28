@@ -127,7 +127,7 @@ subroutine TimestepperBaseInit(this)
   this%steps = 0
   this%num_constant_time_steps = 0
 
-  this%max_time_step = 9999999
+  this%max_time_step = 99999999
   this%max_time_step_cuts = 16
   this%constant_time_step_threshold = 5
 
@@ -452,10 +452,14 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
     this%num_contig_revert_due_to_sync = 0
   endif
 
-  
+! if coupled with CLM, max_time_step IS unlimited
+! because 'waypoint' is controled by the interface
+! otherwise, PF will stop at some point but CLM not-yet done
+#ifndef CLM_PFLOTRAN
   if (cumulative_time_steps >= max_time_step-1) then
     nullify(cur_waypoint)
   endif
+#endif
 
   ! update maximum time step size to current waypoint value
   if (associated(cur_waypoint)) then
