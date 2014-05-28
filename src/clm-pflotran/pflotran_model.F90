@@ -5313,7 +5313,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
             if (associated(rt_auxvar%total_sorb_eq)) then    ! equilibrium-sorption reactions used
                 conc = rt_auxvar%total_sorb_eq(ispec_nh4)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 1.0d-20) * N_molecular_weight
-
             else if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction used for soil NH4+ absorption
                 conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (molC/m3)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 1.0d-20) * N_molecular_weight
@@ -5489,9 +5488,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                     pflotran_model%option, &
                                     clm_pf_idata%smin_nh4_vr_pfp, &
                                     clm_pf_idata%smin_nh4_vr_clms)
-    endif
 
-    if(ispec_nh4sorb > 0) then
          call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%smin_nh4sorb_vr_pfp, &
