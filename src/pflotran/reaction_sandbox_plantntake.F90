@@ -241,7 +241,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
      ires_plantn = ispec_plantn + reaction%offset_immobile
   endif
 
-  if (c_nh3 < this%x0eps .and. c_no3 < this%x0eps) return
+  if (c_nh3 < this%x0eps/10.d0 .and. c_no3 < this%x0eps/10.d0) return
 
   if (ispec_nh3 > 0) then
      c_nh3     = rt_auxvar%total(ispec_nh3, iphase)
