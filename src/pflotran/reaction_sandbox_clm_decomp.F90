@@ -125,7 +125,7 @@ function CLM_Decomp_Create()
   CLM_Decomp_Create%litter_decomp_type=LITTER_DECOMP_CLMCN
   CLM_Decomp_Create%half_saturation_nh3 = 1.0d-15
   CLM_Decomp_Create%half_saturation_no3 = 1.0d-15
-  CLM_Decomp_Create%inhibition_nh3_no3 = 1.0d-15 
+  CLM_Decomp_Create%inhibition_nh3_no3 = 1.0d-5
   CLM_Decomp_Create%n2o_frac_mineralization = 0.02d0  ! Parton et al. 2001
   CLM_Decomp_Create%x0eps = 1.0d-20
 

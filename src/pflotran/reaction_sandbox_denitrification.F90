@@ -308,6 +308,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
   c_no3 = rt_auxvar%total(this%ispec_no3, iphase)
+  if (c_no3 < this%x0eps/10.d0) return
   c_no3 = c_no3 - this%x0eps
 
   if(f_w > 0.0d0) then
