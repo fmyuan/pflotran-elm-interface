@@ -285,9 +285,8 @@ module clm_pflotran_interface_data
   Vec :: smin_no3_vr_clms_prv           ! (gN/m3) vertically-resolved total NO3-N
   Vec :: smin_nh4_vr_clms_prv           ! (gN/m3) vertically-resolved total NH4-N (incl. absorbed)
   Vec :: smin_nh4sorb_vr_clms_prv       ! (gN/m3) vertically-resolved absorbed NH4-N at previous time-step
-  ! 'accextrn' is accumulative N extract by plant roots in 'PFLOTRAN', so needs previous time-step to calculate 'sminn_to_plant' fluxes for CLM-CN
+  ! 'accextrn' is accumulative N extract by plant roots in 'PFLOTRAN' within a CLM timestep
   Vec :: accextrn_vr_pfp                ! (gN/m3) vertically-resolved root extraction N
-  Vec :: accextrn_vr_clms_prv           ! (gN/m3) vertically-resolved root extraction N at previous time-step
   Vec :: accextrn_vr_clms               ! (gN/m3) vertically-resolved root extraction N
 
   ! gases in water (aqueous solution of gases)
@@ -308,29 +307,23 @@ module clm_pflotran_interface_data
   Vec :: gn2o_vr_pfs                   ! (gN/m3) vertically-resolved N2O-N, after gas emission
 
   ! some tracking variables from PFLOTRAN bgc to obtain reaction flux rates which needed by CLM
-  Vec :: acchr_vr_pfp                 ! (gC/m3) vertically-resolved heterotrophic resp. C from decomposition
-  Vec :: acchr_vr_clms_prv            ! (gC/m3) vertically-resolved heterotrophic resp. C from decomposition at previous time-step
-  Vec :: acchr_vr_clms                ! (gC/m3) vertically-resolved heterotrophic resp. C from decomposition
+  Vec :: acchr_vr_pfp                 ! (gC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
+  Vec :: acchr_vr_clms                ! (gC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
 
-  Vec :: accnmin_vr_pfp                ! (gN/m3) vertically-resolved N mineralization
-  Vec :: accnmin_vr_clms_prv           ! (gN/m3) vertically-resolved N mineralization at previous time-step
-  Vec :: accnmin_vr_clms               ! (gN/m3) vertically-resolved N mineralization
+  Vec :: accnmin_vr_pfp                ! (gN/m3/timestep) vertically-resolved N mineralization
+  Vec :: accnmin_vr_clms               ! (gN/m3/timestep) vertically-resolved N mineralization
 
-  Vec :: accnimm_vr_pfp                ! (gN/m3) vertically-resolved N immoblization
-  Vec :: accnimm_vr_clms_prv           ! (gN/m3) vertically-resolved N immoblization at previous time-step
-  Vec :: accnimm_vr_clms               ! (gN/m3) vertically-resolved N immoblization
+  Vec :: accnimm_vr_pfp                ! (gN/m3/timestep) vertically-resolved N immoblization
+  Vec :: accnimm_vr_clms               ! (gN/m3/timestep) vertically-resolved N immoblization
 
-  Vec :: accngasmin_vr_pfp              ! (gN/m3) vertically-resolved N2O-N from mineralization
-  Vec :: accngasmin_vr_clms_prv         ! (gN/m3) vertically-resolved N2O-N from mineralization at previous time-step
-  Vec :: accngasmin_vr_clms             ! (gN/m3) vertically-resolved N2O-N from mineralization
+  Vec :: accngasmin_vr_pfp              ! (gN/m3/timestep) vertically-resolved N2O-N from mineralization
+  Vec :: accngasmin_vr_clms             ! (gN/m3/timestep) vertically-resolved N2O-N from mineralization
 
-  Vec :: accngasnitr_vr_pfp             ! (gN/m3) vertically-resolved N2O-N from nitrification
-  Vec :: accngasnitr_vr_clms_prv        ! (gN/m3) vertically-resolved N2O-N from nitrification at previous time-step
-  Vec :: accngasnitr_vr_clms            ! (gN/m3) vertically-resolved N2O-N from nitrification
+  Vec :: accngasnitr_vr_pfp             ! (gN/m3/timestep) vertically-resolved N2O-N from nitrification
+  Vec :: accngasnitr_vr_clms            ! (gN/m3/timestep) vertically-resolved N2O-N from nitrification
 
-  Vec :: accngasdeni_vr_pfp             ! (gN/m3) vertically-resolved N2O-N from denitrification
-  Vec :: accngasdeni_vr_clms_prv        ! (gN/m3) vertically-resolved N2O-N from denitrification at previous time-step
-  Vec :: accngasdeni_vr_clms            ! (gN/m3) vertically-resolved N2O-N from denitrification
+  Vec :: accngasdeni_vr_pfp             ! (gN/m3/timestep) vertically-resolved N2O-N from denitrification
+  Vec :: accngasdeni_vr_clms            ! (gN/m3/timestep) vertically-resolved N2O-N from denitrification
 
   ! actual mass water flow rate (kgH2O/sec) through the top/bottom BC of 3-D subsurface domain
   ! (+ in, - out)
@@ -621,7 +614,6 @@ contains
 
     ! for root N extraction calculation
     clm_pf_idata%accextrn_vr_pfp       = 0
-    clm_pf_idata%accextrn_vr_clms_prv  = 0
     clm_pf_idata%accextrn_vr_clms      = 0
 
     ! for soil hr calculation
@@ -644,27 +636,21 @@ contains
 
     ! tracking variables in C-N cycle
     clm_pf_idata%acchr_vr_pfp       = 0
-    clm_pf_idata%acchr_vr_clms_prv  = 0
     clm_pf_idata%acchr_vr_clms      = 0
 
     clm_pf_idata%accnmin_vr_pfp       = 0
-    clm_pf_idata%accnmin_vr_clms_prv  = 0
     clm_pf_idata%accnmin_vr_clms      = 0
 
     clm_pf_idata%accnimm_vr_pfp       = 0
-    clm_pf_idata%accnimm_vr_clms_prv  = 0
     clm_pf_idata%accnimm_vr_clms      = 0
 
     clm_pf_idata%accngasmin_vr_pfp       = 0
-    clm_pf_idata%accngasmin_vr_clms_prv  = 0
     clm_pf_idata%accngasmin_vr_clms      = 0
 
     clm_pf_idata%accngasnitr_vr_pfp       = 0
-    clm_pf_idata%accngasnitr_vr_clms_prv  = 0
     clm_pf_idata%accngasnitr_vr_clms      = 0
 
     clm_pf_idata%accngasdeni_vr_pfp       = 0
-    clm_pf_idata%accngasdeni_vr_clms_prv  = 0
     clm_pf_idata%accngasdeni_vr_clms      = 0
 
     ! water & aq. chemical species boundary flow
@@ -1033,26 +1019,14 @@ contains
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%gn2o_vr_clms,ierr)
     !
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accextrn_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accextrn_vr_clms_prv,ierr)
-
     !
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%acchr_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%acchr_vr_clms_prv,ierr)
-
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accnmin_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accnmin_vr_clms_prv,ierr)
-
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accnimm_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accnimm_vr_clms_prv,ierr)
 
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accngasmin_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accngasmin_vr_clms_prv,ierr)
-
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accngasnitr_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accngasnitr_vr_clms_prv,ierr)
-
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accngasdeni_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accngasdeni_vr_clms_prv,ierr)
 
     ! MPI Vecs for CLM to pass reset aq. conc back to PF
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_sub,PETSC_DECIDE,clm_pf_idata%gco2_vr_clmp,ierr)
@@ -1477,8 +1451,6 @@ contains
     ! update BGC fluxes
     if(clm_pf_idata%accextrn_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%accextrn_vr_pfp,ierr)
-    if(clm_pf_idata%accextrn_vr_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%accextrn_vr_clms_prv,ierr)
     if(clm_pf_idata%accextrn_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%accextrn_vr_clms,ierr)
 
@@ -1511,43 +1483,31 @@ contains
 
     if(clm_pf_idata%acchr_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%acchr_vr_pfp,ierr)
-    if(clm_pf_idata%acchr_vr_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%acchr_vr_clms_prv,ierr)
     if(clm_pf_idata%acchr_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%acchr_vr_clms,ierr)
 
     if(clm_pf_idata%accnmin_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%accnmin_vr_pfp,ierr)
-    if(clm_pf_idata%accnmin_vr_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%accnmin_vr_clms_prv,ierr)
     if(clm_pf_idata%accnmin_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%accnmin_vr_clms,ierr)
 
     if(clm_pf_idata%accnimm_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%accnimm_vr_pfp,ierr)
-    if(clm_pf_idata%accnimm_vr_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%accnimm_vr_clms_prv,ierr)
     if(clm_pf_idata%accnimm_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%accnimm_vr_clms,ierr)
 
     if(clm_pf_idata%accngasmin_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%accngasmin_vr_pfp,ierr)
-    if(clm_pf_idata%accngasmin_vr_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%accngasmin_vr_clms_prv,ierr)
     if(clm_pf_idata%accngasmin_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%accngasmin_vr_clms,ierr)
 
     if(clm_pf_idata%accngasnitr_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%accngasnitr_vr_pfp,ierr)
-    if(clm_pf_idata%accngasnitr_vr_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%accngasnitr_vr_clms_prv,ierr)
     if(clm_pf_idata%accngasnitr_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%accngasnitr_vr_clms,ierr)
 
     if(clm_pf_idata%accngasdeni_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%accngasdeni_vr_pfp,ierr)
-    if(clm_pf_idata%accngasdeni_vr_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%accngasdeni_vr_clms_prv,ierr)
     if(clm_pf_idata%accngasdeni_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%accngasdeni_vr_clms,ierr)
 
