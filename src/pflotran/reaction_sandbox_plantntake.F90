@@ -47,6 +47,7 @@ function PlantNTakeCreate()
   PlantNTakeCreate%half_saturation_nh3 = 1.d-15
   PlantNTakeCreate%half_saturation_no3 = 1.d-15
   PlantNTakeCreate%inhibition_nh3_no3  = 1.d-15
+  !PlantNTakeCreate%inhibition_nh3_no3  = 1.d-5
   PlantNTakeCreate%x0eps  = 1.d-20
   nullify(PlantNTakeCreate%next)  
       
@@ -278,7 +279,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 #endif
 
   rate_nplant_no3 = rate_nplant * f_nh3_inhibit   ! NH4 inhibited NO3 uptake rate
-  rate_nplant = rate_nplant * (1.d0 - f_nh3_inhibit)
+  !rate_nplant = rate_nplant * (1.d0 - f_nh3_inhibit)
 
   if(ispec_nh3 > 0 .and. c_nh3>this%x0eps/10.d0) then
 
