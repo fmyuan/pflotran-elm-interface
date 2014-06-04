@@ -355,7 +355,6 @@ contains
       call printErrMsg(model%option)
     endif
 
-#ifdef SURFACE_FLOW
     if( (model%option%nsurfflowdof>0)) then
        if ((.not. clm2pf_rflux_file)) then
         model%option%io_buffer='Running in surface flow without a ' // &
@@ -368,7 +367,7 @@ contains
         call printErrMsg(model%option)
        endif
     endif
-#endif
+
   end subroutine pflotranModelSetupMappingFiles
 
 ! ************************************************************************** !
@@ -1471,11 +1470,6 @@ end subroutine pflotranModelSetICs
          call printErrMsg(pflotran_model%option)
     end select
 
-#ifndef SURFACE_FLOW
-    option%io_buffer='To support dest_mesh == PF_SRF_MESH, need to '// &
-         'compiled with -DSURFACE_FLOW.'
-    call printErrMsg(option)
-#else
     allocate(grid_clm_cell_ids_nindex_copy(grid_clm_npts_local))
     grid_clm_cell_ids_nindex_copy = grid_clm_cell_ids_nindex
 
@@ -1776,7 +1770,6 @@ end subroutine pflotranModelSetICs
     call MappingFindDistinctSourceMeshCellIds(map)
     call MappingCreateWeightMatrix(map, option%myrank)
     call MappingCreateScatterOfSourceMesh(map, option%mycomm)
-#endif
 
   end subroutine pflotranModelInitMapSrfToSrf
 
