@@ -308,6 +308,26 @@ src/clm-pflotran/pm_surface_th.F90
 src/clm-pflotran/pm_th.F90
 src/clm-pflotran/pm_thc.F90
 src/clm-pflotran/pm_top.F90
+src/clm-pflotran/e4d_mat_inv.F90
+src/clm-pflotran/eos_gas.F90
+src/clm-pflotran/geomechanics_factory.F90
+src/clm-pflotran/geomechanics_simulation.F90
+src/clm-pflotran/option_flow.F90
+src/clm-pflotran/option_transport.F90
+src/clm-pflotran/pflotran_no_provenance.F90
+src/clm-pflotran/pflotran_provenance.F90
+src/clm-pflotran/pm_geomechanics_force.F90
+src/clm-pflotran/pm_subsurface.F90
+src/clm-pflotran/pm_surface.F90
+src/clm-pflotran/pmc_geomechanics.F90
+src/clm-pflotran/reaction_sandbox_ufd_wp.F90
+src/clm-pflotran/srcsink_sandbox.F90
+src/clm-pflotran/srcsink_sandbox_base.F90
+src/clm-pflotran/srcsink_sandbox_mass_rate.F90
+src/clm-pflotran/srcsink_sandbox_wipp_gas.F90
+src/clm-pflotran/srcsink_sandbox_wipp_well.F90
+src/clm-pflotran/timestepper_geomechanics.F90
+src/clm-pflotran/unstructured_polyhedra.F90
 
 .git
 .gitignore
