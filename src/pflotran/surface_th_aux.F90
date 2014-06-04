@@ -103,7 +103,8 @@ subroutine SurfaceTHAuxVarInit(auxvar,option)
   auxvar%u = 0.d0
   auxvar%pc = 0.d0
   auxvar%Cw = 4.188d3     ! [J/kg/K]
-  auxvar%Ci = 2.050d3     ! [J/kg/K]
+  !auxvar%Ci = 2.050d3     ! [J/kg/K]
+  auxvar%Ci = 4.188d3     ! [J/kg/K]
   auxvar%Cwi = 4.188d3     ! [J/kg/K]
   auxvar%k_therm = 0.57d0 ! [J/s/m/K]
   auxvar%unfrozen_fraction = 1.d0
@@ -155,12 +156,10 @@ subroutine SurfaceTHAuxVarCompute(xx,auxvar,global_auxvar, &
   use Surface_Global_Aux_module
   
   use EOS_Water_module
-  use Saturation_Function_module  
   
   implicit none
 
   type(option_type) :: option
-  type(saturation_function_type) :: saturation_function
   PetscReal :: xx(option%nflowdof)
   type(Surface_TH_auxvar_type) :: auxvar
   type(surface_global_auxvar_type) :: global_auxvar
@@ -185,7 +184,7 @@ subroutine SurfaceTHAuxVarCompute(xx,auxvar,global_auxvar, &
   kr = 0.d0
  
   global_auxvar%head(1) = xx(1)
-  !global_auxvar%temp(1) = xx(2)
+  !global_auxvar%temp = xx(2)
     ! RTM: Why is the above commented out?  Is one of these internal 
     ! energy instead of temperature?
  
@@ -196,16 +195,14 @@ subroutine SurfaceTHAuxVarCompute(xx,auxvar,global_auxvar, &
   ds_dp = 0.d0
   dkr_dp = 0.d0
 
-  call EOSWaterDensityEnthalpy(global_auxvar%temp(1),pw,dw_kg,dw_mol,hw,ierr)
+  call EOSWaterDensityEnthalpy(global_auxvar%temp,pw,dw_kg,dw_mol,hw,ierr)
   ! J/kmol -> whatever units
   hw = hw * option%scale
   
   global_auxvar%den_kg(1) = dw_kg
-  di_kg = 917.d0 ![kg/m^3]
-    ! RTM: WARNING!  We are hard-coding the density of ice at atmospheric 
-    ! pressure here.  We should actually compute this according to the 
-    ! reference pressure in case someone wants to use PFLOTRAN for planetary 
-    ! science.
+  !di_kg = 917.d0 ![kg/m^3]
+  di_kg = dw_kg
+
   k_therm_w = 0.57d0 ! [J/s/m/K]
   k_therm_i = 2.18d0 ! [J/s/m/K]
     ! RTM: Same warning for thermal conductivities--these should be computed.
@@ -218,7 +215,7 @@ subroutine SurfaceTHAuxVarCompute(xx,auxvar,global_auxvar, &
 
   ! Compute unfrozen fraction, and then compute the weighted averages of 
   ! density, specific heat capacity, thermal conductivity
-  unfrozen_fraction = SurfaceTHAuxVarComputeUnfrozen(global_auxvar%temp(1))
+  unfrozen_fraction = SurfaceTHAuxVarComputeUnfrozen(global_auxvar%temp)
   auxvar%unfrozen_fraction = unfrozen_fraction
   global_auxvar%den_kg(1) = unfrozen_fraction * dw_kg + (1.d0 - unfrozen_fraction) * di_kg
   auxvar%Cwi = unfrozen_fraction * auxvar%Cw + (1.d0 - unfrozen_fraction) * auxvar%Ci

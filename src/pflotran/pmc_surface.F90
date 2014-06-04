@@ -399,12 +399,12 @@ subroutine PMCSurfaceSetAuxData(this)
               if (local_id < 1) cycle
               iend = local_id*this%option%nflowdof
               istart = iend - this%option%nflowdof+1
-              if (xx_loc_p(istart) < 1.d-15) then
+              if (xx_loc_p(istart) < 1.d-8) then
                 surf_head_p(local_id) = 0.d0
                 surf_temp_p(local_id) = this%option%reference_temperature
               else
                 surf_head_p(local_id) = xx_loc_p(istart)
-                surf_temp_p(local_id) = surf_global_auxvars(ghosted_id)%temp(1)
+                surf_temp_p(local_id) = surf_global_auxvars(ghosted_id)%temp
               endif
             enddo
 
@@ -440,7 +440,7 @@ subroutine PMCSurfaceSetAuxData(this)
 
                     ! Only when no standing water is present, the atmospheric
                     ! energy flux is applied directly on subsurface domain.
-                    if (surf_head_p(local_id) < 1.d-15) then
+                    if (surf_head_p(local_id) < 1.d-8) then
                       surf_hflux_p(local_id) = esrc
                     else
                       surf_hflux_p(local_id) = 0.d0
@@ -506,6 +506,7 @@ subroutine PMCSurfaceGetAuxDataAfterRestart(this)
   PetscReal, pointer      :: surftemp_p(:)
   PetscInt :: istart, iend
   PetscReal :: den
+  PetscReal :: dum1
   PetscErrorCode :: ierr
   type(Surface_TH_auxvar_type), pointer :: surf_auxvars(:)
 
@@ -517,7 +518,8 @@ subroutine PMCSurfaceGetAuxDataAfterRestart(this)
         select case(this%option%iflowmode)
           case (RICHARDS_MODE)
 
-            call EOSWaterdensity(this%option%reference_temperature,this%option%reference_pressure,den)
+            call EOSWaterdensity(this%option%reference_temperature, &
+                                 this%option%reference_pressure,den,dum1,ierr)
 
             call VecGetArrayF90(pmc%surf_realization%surf_field%flow_xx, xx_p, ierr)
             call VecGetArrayF90(pmc%surf_realization%surf_field%press_subsurf, surfpress_p, ierr)
@@ -550,7 +552,8 @@ subroutine PMCSurfaceGetAuxDataAfterRestart(this)
             ! reference-temperature). Presently, SurfaceCheckpointProcessModel()
             ! does not output surface-water temperature for TH-Mode and the
             ! subroutine needs to be modified in future.
-            call EOSWaterdensity(this%option%reference_temperature,this%option%reference_pressure,den)
+            call EOSWaterdensity(this%option%reference_temperature, &
+                                 this%option%reference_pressure,den,dum1,ierr)
 
             surf_auxvars => pmc%surf_realization%patch%surf_aux%SurfaceTH%auxvars
 
