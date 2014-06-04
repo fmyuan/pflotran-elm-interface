@@ -248,7 +248,6 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
   character(len=1) :: backslash
 
   PetscBool :: velocities
-  PetscBool :: fluxes
   PetscBool :: continuation_flag
   PetscBool :: mass_flowrate
   PetscBool :: energy_flowrate
@@ -399,7 +398,6 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
       !.........................................................................
       case ('SURF_OUTPUT')
         velocities = PETSC_FALSE
-        fluxes = PETSC_FALSE
         mass_flowrate = PETSC_FALSE
         energy_flowrate = PETSC_FALSE
         aveg_mass_flowrate = PETSC_FALSE
@@ -439,7 +437,6 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
                     waypoint => WaypointCreate()
                     waypoint%time = temp_real*units_conversion
                     waypoint%print_output = PETSC_TRUE
-                    write(*,*) 'Inserting waypoint in surf_realization: ',waypoint%time
                     call WaypointInsertInList(waypoint,surf_realization%waypoints)
                   endif
                 enddo
@@ -525,7 +522,6 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
                         waypoint => WaypointCreate()
                         waypoint%time = temp_real
                         waypoint%print_output = PETSC_TRUE
-                        write(*,*) 'Inserting waypoint in surf_realization: >>>>>>>> ',waypoint%time
                         call WaypointInsertInList(waypoint,surf_realization%waypoints)
                         temp_real = temp_real + output_option%periodic_output_time_incr
                         if (temp_real > temp_real2) exit
@@ -593,6 +589,22 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
                         output_option%print_single_h5_file = PETSC_TRUE
                       case('MULTIPLE_FILES')
                         output_option%print_single_h5_file = PETSC_FALSE
+                        output_option%times_per_h5_file = 1
+                        call InputReadWord(input,option,word,PETSC_TRUE)
+                        if (len_trim(word)>0) then
+                          select case(trim(word))
+                            case('TIMES_PER_FILE')
+                              call InputReadInt(input,option, &
+                                              output_option%times_per_h5_file)
+                              call InputErrorMsg(input,option,'timestep increment', &
+                                        'OUTPUT,FORMAT,MULTIPLE_FILES,TIMES_PER_FILE')
+                            case default
+                              option%io_buffer = 'Keyword: ' // trim(word) // &
+                                     ' not recognized in OUTPUT,'// &
+                                     'FORMAT,MULTIPLE_FILES,TIMES_PER_FILE.'
+                              call printErrMsg(option)
+                          end select
+                        endif
                       case default
                         option%io_buffer = 'HDF5 keyword (' // trim(word) // &
                           ') not recongnized.  Use "SINGLE_FILE" or ' // &
@@ -634,10 +646,8 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
                   call printErrMsg(option)
               end select
 
-            case('VELOCITIES')
+            case('VELOCITY_AT_CENTER')
               velocities = PETSC_TRUE
-            case('FLUXES')
-              fluxes = PETSC_TRUE
             case ('HDF5_WRITE_GROUP_SIZE')
               call InputReadInt(input,option,option%hdf5_write_group_size)
               call InputErrorMsg(input,option,'HDF5_WRITE_GROUP_SIZE','Group size')
@@ -672,17 +682,11 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
 
         if (velocities) then
           if (output_option%print_tecplot) &
-            output_option%print_tecplot_velocities = PETSC_TRUE
+            output_option%print_tecplot_vel_cent = PETSC_TRUE
           if (output_option%print_hdf5) &
-            output_option%print_hdf5_velocities = PETSC_TRUE
+            output_option%print_hdf5_vel_cent = PETSC_TRUE
           if (output_option%print_vtk) &
-            output_option%print_vtk_velocities = PETSC_TRUE
-        endif
-        if (fluxes) then
-          if (output_option%print_tecplot) &
-            output_option%print_tecplot_flux_velocities = PETSC_TRUE
-          if (output_option%print_hdf5) &
-           output_option%print_hdf5_flux_velocities = PETSC_TRUE
+            output_option%print_vtk_vel_cent = PETSC_TRUE
         endif
         if (mass_flowrate.or.energy_flowrate.or.aveg_mass_flowrate.or.aveg_energy_flowrate) then
           if (output_option%print_hdf5) then

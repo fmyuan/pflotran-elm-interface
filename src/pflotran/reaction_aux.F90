@@ -251,9 +251,6 @@ module Reaction_Aux_module
     PetscReal, pointer :: eqgash2ostoich(:)  ! stoichiometry of water, if present
     PetscReal, pointer :: eqgas_logK(:)
     PetscReal, pointer :: eqgas_logKcoef(:,:)
-!#ifdef CHUAN_CO2
-!   PetscReal :: scco2_eq_logK ! SC CO2 
-!#endif
 
     PetscInt :: nsorb
     PetscInt :: neqsorb
@@ -451,7 +448,7 @@ function ReactionCreate()
   reaction%calculate_tracer_age = PETSC_FALSE
   reaction%calculate_water_age = PETSC_FALSE
   reaction%print_age = PETSC_FALSE
-  reaction%print_total_component = PETSC_TRUE
+  reaction%print_total_component = PETSC_FALSE
   reaction%print_free_ion = PETSC_FALSE
   reaction%print_total_bulk = PETSC_FALSE
   reaction%use_geothermal_hpt = PETSC_FALSE
@@ -520,9 +517,6 @@ function ReactionCreate()
   nullify(reaction%eqgash2ostoich)
   nullify(reaction%eqgas_logK)
   nullify(reaction%eqgas_logKcoef)
-!#ifdef CHUAN_CO2
-! reaction%scco2_eq_logK = 0.d0
-!#endif
   
   reaction%neqcplx = 0
   nullify(reaction%eqcplxspecid)
@@ -1921,7 +1915,7 @@ end subroutine ColloidConstraintDestroy
 
 ! ************************************************************************** !
 
-subroutine ReactionDestroy(reaction)
+subroutine ReactionDestroy(reaction,option)
   ! 
   ! Deallocates a reaction object
   ! 
@@ -1930,6 +1924,7 @@ subroutine ReactionDestroy(reaction)
   ! 
 
   use Utility_module, only: DeallocateArray
+  use Option_module
   
   implicit none
 
@@ -1945,6 +1940,7 @@ subroutine ReactionDestroy(reaction)
   type(radioactive_decay_rxn_type), pointer :: radioactive_decay_rxn, &
                                                prev_radioactive_decay_rxn
   type(kd_rxn_type), pointer :: kd_rxn, prev_kd_rxn
+  type(option_type) :: option
 
   if (.not.associated(reaction)) return
   
@@ -2022,15 +2018,17 @@ subroutine ReactionDestroy(reaction)
   nullify(reaction%kd_rxn_list)
 
   ! kd reactions secondary continuum
-  kd_rxn => reaction%sec_cont_kd_rxn_list
-  do
-    if (.not.associated(kd_rxn)) exit
-    prev_kd_rxn => kd_rxn
-    kd_rxn => kd_rxn%next
-    call KDRxnDestroy(prev_kd_rxn)
-  enddo    
-  nullify(reaction%sec_cont_kd_rxn_list)
-  
+  if (option%use_mc) then
+    kd_rxn => reaction%sec_cont_kd_rxn_list
+    do
+      if (.not.associated(kd_rxn)) exit
+      prev_kd_rxn => kd_rxn
+      kd_rxn => kd_rxn%next
+      call KDRxnDestroy(prev_kd_rxn)
+    enddo
+    nullify(reaction%sec_cont_kd_rxn_list)
+  endif
+
   call SurfaceComplexationDestroy(reaction%surface_complexation)
   call MineralDestroy(reaction%mineral)
   call MicrobialDestroy(reaction%microbial)

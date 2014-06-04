@@ -33,6 +33,11 @@ module Richards_Aux_module
     PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda    
 #endif
 
+    PetscReal :: P_min
+    PetscReal :: P_max
+    PetscReal :: coeff_for_cubic_approx(4)
+    PetscReal :: range_for_linear_approx(4)
+
   end type richards_auxvar_type
   
   type, public :: richards_parameter_type
@@ -144,6 +149,11 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%bc_lambda  = 0.0d0
 #endif 
 
+  auxvar%P_min = 0.d0
+  auxvar%P_max = 0.d0
+  auxvar%coeff_for_cubic_approx(:) = 0.d0
+  auxvar%range_for_linear_approx(:) = 0.d0
+  
 end subroutine RichardsAuxVarInit
 
 ! ************************************************************************** !
@@ -184,6 +194,11 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%bc_alpha  = auxvar%bc_alpha
   auxvar2%bc_lambda = auxvar%bc_lambda
 #endif
+
+  auxvar2%P_min = auxvar%P_min
+  auxvar2%P_max = auxvar%P_max
+  auxvar2%coeff_for_cubic_approx(:) = auxvar%coeff_for_cubic_approx(:)
+  auxvar2%range_for_linear_approx(:) = auxvar%range_for_linear_approx(:)
 
 end subroutine RichardsAuxVarCopy
 
@@ -282,15 +297,15 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
 !  call wateos_noderiv(option%temp,pw,dw_kg,dw_mol,hw,option%scale,ierr)
 #ifndef DONT_USE_WATEOS
-!geh  call EOSWaterDensityEnthalpy(global_auxvar%temp(1),pw,dw_kg,dw_mol,hw, &
+!geh  call EOSWaterDensityEnthalpy(global_auxvar%temp,pw,dw_kg,dw_mol,hw, &
 !                               dw_dp,dw_dt,hw_dp,hw_dt,option%scale,ierr)
-  call EOSWaterDensity(global_auxvar%temp(1),pw,dw_kg,dw_mol, &
+  call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol, &
                        dw_dp,dw_dt,ierr)
 #else
-  call EOSWaterDensity(global_auxvar%temp(1),pw,dw_kg)
+  call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,ierr)
   pert = tol*pw
   pw_pert = pw+pert
-  call EOSWaterdensity(global_auxvar%temp(1),pw_pert,dw_kg_pert)
+  call EOSWaterdensity(global_auxvar%temp,pw_pert,dw_kg_pert,dw_mol,ierr)
   dw_dp = (dw_kg_pert-dw_kg)/pert
   ! dw_kg = kg/m^3
   ! dw_mol = kmol/m^3
@@ -299,9 +314,9 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   dw_dp = dw_dp/FMWH2O
 #endif
 ! may need to compute dpsat_dt to pass to VISW
-  call EOSWaterSaturationPressure(global_auxvar%temp(1),sat_pressure,ierr)
+  call EOSWaterSaturationPressure(global_auxvar%temp,sat_pressure,ierr)
   !geh: 0.d0 passed in for derivative of pressure w/respect to temp
-  call EOSWaterViscosity(global_auxvar%temp(1),pw,sat_pressure,0.d0, &
+  call EOSWaterViscosity(global_auxvar%temp,pw,sat_pressure,0.d0, &
                          visl,dvis_dt,dvis_dp,dvis_dpsat,ierr) 
 !geh  dvis_dpsat = -dvis_dp   ! already handled in EOSWaterViscosity
   if (.not.saturated) then !kludge since pw is constant in the unsat zone

@@ -2764,7 +2764,7 @@ end subroutine pflotranModelSetICs
       if (local_id>0) then
         !call VecSetValues(clm_pf_idata%sat_ice_pf,1,local_id-1, &
         !                 global_aux_vars(ghosted_id)%sat_ice(1),INSERT_VALUES,ierr)
-        temp_pf_p(local_id) = global_aux_vars(ghosted_id)%temp(1)
+        temp_pf_p(local_id) = global_aux_vars(ghosted_id)%temp
       endif
     enddo
     call VecRestoreArrayF90(clm_pf_idata%temp_pf, temp_pf_p, ierr)
