@@ -271,9 +271,13 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: f_t, f_w
 
   PetscReal :: c_no3      ! mole/L
+  PetscReal :: f_no3         ! no3 / (half_saturation + no3)
+  PetscReal :: d_no3         ! half_saturation/(no3 + half_saturation)^2
   PetscReal :: rate_deni, drate_deni
   PetscReal :: saturation
   PetscInt, parameter :: iphase = 1
+
+!---------------------------------------------------------------------------------
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
@@ -296,23 +300,23 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 #endif
 
   tc = global_auxvar%temp
-  f_t = exp(0.08d0 * (tc - 298.0d0 + 273.15d0))
+  f_t = exp(0.08d0 * (tc - 25.d0))
 
   saturation = global_auxvar%sat(1)
   s_min = 0.6d0
+  f_w = 0.d0
   if(saturation > s_min) then
      f_w = (saturation - s_min)/(1.0d0 - s_min)
      f_w = f_w ** temp_real
-  else
-     return
   endif
 
   c_no3 = rt_auxvar%total(this%ispec_no3, iphase)
-  if (c_no3 < this%x0eps/10.d0) return
-  c_no3 = c_no3 - this%x0eps
+  temp_real = c_no3 -this%x0eps + this%half_saturation
+  f_no3 = (c_no3 - this%x0eps) / temp_real
+  d_no3 = this%half_saturation / temp_real / temp_real
 
-  if(f_w > 0.0d0) then
-     rate_deni = this%k_deni_max * c_no3 * f_t * f_w
+  if(c_no3 > this%x0eps/10.d0 .and. (f_t>0.d0 .and. f_w>0.d0)) then
+     rate_deni = this%k_deni_max * c_no3 * f_t * f_w * f_no3
 
      Residual(ires_no3) = Residual(ires_no3) + rate_deni
      Residual(ires_n2) = Residual(ires_n2) - 0.5d0*rate_deni
@@ -321,10 +325,9 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
         Residual(ires_ngasdeni) = Residual(ires_ngasdeni) - 0.5d0*rate_deni
      endif
 
-
     if (compute_derivative) then
 
-       drate_deni = f_t*f_w*this%k_deni_max
+       drate_deni = f_t*f_w*this%k_deni_max * d_no3
 
        Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) + drate_deni * &
         rt_auxvar%aqueous%dtotal(this%ispec_no3,this%ispec_no3,iphase)

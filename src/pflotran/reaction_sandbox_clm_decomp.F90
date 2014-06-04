@@ -986,7 +986,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
       ires_uc = reaction%offset_immobile + ispec_uc
     endif
 
-    if(c_uc < this%x0eps) cycle
+    if(c_uc <= this%x0eps) cycle
 
     ! for litter decomposition reactions, stoich needs to be calculated on the fly
     if(this%is_litter_decomp(irxn)) then
@@ -1072,6 +1072,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     drate_uc = scaled_rate_const 
 
     ! NH3 limiting
+    drate_nh3 = 0.d0
     if(this%mineral_n_stoich(irxn) < 0.0d0) then
           drate_nh3 = rate * d_nh3 
           rate      = rate * f_nh3
@@ -1858,9 +1859,10 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
       if (compute_derivative) then
         drate_n2o = temp_real * net_n_mineralization_rate * d_nh3
-        Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_n2o
-        Jacobian(ires_n2o,ires_nh3) = Jacobian(ires_n2o,ires_nh3) - &
-                                      0.5d0 * drate_n2o
+        Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_n2o* &
+           rt_auxvar%aqueous%dtotal(this%species_id_nh3,this%species_id_nh3,iphase)
+        Jacobian(ires_n2o,ires_nh3) = Jacobian(ires_n2o,ires_nh3) - 0.5d0*drate_n2o* &
+           rt_auxvar%aqueous%dtotal(this%species_id_n2o,this%species_id_nh3,iphase)
         if(this%species_id_ngasmin > 0) then
            Jacobian(ires_ngasmin,ires_nh3) = Jacobian(ires_ngasmin,ires_nh3) - &
                                       0.5d0 * drate_n2o

@@ -414,6 +414,8 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
 end subroutine NitrificationReact
 
+!*********************************************************************************************************
+
 subroutine NitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,porosity,volume,reaction, &
                          option,local_id)
