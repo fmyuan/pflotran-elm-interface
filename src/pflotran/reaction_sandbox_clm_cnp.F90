@@ -1233,14 +1233,14 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
   select case(this%temperature_response_function)
       case(TEMPERATURE_RESPONSE_FUNCTION_Q10)
 ! CLM4.5 temperature response function
-          tc = global_auxvar%temp(1)
+          tc = global_auxvar%temp
           F_t = this%Q10 ** ((tc - 25.0d0) / 10.0d0)
       case(TEMPERATURE_RESPONSE_FUNCTION_CLM4) 
 ! CLM-CN temperature response function
   ! inhibition due to temperature
   ! Equation: F_t = exp(308.56*(1/17.02 - 1/(T - 227.13)))
 
-          temp_K = global_auxvar%temp(1) + 273.15d0
+          temp_K = global_auxvar%temp + 273.15d0
 
           if(temp_K .GT. 227.15d0) then
             F_t = exp(308.56d0*(one_over_71_02 - 1.d0/(temp_K - 227.13d0)))

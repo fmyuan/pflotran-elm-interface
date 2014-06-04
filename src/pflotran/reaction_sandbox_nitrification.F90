@@ -302,7 +302,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   saturation = global_auxvar%sat(1)
   theta = saturation * porosity
 
-  tc = global_auxvar%temp(1)
+  tc = global_auxvar%temp
 
   c_nh3 = rt_auxvar%total(this%ispec_nh3, iphase)
 
@@ -313,6 +313,9 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   else
      s_nh3 = 1.d-20
   endif
+
+  if (c_nh3 < this%x0eps/10.d0 .and. s_nh3<this%x0eps/10.d0) return
+
   c_nh3 = c_nh3 - this%x0eps
 
   ! nitrification (Dickinson et al. 2002)
@@ -411,6 +414,8 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
 end subroutine NitrificationReact
 
+!*********************************************************************************************************
+
 subroutine NitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,porosity,volume,reaction, &
                          option,local_id)
@@ -502,7 +507,7 @@ subroutine NitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
 #endif
 
   ! temperature response function 
-  tc = global_auxvar%temp(1)
+  tc = global_auxvar%temp
   tk = tc + 273.15d0
   if(tk <= 273.15d0) then
   ! limit to non-frozen soil layers

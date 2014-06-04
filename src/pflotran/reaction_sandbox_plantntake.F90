@@ -265,7 +265,6 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
       endif
   endif
 
-
 #ifdef CLM_PFLOTRAN
   call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, &
        rate_plantnuptake_pf_loc, ierr)
@@ -278,9 +277,11 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   rate_nplant = this%rate
 #endif
 
-  rate_nplant_no3 = rate_nplant * f_nh3_inhibit   ! NO3 uptake rate
+  rate_nplant_no3 = rate_nplant * f_nh3_inhibit   ! NH4 inhibited NO3 uptake rate
+  rate_nplant = rate_nplant * (1.d0 - f_nh3_inhibit)
 
-  if(ispec_nh3 > 0) then
+  if(ispec_nh3 > 0 .and. c_nh3>this%x0eps/10.d0) then
+
     drate_nplant = rate_nplant * d_nh3
     rate_nplant = rate_nplant * f_nh3
 
@@ -295,7 +296,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
     endif
   endif
 
-  if(ispec_no3 > 0) then
+  if(ispec_no3 > 0 .and. c_no3 > this%x0eps/10.d0) then
     drate_nplant_no3 = rate_nplant_no3 * d_no3
     rate_nplant_no3  = rate_nplant_no3 * f_no3
 
@@ -308,6 +309,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 
      Jacobian(ires_plantn,ires_no3)=Jacobian(ires_plantn,ires_no3)-drate_nplant_no3
     endif
+
   endif
 
 #ifdef CLM_PFLOTRAN

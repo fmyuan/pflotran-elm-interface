@@ -2997,7 +2997,7 @@ end subroutine pflotranModelSetICs
     do ghosted_id=1,grid%ngmax
       local_id = grid%nG2L(ghosted_id)
       if (local_id>0) then
-        soilt_pf_p(local_id) = global_auxvars(ghosted_id)%temp(1)
+        soilt_pf_p(local_id) = global_auxvars(ghosted_id)%temp
         soilisat_pf_p(local_id) = th_auxvars(ghosted_id)%sat_ice
       endif
     enddo
@@ -3692,7 +3692,7 @@ end subroutine pflotranModelSetICs
         call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
         do local_id=1, grid%nlmax
             ghosted_id=grid%nL2G(local_id)
-            global_auxvars(ghosted_id)%temp(1)=soilt_pf_loc(local_id)
+            global_auxvars(ghosted_id)%temp=soilt_pf_loc(local_id)
         enddo
         call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
     endif
@@ -5023,6 +5023,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     use Field_module
     use Reaction_module
     use Reaction_Aux_module
+    use Reactive_Transport_module
     use Reactive_Transport_Aux_module
     use Immobile_Aux_module
     use Discretization_module
@@ -5300,6 +5301,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
         accextrn_vr_pf_loc(local_id) = max(xx_p(offsetim + ispec_plantn), 1.0d-20) &
                                         * N_molecular_weight
+        ! resetting the tracking variable state so that cumulative IS for the time-step only
+        xx_p(offsetim + ispec_plantn) = 1.0d-50
 
         if(ispec_nh4 > 0) then
 !           conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0
@@ -5313,7 +5316,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
             if (associated(rt_auxvar%total_sorb_eq)) then    ! equilibrium-sorption reactions used
                 conc = rt_auxvar%total_sorb_eq(ispec_nh4)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 1.0d-20) * N_molecular_weight
-
             else if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction used for soil NH4+ absorption
                 conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (molC/m3)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 1.0d-20) * N_molecular_weight
@@ -5346,31 +5348,50 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         if(ispec_hrimm > 0) then
            conc = xx_p(offsetim + ispec_hrimm)
            acchr_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * C_molecular_weight
+
+           ! resetting the tracking variable state so that cumulative IS for the time-step
+           xx_p(offsetim + ispec_hrimm) = 1.0d-50
         endif
 
         if(ispec_nmin > 0) then
            conc = xx_p(offsetim + ispec_nmin)
            accnmin_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+
+           ! resetting the tracking variable state so that cumulative IS for the time-step
+           xx_p(offsetim + ispec_nmin) = 1.0d-50
         endif
 
         if(ispec_nimm > 0) then
            conc = xx_p(offsetim + ispec_nimm)
            accnimm_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+
+           ! resetting the tracking variable state so that cumulative IS for the time-step
+           xx_p(offsetim + ispec_nimm) = 1.0d-50
+
         endif
 
         if(ispec_ngasmin > 0) then
            conc = xx_p(offsetim + ispec_ngasmin)
            accngasmin_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+
+           ! resetting the tracking variable state so that cumulative IS for the time-step
+           xx_p(offsetim + ispec_ngasmin) = 1.0d-50
         endif
 
         if(ispec_ngasnitr > 0) then
            conc = xx_p(offsetim + ispec_ngasnitr)
            accngasnitr_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+
+           ! resetting the tracking variable state so that cumulative IS for the time-step
+           xx_p(offsetim + ispec_ngasnitr) = 1.0d-50
         endif
 
         if(ispec_ngasdeni > 0) then
            conc = xx_p(offsetim + ispec_ngasdeni)
            accngasdeni_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+
+           ! resetting the tracking variable state so that cumulative IS for the time-step
+           xx_p(offsetim + ispec_ngasdeni) = 1.0d-50
         endif
 
     enddo
@@ -5406,6 +5427,13 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     !
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
     call VecRestoreArrayReadF90(field%porosity0, porosity_loc_p, ierr)
+
+    ! resetting the tracked variable states
+    call DiscretizationGlobalToLocal(realization%discretization,field%tran_xx, &
+                                   field%tran_xx_loc,NTRANDOF)
+    call VecCopy(field%tran_xx,field%tran_yy,ierr)
+    call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
+
 
    ! (iv) pass the 'pf' vecs to 'clm' vecs, which then can be passed to CLMCN (implemented in 'clm_pflotran_interfaceMod'
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -5489,9 +5517,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                     pflotran_model%option, &
                                     clm_pf_idata%smin_nh4_vr_pfp, &
                                     clm_pf_idata%smin_nh4_vr_clms)
-    endif
 
-    if(ispec_nh4sorb > 0) then
          call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%smin_nh4sorb_vr_pfp, &

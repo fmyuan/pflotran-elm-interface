@@ -292,14 +292,14 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
       air_press = max(air_press, global_auxvar%pres(1))      ! total (air)gas pressure: water pressure if over atm. press., otherwise atm. press.
       lsat = global_auxvar%sat(1)
       if (option%iflowmode == TH_MODE) then
-         tc = global_auxvar%temp(1)
+         tc = global_auxvar%temp
          !isat = th_auxvar%sat_ice       ! (TODO) not yet figure out how to point to 'th_auxvar'
       endif
 #ifdef CLM_PFLOTRAN
   elseif (option%ntrandof.gt.0 ) then
       air_press = max(air_press, global_auxvar%pres(1))      ! total (air)gas pressure: water pressure if over atm. press., otherwise atm. press.
       lsat = global_auxvar%sat(1)
-      tc = global_auxvar%temp(1)
+      tc = global_auxvar%temp
   else
       option%io_buffer='reaction_sandbox_degas ' // &
                  'not supported for the modes applied for.'
