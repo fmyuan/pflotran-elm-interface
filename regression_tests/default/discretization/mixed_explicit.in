@@ -21,6 +21,7 @@ CHEMISTRY
     Tracer3
   /
   OUTPUT
+    all
     TOTAL
   /
 END
