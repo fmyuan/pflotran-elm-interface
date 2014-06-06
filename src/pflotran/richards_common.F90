@@ -663,7 +663,10 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
 
           ! If running with surface-flow model, ensure (darcy_velocity*dt) does
           ! not exceed depth of standing water.
+#ifndef CLM_PFLOTRAN
+! let this workable for CLM-PFLOTRAN all the time
           if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) then
+#endif
             call EOSWaterdensity(option%reference_temperature, &
                                  option%reference_pressure,rho,dum1,ierr)
 
@@ -697,7 +700,10 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                 dq_dp_dn = dq_approx
               endif
             endif
+#ifndef CLM_PFLOTRAN
+! let this workable for CLM-PFLOTRAN all the time
           endif
+#endif
         endif
 
       endif

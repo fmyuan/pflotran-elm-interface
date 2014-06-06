@@ -876,7 +876,7 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
   endif
-  call printMsg(option)
+!  call printMsg(option)
 
   if (first) then
     ! create a group for the coordinates data set
