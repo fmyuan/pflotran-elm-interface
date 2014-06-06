@@ -315,7 +315,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   f_no3 = (c_no3 - this%x0eps) / temp_real
   d_no3 = this%half_saturation / temp_real / temp_real
 
-  if(c_no3 > this%x0eps/10.d0 .and. (f_t>0.d0 .and. f_w>0.d0)) then
+  if(abs(c_no3) > this%x0eps .and. (f_t>0.d0 .and. f_w>0.d0)) then
      rate_deni = this%k_deni_max * c_no3 * f_t * f_w * f_no3
 
      Residual(ires_no3) = Residual(ires_no3) + rate_deni
