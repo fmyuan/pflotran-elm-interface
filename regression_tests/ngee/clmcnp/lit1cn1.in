@@ -42,6 +42,7 @@ CHEMISTRY
   DATABASE ../CLM-CN_database.dat
   OUTPUT
     all
+    TOTAL
   /
 END
 
