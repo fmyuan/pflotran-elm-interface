@@ -314,7 +314,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
      s_nh3 = 1.d-20
   endif
 
-  if (c_nh3 < this%x0eps/10.d0 .and. s_nh3<this%x0eps/10.d0) return
+  if (abs(c_nh3)<this%x0eps .and. abs(s_nh3)<this%x0eps) return
 
   c_nh3 = c_nh3 - this%x0eps
 

@@ -195,8 +195,8 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscReal :: rate_nplant
   PetscReal :: rate_nplant_no3
-  PetscReal :: drate_nplant       !drate/dnh4+ 
-  PetscReal :: drate_nplant_no3   !drate/dno3-
+  PetscReal :: drate_nplant       !drate_nh4/dnh4+
+  PetscReal :: drate_nplant_no3   !drate_no3/dno3-
   PetscReal :: rate_nh4, rate_no3
 
 #ifdef CLM_PFLOTRAN
@@ -249,6 +249,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
      ires_nh3 = ispec_nh3
   endif
 
+  f_nh3_inhibit = 0.d0
   if (ispec_no3 > 0) then
       c_no3 = rt_auxvar%total(ispec_no3, iphase)
       temp_real = c_no3 -this%x0eps + this%half_saturation_no3
@@ -269,18 +270,14 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, &
        rate_plantnuptake_pf_loc, ierr)
 
-  rate_nplant = rate_plantnuptake_pf_loc(local_id) * volume ! mol/m3/s * m3
+  this%rate = rate_plantnuptake_pf_loc(local_id) * volume ! mol/m3/s * m3
 
   call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, &
        rate_plantnuptake_pf_loc, ierr)
-#else
-  rate_nplant = this%rate
 #endif
 
-  rate_nplant_no3 = rate_nplant * f_nh3_inhibit   ! NH4 inhibited NO3 uptake rate
-  rate_nplant = rate_nplant * (1.d0 - f_nh3_inhibit)
-
-  if(ispec_nh3 > 0 .and. c_nh3>this%x0eps/10.d0) then
+  rate_nplant = this%rate !* (1.d0 - f_nh3_inhibit)
+  if(ispec_nh3 > 0 .and. abs(c_nh3)>this%x0eps) then
 
     drate_nplant = rate_nplant * d_nh3
     rate_nplant = rate_nplant * f_nh3
@@ -294,20 +291,24 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 
        Jacobian(ires_plantn,ires_nh3)=Jacobian(ires_plantn,ires_nh3)-drate_nplant
     endif
+
   endif
 
-  if(ispec_no3 > 0 .and. c_no3 > this%x0eps/10.d0) then
-    drate_nplant_no3 = rate_nplant_no3 * d_no3
-    rate_nplant_no3  = rate_nplant_no3 * f_no3
+  if(ispec_no3 > 0 .and. abs(c_no3)>this%x0eps) then
+    rate_nplant_no3 = this%rate * f_nh3_inhibit * f_no3   ! NH4 inhibited NO3 uptake rate
+    drate_nplant_no3 = this%rate * f_nh3_inhibit * d_no3
 
+    !
     Residual(ires_no3) = Residual(ires_no3) + rate_nplant_no3
     Residual(ires_plantn) = Residual(ires_plantn) - rate_nplant_no3
 
     if (compute_derivative) then
+     !
      Jacobian(ires_no3,ires_no3)=Jacobian(ires_no3,ires_no3)+drate_nplant_no3* &
        rt_auxvar%aqueous%dtotal(ispec_no3,ispec_no3,iphase)
 
      Jacobian(ires_plantn,ires_no3)=Jacobian(ires_plantn,ires_no3)-drate_nplant_no3
+
     endif
 
   endif
