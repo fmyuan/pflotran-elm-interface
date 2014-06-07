@@ -663,8 +663,13 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
 
           ! If running with surface-flow model, ensure (darcy_velocity*dt) does
           ! not exceed depth of standing water.
-#ifndef CLM_PFLOTRAN
-! let this workable for CLM-PFLOTRAN all the time
+#ifdef CLM_PFLOTRAN
+          ! if coupled with CLM, the following conditions imply a top standing-water BC
+          ! so need to limit the available water for flow-in downwind cell
+          if ((pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) &
+              .or. (pressure_bc_type==DIRICHLET_BC .and. area>0.d0 .and. &
+             global_auxvar_up%pres(1)>option%reference_pressure) ) then
+#else
           if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) then
 #endif
             call EOSWaterdensity(option%reference_temperature, &
@@ -700,10 +705,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                 dq_dp_dn = dq_approx
               endif
             endif
-#ifndef CLM_PFLOTRAN
-! let this workable for CLM-PFLOTRAN all the time
           endif
-#endif
         endif
 
       endif
@@ -953,7 +955,15 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
 
         ! If running with surface-flow model, ensure (darcy_velocity*dt) does
         ! not exceed depth of standing water.
+#ifdef CLM_PFLOTRAN
+        ! if coupled with CLM, the following conditions imply a top standing-water BC
+        ! so need to limit the available water for flow-in downwind cell
+        if ((pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) &
+              .or. (pressure_bc_type==DIRICHLET_BC .and. area>0.d0 .and. &
+             global_auxvar_up%pres(1)>option%reference_pressure) ) then
+#else
         if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) then
+#endif
           call EOSWaterdensity(option%reference_temperature, &
                                option%reference_pressure,rho,dum1,ierr)
 
@@ -984,9 +994,9 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
                                          q_approx, dq_approx)
             v_darcy = q_approx/area
           endif
-
         endif
        endif
+
       endif 
 
     case(NEUMANN_BC)
