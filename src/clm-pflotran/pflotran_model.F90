@@ -4179,7 +4179,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
              cur_connection_set%area(iconn) = toparea_p(iconn)     ! normally it's ON
              if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! shut-off the BC by resetting the BC 'area' to a tiny value
-                cur_connection_set%area(iconn) = 0.d-50
+                cur_connection_set%area(iconn) = 0.d0
              endif
 
           endif
@@ -4189,7 +4189,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                    boundary_condition%flow_aux_real_var(press_dof,iconn)= &
                        press_subsurf_pf_loc(iconn)
 
-             cur_connection_set%area(iconn) = 0.d-50               ! normally shut-off this BC
+             cur_connection_set%area(iconn) = 0.d0               ! normally shut-off this BC
              if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! turn on the BC by resetting the BC 'area' to real value
                 cur_connection_set%area(iconn) = toparea_p(iconn)
              endif
