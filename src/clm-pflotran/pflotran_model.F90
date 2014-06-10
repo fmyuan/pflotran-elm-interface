@@ -145,8 +145,8 @@ module pflotran_model_module
        pflotranModelGetBgcVariables,           &
        pflotranModelSetSoilHbcs,               &
        pflotranModelGetBCMassBalanceDelta,     &
-       pflotranModelNFaceCells3DDomainPF
-
+       pflotranModelNFaceCells3DDomainPF,      &
+       pflotranModelUpdateFinalWaypoint
 
 contains
 
@@ -2028,6 +2028,7 @@ end subroutine pflotranModelSetICs
     waypoint => WaypointCreate()
     waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
     waypoint%update_conditions = PETSC_TRUE
+    waypoint%print_output = PETSC_FALSE
     waypoint%dt_max            = waypoint_time * UnitsConvertToInternal(word, model%option)!3153600.d0
     waypoint2 => WaypointCreate(waypoint)
 
@@ -2040,6 +2041,91 @@ end subroutine pflotranModelSetICs
     end if
 
   end subroutine pflotranModelInsertWaypoint
+
+! ************************************************************************** !
+
+  subroutine pflotranModelUpdateFinalWaypoint(model, waypoint_time)
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+
+    use Realization_class, only : realization_type,RealizationAddWaypointsToList
+    use Surface_Realization_class, only : surface_realization_type
+    use Surface_Realization_class, only : surface_realization_type
+
+    use Waypoint_module, only : waypoint_type, WaypointCreate,       &
+                  WaypointDeleteFromList, WaypointInsertInList,      &
+                  WaypointListFillIn, WaypointListRemoveExtraWaypnts
+    use Units_module, only : UnitsConvertToInternal
+    use Option_module, only : printErrMsg
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: model
+    type(waypoint_type), pointer       :: waypoint, waypoint2
+    PetscReal                          :: waypoint_time
+    character(len=MAXWORDLENGTH)       :: word
+
+    class(realization_type), pointer    :: realization
+    class(surface_realization_type), pointer :: surf_realization
+
+    select type (simulation => model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+         nullify(surf_realization)
+      class is (surface_simulation_type)
+         nullify(realization)
+         surf_realization => simulation%surf_realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+         surf_realization => simulation%surf_realization
+      class default
+         nullify(realization)
+         nullify(surf_realization)
+         model%option%io_buffer = "pflotranModelUPdateFinalWaypoint is " // &
+              "Not support in this mode."
+         call printErrMsg(model%option)
+    end select
+
+    ! change original final waypoint
+    waypoint => realization%waypoints%first
+    do
+        if (.not.associated(waypoint)) exit
+        if (waypoint%final) then
+           waypoint%final = PETSC_FALSE
+           waypoint%print_output = PETSC_FALSE
+           exit
+        else
+           waypoint => waypoint%next
+        endif
+    enddo
+
+    ! insert new final waypoint
+    word = 's'
+    waypoint => WaypointCreate()
+    waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
+    waypoint%print_output      = PETSC_TRUE
+    waypoint%final             = PETSC_TRUE
+    waypoint%dt_max            = waypoint_time * UnitsConvertToInternal(word, model%option)
+    waypoint2 => WaypointCreate(waypoint)
+
+    if (associated(realization)) then
+       call WaypointInsertInList(waypoint, realization%waypoints)
+
+       call RealizationAddWaypointsToList(realization)
+       call WaypointListFillIn(model%option,realization%waypoints)
+       call WaypointListRemoveExtraWaypnts(model%option,realization%waypoints)
+
+    end if
+
+    if (associated(surf_realization)) then
+       call WaypointInsertInList(waypoint2, surf_realization%waypoints)
+
+    end if
+
+  end subroutine pflotranModelUpdateFinalWaypoint
 
 ! ************************************************************************** !
 
