@@ -2044,7 +2044,7 @@ end subroutine pflotranModelSetICs
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelUpdateFinalWaypoint(model, waypoint_time)
+  subroutine pflotranModelUpdateFinalWaypoint(model, waypoint_time, isprintout)
 
     use Simulation_Base_class, only : simulation_base_type
     use Subsurface_Simulation_class, only : subsurface_simulation_type
@@ -2066,6 +2066,7 @@ end subroutine pflotranModelSetICs
     type(pflotran_model_type), pointer :: model
     type(waypoint_type), pointer       :: waypoint, waypoint2
     PetscReal                          :: waypoint_time
+    PetscBool                          :: isprintout
     character(len=MAXWORDLENGTH)       :: word
 
     class(realization_type), pointer    :: realization
@@ -2095,7 +2096,6 @@ end subroutine pflotranModelSetICs
         if (.not.associated(waypoint)) exit
         if (waypoint%final) then
            waypoint%final = PETSC_FALSE
-           waypoint%print_output = PETSC_FALSE
            exit
         else
            waypoint => waypoint%next
@@ -2124,6 +2124,17 @@ end subroutine pflotranModelSetICs
        call WaypointInsertInList(waypoint2, surf_realization%waypoints)
 
     end if
+
+    ! turn off the 'print out' if required from CLM
+    if(.not.isprintout) then
+       waypoint => realization%waypoints%first
+       do
+           if (.not.associated(waypoint)) exit
+           waypoint%print_output = PETSC_FALSE
+           waypoint => waypoint%next
+       enddo
+    endif
+
 
   end subroutine pflotranModelUpdateFinalWaypoint
 
