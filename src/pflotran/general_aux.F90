@@ -9,6 +9,8 @@ module General_Aux_module
 #include "finclude/petscsys.h"
 
   PetscReal, public :: window_epsilon = 1.d-4
+  PetscReal, public :: fmw_comp(2) = [FMWH2O,FMWAIR]
+  PetscReal, public :: general_max_pressure_change = 5.d4
 
   ! thermodynamic state of fluid ids
   PetscInt, parameter, public :: NULL_STATE = 0
@@ -53,6 +55,7 @@ module General_Aux_module
   PetscInt, public :: dof_to_primary_variable(3,3)
   PetscInt, public :: general_2ph_energy_dof = GENERAL_TEMPERATURE_INDEX
   PetscBool, public :: general_isothermal = PETSC_FALSE
+  PetscBool, public :: general_no_air = PETSC_FALSE
   
   type, public :: general_auxvar_type
     PetscInt :: istate_store(2) ! 1 = previous timestep; 2 = previous iteration
@@ -540,7 +543,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                                       h_water_vapor,ierr)
     h_water_vapor = h_water_vapor * 1.d-6                                  
     gen_auxvar%den(gid) = den_water_vapor + den_air
-    gen_auxvar%den_kg(gid) = den_kg_water_vapor + den_air*FMWAIR
+    gen_auxvar%den_kg(gid) = den_kg_water_vapor + den_air*fmw_comp(gid)
     ! if xmol not set for gas phase, as is the case for LIQUID_STATE, 
     ! set based on densities
 !    if (gen_auxvar%xmol(acid,gid) < 1.d-40) then
@@ -574,7 +577,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   if (global_auxvar%istate == GAS_STATE .or. &
       global_auxvar%istate == TWO_PHASE_STATE) then
     ! this does not need to be calculated for GAS_STATE (=1)
-    call SatFuncGetGasRelPermFromSat(gen_auxvar%sat(lid),krl,krg, &
+    call SatFuncGetGasRelPermFromSat(gen_auxvar%sat(lid),krg, &
                                      saturation_function,option)
     ! STOMP uses separate functions for calculating viscosity of vapor and
     ! and air (WATGSV,AIRGSV) and then uses GASVIS to calculate mixture 
@@ -1013,7 +1016,7 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
     case(LIQUID_STATE)
       gen_auxvar(GENERAL_LIQUID_PRESSURE_DOF)%pert = &
         gen_auxvar(GENERAL_LIQUID_PRESSURE_DOF)%pert / general_pressure_scale
-    case(TWO_PHASE_STATE,GAS_STATE)
+    case(TWO_PHASE_STATE)
       gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
         gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / general_pressure_scale
       if (general_2ph_energy_dof == GENERAL_AIR_PRESSURE_INDEX) then
@@ -1021,6 +1024,11 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
           gen_auxvar(GENERAL_2PH_STATE_AIR_PRESSURE_DOF)%pert / &
           general_pressure_scale
       endif
+    case(GAS_STATE)
+      gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert = &
+        gen_auxvar(GENERAL_GAS_PRESSURE_DOF)%pert / general_pressure_scale
+      gen_auxvar(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)%pert = &
+        gen_auxvar(GENERAL_GAS_STATE_AIR_PRESSURE_DOF)%pert / general_pressure_scale
   end select
   
 #ifdef DEBUG_GENERAL

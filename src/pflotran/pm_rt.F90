@@ -132,16 +132,16 @@ subroutine PMRTInit(this)
   ! set up communicator
   select case(this%realization%discretization%itype)
     case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
-      this%comm1 => StructuredCommunicatorCreate()
       this%commN => StructuredCommunicatorCreate()
     case(UNSTRUCTURED_GRID)
-      this%comm1 => UnstructuredCommunicatorCreate()
       this%commN => UnstructuredCommunicatorCreate()
   end select
-  call this%comm1%SetDM(this%realization%discretization%dm_1dof)
   call this%commN%SetDM(this%realization%discretization%dm_ntrandof)
 #endif
 
+  ! set the communicator
+  this%comm1 => this%realization%comm1
+  
 end subroutine PMRTInit
 
 ! ************************************************************************** !
@@ -217,7 +217,7 @@ subroutine PMRTInitializeTimestep(this)
   if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
     call this%SetTranWeights()
     ! set densities and saturations to t
-    call GlobalUpdateDenAndSat(this%realization,this%tran_weight_t0)
+    call GlobalWeightAuxvars(this%realization,this%tran_weight_t0)
   endif
 
   call RTInitializeTimestep(this%realization)
@@ -226,7 +226,7 @@ subroutine PMRTInitializeTimestep(this)
 #if 1
   ! set densities and saturations to t+dt
   if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
-    call GlobalUpdateDenAndSat(this%realization,this%tran_weight_t1)
+    call GlobalWeightAuxVars(this%realization,this%tran_weight_t1)
   endif
 
   call RTUpdateTransportCoefs(this%realization)
@@ -260,7 +260,7 @@ subroutine PMRTPreSolve(this)
 #if 0
   ! set densities and saturations to t+dt
   if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
-    call GlobalUpdateDenAndSat(this%realization,this%tran_weight_t1)
+    call GlobalWeightAuxVars(this%realization,this%tran_weight_t1)
   endif
 
   call RTUpdateTransportCoefs(this%realization)
@@ -670,7 +670,7 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
       this%realization%reaction%update_tortuosity .or. &
       this%realization%reaction%update_permeability .or. &
       this%realization%reaction%update_mineral_surface_area) then
-    call RealizationUpdateProperties(this%realization)
+    call RealizationUpdatePropertiesTS(this%realization)
   endif
   
   call MassTransferUpdate(this%realization%rt_mass_transfer_list, &
@@ -1055,13 +1055,12 @@ subroutine PMRTDestroy(this)
   
   class(pm_rt_type) :: this
 
-#ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRTDestroy()')
-#endif
-  
-#ifndef SIMPLIFY 
   call RTDestroy(this%realization)
-#endif
+  ! destroyed in realization
+  nullify(this%comm1)
+  call this%commN%Destroy()
+  if (associated(this%commN)) deallocate(this%commN)
+  nullify(this%commN)  
 
 end subroutine PMRTDestroy
   

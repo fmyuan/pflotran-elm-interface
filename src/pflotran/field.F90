@@ -17,6 +17,7 @@ module Field_module
     !get material id
     ! 1 degree of freedom
     Vec :: porosity0
+    Vec :: porosity_mnrl_loc
     Vec :: tortuosity0
     Vec :: ithrm_loc
     Vec :: icap_loc
@@ -64,6 +65,11 @@ module Field_module
     Vec :: flowrate_inst
     Vec :: flowrate_aveg
 
+    ! vectors to save velocity at face
+    Vec :: vx_face_inst
+    Vec :: vy_face_inst
+    Vec :: vz_face_inst
+
     Vec, pointer :: max_change_vecs(:)
 
   end type field_type
@@ -93,6 +99,7 @@ function FieldCreate()
   
   ! nullify PetscVecs
   field%porosity0 = 0
+  field%porosity_mnrl_loc = 0
   field%tortuosity0 = 0
   field%ithrm_loc = 0
   field%icap_loc = 0
@@ -152,6 +159,10 @@ function FieldCreate()
   field%flowrate_inst = 0
   field%flowrate_aveg = 0
 
+  field%vx_face_inst = 0
+  field%vy_face_inst = 0
+  field%vz_face_inst = 0
+
   nullify(field%max_change_vecs)
 
   FieldCreate => field
@@ -177,6 +188,7 @@ subroutine FieldDestroy(field)
 
   ! Destroy PetscVecs
   if (field%porosity0 /= 0) call VecDestroy(field%porosity0,ierr)
+  if (field%porosity_mnrl_loc /= 0) call VecDestroy(field%porosity_mnrl_loc,ierr)
   if (field%tortuosity0 /= 0) call VecDestroy(field%tortuosity0,ierr)
   if (field%ithrm_loc /= 0) call VecDestroy(field%ithrm_loc,ierr)
   if (field%icap_loc /= 0) call VecDestroy(field%icap_loc,ierr)
@@ -256,6 +268,10 @@ subroutine FieldDestroy(field)
 
   if (field%flowrate_inst/=0) call VecDestroy(field%flowrate_inst,ierr)
   if (field%flowrate_aveg/=0) call VecDestroy(field%flowrate_aveg,ierr)
+
+  if (field%vx_face_inst/=0) call VecDestroy(field%vx_face_inst,ierr)
+  if (field%vy_face_inst/=0) call VecDestroy(field%vy_face_inst,ierr)
+  if (field%vz_face_inst/=0) call VecDestroy(field%vz_face_inst,ierr)
 
   if (associated(field%max_change_vecs)) then
     call VecDestroyVecsF90(size(field%max_change_vecs), &

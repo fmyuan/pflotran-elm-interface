@@ -619,13 +619,13 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
       endif
         
 #ifndef DONT_USE_WATEOS
-      call EOSWaterDensity(global_auxvar%temp(1), &
+      call EOSWaterDensity(global_auxvar%temp, &
                            global_auxvar%pres(1), &
                            global_auxvar%den_kg(1), &
                            dum1,ierr)
 #else
-      call EOSWaterDensity(global_auxvar%temp(1),global_auxvar%pres(1), &
-                           global_auxvar%den_kg(1))
+      call EOSWaterDensity(global_auxvar%temp,global_auxvar%pres(1), &
+                           global_auxvar%den_kg(1),dum1,ierr)
 #endif             
     else
       global_auxvar%pres = option%reference_pressure
@@ -980,7 +980,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
     material_auxvar%porosity = porosity
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_TRUE, &
-                   rt_auxvar,global_auxvar,material_auxvar,reaction,option,ONE_INTEGER)
+                   rt_auxvar,global_auxvar,material_auxvar,reaction,option)                     
     do j = 1, ncomp
       res(j+(i-1)*ncomp) = res(j+(i-1)*ncomp) + res_react(j) 
     enddo
@@ -1555,7 +1555,7 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars,global_auxvars, &
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_FALSE, &
                    sec_transport_vars%sec_rt_auxvar(i), &
-                   global_auxvars,material_auxvar,reaction,option,ONE_INTEGER)
+                   global_auxvars,material_auxvar,reaction,option)
   enddo
   call MaterialAuxVarStrip(material_auxvar)
   deallocate(material_auxvar)
@@ -1733,7 +1733,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
     material_auxvar%porosity = porosity
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_FALSE, &
-                   rt_auxvar,global_auxvar,material_auxvar,reaction,option,ONE_INTEGER)
+                   rt_auxvar,global_auxvar,material_auxvar,reaction,option)                     
     do j = 1, ncomp
       res(j+(i-1)*ncomp) = res(j+(i-1)*ncomp) + res_react(j) 
     enddo
@@ -1891,7 +1891,7 @@ subroutine THCSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
   dm_plus = sec_heat_vars%dm_plus
   dm_minus = sec_heat_vars%dm_minus
   area_fm = sec_heat_vars%interfacial_area
-  temp_primary_node = global_auxvar%temp(1)
+  temp_primary_node = global_auxvar%temp
   
   coeff_left = 0.d0
   coeff_diag = 0.d0
@@ -1987,7 +1987,7 @@ subroutine THSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
   dm_plus = sec_heat_vars%dm_plus
   dm_minus = sec_heat_vars%dm_minus
   area_fm = sec_heat_vars%interfacial_area
-  temp_primary_node = global_auxvar%temp(1)
+  temp_primary_node = global_auxvar%temp
   
   coeff_left = 0.d0
   coeff_diag = 0.d0

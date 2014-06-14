@@ -234,6 +234,7 @@ subroutine RegressionCreateMapping(regression,realization)
       call printWrnMsg(option)
       count = 0
       allocate(int_array(size(regression%natural_cell_ids)))
+      int_array = 0
       do i = 1, size(regression%natural_cell_ids)
         if (regression%natural_cell_ids(i) <= grid%nmax) then
           count = count + 1
@@ -243,7 +244,10 @@ subroutine RegressionCreateMapping(regression,realization)
       ! reallocate array
       deallocate(regression%natural_cell_ids)
       allocate(regression%natural_cell_ids(count))
-      regression%natural_cell_ids = int_array
+      !geh: Since natural_cell_ids and int_array may now be of different sizes,
+      !     we need to be explicit about the values to copy.  gfortran has
+      !     issues with this while Intel figures it out. Better to be explicit.
+      regression%natural_cell_ids = int_array(1:count)
       deallocate(int_array)
     endif
     call VecCreate(PETSC_COMM_SELF,regression%natural_cell_id_vec,ierr)
@@ -443,7 +447,7 @@ end subroutine RegressionCreateMapping
 
 subroutine RegressionOutput(regression,realization,flow_stepper, &
                             tran_stepper)
-  ! 
+  !
   ! Prints regression output through the io_rank
   ! 
   ! Author: Glenn Hammond
@@ -469,6 +473,7 @@ subroutine RegressionOutput(regression,realization,flow_stepper, &
   
   character(len=MAXSTRINGLENGTH) :: string
   Vec :: global_vec
+  Vec :: global_vec_vx,global_vec_vy,global_vec_vz
   Vec :: x_vel_natural, y_vel_natural, z_vel_natural
   Vec :: x_vel_process, y_vel_process, z_vel_process
   PetscInt :: ivar, isubvar
@@ -496,7 +501,10 @@ subroutine RegressionOutput(regression,realization,flow_stepper, &
   
   call DiscretizationCreateVector(realization%discretization,ONEDOF, &
                                   global_vec,GLOBAL,option)  
-  
+  call DiscretizationDuplicateVector(realization%discretization,global_vec,global_vec_vx)
+  call DiscretizationDuplicateVector(realization%discretization,global_vec,global_vec_vy)
+  call DiscretizationDuplicateVector(realization%discretization,global_vec,global_vec_vz)
+
   cur_variable => realization%output_option%output_variable_list%first
   do 
     if (.not.associated(cur_variable)) exit
@@ -593,8 +601,8 @@ subroutine RegressionOutput(regression,realization,flow_stepper, &
   enddo
   
   ! velocities
-  if ((realization%output_option%print_tecplot_velocities .or. &
-       realization%output_option%print_hdf5_velocities) .and. &
+  if ((realization%output_option%print_tecplot_vel_cent .or. &
+       realization%output_option%print_hdf5_vel_cent) .and. &
       option%nflowdof > 0) then
     if (associated(regression%natural_cell_ids)) then
       call VecDuplicate(regression%natural_cell_id_vec,x_vel_natural,ierr)
@@ -629,60 +637,57 @@ subroutine RegressionOutput(regression,realization,flow_stepper, &
         endif
     
         ! X
-        call OutputGetCellCenteredVelocities(realization,global_vec,iphase, &
-                                             X_DIRECTION)
+        call OutputGetCellCenteredVelocities(realization,global_vec_vx, &
+                                             global_vec_vy,global_vec_vz, &
+                                             iphase)
         if (associated(regression%natural_cell_ids)) then
           call VecScatterBegin(regression%scatter_natural_cell_id_gtos, &
-                               global_vec,x_vel_natural,INSERT_VALUES, &
+                               global_vec_vx,x_vel_natural,INSERT_VALUES, &
                                SCATTER_FORWARD,ierr)
           call VecScatterEnd(regression%scatter_natural_cell_id_gtos, &
-                             global_vec,x_vel_natural,INSERT_VALUES, &
+                             global_vec_vx,x_vel_natural,INSERT_VALUES, &
                              SCATTER_FORWARD,ierr)
         endif
         if (regression%num_cells_per_process > 0) then
           call VecScatterBegin(regression%scatter_cells_per_process_gtos, &
-                               global_vec,x_vel_process,INSERT_VALUES, &
+                               global_vec_vx,x_vel_process,INSERT_VALUES, &
                                SCATTER_FORWARD,ierr)
           call VecScatterEnd(regression%scatter_cells_per_process_gtos, &
-                             global_vec,x_vel_process,INSERT_VALUES, &
+                             global_vec_vx,x_vel_process,INSERT_VALUES, &
                              SCATTER_FORWARD,ierr)
         endif
         ! Y
-        call OutputGetCellCenteredVelocities(realization,global_vec,iphase, &
-                                             Y_DIRECTION)
         if (associated(regression%natural_cell_ids)) then
           call VecScatterBegin(regression%scatter_natural_cell_id_gtos, &
-                               global_vec,y_vel_natural,INSERT_VALUES, &
+                               global_vec_vy,y_vel_natural,INSERT_VALUES, &
                                SCATTER_FORWARD,ierr)
           call VecScatterEnd(regression%scatter_natural_cell_id_gtos, &
-                             global_vec,y_vel_natural,INSERT_VALUES, &
+                             global_vec_vy,y_vel_natural,INSERT_VALUES, &
                              SCATTER_FORWARD,ierr)
         endif
         if (regression%num_cells_per_process > 0) then
           call VecScatterBegin(regression%scatter_cells_per_process_gtos, &
-                               global_vec,y_vel_process,INSERT_VALUES, &
+                               global_vec_vy,y_vel_process,INSERT_VALUES, &
                                SCATTER_FORWARD,ierr)
           call VecScatterEnd(regression%scatter_cells_per_process_gtos, &
-                             global_vec,y_vel_process,INSERT_VALUES, &
+                             global_vec_vy,y_vel_process,INSERT_VALUES, &
                              SCATTER_FORWARD,ierr)
         endif
         ! Z
-        call OutputGetCellCenteredVelocities(realization,global_vec,iphase, &
-                                             Z_DIRECTION)
         if (associated(regression%natural_cell_ids)) then
           call VecScatterBegin(regression%scatter_natural_cell_id_gtos, &
-                               global_vec,z_vel_natural,INSERT_VALUES, &
+                               global_vec_vz,z_vel_natural,INSERT_VALUES, &
                                SCATTER_FORWARD,ierr)
           call VecScatterEnd(regression%scatter_natural_cell_id_gtos, &
-                             global_vec,z_vel_natural,INSERT_VALUES, &
+                             global_vec_vz,z_vel_natural,INSERT_VALUES, &
                              SCATTER_FORWARD,ierr)
         endif
         if (regression%num_cells_per_process > 0) then
           call VecScatterBegin(regression%scatter_cells_per_process_gtos, &
-                               global_vec,z_vel_process,INSERT_VALUES, &
+                               global_vec_vz,z_vel_process,INSERT_VALUES, &
                                SCATTER_FORWARD,ierr)
           call VecScatterEnd(regression%scatter_cells_per_process_gtos, &
-                             global_vec,z_vel_process,INSERT_VALUES, &
+                             global_vec_vz,z_vel_process,INSERT_VALUES, &
                              SCATTER_FORWARD,ierr)
         endif
       
@@ -736,7 +741,10 @@ subroutine RegressionOutput(regression,realization,flow_stepper, &
   endif ! option%nflowdof > 0
   
   call VecDestroy(global_vec,ierr)
-  
+  call VecDestroy(global_vec_vx,ierr)
+  call VecDestroy(global_vec_vy,ierr)
+  call VecDestroy(global_vec_vz,ierr)
+
 102 format(i12)    
 103 format(es21.13)
 

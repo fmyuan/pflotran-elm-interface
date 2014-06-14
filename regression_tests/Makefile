@@ -52,18 +52,16 @@ STANDARD_CFG = \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
         general/general.cfg \
 	ngee/ngee.cfg \
-	ngee/clmcnp/clmcnp.cfg \
-	shortcourse/1D_Calcite/calcite.cfg \
+        shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
-	wipp/nuts/nuts.cfg \
-	surfaceflow/surface_flow_only/surface_only.cfg
+	wipp/nuts/nuts.cfg
 
 ifneq ($(strip $(PARMETIS_LIB)),)
 	STANDARD_CFG += \
-		default/discretization/discretization.cfg
-
+		default/discretization/discretization.cfg \
+		surfaceflow/surface_flow_only/surface_only.cfg
 endif
 
 #
