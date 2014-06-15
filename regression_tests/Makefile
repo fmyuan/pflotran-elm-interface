@@ -52,7 +52,10 @@ STANDARD_CFG = \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
         general/general.cfg \
 	ngee/ngee.cfg \
-        shortcourse/1D_Calcite/calcite.cfg \
+	ngee/clmcnp/clmcnp.cfg \
+	ngee/clmdecomp/clmdecomp.cfg \
+	ngee/langmuir/langmuir.cfg \
+	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
@@ -189,3 +192,8 @@ clean-tests :
 	-rm -f default/543/543_flow_and_tracer.h5
 	-rm -f default/discretization/mixed_implicit-np4.h5
 	-rm -f default/discretization/mixed_implicit.h5
+	-rm -f general/calcite_flow_and_tran_general.h5
+	-rm -f ngee/sink-mas.dat 
+	-rm -f ngee/sink.h5 
+	-rm -f ngee/source-mas.dat
+	-rm -f ngee/source.h5
