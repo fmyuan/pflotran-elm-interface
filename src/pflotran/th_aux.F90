@@ -43,10 +43,6 @@ module TH_Aux_module
     PetscReal :: dden_ice_dt
     PetscReal :: u_ice
     PetscReal :: du_ice_dt
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
-    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda
-#endif
     ! For DallAmico model
     PetscReal :: pres_fh2o
     PetscReal :: dpres_fh2o_dp
@@ -190,10 +186,6 @@ subroutine THAuxVarInit(auxvar,option)
   allocate(auxvar%diff(option%nflowspec))
   auxvar%diff = 1.d-9
   ! NOTE(bja, 2013-12) always initialize ice variables to zero, even if not used!
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  auxvar%bc_alpha  = 0.0d0
-  auxvar%bc_lambda  = 0.0d0
-#endif
   auxvar%sat_ice = 0.d0
   auxvar%sat_gas = 0.d0
   auxvar%dsat_dt = 0.d0
@@ -279,12 +271,6 @@ subroutine THAuxVarCopy(auxvar,auxvar2,option)
      auxvar2%dpres_fh2o_dp = auxvar%dpres_fh2o_dp
      auxvar2%dpres_fh2o_dt = auxvar%dpres_fh2o_dt
   endif
-
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  auxvar2%bc_alpha  = auxvar%bc_alpha
-  auxvar2%bc_lambda = auxvar%bc_lambda
-#endif
-
   auxvar2%surf_wat = auxvar%surf_wat
   auxvar2%P_min = auxvar%P_min
   auxvar2%P_max = auxvar%P_max
@@ -363,15 +349,8 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   pw = option%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
-!  if (auxvar%pc > 0.d0) then
-  if (auxvar%pc > 1.d0) then
+  if (auxvar%pc > 0.d0) then
     iphase = 3
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-    if(auxvar%bc_alpha > 0.d0) then
-       saturation_function%alpha  = auxvar%bc_alpha
-       saturation_function%lambda = auxvar%bc_lambda
-    endif
-#endif
     call SaturationFunctionCompute(auxvar%pc,global_auxvar%sat(1), &
                                    kr,ds_dp,dkr_dp, &
                                    saturation_function, &
@@ -538,13 +517,6 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   endif  
   
   call CapillaryPressureThreshold(saturation_function,p_th,option)
-
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-    if(auxvar%bc_alpha > 0.d0) then
-       saturation_function%alpha  = auxvar%bc_alpha
-       saturation_function%lambda = auxvar%bc_lambda
-    endif
-#endif
 
   select case (option%ice_model)
     case (PAINTER_EXPLICIT)
