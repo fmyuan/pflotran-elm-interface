@@ -2712,7 +2712,6 @@ subroutine InitReadInput(simulation)
         endif
         option%flow_dt = default_stepper%dt_min
         option%tran_dt = default_stepper%dt_min
-      
 !.....................
       case ('SURFACE_FLOW')
         call SurfaceInitReadInput(simulation%surf_realization, &
