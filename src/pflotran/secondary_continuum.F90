@@ -980,7 +980,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
     material_auxvar%porosity = porosity
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_TRUE, &
-                   rt_auxvar,global_auxvar,material_auxvar,reaction,option)                     
+                   rt_auxvar,global_auxvar,material_auxvar,reaction,option,ONE_INTEGER)
     do j = 1, ncomp
       res(j+(i-1)*ncomp) = res(j+(i-1)*ncomp) + res_react(j) 
     enddo
@@ -1555,7 +1555,7 @@ subroutine SecondaryRTUpdateKineticState(sec_transport_vars,global_auxvars, &
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_FALSE, &
                    sec_transport_vars%sec_rt_auxvar(i), &
-                   global_auxvars,material_auxvar,reaction,option)
+                   global_auxvars,material_auxvar,reaction,option,ONE_INTEGER)
   enddo
   call MaterialAuxVarStrip(material_auxvar)
   deallocate(material_auxvar)
@@ -1733,7 +1733,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
     material_auxvar%porosity = porosity
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_FALSE, &
-                   rt_auxvar,global_auxvar,material_auxvar,reaction,option)                     
+                   rt_auxvar,global_auxvar,material_auxvar,reaction,option,ONE_INTEGER)
     do j = 1, ncomp
       res(j+(i-1)*ncomp) = res(j+(i-1)*ncomp) + res_react(j) 
     enddo
