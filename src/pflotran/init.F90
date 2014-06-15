@@ -776,8 +776,9 @@ subroutine Init(simulation)
   call RealizationPassPtrsToPatches(realization)
   ! link conditions with regions through couplers and generate connectivity
   call RealProcessMatPropAndSatFunc(realization)
-  call RealizationProcessCouplers(realization)
+  ! must process conditions before couplers in order to determine dataset types
   call RealizationProcessConditions(realization)
+  call RealizationProcessCouplers(realization)
   call SandboxesSetup(realization)
   call RealProcessFluidProperties(realization)
   call assignMaterialPropToRegions(realization)
@@ -1490,8 +1491,8 @@ subroutine InitReadInput(simulation)
   PetscInt :: temp_int
   PetscInt :: count, id
   
-  PetscBool :: velocities
-  PetscBool :: flux_velocities
+  PetscBool :: vel_cent
+  PetscBool :: vel_face
   PetscBool :: fluxes
   PetscBool :: mass_flowrate
   PetscBool :: energy_flowrate
@@ -1647,6 +1648,23 @@ subroutine InitReadInput(simulation)
           end select
 
 !....................
+      case ('RELATIVE_PERMEABILITY_AVERAGE')
+        call InputReadWord(input,option,word,PETSC_FALSE)
+        call StringToUpper(word)
+        select case (trim(word))
+          case ('UPWIND')
+            option%rel_perm_aveg = UPWIND
+          case ('HARMONIC')
+            option%rel_perm_aveg = HARMONIC
+          case ('DYNAMIC_HARMONIC')
+            option%rel_perm_aveg = DYNAMIC_HARMONIC
+          case default
+            option%io_buffer = 'Cannot identify the specificed ' // &
+              'RELATIVE_PERMEABILITY_AVERAGE.'
+            call printErrMsg(option)
+          end select
+
+!....................
       case ('GRID')
         call DiscretizationRead(realization%discretization,input,option)
 
@@ -1659,7 +1677,7 @@ subroutine InitReadInput(simulation)
         call InputReadNChars(input,option, &
                              realization%nonuniform_velocity_filename, &
                              MAXSTRINGLENGTH,PETSC_TRUE)
-        call InputErrorMsg(input,option,'filename','NONUNIFORM_VELOCITY') 
+        call InputErrorMsg(input,option,'filename','NONUNIFORM_VELOCITY')
 
       case ('UNIFORM_VELOCITY')
         uniform_velocity_dataset => UniformVelocityDatasetCreate()
@@ -2255,8 +2273,8 @@ subroutine InitReadInput(simulation)
       
 !....................
       case ('OUTPUT')
-        velocities = PETSC_FALSE
-        flux_velocities = PETSC_FALSE
+        vel_cent = PETSC_FALSE
+        vel_face = PETSC_FALSE
         fluxes = PETSC_FALSE
         mass_flowrate = PETSC_FALSE
         energy_flowrate = PETSC_FALSE
@@ -2526,10 +2544,10 @@ subroutine InitReadInput(simulation)
                                      ' not recognized in OUTPUT,FORMAT.'
                   call printErrMsg(option)
               end select
-            case('VELOCITIES')
-              velocities = PETSC_TRUE
-            case('FLUXES_VELOCITIES')
-              flux_velocities = PETSC_TRUE
+            case('VELOCITY_AT_CENTER')
+              vel_cent = PETSC_TRUE
+            case('VELOCITY_AT_FACE')
+              vel_face = PETSC_TRUE
             case('FLUXES')
               fluxes = PETSC_TRUE
             case('FLOWRATES','FLOWRATE')
@@ -2561,19 +2579,19 @@ subroutine InitReadInput(simulation)
               call printErrMsg(option)              
           end select
         enddo
-        if (velocities) then
+        if (vel_cent) then
           if (output_option%print_tecplot) &
-            output_option%print_tecplot_velocities = PETSC_TRUE
+            output_option%print_tecplot_vel_cent = PETSC_TRUE
           if (output_option%print_hdf5) &
-            output_option%print_hdf5_velocities = PETSC_TRUE
+            output_option%print_hdf5_vel_cent = PETSC_TRUE
           if (output_option%print_vtk) &
-            output_option%print_vtk_velocities = PETSC_TRUE
+            output_option%print_vtk_vel_cent = PETSC_TRUE
         endif
-        if (flux_velocities) then
+        if (vel_face) then
           if (output_option%print_tecplot) &
-            output_option%print_tecplot_flux_velocities = PETSC_TRUE
+            output_option%print_tecplot_vel_face = PETSC_TRUE
           if (output_option%print_hdf5) &
-           output_option%print_hdf5_flux_velocities = PETSC_TRUE
+           output_option%print_hdf5_vel_face = PETSC_TRUE
         endif
         if (fluxes) then
           output_option%print_fluxes = PETSC_TRUE
@@ -2694,7 +2712,6 @@ subroutine InitReadInput(simulation)
         endif
         option%flow_dt = default_stepper%dt_min
         option%tran_dt = default_stepper%dt_min
-      
 !.....................
       case ('SURFACE_FLOW')
         call SurfaceInitReadInput(simulation%surf_realization, &
@@ -2813,9 +2830,10 @@ subroutine setFlowMode(option)
       option%gas_phase = 2      
       option%nflowdof = 3
       option%nflowspec = 2
-      option%itable = 2
+      option%itable = 2 ! read CO2DATA0.dat
+!     option%itable = 1 ! create CO2 database: co2data.dat
       option%use_isothermal = PETSC_FALSE
-    case('FLA2','FLASH2')
+    case('FLASH2')
       option%iflowmode = FLASH2_MODE
       option%nphase = 2
       option%liquid_phase = 1      
@@ -4227,7 +4245,7 @@ subroutine SandboxesSetup(realization)
   
   type(realization_type) :: realization
   
-  call SSSandboxSetup(realization%patch%regions,realization%option)
+   call SSSandboxSetup(realization%patch%regions,realization%option)
   
 end subroutine SandboxesSetup
 

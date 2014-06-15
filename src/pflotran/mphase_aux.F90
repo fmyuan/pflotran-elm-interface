@@ -300,7 +300,7 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
       kr(2)= 0.D0
     case(2)
 !******* gas phase exists ***********
-      auxvar%xmol(4)=x(3)
+      auxvar%xmol(4) = x(3)
 !      if(auxvar%xmol(4) < 0.D0) print *,'tran:',iphase, x(1:3)
 !      if(auxvar%xmol(4) > 1.D0) print *,'tran:',iphase, x(1:3)
       auxvar%xmol(3) = 1.D0 - auxvar%xmol(4)
@@ -390,8 +390,7 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
     endif  
 
 
-    call Henry_duan_sun(t,p2*1.D-5,henry,xphi,lngamco2,m_na,m_cl, &
-      sat_pressure*1.D-5)
+    call Henry_duan_sun(t,p2*1.D-5,henry,lngamco2,m_na,m_cl)
     Qkco2 = henry*xphi  ! convert from bar to Pa
     henry = 1.D0/(FMWH2O*1.D-3)/(henry*1.D-5)/xphi 
     if(present(xphico2)) xphico2 = xphi

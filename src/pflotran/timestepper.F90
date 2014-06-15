@@ -1,7 +1,7 @@
 module Timestepper_module
  
   use Solver_module
-  use Waypoint_module 
+  use Waypoint_module
   use Convergence_module 
   use Material_module
   use Material_Aux_class
@@ -1029,7 +1029,7 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
     endif
   enddo
   
-  stepper%steps = stepper%steps + 1      
+  stepper%steps = stepper%steps + 1
   stepper%cumulative_newton_iterations = &
     stepper%cumulative_newton_iterations + sum_newton_iterations
   stepper%cumulative_linear_iterations = &

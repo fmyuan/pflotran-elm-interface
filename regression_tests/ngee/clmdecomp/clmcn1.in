@@ -86,6 +86,7 @@ CHEMISTRY
   DATABASE ./hanford-clm.dat
   OUTPUT
     all
+    TOTAL
   /
 END
 

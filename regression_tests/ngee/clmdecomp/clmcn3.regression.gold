@@ -14,10 +14,10 @@
      Mean:   9.9999999079614E-21
         1:   9.9999999079614E-21
 -- CONCENTRATION: Total N2O(aq) --
-      Max:   1.0841833179472E-07
-      Min:   1.0841833179472E-07
-     Mean:   1.0841833179472E-07
-        1:   1.0841833179472E-07
+      Max:   1.0841833179495E-07
+      Min:   1.0841833179495E-07
+     Mean:   1.0841833179495E-07
+        1:   1.0841833179495E-07
 -- CONCENTRATION: SOM1 --
       Max:   4.3638396531193E-11
       Min:   4.3638396531193E-11
@@ -74,7 +74,7 @@
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   9.0182781219482E-02
+   Time (seconds):   8.5627794265747E-02
    Time Steps:           56
    Newton Iterations:          203
    Solver Iterations:          203

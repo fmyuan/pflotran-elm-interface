@@ -277,7 +277,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 #endif
 
   rate_nplant = this%rate !* (1.d0 - f_nh3_inhibit)
-  if(ispec_nh3 > 0 .and. abs(c_nh3)>this%x0eps) then
+  if(ispec_nh3 > 0) then
 
     drate_nplant = rate_nplant * d_nh3
     rate_nplant = rate_nplant * f_nh3
@@ -294,7 +294,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 
   endif
 
-  if(ispec_no3 > 0 .and. abs(c_no3)>this%x0eps) then
+  if(ispec_no3 > 0) then
     rate_nplant_no3 = this%rate * f_nh3_inhibit * f_no3   ! NH4 inhibited NO3 uptake rate
     drate_nplant_no3 = this%rate * f_nh3_inhibit * d_no3
 
