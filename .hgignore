@@ -333,3 +333,13 @@ src/clm-pflotran/unstructured_polyhedra.F90
 .gitignore
 *.rej
 *.pyc
+src/clm-pflotran/reaction_sandbox_clm_cnp.F90
+src/clm-pflotran/reaction_sandbox_clm_decomp.F90
+src/clm-pflotran/reaction_sandbox_degas.F90
+src/clm-pflotran/reaction_sandbox_denitrification.F90
+src/clm-pflotran/reaction_sandbox_langmuir.F90
+src/clm-pflotran/reaction_sandbox_microbial.F90
+src/clm-pflotran/reaction_sandbox_nitrification.F90
+src/clm-pflotran/reaction_sandbox_plantntake.F90
+src/clm-pflotran/srcsink_sandbox_downreg.F90
+clm_bgc.F90
