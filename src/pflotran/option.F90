@@ -525,6 +525,9 @@ subroutine OptionInitRealization(option)
   option%numerical_derivatives_multi_coupling = PETSC_FALSE
   option%compute_statistics = PETSC_FALSE
   option%compute_mass_balance_new = PETSC_FALSE
+#ifdef CLM_PFLOTRAN
+  option%compute_mass_balance_new = PETSC_TRUE  ! mass_balance for bc IS needed if coupled with CLM
+#endif
   option%mass_bal_detailed = PETSC_FALSE
   option%store_flowrate = PETSC_FALSE
 #ifdef STORE_FLOWRATES
@@ -663,7 +666,7 @@ subroutine printErrMsg2(option,string)
     print *
     print *, 'ERROR: ' // trim(string)
     print *, 'Stopping!'
-  endif
+  endif    
   call MPI_Barrier(option%mycomm,ierr)
   call PetscInitialized(petsc_initialized, ierr)
   if (petsc_initialized) call PetscFinalize(ierr)
@@ -1134,6 +1137,8 @@ subroutine OptionBeginTiming(option)
   ! Date: 06/07/13
   ! 
 
+  use Logging_module
+  
   implicit none
   
 #include "finclude/petsclog.h"
@@ -1158,6 +1163,8 @@ subroutine OptionEndTiming(option)
   ! Date: 06/07/13
   ! 
 
+  use Logging_module
+  
   implicit none
   
 #include "finclude/petsclog.h"
