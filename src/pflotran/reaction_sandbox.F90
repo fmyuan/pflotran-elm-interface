@@ -2,6 +2,14 @@ module Reaction_Sandbox_module
 
   use Reaction_Sandbox_Base_class
   use Reaction_Sandbox_CLM_CN_class
+  use Reaction_Sandbox_CLM_Decomp_class
+  use Reaction_Sandbox_CLM_CNP_class
+  use Reaction_Sandbox_PlantNTake_class
+  use Reaction_Sandbox_Nitrification_class
+  use Reaction_Sandbox_Denitrification_class
+  use Reaction_Sandbox_Microbial_class
+  use Reaction_Sandbox_Langmuir_class
+  use Reaction_Sandbox_degas_class
   use Reaction_Sandbox_UFD_WP_class
   use Reaction_Sandbox_Example_class
   
@@ -149,7 +157,23 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
     select case(trim(word))
       case('CLM-CN')
         new_sandbox => CLM_CN_Create()
+      case('CLM-DECOMP')
+        new_sandbox => CLM_Decomp_Create()
+      case('CLM-CNP')
+        new_sandbox => CLM_CNPCreate()
       ! Add new cases statements for new reacton sandbox classes here.
+      case('PLANTNTAKE')
+        new_sandbox => PlantNTakeCreate()
+      case('NITRIFICATION')
+        new_sandbox => NitrificationCreate()
+      case('DENITRIFICATION')
+        new_sandbox => DenitrificationCreate()
+      case('MICROBIAL')
+        new_sandbox => MicrobialCreate()
+      case('LANGMUIR')
+        new_sandbox => LangmuirCreate()
+      case('DEGAS')
+        new_sandbox => degasCreate()
       case('UFD-WP')
         new_sandbox => WastePackageCreate()
       case('EXAMPLE')
@@ -207,7 +231,7 @@ end subroutine RSandboxSkipInput
 ! ************************************************************************** !
 
 subroutine RSandbox(Residual,Jacobian,compute_derivative,rt_auxvar, &
-                    global_auxvar,material_auxvar,reaction,option)
+                    global_auxvar,material_auxvar,reaction,option,local_id)
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
   ! 
@@ -228,6 +252,7 @@ subroutine RSandbox(Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscBool :: compute_derivative
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
+  PetscInt :: local_id
   type(reactive_transport_auxvar_type) :: rt_auxvar
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -241,7 +266,7 @@ subroutine RSandbox(Residual,Jacobian,compute_derivative,rt_auxvar, &
 !      class is(reaction_sandbox_clm_cn_type)
         call cur_reaction%Evaluate(Residual,Jacobian,compute_derivative, &
                                    rt_auxvar,global_auxvar,material_auxvar, &
-                                   reaction,option)
+                                   reaction,option,local_id)
 !    end select
     cur_reaction => cur_reaction%next
   enddo
