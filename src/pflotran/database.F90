@@ -37,8 +37,6 @@ subroutine DatabaseRead(reaction,option)
   use Surface_Complexation_Aux_module
   use Mineral_Aux_module
   use Mineral_module
-  use Microbial_Aux_module
-  use Microbial_module
   use Immobile_Aux_module
   use Immobile_module
   
@@ -783,12 +781,8 @@ subroutine BasisInit(reaction,option)
   
   use Surface_Complexation_Aux_module
   use Mineral_Aux_module
-  use Microbial_Aux_module
   use Immobile_Aux_module
   
-#ifdef SOLID_SOLUTION  
-  use Solid_Solution_module
-#endif
   use Reaction_Sandbox_module
 
   implicit none
@@ -814,17 +808,13 @@ subroutine BasisInit(reaction,option)
   type(ion_exchange_cation_type), pointer :: cur_cation
   type(general_rxn_type), pointer :: cur_general_rxn
   type(radioactive_decay_rxn_type), pointer :: cur_radiodecay_rxn
-  type(microbial_rxn_type), pointer :: cur_microbial_rxn
   type(kd_rxn_type), pointer :: cur_kd_rxn, sec_cont_cur_kd_rxn
   type(colloid_type), pointer :: cur_colloid
   type(database_rxn_type), pointer :: dbaserxn
   type(transition_state_rxn_type), pointer :: tstrxn
   type(transition_state_prefactor_type), pointer :: cur_prefactor
   type(ts_prefactor_species_type), pointer :: cur_prefactor_species
-  type(monod_type), pointer :: cur_monod
-  type(inhibition_type), pointer :: cur_inhibition
   type(mineral_type), pointer :: mineral
-  type(microbial_type), pointer :: microbial
   type(immobile_type), pointer :: immobile
 
   character(len=MAXWORDLENGTH), allocatable :: old_basis_names(:)
@@ -881,7 +871,6 @@ subroutine BasisInit(reaction,option)
   
   surface_complexation => reaction%surface_complexation
   mineral => reaction%mineral
-  microbial => reaction%microbial
   immobile => reaction%immobile
     
   if (reaction%use_geothermal_hpt) then
@@ -2342,10 +2331,6 @@ subroutine BasisInit(reaction,option)
       imnrl = imnrl + 1
     enddo
 
-#ifdef SOLID_SOLUTION    
-    call SolidSolutionLinkNamesToIDs(reaction%solid_solution_list, &
-                                     mineral,option)
-#endif
   endif
   
   ! colloids
@@ -3163,190 +3148,6 @@ subroutine BasisInit(reaction,option)
               
   endif 
 
-  ! microbial reaction
-  if (microbial%nrxn > 0) then
-  
-    ! process reaction equation into the database format
-    max_species_count = 0
-    max_monod_count = 0
-    max_inhibition_count = 0
-    monod_count = 0
-    inhibition_count = 0
-    cur_microbial_rxn => microbial%microbial_rxn_list
-    do
-      if (.not.associated(cur_microbial_rxn)) exit
-      cur_microbial_rxn%dbaserxn => &
-        DatabaseRxnCreateFromRxnString(cur_microbial_rxn%reaction, &
-                                       reaction%naqcomp, &
-                                       reaction%offset_aqueous, &
-                                       reaction%primary_species_names, &
-                                       reaction%nimcomp, &
-                                       reaction%offset_immobile, &
-                                       reaction%immobile%names, &
-                                       option)
-      temp_int = cur_microbial_rxn%dbaserxn%nspec
-      if (temp_int > max_species_count) max_species_count = temp_int
-      temp_int = MicrobialGetMonodCount(cur_microbial_rxn)
-      monod_count = monod_count + temp_int
-      if (temp_int > max_monod_count) max_monod_count = temp_int
-      temp_int = MicrobialGetInhibitionCount(cur_microbial_rxn)
-      inhibition_count = inhibition_count + temp_int
-      if (temp_int > max_inhibition_count) max_inhibition_count = temp_int
-      cur_microbial_rxn => cur_microbial_rxn%next
-    enddo
-    nullify(cur_microbial_rxn)
-
-    ! rate constant
-    allocate(microbial%rate_constant(microbial%nrxn))
-    microbial%rate_constant = 0.d0
-    
-    ! species ids and stoichiometry
-    allocate(microbial%specid(0:max_species_count,microbial%nrxn))
-    microbial%specid = 0
-    allocate(microbial%stoich(max_species_count,microbial%nrxn))
-    microbial%stoich = 0
-    
-    ! biomass id and yield
-    allocate(microbial%biomassid(microbial%nrxn))
-    microbial%biomassid = 0
-    allocate(microbial%biomass_yield(microbial%nrxn))
-    microbial%biomass_yield = 0.d0
-
-    ! linkage to monod and inhibition terms
-    allocate(microbial%monodid(0:max_monod_count,microbial%nrxn))
-    microbial%monodid = 0
-    allocate(microbial%inhibitionid(0:max_inhibition_count, &
-                                    microbial%nrxn))
-    microbial%inhibitionid = 0
-    
-    ! monod
-    allocate(microbial%monod_specid(monod_count))
-    microbial%monod_specid = 0
-    allocate(microbial%monod_K(monod_count))
-    microbial%monod_K = 0
-    
-    ! inhibition 
-    allocate(microbial%inhibition_specid(inhibition_count))
-    microbial%inhibition_specid = 0
-    allocate(microbial%inhibition_C(inhibition_count))
-    microbial%inhibition_C = 0
-
-    ! load the data into the compressed arrays
-    irxn = 0
-    monod_count = 0
-    inhibition_count = 0
-    cur_microbial_rxn => microbial%microbial_rxn_list
-    do
-      if (.not.associated(cur_microbial_rxn)) exit
-      
-      dbaserxn => cur_microbial_rxn%dbaserxn
-      
-      irxn = irxn + 1
-     
-      microbial%rate_constant(irxn) = cur_microbial_rxn%rate_constant
-      
-      microbial%specid(0,irxn) = dbaserxn%nspec
-      do i = 1, dbaserxn%nspec
-        microbial%specid(i,irxn) = dbaserxn%spec_ids(i)
-        microbial%stoich(i,irxn) = dbaserxn%stoich(i)
-      enddo
-      
-      if (associated(cur_microbial_rxn%biomass)) then
-        ! check for biomass species in global immobile list
-        temp_int = &
-          StringFindEntryInList(cur_microbial_rxn%biomass%species_name, &
-                                immobile%names)
-        if (temp_int == 0) then
-          option%io_buffer = 'Biomass species "' // &
-            trim(cur_microbial_rxn%biomass%species_name) // &
-            ' not found among immobile species.'
-          call printErrMsg(option)
-        else
-          microbial%biomassid(irxn) = temp_int
-          microbial%biomass_yield(irxn) = &
-            cur_microbial_rxn%biomass%yield
-        endif
-        ! check for biomass species in microbial reaction
-        temp_int = &
-          StringFindEntryInList(cur_microbial_rxn%biomass%species_name, &
-                                dbaserxn%spec_name)
-        if (temp_int /= 0) then
-          option%io_buffer = 'Biomass species "' // &
-            trim(cur_microbial_rxn%biomass%species_name) // &
-            ' should not be included in microbial reaction.'
-          call printErrMsg(option)
-        endif       
-      endif
-      
-      cur_monod => cur_microbial_rxn%monod
-      do
-        if (.not.associated(cur_monod)) exit
-        monod_count = monod_count + 1
-
-        ! increment # of monod reactions in microbial reaction
-        microbial%monodid(0,irxn) = microbial%monodid(0,irxn) + 1
-        ! set global id of this monod reaction
-        microbial%monodid(microbial%monodid(0,irxn),irxn) = monod_count
-        
-        ! ensure that monod species exists in reaction expression
-        temp_int = StringFindEntryInList(cur_monod%species_name, &
-                                         dbaserxn%spec_name)
-        if (temp_int == 0) then
-          option%io_buffer = 'Monod species "' // &
-            trim(cur_monod%species_name) // ' not found in microbial reaction.'
-          call printErrMsg(option)
-        endif
-        ! if species stoichiometry is > 0., it is a product and cannot be
-        ! used in a monod expression.
-        if (dbaserxn%stoich(temp_int) > 0.d0) then
-          option%io_buffer = 'Monod species "' // &
-            trim(cur_monod%species_name) // ' must be a reactant and not ' // &
-            'a product in microbial reaction.'
-          call printErrMsg(option)
-        endif
-        
-        microbial%monod_specid(monod_count) = &
-          GetPrimarySpeciesIDFromName(cur_monod%species_name,reaction,option)
-        microbial%monod_K(monod_count) = cur_monod%half_saturation_constant
-        cur_monod => cur_monod%next
-      enddo
-      
-      cur_inhibition => cur_microbial_rxn%inhibition
-      do
-        if (.not.associated(cur_inhibition)) exit
-        inhibition_count = inhibition_count + 1
-        
-        ! increment # of inhibition reactions in microbial reaction
-        microbial%inhibitionid(0,irxn) = microbial%inhibitionid(0,irxn) + 1
-        ! set global id of this inhibition reaction
-        microbial%inhibitionid(microbial%inhibitionid(0,irxn),irxn) = &
-          inhibition_count
-
-        ! Check whether inhibition species exists in reaction expression
-        ! If no, print warning.
-        temp_int = StringFindEntryInList(cur_inhibition%species_name, &
-                                         dbaserxn%spec_name)
-        if (temp_int == 0) then
-          option%io_buffer = 'Inhibition species "' // &
-            trim(cur_inhibition%species_name) // &
-            ' not found in microbial reaction.'
-          call printWrnMsg(option)
-        endif
-        
-        microbial%inhibition_specid(inhibition_count) = &
-          GetPrimarySpeciesIDFromName(cur_inhibition%species_name, &
-                                      reaction,option)
-        microbial%inhibition_C(inhibition_count) = &
-          cur_inhibition%inhibition_constant
-        cur_inhibition => cur_inhibition%next
-      enddo
-      
-      cur_microbial_rxn => cur_microbial_rxn%next
-      
-    enddo
-              
-  endif 
-  
   ! Kd reactions
   
   if (reaction%neqkdrxn > 0) then
@@ -3605,267 +3406,6 @@ subroutine BasisInit(reaction,option)
     write(option%fid_out,100) reaction%neqionxcation, 'Ion Exchange Cations'
     write(option%fid_out,90)
   endif
-
-#ifdef AMANZI_BGD
-  ! output reaction in amanzi "bgd" formatted file
-  if (OptionPrintToFile(option)) then
-    string = trim(option%global_prefix) // '.bgd'
-    open(unit=86,file=trim(string))
-
-    write(86,'("# pflotran database preprocessing :")')
-    call date_and_time(date=word,time=word2)
-    write(86,'("#        date : ",a,"   ",a)') trim(word), trim(word2)
-    write(86,'("#       input : ",a)') trim(option%input_filename)
-
-    write(86,'(/,"<Primary Aqueous Species")')
-    do icomp = 1, reaction%naqcomp
-      write(86,'(a,x,3(" ; ",f6.2))') trim(reaction%primary_species_names(icomp)), &
-                                      reaction%primary_spec_a0(icomp), &
-                                      reaction%primary_spec_Z(icomp), &
-                                      reaction%primary_spec_molar_wt(icomp)
-    enddo
-
-    write(86,'(/,"<Aqueous Equilibrium Complexes")')
-    do icplx = 1, reaction%neqcplx
-      write(86,'(a," = ")',advance='no') trim(reaction%secondary_species_names(icplx))
-      if (reaction%eqcplxh2oid(icplx) > 0) then
-        write(86,'(f6.2," H2O ")',advance='no') reaction%eqcplxh2ostoich(icplx)
-      endif
-      
-      do i = 1,reaction%eqcplxspecid(0,icplx)
-        temp_tin = reaction%eqcplxspecid(i,icplx)
-        write(86,'(f6.2,x,a,x)',advance='no') reaction%eqcplxstoich(i,icplx), &
-                                   trim(reaction%primary_species_names(temp_int))
-      enddo
-      write(86,'(4(" ; ",f10.5))') reaction%eqcplx_logK(icplx), &
-                                   reaction%eqcplx_a0(icplx), &
-                                   reaction%eqcplx_Z(icplx), &
-                                   reaction%eqcplx_molar_wt(icplx)
-    enddo
-
-    write(86,'(/,"<General Kinetics")')
-    do irxn = 1, reaction%ngeneral_rxn
-      do i = 1, reaction%generalforwardspecid(0,irxn)
-        temp_int = reaction%generalforwardspecid(i,irxn)
-        write(86,'(f6.2,x,a)',advance='no') reaction%generalforwardstoich(i,irxn), &
-                               trim(reaction%primary_species_names(temp_int))
-        if (i /= reaction%generalforwardspecid(0,irxn)) then
-          write(86,'(" + ")',advance='no')
-        endif
-      enddo
-      write(86,'(" <-> ")',advance='no')
-      do i = 1, reaction%generalbackwardspecid(0,irxn)
-        temp_int = reaction%generalbackwardspecid(i,irxn)
-        write(86,'(f6.2,x,a)',advance='no') reaction%generalbackwardstoich(i,irxn), &
-                               trim(reaction%primary_species_names(temp_int))
-        if (i /= reaction%generalbackwardspecid(0,irxn)) then
-          write(86,'(" + ")',advance='no')
-        endif
-      enddo
-      write(86,'(" ; ")',advance='no')
-      do i = 1, reaction%generalforwardspecid(0,irxn)
-        temp_int = reaction%generalforwardspecid(i,irxn)
-        write(86,'(f6.2,x,a)',advance='no') reaction%generalforwardstoich(i,irxn), &
-                               trim(reaction%primary_species_names(temp_int))
-      enddo
-      write(86,'(" ; ")',advance='no')
-      write(86,'(1es13.5)',advance='no') reaction%general_kf(irxn)
-      write(86,'(" ; ")',advance='no')
-      do i = 1, reaction%generalbackwardspecid(0,irxn)
-        temp_int = reaction%generalbackwardspecid(i,irxn)
-        write(86,'(f6.2,x,a)',advance='no') reaction%generalbackwardstoich(i,irxn), &
-                               trim(reaction%primary_species_names(temp_int))
-      enddo
-      write(86,'(" ; ")',advance='no')
-      write(86,'(1es13.5)') reaction%general_kr(irxn)
-      !write(86,'(" ; ")',advance='no')
-      !write(86,'(f6.2)',advance='no') reaction%generalh2ostoich(irxn)
-    enddo
-
-    write(86,'(/,"<Minerals")')
-
-    do imnrl = 1, mineral%nkinmnrl
-      write(86,'(a," = ")',advance='no') trim(mineral%kinmnrl_names(imnrl))
-      if (mineral%kinmnrlh2oid(imnrl) > 0) then
-        write(86,'(f6.2," H2O ")',advance='no') mineral%kinmnrlh2ostoich(imnrl)
-      endif
-      do i = 1, mineral%kinmnrlspecid(0,imnrl)
-        temp_tin = mineral%kinmnrlspecid(i,imnrl)
-        write(86,'(f6.2,x,a,x)',advance='no') mineral%kinmnrlstoich(i,imnrl), &
-                                   trim(reaction%primary_species_names(temp_int))
-      enddo
-      !molar volume has been converted to m^3/mol!
-      write(86,'(4(" ; ",1es13.5))') mineral%kinmnrl_logK(imnrl), &
-                                     mineral%kinmnrl_molar_wt(imnrl), &
-                                     mineral%kinmnrl_molar_vol(imnrl)*1.d6, 1.0
-    enddo
-
-    write(86,'(/,"<Mineral Kinetics")')
-    do imnrl = 1, mineral%nkinmnrl
-      write(86,'(a," ; TST ; log10_rate_constant ")',advance='no') &
-        trim(mineral%kinmnrl_names(imnrl))
-      write(86,'(1es13.5," moles/cm^2/sec ")',advance='no') &
-        log10(mineral%kinmnrl_rate(imnrl))
-      if (mineral%kinmnrl_num_prefactors(imnrl) /= 0) then
-        write(86,'(" ; ")',advance='no')
-        do i = 1, mineral%kinmnrl_num_prefactors(imnrl)
-          ! number of prefactor species stored in kinmnrl_prefactor_id(0,i,imnrl)
-          do j = 1, mineral%kinmnrl_prefactor_id(0,i,imnrl)
-            temp_int = mineral%kinmnrl_prefactor_id(j,i,imnrl)
-            if (temp_int > 0) then
-              write(86,'(a)',advance='no') &
-                trim(reaction%primary_species_names(temp_int))
-            else
-              write(86,'(a)',advance='no') &
-                trim(reaction%secondary_species_names(-temp_int))
-            endif
-            write(86,'(x,1es13.5,x)',advance='no') &
-              mineral%kinmnrl_pref_alpha(j,i,imnrl)
-          enddo
-        enddo
-      endif
-      write(86,*)
-    enddo
-
-    write(86,'(/,"<Ion Exchange Sites")')
-    do irxn = 1, reaction%neqionxrxn
-      write(86,'("X- ; -1.0 ; ",a)') trim(reaction%ion_exchange_rxn_list%mineral_name)
-    enddo
-
-    write(86,'(/,"<Ion Exchange Complexes")')
-    do irxn = 1, reaction%neqionxrxn
-      do i = 1, reaction%neqionxcation
-        temp_int = reaction%eqionx_rxn_cationid(i,irxn)
-        write(86,'(a,"X = 1.0 ",a)',advance='no') &
-          trim(reaction%primary_species_names(temp_int)), &
-          trim(reaction%primary_species_names(temp_int))
-        write(86,'(f6.2," X- ")',advance='no') reaction%primary_spec_Z(temp_int)
-        write(86,'(" ; ",1es13.5)') reaction%eqionx_rxn_k(i,irxn)
-      enddo
-    enddo
-
-    write(86,'(/,"<Surface Complex Sites")')
-    do ieqrxn = 1, surface_complexation%neqsrfcplxrxn
-      irxn = surface_complexation%eqsrfcplxrxn_to_srfcplxrxn(ieqrxn)
-      write(86,'(a, " ; ")',advance='no') &
-        trim(surface_complexation%srfcplxrxn_site_names(irxn))
-      write(86,'(1es13.5)') surface_complexation%srfcplxrxn_site_density(irxn)
-    enddo
-
-    write(86,'(/,"<Surface Complexes")')
-    do ieqrxn = 1, surface_complexation%neqsrfcplxrxn
-      irxn = surface_complexation%eqsrfcplxrxn_to_srfcplxrxn(ieqrxn)
-      do i = 1, surface_complexation%srfcplxrxn_to_complex(0,irxn)
-        icplx = surface_complexation%srfcplxrxn_to_complex(i,irxn)
-        write(86,'(a, " = ")',advance='no') &
-          trim(surface_complexation%srfcplx_names(icplx))
-        write(86,'(f6.2,x,a)',advance='no') &
-          surface_complexation%srfcplx_free_site_stoich(icplx), &
-          trim(surface_complexation%srfcplxrxn_site_names(irxn))
-
-        if (surface_complexation%srfcplxh2oid(icplx) > 0) then
-          write(86,'(f6.2," H2O ")',advance='no') &
-            surface_complexation%srfcplxh2ostoich(icplx)
-        endif
-        do j = 1, surface_complexation%srfcplxspecid(0,icplx)
-          temp_int = surface_complexation%srfcplxspecid(j,icplx)
-          write(86,'(f6.2,x,a)',advance='no') &
-            surface_complexation%srfcplxstoich(j,icplx), &
-            trim(reaction%primary_species_names(temp_int))
-        enddo
-        write(86,'(" ; ",1es13.5," ; ",f6.2)') &
-          surface_complexation%srfcplx_logK(icplx), &
-          surface_complexation%srfcplx_Z(icplx)
-
-      enddo
-    enddo
-
-    write(86,'(/,"<Isotherms")')
-    do irxn = 1, reaction%neqkdrxn
-       write(86,'(a," ; ")',advance='no') trim(reaction%primary_species_names(reaction%eqkdspecid(irxn)))
-      select case (reaction%eqkdtype(irxn))
-        case(SORPTION_LINEAR)
-           write(86,'("linear ; ",es13.5)',advance='no') reaction%eqkddistcoef(irxn)
-           write(86,'()')
-        case(SORPTION_LANGMUIR)
-           write(86,'("langmuir ; ",es13.5)',advance='no') reaction%eqkddistcoef(irxn)
-           write(86,'(es13.5)') reaction%eqkdlangmuirb(irxn)
-        case(SORPTION_FREUNDLICH)
-           write(86,'("freundlich ; ",es13.5)',advance='no') reaction%eqkddistcoef(irxn)
-           write(86,'(es13.5)') reaction%eqkdfreundlichn(irxn)
-      end select
-    enddo
-
-    close(86)
-  endif
-#endif
-! AMANZI_BGD
-  
-#if 0
-  ! output for ASCEM reactions
-  if (OptionPrintToFile(option)) then
-    open(unit=86,file='reaction.dat')
-    write(86,'(10i4)') reaction%naqcomp, reaction%neqcplx, reaction%ngeneral_rxn, & 
-                       reaction%neqsrfcplxrxn, mineral%nkinmnrl
-    do icomp = 1, reaction%naqcomp
-      write(86,'(a12,f6.2,f6.2)') reaction%primary_species_names(icomp), &
-                                  reaction%primary_spec_Z(icomp), &
-                                  reaction%primary_spec_a0(icomp)
-    enddo
-    do icplx = 1, reaction%neqcplx
-      write(86,'(a32,f6.2,f6.2)') reaction%secondary_species_names(icplx), &
-                                  reaction%eqcplx_Z(icplx), &
-                                  reaction%eqcplx_a0(icplx)
-      write(86,'(40i4)') reaction%eqcplxspecid(:,icplx)
-      write(86,'(40f6.2)') reaction%eqcplxstoich(:,icplx)
-      write(86,'(i4)') reaction%eqcplxh2oid(icplx)
-      write(86,'(f6.2)') reaction%eqcplxh2ostoich(icplx)
-      write(86,'(1es13.5)') reaction%eqcplx_logK(icplx)
-    enddo
-    do irxn = 1, reaction%ngeneral_rxn
-      write(86,'(40i4)') reaction%generalspecid(:,irxn)
-      write(86,'(40f6.2)') reaction%generalstoich(:,irxn)
-      write(86,'(40i4)') reaction%generalforwardspecid(:,irxn)
-      write(86,'(40f6.2)') reaction%generalforwardstoich(:,irxn)
-      write(86,'(40i4)') reaction%generalbackwardspecid(:,irxn)
-      write(86,'(40f6.2)') reaction%generalbackwardstoich(:,irxn)
-      write(86,'(f6.2)') reaction%generalh2ostoich(irxn)
-      write(86,'(1es13.5)') reaction%general_kf(irxn)
-      write(86,'(1es13.5)') reaction%general_kr(irxn)
-    enddo
-    do irxn = 1, reaction%neqsrfcplxrxn
-      write(86,'(a32)')reaction%eqsrfcplx_site_names(irxn)
-      write(86,'(1es13.5)') reaction%eqsrfcplx_rxn_site_density(irxn)
-      write(86,'(i4)') reaction%srfcplxrxn_to_complex(0,irxn) ! # complexes
-      do i = 1, reaction%srfcplxrxn_to_complex(0,irxn)
-        icplx = reaction%srfcplxrxn_to_complex(i,irxn)
-        write(86,'(a32,f6.2)') reaction%eqsrfcplx_names(icplx), &
-                               reaction%eqsrfcplx_Z(icplx)
-        write(86,'(40i4)') reaction%srfcplxspecid(:,icplx)
-        write(86,'(40f6.2)') reaction%eqsrfcplxstoich(:,icplx)
-        write(86,'(i4)') reaction%eqsrfcplxh2oid(icplx)
-        write(86,'(f6.2)') reaction%eqsrfcplxh2ostoich(icplx)
-        write(86,'(i4)') reaction%eqsrfcplx_free_site_id(icplx)
-        write(86,'(f6.2)') reaction%eqsrfcplx_free_site_stoich(icplx)
-        write(86,'(1es13.5)') reaction%eqsrfcplx_logK(icplx)
-
-      enddo
-    enddo
-    do imnrl = 1, mineral%nkinmnrl
-      write(86,'(a32)') mineral%kinmnrl_names(imnrl)
-      write(86,'(40i4)') mineral%kinmnrlspecid(:,imnrl)
-      write(86,'(40f6.2)') mineral%kinmnrlstoich(:,imnrl)
-      write(86,'(i4)') mineral%kinmnrlh2oid(imnrl)
-      write(86,'(f6.2)') mineral%kinmnrlh2ostoich(imnrl)
-      write(86,'(1es13.5)') mineral%kinmnrl_logK(imnrl)
-      write(86,'(1es13.5)') mineral%kinmnrl_molar_vol(imnrl)
-      write(86,'(1es13.5)') mineral%kinmnrl_molar_wt(imnrl)
-      write(86,'(1es13.5)') mineral%kinmnrl_rate(1,imnrl)
-      write(86,'(1es13.5)') 1.d0 ! specific surface area 1 cm^2 / cm^3
-    enddo
-        close(86)
-  endif
-#endif  
   
   if (allocated(new_basis)) deallocate(new_basis)
   if (allocated(old_basis)) deallocate(old_basis)

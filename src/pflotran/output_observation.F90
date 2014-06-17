@@ -835,8 +835,6 @@ subroutine WriteObservationDataForCell(fid,realization_base,local_id)
   field => realization_base%field
   output_option => realization_base%output_option
 
-100 format(es14.6)
-101 format(i2)
 110 format(es14.6)
 111 format(i2)
 
@@ -912,8 +910,6 @@ subroutine WriteObservationDataForCoord(fid,realization_base,region)
   field => realization_base%field
   output_option => realization_base%output_option
 
-100 format(es14.6)
-101 format(i2)
 110 format(es14.6)
 111 format(i2)
 
@@ -1030,22 +1026,13 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
   option => realization_base%option
   reaction => realization_base%reaction
 
-100 format(es14.6)
-!100 format(es16.9)
-101 format(i2)
-110 format(es14.6)
-!110 format(',',es16.9)
-111 format(i2)
- 
   iphase = 1
 
   ! sum up fluxes across region
   if (associated(connection_set)) then
     offset = connection_set%offset
     select case(option%iflowmode)
-      case(MPH_MODE,TH_MODE,IMS_MODE,FLASH2_MODE,G_MODE)
-      case(MIS_MODE)
-      case(RICHARDS_MODE)
+      case(RICHARDS_MODE, TH_MODE)
         sum_volumetric_flux = 0.d0
         if (associated(connection_set)) then
           do iconn = 1, connection_set%num_connections
@@ -1060,7 +1047,7 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
                         option%io_rank,option%mycomm,ierr)
         if (option%myrank == option%io_rank) then
           do i = 1, option%nphase
-            write(fid,110,advance="no") sum_volumetric_flux_global(i)
+!            write(fid,110,advance="no") sum_volumetric_flux_global(i)
           enddo
         endif
     end select
@@ -1081,7 +1068,7 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
       if (option%myrank == option%io_rank) then
         !we currently only print the aqueous components
         do i = 1, reaction%naqcomp
-          write(fid,110,advance="no") sum_solute_flux_global(i)
+!          write(fid,110,advance="no") sum_solute_flux_global(i)
         enddo
       endif
     endif
@@ -1466,11 +1453,6 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
   field => realization_base%field
   output_option => realization_base%output_option
 
-100 format(es14.6)
-101 format(i2)
-110 format(es14.6)
-111 format(i2)
-
   ghosted_id = grid%nL2G(local_id)
 
   if (option%nsec_cells > 0) then
@@ -1478,9 +1460,9 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
       select case(option%iflowmode)
         case(MPH_MODE,TH_MODE)
           do i = 1, option%nsec_cells 
-            write(fid,110,advance="no") &
-              RealizGetVariableValueAtCell(realization_base,SECONDARY_TEMPERATURE,i, &
-                                          ghosted_id)
+!            write(fid,110,advance="no") &
+!              RealizGetVariableValueAtCell(realization_base,SECONDARY_TEMPERATURE,i, &
+!                                          ghosted_id)
           enddo
         end select
      endif
@@ -1489,18 +1471,18 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
       if (ivar == PRINT_SEC_CONC) then
         do naqcomp = 1, reaction%naqcomp
           do i = 1, option%nsec_cells 
-            write(fid,110,advance="no") &
-              RealizGetVariableValueAtCell(realization_base,SECONDARY_CONCENTRATION,i, &
-                                          ghosted_id,naqcomp)
+!            write(fid,110,advance="no") &
+!              RealizGetVariableValueAtCell(realization_base,SECONDARY_CONCENTRATION,i, &
+!                                          ghosted_id,naqcomp)
           enddo
         enddo 
       endif
       if (ivar == PRINT_SEC_MIN_VOLFRAC) then
         do nkinmnrl = 1, reaction%mineral%nkinmnrl
           do i = 1, option%nsec_cells 
-            write(fid,110,advance="no") &
-              RealizGetVariableValueAtCell(realization_base,SEC_MIN_VOLFRAC,i, &
-                                          ghosted_id,nkinmnrl)
+!            write(fid,110,advance="no") &
+!              RealizGetVariableValueAtCell(realization_base,SEC_MIN_VOLFRAC,i, &
+!                                          ghosted_id,nkinmnrl)
           enddo
         enddo
       endif
@@ -1528,13 +1510,8 @@ subroutine OutputMassBalance(realization_base)
   use Utility_module
   
   use Richards_module, only : RichardsComputeMassBalance
-  use Mphase_module, only : MphaseComputeMassBalance
-  use Flash2_module, only : Flash2ComputeMassBalance
-  use Immis_module, only : ImmisComputeMassBalance
-  use Miscible_module, only : MiscibleComputeMassBalance
   use TH_module, only : THComputeMassBalance
   use Reactive_Transport_module, only : RTComputeMassBalance
-  use General_module, only : GeneralComputeMassBalance
   
   use Global_Aux_module
   use Reactive_Transport_Aux_module
@@ -1800,33 +1777,6 @@ subroutine OutputMassBalance(realization_base)
       
       enddo
       
-#ifdef YE_FLUX
-!geh      do offset = 1, 4
-!geh        write(word,'(i6)') offset*100
-        select case(option%iflowmode)
-          case(FLASH2_MODE,MPH_MODE)
-            write(fid,'(a)',advance="no") ',"' // &
-              'Plane Water Flux [mol/s]","Plane CO2 Flux [mol/s]",' // &
-              '"Plane Energy Flux [MJ/s]"'
-          case(RICHARDS_MODE)
-            write(fid,'(a)',advance="no") ',"' // &
-              'Plane Water Flux [mol/s]"'
-          case(TH_MODE)
-            write(fid,'(a)',advance="no") ',"' // &
-              trim(adjustl(word)) // 'm Water Mass [kg]"'
-        end select
-        
-        if (option%ntrandof > 0) then
-          do i=1,reaction%naqcomp
-            if (reaction%primary_species_print(i)) then
-              write(fid,'(a)',advance="no") ',"' // &
-                  trim(adjustl(word)) // 'm ' // &
-                  trim(reaction%primary_species_names(i)) // ' [mol]"'
-            endif
-          enddo
-        endif
-!geh      enddo
-#endif      
       write(fid,'(a)') '' 
     else
       open(unit=fid,file=filename,action="write",status="old",position="append")
@@ -1863,16 +1813,6 @@ subroutine OutputMassBalance(realization_base)
             call RichardsComputeMassBalance(realization_base,sum_kg(1,:))
           case(TH_MODE)
             call THComputeMassBalance(realization_base,sum_kg(1,:))
-          case(MIS_MODE)
-            call MiscibleComputeMassBalance(realization_base,sum_kg(:,1))
-          case(MPH_MODE)
-            call MphaseComputeMassBalance(realization_base,sum_kg(:,:),sum_trapped(:))
-          case(FLASH2_MODE)
-            call Flash2ComputeMassBalance(realization_base,sum_kg(:,:),sum_trapped(:))
-          case(IMS_MODE)
-            call ImmisComputeMassBalance(realization_base,sum_kg(:,1))
-          case(G_MODE)
-            call GeneralComputeMassBalance(realization_base,sum_kg(:,:))
         end select
       class default
         option%io_buffer = 'Unrecognized realization class in MassBalance().'
@@ -1894,19 +1834,12 @@ subroutine OutputMassBalance(realization_base)
 
     if (option%myrank == option%io_rank) then
       select case(option%iflowmode)
-        case(RICHARDS_MODE,IMS_MODE,MIS_MODE,G_MODE, &
+        case(RICHARDS_MODE, &
              TH_MODE)
           do iphase = 1, option%nphase
             do ispec = 1, option%nflowspec
               write(fid,110,advance="no") sum_kg_global(ispec,iphase)
             enddo
-          enddo
-        case(MPH_MODE,FLASH2_MODE)
-          do iphase = 1, option%nphase
-            do ispec = 1, option%nflowspec
-              write(fid,110,advance="no") sum_kg_global(ispec,iphase)
-            enddo
-            write(fid,110,advance="no") sum_trapped_global(iphase)
           enddo
       end select
     endif
@@ -2336,78 +2269,6 @@ subroutine OutputMassBalance(realization_base)
   
   enddo
 
-#ifdef YE_FLUX
-
-!geh  do offset = 1, 4
-!geh    iconn = offset*20-1
-
-    !TODO(ye): The flux will be calculated at the plane intersecting the top
-    !          of the kth cell in the z-direction.  You need to update this.
-    k = 50
-
-    if (option%nflowdof > 0) then
-      ! really summation of moles, but we are hijacking the variable
-      sum_mol_ye = 0.d0
-      if (k-1 >= grid%structured_grid%lzs .and. &
-          k-1 < grid%structured_grid%lze) then
-        offset = (grid%structured_grid%ngx-1)*grid%structured_grid%nlyz + &
-                 (grid%structured_grid%ngy-1)*grid%structured_grid%nlxz
-        do j = grid%structured_grid%lys, grid%structured_grid%lye-1
-          do i = grid%structured_grid%lxs, grid%structured_grid%lxe-1
-            iconn = offset + (i-grid%structured_grid%lxs)* &
-                             (grid%structured_grid%ngz-1) + &
-                             (j-grid%structured_grid%lys)* &
-                             grid%structured_grid%nlx* &
-                             (grid%structured_grid%ngz-1) + &
-                             k-grid%structured_grid%lzs+1
-!gehprint *, option%myrank, grid%nG2A(grid%internal_connection_set_list%first%id_up(iconn)), &
-!gehpatch%internal_fluxes(1:option%nflowdof,1,iconn), 'sum_mol_by_conn'
-            sum_mol_ye(1:option%nflowdof) = sum_mol_ye(1:option%nflowdof) + &
-                             patch%internal_fluxes(1:option%nflowdof,1,iconn)
-          enddo
-        enddo
-      endif
-!geh      int_mpi = option%nphase
-      int_mpi = option%nflowdof
-!gehprint *, option%myrank, sum_mol_ye(1,1), 'sum_mol_ye'
-      call MPI_Reduce(sum_mol_ye,sum_mol_global_ye, &
-                      int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                      option%io_rank,option%mycomm,ierr)
-                          
-      if (option%myrank == option%io_rank) then
-        ! change sign for positive in / negative out
-        ! for mphase use:
-        write(fid,110,advance="no") -sum_mol_global_ye(1:option%nflowdof)/option%flow_dt
-
-!     for Richards eqn. use:
-!       write(fid,110,advance="no") -sum_mol_global_ye(1:option%nflowdof)
-      endif
-    endif
-    
-    if (option%ntrandof > 0) then
-
-      sum_mol = 0.d0
-      sum_mol = sum_mol + patch%aux%RT%auxvars(iconn)%mass_balance
-
-      int_mpi = option%nphase*option%ntrandof
-      call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
-                      MPI_DOUBLE_PRECISION,MPI_SUM, &
-                      option%io_rank,option%mycomm,ierr)
-
-      if (option%myrank == option%io_rank) then
-        do iphase = 1, option%nphase
-          do icomp = 1, reaction%naqcomp
-            if (reaction%primary_species_print(icomp)) then
-              ! change sign for positive in / negative out
-              write(fid,110,advance="no") -sum_mol_global(icomp,iphase)
-            endif
-          enddo
-        enddo
-      endif
-    endif
-!geh  enddo
-#endif
-  
   if (option%myrank == option%io_rank) then
     write(fid,'(a)') ''
     close(fid)

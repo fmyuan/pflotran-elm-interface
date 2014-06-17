@@ -72,15 +72,7 @@ subroutine SaturationUpdateCoupler(coupler,option,grid,saturation_functions, &
 
   do iconn=1, num_faces
     if (grid%itype==STRUCTURED_GRID_MIMETIC) then
-#ifdef DASVYAT
-      face_id_ghosted = coupler%faces_set(iconn)
-      conn_set_ptr => grid%faces(face_id_ghosted)%conn_set_ptr
-      conn_id = grid%faces(face_id_ghosted)%id
-
-      dist_x = conn_set_ptr%cntr(1,conn_id) - datum(X_DIRECTION)
-      dist_y = conn_set_ptr%cntr(2,conn_id) - datum(Y_DIRECTION)
-      dist_z = conn_set_ptr%cntr(3,conn_id) - datum(Z_DIRECTION)
-#endif
+!
     else 
 
       local_id = coupler%connection_set%id_dn(iconn)
@@ -111,10 +103,6 @@ subroutine SaturationUpdateCoupler(coupler,option,grid,saturation_functions, &
 !                 (grid%z(ghosted_id)-z(ipressure)) + &
                  pressure_gradient(X_DIRECTION)*dist_x + & ! gradient in Pa/m
                  pressure_gradient(Y_DIRECTION)*dist_y
-
-!      if (grid%itype==STRUCTURED_GRID_MIMETIC) then
-!         pressure = 3*conn_set_ptr%cntr(3,conn_id)    !DASVYAT WORKINGCHECK
-!      end if
  
     else
       pressure = pressure_at_datum + &

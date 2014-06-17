@@ -73,13 +73,6 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: surf_initialize_flow_filename
     character(len=MAXSTRINGLENGTH) :: surf_restart_filename
 
-#ifdef GEOMECH
-    PetscInt  :: ngeomechdof
-    PetscInt  :: n_stress_strain_dof
-    PetscReal :: geomech_time
-    PetscInt  :: geomech_subsurf_coupling
-    PetscReal :: geomech_gravity(3)
-#endif
     PetscBool :: sec_vars_update
     PetscInt :: air_pressure_id
     PetscInt :: capillary_pressure_id
@@ -428,15 +421,6 @@ subroutine OptionInitRealization(option)
   option%surf_restart_filename = ""
   option%surf_restart_flag = PETSC_FALSE
   option%surf_restart_time = -999.0
-
-#ifdef GEOMECH
-  option%ngeomechdof = 0
-  option%n_stress_strain_dof = 0
-  option%geomech_time = 0.d0
-  option%geomech_subsurf_coupling = 0 
-  option%geomech_gravity(:) = 0.d0
-  option%geomech_gravity(3) = -9.8068d0    ! m/s^2
-#endif
 
   option%tranmode = ""
   option%itranmode = NULL_MODE

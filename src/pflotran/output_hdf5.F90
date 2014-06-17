@@ -14,10 +14,6 @@ module Output_HDF5_module
 
   PetscMPIInt, private, parameter :: ON=1, OFF=0
 
-#if defined(SCORPIO_WRITE)
-  include "scorpiof.h"
-#endif
-
   ! flags signifying the first time a routine is called during a given
   ! simulation
   PetscBool :: hdf5_first
@@ -726,11 +722,6 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
 
   grid => patch%grid
 
-#ifdef SCORPIO_WRITE
-   option%io_buffer='OutputHDF5UGridXDMF not supported with SCORPIO_WRITE'
-   call printErrMsg(option)
-#endif
-
     ! initialize fortran interface
   call h5open_f(hdf5_err)
 
@@ -1147,11 +1138,6 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   endif
 
   grid => patch%grid
-
-#ifdef SCORPIO_WRITE
-   option%io_buffer='OutputHDF5UGridXDMF not supported with SCORPIO_WRITE'
-   call printErrMsg(option)
-#endif
 
     ! initialize fortran interface
   call h5open_f(hdf5_err)
@@ -2877,11 +2863,6 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id,var_list_type
   output_option =>realization_base%output_option
   field => realization_base%field
 
-#if defined(SCORPIO_WRITE)
-  write(*,*) 'SCORPIO_WRITE'
-  option%io_buffer = 'WriteHDF5FlowratesUGrid not supported for SCORPIO_WRITE'
-  call printErrMsg(option)
-#else
   select case(option%iflowmode)
     case (RICHARDS_MODE)
       ndof=1
@@ -3025,8 +3006,6 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id,var_list_type
 
   ! Free up memory
   deallocate(double_array)
-#endif
-! #ifdef SCORPIO_WRITE
 
 end subroutine WriteHDF5FlowratesUGrid
 
@@ -3145,12 +3124,6 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id,var_list_type)
   ugrid => grid%unstructured_grid
   output_option =>realization_base%output_option
   field => realization_base%field
-
-#if defined(SCORPIO_WRITE)
-  write(*,*) 'SCORPIO_WRITE'
-  option%io_buffer = 'WriteHDF5FaceVelUGrid not supported for SCORPIO_WRITE'
-  call printErrMsg(option)
-#else
 
   call VecGetLocalSize(field%vx_face_inst,local_size,ierr)
   local_size = local_size/(option%nphase*MAX_FACE_PER_CELL + 1)
@@ -3276,8 +3249,6 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id,var_list_type)
 
   ! Free up memory
   deallocate(double_array)
-#endif
-! #ifdef SCORPIO_WRITE
 
 end subroutine WriteHDF5FaceVelUGrid
 

@@ -71,25 +71,6 @@ module Timestepper_module
             TimestepperInitializeRun, &
             TimestepperFinalizeRun, &
 #endif            
-#ifdef GEOMECH
-#ifndef PROCESS_MODEL
-            FlowStepperStepToSteadyState, &
-            StepperCheckpoint, &
-            StepperJumpStart, &
-            StepperRunSteadyState, &
-            StepperSetTargetTimes, &
-            StepperStepFlowDT, &
-            StepperStepTransportDT_GI, &
-            StepperStepTransportDT_OS, &
-            StepperUpdateDT, &
-            StepperUpdateDTMax, &
-            StepperUpdateSolution, &
-            StepperUpdateTransportSolution, &
-            TimestepperCheckCFLLimit, &
-            TimestepperEnforceCFLLimit, &
-            TimestepperRestart, &
-#endif
-#endif
             TimestepperRead, TimestepperPrintInfo, TimestepperReset
 
 contains
@@ -1450,31 +1431,6 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
             call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%flow_xx, ierr)
           end if
 
-#if DASVYAT_DEBUG
-          call PetscViewerASCIIOpen(realization%option%mycomm,'timestepp_flow_xx_after.out', &
-                                viewer,ierr)
-          if (discretization%itype == STRUCTURED_GRID_MIMETIC) then
-            !call VecView(field%flow_xx_faces, viewer, ierr)
-            !call VecView(field%flow_xx, viewer, ierr)
-            !call VecView(field%flow_r_faces, viewer, ierr)
-            call VecNorm(field%flow_r_faces, NORM_2, tempreal, ierr)
-            write(*,*) "MFD residual", tempreal
-          else
-            call VecView(field%flow_xx, viewer, ierr)
-        endif
-
-        call RichardsResidual(solver%snes,field%flow_xx, field%flow_r,realization,ierr)
-        call VecView(field%flow_r, viewer, ierr)
-        call VecNorm(field%flow_r, NORM_2, tempreal2, ierr)
-
-        write(*,*) "FV residual", tempreal2
-        call PetscViewerDestroy(viewer,ierr)
-        write(*,*) "After SNESSolve"
-        read(*,*)     
-#endif
-
-
-
       end select
       call PetscTime(log_end_time, ierr)
       stepper%cumulative_solver_time = stepper%cumulative_solver_time + &
@@ -1531,13 +1487,9 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
         endif
 
  
-       stepper%target_time = stepper%target_time - option%flow_dt
+        stepper%target_time = stepper%target_time - option%flow_dt
 
-#ifdef DASVYAT_TEST_CUT
-        option%flow_dt = 1d0*option%flow_dt
-#else
         option%flow_dt = 0.5d0 * option%flow_dt  
-#endif
       
         if (option%print_screen_flag) write(*,'('' -> Cut time step: snes='',i3, &
           &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &

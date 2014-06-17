@@ -140,11 +140,6 @@ subroutine HijackSimulation(simulation_old,simulation)
   use PMC_Subsurface_class  
   use Simulation_Base_class
   use PM_Base_class
-  use PM_General_class
-  use PM_Flash2_class
-  use PM_Immis_class
-  use PM_Mphase_class
-  use PM_Miscible_class
   use PM_Richards_class
   use PM_RT_class
   use PM_Subsurface_class
@@ -183,16 +178,6 @@ subroutine HijackSimulation(simulation_old,simulation)
   ! Create Subsurface-flow ProcessModel & ProcessModelCoupler
   if (option%nflowdof > 0) then
     select case(option%iflowmode)
-      case(G_MODE)
-        cur_process_model => PMGeneralCreate()
-      case(FLASH2_MODE)
-        cur_process_model => PMFlash2Create()
-      case(IMS_MODE)
-        cur_process_model => PMImmisCreate()
-      case(MPH_MODE)
-        cur_process_model => PMMphaseCreate()
-      case(MIS_MODE)
-        cur_process_model => PMMiscibleCreate()
       case(RICHARDS_MODE)
         cur_process_model => PMRichardsCreate()
       case(TH_MODE)
@@ -205,7 +190,6 @@ subroutine HijackSimulation(simulation_old,simulation)
     flow_process_model_coupler%option => option
     flow_process_model_coupler%pm_list => cur_process_model
     flow_process_model_coupler%pm_ptr%ptr => cur_process_model
-!    flow_process_model_coupler%timestepper => simulation_old%flow_stepper
     flow_process_model_coupler%realization => realization
     call HijackTimestepper(simulation_old%flow_stepper, &
                            flow_process_model_coupler%timestepper)
@@ -222,7 +206,6 @@ subroutine HijackSimulation(simulation_old,simulation)
     tran_process_model_coupler%option => option
     tran_process_model_coupler%pm_list => cur_process_model
     tran_process_model_coupler%pm_ptr%ptr => cur_process_model
-!    tran_process_model_coupler%timestepper => simulation_old%tran_stepper
     tran_process_model_coupler%realization => realization
     call HijackTimestepper(simulation_old%tran_stepper, &
                            tran_process_model_coupler%timestepper)
@@ -375,9 +358,6 @@ subroutine SubsurfaceJumpStart(simulation)
   if (option%steady_state) then
     option%io_buffer = 'Running in steady-state not yet supported in refactored code.'
     call printErrMsg(option)
-#if 0    
-    call StepperRunSteadyState(realization,flow_stepper,tran_stepper)
-#endif    
     ! do not want to run through time stepper
     option%status = DONE
     return 

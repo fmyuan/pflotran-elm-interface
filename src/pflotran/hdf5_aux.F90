@@ -30,14 +30,7 @@ module HDF5_Aux_module
 #endif
 
   public :: HDF5ReadNDimRealArray, &
-#ifdef SCORPIO
-            HDF5ReadDatasetInteger2D, &
-            HDF5ReadDatasetReal2D, &
             HDF5GroupExists, &
-#else
-            HDF5GroupExists, &
-#endif
-! SCORPIO
             HDF5MakeStringCompatible
 
 contains

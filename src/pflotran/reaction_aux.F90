@@ -2,14 +2,9 @@ module Reaction_Aux_module
   
   use Database_Aux_module
   use Mineral_Aux_module
-  use Microbial_Aux_module
   use Immobile_Aux_module
   use Surface_Complexation_Aux_module
   
-#ifdef SOLID_SOLUTION  
-  use Solid_Solution_Aux_module
-#endif
-
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -192,16 +187,11 @@ module Reaction_Aux_module
     ! new reaction objects
     type(surface_complexation_type), pointer :: surface_complexation
     type(mineral_type), pointer :: mineral
-    type(microbial_type), pointer :: microbial
     type(immobile_type), pointer :: immobile
     
     ! secondary continuum reaction objects
     type(kd_rxn_type), pointer :: sec_cont_kd_rxn_list
-    
-#ifdef SOLID_SOLUTION    
-    type(solid_solution_type), pointer :: solid_solution_list
-#endif    
-    
+
     ! compressed arrays for efficient computation
     ! primary aqueous complexes
     PetscInt :: ncomp
@@ -266,11 +256,6 @@ module Reaction_Aux_module
     PetscInt, pointer :: eqionx_rxn_to_surf(:)
     PetscReal, pointer :: eqionx_rxn_k(:,:)
     PetscInt, pointer :: eqionx_rxn_cationid(:,:)
-#if 0    
-    PetscReal, pointer :: kinionx_rxn_CEC(:)
-    PetscReal, pointer :: kinionx_rxn_k(:,:)
-    PetscInt, pointer :: kinionx_rxn_cationid(:)
-#endif    
 
     ! colloids
     PetscInt :: ncoll
@@ -475,11 +460,7 @@ function ReactionCreate()
   ! new reaction objects
   reaction%surface_complexation => SurfaceComplexationCreate()
   reaction%mineral => MineralCreate()
-  reaction%microbial => MicrobialCreate()
   reaction%immobile => ImmobileCreate()
-#ifdef SOLID_SOLUTION  
-  nullify(reaction%solid_solution_list)
-#endif
   
   nullify(reaction%primary_species_names)
   nullify(reaction%secondary_species_names)
@@ -2031,11 +2012,7 @@ subroutine ReactionDestroy(reaction,option)
 
   call SurfaceComplexationDestroy(reaction%surface_complexation)
   call MineralDestroy(reaction%mineral)
-  call MicrobialDestroy(reaction%microbial)
   call ImmobileDestroy(reaction%immobile)
-#ifdef SOLID_SOLUTION  
-  call SolidSolutionDestroy(reaction%solid_solution_list)
-#endif  
 
   if (associated(reaction%dbase_temperatures)) &
     deallocate(reaction%dbase_temperatures)

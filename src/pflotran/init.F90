@@ -52,14 +52,8 @@ subroutine Init(simulation)
   use Input_Aux_module
   use Condition_Control_module
   
-  use Flash2_module
-  use Mphase_module
-  use Immis_module
-  use Miscible_module
   use Richards_module
-  use Richards_MFD_module
   use TH_module
-  use General_module
   
   use Reactive_Transport_module
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
@@ -71,7 +65,6 @@ subroutine Init(simulation)
   
   use EOS_module
   use EOS_Water_module
-!  use Utility_module
   use Output_module
   use Output_Aux_module
   use Regression_module
@@ -85,17 +78,6 @@ subroutine Init(simulation)
   use Surface_Realization_class
   use Surface_TH_module
   use Unstructured_Grid_module
-
-#ifdef GEOMECH
-  use Geomechanics_Realization_class
-  use Geomechanics_Init_module, only : GeomechicsInitReadRequiredCards, &
-                                       GeomechInitMatPropToGeomechRegions
-  use Geomechanics_Grid_module
-  use Geomechanics_Discretization_module
-  use Geomechanics_Field_module
-  use Geomechanics_Global_module
-  use Geomechanics_Force_module
-#endif
 
   implicit none
   
@@ -129,12 +111,6 @@ subroutine Init(simulation)
   type(solver_type), pointer                :: surf_flow_solver
   type(surface_field_type), pointer         :: surf_field
   type(surface_realization_type), pointer   :: surf_realization
-#ifdef GEOMECH
-  type(solver_type), pointer                :: geomech_solver
-  type(stepper_type), pointer               :: geomech_stepper
-  type(geomech_field_type), pointer         :: geomech_field
-  type(geomech_realization_type), pointer   :: geomech_realization
-#endif
 
   ! popped in TimestepperInitializeRun()
   call PetscLogStagePush(logging%stage(INIT_STAGE),ierr)
@@ -152,11 +128,6 @@ subroutine Init(simulation)
   surf_realization  => simulation%surf_realization
   surf_flow_stepper => simulation%surf_flow_stepper
   surf_field        => surf_realization%surf_field  
-#ifdef GEOMECH
-  geomech_realization => simulation%geomech_realization
-  geomech_stepper => simulation%geomech_stepper
-  geomech_field => geomech_realization%geomech_field
-#endif
   
   nullify(flow_solver)
   nullify(tran_solver)
@@ -188,11 +159,6 @@ subroutine Init(simulation)
   surf_realization%input => InputCreate(IN_UNIT,option%input_filename,option)
   surf_realization%subsurf_filename = realization%discretization%filename
   call SurfaceInitReadRequiredCards(simulation%surf_realization)
-
-#ifdef GEOMECH
-  geomech_realization%input => InputCreate(IN_UNIT,option%input_filename,option)
-  call GeomechicsInitReadRequiredCards(simulation%geomech_realization)
-#endif
 
   patch => realization%patch
 
@@ -239,18 +205,6 @@ subroutine Init(simulation)
     nullify(surf_flow_solver)
   endif
 
-#ifdef GEOMECH
-  ! initialize surface-flow mode
-  if (option%ngeomechdof > 0) then
-    geomech_solver => geomech_stepper%solver
-    waypoint_list => WaypointListCreate()
-    geomech_realization%waypoints => waypoint_list
-  else
-    call TimestepperDestroy(simulation%geomech_stepper)
-    nullify(geomech_solver)
-  endif
-#endif
-
   ! initialize plot variables
   realization%output_option%output_variable_list => OutputVariableListCreate()
   realization%output_option%aveg_output_variable_list => OutputVariableListCreate()
@@ -259,10 +213,6 @@ subroutine Init(simulation)
     OutputVariableListCreate()
   simulation%surf_realization%output_option%aveg_output_variable_list => &
     OutputVariableListCreate()
-#ifdef GEOMECH
-  geomech_realization%output_option%output_variable_list => &
-    OutputVariableListCreate()
-#endif
 
   ! read in the remainder of the input file
   call InitReadInput(simulation)
@@ -270,15 +220,8 @@ subroutine Init(simulation)
 
   ! initialize reference density
   if (option%reference_water_density < 1.d-40) then
-#ifndef DONT_USE_WATEOS
-    call EOSWaterDensity(option%reference_temperature, &
-                         option%reference_pressure, &
-                         option%reference_water_density, &
-                         dum1,ierr)    
-#else
     call EOSWaterdensity(option%reference_temperature,option%reference_pressure, &
                  option%reference_water_density,dum1,ierr)
-#endif                 
   endif
   
   ! read reaction database
@@ -294,21 +237,6 @@ subroutine Init(simulation)
       realization%reaction%primary_species_print = PETSC_TRUE
     endif
   endif
-
-  ! Initialize flow databases (e.g. span wagner, etc.)
-  select case(option%iflowmode)
-    case(MPH_MODE, FLASH2_MODE, IMS_MODE)
-      call init_span_wanger(realization)
-  end select
-  
-  ! SK 09/30/13, Added to check if Mphase is called with OS
-  if (option%transport%reactive_transport_coupling == OPERATOR_SPLIT .and. &
-      option%iflowmode == MPH_MODE) then
-    option%io_buffer = 'Operator split not implemented with MPHASE. ' // &
-                       'Switching to Global Implicit.'
-    call printWrnMsg(option)
-    option%transport%reactive_transport_coupling = GLOBAL_IMPLICIT
-  endif
   
   ! create grid and allocate vectors
   call RealizationCreateDiscretization(realization)
@@ -316,12 +244,6 @@ subroutine Init(simulation)
   if (option%nsurfflowdof>0) then
     call SurfRealizCreateDiscretization(simulation%surf_realization)
   endif
-
-#ifdef GEOMECH
-  if (option%ngeomechdof > 0) then
-    call GeomechRealizCreateDiscretization(geomech_realization)
-  endif
-#endif
 
   call RegressionCreateMapping(simulation%regression,realization)
 
@@ -363,19 +285,10 @@ subroutine Init(simulation)
       write(*,'(" number of dofs = ",i3,", number of phases = ",i3,i2)') &
         option%nflowdof,option%nphase
       select case(option%iflowmode)
-        case(FLASH2_MODE)
-          write(*,'(" mode = FLASH2: p, T, s/X")')
-        case(MPH_MODE)
-          write(*,'(" mode = MPH: p, T, s/X")')
-        case(IMS_MODE)
-          write(*,'(" mode = IMS: p, T, s")')
-        case(MIS_MODE)
-          write(*,'(" mode = MIS: p, Xs")')
         case(TH_MODE)
           write(*,'(" mode = TH: p, T")')
         case(RICHARDS_MODE)
           write(*,'(" mode = Richards: p")')  
-        case(G_MODE)    
       end select
     endif
 
@@ -419,30 +332,11 @@ subroutine Init(simulation)
                              realization,ierr)
       case(RICHARDS_MODE)
         select case(realization%discretization%itype)
-          case(STRUCTURED_GRID_MIMETIC,UNSTRUCTURED_GRID_MIMETIC)
-            call SNESSetFunction(flow_solver%snes,field%flow_r_faces, &
-                                 RichardsResidualMFDLP, &
-                                 realization,ierr)
           case default
             call SNESSetFunction(flow_solver%snes,field%flow_r, &
                                  RichardsResidual, &
                                  realization,ierr)
         end select
-      case(MPH_MODE)
-        call SNESSetFunction(flow_solver%snes,field%flow_r,MphaseResidual, &
-                             realization,ierr)
-      case(IMS_MODE)
-        call SNESSetFunction(flow_solver%snes,field%flow_r,ImmisResidual, &
-                             realization,ierr)
-      case(MIS_MODE)
-        call SNESSetFunction(flow_solver%snes,field%flow_r,MiscibleResidual, &
-                             realization,ierr)
-      case(FLASH2_MODE)
-        call SNESSetFunction(flow_solver%snes,field%flow_r,FLASH2Residual, &
-                             realization,ierr)
-      case(G_MODE)
-        call SNESSetFunction(flow_solver%snes,field%flow_r,GeneralResidual, &
-                             realization,ierr)
     end select
     
     if (flow_solver%J_mat_type == MATMFFD) then
@@ -455,29 +349,11 @@ subroutine Init(simulation)
                              THJacobian,realization,ierr)
       case(RICHARDS_MODE)
         select case(realization%discretization%itype)
-          case(STRUCTURED_GRID_MIMETIC,UNSTRUCTURED_GRID_MIMETIC)
-            call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
-                             RichardsJacobianMFDLP,realization,ierr)
           case default !sp 
             call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
                              RichardsJacobian,realization,ierr)
         end select
 
-      case(MPH_MODE)
-        call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
-                             MPHASEJacobian,realization,ierr)
-      case(IMS_MODE)
-        call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
-                             ImmisJacobian,realization,ierr)
-      case(MIS_MODE)
-        call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
-                             MiscibleJacobian,realization,ierr)
-      case(FLASH2_MODE)
-        call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
-                             FLASH2Jacobian,realization,ierr)
-      case(G_MODE)
-        call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
-                             GeneralJacobian,realization,ierr)
     end select
     
     ! by default turn off line search
@@ -528,10 +404,6 @@ subroutine Init(simulation)
                                          RichardsCheckUpdatePre, &
                                          realization,ierr)
         endif
-      case(G_MODE)
-        call SNESLineSearchSetPreCheck(linesearch, &
-                                       GeneralCheckUpdatePre, &
-                                       realization,ierr)
       case(TH_MODE)
         if (dabs(option%pressure_dampening_factor) > 0.d0 .or. &
             dabs(option%pressure_change_limit) > 0.d0 .or. &
@@ -549,10 +421,6 @@ subroutine Init(simulation)
         case(RICHARDS_MODE)
           call SNESLineSearchSetPostCheck(linesearch, &
                                           RichardsCheckUpdatePost, &
-                                          realization,ierr)
-        case(G_MODE)
-          call SNESLineSearchSetPostCheck(linesearch, &
-                                          GeneralCheckUpdatePost, &
                                           realization,ierr)
         case(TH_MODE)
           call SNESLineSearchSetPostCheck(linesearch, &
@@ -587,71 +455,6 @@ subroutine Init(simulation)
     endif ! if(option%nsurfflowdof>0)
 
   endif
-
-#ifdef GEOMECH
-  ! update geomechanics mode based on optional input
-  if (option%ngeomechdof > 0) then
-
-    if (geomech_solver%J_mat_type == MATAIJ) then
-      option%io_buffer = 'AIJ matrix not supported for geomechanics.'
-      call printErrMsg(option)
-    endif
-
-    call printMsg(option,"  Beginning setup of GEOMECH SNES ")
-    
-    call SolverCreateSNES(geomech_solver,option%mycomm)  
-    call SNESSetOptionsPrefix(geomech_solver%snes, "geomech_",ierr)
-    call SolverCheckCommandLine(geomech_solver)
-        
-    if (geomech_solver%Jpre_mat_type == '') then
-      geomech_solver%Jpre_mat_type = geomech_solver%J_mat_type
-    endif
-    call GeomechDiscretizationCreateJacobian(geomech_realization% &
-                                             geomech_discretization,NGEODOF, &
-                                             geomech_solver%Jpre_mat_type, &
-                                             geomech_solver%Jpre,option)
-
-    geomech_solver%J = geomech_solver%Jpre
-    call MatSetOptionsPrefix(geomech_solver%Jpre,"geomech_",ierr)
-    
-
-    call SNESSetFunction(geomech_solver%snes,geomech_field%disp_r, &
-                         GeomechForceResidual, &
-                         simulation%geomech_realization,ierr)
-
-    call SNESSetJacobian(geomech_solver%snes,geomech_solver%J, &
-                         geomech_solver%Jpre,GeomechForceJacobian, &
-                         simulation%geomech_realization,ierr)
-    ! by default turn off line search
-    call SNESGetLineSearch(geomech_solver%snes,linesearch, ierr)
-    call SNESLineSearchSetType(linesearch,SNESLINESEARCHBASIC,ierr)
-
-    ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
-    if (option%verbosity >= 1) then
-      string = '-geomech_snes_view'
-      call PetscOptionsInsertString(string, ierr)
-    endif
-
-    call SolverSetSNESOptions(geomech_solver)
-
-    option%io_buffer = 'Solver: ' // trim(geomech_solver%ksp_type)
-    call printMsg(option)
-    option%io_buffer = 'Preconditioner: ' // trim(geomech_solver%pc_type)
-    call printMsg(option)
-
-    ! shell for custom convergence test.  The default SNES convergence test
-    ! is call within this function.
-    geomech_stepper%convergence_context => &
-    ConvergenceContextCreate(geomech_solver,option,grid) ! Need to change this for geomech
-    call SNESSetConvergenceTest(geomech_solver%snes,ConvergenceTest, &
-                                geomech_stepper%convergence_context, &
-                                PETSC_NULL_FUNCTION,ierr)
-
-    call printMsg(option,"  Finished setting up GEOMECH SNES ")
-  
-  endif
-
-#endif
 
   ! update transport mode based on optional input
   if (option%ntrandof > 0) then
@@ -779,7 +582,6 @@ subroutine Init(simulation)
   ! must process conditions before couplers in order to determine dataset types
   call RealizationProcessConditions(realization)
   call RealizationProcessCouplers(realization)
-  call SandboxesSetup(realization)
   call RealProcessFluidProperties(realization)
   call assignMaterialPropToRegions(realization)
   ! assignVolumesToMaterialAuxVars() must be called after 
@@ -825,20 +627,6 @@ subroutine Init(simulation)
         call THSetup(realization)
       case(RICHARDS_MODE)
         call RichardsSetup(realization)
-      case(MPH_MODE)
-        call MphaseSetup(realization)
-      case(IMS_MODE)
-        call ImmisSetup(realization)
-      case(MIS_MODE)
-        call MiscibleSetup(realization)
-      case(FLASH2_MODE)
-        call Flash2Setup(realization)
-      case(G_MODE)
-        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
-                           realization%material_property_array, &
-                           realization%saturation_function_array, &
-                           realization%option)
-        call GeneralSetup(realization)
     end select
   
     ! assign initial conditionsRealizAssignFlowInitCond
@@ -854,24 +642,7 @@ subroutine Init(simulation)
       case(TH_MODE)
         call THUpdateAuxVars(realization)
       case(RICHARDS_MODE)
-#ifdef DASVYAT
-       if (option%mimetic) then
-!        call RichardsInitialPressureReconstruction(realization)
-!        write(*,*) "RichardsInitialPressureReconstruction"
-!        read(*,*)
-       end if
-#endif 
         call RichardsUpdateAuxVars(realization)
-      case(MPH_MODE)
-        call MphaseUpdateAuxVars(realization)
-      case(IMS_MODE)
-        call ImmisUpdateAuxVars(realization)
-      case(MIS_MODE)
-        call MiscibleUpdateAuxVars(realization)
-      case(FLASH2_MODE)
-        call Flash2UpdateAuxVars(realization)
-      case(G_MODE)
-        call GeneralUpdateAuxVars(realization,PETSC_TRUE)
     end select
   else ! no flow mode specified
     if (len_trim(realization%nonuniform_velocity_filename) > 0) then
@@ -940,20 +711,6 @@ subroutine Init(simulation)
       call OutputVariableAddToList( &
              realization%output_option%output_variable_list, &
              'Permeability Z',OUTPUT_GENERIC,'m^2',PERMEABILITY_Z)
-#ifdef DASVYAT
-      if(realization%discretization%itype == STRUCTURED_GRID_MIMETIC .or. &
-         realization%discretization%itype == UNSTRUCTURED_GRID_MIMETIC) then
-        call OutputVariableAddToList( &
-               realization%output_option%output_variable_list, &
-               'Permeability XY',OUTPUT_GENERIC,'m^2',PERMEABILITY_XY)
-        call OutputVariableAddToList( &
-               realization%output_option%output_variable_list, &
-               'Permeability XZ',OUTPUT_GENERIC,'m^2',PERMEABILITY_XZ)
-        call OutputVariableAddToList( &
-               realization%output_option%output_variable_list, &
-               'Permeability YZ',OUTPUT_GENERIC,'m^2',PERMEABILITY_YZ)
-      endif
-#endif
     else
       call OutputVariableAddToList( &
              realization%output_option%output_variable_list, &
@@ -1019,16 +776,6 @@ subroutine Init(simulation)
                                OptionPrintToFile(option),option%fid_out, &
                                string)
   endif    
-#ifdef GEOMECH
-  if (option%ngeomechdof > 0) then
-    if (associated(geomech_solver)) then
-      string = 'Geomechanics Newton Solver:'
-      call SolverPrintNewtonInfo(geomech_solver,OptionPrintToScreen(option), &
-                                 OptionPrintToFile(option),option%fid_out, &
-                                 string)
-    endif
-  endif
-#endif
 
   if (associated(flow_solver)) then
     string = 'Flow Linear Solver:'
@@ -1038,14 +785,7 @@ subroutine Init(simulation)
     string = 'Transport Linear Solver'
     call SolverPrintLinearInfo(tran_solver,string,option)
   endif    
-#ifdef GEOMECH
-  if (option%ngeomechdof > 0) then
-    if (associated(geomech_solver)) then
-      string = 'Geomechanics Linear Solver:'
-      call SolverPrintLinearInfo(geomech_solver,string,option)
-    endif
-  endif
-#endif
+
   if (associated(surf_flow_solver)) then
     string = 'Surface Flow TS Solver:'
     if (OptionPrintToScreen(option)) then
@@ -1148,41 +888,6 @@ subroutine Init(simulation)
            simulation%surf_realization%output_option%output_variable_list,output_variable)
   endif
 
-#ifdef GEOMECH
-  if (option%ngeomechdof > 0) then
-    if (option%geomech_subsurf_coupling /= 0) then
-      call GeomechCreateGeomechSubsurfVec(simulation%realization, &
-                                          simulation%geomech_realization)
-      call GeomechCreateSubsurfStressStrainVec(simulation%realization, &
-                                               simulation%geomech_realization)
-
-      call GeomechRealizMapSubsurfGeomechGrid(simulation%realization, &
-                                              simulation%geomech_realization, &
-                                              option)
-    endif
-    call GeomechRealizLocalizeRegions(simulation%geomech_realization)
-    call GeomechRealizPassFieldPtrToPatch(simulation%geomech_realization)
-    call GeomechRealizProcessMatProp(simulation%geomech_realization)
-    call GeomechRealizProcessGeomechCouplers(simulation%geomech_realization)
-    call GeomechRealizProcessGeomechConditions(simulation%geomech_realization)
-    call GeomechInitMatPropToGeomechRegions(simulation%geomech_realization)
-    call GeomechRealizInitAllCouplerAuxVars(simulation%geomech_realization)  
-    call GeomechRealizPrintCouplers(simulation%geomech_realization)  
-    call GeomechRealizAddWaypointsToList(simulation%geomech_realization)
-    call GeomechGridElemSharedByNodes(geomech_realization)
-    call WaypointListFillIn(option,simulation%geomech_realization%waypoints)
-    call WaypointListRemoveExtraWaypnts(option, &
-                                    simulation%geomech_realization%waypoints)
-    call GeomechForceSetup(simulation%geomech_realization)
-    call GeomechGlobalSetup(simulation%geomech_realization)
-    
-    ! SK: We are solving quasi-steady state solution for geomechanics.
-    ! Initial condition is not needed, hence CondControlAssignFlowInitCondGeomech
-    ! is not needed, at this point.
-    call GeomechForceUpdateAuxVars(simulation%geomech_realization)
-  endif
-#endif
-
   call printMsg(option," ")
   call printMsg(option,"  Finished Initialization")
   call PetscLogEventEnd(logging%event_init,ierr)
@@ -1275,7 +980,6 @@ subroutine InitReadRequiredCardsFromInput(realization)
   use Patch_module
   use Realization_class
 
-  use General_module
   use Reaction_module  
   use Reaction_Aux_module  
 
@@ -1308,33 +1012,7 @@ subroutine InitReadRequiredCardsFromInput(realization)
     ! read in keyword 
     call InputReadWord(input,option,option%flowmode,PETSC_TRUE)
     call InputErrorMsg(input,option,'flowmode','mode')
-    select case(trim(option%flowmode))
-      case('GENERAL')
-        call GeneralRead(input,option)
-    end select
   endif
-
-!.........................................................................
-#if defined(SCORPIO)
-  string = "HDF5_WRITE_GROUP_SIZE"
-  call InputFindStringInFile(input,option,string)
-  if (.not.InputError(input)) then  
-    call InputReadInt(input,option,option%hdf5_write_group_size)
-    call InputErrorMsg(input,option,'HDF5_WRITE_GROUP_SIZE','Group size')
-    call InputSkipToEnd(input,option,'HDF5_WRITE_GROUP_SIZE')
-  endif
-
-  string = "HDF5_READ_GROUP_SIZE"
-  call InputFindStringInFile(input,option,string)
-  if (.not.InputError(input)) then  
-    call InputReadInt(input,option,option%hdf5_read_group_size)
-    call InputErrorMsg(input,option,'HDF5_READ_GROUP_SIZE','Group size')
-  endif
- rewind(input%fid)
-
-  call Create_IOGroups(option)
-
-#endif
 
 !.........................................................................
 
@@ -1463,17 +1141,9 @@ subroutine InitReadInput(simulation)
   use Mass_Transfer_module
   use EOS_module
   use EOS_Water_module
-  use SrcSink_Sandbox_module
   
   use Surface_Flow_module
   use Surface_Init_module, only : SurfaceInitReadInput
-#ifdef GEOMECH
-  use Geomechanics_Init_module, only : GeomechanicsInitReadInput
-  use Geomechanics_Realization_class
-#endif
-#ifdef SOLID_SOLUTION
-  use Solid_Solution_module, only : SolidSolutionReadFromInputFile
-#endif
  
   implicit none
   
@@ -1534,10 +1204,6 @@ subroutine InitReadInput(simulation)
   type(mass_transfer_type), pointer :: rt_mass_transfer
   type(input_type), pointer :: input
   
-#ifdef GEOMECH
-  type(geomech_realization_type), pointer :: geomech_realization
-#endif
-
   nullify(flow_stepper)
   nullify(tran_stepper)
   nullify(flow_solver)
@@ -1546,10 +1212,6 @@ subroutine InitReadInput(simulation)
   realization => simulation%realization
   patch => realization%patch
   
-#ifdef GEOMECH
-  geomech_realization => simulation%geomech_realization
-#endif
-
   if (associated(patch)) grid => patch%grid
 
   option => realization%option
@@ -1619,11 +1281,6 @@ subroutine InitReadInput(simulation)
                option%io_buffer = ' TH: must specify FREEZING or NO_FREEZING submode!'
                call printErrMsg(option)
             endif
-         else if (trim(word) == 'GENERAL') then
-           call InputReadWord(input, option, word, PETSC_TRUE)
-           if (input%ierr == 0) then
-             call InputSkipToEnd(input,option,card)
-           endif
          endif  
         
 !....................
@@ -1753,11 +1410,7 @@ subroutine InitReadInput(simulation)
         call InputReadWord(input,option,flow_condition%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'FLOW_CONDITION','name') 
         call printMsg(option,flow_condition%name)
-        if (option%iflowmode == G_MODE) then
-          call FlowConditionGeneralRead(flow_condition,input,option)
-        else
-          call FlowConditionRead(flow_condition,input,option)
-        endif
+        call FlowConditionRead(flow_condition,input,option)
         call FlowConditionAddToList(flow_condition,realization%flow_conditions)
         nullify(flow_condition)
         
@@ -1818,12 +1471,7 @@ subroutine InitReadInput(simulation)
         call CouplerRead(coupler,input,option)
         call RealizationAddCoupler(realization,coupler)
         nullify(coupler)        
-      
-!....................
-      case ('SOURCE_SINK_SANDBOX')
-        call SSSandboxInit(option)
-        call SSSandboxRead(input,option)
-      
+
 !....................
       case ('FLOW_MASS_TRANSFER')
         flow_mass_transfer => MassTransferCreate()
@@ -2738,24 +2386,6 @@ subroutine InitReadInput(simulation)
         call InputSkipToEnd(input,option,'MAPPING_FILES')
 
 !......................
-#ifdef GEOMECH
-      case ('GEOMECHANICS')
-        call GeomechanicsInitReadInput(geomech_realization, &
-                         simulation%geomech_stepper%solver,input,option)
-        ! Add first waypoint
-        waypoint => WaypointCreate()
-        waypoint%time = 0.d0
-        call WaypointInsertInList(waypoint,simulation%geomech_realization%waypoints)
-
-        ! Add final_time waypoint to geomech_realization
-        waypoint => WaypointCreate()
-        waypoint%final = PETSC_TRUE
-        waypoint%time = realization%waypoints%last%time
-        waypoint%print_output = PETSC_TRUE
-        call WaypointInsertInList(waypoint,simulation%geomech_realization%waypoints)
-#endif
-
-!......................
       case ('HDF5_READ_GROUP_SIZE')
         call InputReadInt(input,option,option%hdf5_read_group_size)
         call InputErrorMsg(input,option,'HDF5_READ_GROUP_SIZE','Group size')
@@ -2791,7 +2421,6 @@ subroutine setFlowMode(option)
 
   use Option_module
   use String_module
-  use General_Aux_module
 
   implicit none 
 
@@ -2807,15 +2436,6 @@ subroutine setFlowMode(option)
       option%nflowdof = 2
       option%nflowspec = 1
       option%use_isothermal = PETSC_FALSE
-    case('MIS','MISCIBLE')
-      option%iflowmode = MIS_MODE
-      option%nphase = 1
-      option%liquid_phase = 1      
-      option%gas_phase = 2      
-      option%nflowdof = 2
-      option%nflowspec = 2
-      option%io_buffer = 'Material Auxvars must be refactored for MISCIBLE.'
-      call printErrMsg(option)
     case('RICHARDS')
       option%iflowmode = RICHARDS_MODE
       option%nphase = 1
@@ -2823,53 +2443,6 @@ subroutine setFlowMode(option)
       option%nflowdof = 1
       option%nflowspec = 1
       option%use_isothermal = PETSC_TRUE
-    case('MPH','MPHASE')
-      option%iflowmode = MPH_MODE
-      option%nphase = 2
-      option%liquid_phase = 1      
-      option%gas_phase = 2      
-      option%nflowdof = 3
-      option%nflowspec = 2
-      option%itable = 2 ! read CO2DATA0.dat
-!     option%itable = 1 ! create CO2 database: co2data.dat
-      option%use_isothermal = PETSC_FALSE
-    case('FLASH2')
-      option%iflowmode = FLASH2_MODE
-      option%nphase = 2
-      option%liquid_phase = 1      
-      option%gas_phase = 2      
-      option%nflowdof = 3
-      option%nflowspec = 2
-      option%itable = 2
-      option%use_isothermal = PETSC_FALSE
-   case('IMS','IMMIS','THS')
-      option%iflowmode = IMS_MODE
-      option%nphase = 2
-      option%liquid_phase = 1      
-      option%gas_phase = 2      
-      option%nflowdof = 3
-      option%nflowspec = 2
-      option%itable = 2
-      option%io_buffer = 'Material Auxvars must be refactored for IMMIS.'
-      call printErrMsg(option)
-    case('GENERAL')
-      option%iflowmode = G_MODE
-      option%nphase = 2
-      option%liquid_phase = 1  ! liquid_pressure
-      option%gas_phase = 2     ! gas_pressure
-
-      option%air_pressure_id = 3
-      option%capillary_pressure_id = 4
-      option%vapor_pressure_id = 5
-      option%saturation_pressure_id = 6
-
-      option%water_id = 1
-      option%air_id = 2
-      option%energy_id = 3
-
-      option%nflowdof = 3
-      option%nflowspec = 2
-      option%use_isothermal = PETSC_FALSE
     case default
       option%io_buffer = 'Mode: '//trim(option%flowmode)//' not recognized.'
       call printErrMsg(option)
@@ -4230,23 +3803,5 @@ subroutine InitReadVelocityField(realization)
   enddo
   
 end subroutine InitReadVelocityField
-
-! ************************************************************************** !
-
-subroutine SandboxesSetup(realization)
-  ! 
-  ! Initializes sandbox objects.
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 05/06/14
-
-  use Realization_class
-  use SrcSink_Sandbox_module
-  
-  type(realization_type) :: realization
-  
-   call SSSandboxSetup(realization%patch%regions,realization%option)
-  
-end subroutine SandboxesSetup
 
 end module Init_module

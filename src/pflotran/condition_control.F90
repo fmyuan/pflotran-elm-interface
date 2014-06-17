@@ -47,12 +47,8 @@ subroutine CondControlAssignFlowInitCond(realization)
   use Grid_module
   use Patch_module
   use EOS_Water_module
-#ifdef DASVYAT
-  use MFD_module, only : MFDInitializeMassMatrices
-#endif
 
   use Global_Aux_module
-  use General_Aux_module
   
   implicit none
 
@@ -78,7 +74,6 @@ subroutine CondControlAssignFlowInitCond(realization)
   type(flow_general_condition_type), pointer :: general
   class(dataset_base_type), pointer :: dataset
   type(global_auxvar_type) :: global_aux
-  type(general_auxvar_type) :: general_aux
   PetscBool :: use_dataset
   PetscBool :: dataset_flag(realization%option%nflowdof)
   PetscInt :: num_connections
@@ -92,11 +87,6 @@ subroutine CondControlAssignFlowInitCond(realization)
   field => realization%field
   patch => realization%patch
 
-  if (option%iflowmode == G_MODE) then
-    call GlobalAuxVarInit(global_aux,option)
-    call GeneralAuxVarInit(general_aux,option)
-  endif
-  
   cur_patch => realization%patch_list%first
   do
     if (.not.associated(cur_patch)) exit
@@ -104,159 +94,7 @@ subroutine CondControlAssignFlowInitCond(realization)
     grid => cur_patch%grid
 
     select case(option%iflowmode)
-      
-      case(G_MODE) ! general phase mode
 
-        call VecGetArrayF90(field%flow_xx,xx_p, ierr); CHKERRQ(ierr)
-        call VecGetArrayF90(field%iphas_loc,iphase_loc_p,ierr)
-      
-        xx_p = -999.d0
-      
-        initial_condition => cur_patch%initial_conditions%first
-        do
-      
-          if (.not.associated(initial_condition)) exit
-
-          if (.not.associated(initial_condition%flow_aux_real_var)) then
-            if (.not.associated(initial_condition%flow_condition)) then
-              option%io_buffer = 'Flow condition is NULL in initial condition'
-              call printErrMsg(option)
-            endif
-              
-            general => initial_condition%flow_condition%general
-              
-            string = 'in flow condition "' // &
-              trim(initial_condition%flow_condition%name) // &
-              '" within initial condition "' // &
-              trim(initial_condition%flow_condition%name) // &
-              '" must be of type Dirichlet or Hydrostatic'
-            ! error checking.  the data must match the state
-            select case(initial_condition%flow_condition%iphase)
-              case(TWO_PHASE_STATE)  
-                if (.not. &
-                    (general%gas_pressure%itype == DIRICHLET_BC .or. &
-                      general%gas_pressure%itype == HYDROSTATIC_BC)) then
-                  option%io_buffer = 'Gas pressure ' // trim(string)
-                  call printErrMsg(option)
-                endif
-                if (.not. &
-                    (general%gas_saturation%itype == DIRICHLET_BC .or. &
-                      general%gas_saturation%itype == HYDROSTATIC_BC)) then
-                  option%io_buffer = 'Gas saturation ' // trim(string)
-                  call printErrMsg(option)
-                endif
-              case(LIQUID_STATE)
-                if (.not. &
-                    (general%liquid_pressure%itype == DIRICHLET_BC .or. &
-                      general%liquid_pressure%itype == HYDROSTATIC_BC)) then
-                  option%io_buffer = 'Liquid pressure ' // trim(string)
-                  call printErrMsg(option)
-                endif
-                if (.not. &
-                    (general%mole_fraction%itype == DIRICHLET_BC .or. &
-                      general%mole_fraction%itype == HYDROSTATIC_BC)) then
-                  option%io_buffer = 'Mole fraction ' // trim(string)
-                  call printErrMsg(option)
-                endif
-              case(GAS_STATE)
-                if (.not. &
-                    (general%gas_pressure%itype == DIRICHLET_BC .or. &
-                      general%gas_pressure%itype == HYDROSTATIC_BC)) then
-                  option%io_buffer = 'Gas pressure ' // trim(string)
-                  call printErrMsg(option)
-                endif
-                if (.not. &
-                    (general%mole_fraction%itype == DIRICHLET_BC .or. &
-                      general%mole_fraction%itype == HYDROSTATIC_BC)) then
-                  option%io_buffer = 'Gas saturation ' // trim(string)
-                  call printErrMsg(option)
-                endif
-            end select
-            if (.not. &
-                (general%temperature%itype == DIRICHLET_BC .or. &
-                  general%temperature%itype == HYDROSTATIC_BC)) then
-              option%io_buffer = 'Temperature ' // trim(string)
-              call printErrMsg(option)
-            endif                              
-              
-              
-            do icell=1,initial_condition%region%num_cells
-              local_id = initial_condition%region%cell_ids(icell)
-              ghosted_id = grid%nL2G(local_id)
-              iend = local_id*option%nflowdof
-              ibegin = iend-option%nflowdof+1
-              if (cur_patch%imat(ghosted_id) <= 0) then
-                xx_p(ibegin:iend) = 0.d0
-                iphase_loc_p(ghosted_id) = 0
-                cycle
-              endif
-              ! decrement ibegin to give a local offset of 0
-              ibegin = ibegin - 1
-              select case(initial_condition%flow_condition%iphase)
-                case(TWO_PHASE_STATE)
-                  xx_p(ibegin+GENERAL_GAS_PRESSURE_DOF) = &
-                    general%gas_pressure%dataset%rarray(1)
-                  xx_p(ibegin+GENERAL_GAS_SATURATION_DOF) = &
-                    general%gas_saturation%dataset%rarray(1)
-                  temperature = general%temperature%dataset%rarray(1)
-                  if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
-                    xx_p(ibegin+GENERAL_ENERGY_DOF) = temperature
-                  else
-                    call EOSWaterSaturationPressure(temperature,p_sat,ierr)
-                    ! p_a = p_g - p_s(T)
-                    xx_p(ibegin+GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = &
-                      general%gas_pressure%dataset%rarray(1) - &
-                      p_sat
-                  endif
-                case(LIQUID_STATE)
-                  xx_p(ibegin+GENERAL_LIQUID_PRESSURE_DOF) = &
-                    general%liquid_pressure%dataset%rarray(1)
-                  xx_p(ibegin+GENERAL_LIQUID_STATE_X_MOLE_DOF) = &
-                    general%mole_fraction%dataset%rarray(1)
-                  xx_p(ibegin+GENERAL_ENERGY_DOF) = &
-                    general%temperature%dataset%rarray(1)
-                case(GAS_STATE)
-                  xx_p(ibegin+GENERAL_GAS_PRESSURE_DOF) = &
-                    general%gas_pressure%dataset%rarray(1)
-                  xx_p(ibegin+GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
-                    general%gas_pressure%dataset%rarray(1) * &
-                    general%mole_fraction%dataset%rarray(1)
-                  xx_p(ibegin+GENERAL_ENERGY_DOF) = &
-                    general%temperature%dataset%rarray(1)
-              end select
-              iphase_loc_p(ghosted_id) = initial_condition%flow_condition%iphase
-              cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
-                initial_condition%flow_condition%iphase
-            enddo
-          else
-            do iconn=1,initial_condition%connection_set%num_connections
-              local_id = initial_condition%connection_set%id_dn(iconn)
-              ghosted_id = grid%nL2G(local_id)
-              if (cur_patch%imat(ghosted_id) <= 0) then
-                iend = local_id*option%nflowdof
-                ibegin = iend-option%nflowdof+1
-                xx_p(ibegin:iend) = 0.d0
-                iphase_loc_p(ghosted_id) = 0
-                cycle
-              endif
-              offset = (local_id-1)*option%nflowdof
-              istate = initial_condition%flow_aux_int_var(1,iconn)
-              do idof = 1, option%nflowdof
-                xx_p(offset+idof) = &
-                  initial_condition%flow_aux_real_var( &
-                    initial_condition%flow_aux_mapping( &
-                      dof_to_primary_variable(idof,istate)),iconn)
-              enddo
-              iphase_loc_p(ghosted_id) = istate
-              cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
-            enddo
-          endif
-          initial_condition => initial_condition%next
-        enddo
-     
-        call VecRestoreArrayF90(field%flow_xx,xx_p, ierr)
-        call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p,ierr)
-              
       case default
         ! assign initial conditions values to domain
         if (discretization%itype == STRUCTURED_GRID_MIMETIC.or. &
@@ -277,89 +115,7 @@ subroutine CondControlAssignFlowInitCond(realization)
 
           if (discretization%itype == STRUCTURED_GRID_MIMETIC.or. &
               discretization%itype == UNSTRUCTURED_GRID_MIMETIC) then
-#ifdef DASVYAT
-            use_dataset = PETSC_FALSE
-            dataset_flag = PETSC_FALSE
-            do idof = 1, option%nflowdof
-              dataset =>  initial_condition%flow_condition% &
-                                sub_condition_ptr(idof)%ptr%dataset
-              select type(dataset_ptr => dataset)
-                class is(dataset_common_hdf5_type)
-                  if (dataset_ptr%is_cell_indexed) then
-                    use_dataset = PETSC_TRUE
-                    dataset_flag(idof) = PETSC_TRUE
-                    call ConditionControlMapDatasetToVec(realization, &
-                          initial_condition%flow_condition% &
-                          sub_condition_ptr(idof)%ptr%dataset, &
-                          idof,field%flow_xx,GLOBAL)
-                  endif
-                class default
-              end select
-            enddo
-            if (.not.associated(initial_condition%flow_aux_real_var)) then
-              conn_id_ptr => initial_condition%region%cell_ids
-
-              do iconn=1,initial_condition%region%num_cells
-                local_id = conn_id_ptr(iconn)
-                ghosted_id = grid%nL2G(local_id)
-                iend = local_id*option%nflowdof
-                ibegin = iend-option%nflowdof+1
-                do idof = 1, option%nflowdof
-                  if (.not.dataset_flag(idof)) then
-                    xx_p(ibegin+idof-1) = &
-                      initial_condition%flow_condition% &
-                        sub_condition_ptr(idof)%ptr%rarray(1)
-                  endif
-                enddo
-                xx_faces_p(ibegin:iend) = xx_p(ibegin:iend) ! for LP -formulation
-                xx_faces_p(grid%nlmax_faces + &
-                          ibegin:grid%nlmax_faces + iend) = &
-                              xx_p(ibegin:iend) ! for LP -formulation
-              enddo
-
-              do icell=1,initial_condition%region%num_cells
-                local_id = initial_condition%region%cell_ids(icell)
-                ghosted_id = grid%nL2G(local_id)
-                if (cur_patch%imat(ghosted_id) <= 0) then
-                  iphase_loc_p(ghosted_id) = 0
-                  cycle
-                endif
-                iphase_loc_p(ghosted_id)=initial_condition%flow_condition%iphase
-                enddo
-            else
-              do iface=1,initial_condition%numfaces_set
-                ghosted_id = initial_condition%faces_set(iface)
-                local_id = grid%fG2L(ghosted_id)
-                if (local_id > 0) then
-                  iend = local_id*option%nflowdof
-                  ibegin = iend-option%nflowdof+1
-                  xx_faces_p(ibegin:iend) = &
-                  initial_condition%flow_aux_real_var(1:option%nflowdof,iface)
-                endif
-              enddo
-              do iconn=1,initial_condition%connection_set%num_connections
-                local_id = initial_condition%region%cell_ids(iconn)
-                ghosted_id = grid%nL2G(local_id)
-                iend = local_id*option%nflowdof
-                ibegin = iend-option%nflowdof+1
-                if (cur_patch%imat(ghosted_id) <= 0) then
-                  xx_p(ibegin:iend) = 0.d0
-                  iphase_loc_p(ghosted_id) = 0
-                  cycle
-                endif
-                xx_p(ibegin:iend) = &
-                  initial_condition%flow_aux_real_var(1:option%nflowdof, &
-                                                      iconn + &
-                                                      initial_condition%numfaces_set)
-                xx_faces_p(grid%nlmax_faces + &
-                          ibegin:grid%nlmax_faces + iend) = &
-                              xx_p(ibegin:iend) ! for LP -formulation
-                iphase_loc_p(ghosted_id) = &
-                  initial_condition%flow_aux_int_var(1,iconn + &
-                                                    initial_condition%numfaces_set)
-              enddo
-            endif
-#endif
+!
           else 
             use_dataset = PETSC_FALSE
             dataset_flag = PETSC_FALSE
@@ -435,40 +191,14 @@ subroutine CondControlAssignFlowInitCond(realization)
    
     cur_patch => cur_patch%next
   enddo
-  
-  if (option%iflowmode == G_MODE) then
-    call GlobalAuxVarStrip(global_aux)
-    call GeneralAuxVarStrip(general_aux)
-  endif  
    
   ! update dependent vectors
   call DiscretizationGlobalToLocal(discretization,field%flow_xx,field%flow_xx_loc,NFLOWDOF)  
   
-
   call VecCopy(field%flow_xx, field%flow_yy, ierr)
   call DiscretizationLocalToLocal(discretization,field%iphas_loc,field%iphas_loc,ONEDOF)  
   call DiscretizationLocalToLocal(discretization,field%iphas_loc,field%iphas_old_loc,ONEDOF)
 
-#ifdef DASVYAT
-  if (discretization%itype == STRUCTURED_GRID_MIMETIC.or. &
-      discretization%itype == UNSTRUCTURED_GRID_MIMETIC) then
-
-    call VecRestoreArrayF90(field%flow_xx_faces,xx_faces_p, ierr)
-    call RealizationSetUpBC4Faces(realization)
-
-    !call DiscretizationGlobalToLocalFaces(discretization, field%flow_xx_faces, field%flow_xx_loc_faces, NFLOWDOF)
-    call DiscretizationGlobalToLocalLP(discretization, field%flow_xx_faces, field%flow_xx_loc_faces, NFLOWDOF)
-    call VecCopy(field%flow_xx_faces, field%flow_yy_faces, ierr)
-    call MFDInitializeMassMatrices(realization%discretization%grid,&
-                                  realization%field, &
-                                  realization%discretization%MFD, &
-                                  realization%patch%aux%Material%auxvars,
-                                  realization%option)
-    patch%aux%Richards%auxvars_cell_pressures_up_to_date = PETSC_TRUE
-
-  endif
-#endif
-!  stop
 end subroutine CondControlAssignFlowInitCond
 
 ! ************************************************************************** !

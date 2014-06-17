@@ -7,18 +7,11 @@ module Reaction_module
   
   use Surface_Complexation_module
   use Mineral_module
-  use Microbial_module
   use Immobile_module
 
   use Surface_Complexation_Aux_module
   use Mineral_Aux_module
-  use Microbial_Aux_module
   use Immobile_Aux_module
-
-#ifdef SOLID_SOLUTION  
-  use Solid_Solution_module
-  use Solid_Solution_Aux_module
-#endif  
 
   !TODO(geh): Intel 2013.1.119 crashes if this module is included.  It does not
   !           need to be included here given since the subroutines below 
@@ -449,8 +442,6 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('REACTION_SANDBOX')
         call RSandboxRead(input,option)
         reaction_sandbox_read = PETSC_TRUE
-      case('MICROBIAL_REACTION')
-        call MicrobialRead(reaction%microbial,input,option)
       case('MINERALS')
         call MineralRead(reaction%mineral,input,option)
       case('MINERAL_KINETICS') ! mineral kinetics read on second round
@@ -491,19 +482,6 @@ subroutine ReactionReadPass1(reaction,input,option)
           enddo
         enddo
         reaction%mineral%nkinmnrl = reaction%mineral%nkinmnrl + temp_int
-
-      case('SOLID_SOLUTIONS') ! solid solutions read on second round
-#ifdef SOLID_SOLUTION
-        do
-          call InputReadPflotranString(input,option)
-          call InputReadStringErrorMsg(input,option,card)
-          if (InputCheckExit(input,option)) exit
-          call InputSkipToEnd(input,option,word)
-        enddo       
-#else
-        option%io_buffer = 'To use solid solutions, must compile with -DSOLID_SOLUTION'
-        call printErrMsg(option)
-#endif
 
       case('COLLOIDS')
         nullify(prev_colloid)
@@ -882,7 +860,7 @@ subroutine ReactionReadPass1(reaction,input,option)
     endif
   endif
   if (reaction%neqcplx + reaction%nsorb + reaction%mineral%nmnrl + &
-      reaction%ngeneral_rxn + reaction%microbial%nrxn + &
+      reaction%ngeneral_rxn + &
       reaction%nradiodecay_rxn + reaction%immobile%nimmobile > 0 .or. &
       reaction_sandbox_read) then
     reaction%use_full_geochemistry = PETSC_TRUE
@@ -951,11 +929,6 @@ subroutine ReactionReadPass2(reaction,input,option)
         call MineralReadKinetics(reaction%mineral,input,option)
       case('REACTION_SANDBOX')
         call RSandboxSkipInput(input,option)
-      case('SOLID_SOLUTIONS')
-#ifdef SOLID_SOLUTION                
-        call SolidSolutionReadFromInputFile(reaction%solid_solution_list, &
-                                            input,option)
-#endif
       case('SORPTION')
         do
           call InputReadPflotranString(input,option)
@@ -2450,10 +2423,6 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
       123 format(/,'  primary species  retardation')  
       124 format(2x,a12,4x,1pe12.4)
 
-#ifdef DOUBLE_LAYER
-      call RDoubleLayer (constraint_coupler,reaction,option)
-#endif
-
     endif
   
   endif ! surface_complexation%nsrfcplxrxn > 0
@@ -2583,253 +2552,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
     enddo
   endif
 
-#ifdef AMANZI_BGD
-  ! output constraints for amanzi cfg formatted input
-  if (OptionPrintToFile(option)) then
-    string = trim(option%global_prefix) // '-' // &
-             trim(constraint_coupler%constraint_name) // '.txt'
-    open(unit=86,file=trim(string))
-
-    write(86,'("# pflotran constraint preprocessing :")')
-    !call date_and_time(date=word,time=word2)
-    ! prints garbage? need to clear memory?
-    !write(86,'("#        date : ",a,"   ",a)') trim(word), trim(word2)
-    write(86,'("#       input : ",a)') trim(option%input_filename)
-    write(86,'(/,"# Constraint: ",a)') &
-         trim(constraint_coupler%constraint_name)
-
-    write(86,'(/,"[total]")')
-    do icomp = 1, reaction%naqcomp
-      write(86,'(a," = ",1es13.6)') trim(reaction%primary_species_names(icomp)), &
-                                rt_auxvar%pri_molal(icomp)
-    enddo
-
-    write(86,'(/,"[free_ion]")')
-    do icomp = 1, reaction%naqcomp
-      write(86,'(a," = ",1es13.6)') trim(reaction%primary_species_names(icomp)), &
-                                rt_auxvar%total(icomp,1)*molar_to_molal
-    enddo
-
-    write(86,'(/,"[minerals]")')
-    do imnrl = 1, mineral_reaction%nkinmnrl
-      write(86,'(a," = ",f6.3)') trim(mineral_reaction%kinmnrl_names(imnrl)), &
-                                mineral_reaction%mnrl_volfrac(imnrl)
-    enddo
-
-    if (associated(rt_auxvar%total_sorb_eq)) then
-      write(86,'(/,"[total_sorbed]")')
-      do icomp = 1, reaction%naqcomp
-        write(86,'(a," = ",1es13.6)') trim(reaction%primary_species_names(icomp)), &
-                                  rt_auxvar%total_sorb_eq(icomp)
-      enddo
-    endif
-
-    write(86,'(/,"[ion_exchange]")')
-    do icomp = 1, reaction%neqionxrxn
-      write(86, '("X- = ",1es13.6)') reaction%eqionx_rxn_CEC(icomp)
-    enddo
-    close(86)
-  endif
-#endif
-! end AMANZI_BGD
-
 end subroutine ReactionPrintConstraint
-
-! ************************************************************************** !
-
-subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
-  ! 
-  ! Calculates double layer potential, surface charge, and
-  ! sorbed surface complex concentrations
-  ! 
-  ! Author: Peter C. Lichtner
-  ! Date: ???
-  ! 
-
-  use Option_module
-  use Input_Aux_module
-  use String_module
-  use Constraint_module
-
-  implicit none
-  
-  type(option_type) :: option
-  type(tran_constraint_coupler_type) :: constraint_coupler
-  type(reaction_type), pointer :: reaction
-
-  type(reactive_transport_auxvar_type), pointer :: rt_auxvar
-  type(global_auxvar_type), pointer :: global_auxvar
-
-  PetscReal, parameter :: rgas = 8.3144621d0
-  PetscReal, parameter :: tk = 273.15d0
-  PetscReal, parameter :: epsilon = 78.5d0
-  PetscReal, parameter :: epsilon0 = 8.854187817d-12
-  PetscReal, parameter :: faraday = 96485.d0
-  
-  PetscReal :: fac, boltzmann, dbl_charge, surface_charge, ionic_strength, &
-               charge_balance, potential, tempk, debye_length, &
-               srfchrg_capacitance_model
-               
-  PetscReal :: ln_conc(reaction%naqcomp)
-  PetscReal :: ln_act(reaction%naqcomp)
-  PetscReal :: srfcplx_conc(reaction%surface_complexation%neqsrfcplx)
-
-  PetscReal :: free_site_conc
-  PetscReal :: ln_free_site
-  PetscReal :: lnQK, tempreal, tempreal1, tempreal2, total
-
-  PetscInt :: iphase
-  PetscInt :: i, j, icomp, icplx, irxn, ncomp, ncplx
-
-  PetscReal :: site_density(2)
-  PetscReal :: mobile_fraction
-  PetscInt :: num_types_of_sites
-  PetscInt :: isite
-
-  PetscBool :: one_more
-
-    option%io_buffer = 'ReactionDoubleLayer needs to be fixed'
-    call printErrMsg(option)
-    
-#if 0
-    rt_auxvar => constraint_coupler%rt_auxvar
-    global_auxvar => constraint_coupler%global_auxvar
-
-    iphase = 1
-    global_auxvar%temp = option%reference_temperature
-    tempk = tk + global_auxvar%temp
-    
-    potential = 0.1d0 ! initial guess
-    boltzmann = exp(-faraday*potential/(rgas*tempk))
-        
-    fac = sqrt(epsilon*epsilon0*rgas*tempk)
-    
-    ionic_strength = 0.d0
-    charge_balance = 0.d0
-    dbl_charge = 0.d0
-    do icomp = 1, reaction%naqcomp      
-      charge_balance = charge_balance + reaction%primary_spec_Z(icomp)* &
-                       rt_auxvar%total(icomp,1)
-                                        
-      ionic_strength = ionic_strength + reaction%primary_spec_Z(icomp)**2* &
-                       rt_auxvar%pri_molal(icomp)
-      dbl_charge = dbl_charge + rt_auxvar%pri_molal(icomp)* &
-                   (boltzmann**reaction%primary_spec_Z(icomp) - 1.d0)
-    enddo
-    
-    if (reaction%neqcplx > 0) then    
-      do i = 1, reaction%neqcplx
-        ionic_strength = ionic_strength + reaction%eqcplx_Z(i)**2* &
-                         rt_auxvar%sec_molal(i)
-        dbl_charge = dbl_charge + rt_auxvar%sec_molal(i)* &
-                     (boltzmann**reaction%eqcplx_Z(i) - 1.d0)
-      enddo
-    endif
-    ionic_strength = 0.5d0*ionic_strength
-    if (dbl_charge > 0.d0) then
-      dbl_charge = fac*sqrt(2.d0*dbl_charge)
-    else
-      print *,'neg. dbl_charge: ',dbl_charge
-      dbl_charge = fac*sqrt(2.d0*(-dbl_charge))
-    endif
-    
-    srfchrg_capacitance_model = faraday*potential* &
-      sqrt(2.d0*epsilon*epsilon0*ionic_strength/(rgas*tempk))
-    
-    surface_charge = 0.d0
-    do irxn = 1, reaction%neqsrfcplxrxn
-      ncplx = reaction%srfcplxrxn_to_complex(0,irxn)
-      do i = 1, ncplx
-        icplx = reaction%srfcplxrxn_to_complex(i,irxn)
-        surface_charge = surface_charge + reaction%eqsrfcplx_Z(icplx)* &
-                         rt_auxvar%eqsrfcplx_conc(icplx)
-      enddo
-    enddo
-    surface_charge = faraday*surface_charge
-    
-    debye_length = sqrt(fac/(2.d0*ionic_strength*1.d3))/faraday
-    
-    print *,'========================='
-    print *,'dbl: debye_length = ',debye_length
-    print *,'surface charge = ',dbl_charge,surface_charge, &
-      srfchrg_capacitance_model
-    print *,'ionic strength = ',ionic_strength
-    print *,'chrg bal. = ',charge_balance,' Tk = ',tempk,' Boltz. = ',boltzmann
-    print *,'srfcmplx: ',rt_auxvar%eqsrfcplx_conc
-    print *,'========================='
-
-!   compute surface complex concentrations  
-    ln_conc = log(rt_auxvar%pri_molal)
-    ln_act = ln_conc+log(rt_auxvar%pri_act_coef)
-
-  do irxn = 1, reaction%neqsrfcplxrxn
-  
-    ncplx = reaction%srfcplxrxn_to_complex(0,irxn)
-    
-    free_site_conc = rt_auxvar%eqsrfcplx_free_site_conc( &
-                       reaction%eqsrfcplxrxn_to_srfcplxrxn(irxn))
-
-    site_density(1) = reaction%eqsrfcplx_rxn_site_density(irxn)
-    num_types_of_sites = 1
-    
-    do isite = 1, num_types_of_sites
-      ! isite == 1 - immobile (colloids, minerals, etc.)
-      ! isite == 2 - mobile (colloids)
-    
-      if (site_density(isite) < 1.d-40) cycle
-    
-      ! get a pointer to the first complex (there will always be at least 1)
-      ! in order to grab free site conc
-      one_more = PETSC_FALSE
-      do
-        total = free_site_conc
-        ln_free_site = log(free_site_conc)
-        
-!       call srfcmplx(irxn,icplx,lnQK,reaction%eqsrfcplx_logK,reaction%eqsrfcplx_Z,potential, &
-!               tempk,ln_act,rt_auxvar%ln_act_h2o,ln_free_site,srfcplx_conc)
-
-#if 0
-        do j = 1, ncplx
-          icplx = reaction%srfcplxrxn_to_complex(j,irxn)
-          
-          ! compute ion activity product
-          lnQK = -reaction%eqsrfcplx_logK(icplx)*LOG_TO_LN &
-                 + reaction%eqsrfcplx_Z(icplx)*faraday*potential &
-                 /(rgas*tempk)/LOG_TO_LN
-
-          ! activity of water
-          if (reaction%eqsrfcplxh2oid(icplx) > 0) then
-            lnQK = lnQK + reaction%eqsrfcplxh2ostoich(icplx)*rt_auxvar%ln_act_h2o
-          endif
-
-          lnQK = lnQK + reaction%eqsrfcplx_free_site_stoich(icplx)* &
-                        ln_free_site
-        
-          ncomp = reaction%srfcplxspecid(0,icplx)
-          do i = 1, ncomp
-            icomp = reaction%srfcplxspecid(i,icplx)
-            lnQK = lnQK + reaction%eqsrfcplxstoich(i,icplx)*ln_act(icomp)
-          enddo
-          srfcplx_conc(icplx) = exp(lnQK)
-          
-          total = total + reaction%eqsrfcplx_free_site_stoich(icplx)*srfcplx_conc(icplx) 
-          
-        enddo
-#endif
-        if (one_more) exit
-        
-        total = total / free_site_conc
-        free_site_conc = site_density(isite) / total  
-          
-        one_more = PETSC_TRUE 
-
-      enddo ! generic do
-    enddo
-  enddo
-#endif  
-  print *,'srfcmplx1: ',srfcplx_conc
-
-end subroutine ReactionDoubleLayer
 
 #if 0
 
@@ -3413,11 +3136,6 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
   if (reaction%ngeneral_rxn > 0) then
     call RGeneral(Res,Jac,derivative,rt_auxvar,global_auxvar, &
                   material_auxvar,reaction,option)
-  endif
-  
-  if (reaction%microbial%nrxn > 0) then
-    call RMicrobial(Res,Jac,derivative,rt_auxvar,global_auxvar, &
-                    material_auxvar,reaction,option)
   endif
   
   if (associated(sandbox_list)) then

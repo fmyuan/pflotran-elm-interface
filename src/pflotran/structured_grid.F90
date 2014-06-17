@@ -997,18 +997,6 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
               iconn = iconn+1
               id_up = i + j * structured_grid%ngx + k * structured_grid%ngxy
               id_dn = id_up + 1
-#ifdef DASVYAT
-              structured_grid%ngmax_faces = structured_grid%ngmax_faces + 1
-              if (i == 1) then
-                if (structured_grid%lxs==structured_grid%gxs) then
-                   structured_grid%nlmax_faces = structured_grid%nlmax_faces + 1
-                   connections%local(iconn) = 1
-                end if
-              else 
-                structured_grid%nlmax_faces = structured_grid%nlmax_faces + 1
-                connections%local(iconn) = 1
-              end if
-#endif
               connections%id_up(iconn) = id_up
               connections%id_dn(iconn) = id_dn
               
@@ -1040,12 +1028,6 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
               connections%dist(1,iconn) = 1.d0  ! x component of unit vector
               connections%area(iconn) = structured_grid%dy(id_up)* &
                                         structured_grid%dz(id_up)
-#ifdef DASVYAT
-              connections%cntr(1,iconn) = xc(id_up) + &
-                  connections%dist(-1,iconn)*(xc(id_dn) - xc(id_up))
-              connections%cntr(2,iconn) = yc(id_up)
-              connections%cntr(3,iconn) = zc(id_up)
-#endif              
             enddo
           enddo
         enddo
@@ -1068,11 +1050,6 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
               connections%dist(1,iconn) = 1.d0  ! x component of unit vector
               connections%area(iconn) = 2.d0 * pi * (radius(id_up)+0.5d0*structured_grid%dx(id_up))* &
                                         structured_grid%dz(id_up)
-#ifdef DASVYAT
-              connections%cntr(1,iconn) = xc(id_up) + connections%dist(-1,iconn)*(xc(id_dn) - xc(id_up))
-              connections%cntr(2,iconn) = yc(id_up)
-              connections%cntr(3,iconn) = zc(id_up)
-#endif
             enddo
           enddo
         enddo
@@ -1092,11 +1069,6 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
               connections%dist(0,iconn) = dist_up+dist_dn
               connections%dist(1,iconn) = 1.d0  ! x component of unit vector
               connections%area(iconn) = 4.d0 * pi * (radius(id_up)+0.5d0*structured_grid%dx(id_up))
-#ifdef DASVYAT
-              connections%cntr(1,iconn) = xc(id_up) + connections%dist(-1,iconn)*(xc(id_dn) - xc(id_up))
-              connections%cntr(2,iconn) = yc(id_up)
-              connections%cntr(3,iconn) = zc(id_up)
-#endif
             enddo
           enddo
         enddo
@@ -1112,18 +1084,6 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
             do j = 1, leny
               iconn = iconn+1
 
-#ifdef DASVYAT
-              structured_grid%ngmax_faces = structured_grid%ngmax_faces + 1
-              if (j == 1) then
-                if (structured_grid%lys==structured_grid%gys) then
-                   structured_grid%nlmax_faces = structured_grid%nlmax_faces + 1
-                   connections%local(iconn) = 1
-                end if
-              else 
-                   structured_grid%nlmax_faces = structured_grid%nlmax_faces + 1
-                   connections%local(iconn) = 1
-              end if
-#endif
               id_up = i + 1 + (j-1) * structured_grid%ngx + k * structured_grid%ngxy
               id_dn = id_up + structured_grid%ngx
               connections%id_up(iconn) = id_up
@@ -1158,11 +1118,6 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
               connections%dist(2,iconn) = 1.d0  ! y component of unit vector
               connections%area(iconn) = structured_grid%dx(id_up)* &
                                     structured_grid%dz(id_up)
-#ifdef DASVYAT
-              connections%cntr(1,iconn) = xc(id_up) 
-              connections%cntr(2,iconn) = yc(id_up) + connections%dist(-1,iconn)*(yc(id_dn) - yc(id_up)) 
-              connections%cntr(3,iconn) = zc(id_up)
-#endif
             enddo
           enddo
         enddo
@@ -1187,18 +1142,6 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
             do k = 1, lenz
               iconn = iconn+1
 
-#ifdef DASVYAT
-              structured_grid%ngmax_faces = structured_grid%ngmax_faces + 1
-              if (k == 1) then
-                if (structured_grid%lzs==structured_grid%gzs) then
-                   structured_grid%nlmax_faces = structured_grid%nlmax_faces + 1
-                   connections%local(iconn) = 1
-                end if
-              else 
-                   structured_grid%nlmax_faces = structured_grid%nlmax_faces + 1
-                   connections%local(iconn) = 1
-              end if
-#endif
               id_up = i + 1 + j * structured_grid%ngx + (k-1) * &
                   structured_grid%ngxy 
               id_dn = id_up + structured_grid%ngxy
@@ -1233,11 +1176,6 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
               connections%dist(3,iconn) = 1.d0  ! z component of unit vector
               connections%area(iconn) = structured_grid%dx(id_up) * &
                                         structured_grid%dy(id_up)
-#ifdef DASVYAT
-              connections%cntr(1,iconn) = xc(id_up) 
-              connections%cntr(2,iconn) = yc(id_up) 
-              connections%cntr(3,iconn) = zc(id_up) + connections%dist(-1,iconn)*(zc(id_dn) - zc(id_up)) 
-#endif
             enddo
           enddo
         enddo
@@ -1261,13 +1199,6 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
               r2 = xc(id_up) + 0.5d0*structured_grid%dx(id_up)
               r1 = xc(id_up) - 0.5d0*structured_grid%dx(id_up)
               connections%area(iconn) = pi * dabs(r2*r2 - r1*r1)
-#ifdef DASVYAT
-              connections%cntr(1,iconn) = xc(id_up) 
-              connections%cntr(2,iconn) = yc(id_up) 
-              connections%cntr(3,iconn) = zc(id_up) + &
-                                          connections%dist(-1,iconn)* &
-                                          (zc(id_dn) - zc(id_up)) 
-#endif
             enddo
           enddo
         enddo
@@ -1365,11 +1296,6 @@ function StructGridComputeBoundConnect(structured_grid, xc, yc, zc, option)
               connections%dist(1,iconn) = 1.d0  ! x component of unit vector
               connections%area(iconn) = structured_grid%dy(id_dn)* &
                                         structured_grid%dz(id_dn)
-#ifdef DASVYAT
-              connections%cntr(1,iconn) = xc(id_dn) - dist_dn
-              connections%cntr(2,iconn) = yc(id_dn) 
-              connections%cntr(3,iconn) = zc(id_dn) 
-#endif
             enddo
           enddo
         endif
@@ -1391,11 +1317,6 @@ function StructGridComputeBoundConnect(structured_grid, xc, yc, zc, option)
               connections%dist(1,iconn) = -1.d0  ! x component of unit vector
               connections%area(iconn) = structured_grid%dy(id_dn)* &
                                         structured_grid%dz(id_dn)
-#ifdef DASVYAT
-              connections%cntr(1,iconn) = xc(id_dn) + dist_dn
-              connections%cntr(2,iconn) = yc(id_dn) 
-              connections%cntr(3,iconn) = zc(id_dn) 
-#endif
             enddo
           enddo
         endif
@@ -1432,11 +1353,6 @@ function StructGridComputeBoundConnect(structured_grid, xc, yc, zc, option)
               connections%dist(2,iconn) = 1.d0  ! y component of unit vector
               connections%area(iconn) = structured_grid%dx(id_dn)* &
                                     structured_grid%dz(id_dn)
-#ifdef DASVYAT
-              connections%cntr(1,iconn) = xc(id_dn) 
-              connections%cntr(2,iconn) = yc(id_dn) - dist_dn
-              connections%cntr(3,iconn) = zc(id_dn) 
-#endif
             enddo
           enddo
         endif
@@ -1458,11 +1374,6 @@ function StructGridComputeBoundConnect(structured_grid, xc, yc, zc, option)
               connections%dist(2,iconn) = -1.d0  ! y component of unit vector
               connections%area(iconn) = structured_grid%dx(id_dn)* &
                                     structured_grid%dz(id_dn)
-#ifdef DASVYAT
-              connections%cntr(1,iconn) = xc(id_dn) 
-              connections%cntr(2,iconn) = yc(id_dn) + dist_dn
-              connections%cntr(3,iconn) = zc(id_dn) 
-#endif
             enddo
           enddo
         endif
@@ -1499,11 +1410,6 @@ function StructGridComputeBoundConnect(structured_grid, xc, yc, zc, option)
               connections%dist(3,iconn) = 1.d0  ! z component of unit vector
               connections%area(iconn) = structured_grid%dx(id_dn) * &
                                         structured_grid%dy(id_dn)
-#ifdef DASVYAT
-              connections%cntr(1,iconn) = xc(id_dn) 
-              connections%cntr(2,iconn) = yc(id_dn) 
-              connections%cntr(3,iconn) = zc(id_dn) - dist_dn 
-#endif
             enddo
           enddo
         endif    
@@ -1526,11 +1432,6 @@ function StructGridComputeBoundConnect(structured_grid, xc, yc, zc, option)
               connections%dist(3,iconn) = -1.d0  ! z component of unit vector
               connections%area(iconn) = structured_grid%dx(id_dn) * &
                                         structured_grid%dy(id_dn)
-#ifdef DASVYAT
-              connections%cntr(1,iconn) = xc(id_dn) 
-              connections%cntr(2,iconn) = yc(id_dn) 
-              connections%cntr(3,iconn) = zc(id_dn) + dist_dn 
-#endif
             enddo
           enddo
         endif    

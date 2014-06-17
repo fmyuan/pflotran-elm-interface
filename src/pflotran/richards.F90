@@ -4,9 +4,6 @@ module Richards_module
   use Richards_Common_module
   use Global_Aux_module
   use Material_Aux_class
-#ifdef BUFFER_MATRIX
-  use Matrix_Buffer_module
-#endif
   
   use PFLOTRAN_Constants_module
 
@@ -182,12 +179,6 @@ subroutine RichardsSetupPatch(realization)
     patch%aux%Richards%auxvars_ss => rich_auxvars_ss
   endif
   patch%aux%Richards%num_aux_ss = sum_connection
-
-#ifdef YE_FLUX
-  allocate(patch%internal_fluxes(1,1,ConnectionGetNumberInList(patch%grid%&
-           internal_connection_set_list)))
-  patch%internal_fluxes = 0.d0
-#endif
 
   ! create zero array for zeroing residual and Jacobian (1 on diagonal)
   ! for inactive cells (and isothermal)
@@ -722,15 +713,10 @@ subroutine RichardsUpdateAuxVars(realization)
   ! 
 
   use Realization_class
-  use Richards_MFD_module
 
   type(realization_type) :: realization
   
-  if (realization%discretization%itype == STRUCTURED_GRID_MIMETIC) then
-    call RichardsUpdateAuxVarsPatchMFDLP(realization)
-  else
-    call RichardsUpdateAuxVarsPatch(realization)
-  end if  
+  call RichardsUpdateAuxVarsPatch(realization)
 
 end subroutine RichardsUpdateAuxVars
 
@@ -1368,11 +1354,7 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
       call printErrMsg(option)
   end select
 
-#ifdef CLM_PFLOTRAN
-  call RichardsComputeCoeffsForSurfFlux(realization)
-#else
   if (option%nsurfflowdof>0) call RichardsComputeCoeffsForSurfFlux(realization)
-#endif
 
 !  write(*,*) "RichardsResidual"
 !  read(*,*)
@@ -1451,9 +1433,6 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
         global_auxvars(local_id_up)%mass_balance_delta(1,1) - Res(1)
 #endif
 
-#ifdef YE_FLUX
-      patch%internal_fluxes(RICHARDS_PRESSURE_DOF,1,sum_connection) = Res(1)
-#endif
 #ifdef STORE_FLOWRATES
       patch%internal_fluxes(RICHARDS_PRESSURE_DOF,1,sum_connection) = Res(1)*FMWH2O
 #endif
@@ -1731,16 +1710,13 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
     source_sink => source_sink%next
   enddo
 
-  call RichardsSSSandbox(r,null_mat,PETSC_FALSE,grid,material_auxvars, &
-                         global_auxvars,option)
-  
   if (patch%aux%Richards%inactive_cells_exist) then
     do i=1,patch%aux%Richards%n_zero_rows
       r_p(patch%aux%Richards%zero_rows_local(i)) = 0.d0
     enddo
   endif
 
-#ifdef PM_RICHARDS_DEBUG
+#ifdef DEBUG
   print *, 'Residual'
   print *, r_p(:)
 #endif
@@ -1917,17 +1893,6 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   material_auxvars => patch%aux%Material%auxvars
   
-#ifdef BUFFER_MATRIX
-  if (option%use_matrix_buffer) then
-    if (associated(patch%aux%Richards%matrix_buffer)) then
-      call MatrixBufferZero(patch%aux%Richards%matrix_buffer)
-    else
-      patch%aux%Richards%matrix_buffer => MatrixBufferCreate()
-      call MatrixBufferInit(A,patch%aux%Richards%matrix_buffer,grid)
-    endif
-  endif
-#endif
-
   select case(grid%itype)
     case(STRUCTURED_GRID)
       cell_neighbors => grid%structured_grid%cell_neighbors
@@ -2011,21 +1976,10 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
   print *, 'Jac up', local_id_up
   print *, Jup(1,1)
 #endif      
-#ifdef BUFFER_MATRIX
-        if (option%use_matrix_buffer) then
-          call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id_up, &
-                               ghosted_id_up,Jup(1,1))
-          call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id_up, &
-                               ghosted_id_dn,Jdn(1,1))
-        else
-#endif
           call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
                                         Jup,ADD_VALUES,ierr)
           call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
                                         Jdn,ADD_VALUES,ierr)
-#ifdef BUFFER_MATRIX
-        endif
-#endif
       endif
       if (local_id_dn > 0) then
 #ifdef PM_RICHARDS_DEBUG
@@ -2034,21 +1988,10 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
 #endif        
         Jup = -Jup
         Jdn = -Jdn
-#ifdef BUFFER_MATRIX
-        if (option%use_matrix_buffer) then
-          call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id_dn, &
-                               ghosted_id_dn,Jdn(1,1))
-          call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id_dn, &
-                               ghosted_id_up,Jup(1,1))
-        else
-#endif
           call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
                                         Jdn,ADD_VALUES,ierr)
           call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
                                         Jup,ADD_VALUES,ierr)
-#ifdef BUFFER_MATRIX
-        endif
-#endif
       endif
     enddo
     cur_connection_set => cur_connection_set%next
@@ -2106,18 +2049,8 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
   print *, 'Jac dn bc', local_id
   print *, Jdn(1,1)      
 #endif
-#ifdef BUFFER_MATRIX
-      if (option%use_matrix_buffer) then
-        call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id, &
-                             ghosted_id,Jdn(1,1))
-      else
-#endif
         call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
                                ADD_VALUES,ierr)
-#ifdef BUFFER_MATRIX
-      endif
-#endif
- 
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -2221,17 +2154,8 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
   print *, 'Jac accum'
   print *, Jup(1,1)     
 #endif
-#ifdef BUFFER_MATRIX
-    if (option%use_matrix_buffer) then
-      call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id, &
-                           ghosted_id,Jup(1,1))
-    else
-#endif
       call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                              ADD_VALUES,ierr)
-#ifdef BUFFER_MATRIX
-    endif
-#endif
   enddo
 #endif
   endif
@@ -2312,23 +2236,11 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
             endif
           endif 
       end select
-#ifdef BUFFER_MATRIX
-      if (option%use_matrix_buffer) then
-        call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id, &
-                             ghosted_id,Jup(1,1))
-      else
-#endif
         call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup,ADD_VALUES,ierr)  
-#ifdef BUFFER_MATRIX
-      endif
-#endif
     enddo
     source_sink => source_sink%next
   enddo
 #endif
-
-  call RichardsSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
-                         global_auxvars,option)
 
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr)
@@ -2341,33 +2253,16 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
     call PetscViewerDestroy(viewer,ierr)
   endif
   
-#ifdef BUFFER_MATRIX
-  if (option%use_matrix_buffer) then
-    if (patch%aux%Richards%inactive_cells_exist) then
-      call MatrixBufferZeroRows(patch%aux%Richards%matrix_buffer, &
-                                patch%aux%Richards%n_zero_rows, &
-                                patch%aux%Richards%zero_rows_local_ghosted)
-    endif
-    call MatrixBufferSetValues(A,patch%aux%Richards%matrix_buffer)
-  endif
-#endif
-
   call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr)
   call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr)
 
 ! zero out isothermal and inactive cells
-#ifdef BUFFER_MATRIX
-  if (.not.option%use_matrix_buffer) then
-#endif
     if (patch%aux%Richards%inactive_cells_exist) then
       qsrc = 1.d0 ! solely a temporary variable in this conditional
       call MatZeroRowsLocal(A,patch%aux%Richards%n_zero_rows, &
                             patch%aux%Richards%zero_rows_local_ghosted, &
                             qsrc,PETSC_NULL_OBJECT,PETSC_NULL_OBJECT,ierr) 
     endif
-#ifdef BUFFER_MATRIX
-  endif
-#endif
 
 end subroutine RichardsJacobianPatch2
 
@@ -2759,10 +2654,6 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
     if (.not.associated(boundary_condition)) exit
     cur_connection_set => boundary_condition%connection_set
 
-#ifdef CLM_PFLOTRAN
-    if (StringCompare(boundary_condition%name,'from_surface_bc') .or. &
-        StringCompare(boundary_condition%name,'clm_gpress_bc')) then
-#else
     if (StringCompare(boundary_condition%name,'from_surface_bc')) then
 
       pressure_bc_type = boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF)
@@ -2770,7 +2661,6 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
         call printErrMsg(option,'from_surface_bc is not of type ' // &
                         'HET_SURF_SEEPAGE_BC')
       endif
-#endif
 
       do iconn = 1, cur_connection_set%num_connections
 
@@ -2910,113 +2800,6 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
   enddo
 
 end subroutine RichardsComputeCoeffsForSurfFlux
-
-! ************************************************************************** !
-
-subroutine RichardsSSSandbox(residual,Jacobian,compute_derivative, &
-                             grid,material_auxvars,global_auxvars,option)
-  ! 
-  ! Evaluates source/sink term storing residual and/or Jacobian
-  ! 
-  ! Author: Guoping Tang
-  ! Date: 06/03/14
-  ! 
-
-  use Option_module
-  use Grid_module
-  use Material_Aux_class, only: material_auxvar_type
-  use SrcSink_Sandbox_module
-  use SrcSink_Sandbox_Base_class
-  
-  implicit none
-  
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-
-  PetscBool :: compute_derivative
-  Vec :: residual
-  Mat :: Jacobian
-  class(material_auxvar_type), pointer :: material_auxvars(:)
-  type(global_auxvar_type), pointer :: global_auxvars(:)
-  
-  type(grid_type) :: grid
-  type(option_type) :: option
-  
-  PetscReal, pointer :: r_p(:)
-  PetscReal :: res(option%nflowdof)
-  PetscReal :: Jac(option%nflowdof,option%nflowdof)
-  class(srcsink_sandbox_base_type), pointer :: cur_srcsink
-  PetscInt :: i, local_id, ghosted_id, istart, iend, idof, irow
-  PetscReal :: aux_real(10)
-  PetscErrorCode :: ierr
-  
-  if (.not.compute_derivative) then
-    call VecGetArrayF90(residual,r_p,ierr) 
-  endif
-  
-  cur_srcsink => sandbox_list
-  do
-    if (.not.associated(cur_srcsink)) exit
-      aux_real = 0.d0
-
-      do i = 1, size(cur_srcsink%region%cell_ids)
-        local_id = cur_srcsink%region%cell_ids(i)
-        ghosted_id = grid%nL2G(local_id)
-        res = 0.d0
-        Jac = 0.d0
-        call RichardsSSSandboxLoadAuxReal(cur_srcsink,aux_real, &
-                          global_auxvars(ghosted_id),option)
-        call cur_srcsink%Evaluate(res,Jac,PETSC_FALSE, &
-                                  material_auxvars(ghosted_id), &
-                                  aux_real,option)
-        if (compute_derivative) then
-          call RichardsSSSandboxLoadAuxReal(cur_srcsink,aux_real, &
-                                            global_auxvars(ghosted_id),option)
-          call cur_srcsink%Evaluate(res,Jac,PETSC_TRUE, &
-                                    material_auxvars(ghosted_id), &
-                                    aux_real,option)
-          call MatSetValuesBlockedLocal(Jacobian,1,ghosted_id-1,1, &
-                                        ghosted_id-1,Jac,ADD_VALUES,ierr)
-        else
-          iend = local_id*option%nflowdof
-          istart = iend - option%nflowdof + 1
-          r_p(istart:iend) = r_p(istart:iend) - res
-        endif
-      enddo
-    cur_srcsink => cur_srcsink%next
-  enddo
-  
-  if (.not.compute_derivative) then
-    call VecRestoreArrayF90(residual,r_p,ierr)
-  endif
-
-end subroutine RichardsSSSandbox
-
-! ************************************************************************** !
-
-subroutine RichardsSSSandboxLoadAuxReal(srcsink,aux_real,global_auxvar,option)
-
-  use Option_module
-  use SrcSink_Sandbox_Base_class
-  use SrcSink_Sandbox_Downreg_class
-
-  implicit none
-
-  class(srcsink_sandbox_base_type) :: srcsink
-  PetscReal :: aux_real(:)
-  type(global_auxvar_type) :: global_auxvar
-  type(option_type) :: option
-  
-  aux_real = 0.d0
-
-  select type(srcsink)
-    class is(srcsink_sandbox_downreg_type)
-      aux_real(1) = global_auxvar%pres(1)
-  end select
-  
-end subroutine RichardsSSSandboxLoadAuxReal
 
 ! ************************************************************************** !
 

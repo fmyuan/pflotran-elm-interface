@@ -1,9 +1,5 @@
 module Richards_Aux_module
 
-#ifdef BUFFER_MATRIX
-  use Matrix_Buffer_module
-#endif
-
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -52,9 +48,6 @@ module Richards_Aux_module
     type(richards_auxvar_type), pointer :: auxvars(:)
     type(richards_auxvar_type), pointer :: auxvars_bc(:)
     type(richards_auxvar_type), pointer :: auxvars_ss(:)
-#ifdef BUFFER_MATRIX
-    type(matrix_buffer_type), pointer :: matrix_buffer
-#endif
   end type richards_type
 
   public :: RichardsAuxCreate, RichardsAuxDestroy, &
@@ -98,9 +91,6 @@ function RichardsAuxCreate()
   nullify(aux%richards_parameter%sir)
   nullify(aux%zero_rows_local)
   nullify(aux%zero_rows_local_ghosted)
-#ifdef BUFFER_MATRIX
-  nullify(aux%matrix_buffer)
-#endif
 
   RichardsAuxCreate => aux
   
@@ -410,13 +400,6 @@ subroutine RichardsAuxDestroy(aux)
     deallocate(aux%richards_parameter)
   endif
   nullify(aux%richards_parameter)
-
-#ifdef BUFFER_MATRIX
-  if (associated(aux%matrix_buffer)) then
-    call MatrixBufferDestroy(aux%matrix_buffer)
-  endif
-  nullify(aux%matrix_buffer)
-#endif
   
   deallocate(aux)
   nullify(aux)

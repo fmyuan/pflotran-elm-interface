@@ -461,12 +461,7 @@ subroutine initialize_span_wagner(itable,myrank,option)
     read(IUNIT_TEMP,*)
     do i = 0, ntab_p
       do j = 0, ntab_t
-#ifdef PC_BUG
-        read(IUNIT_TEMP,'(1p15e14.6)') temparray
-        co2_prop_spwag(i,j,1:15) = temparray(:)
-#else
         read(IUNIT_TEMP,'(1p15e14.6)') co2_prop_spwag(i,j,1:15)
-#endif
       enddo
     enddo
     close (IUNIT_TEMP)
@@ -1472,7 +1467,7 @@ subroutine viscosity(p,t,rho,drhodp,drhodt,mu,dmudt,dmudp)
 
 ! Fenghour, A., W. A. Wakeham, and V. Vesovic,
 ! The viscosity of carbon dioxide,
-! J. Phys. Chem. Ref. Data, 27(1), 31−44, 1998.
+! J. Phys. Chem. Ref. Data, 27(1), 31-44, 1998.
 
       implicit none
       PetscReal :: p, t, rho

@@ -697,7 +697,6 @@ subroutine OutputPrintCouplers(realization_base,istep)
   use Patch_module
   use Grid_module
   use Input_Aux_module
-  use General_Aux_module
 
   class(realization_base_type) :: realization_base
   PetscInt :: istep
@@ -733,12 +732,6 @@ subroutine OutputPrintCouplers(realization_base,istep)
       allocate(iauxvars(1),auxvar_names(1))
       iauxvars(1) = RICHARDS_PRESSURE_DOF
       auxvar_names(1) = 'pressure'
-    case(G_MODE)
-      allocate(iauxvars(2),auxvar_names(2))
-      iauxvars(1) = GENERAL_LIQUID_PRESSURE_DOF
-      auxvar_names(1) = 'liquid_pressure'
-      iauxvars(2) = GENERAL_ENERGY_DOF
-      auxvar_names(2) = 'temperature'
     case default
       option%io_buffer = &
         'OutputPrintCouplers() not yet supported for this flow mode'

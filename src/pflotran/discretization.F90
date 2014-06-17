@@ -325,12 +325,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
             call printErrMsg(option)
 #else
 
-#ifdef SCORPIO
-            call UGridReadHDF5PIOLib(un_str_grid,discretization%filename,option)
-#else
             call UGridReadHDF5(un_str_grid,discretization%filename,option)
-#endif
-! #ifdef SCORPIO
 
 #endif
 !#if !defined(PETSC_HAVE_HDF5)
@@ -720,15 +715,6 @@ subroutine DiscretizationCreateDMs(discretization,option)
                                 discretization%stencil_type,option)
   endif
 
-#ifdef GEOMECH
-  if (option%ngeomechdof > 0) then
-    ndof = option%n_stress_strain_dof
-    call DiscretizationCreateDM(discretization,discretization%dm_n_stress_strain_dof, &
-                                ndof,discretization%stencil_width, &
-                                discretization%stencil_type,option)
-  endif
-#endif
-
   select case(discretization%itype)
     case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
       ! this function must be called to set up str_grid%lxs, etc.
@@ -963,25 +949,7 @@ subroutine DiscretizationCreateJacobian(discretization,dm_index,mat_type,Jacobia
           call MatSetOption(Jacobian,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE,ierr)
           call MatSetOption(Jacobian,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)
       end select
-    case(STRUCTURED_GRID_MIMETIC)
-#ifdef DASVYAT
-      select case(dm_index)
-        case(NFLOWDOF)
-!          call MFDCreateJacobian(discretization%grid, discretization%MFD, mat_type, Jacobian, option)
-          call MFDCreateJacobianLP(discretization%grid, discretization%MFD, mat_type, Jacobian, option)
-          call MatSetOption(Jacobian,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE,ierr)
-          call MatSetOption(Jacobian,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)
-        case(NTRANDOF)
-#ifndef DMGET
-          call DMSetMatType(dm_ptr%dm,mat_type,ierr)
-          call DMCreateMatrix(dm_ptr%dm,Jacobian,ierr)
-#else
-          call DMGetMatrix(dm_ptr%dm,mat_type,Jacobian,ierr)
-#endif
-          call MatSetOption(Jacobian,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE,ierr)
-          call MatSetOption(Jacobian,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)
-      end select
-#endif
+
   end select
 
 
