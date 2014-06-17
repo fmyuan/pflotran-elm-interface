@@ -86,7 +86,7 @@ function DenitrificationCreate()
   DenitrificationCreate%ispec_som3 = 0
   DenitrificationCreate%ispec_som4 = 0
   DenitrificationCreate%rate_constant = 0.d0
-  DenitrificationCreate%half_saturation = 1.0d-10
+  DenitrificationCreate%half_saturation = -1.0d-10
   DenitrificationCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   DenitrificationCreate%Q10 = 1.5d0
   DenitrificationCreate%k_deni_max = 2.5d-5  ! denitrification rate
@@ -255,6 +255,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: porosity
   PetscReal :: volume
+  PetscReal :: L_water
   PetscInt :: local_id
   PetscErrorCode :: ierr
 
@@ -281,6 +282,9 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
+
+  L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
+            material_auxvar%volume*1.d3
 
   ! indices for C and N species
   ires_no3 = this%ispec_no3
@@ -311,12 +315,19 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
   c_no3 = rt_auxvar%total(this%ispec_no3, iphase)
-  temp_real = c_no3 -this%x0eps + this%half_saturation
-  f_no3 = (c_no3 - this%x0eps) / temp_real
-  d_no3 = this%half_saturation / temp_real / temp_real
+  c_no3 = c_no3 - this%x0eps
 
-  if(f_t>0.d0 .and. f_w>0.d0) then
-     rate_deni = this%k_deni_max * c_no3 * f_t * f_w * f_no3
+  if (this%half_saturation > 0.0d0) then
+    temp_real = c_no3 + this%half_saturation
+    f_no3 = c_no3 * c_no3 / temp_real
+    d_no3 = c_no3 * (c_no3 + 2.d0 * this%half_saturation) / temp_real /temp_real
+  else
+    f_no3 = c_no3
+    d_no3 = 1.0d0
+  endif
+
+  if(f_t > 0.d0 .and. f_w > 0.d0) then
+     rate_deni = this%k_deni_max * f_t * f_w * L_water * f_no3
 
      Residual(ires_no3) = Residual(ires_no3) + rate_deni
      Residual(ires_n2) = Residual(ires_n2) - 0.5d0*rate_deni
@@ -327,7 +338,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
     if (compute_derivative) then
 
-       drate_deni = f_t*f_w*this%k_deni_max * d_no3
+       drate_deni = this%k_deni_max * f_t * f_w * L_water * d_no3 
 
        Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) + drate_deni * &
         rt_auxvar%aqueous%dtotal(this%ispec_no3,this%ispec_no3,iphase)
