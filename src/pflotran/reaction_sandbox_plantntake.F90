@@ -269,11 +269,13 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 #ifdef CLM_PFLOTRAN
   call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, &
        rate_plantnuptake_pf_loc, ierr)
+  CHKERRQ(ierr)
 
   this%rate = rate_plantnuptake_pf_loc(local_id) * volume ! mol/m3/s * m3
 
   call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, &
        rate_plantnuptake_pf_loc, ierr)
+  CHKERRQ(ierr)
 #endif
 
   rate_nplant = this%rate !* (1.d0 - f_nh3_inhibit)
@@ -317,23 +319,27 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   if(ispec_nh4in > 0) then
      call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, &
        rate_smin_nh4_pf_loc, ierr)
+     CHKERRQ(ierr)
 
      rate_nh4 = rate_smin_nh4_pf_loc(local_id) * volume ! mol/m3/s * m3
      Residual(ires_nh4in) = Residual(ires_nh4in) - rate_nh4
 
      call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, &
        rate_smin_nh4_pf_loc, ierr)
+     CHKERRQ(ierr)
   endif
 
   if(ispec_no3in > 0) then
      call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, &
        rate_smin_no3_pf_loc, ierr)
+     CHKERRQ(ierr)
 
      rate_no3 = rate_smin_no3_pf_loc(local_id) * volume ! mol/m3/s * m3
      Residual(ires_no3in) = Residual(ires_no3in) - rate_no3
 
      call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, &
        rate_smin_no3_pf_loc, ierr)
+     CHKERRQ(ierr)
   endif
 
 #endif

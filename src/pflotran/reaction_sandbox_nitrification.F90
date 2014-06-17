@@ -340,8 +340,10 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
 ! N2O production from nitrification (Parton et al. 1996)
 #ifdef CLM_PFLOTRAN
   call VecGetArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity, ierr)
+  CHKERRQ(ierr)
   rho_b = bulkdensity(local_id) ! kg/m3
   call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity, ierr)
+  CHKERRQ(ierr)
 #else
   rho_b = 1.25d0
 #endif
@@ -534,7 +536,9 @@ subroutine NitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
 !moisture response function
 #ifdef CLM_PFLOTRAN
   call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi, ierr)
+  CHKERRQ(ierr)
 
   maxpsi = sucsat(local_id) * (-9.8d-6)
   psi = min(soilpsi(local_id), maxpsi)
@@ -546,7 +550,9 @@ subroutine NitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
   endif
 
   call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi, ierr)
+  CHKERRQ(ierr)
 #else
 
   ! inhibition due to moisture content
@@ -597,15 +603,25 @@ subroutine NitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
  
 
   call VecGetArrayReadF90(clm_pf_idata%watsat_pf, watsat, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%watfc_pf, watfc, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%cellorg_pf, cellorg, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%o2_decomp_depth_unsat_pf, o2_decomp_depth_unsat, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%o2_decomp_depth_sat_pf, o2_decomp_depth_sat, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%conc_o2_unsat_pf, conc_o2_unsat, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%conc_o2_sat_pf, conc_o2_sat, ierr)
+  CHKERRQ(ierr)
 
   f_a = 1.0 - watfc(local_id) / watsat(local_id)
   e_a = watsat(local_id) - watfc(local_id)
@@ -673,15 +689,25 @@ subroutine NitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
   endif
 
   call VecRestoreArrayReadF90(clm_pf_idata%watsat_pf, watsat, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%watfc_pf, watfc, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%cellorg_pf, cellorg, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%o2_decomp_depth_unsat_pf, o2_decomp_depth_unsat, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%o2_decomp_depth_sat_pf, o2_decomp_depth_sat, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%conc_o2_unsat_pf, conc_o2_unsat, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%conc_o2_sat_pf, conc_o2_sat, ierr)
+  CHKERRQ(ierr)
 #else
   anaerobic_frac = 1.0
 #endif
