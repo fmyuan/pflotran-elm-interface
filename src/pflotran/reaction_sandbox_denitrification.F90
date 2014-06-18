@@ -86,7 +86,7 @@ function DenitrificationCreate()
   DenitrificationCreate%ispec_som3 = 0
   DenitrificationCreate%ispec_som4 = 0
   DenitrificationCreate%rate_constant = 0.d0
-  DenitrificationCreate%half_saturation = -1.0d-10
+  DenitrificationCreate%half_saturation = 1.0d-10
   DenitrificationCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   DenitrificationCreate%Q10 = 1.5d0
   DenitrificationCreate%k_deni_max = 2.5d-5  ! denitrification rate
