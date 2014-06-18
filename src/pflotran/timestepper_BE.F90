@@ -309,6 +309,14 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 
     call SNESSolve(solver%snes,PETSC_NULL_OBJECT, &
                    process_model%solution_vec,ierr)
+    if (ierr .ne. 0) then
+       print *, ' <-- SNES Solver ERROR @TimeStepperBEStepDT --> '
+       print *, ' Time (s): ', option%time, ' log_start_time: ', log_start_time
+       print *, ' Linear Iterations: ', sum_linear_iterations
+       print *, ' Newton Iterations: ', sum_newton_iterations
+       print *, ' Stop Executing!'
+       CHKERRQ(ierr)
+    endif
 
     call PetscTime(log_end_time, ierr)
 

@@ -86,7 +86,7 @@ function DenitrificationCreate()
   DenitrificationCreate%ispec_som3 = 0
   DenitrificationCreate%ispec_som4 = 0
   DenitrificationCreate%rate_constant = 0.d0
-  DenitrificationCreate%half_saturation = 1.0d-10
+  DenitrificationCreate%half_saturation = -1.0d-10
   DenitrificationCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   DenitrificationCreate%Q10 = 1.5d0
   DenitrificationCreate%k_deni_max = 2.5d-5  ! denitrification rate
@@ -255,6 +255,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: porosity
   PetscReal :: volume
+  PetscReal :: L_water
   PetscInt :: local_id
   PetscErrorCode :: ierr
 
@@ -282,6 +283,9 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
 
+  L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
+            material_auxvar%volume*1.d3
+
   ! indices for C and N species
   ires_no3 = this%ispec_no3
   ires_n2o = this%ispec_n2o
@@ -293,8 +297,10 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
 #ifdef CLM_PFLOTRAN
   call VecGetArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
+  CHKERRQ(ierr)
   temp_real = bsw(local_id)
   call VecRestoreArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
+  CHKERRQ(ierr)
 #else
   temp_real = 1.0d0
 #endif
@@ -311,12 +317,19 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
   c_no3 = rt_auxvar%total(this%ispec_no3, iphase)
-  temp_real = c_no3 -this%x0eps + this%half_saturation
-  f_no3 = (c_no3 - this%x0eps) / temp_real
-  d_no3 = this%half_saturation / temp_real / temp_real
+  c_no3 = c_no3 - this%x0eps
 
-  if(f_t>0.d0 .and. f_w>0.d0) then
-     rate_deni = this%k_deni_max * c_no3 * f_t * f_w * f_no3
+  if (this%half_saturation > 0.0d0) then
+    temp_real = c_no3 + this%half_saturation
+    f_no3 = c_no3 * c_no3 / temp_real
+    d_no3 = c_no3 * (c_no3 + 2.d0 * this%half_saturation) / temp_real /temp_real
+  else
+    f_no3 = c_no3
+    d_no3 = 1.0d0
+  endif
+
+  if(f_t > 0.d0 .and. f_w > 0.d0) then
+     rate_deni = this%k_deni_max * f_t * f_w * L_water * f_no3
 
      Residual(ires_no3) = Residual(ires_no3) + rate_deni
      Residual(ires_n2) = Residual(ires_n2) - 0.5d0*rate_deni
@@ -327,7 +340,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
     if (compute_derivative) then
 
-       drate_deni = f_t*f_w*this%k_deni_max * d_no3
+       drate_deni = this%k_deni_max * f_t * f_w * L_water * d_no3 
 
        Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) + drate_deni * &
         rt_auxvar%aqueous%dtotal(this%ispec_no3,this%ispec_no3,iphase)
@@ -563,7 +576,9 @@ subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative,
 !moisture response function
 #ifdef CLM_PFLOTRAN
   call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi, ierr)
+  CHKERRQ(ierr)
 
   maxpsi = sucsat(local_id) * (-9.8d-6)
   psi = min(soilpsi(local_id), maxpsi)
@@ -626,14 +641,23 @@ subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative,
  
 
   call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%watfc_pf, watfc, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%cellorg_pf, cellorg, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%o2_decomp_depth_unsat_pf, o2_decomp_depth_unsat, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%o2_decomp_depth_sat_pf, o2_decomp_depth_sat, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%conc_o2_unsat_pf, conc_o2_unsat, ierr)
+  CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%conc_o2_sat_pf, conc_o2_sat, ierr)
+  CHKERRQ(ierr)
 
   f_a = 1.0 - watfc(local_id) / porosity
   e_a = porosity - watfc(local_id)
@@ -702,14 +726,23 @@ subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative,
   endif
 
   call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%watfc_pf, watfc, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%cellorg_pf, cellorg, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%o2_decomp_depth_unsat_pf, o2_decomp_depth_unsat, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%o2_decomp_depth_sat_pf, o2_decomp_depth_sat, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%conc_o2_unsat_pf, conc_o2_unsat, ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayReadF90(clm_pf_idata%conc_o2_sat_pf, conc_o2_sat, ierr)
+  CHKERRQ(ierr)
 #else
   anaerobic_frac = 0.1
   diffus = 1.d-6
@@ -726,8 +759,10 @@ subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative,
  
 #ifdef CLM_PFLOTRAN
   call VecGetArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity_dry, ierr)
+  CHKERRQ(ierr)
   soil_bulkdensity = bulkdensity_dry(local_id)    
   call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity_dry, ierr)
+  CHKERRQ(ierr)
 #else
   soil_bulkdensity = 1.0d0
 #endif

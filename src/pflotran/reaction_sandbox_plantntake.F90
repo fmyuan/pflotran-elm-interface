@@ -18,6 +18,16 @@ module Reaction_Sandbox_PlantNTake_class
     PetscReal :: half_saturation_no3
     PetscReal :: inhibition_nh3_no3
     PetscReal :: x0eps
+    PetscReal :: x0eps_no3
+    ! additional down regulation for plant NO3- uptake with NO3 uptake f(NO3-) 
+    ! f(NO3-) = 0 for NO3- <= downreg_no3_0 
+    ! f(NO3-) = 1 for NO3- >= downreg_no3_1
+    ! f(NO3-) = 1 - [1 - (x/d)^2]^2 
+    ! with x = c - downreg_no3_0, d = downreg_no3_1 - downreg_0
+    PetscBool :: b_downreg_no3
+    PetscReal :: downreg_no3_0  ! shut off
+    PetscReal :: downreg_no3_1  ! start to shut
+
   contains
     procedure, public :: ReadInput => PlantNTakeRead
     procedure, public :: Setup => PlantNTakeSetup
@@ -48,6 +58,10 @@ function PlantNTakeCreate()
   PlantNTakeCreate%half_saturation_no3 = 1.d-15
   PlantNTakeCreate%inhibition_nh3_no3  = 1.d-15
   PlantNTakeCreate%x0eps  = 1.d-20
+  PlantNTakeCreate%x0eps_no3  = 1.d-20
+  PlantNTakeCreate%b_downreg_no3 = PETSC_FALSE
+  PlantNTakeCreate%downreg_no3_0 = 1.0d-7 
+  PlantNTakeCreate%downreg_no3_1 = 2.0d-7
   nullify(PlantNTakeCreate%next)  
       
 end function PlantNTakeCreate
@@ -102,6 +116,28 @@ subroutine PlantNTakeRead(this,input,option)
           call InputReadDouble(input,option,this%inhibition_nh3_no3)
           call InputErrorMsg(input,option,'ammonia inhibition on nitrate', &
                      'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+      case('X0EPS_NH4')
+          call InputReadDouble(input,option,this%x0eps)
+          call InputErrorMsg(input,option,'x0eps_nh4', &
+                  'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+      case('X0EPS_NO3')
+          call InputReadDouble(input,option,this%x0eps_no3)
+          call InputErrorMsg(input,option,'x0eps_no3', &
+                  'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+      case('DOWNREGULATE_NO3')
+        this%b_downreg_no3 = PETSC_TRUE 
+        call InputReadDouble(input,option,this%downreg_no3_0)
+        call InputErrorMsg(input,option,'downreg_no3_0', &
+          'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+        call InputReadDouble(input,option,this%downreg_no3_1)
+        call InputErrorMsg(input,option,'downreg_no3_1', &
+          'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+        if (this%downreg_no3_0 > this%downreg_no3_1) then
+          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,' // &
+            'NO3- down regulation cut off concentration > concentration.' // &
+            'at with no downregulation.'
+          call printErrMsg(option)
+        endif
       case default
           option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,' // &
                 'REACTION keyword: ' // trim(word) // ' not recognized.'
@@ -183,6 +219,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   PetscInt :: ispec_nh3, ispec_no3, ispec_plantn
   PetscInt :: ires_nh3, ires_no3, ires_plantn
   PetscInt :: ispec_nh4in, ispec_no3in, ires_nh4in, ires_no3in
+  PetscInt :: ispec_plantndemand, ires_plantndemand
 
   PetscReal :: c_nh3         ! concentration (mole/L)
   PetscReal :: f_nh3         ! nh3 / (half_saturation + nh3)
@@ -198,11 +235,11 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: drate_nplant       !drate_nh4/dnh4+
   PetscReal :: drate_nplant_no3   !drate_no3/dno3-
   PetscReal :: rate_nh4, rate_no3
+  PetscReal :: c_plantn, c_plantno3, c_plantnh4, c_plantndemand
+  PetscReal :: xxx, delta, regulator, dregulator
 
 #ifdef CLM_PFLOTRAN
   PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
-  PetscScalar, pointer :: rate_smin_nh4_pf_loc(:)   !
-  PetscScalar, pointer :: rate_smin_no3_pf_loc(:)   !
 #endif 
 
   porosity = material_auxvar%porosity
@@ -231,8 +268,13 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   ispec_no3in = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
                  PETSC_FALSE,option)
 
+  word = 'Plantndemand'
+  ispec_plantndemand = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
+                 PETSC_FALSE,option)
+
   ires_nh4in = ispec_nh4in + reaction%offset_immobile
   ires_no3in = ispec_no3in + reaction%offset_immobile
+  ires_plantndemand = ispec_plantndemand + reaction%offset_immobile
 
   if(ispec_plantn < 0) then
     write(*, *) 'Warning: PlantN is not specified in the chemical species!'
@@ -251,19 +293,41 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 
   f_nh3_inhibit = 0.d0
   if (ispec_no3 > 0) then
-      c_no3 = rt_auxvar%total(ispec_no3, iphase)
-      temp_real = c_no3 -this%x0eps + this%half_saturation_no3
-      f_no3 = (c_no3 - this%x0eps) / temp_real
-      d_no3 = this%half_saturation_no3 / temp_real / temp_real
+    c_no3 = rt_auxvar%total(ispec_no3, iphase)
+    temp_real = c_no3 -this%x0eps_no3 + this%half_saturation_no3
+    f_no3 = (c_no3 - this%x0eps_no3) / temp_real
+    d_no3 = this%half_saturation_no3 / temp_real / temp_real
 
-      ires_no3 = ispec_no3
-
-      if(ispec_nh3 > 0) then
-        temp_real = this%inhibition_nh3_no3 + c_nh3
-        f_nh3_inhibit = this%inhibition_nh3_no3/temp_real
+    if (this%b_downreg_no3) then
+      ! additional down regulation for plant NO3- uptake with NO3 uptake f(NO3-) 
+      ! rate = rate_orginal * regulator
+      ! drate = drate_original * regulator + rate_orginal * dregulator
+      if (c_no3 <= this%downreg_no3_0) then
+        regulator = 0.0d0
+        dregulator = 0.0d0
+      elseif (c_no3 >= this%downreg_no3_1) then
+        regulator = 1.0d0
+        dregulator = 0.0d0
       else
-        f_nh3_inhibit = 1.0d0
+        xxx = c_no3 - this%downreg_no3_0
+        delta = this%downreg_no3_1 - this%downreg_no3_0
+        regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
+        dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
       endif
+    
+      d_no3 = d_no3 * regulator + f_no3 * dregulator
+      f_no3 = f_no3 * regulator
+
+    endif
+
+    ires_no3 = ispec_no3
+
+    if (ispec_nh3 > 0) then
+      temp_real = this%inhibition_nh3_no3 + c_nh3
+      f_nh3_inhibit = this%inhibition_nh3_no3/temp_real
+    else
+      f_nh3_inhibit = 1.0d0
+    endif
   endif
 
 #ifdef CLM_PFLOTRAN
@@ -277,6 +341,11 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 #endif
 
   rate_nplant = this%rate !* (1.d0 - f_nh3_inhibit)
+
+  if (ispec_plantndemand > 0) then
+    Residual(ires_plantndemand) = Residual(ires_plantndemand) - rate_nplant
+  endif
+
   if(ispec_nh3 > 0) then
 
     drate_nplant = rate_nplant * d_nh3
@@ -285,58 +354,49 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
     Residual(ires_nh3) = Residual(ires_nh3) + rate_nplant
     Residual(ires_plantn) = Residual(ires_plantn) - rate_nplant
 
+    if (ispec_nh4in > 0) then
+      Residual(ires_nh4in) = Residual(ires_nh4in) - rate_nplant
+    endif
+
     if (compute_derivative) then
        Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3)+drate_nplant * &
          rt_auxvar%aqueous%dtotal(ispec_nh3,ispec_nh3,iphase)
 
        Jacobian(ires_plantn,ires_nh3)=Jacobian(ires_plantn,ires_nh3)-drate_nplant
-    endif
 
+      if (ispec_nh4in > 0) then
+        Jacobian(ires_nh4in,ires_nh3)=Jacobian(ires_nh4in,ires_nh3)-drate_nplant
+      endif
+    endif
   endif
 
   if(ispec_no3 > 0) then
-    rate_nplant_no3 = this%rate * f_nh3_inhibit * f_no3   ! NH4 inhibited NO3 uptake rate
+    rate_nplant_no3 = this%rate * f_nh3_inhibit * f_no3
     drate_nplant_no3 = this%rate * f_nh3_inhibit * d_no3
 
-    !
     Residual(ires_no3) = Residual(ires_no3) + rate_nplant_no3
     Residual(ires_plantn) = Residual(ires_plantn) - rate_nplant_no3
 
+    if (ispec_no3in > 0) then
+      Residual(ires_no3in) = Residual(ires_no3in) - rate_nplant_no3
+    endif
+
     if (compute_derivative) then
-     !
      Jacobian(ires_no3,ires_no3)=Jacobian(ires_no3,ires_no3)+drate_nplant_no3* &
        rt_auxvar%aqueous%dtotal(ispec_no3,ispec_no3,iphase)
 
      Jacobian(ires_plantn,ires_no3)=Jacobian(ires_plantn,ires_no3)-drate_nplant_no3
 
+      if (ispec_no3in > 0) then
+        Jacobian(ires_no3in,ires_no3)=Jacobian(ires_no3in,ires_no3)-drate_nplant_no3
+      endif
+
+      if (PETSC_FALSE) then
+        c_plantn = rt_auxvar%immobile(ispec_plantn)
+        write(*, *) c_nh3, c_no3, this%rate, rate_nplant, rate_nplant_no3, c_plantn
+      endif
     endif
-
   endif
-
-#ifdef CLM_PFLOTRAN
-  if(ispec_nh4in > 0) then
-     call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, &
-       rate_smin_nh4_pf_loc, ierr)
-
-     rate_nh4 = rate_smin_nh4_pf_loc(local_id) * volume ! mol/m3/s * m3
-     Residual(ires_nh4in) = Residual(ires_nh4in) - rate_nh4
-
-     call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, &
-       rate_smin_nh4_pf_loc, ierr)
-  endif
-
-  if(ispec_no3in > 0) then
-     call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, &
-       rate_smin_no3_pf_loc, ierr)
-
-     rate_no3 = rate_smin_no3_pf_loc(local_id) * volume ! mol/m3/s * m3
-     Residual(ires_no3in) = Residual(ires_no3in) - rate_no3
-
-     call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, &
-       rate_smin_no3_pf_loc, ierr)
-  endif
-
-#endif
 
 end subroutine PlantNTakeReact
 
