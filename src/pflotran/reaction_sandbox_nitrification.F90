@@ -287,10 +287,14 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: dfw_dnh3
   PetscReal :: saturation
   PetscReal :: tc
+  PetscReal :: L_water
   PetscInt :: ires_ngasnit
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
+  L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
+            material_auxvar%volume*1.d3
+
 
   ! indices for C and N species
   ires_nh3 = this%ispec_nh3
@@ -322,12 +326,12 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
     f_w = saturation * (1.0d0 - saturation)
 
     rate_nitri = f_t * f_w * this%k_nitr_max * c_nh3 * c_nh3 / &
-         (0.25d0 * c_nh3 + 1.0d0)
+         (0.25d0 * c_nh3 + 1.0d0) * L_water
     Residual(ires_nh3) = Residual(ires_nh3) + rate_nitri
     Residual(ires_no3) = Residual(ires_no3) - rate_nitri
     if (compute_derivative) then
      drate_nitri = f_t*f_w*this%k_nitr_max*(0.25d0*c_nh3*c_nh3+2.0d0*c_nh3) &
-                 / (0.25d0*c_nh3+1.0d0) / (0.25d0 * c_nh3 + 1.0d0)
+                 / (0.25d0*c_nh3+1.0d0) / (0.25d0 * c_nh3 + 1.0d0) * L_water
 
      Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_nitri * &
         rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_nh3,iphase)
@@ -383,7 +387,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
        endif
 
        rate_n2o = 1.0 - exp(-0.0105d0 * c_nh3_ugg)  ! need to change units 
-       rate_n2o = rate_n2o * f_t * f_w * f_ph * c_nh3*this%k_nitr_n2o
+       rate_n2o = rate_n2o * f_t * f_w * f_ph * c_nh3*this%k_nitr_n2o * L_water
 
        Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o
        Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
@@ -395,7 +399,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
        if (compute_derivative) then
            drate_n2o = 0.0105d0*exp(-0.0105d0*c_nh3_ugg) &
                      * M_2_ug_per_g
-           drate_n2o = drate_n2o * f_t * f_w * f_ph * c_nh3*this%k_nitr_n2o
+           drate_n2o = drate_n2o * f_t * f_w * f_ph * c_nh3*this%k_nitr_n2o * L_water
 
            Jacobian(ires_nh3,ires_nh3)=Jacobian(ires_nh3,ires_nh3)+drate_n2o * &
            rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_nh3,iphase)
