@@ -24,9 +24,10 @@ module Reaction_Sandbox_PlantNTake_class
     ! f(NO3-) = 1 for NO3- >= downreg_no3_1
     ! f(NO3-) = 1 - [1 - (x/d)^2]^2 
     ! with x = c - downreg_no3_0, d = downreg_no3_1 - downreg_0
-    PetscBool :: b_downreg_no3
     PetscReal :: downreg_no3_0  ! shut off
-    PetscReal :: downreg_no3_1  ! start to shut
+    PetscReal :: downreg_no3_1  ! start to decrease from 1
+    PetscReal :: downreg_nh3_0  ! shut off
+    PetscReal :: downreg_nh3_1  ! start to decrease from 1
 
   contains
     procedure, public :: ReadInput => PlantNTakeRead
@@ -59,9 +60,10 @@ function PlantNTakeCreate()
   PlantNTakeCreate%inhibition_nh3_no3  = 1.d-15
   PlantNTakeCreate%x0eps  = 1.d-20
   PlantNTakeCreate%x0eps_no3  = 1.d-20
-  PlantNTakeCreate%b_downreg_no3 = PETSC_FALSE
-  PlantNTakeCreate%downreg_no3_0 = 1.0d-7 
-  PlantNTakeCreate%downreg_no3_1 = 2.0d-7
+  PlantNTakeCreate%downreg_no3_0 = 1.0d-9 
+  PlantNTakeCreate%downreg_no3_1 = 2.0d-9
+  PlantNTakeCreate%downreg_nh3_0 = 1.0d-9 
+  PlantNTakeCreate%downreg_nh3_1 = 2.0d-9
   nullify(PlantNTakeCreate%next)  
       
 end function PlantNTakeCreate
@@ -124,8 +126,20 @@ subroutine PlantNTakeRead(this,input,option)
           call InputReadDouble(input,option,this%x0eps_no3)
           call InputErrorMsg(input,option,'x0eps_no3', &
                   'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+      case('DOWNREGULATE_NH4')
+        call InputReadDouble(input,option,this%downreg_nh3_0)
+        call InputErrorMsg(input,option,'downreg_nh3_0', &
+          'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+        call InputReadDouble(input,option,this%downreg_nh3_1)
+        call InputErrorMsg(input,option,'downreg_nh3_1', &
+          'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+        if (this%downreg_nh3_0 > this%downreg_nh3_1) then
+          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,' // &
+            'NH4+ down regulation cut off concentration > concentration ' // &
+            'where down regulation function = 1.'
+          call printErrMsg(option)
+        endif
       case('DOWNREGULATE_NO3')
-        this%b_downreg_no3 = PETSC_TRUE 
         call InputReadDouble(input,option,this%downreg_no3_0)
         call InputErrorMsg(input,option,'downreg_no3_0', &
           'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
@@ -134,8 +148,8 @@ subroutine PlantNTakeRead(this,input,option)
           'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
         if (this%downreg_no3_0 > this%downreg_no3_1) then
           option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,' // &
-            'NO3- down regulation cut off concentration > concentration.' // &
-            'at with no downregulation.'
+            'NO3- down regulation cut off concentration > concentration ' // &
+            'where down regulation function = 1.'
           call printErrMsg(option)
         endif
       case default
@@ -288,7 +302,31 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
      temp_real = c_nh3 - this%x0eps + this%half_saturation_nh3
      f_nh3     = (c_nh3 - this%x0eps) / temp_real
      d_nh3     = this%half_saturation_nh3 / temp_real / temp_real
-     ires_nh3 = ispec_nh3
+
+    if (this%downreg_nh3_0 > 0.0d0) then
+      ! additional down regulation for plant NH4+ uptake
+      if (c_nh3 <= this%downreg_nh3_0) then
+        regulator = 0.0d0
+        dregulator = 0.0d0
+      elseif (c_nh3 >= this%downreg_nh3_1) then
+        regulator = 1.0d0
+        dregulator = 0.0d0
+      else
+        xxx = c_nh3 - this%downreg_nh3_0
+        delta = this%downreg_nh3_1 - this%downreg_nh3_0
+        regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
+        dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
+      endif
+    
+      ! rate = rate_orginal * regulator
+      ! drate = drate_original * regulator + rate_orginal * dregulator
+      d_nh3 = d_nh3 * regulator + f_nh3 * dregulator
+
+      f_nh3 = f_nh3 * regulator
+
+    endif
+
+    ires_nh3 = ispec_nh3
   endif
 
   f_nh3_inhibit = 0.d0
@@ -298,11 +336,8 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
     f_no3 = (c_no3 - this%x0eps_no3) / temp_real
     d_no3 = this%half_saturation_no3 / temp_real / temp_real
 
-    if (this%b_downreg_no3) then
-      ! additional down regulation for plant NO3- uptake with NO3 uptake f(NO3-) 
-      ! rate = rate_orginal * regulator
-      ! drate = drate_original * regulator + rate_orginal * dregulator
-      if (c_no3 <= this%downreg_no3_0) then
+    if (this%downreg_no3_0 > 0.0d0) then
+      ! additional down regulation for plant NO3- uptake
         regulator = 0.0d0
         dregulator = 0.0d0
       elseif (c_no3 >= this%downreg_no3_1) then
@@ -315,6 +350,10 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
         dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
       endif
     
+      if (c_no3 <= this%downreg_no3_0) then
+
+      ! rate = rate_orginal * regulator
+      ! drate = drate_original * regulator + rate_orginal * dregulator
       d_no3 = d_no3 * regulator + f_no3 * dregulator
       f_no3 = f_no3 * regulator
 
