@@ -70,7 +70,7 @@ function NitrificationCreate()
   NitrificationCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   NitrificationCreate%Q10 = 1.5d0
   NitrificationCreate%x0eps = 1.0d-20
-  NitrificationCreate%downreg_nh3_0 = -1.0d-9 
+  NitrificationCreate%downreg_nh3_0 = 1.0d-9
   NitrificationCreate%downreg_nh3_1 = 1.0d-7
   nullify(NitrificationCreate%next)  
       
