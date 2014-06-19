@@ -132,9 +132,9 @@ function CLM_Decomp_Create()
   CLM_Decomp_Create%inhibition_nh3_no3 = 1.0d-15
   CLM_Decomp_Create%n2o_frac_mineralization = 0.02d0  ! Parton et al. 2001
   CLM_Decomp_Create%x0eps = 1.0d-20
-  CLM_Decomp_Create%downreg_no3_0 = -1.0d-9 
+  CLM_Decomp_Create%downreg_no3_0 = 1.0d-9
   CLM_Decomp_Create%downreg_no3_1 = 1.0d-7
-  CLM_Decomp_Create%downreg_nh3_0 = -1.0d-9 
+  CLM_Decomp_Create%downreg_nh3_0 = 1.0d-9
   CLM_Decomp_Create%downreg_nh3_1 = 1.0d-7
 
   CLM_Decomp_Create%nc_bacteria = 0.17150d0
