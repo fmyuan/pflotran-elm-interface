@@ -91,7 +91,7 @@ function DenitrificationCreate()
   DenitrificationCreate%Q10 = 1.5d0
   DenitrificationCreate%k_deni_max = 2.5d-6  ! denitrification rate
   DenitrificationCreate%x0eps = 1.0d-20
-  DenitrificationCreate%downreg_no3_0 = -1.0d-9 
+  DenitrificationCreate%downreg_no3_0 = 1.0d-9
   DenitrificationCreate%downreg_no3_1 = 1.0d-7
 
   nullify(DenitrificationCreate%next)  
