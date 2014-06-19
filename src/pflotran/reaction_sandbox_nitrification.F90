@@ -138,11 +138,24 @@ subroutine NitrificationRead(this,input,option)
      case('NITRIFICATION_RATE_COEF')
          call InputReadDouble(input,option,this%k_nitr_max)
          call InputErrorMsg(input,option,'nitrification rate coefficient', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLMCND,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
      case('N2O_RATE_COEF_NITRIFICATION')
          call InputReadDouble(input,option,this%k_nitr_n2o)
          call InputErrorMsg(input,option,'N2O rate coefficient from nirification', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLMCND,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
+      case('DOWNREGULATE_NH4')
+        call InputReadDouble(input,option,this%downreg_nh3_0)
+        call InputErrorMsg(input,option,'downreg_nh3_0', &
+          'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
+        call InputReadDouble(input,option,this%downreg_nh3_1)
+        call InputErrorMsg(input,option,'downreg_nh3_1', &
+          'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
+        if (this%downreg_nh3_0 > this%downreg_nh3_1) then
+          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,' // &
+            'NH4+ down regulation cut off concentration > concentration ' // &
+            'where down regulation function = 1.'
+          call printErrMsg(option)
+        endif
       case default
           option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,' // &
             'REACTION keyword: ' // trim(word) // ' not recognized.'
