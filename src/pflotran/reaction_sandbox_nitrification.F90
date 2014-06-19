@@ -29,6 +29,8 @@ module Reaction_Sandbox_Nitrification_class
     PetscInt :: temperature_response_function
     PetscReal :: Q10
     PetscReal :: x0eps
+    PetscReal :: downreg_nh3_0  ! shut off
+    PetscReal :: downreg_nh3_1  ! start to decrease from 1
 
   contains
     procedure, public :: ReadInput => NitrificationRead
@@ -68,6 +70,8 @@ function NitrificationCreate()
   NitrificationCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   NitrificationCreate%Q10 = 1.5d0
   NitrificationCreate%x0eps = 1.0d-20
+  NitrificationCreate%downreg_nh3_0 = -1.0d-9 
+  NitrificationCreate%downreg_nh3_1 = 1.0d-7
   nullify(NitrificationCreate%next)  
       
 end function NitrificationCreate
@@ -279,7 +283,6 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: c_nh3      ! mole/L
   PetscReal :: s_nh3      ! mole/m3
   PetscReal :: c_nh3_ugg  ! ug ammonia N / g soil
-  PetscReal :: c_nh3_0
   PetscReal :: ph
   PetscReal :: rate_n2o, drate_n2o
   PetscReal :: rate_nitri, drate_nitri
@@ -289,6 +292,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: tc
   PetscReal :: L_water
   PetscInt :: ires_ngasnit
+  PetscReal :: xxx, delta, regulator, dregulator
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
@@ -310,6 +314,25 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
   c_nh3 = rt_auxvar%total(this%ispec_nh3, iphase)
 
+  if (this%downreg_nh3_0 > 0.0d0) then
+    ! additional down regulation for nitrification 
+    if (c_nh3 <= this%downreg_nh3_0) then
+      regulator = 0.0d0
+      dregulator = 0.0d0
+    elseif (c_nh3 >= this%downreg_nh3_1) then
+      regulator = 1.0d0
+      dregulator = 0.0d0
+    else
+      xxx = c_nh3 - this%downreg_nh3_0
+      delta = this%downreg_nh3_1 - this%downreg_nh3_0
+      regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
+      dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
+    endif
+  else
+    regulator = 1.0d0
+    dregulator = 0.0d0  
+  endif
+
   if (associated(rt_auxvar%total_sorb_eq)) then           ! original absorption-reactions in PF used
      s_nh3 = rt_auxvar%total_sorb_eq(this%ispec_nh3)
   elseif (this%ispec_nh4sorb>0) then                      ! 'reaction_sandbox_langmuir' used
@@ -327,11 +350,17 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
     rate_nitri = f_t * f_w * this%k_nitr_max * c_nh3 * c_nh3 / &
          (0.25d0 * c_nh3 + 1.0d0) * L_water
-    Residual(ires_nh3) = Residual(ires_nh3) + rate_nitri
-    Residual(ires_no3) = Residual(ires_no3) - rate_nitri
+
+    Residual(ires_nh3) = Residual(ires_nh3) + rate_nitri * regulator
+    Residual(ires_no3) = Residual(ires_no3) - rate_nitri * regulator
+
     if (compute_derivative) then
      drate_nitri = f_t*f_w*this%k_nitr_max*(0.25d0*c_nh3*c_nh3+2.0d0*c_nh3) &
                  / (0.25d0*c_nh3+1.0d0) / (0.25d0 * c_nh3 + 1.0d0) * L_water
+ 
+      ! rate = rate_orginal * regulator
+      ! drate = drate_original * regulator + rate_orginal * dregulator
+      drate_nitri = drate_nitri * regulator + rate_nitri * dregulator
 
      Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_nitri * &
         rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_nh3,iphase)
@@ -389,17 +418,21 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
        rate_n2o = 1.0 - exp(-0.0105d0 * c_nh3_ugg)  ! need to change units 
        rate_n2o = rate_n2o * f_t * f_w * f_ph * c_nh3*this%k_nitr_n2o * L_water
 
-       Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o
-       Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
+       Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o * regulator
+       Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o * regulator
        
        if(this%ispec_ngasnit > 0) then
-          Residual(ires_ngasnit) = Residual(ires_ngasnit) - 0.5d0 * rate_n2o
+          Residual(ires_ngasnit) = Residual(ires_ngasnit) - 0.5d0 * rate_n2o * regulator
        endif
 
        if (compute_derivative) then
            drate_n2o = 0.0105d0*exp(-0.0105d0*c_nh3_ugg) &
                      * M_2_ug_per_g
            drate_n2o = drate_n2o * f_t * f_w * f_ph * c_nh3*this%k_nitr_n2o * L_water
+ 
+         ! rate = rate_orginal * regulator
+         ! drate = drate_original * regulator + rate_orginal * dregulator
+         drate_n2o = drate_n2o * regulator + rate_n2o * dregulator 
 
            Jacobian(ires_nh3,ires_nh3)=Jacobian(ires_nh3,ires_nh3)+drate_n2o * &
            rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_nh3,iphase)
