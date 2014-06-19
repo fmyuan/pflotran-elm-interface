@@ -338,6 +338,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 
     if (this%downreg_no3_0 > 0.0d0) then
       ! additional down regulation for plant NO3- uptake
+      if (c_no3 <= this%downreg_no3_0) then
         regulator = 0.0d0
         dregulator = 0.0d0
       elseif (c_no3 >= this%downreg_no3_1) then
@@ -350,8 +351,6 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
         dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
       endif
     
-      if (c_no3 <= this%downreg_no3_0) then
-
       ! rate = rate_orginal * regulator
       ! drate = drate_original * regulator + rate_orginal * dregulator
       d_no3 = d_no3 * regulator + f_no3 * dregulator
