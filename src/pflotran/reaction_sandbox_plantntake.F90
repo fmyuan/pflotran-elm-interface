@@ -61,9 +61,9 @@ function PlantNTakeCreate()
   PlantNTakeCreate%x0eps  = 1.d-20
   PlantNTakeCreate%x0eps_no3  = 1.d-20
   PlantNTakeCreate%downreg_no3_0 = 1.0d-9 
-  PlantNTakeCreate%downreg_no3_1 = 2.0d-9
+  PlantNTakeCreate%downreg_no3_1 = 1.0d-7
   PlantNTakeCreate%downreg_nh3_0 = 1.0d-9 
-  PlantNTakeCreate%downreg_nh3_1 = 2.0d-9
+  PlantNTakeCreate%downreg_nh3_1 = 1.0d-7
   nullify(PlantNTakeCreate%next)  
       
 end function PlantNTakeCreate
@@ -338,6 +338,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 
     if (this%downreg_no3_0 > 0.0d0) then
       ! additional down regulation for plant NO3- uptake
+      if (c_no3 <= this%downreg_no3_0) then
         regulator = 0.0d0
         dregulator = 0.0d0
       elseif (c_no3 >= this%downreg_no3_1) then
@@ -349,8 +350,6 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
         regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
         dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
       endif
-    
-      if (c_no3 <= this%downreg_no3_0) then
 
       ! rate = rate_orginal * regulator
       ! drate = drate_original * regulator + rate_orginal * dregulator
