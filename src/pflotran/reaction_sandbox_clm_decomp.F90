@@ -34,6 +34,10 @@ module Reaction_Sandbox_CLM_Decomp_class
     PetscReal :: inhibition_nh3_no3
     PetscReal :: n2o_frac_mineralization    ! fraction of n2o from net N mineralization
     PetscReal :: x0eps
+    PetscReal :: downreg_no3_0  ! shut off
+    PetscReal :: downreg_no3_1  ! start to decrease from 1
+    PetscReal :: downreg_nh3_0  ! shut off
+    PetscReal :: downreg_nh3_1  ! start to decrease from 1
 
     PetscReal :: nc_bacteria
     PetscReal :: nc_fungi
@@ -128,6 +132,10 @@ function CLM_Decomp_Create()
   CLM_Decomp_Create%inhibition_nh3_no3 = 1.0d-15
   CLM_Decomp_Create%n2o_frac_mineralization = 0.02d0  ! Parton et al. 2001
   CLM_Decomp_Create%x0eps = 1.0d-20
+  CLM_Decomp_Create%downreg_no3_0 = -1.0d-9 
+  CLM_Decomp_Create%downreg_no3_1 = 1.0d-7
+  CLM_Decomp_Create%downreg_nh3_0 = -1.0d-9 
+  CLM_Decomp_Create%downreg_nh3_1 = 1.0d-7
 
   CLM_Decomp_Create%nc_bacteria = 0.17150d0
   ! CN_ratio_fungi = 17.4924d0     !15.0d0 ! or 10.0
@@ -294,6 +302,32 @@ subroutine CLM_Decomp_Read(this,input,option)
          call InputErrorMsg(input,option,'nitrate half saturation', &
                      'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
 
+      case('DOWNREGULATE_NH4')
+        call InputReadDouble(input,option,this%downreg_nh3_0)
+        call InputErrorMsg(input,option,'downreg_nh3_0', &
+          'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+        call InputReadDouble(input,option,this%downreg_nh3_1)
+        call InputErrorMsg(input,option,'downreg_nh3_1', &
+          'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+        if (this%downreg_nh3_0 > this%downreg_nh3_1) then
+          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,' // &
+            'NH4+ down regulation cut off concentration > concentration ' // &
+            'where down regulation function = 1.'
+          call printErrMsg(option)
+        endif
+      case('DOWNREGULATE_NO3')
+        call InputReadDouble(input,option,this%downreg_no3_0)
+        call InputErrorMsg(input,option,'downreg_no3_0', &
+          'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+        call InputReadDouble(input,option,this%downreg_no3_1)
+        call InputErrorMsg(input,option,'downreg_no3_1', &
+          'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+        if (this%downreg_no3_0 > this%downreg_no3_1) then
+          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,' // &
+            'NO3- down regulation cut off concentration > concentration ' // &
+            'where down regulation function = 1.'
+          call printErrMsg(option)
+        endif
 
      case('AMMONIA_INHIBITION_COEF')
          call InputReadDouble(input,option,this%inhibition_nh3_no3)
@@ -890,6 +924,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
   PetscReal :: c_uc, c_un
   PetscInt :: ires_b, ires_f
+  PetscReal :: xxx, delta, regulator, dregulator
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -902,11 +937,56 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   f_nh3     = (c_nh3 - this%x0eps) / temp_real 
   d_nh3     = this%half_saturation_nh3 / temp_real / temp_real
 
+  if (this%downreg_nh3_0 > 0.0d0) then
+    ! additional down regulation for NH4+ immobilization 
+    if (c_nh3 <= this%downreg_nh3_0) then
+      regulator = 0.0d0
+      dregulator = 0.0d0
+    elseif (c_nh3 >= this%downreg_nh3_1) then
+      regulator = 1.0d0
+      dregulator = 0.0d0
+    else
+      xxx = c_nh3 - this%downreg_nh3_0
+      delta = this%downreg_nh3_1 - this%downreg_nh3_0
+      regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
+      dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
+    endif
+    
+    ! rate = rate_orginal * regulator
+    ! drate = drate_original * regulator + rate_orginal * dregulator
+    d_nh3 = d_nh3 * regulator + f_nh3 * dregulator
+
+    f_nh3 = f_nh3 * regulator
+
+  endif
+
   if (this%species_id_no3 > 0) then
       c_no3 = rt_auxvar%total(this%species_id_no3, iphase)
       temp_real = c_no3 - this%x0eps + this%half_saturation_no3
       f_no3 = (c_no3 - this%x0eps)/ temp_real 
       d_no3 = this%half_saturation_no3 / temp_real / temp_real 
+
+    if (this%downreg_no3_0 > 0.0d0) then
+      ! additional down regulation for NO3- immobilization
+      if (c_no3 <= this%downreg_no3_0) then
+        regulator = 0.0d0
+        dregulator = 0.0d0
+      elseif (c_no3 >= this%downreg_no3_1) then
+        regulator = 1.0d0
+        dregulator = 0.0d0
+      else
+        xxx = c_no3 - this%downreg_no3_0
+        delta = this%downreg_no3_1 - this%downreg_no3_0
+        regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
+        dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
+      endif
+
+      ! rate = rate_orginal * regulator
+      ! drate = drate_original * regulator + rate_orginal * dregulator
+      d_no3 = d_no3 * regulator + f_no3 * dregulator
+      f_no3 = f_no3 * regulator
+
+    endif
 
       temp_real = this%inhibition_nh3_no3 + c_nh3
       f_nh3_inhibit = this%inhibition_nh3_no3/temp_real
