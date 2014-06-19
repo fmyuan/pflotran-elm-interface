@@ -61,9 +61,9 @@ function PlantNTakeCreate()
   PlantNTakeCreate%x0eps  = 1.d-20
   PlantNTakeCreate%x0eps_no3  = 1.d-20
   PlantNTakeCreate%downreg_no3_0 = 1.0d-9 
-  PlantNTakeCreate%downreg_no3_1 = 2.0d-9
+  PlantNTakeCreate%downreg_no3_1 = 1.0d-7
   PlantNTakeCreate%downreg_nh3_0 = 1.0d-9 
-  PlantNTakeCreate%downreg_nh3_1 = 2.0d-9
+  PlantNTakeCreate%downreg_nh3_1 = 1.0d-7
   nullify(PlantNTakeCreate%next)  
       
 end function PlantNTakeCreate
@@ -350,7 +350,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
         regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
         dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
       endif
-    
+
       ! rate = rate_orginal * regulator
       ! drate = drate_original * regulator + rate_orginal * dregulator
       d_no3 = d_no3 * regulator + f_no3 * dregulator

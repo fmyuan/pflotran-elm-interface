@@ -35,12 +35,13 @@ module Reaction_Sandbox_Denitrification_class
     PetscInt :: ispec_som3
     PetscInt :: ispec_som4
 
-    PetscReal :: rate_constant
     PetscReal :: half_saturation
     PetscInt :: temperature_response_function
     PetscReal :: Q10
     PetscReal :: k_deni_max                 ! denitrification rate
     PetscReal :: x0eps
+    PetscReal :: downreg_no3_0  ! shut off
+    PetscReal :: downreg_no3_1  ! start to decrease from 1
 
   contains
     procedure, public :: ReadInput => DenitrificationRead
@@ -85,12 +86,13 @@ function DenitrificationCreate()
   DenitrificationCreate%ispec_som2 = 0
   DenitrificationCreate%ispec_som3 = 0
   DenitrificationCreate%ispec_som4 = 0
-  DenitrificationCreate%rate_constant = 0.d0
-  DenitrificationCreate%half_saturation = 1.0d-10
+  DenitrificationCreate%half_saturation = -1.0d-10
   DenitrificationCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   DenitrificationCreate%Q10 = 1.5d0
-  DenitrificationCreate%k_deni_max = 2.5d-5  ! denitrification rate
+  DenitrificationCreate%k_deni_max = 2.5d-6  ! denitrification rate
   DenitrificationCreate%x0eps = 1.0d-20
+  DenitrificationCreate%downreg_no3_0 = -1.0d-9 
+  DenitrificationCreate%downreg_no3_1 = 1.0d-7
 
   nullify(DenitrificationCreate%next)  
       
@@ -157,13 +159,26 @@ subroutine DenitrificationRead(this,input,option)
         enddo 
 
       case('RATE_CONSTANT')
-          call InputReadDouble(input,option,this%rate_constant)
-          call InputErrorMsg(input,option,'rate constant', &
+          call InputReadDouble(input,option,this%k_deni_max)
+          call InputErrorMsg(input,option,'k_deni_max', &
                  'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,REACTION')
       case('N_INHIBITION')
           call InputReadDouble(input,option,this%half_saturation)
           call InputErrorMsg(input,option,'inhibition coefficient', &
                  'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,REACTION')
+      case('DOWNREGULATE_NO3')
+        call InputReadDouble(input,option,this%downreg_no3_0)
+        call InputErrorMsg(input,option,'downreg_no3_0', &
+          'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+        call InputReadDouble(input,option,this%downreg_no3_1)
+        call InputErrorMsg(input,option,'downreg_no3_1', &
+          'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+        if (this%downreg_no3_0 > this%downreg_no3_1) then
+          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,' // &
+            'NO3- down regulation cut off concentration > concentration ' // &
+            'where down regulation function = 1.'
+          call printErrMsg(option)
+        endif
       case default
           option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,' // &
             'REACTION keyword: ' // trim(word) // ' not recognized.'
@@ -277,6 +292,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: rate_deni, drate_deni
   PetscReal :: saturation
   PetscInt, parameter :: iphase = 1
+  PetscReal :: xxx, delta, regulator, dregulator
 
 !---------------------------------------------------------------------------------
 
@@ -317,15 +333,38 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
   c_no3 = rt_auxvar%total(this%ispec_no3, iphase)
-  c_no3 = c_no3 - this%x0eps
+!  c_no3 = c_no3 - this%x0eps
 
   if (this%half_saturation > 0.0d0) then
-    temp_real = c_no3 + this%half_saturation
-    f_no3 = c_no3 * c_no3 / temp_real
-    d_no3 = c_no3 * (c_no3 + 2.d0 * this%half_saturation) / temp_real /temp_real
+    temp_real = c_no3 - this%x0eps + this%half_saturation
+    f_no3 = (c_no3 - this%x0eps) * (c_no3 - this%x0eps) / temp_real
+    d_no3 = (c_no3 - this%x0eps) * (c_no3 - this%x0eps + &
+             2.d0 * this%half_saturation) / temp_real /temp_real
   else
-    f_no3 = c_no3
+    f_no3 = c_no3 - this%x0eps
     d_no3 = 1.0d0
+  endif
+
+  if (this%downreg_no3_0 > 0.0d0) then
+    ! additional down regulation for denitrification
+    if (c_no3 <= this%downreg_no3_0) then
+      regulator = 0.0d0
+      dregulator = 0.0d0
+    elseif (c_no3 >= this%downreg_no3_1) then
+      regulator = 1.0d0
+      dregulator = 0.0d0
+    else
+      xxx = c_no3 - this%downreg_no3_0
+      delta = this%downreg_no3_1 - this%downreg_no3_0
+      regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
+      dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
+    endif
+
+    ! rate = rate_orginal * regulator
+    ! drate = drate_original * regulator + rate_orginal * dregulator
+    d_no3 = d_no3 * regulator + f_no3 * dregulator
+    f_no3 = f_no3 * regulator
+
   endif
 
   if(f_t > 0.d0 .and. f_w > 0.d0) then
