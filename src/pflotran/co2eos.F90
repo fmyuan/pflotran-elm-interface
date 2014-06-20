@@ -575,7 +575,7 @@ subroutine duanco2 (tt,p,dc,fc,phi)
       iter = 0
    10 continue
       iter = iter + 1
-      if (iter .gt. itmax) goto 20
+      if (iter .gt. itmax) goto 30
 
       vr = v/vc
       vr1 = 1.d0/vr
