@@ -663,15 +663,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
 
           ! If running with surface-flow model, ensure (darcy_velocity*dt) does
           ! not exceed depth of standing water.
-#ifdef CLM_PFLOTRAN
-          ! if coupled with CLM, the following conditions imply a top standing-water BC
-          ! so need to limit the available water for flow-in downwind cell
-          if ((pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) &
-              .or. (pressure_bc_type==DIRICHLET_BC .and. area>0.d0 .and. &
-             global_auxvar_up%pres(1)>option%reference_pressure) ) then
-#else
           if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) then
-#endif
 
             call EOSWaterdensity(option%reference_temperature, &
                                  option%reference_pressure,rho,dum1,ierr)
@@ -694,7 +686,6 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                          rich_auxvar_dn%range_for_linear_approx(3)
                 dq_dp_dn = dq_lin/dP_lin
 
-#ifndef CLM_PFLOTRAN
             else
               if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%P_max) then
 
@@ -707,7 +698,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                   dq_dp_dn = dq_approx
 
               endif
-#endif
+
 
             endif  !if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%P_min)
           endif !if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0)
@@ -961,15 +952,7 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
 
         ! If running with surface-flow model, ensure (darcy_velocity*dt) does
         ! not exceed depth of standing water.
-#ifdef CLM_PFLOTRAN
-        ! if coupled with CLM, the following conditions imply a top standing-water BC
-        ! so need to limit the available water for flow-in downwind cell
-        if ((pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) &
-              .or. (pressure_bc_type==DIRICHLET_BC .and. area>0.d0 .and. &
-             global_auxvar_up%pres(1)>option%reference_pressure) ) then
-#else
         if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) then
-#endif
 
           call EOSWaterdensity(option%reference_temperature, &
                                option%reference_pressure,rho,dum1,ierr)
@@ -990,7 +973,6 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
                                q_approx)
               v_darcy = q_approx/area
 
-#ifndef CLM_PFLOTRAN
             else if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%P_max) then
 
               if (rich_auxvar_dn%coeff_for_cubic_approx(1) == -99999.d0) then
@@ -1002,7 +984,7 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
                                          global_auxvar_dn%pres(1), &
                                          q_approx, dq_approx)
               v_darcy = q_approx/area
-#endif
+
             endif  !if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%P_min)
 
           endif  !if (.not. rich_auxvar_dn%bcflux_default_scheme)
