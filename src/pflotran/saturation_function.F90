@@ -18,6 +18,7 @@ module Saturation_Function_module
     PetscInt :: permeability_function_itype
     PetscBool :: print_me
     PetscReal, pointer :: Sr(:)
+    PetscReal, pointer :: Kr0(:)
     PetscReal :: m
     PetscReal :: lambda
     PetscReal :: alpha
@@ -57,7 +58,7 @@ module Saturation_Function_module
             SatFunctionComputePolynomial, &
             PermFunctionComputePolynomial, &
             SaturationFunctionRead, &
-            SatFuncGetRelPermFromSat, &
+            SatFuncGetLiqRelPermFromSat, &
             SatFuncGetGasRelPermFromSat, &
             SatFuncGetCapillaryPressure, &
             SaturationFunctionGetID, &
@@ -71,11 +72,12 @@ module Saturation_Function_module
   ! Saturation function 
   PetscInt, parameter, public :: VAN_GENUCHTEN = 1
   PetscInt, parameter, public :: BROOKS_COREY = 2
-  PetscInt, parameter :: THOMEER_COREY = 3
-  PetscInt, parameter :: NMT_EXP = 4
-  PetscInt, parameter :: PRUESS_1 = 5
-  PetscInt, parameter :: LINEAR_MODEL = 6
-  PetscInt, parameter :: MODIFIED_BROOKS_COREY = 6
+  PetscInt, parameter, public :: THOMEER_COREY = 3
+  PetscInt, parameter, public :: NMT_EXP = 4
+  PetscInt, parameter, public :: PRUESS_1 = 5
+  PetscInt, parameter, public :: LINEAR_MODEL = 6
+  PetscInt, parameter, public :: VAN_GENUCHTEN_PARKER = 7
+  PetscInt, parameter, public :: VAN_GENUCHTEN_DOUGHTY = 8
 
   ! Permeability function
   PetscInt, parameter :: DEFAULT = 0
@@ -113,6 +115,8 @@ function SaturationFunctionCreate(option)
   saturation_function%print_me = PETSC_FALSE
   allocate(saturation_function%Sr(option%nphase))
   saturation_function%Sr = 0.d0
+  allocate(saturation_function%Kr0(option%nphase))
+  saturation_function%Kr0 = 1.0d0
   saturation_function%m = 0.d0
   saturation_function%lambda = 0.d0
   saturation_function%alpha = 0.d0
@@ -185,6 +189,48 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
                            PETSC_TRUE)
         call InputErrorMsg(input,option,'saturation function type', &
                            'SATURATION_FUNCTION')
+      case('PERMEABILITY_END_POINT')
+        select case(option%iflowmode)
+          case(FLASH2_MODE)
+            call InputReadWord(input,option,keyword,PETSC_TRUE)
+            call InputErrorMsg(input,option,'keyword','PERMEABILITY_FUNCTION')
+            call StringToUpper(keyword)   
+            select case(trim(keyword))
+              case('WATER','WATER_PHASE','LIQUID','LIQUID_PHASE')
+                iphase = 1
+              case('CO2','CO2_PHASE','GAS','GAS_PHASE')
+                iphase = 2
+            end select
+            call InputReadDouble(input,option,saturation_function%Kr0(iphase))
+            word = trim(keyword) // 'permeabiliy end point'
+            call InputErrorMsg(input,option,word,'PERMEABILITY_FUNCTION')
+          case(MPH_MODE)
+            call InputReadWord(input,option,keyword,PETSC_TRUE)
+            call InputErrorMsg(input,option,'keyword','PERMEABILITY_FUNCTION')
+            call StringToUpper(keyword)   
+            select case(trim(keyword))
+              case('WATER','WATER_PHASE','LIQUID','LIQUID_PHASE')
+                iphase = 1
+              case('CO2','CO2_PHASE','GAS','GAS_PHASE')
+                iphase = 2
+            end select
+            call InputReadDouble(input,option,saturation_function%Kr0(iphase))
+            word = trim(keyword) // 'permeabiliy end point'
+            call InputErrorMsg(input,option,word,'PERMEABILITY_FUNCTION')
+          case(IMS_MODE)
+            call InputReadWord(input,option,keyword,PETSC_TRUE)
+            call InputErrorMsg(input,option,'keyword','PERMEABILITY_FUNCTION')
+            call StringToUpper(keyword)   
+            select case(trim(keyword))
+              case('WATER','WATER_PHASE','LIQUID','LIQUID_PHASE')
+                iphase = 1
+              case('CO2','CO2_PHASE','GAS','GAS_PHASE')
+                iphase = 2
+            end select
+            call InputReadDouble(input,option,saturation_function%Kr0(iphase))
+            word = trim(keyword) // 'permeabiliy end point'
+            call InputErrorMsg(input,option,word,'PERMEABILITY_FUNCTION')
+        end select
       case('RESIDUAL_SATURATION') 
         select case(option%iflowmode)
           case(FLASH2_MODE)
@@ -268,7 +314,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
         end select
       case('LAMBDA') 
         call InputReadDouble(input,option,saturation_function%lambda)
-        call InputErrorMsg(input,option,'lambda','SATURATION_FUNCTION')
+        call InputErrorMsg(input,option,'residual saturation','SATURATION_FUNCTION')
         saturation_function%m = saturation_function%lambda
       case('ALPHA') 
         call InputReadDouble(input,option,saturation_function%alpha)
@@ -344,8 +390,8 @@ subroutine SaturationFunctionSetTypes(saturation_function,option)
       saturation_function%permeability_function_itype = NMT_EXP
     case('PRUESS_1')
       saturation_function%permeability_function_itype = PRUESS_1
-    case('MODIFIED_BROOKS_COREY')
-      saturation_function%permeability_function_itype = MODIFIED_BROOKS_COREY
+    case('VAN_GENUCHTEN_PARKER')
+      saturation_function%permeability_function_itype = VAN_GENUCHTEN_PARKER
     case default
       option%io_buffer = 'Permeability function type "' // &
                           trim(saturation_function%permeability_function_ctype) // &
@@ -370,9 +416,10 @@ subroutine SaturationFunctionSetTypes(saturation_function,option)
       saturation_function%saturation_function_itype = NMT_EXP
     case('PRUESS_1')
       saturation_function%saturation_function_itype = PRUESS_1
-    case('MODIFIED_BROOKS_COREY')
-      saturation_function%saturation_function_itype = MODIFIED_BROOKS_COREY
-
+    case('VAN_GENUCHTEN_PARKER')
+      saturation_function%saturation_function_itype = VAN_GENUCHTEN_PARKER
+    case('VAN_GENUCHTEN_DOUGHTY')
+      saturation_function%saturation_function_itype = VAN_GENUCHTEN_DOUGHTY
     case default
       option%io_buffer = 'Saturation function type "' // &
                           trim(saturation_function%saturation_function_ctype) // &
@@ -2004,9 +2051,9 @@ end subroutine SatFuncComputeIceDallAmico
 
 ! ************************************************************************** !
 
-subroutine SatFuncGetRelPermFromSat(saturation,relative_perm,dkr_Se, &
-                                    saturation_function,iphase, &
-                                    derivative,option)
+subroutine SatFuncGetLiqRelPermFromSat(saturation,relative_perm,dkr_Se, &
+                                       saturation_function,iphase, &
+                                       derivative,option)
   ! 
   ! Calculates relative permeability from
   ! phase saturation
@@ -2120,7 +2167,7 @@ subroutine SatFuncGetRelPermFromSat(saturation,relative_perm,dkr_Se, &
       end select
   end select
   
-end subroutine SatFuncGetRelPermFromSat
+end subroutine SatFuncGetLiqRelPermFromSat
 
 ! ************************************************************************** !
 
@@ -2339,10 +2386,8 @@ subroutine SatFuncGetCapillaryPressure(capillary_pressure,saturation, &
 
   Sr = saturation_function%Sr(iphase)
   if (saturation <= Sr) then
-! comment out the following: Sr is NOT consistent with pcwmax. Actually by MVM eq., Sr is corresponding to 'inf'.
     capillary_pressure = saturation_function%pcwmax
     return
-!     saturation = Sr*1.0001d0
   else if (saturation >= 1.d0) then
     capillary_pressure = 0.d0
     return
@@ -2410,7 +2455,6 @@ subroutine SatFuncGetCapillaryPressure(capillary_pressure,saturation, &
       call printErrMsg(option)
   end select
 
-! comment out the following: Sr is NOT consistent with pcwmax. Actually by MVM eq., Sr is corresponding to 'inf'.
   capillary_pressure = min(capillary_pressure,saturation_function%pcwmax)
 
 end subroutine SatFuncGetCapillaryPressure
@@ -2556,6 +2600,9 @@ recursive subroutine SaturationFunctionDestroy(saturation_function)
     
   if (associated(saturation_function%Sr)) deallocate(saturation_function%Sr)
   nullify(saturation_function%Sr)
+
+  if (associated(saturation_function%Kr0)) deallocate(saturation_function%Kr0)
+  nullify(saturation_function%Kr0)
     
   deallocate(saturation_function)
   nullify(saturation_function)
