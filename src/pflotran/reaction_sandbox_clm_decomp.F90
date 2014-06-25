@@ -132,9 +132,9 @@ function CLM_Decomp_Create()
   CLM_Decomp_Create%inhibition_nh3_no3 = 1.0d-15
   CLM_Decomp_Create%n2o_frac_mineralization = 0.02d0  ! Parton et al. 2001
   CLM_Decomp_Create%x0eps = 1.0d-20
-  CLM_Decomp_Create%downreg_no3_0 = 1.0d-9
+  CLM_Decomp_Create%downreg_no3_0 = -1.0d-9
   CLM_Decomp_Create%downreg_no3_1 = 1.0d-7
-  CLM_Decomp_Create%downreg_nh3_0 = 1.0d-9
+  CLM_Decomp_Create%downreg_nh3_0 = -1.0d-9
   CLM_Decomp_Create%downreg_nh3_1 = 1.0d-7
 
   CLM_Decomp_Create%nc_bacteria = 0.17150d0
@@ -966,28 +966,31 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
       f_no3 = (c_no3 - this%x0eps)/ temp_real 
       d_no3 = this%half_saturation_no3 / temp_real / temp_real 
 
-    if (this%downreg_no3_0 > 0.0d0) then
+      if (this%downreg_no3_0 > 0.0d0) then
       ! additional down regulation for NO3- immobilization
-      if (c_no3 <= this%downreg_no3_0) then
-        regulator = 0.0d0
-        dregulator = 0.0d0
-      elseif (c_no3 >= this%downreg_no3_1) then
-        regulator = 1.0d0
-        dregulator = 0.0d0
-      else
-        xxx = c_no3 - this%downreg_no3_0
-        delta = this%downreg_no3_1 - this%downreg_no3_0
-        regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
-        dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
+        if (c_no3 <= this%downreg_no3_0) then
+          regulator = 0.0d0
+          dregulator = 0.0d0
+        elseif (c_no3 >= this%downreg_no3_1) then
+          regulator = 1.0d0
+          dregulator = 0.0d0
+        else
+          xxx = c_no3 - this%downreg_no3_0
+          delta = this%downreg_no3_1 - this%downreg_no3_0
+          regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
+          dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
+        endif
+
+        ! rate = rate_orginal * regulator
+        ! drate = drate_original * regulator + rate_orginal * dregulator
+        d_no3 = d_no3 * regulator + f_no3 * dregulator
+        f_no3 = f_no3 * regulator
+
       endif
 
-      ! rate = rate_orginal * regulator
-      ! drate = drate_original * regulator + rate_orginal * dregulator
-      d_no3 = d_no3 * regulator + f_no3 * dregulator
-      f_no3 = f_no3 * regulator
-
-    endif
-
+      if (this%inhibition_nh3_no3 < this%downreg_nh3_0) then
+         this%inhibition_nh3_no3 = this%downreg_nh3_0
+      endif
       temp_real = this%inhibition_nh3_no3 + c_nh3
       f_nh3_inhibit = this%inhibition_nh3_no3/temp_real
       d_nh3_inhibit = -1.0d0*this%inhibition_nh3_no3/temp_real/temp_real
