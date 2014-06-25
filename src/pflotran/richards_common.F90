@@ -676,40 +676,42 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
             call EOSWaterdensity(option%reference_temperature, &
                                  option%reference_pressure,rho,dum1,ierr)
 
-            if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%P_min) then
-            
-              ! Linear approximation
-              call Interpolate(rich_auxvar_dn%range_for_linear_approx(2), &
-                               rich_auxvar_dn%range_for_linear_approx(1), &
-                               global_auxvar_dn%pres(1), &
-                               rich_auxvar_dn%range_for_linear_approx(4), &
-                               rich_auxvar_dn%range_for_linear_approx(3), &
-                               q_approx)
-              v_darcy = q_approx/area
-              q       = q_approx
+              if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%P_min) then
+              
+                ! Linear approximation
+                call Interpolate(rich_auxvar_dn%range_for_linear_approx(2), &
+                                 rich_auxvar_dn%range_for_linear_approx(1), &
+                                 global_auxvar_dn%pres(1), &
+                                 rich_auxvar_dn%range_for_linear_approx(4), &
+                                 rich_auxvar_dn%range_for_linear_approx(3), &
+                                 q_approx)
+                v_darcy = q_approx/area
+                q       = q_approx
 
-              dP_lin = rich_auxvar_dn%range_for_linear_approx(2) - &
-                       rich_auxvar_dn%range_for_linear_approx(1)
-              dq_lin = rich_auxvar_dn%range_for_linear_approx(4) - &
-                       rich_auxvar_dn%range_for_linear_approx(3)
-              dq_dp_dn = dq_lin/dP_lin
+                dP_lin = rich_auxvar_dn%range_for_linear_approx(2) - &
+                         rich_auxvar_dn%range_for_linear_approx(1)
+                dq_lin = rich_auxvar_dn%range_for_linear_approx(4) - &
+                         rich_auxvar_dn%range_for_linear_approx(3)
+                dq_dp_dn = dq_lin/dP_lin
 
 #ifndef CLM_PFLOTRAN
             else
               if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%P_max) then
 
-                ! Cubic approximation
-                call CubicPolynomialEvaluate(rich_auxvar_dn%coeff_for_cubic_approx, &
-                                             global_auxvar_dn%pres(1), &
-                                             q_approx, dq_approx)
-                v_darcy = q_approx/area
-                q = q_approx
-                dq_dp_dn = dq_approx
+                  ! Cubic approximation
+                  call CubicPolynomialEvaluate(rich_auxvar_dn%coeff_for_cubic_approx, &
+                                               global_auxvar_dn%pres(1) - option%reference_pressure, &
+                                               q_approx, dq_approx)
+                  v_darcy = q_approx/area
+                  q = q_approx
+                  dq_dp_dn = dq_approx
+                endif
               endif
 #endif
 
             endif
           endif
+
         endif
 
       endif
@@ -972,20 +974,21 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
           call EOSWaterdensity(option%reference_temperature, &
                                option%reference_pressure,rho,dum1,ierr)
 
-          if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%P_min) then
+          if (.not. rich_auxvar_dn%bcflux_default_scheme) then
+            if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%P_min) then
 
-            if (rich_auxvar_dn%range_for_linear_approx(1) == -99999.d0) then
-              call printErrMsg(option,'Coeffs for linear approx for darcy flux not set')
-            endif
+              if (rich_auxvar_dn%range_for_linear_approx(1) == -99999.d0) then
+                call printErrMsg(option,'Coeffs for linear approx for darcy flux not set')
+              endif
 
-            ! Linear approximation
-            call Interpolate(rich_auxvar_dn%range_for_linear_approx(2), &
-                             rich_auxvar_dn%range_for_linear_approx(1), &
-                             global_auxvar_dn%pres(1), &
-                             rich_auxvar_dn%range_for_linear_approx(4), &
-                             rich_auxvar_dn%range_for_linear_approx(3), &
-                             q_approx)
-            v_darcy = q_approx/area
+              ! Linear approximation
+              call Interpolate(rich_auxvar_dn%range_for_linear_approx(2), &
+                               rich_auxvar_dn%range_for_linear_approx(1), &
+                               global_auxvar_dn%pres(1), &
+                               rich_auxvar_dn%range_for_linear_approx(4), &
+                               rich_auxvar_dn%range_for_linear_approx(3), &
+                               q_approx)
+              v_darcy = q_approx/area
 
 #ifndef CLM_PFLOTRAN
           else if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%P_max) then
