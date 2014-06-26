@@ -919,6 +919,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
 ! save mineral N fraction and decomposition rate for net N mineralization and N2O calculation 
   PetscReal :: net_n_mineralization_rate
+  PetscReal :: dnet_n_mineralization_rate_dnh3
   PetscReal :: ph, f_ph
   PetscReal :: rate_n2o, drate_n2o
 
@@ -1050,6 +1051,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   net_n_mineralization_rate = 0.0d0
+  dnet_n_mineralization_rate_dnh3 = 0.0d0
 
   do irxn = 1, this%nrxn
   
@@ -1203,6 +1205,8 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     enddo
 
     net_n_mineralization_rate=net_n_mineralization_rate+this%mineral_n_stoich(irxn)*rate
+    dnet_n_mineralization_rate_dnh3 = dnet_n_mineralization_rate_dnh3 + &
+      this%mineral_n_stoich(irxn) * drate_nh3
 
 !   start residual calculation for N immobilization reaction with NO3 uptake
 !   if nitrate is available, N immobilization decomposition reactions occurs
@@ -1250,6 +1254,8 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
        enddo
 
        net_n_mineralization_rate=net_n_mineralization_rate+this%mineral_n_stoich(irxn)*rate_no3
+       dnet_n_mineralization_rate_dnh3 = dnet_n_mineralization_rate_dnh3 + &
+         this%mineral_n_stoich(irxn) * drate_nh3_no3
 
     endif   !   end residual calculation for N immobilization reaction with NO3 uptake
 
@@ -1930,7 +1936,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
       temp_real = temp_real * this%n2o_frac_mineralization 
     
     ! residuals 
-      rate_n2o = temp_real * net_n_mineralization_rate * f_nh3
+      rate_n2o = temp_real * net_n_mineralization_rate
  
       Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o 
 
@@ -1941,7 +1947,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
       endif
 
       if (compute_derivative) then
-        drate_n2o = temp_real * net_n_mineralization_rate * d_nh3
+        drate_n2o = temp_real * dnet_n_mineralization_rate_dnh3
         Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_n2o* &
            rt_auxvar%aqueous%dtotal(this%species_id_nh3,this%species_id_nh3,iphase)
         Jacobian(ires_n2o,ires_nh3) = Jacobian(ires_n2o,ires_nh3) - 0.5d0*drate_n2o* &
