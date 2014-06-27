@@ -66,11 +66,11 @@ function NitrificationCreate()
   NitrificationCreate%ispec_ngasnit = 0
   NitrificationCreate%k_nitr_max = 1.d-6
   NitrificationCreate%k_nitr_n2o = 3.5d-8
-  NitrificationCreate%half_saturation = 1.0d-10
+  NitrificationCreate%half_saturation = -1.0d-10
   NitrificationCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   NitrificationCreate%Q10 = 1.5d0
   NitrificationCreate%x0eps = 1.0d-20
-  NitrificationCreate%downreg_nh3_0 = 1.0d-9
+  NitrificationCreate%downreg_nh3_0 = -1.0d-9
   NitrificationCreate%downreg_nh3_1 = 1.0d-7
   nullify(NitrificationCreate%next)  
       
@@ -143,7 +143,11 @@ subroutine NitrificationRead(this,input,option)
          call InputReadDouble(input,option,this%k_nitr_n2o)
          call InputErrorMsg(input,option,'N2O rate coefficient from nirification', &
                      'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
-      case('DOWNREGULATE_NH4')
+     case('AMMONIA_HALF_SATURATION')
+          call InputReadDouble(input,option,this%half_saturation)
+          call InputErrorMsg(input,option,'ammonia half-saturation', &
+                 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
+     case('DOWNREGULATE_NH4')
         call InputReadDouble(input,option,this%downreg_nh3_0)
         call InputErrorMsg(input,option,'downreg_nh3_0', &
           'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
@@ -296,6 +300,8 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: c_nh3      ! mole/L
   PetscReal :: s_nh3      ! mole/m3
   PetscReal :: c_nh3_ugg  ! ug ammonia N / g soil
+  PetscReal :: f_nh3      ! nh3 / (half_saturation + nh3)
+  PetscReal :: d_nh3      ! half_saturation/(nh3 + half_saturation)^2
   PetscReal :: ph
   PetscReal :: rate_n2o, drate_n2o
   PetscReal :: rate_nitri, drate_nitri
@@ -306,6 +312,9 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: L_water
   PetscInt :: ires_ngasnit
   PetscReal :: xxx, delta, regulator, dregulator
+  PetscReal :: temp_real
+
+!---------------------------------------------------------------------------------
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
@@ -326,6 +335,15 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   tc = global_auxvar%temp
 
   c_nh3 = rt_auxvar%total(this%ispec_nh3, iphase)
+  if (this%half_saturation > 0.0d0) then
+    temp_real = c_nh3 - this%x0eps + this%half_saturation
+    f_nh3 = (c_nh3 - this%x0eps) / temp_real
+    d_nh3 = (c_nh3 - this%x0eps + &
+             2.d0 * this%half_saturation) / temp_real /temp_real
+  else
+    f_nh3 = c_nh3 - this%x0eps
+    d_nh3 = 1.0d0
+  endif
 
   if (this%downreg_nh3_0 > 0.0d0) then
     ! additional down regulation for nitrification 
@@ -445,7 +463,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
  
          ! rate = rate_orginal * regulator
          ! drate = drate_original * regulator + rate_orginal * dregulator
-         drate_n2o = drate_n2o * regulator + rate_n2o * dregulator 
+           drate_n2o = drate_n2o * regulator + rate_n2o * dregulator
 
            Jacobian(ires_nh3,ires_nh3)=Jacobian(ires_nh3,ires_nh3)+drate_n2o * &
            rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_nh3,iphase)
