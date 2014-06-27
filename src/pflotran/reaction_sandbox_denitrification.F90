@@ -91,7 +91,7 @@ function DenitrificationCreate()
   DenitrificationCreate%Q10 = 1.5d0
   DenitrificationCreate%k_deni_max = 2.5d-6  ! denitrification rate
   DenitrificationCreate%x0eps = 1.0d-20
-  DenitrificationCreate%downreg_no3_0 = 1.0d-9
+  DenitrificationCreate%downreg_no3_0 = -1.0d-9
   DenitrificationCreate%downreg_no3_1 = 1.0d-7
 
   nullify(DenitrificationCreate%next)  
@@ -162,9 +162,9 @@ subroutine DenitrificationRead(this,input,option)
           call InputReadDouble(input,option,this%k_deni_max)
           call InputErrorMsg(input,option,'k_deni_max', &
                  'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,REACTION')
-      case('N_INHIBITION')
+      case('NITRATE_HALF_SATURATION')
           call InputReadDouble(input,option,this%half_saturation)
-          call InputErrorMsg(input,option,'inhibition coefficient', &
+          call InputErrorMsg(input,option,'nitrate half-saturation', &
                  'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,REACTION')
       case('DOWNREGULATE_NO3')
         call InputReadDouble(input,option,this%downreg_no3_0)
