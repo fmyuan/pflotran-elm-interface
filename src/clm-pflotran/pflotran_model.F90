@@ -2590,6 +2590,7 @@ end subroutine pflotranModelSetICs
     use Surface_Realization_class, only : surface_realization_type
     use clm_pflotran_interface_data
     use Mapping_module
+    use TH_Aux_module
 
     implicit none
 
@@ -2605,6 +2606,7 @@ end subroutine pflotranModelSetICs
     PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: sat_pf_p(:)
     PetscReal, pointer :: sat_clm_p(:)
+    type(TH_auxvar_type),pointer :: TH_auxvars(:)
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -2631,6 +2633,23 @@ end subroutine pflotranModelSetICs
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     clm_pf_idata%sat_pf, &
                                     clm_pf_idata%sat_clm)
+
+    if (pflotran_model%option%iflowmode == TH_MODE .and. &
+        pflotran_model%option%use_th_freezing) then
+
+      TH_auxvars => patch%aux%TH%auxvars
+
+      call VecGetArrayF90(clm_pf_idata%sat_ice_pf, sat_pf_p, ierr)
+      do local_id = 1, grid%nlmax
+        ghosted_id = grid%nL2G(local_id)
+        sat_pf_p(local_id) = TH_auxvars(ghosted_id)%sat_ice
+      enddo
+      call VecGetArrayF90(clm_pf_idata%sat_ice_pf, sat_pf_p, ierr)
+
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                      clm_pf_idata%sat_ice_pf, &
+                                      clm_pf_idata%sat_ice_clm)
+    endif
 
   end subroutine pflotranModelGetSaturation
 
