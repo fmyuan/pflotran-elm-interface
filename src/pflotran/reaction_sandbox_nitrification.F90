@@ -335,13 +335,15 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   tc = global_auxvar%temp
 
   c_nh3 = rt_auxvar%total(this%ispec_nh3, iphase)
+  if (c_nh3 < this%x0eps) return
+
   if (this%half_saturation > 0.0d0) then
-    temp_real = c_nh3 - this%x0eps + this%half_saturation
-    f_nh3 = (c_nh3 - this%x0eps) / temp_real
-    d_nh3 = (c_nh3 - this%x0eps + &
+    temp_real = c_nh3 + this%half_saturation
+    f_nh3 = c_nh3 / temp_real
+    d_nh3 = (c_nh3 + &
              2.d0 * this%half_saturation) / temp_real /temp_real
   else
-    f_nh3 = c_nh3 - this%x0eps
+    f_nh3 = c_nh3
     d_nh3 = 1.0d0
   endif
 
@@ -376,7 +378,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
   ! nitrification (Dickinson et al. 2002)
   if(this%ispec_no3 > 0) then
-    f_t = exp(0.08d0 * (tc - 298.0d0 + 273.15d0))
+    f_t = exp(0.08d0 * (tc - 25.0d0))
     f_w = saturation * (1.0d0 - saturation)
 
     rate_nitri = f_t * f_w * this%k_nitr_max * c_nh3 * c_nh3 / &
@@ -391,7 +393,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
  
       ! rate = rate_orginal * regulator
       ! drate = drate_original * regulator + rate_orginal * dregulator
-      drate_nitri = drate_nitri * regulator + rate_nitri * dregulator
+     drate_nitri = drate_nitri * regulator + rate_nitri * dregulator
 
      Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_nitri * &
         rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_nh3,iphase)

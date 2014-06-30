@@ -1000,8 +1000,13 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
       ! since 'f_nh3' is down-regulation factor for NH4 immoblization,
       ! '1.-f_nh3' should be those for NO3 immobilization
-      f_nh3_inhibit = ONE_REAL - f_nh3
-      d_nh3_inhibit = -d_nh3
+      if (c_nh3>this%x0eps) then
+        f_nh3_inhibit = ONE_REAL - f_nh3
+        d_nh3_inhibit = -d_nh3
+      else
+        f_nh3_inhibit = ONE_REAL
+        d_nh3_inhibit = 0.d0
+      endif
   endif 
 
   !----------------------------------------------------------------------------------------------
@@ -1524,7 +1529,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     !   start N immobilization reaction with NO3 uptake
     !   if nitrate is available, N immobilization decomposition reactions occurs
     !   with rate depending on NH3, with reduced rate if NH3 is abundent
-101 continue   ! this continue is for jumping (exiting) of NH4 immobilization due to c_nh3 < x0esp).
+101 continue   ! this continue is for jumping (exiting) of NH4 immobilization due to c_nh3 < x0eps).
 
     if(this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0 &
        .and. c_no3 > this%x0eps) then
@@ -1842,7 +1847,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
                   this%downstream_stoich(irxn, j) * drate_no3
            endif
         enddo
-!#ifdef TEST
+
         ! --- with respect to nh3
         ! CO2
         Jacobian(ires_co2,ires_nh3) = Jacobian(ires_co2,ires_nh3) - &
@@ -1901,8 +1906,8 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
                   this%downstream_stoich(irxn, j) * drate_nh3_no3
            endif
         enddo
-!#endif
-      endif  ! end of jacobian calculation for NO3 immobilization, if any
+
+      endif  ! end of jacobian calculation for NO3 immobilization
 
     endif ! if(this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0 & .and. c_no3 > this%x0eps) then
 
@@ -1911,7 +1916,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-  if(this%species_id_n2o > 0 .and. net_n_mineralization_rate > 1.0d-20) then
+  if(this%species_id_n2o > 0 .and. net_n_mineralization_rate > this%x0eps) then
 
 #ifdef CLM_PFLOTRAN
     ! temperature/moisture/pH response functions (Parton et al. 1996)
@@ -1938,7 +1943,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     f_ph = 1.0d0
 #endif
 
-    if(f_t > 1.0d-20 .and. f_w > 1.0d-20 .and. f_ph > 1.0d-20) then
+    if(f_t > this%x0eps .and. f_w > this%x0eps .and. f_ph > this%x0eps) then
       temp_real = f_t * f_w * f_ph
 
       if(temp_real > 1.0d0) then
@@ -1958,6 +1963,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
          Residual(ires_ngasmin) = Residual(ires_ngasmin) - 0.5d0 * rate_n2o
       endif
 
+     !Jacobians
       if (compute_derivative) then
         drate_n2o = temp_real * dnet_n_mineralization_rate_dnh3
         Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_n2o* &
