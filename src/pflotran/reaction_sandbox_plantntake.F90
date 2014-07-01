@@ -60,9 +60,9 @@ function PlantNTakeCreate()
   PlantNTakeCreate%inhibition_nh3_no3  = 1.d-15
   PlantNTakeCreate%x0eps  = 1.d-20
   PlantNTakeCreate%x0eps_no3  = 1.d-20
-  PlantNTakeCreate%downreg_no3_0 = 1.0d-9 
+  PlantNTakeCreate%downreg_no3_0 = -1.0d-9
   PlantNTakeCreate%downreg_no3_1 = 1.0d-7
-  PlantNTakeCreate%downreg_nh3_0 = 1.0d-9 
+  PlantNTakeCreate%downreg_nh3_0 = -1.0d-9
   PlantNTakeCreate%downreg_nh3_1 = 1.0d-7
   nullify(PlantNTakeCreate%next)  
       
@@ -106,11 +106,11 @@ subroutine PlantNTakeRead(this,input,option)
           call InputReadDouble(input,option,this%rate)
           call InputErrorMsg(input,option,'rate', &
                   'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
-      case('HALF_SATURATION_AMMONIA')
+      case('AMMONIA_HALF_SATURATION')
           call InputReadDouble(input,option,this%half_saturation_nh3)
           call InputErrorMsg(input,option,'half saturation for ammonia', &
                      'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
-      case('HALF_SATURATION_NITRATE')
+      case('NITRATE_HALF_SATURATION')
           call InputReadDouble(input,option,this%half_saturation_no3)
           call InputErrorMsg(input,option,'half saturation for nitrate', &
                      'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
@@ -299,8 +299,8 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 
   if (ispec_nh3 > 0) then
      c_nh3     = rt_auxvar%total(ispec_nh3, iphase)
-     temp_real = c_nh3 - this%x0eps + this%half_saturation_nh3
-     f_nh3     = (c_nh3 - this%x0eps) / temp_real
+     temp_real = c_nh3 + this%half_saturation_nh3
+     f_nh3     = c_nh3 / temp_real
      d_nh3     = this%half_saturation_nh3 / temp_real / temp_real
 
     if (this%downreg_nh3_0 > 0.0d0) then
@@ -329,11 +329,10 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
     ires_nh3 = ispec_nh3
   endif
 
-  f_nh3_inhibit = 0.d0
   if (ispec_no3 > 0) then
     c_no3 = rt_auxvar%total(ispec_no3, iphase)
-    temp_real = c_no3 -this%x0eps_no3 + this%half_saturation_no3
-    f_no3 = (c_no3 - this%x0eps_no3) / temp_real
+    temp_real = c_no3 + this%half_saturation_no3
+    f_no3 = c_no3 / temp_real
     d_no3 = this%half_saturation_no3 / temp_real / temp_real
 
     if (this%downreg_no3_0 > 0.0d0) then
@@ -360,9 +359,10 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 
     ires_no3 = ispec_no3
 
-    if (ispec_nh3 > 0) then
-      temp_real = this%inhibition_nh3_no3 + c_nh3
-      f_nh3_inhibit = this%inhibition_nh3_no3/temp_real
+    if (ispec_nh3 > 0 .and. c_nh3 > this%x0eps) then
+      !temp_real = this%inhibition_nh3_no3 + c_nh3
+      !f_nh3_inhibit = this%inhibition_nh3_no3/temp_real
+      f_nh3_inhibit = 1.0d0 - f_nh3
     else
       f_nh3_inhibit = 1.0d0
     endif
@@ -378,13 +378,13 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
        rate_plantnuptake_pf_loc, ierr)
 #endif
 
-  rate_nplant = this%rate !* (1.d0 - f_nh3_inhibit)
+  rate_nplant = this%rate
 
   if (ispec_plantndemand > 0) then
     Residual(ires_plantndemand) = Residual(ires_plantndemand) - rate_nplant
   endif
 
-  if(ispec_nh3 > 0) then
+  if(ispec_nh3 > 0 .and. c_nh3 > this%x0eps) then
 
     drate_nplant = rate_nplant * d_nh3
     rate_nplant = rate_nplant * f_nh3
@@ -408,7 +408,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
     endif
   endif
 
-  if(ispec_no3 > 0) then
+  if(ispec_no3 > 0 .and. c_no3 > this%x0eps_no3) then
     rate_nplant_no3 = this%rate * f_nh3_inhibit * f_no3
     drate_nplant_no3 = this%rate * f_nh3_inhibit * d_no3
 

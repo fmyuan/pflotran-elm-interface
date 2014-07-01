@@ -1358,11 +1358,7 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
       call printErrMsg(option)
   end select
 
-#ifdef CLM_PFLOTRAN
-  call RichardsComputeCoeffsForSurfFlux(realization)
-#else
   if (option%nsurfflowdof>0) call RichardsComputeCoeffsForSurfFlux(realization)
-#endif
 
 !  write(*,*) "RichardsResidual"
 !  read(*,*)
@@ -2752,10 +2748,6 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
     if (.not.associated(boundary_condition)) exit
     cur_connection_set => boundary_condition%connection_set
 
-#ifdef CLM_PFLOTRAN
-    if (StringCompare(boundary_condition%name,'from_surface_bc') .or. &
-        StringCompare(boundary_condition%name,'clm_gpress_bc')) then
-#else
     if (StringCompare(boundary_condition%name,'from_surface_bc')) then
 
       pressure_bc_type = boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF)
@@ -2763,7 +2755,6 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
         call printErrMsg(option,'from_surface_bc is not of type ' // &
                         'HET_SURF_SEEPAGE_BC')
       endif
-#endif
 
       do iconn = 1, cur_connection_set%num_connections
 
