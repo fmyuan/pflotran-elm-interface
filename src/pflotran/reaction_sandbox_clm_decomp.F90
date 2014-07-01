@@ -927,8 +927,6 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   PetscInt :: ires_b, ires_f
   PetscReal :: xxx, delta, regulator, dregulator
 
-  PetscReal, parameter :: ONE_REAL = 1.0
-
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   !------------------------------------------------------------------------------------------------
@@ -1001,10 +999,10 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
       ! since 'f_nh3' is down-regulation factor for NH4 immoblization,
       ! '1.-f_nh3' should be those for NO3 immobilization
       if (c_nh3>this%x0eps) then
-        f_nh3_inhibit = ONE_REAL - f_nh3
+        f_nh3_inhibit = 1.d0 - f_nh3
         d_nh3_inhibit = -d_nh3
       else
-        f_nh3_inhibit = ONE_REAL
+        f_nh3_inhibit = 1.d0
         d_nh3_inhibit = 0.d0
       endif
   endif 
