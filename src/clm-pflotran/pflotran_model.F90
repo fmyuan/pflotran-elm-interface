@@ -109,8 +109,6 @@ module pflotran_model_module
 
     PetscLogDouble :: timex(4), timex_wall(4)
 
-    PetscBool :: b_out_bgc_rate
-
   end type pflotran_model_type
 
   public::pflotranModelCreate,               &
@@ -247,13 +245,6 @@ contains
     end select
     ! NOTE(bja, 2013-07-15) needs to go before InitializeRun()...?
     call pflotranModelSetupMappingFiles(model)
-
-!  for debug only, to be removed or replaced with h5 file
-    model%b_out_bgc_rate = PETSC_FALSE
-    if (model%b_out_bgc_rate) then
-        open(unit=100,file="bgc_rate_clm_to_pflotran.txt",form="formatted",status="replace")
-        write(100, *) '# Lit1C Lit2C Lit3C Lit1N Lit2N Lit3N mineralN plantN leachedN DenitrifiedN'
-    endif
 
     pflotranModelCreate => model
 
@@ -1616,11 +1607,6 @@ end subroutine pflotranModelSetICs
          call printErrMsg(pflotran_model%option)
     end select
 
-#ifndef SURFACE_FLOW
-    option%io_buffer='To support dest_mesh == PF_SRF_MESH, need to '// &
-         'compiled with -DSURFACE_FLOW.'
-    call printErrMsg(option)
-#else
     allocate(grid_clm_cell_ids_nindex_copy(grid_clm_npts_local))
     grid_clm_cell_ids_nindex_copy = grid_clm_cell_ids_nindex
 
@@ -2897,6 +2883,7 @@ end subroutine pflotranModelSetICs
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: soillsat_pf_p(:)
+    PetscReal, pointer :: soilisat_pf_p(:)
     PetscReal, pointer :: press_pf_p(:)
     PetscReal, pointer :: soilpsi_pf_p(:)
 
@@ -2960,6 +2947,24 @@ end subroutine pflotranModelSetICs
                                     pflotran_model%option, &
                                     clm_pf_idata%soilpsi_pfp, &
                                     clm_pf_idata%soilpsi_clms)
+
+    if (pflotran_model%option%iflowmode == TH_MODE .and. &
+        pflotran_model%option%use_th_freezing) then
+
+      TH_auxvars => patch%aux%TH%auxvars
+
+      call VecGetArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
+      do local_id = 1, grid%nlmax
+        ghosted_id = grid%nL2G(local_id)
+        soilisat_pf_p(local_id) = TH_auxvars(ghosted_id)%sat_ice
+      enddo
+      call VecRestoreArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
+
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                      pflotran_model%option, &
+                                      clm_pf_idata%soilisat_pfp, &
+                                      clm_pf_idata%soilisat_clms)
+    endif
 
   end subroutine pflotranModelGetSaturation
 
@@ -3070,8 +3075,6 @@ end subroutine pflotranModelSetICs
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
-    !PetscScalar, pointer :: temp_pf_p(:)
-    PetscReal, pointer :: soilisat_pf_p(:)
     PetscReal, pointer :: soilt_pf_p(:)
 
     select type (simulation => pflotran_model%simulation)
@@ -3090,26 +3093,18 @@ end subroutine pflotranModelSetICs
     th_auxvars      => patch%aux%TH%auxvars
 
     call VecGetArrayF90(clm_pf_idata%soilt_pfp, soilt_pf_p, ierr)
-    call VecGetArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
     do ghosted_id=1,grid%ngmax
       local_id = grid%nG2L(ghosted_id)
       if (local_id>0) then
         soilt_pf_p(local_id) = global_auxvars(ghosted_id)%temp
-        soilisat_pf_p(local_id) = th_auxvars(ghosted_id)%sat_ice
       endif
     enddo
     call VecRestoreArrayF90(clm_pf_idata%soilt_pfp, soilt_pf_p, ierr)
-    call VecRestoreArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%soilt_pfp, &
                                     clm_pf_idata%soilt_clms)
-
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%soilisat_pfp, &
-                                    clm_pf_idata%soilisat_clms)
 
   end subroutine pflotranModelGetTemperature
 
@@ -3339,11 +3334,7 @@ end subroutine pflotranModelSetICs
     call model%simulation%Strip()
     deallocate(model%simulation)
     nullify(model%simulation)
-
-    if (model%b_out_bgc_rate) then
-    close(100)
-    endif
-
+  
     call PFLOTRANFinalize(model%option)
     call OptionFinalize(model%option)
 
