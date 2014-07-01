@@ -314,7 +314,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
         end select
       case('LAMBDA') 
         call InputReadDouble(input,option,saturation_function%lambda)
-        call InputErrorMsg(input,option,'lambda','SATURATION_FUNCTION')
+        call InputErrorMsg(input,option,'residual saturation','SATURATION_FUNCTION')
         saturation_function%m = saturation_function%lambda
       case('ALPHA') 
         call InputReadDouble(input,option,saturation_function%alpha)
@@ -2386,10 +2386,8 @@ subroutine SatFuncGetCapillaryPressure(capillary_pressure,saturation, &
 
   Sr = saturation_function%Sr(iphase)
   if (saturation <= Sr) then
-! comment out the following: Sr is NOT consistent with pcwmax. Actually by MVM eq., Sr is corresponding to 'inf'.
     capillary_pressure = saturation_function%pcwmax
     return
-!     saturation = Sr*1.0001d0
   else if (saturation >= 1.d0) then
     capillary_pressure = 0.d0
     return
@@ -2457,7 +2455,6 @@ subroutine SatFuncGetCapillaryPressure(capillary_pressure,saturation, &
       call printErrMsg(option)
   end select
 
-! comment out the following: Sr is NOT consistent with pcwmax. Actually by MVM eq., Sr is corresponding to 'inf'.
   capillary_pressure = min(capillary_pressure,saturation_function%pcwmax)
 
 end subroutine SatFuncGetCapillaryPressure

@@ -919,6 +919,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
 ! save mineral N fraction and decomposition rate for net N mineralization and N2O calculation 
   PetscReal :: net_n_mineralization_rate
+  PetscReal :: dnet_n_mineralization_rate_dnh3
   PetscReal :: ph, f_ph
   PetscReal :: rate_n2o, drate_n2o
 
@@ -933,8 +934,8 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   volume = material_auxvar%volume
 
   c_nh3     = rt_auxvar%total(this%species_id_nh3, iphase)
-  temp_real = c_nh3 - this%x0eps + this%half_saturation_nh3
-  f_nh3     = (c_nh3 - this%x0eps) / temp_real 
+  temp_real = c_nh3 + this%half_saturation_nh3
+  f_nh3     = c_nh3 / temp_real
   d_nh3     = this%half_saturation_nh3 / temp_real / temp_real
 
   if (this%downreg_nh3_0 > 0.0d0) then
@@ -962,8 +963,8 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
   if (this%species_id_no3 > 0) then
       c_no3 = rt_auxvar%total(this%species_id_no3, iphase)
-      temp_real = c_no3 - this%x0eps + this%half_saturation_no3
-      f_no3 = (c_no3 - this%x0eps)/ temp_real 
+      temp_real = c_no3 + this%half_saturation_no3
+      f_no3 = c_no3 / temp_real
       d_no3 = this%half_saturation_no3 / temp_real / temp_real 
 
       if (this%downreg_no3_0 > 0.0d0) then
@@ -988,12 +989,22 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
       endif
 
-      if (this%inhibition_nh3_no3 < this%downreg_nh3_0) then
-         this%inhibition_nh3_no3 = this%downreg_nh3_0
+      !if (this%inhibition_nh3_no3 < this%downreg_nh3_0) then
+      !   this%inhibition_nh3_no3 = this%downreg_nh3_0
+      !endif
+      !temp_real = this%inhibition_nh3_no3 + c_nh3
+      !f_nh3_inhibit = this%inhibition_nh3_no3/temp_real
+      !d_nh3_inhibit = -this%inhibition_nh3_no3/temp_real/temp_real
+
+      ! since 'f_nh3' is down-regulation factor for NH4 immoblization,
+      ! '1.-f_nh3' should be those for NO3 immobilization
+      if (c_nh3>this%x0eps) then
+        f_nh3_inhibit = 1.d0 - f_nh3
+        d_nh3_inhibit = -d_nh3
+      else
+        f_nh3_inhibit = 1.d0
+        d_nh3_inhibit = 0.d0
       endif
-      temp_real = this%inhibition_nh3_no3 + c_nh3
-      f_nh3_inhibit = this%inhibition_nh3_no3/temp_real
-      d_nh3_inhibit = -1.0d0*this%inhibition_nh3_no3/temp_real/temp_real
   endif 
 
   !----------------------------------------------------------------------------------------------
@@ -1050,6 +1061,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   net_n_mineralization_rate = 0.0d0
+  dnet_n_mineralization_rate_dnh3 = 0.0d0
 
   do irxn = 1, this%nrxn
   
@@ -1157,9 +1169,10 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     ! NH3 limiting
     drate_nh3 = 0.d0
     if(this%mineral_n_stoich(irxn) < 0.0d0) then
-          drate_nh3 = rate * d_nh3 
-          rate      = rate * f_nh3
-          drate_uc  = drate_uc * f_nh3
+          if (c_nh3 < this%x0eps) goto 101   ! jumping to NO3 immobilization, if any
+          rate      = scaled_rate_const * c_uc * f_nh3
+          drate_uc  = scaled_rate_const * f_nh3
+          drate_nh3 = scaled_rate_const * c_uc * d_nh3
     endif 
 
     !-----------------------------------------------------------------------------------------------------
@@ -1203,55 +1216,8 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     enddo
 
     net_n_mineralization_rate=net_n_mineralization_rate+this%mineral_n_stoich(irxn)*rate
-
-!   start residual calculation for N immobilization reaction with NO3 uptake
-!   if nitrate is available, N immobilization decomposition reactions occurs
-!   with rate depending on NH3, with reduced rate if NH3 is abundent  
-    if(this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0) then
-
-       rate_no3     = scaled_rate_const * (c_uc - this%x0eps) * f_no3 * f_nh3_inhibit
-       drate_uc_no3 = scaled_rate_const * 1.0d0 * f_no3 * f_nh3_inhibit
-       drate_no3    = scaled_rate_const * (c_uc - this%x0eps) * d_no3 * f_nh3_inhibit
-       drate_nh3_no3= scaled_rate_const * (c_uc - this%x0eps) * f_no3 * d_nh3_inhibit
-
-    ! residuals
-       ! carbon
-       Residual(ires_co2) = Residual(ires_co2) - this%mineral_c_stoich(irxn) * rate_no3
-       if (this%species_id_hrimm > 0) then
-           Residual(ires_hrimm) = Residual(ires_hrimm) - this%mineral_c_stoich(irxn) * rate_no3
-       endif
-    
-       ! NO3
-       Residual(ires_no3) = Residual(ires_no3) - this%mineral_n_stoich(irxn) * rate_no3
-
-       if(this%species_id_nimm > 0) then
-          Residual(ires_nimm) = Residual(ires_nimm) + this%mineral_n_stoich(irxn) * rate_no3
-       endif
-
-       ! upstream c
-       Residual(ires_uc) = Residual(ires_uc) - (-1.d0) * rate_no3
-    
-       ! upstream n
-       if(this%is_litter_decomp(irxn)) then
-         Residual(ires_un) = Residual(ires_un)+this%upstream_nc(irxn)*rate_no3
-       endif
-    
-       ! downstream pools
-       do j = 1, this%n_downstream_pools(irxn)
-         ispec_d = this%downstream_id(irxn, j)
-         if(this%downstream_is_aqueous(irxn, j)) then
-           ires_d = ispec_d
-         else
-           ires_d = reaction%offset_immobile + ispec_d
-         endif
-         if(ispec_d > 0) then
-            Residual(ires_d) = Residual(ires_d) - this%downstream_stoich(irxn, j) * rate_no3
-         endif
-       enddo
-
-       net_n_mineralization_rate=net_n_mineralization_rate+this%mineral_n_stoich(irxn)*rate_no3
-
-    endif   !   end residual calculation for N immobilization reaction with NO3 uptake
+    dnet_n_mineralization_rate_dnh3 = dnet_n_mineralization_rate_dnh3 + &
+      this%mineral_n_stoich(irxn) * drate_nh3
 
     !-----------------------------------------------------------------------------------------------------
     ! calculate jacobians
@@ -1555,8 +1521,63 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
       endif  ! end of NH4 limiting, if any
 
-      ! ---- Jacobians for NO3 immobilization, if any -----
-      if(this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0) then
+    endif ! end of jacobian calculations, without NO3 immoblization
+
+    ! ---- NO3 immobilization, if any -----
+    !   start N immobilization reaction with NO3 uptake
+    !   if nitrate is available, N immobilization decomposition reactions occurs
+    !   with rate depending on NH3, with reduced rate if NH3 is abundent
+101 continue   ! this continue is for jumping (exiting) of NH4 immobilization due to c_nh3 < x0eps).
+
+    if(this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0 &
+       .and. c_no3 > this%x0eps) then
+
+       rate_no3     = scaled_rate_const * c_uc * f_no3 * f_nh3_inhibit
+       drate_uc_no3 = scaled_rate_const * f_no3 * f_nh3_inhibit
+       drate_no3    = scaled_rate_const * c_uc * d_no3 * f_nh3_inhibit
+       drate_nh3_no3= scaled_rate_const * c_uc * f_no3 * d_nh3_inhibit
+
+    ! residuals for N immobilization reaction with NO3 uptake
+       ! carbon
+       Residual(ires_co2) = Residual(ires_co2) - this%mineral_c_stoich(irxn) * rate_no3
+       if (this%species_id_hrimm > 0) then
+           Residual(ires_hrimm) = Residual(ires_hrimm) - this%mineral_c_stoich(irxn) * rate_no3
+       endif
+
+       ! NO3
+       Residual(ires_no3) = Residual(ires_no3) - this%mineral_n_stoich(irxn) * rate_no3
+
+       if(this%species_id_nimm > 0) then
+          Residual(ires_nimm) = Residual(ires_nimm) + this%mineral_n_stoich(irxn) * rate_no3
+       endif
+
+       ! upstream c
+       Residual(ires_uc) = Residual(ires_uc) - (-1.d0) * rate_no3
+
+       ! upstream n
+       if(this%is_litter_decomp(irxn)) then
+         Residual(ires_un) = Residual(ires_un)+this%upstream_nc(irxn)*rate_no3
+       endif
+
+       ! downstream pools
+       do j = 1, this%n_downstream_pools(irxn)
+         ispec_d = this%downstream_id(irxn, j)
+         if(this%downstream_is_aqueous(irxn, j)) then
+           ires_d = ispec_d
+         else
+           ires_d = reaction%offset_immobile + ispec_d
+         endif
+         if(ispec_d > 0) then
+            Residual(ires_d) = Residual(ires_d) - this%downstream_stoich(irxn, j) * rate_no3
+         endif
+       enddo
+
+       net_n_mineralization_rate=net_n_mineralization_rate+this%mineral_n_stoich(irxn)*rate_no3
+       dnet_n_mineralization_rate_dnh3 = dnet_n_mineralization_rate_dnh3 + &
+         this%mineral_n_stoich(irxn) * drate_nh3_no3
+
+    ! Jacobians for N immobilization reaction with NO3 uptake
+      if (compute_derivative) then
 
        if(this%is_litter_decomp(irxn)) then
          if(this%litter_decomp_type == LITTER_DECOMP_CLMCN) then
@@ -1884,16 +1905,16 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
            endif
         enddo
 
-      endif  ! end of jacobian calculation for NO3 immobilization, if any
+      endif  ! end of jacobian calculation for NO3 immobilization
 
-    endif ! end of all jacobian calculations
- 
+    endif ! if(this%species_id_no3 > 0 .and. this%mineral_n_stoich(irxn) < 0.d0 & .and. c_no3 > this%x0eps) then
+
   enddo ! reactions loop
 
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-  if(this%species_id_n2o > 0 .and. net_n_mineralization_rate > 1.0d-20) then
+  if(this%species_id_n2o > 0 .and. net_n_mineralization_rate > this%x0eps) then
 
 #ifdef CLM_PFLOTRAN
     ! temperature/moisture/pH response functions (Parton et al. 1996)
@@ -1920,7 +1941,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     f_ph = 1.0d0
 #endif
 
-    if(f_t > 1.0d-20 .and. f_w > 1.0d-20 .and. f_ph > 1.0d-20) then
+    if(f_t > this%x0eps .and. f_w > this%x0eps .and. f_ph > this%x0eps) then
       temp_real = f_t * f_w * f_ph
 
       if(temp_real > 1.0d0) then
@@ -1930,7 +1951,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
       temp_real = temp_real * this%n2o_frac_mineralization 
     
     ! residuals 
-      rate_n2o = temp_real * net_n_mineralization_rate * f_nh3
+      rate_n2o = temp_real * net_n_mineralization_rate
  
       Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o 
 
@@ -1940,8 +1961,9 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
          Residual(ires_ngasmin) = Residual(ires_ngasmin) - 0.5d0 * rate_n2o
       endif
 
+     !Jacobians
       if (compute_derivative) then
-        drate_n2o = temp_real * net_n_mineralization_rate * d_nh3
+        drate_n2o = temp_real * dnet_n_mineralization_rate_dnh3
         Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_n2o* &
            rt_auxvar%aqueous%dtotal(this%species_id_nh3,this%species_id_nh3,iphase)
         Jacobian(ires_n2o,ires_nh3) = Jacobian(ires_n2o,ires_nh3) - 0.5d0*drate_n2o* &

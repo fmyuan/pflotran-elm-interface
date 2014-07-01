@@ -334,7 +334,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 #endif
 
     temp_real = max(min(tc,65.d0), 1.d-20)                                   ! 'duanco2' only functions from 0 - 65oC
-    call duanco2(temp_real,co2_p, co2_rho, co2_fg, co2_xphi)     ! only need 'co2_xphi' (fugacity coefficient) for the follwong call
+    call duanco2(temp_real,co2_p, co2_rho, co2_fg, co2_xphi)     ! only need 'co2_xphi' (fugacity coefficient) for the following call
     call Henry_CO2_noderiv(xmole_co2,xmass_co2,temp_real,co2_p,co2_xphi,co2_henry,co2_poyn)   ! 'xmolco2': mol fraction; 'xmco2': mass fraction (CO2:CO2+H2O)
     c_co2_eq =  xmole_co2/H2O_kg_mol
 

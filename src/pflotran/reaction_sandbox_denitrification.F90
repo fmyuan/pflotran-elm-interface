@@ -91,7 +91,7 @@ function DenitrificationCreate()
   DenitrificationCreate%Q10 = 1.5d0
   DenitrificationCreate%k_deni_max = 2.5d-6  ! denitrification rate
   DenitrificationCreate%x0eps = 1.0d-20
-  DenitrificationCreate%downreg_no3_0 = 1.0d-9
+  DenitrificationCreate%downreg_no3_0 = -1.0d-9
   DenitrificationCreate%downreg_no3_1 = 1.0d-7
 
   nullify(DenitrificationCreate%next)  
@@ -162,9 +162,9 @@ subroutine DenitrificationRead(this,input,option)
           call InputReadDouble(input,option,this%k_deni_max)
           call InputErrorMsg(input,option,'k_deni_max', &
                  'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,REACTION')
-      case('N_INHIBITION')
+      case('NITRATE_HALF_SATURATION')
           call InputReadDouble(input,option,this%half_saturation)
-          call InputErrorMsg(input,option,'inhibition coefficient', &
+          call InputErrorMsg(input,option,'nitrate half-saturation', &
                  'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,REACTION')
       case('DOWNREGULATE_NO3')
         call InputReadDouble(input,option,this%downreg_no3_0)
@@ -333,12 +333,11 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
   c_no3 = rt_auxvar%total(this%ispec_no3, iphase)
-!  c_no3 = c_no3 - this%x0eps
 
   if (this%half_saturation > 0.0d0) then
-    temp_real = c_no3 - this%x0eps + this%half_saturation
-    f_no3 = (c_no3 - this%x0eps) * (c_no3 - this%x0eps) / temp_real
-    d_no3 = (c_no3 - this%x0eps) * (c_no3 - this%x0eps + &
+    temp_real = c_no3 + this%half_saturation
+    f_no3 = c_no3 * c_no3 / temp_real
+    d_no3 = c_no3 * (c_no3 + &
              2.d0 * this%half_saturation) / temp_real /temp_real
   else
     f_no3 = c_no3 - this%x0eps
@@ -367,7 +366,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
   endif
 
-  if(f_t > 0.d0 .and. f_w > 0.d0) then
+  if(f_t > 0.d0 .and. f_w > 0.d0 .and. c_no3>this%x0eps) then
      rate_deni = this%k_deni_max * f_t * f_w * L_water * f_no3
 
      Residual(ires_no3) = Residual(ires_no3) + rate_deni
@@ -394,6 +393,8 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
 end subroutine DenitrificationReact
+
+!********************************************************************************************!
 
 subroutine DenitrificationSetup_CLM45(this,reaction,option)
 
