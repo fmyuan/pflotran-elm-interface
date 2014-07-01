@@ -4946,42 +4946,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 !   get cell volume as mass transfer rate unit is mol/s
     call VecGetArrayReadF90(field%volume0,volume_p,ierr)
 
-!   output rate for debug
-    if (pflotran_model%b_out_bgc_rate) then
-        call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_lit1c_pf_loc, ierr)
-        call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_lit2c_pf_loc, ierr)
-        call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_lit3c_pf_loc, ierr)
-        call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_lit1n_pf_loc, ierr)
-        call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_lit2n_pf_loc, ierr)
-        call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_lit3n_pf_loc, ierr)
-        call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, rate_plantnuptake_pf_loc, ierr)
-        call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs,  rate_smin_no3_pf_loc, ierr)
-        call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs,  rate_smin_nh4_pf_loc, ierr)
-
-        do local_id = 1, grid%nlmax
-            write(100, *) rate_lit1c_pf_loc(local_id), &
-                     rate_lit2c_pf_loc(local_id), &
-                     rate_lit3c_pf_loc(local_id), &
-                     rate_lit1n_pf_loc(local_id), &
-                     rate_lit2n_pf_loc(local_id), &
-                     rate_lit3n_pf_loc(local_id), &
-                     rate_plantnuptake_pf_loc(local_id), &
-                     rate_smin_no3_pf_loc(local_id), &
-                     rate_smin_nh4_pf_loc(local_id)
-        enddo
-
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_lit1c_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_lit2c_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_lit3c_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_lit1n_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_lit2n_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_lit3n_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, rate_plantnuptake_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_smin_no3_pf_loc, ierr)
-        call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_smin_nh4_pf_loc, ierr)
-
-    endif
-
     word = "NH4+"
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
