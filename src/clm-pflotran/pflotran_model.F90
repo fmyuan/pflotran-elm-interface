@@ -1529,7 +1529,6 @@ end subroutine pflotranModelSetICs
   ! Author: Gautam Bisht, LBNL
   ! Date: 04/09/13
   ! 
-
     use Input_Aux_module
     use Option_module
     use Realization_class
@@ -1593,6 +1592,8 @@ end subroutine pflotranModelSetICs
     type(coupler_type), pointer        :: boundary_condition
     type(coupler_type), pointer        :: source_sink
     type(connection_set_type), pointer :: cur_connection_set
+
+#ifdef SURFACE_FLOW
 
     option          => pflotran_model%option
 
@@ -1908,7 +1909,6 @@ end subroutine pflotranModelSetICs
     call MappingCreateWeightMatrix(map, option)
     call MappingCreateScatterOfSourceMesh(map, option)
 #endif
-
   end subroutine pflotranModelInitMapSrfToSrf
 
 ! ************************************************************************** !
