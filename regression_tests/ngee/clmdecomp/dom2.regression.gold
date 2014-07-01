@@ -1,23 +1,23 @@
 -- CONCENTRATION: Total NH3(aq) --
-      Max:   1.0000000000000E-20
-      Min:   1.0000000000000E-20
-     Mean:   1.0000000000000E-20
-        1:   1.0000000000000E-20
+      Max:   4.0060570808255E-21
+      Min:   4.0060570808255E-21
+     Mean:   4.0060570808255E-21
+        1:   4.0060570808255E-21
 -- CONCENTRATION: Total NO3- --
-      Max:   1.0255425184137E-05
-      Min:   1.0255425184137E-05
-     Mean:   1.0255425184137E-05
-        1:   1.0255425184137E-05
+      Max:   1.0255462781787E-05
+      Min:   1.0255462781787E-05
+     Mean:   1.0255462781787E-05
+        1:   1.0255462781787E-05
 -- CONCENTRATION: Total HCO3- --
-      Max:   4.5408920985134E-19
-      Min:   4.5408920985134E-19
-     Mean:   4.5408920985134E-19
-        1:   4.5408920985134E-19
+      Max:   4.5408920985067E-19
+      Min:   4.5408920985067E-19
+     Mean:   4.5408920985067E-19
+        1:   4.5408920985067E-19
 -- CONCENTRATION: Total DOM --
-      Max:   4.0000000000000E-23
-      Min:   4.0000000000000E-23
-     Mean:   4.0000000000000E-23
-        1:   4.0000000000000E-23
+      Max:   1.4383604746375E-23
+      Min:   1.4383604746375E-23
+     Mean:   1.4383604746375E-23
+        1:   1.4383604746375E-23
 -- CONCENTRATION: SOM1 --
       Max:   1.0000000000000E-01
       Min:   1.0000000000000E-01
@@ -54,10 +54,10 @@
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   6.6282081604004E-01
-   Time Steps:          583
-   Newton Iterations:         1538
-   Solver Iterations:         1538
+   Time (seconds):   7.2546839714050E-01
+   Time Steps:          591
+   Newton Iterations:         1584
+   Solver Iterations:         1584
    Time Step Cuts:            0
    Solution 2-Norm:   5.1903757099576E-01
    Residual 2-Norm:   0.0000000000000E+00
