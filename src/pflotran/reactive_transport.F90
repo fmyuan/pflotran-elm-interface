@@ -397,7 +397,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
           'send your input deck to pflotran-dev@googlegroups.com and ' // &
           'ask for help.'
         realization%option%io_buffer = string
-        call printErrMsg(realization%option)
+        !call printErrMsg(realization%option)
       endif
       ! scale by 0.99 to make the update slightly smaller than the min_ratio
       dC_p = dC_p*min_ratio*0.99d0

@@ -430,10 +430,6 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
         Jacobian(ires_no3in,ires_no3)=Jacobian(ires_no3in,ires_no3)-drate_nplant_no3
       endif
 
-      if (PETSC_FALSE) then
-        c_plantn = rt_auxvar%immobile(ispec_plantn)
-        write(*, *) c_nh3, c_no3, this%rate, rate_nplant, rate_nplant_no3, c_plantn
-      endif
     endif
   endif
 
