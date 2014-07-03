@@ -35,6 +35,11 @@ module Richards_Aux_module
     PetscReal :: range_for_linear_approx(4)
     PetscBool :: bcflux_default_scheme
 
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
+    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda
+#endif
+
   end type richards_auxvar_type
   
   type, public :: richards_parameter_type

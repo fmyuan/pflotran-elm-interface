@@ -760,12 +760,12 @@ end subroutine pflotranModelSetICs
       select case(pflotran_model%option%iflowmode)
         case(RICHARDS_MODE)
           rich_auxvar => rich_auxvars(local_id)
-      !    rich_auxvar%bc_alpha = bc_alpha
-      !    rich_auxvar%bc_lambda = bc_lambda
+          rich_auxvar%bc_alpha = bc_alpha
+          rich_auxvar%bc_lambda = bc_lambda
         case(TH_MODE)
           th_auxvar => th_auxvars(local_id)
-      !    th_auxvar%bc_alpha = min(bc_alpha,10.d-4)
-      !    th_auxvar%bc_lambda = bc_lambda
+          th_auxvar%bc_alpha = min(bc_alpha,10.d-4)
+          th_auxvar%bc_lambda = bc_lambda
       end select
 
       ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
