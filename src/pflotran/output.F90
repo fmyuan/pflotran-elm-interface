@@ -215,12 +215,16 @@ subroutine Output(realization_base,plot_flag,transient_plot_flag)
   endif
   
   if (transient_plot_flag) then
-! if coupled with CLM (default: mass-balance is ON), don't output this text file (it's very large)
+
+!fmy: if coupled with CLM (default: mass-balance is set ON by default in option.F90),
+!don't output this text file (it's very large)
 #ifndef CLM_PFLOTRAN
     if (option%compute_mass_balance_new) then
       call OutputMassBalance(realization_base)
     endif
 #endif
+!fmy: ending
+
     call OutputObservation(realization_base)
   endif
 

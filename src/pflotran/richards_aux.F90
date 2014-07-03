@@ -250,10 +250,14 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   kr = 0.d0
  
   global_auxvar%pres = x(1)
+
+!fmy: begining
 !if coupled with CLM, CLM will update temperature via the interface
 #ifndef CLM_PFLOTRAN
   global_auxvar%temp = option%reference_temperature
 #endif
+!fmy: ending
+
   auxvar%pc = option%reference_pressure - global_auxvar%pres(1)
   
 !***************  Liquid phase properties **************************

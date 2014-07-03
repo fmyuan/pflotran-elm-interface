@@ -527,9 +527,13 @@ subroutine OptionInitRealization(option)
   option%numerical_derivatives_multi_coupling = PETSC_FALSE
   option%compute_statistics = PETSC_FALSE
   option%compute_mass_balance_new = PETSC_FALSE
+
+!fmy: mass_balance for bc/ss IS needed by default if coupled with CLM
 #ifdef CLM_PFLOTRAN
-  option%compute_mass_balance_new = PETSC_TRUE  ! mass_balance for bc IS needed if coupled with CLM
+  option%compute_mass_balance_new = PETSC_TRUE
 #endif
+!fmy: mass_balance for bc/ss IS needed by default if coupled with CLM
+
   option%mass_bal_detailed = PETSC_FALSE
   option%store_flowrate = PETSC_FALSE
 #ifdef STORE_FLOWRATES
