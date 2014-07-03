@@ -277,7 +277,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: temp_real
 
   PetscInt :: ires_no3, ires_n2o, ires_n2
-  PetscInt :: ires_ngasdeni
+  PetscInt :: ires_ngasdeni, ires
 
   PetscScalar, pointer :: bsw(:)
   PetscScalar, pointer :: bulkdensity(:)
@@ -391,6 +391,17 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
        endif
     endif
   endif
+
+  do ires=1, reaction%ncomp
+    temp_real = Residual(ires)
+
+    if (abs(temp_real) > huge(temp_real)) then
+      write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
+      write(option%fid_out, *) 'Reaction Sandbox: DENITRIFICATION'
+      option%io_buffer = ' checking infinity of Residuals matrix @ DenitrificationReact '
+      call printErrMsg(option)
+    endif
+  enddo
 
 end subroutine DenitrificationReact
 

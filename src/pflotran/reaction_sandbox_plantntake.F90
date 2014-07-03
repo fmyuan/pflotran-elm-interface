@@ -233,7 +233,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   PetscInt :: ispec_nh3, ispec_no3, ispec_plantn
   PetscInt :: ires_nh3, ires_no3, ires_plantn
   PetscInt :: ispec_nh4in, ispec_no3in, ires_nh4in, ires_no3in
-  PetscInt :: ispec_plantndemand, ires_plantndemand
+  PetscInt :: ispec_plantndemand, ires_plantndemand, ires
 
   PetscReal :: c_nh3         ! concentration (mole/L)
   PetscReal :: f_nh3         ! nh3 / (half_saturation + nh3)
@@ -256,6 +256,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
 #endif 
 
+!------------------------------------------------------------------------------------
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
 
@@ -435,6 +436,17 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
       endif
     endif
   endif
+
+  do ires=1, reaction%ncomp
+    temp_real = Residual(ires)
+
+    if (abs(temp_real) > huge(temp_real)) then
+      write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
+      write(option%fid_out, *) 'Reaction Sandbox: PLANT N UPTAKE'
+      option%io_buffer = ' checking infinity of Residuals matrix @ PlantNTakeReact '
+      call printErrMsg(option)
+    endif
+  enddo
 
 end subroutine PlantNTakeReact
 

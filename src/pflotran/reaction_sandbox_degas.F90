@@ -270,6 +270,9 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: convert_molal_to_molar
   PetscReal :: xmass
  
+  PetscInt :: ires
+!-------------------------------------------------------------------------------------
+
   xmass = 1.d0
 
   if (associated(global_auxvar%xmass)) xmass = global_auxvar%xmass(iphase)
@@ -516,6 +519,23 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
     endif
 
   endif 
+
+  do ires=1, reaction%ncomp
+    temp_real = Residual(ires)
+
+    if (abs(temp_real) > huge(temp_real)) then
+      write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
+      write(option%fid_out, *) 'Reaction Sandbox: DEGAS'
+
+      write(100, *) 'local_id= ',local_id, 'tc=',tc, 'lsat=', lsat, 'porosity=',porosity
+      write(100, *) 'c_co2a=',c_co2_aq, 'c_co2eq=', c_co2_eq
+      write(100, *) 'co2g_p=', co2_p, 'co2g_molar=',co2_molar, 'xmole_co2=', xmole_co2
+      write(100, *) 'co2_rho=',co2_rho, 'co2_fg=',co2_fg, 'co2_xphi=', co2_xphi
+
+      option%io_buffer = 'checking infinity of Residuals matrix @ degasReact '
+      call printErrMsg(option)
+    endif
+  enddo
 
 end subroutine degasReact
 
