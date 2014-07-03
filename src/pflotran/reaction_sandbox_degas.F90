@@ -336,10 +336,17 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
     endif
 #endif
 
-    temp_real = max(min(tc,65.d0), 1.d-20)                                   ! 'duanco2' only functions from 0 - 65oC
-    call duanco2(temp_real,co2_p, co2_rho, co2_fg, co2_xphi)     ! only need 'co2_xphi' (fugacity coefficient) for the following call
-    call Henry_CO2_noderiv(xmole_co2,xmass_co2,temp_real,co2_p,co2_xphi,co2_henry,co2_poyn)   ! 'xmolco2': mol fraction; 'xmco2': mass fraction (CO2:CO2+H2O)
-    c_co2_eq =  xmole_co2/H2O_kg_mol
+    ! the 'Duan's equations appear generates 'infinity' at low CO2 pressure (probably due to for deep earth geochemistry?)
+    !temp_real = max(min(tc,65.d0), 1.d-20)                                   ! 'duanco2' only functions from 0 - 65oC
+    !call duanco2(temp_real,co2_p, co2_rho, co2_fg, co2_xphi)     ! only need 'co2_xphi' (fugacity coefficient) for the following call
+    !call Henry_CO2_noderiv(xmole_co2,xmass_co2,temp_real,co2_p,co2_xphi,co2_henry,co2_poyn)   ! 'xmolco2': mol fraction; 'xmco2': mass fraction (CO2:CO2+H2O)
+
+    ! Weiss (1974)
+    temp_real = max(min(tc,40.d0), -1.d0)                         ! Weiss (1974) functions from -1 - 40oC
+    total_sal = 1.d-20                                            ! no accounting for salinity
+    call weiss_co2(temp_real, air_press, total_sal, co2_p, &
+         xmole_co2, xmass_co2, co2_henry, co2_fg, co2_xphi)
+    c_co2_eq =  xmole_co2/H2O_kg_mol                              ! moleCO2/mole solution -> moleCO2/kg (L) water solution
 
     temp_real = volume * 1000.0d0 * porosity * lsat        ! kgH2O
     if (PETSC_FALSE) then
@@ -527,11 +534,6 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
       write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
       write(option%fid_out, *) 'Reaction Sandbox: DEGAS'
 
-      write(100, *) 'local_id= ',local_id, 'tc=',tc, 'lsat=', lsat, 'porosity=',porosity
-      write(100, *) 'c_co2a=',c_co2_aq, 'c_co2eq=', c_co2_eq
-      write(100, *) 'co2g_p=', co2_p, 'co2g_molar=',co2_molar, 'xmole_co2=', xmole_co2
-      write(100, *) 'co2_rho=',co2_rho, 'co2_fg=',co2_fg, 'co2_xphi=', co2_xphi
-
       option%io_buffer = 'checking infinity of Residuals matrix @ degasReact '
       call printErrMsg(option)
     endif
@@ -554,6 +556,90 @@ subroutine degasDestroy(this)
   class(reaction_sandbox_degas_type) :: this  
 
 end subroutine degasDestroy
+
+! ************************************************************************** !
+
+  subroutine weiss_co2 (tt, tp, ts, pco2, xmole, xmass, kh, fg, phi)
+  !
+  ! Weiss R. F., 1974. Carbon dioxide in water and seawater: the solubility of
+  ! a non-ideal gas. Marine chemistry, 2(1974)203-215
+  !
+  ! Input: tt   [C]        temperature
+  !        tp   [Pa]       total air pressure
+  !        ts   [%o]       total salinity (parts per thousands)
+  !        pco2 [Pa]       CO2 partial pressure
+  ! Output: fg  [Pa]       CO2 fugacity
+  !         phi [-]        CO2 fugacity coefficient
+  !         kh  [Pa]       CO2 Henry's Law Constant
+  !         xmole  [-]     mole fraction of CO2 solubility
+  !         xmass  [-]     mass fraction of CO2 solubility
+
+      implicit none
+
+#include "finclude/petscsys.h"
+
+      PetscReal, intent(in) :: tt, tp, ts, pco2
+      PetscReal, intent(out):: xmole, xmass, kh, fg, phi
+
+      PetscReal, parameter :: atm  = 1.01325d5        ! Pa of 1 atm
+      PetscReal, parameter :: rgas = 0.08205601       ! L atm mol-1 K-1
+      PetscReal, parameter :: xmwco2  = 44.0095d-3    ! kg mol-1
+      PetscReal, parameter :: xmwh2o  = 18.01534d-3   ! kg mol-1
+
+      PetscReal :: tk, tk2, tk3, tk_100k
+      PetscReal :: p_rt
+      PetscReal :: x1,x2
+      PetscReal :: k0, epsilon, bt
+      PetscReal :: vbar, cco2
+
+      PetscReal :: a1,a2,a3,b1,b2,b3
+
+      ! empirical parameters for temperature effect (for K0 in moles/L/atm)
+      data a1    /-58.0931d0/
+      data a2    / 90.5069d0/
+      data a3    / 22.2940d0/
+      ! empirical parameters for salt-water effect
+      data b1    / 0.027766d0/
+      data b2    /-0.025888d0/
+      data b3    / 0.0050578d0/
+
+      ! variable values transformation
+      tk = tt + 273.15d0
+      tk2= tk*tk
+      tk3= tk2*tk
+      tk_100k = tk/100.d0
+      p_rt = (tp/atm)/rgas/tk                       ! mol L-1
+      p_rt = p_rt/1000.d0                           ! mol cm-3  (this conversion needed? - the original paper did say)
+      x1 = pco2/tp                                  ! mole fractions of binary mixture of co2-air
+      x2 = 1.d0 - x1
+
+      ! fugacity of co2 gas
+      epsilon = 57.7d0 - 0.118d0*tk                                 ! eq.(11): cm3/mol
+      bt = -1636.75d0+12.0408d0*tk-3.27957d-2*tk2+3.16528d-5*tk3    ! eq.(6): cm3/mol
+      fg = pco2*dexp((bt+2.d0*x2*x2*epsilon)*p_rt)                  ! eq.(9): Pa (pco2=xl*tp)
+
+      ! fugacity coefficient
+      phi = fg / pco2
+
+      ! K0 in Weiss(1974)'s paper
+      k0 = a1+a2/tk_100k+a3*dlog(tk_100k) + &
+           ts*(b1+b2*tk_100k+b3*tk_100k*tk_100k)    ! eq. (12): ln(mol/L/atm)
+      k0 = dexp(k0)                                 ! mol/L/atm
+      k0 = k0/atm                                   ! mol/L/pa
+
+      ! solubility
+      vbar = dexp((1.0d0-tp/atm)*30.0d-3/rgas/tk)    ! 30.0 is a general value in cm3/mol for converting dissolved co2 molar to vol in solution (eq.(5) the 3rd term)
+      cco2 = k0*fg*vbar                              ! eq. (5): mol/L
+      xmole = cco2/(1.d0/xmwh2o)                     ! mole fraction: assuming solution volume is all water (1L=1kgH2O)
+      xmass = xmole*xmwco2/(xmole*xmwco2+(1.d0-xmole)*xmwh2o)    ! mass fraction
+
+      ! Henry's Law constant: kh = pco2/[xmole]
+      kh = 1.d0/k0                      ! Pa L mol-1: pco2 in pa, solubility in mol/L, with formula: [C]=Pc/kh
+      kh = kh*(1.0d0/xmwh2o)            ! Pa (pa mol mol-1): pn2o in pa, solubility in mole fraction (1Lsolution = 1kgH2O)
+
+      return
+
+    end subroutine weiss_co2
 
 ! ************************************************************************** !
 
