@@ -35,6 +35,11 @@ module Richards_Aux_module
     PetscReal :: range_for_linear_approx(4)
     PetscBool :: bcflux_default_scheme
 
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
+    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda
+#endif
+
   end type richards_auxvar_type
   
   type, public :: richards_parameter_type
@@ -245,10 +250,14 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   kr = 0.d0
  
   global_auxvar%pres = x(1)
+
+!fmy: begining
 !if coupled with CLM, CLM will update temperature via the interface
 #ifndef CLM_PFLOTRAN
   global_auxvar%temp = option%reference_temperature
 #endif
+!fmy: ending
+
   auxvar%pc = option%reference_pressure - global_auxvar%pres(1)
   
 !***************  Liquid phase properties **************************

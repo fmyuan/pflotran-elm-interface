@@ -745,6 +745,7 @@ subroutine StepperSetTargetTimes(flow_stepper,tran_stepper, &
   ! subtract 1 from max_time_steps since we still have to complete the current
   ! time step
 
+!fmy: begining
 ! if coupled with CLM, max_time_step IS unlimited
 ! because 'waypoint' is controled by the interface
 ! otherwise, PF will stop at some point but CLM not-yet done
@@ -754,6 +755,7 @@ subroutine StepperSetTargetTimes(flow_stepper,tran_stepper, &
     nullify(cur_waypoint)
   endif
 #endif
+!fmy: ending
 
   ! update maximum time step size to current waypoint value
   if (associated(cur_waypoint)) then

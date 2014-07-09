@@ -912,7 +912,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   PetscReal :: drate_uc_no3  ! d Rate_no3 / d uc 
   PetscReal :: drate_nh3_no3 ! d Rate_no3 / d nh3 
 
-  PetscInt :: i, j
+  PetscInt :: i, j, ires
   PetscReal :: tc     ! temperature in C
   PetscReal :: f_t    ! temperature response function
   PetscReal :: f_w    ! moisture response function
@@ -926,8 +926,6 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   PetscReal :: c_uc, c_un
   PetscInt :: ires_b, ires_f
   PetscReal :: xxx, delta, regulator, dregulator
-
-  PetscReal, parameter :: ONE_REAL = 1.0
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -1001,10 +999,10 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
       ! since 'f_nh3' is down-regulation factor for NH4 immoblization,
       ! '1.-f_nh3' should be those for NO3 immobilization
       if (c_nh3>this%x0eps) then
-        f_nh3_inhibit = ONE_REAL - f_nh3
+        f_nh3_inhibit = 1.d0 - f_nh3
         d_nh3_inhibit = -d_nh3
       else
-        f_nh3_inhibit = ONE_REAL
+        f_nh3_inhibit = 1.d0
         d_nh3_inhibit = 0.d0
       endif
   endif 
@@ -1979,6 +1977,17 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     endif  ! end of 'f_t/f_w/f_ph > 1.0d-20'
 
   endif ! end of 'species_id_n2o > 0'
+
+  do ires=1, reaction%ncomp
+    temp_real = Residual(ires)
+
+    if (abs(temp_real) > huge(temp_real)) then
+      write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
+      write(option%fid_out, *) 'Reaction Sandbox: DECOMPOSITION'
+      option%io_buffer = ' checking infinity of Residuals matrix  @ CLM_Decomp_React '
+      call printErrMsg(option)
+    endif
+  enddo
 
 end subroutine CLM_Decomp_React
 

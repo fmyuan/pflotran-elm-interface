@@ -292,7 +292,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal, parameter :: N_molecular_weight = 14.0067d0
   PetscReal :: M_2_ug_per_g
 
-  PetscInt :: ires_nh3s, ires_nh3, ires_no3, ires_n2o
+  PetscInt :: ires_nh3s, ires_nh3, ires_no3, ires_n2o, ires
 
   PetscScalar, pointer :: bulkdensity(:)
   PetscReal :: rho_b
@@ -481,6 +481,17 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
        endif
      endif
   endif
+
+  do ires=1, reaction%ncomp
+    temp_real = Residual(ires)
+
+    if (abs(temp_real) > huge(temp_real)) then
+      write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
+      write(option%fid_out, *) 'Reaction Sandbox: NITRIFICATION'
+      option%io_buffer = ' checking infinity of Residuals matrix @ NitrificationReact '
+      call printErrMsg(option)
+    endif
+  enddo
 
 end subroutine NitrificationReact
 
