@@ -746,16 +746,29 @@ end subroutine pflotranModelSetICs
          call VecGetArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
     endif
 
-    do local_id = 1, grid%ngmax
+    do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
+      if (ghosted_id < 0) cycle ! bypass ghosted corner cells
+      if (patch%imat(ghosted_id) <= 0) cycle
+
+#ifdef TEST
+      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (watsat):
+      !  (turn it on with similar output in clm_pflotran_interfaceMod.F90 and reaction_sandbox_denitrification.F90)
+      ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id uses 'nL2G' as corrected above;
+      !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
+      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model:', &
+        'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'porosity(local_id)=',porosity_loc_p(local_id),'watsat(ghosted_id)=',watsat_pf_loc(ghosted_id)
+#endif
 
     !(TODO) need a better way to generate MVM parameters from CLM inputs (temporarily off - fmyuan)
       ! bc_alpha [1/Pa]; while sucsat [mm of H20]
       ! [Pa] = [mm of H20] * 0.001 [m/mm] * 1000 [kg/m^3] * 9.81 [m/sec^2]
-      bc_alpha = 1.d0/(sucsat_pf_loc(local_id)*grav)
+      bc_alpha = 1.d0/(sucsat_pf_loc(ghosted_id)*grav)
 
       ! bc_lambda = 1/bsw
-      bc_lambda = 1.d0/bsw_pf_loc(local_id)
+      bc_lambda = 1.d0/bsw_pf_loc(ghosted_id)
       
       select case(pflotran_model%option%iflowmode)
         case(RICHARDS_MODE)
@@ -773,12 +786,12 @@ end subroutine pflotranModelSetICs
       if(pflotran_model%option%iflowmode==RICHARDS_MODE .or. &
          pflotran_model%option%iflowmode==TH_MODE) then
            ! F.-M. Yuan: without flowmode, the folllowing will throw out segementation fault error
-           perm_xx_loc_p(ghosted_id) = hksat_x_pf_loc(local_id)*vis/(den*grav)/1000.d0
-           perm_yy_loc_p(ghosted_id) = hksat_y_pf_loc(local_id)*vis/(den*grav)/1000.d0
-           perm_zz_loc_p(ghosted_id) = hksat_z_pf_loc(local_id)*vis/(den*grav)/1000.d0
+           perm_xx_loc_p(local_id) = hksat_x_pf_loc(ghosted_id)*vis/(den*grav)/1000.d0
+           perm_yy_loc_p(local_id) = hksat_y_pf_loc(ghosted_id)*vis/(den*grav)/1000.d0
+           perm_zz_loc_p(local_id) = hksat_z_pf_loc(ghosted_id)*vis/(den*grav)/1000.d0
       endif
 
-      porosity_loc_p(ghosted_id) = watsat_pf_loc(local_id)
+      porosity_loc_p(local_id) = watsat_pf_loc(ghosted_id)
 
     enddo
 
@@ -799,10 +812,6 @@ end subroutine pflotranModelSetICs
         call VecRestoreArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
     endif
 
-    call DiscretizationGlobalToLocal(discretization,field%porosity0, &
-                               field%work_loc,ONEDOF)
-    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,0)
     ! update ghosted values after resetting soil physical properties from CLM
     call DiscretizationGlobalToLocal(discretization,field%porosity0, &
                                field%work_loc,ONEDOF)
@@ -4743,19 +4752,30 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
-      porosity_loc_p(ghosted_id) = porosity_pfs_loc(local_id)
-      porosity_pfp_loc(local_id) = porosity_loc_p(ghosted_id)
+      if (ghosted_id < 0) cycle ! bypass ghosted corner cells
+      if (patch%imat(ghosted_id) <= 0) cycle
+
+#ifdef TEST
+      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (adjporosity):
+      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model:', &
+        'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'porosity(local_id)=',porosity_loc_p(local_id),'adjporo(ghosted_id)=',porosity_pfs_loc(ghosted_id)
+#endif
+
+      porosity_loc_p(local_id) = porosity_pfs_loc(ghosted_id)
+      porosity_pfp_loc(local_id) = porosity_loc_p(local_id)
 
       if (pflotran_model%option%nflowdof > 0) then
            ! Ksat is based on actaul porosity, so when porosity is using the effective one, Ksat should be effective as well
            ! This will prevent large hydraulic conductivity in PFLOTRAN when shrinking pore size
            ! because PFLOTRAN uses pressure (saturation) in its rel. perm calculation.
-           tempreal = porosity_pfs_loc(local_id)/watsat_pf_loc(local_id)
-           perm_adj = tempreal**(2.0d0*bsw_pf_loc(local_id)+3.0d0)        ! assuming shrunk pore as VWC to estimate K, by Clapp-Hornberger Eq.
+           tempreal = porosity_pfs_loc(ghosted_id)/watsat_pf_loc(ghosted_id)
+           perm_adj = tempreal**(2.0d0*bsw_pf_loc(ghosted_id)+3.0d0)        ! assuming shrunk pore as VWC to estimate K, by Clapp-Hornberger Eq.
            perm_adj = max(0.d0, min(perm_adj*perm_adj, 1.0d0))
-           perm_xx_loc_p(ghosted_id) = perm_adj*hksat_x_pf_loc(local_id)*unitconv
-           perm_yy_loc_p(ghosted_id) = perm_adj*hksat_y_pf_loc(local_id)*unitconv
-           perm_zz_loc_p(ghosted_id) = perm_adj*hksat_z_pf_loc(local_id)*unitconv
+           perm_xx_loc_p(local_id) = perm_adj*hksat_x_pf_loc(ghosted_id)*unitconv
+           perm_yy_loc_p(local_id) = perm_adj*hksat_y_pf_loc(ghosted_id)*unitconv
+           perm_zz_loc_p(local_id) = perm_adj*hksat_z_pf_loc(ghosted_id)*unitconv
 
       endif
 
