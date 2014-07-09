@@ -746,15 +746,16 @@ end subroutine pflotranModelSetICs
          call VecGetArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
     endif
 
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (ghosted_id < 0) cycle ! bypass ghosted corner cells
+    do ghosted_id = 1, grid%ngmax
+      local_id = grid%nG2L(ghosted_id)
+      if (ghosted_id < 0 .or. local_id < 0) cycle
       if (patch%imat(ghosted_id) <= 0) cycle
 
 #ifdef TEST
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (watsat):
       !  (turn it on with similar output in clm_pflotran_interfaceMod.F90 and reaction_sandbox_denitrification.F90)
-      ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id uses 'nL2G' as corrected above;
+      ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
+      !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
       !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
       write(pflotran_model%option%myrank+200,*) 'checking pflotran-model:', &
         'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
@@ -4715,7 +4716,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
          realization => simulation%realization
       class default
          nullify(realization)
-         pflotran_model%option%io_buffer = "ERROR: pflotranModelSetSoilProp only works on subsurface simulations."
+         pflotran_model%option%io_buffer = "ERROR: pflotranModelResetSoilPorosity only works on subsurface simulations."
          call printErrMsg(pflotran_model%option)
     end select
 
@@ -4750,13 +4751,16 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         call VecGetArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
     endif
 
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (ghosted_id < 0) cycle ! bypass ghosted corner cells
+    do ghosted_id = 1, grid%ngmax
+      local_id = grid%nG2L(ghosted_id)
+      if (ghosted_id < 0 .or. local_id < 0) cycle
       if (patch%imat(ghosted_id) <= 0) cycle
 
 #ifdef TEST
-      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (adjporosity):
+      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (ice-adjusted porosity):
+      ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
+      !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
+      !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
       write(pflotran_model%option%myrank+200,*) 'checking pflotran-model:', &
         'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, &
