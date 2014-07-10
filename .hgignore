@@ -328,6 +328,7 @@ src/clm-pflotran/srcsink_sandbox_wipp_gas.F90
 src/clm-pflotran/srcsink_sandbox_wipp_well.F90
 src/clm-pflotran/timestepper_geomechanics.F90
 src/clm-pflotran/unstructured_polyhedra.F90
+src/clm-pflotran/srcsink_sandbox_downreg.F90
 
 .git
 .gitignore
