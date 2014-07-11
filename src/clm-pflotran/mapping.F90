@@ -189,12 +189,7 @@ contains
     do ii = 1,ncells_loc+ncells_gh
       if(loc_or_gh(ii) == 0) cycle
       map%s_ids_loc_nidx(iloc) = cell_ids_ghd(ii)
-
-write(option%myrank+200,*) 'check mapping-SetSourceIds: ','rank=',option%myrank, &
-     'ii=',ii, 'iloc=', iloc, 'map_s_ids=',map%s_ids_loc_nidx(iloc)
-
       iloc = iloc + 1
-
     enddo
 
   end subroutine MappingSetSourceMeshCellIds
@@ -247,11 +242,6 @@ write(option%myrank+200,*) 'check mapping-SetSourceIds: ','rank=',option%myrank,
       map%d_loc_or_gh(ii)    = loc_or_gh(ii)
       index(ii)              = ii
       rev_index(ii)          = ii
-
-write(option%myrank+200,*) 'check mapping-SetDestIds 1: ','rank=',option%myrank, &
-     'ii=',ii, 'map_d_ids=',map%d_ids_ghd_nidx(ii)
-
-
     enddo
 
     ! Sort cell_ids_ghd
@@ -268,12 +258,6 @@ write(option%myrank+200,*) 'check mapping-SetDestIds 1: ','rank=',option%myrank,
     rev_index = rev_index - 1
     call PetscSortIntWithPermutation(map%d_ncells_ghd,index,rev_index,ierr)
     map%d_nSor2Ghd = rev_index
-
-do ii=1,ncells_loc+ncells_gh
-write(option%myrank+200,*) 'check mapping-SetDestIds 2: ','rank=',option%myrank, &
-     'ii=',ii, 'map_d_ids=',map%d_ids_ghd_nidx(ii), &
-     'sorted_ids=', map%d_ids_nidx_sor(ii), 'sorted_index=', map%d_nSor2Ghd(ii)
-enddo
 
   end subroutine MappingSetDestinationMeshCellIds
 
@@ -1285,7 +1269,7 @@ enddo
   end subroutine MappingCreateWeightMatrix
 
 ! ************************************************************************** !
-#define MAP_DEBUG
+
   subroutine MappingCreateScatterOfSourceMesh(map,option)
   ! 
   ! This routine screates a vector scatter context from source to destination

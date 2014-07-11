@@ -1022,11 +1022,6 @@ end subroutine pflotranModelSetICs
         grid_pf_local_nindex(local_id) = 0 ! GHOST
       else
         grid_pf_local_nindex(local_id) = 1 ! LOCAL
-
-write(option%myrank+200,*) 'check pf-ids: ','rank=',option%myrank, &
-     'i=',local_id, 'g2a=', grid%nG2A(local_id), 'g2l=',grid%nG2L(local_id), &
-     'loc_not=',grid_pf_local_nindex(local_id)
-
       endif
 
     enddo
@@ -2951,11 +2946,6 @@ write(option%myrank+200,*) 'check pf-ids: ','rank=',option%myrank, &
     call VecGetArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
     call VecGetArrayF90(clm_pf_idata%soilpsi_pfp, soilpsi_pf_p, ierr)
 
-call VecGetLocalSize(clm_pf_idata%soillsat_pfp, vecsize, ierr); CHKERRQ(ierr)
-write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2: idata%lsat_pfp size= ', vecsize
-call VecGetLocalSize(clm_pf_idata%soillsat_clms, vecsize, ierr); CHKERRQ(ierr)
-write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2: idata%lsat_clms size= ', vecsize
-
     do local_id=1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
       if (ghosted_id <=0 ) cycle
@@ -2964,15 +2954,14 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2: idata%lsat
       press_pf_p(local_id)   =global_auxvars(ghosted_id)%pres(1)
 
 
-!#ifdef TEST
+#ifdef TEST
 ! F.-M. Yuan: the following check proves DATA-passing from PF to CLM MUST BE done by ghosted_id --> local_id
 ! if passing from 'global_auxvars'
 write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2:  ', &
         'local_id=',local_id, 'ghosted_id=',ghosted_id,  &
         'sat_globalvar(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
         'idata%sat_pfp(local_id)=',soillsat_pf_p(local_id)
-!#endif
-
+#endif
 
 
       if (pflotran_model%option%iflowmode == RICHARDS_MODE) then
@@ -2992,31 +2981,6 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2:  ', &
                                     pflotran_model%option, &
                                     clm_pf_idata%soillsat_pfp, &
                                     clm_pf_idata%soillsat_clms)
-
-
-
-!#ifdef TEST
-call VecGetLocalSize(pflotran_model%map_pf_sub_to_clm_sub%s_disloc_vec, vecsize, ierr)
-call VecGetArrayF90(pflotran_model%map_pf_sub_to_clm_sub%s_disloc_vec, vec_loc, ierr)
-write(pflotran_model%option%myrank+200,*) 'checking mapping - s_disloc_vec: size = ', vecsize
-do i=1, vecsize
-write(pflotran_model%option%myrank+200,*) 'i=',i,  &
-        's_distloc(i)=', vec_loc(i)
-enddo
-call VecRestoreArrayF90(pflotran_model%map_pf_sub_to_clm_sub%s_disloc_vec, vec_loc, ierr)
-
-write(pflotran_model%option%io_buffer,*) pflotran_model%option%myrank
-call PetscViewerASCIIOpen(PETSC_COMM_WORLD,'s2d_scat_s_gb2disloc' // &
-      trim(adjustl(pflotran_model%option%io_buffer))//'.out',viewer,ierr)
-call VecScatterView(pflotran_model%map_pf_sub_to_clm_sub%s2d_scat_s_gb2disloc,viewer,ierr)
-call PetscViewerDestroy(viewer,ierr)
-
-
-!#endif
-
-
-
-
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
@@ -3841,25 +3805,19 @@ call PetscViewerDestroy(viewer,ierr)
         call VecGetArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
         call VecGetArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
 
-call VecGetLocalSize(clm_pf_idata%soillsat_clmp, vecsize, ierr); CHKERRQ(ierr)
-write(pflotran_model%option%myrank+200,*) 'checking pflotran-model: idata%lsat_clmp size= ', vecsize
-call VecGetLocalSize(clm_pf_idata%soillsat_pfs, vecsize, ierr); CHKERRQ(ierr)
-write(pflotran_model%option%myrank+200,*) 'checking pflotran-model: idata%lsat_pfs size= ', vecsize
-
         do ghosted_id=1, grid%ngmax
             local_id=grid%nG2L(ghosted_id)
             if (ghosted_id<=0 .or. local_id <=0) cycle
             if (patch%imat(local_id) <=0) cycle
 
-!#ifdef TEST
-
+#ifdef TEST
 ! F.-M. Yuan: the following check proves DATA-passing from CLM to PF MUST BE done by ghosted_id --> ghosted_id
 ! if passing to 'global_auxvars'
 write(pflotran_model%option%myrank+200,*) 'checking pflotran-model: ', &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'sat_globalvars(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
         'sat_pfs(ghosted_id)=',soillsat_pf_loc(ghosted_id)
-!#endif
+#endif
             global_auxvars(ghosted_id)%sat(1)=soillsat_pf_loc(ghosted_id)
             global_auxvars(ghosted_id)%pres(1)=soilpress_pf_loc(ghosted_id)
         enddo
