@@ -301,8 +301,9 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
 #ifdef TEST
   write(option%myrank+200,*) 'checking pflotran-bgc:', &
-    'rank=',option%myrank, 'local_id=',local_id, &
-    'porosity(local_id)=',porosity
+    'rank=',option%myrank, 'local_id=',local_id, 'porosity=', porosity, &
+    'lsat=',global_auxvar%sat(iphase), &
+    'soilt=',global_auxvar%temp
 #endif
 
   L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &

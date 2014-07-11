@@ -161,8 +161,10 @@ contains
 
   subroutine MappingSetSourceMeshCellIds( map, &
                                           option, &
-                                          ncells, &
-                                          cell_ids &
+                                          ncells_loc, &
+                                          ncells_gh, &
+                                          cell_ids_ghd, &
+                                          loc_or_gh &
                                         )
   ! 
   ! This routine sets cell ids source mesh.
@@ -177,14 +179,22 @@ contains
     type(mapping_type), pointer :: map
     type(option_type),  pointer :: option
 
-    PetscInt                    :: ncells,ii
-    PetscInt,pointer            :: cell_ids(:)
+    PetscInt                    :: ncells_loc, ncells_gh, ii, iloc
+    PetscInt,pointer            :: cell_ids_ghd(:), loc_or_gh(:)
 
-    map%s_ncells_loc = ncells
+    map%s_ncells_loc = ncells_loc
     allocate(map%s_ids_loc_nidx(map%s_ncells_loc))
 
-    do ii = 1,ncells
-      map%s_ids_loc_nidx(ii) = cell_ids(ii)
+    iloc = 1
+    do ii = 1,ncells_loc+ncells_gh
+      if(loc_or_gh(ii) == 0) cycle
+      map%s_ids_loc_nidx(iloc) = cell_ids_ghd(ii)
+
+write(option%myrank+200,*) 'check mapping-SetSourceIds: ','rank=',option%myrank, &
+     'ii=',ii, 'iloc=', iloc, 'map_s_ids=',map%s_ids_loc_nidx(iloc)
+
+      iloc = iloc + 1
+
     enddo
 
   end subroutine MappingSetSourceMeshCellIds
@@ -237,6 +247,11 @@ contains
       map%d_loc_or_gh(ii)    = loc_or_gh(ii)
       index(ii)              = ii
       rev_index(ii)          = ii
+
+write(option%myrank+200,*) 'check mapping-SetDestIds 1: ','rank=',option%myrank, &
+     'ii=',ii, 'map_d_ids=',map%d_ids_ghd_nidx(ii)
+
+
     enddo
 
     ! Sort cell_ids_ghd
@@ -254,6 +269,11 @@ contains
     call PetscSortIntWithPermutation(map%d_ncells_ghd,index,rev_index,ierr)
     map%d_nSor2Ghd = rev_index
 
+do ii=1,ncells_loc+ncells_gh
+write(option%myrank+200,*) 'check mapping-SetDestIds 2: ','rank=',option%myrank, &
+     'ii=',ii, 'map_d_ids=',map%d_ids_ghd_nidx(ii), &
+     'sorted_ids=', map%d_ids_nidx_sor(ii), 'sorted_index=', map%d_nSor2Ghd(ii)
+enddo
 
   end subroutine MappingSetDestinationMeshCellIds
 
@@ -1265,7 +1285,7 @@ contains
   end subroutine MappingCreateWeightMatrix
 
 ! ************************************************************************** !
-
+#define MAP_DEBUG
   subroutine MappingCreateScatterOfSourceMesh(map,option)
   ! 
   ! This routine screates a vector scatter context from source to destination
@@ -1304,7 +1324,7 @@ contains
     ! GIVEN:
     ! source vector (MPI):
     !                       p0        |    p1         : processor id
-    !                [ s3 s4 s5 s6 s7 | s3 s1 s0 ]    : natural index
+    !                [ s3 s4 s5 s6 s7 | s2 s1 s0 ]    : natural index
     !                   0  1  2  3  4 |  5  6  7      : PETSc index
     !
     !
@@ -1331,7 +1351,7 @@ contains
     ! GIVEN:
     ! source vector (MPI):
     !                       p0        |    p1         : processor id
-    !                [ s3 s4 s5 s6 s7 | s3 s1 s0 ]    : natural index
+    !                [ s3 s4 s5 s6 s7 | s2 s1 s0 ]    : natural index
     !                   0  1  2  3  4 |  5  6  7      : PETSc index
     !
     ! source vector (MPI) sorted in asceding order:
@@ -1424,7 +1444,7 @@ contains
     ! GIVEN:
     ! source vector (MPI):
     !                       p0        |    p1         : processor id
-    !                [ s3 s4 s5 s6 s7 | s3 s1 s0 ]    : natural index
+    !                [ s3 s4 s5 s6 s7 | s2 s1 s0 ]    : natural index
     !                   0  1  2  3  4 |  5  6  7      : PETSc index
     !
     ! Indices of MPI vector required to do the sorting (N2P)
@@ -1471,7 +1491,7 @@ contains
     call ISDestroy(is_to,ierr)
     call ISDestroy(is_from, ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm,'vscat.out',viewer,ierr)
+    call PetscViewerASCIIOpen(option%mycomm,'vscat1.out',viewer,ierr)
     call VecScatterView(vscat,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1547,6 +1567,7 @@ contains
        ! Perform Matrix-Vector product
        call MatMult(map%wts_mat, map%s_disloc_vec, d_vec, ierr)
     end if
+
   end subroutine
 
 end module Mapping_module

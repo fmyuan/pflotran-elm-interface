@@ -985,6 +985,7 @@ end subroutine pflotranModelSetICs
       case(PF_SUB_TO_CLM_SUB)
         map => pflotran_model%map_pf_sub_to_clm_sub
         source_mesh_id = PF_SUB_MESH
+        dest_mesh_id = CLM_SUB_MESH
       case default
         option%io_buffer = 'Invalid map_id argument to pflotranModelInitMapping'
         call printErrMsg(option)
@@ -1021,20 +1022,30 @@ end subroutine pflotranModelSetICs
         grid_pf_local_nindex(local_id) = 0 ! GHOST
       else
         grid_pf_local_nindex(local_id) = 1 ! LOCAL
+
+write(option%myrank+200,*) 'check pf-ids: ','rank=',option%myrank, &
+     'i=',local_id, 'g2a=', grid%nG2A(local_id), 'g2l=',grid%nG2L(local_id), &
+     'loc_not=',grid_pf_local_nindex(local_id)
+
       endif
+
     enddo
 
     select case(source_mesh_id)
       case(CLM_SUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
-                                         grid_clm_cell_ids_nindex)
+                                         grid_clm_npts_ghost, &
+                                         grid_clm_cell_ids_nindex, &
+                                         grid_clm_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
       case(PF_SUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
-                                        grid_pf_cell_ids_nindex)
+                                        grid_pf_npts_ghost, &
+                                        grid_pf_cell_ids_nindex, &
+                                        grid_pf_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
                                               grid_clm_npts_ghost, &
                                               grid_clm_cell_ids_nindex, &
@@ -1498,14 +1509,18 @@ end subroutine pflotranModelSetICs
     select case(source_mesh_id)
       case(CLM_SUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
-                                         grid_clm_cell_ids_nindex_copy)
+                                         grid_clm_npts_ghost, &
+                                         grid_clm_cell_ids_nindex_copy, &
+                                         grid_clm_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
       case(PF_2DSUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
-                                        grid_pf_cell_ids_nindex)
+                                        grid_pf_npts_ghost, &
+                                        grid_pf_cell_ids_nindex, &
+                                        grid_pf_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
                                               grid_clm_npts_ghost, &
                                               grid_clm_cell_ids_nindex_copy, &
@@ -2851,6 +2866,8 @@ end subroutine pflotranModelSetICs
              'implmentation in this mode is not supported!'
 
             call printErrMsg(pflotran_model%option)
+        else
+            call pflotranModelGetSaturation(pflotran_model)
         endif
     end select
 
@@ -2902,6 +2919,10 @@ end subroutine pflotranModelSetICs
     PetscReal, pointer :: press_pf_p(:)
     PetscReal, pointer :: soilpsi_pf_p(:)
 
+    PetscInt :: i, vecsize
+    PetscReal, pointer :: vec_loc(:)
+    PetscViewer :: viewer
+
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
          realization => simulation%realization
@@ -2929,11 +2950,30 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%soillsat_pfp, soillsat_pf_p, ierr)
     call VecGetArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
     call VecGetArrayF90(clm_pf_idata%soilpsi_pfp, soilpsi_pf_p, ierr)
+
+call VecGetLocalSize(clm_pf_idata%soillsat_pfp, vecsize, ierr); CHKERRQ(ierr)
+write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2: idata%lsat_pfp size= ', vecsize
+call VecGetLocalSize(clm_pf_idata%soillsat_clms, vecsize, ierr); CHKERRQ(ierr)
+write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2: idata%lsat_clms size= ', vecsize
+
     do local_id=1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
+      if (ghosted_id <=0 ) cycle
 
       soillsat_pf_p(local_id)=global_auxvars(ghosted_id)%sat(1)
       press_pf_p(local_id)   =global_auxvars(ghosted_id)%pres(1)
+
+
+!#ifdef TEST
+! F.-M. Yuan: the following check proves DATA-passing from PF to CLM MUST BE done by ghosted_id --> local_id
+! if passing from 'global_auxvars'
+write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2:  ', &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id,  &
+        'sat_globalvar(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
+        'idata%sat_pfp(local_id)=',soillsat_pf_p(local_id)
+!#endif
+
+
 
       if (pflotran_model%option%iflowmode == RICHARDS_MODE) then
         soilpsi_pf_p(local_id) = rich_auxvars(ghosted_id)%pc
@@ -2953,6 +2993,31 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%soillsat_pfp, &
                                     clm_pf_idata%soillsat_clms)
 
+
+
+!#ifdef TEST
+call VecGetLocalSize(pflotran_model%map_pf_sub_to_clm_sub%s_disloc_vec, vecsize, ierr)
+call VecGetArrayF90(pflotran_model%map_pf_sub_to_clm_sub%s_disloc_vec, vec_loc, ierr)
+write(pflotran_model%option%myrank+200,*) 'checking mapping - s_disloc_vec: size = ', vecsize
+do i=1, vecsize
+write(pflotran_model%option%myrank+200,*) 'i=',i,  &
+        's_distloc(i)=', vec_loc(i)
+enddo
+call VecRestoreArrayF90(pflotran_model%map_pf_sub_to_clm_sub%s_disloc_vec, vec_loc, ierr)
+
+write(pflotran_model%option%io_buffer,*) pflotran_model%option%myrank
+call PetscViewerASCIIOpen(PETSC_COMM_WORLD,'s2d_scat_s_gb2disloc' // &
+      trim(adjustl(pflotran_model%option%io_buffer))//'.out',viewer,ierr)
+call VecScatterView(pflotran_model%map_pf_sub_to_clm_sub%s2d_scat_s_gb2disloc,viewer,ierr)
+call PetscViewerDestroy(viewer,ierr)
+
+
+!#endif
+
+
+
+
+
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%press_pfp, &
@@ -2971,6 +3036,7 @@ end subroutine pflotranModelSetICs
       call VecGetArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
       do local_id = 1, grid%nlmax
         ghosted_id = grid%nL2G(local_id)
+        if (ghosted_id <=0 ) cycle
         soilisat_pf_p(local_id) = TH_auxvars(ghosted_id)%sat_ice
       enddo
       call VecRestoreArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
@@ -3108,9 +3174,9 @@ end subroutine pflotranModelSetICs
     th_auxvars      => patch%aux%TH%auxvars
 
     call VecGetArrayF90(clm_pf_idata%soilt_pfp, soilt_pf_p, ierr)
-    do ghosted_id=1,grid%ngmax
-      local_id = grid%nG2L(ghosted_id)
-      if (local_id>0) then
+    do local_id=1,grid%nlmax
+      ghosted_id = grid%nL2G(ghosted_id)
+      if (ghosted_id>0) then
         soilt_pf_p(local_id) = global_auxvars(ghosted_id)%temp
       endif
     enddo
@@ -3622,9 +3688,7 @@ end subroutine pflotranModelSetICs
 
     do local_id = 1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
-      if (grid%nG2L(local_id) < 0) cycle ! bypass ghosted corner cells
-      !geh - Ignore inactive cells with inactive materials
-
+      if (ghosted_id<0 .or. local_id < 0) cycle ! bypass ghosted corner cells
       if (patch%imat(local_id) <= 0) cycle
 
       offset = (local_id - 1)*realization%reaction%ncomp
@@ -3736,7 +3800,7 @@ end subroutine pflotranModelSetICs
     type(grid_type), pointer                  :: grid
     type(global_auxvar_type), pointer         :: global_auxvars(:)
     PetscErrorCode     :: ierr
-    PetscInt           :: local_id, ghosted_id
+    PetscInt           :: local_id, ghosted_id, vecsize
     PetscReal, pointer :: soillsat_pf_loc(:), soilisat_pf_loc(:)
     PetscReal, pointer :: soilt_pf_loc(:)
     PetscReal, pointer :: soilpress_pf_loc(:)
@@ -3776,11 +3840,28 @@ end subroutine pflotranModelSetICs
 
         call VecGetArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
         call VecGetArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
-        do local_id=1, grid%nlmax
-            ghosted_id=grid%nL2G(local_id)
-            global_auxvars(ghosted_id)%sat(1)=soillsat_pf_loc(local_id)
-            global_auxvars(ghosted_id)%pres(1)=soilpress_pf_loc(local_id)
 
+call VecGetLocalSize(clm_pf_idata%soillsat_clmp, vecsize, ierr); CHKERRQ(ierr)
+write(pflotran_model%option%myrank+200,*) 'checking pflotran-model: idata%lsat_clmp size= ', vecsize
+call VecGetLocalSize(clm_pf_idata%soillsat_pfs, vecsize, ierr); CHKERRQ(ierr)
+write(pflotran_model%option%myrank+200,*) 'checking pflotran-model: idata%lsat_pfs size= ', vecsize
+
+        do ghosted_id=1, grid%ngmax
+            local_id=grid%nG2L(ghosted_id)
+            if (ghosted_id<=0 .or. local_id <=0) cycle
+            if (patch%imat(local_id) <=0) cycle
+
+!#ifdef TEST
+
+! F.-M. Yuan: the following check proves DATA-passing from CLM to PF MUST BE done by ghosted_id --> ghosted_id
+! if passing to 'global_auxvars'
+write(pflotran_model%option%myrank+200,*) 'checking pflotran-model: ', &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'sat_globalvars(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
+        'sat_pfs(ghosted_id)=',soillsat_pf_loc(ghosted_id)
+!#endif
+            global_auxvars(ghosted_id)%sat(1)=soillsat_pf_loc(ghosted_id)
+            global_auxvars(ghosted_id)%pres(1)=soilpress_pf_loc(ghosted_id)
         enddo
         call VecRestoreArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
         call VecRestoreArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
@@ -3793,9 +3874,13 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%soilt_clmp, &
                                     clm_pf_idata%soilt_pfs)
         call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
-        do local_id=1, grid%nlmax
-            ghosted_id=grid%nL2G(local_id)
-            global_auxvars(ghosted_id)%temp=soilt_pf_loc(local_id)
+
+        do ghosted_id=1, grid%ngmax
+            local_id=grid%nG2L(ghosted_id)
+            if (ghosted_id<=0 .or. local_id<=0) cycle
+            if (patch%imat(local_id)<=0) cycle
+
+            global_auxvars(ghosted_id)%temp=soilt_pf_loc(ghosted_id)
         enddo
         call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
     endif
@@ -6137,14 +6222,18 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     select case(source_mesh_id)
       case(CLM_FACE_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
-                                         grid_clm_cell_ids_nindex_copy)
+                                         grid_clm_npts_ghost, &
+                                         grid_clm_cell_ids_nindex_copy, &
+                                         grid_clm_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
       case(PF_FACE_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
-                                         grid_pf_cell_ids_nindex)
+                                         grid_pf_npts_ghost, &
+                                         grid_pf_cell_ids_nindex, &
+                                         grid_pf_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
                                               grid_clm_npts_ghost, &
                                               grid_clm_cell_ids_nindex_copy, &
