@@ -655,33 +655,33 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(perm_yy_loc,  perm_yy_loc_p,  ierr)
     call VecGetArrayF90(perm_zz_loc,  perm_zz_loc_p,  ierr)
 
-    do local_id = 1, grid%ngmax
+    do ghosted_id = 1, grid%ngmax
 
       ! bc_alpha [1/Pa]; while sucsat [mm of H20]
       ! [Pa] = [mm of H20] * 0.001 [m/mm] * 1000 [kg/m^3] * 9.81 [m/sec^2]
-      bc_alpha = 1.d0/(sucsat_pf_loc(local_id)*grav)
+      bc_alpha = 1.d0/(sucsat_pf_loc(ghosted_id)*grav)
 
       ! bc_lambda = 1/bsw
-      bc_lambda = 1.d0/bsw_pf_loc(local_id)
+      bc_lambda = 1.d0/bsw_pf_loc(ghosted_id)
       
       select case(pflotran_model%option%iflowmode)
         case(RICHARDS_MODE)
-          rich_aux_var => rich_aux_vars(local_id)
+          rich_aux_var => rich_aux_vars(ghosted_id)
           rich_aux_var%bc_alpha = bc_alpha
           rich_aux_var%bc_lambda = bc_lambda
         case(TH_MODE)
-          th_aux_var => th_aux_vars(local_id)
+          th_aux_var => th_aux_vars(ghosted_id)
           th_aux_var%bc_alpha = min(bc_alpha,10.d-4)
           th_aux_var%bc_lambda = bc_lambda
       end select
 
       ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
       ! [m^2]          [mm/sec]
-      perm_xx_loc_p(local_id) = hksat_x_pf_loc(local_id)*vis/(den*grav)/1000.d0
-      perm_yy_loc_p(local_id) = hksat_y_pf_loc(local_id)*vis/(den*grav)/1000.d0
-      perm_zz_loc_p(local_id) = hksat_z_pf_loc(local_id)*vis/(den*grav)/1000.d0
+      perm_xx_loc_p(ghosted_id) = hksat_x_pf_loc(ghosted_id)*vis/(den*grav)/1000.d0
+      perm_yy_loc_p(ghosted_id) = hksat_y_pf_loc(ghosted_id)*vis/(den*grav)/1000.d0
+      perm_zz_loc_p(ghosted_id) = hksat_z_pf_loc(ghosted_id)*vis/(den*grav)/1000.d0
 
-      porosity_loc_p(local_id) = watsat_pf_loc(local_id)
+      porosity_loc_p(ghosted_id) = watsat_pf_loc(ghosted_id)
 
     enddo
 
@@ -812,7 +812,7 @@ end subroutine pflotranModelSetICs
     character(len=MAXSTRINGLENGTH)                    :: filename
 
     ! local
-    PetscInt                           :: local_id, grid_pf_npts_local, grid_pf_npts_ghost
+    PetscInt                           :: ghosted_id, grid_pf_npts_local, grid_pf_npts_ghost
     PetscInt                           :: grid_clm_npts_ghost, source_mesh_id
     PetscInt                           :: dest_mesh_id
     PetscInt, pointer                  :: grid_pf_cell_ids_nindex(:)
@@ -884,16 +884,16 @@ end subroutine pflotranModelSetICs
     grid_pf_npts_ghost = grid%ngmax - grid%nlmax
 
     allocate(grid_pf_cell_ids_nindex(grid%ngmax))
-    do local_id = 1, grid%ngmax
-      grid_pf_cell_ids_nindex(local_id) = grid%nG2A(local_id)-1
+    do ghosted_id = 1, grid%ngmax
+      grid_pf_cell_ids_nindex(ghosted_id) = grid%nG2A(ghosted_id)-1
     enddo
 
     allocate(grid_pf_local_nindex(grid%ngmax))
-    do local_id = 1, grid%ngmax
-      if (grid%nG2L(local_id) == 0) then
-        grid_pf_local_nindex(local_id) = 0 ! GHOST
+    do ghosted_id = 1, grid%ngmax
+      if (grid%nG2L(ghosted_id) == 0) then
+        grid_pf_local_nindex(ghosted_id) = 0 ! GHOST
       else
-        grid_pf_local_nindex(local_id) = 1 ! LOCAL
+        grid_pf_local_nindex(ghosted_id) = 1 ! LOCAL
       endif
     enddo
 
