@@ -560,7 +560,7 @@ end subroutine pflotranModelSetICs
     type(simulation_base_type), pointer :: simulation
 
     PetscErrorCode     :: ierr
-    PetscInt           :: local_id
+    PetscInt           :: ghosted_id
     PetscReal          :: den, vis, grav
     PetscReal, pointer :: porosity_loc_p(:), vol_ovlap_arr(:)
     PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
@@ -812,7 +812,8 @@ end subroutine pflotranModelSetICs
     character(len=MAXSTRINGLENGTH)                    :: filename
 
     ! local
-    PetscInt                           :: ghosted_id, grid_pf_npts_local, grid_pf_npts_ghost
+    PetscInt                           :: local_id, ghosted_id
+    PetscInt                           :: grid_pf_npts_local, grid_pf_npts_ghost
     PetscInt                           :: grid_clm_npts_ghost, source_mesh_id
     PetscInt                           :: dest_mesh_id
     PetscInt, pointer                  :: grid_pf_cell_ids_nindex(:)
@@ -883,11 +884,6 @@ end subroutine pflotranModelSetICs
     grid_pf_npts_local = grid%nlmax
     grid_pf_npts_ghost = grid%ngmax - grid%nlmax
 
-    allocate(grid_pf_cell_ids_nindex(grid%ngmax))
-    do ghosted_id = 1, grid%ngmax
-      grid_pf_cell_ids_nindex(ghosted_id) = grid%nG2A(ghosted_id)-1
-    enddo
-
     allocate(grid_pf_local_nindex(grid%ngmax))
     do ghosted_id = 1, grid%ngmax
       if (grid%nG2L(ghosted_id) == 0) then
@@ -899,6 +895,12 @@ end subroutine pflotranModelSetICs
 
     select case(source_mesh_id)
       case(CLM_SUB_MESH)
+
+        allocate(grid_pf_cell_ids_nindex(grid%ngmax))
+        do ghosted_id = 1, grid%ngmax
+          grid_pf_cell_ids_nindex(ghosted_id) = grid%nG2A(ghosted_id)-1
+        enddo
+
         call MappingSetSourceMeshCellIds(map, grid_clm_npts_local, &
                                          grid_clm_cell_ids_nindex)
         call MappingSetDestinationMeshCellIds(map, grid_pf_npts_local, &
@@ -906,6 +908,15 @@ end subroutine pflotranModelSetICs
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
       case(PF_SUB_MESH)
+
+        allocate(grid_pf_cell_ids_nindex(grid%nlmax))
+        do ghosted_id = 1, grid%ngmax
+          local_id = grid%nG2L(ghosted_id)
+          if (local_id > 0) then
+            grid_pf_cell_ids_nindex(local_id) = grid%nG2A(ghosted_id)-1
+          endif
+        enddo
+
         call MappingSetSourceMeshCellIds(map, grid_pf_npts_local, &
                                         grid_pf_cell_ids_nindex)
         call MappingSetDestinationMeshCellIds(map, grid_clm_npts_local, &
