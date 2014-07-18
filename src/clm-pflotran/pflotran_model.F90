@@ -3399,6 +3399,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2:  ', &
   !  and set concentrations in PFLOTRAN
   ! author: Guoping Tang
   ! date: 08/16/2013
+  ! corrected by Fengming Yuan @ 07/12/2014
   ! ************************************************************************** !
   subroutine pflotranModelSetInitialConcentrations(pflotran_model)
 
@@ -3652,7 +3653,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2:  ', &
 
     do local_id = 1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
-      if (ghosted_id<0 .or. local_id < 0) cycle ! bypass ghosted corner cells
+      if (ghosted_id<=0 .or. local_id <= 0) cycle ! bypass ghosted corner cells
       if (patch%imat(local_id) <= 0) cycle
 
       offset = (local_id - 1)*realization%reaction%ncomp
@@ -3662,39 +3663,54 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2:  ', &
       theta = saturation * porosity
 
       if(ispec_no3 > 0) then
-         xx_p(offset + ispec_no3) = max(smin_no3_vr_pf_loc(local_id) / &
+         xx_p(offset + ispec_no3) = max(smin_no3_vr_pf_loc(ghosted_id) / &      ! from 'ghosted_id' to xx_p's local
                                     N_molecular_weight / theta / 1000.0d0, & 
                                     1.0d-20)
       endif
 
       if(ispec_nh4 > 0) then
-         xx_p(offset + ispec_nh4) = max(smin_nh4_vr_pf_loc(local_id) / &
+         xx_p(offset + ispec_nh4) = max(smin_nh4_vr_pf_loc(ghosted_id) / &
                                     N_molecular_weight / theta / 1000.d0, & 
                                     1.0d-20)
       endif
 
       offsetim = offset + realization%reaction%offset_immobile
 
-      xx_p(offsetim + ispec_lit1c) = max(decomp_cpools_vr_lit1_pf_loc(local_id) &
+      xx_p(offsetim + ispec_lit1c) = max(decomp_cpools_vr_lit1_pf_loc(ghosted_id) &
                                         / C_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_lit2c) = max(decomp_cpools_vr_lit2_pf_loc(local_id) &
+      xx_p(offsetim + ispec_lit2c) = max(decomp_cpools_vr_lit2_pf_loc(ghosted_id) &
                                         / C_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_lit3c) = max(decomp_cpools_vr_lit3_pf_loc(local_id) &
+      xx_p(offsetim + ispec_lit3c) = max(decomp_cpools_vr_lit3_pf_loc(ghosted_id) &
                                         / C_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_lit1n) = max(decomp_npools_vr_lit1_pf_loc(local_id) &
+      xx_p(offsetim + ispec_lit1n) = max(decomp_npools_vr_lit1_pf_loc(ghosted_id) &
                                         / N_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_lit2n) = max(decomp_npools_vr_lit2_pf_loc(local_id) &
+      xx_p(offsetim + ispec_lit2n) = max(decomp_npools_vr_lit2_pf_loc(ghosted_id) &
                                         / N_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_lit3n) = max(decomp_npools_vr_lit3_pf_loc(local_id) &
+      xx_p(offsetim + ispec_lit3n) = max(decomp_npools_vr_lit3_pf_loc(ghosted_id) &
                                         / N_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_som1) = max(decomp_cpools_vr_som1_pf_loc(local_id) &
+      xx_p(offsetim + ispec_som1) = max(decomp_cpools_vr_som1_pf_loc(ghosted_id) &
                                         / C_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_som2) = max(decomp_cpools_vr_som2_pf_loc(local_id) &
+      xx_p(offsetim + ispec_som2) = max(decomp_cpools_vr_som2_pf_loc(ghosted_id) &
                                         / C_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_som3) = max(decomp_cpools_vr_som3_pf_loc(local_id) &
+      xx_p(offsetim + ispec_som3) = max(decomp_cpools_vr_som3_pf_loc(ghosted_id) &
                                         / C_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_som4) = max(decomp_cpools_vr_som4_pf_loc(local_id) &
+      xx_p(offsetim + ispec_som4) = max(decomp_cpools_vr_som4_pf_loc(ghosted_id) &
                                         / C_molecular_weight, 1.0d-20)
+
+!#ifdef TEST
+      write(pflotran_model%option%myrank+200,*) 'checking bgc - pflotran 1:', &
+        'rank=',pflotran_model%option%myrank, &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id, 'xxp_som4_id', offsetim+ispec_som4, &
+        'som4_pfs(local_id)=',decomp_cpools_vr_som4_pf_loc(local_id), &
+        'som4_pfs(ghosted_id)=',decomp_cpools_vr_som4_pf_loc(ghosted_id), &
+        'xx_p(xxp_som4_id)=',xx_p(offsetim + ispec_som4), &
+        'sat_glob(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
+        'sat_glob(local_id)=',global_auxvars(local_id)%sat(1), &
+        'poro(ghosted_id)=',porosity_loc_p(ghosted_id), &
+        'poro(local_id)=',porosity_loc_p(local_id)
+
+!#endif
+
     enddo
 
     call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfs, decomp_cpools_vr_lit1_pf_loc, ierr)

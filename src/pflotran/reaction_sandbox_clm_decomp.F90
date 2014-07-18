@@ -1064,6 +1064,17 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
   dnet_n_mineralization_rate_dnh3 = 0.0d0
 
   do irxn = 1, this%nrxn
+
+!#ifdef TEST
+      write(option%myrank+200,*) 'checking bgc - decompsandbox :', &
+        'rank=',option%myrank, &
+        'local_id=',local_id, 'ispec_uc=',this%upstream_c_id(irxn),  &
+        'offset_immobile=',reaction%offset_immobile, &
+        'c_uc(ispec_uc)=',rt_auxvar%immobile(ispec_uc), &
+        'upstream_c_id= ',this%upstream_c_id(irxn)
+!#endif
+
+
   
     !-----------------------------------------------------------------------------------------------------
     ! calculate rate
