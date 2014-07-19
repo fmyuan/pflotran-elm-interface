@@ -346,19 +346,6 @@ module clm_pflotran_interface_data
 
   !---------------------------------------------------------------
 
-  PetscBool :: use_lch4
-  Vec :: cellorg_clm
-  Vec :: cellorg_pf
-
-  Vec :: o2_decomp_depth_unsat_clm         ! O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
-  Vec :: conc_o2_unsat_clm                 ! O2 conc in each soil layer (mol/m3) (nlevsoi)
-  Vec :: o2_decomp_depth_unsat_pf          ! O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
-  Vec :: conc_o2_unsat_pf                  ! O2 conc in each soil layer (mol/m3) (nlevsoi)
-  Vec :: o2_decomp_depth_sat_clm           ! O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
-  Vec :: conc_o2_sat_clm                   ! O2 conc in each soil layer (mol/m3) (nlevsoi)
-  Vec :: o2_decomp_depth_sat_pf            ! O2 consumption during decomposition in each soil layer (nlevsoi) (mol/m3/s)
-  Vec :: conc_o2_sat_pf                    ! O2 conc in each soil layer (mol/m3) (nlevsoi)
-
   end type clm_pflotran_idata_type
 
   type(clm_pflotran_idata_type) , public, target , save :: clm_pf_idata
@@ -669,21 +656,6 @@ contains
     clm_pf_idata%f_no3_subbase_pfp   = 0
     clm_pf_idata%f_no3_subbase_clms  = 0
 
-    ! for nitrification-denitrification
-    clm_pf_idata%use_lch4 = PETSC_TRUE
-    clm_pf_idata%cellorg_clm = 0
-    clm_pf_idata%cellorg_pf  = 0
-
-    clm_pf_idata%o2_decomp_depth_unsat_clm = 0 
-    clm_pf_idata%conc_o2_unsat_clm         = 0
-    clm_pf_idata%o2_decomp_depth_unsat_pf  = 0
-    clm_pf_idata%conc_o2_unsat_pf          = 0
-    
-    clm_pf_idata%o2_decomp_depth_sat_clm = 0 
-    clm_pf_idata%conc_o2_sat_clm         = 0
-    clm_pf_idata%o2_decomp_depth_sat_pf  = 0
-    clm_pf_idata%conc_o2_sat_pf          = 0
-
   end subroutine CLMPFLOTRANIDataInit
 
 ! ************************************************************************** !
@@ -810,12 +782,6 @@ contains
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%smin_no3_vr_clmp,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%smin_nh4_vr_clmp,ierr)
 
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%cellorg_clm,ierr)               ! for nitrification-denitrification
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%o2_decomp_depth_unsat_clm,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%conc_o2_unsat_clm,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%o2_decomp_depth_sat_clm,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clmp,clm_pf_idata%conc_o2_sat_clm,ierr)
-
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_sub,PETSC_DECIDE,clm_pf_idata%porosity_clmp,ierr)     ! soil physical properties (3D)
     call VecSet(clm_pf_idata%porosity_clmp,0.d0,ierr)
     call VecDuplicate(clm_pf_idata%porosity_clmp,clm_pf_idata%sr_clmp,ierr)
@@ -845,12 +811,6 @@ contains
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%decomp_npools_vr_cwd_pfs,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%smin_no3_vr_pfs,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%smin_nh4_vr_pfs,ierr)
-
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%cellorg_pf,ierr)               ! for nitrification-denitrification
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%o2_decomp_depth_unsat_pf,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%conc_o2_unsat_pf,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%o2_decomp_depth_sat_pf,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_pfs,clm_pf_idata%conc_o2_sat_pf,ierr)
 
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%porosity_pfs,ierr)
     call VecSet(clm_pf_idata%porosity_pfs,0.d0,ierr)
@@ -1544,36 +1504,6 @@ contains
        call VecDestroy(clm_pf_idata%f_no3_subbase_clms,ierr)
 
     !----------------------------------------------------------------------------------
-
-    if(clm_pf_idata%cellorg_clm /= 0) &
-       call VecDestroy(clm_pf_idata%cellorg_clm, ierr)
-
-    if(clm_pf_idata%cellorg_pf /= 0) &
-       call VecDestroy(clm_pf_idata%cellorg_pf, ierr)
-
-    if(clm_pf_idata%o2_decomp_depth_unsat_clm /= 0) &
-       call VecDestroy(clm_pf_idata%o2_decomp_depth_unsat_clm,ierr)
-
-    if(clm_pf_idata%conc_o2_unsat_clm /= 0) &
-       call VecDestroy(clm_pf_idata%conc_o2_unsat_clm,ierr)
-
-    if(clm_pf_idata%o2_decomp_depth_unsat_pf /= 0) &
-       call VecDestroy(clm_pf_idata%o2_decomp_depth_unsat_pf,ierr)
-
-    if(clm_pf_idata%conc_o2_unsat_pf /= 0) &
-       call VecDestroy(clm_pf_idata%conc_o2_unsat_pf,ierr)
-
-    if(clm_pf_idata%o2_decomp_depth_sat_clm /= 0) &
-       call VecDestroy(clm_pf_idata%o2_decomp_depth_sat_clm,ierr)
-
-    if(clm_pf_idata%conc_o2_sat_clm /= 0) &
-       call VecDestroy(clm_pf_idata%conc_o2_sat_clm,ierr)
-
-    if(clm_pf_idata%o2_decomp_depth_sat_pf /= 0) &
-       call VecDestroy(clm_pf_idata%o2_decomp_depth_sat_pf,ierr)
-
-    if(clm_pf_idata%conc_o2_sat_pf /= 0) &
-       call VecDestroy(clm_pf_idata%conc_o2_sat_pf,ierr)
 
   end subroutine CLMPFLOTRANIDataDestroy
 

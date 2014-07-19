@@ -138,7 +138,6 @@ module pflotran_model_module
        pflotranModelSetInitialConcentrations,  &
        pflotranModelUpdateTHfromCLM,           &    ! dynamically update TH from CLM to drive PFLOTRAN BGC
        pflotranModelUpdateAqGasesFromCLM,      &
-       pflotranModelUpdateO2fromCLM,           &
        pflotranModelSetBGCRates,               &
        pflotranModelGetBgcVariables,           &
        pflotranModelSetSoilHbcs,               &
@@ -723,11 +722,6 @@ end subroutine pflotranModelSetICs
                                     pflotran_model%option, &
                                     clm_pf_idata%bulkdensity_dry_clm, &
                                     clm_pf_idata%bulkdensity_dry_pf)
-
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &    ! 'non-extended' for 'bgc' (?)
-                                    pflotran_model%option, &
-                                    clm_pf_idata%cellorg_clm, &
-                                    clm_pf_idata%cellorg_pf)
 
     call VecGetArrayF90(clm_pf_idata%hksat_x_pf, hksat_x_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%hksat_y_pf, hksat_y_pf_loc, ierr)
@@ -3697,7 +3691,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
       xx_p(offsetim + ispec_som4) = max(decomp_cpools_vr_som4_pf_loc(ghosted_id) &
                                         / C_molecular_weight, 1.0d-20)
 
-!#ifdef TEST
+#ifdef TEST
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (som4c pool):
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
       !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
@@ -3708,10 +3702,9 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
         'som4_pfs(ghosted_id)=',decomp_cpools_vr_som4_pf_loc(ghosted_id), &
         'xx_p(xxp_som4_id)=',xx_p(offsetim + ispec_som4), &
         'sat_glob(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
-        'sat_glob(local_id)=',global_auxvars(local_id)%sat(1), &
         'poro(local_id)=',porosity_loc_p(local_id)
 
-!#endif
+#endif
 
     enddo
 
@@ -3991,15 +3984,15 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 1 (CLM->PF ls
                 + realization%reaction%offset_immobile
 
         if(ispec_co2 > 0) then
-            xx_p(offset + ispec_co2) = max(gco2_vr_pf_loc(local_id), 1.0d-20)
+            xx_p(offset + ispec_co2) = max(gco2_vr_pf_loc(ghosted_id), 1.0d-20)
         endif
 
         if(ispec_n2 > 0) then
-            xx_p(offset + ispec_n2) = max(gn2_vr_pf_loc(local_id), 1.0d-20)
+            xx_p(offset + ispec_n2) = max(gn2_vr_pf_loc(ghosted_id), 1.0d-20)
         endif
 
         if(ispec_n2o > 0) then
-            xx_p(offset + ispec_n2o) = max(gn2o_vr_pf_loc(local_id), 1.0d-20)
+            xx_p(offset + ispec_n2o) = max(gn2o_vr_pf_loc(ghosted_id), 1.0d-20)
         endif
 
     enddo
@@ -4018,49 +4011,6 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 1 (CLM->PF ls
     call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
 
   end subroutine pflotranModelUpdateAqGasesFromCLM
-
-  ! ************************************************************************** !
-  !> This routine Updates O2 for PFLOTRAN bgc that are from CLM
-  !! for testing PFLOTRAN-BGC mode
-  !!
-  !> @author
-  !! Guoping Tang
-  !!
-  !! date: 1/6/2014
-  ! ************************************************************************** !
-  subroutine pflotranModelUpdateO2fromCLM(pflotran_model)
-
-    use clm_pflotran_interface_data
-    use Mapping_module
-
-    implicit none
-
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-
-    type(pflotran_model_type), pointer        :: pflotran_model
-
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%o2_decomp_depth_unsat_clm, &
-                                    clm_pf_idata%o2_decomp_depth_unsat_pf)
-
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%conc_o2_unsat_clm, &
-                                    clm_pf_idata%conc_o2_unsat_pf)
-
-!    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-!                                    pflotran_model%option, &
-!                                    clm_pf_idata%o2_decomp_depth_sat_clmp, &
-!                                    clm_pf_idata%o2_decomp_depth_sat_pfs)
-!   because of NaN t6g
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%conc_o2_sat_clm, &
-                                    clm_pf_idata%conc_o2_sat_pf)
-
-  end subroutine pflotranModelUpdateO2fromCLM
 
   ! ************************************************************************** !
   !
@@ -4157,18 +4107,18 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
     call VecGetArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
 
-    do local_id = 1, grid%ngmax
+    do local_id = 1, grid%nlmax
        ghosted_id = grid%nL2G(local_id)
        if (associated(patch%imat)) then
           if (patch%imat(ghosted_id) <= 0) cycle
        endif
 
-       iend = ghosted_id*pflotran_model%option%nflowdof
+       iend = local_id*pflotran_model%option%nflowdof
        istart = iend-pflotran_model%option%nflowdof+1
 
-       xx_loc_p(istart)  = soilpress_pf_loc(local_id)
+       xx_loc_p(istart)  = soilpress_pf_loc(ghosted_id)
        if (pflotran_model%option%iflowmode .eq. TH_MODE)  then
-            xx_loc_p(istart+1)= soilt_pf_loc(local_id)
+            xx_loc_p(istart+1)= soilt_pf_loc(ghosted_id)
        end if
     enddo
 
