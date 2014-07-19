@@ -172,7 +172,7 @@ end subroutine LangmuirSetup
 ! ************************************************************************** !
 subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                         option,local_id)
+                         option)
 
   use Option_module
   use Reaction_Aux_module
@@ -201,7 +201,6 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: porosity
   PetscReal :: volume
-  PetscInt :: local_id
   PetscErrorCode :: ierr
 
   PetscInt, parameter :: iphase = 1

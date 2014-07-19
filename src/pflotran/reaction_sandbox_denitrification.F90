@@ -242,7 +242,7 @@ end subroutine DenitrificationSetup
 !********************************************************************************************!
 subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                         option,local_id)
+                         option)
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_class, only : material_auxvar_type
@@ -271,7 +271,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: porosity
   PetscReal :: volume
   PetscReal :: L_water
-  PetscInt :: local_id
+  PetscInt :: ghosted_id
   PetscErrorCode :: ierr
 
   PetscReal :: temp_real
@@ -299,13 +299,6 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
 
-#ifdef TEST
-  write(option%myrank+200,*) 'checking pflotran-bgc:', &
-    'rank=',option%myrank, 'local_id=',local_id, 'porosity=', porosity, &
-    'lsat=',global_auxvar%sat(iphase), &
-    'soilt=',global_auxvar%temp
-#endif
-
   L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
             material_auxvar%volume*1.d3
 
@@ -319,11 +312,22 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   if(this%ispec_n2 < 0) return
 
 #ifdef CLM_PFLOTRAN
+  ghosted_id = option%iflag
   call VecGetArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
   CHKERRQ(ierr)
-  temp_real = bsw(local_id)
+  temp_real = bsw(ghosted_id)
   call VecRestoreArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
   CHKERRQ(ierr)
+
+!#ifdef TEST
+  write(option%myrank+200,*) 'checking pflotran-bgc-denitr:', &
+    'rank=',option%myrank, 'ghosted_id=',ghosted_id, 'porosity=', porosity, &
+    'lsat=',global_auxvar%sat(iphase), &
+    'soilt=',global_auxvar%temp, &
+    'bsw(ghosted_id)=',temp_real
+!#endif
+
+
 #else
   temp_real = 1.0d0
 #endif
@@ -491,7 +495,7 @@ end subroutine DenitrificationSetup_CLM45
 ! ************************************************************************** !
 subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,porosity,volume,reaction, &
-                         option,local_id)
+                         option)
 
   use Option_module
   use Reaction_Aux_module
@@ -515,7 +519,7 @@ subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative,
   PetscBool :: compute_derivative
 
   ! the following arrays must be declared after reaction
-  PetscInt :: local_id 
+  PetscInt :: ghosted_id
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: rate, rate_no3, drate_no3, rate_co2, drate_co2, rate_tmp
@@ -633,13 +637,15 @@ subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative,
 
 !moisture response function
 #ifdef CLM_PFLOTRAN
+  ghosted_id = option%iflag
+
   call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat, ierr)
   CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi, ierr)
   CHKERRQ(ierr)
 
-  maxpsi = sucsat(local_id) * (-9.8d-6)
-  psi = min(soilpsi(local_id), maxpsi)
+  maxpsi = sucsat(ghosted_id) * (-9.8d-6)
+  psi = min(soilpsi(ghosted_id), maxpsi)
 
   if(psi > minpsi) then
      F_theta = log(minpsi/psi)/log(minpsi/maxpsi)
@@ -717,38 +723,38 @@ subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative,
   call VecGetArrayReadF90(clm_pf_idata%conc_o2_sat_pf, conc_o2_sat, ierr)
   CHKERRQ(ierr)
 
-  f_a = 1.0 - watfc(local_id) / porosity
-  e_a = porosity - watfc(local_id)
+  f_a = 1.0 - watfc(ghosted_id) / porosity
+  e_a = porosity - watfc(ghosted_id)
 
   if (clm_pf_idata%use_lch4) then
      if (organic_max > 0.0) then
-        om_frac = min(cellorg(local_id)/organic_max, 1.0d0)
+        om_frac = min(cellorg(ghosted_id)/organic_max, 1.0d0)
      else
         om_frac = 1.0
      end if
 
      diffus = (d_con_g_1_o2 + d_con_g_2_o2*tk) * 1.d-4 * &
            (om_frac * f_a**(10.0/3.0) / porosity**2 + &
-           (1.0 - om_frac) * e_a**2 * f_a**(3.0 / bsw(local_id)))
+           (1.0 - om_frac) * e_a**2 * f_a**(3.0 / bsw(ghosted_id)))
 
   ! calculate anoxic fraction of soils
   ! use rijtema and kroess model after Riley et al., 2000
   ! caclulated r_psi as a function of psi
 
 !     if(saturation < WT_saturation) then
-        r_min = 2.0 * surface_tension_water / (rho_w * grav * abs(soilpsi(local_id)))
+        r_min = 2.0 * surface_tension_water / (rho_w * grav * abs(soilpsi(ghosted_id)))
         r_max = 2.0 * surface_tension_water / (rho_w * grav * 0.1)
         r_psi = sqrt(r_min * r_max)
 
         ratio_diffusivity_water_gas = (d_con_g_1_o2 + d_con_g_2_o2*tk) * 1.d-4 / &
              ((d_con_w_1_o2 + d_con_w_2_o2*tk + d_con_w_3_o2*tk**2) * 1.d-9)
 
-        if (o2_decomp_depth_unsat(local_id) .ne. spval .and. &
-           conc_o2_unsat(local_id) .ne. spval .and. &
-           o2_decomp_depth_unsat(local_id) > 0.0) then
+        if (o2_decomp_depth_unsat(ghosted_id) .ne. spval .and. &
+           conc_o2_unsat(ghosted_id) .ne. spval .and. &
+           o2_decomp_depth_unsat(ghosted_id) > 0.0) then
            anaerobic_frac = exp(-rij_kro_a * r_psi**(-rij_kro_alpha) * &
-                       o2_decomp_depth_unsat(local_id)**(-rij_kro_beta) * &
-                       conc_o2_unsat(local_id)**rij_kro_gamma * (h2osoi_vol + &
+                       o2_decomp_depth_unsat(ghosted_id)**(-rij_kro_beta) * &
+                       conc_o2_unsat(ghosted_id)**rij_kro_gamma * (h2osoi_vol + &
                        ratio_diffusivity_water_gas * &
                        porosity**rij_kro_delta))
 
@@ -759,18 +765,18 @@ subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative,
 !     else
 ! anoxia_wtsat = .false by default, NaN in o2_decomp_depth_sat
 !     if (anoxia_wtsat) then ! Average saturated fraction values into anaerobic_frac(c,j).
-!         r_min = 2.0 * surface_tension_water / (rho_w * grav * abs(grav * 1.e-6 * sucsat(local_id)))
+!         r_min = 2.0 * surface_tension_water / (rho_w * grav * abs(grav * 1.e-6 * sucsat(ghosted_id)))
 !         r_max = 2.0 * surface_tension_water / (rho_w * grav * 0.1)
 !         r_psi = sqrt(r_min * r_max)
 !         ratio_diffusivity_water_gas = (d_con_g_1_o2 + d_con_g_2_o2*tk) * 1.d-4 / &
 !             ((d_con_w_1_o2 + d_con_w_2_o2*tk + d_con_w_3_o2*tk**2) * 1.d-9)
 
- !        if (o2_decomp_depth_sat(local_id) .ne. spval .and. &
- !            conc_o2_sat(local_id) .ne. spval .and. &
- !            o2_decomp_depth_sat(local_id) > 0.0) then
+ !        if (o2_decomp_depth_sat(ghosted_id) .ne. spval .and. &
+ !            conc_o2_sat(ghosted_id) .ne. spval .and. &
+ !            o2_decomp_depth_sat(ghosted_id) > 0.0) then
  !            anaerobic_frac = exp(-rij_kro_a * r_psi**(-rij_kro_alpha) * &
- !                      o2_decomp_depth_sat(local_id)**(-rij_kro_beta) * &
- !                      conc_o2_sat(local_id)**rij_kro_gamma * (porosity +  &
+ !                      o2_decomp_depth_sat(ghosted_id)**(-rij_kro_beta) * &
+ !                      conc_o2_sat(ghosted_id)**rij_kro_gamma * (porosity +  &
  !                      ratio_diffusivity_water_gas * porosity)**rij_kro_delta)
 !             anaerobic_frac = 0.0
 !         else
@@ -818,7 +824,7 @@ subroutine DenitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative,
 #ifdef CLM_PFLOTRAN
   call VecGetArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity_dry, ierr)
   CHKERRQ(ierr)
-  soil_bulkdensity = bulkdensity_dry(local_id)    
+  soil_bulkdensity = bulkdensity_dry(ghosted_id)
   call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity_dry, ierr)
   CHKERRQ(ierr)
 #else

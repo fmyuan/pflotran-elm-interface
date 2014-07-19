@@ -255,7 +255,7 @@ end subroutine NitrificationSetup
 ! ************************************************************************** !
 subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                         option,local_id)
+                         option)
 
   use Option_module
   use Reaction_Aux_module
@@ -284,7 +284,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: porosity
   PetscReal :: volume
-  PetscInt :: local_id
+  PetscInt :: ghosted_id
   PetscErrorCode :: ierr
 
   PetscInt, parameter :: iphase = 1
@@ -405,9 +405,11 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
 ! N2O production from nitrification (Parton et al. 1996)
 #ifdef CLM_PFLOTRAN
+  ghosted_id = option%iflag
+
   call VecGetArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity, ierr)
   CHKERRQ(ierr)
-  rho_b = bulkdensity(local_id) ! kg/m3
+  rho_b = bulkdensity(ghosted_id) ! kg/m3
   call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity, ierr)
   CHKERRQ(ierr)
 #else
@@ -499,7 +501,7 @@ end subroutine NitrificationReact
 
 subroutine NitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,porosity,volume,reaction, &
-                         option,local_id)
+                         option)
 
   use Option_module
   use Reaction_Aux_module
@@ -526,7 +528,7 @@ subroutine NitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: rate, drate, concN, rate0
   PetscReal :: volume, porosity, saturation
-  PetscInt :: local_id, ires_nh3, ires_no3
+  PetscInt :: ghosted_id, ires_nh3, ires_no3
   PetscErrorCode     :: ierr
 
   ! inhibition variables
@@ -616,13 +618,15 @@ subroutine NitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
 
 !moisture response function
 #ifdef CLM_PFLOTRAN
+  ghosted_id = option%iflag
+
   call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat, ierr)
   CHKERRQ(ierr)
   call VecGetArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi, ierr)
   CHKERRQ(ierr)
 
-  maxpsi = sucsat(local_id) * (-9.8d-6)
-  psi = min(soilpsi(local_id), maxpsi)
+  maxpsi = sucsat(ghosted_id) * (-9.8d-6)
+  psi = min(soilpsi(ghosted_id), maxpsi)
 
   if(psi > minpsi) then
      F_theta = log(minpsi/psi)/log(minpsi/maxpsi)
@@ -704,41 +708,41 @@ subroutine NitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
   call VecGetArrayReadF90(clm_pf_idata%conc_o2_sat_pf, conc_o2_sat, ierr)
   CHKERRQ(ierr)
 
-  f_a = 1.0 - watfc(local_id) / watsat(local_id)
-  e_a = watsat(local_id) - watfc(local_id)
+  f_a = 1.0 - watfc(ghosted_id) / watsat(ghosted_id)
+  e_a = watsat(ghosted_id) - watfc(ghosted_id)
 
   if (clm_pf_idata%use_lch4) then
      if (organic_max > 0.0) then
-        om_frac = min(cellorg(local_id)/organic_max, 1.0d0)
+        om_frac = min(cellorg(ghosted_id)/organic_max, 1.0d0)
      else
         om_frac = 1.0d0
      end if
 
      diffus = (d_con_g_1_o2 + d_con_g_2_o2*tk) * 1.d-4 * &
-           (om_frac * f_a**(10.0/3.0) / watsat(local_id)**2 + &
-           (1.0 - om_frac) * e_a**2 * f_a**(3.0 / bsw(local_id)))
+           (om_frac * f_a**(10.0/3.0) / watsat(ghosted_id)**2 + &
+           (1.0 - om_frac) * e_a**2 * f_a**(3.0 / bsw(ghosted_id)))
 
   ! calculate anoxic fraction of soils
   ! use rijtema and kroess model after Riley et al., 2000
   ! caclulated r_psi as a function of psi
 
 !     if(saturation < WT_saturation) then
-        tmp_real = soilpsi(local_id)
-        r_min = 2.0 * surface_tension_water / (rho_w * grav * abs(soilpsi(local_id)))
+        tmp_real = soilpsi(ghosted_id)
+        r_min = 2.0 * surface_tension_water / (rho_w * grav * abs(soilpsi(ghosted_id)))
         r_max = 2.0 * surface_tension_water / (rho_w * grav * 0.1)
         r_psi = sqrt(r_min * r_max)
 
         ratio_diffusivity_water_gas = (d_con_g_1_o2 + d_con_g_2_o2*tk) * 1.d-4 / &
              ((d_con_w_1_o2 + d_con_w_2_o2*tk + d_con_w_3_o2*tk**2) * 1.d-9)
 
-        if (o2_decomp_depth_unsat(local_id) .ne. spval .and. &
-           conc_o2_unsat(local_id) .ne. spval .and. &
-           o2_decomp_depth_unsat(local_id) > 0.0) then
+        if (o2_decomp_depth_unsat(ghosted_id) .ne. spval .and. &
+           conc_o2_unsat(ghosted_id) .ne. spval .and. &
+           o2_decomp_depth_unsat(ghosted_id) > 0.0) then
            anaerobic_frac = exp(-rij_kro_a * r_psi**(-rij_kro_alpha) * &
-                       o2_decomp_depth_unsat(local_id)**(-rij_kro_beta) * &
-                       conc_o2_unsat(local_id)**rij_kro_gamma * (h2osoi_vol + &
+                       o2_decomp_depth_unsat(ghosted_id)**(-rij_kro_beta) * &
+                       conc_o2_unsat(ghosted_id)**rij_kro_gamma * (h2osoi_vol + &
                        ratio_diffusivity_water_gas * &
-                       watsat(local_id))**rij_kro_delta)
+                       watsat(ghosted_id))**rij_kro_delta)
 
         else
            anaerobic_frac = 0.0
@@ -746,19 +750,19 @@ subroutine NitrificationReact_CLM45(this,Residual,Jacobian,compute_derivative, &
 !     else
 ! anoxia_wtsat = .false by default, NaN in o2_decomp_depth_sat
 !     if (anoxia_wtsat) then ! Average saturated fraction values into anaerobic_frac(c,j).
-!         r_min = 2.0 * surface_tension_water / (rho_w * grav * abs(grav * 1.e-6 * sucsat(local_id)))
+!         r_min = 2.0 * surface_tension_water / (rho_w * grav * abs(grav * 1.e-6 * sucsat(ghosted_id)))
 !         r_max = 2.0 * surface_tension_water / (rho_w * grav * 0.1)
 !         r_psi = sqrt(r_min * r_max)
 !         ratio_diffusivity_water_gas = (d_con_g_1_o2 + d_con_g_2_o2*tk) * 1.d-4 / &
 !             ((d_con_w_1_o2 + d_con_w_2_o2*tk + d_con_w_3_o2*tk**2) * 1.d-9)
 
- !        if (o2_decomp_depth_sat(local_id) .ne. spval .and. &
- !            conc_o2_sat(local_id) .ne. spval .and. &
- !            o2_decomp_depth_sat(local_id) > 0.0) then
+ !        if (o2_decomp_depth_sat(ghosted_id) .ne. spval .and. &
+ !            conc_o2_sat(ghosted_id) .ne. spval .and. &
+ !            o2_decomp_depth_sat(ghosted_id) > 0.0) then
  !            anaerobic_frac = exp(-rij_kro_a * r_psi**(-rij_kro_alpha) * &
- !                      o2_decomp_depth_sat(local_id)**(-rij_kro_beta) * &
- !                      conc_o2_sat(local_id)**rij_kro_gamma * (watsat(local_id) +  &
- !                      ratio_diffusivity_water_gas * watsat(local_id))**rij_kro_delta)
+ !                      o2_decomp_depth_sat(ghosted_id)**(-rij_kro_beta) * &
+ !                      conc_o2_sat(ghosted_id)**rij_kro_gamma * (watsat(ghosted_id) +  &
+ !                      ratio_diffusivity_water_gas * watsat(ghosted_id))**rij_kro_delta)
 !             anaerobic_frac = 0.0
 !         else
 !             anaerobic_frac = 0.0

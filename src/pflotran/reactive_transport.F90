@@ -1845,12 +1845,11 @@ subroutine RTReact(realization)
     istart = (local_id-1)*reaction%ncomp+1
     iend = istart + reaction%ncomp - 1
     iendaq = istart + reaction%naqcomp - 1
-    
-    
+
     call RReact(rt_auxvars(ghosted_id),global_auxvars(ghosted_id), &
                 material_auxvars(ghosted_id), &
                 tran_xx_p(istart:iend), &
-                num_iterations,reaction,option,local_id)
+                num_iterations,reaction,option)
     ! set primary dependent var back to free-ion molality
     tran_xx_p(istart:iendaq) = rt_auxvars(ghosted_id)%pri_molal
     if (reaction%nimcomp > 0) then
@@ -2871,11 +2870,20 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       if (.not.option%use_isothermal) then
         call RUpdateTempDependentCoefs(global_auxvars(ghosted_id),reaction, &
                                        PETSC_FALSE,option)
-      endif      
+      endif
+
+!F.-M. YUAN: option%iflag IS used here as indexing of cell-id for passing data from
+! clm_pf_idata%??? to PFLOTRAN for driving reaction sandboxes
+! note: 'local_id' is used in those sandboxes, but after checking when in parallel mode,
+! it should be 'ghosted_id', because in 'clm_pf_idata%???', those are defined as PETSC seq. vecs.
+#ifdef CLM_PFLOTRAN
+    option%iflag = ghosted_id
+#endif
+
       call RReaction(Res,Jup,PETSC_FALSE,rt_auxvars(ghosted_id), &
                      global_auxvars(ghosted_id), &
                      material_auxvars(ghosted_id), &
-                     reaction,option,local_id)
+                     reaction,option)
       if (option%use_mc) then
         vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
         Res = Res*vol_frac_prim
@@ -3456,10 +3464,19 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
         call RUpdateTempDependentCoefs(global_auxvars(ghosted_id),reaction, &
                                        PETSC_FALSE,option)
       endif      
+
+!F.-M. YUAN: option%iflag IS used here as indexing of cell-id for passing data from
+! clm_pf_idata%??? to PFLOTRAN for driving reaction sandboxes
+! note: 'local_id' is used in those sandboxes, but after checking when in parallel mode,
+! it should be 'ghosted_id', because in 'clm_pf_idata%???', those are defined as PETSC seq. vecs.
+#ifdef CLM_PFLOTRAN
+    option%iflag = ghosted_id
+#endif
+
       call RReactionDerivative(Res,Jup,rt_auxvars(ghosted_id), &
                                global_auxvars(ghosted_id), &
                                material_auxvars(ghosted_id), &
-                               reaction,option,local_id)
+                               reaction,option)
       if (option%use_mc) then
         vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
         Jup = Jup*vol_frac_prim

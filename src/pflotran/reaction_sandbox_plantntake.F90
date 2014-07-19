@@ -194,7 +194,7 @@ end subroutine PlantNTakeSetup
 ! ************************************************************************** !
 subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                         option,local_id)
+                         option)
 
   use Option_module
   use Reaction_Aux_module
@@ -224,7 +224,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: rate, drate, concN, rate0
   PetscReal :: volume, porosity
-  PetscInt :: local_id
+  PetscInt :: ghosted_id
   PetscErrorCode :: ierr
 
   character(len=MAXWORDLENGTH) :: word
@@ -370,10 +370,12 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
 #ifdef CLM_PFLOTRAN
+  ghosted_id = option%iflag
+
   call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, &
        rate_plantnuptake_pf_loc, ierr)
 
-  this%rate = rate_plantnuptake_pf_loc(local_id) * volume ! mol/m3/s * m3
+  this%rate = rate_plantnuptake_pf_loc(ghosted_id) * volume ! mol/m3/s * m3
 
   call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, &
        rate_plantnuptake_pf_loc, ierr)

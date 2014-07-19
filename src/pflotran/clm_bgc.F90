@@ -82,7 +82,7 @@ end function GetTemperatureResponse
   
 ! ************************************************************************** !
 
-Function GetMoistureResponse(thetapsi, local_id, itype)
+Function GetMoistureResponse(thetapsi, ghosted_id, itype)
 
 #ifdef CLM_PFLOTRAN
   use clm_pflotran_interface_data
@@ -103,7 +103,7 @@ Function GetMoistureResponse(thetapsi, local_id, itype)
   PetscReal, parameter :: one_over_log_theta_min = -2.17147241d-1
   PetscReal, parameter :: twelve_over_14 = 0.857142857143d0
 
-  PetscInt :: local_id, itype
+  PetscInt :: ghosted_id, itype
   PetscReal :: maxpsi, psi, theta, tc
   PetscReal, parameter :: minpsi = -15.0d6    ! Pa
 
@@ -125,7 +125,7 @@ Function GetMoistureResponse(thetapsi, local_id, itype)
       CHKERRQ(ierr)
       ! sucsat [mm of H20] from CLM is the suction (positive) at water saturated (called air-entry pressure)
       ! [Pa] = [mm of H20] * 0.001 [m/mm] * 1000 [kg/m^3] * 9.81 [m/sec^2]
-      maxpsi = sucsat_pf_loc(local_id) * (-9.81d0)
+      maxpsi = sucsat_pf_loc(ghosted_id) * (-9.81d0)
       psi = min(thetapsi, maxpsi)                     ! thetapsi IS psi (-Pa)
       if(psi > minpsi) then
         F_theta = log(minpsi/psi)/log(minpsi/maxpsi)
@@ -142,8 +142,8 @@ Function GetMoistureResponse(thetapsi, local_id, itype)
       CHKERRQ(ierr)
       call VecGetArrayReadF90(clm_pf_idata%watfc_pf, watfc_pf_loc, ierr)
       CHKERRQ(ierr)
-      thetas = watsat_pf_loc(local_id)
-      thetar = watfc_pf_loc(local_id)
+      thetas = watsat_pf_loc(ghosted_id)
+      thetar = watfc_pf_loc(ghosted_id)
       theta = thetapsi                           ! thetapsi IS 'theta'
       if(theta >= thetas) then
         F_theta = 1.0d0

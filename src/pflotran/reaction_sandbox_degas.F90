@@ -211,7 +211,7 @@ end subroutine degasSetup
 ! ************************************************************************** !
 subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                         option,local_id)
+                         option)
 
   use Option_module
   use Reaction_Aux_module
@@ -242,7 +242,6 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
   PetscBool :: compute_derivative
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
-  PetscInt :: local_id
   PetscErrorCode :: ierr
 
   PetscInt, parameter :: iphase = 1

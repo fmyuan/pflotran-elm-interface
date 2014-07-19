@@ -757,7 +757,7 @@ end subroutine pflotranModelSetICs
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
       !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
       !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
-      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model:', &
+      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model prior to set soil properties: ', &
         'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'porosity(local_id)=',porosity_loc_p(local_id),'watsat(ghosted_id)=',watsat_pf_loc(ghosted_id)
@@ -2957,7 +2957,7 @@ end subroutine pflotranModelSetICs
 #ifdef TEST
 ! F.-M. Yuan: the following check proves DATA-passing from PF to CLM MUST BE done by ghosted_id --> local_id
 ! if passing from 'global_auxvars'
-write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2:  ', &
+write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         'local_id=',local_id, 'ghosted_id=',ghosted_id,  &
         'sat_globalvar(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
         'idata%sat_pfp(local_id)=',soillsat_pf_p(local_id)
@@ -3658,12 +3658,12 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2:  ', &
 
       offset = (local_id - 1)*realization%reaction%ncomp
 
-      saturation = global_auxvars(ghosted_id)%sat(1)
-      porosity = porosity_loc_p(local_id)
+      saturation = global_auxvars(ghosted_id)%sat(1)          ! using 'ghosted_id' if from 'global_auxvars'
+      porosity = porosity_loc_p(local_id)                     ! using 'local_id' if from 'field%???'
       theta = saturation * porosity
 
       if(ispec_no3 > 0) then
-         xx_p(offset + ispec_no3) = max(smin_no3_vr_pf_loc(ghosted_id) / &      ! from 'ghosted_id' to xx_p's local
+         xx_p(offset + ispec_no3) = max(smin_no3_vr_pf_loc(ghosted_id) / &      ! from 'ghosted_id' to field%xx_p's local
                                     N_molecular_weight / theta / 1000.0d0, & 
                                     1.0d-20)
       endif
@@ -3698,15 +3698,17 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2:  ', &
                                         / C_molecular_weight, 1.0d-20)
 
 !#ifdef TEST
-      write(pflotran_model%option%myrank+200,*) 'checking bgc - pflotran 1:', &
+      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (som4c pool):
+      ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
+      !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
+      !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
+      write(pflotran_model%option%myrank+200,*) 'checking bgc - pflotran-model setting init. conc.: ', &
         'rank=',pflotran_model%option%myrank, &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, 'xxp_som4_id', offsetim+ispec_som4, &
-        'som4_pfs(local_id)=',decomp_cpools_vr_som4_pf_loc(local_id), &
         'som4_pfs(ghosted_id)=',decomp_cpools_vr_som4_pf_loc(ghosted_id), &
         'xx_p(xxp_som4_id)=',xx_p(offsetim + ispec_som4), &
         'sat_glob(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
         'sat_glob(local_id)=',global_auxvars(local_id)%sat(1), &
-        'poro(ghosted_id)=',porosity_loc_p(ghosted_id), &
         'poro(local_id)=',porosity_loc_p(local_id)
 
 !#endif
@@ -3829,7 +3831,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2:  ', &
 #ifdef TEST
 ! F.-M. Yuan: the following check proves DATA-passing from CLM to PF MUST BE done by ghosted_id --> ghosted_id
 ! if passing to 'global_auxvars'
-write(pflotran_model%option%myrank+200,*) 'checking pflotran-model: ', &
+write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 1 (CLM->PF lsat): ', &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'sat_globalvars(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
         'sat_pfs(ghosted_id)=',soillsat_pf_loc(ghosted_id)
@@ -4820,8 +4822,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
       !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
       !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
-      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model:', &
-        'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
+      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model prior to resetting porosity:', &
+        'rank=',pflotran_model%option%myrank, &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'porosity(local_id)=',porosity_loc_p(local_id),'adjporo(ghosted_id)=',porosity_pfs_loc(ghosted_id)
 #endif

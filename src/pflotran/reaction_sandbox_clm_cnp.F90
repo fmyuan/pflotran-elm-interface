@@ -1170,7 +1170,7 @@ end subroutine CLM_CNPSetup
 ! ************************************************************************** !
 subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                         option,local_id)
+                         option)
 
   use Option_module
   use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
@@ -1216,7 +1216,7 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal, parameter :: theta_min = 0.01d0     ! 1/nat log(0.01d0)
   PetscReal, parameter :: one_over_log_theta_min = -2.17147241d-1
   PetscReal, parameter :: twelve_over_14 = 0.857142857143d0
-  PetscInt :: local_id
+  PetscInt :: ghosted_id
   PetscReal :: maxpsi, psi
   PetscReal, parameter :: minpsi = -10.0d0  ! MPa
   PetscScalar, pointer :: sucsat_pf_loc(:)   !
@@ -1255,11 +1255,12 @@ subroutine CLM_CNPReact(this,Residual,Jacobian,compute_derivative, &
   !              theta_min = 0.01, theta_max = 1.
 
 #ifdef CLM_PFLOTRAN
+  ghosted_id = option%iflag
   call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
   call VecGetArrayReadF90(clm_pf_idata%soilpsi_pfs, soilpsi_pf_loc, ierr)
 
-  maxpsi = sucsat_pf_loc(local_id) * (-9.8d-6)
-  psi = min(soilpsi_pf_loc(local_id), maxpsi)
+  maxpsi = sucsat_pf_loc(ghosted_id) * (-9.8d-6)
+  psi = min(soilpsi_pf_loc(ghosted_id), maxpsi)
 
   if(psi > minpsi) then
      F_theta = log(minpsi/psi)/log(minpsi/maxpsi)

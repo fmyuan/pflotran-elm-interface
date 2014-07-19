@@ -539,7 +539,7 @@ end subroutine CLM_CN_Map
 ! ************************************************************************** !
 
 subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
-                        global_auxvar,material_auxvar,reaction,option,local_id)
+                        global_auxvar,material_auxvar,reaction,option)
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
   ! 
@@ -635,6 +635,8 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   ! moisture response function 
 #ifdef CLM_PFLOTRAN
+  local_id = option%iflag
+
   theta = global_auxvar%sat(1) * material_auxvar%porosity 
   F_theta = GetMoistureResponse(theta, local_id, this%moisture_response_function)
 #else
