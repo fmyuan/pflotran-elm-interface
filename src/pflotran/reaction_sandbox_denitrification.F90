@@ -319,7 +319,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   call VecRestoreArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
   CHKERRQ(ierr)
 
-#ifdef TEST
+#ifdef CHECK_DATAPASSING
   write(option%myrank+200,*) 'checking pflotran-bgc-denitr:', &
     'rank=',option%myrank, 'ghosted_id=',ghosted_id, 'porosity=', porosity, &
     'lsat=',global_auxvar%sat(iphase), &

@@ -745,7 +745,7 @@ end subroutine pflotranModelSetICs
       if (ghosted_id < 0 .or. local_id < 0) cycle
       if (patch%imat(ghosted_id) <= 0) cycle
 
-#ifdef TEST
+#ifdef CHECK_DATAPASSING
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (watsat):
       !  (turn it on with similar output in clm_pflotran_interfaceMod.F90 and reaction_sandbox_denitrification.F90)
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
@@ -2948,7 +2948,7 @@ end subroutine pflotranModelSetICs
       press_pf_p(local_id)   =global_auxvars(ghosted_id)%pres(1)
 
 
-#ifdef TEST
+#ifdef CHECK_DATAPASSING
 ! F.-M. Yuan: the following check proves DATA-passing from PF to CLM MUST BE done by ghosted_id --> local_id
 ! if passing from 'global_auxvars'
 write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
@@ -3691,7 +3691,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
       xx_p(offsetim + ispec_som4) = max(decomp_cpools_vr_som4_pf_loc(ghosted_id) &
                                         / C_molecular_weight, 1.0d-20)
 
-#ifdef TEST
+#ifdef CHECK_DATAPASSING
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (som4c pool):
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
       !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
@@ -3821,7 +3821,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
             if (ghosted_id<=0 .or. local_id <=0) cycle
             if (patch%imat(local_id) <=0) cycle
 
-#ifdef TEST
+#ifdef CHECK_DATAPASSING
 ! F.-M. Yuan: the following check proves DATA-passing from CLM to PF MUST BE done by ghosted_id --> ghosted_id
 ! if passing to 'global_auxvars'
 write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 1 (CLM->PF lsat): ', &
@@ -4767,7 +4767,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
       if (ghosted_id < 0 .or. local_id < 0) cycle
       if (patch%imat(ghosted_id) <= 0) cycle
 
-#ifdef TEST
+#ifdef CHECK_DATAPASSING
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (ice-adjusted porosity):
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
       !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
