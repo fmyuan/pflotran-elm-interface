@@ -5052,7 +5052,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
          endif
 
          do local_id = 1, grid%nlmax
-            if (grid%nG2L(local_id) < 0) cycle ! bypass ghosted corner cells
+            ghosted_id = grid%nL2G(local_id)
+            if (local_id<=0 .or. ghosted_id<=0) cycle
             if (patch%imat(local_id) <= 0) cycle
 
             if(cur_mass_transfer%idof == ispec_nh4 .or. &
@@ -5065,8 +5066,20 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                cur_mass_transfer%idof == ispec_lit3n+offsetim &
                ) then
 
+#ifdef CHECK_DATAPASSING
+      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (mass transfer rate):
+      ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
+      !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
+      !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
+      if (cur_mass_transfer%idof == ispec_nh4) &
+      write(pflotran_model%option%myrank+200,*) 'checking bgc-mass-rate - pflotran_model: ', &
+        'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'rate_nh4_pfs(ghosted_id)=',rate_pf_loc(ghosted_id), &
+        'masstransfer_nh4_pfdataset(local_id)=',cur_mass_transfer%dataset%rarray(local_id)
+#endif
+
                cur_mass_transfer%dataset%rarray(local_id) = &
-                        rate_pf_loc(local_id)*volume_p(local_id)  ! mol/m3s * m3
+                        rate_pf_loc(ghosted_id)*volume_p(local_id)  ! mol/m3s * m3
 
             endif
          enddo
