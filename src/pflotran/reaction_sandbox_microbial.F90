@@ -445,7 +445,7 @@ end subroutine MicrobialSetup
 ! ************************************************************************** !
 subroutine MicrobialReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                         option,local_id)
+                         option)
 
   use Option_module
   use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
@@ -486,7 +486,7 @@ subroutine MicrobialReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: tc, theta
 #endif
 
-  PetscInt :: local_id, i, icomp, ires
+  PetscInt :: ghosted_id, i, icomp, ires
   PetscErrorCode :: ierr
 
   porosity = material_auxvar%porosity
@@ -502,8 +502,9 @@ subroutine MicrobialReact(this,Residual,Jacobian,compute_derivative, &
 
   ! moisture response function 
 #ifdef CLM_PFLOTRAN
+  ghosted_id = option%iflag
   theta = global_auxvar%sat(1) * porosity 
-  f_w = GetMoistureResponse(theta, local_id, this%moisture_response_function)
+  f_w = GetMoistureResponse(theta, ghosted_id, this%moisture_response_function)
 #else
   f_w = 1.0d0
 #endif

@@ -138,7 +138,6 @@ module pflotran_model_module
        pflotranModelSetInitialConcentrations,  &
        pflotranModelUpdateTHfromCLM,           &    ! dynamically update TH from CLM to drive PFLOTRAN BGC
        pflotranModelUpdateAqGasesFromCLM,      &
-       pflotranModelUpdateO2fromCLM,           &
        pflotranModelSetBGCRates,               &
        pflotranModelGetBgcVariables,           &
        pflotranModelSetSoilHbcs,               &
@@ -724,11 +723,6 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%bulkdensity_dry_clm, &
                                     clm_pf_idata%bulkdensity_dry_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &    ! 'non-extended' for 'bgc' (?)
-                                    pflotran_model%option, &
-                                    clm_pf_idata%cellorg_clm, &
-                                    clm_pf_idata%cellorg_pf)
-
     call VecGetArrayF90(clm_pf_idata%hksat_x_pf, hksat_x_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%hksat_y_pf, hksat_y_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%hksat_z_pf, hksat_z_pf_loc, ierr)
@@ -746,17 +740,18 @@ end subroutine pflotranModelSetICs
          call VecGetArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
     endif
 
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (ghosted_id < 0) cycle ! bypass ghosted corner cells
+    do ghosted_id = 1, grid%ngmax
+      local_id = grid%nG2L(ghosted_id)
+      if (ghosted_id < 0 .or. local_id < 0) cycle
       if (patch%imat(ghosted_id) <= 0) cycle
 
-#ifdef TEST
+#ifdef CHECK_DATAPASSING
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (watsat):
       !  (turn it on with similar output in clm_pflotran_interfaceMod.F90 and reaction_sandbox_denitrification.F90)
-      ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id uses 'nL2G' as corrected above;
+      ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
+      !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
       !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
-      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model:', &
+      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model prior to set soil properties: ', &
         'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'porosity(local_id)=',porosity_loc_p(local_id),'watsat(ghosted_id)=',watsat_pf_loc(ghosted_id)
@@ -984,6 +979,7 @@ end subroutine pflotranModelSetICs
       case(PF_SUB_TO_CLM_SUB)
         map => pflotran_model%map_pf_sub_to_clm_sub
         source_mesh_id = PF_SUB_MESH
+        dest_mesh_id = CLM_SUB_MESH
       case default
         option%io_buffer = 'Invalid map_id argument to pflotranModelInitMapping'
         call printErrMsg(option)
@@ -1021,19 +1017,24 @@ end subroutine pflotranModelSetICs
       else
         grid_pf_local_nindex(local_id) = 1 ! LOCAL
       endif
+
     enddo
 
     select case(source_mesh_id)
       case(CLM_SUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
-                                         grid_clm_cell_ids_nindex)
+                                         grid_clm_npts_ghost, &
+                                         grid_clm_cell_ids_nindex, &
+                                         grid_clm_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
       case(PF_SUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
-                                        grid_pf_cell_ids_nindex)
+                                        grid_pf_npts_ghost, &
+                                        grid_pf_cell_ids_nindex, &
+                                        grid_pf_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
                                               grid_clm_npts_ghost, &
                                               grid_clm_cell_ids_nindex, &
@@ -1497,14 +1498,18 @@ end subroutine pflotranModelSetICs
     select case(source_mesh_id)
       case(CLM_SUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
-                                         grid_clm_cell_ids_nindex_copy)
+                                         grid_clm_npts_ghost, &
+                                         grid_clm_cell_ids_nindex_copy, &
+                                         grid_clm_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
       case(PF_2DSUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
-                                        grid_pf_cell_ids_nindex)
+                                        grid_pf_npts_ghost, &
+                                        grid_pf_cell_ids_nindex, &
+                                        grid_pf_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
                                               grid_clm_npts_ghost, &
                                               grid_clm_cell_ids_nindex_copy, &
@@ -2850,6 +2855,8 @@ end subroutine pflotranModelSetICs
              'implmentation in this mode is not supported!'
 
             call printErrMsg(pflotran_model%option)
+        else
+            call pflotranModelGetSaturation(pflotran_model)
         endif
     end select
 
@@ -2901,6 +2908,10 @@ end subroutine pflotranModelSetICs
     PetscReal, pointer :: press_pf_p(:)
     PetscReal, pointer :: soilpsi_pf_p(:)
 
+    PetscInt :: i, vecsize
+    PetscReal, pointer :: vec_loc(:)
+    PetscViewer :: viewer
+
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
          realization => simulation%realization
@@ -2928,11 +2939,24 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%soillsat_pfp, soillsat_pf_p, ierr)
     call VecGetArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
     call VecGetArrayF90(clm_pf_idata%soilpsi_pfp, soilpsi_pf_p, ierr)
+
     do local_id=1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
+      if (ghosted_id <=0 ) cycle
 
       soillsat_pf_p(local_id)=global_auxvars(ghosted_id)%sat(1)
       press_pf_p(local_id)   =global_auxvars(ghosted_id)%pres(1)
+
+
+#ifdef CHECK_DATAPASSING
+! F.-M. Yuan: the following check proves DATA-passing from PF to CLM MUST BE done by ghosted_id --> local_id
+! if passing from 'global_auxvars'
+write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id,  &
+        'sat_globalvar(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
+        'idata%sat_pfp(local_id)=',soillsat_pf_p(local_id)
+#endif
+
 
       if (pflotran_model%option%iflowmode == RICHARDS_MODE) then
         soilpsi_pf_p(local_id) = rich_auxvars(ghosted_id)%pc
@@ -2970,6 +2994,7 @@ end subroutine pflotranModelSetICs
       call VecGetArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
       do local_id = 1, grid%nlmax
         ghosted_id = grid%nL2G(local_id)
+        if (ghosted_id <=0 ) cycle
         soilisat_pf_p(local_id) = TH_auxvars(ghosted_id)%sat_ice
       enddo
       call VecRestoreArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
@@ -3107,9 +3132,9 @@ end subroutine pflotranModelSetICs
     th_auxvars      => patch%aux%TH%auxvars
 
     call VecGetArrayF90(clm_pf_idata%soilt_pfp, soilt_pf_p, ierr)
-    do ghosted_id=1,grid%ngmax
-      local_id = grid%nG2L(ghosted_id)
-      if (local_id>0) then
+    do local_id=1,grid%nlmax
+      ghosted_id = grid%nL2G(ghosted_id)
+      if (ghosted_id>0) then
         soilt_pf_p(local_id) = global_auxvars(ghosted_id)%temp
       endif
     enddo
@@ -3368,6 +3393,7 @@ end subroutine pflotranModelSetICs
   !  and set concentrations in PFLOTRAN
   ! author: Guoping Tang
   ! date: 08/16/2013
+  ! corrected by Fengming Yuan @ 07/12/2014
   ! ************************************************************************** !
   subroutine pflotranModelSetInitialConcentrations(pflotran_model)
 
@@ -3621,51 +3647,65 @@ end subroutine pflotranModelSetICs
 
     do local_id = 1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
-      if (grid%nG2L(local_id) < 0) cycle ! bypass ghosted corner cells
-      !geh - Ignore inactive cells with inactive materials
-
+      if (ghosted_id<=0 .or. local_id <= 0) cycle ! bypass ghosted corner cells
       if (patch%imat(local_id) <= 0) cycle
 
       offset = (local_id - 1)*realization%reaction%ncomp
 
-      saturation = global_auxvars(ghosted_id)%sat(1)
-      porosity = porosity_loc_p(local_id)
+      saturation = global_auxvars(ghosted_id)%sat(1)          ! using 'ghosted_id' if from 'global_auxvars'
+      porosity = porosity_loc_p(local_id)                     ! using 'local_id' if from 'field%???'
       theta = saturation * porosity
 
       if(ispec_no3 > 0) then
-         xx_p(offset + ispec_no3) = max(smin_no3_vr_pf_loc(local_id) / &
+         xx_p(offset + ispec_no3) = max(smin_no3_vr_pf_loc(ghosted_id) / &      ! from 'ghosted_id' to field%xx_p's local
                                     N_molecular_weight / theta / 1000.0d0, & 
                                     1.0d-20)
       endif
 
       if(ispec_nh4 > 0) then
-         xx_p(offset + ispec_nh4) = max(smin_nh4_vr_pf_loc(local_id) / &
+         xx_p(offset + ispec_nh4) = max(smin_nh4_vr_pf_loc(ghosted_id) / &
                                     N_molecular_weight / theta / 1000.d0, & 
                                     1.0d-20)
       endif
 
       offsetim = offset + realization%reaction%offset_immobile
 
-      xx_p(offsetim + ispec_lit1c) = max(decomp_cpools_vr_lit1_pf_loc(local_id) &
+      xx_p(offsetim + ispec_lit1c) = max(decomp_cpools_vr_lit1_pf_loc(ghosted_id) &
                                         / C_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_lit2c) = max(decomp_cpools_vr_lit2_pf_loc(local_id) &
+      xx_p(offsetim + ispec_lit2c) = max(decomp_cpools_vr_lit2_pf_loc(ghosted_id) &
                                         / C_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_lit3c) = max(decomp_cpools_vr_lit3_pf_loc(local_id) &
+      xx_p(offsetim + ispec_lit3c) = max(decomp_cpools_vr_lit3_pf_loc(ghosted_id) &
                                         / C_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_lit1n) = max(decomp_npools_vr_lit1_pf_loc(local_id) &
+      xx_p(offsetim + ispec_lit1n) = max(decomp_npools_vr_lit1_pf_loc(ghosted_id) &
                                         / N_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_lit2n) = max(decomp_npools_vr_lit2_pf_loc(local_id) &
+      xx_p(offsetim + ispec_lit2n) = max(decomp_npools_vr_lit2_pf_loc(ghosted_id) &
                                         / N_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_lit3n) = max(decomp_npools_vr_lit3_pf_loc(local_id) &
+      xx_p(offsetim + ispec_lit3n) = max(decomp_npools_vr_lit3_pf_loc(ghosted_id) &
                                         / N_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_som1) = max(decomp_cpools_vr_som1_pf_loc(local_id) &
+      xx_p(offsetim + ispec_som1) = max(decomp_cpools_vr_som1_pf_loc(ghosted_id) &
                                         / C_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_som2) = max(decomp_cpools_vr_som2_pf_loc(local_id) &
+      xx_p(offsetim + ispec_som2) = max(decomp_cpools_vr_som2_pf_loc(ghosted_id) &
                                         / C_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_som3) = max(decomp_cpools_vr_som3_pf_loc(local_id) &
+      xx_p(offsetim + ispec_som3) = max(decomp_cpools_vr_som3_pf_loc(ghosted_id) &
                                         / C_molecular_weight, 1.0d-20)
-      xx_p(offsetim + ispec_som4) = max(decomp_cpools_vr_som4_pf_loc(local_id) &
+      xx_p(offsetim + ispec_som4) = max(decomp_cpools_vr_som4_pf_loc(ghosted_id) &
                                         / C_molecular_weight, 1.0d-20)
+
+#ifdef CHECK_DATAPASSING
+      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (som4c pool):
+      ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
+      !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
+      !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
+      write(pflotran_model%option%myrank+200,*) 'checking bgc - pflotran-model setting init. conc.: ', &
+        'rank=',pflotran_model%option%myrank, &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id, 'xxp_som4_id', offsetim+ispec_som4, &
+        'som4_pfs(ghosted_id)=',decomp_cpools_vr_som4_pf_loc(ghosted_id), &
+        'xx_p(xxp_som4_id)=',xx_p(offsetim + ispec_som4), &
+        'sat_glob(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
+        'poro(local_id)=',porosity_loc_p(local_id)
+
+#endif
+
     enddo
 
     call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfs, decomp_cpools_vr_lit1_pf_loc, ierr)
@@ -3735,7 +3775,7 @@ end subroutine pflotranModelSetICs
     type(grid_type), pointer                  :: grid
     type(global_auxvar_type), pointer         :: global_auxvars(:)
     PetscErrorCode     :: ierr
-    PetscInt           :: local_id, ghosted_id
+    PetscInt           :: local_id, ghosted_id, vecsize
     PetscReal, pointer :: soillsat_pf_loc(:), soilisat_pf_loc(:)
     PetscReal, pointer :: soilt_pf_loc(:)
     PetscReal, pointer :: soilpress_pf_loc(:)
@@ -3775,11 +3815,22 @@ end subroutine pflotranModelSetICs
 
         call VecGetArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
         call VecGetArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
-        do local_id=1, grid%nlmax
-            ghosted_id=grid%nL2G(local_id)
-            global_auxvars(ghosted_id)%sat(1)=soillsat_pf_loc(local_id)
-            global_auxvars(ghosted_id)%pres(1)=soilpress_pf_loc(local_id)
 
+        do ghosted_id=1, grid%ngmax
+            local_id=grid%nG2L(ghosted_id)
+            if (ghosted_id<=0 .or. local_id <=0) cycle
+            if (patch%imat(local_id) <=0) cycle
+
+#ifdef CHECK_DATAPASSING
+! F.-M. Yuan: the following check proves DATA-passing from CLM to PF MUST BE done by ghosted_id --> ghosted_id
+! if passing to 'global_auxvars'
+write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 1 (CLM->PF lsat): ', &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'sat_globalvars(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
+        'sat_pfs(ghosted_id)=',soillsat_pf_loc(ghosted_id)
+#endif
+            global_auxvars(ghosted_id)%sat(1)=soillsat_pf_loc(ghosted_id)
+            global_auxvars(ghosted_id)%pres(1)=soilpress_pf_loc(ghosted_id)
         enddo
         call VecRestoreArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
         call VecRestoreArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
@@ -3792,9 +3843,13 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%soilt_clmp, &
                                     clm_pf_idata%soilt_pfs)
         call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
-        do local_id=1, grid%nlmax
-            ghosted_id=grid%nL2G(local_id)
-            global_auxvars(ghosted_id)%temp=soilt_pf_loc(local_id)
+
+        do ghosted_id=1, grid%ngmax
+            local_id=grid%nG2L(ghosted_id)
+            if (ghosted_id<=0 .or. local_id<=0) cycle
+            if (patch%imat(local_id)<=0) cycle
+
+            global_auxvars(ghosted_id)%temp=soilt_pf_loc(ghosted_id)
         enddo
         call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
     endif
@@ -3929,15 +3984,15 @@ end subroutine pflotranModelSetICs
                 + realization%reaction%offset_immobile
 
         if(ispec_co2 > 0) then
-            xx_p(offset + ispec_co2) = max(gco2_vr_pf_loc(local_id), 1.0d-20)
+            xx_p(offset + ispec_co2) = max(gco2_vr_pf_loc(ghosted_id), 1.0d-20)
         endif
 
         if(ispec_n2 > 0) then
-            xx_p(offset + ispec_n2) = max(gn2_vr_pf_loc(local_id), 1.0d-20)
+            xx_p(offset + ispec_n2) = max(gn2_vr_pf_loc(ghosted_id), 1.0d-20)
         endif
 
         if(ispec_n2o > 0) then
-            xx_p(offset + ispec_n2o) = max(gn2o_vr_pf_loc(local_id), 1.0d-20)
+            xx_p(offset + ispec_n2o) = max(gn2o_vr_pf_loc(ghosted_id), 1.0d-20)
         endif
 
     enddo
@@ -3956,49 +4011,6 @@ end subroutine pflotranModelSetICs
     call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
 
   end subroutine pflotranModelUpdateAqGasesFromCLM
-
-  ! ************************************************************************** !
-  !> This routine Updates O2 for PFLOTRAN bgc that are from CLM
-  !! for testing PFLOTRAN-BGC mode
-  !!
-  !> @author
-  !! Guoping Tang
-  !!
-  !! date: 1/6/2014
-  ! ************************************************************************** !
-  subroutine pflotranModelUpdateO2fromCLM(pflotran_model)
-
-    use clm_pflotran_interface_data
-    use Mapping_module
-
-    implicit none
-
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-
-    type(pflotran_model_type), pointer        :: pflotran_model
-
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%o2_decomp_depth_unsat_clm, &
-                                    clm_pf_idata%o2_decomp_depth_unsat_pf)
-
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%conc_o2_unsat_clm, &
-                                    clm_pf_idata%conc_o2_unsat_pf)
-
-!    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-!                                    pflotran_model%option, &
-!                                    clm_pf_idata%o2_decomp_depth_sat_clmp, &
-!                                    clm_pf_idata%o2_decomp_depth_sat_pfs)
-!   because of NaN t6g
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%conc_o2_sat_clm, &
-                                    clm_pf_idata%conc_o2_sat_pf)
-
-  end subroutine pflotranModelUpdateO2fromCLM
 
   ! ************************************************************************** !
   !
@@ -4095,18 +4107,18 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
     call VecGetArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
     call VecGetArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
 
-    do local_id = 1, grid%ngmax
+    do local_id = 1, grid%nlmax
        ghosted_id = grid%nL2G(local_id)
        if (associated(patch%imat)) then
           if (patch%imat(ghosted_id) <= 0) cycle
        endif
 
-       iend = ghosted_id*pflotran_model%option%nflowdof
+       iend = local_id*pflotran_model%option%nflowdof
        istart = iend-pflotran_model%option%nflowdof+1
 
-       xx_loc_p(istart)  = soilpress_pf_loc(local_id)
+       xx_loc_p(istart)  = soilpress_pf_loc(ghosted_id)
        if (pflotran_model%option%iflowmode .eq. TH_MODE)  then
-            xx_loc_p(istart+1)= soilt_pf_loc(local_id)
+            xx_loc_p(istart+1)= soilt_pf_loc(ghosted_id)
        end if
     enddo
 
@@ -4715,7 +4727,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
          realization => simulation%realization
       class default
          nullify(realization)
-         pflotran_model%option%io_buffer = "ERROR: pflotranModelSetSoilProp only works on subsurface simulations."
+         pflotran_model%option%io_buffer = "ERROR: pflotranModelResetSoilPorosity only works on subsurface simulations."
          call printErrMsg(pflotran_model%option)
     end select
 
@@ -4750,15 +4762,18 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         call VecGetArrayF90(field%perm0_zz,  perm_zz_loc_p,  ierr)
     endif
 
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (ghosted_id < 0) cycle ! bypass ghosted corner cells
+    do ghosted_id = 1, grid%ngmax
+      local_id = grid%nG2L(ghosted_id)
+      if (ghosted_id < 0 .or. local_id < 0) cycle
       if (patch%imat(ghosted_id) <= 0) cycle
 
-#ifdef TEST
-      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (adjporosity):
-      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model:', &
-        'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
+#ifdef CHECK_DATAPASSING
+      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (ice-adjusted porosity):
+      ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
+      !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
+      !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
+      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model prior to resetting porosity:', &
+        'rank=',pflotran_model%option%myrank, &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'porosity(local_id)=',porosity_loc_p(local_id),'adjporo(ghosted_id)=',porosity_pfs_loc(ghosted_id)
 #endif
@@ -5037,7 +5052,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
          endif
 
          do local_id = 1, grid%nlmax
-            if (grid%nG2L(local_id) < 0) cycle ! bypass ghosted corner cells
+            ghosted_id = grid%nL2G(local_id)
+            if (local_id<=0 .or. ghosted_id<=0) cycle
             if (patch%imat(local_id) <= 0) cycle
 
             if(cur_mass_transfer%idof == ispec_nh4 .or. &
@@ -5050,8 +5066,20 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                cur_mass_transfer%idof == ispec_lit3n+offsetim &
                ) then
 
+#ifdef CHECK_DATAPASSING
+      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (mass transfer rate):
+      ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
+      !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
+      !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
+      if (cur_mass_transfer%idof == ispec_nh4) &
+      write(pflotran_model%option%myrank+200,*) 'checking bgc-mass-rate - pflotran_model: ', &
+        'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'rate_nh4_pfs(ghosted_id)=',rate_pf_loc(ghosted_id), &
+        'masstransfer_nh4_pfdataset(local_id)=',cur_mass_transfer%dataset%rarray(local_id)
+#endif
+
                cur_mass_transfer%dataset%rarray(local_id) = &
-                        rate_pf_loc(local_id)*volume_p(local_id)  ! mol/m3s * m3
+                        rate_pf_loc(ghosted_id)*volume_p(local_id)  ! mol/m3s * m3
 
             endif
          enddo
@@ -6133,14 +6161,18 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     select case(source_mesh_id)
       case(CLM_FACE_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
-                                         grid_clm_cell_ids_nindex_copy)
+                                         grid_clm_npts_ghost, &
+                                         grid_clm_cell_ids_nindex_copy, &
+                                         grid_clm_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
       case(PF_FACE_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
-                                         grid_pf_cell_ids_nindex)
+                                         grid_pf_npts_ghost, &
+                                         grid_pf_cell_ids_nindex, &
+                                         grid_pf_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
                                               grid_clm_npts_ghost, &
                                               grid_clm_cell_ids_nindex_copy, &
