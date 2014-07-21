@@ -28,17 +28,16 @@ module Richards_Aux_module
 #endif
     PetscReal :: dsat_dp
     PetscReal :: dden_dp
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
+    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda    
+#endif
 
     PetscReal :: P_min
     PetscReal :: P_max
     PetscReal :: coeff_for_cubic_approx(4)
     PetscReal :: range_for_linear_approx(4)
     PetscBool :: bcflux_default_scheme
-
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
-    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda
-#endif
 
   end type richards_auxvar_type
   
@@ -146,13 +145,17 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%dsat_dp = 0.d0
   auxvar%dden_dp = 0.d0
 
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  auxvar%bc_alpha  = 0.0d0
+  auxvar%bc_lambda  = 0.0d0
+#endif 
+
   auxvar%P_min = 0.d0
   auxvar%P_max = 0.d0
   auxvar%coeff_for_cubic_approx(:) = 0.d0
   auxvar%range_for_linear_approx(:) = 0.d0
   auxvar%bcflux_default_scheme = PETSC_FALSE
   
-
 end subroutine RichardsAuxVarInit
 
 ! ************************************************************************** !
@@ -189,6 +192,11 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%dsat_dp = auxvar%dsat_dp
   auxvar2%dden_dp = auxvar%dden_dp
  
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  auxvar2%bc_alpha  = auxvar%bc_alpha
+  auxvar2%bc_lambda = auxvar%bc_lambda
+#endif
+
   auxvar2%P_min = auxvar%P_min
   auxvar2%P_max = auxvar%P_max
   auxvar2%coeff_for_cubic_approx(:) = auxvar%coeff_for_cubic_approx(:)
@@ -264,8 +272,14 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   pw = option%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
-  if (auxvar%pc > 0.d0) then
 
+  if (auxvar%pc > 0.d0) then
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    if(auxvar%bc_alpha > 0.d0) then
+       saturation_function%alpha  = auxvar%bc_alpha
+       saturation_function%lambda = auxvar%bc_lambda
+    endif
+#endif
     saturated = PETSC_FALSE
     call SaturationFunctionCompute(auxvar%pc, &
                                 global_auxvar%sat(1),kr, &
