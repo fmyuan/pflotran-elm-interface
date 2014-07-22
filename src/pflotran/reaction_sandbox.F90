@@ -2,20 +2,18 @@ module Reaction_Sandbox_module
 
   use Reaction_Sandbox_Base_class
   use Reaction_Sandbox_CLM_CN_class
-  use Reaction_Sandbox_CLM_Decomp_class
+  use Reaction_Sandbox_UFD_WP_class
+  use Reaction_Sandbox_Example_class
+
+  ! Add new reacton sandbox classes here.
+  use Reaction_Sandbox_CLMDec_class
+  use Reaction_Sandbox_PlantN_class
   use Reaction_Sandbox_CLM_CNP_class
-  use Reaction_Sandbox_PlantNTake_class
   use Reaction_Sandbox_Nitrification_class
   use Reaction_Sandbox_Denitrification_class
   use Reaction_Sandbox_Microbial_class
   use Reaction_Sandbox_Langmuir_class
   use Reaction_Sandbox_degas_class
-  use Reaction_Sandbox_UFD_WP_class
-  use Reaction_Sandbox_Example_class
-  
-  ! Add new reacton sandbox classes here.
-  use Reaction_Sandbox_CLMDec_class
-  use Reaction_Sandbox_PlantN_class
   
   use PFLOTRAN_Constants_module
 
@@ -159,13 +157,9 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
     select case(trim(word))
       case('CLM-CN')
         new_sandbox => CLM_CN_Create()
-      case('CLM-DECOMP')
-        new_sandbox => CLM_Decomp_Create()
       case('CLM-CNP')
         new_sandbox => CLM_CNPCreate()
       ! Add new cases statements for new reacton sandbox classes here.
-      case('PLANTNTAKE')
-        new_sandbox => PlantNTakeCreate()
       case('NITRIFICATION')
         new_sandbox => NitrificationCreate()
       case('DENITRIFICATION')
