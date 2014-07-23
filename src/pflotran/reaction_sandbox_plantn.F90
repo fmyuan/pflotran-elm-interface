@@ -239,6 +239,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: f_nh3         ! nh3 / (half_saturation + nh3)
   PetscReal :: d_nh3         ! half_saturation / (half_saturation + nh3)^2
   PetscReal :: f_nh3_inhibit ! inhibition_coef/(inhibition_coef + nh3)
+  PetscReal :: d_nh3_inhibit ! -inhibition_coef/(inhibition_coef + nh3)^2
   PetscReal :: c_no3         ! concentration (mole/L)
   PetscReal :: f_no3         ! no3 / (half_saturation + no3)
   PetscReal :: d_no3         ! half_saturation/(no3 + half_saturation)^2 
@@ -246,8 +247,9 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscReal :: rate_nplant
   PetscReal :: rate_nplant_no3
-  PetscReal :: drate_nplant       !drate_nh4/dnh4+
-  PetscReal :: drate_nplant_no3   !drate_no3/dno3-
+  PetscReal :: drate_nplant           !drate_nh4/dnh4+
+  PetscReal :: drate_nplant_no3       !drate_no3/dno3-
+  PetscReal :: drate_nplant_no3_nh3   !drate_no3/dnh3
   PetscReal :: rate_nh4, rate_no3
   PetscReal :: c_plantn, c_plantno3, c_plantnh4, c_plantndemand
   PetscReal :: xxx, delta, regulator, dregulator
@@ -364,8 +366,10 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
       !temp_real = this%inhibition_nh3_no3 + c_nh3
       !f_nh3_inhibit = this%inhibition_nh3_no3/temp_real
       f_nh3_inhibit = 1.0d0 - f_nh3
+      d_nh3_inhibit = -d_nh3
     else
       f_nh3_inhibit = 1.0d0
+      d_nh3_inhibit = 0.0d0
     endif
   endif
 
@@ -414,6 +418,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   if(ispec_no3 > 0 .and. c_no3 > this%x0eps_no3) then
     rate_nplant_no3 = this%rate * f_nh3_inhibit * f_no3
     drate_nplant_no3 = this%rate * f_nh3_inhibit * d_no3
+    drate_nplant_no3_nh3 = this%rate * d_nh3_inhibit * f_no3
 
     Residual(ires_no3) = Residual(ires_no3) + rate_nplant_no3
     Residual(ires_plantn) = Residual(ires_plantn) - rate_nplant_no3
@@ -423,10 +428,15 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     endif
 
     if (compute_derivative) then
-     Jacobian(ires_no3,ires_no3)=Jacobian(ires_no3,ires_no3)+drate_nplant_no3* &
+      Jacobian(ires_no3,ires_no3)=Jacobian(ires_no3,ires_no3)+drate_nplant_no3* &
        rt_auxvar%aqueous%dtotal(ispec_no3,ispec_no3,iphase)
 
-     Jacobian(ires_plantn,ires_no3)=Jacobian(ires_plantn,ires_no3)-drate_nplant_no3
+      Jacobian(ires_plantn,ires_no3)=Jacobian(ires_plantn,ires_no3)-drate_nplant_no3
+
+      Jacobian(ires_no3,ires_nh3)=Jacobian(ires_no3,ires_nh3)+drate_nplant_no3_nh3* &
+        rt_auxvar%aqueous%dtotal(ispec_no3,ispec_nh3,iphase)
+
+      Jacobian(ires_plantn,ires_nh3)=Jacobian(ires_plantn,ires_nh3)-drate_nplant_no3_nh3
 
       if (ispec_no3in > 0) then
         Jacobian(ires_no3in,ires_no3)=Jacobian(ires_no3in,ires_no3)-drate_nplant_no3

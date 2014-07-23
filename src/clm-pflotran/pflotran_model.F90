@@ -788,43 +788,31 @@ end subroutine pflotranModelSetICs
       
       select case(pflotran_model%option%iflowmode)
         case(RICHARDS_MODE)
-          rich_auxvar => rich_auxvars(local_id)
+          rich_auxvar => rich_auxvars(ghosted_id)
           rich_auxvar%bc_alpha = bc_alpha
           rich_auxvar%bc_lambda = bc_lambda
         case(TH_MODE)
-          th_auxvar => th_auxvars(local_id)
+          th_auxvar => th_auxvars(ghosted_id)
           th_auxvar%bc_alpha = min(bc_alpha,10.d-4)
           th_auxvar%bc_lambda = bc_lambda
       end select
 
-#ifdef TEST
-      ! the following is an alternative approach to the above,
-      ! BUT have to remove those 'auxvar%bc_alpha' in richards_aux.F90/th_aux.F90
-      ! reasons: 'auxvars(:)' is cell indexed, but saturation_function_array(:) is not.
-      ! so the data passing in richars_aux.F90/th_aux.F90 will not permanently modify
-      ! saturation_function. Then any possible calling of saturation_function will
-      ! use original parameters from input deck, unless each time when calling it, resetting
-      ! parameters from 'rich_auxvar' or 'th_auxvar'.
+!#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
+      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (bsw ~ 1/lambda):
       if(pflotran_model%option%nflowdof > 0) then
 
        saturation_function => patch%  &
          saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
 
-#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
-      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (bsw ~ 1/lambda):
       write(pflotran_model%option%myrank+200,*) 'checking pflotran-model prior to set soil properties: ', &
         'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'sat_funcid(ghosted_id)=',patch%sat_func_id(ghosted_id), &
-        'pfp_lambda=',saturation_function%lambda, &
+        'pfsatfunc_lambda=',saturation_function%lambda, &
         'clms_1/bsw(ghosted_id)=',bc_lambda
-#endif
-
-       saturation_function%alpha  = min(bc_alpha,10.d-4)
-       saturation_function%lambda = bc_lambda
 
       endif
-#endif
+!#endif
 
       ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
       ! [m^2]          [mm/sec]
@@ -4925,11 +4913,14 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
 !#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
       !F.-M. Yuan: the following IS a checking, comparing CLM passing data (bsw ~ 1/lambda --> PFsat_func --> CLM):
-      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model prior to get soil properties from PF: ', &
+      write(pflotran_model%option%myrank+200,*) &
+        'checking pflotran-model prior to get soil properties from PF: ', &
         'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'sat_funcid(ghosted_id)=',patch%sat_func_id(ghosted_id), &
-        'pf_lambda=',saturation_function%lambda
+        'pfsatfun_lambda=',saturation_function%lambda, &
+        'richauxvars_lambda= ',patch%aux%Richards%auxvars(ghosted_id)%bc_lambda
+
 !#endif
 
         ! PF's limits on soil matrix potential (Capillary pressure)

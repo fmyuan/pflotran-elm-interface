@@ -1952,7 +1952,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       temp_real = temp_real * this%n2o_frac_mineralization 
     
     ! residuals 
-      rate_n2o = temp_real * net_n_mineralization_rate
+      rate_n2o = temp_real * net_n_mineralization_rate * f_nh3
  
       Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o 
 
@@ -1964,7 +1964,9 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
      !Jacobians
       if (compute_derivative) then
-        drate_n2o = temp_real * dnet_n_mineralization_rate_dnh3
+        drate_n2o = temp_real * dnet_n_mineralization_rate_dnh3 * f_nh3 &
+                  + temp_real * net_n_mineralization_rate * d_nh3
+
         Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_n2o* &
            rt_auxvar%aqueous%dtotal(this%species_id_nh3,this%species_id_nh3,iphase)
         Jacobian(ires_n2o,ires_nh3) = Jacobian(ires_n2o,ires_nh3) - 0.5d0*drate_n2o* &
