@@ -621,6 +621,7 @@ end subroutine pflotranModelSetICs
 
     use clm_pflotran_interface_data
     use Mapping_module
+    use Saturation_Function_module
 
     implicit none
 
@@ -638,6 +639,7 @@ end subroutine pflotranModelSetICs
     type(th_auxvar_type), pointer             :: th_auxvars(:)
     type(th_auxvar_type), pointer             :: th_auxvar
     type(simulation_base_type), pointer :: simulation
+    type(saturation_function_type), pointer :: saturation_function
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
@@ -757,20 +759,24 @@ end subroutine pflotranModelSetICs
 
     do ghosted_id = 1, grid%ngmax
       local_id = grid%nG2L(ghosted_id)
-      if (ghosted_id < 0 .or. local_id < 0) cycle
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (ghosted_id < 0 .or. local_id <= 0) cycle
+      if (associated(patch%imat)) then
+        if (patch%imat(ghosted_id) <= 0) cycle
+      endif
 
 #if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (watsat):
       !  (turn it on with similar output in clm_pflotran_interfaceMod.F90 and reaction_sandbox_denitrification.F90)
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
       !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
-      !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
+      !              (2) data-passing IS by from 'ghosted_id' to PF-internal (field%)-vec 'local_id';
       write(pflotran_model%option%myrank+200,*) 'checking pflotran-model prior to set soil properties: ', &
         'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, &
-        'porosity(local_id)=',porosity_loc_p(local_id),'watsat(ghosted_id)=',watsat_pf_loc(ghosted_id)
+        'pfp_porosity(local_id)=',porosity_loc_p(local_id), &
+        'clms_watsat(ghosted_id)=',watsat_pf_loc(ghosted_id)
 #endif
+
 
     !(TODO) need a better way to generate MVM parameters from CLM inputs (temporarily off - fmyuan)
       ! bc_alpha [1/Pa]; while sucsat [mm of H20]
@@ -790,6 +796,35 @@ end subroutine pflotranModelSetICs
           th_auxvar%bc_alpha = min(bc_alpha,10.d-4)
           th_auxvar%bc_lambda = bc_lambda
       end select
+
+#ifdef TEST
+      ! the following is an alternative approach to the above,
+      ! BUT have to remove those 'auxvar%bc_alpha' in richards_aux.F90/th_aux.F90
+      ! reasons: 'auxvars(:)' is cell indexed, but saturation_function_array(:) is not.
+      ! so the data passing in richars_aux.F90/th_aux.F90 will not permanently modify
+      ! saturation_function. Then any possible calling of saturation_function will
+      ! use original parameters from input deck, unless each time when calling it, resetting
+      ! parameters from 'rich_auxvar' or 'th_auxvar'.
+      if(pflotran_model%option%nflowdof > 0) then
+
+       saturation_function => patch%  &
+         saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
+
+#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
+      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (bsw ~ 1/lambda):
+      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model prior to set soil properties: ', &
+        'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'sat_funcid(ghosted_id)=',patch%sat_func_id(ghosted_id), &
+        'pfp_lambda=',saturation_function%lambda, &
+        'clms_1/bsw(ghosted_id)=',bc_lambda
+#endif
+
+       saturation_function%alpha  = min(bc_alpha,10.d-4)
+       saturation_function%lambda = bc_lambda
+
+      endif
+#endif
 
       ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
       ! [m^2]          [mm/sec]
@@ -4885,7 +4920,17 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         ! PF's porosity
         porosity_loc_pfp(local_id) = porosity_loc_p(ghosted_id)
 
-        saturation_function => patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
+        saturation_function => patch%    &
+            saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
+
+!#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
+      !F.-M. Yuan: the following IS a checking, comparing CLM passing data (bsw ~ 1/lambda --> PFsat_func --> CLM):
+      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model prior to get soil properties from PF: ', &
+        'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'sat_funcid(ghosted_id)=',patch%sat_func_id(ghosted_id), &
+        'pf_lambda=',saturation_function%lambda
+!#endif
 
         ! PF's limits on soil matrix potential (Capillary pressure)
         pcwmax_loc_pfp(local_id) = saturation_function%pcwmax

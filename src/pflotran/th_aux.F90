@@ -566,14 +566,14 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     dpw_dp = 1.d0
   endif  
   
-  call CapillaryPressureThreshold(saturation_function,p_th,option)
-
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
     if(auxvar%bc_alpha > 0.d0) then
        saturation_function%alpha  = auxvar%bc_alpha
        saturation_function%lambda = auxvar%bc_lambda
     endif
 #endif
+
+  call CapillaryPressureThreshold(saturation_function,p_th,option)
 
   select case (option%ice_model)
     case (PAINTER_EXPLICIT)
