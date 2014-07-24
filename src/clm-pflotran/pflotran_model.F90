@@ -789,15 +789,15 @@ end subroutine pflotranModelSetICs
       select case(pflotran_model%option%iflowmode)
         case(RICHARDS_MODE)
           rich_auxvar => rich_auxvars(ghosted_id)
-          rich_auxvar%bc_alpha = bc_alpha
+          rich_auxvar%bc_alpha  = min(bc_alpha,1.d-4)
           rich_auxvar%bc_lambda = bc_lambda
         case(TH_MODE)
           th_auxvar => th_auxvars(ghosted_id)
-          th_auxvar%bc_alpha = min(bc_alpha,10.d-4)
+          th_auxvar%bc_alpha  = min(bc_alpha,10.d-4)
           th_auxvar%bc_lambda = bc_lambda
       end select
 
-#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
+!#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (bsw ~ 1/lambda):
       !              (2) data-passing IS by from 'ghosted_id' to PF-auxvars 'ghosted_id';
       if(pflotran_model%option%nflowdof > 0) then
@@ -809,11 +809,14 @@ end subroutine pflotranModelSetICs
         'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'sat_funcid(ghosted_id)=',patch%sat_func_id(ghosted_id), &
+        'pfsatfunc_alpha=',saturation_function%alpha, &
+        'clms_alpha(ghosted_id)=',bc_alpha, &
         'pfsatfunc_lambda=',saturation_function%lambda, &
         'clms_1/bsw(ghosted_id)=',bc_lambda
 
       endif
-#endif
+
+!#endif
 
       ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
       ! [m^2]          [mm/sec]
@@ -4912,17 +4915,19 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         saturation_function => patch%    &
             saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
 
-#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
+!#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
       !F.-M. Yuan: the following IS a checking, comparing CLM passing data (bsw ~ 1/lambda --> PFsat_func --> CLM):
       write(pflotran_model%option%myrank+200,*) &
         'checking pflotran-model prior to get soil properties from PF: ', &
         'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'sat_funcid(ghosted_id)=',patch%sat_func_id(ghosted_id), &
+        'pfsatfun_alpha=',saturation_function%alpha, &
+        'richauxvars_alpha= ',patch%aux%Richards%auxvars(ghosted_id)%bc_alpha, &
         'pfsatfun_lambda=',saturation_function%lambda, &
         'richauxvars_lambda= ',patch%aux%Richards%auxvars(ghosted_id)%bc_lambda
 
-#endif
+!#endif
 
         ! PF's limits on soil matrix potential (Capillary pressure)
         pcwmax_loc_pfp(local_id) = saturation_function%pcwmax
