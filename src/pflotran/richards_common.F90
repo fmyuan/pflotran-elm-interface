@@ -537,7 +537,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: dist_gravity  ! distance along gravity vector
   PetscReal :: perm_dn
   
-  PetscReal :: v_darcy
+  PetscReal :: v_darcy, v_darcy_allowable
   PetscReal :: q,density_ave
   PetscReal :: ukvr,diffdp,Dq
   PetscReal :: upweight,cond,gravity,dphi
@@ -698,12 +698,27 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                   dq_dp_dn = dq_approx
                 endif
               endif
+            endif   !if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0)
+
+          endif     !if (.not. rich_auxvar_dn%bcflux_default_scheme)
+
+#ifdef CLM_PFLOTRAN
+          if (pressure_bc_type == DIRICHLET_BC) then
+            call EOSWaterdensity(global_auxvar_up%temp, &
+                               option%reference_pressure,rho,dum1,ierr)
+            v_darcy_allowable = (global_auxvar_up%pres(1)-option%reference_pressure) &
+                              /option%flow_dt/(-option%gravity(3))/rho
+            if (v_darcy > v_darcy_allowable) then
+              v_darcy = v_darcy_allowable
+              q = v_darcy * area
+              dq_dp_dn = 0.d0
             endif
-          endif
+          endif     !if (pressure_bc_type == DIRICHLET_BC)
+#endif
 
-        endif
+        endif      !if (ukvr*Dq>floweps)
 
-      endif
+       endif       !if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn)
 
     case(NEUMANN_BC)
       if (dabs(auxvars(RICHARDS_PRESSURE_DOF)) > floweps) then
@@ -848,7 +863,7 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
   type(option_type) :: option
   PetscReal :: sir_dn
   PetscReal :: auxvars(:) ! from aux_real_var array
-  PetscReal :: v_darcy, area
+  PetscReal :: v_darcy, area, v_darcy_allowable
   ! dist(-1) = fraction_upwind - not applicable here
   ! dist(0) = magnitude
   ! dist(1:3) = unit vector
@@ -982,11 +997,22 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
                                            q_approx, dq_approx)
               v_darcy = q_approx/area
             endif
-          endif
+          endif   !if (.not. rich_auxvar_dn%bcflux_default_scheme)
 
-        endif
-       endif
-      endif 
+        endif     !if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0)
+
+#ifdef CLM_PFLOTRAN
+        if (pressure_bc_type == DIRICHLET_BC) then
+          call EOSWaterdensity(global_auxvar_up%temp, &
+                               option%reference_pressure,rho,dum1,ierr)
+          v_darcy_allowable = (global_auxvar_up%pres(1)-option%reference_pressure) &
+                              /option%flow_dt/(-option%gravity(3))/rho
+          if (v_darcy > v_darcy_allowable) v_darcy = v_darcy_allowable
+        endif     !if (pressure_bc_type == DIRICHLET_BC)
+#endif
+
+       endif      !if (ukvr*Dq>floweps)
+      endif       !if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn)
 
     case(NEUMANN_BC)
       if (dabs(auxvars(RICHARDS_PRESSURE_DOF)) > floweps) then
