@@ -797,7 +797,7 @@ end subroutine pflotranModelSetICs
           th_auxvar%bc_lambda = bc_lambda
       end select
 
-!#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
+#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (bsw ~ 1/lambda):
       !              (2) data-passing IS by from 'ghosted_id' to PF-auxvars 'ghosted_id';
       if(pflotran_model%option%nflowdof > 0) then
@@ -816,7 +816,7 @@ end subroutine pflotranModelSetICs
 
       endif
 
-!#endif
+#endif
 
       ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
       ! [m^2]          [mm/sec]
@@ -2096,7 +2096,7 @@ end subroutine pflotranModelSetICs
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelStepperRunTillPauseTime(model, pause_time, dtime)
+  subroutine pflotranModelStepperRunTillPauseTime(model, pause_time, dtime, iulog)
   ! 
   ! It performs the model integration
   ! till the specified pause_time.
@@ -2119,12 +2119,13 @@ end subroutine pflotranModelSetICs
     type(pflotran_model_type), pointer :: model
     PetscReal, intent(in) :: pause_time
     PetscReal, intent(in) :: dtime
+    PetscInt, intent(in) :: iulog
 
     PetscReal :: pause_time1
 
     if (model%option%io_rank == model%option%myrank) then
-       write(model%option%fid_out, *) '>>>> Inserting waypoint at pause_time (s) = ', pause_time
-       write(model%option%fid_out, *) '>>>> for CLM timestep: ', pause_time/dtime
+       write(iulog, *) '>>>> Inserting waypoint at pause_time (s) = ', pause_time
+       write(iulog, *) '>>>> for CLM timestep: ', pause_time/dtime
     endif
 
     pause_time1 = pause_time + dtime!1800.0d0
@@ -4915,7 +4916,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         saturation_function => patch%    &
             saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
 
-!#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
+#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
       !F.-M. Yuan: the following IS a checking, comparing CLM passing data (bsw ~ 1/lambda --> PFsat_func --> CLM):
       write(pflotran_model%option%myrank+200,*) &
         'checking pflotran-model prior to get soil properties from PF: ', &
@@ -4927,7 +4928,14 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         'pfsatfun_lambda=',saturation_function%lambda, &
         'richauxvars_lambda= ',patch%aux%Richards%auxvars(ghosted_id)%bc_lambda
 
-!#endif
+#endif
+        if (pflotran_model%option%iflowmode==RICHARDS_MODE) then
+          saturation_function%alpha  = patch%aux%Richards%auxvars(ghosted_id)%bc_alpha
+          saturation_function%lambda = patch%aux%Richards%auxvars(ghosted_id)%bc_lambda
+        elseif (pflotran_model%option%iflowmode==TH_MODE) then
+          saturation_function%alpha  = patch%aux%TH%auxvars(ghosted_id)%bc_alpha
+          saturation_function%lambda = patch%aux%TH%auxvars(ghosted_id)%bc_lambda
+        endif
 
         ! PF's limits on soil matrix potential (Capillary pressure)
         pcwmax_loc_pfp(local_id) = saturation_function%pcwmax
