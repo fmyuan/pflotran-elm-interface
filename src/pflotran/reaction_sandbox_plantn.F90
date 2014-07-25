@@ -1,4 +1,4 @@
-module Reaction_Sandbox_PlantNTake_class
+module Reaction_Sandbox_PlantN_class
 
   use Reaction_Sandbox_Base_class
   use Global_Aux_module
@@ -30,52 +30,52 @@ module Reaction_Sandbox_PlantNTake_class
     PetscReal :: downreg_nh3_1  ! start to decrease from 1
 
   contains
-    procedure, public :: ReadInput => PlantNTakeRead
-    procedure, public :: Setup => PlantNTakeSetup
-    procedure, public :: Evaluate => PlantNTakeReact
-    procedure, public :: Destroy => PlantNTakeDestroy
+    procedure, public :: ReadInput => PlantNRead
+    procedure, public :: Setup => PlantNSetup
+    procedure, public :: Evaluate => PlantNReact
+    procedure, public :: Destroy => PlantNDestroy
   end type reaction_sandbox_plantntake_type
 
-  public :: PlantNTakeCreate
+  public :: PlantNCreate
 
 contains
 
 ! ************************************************************************** !
 !
-! PlantNTakeCreate: Allocates plantntake reaction object.
+! PlantNCreate: Allocates plantntake reaction object.
 ! author: Guoping Tang
 ! date: 09/09/2013
 !
 ! ************************************************************************** !
-function PlantNTakeCreate()
+function PlantNCreate()
 
   implicit none
   
-  class(reaction_sandbox_plantntake_type), pointer :: PlantNTakeCreate
+  class(reaction_sandbox_plantntake_type), pointer :: PlantNCreate
 
-  allocate(PlantNTakeCreate)
-  PlantNTakeCreate%rate = 0.d0
-  PlantNTakeCreate%half_saturation_nh3 = 1.d-15
-  PlantNTakeCreate%half_saturation_no3 = 1.d-15
-  PlantNTakeCreate%inhibition_nh3_no3  = 1.d-15
-  PlantNTakeCreate%x0eps  = 1.d-20
-  PlantNTakeCreate%x0eps_no3  = 1.d-20
-  PlantNTakeCreate%downreg_no3_0 = -1.0d-9
-  PlantNTakeCreate%downreg_no3_1 = 1.0d-7
-  PlantNTakeCreate%downreg_nh3_0 = -1.0d-9
-  PlantNTakeCreate%downreg_nh3_1 = 1.0d-7
-  nullify(PlantNTakeCreate%next)  
+  allocate(PlantNCreate)
+  PlantNCreate%rate = 0.d0
+  PlantNCreate%half_saturation_nh3 = 1.d-15
+  PlantNCreate%half_saturation_no3 = 1.d-15
+  PlantNCreate%inhibition_nh3_no3  = 1.d-15
+  PlantNCreate%x0eps  = 1.d-20
+  PlantNCreate%x0eps_no3  = 1.d-20
+  PlantNCreate%downreg_no3_0 = -1.0d-9
+  PlantNCreate%downreg_no3_1 = 1.0d-7
+  PlantNCreate%downreg_nh3_0 = -1.0d-9
+  PlantNCreate%downreg_nh3_1 = 1.0d-7
+  nullify(PlantNCreate%next)
       
-end function PlantNTakeCreate
+end function PlantNCreate
 
 ! ************************************************************************** !
 !
-! PlantNTakeRead: Reads input deck for plantntake reaction parameters
+! PlantNRead: Reads input deck for plantntake reaction parameters
 ! author: Guoping Tang
 ! date: 09/09/2013
 !
 ! ************************************************************************** !
-subroutine PlantNTakeRead(this,input,option)
+subroutine PlantNRead(this,input,option)
 
   use Option_module
   use String_module
@@ -159,17 +159,17 @@ subroutine PlantNTakeRead(this,input,option)
     end select
   enddo
   
-end subroutine PlantNTakeRead
+end subroutine PlantNRead
 
 ! ************************************************************************** !
 !
-! PlantNTakeSetup: Sets up the plantntake reaction with parameters either
+! PlantNSetup: Sets up the plantntake reaction with parameters either
 !                read from the input deck or hardwired.
 ! author: Guoping Tang
 ! date: 09/09/2013
 !
 ! ************************************************************************** !
-subroutine PlantNTakeSetup(this,reaction,option)
+subroutine PlantNSetup(this,reaction,option)
 
   use Reaction_Aux_module
   use Option_module
@@ -183,16 +183,16 @@ subroutine PlantNTakeSetup(this,reaction,option)
 
   character(len=MAXWORDLENGTH) :: word
  
-end subroutine PlantNTakeSetup
+end subroutine PlantNSetup
 
 ! ************************************************************************** !
 !
-! PlantNTakeReact: Evaluates reaction storing residual and/or Jacobian
+! PlantNReact: Evaluates reaction storing residual and/or Jacobian
 ! author: Guoping Tang
 ! date: 09/09/2013
 !
 ! ************************************************************************** !
-subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
+subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
                          option)
 
@@ -239,6 +239,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: f_nh3         ! nh3 / (half_saturation + nh3)
   PetscReal :: d_nh3         ! half_saturation / (half_saturation + nh3)^2
   PetscReal :: f_nh3_inhibit ! inhibition_coef/(inhibition_coef + nh3)
+  PetscReal :: d_nh3_inhibit ! -inhibition_coef/(inhibition_coef + nh3)^2
   PetscReal :: c_no3         ! concentration (mole/L)
   PetscReal :: f_no3         ! no3 / (half_saturation + no3)
   PetscReal :: d_no3         ! half_saturation/(no3 + half_saturation)^2 
@@ -246,8 +247,9 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscReal :: rate_nplant
   PetscReal :: rate_nplant_no3
-  PetscReal :: drate_nplant       !drate_nh4/dnh4+
-  PetscReal :: drate_nplant_no3   !drate_no3/dno3-
+  PetscReal :: drate_nplant           !drate_nh4/dnh4+
+  PetscReal :: drate_nplant_no3       !drate_no3/dno3-
+  PetscReal :: drate_nplant_no3_nh3   !drate_no3/dnh3
   PetscReal :: rate_nh4, rate_no3
   PetscReal :: c_plantn, c_plantno3, c_plantnh4, c_plantndemand
   PetscReal :: xxx, delta, regulator, dregulator
@@ -364,8 +366,10 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
       !temp_real = this%inhibition_nh3_no3 + c_nh3
       !f_nh3_inhibit = this%inhibition_nh3_no3/temp_real
       f_nh3_inhibit = 1.0d0 - f_nh3
+      d_nh3_inhibit = -d_nh3
     else
       f_nh3_inhibit = 1.0d0
+      d_nh3_inhibit = 0.0d0
     endif
   endif
 
@@ -414,6 +418,7 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
   if(ispec_no3 > 0 .and. c_no3 > this%x0eps_no3) then
     rate_nplant_no3 = this%rate * f_nh3_inhibit * f_no3
     drate_nplant_no3 = this%rate * f_nh3_inhibit * d_no3
+    drate_nplant_no3_nh3 = this%rate * d_nh3_inhibit * f_no3
 
     Residual(ires_no3) = Residual(ires_no3) + rate_nplant_no3
     Residual(ires_plantn) = Residual(ires_plantn) - rate_nplant_no3
@@ -423,10 +428,15 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
     endif
 
     if (compute_derivative) then
-     Jacobian(ires_no3,ires_no3)=Jacobian(ires_no3,ires_no3)+drate_nplant_no3* &
+      Jacobian(ires_no3,ires_no3)=Jacobian(ires_no3,ires_no3)+drate_nplant_no3* &
        rt_auxvar%aqueous%dtotal(ispec_no3,ispec_no3,iphase)
 
-     Jacobian(ires_plantn,ires_no3)=Jacobian(ires_plantn,ires_no3)-drate_nplant_no3
+      Jacobian(ires_plantn,ires_no3)=Jacobian(ires_plantn,ires_no3)-drate_nplant_no3
+
+      Jacobian(ires_no3,ires_nh3)=Jacobian(ires_no3,ires_nh3)+drate_nplant_no3_nh3* &
+        rt_auxvar%aqueous%dtotal(ispec_no3,ispec_nh3,iphase)
+
+      Jacobian(ires_plantn,ires_nh3)=Jacobian(ires_plantn,ires_nh3)-drate_nplant_no3_nh3
 
       if (ispec_no3in > 0) then
         Jacobian(ires_no3in,ires_no3)=Jacobian(ires_no3in,ires_no3)-drate_nplant_no3
@@ -441,27 +451,27 @@ subroutine PlantNTakeReact(this,Residual,Jacobian,compute_derivative, &
     if (abs(temp_real) > huge(temp_real)) then
       write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
       write(option%fid_out, *) 'Reaction Sandbox: PLANT N UPTAKE'
-      option%io_buffer = ' checking infinity of Residuals matrix @ PlantNTakeReact '
+      option%io_buffer = ' checking infinity of Residuals matrix @ PlantNReact '
       call printErrMsg(option)
     endif
   enddo
 
-end subroutine PlantNTakeReact
+end subroutine PlantNReact
 
 ! ************************************************************************** !
 !
-! PlantNTakeDestroy: Destroys allocatable or pointer objects created in this 
+! PlantNDestroy: Destroys allocatable or pointer objects created in this
 !                  module
 ! author: Guoping Tang
 ! date: 09/09/2013
 !
 ! ************************************************************************** !
-subroutine PlantNTakeDestroy(this)
+subroutine PlantNDestroy(this)
 
   implicit none
   
   class(reaction_sandbox_plantntake_type) :: this  
 
-end subroutine PlantNTakeDestroy
+end subroutine PlantNDestroy
 
-end module Reaction_Sandbox_PlantNTake_class
+end module Reaction_Sandbox_PlantN_class

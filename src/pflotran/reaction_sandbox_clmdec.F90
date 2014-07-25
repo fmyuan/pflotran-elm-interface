@@ -1,4 +1,4 @@
-module Reaction_Sandbox_CLM_Decomp_class
+module Reaction_Sandbox_CLMDec_class
 
   use Reaction_Sandbox_Base_class
   use Global_Aux_module
@@ -80,10 +80,10 @@ module Reaction_Sandbox_CLM_Decomp_class
     type(pool_type), pointer :: pools
     type(clm_decomp_reaction_type), pointer :: reactions
   contains
-    procedure, public :: ReadInput => CLM_Decomp_Read
-    procedure, public :: Setup => CLM_Decomp_Setup
-    procedure, public :: Evaluate => CLM_Decomp_React
-    procedure, public :: Destroy => CLM_Decomp_Destroy
+    procedure, public :: ReadInput => CLMDec_Read
+    procedure, public :: Setup => CLMDec_Setup
+    procedure, public :: Evaluate => CLMDec_React
+    procedure, public :: Destroy => CLMDec_Destroy
   end type reaction_sandbox_clm_decomp_type
   
   type :: pool_type
@@ -100,15 +100,15 @@ module Reaction_Sandbox_CLM_Decomp_class
     type(clm_decomp_reaction_type), pointer :: next
   end type clm_decomp_reaction_type
   
-  public :: CLM_Decomp_Create
+  public :: CLMDec_Create
 
 contains
 
 ! ************************************************************************** !
 
-function CLM_Decomp_Create()
+function CLMDec_Create()
   ! 
-  ! Allocates CLM_Decomp reaction object.
+  ! Allocates CLMDec reaction object.
   ! 
   ! Author: Guoping Tang
   ! Date: 02/04/14
@@ -116,73 +116,73 @@ function CLM_Decomp_Create()
 
   implicit none
   
-  type(reaction_sandbox_clm_decomp_type), pointer :: CLM_Decomp_Create
+  type(reaction_sandbox_clm_decomp_type), pointer :: CLMDec_Create
   
-  allocate(CLM_Decomp_Create)
+  allocate(CLMDec_Create)
 
 #ifdef CLM_PFLOTRAN
-  CLM_Decomp_Create%temperature_response_function=TEMPERATURE_RESPONSE_FUNCTION_CLM4
-  CLM_Decomp_Create%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLM4
+  CLMDec_Create%temperature_response_function=TEMPERATURE_RESPONSE_FUNCTION_CLM4
+  CLMDec_Create%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLM4
 #endif
 
-  CLM_Decomp_Create%Q10 = 1.5d0
-  CLM_Decomp_Create%litter_decomp_type=LITTER_DECOMP_CLMCN
-  CLM_Decomp_Create%half_saturation_nh3 = 1.0d-15
-  CLM_Decomp_Create%half_saturation_no3 = 1.0d-15
-  CLM_Decomp_Create%inhibition_nh3_no3 = 1.0d-15
-  CLM_Decomp_Create%n2o_frac_mineralization = 0.02d0  ! Parton et al. 2001
-  CLM_Decomp_Create%x0eps = 1.0d-20
-  CLM_Decomp_Create%downreg_no3_0 = -1.0d-9
-  CLM_Decomp_Create%downreg_no3_1 = 1.0d-7
-  CLM_Decomp_Create%downreg_nh3_0 = -1.0d-9
-  CLM_Decomp_Create%downreg_nh3_1 = 1.0d-7
+  CLMDec_Create%Q10 = 1.5d0
+  CLMDec_Create%litter_decomp_type=LITTER_DECOMP_CLMCN
+  CLMDec_Create%half_saturation_nh3 = 1.0d-15
+  CLMDec_Create%half_saturation_no3 = 1.0d-15
+  CLMDec_Create%inhibition_nh3_no3 = 1.0d-15
+  CLMDec_Create%n2o_frac_mineralization = 0.02d0  ! Parton et al. 2001
+  CLMDec_Create%x0eps = 1.0d-20
+  CLMDec_Create%downreg_no3_0 = -1.0d-9
+  CLMDec_Create%downreg_no3_1 = 1.0d-7
+  CLMDec_Create%downreg_nh3_0 = -1.0d-9
+  CLMDec_Create%downreg_nh3_1 = 1.0d-7
 
-  CLM_Decomp_Create%nc_bacteria = 0.17150d0
+  CLMDec_Create%nc_bacteria = 0.17150d0
   ! CN_ratio_fungi = 17.4924d0     !15.0d0 ! or 10.0
-  CLM_Decomp_Create%nc_fungi = 0.05717d0
-  CLM_Decomp_Create%fraction_bacteria = 0.340927d0
+  CLMDec_Create%nc_fungi = 0.05717d0
+  CLMDec_Create%fraction_bacteria = 0.340927d0
 
-  CLM_Decomp_Create%npool = 0
-  nullify(CLM_Decomp_Create%pool_nc_ratio)
+  CLMDec_Create%npool = 0
+  nullify(CLMDec_Create%pool_nc_ratio)
 
-  CLM_Decomp_Create%nrxn = 0
-  nullify(CLM_Decomp_Create%rate_constant)
-  nullify(CLM_Decomp_Create%is_litter_decomp)
-  nullify(CLM_Decomp_Create%upstream_c_id)
-  nullify(CLM_Decomp_Create%upstream_n_id)
-  nullify(CLM_Decomp_Create%upstream_nc)
-  nullify(CLM_Decomp_Create%upstream_is_aqueous)
+  CLMDec_Create%nrxn = 0
+  nullify(CLMDec_Create%rate_constant)
+  nullify(CLMDec_Create%is_litter_decomp)
+  nullify(CLMDec_Create%upstream_c_id)
+  nullify(CLMDec_Create%upstream_n_id)
+  nullify(CLMDec_Create%upstream_nc)
+  nullify(CLMDec_Create%upstream_is_aqueous)
   
-  nullify(CLM_Decomp_Create%n_downstream_pools)
-  nullify(CLM_Decomp_Create%downstream_id)
-  nullify(CLM_Decomp_Create%downstream_is_aqueous)
-  nullify(CLM_Decomp_Create%downstream_stoich)
-  nullify(CLM_Decomp_Create%mineral_c_stoich)
-  nullify(CLM_Decomp_Create%mineral_n_stoich)
+  nullify(CLMDec_Create%n_downstream_pools)
+  nullify(CLMDec_Create%downstream_id)
+  nullify(CLMDec_Create%downstream_is_aqueous)
+  nullify(CLMDec_Create%downstream_stoich)
+  nullify(CLMDec_Create%mineral_c_stoich)
+  nullify(CLMDec_Create%mineral_n_stoich)
 
-  CLM_Decomp_Create%species_id_co2 = 0
-  CLM_Decomp_Create%species_id_nh3 = 0
-  CLM_Decomp_Create%species_id_no3 = 0
-  CLM_Decomp_Create%species_id_n2o = 0
-  CLM_Decomp_Create%species_id_dom = 0
-  CLM_Decomp_Create%species_id_proton = 0
-  CLM_Decomp_Create%species_id_bacteria = 0
-  CLM_Decomp_Create%species_id_fungi = 0
-  CLM_Decomp_Create%species_id_hrimm = 0
-  CLM_Decomp_Create%species_id_nmin = 0
-  CLM_Decomp_Create%species_id_nimm = 0
-  CLM_Decomp_Create%species_id_ngasmin = 0
+  CLMDec_Create%species_id_co2 = 0
+  CLMDec_Create%species_id_nh3 = 0
+  CLMDec_Create%species_id_no3 = 0
+  CLMDec_Create%species_id_n2o = 0
+  CLMDec_Create%species_id_dom = 0
+  CLMDec_Create%species_id_proton = 0
+  CLMDec_Create%species_id_bacteria = 0
+  CLMDec_Create%species_id_fungi = 0
+  CLMDec_Create%species_id_hrimm = 0
+  CLMDec_Create%species_id_nmin = 0
+  CLMDec_Create%species_id_nimm = 0
+  CLMDec_Create%species_id_ngasmin = 0
 
-  nullify(CLM_Decomp_Create%next)
+  nullify(CLMDec_Create%next)
 
-  nullify(CLM_Decomp_Create%pools)
-  nullify(CLM_Decomp_Create%reactions)
+  nullify(CLMDec_Create%pools)
+  nullify(CLMDec_Create%reactions)
 
-end function CLM_Decomp_Create
+end function CLMDec_Create
 
 ! ************************************************************************** !
 
-subroutine CLM_Decomp_Read(this,input,option)
+subroutine CLMDec_Read(this,input,option)
   ! 
   ! Reads input deck for reaction sandbox parameters
   ! 
@@ -227,7 +227,7 @@ subroutine CLM_Decomp_Read(this,input,option)
 
     call InputReadWord(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword', &
-                       'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp')
+                       'CHEMISTRY,REACTION_SANDBOX,CLMDec')
     call StringToUpper(word)   
     select case(trim(word))
 #ifdef CLM_PFLOTRAN
@@ -239,7 +239,7 @@ subroutine CLM_Decomp_Read(this,input,option)
 
          call InputReadWord(input,option,word,PETSC_TRUE)
          call InputErrorMsg(input,option,'keyword', &
-            'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,TEMPERATURE RESPONSE FUNCTION')
+            'CHEMISTRY,REACTION_SANDBOX,CLMDec,TEMPERATURE RESPONSE FUNCTION')
          call StringToUpper(word)   
 
             select case(trim(word))
@@ -251,9 +251,9 @@ subroutine CLM_Decomp_Read(this,input,option)
                        TEMPERATURE_RESPONSE_FUNCTION_Q10    
                   call InputReadDouble(input,option,this%Q10)  
                   call InputErrorMsg(input,option,'Q10', 'CHEMISTRY,' // &
-                       'REACTION_SANDBOX_CLM_Decomp,TEMPERATURE RESPONSE FUNCTION')
+                       'REACTION_SANDBOX_CLMDec,TEMPERATURE RESPONSE FUNCTION')
               case default
-                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,' // &
+                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMDec,' // &
                                 'TEMPERATURE RESPONSE FUNCTION keyword: ' // &
                                      trim(word) // ' not recognized.'
                   call printErrMsg(option)
@@ -267,7 +267,7 @@ subroutine CLM_Decomp_Read(this,input,option)
 
          call InputReadWord(input,option,word,PETSC_TRUE)
          call InputErrorMsg(input,option,'keyword', &
-                       'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,MOISTURE RESPONSE FUNCTION')
+                       'CHEMISTRY,REACTION_SANDBOX,CLMDec,MOISTURE RESPONSE FUNCTION')
          call StringToUpper(word)   
 
             select case(trim(word))
@@ -276,7 +276,7 @@ subroutine CLM_Decomp_Read(this,input,option)
               case('DLEM')
                   this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_DLEM    
               case default
-                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMDec,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
                                      trim(word) // ' not recognized.'
                   call printErrMsg(option)
             end select
@@ -290,27 +290,27 @@ subroutine CLM_Decomp_Read(this,input,option)
      case('X0EPS')
          call InputReadDouble(input,option,this%x0eps)
          call InputErrorMsg(input,option,'x0eps', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
 
      case('AMMONIA_HALF_SATURATION')
          call InputReadDouble(input,option,this%half_saturation_nh3)
          call InputErrorMsg(input,option,'ammonia half saturation', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
 
      case('NITRATE_HALF_SATURATION')
          call InputReadDouble(input,option,this%half_saturation_no3)
          call InputErrorMsg(input,option,'nitrate half saturation', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
 
       case('DOWNREGULATE_NH4')
         call InputReadDouble(input,option,this%downreg_nh3_0)
         call InputErrorMsg(input,option,'downreg_nh3_0', &
-          'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+          'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
         call InputReadDouble(input,option,this%downreg_nh3_1)
         call InputErrorMsg(input,option,'downreg_nh3_1', &
-          'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+          'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
         if (this%downreg_nh3_0 > this%downreg_nh3_1) then
-          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,' // &
+          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMDec,' // &
             'NH4+ down regulation cut off concentration > concentration ' // &
             'where down regulation function = 1.'
           call printErrMsg(option)
@@ -318,12 +318,12 @@ subroutine CLM_Decomp_Read(this,input,option)
       case('DOWNREGULATE_NO3')
         call InputReadDouble(input,option,this%downreg_no3_0)
         call InputErrorMsg(input,option,'downreg_no3_0', &
-          'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+          'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
         call InputReadDouble(input,option,this%downreg_no3_1)
         call InputErrorMsg(input,option,'downreg_no3_1', &
-          'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+          'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
         if (this%downreg_no3_0 > this%downreg_no3_1) then
-          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,' // &
+          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMDec,' // &
             'NO3- down regulation cut off concentration > concentration ' // &
             'where down regulation function = 1.'
           call printErrMsg(option)
@@ -332,12 +332,12 @@ subroutine CLM_Decomp_Read(this,input,option)
      case('AMMONIA_INHIBITION_COEF')
          call InputReadDouble(input,option,this%inhibition_nh3_no3)
          call InputErrorMsg(input,option,'ammonia inhibition coefficient', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
 
      case('N2O_FRAC_MINERALIZATION')
          call InputReadDouble(input,option,this%n2o_frac_mineralization)
          call InputErrorMsg(input,option,'n2o fraction from mineralization', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
 
      case('POOLS')
         do
@@ -352,7 +352,7 @@ subroutine CLM_Decomp_Read(this,input,option)
 
           call InputReadWord(input,option,new_pool%name,PETSC_TRUE)
           call InputErrorMsg(input,option,'pool name', &
-            'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,POOLS')
+            'CHEMISTRY,REACTION_SANDBOX,CLMDec,POOLS')
           call InputReadDouble(input,option,temp_real)
           if (InputError(input)) then
             new_pool%nc_ratio = -999.d0
@@ -391,7 +391,7 @@ subroutine CLM_Decomp_Read(this,input,option)
 
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword', &
-                             'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+                             'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
           call StringToUpper(word)   
 
           select case(trim(word))
@@ -399,7 +399,7 @@ subroutine CLM_Decomp_Read(this,input,option)
               call InputReadWord(input,option, &
                                  new_reaction%upstream_pool_name,PETSC_TRUE)
               call InputErrorMsg(input,option,'upstream pool name', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
             case('DOWNSTREAM_POOL')
               allocate(new_pool_rxn)
               new_pool_rxn%name = ''
@@ -409,10 +409,10 @@ subroutine CLM_Decomp_Read(this,input,option)
               call InputReadWord(input,option, &
                                  new_pool_rxn%name,PETSC_TRUE)
               call InputErrorMsg(input,option,'downstream pool name', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
               call InputReadDouble(input,option,new_pool_rxn%stoich)
               call InputErrorMsg(input,option,'Downstream pool stoich', 'CHEMISTRY,' // &
-                  'REACTION_SANDBOX_CLM_Decomp,TEMPERATURE RESPONSE FUNCTION')
+                  'REACTION_SANDBOX_CLMDec,TEMPERATURE RESPONSE FUNCTION')
 
               if (associated(new_reaction%downstream_pools)) then
                   prev_pool_rxn%next => new_pool_rxn
@@ -425,10 +425,10 @@ subroutine CLM_Decomp_Read(this,input,option)
             case('RATE_CONSTANT')
               call InputReadDouble(input,option,rate_constant)
               call InputErrorMsg(input,option,'rate constant', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (InputError(input)) then
-                input%err_buf = 'CLM_Decomp RATE CONSTANT UNITS'
+                input%err_buf = 'CLMDec RATE CONSTANT UNITS'
                 call InputDefaultMsg(input,option)
               else              
                 rate_constant = rate_constant * &
@@ -437,17 +437,17 @@ subroutine CLM_Decomp_Read(this,input,option)
             case('TURNOVER_TIME')
               call InputReadDouble(input,option,turnover_time)
               call InputErrorMsg(input,option,'turnover time', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (InputError(input)) then
-                input%err_buf = 'CLM_Decomp TURNOVER TIME UNITS'
+                input%err_buf = 'CLMDec TURNOVER TIME UNITS'
                 call InputDefaultMsg(input,option)
               else              
                 turnover_time = turnover_time * &
                   UnitsConvertToInternal(word,option)
               endif
             case default
-              option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp,' // &
+              option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMDec,' // &
                 'REACTION keyword: ' // trim(word) // ' not recognized.'
               call printErrMsg(option)
           end select
@@ -456,7 +456,7 @@ subroutine CLM_Decomp_Read(this,input,option)
         ! check to ensure that one of turnover time or rate constant is set.
         if (turnover_time > 0.d0 .and. rate_constant > 0.d0) then
           option%io_buffer = 'Only TURNOVER_TIME or RATE_CONSTANT may ' // &
-            'be included in a CLM_Decomp reaction definition, but not both. ' // &
+            'be included in a CLMDec reaction definition, but not both. ' // &
             'See reaction with upstream pool "' // &
             trim(new_reaction%upstream_pool_name) // '".'
           call printErrMsg(option)
@@ -473,19 +473,19 @@ subroutine CLM_Decomp_Read(this,input,option)
         prev_reaction => new_reaction
         nullify(new_reaction)        
       case default
-        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM_Decomp keyword: ' // &
+        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMDec keyword: ' // &
           trim(word) // ' not recognized.'
         call printErrMsg(option)
     end select
   enddo
   
-end subroutine CLM_Decomp_Read
+end subroutine CLMDec_Read
 
 ! ************************************************************************** !
 
-subroutine CLM_Decomp_Setup(this,reaction,option)
+subroutine CLMDec_Setup(this,reaction,option)
   ! 
-  ! Sets up CLM_Decomp reaction after it has been read from input
+  ! Sets up CLMDec reaction after it has been read from input
   ! 
   ! Author: Guoping Tang
   ! Date: 02/04/14
@@ -627,7 +627,7 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
         GetImmobileSpeciesIDFromName(word,reaction%immobile, &
                                      PETSC_FALSE,option)
       if (species_id_pool_c(icount)<=0 .or. species_id_pool_n(icount)<=0) then
-        option%io_buffer = 'For CLM_Decomp pools with no CN ratio defined, ' // &
+        option%io_buffer = 'For CLMDec pools with no CN ratio defined, ' // &
           'the user must define two immobile species with the same root ' // &
           'name as the pool with "C" or "N" appended, respectively.'
         call printErrMsg(option)
@@ -640,7 +640,7 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
           species_id_pool_c(icount) = GetPrimarySpeciesIDFromName(cur_pool%name, &
                 reaction, PETSC_FALSE,option)
           if(species_id_pool_c(icount) <= 0) then
-             option%io_buffer = 'CLM_Decomp pool: ' // cur_pool%name // &
+             option%io_buffer = 'CLMDec pool: ' // cur_pool%name // &
              'is not specified either in the IMMOBILE_SPECIES or PRIMARY_SPECIES!'
              call printErrMsg(option)
           else
@@ -712,7 +712,7 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
           this%downstream_is_aqueous(icount, jcount) = pool_is_aqueous(ipool) 
 
           if (this%downstream_nc(icount,jcount) < 0.d0) then
-            option%io_buffer = 'For CLM_Decomp reactions, downstream pools ' // &
+            option%io_buffer = 'For CLMDec reactions, downstream pools ' // &
              'must have a constant C:N ratio (i.e. C and N are not tracked ' // &
              ' individually.  Therefore, pool "' // &
              trim(cur_pool%name) // &
@@ -751,7 +751,7 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
        enddo
 
        if(stoich_c < -1.0d-10) then
-         option%io_buffer = 'CLM_Decomp SOM decomposition reaction has negative respiration fraction!'
+         option%io_buffer = 'CLMDec SOM decomposition reaction has negative respiration fraction!'
          call printErrMsg(option)
        endif
 
@@ -829,10 +829,10 @@ subroutine CLM_Decomp_Setup(this,reaction,option)
 !  PetscReal, parameter :: fraction_bacteria = 0.340927d0 ! 5.0**0.6/(5.0**0.6+15.0**0.6) 
   endif 
 
-end subroutine CLM_Decomp_Setup
+end subroutine CLMDec_Setup
 
 ! ************************************************************************** !
-subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
+subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
                        global_auxvar,material_auxvar,reaction,option)
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
@@ -1105,7 +1105,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
         enddo
 
         if(stoich_c < 0.0d0) then
-           option%io_buffer = 'CLM_Decomp litter decomposition reaction has' // &
+           option%io_buffer = 'CLMDec litter decomposition reaction has' // &
                               'negative respiration fraction!'
            call printErrMsg(option)
         endif
@@ -1952,7 +1952,7 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
       temp_real = temp_real * this%n2o_frac_mineralization 
     
     ! residuals 
-      rate_n2o = temp_real * net_n_mineralization_rate
+      rate_n2o = temp_real * net_n_mineralization_rate * f_nh3
  
       Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o 
 
@@ -1964,7 +1964,9 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
 
      !Jacobians
       if (compute_derivative) then
-        drate_n2o = temp_real * dnet_n_mineralization_rate_dnh3
+        drate_n2o = temp_real * dnet_n_mineralization_rate_dnh3 * f_nh3 &
+                  + temp_real * net_n_mineralization_rate * d_nh3
+
         Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_n2o* &
            rt_auxvar%aqueous%dtotal(this%species_id_nh3,this%species_id_nh3,iphase)
         Jacobian(ires_n2o,ires_nh3) = Jacobian(ires_n2o,ires_nh3) - 0.5d0*drate_n2o* &
@@ -1985,20 +1987,20 @@ subroutine CLM_Decomp_React(this,Residual,Jacobian,compute_derivative,rt_auxvar,
     if (abs(temp_real) > huge(temp_real)) then
       write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
       write(option%fid_out, *) 'Reaction Sandbox: DECOMPOSITION'
-      option%io_buffer = ' checking infinity of Residuals matrix  @ CLM_Decomp_React '
+      option%io_buffer = ' checking infinity of Residuals matrix  @ CLMDec_React '
       call printErrMsg(option)
     endif
   enddo
 
-end subroutine CLM_Decomp_React
+end subroutine CLMDec_React
 
 ! ************************************************************************** !
 !
-! CLM_DecompDestroy: Destroys allocatable or pointer objects created in this 
+! CLMDecDestroy: Destroys allocatable or pointer objects created in this
 !                  module
 ! author: Guoping Tang
 ! ************************************************************************** !
-subroutine CLM_Decomp_Destroy(this)
+subroutine CLMDec_Destroy(this)
   ! 
   ! Destroys allocatable or pointer objects created in this
   ! module
@@ -2058,6 +2060,6 @@ subroutine CLM_Decomp_Destroy(this)
   call DeallocateArray(this%mineral_c_stoich) 
   call DeallocateArray(this%mineral_n_stoich) 
  
-end subroutine CLM_Decomp_Destroy
+end subroutine CLMDec_Destroy
 
-end module Reaction_Sandbox_CLM_Decomp_class
+end module Reaction_Sandbox_CLMDec_class

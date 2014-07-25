@@ -196,8 +196,9 @@ recursive subroutine MassTransferInit(mass_transfer, discretization, &
   mass_transfer%dataset%global_size = discretization%grid%nmax
   call DiscretizationCreateVector(discretization,ONEDOF,mass_transfer%vec, &
                                     GLOBAL,option)
-  call VecZeroEntries(mass_transfer%vec,ierr)    
-
+  call VecZeroEntries(mass_transfer%vec,ierr)
+  CHKERRQ(ierr)    
+  
 !F.-M. YUAN: if coupled with CLM, mass-transfer dataset are passed from CLM
 ! via 'mass_transfer%dataset%rarray(:)' ONLY, although 'dataset' IS a hdf5 type.
 ! so, don't open/load hdf5 file.
@@ -279,6 +280,7 @@ recursive subroutine MassTransferUpdate(mass_transfer, grid, option)
 #endif
 
   call VecGetArrayF90(mass_transfer%vec,vec_ptr,ierr)
+  CHKERRQ(ierr)
   ! multiply by -1.d0 for positive contribution to residual
   vec_ptr(:) = -1.d0*mass_transfer%dataset%rarray(:)
 
@@ -294,6 +296,7 @@ recursive subroutine MassTransferUpdate(mass_transfer, grid, option)
 #endif
 
   call VecRestoreArrayF90(mass_transfer%vec,vec_ptr,ierr)
+  CHKERRQ(ierr)
   
   ! update the next one
   if (associated(mass_transfer%next)) then
@@ -323,8 +326,10 @@ recursive subroutine MassTransferDestroy(mass_transfer)
   ! Simply nullify the pointer as the dataset resides in a list to be
   ! destroyed separately.
   nullify(mass_transfer%dataset)
-  if (mass_transfer%vec /= 0) &
+  if (mass_transfer%vec /= 0) then
     call VecDestroy(mass_transfer%vec ,ierr)
+    CHKERRQ(ierr)
+  endif
   call MassTransferDestroy(mass_transfer%next)
 
   deallocate(mass_transfer)
