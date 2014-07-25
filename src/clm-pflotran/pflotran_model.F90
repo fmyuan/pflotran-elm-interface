@@ -246,6 +246,8 @@ contains
     type(pflotran_model_type), pointer, intent(inout) :: model
     type(input_type), pointer :: input
 
+    type(mapping_type), pointer        :: map
+
     PetscBool :: clm2pf_flux_file
     PetscBool :: clm2pf_soil_file
     PetscBool :: clm2pf_gflux_file
@@ -278,12 +280,12 @@ contains
                     model%option%input_filename, model%option)
 
     ! Read names of mapping file
-    clm2pf_flux_file=PETSC_FALSE
-    clm2pf_soil_file=PETSC_FALSE
-    clm2pf_gflux_file=PETSC_FALSE
-    clm2pf_rflux_file=PETSC_FALSE
-    pf2clm_flux_file=PETSC_FALSE
-    pf2clm_surf_file=PETSC_FALSE
+    clm2pf_flux_file   = PETSC_FALSE
+    clm2pf_soil_file   = PETSC_FALSE
+    clm2pf_gflux_file  = PETSC_FALSE
+    clm2pf_rflux_file  = PETSC_FALSE
+    pf2clm_flux_file   = PETSC_FALSE
+    pf2clm_surf_file   = PETSC_FALSE
     
     string = "MAPPING_FILES"
     call InputFindStringInFile(input,model%option,string)
@@ -299,47 +301,65 @@ contains
 
       select case(trim(word))
         case('CLM2PF_FLUX_FILE')
-          call InputReadNChars(input, model%option, model%map_clm_sub_to_pf_sub%filename, &
-               MAXSTRINGLENGTH, PETSC_TRUE)
-          model%map_clm_sub_to_pf_sub%filename = trim(model%map_clm_sub_to_pf_sub%filename)//CHAR(0)
-          call InputErrorMsg(input, &
-                             model%option, 'type', 'MAPPING_FILES')   
-          clm2pf_flux_file=PETSC_TRUE
+          map => model%map_clm_sub_to_pf_sub
+          call InputReadNChars(input, model%option, map%filename, &
+                               MAXSTRINGLENGTH, PETSC_TRUE)
+          call InputErrorMsg(input, model%option, 'type', 'MAPPING_FILES')
+          map%filename     = trim(map%filename)//CHAR(0)
+          clm2pf_flux_file = PETSC_TRUE
+
         case('CLM2PF_SOIL_FILE')
-          call InputReadNChars(input, model%option, model%map_clm_sub_to_pf_extended_sub%filename, &
-               MAXSTRINGLENGTH, PETSC_TRUE)
-          call InputErrorMsg(input, &
-                             model%option, 'type', 'MAPPING_FILES')   
-          clm2pf_soil_file=PETSC_TRUE
+          map => model%map_clm_sub_to_pf_extended_sub
+          call InputReadNChars(input, model%option, map%filename, &
+                               MAXSTRINGLENGTH, PETSC_TRUE)
+          call InputErrorMsg(input, model%option, 'type', 'MAPPING_FILES')
+          map%filename     = trim(map%filename)//CHAR(0)
+          clm2pf_soil_file = PETSC_TRUE
+
         case('CLM2PF_GFLUX_FILE')
-          call InputReadNChars(input, model%option, model%map_clm_srf_to_pf_2dsub%filename, &
-               MAXSTRINGLENGTH, PETSC_TRUE)
-          call InputErrorMsg(input, &
-                             model%option, 'type', 'MAPPING_FILES')
-          clm2pf_gflux_file=PETSC_TRUE
+          map => model%map_clm_srf_to_pf_2dsub
+          call InputReadNChars(input, model%option, map%filename, &
+                               MAXSTRINGLENGTH, PETSC_TRUE)
+          call InputErrorMsg(input, model%option, 'type', 'MAPPING_FILES')
+          map%filename      = trim(map%filename)//CHAR(0)
+          clm2pf_gflux_file = PETSC_TRUE
+
         case('CLM2PF_RFLUX_FILE')
-          call InputReadNChars(input, model%option, model%map_clm_srf_to_pf_srf%filename, &
-               MAXSTRINGLENGTH, PETSC_TRUE)
-          call InputErrorMsg(input, &
-                             model%option, 'type', 'MAPPING_FILES')
-          clm2pf_rflux_file=PETSC_TRUE
+          map => model%map_clm_srf_to_pf_srf
+          call InputReadNChars(input, model%option, map%filename, &
+                               MAXSTRINGLENGTH, PETSC_TRUE)
+          call InputErrorMsg(input, model%option, 'type', 'MAPPING_FILES')
+          map%filename      = trim(map%filename)//CHAR(0)
+          clm2pf_rflux_file = PETSC_TRUE
+
         case('PF2CLM_SURF_FILE')
-          call InputReadNChars(input, model%option, model%map_pf_srf_to_clm_srf%filename, &
-               MAXSTRINGLENGTH, PETSC_TRUE)
-          call InputErrorMsg(input, &
-                             model%option, 'type', 'MAPPING_FILES')
-          pf2clm_surf_file=PETSC_TRUE
+          map => model%map_pf_srf_to_clm_srf
+          call InputReadNChars(input, model%option, map%filename, &
+                               MAXSTRINGLENGTH, PETSC_TRUE)
+          call InputErrorMsg(input, model%option, 'type', 'MAPPING_FILES')
+          map%filename     = trim(map%filename)//CHAR(0)
+          pf2clm_surf_file = PETSC_TRUE
+
         case('PF2CLM_FLUX_FILE')
-          call InputReadNChars(input, model%option, model%map_pf_sub_to_clm_sub%filename, &
-               MAXSTRINGLENGTH, PETSC_TRUE)
-          call InputErrorMsg(input, &
-                             model%option, 'type', 'MAPPING_FILES')   
-          pf2clm_flux_file=PETSC_TRUE
+          map => model%map_pf_sub_to_clm_sub
+          call InputReadNChars(input, model%option, map%filename, &
+                               MAXSTRINGLENGTH, PETSC_TRUE)
+          call InputErrorMsg(input, model%option, 'type', 'MAPPING_FILES')
+          map%filename     = trim(map%filename)//CHAR(0)
+          pf2clm_flux_file = PETSC_TRUE
+
         case default
           model%option%io_buffer='Keyword ' // trim(word) // &
             ' in input file not recognized'
           call printErrMsg(model%option)
       end select
+
+      ! Read mapping file
+      if (index(map%filename, '.h5') > 0) then
+        call MappingReadHDF5(map, map%filename, model%option)
+      else
+        call MappingReadTxtFile(map, map%filename, model%option)
+      endif
 
     enddo
     call InputDestroy(input)
@@ -864,13 +884,6 @@ end subroutine pflotranModelSetICs
         call printErrMsg(option)
     end select
 
-    ! Read mapping file
-    if (index(map%filename, '.h5') > 0) then
-      call MappingReadHDF5(map, map%filename, option)
-    else
-      call MappingReadTxtFile(map, map%filename, option)
-    endif
-
     grid_clm_npts_ghost=0
 
     ! Allocate memory to identify if CLM cells are local or ghosted.
@@ -1039,13 +1052,6 @@ end subroutine pflotranModelSetICs
           'pflotranModelInitMappingSurf3D'
         call printErrMsg(option)
     end select
-
-    ! Read mapping file
-    if (index(map%filename, '.h5') > 0) then
-      call MappingReadHDF5(map, map%filename, option)
-    else
-      call MappingReadTxtFile(map, map%filename, option)
-    endif
 
     grid_clm_npts_ghost=0
 
@@ -1499,13 +1505,6 @@ end subroutine pflotranModelSetICs
           'pflotranModelInitMappingSurf2D'
         call printErrMsg(option)
     end select
-
-    ! Read mapping file
-    if (index(map%filename, '.h5') > 0) then
-      call MappingReadHDF5(map, map%filename, option)
-    else
-      call MappingReadTxtFile(map, map%filename, option)
-    endif
 
     grid_clm_npts_ghost=0
 
