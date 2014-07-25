@@ -81,7 +81,7 @@ module clm_pflotran_interface_data
   PetscInt :: nlclm_sub ! num of local clm cells
   PetscInt :: ngclm_sub ! num of ghosted clm cells (ghosted = local+ghosts)
   PetscInt :: nlpf_sub  ! num of local pflotran cells
-  PetscInt :: ngpf_sub   ! num of ghosted pflotran cells (ghosted = local+ghosts)
+  PetscInt :: ngpf_sub  ! num of ghosted pflotran cells (ghosted = local+ghosts)
 
   ! Number of cells for the surface of the 3D subsurface domain
   PetscInt :: nlclm_2dsub  ! num of local clm cells
@@ -94,6 +94,8 @@ module clm_pflotran_interface_data
   PetscInt :: ngclm_srf  ! num of ghosted clm cells (ghosted = local+ghosts)
   PetscInt :: nlpf_srf   ! num of local pflotran cells
   PetscInt :: ngpf_srf   ! num of ghosted pflotran cells (ghosted = local+ghosts)
+
+  PetscInt :: nzclm_mapped ! num of CLM soil layers that are mapped
 
   end type clm_pflotran_idata_type
 
@@ -171,6 +173,8 @@ contains
 
     clm_pf_idata%h2osfc_clm = 0
     clm_pf_idata%h2osfc_pf = 0
+
+    clm_pf_idata%nzclm_mapped = 0
 
   end subroutine CLMPFLOTRANIDataInit
 
