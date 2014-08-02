@@ -2421,6 +2421,7 @@ end subroutine pflotranModelSetICs
     use clm_pflotran_interface_data
     use Connection_module
     use Coupler_module
+    use Grid_module
     use Mapping_module
     use Option_module
     use Realization_class, only : realization_type
@@ -2437,10 +2438,11 @@ end subroutine pflotranModelSetICs
 
     class(realization_type), pointer          :: subsurf_realization
     type(coupler_type), pointer               :: source_sink
+    type(grid_type), pointer                  :: grid
     type(connection_set_type), pointer        :: cur_connection_set
     PetscScalar, pointer                      :: qflx_pf_loc(:)
     PetscBool                                 :: found
-    PetscInt                                  :: iconn
+    PetscInt                                  :: iconn, local_id, ghosted_id
     PetscErrorCode                            :: ierr
     PetscInt                                  :: press_dof
 
@@ -2476,7 +2478,10 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%qflx_pf,qflx_pf_loc,ierr)
     CHKERRQ(ierr)
     found = PETSC_FALSE
+
     source_sink => subsurf_realization%patch%source_sinks%first
+    grid        => subsurf_realization%patch%grid
+
     do
       if (.not.associated(source_sink)) exit
 
@@ -2492,7 +2497,19 @@ end subroutine pflotranModelSetICs
         endif
 
         do iconn = 1, cur_connection_set%num_connections
-          source_sink%flow_aux_real_var(press_dof,iconn) = qflx_pf_loc(iconn)
+          local_id = cur_connection_set%id_dn(iconn)
+          ghosted_id = grid%nL2G(local_id)
+
+          source_sink%flow_aux_real_var(press_dof,iconn) = qflx_pf_loc(ghosted_id)
+
+#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
+      ! the following checking shows data passing IS from 'ghosted_id' to 'iconn (local_id)' (multiple processors)
+      write(pflotran_model%option%myrank+200,*) 'checking H-et ss. -pf_model-UpdateSrcSink:', &
+        'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'iconn=',iconn, 'qflx_pfs_loc(iconn)=',qflx_pf_loc(iconn), &
+        'qflx_pfs_loc(ghosted_id)=',qflx_pf_loc(ghosted_id)
+#endif
+
         enddo
       endif
 
@@ -2618,7 +2635,7 @@ end subroutine pflotranModelSetICs
 
         found = PETSC_TRUE
         if (source_sink%flow_condition%rate%itype /= HET_VOL_RATE_SS) then
-          call printErrMsg(pflotran_model%option,'clm_et_ss is not of ' // &
+          call printErrMsg(pflotran_model%option,'clm_rain_srf_ss is not of ' // &
                            'HET_VOL_RATE_SS')
         endif
 
@@ -4407,7 +4424,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Option_module
     use Patch_module
     use Grid_module
-    use Field_module
     use Coupler_module
     use Connection_module
 
@@ -4434,7 +4450,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     class(realization_type), pointer          :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
-    type(field_type), pointer                 :: field
     type(simulation_base_type), pointer :: simulation
 
     type(coupler_type), pointer :: boundary_condition
@@ -4471,7 +4486,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     patch           => realization%patch
     grid            => patch%grid
-    field           => realization%field
 
     if (clm_pf_idata%nlpf_2dsub > 0 .and. clm_pf_idata%ngpf_2dsub > 0 ) then
       call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
@@ -4561,6 +4575,15 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
              cur_connection_set%area(iconn) = 0.d0               ! normally shut-off this BC
              if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! turn on the BC by resetting the BC 'area' to real value
                 cur_connection_set%area(iconn) = toparea_p(iconn)
+
+#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
+     ! the following shows BC connection IS matching up exactly with surface control volume id from CLM
+     ! probably because it's in 2D.
+      write(pflotran_model%option%myrank+200,*) 'checking H-PRESS. -pf_model-setSoilHbc:', &
+        'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'iconn=',iconn, 'press_top(iconn)=',press_subsurf_pf_loc(iconn), &
+        'toparea_p(iconn)=', toparea_p(iconn)
+#endif
              endif
 
           endif
