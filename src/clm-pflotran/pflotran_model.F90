@@ -4560,7 +4560,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                    boundary_condition%flow_aux_real_var(press_dof,iconn)= &
                        qflux_subsurf_pf_loc(iconn)
 
-             cur_connection_set%area(iconn) = toparea_p(iconn)     ! normally it's ON
+             cur_connection_set%area(iconn) = toparea_p(ghosted_id)     ! normally it's ON
              if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! shut-off the BC by resetting the BC 'area' to a tiny value
                 cur_connection_set%area(iconn) = 0.d0
              endif
@@ -4574,15 +4574,15 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
              cur_connection_set%area(iconn) = 0.d0               ! normally shut-off this BC
              if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! turn on the BC by resetting the BC 'area' to real value
-                cur_connection_set%area(iconn) = toparea_p(iconn)
+                cur_connection_set%area(iconn) = toparea_p(ghosted_id)
 
 #if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
      ! the following shows BC connection IS matching up exactly with surface control volume id from CLM
-     ! probably because it's in 2D.
+     ! probably because it's in 2D. but for toparea_p, it's in 3D (all cells, not only surface)
       write(pflotran_model%option%myrank+200,*) 'checking H-PRESS. -pf_model-setSoilHbc:', &
         'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'iconn=',iconn, 'press_top(iconn)=',press_subsurf_pf_loc(iconn), &
-        'toparea_p(iconn)=', toparea_p(iconn)
+        'toparea_p(iconn)=', toparea_p(ghosted_id)
 #endif
              endif
 
