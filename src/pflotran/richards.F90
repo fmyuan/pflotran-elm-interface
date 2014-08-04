@@ -1570,6 +1570,16 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
 
       icap_dn = patch%sat_func_id(ghosted_id)
 
+#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
+     ! the following shows BC connection IS matching up exactly with surface control volume id from CLM
+     ! probably because it's in 2D. but for toparea_p, it's in 3D (all cells, not only surface)
+      write(option%myrank+200,*) 'checking H-PRESS. RichardsResidaulPatch1-CALL Richards BCFlux: ', &
+        'rank=',option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'iconn=',iconn, 'press_BC(iconn)=',boundary_condition%flow_aux_real_var(:,iconn), &
+        'area(iconn)=', cur_connection_set%area(iconn), &
+        'flow_condition_itype=', boundary_condition%flow_condition%itype
+#endif
+
       call RichardsBCFlux(boundary_condition%flow_condition%itype, &
                                 boundary_condition%flow_aux_real_var(:,iconn), &
                                 rich_auxvars_bc(sum_connection), &

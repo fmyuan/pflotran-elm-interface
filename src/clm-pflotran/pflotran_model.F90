@@ -4560,7 +4560,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                    boundary_condition%flow_aux_real_var(press_dof,iconn)= &
                        qflux_subsurf_pf_loc(iconn)
 
-             cur_connection_set%area(iconn) = toparea_p(ghosted_id)     ! normally it's ON
+             cur_connection_set%area(iconn) = toparea_p(local_id)     ! normally it's ON (MPI vec, it's from 'local_id')
              if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! shut-off the BC by resetting the BC 'area' to a tiny value
                 cur_connection_set%area(iconn) = 0.d0
              endif
@@ -4574,7 +4574,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
              cur_connection_set%area(iconn) = 0.d0               ! normally shut-off this BC
              if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! turn on the BC by resetting the BC 'area' to real value
-                cur_connection_set%area(iconn) = toparea_p(ghosted_id)
+                cur_connection_set%area(iconn) = toparea_p(local_id)
 
 #if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
      ! the following shows BC connection IS matching up exactly with surface control volume id from CLM
@@ -4582,7 +4582,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       write(pflotran_model%option%myrank+200,*) 'checking H-PRESS. -pf_model-setSoilHbc:', &
         'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'iconn=',iconn, 'press_top(iconn)=',press_subsurf_pf_loc(iconn), &
-        'toparea_p(iconn)=', toparea_p(ghosted_id)
+        'toparea_p(iconn)=', toparea_p(local_id),&
+        'press_dof=',press_dof, &
+        'bc_itype=',boundary_condition%flow_condition%itype(press_dof)
 #endif
              endif
 
