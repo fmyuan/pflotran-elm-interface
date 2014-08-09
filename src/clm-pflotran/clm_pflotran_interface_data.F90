@@ -36,7 +36,7 @@ module clm_pflotran_interface_data
   Vec :: watsat_pf
   Vec :: watfc_pf
   Vec :: bsw_pf
-  Vec :: press_pf
+  !Vec :: press_pf
   Vec :: bulkdensity_dry_pf   
 
   ! (ii) Mesh property
@@ -405,7 +405,7 @@ contains
     clm_pf_idata%watsat_pf = 0
     clm_pf_idata%watfc_pf = 0
     clm_pf_idata%bsw_pf = 0
-    clm_pf_idata%press_pf = 0
+    !clm_pf_idata%press_pf = 0
     clm_pf_idata%bulkdensity_dry_pf = 0
 
     clm_pf_idata%qflx_clm = 0
@@ -713,7 +713,7 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%sucsat_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%watsat_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%bsw_pf,ierr)
-    call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%press_pf,ierr)
+    !call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%press_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%qflx_pf,ierr)
 
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%watfc_pf,ierr)
@@ -1059,7 +1059,7 @@ contains
     if(clm_pf_idata%sucsat_pf  /= 0) call VecDestroy(clm_pf_idata%sucsat_pf,ierr)
     if(clm_pf_idata%watsat_pf  /= 0) call VecDestroy(clm_pf_idata%watsat_pf,ierr)
     if(clm_pf_idata%bsw_pf  /= 0) call VecDestroy(clm_pf_idata%bsw_pf,ierr)
-    if(clm_pf_idata%press_pf  /= 0) call VecDestroy(clm_pf_idata%press_pf,ierr)
+    !if(clm_pf_idata%press_pf  /= 0) call VecDestroy(clm_pf_idata%press_pf,ierr)
 
     if(clm_pf_idata%watfc_pf  /= 0) call VecDestroy(clm_pf_idata%watfc_pf,ierr)
     if(clm_pf_idata%bulkdensity_dry_pf  /= 0) call VecDestroy(clm_pf_idata%bulkdensity_dry_pf,ierr)

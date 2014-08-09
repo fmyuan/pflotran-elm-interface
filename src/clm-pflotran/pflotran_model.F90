@@ -39,7 +39,7 @@ module pflotran_model_module
 
   ! map level constants
   PetscInt, parameter, public :: CLM_SUB_TO_PF_SUB           = 1 ! 3D --> 3D
-  PetscInt, parameter, public :: CLM_SUB_TO_PF_EXTENDED_SUB  = 2 ! 3D --> extended 3D
+!  PetscInt, parameter, public :: CLM_SUB_TO_PF_EXTENDED_SUB  = 2 ! 3D --> extended 3D
   PetscInt, parameter, public :: CLM_SRF_TO_PF_2DSUB         = 3 ! 2D --> SURF of 3D grid
   PetscInt, parameter, public :: CLM_SRF_TO_PF_SRF           = 4 ! 2D --> 2D SURF grid
   PetscInt, parameter, public :: PF_SUB_TO_CLM_SUB           = 5 ! 3D --> 3D
@@ -76,7 +76,7 @@ module pflotran_model_module
     type(inside_each_overlapped_cell), pointer :: pf_cells(:)
     type(inside_each_overlapped_cell), pointer :: clm_cells(:)
     type(mapping_type),                pointer :: map_clm_sub_to_pf_sub
-    type(mapping_type),                pointer :: map_clm_sub_to_pf_extended_sub
+!    type(mapping_type),                pointer :: map_clm_sub_to_pf_extended_sub
     type(mapping_type),                pointer :: map_clm_srf_to_pf_2dsub
     type(mapping_type),                pointer :: map_clm_srf_to_pf_srf
     type(mapping_type),                pointer :: map_pf_sub_to_clm_sub
@@ -279,7 +279,7 @@ contains
     type(input_type), pointer :: input
 
     PetscBool :: clm2pf_flux_file
-    PetscBool :: clm2pf_soil_file
+!    PetscBool :: clm2pf_soil_file
     PetscBool :: clm2pf_gflux_file
     PetscBool :: clm2pf_rflux_file
     PetscBool :: pf2clm_flux_file
@@ -294,7 +294,7 @@ contains
     nullify(model%pf_cells)
     nullify(model%clm_cells)
     nullify(model%map_clm_sub_to_pf_sub)
-    nullify(model%map_clm_sub_to_pf_extended_sub)
+!    nullify(model%map_clm_sub_to_pf_extended_sub)
     nullify(model%map_clm_srf_to_pf_2dsub)
     nullify(model%map_clm_srf_to_pf_srf)
     nullify(model%map_pf_sub_to_clm_sub)
@@ -305,7 +305,7 @@ contains
     nullify(model%map_pf_2dsub_to_clm_srf)
 
     model%map_clm_sub_to_pf_sub          => MappingCreate()
-    model%map_clm_sub_to_pf_extended_sub => MappingCreate()
+!    model%map_clm_sub_to_pf_extended_sub => MappingCreate()
     model%map_clm_srf_to_pf_2dsub        => MappingCreate()
     model%map_clm_srf_to_pf_srf          => MappingCreate()
     model%map_pf_sub_to_clm_sub          => MappingCreate()
@@ -323,7 +323,7 @@ contains
 
     ! Read names of mapping file
     clm2pf_flux_file=PETSC_FALSE
-    clm2pf_soil_file=PETSC_FALSE
+!    clm2pf_soil_file=PETSC_FALSE
     clm2pf_gflux_file=PETSC_FALSE
     clm2pf_rflux_file=PETSC_FALSE
     pf2clm_flux_file=PETSC_FALSE
@@ -348,25 +348,32 @@ contains
         case('CLM2PF_FLUX_FILE')
           call InputReadNChars(input, model%option, model%map_clm_sub_to_pf_sub%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
-          model%map_clm_sub_to_pf_sub%filename = trim(model%map_clm_sub_to_pf_sub%filename)//CHAR(0)
+          model%map_clm_sub_to_pf_sub%filename = &
+            trim(model%map_clm_sub_to_pf_sub%filename)//CHAR(0)
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')   
           clm2pf_flux_file=PETSC_TRUE
-        case('CLM2PF_SOIL_FILE')
-          call InputReadNChars(input, model%option, model%map_clm_sub_to_pf_extended_sub%filename, &
-               MAXSTRINGLENGTH, PETSC_TRUE)
-          call InputErrorMsg(input, &
-                             model%option, 'type', 'MAPPING_FILES')   
-          clm2pf_soil_file=PETSC_TRUE
+!        case('CLM2PF_SOIL_FILE')
+!          call InputReadNChars(input, model%option, model%map_clm_sub_to_pf_extended_sub%filename, &
+!               MAXSTRINGLENGTH, PETSC_TRUE)
+!          model%map_clm_sub_to_pf_extended_sub%filename = &
+!            trim(model%map_clm_sub_to_pf_extended_sub%filename)//CHAR(0)
+!          call InputErrorMsg(input, &
+!                             model%option, 'type', 'MAPPING_FILES')
+!          clm2pf_soil_file=PETSC_TRUE
         case('CLM2PF_GFLUX_FILE','CLM2PF_BCTOP_FILE')
           call InputReadNChars(input, model%option, model%map_clm_srf_to_pf_2dsub%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
+          model%map_clm_srf_to_pf_2dsub%filename = &
+            trim(model%map_clm_srf_to_pf_2dsub%filename)//CHAR(0)
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_gflux_file=PETSC_TRUE
         case('CLM2PF_RFLUX_FILE')
           call InputReadNChars(input, model%option, model%map_clm_srf_to_pf_srf%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
+          model%map_clm_srf_to_pf_srf%filename = &
+            trim(model%map_clm_srf_to_pf_srf%filename)//CHAR(0)
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_rflux_file=PETSC_TRUE
@@ -374,9 +381,13 @@ contains
           if( (model%option%nsurfflowdof>0)) then
             call InputReadNChars(input, model%option, model%map_pf_srf_to_clm_srf%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
+            model%map_pf_srf_to_clm_srf%filename = &
+              trim(model%map_pf_srf_to_clm_srf%filename)//CHAR(0)
           else
             call InputReadNChars(input, model%option, model%map_pf_2dsub_to_clm_srf%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
+            model%map_pf_2dsub_to_clm_srf%filename = &
+              trim(model%map_pf_2dsub_to_clm_srf%filename)//CHAR(0)
           endif
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
@@ -384,31 +395,38 @@ contains
         case('PF2CLM_FLUX_FILE')
           call InputReadNChars(input, model%option, model%map_pf_sub_to_clm_sub%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
+          model%map_pf_sub_to_clm_sub%filename = &
+            trim(model%map_pf_sub_to_clm_sub%filename)//CHAR(0)
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')   
           pf2clm_flux_file=PETSC_TRUE
         case('CLM2PF_BCBOT_FILE')
           call InputReadNChars(input, model%option, model%map_clm_bot_to_pf_2dbot%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
+          model%map_clm_bot_to_pf_2dbot%filename = &
+            trim(model%map_clm_bot_to_pf_2dbot%filename)//CHAR(0)
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_bcbot_file=PETSC_TRUE
         case('PF2CLM_BCBOT_FILE')
           call InputReadNChars(input, model%option, model%map_pf_2dbot_to_clm_bot%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
+          model%map_pf_2dbot_to_clm_bot%filename = &
+            trim(model%map_pf_2dbot_to_clm_bot%filename)//CHAR(0)
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           pf2clm_bcbot_file=PETSC_TRUE
         case default
           model%option%io_buffer='Keyword ' // trim(word) // &
-            ' in input file not recognized'
-          call printErrMsg(model%option)
+            ' in input file not recognized and ignored'
+          call printMsg(model%option)
       end select
 
     enddo
     call InputDestroy(input)
 
-    if ((.not. clm2pf_soil_file) .or. (.not. clm2pf_flux_file) .or. &
+!    if ((.not. clm2pf_soil_file) .or. (.not. clm2pf_flux_file) .or. &
+    if ((.not. clm2pf_flux_file) .or. &
         (.not. pf2clm_flux_file) ) then
       model%option%io_buffer='One of the mapping files not found'
       call printErrMsg(model%option)
@@ -537,8 +555,8 @@ subroutine pflotranModelSetICs(pflotran_model)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%press_clm, &
-                                    clm_pf_idata%press_pf)
+                                    clm_pf_idata%press_clmp, &
+                                    clm_pf_idata%press_pfs)
 
     if (pflotran_model%option%iflowmode .ne. RICHARDS_MODE .and. &
         pflotran_model%option%iflowmode .ne. TH_MODE) then
@@ -549,7 +567,7 @@ subroutine pflotranModelSetICs(pflotran_model)
 
     call VecGetArrayF90(field%flow_xx, xx_loc_p, ierr)
     CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%press_pf, press_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%press_pfs, press_pf_loc, ierr)
     CHKERRQ(ierr)
 
     do local_id = 1, grid%nlmax
@@ -557,12 +575,12 @@ subroutine pflotranModelSetICs(pflotran_model)
        if (associated(patch%imat)) then
           if (patch%imat(ghosted_id) <= 0) cycle
        endif
-       xx_loc_p(ghosted_id)=press_pf_loc(local_id)
+       xx_loc_p(local_id)=press_pf_loc(ghosted_id)
     enddo
 
     call VecRestoreArrayF90(field%flow_xx, xx_loc_p, ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%press_pf, press_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%press_pfs, press_pf_loc, ierr)
     CHKERRQ(ierr)
 
     ! update dependent vectors: Saturation
@@ -687,42 +705,42 @@ end subroutine pflotranModelSetICs
         endif
     end select
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%hksat_x_clm, &
                                     clm_pf_idata%hksat_x_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%hksat_y_clm, &
                                     clm_pf_idata%hksat_y_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%hksat_z_clm, &
                                     clm_pf_idata%hksat_z_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%sucsat_clm, &
                                     clm_pf_idata%sucsat_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%bsw_clm, &
                                     clm_pf_idata%bsw_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%watsat_clm, &
                                     clm_pf_idata%watsat_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%watfc_clm, &
                                     clm_pf_idata%watfc_pf)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &    ! 'extended' for 'physical' (?)
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%bulkdensity_dry_clm, &
                                     clm_pf_idata%bulkdensity_dry_pf)
@@ -917,7 +935,7 @@ end subroutine pflotranModelSetICs
     character(len=MAXSTRINGLENGTH)                    :: filename
     
     select case (map_id)
-      case (CLM_SUB_TO_PF_SUB, CLM_SUB_TO_PF_EXTENDED_SUB, PF_SUB_TO_CLM_SUB)
+      case (CLM_SUB_TO_PF_SUB, PF_SUB_TO_CLM_SUB)
         call pflotranModelInitMappingSub2Sub(pflotran_model,  &
                                       grid_clm_cell_ids_nindex, &
                                       grid_clm_npts_local, &
@@ -1022,10 +1040,10 @@ end subroutine pflotranModelSetICs
         map => pflotran_model%map_clm_sub_to_pf_sub
         source_mesh_id = CLM_SUB_MESH
         dest_mesh_id = PF_SUB_MESH
-      case(CLM_SUB_TO_PF_EXTENDED_SUB)
-        map => pflotran_model%map_clm_sub_to_pf_extended_sub
-        source_mesh_id = CLM_SUB_MESH
-        dest_mesh_id = PF_SUB_MESH
+!      case(CLM_SUB_TO_PF_EXTENDED_SUB)
+!        map => pflotran_model%map_clm_sub_to_pf_extended_sub
+!        source_mesh_id = CLM_SUB_MESH
+!        dest_mesh_id = PF_SUB_MESH
       case(PF_SUB_TO_CLM_SUB)
         map => pflotran_model%map_pf_sub_to_clm_sub
         source_mesh_id = PF_SUB_MESH
@@ -3105,7 +3123,7 @@ end subroutine pflotranModelSetICs
     PetscReal, pointer :: press_pf_p(:)
     PetscReal, pointer :: soilpsi_pf_p(:)
 
-    PetscInt :: i, vecsize
+    PetscInt :: i
     PetscReal, pointer :: vec_loc(:)
     PetscViewer :: viewer
 
@@ -3572,6 +3590,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     use PFLOTRAN_Factory_module, only : PFLOTRANFinalize
     use Option_module, only : OptionFinalize
+    use clm_pflotran_interface_data
 
     implicit none
 
@@ -3587,6 +3606,8 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
   
     call PFLOTRANFinalize(model%option)
     call OptionFinalize(model%option)
+
+    call CLMPFLOTRANIDataDestroy()
 
     deallocate(model)
 
@@ -3794,6 +3815,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_npools_vr_lit2_clmp, &
                                     clm_pf_idata%decomp_npools_vr_lit2_pfs)
+
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_npools_vr_lit3_clmp, &
@@ -4019,7 +4041,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     type(grid_type), pointer                  :: grid
     type(global_auxvar_type), pointer         :: global_auxvars(:)
     PetscErrorCode     :: ierr
-    PetscInt           :: local_id, ghosted_id, vecsize
+    PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: soillsat_pf_loc(:), soilisat_pf_loc(:)
     PetscReal, pointer :: soilt_pf_loc(:)
     PetscReal, pointer :: soilpress_pf_loc(:)
@@ -4317,10 +4339,10 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
     type(simulation_base_type), pointer :: simulation
 
     PetscErrorCode     :: ierr
-    PetscInt           :: local_id, ghosted_id, istart, iend
+    PetscInt           :: local_id, ghosted_id, istart, iend, vecsize
     PetscReal, pointer :: xx_loc_p(:)
 
-    PetscScalar, pointer :: soilt_pf_loc(:)    ! temperature [oC]
+    PetscScalar, pointer :: soilt_pf_loc(:)      ! temperature [oC]
     PetscScalar, pointer :: soilpress_pf_loc(:)  ! water pressure (Pa)
 
     select type (simulation => pflotran_model%simulation)
@@ -4344,6 +4366,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
                                     pflotran_model%option, &
                                     clm_pf_idata%press_clmp, &
                                     clm_pf_idata%press_pfs)
+
       case (TH_MODE)
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
@@ -4799,6 +4822,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       endif
 
+! (TODO) the following needs checking
 !    if (option%ntrandof > 0) then
 !
 !      ! boundary chemical flux
@@ -4932,7 +4956,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         endif
 
         ! PF's porosity
-        porosity_loc_pfp(local_id) = porosity_loc_p(ghosted_id)
+        porosity_loc_pfp(local_id) = porosity_loc_p(local_id)
 
         saturation_function => patch%    &
             saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
@@ -5040,11 +5064,11 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
-    PetscReal, pointer :: porosity_loc_p(:)
+    PetscReal, pointer :: porosity0_loc_p(:)    ! this is from 'field%porosity0'
     PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
     PetscReal          :: unitconv, perm_adj, tempreal
 
-    PetscScalar, pointer :: porosity_pfs_loc(:), porosity_pfp_loc(:)
+    PetscScalar, pointer :: porosity_pfs_loc(:), porosity_pfp_loc(:)  ! these are from 'clm-pf-idata%'
     PetscScalar, pointer :: hksat_x_pf_loc(:), hksat_y_pf_loc(:), hksat_z_pf_loc(:)
     PetscScalar, pointer :: watsat_pf_loc(:), bsw_pf_loc(:)
 
@@ -5066,16 +5090,14 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     grid            => patch%grid
     field           => realization%field
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_extended_sub, &
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%porosity_clmp, &
                                     clm_pf_idata%porosity_pfs)
     ! for adjusting porosity
     call VecGetArrayF90(clm_pf_idata%porosity_pfs,  porosity_pfs_loc,  ierr)
     CHKERRQ(ierr)   !seq. vec (to receive '_clmp' vec)
-    call VecGetArrayF90(clm_pf_idata%porosity_pfp,  porosity_pfp_loc,  ierr)
-    CHKERRQ(ierr)   !mpi vec (to pass to '_clms' vec)
-    call VecGetArrayF90(field%porosity0, porosity_loc_p, ierr)
+    call VecGetArrayF90(field%porosity0, porosity0_loc_p, ierr)
     CHKERRQ(ierr)
 
     ! for adjusting permissivity
@@ -5116,11 +5138,10 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
       write(pflotran_model%option%myrank+200,*) 'checking pflotran-model prior to resetting porosity:', &
         'rank=',pflotran_model%option%myrank, &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, &
-        'porosity(local_id)=',porosity_loc_p(local_id),'adjporo(ghosted_id)=',porosity_pfs_loc(ghosted_id)
+        'porosity0(local_id)=',porosity0_loc_p(local_id),'adjporo(ghosted_id)=',porosity_pfs_loc(ghosted_id)
 #endif
 
-      porosity_loc_p(local_id) = porosity_pfs_loc(ghosted_id)
-      porosity_pfp_loc(local_id) = porosity_loc_p(local_id)
+      porosity0_loc_p(local_id) = porosity_pfs_loc(ghosted_id)
 
       if (pflotran_model%option%nflowdof > 0) then
            ! Ksat is based on actaul porosity, so when porosity is using the effective one, Ksat should be effective as well
@@ -5139,9 +5160,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     call VecRestoreArrayF90(clm_pf_idata%porosity_pfs,  porosity_pfs_loc,  ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%porosity_pfp,  porosity_pfp_loc,  ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%porosity0, porosity_loc_p, ierr)
+    call VecRestoreArrayF90(field%porosity0, porosity0_loc_p, ierr)
     CHKERRQ(ierr)
     !
     if (pflotran_model%option%nflowdof > 0) then
@@ -5185,17 +5204,34 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                  PERMEABILITY_Z,0)
     endif
 
-    ! mapping back to CLM
+    ! mapping back to CLM, which are needed for calculating real VWC from PF's saturation evolved timely
+    call VecGetArrayF90(clm_pf_idata%porosity_pfp,  porosity_pfp_loc,  ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(field%porosity0, porosity0_loc_p, ierr)
+    CHKERRQ(ierr)
+    do ghosted_id = 1, grid%ngmax
+      local_id = grid%nG2L(ghosted_id)
+      if (ghosted_id < 0 .or. local_id < 0) cycle
+      if (patch%imat(ghosted_id) <= 0) cycle
+
+        ! PF's porosity
+        porosity_pfp_loc(local_id) = porosity0_loc_p(local_id)
+    enddo
+    call VecRestoreArrayF90(clm_pf_idata%porosity_pfp,  porosity_pfp_loc,  ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%porosity0, porosity0_loc_p, ierr)
+    CHKERRQ(ierr)
+
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%porosity_pfp, &
                                     clm_pf_idata%porosity_clms)
 
     ! need to save ice saturation data for convenience
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%soilisat_pfp, &
-                                    clm_pf_idata%soilisat_clms)
+    !call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+    !                                pflotran_model%option, &
+    !                                clm_pf_idata%soilisat_pfp, &
+    !                                clm_pf_idata%soilisat_clms)
 
   end subroutine pflotranModelResetSoilPorosity
 

@@ -1535,22 +1535,43 @@ contains
     
     ! local variables
     PetscErrorCode              :: ierr
+
+!write(option%myrank+200,*) 'checking CLM-->PF mapping 1:', map%filename
     
     if (map%s2d_s_ncells > 0) then  
        ! Initialize local vector
        call VecSet(map%s_disloc_vec, 0.d0, ierr)
+       CHKERRQ(ierr)
+
+       call VecSet(d_vec, 0.d0, ierr)
+       CHKERRQ(ierr)
+
     end if
+
+!write(option%myrank+200,*) 'checking CLM-->PF mapping 2:'
 
     ! Scatter the source vector
     call VecScatterBegin(map%s2d_scat_s_gb2disloc, s_vec, map%s_disloc_vec, &
          INSERT_VALUES, SCATTER_FORWARD, ierr)
+    CHKERRQ(ierr)
+
+!write(option%myrank+200,*) 'checking CLM-->PF mapping 3:'
+
     call VecScatterEnd(map%s2d_scat_s_gb2disloc, s_vec, map%s_disloc_vec, &
          INSERT_VALUES, SCATTER_FORWARD, ierr)
+    CHKERRQ(ierr)
+
+!write(option%myrank+200,*) 'checking CLM-->PF mapping 4:'
+
     
     if (map%s2d_s_ncells > 0) then  
        ! Perform Matrix-Vector product
        call MatMult(map%wts_mat, map%s_disloc_vec, d_vec, ierr)
+       CHKERRQ(ierr)
     end if
+
+!write(option%myrank+200,*) 'checking CLM-->PF mapping 5:'
+!write(option%myrank+200,*) ':----------------------------------------------:'
 
   end subroutine
 
