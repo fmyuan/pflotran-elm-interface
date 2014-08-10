@@ -412,7 +412,7 @@ subroutine CLMDec_Read(this,input,option)
                      'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
               call InputReadDouble(input,option,new_pool_rxn%stoich)
               call InputErrorMsg(input,option,'Downstream pool stoich', 'CHEMISTRY,' // &
-                  'REACTION_SANDBOX_CLMDec,TEMPERATURE RESPONSE FUNCTION')
+                  'REACTION_SANDBOX_CLMDec,REACTION')
 
               if (associated(new_reaction%downstream_pools)) then
                   prev_pool_rxn%next => new_pool_rxn
@@ -1047,7 +1047,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 #ifdef CLM_PFLOTRAN
   ghosted_id = option%iflag
   if(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_CLM4) then
-     f_w = GetMoistureResponse(psi, ghosted_id, this%moisture_response_function)
+     f_w = GetMoistureResponse(theta, ghosted_id, this%moisture_response_function)
   elseif(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_DLEM) then
      f_w = GetMoistureResponse(theta, ghosted_id, this%moisture_response_function)
   endif
