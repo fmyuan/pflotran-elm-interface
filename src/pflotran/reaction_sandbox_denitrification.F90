@@ -86,7 +86,7 @@ function DenitrificationCreate()
   DenitrificationCreate%ispec_som2 = 0
   DenitrificationCreate%ispec_som3 = 0
   DenitrificationCreate%ispec_som4 = 0
-  DenitrificationCreate%half_saturation = -1.0d-10
+  DenitrificationCreate%half_saturation = -1.0d-15
   DenitrificationCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   DenitrificationCreate%Q10 = 1.5d0
   DenitrificationCreate%k_deni_max = 2.5d-6  ! denitrification rate
@@ -134,38 +134,42 @@ subroutine DenitrificationRead(this,input,option)
     select case(trim(word))
       case('TEMPERATURE_RESPONSE_FUNCTION')
         do
-         call InputReadPflotranString(input,option)
-         if (InputError(input)) exit
-         if (InputCheckExit(input,option)) exit
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
 
-         call InputReadWord(input,option,word,PETSC_TRUE)
-         call InputErrorMsg(input,option,'keyword', &
-                       'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
-         call StringToUpper(word)   
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword', &
+            'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
+          call StringToUpper(word)   
 
-         select case(trim(word))
-              case('CLM4')
-                  this%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4    
-              case('Q10')
-                  this%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_Q10    
-                  call InputReadDouble(input,option,this%Q10)  
-                  call InputErrorMsg(input,option,'Q10', &
-                        'CHEMISTRY,REACTION_SANDBOX_DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
-              case default
-                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
-                                     trim(word) // ' not recognized.'
-                  call printErrMsg(option)
-            end select
+          select case(trim(word))
+            case('CLM4')
+              this%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4    
+            case('Q10')
+              this%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_Q10    
+              call InputReadDouble(input,option,this%Q10)  
+              call InputErrorMsg(input,option,'Q10', &
+                'CHEMISTRY,REACTION_SANDBOX_DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
+            case default
+              option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                trim(word) // ' not recognized.'
+              call printErrMsg(option)
+          end select
         enddo 
 
       case('RATE_CONSTANT')
-          call InputReadDouble(input,option,this%k_deni_max)
-          call InputErrorMsg(input,option,'k_deni_max', &
+        call InputReadDouble(input,option,this%k_deni_max)
+        call InputErrorMsg(input,option,'k_deni_max', &
                  'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,REACTION')
       case('NITRATE_HALF_SATURATION')
-          call InputReadDouble(input,option,this%half_saturation)
-          call InputErrorMsg(input,option,'nitrate half-saturation', &
+        call InputReadDouble(input,option,this%half_saturation)
+        call InputErrorMsg(input,option,'nitrate half-saturation', &
                  'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,REACTION')
+      case('X0EPS')
+        call InputReadDouble(input,option,this%x0eps)
+        call InputErrorMsg(input,option,'x0eps', &
+                  'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
       case('DOWNREGULATE_NO3')
         call InputReadDouble(input,option,this%downreg_no3_0)
         call InputErrorMsg(input,option,'downreg_no3_0', &
@@ -180,9 +184,9 @@ subroutine DenitrificationRead(this,input,option)
           call printErrMsg(option)
         endif
       case default
-          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,' // &
-            'REACTION keyword: ' // trim(word) // ' not recognized.'
-          call printErrMsg(option)
+        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,' // &
+          'REACTION keyword: ' // trim(word) // ' not recognized.'
+        call printErrMsg(option)
     end select
   enddo
   
@@ -360,13 +364,23 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
       regulator = 0.0d0
       dregulator = 0.0d0
     elseif (c_no3 >= this%downreg_no3_1) then
-      regulator = 1.0d0
-      dregulator = 0.0d0
+      if (this%downreg_no3_1 - this%downreg_no3_0 > 1.0d-20) then
+        regulator = 1.0d0
+        dregulator = 0.0d0
+      else
+        regulator = 0.0d0
+        dregulator = 0.0d0
+      endif
     else
       xxx = c_no3 - this%downreg_no3_0
       delta = this%downreg_no3_1 - this%downreg_no3_0
-      regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
-      dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
+      if (delta >= 1.0d-20) then
+        regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
+        dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta / delta
+      else
+        regulator = 0.0d0
+        dregulator = 0.0d0
+      endif
     endif
 
     ! rate = rate_orginal * regulator

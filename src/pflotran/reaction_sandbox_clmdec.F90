@@ -944,13 +944,23 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       regulator = 0.0d0
       dregulator = 0.0d0
     elseif (c_nh3 >= this%downreg_nh3_1) then
-      regulator = 1.0d0
-      dregulator = 0.0d0
+      if (this%downreg_nh3_1 - this%downreg_nh3_0 >= 1.d-20) then
+        regulator = 1.0d0
+        dregulator = 0.0d0
+      else
+        regulator = 0.0d0
+        dregulator = 0.0d0
+      endif
     else
       xxx = c_nh3 - this%downreg_nh3_0
       delta = this%downreg_nh3_1 - this%downreg_nh3_0
-      regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
-      dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
+      if (delta >= 1.d-20) then
+        regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
+        dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta / delta
+      else
+        regulator = 0.0d0
+        dregulator = 0.0d0
+      endif
     endif
     
     ! rate = rate_orginal * regulator
@@ -962,50 +972,61 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   endif
 
   if (this%species_id_no3 > 0) then
-      c_no3 = rt_auxvar%total(this%species_id_no3, iphase)
-      temp_real = c_no3 + this%half_saturation_no3
-      f_no3 = c_no3 / temp_real
-      d_no3 = this%half_saturation_no3 / temp_real / temp_real 
+    c_no3 = rt_auxvar%total(this%species_id_no3, iphase)
+    temp_real = c_no3 + this%half_saturation_no3
+    f_no3 = c_no3 / temp_real
+    d_no3 = this%half_saturation_no3 / temp_real / temp_real
 
-      if (this%downreg_no3_0 > 0.0d0) then
-      ! additional down regulation for NO3- immobilization
-        if (c_no3 <= this%downreg_no3_0) then
-          regulator = 0.0d0
-          dregulator = 0.0d0
-        elseif (c_no3 >= this%downreg_no3_1) then
+    if (this%downreg_no3_0 > 0.0d0) then
+    ! additional down regulation for NO3- immobilization
+      if (c_no3 <= this%downreg_no3_0) then
+        regulator = 0.0d0
+        dregulator = 0.0d0
+      elseif (c_no3 >= this%downreg_no3_1) then
+        if (this%downreg_no3_1 - this%downreg_no3_0 >= 1.d-20) then
           regulator = 1.0d0
           dregulator = 0.0d0
         else
-          xxx = c_no3 - this%downreg_no3_0
-          delta = this%downreg_no3_1 - this%downreg_no3_0
-          regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
-          dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
+          regulator = 0.0d0
+          dregulator = 0.0d0
         endif
-
-        ! rate = rate_orginal * regulator
-        ! drate = drate_original * regulator + rate_orginal * dregulator
-        d_no3 = d_no3 * regulator + f_no3 * dregulator
-        f_no3 = f_no3 * regulator
-
-      endif
-
-      !if (this%inhibition_nh3_no3 < this%downreg_nh3_0) then
-      !   this%inhibition_nh3_no3 = this%downreg_nh3_0
-      !endif
-      !temp_real = this%inhibition_nh3_no3 + c_nh3
-      !f_nh3_inhibit = this%inhibition_nh3_no3/temp_real
-      !d_nh3_inhibit = -this%inhibition_nh3_no3/temp_real/temp_real
-
-      ! since 'f_nh3' is down-regulation factor for NH4 immoblization,
-      ! '1.-f_nh3' should be those for NO3 immobilization
-      if (c_nh3>this%x0eps) then
-        f_nh3_inhibit = 1.d0 - f_nh3
-        d_nh3_inhibit = -d_nh3
       else
-        f_nh3_inhibit = 1.d0
-        d_nh3_inhibit = 0.d0
+        xxx = c_no3 - this%downreg_no3_0
+        delta = this%downreg_no3_1 - this%downreg_no3_0
+        if (delta >= 1.d-20) then
+          regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
+          dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta / delta
+        else
+          regulator = 0.0d0
+          dregulator = 0.0d0
+        endif
       endif
-  endif 
+
+      ! rate = rate_orginal * regulator
+      ! drate = drate_original * regulator + rate_orginal * dregulator
+      d_no3 = d_no3 * regulator + f_no3 * dregulator
+      f_no3 = f_no3 * regulator
+
+    endif !if (this%downreg_no3_0 > 0.0d0)
+
+    !if (this%inhibition_nh3_no3 < this%downreg_nh3_0) then
+    !   this%inhibition_nh3_no3 = this%downreg_nh3_0
+    !endif
+    !temp_real = this%inhibition_nh3_no3 + c_nh3
+    !f_nh3_inhibit = this%inhibition_nh3_no3/temp_real
+    !d_nh3_inhibit = -this%inhibition_nh3_no3/temp_real/temp_real
+
+    ! since 'f_nh3' is down-regulation factor for NH4 immoblization,
+    ! '1.-f_nh3' should be those for NO3 immobilization
+    if (c_nh3>this%x0eps) then
+      f_nh3_inhibit = 1.d0 - f_nh3
+      d_nh3_inhibit = -d_nh3
+    else
+      f_nh3_inhibit = 1.d0
+      d_nh3_inhibit = 0.d0
+    endif
+
+  endif ! if (this%species_id_no3>0)
 
   !----------------------------------------------------------------------------------------------
   ires_co2 = this%species_id_co2

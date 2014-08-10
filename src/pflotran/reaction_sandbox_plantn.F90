@@ -312,13 +312,23 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
         regulator = 0.0d0
         dregulator = 0.0d0
       elseif (c_nh3 >= this%downreg_nh3_1) then
-        regulator = 1.0d0
-        dregulator = 0.0d0
+        if (this%downreg_nh3_1 - this%downreg_nh3_0 >= 1.d-20) then
+          regulator = 1.0d0
+          dregulator = 0.0d0
+        else
+          regulator = 0.0d0
+          dregulator = 0.0d0
+        endif
       else
         xxx = c_nh3 - this%downreg_nh3_0
         delta = this%downreg_nh3_1 - this%downreg_nh3_0
-        regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
-        dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
+        if (delta >= 1.d-20) then
+          regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
+          dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta / delta
+        else
+          regulator = 0.0d0
+          dregulator = 0.0d0
+        endif
       endif
     
       ! rate = rate_orginal * regulator
@@ -344,13 +354,23 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
         regulator = 0.0d0
         dregulator = 0.0d0
       elseif (c_no3 >= this%downreg_no3_1) then
-        regulator = 1.0d0
-        dregulator = 0.0d0
+        if (this%downreg_no3_1 - this%downreg_no3_0 >= 1.0d-20) then
+          regulator = 1.0d0
+          dregulator = 0.0d0
+        else
+          regulator = 0.0d0
+          dregulator = 0.0d0
+        endif
       else
         xxx = c_no3 - this%downreg_no3_0
         delta = this%downreg_no3_1 - this%downreg_no3_0
-        regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
-        dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
+        if (delta >= 1.0d-20) then
+          regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
+          dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta / delta
+        else
+          regulator = 0.0d0
+          dregulator = 0.0d0
+        endif
       endif
 
       ! rate = rate_orginal * regulator
@@ -429,7 +449,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
     if (compute_derivative) then
       Jacobian(ires_no3,ires_no3)=Jacobian(ires_no3,ires_no3)+drate_nplant_no3* &
-       rt_auxvar%aqueous%dtotal(ispec_no3,ispec_no3,iphase)
+        rt_auxvar%aqueous%dtotal(ispec_no3,ispec_no3,iphase)
 
       Jacobian(ires_plantn,ires_no3)=Jacobian(ires_plantn,ires_no3)-drate_nplant_no3
 

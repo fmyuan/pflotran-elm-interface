@@ -66,7 +66,7 @@ function NitrificationCreate()
   NitrificationCreate%ispec_ngasnit = 0
   NitrificationCreate%k_nitr_max = 1.d-6
   NitrificationCreate%k_nitr_n2o = 3.5d-8
-  NitrificationCreate%half_saturation = -1.0d-10
+  NitrificationCreate%half_saturation = 1.0d-10
   NitrificationCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   NitrificationCreate%Q10 = 1.5d0
   NitrificationCreate%x0eps = 1.0d-20
@@ -112,29 +112,33 @@ subroutine NitrificationRead(this,input,option)
     select case(trim(word))
       case('TEMPERATURE_RESPONSE_FUNCTION')
         do
-         call InputReadPflotranString(input,option)
-         if (InputError(input)) exit
-         if (InputCheckExit(input,option)) exit
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
 
-         call InputReadWord(input,option,word,PETSC_TRUE)
-         call InputErrorMsg(input,option,'keyword', &
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword', &
                        'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
-         call StringToUpper(word)   
+          call StringToUpper(word)   
 
-         select case(trim(word))
-              case('CLM4')
-                  this%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4    
-              case('Q10')
-                  this%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_Q10    
-                  call InputReadDouble(input,option,this%Q10)  
-                  call InputErrorMsg(input,option,'Q10', &
-                        'CHEMISTRY,REACTION_SANDBOX_NITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
-              case default
-                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
-                                     trim(word) // ' not recognized.'
-                  call printErrMsg(option)
-            end select
+          select case(trim(word))
+            case('CLM4')
+              this%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4    
+            case('Q10')
+              this%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_Q10    
+              call InputReadDouble(input,option,this%Q10)  
+              call InputErrorMsg(input,option,'Q10', &
+                'CHEMISTRY,REACTION_SANDBOX_NITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
+            case default
+              option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                trim(word) // ' not recognized.'
+              call printErrMsg(option)
+          end select
         enddo 
+     case('X0EPS')
+        call InputReadDouble(input,option,this%x0eps)
+        call InputErrorMsg(input,option,'x0eps', &
+                  'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
      case('NITRIFICATION_RATE_COEF')
          call InputReadDouble(input,option,this%k_nitr_max)
          call InputErrorMsg(input,option,'nitrification rate coefficient', &
@@ -154,12 +158,6 @@ subroutine NitrificationRead(this,input,option)
         call InputReadDouble(input,option,this%downreg_nh3_1)
         call InputErrorMsg(input,option,'downreg_nh3_1', &
           'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
-        if (this%downreg_nh3_0 > this%downreg_nh3_1) then
-          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,' // &
-            'NH4+ down regulation cut off concentration > concentration ' // &
-            'where down regulation function = 1.'
-          call printErrMsg(option)
-        endif
       case default
           option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,' // &
             'REACTION keyword: ' // trim(word) // ' not recognized.'
@@ -203,7 +201,7 @@ subroutine NitrificationSetup(this,reaction,option)
      this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
   endif
-   if(this%ispec_nh3 > 0) then
+  if(this%ispec_nh3 > 0) then
      word = 'NH4sorb'   ! this is the immobile species from 'reaction_sandbox_langmuir'
      this%ispec_nh4sorb = GetImmobileSpeciesIDFromName(word,reaction%immobile, &
                         PETSC_FALSE,option)
@@ -353,13 +351,23 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
       regulator = 0.0d0
       dregulator = 0.0d0
     elseif (c_nh3 >= this%downreg_nh3_1) then
-      regulator = 1.0d0
-      dregulator = 0.0d0
+      if (this%downreg_nh3_1 - this%downreg_nh3_0 >= 1.0d-20) then
+        regulator = 1.0d0
+        dregulator = 0.0d0
+      else
+        regulator = 0.0d0
+        dregulator = 0.0d0
+      endif
     else
       xxx = c_nh3 - this%downreg_nh3_0
       delta = this%downreg_nh3_1 - this%downreg_nh3_0
-      regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
-      dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta
+      if (delta > 1.0d-20) then
+        regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
+        dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta / delta
+      else
+        regulator = 0.0d0
+        dregulator = 0.0d0
+      endif
     endif
   else
     regulator = 1.0d0
@@ -379,17 +387,18 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   ! nitrification (Dickinson et al. 2002)
   if(this%ispec_no3 > 0) then
     f_t = exp(0.08d0 * (tc - 25.0d0))
-    f_w = saturation * (1.0d0 - saturation)
+    saturation = max(0.d0,min(saturation,1.d0))
+    f_w = saturation * (1.0d0 - saturation)/0.25d0
 
-    rate_nitri = f_t * f_w * this%k_nitr_max * c_nh3 * c_nh3 / &
-         (0.25d0 * c_nh3 + 1.0d0) * L_water
+    rate_nitri = f_t * f_w * this%k_nitr_max * c_nh3 * &
+         c_nh3 / (c_nh3 + 4.0d0) * L_water
 
     Residual(ires_nh3) = Residual(ires_nh3) + rate_nitri * regulator
     Residual(ires_no3) = Residual(ires_no3) - rate_nitri * regulator
 
     if (compute_derivative) then
-     drate_nitri = f_t*f_w*this%k_nitr_max*(0.25d0*c_nh3*c_nh3+2.0d0*c_nh3) &
-                 / (0.25d0*c_nh3+1.0d0) / (0.25d0 * c_nh3 + 1.0d0) * L_water
+     drate_nitri = f_t*f_w*this%k_nitr_max*c_nh3*(c_nh3+8.0d0) &
+                 / (c_nh3+4.0d0) / (c_nh3 + 4.0d0) * L_water
  
       ! rate = rate_orginal * regulator
       ! drate = drate_original * regulator + rate_orginal * dregulator
