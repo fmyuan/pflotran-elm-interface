@@ -780,8 +780,11 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   ! 
   ! Author: Guoping Tang
   ! Date: 02/04/14
+  !
+  ! Rewritten by Fengming Yuan @Aug-14-2014. The orginal was totally messed up,
+  ! which caused a lot of issues.
   ! 
-
+! ----------------------------------------------------------------------------!
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_class, only : material_auxvar_type
