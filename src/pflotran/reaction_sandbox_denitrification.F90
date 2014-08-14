@@ -202,12 +202,15 @@ subroutine DenitrificationSetup(this,reaction,option)
  
 end subroutine DenitrificationSetup
 
-!********************************************************************************************!
+!****************************************************************************************!
 subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
                          option)
-
-  ! Rewritten by Fengming Yuan @Aug-14-2014. The orginal was messed-up with 'patches', which caused a lot of issues.
+  !
+  ! Rewritten by Fengming Yuan @Aug-14-2014. The orginal was messed-up with 'patches',
+  ! which caused a lot of issues.
+  !
+!---------------------------------------------------------------------------------------!
 
   use Option_module
   use Reaction_Aux_module
