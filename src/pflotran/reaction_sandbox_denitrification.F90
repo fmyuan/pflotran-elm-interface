@@ -22,26 +22,11 @@ module Reaction_Sandbox_Denitrification_class
     PetscInt :: ispec_n2o
     PetscInt :: ispec_ngasdeni
 
-!   for co2 respiration calculation
-    PetscInt :: ispec_n
-    PetscInt :: ispec_lit1c
-    PetscInt :: ispec_lit2c
-    PetscInt :: ispec_lit3c
-    PetscInt :: ispec_lit1n
-    PetscInt :: ispec_lit2n
-    PetscInt :: ispec_lit3n
-    PetscInt :: ispec_som1
-    PetscInt :: ispec_som2
-    PetscInt :: ispec_som3
-    PetscInt :: ispec_som4
-
     PetscReal :: half_saturation
-    PetscInt :: temperature_response_function
+    PetscInt  :: temperature_response_function
     PetscReal :: Q10
     PetscReal :: k_deni_max                 ! denitrification rate
     PetscReal :: x0eps
-    PetscReal :: downreg_no3_0  ! shut off
-    PetscReal :: downreg_no3_1  ! start to decrease from 1
 
   contains
     procedure, public :: ReadInput => DenitrificationRead
@@ -67,7 +52,7 @@ function DenitrificationCreate()
   
   class(reaction_sandbox_denitrification_type), pointer :: DenitrificationCreate
 
-! 4. Add code to allocate object and initialized all variables to zero and
+! Add code to allocate object and initialized all variables to zero and
 !    nullify all pointers. E.g.
   allocate(DenitrificationCreate)
   DenitrificationCreate%ispec_no3 = 0
@@ -75,24 +60,11 @@ function DenitrificationCreate()
   DenitrificationCreate%ispec_n2 = 0
   DenitrificationCreate%ispec_ngasdeni = 0
 
-  DenitrificationCreate%ispec_n = 0
-  DenitrificationCreate%ispec_lit1c = 0
-  DenitrificationCreate%ispec_lit2c = 0
-  DenitrificationCreate%ispec_lit3c = 0
-  DenitrificationCreate%ispec_lit1n = 0
-  DenitrificationCreate%ispec_lit2n = 0
-  DenitrificationCreate%ispec_lit3n = 0
-  DenitrificationCreate%ispec_som1 = 0
-  DenitrificationCreate%ispec_som2 = 0
-  DenitrificationCreate%ispec_som3 = 0
-  DenitrificationCreate%ispec_som4 = 0
-  DenitrificationCreate%half_saturation = -1.0d-15
+  DenitrificationCreate%half_saturation = 1.0d-15
   DenitrificationCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   DenitrificationCreate%Q10 = 1.5d0
   DenitrificationCreate%k_deni_max = 2.5d-6  ! denitrification rate
   DenitrificationCreate%x0eps = 1.0d-20
-  DenitrificationCreate%downreg_no3_0 = -1.0d-9
-  DenitrificationCreate%downreg_no3_1 = 1.0d-7
 
   nullify(DenitrificationCreate%next)  
       
@@ -170,19 +142,6 @@ subroutine DenitrificationRead(this,input,option)
         call InputReadDouble(input,option,this%x0eps)
         call InputErrorMsg(input,option,'x0eps', &
                   'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
-      case('DOWNREGULATE_NO3')
-        call InputReadDouble(input,option,this%downreg_no3_0)
-        call InputErrorMsg(input,option,'downreg_no3_0', &
-          'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
-        call InputReadDouble(input,option,this%downreg_no3_1)
-        call InputErrorMsg(input,option,'downreg_no3_1', &
-          'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
-        if (this%downreg_no3_0 > this%downreg_no3_1) then
-          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,' // &
-            'NO3- down regulation cut off concentration > concentration ' // &
-            'where down regulation function = 1.'
-          call printErrMsg(option)
-        endif
       case default
         option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,' // &
           'REACTION keyword: ' // trim(word) // ' not recognized.'
@@ -296,7 +255,6 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: rate_deni, drate_deni
   PetscReal :: saturation
   PetscInt, parameter :: iphase = 1
-  PetscReal :: xxx, delta, regulator, dregulator
 
 !---------------------------------------------------------------------------------
 
@@ -358,38 +316,6 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
     d_no3 = 1.0d0
   endif
 
-  if (this%downreg_no3_0 > 0.0d0) then
-    ! additional down regulation for denitrification
-    if (c_no3 <= this%downreg_no3_0) then
-      regulator = 0.0d0
-      dregulator = 0.0d0
-    elseif (c_no3 >= this%downreg_no3_1) then
-      if (this%downreg_no3_1 - this%downreg_no3_0 > 1.0d-20) then
-        regulator = 1.0d0
-        dregulator = 0.0d0
-      else
-        regulator = 0.0d0
-        dregulator = 0.0d0
-      endif
-    else
-      xxx = c_no3 - this%downreg_no3_0
-      delta = this%downreg_no3_1 - this%downreg_no3_0
-      if (delta >= 1.0d-20) then
-        regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
-        dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx / delta / delta
-      else
-        regulator = 0.0d0
-        dregulator = 0.0d0
-      endif
-    endif
-
-    ! rate = rate_orginal * regulator
-    ! drate = drate_original * regulator + rate_orginal * dregulator
-    d_no3 = d_no3 * regulator + f_no3 * dregulator
-    f_no3 = f_no3 * regulator
-
-  endif
-
   if(f_t > 0.d0 .and. f_w > 0.d0 .and. c_no3>this%x0eps) then
      rate_deni = this%k_deni_max * f_t * f_w * L_water * f_no3
 
@@ -416,6 +342,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
     endif
   endif
 
+#ifdef DEBUG
   do ires=1, reaction%ncomp
     temp_real = Residual(ires)
 
@@ -426,6 +353,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
       call printErrMsg(option)
     endif
   enddo
+#endif
 
 end subroutine DenitrificationReact
 
