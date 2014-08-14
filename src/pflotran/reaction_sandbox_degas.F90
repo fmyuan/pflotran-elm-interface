@@ -526,6 +526,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
   endif 
 
+#ifdef DEBUG
   do ires=1, reaction%ncomp
     temp_real = Residual(ires)
 
@@ -537,6 +538,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
       call printErrMsg(option)
     endif
   enddo
+#endif
 
 end subroutine degasReact
 

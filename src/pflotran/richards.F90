@@ -849,6 +849,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
                        material_auxvars(ghosted_id), &
                        patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr, &
                        option)   
+
   enddo
 
   call PetscLogEventEnd(logging%event_r_auxvars,ierr)
