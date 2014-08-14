@@ -152,6 +152,9 @@ end subroutine PlantNSetup
 ! author: Guoping Tang
 ! date: 09/09/2013
 !
+! Rewritten by Fengming Yuan @Aug-14-2014. The orginal was messed-up with 'patches',
+! which caused a lot of issues.
+!
 ! ************************************************************************** !
 subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
