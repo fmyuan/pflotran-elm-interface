@@ -274,6 +274,8 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: porosity
   PetscReal :: volume
+  PetscReal :: saturation
+  PetscReal :: tc
   PetscInt :: ghosted_id
   PetscErrorCode :: ierr
 
@@ -283,33 +285,31 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: M_2_ug_per_g
 
   PetscInt :: ires_nh3s, ires_nh3, ires_no3, ires_n2o, ires
+  PetscInt :: ires_ngasnit
 
   PetscScalar, pointer :: bulkdensity(:)
-  PetscReal :: rho_b
-  PetscReal :: theta
   PetscReal :: c_nh3      ! mole/L
   PetscReal :: s_nh3      ! mole/m3
-  PetscReal :: c_nh3_ugg  ! ug ammonia N / g soil
-  PetscReal :: f_nh3      ! nh3 / (half_saturation + nh3)
-  PetscReal :: d_nh3      ! half_saturation/(nh3 + half_saturation)^2
+  PetscReal :: c_nh3_ugg  ! ug ammonium N / g soil
   PetscReal :: ph
-  PetscReal :: rate_n2o, drate_n2o
-  PetscReal :: rate_nitri, drate_nitri
+  PetscReal :: rate_n2o, drate_n2o_dnh3
+  PetscReal :: rate_nitri, drate_nitri_dnh3
   PetscReal :: f_t, f_w, f_ph
-  PetscReal :: dfw_dnh3
-  PetscReal :: saturation
-  PetscReal :: tc
+  PetscReal :: rho_b
+  PetscReal :: theta
   PetscReal :: L_water
-  PetscInt :: ires_ngasnit
-  PetscReal :: temp_real
+  PetscReal :: temp_real, feps0, dfeps0_dx
 
 !---------------------------------------------------------------------------------
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
-  L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
-            material_auxvar%volume*1.d3
 
+  saturation = global_auxvar%sat(1)
+  theta = saturation * porosity
+  L_water = theta * volume * 1.0d3      ! Litres of H2O
+
+  tc = global_auxvar%temp
 
   ! indices for C and N species
   ires_nh3 = this%ispec_nh3
@@ -318,57 +318,62 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   ires_nh3s = this%ispec_nh4sorb + reaction%offset_immobile
   ires_ngasnit = this%ispec_ngasnit + reaction%offset_immobile
 
-  saturation = global_auxvar%sat(1)
-  theta = saturation * porosity
+  c_nh3 = rt_auxvar%total(this%ispec_nh3, iphase) * L_water     ! moles/L --> moles
+! (TODO) not sure if 'absorbed NH4' should be included in the reaction.
+!  if (associated(rt_auxvar%total_sorb_eq)) then           ! original absorption-reactions in PF used
+!     s_nh3 = rt_auxvar%total_sorb_eq(this%ispec_nh3)
+!  elseif (this%ispec_nh4sorb>0) then                      ! 'reaction_sandbox_langmuir' used
+!     s_nh3 = rt_auxvar%immobile(this%ispec_nh4sorb)
+!  else
+!     s_nh3 = 1.d-20
+!  endif
+! c_nh3 = c_nh3 + s_nh3*volume
 
-  tc = global_auxvar%temp
 
-  c_nh3 = rt_auxvar%total(this%ispec_nh3, iphase)
-  if (c_nh3 < this%x0eps) return
-
-  if (this%half_saturation > 0.0d0) then
-    temp_real = c_nh3 + this%half_saturation
-    f_nh3 = c_nh3 / temp_real
-    d_nh3 = (c_nh3 + &
-             2.d0 * this%half_saturation) / temp_real /temp_real
+  !if (c_nh3 < this%x0eps) return     ! this may bring in 'oscillation' around 'this%x0eps'
+  if(this%x0eps>0.d0) then
+    feps0 = c_nh3/(c_nh3+this%x0eps)      ! using these two for trailer smoothing, alternatively
+    dfeps0_dx = this%x0eps/(c_nh3+this%x0eps)/(c_nh3+this%x0eps)
   else
-    f_nh3 = c_nh3
-    d_nh3 = 1.0d0
-  endif
-
-  if (associated(rt_auxvar%total_sorb_eq)) then           ! original absorption-reactions in PF used
-     s_nh3 = rt_auxvar%total_sorb_eq(this%ispec_nh3)
-  elseif (this%ispec_nh4sorb>0) then                      ! 'reaction_sandbox_langmuir' used
-     s_nh3 = rt_auxvar%immobile(this%ispec_nh4sorb)
-  else
-     s_nh3 = 1.d-20
+    feps0 = 1.0d0
+    dfeps0_dx = 0.d0
   endif
 
   ! nitrification (Dickinson et al. 2002)
   if(this%ispec_no3 > 0) then
+    ! Eq. 28 for nitrification in Dickinson et al. 2002, can be separated into three parts:
+    ! rate = k * f(trz) * (s*(1-s))/(0.25+1/nh4)
+    ! (1) f_t = f(trz)
+    ! (2) f_w = s*(1-s)/0.25  [ranging from 0 - 1]
+    ! (3) f_nh4 = nh4/(nh4 + 4.0)
+
     f_t = exp(0.08d0 * (tc - 25.0d0))
+
     saturation = max(0.d0,min(saturation,1.d0))
     f_w = saturation * (1.0d0 - saturation)/0.25d0
 
-    rate_nitri = f_t * f_w * this%k_nitr_max * c_nh3 * &
-         c_nh3 / (c_nh3 + 4.0d0) * L_water
+    temp_real = this%k_nitr_max * f_t * f_w * c_nh3 / (c_nh3 + 4.0d0)                        ! 1/sec.
+    rate_nitri = temp_real * (c_nh3 * feps0)                                                 ! moles/sec.
 
     Residual(ires_nh3) = Residual(ires_nh3) + rate_nitri
     Residual(ires_no3) = Residual(ires_no3) - rate_nitri
 
     if (compute_derivative) then
-     drate_nitri = f_t*f_w*this%k_nitr_max*c_nh3*(c_nh3+8.0d0) &
-                 / (c_nh3+4.0d0) / (c_nh3 + 4.0d0) * L_water
+
+     ! d(rate_nh3))/d(nh3), in which, rate(c_nh3) = c_nh3*c_nh3/(c_nh3+4.0)*feps0
+     temp_real = c_nh3*c_nh3/(c_nh3+4.0d0) * dfeps0_dx + &
+                 c_nh3*(c_nh3+8.0d0)/(c_nh3+4.0d0)/(c_nh3+4.0d0) * feps0
+     drate_nitri_dnh3 = f_t*f_w*this%k_nitr_max* temp_real
  
-     Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_nitri * &
+     Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_nitri_dnh3 * &
         rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_nh3,iphase)
 
-     Jacobian(ires_no3,ires_nh3) = Jacobian(ires_no3,ires_nh3) - drate_nitri * &
+     Jacobian(ires_no3,ires_nh3) = Jacobian(ires_no3,ires_nh3) - drate_nitri_dnh3 * &
         rt_auxvar%aqueous%dtotal(this%ispec_no3,this%ispec_nh3,iphase)
     endif
   endif
 
-! N2O production from nitrification (Parton et al. 1996)
+! N2O production during nitrification (Parton et al. 1996)
 #ifdef CLM_PFLOTRAN
   ghosted_id = option%iflag
 
@@ -378,15 +383,18 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
   call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity, ierr)
   CHKERRQ(ierr)
 #else
-  rho_b = 1.25d0
+  rho_b = 1.25d3
 #endif
-!             mole/L * 1000 L/m3 * g/mol / kg/m3 = g/kg = mg/g = 1000 ug/g  
-  M_2_ug_per_g  = 1.0d0 / theta *1000.0d0 * N_molecular_weight / rho_b * 1000.0d0
-  !c_nh3_ugg = (c_nh3 + s_nh3 / theta / 1000.0d0)* M_2_ug_per_g
-  c_nh3_ugg = c_nh3 * M_2_ug_per_g
 
-  if(this%ispec_n2o > 0.0d0 .and. c_nh3_ugg > 3.0d0 ) then
-  ! temperature response function (Parton et al. 1996)
+! moleN_Lwater*g_mol*Lwater *1.d6 = ugN
+  temp_real = N_molecular_weight*1.0d6      ! unit: ugN/(mol)
+! g soil = m3_soil*kg_m3*1.d3                      ! unit: gSoil
+  M_2_ug_per_g = temp_real/(volume*rho_b*1.d3)      ! unit: (ugN/gSoil)/(mol)
+  !c_nh3_ugg = (c_nh3 + s_nh3 / theta / 1000.0d0)* M_2_ug_per_g
+  c_nh3_ugg = c_nh3 * M_2_ug_per_g                 ! c_nh3 already in moles
+
+  if(this%ispec_n2o > 0.0d0 .and. c_nh3_ugg > 3.0d0) then
+    ! temperature response function (Parton et al. 1996)
     f_t = -0.06d0 + 0.13d0 * exp( 0.07d0 * tc )
 
     f_w = ((1.27d0 - saturation)/0.67d0)**(3.1777d0) * &
@@ -407,16 +415,13 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
     f_ph = 0.56 + atan(rpi * 0.45 * (-5.0 + ph))/rpi
 
     if(f_t > 0.0d0 .and. f_w > 0.0d0 .and. f_ph > 0.0d0) then
-       if(f_w > 1.0d0) then
-          f_w = 1.0d0
-       endif
+       f_t  = min(f_t, 1.0d0)
+       f_w  = min(f_w, 1.0d0)
+       f_ph = min(f_ph, 1.0d0)
 
-       if(f_ph > 1.0d0) then
-          f_ph = 1.0d0
-       endif
-
-       rate_n2o = 1.0 - exp(-0.0105d0 * c_nh3_ugg)  ! need to change units 
-       rate_n2o = rate_n2o * f_t * f_w * f_ph * c_nh3*this%k_nitr_n2o * L_water
+       temp_real = (1.0 - exp(-0.0105d0 * c_nh3_ugg))  &
+                  * f_t * f_w * f_ph * this%k_nitr_n2o                     ! 1/s
+       rate_n2o = temp_real * (c_nh3*feps0)                                ! moles/s
 
        Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o
        Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
@@ -425,23 +430,39 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
           Residual(ires_ngasnit) = Residual(ires_ngasnit) - 0.5d0 * rate_n2o
        endif
 
+       ! a note here: in case that want to track total nitrification rate,
+       !              it should be = rate_nitri + rate_n2o
+
        if (compute_derivative) then
-           drate_n2o = 0.0105d0*exp(-0.0105d0*c_nh3_ugg) * M_2_ug_per_g
-           drate_n2o = drate_n2o * f_t * f_w * f_ph * c_nh3*this%k_nitr_n2o * L_water
+
+           ! d(rate_nh3))/d(nh3), in which,
+           ! rate(nh3) = (c_nh3*feps0) * (1.0-exp(-0.0105d0*c_nh3*m_2_ug_per_g))
+           temp_real = (c_nh3*dfeps0_dx + feps0) * &                   !d(c_nh3*feps0)/d(nh3)
+                       (1.0 - exp(-0.0105d0*c_nh3_ugg))
+
+           temp_real = temp_real + (c_nh3*feps0) *  &
+                       0.0105d0*M_2_ug_per_g*exp(-0.0105d0*c_nh3_ugg)  !d(1.0-exp(-0.0105d0*c_nh3*m_2_ug_per_g))/d(nh3)
+
+           drate_n2o_dnh3 = temp_real *this%k_nitr_n2o* f_t * f_w * f_ph
  
-           Jacobian(ires_nh3,ires_nh3)=Jacobian(ires_nh3,ires_nh3)+drate_n2o * &
+           Jacobian(ires_nh3,ires_nh3)=Jacobian(ires_nh3,ires_nh3) + &
+             drate_n2o_dnh3 * &
              rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_nh3,iphase)
 
-           Jacobian(ires_n2o,ires_nh3)=Jacobian(ires_n2o,ires_nh3)- 0.5d0 * drate_n2o * &
+           Jacobian(ires_n2o,ires_nh3)=Jacobian(ires_n2o,ires_nh3) - &
+             0.5d0 * drate_n2o_dnh3 * &
              rt_auxvar%aqueous%dtotal(this%ispec_n2o,this%ispec_nh3,iphase)
       
            if(this%ispec_ngasnit > 0) then
              Jacobian(ires_ngasnit,ires_nh3)=Jacobian(ires_ngasnit,ires_nh3)- &
-               0.5d0 * drate_n2o
+               0.5d0 * drate_n2o_dnh3
            endif
-       endif
-     endif
-  endif
+
+       endif  !if (compute_derivative)
+
+     endif    !if(f_t > 0.0d0 .and. f_w > 0.0d0 .and. f_ph > 0.0d0)
+
+  endif       !if(this%ispec_n2o > 0.0d0 .and. c_nh3_ugg > 3.0d0)
 
 #ifdef DEBUG
   do ires=1, reaction%ncomp
