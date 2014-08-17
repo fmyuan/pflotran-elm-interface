@@ -182,14 +182,10 @@ subroutine NitrificationSetup(this,reaction,option)
   this%ispec_proton = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
-  word = 'NH3(aq)'
+  word = 'NH4+'
   this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
-  if(this%ispec_nh3 < 0) then
-     word = 'NH4+'
-     this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
-  endif
+
   if(this%ispec_nh3 > 0) then
      word = 'NH4sorb'   ! this is the immobile species from 'reaction_sandbox_langmuir'
      this%ispec_nh4sorb = GetImmobileSpeciesIDFromName(word,reaction%immobile, &
@@ -203,15 +199,10 @@ subroutine NitrificationSetup(this,reaction,option)
   word = 'N2O(aq)'
   this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
-  if(this%ispec_n2o < 0) then
-     word = 'NO2-'
-     this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
-  endif
 
   if(this%ispec_nh3 < 0) then
      option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION: ' // &
-                        ' AmmoniaH4+ is not specified in the input file.'
+                        ' NH4+ is not specified in the input file.'
      call printErrMsg(option)
   endif
 
@@ -427,7 +418,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
        Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
        
        if(this%ispec_ngasnit > 0) then
-          Residual(ires_ngasnit) = Residual(ires_ngasnit) - 0.5d0 * rate_n2o
+          Residual(ires_ngasnit) = Residual(ires_ngasnit) - rate_n2o
        endif
 
        ! a note here: in case that want to track total nitrification rate,
@@ -453,10 +444,10 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
              0.5d0 * drate_n2o_dnh3 * &
              rt_auxvar%aqueous%dtotal(this%ispec_n2o,this%ispec_nh3,iphase)
       
-           if(this%ispec_ngasnit > 0) then
-             Jacobian(ires_ngasnit,ires_nh3)=Jacobian(ires_ngasnit,ires_nh3)- &
-               0.5d0 * drate_n2o_dnh3
-           endif
+       !    if(this%ispec_ngasnit > 0) then
+       !      Jacobian(ires_ngasnit,ires_nh3)=Jacobian(ires_ngasnit,ires_nh3)- &
+       !        drate_n2o_dnh3
+       !    endif
 
        endif  !if (compute_derivative)
 

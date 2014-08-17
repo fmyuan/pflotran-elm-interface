@@ -19,7 +19,7 @@ module Reaction_Sandbox_Denitrification_class
     extends(reaction_sandbox_base_type) :: reaction_sandbox_denitrification_type
     PetscInt :: ispec_no3
     PetscInt :: ispec_n2
-    PetscInt :: ispec_n2o
+    !PetscInt :: ispec_n2o
     PetscInt :: ispec_ngasdeni
 
     PetscReal :: half_saturation
@@ -56,7 +56,7 @@ function DenitrificationCreate()
 !    nullify all pointers. E.g.
   allocate(DenitrificationCreate)
   DenitrificationCreate%ispec_no3 = 0
-  DenitrificationCreate%ispec_n2o = 0
+  !DenitrificationCreate%ispec_n2o = 0
   DenitrificationCreate%ispec_n2 = 0
   DenitrificationCreate%ispec_ngasdeni = 0
 
@@ -182,9 +182,9 @@ subroutine DenitrificationSetup(this,reaction,option)
      call printErrMsg(option)
   endif
 
-  word = 'N2O(aq)'
-  this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+  !word = 'N2O(aq)'
+  !this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
+  !                      PETSC_FALSE,option)
 
   word = 'N2(aq)'
   this%ispec_n2 = GetPrimarySpeciesIDFromName(word,reaction, &
@@ -245,7 +245,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscReal :: temp_real
 
-  PetscInt :: ires_no3, ires_n2o, ires_n2
+  PetscInt :: ires_no3, ires_n2!, ires_n2o
   PetscInt :: ires_ngasdeni
 
   PetscScalar, pointer :: bsw(:)
@@ -279,7 +279,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 !---------------------------------------------------------------------------------
   ! indices for C and N species
   ires_no3 = this%ispec_no3
-  ires_n2o = this%ispec_n2o
+  !ires_n2o = this%ispec_n2o
   ires_n2 = this%ispec_n2
   ires_ngasdeni = this%ispec_ngasdeni + reaction%offset_immobile
 
@@ -290,14 +290,6 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   temp_real = bsw(ghosted_id)
   call VecRestoreArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
   CHKERRQ(ierr)
-
-#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
-  write(option%myrank+200,*) 'checking pflotran-bgc-denitr:', &
-    'rank=',option%myrank, 'ghosted_id=',ghosted_id, 'porosity=', porosity, &
-    'lsat=',global_auxvar%sat(iphase), &
-    'soilt=',global_auxvar%temp, &
-    'bsw(ghosted_id)=',temp_real
-#endif
 
 #else
   temp_real = 1.0d0
@@ -343,10 +335,10 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
      Residual(ires_no3) = Residual(ires_no3) + rate_deni
 
      Residual(ires_n2) = Residual(ires_n2) - 0.5d0*rate_deni
-     !(TODO) currently not separate denitrification gas into 'n2' and 'n2o', but need to soon.
+     !(TODO) currently not separate denitrification gas into 'n2' and 'n2o', but needed soon.
 
      if(this%ispec_ngasdeni > 0) then
-        Residual(ires_ngasdeni) = Residual(ires_ngasdeni) - 0.5d0*rate_deni
+        Residual(ires_ngasdeni) = Residual(ires_ngasdeni) - rate_deni
      endif
 
     if (compute_derivative) then
@@ -362,11 +354,10 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
         0.5d0*drate_deni_dno3 * &
         rt_auxvar%aqueous%dtotal(this%ispec_n2,this%ispec_no3,iphase)
     
-      if(this%ispec_ngasdeni > 0) then
-        Jacobian(ires_ngasdeni,ires_no3) = &
-          Jacobian(ires_ngasdeni,ires_no3) - &
-          0.5d0*drate_deni_dno3
-      endif
+!      if(this%ispec_ngasdeni > 0) then
+!        Jacobian(ires_ngasdeni,ires_no3) = &
+!          Jacobian(ires_ngasdeni,ires_no3) - drate_deni_dno3
+!      endif
 
     endif
 

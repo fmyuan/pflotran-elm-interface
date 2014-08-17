@@ -53,7 +53,6 @@ module Reaction_Sandbox_CLMDec_class
     PetscInt :: species_id_nh3
     PetscInt :: species_id_no3
     PetscInt :: species_id_n2o
-    PetscInt :: species_id_dom
 
     PetscInt :: species_id_hrimm
     PetscInt :: species_id_nmin
@@ -139,7 +138,6 @@ function CLMDec_Create()
   CLMDec_Create%species_id_nh3 = 0
   CLMDec_Create%species_id_no3 = 0
   CLMDec_Create%species_id_n2o = 0
-  CLMDec_Create%species_id_dom = 0
   CLMDec_Create%species_id_hrimm = 0
   CLMDec_Create%species_id_nmin = 0
   CLMDec_Create%species_id_nimm = 0
@@ -711,28 +709,19 @@ subroutine CLMDec_Setup(this,reaction,option)
      endif
   enddo
 
-  word = 'HCO3-'
+  word = 'CO2(aq)'
   this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
-
-  if(this%species_id_co2 < 0) then
-     word = 'CO2(aq)'
-     this%species_id_co2 = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+  if(this%species_id_co2 <= 0) then
+    option%io_buffer = 'CO2(aq) is not specified in the input file!'
+    call printErrMsg(option)
   endif
 
   word = 'NH4+'
   this%species_id_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
-
-  if(this%species_id_nh3 < 0) then
-    word = 'NH3(aq)'
-    this%species_id_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
-  endif
-
   if(this%species_id_nh3 <= 0) then
-    option%io_buffer = 'NH4+ or NH3(aq) is not specified in the input file!'
+    option%io_buffer = 'NH4+ is not specified in the input file!'
     call printErrMsg(option)
   endif
 
@@ -1520,7 +1509,6 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-
   if(this%species_id_n2o>0 .and. net_nmin_rate>this%x0eps) then
 
 #ifdef CLM_PFLOTRAN
@@ -1564,7 +1552,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
 
       if(this%species_id_ngasmin > 0) then
-         Residual(ires_ngasmin) = Residual(ires_ngasmin) - 0.5d0 * rate_n2o
+         Residual(ires_ngasmin) = Residual(ires_ngasmin) - rate_n2o
       endif
 
      !Jacobians
@@ -1578,10 +1566,10 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         Jacobian(ires_n2o,ires_nh3) = Jacobian(ires_n2o,ires_nh3) - 0.5d0*drate_n2o_dx* &
            rt_auxvar%aqueous%dtotal(this%species_id_n2o,this%species_id_nh3,iphase)
 
-        if(this%species_id_ngasmin > 0) then
-           Jacobian(ires_ngasmin,ires_nh3) = Jacobian(ires_ngasmin,ires_nh3) - &
-                                      0.5d0 * drate_n2o_dx
-        endif
+        !if(this%species_id_ngasmin > 0) then
+        !   Jacobian(ires_ngasmin,ires_nh3) = Jacobian(ires_ngasmin,ires_nh3) - &
+        !                              drate_n2o_dx
+        !endif
       endif
 
     endif  ! end of 'f_t/f_w/f_ph > 1.0d-20'

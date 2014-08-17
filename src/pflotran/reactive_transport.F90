@@ -347,7 +347,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
   PetscReal :: ratio, min_ratio
   PetscReal, parameter :: min_allowable_scale = 1.d-10
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: i, n
+  PetscInt :: i, n, j
   PetscErrorCode :: ierr
   
   grid => realization%patch%grid
@@ -389,6 +389,27 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
     ! scale if necessary
     if (min_ratio < 1.d0) then
       if (min_ratio < min_allowable_scale) then
+
+        write(realization%option%fid_out, *) '-----checking scaling factor for RT ------'
+        write(realization%option%fid_out, *) 'min. scaling factor = ', min_ratio
+        j = realization%reaction%ncomp
+        do i = 1, n
+          ratio = abs(C_p(i)/dC_p(i))
+          if (ratio<=min_allowable_scale .and. C_p(i)<=dC_p(i)) then
+            write(realization%option%fid_out, *)  &
+             ' <------ min_ratio @', i, 'cell no.=', floor((i-1.d0)/j), &
+            'rt species no. =',i-floor((i-1.d0)/j)*j, '-------------->'
+          endif
+          write(realization%option%fid_out, *) 'i=', i, &
+            'cell_no=',floor((i-1.0d0)/j), &
+            'rt_species_no.=',i-floor((i-1.0d0)/j)*j, &
+            'C_p/dC_p=', ratio, 'C_p=',C_p(i),'dC_p=',dC_p(i)
+        enddo
+        write(realization%option%fid_out, *) '-----DONE: checking scaling factor for RT ----'
+        write(realization%option%fid_out, *) ' min_ratio IS too small to make sense, '// &
+          'which less than an allowable_scale value !'
+        !write(realization%option%fid_out, *) ' STOP executing ! '
+
         write(string,'(es9.3)') min_ratio
         string = 'The update of primary species concentration is being ' // &
           'scaled by a very small value (i.e. ' // &
