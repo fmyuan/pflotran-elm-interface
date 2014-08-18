@@ -1532,18 +1532,18 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
        if (ivar == PRINT_SEC_MIN_RATE) then
         do nkinmnrl = 1, reaction%mineral%nkinmnrl
           do i = 1, option%nsec_cells 
-            write(fid,110,advance="no") &
-              RealizGetVariableValueAtCell(realization_base,SEC_MIN_RATE,i, &
-                                          ghosted_id,nkinmnrl)
+!            write(fid,110,advance="no") &
+!              RealizGetVariableValueAtCell(realization_base,SEC_MIN_RATE,i, &
+!                                          ghosted_id,nkinmnrl)
           enddo
         enddo
       endif
       if (ivar == PRINT_SEC_MIN_SI) then
         do nkinmnrl = 1, reaction%mineral%nkinmnrl
           do i = 1, option%nsec_cells 
-            write(fid,110,advance="no") &
-              RealizGetVariableValueAtCell(realization_base,SEC_MIN_SI,i, &
-                                          ghosted_id,nkinmnrl)
+!            write(fid,110,advance="no") &
+!              RealizGetVariableValueAtCell(realization_base,SEC_MIN_SI,i, &
+!                                          ghosted_id,nkinmnrl)
           enddo
         enddo
       endif           

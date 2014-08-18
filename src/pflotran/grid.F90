@@ -717,22 +717,6 @@ subroutine GridMapIndices(grid, dm_ptr, sgrid_stencil_type, lsm_flux_method, &
                                 lsm_flux_method, &
                                 grid%nG2L,grid%nL2G,grid%nG2A, &
                                 grid%ghosted_level,option)
-#ifdef DASVYAT
-      if ((grid%itype==STRUCTURED_GRID_MIMETIC)) then
-        allocate(grid%nG2P(grid%ngmax))
-        allocate(int_tmp(grid%ngmax))
-!geh     call DMDAGetGlobalIndicesF90(sgdm, n, int_tmp, ierr)
-        call DMDAGetGlobalIndices(dm_ptr%dm, grid%ngmax, int_tmp, i_da, ierr)
-        CHKERRQ(ierr)
-        do icount = 1, grid%ngmax
-!geh         write(*,*) icount,  int_tmp(icount + i_da)
-          grid%nG2P(icount) = int_tmp(icount + i_da)
-!             write(*,*) icount,  int_tmp(icount)
-!geh        grid%nG2P(icount) = int_tmp(icount)
-        enddo
-        deallocate(int_tmp)
-      endif
-#endif
     case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID, &
          POLYHEDRA_UNSTRUCTURED_GRID)
       call UGridMapIndices(grid%unstructured_grid, &

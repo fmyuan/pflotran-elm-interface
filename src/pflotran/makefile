@@ -520,8 +520,8 @@ reaction_sandbox.o : global_aux.o input_aux.o material_aux.o option.o \
                      pflotran_constants.o reaction_aux.o \
                      reaction_sandbox_base.o \
                      reactive_transport_aux.o string.o utility.o \
-                     reaction_sandbox_clm_decomp.o \
-                     reaction_sandbox_plantntake.o \
+                     reaction_sandbox_clmdec.o \
+                     reaction_sandbox_plantn.o \
                      reaction_sandbox_nitrification.o \
                      reaction_sandbox_denitrification.o \
                      reaction_sandbox_microbial.o \
@@ -530,7 +530,7 @@ reaction_sandbox.o : global_aux.o input_aux.o material_aux.o option.o \
 reaction_sandbox_base.o : global_aux.o input_aux.o material_aux.o option.o \
                           pflotran_constants.o reaction_aux.o \
                           reactive_transport_aux.o
-reaction_sandbox_clm_decomp.o : global_aux.o immobile_aux.o input_aux.o \
+reaction_sandbox_clmdec.o : global_aux.o immobile_aux.o input_aux.o \
                             material_aux.o option.o pflotran_constants.o \
                             reaction_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \
