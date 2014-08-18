@@ -177,7 +177,7 @@ module clm_pflotran_interface_data
   Vec :: rate_cwdn_clmp
   Vec :: rate_smin_no3_clmp
   Vec :: rate_smin_nh4_clmp
-  Vec :: rate_plantnuptake_clmp
+  Vec :: rate_plantndemand_clmp
   Vec :: rate_lit1c_pfs
   Vec :: rate_lit2c_pfs
   Vec :: rate_lit3c_pfs
@@ -188,7 +188,7 @@ module clm_pflotran_interface_data
   Vec :: rate_cwdn_pfs
   Vec :: rate_smin_no3_pfs
   Vec :: rate_smin_nh4_pfs
-  Vec :: rate_plantnuptake_pfs
+  Vec :: rate_plantndemand_pfs
 
   ! BC: water pressure (Pa) on the top/bottom of 3-D subsurface domain as boundary conditions from CLM to PF
   Vec :: press_subsurf_clmp    ! mpi vec
@@ -499,7 +499,7 @@ contains
     clm_pf_idata%rate_cwdn_clmp             = 0
     clm_pf_idata%rate_smin_no3_clmp         = 0
     clm_pf_idata%rate_smin_nh4_clmp         = 0
-    clm_pf_idata%rate_plantnuptake_clmp     = 0
+    clm_pf_idata%rate_plantndemand_clmp     = 0
 
     clm_pf_idata%rate_lit1c_pfs            = 0
     clm_pf_idata%rate_lit2c_pfs            = 0
@@ -511,7 +511,7 @@ contains
     clm_pf_idata%rate_cwdn_pfs             = 0
     clm_pf_idata%rate_smin_no3_pfs         = 0
     clm_pf_idata%rate_smin_nh4_pfs         = 0
-    clm_pf_idata%rate_plantnuptake_pfs     = 0
+    clm_pf_idata%rate_plantndemand_pfs     = 0
 
     clm_pf_idata%press_maxponding_clmp = 0
     clm_pf_idata%press_maxponding_pfs  = 0
@@ -838,7 +838,7 @@ contains
     call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_cwdn_clmp,ierr)
     call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_smin_no3_clmp,ierr)
     call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_smin_nh4_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_plantnuptake_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_plantndemand_clmp,ierr)
 
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE,clm_pf_idata%press_subsurf_clmp,ierr)    ! TH top BC (2D)
     call VecSet(clm_pf_idata%press_subsurf_clmp,0.d0,ierr)
@@ -865,7 +865,7 @@ contains
     call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_cwdn_pfs,ierr)
     call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_smin_no3_pfs,ierr)
     call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_smin_nh4_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_plantnuptake_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_plantndemand_pfs,ierr)
 
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dsub,clm_pf_idata%press_subsurf_pfs,ierr)   ! H
     call VecSet(clm_pf_idata%press_subsurf_pfs,0.d0,ierr)
@@ -1214,8 +1214,8 @@ contains
        call VecDestroy(clm_pf_idata%rate_lit3n_clmp,ierr)
     if(clm_pf_idata%rate_cwdn_clmp /= 0) &
        call VecDestroy(clm_pf_idata%rate_cwdn_clmp,ierr)
-    if(clm_pf_idata%rate_plantnuptake_clmp /= 0) &
-       call VecDestroy(clm_pf_idata%rate_plantnuptake_clmp,ierr)
+    if(clm_pf_idata%rate_plantndemand_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%rate_plantndemand_clmp,ierr)
     if(clm_pf_idata%rate_smin_no3_clmp /= 0) &
        call VecDestroy(clm_pf_idata%rate_smin_no3_clmp,ierr)
     if(clm_pf_idata%rate_smin_nh4_clmp /= 0) &
@@ -1236,8 +1236,8 @@ contains
        call VecDestroy(clm_pf_idata%rate_lit3n_pfs,ierr)
     if(clm_pf_idata%rate_cwdn_pfs /= 0) &
        call VecDestroy(clm_pf_idata%rate_cwdn_pfs,ierr)
-    if(clm_pf_idata%rate_plantnuptake_pfs /= 0) &
-       call VecDestroy(clm_pf_idata%rate_plantnuptake_pfs,ierr)
+    if(clm_pf_idata%rate_plantndemand_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%rate_plantndemand_pfs,ierr)
     if(clm_pf_idata%rate_smin_no3_pfs /= 0) &
        call VecDestroy(clm_pf_idata%rate_smin_no3_pfs,ierr)
     if(clm_pf_idata%rate_smin_nh4_pfs /= 0) &

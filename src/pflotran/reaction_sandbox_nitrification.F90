@@ -221,6 +221,15 @@ subroutine NitrificationSetup(this,reaction,option)
   word = 'NGASnitr'
   this%ispec_ngasnit = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
+#ifdef CLM_PFLOTRAN
+  if(this%ispec_ngasnit < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION: ' // &
+       'NGASnitr is not specified as immobile species in the input file' // &
+        ' It is required when coupled with CLM.'
+     call printErrMsg(option)
+  endif
+#endif
+
  
 end subroutine NitrificationSetup
 
@@ -444,6 +453,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
              0.5d0 * drate_n2o_dnh3 * &
              rt_auxvar%aqueous%dtotal(this%ispec_n2o,this%ispec_nh3,iphase)
       
+! The following IS not needed and causes issue - breaking  whole reacton network if going wrong!
        !    if(this%ispec_ngasnit > 0) then
        !      Jacobian(ires_ngasnit,ires_nh3)=Jacobian(ires_ngasnit,ires_nh3)- &
        !        drate_n2o_dnh3

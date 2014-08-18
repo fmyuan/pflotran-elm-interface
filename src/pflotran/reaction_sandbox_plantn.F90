@@ -196,7 +196,9 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   PetscInt, parameter :: iphase = 1
   PetscInt :: ispec_nh3, ispec_no3, ispec_plantn
   PetscInt :: ires_nh3, ires_no3, ires_plantn
-  PetscInt :: ispec_plantndemand, ires_plantndemand, ires
+  PetscInt :: ispec_plantndemand, ires_plantndemand
+  PetscInt :: ispec_plantnuptake, ires_plantnuptake
+  PetscInt :: ires
 
   PetscReal :: c_nh3         ! concentration (mole/L)
   PetscReal :: fnh3          ! nh3 / (half_saturation + nh3): rate dependence on substrate
@@ -218,35 +220,31 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: dnrate_no3_dnh3       !d(nrate_no3)/d(nh3)
   PetscReal :: dnrate_no3_dno3       !d(nrate_no3)/d(no3)
 
-  ! for tracking variables
-  PetscReal :: c_plantn, c_plantndemand
-  PetscReal :: c_plantn_nh3, c_plantn_no3
-
 #ifdef CLM_PFLOTRAN
-  PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
+  PetscScalar, pointer :: rate_plantndemand_pf_loc(:)   !
 #endif 
 
 !------------------------------------------------------------------------------------
-  porosity = material_auxvar%porosity
-  volume = material_auxvar%volume
-
   word = 'NH4+'
   ispec_nh3 = GetPrimarySpeciesIDFromName(word, reaction, PETSC_FALSE, option)
-
-  if (ispec_nh3 < 0) then
-      word = 'NH3(aq)'
-      ispec_nh3 = GetPrimarySpeciesIDFromName(word, reaction, PETSC_FALSE, option)
-  endif
 
   word = 'NO3-'
   ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction, PETSC_FALSE,option)
 
+  if(ispec_nh3 < 0 .and. ispec_no3 < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE: ' // &
+       ' at least one of NH4+ and NO3- must be specified as primary species in the input file.'
+     call printErrMsg(option)
+  endif
+
   word = 'PlantN'
   ispec_plantn = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
                  PETSC_FALSE,option)
+
   if(ispec_plantn < 0) then
-    write(*, *) 'Warning: PlantN is not specified in the chemical species!'
-    return
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE: ' // &
+       ' PlantN is not specified as immobile species in the input file.'
+     call printErrMsg(option)
   else
      ires_plantn = ispec_plantn + reaction%offset_immobile
   endif
@@ -256,7 +254,23 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
                  PETSC_FALSE,option)
   ires_plantndemand = ispec_plantndemand + reaction%offset_immobile
 
+  word = 'Plantnuptake'
+  ispec_plantnuptake = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
+                 PETSC_FALSE,option)
+  ires_plantnuptake = ispec_plantnuptake + reaction%offset_immobile
+#ifdef CLM_PFLOTRAN
+  if(ispec_plantnuptake < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE: ' // &
+       'Plantnuptake is not specified as immobile species in the ' // &
+       'input file, but It is required when coupled with CLM.'
+     call printErrMsg(option)
+  endif
+#endif
+
   !--------------------------------------------------------------------------------------------
+  porosity = material_auxvar%porosity
+  volume = material_auxvar%volume
+
   if (ispec_nh3 > 0) then
     ires_nh3 = ispec_nh3
 
@@ -288,13 +302,13 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 #ifdef CLM_PFLOTRAN
   ghosted_id = option%iflag
 
-  call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, &
-       rate_plantnuptake_pf_loc, ierr)
+  call VecGetArrayReadF90(clm_pf_idata%rate_plantndemand_pfs, &
+       rate_plantndemand_pf_loc, ierr)
 
-  this%rate = rate_plantnuptake_pf_loc(ghosted_id) * volume          ! moles/m3/s * m3
+  this%rate = rate_plantndemand_pf_loc(ghosted_id) * volume          ! moles/m3/s * m3
 
-  call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, &
-       rate_plantnuptake_pf_loc, ierr)
+  call VecRestoreArrayReadF90(clm_pf_idata%rate_plantndemand_pfs, &
+       rate_plantndemand_pf_loc, ierr)
 #endif
   if (ispec_plantndemand > 0) then  ! for tracking
     Residual(ires_plantndemand) = Residual(ires_plantndemand) - this%rate
@@ -321,6 +335,10 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     ! residuals
     Residual(ires_nh3) = Residual(ires_nh3) + nrate_nh3
     Residual(ires_plantn) = Residual(ires_plantn) - nrate_nh3
+
+    if (ispec_plantnuptake>0) then   ! for tracking
+      Residual(ires_plantnuptake) = Residual(ires_plantnuptake) - nrate_nh3
+    endif
 
     ! jacobians
     if(compute_derivative) then

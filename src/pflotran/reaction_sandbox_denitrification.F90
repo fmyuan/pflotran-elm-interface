@@ -199,6 +199,14 @@ subroutine DenitrificationSetup(this,reaction,option)
   word = 'NGASdeni'
   this%ispec_ngasdeni = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
+#ifdef CLM_PFLOTRAN
+  if(this%ispec_ngasdeni < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION: ' // &
+       ' NGASdeni is not specified as immobile species in the input file. ' // &
+       ' It is required when coupled with CLM.'
+     call printErrMsg(option)
+  endif
+#endif
  
 end subroutine DenitrificationSetup
 
@@ -353,7 +361,8 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
       Jacobian(ires_n2,ires_no3) = Jacobian(ires_n2,ires_no3) - &
         0.5d0*drate_deni_dno3 * &
         rt_auxvar%aqueous%dtotal(this%ispec_n2,this%ispec_no3,iphase)
-    
+
+! The following IS not needed and causes issue - breaking  whole reacton network if going wrong!
 !      if(this%ispec_ngasdeni > 0) then
 !        Jacobian(ires_ngasdeni,ires_no3) = &
 !          Jacobian(ires_ngasdeni,ires_no3) - drate_deni_dno3
