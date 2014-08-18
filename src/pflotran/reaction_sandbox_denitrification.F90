@@ -19,7 +19,7 @@ module Reaction_Sandbox_Denitrification_class
     extends(reaction_sandbox_base_type) :: reaction_sandbox_denitrification_type
     PetscInt :: ispec_no3
     PetscInt :: ispec_n2
-    PetscInt :: ispec_n2o
+    !PetscInt :: ispec_n2o
     PetscInt :: ispec_ngasdeni
 
     PetscReal :: half_saturation
@@ -56,7 +56,7 @@ function DenitrificationCreate()
 !    nullify all pointers. E.g.
   allocate(DenitrificationCreate)
   DenitrificationCreate%ispec_no3 = 0
-  DenitrificationCreate%ispec_n2o = 0
+  !DenitrificationCreate%ispec_n2o = 0
   DenitrificationCreate%ispec_n2 = 0
   DenitrificationCreate%ispec_ngasdeni = 0
 
@@ -182,9 +182,9 @@ subroutine DenitrificationSetup(this,reaction,option)
      call printErrMsg(option)
   endif
 
-  word = 'N2O(aq)'
-  this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
+  !word = 'N2O(aq)'
+  !this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
+  !                      PETSC_FALSE,option)
 
   word = 'N2(aq)'
   this%ispec_n2 = GetPrimarySpeciesIDFromName(word,reaction, &
@@ -199,6 +199,14 @@ subroutine DenitrificationSetup(this,reaction,option)
   word = 'NGASdeni'
   this%ispec_ngasdeni = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
+#ifdef CLM_PFLOTRAN
+  if(this%ispec_ngasdeni < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION: ' // &
+       ' NGASdeni is not specified as immobile species in the input file. ' // &
+       ' It is required when coupled with CLM.'
+     call printErrMsg(option)
+  endif
+#endif
  
 end subroutine DenitrificationSetup
 
@@ -245,8 +253,8 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscReal :: temp_real
 
-  PetscInt :: ires_no3, ires_n2o, ires_n2
-  PetscInt :: ires_ngasdeni, ires
+  PetscInt :: ires_no3, ires_n2!, ires_n2o
+  PetscInt :: ires_ngasdeni
 
   PetscScalar, pointer :: bsw(:)
   PetscScalar, pointer :: bulkdensity(:)
@@ -255,29 +263,33 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: tc
   PetscReal :: f_t, f_w
 
-  PetscReal :: c_no3      ! mole/L
-  PetscReal :: f_no3         ! no3 / (half_saturation + no3)
-  PetscReal :: d_no3         ! half_saturation/(no3 + half_saturation)^2
-  PetscReal :: rate_deni, drate_deni
+  PetscReal :: c_no3         ! moles
+  PetscReal :: fno3          ! no3 / (half_saturation + no3)
+  PetscReal :: dfno3_dno3    ! d(fno3)/d(no3)
+  PetscReal :: rate_deni, drate_deni_dno3
   PetscReal :: saturation
   PetscInt, parameter :: iphase = 1
 
+! misc. local variables
+  PetscInt :: ires
+  PetscReal:: feps0, dfeps0_dx
+
 !---------------------------------------------------------------------------------
+  if(this%ispec_n2 < 0) return
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
+  saturation = global_auxvar%sat(iphase)
+  L_water = porosity * saturation * volume * 1.d3
 
-  L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
-            material_auxvar%volume*1.d3
+  tc = global_auxvar%temp
 
+!---------------------------------------------------------------------------------
   ! indices for C and N species
   ires_no3 = this%ispec_no3
-  ires_n2o = this%ispec_n2o
+  !ires_n2o = this%ispec_n2o
   ires_n2 = this%ispec_n2
   ires_ngasdeni = this%ispec_ngasdeni + reaction%offset_immobile
-
-! denitrification (Dickinson et al. 2002)
-  if(this%ispec_n2 < 0) return
 
 #ifdef CLM_PFLOTRAN
   ghosted_id = option%iflag
@@ -287,22 +299,17 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
   call VecRestoreArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
   CHKERRQ(ierr)
 
-#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
-  write(option%myrank+200,*) 'checking pflotran-bgc-denitr:', &
-    'rank=',option%myrank, 'ghosted_id=',ghosted_id, 'porosity=', porosity, &
-    'lsat=',global_auxvar%sat(iphase), &
-    'soilt=',global_auxvar%temp, &
-    'bsw(ghosted_id)=',temp_real
-#endif
-
 #else
   temp_real = 1.0d0
 #endif
 
-  tc = global_auxvar%temp
+!---------------------------------------------------------------------------------
+! denitrification (Dickinson et al. 2002)
+
+  ! temperature response function
   f_t = exp(0.08d0 * (tc - 25.d0))
 
-  saturation = global_auxvar%sat(1)
+  ! moisture response function
   s_min = 0.6d0
   f_w = 0.d0
   if(saturation > s_min) then
@@ -310,42 +317,59 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
      f_w = f_w ** temp_real
   endif
 
-  c_no3 = rt_auxvar%total(this%ispec_no3, iphase)
-
-  if (this%half_saturation > 0.0d0) then
-    temp_real = c_no3 + this%half_saturation
-    f_no3 = c_no3 * c_no3 / temp_real
-    d_no3 = c_no3 * (c_no3 + &
-             2.d0 * this%half_saturation) / temp_real /temp_real
+  c_no3 = rt_auxvar%total(this%ispec_no3, iphase)*L_water       ! mol/Lw -> moles
+  !if(c_no3 <= this%x0eps) return     ! this may bring in 'oscillation' around 'this%x0eps'
+  if(this%x0eps>0.d0) then
+    feps0 = c_no3 / (c_no3+this%x0eps)  ! using these two for trailer smoothing, alternatively
+    dfeps0_dx = this%x0eps / (c_no3+this%x0eps) / (c_no3+this%x0eps)
   else
-    f_no3 = c_no3 - this%x0eps
-    d_no3 = 1.0d0
+    feps0 = 1.d0
+    dfeps0_dx = 0.d0
   endif
 
-  if(f_t > 0.d0 .and. f_w > 0.d0 .and. c_no3>this%x0eps) then
-     rate_deni = this%k_deni_max * f_t * f_w * L_water * f_no3
+  ! rate dependence on substrate
+  if (this%half_saturation > 0.0d0) then
+    temp_real = c_no3 + this%half_saturation
+    fno3      = c_no3 / temp_real
+    dfno3_dno3= this%half_saturation / temp_real / temp_real
+  else
+    fno3      = 1.0d0
+    dfno3_dno3= 0.d0
+  endif
+
+  if(f_t > 0.d0 .and. f_w > 0.d0) then
+     rate_deni = this%k_deni_max * f_t * f_w * fno3 * (c_no3*feps0)
 
      Residual(ires_no3) = Residual(ires_no3) + rate_deni
+
      Residual(ires_n2) = Residual(ires_n2) - 0.5d0*rate_deni
-    
+     !(TODO) currently not separate denitrification gas into 'n2' and 'n2o', but needed soon.
+
      if(this%ispec_ngasdeni > 0) then
-        Residual(ires_ngasdeni) = Residual(ires_ngasdeni) - 0.5d0*rate_deni
+        Residual(ires_ngasdeni) = Residual(ires_ngasdeni) - rate_deni
      endif
 
     if (compute_derivative) then
+      temp_real = dfno3_dno3 * (c_no3*feps0) + &
+                  fno3 * (c_no3*dfeps0_dx + feps0)
+      drate_deni_dno3 = this%k_deni_max * f_t * f_w * temp_real
 
-       drate_deni = this%k_deni_max * f_t * f_w * L_water * d_no3 
-
-       Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) + drate_deni * &
+      Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) +  &
+        drate_deni_dno3 * &
         rt_auxvar%aqueous%dtotal(this%ispec_no3,this%ispec_no3,iphase)
 
-       Jacobian(ires_n2,ires_no3)=Jacobian(ires_n2,ires_no3)-0.5d0*drate_deni * &
+      Jacobian(ires_n2,ires_no3) = Jacobian(ires_n2,ires_no3) - &
+        0.5d0*drate_deni_dno3 * &
         rt_auxvar%aqueous%dtotal(this%ispec_n2,this%ispec_no3,iphase)
-    
-       if(this%ispec_ngasdeni > 0) then
-         Jacobian(ires_ngasdeni,ires_no3)=Jacobian(ires_ngasdeni,ires_no3)-0.5d0*drate_deni
-       endif
+
+! The following IS not needed and causes issue - breaking  whole reacton network if going wrong!
+!      if(this%ispec_ngasdeni > 0) then
+!        Jacobian(ires_ngasdeni,ires_no3) = &
+!          Jacobian(ires_ngasdeni,ires_no3) - drate_deni_dno3
+!      endif
+
     endif
+
   endif
 
 #ifdef DEBUG

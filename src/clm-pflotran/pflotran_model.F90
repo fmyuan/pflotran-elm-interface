@@ -3687,7 +3687,6 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     PetscInt :: ispec_lit1c, ispec_lit2c, ispec_lit3c
     PetscInt :: ispec_lit1n, ispec_lit2n, ispec_lit3n
     PetscInt :: ispec_som1, ispec_som2, ispec_som3, ispec_som4
-    PetscInt :: ispec_plantn
 
     character(len=MAXWORDLENGTH) :: word
     PetscReal, parameter :: C_molecular_weight = 12.0107d0
@@ -3746,7 +3745,6 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     word = "SOM3"
     ispec_som3  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
-
 
     word = "SOM4"
     ispec_som4  = GetImmobileSpeciesIDFromName(word, &
@@ -5292,7 +5290,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscScalar, pointer :: rate_lit1n_pf_loc(:)   !
     PetscScalar, pointer :: rate_lit2n_pf_loc(:)   !
     PetscScalar, pointer :: rate_lit3n_pf_loc(:)   !
-    PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)   !
+    PetscScalar, pointer :: rate_plantndemand_pf_loc(:)   !
     PetscScalar, pointer :: rate_smin_no3_pf_loc(:)   !
     PetscScalar, pointer :: rate_smin_nh4_pf_loc(:)   !
 
@@ -5358,8 +5356,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%rate_plantnuptake_clmp, &
-                                    clm_pf_idata%rate_plantnuptake_pfs)
+                                    clm_pf_idata%rate_plantndemand_clmp, &
+                                    clm_pf_idata%rate_plantndemand_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
@@ -5597,7 +5595,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscInt :: ispec_lit1c, ispec_lit2c, ispec_lit3c
     PetscInt :: ispec_lit1n, ispec_lit2n, ispec_lit3n
     PetscInt :: ispec_som1, ispec_som2, ispec_som3, ispec_som4
-    PetscInt :: ispec_plantn, ispec_co2, ispec_n2, ispec_n2o
+    PetscInt :: ispec_co2, ispec_n2, ispec_n2o
+    PetscInt :: ispec_plantnuptake
     PetscInt :: ispec_hrimm, ispec_nmin, ispec_nimm
     PetscInt :: ispec_ngasmin, ispec_ngasnitr, ispec_ngasdeni
 
@@ -5666,10 +5665,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     ispec_som4  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-    word = "PlantN"
-    ispec_plantn  = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
     ! primary species
     word = "NO3-"
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
@@ -5678,11 +5673,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     word = "NH4+"
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
-    if(ispec_nh4 < 0) then
-       word = "NH3(aq)"
-       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-    endif
+
     if (ispec_nh4 > 0) then
        word = 'NH4sorb'   ! if using 'reaction_sandbox_langumir' for NH4 sorption reaction
        ispec_nh4sorb = GetImmobileSpeciesIDFromName( word, &
@@ -5707,6 +5698,9 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
             realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     ! N bgc reaction fluxes tracking (immoble species)
+    word = "Plantnuptake"
+    ispec_plantnuptake  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
     word = 'Nmin'
     ispec_nmin = GetImmobileSpeciesIDFromName(word, &
             realization%reaction%immobile,PETSC_FALSE,realization%option)
@@ -5837,11 +5831,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4), 1.0d-20) &
                                         * C_molecular_weight
 
-        accextrn_vr_pf_loc(local_id) = max(xx_p(offsetim + ispec_plantn), 1.0d-20) &
-                                        * N_molecular_weight
-        ! resetting the tracking variable state so that cumulative IS for the time-step only
-        xx_p(offsetim + ispec_plantn) = 1.0d-50
-
         if(ispec_nh4 > 0) then
 !           conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0
 
@@ -5883,6 +5872,11 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         endif
 
         ! tracking N bgc reaction fluxes
+        accextrn_vr_pf_loc(local_id) = max(xx_p(offsetim + ispec_plantnuptake), 1.0d-20) &
+                                        * N_molecular_weight
+        ! resetting the tracking variable state so that cumulative IS for the time-step only
+        xx_p(offsetim + ispec_plantnuptake) = 1.0d-50
+
         if(ispec_hrimm > 0) then
            conc = xx_p(offsetim + ispec_hrimm)
            acchr_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * C_molecular_weight
@@ -6066,11 +6060,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                     clm_pf_idata%gco2_vr_pfp, &
                                     clm_pf_idata%gco2_vr_clms)
 
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%accextrn_vr_pfp, &
-                                    clm_pf_idata%accextrn_vr_clms)
-
     if(ispec_no3 > 0) then
          call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
@@ -6091,56 +6080,63 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     endif
 
     if(ispec_n2 > 0) then
-         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%gn2_vr_pfp, &
                                     clm_pf_idata%gn2_vr_clms)
     endif
 
     if(ispec_n2o > 0) then
-         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%gn2o_vr_pfp, &
                                     clm_pf_idata%gn2o_vr_clms)
     endif
 
     if(ispec_nmin > 0) then
-         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%accnmin_vr_pfp, &
                                     clm_pf_idata%accnmin_vr_clms)
     endif
 
+    if(ispec_plantnuptake > 0) then
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%accextrn_vr_pfp, &
+                                    clm_pf_idata%accextrn_vr_clms)
+    endif
+
     if(ispec_hrimm > 0) then
-         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%acchr_vr_pfp, &
                                     clm_pf_idata%acchr_vr_clms)
     endif
 
     if(ispec_nimm > 0) then
-         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%accnimm_vr_pfp, &
                                     clm_pf_idata%accnimm_vr_clms)
     endif
 
     if(ispec_ngasmin > 0) then
-         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%accngasmin_vr_pfp, &
                                     clm_pf_idata%accngasmin_vr_clms)
     endif
 
     if(ispec_ngasnitr > 0) then
-         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%accngasnitr_vr_pfp, &
                                     clm_pf_idata%accngasnitr_vr_clms)
     endif
 
     if(ispec_ngasdeni > 0) then
-         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%accngasdeni_vr_pfp, &
                                     clm_pf_idata%accngasdeni_vr_clms)
