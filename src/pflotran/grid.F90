@@ -173,6 +173,7 @@ subroutine VecGetArrayReadF90(vec, f90ptr, ierr)
   PetscErrorCode :: ierr
 
   call VecGetArrayF90(vec, f90ptr, ierr)
+  CHKERRQ(ierr)
 
 end subroutine VecGetArrayReadF90
 
@@ -198,6 +199,7 @@ subroutine VecRestoreArrayReadF90(vec, f90ptr, ierr)
   PetscErrorCode :: ierr
 
   call VecRestoreArrayF90(vec, f90ptr, ierr)
+  CHKERRQ(ierr)
   
 end subroutine VecRestoreArrayReadF90
 #endif
@@ -422,15 +424,20 @@ subroutine CreateMFDStruct4Faces(grid, MFD_aux, ndof, option)
   ! create global vec
   call VecCreateMPI(option%mycomm, grid%nlmax_faces*ndof, &
                     PETSC_DETERMINE, global_vec,ierr)
-  call VecSetBlockSize(global_vec,ndof,ierr)  
+  CHKERRQ(ierr)
+  call VecSetBlockSize(global_vec,ndof,ierr)
+  CHKERRQ(ierr)  
   
   ! create local vec
   call VecCreateSeq(PETSC_COMM_SELF, grid%ngmax_faces*ndof, &
                     local_vec,ierr)
+  CHKERRQ(ierr)
   call VecSetBlockSize(local_vec,ndof,ierr)
+  CHKERRQ(ierr)
 
   ! IS for global numbering of local, non-ghosted cells
   call VecGetOwnershipRange(global_vec,istart,iend,ierr)
+  CHKERRQ(ierr)
 
 
   allocate(int_array(grid%nlmax_faces))
@@ -440,6 +447,7 @@ subroutine CreateMFDStruct4Faces(grid, MFD_aux, ndof, option)
 
   call ISCreateBlock(option%mycomm, ndof, grid%nlmax_faces, &
                      int_array, PETSC_COPY_VALUES, MFD_aux%is_local_petsc_faces, ierr)
+  CHKERRQ(ierr)
   deallocate(int_array)
 
 
@@ -450,6 +458,7 @@ subroutine CreateMFDStruct4Faces(grid, MFD_aux, ndof, option)
 
   call ISCreateBlock(option%mycomm,ndof,grid%ngmax_faces - grid%nlmax_faces, &
                      int_array, PETSC_COPY_VALUES, MFD_aux%is_ghosts_local_faces,ierr)
+  CHKERRQ(ierr)
   deallocate(int_array)
 
   allocate(int_array(grid%ngmax_faces - grid%nlmax_faces))
@@ -459,6 +468,7 @@ subroutine CreateMFDStruct4Faces(grid, MFD_aux, ndof, option)
   
   call ISCreateBlock(option%mycomm,ndof,grid%ngmax_faces - grid%nlmax_faces, &
                      int_array, PETSC_COPY_VALUES, MFD_aux%is_ghosts_petsc_faces,ierr)
+  CHKERRQ(ierr)
 
   deallocate(int_array)
 
@@ -469,6 +479,7 @@ subroutine CreateMFDStruct4Faces(grid, MFD_aux, ndof, option)
 
   call ISCreateBlock(option%mycomm,ndof,grid%nlmax_faces, &
       int_array, PETSC_COPY_VALUES, MFD_aux%is_local_local_faces, ierr)
+  CHKERRQ(ierr)
   deallocate(int_array)
 
   allocate(int_array(grid%ngmax_faces))
@@ -478,6 +489,7 @@ subroutine CreateMFDStruct4Faces(grid, MFD_aux, ndof, option)
 
   call ISCreateBlock(option%mycomm,ndof,grid%ngmax_faces, &
       int_array, PETSC_COPY_VALUES, MFD_aux%is_ghosted_local_faces, ierr)
+  CHKERRQ(ierr)
   deallocate(int_array)
 
    allocate(int_array(grid%ngmax_faces))
@@ -487,32 +499,46 @@ subroutine CreateMFDStruct4Faces(grid, MFD_aux, ndof, option)
 
   call ISCreateBlock(option%mycomm,ndof,grid%ngmax_faces, &
        int_array, PETSC_COPY_VALUES, MFD_aux%is_ghosted_petsc_faces, ierr)
+  CHKERRQ(ierr)
   deallocate(int_array)
 
   call ISLocalToGlobalMappingCreateIS(MFD_aux%is_ghosted_petsc_faces, &
                                     MFD_aux%mapping_ltog_faces,ierr)
+  CHKERRQ(ierr)
 
   call ISLocalToGlobalMappingBlock(MFD_aux%mapping_ltog_faces,ndof, &
                                   MFD_aux%mapping_ltogb_faces,ierr)
+  CHKERRQ(ierr)
 
   call PetscViewerASCIIOpen(option%mycomm,'is_ghosted_petsc.out',viewer,ierr)
+  CHKERRQ(ierr)
   call ISView(MFD_aux%is_ghosted_petsc_faces,viewer,ierr)
+  CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr)
+  CHKERRQ(ierr)
 
   call VecScatterCreate(local_vec,MFD_aux%is_local_local_faces,global_vec, &
                         MFD_aux%is_local_petsc_faces,MFD_aux%scatter_ltog_faces,ierr)
+  CHKERRQ(ierr)
   call VecScatterCreate(global_vec,MFD_aux%is_ghosted_petsc_faces,local_vec, &
                         MFD_aux%is_ghosted_local_faces, MFD_aux%scatter_gtol_faces, ierr)
+  CHKERRQ(ierr)
 
   ! Create local to local scatter.  Essentially remap the global to local as
   ! PETSc does in daltol.c
   call VecScatterCopy(MFD_aux%scatter_gtol_faces, MFD_aux%scatter_ltol_faces, ierr)
+  CHKERRQ(ierr)
   call ISGetIndicesF90(MFD_aux%is_local_local_faces,int_ptr,ierr)
+  CHKERRQ(ierr)
   call VecScatterRemap(MFD_aux%scatter_ltol_faces,int_ptr,PETSC_NULL_INTEGER,ierr)
+  CHKERRQ(ierr)
   call ISRestoreIndicesF90(MFD_aux%is_local_local_faces,int_ptr,ierr)
+  CHKERRQ(ierr)
 
   call VecDestroy(local_vec, ierr)
+  CHKERRQ(ierr)
   call VecDestroy(global_vec, ierr)
+  CHKERRQ(ierr)
 
 end subroutine CreateMFDStruct4Faces
 
@@ -548,14 +574,19 @@ subroutine CreateMFDStruct4LP(grid, MFD_aux, ndof, option)
   ! create global vec_LP
   call VecCreateMPI(option%mycomm, NL*ndof, &
                     PETSC_DETERMINE, global_vec_LP,ierr)
+  CHKERRQ(ierr)
   call VecSetBlockSize(global_vec_LP,ndof,ierr)
+  CHKERRQ(ierr)
   ! create local vec
   call VecCreateSeq(PETSC_COMM_SELF, NG*ndof, &
                     local_vec_LP,ierr)
+  CHKERRQ(ierr)
   call VecSetBlockSize(local_vec_LP,ndof,ierr)
+  CHKERRQ(ierr)
 
   ! IS for global numbering of local, non-ghosted cells
   call VecGetOwnershipRange(global_vec_LP,istart,iend,ierr)
+  CHKERRQ(ierr)
 
   allocate(int_array(NL))
   do id = 1, NL
@@ -564,6 +595,7 @@ subroutine CreateMFDStruct4LP(grid, MFD_aux, ndof, option)
 
   call ISCreateBlock(option%mycomm, ndof, NL, &
                      int_array, PETSC_COPY_VALUES, MFD_aux%is_local_petsc_LP, ierr)
+  CHKERRQ(ierr)
   deallocate(int_array)
 
 
@@ -578,6 +610,7 @@ subroutine CreateMFDStruct4LP(grid, MFD_aux, ndof, option)
 
   call ISCreateBlock(option%mycomm,ndof,NG - NL, &
                      int_array, PETSC_COPY_VALUES, MFD_aux%is_ghosts_local_LP,ierr)
+  CHKERRQ(ierr)
   deallocate(int_array)
 
   allocate(int_array(NL))
@@ -587,6 +620,7 @@ subroutine CreateMFDStruct4LP(grid, MFD_aux, ndof, option)
 
   call ISCreateBlock(option%mycomm,ndof, NL, &
        int_array, PETSC_COPY_VALUES, MFD_aux%is_local_local_LP, ierr)
+  CHKERRQ(ierr)
   deallocate(int_array)
 
   allocate(int_array(NG))
@@ -596,10 +630,12 @@ subroutine CreateMFDStruct4LP(grid, MFD_aux, ndof, option)
 
   call ISCreateBlock(option%mycomm,ndof, NG, &
        int_array, PETSC_COPY_VALUES, MFD_aux%is_ghosted_local_LP, ierr)
+  CHKERRQ(ierr)
   deallocate(int_array)
 
   call VecScatterCreate(local_vec_LP,MFD_aux%is_local_local_LP,global_vec_LP, &
                         MFD_aux%is_local_petsc_LP,MFD_aux%scatter_ltog_LP,ierr)
+  CHKERRQ(ierr)
 
 
   allocate(int_array(NG))
@@ -613,26 +649,36 @@ subroutine CreateMFDStruct4LP(grid, MFD_aux, ndof, option)
 
   call ISCreateBlock(option%mycomm,ndof, NG, &
        int_array, PETSC_COPY_VALUES, MFD_aux%is_ghosted_petsc_LP, ierr)
+  CHKERRQ(ierr)
   deallocate(int_array)
 
   call ISLocalToGlobalMappingCreateIS(MFD_aux%is_ghosted_petsc_LP, &
                                       MFD_aux%mapping_ltog_LP,ierr)
+  CHKERRQ(ierr)
 
   call ISLocalToGlobalMappingBlock(MFD_aux%mapping_ltog_LP, ndof, &
                                    MFD_aux%mapping_ltogb_LP, ierr)
+  CHKERRQ(ierr)
 
   call VecScatterCreate(global_vec_LP,MFD_aux%is_ghosted_petsc_LP,local_vec_LP, &
                         MFD_aux%is_ghosted_local_LP, MFD_aux%scatter_gtol_LP, ierr)
+  CHKERRQ(ierr)
 
  ! Create local to local scatter.  Essentially remap the global to local as
  ! PETSc does in daltol.c
   call VecScatterCopy(MFD_aux%scatter_gtol_LP, MFD_aux%scatter_ltol_LP, ierr)
+  CHKERRQ(ierr)
   call ISGetIndicesF90(MFD_aux%is_local_local_LP,int_ptr,ierr)
+  CHKERRQ(ierr)
   call VecScatterRemap(MFD_aux%scatter_ltol_LP,int_ptr,PETSC_NULL_INTEGER,ierr)
+  CHKERRQ(ierr)
   call ISRestoreIndicesF90(MFD_aux%is_local_local_LP,int_ptr,ierr)
+  CHKERRQ(ierr)
 
   call VecDestroy(local_vec_LP, ierr)
+  CHKERRQ(ierr)
   call VecDestroy(global_vec_LP, ierr)
+  CHKERRQ(ierr)
 
 end subroutine CreateMFDStruct4LP
 
@@ -671,6 +717,22 @@ subroutine GridMapIndices(grid, dm_ptr, sgrid_stencil_type, lsm_flux_method, &
                                 lsm_flux_method, &
                                 grid%nG2L,grid%nL2G,grid%nG2A, &
                                 grid%ghosted_level,option)
+#ifdef DASVYAT
+      if ((grid%itype==STRUCTURED_GRID_MIMETIC)) then
+        allocate(grid%nG2P(grid%ngmax))
+        allocate(int_tmp(grid%ngmax))
+!geh     call DMDAGetGlobalIndicesF90(sgdm, n, int_tmp, ierr)
+        call DMDAGetGlobalIndices(dm_ptr%dm, grid%ngmax, int_tmp, i_da, ierr)
+        CHKERRQ(ierr)
+        do icount = 1, grid%ngmax
+!geh         write(*,*) icount,  int_tmp(icount + i_da)
+          grid%nG2P(icount) = int_tmp(icount + i_da)
+!             write(*,*) icount,  int_tmp(icount)
+!geh        grid%nG2P(icount) = int_tmp(icount)
+        enddo
+        deallocate(int_tmp)
+      endif
+#endif
     case(IMPLICIT_UNSTRUCTURED_GRID,EXPLICIT_UNSTRUCTURED_GRID, &
          POLYHEDRA_UNSTRUCTURED_GRID)
       call UGridMapIndices(grid%unstructured_grid, &
@@ -1127,10 +1189,13 @@ subroutine GridLocalizeRegionsFromCellIDsUGrid(grid, region, option)
     
     call VecCreateMPI(option%mycomm, ugrid%nlmax, PETSC_DECIDE, &
                       vec_cell_ids, ierr)
+    CHKERRQ(ierr)
     call VecCreateMPI(option%mycomm, ugrid%nlmax, PETSC_DECIDE, &
                       vec_cell_ids_loc, ierr)
+    CHKERRQ(ierr)
     
     call VecZeroEntries(vec_cell_ids, ierr)
+    CHKERRQ(ierr)
     
     allocate(tmp_int_array(region%num_cells))
     allocate(tmp_scl_array(region%num_cells))
@@ -1144,12 +1209,15 @@ subroutine GridLocalizeRegionsFromCellIDsUGrid(grid, region, option)
 
     call VecSetValues(vec_cell_ids, region%num_cells, tmp_int_array, &
                       tmp_scl_array, ADD_VALUES, ierr)
+    CHKERRQ(ierr)
     
     deallocate(tmp_int_array)
     deallocate(tmp_scl_array)
 
     call VecAssemblyBegin(vec_cell_ids, ierr)
+    CHKERRQ(ierr)
     call VecAssemblyEnd(vec_cell_ids, ierr)
+    CHKERRQ(ierr)
 
     allocate(tmp_int_array(ugrid%nlmax))
     count = 0
@@ -1164,8 +1232,10 @@ subroutine GridLocalizeRegionsFromCellIDsUGrid(grid, region, option)
     tmp_int_array = tmp_int_array - 1
     call ISCreateBlock(option%mycomm, 1, ugrid%nlmax, &
                         tmp_int_array, PETSC_COPY_VALUES, is_from, ierr)
+    CHKERRQ(ierr)
     
     call VecGetOwnershipRange(vec_cell_ids_loc,istart,iend,ierr)
+    CHKERRQ(ierr)
     do ii=1,ugrid%nlmax
       tmp_int_array(ii) = ii + istart
     enddo
@@ -1173,20 +1243,28 @@ subroutine GridLocalizeRegionsFromCellIDsUGrid(grid, region, option)
     tmp_int_array = tmp_int_array - 1
     call ISCreateBlock(option%mycomm, 1, ugrid%nlmax, &
                         tmp_int_array, PETSC_COPY_VALUES, is_to, ierr)
+    CHKERRQ(ierr)
     deallocate(tmp_int_array)
     
     call VecScatterCreate(vec_cell_ids,is_from,vec_cell_ids_loc,is_to, &
                           vec_scat, ierr)
+    CHKERRQ(ierr)
     call ISDestroy(is_from, ierr)
+    CHKERRQ(ierr)
     call ISDestroy(is_to, ierr)
+    CHKERRQ(ierr)
     
     call VecScatterBegin(vec_scat, vec_cell_ids, vec_cell_ids_loc, &
                           INSERT_VALUES, SCATTER_FORWARD, ierr)
+    CHKERRQ(ierr)
     call VecScatterEnd(vec_scat, vec_cell_ids, vec_cell_ids_loc, &
                         INSERT_VALUES, SCATTER_FORWARD, ierr)
+    CHKERRQ(ierr)
     call VecScatterDestroy(vec_scat, ierr)
+    CHKERRQ(ierr)
 
     call VecGetArrayF90(vec_cell_ids_loc, v_loc_p, ierr)
+    CHKERRQ(ierr)
     count = 0
     do ii=1, ugrid%nlmax
       if (v_loc_p(ii) == 1) count = count + 1
@@ -1213,9 +1291,12 @@ subroutine GridLocalizeRegionsFromCellIDsUGrid(grid, region, option)
     endif
     
     call VecRestoreArrayF90(vec_cell_ids_loc,v_loc_p,ierr)
+    CHKERRQ(ierr)
     
     call VecDestroy(vec_cell_ids,ierr)
+    CHKERRQ(ierr)
     call VecDestroy(vec_cell_ids_loc,ierr)
+    CHKERRQ(ierr)
 
   endif
 
@@ -1257,6 +1338,7 @@ subroutine GridLocalizeExplicitFaceset(ugrid,region,option)
   region%cell_ids = region%cell_ids - 1
   call AOApplicationToPetsc(ugrid%ao_natural_to_petsc,size(region%cell_ids), &
                             region%cell_ids,ierr)
+  CHKERRQ(ierr)
   region%cell_ids = region%cell_ids + 1
   
   ! if petsc ids are below global_offset or above global_offset + nlmax, 
@@ -1372,8 +1454,10 @@ subroutine GridCopyIntegerArrayToVec(grid, array,vector,num_values)
   PetscErrorCode :: ierr
   
   call VecGetArrayF90( vector,vec_ptr,ierr)
+  CHKERRQ(ierr)
   vec_ptr(1:num_values) = array(1:num_values)
   call VecRestoreArrayF90( vector,vec_ptr,ierr)
+  CHKERRQ(ierr)
   
 end subroutine GridCopyIntegerArrayToVec
 
@@ -1402,8 +1486,10 @@ subroutine GridCopyRealArrayToVec(grid,array,vector,num_values)
   PetscErrorCode :: ierr
   
   call VecGetArrayF90(vector,vec_ptr,ierr)
+  CHKERRQ(ierr)
   vec_ptr(1:num_values) = array(1:num_values)
   call VecRestoreArrayF90(vector,vec_ptr,ierr)
+  CHKERRQ(ierr)
   
 end subroutine GridCopyRealArrayToVec
 
@@ -1433,6 +1519,7 @@ subroutine GridCopyVecToIntegerArray(grid,array,vector,num_values)
   PetscErrorCode :: ierr
   
   call VecGetArrayF90(vector,vec_ptr,ierr)
+  CHKERRQ(ierr)
   do i=1,num_values
     if (vec_ptr(i) > 0.d0) then
       array(i) = int(vec_ptr(i)+1.d-4)
@@ -1441,6 +1528,7 @@ subroutine GridCopyVecToIntegerArray(grid,array,vector,num_values)
     endif
   enddo
   call VecRestoreArrayF90(vector,vec_ptr,ierr)
+  CHKERRQ(ierr)
   
 end subroutine GridCopyVecToIntegerArray
 
@@ -1469,8 +1557,10 @@ subroutine GridCopyVecToRealArray(grid,array,vector,num_values)
   PetscErrorCode :: ierr
   
   call VecGetArrayF90(vector,vec_ptr,ierr)
+  CHKERRQ(ierr)
   array(1:num_values) = vec_ptr(1:num_values)
   call VecRestoreArrayF90(vector,vec_ptr,ierr)
+  CHKERRQ(ierr)
   
 end subroutine GridCopyVecToRealArray
 
@@ -1503,6 +1593,7 @@ subroutine GridCreateNaturalToGhostedHash(grid,option)
   if (associated(grid%hash)) return
 
   call PetscLogEventBegin(logging%event_hash_create,ierr)
+  CHKERRQ(ierr)
                           
   max_num_ids_per_hash = 0
   ! initial guess of 10% of ids per hash
@@ -1552,6 +1643,7 @@ subroutine GridCreateNaturalToGhostedHash(grid,option)
   call printMsg(option)
 
   call PetscLogEventEnd(logging%event_hash_create,ierr)
+  CHKERRQ(ierr)
 
 end subroutine GridCreateNaturalToGhostedHash
 
@@ -1814,6 +1906,7 @@ subroutine GridDestroy(grid)
     do ghosted_id=1,grid%ngmax
       if(grid%ghosted_level(ghosted_id)<TWO_INTEGER) then
         call MatDestroy(grid%dispT(ghosted_id),ierr)
+        CHKERRQ(ierr)
       endif
     enddo
   endif
@@ -1822,6 +1915,7 @@ subroutine GridDestroy(grid)
     do ghosted_id=1,grid%ngmax
       if(grid%ghosted_level(ghosted_id)<TWO_INTEGER) then
         call MatDestroy(grid%Minv(ghosted_id),ierr)
+        CHKERRQ(ierr)
       endif
     enddo
   endif
@@ -1874,7 +1968,9 @@ function GridIndexToCellID(vec,index,grid,vec_type)
   
   cell_id = -1
   call VecGetOwnershipRange(vec,low,high,ierr)
+  CHKERRQ(ierr)
   call VecGetBlockSize(vec,ndof,ierr)
+  CHKERRQ(ierr)
   if (index >= low .and. index < high) then
     cell_id = (index-low)/ndof+1
     if (vec_type == GLOBAL) then
@@ -2400,6 +2496,7 @@ subroutine GridComputeMinv(grid,max_stencil_width,option)
   allocate(grid%jacfac(grid%ngmax,0:max_neighbors,THREE_INTEGER))
 
   call VecCreateSeq(PETSC_COMM_SELF,THREE_INTEGER,C,ierr)
+  CHKERRQ(ierr)
 
   do ghosted_id = 1,grid%ngmax
 
@@ -2407,33 +2504,46 @@ subroutine GridComputeMinv(grid,max_stencil_width,option)
 
       ! Create the disp matrix
       call MatCreate(MPI_COMM_SELF,grid%dispT(ghosted_id),ierr)
+      CHKERRQ(ierr)
       call MatSetSizes(grid%dispT(ghosted_id),3,cell_neighbors(0,ghosted_id),3,cell_neighbors(0,ghosted_id),ierr)
+      CHKERRQ(ierr)
       call MatSetType(grid%dispT(ghosted_id),MATSEQDENSE,ierr)
+      CHKERRQ(ierr)
       call MatSetUp(grid%dispT(ghosted_id),ierr)
+      CHKERRQ(ierr)
       do nid = 1,cell_neighbors(0,ghosted_id)
         dx = grid%x(cell_neighbors(nid,ghosted_id)) - grid%x(ghosted_id)
         dy = grid%y(cell_neighbors(nid,ghosted_id)) - grid%y(ghosted_id)
         dz = grid%z(cell_neighbors(nid,ghosted_id)) - grid%z(ghosted_id)
         call MatSetValue(grid%dispT(ghosted_id),0,nid-1,dx,INSERT_VALUES,ierr)
+        CHKERRQ(ierr)
         call MatSetValue(grid%dispT(ghosted_id),1,nid-1,dy,INSERT_VALUES,ierr)
+        CHKERRQ(ierr)
         call MatSetValue(grid%dispT(ghosted_id),2,nid-1,dz,INSERT_VALUES,ierr)
+        CHKERRQ(ierr)
       enddo
       call MatAssemblyBegin(grid%dispT(ghosted_id),MAT_FINAL_ASSEMBLY,ierr)
+      CHKERRQ(ierr)
       call MatAssemblyEnd(  grid%dispT(ghosted_id),MAT_FINAL_ASSEMBLY,ierr)
+      CHKERRQ(ierr)
 
       ! Compute transpose of disp matrix
       call MatTranspose(grid%dispT(ghosted_id),MAT_INITIAL_MATRIX, &
                         A,ierr)
+      CHKERRQ(ierr)
 
       ! B = disp_mat^T * disp_mat
       call MatMatMult(grid%dispT(ghosted_id),A, &
                   MAT_INITIAL_MATRIX,PETSC_DEFAULT_REAL,B,ierr)
+      CHKERRQ(ierr)
 
       ! Pack the values of B in disp_mat for obtaining the inverse of matrix
       do ii=0,2
         call MatGetRow(B,ii,ncol,cols,b_v,ierr)
+        CHKERRQ(ierr)
         disp_mat(ii+1,:) = b_v(:)
         call MatRestoreRow(B,ii,ncol,cols,b_v,ierr)
+        CHKERRQ(ierr)
       enddo
 
       ! LU decomposition of disp_mat
@@ -2441,9 +2551,13 @@ subroutine GridComputeMinv(grid,max_stencil_width,option)
 
       ! Save the inverse matrix
       call MatCreate(MPI_COMM_SELF,grid%Minv(ghosted_id),ierr)
+      CHKERRQ(ierr)
       call MatSetSizes(grid%Minv(ghosted_id),3,3,3,3,ierr)
+      CHKERRQ(ierr)
       call MatSetType(grid%Minv(ghosted_id),MATSEQDENSE,ierr)
+      CHKERRQ(ierr)
       call MatSetUp(grid%Minv(ghosted_id),ierr)
+      CHKERRQ(ierr)
 
       ! Find inverse matrix column-by-column
       do ii=1,3
@@ -2451,57 +2565,79 @@ subroutine GridComputeMinv(grid,max_stencil_width,option)
         identity(ii) = 1
         call lubksb(disp_mat,THREE_INTEGER,INDX,identity)
         call MatSetValue(grid%Minv(ghosted_id),0,ii-1,identity(1),INSERT_VALUES,ierr)
+        CHKERRQ(ierr)
         call MatSetValue(grid%Minv(ghosted_id),1,ii-1,identity(2),INSERT_VALUES,ierr)
+        CHKERRQ(ierr)
         call MatSetValue(grid%Minv(ghosted_id),2,ii-1,identity(3),INSERT_VALUES,ierr)
+        CHKERRQ(ierr)
       enddo
 
       call MatAssemblyBegin(grid%Minv(ghosted_id),MAT_FINAL_ASSEMBLY,ierr)
+      CHKERRQ(ierr)
       call MatAssemblyEnd(  grid%Minv(ghosted_id),MAT_FINAL_ASSEMBLY,ierr)
+      CHKERRQ(ierr)
 
       call MatDestroy(A,ierr)
+      CHKERRQ(ierr)
       call MatDestroy(B,ierr)
+      CHKERRQ(ierr)
 
       ! Save values used in Jacobian computation
 
       ! Compute Minv * dispT
       call MatMatMult(grid%Minv(ghosted_id),grid%dispT(ghosted_id), &
                       MAT_INITIAL_MATRIX,PETSC_DEFAULT_REAL,A,ierr)
+      CHKERRQ(ierr)
 
       call VecCreateSeq(PETSC_COMM_SELF,cell_neighbors(0,ghosted_id),iden_vec,ierr)
+      CHKERRQ(ierr)
 
       ! Save for 'ghosted_id'
       call VecGetArrayF90(iden_vec,v_p,ierr)
+      CHKERRQ(ierr)
       v_p = -1.d0
       call VecRestoreArrayF90(iden_vec,v_p,ierr)
+      CHKERRQ(ierr)
       call MatMult(A,iden_vec,C,ierr)
+      CHKERRQ(ierr)
 
       call VecGetArrayF90(C,v_p,ierr)
+      CHKERRQ(ierr)
       grid%jacfac(ghosted_id,0,:) = v_p(:)
       call VecGetArrayF90(C,v_p,ierr)
+      CHKERRQ(ierr)
 
       ! Save for neighbors of 'ghosted_id'
       do nid = 1,cell_neighbors(0,ghosted_id)
 
         call VecGetArrayF90(iden_vec,v_p,ierr)
+        CHKERRQ(ierr)
         v_p = 0.d0
         v_p(nid) = 1.d0
         call VecRestoreArrayF90(iden_vec,v_p,ierr)
+        CHKERRQ(ierr)
 
         call MatMult(A,iden_vec,C,ierr)
+        CHKERRQ(ierr)
 
         call VecGetArrayF90(C,v_p,ierr)
+        CHKERRQ(ierr)
         grid%jacfac(ghosted_id,nid,:) = v_p(:)
         call VecGetArrayF90(C,v_p,ierr)
+        CHKERRQ(ierr)
 
       enddo
 
       call VecDestroy(iden_vec,ierr)
+      CHKERRQ(ierr)
       call MatDestroy(A,ierr)
+      CHKERRQ(ierr)
 
     endif
   enddo
 
   call VecDestroy(C,ierr)
+  CHKERRQ(ierr)
 
 end subroutine GridComputeMinv
 
@@ -2531,6 +2667,7 @@ subroutine GridSaveBoundaryCellInfo(grid,is_bnd_vec,option)
   allocate(grid%bnd_cell(grid%ngmax))
 
   call VecGetArrayF90(is_bnd_vec,vec_ptr,ierr)
+  CHKERRQ(ierr)
 
   do ghosted_id=1,grid%ngmax
     if(vec_ptr(ghosted_id)==0.d0) then
@@ -2541,6 +2678,7 @@ subroutine GridSaveBoundaryCellInfo(grid,is_bnd_vec,option)
   enddo
 
   call VecRestoreArrayF90(is_bnd_vec,vec_ptr,ierr)
+  CHKERRQ(ierr)
 
 end subroutine GridSaveBoundaryCellInfo
 
@@ -2626,14 +2764,19 @@ subroutine GridPopulateFacesForUGrid(grid,option)
 
   ! For local+ghost cells, determine processor id on which the cell resides
   call VecCreateMPI(option%mycomm,ugrid%nlmax,PETSC_DETERMINE,proc_id_loc,ierr)
+  CHKERRQ(ierr)
   call VecCreateMPI(option%mycomm,ugrid%nlmax,PETSC_DETERMINE,proc_id_nat,ierr)
+  CHKERRQ(ierr)
   call VecCreateMPI(option%mycomm,ugrid%ngmax,PETSC_DETERMINE,proc_id_ghosted,ierr)
+  CHKERRQ(ierr)
 
   call VecGetArrayF90(proc_id_loc,vec_ptr,ierr)
+  CHKERRQ(ierr)
   do local_id = 1,ugrid%nlmax
     vec_ptr(local_id)=option%myrank
   enddo
   call VecRestoreArrayF90(proc_id_loc,vec_ptr,ierr)
+  CHKERRQ(ierr)
 
   allocate(int_array(ugrid%nlmax))
   do local_id=1,ugrid%nlmax
@@ -2641,23 +2784,31 @@ subroutine GridPopulateFacesForUGrid(grid,option)
   enddo
   call ISCreateGeneral(option%mycomm,ugrid%nlmax, &
                        int_array,PETSC_COPY_VALUES,is_tmp1,ierr)
+  CHKERRQ(ierr)
 
   do local_id=1,ugrid%nlmax
     int_array(local_id)=grid%nG2A(grid%nL2G(local_id))-1
   enddo
   call ISCreateGeneral(option%mycomm,ugrid%nlmax, &
                        int_array,PETSC_COPY_VALUES,is_tmp2,ierr)
+  CHKERRQ(ierr)
   deallocate(int_array)
 
   call VecScatterCreate(proc_id_loc,is_tmp1,proc_id_nat,is_tmp2,vec_scat,ierr)
+  CHKERRQ(ierr)
   call ISDestroy(is_tmp1,ierr)
+  CHKERRQ(ierr)
   call ISDestroy(is_tmp2,ierr)
+  CHKERRQ(ierr)
 
   call VecScatterBegin(vec_scat,proc_id_loc,proc_id_nat, &
                        INSERT_VALUES,SCATTER_FORWARD,ierr)
+  CHKERRQ(ierr)
   call VecScatterEnd(vec_scat,proc_id_loc,proc_id_nat, &
                      INSERT_VALUES,SCATTER_FORWARD,ierr)
+  CHKERRQ(ierr)
   call VecScatterDestroy(vec_scat,ierr)
+  CHKERRQ(ierr)
 
   offset=0
   call MPI_Exscan(ugrid%ngmax,offset, &
@@ -2668,23 +2819,31 @@ subroutine GridPopulateFacesForUGrid(grid,option)
   enddo
   call ISCreateGeneral(option%mycomm,ugrid%ngmax, &
                        int_array,PETSC_COPY_VALUES,is_tmp2,ierr)
+  CHKERRQ(ierr)
 
   do ghosted_id=1,ugrid%ngmax
     int_array(ghosted_id)=grid%nG2A(ghosted_id)-1
   enddo
   call ISCreateGeneral(option%mycomm,ugrid%ngmax, &
                        int_array,PETSC_COPY_VALUES,is_tmp1,ierr)
+  CHKERRQ(ierr)
   deallocate(int_array)
 
   call VecScatterCreate(proc_id_nat,is_tmp1,proc_id_ghosted,is_tmp2,vec_scat,ierr)
+  CHKERRQ(ierr)
   call ISDestroy(is_tmp1,ierr)
+  CHKERRQ(ierr)
   call ISDestroy(is_tmp2,ierr)
+  CHKERRQ(ierr)
 
   call VecScatterBegin(vec_scat,proc_id_nat,proc_id_ghosted, &
                        INSERT_VALUES,SCATTER_FORWARD,ierr)
+  CHKERRQ(ierr)
   call VecScatterEnd(vec_scat,proc_id_nat,proc_id_ghosted, &
                      INSERT_VALUES,SCATTER_FORWARD,ierr)
+  CHKERRQ(ierr)
   call VecScatterDestroy(vec_scat,ierr)
+  CHKERRQ(ierr)
 
   ! Compute number of the two types of internal faces:
   ! - nfaces_intrn_loc: Both cells sharing the face are local cells
@@ -2692,6 +2851,7 @@ subroutine GridPopulateFacesForUGrid(grid,option)
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
   call VecGetArrayF90(proc_id_ghosted,vec_ptr,ierr)
+  CHKERRQ(ierr)
   do 
     if (.not.associated(cur_connection_set)) exit
     do iconn = 1, cur_connection_set%num_connections
@@ -2717,6 +2877,7 @@ subroutine GridPopulateFacesForUGrid(grid,option)
     cur_connection_set => cur_connection_set%next
   enddo
   call VecRestoreArrayF90(proc_id_ghosted,vec_ptr,ierr)
+  CHKERRQ(ierr)
 
   ! Save information about number of faces
   grid%nlmax_faces = nfaces_intrn_loc+nfaces_bnd
@@ -2788,8 +2949,11 @@ subroutine GridPopulateFacesForUGrid(grid,option)
 
   ! Free up memory
   call VecDestroy(proc_id_loc,ierr)
+  CHKERRQ(ierr)
   call VecDestroy(proc_id_nat,ierr)
+  CHKERRQ(ierr)
   call VecDestroy(proc_id_ghosted,ierr)
+  CHKERRQ(ierr)
 #endif
 
 end subroutine GridPopulateFacesForUGrid
@@ -2903,12 +3067,18 @@ subroutine GridSetGlobalCell2FaceForUGrid(grid,MFD,DOF,option)
   ! Create e2f and e2n
   stride=MAX_FACE_PER_CELL
   call VecCreate(option%mycomm,e2f,ierr)
+  CHKERRQ(ierr)
   call VecSetSizes(e2f,grid%nlmax*stride,PETSC_DECIDE,ierr)
+  CHKERRQ(ierr)
   call VecSetFromOptions(e2f,ierr)
+  CHKERRQ(ierr)
   call VecDuplicate(e2f,e2n,ierr)
+  CHKERRQ(ierr)
 
   call VecGetArrayF90(e2f,e2f_local_values,ierr)
+  CHKERRQ(ierr)
   call VecGetArrayF90(e2n,e2n_local_values,ierr)
+  CHKERRQ(ierr)
 
   e2f_local_values = 0
   e2n_local_values = 0
@@ -2964,7 +3134,9 @@ subroutine GridSetGlobalCell2FaceForUGrid(grid,MFD,DOF,option)
   enddo
 
   call VecRestoreArrayF90(e2f,e2f_local_values,ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayF90(e2n,e2n_local_values,ierr)
+  CHKERRQ(ierr)
 
   ! Find PETSc ID of cells with which a non-local internal connections is shared
   allocate(ghosted_ids(grid%ngmax_faces-grid%nlmax_faces))
@@ -2994,7 +3166,9 @@ subroutine GridSetGlobalCell2FaceForUGrid(grid,MFD,DOF,option)
 
   ! Create sequential vectors with a stride
   call VecCreateSeq(PETSC_COMM_SELF,num_ghosted_upd*stride,e2f_ghosted,ierr)
+  CHKERRQ(ierr)
   call VecCreateSeq(PETSC_COMM_SELF,num_ghosted_upd*stride,e2n_ghosted,ierr)
+  CHKERRQ(ierr)
          
   allocate(indices_to(num_ghosted_upd))
   allocate(indices_from(num_ghosted_upd))
@@ -3007,27 +3181,41 @@ subroutine GridSetGlobalCell2FaceForUGrid(grid,MFD,DOF,option)
   ! Create IS with a block size of 'stride'
   call ISCreateBlock(option%mycomm,stride,num_ghosted_upd,indices_to, &
                     PETSC_COPY_VALUES,is_to,ierr)
+  CHKERRQ(ierr)
   call ISCreateBlock(option%mycomm,stride,num_ghosted_upd,indices_from,&
                     PETSC_COPY_VALUES,is_from,ierr)
+  CHKERRQ(ierr)
   deallocate(indices_from)
   deallocate(indices_to)
 
   ! Create scatter context
   call VecScatterCreate(e2f,is_from,e2f_ghosted,is_to,scatter,ierr)
+  CHKERRQ(ierr)
   call ISDestroy(is_to,ierr)
+  CHKERRQ(ierr)
   call ISDestroy(is_from,ierr)
+  CHKERRQ(ierr)
 
   ! Scatter forward the e2f and e2n
   call VecScatterBegin(scatter,e2f,e2f_ghosted,INSERT_VALUES,SCATTER_FORWARD,ierr)
+  CHKERRQ(ierr)
   call VecScatterEnd(scatter,e2f,e2f_ghosted,INSERT_VALUES,SCATTER_FORWARD,ierr)
+  CHKERRQ(ierr)
   call VecScatterBegin(scatter,e2n,e2n_ghosted,INSERT_VALUES,SCATTER_FORWARD,ierr)
+  CHKERRQ(ierr)
   call VecScatterEnd(scatter,e2n,e2n_ghosted,INSERT_VALUES,SCATTER_FORWARD,ierr)
+  CHKERRQ(ierr)
   call VecScatterDestroy(scatter,ierr)
+  CHKERRQ(ierr)
 
   call VecGetArrayF90(e2n_ghosted,vec_ptr_e2n_gh,ierr)
+  CHKERRQ(ierr)
   call VecGetArrayF90(e2f_ghosted,vec_ptr_e2f_gh,ierr)
+  CHKERRQ(ierr)
   call VecGetArrayF90(e2n,vec_ptr_e2n,ierr)
+  CHKERRQ(ierr)
   call VecGetArrayF90(e2f,vec_ptr_e2f,ierr)
+  CHKERRQ(ierr)
  
   jcount=0
   do local_id=1,grid%nlmax
@@ -3072,9 +3260,13 @@ subroutine GridSetGlobalCell2FaceForUGrid(grid,MFD,DOF,option)
   enddo
 
   call VecRestoreArrayF90(e2n_ghosted,vec_ptr_e2n_gh,ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayF90(e2f_ghosted,vec_ptr_e2f_gh,ierr)
+  CHKERRQ(ierr)
   call VecDestroy(e2f_ghosted,ierr)
+  CHKERRQ(ierr)
   call VecDestroy(e2n_ghosted,ierr)
+  CHKERRQ(ierr)
 
   ! Count number of faces for all local cells
   nfaces=0
@@ -3089,12 +3281,18 @@ subroutine GridSetGlobalCell2FaceForUGrid(grid,MFD,DOF,option)
 
   ! Allocate memory for grid%e2f and grid%e2n
   call VecCreate(option%mycomm,grid%e2f,ierr)
+  CHKERRQ(ierr)
   call VecSetSizes(grid%e2f,nfaces,PETSC_DECIDE,ierr)
+  CHKERRQ(ierr)
   call VecSetFromOptions(grid%e2f,ierr)
+  CHKERRQ(ierr)
   call VecDuplicate(grid%e2f,grid%e2n,ierr)
+  CHKERRQ(ierr)
 
   call VecGetArrayF90(grid%e2f,e2f_local_values,ierr)
+  CHKERRQ(ierr)
   call VecGetArrayF90(grid%e2n,e2n_local_values,ierr)
+  CHKERRQ(ierr)
 
   nfaces=0
   do local_id=1,grid%nlmax
@@ -3106,12 +3304,18 @@ subroutine GridSetGlobalCell2FaceForUGrid(grid,MFD,DOF,option)
   enddo
 
   call VecRestoreArrayF90(grid%e2f,e2f_local_values,ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayF90(grid%e2n,e2n_local_values,ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayF90(e2n,vec_ptr_e2n,ierr)
+  CHKERRQ(ierr)
   call VecRestoreArrayF90(e2f,vec_ptr_e2f,ierr)
+  CHKERRQ(ierr)
 
   call VecDestroy(e2f,ierr)
+  CHKERRQ(ierr)
   call VecDestroy(e2n,ierr)
+  CHKERRQ(ierr)
 
   call CreateMFDStruct4LP(grid,MFD,ndof,option)
 

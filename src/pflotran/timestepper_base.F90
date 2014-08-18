@@ -453,6 +453,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
     this%num_contig_revert_due_to_sync = 0
   endif
 
+! fmy: begining
 ! if coupled with CLM, max_time_step IS unlimited
 ! because 'waypoint' is controled by the interface
 ! otherwise, PF will stop at some point but CLM not-yet done
@@ -462,6 +463,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
     stop_flag = TS_STOP_MAX_TIME_STEP
   endif
 #endif
+!fmy: ending
 
   ! update maximum time step size to current waypoint value
   if (associated(cur_waypoint)) then
@@ -602,17 +604,25 @@ subroutine TimestepperBaseRegisterHeader(this,bag,header)
   
   ! bagsize = 8 * 8 bytes = 64 bytes
   call PetscBagRegisterReal(bag,header%time,0,"time","",ierr)
+  CHKERRQ(ierr)
   call PetscBagRegisterReal(bag,header%dt,0,"dt","",ierr)
+  CHKERRQ(ierr)
   call PetscBagRegisterReal(bag,header%prev_dt,0,"prev_dt","",ierr)
+  CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%num_steps,0,"num_steps","",ierr)
+  CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%cumulative_time_step_cuts,0, &
                            "cumulative_time_step_cuts","",ierr)
+  CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%num_constant_time_steps,0, &
                            "num_constant_time_steps","",ierr)
+  CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%num_contig_revert_due_to_sync,0, &
                            "num_contig_revert_due_to_sync","",ierr)
+  CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%revert_dt,0, &
                            "revert_dt","",ierr)
+  CHKERRQ(ierr)
     
 end subroutine TimestepperBaseRegisterHeader
 

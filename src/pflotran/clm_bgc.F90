@@ -46,11 +46,16 @@ function GetTemperatureResponse(tc, itype, Q10)
 
   PetscReal, parameter :: one_over_71_02 = 1.408054069d-2
   PetscReal :: GetTemperatureResponse
+  PetscReal, parameter :: Frz_Q10 = 2.0d0
 
   select case(itype)
 !     CLM4.5 temperature response function
       case(TEMPERATURE_RESPONSE_FUNCTION_Q10)
+        if(tc>0.d0) then
           Ft = Q10 ** ((tc - 25.0d0) / 10.0d0)
+        else
+          Ft = (Q10**(-25.0d0/10.0d0))*(Frz_Q10**((tc/10.0d0)))
+        endif
 
 !     CLM-CN
 !     Equation: F_t = exp(308.56*(1/17.02 - 1/(T - 227.13)))
@@ -82,7 +87,7 @@ end function GetTemperatureResponse
   
 ! ************************************************************************** !
 
-Function GetMoistureResponse(thetapsi, local_id, itype)
+Function GetMoistureResponse(theta, ghosted_id, itype)
 
 #ifdef CLM_PFLOTRAN
   use clm_pflotran_interface_data
@@ -96,21 +101,22 @@ Function GetMoistureResponse(thetapsi, local_id, itype)
 #endif
 
   PetscReal :: F_theta
-! thetapsi IS either 'theta' (soil VWC: 0 - porosity) or 'psi' (matric potential, -Pa), upon 'moisture_response_function type'
-  PetscReal :: thetapsi
+  ! theta IS soil VWC: 0 - porosity (not adjusted)
+  PetscReal :: theta
   PetscReal :: GetMoistureResponse
   PetscReal, parameter :: theta_min = 0.01d0     ! 1/nat log(0.01d0)
   PetscReal, parameter :: one_over_log_theta_min = -2.17147241d-1
   PetscReal, parameter :: twelve_over_14 = 0.857142857143d0
 
-  PetscInt :: local_id, itype
-  PetscReal :: maxpsi, psi, theta, tc
+  PetscInt :: ghosted_id, itype
+  PetscReal :: maxpsi, psi, lsat
   PetscReal, parameter :: minpsi = -15.0d6    ! Pa
 
 #ifdef CLM_PFLOTRAN
   PetscScalar, pointer :: sucsat_pf_loc(:)    !
   PetscScalar, pointer :: watfc_pf_loc(:)     !
   PetscScalar, pointer :: watsat_pf_loc(:)    !
+  PetscScalar, pointer :: bsw_pf_loc(:)    !
   PetscReal :: thetar, thetas, se
 #endif
 
@@ -123,16 +129,27 @@ Function GetMoistureResponse(thetapsi, local_id, itype)
     case(MOISTURE_RESPONSE_FUNCTION_CLM4) 
       call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
       CHKERRQ(ierr)
+      call VecGetArrayReadF90(clm_pf_idata%watsat_pf, watsat_pf_loc, ierr)
+      CHKERRQ(ierr)
+      call VecGetArrayReadF90(clm_pf_idata%bsw_pf, bsw_pf_loc, ierr)
+      CHKERRQ(ierr)
       ! sucsat [mm of H20] from CLM is the suction (positive) at water saturated (called air-entry pressure)
       ! [Pa] = [mm of H20] * 0.001 [m/mm] * 1000 [kg/m^3] * 9.81 [m/sec^2]
-      maxpsi = sucsat_pf_loc(local_id) * (-9.81d0)
-      psi = min(thetapsi, maxpsi)                     ! thetapsi IS psi (-Pa)
+      maxpsi = sucsat_pf_loc(ghosted_id) * (-9.81d0)
+      lsat = theta/watsat_pf_loc(ghosted_id)
+      ! soil matric potential by Clapp-Hornburger method (this is the default used by CLM)
+      psi = sucsat_pf_loc(ghosted_id) * (-9.81d0) * (lsat**(-bsw_pf_loc(ghosted_id)))  ! -Pa
+      psi = min(psi, maxpsi)
       if(psi > minpsi) then
         F_theta = log(minpsi/psi)/log(minpsi/maxpsi)
       else
         F_theta = 0.0d0
       endif
       call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
+      CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%watsat_pf, watsat_pf_loc, ierr)
+      CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%bsw_pf, bsw_pf_loc, ierr)
       CHKERRQ(ierr)
 
 ! DLEM 
@@ -142,9 +159,8 @@ Function GetMoistureResponse(thetapsi, local_id, itype)
       CHKERRQ(ierr)
       call VecGetArrayReadF90(clm_pf_idata%watfc_pf, watfc_pf_loc, ierr)
       CHKERRQ(ierr)
-      thetas = watsat_pf_loc(local_id)
-      thetar = watfc_pf_loc(local_id)
-      theta = thetapsi                           ! thetapsi IS 'theta'
+      thetas = watsat_pf_loc(ghosted_id)
+      thetar = watfc_pf_loc(ghosted_id)
       if(theta >= thetas) then
         F_theta = 1.0d0
       elseif (theta <= thetar) then

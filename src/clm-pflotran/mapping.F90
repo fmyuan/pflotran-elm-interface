@@ -161,8 +161,10 @@ contains
 
   subroutine MappingSetSourceMeshCellIds( map, &
                                           option, &
-                                          ncells, &
-                                          cell_ids &
+                                          ncells_loc, &
+                                          ncells_gh, &
+                                          cell_ids_ghd, &
+                                          loc_or_gh &
                                         )
   ! 
   ! This routine sets cell ids source mesh.
@@ -177,14 +179,17 @@ contains
     type(mapping_type), pointer :: map
     type(option_type),  pointer :: option
 
-    PetscInt                    :: ncells,ii
-    PetscInt,pointer            :: cell_ids(:)
+    PetscInt                    :: ncells_loc, ncells_gh, ii, iloc
+    PetscInt,pointer            :: cell_ids_ghd(:), loc_or_gh(:)
 
-    map%s_ncells_loc = ncells
+    map%s_ncells_loc = ncells_loc
     allocate(map%s_ids_loc_nidx(map%s_ncells_loc))
 
-    do ii = 1,ncells
-      map%s_ids_loc_nidx(ii) = cell_ids(ii)
+    iloc = 1
+    do ii = 1,ncells_loc+ncells_gh
+      if(loc_or_gh(ii) == 0) cycle
+      map%s_ids_loc_nidx(iloc) = cell_ids_ghd(ii)
+      iloc = iloc + 1
     enddo
 
   end subroutine MappingSetSourceMeshCellIds
@@ -253,7 +258,6 @@ contains
     rev_index = rev_index - 1
     call PetscSortIntWithPermutation(map%d_ncells_ghd,index,rev_index,ierr)
     map%d_nSor2Ghd = rev_index
-
 
   end subroutine MappingSetDestinationMeshCellIds
 
@@ -1304,7 +1308,7 @@ contains
     ! GIVEN:
     ! source vector (MPI):
     !                       p0        |    p1         : processor id
-    !                [ s3 s4 s5 s6 s7 | s3 s1 s0 ]    : natural index
+    !                [ s3 s4 s5 s6 s7 | s2 s1 s0 ]    : natural index
     !                   0  1  2  3  4 |  5  6  7      : PETSc index
     !
     !
@@ -1331,7 +1335,7 @@ contains
     ! GIVEN:
     ! source vector (MPI):
     !                       p0        |    p1         : processor id
-    !                [ s3 s4 s5 s6 s7 | s3 s1 s0 ]    : natural index
+    !                [ s3 s4 s5 s6 s7 | s2 s1 s0 ]    : natural index
     !                   0  1  2  3  4 |  5  6  7      : PETSc index
     !
     ! source vector (MPI) sorted in asceding order:
@@ -1424,7 +1428,7 @@ contains
     ! GIVEN:
     ! source vector (MPI):
     !                       p0        |    p1         : processor id
-    !                [ s3 s4 s5 s6 s7 | s3 s1 s0 ]    : natural index
+    !                [ s3 s4 s5 s6 s7 | s2 s1 s0 ]    : natural index
     !                   0  1  2  3  4 |  5  6  7      : PETSc index
     !
     ! Indices of MPI vector required to do the sorting (N2P)
@@ -1471,7 +1475,7 @@ contains
     call ISDestroy(is_to,ierr)
     call ISDestroy(is_from, ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm,'vscat.out',viewer,ierr)
+    call PetscViewerASCIIOpen(option%mycomm,'vscat1.out',viewer,ierr)
     call VecScatterView(vscat,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1531,22 +1535,44 @@ contains
     
     ! local variables
     PetscErrorCode              :: ierr
+
+!write(option%myrank+200,*) 'checking CLM-->PF mapping 1:', map%filename
     
     if (map%s2d_s_ncells > 0) then  
        ! Initialize local vector
        call VecSet(map%s_disloc_vec, 0.d0, ierr)
+       CHKERRQ(ierr)
+
+       call VecSet(d_vec, 0.d0, ierr)
+       CHKERRQ(ierr)
+
     end if
+
+!write(option%myrank+200,*) 'checking CLM-->PF mapping 2:'
 
     ! Scatter the source vector
     call VecScatterBegin(map%s2d_scat_s_gb2disloc, s_vec, map%s_disloc_vec, &
          INSERT_VALUES, SCATTER_FORWARD, ierr)
+    CHKERRQ(ierr)
+
+!write(option%myrank+200,*) 'checking CLM-->PF mapping 3:'
+
     call VecScatterEnd(map%s2d_scat_s_gb2disloc, s_vec, map%s_disloc_vec, &
          INSERT_VALUES, SCATTER_FORWARD, ierr)
+    CHKERRQ(ierr)
+
+!write(option%myrank+200,*) 'checking CLM-->PF mapping 4:'
+
     
     if (map%s2d_s_ncells > 0) then  
        ! Perform Matrix-Vector product
        call MatMult(map%wts_mat, map%s_disloc_vec, d_vec, ierr)
+       CHKERRQ(ierr)
     end if
+
+!write(option%myrank+200,*) 'checking CLM-->PF mapping 5:'
+!write(option%myrank+200,*) ':----------------------------------------------:'
+
   end subroutine
 
 end module Mapping_module

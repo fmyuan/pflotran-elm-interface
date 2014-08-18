@@ -179,6 +179,7 @@ recursive subroutine MassTransferInit(mass_transfer, discretization, &
   dataset_base_ptr => &
     DatasetBaseGetPointer(available_datasets,mass_transfer%dataset%name, &
                           string,option)
+
   call DatasetGlobalHDF5Destroy(mass_transfer%dataset)
   select type(dataset => dataset_base_ptr)
     class is(dataset_global_hdf5_type)
@@ -188,20 +189,29 @@ recursive subroutine MassTransferInit(mass_transfer, discretization, &
         'GLOBAL type, which is necessary for all MASS_TRANSFER objects.'
       call printErrMsg(option)
   end select
+
   ! dm_wrapper is solely a pointer; it should not be allocated
   mass_transfer%dataset%dm_wrapper => discretization%dm_1dof
   mass_transfer%dataset%local_size = discretization%grid%nlmax
   mass_transfer%dataset%global_size = discretization%grid%nmax
   call DiscretizationCreateVector(discretization,ONEDOF,mass_transfer%vec, &
                                     GLOBAL,option)
-  call VecZeroEntries(mass_transfer%vec,ierr)    
+  call VecZeroEntries(mass_transfer%vec,ierr)
+  CHKERRQ(ierr)    
   
+!F.-M. YUAN: if coupled with CLM, mass-transfer dataset are passed from CLM
+! via 'mass_transfer%dataset%rarray(:)' ONLY, although 'dataset' IS a hdf5 type.
+! so, don't open/load hdf5 file.
+#ifndef CLM_PFLOTRAN
+
   if (.not.associated(mass_transfer%dataset%time_storage)) then
-#if defined(PETSC_HAVE_HDF5)    
+
+#if defined(PETSC_HAVE_HDF5)
     call DatasetCommonHDF5ReadTimes(mass_transfer%dataset%filename, &
                                     mass_transfer%dataset%hdf5_dataset_name, &
                                     mass_transfer%dataset%time_storage,option)
 #endif
+
     ! if time interpolation methods not set in hdf5 file, set to default of STEP
     if (mass_transfer%dataset%time_storage%time_interpolation_method == &
         INTERPOLATION_NULL) then
@@ -209,6 +219,8 @@ recursive subroutine MassTransferInit(mass_transfer, discretization, &
         INTERPOLATION_STEP
     endif
   endif 
+
+#endif
   
   ! update the next one recursively
   if (associated(mass_transfer%next)) then
@@ -245,15 +257,46 @@ recursive subroutine MassTransferUpdate(mass_transfer, grid, option)
   
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
+  PetscInt :: i
   
   if (.not.associated(mass_transfer)) return
 
+!F.-M. YUAN: if coupled with CLM, mass-transfer dataset are passed from CLM
+! via 'mass_transfer%dataset%rarray(:)', although 'dataset' IS a hdf5 type.
+! so, don't open/load hdf5 file.
+! BUT, have to initialize 'rarray(:)', if not yet
+#ifdef CLM_PFLOTRAN
+    if (.not.associated(mass_transfer%dataset%rarray)) then ! not initialized
+      if (mass_transfer%dataset%local_size == 0) then
+        option%io_buffer = 'Local size of Global Dataset has not been set.'
+        call printErrMsg(option)
+      endif
+      allocate(mass_transfer%dataset%rarray(mass_transfer%dataset%local_size))
+      mass_transfer%dataset%rarray = 0.d0
+    endif
+
+#else
   call DatasetGlobalHDF5Load(mass_transfer%dataset,option)
+#endif
 
   call VecGetArrayF90(mass_transfer%vec,vec_ptr,ierr)
+  CHKERRQ(ierr)
   ! multiply by -1.d0 for positive contribution to residual
   vec_ptr(:) = -1.d0*mass_transfer%dataset%rarray(:)
+
+#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
+      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (mass transfer rate):
+      if (trim(mass_transfer%name) == 'NH4+') then
+        write(option%myrank+200,*) 'checking bgc-mass-rate - MassTransferUpdate: ', 'rank=',option%myrank
+        do i=1,mass_transfer%dataset%local_size
+          write(option%myrank+200,*) 'i= ',i, &
+          'RT_rarray_nh4(i)=', mass_transfer%dataset%rarray(i)
+        enddo
+      endif
+#endif
+
   call VecRestoreArrayF90(mass_transfer%vec,vec_ptr,ierr)
+  CHKERRQ(ierr)
   
   ! update the next one
   if (associated(mass_transfer%next)) then
@@ -283,8 +326,10 @@ recursive subroutine MassTransferDestroy(mass_transfer)
   ! Simply nullify the pointer as the dataset resides in a list to be
   ! destroyed separately.
   nullify(mass_transfer%dataset)
-  if (mass_transfer%vec /= 0) &
+  if (mass_transfer%vec /= 0) then
     call VecDestroy(mass_transfer%vec ,ierr)
+    CHKERRQ(ierr)
+  endif
   call MassTransferDestroy(mass_transfer%next)
 
   deallocate(mass_transfer)

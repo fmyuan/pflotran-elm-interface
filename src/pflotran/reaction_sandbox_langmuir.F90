@@ -140,7 +140,7 @@ subroutine LangmuirSetup(this,reaction,option)
                         PETSC_FALSE,option)
 
   if(this%ispec_nh4a < 0) then
-     word = 'NH4+'
+     word = 'NH3(aq)'
      this%ispec_nh4a = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
   endif
@@ -172,7 +172,7 @@ end subroutine LangmuirSetup
 ! ************************************************************************** !
 subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
-                         option,local_id)
+                         option)
 
   use Option_module
   use Reaction_Aux_module
@@ -201,18 +201,19 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: porosity
   PetscReal :: volume
-  PetscInt :: local_id
   PetscErrorCode :: ierr
 
   PetscInt, parameter :: iphase = 1
 
-  PetscInt :: ires_nh4a, ires_nh4s
+  PetscInt :: ires_nh4a, ires_nh4s, ires
 
   PetscReal :: c_nh4      ! mole/L
   PetscReal :: c_nh4_eq   ! mole/L
   PetscReal :: s_nh4      ! mole/m3
   PetscReal :: s_nh4_eq      ! mole/m3
   PetscReal :: kc, rate, drate_a, drate_s, temp_real
+
+  !-------------------------------------------------------------------------------
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
@@ -224,7 +225,6 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
   c_nh4 = rt_auxvar%total(this%ispec_nh4a, iphase)
   s_nh4 = rt_auxvar%immobile(this%ispec_nh4s)
 !  c_nh4 = c_nh4 - this%x0eps
-
 
   kc = this%k_equilibrium * c_nh4
 !  s_nh4_eq = this%s_max * kc / (1.0d0 + kc)
@@ -257,6 +257,19 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
      Jacobian(ires_nh4s,ires_nh4s) = Jacobian(ires_nh4s,ires_nh4s) - drate_s
 
   endif
+
+#ifdef DEBUG
+  do ires=1, reaction%ncomp
+    temp_real = Residual(ires)
+
+    if (abs(temp_real) > huge(temp_real)) then
+      write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
+      write(option%fid_out, *) 'Reaction Sandbox: LANGMUIR'
+      option%io_buffer = ' checking infinity of Residuals matrix  @ LangmuiReact '
+      call printErrMsg(option)
+    endif
+  enddo
+#endif
 
 end subroutine LangmuirReact
 

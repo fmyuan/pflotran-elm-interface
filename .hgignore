@@ -343,3 +343,5 @@ src/clm-pflotran/reaction_sandbox_nitrification.F90
 src/clm-pflotran/reaction_sandbox_plantntake.F90
 src/clm-pflotran/srcsink_sandbox_downreg.F90
 clm_bgc.F90
+reaction_sandbox_clmdec.F90
+reaction_sandbox_plantn.F90

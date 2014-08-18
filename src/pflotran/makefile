@@ -116,8 +116,8 @@ chem_obj = \
 	${common_src}reaction_aux.o \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
-	${common_src}reaction_sandbox_clm_decomp.o \
-	${common_src}reaction_sandbox_plantntake.o \
+	${common_src}reaction_sandbox_clmdec.o \
+	${common_src}reaction_sandbox_plantn.o \
 	${common_src}reaction_sandbox_nitrification.o \
 	${common_src}reaction_sandbox_denitrification.o \
 	${common_src}reaction_sandbox_microbial.o \
@@ -560,7 +560,7 @@ reaction_sandbox_nitrification.o : global_aux.o immobile_aux.o input_aux.o \
                             reaction_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \
                             utility.o clm_bgc.o
-reaction_sandbox_plantntake.o : global_aux.o immobile_aux.o input_aux.o \
+reaction_sandbox_plantn.o : global_aux.o immobile_aux.o input_aux.o \
                             material_aux.o option.o pflotran_constants.o \
                             reaction_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \

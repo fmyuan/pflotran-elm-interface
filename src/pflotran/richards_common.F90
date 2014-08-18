@@ -537,7 +537,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: dist_gravity  ! distance along gravity vector
   PetscReal :: perm_dn
   
-  PetscReal :: v_darcy
+  PetscReal :: v_darcy, v_darcy_allowable, temp_real
   PetscReal :: q,density_ave
   PetscReal :: ukvr,diffdp,Dq
   PetscReal :: upweight,cond,gravity,dphi
@@ -625,9 +625,9 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
             dphi_dp_dn = 0.d0
           endif
         endif
-        
+
         if (dphi>=0.D0) then
-#ifdef USE_ANISOTROPIC_MOBILITY  
+#ifdef USE_ANISOTROPIC_MOBILITY
           if (dabs(dabs(dist(1))-1) < 1e-6) then
             ukvr = rich_auxvar_up%kvr_x
           else if (dabs(dabs(dist(2))-1) < 1e-6) then
@@ -639,6 +639,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
           ukvr = rich_auxvar_up%kvr
 #endif
         else
+
 #ifdef USE_ANISOTROPIC_MOBILITY
           if (dabs(dabs(dist(1))-1) < 1e-6) then
             ukvr = rich_auxvar_dn%kvr_x
@@ -654,7 +655,8 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
           ukvr = rich_auxvar_dn%kvr
           dukvr_dp_dn = rich_auxvar_dn%dkvr_dp
 #endif
-        endif      
+
+        endif  ! if (dphi>=0.D0)
      
         if (ukvr*Dq>floweps) then
           v_darcy = Dq * ukvr * dphi
@@ -698,12 +700,36 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                   dq_dp_dn = dq_approx
                 endif
               endif
+            endif   !if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0)
+
+          endif     !if (.not. rich_auxvar_dn%bcflux_default_scheme)
+
+#ifdef CLM_PFLOTRAN
+          ! when coupled with CLM, 'pressure-type' BC due to water-column formed on the BC-contacted cell(s)
+          ! should not be producing 'darcy-flow' over standing water availability
+          ! NOTE: this IS not appropriate for 'injection' caused pressure-type BC.
+          temp_real = global_auxvar_up%pres(1) -  &
+                      max(global_auxvar_dn%pres(1), option%reference_pressure)
+          if (pressure_bc_type == DIRICHLET_BC .and. temp_real >= eps) then
+
+             call EOSWaterdensity(global_auxvar_up%temp, &
+                                option%reference_pressure,rho,dum1,ierr)
+
+            v_darcy_allowable = temp_real/option%flow_dt/(-option%gravity(3))/rho
+
+            if (v_darcy > v_darcy_allowable) then
+               v_darcy = v_darcy_allowable
+               q = v_darcy * area
+               ukvr = v_darcy/Dq/dphi
+               dq_dp_dn = Dq*(dukvr_dp_dn*dphi + ukvr*dphi_dp_dn)*area
             endif
-          endif
 
-        endif
+           endif     !if (pressure_bc_type == DIRICHLET_BC)
+#endif
 
-      endif
+        endif      !if (ukvr*Dq>floweps)
+
+       endif       !if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn)
 
     case(NEUMANN_BC)
       if (dabs(auxvars(RICHARDS_PRESSURE_DOF)) > floweps) then
@@ -848,7 +874,7 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
   type(option_type) :: option
   PetscReal :: sir_dn
   PetscReal :: auxvars(:) ! from aux_real_var array
-  PetscReal :: v_darcy, area
+  PetscReal :: v_darcy, area, v_darcy_allowable, temp_real
   ! dist(-1) = fraction_upwind - not applicable here
   ! dist(0) = magnitude
   ! dist(1:3) = unit vector
@@ -918,9 +944,9 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
             dphi = 0.d0
           endif
         endif
-   
+
        if (dphi>=0.D0) then
-#ifdef USE_ANISOTROPIC_MOBILITY       
+#ifdef USE_ANISOTROPIC_MOBILITY
          if (dabs(dabs(dist(1))-1) < 1e-6) then
            ukvr = rich_auxvar_up%kvr_x
          else if (dabs(dabs(dist(2))-1) < 1e-6) then
@@ -931,7 +957,8 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
 #else
          ukvr = rich_auxvar_up%kvr
 #endif
-       else
+       else    !else of 'if (dphi>=0.d0)'
+
 #ifdef USE_ANISOTROPIC_MOBILITY
          if (dabs(dabs(dist(1))-1) < 1e-6) then
            ukvr = rich_auxvar_dn%kvr_x
@@ -943,7 +970,8 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
 #else
          ukvr = rich_auxvar_dn%kvr
 #endif
-       endif
+
+       endif    ! end of 'if (dphi>=0.d0)'
         
        if (ukvr*Dq>floweps) then
         v_darcy = Dq * ukvr * dphi
@@ -982,11 +1010,33 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
                                            q_approx, dq_approx)
               v_darcy = q_approx/area
             endif
+          endif   !if (.not. rich_auxvar_dn%bcflux_default_scheme)
+
+        endif     !if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0)
+
+#ifdef CLM_PFLOTRAN
+        ! when coupled with CLM, 'pressure-type' BC due to water-column formed on the BC-contacted cell(s)
+        ! should not be producing 'darcy-flow' over standing water availability
+        ! NOTE: this IS not appropriate for 'injection' caused pressure-type BC.
+        temp_real = global_auxvar_up%pres(1) -  &
+                    max(global_auxvar_dn%pres(1), option%reference_pressure)
+        if (pressure_bc_type == DIRICHLET_BC .and. temp_real >= eps) then
+
+          call EOSWaterdensity(global_auxvar_up%temp, &
+                            option%reference_pressure,rho,dum1,ierr)
+
+          v_darcy_allowable = temp_real/option%flow_dt/(-option%gravity(3))/rho
+          if (v_darcy > v_darcy_allowable) then
+            v_darcy = v_darcy_allowable
+            q = v_darcy * area
+            ukvr = v_darcy/Dq/dphi
           endif
 
-        endif
-       endif
-      endif 
+        endif     !if (pressure_bc_type == DIRICHLET_BC)
+#endif
+
+       endif      !if (ukvr*Dq>floweps)
+      endif       !if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn)
 
     case(NEUMANN_BC)
       if (dabs(auxvars(RICHARDS_PRESSURE_DOF)) > floweps) then
