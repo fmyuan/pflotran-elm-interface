@@ -913,6 +913,21 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   fnh3      = c_nh3 / temp_real
   dfnh3_dnh3 = this%half_saturation_nh3 / temp_real / temp_real
 
+  ! using the following for trailer smoothing (may be not needed, but just in case)
+  ! note: 'x0eps' is different from 'half_saturation_nh3' above.
+  !       'x0eps' is for mathematic reason in the code;
+  !       'half_saturation_nh3' is for using 'monod-type' function to quantify microbial
+  !    NH4 immobilization dependence on resources (NH4). So, physiologically it may be
+  !    used as a method to quantify competition over resources.
+  if(this%x0eps>0.d0) then
+    feps0 = c_nh3/(c_nh3+this%x0eps)
+    dfeps0_dx = this%x0eps/(c_nh3+this%x0eps)/(c_nh3+this%x0eps)
+
+    ! fnh3 above, then, can be adjusted below
+    dfnh3_dnh3 = dfnh3_dnh3*feps0+fnh3*dfeps0_dx   ! do the derivative first
+    fnh3 = fnh3*feps0
+  endif
+
   if (this%species_id_no3 > 0) then
     ! 'no3' dependent rate function (DON'T change the 'rate' and 'derivatives' after this)
     c_no3 = rt_auxvar%total(this%species_id_no3, iphase)
@@ -920,7 +935,17 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     fno3      = c_no3 / temp_real
     dfno3_dno3= this%half_saturation_no3 / temp_real / temp_real
 
+    ! using the following for trailer smoothing (may be not needed, but just in case)
+    if(this%x0eps>0.d0) then
+      feps0 = c_no3/(c_no3+this%x0eps)
+      dfeps0_dx = this%x0eps/(c_no3+this%x0eps)/(c_no3+this%x0eps)
+      ! fno3 above, then, can be adjusted below
+      dfno3_dno3 = dfno3_dno3*feps0+fno3*dfeps0_dx   ! do the derivative first
+      fno3 = fno3*feps0
+    endif
+
     ! nh3 inhibition on no3 immobilization, if any ('this%inhibition_nh3_no3')
+    ! this is for quantifying microbial N immobilization preference btw NH4 and NO3.
     ! (DON'T change the 'rate' and 'derivatives' after this)
     temp_real = this%inhibition_nh3_no3 + c_nh3
     fnh3_inhibit_no3 = this%inhibition_nh3_no3/temp_real
