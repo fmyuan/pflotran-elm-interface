@@ -111,7 +111,7 @@ function CLMDec_Create()
   CLMDec_Create%Q10 = 1.5d0
   CLMDec_Create%half_saturation_nh3 = 1.0d-15
   CLMDec_Create%half_saturation_no3 = 1.0d-15
-  CLMDec_Create%inhibition_nh3_no3 = 1.0d-15
+  CLMDec_Create%inhibition_nh3_no3 = 1.0d0
   CLMDec_Create%n2o_frac_mineralization = 0.02d0  ! Parton et al. 2001
   CLMDec_Create%x0eps = 1.0d-20
 
@@ -273,6 +273,11 @@ subroutine CLMDec_Read(this,input,option)
          call InputReadDouble(input,option,this%inhibition_nh3_no3)
          call InputErrorMsg(input,option,'ammonia inhibition on nitrate immobilization', &
                      'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
+         if (this%inhibition_nh3_no3<0.d-20) then
+           option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMDec,' // &
+             'AMMONIA_INHIBITION_NITRATE cannot be too small to close to 0'
+           call printErrMsg(option)
+         endif
 
      case('N2O_FRAC_MINERALIZATION')
          call InputReadDouble(input,option,this%n2o_frac_mineralization)
@@ -871,8 +876,12 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: dfno3_dno3       ! d(fnh3)/d(nh3)
 
   !nh3 inhibition on no3 immobilization, or microbial N immobilization preference btw nh3 and no3
-  PetscReal :: fnh3_inhibit_no3 ! inhibition_coef/(inhibition_coef + nh3):
+  ! crate_nh3 = fnh3*fnh3_inhibit_no3, while crate_no3 = 1.-fnh3*fnh3_inhibition_no3
+  ! by the following eq., if 'inhibition=1', uptake will be equal for both (if same conc.);
+  ! higher coef, strong NH4 inhibition on NO3 (i.e., more NH4 immobilization over NO3)
+  PetscReal :: fnh3_inhibit_no3 ! inhibition_coef/(inhibition_coef + no3/nh3):
   PetscReal :: dfnh3_inhibit_no3_dnh3 ! d(fnh3_inhibit_no3)/dnh3
+  PetscReal :: dfnh3_inhibit_no3_dno3 ! d(fnh3_inhibit_no3)/dno3
 
   ! save mineral N fraction and decomposition rate for net N mineralization and associated N2O calculation
   PetscReal :: net_nmin_rate
@@ -946,9 +955,24 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     ! nh3 inhibition on no3 immobilization, if any ('this%inhibition_nh3_no3')
     ! this is for quantifying microbial N immobilization preference btw NH4 and NO3.
     ! (DON'T change the 'rate' and 'derivatives' after this)
-    temp_real = this%inhibition_nh3_no3 + c_nh3
-    fnh3_inhibit_no3 = this%inhibition_nh3_no3/temp_real
-    dfnh3_inhibit_no3_dnh3 = -this%inhibition_nh3_no3/temp_real/temp_real     ! over 'd_nh3'
+    if(c_nh3>this%x0eps .and. c_no3>this%x0eps .and. this%inhibition_nh3_no3>0.d0) then
+      temp_real = this%inhibition_nh3_no3 + c_no3/c_nh3
+      fnh3_inhibit_no3 = this%inhibition_nh3_no3/temp_real
+      dfnh3_inhibit_no3_dnh3 = this%inhibition_nh3_no3*(c_no3/c_nh3/c_nh3)  &
+                               /temp_real/temp_real     ! over 'd_nh3'
+      dfnh3_inhibit_no3_dno3 = -this%inhibition_nh3_no3/c_nh3  &
+                               /temp_real/temp_real     ! over 'd_no3'
+    else
+      if (c_nh3>this%x0eps .and. c_no3<=this%x0eps) then
+        fnh3_inhibit_no3 = 0.999d0
+      elseif (c_nh3<=this%x0eps .and. c_no3>this%x0eps) then
+        fnh3_inhibit_no3 = 0.001d0
+      else
+        fnh3_inhibit_no3 = 0.50d0
+      endif
+      dfnh3_inhibit_no3_dnh3 = 0.d0
+      dfnh3_inhibit_no3_dno3 = 0.d0
+    endif
 
   endif ! if (this%species_id_no3>0)
 
@@ -1091,12 +1115,11 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       crate = crate_uc * crate_nh3
 
       if (this%species_id_no3 > 0) then
-        ! since 'f_nh3_inhibit_no3' is somehow a spliting fraction for NO3 immoblization,
-        ! '1.-f_nh3_inhibit_no3' should be those for NH4 immobilization
-        crate_nh3 = fnh3*(1.d0-fnh3_inhibit_no3)
+        ! 'f_nh3_inhibit_no3' is somehow a spliting fraction for NH4:NO3 immoblization,
+        crate_nh3 = fnh3*fnh3_inhibit_no3
 
-        ! f_no3 should be adjusted by f_nh3_inhibit_no3 so that it is inhibited by nh3
-        crate_no3 = fno3*fnh3_inhibit_no3
+        ! f_no3 should be adjusted by R reduced by 'crate_nh3' so that it is inhibited by nh3
+        crate_no3 = fno3*(1.0d0-fnh3*fnh3_inhibit_no3)
 
         ! overall C rates
         crate = crate_uc * (crate_nh3 + crate_no3)
@@ -1227,84 +1250,88 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
              if (this%species_id_no3 > 0) then
                ! -- depending on 'uc'
                ! crate = crate_uc * (crate_nh3 + crate_no3)
-               !       = crate_uc * (fnh3*(1-fnh3_inhibit_no3)+fno3*fnh3_inhibit_no3),
-               ! So, d(crate)/d(uc) = (fnh3*(1-fnh3_inhibit_no3)+fno3*fnh3_inhibit_no3)*dcrate_uc_duc
+               !       = crate_uc * (fnh3*fnh3_inhibit_no3+fno3*(1-fnh3*fnh3_inhibit_no3)),
+               ! So, d(crate)/d(uc) = (fnh3*fnh3_inhibit_no3+fno3-fno3*fnh3*fnh3_inhibit_no3)*dcrate_uc_duc
                dcrate_dx  = dcrate_uc_duc * &
-                         (fnh3*(1.d0-fnh3_inhibit_no3)+fno3*fnh3_inhibit_no3)
+                         (fnh3*fnh3_inhibit_no3+fno3-fnh3*fno3*fnh3_inhibit_no3)
 
                dc_duc  = dcrate_dx * this%mineral_c_stoich(irxn)                         ! [6-1]
 
                duc_duc = -1.0d0 * dcrate_dx                                              ! [6-2]
 
-               ! nrate = crate_uc*fnh3*(1-fnh3_inhibit_no3)*mineral_n_stoich: 'mineral_n_stoich = u-sum(ni)'
-               dn_duc  = dcrate_uc_duc*fnh3*(1.d0-fnh3_inhibit_no3) &
-                           * this%mineral_n_stoich(irxn)                                 ! [6-4]
+               ! nrate = crate_uc*mineral_n_stoich*fnh3*fnh3_inhibit_no3: 'mineral_n_stoich = u-sum(ni)'
+               dn_duc  = dcrate_uc_duc* this%mineral_n_stoich(irxn) * &
+                         fnh3*fnh3_inhibit_no3                                           ! [6-4]
 
-               ! no3rate = crate_uc*fno3*fnh3_inhibit_no3*mineral_n_stoich: 'mineral_n_stoich = u-sum(ni)'
-               dno3_duc= dcrate_uc_duc*fno3*fnh3_inhibit_no3 &
-                           * this%mineral_n_stoich(irxn)                                 ! [6-5]
+               ! no3rate = crate_uc*mineral_n_stoich*fno3*(1-fnh3*fnh3_inhibit_no3): 'mineral_n_stoich = u-sum(ni)'
+               dno3_duc= dcrate_uc_duc* this%mineral_n_stoich(irxn) * &
+                         fno3*(1.0d0-fnh3*fnh3_inhibit_no3)                              ! [6-5]
 
                du_duc  = this%upstream_nc(irxn) * duc_duc                                ! [6-6]
 
                ! -- depending on 'nh3'
-               ! d(crate)/d(n) = d(crate_nh3+dcrate_no3)*crate_uc/dnh3
-               !               = d(fnh3*(1-fnh3_inhibit_no3)+fno3*fnh3_inhibit_no3)/dnh3*crate_uc
-               !               = ( dfnh3_dnh3*(1-fnh3_inhibit_no3)
-               !                  +fnh3*(-dfnh3_inhibit_no3_dnh3)
-               !                  +fno3*dfnh3_inhibit_no3_dnh3
-               !                 ) * crate_uc
-               dcrate_dx  =  dfnh3_dnh3*(1.d0-fnh3_inhibit_no3)  &
-                           + fnh3*(-dfnh3_inhibit_no3_dnh3)      &
-                           + fno3*dfnh3_inhibit_no3_dnh3
+               ! d(crate)/d(n) = d(crate_nh3+crate_no3)*crate_uc/dnh3
+               !               = d(fnh3*fnh3_inhibit_no3+fno3*(1.-fnh3*fnh3_inhibit_no3))/dnh3*crate_uc
+               !               = d(fnh3*fnh3_inhibit_no3*(1.-fno3) + fno3)/dnh3*crate_uc
+               !               = (fnh3*dfnh3_inhibit_no3_dnh3
+               !                  +dfnh3_dnh3*fnh3_inhibit_no3)
+               !                 * (1.-fno3)*crate_uc                     ! dfno3_dnh3 = 0
+               dcrate_dx  = (dfnh3_dnh3*fnh3_inhibit_no3  &
+                           + fnh3*dfnh3_inhibit_no3_dnh3)*(1.d0-fno3)
                dcrate_dx  = dcrate_dx*crate_uc
 
                dc_dn  = dcrate_dx * this%mineral_c_stoich(irxn)                          ! [6-1]
 
                duc_dn = -1.0d0 * dcrate_dx                                               ! [6-2]
 
-               ! nrate = crate_uc*fnh3*(1-fnh3_inhibit_no3)*mineral_n_stoich: 'mineral_n_stoich = u-sum(ni)'
-               ! d(nrate)/d(n) = ( fnh3*(-dfnh3_inhibit_no3_dnh3)
-               !                  +dfnh3_dnh3*(1-fnh3_inhibit_no3)
+               ! nrate = crate_uc*mineral_n_stoich*fnh3*fnh3_inhibit_no3: 'mineral_n_stoich = u-sum(ni)'
+               ! d(nrate)/d(n) = ( fnh3*dfnh3_inhibit_no3_dnh3
+               !                  +dfnh3_dnh3*fnh3_inhibit_no3
                !                 ) * crate_uc * mineral_n_stoich
-               dn_dn  = fnh3*(-dfnh3_inhibit_no3_dnh3) &
-                       +dfnh3_dnh3*(1.d0-fnh3_inhibit_no3)
+               dn_dn  = fnh3*dfnh3_inhibit_no3_dnh3 &
+                       +dfnh3_dnh3*fnh3_inhibit_no3
                dn_dn  = dn_dn * crate_uc*this%mineral_n_stoich(irxn)                     ! [6-4]
 
-               ! no3rate = crate_uc*fno3*fnh3_inhibit_no3*mineral_n_stoich: 'mineral_n_stoich = u-sum(ni)'
-               ! d(no3rate)/d(n) = ( fno3*dfnh3_inhibit_no3_dnh3)
-               !                    +dfno3_dnh3*fnh3_inhibit_no3         ! 'dfno3_dnh3' = 0
-               !                 ) * crate_uc * mineral_n_stoich
-               dno3_dn= fno3*dfnh3_inhibit_no3_dnh3  &
-                         * crate_uc*this%mineral_n_stoich(irxn)                          ! [6-5]
+               ! no3rate = crate_uc*mineral_n_stoich*fno3*(1-fnh3*fnh3_inhibit_no3): 'mineral_n_stoich = u-sum(ni)'
+               ! d(no3rate)/d(n) = -1.0*fno3*(fnh3*dfnh3_inhibit_no3_dnh3)
+               !                    +dfnh3_dnh3*fnh3_inhibit_no3)         ! 'dfno3_dnh3' = 0
+               !                  * crate_uc * mineral_n_stoich
+               dno3_dn= -1.d0*fno3*(fnh3*dfnh3_inhibit_no3_dnh3  &
+                                    +dfnh3_dnh3*fnh3_inhibit_no3)
+               dno3_dn= dno3_dn * crate_uc*this%mineral_n_stoich(irxn)                   ! [6-5]
 
                du_dn  = this%upstream_nc(irxn) * duc_dn                                  ! [6-6]
 
                ! -- depending on 'no3'
-               ! d(crate)/d(no3) = d(crate_nh3+dcrate_no3)*crate_uc/dno3
-               !               = d(fnh3*(1-fnh3_inhibit_no3)+fno3*fnh3_inhibit_no3)/dno3*crate_uc
-               !               = ( dfnh3_dno3*(1-fnh3_inhibit_no3)       ! 'dfnh3_dno3' = 0
-               !                  +fnh3*(-dfnh3_inhibit_no3_dno3)        ! 'dfnh3_inhibit_no3_dno3' = 0
-               !                  +fno3*dfnh3_inhibit_no3_dno3           ! 'dfnh3_inhibit_no3_dno3' = 0
-               !                  +dfno3_dno3*fnh3_inhibit_no3
+               ! d(crate)/d(no3) = d(crate_nh3+crate_no3)*crate_uc/dno3
+               !               = d(fnh3*fnh3_inhibit_no3+fno3*(1-fnh3*fnh3_inhibit_no3))/dno3*crate_uc
+               !               = ( dfnh3_dno3*fnh3_inhibit_no3           ! 'dfnh3_dno3' = 0
+               !                  +fnh3*dfnh3_inhibit_no3_dno3
+               !                  +dfno3_dno3 * (1-fnh3*fnh3_inhibit_no3)
+               !                  +fno3*(-fnh3*dfnh3_inhibit_no3_dno3)
                !                 ) * crate_uc
-               dcrate_dx = dfno3_dno3*fnh3_inhibit_no3 * crate_uc
+               dcrate_dx = fnh3*(1.d0-fno3)*dfnh3_inhibit_no3_dno3    &
+                           + dfno3_dno3*(1.d0-fnh3*fnh3_inhibit_no3)
+               dcrate_dx = dcrate_dx * crate_uc
 
                dc_dno3  = dcrate_dx * this%mineral_c_stoich(irxn)                        ! [6-1]
 
                duc_dno3 = -1.0d0*dcrate_dx                                               ! [6-2]
 
-               ! nrate = crate_uc*fnh3*(1-fnh3_inhibit_no3)*mineral_n_stoich: 'mineral_n_stoich = u-sum(ni)'
-               ! d(nrate)/d(no3) = ( fnh3*(-dfnh3_inhibit_no3_dno3)      ! 'dfnh3_inhibit_no3_dno3' = 0
-               !                    +dfnh3_dno3*(1-fnh3_inhibit_no3)     ! 'dfnh3_dno3' = 0
+               ! nrate = crate_uc*mineral_n_stoich*fnh3*fnh3_inhibit_no3: 'mineral_n_stoich = u-sum(ni)'
+               ! d(nrate)/d(no3) = ( fnh3*dfnh3_inhibit_no3_dno3
+               !                    +dfnh3_dno3*fnh3_inhibit_no3               ! 'dfnh3_dno3' = 0
                !                   ) * crate_uc * mineral_n_stoich
-               dn_dno3  = 0.d0                                                           ! [6-4]
+               dn_dno3  = fnh3*dfnh3_inhibit_no3_dno3  &
+                         * crate_uc * this%mineral_n_stoich(irxn)                        ! [6-4]
 
-               ! no3rate = crate_uc*fno3*fnh3_inhibit_no3*mineral_n_stoich: 'mineral_n_stoich = u-sum(ni)'
-               ! d(no3rate)/d(no3) = ( fno3*dfnh3_inhibit_no3_dno3)      ! 'dfnh3_inhibit_no3_dno3' = 0
-               !                    +dfno3_dno3*fnh3_inhibit_no3
+               ! no3rate = crate_uc*mineral_n_stoich*fno3*(1-fnh3*fnh3_inhibit_no3): 'mineral_n_stoich = u-sum(ni)'
+               ! d(no3rate)/d(no3) = ( fno3*(-fnh3*dfnh3_inhibit_no3_dno3)     ! 'dfnh3_dno3' = 0
+               !                    +dfno3_dno3*(1-fnh3*fnh3_inhibit_no3)
                !                 ) * crate_uc * mineral_n_stoich
-               dno3_dno3= dfno3_dno3 * fnh3_inhibit_no3 &
-                         * crate_uc * this%mineral_n_stoich(irxn)                        ! [6-5]
+               dno3_dno3= -1.0d0*fno3*fnh3*dfnh3_inhibit_no3_dno3 &
+                          + dfno3_dno3 * (1.d0-fnh3*fnh3_inhibit_no3)
+               dno3_dno3= dno3_dno3 * crate_uc * this%mineral_n_stoich(irxn)             ! [6-5]
 
                du_dno3  = this%upstream_nc(irxn) * duc_dno3                              ! [6-6]
 
