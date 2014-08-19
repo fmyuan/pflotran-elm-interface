@@ -688,7 +688,7 @@ subroutine CLMDec_Setup(this,reaction,option)
        enddo
 
        if(stoich_c < 0.0d0) then
-         option%io_buffer = 'CLMDec fixed-CN C pool decomposition '// &
+         option%io_buffer = 'CLMDec fixedCN C pool decomposition '// &
           'has a negative respiration fraction!' // &
             'Please check reactions of upstream pool: ' // &
              trim(cur_pool%name)
@@ -696,10 +696,9 @@ subroutine CLMDec_Setup(this,reaction,option)
        endif
 
        if(stoich_n < 0.0d0) then
-         option%io_buffer = 'CLMDec fixed-CN SOM N mineralization is negative,' // &
-           'i.e., fixed-CN SOM-N immobilization is not supposed currently,' // &
-           'and, variable-CN ratio suggested for SOM pool: ' // &
-             trim(cur_pool%name)
+         option%io_buffer = 'CLMDec fixedCN C pool N mineralization is negative,' // &
+           'which (i.e. N immobilization) is not supported currently.' // &
+           ' VariableCN ratio suggested.'
          call printErrMsg(option)
        endif
 
@@ -1062,7 +1061,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       enddo
 
       if(stoich_c < 0.0d0) then
-        option%io_buffer = 'CLMDec variable-CNratio C pool decomposition has' // &
+        option%io_buffer = 'CLMDec variableCN ratio C pool decomposition has' // &
                               'a negative respiration fraction!'
         call printErrMsg(option)
       endif
