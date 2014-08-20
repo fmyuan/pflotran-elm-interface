@@ -1,38 +1,48 @@
--- CONCENTRATION: Total NH3(aq) --
-      Max:   1.0000000000000E-20
-      Min:   1.0000000000000E-20
-     Mean:   1.0000000000000E-20
-        1:   1.0000000000000E-20
+-- GENERIC: pH --
+      Max:   4.5884869723880E+00
+      Min:   4.5884869723880E+00
+     Mean:   4.5884869723880E+00
+        1:   4.5884869723880E+00
+-- CONCENTRATION: Total CO2(aq) --
+      Max:   1.4399980967255E-03
+      Min:   1.4399980967255E-03
+     Mean:   1.4399980967255E-03
+        1:   1.4399980967255E-03
+-- CONCENTRATION: Total NH4+ --
+      Max:   2.1433521696547E-05
+      Min:   2.1433521696547E-05
+     Mean:   2.1433521696547E-05
+        1:   2.1433521696547E-05
 -- CONCENTRATION: Total NO3- --
-      Max:   1.0000000000000E-20
-      Min:   1.0000000000000E-20
-     Mean:   1.0000000000000E-20
-        1:   1.0000000000000E-20
--- CONCENTRATION: Total HCO3- --
-      Max:   9.7957451861985E-04
-      Min:   9.7957451861985E-04
-     Mean:   9.7957451861985E-04
-        1:   9.7957451861985E-04
+      Max:   1.0000000000000E-05
+      Min:   1.0000000000000E-05
+     Mean:   1.0000000000000E-05
+        1:   1.0000000000000E-05
+-- CONCENTRATION: Total H+ --
+      Max:   9.8414338690428E-07
+      Min:   9.8414338690428E-07
+     Mean:   9.8414338690428E-07
+        1:   9.8414338690428E-07
 -- CONCENTRATION: SOM1 --
-      Max:   1.2537989270821E-01
-      Min:   1.2537989270821E-01
-     Mean:   1.2537989270821E-01
-        1:   1.2537989270821E-01
+      Max:   1.3253826011451E-06
+      Min:   1.3253826011451E-06
+     Mean:   1.3253826011451E-06
+        1:   1.3253826011451E-06
 -- CONCENTRATION: SOM2 --
-      Max:   6.2972647725009E-01
-      Min:   6.2972647725009E-01
-     Mean:   6.2972647725009E-01
-        1:   6.2972647725009E-01
+      Max:   6.3999915175514E-01
+      Min:   6.3999915175514E-01
+     Mean:   6.3999915175514E-01
+        1:   6.3999915175514E-01
 -- DISCRETE: Material ID --
       Max:         1
       Min:         1
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   1.1290931701660E-01
-   Time Steps:          205
-   Newton Iterations:          227
-   Solver Iterations:          227
+   Time (seconds):   2.0714998245239E-01
+   Time Steps:          204
+   Newton Iterations:          431
+   Solver Iterations:          431
    Time Step Cuts:            0
-   Solution 2-Norm:   6.4208762113248E-01
-   Residual 2-Norm:   0.0000000000000E+00
+   Solution 2-Norm:   6.4000071737072E-01
+   Residual 2-Norm:   6.4656501699446E-22

@@ -15,9 +15,16 @@ REFERENCE_DENSITY 1.d3
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
-    NH3(aq)
+    CO2(aq)
+    NH4+
     NO3-
+    H+
+  /
+  SECONDARY_SPECIES
     HCO3-
+    CO3--
+    NH3(aq)
+    OH-
   /
   REDOX_SPECIES
     NO3-
@@ -34,7 +41,7 @@ CHEMISTRY
       /
       REACTION
         UPSTREAM_POOL SOM1
-        DOWNSTREAM_POOL SOM2 0.72d0
+        DOWNSTREAM_POOL SOM2 0.64d0
         RATE_CONSTANT 0.7 1/d
       /
     /
@@ -119,10 +126,11 @@ END
 #=========================== transport constraints ============================
 CONSTRAINT initial
   CONCENTRATIONS
-    NH3(aq)  2.0d-5  T
+    CO2(aq)  1.0d-20 T
+    NH4+     2.0d-5  T
     NO3-     2.0d-5  T
-    HCO3-    1.0d-20  T
-  /
+    H+       6.0d0   pH
+ /
   IMMOBILE
     SOM1  1.d-0
     SOM2  1.d-20

@@ -16,10 +16,17 @@ REFERENCE_DENSITY 1.d3
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
-    HCO3-
-    NH3(aq)
+    CO2(aq)
+    NH4+
     NO3-
     N2O(aq)
+    H+
+  /
+  SECONDARY_SPECIES
+    HCO3-
+    CO3--
+    NH3(aq)
+    OH-
   /
   REDOX_SPECIES
     NO3-
@@ -164,10 +171,11 @@ END
 #=========================== transport constraints ============================
 CONSTRAINT initial
   CONCENTRATIONS
-    NH3(aq)  4.d-6      T  ! moles/L
+    NH4+     4.d-6      T  ! moles/L
     NO3-     4.d-6      T  ! moles/L
-    N2O(aq) 1.d-20     T  ! moles/L
-    HCO3-   1.d-40     T  ! moles/L
+    N2O(aq)  1.d-20     T  ! moles/L
+    CO2(aq)  1.d-40     T  ! moles/L
+    H+       6.0d0      pH
   /
   IMMOBILE
     SOM1  1.d-40
