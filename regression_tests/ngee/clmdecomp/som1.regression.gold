@@ -1,23 +1,33 @@
--- CONCENTRATION: Total NH3(aq) --
-      Max:   8.0044757952025E-05
-      Min:   8.0044757952025E-05
-     Mean:   8.0044757952025E-05
-        1:   8.0044757952025E-05
+-- GENERIC: pH --
+      Max:   4.6423380866807E+00
+      Min:   4.6423380866807E+00
+     Mean:   4.6423380866807E+00
+        1:   4.6423380866807E+00
+-- CONCENTRATION: Total CO2(aq) --
+      Max:   1.1200000143579E-03
+      Min:   1.1200000143579E-03
+     Mean:   1.1200000143579E-03
+        1:   1.1200000143579E-03
+-- CONCENTRATION: Total NH4+ --
+      Max:   8.0044758301432E-05
+      Min:   8.0044758301432E-05
+     Mean:   8.0044758301432E-05
+        1:   8.0044758301432E-05
 -- CONCENTRATION: Total NO3- --
       Max:   1.0000000000000E-20
       Min:   1.0000000000000E-20
      Mean:   1.0000000000000E-20
         1:   1.0000000000000E-20
--- CONCENTRATION: Total HCO3- --
-      Max:   1.1200000000000E-03
-      Min:   1.1200000000000E-03
-     Mean:   1.1200000000000E-03
-        1:   1.1200000000000E-03
+-- CONCENTRATION: Total H+ --
+      Max:   9.8986643433009E-07
+      Min:   9.8986643433009E-07
+     Mean:   9.8986643433009E-07
+        1:   9.8986643433009E-07
 -- CONCENTRATION: SOM1 --
-      Max:   1.0000000000000E-20
-      Min:   1.0000000000000E-20
-     Mean:   1.0000000000000E-20
-        1:   1.0000000000000E-20
+      Max:   1.1419603260276E-22
+      Min:   1.1419603260276E-22
+     Mean:   1.1419603260276E-22
+        1:   1.1419603260276E-22
 -- CONCENTRATION: SOM2 --
       Max:   7.2000000000000E-01
       Min:   7.2000000000000E-01
@@ -29,10 +39,10 @@
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   6.4833498001099E-01
-   Time Steps:          204
-   Newton Iterations:          204
-   Solver Iterations:          204
+   Time (seconds):   1.1802701950073E+00
+   Time Steps:         2001
+   Newton Iterations:         2259
+   Solver Iterations:         2259
    Time Step Cuts:            0
-   Solution 2-Norm:   7.2000087556000E-01
-   Residual 2-Norm:   1.5406163818891E-41
+   Solution 2-Norm:   7.2000084234951E-01
+   Residual 2-Norm:   8.0726289020257E-30

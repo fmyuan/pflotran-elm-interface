@@ -14,9 +14,16 @@ REFERENCE_DENSITY 1.d3
 #=========================== chemistry ========================================
 CHEMISTRY
   PRIMARY_SPECIES
-    NH3(aq)
+    CO2(aq)
+    NH4+
     NO3-
+    H+
+  /
+  SECONDARY_SPECIES
     HCO3-
+    CO3--
+    NH3(aq)
+    OH-
   /
   REDOX_SPECIES
     NO3-
@@ -37,6 +44,11 @@ CHEMISTRY
         DOWNSTREAM_POOL SOM1 0.61d0
         RATE_CONSTANT 0.7 1/d
       /
+      AMMONIA_HALF_SATURATION 1.d-15
+      NITRATE_HALF_SATURATION 1.d-15
+      AMMONIA_INHIBITION_NITRATE 1.d10
+       
+
     /
   /
 #  LOG_FORMULATION
@@ -119,10 +131,11 @@ END
 #=========================== transport constraints ============================
 CONSTRAINT initial
   CONCENTRATIONS
-    NH3(aq)  5.d-9     T  ! moles/L
+    CO2(aq)  1.d-20    T  ! moles/L
+    NH4+     5.d-9     T  ! moles/L
     NO3-     5.d-9     T  ! moles/L
-    HCO3-   1.d-20     T  ! moles/L
-  /
+    H+       6.0d0     pH
+ /
   IMMOBILE
     LabileC     0.1852d-3
     LabileN     0.00508954d-3
