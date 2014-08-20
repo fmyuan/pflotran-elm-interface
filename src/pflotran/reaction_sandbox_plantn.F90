@@ -48,7 +48,7 @@ function PlantNCreate()
   PlantNCreate%rate = 0.d0
   PlantNCreate%half_saturation_nh3 = 1.d-15
   PlantNCreate%half_saturation_no3 = 1.d-15
-  PlantNCreate%inhibition_nh3_no3  = 1.d-15
+  PlantNCreate%inhibition_nh3_no3  = 1.d0
   PlantNCreate%x0eps_nh4  = 1.d-20
   PlantNCreate%x0eps_no3  = 1.d-20
   nullify(PlantNCreate%next)
@@ -105,6 +105,11 @@ subroutine PlantNRead(this,input,option)
           call InputReadDouble(input,option,this%inhibition_nh3_no3)
           call InputErrorMsg(input,option,'ammonia inhibition on nitrate', &
                      'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+          if (this%inhibition_nh3_no3<0.d-20) then
+            option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,' // &
+              'AMMONIA_INHIBITION_NITRATE cannot be too small to close to 0'
+            call printErrMsg(option)
+          endif
       case('X0EPS_NH4')
           call InputReadDouble(input,option,this%x0eps_nh4)
           call InputErrorMsg(input,option,'x0eps_nh4', &
@@ -207,9 +212,15 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: c_no3         ! concentration (mole/L)
   PetscReal :: fno3          ! no3 / (half_saturation + no3): rate dependence on substrate
   PetscReal :: dfno3_dno3    ! d(fno3)/d(no3)
-  PetscReal :: fnh3_inhibit_no3        ! inhibition of nh3 on no3 uptake (plant preference over nh3/no3): inhibition_coef/(inhibition_coef + nh3)
-  PetscReal :: dfnh3_inhibit_no3_dnh3  ! derivative of d(fnh3_inhibit_no3)/d(nh3)
-  PetscReal :: dfnh3_inhibit_no3_dno3  ! derivative of d(fnh3_inhibit_no3)/d(no3)
+
+  ! nh3 inhibition on no3 uptake, or plant N uptake preference btw nh3 and no3
+  ! (Currently it's similar function as microbial N immobilization)
+  ! crate_nh3 = fnh3*fnh3_inhibit_no3, while crate_no3 = 1.-fnh3*fnh3_inhibition_no3
+  ! by the following eq., if 'inhibition=1', uptake will be equal for both (if same conc.);
+  ! higher coef, strong NH4 inhibition on NO3 (i.e., more NH4 uptake over NO3)
+  PetscReal :: fnh3_inhibit_no3 ! inhibition_coef/(inhibition_coef + no3/nh3):
+  PetscReal :: dfnh3_inhibit_no3_dnh3 ! d(fnh3_inhibit_no3)/dnh3
+  PetscReal :: dfnh3_inhibit_no3_dno3 ! d(fnh3_inhibit_no3)/dno3
 
   PetscReal :: temp_real, feps0, dfeps0_dx
 
@@ -279,11 +290,41 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     fnh3      = c_nh3 / temp_real
     dfnh3_dnh3= this%half_saturation_nh3 / temp_real / temp_real
 
+    ! the following may not be needed (if we do a good work above), but just in case
+    if(this%x0eps_nh4>0.d0) then
+      feps0  = c_nh3/(c_nh3 + this%x0eps_nh4)         ! for trailer smoothing
+      dfeps0_dx = this%x0eps_nh4/(c_nh3 + this%x0eps_nh4)/(c_nh3 + this%x0eps_nh4)
+
+      dfnh3_dnh3 = dfnh3_dnh3*feps0 + dfeps0_dx*fnh3  ! do the derivative first
+      fnh3 = fnh3 * feps0
+    endif
+
+    !
+    ! nh3 inhibition on no3 uptake, if any ('this%inhibition_nh3_no3')
+    ! this is for quantifying plant N uptake preference btw NH4 and NO3
+    ! (very similar as N immobilization now).
     if (ispec_no3 > 0) then
-      temp_real = this%inhibition_nh3_no3 + c_nh3
-      fnh3_inhibit_no3 = this%inhibition_nh3_no3/temp_real
-      dfnh3_inhibit_no3_dnh3 = -this%inhibition_nh3_no3/temp_real/temp_real
-      dfnh3_inhibit_no3_dno3 = 0.d0
+      c_no3     = rt_auxvar%total(ispec_no3, iphase)
+       ! (DON'T change the 'rate' and 'derivatives' after this)
+      if(c_nh3>this%x0eps_nh4 .and. c_no3>this%x0eps_no3 &
+        .and. this%inhibition_nh3_no3>0.d0) then
+        temp_real = this%inhibition_nh3_no3 + c_no3/c_nh3
+        fnh3_inhibit_no3 = this%inhibition_nh3_no3/temp_real
+        dfnh3_inhibit_no3_dnh3 = this%inhibition_nh3_no3*(c_no3/c_nh3/c_nh3)  &
+                               /temp_real/temp_real     ! over 'd_nh3'
+        dfnh3_inhibit_no3_dno3 = -this%inhibition_nh3_no3/c_nh3  &
+                               /temp_real/temp_real     ! over 'd_no3'
+      else
+        if (c_nh3>this%x0eps_nh4 .and. c_no3<=this%x0eps_no3) then
+          fnh3_inhibit_no3 = 0.999d0
+        elseif (c_nh3<=this%x0eps_nh4 .and. c_no3>this%x0eps_no3) then
+          fnh3_inhibit_no3 = 0.001d0
+        else
+          fnh3_inhibit_no3 = 0.50d0
+        endif
+        dfnh3_inhibit_no3_dnh3 = 0.d0
+        dfnh3_inhibit_no3_dno3 = 0.d0
+      endif
 
     endif
 
@@ -296,6 +337,17 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     temp_real = c_no3 + this%half_saturation_no3
     fno3      = c_no3 / temp_real
     dfno3_dno3= this%half_saturation_no3 / temp_real / temp_real
+
+    ! the following may not be needed (if we do a good work above), but just in case
+    if(this%x0eps_no3>0.d0) then
+      feps0  = c_no3/(c_no3 + this%x0eps_no3)         ! for trailer smoothing
+      dfeps0_dx = this%x0eps_no3 &
+                 /(c_no3 + this%x0eps_no3)/(c_no3 + this%x0eps_no3)
+
+      dfno3_dno3 = dfno3_dno3*feps0 + dfeps0_dx*fno3  ! do the derivative first
+      fno3 = fno3 * feps0
+    endif
+
 
   endif
 
@@ -316,20 +368,11 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   if(ispec_nh3 > 0) then
 
-    if(this%x0eps_nh4>0.d0) then
-      feps0  = c_nh3/(c_nh3 + this%x0eps_nh4)         ! for trailer smoothing
-      dfeps0_dx = this%x0eps_nh4/(c_nh3 + this%x0eps_nh4)/(c_nh3 + this%x0eps_nh4)
-    else
-      feps0 = 1.d0
-      dfeps0_dx = 0.d0
-    endif
-
     ! rates
-    nrate_nh3 = this%rate * fnh3 * feps0
+    nrate_nh3 = this%rate * fnh3
     if(ispec_no3 > 0) then
-    ! splitting (fractioning) potential uptake rate by the '1-fnh3_inhibition_no3'
-      nrate_nh3 = this%rate * fnh3 * feps0 * &
-                  (1.0-fnh3_inhibit_no3)
+    ! splitting (fractioning) potential uptake rate by the 'fnh3_inhibition_no3' for NH4 uptake
+      nrate_nh3 = this%rate * fnh3 * fnh3_inhibit_no3
     endif
 
     ! residuals
@@ -343,14 +386,14 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     ! jacobians
     if(compute_derivative) then
 
-      dnrate_nh3_dnh3 = this%rate * (dfnh3_dnh3*feps0 + fnh3*dfeps0_dx)
+      dnrate_nh3_dnh3 = this%rate * dfnh3_dnh3
       if(ispec_no3 > 0) then
-        temp_real = fnh3 * feps0 * (-1.0d0*dfnh3_inhibit_no3_dnh3) + &
-                    (1.0-fnh3_inhibit_no3) * &
-                    (fnh3*dfeps0_dx + dfnh3_dnh3*feps0)
+        temp_real = fnh3 * dfnh3_inhibit_no3_dnh3 + &
+                    fnh3_inhibit_no3 * dfnh3_dnh3
         dnrate_nh3_dnh3 = this%rate * temp_real
 
-        dnrate_nh3_dno3 = 0.d0    ! no rate dependence on 'no3' currently
+        temp_real = fnh3 * dfnh3_inhibit_no3_dno3     ! dfnh3_dno3 = 0
+        dnrate_nh3_dno3 = this%rate * temp_real
       endif
 
       Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + &
@@ -372,21 +415,14 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   if(ispec_no3 > 0) then
 
-    if(this%x0eps_no3>0.d0) then
-      feps0  = c_no3/(c_no3 + this%x0eps_no3)         ! for trailer smoothing
-      dfeps0_dx = this%x0eps_no3 &
-                 /(c_no3 + this%x0eps_no3)/(c_no3 + this%x0eps_no3)
-    else
-      feps0 = 1.d0
-      dfeps0_dx = 0.d0
-    endif
-
     ! rates
-    nrate_no3 = this%rate * fno3 * feps0
+    nrate_no3 = this%rate * fno3
     if(ispec_nh3 > 0) then
-    ! splitting (fractioning) potential uptake rate by the 'fnh3_inhibition_no3'
-      nrate_no3 = this%rate * fno3 * feps0 * &
-                  fnh3_inhibit_no3
+    ! splitting (fractioning) potential uptake rate by the rest of nrate_nh3,
+    ! which adjusted by 'fnh3_inhibition_no3'
+    ! i.e., 1.0-fnh3*fnh3_inhibit_no3
+      nrate_no3 = this%rate * fno3 * &
+                  (1.0d0-fnh3*fnh3_inhibit_no3)
     endif
 
     ! residuals
@@ -395,14 +431,16 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
     if (compute_derivative) then
 
-      dnrate_no3_dno3 = this%rate * (dfno3_dno3*feps0 + fno3*dfeps0_dx)
+      dnrate_no3_dno3 = this%rate * dfno3_dno3
       if(ispec_nh3 > 0) then
-        temp_real = fno3 * feps0 *dfnh3_inhibit_no3_dno3 + &             ! 'dfnh3_inhibit_no3_dno3'=0
-                    fnh3_inhibit_no3 * &
-                    (fno3*dfeps0_dx + dfno3_dno3*feps0)
+        temp_real = dfno3_dno3 * (1.d0-fnh3*fnh3_inhibit_no3) + &
+                    fno3 * (-1.0d0*fnh3*dfnh3_inhibit_no3_dno3)              ! 'dfnh3_dno3=0'
         dnrate_no3_dno3 = this%rate * temp_real
 
-        dnrate_no3_dnh3 = this%rate*fno3*feps0*dfnh3_inhibit_no3_dnh3    ! both 'fno3' and 'feps0' independent of 'nh3'
+        temp_real = fno3 * (-1.0d0) * &                                      ! 'dfno3_dnh3=0'
+                    ( fnh3*dfnh3_inhibit_no3_dnh3 + &
+                      dfnh3_dnh3*fnh3_inhibit_no3 )
+        dnrate_no3_dnh3 = this%rate * temp_real
       endif
 
       Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) + &
