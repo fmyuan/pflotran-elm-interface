@@ -13,7 +13,8 @@ module Timestepper_Base_class
   PetscInt, parameter, public :: TS_CONTINUE = 0
   PetscInt, parameter, public :: TS_STOP_END_SIMULATION = 1
   PetscInt, parameter, public :: TS_STOP_MAX_TIME_STEP = 2
-  PetscInt, parameter, public :: TS_STOP_FAILURE = 3
+  PetscInt, parameter, public :: TS_STOP_WALLCLOCK_EXCEEDED = 3
+  PetscInt, parameter, public :: TS_STOP_FAILURE = 4
 
   type, public :: stepper_base_type
   
@@ -60,6 +61,7 @@ module Timestepper_Base_class
     procedure, public :: Checkpoint => TimestepperBaseCheckpoint
     procedure, public :: Restart => TimestepperBaseRestart
     procedure, public :: Reset => TimestepperBaseReset
+    procedure, public :: WallClockStop => TimestepperBaseWallClockStop
     procedure, public :: FinalizeRun => TimestepperBaseFinalizeRun
     procedure, public :: Strip => TimestepperBaseStrip
     procedure, public :: Destroy => TimestepperBaseDestroy
@@ -603,26 +605,21 @@ subroutine TimestepperBaseRegisterHeader(this,bag,header)
   PetscErrorCode :: ierr
   
   ! bagsize = 8 * 8 bytes = 64 bytes
-  call PetscBagRegisterReal(bag,header%time,0,"time","",ierr)
-  CHKERRQ(ierr)
-  call PetscBagRegisterReal(bag,header%dt,0,"dt","",ierr)
-  CHKERRQ(ierr)
-  call PetscBagRegisterReal(bag,header%prev_dt,0,"prev_dt","",ierr)
-  CHKERRQ(ierr)
-  call PetscBagRegisterInt(bag,header%num_steps,0,"num_steps","",ierr)
-  CHKERRQ(ierr)
+  call PetscBagRegisterReal(bag,header%time,0,"time","",ierr);CHKERRQ(ierr)
+  call PetscBagRegisterReal(bag,header%dt,0,"dt","",ierr);CHKERRQ(ierr)
+  call PetscBagRegisterReal(bag,header%prev_dt,0,"prev_dt","", &
+                            ierr);CHKERRQ(ierr)
+  call PetscBagRegisterInt(bag,header%num_steps,0,"num_steps","", &
+                           ierr);CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%cumulative_time_step_cuts,0, &
-                           "cumulative_time_step_cuts","",ierr)
-  CHKERRQ(ierr)
+                           "cumulative_time_step_cuts","",ierr);CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%num_constant_time_steps,0, &
-                           "num_constant_time_steps","",ierr)
-  CHKERRQ(ierr)
+                           "num_constant_time_steps","",ierr);CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%num_contig_revert_due_to_sync,0, &
-                           "num_contig_revert_due_to_sync","",ierr)
-  CHKERRQ(ierr)
+                           "num_contig_revert_due_to_sync","", &
+                           ierr);CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%revert_dt,0, &
-                           "revert_dt","",ierr)
-  CHKERRQ(ierr)
+                           "revert_dt","",ierr);CHKERRQ(ierr)
     
 end subroutine TimestepperBaseRegisterHeader
 
@@ -743,6 +740,42 @@ subroutine TimestepperBaseReset(this)
   this%revert_dt = PETSC_FALSE
     
 end subroutine TimestepperBaseReset
+
+! ************************************************************************** !
+
+function TimestepperBaseWallClockStop(this,option)
+  ! 
+  ! Stops time stepping when a prescribed wall clock time has been exceeded.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/08/14
+  ! 
+  use Option_module
+
+  implicit none
+
+  class(stepper_base_type) :: this
+  type(option_type) :: option
+  
+  PetscBool :: TimestepperBaseWallclockStop
+  PetscLogDouble :: current_time, average_step_time
+  PetscErrorCode :: ierr
+  
+  ! if a simulation wallclock duration time is set, check to see that the
+  ! next time step will not exceed that value.  If it does, print the
+  ! checkpoint and exit
+  TimestepperBaseWallclockStop = PETSC_FALSE
+  if (option%wallclock_stop_flag) then
+    call PetscTime(current_time, ierr)
+    average_step_time = (current_time-option%start_time)/ &
+                        dble(this%steps-this%start_time_step+1) &
+                        *2.d0  ! just to be safe, double it
+    if (average_step_time + current_time > option%wallclock_stop_time) then
+      TimestepperBaseWallclockStop = PETSC_TRUE
+    endif
+  endif
+  
+end function TimestepperBaseWallClockStop
 
 ! ************************************************************************** !
 

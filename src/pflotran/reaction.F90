@@ -589,8 +589,8 @@ subroutine ReactionReadPass1(reaction,input,option)
                           kd_rxn%itype = SORPTION_FREUNDLICH
                         case default
                           option%io_buffer = &
-                          'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS,TYPE keyword: ' // &
-                          trim(word)//' not recognized'
+                            'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS,TYPE keyword: ' // &
+                            trim(word)//' not recognized'
                           call printErrMsg(option)
                       end select
                       if (option%use_mc) then

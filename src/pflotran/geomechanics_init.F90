@@ -1,5 +1,3 @@
-#ifdef GEOMECH
-
 module Geomechanics_Init_module
 
   use PFLOTRAN_Constants_module
@@ -34,11 +32,7 @@ subroutine GeomechicsInitReadRequiredCards(geomech_realization)
   ! 
 
   use Geomechanics_Discretization_module
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Geomechanics_Patch_module
   use Geomechanics_Grid_module
   use Input_Aux_module
@@ -92,11 +86,7 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
   use Geomechanics_Grid_module
   use Geomechanics_Grid_Aux_module
   use Geomechanics_Discretization_module
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Geomechanics_Patch_module
   use Unstructured_Grid_Aux_module
   use Unstructured_Grid_module
@@ -189,11 +179,7 @@ subroutine GeomechanicsInitReadInput(geomech_realization,geomech_solver, &
   use Input_Aux_module
   use String_module
   use Geomechanics_Discretization_module
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Geomechanics_Patch_module
   use Geomechanics_Grid_module
   use Geomechanics_Grid_Aux_module
@@ -621,11 +607,7 @@ subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
   ! Date: 06/17/13
   ! 
 
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Geomechanics_Discretization_module
   use Geomechanics_Strata_module
   use Geomechanics_Region_module
@@ -719,8 +701,7 @@ subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
   ! set cell by cell material properties
   ! create null material property for inactive cells
   null_geomech_material_property => GeomechanicsMaterialPropertyCreate()
-  call VecGetArrayF90(field%imech_loc,imech_loc_p,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax_node
     ghosted_id = grid%nL2G(local_id)
     geomech_material_id = patch%imat(ghosted_id)
@@ -758,8 +739,7 @@ subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
     endif
     imech_loc_p(ghosted_id) = geomech_material_property%id
   enddo ! local_id - loop
-  call VecRestoreArrayF90(field%imech_loc,imech_loc_p,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%imech_loc,imech_loc_p,ierr);CHKERRQ(ierr)
   
   call GeomechanicsMaterialPropertyDestroy(null_geomech_material_property)
   nullify(null_geomech_material_property)
@@ -770,5 +750,3 @@ subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
 end subroutine GeomechInitMatPropToGeomechRegions
  
 end module Geomechanics_Init_module
-#endif
-! GEOMECH

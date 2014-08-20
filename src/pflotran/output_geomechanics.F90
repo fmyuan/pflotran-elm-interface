@@ -1,4 +1,3 @@
-#ifdef GEOMECH
 module Output_Geomechanics_module
 
   use Geomechanics_Logging_module
@@ -37,11 +36,7 @@ subroutine OutputGeomechInit(geomech_realization,num_steps)
   ! Date: 07/2/13
   ! 
 
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Option_module
 
   implicit none
@@ -68,11 +63,7 @@ subroutine OutputGeomechanics(geomech_realization,plot_flag, &
   ! Date: 07/2/13
   ! 
 
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Option_module, only : OptionCheckTouch, option_type, &
                             printMsg, printErrMsg
 
@@ -89,8 +80,8 @@ subroutine OutputGeomechanics(geomech_realization,plot_flag, &
 
   option => geomech_realization%option
 
-  call PetscLogStagePush(geomech_logging%stage(GEOMECH_OUTPUT_STAGE),ierr)
-  CHKERRQ(ierr)
+  call PetscLogStagePush(geomech_logging%stage(GEOMECH_OUTPUT_STAGE), &
+                         ierr);CHKERRQ(ierr)
 
   ! check for plot request from active directory
   if (.not.plot_flag) then
@@ -112,15 +103,13 @@ subroutine OutputGeomechanics(geomech_realization,plot_flag, &
     endif
    
     if (geomech_realization%output_option%print_tecplot) then
-      call PetscTime(tstart,ierr)
-      CHKERRQ(ierr)
-      call PetscLogEventBegin(geomech_logging%event_output_tecplot,ierr)
-      CHKERRQ(ierr) 
+      call PetscTime(tstart,ierr);CHKERRQ(ierr)
+      call PetscLogEventBegin(geomech_logging%event_output_tecplot, &
+                              ierr);CHKERRQ(ierr)
       call OutputTecplotGeomechanics(geomech_realization)
-      call PetscTime(tend,ierr)
-      CHKERRQ(ierr)
-      call PetscLogEventEnd(geomech_logging%event_output_tecplot,ierr)
-      CHKERRQ(ierr)
+      call PetscTime(tend,ierr);CHKERRQ(ierr)
+      call PetscLogEventEnd(geomech_logging%event_output_tecplot, &
+                            ierr);CHKERRQ(ierr)
     endif
 
   endif
@@ -131,8 +120,7 @@ subroutine OutputGeomechanics(geomech_realization,plot_flag, &
       geomech_realization%output_option%plot_number + 1
   endif
 
-  call PetscLogStagePop(ierr)
-  CHKERRQ(ierr)
+  call PetscLogStagePop(ierr);CHKERRQ(ierr)
 
 end subroutine OutputGeomechanics
 
@@ -146,11 +134,7 @@ subroutine OutputTecplotGeomechanics(geomech_realization)
   ! Date: 07/2/13
   ! 
 
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Geomechanics_Discretization_module
   use Geomechanics_Grid_module
   use Geomechanics_Grid_Aux_module
@@ -162,10 +146,8 @@ subroutine OutputTecplotGeomechanics(geomech_realization)
 
   type(geomech_realization_type) :: geomech_realization
   
-  PetscInt :: i, comma_count, quote_count
   PetscInt, parameter :: icolumn = -1
   character(len=MAXSTRINGLENGTH) :: filename, string, string2
-  character(len=MAXHEADERLENGTH) :: header, header2
   character(len=MAXSTRINGLENGTH) :: tmp_global_prefix
   character(len=MAXWORDLENGTH) :: word
   type(geomech_grid_type), pointer :: grid
@@ -235,10 +217,8 @@ subroutine OutputTecplotGeomechanics(geomech_realization)
     cur_variable => cur_variable%next
   enddo
 
-  call VecDestroy(natural_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(global_vec,ierr)
-  CHKERRQ(ierr)
+  call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
 
   ! write vertices
   call WriteTecplotGeomechGridElements(OUTPUT_UNIT,geomech_realization)
@@ -258,11 +238,7 @@ subroutine WriteTecplotGeomechGridElements(fid,geomech_realization)
   ! Date: 07/03/2013
   ! 
 
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Geomechanics_Grid_module
   use Geomechanics_Grid_Aux_module
   use Option_module
@@ -295,23 +271,17 @@ subroutine WriteTecplotGeomechGridElements(fid,geomech_realization)
                             NATURAL,option) 
   call GetCellConnectionsGeomech(grid,global_vec)
   call VecScatterBegin(gmdm_element%scatter_gton_elem,global_vec,natural_vec, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(gmdm_element%scatter_gton_elem,global_vec,natural_vec, &
-                     INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr) 
-  call VecGetArrayF90(natural_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization,vec_ptr, &
                                             TECPLOT_INTEGER, &
                                             grid%nlmax_elem*8, &
                                             EIGHT_INTEGER)
-  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(global_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(natural_vec,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call GMDMDestroy(gmdm_element)
 
 end subroutine WriteTecplotGeomechGridElements
@@ -431,11 +401,7 @@ subroutine OutputTecplotHeader(fid,geomech_realization,icolumn)
   ! Date: 07/2/13
   ! 
 
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Geomechanics_Grid_module
   use Geomechanics_Grid_Aux_module
   use Option_module
@@ -447,15 +413,13 @@ subroutine OutputTecplotHeader(fid,geomech_realization,icolumn)
   type(geomech_realization_type) :: geomech_realization
   PetscInt :: icolumn
   
-  character(len=MAXHEADERLENGTH) :: header, header2
   character(len=MAXSTRINGLENGTH) :: string, string2
   character(len=MAXWORDLENGTH) :: word
   type(geomech_grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(geomech_patch_type), pointer :: patch
   type(output_option_type), pointer :: output_option
-  PetscInt :: comma_count, quote_count, variable_count
-  PetscInt :: i
+  PetscInt :: variable_count
   
   patch => geomech_realization%geomech_patch
   grid => patch%geomech_grid
@@ -468,44 +432,30 @@ subroutine OutputTecplotHeader(fid,geomech_realization,icolumn)
                 option%geomech_time/output_option%tconv,output_option%tunit
 
   ! initial portion of header
-  header = 'VARIABLES=' // &
-            '"X [m]",' // &
-            '"Y [m]",' // &
-            '"Z [m]"'
-  header2=''
-  header2 = OutputVariableListToHeader(output_option%output_variable_list,'', &
-                                      icolumn,PETSC_TRUE)
+  string = 'VARIABLES=' // &
+           '"X [m]",' // &
+           '"Y [m]",' // &
+           '"Z [m]"'
+  write(fid,'(a)',advance="no") trim(string)
 
-  header = trim(header) // trim(header2)
-  write(fid,'(a)') trim(header)
-
-  ! count vars in header
-  quote_count = 0
-  comma_count = 0
-  do i=1,len_trim(header)
-    ! 34 = '"'
-    if (iachar(header(i:i)) == 34) then
-      quote_count = quote_count + 1
-    ! 44 = ','
-    else if (iachar(header(i:i)) == 44 .and. mod(quote_count,2) == 0) then
-      comma_count = comma_count + 1
-    endif
-  enddo
-  
-  variable_count = comma_count + 1
+  call OutputWriteVariableListToHeader(fid,output_option%output_variable_list, &
+                                       '',icolumn,PETSC_TRUE,variable_count)
+ ! need to terminate line
+  write(fid,'(a)') ''
+  ! add x, y, z variables to count
+  variable_count = variable_count + 3
 
   !geh: due to pgi bug, cannot embed functions with calls to write() within
   !     write statement
-  string = OutputTecplotZoneHeader(geomech_realization,variable_count, &
-                                   output_option%tecplot_format)
-  write(fid,'(a)') trim(string)
+  call OutputWriteTecplotZoneHeader(fid,geomech_realization,variable_count, &
+                                    output_option%tecplot_format)
 
 end subroutine OutputTecplotHeader
 
 ! ************************************************************************** !
 
-function OutputTecplotZoneHeader(geomech_realization,variable_count, &
-                                 tecplot_format)
+subroutine OutputWriteTecplotZoneHeader(fid,geomech_realization, &
+                                        variable_count,tecplot_format)
   ! 
   ! Prints zone header to a tecplot file
   ! 
@@ -513,11 +463,7 @@ function OutputTecplotZoneHeader(geomech_realization,variable_count, &
   ! Date: 07/2/13
   ! 
 
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Geomechanics_Grid_module
   use Geomechanics_Grid_Aux_module
   use Option_module
@@ -525,12 +471,11 @@ function OutputTecplotZoneHeader(geomech_realization,variable_count, &
   
   implicit none
 
+  PetscInt :: fid
   type(geomech_realization_type) :: geomech_realization
   PetscInt :: variable_count
   PetscInt :: tecplot_format
   
-  character(len=MAXSTRINGLENGTH) :: OutputTecplotZoneHeader
-
   character(len=MAXSTRINGLENGTH) :: string, string2, string3
   type(geomech_grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -563,9 +508,9 @@ function OutputTecplotZoneHeader(geomech_realization,variable_count, &
       string2 = trim(string2) // trim(string3) // ', DATAPACKING=BLOCK'
   end select
   
-  OutputTecplotZoneHeader = trim(string) // string2
+  write(fid,'(a)') trim(string) // trim(string2)
 
-end function OutputTecplotZoneHeader
+end subroutine OutputWriteTecplotZoneHeader
 
 ! ************************************************************************** !
 
@@ -577,11 +522,7 @@ subroutine WriteTecplotGeomechGridVertices(fid,geomech_realization)
   ! Date: 07/2/13
   ! 
 
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Geomechanics_Grid_Aux_module
   use Geomechanics_Grid_module
   use Option_module
@@ -607,36 +548,27 @@ subroutine WriteTecplotGeomechGridVertices(fid,geomech_realization)
 
   call VecCreateMPI(option%mycomm,PETSC_DECIDE, &
                     grid%nmax_node, &
-                    global_vertex_vec,ierr)
-  CHKERRQ(ierr)
-  call VecGetLocalSize(global_vertex_vec,local_size,ierr)
-  CHKERRQ(ierr)
+                    global_vertex_vec,ierr);CHKERRQ(ierr)
+  call VecGetLocalSize(global_vertex_vec,local_size,ierr);CHKERRQ(ierr)
   call GetVertexCoordinatesGeomech(grid,global_vertex_vec,X_COORDINATE,option)
-  call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call WriteTecplotDataSetGeomech(fid,geomech_realization,vec_ptr, &
                                   TECPLOT_REAL,local_size)
-  call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   call GetVertexCoordinatesGeomech(grid,global_vertex_vec,Y_COORDINATE,option)
-  call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call WriteTecplotDataSetGeomech(fid,geomech_realization,vec_ptr, &
                                   TECPLOT_REAL,local_size)
-  call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   call GetVertexCoordinatesGeomech(grid,global_vertex_vec,Z_COORDINATE,option)
-  call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call WriteTecplotDataSetGeomech(fid,geomech_realization,vec_ptr, &
                                   TECPLOT_REAL,local_size)
-  call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
-  call VecDestroy(global_vertex_vec,ierr)
-  CHKERRQ(ierr)
+  call VecDestroy(global_vertex_vec,ierr);CHKERRQ(ierr)
 
 end subroutine WriteTecplotGeomechGridVertices
 
@@ -673,8 +605,7 @@ subroutine GetVertexCoordinatesGeomech(grid,vec,direction,option)
   PetscErrorCode :: ierr
   
   if (option%mycommsize == 1) then
-    call VecGetArrayF90(vec,vec_ptr,ierr)
-    CHKERRQ(ierr)
+    call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
     select case(direction)
       case(X_COORDINATE)
         do ivertex = 1,grid%nlmax_node
@@ -689,12 +620,10 @@ subroutine GetVertexCoordinatesGeomech(grid,vec,direction,option)
           vec_ptr(ivertex) = grid%nodes(ivertex)%z
         enddo
     end select
-    call VecRestoreArrayF90(vec,vec_ptr,ierr)
-    CHKERRQ(ierr)
+    call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
   else
     ! initialize to -999 to catch bugs
-    call VecSet(vec,-999.d0,ierr)
-    CHKERRQ(ierr)
+    call VecSet(vec,-999.d0,ierr);CHKERRQ(ierr)
     allocate(values(grid%nlmax_node))
     allocate(indices(grid%nlmax_node))
     select case(direction)
@@ -713,14 +642,11 @@ subroutine GetVertexCoordinatesGeomech(grid,vec,direction,option)
     end select
     indices(:) = grid%node_ids_local_natural(:)-1
     call VecSetValues(vec,grid%nlmax_node, &
-                      indices,values,INSERT_VALUES,ierr)
-    CHKERRQ(ierr)
-    call VecAssemblyBegin(vec,ierr)
-    CHKERRQ(ierr)
+                      indices,values,INSERT_VALUES,ierr);CHKERRQ(ierr)
+    call VecAssemblyBegin(vec,ierr);CHKERRQ(ierr)
     deallocate(values)
     deallocate(indices)
-    call VecAssemblyEnd(vec,ierr)
-    CHKERRQ(ierr)
+    call VecAssemblyEnd(vec,ierr);CHKERRQ(ierr)
   endif
   
 end subroutine GetVertexCoordinatesGeomech
@@ -736,11 +662,7 @@ subroutine OutputGeomechGetVarFromArray(geomech_realization,vec,ivar,isubvar, &
   ! Date: 07/3/13
   ! 
 
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Geomechanics_Grid_Aux_module
   use Option_module
   use Geomechanics_Field_module
@@ -759,13 +681,13 @@ subroutine OutputGeomechGetVarFromArray(geomech_realization,vec,ivar,isubvar, &
   
   PetscErrorCode :: ierr
 
-  call PetscLogEventBegin(geomech_logging%event_output_get_var_from_array,ierr)
-  CHKERRQ(ierr) 
+  call PetscLogEventBegin(geomech_logging%event_output_get_var_from_array, &
+                          ierr);CHKERRQ(ierr)
                         
   call GeomechRealizGetDataset(geomech_realization,vec,ivar,isubvar,isubvar1)
 
-  call PetscLogEventEnd(geomech_logging%event_output_get_var_from_array,ierr)
-  CHKERRQ(ierr) 
+  call PetscLogEventEnd(geomech_logging%event_output_get_var_from_array, &
+                        ierr);CHKERRQ(ierr)
   
 end subroutine OutputGeomechGetVarFromArray
 
@@ -780,11 +702,7 @@ subroutine WriteTecplotDataSetGeomechFromVec(fid,geomech_realization,vec,datatyp
   ! Date: 07/03//13
   ! 
 
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
 
   implicit none
 
@@ -796,12 +714,10 @@ subroutine WriteTecplotDataSetGeomechFromVec(fid,geomech_realization,vec,datatyp
   
   PetscReal, pointer :: vec_ptr(:)
   
-  call VecGetArrayF90(vec,vec_ptr,ierr)
-  CHKERRQ(ierr)                ! 0 implies grid%nlmax
+  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
   call WriteTecplotDataSetGeomech(fid,geomech_realization,vec_ptr, &
                                   datatype,ZERO_INTEGER) 
-  call VecRestoreArrayF90(vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
   
 end subroutine WriteTecplotDataSetGeomechFromVec
 
@@ -817,11 +733,7 @@ subroutine WriteTecplotDataSetGeomech(fid,geomech_realization,array,datatype, &
   ! Date: 07/02//13
   ! 
 
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Geomechanics_Grid_Aux_module
   use Option_module
   use Geomechanics_Patch_module
@@ -855,11 +767,7 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
   ! Date: 10/25/07, 12/02/11, Satish Karra 07/02/13
   ! 
 
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Geomechanics_Grid_module
   use Geomechanics_Grid_Aux_module
   use Option_module
@@ -899,8 +807,8 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
   grid => patch%geomech_grid
   option => geomech_realization%option
 
-  call PetscLogEventBegin(geomech_logging%event_output_write_tecplot,ierr)
-  CHKERRQ(ierr)    
+  call PetscLogEventBegin(geomech_logging%event_output_write_tecplot, &
+                          ierr);CHKERRQ(ierr)
 
   ! if num_per_line exceeds 100, need to change the format statement below
   if (num_per_line > 100) then
@@ -1112,8 +1020,8 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
     deallocate(real_data)
   endif
 
-  call PetscLogEventEnd(geomech_logging%event_output_write_tecplot,ierr)
-  CHKERRQ(ierr)    
+  call PetscLogEventEnd(geomech_logging%event_output_write_tecplot, &
+                        ierr);CHKERRQ(ierr)
 
 end subroutine WriteTecplotDataSetNumPerLineGeomech
 
@@ -1134,11 +1042,8 @@ subroutine OutputXMFHeaderGeomech(fid,time,nmax,xmf_vert_len,ngvert,filename)
   PetscInt :: nmax,xmf_vert_len,ngvert
   character(len=MAXSTRINGLENGTH) :: filename
 
-  character(len=MAXHEADERLENGTH) :: header, header2
   character(len=MAXSTRINGLENGTH) :: string, string2
   character(len=MAXWORDLENGTH) :: word
-  PetscInt :: comma_count, quote_count, variable_count
-  PetscInt :: i
   
   string="<?xml version=""1.0"" ?>"
   write(fid,'(a)') trim(string)
@@ -1287,11 +1192,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   ! Date: 07/3/13
   ! 
 
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Geomechanics_Discretization_module
   use Option_module
   use Geomechanics_Grid_module
@@ -1576,10 +1477,8 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
 
   end select
 
-  call VecDestroy(global_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(natural_vec,ierr)
-  CHKERRQ(ierr)
+  call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call h5gclose_f(grp_id,hdf5_err)
 
   call h5fclose_f(file_id,hdf5_err)
@@ -1612,11 +1511,7 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
 
   use hdf5
   use HDF5_module, only : HDF5WriteUnstructuredDataSetFromVec
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Geomechanics_Grid_module
   use Geomechanics_Grid_Aux_module
   use Option_module
@@ -1687,34 +1582,25 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
 
   call VecCreateMPI(option%mycomm,PETSC_DECIDE, &
                     grid%nmax_node, &
-                    global_x_vertex_vec,ierr)
-  CHKERRQ(ierr)
+                    global_x_vertex_vec,ierr);CHKERRQ(ierr)
   call VecCreateMPI(option%mycomm,PETSC_DECIDE, &
                     grid%nmax_node, &
-                    global_y_vertex_vec,ierr)
-  CHKERRQ(ierr)
+                    global_y_vertex_vec,ierr);CHKERRQ(ierr)
   call VecCreateMPI(option%mycomm,PETSC_DECIDE, &
                     grid%nmax_node, &
-                    global_z_vertex_vec,ierr)
-  CHKERRQ(ierr)
+                    global_z_vertex_vec,ierr);CHKERRQ(ierr)
 
-  call VecGetLocalSize(global_x_vertex_vec,local_size,ierr)
-  CHKERRQ(ierr)
-  call VecGetLocalSize(global_y_vertex_vec,local_size,ierr)
-  CHKERRQ(ierr)
-  call VecGetLocalSize(global_z_vertex_vec,local_size,ierr)
-  CHKERRQ(ierr)
+  call VecGetLocalSize(global_x_vertex_vec,local_size,ierr);CHKERRQ(ierr)
+  call VecGetLocalSize(global_y_vertex_vec,local_size,ierr);CHKERRQ(ierr)
+  call VecGetLocalSize(global_z_vertex_vec,local_size,ierr);CHKERRQ(ierr)
 
   call GetVertexCoordinatesGeomech(grid,global_x_vertex_vec,X_COORDINATE,option)
   call GetVertexCoordinatesGeomech(grid,global_y_vertex_vec,Y_COORDINATE,option)
   call GetVertexCoordinatesGeomech(grid,global_z_vertex_vec,Z_COORDINATE,option)
 
-  call VecGetArrayF90(global_x_vertex_vec,vec_x_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecGetArrayF90(global_y_vertex_vec,vec_y_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecGetArrayF90(global_z_vertex_vec,vec_z_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
 
 #if defined(SCORPIO_WRITE)
   write(*,*) 'SCORPIO_WRITE'
@@ -1782,12 +1668,10 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
     double_array((i-1)*3+3) = vec_z_ptr(i)
   enddo
 
-  call PetscLogEventBegin(geomech_logging%event_h5dwrite_f,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventBegin(geomech_logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
   call h5dwrite_f(data_set_id,H5T_NATIVE_DOUBLE,double_array,dims, &
                   hdf5_err,memory_space_id,file_space_id,prop_id)
-  call PetscLogEventEnd(geomech_logging%event_h5dwrite_f,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventEnd(geomech_logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
 
   deallocate(double_array)
   call h5pclose_f(prop_id,hdf5_err)
@@ -1795,12 +1679,9 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   call h5dclose_f(data_set_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
 
-  call VecRestoreArrayF90(global_x_vertex_vec,vec_x_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecRestoreArrayF90(global_y_vertex_vec,vec_y_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecRestoreArrayF90(global_z_vertex_vec,vec_z_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
 
   ! Vertex X/Y/Z
   ! X coord
@@ -1825,12 +1706,9 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
                                            file_id,H5T_NATIVE_DOUBLE) 
 
 
-  call VecDestroy(global_x_vertex_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(global_y_vertex_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(global_z_vertex_vec,ierr)
-  CHKERRQ(ierr)
+  call VecDestroy(global_x_vertex_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_y_vertex_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_z_vertex_vec,ierr);CHKERRQ(ierr)
 
   !
   !  Write elements
@@ -1843,13 +1721,10 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
                             NATURAL,option) 
   call GetCellConnectionsGeomech(grid,global_vec)
   call VecScatterBegin(gmdm_element%scatter_gton_elem,global_vec,natural_vec, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(gmdm_element%scatter_gton_elem,global_vec,natural_vec, &
-                     INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr) 
-  call VecGetArrayF90(natural_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
   
   local_size = grid%nlmax_elem
 
@@ -1932,12 +1807,10 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
     enddo
   enddo
 
-  call PetscLogEventBegin(geomech_logging%event_h5dwrite_f,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventBegin(geomech_logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
   call h5dwrite_f(data_set_id,H5T_NATIVE_INTEGER,int_array,dims, &
                   hdf5_err,memory_space_id,file_space_id,prop_id)
-  call PetscLogEventEnd(geomech_logging%event_h5dwrite_f,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventEnd(geomech_logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
 
   deallocate(int_array)
   call h5pclose_f(prop_id,hdf5_err)
@@ -1945,12 +1818,9 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   call h5dclose_f(data_set_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
 
-  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(global_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(natural_vec,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call GMDMDestroy(gmdm_element)
                                   
 #endif
@@ -1961,5 +1831,3 @@ end subroutine WriteHDF5CoordinatesXDMFGeomech
 ! defined(PETSC_HAVE_HDF5)
 
 end module Output_Geomechanics_module
-
-#endif

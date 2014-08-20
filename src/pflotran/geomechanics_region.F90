@@ -1,5 +1,3 @@
-#ifdef GEOMECH
-
 module Geomechanics_Region_module
  
   use Geometry_module
@@ -328,8 +326,7 @@ subroutine GeomechRegionReadFromFileId(region,input,option)
   PetscInt :: remainder
   PetscErrorCode :: ierr
 
-  call PetscLogEventBegin(logging%event_region_read_ascii,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventBegin(logging%event_region_read_ascii,ierr);CHKERRQ(ierr)
     
   max_size = 1000
   backslash = achar(92)  ! 92 = "\" Some compilers choke on \" thinking it
@@ -407,8 +404,7 @@ subroutine GeomechRegionReadFromFileId(region,input,option)
 #endif    
     
 
-  call PetscLogEventEnd(logging%event_region_read_ascii,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventEnd(logging%event_region_read_ascii,ierr);CHKERRQ(ierr)
 
 end subroutine GeomechRegionReadFromFileId
 
@@ -515,5 +511,3 @@ subroutine GeomechRegionDestroy(region)
 end subroutine GeomechRegionDestroy
 
 end module Geomechanics_Region_module
-
-#endif

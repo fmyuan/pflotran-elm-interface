@@ -1,4 +1,3 @@
-#ifdef GEOMECH
 module Geomechanics_Factory_module
 
   use Geomechanics_Simulation_class
@@ -61,11 +60,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation, option)
   use PFLOTRAN_Constants_module
   use Geomechanics_Discretization_module
   use Geomechanics_Force_module
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Geomechanics_Simulation_class
   use Simulation_module
   use Simulation_Aux_module
@@ -203,11 +198,7 @@ subroutine HijackGeomechanicsSimulation(simulation_old,simulation)
   ! 
 
   use Simulation_module
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Option_module
   
   use PMC_Base_class
@@ -295,15 +286,15 @@ subroutine HijackGeomechanicsSimulation(simulation_old,simulation)
                                ts%solver%snes, &
                                cur_process_model%residual_vec, &
                                PMResidual, &
-                               cur_process_model_coupler%pm_ptr,ierr)
-                CHKERRQ(ierr)
+                               cur_process_model_coupler%pm_ptr, &
+                                     ierr);CHKERRQ(ierr)
                 call SNESSetJacobian( &
                                ts%solver%snes, &
                                ts%solver%J, &
                                ts%solver%Jpre, &
                                PMJacobian, &
-                               cur_process_model_coupler%pm_ptr,ierr)
-                CHKERRQ(ierr)
+                               cur_process_model_coupler%pm_ptr, &
+                                     ierr);CHKERRQ(ierr)
             end select
         end select
         cur_process_model => cur_process_model%next
@@ -330,11 +321,7 @@ subroutine GeomechanicsJumpStart(simulation)
   ! Date: 01/01/14
   ! 
 
-#ifdef PROCESS_MODEL
   use Geomechanics_Realization_class
-#else
-  use Geomechanics_Realization_module
-#endif
   use Option_module
   use Timestepper_Geomechanics_class
   use Output_Aux_module
@@ -370,8 +357,7 @@ subroutine GeomechanicsJumpStart(simulation)
   output_option => geomch_realization%output_option
 
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-vecload_block_size", &
-                           failure, ierr)
-  CHKERRQ(ierr)
+                           failure, ierr);CHKERRQ(ierr)
                              
   if (option%steady_state) then
     option%io_buffer = 'Running in steady-state not yet supported for surface-flow.'
@@ -475,5 +461,3 @@ end subroutine HijackTimestepper
 ! ************************************************************************** !
 
 end module Geomechanics_Factory_module
-
-#endif

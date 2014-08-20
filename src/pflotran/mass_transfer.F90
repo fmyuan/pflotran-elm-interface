@@ -196,8 +196,7 @@ recursive subroutine MassTransferInit(mass_transfer, discretization, &
   mass_transfer%dataset%global_size = discretization%grid%nmax
   call DiscretizationCreateVector(discretization,ONEDOF,mass_transfer%vec, &
                                     GLOBAL,option)
-  call VecZeroEntries(mass_transfer%vec,ierr)
-  CHKERRQ(ierr)    
+  call VecZeroEntries(mass_transfer%vec,ierr);CHKERRQ(ierr)
   
 !F.-M. YUAN: if coupled with CLM, mass-transfer dataset are passed from CLM
 ! via 'mass_transfer%dataset%rarray(:)' ONLY, although 'dataset' IS a hdf5 type.
@@ -279,24 +278,10 @@ recursive subroutine MassTransferUpdate(mass_transfer, grid, option)
   call DatasetGlobalHDF5Load(mass_transfer%dataset,option)
 #endif
 
-  call VecGetArrayF90(mass_transfer%vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(mass_transfer%vec,vec_ptr,ierr);CHKERRQ(ierr)
   ! multiply by -1.d0 for positive contribution to residual
   vec_ptr(:) = -1.d0*mass_transfer%dataset%rarray(:)
-
-#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
-      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (mass transfer rate):
-      if (trim(mass_transfer%name) == 'NH4+') then
-        write(option%myrank+200,*) 'checking bgc-mass-rate - MassTransferUpdate: ', 'rank=',option%myrank
-        do i=1,mass_transfer%dataset%local_size
-          write(option%myrank+200,*) 'i= ',i, &
-          'RT_rarray_nh4(i)=', mass_transfer%dataset%rarray(i)
-        enddo
-      endif
-#endif
-
-  call VecRestoreArrayF90(mass_transfer%vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(mass_transfer%vec,vec_ptr,ierr);CHKERRQ(ierr)
   
   ! update the next one
   if (associated(mass_transfer%next)) then
@@ -327,8 +312,7 @@ recursive subroutine MassTransferDestroy(mass_transfer)
   ! destroyed separately.
   nullify(mass_transfer%dataset)
   if (mass_transfer%vec /= 0) then
-    call VecDestroy(mass_transfer%vec ,ierr)
-    CHKERRQ(ierr)
+    call VecDestroy(mass_transfer%vec ,ierr);CHKERRQ(ierr)
   endif
   call MassTransferDestroy(mass_transfer%next)
 

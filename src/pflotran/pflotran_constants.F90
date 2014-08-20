@@ -12,7 +12,6 @@ module PFLOTRAN_Constants_module
   ! COMPATIBILITY ISSUES - geh.
   PetscInt, parameter, public :: CHECKPOINT_REVISION_NUMBER = 5
   
-  PetscInt, parameter, public :: MAXHEADERLENGTH = 4096
   PetscInt, parameter, public :: MAXSTRINGLENGTH = 512
   PetscInt, parameter, public :: MAXWORDLENGTH = 32
   PetscInt, parameter, public :: OUT_UNIT = 15
@@ -208,7 +207,9 @@ module PFLOTRAN_Constants_module
   
   PetscInt, parameter, public :: TWO_POINT_FLUX = 0
   PetscInt, parameter, public :: LSM_FLUX       = 1
-  
+
+  PetscReal, parameter, public :: MIN_SURFACE_WATER_HEIGHT = 1.0d-14
+
   ! print secondary continuum variable ids
   PetscInt, parameter, public :: PRINT_SEC_TEMP =           0
   PetscInt, parameter, public :: PRINT_SEC_CONC =           1

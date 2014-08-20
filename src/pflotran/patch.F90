@@ -32,6 +32,7 @@ module Patch_module
     ! These arrays will be used by all modes, mode-specific arrays should
     ! go in the auxiliary data stucture for that mode
     PetscInt, pointer :: imat(:)
+    PetscInt, pointer :: imat_internal_to_external(:)
     PetscInt, pointer :: sat_func_id(:)
 
     PetscReal, pointer :: internal_velocities(:,:)
@@ -134,6 +135,7 @@ function PatchCreate()
   patch%id = 0
   patch%surf_or_subsurf_flag = SUBSURFACE
   nullify(patch%imat)
+  nullify(patch%imat_internal_to_external)
   nullify(patch%sat_func_id)
   nullify(patch%internal_velocities)
   nullify(patch%boundary_velocities)
@@ -2141,10 +2143,8 @@ subroutine PatchScaleSourceSink(patch,source_sink,option)
 
   grid => patch%grid
 
-  call VecZeroEntries(field%work,ierr)
-  CHKERRQ(ierr)
-  call VecGetArrayF90(field%work,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
 
   cur_connection_set => source_sink%connection_set
 
@@ -2214,16 +2214,12 @@ subroutine PatchScaleSourceSink(patch,source_sink,option)
       enddo
   end select
 
-  call VecRestoreArrayF90(field%work,vec_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecNorm(field%work,NORM_1,scale,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecNorm(field%work,NORM_1,scale,ierr);CHKERRQ(ierr)
   scale = 1.d0/scale
-  call VecScale(field%work,scale,ierr)
-  CHKERRQ(ierr)
+  call VecScale(field%work,scale,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(field%work,vec_ptr, ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(field%work,vec_ptr, ierr);CHKERRQ(ierr)
   do iconn = 1, cur_connection_set%num_connections      
     local_id = cur_connection_set%id_dn(iconn)
     select case(option%iflowmode)
@@ -2238,8 +2234,7 @@ subroutine PatchScaleSourceSink(patch,source_sink,option)
     end select 
 
   enddo
-  call VecRestoreArrayF90(field%work,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
 
 end subroutine PatchScaleSourceSink
 
@@ -2394,12 +2389,10 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   nloc = maxval(dataset_map_hdf5%mapping(2,:))
   call MPI_Allreduce(nloc,nglo,ONE_INTEGER,MPIU_INTEGER,MPI_Max,option%mycomm,ierr)
   call VecCreateMPI(option%mycomm,dataset_map_hdf5%map_dims_local(2),&
-                    PETSC_DETERMINE,map_ids_1,ierr)
-  CHKERRQ(ierr)
-  call VecCreateMPI(option%mycomm,PETSC_DECIDE,nglo,map_ids_2,ierr)
-  CHKERRQ(ierr)
-  call VecSet(map_ids_2,0,ierr)
-  CHKERRQ(ierr)
+                    PETSC_DETERMINE,map_ids_1,ierr);CHKERRQ(ierr)
+  call VecCreateMPI(option%mycomm,PETSC_DECIDE,nglo,map_ids_2, &
+                    ierr);CHKERRQ(ierr)
+  call VecSet(map_ids_2,0,ierr);CHKERRQ(ierr)
 
   istart = 0
   call MPI_Exscan(dataset_map_hdf5%map_dims_local(2), istart, ONE_INTEGER_MPI, &
@@ -2412,8 +2405,7 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   int_array=int_array-1
   
   call ISCreateBlock(option%mycomm,1,dataset_map_hdf5%map_dims_local(2), &
-                     int_array,PETSC_COPY_VALUES,is_from,ierr)
-  CHKERRQ(ierr)
+                     int_array,PETSC_COPY_VALUES,is_from,ierr);CHKERRQ(ierr)
   deallocate(int_array)
   
   allocate(int_array(dataset_map_hdf5%map_dims_local(2)))
@@ -2423,45 +2415,37 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   int_array=int_array-1
 
   call ISCreateBlock(option%mycomm,1,dataset_map_hdf5%map_dims_local(2), &
-                     int_array,PETSC_COPY_VALUES,is_to,ierr)
-  CHKERRQ(ierr)
+                     int_array,PETSC_COPY_VALUES,is_to,ierr);CHKERRQ(ierr)
   deallocate(int_array)
 
   !call VecCreateSeq(PETSC_COMM_SELF,dataset_map%map_dims_global(2),map_ids_1,ierr)
   !call VecCreateSeq(PETSC_COMM_SELF,maxval(dataset_map%map(2,:)),map_ids_2,ierr)
   !call VecSet(map_ids_2,0,ierr)
 
-  call VecScatterCreate(map_ids_1,is_from,map_ids_2,is_to,vec_scatter,ierr)
-  CHKERRQ(ierr)
-  call ISDestroy(is_from,ierr)
-  CHKERRQ(ierr)
-  call ISDestroy(is_to,ierr)
-  CHKERRQ(ierr)
+  call VecScatterCreate(map_ids_1,is_from,map_ids_2,is_to,vec_scatter, &
+                        ierr);CHKERRQ(ierr)
+  call ISDestroy(is_from,ierr);CHKERRQ(ierr)
+  call ISDestroy(is_to,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(map_ids_1,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(map_ids_1,vec_ptr,ierr);CHKERRQ(ierr)
   do ii=1,dataset_map_hdf5%map_dims_local(2)
     vec_ptr(ii)=dataset_map_hdf5%mapping(1,ii)
   enddo
-  call VecRestoreArrayF90(map_ids_1,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(map_ids_1,vec_ptr,ierr);CHKERRQ(ierr)
 
   call VecScatterBegin(vec_scatter,map_ids_1,map_ids_2, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(vec_scatter,map_ids_1,map_ids_2, &
-                     INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
-  call VecScatterDestroy(vec_scatter,ierr)
-  CHKERRQ(ierr)
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(vec_scatter,ierr);CHKERRQ(ierr)
 
   ! Step-2: Get ids in map dataset for cells
   allocate(int_array(ncells))
   allocate(dataset_map_hdf5%cell_ids_local(ncells))
   int_array=cell_ids-1
 
-  call ISCreateBlock(option%mycomm,1,ncells,int_array,PETSC_COPY_VALUES,is_from,ierr)
-  CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,1,ncells,int_array,PETSC_COPY_VALUES,is_from, &
+                     ierr);CHKERRQ(ierr)
     
   istart = 0
   call MPI_Exscan(ncells, istart, ONE_INTEGER_MPI, &
@@ -2472,46 +2456,36 @@ subroutine PatchCreateFlowConditionDatasetMap(grid,dataset_map_hdf5,cell_ids,nce
   enddo
   int_array=int_array-1
   
-  call ISCreateBlock(option%mycomm,1,ncells,int_array,PETSC_COPY_VALUES,is_to,ierr)
-  CHKERRQ(ierr)
+  call ISCreateBlock(option%mycomm,1,ncells,int_array,PETSC_COPY_VALUES,is_to, &
+                     ierr);CHKERRQ(ierr)
   deallocate(int_array)
   
   !call VecCreateSeq(PETSC_COMM_SELF,ncells,map_ids_3,ierr)
-  call VecCreateMPI(option%mycomm,ncells,PETSC_DETERMINE,map_ids_3,ierr)
-  CHKERRQ(ierr)
+  call VecCreateMPI(option%mycomm,ncells,PETSC_DETERMINE,map_ids_3, &
+                    ierr);CHKERRQ(ierr)
   
-  call VecScatterCreate(map_ids_2,is_from,map_ids_3,is_to,vec_scatter,ierr)
-  CHKERRQ(ierr)
-  call ISDestroy(is_from,ierr)
-  CHKERRQ(ierr)
-  call ISDestroy(is_to,ierr)
-  CHKERRQ(ierr)
+  call VecScatterCreate(map_ids_2,is_from,map_ids_3,is_to,vec_scatter, &
+                        ierr);CHKERRQ(ierr)
+  call ISDestroy(is_from,ierr);CHKERRQ(ierr)
+  call ISDestroy(is_to,ierr);CHKERRQ(ierr)
 
   call VecScatterBegin(vec_scatter,map_ids_2,map_ids_3, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(vec_scatter,map_ids_2,map_ids_3, &
-                     INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
-  call VecScatterDestroy(vec_scatter,ierr)
-  CHKERRQ(ierr)
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterDestroy(vec_scatter,ierr);CHKERRQ(ierr)
 
   ! Step-3: Save the datatocell_ids
   allocate(dataset_map_hdf5%datatocell_ids(ncells))
-  call VecGetArrayF90(map_ids_3,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(map_ids_3,vec_ptr,ierr);CHKERRQ(ierr)
   do local_id=1,ncells
     dataset_map_hdf5%datatocell_ids(local_id) = int(vec_ptr(local_id))
   enddo
-  call VecRestoreArrayF90(map_ids_3,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(map_ids_3,vec_ptr,ierr);CHKERRQ(ierr)
   
-  call VecDestroy(map_ids_1,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(map_ids_2,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(map_ids_3,ierr)
-  CHKERRQ(ierr)
+  call VecDestroy(map_ids_1,ierr);CHKERRQ(ierr)
+  call VecDestroy(map_ids_2,ierr);CHKERRQ(ierr)
+  call VecDestroy(map_ids_3,ierr);CHKERRQ(ierr)
 
 end subroutine PatchCreateFlowConditionDatasetMap
 
@@ -2769,7 +2743,7 @@ end function PatchAuxVarsUpToDate
 ! ************************************************************************** !
 
 subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar, &
-                           isubvar,isubvar1)
+                             isubvar,isubvar1)
   ! 
   ! PatchGetVariable: Extracts variables indexed by ivar and isubvar from a patch
   ! 
@@ -2824,8 +2798,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
   grid => patch%grid
   material_auxvars => patch%aux%Material%auxvars
   
-  call VecGetArrayF90(vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   iphase = 1
   select case(ivar)
@@ -2861,24 +2834,24 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
             enddo
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
-               if (option%use_th_freezing) then
-                  vec_ptr(local_id) = patch%aux%TH%auxvars(grid%nL2G(local_id))%sat_gas
-               else
-                  vec_ptr(local_id) = 0.d0
-               endif
+              if (option%use_th_freezing) then
+                vec_ptr(local_id) = patch%aux%TH%auxvars(grid%nL2G(local_id))%sat_gas
+              else
+                vec_ptr(local_id) = 0.d0
+              endif
             enddo
           case(ICE_SATURATION)
-             if (option%use_th_freezing) then
-                do local_id=1,grid%nlmax
-                   vec_ptr(local_id) = patch%aux%TH%auxvars(grid%nL2G(local_id))%sat_ice
-                enddo
-             endif
+            if (option%use_th_freezing) then
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = patch%aux%TH%auxvars(grid%nL2G(local_id))%sat_ice
+              enddo
+            endif
           case(ICE_DENSITY)
-             if (option%use_th_freezing) then
-                do local_id=1,grid%nlmax
-                   vec_ptr(local_id) = patch%aux%TH%auxvars(grid%nL2G(local_id))%den_ice*FMWH2O
-                enddo
-             endif
+            if (option%use_th_freezing) then
+              do local_id=1,grid%nlmax
+                vec_ptr(local_id) = patch%aux%TH%auxvars(grid%nL2G(local_id))%den_ice*FMWH2O
+              enddo
+            endif
           case(LIQUID_VISCOSITY)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%TH%auxvars(grid%nL2G(local_id))%vis
@@ -3273,6 +3246,11 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
               vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%xmol(isubvar,option%liquid_phase)
             enddo
+          case(LIQUID_MOBILITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
+                  grid%nL2G(local_id))%mobility(option%liquid_phase)
+            enddo
           case(GAS_SATURATION)
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
@@ -3306,6 +3284,11 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
                   grid%nL2G(local_id))%xmol(isubvar,option%gas_phase)
+            enddo
+          case(GAS_MOBILITY)
+            do local_id=1,grid%nlmax
+              vec_ptr(local_id) = patch%aux%General%auxvars(ZERO_INTEGER, &
+                  grid%nL2G(local_id))%mobility(option%gas_phase)
             enddo
         end select         
       endif
@@ -3356,7 +3339,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
                       log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
                         patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
               enddo
-              tk = patch%aux%Global%auxvars(grid%nL2G(local_id))%temp + &
+              tk = patch%aux%Global%auxvars(ghosted_id)%temp + &
                    273.15d0
               ehfac = IDEAL_GAS_CONST*tk*LOG_TO_LN/faraday
               eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
@@ -3390,7 +3373,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
                       log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
                         patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
               enddo
-              tk = patch%aux%Global%auxvars(grid%nL2G(local_id))%temp + &
+              tk = patch%aux%Global%auxvars(ghosted_id)%temp + &
                    273.15d0
               ehfac = IDEAL_GAS_CONST*tk*LOG_TO_LN/faraday
               eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
@@ -3653,7 +3636,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
               if (patch%aux%Global%auxvars(ghosted_id)%den_kg(iphase) > &
                   0.d0) then
                 vec_ptr(local_id) = &
-                  patch%aux%RT%auxvars(grid%nL2G(local_id))% &
+                  patch%aux%RT%auxvars(ghosted_id)% &
                     colloid%conc_mob(isubvar) / &
                   (patch%aux%Global%auxvars(ghosted_id)%den_kg(iphase)/1000.d0)
               else
@@ -3673,7 +3656,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
               if (patch%aux%Global%auxvars(ghosted_id)%den_kg(iphase) > &
                   0.d0) then
                 vec_ptr(local_id) = &
-                  patch%aux%RT%auxvars(grid%nL2G(local_id))% &
+                  patch%aux%RT%auxvars(ghosted_id)% &
                     colloid%conc_imb(isubvar) / &
                   (patch%aux%Global%auxvars(ghosted_id)%den_kg(iphase)/1000.d0)
               else
@@ -3741,16 +3724,15 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
                                  PERMEABILITY_YZ)
       enddo      
     case(PHASE)
-      call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr)
-      CHKERRQ(ierr)
+      call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = vec_ptr2(grid%nL2G(local_id))
       enddo
-      call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr)
-      CHKERRQ(ierr)
+      call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
     case(MATERIAL_ID)
       do local_id=1,grid%nlmax
-        vec_ptr(local_id) = patch%imat(grid%nL2G(local_id))
+        vec_ptr(local_id) = &
+          patch%imat_internal_to_external(patch%imat(grid%nL2G(local_id)))
       enddo
     case(PROCESSOR_ID)
       do local_id=1,grid%nlmax
@@ -3774,8 +3756,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
       call printErrMsg(option)
   end select
 
-  call VecRestoreArrayF90(vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
   
 end subroutine PatchGetVariable1
 
@@ -3877,19 +3858,19 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY) ! still need implementation
             value = 0.d0
           case(GAS_SATURATION)
-             if (option%use_th_freezing) then
-                value = patch%aux%TH%auxvars(ghosted_id)%sat_gas
-             else
-                value = 0.d0
-             endif
+            if (option%use_th_freezing) then
+              value = patch%aux%TH%auxvars(ghosted_id)%sat_gas
+            else
+              value = 0.d0
+            endif
           case(ICE_SATURATION)
-             if (option%use_th_freezing) then
-                value = patch%aux%TH%auxvars(ghosted_id)%sat_ice
-             endif
+            if (option%use_th_freezing) then
+              value = patch%aux%TH%auxvars(ghosted_id)%sat_ice
+            endif
           case(ICE_DENSITY)
-             if (option%use_th_freezing) then
-                value = patch%aux%TH%auxvars(ghosted_id)%den_ice*FMWH2O
-             endif
+            if (option%use_th_freezing) then
+              value = patch%aux%TH%auxvars(ghosted_id)%den_ice*FMWH2O
+            endif
           case(LIQUID_MOLE_FRACTION)
             value = patch%aux%TH%auxvars(ghosted_id)%xmol(isubvar)
           case(LIQUID_ENERGY)
@@ -4180,7 +4161,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
                         patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
           enddo
 
-          tk = patch%aux%Global%auxvars(grid%nL2G(ghosted_id))%temp+273.15d0
+          tk = patch%aux%Global%auxvars(ghosted_id)%temp+273.15d0
           ehfac = IDEAL_GAS_CONST*tk*LOG_TO_LN/faraday
           eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
 
@@ -4208,7 +4189,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
                         patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
           enddo
 
-          tk = patch%aux%Global%auxvars(grid%nL2G(ghosted_id))%temp+273.15d0
+          tk = patch%aux%Global%auxvars(ghosted_id)%temp+273.15d0
           ehfac = IDEAL_GAS_CONST*tk*LOG_TO_LN/faraday
           eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
           pe0 = eh0/ehfac
@@ -4388,13 +4369,11 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
                                      PERMEABILITY_Z)
     case(PHASE)
-      call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr)
-      CHKERRQ(ierr)
+      call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
       value = vec_ptr2(ghosted_id)
-      call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr)
-      CHKERRQ(ierr)
+      call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
     case(MATERIAL_ID)
-      value = patch%imat(ghosted_id)
+      value = patch%imat_internal_to_external(patch%imat(ghosted_id))
     case(PROCESSOR_ID)
       value = option%myrank
     ! Need to fix the below two cases (they assume only one component) -- SK 02/06/13  
@@ -4477,8 +4456,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
   grid => patch%grid
   material_auxvars => patch%aux%Material%auxvars
   
-  call VecGetArrayF90(vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   if (vec_format == NATURAL) then
     call printErrMsg(option,&
@@ -4538,41 +4516,41 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             endif
           case(GAS_MOLE_FRACTION,GAS_ENERGY,GAS_DENSITY) ! still need implementation
           case(GAS_SATURATION)
-             if (option%use_th_freezing) then
-                if (vec_format == GLOBAL) then
-                   do local_id=1,grid%nlmax
-                      patch%aux%TH%auxvars(grid%nL2G(local_id))%sat_gas = vec_ptr(local_id)
-                   enddo
-                else if (vec_format == LOCAL) then
-                   do ghosted_id=1,grid%ngmax
-                      patch%aux%TH%auxvars(ghosted_id)%sat_gas = vec_ptr(ghosted_id)
-                   enddo
-                endif
-             endif
+            if (option%use_th_freezing) then
+              if (vec_format == GLOBAL) then
+                do local_id=1,grid%nlmax
+                  patch%aux%TH%auxvars(grid%nL2G(local_id))%sat_gas = vec_ptr(local_id)
+                enddo
+              else if (vec_format == LOCAL) then
+                do ghosted_id=1,grid%ngmax
+                  patch%aux%TH%auxvars(ghosted_id)%sat_gas = vec_ptr(ghosted_id)
+                enddo
+              endif
+            endif
           case(ICE_SATURATION)
-             if (option%use_th_freezing) then
-                if (vec_format == GLOBAL) then
-                   do local_id=1,grid%nlmax
-                      patch%aux%TH%auxvars(grid%nL2G(local_id))%sat_ice = vec_ptr(local_id)
-                   enddo
-                else if (vec_format == LOCAL) then
-                   do ghosted_id=1,grid%ngmax
-                      patch%aux%TH%auxvars(ghosted_id)%sat_ice = vec_ptr(ghosted_id)
-                   enddo
-                endif
-             endif
+            if (option%use_th_freezing) then
+              if (vec_format == GLOBAL) then
+                do local_id=1,grid%nlmax
+                  patch%aux%TH%auxvars(grid%nL2G(local_id))%sat_ice = vec_ptr(local_id)
+                enddo
+              else if (vec_format == LOCAL) then
+                do ghosted_id=1,grid%ngmax
+                  patch%aux%TH%auxvars(ghosted_id)%sat_ice = vec_ptr(ghosted_id)
+                enddo
+              endif
+            endif
           case(ICE_DENSITY)
-             if (option%use_th_freezing) then
-                if (vec_format == GLOBAL) then
-                   do local_id=1,grid%nlmax
-                      patch%aux%TH%auxvars(grid%nL2G(local_id))%den_ice = vec_ptr(local_id)
-                   enddo
-                else if (vec_format == LOCAL) then
-                   do ghosted_id=1,grid%ngmax
-                      patch%aux%TH%auxvars(ghosted_id)%den_ice = vec_ptr(ghosted_id)
-                   enddo
-                endif
-             endif
+            if (option%use_th_freezing) then
+              if (vec_format == GLOBAL) then
+                do local_id=1,grid%nlmax
+                  patch%aux%TH%auxvars(grid%nL2G(local_id))%den_ice = vec_ptr(local_id)
+                enddo
+              else if (vec_format == LOCAL) then
+                do ghosted_id=1,grid%ngmax
+                  patch%aux%TH%auxvars(ghosted_id)%den_ice = vec_ptr(ghosted_id)
+                enddo
+              endif
+            endif
           case(LIQUID_VISCOSITY)
           case(GAS_VISCOSITY)
           case(LIQUID_MOLE_FRACTION)
@@ -4821,7 +4799,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
               enddo
             else if (vec_format == LOCAL) then
               do ghosted_id=1,grid%ngmax
-                patch%aux%Global%auxvars(grid%nL2G(ghosted_id))%pres(1) = vec_ptr(ghosted_id)
+                patch%aux%Global%auxvars(ghosted_id)%pres(1) = vec_ptr(ghosted_id)
               enddo
             endif
           case(GAS_PRESSURE)
@@ -4831,7 +4809,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
               enddo
             else if (vec_format == LOCAL) then
               do ghosted_id=1,grid%ngmax
-                patch%aux%Global%auxvars(grid%nL2G(ghosted_id))%pres(2) = vec_ptr(ghosted_id)
+                patch%aux%Global%auxvars(ghosted_id)%pres(2) = vec_ptr(ghosted_id)
               enddo
             endif
           case(LIQUID_SATURATION)
@@ -5180,21 +5158,21 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
       call printErrMsg(option)
     case(PHASE)
       if (vec_format == GLOBAL) then
-        call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr)
-        CHKERRQ(ierr)
+        call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
         do local_id=1,grid%nlmax
           vec_ptr2(grid%nL2G(local_id)) = vec_ptr(local_id)
         enddo
-        call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr)
-        CHKERRQ(ierr)
+        call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
       else if (vec_format == LOCAL) then
-        call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr)
-        CHKERRQ(ierr)
+        call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
         vec_ptr2(1:grid%ngmax) = vec_ptr(1:grid%ngmax)
-        call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr)
-        CHKERRQ(ierr)
+        call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
       endif
     case(MATERIAL_ID)
+      !geh: this would require the creation of a permanent mapping between
+      !     external and internal material ids, which we want to avoid.
+      call printErrMsg(option, &
+                       'Cannot set MATERIAL_ID through PatchSetVariable()')
       if (vec_format == GLOBAL) then
         do local_id=1,grid%nlmax
           patch%imat(grid%nL2G(local_id)) = int(vec_ptr(local_id))
@@ -5207,8 +5185,7 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
                        'Cannot set PROCESSOR_ID through PatchSetVariable()')
   end select
 
-  call VecRestoreArrayF90(vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
   
 end subroutine PatchSetVariable
 
@@ -5486,6 +5463,7 @@ subroutine PatchDestroy(patch)
   type(patch_type), pointer :: patch
   
   call DeallocateArray(patch%imat)
+  call DeallocateArray(patch%imat_internal_to_external)
   call DeallocateArray(patch%sat_func_id)
   call DeallocateArray(patch%internal_velocities)
   call DeallocateArray(patch%boundary_velocities)
@@ -5585,8 +5563,7 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec,ivar, &
 
   grid => patch%grid
 
-  call VecGetArrayF90(vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
   
   iphase = 1
   
@@ -5601,7 +5578,8 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec,ivar, &
       enddo
     case(MATERIAL_ID)
       do local_id=1,grid%nlmax
-        vec_ptr(local_id) = patch%imat(grid%nL2G(local_id))
+        vec_ptr(local_id) = &
+          patch%imat_internal_to_external(patch%imat(grid%nL2G(local_id)))
       enddo
     case(PROCESSOR_ID)
       do local_id=1,grid%nlmax
