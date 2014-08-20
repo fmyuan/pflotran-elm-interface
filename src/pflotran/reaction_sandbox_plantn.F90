@@ -13,6 +13,11 @@ module Reaction_Sandbox_PlantN_class
 
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_plantntake_type
+    PetscInt  :: ispec_nh3
+    PetscInt  :: ispec_no3
+    PetscInt  :: ispec_plantn
+    PetscInt  :: ispec_plantndemand
+    PetscInt  :: ispec_plantnuptake
     PetscReal :: rate
     PetscReal :: half_saturation_nh3
     PetscReal :: half_saturation_no3
@@ -45,6 +50,11 @@ function PlantNCreate()
   class(reaction_sandbox_plantntake_type), pointer :: PlantNCreate
 
   allocate(PlantNCreate)
+  PlantNCreate%ispec_nh3 = 0
+  PlantNCreate%ispec_no3 = 0
+  PlantNCreate%ispec_plantn = 0
+  PlantNCreate%ispec_plantndemand = 0
+  PlantNCreate%ispec_plantnuptake = 0
   PlantNCreate%rate = 0.d0
   PlantNCreate%half_saturation_nh3 = 1.d-15
   PlantNCreate%half_saturation_no3 = 1.d-15
@@ -148,7 +158,46 @@ subroutine PlantNSetup(this,reaction,option)
   type(option_type) :: option
 
   character(len=MAXWORDLENGTH) :: word
- 
+
+!------------------------------------------------------------------------------------
+  word = 'NH4+'
+  this%ispec_nh3 = GetPrimarySpeciesIDFromName(word, reaction, PETSC_FALSE, option)
+
+  word = 'NO3-'
+  this%ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction, PETSC_FALSE,option)
+
+  if(this%ispec_nh3 < 0 .and. this%ispec_no3 < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE: ' // &
+       ' at least one of NH4+ and NO3- must be specified as primary species in the input file.'
+     call printErrMsg(option)
+  endif
+
+  word = 'PlantN'
+  this%ispec_plantn = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
+                 PETSC_FALSE,option)
+
+  if(this%ispec_plantn < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE: ' // &
+       ' PlantN is not specified as immobile species in the input file.'
+     call printErrMsg(option)
+  endif
+
+  word = 'Plantndemand'
+  this%ispec_plantndemand = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
+                 PETSC_FALSE,option)
+
+  word = 'Plantnuptake'
+  this%ispec_plantnuptake = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
+                 PETSC_FALSE,option)
+#ifdef CLM_PFLOTRAN
+  if(this%ispec_plantnuptake < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE: ' // &
+       'Plantnuptake is not specified as immobile species in the ' // &
+       'input file, but It is required when coupled with CLM.'
+     call printErrMsg(option)
+  endif
+#endif
+
 end subroutine PlantNSetup
 
 ! ************************************************************************** !
@@ -199,10 +248,8 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   character(len=MAXWORDLENGTH) :: word
 
   PetscInt, parameter :: iphase = 1
-  PetscInt :: ispec_nh3, ispec_no3, ispec_plantn
   PetscInt :: ires_nh3, ires_no3, ires_plantn
-  PetscInt :: ispec_plantndemand, ires_plantndemand
-  PetscInt :: ispec_plantnuptake, ires_plantnuptake
+  PetscInt :: ires_plantndemand, ires_plantnuptake
   PetscInt :: ires
 
   PetscReal :: c_nh3         ! concentration (mole/L)
@@ -235,57 +282,17 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   PetscScalar, pointer :: rate_plantndemand_pf_loc(:)   !
 #endif 
 
-!------------------------------------------------------------------------------------
-  word = 'NH4+'
-  ispec_nh3 = GetPrimarySpeciesIDFromName(word, reaction, PETSC_FALSE, option)
-
-  word = 'NO3-'
-  ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction, PETSC_FALSE,option)
-
-  if(ispec_nh3 < 0 .and. ispec_no3 < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE: ' // &
-       ' at least one of NH4+ and NO3- must be specified as primary species in the input file.'
-     call printErrMsg(option)
-  endif
-
-  word = 'PlantN'
-  ispec_plantn = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
-                 PETSC_FALSE,option)
-
-  if(ispec_plantn < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE: ' // &
-       ' PlantN is not specified as immobile species in the input file.'
-     call printErrMsg(option)
-  else
-     ires_plantn = ispec_plantn + reaction%offset_immobile
-  endif
-
-  word = 'Plantndemand'
-  ispec_plantndemand = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
-                 PETSC_FALSE,option)
-  ires_plantndemand = ispec_plantndemand + reaction%offset_immobile
-
-  word = 'Plantnuptake'
-  ispec_plantnuptake = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
-                 PETSC_FALSE,option)
-  ires_plantnuptake = ispec_plantnuptake + reaction%offset_immobile
-#ifdef CLM_PFLOTRAN
-  if(ispec_plantnuptake < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE: ' // &
-       'Plantnuptake is not specified as immobile species in the ' // &
-       'input file, but It is required when coupled with CLM.'
-     call printErrMsg(option)
-  endif
-#endif
-
   !--------------------------------------------------------------------------------------------
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
 
-  if (ispec_nh3 > 0) then
-    ires_nh3 = ispec_nh3
+  ires_plantn = this%ispec_plantn + reaction%offset_immobile
 
-    c_nh3     = rt_auxvar%total(ispec_nh3, iphase)
+  !--------------------------------------------------------------------------------------------
+  if (this%ispec_nh3 > 0) then
+    ires_nh3 = this%ispec_nh3
+
+    c_nh3     = rt_auxvar%total(this%ispec_nh3, iphase)
     temp_real = c_nh3 + this%half_saturation_nh3
     fnh3      = c_nh3 / temp_real
     dfnh3_dnh3= this%half_saturation_nh3 / temp_real / temp_real
@@ -303,8 +310,8 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     ! nh3 inhibition on no3 uptake, if any ('this%inhibition_nh3_no3')
     ! this is for quantifying plant N uptake preference btw NH4 and NO3
     ! (very similar as N immobilization now).
-    if (ispec_no3 > 0) then
-      c_no3     = rt_auxvar%total(ispec_no3, iphase)
+    if (this%ispec_no3 > 0) then
+      c_no3     = rt_auxvar%total(this%ispec_no3, iphase)
        ! (DON'T change the 'rate' and 'derivatives' after this)
       if(c_nh3>this%x0eps_nh4 .and. c_no3>this%x0eps_no3 &
         .and. this%inhibition_nh3_no3>0.d0) then
@@ -330,10 +337,10 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   endif
 
-  if (ispec_no3 > 0) then
-    ires_no3 = ispec_no3
+  if (this%ispec_no3 > 0) then
+    ires_no3 = this%ispec_no3
 
-    c_no3     = rt_auxvar%total(ispec_no3, iphase)
+    c_no3     = rt_auxvar%total(this%ispec_no3, iphase)
     temp_real = c_no3 + this%half_saturation_no3
     fno3      = c_no3 / temp_real
     dfno3_dno3= this%half_saturation_no3 / temp_real / temp_real
@@ -362,15 +369,16 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   call VecRestoreArrayReadF90(clm_pf_idata%rate_plantndemand_pfs, &
        rate_plantndemand_pf_loc, ierr)
 #endif
-  if (ispec_plantndemand > 0) then  ! for tracking
+  if (this%ispec_plantndemand > 0) then  ! for tracking
+    ires_plantndemand = this%ispec_plantndemand + reaction%offset_immobile
     Residual(ires_plantndemand) = Residual(ires_plantndemand) - this%rate
   endif
 
-  if(ispec_nh3 > 0) then
+  if(this%ispec_nh3 > 0) then
 
     ! rates
     nrate_nh3 = this%rate * fnh3
-    if(ispec_no3 > 0) then
+    if(this%ispec_no3 > 0) then
     ! splitting (fractioning) potential uptake rate by the 'fnh3_inhibition_no3' for NH4 uptake
       nrate_nh3 = this%rate * fnh3 * fnh3_inhibit_no3
     endif
@@ -379,7 +387,8 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     Residual(ires_nh3) = Residual(ires_nh3) + nrate_nh3
     Residual(ires_plantn) = Residual(ires_plantn) - nrate_nh3
 
-    if (ispec_plantnuptake>0) then   ! for tracking
+    if (this%ispec_plantnuptake>0) then   ! for tracking
+      ires_plantnuptake = this%ispec_plantnuptake + reaction%offset_immobile
       Residual(ires_plantnuptake) = Residual(ires_plantnuptake) - nrate_nh3
     endif
 
@@ -387,7 +396,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     if(compute_derivative) then
 
       dnrate_nh3_dnh3 = this%rate * dfnh3_dnh3
-      if(ispec_no3 > 0) then
+      if(this%ispec_no3 > 0) then
         temp_real = fnh3 * dfnh3_inhibit_no3_dnh3 + &
                     fnh3_inhibit_no3 * dfnh3_dnh3
         dnrate_nh3_dnh3 = this%rate * temp_real
@@ -398,26 +407,26 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
       Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + &
         dnrate_nh3_dnh3 * &
-        rt_auxvar%aqueous%dtotal(ispec_nh3,ispec_nh3,iphase)
+        rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_nh3,iphase)
 
       Jacobian(ires_plantn,ires_nh3) = Jacobian(ires_plantn,ires_nh3) - &
         dnrate_nh3_dnh3
 
-      if(ispec_no3 > 0) then
+      if(this%ispec_no3 > 0) then
         Jacobian(ires_nh3,ires_no3)=Jacobian(ires_nh3,ires_no3) + &       ! may need a checking of the sign (+/-) here
           dnrate_nh3_dno3 * &
-          rt_auxvar%aqueous%dtotal(ispec_nh3,ispec_no3,iphase)
+          rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_no3,iphase)
       endif
 
     endif ! if(compute_derivative)
 
-  endif !if(ispec_nh3 > 0)
+  endif !if(this%ispec_nh3 > 0)
 
-  if(ispec_no3 > 0) then
+  if(this%ispec_no3 > 0) then
 
     ! rates
     nrate_no3 = this%rate * fno3
-    if(ispec_nh3 > 0) then
+    if(this%ispec_nh3 > 0) then
     ! splitting (fractioning) potential uptake rate by the rest of nrate_nh3,
     ! which adjusted by 'fnh3_inhibition_no3'
     ! i.e., 1.0-fnh3*fnh3_inhibit_no3
@@ -432,7 +441,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     if (compute_derivative) then
 
       dnrate_no3_dno3 = this%rate * dfno3_dno3
-      if(ispec_nh3 > 0) then
+      if(this%ispec_nh3 > 0) then
         temp_real = dfno3_dno3 * (1.d0-fnh3*fnh3_inhibit_no3) + &
                     fno3 * (-1.0d0*fnh3*dfnh3_inhibit_no3_dno3)              ! 'dfnh3_dno3=0'
         dnrate_no3_dno3 = this%rate * temp_real
@@ -445,15 +454,15 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
       Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) + &
         dnrate_no3_dno3 * &
-        rt_auxvar%aqueous%dtotal(ispec_no3,ispec_no3,iphase)
+        rt_auxvar%aqueous%dtotal(this%ispec_no3,this%ispec_no3,iphase)
 
       Jacobian(ires_plantn,ires_no3) = Jacobian(ires_plantn,ires_no3) - &
         dnrate_no3_dno3
 
-      if(ispec_nh3 > 0) then
+      if(this%ispec_nh3 > 0) then
         Jacobian(ires_no3,ires_nh3)=Jacobian(ires_no3,ires_nh3) + &      ! may need a checking of sign (+/-) here
           dnrate_no3_dnh3 * &
-          rt_auxvar%aqueous%dtotal(ispec_no3,ispec_nh3,iphase)
+          rt_auxvar%aqueous%dtotal(this%ispec_no3,this%ispec_nh3,iphase)
       endif
 
     endif
