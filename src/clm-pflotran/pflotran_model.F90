@@ -2180,14 +2180,10 @@ end subroutine pflotranModelSetICs
     use Surface_Simulation_class, only : surface_simulation_type
     use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
 
-    use Realization_class, only : realization_type, &
-      RealizationAddWaypointsToList
-    use Surface_Realization_class, only : surface_realization_type, &
-      SurfRealizAddWaypointsToList
+    use Realization_class, only : realization_type
+    use Surface_Realization_class, only : surface_realization_type
 
-    use Waypoint_module, only : waypoint_type, WaypointCreate, &
-      WaypointDeleteFromList, WaypointInsertInList, &
-      WaypointListFillIn, WaypointListRemoveExtraWaypnts
+    use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointInsertInList
     use Units_module, only : UnitsConvertToInternal
     use Option_module, only : printErrMsg
 
@@ -2230,9 +2226,6 @@ end subroutine pflotranModelSetICs
 
     if (associated(realization)) then
       call WaypointInsertInList(waypoint, realization%waypoints)
-      call RealizationAddWaypointsToList(realization)
-      call WaypointListFillIn(model%option,realization%waypoints)
-      call WaypointListRemoveExtraWaypnts(model%option,realization%waypoints)
     end if
 
     if (associated(surf_realization)) then
@@ -2243,9 +2236,6 @@ end subroutine pflotranModelSetICs
       if(associated(waypoint)) deallocate(waypoint)
 
       call WaypointInsertInList(waypoint2, surf_realization%waypoints)
-      call SurfRealizAddWaypointsToList(surf_realization)
-      call WaypointListFillIn(model%option,surf_realization%waypoints)
-      call WaypointListRemoveExtraWaypnts(model%option,surf_realization%waypoints)
     end if
 
   end subroutine pflotranModelInsertWaypoint
