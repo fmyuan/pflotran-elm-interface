@@ -1657,6 +1657,8 @@ end subroutine pflotranModelSetICs
 
     deallocate(grid_pf_cell_ids_nindex)
     deallocate(grid_pf_local_nindex)
+    deallocate(grid_clm_cell_ids_nindex_copy)
+    deallocate(grid_clm_local_nindex)
 
     call MappingDecompose(map, option)
     call MappingFindDistinctSourceMeshCellIds(map, option)
@@ -2101,8 +2103,10 @@ end subroutine pflotranModelSetICs
         call printErrMsg(option)
     end select
 
+    deallocate(grid_pf_cell_ids_nindex)
     deallocate(grid_pf_local_nindex)
     deallocate(grid_clm_cell_ids_nindex_copy)
+    deallocate(grid_clm_local_nindex)
 
     call MappingDecompose(map, option)
     call MappingFindDistinctSourceMeshCellIds(map, option)
@@ -6722,6 +6726,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
     deallocate(grid_pf_cell_ids_nindex)
     deallocate(grid_pf_local_nindex)
+    deallocate(grid_clm_cell_ids_nindex_copy)
+    deallocate(grid_clm_local_nindex)
 
     call MappingDecompose(map, option)
     call MappingFindDistinctSourceMeshCellIds(map, option)
