@@ -3678,6 +3678,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     call MappingDestroy(model%map_pf_2dsub_to_clm_srf)
 
     deallocate(model)
+    nullify(model)
 
   end subroutine pflotranModelDestroy
 
