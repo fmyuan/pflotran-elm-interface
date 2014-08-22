@@ -1119,6 +1119,7 @@ end subroutine pflotranModelSetICs
     call MappingFindDistinctSourceMeshCellIds(map, option)
     call MappingCreateWeightMatrix(map, option)
     call MappingCreateScatterOfSourceMesh(map, option)
+    call MappingFreeNotNeeded(map)
 
   end subroutine pflotranModelInitMappingSub2Sub
 
@@ -1661,6 +1662,7 @@ end subroutine pflotranModelSetICs
     call MappingFindDistinctSourceMeshCellIds(map, option)
     call MappingCreateWeightMatrix(map, option)
     call MappingCreateScatterOfSourceMesh(map, option)
+    call MappingFreeNotNeeded(map)
 
   end subroutine pflotranModelInitMapSrfTo2DSub
 
@@ -2106,6 +2108,7 @@ end subroutine pflotranModelSetICs
     call MappingFindDistinctSourceMeshCellIds(map, option)
     call MappingCreateWeightMatrix(map, option)
     call MappingCreateScatterOfSourceMesh(map, option)
+    call MappingFreeNotNeeded(map)
 #endif
   end subroutine pflotranModelInitMapSrfToSrf
 
@@ -3591,6 +3594,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     use PFLOTRAN_Factory_module, only : PFLOTRANFinalize
     use Option_module, only : OptionFinalize
     use clm_pflotran_interface_data
+    use Mapping_module
 
     implicit none
 
@@ -3608,6 +3612,16 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     call OptionFinalize(model%option)
 
     call CLMPFLOTRANIDataDestroy()
+
+    call MappingDestroy(model%map_clm_sub_to_pf_sub)
+    call MappingDestroy(model%map_clm_srf_to_pf_srf)
+    call MappingDestroy(model%map_clm_srf_to_pf_2dsub)
+    call MappingDestroy(model%map_clm_bot_to_pf_2dbot)
+
+    call MappingDestroy(model%map_pf_sub_to_clm_sub)
+    call MappingDestroy(model%map_pf_srf_to_clm_srf)
+    call MappingDestroy(model%map_pf_2dbot_to_clm_bot)
+    call MappingDestroy(model%map_pf_2dsub_to_clm_srf)
 
     deallocate(model)
 
@@ -6713,6 +6727,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call MappingFindDistinctSourceMeshCellIds(map, option)
     call MappingCreateWeightMatrix(map, option)
     call MappingCreateScatterOfSourceMesh(map, option)
+    call MappingFreeNotNeeded(map)
 
   end subroutine pflotranModelInitMapFaceToFace
 
