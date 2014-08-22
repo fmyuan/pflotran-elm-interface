@@ -316,7 +316,6 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 
     call SNESSolve(solver%snes,PETSC_NULL_OBJECT, &
                    process_model%solution_vec,ierr)
-!    CHKERRQ(ierr)
 
 !fmy: checking SNESSolver error and stop excuting/output messages if error occurs
     if (ierr .ne. 0) then
@@ -358,8 +357,9 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
     endif
 !fmy: checking SNESSolver error and stop excuting/output messages if error occurs
 
-    call PetscTime(log_end_time, ierr)
     CHKERRQ(ierr)
+
+    call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
 
     this%cumulative_solver_time = &
       this%cumulative_solver_time + &

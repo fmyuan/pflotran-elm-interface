@@ -882,9 +882,14 @@ subroutine RealProcessMatPropAndSatFunc(realization)
   patch => realization%patch
   
 !  ! organize lists
+!fmyuan - the following call will have twice calling, in which 'patch%material_property_array'
+! will be allocate twice in material.F90 line 761 - possible memory leak
   call MaterialPropConvertListToArray(realization%material_properties, &
                                       patch%material_property_array, &
                                       option)
+
+!fmyuan - the following call will have twice calling, in which 'patch%saturation_function_array'
+! will be allocate twice in saturation_function.F90 line 679 - possible memory leak
   call SaturatFuncConvertListToArray(realization%saturation_functions, &
                                       patch%saturation_function_array, &
                                       option)
