@@ -1114,6 +1114,7 @@ end subroutine pflotranModelSetICs
 
     deallocate(grid_pf_cell_ids_nindex)
     deallocate(grid_pf_local_nindex)
+    deallocate(grid_clm_local_nindex)
 
     call MappingDecompose(map, option)
     call MappingFindDistinctSourceMeshCellIds(map, option)
@@ -2179,11 +2180,14 @@ end subroutine pflotranModelSetICs
     use Surface_Simulation_class, only : surface_simulation_type
     use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
 
-    use Realization_class, only : realization_type
-    use Surface_Realization_class, only : surface_realization_type
-    use Surface_Realization_class, only : surface_realization_type
+    use Realization_class, only : realization_type, &
+      RealizationAddWaypointsToList
+    use Surface_Realization_class, only : surface_realization_type, &
+      SurfRealizAddWaypointsToList
 
-    use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointInsertInList
+    use Waypoint_module, only : waypoint_type, WaypointCreate, &
+      WaypointDeleteFromList, WaypointInsertInList, &
+      WaypointListFillIn, WaypointListRemoveExtraWaypnts
     use Units_module, only : UnitsConvertToInternal
     use Option_module, only : printErrMsg
 
@@ -2220,16 +2224,28 @@ end subroutine pflotranModelSetICs
     waypoint => WaypointCreate()
     waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
     waypoint%update_conditions = PETSC_TRUE
-    waypoint%print_output = PETSC_FALSE
+    waypoint%print_output      = PETSC_FALSE
+    waypoint%final             = PETSC_FALSE
     waypoint%dt_max            = waypoint_time * UnitsConvertToInternal(word, model%option)!3153600.d0
-    waypoint2 => WaypointCreate(waypoint)
 
     if (associated(realization)) then
-       call WaypointInsertInList(waypoint, realization%waypoints)
+      call WaypointInsertInList(waypoint, realization%waypoints)
+      call RealizationAddWaypointsToList(realization)
+      call WaypointListFillIn(model%option,realization%waypoints)
+      call WaypointListRemoveExtraWaypnts(model%option,realization%waypoints)
     end if
 
     if (associated(surf_realization)) then
-       call WaypointInsertInList(waypoint2, surf_realization%waypoints)
+      waypoint2 => WaypointCreate(waypoint)
+      ! just in case that subsurface realization NOT there (e.g. only surf_simulation),
+      ! the above 'WaypointCreate()' will allocate memory for 'waypoint',
+      ! which never have a chance to deallocate and potentially leak memory
+      if(associated(waypoint)) deallocate(waypoint)
+
+      call WaypointInsertInList(waypoint2, surf_realization%waypoints)
+      call SurfRealizAddWaypointsToList(surf_realization)
+      call WaypointListFillIn(model%option,surf_realization%waypoints)
+      call WaypointListRemoveExtraWaypnts(model%option,surf_realization%waypoints)
     end if
 
   end subroutine pflotranModelInsertWaypoint
@@ -2243,20 +2259,21 @@ end subroutine pflotranModelSetICs
     use Surface_Simulation_class, only : surface_simulation_type
     use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
 
-    use Realization_class, only : realization_type,RealizationAddWaypointsToList
-    use Surface_Realization_class, only : surface_realization_type
-    use Surface_Realization_class, only : surface_realization_type
+    use Realization_class, only : realization_type, &
+      RealizationAddWaypointsToList
+    use Surface_Realization_class, only : surface_realization_type, &
+      SurfRealizAddWaypointsToList
 
-    use Waypoint_module, only : waypoint_type, WaypointCreate,       &
-                  WaypointDeleteFromList, WaypointInsertInList,      &
-                  WaypointListFillIn, WaypointListRemoveExtraWaypnts
+    use Waypoint_module, only : waypoint_type, WaypointCreate, &
+      WaypointDeleteFromList, WaypointInsertInList, &
+      WaypointListFillIn, WaypointListRemoveExtraWaypnts
     use Units_module, only : UnitsConvertToInternal
     use Option_module, only : printErrMsg
 
     implicit none
 
     type(pflotran_model_type), pointer :: model
-    type(waypoint_type), pointer       :: waypoint, waypoint2
+    type(waypoint_type), pointer       :: waypoint, waypoint1, waypoint2
     PetscReal                          :: waypoint_time
     PetscBool                          :: isprintout
     character(len=MAXWORDLENGTH)       :: word
@@ -2264,6 +2281,7 @@ end subroutine pflotranModelSetICs
     class(realization_type), pointer    :: realization
     class(surface_realization_type), pointer :: surf_realization
 
+!-------------------------------------------------------------------------
     select type (simulation => model%simulation)
       class is (subsurface_simulation_type)
          realization => simulation%realization
@@ -2282,55 +2300,93 @@ end subroutine pflotranModelSetICs
          call printErrMsg(model%option)
     end select
 
-    ! change original final waypoint
-    waypoint => realization%waypoints%first
-    do
+    ! new final waypoint
+    word = 's'
+    waypoint1 => WaypointCreate()
+    waypoint1%time          = waypoint_time * UnitsConvertToInternal(word, model%option)
+    waypoint1%print_output  = PETSC_TRUE
+    waypoint1%final         = PETSC_TRUE
+    waypoint1%dt_max        = waypoint_time * UnitsConvertToInternal(word, model%option)
+
+    ! update subsurface-realization final waypoint
+    if (associated(realization)) then
+      ! remove original final waypoint
+      waypoint => realization%waypoints%first
+      do
         if (.not.associated(waypoint)) exit
         if (waypoint%final) then
-           waypoint%final = PETSC_FALSE
-           exit
+          waypoint%final = PETSC_FALSE
+          exit
+
         else
            waypoint => waypoint%next
         endif
-    enddo
+      enddo
 
-    ! insert new final waypoint
-    word = 's'
-    waypoint => WaypointCreate()
-    waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
-    waypoint%print_output      = PETSC_TRUE
-    waypoint%final             = PETSC_TRUE
-    waypoint%dt_max            = waypoint_time * UnitsConvertToInternal(word, model%option)
-    waypoint2 => WaypointCreate(waypoint)
+      ! insert new final waypoint
+      call WaypointInsertInList(waypoint1, realization%waypoints)
+      call RealizationAddWaypointsToList(realization)
+      call WaypointListFillIn(model%option,realization%waypoints)
+      call WaypointListRemoveExtraWaypnts(model%option,realization%waypoints)
 
-    if (associated(realization)) then
-       call WaypointInsertInList(waypoint, realization%waypoints)
-
-       call RealizationAddWaypointsToList(realization)
-       call WaypointListFillIn(model%option,realization%waypoints)
-       call WaypointListRemoveExtraWaypnts(model%option,realization%waypoints)
-
-    end if
-
-    if (associated(surf_realization)) then
-       call WaypointInsertInList(waypoint2, surf_realization%waypoints)
-
-    end if
-
-    ! turn off the 'print out' if required from CLM
-    if(.not.isprintout) then
-      if (model%option%io_rank == model%option%myrank) then
-        write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval from PFLOTRAN IS OFF! '
+      ! turn off the 'print out' if required from CLM
+      if(.not.isprintout) then
+        if (model%option%io_rank == model%option%myrank) then
+          write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
+            'for subsurface flow from PFLOTRAN IS OFF! '
+        endif
+        waypoint => realization%waypoints%first
+        do
+          if (.not.associated(waypoint)) exit
+          waypoint%print_output = PETSC_FALSE
+          waypoint => waypoint%next
+        enddo
       endif
 
-       waypoint => realization%waypoints%first
-       do
-           if (.not.associated(waypoint)) exit
-           waypoint%print_output = PETSC_FALSE
-           waypoint => waypoint%next
-       enddo
-    endif
+    endif  !if (associated(realization))
 
+    ! update surface-realization final waypoint
+    if (associated(surf_realization)) then
+      ! remove original final waypoint
+      waypoint => surf_realization%waypoints%first
+      do
+        if (.not.associated(waypoint)) exit
+        if (waypoint%final) then
+          waypoint%final = PETSC_FALSE
+          exit
+
+        else
+           waypoint => waypoint%next
+        endif
+      enddo
+
+      ! insert new final waypoint2 (copied from waypoint1)
+      waypoint2 => WaypointCreate(waypoint1)
+      ! just in case that subsurface realization NOT there (e.g. only surf_simulation),
+      ! the above 'WaypointCreate()' will allocate memory for 'waypoint1',
+      ! which never have a chance to deallocate and potentially leak memory
+      if(associated(waypoint1)) deallocate(waypoint1)
+
+      call WaypointInsertInList(waypoint2, surf_realization%waypoints)
+      call SurfRealizAddWaypointsToList(surf_realization)
+      call WaypointListFillIn(model%option,surf_realization%waypoints)
+      call WaypointListRemoveExtraWaypnts(model%option,surf_realization%waypoints)
+
+      ! turn off the 'print out' if required from CLM
+      if(.not.isprintout) then
+        if (model%option%io_rank == model%option%myrank) then
+          write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
+            'for surface flow from PFLOTRAN IS OFF! '
+        endif
+        waypoint => surf_realization%waypoints%first
+        do
+          if (.not.associated(waypoint)) exit
+          waypoint%print_output = PETSC_FALSE
+          waypoint => waypoint%next
+        enddo
+      endif
+
+    end if !if (associated(surf_realization))
 
   end subroutine pflotranModelUpdateFinalWaypoint
 
@@ -2393,6 +2449,10 @@ end subroutine pflotranModelSetICs
        call WaypointDeleteFromList(waypoint, surf_realization%waypoints)
     end if
 
+    ! when call 'WaypointCreate()', 'waypoint' will be allocated memory,
+    ! and the 'WaypointDeleteFromList''s destroy appears not work( TODO checking)
+    ! which causes memory leak continuously - it's very dangerous to system if runs long
+    if(associated(waypoint)) deallocate(waypoint)
   end subroutine pflotranModelDeleteWaypoint
 
 ! ************************************************************************** !
