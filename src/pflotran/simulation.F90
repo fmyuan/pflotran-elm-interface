@@ -132,7 +132,8 @@ subroutine SimulationDestroy(simulation)
       call RTDestroy(simulation%realization)
     endif
 
-    call RealizationDestroyLegacy(simulation%realization)
+    !call RealizationDestroyLegacy(simulation%realization)
+    call RealizationStrip(simulation%realization)
   endif
   call TimestepperDestroy(simulation%flow_stepper)
   call TimestepperDestroy(simulation%tran_stepper)
