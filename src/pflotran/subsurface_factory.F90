@@ -230,7 +230,7 @@ subroutine HijackSimulation(simulation_old,simulation)
 !    tran_process_model_coupler%timestepper => simulation_old%tran_stepper
     tran_process_model_coupler%realization => realization
     call HijackTimestepper(simulation_old%tran_stepper, &
-                           tran_process_model_coupler%timestepper)
+                           tran_process_model_coupler%timestepper)  ! this 'timestepper' appears not destroyed (freed) (fmy)
     ! set up logging stage
     string = 'Reactive Transport'
     call LoggingCreateStage(string,tran_process_model_coupler%stage)

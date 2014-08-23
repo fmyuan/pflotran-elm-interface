@@ -232,7 +232,7 @@ subroutine Init(simulation)
     nullify(surf_flow_solver)
   endif
 
-  ! initialize surface-flow mode
+  ! initialize gemmechanics mode
   if (option%ngeomechdof > 0) then
     geomech_solver => geomech_stepper%solver
     waypoint_list => WaypointListCreate()
@@ -256,6 +256,11 @@ subroutine Init(simulation)
   ! read in the remainder of the input file
   call InitReadInput(simulation)
   call InputDestroy(realization%input)
+
+  ! destroy other 'input' used above
+  ! (TODO: fmy- check if this is the right place to do so)
+  call InputDestroy(surf_realization%input)    !allocated in Line 182)
+  call InputDestroy(geomech_realization%input) ! allocated in Line 186)
 
   ! initialize reference density
   if (option%reference_water_density < 1.d-40) then
