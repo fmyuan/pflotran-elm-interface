@@ -393,9 +393,10 @@ contains
     clm_pf_idata%hksat_z_clm = 0
     clm_pf_idata%sucsat_clm = 0
     clm_pf_idata%watsat_clm = 0
-    clm_pf_idata%watfc_clm = 0
     clm_pf_idata%bsw_clm = 0
     clm_pf_idata%press_clm = 0
+    clm_pf_idata%qflx_clm = 0
+    clm_pf_idata%watfc_clm = 0
     clm_pf_idata%bulkdensity_dry_clm = 0
 
     clm_pf_idata%hksat_x_pf = 0
@@ -403,13 +404,11 @@ contains
     clm_pf_idata%hksat_z_pf = 0
     clm_pf_idata%sucsat_pf = 0
     clm_pf_idata%watsat_pf = 0
-    clm_pf_idata%watfc_pf = 0
     clm_pf_idata%bsw_pf = 0
     !clm_pf_idata%press_pf = 0
-    clm_pf_idata%bulkdensity_dry_pf = 0
-
-    clm_pf_idata%qflx_clm = 0
     clm_pf_idata%qflx_pf = 0
+    clm_pf_idata%watfc_pf = 0
+    clm_pf_idata%bulkdensity_dry_pf = 0
 
     clm_pf_idata%rain_clm = 0
     clm_pf_idata%rain_pf = 0
@@ -1049,7 +1048,7 @@ contains
     if(clm_pf_idata%watsat_clm  /= 0) call VecDestroy(clm_pf_idata%watsat_clm,ierr)
     if(clm_pf_idata%bsw_clm  /= 0) call VecDestroy(clm_pf_idata%bsw_clm,ierr)
     if(clm_pf_idata%press_clm  /= 0) call VecDestroy(clm_pf_idata%press_clm,ierr)
-
+    if(clm_pf_idata%qflx_clm  /= 0) call VecDestroy(clm_pf_idata%qflx_clm,ierr)
     if(clm_pf_idata%watfc_clm  /= 0) call VecDestroy(clm_pf_idata%watfc_clm,ierr)
     if(clm_pf_idata%bulkdensity_dry_clm  /= 0) call VecDestroy(clm_pf_idata%bulkdensity_dry_clm,ierr)
 
@@ -1060,12 +1059,9 @@ contains
     if(clm_pf_idata%watsat_pf  /= 0) call VecDestroy(clm_pf_idata%watsat_pf,ierr)
     if(clm_pf_idata%bsw_pf  /= 0) call VecDestroy(clm_pf_idata%bsw_pf,ierr)
     !if(clm_pf_idata%press_pf  /= 0) call VecDestroy(clm_pf_idata%press_pf,ierr)
-
+    if(clm_pf_idata%qflx_pf  /= 0) call VecDestroy(clm_pf_idata%qflx_pf,ierr)
     if(clm_pf_idata%watfc_pf  /= 0) call VecDestroy(clm_pf_idata%watfc_pf,ierr)
     if(clm_pf_idata%bulkdensity_dry_pf  /= 0) call VecDestroy(clm_pf_idata%bulkdensity_dry_pf,ierr)
-
-    if(clm_pf_idata%qflx_clm  /= 0) call VecDestroy(clm_pf_idata%qflx_clm,ierr)
-    if(clm_pf_idata%qflx_pf  /= 0) call VecDestroy(clm_pf_idata%qflx_pf,ierr)
     
     if(clm_pf_idata%rain_clm  /= 0) call VecDestroy(clm_pf_idata%rain_clm,ierr)
     if(clm_pf_idata%rain_pf  /= 0) call VecDestroy(clm_pf_idata%rain_pf,ierr)
