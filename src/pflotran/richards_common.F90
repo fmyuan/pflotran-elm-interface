@@ -666,7 +666,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
           ! If running with surface-flow model, ensure (darcy_velocity*dt) does
           ! not exceed depth of standing water.
           if (.not. rich_auxvar_dn%bcflux_default_scheme) then
-            if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) then
+            if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%surf_flow_on) then
               call EOSWaterdensity(option%reference_temperature, &
                                    option%reference_pressure,rho,dum1,ierr)
 
@@ -978,7 +978,7 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
 
         ! If running with surface-flow model, ensure (darcy_velocity*dt) does
         ! not exceed depth of standing water.
-        if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) then
+        if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%surf_flow_on) then
           call EOSWaterdensity(option%reference_temperature, &
                                option%reference_pressure,rho,dum1,ierr)
 
