@@ -943,6 +943,7 @@ end subroutine pflotranModelSetICs
 
     deallocate(grid_pf_cell_ids_nindex)
     deallocate(grid_pf_local_nindex)
+    deallocate(grid_clm_local_nindex)
 
     call MappingDecompose(map, option%mycomm)
     call MappingFindDistinctSourceMeshCellIds(map)
@@ -1388,6 +1389,7 @@ end subroutine pflotranModelSetICs
 
     deallocate(grid_pf_cell_ids_nindex)
     deallocate(grid_pf_local_nindex)
+    deallocate(grid_clm_local_nindex)
 
     call MappingDecompose(map, option%mycomm)
     call MappingFindDistinctSourceMeshCellIds(map)
@@ -3024,6 +3026,7 @@ end subroutine pflotranModelSetICs
 
     use PFLOTRAN_Factory_module, only : PFLOTRANFinalize
     use Option_module, only : OptionFinalize
+    use Mapping_module, only : MappingDestroy
 
     implicit none
 
@@ -3037,6 +3040,32 @@ end subroutine pflotranModelSetICs
     deallocate(model%simulation)
     nullify(model%simulation)
   
+
+    if (associated(model%map_pf_srf_to_clm_srf)) then
+      call MappingDestroy(model%map_clm_sub_to_pf_sub)
+      nullify(model%map_clm_sub_to_pf_sub)
+    endif
+    if (associated(model%map_clm_sub_to_pf_extended_sub)) then
+      call MappingDestroy(model%map_clm_sub_to_pf_extended_sub)
+      nullify(model%map_clm_sub_to_pf_extended_sub)
+    endif
+    if (associated(model%map_clm_srf_to_pf_2dsub)) then
+      call MappingDestroy(model%map_clm_srf_to_pf_2dsub)
+      nullify(model%map_clm_srf_to_pf_2dsub)
+    endif
+    if (associated(model%map_clm_srf_to_pf_srf)) then
+      call MappingDestroy(model%map_clm_srf_to_pf_srf)
+      nullify(model%map_clm_srf_to_pf_srf)
+    endif
+    if (associated(model%map_pf_sub_to_clm_sub)) then
+      call MappingDestroy(model%map_pf_sub_to_clm_sub)
+      nullify(model%map_pf_sub_to_clm_sub)
+    endif
+    if (associated(model%map_pf_srf_to_clm_srf)) then
+      call MappingDestroy(model%map_pf_srf_to_clm_srf)
+      nullify(model%map_pf_srf_to_clm_srf)
+    endif
+
     call PFLOTRANFinalize(model%option)
     call OptionFinalize(model%option)
 
