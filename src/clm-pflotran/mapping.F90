@@ -95,7 +95,8 @@ module Mapping_module
             MappingFindDistinctSourceMeshCellIds, &
             MappingCreateWeightMatrix, &
             MappingCreateScatterOfSourceMesh, &
-            MappingSourceToDestination
+            MappingSourceToDestination, &
+            MappingDestroy
 contains
 
 ! ************************************************************************** !
@@ -247,6 +248,10 @@ contains
     rev_index = rev_index - 1
     call PetscSortIntWithPermutation(map%d_ncells_ghd,index,rev_index,ierr)
     map%d_nSor2Ghd = rev_index
+
+    ! Free memory
+    deallocate(index)
+    deallocate(rev_index)
 
 
   end subroutine MappingSetDestinationMeshCellIds
@@ -1451,6 +1456,8 @@ contains
     enddo
     call ISCreateBlock(mycomm, 1, map%s2d_s_ncells_dis, tmp_int_array, &
          PETSC_COPY_VALUES, is_from, ierr)
+    deallocate(tmp_int_array)
+
 #ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(mycomm, 'is_from1.out', viewer, ierr)
     call ISView(is_from, viewer,ierr)
@@ -1537,6 +1544,49 @@ contains
        call MatMult(map%wts_mat, map%s_disloc_vec, d_vec, ierr)
     end if
   end subroutine
+
+! ************************************************************************** !
+
+  subroutine MappingDestroy(map)
+  !
+  ! This routine frees up memoery
+  !
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 08/22/2014
+  !
+
+    implicit none
+
+    ! argument
+    type(mapping_type), pointer :: map
+
+    if (associated(map%s_ids_loc_nidx)) deallocate(map%s_ids_loc_nidx)
+    if (associated(map%d_ids_ghd_nidx)) deallocate(map%d_ids_ghd_nidx)
+    if (associated(map%d_ids_nidx_sor)) deallocate(map%d_ids_nidx_sor)
+    if (associated(map%d_nGhd2Sor)) deallocate(map%d_nGhd2Sor)
+    if (associated(map%d_nSor2Ghd)) deallocate(map%d_nSor2Ghd)
+    if (associated(map%d_loc_or_gh)) deallocate(map%d_loc_or_gh)
+    if (associated(map%s2d_s_ids_nidx)) deallocate(map%s2d_s_ids_nidx)
+    if (associated(map%s2d_s_ids_nidx_dis)) deallocate(map%s2d_s_ids_nidx_dis)
+    if (associated(map%s2d_wts)) deallocate(map%s2d_wts)
+    if (associated(map%s2d_jcsr)) deallocate(map%s2d_jcsr)
+    if (associated(map%s2d_icsr)) deallocate(map%s2d_icsr)
+    if (associated(map%s2d_nonzero_rcount_csr)) deallocate(map%s2d_nonzero_rcount_csr)
+
+    nullify(map%s_ids_loc_nidx)
+    nullify(map%d_ids_ghd_nidx)
+    nullify(map%d_ids_nidx_sor)
+    nullify(map%d_nGhd2Sor)
+    nullify(map%d_nSor2Ghd)
+    nullify(map%d_loc_or_gh)
+    nullify(map%s2d_s_ids_nidx)
+    nullify(map%s2d_s_ids_nidx_dis)
+    nullify(map%s2d_wts)
+    nullify(map%s2d_jcsr)
+    nullify(map%s2d_icsr)
+    nullify(map%s2d_nonzero_rcount_csr)
+
+  end subroutine MappingDestroy
 
 end module Mapping_module
 
