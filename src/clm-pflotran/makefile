@@ -191,7 +191,7 @@ util_obj  = \
 	${common_src}option_flow.o \
 	${common_src}option_transport.o \
 	${common_src}output_aux.o \
-  ${common_src}pflotran_constants.o \
+	${common_src}pflotran_constants.o \
 	${common_src}pflotran_provenance.o \
 	${common_src}string.o \
 	${common_src}units.o \
@@ -289,7 +289,7 @@ grid_obj = \
 	${common_src}unstructured_explicit.o \
 	${common_src}unstructured_grid_aux.o \
 	${common_src}unstructured_grid.o \
-  ${common_src}unstructured_polyhedra.o \
+	${common_src}unstructured_polyhedra.o \
 	${common_src}structured_communicator.o \
 	${common_src}structured_grid.o 
 
@@ -419,7 +419,6 @@ geomech_obj = \
 	${common_src}geomechanics_logging.o \
 	${common_src}geomechanics_global.o \
 	${common_src}geomechanics_force.o \
-	${common_src}geomechanics_timestepper.o \
 	${common_src}gauss.o \
 	${common_src}shape_function.o \
 	${common_src}geomechanics_global_aux.o\
@@ -678,13 +677,6 @@ geomechanics_simulation.o : geomechanics_realization.o option.o output.o \
                             timestepper_base.o
 geomechanics_strata.o : geomechanics_material.o geomechanics_region.o \
                         input_aux.o option.o pflotran_constants.o string.o
-geomechanics_timestepper.o : condition_control.o convergence.o \
-                             discretization.o geomechanics_discretization.o \
-                             geomechanics_field.o geomechanics_force.o \
-                             geomechanics_logging.o geomechanics_realization.o \
-                             logging.o option.o output.o output_aux.o \
-                             output_geomechanics.o pflotran_constants.o \
-                             realization.o solver.o timestepper.o waypoint.o
 geometry.o : input_aux.o option.o pflotran_constants.o
 global.o : connection.o coupler.o discretization.o field.o global_aux.o grid.o \
            option.o patch.o pflotran_constants.o realization.o \
