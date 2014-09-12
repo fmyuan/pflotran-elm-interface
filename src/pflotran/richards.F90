@@ -150,7 +150,8 @@ subroutine RichardsSetupPatch(realization)
   allocate(patch%aux%Richards%richards_parameter%sir(option%nphase, &
                                   size(patch%saturation_function_array)))
   do i = 1, size(patch%saturation_function_array)
-    patch%aux%Richards%richards_parameter%sir(:,patch%saturation_function_array(i)%ptr%id) = &
+    patch%aux%Richards%richards_parameter%sir(:,patch% &
+        saturation_function_array(i)%ptr%id) = &
       patch%saturation_function_array(i)%ptr%Sr(:)
   enddo
   
@@ -259,8 +260,10 @@ subroutine RichardsCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
       sat = global_auxvars(ghosted_id)%sat(1)
       sat_pert = sat - sign(1.d0,sat-0.5d0)*pert
       call SatFuncGetCapillaryPressure(pc_pert,sat_pert, &
+             option%reference_temperature, &
              patch%saturation_function_array( &
-               patch%sat_func_id(ghosted_id))%ptr,option)
+               patch%sat_func_id(ghosted_id))%ptr, &
+            option)
       press_pert = option%reference_pressure - pc_pert
       P0 = P_p(local_id)
       delP = dP_p(local_id)
@@ -354,7 +357,7 @@ subroutine RichardsCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
   PetscBool :: dP_changed
   PetscBool :: P1_changed
   
-  PetscReal, pointer :: P1_p(:)
+  PetscReal, pointer :: P0_p(:)
   PetscReal, pointer :: dP_p(:)
   PetscReal, pointer :: r_p(:)
   type(grid_type), pointer :: grid
@@ -381,7 +384,7 @@ subroutine RichardsCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
   option%converged = PETSC_FALSE
   if (option%flow%check_post_convergence) then
     call VecGetArrayF90(dP,dP_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(P1,P1_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(P0,P0_p,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
     
     inf_norm = 0.d0
@@ -393,17 +396,17 @@ subroutine RichardsCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
                                 global_auxvars(ghosted_id), &
                                 material_auxvars(ghosted_id), &
                                 option,Res)
-      inf_norm = max(inf_norm,min(dabs(dP_p(local_id)/P1_p(local_id)), &
+      inf_norm = max(inf_norm,min(dabs(dP_p(local_id)/P0_p(local_id)), &
                                   dabs(r_p(local_id)/Res(1))))
     enddo
     call MPI_Allreduce(inf_norm,global_inf_norm,ONE_INTEGER_MPI, &
                        MPI_DOUBLE_PRECISION, &
                        MPI_MAX,option%mycomm,ierr)
     option%converged = PETSC_TRUE
-    if (global_inf_norm > option%flow%post_convergence_tol) &
+    if (global_inf_norm > option%flow%inf_scaled_res_tol) &
       option%converged = PETSC_FALSE
     call VecRestoreArrayF90(dP,dP_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayF90(P1,P1_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(P0,P0_p,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
   endif
   
@@ -641,7 +644,7 @@ subroutine RichardsUpdatePermPatch(realization)
   patch => realization%patch
   field => realization%field
   grid => patch%grid
-  material_property_array => realization%material_property_array
+  material_property_array => patch%material_property_array
   material_auxvars => patch%aux%Material%auxvars
 
   if (.not.associated(patch%imat)) then
@@ -1367,7 +1370,7 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
       call printErrMsg(option)
   end select
 
-  if (option%nsurfflowdof>0) call RichardsComputeCoeffsForSurfFlux(realization)
+  if (option%surf_flow_on) call RichardsComputeCoeffsForSurfFlux(realization)
 
 !  write(*,*) "RichardsResidual"
 !  read(*,*)
@@ -3055,6 +3058,7 @@ subroutine RichardsSSSandboxLoadAuxReal(srcsink,aux_real,global_auxvar,option)
   select type(srcsink)
     class is(srcsink_sandbox_downreg_type)
       aux_real(1) = global_auxvar%pres(1)
+      aux_real(2) = global_auxvar%den(1)
   end select
   
 end subroutine RichardsSSSandboxLoadAuxReal
