@@ -972,10 +972,6 @@ subroutine CreateMFDStruct4Faces(grid, MFD_aux, ndof, option)
                                     MFD_aux%mapping_ltog_faces, &
                                       ierr);CHKERRQ(ierr)
 
-  call ISLocalToGlobalMappingBlock(MFD_aux%mapping_ltog_faces,ndof, &
-                                  MFD_aux%mapping_ltogb_faces, &
-                                   ierr);CHKERRQ(ierr)
-
   call PetscViewerASCIIOpen(option%mycomm,'is_ghosted_petsc.out',viewer, &
                             ierr);CHKERRQ(ierr)
   call ISView(MFD_aux%is_ghosted_petsc_faces,viewer,ierr);CHKERRQ(ierr)
@@ -1112,10 +1108,6 @@ subroutine CreateMFDStruct4LP(grid, MFD_aux, ndof, option)
   call ISLocalToGlobalMappingCreateIS(MFD_aux%is_ghosted_petsc_LP, &
                                       MFD_aux%mapping_ltog_LP, &
                                       ierr);CHKERRQ(ierr)
-
-  call ISLocalToGlobalMappingBlock(MFD_aux%mapping_ltog_LP, ndof, &
-                                   MFD_aux%mapping_ltogb_LP,  &
-                                   ierr);CHKERRQ(ierr)
 
   call VecScatterCreate(global_vec_LP,MFD_aux%is_ghosted_petsc_LP,local_vec_LP, &
                         MFD_aux%is_ghosted_local_LP, MFD_aux%scatter_gtol_LP,  &
@@ -1479,7 +1471,6 @@ subroutine GridLocalizeRegions(grid,region_list,option)
       nullify(region%cell_ids)
     endif
 
-    call MPI_Barrier(MPI_COMM_WORLD,ierr)
     if (region%num_cells == 0 .and. associated(region%faces)) then
       deallocate(region%faces)
       nullify(region%faces)
@@ -2385,6 +2376,9 @@ subroutine GridDestroy(grid)
   call StructGridDestroy(grid%structured_grid)
                                            
   call ConnectionDestroyList(grid%internal_connection_set_list)
+
+  if(associated(grid)) deallocate(grid)
+  nullify(grid)
 
 end subroutine GridDestroy
 

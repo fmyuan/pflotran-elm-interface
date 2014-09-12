@@ -523,7 +523,7 @@ subroutine FlowConditionRead(condition,input,option)
   rate => FlowSubConditionCreate(option%nflowspec)
   rate%name = 'rate'
   energy_rate => FlowSubConditionCreate(option%nflowspec)
-  rate%name = 'energy_rate'
+  energy_rate%name = 'energy_rate'
   well => FlowSubConditionCreate(7 + option%nflowspec)
   well%name = 'well'
   saturation => FlowSubConditionCreate(option%nphase)
@@ -1963,6 +1963,7 @@ subroutine ConditionReadValues(input,option,keyword,string,dataset_base,units)
       endif
       input2 => InputCreate(IUNIT_TEMP,filename,option)
       call DatasetAsciiRead(dataset_ascii,input2,option)
+      dataset_ascii%filename = filename
       call InputDestroy(input2)
     endif
   else if (StringCompare(word,'dataset')) then

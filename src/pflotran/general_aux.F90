@@ -11,6 +11,8 @@ module General_Aux_module
   PetscReal, public :: window_epsilon = 1.d-4
   PetscReal, public :: fmw_comp(2) = [FMWH2O,FMWAIR]
   PetscReal, public :: general_max_pressure_change = 5.d4
+  PetscInt, public :: general_max_it_before_damping = -999
+  PetscReal, public :: general_damping_factor = 0.6d0
 
   ! thermodynamic state of fluid ids
   PetscInt, parameter, public :: NULL_STATE = 0
@@ -83,8 +85,9 @@ module General_Aux_module
   end type general_parameter_type
   
   type, public :: general_type
-    PetscInt :: n_zero_rows
-    PetscInt, pointer :: zero_rows_local(:), zero_rows_local_ghosted(:)
+    PetscInt :: n_inactive_rows
+    PetscInt, pointer :: inactive_rows_local(:), inactive_rows_local_ghosted(:)
+    PetscInt, pointer :: row_zeroing_array(:)
 
     PetscBool :: auxvars_up_to_date
     PetscBool :: inactive_cells_exist
@@ -158,9 +161,10 @@ function GeneralAuxCreate(option)
   nullify(aux%auxvars)
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
-  aux%n_zero_rows = 0
-  nullify(aux%zero_rows_local)
-  nullify(aux%zero_rows_local_ghosted)
+  aux%n_inactive_rows = 0
+  nullify(aux%inactive_rows_local)
+  nullify(aux%inactive_rows_local_ghosted)
+  nullify(aux%row_zeroing_array)
 
   allocate(aux%general_parameter)
   allocate(aux%general_parameter%diffusion_coefficient(option%nphase))
@@ -409,8 +413,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
                                       gen_auxvar%pres(spid),ierr)
       !geh: Henry_air_xxx returns K_H in units of Pa, but I am not confident
       !     that K_H is truly K_H_tilde (i.e. p_g * K_H).
-      call EOSGasHenry_air_noderiv(dummy,gen_auxvar%temp, &
-                                   gen_auxvar%pres(spid),K_H_tilde)
+      call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde)
       gen_auxvar%pres(gid) = gen_auxvar%pres(lid)
       gen_auxvar%pres(apid) = K_H_tilde*gen_auxvar%xmol(acid,lid)
       ! need vpres for liq -> 2ph check
@@ -447,8 +450,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       ! diffuse through the liquid phase.
       call EOSWaterSaturationPressure(gen_auxvar%temp, &
                                       gen_auxvar%pres(spid),ierr)
-      call EOSGasHenry_air_noderiv(dummy,gen_auxvar%temp, &
-                                   gen_auxvar%pres(spid),K_H_tilde)
+      call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde)
       gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
       ! set water mole fraction to zero as there is no water in liquid phase
       gen_auxvar%xmol(wid,lid) = 0.d0
@@ -463,6 +465,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
       call SatFuncGetCapillaryPressure(gen_auxvar%pres(cpid), &
                                        gen_auxvar%sat(lid), &
+                                       gen_auxvar%temp, &
                                        saturation_function,option) 
       gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - &
                              gen_auxvar%pres(cpid)
@@ -492,14 +495,14 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
       
       call SatFuncGetCapillaryPressure(gen_auxvar%pres(cpid), &
                                        gen_auxvar%sat(lid), &
-                                       saturation_function,option)      
+                                       gen_auxvar%temp, &
+                                       saturation_function,option)
 !      gen_auxvar%pres(cpid) = 0.d0
  
       gen_auxvar%pres(lid) = gen_auxvar%pres(gid) - &
                               gen_auxvar%pres(cpid)
 
-      call EOSGasHenry_air_noderiv(dummy,gen_auxvar%temp, &
-                                   gen_auxvar%pres(spid),K_H_tilde)
+      call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde)
       gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
       gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
       gen_auxvar%xmol(acid,gid) = gen_auxvar%pres(apid) / &
@@ -718,6 +721,10 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
         endif
         if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
           ! do nothing as the energy dof has not changed
+          if (.not.general_isothermal) then
+            X(GENERAL_ENERGY_DOF) = X(GENERAL_ENERGY_DOF) * &
+                                   (1.d0 + liquid_epsilon)
+          endif
         else
           ! pa = pg - ps
           x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = &
@@ -760,7 +767,10 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
         global_auxvar%istate = TWO_PHASE_STATE
         ! first two primary dependent variables do not change
         if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
-          ! do nothing as energy dof has not changed
+          if (.not.general_isothermal) then
+            X(GENERAL_ENERGY_DOF) = X(GENERAL_ENERGY_DOF) * &
+                                    (1.d0 - epsilon)
+          endif
         else
           X(GENERAL_ENERGY_DOF) = gen_auxvar%pres(apid)*(1.d0-epsilon)
         endif
@@ -803,7 +813,10 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
           x(GENERAL_LIQUID_STATE_X_MOLE_DOF) = two_phase_epsilon
         endif
         if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
-          ! do nothing as energy dof has not changed
+          if (.not.general_isothermal) then
+            X(GENERAL_ENERGY_DOF) = X(GENERAL_ENERGY_DOF) * &
+                                    (1.d0-two_phase_epsilon)
+          endif
         else
           X(GENERAL_ENERGY_DOF) = gen_auxvar%temp*(1.d0-two_phase_epsilon)
         endif
@@ -833,7 +846,13 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
           ! first two primary dependent variables do not change
           x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
             gen_auxvar%pres(apid) * (1.d0 + two_phase_epsilon)
+          if (.not.general_isothermal) then
+            X(GENERAL_ENERGY_DOF) = X(GENERAL_ENERGY_DOF) * &
+                                    (1.d0+two_phase_epsilon)
+          endif
         else
+          X(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = gen_auxvar%pres(apid)* &
+                                                  (1.d0+two_phase_epsilon)
           X(GENERAL_ENERGY_DOF) = gen_auxvar%temp*(1.d0+two_phase_epsilon)
         endif
         flag = PETSC_TRUE
@@ -1115,7 +1134,7 @@ end subroutine GeneralPrintAuxVars
 ! ************************************************************************** !
 
 subroutine GeneralOutputAuxVars1(general_auxvar,global_auxvar,ghosted_id, &
-                                string,option)
+                                string,append,option)
   ! 
   ! Prints out the contents of an auxvar to a file
   ! 
@@ -1132,10 +1151,11 @@ subroutine GeneralOutputAuxVars1(general_auxvar,global_auxvar,ghosted_id, &
   type(global_auxvar_type) :: global_auxvar
   PetscInt :: ghosted_id
   character(len=*) :: string
+  PetscBool :: append
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string2
-  PetscInt :: apid, cpid, vpid
+  PetscInt :: apid, cpid, vpid, spid
   PetscInt :: gid, lid, acid, wid, eid
 
   lid = option%liquid_phase
@@ -1143,6 +1163,7 @@ subroutine GeneralOutputAuxVars1(general_auxvar,global_auxvar,ghosted_id, &
   apid = option%air_pressure_id
   cpid = option%capillary_pressure_id
   vpid = option%vapor_pressure_id
+  spid = option%saturation_pressure_id
 
   acid = option%air_id ! air component id
   wid = option%water_id
@@ -1150,7 +1171,11 @@ subroutine GeneralOutputAuxVars1(general_auxvar,global_auxvar,ghosted_id, &
   
   write(string2,*) ghosted_id
   string2 = trim(adjustl(string)) // '_' // trim(adjustl(string2)) // '.txt'
-  open(unit=86,file=string2)
+  if (append) then
+    open(unit=86,file=string2,position='append')
+  else
+    open(unit=86,file=string2)
+  endif
 
   write(86,*) '--------------------------------------------------------'
   write(86,*) trim(string)
@@ -1168,6 +1193,7 @@ subroutine GeneralOutputAuxVars1(general_auxvar,global_auxvar,ghosted_id, &
   write(86,*) '        air pressure: ', general_auxvar%pres(apid)
   write(86,*) '  capillary pressure: ', general_auxvar%pres(cpid)
   write(86,*) '      vapor pressure: ', general_auxvar%pres(vpid)
+  write(86,*) ' saturation pressure: ', general_auxvar%pres(spid)
   write(86,*) '     temperature [C]: ', general_auxvar%temp
   write(86,*) '   liquid saturation: ', general_auxvar%sat(lid)
   write(86,*) '      gas saturation: ', general_auxvar%sat(gid)
@@ -1191,6 +1217,7 @@ subroutine GeneralOutputAuxVars1(general_auxvar,global_auxvar,ghosted_id, &
   write(86,*) general_auxvar%pres(apid)
   write(86,*) general_auxvar%pres(cpid)
   write(86,*) general_auxvar%pres(vpid)
+  write(86,*) general_auxvar%pres(spid)
   write(86,*) general_auxvar%temp
   write(86,*) general_auxvar%sat(lid)
   write(86,*) general_auxvar%sat(gid)
@@ -1436,8 +1463,9 @@ subroutine GeneralAuxDestroy(aux)
   call GeneralAuxVarDestroy(aux%auxvars_bc)
   call GeneralAuxVarDestroy(aux%auxvars_ss)
 
-  call DeallocateArray(aux%zero_rows_local)
-  call DeallocateArray(aux%zero_rows_local_ghosted)
+  call DeallocateArray(aux%inactive_rows_local)
+  call DeallocateArray(aux%inactive_rows_local_ghosted)
+  call DeallocateArray(aux%row_zeroing_array)
 
   if (associated(aux%general_parameter)) then
     call DeallocateArray(aux%general_parameter%diffusion_coefficient)

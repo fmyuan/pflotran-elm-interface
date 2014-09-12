@@ -133,7 +133,7 @@ subroutine THSetupPatch(realization)
   PetscReal :: area_per_vol
 
   PetscInt :: ghosted_id, iconn, sum_connection
-  PetscInt :: i, iphase, local_id
+  PetscInt :: i, iphase, local_id, material_id
   
   
   option => realization%option
@@ -148,42 +148,43 @@ subroutine THSetupPatch(realization)
 !                    'THAuxCreate() is called anywhere.'
 ! call printErrMsg(option)
   allocate(patch%aux%TH%TH_parameter%sir(option%nphase, &
-                                  size(realization%saturation_function_array)))
+                                  size(patch%saturation_function_array)))
   
   !Jitu, 08/04/2010: Check these allocations. Currently assumes only single value in the array	<modified pcl 1-13-11>
-  allocate(patch%aux%TH%TH_parameter%dencpr(size(realization%material_property_array)))
-  allocate(patch%aux%TH%TH_parameter%ckwet(size(realization%material_property_array)))
-  allocate(patch%aux%TH%TH_parameter%ckdry(size(realization%material_property_array)))
-  allocate(patch%aux%TH%TH_parameter%alpha(size(realization%material_property_array)))
+  allocate(patch%aux%TH%TH_parameter%dencpr(size(patch%material_property_array)))
+  allocate(patch%aux%TH%TH_parameter%ckwet(size(patch%material_property_array)))
+  allocate(patch%aux%TH%TH_parameter%ckdry(size(patch%material_property_array)))
+  allocate(patch%aux%TH%TH_parameter%alpha(size(patch%material_property_array)))
   if (option%use_th_freezing) then
-     allocate(patch%aux%TH%TH_parameter%ckfrozen(size(realization%material_property_array)))
-     allocate(patch%aux%TH%TH_parameter%alpha_fr(size(realization%material_property_array)))
+     allocate(patch%aux%TH%TH_parameter%ckfrozen(size(patch%material_property_array)))
+     allocate(patch%aux%TH%TH_parameter%alpha_fr(size(patch%material_property_array)))
   endif
 
   !Copy the values in the TH_parameter from the global realization 
-  do i = 1, size(realization%material_property_array)
-    patch%aux%TH%TH_parameter%dencpr(realization%material_property_array(i)%ptr%id) = &
-      realization%material_property_array(i)%ptr%rock_density*option%scale* &
-        realization%material_property_array(i)%ptr%specific_heat
+  do i = 1, size(patch%material_property_array)
+    material_id = patch%material_property_array(i)%ptr%internal_id
+    patch%aux%TH%TH_parameter%dencpr(material_id) = &
+      patch%material_property_array(i)%ptr%rock_density*option%scale* &
+        patch%material_property_array(i)%ptr%specific_heat
  
-    patch%aux%TH%TH_parameter%ckwet(realization%material_property_array(i)%ptr%id) = &
-      realization%material_property_array(i)%ptr%thermal_conductivity_wet*option%scale  
-    patch%aux%TH%TH_parameter%ckdry(realization%material_property_array(i)%ptr%id) = &
-      realization%material_property_array(i)%ptr%thermal_conductivity_dry*option%scale
-    patch%aux%TH%TH_parameter%alpha(realization%material_property_array(i)%ptr%id) = &
-      realization%material_property_array(i)%ptr%alpha
+    patch%aux%TH%TH_parameter%ckwet(material_id) = &
+      patch%material_property_array(i)%ptr%thermal_conductivity_wet*option%scale  
+    patch%aux%TH%TH_parameter%ckdry(material_id) = &
+      patch%material_property_array(i)%ptr%thermal_conductivity_dry*option%scale
+    patch%aux%TH%TH_parameter%alpha(material_id) = &
+      patch%material_property_array(i)%ptr%alpha
     if (option%use_th_freezing) then
-       patch%aux%TH%TH_parameter%ckfrozen(realization%material_property_array(i)%ptr%id) = &
-            realization%material_property_array(i)%ptr%thermal_conductivity_frozen*option%scale
-       patch%aux%TH%TH_parameter%alpha_fr(realization%material_property_array(i)%ptr%id) = &
-            realization%material_property_array(i)%ptr%alpha_fr
+       patch%aux%TH%TH_parameter%ckfrozen(material_id) = &
+            patch%material_property_array(i)%ptr%thermal_conductivity_frozen*option%scale
+       patch%aux%TH%TH_parameter%alpha_fr(material_id) = &
+            patch%material_property_array(i)%ptr%alpha_fr
     endif
 
   enddo 
 
-  do i = 1, size(realization%saturation_function_array)
-    patch%aux%TH%TH_parameter%sir(:,realization%saturation_function_array(i)%ptr%id) = &
-      realization%saturation_function_array(i)%ptr%Sr(:)
+  do i = 1, size(patch%saturation_function_array)
+    patch%aux%TH%TH_parameter%sir(:,patch%saturation_function_array(i)%ptr%id) = &
+      patch%saturation_function_array(i)%ptr%Sr(:)
   enddo
 
   ! allocate auxvar data structures for all grid cells
@@ -206,24 +207,24 @@ subroutine THSetupPatch(realization)
     ! S. Karra 07/18/12
       call SecondaryContinuumSetProperties( &
         TH_sec_heat_vars(local_id)%sec_continuum, &
-        realization%material_property_array(1)%ptr%secondary_continuum_name, &
-        realization%material_property_array(1)%ptr%secondary_continuum_length, &
-        realization%material_property_array(1)%ptr%secondary_continuum_matrix_block_size, &
-        realization%material_property_array(1)%ptr%secondary_continuum_fracture_spacing, &
-        realization%material_property_array(1)%ptr%secondary_continuum_radius, &
-        realization%material_property_array(1)%ptr%secondary_continuum_area, &
+        patch%material_property_array(1)%ptr%secondary_continuum_name, &
+        patch%material_property_array(1)%ptr%secondary_continuum_length, &
+        patch%material_property_array(1)%ptr%secondary_continuum_matrix_block_size, &
+        patch%material_property_array(1)%ptr%secondary_continuum_fracture_spacing, &
+        patch%material_property_array(1)%ptr%secondary_continuum_radius, &
+        patch%material_property_array(1)%ptr%secondary_continuum_area, &
         option)
         
       TH_sec_heat_vars(local_id)%ncells = &
-        realization%material_property_array(1)%ptr%secondary_continuum_ncells
+        patch%material_property_array(1)%ptr%secondary_continuum_ncells
       TH_sec_heat_vars(local_id)%aperture = &
-        realization%material_property_array(1)%ptr%secondary_continuum_aperture
+        patch%material_property_array(1)%ptr%secondary_continuum_aperture
       TH_sec_heat_vars(local_id)%epsilon = &
-        realization%material_property_array(1)%ptr%secondary_continuum_epsilon
+        patch%material_property_array(1)%ptr%secondary_continuum_epsilon
       TH_sec_heat_vars(local_id)%log_spacing = &
-        realization%material_property_array(1)%ptr%secondary_continuum_log_spacing
+        patch%material_property_array(1)%ptr%secondary_continuum_log_spacing
       TH_sec_heat_vars(local_id)%outer_spacing = &
-        realization%material_property_array(1)%ptr%secondary_continuum_outer_spacing
+        patch%material_property_array(1)%ptr%secondary_continuum_outer_spacing
                 
       allocate(TH_sec_heat_vars(local_id)%area(TH_sec_heat_vars(local_id)%ncells))
       allocate(TH_sec_heat_vars(local_id)%vol(TH_sec_heat_vars(local_id)%ncells))
@@ -246,7 +247,7 @@ subroutine THSetupPatch(realization)
                                 
       TH_sec_heat_vars(local_id)%interfacial_area = area_per_vol* &
         (1.d0 - TH_sec_heat_vars(local_id)%epsilon)* &
-        realization%material_property_array(1)%ptr% &
+        patch%material_property_array(1)%ptr% &
         secondary_continuum_area_scaling
 
     ! Setting the initial values of all secondary node temperatures same as primary node 
@@ -255,7 +256,7 @@ subroutine THSetupPatch(realization)
       
       if (option%set_secondary_init_temp) then
         TH_sec_heat_vars(local_id)%sec_temp = &
-          realization%material_property_array(1)%ptr%secondary_continuum_init_temp
+          patch%material_property_array(1)%ptr%secondary_continuum_init_temp
       else
         TH_sec_heat_vars(local_id)%sec_temp = &
         initial_condition%flow_condition%temperature%dataset%rarray(1)
@@ -577,7 +578,7 @@ subroutine THCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
                        MPI_DOUBLE_PRECISION, &
                        MPI_MAX,option%mycomm,ierr)
     option%converged = PETSC_TRUE
-    if (global_inf_norm > option%flow%post_convergence_tol) &
+    if (global_inf_norm > option%flow%inf_scaled_res_tol) &
       option%converged = PETSC_FALSE
     call VecRestoreArrayF90(dP,dP_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(P1,P1_p,ierr);CHKERRQ(ierr)
@@ -667,9 +668,7 @@ subroutine THComputeMassBalancePatch(realization,mass_balance)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     !geh - Ignore inactive cells with inactive materials
-    if (associated(patch%imat)) then
-      if (patch%imat(ghosted_id) <= 0) cycle
-    endif
+    if (patch%imat(ghosted_id) <= 0) cycle
     ! mass = volume*saturation*density
 
     if (soil_compressibility_index > 0) then
@@ -905,9 +904,7 @@ subroutine THUpdateAuxVarsPatch(realization)
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
 
     !geh - Ignore inactive cells with inactive materials
-    if (associated(patch%imat)) then
-      if (patch%imat(ghosted_id) <= 0) cycle
-    endif
+    if (patch%imat(ghosted_id) <= 0) cycle
     iend = ghosted_id*option%nflowdof
     istart = iend-option%nflowdof+1
     iphase = int(iphase_loc_p(ghosted_id))
@@ -917,14 +914,14 @@ subroutine THUpdateAuxVarsPatch(realization)
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
-            realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+            patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
             option)
     else
        call THAuxVarComputeNoFreezing(xx_loc_p(istart:iend), &
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
-            realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+            patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
             option)
     endif
 
@@ -940,9 +937,7 @@ subroutine THUpdateAuxVarsPatch(realization)
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
-      if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id) <= 0) cycle
-      endif
+      if (patch%imat(ghosted_id) <= 0) cycle
 
       do idof=1,option%nflowdof
         select case(boundary_condition%flow_condition%itype(idof))
@@ -963,16 +958,16 @@ subroutine THUpdateAuxVarsPatch(realization)
       if (option%use_th_freezing) then
          call THAuxVarComputeFreezing(xxbc,TH_auxvars_bc(sum_connection), &
               global_auxvars_bc(sum_connection), &
-              material_auxvars(sum_connection), &
+              material_auxvars(ghosted_id), &
               iphasebc, &
-              realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+              patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
               option)
       else
          call THAuxVarComputeNoFreezing(xxbc,TH_auxvars_bc(sum_connection), &
               global_auxvars_bc(sum_connection), &
-              material_auxvars(sum_connection), &
+              material_auxvars(ghosted_id), &
               iphasebc, &
-              realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+              patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
               option)
       endif
 
@@ -1024,16 +1019,16 @@ subroutine THUpdateAuxVarsPatch(realization)
       if (option%use_th_freezing) then
          call THAuxVarComputeFreezing(xx, &
               TH_auxvars_ss(sum_connection),global_auxvars_ss(sum_connection), &
-              material_auxvars(sum_connection), &
+              material_auxvars(ghosted_id), &
               iphase, &
-              realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+              patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
               option)
       else
          call THAuxVarComputeNoFreezing(xx, &
               TH_auxvars_ss(sum_connection),global_auxvars_ss(sum_connection), &
-              material_auxvars(sum_connection), &
+              material_auxvars(ghosted_id), &
               iphase, &
-              realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+              patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
               option)
       endif
     enddo
@@ -1048,7 +1043,7 @@ subroutine THUpdateAuxVarsPatch(realization)
   patch%aux%TH%auxvars_up_to_date = PETSC_TRUE
 
   ! Update a flag marking presence or absence of standing water for BC grid cells
-  if (option%nsurfflowdof > 0) call THUpdateSurfaceWaterFlag(realization)
+  if (option%surf_flow_on) call THUpdateSurfaceWaterFlag(realization)
 
 end subroutine THUpdateAuxVarsPatch
 
@@ -1169,9 +1164,7 @@ subroutine THUpdateSolutionPatch(realization)
     call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
-      if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id) <= 0) cycle
-      endif
+      if (patch%imat(ghosted_id) <= 0) cycle
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
     
@@ -1282,9 +1275,7 @@ subroutine THUpdateFixedAccumPatch(realization)
   do local_id = 1, grid%nlmax
     ghosted_id = grid%nL2G(local_id)
     !geh - Ignore inactive cells with inactive materials
-    if (associated(patch%imat)) then
-      if (patch%imat(ghosted_id) <= 0) cycle
-    endif
+    if (patch%imat(ghosted_id) <= 0) cycle
 
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
@@ -1295,14 +1286,14 @@ subroutine THUpdateFixedAccumPatch(realization)
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
-            realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+            patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
             option)
     else
        call THAuxVarComputeNoFreezing(xx_p(istart:iend), &
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
-            realization%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+            patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
             option)
     endif
 
@@ -1388,9 +1379,7 @@ subroutine THNumericalJacobianTest(xx,realization)
   call THResidual(PETSC_NULL_OBJECT,xx,res,realization,ierr)
   call VecGetArrayF90(res,vec2_p,ierr);CHKERRQ(ierr)
   do icell = 1,grid%nlmax
-    if (associated(patch%imat)) then
-      if (patch%imat(grid%nL2G(icell)) <= 0) cycle
-    endif
+    if (patch%imat(icell) <= 0) cycle
     do idof = (icell-1)*option%nflowdof+1,icell*option%nflowdof 
       call VecCopy(xx,xx_pert,ierr);CHKERRQ(ierr)
       call VecGetArrayF90(xx_pert,vec_p,ierr);CHKERRQ(ierr)
@@ -2774,7 +2763,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           endif
 
 
-          if (ibndtype(TH_PRESSURE_DOF) == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) then
+          if (ibndtype(TH_PRESSURE_DOF) == HET_SURF_SEEPAGE_BC .and. &
+              option%surf_flow_on) then
             ! ---------------------------
             ! Surface-subsurface simulation
             ! ---------------------------
@@ -2823,7 +2813,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           dq_dt_dn = Dq*(dukvr_dt_dn*dphi+ukvr*dphi_dt_dn)*area
 
           if (ibndtype(TH_PRESSURE_DOF) == HET_SURF_SEEPAGE_BC .and. &
-              option%nsurfflowdof>0 .and. &
+              option%surf_flow_on .and. &
               option%subsurf_surf_coupling /= DECOUPLED) then
 
             ! ---------------------------
@@ -2979,7 +2969,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
       Dk =  Dk_dn / dd_up
       !cond = Dk*area*(global_auxvar_up%temp-global_auxvar_dn%temp)
 
-      if (option%nsurfflowdof == 0) then
+      if (.not. option%surf_flow_on) then
         ! ---------------------------
         ! Subsurface only simulation
         ! ---------------------------
@@ -3309,7 +3299,8 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
             dphi = 0.d0
           endif
 
-          if (ibndtype(TH_PRESSURE_DOF) == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0) then
+          if (ibndtype(TH_PRESSURE_DOF) == HET_SURF_SEEPAGE_BC .and. &
+              option%surf_flow_on) then
             ! ---------------------------
             ! Surface-subsurface simulation
             ! ---------------------------
@@ -3337,7 +3328,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
           v_darcy = Dq * ukvr * dphi
 
           if (ibndtype(TH_PRESSURE_DOF) == HET_SURF_SEEPAGE_BC .and. &
-              option%nsurfflowdof>0 .and. &
+              option%surf_flow_on .and. &
               option%subsurf_surf_coupling /= DECOUPLED) then
 
             ! ---------------------------
@@ -3436,7 +3427,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       Dk = Dk_dn / dd_up
       cond = Dk*area*(global_auxvar_up%temp-global_auxvar_dn%temp)
 
-      if (option%nsurfflowdof>0) then
+      if (option%surf_flow_on) then
 
         ! ---------------------------
         ! Surface-subsurface simulation
@@ -3709,7 +3700,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr);CHKERRQ(ierr)
   !print *,' Finished scattering non deriv'
   
-  if (option%nsurfflowdof>0) call THComputeCoeffsForSurfFlux(realization)
+  if (option%surf_flow_on) call THComputeCoeffsForSurfFlux(realization)
   
   ! Calculating volume fractions for primary and secondary continua
 
@@ -3722,9 +3713,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   do local_id = 1, grid%nlmax  ! For each local node do...
     ghosted_id = grid%nL2G(local_id)
     !geh - Ignore inactive cells with inactive materials
-    if (associated(patch%imat)) then
-      if (patch%imat(ghosted_id) <= 0) cycle
-    endif
+    if (patch%imat(ghosted_id) <= 0) cycle
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
 
@@ -3747,9 +3736,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   ! only one secondary continuum for now for each primary continuum node
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
-      if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id) <= 0) cycle
-      endif
+      if (patch%imat(ghosted_id) <= 0) cycle
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
     
@@ -3762,7 +3749,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
                           sec_dencpr, &
                           option,res_sec_heat)
 
-      r_p(iend) = r_p(iend) - res_sec_heat*material_auxvars(local_id)%volume
+      r_p(iend) = r_p(iend) - res_sec_heat*material_auxvars(ghosted_id)%volume
     enddo   
   endif
   ! ============== end secondary continuum heat source ===========================
@@ -3784,9 +3771,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
-      if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id) <= 0) cycle
-      endif
+      if (patch%imat(ghosted_id) <= 0) cycle
       
       select case (source_sink%flow_condition%rate%itype)
         case(MASS_RATE_SS)
@@ -3843,10 +3828,8 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
 
-      if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id_up) <= 0 .or.  &
-            patch%imat(ghosted_id_dn) <= 0) cycle
-      endif
+      if (patch%imat(ghosted_id_up) <= 0 .or.  &
+          patch%imat(ghosted_id_dn) <= 0) cycle
 
       fraction_upwind = cur_connection_set%dist(-1,iconn)
       distance = cur_connection_set%dist(0,iconn)
@@ -3945,9 +3928,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
 
-      if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id) <= 0) cycle
-      endif
+      if (patch%imat(ghosted_id) <= 0) cycle
 
       if (ghosted_id<=0) then
         print *, "Wrong boundary node index... STOP!!!"
@@ -3991,21 +3972,18 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   enddo
 
   do local_id = 1, grid%nlmax
-    if (associated(patch%imat)) then
-      if (patch%imat(grid%nL2G(local_id)) <= 0) cycle
-    endif
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
-    r_p (istart:iend)= r_p(istart:iend)/material_auxvars(local_id)%volume
+    r_p (istart:iend)= r_p(istart:iend)/material_auxvars(ghosted_id)%volume
   enddo
 
   if (option%use_isothermal) then
     do local_id = 1, grid%nlmax  ! For each local node do...
       ghosted_id = grid%nL2G(local_id)
       !geh - Ignore inactive cells with inactive materials
-      if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id) <= 0) cycle
-      endif
+      if (patch%imat(ghosted_id) <= 0) cycle
       istart = TWO_INTEGER + (local_id-1)*option%nflowdof
       r_p(istart)=xx_loc_p(2 + (ghosted_id-1)*option%nflowdof)-yy_p(istart-1)
     enddo
@@ -4228,9 +4206,7 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   do local_id = 1, grid%nlmax  ! For each local node do...
     ghosted_id = grid%nL2G(local_id)
     ! Ignore inactive cells with inactive materials
-    if (associated(patch%imat)) then
-      if (patch%imat(ghosted_id) <= 0) cycle
-    endif
+    if (patch%imat(ghosted_id) <= 0) cycle
     iend = local_id*option%nflowdof
     istart = iend-option%nflowdof+1
     icap = int(icap_loc_p(ghosted_id))
@@ -4243,7 +4219,7 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                             material_auxvars(ghosted_id), &
                             TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
                             option, &
-                            realization%saturation_function_array(icap)%ptr, &
+                            patch%saturation_function_array(icap)%ptr, &
                             vol_frac_prim,Jup) 
 
     if (option%use_mc) then
@@ -4253,11 +4229,11 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                         option,jac_sec_heat)
                         
       Jup(option%nflowdof,2) = Jup(option%nflowdof,2) - &
-                               jac_sec_heat*material_auxvars(local_id)%volume
+                               jac_sec_heat*material_auxvars(ghosted_id)%volume
     endif
                             
     ! scale by the volume of the cell
-    Jup = Jup/material_auxvars(local_id)%volume
+    Jup = Jup/material_auxvars(ghosted_id)%volume
 
     call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
                                   ADD_VALUES,ierr);CHKERRQ(ierr)
@@ -4292,9 +4268,7 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
 
-      if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id) <= 0) cycle
-      endif
+      if (patch%imat(ghosted_id) <= 0) cycle
       
       select case (source_sink%flow_condition%rate%itype)
         case(MASS_RATE_SS)
@@ -4349,10 +4323,8 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
       ghosted_id_up = cur_connection_set%id_up(iconn)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
 
-      if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id_up) <= 0 .or. &
-            patch%imat(ghosted_id_dn) <= 0) cycle
-      endif
+      if (patch%imat(ghosted_id_up) <= 0 .or. &
+          patch%imat(ghosted_id_dn) <= 0) cycle
 
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
@@ -4415,8 +4387,8 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                              cur_connection_set%area(iconn), &
                              cur_connection_set%dist(-1:3,iconn), &
                              upweight,option, &
-                             realization%saturation_function_array(icap_up)%ptr, &
-                             realization%saturation_function_array(icap_dn)%ptr, &
+                             patch%saturation_function_array(icap_up)%ptr, &
+                             patch%saturation_function_array(icap_dn)%ptr, &
                              Diff_up,Diff_dn,Dk_dry_up,Dk_dry_dn, &
                              Dk_ice_up,Dk_ice_dn, &
                              alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -4426,10 +4398,10 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
       
       if (local_id_up > 0) then
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
-                                      Jup/material_auxvars(local_id_up)%volume,ADD_VALUES, &
+                                      Jup/material_auxvars(ghosted_id_up)%volume,ADD_VALUES, &
                                       ierr);CHKERRQ(ierr)
         call MatSetValuesBlockedLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
-                                      Jdn/material_auxvars(local_id_up)%volume,ADD_VALUES, &
+                                      Jdn/material_auxvars(ghosted_id_up)%volume,ADD_VALUES, &
                                       ierr);CHKERRQ(ierr)
       endif
       if (local_id_dn > 0) then
@@ -4437,10 +4409,10 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
         Jdn = -Jdn
         
         call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
-                                      Jdn/material_auxvars(local_id_dn)%volume,ADD_VALUES, &
+                                      Jdn/material_auxvars(ghosted_id_dn)%volume,ADD_VALUES, &
                                       ierr);CHKERRQ(ierr)
         call MatSetValuesBlockedLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
-                                      Jup/material_auxvars(local_id_dn)%volume,ADD_VALUES, &
+                                      Jup/material_auxvars(ghosted_id_dn)%volume,ADD_VALUES, &
                                       ierr);CHKERRQ(ierr)
       endif
     enddo
@@ -4470,9 +4442,7 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
 
-      if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id) <= 0) cycle
-      endif
+      if (patch%imat(ghosted_id) <= 0) cycle
 
       if (ghosted_id<=0) then
         print *, "Wrong boundary node index... STOP!!!"
@@ -4496,12 +4466,12 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                               cur_connection_set%area(iconn), &
                               cur_connection_set%dist(-1:3,iconn), &
                               option, &
-                              realization%saturation_function_array(icap_dn)%ptr,&
+                              patch%saturation_function_array(icap_dn)%ptr,&
                               Jdn)
     Jdn = -Jdn
   
       !  scale by the volume of the cell
-      Jdn = Jdn/material_auxvars(local_id)%volume
+      Jdn = Jdn/material_auxvars(ghosted_id)%volume
       
       call MatSetValuesBlockedLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn,ADD_VALUES, &
                                     ierr);CHKERRQ(ierr)
@@ -5476,9 +5446,7 @@ subroutine THUpdateSurfaceWaterFlag(realization)
       do iconn = 1, cur_connection_set%num_connections
         local_id = cur_connection_set%id_dn(iconn)
         ghosted_id = grid%nL2G(local_id)
-        if (associated(patch%imat)) then
-          if (patch%imat(ghosted_id) <= 0) cycle
-        endif
+        if (patch%imat(ghosted_id) <= 0) cycle
 
         if (global_auxvars_bc(sum_connection)%pres(1) - option%reference_pressure < eps) then
           TH_auxvars_bc(sum_connection)%surf_wat = PETSC_FALSE

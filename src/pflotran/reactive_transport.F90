@@ -48,7 +48,8 @@ module Reactive_Transport_module
             RTCheckUpdatePost, &
             RTJumpStartKineticSorption, &
             RTCheckpointKineticSorption, &
-            RTExplicitAdvection
+            RTExplicitAdvection, &
+            RTClearActivityCoefficients
   
 contains
 
@@ -249,7 +250,7 @@ subroutine RTSetup(realization)
     allocate(rt_sec_transport_vars(grid%nlmax))  
     do local_id = 1, grid%nlmax
     ! Assuming the same secondary continuum type for all regions
-      call SecondaryRTAuxVarInit(realization%material_property_array(1)%ptr, &
+      call SecondaryRTAuxVarInit(patch%material_property_array(1)%ptr, &
                                  rt_sec_transport_vars(local_id), &
                                  reaction,initial_condition, &
                                  sec_tran_constraint,option)
@@ -873,7 +874,7 @@ subroutine RTUpdateKineticState(realization)
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
-        sec_porosity = realization%material_property_array(1)%ptr% &
+        sec_porosity = patch%material_property_array(1)%ptr% &
                         secondary_continuum_porosity
 
         call SecondaryRTUpdateKineticState(rt_sec_transport_vars(local_id), &
@@ -2739,10 +2740,10 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       istartall = offset + 1
       iendall = offset + reaction%ncomp
          
-      sec_diffusion_coefficient = realization% &
+      sec_diffusion_coefficient = patch% &
                                   material_property_array(1)%ptr% &
                                   secondary_continuum_diff_coeff
-      sec_porosity = realization%material_property_array(1)%ptr% &
+      sec_porosity = patch%material_property_array(1)%ptr% &
                      secondary_continuum_porosity
 
       call SecondaryRTResJacMulti(rt_sec_transport_vars(local_id), &
@@ -3373,9 +3374,9 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
         vol_frac_prim = rt_sec_transport_vars(local_id)%epsilon
         Jup = Jup*vol_frac_prim
 
-        sec_diffusion_coefficient = realization%material_property_array(1)% &
+        sec_diffusion_coefficient = patch%material_property_array(1)% &
                                     ptr%secondary_continuum_diff_coeff
-        sec_porosity = realization%material_property_array(1)%ptr% &
+        sec_porosity = patch%material_property_array(1)%ptr% &
                        secondary_continuum_porosity
                         
         if (realization%reaction%ncomp /= realization%reaction%naqcomp) then
@@ -4095,7 +4096,6 @@ subroutine RTSetPlotVariables(realization)
   character(len=MAXWORDLENGTH) :: name,  units
   type(output_variable_list_type), pointer :: list
   
-  character(len=MAXHEADERLENGTH) :: header
   character(len=MAXSTRINGLENGTH) string
   character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
   type(option_type), pointer :: option
@@ -4883,7 +4883,7 @@ end subroutine RTExplicitAdvection
 
 ! ************************************************************************** !
 
-subroutine RTAppendToHeader(header,variable_string,cell_string,icolumn)
+subroutine RTWriteToHeader(fid,variable_string,cell_string,icolumn)
   ! 
   ! Appends formatted strings to header string
   ! 
@@ -4891,7 +4891,7 @@ subroutine RTAppendToHeader(header,variable_string,cell_string,icolumn)
   ! Date: 10/27/11
   ! 
 
-  character(len=MAXHEADERLENGTH) :: header
+  PetscInt :: fid
   character(len=*) :: variable_string
   character(len=MAXSTRINGLENGTH) :: cell_string
   character(len=MAXSTRINGLENGTH) :: variable_string_adj
@@ -4923,9 +4923,44 @@ subroutine RTAppendToHeader(header,variable_string,cell_string,icolumn)
     write(string,'('',"'',a,a,''"'')') trim(column_string), &
           trim(variable_string_adj)
   endif
-  header = trim(header) // trim(string)
+  write(fid,'(a)',advance="no") trim(string)
 
-end subroutine RTAppendToHeader
+end subroutine RTWriteToHeader
+
+! ************************************************************************** !
+
+subroutine RTClearActivityCoefficients(realization)
+  ! 
+  ! Sets activity coefficients back to 1.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/11/14
+  ! 
+
+  use Realization_class
+  use Reactive_Transport_Aux_module
+  use Option_module
+  use Field_module  
+  use Grid_module
+  use Secondary_Continuum_Aux_module  
+
+  implicit none
+  
+  type(realization_type) :: realization
+  
+  type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
+  PetscInt :: ghosted_id
+  
+  rt_auxvars => realization%patch%aux%RT%auxvars
+  
+  do ghosted_id = 1, realization%patch%grid%ngmax
+    rt_auxvars(ghosted_id)%pri_act_coef = 1.d0
+    if (associated(rt_auxvars(ghosted_id)%sec_act_coef)) then
+      rt_auxvars(ghosted_id)%sec_act_coef = 1.d0
+    endif
+  enddo
+
+end subroutine RTClearActivityCoefficients
 
 ! ************************************************************************** !
 
