@@ -104,7 +104,7 @@ module pflotran_model_module
        pflotranModelSetSoilProp,             &
        pflotranModelSetICs,                  &
        pflotranModelUpdateFlowConds,         &
-       pflotranModelGetUpdatedStates,        &
+       pflotranModelGetUpdatedData,          &
        pflotranModelStepperRunInit,          &
        pflotranModelStepperRunTillPauseTime, &
        pflotranModelInsertWaypoint,          &
@@ -2528,7 +2528,7 @@ end subroutine pflotranModelSetICs
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelGetUpdatedStates(pflotran_model)
+  subroutine pflotranModelGetUpdatedData(pflotran_model)
   ! 
   ! This routine get updated states evoloved by PFLOTRAN.
   ! 
@@ -2571,13 +2571,14 @@ end subroutine pflotranModelSetICs
         call THUpdateAuxVars(realization)
         call pflotranModelGetSaturation(pflotran_model)
         call pflotranModelGetTemperature(pflotran_model)
+        call pflotranModelGetEffThermCond(pflotran_model)
       case default
         pflotran_model%option%io_buffer='pflotranModelGetSaturation ' // &
           'not implmented for this mode.'
         call printErrMsg(pflotran_model%option)
     end select
 
-  end subroutine pflotranModelGetUpdatedStates
+  end subroutine pflotranModelGetUpdatedData
 
 ! ************************************************************************** !
 
@@ -2812,6 +2813,75 @@ end subroutine pflotranModelSetICs
 !                                    clm_pf_idata%sat_ice_clm)
 
   end subroutine pflotranModelGetTemperature
+
+! ************************************************************************** !
+
+  subroutine pflotranModelGetEffThermCond(pflotran_model)
+  !
+  ! This routine get updated effective soil thermal conductivity value.
+  !
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 9/18/2014
+  !
+
+    use Option_module
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Global_Aux_module
+    use TH_Aux_module
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surface_Simulation_class, only : surface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Surface_Realization_class, only : surface_realization_type
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(th_auxvar_type), pointer             :: th_aux_vars(:)
+
+    PetscErrorCode       :: ierr
+    PetscInt             :: local_id, ghosted_id
+    PetscScalar, pointer :: eff_tc_p(:)
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+    patch           => realization%patch
+    grid            => patch%grid
+    th_aux_vars     => patch%aux%TH%auxvars
+
+    call VecGetArrayF90(clm_pf_idata%eff_therm_cond_pf, eff_tc_p, ierr)
+    do ghosted_id=1,grid%ngmax
+      local_id = grid%nG2L(ghosted_id)
+      if (local_id > 0) then
+        ! Converting MJ/m/K to J/m/K
+        eff_tc_p(local_id) = th_aux_vars(ghosted_id)%Dk_eff/pflotran_model%option%scale
+      endif
+    enddo
+    call VecRestoreArrayF90(clm_pf_idata%eff_therm_cond_pf, eff_tc_p, ierr)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    clm_pf_idata%eff_therm_cond_pf, &
+                                    clm_pf_idata%eff_therm_cond_clm)
+
+  end subroutine pflotranModelGetEffThermCond
 
 ! ************************************************************************** !
 
