@@ -1,5 +1,3 @@
-#ifdef GEOMECH
-
 module Geomechanics_Field_module
 
   use PFLOTRAN_Constants_module
@@ -191,8 +189,9 @@ subroutine GeomechFieldDestroy(geomech_field)
     call VecDestroy(geomech_field%porosity_init_loc,ierr);CHKERRQ(ierr)
   endif
 
+  if(associated(geomech_field)) deallocate(geomech_field)
+  nullify(geomech_field)
+
 end subroutine GeomechFieldDestroy
 
 end module Geomechanics_Field_module
-
-#endif

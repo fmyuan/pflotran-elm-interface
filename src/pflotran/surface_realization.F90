@@ -237,6 +237,7 @@ subroutine SurfRealizProcessMatProp(surf_realization)
                                 surf_realization%surf_material_properties, &
                                 surf_realization%surf_material_property_array, &
                                 option)
+
   ! set up mirrored pointer arrays within patches to saturation functions
   ! and material properties
   cur_patch => surf_realization%patch_list%first
@@ -247,6 +248,10 @@ subroutine SurfRealizProcessMatProp(surf_realization)
                                     cur_patch%surf_material_properties, &
                                     cur_patch%surf_material_property_array, &
                                     option)
+    ! create mapping of internal to external material id
+    call SurfaceMaterialCreateIntToExtMapping(cur_patch%surf_material_property_array, &
+                                              cur_patch%imat_internal_to_external)
+
     cur_patch => cur_patch%next
   enddo
   
@@ -355,9 +360,9 @@ subroutine SurfRealizCreateDiscretization(surf_realization)
   surf_field => surf_realization%surf_field
   discretization => surf_realization%discretization
 
-  call DiscretizationCreateDMs(discretization, option%nflowdof, &
-                               option%ntrandof, option%nphase, &
-                               option%ngeomechdof, option%n_stress_strain_dof, &
+  call DiscretizationCreateDMs(discretization, option%nsurfflowdof, &
+                               ZERO_INTEGER, ZERO_INTEGER, &
+                               ZERO_INTEGER, ZERO_INTEGER, &
                                option)
 
   ! n degree of freedom, global
@@ -1281,10 +1286,14 @@ subroutine SurfRealizDestroy(surf_realization)
   call RealizationBaseStrip(surf_realization)
   
   call SurfaceFieldDestroy(surf_realization%surf_field)
+
+  call OutputOptionDestroy(surf_realization%output_option)
   
   call RegionDestroyList(surf_realization%surf_regions)
   
   call FlowConditionDestroyList(surf_realization%surf_flow_conditions)
+
+  call TranConditionDestroyList(surf_realization%surf_transport_conditions)
   
   call PatchDestroyList(surf_realization%patch_list)
   
@@ -1297,6 +1306,9 @@ subroutine SurfRealizDestroy(surf_realization)
   call SurfaceMaterialPropertyDestroy(surf_realization%surf_material_properties)
   
   call DiscretizationDestroy(surf_realization%discretization)
+
+  if(associated(surf_realization)) deallocate(surf_realization)
+  nullify(surf_realization)
 
 end subroutine SurfRealizDestroy
 

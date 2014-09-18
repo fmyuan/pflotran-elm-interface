@@ -12,7 +12,8 @@ module Material_module
 #include "finclude/petscsys.h"
  
   type, public :: material_property_type
-    PetscInt :: id
+    PetscInt :: external_id
+    PetscInt :: internal_id
     character(len=MAXWORDLENGTH) :: name
     PetscReal :: permeability(3,3)
     PetscBool :: isotropic_permeability
@@ -117,7 +118,11 @@ module Material_module
             MaterialAssignPropertyToAux, &
             MaterialSetup, &
             MaterialUpdateAuxVars, &
-            MaterialWeightAuxVars
+            MaterialWeightAuxVars, &
+            MaterialGetMaxExternalID, &
+            MaterialCreateIntToExtMapping, &
+            MaterialCreateExtToIntMapping, &
+            MaterialApplyMapping
   
 contains
 
@@ -138,7 +143,8 @@ function MaterialPropertyCreate()
   type(material_property_type), pointer :: material_property
   
   allocate(material_property)
-  material_property%id = 0
+  material_property%external_id = 0
+  material_property%internal_id = 0
   material_property%name = ''
   ! initialize to -999.d0 to catch bugs
   material_property%permeability = -999.d0
@@ -222,6 +228,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   
   character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: string
+  character(len=MAXSTRINGLENGTH) :: buffer_save
 
   PetscInt :: length
   PetscBool :: therm_k_frz
@@ -247,7 +254,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputReadWord(input,option,material_property%name,PETSC_TRUE)
         call InputErrorMsg(input,option,'name','MATERIAL_PROPERTY')
       case('ID') 
-        call InputReadInt(input,option,material_property%id)
+        call InputReadInt(input,option,material_property%external_id)
         call InputErrorMsg(input,option,'id','MATERIAL_PROPERTY')
       case('SATURATION_FUNCTION') 
         call InputReadWord(input,option, &
@@ -324,6 +331,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'thermal expansitivity', &
                            'MATERIAL_PROPERTY')
       case('POROSITY')
+        buffer_save = input%buf
         call InputReadNChars(input,option,string,MAXSTRINGLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,'porosity','MATERIAL_PROPERTY')
         call StringToUpper(string)
@@ -334,8 +342,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
           call InputErrorMsg(input,option,'DATASET,NAME', &
                              'MATERIAL_PROPERTY,POROSITY')   
         else
-          call InputReadDouble(string,option,material_property%porosity, &
-                               input%ierr)
+          input%buf = buffer_save
+          call InputReadDouble(input,option,material_property%porosity)
           call InputErrorMsg(input,option,'porosity','MATERIAL_PROPERTY')
         endif
       case('TORTUOSITY')
@@ -665,8 +673,10 @@ subroutine MaterialPropertyAddToList(material_property,list)
       cur_material_property => cur_material_property%next
     enddo
     cur_material_property%next => material_property
+    material_property%internal_id = cur_material_property%internal_id + 1
   else
     list => material_property
+    material_property%internal_id = 1
   endif
   
 end subroutine MaterialPropertyAddToList
@@ -694,7 +704,7 @@ subroutine MaterialPropConvertListToArray(list,array,option)
   type(material_property_type), pointer :: cur_material_property
   type(material_property_type), pointer :: prev_material_property
   type(material_property_type), pointer :: next_material_property
-  PetscInt :: i, j, length1,length2, max_id
+  PetscInt :: i, j, length1,length2, max_internal_id, max_external_id
   PetscInt, allocatable :: id_count(:)
   PetscBool :: error_flag
   character(len=MAXSTRINGLENGTH) :: string
@@ -728,35 +738,50 @@ subroutine MaterialPropConvertListToArray(list,array,option)
   enddo
 #endif
 
-  max_id = 0
+  ! check to ensure that max internal id is equal to the number of 
+  ! material properties and that internal ids are contiguous
+  max_internal_id = 0
+  max_external_id = 0
   cur_material_property => list
   do 
     if (.not.associated(cur_material_property)) exit
-    max_id = max(max_id,cur_material_property%id)
+    max_internal_id = max_internal_id + 1
+    max_external_id = max(max_external_id,cur_material_property%external_id)
+    if (max_internal_id /= cur_material_property%internal_id) then
+      write(string,*) cur_material_property%external_id
+      option%io_buffer = 'Non-contiguous internal material id for ' // &
+        'material named "' // trim(cur_material_property%name) // &
+        '" with external id "' // trim(adjustl(string)) // '" '
+      write(string,*) cur_material_property%internal_id
+      option%io_buffer = trim(option%io_buffer) // &
+        'and internal id "' // trim(adjustl(string)) // '".'
+      call printErrMsg(option)
+    endif
     cur_material_property => cur_material_property%next
   enddo
   
-  allocate(array(max_id))
-  do i = 1, max_id
+  if(associated(array)) deallocate(array)
+  allocate(array(max_internal_id))
+  do i = 1, max_internal_id
     nullify(array(i)%ptr)
   enddo
   
   ! use id_count to ensure that an id is not duplicated
-  allocate(id_count(max_id))
+  allocate(id_count(max_external_id))
   id_count = 0
   
   cur_material_property => list
   do 
     if (.not.associated(cur_material_property)) exit
-    id_count(cur_material_property%id) = &
-      id_count(cur_material_property%id) + 1
-    array(cur_material_property%id)%ptr => cur_material_property
+    id_count(cur_material_property%external_id) = &
+      id_count(cur_material_property%external_id) + 1
+    array(cur_material_property%internal_id)%ptr => cur_material_property
     cur_material_property => cur_material_property%next
   enddo
   
   ! check to ensure that an id is not duplicated
   error_flag = PETSC_FALSE
-  do i = 1, max_id
+  do i = 1, max_external_id
     if (id_count(i) > 1) then
       write(string,*) i
       option%io_buffer = 'Material ID ' // trim(adjustl(string)) // &
@@ -775,7 +800,7 @@ subroutine MaterialPropConvertListToArray(list,array,option)
   
   ! ensure unique material names
   error_flag = PETSC_FALSE
-  do i = 1, max_id
+  do i = 1, size(array)
     if (associated(array(i)%ptr)) then
       length1 = len_trim(array(i)%ptr%name)
       do j = 1, i-1
@@ -803,10 +828,121 @@ end subroutine MaterialPropConvertListToArray
 
 ! ************************************************************************** !
 
+function MaterialGetMaxExternalID(material_property_array)
+  ! 
+  ! Maps internal material ids to external for I/O, etc.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/05/14
+  ! 
+  implicit none
+  
+  type(material_property_ptr_type) :: material_property_array(:)
+  
+  PetscInt :: MaterialGetMaxExternalID
+  
+  PetscInt :: i
+
+  MaterialGetMaxExternalID = -999
+  do i = 1, size(material_property_array)
+    MaterialGetMaxExternalID = max(MaterialGetMaxExternalID, &
+                                  (material_property_array(i)%ptr%external_id))
+  enddo
+
+end function MaterialGetMaxExternalID
+
+! ************************************************************************** !
+
+subroutine MaterialCreateIntToExtMapping(material_property_array,mapping)
+  ! 
+  ! Maps internal material ids to external for I/O, etc.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/05/14
+  ! 
+  implicit none
+  
+  type(material_property_ptr_type) :: material_property_array(:)
+  PetscInt, pointer :: mapping(:)
+
+  PetscInt :: i
+  
+  allocate(mapping(size(material_property_array)))
+  mapping = -999
+  
+  do i = 1, size(material_property_array)
+    mapping(material_property_array(i)%ptr%internal_id) = &
+      material_property_array(i)%ptr%external_id
+  enddo
+
+end subroutine MaterialCreateIntToExtMapping
+
+! ************************************************************************** !
+
+subroutine MaterialCreateExtToIntMapping(material_property_array,mapping)
+  ! 
+  ! Maps external material ids to internal for setup. This array should be 
+  ! temporary and never stored for the duration of the simulation.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/05/14
+  ! 
+  implicit none
+  
+  type(material_property_ptr_type) :: material_property_array(:)
+  PetscInt, pointer :: mapping(:)
+  
+  PetscInt :: i
+  
+  allocate(mapping(MaterialGetMaxExternalID(material_property_array)))
+  mapping = -888
+  
+  do i = 1, size(material_property_array)
+    mapping(material_property_array(i)%ptr%external_id) = &
+      material_property_array(i)%ptr%internal_id
+  enddo  
+
+end subroutine MaterialCreateExtToIntMapping
+
+! ************************************************************************** !
+
+subroutine MaterialApplyMapping(mapping,array)
+  ! 
+  ! Maps internal material ids to external for I/O, etc.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/05/14
+  ! 
+  implicit none
+  
+  PetscInt :: mapping(:)
+  PetscInt :: array(:)
+
+  PetscInt :: i
+  PetscInt :: mapping_size
+  PetscInt :: mapped_id
+
+  mapping_size = size(mapping)
+  do i = 1, size(array)
+    if (array(i) <= mapping_size) then
+      mapped_id = mapping(array(i))
+    else
+      mapped_id = -888 ! indicates corresponding mapped value does not exist.
+    endif
+    if (mapped_id == -888) then ! negate material id to indicate not found
+      mapped_id = -1*array(i)
+    endif
+    array(i) = mapped_id
+  enddo
+
+end subroutine MaterialApplyMapping
+
+! ************************************************************************** !
+
 subroutine MaterialSetup(material_parameter, material_property_array, &
                          saturation_function_array, option)
   ! 
-  ! Creates arrays for material parameter boject
+  ! Creates arrays for material parameter object
   ! 
   ! Author: Glenn Hammond
   ! Date: 02/05/14
@@ -988,6 +1124,10 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
 
   PetscInt :: i
   PetscInt :: icount = 0
+  PetscInt :: num_soil_compress_func = 0
+  PetscInt :: num_soil_compress = 0
+  PetscInt :: num_soil_ref_press = 0
+  PetscInt :: num_material_properties
   
   procedure(MaterialCompressSoilDummy), pointer :: &
     MaterialCompressSoilPtrTmp 
@@ -998,10 +1138,12 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   soil_reference_pressure_index = 0
   max_material_index = 0
   
-  do i = 1, size(material_property_ptrs)
-    ! if gaps exist between material ids in the input file, those gaps will
-    ! be null and need to be skipped
-    if (.not.associated(material_property_ptrs(i)%ptr)) cycle
+  num_material_properties = size(material_property_ptrs)
+  ! must be nullified here to avoid an error message on subsequent calls
+  ! on stochastic simulations
+  MaterialCompressSoilPtr => null()
+  
+  do i = 1, num_material_properties
     MaterialCompressSoilPtrTmp => null()
     if (len_trim(material_property_ptrs(i)%ptr% &
                    soil_compressibility_function) > 1) then
@@ -1019,24 +1161,29 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
             '" not recognized.'
           call printErrMsg(option)
       end select
-      if (.not.associated(MaterialCompressSoilPtr)) then
-        MaterialCompressSoilPtr => MaterialCompressSoilPtrTmp
-      else if (.not.associated(MaterialCompressSoilPtr, &
-                               MaterialCompressSoilPtrTmp)) then
-        option%io_buffer = 'All MATERIAL_PROPERTIES must specify the ' // &
-          'same soil compressibility function.'
-        call printErrMsg(option)
-      endif
+      num_soil_compress_func = num_soil_compress_func + 1
     endif  
-    if (material_property_ptrs(i)%ptr%soil_compressibility > -998.d0 .and. &
-        soil_compressibility_index == 0) then
-      icount = icount + 1
-      soil_compressibility_index = icount
+    if (.not.associated(MaterialCompressSoilPtr)) then
+      MaterialCompressSoilPtr => MaterialCompressSoilPtrTmp
+    else if (.not.associated(MaterialCompressSoilPtr, &
+                             MaterialCompressSoilPtrTmp)) then
+      option%io_buffer = 'All MATERIAL_PROPERTIES must specify the ' // &
+        'same soil compressibility function.'
+      call printErrMsg(option)
     endif
-    if (material_property_ptrs(i)%ptr%soil_reference_pressure > -998.d0 .and. &
-        soil_reference_pressure_index == 0) then
-      icount = icount + 1
-      soil_reference_pressure_index = icount
+    if (material_property_ptrs(i)%ptr%soil_compressibility > -998.d0) then
+      if (soil_compressibility_index == 0) then
+        icount = icount + 1
+        soil_compressibility_index = icount
+      endif
+      num_soil_compress = num_soil_compress + 1
+    endif
+    if (material_property_ptrs(i)%ptr%soil_reference_pressure > -998.d0) then
+      if (soil_reference_pressure_index == 0) then
+        icount = icount + 1
+        soil_reference_pressure_index = icount
+      endif
+      num_soil_ref_press = num_soil_ref_press + 1
     endif
 !    if (material_property_ptrs(i)%ptr%specific_heat > 0.d0 .and. &
 !        soil_heat_capacity_index == 0) then
@@ -1053,6 +1200,26 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
   
   if (.not.associated(MaterialCompressSoilPtr)) then
     MaterialCompressSoilPtr => MaterialCompressSoilLeijnse
+  endif
+
+  ! check of uninitialized values
+  if (num_soil_compress_func > 0 .and. &
+      num_soil_compress_func /= num_material_properties) then
+    option%io_buffer = 'SOIL_COMPRESSIBILITY_FUNCTION must be defined for all ' // &
+      'materials.'
+    call printErrMsg(option)
+  endif
+  if (soil_compressibility_index > 0 .and. &
+      num_soil_compress /= num_material_properties) then
+    option%io_buffer = 'SOIL_COMPRESSIBILITY must be defined for all ' // &
+      'materials.'
+    call printErrMsg(option)
+  endif
+  if (soil_reference_pressure_index > 0 .and. &
+      num_soil_ref_press /= num_material_properties) then
+    option%io_buffer = 'SOIL_REFERENCE_PRESSURE must be defined for all ' // &
+      'materials.'
+    call printErrMsg(option)
   endif
   
 end subroutine MaterialInitAuxIndices

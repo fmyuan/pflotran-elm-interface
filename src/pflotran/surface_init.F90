@@ -70,7 +70,8 @@ subroutine SurfaceInitReadRequiredCards(surf_realization)
   ! SURFACE_FLOW information
   string = "SURFACE_FLOW"
   call InputFindStringInFile(input,option,string)
-  if(InputError(input)) return
+  if (InputError(input)) return
+  option%surf_flow_on = PETSC_TRUE
   option%nsurfflowdof = 1
   
   string = "SURF_GRID"
@@ -961,7 +962,7 @@ subroutine SurfaceInitMatPropToRegions(surf_realization)
             local_id = icell
           endif
           ghosted_id = grid%nL2G(local_id)
-          cur_patch%imat(ghosted_id) = surf_material_property%id
+          cur_patch%imat(ghosted_id) = surf_material_property%internal_id
         enddo
       endif
       strata => strata%next

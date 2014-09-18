@@ -12,6 +12,7 @@ module EOS_Gas_module
   PetscReal :: constant_density
   PetscReal :: constant_enthalpy
   PetscReal :: constant_viscosity
+  PetscReal :: constant_henry
 
   ! exponential
   PetscReal :: exponent_reference_density
@@ -31,6 +32,7 @@ module EOS_Gas_module
     EOSGasDensityEnergyPtr => null()
   procedure(EOSGasDensityDummy), pointer :: EOSGasDensityPtr => null()
   procedure(EOSGasEnergyDummy), pointer :: EOSGasEnergyPtr => null()
+  procedure(EOSGasHenryDummy), pointer :: EOSGasHenryPtr => null()
   
   ! interface blocks
   interface
@@ -80,6 +82,12 @@ module EOS_Gas_module
       PetscReal, intent(out) :: dU_dP   ! deriv. internal energy wrt pressure
       PetscErrorCode, intent(out) :: ierr
     end subroutine EOSGasDensityEnergyDummy
+    subroutine EOSGasHenryDummy(T,Psat,Hc)
+      implicit none
+      PetscReal, intent(in) :: T        ! temperature [C]
+      PetscReal, intent(in) :: Psat     ! saturation pressure
+      PetscReal, intent(out) :: Hc      ! Henry's constant
+    end subroutine EOSGasHenryDummy
   end interface
   
   ! interfaces for derivative/non-derivative versions that are visible outside
@@ -100,6 +108,10 @@ module EOS_Gas_module
     procedure EOSGasDenEnthNoDerive
     procedure EOSGasDenEnthDerive
   end interface
+  interface EOSGasHenry
+    procedure EOSGasHenryNoDerive
+!    procedure EOSGasHenryDerive
+  end interface
 
   ! the "public" definition that makes subroutines visible outside.
   public :: EOSGasInit, &
@@ -107,7 +119,8 @@ module EOS_Gas_module
             EOSGasViscosity, &
             EOSGasDensity, &
             EOSGasEnergy, &
-            EOSGasDensityEnergy
+            EOSGasDensityEnergy, &
+            EOSGasHenry
             
   public :: EOSGasSetDensityIdeal, &
             EOSGasSetEnergyIdeal, &
@@ -115,8 +128,8 @@ module EOS_Gas_module
             EOSGasSetDensityConstant, &
             EOSGasSetEnergyConstant, &
             EOSGasSetViscosityConstant, &
-            EOSGasHenry_air_noderiv, &
-            EOSGasHenry_air
+            EOSGasSetHenry, &
+            EOSGasSetHenryConstant
  
   contains
 
@@ -129,11 +142,13 @@ subroutine EOSGasInit()
   constant_density = -999.d0
   constant_viscosity = -999.d0
   constant_enthalpy = -999.d0
+  constant_henry = -999.d0
 
   EOSGasDensityEnergyPtr => EOSGasDensityEnergyGeneral
   EOSGasDensityPtr => EOSGasDensityIdeal
   EOSGasEnergyPtr => EOSGasEnergyIdeal
   EOSGasViscosityPtr => EOSGasViscosity1
+  EOSGasHenryPtr => EOSGasHenry_air_noderiv
   
 end subroutine EOSGasInit
 
@@ -179,6 +194,13 @@ subroutine EOSGasVerify(ierr,error_string)
       (associated(EOSGasViscosityPtr, &
                   EOSGasViscosity1) .and. &
        constant_viscosity > -998.d0)) then
+    ierr = 1
+  endif
+  
+  if (associated(EOSGasHenryPtr, &
+                 EOSGasHenryConstant) .and. &
+      constant_henry < -998.d0) then
+    error_string = trim(error_string) // " Henry's constant not set"
     ierr = 1
   endif
   
@@ -258,6 +280,28 @@ subroutine EOSGasSetViscosityConstant(viscosity)
   
 end subroutine EOSGasSetViscosityConstant
 
+! ************************************************************************** !
+
+subroutine EOSGasSetHenry()
+
+  implicit none
+  
+  EOSGasHenryPtr => EOSGasHenry_air_noderiv
+  
+end subroutine EOSGasSetHenry
+
+! ************************************************************************** !
+
+subroutine EOSGasSetHenryConstant(henrys_constant)
+
+  implicit none
+  
+  PetscReal :: henrys_constant
+  
+  constant_henry = henrys_constant
+  EOSGasHenryPtr => EOSGasHenryConstant
+  
+end subroutine EOSGasSetHenryConstant
 
 ! ************************************************************************** !
 
@@ -295,6 +339,7 @@ subroutine EOSGasViscosityDerive(T, P_comp, P_gas, Rho_comp, V_mix, ierr)
   
 end subroutine EOSGasViscosityDerive
 #endif
+
 ! ************************************************************************** !
 
 subroutine EOSGasViscosity1(T, P_comp, P_gas, Rho_comp, V_mix, ierr)
@@ -577,6 +622,7 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
 ! Redlich-Kwong-Soave (RKS) equation of state used in BRAGFLO.  See
 ! Soave, Giorgio, 1972, "Equilibrium constants from a modified Redlich-Kwong
 ! equation of state", Chem. Eng. Sci., V27, pp 1197-1203.
+! current version is for hydrogen only.
   implicit none
 
   PetscReal, intent(in) :: T        ! temperature [C]
@@ -594,20 +640,25 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
   PetscReal, parameter :: coeff_b = 0.08664
   
   !for hydrogen
-  PetscReal, parameter :: Tc = 43.6
-  PetscReal, parameter :: Pc = 2.047d6
+  ! American Petroleum Institute,
+  ! "Technical Data Book-Petroleum Refining" (1977)
+  PetscReal, parameter :: Tc = 41.67d0
+  PetscReal, parameter :: Pc = 2.1029d6
   
   !solver
   PetscReal :: coef(4)
   PetscInt, parameter :: maxit = 50
   
+  
   T_kelvin = T + 273.15d0
   RT = Rg * T_kelvin
-
   
-  !only for hydrogen case
   ! if hydrogen then
-  alpha = 1.202d0*EXP(-0.30288d0*(T_kelvin/Tc))
+    ! suggested by Peter Lichtner
+    ! this function honors alpha(Tc)=1 while closely fitting Graboski curve from
+    ! "A Modified Soave Equation of State for Phase Equilibrium
+    !  Calculations. 3. Systems Containing Hydrogen"
+    alpha = EXP(0.340d0*(1-T_kelvin/Tc))
   ! else
   !   coeff_alpha = 0.48508d0 + acentric*(1.55171d0 - 0.15613*acentric)
   !   alpha = (1.d0 + coeff_alpha*(1.d0 - SQRT(T_Kelvin/Tc)))**2
@@ -633,7 +684,7 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
       V = V - dVd
       if (V .ne. 0.d0) then
         if (abs(dVd/V) .lt. 1.d-10) then
-          Rho_gas = 1/V * 1d-3
+          Rho_gas = 1/V * 1d-3 ! mol/m^3 -> kmol/m^3
           exit
         end if
       else
@@ -644,10 +695,45 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
     end if
   end do
   
-  dRho_dP =  Rho_gas / P
-  dRho_dT = -Rho_gas / T_kelvin
-  
 end subroutine EOSGasDensityRKS
+
+! ************************************************************************** !
+
+subroutine EOSGasFugacity(T,P,Rho_gas,phi,ierr)
+! current version is for hydrogen only. See
+! Soave, Giorgio, 1972, "Equilibrium constants from a modified Redlich-Kwong
+! equation of state", Chem. Eng. Sci., V27, pp 1197-1203.
+
+  PetscReal, intent(in) :: T        ! temperature [C]
+  PetscReal, intent(in) :: P        ! pressure [Pa]
+  PetscReal, intent(in) :: Rho_gas  ! gas density [kmol/m^3]
+  PetscReal, intent(out) :: phi     ! fugacity coefficient
+  PetscErrorCode, intent(out) :: ierr
+  PetscReal, parameter :: Rg = 8.31451  ! gas constant
+
+  !for hydrogen
+  ! American Petroleum Institute,
+  ! "Technical Data Book-Petroleum Refining" (1977)
+  PetscReal, parameter :: Tc = 41.67d0   ! critical temperature
+  PetscReal, parameter :: Pc = 2.1029d6  ! critical pressure
+
+  PetscReal :: T_kelvin, Z, V, Tr, LHS
+  PetscReal :: A, B, alpha
+
+  V = 1.d0 / Rho_gas * 1.d-3
+  T_kelvin = T + 273.15d0
+  Tr = T_kelvin/Tc  ! reduced temperature
+  alpha = EXP(0.340d0*(1.d0-Tr))  ! alpha(T)
+
+  A = 0.42747 * alpha * (P/Pc) / (T/Tc)**2
+  B = 0.08664 * (P/Pc) / (T/Tc)
+  Z = P*V / (Rg*T)
+  
+  ! Fugacity Coefficient
+  LHS = Z - 1.d0 - LOG(Z-B) - A/B * LOG((Z+B)/Z)
+  phi = EXP(LHS)  ! dimensionless (Pa/Pa)
+  
+end subroutine EOSGasFugacity
 
 ! ************************************************************************** !
 
@@ -716,28 +802,51 @@ subroutine EOSGasEnergyConstant(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
   PetscReal, intent(out) :: dU_dT   ! deriv. internal energy wrt temperature
   PetscReal, intent(out) :: dU_dP   ! deriv. internal energy wrt pressure
   PetscErrorCode, intent(out) :: ierr
+  
+  PetscReal :: T_kelvin
+  PetscReal, parameter:: Rg = 8.31415 
 
   H = constant_enthalpy ! J/kmol
+  T_kelvin = T + 273.15d0
+!  U = (H/(T_kelvin*1.d3) - Rg) * T_kelvin * 1.d3 ! J/mol -> J/kmol
+  U = H - Rg * T_kelvin * 1.d3 ! J/mol -> J/kmol
   
   dH_dP = 0.d0
   dH_dT = 0.d0
+  dU_dP = 0.d0
+  dU_dT = -Rg * 1.d3
   
-  print *, 'Calcuation of internal gas energy not set up in ' // &
+  print *, 'Calculation of internal gas energy not set up properly in ' // &
     'EOSGasEnergyConstant.'
-  stop
+  stop  
   
 end subroutine EOSGasEnergyConstant
 
+
 ! ************************************************************************** !
 
-subroutine EOSGasHenry_air_noderiv(p,tc,ps,Henry)
+subroutine EOSGasHenryNoDerive(T,Psat,Hc)
+
+  implicit none
+
+  PetscReal, intent(in) :: T        ! temperature [C]
+  PetscReal, intent(in) :: Psat     ! saturation pressure
+  PetscReal, intent(out) :: Hc      ! Henry's constant
+  
+  call EOSGasHenryPtr(T,Psat,Hc)
+                          
+end subroutine EOSGasHenryNoDerive
+
+! ************************************************************************** !
+
+subroutine EOSGasHenry_air_noderiv(tc,ps,Henry)
 ! Calculate Henry Coefficient for N2
 ! t in K
 ! Henry have the same unit as p and ps, then make it dimensionless by
 ! devide it with p
 
     implicit none
-    PetscReal,intent(in) ::  p,tc,ps
+    PetscReal,intent(in) ::  tc,ps
     PetscReal,intent(out)::  Henry
 
     PetscReal  Tr,tao,tmp,t
@@ -750,14 +859,13 @@ subroutine EOSGasHenry_air_noderiv(p,tc,ps,Henry)
     tmp= a/Tr + B * tao**0.355/Tr + c * (Tr**(-0.41)) * exp(tao)
     Henry=exp(tmp)*ps
 
-   return 
 end subroutine EOSGasHenry_air_noderiv
 
 ! ************************************************************************** !
 
-subroutine EOSGasHenry_air(p,tc,ps,ps_p,ps_t,Henry,Henry_p,Henry_t)
+subroutine EOSGasHenry_air(tc,ps,ps_p,ps_t,Henry,Henry_p,Henry_t)
    implicit none
-    PetscReal,intent(in) ::  p,tc,ps,ps_p,ps_t
+    PetscReal,intent(in) ::  tc,ps,ps_p,ps_t
     PetscReal,intent(out)::  Henry,Henry_p,Henry_t
 ! note t/K, p/Pa, Henry/Pa 
 
@@ -776,8 +884,18 @@ subroutine EOSGasHenry_air(p,tc,ps,ps_p,ps_t,Henry,Henry_p,Henry_t)
     Henry_t=Henry*(tmp +ps_t/ps)
     Henry_p=ps_p*Henry/ps
 
-  
-   return 
 end subroutine EOSGasHenry_air
+
+! ************************************************************************** !
+
+subroutine EOSGasHenryConstant(T,Psat,Hc)
+   implicit none
+    PetscReal, intent(in) :: T    ! temperature [C]
+    PetscReal, intent(in) :: Psat ! saturation pressure [Pa]
+    PetscReal, intent(out):: Hc   ! Henry's constant [Pa]
+
+    Hc = constant_henry
+    
+end subroutine EOSGasHenryConstant
 
 end module EOS_Gas_module
