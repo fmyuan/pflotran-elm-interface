@@ -77,6 +77,9 @@ module clm_pflotran_interface_data
   Vec :: h2osfc_clm ! seq vec
   Vec :: h2osfc_pf  ! mpi vec
 
+  Vec :: eff_therm_cond_clm ! seq vec
+  Vec :: eff_therm_cond_pf  ! mpi vec
+
   ! Number of cells for the 3D subsurface domain
   PetscInt :: nlclm_sub ! num of local clm cells
   PetscInt :: ngclm_sub ! num of ghosted clm cells (ghosted = local+ghosts)
@@ -174,6 +177,9 @@ contains
     clm_pf_idata%h2osfc_clm = 0
     clm_pf_idata%h2osfc_pf = 0
 
+    clm_pf_idata%eff_therm_cond_clm = 0
+    clm_pf_idata%eff_therm_cond_pf = 0
+
     clm_pf_idata%nzclm_mapped = 0
 
   end subroutine CLMPFLOTRANIDataInit
@@ -254,6 +260,7 @@ contains
     call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%temp_pf,ierr)
     call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%sat_ice_pf,ierr)
     call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%area_top_face_pf,ierr)
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%eff_therm_cond_pf,ierr)
 
     ! 2D Surface PFLOTRAN ---to--- 2D Surface CLM
     call VecCreateMPI(mycomm,clm_pf_idata%nlpf_srf,PETSC_DECIDE,clm_pf_idata%h2osfc_pf,ierr)
@@ -267,6 +274,7 @@ contains
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%temp_clm,ierr)
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%sat_ice_clm,ierr)
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%area_top_face_clm,ierr)
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%eff_therm_cond_clm,ierr)
 
     ! 2D Surface PFLOTRAN ---to--- 2D Surface CLM
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%nlclm_2dsub,clm_pf_idata%h2osfc_clm,ierr)
@@ -332,6 +340,9 @@ contains
       call VecDestroy(clm_pf_idata%area_top_face_clm,ierr)
     if(clm_pf_idata%area_top_face_pf  /= 0) &
       call VecDestroy(clm_pf_idata%area_top_face_pf,ierr)
+
+    if(clm_pf_idata%eff_therm_cond_clm  /= 0) call VecDestroy(clm_pf_idata%eff_therm_cond_clm,ierr)
+    if(clm_pf_idata%eff_therm_cond_pf  /= 0) call VecDestroy(clm_pf_idata%eff_therm_cond_pf,ierr)
 
   end subroutine CLMPFLOTRANIDataDestroy
 
