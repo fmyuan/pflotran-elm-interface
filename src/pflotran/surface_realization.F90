@@ -1236,6 +1236,8 @@ subroutine SurfRealizDestroy(surf_realization)
   call RealizationBaseStrip(surf_realization)
   
   call SurfaceFieldDestroy(surf_realization%surf_field)
+
+  call OutputOptionDestroy(surf_realization%output_option)
   
   call OutputOptionDestroy(surf_realization%output_option)
 
