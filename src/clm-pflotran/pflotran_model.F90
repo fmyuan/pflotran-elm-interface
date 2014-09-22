@@ -2119,7 +2119,7 @@ end subroutine pflotranModelSetICs
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelStepperRunTillPauseTime(model, pause_time, dtime)
+  subroutine pflotranModelStepperRunTillPauseTime(model, pause_time, dtime, isprintout)
   ! 
   ! It performs the model integration
   ! till the specified pause_time.
@@ -2142,12 +2142,15 @@ end subroutine pflotranModelSetICs
     type(pflotran_model_type), pointer :: model
     PetscReal, intent(in) :: pause_time
     PetscReal, intent(in) :: dtime
+    PetscBool, intent(in) :: isprintout
 
     PetscReal :: pause_time1
 
-    if (model%option%io_rank == model%option%myrank) then
-       write(model%option%fid_out, *) '>>>> Inserting waypoint at pause_time (s) = ', pause_time
-       write(model%option%fid_out, *) '>>>> for CLM timestep: ', pause_time/dtime
+    if(isprintout) then
+      if (model%option%io_rank == model%option%myrank) then
+        write(model%option%fid_out, *) '>>>> Inserting waypoint at pause_time (s) = ', pause_time
+        write(model%option%fid_out, *) '>>>> for CLM timestep: ', pause_time/dtime
+      endif
     endif
 
     pause_time1 = pause_time + dtime!1800.0d0
@@ -2264,8 +2267,8 @@ end subroutine pflotranModelSetICs
 
     type(pflotran_model_type), pointer :: model
     type(waypoint_type), pointer       :: waypoint, waypoint1, waypoint2
-    PetscReal                          :: waypoint_time
-    PetscBool                          :: isprintout
+    PetscReal, intent(in)              :: waypoint_time
+    PetscBool, intent(in)              :: isprintout
     character(len=MAXWORDLENGTH)       :: word
 
     class(realization_type), pointer    :: realization
@@ -2943,7 +2946,7 @@ end subroutine pflotranModelSetICs
                        'source-sink list of surface model.')
 
     ! 2) Map temperature of rain water
-    write(*,*) 'call MappingSourceToDestination()'
+    !write(*,*) 'call MappingSourceToDestination()'
     call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_srf, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rain_temp_clm, &
