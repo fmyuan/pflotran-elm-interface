@@ -1477,6 +1477,7 @@ contains
     call ISCreateBlock(option%mycomm, 1, map%s2d_s_ncells_dis, tmp_int_array, &
          PETSC_COPY_VALUES, is_from, ierr)
     deallocate(tmp_int_array)
+
 #ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm, 'is_from1.out', viewer, ierr)
     call ISView(is_from, viewer,ierr)
@@ -1640,21 +1641,45 @@ contains
   end subroutine
 
 ! ************************************************************************** !
+
   subroutine MappingDestroy(map)
+  !
+  ! This routine frees up memoery
+  !
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 08/22/2014
+  !
 
     implicit none
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-
+    ! argument
     type(mapping_type), pointer :: map
-    PetscErrorCode :: ierr
 
-    call VecDestroy(map%s_disloc_vec, ierr)
-    call VecScatterDestroy(map%s2d_scat_s_gb2disloc, ierr)
+    if (associated(map%s_ids_loc_nidx)) deallocate(map%s_ids_loc_nidx)
+    if (associated(map%d_ids_ghd_nidx)) deallocate(map%d_ids_ghd_nidx)
+    if (associated(map%d_ids_nidx_sor)) deallocate(map%d_ids_nidx_sor)
+    if (associated(map%d_nGhd2Sor)) deallocate(map%d_nGhd2Sor)
+    if (associated(map%d_nSor2Ghd)) deallocate(map%d_nSor2Ghd)
+    if (associated(map%d_loc_or_gh)) deallocate(map%d_loc_or_gh)
+    if (associated(map%s2d_s_ids_nidx)) deallocate(map%s2d_s_ids_nidx)
+    if (associated(map%s2d_s_ids_nidx_dis)) deallocate(map%s2d_s_ids_nidx_dis)
+    if (associated(map%s2d_wts)) deallocate(map%s2d_wts)
+    if (associated(map%s2d_jcsr)) deallocate(map%s2d_jcsr)
+    if (associated(map%s2d_icsr)) deallocate(map%s2d_icsr)
+    if (associated(map%s2d_nonzero_rcount_csr)) deallocate(map%s2d_nonzero_rcount_csr)
 
-    deallocate(map)
+    nullify(map%s_ids_loc_nidx)
+    nullify(map%d_ids_ghd_nidx)
+    nullify(map%d_ids_nidx_sor)
+    nullify(map%d_nGhd2Sor)
+    nullify(map%d_nSor2Ghd)
+    nullify(map%d_loc_or_gh)
+    nullify(map%s2d_s_ids_nidx)
+    nullify(map%s2d_s_ids_nidx_dis)
+    nullify(map%s2d_wts)
+    nullify(map%s2d_jcsr)
+    nullify(map%s2d_icsr)
+    nullify(map%s2d_nonzero_rcount_csr)
 
   end subroutine MappingDestroy
 

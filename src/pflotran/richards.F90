@@ -10,6 +10,9 @@ module Richards_module
   
   use PFLOTRAN_Constants_module
 
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  use clm_pflotran_interface_data
+#endif
   implicit none
   
   private 
@@ -1256,12 +1259,14 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   call RichardsResidualPatch2(snes,xx,r,realization,ierr)
 
   if (realization%debug%vecview_residual) then
+     if(option%myrank == option%io_rank) write(*,*), 'Rresidual.out'
     call PetscViewerASCIIOpen(realization%option%mycomm,'Rresidual.out', &
                               viewer,ierr);CHKERRQ(ierr)
     call VecView(r,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
   if (realization%debug%vecview_solution) then
+     if(option%myrank == option%io_rank) write(*,*), 'Rxx.out'
     call PetscViewerASCIIOpen(realization%option%mycomm,'Rxx.out', &
                               viewer,ierr);CHKERRQ(ierr)
     call VecView(xx,viewer,ierr);CHKERRQ(ierr)
@@ -1598,6 +1603,9 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
   PetscInt :: sum_connection
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  PetscReal, pointer :: qflx_pf_p(:)
+#endif
   PetscReal, pointer :: mmsrc(:)
   PetscReal, allocatable :: msrc(:)
   PetscReal :: well_status
@@ -1619,6 +1627,10 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
+
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  call VecGetArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr)
+#endif
 
   ! now assign access pointer to local variables
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
@@ -1658,6 +1670,9 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+      qsrc = qflx_pf_p(local_id)
+#endif
       if (source_sink%flow_condition%itype(1)/=HET_VOL_RATE_SS .and. &
           source_sink%flow_condition%itype(1)/=HET_MASS_RATE_SS .and. &
           source_sink%flow_condition%itype(1)/=WELL_SS) &
@@ -1749,8 +1764,12 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   print *, r_p(:)
 #endif
 
-  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(r, r_p, ierr); CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr); CHKERRQ(ierr)
+
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+  call VecRestoreArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr); CHKERRQ(ierr)
+#endif
   
 end subroutine RichardsResidualPatch2
 
@@ -1808,6 +1827,7 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
 
   if (realization%debug%matview_Jacobian) then
 #if 1  
+     if(option%myrank == option%io_rank) write(*,*), 'Rjacobian.out'
     call PetscViewerASCIIOpen(realization%option%mycomm,'Rjacobian.out', &
                               viewer,ierr);CHKERRQ(ierr)
 #else
