@@ -631,6 +631,13 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
 
   call CapillaryPressureThreshold(saturation_function,p_th,option)
 
+#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+    if(auxvar%bc_alpha > 0.d0) then
+       saturation_function%alpha  = auxvar%bc_alpha
+       saturation_function%lambda = auxvar%bc_lambda
+    endif
+#endif
+
   select case (option%ice_model)
     case (PAINTER_EXPLICIT)
       ! Model from Painter, Comp. Geosci. (2011)

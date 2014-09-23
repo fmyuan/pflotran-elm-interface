@@ -3621,11 +3621,12 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   use Patch_module
   use Grid_module
   use Option_module
-  use Coupler_module  
+  use Coupler_module
   use Field_module
   use Debug_module
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
+  use String_module
   
   implicit none
 
@@ -3688,7 +3689,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   PetscReal :: sec_density
   PetscReal :: sec_dencpr
   PetscReal :: res_sec_heat
-  
+
   patch => realization%patch
   grid => patch%grid
   option => realization%option
@@ -3966,7 +3967,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
                                      cur_connection_set%dist(1:3,iconn))
 
       icap_dn = int(icap_loc_p(ghosted_id))
-	
+
       call THBCFlux(boundary_condition%flow_condition%itype, &
                                 boundary_condition%flow_aux_real_var(:,iconn), &
                                 auxvars_bc(sum_connection), &
