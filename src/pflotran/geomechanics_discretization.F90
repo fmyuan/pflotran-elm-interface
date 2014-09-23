@@ -761,6 +761,7 @@ subroutine GeomechDiscretizationDestroy(geomech_discretization)
     deallocate(geomech_discretization)
   nullify(geomech_discretization)
 
+
 end subroutine GeomechDiscretizationDestroy
 
 end module Geomechanics_Discretization_module

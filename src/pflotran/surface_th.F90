@@ -26,6 +26,7 @@ module Surface_TH_module
 
   public SurfaceTHSetup, &
          SurfaceTHRHSFunction, &
+         SurfaceTHIFunction, &
          SurfaceTHComputeMaxDt, &
          SurfaceTHUpdateAuxVars, &
          SurfaceTHUpdateSolution, &
@@ -265,6 +266,7 @@ subroutine SurfaceTHRHSFunction(ts,t,xx,ff,surf_realization,ierr)
 
   ! Then, update the aux vars
   ! RTM: This includes calculation of the accumulation terms, correct?
+  call SurfaceTHUpdateTemperature(surf_realization)
   call SurfaceTHUpdateAuxVars(surf_realization)
   ! override flags since they will soon be out of date  
   patch%surf_aux%SurfaceTH%auxvars_up_to_date = PETSC_FALSE
@@ -454,6 +456,50 @@ subroutine SurfaceTHRHSFunction(ts,t,xx,ff,surf_realization,ierr)
   endif
 
 end subroutine SurfaceTHRHSFunction
+
+! ************************************************************************** !
+
+subroutine SurfaceTHIFunction(ts,t,xx,xxdot,ff,surf_realization,ierr)
+  ! 
+  ! This routine provides the implicit function evaluation for PETSc TSSolve()
+  ! Author: Nathan Collier, ORNL
+  ! 
+
+  use EOS_Water_module
+  use Connection_module
+  use Surface_Realization_class
+  use Discretization_module
+  use Patch_module
+  use Grid_module
+  use Option_module
+  use Coupler_module  
+  use Surface_Field_module
+  use Debug_module
+  use Surface_TH_Aux_module
+  use Surface_Global_Aux_module
+
+  implicit none
+  
+  TS                             :: ts
+  PetscReal                      :: t
+  Vec                            :: xx,xxdot
+  Vec                            :: ff
+  type(surface_realization_type) :: surf_realization
+  PetscErrorCode                 :: ierr
+
+  ! Our equations are in the form: 
+  !    xxdot = RHS(xx)
+  ! or in residual form:
+  !    ff = xxdot - RHS(xx)
+
+  ! First we call RHS function: ff = RHS(xx)
+  call SurfaceTHRHSFunction(ts,t,xx,ff,surf_realization,ierr);CHKERRQ(ierr)
+  ! negate: RHS(xx) = -RHS(xx)
+  call VecScale(ff,-1.d0,ierr);CHKERRQ(ierr)
+  ! and finally: ff += xxdot
+  call VecAYPX(ff,1.d0,xxdot,ierr);CHKERRQ(ierr)
+  
+end subroutine SurfaceTHIFunction
 
 ! ************************************************************************** !
 
@@ -714,11 +760,10 @@ subroutine SurfaceTHFlux(surf_auxvar_up, &
 
   PetscReal :: head_up, head_dn
   PetscReal :: dist, length
-  PetscReal :: vel                      ! units: m/s
+  PetscReal :: vel                      ! [m/s]
   PetscReal :: dt_max
-  PetscReal :: Res(1:option%nflowdof)   ! units: m^3/s
+  PetscReal :: Res(1:option%nflowdof)   ! [m^3/s]
   
-  PetscReal :: flux       ! units: m^2/s
   PetscReal :: hw_half
   PetscReal :: hw_liq_half
   PetscReal :: mannings_half
@@ -730,71 +775,46 @@ subroutine SurfaceTHFlux(surf_auxvar_up, &
   PetscReal :: Cw
   PetscReal :: k_therm
   PetscReal :: dt
-  PetscReal :: MAX_MANNING_VELOCITY ! move to constants if we decide to keep
 
-  ! initialize
-  flux = 0.d0
-  dt_max = 1.d10
+  ! Initialize
+  dt_max  = 1.d10
 
-  ! Flow equation
+  ! We upwind Manning's coefficient, temperature, and the unfrozen head
   head_up = surf_global_auxvar_up%head(1) + zc_up
   head_dn = surf_global_auxvar_dn%head(1) + zc_dn
-
-  if (head_up>head_dn) then
-    mannings_half = mannings_up
-    temp_half = surf_global_auxvar_up%temp + 273.15d0
+  if (head_up > head_dn) then
+    mannings_half          = mannings_up
+    temp_half              = surf_global_auxvar_up%temp + 273.15d0 ! [K]
     unfrozen_fraction_half = surf_auxvar_up%unfrozen_fraction
-    if (surf_global_auxvar_up%head(1)>MIN_SURFACE_WATER_HEIGHT) then
-      hw_half = surf_global_auxvar_up%head(1)
-    else
-      hw_half = 0.d0
-    endif
+    hw_half                = surf_global_auxvar_up%head(1)
   else
-    mannings_half = mannings_dn
-    temp_half = surf_global_auxvar_dn%temp + 273.15d0
+    mannings_half          = mannings_dn
+    temp_half              = surf_global_auxvar_dn%temp + 273.15d0 ! [K]
     unfrozen_fraction_half = surf_auxvar_dn%unfrozen_fraction
-    if (surf_global_auxvar_dn%head(1)>MIN_SURFACE_WATER_HEIGHT) then
-      hw_half = surf_global_auxvar_dn%head(1)
-    else
-      hw_half = 0.d0
-    endif
+    hw_half                = surf_global_auxvar_dn%head(1)
   endif
 
-  ! Find pressure head at interface for LIQUID fraction
+  ! We clip to avoid problems later evaluating at negative water height
+  hw_half     = max(hw_half,MIN_SURFACE_WATER_HEIGHT)
+  if (hw_half == MIN_SURFACE_WATER_HEIGHT) then
+    temp_half = 0.d0
+    hw_half   = 0.d0
+  endif
+
+  ! Frozen water doesn't contribute to the velocity
   hw_liq_half = unfrozen_fraction_half*hw_half
 
-  ! Compute pressure difference
+  ! Compute Manning's velocity
   dhead = head_up - head_dn
-
-  if (abs(dhead) < eps) then
-    dhead = 0.d0
-    vel = 0.d0
-  else
-    ! RTM: We modify the term raised to the power 2/3 (the "hydraulic radius") 
-    ! by the (upwinded) unfrozen fraction.  For a wide rectangular channel, 
-    ! hydraulic radius (which is a measure of the "efficiency" of the channel) 
-    ! is often taken to be the flow depth, so I believe this makes sense. (?)
-    ! The actual total head term ('hw_half' here) is NOT modified by the 
-    ! unfrozen fraction: though the ice is immobile, its weight does 
-    ! contribute to the pressure head.
-    vel = (hw_liq_half**(2.d0/3.d0))/mannings_half* &
-          dhead/(abs(dhead)**(1.d0/2.d0))* &
-          1.d0/(dist**0.5d0)
-
-     !RTM: Original code for when freezing is not considered is
-!    vel = (hw_half**(2.d0/3.d0))/mannings_half* &
-!          dhead/(abs(dhead)**(1.d0/2.d0))* &
-!          1.d0/(dist**0.5d0)
-  endif
+  vel   = sign(hw_liq_half**(2.d0/3.d0)/mannings_half*abs(dhead/dist)**0.5d0,dhead) ! [m/s]
 
   ! KLUDGE: To address high velocity oscillations of the surface water
   ! height, reduce this value to keep dt from shrinking too much. Add
   ! to options if we decide to keep it.
-  MAX_MANNING_VELOCITY = 1e20 ! [m/s]
-  vel = sign(min(MAX_MANNING_VELOCITY,abs(vel)),vel)
+  vel = sign(min(option%max_manning_velocity,abs(vel)),vel)
 
-  flux = hw_liq_half*vel
-  Res(TH_PRESSURE_DOF) = flux*length
+  ! Load into residual
+  Res(TH_PRESSURE_DOF) = vel*hw_liq_half*length ! [m^3/s]
   
   ! Temperature equation
   ! RTM: k_therm is the weighted average of the liquid and ice thermal 
@@ -810,7 +830,11 @@ subroutine SurfaceTHFlux(surf_auxvar_up, &
   den_aveg = (surf_global_auxvar_up%den_kg(1) + &
               surf_global_auxvar_dn%den_kg(1))/2.d0
   ! Temperature difference
-  dtemp = surf_global_auxvar_up%temp - surf_global_auxvar_dn%temp
+  if (surf_global_auxvar_up%is_dry .or. surf_global_auxvar_dn%is_dry) then
+    dtemp = 0.d0
+  else
+    dtemp = surf_global_auxvar_up%temp - surf_global_auxvar_dn%temp
+  endif
 
   ! Note, Cw and k_therm are same for up and downwind
   Cw = surf_auxvar_up%Cw
@@ -980,6 +1004,7 @@ subroutine SurfaceTHUpdateAuxVars(surf_realization)
   use Coupler_module
   use Connection_module
   use Surface_Material_module
+  use PFLOTRAN_Constants_module, only : MIN_SURFACE_WATER_HEIGHT
 
   implicit none
 
@@ -1039,7 +1064,7 @@ subroutine SurfaceTHUpdateAuxVars(surf_realization)
                                 surf_global_auxvars(ghosted_id), &
                                 option)
     ! [rho*h*T*Cwi]
-    if (xx_loc_p(istart) < 1.d-15) then
+    if (xx_loc_p(istart) >= MIN_SURFACE_WATER_HEIGHT) then
       xx_loc_p(istart+1) = surf_global_auxvars(ghosted_id)%den_kg(1)* &
                            xx_loc_p(istart)* &
                            (surf_global_auxvars(ghosted_id)%temp + 273.15d0)* &
@@ -1207,6 +1232,8 @@ subroutine SurfaceTHUpdateTemperature(surf_realization)
         !temp = option%reference_temperature
         temp = DUMMY_VALUE
         xx_loc_p(iend) = 0.d0
+        xx_loc_p(istart) = 0.d0
+
       else
         surf_global_auxvars(ghosted_id)%is_dry = PETSC_FALSE
         if (surf_global_auxvars(ghosted_id)%temp == DUMMY_VALUE) then
@@ -1226,41 +1253,6 @@ subroutine SurfaceTHUpdateTemperature(surf_realization)
       endif
       surf_global_auxvars(ghosted_id)%temp = temp
     endif
-  enddo
-
-  ! Update boundary aux vars
-  boundary_condition => patch%boundary_conditions%first
-  sum_connection = 0    
-  do 
-    if (.not.associated(boundary_condition)) exit
-    cur_connection_set => boundary_condition%connection_set
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-      local_id = cur_connection_set%id_dn(iconn)
-      ghosted_id = grid%nL2G(local_id)
-      
-      surf_global_auxvars_bc(sum_connection)%temp = &
-        surf_global_auxvars(ghosted_id)%temp
-    enddo
-    boundary_condition => boundary_condition%next
-  enddo
-
-  ! Update source/sink aux vars
-  source_sink => patch%source_sinks%first
-  sum_connection = 0
-  do
-    if (.not.associated(source_sink)) exit
-    cur_connection_set => source_sink%connection_set
-    do iconn = 1, cur_connection_set%num_connections
-      sum_connection = sum_connection + 1
-      local_id = cur_connection_set%id_dn(iconn)
-      ghosted_id = grid%nL2G(local_id)
-
-      surf_global_auxvars_ss(sum_connection)%temp = &
-        surf_global_auxvars(ghosted_id)%temp
-
-    enddo
-    source_sink => source_sink%next
   enddo
 
   call VecRestoreArrayF90(surf_field%flow_xx_loc,xx_loc_p,ierr);CHKERRQ(ierr)

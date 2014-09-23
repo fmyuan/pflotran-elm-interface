@@ -317,7 +317,7 @@ contains
     ! Read ASCII file through io_rank and communicate to other ranks
     if(option%myrank == option%io_rank) then
 
-      input => InputCreate(20,map_filename,option)
+      input => InputCreate(IUNIT_TEMP,map_filename,option)
 
       nwts     = -1
       prev_row = -1
@@ -353,7 +353,7 @@ contains
             hint = 'num_weights'
             call InputReadInt(input,option,nwts)
             call InputErrorMsg(input,option,'Number of weights',hint)
-            write(*,*) 'nwts = ',nwts
+            write(*,*) 'rank = ', option%myrank, 'nwts = ',nwts
           case default
             option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
               '" in explicit grid file.'
@@ -470,21 +470,21 @@ contains
                     
     endif
 
-  ! Broadcast from root information regarding CLM/PFLOTRAN num soil layers
-  temp_int_array(1) = map%clm_nlevsoi
-  temp_int_array(2) = map%clm_nlevgrnd
-  temp_int_array(3) = map%clm_nlev_mapped
-  temp_int_array(4) = map%pflotran_nlev
-  temp_int_array(5) = map%pflotran_nlev_mapped
+    ! Broadcast from root information regarding CLM/PFLOTRAN num soil layers
+    temp_int_array(1) = map%clm_nlevsoi
+    temp_int_array(2) = map%clm_nlevgrnd
+    temp_int_array(3) = map%clm_nlev_mapped
+    temp_int_array(4) = map%pflotran_nlev
+    temp_int_array(5) = map%pflotran_nlev_mapped
 
-  call MPI_Bcast(temp_int_array,FIVE_INTEGER,MPI_INTEGER,option%io_rank, &
+    call MPI_Bcast(temp_int_array,FIVE_INTEGER,MPI_INTEGER,option%io_rank, &
                  option%mycomm,ierr)
     
-  map%clm_nlevsoi = temp_int_array(1)
-  map%clm_nlevgrnd = temp_int_array(2)
-  map%clm_nlev_mapped = temp_int_array(3)
-  map%pflotran_nlev = temp_int_array(4)
-  map%pflotran_nlev_mapped = temp_int_array(5)
+    map%clm_nlevsoi = temp_int_array(1)
+    map%clm_nlevgrnd = temp_int_array(2)
+    map%clm_nlev_mapped = temp_int_array(3)
+    map%pflotran_nlev = temp_int_array(4)
+    map%pflotran_nlev_mapped = temp_int_array(5)
 
   end subroutine MappingReadTxtFile
 

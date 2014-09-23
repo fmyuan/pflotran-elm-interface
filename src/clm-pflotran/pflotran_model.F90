@@ -142,7 +142,6 @@ module pflotran_model_module
        pflotranModelGetBgcVariables,           &
        pflotranModelSetSoilHbcs,               &
        pflotranModelGetBCMassBalanceDelta,     &
-       pflotranModelNFaceCells3DDomainPF,      &
        pflotranModelUpdateFinalWaypoint
 
 contains
@@ -940,17 +939,19 @@ end subroutine pflotranModelSetICs
                                       grid_clm_cell_ids_nindex, &
                                       grid_clm_npts_local, &
                                       map_id)
-      case (CLM_SRF_TO_PF_2DSUB, PF_2DSUB_TO_CLM_SRF)
-        call pflotranModelInitMapSrfTo2DSub(pflotran_model,  &
-                                            grid_clm_cell_ids_nindex, &
-                                            grid_clm_npts_local, &
-                                            map_id)
+      ! A more generalized Mapping for Faces (sidesets) is now implemented (F.-M. Yuan)
+      !case (CLM_SRF_TO_PF_2DSUB, PF_2DSUB_TO_CLM_SRF)
+      !  call pflotranModelInitMapSrfTo2DSub(pflotran_model,  &
+      !                                      grid_clm_cell_ids_nindex, &
+      !                                      grid_clm_npts_local, &
+      !                                      map_id)
       case (CLM_SRF_TO_PF_SRF, PF_SRF_TO_CLM_SRF)
         call pflotranModelInitMapSrfToSrf(pflotran_model,  &
                                             grid_clm_cell_ids_nindex, &
                                             grid_clm_npts_local, &
                                             map_id)
-      case (CLM_BOT_TO_PF_2DBOT, PF_2DBOT_TO_CLM_BOT)
+      case (CLM_SRF_TO_PF_2DSUB, PF_2DSUB_TO_CLM_SRF, &
+            CLM_BOT_TO_PF_2DBOT, PF_2DBOT_TO_CLM_BOT)
         call pflotranModelInitMapFaceToFace(pflotran_model,  &
                                             grid_clm_cell_ids_nindex, &
                                             grid_clm_npts_local, &
@@ -1007,6 +1008,7 @@ end subroutine pflotranModelSetICs
     PetscInt, pointer                  :: grid_pf_cell_ids_nindex(:)
     PetscInt, pointer                  :: grid_pf_local_nindex(:)
     PetscInt, pointer                  :: grid_clm_local_nindex(:)
+    PetscErrorCode:: ierr
 
     type(mapping_type), pointer        :: map
     type(option_type), pointer         :: option
@@ -1015,6 +1017,8 @@ end subroutine pflotranModelSetICs
     type(patch_type), pointer          :: patch
     type(coupler_type), pointer        :: boundary_condition
     type(connection_set_type), pointer :: cur_connection_set
+
+!-----------------------------------------------------------------------------------
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -1197,6 +1201,8 @@ end subroutine pflotranModelSetICs
     type(coupler_type), pointer        :: boundary_condition
     type(coupler_type), pointer        :: source_sink
     type(connection_set_type), pointer :: cur_connection_set
+
+!-----------------------------------------------------------------------------
 
     option          => pflotran_model%option
 
@@ -1560,7 +1566,6 @@ end subroutine pflotranModelSetICs
     call VecDestroy(surf_ids_loc, ierr)
     CHKERRQ(ierr)
 
-
     !
     ! Step-4: Recompute 'map%s2d_i/jscr' for clm mesh
     !
@@ -1573,7 +1578,6 @@ end subroutine pflotranModelSetICs
     call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
                          PETSC_COPY_VALUES, is_to, ierr)
     CHKERRQ(ierr)
-
 
     do iconn = 1, map%s2d_nwts
       if (source_mesh_id == CLM_SUB_MESH) then
@@ -3521,7 +3525,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     enddo
 
     if(.not.found)  &
-      call printErrMsg(pflotran_model%option, &
+      call printMsg(pflotran_model%option, &
             'Missing from the input deck a BC named clm_gflux_bc')
 
   end function pflotranModelNSurfCells3DDomain
@@ -4547,7 +4551,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     type(coupler_type), pointer :: boundary_condition
     type(connection_set_type), pointer :: cur_connection_set
-    PetscInt :: ghosted_id, local_id, sum_connection, press_dof, iconn
+    PetscInt :: ghosted_id, local_id, press_dof, iconn
 
     PetscErrorCode     :: ierr
 
@@ -6223,8 +6227,9 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
                                             grid_clm_npts_local, &
                                             map_id)
   !
-  ! This routine maps CLM grids/columns structure onto BC faces (TOP, BOTTOM, EAST, WEST, NORTH, SOUTH) of PFLOTRAN 3D Domain
-  ! grid. - Fengming Yuan, ORNL
+  ! This routine maps CLM grids/columns structure onto BC faces
+  ! (TOP, BOTTOM, EAST, WEST, NORTH, SOUTH) of PFLOTRAN 3D Domain grid,
+  ! by extending GB's code - Fengming Yuan, ORNL
   !
   ! Author: Gautam Bisht, LBNL
   ! Date: 04/09/13
@@ -6257,7 +6262,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscInt, intent(in), pointer                     :: grid_clm_cell_ids_nindex(:)
     PetscInt, intent(in)                              :: grid_clm_npts_local
     PetscInt, intent(in)                              :: map_id
-    character(len=MAXSTRINGLENGTH)                    :: filename
 
     ! local
     PetscInt                           :: local_id, grid_pf_npts_local, grid_pf_npts_ghost
@@ -6268,7 +6272,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     PetscInt, pointer                  :: grid_clm_local_nindex(:)
     PetscInt, pointer                  :: grid_clm_cell_ids_nindex_copy(:)
     PetscInt                           :: count
-    PetscInt                           :: sum_connection
     PetscInt                           :: ghosted_id
     PetscInt                           :: iconn
     PetscInt                           :: istart
@@ -6292,6 +6295,14 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     type(coupler_type), pointer        :: source_sink
     type(connection_set_type), pointer :: cur_connection_set
     character(len=MAXSTRINGLENGTH)     :: condition_name
+
+    character(len=MAXSTRINGLENGTH)     :: string, string1, string2
+    PetscViewer:: viewer
+
+!-------------------------------------------------------------------
+!
+write(pflotran_model%option%myrank+200,*) 'checking point mapping - mapID: ', map_id
+!
 
     option          => pflotran_model%option
 
@@ -6341,12 +6352,21 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         call printErrMsg(option)
     end select
 
+!
+write(pflotran_model%option%myrank+200,*) 'checking point 2'
+!
+
+
     ! Read mapping file
     if (index(map%filename, '.h5') > 0) then
       call MappingReadHDF5(map, map%filename, option)
     else
       call MappingReadTxtFile(map, map%filename, option)
     endif
+
+!
+write(pflotran_model%option%myrank+200,*) 'checking point 3-------'
+!
 
     grid_clm_npts_ghost=0
 
@@ -6370,7 +6390,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
         ! mesh is PF_FACE_MESH, 'FACE' type is defined by BC 'condition_name'
         boundary_condition => patch%boundary_conditions%first
-        sum_connection = 0
+
         do
           if (.not.associated(boundary_condition)) exit
           cur_connection_set => boundary_condition%connection_set
@@ -6386,15 +6406,18 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
             ! Save cell ids in application order 0-based
             do iconn=1,cur_connection_set%num_connections
-              sum_connection = sum_connection + 1
+
               local_id = cur_connection_set%id_dn(iconn)
               ghosted_id = grid%nL2G(local_id)
               if (patch%imat(ghosted_id) <= 0) cycle
               grid_pf_cell_ids_nindex(iconn) = grid%nG2A(ghosted_id) - 1
               grid_pf_local_nindex(iconn) = 1
+
+write(option%myrank+200,*) 'iconn=', iconn, 'local_id=',local_id, &
+'ghosted_id=', ghosted_id, 'nature_id=',grid%nG2A(ghosted_id)
+
             enddo
-          else
-            sum_connection = sum_connection + cur_connection_set%num_connections
+
           endif
           boundary_condition => boundary_condition%next
         enddo
@@ -6403,25 +6426,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
           pflotran_model%option%io_buffer = 'condition name not found in boundary conditions'
           call printErrMsg(pflotran_model%option)
         endif
-
-        ! Setting the number of cells constituting the face of the 3D
-        ! subsurface domain for each model.
-        select case(map_id)
-            case(CLM_SRF_TO_PF_2DSUB, PF_2DSUB_TO_CLM_SRF)
-                clm_pf_idata%nlclm_2dsub = grid_clm_npts_local
-                clm_pf_idata%ngclm_2dsub = grid_clm_npts_local
-                clm_pf_idata%nlpf_2dsub  = grid_pf_npts_local
-                clm_pf_idata%ngpf_2dsub  = grid_pf_npts_local
-            case(CLM_BOT_TO_PF_2DBOT, PF_2DBOT_TO_CLM_BOT)
-                clm_pf_idata%nlclm_bottom = grid_clm_npts_local
-                clm_pf_idata%ngclm_bottom = grid_clm_npts_local
-                clm_pf_idata%nlpf_bottom  = grid_pf_npts_local
-                clm_pf_idata%ngpf_bottom  = grid_pf_npts_local
-            case default
-                option%io_buffer = 'map_id argument NOT yet supported in ' // &
-                        'pflotranModelInitMappingFaceToFace'
-                call printErrMsg(option)
-        end select
 
       else
         option%io_buffer='Unknown PFLOTRAN face mesh id'
@@ -6432,36 +6436,36 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     !
     ! Step-1: Find face cells-ids of PFLOTRAN subsurface domain
     !
-    allocate(v_loc(grid_pf_npts_local))
-    v_loc = 1.d0
-    call VecCreateSeq(PETSC_COMM_SELF, grid_pf_npts_local, face_ids_loc, ierr)
+!
+write(option%myrank+200,*) 'checking 4 prior to/after mpi exscan ---------------------------'
+write(option%myrank+200,*) 'grid_pf_npts_local=', grid_pf_npts_local
+!
+    call VecCreateMPI(option%mycomm, grid%nlmax, PETSC_DETERMINE, face_ids, ierr)
     CHKERRQ(ierr)
-    call VecCreateMPI(option%mycomm, grid%nlmax, PETSC_DECIDE, face_ids, ierr)
-    CHKERRQ(ierr)
-    call VecSet(face_ids, -1.d0, ierr)
-    CHKERRQ(ierr)
+    call VecSet(face_ids, -1.d0, ierr); CHKERRQ(ierr)
 
     ! Set 1.0 to all cells that make up a face of PFLOTRAN subsurface domain
+    allocate(v_loc(grid_pf_npts_local))
+    v_loc = 1.d0
     call VecSetValues(face_ids, grid_pf_npts_local, grid_pf_cell_ids_nindex, &
-                      v_loc, INSERT_VALUES, ierr)
-    CHKERRQ(ierr)
+                      v_loc, INSERT_VALUES, ierr); CHKERRQ(ierr)
     deallocate(v_loc)
-    call VecAssemblyBegin(face_ids, ierr)
-    CHKERRQ(ierr)
-    call VecAssemblyEnd(face_ids, ierr)
-    CHKERRQ(ierr)
 
-    call VecGetArrayF90(face_ids, v_loc, ierr)
-    CHKERRQ(ierr)
+    call VecAssemblyBegin(face_ids, ierr); CHKERRQ(ierr)
+    call VecAssemblyEnd(face_ids, ierr); CHKERRQ(ierr)
+
+    call VecGetArrayF90(face_ids, v_loc, ierr); CHKERRQ(ierr)
     count = 0
     do local_id=1,grid%nlmax
+
+write(option%myrank+200,*) 'i0= ',local_id, 'face_id0=',v_loc(local_id)
+
       if(v_loc(local_id) == 1.d0) count = count + 1
     enddo
 
     istart = 0
     call MPI_Exscan(count, istart, ONE_INTEGER_MPI, MPIU_INTEGER, MPI_SUM, &
-                    option%mycomm, ierr)
-    CHKERRQ(ierr)
+                    option%mycomm, ierr); CHKERRQ(ierr)
 
     count = 0
     do local_id=1,grid%nlmax
@@ -6469,9 +6473,12 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         v_loc(local_id) = istart + count
         count = count + 1
       endif
+
+write(option%myrank+200,*) 'i1= ',local_id, 'face_id1=',v_loc(local_id),  &
+'count=',count, 'pf_cell_ids=', INT(v_loc(local_id))
+
     enddo
-    call VecRestoreArrayF90(face_ids, v_loc, ierr)
-    CHKERRQ(ierr)
+    call VecRestoreArrayF90(face_ids, v_loc, ierr); CHKERRQ(ierr)
 
     !
     allocate(int_array(grid_pf_npts_local))
@@ -6479,46 +6486,43 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
       int_array(iconn) = iconn - 1
     enddo
     call ISCreateGeneral(option%mycomm, grid_pf_npts_local, int_array, &
-                         PETSC_COPY_VALUES, is_to, ierr)
-    CHKERRQ(ierr)
+                         PETSC_COPY_VALUES, is_to, ierr); CHKERRQ(ierr)
     deallocate(int_array)
 
     call ISCreateGeneral(option%mycomm, grid_pf_npts_local, grid_pf_cell_ids_nindex, &
-                         PETSC_COPY_VALUES, is_from, ierr)
-    CHKERRQ(ierr)
-
+                         PETSC_COPY_VALUES, is_from, ierr); CHKERRQ(ierr)
 
     ! create scatter context
+    call VecCreateSeq(PETSC_COMM_SELF, grid_pf_npts_local, face_ids_loc, &
+      ierr); CHKERRQ(ierr)
+
     call VecScatterCreate(face_ids, is_from, face_ids_loc, is_to, vec_scat, &
-                          ierr)
-    CHKERRQ(ierr)
-    call ISDestroy(is_from, ierr)
-    CHKERRQ(ierr)
-    call ISDestroy(is_to, ierr)
-    CHKERRQ(ierr)
+                          ierr); CHKERRQ(ierr)
+    call ISDestroy(is_from, ierr); CHKERRQ(ierr)
+    call ISDestroy(is_to, ierr); CHKERRQ(ierr)
 
     call VecScatterBegin(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    CHKERRQ(ierr)
+                        SCATTER_FORWARD, ierr); CHKERRQ(ierr)
     call VecScatterEnd(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    CHKERRQ(ierr)
-    call VecScatterDestroy(vec_scat, ierr)
-    CHKERRQ(ierr)
+                        SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+    call VecScatterDestroy(vec_scat, ierr); CHKERRQ(ierr)
 
-    call VecGetArrayF90(face_ids_loc, v_loc, ierr)
-    CHKERRQ(ierr)
+!
+write(option%myrank+200,*) 'checking 5 vec_scatter ---------------------------'
+
+    call VecGetArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
     count = 0
     do iconn = 1, grid_pf_npts_local
       if (v_loc(iconn)>-1) then
         count = count + 1
         grid_pf_cell_ids_nindex(count) = INT(v_loc(iconn))
       endif
+
+write(option%myrank+200,*) 'iconn=',iconn, 'count=',count, 'face_ids_loc=',INT(v_loc(iconn))
+
     enddo
-    call VecRestoreArrayF90(face_ids_loc, v_loc, ierr)
-    CHKERRQ(ierr)
-    call VecDestroy(face_ids_loc, ierr)
-    CHKERRQ(ierr)
+    call VecRestoreArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
+    call VecDestroy(face_ids_loc, ierr); CHKERRQ(ierr)
 
     !
     ! Step-2: Recompute 'map%s2d_i/jscr' for pf mesh
@@ -6530,9 +6534,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
       int_array(iconn) = iconn - 1
     enddo
     call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
-                         PETSC_COPY_VALUES, is_to, ierr)
-    CHKERRQ(ierr)
-
+                     PETSC_COPY_VALUES, is_to, ierr); CHKERRQ(ierr)
 
     do iconn = 1, map%s2d_nwts
       if (dest_mesh_id == PF_FACE_MESH) then
@@ -6542,30 +6544,42 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
       endif
     enddo
     call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
-                         PETSC_COPY_VALUES, is_from, ierr)
-    CHKERRQ(ierr)
+                 PETSC_COPY_VALUES, is_from, ierr); CHKERRQ(ierr)
     deallocate(int_array)
 
     ! create scatter context
     call VecScatterCreate(face_ids, is_from, face_ids_loc, is_to, vec_scat, &
-                          ierr)
-    CHKERRQ(ierr)
-    call ISDestroy(is_from, ierr)
-    CHKERRQ(ierr)
-    call ISDestroy(is_to, ierr)
-    CHKERRQ(ierr)
+                          ierr); CHKERRQ(ierr)
+    call ISDestroy(is_from, ierr); CHKERRQ(ierr)
+    call ISDestroy(is_to, ierr); CHKERRQ(ierr)
+
+write(option%myrank+200,*) 'checking 6 vec_scatter ---------------------------'
+call VecGetArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
+do iconn = 1, grid_pf_npts_local
+write(option%myrank+200,*) 'i2a= ',iconn, 'face_ids_loc2=',v_loc(iconn)
+enddo
+call VecRestoreArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
+
+
 
     call VecScatterBegin(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    CHKERRQ(ierr)
-    call VecScatterEnd(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    CHKERRQ(ierr)
-    call VecScatterDestroy(vec_scat, ierr)
-    CHKERRQ(ierr)
+                        SCATTER_FORWARD, ierr); CHKERRQ(ierr)
 
-    call VecGetArrayF90(face_ids_loc, v_loc, ierr)
-    CHKERRQ(ierr)
+call VecGetArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
+do iconn = 1, grid_pf_npts_local
+write(option%myrank+200,*) 'i2b= ',iconn, 'face_ids_loc3=',v_loc(iconn)
+enddo
+call VecRestoreArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
+
+!
+write(option%myrank+200,*) 'checking 7 ---------------------------'
+
+
+    call VecScatterEnd(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
+                        SCATTER_FORWARD, ierr); CHKERRQ(ierr)
+    call VecScatterDestroy(vec_scat, ierr); CHKERRQ(ierr)
+
+    call VecGetArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
     count = 0
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
@@ -6576,19 +6590,27 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
           map%s2d_jcsr(count) = INT(v_loc(iconn))
         endif
       endif
+
+write(option%myrank+200,*) 'i3= ',iconn, 'face_ids_loc_final=',v_loc(iconn),  &
+'count=',count, 'pf_cell_ids=', INT(v_loc(iconn))
+
+
+
     enddo
     call VecRestoreArrayF90(face_ids_loc, v_loc, ierr)
     CHKERRQ(ierr)
     call VecDestroy(face_ids_loc, ierr)
     CHKERRQ(ierr)
 
+write(option%myrank+200,*) &
+'PF_count= ', count, 'pf_s2d_nwts=', map%s2d_nwts
+
     if(count /= map%s2d_nwts) then
       option%io_buffer='No. of face cells in mapping dataset does not ' // &
         'match face cells on which BC is applied - PFLOTRAN.'
       call printErrMsg(option)
     endif
-    call VecDestroy(face_ids, ierr)
-    CHKERRQ(ierr)
+    call VecDestroy(face_ids, ierr); CHKERRQ(ierr)
 
     !
     ! Step-3: Find face cells-ids of CLM soil/below-ground domain
@@ -6744,11 +6766,15 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call VecDestroy(face_ids_loc, ierr)
     CHKERRQ(ierr)
 
+write(option%myrank+200,*) &
+'clm_count= ', count, 'clm_s2d_nwts=', map%s2d_nwts
+
     if(count /= map%s2d_nwts) then
       option%io_buffer='No. of face cells in mapping dataset does not ' // &
         'match face cells on which BC is applied - CLM.'
       call printErrMsg(option)
     endif
+
     call VecDestroy(face_ids, ierr)
     CHKERRQ(ierr)
 
@@ -6789,71 +6815,38 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     call MappingCreateScatterOfSourceMesh(map, option)
     call MappingFreeNotNeeded(map)
 
-  end subroutine pflotranModelInitMapFaceToFace
+!#ifdef testing
+    write(string1,'(I2)') option%myrank
+    write(string2,'(I2)') map_id
+    string = trim(adjustl(string1))//'-'//trim(adjustl(string2))//'-s2d_scat_s_gb2disloc.out'
+    call PetscViewerASCIIOpen(PETSC_COMM_WORLD, string,viewer,ierr)
+    call VecScatterView(map%s2d_scat_s_gb2disloc,viewer,ierr)
+    call PetscViewerDestroy(viewer,ierr)
+!#endif
 
-  ! ************************************************************************** !
-  !
-  function pflotranModelNFaceCells3DDomainPF(pflotran_model, condition_name)
-  !
-  ! This function returns the number of control volumes forming a 'face' of
-  ! the 3D sub-surface domain of PFLOTRAN.
-
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 6/03/2013
-  !
-
-    use Option_module
-    use Coupler_module
-    use String_module
-    use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
-    use Realization_class
-
-    implicit none
-
-    type(pflotran_model_type), pointer :: pflotran_model
-
-    class(realization_type), pointer :: realization
-    type(coupler_list_type), pointer :: coupler_list
-    type(coupler_type), pointer :: coupler
-    type(simulation_base_type), pointer :: simulation
-    character(len=MAXWORDLENGTH) :: condition_name
-    PetscInt :: pflotranModelNFaceCells3DDomainPF
-    PetscBool :: found
-
-    select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
-         realization => simulation%realization
-      class default
-         nullify(realization)
-         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
+    ! Setting the number of cells constituting the face of the 3D
+    ! subsurface domain for each model.
+    select case(map_id)
+      case(CLM_SRF_TO_PF_2DSUB, PF_2DSUB_TO_CLM_SRF)
+        clm_pf_idata%nlclm_2dsub = grid_clm_npts_local
+        clm_pf_idata%ngclm_2dsub = grid_clm_npts_local
+        clm_pf_idata%nlpf_2dsub  = grid_pf_npts_local
+        clm_pf_idata%ngpf_2dsub  = grid_pf_npts_local
+      case(CLM_BOT_TO_PF_2DBOT, PF_2DBOT_TO_CLM_BOT)
+        clm_pf_idata%nlclm_bottom = grid_clm_npts_local
+        clm_pf_idata%ngclm_bottom = grid_clm_npts_local
+        clm_pf_idata%nlpf_bottom  = grid_pf_npts_local
+        clm_pf_idata%ngpf_bottom  = grid_pf_npts_local
+      case default
+        option%io_buffer = 'map_id argument NOT yet supported in ' // &
+                        'pflotranModelInitMappingFaceToFace'
+        call printErrMsg(option)
     end select
 
-    coupler_list => realization%patch%boundary_conditions
-    coupler => coupler_list%first
-    found = PETSC_FALSE
+write(option%myrank+200,*) '-----------------------------------------------------------'
 
-    do
-      if (.not.associated(coupler)) exit
-      if (StringCompare(trim(coupler%name),trim(condition_name))) then
-        pflotranModelNFaceCells3DDomainPF=coupler%connection_set%num_connections
-        found = PETSC_TRUE
-      endif
-      coupler => coupler%next
-    enddo
 
-    if(.not.found)  then
-        pflotran_model%option%io_buffer=trim(condition_name) // &
-            ' - Missing from the input deck as a valid BC name '
-        call printMsg(pflotran_model%option)
-        pflotranModelNFaceCells3DDomainPF = ZERO_INTEGER
-    endif
-
-  end function pflotranModelNFaceCells3DDomainPF
+  end subroutine pflotranModelInitMapFaceToFace
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++!
   
