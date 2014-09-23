@@ -1108,13 +1108,6 @@ subroutine GeomechRealizDestroy(geomech_realization)
   if(associated(geomech_realization)) deallocate(geomech_realization)
   nullify(geomech_realization)
   
-  if(associated(geomech_realization%output_option)) &
-    deallocate(geomech_realization%output_option)
-  nullify(geomech_realization%output_option)
-
-  if(associated(geomech_realization)) deallocate(geomech_realization)
-  nullify(geomech_realization)
-
 end subroutine GeomechRealizDestroy
 
 
