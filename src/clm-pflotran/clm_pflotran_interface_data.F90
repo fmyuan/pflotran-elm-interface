@@ -400,7 +400,6 @@ contains
     clm_pf_idata%watsat_clm = 0
     clm_pf_idata%bsw_clm = 0
     clm_pf_idata%press_clm = 0
-    clm_pf_idata%qflx_clm = 0
     clm_pf_idata%watfc_clm = 0
     clm_pf_idata%bulkdensity_dry_clm = 0
 
@@ -410,8 +409,6 @@ contains
     clm_pf_idata%sucsat_pf = 0
     clm_pf_idata%watsat_pf = 0
     clm_pf_idata%bsw_pf = 0
-    !clm_pf_idata%press_pf = 0
-    clm_pf_idata%qflx_pf = 0
     clm_pf_idata%watfc_pf = 0
     clm_pf_idata%bulkdensity_dry_pf = 0
 

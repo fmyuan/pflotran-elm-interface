@@ -4565,11 +4565,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     !------------------------------------------------------------------------------------
 
-    if (clm_pf_idata%nlpf_2dsub <= 0 .and. clm_pf_idata%ngpf_2dsub <= 0    &
-        .and. clm_pf_idata%nlpf_bottom <= 0 .and. clm_pf_idata%ngpf_bottom <= 0) then
-        return
-    endif
-
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
          realization => simulation%realization
@@ -4584,35 +4579,30 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     patch           => realization%patch
     grid            => patch%grid
 
-    if (clm_pf_idata%nlpf_2dsub > 0 .and. clm_pf_idata%ngpf_2dsub > 0 ) then
-      call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%press_subsurf_clmp, &
                                     clm_pf_idata%press_subsurf_pfs)
 
-      call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qflux_subsurf_clmp, &
                                     clm_pf_idata%qflux_subsurf_pfs)
 
-      call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%press_maxponding_clmp, &
                                     clm_pf_idata%press_maxponding_pfs)
 
-    endif
-
-    if (clm_pf_idata%nlpf_bottom > 0 .and. clm_pf_idata%ngpf_bottom > 0 ) then
-       call MappingSourceToDestination(pflotran_model%map_clm_bot_to_pf_2dbot, &
+    call MappingSourceToDestination(pflotran_model%map_clm_bot_to_pf_2dbot, &
                                     pflotran_model%option, &
                                     clm_pf_idata%press_subbase_clmp, &
                                     clm_pf_idata%press_subbase_pfs)
 
-       call MappingSourceToDestination(pflotran_model%map_clm_bot_to_pf_2dbot, &
+    call MappingSourceToDestination(pflotran_model%map_clm_bot_to_pf_2dbot, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qflux_subbase_clmp, &
                                     clm_pf_idata%qflux_subbase_pfs)
-    endif
 
     ! interface vecs of PF
     call VecGetArrayF90(clm_pf_idata%press_subsurf_pfs,  press_subsurf_pf_loc,  ierr)
@@ -4685,17 +4675,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 #endif
              endif
 
-          endif
-
-          if(StringCompare(boundary_condition%name,'clm_gflux_overflow')) then
-              if (boundary_condition%flow_condition%itype(press_dof) == SEEPAGE_BC) then
-                   clm_pf_idata%topbc_seepage = PETSC_TRUE
-                   boundary_condition%flow_aux_real_var(press_dof,iconn) = &
-                       max(press_maxponding_pf_loc(local_id), &
-                           pflotran_model%option%reference_pressure)
-              else
-                   clm_pf_idata%topbc_seepage = PETSC_FALSE
-              end if
           endif
 
           if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then
@@ -6814,15 +6793,6 @@ write(option%myrank+200,*) &
     call MappingCreateWeightMatrix(map, option)
     call MappingCreateScatterOfSourceMesh(map, option)
     call MappingFreeNotNeeded(map)
-
-!#ifdef testing
-    write(string1,'(I2)') option%myrank
-    write(string2,'(I2)') map_id
-    string = trim(adjustl(string1))//'-'//trim(adjustl(string2))//'-s2d_scat_s_gb2disloc.out'
-    call PetscViewerASCIIOpen(PETSC_COMM_WORLD, string,viewer,ierr)
-    call VecScatterView(map%s2d_scat_s_gb2disloc,viewer,ierr)
-    call PetscViewerDestroy(viewer,ierr)
-!#endif
 
     ! Setting the number of cells constituting the face of the 3D
     ! subsurface domain for each model.
