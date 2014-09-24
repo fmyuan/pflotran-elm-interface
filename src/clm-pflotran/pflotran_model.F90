@@ -3665,10 +3665,10 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     ! be cleaned up, so we are leaking memory....
 
     call model%simulation%FinalizeRun()
-    call model%simulation%Strip()
-    deallocate(model%simulation)
+    !call model%simulation%Strip()    ! this causes petsc error of seq. fault issue, although doesn't matter.
+    if(associated(model%simulation)) deallocate(model%simulation)
     nullify(model%simulation)
-  
+
     call PFLOTRANFinalize(model%option)
     call OptionFinalize(model%option)
 
@@ -3684,7 +3684,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     call MappingDestroy(model%map_pf_2dbot_to_clm_bot)
     call MappingDestroy(model%map_pf_2dsub_to_clm_srf)
 
-    deallocate(model)
+    if (associated(model)) deallocate(model)
     nullify(model)
 
   end subroutine pflotranModelDestroy
@@ -6274,9 +6274,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     type(coupler_type), pointer        :: source_sink
     type(connection_set_type), pointer :: cur_connection_set
     character(len=MAXSTRINGLENGTH)     :: condition_name
-
-    character(len=MAXSTRINGLENGTH)     :: string, string1, string2
-    PetscViewer:: viewer
 
 !-------------------------------------------------------------------
 !
