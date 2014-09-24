@@ -6280,9 +6280,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
 !-------------------------------------------------------------------
 !
-write(pflotran_model%option%myrank+200,*) 'checking point mapping - mapID: ', map_id
-!
-
     option          => pflotran_model%option
 
     select type (simulation => pflotran_model%simulation)
@@ -6331,21 +6328,12 @@ write(pflotran_model%option%myrank+200,*) 'checking point mapping - mapID: ', ma
         call printErrMsg(option)
     end select
 
-!
-write(pflotran_model%option%myrank+200,*) 'checking point 2'
-!
-
-
     ! Read mapping file
     if (index(map%filename, '.h5') > 0) then
       call MappingReadHDF5(map, map%filename, option)
     else
       call MappingReadTxtFile(map, map%filename, option)
     endif
-
-!
-write(pflotran_model%option%myrank+200,*) 'checking point 3-------'
-!
 
     grid_clm_npts_ghost=0
 
@@ -6391,10 +6379,6 @@ write(pflotran_model%option%myrank+200,*) 'checking point 3-------'
               if (patch%imat(ghosted_id) <= 0) cycle
               grid_pf_cell_ids_nindex(iconn) = grid%nG2A(ghosted_id) - 1
               grid_pf_local_nindex(iconn) = 1
-
-write(option%myrank+200,*) 'iconn=', iconn, 'local_id=',local_id, &
-'ghosted_id=', ghosted_id, 'nature_id=',grid%nG2A(ghosted_id)
-
             enddo
 
           endif
@@ -6415,10 +6399,6 @@ write(option%myrank+200,*) 'iconn=', iconn, 'local_id=',local_id, &
     !
     ! Step-1: Find face cells-ids of PFLOTRAN subsurface domain
     !
-!
-write(option%myrank+200,*) 'checking 4 prior to/after mpi exscan ---------------------------'
-write(option%myrank+200,*) 'grid_pf_npts_local=', grid_pf_npts_local
-!
     call VecCreateMPI(option%mycomm, grid%nlmax, PETSC_DETERMINE, face_ids, ierr)
     CHKERRQ(ierr)
     call VecSet(face_ids, -1.d0, ierr); CHKERRQ(ierr)
@@ -6436,9 +6416,6 @@ write(option%myrank+200,*) 'grid_pf_npts_local=', grid_pf_npts_local
     call VecGetArrayF90(face_ids, v_loc, ierr); CHKERRQ(ierr)
     count = 0
     do local_id=1,grid%nlmax
-
-write(option%myrank+200,*) 'i0= ',local_id, 'face_id0=',v_loc(local_id)
-
       if(v_loc(local_id) == 1.d0) count = count + 1
     enddo
 
@@ -6452,9 +6429,6 @@ write(option%myrank+200,*) 'i0= ',local_id, 'face_id0=',v_loc(local_id)
         v_loc(local_id) = istart + count
         count = count + 1
       endif
-
-write(option%myrank+200,*) 'i1= ',local_id, 'face_id1=',v_loc(local_id),  &
-'count=',count, 'pf_cell_ids=', INT(v_loc(local_id))
 
     enddo
     call VecRestoreArrayF90(face_ids, v_loc, ierr); CHKERRQ(ierr)
@@ -6486,9 +6460,6 @@ write(option%myrank+200,*) 'i1= ',local_id, 'face_id1=',v_loc(local_id),  &
                         SCATTER_FORWARD, ierr); CHKERRQ(ierr)
     call VecScatterDestroy(vec_scat, ierr); CHKERRQ(ierr)
 
-!
-write(option%myrank+200,*) 'checking 5 vec_scatter ---------------------------'
-
     call VecGetArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
     count = 0
     do iconn = 1, grid_pf_npts_local
@@ -6496,8 +6467,6 @@ write(option%myrank+200,*) 'checking 5 vec_scatter ---------------------------'
         count = count + 1
         grid_pf_cell_ids_nindex(count) = INT(v_loc(iconn))
       endif
-
-write(option%myrank+200,*) 'iconn=',iconn, 'count=',count, 'face_ids_loc=',INT(v_loc(iconn))
 
     enddo
     call VecRestoreArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
@@ -6532,27 +6501,8 @@ write(option%myrank+200,*) 'iconn=',iconn, 'count=',count, 'face_ids_loc=',INT(v
     call ISDestroy(is_from, ierr); CHKERRQ(ierr)
     call ISDestroy(is_to, ierr); CHKERRQ(ierr)
 
-write(option%myrank+200,*) 'checking 6 vec_scatter ---------------------------'
-call VecGetArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
-do iconn = 1, grid_pf_npts_local
-write(option%myrank+200,*) 'i2a= ',iconn, 'face_ids_loc2=',v_loc(iconn)
-enddo
-call VecRestoreArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
-
-
-
     call VecScatterBegin(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
                         SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-
-call VecGetArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
-do iconn = 1, grid_pf_npts_local
-write(option%myrank+200,*) 'i2b= ',iconn, 'face_ids_loc3=',v_loc(iconn)
-enddo
-call VecRestoreArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
-
-!
-write(option%myrank+200,*) 'checking 7 ---------------------------'
-
 
     call VecScatterEnd(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
                         SCATTER_FORWARD, ierr); CHKERRQ(ierr)
@@ -6570,19 +6520,11 @@ write(option%myrank+200,*) 'checking 7 ---------------------------'
         endif
       endif
 
-write(option%myrank+200,*) 'i3= ',iconn, 'face_ids_loc_final=',v_loc(iconn),  &
-'count=',count, 'pf_cell_ids=', INT(v_loc(iconn))
-
-
-
     enddo
     call VecRestoreArrayF90(face_ids_loc, v_loc, ierr)
     CHKERRQ(ierr)
     call VecDestroy(face_ids_loc, ierr)
     CHKERRQ(ierr)
-
-write(option%myrank+200,*) &
-'PF_count= ', count, 'pf_s2d_nwts=', map%s2d_nwts
 
     if(count /= map%s2d_nwts) then
       option%io_buffer='No. of face cells in mapping dataset does not ' // &
@@ -6745,9 +6687,6 @@ write(option%myrank+200,*) &
     call VecDestroy(face_ids_loc, ierr)
     CHKERRQ(ierr)
 
-write(option%myrank+200,*) &
-'clm_count= ', count, 'clm_s2d_nwts=', map%s2d_nwts
-
     if(count /= map%s2d_nwts) then
       option%io_buffer='No. of face cells in mapping dataset does not ' // &
         'match face cells on which BC is applied - CLM.'
@@ -6812,9 +6751,6 @@ write(option%myrank+200,*) &
                         'pflotranModelInitMappingFaceToFace'
         call printErrMsg(option)
     end select
-
-write(option%myrank+200,*) '-----------------------------------------------------------'
-
 
   end subroutine pflotranModelInitMapFaceToFace
 
