@@ -3674,15 +3674,23 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     call CLMPFLOTRANIDataDestroy()
 
-    call MappingDestroy(model%map_clm_sub_to_pf_sub)
-    call MappingDestroy(model%map_clm_srf_to_pf_srf)
-    call MappingDestroy(model%map_clm_srf_to_pf_2dsub)
-    call MappingDestroy(model%map_clm_bot_to_pf_2dbot)
+    if (associated(model%map_clm_sub_to_pf_sub)) &
+      call MappingDestroy(model%map_clm_sub_to_pf_sub)
+    if (associated(model%map_clm_srf_to_pf_srf)) &
+      call MappingDestroy(model%map_clm_srf_to_pf_srf)
+    if (associated(model%map_clm_srf_to_pf_2dsub)) &
+      call MappingDestroy(model%map_clm_srf_to_pf_2dsub)
+    if (associated(model%map_clm_bot_to_pf_2dbot)) &
+      call MappingDestroy(model%map_clm_bot_to_pf_2dbot)
 
-    call MappingDestroy(model%map_pf_sub_to_clm_sub)
-    call MappingDestroy(model%map_pf_srf_to_clm_srf)
-    call MappingDestroy(model%map_pf_2dbot_to_clm_bot)
-    call MappingDestroy(model%map_pf_2dsub_to_clm_srf)
+    if (associated(model%map_pf_sub_to_clm_sub)) &
+      call MappingDestroy(model%map_pf_sub_to_clm_sub)
+    if (associated(model%map_pf_srf_to_clm_srf)) &
+      call MappingDestroy(model%map_pf_srf_to_clm_srf)
+    if (associated(model%map_pf_2dsub_to_clm_srf)) &
+      call MappingDestroy(model%map_pf_2dsub_to_clm_srf)
+    if (associated(model%map_pf_2dbot_to_clm_bot)) &
+      call MappingDestroy(model%map_pf_2dbot_to_clm_bot)
 
     if (associated(model)) deallocate(model)
     nullify(model)
