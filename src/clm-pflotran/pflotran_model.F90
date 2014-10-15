@@ -3665,26 +3665,34 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     ! be cleaned up, so we are leaking memory....
 
     call model%simulation%FinalizeRun()
-    call model%simulation%Strip()
-    deallocate(model%simulation)
+    !call model%simulation%Strip()    ! this causes petsc error of seq. fault issue, although doesn't matter.
+    if(associated(model%simulation)) deallocate(model%simulation)
     nullify(model%simulation)
-  
+
     call PFLOTRANFinalize(model%option)
     call OptionFinalize(model%option)
 
     call CLMPFLOTRANIDataDestroy()
 
-    call MappingDestroy(model%map_clm_sub_to_pf_sub)
-    call MappingDestroy(model%map_clm_srf_to_pf_srf)
-    call MappingDestroy(model%map_clm_srf_to_pf_2dsub)
-    call MappingDestroy(model%map_clm_bot_to_pf_2dbot)
+    if (associated(model%map_clm_sub_to_pf_sub)) &
+      call MappingDestroy(model%map_clm_sub_to_pf_sub)
+    if (associated(model%map_clm_srf_to_pf_srf)) &
+      call MappingDestroy(model%map_clm_srf_to_pf_srf)
+    if (associated(model%map_clm_srf_to_pf_2dsub)) &
+      call MappingDestroy(model%map_clm_srf_to_pf_2dsub)
+    if (associated(model%map_clm_bot_to_pf_2dbot)) &
+      call MappingDestroy(model%map_clm_bot_to_pf_2dbot)
 
-    call MappingDestroy(model%map_pf_sub_to_clm_sub)
-    call MappingDestroy(model%map_pf_srf_to_clm_srf)
-    call MappingDestroy(model%map_pf_2dbot_to_clm_bot)
-    call MappingDestroy(model%map_pf_2dsub_to_clm_srf)
+    if (associated(model%map_pf_sub_to_clm_sub)) &
+      call MappingDestroy(model%map_pf_sub_to_clm_sub)
+    if (associated(model%map_pf_srf_to_clm_srf)) &
+      call MappingDestroy(model%map_pf_srf_to_clm_srf)
+    if (associated(model%map_pf_2dsub_to_clm_srf)) &
+      call MappingDestroy(model%map_pf_2dsub_to_clm_srf)
+    if (associated(model%map_pf_2dbot_to_clm_bot)) &
+      call MappingDestroy(model%map_pf_2dbot_to_clm_bot)
 
-    deallocate(model)
+    if (associated(model)) deallocate(model)
     nullify(model)
 
   end subroutine pflotranModelDestroy
@@ -4565,11 +4573,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     !------------------------------------------------------------------------------------
 
-    if (clm_pf_idata%nlpf_2dsub <= 0 .and. clm_pf_idata%ngpf_2dsub <= 0    &
-        .and. clm_pf_idata%nlpf_bottom <= 0 .and. clm_pf_idata%ngpf_bottom <= 0) then
-        return
-    endif
-
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
          realization => simulation%realization
@@ -4584,35 +4587,30 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     patch           => realization%patch
     grid            => patch%grid
 
-    if (clm_pf_idata%nlpf_2dsub > 0 .and. clm_pf_idata%ngpf_2dsub > 0 ) then
-      call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%press_subsurf_clmp, &
                                     clm_pf_idata%press_subsurf_pfs)
 
-      call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qflux_subsurf_clmp, &
                                     clm_pf_idata%qflux_subsurf_pfs)
 
-      call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
+    call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_2dsub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%press_maxponding_clmp, &
                                     clm_pf_idata%press_maxponding_pfs)
 
-    endif
-
-    if (clm_pf_idata%nlpf_bottom > 0 .and. clm_pf_idata%ngpf_bottom > 0 ) then
-       call MappingSourceToDestination(pflotran_model%map_clm_bot_to_pf_2dbot, &
+    call MappingSourceToDestination(pflotran_model%map_clm_bot_to_pf_2dbot, &
                                     pflotran_model%option, &
                                     clm_pf_idata%press_subbase_clmp, &
                                     clm_pf_idata%press_subbase_pfs)
 
-       call MappingSourceToDestination(pflotran_model%map_clm_bot_to_pf_2dbot, &
+    call MappingSourceToDestination(pflotran_model%map_clm_bot_to_pf_2dbot, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qflux_subbase_clmp, &
                                     clm_pf_idata%qflux_subbase_pfs)
-    endif
 
     ! interface vecs of PF
     call VecGetArrayF90(clm_pf_idata%press_subsurf_pfs,  press_subsurf_pf_loc,  ierr)
@@ -4685,17 +4683,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 #endif
              endif
 
-          endif
-
-          if(StringCompare(boundary_condition%name,'clm_gflux_overflow')) then
-              if (boundary_condition%flow_condition%itype(press_dof) == SEEPAGE_BC) then
-                   clm_pf_idata%topbc_seepage = PETSC_TRUE
-                   boundary_condition%flow_aux_real_var(press_dof,iconn) = &
-                       max(press_maxponding_pf_loc(local_id), &
-                           pflotran_model%option%reference_pressure)
-              else
-                   clm_pf_idata%topbc_seepage = PETSC_FALSE
-              end if
           endif
 
           if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then
@@ -6296,14 +6283,8 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     type(connection_set_type), pointer :: cur_connection_set
     character(len=MAXSTRINGLENGTH)     :: condition_name
 
-    character(len=MAXSTRINGLENGTH)     :: string, string1, string2
-    PetscViewer:: viewer
-
 !-------------------------------------------------------------------
 !
-write(pflotran_model%option%myrank+200,*) 'checking point mapping - mapID: ', map_id
-!
-
     option          => pflotran_model%option
 
     select type (simulation => pflotran_model%simulation)
@@ -6352,21 +6333,12 @@ write(pflotran_model%option%myrank+200,*) 'checking point mapping - mapID: ', ma
         call printErrMsg(option)
     end select
 
-!
-write(pflotran_model%option%myrank+200,*) 'checking point 2'
-!
-
-
     ! Read mapping file
     if (index(map%filename, '.h5') > 0) then
       call MappingReadHDF5(map, map%filename, option)
     else
       call MappingReadTxtFile(map, map%filename, option)
     endif
-
-!
-write(pflotran_model%option%myrank+200,*) 'checking point 3-------'
-!
 
     grid_clm_npts_ghost=0
 
@@ -6412,10 +6384,6 @@ write(pflotran_model%option%myrank+200,*) 'checking point 3-------'
               if (patch%imat(ghosted_id) <= 0) cycle
               grid_pf_cell_ids_nindex(iconn) = grid%nG2A(ghosted_id) - 1
               grid_pf_local_nindex(iconn) = 1
-
-write(option%myrank+200,*) 'iconn=', iconn, 'local_id=',local_id, &
-'ghosted_id=', ghosted_id, 'nature_id=',grid%nG2A(ghosted_id)
-
             enddo
 
           endif
@@ -6436,10 +6404,6 @@ write(option%myrank+200,*) 'iconn=', iconn, 'local_id=',local_id, &
     !
     ! Step-1: Find face cells-ids of PFLOTRAN subsurface domain
     !
-!
-write(option%myrank+200,*) 'checking 4 prior to/after mpi exscan ---------------------------'
-write(option%myrank+200,*) 'grid_pf_npts_local=', grid_pf_npts_local
-!
     call VecCreateMPI(option%mycomm, grid%nlmax, PETSC_DETERMINE, face_ids, ierr)
     CHKERRQ(ierr)
     call VecSet(face_ids, -1.d0, ierr); CHKERRQ(ierr)
@@ -6457,9 +6421,6 @@ write(option%myrank+200,*) 'grid_pf_npts_local=', grid_pf_npts_local
     call VecGetArrayF90(face_ids, v_loc, ierr); CHKERRQ(ierr)
     count = 0
     do local_id=1,grid%nlmax
-
-write(option%myrank+200,*) 'i0= ',local_id, 'face_id0=',v_loc(local_id)
-
       if(v_loc(local_id) == 1.d0) count = count + 1
     enddo
 
@@ -6473,9 +6434,6 @@ write(option%myrank+200,*) 'i0= ',local_id, 'face_id0=',v_loc(local_id)
         v_loc(local_id) = istart + count
         count = count + 1
       endif
-
-write(option%myrank+200,*) 'i1= ',local_id, 'face_id1=',v_loc(local_id),  &
-'count=',count, 'pf_cell_ids=', INT(v_loc(local_id))
 
     enddo
     call VecRestoreArrayF90(face_ids, v_loc, ierr); CHKERRQ(ierr)
@@ -6507,9 +6465,6 @@ write(option%myrank+200,*) 'i1= ',local_id, 'face_id1=',v_loc(local_id),  &
                         SCATTER_FORWARD, ierr); CHKERRQ(ierr)
     call VecScatterDestroy(vec_scat, ierr); CHKERRQ(ierr)
 
-!
-write(option%myrank+200,*) 'checking 5 vec_scatter ---------------------------'
-
     call VecGetArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
     count = 0
     do iconn = 1, grid_pf_npts_local
@@ -6517,8 +6472,6 @@ write(option%myrank+200,*) 'checking 5 vec_scatter ---------------------------'
         count = count + 1
         grid_pf_cell_ids_nindex(count) = INT(v_loc(iconn))
       endif
-
-write(option%myrank+200,*) 'iconn=',iconn, 'count=',count, 'face_ids_loc=',INT(v_loc(iconn))
 
     enddo
     call VecRestoreArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
@@ -6553,27 +6506,8 @@ write(option%myrank+200,*) 'iconn=',iconn, 'count=',count, 'face_ids_loc=',INT(v
     call ISDestroy(is_from, ierr); CHKERRQ(ierr)
     call ISDestroy(is_to, ierr); CHKERRQ(ierr)
 
-write(option%myrank+200,*) 'checking 6 vec_scatter ---------------------------'
-call VecGetArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
-do iconn = 1, grid_pf_npts_local
-write(option%myrank+200,*) 'i2a= ',iconn, 'face_ids_loc2=',v_loc(iconn)
-enddo
-call VecRestoreArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
-
-
-
     call VecScatterBegin(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
                         SCATTER_FORWARD, ierr); CHKERRQ(ierr)
-
-call VecGetArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
-do iconn = 1, grid_pf_npts_local
-write(option%myrank+200,*) 'i2b= ',iconn, 'face_ids_loc3=',v_loc(iconn)
-enddo
-call VecRestoreArrayF90(face_ids_loc, v_loc, ierr); CHKERRQ(ierr)
-
-!
-write(option%myrank+200,*) 'checking 7 ---------------------------'
-
 
     call VecScatterEnd(vec_scat, face_ids, face_ids_loc, INSERT_VALUES, &
                         SCATTER_FORWARD, ierr); CHKERRQ(ierr)
@@ -6591,19 +6525,11 @@ write(option%myrank+200,*) 'checking 7 ---------------------------'
         endif
       endif
 
-write(option%myrank+200,*) 'i3= ',iconn, 'face_ids_loc_final=',v_loc(iconn),  &
-'count=',count, 'pf_cell_ids=', INT(v_loc(iconn))
-
-
-
     enddo
     call VecRestoreArrayF90(face_ids_loc, v_loc, ierr)
     CHKERRQ(ierr)
     call VecDestroy(face_ids_loc, ierr)
     CHKERRQ(ierr)
-
-write(option%myrank+200,*) &
-'PF_count= ', count, 'pf_s2d_nwts=', map%s2d_nwts
 
     if(count /= map%s2d_nwts) then
       option%io_buffer='No. of face cells in mapping dataset does not ' // &
@@ -6766,9 +6692,6 @@ write(option%myrank+200,*) &
     call VecDestroy(face_ids_loc, ierr)
     CHKERRQ(ierr)
 
-write(option%myrank+200,*) &
-'clm_count= ', count, 'clm_s2d_nwts=', map%s2d_nwts
-
     if(count /= map%s2d_nwts) then
       option%io_buffer='No. of face cells in mapping dataset does not ' // &
         'match face cells on which BC is applied - CLM.'
@@ -6815,15 +6738,6 @@ write(option%myrank+200,*) &
     call MappingCreateScatterOfSourceMesh(map, option)
     call MappingFreeNotNeeded(map)
 
-!#ifdef testing
-    write(string1,'(I2)') option%myrank
-    write(string2,'(I2)') map_id
-    string = trim(adjustl(string1))//'-'//trim(adjustl(string2))//'-s2d_scat_s_gb2disloc.out'
-    call PetscViewerASCIIOpen(PETSC_COMM_WORLD, string,viewer,ierr)
-    call VecScatterView(map%s2d_scat_s_gb2disloc,viewer,ierr)
-    call PetscViewerDestroy(viewer,ierr)
-!#endif
-
     ! Setting the number of cells constituting the face of the 3D
     ! subsurface domain for each model.
     select case(map_id)
@@ -6842,9 +6756,6 @@ write(option%myrank+200,*) &
                         'pflotranModelInitMappingFaceToFace'
         call printErrMsg(option)
     end select
-
-write(option%myrank+200,*) '-----------------------------------------------------------'
-
 
   end subroutine pflotranModelInitMapFaceToFace
 
