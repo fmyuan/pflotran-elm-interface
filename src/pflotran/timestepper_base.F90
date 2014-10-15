@@ -16,7 +16,7 @@ module Timestepper_Base_class
   PetscInt, parameter, public :: TS_STOP_WALLCLOCK_EXCEEDED = 3
   PetscInt, parameter, public :: TS_STOP_FAILURE = 4
 
-  type, public :: stepper_base_type
+  type, public :: timestepper_base_type
   
     PetscInt :: steps         ! The number of time steps taken by the code.
     PetscInt :: num_constant_time_steps   ! number of contiguous time_steps of constant size
@@ -66,7 +66,7 @@ module Timestepper_Base_class
     procedure, public :: Strip => TimestepperBaseStrip
     procedure, public :: Destroy => TimestepperBaseDestroy
     
-  end type stepper_base_type
+  end type timestepper_base_type
   
   type, public :: stepper_base_header_type
     real*8 :: time
@@ -102,9 +102,9 @@ function TimestepperBaseCreate()
 
   implicit none
   
-  class(stepper_base_type), pointer :: TimestepperBaseCreate
+  class(timestepper_base_type), pointer :: TimestepperBaseCreate
   
-  class(stepper_base_type), pointer :: this
+  class(timestepper_base_type), pointer :: this
   
   allocate(this)
   call this%Init()
@@ -125,7 +125,7 @@ subroutine TimestepperBaseInit(this)
 
   implicit none
   
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   
   this%steps = 0
   this%num_constant_time_steps = 0
@@ -146,7 +146,7 @@ subroutine TimestepperBaseInit(this)
   this%dt = 1.d0
   this%dt_min = 1.d0
   this%dt_max = 3.1536d6 ! One-tenth of a year.  
-  this%cfl_limiter = -999.d0
+  this%cfl_limiter = UNINITIALIZED_DOUBLE
   this%cfl_limiter_ts = 1.d20
   
   this%time_step_cut_flag = PETSC_FALSE
@@ -177,7 +177,7 @@ subroutine TimestepperBaseRead(this,input,option)
   
   implicit none
 
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   type(input_type) :: input
   type(option_type) :: option
   
@@ -202,7 +202,7 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
   
   implicit none
   
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   character(len=MAXWORDLENGTH) :: keyword
   type(input_type) :: input
   type(option_type) :: option
@@ -292,7 +292,7 @@ subroutine TimestepperBaseUpdateDT(this,process_model)
   
   implicit none
 
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   class(pm_base_type) :: process_model
   
   process_model%option%io_buffer = 'TimestepperBaseStepDT must be extended.'
@@ -317,7 +317,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
   
   implicit none
 
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   PetscReal :: sync_time
   type(option_type) :: option
   PetscInt :: stop_flag
@@ -498,7 +498,7 @@ subroutine TimestepperBaseStepDT(this,process_model,stop_flag)
   
   implicit none
 
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   class(pm_base_type) :: process_model
   PetscInt :: stop_flag
   
@@ -525,7 +525,7 @@ subroutine TimestepperBasePrintInfo(this,fid,header,option)
   
   implicit none
   
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   PetscInt :: fid
   character(len=MAXSTRINGLENGTH) :: header
   character(len=MAXSTRINGLENGTH) :: string
@@ -573,7 +573,7 @@ subroutine TimestepperBaseCheckpoint(this,viewer,option)
 
 #include "finclude/petscviewer.h"
 
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   PetscViewer :: viewer
   type(option_type) :: option
   
@@ -598,7 +598,7 @@ subroutine TimestepperBaseRegisterHeader(this,bag,header)
   
 #include "finclude/petscbag.h"  
 
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   class(stepper_base_header_type) :: header
   PetscBag :: bag
   
@@ -639,7 +639,7 @@ subroutine TimestepperBaseSetHeader(this,bag,header)
   
 #include "finclude/petscbag.h"  
 
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   class(stepper_base_header_type) :: header
   PetscBag :: bag
   
@@ -676,7 +676,7 @@ subroutine TimestepperBaseRestart(this,viewer,option)
 
 #include "finclude/petscviewer.h"
 
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   PetscViewer :: viewer
   type(option_type) :: option
   
@@ -701,7 +701,7 @@ subroutine TimestepperBaseGetHeader(this,header)
   
 #include "finclude/petscbag.h"  
 
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   class(stepper_base_header_type) :: header
   
   this%target_time = header%time
@@ -728,7 +728,7 @@ subroutine TimestepperBaseReset(this)
   implicit none
   
 
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   
   this%target_time = 0.d0
   this%dt = this%dt_min
@@ -754,7 +754,7 @@ function TimestepperBaseWallClockStop(this,option)
 
   implicit none
 
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   type(option_type) :: option
   
   PetscBool :: TimestepperBaseWallclockStop
@@ -791,7 +791,7 @@ recursive subroutine TimestepperBaseFinalizeRun(this,option)
   
   implicit none
   
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   type(option_type) :: option
   
   character(len=MAXSTRINGLENGTH) :: string
@@ -822,7 +822,7 @@ subroutine TimestepperBaseStrip(this)
 
   implicit none
   
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   
 end subroutine TimestepperBaseStrip
 
@@ -838,7 +838,7 @@ subroutine TimestepperBaseDestroy(this)
 
   implicit none
   
-  class(stepper_base_type) :: this
+  class(timestepper_base_type) :: this
   
   call TimestepperBaseStrip(this)
     

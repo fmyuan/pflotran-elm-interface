@@ -29,7 +29,7 @@ private
 
   type, public, extends(realization_base_type) :: surface_realization_type
 
-    type(waypoint_list_type), pointer  :: waypoints
+    type(waypoint_list_type), pointer  :: waypoint_list
     
     type(surface_field_type), pointer                 :: surf_field
     type(region_list_type), pointer                   :: surf_regions
@@ -1399,7 +1399,7 @@ subroutine SurfRealizAddWaypointsToList(surf_realization)
   PetscReal, pointer :: times(:)
 
   option => surf_realization%option
-  waypoint_list => surf_realization%waypoints
+  waypoint_list => surf_realization%waypoint_list
   nullify(times)
   
   ! set flag for final output
@@ -1467,7 +1467,7 @@ subroutine SurfRealizAddWaypointsToList(surf_realization)
         waypoint => WaypointCreate()
         waypoint%time = temp_real
         waypoint%print_output = PETSC_TRUE
-        call WaypointInsertInList(waypoint,surf_realization%waypoints)
+        call WaypointInsertInList(waypoint,surf_realization%waypoint_list)
       enddo
     endif
     
@@ -1480,7 +1480,7 @@ subroutine SurfRealizAddWaypointsToList(surf_realization)
         waypoint => WaypointCreate()
         waypoint%time = temp_real
         waypoint%print_tr_output = PETSC_TRUE
-        call WaypointInsertInList(waypoint,surf_realization%waypoints)
+        call WaypointInsertInList(waypoint,surf_realization%waypoint_list)
       enddo
     endif
 
@@ -1497,7 +1497,7 @@ subroutine SurfRealizAddWaypointsToList(surf_realization)
       waypoint => WaypointCreate()
       waypoint%time = temp_real
       waypoint%print_checkpoint = PETSC_TRUE
-      call WaypointInsertInList(waypoint,surf_realization%waypoints)
+      call WaypointInsertInList(waypoint,surf_realization%waypoint_list)
     enddo
   endif
 
