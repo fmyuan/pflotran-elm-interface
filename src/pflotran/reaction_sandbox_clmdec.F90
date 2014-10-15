@@ -292,7 +292,7 @@ subroutine CLMDec_Read(this,input,option)
 
           allocate(new_pool)
           new_pool%name = ''
-          new_pool%nc_ratio = -999.d0
+          new_pool%nc_ratio = UNINITIALIZED_DOUBLE
           nullify(new_pool%next)
 
           call InputReadWord(input,option,new_pool%name,PETSC_TRUE)
@@ -300,7 +300,7 @@ subroutine CLMDec_Read(this,input,option)
             'CHEMISTRY,REACTION_SANDBOX,CLMDec,POOLS')
           call InputReadDouble(input,option,temp_real)
           if (InputError(input)) then
-            new_pool%nc_ratio = -999.d0
+            new_pool%nc_ratio = UNINITIALIZED_DOUBLE
           else
             ! convert CN ratio from mass C/mass N to mol N/mol C
              if(temp_real > 0.0d0 ) then
@@ -320,7 +320,7 @@ subroutine CLMDec_Read(this,input,option)
       
         allocate(new_reaction)
         new_reaction%upstream_pool_name = ''
-        new_reaction%rate_constant = -999.d0
+        new_reaction%rate_constant = UNINITIALIZED_DOUBLE
         nullify(new_reaction%downstream_pools)
         nullify(new_reaction%next)
         
@@ -532,7 +532,7 @@ subroutine CLMDec_Setup(this,reaction,option)
   this%upstream_is_varycn = PETSC_FALSE
   this%upstream_c_id = 0
   this%upstream_n_id = 0
-  this%upstream_nc = -999.9
+  this%upstream_nc = UNINITIALIZED_DOUBLE
   this%upstream_is_aqueous = PETSC_FALSE
 
   this%downstream_id = 0
@@ -550,8 +550,8 @@ subroutine CLMDec_Setup(this,reaction,option)
 
   pool_names = ''
   pool_is_aqueous = PETSC_FALSE
-  species_id_pool_c = -999 
-  species_id_pool_n = -999 
+  species_id_pool_c = UNINITIALIZED_INTEGER
+  species_id_pool_n = UNINITIALIZED_INTEGER
 
 ! pools
   icount = 0
