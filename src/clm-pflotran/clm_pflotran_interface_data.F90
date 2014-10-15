@@ -45,8 +45,8 @@ module clm_pflotran_interface_data
   ! (ii) Source of water and temperature of rain for PFLOTRAN's 2D surface domain
   Vec :: rain_clm   ! mpi vec
   Vec :: rain_pf    ! seq vec
-  Vec :: rain_temp_clm ! seq vec
-  Vec :: rain_temp_pf  ! mpi vec
+  Vec :: rain_temp_clm ! mpi vec
+  Vec :: rain_temp_pf  ! seq vec
   
   ! (iii) Ground heat flux BC for PFLOTRAN's subsurface domain
   !       This BC is applied on top surface of the subsurface domain
