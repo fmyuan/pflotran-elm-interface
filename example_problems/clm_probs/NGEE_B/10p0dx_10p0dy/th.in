@@ -1,8 +1,8 @@
-:Description: 1D test problem for THC mode
-:===================== THC mode ===============================
-MODE TH 
+!Description! 1D test problem for THC mode
+!===================== THC mode ===============================
+MODE TH NO_FREEZING
 
-:===================== Discretization =========================
+!===================== Discretization =========================
 GRID
   TYPE unstructured B_10p0dx_10p0dy_10nz_clm_depths.h5
 END
@@ -10,7 +10,7 @@ END
 FLUID_PROPERTY
 DIFFUSION_COEFFICIENT 1.d-9
 /
-:========================= material properties ===================
+!========================= material properties ===================
 MATERIAL_PROPERTY soil1
   ID 1
   POROSITY 0.5d0
@@ -28,7 +28,7 @@ MATERIAL_PROPERTY soil1
   /
 /
 
-:========================= saturation functions ==================
+!========================= saturation functions ==================
 SATURATION_FUNCTION default
   SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
   RESIDUAL_SATURATION 0.5d-1
@@ -36,24 +36,24 @@ SATURATION_FUNCTION default
   ALPHA 1.d-3
 /
 
-:========================= output options =========================
+!========================= output options =========================
 OUTPUT
-  :TIMES y 0.25d0 0.5d0 0.75d0 2.d0
-  :SCREEN PERIODIC 10
-  :PERIODIC_OBSERVATION TIMESTEP 1 
-  :FORMAT TECPLOT POINT
+  !TIMES y 0.25d0 0.5d0 0.75d0 2.d0
+  !SCREEN PERIODIC 10
+  !PERIODIC_OBSERVATION TIMESTEP 1 
+  !FORMAT TECPLOT POINT
   FORMAT HDF5
-  :VELOCITIES
+  !VELOCITIES
 /
 
-:======================== times ====================================
+!======================== times ====================================
 TIME
   FINAL_TIME 36000 s
   INITIAL_TIMESTEP_SIZE 3600.0 s
   MAXIMUM_TIMESTEP_SIZE 3600.0 s        ! produces CFL ~<= 1.
 /
 
-:=========================== regions ===============================
+!=========================== regions ===============================
 REGION all
   FILE B_10p0dx_10p0dy_10nz_clm_depths.h5
   GRID unstructured
@@ -64,7 +64,7 @@ REGION top
   GRID unstructured
 END
 
-:======================= flow conditions ===============================
+!======================= flow conditions ===============================
 FLOW_CONDITION initial
   TYPE
     PRESSURE hydrostatic
@@ -94,8 +94,8 @@ FLOW_CONDITION gflux
   TEMPERATURE 0.d0
 END
 
-:========================== initial and boundary conditions =================
-: initial condition
+!========================== initial and boundary conditions =================
+! initial condition
 INITIAL_CONDITION initial_copuler
   FLOW_CONDITION initial
   REGION all
@@ -111,13 +111,13 @@ BOUNDARY_CONDITION clm_gflux_bc
   REGION top
 END
 
-:===================== stratigraphy couplers ==============================
+!===================== stratigraphy couplers ==============================
 STRATA
   REGION all
   MATERIAL soil1
 END
 
-:===================== mapping files ==============================
+!===================== mapping files ==============================
 MAPPING_FILES
   CLM2PF_FLUX_FILE B_10p0dx_10p0dy_10nz_clm2pf_map_c130501.dat
   CLM2PF_SOIL_FILE B_10p0dx_10p0dy_10nz_clm2pf_map_c130501.dat
