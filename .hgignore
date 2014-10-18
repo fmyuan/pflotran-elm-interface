@@ -307,7 +307,6 @@ src/clm-pflotran/pm_surface_flow.F90
 src/clm-pflotran/pm_surface_th.F90
 src/clm-pflotran/pm_th.F90
 src/clm-pflotran/pm_thc.F90
-src/clm-pflotran/pm_top.F90
 src/clm-pflotran/e4d_mat_inv.F90
 src/clm-pflotran/eos_gas.F90
 src/clm-pflotran/geomechanics_factory.F90
@@ -331,6 +330,10 @@ src/clm-pflotran/unstructured_polyhedra.F90
 src/clm-pflotran/srcsink_sandbox_downreg.F90
 src/clm-pflotran/reaction_sandbox_clmdec.F90
 src/clm-pflotran/reaction_sandbox_plantn.F90
+src/clm-pflotran/characteristic_curves.F90
+src/clm-pflotran/pm_base_pointer.F90
+src/clm-pflotran/pmc_material.F90
+src/clm-pflotran/subsurface.F90
 
 .git
 .gitignore

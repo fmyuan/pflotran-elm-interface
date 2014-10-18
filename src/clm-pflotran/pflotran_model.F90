@@ -1891,11 +1891,11 @@ end subroutine pflotranModelSetICs
     waypoint2 => WaypointCreate(waypoint)
 
     if (associated(realization)) then
-       call WaypointInsertInList(waypoint, realization%waypoints)
+       call WaypointInsertInList(waypoint, realization%waypoint_list)
     end if
 
     if (associated(surf_realization)) then
-       call WaypointInsertInList(waypoint2, surf_realization%waypoints)
+       call WaypointInsertInList(waypoint2, surf_realization%waypoint_list)
     end if
 
   end subroutine pflotranModelInsertWaypoint
@@ -1952,11 +1952,11 @@ end subroutine pflotranModelSetICs
     waypoint%dt_max            = 3153600
 
     if (associated(realization)) then
-       call WaypointDeleteFromList(waypoint, realization%waypoints)
+       call WaypointDeleteFromList(waypoint, realization%waypoint_list)
     end if
 
     if (associated(surf_realization)) then
-       call WaypointDeleteFromList(waypoint, surf_realization%waypoints)
+       call WaypointDeleteFromList(waypoint, surf_realization%waypoint_list)
     end if
 
   end subroutine pflotranModelDeleteWaypoint
