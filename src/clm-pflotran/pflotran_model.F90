@@ -2192,6 +2192,8 @@ end subroutine pflotranModelSetICs
     use clm_pflotran_interface_data
     use Connection_module
     use Coupler_module
+    use Grid_module
+    use Global_Aux_module
     use Mapping_module
     use Option_module
     use Realization_class, only : realization_type
@@ -2212,8 +2214,12 @@ end subroutine pflotranModelSetICs
     PetscScalar, pointer                      :: qflx_pf_loc(:)
     PetscBool                                 :: found
     PetscInt                                  :: iconn
+    PetscInt                                  :: local_id
+    PetscInt                                  :: ghosted_id
     PetscErrorCode                            :: ierr
     PetscInt                                  :: press_dof
+    type(grid_type), pointer                  :: grid
+    type(global_auxvar_type), pointer         :: global_aux_vars(:)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     clm_pf_idata%qflx_clm, &
@@ -2230,6 +2236,9 @@ end subroutine pflotranModelSetICs
             " in pflotranModelUpdateSourceSink."
          call printErrMsg(pflotran_model%option)
     end select
+
+    global_aux_vars  => subsurf_realization%patch%aux%Global%auxvars
+    grid             => subsurf_realization%patch%grid
 
     ! Find value of pressure-dof depending on flow mode
     select case (pflotran_model%option%iflowmode)
@@ -2262,6 +2271,13 @@ end subroutine pflotranModelSetICs
 
         do iconn = 1, cur_connection_set%num_connections
           source_sink%flow_aux_real_var(press_dof,iconn) = qflx_pf_loc(iconn)
+
+          if (pflotran_model%option%iflowmode == TH_MODE) then
+            local_id = cur_connection_set%id_dn(iconn)
+            ghosted_id = grid%nL2G(local_id)
+            source_sink%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+              global_aux_vars(ghosted_id)%temp
+          end if
         enddo
       endif
 
