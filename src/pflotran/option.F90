@@ -108,7 +108,6 @@ module Option_module
     PetscInt, pointer :: garbage ! for some reason, Intel will not compile without this
 
     PetscReal :: uniform_velocity(3)
-    PetscBool :: store_flowrate
 
     ! Program options
     PetscBool :: use_matrix_free  ! If true, do not form the Jacobian.
@@ -536,10 +535,6 @@ subroutine OptionInitRealization(option)
 !fmy: mass_balance for bc/ss IS needed by default if coupled with CLM
 
   option%mass_bal_detailed = PETSC_FALSE
-  option%store_flowrate = PETSC_FALSE
-#ifdef STORE_FLOWRATES
-  option%store_flowrate = PETSC_TRUE
-#endif
 
   option%use_touch_options = PETSC_FALSE
   option%overwrite_restart_transport = PETSC_FALSE

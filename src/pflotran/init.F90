@@ -1437,6 +1437,7 @@ subroutine InitReadInput(simulation)
   use Coupler_module
   use Strata_module
   use Observation_module
+  use Integral_Flux_module
   use Waypoint_module
   use Debug_module
   use Patch_module
@@ -1455,6 +1456,7 @@ subroutine InitReadInput(simulation)
   use EOS_module
   use EOS_Water_module
   use SrcSink_Sandbox_module
+  use Creep_Closure_module
   
   use Surface_Flow_module
   use Surface_Init_module, only : SurfaceInitReadInput
@@ -1496,6 +1498,7 @@ subroutine InitReadInput(simulation)
   type(coupler_type), pointer :: coupler
   type(strata_type), pointer :: strata
   type(observation_type), pointer :: observation
+  type(integral_flux_type), pointer :: integral_flux
   
   type(waypoint_type), pointer :: waypoint
   
@@ -1610,6 +1613,13 @@ subroutine InitReadInput(simulation)
              call InputSkipToEnd(input,option,card)
            endif
          endif  
+         
+!....................
+      case('CREEP_CLOSURE')
+        call CreepClosureInit()
+        creep_closure => CreepClosureCreate()
+        call creep_closure%Read(input,option)
+        option%flow%transient_porosity = PETSC_TRUE
         
 !....................
       case ('ICE_MODEL')
@@ -1729,7 +1739,7 @@ subroutine InitReadInput(simulation)
         call RegionRead(region,input,option)
         ! we don't copy regions down to patches quite yet, since we
         ! don't want to duplicate IO in reading the regions
-        call RegionAddToList(region,realization%regions)   
+        call RegionAddToList(region,realization%region_list)   
         nullify(region)   
 
 !....................
@@ -2256,7 +2266,19 @@ subroutine InitReadInput(simulation)
       case ('OBSERVATION')
         observation => ObservationCreate()
         call ObservationRead(observation,input,option)
-        call RealizationAddObservation(realization,observation)        
+        call ObservationAddToList(observation, &
+                                  realization%patch%observation_list)
+        nullify(observation)
+      
+!....................
+      case ('INTEGRAL_FLUX')
+        integral_flux => IntegralFluxCreate()
+        call InputReadWord(input,option,integral_flux%name,PETSC_TRUE)
+        call InputDefaultMsg(input,option,'Integral Flux name') 
+        call IntegralFluxRead(integral_flux,input,option)
+        call IntegralFluxAddToList(integral_flux, &
+                                   realization%patch%integral_flux_list)
+        nullify(integral_flux)
       
 !.....................
       case ('WALLCLOCK_STOP')
@@ -2610,11 +2632,6 @@ subroutine InitReadInput(simulation)
         endif
         if (mass_flowrate.or.energy_flowrate.or.aveg_mass_flowrate.or.aveg_energy_flowrate) then
           if (output_option%print_hdf5) then
-#ifndef STORE_FLOWRATES
-            option%io_buffer='To output FLOWRATES/MASS_FLOWRATE/ENERGY_FLOWRATE, '// &
-              'compile with -DSTORE_FLOWRATES'
-            call printErrMsg(option)
-#endif
             output_option%print_hdf5_mass_flowrate = mass_flowrate
             output_option%print_hdf5_energy_flowrate = energy_flowrate
             output_option%print_hdf5_aveg_mass_flowrate = aveg_mass_flowrate
@@ -2627,14 +2644,10 @@ subroutine InitReadInput(simulation)
                 call printErrMsg(option)
               endif
             endif
-           option%store_flowrate = PETSC_TRUE
+           option%flow%store_fluxes = PETSC_TRUE
           endif
           if (associated(grid%unstructured_grid%explicit_grid)) then
-#ifndef STORE_FLOWRATES          
-            option%io_buffer='To output FLOWRATES/MASS_FLOWRATE/ENERGY_FLOWRATE ' // &
-              'compile with -DSTORE_FLOWRATES.'
-            call printErrMsg(option)
-#endif
+           option%flow%store_fluxes = PETSC_TRUE
             output_option%print_explicit_flowrate = mass_flowrate
           endif
         
@@ -2809,6 +2822,7 @@ subroutine setFlowMode(option)
       option%nflowdof = 2
       option%nflowspec = 1
       option%use_isothermal = PETSC_FALSE
+      option%flow%store_fluxes = PETSC_TRUE
     case('MIS','MISCIBLE')
       option%iflowmode = MIS_MODE
       option%nphase = 1
@@ -2968,9 +2982,9 @@ subroutine verifyAllCouplers(realization)
   do
     if (.not.associated(cur_patch)) exit
 
-      call verifyCoupler(realization,cur_patch,cur_patch%initial_conditions)
-      call verifyCoupler(realization,cur_patch,cur_patch%boundary_conditions)
-      call verifyCoupler(realization,cur_patch,cur_patch%source_sinks)
+      call verifyCoupler(realization,cur_patch,cur_patch%initial_condition_list)
+      call verifyCoupler(realization,cur_patch,cur_patch%boundary_condition_list)
+      call verifyCoupler(realization,cur_patch,cur_patch%source_sink_list)
 
     cur_patch => cur_patch%next
   enddo
@@ -3088,7 +3102,7 @@ subroutine readRegionFiles(realization)
   type(region_type), pointer :: region
  
   
-  region => realization%regions%first
+  region => realization%region_list%first
   do 
     if (.not.associated(region)) exit
     if (len_trim(region%filename) > 1) then
@@ -3518,7 +3532,7 @@ subroutine InitReadVelocityField(realization)
     call VecRestoreArrayF90(field%work_loc,vec_loc_p,ierr);CHKERRQ(ierr)
   enddo
   
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -3552,7 +3566,7 @@ subroutine SandboxesSetup(realization)
   
   type(realization_type) :: realization
   
-   call SSSandboxSetup(realization%patch%regions,realization%option)
+   call SSSandboxSetup(realization%patch%region_list,realization%option)
   
 end subroutine SandboxesSetup
 

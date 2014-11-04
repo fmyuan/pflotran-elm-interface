@@ -70,7 +70,7 @@ subroutine GlobalSetup(realization)
   
   ! count the number of boundary connections and allocate
   ! auxvar data structures for them  
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -91,7 +91,7 @@ subroutine GlobalSetup(realization)
 
   ! count the number of source/sink connections and allocate
   ! auxvar data structures for them  
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0    
   do 
     if (.not.associated(source_sink)) exit
@@ -426,9 +426,6 @@ subroutine GlobalWeightAuxVars(realization,weight)
   option => realization%option
   auxvars => realization%patch%aux%Global%auxvars
   
-  ! weight material properties (e.g. porosity)
-  call MaterialWeightAuxVars(realization%patch%aux%Material,weight)
-  
   do ghosted_id = 1, realization%patch%aux%Global%num_aux
     ! interpolate density and saturation based on weight
     auxvars(ghosted_id)%den_kg(:) = &
@@ -535,11 +532,6 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
     case(TIME_TpDT)
       realization%patch%aux%Global%time_tpdt = time
   end select  
-  
-  ! update material properties (e.g. porosity)
-  call MaterialUpdateAuxVars(realization%patch%aux%Material, &
-                             realization%comm1,field%work_loc, &
-                             time_level,option%time)
   
   ! liquid density
   call RealizationGetVariable(realization,field%work,LIQUID_DENSITY, &

@@ -76,15 +76,9 @@ subroutine RichardsTimeCut(realization)
   option => realization%option
   field => realization%field
 
-  
-  call VecCopy(field%flow_yy,field%flow_xx,ierr);CHKERRQ(ierr)
-
   if (option%mimetic) then
     call VecCopy(field%flow_yy_faces, field%flow_xx_faces, ierr);CHKERRQ(ierr)
     call RichardsUpdateAuxVars(realization)
-    call VecCopy(field%flow_yy,field%flow_xx,ierr);CHKERRQ(ierr)
-!    read(*,*)    
-
   endif
 
   call RichardsInitializeTimestep(realization)  
@@ -165,7 +159,7 @@ subroutine RichardsSetupPatch(realization)
 
   ! count the number of boundary connections and allocate
   ! auxvar data structures for them  
-  sum_connection = CouplerGetNumConnectionsInList(patch%boundary_conditions)
+  sum_connection = CouplerGetNumConnectionsInList(patch%boundary_condition_list)
   if (sum_connection > 0) then
     allocate(rich_auxvars_bc(sum_connection))
     do iconn = 1, sum_connection
@@ -177,7 +171,7 @@ subroutine RichardsSetupPatch(realization)
   
   ! count the number of source/sink connections and allocate
   ! auxvar data structures for them  
-  sum_connection = CouplerGetNumConnectionsInList(patch%source_sinks)
+  sum_connection = CouplerGetNumConnectionsInList(patch%source_sink_list)
   if (sum_connection > 0) then
     allocate(rich_auxvars_ss(sum_connection))
     do iconn = 1, sum_connection
@@ -186,12 +180,6 @@ subroutine RichardsSetupPatch(realization)
     patch%aux%Richards%auxvars_ss => rich_auxvars_ss
   endif
   patch%aux%Richards%num_aux_ss = sum_connection
-
-#ifdef YE_FLUX
-  allocate(patch%internal_fluxes(1,1,ConnectionGetNumberInList(patch%grid%&
-           internal_connection_set_list)))
-  patch%internal_fluxes = 0.d0
-#endif
 
   ! create zero array for zeroing residual and Jacobian (1 on diagonal)
   ! for inactive cells (and isothermal)
@@ -833,7 +821,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
   call PetscLogEventBegin(logging%event_r_auxvars_bc,ierr);CHKERRQ(ierr)
 
   ! boundary conditions
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -862,7 +850,7 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
   enddo
 
   ! source/sinks
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0    
   do 
     if (.not.associated(source_sink)) exit
@@ -965,8 +953,6 @@ subroutine RichardsUpdateSolution(realization)
                   ierr);CHKERRQ(ierr)
   end if
 
-  call VecCopy(field%flow_xx,field%flow_yy,ierr);CHKERRQ(ierr)
-
   call RichardsUpdateSolutionPatch(realization)
 
 end subroutine RichardsUpdateSolution
@@ -993,6 +979,7 @@ subroutine RichardsUpdateSolutionPatch(realization)
   endif
   
   if (realization%option%update_flow_perm) then
+!TODO(geh): this is in the wrong place  
     call RichardsUpdatePermPatch(realization)
   endif
 
@@ -1453,31 +1440,14 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
       end select
 
       patch%internal_velocities(1,sum_connection) = v_darcy
-
-#ifdef COMPUTE_INTERNAL_MASS_FLUX
-      global_auxvars(local_id_up)%mass_balance_delta(1,1) = &
-        global_auxvars(local_id_up)%mass_balance_delta(1,1) - Res(1)
-#endif
-
-#ifdef YE_FLUX
-      patch%internal_fluxes(RICHARDS_PRESSURE_DOF,1,sum_connection) = Res(1)
-#endif
-#ifdef STORE_FLOWRATES
-      patch%internal_fluxes(RICHARDS_PRESSURE_DOF,1,sum_connection) = Res(1)*FMWH2O
-#endif
+      if (associated(patch%internal_flow_fluxes)) then
+        patch%internal_flow_fluxes(1,sum_connection) = Res(1)
+      endif
       if (local_id_up>0) then
-#ifdef PM_RICHARDS_DEBUG
-  print *, 'Res interior up', local_id_up
-  print *, Res(1)
-#endif  
         r_p(local_id_up) = r_p(local_id_up) + Res(1)
       endif
          
       if (local_id_dn>0) then
-#ifdef PM_RICHARDS_DEBUG
-  print *, 'Res interior dn', local_id_dn
-  print *, Res(1)
-#endif  
         r_p(local_id_dn) = r_p(local_id_dn) - Res(1)
       endif
 
@@ -1487,7 +1457,7 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
   enddo
 
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -1522,9 +1492,9 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
                                 option, &
                                 v_darcy,Res)
       patch%boundary_velocities(1,sum_connection) = v_darcy
-#ifdef STORE_FLOWRATES
-      patch%boundary_fluxes(1,1,sum_connection) = Res(1)*FMWH2O
-#endif
+      if (associated(patch%boundary_flow_fluxes)) then
+        patch%boundary_flow_fluxes(1,sum_connection) = Res(1)
+      endif
 
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
@@ -1656,7 +1626,7 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   endif
 
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
@@ -1742,9 +1712,15 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
           qsrc_mol
       endif
       r_p(local_id) = r_p(local_id) - qsrc_mol
-      ! fluid flux [m^3/sec] = qsrc_mol [kmol/sec] / den [kmol/m^3]
-      patch%ss_fluid_fluxes(1,sum_connection) = qsrc_mol / &
-                                             global_auxvars(ghosted_id)%den(1)
+      if (associated(patch%ss_flow_vol_fluxes)) then
+        ! fluid flux [m^3/sec] = qsrc_mol [kmol/sec] / den [kmol/m^3]
+        patch%ss_flow_vol_fluxes(1,sum_connection) = qsrc_mol / &
+                                           global_auxvars(ghosted_id)%den(1)
+      endif
+      if (associated(patch%ss_flow_fluxes)) then
+        ! fluid flux [m^3/sec] = qsrc_mol [kmol/sec] / den [kmol/m^3]
+        patch%ss_flow_fluxes(1,sum_connection) = qsrc_mol
+      endif
     enddo
     source_sink => source_sink%next
   enddo
@@ -2085,7 +2061,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
   endif
 #if 1
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -2263,7 +2239,7 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
   endif
 #if 1
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first 
+  source_sink => patch%source_sink_list%first 
   do 
     if (.not.associated(source_sink)) exit
     
@@ -2638,7 +2614,7 @@ subroutine RichardsUpdateSurfacePress(realization)
                        option%reference_pressure,den,dum1,ierr)
 
   ! boundary conditions
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -2778,7 +2754,7 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
   call VecGetArrayF90(realization%field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
 
   ! boundary conditions
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0
   do
     if (.not.associated(boundary_condition)) exit
@@ -2992,7 +2968,7 @@ subroutine RichardsSSSandbox(residual,Jacobian,compute_derivative, &
     call VecGetArrayF90(residual,r_p,ierr);CHKERRQ(ierr)
   endif
   
-  cur_srcsink => sandbox_list
+  cur_srcsink => ss_sandbox_list
   do
     if (.not.associated(cur_srcsink)) exit
       aux_real = 0.d0
