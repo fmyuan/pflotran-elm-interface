@@ -35,7 +35,7 @@ CHEMISTRY
   /
   
   REACTION_SANDBOX
-    CLM-DECOMP
+    SOMDECOMP
       POOLS   ! CN ratio
         Labile
         SOM1  12.d0 
