@@ -11,6 +11,7 @@ module Patch_module
   use Material_module
   use Field_module
   use Saturation_Function_module
+  use Characteristic_Curves_module
   use Surface_Field_module
   use Surface_Material_module
   use Surface_Auxiliary_module
@@ -42,6 +43,7 @@ module Patch_module
     PetscReal, pointer :: internal_tran_coefs(:,:)
     PetscReal, pointer :: boundary_tran_coefs(:,:)
     PetscReal, pointer :: ss_fluid_fluxes(:,:)
+    PetscReal, pointer :: boundary_flux_energy(:,:)
 
     type(grid_type), pointer :: grid
 
@@ -55,6 +57,8 @@ module Patch_module
     type(material_property_ptr_type), pointer :: material_property_array(:)
     type(saturation_function_type), pointer :: saturation_functions
     type(saturation_function_ptr_type), pointer :: saturation_function_array(:)
+    class(characteristic_curves_type), pointer :: characteristic_curves
+    type(characteristic_curves_ptr_type), pointer :: characteristic_curves_array(:)
 
     type(strata_list_type), pointer :: strata
     type(observation_list_type), pointer :: observation
@@ -144,6 +148,7 @@ function PatchCreate()
   nullify(patch%internal_tran_coefs)
   nullify(patch%boundary_tran_coefs)
   nullify(patch%ss_fluid_fluxes)
+  nullify(patch%boundary_flux_energy)
 
   nullify(patch%grid)
 
@@ -161,6 +166,8 @@ function PatchCreate()
   nullify(patch%material_property_array)
   nullify(patch%saturation_functions)
   nullify(patch%saturation_function_array)
+  nullify(patch%characteristic_curves)
+  nullify(patch%characteristic_curves_array)
 
   allocate(patch%observation)
   call ObservationInitList(patch%observation)
@@ -652,6 +659,9 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
     allocate(patch%boundary_fluxes(option%nflowdof,1,temp_int))
     patch%internal_fluxes = 0.d0
     patch%boundary_fluxes = 0.d0
+    if (option%iflowmode == TH_MODE) then
+      allocate(patch%boundary_flux_energy(2,temp_int))
+    endif
   endif
 
   if (patch%surf_or_subsurf_flag == SURFACE) then
@@ -1034,6 +1044,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
   PetscBool :: update
   PetscBool :: dof1, dof2, dof3
   PetscReal :: temperature, p_sat, p_air, p_gas, p_cap, s_liq
+  PetscReal :: dummy_real
   PetscReal :: x(option%nflowdof)
   character(len=MAXSTRINGLENGTH) :: string, string2
   PetscErrorCode :: ierr
@@ -1169,10 +1180,8 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
                   GENERAL_AIR_PRESSURE_INDEX),iconn) = &
                     p_gas - p_sat ! air pressure
             endif
-            call SaturationFunctionCompute(p_cap,s_liq, &
-                                            patch%saturation_function_array( &
-                                              patch%sat_func_id(ghosted_id))%ptr, &
-                                            option)
+            call patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))% &
+                   ptr%saturation_function%Saturation(p_cap,s_liq,dummy_real,option)
             ! %flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) set to 3 in hydrostatic
             coupler%flow_aux_real_var( &
               coupler%flow_aux_mapping( &
@@ -1248,8 +1257,8 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
         end select
       endif
     case(GAS_STATE)
-      p_gas = -999.d0 ! set to uninitialized
-      temperature = -999.d0
+      p_gas = UNINITIALIZED_DOUBLE ! set to uninitialized
+      temperature = UNINITIALIZED_DOUBLE
       real_count = real_count + 1
       coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = GAS_STATE
       select case(general%gas_pressure%itype)
@@ -1281,7 +1290,7 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
       real_count = real_count + 1
       select case(general%mole_fraction%itype)
         case(DIRICHLET_BC)
-          if (p_gas < -998.d0 .or. temperature < -998.d0) then
+          if (Uninitialized(p_gas) .or. Uninitialized(temperature)) then
             option%io_buffer = 'Gas pressure or temperature not set ' // &
               'correctly in flow condition "' // &
               trim(flow_condition%name) // '".'
@@ -3529,7 +3538,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
                                     eqsrfcplx_conc(isubvar)
             enddo
           else
-            vec_ptr = -999.d0
+            vec_ptr = UNINITIALIZED_DOUBLE
           endif
         case(SURFACE_SITE_DENSITY)
           tempreal = &
@@ -3822,7 +3831,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
   grid => patch%grid
   material_auxvars => patch%aux%Material%auxvars
   
-  value = -999.99d0
+  value = UNINITIALIZED_DOUBLE
 
   ! inactive grid cell
   if (patch%imat(ghosted_id) <= 0) then
@@ -4278,7 +4287,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           if (associated(patch%aux%RT%auxvars(ghosted_id)%eqsrfcplx_conc)) then
             value = patch%aux%RT%auxvars(ghosted_id)%eqsrfcplx_conc(isubvar)
           else
-            value = -999.d0
+            value = UNINITIALIZED_DOUBLE
           endif
         case(SURFACE_CMPLX_FREE)
           value = &
@@ -5485,6 +5494,7 @@ subroutine PatchDestroy(patch)
   call DeallocateArray(patch%internal_tran_coefs)
   call DeallocateArray(patch%boundary_tran_coefs)
   call DeallocateArray(patch%ss_fluid_fluxes)
+  call DeallocateArray(patch%boundary_flux_energy)
 
   if (associated(patch%material_property_array)) &
     deallocate(patch%material_property_array)
@@ -5496,6 +5506,11 @@ subroutine PatchDestroy(patch)
   nullify(patch%saturation_function_array)
   ! Since this linked list will be destroyed by realization, just nullify here
   nullify(patch%saturation_functions)
+  if (associated(patch%characteristic_curves_array)) &
+    deallocate(patch%characteristic_curves_array)
+  nullify(patch%characteristic_curves_array)
+  ! Since this linked list will be destroyed by realization, just nullify here
+  nullify(patch%characteristic_curves)
 
   nullify(patch%surf_field)
   if (associated(patch%surf_material_property_array)) &

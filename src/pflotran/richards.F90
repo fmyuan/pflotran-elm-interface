@@ -826,7 +826,6 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
                        material_auxvars(ghosted_id), &
                        patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr, &
                        option)   
-
   enddo
 
   call PetscLogEventEnd(logging%event_r_auxvars,ierr);CHKERRQ(ierr)
@@ -1206,6 +1205,7 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   use Material_module
   use Material_Aux_class
   use Variables_module
+  use Debug_module
 
   implicit none
 
@@ -1220,6 +1220,7 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   type(field_type), pointer :: field
   type(option_type), pointer :: option
   type(mass_transfer_type), pointer :: cur_mass_transfer
+  character(len=MAXSTRINGLENGTH) :: string
 
   call PetscLogEventBegin(logging%event_r_residual,ierr);CHKERRQ(ierr)
   
@@ -1259,16 +1260,14 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   call RichardsResidualPatch2(snes,xx,r,realization,ierr)
 
   if (realization%debug%vecview_residual) then
-     if(option%myrank == option%io_rank) write(*,*), 'Rresidual.out'
-    call PetscViewerASCIIOpen(realization%option%mycomm,'Rresidual.out', &
-                              viewer,ierr);CHKERRQ(ierr)
+    string = 'Rresidual'
+    call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(r,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
   if (realization%debug%vecview_solution) then
-     if(option%myrank == option%io_rank) write(*,*), 'Rxx.out'
-    call PetscViewerASCIIOpen(realization%option%mycomm,'Rxx.out', &
-                              viewer,ierr);CHKERRQ(ierr)
+    string = 'Rxx'
+    call DebugCreateViewer(realization%debug,string,option,viewer)
     call VecView(xx,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
@@ -1788,6 +1787,7 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
   use Grid_module
   use Option_module
   use Logging_module
+  use Debug_module
 
   implicit none
 
@@ -1803,6 +1803,7 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
   type(grid_type),  pointer :: grid
   type(option_type), pointer :: option
   PetscReal :: norm
+  character(len=MAXSTRINGLENGTH) :: string
 
   call PetscLogEventBegin(logging%event_r_jacobian,ierr);CHKERRQ(ierr)
 
@@ -1826,14 +1827,8 @@ subroutine RichardsJacobian(snes,xx,A,B,realization,ierr)
   call RichardsJacobianPatch2(snes,xx,J,J,realization,ierr)
 
   if (realization%debug%matview_Jacobian) then
-#if 1  
-     if(option%myrank == option%io_rank) write(*,*), 'Rjacobian.out'
-    call PetscViewerASCIIOpen(realization%option%mycomm,'Rjacobian.out', &
-                              viewer,ierr);CHKERRQ(ierr)
-#else
-!    call PetscViewerBinaryOpen(realization%option%mycomm,'Rjacobian.bin', &
-!                               FILE_MODE_WRITE,viewer,ierr)
-#endif    
+    string = 'Rjacobian'
+    call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(J,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
@@ -1928,6 +1923,8 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   PetscInt, pointer :: cell_neighbors(:,:)
   
+  character(len=MAXSTRINGLENGTH) :: string
+
   PetscViewer :: viewer
 
   patch => realization%patch
@@ -2081,12 +2078,8 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call PetscViewerASCIIOpen(option%mycomm,'jacobian_flux.out',viewer, &
-                              ierr);CHKERRQ(ierr)
-    call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerBinaryOpen(option%mycomm,'jacobian_flux.bin',FILE_MODE_WRITE,viewer, &
-                               ierr);CHKERRQ(ierr)
+    string = 'jacobian_flux'
+    call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
@@ -2151,12 +2144,8 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call PetscViewerASCIIOpen(option%mycomm,'jacobian_bcflux.out',viewer, &
-                              ierr);CHKERRQ(ierr)
-    call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerBinaryOpen(option%mycomm,'jacobian_bcflux.bin',FILE_MODE_WRITE,viewer, &
-                               ierr);CHKERRQ(ierr)
+    string = 'jacobian_bcflux'
+    call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
@@ -2221,7 +2210,8 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
   PetscReal :: pressure_min
   PetscReal :: ukvr, Dq, dphi, v_darcy
   Vec, parameter :: null_vec = 0
-  
+  character(len=MAXSTRINGLENGTH) :: string
+
   patch => realization%patch
   grid => patch%grid
   option => realization%option
@@ -2266,12 +2256,8 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call PetscViewerASCIIOpen(option%mycomm,'jacobian_accum.out',viewer, &
-                              ierr);CHKERRQ(ierr)
-    call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerBinaryOpen(option%mycomm,'jacobian_accum.bin',FILE_MODE_WRITE,viewer, &
-                               ierr);CHKERRQ(ierr)
+    string = 'jacobian_accum'
+    call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
@@ -2364,12 +2350,8 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-    call PetscViewerASCIIOpen(option%mycomm,'jacobian_srcsink.out',viewer, &
-                              ierr);CHKERRQ(ierr)
-    call MatView(A,viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
-    call PetscViewerBinaryOpen(option%mycomm,'jacobian_srcsink.bin',FILE_MODE_WRITE,viewer, &
-                               ierr);CHKERRQ(ierr)
+    string = 'jacobian_srcsink'
+    call DebugCreateViewer(realization%debug,string,option,viewer)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
@@ -2801,10 +2783,10 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
   do
     if (.not.associated(boundary_condition)) exit
     cur_connection_set => boundary_condition%connection_set
-
     if (StringCompare(boundary_condition%name,'from_surface_bc')) then
 
       pressure_bc_type = boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF)
+
       if (pressure_bc_type /= HET_SURF_SEEPAGE_BC) then
         call printErrMsg(option,'from_surface_bc is not of type ' // &
                         'HET_SURF_SEEPAGE_BC')

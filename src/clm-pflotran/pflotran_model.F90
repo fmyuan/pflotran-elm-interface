@@ -2232,7 +2232,7 @@ end subroutine pflotranModelSetICs
     waypoint%dt_max            = waypoint_time * UnitsConvertToInternal(word, model%option)!3153600.d0
 
     if (associated(realization)) then
-      call WaypointInsertInList(waypoint, realization%waypoints)
+      call WaypointInsertInList(waypoint, realization%waypoint_list)
     end if
 
     if (associated(surf_realization)) then
@@ -2242,7 +2242,7 @@ end subroutine pflotranModelSetICs
       ! which never have a chance to deallocate and potentially leak memory
       if(associated(waypoint)) deallocate(waypoint)
 
-      call WaypointInsertInList(waypoint2, surf_realization%waypoints)
+      call WaypointInsertInList(waypoint2, surf_realization%waypoint_list)
     end if
 
   end subroutine pflotranModelInsertWaypoint
@@ -2308,7 +2308,7 @@ end subroutine pflotranModelSetICs
     ! update subsurface-realization final waypoint
     if (associated(realization)) then
       ! remove original final waypoint
-      waypoint => realization%waypoints%first
+      waypoint => realization%waypoint_list%first
       do
         if (.not.associated(waypoint)) exit
         if (waypoint%final) then
@@ -2321,10 +2321,10 @@ end subroutine pflotranModelSetICs
       enddo
 
       ! insert new final waypoint
-      call WaypointInsertInList(waypoint1, realization%waypoints)
+      call WaypointInsertInList(waypoint1, realization%waypoint_list)
       call RealizationAddWaypointsToList(realization)
-      call WaypointListFillIn(model%option,realization%waypoints)
-      call WaypointListRemoveExtraWaypnts(model%option,realization%waypoints)
+      call WaypointListFillIn(model%option,realization%waypoint_list)
+      call WaypointListRemoveExtraWaypnts(model%option,realization%waypoint_list)
 
       ! turn off the 'print out' if required from CLM
       if(.not.isprintout) then
@@ -2332,7 +2332,7 @@ end subroutine pflotranModelSetICs
           write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
             'for subsurface flow from PFLOTRAN IS OFF! '
         endif
-        waypoint => realization%waypoints%first
+        waypoint => realization%waypoint_list%first
         do
           if (.not.associated(waypoint)) exit
           waypoint%print_output = PETSC_FALSE
@@ -2345,7 +2345,7 @@ end subroutine pflotranModelSetICs
     ! update surface-realization final waypoint
     if (associated(surf_realization)) then
       ! remove original final waypoint
-      waypoint => surf_realization%waypoints%first
+      waypoint => surf_realization%waypoint_list%first
       do
         if (.not.associated(waypoint)) exit
         if (waypoint%final) then
@@ -2364,10 +2364,10 @@ end subroutine pflotranModelSetICs
       ! which never have a chance to deallocate and potentially leak memory
       if(associated(waypoint1)) deallocate(waypoint1)
 
-      call WaypointInsertInList(waypoint2, surf_realization%waypoints)
+      call WaypointInsertInList(waypoint2, surf_realization%waypoint_list)
       call SurfRealizAddWaypointsToList(surf_realization)
-      call WaypointListFillIn(model%option,surf_realization%waypoints)
-      call WaypointListRemoveExtraWaypnts(model%option,surf_realization%waypoints)
+      call WaypointListFillIn(model%option,surf_realization%waypoint_list)
+      call WaypointListRemoveExtraWaypnts(model%option,surf_realization%waypoint_list)
 
       ! turn off the 'print out' if required from CLM
       if(.not.isprintout) then
@@ -2375,7 +2375,7 @@ end subroutine pflotranModelSetICs
           write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
             'for surface flow from PFLOTRAN IS OFF! '
         endif
-        waypoint => surf_realization%waypoints%first
+        waypoint => surf_realization%waypoint_list%first
         do
           if (.not.associated(waypoint)) exit
           waypoint%print_output = PETSC_FALSE
@@ -2439,11 +2439,11 @@ end subroutine pflotranModelSetICs
     waypoint%dt_max            = 3153600
 
     if (associated(realization)) then
-       call WaypointDeleteFromList(waypoint, realization%waypoints)
+       call WaypointDeleteFromList(waypoint, realization%waypoint_list)
     end if
 
     if (associated(surf_realization)) then
-       call WaypointDeleteFromList(waypoint, surf_realization%waypoints)
+       call WaypointDeleteFromList(waypoint, surf_realization%waypoint_list)
     end if
 
     ! when call 'WaypointCreate()', 'waypoint' will be allocated memory,
