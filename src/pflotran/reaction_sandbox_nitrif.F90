@@ -1,4 +1,4 @@
-module Reaction_Sandbox_Nitrification_class
+module Reaction_Sandbox_Nitrif_class
 
   use Reaction_Sandbox_Base_class
   
@@ -16,7 +16,7 @@ module Reaction_Sandbox_Nitrification_class
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2 
 
   type, public, &
-    extends(reaction_sandbox_base_type) :: reaction_sandbox_nitrification_type
+    extends(reaction_sandbox_base_type) :: reaction_sandbox_nitrif_type
     PetscInt :: ispec_proton
     PetscInt :: ispec_nh3
     PetscInt :: ispec_nh4sorb
@@ -31,55 +31,55 @@ module Reaction_Sandbox_Nitrification_class
     PetscReal :: x0eps
 
   contains
-    procedure, public :: ReadInput => NitrificationRead
-    procedure, public :: Setup => NitrificationSetup
-    procedure, public :: Evaluate => NitrificationReact
-    procedure, public :: Destroy => NitrificationDestroy
-  end type reaction_sandbox_nitrification_type
+    procedure, public :: ReadInput => NitrifRead
+    procedure, public :: Setup => NitrifSetup
+    procedure, public :: Evaluate => NitrifReact
+    procedure, public :: Destroy => NitrifDestroy
+  end type reaction_sandbox_nitrif_type
 
-  public :: NitrificationCreate
+  public :: NitrifCreate
 
 contains
 
 ! ************************************************************************** !
 !
-! NitrificationCreate: Allocates nitrification reaction object.
+! NitrifCreate: Allocates nitrification reaction object.
 ! author: Guoping Tang (replace in all subroutine headers with name of developer) 
 ! date: 09/09/2013 (replace in all subroutine headers with current date)
 !
 ! ************************************************************************** !
-function NitrificationCreate()
+function NitrifCreate()
 
   implicit none
   
-  class(reaction_sandbox_nitrification_type), pointer :: NitrificationCreate
+  class(reaction_sandbox_nitrif_type), pointer :: NitrifCreate
 
 ! 4. Add code to allocate object and initialized all variables to zero and
 !    nullify all pointers. E.g.
-  allocate(NitrificationCreate)
-  NitrificationCreate%ispec_proton = 0
-  NitrificationCreate%ispec_nh3 = 0
-  NitrificationCreate%ispec_nh4sorb = 0
-  NitrificationCreate%ispec_no3 = 0
-  NitrificationCreate%ispec_ngasnit = 0
-  NitrificationCreate%k_nitr_max = 1.d-6
-  NitrificationCreate%k_nitr_n2o = 3.5d-8
-  NitrificationCreate%half_saturation = 1.0d-10
-  NitrificationCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
-  NitrificationCreate%Q10 = 1.5d0
-  NitrificationCreate%x0eps = 1.0d-20
-  nullify(NitrificationCreate%next)  
+  allocate(NitrifCreate)
+  NitrifCreate%ispec_proton = 0
+  NitrifCreate%ispec_nh3 = 0
+  NitrifCreate%ispec_nh4sorb = 0
+  NitrifCreate%ispec_no3 = 0
+  NitrifCreate%ispec_ngasnit = 0
+  NitrifCreate%k_nitr_max = 1.d-6
+  NitrifCreate%k_nitr_n2o = 3.5d-8
+  NitrifCreate%half_saturation = 1.0d-10
+  NitrifCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
+  NitrifCreate%Q10 = 1.5d0
+  NitrifCreate%x0eps = 1.0d-20
+  nullify(NitrifCreate%next)
       
-end function NitrificationCreate
+end function NitrifCreate
 
 ! ************************************************************************** !
 !
-! NitrificationRead: Reads input deck for nitrification reaction parameters (if any)
+! NitrifRead: Reads input deck for nitrification reaction parameters (if any)
 ! author: Guoping Tang
 ! date: 09/09/2013
 !
 ! ************************************************************************** !
-subroutine NitrificationRead(this,input,option)
+subroutine NitrifRead(this,input,option)
 
   use Option_module
   use String_module
@@ -88,7 +88,7 @@ subroutine NitrificationRead(this,input,option)
   
   implicit none
   
-  class(reaction_sandbox_nitrification_type) :: this
+  class(reaction_sandbox_nitrif_type) :: this
   type(input_type) :: input
   type(option_type) :: option
 
@@ -154,17 +154,17 @@ subroutine NitrificationRead(this,input,option)
     end select
   enddo
   
-end subroutine NitrificationRead
+end subroutine NitrifRead
 
 ! ************************************************************************** !
 !
-! NitrificationSetup: Sets up the nitrification reaction either with parameters either
+! NitrifSetup: Sets up the nitrification reaction either with parameters either
 !                read from the input deck or hardwired.
 ! author: Guoping Tang
 ! date: 09/09/2013
 !
 ! ************************************************************************** !
-subroutine NitrificationSetup(this,reaction,option)
+subroutine NitrifSetup(this,reaction,option)
 
   use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
   use Option_module
@@ -172,7 +172,7 @@ subroutine NitrificationSetup(this,reaction,option)
 
   implicit none
   
-  class(reaction_sandbox_nitrification_type) :: this
+  class(reaction_sandbox_nitrif_type) :: this
   type(reaction_type) :: reaction
   type(option_type) :: option
 
@@ -223,7 +223,7 @@ subroutine NitrificationSetup(this,reaction,option)
             word,reaction%immobile,PETSC_FALSE,option)
 #ifdef CLM_PFLOTRAN
   if(this%ispec_ngasnit < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION: ' // &
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIF: ' // &
        'NGASnitr is not specified as immobile species in the input file' // &
         ' It is required when coupled with CLM.'
      call printErrMsg(option)
@@ -231,11 +231,11 @@ subroutine NitrificationSetup(this,reaction,option)
 #endif
 
  
-end subroutine NitrificationSetup
+end subroutine NitrifSetup
 
 ! ************************************************************************** !
 !
-! NitrificationReact: Evaluates reaction storing residual and/or Jacobian
+! NitrifReact: Evaluates reaction storing residual and/or Jacobian
 ! author: Guoping Tang
 ! date: 09/09/2013
 !
@@ -243,7 +243,7 @@ end subroutine NitrificationSetup
 ! which caused a lot of issues.
 !
 ! ************************************************************************** !
-subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
+subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
                          option)
 
@@ -262,7 +262,7 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
 #include "finclude/petscvec.h90"
 #endif
   
-  class(reaction_sandbox_nitrification_type) :: this  
+  class(reaction_sandbox_nitrif_type) :: this
   type(option_type) :: option
   type(reaction_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
@@ -472,28 +472,28 @@ subroutine NitrificationReact(this,Residual,Jacobian,compute_derivative, &
     if (abs(temp_real) > huge(temp_real)) then
       write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
       write(option%fid_out, *) 'Reaction Sandbox: NITRIFICATION'
-      option%io_buffer = ' checking infinity of Residuals matrix @ NitrificationReact '
+      option%io_buffer = ' checking infinity of Residuals matrix @ NitrifReact '
       call printErrMsg(option)
     endif
   enddo
 #endif
 
-end subroutine NitrificationReact
+end subroutine NitrifReact
 
 ! ************************************************************************** !
 !
-! NitrificationDestroy: Destroys allocatable or pointer objects created in this 
+! NitrifDestroy: Destroys allocatable or pointer objects created in this
 !                  module
 ! author: Guoping Tang
 ! date: 09/09/2013
 !
 ! ************************************************************************** !
-subroutine NitrificationDestroy(this)
+subroutine NitrifDestroy(this)
 
   implicit none
   
-  class(reaction_sandbox_nitrification_type) :: this  
+  class(reaction_sandbox_nitrif_type) :: this
 
-end subroutine NitrificationDestroy
+end subroutine NitrifDestroy
 
-end module Reaction_Sandbox_Nitrification_class
+end module Reaction_Sandbox_Nitrif_class

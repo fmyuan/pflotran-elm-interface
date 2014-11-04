@@ -251,15 +251,12 @@ chem_obj = \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
 	${common_src}reaction_sandbox_clm_cn.o \
-	${common_src}reaction_sandbox_clmdec.o \
-	${common_src}reaction_sandbox_clm_cnp.o \
-	${common_src}reaction_sandbox_plantn.o \
-	${common_src}reaction_sandbox_nitrification.o \
-	${common_src}reaction_sandbox_denitrification.o \
-	${common_src}reaction_sandbox_microbial.o \
-	${common_src}reaction_sandbox_langmuir.o \
+	${common_src}reaction_sandbox_denitr.o \
 	${common_src}reaction_sandbox_degas.o \
 	${common_src}reaction_sandbox_example.o \
+	${common_src}reaction_sandbox_plantn.o \
+	${common_src}reaction_sandbox_nitrif.o \
+	${common_src}reaction_sandbox_somdec.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
 	${common_src}solid_solution.o \
 	${common_src}solid_solution_aux.o \
@@ -469,7 +466,7 @@ auxiliary.o : flash2_aux.o general_aux.o global_aux.o immis_aux.o \
               secondary_continuum_aux.o th_aux.o
 block_solve.o :
 block_tridiag.o : pflotran_constants.o
-clm_bgc.o :
+clm_rspfuncs.o :
 characteristic_curves.o : input_aux.o option.o pflotran_constants.o string.o \
                           utility.o
 checkpoint.o : discretization.o field.o global.o grid.o material.o option.o \
@@ -922,13 +919,10 @@ reaction_sandbox.o : global_aux.o input_aux.o material_aux.o option.o \
                      reaction_sandbox_base.o reaction_sandbox_clm_cn.o \
                      reaction_sandbox_example.o reaction_sandbox_ufd_wp.o \
                      reactive_transport_aux.o string.o utility.o \
-                     reaction_sandbox_clmdec.o \
-                     reaction_sandbox_clm_cnp.o \
+                     reaction_sandbox_somdec.o \
                      reaction_sandbox_plantn.o \
-                     reaction_sandbox_nitrification.o \
-                     reaction_sandbox_denitrification.o \
-                     reaction_sandbox_microbial.o \
-                     reaction_sandbox_langmuir.o \
+                     reaction_sandbox_nitrif.o \
+                     reaction_sandbox_denitr.o \
                      reaction_sandbox_degas.o
 reaction_sandbox_base.o : global_aux.o input_aux.o material_aux.o option.o \
                           pflotran_constants.o reaction_aux.o \
@@ -937,22 +931,12 @@ reaction_sandbox_clm_cn.o : global_aux.o immobile_aux.o input_aux.o \
                             material_aux.o option.o pflotran_constants.o \
                             reaction_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \
-                            utility.o clm_bgc.o
-reaction_sandbox_clmdec.o : global_aux.o immobile_aux.o input_aux.o \
+                            utility.o clm_rspfuncs.o
+reaction_sandbox_denitr.o : global_aux.o immobile_aux.o input_aux.o \
                             material_aux.o option.o pflotran_constants.o \
                             reaction_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \
-                            utility.o clm_bgc.o
-reaction_sandbox_clm_cnp.o : global_aux.o immobile_aux.o input_aux.o \
-                            material_aux.o option.o pflotran_constants.o \
-                            reaction_aux.o reaction_sandbox_base.o \
-                            reactive_transport_aux.o string.o units.o \
-                            utility.o clm_bgc.o
-reaction_sandbox_denitrification.o : global_aux.o immobile_aux.o input_aux.o \
-                            material_aux.o option.o pflotran_constants.o \
-                            reaction_aux.o reaction_sandbox_base.o \
-                            reactive_transport_aux.o string.o units.o \
-                            utility.o clm_bgc.o
+                            utility.o clm_rspfuncs.o
 reaction_sandbox_degas.o : global_aux.o immobile_aux.o input_aux.o \
                             material_aux.o option.o pflotran_constants.o \
                             reaction_aux.o reaction_sandbox_base.o \
@@ -962,26 +946,21 @@ reaction_sandbox_example.o : global_aux.o immobile_aux.o input_aux.o \
                              material_aux.o option.o pflotran_constants.o \
                              reaction_aux.o reaction_sandbox_base.o \
                              reactive_transport_aux.o string.o units.o 
-reaction_sandbox_langmuir.o : global_aux.o immobile_aux.o input_aux.o \
+reaction_sandbox_nitrif.o : global_aux.o immobile_aux.o input_aux.o \
                             material_aux.o option.o pflotran_constants.o \
                             reaction_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \
-                            utility.o
-reaction_sandbox_microbial.o : global_aux.o immobile_aux.o input_aux.o \
-                            material_aux.o option.o pflotran_constants.o \
-                            reaction_aux.o reaction_sandbox_base.o \
-                            reactive_transport_aux.o string.o units.o \
-                            utility.o clm_bgc.o
-reaction_sandbox_nitrification.o : global_aux.o immobile_aux.o input_aux.o \
-                            material_aux.o option.o pflotran_constants.o \
-                            reaction_aux.o reaction_sandbox_base.o \
-                            reactive_transport_aux.o string.o units.o \
-                            utility.o clm_bgc.o
+                            utility.o clm_rspfuncs.o
 reaction_sandbox_plantn.o : global_aux.o immobile_aux.o input_aux.o \
                             material_aux.o option.o pflotran_constants.o \
                             reaction_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \
-                            utility.o clm_bgc.o
+                            utility.o clm_rspfuncs.o
+reaction_sandbox_somdec.o : global_aux.o immobile_aux.o input_aux.o \
+                            material_aux.o option.o pflotran_constants.o \
+                            reaction_aux.o reaction_sandbox_base.o \
+                            reactive_transport_aux.o string.o units.o \
+                            utility.o clm_rspfuncs.o
 reaction_sandbox_ufd_wp.o : global_aux.o immobile_aux.o input_aux.o \
                             material_aux.o option.o pflotran_constants.o \
                             reaction_aux.o reaction_sandbox_base.o \

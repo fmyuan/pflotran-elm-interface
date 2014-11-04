@@ -6,14 +6,11 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_Example_class
 
   ! Add new reacton sandbox classes here.
-  use Reaction_Sandbox_CLMDec_class
+  use Reaction_Sandbox_SomDec_class
   use Reaction_Sandbox_PlantN_class
-  use Reaction_Sandbox_CLM_CNP_class
-  use Reaction_Sandbox_Nitrification_class
-  use Reaction_Sandbox_Denitrification_class
-  use Reaction_Sandbox_Microbial_class
-  use Reaction_Sandbox_Langmuir_class
-  use Reaction_Sandbox_degas_class
+  use Reaction_Sandbox_Nitrif_class
+  use Reaction_Sandbox_Denitr_class
+  use Reaction_Sandbox_Degas_class
   
   use PFLOTRAN_Constants_module
 
@@ -157,17 +154,15 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
     select case(trim(word))
       case('CLM-CN')
         new_sandbox => CLM_CN_Create()
-      case('CLM-CNP')
-        new_sandbox => CLM_CNPCreate()
       ! Add new cases statements for new reacton sandbox classes here.
+      case('SOMDECOMP')
+        new_sandbox => SomDecCreate()
+      case('PLANTN')
+        new_sandbox => PlantNCreate()
       case('NITRIFICATION')
-        new_sandbox => NitrificationCreate()
+        new_sandbox => NitrifCreate()
       case('DENITRIFICATION')
-        new_sandbox => DenitrificationCreate()
-      case('MICROBIAL')
-        new_sandbox => MicrobialCreate()
-      case('LANGMUIR')
-        new_sandbox => LangmuirCreate()
+        new_sandbox => DenitrCreate()
       case('DEGAS')
         new_sandbox => degasCreate()
       case('UFD-WP')

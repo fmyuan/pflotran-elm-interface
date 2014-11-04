@@ -1,4 +1,4 @@
-module CLM_BGC_module
+module CLM_RspFuncs_module
 
   implicit none
 
@@ -238,4 +238,4 @@ Function GetpHResponse(pH, itype)
 
 end function GetpHResponse
 
-end module CLM_BGC_module
+end module CLM_RspFuncs_module

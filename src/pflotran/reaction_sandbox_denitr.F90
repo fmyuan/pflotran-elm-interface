@@ -1,4 +1,4 @@
-module Reaction_Sandbox_Denitrification_class
+module Reaction_Sandbox_Denitr_class
 
   use Reaction_Sandbox_Base_class
   
@@ -16,10 +16,10 @@ module Reaction_Sandbox_Denitrification_class
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2 
 
   type, public, &
-    extends(reaction_sandbox_base_type) :: reaction_sandbox_denitrification_type
+    extends(reaction_sandbox_base_type) :: reaction_sandbox_denitr_type
     PetscInt :: ispec_no3
     PetscInt :: ispec_n2
-    !PetscInt :: ispec_n2o
+    PetscInt :: ispec_n2o
     PetscInt :: ispec_ngasdeni
 
     PetscReal :: half_saturation
@@ -29,55 +29,55 @@ module Reaction_Sandbox_Denitrification_class
     PetscReal :: x0eps
 
   contains
-    procedure, public :: ReadInput => DenitrificationRead
-    procedure, public :: Setup => DenitrificationSetup
-    procedure, public :: Evaluate => DenitrificationReact
-    procedure, public :: Destroy => DenitrificationDestroy
-  end type reaction_sandbox_denitrification_type
+    procedure, public :: ReadInput => DenitrRead
+    procedure, public :: Setup => DenitrSetup
+    procedure, public :: Evaluate => DenitrReact
+    procedure, public :: Destroy => DenitrDestroy
+  end type reaction_sandbox_denitr_type
 
-  public :: DenitrificationCreate
+  public :: DenitrCreate
 
 contains
 
 ! ************************************************************************** !
 !
-! DenitrificationCreate: Allocates denitrification reaction object.
+! DenitrCreate: Allocates denitrification reaction object.
 ! author: Guoping Tang (replace in all subroutine headers with name of developer) 
 ! date: 09/09/2013 (replace in all subroutine headers with current date)
 !
 ! ************************************************************************** !
-function DenitrificationCreate()
+function DenitrCreate()
 
   implicit none
   
-  class(reaction_sandbox_denitrification_type), pointer :: DenitrificationCreate
+  class(reaction_sandbox_denitr_type), pointer :: DenitrCreate
 
 ! Add code to allocate object and initialized all variables to zero and
 !    nullify all pointers. E.g.
-  allocate(DenitrificationCreate)
-  DenitrificationCreate%ispec_no3 = 0
-  !DenitrificationCreate%ispec_n2o = 0
-  DenitrificationCreate%ispec_n2 = 0
-  DenitrificationCreate%ispec_ngasdeni = 0
+  allocate(DenitrCreate)
+  DenitrCreate%ispec_no3 = 0
+  DenitrCreate%ispec_n2o = 0
+  DenitrCreate%ispec_n2 = 0
+  DenitrCreate%ispec_ngasdeni = 0
 
-  DenitrificationCreate%half_saturation = 1.0d-15
-  DenitrificationCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
-  DenitrificationCreate%Q10 = 1.5d0
-  DenitrificationCreate%k_deni_max = 2.5d-6  ! denitrification rate
-  DenitrificationCreate%x0eps = 1.0d-20
+  DenitrCreate%half_saturation = 1.0d-15
+  DenitrCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
+  DenitrCreate%Q10 = 1.5d0
+  DenitrCreate%k_deni_max = 2.5d-6  ! max. denitrification rate
+  DenitrCreate%x0eps = 1.0d-20
 
-  nullify(DenitrificationCreate%next)  
+  nullify(DenitrCreate%next)
       
-end function DenitrificationCreate
+end function DenitrCreate
 
 ! ************************************************************************** !
 !
-! DenitrificationRead: Reads input deck for denitrification reaction parameters (if any)
+! DenitrRead: Reads input deck for denitrification reaction parameters (if any)
 ! author: Guoping Tang
 ! date: 09/09/2013
 !
 ! ************************************************************************** !
-subroutine DenitrificationRead(this,input,option)
+subroutine DenitrRead(this,input,option)
 
   use Option_module
   use String_module
@@ -86,7 +86,7 @@ subroutine DenitrificationRead(this,input,option)
   
   implicit none
   
-  class(reaction_sandbox_denitrification_type) :: this
+  class(reaction_sandbox_denitr_type) :: this
   type(input_type) :: input
   type(option_type) :: option
 
@@ -130,7 +130,7 @@ subroutine DenitrificationRead(this,input,option)
           end select
         enddo 
 
-      case('RATE_CONSTANT')
+      case('DENITRIFICATION_RATE_COEF')
         call InputReadDouble(input,option,this%k_deni_max)
         call InputErrorMsg(input,option,'k_deni_max', &
                  'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,REACTION')
@@ -149,17 +149,17 @@ subroutine DenitrificationRead(this,input,option)
     end select
   enddo
   
-end subroutine DenitrificationRead
+end subroutine DenitrRead
 
 ! ************************************************************************** !
 !
-! DenitrificationSetup: Sets up the denitrification reaction either with parameters either
+! DenitrSetup: Sets up the denitrification reaction either with parameters either
 !                read from the input deck or hardwired.
 ! author: Guoping Tang
 ! date: 09/09/2013
 !
 ! ************************************************************************** !
-subroutine DenitrificationSetup(this,reaction,option)
+subroutine DenitrSetup(this,reaction,option)
 
   use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
   use Option_module
@@ -167,7 +167,7 @@ subroutine DenitrificationSetup(this,reaction,option)
 
   implicit none
   
-  class(reaction_sandbox_denitrification_type) :: this
+  class(reaction_sandbox_denitr_type) :: this
   type(reaction_type) :: reaction
   type(option_type) :: option
 
@@ -182,9 +182,14 @@ subroutine DenitrificationSetup(this,reaction,option)
      call printErrMsg(option)
   endif
 
-  !word = 'N2O(aq)'
-  !this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
-  !                      PETSC_FALSE,option)
+  word = 'N2O(aq)'
+  this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
+                        PETSC_FALSE,option)
+  if(this%ispec_n2o < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION: ' // &
+                        ' N2O(aq) is not specified in the input file.'
+     call printErrMsg(option)
+  endif
 
   word = 'N2(aq)'
   this%ispec_n2 = GetPrimarySpeciesIDFromName(word,reaction, &
@@ -208,10 +213,10 @@ subroutine DenitrificationSetup(this,reaction,option)
   endif
 #endif
  
-end subroutine DenitrificationSetup
+end subroutine DenitrSetup
 
 !****************************************************************************************!
-subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
+subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
                          option)
   !
@@ -235,7 +240,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 #include "finclude/petscvec.h90"
 #endif
 
-  class(reaction_sandbox_denitrification_type) :: this
+  class(reaction_sandbox_denitr_type) :: this
   type(option_type) :: option
   type(reaction_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
@@ -253,7 +258,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscReal :: temp_real
 
-  PetscInt :: ires_no3, ires_n2!, ires_n2o
+  PetscInt :: ires_no3, ires_n2, ires_n2o
   PetscInt :: ires_ngasdeni
 
   PetscScalar, pointer :: bsw(:)
@@ -287,7 +292,7 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
 !---------------------------------------------------------------------------------
   ! indices for C and N species
   ires_no3 = this%ispec_no3
-  !ires_n2o = this%ispec_n2o
+  ires_n2o = this%ispec_n2o
   ires_n2 = this%ispec_n2
   ires_ngasdeni = this%ispec_ngasdeni + reaction%offset_immobile
 
@@ -379,28 +384,28 @@ subroutine DenitrificationReact(this,Residual,Jacobian,compute_derivative, &
     if (abs(temp_real) > huge(temp_real)) then
       write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
       write(option%fid_out, *) 'Reaction Sandbox: DENITRIFICATION'
-      option%io_buffer = ' checking infinity of Residuals matrix @ DenitrificationReact '
+      option%io_buffer = ' checking infinity of Residuals matrix @ DenitrReact '
       call printErrMsg(option)
     endif
   enddo
 #endif
 
-end subroutine DenitrificationReact
+end subroutine DenitrReact
 
 ! ************************************************************************** !
 !
-! DenitrificationDestroy: Destroys allocatable or pointer objects created in this 
+! DenitrDestroy: Destroys allocatable or pointer objects created in this
 !                  module
 ! author: Guoping Tang
 ! date: 09/09/2013
 !
 ! ************************************************************************** !
-subroutine DenitrificationDestroy(this)
+subroutine DenitrDestroy(this)
 
   implicit none
   
-  class(reaction_sandbox_denitrification_type) :: this  
+  class(reaction_sandbox_denitr_type) :: this
 
-end subroutine DenitrificationDestroy
+end subroutine DenitrDestroy
 
-end module Reaction_Sandbox_Denitrification_class
+end module Reaction_Sandbox_Denitr_class

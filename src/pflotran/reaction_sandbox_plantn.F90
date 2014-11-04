@@ -12,7 +12,7 @@ module Reaction_Sandbox_PlantN_class
 #include "finclude/petscsys.h"
 
   type, public, &
-    extends(reaction_sandbox_base_type) :: reaction_sandbox_plantntake_type
+    extends(reaction_sandbox_base_type) :: reaction_sandbox_plantn_type
     PetscInt  :: ispec_nh3
     PetscInt  :: ispec_no3
     PetscInt  :: ispec_plantn
@@ -30,7 +30,7 @@ module Reaction_Sandbox_PlantN_class
     procedure, public :: Setup => PlantNSetup
     procedure, public :: Evaluate => PlantNReact
     procedure, public :: Destroy => PlantNDestroy
-  end type reaction_sandbox_plantntake_type
+  end type reaction_sandbox_plantn_type
 
   public :: PlantNCreate
 
@@ -38,7 +38,7 @@ contains
 
 ! ************************************************************************** !
 !
-! PlantNCreate: Allocates plantntake reaction object.
+! PlantNCreate: Allocates plantn reaction object.
 ! author: Guoping Tang
 ! date: 09/09/2013
 !
@@ -47,7 +47,7 @@ function PlantNCreate()
 
   implicit none
   
-  class(reaction_sandbox_plantntake_type), pointer :: PlantNCreate
+  class(reaction_sandbox_plantn_type), pointer :: PlantNCreate
 
   allocate(PlantNCreate)
   PlantNCreate%ispec_nh3 = 0
@@ -67,7 +67,7 @@ end function PlantNCreate
 
 ! ************************************************************************** !
 !
-! PlantNRead: Reads input deck for plantntake reaction parameters
+! PlantNRead: Reads input deck for plantn reaction parameters
 ! author: Guoping Tang
 ! date: 09/09/2013
 !
@@ -81,7 +81,7 @@ subroutine PlantNRead(this,input,option)
   
   implicit none
   
-  class(reaction_sandbox_plantntake_type) :: this
+  class(reaction_sandbox_plantn_type) :: this
   type(input_type) :: input
   type(option_type) :: option
 
@@ -95,41 +95,41 @@ subroutine PlantNRead(this,input,option)
 
     call InputReadWord(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword', &
-                       'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE')
+                       'CHEMISTRY,REACTION_SANDBOX,PLANTN')
     call StringToUpper(word)   
 
     select case(trim(word))
       case('RATE')
           call InputReadDouble(input,option,this%rate)
           call InputErrorMsg(input,option,'rate', &
-                  'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+                  'CHEMISTRY,REACTION_SANDBOX,PLANTN,REACTION')
       case('AMMONIA_HALF_SATURATION')
           call InputReadDouble(input,option,this%half_saturation_nh3)
           call InputErrorMsg(input,option,'half saturation for ammonia', &
-                     'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,PLANTN,REACTION')
       case('NITRATE_HALF_SATURATION')
           call InputReadDouble(input,option,this%half_saturation_no3)
           call InputErrorMsg(input,option,'half saturation for nitrate', &
-                     'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,PLANTN,REACTION')
       case('AMMONIA_INHIBITION_NITRATE')
           call InputReadDouble(input,option,this%inhibition_nh3_no3)
           call InputErrorMsg(input,option,'ammonia inhibition on nitrate', &
-                     'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,PLANTN,REACTION')
           if (this%inhibition_nh3_no3<0.d-20) then
-            option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,' // &
+            option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTN,' // &
               'AMMONIA_INHIBITION_NITRATE cannot be too small to close to 0'
             call printErrMsg(option)
           endif
       case('X0EPS_NH4')
           call InputReadDouble(input,option,this%x0eps_nh4)
           call InputErrorMsg(input,option,'x0eps_nh4', &
-                  'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+                  'CHEMISTRY,REACTION_SANDBOX,PLANTN,REACTION')
       case('X0EPS_NO3')
           call InputReadDouble(input,option,this%x0eps_no3)
           call InputErrorMsg(input,option,'x0eps_no3', &
-                  'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,REACTION')
+                  'CHEMISTRY,REACTION_SANDBOX,PLANTN,REACTION')
       case default
-          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE,' // &
+          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTN,' // &
                 'REACTION keyword: ' // trim(word) // ' not recognized.'
           call printErrMsg(option)
     end select
@@ -139,7 +139,7 @@ end subroutine PlantNRead
 
 ! ************************************************************************** !
 !
-! PlantNSetup: Sets up the plantntake reaction with parameters either
+! PlantNSetup: Sets up the plantn reaction with parameters either
 !                read from the input deck or hardwired.
 ! author: Guoping Tang
 ! date: 09/09/2013
@@ -153,7 +153,7 @@ subroutine PlantNSetup(this,reaction,option)
 
   implicit none
   
-  class(reaction_sandbox_plantntake_type) :: this
+  class(reaction_sandbox_plantn_type) :: this
   type(reaction_type) :: reaction
   type(option_type) :: option
 
@@ -167,7 +167,7 @@ subroutine PlantNSetup(this,reaction,option)
   this%ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction, PETSC_FALSE,option)
 
   if(this%ispec_nh3 < 0 .and. this%ispec_no3 < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE: ' // &
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTN: ' // &
        ' at least one of NH4+ and NO3- must be specified as primary species in the input file.'
      call printErrMsg(option)
   endif
@@ -177,7 +177,7 @@ subroutine PlantNSetup(this,reaction,option)
                  PETSC_FALSE,option)
 
   if(this%ispec_plantn < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE: ' // &
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTN: ' // &
        ' PlantN is not specified as immobile species in the input file.'
      call printErrMsg(option)
   endif
@@ -191,7 +191,7 @@ subroutine PlantNSetup(this,reaction,option)
                  PETSC_FALSE,option)
 #ifdef CLM_PFLOTRAN
   if(this%ispec_plantnuptake < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTNTAKE: ' // &
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTN: ' // &
        'Plantnuptake is not specified as immobile species in the ' // &
        'input file, but It is required when coupled with CLM.'
      call printErrMsg(option)
@@ -230,7 +230,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 #include "finclude/petscvec.h90"
 #endif
   
-  class(reaction_sandbox_plantntake_type) :: this  
+  class(reaction_sandbox_plantn_type) :: this
   type(option_type) :: option
   type(reaction_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
@@ -495,7 +495,7 @@ subroutine PlantNDestroy(this)
 
   implicit none
   
-  class(reaction_sandbox_plantntake_type) :: this  
+  class(reaction_sandbox_plantn_type) :: this
 
 end subroutine PlantNDestroy
 

@@ -1,10 +1,10 @@
-module Reaction_Sandbox_CLMDec_class
+module Reaction_Sandbox_SomDec_class
 
   use Reaction_Sandbox_Base_class
   use Global_Aux_module
   use Reactive_Transport_Aux_module
   use PFLOTRAN_Constants_module
-  use CLM_BGC_module
+  use CLM_RspFuncs_module
 
 ! -----------------------------------------------------------------------------
 ! description
@@ -17,7 +17,7 @@ module Reaction_Sandbox_CLMDec_class
 #include "finclude/petscsys.h"
 
   type, public, &
-    extends(reaction_sandbox_base_type) :: reaction_sandbox_clm_decomp_type
+    extends(reaction_sandbox_base_type) :: reaction_sandbox_somdec_type
 
     PetscInt :: temperature_response_function
     PetscInt :: moisture_response_function
@@ -61,13 +61,13 @@ module Reaction_Sandbox_CLMDec_class
     PetscInt :: species_id_proton
 
     type(pool_type), pointer :: pools
-    type(clm_decomp_reaction_type), pointer :: reactions
+    type(somdec_reaction_type), pointer :: reactions
   contains
-    procedure, public :: ReadInput => CLMDec_Read
-    procedure, public :: Setup => CLMDec_Setup
-    procedure, public :: Evaluate => CLMDec_React
-    procedure, public :: Destroy => CLMDec_Destroy
-  end type reaction_sandbox_clm_decomp_type
+    procedure, public :: ReadInput => SomDecRead
+    procedure, public :: Setup => SomDecSetup
+    procedure, public :: Evaluate => SomDecReact
+    procedure, public :: Destroy => SomDecDestroy
+  end type reaction_sandbox_somdec_type
   
   type :: pool_type
     character(len=MAXWORDLENGTH) :: name
@@ -76,22 +76,22 @@ module Reaction_Sandbox_CLMDec_class
     type(pool_type), pointer :: next
   end type pool_type
   
-  type :: clm_decomp_reaction_type
+  type :: somdec_reaction_type
     character(len=MAXWORDLENGTH) :: upstream_pool_name
     type(pool_type), pointer :: downstream_pools
     PetscReal :: rate_constant
-    type(clm_decomp_reaction_type), pointer :: next
-  end type clm_decomp_reaction_type
+    type(somdec_reaction_type), pointer :: next
+  end type somdec_reaction_type
   
-  public :: CLMDec_Create
+  public :: SomDecCreate
 
 contains
 
 ! ************************************************************************** !
 
-function CLMDec_Create()
+function SomDecCreate()
   ! 
-  ! Allocates CLMDec reaction object.
+  ! Allocates SomDec reaction object.
   ! 
   ! Author: Guoping Tang
   ! Date: 02/04/14
@@ -99,60 +99,60 @@ function CLMDec_Create()
 
   implicit none
   
-  type(reaction_sandbox_clm_decomp_type), pointer :: CLMDec_Create
+  type(reaction_sandbox_somdec_type), pointer :: SomDecCreate
   
-  allocate(CLMDec_Create)
+  allocate(SomDecCreate)
 
 #ifdef CLM_PFLOTRAN
-  CLMDec_Create%temperature_response_function=TEMPERATURE_RESPONSE_FUNCTION_CLM4
-  CLMDec_Create%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLM4
+  SomDecCreate%temperature_response_function=TEMPERATURE_RESPONSE_FUNCTION_CLM4
+  SomDecCreate%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLM4
 #endif
 
-  CLMDec_Create%Q10 = 1.5d0
-  CLMDec_Create%half_saturation_nh3 = 1.0d-15
-  CLMDec_Create%half_saturation_no3 = 1.0d-15
-  CLMDec_Create%inhibition_nh3_no3 = 1.0d0
-  CLMDec_Create%n2o_frac_mineralization = 0.02d0  ! Parton et al. 2001
-  CLMDec_Create%x0eps = 1.0d-20
+  SomDecCreate%Q10 = 1.5d0
+  SomDecCreate%half_saturation_nh3 = 1.0d-15
+  SomDecCreate%half_saturation_no3 = 1.0d-15
+  SomDecCreate%inhibition_nh3_no3 = 1.0d0
+  SomDecCreate%n2o_frac_mineralization = 0.02d0  ! Parton et al. 2001
+  SomDecCreate%x0eps = 1.0d-20
 
-  CLMDec_Create%npool = 0
-  nullify(CLMDec_Create%pool_nc_ratio)
+  SomDecCreate%npool = 0
+  nullify(SomDecCreate%pool_nc_ratio)
 
-  CLMDec_Create%nrxn = 0
-  nullify(CLMDec_Create%rate_constant)
-  nullify(CLMDec_Create%upstream_is_varycn)
-  nullify(CLMDec_Create%upstream_c_id)
-  nullify(CLMDec_Create%upstream_n_id)
-  nullify(CLMDec_Create%upstream_nc)
-  nullify(CLMDec_Create%upstream_is_aqueous)
+  SomDecCreate%nrxn = 0
+  nullify(SomDecCreate%rate_constant)
+  nullify(SomDecCreate%upstream_is_varycn)
+  nullify(SomDecCreate%upstream_c_id)
+  nullify(SomDecCreate%upstream_n_id)
+  nullify(SomDecCreate%upstream_nc)
+  nullify(SomDecCreate%upstream_is_aqueous)
   
-  nullify(CLMDec_Create%n_downstream_pools)
-  nullify(CLMDec_Create%downstream_id)
-  nullify(CLMDec_Create%downstream_is_aqueous)
-  nullify(CLMDec_Create%downstream_stoich)
-  nullify(CLMDec_Create%downstream_is_varycn)
-  nullify(CLMDec_Create%mineral_c_stoich)
-  nullify(CLMDec_Create%mineral_n_stoich)
+  nullify(SomDecCreate%n_downstream_pools)
+  nullify(SomDecCreate%downstream_id)
+  nullify(SomDecCreate%downstream_is_aqueous)
+  nullify(SomDecCreate%downstream_stoich)
+  nullify(SomDecCreate%downstream_is_varycn)
+  nullify(SomDecCreate%mineral_c_stoich)
+  nullify(SomDecCreate%mineral_n_stoich)
 
-  CLMDec_Create%species_id_co2 = 0
-  CLMDec_Create%species_id_nh3 = 0
-  CLMDec_Create%species_id_no3 = 0
-  CLMDec_Create%species_id_n2o = 0
-  CLMDec_Create%species_id_hrimm = 0
-  CLMDec_Create%species_id_nmin = 0
-  CLMDec_Create%species_id_nimm = 0
-  CLMDec_Create%species_id_ngasmin = 0
+  SomDecCreate%species_id_co2 = 0
+  SomDecCreate%species_id_nh3 = 0
+  SomDecCreate%species_id_no3 = 0
+  SomDecCreate%species_id_n2o = 0
+  SomDecCreate%species_id_hrimm = 0
+  SomDecCreate%species_id_nmin = 0
+  SomDecCreate%species_id_nimm = 0
+  SomDecCreate%species_id_ngasmin = 0
 
-  nullify(CLMDec_Create%next)
+  nullify(SomDecCreate%next)
 
-  nullify(CLMDec_Create%pools)
-  nullify(CLMDec_Create%reactions)
+  nullify(SomDecCreate%pools)
+  nullify(SomDecCreate%reactions)
 
-end function CLMDec_Create
+end function SomDecCreate
 
 ! ************************************************************************** !
 
-subroutine CLMDec_Read(this,input,option)
+subroutine SomDecRead(this,input,option)
   ! 
   ! Reads input deck for reaction sandbox parameters
   ! 
@@ -168,7 +168,7 @@ subroutine CLMDec_Read(this,input,option)
  
   implicit none
   
-  class(reaction_sandbox_clm_decomp_type) :: this
+  class(reaction_sandbox_somdec_type) :: this
   type(input_type) :: input
   type(option_type) :: option
   
@@ -176,7 +176,7 @@ subroutine CLMDec_Read(this,input,option)
   
   type(pool_type), pointer :: new_pool, prev_pool
   type(pool_type), pointer :: new_pool_rxn, prev_pool_rxn
-  type(clm_decomp_reaction_type), pointer :: new_reaction, prev_reaction
+  type(somdec_reaction_type), pointer :: new_reaction, prev_reaction
   
   PetscReal :: rate_constant, turnover_time
   PetscReal :: temp_real
@@ -197,7 +197,7 @@ subroutine CLMDec_Read(this,input,option)
 
     call InputReadWord(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword', &
-                       'CHEMISTRY,REACTION_SANDBOX,CLMDec')
+                       'CHEMISTRY,REACTION_SANDBOX,SomDecomp')
     call StringToUpper(word)   
     select case(trim(word))
 #ifdef CLM_PFLOTRAN
@@ -209,7 +209,7 @@ subroutine CLMDec_Read(this,input,option)
 
          call InputReadWord(input,option,word,PETSC_TRUE)
          call InputErrorMsg(input,option,'keyword', &
-            'CHEMISTRY,REACTION_SANDBOX,CLMDec,TEMPERATURE RESPONSE FUNCTION')
+            'CHEMISTRY,REACTION_SANDBOX,SomDecomp,TEMPERATURE RESPONSE FUNCTION')
          call StringToUpper(word)   
 
             select case(trim(word))
@@ -221,9 +221,9 @@ subroutine CLMDec_Read(this,input,option)
                        TEMPERATURE_RESPONSE_FUNCTION_Q10    
                   call InputReadDouble(input,option,this%Q10)  
                   call InputErrorMsg(input,option,'Q10', 'CHEMISTRY,' // &
-                       'REACTION_SANDBOX_CLMDec,TEMPERATURE RESPONSE FUNCTION')
+                       'REACTION_SANDBOX_SomDecomp,TEMPERATURE RESPONSE FUNCTION')
               case default
-                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMDec,' // &
+                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec,' // &
                                 'TEMPERATURE RESPONSE FUNCTION keyword: ' // &
                                      trim(word) // ' not recognized.'
                   call printErrMsg(option)
@@ -237,7 +237,7 @@ subroutine CLMDec_Read(this,input,option)
 
          call InputReadWord(input,option,word,PETSC_TRUE)
          call InputErrorMsg(input,option,'keyword', &
-                       'CHEMISTRY,REACTION_SANDBOX,CLMDec,MOISTURE RESPONSE FUNCTION')
+                       'CHEMISTRY,REACTION_SANDBOX,SomDecomp,MOISTURE RESPONSE FUNCTION')
          call StringToUpper(word)   
 
             select case(trim(word))
@@ -246,7 +246,7 @@ subroutine CLMDec_Read(this,input,option)
               case('DLEM')
                   this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_DLEM    
               case default
-                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMDec,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDecomp,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
                                      trim(word) // ' not recognized.'
                   call printErrMsg(option)
             end select
@@ -257,24 +257,24 @@ subroutine CLMDec_Read(this,input,option)
      case('X0EPS')
          call InputReadDouble(input,option,this%x0eps)
          call InputErrorMsg(input,option,'x0eps', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
 
      case('AMMONIA_HALF_SATURATION')
          call InputReadDouble(input,option,this%half_saturation_nh3)
          call InputErrorMsg(input,option,'ammonia half saturation', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
 
      case('NITRATE_HALF_SATURATION')
          call InputReadDouble(input,option,this%half_saturation_no3)
          call InputErrorMsg(input,option,'nitrate half saturation', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
 
      case('AMMONIA_INHIBITION_NITRATE')
          call InputReadDouble(input,option,this%inhibition_nh3_no3)
          call InputErrorMsg(input,option,'ammonia inhibition on nitrate immobilization', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
          if (this%inhibition_nh3_no3<0.d-20) then
-           option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMDec,' // &
+           option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDecomp,' // &
              'AMMONIA_INHIBITION_NITRATE cannot be too small to close to 0'
            call printErrMsg(option)
          endif
@@ -282,7 +282,7 @@ subroutine CLMDec_Read(this,input,option)
      case('N2O_FRAC_MINERALIZATION')
          call InputReadDouble(input,option,this%n2o_frac_mineralization)
          call InputErrorMsg(input,option,'n2o fraction from mineralization', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
 
      case('POOLS')
         do
@@ -297,7 +297,7 @@ subroutine CLMDec_Read(this,input,option)
 
           call InputReadWord(input,option,new_pool%name,PETSC_TRUE)
           call InputErrorMsg(input,option,'pool name', &
-            'CHEMISTRY,REACTION_SANDBOX,CLMDec,POOLS')
+            'CHEMISTRY,REACTION_SANDBOX,SomDecomp,POOLS')
           call InputReadDouble(input,option,temp_real)
           if (InputError(input)) then
             new_pool%nc_ratio = UNINITIALIZED_DOUBLE
@@ -336,7 +336,7 @@ subroutine CLMDec_Read(this,input,option)
 
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword', &
-                             'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
+                             'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION')
           call StringToUpper(word)   
 
           select case(trim(word))
@@ -344,7 +344,7 @@ subroutine CLMDec_Read(this,input,option)
               call InputReadWord(input,option, &
                                  new_reaction%upstream_pool_name,PETSC_TRUE)
               call InputErrorMsg(input,option,'upstream pool name', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION')
             case('DOWNSTREAM_POOL')
               allocate(new_pool_rxn)
               new_pool_rxn%name = ''
@@ -354,10 +354,10 @@ subroutine CLMDec_Read(this,input,option)
               call InputReadWord(input,option, &
                                  new_pool_rxn%name,PETSC_TRUE)
               call InputErrorMsg(input,option,'downstream pool name', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION')
               call InputReadDouble(input,option,new_pool_rxn%stoich)
               call InputErrorMsg(input,option,'Downstream pool stoich', 'CHEMISTRY,' // &
-                  'REACTION_SANDBOX_CLMDec,REACTION')
+                  'REACTION_SANDBOX_SomDec,REACTION')
 
               if (associated(new_reaction%downstream_pools)) then
                   prev_pool_rxn%next => new_pool_rxn
@@ -370,10 +370,10 @@ subroutine CLMDec_Read(this,input,option)
             case('RATE_CONSTANT')
               call InputReadDouble(input,option,rate_constant)
               call InputErrorMsg(input,option,'rate constant', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION')
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (InputError(input)) then
-                input%err_buf = 'CLMDec RATE CONSTANT UNITS'
+                input%err_buf = 'SomDec RATE CONSTANT UNITS'
                 call InputDefaultMsg(input,option)
               else              
                 rate_constant = rate_constant * &
@@ -382,17 +382,17 @@ subroutine CLMDec_Read(this,input,option)
             case('TURNOVER_TIME')
               call InputReadDouble(input,option,turnover_time)
               call InputErrorMsg(input,option,'turnover time', &
-                     'CHEMISTRY,REACTION_SANDBOX,CLMDec,REACTION')
+                     'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION')
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (InputError(input)) then
-                input%err_buf = 'CLMDec TURNOVER TIME UNITS'
+                input%err_buf = 'SomDec TURNOVER TIME UNITS'
                 call InputDefaultMsg(input,option)
               else              
                 turnover_time = turnover_time * &
                   UnitsConvertToInternal(word,option)
               endif
             case default
-              option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMDec,' // &
+              option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec,' // &
                 'REACTION keyword: ' // trim(word) // ' not recognized.'
               call printErrMsg(option)
           end select
@@ -401,7 +401,7 @@ subroutine CLMDec_Read(this,input,option)
         ! check to ensure that one of turnover time or rate constant is set.
         if (turnover_time > 0.d0 .and. rate_constant > 0.d0) then
           option%io_buffer = 'Only TURNOVER_TIME or RATE_CONSTANT may ' // &
-            'be included in a CLMDec reaction definition, but not both. ' // &
+            'be included in a SomDec reaction definition, but not both. ' // &
             'See reaction with upstream pool "' // &
             trim(new_reaction%upstream_pool_name) // '".'
           call printErrMsg(option)
@@ -418,19 +418,19 @@ subroutine CLMDec_Read(this,input,option)
         prev_reaction => new_reaction
         nullify(new_reaction)        
       case default
-        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMDec keyword: ' // &
+        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec keyword: ' // &
           trim(word) // ' not recognized.'
         call printErrMsg(option)
     end select
   enddo
   
-end subroutine CLMDec_Read
+end subroutine SomDecRead
 
 ! ************************************************************************** !
 
-subroutine CLMDec_Setup(this,reaction,option)
+subroutine SomDecSetup(this,reaction,option)
   ! 
-  ! Sets up CLMDec reaction after it has been read from input
+  ! Sets up SomDec reaction after it has been read from input
   ! 
   ! Author: Guoping Tang
   ! Date: 02/04/14
@@ -444,7 +444,7 @@ subroutine CLMDec_Setup(this,reaction,option)
   
   implicit none
 
-  class(reaction_sandbox_clm_decomp_type) :: this
+  class(reaction_sandbox_somdec_type) :: this
   type(option_type) :: option
   type(reaction_type) :: reaction
   
@@ -459,7 +459,7 @@ subroutine CLMDec_Setup(this,reaction,option)
   PetscReal :: stoich_c, stoich_n
 
   type(pool_type), pointer :: cur_pool
-  type(clm_decomp_reaction_type), pointer :: cur_rxn
+  type(somdec_reaction_type), pointer :: cur_rxn
   
   ! count # pools
   icount = 0
@@ -574,7 +574,7 @@ subroutine CLMDec_Setup(this,reaction,option)
         GetImmobileSpeciesIDFromName(word,reaction%immobile, &
                                      PETSC_FALSE,option)
       if (species_id_pool_c(icount)<=0 .or. species_id_pool_n(icount)<=0) then
-        option%io_buffer = 'For CLMDec pools with no CN ratio defined, ' // &
+        option%io_buffer = 'For SomDec pools with no CN ratio defined, ' // &
           'the user must define two immobile species with the same root ' // &
           'name as the pool with "C" or "N" appended, respectively.'
         call printErrMsg(option)
@@ -587,7 +587,7 @@ subroutine CLMDec_Setup(this,reaction,option)
           species_id_pool_c(icount) = GetPrimarySpeciesIDFromName(cur_pool%name, &
                 reaction, PETSC_FALSE,option)
           if(species_id_pool_c(icount) <= 0) then
-             option%io_buffer = 'CLMDec pool: ' // cur_pool%name // &
+             option%io_buffer = 'SomDec pool: ' // cur_pool%name // &
              'is not specified either in the IMMOBILE_SPECIES or PRIMARY_SPECIES!'
              call printErrMsg(option)
           else
@@ -654,7 +654,7 @@ subroutine CLMDec_Setup(this,reaction,option)
           if (this%downstream_nc(icount,jcount) < 0.d0) then
             this%downstream_is_varycn = PETSC_TRUE
             ! (TODO) may need modify this to have more general applications
-            option%io_buffer = 'For CLMDec reactions, downstream pool ' // &
+            option%io_buffer = 'For SomDec reactions, downstream pool ' // &
              'must have a constant C:N ratio (i.e. C and N are not tracked ' // &
              ' individually.  Therefore, pool "' // &
              trim(cur_pool%name) // &
@@ -693,7 +693,7 @@ subroutine CLMDec_Setup(this,reaction,option)
        enddo
 
        if(stoich_c < 0.0d0) then
-         option%io_buffer = 'CLMDec fixedCN C pool decomposition '// &
+         option%io_buffer = 'SomDec fixedCN C pool decomposition '// &
           'has a negative respiration fraction!' // &
             'Please check reactions of upstream pool: ' // &
              trim(cur_pool%name)
@@ -701,7 +701,7 @@ subroutine CLMDec_Setup(this,reaction,option)
        endif
 
        if(stoich_n < 0.0d0) then
-         option%io_buffer = 'CLMDec fixedCN C pool N mineralization is negative,' // &
+         option%io_buffer = 'SomDec fixedCN C pool N mineralization is negative,' // &
            'which (i.e. N immobilization) is not supported currently.' // &
            ' VariableCN ratio suggested.'
          call printErrMsg(option)
@@ -770,7 +770,7 @@ subroutine CLMDec_Setup(this,reaction,option)
             word,reaction%immobile,PETSC_FALSE,option)
 #ifdef CLM_PFLOTRAN
   if(this%species_id_nimm < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMdec: ' // &
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec: ' // &
        ' Nimm is not specified as immobile species in the input file. ' // &
        ' It is required when coupled with CLM.'
      call printErrMsg(option)
@@ -782,17 +782,17 @@ subroutine CLMDec_Setup(this,reaction,option)
             word,reaction%immobile,PETSC_FALSE,option)
 #ifdef CLM_PFLOTRAN
   if(this%species_id_ngasmin < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMdec: ' // &
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec: ' // &
        ' NGASmin is not specified as immobile species in the input file. ' // &
        ' It is required when coupled with CLM.'
      call printErrMsg(option)
   endif
 #endif
 
-end subroutine CLMDec_Setup
+end subroutine SomDecSetup
 
 ! ************************************************************************** !
-subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
+subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
                        global_auxvar,material_auxvar,reaction,option)
   ! 
   ! Evaluates reaction storing residual and/or Jacobian
@@ -819,7 +819,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 #include "finclude/petscvec.h90"
 #endif
 
-  class(reaction_sandbox_clm_decomp_type) :: this
+  class(reaction_sandbox_somdec_type) :: this
   type(option_type) :: option
   type(reaction_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
@@ -1085,7 +1085,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       enddo
 
       if(stoich_c < 0.0d0) then
-        option%io_buffer = 'CLMDec variableCN ratio C pool decomposition has' // &
+        option%io_buffer = 'SomDec variableCN ratio C pool decomposition has' // &
                               'a negative respiration fraction!'
         call printErrMsg(option)
       endif
@@ -1667,21 +1667,20 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     if (abs(temp_real) > huge(temp_real)) then
       write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
       write(option%fid_out, *) 'Reaction Sandbox: DECOMPOSITION'
-      option%io_buffer = ' checking infinity of Residuals matrix  @ CLMDec_React '
+      option%io_buffer = ' checking infinity of Residuals matrix  @ SomDecReact '
       call printErrMsg(option)
     endif
   enddo
 #endif
 
-end subroutine CLMDec_React
+end subroutine SomDecReact
 
 ! ************************************************************************** !
 !
-! CLMDecDestroy: Destroys allocatable or pointer objects created in this
-!                  module
+! SomDecDestroy: Destroys allocatable or pointer objects created in this module
 ! author: Guoping Tang
 ! ************************************************************************** !
-subroutine CLMDec_Destroy(this)
+subroutine SomDecDestroy(this)
   ! 
   ! Destroys allocatable or pointer objects created in this
   ! module
@@ -1694,10 +1693,10 @@ subroutine CLMDec_Destroy(this)
 
   implicit none
   
-  class(reaction_sandbox_clm_decomp_type) :: this
+  class(reaction_sandbox_somdec_type) :: this
   
   type(pool_type), pointer :: cur_pool, prev_pool
-  type(clm_decomp_reaction_type), pointer :: cur_reaction, prev_reaction
+  type(somdec_reaction_type), pointer :: cur_reaction, prev_reaction
   
   cur_pool => this%pools
   do
@@ -1742,6 +1741,6 @@ subroutine CLMDec_Destroy(this)
   call DeallocateArray(this%mineral_c_stoich) 
   call DeallocateArray(this%mineral_n_stoich) 
  
-end subroutine CLMDec_Destroy
+end subroutine SomDecDestroy
 
-end module Reaction_Sandbox_CLMDec_class
+end module Reaction_Sandbox_SomDec_class
