@@ -81,8 +81,6 @@ subroutine ImmisTimeCut(realization)
   option => realization%option
   field => realization%field
 
-  call VecCopy(field%flow_yy,field%flow_xx,ierr);CHKERRQ(ierr)
-
 end subroutine ImmisTimeCut
 
 ! ************************************************************************** !
@@ -203,7 +201,7 @@ subroutine ImmisSetupPatch(realization)
   ! print *,' ims setup allocate app array'
    ! count the number of boundary connections and allocate
   ! auxvar data structures for them  
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -220,7 +218,7 @@ subroutine ImmisSetupPatch(realization)
   patch%aux%Immis%num_aux_bc = sum_connection
   
  ! Allocate source /sink  
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0    
   do 
     if (.not.associated(source_sink)) exit
@@ -741,7 +739,7 @@ subroutine ImmisUpdateAuxVarsPatch(realization)
     endif
   enddo
 
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -796,7 +794,7 @@ subroutine ImmisUpdateAuxVarsPatch(realization)
 
 
 ! source/sinks
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0    
   do 
     if (.not.associated(source_sink)) exit
@@ -869,9 +867,6 @@ subroutine ImmisUpdateSolution(realization)
   
   field => realization%field
   
-  call VecCopy(realization%field%flow_xx,realization%field%flow_yy, &
-               ierr);CHKERRQ(ierr)
-
   cur_patch => realization%patch_list%first
   do
     if (.not.associated(cur_patch)) exit
@@ -1774,6 +1769,7 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
   PetscInt :: sum_connection
   PetscReal :: distance, fraction_upwind
   PetscReal :: distance_gravity
+  PetscReal :: ss_flow_vol_flux(realization%option%nphase)
   
   character(len=MAXSTRINGLENGTH) :: string
 
@@ -1887,7 +1883,7 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
 
 #if 1
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first 
+  source_sink => patch%source_sink_list%first 
   sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
@@ -1939,9 +1935,14 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
       sum_connection = sum_connection + 1
       call ImmisSourceSink(msrc,nsrcpara,psrc,tsrc1,hsrc1,auxvars(ghosted_id)%auxvar_elem(0),&
             source_sink%flow_condition%itype(1),Res, &
-            patch%ss_fluid_fluxes(:,sum_connection), &
+            ss_flow_vol_flux, &
             enthalpy_flag, option)
-
+      if (associated(patch%ss_flow_fluxes)) then
+        patch%ss_flow_fluxes(:,sum_connection) = Res(:)/option%flow_dt
+      endif
+      if (associated(patch%ss_flow_vol_fluxes)) then
+        patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux/option%flow_dt
+      endif
       if (option%compute_mass_balance_new) then
         global_auxvars_ss(sum_connection)%mass_balance_delta(:,1) = &
           global_auxvars_ss(sum_connection)%mass_balance_delta(:,1) - &
@@ -1970,7 +1971,7 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
 
 #if 1
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -2050,6 +2051,9 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
       endif
 
       patch%boundary_velocities(:,sum_connection) = v_darcy(:)
+      if (associated(patch%boundary_flow_fluxes)) then
+        patch%boundary_flow_fluxes(:,sum_connection) = Res(:)
+      endif        
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
       r_p(istart:iend) = r_p(istart:iend) - Res(1:option%nflowdof)
@@ -2123,6 +2127,9 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
                 upweight,option,v_darcy,Res)
 
       patch%internal_velocities(:,sum_connection) = v_darcy(:)
+      if (associated(patch%internal_flow_fluxes)) then
+        patch%internal_flow_fluxes(:,sum_connection) = Res(:)
+      endif      
       patch%aux%Immis%res_old_FL(sum_connection,1:option%nflowdof)= Res(1:option%nflowdof)
  
       if (local_id_up>0) then
@@ -2399,7 +2406,7 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
 #endif
 #if 1
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first 
+  source_sink => patch%source_sink_list%first 
   do 
     if (.not.associated(source_sink)) exit
     
@@ -2467,7 +2474,7 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
 ! Boundary conditions
 #if 1
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit

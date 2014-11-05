@@ -383,23 +383,18 @@ subroutine SurfaceFlowRHSFunction(ts,t,xx,ff,surf_realization,ierr)
             'Kinematic wave'
           call printErrMsg(option)
         case (DIFFUSION_WAVE)
-#if 1
-        call SurfaceFlowFlux(surf_global_auxvars(ghosted_id_up), &
-                             zc(ghosted_id_up), &
-                             mannings_loc_p(ghosted_id_up), &
-                             surf_global_auxvars(ghosted_id_dn), &
-                             zc(ghosted_id_dn), &
-                             mannings_loc_p(ghosted_id_dn), &
-                             dist, cur_connection_set%area(iconn), &
-                             option,vel,Res)
-#endif
+          call SurfaceFlowFlux(surf_global_auxvars(ghosted_id_up), &
+                               zc(ghosted_id_up), &
+                               mannings_loc_p(ghosted_id_up), &
+                               surf_global_auxvars(ghosted_id_dn), &
+                               zc(ghosted_id_dn), &
+                               mannings_loc_p(ghosted_id_dn), &
+                               dist, cur_connection_set%area(iconn), &
+                               option,vel,Res)
       end select
 
       patch%internal_velocities(1,sum_connection) = vel
-      patch%surf_internal_fluxes(RICHARDS_PRESSURE_DOF,sum_connection) = Res(1)
-
-      vel = patch%internal_velocities(1,sum_connection)
-      Res(1) = patch%surf_internal_fluxes(RICHARDS_PRESSURE_DOF,sum_connection)
+      patch%internal_flow_fluxes(1,sum_connection) = Res(1)
 
       if (local_id_up>0) then
         ff_p(local_id_up) = ff_p(local_id_up) - Res(1)/area_p(local_id_up)
@@ -415,7 +410,7 @@ subroutine SurfaceFlowRHSFunction(ts,t,xx,ff,surf_realization,ierr)
   enddo
 
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -433,27 +428,23 @@ subroutine SurfaceFlowRHSFunction(ts,t,xx,ff,surf_realization,ierr)
       dz = zc(ghosted_id_dn) - cur_connection_set%intercp(3,iconn)
       slope_dn = dz/sqrt(dx*dx + dy*dy + dz*dz)
 
-#if 1
       call SurfaceFlowBCFlux(boundary_condition%flow_condition%itype, &
                          surf_global_auxvars_bc(sum_connection), &
                          slope_dn, &
                          mannings_loc_p(ghosted_id_dn), &
                          cur_connection_set%area(iconn), &
                          option,vel,Res)
-#endif
 
       patch%boundary_velocities(1,sum_connection) = vel
-      patch%surf_boundary_fluxes(RICHARDS_PRESSURE_DOF,sum_connection) = Res(1)
-      vel = patch%boundary_velocities(1,sum_connection)
-      Res(1) = patch%surf_boundary_fluxes(RICHARDS_PRESSURE_DOF,sum_connection)
-      
+      patch%boundary_flow_fluxes(1,sum_connection) = Res(1)
+
       ff_p(local_id) = ff_p(local_id) + Res(1)/area_p(local_id)
     enddo
     boundary_condition => boundary_condition%next
   enddo
 
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0
   do
     if (.not.associated(source_sink)) exit
@@ -618,7 +609,7 @@ subroutine SurfaceFlowComputeMaxDt(surf_realization,max_allowable_dt)
       end select
 
       patch%internal_velocities(1,sum_connection) = vel
-      patch%surf_internal_fluxes(RICHARDS_PRESSURE_DOF,sum_connection) = Res(1)
+      patch%internal_flow_fluxes(1,sum_connection) = Res(1)
       if(abs(vel)>eps) then
         dt = dist/abs(vel)/4.d0
         max_allowable_dt = min(max_allowable_dt,dt)
@@ -629,7 +620,7 @@ subroutine SurfaceFlowComputeMaxDt(surf_realization,max_allowable_dt)
   enddo
 
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -655,7 +646,7 @@ subroutine SurfaceFlowComputeMaxDt(surf_realization,max_allowable_dt)
                          cur_connection_set%area(iconn), &
                          option,vel,Res)
       patch%boundary_velocities(1,sum_connection) = vel
-      patch%surf_boundary_fluxes(RICHARDS_PRESSURE_DOF,sum_connection) = Res(1)
+      patch%boundary_flow_fluxes(1,sum_connection) = Res(1)
 
       if(abs(vel)>eps) then
         dt = dist/abs(vel)/4.d0
@@ -856,7 +847,7 @@ subroutine SurfaceFlowUpdateAuxVars(surf_realization)
    
   call VecGetArrayF90(surf_field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
   ! Boundary aux vars
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -883,7 +874,7 @@ subroutine SurfaceFlowUpdateAuxVars(surf_realization)
 
   ! Source/Sink aux vars
   ! source/sinks
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0
   do
     if (.not.associated(source_sink)) exit
