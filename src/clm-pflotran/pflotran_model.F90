@@ -1261,7 +1261,7 @@ end subroutine pflotranModelSetICs
         grid => patch%grid
 
         ! Destination mesh is PF_2DSUB_MESH
-        boundary_condition => patch%boundary_conditions%first
+        boundary_condition => patch%boundary_condition_list%first
         sum_connection = 0
         do 
           if (.not.associated(boundary_condition)) exit
@@ -2254,7 +2254,7 @@ end subroutine pflotranModelSetICs
     ! Update the 'clm_et_ss' source/sink term
     call VecGetArrayF90(clm_pf_idata%qflx_pf,qflx_pf_loc,ierr)
     found = PETSC_FALSE
-    source_sink => subsurf_realization%patch%source_sinks%first
+    source_sink => subsurf_realization%patch%source_sink_list%first
     do
       if (.not.associated(source_sink)) exit
 
@@ -2389,7 +2389,7 @@ end subroutine pflotranModelSetICs
     ! Update the 'clm_et_ss' source/sink term
     call VecGetArrayF90(clm_pf_idata%rain_pf,rain_pf_loc,ierr)
     found = PETSC_FALSE
-    source_sink => surf_realization%patch%source_sinks%first
+    source_sink => surf_realization%patch%source_sink_list%first
     do
       if (.not.associated(source_sink)) exit
 
@@ -2476,7 +2476,7 @@ end subroutine pflotranModelSetICs
     ! Update the 'clm_et_ss' source/sink term
     call VecGetArrayF90(clm_pf_idata%gflux_subsurf_pf,gflux_subsurf_pf_loc,ierr)
     found = PETSC_FALSE
-    boundary_condition => subsurf_realization%patch%boundary_conditions%first
+    boundary_condition => subsurf_realization%patch%boundary_condition_list%first
     do
       if (.not.associated(boundary_condition)) exit
 
@@ -2574,7 +2574,7 @@ end subroutine pflotranModelSetICs
     ! Update the 'clm_et_ss' source/sink term
     call VecGetArrayF90(clm_pf_idata%gflux_surf_pf,gflux_surf_pf_loc,ierr)
     found = PETSC_FALSE
-    source_sink => surf_realization%patch%source_sinks%first
+    source_sink => surf_realization%patch%source_sink_list%first
     do
       if (.not.associated(source_sink)) exit
 
@@ -2611,7 +2611,7 @@ end subroutine pflotranModelSetICs
     ! Update the 'clm_rain_srf_ss' source/sink term
     call VecGetArrayF90(clm_pf_idata%rain_temp_pf,rain_temp_pf_loc,ierr)
     found = PETSC_FALSE
-    source_sink => surf_realization%patch%source_sinks%first
+    source_sink => surf_realization%patch%source_sink_list%first
     do
       if (.not.associated(source_sink)) exit
 
@@ -2697,7 +2697,7 @@ end subroutine pflotranModelSetICs
     ! Source/sink terms -------------------------------------
     call VecGetArrayF90(clm_pf_idata%rain_pf,rain_pf_loc,ierr)
     found = PETSC_FALSE
-    source_sink => surf_realization%patch%source_sinks%first
+    source_sink => surf_realization%patch%source_sink_list%first
     do
       if (.not.associated(source_sink)) exit
 
@@ -3157,7 +3157,7 @@ end subroutine pflotranModelSetICs
       condition_name = 'from_surface_bc'
     endif
 
-    coupler_list => realization%patch%boundary_conditions
+    coupler_list => realization%patch%boundary_condition_list
     coupler => coupler_list%first
     found = PETSC_FALSE
 
