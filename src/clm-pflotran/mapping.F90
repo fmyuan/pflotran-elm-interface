@@ -84,7 +84,15 @@ module Mapping_module
     PetscInt           :: pflotran_nlev             ! Number of PFLOTRAN layers
     PetscInt           :: pflotran_nlev_mapped      ! Number of PFLOTRAN layers mapped
 
+    type(mapping_type), pointer :: next
+
   end type mapping_type
+
+  type, public :: mapping_list_type
+    PetscInt                       :: nmap
+    type(mapping_type), pointer    :: first
+    type(mapping_type), pointer    :: last
+  end type mapping_list_type
 
   public :: MappingCreate, &
             MappingSetSourceMeshCellIds, &
@@ -96,6 +104,8 @@ module Mapping_module
             MappingCreateWeightMatrix, &
             MappingCreateScatterOfSourceMesh, &
             MappingSourceToDestination, &
+            MappingListCreate, &
+            MappingListAddToList, &
             MappingDestroy
 contains
 
@@ -154,6 +164,8 @@ contains
     map%pflotran_nlev = 0
     map%pflotran_nlev_mapped = 0
     
+    nullify(map%next)
+
     MappingCreate => map
 
   end function MappingCreate
@@ -1547,7 +1559,74 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine MappingDestroy(map)
+function MappingListCreate()
+  !
+  ! This routine creates an empty map-list
+  !
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 11/09/2014
+  !
+
+  implicit none
+
+  type(mapping_list_type), pointer :: MappingListCreate
+
+  type(mapping_list_type), pointer :: map_list
+
+  allocate(map_list)
+  nullify(map_list%first)
+  nullify(map_list%last)
+  map_list%nmap = 0
+
+  MappingListCreate => map_list
+
+end function MappingListCreate
+
+! ************************************************************************** !
+
+subroutine MappingListAddToList(list, map)
+  !
+  ! This routine adds a map to map-list
+  !
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 11/09/2014
+  !
+
+  implicit none
+
+  type(mapping_list_type) :: list
+  type(mapping_type), pointer :: map
+
+  if (.not. associated(list%first)) then
+    list%first => map
+  else
+    list%last%next => map
+  endif
+  list%last => map
+
+  list%nmap = list%nmap + 1
+
+end subroutine MappingListAddToList
+
+! ************************************************************************** !
+
+subroutine MappingListDestroy(list)
+
+  implicit none
+
+  type(mapping_list_type), pointer :: list
+
+  nullify(list%last)
+  call MappingDestroy(list%first)
+
+  deallocate(list)
+  nullify(list)
+
+end subroutine MappingListDestroy
+
+! ************************************************************************** !
+
+recursive subroutine MappingDestroy(map)
   !
   ! This routine frees up memoery
   !
@@ -1559,6 +1638,8 @@ contains
 
     ! argument
     type(mapping_type), pointer :: map
+
+    if (.not.associated(map)) return
 
     if (associated(map%s_ids_loc_nidx)) deallocate(map%s_ids_loc_nidx)
     if (associated(map%d_ids_ghd_nidx)) deallocate(map%d_ids_ghd_nidx)
@@ -1585,6 +1666,8 @@ contains
     nullify(map%s2d_jcsr)
     nullify(map%s2d_icsr)
     nullify(map%s2d_nonzero_rcount_csr)
+
+    call MappingDestroy(map%next)
 
   end subroutine MappingDestroy
 
