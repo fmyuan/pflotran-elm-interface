@@ -81,7 +81,6 @@ subroutine MphaseTimeCut(realization)
   option => realization%option
   field => realization%field
 
-  call VecCopy(field%flow_yy,field%flow_xx,ierr);CHKERRQ(ierr)
   call VecCopy(field%iphas_old_loc,field%iphas_loc,ierr);CHKERRQ(ierr)
 
 end subroutine MphaseTimeCut
@@ -237,7 +236,7 @@ subroutine MphaseSetupPatch(realization)
 
   if (option%use_mc) then
  
-    initial_condition => patch%initial_conditions%first
+    initial_condition => patch%initial_condition_list%first
     allocate(mphase_sec_heat_vars(grid%nlmax))
   
     do local_id = 1, grid%nlmax
@@ -324,16 +323,10 @@ subroutine MphaseSetupPatch(realization)
   allocate(mphase%res_old_AR(grid%nlmax,option%nflowdof))
   allocate(mphase%res_old_FL(ConnectionGetNumberInList(patch%grid%&
            internal_connection_set_list),option%nflowdof))
-
-#ifdef YE_FLUX
-  allocate(patch%internal_fluxes(3,1,ConnectionGetNumberInList(patch%grid%&
-           internal_connection_set_list)))
-  patch%internal_fluxes = 0.d0
-#endif
            
   ! count the number of boundary connections and allocate
   ! auxvar data structures for them  
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -352,7 +345,7 @@ subroutine MphaseSetupPatch(realization)
   mphase%num_aux_bc = sum_connection
   
  ! Allocate source /sink  
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0    
   do 
     if (.not.associated(source_sink)) exit
@@ -1030,7 +1023,7 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
     iphase_loc_p(ghosted_id) = iphase
   enddo
   
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -1108,7 +1101,7 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
 
 
 ! source/sinks
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0    
   do 
     if (.not.associated(source_sink)) exit
@@ -1183,7 +1176,6 @@ subroutine MphaseUpdateSolution(realization)
   
   field => realization%field
   
-  call VecCopy(field%flow_xx,field%flow_yy,ierr);CHKERRQ(ierr)
   call VecCopy(field%iphas_loc,field%iphas_old_loc,ierr);CHKERRQ(ierr)
   
 ! call VecCopy(realization%field%flow_xx,realization%field%flow_yy,ierr)
@@ -1496,7 +1488,7 @@ end subroutine MphaseAccumulation
 ! ************************************************************************** !
 
 subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,Res, &
-                            qsrc_phase,energy_flag,option)
+                            qsrc_vol,energy_flag,option)
   ! 
   ! Computes the source/sink portion for the residual
   ! 
@@ -1523,7 +1515,7 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
   PetscInt :: isrctype
   PetscInt :: nsrcpara
   PetscBool :: energy_flag
-  PetscReal :: qsrc_phase(:) ! volumetric rate of injection/extraction for each phase
+  PetscReal :: qsrc_vol(option%nphase) ! volumetric rate of injection/extraction for each phase
      
   PetscReal, allocatable :: msrc(:)
   PetscReal :: dw_kg, dw_mol,dddt,dddp
@@ -1546,7 +1538,7 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
 !   Res(option%nflowdof) = Res(option%nflowdof) + hsrc * option%flow_dt   
 ! endif         
 
-  qsrc_phase = 0.d0
+  qsrc_vol(:) = 0.d0
   
   select case(isrctype)
     case(MASS_RATE_SS)
@@ -1568,7 +1560,7 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
 !       print *,'soure/sink: ',msrc,csrc,enth_src_h2o,option%flow_dt,option%nflowdof
 
         ! store volumetric rate for ss_fluid_fluxes()
-        qsrc_phase(1) = msrc(1)/dw_mol
+        qsrc_vol(1) = msrc(1)/dw_mol
       elseif (msrc(1) < 0.d0) then ! H2O extraction
         call EOSWaterDensityEnthalpy(auxvar%temp,auxvar%pres,dw_kg,dw_mol, &
                                      enth_src_h2o,ierr)
@@ -1584,7 +1576,7 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
 !       print *,'soure/sink: ',msrc,csrc,enth_src_h2o,option%flow_dt,option%nflowdof
 
         ! store volumetric rate for ss_fluid_fluxes()
-        qsrc_phase(1) = msrc(1)/dw_mol
+        qsrc_vol(1) = msrc(1)/dw_mol
       endif  
     
       if (msrc(2) > 0.d0) then ! CO2 injection
@@ -1614,12 +1606,14 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
           
           ! store volumetric rate for ss_fluid_fluxes()
           ! qsrc_phase [m^3/sec] = msrc [kmol/sec] / [kg/m^3] * [kg/kmol]  
-          qsrc_phase(2) = msrc(2)*rho/FMWCO2
+          qsrc_vol(2) = msrc(2)*rho/FMWCO2
 
         else if(option%co2eos == EOS_MRK) then
 ! MRK eos [modified version from  Kerrick and Jacobs (1981) and Weir et al. (1996).]
           call CO2(tsrc,auxvar%pres, rho,fg, xphi,enth_src_co2)
-          qsrc_phase(2) = msrc(2)*rho/FMWCO2
+          !geh: this is never used as the conversion is performed inside 
+          !     reactive transport
+          !qsrc_phase(2) = msrc(2)*rho/FMWCO2
           enth_src_co2 = enth_src_co2*FMWCO2*option%scale
         else
           call printErrMsg(option,'pflow mphase ERROR: Need specify CO2 EOS')
@@ -1670,7 +1664,7 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
               if (ukvr*Dq > floweps) then
                 v_darcy = Dq * ukvr * dphi
                 ! store volumetric rate for ss_fluid_fluxes()
-                qsrc_phase(1) = -1.d0*v_darcy
+                qsrc_vol(1) = -1.d0*v_darcy
                 Res(1) = Res(1) - v_darcy* auxvar%den(np)* &
                   auxvar%xmol((np-1)*option%nflowspec+1)*option%flow_dt
                 Res(2) = Res(2) - v_darcy* auxvar%den(np)* &
@@ -1704,7 +1698,7 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
               if (ukvr*Dq>floweps) then
                 v_darcy = Dq * ukvr * dphi
                 ! store volumetric rate for ss_fluid_fluxes()
-                qsrc_phase(1) = v_darcy
+                qsrc_vol(1) = v_darcy
                 Res(1) = Res(1) + v_darcy* auxvar%den(np)* &
 !                 auxvar%xmol((np-1)*option%nflowspec+1) * option%flow_dt
                   well_inj_water * option%flow_dt
@@ -2604,6 +2598,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   PetscReal, pointer :: msrc(:)
+  PetscReal :: ss_flow_vol_flux(realization%option%nphase)
 
   type(sec_heat_type), pointer :: mphase_sec_heat_vars(:)
 
@@ -2811,7 +2806,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
 #if 1
   ! Source/sink terms -------------------------------------
 ! print *, 'Mphase residual patch 2' 
-  source_sink => patch%source_sinks%first 
+  source_sink => patch%source_sink_list%first 
   sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
@@ -2871,7 +2866,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
                             auxvars(ghosted_id)%auxvar_elem(0),&
                             source_sink%flow_condition%itype(1),Res, &
                     ! fluid flux [m^3/sec] = Res [kmol/mol] / den [kmol/m^3]
-                            patch%ss_fluid_fluxes(:,sum_connection), &
+                            ss_flow_vol_flux, &
                             enthalpy_flag,option)
 
   ! included by SK, 08/23/11 to print mass fluxes at source/sink						
@@ -2880,7 +2875,12 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
           global_auxvars_ss(sum_connection)%mass_balance_delta(:,1) - &
           Res(:)/option%flow_dt
       endif
-  
+      if (associated(patch%ss_flow_fluxes)) then
+        patch%ss_flow_fluxes(:,sum_connection) = Res(:)/option%flow_dt
+      endif
+      if (associated(patch%ss_flow_vol_fluxes)) then
+        patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux/option%flow_dt
+      endif
       r_p((local_id-1)*option%nflowdof + jh2o) = r_p((local_id-1)*option%nflowdof + jh2o)-Res(jh2o)
       r_p((local_id-1)*option%nflowdof + jco2) = r_p((local_id-1)*option%nflowdof + jco2)-Res(jco2)
       mphase%res_old_AR(local_id,jh2o) = mphase%res_old_AR(local_id,jh2o) - Res(jh2o)    
@@ -2901,7 +2901,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
 #if 1
  ! print *, 'Mphase residual patch 3' 
    ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -3008,8 +3008,10 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
       mphase%res_old_AR(local_id,1:option%nflowdof) = &
            mphase%res_old_AR(local_id,1:option%nflowdof) - Res(1:option%nflowdof)
 
-!     print *, 'REs BC: ',r_p(istart:iend)
-
+      if (associated(patch%boundary_flow_fluxes)) then
+        patch%boundary_flow_fluxes(1:option%nflowdof,sum_connection) = &
+                                                       Res(1:option%nflowdof)
+      endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
         global_auxvars_bc(sum_connection)%mass_balance_delta(:,1) = &
@@ -3100,10 +3102,9 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
         r_p(istart:iend) = r_p(istart:iend) - Res(1:option%nflowdof)
       endif
 
-#ifdef YE_FLUX
-      patch%internal_fluxes(1:option%nflowdof,1,sum_connection) = &
-                                                     Res(1:option%nflowdof)
-#endif
+      if (associated(patch%internal_flow_fluxes)) then
+        patch%internal_flow_fluxes(:,sum_connection) = Res(:)
+      endif
 
     enddo
     cur_connection_set => cur_connection_set%next
@@ -3318,7 +3319,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
   PetscReal :: xxbc(1:realization%option%nflowdof), delxbc(1:realization%option%nflowdof)
   PetscReal :: ResInc(realization%patch%grid%nlmax,realization%option%nflowdof,&
            realization%option%nflowdof)
-  PetscReal :: dummy_real_array(2)
+  PetscReal :: dummy_real(realization%option%nphase)
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option 
@@ -3422,7 +3423,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
 
 #if 1
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first 
+  source_sink => patch%source_sink_list%first 
   do 
     if (.not.associated(source_sink)) exit
     
@@ -3476,7 +3477,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
          call MphaseSourceSink(msrc,nsrcpara,psrc,tsrc1,hsrc1,csrc1, &
                                auxvars(ghosted_id)%auxvar_elem(nvar), &
                                source_sink%flow_condition%itype(1),Res, &
-                               dummy_real_array,enthalpy_flag,option)
+                               dummy_real,enthalpy_flag,option)
       
          ResInc(local_id,jh2o,nvar) =  ResInc(local_id,jh2o,nvar) - Res(jh2o)
          ResInc(local_id,jco2,nvar) =  ResInc(local_id,jco2,nvar) - Res(jco2)
@@ -3493,7 +3494,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
 ! Boundary conditions
 #if 1
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit

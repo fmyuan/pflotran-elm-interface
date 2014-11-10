@@ -8,7 +8,7 @@ module Reaction_Sandbox_CLM_CN_class
   use PFLOTRAN_Constants_module
 
 #ifdef CLM_PFLOTRAN
-  use CLM_BGC_module
+  use CLM_RspFuncs_module
 #endif
 
   implicit none

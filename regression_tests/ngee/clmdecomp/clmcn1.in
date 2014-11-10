@@ -43,7 +43,7 @@ CHEMISTRY
     Lit3N
   /
   REACTION_SANDBOX
-    CLM-DECOMP
+    SOMDECOMP
       POOLS
         SOM1 12.d0
         SOM2 12.d0

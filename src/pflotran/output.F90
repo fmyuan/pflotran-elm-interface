@@ -115,8 +115,7 @@ subroutine Output(realization_base,plot_flag,transient_plot_flag)
     if (realization_base%output_option%print_hdf5) then
       call PetscTime(tstart,ierr);CHKERRQ(ierr)
       call PetscLogEventBegin(logging%event_output_hdf5,ierr);CHKERRQ(ierr)
-      if (realization_base%discretization%itype == UNSTRUCTURED_GRID .or. &
-          realization_base%discretization%itype == UNSTRUCTURED_GRID_MIMETIC) then
+      if (realization_base%discretization%itype == UNSTRUCTURED_GRID) then
         select case (realization_base%discretization%grid%itype)
           case (EXPLICIT_UNSTRUCTURED_GRID)
             if (option%print_explicit_primal_grid) then
@@ -482,7 +481,7 @@ subroutine ComputeFlowCellVelocityStats(realization_base)
       enddo
 
       ! boundary velocities
-      boundary_condition => patch%boundary_conditions%first
+      boundary_condition => patch%boundary_condition_list%first
       sum_connection = 0
       do
         if (.not.associated(boundary_condition)) exit
@@ -762,7 +761,7 @@ subroutine OutputPrintCouplers(realization_base,istep)
       do
         if (.not.associated(cur_patch)) exit
         grid => cur_patch%grid
-        coupler => CouplerGetPtrFromList(word,cur_patch%boundary_conditions)
+        coupler => CouplerGetPtrFromList(word,cur_patch%boundary_condition_list)
         call VecZeroEntries(field%work,ierr);CHKERRQ(ierr)
         call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
         if (associated(coupler)) then
@@ -853,8 +852,7 @@ subroutine OutputAvegVars(realization_base)
        output_option%print_hdf5_aveg_energy_flowrate) then
       ! There is a possibility to output average-flowrates, thus
       ! call output subroutine depending on mesh type
-      if (realization_base%discretization%itype == UNSTRUCTURED_GRID.or. &
-          realization_base%discretization%itype == UNSTRUCTURED_GRID_MIMETIC) then
+      if (realization_base%discretization%itype == UNSTRUCTURED_GRID) then
         call OutputHDF5UGridXDMF(realization_base,AVERAGED_VARS)
       else
       !  call OutputHDF5(realization_base,AVERAGED_VARS)
@@ -901,8 +899,7 @@ subroutine OutputAvegVars(realization_base)
     if (realization_base%output_option%print_hdf5) then
       call PetscTime(tstart,ierr);CHKERRQ(ierr)
       call PetscLogEventBegin(logging%event_output_hdf5,ierr);CHKERRQ(ierr)
-      if (realization_base%discretization%itype == UNSTRUCTURED_GRID.or. &
-          realization_base%discretization%itype == UNSTRUCTURED_GRID_MIMETIC) then
+      if (realization_base%discretization%itype == UNSTRUCTURED_GRID) then
         call OutputHDF5UGridXDMF(realization_base,AVERAGED_VARS)
       else
         call OutputHDF5(realization_base,AVERAGED_VARS)

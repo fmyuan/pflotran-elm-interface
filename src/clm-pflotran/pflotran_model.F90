@@ -1267,7 +1267,7 @@ end subroutine pflotranModelSetICs
         patch => realization%patch
         grid => patch%grid
 
-        boundary_condition => patch%boundary_conditions%first
+        boundary_condition => patch%boundary_condition_list%first
         sum_connection = 0
         do 
           if (.not.associated(boundary_condition)) exit
@@ -2561,7 +2561,7 @@ end subroutine pflotranModelSetICs
     CHKERRQ(ierr)
     found = PETSC_FALSE
 
-    source_sink => subsurf_realization%patch%source_sinks%first
+    source_sink => subsurf_realization%patch%source_sink_list%first
     grid        => subsurf_realization%patch%grid
 
     do
@@ -2706,7 +2706,7 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%rain_pf,rain_pf_loc,ierr)
     CHKERRQ(ierr)
     found = PETSC_FALSE
-    source_sink => surf_realization%patch%source_sinks%first
+    source_sink => surf_realization%patch%source_sink_list%first
     do
       if (.not.associated(source_sink)) exit
 
@@ -2806,7 +2806,7 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
     CHKERRQ(ierr)
     found = PETSC_FALSE
-    boundary_condition => subsurf_realization%patch%boundary_conditions%first
+    boundary_condition => subsurf_realization%patch%boundary_condition_list%first
     do
       if (.not.associated(boundary_condition)) exit
 
@@ -2919,7 +2919,7 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%gflux_surf_pf,gflux_surf_pf_loc,ierr)
     CHKERRQ(ierr)
     found = PETSC_FALSE
-    source_sink => surf_realization%patch%source_sinks%first
+    source_sink => surf_realization%patch%source_sink_list%first
     do
       if (.not.associated(source_sink)) exit
 
@@ -2960,7 +2960,7 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%rain_temp_pf,rain_temp_pf_loc,ierr)
     CHKERRQ(ierr)
     found = PETSC_FALSE
-    source_sink => surf_realization%patch%source_sinks%first
+    source_sink => surf_realization%patch%source_sink_list%first
     do
       if (.not.associated(source_sink)) exit
 
@@ -3049,7 +3049,7 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%rain_pf,rain_pf_loc,ierr)
     CHKERRQ(ierr)
     found = PETSC_FALSE
-    source_sink => surf_realization%patch%source_sinks%first
+    source_sink => surf_realization%patch%source_sink_list%first
     do
       if (.not.associated(source_sink)) exit
 
@@ -3511,7 +3511,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
       condition_name = 'from_surface_bc'
     endif
 
-    coupler_list => realization%patch%boundary_conditions
+    coupler_list => realization%patch%boundary_condition_list
     coupler => coupler_list%first
     found = PETSC_FALSE
 
@@ -4639,7 +4639,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         call printErrMsg(pflotran_model%option)
     end select
 
-    boundary_condition => patch%boundary_conditions%first
+    boundary_condition => patch%boundary_condition_list%first
     do
        if (.not.associated(boundary_condition)) exit
 
@@ -4829,7 +4829,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     qflux_subbase_pf_loc(:) = 0.d0
 
     !
-    boundary_condition => patch%boundary_conditions%first
+    boundary_condition => patch%boundary_condition_list%first
     global_auxvars_bc => patch%aux%Global%auxvars_bc
     if (option%ntrandof > 0) then
        rt_auxvars_bc => patch%aux%RT%auxvars_bc
@@ -6361,7 +6361,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         grid => patch%grid
 
         ! mesh is PF_FACE_MESH, 'FACE' type is defined by BC 'condition_name'
-        boundary_condition => patch%boundary_conditions%first
+        boundary_condition => patch%boundary_condition_list%first
 
         do
           if (.not.associated(boundary_condition)) exit

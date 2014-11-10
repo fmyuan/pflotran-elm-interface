@@ -64,7 +64,6 @@ subroutine THTimeCut(realization)
   option => realization%option
   field => realization%field
  
-  call VecCopy(field%flow_yy,field%flow_xx,ierr);CHKERRQ(ierr)
   call THInitializeTimestep(realization)
  
 end subroutine THTimeCut
@@ -198,7 +197,7 @@ subroutine THSetupPatch(realization)
 
  
   if (option%use_mc) then
-    initial_condition => patch%initial_conditions%first
+    initial_condition => patch%initial_condition_list%first
     allocate(TH_sec_heat_vars(grid%nlmax))
   
     do local_id = 1, grid%nlmax
@@ -274,7 +273,7 @@ subroutine THSetupPatch(realization)
   
   ! count the number of boundary connections and allocate
   ! auxvar data structures for them
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
 
   sum_connection = 0    
   do 
@@ -297,7 +296,7 @@ subroutine THSetupPatch(realization)
   patch%aux%TH%num_aux_bc = sum_connection
 
   ! Create aux vars for source/sink
-  sum_connection = CouplerGetNumConnectionsInList(patch%source_sinks)
+  sum_connection = CouplerGetNumConnectionsInList(patch%source_sink_list)
   if (sum_connection > 0) then
     allocate(TH_auxvars_ss(sum_connection))
     do iconn = 1, sum_connection
@@ -938,7 +937,7 @@ subroutine THUpdateAuxVarsPatch(realization)
     iphase_loc_p(ghosted_id) = iphase
   enddo
 
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -989,7 +988,7 @@ subroutine THUpdateAuxVarsPatch(realization)
   enddo
 
   ! source/sinks
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0
   allocate(xx(option%nflowdof))
   do
@@ -1006,20 +1005,11 @@ subroutine THUpdateAuxVarsPatch(realization)
       istart = iend-option%nflowdof+1
       iphase = int(iphase_loc_p(ghosted_id))
 
-      if (associated(source_sink%flow_condition%temperature)) then
-        if(source_sink%flow_condition%temperature%itype/=HET_DIRICHLET) then
-          tsrc1 = source_sink%flow_condition%temperature%dataset%rarray(1)
-        else
-          tsrc1 = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
-        endif
-      else
-          tsrc1 = xx_loc_p((ghosted_id-1)*option%nflowdof+1)
-      endif
       select case(source_sink%flow_condition%itype(TH_TEMPERATURE_DOF))
         case (HET_DIRICHLET)
-          tsrc1 = source_sink%flow_condition%temperature%dataset%rarray(1)
-        case (DIRICHLET_BC)
           tsrc1 = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
+        case (DIRICHLET_BC)
+          tsrc1 = source_sink%flow_condition%temperature%dataset%rarray(1)
         case (ENERGY_RATE_SS,HET_ENERGY_RATE_SS)
           tsrc1 = xx_loc_p((ghosted_id-1)*option%nflowdof+2)
         case default
@@ -1027,7 +1017,8 @@ subroutine THUpdateAuxVarsPatch(realization)
             'a source-sink in TH mode: ' // trim(source_sink%name)
           call printErrMsg(option)
       end select
-      xx = xx_loc_p(istart:iend)
+
+      xx(1) = xx_loc_p(istart)
       xx(2) = tsrc1
 
       if (option%use_th_freezing) then
@@ -1109,8 +1100,6 @@ subroutine THUpdateSolution(realization)
   
   field => realization%field
     
-  call VecCopy(field%flow_xx,field%flow_yy,ierr);CHKERRQ(ierr)
-
   cur_patch => realization%patch_list%first
   do
     if (.not.associated(cur_patch)) exit
@@ -3810,7 +3799,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   ! ============== end secondary continuum heat source ===========================
 
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first 
+  source_sink => patch%source_sink_list%first 
   sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
@@ -3948,10 +3937,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
                   Res)
 
       patch%internal_velocities(1,sum_connection) = v_darcy
-#ifdef STORE_FLOWRATES
-      patch%internal_fluxes(TH_PRESSURE_DOF,1,sum_connection) = Res(TH_PRESSURE_DOF)*FMWH2O
-      patch%internal_fluxes(TH_TEMPERATURE_DOF,1,sum_connection) = Res(TH_TEMPERATURE_DOF)
-#endif
+      patch%internal_flow_fluxes(:,sum_connection) = Res(:)
 
       if (local_id_up>0) then
         iend = local_id_up*option%nflowdof
@@ -3970,7 +3956,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   enddo    
 
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -4016,12 +4002,9 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
                                 Res)
 
       patch%boundary_velocities(1,sum_connection) = v_darcy
-#ifdef STORE_FLOWRATES
-      patch%boundary_fluxes(TH_PRESSURE_DOF,1,sum_connection) = Res(TH_PRESSURE_DOF)*FMWH2O
-      patch%boundary_fluxes(TH_TEMPERATURE_DOF,1,sum_connection) = Res(TH_TEMPERATURE_DOF)
-      patch%boundary_flux_energy(1,sum_connection) = fluxe_bulk
-      patch%boundary_flux_energy(2,sum_connection) = fluxe_cond
-#endif
+      patch%boundary_flow_fluxes(:,sum_connection) = Res(:)
+      patch%boundary_energy_flux(1,sum_connection) = fluxe_bulk
+      patch%boundary_energy_flux(2,sum_connection) = fluxe_cond
 
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
@@ -4313,7 +4296,7 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   endif
 
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first 
+  source_sink => patch%source_sink_list%first 
   sum_connection = 0
   do
     if (.not.associated(source_sink)) exit
@@ -4495,7 +4478,7 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   endif
 
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -5067,7 +5050,7 @@ subroutine THSetPlotVariables(realization)
     name = 'Transient Porosity'
     units = ''
     call OutputVariableAddToList(list,name,OUTPUT_GENERIC,units, &
-                                 TRANSIENT_POROSITY)
+                                 EFFECTIVE_POROSITY)
   endif
 ! name = 'Phase'
 ! units = ''
@@ -5326,6 +5309,74 @@ end subroutine THSecondaryHeatJacobian
 
 ! ************************************************************************** !
 
+subroutine EnergyToTemperatureBisection(T,TL,TR,h,energy,Cwi,Pr,option)
+  ! 
+  ! Solves the following nonlinear equation using the bisection method
+  !
+  ! R(T) = rho(T) Cwi hw T - energy = 0
+  !
+  ! Author: Nathan Collier, ORNL
+  ! Date: 11/2014
+  ! 
+  use EOS_Water_module
+  use Option_module
+
+  implicit none
+
+  PetscReal      :: T,TL,TR,h,energy,Cwi,Pr
+  type(option_type), pointer :: option
+
+  PetscReal      :: Tp,rho,rho_t,f,fR,fL,rtol
+  PetscInt       :: iter,niter
+  PetscBool      :: found
+  PetscErrorCode :: ierr
+
+  call EOSWaterdensity(TR,Pr,rho,rho_T,ierr)
+  fR = rho*Cwi*h*(TR+273.15d0) - energy
+  call EOSWaterdensity(TL,Pr,rho,rho_T,ierr)
+  fL = rho*Cwi*h*(TL+273.15d0) - energy
+
+  if (fL*fR > 0.d0) then
+     print *,"[TL,TR] = ",TL,TR
+     print *,"[fL,fR] = ",fL,fR
+     write(option%io_buffer,'("th.F90: EnergyToTemperatureBisection --> root is not bracketed")')
+     call printErrMsg(option)
+  endif
+
+  T = 0.5d0*(TL+TR)
+  call EOSWaterdensity(T,Pr,rho,rho_T,ierr)
+  f = rho*Cwi*h*(T+273.15d0) - energy
+
+  found = PETSC_FALSE
+  niter = 200
+  rtol  = 1.d-6
+  do iter = 1,niter
+     Tp = T
+     if (fL*f < 0.d0) then
+        TR = T
+     else 
+        TL = T
+     endif
+
+     T = 0.5d0*(TL+TR)
+
+     call EOSWaterdensity(T,Pr,rho,rho_T,ierr)
+     f = rho*Cwi*h*(T+273.15d0) - energy
+
+     if (abs((T-Tp)/(T+273.15d0)) < rtol) then
+        found = PETSC_TRUE
+        exit
+     endif
+  enddo
+
+  if (found .eqv. PETSC_FALSE) then
+     print *,"[TL,T,TR] = ",TL,T,TR
+     write(option%io_buffer,'("th.F90: EnergyToTemperatureBisection --> root not found!")')
+     call printErrMsg(option)
+  endif
+
+end subroutine EnergyToTemperatureBisection
+
 subroutine THUpdateSurfaceBC(realization)
   ! 
   ! Deallocates variables associated with Richard
@@ -5346,7 +5397,7 @@ subroutine THUpdateSurfaceBC(realization)
   use Secondary_Continuum_module
   use String_module
   use EOS_Water_module
-  use PFLOTRAN_Constants_module, only : DUMMY_VALUE
+  use PFLOTRAN_Constants_module, only : DUMMY_VALUE,UNINITIALIZED_DOUBLE
 
   implicit none
 
@@ -5381,7 +5432,7 @@ subroutine THUpdateSurfaceBC(realization)
   PetscReal :: surftemp_old
   PetscReal :: Temp_upwind
   PetscReal :: surftemp_new,psurftemp_new,rtol
-  PetscReal :: Cwi
+  PetscReal :: Cwi,TL,TR,one
   PetscBool :: found
   PetscErrorCode :: ierr
 
@@ -5402,6 +5453,7 @@ subroutine THUpdateSurfaceBC(realization)
 
   ! GB: Should probably add this as a member of option
   Cwi = 4.188d3 ! [J/kg/K]
+  one = 1.d0
 
   ! Maximum no. of iterations to compute updated temperature of surface-flow
   niter = 20
@@ -5411,7 +5463,7 @@ subroutine THUpdateSurfaceBC(realization)
   eflux_cond = 0.d0
 
   ! boundary conditions
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0
   do
     if (.not.associated(boundary_condition)) exit
@@ -5429,18 +5481,12 @@ subroutine THUpdateSurfaceBC(realization)
         local_id = cur_connection_set%id_dn(iconn)
         ghosted_id = grid%nL2G(local_id)
 
-#ifdef STORE_FLOWRATES
-        eflux      = patch%boundary_fluxes(TH_TEMPERATURE_DOF,1,sum_connection) ! [MJ/s]
-        eflux_bulk = patch%boundary_flux_energy(1,sum_connection) ! [MJ/s]
-        eflux_cond = patch%boundary_flux_energy(2,sum_connection) ! [MJ/s]
+        eflux      = patch%boundary_flow_fluxes(TH_TEMPERATURE_DOF,sum_connection) ! [MJ/s]
+        eflux_bulk = patch%boundary_energy_flux(1,sum_connection) ! [MJ/s]
+        eflux_cond = patch%boundary_energy_flux(2,sum_connection) ! [MJ/s]
 
         ! [MJ/s] to [J/s]
         eflux      = eflux/option%scale
-#else
-        option%io_buffer = 'Recompile code with store_flowrates=1 for ' // &
-          'surface TH mode.'
-        call printErrMsg(option)
-#endif
         area = cur_connection_set%area(iconn) ! [m^2]
 
         surfpress_old = &
@@ -5452,6 +5498,7 @@ subroutine THUpdateSurfaceBC(realization)
         head_old = (surfpress_old - option%reference_pressure)/den/abs(option%gravity(3)) ! [m]
         dhead    = patch%boundary_velocities(1,sum_connection)*option%flow_dt ! [m]
         head_new = head_old - dhead ! [m]
+        surftemp_new = UNINITIALIZED_DOUBLE ! to ensure we end up setting this
 
         if (head_new <= MIN_SURFACE_WATER_HEIGHT) then
           surfpress_new = option%reference_pressure
@@ -5473,31 +5520,27 @@ subroutine THUpdateSurfaceBC(realization)
 
             ! Compute the new and old energy states based on the energy flux
             call EOSWaterdensity(surftemp_old,option%reference_pressure,den_surf_at_Told,dum1,ierr)
-            call EOSWaterdensity(surftemp_new,option%reference_pressure,den_subsurf     ,dum1,ierr)
-            den_aveg = 0.5d0*(den_surf_at_Told + den_subsurf)
+
+            !noc: surftemp_new is uninitialized at this point, so moving
+            !these two lines below (1). Alternatively we could
+            !evaluate this density at global_auxvars(ghosted_id)%temp.
+            !
+            !call EOSWaterdensity(surftemp_new,option%reference_pressure,den_subsurf     ,dum1,ierr)
+            !den_aveg = 0.5d0*(den_surf_at_Told + den_subsurf)
 
             ! 1) Find new surface-temperature due to heat transfer via conduction.
             den = den_surf_at_Told
             eng_per_unitvol_old = den*Cwi*(surftemp_old + 273.15d0)
             eng_per_unitvol_new = eng_per_unitvol_old - eflux_cond/option%scale*option%flow_dt/area
 
-            ! Solve for the new temperature by fixed point iteration
-            surftemp_new = surftemp_old
-            found = PETSC_FALSE
-            do iter = 1,niter
-              psurftemp_new = surftemp_new
-              surftemp_new  = eng_per_unitvol_new/(den*Cwi) - 273.15d0
-              call EOSWaterdensity(surftemp_new,option%reference_pressure,den,dum1,ierr)
-              if (abs((surftemp_new-psurftemp_new)/(surftemp_new+273.15d0))<rtol) then
-                found = PETSC_TRUE
-                exit
-              endif
-            enddo
-            if (found .eqv. PETSC_FALSE) then
-              write(option%io_buffer, &
-                   '("th.F90: THUpdateSurfaceBC --> fixed point not found!")')
-              call printErrMsg(option)
-            endif
+            TL = -100.d0
+            TR =  100.d0
+            call EnergyToTemperatureBisection(surftemp_new,TL,TR, &
+                                              one, &
+                                              eng_per_unitvol_new, &
+                                              Cwi, &
+                                              option%reference_pressure, &
+                                              option)
 
             ! 2) Find new surface-temperature due to heat transfer via bulk-movement
             !    water transport
@@ -5507,37 +5550,36 @@ subroutine THUpdateSurfaceBC(realization)
                Temp_upwind = surftemp_old
             endif
 
+            call EOSWaterdensity(surftemp_new,option%reference_pressure,den_subsurf,dum1,ierr)
+            den_aveg = 0.5d0*(den_surf_at_Told + den_subsurf)
+
             ! In THBCFlux():
             ! fluxe_bulk = (rho*q*H)               [kmol/m^3 * m^3/s * MJ/kmol]     = [MJ/s]
             !            = (rho*v_darcy*area*H)    [kmol/m^3 * m/s * m^2 * MJ/kmol]
 
             ! Retrieve H in units of [J/kg] from fluxe_bulk
             !        = [MJ/s     * J/MJ       * m^3/kg * m^{-2} * s/m]
-            enthalpy = eflux_bulk/option%scale/den_aveg/area/patch%boundary_velocities(1,sum_connection)
+            if (abs(patch%boundary_velocities(1,sum_connection))<1.d-14) then ! avoid division by zero
+              enthalpy = 0.d0 
+            else
+              enthalpy = eflux_bulk/option%scale/den_aveg/area/patch%boundary_velocities(1,sum_connection)
+            endif
 
             surftemp_old = surftemp_new
             eng_times_ht_per_unitvol_old = den     *(Cwi*surftemp_old + Cwi*273.15d0)*head_old
             deng_times_ht_per_unitvol    = den_aveg*(enthalpy         + Cwi*273.15d0)*dhead
             eng_times_ht_per_unitvol_new = eng_times_ht_per_unitvol_old - deng_times_ht_per_unitvol
 
-            ! Solve for the new temperature by fixed point iteration
-            surftemp_new = surftemp_old
-            found = PETSC_FALSE
-            do iter = 1,niter
-              psurftemp_new = surftemp_new
-              surftemp_new  = eng_times_ht_per_unitvol_new/(den*Cwi*head_new) - 273.15d0
-              call EOSWaterdensity(surftemp_new,option%reference_pressure,den,dum1,ierr)
-              if (abs((surftemp_new-psurftemp_new)/(surftemp_new+273.15d0))<rtol) then
-                found = PETSC_TRUE
-                exit
-              endif
-            enddo
-            if (found .eqv. PETSC_FALSE) then
-              write(option%io_buffer, &
-                   '("th.F90: THUpdateSurfaceBC --> fixed point not found!")')
-              call printErrMsg(option)
-            endif
+            TL = -100.d0
+            TR =  100.d0
+            call EnergyToTemperatureBisection(surftemp_new,TL,TR, &
+                                              head_new, &
+                                              eng_times_ht_per_unitvol_new, &
+                                              Cwi, &
+                                              option%reference_pressure, &
+                                              option)
 
+            call EOSWaterdensity(surftemp_new,option%reference_pressure,den,dum1,ierr)
             surfpress_new = head_new*(abs(option%gravity(3)))*den + &
               option%reference_pressure
           endif
@@ -5602,7 +5644,7 @@ subroutine THUpdateSurfaceWaterFlag(realization)
   TH_auxvars_bc => patch%aux%TH%auxvars_bc
   TH_auxvars => patch%aux%TH%auxvars
 
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0
   do
     if (.not.associated(boundary_condition)) exit
@@ -5729,7 +5771,7 @@ subroutine THComputeCoeffsForSurfFlux(realization)
   call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
 
   ! boundary conditions
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0
   do
     if (.not.associated(boundary_condition)) exit

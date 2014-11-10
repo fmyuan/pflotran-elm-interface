@@ -137,9 +137,7 @@ subroutine OutputWriteTecplotZoneHeader(fid,realization_base,variable_count, &
   string2 = ''
   select case(tecplot_format)
     case (TECPLOT_POINT_FORMAT)
-      if ((realization_base%discretization%itype == STRUCTURED_GRID).or. &
-          (realization_base%discretization%itype == &
-           STRUCTURED_GRID_MIMETIC)) then
+      if (realization_base%discretization%itype == STRUCTURED_GRID) then
         string2 = ', I=' // &
                   trim(StringFormatInt(grid%structured_grid%nx)) // &
                   ', J=' // &
@@ -153,7 +151,7 @@ subroutine OutputWriteTecplotZoneHeader(fid,realization_base,variable_count, &
               ', DATAPACKING=POINT'
     case default !(TECPLOT_BLOCK_FORMAT,TECPLOT_FEBRICK_FORMAT)
       select case (grid%itype)
-        case (STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
+        case (STRUCTURED_GRID)
           string2 = ', I=' // &
                     trim(StringFormatInt(grid%structured_grid%nx+1)) // &
                     ', J=' // &
@@ -280,8 +278,7 @@ subroutine OutputTecplotBlock(realization_base)
                                   option)
 
   ! write out coordinates
-  if (realization_base%discretization%itype == STRUCTURED_GRID .or. &
-      realization_base%discretization%itype == STRUCTURED_GRID_MIMETIC ) then
+  if (realization_base%discretization%itype == STRUCTURED_GRID) then
     call WriteTecplotStructuredGrid(OUTPUT_UNIT,realization_base)
   else
     call WriteTecplotUGridVertices(OUTPUT_UNIT,realization_base)
@@ -491,8 +488,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
   call DiscretizationDuplicateVector(discretization,global_vec,global_vec_vz)
 
   ! write out coorindates
-  if (realization_base%discretization%itype == STRUCTURED_GRID .or. &
-      realization_base%discretization%itype == STRUCTURED_GRID_MIMETIC)  then
+  if (realization_base%discretization%itype == STRUCTURED_GRID)  then
     call WriteTecplotStructuredGrid(OUTPUT_UNIT,realization_base)
   else
     call WriteTecplotUGridVertices(OUTPUT_UNIT,realization_base)
@@ -696,7 +692,7 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
     
     ! mass units
     if (output_flux) then
-      string = trim(string) // 'mol/'
+      string = trim(string) // 'kmol/'
     else
       string = trim(string) // 'm/'
     endif
@@ -869,7 +865,7 @@ subroutine OutputFluxVelocitiesTecplotBlk(realization_base,iphase, &
           dabs(cur_connection_set%dist(direction,iconn)) < 0.99d0) cycle
       if (output_flux) then
         ! iphase here is really teh dof
-        vec_ptr(local_id) = patch%internal_fluxes(iphase,1,sum_connection)
+        vec_ptr(local_id) = patch%internal_flow_fluxes(iphase,sum_connection)
       else
         vec_ptr(local_id) = patch%internal_velocities(iphase,sum_connection)
       endif
@@ -1267,8 +1263,7 @@ subroutine OutputVectorTecplot(filename,dataset_name,realization_base,vector)
 
   ! write out coorindates
 
-  if (realization_base%discretization%itype == STRUCTURED_GRID .or. &
-      realization_base%discretization%itype == STRUCTURED_GRID_MIMETIC)  then
+  if (realization_base%discretization%itype == STRUCTURED_GRID)  then
     call WriteTecplotStructuredGrid(OUTPUT_UNIT,realization_base)
   else  
     call WriteTecplotUGridVertices(OUTPUT_UNIT,realization_base)
@@ -2351,7 +2346,7 @@ subroutine OutputSecondaryContinuumTecplot(realization_base)
 1009 format('')
 
   count = 0
-  observation => patch%observation%first
+  observation => patch%observation_list%first
   do 
     if (.not.associated(observation)) exit
     write(string,'(i6)') option%myrank

@@ -100,7 +100,7 @@ subroutine PMTHInit(this)
   
   ! set up communicator
   select case(this%realization%discretization%itype)
-    case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
+    case(STRUCTURED_GRID)
       this%commN => StructuredCommunicatorCreate()
     case(UNSTRUCTURED_GRID)
       this%commN => UnstructuredCommunicatorCreate()
@@ -125,7 +125,7 @@ subroutine PMTHInitializeTimestep(this)
   
   class(pm_th_type) :: this
 
-  call PMSubsurfaceInitializeTimestep(this)
+  call PMSubsurfaceInitializeTimestepA(this)
 
   ! update porosity
   call this%comm1%LocalToLocal(this%realization%field%icap_loc, &
@@ -140,6 +140,7 @@ subroutine PMTHInitializeTimestep(this)
   endif
   
   call THInitializeTimestep(this%realization)
+  call PMSubsurfaceInitializeTimestepB(this)
   
 end subroutine PMTHInitializeTimestep
 

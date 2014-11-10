@@ -108,7 +108,6 @@ module Option_module
     PetscInt, pointer :: garbage ! for some reason, Intel will not compile without this
 
     PetscReal :: uniform_velocity(3)
-    PetscBool :: store_flowrate
 
     ! Program options
     PetscBool :: use_matrix_free  ! If true, do not form the Jacobian.
@@ -196,8 +195,6 @@ module Option_module
     PetscBool :: steady_state
     PetscBool :: use_matrix_buffer
     PetscBool :: force_newton_iteration
-    PetscBool :: mimetic
-    PetscBool :: ani_relative_permeability
     PetscBool :: use_upwinding
     PetscBool :: out_of_table
 
@@ -361,9 +358,6 @@ subroutine OptionInitAll(option)
   option%verbosity = 0
 
   option%input_filename = ''
-
-  option%mimetic = PETSC_FALSE
-  option%ani_relative_permeability = PETSC_FALSE
 
   option%use_upwinding = PETSC_TRUE
 
@@ -536,10 +530,6 @@ subroutine OptionInitRealization(option)
 !fmy: mass_balance for bc/ss IS needed by default if coupled with CLM
 
   option%mass_bal_detailed = PETSC_FALSE
-  option%store_flowrate = PETSC_FALSE
-#ifdef STORE_FLOWRATES
-  option%store_flowrate = PETSC_TRUE
-#endif
 
   option%use_touch_options = PETSC_FALSE
   option%overwrite_restart_transport = PETSC_FALSE
@@ -571,7 +561,6 @@ subroutine OptionInitRealization(option)
   option%use_matrix_buffer = PETSC_FALSE
   option%status = PROCEED 
   option%force_newton_iteration = PETSC_FALSE
-  option%mimetic = PETSC_FALSE
   option%variables_swapped = PETSC_FALSE
   option%print_explicit_primal_grid = PETSC_FALSE
   option%print_explicit_dual_grid = PETSC_FALSE  

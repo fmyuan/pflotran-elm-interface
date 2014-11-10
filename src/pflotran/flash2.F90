@@ -81,8 +81,6 @@ subroutine Flash2TimeCut(realization)
   option => realization%option
   field => realization%field
 
-  call VecCopy(field%flow_yy,field%flow_xx,ierr);CHKERRQ(ierr)
-
 end subroutine Flash2TimeCut
 
 ! ************************************************************************** !
@@ -198,16 +196,10 @@ subroutine Flash2SetupPatch(realization)
 !  allocate(Resold_FL(ConnectionGetNumberInList(patch%grid%&
 !           internal_connection_set_list),option%nflowdof))
 
-#ifdef YE_FLUX
-  allocate(patch%internal_fluxes(3,1,ConnectionGetNumberInList(patch%grid%&
-           internal_connection_set_list)))
-  patch%internal_fluxes = 0.d0
-#endif
-
   !print *,' Flash2 setup allocate app array'
    ! count the number of boundary connections and allocate
   ! auxvar data structures for them  
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -847,7 +839,7 @@ subroutine Flash2UpdateAuxVarsPatch(realization)
 
   enddo
 ! print *,'Flash2UpdateAuxVarsPatch: end internal'
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -951,9 +943,6 @@ subroutine Flash2UpdateSolution(realization)
 
   PetscErrorCode :: ierr
   
-  call VecCopy(realization%field%flow_xx,realization%field%flow_yy, &
-               ierr);CHKERRQ(ierr)
-
 ! make room for hysteric s-Pc-kr
 
   if (realization%option%compute_mass_balance_new) then
@@ -2168,6 +2157,7 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
   PetscReal :: distance, fraction_upwind
   PetscReal :: distance_gravity
   PetscReal, pointer :: Resold_AR(:), Resold_FL(:), delx(:)
+  PetscReal :: ss_flow_vol_flux(realization%option%nphase)
   character(len=MAXSTRINGLENGTH) :: string
 
   patch => realization%patch
@@ -2294,7 +2284,7 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
 #endif
 #if 1
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first 
+  source_sink => patch%source_sink_list%first 
   sum_connection = 0 
   do 
     if (.not.associated(source_sink)) exit
@@ -2340,9 +2330,14 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
       endif
       call Flash2SourceSink(msrc,nsrcpara,psrc,tsrc1,hsrc1,csrc1,auxvars(ghosted_id)%auxvar_elem(0),&
                             source_sink%flow_condition%itype(1),Res, &
-                            patch%ss_fluid_fluxes(:,sum_connection), &
+                            ss_flow_vol_flux, &
                             enthalpy_flag, option)
- 
+      if (associated(patch%ss_flow_fluxes)) then
+        patch%ss_flow_fluxes(:,sum_connection) = Res(:)/option%flow_dt
+      endif    
+      if (associated(patch%ss_flow_vol_fluxes)) then
+        patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux(:)/option%flow_dt
+      endif    
       r_p((local_id-1)*option%nflowdof + jh2o) = r_p((local_id-1)*option%nflowdof + jh2o)-Res(jh2o)
       r_p((local_id-1)*option%nflowdof + jco2) = r_p((local_id-1)*option%nflowdof + jco2)-Res(jco2)
       patch%aux%Flash2%Resold_AR(local_id,jh2o)= patch%aux%Flash2%Resold_AR(local_id,jh2o) - Res(jh2o)    
@@ -2360,7 +2355,7 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
 #endif
 #if 1
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -2450,6 +2445,9 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
       r_p(istart:iend)= r_p(istart:iend) - Res(1:option%nflowdof)
       patch%aux%Flash2%Resold_AR(local_id,1:option%nflowdof) = &
       patch%aux%Flash2%ResOld_AR(local_id,1:option%nflowdof) - Res(1:option%nflowdof)
+      if (associated(patch%boundary_flow_fluxes)) then
+        patch%boundary_flow_fluxes(:,sum_connection) = Res(:)/option%flow_dt
+      endif      
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -2532,10 +2530,9 @@ subroutine Flash2ResidualPatch(snes,xx,r,realization,ierr)
         r_p(istart:iend) = r_p(istart:iend) - Res(1:option%nflowdof)
       endif
 
-#ifdef YE_FLUX
-      patch%internal_fluxes(1:option%nflowdof,1,sum_connection) = &
-                                        Res(1:option%nflowdof)
-#endif
+      if (associated(patch%internal_flow_fluxes)) then
+        patch%internal_flow_fluxes(:,sum_connection) = Res(:)/option%flow_dt
+      endif
 
     enddo
     cur_connection_set => cur_connection_set%next
@@ -2709,7 +2706,7 @@ subroutine Flash2ResidualPatch1(snes,xx,r,realization,ierr)
   r_p = 0.d0
  
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -3117,6 +3114,7 @@ subroutine Flash2ResidualPatch2(snes,xx,r,realization,ierr)
   PetscInt :: sum_connection
   PetscReal :: distance, fraction_upwind
   PetscReal :: distance_gravity
+  PetscReal :: ss_flow_vol_flux(realization%option%nphase)
   
   patch => realization%patch
   grid => patch%grid
@@ -3169,7 +3167,7 @@ subroutine Flash2ResidualPatch2(snes,xx,r,realization,ierr)
 
 #if 1
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0 
   do 
     if (.not.associated(source_sink)) exit
@@ -3216,12 +3214,18 @@ subroutine Flash2ResidualPatch2(snes,xx,r,realization,ierr)
       
       call Flash2SourceSink(msrc,nsrcpara, psrc,tsrc1,hsrc1,csrc1,auxvars(ghosted_id)%auxvar_elem(0),&
                             source_sink%flow_condition%itype(1),Res, &
-                            patch%ss_fluid_fluxes(:,sum_connection), &
+                            ss_flow_vol_flux, &
                             enthalpy_flag, option)
       if (option%compute_mass_balance_new) then
         global_auxvars_ss(sum_connection)%mass_balance_delta(:,1) = &
           global_auxvars_ss(sum_connection)%mass_balance_delta(:,1) - &
           Res(:)/option%flow_dt
+      endif
+      if (associated(patch%ss_flow_fluxes)) then
+        patch%ss_flow_fluxes(:,sum_connection) = Res/option%flow_dt
+      endif
+      if (associated(patch%ss_flow_vol_fluxes)) then
+        patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux/option%flow_dt
       endif
       r_p((local_id-1)*option%nflowdof + jh2o) = r_p((local_id-1)*option%nflowdof + jh2o)-Res(jh2o)
       r_p((local_id-1)*option%nflowdof + jco2) = r_p((local_id-1)*option%nflowdof + jco2)-Res(jco2)
@@ -3527,7 +3531,7 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,realization,ierr)
 #endif
 #if 1
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0 
   do 
     if (.not.associated(source_sink)) exit
@@ -3593,7 +3597,7 @@ subroutine Flash2JacobianPatch(snes,xx,A,B,realization,ierr)
 ! Boundary conditions
 #if 1
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -4060,7 +4064,7 @@ subroutine Flash2JacobianPatch1(snes,xx,A,B,realization,ierr)
 ! Boundary conditions
 #if 1
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -4481,7 +4485,7 @@ subroutine Flash2JacobianPatch2(snes,xx,A,B,realization,ierr)
 #endif
 #if 1
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0 
   do 
     if (.not.associated(source_sink)) exit
