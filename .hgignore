@@ -335,6 +335,8 @@ src/clm-pflotran/pm_base_pointer.F90
 src/clm-pflotran/pmc_material.F90
 src/clm-pflotran/subsurface.F90
 
+src/epic/libepic.a
+
 .git
 .gitignore
 *.rej
