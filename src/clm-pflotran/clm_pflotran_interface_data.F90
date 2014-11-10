@@ -25,6 +25,7 @@ module clm_pflotran_interface_data
   Vec :: sucsat2_clm
   Vec :: watsat2_clm
   Vec :: bsw2_clm
+  Vec :: thetares2_clm
   Vec :: press_clm
 
   ! Local for PFLOTRAN - seq. vec
@@ -40,6 +41,7 @@ module clm_pflotran_interface_data
   Vec :: sucsat2_pf
   Vec :: watsat2_pf
   Vec :: bsw2_pf
+  Vec :: thetares2_pf
   Vec :: press_pf
 
   ! (ii) Mesh property
@@ -161,6 +163,7 @@ contains
     clm_pf_idata%sucsat2_clm = 0
     clm_pf_idata%watsat2_clm = 0
     clm_pf_idata%bsw2_clm = 0
+    clm_pf_idata%thetares2_clm = 0
     clm_pf_idata%press_clm = 0
 
     clm_pf_idata%hksat_x_pf = 0
@@ -175,6 +178,7 @@ contains
     clm_pf_idata%sucsat2_pf = 0
     clm_pf_idata%watsat2_pf = 0
     clm_pf_idata%bsw2_pf = 0
+    clm_pf_idata%thetares2_pf = 0
     clm_pf_idata%press_pf = 0
 
     clm_pf_idata%qflx_clm = 0
@@ -291,6 +295,7 @@ contains
     call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%sucsat2_pf,ierr)
     call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%watsat2_pf,ierr)
     call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%bsw2_pf,ierr)
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%thetares2_pf,ierr)
 
     ! 2D Surface PFLOTRAN ---to--- 2D Surface CLM
     call VecCreateMPI(mycomm,clm_pf_idata%nlpf_srf,PETSC_DECIDE,clm_pf_idata%h2osfc_pf,ierr)
@@ -311,6 +316,7 @@ contains
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%sucsat2_clm,ierr)
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%watsat2_clm,ierr)
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%bsw2_clm,ierr)
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%thetares2_clm,ierr)
 
     ! 2D Surface PFLOTRAN ---to--- 2D Surface CLM
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%nlclm_2dsub,clm_pf_idata%h2osfc_clm,ierr)
@@ -344,6 +350,7 @@ contains
     if(clm_pf_idata%sucsat2_clm  /= 0) call VecDestroy(clm_pf_idata%sucsat2_clm,ierr)
     if(clm_pf_idata%watsat2_clm  /= 0) call VecDestroy(clm_pf_idata%watsat2_clm,ierr)
     if(clm_pf_idata%bsw2_clm  /= 0) call VecDestroy(clm_pf_idata%bsw2_clm,ierr)
+    if(clm_pf_idata%thetares2_clm  /= 0) call VecDestroy(clm_pf_idata%thetares2_clm,ierr)
     if(clm_pf_idata%press_clm  /= 0) call VecDestroy(clm_pf_idata%press_clm,ierr)
 
     if(clm_pf_idata%hksat_x_pf  /= 0) call VecDestroy(clm_pf_idata%hksat_x_pf,ierr)
@@ -358,6 +365,7 @@ contains
     if(clm_pf_idata%sucsat2_pf  /= 0) call VecDestroy(clm_pf_idata%sucsat2_pf,ierr)
     if(clm_pf_idata%watsat2_pf  /= 0) call VecDestroy(clm_pf_idata%watsat2_pf,ierr)
     if(clm_pf_idata%bsw2_pf  /= 0) call VecDestroy(clm_pf_idata%bsw2_pf,ierr)
+    if(clm_pf_idata%thetares2_pf  /= 0) call VecDestroy(clm_pf_idata%thetares2_pf,ierr)
     if(clm_pf_idata%press_pf  /= 0) call VecDestroy(clm_pf_idata%press_pf,ierr)
 
     if(clm_pf_idata%qflx_clm  /= 0) call VecDestroy(clm_pf_idata%qflx_clm,ierr)

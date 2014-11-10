@@ -759,6 +759,7 @@ end subroutine pflotranModelSetICs
     use Material_module
     use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z
+    use Saturation_Function_module
 
     implicit none
 
@@ -775,9 +776,11 @@ end subroutine pflotranModelSetICs
     type(th_auxvar_type), pointer             :: th_aux_vars(:)
     type(th_auxvar_type), pointer             :: th_aux_var
     type(simulation_base_type), pointer       :: simulation
+    type(saturation_function_type)            :: saturation_function
 
     PetscErrorCode     :: ierr
     PetscInt           :: ghosted_id
+    PetscInt           :: iphase
     PetscReal          :: den, vis, grav
     PetscReal, pointer :: porosity_loc_p(:), vol_ovlap_arr(:)
     PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
@@ -790,6 +793,7 @@ end subroutine pflotranModelSetICs
     PetscScalar, pointer :: watsat2_pf_loc(:)  ! minimum soil suction (mm)
     PetscScalar, pointer :: sucsat2_pf_loc(:)  ! volumetric soil water at saturation (porosity)
     PetscScalar, pointer :: bsw2_pf_loc(:)     ! Clapp and Hornberger "b"
+    PetscScalar, pointer :: thetares2_pf_loc(:)! residual soil mosture = sat_res * por
 
     den = 998.2d0       ! [kg/m^3]  @ 20 degC
     vis = 0.001002d0    ! [N s/m^2] @ 20 degC
@@ -840,6 +844,7 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%sucsat2_pf,  sucsat2_pf_loc,  ierr)
     call VecGetArrayF90(clm_pf_idata%watsat2_pf,  watsat2_pf_loc,  ierr)
     call VecGetArrayF90(clm_pf_idata%bsw2_pf,     bsw2_pf_loc,     ierr)
+    call VecGetArrayF90(clm_pf_idata%thetares2_pf,thetares2_pf_loc,ierr)
 
     call VecGetArrayF90(porosity_loc, porosity_loc_p, ierr)
     call VecGetArrayF90(perm_xx_loc,  perm_xx_loc_p,  ierr)
@@ -874,6 +879,11 @@ end subroutine pflotranModelSetICs
 
       watsat2_pf_loc(ghosted_id) = porosity_loc_p(ghosted_id)
 
+      saturation_function = patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
+
+      iphase = 1
+      thetares2_pf_loc(ghosted_id) = porosity_loc_p(ghosted_id)*saturation_function%Sr(iphase)
+
     enddo
 
     call VecRestoreArrayF90(clm_pf_idata%hksat_x2_pf, hksat_x2_pf_loc, ierr)
@@ -882,6 +892,7 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%sucsat2_pf,  sucsat2_pf_loc,  ierr)
     call VecRestoreArrayF90(clm_pf_idata%watsat2_pf,  watsat2_pf_loc,  ierr)
     call VecRestoreArrayF90(clm_pf_idata%bsw2_pf,     bsw2_pf_loc,     ierr)
+    call VecRestoreArrayF90(clm_pf_idata%thetares2_pf,thetares2_pf_loc,ierr)
 
     call VecRestoreArrayF90(porosity_loc, porosity_loc_p, ierr)
     call VecRestoreArrayF90(perm_xx_loc,  perm_xx_loc_p,  ierr)
@@ -911,6 +922,10 @@ end subroutine pflotranModelSetICs
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     clm_pf_idata%watsat2_pf, &
                                     clm_pf_idata%watsat2_clm)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    clm_pf_idata%thetares2_pf, &
+                                    clm_pf_idata%thetares2_clm)
 
     call VecDestroy(porosity_loc, ierr)
     call VecDestroy(perm_xx_loc, ierr)
