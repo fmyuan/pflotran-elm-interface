@@ -334,6 +334,10 @@ src/clm-pflotran/characteristic_curves.F90
 src/clm-pflotran/pm_base_pointer.F90
 src/clm-pflotran/pmc_material.F90
 src/clm-pflotran/subsurface.F90
+src/clm-pflotran/integral_flux.F90
+src/clm-pflotran/lookup_table.F90
+src/clm-pflotran/reaction_clm.F90
+src/clm-pflotran/wipp.F90
 
 src/epic/libepic.a
 

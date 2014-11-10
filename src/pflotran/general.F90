@@ -260,7 +260,7 @@ subroutine GeneralSetup(realization)
 
   ! count the number of boundary connections and allocate
   ! auxvar data structures for them 
-  sum_connection = CouplerGetNumConnectionsInList(patch%boundary_conditions)
+  sum_connection = CouplerGetNumConnectionsInList(patch%boundary_condition_list)
   if (sum_connection > 0) then
     allocate(gen_auxvars_bc(sum_connection))
     do iconn = 1, sum_connection
@@ -272,7 +272,7 @@ subroutine GeneralSetup(realization)
 
   ! count the number of source/sink connections and allocate
   ! auxvar data structures for them  
-  sum_connection = CouplerGetNumConnectionsInList(patch%source_sinks)
+  sum_connection = CouplerGetNumConnectionsInList(patch%source_sink_list)
   if (sum_connection > 0) then
     allocate(gen_auxvars_ss(sum_connection))
     do iconn = 1, sum_connection
@@ -311,12 +311,6 @@ subroutine GeneralSetup(realization)
     option%io_buffer = &
       UninitializedMessage('Gas phase diffusion coefficient','')
     call printErrMsg(option)
-  endif
-
-  if (realization%output_option%print_fluxes) then
-    allocate(patch%internal_fluxes(option%nflowdof,1, &
-           ConnectionGetNumberInList(patch%grid%internal_connection_set_list)))
-    patch%internal_fluxes = 0.d0
   endif
 
   call GeneralSetPlotVariables(realization) 
@@ -404,8 +398,6 @@ subroutine GeneralUpdateSolution(realization)
   gen_auxvars => patch%aux%General%auxvars  
   global_auxvars => patch%aux%Global%auxvars
   
-  call VecCopy(field%flow_xx,field%flow_yy,ierr);CHKERRQ(ierr)
-
   if (realization%option%compute_mass_balance_new) then
     call GeneralUpdateMassBalance(realization)
   endif
@@ -444,7 +436,6 @@ subroutine GeneralTimeCut(realization)
   
   type(realization_type) :: realization
   type(option_type), pointer :: option
-  type(field_type), pointer :: field
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
   type(global_auxvar_type), pointer :: global_auxvars(:)  
@@ -454,16 +445,11 @@ subroutine GeneralTimeCut(realization)
   PetscErrorCode :: ierr
 
   option => realization%option
-  field => realization%field
   patch => realization%patch
   grid => patch%grid
   global_auxvars => patch%aux%Global%auxvars
   gen_auxvars => patch%aux%General%auxvars
 
-  call VecCopy(field%flow_yy,field%flow_xx,ierr);CHKERRQ(ierr)
-  call DiscretizationGlobalToLocal(realization%discretization,field%flow_xx, &
-                                   field%flow_xx_loc,NFLOWDOF)
-  
   ! restore stored state
   do ghosted_id = 1, grid%ngmax
     global_auxvars(ghosted_id)%istate = &
@@ -708,8 +694,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     if (patch%imat(ghosted_id) <= 0) cycle
     ghosted_end = ghosted_id*option%nflowdof
     ghosted_start = ghosted_end - option%nflowdof + 1
-    ! flag(1) indicates call from non-perturbation
-    option%iflag = 1
+    ! GENERAL_UPDATE_FOR_ACCUM indicates call from non-perturbation
+    option%iflag = GENERAL_UPDATE_FOR_ACCUM
     call GeneralAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                        gen_auxvars(ZERO_INTEGER,ghosted_id), &
                        global_auxvars(ghosted_id), &
@@ -737,7 +723,7 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
 #endif
   enddo
 
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -859,8 +845,8 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
           
       ! set this based on data given 
       global_auxvars_bc(sum_connection)%istate = istate
-      ! flag(2) indicates call from non-perturbation
-      option%iflag = 2
+      ! GENERAL_UPDATE_FOR_BOUNDARY indicates call from non-perturbation
+      option%iflag = GENERAL_UPDATE_FOR_BOUNDARY
       call GeneralAuxVarCompute(xxbc,gen_auxvars_bc(sum_connection), &
                                 global_auxvars_bc(sum_connection), &
                                 material_auxvars(ghosted_id), &
@@ -952,8 +938,8 @@ subroutine GeneralUpdateFixedAccum(realization)
     if (imat <= 0) cycle
     local_end = local_id*option%nflowdof
     local_start = local_end - option%nflowdof + 1
-    ! flag(0) indicates call from non-perturbation
-    option%iflag = 0
+    ! GENERAL_UPDATE_FOR_FIXED_ACCUM indicates call from non-perturbation
+    option%iflag = GENERAL_UPDATE_FOR_FIXED_ACCUM
     call GeneralAuxVarCompute(xx_p(local_start:local_end), &
                               gen_auxvars(ZERO_INTEGER,ghosted_id), &
                               global_auxvars(ghosted_id), &
@@ -1708,7 +1694,8 @@ end subroutine GeneralBCFlux
 ! ************************************************************************** !
 
 subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
-                          gen_auxvar,global_auxvar,scale,Res)
+                          gen_auxvar,global_auxvar,ss_flow_vol_flux, &
+                          scale,Res)
   ! 
   ! Computes the source/sink terms for the residual
   ! 
@@ -1728,29 +1715,33 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
   PetscInt :: flow_src_sink_type
   type(general_auxvar_type) :: gen_auxvar
   type(global_auxvar_type) :: global_auxvar
+  PetscReal :: ss_flow_vol_flux(option%nphase)
   PetscReal :: scale
   PetscReal :: Res(option%nflowdof)
       
-  PetscReal :: qsrc_mol(option%nphase)
+  PetscReal :: qsrc_mol
   PetscReal :: den, den_kg, enthalpy, internal_energy
   PetscReal :: cell_pressure, dummy_pressure
   PetscInt :: icomp, ierr
 
   Res = 0.d0
   do icomp = 1, option%nflowspec
+    qsrc_mol = 0.d0
     select case(flow_src_sink_type)
       case(MASS_RATE_SS)
-        qsrc_mol(icomp) = qsrc(icomp)/fmw_comp(icomp) ! kg/sec -> kmol/sec
+        qsrc_mol = qsrc(icomp)/fmw_comp(icomp) ! kg/sec -> kmol/sec
       case(SCALED_MASS_RATE_SS)                       ! kg/sec -> kmol/sec
-        qsrc_mol(icomp) = qsrc(icomp)/fmw_comp(icomp)*scale 
+        qsrc_mol = qsrc(icomp)/fmw_comp(icomp)*scale 
       case(VOLUMETRIC_RATE_SS)  ! assume local density for now
         ! qsrc1 = m^3/sec
-        qsrc_mol(icomp) = qsrc(icomp)*gen_auxvar%den(icomp) ! den = kmol/m^3
+        qsrc_mol = qsrc(icomp)*gen_auxvar%den(icomp) ! den = kmol/m^3
       case(SCALED_VOLUMETRIC_RATE_SS)  ! assume local density for now
         ! qsrc1 = m^3/sec             ! den = kmol/m^3
-        qsrc_mol(icomp) = qsrc(icomp)*gen_auxvar%den(icomp)*scale 
+        qsrc_mol = qsrc(icomp)*gen_auxvar%den(icomp)*scale 
     end select
-    Res(icomp) = qsrc_mol(icomp)
+    ! icomp here is really iphase
+    ss_flow_vol_flux(icomp) = qsrc_mol/gen_auxvar%den(icomp)
+    Res(icomp) = qsrc_mol
   enddo
   ! energy units: MJ/sec
   if (size(qsrc) == THREE_INTEGER) then
@@ -1761,9 +1752,9 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
         call EOSWaterDensityEnthalpy(gen_auxvar%temp,cell_pressure, &
                                      den_kg,den,enthalpy,ierr)
         enthalpy = enthalpy * 1.d-6 ! J/kmol -> whatever units
-        ! enthalpy units: MJ/kmol
-        Res(option%energy_id) = Res(option%energy_id) + &
-                                qsrc_mol(ONE_INTEGER) * enthalpy
+        ! enthalpy units: MJ/kmol                       ! water component mass
+        Res(option%energy_id) = Res(option%energy_id) + Res(ONE_INTEGER) * &
+                                                        enthalpy
       endif
       if (dabs(qsrc(TWO_INTEGER)) > 0.d0) then
         ! this is pure air, we use the enthalpy of air, NOT the air/water
@@ -1773,9 +1764,9 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
         call EOSGasEnergy(gen_auxvar%temp,dummy_pressure, &
                           enthalpy,internal_energy,ierr)
         enthalpy = enthalpy * 1.d-6 ! J/kmol -> MJ/kmol                                  
-        ! enthalpy units: MJ/kmol
-        Res(option%energy_id) = Res(option%energy_id) + &
-          qsrc_mol(TWO_INTEGER) * enthalpy
+        ! enthalpy units: MJ/kmol                       ! air component mass
+        Res(option%energy_id) = Res(option%energy_id) + Res(TWO_INTEGER) * &
+                                                        enthalpy
       endif
     else
       Res(option%energy_id) = qsrc(THREE_INTEGER) ! MJ/s
@@ -2071,15 +2062,18 @@ subroutine GeneralSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   PetscReal :: Jac(option%nflowdof,option%nflowdof)
   
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: dummy_real(option%nphase)
   PetscInt :: idof, irow
 
   option%iflag = -3
   call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
-                      gen_auxvars(ZERO_INTEGER),global_auxvar,scale,res)
+                      gen_auxvars(ZERO_INTEGER),global_auxvar,dummy_real, &
+                      scale,res)
   ! downgradient derivatives
   do idof = 1, option%nflowdof
     call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
-                        gen_auxvars(idof),global_auxvar,scale,res_pert)            
+                        gen_auxvars(idof),global_auxvar,dummy_real, &
+                        scale,res_pert)            
     do irow = 1, option%nflowdof
       Jac(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvars(idof)%pert
     enddo !irow
@@ -2155,6 +2149,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscInt :: iconn
   PetscInt :: iphase
   PetscReal :: scale
+  PetscReal :: ss_flow_vol_flux(realization%option%nphase)
   PetscInt :: sum_connection
   PetscInt :: local_start, local_end
   PetscInt :: local_id, ghosted_id
@@ -2291,8 +2286,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                        general_parameter,option,v_darcy,Res)
 
       patch%internal_velocities(:,sum_connection) = v_darcy
-      if (associated(patch%internal_fluxes)) then
-        patch%internal_fluxes(:,1,sum_connection) = Res(:)
+      if (associated(patch%internal_flow_fluxes)) then
+        patch%internal_flow_fluxes(:,sum_connection) = Res(:)
       endif
       
       if (local_id_up > 0) then
@@ -2312,7 +2307,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   enddo    
 
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -2350,6 +2345,9 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                      general_parameter,option, &
                      v_darcy,Res)
       patch%boundary_velocities(:,sum_connection) = v_darcy
+      if (associated(patch%boundary_flow_fluxes)) then
+        patch%boundary_flow_fluxes(:,sum_connection) = Res(:)
+      endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
         global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) = &
@@ -2366,7 +2364,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   enddo
 
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first 
+  source_sink => patch%source_sink_list%first 
   sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
@@ -2393,10 +2391,17 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                         source_sink%flow_condition%general%rate%itype, &
                         gen_auxvars(ZERO_INTEGER,ghosted_id), &
                         global_auxvars(ghosted_id), &
+                        ss_flow_vol_flux, &
                         scale,Res)
 
       r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
-      
+
+      if (associated(patch%ss_flow_vol_fluxes)) then
+        patch%ss_flow_vol_fluxes(:,sum_connection) = ss_flow_vol_flux
+      endif      
+      if (associated(patch%ss_flow_fluxes)) then
+        patch%ss_flow_fluxes(:,sum_connection) = Res(:)
+      endif      
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
         global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) = &
@@ -2681,7 +2686,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   endif
 
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -2736,7 +2741,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
   endif
 
   ! Source/sinks
-  source_sink => patch%source_sinks%first 
+  source_sink => patch%source_sink_list%first 
   do 
     if (.not.associated(source_sink)) exit
     
@@ -3990,7 +3995,7 @@ subroutine GeneralSSSandbox(residual,Jacobian,compute_derivative, &
     call VecGetArrayF90(residual,r_p,ierr);CHKERRQ(ierr)
   endif
   
-  cur_srcsink => sandbox_list
+  cur_srcsink => ss_sandbox_list
   do
     if (.not.associated(cur_srcsink)) exit
       aux_real = 0.d0
@@ -4129,7 +4134,7 @@ subroutine GeneralMapBCAuxvarsToGlobal(realization)
   gen_auxvars_bc => patch%aux%General%auxvars_bc
   global_auxvars_bc => patch%aux%Global%auxvars_bc
   
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit

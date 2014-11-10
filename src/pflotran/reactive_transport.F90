@@ -246,7 +246,7 @@ subroutine RTSetup(realization)
   
   if (option%use_mc) then
     patch%aux%SC_RT => SecondaryAuxRTCreate(option)
-    initial_condition => patch%initial_conditions%first
+    initial_condition => patch%initial_condition_list%first
     allocate(rt_sec_transport_vars(grid%nlmax))  
     do local_id = 1, grid%nlmax
     ! Assuming the same secondary continuum type for all regions
@@ -275,7 +275,7 @@ subroutine RTSetup(realization)
   
   ! count the number of boundary connections and allocate
   ! auxvar data structures for them
-  sum_connection = CouplerGetNumConnectionsInList(patch%boundary_conditions)
+  sum_connection = CouplerGetNumConnectionsInList(patch%boundary_condition_list)
   if (sum_connection > 0) then
     option%iflag = 1 ! enable allocation of mass_balance array 
     allocate(patch%aux%RT%auxvars_bc(sum_connection))
@@ -287,7 +287,7 @@ subroutine RTSetup(realization)
 
   ! count the number of boundary connections and allocate
   ! auxvar data structures for them
-  sum_connection = CouplerGetNumConnectionsInList(patch%source_sinks)
+  sum_connection = CouplerGetNumConnectionsInList(patch%source_sink_list)
   if (sum_connection > 0) then
     option%iflag = 1 ! enable allocation of mass_balance array 
     allocate(patch%aux%RT%auxvars_ss(sum_connection))
@@ -1123,7 +1123,7 @@ subroutine RTUpdateTransportCoefs(realization)
   enddo    
   
 ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -1374,7 +1374,7 @@ subroutine RTCalculateRHS_t1(realization)
 
   ! add in inflowing boundary conditions
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -1409,7 +1409,7 @@ subroutine RTCalculateRHS_t1(realization)
   ! add in inflowing sources
 #if 1
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
@@ -1447,7 +1447,7 @@ subroutine RTCalculateRHS_t1(realization)
         iendcoll = reaction%offset_colloid + reaction%ncoll
       endif
 
-      qsrc = patch%ss_fluid_fluxes(1,sum_connection)
+      qsrc = patch%ss_flow_vol_fluxes(1,sum_connection)
       call TSrcSinkCoef(option,qsrc,source_sink%tran_condition%itype, &
                         coef_in,coef_out)      
 
@@ -1470,7 +1470,7 @@ subroutine RTCalculateRHS_t1(realization)
   ! CO2-specific
   select case(option%iflowmode)
     case(MPH_MODE,IMS_MODE,FLASH2_MODE)
-      source_sink => patch%source_sinks%first 
+      source_sink => patch%source_sink_list%first 
       do 
         if (.not.associated(source_sink)) exit
 
@@ -1633,7 +1633,7 @@ subroutine RTCalculateTransportMatrix(realization,T)
   
   ! add in outflowing boundary conditions
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -1680,7 +1680,7 @@ subroutine RTCalculateTransportMatrix(realization,T)
   enddo
                         
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
@@ -1708,7 +1708,7 @@ subroutine RTCalculateTransportMatrix(realization,T)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      qsrc = patch%ss_fluid_fluxes(1,sum_connection)
+      qsrc = patch%ss_flow_vol_fluxes(1,sum_connection)
       call TSrcSinkCoef(option,qsrc,source_sink%tran_condition%itype, &
                         coef_in,coef_out)
 
@@ -2021,7 +2021,7 @@ subroutine RTComputeBCMassBalanceOS(realization)
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   
 ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -2062,7 +2062,7 @@ subroutine RTComputeBCMassBalanceOS(realization)
   enddo
 
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
@@ -2083,7 +2083,7 @@ subroutine RTComputeBCMassBalanceOS(realization)
 
       if (patch%imat(ghosted_id) <= 0) cycle
 
-      qsrc = patch%ss_fluid_fluxes(1,sum_connection)
+      qsrc = patch%ss_flow_vol_fluxes(1,sum_connection)
       call TSrcSinkCoef(option,qsrc,source_sink%tran_condition%itype, &
                         coef_in,coef_out)
       
@@ -2452,11 +2452,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
         istart = iend-reaction%ncomp+1
         r_p(istart:iend) = r_p(istart:iend) - Res(1:reaction%ncomp)
       endif
-
-      if (option%transport%store_solute_fluxes) then
-        patch%internal_fluxes(iphase,1:reaction%ncomp,iconn) = &
-            Res(1:reaction%ncomp)
-      endif
 #else
       call TFluxCoef_CD(option,cur_connection_set%area(iconn), &
                  patch%internal_velocities(:,sum_connection), &
@@ -2482,13 +2477,16 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
         r_p(istart:iend) = r_p(istart:iend) + Res_2(1:reaction%ncomp)
       endif
 #endif
-
+      if (associated(patch%internal_tran_fluxes)) then
+        patch%internal_tran_fluxes(1:reaction%ncomp,iconn) = &
+            Res(1:reaction%ncomp)
+      endif
     enddo
     cur_connection_set => cur_connection_set%next
   enddo
     
 ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -2526,11 +2524,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
       istart = iend-reaction%ncomp+1
       r_p(istart:iend)= r_p(istart:iend) - Res(1:reaction%ncomp)
 
-      if (option%transport%store_solute_fluxes) then
-        patch%boundary_fluxes(iphase,1:reaction%ncomp,sum_connection) = &
-            -Res(1:reaction%ncomp)
-      endif
-
       if (option%compute_mass_balance_new) then
       ! contribution to boundary 
         rt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) = &
@@ -2557,10 +2550,6 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
       istart = iend-reaction%ncomp+1
       r_p(istart:iend)= r_p(istart:iend) + Res_2(1:reaction%ncomp)
 
-      if (option%store_solute_fluxes) then
-        patch%boundary_fluxes(iphase,1:reaction%ncomp,sum_connection) = &
-            Res_2(1:reaction%ncomp)
-      endif
       if (option%compute_mass_balance_new) then
       ! contribution to boundary 
         rt_auxvars_bc(sum_connection)%mass_balance_delta(:,iphase) = &
@@ -2571,7 +2560,10 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
         endif  
       
 #endif                   
-     
+      if (associated(patch%boundary_tran_fluxes)) then
+        patch%boundary_tran_fluxes(1:reaction%ncomp,sum_connection) = &
+            -Res(1:reaction%ncomp)
+      endif
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -2764,7 +2756,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 ! ============== end secondary continuum coupling terms ========================
 
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
@@ -2788,7 +2780,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
         iendcoll = reaction%offset_colloid + reaction%ncoll
       endif
 
-      qsrc = patch%ss_fluid_fluxes(1,sum_connection)
+      qsrc = patch%ss_flow_vol_fluxes(1,sum_connection)
       call TSrcSinkCoef(option,qsrc,source_sink%tran_condition%itype, &
                         coef_in,coef_out)
 
@@ -2804,7 +2796,10 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       endif
       istartall = offset + 1
       iendall = offset + reaction%ncomp
-      r_p(istartall:iendall) = r_p(istartall:iendall) + Res(1:reaction%ncomp)                                  
+      r_p(istartall:iendall) = r_p(istartall:iendall) + Res(1:reaction%ncomp)
+      if (associated(patch%ss_tran_fluxes)) then
+        patch%ss_tran_fluxes(:,sum_connection) = Res(:)
+      endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary 
         rt_auxvars_ss(sum_connection)%mass_balance_delta(:,iphase) = &
@@ -2820,7 +2815,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   ! CO2-specific
   select case(option%iflowmode)
     case(MPH_MODE,IMS_MODE,FLASH2_MODE)
-      source_sink => patch%source_sinks%first 
+      source_sink => patch%source_sink_list%first 
       do 
         if (.not.associated(source_sink)) exit
 
@@ -3191,7 +3186,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
 
   call PetscLogEventBegin(logging%event_rt_jacobian_fluxbc,ierr);CHKERRQ(ierr)
 
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -3291,7 +3286,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   PetscReal, pointer :: work_loc_p(:)
   PetscInt :: local_id, ghosted_id
   PetscInt :: istartaq, iendaq
-  PetscInt :: istartcoll, iendcoll
+  PetscInt :: istart, iend
   PetscInt :: offset, idof                  
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -3399,7 +3394,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
 #if 1
   ! Source/Sink terms -------------------------------------
   call PetscLogEventBegin(logging%event_rt_jacobian_ss,ierr);CHKERRQ(ierr)
-  source_sink => patch%source_sinks%first 
+  source_sink => patch%source_sink_list%first 
   sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
@@ -3416,12 +3411,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
       istartaq = reaction%offset_aqueous + 1
       iendaq = reaction%offset_aqueous + reaction%naqcomp
       
-      if (reaction%ncoll > 0) then
-        istartcoll = reaction%offset_colloid + 1
-        iendcoll = reaction%offset_colloid + reaction%ncoll
-      endif
-
-      qsrc = patch%ss_fluid_fluxes(1,sum_connection)
+      qsrc = patch%ss_flow_vol_fluxes(1,sum_connection)
       call TSrcSinkCoef(option,qsrc,source_sink%tran_condition%itype,coef_in,coef_out)
 
       Jup = 0.d0
@@ -3489,21 +3479,25 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
     call VecGetArrayF90(field%tran_work_loc, work_loc_p, ierr);CHKERRQ(ierr)
     do ghosted_id = 1, grid%ngmax  ! For each local node do...
       offset = (ghosted_id-1)*reaction%ncomp
-      istartaq = offset + reaction%offset_aqueous + 1
-      iendaq = offset + reaction%offset_aqueous + reaction%naqcomp
-      if (reaction%ncoll > 0) then
-        istartcoll = offset + reaction%offset_colloid + 1
-        iendcoll = offset + reaction%offset_colloid + reaction%ncoll
-      endif
       if (patch%imat(ghosted_id) <= 0) then
-        work_loc_p(istartaq:iendaq) = 1.d0
-        if (reaction%ncoll > 0) then
-          work_loc_p(istartcoll:iendcoll) = 1.d0
-        endif
+        istart = offset + 1
+        iend = offset + reaction%ncomp
+        work_loc_p(istart:iend) = 1.d0
       else
+        istartaq = offset + reaction%offset_aqueous + 1
+        iendaq = offset + reaction%offset_aqueous + reaction%naqcomp
         work_loc_p(istartaq:iendaq) = rt_auxvars(ghosted_id)%pri_molal(:)
+        if (reaction%nimcomp > 0) then
+          istart = offset + reaction%offset_immobile + 1
+          iend = offset + reaction%offset_immobile + reaction%nimcomp
+          work_loc_p(istart:iend) = &
+            rt_auxvars(ghosted_id)%immobile(:)
+        endif
         if (reaction%ncoll > 0) then
-          work_loc_p(istartcoll:iendcoll) = rt_auxvars(ghosted_id)%colloid%conc_mob(:)
+          istart = offset + reaction%offset_colloid + 1
+          iend = offset + reaction%offset_colloid + reaction%ncoll
+          work_loc_p(istart:iend) = &
+            rt_auxvars(ghosted_id)%colloid%conc_mob(:)
         endif
       endif
     enddo
@@ -3678,7 +3672,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
 
     call PetscLogEventBegin(logging%event_rt_auxvars_bc,ierr);CHKERRQ(ierr)
 
-    boundary_condition => patch%boundary_conditions%first
+    boundary_condition => patch%boundary_condition_list%first
     sum_connection = 0    
     do 
       if (.not.associated(boundary_condition)) exit
@@ -3751,6 +3745,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
         patch%aux%Global%auxvars_bc(sum_connection),reaction, &
         boundary_condition%tran_condition%cur_constraint_coupler%constraint_name, &
         boundary_condition%tran_condition%cur_constraint_coupler%aqueous_species, &
+        boundary_condition%tran_condition%cur_constraint_coupler%free_ion_guess, &
         boundary_condition%tran_condition%cur_constraint_coupler%minerals, &
         boundary_condition%tran_condition%cur_constraint_coupler%surface_complexes, &
         boundary_condition%tran_condition%cur_constraint_coupler%colloids, &
@@ -3899,6 +3894,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
               patch%aux%Material%auxvars(ghosted_id),reaction, &
               boundary_condition%tran_condition%cur_constraint_coupler%constraint_name, &
               boundary_condition%tran_condition%cur_constraint_coupler%aqueous_species, &
+              boundary_condition%tran_condition%cur_constraint_coupler%free_ion_guess, &
               boundary_condition%tran_condition%cur_constraint_coupler%minerals, &
               boundary_condition%tran_condition%cur_constraint_coupler%surface_complexes, &
               boundary_condition%tran_condition%cur_constraint_coupler%colloids, &
@@ -4636,7 +4632,7 @@ subroutine RTExplicitAdvection(realization)
 
 ! Update Boundary Concentrations------------------------------
   call VecGetArrayF90(field%tvd_ghosts,tvd_ghosts_p,ierr);CHKERRQ(ierr)
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -4745,7 +4741,7 @@ subroutine RTExplicitAdvection(realization)
   call VecRestoreArrayF90(field%tvd_ghosts,tvd_ghosts_p,ierr);CHKERRQ(ierr)
     
 ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -4809,7 +4805,7 @@ subroutine RTExplicitAdvection(realization)
   enddo
 
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0
   do 
     if (.not.associated(source_sink)) exit
@@ -4822,7 +4818,7 @@ subroutine RTExplicitAdvection(realization)
       if (patch%imat(ghosted_id) <= 0) cycle
 
       do iphase = 1, option%nphase
-        qsrc = patch%ss_fluid_fluxes(iphase,sum_connection)
+        qsrc = patch%ss_flow_vol_fluxes(iphase,sum_connection)
         call TSrcSinkCoef(option,qsrc,source_sink%tran_condition%itype, &
                           coef_in,coef_out)
         flux = coef_in*rt_auxvars(ghosted_id)%total(:,iphase) + &

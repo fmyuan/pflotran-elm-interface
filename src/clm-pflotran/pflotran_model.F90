@@ -102,6 +102,7 @@ module pflotran_model_module
   public::pflotranModelCreate,               &
        pflotranModelInitMapping,             &
        pflotranModelSetSoilProp,             &
+       pflotranModelGetSoilProp,             &
        pflotranModelSetICs,                  &
        pflotranModelUpdateFlowConds,         &
        pflotranModelGetUpdatedData,          &
@@ -593,7 +594,6 @@ end subroutine pflotranModelSetICs
     PetscScalar, pointer :: watsat_pf_loc(:)  ! minimum soil suction (mm)
     PetscScalar, pointer :: sucsat_pf_loc(:)  ! volumetric soil water at saturation (porosity)
     PetscScalar, pointer :: bsw_pf_loc(:)     ! Clapp and Hornberger "b"
-    PetscScalar, pointer :: bsw_clm_loc(:)    ! Clapp and Hornberger "b"
 
     den = 998.2d0       ! [kg/m^3]  @ 20 degC
     vis = 0.001002d0    ! [N s/m^2] @ 20 degC
@@ -654,7 +654,6 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%sucsat_pf,  sucsat_pf_loc,  ierr)
     call VecGetArrayF90(clm_pf_idata%watsat_pf,  watsat_pf_loc,  ierr)
     call VecGetArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
-    call VecGetArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
     call VecDuplicate(field%work_loc, porosity_loc, ierr)
     call VecDuplicate(field%work_loc, perm_xx_loc, ierr)
@@ -711,7 +710,6 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%sucsat_pf,  sucsat_pf_loc,  ierr)
     call VecRestoreArrayF90(clm_pf_idata%watsat_pf,  watsat_pf_loc,  ierr)
     call VecRestoreArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
-    call VecRestoreArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
 
     call VecRestoreArrayF90(porosity_loc, porosity_loc_p, ierr)
     call VecRestoreArrayF90(perm_xx_loc,  perm_xx_loc_p,  ierr)
@@ -733,6 +731,193 @@ end subroutine pflotranModelSetICs
     call VecDestroy(perm_zz_loc, ierr)
 
   end subroutine pflotranModelSetSoilProp
+
+! ************************************************************************** !
+
+  subroutine pflotranModelGetSoilProp(pflotran_model)
+  !
+  ! Converts hydraulic properties from PFLOTRAN units for CLM units
+  !
+  ! Author: Gautam Bisht
+  ! Date: 10/27/2014
+  !
+
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Richards_Aux_module
+    use TH_Aux_module
+    use Field_module
+    use Option_module
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+
+    use clm_pflotran_interface_data
+    use Mapping_module
+    use Material_module
+    use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
+                               PERMEABILITY_Z
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(field_type), pointer                 :: field
+    type(richards_auxvar_type), pointer       :: rich_aux_vars(:)
+    type(richards_auxvar_type), pointer       :: rich_aux_var
+    type(th_auxvar_type), pointer             :: th_aux_vars(:)
+    type(th_auxvar_type), pointer             :: th_aux_var
+    type(simulation_base_type), pointer       :: simulation
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: ghosted_id
+    PetscReal          :: den, vis, grav
+    PetscReal, pointer :: porosity_loc_p(:), vol_ovlap_arr(:)
+    PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
+    PetscReal          :: bc_lambda, bc_alpha
+    Vec                :: porosity_loc, perm_xx_loc, perm_yy_loc, perm_zz_loc
+
+    PetscScalar, pointer :: hksat_x2_pf_loc(:) ! hydraulic conductivity in x-dir at saturation (mm H2O /s)
+    PetscScalar, pointer :: hksat_y2_pf_loc(:) ! hydraulic conductivity in y-dir at saturation (mm H2O /s)
+    PetscScalar, pointer :: hksat_z2_pf_loc(:) ! hydraulic conductivity in z-dir at saturation (mm H2O /s)
+    PetscScalar, pointer :: watsat2_pf_loc(:)  ! minimum soil suction (mm)
+    PetscScalar, pointer :: sucsat2_pf_loc(:)  ! volumetric soil water at saturation (porosity)
+    PetscScalar, pointer :: bsw2_pf_loc(:)     ! Clapp and Hornberger "b"
+
+    den = 998.2d0       ! [kg/m^3]  @ 20 degC
+    vis = 0.001002d0    ! [N s/m^2] @ 20 degC
+    grav = 9.81d0       ! [m/S^2]
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: pflotranModelSetSoilProp only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    patch           => realization%patch
+    grid            => patch%grid
+    field           => realization%field
+
+    select case(pflotran_model%option%iflowmode)
+      case(RICHARDS_MODE)
+        rich_aux_vars   => patch%aux%Richards%auxvars
+      case(TH_MODE)
+        th_aux_vars   => patch%aux%TH%auxvars
+      case default
+        call printErrMsg(pflotran_model%option, &
+          'Current PFLOTRAN mode not supported by pflotranModelSetSoilProp')
+    end select
+
+    call VecDuplicate(field%work_loc, porosity_loc, ierr)
+    call VecDuplicate(field%work_loc, perm_xx_loc, ierr)
+    call VecDuplicate(field%work_loc, perm_yy_loc, ierr)
+    call VecDuplicate(field%work_loc, perm_zz_loc, ierr)
+
+    call MaterialGetAuxVarVecLoc(realization%patch%aux%Material,porosity_loc, &
+                                 POROSITY,ZERO_INTEGER)
+    call MaterialGetAuxVarVecLoc(realization%patch%aux%Material,perm_xx_loc, &
+                                 PERMEABILITY_X,ZERO_INTEGER)
+    call MaterialGetAuxVarVecLoc(realization%patch%aux%Material,perm_yy_loc, &
+                                 PERMEABILITY_Y,ZERO_INTEGER)
+    call MaterialGetAuxVarVecLoc(realization%patch%aux%Material,perm_zz_loc, &
+                                 PERMEABILITY_Z,ZERO_INTEGER)
+
+    call VecGetArrayF90(clm_pf_idata%hksat_x2_pf, hksat_x2_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%hksat_y2_pf, hksat_y2_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%hksat_z2_pf, hksat_z2_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%sucsat2_pf,  sucsat2_pf_loc,  ierr)
+    call VecGetArrayF90(clm_pf_idata%watsat2_pf,  watsat2_pf_loc,  ierr)
+    call VecGetArrayF90(clm_pf_idata%bsw2_pf,     bsw2_pf_loc,     ierr)
+
+    call VecGetArrayF90(porosity_loc, porosity_loc_p, ierr)
+    call VecGetArrayF90(perm_xx_loc,  perm_xx_loc_p,  ierr)
+    call VecGetArrayF90(perm_yy_loc,  perm_yy_loc_p,  ierr)
+    call VecGetArrayF90(perm_zz_loc,  perm_zz_loc_p,  ierr)
+
+    do ghosted_id = 1, grid%ngmax
+
+      select case(pflotran_model%option%iflowmode)
+        case(RICHARDS_MODE)
+          rich_aux_var => rich_aux_vars(ghosted_id)
+          bc_alpha  = rich_aux_var%bc_alpha
+          bc_lambda = rich_aux_var%bc_lambda
+        case(TH_MODE)
+          th_aux_var => th_aux_vars(ghosted_id)
+          bc_alpha  = th_aux_var%bc_alpha
+          bc_lambda = th_aux_var%bc_lambda
+      end select
+
+      ! bc_alpha [1/Pa]; while sucsat [mm of H20]
+      ! [Pa] = [mm of H20] * 0.001 [m/mm] * 1000 [kg/m^3] * 9.81 [m/sec^2]
+      sucsat2_pf_loc(ghosted_id) = 1.d0/(bc_alpha*grav)
+
+      ! bc_lambda = 1/bsw
+      bsw2_pf_loc(ghosted_id) = 1.d0/bc_lambda
+
+      ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
+      ! [m^2]          [mm/sec]
+      hksat_x2_pf_loc(ghosted_id) = perm_xx_loc_p(ghosted_id)/vis*(den*grav)*1000.d0
+      hksat_y2_pf_loc(ghosted_id) = perm_yy_loc_p(ghosted_id)/vis*(den*grav)*1000.d0
+      hksat_z2_pf_loc(ghosted_id) = perm_zz_loc_p(ghosted_id)/vis*(den*grav)*1000.d0
+
+      watsat2_pf_loc(ghosted_id) = porosity_loc_p(ghosted_id)
+
+    enddo
+
+    call VecRestoreArrayF90(clm_pf_idata%hksat_x2_pf, hksat_x2_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%hksat_y2_pf, hksat_y2_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%hksat_z2_pf, hksat_z2_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%sucsat2_pf,  sucsat2_pf_loc,  ierr)
+    call VecRestoreArrayF90(clm_pf_idata%watsat2_pf,  watsat2_pf_loc,  ierr)
+    call VecRestoreArrayF90(clm_pf_idata%bsw2_pf,     bsw2_pf_loc,     ierr)
+
+    call VecRestoreArrayF90(porosity_loc, porosity_loc_p, ierr)
+    call VecRestoreArrayF90(perm_xx_loc,  perm_xx_loc_p,  ierr)
+    call VecRestoreArrayF90(perm_yy_loc,  perm_yy_loc_p,  ierr)
+    call VecRestoreArrayF90(perm_zz_loc,  perm_zz_loc_p,  ierr)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    clm_pf_idata%hksat_x2_pf, &
+                                    clm_pf_idata%hksat_x2_clm)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    clm_pf_idata%hksat_y2_pf, &
+                                    clm_pf_idata%hksat_y2_clm)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    clm_pf_idata%hksat_z2_pf, &
+                                    clm_pf_idata%hksat_z2_clm)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    clm_pf_idata%sucsat2_pf, &
+                                    clm_pf_idata%sucsat2_clm)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    clm_pf_idata%bsw2_pf, &
+                                    clm_pf_idata%bsw2_clm)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    clm_pf_idata%watsat2_pf, &
+                                    clm_pf_idata%watsat2_clm)
+
+    call VecDestroy(porosity_loc, ierr)
+    call VecDestroy(perm_xx_loc, ierr)
+    call VecDestroy(perm_yy_loc, ierr)
+    call VecDestroy(perm_zz_loc, ierr)
+
+  end subroutine pflotranModelGetSoilProp
 
 ! ************************************************************************** !
 
@@ -1076,7 +1261,7 @@ end subroutine pflotranModelSetICs
         grid => patch%grid
 
         ! Destination mesh is PF_2DSUB_MESH
-        boundary_condition => patch%boundary_conditions%first
+        boundary_condition => patch%boundary_condition_list%first
         sum_connection = 0
         do 
           if (.not.associated(boundary_condition)) exit
@@ -2007,6 +2192,8 @@ end subroutine pflotranModelSetICs
     use clm_pflotran_interface_data
     use Connection_module
     use Coupler_module
+    use Grid_module
+    use Global_Aux_module
     use Mapping_module
     use Option_module
     use Realization_class, only : realization_type
@@ -2027,8 +2214,12 @@ end subroutine pflotranModelSetICs
     PetscScalar, pointer                      :: qflx_pf_loc(:)
     PetscBool                                 :: found
     PetscInt                                  :: iconn
+    PetscInt                                  :: local_id
+    PetscInt                                  :: ghosted_id
     PetscErrorCode                            :: ierr
     PetscInt                                  :: press_dof
+    type(grid_type), pointer                  :: grid
+    type(global_auxvar_type), pointer         :: global_aux_vars(:)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     clm_pf_idata%qflx_clm, &
@@ -2046,6 +2237,9 @@ end subroutine pflotranModelSetICs
          call printErrMsg(pflotran_model%option)
     end select
 
+    global_aux_vars  => subsurf_realization%patch%aux%Global%auxvars
+    grid             => subsurf_realization%patch%grid
+
     ! Find value of pressure-dof depending on flow mode
     select case (pflotran_model%option%iflowmode)
       case (RICHARDS_MODE)
@@ -2060,7 +2254,7 @@ end subroutine pflotranModelSetICs
     ! Update the 'clm_et_ss' source/sink term
     call VecGetArrayF90(clm_pf_idata%qflx_pf,qflx_pf_loc,ierr)
     found = PETSC_FALSE
-    source_sink => subsurf_realization%patch%source_sinks%first
+    source_sink => subsurf_realization%patch%source_sink_list%first
     do
       if (.not.associated(source_sink)) exit
 
@@ -2077,6 +2271,13 @@ end subroutine pflotranModelSetICs
 
         do iconn = 1, cur_connection_set%num_connections
           source_sink%flow_aux_real_var(press_dof,iconn) = qflx_pf_loc(iconn)
+
+          if (pflotran_model%option%iflowmode == TH_MODE) then
+            local_id = cur_connection_set%id_dn(iconn)
+            ghosted_id = grid%nL2G(local_id)
+            source_sink%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+              global_aux_vars(ghosted_id)%temp
+          end if
         enddo
       endif
 
@@ -2188,7 +2389,7 @@ end subroutine pflotranModelSetICs
     ! Update the 'clm_et_ss' source/sink term
     call VecGetArrayF90(clm_pf_idata%rain_pf,rain_pf_loc,ierr)
     found = PETSC_FALSE
-    source_sink => surf_realization%patch%source_sinks%first
+    source_sink => surf_realization%patch%source_sink_list%first
     do
       if (.not.associated(source_sink)) exit
 
@@ -2275,7 +2476,7 @@ end subroutine pflotranModelSetICs
     ! Update the 'clm_et_ss' source/sink term
     call VecGetArrayF90(clm_pf_idata%gflux_subsurf_pf,gflux_subsurf_pf_loc,ierr)
     found = PETSC_FALSE
-    boundary_condition => subsurf_realization%patch%boundary_conditions%first
+    boundary_condition => subsurf_realization%patch%boundary_condition_list%first
     do
       if (.not.associated(boundary_condition)) exit
 
@@ -2373,7 +2574,7 @@ end subroutine pflotranModelSetICs
     ! Update the 'clm_et_ss' source/sink term
     call VecGetArrayF90(clm_pf_idata%gflux_surf_pf,gflux_surf_pf_loc,ierr)
     found = PETSC_FALSE
-    source_sink => surf_realization%patch%source_sinks%first
+    source_sink => surf_realization%patch%source_sink_list%first
     do
       if (.not.associated(source_sink)) exit
 
@@ -2410,7 +2611,7 @@ end subroutine pflotranModelSetICs
     ! Update the 'clm_rain_srf_ss' source/sink term
     call VecGetArrayF90(clm_pf_idata%rain_temp_pf,rain_temp_pf_loc,ierr)
     found = PETSC_FALSE
-    source_sink => surf_realization%patch%source_sinks%first
+    source_sink => surf_realization%patch%source_sink_list%first
     do
       if (.not.associated(source_sink)) exit
 
@@ -2496,7 +2697,7 @@ end subroutine pflotranModelSetICs
     ! Source/sink terms -------------------------------------
     call VecGetArrayF90(clm_pf_idata%rain_pf,rain_pf_loc,ierr)
     found = PETSC_FALSE
-    source_sink => surf_realization%patch%source_sinks%first
+    source_sink => surf_realization%patch%source_sink_list%first
     do
       if (.not.associated(source_sink)) exit
 
@@ -2956,7 +3157,7 @@ end subroutine pflotranModelSetICs
       condition_name = 'from_surface_bc'
     endif
 
-    coupler_list => realization%patch%boundary_conditions
+    coupler_list => realization%patch%boundary_condition_list
     coupler => coupler_list%first
     found = PETSC_FALSE
 

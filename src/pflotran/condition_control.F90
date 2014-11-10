@@ -119,7 +119,7 @@ subroutine CondControlAssignFlowInitCond(realization)
       
         xx_p = UNINITIALIZED_DOUBLE
       
-        initial_condition => cur_patch%initial_conditions%first
+        initial_condition => cur_patch%initial_condition_list%first
         do
       
           if (.not.associated(initial_condition)) exit
@@ -279,7 +279,7 @@ subroutine CondControlAssignFlowInitCond(realization)
       
         xx_p = UNINITIALIZED_DOUBLE
       
-        initial_condition => cur_patch%initial_conditions%first
+        initial_condition => cur_patch%initial_condition_list%first
         do
       
           if (.not.associated(initial_condition)) exit
@@ -586,7 +586,7 @@ subroutine CondControlAssignTranInitCond(realization)
       
     xx_p = UNINITIALIZED_DOUBLE
       
-    initial_condition => cur_patch%initial_conditions%first
+    initial_condition => cur_patch%initial_condition_list%first
     do
       
       if (.not.associated(initial_condition)) exit
@@ -721,6 +721,7 @@ subroutine CondControlAssignTranInitCond(realization)
               reaction, &
               constraint_coupler%constraint_name, &
               constraint_coupler%aqueous_species, &
+              constraint_coupler%free_ion_guess, &
               constraint_coupler%minerals, &
               constraint_coupler%surface_complexes, &
               constraint_coupler%colloids, &
@@ -738,6 +739,7 @@ subroutine CondControlAssignTranInitCond(realization)
               reaction, &
               constraint_coupler%constraint_name, &
               constraint_coupler%aqueous_species, &
+              constraint_coupler%free_ion_guess, &
               constraint_coupler%minerals, &
               constraint_coupler%surface_complexes, &
               constraint_coupler%colloids, &
@@ -1057,7 +1059,7 @@ subroutine CondControlScaleSourceSink(realization)
 
     grid => cur_patch%grid
 
-    cur_source_sink => cur_patch%source_sinks%first
+    cur_source_sink => cur_patch%source_sink_list%first
     do
       if (.not.associated(cur_source_sink)) exit
 
@@ -1312,7 +1314,7 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
     
         xx_p = UNINITIALIZED_DOUBLE
       
-        initial_condition => cur_patch%initial_conditions%first
+        initial_condition => cur_patch%initial_condition_list%first
         do
       
           if (.not.associated(initial_condition)) exit
