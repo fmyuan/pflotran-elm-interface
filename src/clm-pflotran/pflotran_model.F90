@@ -3599,7 +3599,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     call VecGetArrayF90(clm_pf_idata%area_top_face_pf, area_p, ierr)
     CHKERRQ(ierr)
-    if(grid%discretization_itype == STRUCTURED_GRID) then
+    if(grid%itype == STRUCTURED_GRID) then
       ! Structured grid
       do ghosted_id=1,grid%ngmax
         local_id = grid%nG2L(ghosted_id)
@@ -3609,7 +3609,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
           area_p(local_id) = area1
         endif
       enddo
-    else if (grid%discretization_itype == UNSTRUCTURED_GRID) then
+    else if (grid%itype == UNSTRUCTURED_GRID) then
       ! Unstructured grid
       do local_id = 1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
