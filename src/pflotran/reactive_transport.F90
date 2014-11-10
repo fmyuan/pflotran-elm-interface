@@ -464,7 +464,7 @@ subroutine RTCheckUpdatePost(line_search,X0,dX,X1,dX_changed, &
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
-  PetscReal, pointer :: X1_p(:)
+  PetscReal, pointer :: X0_p(:)
   PetscReal, pointer :: dX_p(:)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:)  
@@ -487,10 +487,10 @@ subroutine RTCheckUpdatePost(line_search,X0,dX,X1,dX_changed, &
     converged_due_to_rel_update = PETSC_FALSE
     converged_due_to_residual = PETSC_FALSE
     call VecGetArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(X1,X1_p,ierr);CHKERRQ(ierr)
-    max_relative_change = maxval(dabs(dX_p(:)/X1_p(:)))
+    call VecGetArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
+    max_relative_change = maxval(dabs(dX_p(:)/X0_p(:)))
     call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(X1,X1_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
     max_scaled_residual = maxval(dabs(r_p(:)/accum_p(:)))
@@ -1149,25 +1149,12 @@ subroutine RTUpdateTransportCoefs(realization)
   do 
     if (.not.associated(boundary_condition)) exit
  
-    if (option%mimetic) then 
-      num_connections = boundary_condition%numfaces_set
-    else
-      cur_connection_set => boundary_condition%connection_set
-      num_connections = cur_connection_set%num_connections
-    end if
+    cur_connection_set => boundary_condition%connection_set
+    num_connections = cur_connection_set%num_connections
     do iconn = 1, num_connections
       sum_connection = sum_connection + 1
   
-      if (option%mimetic) then
-#ifdef DASVYAT
-        ghosted_face_id = boundary_condition%faces_set(iconn)
-        cur_connection_set => grid%faces(ghosted_face_id)%conn_set_ptr
-        id = grid%faces(ghosted_face_id)%id
-        local_id = grid%nG2L(cur_connection_set%id_dn(id))
-#endif
-      else
-        local_id = cur_connection_set%id_dn(iconn)
-      end if
+      local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
@@ -3315,7 +3302,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   PetscReal, pointer :: work_loc_p(:)
   PetscInt :: local_id, ghosted_id
   PetscInt :: istartaq, iendaq
-  PetscInt :: istartcoll, iendcoll
+  PetscInt :: istart, iend
   PetscInt :: offset, idof                  
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -3440,11 +3427,6 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
       istartaq = reaction%offset_aqueous + 1
       iendaq = reaction%offset_aqueous + reaction%naqcomp
       
-      if (reaction%ncoll > 0) then
-        istartcoll = reaction%offset_colloid + 1
-        iendcoll = reaction%offset_colloid + reaction%ncoll
-      endif
-
       qsrc = patch%ss_flow_vol_fluxes(1,sum_connection)
       call TSrcSinkCoef(option,qsrc,source_sink%tran_condition%itype,coef_in,coef_out)
 
@@ -3522,21 +3504,25 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
     call VecGetArrayF90(field%tran_work_loc, work_loc_p, ierr);CHKERRQ(ierr)
     do ghosted_id = 1, grid%ngmax  ! For each local node do...
       offset = (ghosted_id-1)*reaction%ncomp
-      istartaq = offset + reaction%offset_aqueous + 1
-      iendaq = offset + reaction%offset_aqueous + reaction%naqcomp
-      if (reaction%ncoll > 0) then
-        istartcoll = offset + reaction%offset_colloid + 1
-        iendcoll = offset + reaction%offset_colloid + reaction%ncoll
-      endif
       if (patch%imat(ghosted_id) <= 0) then
-        work_loc_p(istartaq:iendaq) = 1.d0
-        if (reaction%ncoll > 0) then
-          work_loc_p(istartcoll:iendcoll) = 1.d0
-        endif
+        istart = offset + 1
+        iend = offset + reaction%ncomp
+        work_loc_p(istart:iend) = 1.d0
       else
+        istartaq = offset + reaction%offset_aqueous + 1
+        iendaq = offset + reaction%offset_aqueous + reaction%naqcomp
         work_loc_p(istartaq:iendaq) = rt_auxvars(ghosted_id)%pri_molal(:)
+        if (reaction%nimcomp > 0) then
+          istart = offset + reaction%offset_immobile + 1
+          iend = offset + reaction%offset_immobile + reaction%nimcomp
+          work_loc_p(istart:iend) = &
+            rt_auxvars(ghosted_id)%immobile(:)
+        endif
         if (reaction%ncoll > 0) then
-          work_loc_p(istartcoll:iendcoll) = rt_auxvars(ghosted_id)%colloid%conc_mob(:)
+          istart = offset + reaction%offset_colloid + 1
+          iend = offset + reaction%offset_colloid + reaction%ncoll
+          work_loc_p(istart:iend) = &
+            rt_auxvars(ghosted_id)%colloid%conc_mob(:)
         endif
       endif
     enddo
@@ -3784,6 +3770,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
         patch%aux%Global%auxvars_bc(sum_connection),reaction, &
         boundary_condition%tran_condition%cur_constraint_coupler%constraint_name, &
         boundary_condition%tran_condition%cur_constraint_coupler%aqueous_species, &
+        boundary_condition%tran_condition%cur_constraint_coupler%free_ion_guess, &
         boundary_condition%tran_condition%cur_constraint_coupler%minerals, &
         boundary_condition%tran_condition%cur_constraint_coupler%surface_complexes, &
         boundary_condition%tran_condition%cur_constraint_coupler%colloids, &
@@ -3932,6 +3919,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
               patch%aux%Material%auxvars(ghosted_id),reaction, &
               boundary_condition%tran_condition%cur_constraint_coupler%constraint_name, &
               boundary_condition%tran_condition%cur_constraint_coupler%aqueous_species, &
+              boundary_condition%tran_condition%cur_constraint_coupler%free_ion_guess, &
               boundary_condition%tran_condition%cur_constraint_coupler%minerals, &
               boundary_condition%tran_condition%cur_constraint_coupler%surface_complexes, &
               boundary_condition%tran_condition%cur_constraint_coupler%colloids, &
