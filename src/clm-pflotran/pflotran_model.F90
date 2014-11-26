@@ -74,27 +74,6 @@ module pflotran_model_module
     type(mapping_type),                pointer :: map_pf_sub_to_clm_sub
     type(mapping_type),                pointer :: map_pf_srf_to_clm_srf
      
-    Vec :: hksat_x_clm
-    Vec :: hksat_y_clm
-    Vec :: hksat_z_clm
-    Vec :: sucsat_clm
-    Vec :: watsat_clm
-    Vec :: bsw_clm
-    Vec :: qflx_clm
-    Vec :: sat_clm
-
-    Vec :: hksat_x_pf
-    Vec :: hksat_y_pf
-    Vec :: hksat_z_pf
-    Vec :: sucsat_pf
-    Vec :: watsat_pf
-    Vec :: bsw_pf
-    Vec :: qflx_pf
-    Vec :: sat_pf
-
-    PetscInt :: nlclm
-    PetscInt :: ngclm
-
     PetscLogDouble :: timex(4), timex_wall(4)
 
   end type pflotran_model_type
@@ -273,9 +252,6 @@ contains
     model%map_clm_srf_to_pf_srf          => MappingCreate()
     model%map_pf_sub_to_clm_sub          => MappingCreate()
     model%map_pf_srf_to_clm_srf          => MappingCreate()
-
-    model%nlclm = -1
-    model%ngclm = -1
 
     input => InputCreate(15, &
                     model%option%input_filename, model%option)
