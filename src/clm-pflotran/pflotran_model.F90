@@ -5669,6 +5669,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     character(len=MAXWORDLENGTH) :: word
     PetscReal, parameter :: C_molecular_weight = 12.0107d0
     PetscReal, parameter :: N_molecular_weight = 14.0067d0
+    PetscReal, parameter :: xeps_conc = 1.0d-10
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -5938,14 +5939,14 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         accextrn_vr_pf_loc(local_id) = max(xx_p(offsetim + ispec_plantnuptake), 1.0d-20) &
                                         * N_molecular_weight
         ! resetting the tracking variable state so that cumulative IS for the time-step only
-        xx_p(offsetim + ispec_plantnuptake) = 1.0d-50
+        xx_p(offsetim + ispec_plantnuptake) = xeps_conc
 
         if(ispec_hrimm > 0) then
            conc = xx_p(offsetim + ispec_hrimm)
            acchr_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * C_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_hrimm) = 1.0d-50
+           xx_p(offsetim + ispec_hrimm) = xeps_conc
         endif
 
         if(ispec_nmin > 0) then
@@ -5953,7 +5954,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
            accnmin_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_nmin) = 1.0d-50
+           xx_p(offsetim + ispec_nmin) = xeps_conc
         endif
 
         if(ispec_nimm > 0) then
@@ -5961,7 +5962,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
            accnimm_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_nimm) = 1.0d-50
+           xx_p(offsetim + ispec_nimm) = xeps_conc
 
         endif
 
@@ -5970,7 +5971,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
            accngasmin_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_ngasmin) = 1.0d-50
+           xx_p(offsetim + ispec_ngasmin) = xeps_conc
         endif
 
         if(ispec_ngasnitr > 0) then
@@ -5978,7 +5979,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
            accngasnitr_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_ngasnitr) = 1.0d-50
+           xx_p(offsetim + ispec_ngasnitr) = xeps_conc
         endif
 
         if(ispec_ngasdeni > 0) then
@@ -5986,7 +5987,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
            accngasdeni_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_ngasdeni) = 1.0d-50
+           xx_p(offsetim + ispec_ngasdeni) = xeps_conc
         endif
 
     enddo
