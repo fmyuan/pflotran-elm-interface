@@ -7,7 +7,7 @@ module Realization_class
   use Input_Aux_module
   use Region_module
   use Condition_module
-  use Constraint_module
+  use Transport_Constraint_module
   use Material_module
   use Saturation_Function_module
   use Characteristic_Curves_module
@@ -180,16 +180,16 @@ subroutine RealizationCreateDiscretization(realization)
   ! 
 
   use Grid_module
-  use Unstructured_Grid_Aux_module
-  use Unstructured_Grid_module, only : UGridEnsureRightHandRule
-  use Structured_Grid_module, only : StructGridCreateTVDGhosts
+  use Grid_Unstructured_Aux_module
+  use Grid_Unstructured_module, only : UGridEnsureRightHandRule
+  use Grid_Structured_module, only : StructGridCreateTVDGhosts
   use Coupler_module
   use Discretization_module
-  use Unstructured_Cell_module
+  use Grid_Unstructured_Cell_module
   use DM_Kludge_module
   use Variables_module, only : VOLUME
-  use Structured_Communicator_class, only : StructuredCommunicatorCreate
-  use Unstructured_Communicator_class, only : UnstructuredCommunicatorCreate
+  use Communicator_Structured_class, only : StructuredCommunicatorCreate
+  use Communicator_Unstructured_class, only : UnstructuredCommunicatorCreate
   
   implicit none
   
@@ -225,6 +225,8 @@ subroutine RealizationCreateDiscretization(realization)
                                      field%tortuosity0)
   call DiscretizationDuplicateVector(discretization,field%work, &
                                      field%volume0)
+  call DiscretizationDuplicateVector(discretization,field%work, &
+                                     field%compressibility0)
   if (option%flow%transient_porosity) then
     call DiscretizationDuplicateVector(discretization,field%work, &
                                        field%porosity_base_store)
@@ -738,7 +740,22 @@ subroutine RealProcessMatPropAndSatFunc(realization)
         class is (dataset_common_hdf5_type)
           cur_material_property%permeability_dataset => dataset
         class default
-          option%io_buffer = 'Incorrect dataset type for porosity.'
+          option%io_buffer = 'Incorrect dataset type for permeability.'
+          call printErrMsg(option)
+      end select      
+    endif
+    if (.not.StringNull(cur_material_property%compressibility_dataset_name)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),SOIL_COMPRESSIBILITY'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                              cur_material_property%compressibility_dataset_name, &
+                              string,option)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%compressibility_dataset => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for soil_compressibility.'
           call printErrMsg(option)
       end select      
     endif
@@ -859,7 +876,7 @@ subroutine RealProcessTranConditions(realization)
 
   use String_module
   use Reaction_module
-  use Constraint_module
+  use Transport_Constraint_module
   
   implicit none
   

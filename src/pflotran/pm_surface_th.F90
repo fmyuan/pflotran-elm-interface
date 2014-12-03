@@ -78,7 +78,7 @@ subroutine PMSurfaceTHPreSolve(this)
   class(pm_surface_th_type) :: this
 
   if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," SURFACE TH FLOW ",62("="))')
+    write(*,'(/,2("=")," SURFACE TH FLOW ",61("="))')
   endif
 
 end subroutine PMSurfaceTHPreSolve
@@ -280,7 +280,7 @@ subroutine PMSurfaceTHDestroy(this)
   ! Date: 07/23/13
   ! 
 
-!  use Surface_TH_module, only : SurfaceTHDestroy
+  use Surface_TH_module, only : SurfaceTHDestroy
 
   implicit none
 
@@ -294,9 +294,7 @@ subroutine PMSurfaceTHDestroy(this)
   call printMsg(this%option,'PMSurfaceTHDestroy()')
 #endif
 
-#ifndef SIMPLIFY
-!  call SurfaceTHDestroy(this%surf_realization)
-#endif
+  call SurfaceTHDestroy(this%surf_realization)
   call this%comm1%Destroy()
 
 end subroutine PMSurfaceTHDestroy

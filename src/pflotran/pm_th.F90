@@ -88,8 +88,8 @@ subroutine PMTHInit(this)
   ! 
 
   use Discretization_module
-  use Structured_Communicator_class
-  use Unstructured_Communicator_class
+  use Communicator_Structured_class
+  use Communicator_Unstructured_class
   use Grid_module 
 
   implicit none
@@ -136,7 +136,7 @@ subroutine PMTHInitializeTimestep(this)
                                this%realization%field%iphas_loc)
 
   if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," TH FLOW ",62("="))')
+    write(*,'(/,2("=")," TH FLOW ",69("="))')
   endif
   
   call THInitializeTimestep(this%realization)

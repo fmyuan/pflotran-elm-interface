@@ -385,7 +385,6 @@ subroutine HDF5ReadRealArray(option,file_id,dataset_name,dataset_size, &
                              indices,num_indices,real_array)
   ! 
   ! Read in local real values from hdf5 global file
-  ! TODO(geh): this is only used by general_grid, which should be deprecated.
   ! 
   ! Author: Glenn Hammond
   ! Date: 09/21/07
@@ -1945,7 +1944,7 @@ subroutine HDF5ReadUnstructuredGridRegionFromFile(option,region,filename)
   use Region_module
   use Patch_module
   use HDF5_Aux_module
-  use Unstructured_Cell_module
+  use Grid_Unstructured_Cell_module
   use Utility_module, only : DeallocateArray
   
   implicit none

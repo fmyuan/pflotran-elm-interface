@@ -55,6 +55,7 @@ private
   !         123456789+123456789+123456789+1
   public :: SurfRealizCreate, &
             SurfRealizDestroy, &
+            SurfRealizStrip, &
             SurfRealizAddWaypointsToList, &
             SurfRealizCreateDiscretization, &
             SurfRealizAddCoupler, &
@@ -338,11 +339,11 @@ subroutine SurfRealizCreateDiscretization(surf_realization)
   ! 
 
   use Grid_module
-  use Unstructured_Grid_Aux_module, only : UGridMapIndices
-  use Unstructured_Grid_module, only     : UGridEnsureRightHandRule
+  use Grid_Unstructured_Aux_module, only : UGridMapIndices
+  use Grid_Unstructured_module, only     : UGridEnsureRightHandRule
   use Coupler_module
   use Discretization_module
-  use Unstructured_Cell_module
+  use Grid_Unstructured_Cell_module
   use DM_Kludge_module
   
   implicit none
@@ -677,9 +678,9 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
 
   use Grid_module
   use String_module
-  use Unstructured_Grid_module
-  use Unstructured_Grid_Aux_module
-  use Unstructured_Cell_module
+  use Grid_Unstructured_module
+  use Grid_Unstructured_Aux_module
+  use Grid_Unstructured_Cell_module
   use Realization_class
   use Option_module
   use Patch_module
@@ -1053,15 +1054,15 @@ subroutine SurfRealizMapSurfSubsurfGrid( &
 
   use Grid_module
   use String_module
-  use Unstructured_Grid_module
-  use Unstructured_Cell_module
+  use Grid_Unstructured_module
+  use Grid_Unstructured_Cell_module
   use Realization_class
   use Option_module
   use Field_module
   use Surface_Field_module
-  use Unstructured_Grid_module
+  use Grid_Unstructured_module
   use Discretization_module
-  use Unstructured_Grid_Aux_module
+  use Grid_Unstructured_Aux_module
   use DM_Kludge_module
 
   implicit none
@@ -1313,6 +1314,54 @@ subroutine SurfRealizDestroy(surf_realization)
   nullify(surf_realization)
 
 end subroutine SurfRealizDestroy
+
+
+! ************************************************************************** !
+
+subroutine SurfRealizStrip(surf_realization)
+  ! 
+  ! This routine destroys SurfRealiz object
+  ! 
+  ! Author: Gautam Bisht, ORNL
+  ! Date: 02/16/12
+  ! 
+
+  implicit none
+  
+  class(surface_realization_type), pointer :: surf_realization
+  
+  if(.not.associated(surf_realization)) return
+  
+  !geh: deallocate everything in base
+  call RealizationBaseStrip(surf_realization)
+  
+  call WaypointListDestroy(surf_realization%waypoint_list)
+  
+  call SurfaceFieldDestroy(surf_realization%surf_field)
+
+  call OutputOptionDestroy(surf_realization%output_option)
+  
+  call RegionDestroyList(surf_realization%surf_regions)
+  
+  call FlowConditionDestroyList(surf_realization%surf_flow_conditions)
+
+  call TranConditionDestroyList(surf_realization%surf_transport_conditions)
+  
+  call PatchDestroyList(surf_realization%patch_list)
+  
+  if(associated(surf_realization%debug)) deallocate(surf_realization%debug)
+  nullify(surf_realization%debug)
+  
+  if (associated(surf_realization%surf_material_property_array)) &
+    deallocate(surf_realization%surf_material_property_array)
+  nullify(surf_realization%surf_material_property_array)
+  call SurfaceMaterialPropertyDestroy(surf_realization%surf_material_properties)
+  
+  call DiscretizationDestroy(surf_realization%discretization)
+
+  call ReactionDestroy(surf_realization%reaction,surf_realization%option)
+
+end subroutine SurfRealizStrip
 
 ! ************************************************************************** !
 

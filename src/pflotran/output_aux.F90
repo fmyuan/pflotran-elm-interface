@@ -187,7 +187,8 @@ function OutputOptionCreate()
   output_option%aveg_var_time = 0.d0
   output_option%aveg_var_dtime = 0.d0
   output_option%periodic_checkpoint_time_incr = 0.d0
-  
+  output_option%xmf_vert_len = 0
+
   nullify(output_option%output_variable_list)
   nullify(output_option%aveg_output_variable_list)
   
@@ -818,6 +819,12 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      PERMEABILITY)
+      case ('SOIL_COMPRESSIBILITY')
+        units = ''
+        name = 'Compressibility'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     SOIL_COMPRESSIBILITY)
       case default
         option%io_buffer = 'Keyword: ' // trim(word) // &
                                  ' not recognized in VARIABLES.'
