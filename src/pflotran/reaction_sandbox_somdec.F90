@@ -439,7 +439,7 @@ subroutine SomDecSetup(this,reaction,option)
   use Reaction_Aux_module
   use Option_module
   use String_module
-  use Immobile_Aux_module
+  use Reaction_Immobile_Aux_module
   use Utility_module, only : DeallocateArray
   
   implicit none
