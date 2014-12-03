@@ -59,6 +59,8 @@ module pflotran_model_module
   PetscInt, parameter, public :: CLM_FACE_MESH   = 11
   PetscInt, parameter, public :: PF_FACE_MESH    = 12
 
+  PetscReal, parameter, public :: xeps0_conc = 1.0d-20
+
   type, public :: inside_each_overlapped_cell
      PetscInt           :: id
      PetscInt           :: ocell_count
@@ -1015,8 +1017,8 @@ end subroutine pflotranModelSetICs
     class(realization_type), pointer    :: realization
     type(grid_type), pointer           :: grid
     type(patch_type), pointer          :: patch
-    type(coupler_type), pointer        :: boundary_condition
-    type(connection_set_type), pointer :: cur_connection_set
+    !type(coupler_type), pointer        :: boundary_condition
+    !type(connection_set_type), pointer :: cur_connection_set
 
 !-----------------------------------------------------------------------------------
 
@@ -1084,7 +1086,7 @@ end subroutine pflotranModelSetICs
 
     allocate(grid_pf_local_nindex(grid%ngmax))
     do local_id = 1, grid%ngmax
-      if (grid%nG2L(local_id) == 0) then
+      if (grid%nG2L(local_id) <= 0) then
         grid_pf_local_nindex(local_id) = 0 ! GHOST
       else
         grid_pf_local_nindex(local_id) = 1 ! LOCAL
@@ -1116,15 +1118,15 @@ end subroutine pflotranModelSetICs
         call printErrMsg(option)
     end select
 
-    deallocate(grid_pf_cell_ids_nindex)
-    deallocate(grid_pf_local_nindex)
-    deallocate(grid_clm_local_nindex)
-
     call MappingDecompose(map, option)
     call MappingFindDistinctSourceMeshCellIds(map, option)
     call MappingCreateWeightMatrix(map, option)
     call MappingCreateScatterOfSourceMesh(map, option)
     call MappingFreeNotNeeded(map)
+
+    deallocate(grid_pf_cell_ids_nindex)
+    deallocate(grid_pf_local_nindex)
+    deallocate(grid_clm_local_nindex)
 
   end subroutine pflotranModelInitMappingSub2Sub
 
@@ -3599,7 +3601,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     call VecGetArrayF90(clm_pf_idata%area_top_face_pf, area_p, ierr)
     CHKERRQ(ierr)
-    if(grid%discretization_itype == STRUCTURED_GRID) then
+    if(grid%itype == STRUCTURED_GRID) then
       ! Structured grid
       do ghosted_id=1,grid%ngmax
         local_id = grid%nG2L(ghosted_id)
@@ -3609,7 +3611,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
           area_p(local_id) = area1
         endif
       enddo
-    else if (grid%discretization_itype == UNSTRUCTURED_GRID) then
+    else if (grid%itype == UNSTRUCTURED_GRID) then
       ! Unstructured grid
       do local_id = 1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
@@ -3990,37 +3992,37 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
       if(ispec_no3 > 0) then
          xx_p(offset + ispec_no3) = max(smin_no3_vr_pf_loc(ghosted_id) / &      ! from 'ghosted_id' to field%xx_p's local
                                     N_molecular_weight / theta / 1000.0d0, & 
-                                    1.0d-20)
+                                    xeps0_conc)
       endif
 
       if(ispec_nh4 > 0) then
          xx_p(offset + ispec_nh4) = max(smin_nh4_vr_pf_loc(ghosted_id) / &
                                     N_molecular_weight / theta / 1000.d0, & 
-                                    1.0d-20)
+                                    xeps0_conc)
       endif
 
       offsetim = offset + realization%reaction%offset_immobile
 
       xx_p(offsetim + ispec_lit1c) = max(decomp_cpools_vr_lit1_pf_loc(ghosted_id) &
-                                        / C_molecular_weight, 1.0d-20)
+                                        / C_molecular_weight, xeps0_conc)
       xx_p(offsetim + ispec_lit2c) = max(decomp_cpools_vr_lit2_pf_loc(ghosted_id) &
-                                        / C_molecular_weight, 1.0d-20)
+                                        / C_molecular_weight, xeps0_conc)
       xx_p(offsetim + ispec_lit3c) = max(decomp_cpools_vr_lit3_pf_loc(ghosted_id) &
-                                        / C_molecular_weight, 1.0d-20)
+                                        / C_molecular_weight, xeps0_conc)
       xx_p(offsetim + ispec_lit1n) = max(decomp_npools_vr_lit1_pf_loc(ghosted_id) &
-                                        / N_molecular_weight, 1.0d-20)
+                                        / N_molecular_weight, xeps0_conc)
       xx_p(offsetim + ispec_lit2n) = max(decomp_npools_vr_lit2_pf_loc(ghosted_id) &
-                                        / N_molecular_weight, 1.0d-20)
+                                        / N_molecular_weight, xeps0_conc)
       xx_p(offsetim + ispec_lit3n) = max(decomp_npools_vr_lit3_pf_loc(ghosted_id) &
-                                        / N_molecular_weight, 1.0d-20)
+                                        / N_molecular_weight, xeps0_conc)
       xx_p(offsetim + ispec_som1) = max(decomp_cpools_vr_som1_pf_loc(ghosted_id) &
-                                        / C_molecular_weight, 1.0d-20)
+                                        / C_molecular_weight, xeps0_conc)
       xx_p(offsetim + ispec_som2) = max(decomp_cpools_vr_som2_pf_loc(ghosted_id) &
-                                        / C_molecular_weight, 1.0d-20)
+                                        / C_molecular_weight, xeps0_conc)
       xx_p(offsetim + ispec_som3) = max(decomp_cpools_vr_som3_pf_loc(ghosted_id) &
-                                        / C_molecular_weight, 1.0d-20)
+                                        / C_molecular_weight, xeps0_conc)
       xx_p(offsetim + ispec_som4) = max(decomp_cpools_vr_som4_pf_loc(ghosted_id) &
-                                        / C_molecular_weight, 1.0d-20)
+                                        / C_molecular_weight, xeps0_conc)
 
 #if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (som4c pool):
@@ -4342,15 +4344,15 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 1 (CLM->PF ls
                 + realization%reaction%offset_immobile
 
         if(ispec_co2 > 0) then
-            xx_p(offset + ispec_co2) = max(gco2_vr_pf_loc(ghosted_id), 1.0d-20)
+            xx_p(offset + ispec_co2) = max(gco2_vr_pf_loc(ghosted_id), xeps0_conc)
         endif
 
         if(ispec_n2 > 0) then
-            xx_p(offset + ispec_n2) = max(gn2_vr_pf_loc(ghosted_id), 1.0d-20)
+            xx_p(offset + ispec_n2) = max(gn2_vr_pf_loc(ghosted_id), xeps0_conc)
         endif
 
         if(ispec_n2o > 0) then
-            xx_p(offset + ispec_n2o) = max(gn2o_vr_pf_loc(ghosted_id), 1.0d-20)
+            xx_p(offset + ispec_n2o) = max(gn2o_vr_pf_loc(ghosted_id), xeps0_conc)
         endif
 
     enddo
@@ -5873,25 +5875,25 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
 
         offsetim = offset + realization%reaction%offset_immobile
 
-        decomp_cpools_vr_lit1_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit1c), 1.0d-20) &
+        decomp_cpools_vr_lit1_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit1c), xeps0_conc) &
                                         * C_molecular_weight
-        decomp_cpools_vr_lit2_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit2c), 1.0d-20) &
+        decomp_cpools_vr_lit2_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit2c), xeps0_conc) &
                                         * C_molecular_weight
-        decomp_cpools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3c), 1.0d-20) &
+        decomp_cpools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3c), xeps0_conc) &
                                         * C_molecular_weight
-        decomp_npools_vr_lit1_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit1n), 1.0d-20) &
+        decomp_npools_vr_lit1_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit1n), xeps0_conc) &
                                         * N_molecular_weight
-        decomp_npools_vr_lit2_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit2n), 1.0d-20) &
+        decomp_npools_vr_lit2_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit2n), xeps0_conc) &
                                         * N_molecular_weight
-        decomp_npools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3n), 1.0d-20) &
+        decomp_npools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3n), xeps0_conc) &
                                         * N_molecular_weight
-        decomp_cpools_vr_som1_pf_loc(local_id) = max(xx_p(offsetim + ispec_som1), 1.0d-20) &
+        decomp_cpools_vr_som1_pf_loc(local_id) = max(xx_p(offsetim + ispec_som1), xeps0_conc) &
                                         * C_molecular_weight
-        decomp_cpools_vr_som2_pf_loc(local_id) = max(xx_p(offsetim + ispec_som2), 1.0d-20) &
+        decomp_cpools_vr_som2_pf_loc(local_id) = max(xx_p(offsetim + ispec_som2), xeps0_conc) &
                                         * C_molecular_weight
-        decomp_cpools_vr_som3_pf_loc(local_id) = max(xx_p(offsetim + ispec_som3), 1.0d-20) &
+        decomp_cpools_vr_som3_pf_loc(local_id) = max(xx_p(offsetim + ispec_som3), xeps0_conc) &
                                         * C_molecular_weight
-        decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4), 1.0d-20) &
+        decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4), xeps0_conc) &
                                         * C_molecular_weight
 
         if(ispec_nh4 > 0) then
@@ -5901,92 +5903,92 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
             ! but needs further checking if it efficient as directly read from 'xx_p' as above
             ! the issue here is that 'xx_p' array ONLY for tranportable ?
             conc = rt_auxvar%pri_molal(ispec_nh4) * theta * 1000.0d0
-            smin_nh4_vr_pf_loc(local_id) = max(conc, 1.0d-20) * N_molecular_weight
+            smin_nh4_vr_pf_loc(local_id) = max(conc, xeps0_conc) * N_molecular_weight
 
             if (associated(rt_auxvar%total_sorb_eq)) then    ! equilibrium-sorption reactions used
                 conc = rt_auxvar%total_sorb_eq(ispec_nh4)
-                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 1.0d-20) * N_molecular_weight
+                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, xeps0_conc) * N_molecular_weight
             else if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction used for soil NH4+ absorption
                 conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (molC/m3)
-                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 1.0d-20) * N_molecular_weight
+                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, xeps0_conc) * N_molecular_weight
             endif
 
         endif
 
         if(ispec_no3 > 0) then
            conc = xx_p(offset + ispec_no3) * theta * 1000.0d0
-           smin_no3_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+           smin_no3_vr_pf_loc(local_id)   = max(conc, xeps0_conc) * N_molecular_weight
         endif
 
         ! immobile gas conc in mol/m3 bulk soil to aovid 'theta' inconsistence (due to porosity) during unit conversion
         if(ispec_co2 > 0) then
            conc = xx_p(offsetim + ispec_co2)                    ! unit: M (molC/m3)
-           gco2_vr_pf_loc(local_id)   = max(conc, 1.0d-20)
+           gco2_vr_pf_loc(local_id)   = max(conc, xeps0_conc)
         endif
 
         if(ispec_n2 > 0) then
            conc = xx_p(offsetim + ispec_n2)                     ! unit: M (molN2/m3)
-           gn2_vr_pf_loc(local_id)   = max(conc, 1.0d-20)
+           gn2_vr_pf_loc(local_id)   = max(conc, xeps0_conc)
         endif
 
         if(ispec_n2o > 0) then
            conc = xx_p(offsetim + ispec_n2o)                    ! unit: M (molN2O/m3)
-           gn2o_vr_pf_loc(local_id)   = max(conc, 1.0d-20)
+           gn2o_vr_pf_loc(local_id)   = max(conc, xeps0_conc)
         endif
 
         ! tracking N bgc reaction fluxes
-        accextrn_vr_pf_loc(local_id) = max(xx_p(offsetim + ispec_plantnuptake), 1.0d-20) &
+        accextrn_vr_pf_loc(local_id) = max(xx_p(offsetim + ispec_plantnuptake), xeps0_conc) &
                                         * N_molecular_weight
         ! resetting the tracking variable state so that cumulative IS for the time-step only
-        xx_p(offsetim + ispec_plantnuptake) = 1.0d-50
+        xx_p(offsetim + ispec_plantnuptake) = xeps0_conc
 
         if(ispec_hrimm > 0) then
            conc = xx_p(offsetim + ispec_hrimm)
-           acchr_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * C_molecular_weight
+           acchr_vr_pf_loc(local_id)   = max(conc, xeps0_conc) * C_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_hrimm) = 1.0d-50
+           xx_p(offsetim + ispec_hrimm) = xeps0_conc
         endif
 
         if(ispec_nmin > 0) then
            conc = xx_p(offsetim + ispec_nmin)
-           accnmin_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+           accnmin_vr_pf_loc(local_id)   = max(conc, xeps0_conc) * N_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_nmin) = 1.0d-50
+           xx_p(offsetim + ispec_nmin) = xeps0_conc
         endif
 
         if(ispec_nimm > 0) then
            conc = xx_p(offsetim + ispec_nimm)
-           accnimm_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+           accnimm_vr_pf_loc(local_id)   = max(conc, xeps0_conc) * N_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_nimm) = 1.0d-50
+           xx_p(offsetim + ispec_nimm) = xeps0_conc
 
         endif
 
         if(ispec_ngasmin > 0) then
            conc = xx_p(offsetim + ispec_ngasmin)
-           accngasmin_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+           accngasmin_vr_pf_loc(local_id)   = max(conc, xeps0_conc) * N_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_ngasmin) = 1.0d-50
+           xx_p(offsetim + ispec_ngasmin) = xeps0_conc
         endif
 
         if(ispec_ngasnitr > 0) then
            conc = xx_p(offsetim + ispec_ngasnitr)
-           accngasnitr_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+           accngasnitr_vr_pf_loc(local_id)   = max(conc, xeps0_conc) * N_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_ngasnitr) = 1.0d-50
+           xx_p(offsetim + ispec_ngasnitr) = xeps0_conc
         endif
 
         if(ispec_ngasdeni > 0) then
            conc = xx_p(offsetim + ispec_ngasdeni)
-           accngasdeni_vr_pf_loc(local_id)   = max(conc, 1.0d-20) * N_molecular_weight
+           accngasdeni_vr_pf_loc(local_id)   = max(conc, xeps0_conc) * N_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_ngasdeni) = 1.0d-50
+           xx_p(offsetim + ispec_ngasdeni) = xeps0_conc
         endif
 
     enddo
