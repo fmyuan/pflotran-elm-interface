@@ -5671,6 +5671,7 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
     character(len=MAXWORDLENGTH) :: word
     PetscReal, parameter :: C_molecular_weight = 12.0107d0
     PetscReal, parameter :: N_molecular_weight = 14.0067d0
+    PetscReal, parameter :: zeroing_conc = 1.0d-10
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -5937,58 +5938,58 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         endif
 
         ! tracking N bgc reaction fluxes
-        accextrn_vr_pf_loc(local_id) = max(xx_p(offsetim + ispec_plantnuptake), xeps0_conc) &
-                                        * N_molecular_weight
+        accextrn_vr_pf_loc(local_id) = max(xx_p(offsetim + ispec_plantnuptake) - zeroing_conc, &
+           xeps0_conc) * N_molecular_weight
         ! resetting the tracking variable state so that cumulative IS for the time-step only
-        xx_p(offsetim + ispec_plantnuptake) = xeps0_conc
+        xx_p(offsetim + ispec_plantnuptake) = zeroing_conc
 
         if(ispec_hrimm > 0) then
            conc = xx_p(offsetim + ispec_hrimm)
-           acchr_vr_pf_loc(local_id)   = max(conc, xeps0_conc) * C_molecular_weight
+           acchr_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_conc) * C_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_hrimm) = xeps0_conc
+           xx_p(offsetim + ispec_hrimm) = zeroing_conc
         endif
 
         if(ispec_nmin > 0) then
            conc = xx_p(offsetim + ispec_nmin)
-           accnmin_vr_pf_loc(local_id)   = max(conc, xeps0_conc) * N_molecular_weight
+           accnmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_conc) * N_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_nmin) = xeps0_conc
+           xx_p(offsetim + ispec_nmin) = zeroing_conc
         endif
 
         if(ispec_nimm > 0) then
            conc = xx_p(offsetim + ispec_nimm)
-           accnimm_vr_pf_loc(local_id)   = max(conc, xeps0_conc) * N_molecular_weight
+           accnimm_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_conc) * N_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_nimm) = xeps0_conc
+           xx_p(offsetim + ispec_nimm) = zeroing_conc
 
         endif
 
         if(ispec_ngasmin > 0) then
            conc = xx_p(offsetim + ispec_ngasmin)
-           accngasmin_vr_pf_loc(local_id)   = max(conc, xeps0_conc) * N_molecular_weight
+           accngasmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_conc) * N_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_ngasmin) = xeps0_conc
+           xx_p(offsetim + ispec_ngasmin) = zeroing_conc
         endif
 
         if(ispec_ngasnitr > 0) then
            conc = xx_p(offsetim + ispec_ngasnitr)
-           accngasnitr_vr_pf_loc(local_id)   = max(conc, xeps0_conc) * N_molecular_weight
+           accngasnitr_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_conc) * N_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_ngasnitr) = xeps0_conc
+           xx_p(offsetim + ispec_ngasnitr) = zeroing_conc
         endif
 
         if(ispec_ngasdeni > 0) then
            conc = xx_p(offsetim + ispec_ngasdeni)
-           accngasdeni_vr_pf_loc(local_id)   = max(conc, xeps0_conc) * N_molecular_weight
+           accngasdeni_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_conc) * N_molecular_weight
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_ngasdeni) = xeps0_conc
+           xx_p(offsetim + ispec_ngasdeni) = zeroing_conc
         endif
 
     enddo
