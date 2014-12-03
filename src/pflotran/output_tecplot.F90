@@ -111,7 +111,7 @@ subroutine OutputWriteTecplotZoneHeader(fid,realization_base,variable_count, &
 
   use Realization_Base_class, only : realization_base_type
   use Grid_module
-  use Unstructured_Grid_Aux_module
+  use Grid_Unstructured_Aux_module
   use Option_module
   use String_module
   
@@ -137,9 +137,7 @@ subroutine OutputWriteTecplotZoneHeader(fid,realization_base,variable_count, &
   string2 = ''
   select case(tecplot_format)
     case (TECPLOT_POINT_FORMAT)
-      if ((realization_base%discretization%itype == STRUCTURED_GRID).or. &
-          (realization_base%discretization%itype == &
-           STRUCTURED_GRID_MIMETIC)) then
+      if (realization_base%discretization%itype == STRUCTURED_GRID) then
         string2 = ', I=' // &
                   trim(StringFormatInt(grid%structured_grid%nx)) // &
                   ', J=' // &
@@ -153,7 +151,7 @@ subroutine OutputWriteTecplotZoneHeader(fid,realization_base,variable_count, &
               ', DATAPACKING=POINT'
     case default !(TECPLOT_BLOCK_FORMAT,TECPLOT_FEBRICK_FORMAT)
       select case (grid%itype)
-        case (STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
+        case (STRUCTURED_GRID)
           string2 = ', I=' // &
                     trim(StringFormatInt(grid%structured_grid%nx+1)) // &
                     ', J=' // &
@@ -227,8 +225,8 @@ subroutine OutputTecplotBlock(realization_base)
   use Realization_Base_class, only : realization_base_type
   use Discretization_module
   use Grid_module
-  use Structured_Grid_module
-  use Unstructured_Grid_Aux_module
+  use Grid_Structured_module
+  use Grid_Unstructured_Aux_module
   use Option_module
   use Field_module
   use Patch_module
@@ -280,8 +278,7 @@ subroutine OutputTecplotBlock(realization_base)
                                   option)
 
   ! write out coordinates
-  if (realization_base%discretization%itype == STRUCTURED_GRID .or. &
-      realization_base%discretization%itype == STRUCTURED_GRID_MIMETIC ) then
+  if (realization_base%discretization%itype == STRUCTURED_GRID) then
     call WriteTecplotStructuredGrid(OUTPUT_UNIT,realization_base)
   else
     call WriteTecplotUGridVertices(OUTPUT_UNIT,realization_base)
@@ -411,7 +408,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
   use Realization_Base_class, only : realization_base_type
   use Discretization_module
   use Grid_module
-  use Unstructured_Grid_Aux_module
+  use Grid_Unstructured_Aux_module
   use Option_module
   use Field_module
   use Patch_module
@@ -491,8 +488,7 @@ subroutine OutputVelocitiesTecplotBlock(realization_base)
   call DiscretizationDuplicateVector(discretization,global_vec,global_vec_vz)
 
   ! write out coorindates
-  if (realization_base%discretization%itype == STRUCTURED_GRID .or. &
-      realization_base%discretization%itype == STRUCTURED_GRID_MIMETIC)  then
+  if (realization_base%discretization%itype == STRUCTURED_GRID)  then
     call WriteTecplotStructuredGrid(OUTPUT_UNIT,realization_base)
   else
     call WriteTecplotUGridVertices(OUTPUT_UNIT,realization_base)
@@ -929,7 +925,7 @@ subroutine OutputTecplotPoint(realization_base)
                                      RealizGetVariableValueAtCell
   use Discretization_module
   use Grid_module
-  use Structured_Grid_module
+  use Grid_Structured_module
   use Option_module
   use Field_module
   use Patch_module
@@ -1205,7 +1201,7 @@ subroutine OutputVectorTecplot(filename,dataset_name,realization_base,vector)
   use Option_module
   use Field_module
   use Grid_module
-  use Unstructured_Grid_Aux_module
+  use Grid_Unstructured_Aux_module
   use Patch_module
   use Variables_module
   
@@ -1267,8 +1263,7 @@ subroutine OutputVectorTecplot(filename,dataset_name,realization_base,vector)
 
   ! write out coorindates
 
-  if (realization_base%discretization%itype == STRUCTURED_GRID .or. &
-      realization_base%discretization%itype == STRUCTURED_GRID_MIMETIC)  then
+  if (realization_base%discretization%itype == STRUCTURED_GRID)  then
     call WriteTecplotStructuredGrid(OUTPUT_UNIT,realization_base)
   else  
     call WriteTecplotUGridVertices(OUTPUT_UNIT,realization_base)
@@ -1431,7 +1426,7 @@ subroutine WriteTecplotUGridVertices(fid,realization_base)
 
   use Realization_Base_class, only : realization_base_type
   use Grid_module
-  use Unstructured_Grid_Aux_module
+  use Grid_Unstructured_Aux_module
   use Option_module
   use Patch_module
   use Variables_module
@@ -1547,7 +1542,7 @@ subroutine WriteTecplotExpGridElements(fid,realization_base)
 
   use Realization_Base_class, only : realization_base_type
   use Grid_module
-  use Unstructured_Grid_Aux_module
+  use Grid_Unstructured_Aux_module
   use Option_module
   use Patch_module
   
@@ -1657,7 +1652,7 @@ subroutine WriteTecplotUGridElements(fid,realization_base)
 
   use Realization_Base_class, only : realization_base_type
   use Grid_module
-  use Unstructured_Grid_Aux_module
+  use Grid_Unstructured_Aux_module
   use Option_module
   use Patch_module
   
@@ -1715,8 +1710,8 @@ subroutine GetCellConnectionsTecplot(grid, vec)
   ! 
 
   use Grid_module
-  use Unstructured_Grid_Aux_module
-  use Unstructured_Cell_module
+  use Grid_Unstructured_Aux_module
+  use Grid_Unstructured_Cell_module
   
   implicit none
   
@@ -2156,7 +2151,7 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
 
   use Realization_Base_class, only : realization_base_type
   use Grid_module
-  use Unstructured_Grid_Aux_module
+  use Grid_Unstructured_Aux_module
   use Option_module
   use Field_module
   use Patch_module
@@ -2688,7 +2683,7 @@ subroutine WriteTecplotPolyUGridElements(fid,realization_base)
 
   use Realization_Base_class, only : realization_base_type
   use Grid_module
-  use Unstructured_Grid_Aux_module
+  use Grid_Unstructured_Aux_module
   use Option_module
   use Patch_module
 

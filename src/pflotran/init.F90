@@ -47,8 +47,8 @@ subroutine Init(simulation)
   use Patch_module
 ! use Mass_Balance_module
   use Logging_module  
-  use Database_module
-  use Database_hpt_module
+  use Reaction_Database_module
+  use Reaction_Database_hpt_module
   use Input_Aux_module
   use Condition_Control_module
   use Subsurface_module
@@ -58,7 +58,6 @@ subroutine Init(simulation)
   use Immis_module
   use Miscible_module
   use Richards_module
-  use Richards_MFD_module
   use TH_module
   use General_module
   
@@ -85,7 +84,7 @@ subroutine Init(simulation)
                                   SurfaceInitReadRegionFiles
   use Surface_Realization_class
   use Surface_TH_module
-  use Unstructured_Grid_module
+  use Grid_Unstructured_module
 
   use Geomechanics_Realization_class
   use Geomechanics_Init_module, only : GeomechicsInitReadRequiredCards, &
@@ -267,15 +266,10 @@ subroutine Init(simulation)
 
   ! initialize reference density
   if (option%reference_water_density < 1.d-40) then
-#ifndef DONT_USE_WATEOS
     call EOSWaterDensity(option%reference_temperature, &
                          option%reference_pressure, &
                          option%reference_water_density, &
                          dum1,ierr)    
-#else
-    call EOSWaterdensity(option%reference_temperature,option%reference_pressure, &
-                 option%reference_water_density,dum1,ierr)
-#endif                 
   endif
   
   ! read reaction database
@@ -320,8 +314,7 @@ subroutine Init(simulation)
 
   call RegressionCreateMapping(simulation%regression,realization)
 
-  if (realization%discretization%itype == STRUCTURED_GRID .or. &
-      realization%discretization%itype == STRUCTURED_GRID_MIMETIC) then
+  if (realization%discretization%itype == STRUCTURED_GRID) then
     if (OptionPrintToScreen(option)) then
       write(*,'(/," Requested processors and decomposition = ", &
                & i5,", npx,y,z= ",3i4)') &
@@ -413,16 +406,9 @@ subroutine Init(simulation)
         call SNESSetFunction(flow_solver%snes,field%flow_r,THResidual, &
                              realization,ierr);CHKERRQ(ierr)
       case(RICHARDS_MODE)
-        select case(realization%discretization%itype)
-          case(STRUCTURED_GRID_MIMETIC,UNSTRUCTURED_GRID_MIMETIC)
-            call SNESSetFunction(flow_solver%snes,field%flow_r_faces, &
-                                 RichardsResidualMFDLP, &
-                                 realization,ierr);CHKERRQ(ierr)
-          case default
-            call SNESSetFunction(flow_solver%snes,field%flow_r, &
-                                 RichardsResidual, &
-                                 realization,ierr);CHKERRQ(ierr)
-        end select
+        call SNESSetFunction(flow_solver%snes,field%flow_r, &
+                             RichardsResidual, &
+                             realization,ierr);CHKERRQ(ierr)
       case(MPH_MODE)
         call SNESSetFunction(flow_solver%snes,field%flow_r,MphaseResidual, &
                              realization,ierr);CHKERRQ(ierr)
@@ -449,16 +435,8 @@ subroutine Init(simulation)
         call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
                              THJacobian,realization,ierr);CHKERRQ(ierr)
       case(RICHARDS_MODE)
-        select case(realization%discretization%itype)
-          case(STRUCTURED_GRID_MIMETIC,UNSTRUCTURED_GRID_MIMETIC)
-            call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
-                             RichardsJacobianMFDLP,realization, &
-                                 ierr);CHKERRQ(ierr)
-          case default !sp 
-            call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
+        call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
                              RichardsJacobian,realization,ierr);CHKERRQ(ierr)
-        end select
-
       case(MPH_MODE)
         call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
                              MPHASEJacobian,realization,ierr);CHKERRQ(ierr)
@@ -495,8 +473,7 @@ subroutine Init(simulation)
     ! KSPSetFromOptions() will already have been called.
     ! I also note that this preconditioner is intended only for the flow 
     ! solver.  --RTM
-    if ((realization%discretization%itype == STRUCTURED_GRID_MIMETIC).or.&
-                (realization%discretization%itype == STRUCTURED_GRID)) then
+    if (realization%discretization%itype == STRUCTURED_GRID) then
       call PCSetDM(flow_solver%pc, &
                    realization%discretization%dm_nflowdof,ierr);CHKERRQ(ierr)
     endif
@@ -793,10 +770,6 @@ subroutine Init(simulation)
   ! assignVolumesToMaterialAuxVars() must be called after 
   ! RealizInitMaterialProperties() where the Material object is created 
   call assignVolumesToMaterialAuxVars(realization)
-  if(realization%discretization%lsm_flux_method) &
-    call GridComputeMinv(realization%discretization%grid, &
-                         realization%discretization%stencil_width,option)
-
   call RealizationInitAllCouplerAuxVars(realization)
   if (option%ntrandof > 0) then
     call printMsg(option,"  Setting up TRAN Realization ")
@@ -862,13 +835,6 @@ subroutine Init(simulation)
       case(TH_MODE)
         call THUpdateAuxVars(realization)
       case(RICHARDS_MODE)
-#ifdef DASVYAT
-       if (option%mimetic) then
-!        call RichardsInitialPressureReconstruction(realization)
-!        write(*,*) "RichardsInitialPressureReconstruction"
-!        read(*,*)
-       end if
-#endif 
         call RichardsUpdateAuxVars(realization)
       case(MPH_MODE)
         call MphaseUpdateAuxVars(realization)
@@ -929,20 +895,6 @@ subroutine Init(simulation)
       call OutputVariableAddToList( &
              realization%output_option%output_variable_list, &
              'Permeability Z',OUTPUT_GENERIC,'m^2',PERMEABILITY_Z)
-#ifdef DASVYAT
-      if(realization%discretization%itype == STRUCTURED_GRID_MIMETIC .or. &
-         realization%discretization%itype == UNSTRUCTURED_GRID_MIMETIC) then
-        call OutputVariableAddToList( &
-               realization%output_option%output_variable_list, &
-               'Permeability XY',OUTPUT_GENERIC,'m^2',PERMEABILITY_XY)
-        call OutputVariableAddToList( &
-               realization%output_option%output_variable_list, &
-               'Permeability XZ',OUTPUT_GENERIC,'m^2',PERMEABILITY_XZ)
-        call OutputVariableAddToList( &
-               realization%output_option%output_variable_list, &
-               'Permeability YZ',OUTPUT_GENERIC,'m^2',PERMEABILITY_YZ)
-      endif
-#endif
     else
       call OutputVariableAddToList( &
              realization%output_option%output_variable_list, &
@@ -1294,8 +1246,7 @@ subroutine InitReadRequiredCardsFromInput(realization)
   call DiscretizationReadRequiredCards(discretization,input,option)
   
   select case(discretization%itype)
-    case(STRUCTURED_GRID,UNSTRUCTURED_GRID,STRUCTURED_GRID_MIMETIC, &
-         UNSTRUCTURED_GRID_MIMETIC)
+    case(STRUCTURED_GRID,UNSTRUCTURED_GRID)
       patch => PatchCreate()
       patch%grid => discretization%grid
       if (.not.associated(realization%patch_list)) then
@@ -1354,8 +1305,7 @@ subroutine InitReadRequiredCardsFromInput(realization)
 !....................
       case('PROC')
         ! processor decomposition
-        if (realization%discretization%itype == STRUCTURED_GRID .or. &
-            realization%discretization%itype == STRUCTURED_GRID_MIMETIC) then
+        if (realization%discretization%itype == STRUCTURED_GRID) then
           grid => realization%patch%grid
           ! strip card from front of string
           call InputReadInt(input,option,grid%structured_grid%npx)
@@ -1419,8 +1369,8 @@ subroutine InitReadInput(simulation)
   use Option_module
   use Field_module
   use Grid_module
-  use Unstructured_Grid_Aux_module
-  use Structured_Grid_module
+  use Grid_Unstructured_Aux_module
+  use Grid_Structured_module
   use Solver_module
   use Material_module
   use Saturation_Function_module  
@@ -1433,7 +1383,7 @@ subroutine InitReadInput(simulation)
   use Timestepper_module
   use Region_module
   use Condition_module
-  use Constraint_module
+  use Transport_Constraint_module
   use Coupler_module
   use Strata_module
   use Observation_module
@@ -1448,7 +1398,7 @@ subroutine InitReadInput(simulation)
   use String_module
   use Units_module
   use Uniform_Velocity_module
-  use Mineral_module
+  use Reaction_Mineral_module
   use Regression_module
   use Output_Aux_module
   use Output_Tecplot_module
@@ -1463,7 +1413,7 @@ subroutine InitReadInput(simulation)
   use Geomechanics_Init_module, only : GeomechanicsInitReadInput
   use Geomechanics_Realization_class
 #ifdef SOLID_SOLUTION
-  use Solid_Solution_module, only : SolidSolutionReadFromInputFile
+  use Reaction_Solid_Solution_module, only : SolidSolutionReadFromInputFile
 #endif
  
   implicit none
@@ -1639,8 +1589,18 @@ subroutine InitReadInput(simulation)
           case default
             option%io_buffer = 'Cannot identify the specificed ice model.' // &
              'Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT' // &
-             ' or PAINTER_KARRA_EXPLICIT.'
+             ' or PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_NOCRYO ' // &
+             ' or DALL_AMICO.'
+            call printErrMsg(option)
           end select
+
+!....................
+      case ('ONLY_VERTICAL_FLOW')
+        option%flow%only_vertical_flow = PETSC_TRUE
+        if (option%iflowmode /= TH_MODE) then
+          option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in TH_MODE'
+          call printErrMsg(option)
+        endif
 
 !....................
       case ('RELATIVE_PERMEABILITY_AVERAGE')
@@ -1882,9 +1842,6 @@ subroutine InitReadInput(simulation)
         call InputDefaultMsg(input,option,'Reference Temperature') 
 
 !......................
-
-      case('ANI_RELATIVE_PERMEABILTY')
-        option%ani_relative_permeability = PETSC_TRUE
 
       case('REFERENCE_POROSITY')
         call InputReadStringErrorMsg(input,option,card)

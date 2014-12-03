@@ -5,24 +5,21 @@ module Reaction_module
   use Global_Aux_module
   use Material_Aux_class
   
-  use Surface_Complexation_module
-  use Mineral_module
-  use Microbial_module
-  use Immobile_module
+  use Reaction_Surface_Complexation_module
+  use Reaction_Mineral_module
+  use Reaction_Microbial_module
+  use Reaction_Immobile_module
 
-  use Surface_Complexation_Aux_module
-  use Mineral_Aux_module
-  use Microbial_Aux_module
-  use Immobile_Aux_module
+  use Reaction_Surface_Complexation_Aux_module
+  use Reaction_Mineral_Aux_module
+  use Reaction_Microbial_Aux_module
+  use Reaction_Immobile_Aux_module
 
 #ifdef SOLID_SOLUTION  
-  use Solid_Solution_module
-  use Solid_Solution_Aux_module
+  use Reaction_Solid_Solution_module
+  use Reaction_Solid_Soln_Aux_module
 #endif  
 
-  !TODO(geh): Intel 2013.1.119 crashes if this module is included.  It does not
-  !           need to be included here given since the subroutines below 
-  !           include the module.  Remove once Intel fixes its bug.
   use Reaction_Sandbox_module
   use CLM_Rxn_module
 
@@ -66,7 +63,8 @@ module Reaction_module
             ReactionInitializeLogK_hpt, &
             RUpdateKineticState, &
             RUpdateTempDependentCoefs, &
-            RZeroSorb
+            RZeroSorb, &
+            RCO2MoleFraction
 
 contains
 
@@ -83,7 +81,6 @@ subroutine ReactionInit(reaction,input,option)
 
   use Option_module
   use Input_Aux_module
-  use Reaction_Sandbox_module, only : RSandboxInit
   use CLM_Rxn_module, only : RCLMRxnInit
   
   implicit none
@@ -126,7 +123,6 @@ subroutine ReactionReadPass1(reaction,input,option)
   use Variables_module, only : PRIMARY_MOLALITY, PRIMARY_MOLARITY, &
                                TOTAL_MOLALITY, TOTAL_MOLARITY, &
                                SECONDARY_MOLALITY, SECONDARY_MOLARITY
-  use Reaction_Sandbox_module, only : RSandboxRead 
   use CLM_Rxn_module, only : RCLMRxnRead
   
   implicit none
@@ -1113,7 +1109,7 @@ subroutine ReactionProcessConstraint(reaction,constraint_name, &
   use Input_Aux_module
   use String_module
   use Utility_module
-  use Constraint_module
+  use Transport_Constraint_module
   
   implicit none
   
@@ -1290,7 +1286,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   use Input_Aux_module
   use String_module  
   use Utility_module
-  use Constraint_module
+  use Transport_Constraint_module
   use EOS_Water_module
   use Material_Aux_class
 
@@ -2007,7 +2003,7 @@ subroutine ReactionPrintConstraint(constraint_coupler,reaction,option)
   use Option_module
   use Input_Aux_module
   use String_module
-  use Constraint_module
+  use Transport_Constraint_module
 
   implicit none
   
@@ -2713,7 +2709,7 @@ subroutine ReactionDoubleLayer(constraint_coupler,reaction,option)
   use Option_module
   use Input_Aux_module
   use String_module
-  use Constraint_module
+  use Transport_Constraint_module
 
   implicit none
   
@@ -3460,7 +3456,6 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
   ! 
 
   use Option_module
-  use Reaction_Sandbox_module, only : RSandbox, rxn_sandbox_list
   use CLM_Rxn_module, only : RCLMRxn, clmrxn_list 
  
   implicit none
@@ -3662,6 +3657,79 @@ subroutine CO2AqActCoeff(rt_auxvar,global_auxvar,reaction,option)
   endif
  ! print *, 'CO2AqActCoeff', tc, pco2, m_na,m_cl, sat_pressure,co2aqact
 end subroutine CO2AqActCoeff
+
+! ************************************************************************** !
+
+PetscReal function RSumMoles(rt_auxvar,reaction,option)
+  ! 
+  ! Sums the total moles of primary and secondary aqueous species
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/01/14
+  ! 
+
+  use Option_module
+  
+  implicit none
+
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(reaction_type) :: reaction
+  type(option_type) :: option
+
+  PetscInt :: i
+  
+  RSumMoles = 0.d0
+  do i = 1, reaction%naqcomp
+    RSumMoles = RSumMoles + rt_auxvar%pri_molal(i)
+  enddo
+  
+  do i = 1, reaction%neqcplx
+    RSumMoles = RSumMoles + rt_auxvar%sec_molal(i)
+  enddo
+  
+end function RSumMoles
+
+! ************************************************************************** !
+
+PetscReal function RCO2MoleFraction(rt_auxvar,global_auxvar,reaction,option)
+  ! 
+  ! Sums the total moles of primary and secondary aqueous species
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/01/14
+  ! 
+
+  use Option_module
+  
+  implicit none
+
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  type(reaction_type) :: reaction
+  type(option_type) :: option
+
+  PetscInt :: i
+  PetscInt :: icplx
+  PetscInt :: ico2
+  PetscReal :: sum_co2, sum_mol
+  
+  ico2 = reaction%species_idx%co2_aq_id
+
+  if (ico2 == 0) then
+    option%io_buffer = 'CO2 is not set in RCO2MoleFraction().'
+    call printErrMsg(option)
+  endif
+  
+  sum_co2 = rt_auxvar%pri_molal(ico2)
+  sum_mol = RSumMoles(rt_auxvar,reaction,option)
+  ! sum_co2 and sum_mol are both in units mol/kg water
+  ! FMWH2O is in units g/mol
+  ! therefore, scale by 1.d-3 to convert from mol/kg water - g water/mol water
+  ! to mol/mol water -- kg water / 1000g water
+  RCO2MoleFraction = sum_co2 * FMWH2O * 1.d-3 / &
+                     (1.d0 + FMWH2O * sum_mol * 1.d-3)
+  
+end function RCO2MoleFraction
 
 ! ************************************************************************** !
 

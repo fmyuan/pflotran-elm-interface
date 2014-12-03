@@ -3710,6 +3710,8 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   PetscReal :: sec_dencpr
   PetscReal :: res_sec_heat
 
+  PetscReal :: unitvec_xy(3)
+
   patch => realization%patch
   grid => patch%grid
   option => realization%option
@@ -3858,6 +3860,9 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   enddo
 
   ! Interior Flux Terms -----------------------------------
+  unitvec_xy(1:2) = 0.d0
+  unitvec_xy(3)   = 1.d0
+
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
   sum_connection = 0  
@@ -3874,6 +3879,9 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
 
       if (patch%imat(ghosted_id_up) <= 0 .or.  &
           patch%imat(ghosted_id_dn) <= 0) cycle
+
+      if (option%flow%only_vertical_flow .and. &
+          dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xy) < 1.d-10) cycle
 
       fraction_upwind = cur_connection_set%dist(-1,iconn)
       distance = cur_connection_set%dist(0,iconn)
@@ -4220,6 +4228,8 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   PetscReal :: area_prim_sec
   PetscReal :: jac_sec_heat
 
+  PetscReal :: unitvec_xy(3)
+
   patch => realization%patch
   grid => patch%grid
   option => realization%option
@@ -4358,6 +4368,9 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
   endif
 
   ! Interior Flux Terms -----------------------------------  
+  unitvec_xy(1:2) = 0.d0
+  unitvec_xy(3)   = 1.d0
+
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
   sum_connection = 0    
@@ -4371,6 +4384,9 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
 
       if (patch%imat(ghosted_id_up) <= 0 .or. &
           patch%imat(ghosted_id_dn) <= 0) cycle
+
+      if (option%flow%only_vertical_flow .and. &
+          dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xy) < 1.d-10) cycle
 
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   
@@ -6191,6 +6207,14 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
     endif
 
   endif
+  
+  call GlobalAuxVarStrip(global_auxvar_up)
+  call GlobalAuxVarStrip(global_auxvar_dn)
+  call GlobalAuxVarStrip(global_auxvar_max)
+
+  call THAuxVarDestroy(th_auxvar_up)
+  call THAuxVarDestroy(th_auxvar_dn)
+  call THAuxVarDestroy(th_auxvar_max)
 
 end subroutine ComputeCoeffsForApprox
 

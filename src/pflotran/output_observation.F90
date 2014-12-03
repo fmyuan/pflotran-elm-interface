@@ -49,7 +49,7 @@ subroutine OutputObservationInit(num_steps)
     integral_flux_first = PETSC_TRUE
   else
     observation_first = PETSC_FALSE
-    secondary_observation_first = PETSC_TRUE
+    secondary_observation_first = PETSC_FALSE
     mass_balance_first = PETSC_FALSE
     integral_flux_first = PETSC_FALSE
   endif
@@ -122,7 +122,6 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   type(patch_type), pointer :: patch  
   type(output_option_type), pointer :: output_option
   type(observation_type), pointer :: observation
-  PetscBool, save :: check_for_observation_points = PETSC_TRUE
   PetscBool, save :: open_file = PETSC_FALSE
   PetscInt :: local_id
   PetscInt :: icolumn
@@ -136,7 +135,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   field => realization_base%field
   output_option => realization_base%output_option
   
-  if (check_for_observation_points) then
+  if (observation_first) then
     open_file = PETSC_FALSE
     observation => patch%observation_list%first
     do
@@ -149,7 +148,6 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
       endif
       observation => observation%next
     enddo
-    check_for_observation_points = PETSC_FALSE
   endif
   
   
@@ -434,7 +432,6 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
   type(patch_type), pointer :: patch  
   type(output_option_type), pointer :: output_option
   type(observation_type), pointer :: observation
-  PetscBool, save :: check_for_observation_points = PETSC_TRUE
   PetscBool, save :: open_file = PETSC_FALSE
   PetscInt :: local_id
   PetscInt :: icolumn
@@ -448,7 +445,7 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
   field => realization_base%field
   output_option => realization_base%output_option
   
-  if (check_for_observation_points) then
+  if (secondary_observation_first) then
     open_file = PETSC_FALSE
     observation => patch%observation_list%first
     do
@@ -461,7 +458,6 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
       endif
       observation => observation%next
     enddo
-    check_for_observation_points = PETSC_FALSE
   endif
   
   
@@ -913,7 +909,7 @@ subroutine WriteObservationDataForCoord(fid,realization_base,region)
   use Reaction_Aux_module
   use Variables_module
   
-  use Structured_Grid_module
+  use Grid_Structured_module
 
   implicit none
   
@@ -1609,6 +1605,8 @@ subroutine OutputIntegralFlux(realization_base)
   output_option => realization_base%output_option
   reaction => realization_base%reaction
 
+  if (.not.associated(patch%integral_flux_list%first)) return
+
   flow_dof_scale = 1.d0
   select case(option%iflowmode)
     case(RICHARDS_MODE)
@@ -1687,8 +1685,8 @@ subroutine OutputIntegralFlux(realization_base)
             call OutputWriteToHeader(fid,string,units,'',icol)
           case(MPH_MODE,FLASH2_MODE,IMS_MODE)
             string = trim(integral_flux%name) // ' CO2'
-            call OutputWriteToHeader(fid,string,'kmol','',icol)
-            units = 'kmol/' // trim(output_option%tunit) // ''
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            units = 'kg/' // trim(output_option%tunit) // ''
             string = trim(integral_flux%name) // ' CO2'
             call OutputWriteToHeader(fid,string,units,'',icol)
         end select
@@ -1697,7 +1695,7 @@ subroutine OutputIntegralFlux(realization_base)
             string = trim(integral_flux%name) // ' Energy'
             call OutputWriteToHeader(fid,string,'MJ','',icol)
             units = 'MJ/' // trim(output_option%tunit) // ''
-            string = trim(integral_flux%name) // ' Air'
+            string = trim(integral_flux%name) // ' Energy'
             call OutputWriteToHeader(fid,string,units,'',icol)
         end select
         
@@ -2637,7 +2635,7 @@ subroutine OutputMassBalance(realization_base)
 
     !TODO(ye): The flux will be calculated at the plane intersecting the top
     !          of the kth cell in the z-direction.  You need to update this.
-    k = 50
+    k = 30
 
     if (option%nflowdof > 0) then
       ! really summation of moles, but we are hijacking the variable

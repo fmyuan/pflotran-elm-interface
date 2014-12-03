@@ -118,12 +118,13 @@ contains
     use Option_module
     use Simulation_Base_class
     use Multi_Simulation_module
-    use PFLOTRAN_Factory_module
-    use Subsurface_Factory_module, only : SubsurfaceInitialize
-    use Hydrogeophysics_Factory_module
-    use Surface_Factory_module
-    use Surf_Subsurf_Factory_module
-  
+    use Factory_PFLOTRAN_module
+    use Factory_Subsurface_module, only : SubsurfaceInitialize
+    use Factory_Hydrogeophysics_module
+    use Factory_Surface_module
+    use Factory_Surf_Subsurf_module
+    use Factory_Geomechanics_module
+
     implicit none
 
 #include "finclude/petscsys.h"
@@ -428,8 +429,8 @@ subroutine pflotranModelSetICs(pflotran_model)
     use Option_module
 
     use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Mapping_module
 
     implicit none
@@ -531,8 +532,8 @@ end subroutine pflotranModelSetICs
     use Option_module
 
     use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -727,8 +728,8 @@ end subroutine pflotranModelSetICs
     use Option_module
 
     use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -934,9 +935,9 @@ end subroutine pflotranModelSetICs
     use Connection_module
     use String_module
     use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surface_Simulation_class, only : surface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Mapping_module
 
     implicit none
@@ -994,9 +995,9 @@ end subroutine pflotranModelSetICs
     use Connection_module
     use String_module
     use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surface_Simulation_class, only : surface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Mapping_module
 
     implicit none
@@ -1152,9 +1153,9 @@ end subroutine pflotranModelSetICs
     use String_module
     use clm_pflotran_interface_data
     use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surface_Simulation_class, only : surface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Mapping_module
 
     implicit none
@@ -1597,9 +1598,9 @@ end subroutine pflotranModelSetICs
     use Connection_module
     use String_module
     use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surface_Simulation_class, only : surface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Surface_Realization_class, only : surface_realization_type
     use clm_pflotran_interface_data
     use Realization_class, only : realization_type
@@ -2018,9 +2019,9 @@ end subroutine pflotranModelSetICs
   ! 
 
     use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surface_Simulation_class, only : surface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
 
     use Realization_class, only : realization_type
     use Surface_Realization_class, only : surface_realization_type
@@ -2081,9 +2082,9 @@ end subroutine pflotranModelSetICs
   subroutine pflotranModelDeleteWaypoint(model, waypoint_time)
 
     use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surface_Simulation_class, only : surface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
 
     use Realization_class, only : realization_type
     use Surface_Realization_class, only : surface_realization_type
@@ -2190,8 +2191,8 @@ end subroutine pflotranModelSetICs
     use Realization_class, only : realization_type
     use Simulation_Base_class, only : simulation_base_type
     use String_module
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
 
     implicit none
 #include "finclude/petscvec.h"
@@ -2334,8 +2335,8 @@ end subroutine pflotranModelSetICs
     use Surface_Realization_class, only : surface_realization_type
     use Simulation_Base_class, only : simulation_base_type
     use String_module
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
 
     implicit none
 #include "finclude/petscvec.h"
@@ -2429,8 +2430,8 @@ end subroutine pflotranModelSetICs
     use Realization_class, only : realization_type
     use Simulation_Base_class, only : simulation_base_type
     use String_module
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
 
     implicit none
 #include "finclude/petscvec.h"
@@ -2517,8 +2518,8 @@ end subroutine pflotranModelSetICs
     use Surface_Realization_class, only : surface_realization_type
     use Simulation_Base_class, only : simulation_base_type
     use String_module
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
 
     implicit none
 #include "finclude/petscvec.h"
@@ -2652,7 +2653,7 @@ end subroutine pflotranModelSetICs
     use Realization_class, only : realization_type
     use String_module
     use Simulation_Base_class, only : simulation_base_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Surface_Realization_class, only : surface_realization_type
 
     implicit none
@@ -2734,9 +2735,9 @@ end subroutine pflotranModelSetICs
     use TH_module
     use TH_Aux_module
     use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surface_Simulation_class, only : surface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Surface_Realization_class, only : surface_realization_type
     use clm_pflotran_interface_data
     use Realization_class, only : realization_type
@@ -2789,9 +2790,9 @@ end subroutine pflotranModelSetICs
     use Grid_module
     use Global_Aux_module
     use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surface_Simulation_class, only : surface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Surface_Realization_class, only : surface_realization_type
     use clm_pflotran_interface_data
     use Mapping_module
@@ -2875,9 +2876,9 @@ end subroutine pflotranModelSetICs
     use Grid_module
     use Global_Aux_module
     use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surface_Simulation_class, only : surface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Surface_Realization_class, only : surface_realization_type
     use clm_pflotran_interface_data
     use Surface_Global_Aux_module
@@ -2943,9 +2944,9 @@ end subroutine pflotranModelSetICs
     use Global_Aux_module
     use TH_Aux_module
     use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surface_Simulation_class, only : surface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Surface_Realization_class, only : surface_realization_type
     use clm_pflotran_interface_data
     use Mapping_module
@@ -3023,9 +3024,9 @@ end subroutine pflotranModelSetICs
     use Global_Aux_module
     use TH_Aux_module
     use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surface_Simulation_class, only : surface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Surface_Realization_class, only : surface_realization_type
     use clm_pflotran_interface_data
     use Mapping_module
@@ -3113,8 +3114,8 @@ end subroutine pflotranModelSetICs
     use Coupler_module
     use String_module
     use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Realization_class
 
     implicit none
@@ -3180,16 +3181,16 @@ end subroutine pflotranModelSetICs
     use Option_module
     use Patch_module
     use Discretization_module
-    use Unstructured_Grid_Aux_module
-    use Unstructured_Cell_module
-    use Unstructured_Grid_module
+    use Grid_Unstructured_Aux_module
+    use Grid_Unstructured_Cell_module
+    use Grid_Unstructured_module
     use Grid_module
     use clm_pflotran_interface_data
     use Utility_module, only : DotProduct, CrossProduct
     use Simulation_Base_class, only : simulation_base_type
-    use Subsurface_Simulation_class, only : subsurface_simulation_type
-    use Surface_Simulation_class, only : surface_simulation_type
-    use Surf_Subsurf_Simulation_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Surface_Realization_class, only : surface_realization_type
     use Realization_class, only : realization_type
     use Mapping_module
@@ -3235,7 +3236,7 @@ end subroutine pflotranModelSetICs
     grid => patch%grid
 
     call VecGetArrayF90(clm_pf_idata%area_top_face_pf, area_p, ierr)
-    if(grid%discretization_itype == STRUCTURED_GRID) then
+    if (grid%itype == STRUCTURED_GRID) then
       ! Structured grid
       do ghosted_id=1,grid%ngmax
         local_id = grid%nG2L(ghosted_id)
@@ -3245,7 +3246,7 @@ end subroutine pflotranModelSetICs
           area_p(local_id) = area1
         endif
       enddo
-    else if (grid%discretization_itype == UNSTRUCTURED_GRID) then
+    else if (grid%itype == UNSTRUCTURED_GRID) then
       ! Unstructured grid
       do local_id = 1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
@@ -3286,7 +3287,7 @@ end subroutine pflotranModelSetICs
   ! Date: 9/10/2010
   ! 
 
-    use PFLOTRAN_Factory_module, only : PFLOTRANFinalize
+    use Factory_PFLOTRAN_module, only : PFLOTRANFinalize
     use Option_module, only : OptionFinalize
     use Mapping_module, only : MappingDestroy
 

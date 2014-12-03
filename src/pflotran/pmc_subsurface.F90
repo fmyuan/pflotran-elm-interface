@@ -493,14 +493,13 @@ subroutine PMCSubsurfaceSetAuxDataForSurf(this)
 end subroutine PMCSubsurfaceSetAuxDataForSurf
 
 ! ************************************************************************** !
-!> This routine updates subsurface data from geomechanics process model.
-!!
-!> @author
-!! Gautam Bisht, LBNL
-!!
-!! date: 01/04/14
-! ************************************************************************** !
+
 subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
+  !
+  ! This routine updates subsurface data from geomechanics process model.
+  !
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 01/04/14
 
   use Discretization_module, only : DiscretizationLocalToLocal
   use Field_module
@@ -587,14 +586,13 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
 end subroutine PMCSubsurfaceGetAuxDataFromGeomech
 
 ! ************************************************************************** !
-!> This routine sets auxiliary needed by geomechanics process model.
-!!
-!> @author
-!! Gautam Bisht, LBNL
-!!
-!! date: 01/03/14
-! ************************************************************************** !
+
 subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
+  !
+  ! This routine sets auxiliary needed by geomechanics process model.
+  !
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 01/04/14
 
   use Option_module
   use Realization_class
@@ -755,8 +753,6 @@ recursive subroutine PMCSubsurfaceDestroy(this)
   call printMsg(this%option,'PMCSubsurface%Destroy()')
 #endif
 
-  call PMCSubsurfaceStrip(this)
-  
   if (associated(this%below)) then
     call this%below%Destroy()
     ! destroy does not currently destroy; it strips
@@ -770,6 +766,8 @@ recursive subroutine PMCSubsurfaceDestroy(this)
     deallocate(this%next)
     nullify(this%next)
   endif
+  
+  call PMCSubsurfaceStrip(this)
   
 end subroutine PMCSubsurfaceDestroy
   

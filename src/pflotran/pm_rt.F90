@@ -115,8 +115,8 @@ subroutine PMRTInit(this)
 
 #ifndef SIMPLIFY
   use Discretization_module
-  use Structured_Communicator_class
-  use Unstructured_Communicator_class
+  use Communicator_Structured_class
+  use Communicator_Unstructured_class
   use Grid_module 
 #endif  
   
@@ -131,7 +131,7 @@ subroutine PMRTInit(this)
 #ifndef SIMPLIFY  
   ! set up communicator
   select case(this%realization%discretization%itype)
-    case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
+    case(STRUCTURED_GRID)
       this%commN => StructuredCommunicatorCreate()
     case(UNSTRUCTURED_GRID)
       this%commN => UnstructuredCommunicatorCreate()
@@ -200,7 +200,7 @@ subroutine PMRTInitializeTimestep(this)
   this%option%tran_dt = this%option%dt
 
   if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," REACTIVE TRANSPORT ",57("="))')
+    write(*,'(/,2("=")," REACTIVE TRANSPORT ",58("="))')
   endif
   
   ! interpolate flow parameters/data

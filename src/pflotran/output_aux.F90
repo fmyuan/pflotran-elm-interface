@@ -187,7 +187,8 @@ function OutputOptionCreate()
   output_option%aveg_var_time = 0.d0
   output_option%aveg_var_dtime = 0.d0
   output_option%periodic_checkpoint_time_incr = 0.d0
-  
+  output_option%xmf_vert_len = 0
+
   nullify(output_option%output_variable_list)
   nullify(output_option%aveg_output_variable_list)
   
@@ -773,7 +774,9 @@ subroutine OutputVariableRead(input,option,output_variable_list)
          output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE, &
                                                  units,STATE)
          ! toggle output off for observation
-         output_variable%plot_only = PETSC_TRUE 
+!geh: nope, this can change over time.
+!geh         output_variable%plot_only = PETSC_TRUE 
+
          output_variable%iformat = 1 ! integer
          call OutputVariableAddToList(output_variable_list,output_variable)
          nullify(output_variable)
@@ -810,6 +813,18 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_GENERIC,units, &
                                      EFFECTIVE_POROSITY)
+      case ('PERMEABILITY')
+        units = 'm^2'
+        name = 'Permeability (X)'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     PERMEABILITY)
+      case ('SOIL_COMPRESSIBILITY')
+        units = ''
+        name = 'Compressibility'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_GENERIC,units, &
+                                     SOIL_COMPRESSIBILITY)
       case default
         option%io_buffer = 'Keyword: ' // trim(word) // &
                                  ' not recognized in VARIABLES.'

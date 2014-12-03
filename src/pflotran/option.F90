@@ -105,8 +105,6 @@ module Option_module
     PetscBool :: print_file_flag
     PetscInt :: verbosity  ! Values >0 indicate additional console output.
     
-    PetscInt, pointer :: garbage ! for some reason, Intel will not compile without this
-
     PetscReal :: uniform_velocity(3)
 
     ! Program options
@@ -195,8 +193,6 @@ module Option_module
     PetscBool :: steady_state
     PetscBool :: use_matrix_buffer
     PetscBool :: force_newton_iteration
-    PetscBool :: mimetic
-    PetscBool :: ani_relative_permeability
     PetscBool :: use_upwinding
     PetscBool :: out_of_table
 
@@ -360,9 +356,6 @@ subroutine OptionInitAll(option)
   option%verbosity = 0
 
   option%input_filename = ''
-
-  option%mimetic = PETSC_FALSE
-  option%ani_relative_permeability = PETSC_FALSE
 
   option%use_upwinding = PETSC_TRUE
 
@@ -559,7 +552,6 @@ subroutine OptionInitRealization(option)
   option%use_matrix_buffer = PETSC_FALSE
   option%status = PROCEED 
   option%force_newton_iteration = PETSC_FALSE
-  option%mimetic = PETSC_FALSE
   option%variables_swapped = PETSC_FALSE
   option%print_explicit_primal_grid = PETSC_FALSE
   option%print_explicit_dual_grid = PETSC_FALSE  

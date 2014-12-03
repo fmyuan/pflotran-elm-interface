@@ -123,11 +123,11 @@ subroutine RTSetup(realization)
   use Coupler_module
   use Condition_module
   use Connection_module
-  use Constraint_module
+  use Transport_Constraint_module
   use Fluid_module
   use Material_module
   use Material_Aux_class
-  use Surface_Complexation_Aux_module
+  use Reaction_Surface_Complexation_Aux_module
   !geh: please leave the "only" clauses for Secondary_Continuum_XXX as this
   !      resolves a bug in the Intel Visual Fortran compiler.
   use Secondary_Continuum_Aux_module, only : sec_transport_type, &
@@ -443,7 +443,7 @@ subroutine RTCheckUpdatePost(line_search,X0,dX,X1,dX_changed, &
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(patch_type), pointer :: patch  
-  PetscReal, pointer :: X1_p(:)
+  PetscReal, pointer :: X0_p(:)
   PetscReal, pointer :: dX_p(:)
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:)  
@@ -466,10 +466,10 @@ subroutine RTCheckUpdatePost(line_search,X0,dX,X1,dX_changed, &
     converged_due_to_rel_update = PETSC_FALSE
     converged_due_to_residual = PETSC_FALSE
     call VecGetArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(X1,X1_p,ierr);CHKERRQ(ierr)
-    max_relative_change = maxval(dabs(dX_p(:)/X1_p(:)))
+    call VecGetArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
+    max_relative_change = maxval(dabs(dX_p(:)/X0_p(:)))
     call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(X1,X1_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
     max_scaled_residual = maxval(dabs(r_p(:)/accum_p(:)))
@@ -1128,25 +1128,12 @@ subroutine RTUpdateTransportCoefs(realization)
   do 
     if (.not.associated(boundary_condition)) exit
  
-    if (option%mimetic) then 
-      num_connections = boundary_condition%numfaces_set
-    else
-      cur_connection_set => boundary_condition%connection_set
-      num_connections = cur_connection_set%num_connections
-    end if
+    cur_connection_set => boundary_condition%connection_set
+    num_connections = cur_connection_set%num_connections
     do iconn = 1, num_connections
       sum_connection = sum_connection + 1
   
-      if (option%mimetic) then
-#ifdef DASVYAT
-        ghosted_face_id = boundary_condition%faces_set(iconn)
-        cur_connection_set => grid%faces(ghosted_face_id)%conn_set_ptr
-        id = grid%faces(ghosted_face_id)%id
-        local_id = grid%nG2L(cur_connection_set%id_dn(id))
-#endif
-      else
-        local_id = cur_connection_set%id_dn(iconn)
-      end if
+      local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
