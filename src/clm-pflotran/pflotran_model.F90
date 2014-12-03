@@ -1017,8 +1017,8 @@ end subroutine pflotranModelSetICs
     class(realization_type), pointer    :: realization
     type(grid_type), pointer           :: grid
     type(patch_type), pointer          :: patch
-    type(coupler_type), pointer        :: boundary_condition
-    type(connection_set_type), pointer :: cur_connection_set
+    !type(coupler_type), pointer        :: boundary_condition
+    !type(connection_set_type), pointer :: cur_connection_set
 
 !-----------------------------------------------------------------------------------
 
@@ -1081,16 +1081,12 @@ end subroutine pflotranModelSetICs
 
     allocate(grid_pf_cell_ids_nindex(grid%ngmax))
     do local_id = 1, grid%ngmax
-      !zero-based or not: nG2A is the natural-id (1-based), not sure why needs '-1' for zero-based in
-      ! the following.
-      ! but it causes issues in 'MappingDecompose()' when mapping from PF->CLM using 3-D structured mesh.
-      ! (TODO) checking if unstructured mesh has issue if removing '-1' and for face-mapping below
-      grid_pf_cell_ids_nindex(local_id) = grid%nG2A(local_id) !-1
+      grid_pf_cell_ids_nindex(local_id) = grid%nG2A(local_id)-1
     enddo
 
     allocate(grid_pf_local_nindex(grid%ngmax))
     do local_id = 1, grid%ngmax
-      if (grid%nG2L(local_id) == 0) then
+      if (grid%nG2L(local_id) <= 0) then
         grid_pf_local_nindex(local_id) = 0 ! GHOST
       else
         grid_pf_local_nindex(local_id) = 1 ! LOCAL
@@ -1122,15 +1118,15 @@ end subroutine pflotranModelSetICs
         call printErrMsg(option)
     end select
 
-    deallocate(grid_pf_cell_ids_nindex)
-    deallocate(grid_pf_local_nindex)
-    deallocate(grid_clm_local_nindex)
-
     call MappingDecompose(map, option)
     call MappingFindDistinctSourceMeshCellIds(map, option)
     call MappingCreateWeightMatrix(map, option)
     call MappingCreateScatterOfSourceMesh(map, option)
     call MappingFreeNotNeeded(map)
+
+    deallocate(grid_pf_cell_ids_nindex)
+    deallocate(grid_pf_local_nindex)
+    deallocate(grid_clm_local_nindex)
 
   end subroutine pflotranModelInitMappingSub2Sub
 
