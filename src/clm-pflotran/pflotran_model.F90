@@ -2475,7 +2475,8 @@ end subroutine pflotranModelSetICs
     type(pflotran_model_type), pointer :: model
     character(len=MAXWORDLENGTH) :: restart_stamp
 
-    model%option%io_buffer = 'restart is not implemented in clm-pflotran.'
+    model%option%io_buffer = 'restart is not implemented in clm-pflotran.' // &
+       'AND, pflotran will be initialized from CLM'
 
     if (.not. StringNull(restart_stamp)) then
        model%option%restart_flag = PETSC_TRUE
@@ -2484,11 +2485,12 @@ end subroutine pflotranModelSetICs
             trim(model%option%group_prefix) // &
             '-' // trim(restart_stamp) // '.chk'
 
-    else
-       call printWrnMsg(model%option)
+       model%option%io_buffer = 'restart file is: ' // &
+            trim(model%option%restart_filename)
 
     end if
 
+    call printWrnMsg(model%option)
 
   end subroutine pflotranModelSetupRestart
 
