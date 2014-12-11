@@ -86,7 +86,7 @@ module Patch_module
                                       ! is a surface or subsurface (default)
     type(surface_material_property_type), pointer     :: surf_material_properties
     type(surface_material_property_ptr_type), pointer :: surf_material_property_array(:)
-    type(surface_field_type),pointer                  :: surf_field
+    type(surface_field_type), pointer                 :: surf_field
     type(surface_auxiliary_type) :: surf_aux
     
   end type patch_type
@@ -334,7 +334,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
   use Option_module
   use Material_module
   use Condition_module
-  use Constraint_module
+  use Transport_Constraint_module
   use Connection_module
 
   implicit none
@@ -792,7 +792,7 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
   use Reactive_Transport_Aux_module
   use Global_Aux_module
   use Condition_module
-  use Constraint_module
+  use Transport_Constraint_module
   use General_Aux_module
   
   implicit none
@@ -1754,7 +1754,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
     coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,1:num_connections) = &
                 flow_condition%iphase
     select case(flow_condition%pressure%itype)
-      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
+      case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC,SPILLOVER_BC)
         select type(selector =>flow_condition%pressure%dataset)
           class is(dataset_ascii_type)
             coupler%flow_aux_real_var(TH_PRESSURE_DOF,1:num_connections) = &
@@ -2537,7 +2537,7 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
   use Reaction_Aux_module
   use Global_Aux_module
   use Material_Aux_class
-  use Constraint_module
+  use Transport_Constraint_module
   
   use EOS_Water_module
     
@@ -2622,11 +2622,23 @@ subroutine PatchInitCouplerConstraints(coupler_list,reaction,option)
                             cur_constraint_coupler%immobile_species, &
                             cur_constraint_coupler%num_iterations, &
                             PETSC_FALSE,option)
+      ! update CO2 mole fraction for CO2 modes
+      select case(option%iflowmode)
+        case(MPH_MODE,FLASH2_MODE)
+          if (cur_coupler%flow_condition%iphase == 1) then
+            dum1 = RCO2MoleFraction(rt_auxvar,global_auxvar,reaction,option)
+            cur_coupler%flow_condition%concentration%dataset%rarray(1) = dum1
+            if (associated(cur_coupler%flow_aux_real_var)) then
+              cur_coupler%flow_aux_real_var(MPH_CONCENTRATION_DOF,:) = dum1
+            endif
+          endif
+      end select
       cur_constraint_coupler => cur_constraint_coupler%next
     enddo
     cur_coupler => cur_coupler%next
   enddo
 
+  call MaterialAuxVarStrip(material_auxvar)
   deallocate(material_auxvar)
 
 end subroutine PatchInitCouplerConstraints
@@ -2759,10 +2771,10 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
   use Mphase_Aux_module
   use TH_Aux_module
   use Richards_Aux_module
-  use Mineral_module
+  use Reaction_Mineral_module
   use Reaction_module
   use Reactive_Transport_Aux_module  
-  use Surface_Complexation_Aux_module
+  use Reaction_Surface_Complexation_Aux_module
   use General_Aux_module
   use Output_Aux_module
   use Variables_module
@@ -3764,6 +3776,12 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
       call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
       call VecStrideGather(field%flow_r,isubvar-1,vec,INSERT_VALUES,ierr)
       call VecGetArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
+    case(SOIL_COMPRESSIBILITY)
+      do local_id=1,grid%nlmax
+        vec_ptr(local_id) = &
+          MaterialAuxVarGetValue(material_auxvars(grid%nL2G(local_id)), &
+                                 SOIL_COMPRESSIBILITY)
+      enddo
     case default
       write(option%io_buffer, &
             '(''IVAR ('',i3,'') not found in PatchGetVariable'')') ivar
@@ -3796,10 +3814,10 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
   use Richards_Aux_module
   use Miscible_Aux_module
   use Reactive_Transport_Aux_module  
-  use Mineral_module
+  use Reaction_Mineral_module
   use Reaction_module
-  use Mineral_Aux_module
-  use Surface_Complexation_Aux_module
+  use Reaction_Mineral_Aux_module
+  use Reaction_Surface_Complexation_Aux_module
   use Output_Aux_module
   use Variables_module
   use General_Aux_module  
@@ -4394,6 +4412,10 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
     case(PERMEABILITY_Z)
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
                                      PERMEABILITY_Z)
+    case(SOIL_COMPRESSIBILITY)
+      value = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
+                                     SOIL_COMPRESSIBILITY)
+
     case(PHASE)
       call VecGetArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
       value = vec_ptr2(ghosted_id)
@@ -4431,6 +4453,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
       value = MaterialAuxVarGetValue(material_auxvars(ghosted_id), &
                                      VOLUME)
     case(RESIDUAL)
+      local_id = grid%nG2L(ghosted_id)
       call VecGetArrayF90(field%flow_r,vec_ptr2,ierr);CHKERRQ(ierr)
       value = vec_ptr2((local_id-1)*option%nflowdof+isubvar)
       call VecRestoreArrayF90(field%flow_r,vec_ptr2,ierr);CHKERRQ(ierr)
@@ -5949,6 +5972,7 @@ subroutine PatchDestroy(patch)
   call StrataDestroyList(patch%strata_list)
   
   call AuxDestroy(patch%aux)
+  call SurfaceAuxDestroy(patch%surf_aux)
   
   ! these are solely pointers, must not destroy.
   nullify(patch%reaction)

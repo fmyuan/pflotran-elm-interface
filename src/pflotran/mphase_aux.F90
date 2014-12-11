@@ -292,11 +292,11 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
       auxvar%xmol(2) = x(3)
 !      if(auxvar%xmol(2) < 0.D0) print *,'tran:',iphase, x(1:3)
 !      if(auxvar%xmol(2) > 1.D0) print *,'tran:',iphase, x(1:3)
-      if (x(3) < 0.d0) then
-        option%io_buffer = 'CO2 mole fraction below zero.  It is likely ' // &
-          'that CO2 aqueous concentrations in transport are inconsistent with flow.'
-        call printErrMsgByRank(option)
-      endif
+!pcl  if (x(3) < 0.d0) then
+!pcl    option%io_buffer = 'CO2 mole fraction below zero.  It is likely ' // &
+!pcl      'that CO2 aqueous concentrations in transport are inconsistent with flow.'
+!pcl    call printErrMsgByRank(option)
+!pcl  endif
       auxvar%xmol(1) = 1.D0 - auxvar%xmol(2)
       auxvar%pc(:) = 0.D0
       auxvar%sat(1) = 1.D0
@@ -434,9 +434,13 @@ subroutine MphaseAuxVarCompute_NINC(x,auxvar,global_auxvar,iphase,saturation_fun
 
 !   auxvar%diff(option%nflowspec+1:option%nflowspec*2) = 2.13D-5
     auxvar%diff(option%nflowspec+1:option%nflowspec*2) = &
-      fluid_properties%gas_diffusion_coefficient
+      fluid_properties%gas_diffusion_coefficient &
+      * 101325.d0/p * ((t+273.15d0)/273.15d0)**1.8d0
 !       fluid_properties%diff_base(2)
-! Note: not temperature dependent yet.       
+
+!   print *,'gas diff: ',fluid_properties%gas_diffusion_coefficient,p,t
+       
+!  z factor    
     auxvar%zco2=auxvar%den(2)/(p/IDEAL_GAS_CONST/(t+273.15D0)*1.D-3)
 
 !***************  Liquid phase properties **************************

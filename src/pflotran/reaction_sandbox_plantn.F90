@@ -149,7 +149,7 @@ subroutine PlantNSetup(this,reaction,option)
 
   use Reaction_Aux_module
   use Option_module
-  use Immobile_Aux_module
+  use Reaction_Immobile_Aux_module
 
   implicit none
   
@@ -216,7 +216,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   use Option_module
   use Reaction_Aux_module
-  use Immobile_Aux_module
+  use Reaction_Immobile_Aux_module
   use Material_Aux_class, only : material_auxvar_type
 
 #ifdef CLM_PFLOTRAN
