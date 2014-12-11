@@ -4093,6 +4093,52 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
   end subroutine pflotranModelSetInitialConcentrations
 
   ! ************************************************************************** !
+  !> This routine Pass CLM SOM decomposition rate constants for PFLOTRAN bgc
+  !! So that both are consistent
+  !!
+  !> @author
+  !! F.-M. Yuan
+  !!
+  !! Date: 12/5/2014
+  ! ************************************************************************** !
+!  subroutine pflotranModelSetSOMKfromCLM(pflotran_model, pf_cmode)
+!
+!    use Option_module
+!    use Reaction_module
+!    use Reaction_Aux_module
+!    use Reactive_Transport_Aux_module
+!    use Global_Aux_module
+!    use Material_Aux_class, only: material_auxvar_type
+!    use Reaction_Sandbox_module
+!    use Reaction_Sandbox_SomDec_class
+!
+!    use Simulation_Base_class, only : simulation_base_type
+!    use Simulation_Subsurface_class, only : subsurface_simulation_type
+!    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+!
+!    implicit none
+!
+!    type(option_type) :: option
+!    type(reaction_type) :: reaction
+!    type(reactive_transport_auxvar_type) :: rt_auxvar
+!    type(global_auxvar_type) :: global_auxvar
+!    class(material_auxvar_type) :: material_auxvar
+!
+!    class(reaction_sandbox_base_type), pointer :: cur_reaction
+!
+!    cur_reaction => rxn_sandbox_list
+!    do
+!        if (.not.associated(cur_reaction)) exit
+!
+!
+!
+!        cur_reaction => cur_reaction%next
+!    enddo
+!
+!  end subroutine pflotranModelSetSOMKfromCLM
+
+
+  ! ************************************************************************** !
   !> This routine Updates TH drivers for PFLOTRAN bgc that are from CLM
   !! for testing PFLOTRAN-BGC mode
   !!
