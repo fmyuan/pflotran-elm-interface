@@ -59,7 +59,7 @@ subroutine SurfaceInitializePostPETSc(simulation, option)
 
   use Simulation_module
   use Option_module
-  use Init_module
+  use Init_Common_module
   
   implicit none
   
@@ -100,6 +100,7 @@ subroutine HijackSurfaceSimulation(simulation_old,simulation)
   use PM_Surface_Flow_class
   use PM_Surface_TH_class
   use PM_Surface_class
+  use Init_Surface_module
   use PM_Base_class
   use PM_Base_Pointer_module
   use Timestepper_Surface_class
@@ -123,6 +124,12 @@ subroutine HijackSurfaceSimulation(simulation_old,simulation)
   surf_realization => simulation_old%surf_realization
   option => surf_realization%option
 
+
+! begin from old Init()   
+  call InitSurfaceSetupRealization(simulation_old)
+  call InitSurfaceSetupSolvers(surf_realization,simulation_old%surf_flow_timestepper%solver)
+! end from old Init()   
+  
   !----------------------------------------------------------------------------!
   ! This section for setting up new process model approach
   !----------------------------------------------------------------------------!
@@ -197,9 +204,9 @@ subroutine HijackSurfaceSimulation(simulation_old,simulation)
         end select
         cur_process_model => cur_process_model%next
       enddo
-      cur_process_model_coupler => cur_process_model_coupler%below
+      cur_process_model_coupler => cur_process_model_coupler%child
     enddo
-    cur_process_model_coupler_top => cur_process_model_coupler_top%next
+    cur_process_model_coupler_top => cur_process_model_coupler_top%peer
   enddo
 
   simulation%surf_realization => surf_realization
@@ -397,7 +404,7 @@ subroutine HijackTimestepper(timestepper_old,stepper_base)
   
   stepper%prev_dt = timestepper_old%prev_dt
 !  stepper%dt = timestepper_old%dt
-  stepper%dt_min = timestepper_old%dt_min
+  stepper%dt_init = timestepper_old%dt_init
   stepper%dt_max = timestepper_old%dt_max
   stepper%cfl_limiter = timestepper_old%cfl_limiter
   stepper%cfl_limiter_ts = timestepper_old%cfl_limiter_ts

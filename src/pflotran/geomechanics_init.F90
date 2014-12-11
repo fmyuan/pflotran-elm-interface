@@ -16,7 +16,9 @@ module Geomechanics_Init_module
 
 
   public :: GeomechicsInitReadRequiredCards, &
-            GeomechanicsInitReadInput
+            GeomechanicsInitReadInput, &
+            InitGeomechSetupRealization, &
+            InitGeomechSetupSolvers
 
 contains
 
@@ -373,9 +375,13 @@ subroutine GeomechanicsInitReadInput(geomech_realization,geomech_solver, &
             case('NO_INITIAL','NO_PRINT_INITIAL')
               output_option%print_initial = PETSC_FALSE
             case('PERMEABILITY')
-              output_option%print_permeability = PETSC_TRUE
+              option%io_buffer = 'PERMEABILITY output must now be entered under OUTPUT/VARIABLES card.'
+              call printErrMsg(option)
+!              output_option%print_permeability = PETSC_TRUE
             case('POROSITY')
-              output_option%print_porosity = PETSC_TRUE
+              option%io_buffer = 'POROSITY output must now be entered under OUTPUT/VARIABLES card.'
+              call printErrMsg(option)            
+!              output_option%print_porosity = PETSC_TRUE
             case('PRINT_COLUMN_IDS')
               output_option%print_column_ids = PETSC_TRUE
             case('TIMES')
@@ -748,5 +754,170 @@ subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
                                          field%imech_loc,ONEDOF)
   
 end subroutine GeomechInitMatPropToGeomechRegions
- 
+
+! ************************************************************************** !
+
+subroutine InitGeomechSetupRealization(simulation)
+  ! 
+  ! Initializes material property data structres and assign them to the domain.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/04/14
+  ! 
+  use Simulation_module
+  
+  use Geomechanics_Realization_class
+  use Geomechanics_Global_module
+  use Geomechanics_Force_module
+  
+  use Option_module
+  use Waypoint_module
+  
+  implicit none
+  
+  type(simulation_type) :: simulation
+  
+  type(option_type), pointer :: option
+  
+  option => simulation%realization%option
+  
+  if (option%ngeomechdof > 0) then
+    if (option%geomech_subsurf_coupling /= 0) then
+      call GeomechCreateGeomechSubsurfVec(simulation%realization, &
+                                          simulation%geomech_realization)
+      call GeomechCreateSubsurfStressStrainVec(simulation%realization, &
+                                               simulation%geomech_realization)
+
+      call GeomechRealizMapSubsurfGeomechGrid(simulation%realization, &
+                                              simulation%geomech_realization, &
+                                              option)
+    endif
+    call GeomechRealizLocalizeRegions(simulation%geomech_realization)
+    call GeomechRealizPassFieldPtrToPatch(simulation%geomech_realization)
+    call GeomechRealizProcessMatProp(simulation%geomech_realization)
+    call GeomechRealizProcessGeomechCouplers(simulation%geomech_realization)
+    call GeomechRealizProcessGeomechConditions(simulation%geomech_realization)
+    call GeomechInitMatPropToGeomechRegions(simulation%geomech_realization)
+    call GeomechRealizInitAllCouplerAuxVars(simulation%geomech_realization)  
+    call GeomechRealizPrintCouplers(simulation%geomech_realization)  
+    call GeomechRealizAddWaypointsToList(simulation%geomech_realization)
+    call GeomechGridElemSharedByNodes(simulation%geomech_realization)
+    call WaypointListFillIn(option,simulation%geomech_realization%waypoint_list)
+    call WaypointListRemoveExtraWaypnts(option, &
+                                    simulation%geomech_realization%waypoint_list)
+    call GeomechForceSetup(simulation%geomech_realization)
+    call GeomechGlobalSetup(simulation%geomech_realization)
+    
+    ! SK: We are solving quasi-steady state solution for geomechanics.
+    ! Initial condition is not needed, hence CondControlAssignFlowInitCondGeomech
+    ! is not needed, at this point.
+    call GeomechForceUpdateAuxVars(simulation%geomech_realization)
+  endif
+  
+end subroutine InitGeomechSetupRealization
+
+! ************************************************************************** !
+
+subroutine InitGeomechSetupSolvers(geomech_realization,realization,solver)
+  ! 
+  ! Initializes material property data structres and assign them to the domain.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/04/14
+  ! 
+  use Realization_class
+  use Geomechanics_Realization_class
+  use Option_module
+  
+  use Solver_module
+  use Convergence_module
+  use Discretization_module
+  use Geomechanics_Force_module
+  use Geomechanics_Discretization_module
+  
+  implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+#include "finclude/petscmat.h"
+#include "finclude/petscmat.h90"
+#include "finclude/petscsnes.h"
+#include "finclude/petscpc.h"
+  
+  type(geomech_realization_type) :: geomech_realization
+  type(realization_type) :: realization
+  type(solver_type), pointer :: solver
+
+  type(option_type), pointer :: option
+  type(convergence_context_type), pointer :: convergence_context
+  SNESLineSearch :: linesearch
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscErrorCode :: ierr
+  
+  option => realization%option
+  
+  call printMsg(option,"  Beginning setup of GEOMECH SNES ")
+    
+  if (solver%J_mat_type == MATAIJ) then
+    option%io_buffer = 'AIJ matrix not supported for geomechanics.'
+    call printErrMsg(option)
+  endif
+
+  call SolverCreateSNES(solver,option%mycomm)  
+  call SNESSetOptionsPrefix(solver%snes, "geomech_", &
+                            ierr);CHKERRQ(ierr)
+  call SolverCheckCommandLine(solver)
+        
+  if (solver%Jpre_mat_type == '') then
+    solver%Jpre_mat_type = solver%J_mat_type
+  endif
+  call GeomechDiscretizationCreateJacobian(geomech_realization% &
+                                            geomech_discretization,NGEODOF, &
+                                            solver%Jpre_mat_type, &
+                                            solver%Jpre,option)
+
+  solver%J = solver%Jpre
+  call MatSetOptionsPrefix(solver%Jpre,"geomech_", &
+                            ierr);CHKERRQ(ierr)
+    
+
+  call SNESSetFunction(solver%snes,geomech_realization%geomech_field%disp_r, &
+                       GeomechForceResidual, &
+                       realization,ierr);CHKERRQ(ierr)
+
+  call SNESSetJacobian(solver%snes,solver%J, &
+                       solver%Jpre,GeomechForceJacobian, &
+                       realization,ierr);CHKERRQ(ierr)
+  ! by default turn off line search
+  call SNESGetLineSearch(solver%snes,linesearch, ierr);CHKERRQ(ierr)
+  call SNESLineSearchSetType(linesearch,SNESLINESEARCHBASIC, &
+                              ierr);CHKERRQ(ierr)
+
+  ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
+  if (option%verbosity >= 1) then
+    string = '-geomech_snes_view'
+    call PetscOptionsInsertString(string, ierr);CHKERRQ(ierr)
+  endif
+
+  call SolverSetSNESOptions(solver)
+
+  option%io_buffer = 'Solver: ' // trim(solver%ksp_type)
+  call printMsg(option)
+  option%io_buffer = 'Preconditioner: ' // trim(solver%pc_type)
+  call printMsg(option)
+
+  ! shell for custom convergence test.  The default SNES convergence test
+  ! is call within this function.
+  !TODO(geh): free this convergence context somewhere!
+  option%io_buffer = 'DEALLOCATE GEOMECH CONVERGENCE CONTEXT somewhere!!!'
+  convergence_context => ConvergenceContextCreate(solver,option, &
+                                                  realization%patch%grid)
+  call SNESSetConvergenceTest(solver%snes,ConvergenceTest, &
+                              convergence_context, &
+                              PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)                                                  
+
+  call printMsg(option,"  Finished setting up GEOMECH SNES ")
+    
+end subroutine InitGeomechSetupSolvers
+
 end module Geomechanics_Init_module

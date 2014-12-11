@@ -102,6 +102,7 @@ subroutine SimulationBaseInitializeRun(this)
   ! 
 
   use Logging_module
+  use Option_module
 
   implicit none
   
@@ -124,7 +125,10 @@ subroutine SimulationBaseInitializeRun(this)
   call this%process_model_coupler_list%InitializeRun()  
   call this%JumpStart()
   
-  ! pushed in Init()
+  call printMsg(this%option," ")
+  call printMsg(this%option,"  Finished Initialization")
+  call PetscLogEventEnd(logging%event_init,ierr);CHKERRQ(ierr)
+  ! pushed in PFLOTRANInitializePostPetsc()
   call PetscLogStagePop(ierr);CHKERRQ(ierr)
 
   ! popped in FinalizeRun()
@@ -167,6 +171,7 @@ subroutine ExecuteRun(this)
   ! Date: 06/11/13
   ! 
   use Waypoint_module
+  use Timestepper_Base_class, only : TS_CONTINUE
 
   implicit none
   
@@ -185,6 +190,7 @@ subroutine ExecuteRun(this)
   cur_waypoint => this%waypoint_list%first
   call WaypointSkipToTime(cur_waypoint,this%option%time)
   do
+    if (this%stop_flag /= TS_CONTINUE) exit ! end simulation
     if (.not.associated(cur_waypoint)) exit
     call this%RunToTime(min(final_time,cur_waypoint%time))
     cur_waypoint => cur_waypoint%next
@@ -297,7 +303,7 @@ function SimulationGetFinalWaypointTime(this)
         final_time < SimulationGetFinalWaypointTime) then
       SimulationGetFinalWaypointTime = final_time
     endif
-    cur_process_model_coupler => cur_process_model_coupler%next
+    cur_process_model_coupler => cur_process_model_coupler%peer
   enddo
 
 end function SimulationGetFinalWaypointTime

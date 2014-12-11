@@ -29,6 +29,7 @@ module PM_Base_class
     class(pm_base_type), pointer :: next
   contains
     procedure, public :: Init => PMBaseInit
+    procedure, public :: SetupSolvers => PMBaseSetupSolvers
     procedure, public :: InitializeRun => PMBaseThisOnly
     procedure, public :: FinalizeRun => PMBaseThisOnly
     procedure, public :: Residual => PMBaseResidual
@@ -93,6 +94,17 @@ end subroutine PMBaseInit
 
 ! ************************************************************************** !
 
+subroutine PMBaseSetupSolvers(this,solver)
+  use Solver_module
+  implicit none
+  class(pm_base_type) :: this
+  type(solver_type) :: solver
+  print *, 'Must extend PMBaseInit.'
+  stop
+end subroutine PMBaseSetupSolvers
+
+! ************************************************************************** !
+
 subroutine PMBaseResidual(this,snes,xx,r,ierr)
   implicit none
   class(pm_base_type) :: this
@@ -119,12 +131,12 @@ end subroutine PMBaseJacobian
 
 ! ************************************************************************** !
 
-subroutine PMBaseUpdateTimestep(this,dt,dt_max,iacceleration, &
+subroutine PMBaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                                 num_newton_iterations,tfac)
   implicit none
   class(pm_base_type) :: this
   PetscReal :: dt
-  PetscReal :: dt_max
+  PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)

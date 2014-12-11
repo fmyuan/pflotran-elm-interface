@@ -15,6 +15,7 @@ module PMC_Subsurface_class
     class(realization_type), pointer :: realization
   contains
     procedure, public :: Init => PMCSubsurfaceInit
+    procedure, public :: SetupSolvers => PMCSubsurfaceSetupSolvers
     procedure, public :: GetAuxData => PMCSubsurfaceGetAuxData
     procedure, public :: SetAuxData => PMCSubsurfaceSetAuxData
     procedure, public :: Destroy => PMCSubsurfaceDestroy
@@ -75,6 +76,45 @@ subroutine PMCSubsurfaceInit(this)
   nullify(this%realization)
 
 end subroutine PMCSubsurfaceInit
+
+! ************************************************************************** !
+
+subroutine PMCSubsurfaceSetupSolvers(this)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/18/13
+  ! 
+  use PM_Base_class
+  use Timestepper_Base_class
+  use Timestepper_BE_class
+  use PM_Base_Pointer_module
+
+  implicit none
+
+  class(pmc_subsurface_type) :: this
+
+  PetscErrorCode :: ierr
+
+#ifdef DEBUG
+  call printMsg(this%option,'PMCSubsurface%SetupSolvers()')
+#endif
+
+  select type(ts => this%timestepper)
+    class is(timestepper_BE_type)
+      call SNESSetFunction(ts%solver%snes, &
+                           this%pm_ptr%ptr%residual_vec, &
+                           PMResidual, &
+                           this%pm_ptr, &
+                           ierr);CHKERRQ(ierr)
+      call SNESSetJacobian(ts%solver%snes, &
+                           ts%solver%J, &
+                           ts%solver%Jpre, &
+                           PMJacobian, &
+                           this%pm_ptr, &
+                           ierr);CHKERRQ(ierr)
+  end select
+
+end subroutine PMCSubsurfaceSetupSolvers
 
 ! ************************************************************************** !
 
@@ -753,18 +793,18 @@ recursive subroutine PMCSubsurfaceDestroy(this)
   call printMsg(this%option,'PMCSubsurface%Destroy()')
 #endif
 
-  if (associated(this%below)) then
-    call this%below%Destroy()
+  if (associated(this%child)) then
+    call this%child%Destroy()
     ! destroy does not currently destroy; it strips
-    deallocate(this%below)
-    nullify(this%below)
+    deallocate(this%child)
+    nullify(this%child)
   endif 
   
-  if (associated(this%next)) then
-    call this%next%Destroy()
+  if (associated(this%peer)) then
+    call this%peer%Destroy()
     ! destroy does not currently destroy; it strips
-    deallocate(this%next)
-    nullify(this%next)
+    deallocate(this%peer)
+    nullify(this%peer)
   endif
   
   call PMCSubsurfaceStrip(this)

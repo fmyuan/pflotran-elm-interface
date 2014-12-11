@@ -53,7 +53,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation, option)
   ! Date: 01/01/14
   ! 
 
-  use Init_module
+  use Init_Common_module
   use Option_module
   use PMC_Base_class
   use PMC_Geomechanics_class
@@ -104,7 +104,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation, option)
       subsurf_simulation%process_model_coupler_list
 
     ! 2st PMC is geomechanics
-    subsurf_simulation%process_model_coupler_list%below => &
+    subsurf_simulation%process_model_coupler_list%child => &
       geomech_simulation%process_model_coupler_list
 
     geomech_simulation%geomech_process_model_coupler%subsurf_realization => &
@@ -173,8 +173,8 @@ subroutine GeomechanicsInitializePostPETSc(simulation, option)
   ! Set data in sim_aux
   cur_process_model_coupler => simulation%process_model_coupler_list
   call cur_process_model_coupler%SetAuxData()
-  if (associated(cur_process_model_coupler%below)) then
-    cur_process_model_coupler => cur_process_model_coupler%below
+  if (associated(cur_process_model_coupler%child)) then
+    cur_process_model_coupler => cur_process_model_coupler%child
     call cur_process_model_coupler%GetAuxData()
     call cur_process_model_coupler%SetAuxData()
     select type(pmc => cur_process_model_coupler)
@@ -205,6 +205,7 @@ subroutine HijackGeomechanicsSimulation(simulation_old,simulation)
   use PMC_Geomechanics_class
   use Simulation_Base_class
   use PM_Geomechanics_Force_class
+  use Init_Geomechanics_module
   use PM_Base_class
   use PM_Base_Pointer_module
   use Timestepper_Geomechanics_class
@@ -231,6 +232,13 @@ subroutine HijackGeomechanicsSimulation(simulation_old,simulation)
   !----------------------------------------------------------------------------!
   simulation%output_option => geomech_realization%output_option
   simulation%option => geomech_realization%option
+  
+! begin from old Init()   
+  call InitGeomechSetupRealization(simulation_old)  
+  call InitGeomechSetupSolvers(geomech_realization,simulation_old%realization, &
+                              simulation_old%geomech_timestepper%solver)  
+! end from old Init()   
+
   nullify(cur_process_model)
 
   nullify(geomech_process_model_coupler)
@@ -299,9 +307,9 @@ subroutine HijackGeomechanicsSimulation(simulation_old,simulation)
         end select
         cur_process_model => cur_process_model%next
       enddo
-      cur_process_model_coupler => cur_process_model_coupler%below
+      cur_process_model_coupler => cur_process_model_coupler%child
     enddo
-    cur_process_model_coupler_top => cur_process_model_coupler_top%next
+    cur_process_model_coupler_top => cur_process_model_coupler_top%peer
   enddo
 
   simulation%geomech_realization => geomech_realization
@@ -414,7 +422,7 @@ subroutine HijackTimestepper(timestepper_old,timestepper_base)
   
   timestepper%prev_dt = timestepper_old%prev_dt
 !  timestepper%dt = timestepper_old%dt
-  timestepper%dt_min = timestepper_old%dt_min
+  timestepper%dt_init = timestepper_old%dt_init
   timestepper%dt_max = timestepper_old%dt_max
   timestepper%cfl_limiter = timestepper_old%cfl_limiter
   timestepper%cfl_limiter_ts = timestepper_old%cfl_limiter_ts
