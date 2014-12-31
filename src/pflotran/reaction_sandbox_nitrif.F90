@@ -330,13 +330,29 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
 ! c_nh3 = c_nh3 + s_nh3*volume
 
 
-  !if (c_nh3 < this%x0eps) return     ! this may bring in 'oscillation' around 'this%x0eps'
   if(this%x0eps>0.d0) then
-    feps0 = c_nh3/(c_nh3+this%x0eps)      ! using these two for trailer smoothing, alternatively
-    dfeps0_dx = this%x0eps/(c_nh3+this%x0eps)/(c_nh3+this%x0eps)
+    !feps0 = c_nh3/(c_nh3+this%x0eps)      ! using these two for trailer smoothing, alternatively
+    !dfeps0_dx = this%x0eps/(c_nh3+this%x0eps)/(c_nh3+this%x0eps)
+
+    ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
+    if (c_nh3 <= this%x0eps) then
+      feps0     = 0.0d0
+      dfeps0_dx = 0.0d0
+    elseif (c_nh3 >= this%x0eps*1.d1) then
+      feps0     = 1.0d0
+      dfeps0_dx = 0.0d0
+    else
+      feps0 = 1.0d0 - ( 1.0d0-(c_nh3-this%x0eps)*(c_nh3-this%x0eps)       &
+                                /(81.0d0*this%x0eps*this%x0eps) ) ** 2
+      dfeps0_dx = 4.0d0 * (1.0d0 - (c_nh3-this%x0eps)*(c_nh3-this%x0eps)  &
+                                     /(81.0d0*this%x0eps*this%x0eps) )    &
+                          * (c_nh3-this%x0eps)/(81.0d0*this%x0eps*this%x0eps)
+    endif
+
   else
     feps0 = 1.0d0
     dfeps0_dx = 0.d0
+    if (c_nh3 < this%x0eps) return     ! this may bring in 'oscillation' around 'this%x0eps'
   endif
 
   ! nitrification (Dickinson et al. 2002)
