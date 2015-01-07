@@ -386,7 +386,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
     ! scale if necessary
     if (min_ratio < 1.d0) then
       if (min_ratio < min_allowable_scale) then
-
+#ifdef DEBUG
         write(realization%option%fid_out, *) '-----checking scaling factor for RT ------'
         write(realization%option%fid_out, *) 'min. scaling factor = ', min_ratio
         j = realization%reaction%ncomp
@@ -405,8 +405,8 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
         write(realization%option%fid_out, *) '-----DONE: checking scaling factor for RT ----'
         write(realization%option%fid_out, *) ' min_ratio IS too small to make sense, '// &
           'which less than an allowable_scale value !'
-        !write(realization%option%fid_out, *) ' STOP executing ! '
-
+        write(realization%option%fid_out, *) ' STOP executing ! '
+#endif
         write(string,'(es9.3)') min_ratio
         string = 'The update of primary species concentration is being ' // &
           'scaled by a very small value (i.e. ' // &
@@ -419,7 +419,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
           'send your input deck to pflotran-dev@googlegroups.com and ' // &
           'ask for help.'
         realization%option%io_buffer = string
-        !call printErrMsg(realization%option)
+        call printErrMsg(realization%option)
       endif
       ! scale by 0.99 to make the update slightly smaller than the min_ratio
       dC_p = dC_p*min_ratio*0.99d0
