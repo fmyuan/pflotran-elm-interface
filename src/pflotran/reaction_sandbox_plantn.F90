@@ -241,7 +241,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: rate, drate_dn, nconc
-  PetscReal :: volume, porosity
+  PetscReal :: volume, porosity, saturation, tc
   PetscInt :: ghosted_id
   PetscErrorCode :: ierr
 
@@ -285,6 +285,11 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   !--------------------------------------------------------------------------------------------
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
+
+  saturation = global_auxvar%sat(1)
+  if(saturation < 0.05d0) return
+  tc = global_auxvar%temp
+  if(tc < 0.01d0) return
 
   ires_plantn = this%ispec_plantn + reaction%offset_immobile
 
