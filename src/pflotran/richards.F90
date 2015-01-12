@@ -351,6 +351,7 @@ subroutine RichardsCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
   type(global_auxvar_type), pointer :: global_auxvars(:)  
   class(material_auxvar_type), pointer :: material_auxvars(:)  
   PetscInt :: local_id, ghosted_id
+  PetscInt :: istart
   PetscReal :: Res(1)
   PetscReal :: inf_norm, global_inf_norm
   PetscErrorCode :: ierr
@@ -374,6 +375,8 @@ subroutine RichardsCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
     inf_norm = 0.d0
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
+      istart = (local_id-1)*option%nflowdof + 1
+
       if (realization%patch%imat(ghosted_id) <= 0) cycle
     
       call RichardsAccumulation(rich_auxvars(ghosted_id), &
@@ -381,7 +384,7 @@ subroutine RichardsCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
                                 material_auxvars(ghosted_id), &
                                 option,Res)
       inf_norm = max(inf_norm,min(dabs(dP_p(local_id)/P0_p(local_id)), &
-                                  dabs(r_p(local_id)/Res(1))))
+                                  dabs(r_p(istart)/Res(1))))
     enddo
     call MPI_Allreduce(inf_norm,global_inf_norm,ONE_INTEGER_MPI, &
                        MPI_DOUBLE_PRECISION, &
@@ -1272,6 +1275,7 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
 
   PetscErrorCode :: ierr
   PetscInt :: local_id, ghosted_id
+  PetscInt :: istart
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
 
   PetscReal, pointer :: r_p(:)
@@ -1320,9 +1324,7 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
 
   if (option%surf_flow_on) call RichardsComputeCoeffsForSurfFlux(realization)
 
-!  write(*,*) "RichardsResidual"
-!  read(*,*)
-! now assign access pointer to local variables
+  ! now assign access pointer to local variables
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
 
   r_p = 0.d0
@@ -1365,11 +1367,13 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
         patch%internal_flow_fluxes(1,sum_connection) = Res(1)
       endif
       if (local_id_up>0) then
-        r_p(local_id_up) = r_p(local_id_up) + Res(1)
+        istart = (local_id_up-1)*option%nflowdof + 1
+        r_p(istart) = r_p(istart) + Res(1)
       endif
          
       if (local_id_dn>0) then
-        r_p(local_id_dn) = r_p(local_id_dn) - Res(1)
+        istart = (local_id_dn-1)*option%nflowdof + 1
+        r_p(istart) = r_p(istart) - Res(1)
       endif
 
     enddo
@@ -1426,12 +1430,8 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
 !          global_auxvars(ghosted_id)%mass_balance_delta(1) + Res(1)
       endif
 
-#ifdef PM_RICHARDS_DEBUG
-  print *, 'Res bc', local_id
-  print *, Res(1)
-#endif
-
-      r_p(local_id)= r_p(local_id) - Res(1)
+      istart = (local_id-1)*option%nflowdof + 1
+      r_p(istart)= r_p(istart) - Res(1)
 
     enddo
     boundary_condition => boundary_condition%next
@@ -1476,6 +1476,7 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   PetscViewer :: viewer
   PetscInt :: i
   PetscInt :: local_id, ghosted_id
+  PetscInt :: istart
 
   PetscReal, pointer :: r_p(:), accum_p(:)
   PetscReal :: qsrc, qsrc_mol
@@ -1493,9 +1494,6 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
   PetscInt :: sum_connection
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  PetscReal, pointer :: qflx_pf_p(:)
-#endif
   PetscReal, pointer :: mmsrc(:)
   PetscReal, allocatable :: msrc(:)
   PetscReal :: well_status
@@ -1518,10 +1516,6 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  call VecGetArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr)
-#endif
-
   ! now assign access pointer to local variables
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
@@ -1538,11 +1532,8 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
                                 global_auxvars(ghosted_id), &
                                 material_auxvars(ghosted_id), &
                                 option,Res) 
-#ifdef PM_RICHARDS_DEBUG
-  print *, 'Res accum', local_id
-  print *, Res(1)      
-#endif
-      r_p(local_id) = r_p(local_id) + Res(1)
+      istart = (local_id-1)*option%nflowdof + 1
+      r_p(istart) = r_p(istart) + Res(1)
     enddo
   endif
 
@@ -1560,9 +1551,6 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-      qsrc = qflx_pf_p(local_id)
-#endif
       if (source_sink%flow_condition%itype(1)/=HET_VOL_RATE_SS .and. &
           source_sink%flow_condition%itype(1)/=HET_MASS_RATE_SS .and. &
           source_sink%flow_condition%itype(1)/=WELL_SS) &
@@ -1589,13 +1577,13 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
           qsrc_mol = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O ! kg/sec -> kmol/sec
       
         case(WELL_SS) ! production well, SK 12/19/13
-        ! if node pessure is lower than the given extraction pressure, shut it down
-!  well parameter explanation
-!   1. well status. 1 injection; -1 production; 0 shut in!
-!   2. well factor [m^3],  the effective permeability [m^2/s]
-!   3. bottomhole pressure:  [Pa]
-!   4. max pressure: [Pa]
-!   5. min pressure: [Pa]   
+          ! if node pessure is lower than the given extraction pressure, shut it down
+          !  well parameter explanation
+          !   1. well status. 1 injection; -1 production; 0 shut in!
+          !   2. well factor [m^3],  the effective permeability [m^2/s]
+          !   3. bottomhole pressure:  [Pa]
+          !   4. max pressure: [Pa]
+          !   5. min pressure: [Pa]   
           mmsrc => source_sink%flow_condition%well%dataset%rarray
 
           well_status = mmsrc(1)
@@ -1604,8 +1592,8 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
           pressure_max = mmsrc(4)
           pressure_min = mmsrc(5)
     
-        ! production well (well status = -1)
-          if(dabs(well_status + 1.D0) < 1.D-1) then
+          ! production well (well status = -1)
+          if (dabs(well_status + 1.D0) < 1.D-1) then
             if (global_auxvars(ghosted_id)%pres(1) > pressure_min) then
               Dq = well_factor 
               dphi = global_auxvars(ghosted_id)%pres(1) - pressure_bh
@@ -1632,7 +1620,10 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
           global_auxvars_ss(sum_connection)%mass_balance_delta(1,1) - &
           qsrc_mol
       endif
-      r_p(local_id) = r_p(local_id) - qsrc_mol
+
+      istart = (local_id-1)*option%nflowdof + 1
+      r_p(istart) = r_p(istart) - qsrc_mol
+
       if (associated(patch%ss_flow_vol_fluxes)) then
         ! fluid flux [m^3/sec] = qsrc_mol [kmol/sec] / den [kmol/m^3]
         patch%ss_flow_vol_fluxes(1,sum_connection) = qsrc_mol / &
@@ -1655,17 +1646,8 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
     enddo
   endif
 
-#ifdef PM_RICHARDS_DEBUG
-  print *, 'Residual'
-  print *, r_p(:)
-#endif
-
-  call VecRestoreArrayF90(r, r_p, ierr); CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr); CHKERRQ(ierr)
-
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  call VecRestoreArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr); CHKERRQ(ierr)
-#endif
+  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
   
 end subroutine RichardsResidualPatch2
 
@@ -1797,6 +1779,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
+  PetscInt :: istart_up, istart_dn, istart
   
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
                Jdn(realization%option%nflowdof,realization%option%nflowdof)
@@ -1843,8 +1826,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
   endif
 #endif
 
-#if 1
-  ! Interior Flux Terms -----------------------------------  
+  ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
   sum_connection = 0    
@@ -1882,10 +1864,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
                                   Jup,Jdn)
 
       if (local_id_up > 0) then
-#ifdef PM_RICHARDS_DEBUG
-  print *, 'Jac up', local_id_up
-  print *, Jup(1,1)
-#endif      
+
 #ifdef BUFFER_MATRIX
         if (option%use_matrix_buffer) then
           call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id_up, &
@@ -1894,19 +1873,19 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
                                ghosted_id_dn,Jdn(1,1))
         else
 #endif
-          call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
+          istart_up = (ghosted_id_up-1)*option%nflowdof + 1
+          istart_dn = (ghosted_id_dn-1)*option%nflowdof + 1
+
+          call MatSetValuesLocal(A,1,istart_up-1,1,istart_up-1, &
                                         Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
-          call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
+          call MatSetValuesLocal(A,1,istart_up-1,1,istart_dn-1, &
                                         Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
 #ifdef BUFFER_MATRIX
         endif
 #endif
       endif
+
       if (local_id_dn > 0) then
-#ifdef PM_RICHARDS_DEBUG
-  print *, 'Jac dn', local_id_dn
-  print *, Jdn(1,1)
-#endif        
         Jup = -Jup
         Jdn = -Jdn
 #ifdef BUFFER_MATRIX
@@ -1917,9 +1896,12 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
                                ghosted_id_up,Jup(1,1))
         else
 #endif
-          call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
+          istart_up = (ghosted_id_up-1)*option%nflowdof + 1
+          istart_dn = (ghosted_id_dn-1)*option%nflowdof + 1
+
+          call MatSetValuesLocal(A,1,istart_dn-1,1,istart_dn-1, &
                                         Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-          call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
+          call MatSetValuesLocal(A,1,istart_dn-1,1,istart_up-1, &
                                         Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
 #ifdef BUFFER_MATRIX
         endif
@@ -1928,7 +1910,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
     enddo
     cur_connection_set => cur_connection_set%next
   enddo
-#endif
+
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -1937,7 +1919,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
-#if 1
+
   ! Boundary Flux Terms -----------------------------------
   boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
@@ -1975,17 +1957,16 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
                                 patch%saturation_function_array(icap_dn)%ptr,&
                                 Jdn)
       Jdn = -Jdn
-#ifdef PM_RICHARDS_DEBUG
-  print *, 'Jac dn bc', local_id
-  print *, Jdn(1,1)      
-#endif
+
 #ifdef BUFFER_MATRIX
       if (option%use_matrix_buffer) then
         call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id, &
                              ghosted_id,Jdn(1,1))
       else
 #endif
-        call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
+        istart = (ghosted_id-1)*option%nflowdof + 1
+
+        call MatSetValuesLocal(A,1,istart-1,1,istart-1,Jdn, &
                                ADD_VALUES,ierr);CHKERRQ(ierr)
 #ifdef BUFFER_MATRIX
       endif
@@ -1994,7 +1975,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
     enddo
     boundary_condition => boundary_condition%next
   enddo
-#endif
+
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -2040,6 +2021,7 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
   PetscReal :: qsrc
   PetscInt :: icap
   PetscInt :: local_id, ghosted_id
+  PetscInt :: istart
   
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof)
   
@@ -2076,7 +2058,7 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
   material_auxvars => patch%aux%Material%auxvars
   
   if (.not.option%steady_state) then
-#if 1
+
   ! Accumulation terms ------------------------------------
   do local_id = 1, grid%nlmax  ! For each local node do...
     ghosted_id = grid%nL2G(local_id)
@@ -2089,23 +2071,22 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
                               option, &
                               patch%saturation_function_array(icap)%ptr,&
                               Jup) 
-#ifdef PM_RICHARDS_DEBUG
-  print *, 'Jac accum'
-  print *, Jup(1,1)     
-#endif
+
 #ifdef BUFFER_MATRIX
     if (option%use_matrix_buffer) then
       call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id, &
                            ghosted_id,Jup(1,1))
     else
 #endif
-      call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
+      istart = (ghosted_id-1)*option%nflowdof + 1
+
+      call MatSetValuesLocal(A,1,istart-1,1,istart-1,Jup, &
                              ADD_VALUES,ierr);CHKERRQ(ierr)
 #ifdef BUFFER_MATRIX
     endif
 #endif
   enddo
-#endif
+
   endif
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -2115,13 +2096,13 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
-#if 1
+
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first 
   do 
     if (.not.associated(source_sink)) exit
     
-    if(source_sink%flow_condition%itype(1)/=HET_VOL_RATE_SS.and. &
+    if (source_sink%flow_condition%itype(1)/=HET_VOL_RATE_SS.and. &
        source_sink%flow_condition%itype(1)/=HET_MASS_RATE_SS .and. &
        source_sink%flow_condition%itype(1)/=WELL_SS) &
       qsrc = source_sink%flow_condition%rate%dataset%rarray(1)
@@ -2146,13 +2127,13 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
           Jup(1,1) = -source_sink%flow_aux_real_var(ONE_INTEGER,iconn)* &
                     rich_auxvars(ghosted_id)%dden_dp*FMWH2O
         case(WELL_SS) ! production well, SK 12/19/13
-        ! if node pessure is lower than the given extraction pressure, shut it down
-!  well parameter explanation
-!   1. well status. 1 injection; -1 production; 0 shut in!
-!   2. well factor [m^3],  the effective permeability [m^2/s]
-!   3. bottomhole pressure:  [Pa]
-!   4. max pressure: [Pa]
-!   5. min pressure: [Pa]   
+          ! if node pessure is lower than the given extraction pressure, shut it down
+          !  well parameter explanation
+          !   1. well status. 1 injection; -1 production; 0 shut in!
+          !   2. well factor [m^3],  the effective permeability [m^2/s]
+          !   3. bottomhole pressure:  [Pa]
+          !   4. max pressure: [Pa]
+          !   5. min pressure: [Pa]
           mmsrc => source_sink%flow_condition%well%dataset%rarray
 
           well_status = mmsrc(1)
@@ -2161,8 +2142,8 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
           pressure_max = mmsrc(4)
           pressure_min = mmsrc(5)
     
-        ! production well (well status = -1)
-          if(dabs(well_status + 1.D0) < 1.D-1) then
+          ! production well (well status = -1)
+          if (dabs(well_status + 1.D0) < 1.D-1) then
             if (global_auxvars(ghosted_id)%pres(1) > pressure_min) then
               Dq = well_factor 
               dphi = global_auxvars(ghosted_id)%pres(1) - pressure_bh
@@ -2188,7 +2169,9 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
                              ghosted_id,Jup(1,1))
       else
 #endif
-        call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup,ADD_VALUES, &
+        istart = (ghosted_id-1)*option%nflowdof + 1
+
+        call MatSetValuesLocal(A,1,istart-1,1,istart-1,Jup,ADD_VALUES, &
                                ierr);CHKERRQ(ierr)
 #ifdef BUFFER_MATRIX
       endif
@@ -2196,7 +2179,6 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
-#endif
 
   call RichardsSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
                          global_auxvars,option)
@@ -2481,9 +2463,9 @@ subroutine RichardsUpdateSurfacePress(realization)
   do 
     if (.not.associated(boundary_condition)) exit
     cur_connection_set => boundary_condition%connection_set
-    if(StringCompare(boundary_condition%name,'from_surface_bc')) then
+    if (StringCompare(boundary_condition%name,'from_surface_bc')) then
 
-      if(boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF) /= &
+      if (boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF) /= &
          HET_SURF_SEEPAGE_BC) then
         call printErrMsg(option,'from_surface_bc is not of type ' // &
                         'HET_SURF_SEEPAGE_BC')
