@@ -323,13 +323,29 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
   c_no3 = rt_auxvar%total(this%ispec_no3, iphase)*L_water       ! mol/Lw -> moles
-  !if(c_no3 <= this%x0eps) return     ! this may bring in 'oscillation' around 'this%x0eps'
   if(this%x0eps>0.d0) then
-    feps0 = c_no3 / (c_no3+this%x0eps)  ! using these two for trailer smoothing, alternatively
-    dfeps0_dx = this%x0eps / (c_no3+this%x0eps) / (c_no3+this%x0eps)
+    !feps0 = c_no3 / (c_no3+this%x0eps)  ! using these two for trailer smoothing, alternatively
+    !dfeps0_dx = this%x0eps / (c_no3+this%x0eps) / (c_no3+this%x0eps)
+
+    ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
+    if (c_no3 <= this%x0eps) then
+      feps0     = 0.0d0
+      dfeps0_dx = 0.0d0
+    elseif (c_no3 >= this%x0eps*1.d1) then
+      feps0     = 1.0d0
+      dfeps0_dx = 0.0d0
+    else
+      feps0 = 1.0d0 - ( 1.0d0-(c_no3-this%x0eps)*(c_no3-this%x0eps)       &
+                                /(81.0d0*this%x0eps*this%x0eps) ) ** 2
+      dfeps0_dx = 4.0d0 * (1.0d0 - (c_no3-this%x0eps)*(c_no3-this%x0eps)  &
+                                     /(81.0d0*this%x0eps*this%x0eps) )    &
+                          * (c_no3-this%x0eps)/(81.0d0*this%x0eps*this%x0eps)
+    endif
+
   else
     feps0 = 1.d0
     dfeps0_dx = 0.d0
+    if(c_no3 <= this%x0eps) return     ! this may bring in 'oscillation' around 'this%x0eps'
   endif
 
   ! rate dependence on substrate

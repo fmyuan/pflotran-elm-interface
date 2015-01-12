@@ -1,4 +1,4 @@
-module Init_module
+module Init_Common_module
 
   use PFLOTRAN_Constants_module
 
@@ -16,7 +16,10 @@ module Init_module
 #include "finclude/petscpc.h"
 #include "finclude/petscts.h"
 
-  public :: Init
+  public :: Init, &
+            InitCommonReadRegionFiles, &
+            InitCommonReadVelocityField, &
+            InitCommonVerifyAllCouplers
   
 contains
 
@@ -51,7 +54,6 @@ subroutine Init(simulation)
   use Reaction_Database_hpt_module
   use Input_Aux_module
   use Condition_Control_module
-  use Subsurface_module
   
   use Flash2_module
   use Mphase_module
@@ -79,16 +81,13 @@ subroutine Init(simulation)
   use Surface_Field_module
   use Surface_Flow_module
   use Surface_Global_module
-  use Surface_Init_module, only : SurfaceInitReadRequiredCards, &
-                                  SurfaceInitMatPropToRegions, &
-                                  SurfaceInitReadRegionFiles
+  use Surface_Init_module !, only : SurfaceInitReadRequiredCards
   use Surface_Realization_class
   use Surface_TH_module
   use Grid_Unstructured_module
 
   use Geomechanics_Realization_class
-  use Geomechanics_Init_module, only : GeomechicsInitReadRequiredCards, &
-                                       GeomechInitMatPropToGeomechRegions
+  use Geomechanics_Init_module, only : GeomechicsInitReadRequiredCards
   use Geomechanics_Grid_module
   use Geomechanics_Discretization_module
   use Geomechanics_Field_module
@@ -132,10 +131,6 @@ subroutine Init(simulation)
   type(geomech_field_type), pointer         :: geomech_field
   type(geomech_realization_type), pointer   :: geomech_realization
 
-  ! popped in TimestepperInitializeRun()
-  call PetscLogStagePush(logging%stage(INIT_STAGE),ierr);CHKERRQ(ierr)
-  call PetscLogEventBegin(logging%event_init,ierr);CHKERRQ(ierr)
-  
   ! set pointers to objects
   flow_timestepper => simulation%flow_timestepper
   tran_timestepper => simulation%tran_timestepper
@@ -160,7 +155,7 @@ subroutine Init(simulation)
   
   if (OptionPrintToScreen(option)) then
     temp_int = 6
-    call InitPrintPFLOTRANHeader(option,temp_int)
+    call InitCommonPrintPFLOTRANHeader(option,temp_int)
   endif
   
   realization%input => InputCreate(IN_UNIT,option%input_filename,option)
@@ -173,7 +168,7 @@ subroutine Init(simulation)
   endif
 
   if (OptionPrintToFile(option)) then
-    call InitPrintPFLOTRANHeader(option,option%fid_out)
+    call InitCommonPrintPFLOTRANHeader(option,option%fid_out)
   endif
   
   ! read required cards
@@ -242,19 +237,6 @@ subroutine Init(simulation)
     nullify(geomech_solver)
   endif
 
-  ! initialize plot variables
-  realization%output_option%output_variable_list => OutputVariableListCreate()
-  realization%output_option%aveg_output_variable_list => OutputVariableListCreate()
-  ! initialize plot variables
-  simulation%surf_realization%output_option%output_variable_list => &
-    OutputVariableListCreate()
-  simulation%surf_realization%output_option%aveg_output_variable_list => &
-    OutputVariableListCreate()
-  geomech_realization%output_option%output_variable_list => &
-    OutputVariableListCreate()
-  geomech_realization%output_option%aveg_output_variable_list => &
-    OutputVariableListCreate()
-
   ! read in the remainder of the input file
   call InitReadInput(simulation)
   call InputDestroy(realization%input)
@@ -263,865 +245,6 @@ subroutine Init(simulation)
   ! (TODO: fmy- need to check if this is the right place to do so)
   call InputDestroy(surf_realization%input)    !allocated in Line 182)
   call InputDestroy(geomech_realization%input) ! allocated in Line 186)
-
-  ! initialize reference density
-  if (option%reference_water_density < 1.d-40) then
-    call EOSWaterDensity(option%reference_temperature, &
-                         option%reference_pressure, &
-                         option%reference_water_density, &
-                         dum1,ierr)    
-  endif
-  
-  ! read reaction database
-  
-  if (associated(realization%reaction)) then
-    if (realization%reaction%use_full_geochemistry) then
-        call DatabaseRead(realization%reaction,option)
-        call BasisInit(realization%reaction,option)    
-    else
-      ! turn off activity coefficients since the database has not been read
-      realization%reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_OFF
-      allocate(realization%reaction%primary_species_print(option%ntrandof))
-      realization%reaction%primary_species_print = PETSC_TRUE
-    endif
-  endif
-
-  ! Initialize flow databases (e.g. span wagner, etc.)
-  select case(option%iflowmode)
-    case(MPH_MODE, FLASH2_MODE, IMS_MODE)
-      call init_span_wanger(realization)
-  end select
-  
-  ! SK 09/30/13, Added to check if Mphase is called with OS
-  if (option%transport%reactive_transport_coupling == OPERATOR_SPLIT .and. &
-      option%iflowmode == MPH_MODE) then
-    option%io_buffer = 'Operator split not implemented with MPHASE. ' // &
-                       'Switching to Global Implicit.'
-    call printWrnMsg(option)
-    option%transport%reactive_transport_coupling = GLOBAL_IMPLICIT
-  endif
-  
-  ! create grid and allocate vectors
-  call RealizationCreateDiscretization(realization)
-  
-  if (option%surf_flow_on) then
-    call SurfRealizCreateDiscretization(simulation%surf_realization)
-  endif
-
-  if (option%ngeomechdof > 0) then
-    call GeomechRealizCreateDiscretization(geomech_realization)
-  endif
-
-  call RegressionCreateMapping(simulation%regression,realization)
-
-  if (realization%discretization%itype == STRUCTURED_GRID) then
-    if (OptionPrintToScreen(option)) then
-      write(*,'(/," Requested processors and decomposition = ", &
-               & i5,", npx,y,z= ",3i4)') &
-          option%mycommsize,grid%structured_grid%npx, &
-          grid%structured_grid%npy,grid%structured_grid%npz
-      write(*,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
-          grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
-          grid%structured_grid%npz_final
-    endif
-    if (OptionPrintToScreen(option)) then
-      write(option%fid_out,'(/," Requested processors and decomposition = ", &
-                           & i5,", npx,y,z= ",3i4)') &
-          option%mycommsize,grid%structured_grid%npx,grid%structured_grid%npy, &
-          grid%structured_grid%npz
-      write(option%fid_out,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
-          grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
-          grid%structured_grid%npz_final
-    endif
-  endif
-
-  ! update flow mode based on optional input
-  if (option%nflowdof > 0) then
-  
-    if (flow_solver%J_mat_type == MATAIJ) then
-      select case(option%iflowmode)
-        case(MPH_MODE,TH_MODE,IMS_MODE, FLASH2_MODE, G_MODE, MIS_MODE)
-          option%io_buffer = 'AIJ matrix not supported for current mode: '// &
-                             option%flowmode
-          call printErrMsg(option)
-      end select
-    endif
-
-    if (OptionPrintToScreen(option)) then
-      write(*,'(" number of dofs = ",i3,", number of phases = ",i3,i2)') &
-        option%nflowdof,option%nphase
-      select case(option%iflowmode)
-        case(FLASH2_MODE)
-          write(*,'(" mode = FLASH2: p, T, s/X")')
-        case(MPH_MODE)
-          write(*,'(" mode = MPH: p, T, s/X")')
-        case(IMS_MODE)
-          write(*,'(" mode = IMS: p, T, s")')
-        case(MIS_MODE)
-          write(*,'(" mode = MIS: p, Xs")')
-        case(TH_MODE)
-          write(*,'(" mode = TH: p, T")')
-        case(RICHARDS_MODE)
-          write(*,'(" mode = Richards: p")')  
-        case(G_MODE)    
-      end select
-    endif
-
-    call printMsg(option,"  Beginning setup of FLOW SNES ")
-
-    call SolverCreateSNES(flow_solver,option%mycomm)  
-    call SNESSetOptionsPrefix(flow_solver%snes, "flow_",ierr);CHKERRQ(ierr)
-    call SolverCheckCommandLine(flow_solver)
-
-    if (flow_solver%Jpre_mat_type == '') then
-      if (flow_solver%J_mat_type /= MATMFFD) then
-        flow_solver%Jpre_mat_type = flow_solver%J_mat_type
-      else
-        flow_solver%Jpre_mat_type = MATBAIJ
-      endif
-    endif
-
-    call DiscretizationCreateJacobian(discretization,NFLOWDOF, &
-                                      flow_solver%Jpre_mat_type, &
-                                      flow_solver%Jpre, &
-                                      option)
-
-    call MatSetOptionsPrefix(flow_solver%Jpre,"flow_",ierr);CHKERRQ(ierr)
-
-    if (flow_solver%J_mat_type /= MATMFFD) then
-      flow_solver%J = flow_solver%Jpre
-    endif
-
-    if (flow_solver%use_galerkin_mg) then
-      call DiscretizationCreateInterpolation(discretization,NFLOWDOF, &
-                                             flow_solver%interpolation, &
-                                             flow_solver%galerkin_mg_levels_x, &
-                                             flow_solver%galerkin_mg_levels_y, &
-                                             flow_solver%galerkin_mg_levels_z, &
-                                             option)
-    endif
-    
-    select case(option%iflowmode)
-      case(TH_MODE)
-        call SNESSetFunction(flow_solver%snes,field%flow_r,THResidual, &
-                             realization,ierr);CHKERRQ(ierr)
-      case(RICHARDS_MODE)
-        call SNESSetFunction(flow_solver%snes,field%flow_r, &
-                             RichardsResidual, &
-                             realization,ierr);CHKERRQ(ierr)
-      case(MPH_MODE)
-        call SNESSetFunction(flow_solver%snes,field%flow_r,MphaseResidual, &
-                             realization,ierr);CHKERRQ(ierr)
-      case(IMS_MODE)
-        call SNESSetFunction(flow_solver%snes,field%flow_r,ImmisResidual, &
-                             realization,ierr);CHKERRQ(ierr)
-      case(MIS_MODE)
-        call SNESSetFunction(flow_solver%snes,field%flow_r,MiscibleResidual, &
-                             realization,ierr);CHKERRQ(ierr)
-      case(FLASH2_MODE)
-        call SNESSetFunction(flow_solver%snes,field%flow_r,FLASH2Residual, &
-                             realization,ierr);CHKERRQ(ierr)
-      case(G_MODE)
-        call SNESSetFunction(flow_solver%snes,field%flow_r,GeneralResidual, &
-                             realization,ierr);CHKERRQ(ierr)
-    end select
-    
-    if (flow_solver%J_mat_type == MATMFFD) then
-      call MatCreateSNESMF(flow_solver%snes,flow_solver%J,ierr);CHKERRQ(ierr)
-    endif
-
-    select case(option%iflowmode)
-      case(TH_MODE)
-        call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
-                             THJacobian,realization,ierr);CHKERRQ(ierr)
-      case(RICHARDS_MODE)
-        call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
-                             RichardsJacobian,realization,ierr);CHKERRQ(ierr)
-      case(MPH_MODE)
-        call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
-                             MPHASEJacobian,realization,ierr);CHKERRQ(ierr)
-      case(IMS_MODE)
-        call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
-                             ImmisJacobian,realization,ierr);CHKERRQ(ierr)
-      case(MIS_MODE)
-        call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
-                             MiscibleJacobian,realization,ierr);CHKERRQ(ierr)
-      case(FLASH2_MODE)
-        call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
-                             FLASH2Jacobian,realization,ierr);CHKERRQ(ierr)
-      case(G_MODE)
-        call SNESSetJacobian(flow_solver%snes,flow_solver%J,flow_solver%Jpre, &
-                             GeneralJacobian,realization,ierr);CHKERRQ(ierr)
-    end select
-    
-    ! by default turn off line search
-    call SNESGetLineSearch(flow_solver%snes, linesearch, ierr);CHKERRQ(ierr)
-    call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
-                               ierr);CHKERRQ(ierr)
-    ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
-    if (option%verbosity >= 2) then
-      string = '-flow_snes_view'
-      call PetscOptionsInsertString(string, ierr);CHKERRQ(ierr)
-    endif
-
-    call SolverSetSNESOptions(flow_solver)
-
-    ! If we are using a structured grid, set the corresponding flow DA 
-    ! as the DA for the PCEXOTIC preconditioner, in case we choose to use it.
-    ! The PCSetDA() call is ignored if the PCEXOTIC preconditioner is 
-    ! no used.  We need to put this call after SolverCreateSNES() so that 
-    ! KSPSetFromOptions() will already have been called.
-    ! I also note that this preconditioner is intended only for the flow 
-    ! solver.  --RTM
-    if (realization%discretization%itype == STRUCTURED_GRID) then
-      call PCSetDM(flow_solver%pc, &
-                   realization%discretization%dm_nflowdof,ierr);CHKERRQ(ierr)
-    endif
-
-    option%io_buffer = 'Solver: ' // trim(flow_solver%ksp_type)
-    call printMsg(option)
-    option%io_buffer = 'Preconditioner: ' // trim(flow_solver%pc_type)
-    call printMsg(option)
-
-    ! shell for custom convergence test.  The default SNES convergence test  
-    ! is call within this function. 
-    flow_timestepper%convergence_context => &
-      ConvergenceContextCreate(flow_solver,option,grid)
-    call SNESSetConvergenceTest(flow_solver%snes,ConvergenceTest, &
-                                flow_timestepper%convergence_context, &
-                                PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
-
-    
- 
-    call SNESGetLineSearch(flow_solver%snes, linesearch, ierr);CHKERRQ(ierr)
-    select case(option%iflowmode)
-      case(RICHARDS_MODE)
-        if (dabs(option%pressure_dampening_factor) > 0.d0 .or. &
-            dabs(option%saturation_change_limit) > 0.d0) then
-          call SNESLineSearchSetPreCheck(linesearch, &
-                                         RichardsCheckUpdatePre, &
-                                         realization,ierr);CHKERRQ(ierr)
-        endif
-      case(G_MODE)
-        call SNESLineSearchSetPreCheck(linesearch, &
-                                       GeneralCheckUpdatePre, &
-                                       realization,ierr);CHKERRQ(ierr)
-      case(TH_MODE)
-        if (dabs(option%pressure_dampening_factor) > 0.d0 .or. &
-            dabs(option%pressure_change_limit) > 0.d0 .or. &
-            dabs(option%temperature_change_limit) > 0.d0) then
-          call SNESLineSearchSetPreCheck(linesearch, &
-                                         THCheckUpdatePre, &
-                                         realization,ierr);CHKERRQ(ierr)
-        endif
-    end select
-    
-    
-    if (flow_solver%check_post_convergence) then
-      call SNESGetLineSearch(flow_solver%snes, linesearch, ierr);CHKERRQ(ierr)
-      select case(option%iflowmode)
-        case(RICHARDS_MODE)
-          call SNESLineSearchSetPostCheck(linesearch, &
-                                          RichardsCheckUpdatePost, &
-                                          realization,ierr);CHKERRQ(ierr)
-        case(G_MODE)
-          call SNESLineSearchSetPostCheck(linesearch, &
-                                          GeneralCheckUpdatePost, &
-                                          realization,ierr);CHKERRQ(ierr)
-        case(TH_MODE)
-          call SNESLineSearchSetPostCheck(linesearch, &
-                                          THCheckUpdatePost, &
-                                          realization,ierr);CHKERRQ(ierr)
-      end select
-    endif
-        
-    
-    call printMsg(option,"  Finished setting up FLOW SNES ")
-
-    if (option%surf_flow_on) then
-
-      ! Setup PETSc TS for explicit surface flow solution
-      call printMsg(option,"  Beginning setup of SURF FLOW TS ")
-
-      call SolverCreateTS(surf_flow_solver,option%mycomm)
-      call TSSetProblemType(surf_flow_solver%ts,TS_NONLINEAR, &
-                            ierr);CHKERRQ(ierr)
-      select case(option%iflowmode)
-        case (RICHARDS_MODE)
-          call TSSetRHSFunction(surf_flow_solver%ts,PETSC_NULL_OBJECT, &
-                                SurfaceFlowRHSFunction, &
-                                simulation%surf_realization, &
-                                ierr);CHKERRQ(ierr)
-        case (TH_MODE)
-          call TSSetRHSFunction(surf_flow_solver%ts,PETSC_NULL_OBJECT, &
-                                SurfaceTHRHSFunction, &
-                                simulation%surf_realization, &
-                                ierr);CHKERRQ(ierr)
-          call TSSetIFunction(surf_flow_solver%ts,PETSC_NULL_OBJECT, &
-                              SurfaceTHIFunction, &
-                              simulation%surf_realization, &
-                              ierr);CHKERRQ(ierr)
-      end select
-      call TSSetDuration(surf_flow_solver%ts,ONE_INTEGER, &
-                         simulation%surf_realization%waypoint_list%last%time, &
-                         ierr);CHKERRQ(ierr)
-
-    endif ! if (option%surf_flow_on)
-
-  endif
-
-  ! update geomechanics mode based on optional input
-  if (option%ngeomechdof > 0) then
-
-    if (geomech_solver%J_mat_type == MATAIJ) then
-      option%io_buffer = 'AIJ matrix not supported for geomechanics.'
-      call printErrMsg(option)
-    endif
-
-    call printMsg(option,"  Beginning setup of GEOMECH SNES ")
-    
-    call SolverCreateSNES(geomech_solver,option%mycomm)  
-    call SNESSetOptionsPrefix(geomech_solver%snes, "geomech_", &
-                              ierr);CHKERRQ(ierr)
-    call SolverCheckCommandLine(geomech_solver)
-        
-    if (geomech_solver%Jpre_mat_type == '') then
-      geomech_solver%Jpre_mat_type = geomech_solver%J_mat_type
-    endif
-    call GeomechDiscretizationCreateJacobian(geomech_realization% &
-                                             geomech_discretization,NGEODOF, &
-                                             geomech_solver%Jpre_mat_type, &
-                                             geomech_solver%Jpre,option)
-
-    geomech_solver%J = geomech_solver%Jpre
-    call MatSetOptionsPrefix(geomech_solver%Jpre,"geomech_", &
-                             ierr);CHKERRQ(ierr)
-    
-
-    call SNESSetFunction(geomech_solver%snes,geomech_field%disp_r, &
-                         GeomechForceResidual, &
-                         simulation%geomech_realization,ierr);CHKERRQ(ierr)
-
-    call SNESSetJacobian(geomech_solver%snes,geomech_solver%J, &
-                         geomech_solver%Jpre,GeomechForceJacobian, &
-                         simulation%geomech_realization,ierr);CHKERRQ(ierr)
-    ! by default turn off line search
-    call SNESGetLineSearch(geomech_solver%snes,linesearch, ierr);CHKERRQ(ierr)
-    call SNESLineSearchSetType(linesearch,SNESLINESEARCHBASIC, &
-                               ierr);CHKERRQ(ierr)
-
-    ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
-    if (option%verbosity >= 1) then
-      string = '-geomech_snes_view'
-      call PetscOptionsInsertString(string, ierr);CHKERRQ(ierr)
-    endif
-
-    call SolverSetSNESOptions(geomech_solver)
-
-    option%io_buffer = 'Solver: ' // trim(geomech_solver%ksp_type)
-    call printMsg(option)
-    option%io_buffer = 'Preconditioner: ' // trim(geomech_solver%pc_type)
-    call printMsg(option)
-
-    ! shell for custom convergence test.  The default SNES convergence test
-    ! is call within this function.
-    geomech_timestepper%convergence_context => &
-    ConvergenceContextCreate(geomech_solver,option,grid) ! Need to change this for geomech
-    call SNESSetConvergenceTest(geomech_solver%snes,ConvergenceTest, &
-                                geomech_timestepper%convergence_context, &
-                                PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
-
-    call printMsg(option,"  Finished setting up GEOMECH SNES ")
-  
-  endif
-
-  ! update transport mode based on optional input
-  if (option%ntrandof > 0) then
-
-    call printMsg(option,"  Beginning setup of TRAN SNES ")
-    
-    call SolverCreateSNES(tran_solver,option%mycomm)  
-    call SNESSetOptionsPrefix(tran_solver%snes, "tran_",ierr);CHKERRQ(ierr)
-    call SolverCheckCommandLine(tran_solver)
-    
-    if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
-      if (tran_solver%Jpre_mat_type == '') then
-        if (tran_solver%J_mat_type /= MATMFFD) then
-          tran_solver%Jpre_mat_type = tran_solver%J_mat_type
-        else
-          tran_solver%Jpre_mat_type = MATBAIJ
-        endif
-      endif
-      call DiscretizationCreateJacobian(discretization,NTRANDOF, &
-                                        tran_solver%Jpre_mat_type, &
-                                        tran_solver%Jpre,option)
-    else
-      tran_solver%J_mat_type = MATAIJ
-      tran_solver%Jpre_mat_type = MATAIJ
-
-      call DiscretizationCreateJacobian(discretization,ONEDOF, &
-                                        tran_solver%Jpre_mat_type, &
-                                        tran_solver%Jpre,option)
-    endif
-
-    if (tran_solver%J_mat_type /= MATMFFD) then
-      tran_solver%J = tran_solver%Jpre
-    endif
-    
-    call MatSetOptionsPrefix(tran_solver%Jpre,"tran_",ierr);CHKERRQ(ierr)
-    
-    if (tran_solver%use_galerkin_mg) then
-      call DiscretizationCreateInterpolation(discretization,NTRANDOF, &
-                                             tran_solver%interpolation, &
-                                             tran_solver%galerkin_mg_levels_x, &
-                                             tran_solver%galerkin_mg_levels_y, &
-                                             tran_solver%galerkin_mg_levels_z, &
-                                             option)
-    endif
-
-    if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
-
-      call SNESSetFunction(tran_solver%snes,field%tran_r,RTResidual,&
-                           realization,ierr);CHKERRQ(ierr)
-
-      if (tran_solver%J_mat_type == MATMFFD) then
-        call MatCreateSNESMF(tran_solver%snes,tran_solver%J, &
-                             ierr);CHKERRQ(ierr)
-      endif
-      
-      call SNESSetJacobian(tran_solver%snes,tran_solver%J,tran_solver%Jpre, &
-                           RTJacobian,realization,ierr);CHKERRQ(ierr)
-
-      ! this could be changed in the future if there is a way to ensure that the linesearch
-      ! update does not perturb concentrations negative.
-      call SNESGetLineSearch(tran_solver%snes, linesearch, ierr);CHKERRQ(ierr)
-      call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
-                                 ierr);CHKERRQ(ierr)
-      
-      if (option%use_mc) then
-        call SNESLineSearchSetPostCheck(linesearch, &
-                                        SecondaryRTUpdateIterate, &
-                                        realization,ierr);CHKERRQ(ierr)
-      endif
-      
-      ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
-      if (option%verbosity >= 2) then
-        string = '-tran_snes_view'
-        call PetscOptionsInsertString(string, ierr);CHKERRQ(ierr)
-      endif
-
-    endif
-
-    ! ensure setting of SNES options since they set KSP and PC options too
-    call SolverSetSNESOptions(tran_solver)
-
-    option%io_buffer = 'Solver: ' // trim(tran_solver%ksp_type)
-    call printMsg(option)
-    option%io_buffer = 'Preconditioner: ' // trim(tran_solver%pc_type)
-    call printMsg(option)
-
-    if (option%transport%reactive_transport_coupling == GLOBAL_IMPLICIT) then
-
-      ! shell for custom convergence test.  The default SNES convergence test  
-      ! is call within this function. 
-      tran_timestepper%convergence_context => &
-        ConvergenceContextCreate(tran_solver,option,grid)
-      call SNESSetConvergenceTest(tran_solver%snes,ConvergenceTest, &
-                                  tran_timestepper%convergence_context, &
-                                  PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
-
-      ! this update check must be in place, otherwise reactive transport is likely
-      ! to fail
-      if (associated(realization%reaction)) then
-        call SNESGetLineSearch(tran_solver%snes, linesearch,  &
-                               ierr);CHKERRQ(ierr)
-        if (realization%reaction%check_update) then
-          call SNESLineSearchSetPreCheck(linesearch,RTCheckUpdatePre, &
-                                         realization,ierr);CHKERRQ(ierr)
-        endif
-        if (tran_solver%check_post_convergence) then
-          call SNESLineSearchSetPostCheck(linesearch,RTCheckUpdatePost, &
-                                          realization,ierr);CHKERRQ(ierr)
-        endif
-      endif
-    endif
-    
-    call printMsg(option,"  Finished setting up TRAN SNES ")
-  
-  endif
-
-  if (OptionPrintToScreen(option)) write(*,'("++++++++++++++++++++++++++++++++&
-                     &++++++++++++++++++++++++++++",/)')
-
-  call PetscLogEventBegin(logging%event_setup,ierr);CHKERRQ(ierr)
-  ! read any regions provided in external files
-  call readRegionFiles(realization)
-  ! clip regions and set up boundary connectivity, distance  
-  call RealizationLocalizeRegions(realization)
-  call RealizationPassPtrsToPatches(realization)
-  ! link conditions with regions through couplers and generate connectivity
-  call RealProcessMatPropAndSatFunc(realization)
-  ! must process conditions before couplers in order to determine dataset types
-  call RealizationProcessConditions(realization)
-  call RealizationProcessCouplers(realization)
-  call SandboxesSetup(realization)
-  call RealProcessFluidProperties(realization)
-  call SubsurfInitMaterialProperties(realization)
-  ! assignVolumesToMaterialAuxVars() must be called after 
-  ! RealizInitMaterialProperties() where the Material object is created 
-  call assignVolumesToMaterialAuxVars(realization)
-  call RealizationInitAllCouplerAuxVars(realization)
-  if (option%ntrandof > 0) then
-    call printMsg(option,"  Setting up TRAN Realization ")
-    call RealizationInitConstraints(realization)
-    call printMsg(option,"  Finished setting up TRAN Realization ")  
-  endif
-  call RealizationPrintCouplers(realization)
-  call PetscLogEventEnd(logging%event_setup,ierr);CHKERRQ(ierr)
-  if (.not.option%steady_state) then
-    ! add waypoints associated with boundary conditions, source/sinks etc. to list
-    call RealizationAddWaypointsToList(realization)
-    ! fill in holes in waypoint data
-    call WaypointListFillIn(option,realization%waypoint_list)
-    call WaypointListRemoveExtraWaypnts(option,realization%waypoint_list)
-  ! geh- no longer needed
-  !  ! convert times from input time to seconds
-  !  call WaypointConvertTimes(realization%waypoint_list,realization%output_option%tconv)
-  endif
-  
-  if (associated(flow_timestepper)) then
-    flow_timestepper%cur_waypoint => realization%waypoint_list%first
-  endif
-  if (associated(tran_timestepper)) then
-    tran_timestepper%cur_waypoint => realization%waypoint_list%first
-  endif
-  
-  ! initialize global auxiliary variable object
-  call GlobalSetup(realization)
-  ! initialize FLOW
-  ! set up auxillary variable arrays
-  if (option%nflowdof > 0) then
-    select case(option%iflowmode)
-      case(TH_MODE)
-        call THSetup(realization)
-      case(RICHARDS_MODE)
-        call RichardsSetup(realization)
-      case(MPH_MODE)
-        call MphaseSetup(realization)
-      case(IMS_MODE)
-        call ImmisSetup(realization)
-      case(MIS_MODE)
-        call MiscibleSetup(realization)
-      case(FLASH2_MODE)
-        call Flash2Setup(realization)
-      case(G_MODE)
-        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
-                           patch%material_property_array, &
-                           patch%characteristic_curves_array, &
-                           realization%option)
-        call GeneralSetup(realization)
-    end select
-  
-    ! assign initial conditionsRealizAssignFlowInitCond
-    call CondControlAssignFlowInitCond(realization)
-
-    ! override initial conditions if they are to be read from a file
-    if (len_trim(option%initialize_flow_filename) > 1) then
-      call readFlowInitialCondition(realization, &
-                                    option%initialize_flow_filename)
-    endif
-  
-    select case(option%iflowmode)
-      case(TH_MODE)
-        call THUpdateAuxVars(realization)
-      case(RICHARDS_MODE)
-        call RichardsUpdateAuxVars(realization)
-      case(MPH_MODE)
-        call MphaseUpdateAuxVars(realization)
-      case(IMS_MODE)
-        call ImmisUpdateAuxVars(realization)
-      case(MIS_MODE)
-        call MiscibleUpdateAuxVars(realization)
-      case(FLASH2_MODE)
-        call Flash2UpdateAuxVars(realization)
-      case(G_MODE)
-        call GeneralUpdateAuxVars(realization,PETSC_TRUE)
-    end select
-  else ! no flow mode specified
-    if (len_trim(realization%nonuniform_velocity_filename) > 0) then
-      call InitReadVelocityField(realization)
-    endif
-  endif
-
-  if (option%ntrandof > 0) then
-
-    call RTSetup(realization)
-
-    ! initialize densities and saturations
-    if (option%nflowdof == 0) then
-      call GlobalSetAuxVarScalar(realization,option%reference_pressure, &
-                                 LIQUID_PRESSURE)
-      call GlobalSetAuxVarScalar(realization,option%reference_temperature, &
-                                 TEMPERATURE)
-      call GlobalSetAuxVarScalar(realization,option%reference_saturation, &
-                                 LIQUID_SATURATION)
-      call GlobalSetAuxVarScalar(realization,option%reference_water_density, &
-                                 LIQUID_DENSITY)
-    else
-      call GlobalUpdateAuxVars(realization,TIME_T,0.d0)
-      call GlobalWeightAuxVars(realization,0.d0)
-    endif
-
-    ! initial concentrations must be assigned after densities are set !!!
-    call CondControlAssignTranInitCond(realization)
-  endif
-  
-  ! Add plot variables that are not mode specific
-  if (realization%output_option%print_porosity) then
-    ! add porosity to header
-    call OutputVariableAddToList( &
-           realization%output_option%output_variable_list, &
-           'Porosity',OUTPUT_GENERIC,'-',POROSITY)  
-  endif
-  if (realization%output_option%print_permeability) then
-    ! add permeability to header
-    if (MaterialAnisotropyExists(realization%material_properties)) then
-      call OutputVariableAddToList( &
-             realization%output_option%output_variable_list, &
-             'Permeability X',OUTPUT_GENERIC,'m^2',PERMEABILITY)
-      call OutputVariableAddToList( &
-             realization%output_option%output_variable_list, &
-             'Permeability Y',OUTPUT_GENERIC,'m^2',PERMEABILITY_Y)
-      call OutputVariableAddToList( &
-             realization%output_option%output_variable_list, &
-             'Permeability Z',OUTPUT_GENERIC,'m^2',PERMEABILITY_Z)
-    else
-      call OutputVariableAddToList( &
-             realization%output_option%output_variable_list, &
-             'Permeability',OUTPUT_GENERIC,'m^2',PERMEABILITY)
-    endif
-  endif
-  if (realization%output_option%print_iproc) then
-    output_variable => OutputVariableCreate('Processor ID',OUTPUT_DISCRETE,'', &
-                                            PROCESSOR_ID)
-    output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
-    output_variable%iformat = 1 ! integer
-    call OutputVariableAddToList( &
-           realization%output_option%output_variable_list,output_variable)
-  endif
-
-  if (realization%output_option%print_volume) then
-    output_variable => OutputVariableCreate('Volume',OUTPUT_DISCRETE,'', &
-                                            VOLUME)
-    output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
-    output_variable%iformat = 0 ! double
-    call OutputVariableAddToList( &
-           realization%output_option%output_variable_list,output_variable)
-  endif
-
-  if (realization%output_option%print_tortuosity) then
-    call OutputVariableAddToList( &
-                              realization%output_option%output_variable_list, &
-                              'Tortuosity',OUTPUT_GENERIC,'-',TORTUOSITY)
-  endif
-
-  ! write material ids
-  output_variable => OutputVariableCreate('Material ID',OUTPUT_DISCRETE,'', &
-                                          MATERIAL_ID)
-  output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
-  output_variable%iformat = 1 ! integer
-  call OutputVariableAddToList( &
-         realization%output_option%output_variable_list,output_variable)  
-
-  
-  ! print info
-  if (associated(flow_timestepper)) then
-    string = 'Flow Stepper:'
-    call TimestepperPrintInfo(flow_timestepper,option%fid_out,string,option)
-  endif    
-  if (associated(tran_timestepper)) then
-    string = 'Transport Stepper:'
-    call TimestepperPrintInfo(tran_timestepper,option%fid_out,string,option)
-  endif    
-   if (option%surf_flow_on) then
-    string = 'Surface Flow Stepper:'
-    call TimestepperPrintInfo(surf_flow_timestepper,option%fid_out,string,option)
-  endif
-
-  if (associated(flow_solver)) then
-    string = 'Flow Newton Solver:'
-    call SolverPrintNewtonInfo(flow_solver,OptionPrintToScreen(option), &
-                               OptionPrintToFile(option),option%fid_out, &
-                               string)
-  endif    
-  if (associated(tran_solver)) then
-    string = 'Transport Newton Solver:'
-    call SolverPrintNewtonInfo(tran_solver,OptionPrintToScreen(option), &
-                               OptionPrintToFile(option),option%fid_out, &
-                               string)
-  endif    
-  if (option%ngeomechdof > 0) then
-    if (associated(geomech_solver)) then
-      string = 'Geomechanics Newton Solver:'
-      call SolverPrintNewtonInfo(geomech_solver,OptionPrintToScreen(option), &
-                                 OptionPrintToFile(option),option%fid_out, &
-                                 string)
-    endif
-  endif
-
-  if (associated(flow_solver)) then
-    string = 'Flow Linear Solver:'
-    call SolverPrintLinearInfo(flow_solver,string,option)
-  endif    
-  if (associated(tran_solver)) then
-    string = 'Transport Linear Solver'
-    call SolverPrintLinearInfo(tran_solver,string,option)
-  endif    
-  if (option%ngeomechdof > 0) then
-    if (associated(geomech_solver)) then
-      string = 'Geomechanics Linear Solver:'
-      call SolverPrintLinearInfo(geomech_solver,string,option)
-    endif
-  endif
-  if (associated(surf_flow_solver)) then
-    string = 'Surface Flow TS Solver:'
-    if (OptionPrintToScreen(option)) then
-      write(*,*) ' '
-      write(*,*) string
-    endif
-    call TSView(surf_flow_solver%ts,PETSC_VIEWER_STDOUT_WORLD, &
-                ierr);CHKERRQ(ierr)
-  endif
-
-  if (debug%print_couplers) then
-    call verifyAllCouplers(realization)
-  endif
-  if (debug%print_waypoints) then
-    call WaypointListPrint(realization%waypoint_list,option,realization%output_option)
-  endif
-
-#ifdef OS_STATISTICS
-  call RealizationPrintGridStatistics(realization)
-#endif
-  
-  ! check for non-initialized data sets, e.g. porosity, permeability
-  call RealizationNonInitializedData(realization)
-
-#if defined(PETSC_HAVE_HDF5)
-#if !defined(HDF5_BROADCAST)
-  call printMsg(option,"Default HDF5 method is used in Initialization")
-#else
-  call printMsg(option,"Glenn's HDF5 broadcast method is used in Initialization")
-#endif
-#endif
-!PETSC_HAVE_HDF5
-
-  if (option%surf_flow_on) then
-    ! Check if surface-flow is compatible with the given flowmode
-    select case(option%iflowmode)
-      case(RICHARDS_MODE,TH_MODE)
-      case default
-        option%io_buffer = 'For surface-flow only RICHARDS and TH mode implemented'
-        call printErrMsgByRank(option)
-    end select
-
-    call SurfaceInitReadRegionFiles(simulation%surf_realization)
-    call SurfRealizMapSurfSubsurfGrids(realization,simulation%surf_realization)
-    call SurfRealizLocalizeRegions(simulation%surf_realization)
-    call SurfRealizPassFieldPtrToPatches(simulation%surf_realization)
-    call SurfRealizProcessMatProp(simulation%surf_realization)
-    call SurfRealizProcessCouplers(simulation%surf_realization)
-    call SurfRealizProcessConditions(simulation%surf_realization)
-    !call RealProcessFluidProperties(simulation%surf_realization)
-    call SurfaceInitMatPropToRegions(simulation%surf_realization)
-    call SurfRealizInitAllCouplerAuxVars(simulation%surf_realization)
-    !call SurfaceRealizationPrintCouplers(simulation%surf_realization)
-
-    ! add waypoints associated with boundary conditions, source/sinks etc. to list
-    call SurfRealizAddWaypointsToList(simulation%surf_realization)
-    call WaypointListFillIn(option,simulation%surf_realization%waypoint_list)
-    call WaypointListRemoveExtraWaypnts(option,simulation%surf_realization%waypoint_list)
-    if (associated(flow_timestepper)) then
-      simulation%surf_flow_timestepper%cur_waypoint => simulation%surf_realization%waypoint_list%first
-    endif
-
-    select case(option%iflowmode)
-      case(RICHARDS_MODE)
-        call SurfaceFlowSetup(simulation%surf_realization)
-      case default
-      case(TH_MODE)
-        call SurfaceTHSetup(simulation%surf_realization)
-    end select
-
-    call SurfaceGlobalSetup(simulation%surf_realization)
-    ! initialize FLOW
-    ! set up auxillary variable arrays
-
-    ! assign initial conditionsRealizAssignFlowInitCond
-    call CondControlAssignFlowInitCondSurface(simulation%surf_realization)
-
-    ! override initial conditions if they are to be read from a file
-    if (len_trim(option%surf_initialize_flow_filename) > 1) then
-      option%io_buffer = 'For surface-flow initial conditions cannot be read from file'
-      call printErrMsgByRank(option)
-    endif
-  
-    select case(option%iflowmode)
-      case(RICHARDS_MODE)
-        call SurfaceFlowUpdateAuxVars(simulation%surf_realization)
-      case(TH_MODE)
-        call SurfaceTHUpdateAuxVars(surf_realization)
-      case default
-        option%io_buffer = 'For surface-flow only RICHARDS and TH mode implemented'
-        call printErrMsgByRank(option)
-    end select
-  endif ! option%surf_flow_on
-
-  if (simulation%surf_realization%output_option%print_iproc) then
-    output_variable => OutputVariableCreate('Processor ID',OUTPUT_DISCRETE,'', &
-                                            PROCESSOR_ID)
-    output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
-    output_variable%iformat = 1 ! integer
-    call OutputVariableAddToList( &
-           simulation%surf_realization%output_option%output_variable_list,output_variable)
-  endif
-
-  if (option%ngeomechdof > 0) then
-    if (option%geomech_subsurf_coupling /= 0) then
-      call GeomechCreateGeomechSubsurfVec(simulation%realization, &
-                                          simulation%geomech_realization)
-      call GeomechCreateSubsurfStressStrainVec(simulation%realization, &
-                                               simulation%geomech_realization)
-
-      call GeomechRealizMapSubsurfGeomechGrid(simulation%realization, &
-                                              simulation%geomech_realization, &
-                                              option)
-    endif
-    call GeomechRealizLocalizeRegions(simulation%geomech_realization)
-    call GeomechRealizPassFieldPtrToPatch(simulation%geomech_realization)
-    call GeomechRealizProcessMatProp(simulation%geomech_realization)
-    call GeomechRealizProcessGeomechCouplers(simulation%geomech_realization)
-    call GeomechRealizProcessGeomechConditions(simulation%geomech_realization)
-    call GeomechInitMatPropToGeomechRegions(simulation%geomech_realization)
-    call GeomechRealizInitAllCouplerAuxVars(simulation%geomech_realization)  
-    call GeomechRealizPrintCouplers(simulation%geomech_realization)  
-    call GeomechRealizAddWaypointsToList(simulation%geomech_realization)
-    call GeomechGridElemSharedByNodes(geomech_realization)
-    call WaypointListFillIn(option,simulation%geomech_realization%waypoint_list)
-    call WaypointListRemoveExtraWaypnts(option, &
-                                    simulation%geomech_realization%waypoint_list)
-    call GeomechForceSetup(simulation%geomech_realization)
-    call GeomechGlobalSetup(simulation%geomech_realization)
-    
-    ! SK: We are solving quasi-steady state solution for geomechanics.
-    ! Initial condition is not needed, hence CondControlAssignFlowInitCondGeomech
-    ! is not needed, at this point.
-    call GeomechForceUpdateAuxVars(simulation%geomech_realization)
-  endif
-
-  call printMsg(option," ")
-  call printMsg(option,"  Finished Initialization")
-  call PetscLogEventEnd(logging%event_init,ierr);CHKERRQ(ierr)
 
 end subroutine Init
 
@@ -1350,7 +473,7 @@ subroutine InitReadRequiredCardsFromInput(realization)
   enddo
   
 #if defined(SCORPIO)
-  call Create_IOGroups(option)
+  call InitCommonCreateIOGroups(option)
 #endif  
 
 end subroutine InitReadRequiredCardsFromInput
@@ -2273,13 +1396,25 @@ subroutine InitReadInput(simulation)
             case('NO_INITIAL','NO_PRINT_INITIAL')
               output_option%print_initial = PETSC_FALSE
             case('PROCESSOR_ID')
-              output_option%print_iproc = PETSC_TRUE
+              option%io_buffer = 'PROCESSOR_ID output must now be entered under OUTPUT/VARIABLES card as PROCESS_ID.'
+              call printErrMsg(option)
+!              output_option%print_iproc = PETSC_TRUE
             case('PERMEABILITY')
-              output_option%print_permeability = PETSC_TRUE
+              option%io_buffer = 'PERMEABILITY output must now be entered under OUTPUT/VARIABLES card.'
+              call printErrMsg(option)
+!              output_option%print_permeability = PETSC_TRUE
             case('POROSITY')
-              output_option%print_porosity = PETSC_TRUE
+              option%io_buffer = 'POROSITY output must now be entered under OUTPUT/VARIABLES card.'
+              call printErrMsg(option)
+!              output_option%print_porosity = PETSC_TRUE
             case('TORTUOSITY')
-              output_option%print_tortuosity = PETSC_TRUE
+              option%io_buffer = 'TORTUOSITY output must now be entered under OUTPUT/VARIABLES card.'
+              call printErrMsg(option)
+!              output_option%print_tortuosity = PETSC_TRUE
+            case('VOLUME')
+              option%io_buffer = 'VOLUME output must now be entered under OUTPUT/VARIABLES card.'
+              call printErrMsg(option)
+!              output_option%print_volume = PETSC_TRUE
             case('MASS_BALANCE')
               option%compute_mass_balance_new = PETSC_TRUE
               call InputReadWord(input,option,word,PETSC_TRUE)
@@ -2551,8 +1686,6 @@ subroutine InitReadInput(simulation)
               call OutputVariableRead(input,option,output_option%output_variable_list)
             case('AVERAGE_VARIABLES')
               call OutputVariableRead(input,option,output_option%aveg_output_variable_list)
-            case('VOLUME')
-              output_option%print_volume = PETSC_TRUE
             case default
               option%io_buffer = 'Keyword: ' // trim(word) // &
                                  ' not recognized in OUTPUT.'
@@ -2642,6 +1775,12 @@ subroutine InitReadInput(simulation)
               call InputErrorMsg(input,option,'Initial Timestep Size','TIME') 
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'Initial Timestep Size Time Units','TIME')
+              default_timestepper%dt_init = temp_real*UnitsConvertToInternal(word,option)
+            case('MINIMUM_TIMESTEP_SIZE')
+              call InputReadDouble(input,option,temp_real)
+              call InputErrorMsg(input,option,'Minimum Timestep Size','TIME') 
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,'Minimum Timestep Size Time Units','TIME')
               default_timestepper%dt_min = temp_real*UnitsConvertToInternal(word,option)
             case('MAXIMUM_TIMESTEP_SIZE')
               call InputReadDouble(input,option,temp_real)
@@ -2676,22 +1815,22 @@ subroutine InitReadInput(simulation)
         enddo
 
         if (associated(flow_timestepper)) then
-          flow_timestepper%dt_min = default_timestepper%dt_min
+          flow_timestepper%dt_init = default_timestepper%dt_init
         endif
         if (associated(tran_timestepper)) then
-          tran_timestepper%dt_min = default_timestepper%dt_min
+          tran_timestepper%dt_init = default_timestepper%dt_init
         endif
-        option%flow_dt = default_timestepper%dt_min
-        option%tran_dt = default_timestepper%dt_min
+        option%flow_dt = default_timestepper%dt_init
+        option%tran_dt = default_timestepper%dt_init
       
 !.....................
       case ('SURFACE_FLOW')
         call SurfaceInitReadInput(simulation%surf_realization, &
                               simulation%surf_flow_timestepper%solver,input,option)
-        simulation%surf_flow_timestepper%dt_min = simulation%surf_realization%dt_min
+        simulation%surf_flow_timestepper%dt_init = simulation%surf_realization%dt_init
         simulation%surf_flow_timestepper%dt_max = simulation%surf_realization%dt_max
         option%surf_subsurf_coupling_flow_dt = simulation%surf_realization%dt_coupling
-        option%surf_flow_dt=simulation%surf_flow_timestepper%dt_min
+        option%surf_flow_dt=simulation%surf_flow_timestepper%dt_init
 
         ! Add first waypoint
         waypoint => WaypointCreate()
@@ -2882,42 +2021,7 @@ end subroutine setSurfaceFlowMode
 
 ! ************************************************************************** !
 
-subroutine assignVolumesToMaterialAuxVars(realization)
-  ! 
-  ! Assigns the cell volumes currently stored in field%volume0 to the 
-  ! material auxiliary variable object
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 01/13/14
-  ! 
-
-  use Realization_class
-  use Option_module
-  use Material_module
-  use Discretization_module
-  use Field_module
-  use Variables_module, only : VOLUME
-  
-  implicit none
-  
-  type(realization_type) :: realization
-  
-  type(option_type), pointer :: option
-  type(field_type), pointer :: field
-
-  option => realization%option
-  field => realization%field
-
-  call DiscretizationGlobalToLocal(realization%discretization,field%volume0, &
-                                   field%work_loc,ONEDOF)
-  call MaterialSetAuxVarVecLoc(realization%patch%aux%Material, &
-                               field%work_loc,VOLUME,ZERO_INTEGER)
-
-end subroutine assignVolumesToMaterialAuxVars
-
-! ************************************************************************** !
-
-subroutine verifyAllCouplers(realization)
+subroutine InitCommonVerifyAllCouplers(realization)
   ! 
   ! Verifies the connectivity of a coupler
   ! 
@@ -2939,18 +2043,21 @@ subroutine verifyAllCouplers(realization)
   do
     if (.not.associated(cur_patch)) exit
 
-      call verifyCoupler(realization,cur_patch,cur_patch%initial_condition_list)
-      call verifyCoupler(realization,cur_patch,cur_patch%boundary_condition_list)
-      call verifyCoupler(realization,cur_patch,cur_patch%source_sink_list)
+      call InitCommonVerifyCoupler(realization,cur_patch, &
+                                   cur_patch%initial_condition_list)
+      call InitCommonVerifyCoupler(realization,cur_patch, &
+                                   cur_patch%boundary_condition_list)
+      call InitCommonVerifyCoupler(realization,cur_patch, &
+                                   cur_patch%source_sink_list)
 
     cur_patch => cur_patch%next
   enddo
   
-end subroutine verifyAllCouplers
+end subroutine InitCommonVerifyAllCouplers
 
 ! ************************************************************************** !
 
-subroutine verifyCoupler(realization,patch,coupler_list)
+subroutine InitCommonVerifyCoupler(realization,patch,coupler_list)
   ! 
   ! Verifies the connectivity of a coupler
   ! 
@@ -3036,11 +2143,11 @@ subroutine verifyCoupler(realization,patch,coupler_list)
 
   call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
 
-end subroutine verifyCoupler
+end subroutine InitCommonVerifyCoupler
 
 ! ************************************************************************** !
 
-subroutine readRegionFiles(realization)
+subroutine InitCommonReadRegionFiles(realization)
   ! 
   ! Reads in grid cell ids stored in files
   ! 
@@ -3093,7 +2200,7 @@ subroutine readRegionFiles(realization)
     region => region%next
   enddo
 
-end subroutine readRegionFiles
+end subroutine InitCommonReadRegionFiles
 
 ! ************************************************************************** !
 
@@ -3213,100 +2320,7 @@ end subroutine readVectorFromFile
 
 ! ************************************************************************** !
 
-subroutine readFlowInitialCondition(realization,filename)
-  ! 
-  ! Assigns flow initial condition from HDF5 file
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/05/10
-  ! 
-
-  use Realization_class
-  use Option_module
-  use Field_module
-  use Grid_module
-  use Patch_module
-  use Discretization_module
-  use HDF5_module
-  
-  implicit none
-
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-  
-  type(realization_type) :: realization
-  character(len=MAXSTRINGLENGTH) :: filename
-  
-  PetscInt :: local_id, idx, offset
-  PetscReal, pointer :: xx_p(:)
-  character(len=MAXSTRINGLENGTH) :: group_name
-  character(len=MAXSTRINGLENGTH) :: dataset_name
-  PetscReal, pointer :: vec_p(:)  
-  PetscErrorCode :: ierr
-  
-  type(option_type), pointer :: option
-  type(field_type), pointer :: field  
-  type(patch_type), pointer :: patch
-  type(grid_type), pointer :: grid
-  type(discretization_type), pointer :: discretization
-  type(patch_type), pointer :: cur_patch
-
-  option => realization%option
-  discretization => realization%discretization
-  field => realization%field
-  patch => realization%patch
-
-  if (option%iflowmode /= RICHARDS_MODE) then
-    option%io_buffer = 'Reading of flow initial conditions from HDF5 ' // &
-                       'file (' // trim(filename) // &
-                       'not currently not supported for mode: ' // &
-
-                       trim(option%flowmode)
-  endif      
-
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-
-    grid => cur_patch%grid
-
-      ! assign initial conditions values to domain
-    call VecGetArrayF90(field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
-
-    ! Pressure for all modes 
-    offset = 1
-    group_name = ''
-    dataset_name = 'Pressure'
-    call HDF5ReadCellIndexedRealArray(realization,field%work, &
-                                      filename,group_name, &
-                                      dataset_name,option%id>0)
-    call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
-    do local_id=1, grid%nlmax
-      if (cur_patch%imat(grid%nL2G(local_id)) <= 0) cycle
-      if (dabs(vec_p(local_id)) < 1.d-40) then
-        print *,  option%myrank, grid%nG2A(grid%nL2G(local_id)), &
-              ': Potential error - zero pressure in Initial Condition read from file.'
-      endif
-      idx = (local_id-1)*option%nflowdof + offset
-      xx_p(idx) = vec_p(local_id)
-    enddo
-    call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
-
-    call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
-        
-    cur_patch => cur_patch%next
-  enddo
-   
-  ! update dependent vectors
-  call DiscretizationGlobalToLocal(discretization,field%flow_xx, &
-                                   field%flow_xx_loc,NFLOWDOF)  
-  call VecCopy(field%flow_xx, field%flow_yy, ierr);CHKERRQ(ierr)
-
-end subroutine readFlowInitialCondition
-
-! ************************************************************************** !
-
-subroutine Create_IOGroups(option)
+subroutine InitCommonCreateIOGroups(option)
   ! 
   ! Create sub-communicators that are used in initialization
   ! and output HDF5 routines.
@@ -3383,11 +2397,11 @@ subroutine Create_IOGroups(option)
 #endif
 ! SCORPIO
  
-end subroutine Create_IOGroups
+end subroutine InitCommonCreateIOGroups
 
 ! ************************************************************************** !
 
-subroutine InitPrintPFLOTRANHeader(option,fid)
+subroutine InitCommonPrintPFLOTRANHeader(option,fid)
   ! 
   ! Initializes pflotran
   ! 
@@ -3405,11 +2419,11 @@ subroutine InitPrintPFLOTRANHeader(option,fid)
   
   write(fid,'(" PFLOTRAN Header")') 
   
-end subroutine InitPrintPFLOTRANHeader
+end subroutine InitCommonPrintPFLOTRANHeader
 
 ! ************************************************************************** !
 
-subroutine InitReadVelocityField(realization)
+subroutine InitCommonReadVelocityField(realization)
   ! 
   ! Reads fluxes in for transport with no flow.
   ! 
@@ -3507,24 +2521,6 @@ subroutine InitReadVelocityField(realization)
     boundary_condition => boundary_condition%next
   enddo
   
-end subroutine InitReadVelocityField
+end subroutine InitCommonReadVelocityField
 
-! ************************************************************************** !
-
-subroutine SandboxesSetup(realization)
-  ! 
-  ! Initializes sandbox objects.
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 05/06/14
-
-  use Realization_class
-  use SrcSink_Sandbox_module
-  
-  type(realization_type) :: realization
-  
-   call SSSandboxSetup(realization%patch%region_list,realization%option)
-  
-end subroutine SandboxesSetup
-
-end module Init_module
+end module Init_Common_module

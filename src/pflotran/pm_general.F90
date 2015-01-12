@@ -29,6 +29,7 @@ module PM_General_class
     PetscInt, pointer :: max_change_ivar(:)
     PetscInt, pointer :: max_change_isubvar(:)
   contains
+    procedure, public :: SetupSolvers => PMGeneralSetupSolvers
     procedure, public :: InitializeRun => PMGeneralInitializeRun
     procedure, public :: InitializeTimestep => PMGeneralInitializeTimestep
     procedure, public :: Residual => PMGeneralResidual
@@ -97,6 +98,40 @@ function PMGeneralCreate()
   PMGeneralCreate => general_pm
   
 end function PMGeneralCreate
+
+! ************************************************************************** !
+
+subroutine PMGeneralSetupSolvers(this,solver)
+  ! 
+  ! Sets up SNES solvers.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/03/14
+
+  use General_module, only : GeneralCheckUpdatePre, GeneralCheckUpdatePost
+  use Solver_module
+  
+  implicit none
+  
+  class(pm_general_type) :: this
+  type(solver_type) :: solver
+  
+  SNESLineSearch :: linesearch
+  PetscErrorCode :: ierr
+  
+  call PMSubsurfaceSetupSolvers(this,solver)
+
+  call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
+  call SNESLineSearchSetPreCheck(linesearch, &
+                                 GeneralCheckUpdatePre, &
+                                 this%realization,ierr);CHKERRQ(ierr)
+  if (solver%check_post_convergence) then
+    call SNESLineSearchSetPostCheck(linesearch, &
+                                    GeneralCheckUpdatePost, &
+                                    this%realization,ierr);CHKERRQ(ierr)
+  endif
+  
+end subroutine PMGeneralSetupSolvers
 
 ! ************************************************************************** !
 
@@ -195,7 +230,7 @@ end subroutine PMGeneralPostSolve
 
 ! ************************************************************************** !
 
-subroutine PMGeneralUpdateTimestep(this,dt,dt_max,iacceleration, &
+subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                                     num_newton_iterations,tfac)
   ! 
   ! Author: Glenn Hammond
@@ -206,7 +241,7 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_max,iacceleration, &
   
   class(pm_general_type) :: this
   PetscReal :: dt
-  PetscReal :: dt_max
+  PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
@@ -234,7 +269,8 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_max,iacceleration, &
   ifac = max(min(num_newton_iterations,size(tfac)),1)
   dtt = fac * dt * (1.d0 + umin)
   dt = min(dtt,tfac(ifac)*dt,dt_max)
-  
+  dt = max(dt,dt_min)
+
 end subroutine PMGeneralUpdateTimestep
 
 ! ************************************************************************** !

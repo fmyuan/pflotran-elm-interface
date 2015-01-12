@@ -928,8 +928,23 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   !    NH4 immobilization dependence on resources (NH4). So, physiologically it may be
   !    used as a method to quantify competition over resources.
   if(this%x0eps>0.d0) then
-    feps0 = c_nh3/(c_nh3+this%x0eps)
-    dfeps0_dx = this%x0eps/(c_nh3+this%x0eps)/(c_nh3+this%x0eps)
+    !feps0 = c_nh3/(c_nh3+this%x0eps)
+    !dfeps0_dx = this%x0eps/(c_nh3+this%x0eps)/(c_nh3+this%x0eps)
+
+    ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
+    if (c_nh3 <= this%x0eps) then
+      feps0     = 0.0d0
+      dfeps0_dx = 0.0d0
+    elseif (c_nh3 >= this%x0eps*1.d1) then
+      feps0     = 1.0d0
+      dfeps0_dx = 0.0d0
+    else
+      feps0 = 1.0d0 - ( 1.0d0-(c_nh3-this%x0eps)*(c_nh3-this%x0eps)       &
+                                /(81.0d0*this%x0eps*this%x0eps) ) ** 2
+      dfeps0_dx = 4.0d0 * (1.0d0 - (c_nh3-this%x0eps)*(c_nh3-this%x0eps)  &
+                                     /(81.0d0*this%x0eps*this%x0eps) )    &
+                          * (c_nh3-this%x0eps)/(81.0d0*this%x0eps*this%x0eps)
+    endif
 
     ! fnh3 above, then, can be adjusted below
     dfnh3_dnh3 = dfnh3_dnh3*feps0+fnh3*dfeps0_dx   ! do the derivative first
@@ -945,8 +960,24 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
     ! using the following for trailer smoothing (may be not needed, but just in case)
     if(this%x0eps>0.d0) then
-      feps0 = c_no3/(c_no3+this%x0eps)
-      dfeps0_dx = this%x0eps/(c_no3+this%x0eps)/(c_no3+this%x0eps)
+      !feps0 = c_no3/(c_no3+this%x0eps)
+      !dfeps0_dx = this%x0eps/(c_no3+this%x0eps)/(c_no3+this%x0eps)
+
+      ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
+      if (c_no3 <= this%x0eps) then
+        feps0     = 0.0d0
+        dfeps0_dx = 0.0d0
+      elseif (c_no3 >= this%x0eps*1.d1) then
+        feps0     = 1.0d0
+        dfeps0_dx = 0.0d0
+      else
+        feps0 = 1.0d0 - ( 1.0d0-(c_no3-this%x0eps)*(c_no3-this%x0eps)       &
+                                /(81.0d0*this%x0eps*this%x0eps) ) ** 2
+        dfeps0_dx = 4.0d0 * (1.0d0 - (c_no3-this%x0eps)*(c_no3-this%x0eps)  &
+                                     /(81.0d0*this%x0eps*this%x0eps) )    &
+                          * (c_no3-this%x0eps)/(81.0d0*this%x0eps*this%x0eps)
+      endif
+
       ! fno3 above, then, can be adjusted below
       dfno3_dno3 = dfno3_dno3*feps0+fno3*dfeps0_dx   ! do the derivative first
       fno3 = fno3*feps0
@@ -1052,13 +1083,29 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ires_uc = reaction%offset_immobile + ispec_uc
     endif
 
-    !if(c_uc <= this%x0eps) cycle     ! this may bring in 'oscillation' around 'this%x0eps'
     if(this%x0eps>0.d0) then
-      feps0 = c_uc/(c_uc+this%x0eps)    ! using these two for trailer smoothing, alternatively
-      dfeps0_dx = this%x0eps/(c_uc+this%x0eps)/(c_uc+this%x0eps)
+      !feps0 = c_uc/(c_uc+this%x0eps)    ! using these two for trailer smoothing, alternatively
+      !dfeps0_dx = this%x0eps/(c_uc+this%x0eps)/(c_uc+this%x0eps)
+
+      ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
+      if (c_uc <= this%x0eps) then
+        feps0     = 0.0d0
+        dfeps0_dx = 0.0d0
+      elseif (c_uc >= this%x0eps*1.d1) then
+        feps0     = 1.0d0
+        dfeps0_dx = 0.0d0
+      else
+        feps0 = 1.0d0 - ( 1.0d0-(c_uc-this%x0eps)*(c_uc-this%x0eps)       &
+                                /(81.0d0*this%x0eps*this%x0eps) ) ** 2
+        dfeps0_dx = 4.0d0 * (1.0d0 - (c_uc-this%x0eps)*(c_uc-this%x0eps)  &
+                                     /(81.0d0*this%x0eps*this%x0eps) )    &
+                          * (c_uc-this%x0eps)/(81.0d0*this%x0eps*this%x0eps)
+      endif
+
     else
       feps0 = 1.0d0
       dfeps0_dx = 0.d0
+      if(c_uc <= this%x0eps) cycle     ! this may bring in 'oscillation' around 'this%x0eps'
     endif
 
     ! C substrate only dependent rate/derivative  (DON'T change after this)

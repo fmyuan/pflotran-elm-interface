@@ -241,7 +241,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: rate, drate_dn, nconc
-  PetscReal :: volume, porosity
+  PetscReal :: volume, porosity, saturation, tc
   PetscInt :: ghosted_id
   PetscErrorCode :: ierr
 
@@ -286,6 +286,11 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
 
+  saturation = global_auxvar%sat(1)
+  if(saturation < 0.05d0) return
+  tc = global_auxvar%temp
+  if(tc < 0.01d0) return
+
   ires_plantn = this%ispec_plantn + reaction%offset_immobile
 
   !--------------------------------------------------------------------------------------------
@@ -297,10 +302,25 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     fnh3      = c_nh3 / temp_real
     dfnh3_dnh3= this%half_saturation_nh3 / temp_real / temp_real
 
-    ! the following may not be needed (if we do a good work above), but just in case
+    ! the following may not be needed, but just in case
     if(this%x0eps_nh4>0.d0) then
-      feps0  = c_nh3/(c_nh3 + this%x0eps_nh4)         ! for trailer smoothing
-      dfeps0_dx = this%x0eps_nh4/(c_nh3 + this%x0eps_nh4)/(c_nh3 + this%x0eps_nh4)
+      !feps0  = c_nh3/(c_nh3 + this%x0eps_nh4)         ! for trailer smoothing
+      !dfeps0_dx = this%x0eps_nh4/(c_nh3 + this%x0eps_nh4)/(c_nh3 + this%x0eps_nh4)
+
+      ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
+      if (c_nh3 <= this%x0eps_nh4) then
+        feps0     = 0.0d0
+        dfeps0_dx = 0.0d0
+      elseif (c_nh3 >= this%x0eps_nh4*1.d1) then
+        feps0     = 1.0d0
+        dfeps0_dx = 0.0d0
+      else
+        feps0 = 1.0d0 - ( 1.0d0-(c_nh3-this%x0eps_nh4)*(c_nh3-this%x0eps_nh4)       &
+                                /(81.0d0*this%x0eps_nh4*this%x0eps_nh4) ) ** 2
+        dfeps0_dx = 4.0d0 * (1.0d0 - (c_nh3-this%x0eps_nh4)*(c_nh3-this%x0eps_nh4)  &
+                                     /(81.0d0*this%x0eps_nh4*this%x0eps_nh4) )      &
+                   * (c_nh3-this%x0eps_nh4)/(81.0d0*this%x0eps_nh4*this%x0eps_nh4)
+      endif
 
       dfnh3_dnh3 = dfnh3_dnh3*feps0 + dfeps0_dx*fnh3  ! do the derivative first
       fnh3 = fnh3 * feps0
@@ -345,11 +365,26 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     fno3      = c_no3 / temp_real
     dfno3_dno3= this%half_saturation_no3 / temp_real / temp_real
 
-    ! the following may not be needed (if we do a good work above), but just in case
+    ! the following may not be needed, but just in case
     if(this%x0eps_no3>0.d0) then
-      feps0  = c_no3/(c_no3 + this%x0eps_no3)         ! for trailer smoothing
-      dfeps0_dx = this%x0eps_no3 &
-                 /(c_no3 + this%x0eps_no3)/(c_no3 + this%x0eps_no3)
+      !feps0  = c_no3/(c_no3 + this%x0eps_no3)         ! for trailer smoothing
+      !dfeps0_dx = this%x0eps_no3 &
+      !           /(c_no3 + this%x0eps_no3)/(c_no3 + this%x0eps_no3)
+
+      ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
+      if (c_no3 <= this%x0eps_no3) then
+        feps0     = 0.0d0
+        dfeps0_dx = 0.0d0
+      elseif (c_no3 >= this%x0eps_no3*1.d1) then
+        feps0     = 1.0d0
+        dfeps0_dx = 0.0d0
+      else
+        feps0 = 1.0d0 - ( 1.0d0-(c_no3-this%x0eps_no3)*(c_no3-this%x0eps_no3)       &
+                                /(81.0d0*this%x0eps_no3*this%x0eps_no3) ) ** 2
+        dfeps0_dx = 4.0d0 * (1.0d0 - (c_no3-this%x0eps_no3)*(c_no3-this%x0eps_no3)  &
+                                     /(81.0d0*this%x0eps_no3*this%x0eps_no3) )      &
+                   * (c_no3-this%x0eps_no3)/(81.0d0*this%x0eps_no3*this%x0eps_no3)
+      endif
 
       dfno3_dno3 = dfno3_dno3*feps0 + dfeps0_dx*fno3  ! do the derivative first
       fno3 = fno3 * feps0

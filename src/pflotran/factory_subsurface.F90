@@ -62,7 +62,7 @@ subroutine SubsurfaceInitializePostPetsc(simulation, option)
 
   use Simulation_module
   use Option_module
-  use Init_module
+  use Init_Common_module
   
   implicit none
   
@@ -135,6 +135,7 @@ subroutine HijackSimulation(simulation_old,simulation)
   use Realization_class
   use Option_module
   use Output_module, only : Output
+  use Output_Aux_module
   
   use PMC_Base_class
   use PMC_Subsurface_class  
@@ -155,7 +156,22 @@ subroutine HijackSimulation(simulation_old,simulation)
   use Logging_module
   use Strata_module
   
+  use General_module
+  use TH_module
+  use Richards_module
+  use Reactive_Transport_module
+  
+  use Global_module
+  use Init_Common_module
+  use Init_Subsurface_module
+  use Init_Subsurface_Flow_module
+  use Init_Subsurface_Tran_module
+  use Waypoint_module
+  use Regression_module
+  
   implicit none
+  
+#include "finclude/petscsnes.h"  
   
   type(simulation_type) :: simulation_old
   class(subsurface_simulation_type) :: simulation
@@ -170,11 +186,53 @@ subroutine HijackSimulation(simulation_old,simulation)
   class(realization_type), pointer :: realization
   type(option_type), pointer :: option
   character(len=MAXSTRINGLENGTH) :: string
+  SNESLineSearch :: linesearch
   PetscErrorCode :: ierr
   
   realization => simulation_old%realization
   option => realization%option
 
+! begin from old Init()  
+  call InitSubsurfSetupRealization(realization)
+  
+  !TODO(geh): refactor
+  if (associated(simulation_old%flow_timestepper)) then
+    simulation_old%flow_timestepper%cur_waypoint => &
+      realization%waypoint_list%first
+  endif
+  if (associated(simulation_old%tran_timestepper)) then
+    simulation_old%tran_timestepper%cur_waypoint => &
+      realization%waypoint_list%first
+  endif
+  
+  !TODO(geh): refactor
+  ! initialize global auxiliary variable object
+  call GlobalSetup(realization)
+  
+  ! always call the flow side since a velocity field still has to be
+  ! set if no flow exists
+  call InitSubsurfFlowSetupRealization(realization)
+  if (option%ntrandof > 0) call InitSubsurfTranSetupRealization(realization)
+  call OutputVariableAppendDefaults(realization%output_option% &
+                                      output_variable_list,option)
+    ! check for non-initialized data sets, e.g. porosity, permeability
+  call RealizationNonInitializedData(realization)
+
+  if (realization%debug%print_couplers) then
+    call InitCommonVerifyAllCouplers(realization)
+  endif
+  if (realization%debug%print_waypoints) then
+    call WaypointListPrint(realization%waypoint_list,option, &
+                           realization%output_option)
+  endif  
+
+  if (option%nflowdof > 0) call InitSubsurfFlowSetupSolvers(realization, &
+                                         simulation_old%flow_timestepper%solver)
+  if (option%ntrandof > 0) call InitSubsurfTranSetupSolvers(realization, &
+                                         simulation_old%tran_timestepper%solver)
+  call RegressionCreateMapping(simulation_old%regression,realization)
+! end from old Init()
+  
   simulation%waypoint_list => RealizCreateSyncWaypointList(realization)
 
   !----------------------------------------------------------------------------!
@@ -249,7 +307,7 @@ subroutine HijackSimulation(simulation_old,simulation)
     simulation%process_model_coupler_list => &
       flow_process_model_coupler%CastToBase()
     if (associated(tran_process_model_coupler)) then
-      flow_process_model_coupler%below => &
+      flow_process_model_coupler%child => &
         tran_process_model_coupler%CastToBase()
     endif
   else
@@ -261,8 +319,8 @@ subroutine HijackSimulation(simulation_old,simulation)
     material_process_model_coupler => PMCMaterialCreate()
     material_process_model_coupler%option => option
     material_process_model_coupler%realization => realization
-    ! place the material process model as %next for the top pmc
-    simulation%process_model_coupler_list%next => &
+    ! place the material process model as %peer for the top pmc
+    simulation%process_model_coupler_list%peer => &
       material_process_model_coupler
   endif
 
@@ -300,30 +358,95 @@ subroutine HijackSimulation(simulation_old,simulation)
         end select
 
         call cur_process_model%Init()
+        ! Until classes are resolved as user-defined contexts in PETSc, 
+        ! we cannot use SetupSolvers.  Therefore, everything has to be
+        ! explicitly defined here.  This may be easier in the long
+        ! run as it creates an intermediate refactor in pulling 
+        ! functionality in Init() into the factories - geh
+#if 0        
+        select type(ts => cur_process_model_coupler%timestepper)
+          class is(timestepper_BE_type)
+            call cur_process_model%SetupSolvers(ts%solver)
+        end select
+#endif
+#if 0
+        select type(ts => cur_process_model_coupler%timestepper)
+          class is(timestepper_BE_type)
+            call SNESGetLineSearch(ts%solver%snes, linesearch, ierr);CHKERRQ(ierr)
+            select type(cur_process_model)
+              class is(pm_richards_type)
+                if (dabs(option%pressure_dampening_factor) > 0.d0 .or. &
+                    dabs(option%saturation_change_limit) > 0.d0) then
+                  call SNESLineSearchSetPreCheck(linesearch, &
+                                                 RichardsCheckUpdatePre, &
+                                                 realization,ierr);CHKERRQ(ierr)
+                endif              
+                if (ts%solver%check_post_convergence) then
+                  call SNESLineSearchSetPostCheck(linesearch, &
+                                                  RichardsCheckUpdatePost, &
+                                                  realization,ierr);CHKERRQ(ierr)        
+                endif
+              class is(pm_general_type)
+                call SNESLineSearchSetPreCheck(linesearch, &
+                                               GeneralCheckUpdatePre, &
+                                               realization,ierr);CHKERRQ(ierr)              
+                if (ts%solver%check_post_convergence) then
+                  call SNESLineSearchSetPostCheck(linesearch, &
+                                                  GeneralCheckUpdatePost, &
+                                                  realization,ierr);CHKERRQ(ierr)        
+                endif
+              class is(pm_th_type)
+                if (dabs(option%pressure_dampening_factor) > 0.d0 .or. &
+                    dabs(option%pressure_change_limit) > 0.d0 .or. &
+                    dabs(option%temperature_change_limit) > 0.d0) then
+                  call SNESLineSearchSetPreCheck(linesearch, &
+                                                 THCheckUpdatePre, &
+                                                 realization,ierr);CHKERRQ(ierr)
+                endif 
+                if (ts%solver%check_post_convergence) then
+                  call SNESLineSearchSetPostCheck(linesearch, &
+                                                  THCheckUpdatePost, &
+                                                  realization,ierr);CHKERRQ(ierr)        
+                endif
+              class is(pm_rt_type)
+                if (realization%reaction%check_update) then
+                  call SNESLineSearchSetPreCheck(linesearch,RTCheckUpdatePre, &
+                                                 realization,ierr);CHKERRQ(ierr)
+                endif
+                if (ts%solver%check_post_convergence) then
+                  call SNESLineSearchSetPostCheck(linesearch,RTCheckUpdatePost, &
+                                                  realization,ierr);CHKERRQ(ierr)
+                endif        
+              class default
+            end select
+        end select
+#endif
+#if 0        
         select type(cur_process_model)
           class default
             select type(ts => cur_process_model_coupler%timestepper)
               class is(timestepper_BE_type)
-              call SNESSetFunction( &
-                             ts%solver%snes, &
-                             cur_process_model%residual_vec, &
-                             PMResidual, &
-                             cur_process_model_coupler%pm_ptr, &
-                                   ierr);CHKERRQ(ierr)
-              call SNESSetJacobian( &
-                             ts%solver%snes, &
-                             ts%solver%J, &
-                             ts%solver%Jpre, &
-                             PMJacobian, &
-                             cur_process_model_coupler%pm_ptr, &
-                                   ierr);CHKERRQ(ierr)
+                call SNESSetFunction(ts%solver%snes, &
+                                     cur_process_model%residual_vec, &
+                                     PMResidual, &
+                                     cur_process_model_coupler%pm_ptr, &
+                                     ierr);CHKERRQ(ierr)
+                call SNESSetJacobian(ts%solver%snes, &
+                                     ts%solver%J, &
+                                     ts%solver%Jpre, &
+                                     PMJacobian, &
+                                     cur_process_model_coupler%pm_ptr, &
+                                     ierr);CHKERRQ(ierr)
             end select
         end select
+#endif            
         cur_process_model => cur_process_model%next
       enddo
-      cur_process_model_coupler => cur_process_model_coupler%below
+      ! has to be called after realizations are set above
+      call cur_process_model_coupler%SetupSolvers()
+      cur_process_model_coupler => cur_process_model_coupler%child
     enddo
-    cur_process_model_coupler_top => cur_process_model_coupler_top%next
+    cur_process_model_coupler_top => cur_process_model_coupler_top%peer
   enddo
   
   simulation%realization => realization
@@ -579,6 +702,7 @@ subroutine HijackTimestepper(timestepper_old,timestepper_base)
   
   timestepper%prev_dt = timestepper_old%prev_dt
 !  stepper%dt = timestepper_old%dt
+  timestepper%dt_init = timestepper_old%dt_init
   timestepper%dt_min = timestepper_old%dt_min
   timestepper%dt_max = timestepper_old%dt_max
   timestepper%cfl_limiter = timestepper_old%cfl_limiter
