@@ -24,10 +24,10 @@
      Mean:   9.8986643433009E-07
         1:   9.8986643433009E-07
 -- CONCENTRATION: SOM1 --
-      Max:   1.1419603260276E-22
-      Min:   1.1419603260276E-22
-     Mean:   1.1419603260276E-22
-        1:   1.1419603260276E-22
+      Max:   1.2554056649756E-20
+      Min:   1.2554056649756E-20
+     Mean:   1.2554056649756E-20
+        1:   1.2554056649756E-20
 -- CONCENTRATION: SOM2 --
       Max:   7.2000000000000E-01
       Min:   7.2000000000000E-01
@@ -39,10 +39,10 @@
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   1.1802701950073E+00
+   Time (seconds):   9.9954366683960E-01
    Time Steps:         2001
    Newton Iterations:         2259
    Solver Iterations:         2259
    Time Step Cuts:            0
    Solution 2-Norm:   7.2000084234951E-01
-   Residual 2-Norm:   8.0726289020257E-30
+   Residual 2-Norm:   1.2654923515192E-28
