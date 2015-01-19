@@ -136,7 +136,7 @@ subroutine GeomechanicsInitializePostPETSc(simulation, option)
    nullify(subsurf_simulation%process_model_coupler_list)
 
   ! sim_aux: Create PETSc Vectors and VectorScatters
-  if(option%ngeomechdof > 0) then
+  if (option%ngeomechdof > 0) then
 
     call GeomechCreateGeomechSubsurfVec(simulation_old%realization, &
                                         simulation_old%geomech_realization)
@@ -164,9 +164,9 @@ subroutine GeomechanicsInitializePostPETSc(simulation, option)
 
   ! sim_aux: Set pointer
   simulation%flow_process_model_coupler%sim_aux => simulation%sim_aux
-  if(associated(simulation%rt_process_model_coupler)) &
+  if (associated(simulation%rt_process_model_coupler)) &
     simulation%rt_process_model_coupler%sim_aux => simulation%sim_aux
-  if(option%ngeomechdof>0 .and. &
+  if (option%ngeomechdof>0 .and. &
      associated(geomech_simulation%geomech_process_model_coupler)) &
     geomech_simulation%geomech_process_model_coupler%sim_aux => simulation%sim_aux
 
@@ -237,6 +237,7 @@ subroutine HijackGeomechanicsSimulation(simulation_old,simulation)
   call InitGeomechSetupRealization(simulation_old)  
   call InitGeomechSetupSolvers(geomech_realization,simulation_old%realization, &
                               simulation_old%geomech_timestepper%solver)  
+
 ! end from old Init()   
 
   nullify(cur_process_model)
@@ -286,6 +287,7 @@ subroutine HijackGeomechanicsSimulation(simulation_old,simulation)
         end select
 
         call cur_process_model%Init()
+#if 0        
         select type(cur_process_model)
           class is (pm_geomech_force_type)
             select type(ts => cur_process_model_coupler%timestepper)
@@ -305,6 +307,7 @@ subroutine HijackGeomechanicsSimulation(simulation_old,simulation)
                                      ierr);CHKERRQ(ierr)
             end select
         end select
+#endif
         cur_process_model => cur_process_model%next
       enddo
       cur_process_model_coupler => cur_process_model_coupler%child
