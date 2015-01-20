@@ -1870,6 +1870,20 @@ subroutine StepperStepTransportDT_GI(realization,stepper, &
         
       call VecCopy(field%tran_log_xx,field%tran_xx,ierr);CHKERRQ(ierr)
       call VecExp(field%tran_xx,ierr);CHKERRQ(ierr)
+    !fmy (2015-Jan)
+    elseif (realization%reaction%use_plog_formulation) then
+      call VecCopy(field%tran_xx,field%tran_plog_xx,ierr);CHKERRQ(ierr)
+      call VecLog(field%tran_plog_xx,ierr);CHKERRQ(ierr)
+
+      call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
+      call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%tran_plog_xx,  &
+                     ierr);CHKERRQ(ierr)
+      call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+      stepper%cumulative_solver_time = stepper%cumulative_solver_time + &
+        (log_end_time - log_start_time)
+
+      call VecCopy(field%tran_plog_xx,field%tran_xx,ierr);CHKERRQ(ierr)
+      call VecExp(field%tran_xx,ierr);CHKERRQ(ierr)
     else
       call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
       call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%tran_xx,  &
@@ -2676,6 +2690,15 @@ subroutine StepperSolveTranSteadyState(realization,stepper,failure)
                    ierr);CHKERRQ(ierr)
     call VecCopy(field%tran_log_xx,field%tran_xx,ierr);CHKERRQ(ierr)
     call VecExp(field%tran_xx,ierr);CHKERRQ(ierr)
+  !fmy (2015-Jan)
+  elseif (realization%reaction%use_plog_formulation) then
+    call VecCopy(field%tran_xx,field%tran_plog_xx,ierr);CHKERRQ(ierr)
+    call VecLog(field%tran_plog_xx,ierr);CHKERRQ(ierr)
+    call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%tran_plog_xx,  &
+                   ierr);CHKERRQ(ierr)
+    call VecCopy(field%tran_plog_xx,field%tran_xx,ierr);CHKERRQ(ierr)
+    call VecExp(field%tran_xx,ierr);CHKERRQ(ierr)
+
   else
     call SNESSolve(solver%snes, PETSC_NULL_OBJECT, field%tran_xx,  &
                    ierr);CHKERRQ(ierr)

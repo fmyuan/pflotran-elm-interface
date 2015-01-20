@@ -1003,7 +1003,8 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
                         
   rhs = -res   
   
-  if (reaction%use_log_formulation) then
+  ! (TODO) for plog_formulation it needs checking with GLEN here
+  if (reaction%use_log_formulation .or. reaction%use_plog_formulation) then
   ! scale the jacobian by concentrations
     i = 1
     do k = 1, ncomp
@@ -1018,10 +1019,10 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       enddo
     enddo
     i = ngcells
-      do k = 1, ncomp
-        coeff_diag(:,k,i) = coeff_diag(:,k,i)*conc_upd(k,i) ! m3/s*kg/L
-        coeff_left(:,k,i) = coeff_left(:,k,i)*conc_upd(k,i-1)
-      enddo
+    do k = 1, ncomp
+      coeff_diag(:,k,i) = coeff_diag(:,k,i)*conc_upd(k,i) ! m3/s*kg/L
+      coeff_left(:,k,i) = coeff_left(:,k,i)*conc_upd(k,i-1)
+    enddo
   endif 
   
   ! First do an LU decomposition for calculating D_M matrix
@@ -1132,6 +1133,14 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
       rhs(i+(ngcells-1)*ncomp) = dsign(1.d0,rhs(i+(ngcells-1)*ncomp))* &
         min(dabs(rhs(i+(ngcells-1)*ncomp)),reaction%max_dlnC)
       conc_current_M(i) = conc_upd(i,ngcells)*exp(rhs(i+(ngcells-1)*ncomp))
+    elseif (reaction%use_plog_formulation) then
+      ! convert +log concentration to concentration
+      ! need more work here: plog = c+ln(c), then c=W(exp(plog)), in which
+      ! W is called LambertW function. we need a solution for W (fortunately there are some
+      ! science libraries for this, but need to check if PETSc does)
+      ! so the following marked with ???? - need redoing.
+      conc_current_M(i) = conc_upd(i,ngcells) + rhs(i+(ngcells-1)*ncomp) & ! ?????
+                         +conc_upd(i,ngcells)*exp(rhs(i+(ngcells-1)*ncomp))
     else
       conc_current_M(i) = conc_upd(i,ngcells) + rhs(i+(ngcells-1)*ncomp)
     endif
@@ -1155,7 +1164,8 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   ! Calculate the dervative of outer matrix node total with respect to the 
   ! primary node concentration
   
-  if (reaction%use_log_formulation) then ! log formulation
+  ! (TODO) for plog_formulation it needs checking with GLEN here
+  if (reaction%use_log_formulation .or. reaction%use_plog_formulation) then ! log formulation
     do j = 1, ncomp
       do l = 1, ncomp
         dPsisec_dCprim(j,l) = dCsec_dCprim(j,l)*conc_current_M(j)
@@ -1348,6 +1358,14 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
             min(dabs(rhs(i+(ngcells-1)*ncomp)),reaction%max_dlnC)
           conc_current_M_pert(i) = conc_upd(i,ngcells)* &
                                      exp(rhs(i+(ngcells-1)*ncomp))
+        elseif (reaction%use_plog_formulation) then
+          ! convert +log concentration to concentration
+          ! need more work here: plog = c+ln(c), then c=W(exp(plog)), in which
+          ! W is called LambertW function. we need a solution for W (fortunately there are some
+          ! science libraries for this, but need to check if PETSc does)
+          ! so the following marked with ???? - need redoing.
+          conc_current_M_pert(i) = conc_upd(i,ngcells) + rhs(i+(ngcells-1)*ncomp) & ! ?????
+                         +conc_upd(i,ngcells)*exp(rhs(i+(ngcells-1)*ncomp))
         else
           conc_current_M_pert(i) = conc_upd(i,ngcells) + &
                                      rhs(i+(ngcells-1)*ncomp)
@@ -1848,6 +1866,13 @@ subroutine SecondaryRTAuxVarComputeMulti(sec_transport_vars,reaction, &
         ! convert log concentration to concentration
         rhs(n) = dsign(1.d0,rhs(n))*min(dabs(rhs(n)),reaction%max_dlnC) 
         conc_upd(j,i) = exp(rhs(n))*conc_upd(j,i)
+      elseif (reaction%use_plog_formulation) then
+        ! convert +log concentration to concentration
+      ! need more work here: plog = c+ln(c), then c=W(exp(plog)), in which
+      ! W is called LambertW function. we need a solution for W (fortunately there are some
+      ! science libraries for this, but need to check if PETSc does)
+      ! so the following marked with ???? - need redoing.
+        conc_upd(j,i) = exp(rhs(n))*conc_upd(j,i) + rhs(n)+conc_upd(j,i)  ! ?????
       else
         conc_upd(j,i) = rhs(n) + conc_upd(j,i)
       endif

@@ -47,6 +47,7 @@ module Field_module
     Vec :: tran_rhs_coef
     
     Vec :: tran_log_xx, tran_work_loc
+    Vec :: tran_plog_xx
     
     Vec :: flow_ts_mass_balance, flow_total_mass_balance
     Vec :: tran_ts_mass_balance, tran_total_mass_balance

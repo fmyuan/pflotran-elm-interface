@@ -168,6 +168,8 @@ subroutine PMRTSetRealization(this,realization)
   
   if (realization%reaction%use_log_formulation) then
     this%solution_vec = realization%field%tran_log_xx
+  elseif (realization%reaction%use_plog_formulation) then
+    this%solution_vec = realization%field%tran_plog_xx
   else
     this%solution_vec = realization%field%tran_xx
   endif
@@ -289,6 +291,10 @@ subroutine PMRTPreSolve(this)
     call VecCopy(this%realization%field%tran_xx, &
                  this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)
     call VecLog(this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)
+  elseif (this%realization%reaction%use_plog_formulation) then
+    call VecCopy(this%realization%field%tran_xx, &
+                 this%realization%field%tran_plog_xx,ierr);CHKERRQ(ierr)
+    call VecLog(this%realization%field%tran_plog_xx,ierr);CHKERRQ(ierr)
   endif
   
 end subroutine PMRTPreSolve
