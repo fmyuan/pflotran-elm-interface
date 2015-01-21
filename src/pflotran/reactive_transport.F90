@@ -3144,7 +3144,7 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
-  ! need to check with GLEN for why and if proper to do for plog-formulation ?
+  ! need to check with GLEN for why and if proper to do so for plog-formulation ?
   if (realization%reaction%use_log_formulation .or. &
       realization%reaction%use_plog_formulation) then
     call MatDiagonalScaleLocal(J,realization%field%tran_work_loc, &
@@ -3766,7 +3766,7 @@ subroutine RTJacobianEquilibrateCO2(J,realization)
   do i = 1, zero_count
     ghosted_id = ghosted_rows(i) ! zero indexing back to 1-based
     if (patch%imat(ghosted_id) <= 0) cycle
-    if (reaction%use_log_formulation) then
+    if (reaction%use_log_formulation .or. reaction%use_plog_formulation) then
       jacobian_entry = rt_auxvars(ghosted_id)%pri_molal(jco2)
     else
       jacobian_entry = 1.d0

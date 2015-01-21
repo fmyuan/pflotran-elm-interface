@@ -3396,7 +3396,7 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
       update = dsign(1.d0,update)*min(dabs(update),reaction%max_dlnC)
       new_solution = prev_solution*exp(-update)    
     elseif (reaction%use_plog_formulation) then
-      new_solution = prev_solution*(update+exp(-update))   ! NOT right now (TODO)
+      new_solution = prev_solution*(update+exp(-update))   ! NOT right at this moment (TODO)
     else ! linear upage
       ! ensure non-negative concentration
       min_ratio = 1.d20 ! large number
@@ -4834,7 +4834,10 @@ subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation,use_plog_formula
   if (use_plog_formulation) then
     ! for derivatives with respect to conc+ln(conc)
     do icomp = 1, ncomp
-      Jac(:,icomp) = Jac(:,icomp)*conc(icomp)   ! needs  redoing here (TODO)
+      Jac(:,icomp) = Jac(:,icomp)*(conc(icomp)/1.d0+conc(icomp))
+      ! needs someone confirming this (?)
+      ! for lnC: dR/dlnC = dR/dC*dC/dlnC=dR/dC*1/(1/C)=dR/dC*C (i.e., line 4830)
+      ! for C+lnC: dR/d(C+lnC) = dR/dC*dC/d(C+lnC)=dR/dC*(C/(1+C))
     enddo
   endif
 
