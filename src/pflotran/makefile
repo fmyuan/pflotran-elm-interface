@@ -133,6 +133,7 @@ util_obj  = \
 	${common_src}pflotran_constants.o \
 	${common_src}pflotran_provenance.o \
 	${common_src}string.o \
+	${common_src}toms743.o \
 	${common_src}units.o \
 	${common_src}utility.o \
 	${common_src}variables.o
@@ -216,7 +217,7 @@ chem_obj = \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \
 	${common_src}reaction_surf_complex.o \
-	${common_src}reaction_surf_complex_aux.o 
+	${common_src}reaction_surf_complex_aux.o
 
 grid_obj = \
 	${common_src}connection.o \
@@ -1199,6 +1200,7 @@ timestepper_geomechanics.o : convergence.o option.o output.o \
 timestepper_surface.o : option.o output.o pflotran_constants.o pm_base.o \
                         pm_surface_flow.o solver.o surface_flow.o \
                         timestepper_base.o waypoint.o
+toms743.o :
 transport.o : connection.o global_aux.o material_aux.o matrix_block_aux.o \
               option.o pflotran_constants.o reactive_transport_aux.o
 transport_constraint.o : global_aux.o input_aux.o logging.o option.o \

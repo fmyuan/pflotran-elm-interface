@@ -362,8 +362,8 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
     ! time checking for changes and performing an allreduce for log 
     ! formulation.
   elseif (realization%reaction%use_plog_formulation) then
-    ! C and dC are actually C+lnC and d(C+lnC), nothing needed here
-    !dC_p = dsign(1.d0,dC_p)*min(dabs(dC_p),realization%reaction%max_dlnC)
+    ! C and dC are actually C+lnC and d(C+lnC), nothing needed here ?????
+
   else
     call VecGetLocalSize(C,n,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(C,C_p,ierr);CHKERRQ(ierr)
@@ -2225,6 +2225,7 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
   use Grid_module
   use Logging_module
   use Debug_module
+  use lambertw_module, only: wapr
 
   implicit none
 
@@ -2264,7 +2265,7 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
     ! have to convert the plog concentration to non-log form
     call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(xx,plog_xx_p,ierr);CHKERRQ(ierr)
-    xx_p(:) = plog_xx_p(:)+exp(plog_xx_p(:))  ! need redoing here: xx_p=W(exp(plog_xx_p))
+    xx_p(:) = wapr(exp(plog_xx_p(:))
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(xx,plog_xx_p,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
