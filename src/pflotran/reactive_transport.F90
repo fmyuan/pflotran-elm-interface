@@ -2265,7 +2265,7 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
     ! have to convert the plog concentration to non-log form
     call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(xx,plog_xx_p,ierr);CHKERRQ(ierr)
-    xx_p(:) = wapr(exp(plog_xx_p(:))
+    !xx_p(:) = wapr(exp(plog_xx_p(:), 0, 0, 0)
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(xx,plog_xx_p,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
@@ -3146,8 +3146,8 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
   endif
 
   ! need to check with GLEN for why and if proper to do so for plog-formulation ?
-  if (realization%reaction%use_log_formulation .or. &
-      realization%reaction%use_plog_formulation) then
+  if (realization%reaction%use_log_formulation &
+      .or. realization%reaction%use_plog_formulation) then
     call MatDiagonalScaleLocal(J,realization%field%tran_work_loc, &
                                ierr);CHKERRQ(ierr)
 
@@ -3645,6 +3645,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
 
   ! why needs the following ???
   if (reaction%use_log_formulation .or. reaction%use_plog_formulation) then
+  !if (reaction%use_log_formulation) then
     call PetscLogEventBegin(logging%event_rt_jacobian_zero_calc, &
                             ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%tran_work_loc, work_loc_p, ierr);CHKERRQ(ierr)
@@ -3767,6 +3768,7 @@ subroutine RTJacobianEquilibrateCO2(J,realization)
   do i = 1, zero_count
     ghosted_id = ghosted_rows(i) ! zero indexing back to 1-based
     if (patch%imat(ghosted_id) <= 0) cycle
+!    if (reaction%use_log_formulation) then
     if (reaction%use_log_formulation .or. reaction%use_plog_formulation) then
       jacobian_entry = rt_auxvars(ghosted_id)%pri_molal(jco2)
     else

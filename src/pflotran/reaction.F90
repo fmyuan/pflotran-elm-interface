@@ -749,6 +749,7 @@ subroutine ReactionReadPass1(reaction,input,option)
                            'CHEMISTRY,DATABASE FILENAME')  
       case('LOG_FORMULATION')
         reaction%use_log_formulation = PETSC_TRUE
+        reaction%use_plog_formulation = PETSC_FALSE   ! only one of 'log' or 'plog'
       case('PLOG_FORMULATION')   !fmy (2015-Jan)
         reaction%use_plog_formulation = PETSC_TRUE
         reaction%use_log_formulation = PETSC_FALSE   ! only one of 'log' or 'plog'
@@ -1806,6 +1807,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     else
       use_log_formulation = PETSC_FALSE
     endif
+    use_plog_formulation = reaction%use_plog_formulation
       
     call RSolve(Res,Jac,rt_auxvar%pri_molal,update,reaction%naqcomp, &
                 use_log_formulation,use_plog_formulation)

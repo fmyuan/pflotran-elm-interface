@@ -1005,6 +1005,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   
   ! (TODO) for plog_formulation it needs checking with GLEN here
   if (reaction%use_log_formulation .or. reaction%use_plog_formulation) then
+!  if (reaction%use_log_formulation) then
   ! scale the jacobian by concentrations
     i = 1
     do k = 1, ncomp
@@ -1166,6 +1167,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
   
   ! (TODO) for plog_formulation it needs checking with GLEN here
   if (reaction%use_log_formulation .or. reaction%use_plog_formulation) then ! log formulation
+!  if (reaction%use_log_formulation) then ! log formulation
     do j = 1, ncomp
       do l = 1, ncomp
         dPsisec_dCprim(j,l) = dCsec_dCprim(j,l)*conc_current_M(j)
