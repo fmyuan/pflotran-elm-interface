@@ -189,16 +189,12 @@ subroutine SolverCreateSNES(solver,comm)
   PetscMPIInt :: comm
   PetscErrorCode :: ierr
   
-  call SNESCreate(comm,solver%snes,ierr)
-  CHKERRQ(ierr)
-  call SNESSetFromOptions(solver%snes,ierr)
-  CHKERRQ(ierr) 
+  call SNESCreate(comm,solver%snes,ierr);CHKERRQ(ierr)
+  call SNESSetFromOptions(solver%snes,ierr);CHKERRQ(ierr)
 
   ! grab handles for ksp and pc
-  call SNESGetKSP(solver%snes,solver%ksp,ierr)
-  CHKERRQ(ierr)
-  call KSPGetPC(solver%ksp,solver%pc,ierr)
-  CHKERRQ(ierr)
+  call SNESGetKSP(solver%snes,solver%ksp,ierr);CHKERRQ(ierr)
+  call KSPGetPC(solver%ksp,solver%pc,ierr);CHKERRQ(ierr)
 
 end subroutine SolverCreateSNES
 
@@ -222,86 +218,71 @@ subroutine SolverSetSNESOptions(solver)
   
   ! if ksp_type or pc_type specified in input file, set them here
   if (len_trim(solver%ksp_type) > 1) then
-    call KSPSetType(solver%ksp,solver%ksp_type,ierr)
-    CHKERRQ(ierr)
+    call KSPSetType(solver%ksp,solver%ksp_type,ierr);CHKERRQ(ierr)
   endif
   if (len_trim(solver%pc_type) > 1) then
-    call PCSetType(solver%pc,solver%pc_type,ierr)
-    CHKERRQ(ierr)
+    call PCSetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
   endif
 
   call KSPSetTolerances(solver%ksp,solver%linear_rtol,solver%linear_atol, &
-                        solver%linear_dtol,solver%linear_maxit,ierr)
-  CHKERRQ(ierr)
+                        solver%linear_dtol,solver%linear_maxit, &
+                        ierr);CHKERRQ(ierr)
 
   ! allow override from command line
-  call KSPSetFromOptions(solver%ksp,ierr)
-  CHKERRQ(ierr)
-  call PCSetFromOptions(solver%pc,ierr)
-  CHKERRQ(ierr)
+  call KSPSetFromOptions(solver%ksp,ierr);CHKERRQ(ierr)
+  call PCSetFromOptions(solver%pc,ierr);CHKERRQ(ierr)
     
   ! get the ksp_type and pc_type incase of command line override.
-  call KSPGetType(solver%ksp,solver%ksp_type,ierr)
-  CHKERRQ(ierr)
-  call PCGetType(solver%pc,solver%pc_type,ierr)
-  CHKERRQ(ierr)
+  call KSPGetType(solver%ksp,solver%ksp_type,ierr);CHKERRQ(ierr)
+  call PCGetType(solver%pc,solver%pc_type,ierr);CHKERRQ(ierr)
   
   if ((solver%pc_type == PCLU .or. solver%pc_type == PCILU) .and. &
       solver%linear_lu_zero_pivot_tol > PETSC_DEFAULT_REAL) then
-    call PCFactorSetZeroPivot(solver%pc,solver%linear_lu_zero_pivot_tol,ierr)
-    CHKERRQ(ierr)
+    call PCFactorSetZeroPivot(solver%pc,solver%linear_lu_zero_pivot_tol, &
+                              ierr);CHKERRQ(ierr)
   endif
 
   ! Set the tolerances for the Newton solver.
   call SNESSetTolerances(solver%snes, solver%newton_atol, solver%newton_rtol, &
                          solver%newton_stol,solver%newton_maxit, &
-                         solver%newton_maxf,ierr)
-  CHKERRQ(ierr)
+                         solver%newton_maxf,ierr);CHKERRQ(ierr)
 
   ! set inexact newton, currently applies default settings
   if (solver%inexact_newton) then
-    call SNESKSPSetUseEW(solver%snes,PETSC_TRUE,ierr)
-    CHKERRQ(ierr)
+    call SNESKSPSetUseEW(solver%snes,PETSC_TRUE,ierr);CHKERRQ(ierr)
   endif
 
 !  call SNESLineSearchSet(solver%snes,SNESLineSearchNo,PETSC_NULL)
 
   ! Setup for n-level Galerkin multigrid.
   if (solver%use_galerkin_mg) then
-    call PCSetType(solver%pc, PCMG,ierr)
-    CHKERRQ(ierr)
+    call PCSetType(solver%pc, PCMG,ierr);CHKERRQ(ierr)
     call PCMGSetLevels(solver%pc, solver%galerkin_mg_levels, &
-                       PETSC_NULL_OBJECT,ierr)
-    CHKERRQ(ierr)
+                       PETSC_NULL_OBJECT,ierr);CHKERRQ(ierr)
     do i=1,solver%galerkin_mg_levels-1
-      call PCMGSetInterpolation(solver%pc, i, solver%interpolation(i),ierr)
-      CHKERRQ(ierr)
-      call PCMGSetGalerkin(solver%pc,ierr)
-      CHKERRQ(ierr)
+      call PCMGSetInterpolation(solver%pc, i, solver%interpolation(i), &
+                                ierr);CHKERRQ(ierr)
+      call PCMGSetGalerkin(solver%pc,ierr);CHKERRQ(ierr)
     enddo
   endif
   
   ! allow override from command line; for some reason must come before
   ! LineSearchParams, or they crash
-  call SNESSetFromOptions(solver%snes,ierr)
-  CHKERRQ(ierr) 
+  call SNESSetFromOptions(solver%snes,ierr);CHKERRQ(ierr)
 
-  call SNESGetLineSearch(solver%snes, linesearch, ierr)
-  CHKERRQ(ierr)
+  call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
   call SNESLineSearchSetTolerances(linesearch, solver%newton_stol,       &
           PETSC_DEFAULT_REAL,PETSC_DEFAULT_REAL, &
           PETSC_DEFAULT_REAL,PETSC_DEFAULT_REAL, &
-          PETSC_DEFAULT_INTEGER, ierr)
-  CHKERRQ(ierr)
+          PETSC_DEFAULT_INTEGER, ierr);CHKERRQ(ierr)
 
   call SNESGetTolerances(solver%snes,solver%newton_atol,solver%newton_rtol, &
                          solver%newton_stol,solver%newton_maxit, &
-                         solver%newton_maxf,ierr)
-  CHKERRQ(ierr)
+                         solver%newton_maxf,ierr);CHKERRQ(ierr)
 
   call KSPGetTolerances(solver%ksp,solver%linear_rtol,solver%linear_atol, &
-                         solver%linear_dtol,solver%linear_maxit,ierr)
-  CHKERRQ(ierr)
+                         solver%linear_dtol,solver%linear_maxit, &
+                        ierr);CHKERRQ(ierr)
 
 end subroutine SolverSetSNESOptions
 
@@ -322,10 +303,8 @@ subroutine SolverCreateTS(solver,comm)
   PetscMPIInt :: comm
   PetscErrorCode :: ierr
   
-  call TSCreate(comm,solver%ts,ierr)
-  CHKERRQ(ierr)
-  call TSSetFromOptions(solver%ts,ierr)
-  CHKERRQ(ierr)
+  call TSCreate(comm,solver%ts,ierr);CHKERRQ(ierr)
+  call TSSetFromOptions(solver%ts,ierr);CHKERRQ(ierr)
 
 end subroutine SolverCreateTS
 
@@ -416,6 +395,8 @@ subroutine SolverReadLinear(solver,input,option)
             solver%pc_type = PCLU
           case('BJACOBI','BLOCK_JACOBI')
             solver%pc_type = PCBJACOBI
+          case('JACOBI')
+            solver%pc_type = PCJACOBI
           case('ASM','ADDITIVE_SCHWARZ')
             solver%pc_type = PCASM
           case('HYPRE')
@@ -442,8 +423,8 @@ subroutine SolverReadLinear(solver,input,option)
               select case(trim(word))
                 case('pilut','parasails','boomeramg','euclid')
                   string = trim(prefix) // 'pc_hypre_type'
-                  call PetscOptionsSetValue(trim(string),trim(word),ierr)
-                  CHKERRQ(ierr); 
+                  call PetscOptionsSetValue(trim(string),trim(word), &
+                                            ierr);CHKERRQ(ierr)
                 case default
                   option%io_buffer  = 'HYPRE preconditioner type: ' // &
                                       trim(word) // ' unknown.'
@@ -456,11 +437,11 @@ subroutine SolverReadLinear(solver,input,option)
               string = trim(prefix) // 'pc_hypre_boomeramg_cycle_type'
               select case(trim(word))
                 case('V')
-                  call PetscOptionsSetValue(trim(string),'1',ierr)
-                  CHKERRQ(ierr); 
+                  call PetscOptionsSetValue(trim(string),'1', &
+                                            ierr);CHKERRQ(ierr)
                 case('W')
-                  call PetscOptionsSetValue(trim(string),'2',ierr)
-                  CHKERRQ(ierr); 
+                  call PetscOptionsSetValue(trim(string),'2', &
+                                            ierr);CHKERRQ(ierr)
                 case default
                   option%io_buffer  = 'HYPRE BoomerAMG cycle type: ' &
                                       // trim(word) // ' unknown.'
@@ -471,113 +452,113 @@ subroutine SolverReadLinear(solver,input,option)
               call InputErrorMsg(input,option,'BoomerAMG maximum levels', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_max_levels'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_MAX_ITER')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG maximum iterations', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_max_iter'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_TOL')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG convergence tolerance', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_tol'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_TRUNCFACTOR')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG interpolation truncation factor', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_truncfactor'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_AGG_NL')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG # levels aggressive coarsening', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_agg_nl'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_AGG_NUM_PATHS')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG # paths for aggressive coarsening', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_agg_num_paths'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_STRONG_THRESHOLD')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG threshold for strong connectivity', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_strong_threshold'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_GRID_SWEEPS_ALL')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG number of grid sweeps up and down cycles', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_grid_sweeps_all'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_GRID_SWEEPS_DOWN')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG number of grid sweeps down cycles', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_grid_sweeps_down'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_GRID_SWEEPS_UP')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG number of grid sweeps up cycles', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_grid_sweeps_up'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_GRID_SWEEPS_COARSE')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG number of grid sweeps for coarse level', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_grid_sweeps_coarse'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_RELAX_TYPE_ALL')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG relaxation type for up and down cycles', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_relax_type_all'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_RELAX_TYPE_DOWN')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG relaxation type for down cycles', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_relax_type_down'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_RELAX_TYPE_UP')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG relaxation type for up cycles', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_relax_type_up'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_RELAX_TYPE_COARSE')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG relaxation type for coarse grids', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_relax_type_coarse'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_RELAX_WEIGHT_ALL')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG relaxation weight for all levels', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_relax_weight_all'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_RELAX_WEIGHT_LEVEL')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputReadWord(input,option,word2,PETSC_TRUE)
@@ -585,15 +566,15 @@ subroutine SolverReadLinear(solver,input,option)
                                  'LINEAR SOLVER, HYPRE options')  
               word = trim(word) // ' ' // trim(word2)
               string = trim(prefix) // 'pc_hypre_boomeramg_relax_weight_level'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_OUTER_RELAX_WEIGHT_ALL')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG outer relaxation weight for all levels', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_outer_relax_weight_all'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_OUTER_RELAX_WEIGHT_LEVEL')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputReadWord(input,option,word2,PETSC_TRUE)
@@ -601,47 +582,44 @@ subroutine SolverReadLinear(solver,input,option)
                                  'LINEAR SOLVER, HYPRE options')  
               word = trim(word) // ' ' // trim(word2)
               string = trim(prefix) // 'pc_hypre_boomeramg_outer_relax_weight_level'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_NO_CF')
               string = trim(prefix) // 'pc_hypre_boomeramg_no_CF'
-              call PetscOptionsSetValue(trim(string),'',ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),'',ierr);CHKERRQ(ierr)
             case('BOOMERAMG_MEASURE_TYPE')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG measure type', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_measure_type'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_COARSEN_TYPE')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG coarsen type', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_coarsen_type'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_INTERPOLATION_TYPE','BOOMERAMG_INTERP_TYPE')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG interpolation type', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_interp_type'
-              call PetscOptionsSetValue(trim(string),trim(word),ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),trim(word), &
+                                        ierr);CHKERRQ(ierr)
             case('BOOMERAMG_NODAL_COARSEN')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG set nodal coarsening', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_nodal_coarsen'
-              call PetscOptionsSetValue(trim(string),'',ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),'',ierr);CHKERRQ(ierr)
             case('BOOMERAMG_NODAL_RELAXATION')
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'BoomerAMG nodal relaxation via Schwarz', &
                                  'LINEAR SOLVER, HYPRE options')  
               string = trim(prefix) // 'pc_hypre_boomeramg_nodal_relaxation'
-              call PetscOptionsSetValue(trim(string),'',ierr)
-              CHKERRQ(ierr); 
+              call PetscOptionsSetValue(trim(string),'',ierr);CHKERRQ(ierr)
             case default
               option%io_buffer  = 'HYPRE option: ' // trim(keyword) // ' unknown.'
               call printErrMsg(option)
@@ -858,7 +836,7 @@ subroutine SolverPrintLinearInfo(solver,header,option)
   implicit none
   
   type(solver_type) :: solver
-  character(len=MAXSTRINGLENGTH) :: header  
+  character(len=*) :: header  
   type(option_type) :: option
 
   PetscInt :: fid
@@ -873,7 +851,7 @@ subroutine SolverPrintLinearInfo(solver,header,option)
   
   if (OptionPrintToScreen(option)) then
     write(*,*) 
-    write(*,'(a)') trim(header)
+    write(*,'(a)') trim(header) // ' Linear Solver'
     write(*,'("   solver:  ",a)') trim(solver%ksp_type)
     write(*,'("  precond:  ",a)') trim(solver%pc_type)
     write(*,'("     atol:",1pe12.4)') solver%linear_atol
@@ -889,7 +867,7 @@ subroutine SolverPrintLinearInfo(solver,header,option)
   if (OptionPrintToFile(option)) then
     fid = option%fid_out
     write(fid,*) 
-    write(fid,'(a)') trim(header)
+    write(fid,'(a)') trim(header) // ' Linear Solver'
     write(fid,'("   solver:  ",a)') trim(solver%ksp_type)
     write(fid,'("  precond:  ",a)') trim(solver%pc_type)
     write(fid,'("     atol:",1pe12.4)') solver%linear_atol
@@ -906,26 +884,25 @@ end subroutine SolverPrintLinearInfo
 
 ! ************************************************************************** !
 
-subroutine SolverPrintNewtonInfo(solver,print_to_screen,print_to_file,fid, &
-                                 header)    
+subroutine SolverPrintNewtonInfo(solver,header,option)    
   ! 
   ! Prints information about Newton solver
   ! 
   ! Author: Glenn Hammond
   ! Date: 02/23/08
   ! 
+  use Option_module
 
   implicit none
   
   type(solver_type) :: solver
-  PetscBool :: print_to_screen
-  PetscBool :: print_to_file  
+  character(len=*) :: header  
+  type(option_type) :: option
   PetscInt :: fid
-  character(len=MAXSTRINGLENGTH) :: header  
 
-  if (print_to_screen) then
+  if (OptionPrintToScreen(option)) then
     write(*,*) 
-    write(*,'(a)') trim(header)
+    write(*,'(a)') trim(header) // ' Newton Solver'
     write(*,'("     atol:",1pe12.4)') solver%newton_atol
     write(*,'("     rtol:",1pe12.4)') solver%newton_rtol
     write(*,'("     stol:",1pe12.4)') solver%newton_stol
@@ -973,9 +950,10 @@ subroutine SolverPrintNewtonInfo(solver,print_to_screen,print_to_file,fid, &
     endif
   endif
 
-  if (print_to_file) then
+  if (OptionPrintToFile(option)) then
+    fid = option%fid_out
     write(fid,*) 
-    write(fid,'(a)') trim(header)
+    write(fid,'(a)') trim(header) // ' Newton Solver'
     write(fid,'("     atol:",1pe12.4)') solver%newton_atol
     write(fid,'("     rtol:",1pe12.4)') solver%newton_rtol
     write(fid,'("     stol:",1pe12.4)') solver%newton_stol
@@ -1049,19 +1027,18 @@ subroutine SolverCheckCommandLine(solver)
   PetscBool :: is_present
 
   if (solver%snes /= 0) then
-    call SNESGetOptionsPrefix(solver%snes, prefix, ierr)
-    CHKERRQ(ierr)
+    call SNESGetOptionsPrefix(solver%snes, prefix, ierr);CHKERRQ(ierr)
   else
     prefix = PETSC_NULL_CHARACTER
   endif
 
   ! Parse the options to determine if the matrix type has been specified.
-  call PetscOptionsGetString(prefix, '-mat_type', mat_type, is_present,ierr)
-  CHKERRQ(ierr)
+  call PetscOptionsGetString(prefix, '-mat_type', mat_type, is_present, &
+                             ierr);CHKERRQ(ierr)
   if (is_present) solver%J_mat_type = trim(mat_type)
   
-  call PetscOptionsGetString(prefix, '-pre_mat_type', mat_type, is_present,ierr)
-  CHKERRQ(ierr)
+  call PetscOptionsGetString(prefix, '-pre_mat_type', mat_type, is_present, &
+                             ierr);CHKERRQ(ierr)
   if (is_present) solver%Jpre_mat_type = trim(mat_type)
 
   ! Parse the options for the Galerkin multigrid solver.
@@ -1073,8 +1050,7 @@ subroutine SolverCheckCommandLine(solver)
   ! override the number of levels in the x direction set by '-galerkin_mg'.
   call PetscOptionsGetInt(prefix, '-galerkin_mg', &
                           solver%galerkin_mg_levels, solver%use_galerkin_mg, &
-                          ierr)
-  CHKERRQ(ierr)
+                          ierr);CHKERRQ(ierr)
   if (solver%use_galerkin_mg) then
     solver%galerkin_mg_levels_x = solver%galerkin_mg_levels
     solver%galerkin_mg_levels_y = solver%galerkin_mg_levels
@@ -1082,16 +1058,16 @@ subroutine SolverCheckCommandLine(solver)
   endif
 
   call PetscOptionsGetInt(prefix, '-galerkin_mg_x', &
-                          solver%galerkin_mg_levels_x, is_present,ierr)
-  CHKERRQ(ierr)
+                          solver%galerkin_mg_levels_x, is_present, &
+                          ierr);CHKERRQ(ierr)
   if (is_present) solver%use_galerkin_mg = PETSC_TRUE
   call PetscOptionsGetInt(prefix, '-galerkin_mg_y', &
-                          solver%galerkin_mg_levels_y, is_present,ierr)
-  CHKERRQ(ierr)
+                          solver%galerkin_mg_levels_y, is_present, &
+                          ierr);CHKERRQ(ierr)
   if (is_present) solver%use_galerkin_mg = PETSC_TRUE
   call PetscOptionsGetInt(prefix, '-galerkin_mg_z', &
-                          solver%galerkin_mg_levels_z, is_present,ierr)
-  CHKERRQ(ierr)
+                          solver%galerkin_mg_levels_z, is_present, &
+                          ierr);CHKERRQ(ierr)
   if (is_present) solver%use_galerkin_mg = PETSC_TRUE
 
   if (solver%use_galerkin_mg) then
@@ -1127,32 +1103,26 @@ subroutine SolverDestroy(solver)
   if (solver%Jpre == solver%J) then
     solver%Jpre = 0
   else if (solver%Jpre /= 0) then
-    call MatDestroy(solver%Jpre,ierr)
-    CHKERRQ(ierr)
+    call MatDestroy(solver%Jpre,ierr);CHKERRQ(ierr)
   endif
   if (solver%J /= 0) then
-    call MatDestroy(solver%J,ierr)
-    CHKERRQ(ierr)
+    call MatDestroy(solver%J,ierr);CHKERRQ(ierr)
   endif
   if (associated(solver%interpolation)) then
     do i=1,solver%galerkin_mg_levels-1
-      call MatDestroy(solver%interpolation(i),ierr)
-      CHKERRQ(ierr)
+      call MatDestroy(solver%interpolation(i),ierr);CHKERRQ(ierr)
     enddo
     deallocate(solver%interpolation)
   endif
   if (solver%matfdcoloring /= 0) then
-    call MatFDColoringDestroy(solver%matfdcoloring,ierr)
-    CHKERRQ(ierr)
+    call MatFDColoringDestroy(solver%matfdcoloring,ierr);CHKERRQ(ierr)
   endif
 
   if (solver%snes /= 0) then
-    call SNESDestroy(solver%snes,ierr)
-    CHKERRQ(ierr)
+    call SNESDestroy(solver%snes,ierr);CHKERRQ(ierr)
   endif
   if (solver%ts /= 0) then
-    call TSDestroy(solver%ts,ierr)
-    CHKERRQ(ierr)
+    call TSDestroy(solver%ts,ierr);CHKERRQ(ierr)
   endif
 
   solver%ksp = 0

@@ -62,6 +62,7 @@ module Option_module
     PetscInt :: nsec_cells
     PetscBool :: use_th_freezing
 
+    PetscBool :: surf_flow_on
     PetscInt :: nsurfflowdof
     PetscInt :: subsurf_surf_coupling
     PetscInt :: surface_flow_formulation
@@ -73,6 +74,11 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: surf_initialize_flow_filename
     character(len=MAXSTRINGLENGTH) :: surf_restart_filename
 
+    PetscInt  :: ngeomechdof
+    PetscInt  :: n_stress_strain_dof
+    PetscReal :: geomech_time
+    PetscInt  :: geomech_subsurf_coupling
+    PetscReal :: geomech_gravity(3)
     PetscBool :: sec_vars_update
     PetscInt :: air_pressure_id
     PetscInt :: capillary_pressure_id
@@ -99,10 +105,7 @@ module Option_module
     PetscBool :: print_file_flag
     PetscInt :: verbosity  ! Values >0 indicate additional console output.
     
-    PetscInt, pointer :: garbage ! for some reason, Intel will not compile without this
-
     PetscReal :: uniform_velocity(3)
-    PetscBool :: store_flowrate
 
     ! Program options
     PetscBool :: use_matrix_free  ! If true, do not form the Jacobian.
@@ -190,8 +193,6 @@ module Option_module
     PetscBool :: steady_state
     PetscBool :: use_matrix_buffer
     PetscBool :: force_newton_iteration
-    PetscBool :: mimetic
-    PetscBool :: ani_relative_permeability
     PetscBool :: use_upwinding
     PetscBool :: out_of_table
 
@@ -205,6 +206,9 @@ module Option_module
     ! Type of averaging scheme for relative permeability
     PetscInt :: rel_perm_aveg
     PetscBool :: first_step_after_restart
+
+    ! value of a cutoff for Manning's velocity
+    PetscReal :: max_manning_velocity
 
   end type option_type
   
@@ -353,9 +357,6 @@ subroutine OptionInitAll(option)
 
   option%input_filename = ''
 
-  option%mimetic = PETSC_FALSE
-  option%ani_relative_permeability = PETSC_FALSE
-
   option%use_upwinding = PETSC_TRUE
 
   option%out_of_table = PETSC_FALSE
@@ -365,7 +366,7 @@ subroutine OptionInitAll(option)
  
   option%rel_perm_aveg = UPWIND
   option%first_step_after_restart = PETSC_FALSE
-
+  
   call OptionInitRealization(option)
 
 end subroutine OptionInitAll
@@ -413,6 +414,7 @@ subroutine OptionInitRealization(option)
   option%use_th_freezing = PETSC_FALSE
 
   option%nsurfflowdof = 0
+  option%surf_flow_on = PETSC_FALSE
   option%subsurf_surf_coupling = DECOUPLED
   option%surface_flow_formulation = DIFFUSION_WAVE
   option%surf_flow_dt = 0.d0
@@ -422,7 +424,14 @@ subroutine OptionInitRealization(option)
   option%surf_initialize_flow_filename = ""
   option%surf_restart_filename = ""
   option%surf_restart_flag = PETSC_FALSE
-  option%surf_restart_time = -999.0
+  option%surf_restart_time = UNINITIALIZED_DOUBLE
+
+  option%ngeomechdof = 0
+  option%n_stress_strain_dof = 0
+  option%geomech_time = 0.d0
+  option%geomech_subsurf_coupling = 0 
+  option%geomech_gravity(:) = 0.d0
+  option%geomech_gravity(3) = -9.8068d0    ! m/s^2
 
   option%tranmode = ""
   option%itranmode = NULL_MODE
@@ -496,7 +505,7 @@ subroutine OptionInitRealization(option)
   
   option%restart_flag = PETSC_FALSE
   option%restart_filename = ""
-  option%restart_time = -999.d0
+  option%restart_time = UNINITIALIZED_DOUBLE
   option%checkpoint_flag = PETSC_FALSE
   option%checkpoint_frequency = huge(option%checkpoint_frequency)
   
@@ -519,10 +528,6 @@ subroutine OptionInitRealization(option)
 !fmy: mass_balance for bc/ss IS needed by default if coupled with CLM
 
   option%mass_bal_detailed = PETSC_FALSE
-  option%store_flowrate = PETSC_FALSE
-#ifdef STORE_FLOWRATES
-  option%store_flowrate = PETSC_TRUE
-#endif
 
   option%use_touch_options = PETSC_FALSE
   option%overwrite_restart_transport = PETSC_FALSE
@@ -554,11 +559,13 @@ subroutine OptionInitRealization(option)
   option%use_matrix_buffer = PETSC_FALSE
   option%status = PROCEED 
   option%force_newton_iteration = PETSC_FALSE
-  option%mimetic = PETSC_FALSE
   option%variables_swapped = PETSC_FALSE
   option%print_explicit_primal_grid = PETSC_FALSE
   option%print_explicit_dual_grid = PETSC_FALSE  
   option%secondary_continuum_solver = 1
+
+  ! initially set to a large value to effectively disable
+  option%max_manning_velocity = 1.d20
   
 end subroutine OptionInitRealization
 
@@ -582,46 +589,39 @@ subroutine OptionCheckCommandLine(option)
   character(len=MAXSTRINGLENGTH) :: string
   
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-buffer_matrix", & 
-                           option%use_matrix_buffer, ierr)
-  CHKERRQ(ierr)
+                           option%use_matrix_buffer, ierr);CHKERRQ(ierr)
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-snes_mf", & 
-                           option%use_matrix_free, ierr)
-  CHKERRQ(ierr)
+                           option%use_matrix_free, ierr);CHKERRQ(ierr)
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-use_isothermal", &
-                           option%use_isothermal, ierr)
-  CHKERRQ(ierr)
+                           option%use_isothermal, ierr);CHKERRQ(ierr)
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-use_mc", &
-                           option%use_mc, ierr)
-  CHKERRQ(ierr)
+                           option%use_mc, ierr);CHKERRQ(ierr)
                            
   call PetscOptionsGetString(PETSC_NULL_CHARACTER, '-restart', &
                              option%restart_filename, &
-                             option%restart_flag, ierr)
-  CHKERRQ(ierr)
+                             option%restart_flag, ierr);CHKERRQ(ierr)
   call PetscOptionsGetInt(PETSC_NULL_CHARACTER, '-chkptfreq', &
                           option%checkpoint_frequency, &
-                          option%checkpoint_flag, ierr)
-  CHKERRQ(ierr)                           
+                          option%checkpoint_flag, ierr);CHKERRQ(ierr)
+  call PetscOptionsGetReal(PETSC_NULL_CHARACTER, '-max_manning_velocity', &
+                           option%max_manning_velocity, &
+                           option_found, ierr);CHKERRQ(ierr)
   ! check on possible modes                                                     
   option_found = PETSC_FALSE
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-use_richards", &
-                           option_found, ierr)
-  CHKERRQ(ierr)
+                           option_found, ierr);CHKERRQ(ierr)
   if (option_found) option%flowmode = "richards"                           
   option_found = PETSC_FALSE
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-use_thc", &
-                           option_found, ierr)
-  CHKERRQ(ierr)
+                           option_found, ierr);CHKERRQ(ierr)
   if (option_found) option%flowmode = "thc"     
   option_found = PETSC_FALSE
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-use_mph", &
-                           option_found, ierr)
-  CHKERRQ(ierr)
+                           option_found, ierr);CHKERRQ(ierr)
   if (option_found) option%flowmode = "mph"                           
   option_found = PETSC_FALSE
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-use_flash2", &
-                           option_found, ierr)
-  CHKERRQ(ierr)
+                           option_found, ierr);CHKERRQ(ierr)
   if (option_found) option%flowmode = "flash2"                           
  
 end subroutine OptionCheckCommandLine
@@ -666,13 +666,11 @@ subroutine printErrMsg2(option,string)
     print *
     print *, 'ERROR: ' // trim(string)
     print *, 'Stopping!'
-  endif    
+  endif
   call MPI_Barrier(option%mycomm,ierr)
-  call PetscInitialized(petsc_initialized, ierr)
-  CHKERRQ(ierr)
+  call PetscInitialized(petsc_initialized, ierr);CHKERRQ(ierr)
   if (petsc_initialized) then
-    call PetscFinalize(ierr)
-    CHKERRQ(ierr)
+    call PetscFinalize(ierr);CHKERRQ(ierr)
   endif
   stop
   
@@ -685,7 +683,7 @@ subroutine printErrMsgByRank1(option)
   ! Prints the error message from processor with error along
   ! with rank
   ! 
-  ! Author: Glenn Hammond
+  ! Author: Glenn Hammond 
   ! Date: 11/04/11
   ! 
 
@@ -1119,15 +1117,12 @@ subroutine OptionInitPetsc(option)
   PetscErrorCode :: ierr
   
   PETSC_COMM_WORLD = option%mycomm
-  call PetscInitialize(PETSC_NULL_CHARACTER, ierr)
-  CHKERRQ(ierr)
+  call PetscInitialize(PETSC_NULL_CHARACTER, ierr);CHKERRQ(ierr)    !fmy: tiny memory leak here (don't know why)
   
   if (option%verbosity > 0) then 
-    call PetscLogBegin(ierr)
-    CHKERRQ(ierr)
+    call PetscLogBegin(ierr);CHKERRQ(ierr)
     string = '-log_summary'
-    call PetscOptionsInsertString(string, ierr)
-    CHKERRQ(ierr)
+    call PetscOptionsInsertString(string, ierr);CHKERRQ(ierr)
   endif 
 
   call LoggingCreate()
@@ -1144,8 +1139,6 @@ subroutine OptionBeginTiming(option)
   ! Date: 06/07/13
   ! 
 
-  use Logging_module
-  
   implicit none
   
 #include "finclude/petsclog.h"
@@ -1155,8 +1148,7 @@ subroutine OptionBeginTiming(option)
   PetscLogDouble :: timex_wall
   PetscErrorCode :: ierr
   
-  call PetscTime(timex_wall, ierr)
-  CHKERRQ(ierr)
+  call PetscTime(timex_wall, ierr);CHKERRQ(ierr)
   option%start_time = timex_wall
   
 end subroutine OptionBeginTiming
@@ -1171,8 +1163,6 @@ subroutine OptionEndTiming(option)
   ! Date: 06/07/13
   ! 
 
-  use Logging_module
-  
   implicit none
   
 #include "finclude/petsclog.h"
@@ -1183,8 +1173,7 @@ subroutine OptionEndTiming(option)
   PetscErrorCode :: ierr
   
   ! Final Time
-  call PetscTime(timex_wall, ierr)
-  CHKERRQ(ierr)
+  call PetscTime(timex_wall, ierr);CHKERRQ(ierr)
     
   if (option%myrank == option%io_rank) then
 
@@ -1304,15 +1293,12 @@ subroutine OptionFinalize(option)
   PetscErrorCode :: ierr
   
   call LoggingDestroy()
-  call PetscOptionsSetValue('-options_left','no',ierr)
-  CHKERRQ(ierr)
+  call PetscOptionsSetValue('-options_left','no',ierr);CHKERRQ(ierr)
   ! list any PETSc objects that have not been freed - for debugging
-  call PetscOptionsSetValue('-objects_left','yes',ierr)
-  CHKERRQ(ierr)
+  call PetscOptionsSetValue('-objects_left','yes',ierr);CHKERRQ(ierr)
   call MPI_Barrier(option%global_comm,ierr)
   call OptionDestroy(option)
-  call PetscFinalize(ierr)
-  CHKERRQ(ierr)
+  call PetscFinalize(ierr);CHKERRQ(ierr)
   call MPI_Finalize(ierr)
   call exit(86)
   

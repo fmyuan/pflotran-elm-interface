@@ -30,8 +30,18 @@ module HDF5_Aux_module
 #endif
 
   public :: HDF5ReadNDimRealArray, &
+#ifdef SCORPIO
+            HDF5ReadDatasetInteger2D, &
+            HDF5ReadDatasetReal2D, &
+            HDF5ReadDatasetReal1D, &
+            HDF5ReadDataset
             HDF5GroupExists, &
-            HDF5MakeStringCompatible
+#else
+            HDF5GroupExists, &
+#endif
+! SCORPIO
+            HDF5MakeStringCompatible, &
+            HDF5ReadDbase
 
 contains
 
@@ -77,8 +87,8 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   PetscInt :: temp_int, i, index
   PetscMPIInt :: int_mpi
   
-  call PetscLogEventBegin(logging%event_read_ndim_real_array_hdf5,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventBegin(logging%event_read_ndim_real_array_hdf5, &
+                          ierr);CHKERRQ(ierr)
                           
   call h5dopen_f(file_id,dataset_name,data_set_id,hdf5_err)
   call h5dget_space_f(data_set_id,file_space_id,hdf5_err)
@@ -113,12 +123,10 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
 #ifdef HDF5_BROADCAST
   if (option%myrank == option%io_rank) then                           
 #endif
-    call PetscLogEventBegin(logging%event_h5dread_f,ierr)
-    CHKERRQ(ierr)
+    call PetscLogEventBegin(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
     call h5dread_f(data_set_id,H5T_NATIVE_DOUBLE,real_array,length, &
                    hdf5_err,memory_space_id,file_space_id,prop_id)
-    call PetscLogEventEnd(logging%event_h5dread_f,ierr)
-    CHKERRQ(ierr)                              
+    call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
 #ifdef HDF5_BROADCAST
   endif
   if (option%mycommsize > 1) then
@@ -136,8 +144,8 @@ subroutine HDF5ReadNDimRealArray(option,file_id,dataset_name,ndims,dims, &
   deallocate(dims_h5)
   deallocate(max_dims_h5) 
 
-  call PetscLogEventEnd(logging%event_read_ndim_real_array_hdf5,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventEnd(logging%event_read_ndim_real_array_hdf5, &
+                        ierr);CHKERRQ(ierr)
                           
 end subroutine HDF5ReadNDimRealArray
 
@@ -230,6 +238,10 @@ end subroutine HDF5ReadDatasetInteger2D
 
 subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
            data,data_dims,dataset_dims)
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 05/13/2010
+  ! 
   use hdf5
   use Option_module
   
@@ -274,6 +286,7 @@ subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
   
   data_dims(1) = dataset_dims(1)/option%mycommsize
   data_dims(2) = dataset_dims(2)
+  !write(*,*), 'dataset_dims ',dataset_dims(:)
 
   remainder = dataset_dims(1) - data_dims(1)*option%mycommsize
   if (option%myrank < remainder) data_dims(1) = data_dims(1) + 1
@@ -301,9 +314,97 @@ subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
 end subroutine HDF5ReadDatasetReal2D
 #endif
 
+#if defined(PARALLELIO_LIB)
+
+! ************************************************************************** !
+
+subroutine HDF5ReadDatasetReal1D(filename,dataset_name,read_option,option, &
+           data,data_dims,dataset_dims)
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 05/13/2010
+  ! 
+
+  use hdf5
+  use Option_module
+  
+  implicit none
+  
+#if defined(PARALLELIO_LIB)
+  include "piof.h"  
+#endif
+
+  ! in
+  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  integer                        :: read_option
+  type(option_type)              :: option
+  
+  ! out
+  PetscReal,pointer              :: data(:)
+  PetscInt                       :: data_dims(1)
+  PetscInt                       :: dataset_dims(1)
+  
+  ! local
+  integer :: file_id
+  integer :: ndims
+  PetscInt :: ii, remainder
+
+  PetscErrorCode :: ierr
+  
+  ! Open file collectively
+  filename = trim(filename) // CHAR(0)
+  call parallelIO_open_file(filename, option%ioread_group_id, FILE_READONLY, file_id, ierr)
+
+  ! Get dataset dimnesions
+  call parallelIO_get_dataset_ndims(ndims, file_id, dataset_name, option%ioread_group_id, ierr)
+  if (ndims.ne.1) then
+    option%io_buffer='Dimension of ' // dataset_name // ' dataset in ' // filename // &
+	   ' is not equal to 1.'
+	call printErrMsg(option)
+  endif
+  
+  ! Get size of each dimension
+  call parallelIO_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
+  
+  data_dims(1) = dataset_dims(1)/option%mycommsize
+
+  remainder = dataset_dims(1) - data_dims(1)*option%mycommsize
+  if (option%myrank < remainder) data_dims(1) = data_dims(1) + 1
+
+  
+  allocate(data(data_dims(1)))
+  
+  !call parallelIO_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
+
+  ! Read the dataset collectively
+  call parallelIO_read_dataset( data, PIO_DOUBLE, ndims, dataset_dims, data_dims, & 
+            file_id, dataset_name, option%ioread_group_id, NONUNIFORM_CONTIGUOUS_READ, ierr)
+  
+  !data_dims(1) = data_dims(1) + data_dims(2)
+  !data_dims(2) = data_dims(1) - data_dims(2)
+  !data_dims(1) = data_dims(1) - data_dims(2)
+
+  !dataset_dims(1) = dataset_dims(1) + dataset_dims(2)
+  !dataset_dims(2) = dataset_dims(1) - dataset_dims(2)
+  !dataset_dims(1) = dataset_dims(1) - dataset_dims(2)
+
+  ! Close file
+  call parallelIO_close_file( file_id, option%ioread_group_id, ierr)  
+
+end subroutine HDF5ReadDatasetReal1D
+
+#endif ! PARALLELIO_LIB
+
 ! ************************************************************************** !
 
 function HDF5GroupExists(filename,group_name,option)
+  ! 
+  ! Returns true if a group exists
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/26/2012
+  ! 
   ! 
   ! SCORPIO
   ! Returns true if a group exists
@@ -421,6 +522,156 @@ subroutine HDF5MakeStringCompatible(name)
   name = trim(name)
 
 end subroutine HDF5MakeStringCompatible
+
+! ************************************************************************** !
+
+subroutine HDF5ReadDbase(filename,option)
+  ! 
+  ! Read in an ASCII database
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/19/14
+  ! 
+  use Option_module
+  use String_module
+  use Input_Aux_module, only : dbase
+  use h5lt
+  
+  implicit none
+  
+  character(len=MAXWORDLENGTH) :: filename
+  type(option_type) :: option
+  
+  PetscInt :: icount
+  PetscReal, allocatable :: buffer(:)
+  PetscInt :: num_objects, i_object, object_type, dummy_int
+  PetscInt :: value_index
+  character(len=MAXWORDLENGTH) :: object_name, word
+#if defined(PETSC_HAVE_HDF5)  
+  integer(HID_T) :: file_id
+  integer(HID_T) :: prop_id
+  integer(HID_T) :: dataset_id
+  integer(HID_T) :: file_space_id
+  integer(HID_T) :: memory_space_id
+  integer(HSIZE_T) :: num_reals_in_dataset
+!  integer(HSIZE_T) :: dims(1)
+  integer(SIZE_T) :: type_size
+  integer(HSIZE_T) :: offset(1), length(1), stride(1)
+  PetscMPIInt :: rank_mpi
+  PetscMPIInt :: int_mpi
+  PetscMPIInt :: hdf5_err
+#endif
+
+  call h5open_f(hdf5_err)
+  option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
+  call printMsg(option)
+  call h5pcreate_f(H5P_FILE_ACCESS_F,prop_id,hdf5_err)
+#ifndef SERIAL_HDF5
+  call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
+#endif
+  call h5fopen_f(filename,H5F_ACC_RDONLY_F,file_id,hdf5_err,prop_id)
+  call h5pclose_f(prop_id,hdf5_err)
+  call h5gn_members_f(file_id, '.',num_objects, hdf5_err)
+  icount = 0
+  ! index is zero-based
+  do i_object = 0, num_objects-1
+    call h5gget_obj_info_idx_f(file_id,'.',i_object,object_name, &
+                               object_type,hdf5_err)
+    if (object_type == H5G_DATASET_F) icount = icount + 1
+  enddo
+  allocate(dbase)
+  allocate(dbase%card(icount))
+  dbase%card = ''
+  allocate(dbase%value(icount))
+  dbase%value = UNINITIALIZED_DOUBLE
+  value_index = 1
+  if (option%id > 0) then
+    value_index = option%id
+  endif
+  icount = 0
+  do i_object = 0, num_objects-1
+    call h5gget_obj_info_idx_f(file_id,'.',i_object,object_name, &
+                               object_type,hdf5_err)
+    if (object_type == H5G_DATASET_F) then
+      icount = icount + 1
+! use once HDF5 lite is linked in PETSc      
+!      call h5ltget_dataset_info_f(file_id,object_name,dims,dummy_int, &
+!                                  type_size,hdf5_err)
+!      allocate(buffer(dims(1)))
+!      buffer = 0.d0
+!      call h5ltread_dataset_double_f(file_id,object_name,buffer, &
+!                                     dims,hdf5_err)
+!      dbase%card(icount) = trim(object_name)
+!      if (option%id > 0) then
+!        if (option%id > dims(1)) then
+!          write(word,*) dims(1)
+!          option%io_buffer = 'DBASE dataset "' // trim(object_name) // &
+!            '" is too small (' // trim(adjustl(word)) // &
+!            ') for number of realizations.'
+!          call printErrMsg(option)
+!        endif
+!        dbase%value(icount) = buffer(option%id)
+!      else
+!        dbase%value(icount) = buffer(1)
+!      endif
+!      deallocate(buffer)
+
+      call h5dopen_f(file_id,object_name,dataset_id,hdf5_err)
+      call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
+      ! should be a rank=1 data space
+      call h5sget_simple_extent_npoints_f(file_space_id, &
+                                          num_reals_in_dataset,hdf5_err)
+      rank_mpi = 1
+      offset = 0
+      length = num_reals_in_dataset
+      stride = 1
+      call h5pcreate_f(H5P_DATASET_XFER_F,prop_id,hdf5_err)
+#ifndef SERIAL_HDF5
+      call h5pset_dxpl_mpio_f(prop_id,H5FD_MPIO_INDEPENDENT_F,hdf5_err)
+#endif
+      call h5screate_simple_f(rank_mpi,length,memory_space_id,hdf5_err, &
+                              length)
+      allocate(buffer(num_reals_in_dataset))
+      buffer = 0.d0
+#ifdef HDF5_BROADCAST
+      if (option%myrank == option%io_rank) then                           
+#endif
+        call PetscLogEventBegin(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
+        call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,buffer,length, &
+                       hdf5_err,memory_space_id,file_space_id,prop_id)
+        call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
+#ifdef HDF5_BROADCAST
+      endif
+      if (option%mycommsize > 1) then
+        int_mpi = num_reals_in_dataset
+        call MPI_Bcast(buffer,int_mpi,MPI_DOUBLE_PRECISION, &
+                       option%io_rank,option%mycomm,ierr)
+      endif
+#endif
+      call h5pclose_f(prop_id,hdf5_err)
+      if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
+      call h5sclose_f(file_space_id,hdf5_err)
+      call h5dclose_f(dataset_id,hdf5_err)
+      call StringToUpper(object_name)
+      dbase%card(icount) = trim(object_name)
+      if (option%id > 0) then
+        if (option%id > num_reals_in_dataset) then
+          write(word,*) num_reals_in_dataset
+          option%io_buffer = 'Data in DBASE_FILENAME "' // &
+            trim(object_name) // &
+            '" is too small (' // trim(adjustl(word)) // &
+            ') for number of realizations.'
+          call printErrMsg(option)
+        endif
+      endif
+      dbase%value(icount) = buffer(value_index)
+      deallocate(buffer)
+    endif
+  enddo
+  call h5fclose_f(file_id,hdf5_err)
+  call h5close_f(hdf5_err)
+      
+end subroutine HDF5ReadDbase
 
 #endif
 ! defined(PETSC_HAVE_HDF5)

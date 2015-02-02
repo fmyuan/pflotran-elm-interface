@@ -19,6 +19,10 @@ module Output_Surface_module
 #include "finclude/petscdm.h90"
 #include "finclude/petsclog.h"
 
+#if defined(SCORPIO_WRITE)
+  include "scorpiof.h"
+#endif
+
   ! flags signifying the first time a routine is called during a given
   ! simulation
   PetscBool :: hydrograph_first
@@ -94,8 +98,7 @@ subroutine OutputSurface(surf_realization,realization,plot_flag, &
 
   option => surf_realization%option
 
-  call PetscLogStagePush(logging%stage(OUTPUT_STAGE),ierr)
-  CHKERRQ(ierr)
+  call PetscLogStagePush(logging%stage(OUTPUT_STAGE),ierr);CHKERRQ(ierr)
 
   ! check for plot request from active directory
   if (.not.plot_flag) then
@@ -115,30 +118,24 @@ subroutine OutputSurface(surf_realization,realization,plot_flag, &
     endif
   
     if (surf_realization%output_option%print_tecplot) then
-      call PetscTime(tstart,ierr)
-      CHKERRQ(ierr)
-      call PetscLogEventBegin(logging%event_output_tecplot,ierr)
-      CHKERRQ(ierr) 
+      call PetscTime(tstart,ierr);CHKERRQ(ierr)
+      call PetscLogEventBegin(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
       select case(surf_realization%output_option%tecplot_format)
         case (TECPLOT_FEQUADRILATERAL_FORMAT)
           call OutputTecplotFEQUAD(surf_realization,realization)
       end select
-      call PetscTime(tend,ierr)
-      CHKERRQ(ierr)
-      call PetscLogEventEnd(logging%event_output_tecplot,ierr)
-      CHKERRQ(ierr)
+      call PetscTime(tend,ierr);CHKERRQ(ierr)
+      call PetscLogEventEnd(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
     endif
 
     if (surf_realization%output_option%print_hydrograph) then
-      call PetscTime(tstart,ierr)
-      CHKERRQ(ierr) 
-      call PetscLogEventBegin(logging%event_output_hydrograph,ierr)
-      CHKERRQ(ierr)
+      call PetscTime(tstart,ierr);CHKERRQ(ierr)
+      call PetscLogEventBegin(logging%event_output_hydrograph, &
+                              ierr);CHKERRQ(ierr)
       call OutputHydrograph(surf_realization)
-      call PetscTime(tend,ierr)
-      CHKERRQ(ierr)
-      call PetscLogEventEnd(logging%event_output_hydrograph,ierr)
-      CHKERRQ(ierr)
+      call PetscTime(tend,ierr);CHKERRQ(ierr)
+      call PetscLogEventEnd(logging%event_output_hydrograph, &
+                            ierr);CHKERRQ(ierr)
     endif
 
   endif
@@ -147,13 +144,12 @@ subroutine OutputSurface(surf_realization,realization,plot_flag, &
   call OutputSurfaceAvegVars(surf_realization,realization)
 
   ! Increment the plot number
-  if(plot_flag) then
+  if (plot_flag) then
     surf_realization%output_option%plot_number = &
       surf_realization%output_option%plot_number + 1
   endif
 
-  call PetscLogStagePop(ierr)
-  CHKERRQ(ierr)
+  call PetscLogStagePop(ierr);CHKERRQ(ierr)
 
 end subroutine OutputSurface
 
@@ -172,7 +168,7 @@ subroutine OutputTecplotFEQUAD(surf_realization,realization)
   use Realization_class, only : realization_type
   use Discretization_module
   use Grid_module
-  use Unstructured_Grid_Aux_module
+  use Grid_Unstructured_Aux_module
   use Option_module
   use Surface_Field_module
   use Patch_module
@@ -182,10 +178,9 @@ subroutine OutputTecplotFEQUAD(surf_realization,realization)
   type(surface_realization_type) :: surf_realization
   class(realization_type) :: realization
   
-  PetscInt :: i, comma_count, quote_count
+  PetscInt :: i
   PetscInt, parameter :: icolumn = -1
   character(len=MAXSTRINGLENGTH) :: filename, string, string2
-  character(len=MAXHEADERLENGTH) :: header, header2
   character(len=MAXSTRINGLENGTH) :: tmp_global_prefix
   character(len=MAXWORDLENGTH) :: word
   type(grid_type), pointer :: grid
@@ -254,10 +249,8 @@ subroutine OutputTecplotFEQUAD(surf_realization,realization)
     cur_variable => cur_variable%next
   enddo
 
-  call VecDestroy(natural_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(global_vec,ierr)
-  CHKERRQ(ierr)
+  call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   
   ! write vertices
   call WriteTecplotUGridElements(OUTPUT_UNIT,surf_realization)
@@ -287,15 +280,13 @@ subroutine OutputTecplotHeader(fid,surf_realization,icolumn)
   type(surface_realization_type) :: surf_realization
   PetscInt :: icolumn
   
-  character(len=MAXHEADERLENGTH) :: header, header2
   character(len=MAXSTRINGLENGTH) :: string, string2
   character(len=MAXWORDLENGTH) :: word
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(output_option_type), pointer :: output_option
-  PetscInt :: comma_count, quote_count, variable_count
-  PetscInt :: i
+  PetscInt :: variable_count
   
   patch => surf_realization%patch
   grid => patch%grid
@@ -308,43 +299,30 @@ subroutine OutputTecplotHeader(fid,surf_realization,icolumn)
                 option%surf_flow_time/output_option%tconv,output_option%tunit
 
   ! initial portion of header
-  header = 'VARIABLES=' // &
-            '"X [m]",' // &
-            '"Y [m]",' // &
-            '"Z [m]"'
-  header2=''
-  header2 = OutputVariableListToHeader(output_option%output_variable_list,'', &
-                                      icolumn,PETSC_TRUE)
+  string = 'VARIABLES=' // &
+           '"X [m]",' // &
+           '"Y [m]",' // &
+           '"Z [m]"'
+  write(fid,'(a)',advance='no') trim(string)
 
-  header = trim(header) // trim(header2)
-  write(fid,'(a)') trim(header)
-
-  ! count vars in header
-  quote_count = 0
-  comma_count = 0
-  do i=1,len_trim(header)
-    ! 34 = '"'
-    if (iachar(header(i:i)) == 34) then
-      quote_count = quote_count + 1
-    ! 44 = ','
-    else if (iachar(header(i:i)) == 44 .and. mod(quote_count,2) == 0) then
-      comma_count = comma_count + 1
-    endif
-  enddo
-  
-  variable_count = comma_count + 1
+  call OutputWriteVariableListToHeader(fid,output_option%output_variable_list, &
+                                       '',icolumn,PETSC_TRUE,variable_count)
+  ! need to terminate line
+  write(fid,'(a)') ''
+  ! add x, y, z variables to count
+  variable_count = variable_count + 3
 
   !geh: due to pgi bug, cannot embed functions with calls to write() within
   !     write statement
-  string = OutputTecplotZoneHeader(surf_realization,variable_count, &
-                                   output_option%tecplot_format)
-  write(fid,'(a)') trim(string)
+  call OutputWriteTecplotZoneHeader(fid,surf_realization,variable_count, &
+                                    output_option%tecplot_format)
 
 end subroutine OutputTecplotHeader
 
 ! ************************************************************************** !
 
-function OutputTecplotZoneHeader(surf_realization,variable_count,tecplot_format)
+subroutine OutputWriteTecplotZoneHeader(fid,surf_realization,variable_count, &
+                                        tecplot_format)
   ! 
   ! This subroutine prints zone header to Tecplot file.
   ! 
@@ -359,12 +337,11 @@ function OutputTecplotZoneHeader(surf_realization,variable_count,tecplot_format)
   
   implicit none
 
+  PetscInt :: fid
   type(surface_realization_type) :: surf_realization
   PetscInt :: variable_count
   PetscInt :: tecplot_format
   
-  character(len=MAXSTRINGLENGTH) :: OutputTecplotZoneHeader
-
   character(len=MAXSTRINGLENGTH) :: string, string2, string3
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -381,8 +358,7 @@ function OutputTecplotZoneHeader(surf_realization,variable_count,tecplot_format)
   string2 = ''
   select case(tecplot_format)
     case (TECPLOT_POINT_FORMAT)
-      if ((surf_realization%discretization%itype == STRUCTURED_GRID).or. &
-          (surf_realization%discretization%itype == STRUCTURED_GRID_MIMETIC)) then
+      if (surf_realization%discretization%itype == STRUCTURED_GRID) then
         string2 = ', I=' // &
                   trim(StringFormatInt(grid%structured_grid%nx)) // &
                   ', J=' // &
@@ -395,8 +371,7 @@ function OutputTecplotZoneHeader(surf_realization,variable_count,tecplot_format)
       string2 = trim(string2) // &
               ', DATAPACKING=POINT'
     case default !(TECPLOT_BLOCK_FORMAT,TECPLOT_FEBRICK_FORMAT)
-      if ((surf_realization%discretization%itype == STRUCTURED_GRID).or. &
-          (surf_realization%discretization%itype == STRUCTURED_GRID_MIMETIC)) then
+      if (surf_realization%discretization%itype == STRUCTURED_GRID) then
         string2 = ', I=' // &
                   trim(StringFormatInt(grid%structured_grid%nx+1)) // &
                   ', J=' // &
@@ -421,9 +396,9 @@ function OutputTecplotZoneHeader(surf_realization,variable_count,tecplot_format)
       string2 = trim(string2) // trim(string3) // ', DATAPACKING=BLOCK'
   end select
   
-  OutputTecplotZoneHeader = trim(string) // string2
+  write(fid,'(a)') trim(string) // trim(string2)
 
-end function OutputTecplotZoneHeader
+end subroutine OutputWriteTecplotZoneHeader
 
 ! ************************************************************************** !
 
@@ -438,7 +413,7 @@ subroutine WriteTecplotUGridElements(fid, &
 
   use Surface_Realization_class
   use Grid_module
-  use Unstructured_Grid_Aux_module
+  use Grid_Unstructured_Aux_module
   use Option_module
   use Patch_module
   
@@ -472,52 +447,38 @@ subroutine WriteTecplotUGridElements(fid, &
                            NATURAL,option)
   call GetCellConnectionsTecplot(grid,global_vec)
   call VecScatterBegin(ugdm_element%scatter_gton,global_vec,natural_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm_element%scatter_gton,global_vec,natural_vec, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   surface_natural_vec_local_size = 0
-  call VecGetLocalSize(natural_vec,natural_vec_local_size,ierr)
-  CHKERRQ(ierr)
-  call VecGetArrayF90(natural_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetLocalSize(natural_vec,natural_vec_local_size,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
   do ii = 1,natural_vec_local_size
-    if(vec_ptr(ii) /= -999) & 
+    if (Initialized(vec_ptr(ii))) & 
       surface_natural_vec_local_size = surface_natural_vec_local_size + 1
   enddo
-  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
   
-  call VecCreateMPI(option%mycomm,surface_natural_vec_local_size,PETSC_DETERMINE,surface_natural_vec,ierr)
-  CHKERRQ(ierr)
-  call VecGetArrayF90(surface_natural_vec,vec_ptr2,ierr)
-  CHKERRQ(ierr)
-  call VecGetArrayF90(natural_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecCreateMPI(option%mycomm,surface_natural_vec_local_size,PETSC_DETERMINE,surface_natural_vec, &
+                    ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(surface_natural_vec,vec_ptr2,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
   do ii = 1,surface_natural_vec_local_size
     vec_ptr2(ii) = vec_ptr(ii)
   enddo
-  call VecRestoreArrayF90(surface_natural_vec,vec_ptr2,ierr)
-  CHKERRQ(ierr)
-  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(surface_natural_vec,vec_ptr2,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
   
-  call VecGetArrayF90(surface_natural_vec,vec_ptr2,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(surface_natural_vec,vec_ptr2,ierr);CHKERRQ(ierr)
   call WriteTecplotDataSetNumPerLine(fid,surf_realization,vec_ptr2, &
                                      TECPLOT_INTEGER, &
                                      surface_natural_vec_local_size, &
                                      FOUR_INTEGER)
-  call VecRestoreArrayF90(surface_natural_vec,vec_ptr2,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(global_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(natural_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(surface_natural_vec,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(surface_natural_vec,vec_ptr2,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(surface_natural_vec,ierr);CHKERRQ(ierr)
   call UGridDMDestroy(ugdm_element)
 
 end subroutine WriteTecplotUGridElements
@@ -534,7 +495,7 @@ subroutine WriteTecplotUGridVertices(fid,surf_realization)
 
   use Surface_Realization_class
   use Grid_module
-  use Unstructured_Grid_Aux_module
+  use Grid_Unstructured_Aux_module
   use Option_module
   use Patch_module
   use Variables_module
@@ -558,36 +519,27 @@ subroutine WriteTecplotUGridVertices(fid,surf_realization)
 
   call VecCreateMPI(option%mycomm,PETSC_DECIDE, &
                     grid%unstructured_grid%num_vertices_global, &
-                    global_vertex_vec,ierr)
-  CHKERRQ(ierr)
-  call VecGetLocalSize(global_vertex_vec,local_size,ierr)
-  CHKERRQ(ierr)
+                    global_vertex_vec,ierr);CHKERRQ(ierr)
+  call VecGetLocalSize(global_vertex_vec,local_size,ierr);CHKERRQ(ierr)
   call GetVertexCoordinates(grid, global_vertex_vec,X_COORDINATE,option)
-  call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call WriteTecplotDataSet(fid,surf_realization,vec_ptr,TECPLOT_REAL, &
                            local_size)
-  call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   call GetVertexCoordinates(grid,global_vertex_vec,Y_COORDINATE,option)
-  call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call WriteTecplotDataSet(fid,surf_realization,vec_ptr,TECPLOT_REAL, &
                            local_size)
-  call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   call GetVertexCoordinates(grid,global_vertex_vec, Z_COORDINATE,option)
-  call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
   call WriteTecplotDataSet(fid,surf_realization,vec_ptr,TECPLOT_REAL, &
                            local_size)
-  call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(global_vertex_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
-  call VecDestroy(global_vertex_vec, ierr)
-  CHKERRQ(ierr)
+  call VecDestroy(global_vertex_vec, ierr);CHKERRQ(ierr)
 
 end subroutine WriteTecplotUGridVertices
 
@@ -620,7 +572,6 @@ subroutine OutputHydrograph(surf_realization)
   PetscInt :: icol
   PetscReal :: sum_flux, sum_flux_global
 
-  character(len=MAXHEADERLENGTH) :: header
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: word, units
   character(len=MAXSTRINGLENGTH) :: string
@@ -639,7 +590,7 @@ subroutine OutputHydrograph(surf_realization)
   endif
 
 
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do
     if (.not.associated(boundary_condition)) exit
@@ -653,25 +604,21 @@ subroutine OutputHydrograph(surf_realization)
         open(unit=fid,file=filename,action="write",status="replace")
 
         ! write header
-        write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
+        write(fid,'(a)',advance="no") ' "Time [' // &
+                                      trim(output_option%tunit) // ']"'
       
-        header = ''
         if (option%iflowmode > 0) then
-          call OutputAppendToHeader(header,'dt_flow',output_option%tunit,'',icol)
+          call OutputWriteToHeader(fid,'dt_flow',output_option%tunit,'',icol)
         endif
         
-        write(fid,'(a)',advance="no") trim(header)
-
-        header = ''
         !string = 'Outflow '
         !call OutputAppendToHeader(header,string,'[m^2/s]','',icol)
         string = 'Outflow'
-        call OutputAppendToHeader(header,string,'[m^3/s]','',icol)
-        write(fid,'(a)',advance="no") trim(header)
-
+        call OutputWriteToHeader(fid,string,'[m^3/s]','',icol)
         write(fid,'(a)') '' 
       else
-        open(unit=fid,file=filename,action="write",status="old",position="append")
+        open(unit=fid,file=filename,action="write",status="old", &
+             position="append")
       endif
     endif
 
@@ -692,7 +639,7 @@ subroutine OutputHydrograph(surf_realization)
     do iconn = 1, cur_connection_set%num_connections
       sum_connection = sum_connection + 1
       !patch%boundary_velocities(1,sum_connection)
-      sum_flux = sum_flux + patch%surf_boundary_fluxes(RICHARDS_PRESSURE_DOF,sum_connection)
+      sum_flux = sum_flux + patch%boundary_flow_fluxes(RICHARDS_PRESSURE_DOF,sum_connection)
     enddo
     
     call MPI_Reduce(sum_flux,sum_flux_global, &
@@ -766,6 +713,20 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
   class(realization_type) :: realization
   PetscInt :: var_list_type
 
+#if defined(SCORPIO_WRITE)
+  integer:: file_id
+  integer:: data_type
+  integer:: grp_id
+  integer:: file_space_id
+  integer:: memory_space_id
+  integer:: data_set_id
+  integer:: realization_set_id
+  integer:: prop_id
+  PetscMPIInt :: rank
+  integer :: rank_mpi,file_space_rank_mpi
+  integer:: dims(3)
+  integer :: start(3), length(3), stride(3),istart
+#else
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
   integer(HID_T) :: grp_id
@@ -778,6 +739,7 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   integer(HSIZE_T) :: dims(3)
   integer(HSIZE_T) :: start(3), length(3), stride(3),istart
+#endif
 
   type(grid_type), pointer :: subsurf_grid
   type(grid_type), pointer :: surf_grid
@@ -810,6 +772,11 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
   PetscInt :: ivar, isubvar, var_type
   PetscInt :: vert_count
   PetscErrorCode :: ierr
+
+#ifdef SCORPIO_WRITE
+   option%io_buffer='OutputHDF5UGridXDMF not supported with SCORPIO_WRITE'
+   call printErrMsg(option)
+#else
 
   surf_discretization => surf_realization%discretization
   patch => surf_realization%patch
@@ -962,7 +929,7 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
         cur_variable => cur_variable%next
       enddo
     case(AVERAGED_VARS)
-      if(associated(output_option%aveg_output_variable_list%first)) then
+      if (associated(output_option%aveg_output_variable_list%first)) then
         cur_variable => output_option%aveg_output_variable_list%first
         do ivar = 1,output_option%aveg_output_variable_list%nvars
           string = 'Aveg. ' // cur_variable%name
@@ -986,29 +953,27 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
   end select
 
   !Output flowrates
-  if(output_option%print_hdf5_mass_flowrate.or. &
+  if (output_option%print_hdf5_mass_flowrate.or. &
      output_option%print_hdf5_energy_flowrate.or. &
      output_option%print_hdf5_aveg_mass_flowrate.or. &
      output_option%print_hdf5_aveg_energy_flowrate) then
     select case (var_list_type)
       case (INSTANTANEOUS_VARS)
         call OutputSurfaceGetFlowrates(surf_realization)
-        if(output_option%print_hdf5_mass_flowrate.or.&
+        if (output_option%print_hdf5_mass_flowrate.or.&
            output_option%print_hdf5_energy_flowrate) then
           call WriteHDF5SurfaceFlowratesUGrid(surf_realization,grp_id,var_list_type)
         endif
       case (AVERAGED_VARS)
-        if(output_option%print_hdf5_aveg_mass_flowrate.or.&
+        if (output_option%print_hdf5_aveg_mass_flowrate.or.&
            output_option%print_hdf5_aveg_energy_flowrate) then
           call WriteHDF5SurfaceFlowratesUGrid(surf_realization,grp_id,var_list_type)
         endif
     end select
   endif
 
-  call VecDestroy(global_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(natural_vec,ierr)
-  CHKERRQ(ierr)
+  call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call h5gclose_f(grp_id,hdf5_err)
 
   call h5fclose_f(file_id,hdf5_err)
@@ -1021,6 +986,8 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
 
   surf_hdf5_first = PETSC_FALSE
 
+#endif
+!ifdef SCORPIO_WRITE
 #endif
 !ifdef PETSC_HAVE_HDF5
 
@@ -1045,7 +1012,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
   use Realization_class
   use Grid_module
   use Option_module
-  use Unstructured_Grid_Aux_module
+  use Grid_Unstructured_Aux_module
   use Variables_module
   
   implicit none
@@ -1117,34 +1084,25 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
 
   call VecCreateMPI(option%mycomm,PETSC_DECIDE, &
                     subsurf_grid%unstructured_grid%num_vertices_global, &
-                    global_x_vertex_vec,ierr)
-  CHKERRQ(ierr)
+                    global_x_vertex_vec,ierr);CHKERRQ(ierr)
   call VecCreateMPI(option%mycomm,PETSC_DECIDE, &
                     subsurf_grid%unstructured_grid%num_vertices_global, &
-                    global_y_vertex_vec,ierr)
-  CHKERRQ(ierr)
+                    global_y_vertex_vec,ierr);CHKERRQ(ierr)
   call VecCreateMPI(option%mycomm,PETSC_DECIDE, &
                     subsurf_grid%unstructured_grid%num_vertices_global, &
-                    global_z_vertex_vec,ierr)
-  CHKERRQ(ierr)
+                    global_z_vertex_vec,ierr);CHKERRQ(ierr)
 
-  call VecGetLocalSize(global_x_vertex_vec,local_size,ierr)
-  CHKERRQ(ierr)
-  call VecGetLocalSize(global_y_vertex_vec,local_size,ierr)
-  CHKERRQ(ierr)
-  call VecGetLocalSize(global_z_vertex_vec,local_size,ierr)
-  CHKERRQ(ierr)
+  call VecGetLocalSize(global_x_vertex_vec,local_size,ierr);CHKERRQ(ierr)
+  call VecGetLocalSize(global_y_vertex_vec,local_size,ierr);CHKERRQ(ierr)
+  call VecGetLocalSize(global_z_vertex_vec,local_size,ierr);CHKERRQ(ierr)
 
   call GetVertexCoordinates(subsurf_grid, global_x_vertex_vec,X_COORDINATE,option)
   call GetVertexCoordinates(subsurf_grid, global_y_vertex_vec,Y_COORDINATE,option)
   call GetVertexCoordinates(subsurf_grid, global_z_vertex_vec,Z_COORDINATE,option)
 
-  call VecGetArrayF90(global_x_vertex_vec,vec_x_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecGetArrayF90(global_y_vertex_vec,vec_y_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecGetArrayF90(global_z_vertex_vec,vec_z_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
 
   ! memory space which is a 1D vector
   rank_mpi = 1
@@ -1203,12 +1161,10 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
     double_array((i-1)*3+3) = vec_z_ptr(i)
   enddo
 
-  call PetscLogEventBegin(logging%event_h5dwrite_f,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventBegin(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
   call h5dwrite_f(data_set_id,H5T_NATIVE_DOUBLE,double_array,dims, &
                   hdf5_err,memory_space_id,file_space_id,prop_id)
-  call PetscLogEventEnd(logging%event_h5dwrite_f,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventEnd(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
 
   deallocate(double_array)
   call h5pclose_f(prop_id,hdf5_err)
@@ -1216,20 +1172,14 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
   call h5dclose_f(data_set_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
 
-  call VecRestoreArrayF90(global_x_vertex_vec,vec_x_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecRestoreArrayF90(global_y_vertex_vec,vec_y_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecRestoreArrayF90(global_z_vertex_vec,vec_z_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(global_z_vertex_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
 
 
-  call VecDestroy(global_x_vertex_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(global_y_vertex_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(global_z_vertex_vec,ierr)
-  CHKERRQ(ierr)
+  call VecDestroy(global_x_vertex_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_y_vertex_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_z_vertex_vec,ierr);CHKERRQ(ierr)
 
   !
   !  Write elements
@@ -1241,19 +1191,16 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
                            NATURAL,option)
   call GetCellConnections(surf_grid,global_vec)
   call VecScatterBegin(ugdm_element%scatter_gton,global_vec,natural_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm_element%scatter_gton,global_vec,natural_vec, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
-  call VecGetArrayF90(natural_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
+                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
 
   local_size = surf_grid%unstructured_grid%nlmax
 
   vert_count=0
   do i=1,local_size*FOUR_INTEGER
-    if(int(vec_ptr(i)) >0 ) vert_count=vert_count+1
+    if (int(vec_ptr(i)) >0 ) vert_count=vert_count+1
   enddo
   vert_count=vert_count+surf_grid%nlmax
 
@@ -1308,7 +1255,7 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
   do i=1,local_size
     nverts=0
     do j=1,FOUR_INTEGER
-      if(vec_ptr((i-1)*FOUR_INTEGER+j)>0) nverts=nverts+1
+      if (vec_ptr((i-1)*FOUR_INTEGER+j)>0) nverts=nverts+1
     enddo
     vert_count=vert_count+1
     select case (nverts)
@@ -1319,19 +1266,17 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
     end select
 
     do j=1,FOUR_INTEGER
-      if(vec_ptr((i-1)*FOUR_INTEGER+j)>0) then
+      if (vec_ptr((i-1)*FOUR_INTEGER+j)>0) then
         vert_count=vert_count+1
         int_array(vert_count) = INT(vec_ptr((i-1)*FOUR_INTEGER+j))-1
       endif
     enddo
   enddo
 
-  call PetscLogEventBegin(logging%event_h5dwrite_f,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventBegin(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
   call h5dwrite_f(data_set_id,H5T_NATIVE_INTEGER,int_array,dims, &
                   hdf5_err,memory_space_id,file_space_id,prop_id)
-  call PetscLogEventEnd(logging%event_h5dwrite_f,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventEnd(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
 
   deallocate(int_array)
   call h5pclose_f(prop_id,hdf5_err)
@@ -1339,27 +1284,21 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
   call h5dclose_f(data_set_id,hdf5_err)
   call h5sclose_f(file_space_id,hdf5_err)
 
-  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(global_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(natural_vec,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(natural_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
   call UGridDMDestroy(ugdm_element)
 
   ! Cell center X/Y/Z
   call VecCreateMPI(option%mycomm,surf_grid%nlmax, &
                     PETSC_DETERMINE, &
-                    global_x_cell_vec,ierr)
-  CHKERRQ(ierr)
+                    global_x_cell_vec,ierr);CHKERRQ(ierr)
   call VecCreateMPI(option%mycomm,surf_grid%nlmax, &
                     PETSC_DETERMINE, &
-                    global_y_cell_vec,ierr)
-  CHKERRQ(ierr)
+                    global_y_cell_vec,ierr);CHKERRQ(ierr)
   call VecCreateMPI(option%mycomm,surf_grid%nlmax, &
                     PETSC_DETERMINE, &
-                    global_z_cell_vec,ierr)
-  CHKERRQ(ierr)
+                    global_z_cell_vec,ierr);CHKERRQ(ierr)
 
   call GetCellCoordinates(surf_grid, global_x_cell_vec,X_COORDINATE)
   call GetCellCoordinates(surf_grid, global_y_cell_vec,Y_COORDINATE)
@@ -1375,32 +1314,23 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
                            NATURAL,option)
                            
   call VecScatterBegin(ugdm_cell%scatter_gton,global_x_cell_vec,natural_x_cell_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm_cell%scatter_gton,global_x_cell_vec,natural_x_cell_vec, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   call VecScatterBegin(ugdm_cell%scatter_gton,global_y_cell_vec,natural_y_cell_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm_cell%scatter_gton,global_y_cell_vec,natural_y_cell_vec, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
   call VecScatterBegin(ugdm_cell%scatter_gton,global_z_cell_vec,natural_z_cell_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm_cell%scatter_gton,global_z_cell_vec,natural_z_cell_vec, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(natural_x_cell_vec,vec_x_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecGetArrayF90(natural_y_cell_vec,vec_y_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecGetArrayF90(natural_z_cell_vec,vec_z_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(natural_x_cell_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(natural_y_cell_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(natural_z_cell_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
   local_size = surf_grid%unstructured_grid%nlmax
 
   ! XC
@@ -1448,12 +1378,10 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
                             hdf5_err)
 #endif
 
-  call PetscLogEventBegin(logging%event_h5dwrite_f,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventBegin(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
   call h5dwrite_f(data_set_id,H5T_NATIVE_DOUBLE,vec_x_ptr,dims, &
                   hdf5_err,memory_space_id,file_space_id,prop_id)
-  call PetscLogEventEnd(logging%event_h5dwrite_f,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventEnd(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
 
   call h5pclose_f(prop_id,hdf5_err)
 
@@ -1505,12 +1433,10 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
                             hdf5_err)
 #endif
 
-  call PetscLogEventBegin(logging%event_h5dwrite_f,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventBegin(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
   call h5dwrite_f(data_set_id,H5T_NATIVE_DOUBLE,vec_y_ptr,dims, &
                   hdf5_err,memory_space_id,file_space_id,prop_id)
-  call PetscLogEventEnd(logging%event_h5dwrite_f,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventEnd(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
 
   call h5pclose_f(prop_id,hdf5_err)
 
@@ -1562,12 +1488,10 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
                             hdf5_err)
 #endif
 
-  call PetscLogEventBegin(logging%event_h5dwrite_f,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventBegin(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
   call h5dwrite_f(data_set_id,H5T_NATIVE_DOUBLE,vec_z_ptr,dims, &
                   hdf5_err,memory_space_id,file_space_id,prop_id)
-  call PetscLogEventEnd(logging%event_h5dwrite_f,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventEnd(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
 
   call h5pclose_f(prop_id,hdf5_err)
 
@@ -1575,26 +1499,17 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
   call h5sclose_f(file_space_id,hdf5_err)
 
 
-  call VecRestoreArrayF90(natural_x_cell_vec,vec_x_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecRestoreArrayF90(natural_y_cell_vec,vec_y_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecRestoreArrayF90(natural_z_cell_vec,vec_z_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(natural_x_cell_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(natural_y_cell_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(natural_z_cell_vec,vec_z_ptr,ierr);CHKERRQ(ierr)
 
-  call VecDestroy(global_x_cell_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(global_y_cell_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(global_z_cell_vec,ierr)
-  CHKERRQ(ierr)
+  call VecDestroy(global_x_cell_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_y_cell_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(global_z_cell_vec,ierr);CHKERRQ(ierr)
 
-  call VecDestroy(natural_x_cell_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(natural_y_cell_vec,ierr)
-  CHKERRQ(ierr)
-  call VecDestroy(natural_z_cell_vec,ierr)
-  CHKERRQ(ierr)
+  call VecDestroy(natural_x_cell_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(natural_y_cell_vec,ierr);CHKERRQ(ierr)
+  call VecDestroy(natural_z_cell_vec,ierr);CHKERRQ(ierr)
 
 #endif
 ! ifdef SCORPIO_WRITE
@@ -1633,13 +1548,13 @@ subroutine OutputSurfaceGetVarFromArray(surf_realization,vec,ivar,isubvar,isubva
   
   PetscErrorCode :: ierr
 
-  call PetscLogEventBegin(logging%event_output_get_var_from_array,ierr)
-  CHKERRQ(ierr) 
+  call PetscLogEventBegin(logging%event_output_get_var_from_array, &
+                          ierr);CHKERRQ(ierr)
                         
   call SurfRealizGetVariable(surf_realization,vec,ivar,isubvar,isubvar1)
 
-  call PetscLogEventEnd(logging%event_output_get_var_from_array,ierr)
-  CHKERRQ(ierr) 
+  call PetscLogEventEnd(logging%event_output_get_var_from_array, &
+                        ierr);CHKERRQ(ierr)
   
 end subroutine OutputSurfaceGetVarFromArray
 
@@ -1682,20 +1597,20 @@ subroutine OutputSurfaceAvegVars(surf_realization,realization)
   surf_field => surf_realization%surf_field
 
   ! Return back if called at the beginning of simulation
-  if(option%time<1.d-10) return
+  if (option%time<1.d-10) return
   
   dtime = option%time-output_option%aveg_var_time
   output_option%aveg_var_dtime = output_option%aveg_var_dtime + dtime
   output_option%aveg_var_time = output_option%aveg_var_time + dtime
   
-  if(abs(output_option%aveg_var_dtime-output_option%periodic_output_time_incr)<1.d0) then
+  if (abs(output_option%aveg_var_dtime-output_option%periodic_output_time_incr)<1.d0) then
     aveg_plot_flag=PETSC_TRUE
   else
     aveg_plot_flag=PETSC_FALSE
   endif
 
-  if(.not.associated(output_option%aveg_output_variable_list%first)) then
-    if(output_option%print_hdf5_aveg_mass_flowrate.or. &
+  if (.not.associated(output_option%aveg_output_variable_list%first)) then
+    if (output_option%print_hdf5_aveg_mass_flowrate.or. &
        output_option%print_hdf5_aveg_energy_flowrate) then
       ! There is a possibility to output average-flowrates, thus
       ! call output subroutine depending on mesh type
@@ -1720,55 +1635,48 @@ subroutine OutputSurfaceAvegVars(surf_realization,realization)
 
     ! Cumulatively add the variable*dtime
     ivar = ivar + 1
-    call VecGetArrayF90(surf_field%work,ival_p,ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(surf_field%avg_vars_vec(ivar),aval_p,ierr)
-    CHKERRQ(ierr)
+    call VecGetArrayF90(surf_field%work,ival_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(surf_field%avg_vars_vec(ivar),aval_p, &
+                        ierr);CHKERRQ(ierr)
     aval_p = aval_p + ival_p*dtime
-    call VecRestoreArrayF90(surf_field%work,ival_p,ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(surf_field%avg_vars_vec(ivar),aval_p,ierr)
-    CHKERRQ(ierr)
+    call VecRestoreArrayF90(surf_field%work,ival_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(surf_field%avg_vars_vec(ivar),aval_p, &
+                            ierr);CHKERRQ(ierr)
 
     ! Check if it is time to output the temporally average variable
-    if(aveg_plot_flag) then
+    if (aveg_plot_flag) then
 
       ! Divide vector values by 'time'
-      call VecGetArrayF90(surf_field%avg_vars_vec(ivar),aval_p,ierr)
-      CHKERRQ(ierr)
+      call VecGetArrayF90(surf_field%avg_vars_vec(ivar),aval_p, &
+                          ierr);CHKERRQ(ierr)
       aval_p = aval_p/output_option%periodic_output_time_incr
-      call VecRestoreArrayF90(surf_field%avg_vars_vec(ivar),aval_p,ierr)
-      CHKERRQ(ierr)
+      call VecRestoreArrayF90(surf_field%avg_vars_vec(ivar),aval_p, &
+                              ierr);CHKERRQ(ierr)
 
     endif
     
     cur_variable => cur_variable%next
   enddo
 
-  if(aveg_plot_flag) then
+  if (aveg_plot_flag) then
 
     if (surf_realization%output_option%print_hdf5) then
-      call PetscTime(tstart,ierr)
-      CHKERRQ(ierr)
-      call PetscLogEventBegin(logging%event_output_hdf5,ierr)
-      CHKERRQ(ierr)    
+      call PetscTime(tstart,ierr);CHKERRQ(ierr)
+      call PetscLogEventBegin(logging%event_output_hdf5,ierr);CHKERRQ(ierr)
       if (surf_realization%discretization%itype == UNSTRUCTURED_GRID) then
         call OutputSurfaceHDF5UGridXDMF(surf_realization,realization,AVERAGED_VARS)
       else
       !  call OutputHDF5(surf_realization,AVERAGED_VARS)
       endif      
-      call PetscLogEventEnd(logging%event_output_hdf5,ierr)
-      CHKERRQ(ierr)    
-      call PetscTime(tend,ierr)
-      CHKERRQ(ierr)
+      call PetscLogEventEnd(logging%event_output_hdf5,ierr);CHKERRQ(ierr)
+      call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') tend-tstart
       call printMsg(option)
     endif
 
     ! Reset the vectors to zero
     do ivar=1,output_option%aveg_output_variable_list%nvars
-      call VecSet(surf_field%avg_vars_vec(ivar),0.d0,ierr)
-      CHKERRQ(ierr)
+      call VecSet(surf_field%avg_vars_vec(ivar),0.d0,ierr);CHKERRQ(ierr)
     enddo
 
     output_option%aveg_var_dtime=0.d0
@@ -1800,6 +1708,7 @@ subroutine OutputSurfaceVariableRead(input,option,output_variable_list)
   
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: name, units
+  type(output_variable_type), pointer :: output_variable  
 
   do
     call InputReadPflotranString(input,option)
@@ -1822,6 +1731,14 @@ subroutine OutputSurfaceVariableRead(input,option,output_variable_list)
         units = 'C'
         call OutputVariableAddToList(output_variable_list,name,OUTPUT_GENERIC,units, &
                                   TEMPERATURE)
+      case ('PROCESS_ID')
+        units = ''
+        name = 'Process ID'
+        output_variable => OutputVariableCreate(name,OUTPUT_DISCRETE, &
+                                                units,PROCESS_ID)
+        output_variable%plot_only = PETSC_TRUE ! toggle output off for observation
+        output_variable%iformat = 1 ! integer
+        call OutputVariableAddToList(output_variable_list,output_variable)
       case default
         option%io_buffer = 'Keyword: ' // trim(word) // &
                                  ' not recognized in VARIABLES.'
@@ -1897,8 +1814,8 @@ subroutine OutputSurfaceGetFlowrates(surf_realization)
   use Patch_module
   use Grid_module
   use Option_module
-  use Unstructured_Grid_Aux_module
-  use Unstructured_Cell_module
+  use Grid_Unstructured_Aux_module
+  use Grid_Unstructured_Cell_module
   use Variables_module
   use Connection_module
   use Coupler_module
@@ -1976,8 +1893,7 @@ subroutine OutputSurfaceGetFlowrates(surf_realization)
 
   allocate(flowrates(option%nflowdof,MAX_FACE_PER_CELL_SURF,ugrid%nlmax))
   flowrates = 0.d0
-  call VecGetArrayF90(surf_field%flowrate_inst,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(surf_field%flowrate_inst,vec_ptr,ierr);CHKERRQ(ierr)
   vec_ptr = 0.d0
   
   offset = 1+option%nflowdof*MAX_FACE_PER_CELL_SURF
@@ -2002,26 +1918,26 @@ subroutine OutputSurfaceGetFlowrates(surf_realization)
       local_id_up = grid%nG2L(ghosted_id_up)
       local_id_dn = grid%nG2L(ghosted_id_dn)
       do iface_up = 1,MAX_FACE_PER_CELL_SURF
-        if(face_id==ugrid%cell_to_face_ghosted(iface_up,local_id_up)) exit
+        if (face_id==ugrid%cell_to_face_ghosted(iface_up,local_id_up)) exit
       enddo
       iface_dn=-1
-      if(local_id_dn>0) then
+      if (local_id_dn>0) then
         do iface_dn = 1,MAX_FACE_PER_CELL_SURF
-          if(face_id==ugrid%cell_to_face_ghosted(iface_dn,local_id_dn)) exit
+          if (face_id==ugrid%cell_to_face_ghosted(iface_dn,local_id_dn)) exit
         enddo
       endif
       
       do dof=1,option%nflowdof
         ! Save flowrate for iface_up of local_id_up cell using flowrate up-->dn
-        flowrates(dof,iface_up,local_id_up) = patch%surf_internal_fluxes(dof,sum_connection)
+        flowrates(dof,iface_up,local_id_up) = patch%internal_flow_fluxes(dof,sum_connection)
         vec_ptr((local_id_up-1)*offset + (dof-1)*MAX_FACE_PER_CELL_SURF + iface_up + 1) = &
-          patch%surf_internal_fluxes(dof,sum_connection)
+          patch%internal_flow_fluxes(dof,sum_connection)
 
-        if(iface_dn>0) then
+        if (iface_dn>0) then
           ! Save flowrate for iface_dn of local_id_dn cell using -ve flowrate up-->dn
-          flowrates(dof,iface_dn,local_id_dn) = -patch%surf_internal_fluxes(dof,sum_connection)
+          flowrates(dof,iface_dn,local_id_dn) = -patch%internal_flow_fluxes(dof,sum_connection)
           vec_ptr((local_id_dn-1)*offset + (dof-1)*MAX_FACE_PER_CELL_SURF + iface_dn + 1) = &
-            -patch%surf_internal_fluxes(dof,sum_connection)
+            -patch%internal_flow_fluxes(dof,sum_connection)
         endif
       enddo
       
@@ -2030,7 +1946,7 @@ subroutine OutputSurfaceGetFlowrates(surf_realization)
   enddo
 
   ! Boundary Flowrates Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0
   do 
     if (.not.associated(boundary_condition)) exit
@@ -2044,14 +1960,14 @@ subroutine OutputSurfaceGetFlowrates(surf_realization)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
       local_id_dn = grid%nG2L(ghosted_id_dn)
       do iface_dn = 1,MAX_FACE_PER_CELL_SURF
-        if(face_id==ugrid%cell_to_face_ghosted(iface_dn,local_id_dn)) exit
+        if (face_id==ugrid%cell_to_face_ghosted(iface_dn,local_id_dn)) exit
       enddo
 
       do dof=1,option%nflowdof
         ! Save flowrate for iface_dn of local_id_dn cell using -ve flowrate up-->dn
-        flowrates(dof,iface_dn,local_id_dn) = -patch%surf_boundary_fluxes(dof,sum_connection)
+        flowrates(dof,iface_dn,local_id_dn) = -patch%boundary_flow_fluxes(dof,sum_connection)
         vec_ptr((local_id_dn-1)*offset + (dof-1)*MAX_FACE_PER_CELL_SURF + iface_dn + 1) = &
-          -patch%surf_boundary_fluxes(dof,sum_connection)
+          -patch%boundary_flow_fluxes(dof,sum_connection)
       enddo
     enddo
     boundary_condition => boundary_condition%next
@@ -2059,44 +1975,36 @@ subroutine OutputSurfaceGetFlowrates(surf_realization)
 
   deallocate(flowrates)
 
-  call VecRestoreArrayF90(surf_field%flowrate_inst,vec_ptr,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(surf_field%flowrate_inst,vec_ptr,ierr);CHKERRQ(ierr)
 
   ! Scatter flowrate from Global --> Natural order
   call VecScatterBegin(ugdm%scatter_gton,surf_field%flowrate_inst,natural_flowrates_vec, &
-                        INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   call VecScatterEnd(ugdm%scatter_gton,surf_field%flowrate_inst,natural_flowrates_vec, &
-                      INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                      INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
-  call VecGetArrayF90(natural_flowrates_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecGetArrayF90(surf_field%flowrate_inst,vec_ptr2,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(natural_flowrates_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(surf_field%flowrate_inst,vec_ptr2,ierr);CHKERRQ(ierr)
 
   ! Copy the vectors
   vec_ptr2 = vec_ptr
   
-  if(output_option%print_hdf5_aveg_mass_flowrate.or. &
+  if (output_option%print_hdf5_aveg_mass_flowrate.or. &
     output_option%print_hdf5_aveg_energy_flowrate) then
 
     dtime = option%time-output_option%aveg_var_time
-    call VecGetArrayF90(surf_field%flowrate_aveg,vec_ptr3,ierr)
-    CHKERRQ(ierr)
+    call VecGetArrayF90(surf_field%flowrate_aveg,vec_ptr3,ierr);CHKERRQ(ierr)
     vec_ptr3 = vec_ptr3 + vec_ptr2/dtime
-    call VecRestoreArrayF90(surf_field%flowrate_aveg,vec_ptr3,ierr)
-    CHKERRQ(ierr)
+    call VecRestoreArrayF90(surf_field%flowrate_aveg,vec_ptr3, &
+                            ierr);CHKERRQ(ierr)
       
   endif
 
-  call VecRestoreArrayF90(natural_flowrates_vec,vec_ptr,ierr)
-  CHKERRQ(ierr)
-  call VecRestoreArrayF90(surf_field%flowrate_inst,vec_ptr2,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(natural_flowrates_vec,vec_ptr,ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(surf_field%flowrate_inst,vec_ptr2, &
+                          ierr);CHKERRQ(ierr)
 
-  call VecDestroy(natural_flowrates_vec,ierr)
-  CHKERRQ(ierr)
+  call VecDestroy(natural_flowrates_vec,ierr);CHKERRQ(ierr)
   call UGridDMDestroy(ugdm)
   
 end subroutine OutputSurfaceGetFlowrates
@@ -2118,8 +2026,8 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
   use Patch_module
   use Grid_module
   use Option_module
-  use Unstructured_Grid_Aux_module
-  use Unstructured_Cell_module
+  use Grid_Unstructured_Aux_module
+  use Grid_Unstructured_Cell_module
   use Variables_module
   use Connection_module
   use Coupler_module
@@ -2220,19 +2128,23 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
   output_option =>surf_realization%output_option
   surf_field => surf_realization%surf_field
 
+#if defined(SCORPIO_WRITE)
+  write(*,*) 'SCORPIO_WRITE'
+  option%io_buffer = 'WriteHDF5FlowratesUGrid not supported for SCORPIO_WRITE'
+  call printErrMsg(option)
+#else
   select case(option%iflowmode)
     case (RICHARDS_MODE)
       ndof=1
     case (TH_MODE)
       ndof=1
-      if(output_option%print_hdf5_mass_flowrate.and.output_option%print_hdf5_energy_flowrate) ndof = 2
+      if (output_option%print_hdf5_mass_flowrate.and.output_option%print_hdf5_energy_flowrate) ndof = 2
     case default
       option%io_buffer='FLOWRATE output not supported in this mode'
       call printErrMsg(option)
   end select
 
-  call VecGetLocalSize(surf_field%flowrate_inst,local_size,ierr)
-  CHKERRQ(ierr)
+  call VecGetLocalSize(surf_field%flowrate_inst,local_size,ierr);CHKERRQ(ierr)
   local_size = local_size/(MAX_FACE_PER_CELL_SURF+1)/option%nflowdof
 
   allocate(double_array(local_size*(MAX_FACE_PER_CELL_SURF+1)))
@@ -2242,15 +2154,15 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
 
   select case (var_list_type)
     case (INSTANTANEOUS_VARS)
-      call VecGetArrayF90(surf_field%flowrate_inst,vec_ptr1,ierr)
-      CHKERRQ(ierr)
+      call VecGetArrayF90(surf_field%flowrate_inst,vec_ptr1, &
+                          ierr);CHKERRQ(ierr)
       mass_flowrate = output_option%print_hdf5_mass_flowrate
       energy_flowrate = output_option%print_hdf5_energy_flowrate
     case (AVERAGED_VARS)
-      call VecGetArrayF90(surf_field%flowrate_inst,vec_ptr1,ierr)
-      CHKERRQ(ierr)
-      call VecGetArrayF90(surf_field%flowrate_aveg,vec_ptr2,ierr)
-      CHKERRQ(ierr)
+      call VecGetArrayF90(surf_field%flowrate_inst,vec_ptr1, &
+                          ierr);CHKERRQ(ierr)
+      call VecGetArrayF90(surf_field%flowrate_aveg,vec_ptr2, &
+                          ierr);CHKERRQ(ierr)
       mass_flowrate = output_option%print_hdf5_aveg_mass_flowrate
       energy_flowrate = output_option%print_hdf5_aveg_energy_flowrate
   end select
@@ -2258,14 +2170,14 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
 
   do dof = 1,option%nflowdof
 
-    if(dof==1 .and. (.not.mass_flowrate)) exit
-    if(dof==2 .and. (.not.energy_flowrate)) exit
+    if (dof==1 .and. (.not.mass_flowrate)) exit
+    if (dof==2 .and. (.not.energy_flowrate)) exit
 
     select case(option%iflowmode)
       case(RICHARDS_MODE)
         string = "Mass_Flowrate [kg_s]" // CHAR(0)
       case(TH_MODE)
-        if(dof==1) then
+        if (dof==1) then
           string = "Mass_Flowrate [kg_s]" // CHAR(0)
         else
           string = "Energy_Flowrate [J_s]" // CHAR(0)
@@ -2275,7 +2187,7 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
         call printErrMsg(option)
     end select
 
-    if(var_list_type==AVERAGED_VARS) string = 'Aveg_' // trim(string) // CHAR(0)
+    if (var_list_type==AVERAGED_VARS) string = 'Aveg_' // trim(string) // CHAR(0)
 
     ! memory space which is a 1D vector
     rank_mpi = 1
@@ -2364,6 +2276,9 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
     call h5sclose_f(file_space_id,hdf5_err)
 
   enddo
+
+#endif
+! #ifdef SCORPIO_WRITE
 
 end subroutine WriteHDF5SurfaceFlowratesUGrid
 #endif

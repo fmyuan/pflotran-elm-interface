@@ -191,15 +191,14 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   PetscLogDouble :: tstart, tend
   character(len=MAXWORDLENGTH) :: attribute_name, dataset_name, word
 
-  !TODO(geh): add to event log
-  !call PetscLogEventBegin(logging%event_read_datset_hdf5,ierr)
+  call PetscLogEventBegin(logging%event_dataset_gridded_hdf5_read, &
+                          ierr);CHKERRQ(ierr)
 
   first_time = (this%data_dim == DIM_NULL)
 
 !#define TIME_DATASET
 #ifdef TIME_DATASET
-  call PetscTime(tstart,ierr)
-  CHKERRQ(ierr)
+  call PetscTime(tstart,ierr);CHKERRQ(ierr)
 #endif
 
 #define BROADCAST_DATASET
@@ -228,6 +227,12 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   option%io_buffer = 'Opening group: ' // trim(this%hdf5_dataset_name)
   call printMsg(option)  
   call h5gopen_f(file_id,this%hdf5_dataset_name,grp_id,hdf5_err)
+
+  if (hdf5_err < 0) then
+    option%io_buffer = 'A group named "' // trim(this%hdf5_dataset_name) // &
+      '" not found in HDF5 file "' // trim(this%filename) // '".'
+    call printErrMsg(option)  
+  endif
 
   ! only want to read on first time through
   if (this%data_dim == DIM_NULL) then
@@ -262,6 +267,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
       option%io_buffer = &
         '"Discretization" attribute must be included in GRIDDED hdf5 ' // &
         'dataset file.'
+      call printErrMsg(option)
     endif
     attribute_name = "Origin"
     call H5aexists_f(grp_id,attribute_name,attribute_exists,hdf5_err)
@@ -278,7 +284,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
     if (attribute_exists) then
       this%is_cell_centered = PETSC_TRUE
     endif
-    ! this%max_buffer_size is initially set to -999 to force initializaion
+    ! this%max_buffer_size is initially set to UNINITIALIZED_INTEGER to force initializaion
     ! either here, or in the reading of the dataset block.
     attribute_name = "Max Buffer Size"
     call H5aexists_f(grp_id,attribute_name,attribute_exists,hdf5_err)
@@ -317,6 +323,11 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
     dataset_name = trim(dataset_name) // trim(adjustl(word))
   endif
   call h5dopen_f(grp_id,dataset_name,dataset_id,hdf5_err)
+  if (hdf5_err < 0) then
+    option%io_buffer = 'A dataset named "Data" not found in HDF5 file "' // &
+      trim(this%filename) // '".'
+    call printErrMsg(option)  
+  endif
   call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
 
   ! get dataset dimensions
@@ -377,20 +388,17 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
 
 #ifdef TIME_DATASET
   call MPI_Barrier(option%mycomm,ierr)
-  call PetscTime(tend,ierr)
-  CHKERRQ(ierr)
+  call PetscTime(tend,ierr);CHKERRQ(ierr)
   write(option%io_buffer,'(f6.2," Seconds to set up dataset ",a,".")') &
     tend-tstart, trim(this%hdf5_dataset_name) // ' (' // &
     trim(option%group_prefix) // ')'
   if (option%myrank == option%io_rank) then
     print *, trim(option%io_buffer)
   endif
-  call PetscTime(tstart,ierr)
-  CHKERRQ(ierr)
+  call PetscTime(tstart,ierr);CHKERRQ(ierr)
 #endif
 
-  call PetscLogEventBegin(logging%event_h5dread_f,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventBegin(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
 
   if (associated(this%time_storage)) then
     num_dims_in_h5_file = this%rank + 1
@@ -474,8 +482,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   endif
 #endif
   
-  call PetscLogEventEnd(logging%event_h5dread_f,ierr)
-  CHKERRQ(ierr) 
+  call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
 
 #ifdef BROADCAST_DATASET
   if (first_time .or. option%myrank == option%io_rank) then
@@ -493,8 +500,7 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
 
 #ifdef TIME_DATASET
   call MPI_Barrier(option%mycomm,ierr)
-  call PetscTime(tend,ierr)
-  CHKERRQ(ierr)
+  call PetscTime(tend,ierr);CHKERRQ(ierr)
   write(option%io_buffer,'(f6.2," Seconds to read dataset ",a,".")') &
     tend-tstart, trim(this%hdf5_dataset_name) // ' (' // &
     trim(option%group_prefix) // ')'
@@ -503,9 +509,8 @@ subroutine DatasetGriddedHDF5ReadData(this,option)
   endif
 #endif
 
-  
-  !TODO(geh): add to event log
-  !call PetscLogEventEnd(logging%event_read_ndim_real_array_hdf5,ierr)
+  call PetscLogEventEnd(logging%event_dataset_gridded_hdf5_read, &
+                        ierr);CHKERRQ(ierr)
                           
 end subroutine DatasetGriddedHDF5ReadData
 

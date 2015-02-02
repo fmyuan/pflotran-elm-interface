@@ -40,10 +40,12 @@ program pflotran
   use Option_module
   use Simulation_Base_class
   use Multi_Simulation_module
-  use PFLOTRAN_Factory_module
-  use Subsurface_Factory_module
-  use Surface_Factory_module
-  use Surf_Subsurf_Factory_module
+  use Factory_PFLOTRAN_module
+  use Factory_Subsurface_module
+  use Factory_Hydrogeophysics_module
+  use Factory_Surface_module
+  use Factory_Surf_Subsurf_module
+  use Factory_Geomechanics_module
   use PFLOTRAN_Constants_module
   use Output_Aux_module, only : INSTANTANEOUS_VARS
   use PFLOTRAN_Provenance_module, only : PrintProvenanceToScreen
@@ -74,10 +76,14 @@ program pflotran
     select case(option%simulation_mode)
       case('SUBSURFACE')
         call SubsurfaceInitialize(simulation,option)
+      case('HYDROGEOPHYSICS')
+        call HydrogeophysicsInitialize(simulation,option)
       case('SURFACE')
         call SurfaceInitialize(simulation,option)
       case('SURFACE_SUBSURFACE')
         call SurfSubsurfaceInitialize(simulation,option)
+      case ('GEOMECHANICS')
+        call GeomechanicsInitialize(simulation,option)
       case default
         option%io_buffer = 'Simulation Mode not recognized.'
         call printErrMsg(option)

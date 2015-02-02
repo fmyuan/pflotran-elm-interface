@@ -115,8 +115,8 @@ subroutine PMRTInit(this)
 
 #ifndef SIMPLIFY
   use Discretization_module
-  use Structured_Communicator_class
-  use Unstructured_Communicator_class
+  use Communicator_Structured_class
+  use Communicator_Unstructured_class
   use Grid_module 
 #endif  
   
@@ -131,7 +131,7 @@ subroutine PMRTInit(this)
 #ifndef SIMPLIFY  
   ! set up communicator
   select case(this%realization%discretization%itype)
-    case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
+    case(STRUCTURED_GRID)
       this%commN => StructuredCommunicatorCreate()
     case(UNSTRUCTURED_GRID)
       this%commN => UnstructuredCommunicatorCreate()
@@ -186,6 +186,7 @@ subroutine PMRTInitializeTimestep(this)
   use Reactive_Transport_module, only : RTInitializeTimestep, &
                                         RTUpdateTransportCoefs
   use Global_module
+  use Material_module
 
   implicit none
   
@@ -199,23 +200,20 @@ subroutine PMRTInitializeTimestep(this)
   this%option%tran_dt = this%option%dt
 
   if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," REACTIVE TRANSPORT ",57("="))')
+    write(*,'(/,2("=")," REACTIVE TRANSPORT ",58("="))')
   endif
-  
-#if 0  
-  call DiscretizationLocalToLocal(discretization, &
-                                  this%realization%field%porosity_loc, &
-                                  this%realization%field%porosity_loc,ONEDOF)
-  call DiscretizationLocalToLocal(discretization, &
-                                  this%realization%field%tortuosity_loc, &
-                                  this%realization%field%tortuosity_loc,ONEDOF)
-#endif  
   
   ! interpolate flow parameters/data
   ! this must remain here as these weighted values are used by both
   ! RTInitializeTimestep and RTTimeCut (which calls RTInitializeTimestep)
   if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
     call this%SetTranWeights()
+    if (this%option%flow%transient_porosity) then
+      ! weight material properties (e.g. porosity)
+      call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
+                                 this%tran_weight_t0, &
+                                 this%realization%field,this%comm1)
+    endif
     ! set densities and saturations to t
     call GlobalWeightAuxvars(this%realization,this%tran_weight_t0)
   endif
@@ -223,9 +221,15 @@ subroutine PMRTInitializeTimestep(this)
   call RTInitializeTimestep(this%realization)
 
   !geh: this is a bug and should be moved to PreSolve()
-#if 1
+#if 0
   ! set densities and saturations to t+dt
   if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
+    if (this%option%flow%transient_porosity) then
+      ! weight material properties (e.g. porosity)
+      call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
+                                 this%tran_weight_t1, &
+                                 this%realization%field,this%comm1)
+    endif
     call GlobalWeightAuxVars(this%realization,this%tran_weight_t1)
   endif
 
@@ -246,6 +250,7 @@ subroutine PMRTPreSolve(this)
                                         RTUpdateAuxVars
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Global_module  
+  use Material_module
 
   implicit none
   
@@ -257,9 +262,16 @@ subroutine PMRTPreSolve(this)
   call printMsg(this%option,'PMRT%UpdatePreSolve()')
 #endif
   
-#if 0
+#if 1
+  call RTUpdateTransportCoefs(this%realization)
   ! set densities and saturations to t+dt
   if (this%option%nflowdof > 0 .and. .not. this%steady_flow) then
+    if (this%option%flow%transient_porosity) then
+      ! weight material properties (e.g. porosity)
+      call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
+                                 this%tran_weight_t1, &
+                                 this%realization%field,this%comm1)
+    endif
     call GlobalWeightAuxVars(this%realization,this%tran_weight_t1)
   endif
 
@@ -275,10 +287,8 @@ subroutine PMRTPreSolve(this)
   endif
   if (this%realization%reaction%use_log_formulation) then
     call VecCopy(this%realization%field%tran_xx, &
-                 this%realization%field%tran_log_xx,ierr)
-    CHKERRQ(ierr)
-    call VecLog(this%realization%field%tran_log_xx,ierr)
-    CHKERRQ(ierr)
+                 this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)
+    call VecLog(this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)
   endif
   
 end subroutine PMRTPreSolve
@@ -316,7 +326,7 @@ subroutine PMRTFinalizeTimestep(this)
   
   class(pm_rt_type) :: this
   PetscReal :: time  
-
+  
   call RTMaxChange(this%realization)
   if (this%option%print_screen_flag) then
     write(*,'("  --> max chng: dcmx= ",1pe12.4," dc/dt= ",1pe12.4, &
@@ -363,7 +373,7 @@ end function PMRTAcceptSolution
 
 ! ************************************************************************** !
 
-subroutine PMRTUpdateTimestep(this,dt,dt_max,iacceleration, &
+subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                               num_newton_iterations,tfac)
   ! 
   ! Author: Glenn Hammond
@@ -374,7 +384,7 @@ subroutine PMRTUpdateTimestep(this,dt,dt_max,iacceleration, &
   
   class(pm_rt_type) :: this
   PetscReal :: dt
-  PetscReal :: dt_max
+  PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
@@ -400,6 +410,7 @@ subroutine PMRTUpdateTimestep(this,dt,dt_max,iacceleration, &
   if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
   if (dtt > dt_max) dtt = dt_max
   ! geh: see comment above under flow stepper
+  dtt = max(dtt,dt_min)
   dt = dtt
 
 end subroutine PMRTUpdateTimestep
@@ -416,6 +427,10 @@ recursive subroutine PMRTInitializeRun(this)
 
   use Reactive_Transport_module, only : RTUpdateEquilibriumState, &
                                         RTJumpStartKineticSorption
+  use Condition_Control_module
+  use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
+  use Reactive_Transport_module, only : RTUpdateAuxVars, &
+                                        RTClearActivityCoefficients
 
   implicit none
   
@@ -426,11 +441,11 @@ recursive subroutine PMRTInitializeRun(this)
 #endif
   
   ! restart
-#if 0  
-  if (transport_read .and. option%overwrite_restart_transport) then
-    call CondControlAssignTranInitCond(realization)  
+  if (this%option%restart_flag .and. &
+      this%option%overwrite_restart_transport) then
+    call RTClearActivityCoefficients(this%realization)
+    call CondControlAssignTranInitCond(this%realization)  
   endif
-#endif  
   
   ! pass PETSC_FALSE to turn off update of kinetic state variables
   call PMRTUpdateSolution2(this,PETSC_FALSE)
@@ -648,6 +663,7 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
   use Reactive_Transport_module
   use Condition_module
   use Mass_Transfer_module
+  use Integral_Flux_module
 
   implicit none
   
@@ -670,12 +686,6 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
   call RTUpdateEquilibriumState(this%realization)
   if (update_kinetics) &
     call RTUpdateKineticState(this%realization)
-  if (this%realization%reaction%update_porosity .or. &
-      this%realization%reaction%update_tortuosity .or. &
-      this%realization%reaction%update_permeability .or. &
-      this%realization%reaction%update_mineral_surface_area) then
-    call RealizationUpdatePropertiesTS(this%realization)
-  endif
   
   call MassTransferUpdate(this%realization%rt_mass_transfer_list, &
                           this%realization%patch%grid, &
@@ -683,7 +693,11 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
   
   if (this%realization%option%compute_mass_balance_new) then
     call RTUpdateMassBalance(this%realization)
-  endif  
+  endif
+  call IntegralFluxUpdate(this%realization%patch%integral_flux_list, &
+                          this%realization%patch%internal_tran_fluxes, &
+                          this%realization%patch%boundary_tran_fluxes, &
+                          INTEGRATE_TRANSPORT,this%option)
 
 end subroutine PMRTUpdateSolution2     
 
@@ -831,16 +845,12 @@ subroutine PMRTCheckpoint(this,viewer)
   
   global_vec = 0
   
-  call PetscBagCreate(option%mycomm,bagsize,bag,ierr)
-  CHKERRQ(ierr)
-  call PetscBagGetData(bag,header,ierr)
-  CHKERRQ(ierr)
+  call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
+  call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%checkpoint_activity_coefs,0, &
-                           "checkpoint_activity_coefs","",ierr)
-  CHKERRQ(ierr)
+                           "checkpoint_activity_coefs","",ierr);CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%ndof,0, &
-                           "ndof","",ierr)
-  CHKERRQ(ierr)    
+                           "ndof","",ierr);CHKERRQ(ierr)
   if (associated(realization%reaction)) then
     if (realization%reaction%checkpoint_activity_coefs .and. &
         realization%reaction%act_coef_update_frequency /= &
@@ -855,14 +865,11 @@ subroutine PMRTCheckpoint(this,viewer)
   !geh: %ndof should be pushed down to the base class, but this is not possible
   !     as long as option%ntrandof is used.
   header%ndof = option%ntrandof
-  call PetscBagView(bag,viewer,ierr)
-  CHKERRQ(ierr)
-  call PetscBagDestroy(bag,ierr)
-  CHKERRQ(ierr)   
+  call PetscBagView(bag,viewer,ierr);CHKERRQ(ierr)
+  call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
   
   if (option%ntrandof > 0) then
-    call VecView(field%tran_xx, viewer, ierr)
-    CHKERRQ(ierr)
+    call VecView(field%tran_xx, viewer, ierr);CHKERRQ(ierr)
     ! create a global vec for writing below 
     if (global_vec == 0) then
       call DiscretizationCreateVector(realization%discretization,ONEDOF, &
@@ -875,14 +882,12 @@ subroutine PMRTCheckpoint(this,viewer)
       do i = 1, realization%reaction%naqcomp
         call RealizationGetVariable(realization,global_vec, &
                                    PRIMARY_ACTIVITY_COEF,i)
-        call VecView(global_vec,viewer,ierr)
-        CHKERRQ(ierr)
+        call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
       enddo
       do i = 1, realization%reaction%neqcplx
         call RealizationGetVariable(realization,global_vec, &
                                    SECONDARY_ACTIVITY_COEF,i)
-        call VecView(global_vec,viewer,ierr)
-        CHKERRQ(ierr)
+        call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
       enddo
     endif
     ! mineral volume fractions for kinetic minerals
@@ -890,8 +895,7 @@ subroutine PMRTCheckpoint(this,viewer)
       do i = 1, realization%reaction%mineral%nkinmnrl
         call RealizationGetVariable(realization,global_vec, &
                                    MINERAL_VOLUME_FRACTION,i)
-        call VecView(global_vec,viewer,ierr)
-        CHKERRQ(ierr)
+        call VecView(global_vec,viewer,ierr);CHKERRQ(ierr)
       enddo
     endif
     ! sorbed concentrations for multirate kinetic sorption
@@ -903,8 +907,7 @@ subroutine PMRTCheckpoint(this,viewer)
   endif
 
   if (global_vec /= 0) then
-    call VecDestroy(global_vec,ierr)
-    CHKERRQ(ierr)
+    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif
   
 end subroutine PMRTCheckpoint
@@ -977,26 +980,19 @@ subroutine PMRTRestart(this,viewer)
   global_vec = 0
   local_vec = 0
   
-  call PetscBagCreate(this%option%mycomm, bagsize, bag, ierr)
-  CHKERRQ(ierr)
-  call PetscBagGetData(bag, header, ierr)
-  CHKERRQ(ierr)
+  call PetscBagCreate(this%option%mycomm, bagsize, bag, ierr);CHKERRQ(ierr)
+  call PetscBagGetData(bag, header, ierr);CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%checkpoint_activity_coefs,0, &
-                           "checkpoint_activity_coefs","",ierr)
-  CHKERRQ(ierr)  
+                           "checkpoint_activity_coefs","",ierr);CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%ndof,0, &
-                           "ndof","",ierr)
-  CHKERRQ(ierr)  
-  call PetscBagLoad(viewer, bag, ierr)
-  CHKERRQ(ierr)  
+                           "ndof","",ierr);CHKERRQ(ierr)
+  call PetscBagLoad(viewer, bag, ierr);CHKERRQ(ierr)
   option%ntrandof = header%ndof
   
-  call VecLoad(field%tran_xx,viewer,ierr)
-  CHKERRQ(ierr)
+  call VecLoad(field%tran_xx,viewer,ierr);CHKERRQ(ierr)
   call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
                                     field%tran_xx_loc,NTRANDOF)
-  call VecCopy(field%tran_xx,field%tran_yy,ierr)
-  CHKERRQ(ierr)
+  call VecCopy(field%tran_xx,field%tran_yy,ierr);CHKERRQ(ierr)
 
   if (global_vec == 0) then
     call DiscretizationCreateVector(realization%discretization,ONEDOF, &
@@ -1006,16 +1002,14 @@ subroutine PMRTRestart(this,viewer)
     call DiscretizationCreateVector(discretization,ONEDOF,local_vec, &
                                     LOCAL,option)
     do i = 1, realization%reaction%naqcomp
-      call VecLoad(global_vec,viewer,ierr)
-      CHKERRQ(ierr)
+      call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
       call DiscretizationGlobalToLocal(discretization,global_vec, &
                                         local_vec,ONEDOF)
       call RealizationSetVariable(realization,local_vec,LOCAL, &
                                   PRIMARY_ACTIVITY_COEF,i)
     enddo
     do i = 1, realization%reaction%neqcplx
-      call VecLoad(global_vec,viewer,ierr)
-      CHKERRQ(ierr)
+      call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
       call DiscretizationGlobalToLocal(discretization,global_vec, &
                                         local_vec,ONEDOF)
       call RealizationSetVariable(realization,local_vec,LOCAL, &
@@ -1026,8 +1020,7 @@ subroutine PMRTRestart(this,viewer)
   if (realization%reaction%mineral%nkinmnrl > 0) then
     do i = 1, realization%reaction%mineral%nkinmnrl
       ! have to load the vecs no matter what
-      call VecLoad(global_vec,viewer,ierr)
-      CHKERRQ(ierr)
+      call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
       if (.not.option%transport%no_restart_mineral_vol_frac) then
         call RealizationSetVariable(realization,global_vec,GLOBAL, &
                                     MINERAL_VOLUME_FRACTION,i)
@@ -1047,16 +1040,13 @@ subroutine PMRTRestart(this,viewer)
     
   ! We are finished, so clean up.
   if (global_vec /= 0) then
-    call VecDestroy(global_vec,ierr)
-    CHKERRQ(ierr)
+    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif
   if (local_vec /= 0) then
-    call VecDestroy(local_vec,ierr)
-    CHKERRQ(ierr)
+    call VecDestroy(local_vec,ierr);CHKERRQ(ierr)
   endif
   
-  call PetscBagDestroy(bag,ierr)
-  CHKERRQ(ierr)
+  call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
   
   if (realization%reaction%use_full_geochemistry) then
                                      ! cells     bcs        act coefs.

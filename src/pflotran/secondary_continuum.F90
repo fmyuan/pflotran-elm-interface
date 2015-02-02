@@ -20,6 +20,11 @@ module Secondary_Continuum_module
 #include "finclude/petscviewer.h"
 #include "finclude/petsclog.h"
 
+  ! secondary continuum cell type
+  PetscInt, parameter, public :: SLAB = 0
+  PetscInt, parameter, public :: NESTED_CUBE = 1
+  PetscInt, parameter, public :: NESTED_SPHERE = 2
+
   PetscReal, parameter :: perturbation_tolerance = 1.d-5
 
   public :: SecondaryContinuumType, &
@@ -29,6 +34,7 @@ module Secondary_Continuum_module
             SecondaryRTAuxVarComputeMulti, &
             THCSecHeatAuxVarCompute, &
             THSecHeatAuxVarCompute, &
+            MphaseSecHeatAuxVarCompute, &
             SecondaryRTUpdateIterate, &
             SecondaryRTUpdateEquilState, &
             SecondaryRTUpdateKineticState, &
@@ -76,7 +82,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
   option%nsec_cells = nmat
     
   select case (igeom)      
-    case(0) ! 1D Slab
+    case(SLAB)
     
       dy = sec_continuum%slab%length/nmat
       aream0 = sec_continuum%slab%area
@@ -119,7 +125,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
                                       dm2(m-1) + dm1(m)
       enddo
           
-    case(1) ! nested cubes
+    case(NESTED_CUBE)
 
       if (sec_continuum%nested_cube%fracture_spacing > 0.d0) then
 
@@ -127,7 +133,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
 !        override epsilon if aperture defined
         if (aperture > 0.d0) then
           r0 = fracture_spacing - aperture
-          epsilon = 1.d0 - (1.d0 + aperture/r0)**(-3.0)
+          epsilon = 1.d0 - (1.d0 + aperture/r0)**(-3.d0)
         else if (epsilon > 0.d0) then
           r0 = fracture_spacing*(1.d0-epsilon)**(1.d0/3.d0)
           aperture = r0*((1.d0-epsilon)**(-1.d0/3.d0)-1.d0)
@@ -140,7 +146,7 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
 !        override epsilon if aperture defined
         if (aperture > 0.d0) then
           fracture_spacing = r0 + aperture
-          epsilon = 1.d0 - (1.d0 + aperture/r0)**(-3.0)
+          epsilon = 1.d0 - (1.d0 + aperture/r0)**(-3.d0)
         else if (epsilon > 0.d0) then
           fracture_spacing = r0*(1.d0-epsilon)**(-1.d0/3.d0)
           aperture = fracture_spacing - r0
@@ -153,48 +159,48 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
         call SecondaryContinuumCalcLogSpacing(matrix_block_size,outer_spacing, &
                                               nmat,grid_spacing,option)
         
-        r0 = 2*grid_spacing(1)
-        dm1(1) = 0.5*grid_spacing(1)
-        dm2(1) = 0.5*grid_spacing(1)
-        volm(1) = r0**3
-        aream(1) = 6.d0*r0**2         
+        r0 = 2.d0*grid_spacing(1)
+        dm1(1) = 0.5d0*grid_spacing(1)
+        dm2(1) = 0.5d0*grid_spacing(1)
+        volm(1) = r0**3.d0
+        aream(1) = 6.d0*r0**2.d0
         do m = 2, nmat
-          dm1(m) = 0.5*grid_spacing(m)
-          dm2(m) = 0.5*grid_spacing(m)
-          r1 = r0 + 2*(dm1(m) + dm2(m))
-          volm(m) = r1**3 - r0**3
-          aream(m) = 6.d0*r1**2
+          dm1(m) = 0.5d0*grid_spacing(m)
+          dm2(m) = 0.5d0*grid_spacing(m)
+          r1 = r0 + 2.d0*(dm1(m) + dm2(m))
+          volm(m) = r1**3.d0 - r0**3.d0
+          aream(m) = 6.d0*r1**2.d0
           r0 = r1
         enddo
         r0 = matrix_block_size
-        am0 = 6.d0*r0**2
-        vm0 = r0**3
+        am0 = 6.d0*r0**2.d0
+        vm0 = r0**3.d0
         interfacial_area = am0/vm0
 
       else
         dy = r0/nmat/2.d0
      
         r0 = 2.d0*dy
-        volm(1) = r0**3
+        volm(1) = r0**3.d0
         do m = 2, nmat
           r1 = r0 + 2.d0*dy
-          volm(m) = r1**3 - r0**3
+          volm(m) = r1**3.d0 - r0**3.d0
           r0 = r1
         enddo
       
         r0 = 2.d0*dy
-        aream(1) = 6.d0*r0**2
+        aream(1) = 6.d0*r0**2.d0
         dm1(1) = 0.5d0*dy
         dm2(1) = 0.5d0*dy
         do m = 2, nmat
           dm1(m) = 0.5d0*dy
           dm2(m) = 0.5d0*dy
           r0 = r0 + 2.d0*dy
-          aream(m) = 6.d0*r0**2
+          aream(m) = 6.d0*r0**2.d0
         enddo
-        r0 = real(2*nmat)*dy
-        am0 = 6.d0*r0**2
-        vm0 = r0**3
+        r0 = real(2.d0*nmat)*dy
+        am0 = 6.d0*r0**2.d0
+        vm0 = r0**3.d0
         interfacial_area = am0/vm0
       endif
 
@@ -231,30 +237,30 @@ subroutine SecondaryContinuumType(sec_continuum,nmat,aream, &
                                       dm2(m-1) + dm1(m)
       enddo     
 
-    case(2) ! nested spheres
+    case(NESTED_SPHERE)
     
       dy = sec_continuum%nested_sphere%radius/nmat
       r0 = dy
 
-      volm(1) = 4.d0/3.d0*pi*r0**3
+      volm(1) = 4.d0/3.d0*pi*r0**3.d0
       do m = 2, nmat
         r1 = r0 + dy
-        volm(m) = 4.d0/3.d0*pi*(r1**3 - r0**3)
+        volm(m) = 4.d0/3.d0*pi*(r1**3.d0 - r0**3.d0)
         r0 = r1
       enddo
       
       r0 = dy
-      aream(1) = 4.d0*pi*r0**2
+      aream(1) = 4.d0*pi*r0**2.d0
       dm1(1) = 0.5d0*dy
       dm2(1) = 0.5d0*dy
       do m = 2, nmat
         r0 = r0 + dy
         dm1(m) = 0.5d0*dy
         dm2(m) = 0.5d0*dy
-        aream(m) = 4.d0*pi*r0**2
+        aream(m) = 4.d0*pi*r0**2.d0
       enddo
-      r0 = 0.5d0*real(2*nmat)*dy
-      am0 = 4.d0*pi*r0**2
+      r0 = 0.5d0*real(2.d0*nmat)*dy
+      am0 = 4.d0*pi*r0**2.d0
       vm0 = am0*r0/3.d0
       interfacial_area = am0/vm0
 
@@ -347,7 +353,7 @@ subroutine SecondaryContinuumSetProperties(sec_continuum, &
   
   select case(trim(sec_continuum_name))
     case("SLAB")
-      sec_continuum%itype = 0
+      sec_continuum%itype = SLAB
       sec_continuum%slab%length = sec_continuum_length
       if (sec_continuum_area == 0.d0) then
         option%io_buffer = 'Keyword "AREA" not specified for SLAB type ' // &
@@ -356,11 +362,11 @@ subroutine SecondaryContinuumSetProperties(sec_continuum, &
       endif
       sec_continuum%slab%area = sec_continuum_area
     case("NESTED_CUBES")
-      sec_continuum%itype = 1
+      sec_continuum%itype = NESTED_CUBE
       sec_continuum%nested_cube%matrix_block_size = sec_continuum_matrix_block_size
       sec_continuum%nested_cube%fracture_spacing = sec_continuum_fracture_spacing
     case("NESTED_SPHERES")
-      sec_continuum%itype = 2
+      sec_continuum%itype = NESTED_SPHERE
       sec_continuum%nested_sphere%radius = sec_continuum_radius
     case default
       option%io_buffer = 'Keyword "' // trim(sec_continuum_name) // '" not ' // &
@@ -376,10 +382,19 @@ subroutine SecondaryContinuumCalcLogSpacing(matrix_size,outer_grid_size, &
                                             sec_num_cells,grid_spacing,option)
   ! 
   ! Given the matrix block size and the
-  ! grid spacing of the outer mode secondary continuum cell, a geometric
+  ! grid spacing of the outer most secondary continuum cell, a geometric
   ! series is assumed and the grid spacing of the rest of the cells is
   ! calculated
   ! 
+  ! Equation:
+  ! \frac{1 - \rho}{1 - \rho_M}*\rho*(M-1) = \frac{2\Delta\xi_m}{l_M}
+  !
+  ! where
+  !   \Delta\xi_m: Grid spacing of the outer most continuum cell (INPUT)
+  !   l_M        : Matrix block size (INPUT)
+  !   M          : Number of secondary continuum cells (INPUT)
+  !   \rho       : Logarithmic grid spacing factor (COMPUTED)
+  !
   ! Author: Satish Karra, LANL
   ! Date: 07/17/12
   ! 
@@ -408,10 +423,10 @@ subroutine SecondaryContinuumCalcLogSpacing(matrix_size,outer_grid_size, &
   delta = 0.99d0
   
   do i = 1, maxit
-    F = (1.d0 - delta)/(1.d0 - delta**sec_num_cells)*delta**(sec_num_cells-1) - &
+    F = (1.d0 - delta)/(1.d0 - delta**sec_num_cells)*delta**(sec_num_cells - 1.d0) - &
         2.d0*outer_grid_size/matrix_size
     dF = (1.d0 + sec_num_cells*(delta - 1.d0) - delta**sec_num_cells)/ &
-         (delta**sec_num_cells - 1.d0)**2*delta**(sec_num_cells - 2) 
+         (delta**sec_num_cells - 1.d0)**2.d0*delta**(sec_num_cells - 2.d0)
     delta_new = delta + F/dF
     if ((abs(F) < tol)) exit
     delta = delta_new
@@ -493,7 +508,7 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
   ! 
   
   use Coupler_module
-  use Constraint_module
+  use Transport_Constraint_module
   use Condition_module
   use Global_Aux_module
   use Material_module
@@ -617,15 +632,10 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
         global_auxvar%temp = option%reference_temperature
       endif
         
-#ifndef DONT_USE_WATEOS
       call EOSWaterDensity(global_auxvar%temp, &
                            global_auxvar%pres(1), &
                            global_auxvar%den_kg(1), &
                            dum1,ierr)
-#else
-      call EOSWaterDensity(global_auxvar%temp,global_auxvar%pres(1), &
-                           global_auxvar%den_kg(1),dum1,ierr)
-#endif             
     else
       global_auxvar%pres = option%reference_pressure
       global_auxvar%temp = option%reference_temperature
@@ -637,6 +647,7 @@ subroutine SecondaryRTAuxVarInit(ptr,rt_sec_transport_vars,reaction, &
                           material_auxvar, &
                           reaction,constraint%name, &
                           constraint%aqueous_species, &
+                          constraint%free_ion_guess, &
                           constraint%minerals, &
                           constraint%surface_complexes, &
                           constraint%colloids, &
@@ -1433,10 +1444,10 @@ subroutine SecondaryRTUpdateIterate(line_search,P0,dP,P1,dP_changed, &
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
       if (realization%patch%imat(ghosted_id) <= 0) cycle
-      sec_diffusion_coefficient = realization% &
+      sec_diffusion_coefficient = realization%patch% &
                                   material_property_array(1)%ptr% &
                                   secondary_continuum_diff_coeff
-      sec_porosity = realization%material_property_array(1)%ptr% &
+      sec_porosity = realization%patch%material_property_array(1)%ptr% &
                     secondary_continuum_porosity
 
       call SecondaryRTAuxVarComputeMulti(&
@@ -2039,6 +2050,108 @@ subroutine THSecHeatAuxVarCompute(sec_heat_vars,global_auxvar, &
   sec_heat_vars%sec_temp = sec_temp
             
 end subroutine THSecHeatAuxVarCompute
+
+! ************************************************************************** !
+
+subroutine MphaseSecHeatAuxVarCompute(sec_heat_vars,auxvar,global_auxvar, &
+                                   therm_conductivity,dencpr, &
+                                   option)
+  ! 
+  ! Computes secondary auxillary variables in each
+  ! grid cell for heat transfer only
+  ! 
+  ! Author: Satish Karra, LANL
+  ! Date: 06/28/12
+  ! 
+
+  use Option_module 
+  use Global_Aux_module
+  use Mphase_Aux_module
+  
+  implicit none
+  
+  type(sec_heat_type) :: sec_heat_vars
+  type(mphase_auxvar_elem_type) :: auxvar
+  type(global_auxvar_type) :: global_auxvar
+  type(option_type) :: option
+  PetscReal :: coeff_left(sec_heat_vars%ncells)
+  PetscReal :: coeff_diag(sec_heat_vars%ncells)
+  PetscReal :: coeff_right(sec_heat_vars%ncells)
+  PetscReal :: rhs(sec_heat_vars%ncells)
+  PetscReal :: sec_temp(sec_heat_vars%ncells)
+  PetscReal :: area(sec_heat_vars%ncells)
+  PetscReal :: vol(sec_heat_vars%ncells)
+  PetscReal :: dm_plus(sec_heat_vars%ncells)
+  PetscReal :: dm_minus(sec_heat_vars%ncells)
+  PetscInt :: i, ngcells
+  PetscReal :: area_fm
+  PetscReal :: alpha, therm_conductivity, dencpr
+  PetscReal :: temp_primary_node
+  PetscReal :: m
+  
+  
+  ngcells = sec_heat_vars%ncells
+  area = sec_heat_vars%area
+  vol = sec_heat_vars%vol
+  dm_plus = sec_heat_vars%dm_plus
+  dm_minus = sec_heat_vars%dm_minus
+  area_fm = sec_heat_vars%interfacial_area
+  temp_primary_node = auxvar%temp
+
+  
+  coeff_left = 0.d0
+  coeff_diag = 0.d0
+  coeff_right = 0.d0
+  rhs = 0.d0
+  sec_temp = 0.d0
+  
+  alpha = option%flow_dt*therm_conductivity/dencpr
+
+  
+  ! Setting the coefficients
+  do i = 2, ngcells-1
+    coeff_left(i) = -alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i))
+    coeff_diag(i) = alpha*area(i-1)/((dm_minus(i) + dm_plus(i-1))*vol(i)) + &
+                    alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i)) + 1.d0
+    coeff_right(i) = -alpha*area(i)/((dm_minus(i+1) + dm_plus(i))*vol(i))
+  enddo
+  
+  coeff_diag(1) = alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1)) + 1.d0
+  coeff_right(1) = -alpha*area(1)/((dm_minus(2) + dm_plus(1))*vol(1))
+  
+  coeff_left(ngcells) = -alpha*area(ngcells-1)/ &
+                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells))
+  coeff_diag(ngcells) = alpha*area(ngcells-1)/ &
+                       ((dm_minus(ngcells) + dm_plus(ngcells-1))*vol(ngcells)) &
+                       + alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells)) &
+                       + 1.d0
+                        
+  rhs = sec_heat_vars%sec_temp  ! secondary continuum values from previous time step
+  rhs(ngcells) = rhs(ngcells) + & 
+                 alpha*area(ngcells)/(dm_plus(ngcells)*vol(ngcells))* &
+                 temp_primary_node
+                
+  ! Thomas algorithm for tridiagonal system
+  ! Forward elimination
+  do i = 2, ngcells
+    m = coeff_left(i)/coeff_diag(i-1)
+    coeff_diag(i) = coeff_diag(i) - m*coeff_right(i-1)
+    rhs(i) = rhs(i) - m*rhs(i-1)
+  enddo
+
+  ! Back substitution
+  ! Calculate temperature in the secondary continuum
+  sec_temp(ngcells) = rhs(ngcells)/coeff_diag(ngcells)
+  do i = ngcells-1, 1, -1
+    sec_temp(i) = (rhs(i) - coeff_right(i)*sec_temp(i+1))/coeff_diag(i)
+  enddo
+
+! print *,'temp_dcdm= ',(sec_temp(i),i=1,ngcells)
+  
+  sec_heat_vars%sec_temp = sec_temp
+
+
+end subroutine MphaseSecHeatAuxVarCompute
 
 ! ************************************************************************** !
 

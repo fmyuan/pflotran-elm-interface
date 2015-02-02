@@ -86,11 +86,14 @@ module clm_pflotran_interface_data
   Vec :: h2osfc_clm ! seq vec
   Vec :: h2osfc_pf  ! mpi vec
 
+  Vec :: eff_therm_cond_clm ! seq vec
+  Vec :: eff_therm_cond_pf  ! mpi vec
+
   ! Number of cells for the 3D subsurface domain
   PetscInt :: nlclm_sub ! num of local clm cells
   PetscInt :: ngclm_sub ! num of ghosted clm cells (ghosted = local+ghosts)
   PetscInt :: nlpf_sub  ! num of local pflotran cells
-  PetscInt :: ngpf_sub   ! num of ghosted pflotran cells (ghosted = local+ghosts)
+  PetscInt :: ngpf_sub  ! num of ghosted pflotran cells (ghosted = local+ghosts)
 
   ! Number of cells for the surface of the 3D subsurface domain
   PetscInt :: nlclm_2dsub  ! num of local clm cells
@@ -108,6 +111,8 @@ module clm_pflotran_interface_data
   PetscInt :: ngclm_srf  ! num of ghosted clm cells (ghosted = local+ghosts)
   PetscInt :: nlpf_srf   ! num of local pflotran cells
   PetscInt :: ngpf_srf   ! num of ghosted pflotran cells (ghosted = local+ghosts)
+
+  PetscInt :: nzclm_mapped ! num of CLM soil layers that are mapped
 
   !-------------------------------------------------------------------------------------
   ! note: mapping ONLY can do from MPI vecs to Seq. vecs now
@@ -393,9 +398,9 @@ contains
     clm_pf_idata%hksat_z_clm = 0
     clm_pf_idata%sucsat_clm = 0
     clm_pf_idata%watsat_clm = 0
-    clm_pf_idata%watfc_clm = 0
     clm_pf_idata%bsw_clm = 0
     clm_pf_idata%press_clm = 0
+    clm_pf_idata%watfc_clm = 0
     clm_pf_idata%bulkdensity_dry_clm = 0
 
     clm_pf_idata%hksat_x_pf = 0
@@ -403,14 +408,13 @@ contains
     clm_pf_idata%hksat_z_pf = 0
     clm_pf_idata%sucsat_pf = 0
     clm_pf_idata%watsat_pf = 0
-    clm_pf_idata%watfc_pf = 0
     clm_pf_idata%bsw_pf = 0
-    !clm_pf_idata%press_pf = 0
+    clm_pf_idata%watfc_pf = 0
     clm_pf_idata%bulkdensity_dry_pf = 0
 
     clm_pf_idata%qflx_clm = 0
     clm_pf_idata%qflx_pf = 0
-
+    
     clm_pf_idata%rain_clm = 0
     clm_pf_idata%rain_pf = 0
     clm_pf_idata%rain_temp_clm = 0
@@ -445,6 +449,11 @@ contains
     clm_pf_idata%pcwmax_pfs     = 0
     clm_pf_idata%porosity_pfs   = 0
     clm_pf_idata%press_ref_pfs  = 0
+
+    clm_pf_idata%eff_therm_cond_clm = 0
+    clm_pf_idata%eff_therm_cond_pf = 0
+
+    clm_pf_idata%nzclm_mapped = 0
 
    ! soil TH and C/N pools
     clm_pf_idata%press_clmp    = 0
@@ -740,6 +749,7 @@ contains
     call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%temp_pf,ierr)
     call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%sat_ice_pf,ierr)
     call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%area_top_face_pf,ierr)
+    call VecDuplicate(clm_pf_idata%sat_pf,clm_pf_idata%eff_therm_cond_pf,ierr)
 
     ! 2D Surface PFLOTRAN ---to--- 2D Surface CLM
     call VecCreateMPI(mycomm,clm_pf_idata%nlpf_srf,PETSC_DECIDE,clm_pf_idata%h2osfc_pf,ierr)
@@ -753,6 +763,7 @@ contains
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%temp_clm,ierr)
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%sat_ice_clm,ierr)
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%area_top_face_clm,ierr)
+    call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%eff_therm_cond_clm,ierr)
 
     ! 2D Surface PFLOTRAN ---to--- 2D Surface CLM
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%nlclm_2dsub,clm_pf_idata%h2osfc_clm,ierr)
@@ -1049,7 +1060,7 @@ contains
     if(clm_pf_idata%watsat_clm  /= 0) call VecDestroy(clm_pf_idata%watsat_clm,ierr)
     if(clm_pf_idata%bsw_clm  /= 0) call VecDestroy(clm_pf_idata%bsw_clm,ierr)
     if(clm_pf_idata%press_clm  /= 0) call VecDestroy(clm_pf_idata%press_clm,ierr)
-
+    if(clm_pf_idata%qflx_clm  /= 0) call VecDestroy(clm_pf_idata%qflx_clm,ierr)
     if(clm_pf_idata%watfc_clm  /= 0) call VecDestroy(clm_pf_idata%watfc_clm,ierr)
     if(clm_pf_idata%bulkdensity_dry_clm  /= 0) call VecDestroy(clm_pf_idata%bulkdensity_dry_clm,ierr)
 
@@ -1060,12 +1071,9 @@ contains
     if(clm_pf_idata%watsat_pf  /= 0) call VecDestroy(clm_pf_idata%watsat_pf,ierr)
     if(clm_pf_idata%bsw_pf  /= 0) call VecDestroy(clm_pf_idata%bsw_pf,ierr)
     !if(clm_pf_idata%press_pf  /= 0) call VecDestroy(clm_pf_idata%press_pf,ierr)
-
+    if(clm_pf_idata%qflx_pf  /= 0) call VecDestroy(clm_pf_idata%qflx_pf,ierr)
     if(clm_pf_idata%watfc_pf  /= 0) call VecDestroy(clm_pf_idata%watfc_pf,ierr)
     if(clm_pf_idata%bulkdensity_dry_pf  /= 0) call VecDestroy(clm_pf_idata%bulkdensity_dry_pf,ierr)
-
-    if(clm_pf_idata%qflx_clm  /= 0) call VecDestroy(clm_pf_idata%qflx_clm,ierr)
-    if(clm_pf_idata%qflx_pf  /= 0) call VecDestroy(clm_pf_idata%qflx_pf,ierr)
     
     if(clm_pf_idata%rain_clm  /= 0) call VecDestroy(clm_pf_idata%rain_clm,ierr)
     if(clm_pf_idata%rain_pf  /= 0) call VecDestroy(clm_pf_idata%rain_pf,ierr)
@@ -1092,6 +1100,9 @@ contains
       call VecDestroy(clm_pf_idata%area_top_face_clm,ierr)
     if(clm_pf_idata%area_top_face_pf  /= 0) &
       call VecDestroy(clm_pf_idata%area_top_face_pf,ierr)
+
+    if(clm_pf_idata%eff_therm_cond_clm  /= 0) call VecDestroy(clm_pf_idata%eff_therm_cond_clm,ierr)
+    if(clm_pf_idata%eff_therm_cond_pf  /= 0) call VecDestroy(clm_pf_idata%eff_therm_cond_pf,ierr)
 
     ! -----------------------------------------------------------------------------------------------------------
     ! soil C/N pools (initial)

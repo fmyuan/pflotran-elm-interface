@@ -1,5 +1,9 @@
 module Richards_Aux_module
 
+#ifdef BUFFER_MATRIX
+  use Matrix_Buffer_module
+#endif
+
   use PFLOTRAN_Constants_module
 
   implicit none
@@ -53,6 +57,9 @@ module Richards_Aux_module
     type(richards_auxvar_type), pointer :: auxvars(:)
     type(richards_auxvar_type), pointer :: auxvars_bc(:)
     type(richards_auxvar_type), pointer :: auxvars_ss(:)
+#ifdef BUFFER_MATRIX
+    type(matrix_buffer_type), pointer :: matrix_buffer
+#endif
   end type richards_type
 
   public :: RichardsAuxCreate, RichardsAuxDestroy, &
@@ -96,6 +103,9 @@ function RichardsAuxCreate()
   nullify(aux%richards_parameter%sir)
   nullify(aux%zero_rows_local)
   nullify(aux%zero_rows_local_ghosted)
+#ifdef BUFFER_MATRIX
+  nullify(aux%matrix_buffer)
+#endif
 
   RichardsAuxCreate => aux
   
@@ -294,24 +304,8 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     pw = global_auxvar%pres(1)
   endif
 
-!  call wateos_noderiv(option%temp,pw,dw_kg,dw_mol,hw,option%scale,ierr)
-#ifndef DONT_USE_WATEOS
-!geh  call EOSWaterDensityEnthalpy(global_auxvar%temp,pw,dw_kg,dw_mol,hw, &
-!                               dw_dp,dw_dt,hw_dp,hw_dt,option%scale,ierr)
   call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol, &
                        dw_dp,dw_dt,ierr)
-#else
-  call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,ierr)
-  pert = tol*pw
-  pw_pert = pw+pert
-  call EOSWaterdensity(global_auxvar%temp,pw_pert,dw_kg_pert,dw_mol,ierr)
-  dw_dp = (dw_kg_pert-dw_kg)/pert
-  ! dw_kg = kg/m^3
-  ! dw_mol = kmol/m^3
-  ! FMWH2O = kg/kmol h2o
-  dw_mol = dw_kg/FMWH2O
-  dw_dp = dw_dp/FMWH2O
-#endif
 ! may need to compute dpsat_dt to pass to VISW
   call EOSWaterSaturationPressure(global_auxvar%temp,sat_pressure,ierr)
   !geh: 0.d0 passed in for derivative of pressure w/respect to temp
@@ -329,37 +323,8 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   global_auxvar%den_kg = dw_kg
   auxvar%dsat_dp = ds_dp
   auxvar%dden_dp = dw_dp
-
-#ifdef USE_ANISOTROPIC_MOBILITY  
-  auxvar%kvr_x = kr/visl       ! For anisotropic relative perm
-  auxvar%kvr_y = kr/visl       ! For anisotropic relative perm         
-  auxvar%kvr_z = kr/visl       ! For anisotropic relative perm
-  if (option%ani_relative_permeability) then  
-    ani_coef = 1
-!     do i=1, 100
-!     global_auxvar%sat(1) = 0.01*i
-!     ani_A = 3
-!     ani_B = 44.8
-!     ani_C = -7.26
-     ani_A = saturation_function%ani_A  
-     ani_B = saturation_function%ani_B
-     ani_C = saturation_function%ani_C
-     fs = ani_A + ani_B*exp(ani_C*global_auxvar%sat(1))
-     ani_n = 25 
-     ani_coef  =  fs/((global_auxvar%sat(1)**ani_n) * (fs -1) + 1)
-     auxvar%kvr_z = auxvar%kvr_z * ani_coef
-!    write(*,*) global_auxvar%sat(1), ani_coef
-!    end do
-!    stop
-  end if  
-  auxvar%dkvr_x_dp = dkr_dp/visl - kr/(visl*visl)*dvis_dp ! For anisotropic relative perm 
-  auxvar%dkvr_y_dp = (dkr_dp/visl - kr/(visl*visl)*dvis_dp) ! For anisotropic relative perm
-  auxvar%dkvr_z_dp = (dkr_dp/visl - kr/(visl*visl)*dvis_dp) ! For anisotropic relative perm
-  auxvar%dkvr_z_dp = auxvar%dkvr_z_dp * ani_coef
-#else
   auxvar%kvr = kr/visl
   auxvar%dkvr_dp = dkr_dp/visl - kr/(visl*visl)*dvis_dp
-#endif
 
 end subroutine RichardsAuxVarCompute
 
@@ -426,6 +391,13 @@ subroutine RichardsAuxDestroy(aux)
     deallocate(aux%richards_parameter)
   endif
   nullify(aux%richards_parameter)
+
+#ifdef BUFFER_MATRIX
+  if (associated(aux%matrix_buffer)) then
+    call MatrixBufferDestroy(aux%matrix_buffer)
+  endif
+  nullify(aux%matrix_buffer)
+#endif
   
   deallocate(aux)
   nullify(aux)

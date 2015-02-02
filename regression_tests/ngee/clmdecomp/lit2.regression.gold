@@ -1,43 +1,53 @@
--- CONCENTRATION: Total NH3(aq) --
-      Max:   1.4387670634777E-22
-      Min:   1.4387670634777E-22
-     Mean:   1.4387670634777E-22
-        1:   1.4387670634777E-22
+-- GENERIC: pH --
+      Max:   5.9701287479128E+00
+      Min:   5.9701287479128E+00
+     Mean:   5.9701287479128E+00
+        1:   5.9701287479128E+00
+-- CONCENTRATION: Total CO2(aq) --
+      Max:   2.4213729603449E-07
+      Min:   2.4213729603449E-07
+     Mean:   2.4213729603449E-07
+        1:   2.4213729603449E-07
+-- CONCENTRATION: Total NH4+ --
+      Max:   9.5325448394465E-23
+      Min:   9.5325448394465E-23
+     Mean:   9.5325448394465E-23
+        1:   9.5325448394465E-23
 -- CONCENTRATION: Total NO3- --
-      Max:   1.7043785150479E-24
-      Min:   1.7043785150479E-24
-     Mean:   1.7043785150479E-24
-        1:   1.7043785150479E-24
--- CONCENTRATION: Total HCO3- --
-      Max:   2.4210010977616E-07
-      Min:   2.4210010977616E-07
-     Mean:   2.4210010977616E-07
-        1:   2.4210010977616E-07
+      Max:   1.0000056589764E-20
+      Min:   1.0000056589764E-20
+     Mean:   1.0000056589764E-20
+        1:   1.0000056589764E-20
+-- CONCENTRATION: Total H+ --
+      Max:   9.8988366753888E-07
+      Min:   9.8988366753888E-07
+     Mean:   9.8988366753888E-07
+        1:   9.8988366753888E-07
 -- CONCENTRATION: LabileC --
-      Max:   3.0007623802705E-05
-      Min:   3.0007623802705E-05
-     Mean:   3.0007623802705E-05
-        1:   3.0007623802705E-05
+      Max:   2.9996777142075E-05
+      Min:   2.9996777142075E-05
+     Mean:   2.9996777142075E-05
+        1:   2.9996777142075E-05
 -- CONCENTRATION: LabileN --
-      Max:   8.2464903698066E-07
-      Min:   8.2464903698066E-07
-     Mean:   8.2464903698066E-07
-        1:   8.2464903698066E-07
+      Max:   8.2435095645613E-07
+      Min:   8.2435095645613E-07
+     Mean:   8.2435095645613E-07
+        1:   8.2435095645613E-07
 -- CONCENTRATION: SOM1 --
-      Max:   9.4667349480350E-05
-      Min:   9.4667349480350E-05
-     Mean:   9.4667349480350E-05
-        1:   9.4667349480350E-05
+      Max:   9.4673965943334E-05
+      Min:   9.4673965943334E-05
+     Mean:   9.4673965943334E-05
+        1:   9.4673965943334E-05
 -- DISCRETE: Material ID --
       Max:         1
       Min:         1
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   1.3260722160339E-01
-   Time Steps:          109
-   Newton Iterations:          298
-   Solver Iterations:          298
-   Time Step Cuts:            3
-   Solution 2-Norm:   9.9313157247249E-05
-   Residual 2-Norm:   0.0000000000000E+00
+   Time (seconds):   7.8698396682739E-02
+   Time Steps:          102
+   Newton Iterations:          188
+   Solver Iterations:          188
+   Time Step Cuts:            0
+   Solution 2-Norm:   9.9321812728302E-05
+   Residual 2-Norm:   2.3730000851865E-27

@@ -44,6 +44,7 @@ STANDARD_CFG = \
 	default/eos/eos.cfg \
 	default/materials/materials.cfg \
 	default/materials/soil_compressibility/soil_compressibility.cfg \
+	default/materials/mineral_volume/mineral_volume.cfg \
 	default/infiltrometer/infiltrometer.cfg \
 	default/condition/condition.cfg \
 	default/multicontinuum/multicontinuum.cfg \
@@ -52,19 +53,19 @@ STANDARD_CFG = \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
         general/general.cfg \
 	ngee/ngee.cfg \
-	ngee/clmcnp/clmcnp.cfg \
 	ngee/clmdecomp/clmdecomp.cfg \
-	ngee/langmuir/langmuir.cfg \
 	shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
-	wipp/nuts/nuts.cfg
+	wipp/nuts/nuts.cfg \
+	wipp/bragflo/bragflo.cfg
 
 ifneq ($(strip $(PARMETIS_LIB)),)
 	STANDARD_CFG += \
 		default/discretization/discretization.cfg \
-		surfaceflow/surface_flow_only/surface_only.cfg
+		surfaceflow/surface_flow_only/surface_only.cfg \
+		surfaceflow/surface_th/surface_th.cfg
 endif
 
 #
@@ -92,7 +93,8 @@ FLOW_CFG = \
 	default/scco2/flash2/flash2.cfg \
 	general/general.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
-	shortcourse/copper_leaching/cu_leaching.cfg
+	shortcourse/copper_leaching/cu_leaching.cfg \
+	wipp/bragflo/bragflo.cfg
 
 TRANSPORT_CFG = \
 	default/543/543.cfg \
@@ -197,3 +199,17 @@ clean-tests :
 	-rm -f ngee/sink.h5 
 	-rm -f ngee/source-mas.dat
 	-rm -f ngee/source.h5
+	-rm -f default/543/543_flow_and_tracer_dbase.h5
+	-rm -f wipp/bragflo/gas_generation_2d.h5
+	-rm -f wipp/bragflo/gas_generation_one_cell.h5
+	-rm -f ascem/batch/calcite-kinetics-int.dat
+	-rm -f ascem/batch/calcite-kinetics-volume-fractions-int.dat
+	-rm -f ascem/batch/general-reaction-int.dat
+	-rm -f default/multicontinuum/0D_heat_MPH-int.dat
+	-rm -f default/multicontinuum/0D_heat_TH-int.dat
+	-rm -f ngee/CLM-CN-int.dat
+	-rm -f shortcourse/1D_variably_saturated_flow/vsat_flow_pulse_2layer-int.dat
+	-rm -f shortcourse/copper_leaching/cu_leaching-int.dat
+	-rm -f wipp/nuts/case3-int.dat
+	-rm -f wipp/nuts/case4r1_modified-int.dat
+

@@ -1,13 +1,11 @@
 module Discretization_module
 
   use Grid_module
-  use Structured_Grid_module
-  use Unstructured_Grid_module
-  use Unstructured_Grid_Aux_module
-  use Unstructured_Explicit_module
-  use Unstructured_Polyhedra_module
-  use MFD_Aux_module
-  use MFD_module
+  use Grid_Structured_module
+  use Grid_Unstructured_module
+  use Grid_Unstructured_Aux_module
+  use Grid_Unstructured_Explicit_module
+  use Grid_Unstructured_Polyhedra_module
   use DM_Kludge_module
 
   use PFLOTRAN_Constants_module
@@ -44,16 +42,10 @@ module Discretization_module
     type(dm_ptr_type), pointer :: dm_nflowdof
     type(dm_ptr_type), pointer :: dm_ntrandof
     type(dm_ptr_type), pointer :: dm_n_stress_strain_dof
-    type(mfd_type), pointer :: MFD
     VecScatter :: tvd_ghost_scatter
     
     PetscInt :: stencil_width
     PetscInt :: stencil_type
-    
-    PetscInt :: hydr_flux_method
-    PetscInt :: therm_flux_method
-    PetscInt :: mech_flux_method
-    PetscBool:: lsm_flux_method
     
   end type discretization_type
 
@@ -67,24 +59,12 @@ module Discretization_module
             DiscretizationCreateInterpolation, &
             DiscretizationCreateColoring, &
             DiscretizationGlobalToLocal, &
-            DiscretizationGlobalToLocalFaces, &
             DiscretizationLocalToGlobal, &
             DiscretizationLocalToLocal, &
-            DiscretizationLocalToLocalFaces, &
             DiscretizationGlobalToNatural, &
             DiscretizationNaturalToGlobal, &
             DiscretizationGlobalToLocalBegin, &
             DiscretizationGlobalToLocalEnd, &
-            DiscretizGlobalToLocalFacesBegin, &
-            DiscretizGlobalToLocalFacesEnd, &
-            DiscretizLocalToLocalFacesBegin, &
-            DiscretizLocalToLocalFacesEnd, &
-            DiscretizationGlobalToLocalLP, &
-            DiscretizationLocalToLocalLP, &
-            DiscretizGlobalToLocalLPBegin, &
-            DiscretizGlobalToLocalLPEnd, &
-            DiscretizLocalToLocalLPBegin, &
-            DiscretizLocalToLocalLPEnd, &
             DiscretizationLocalToLocalBegin, &
             DiscretizationLocalToLocalEnd, &
             DiscretizGlobalToNaturalBegin, &
@@ -137,14 +117,9 @@ function DiscretizationCreate()
   nullify(discretization%dm_n_stress_strain_dof%ugdm)
   
   nullify(discretization%grid)
-  nullify(discretization%MFD)
   
   discretization%stencil_width = 1
   discretization%stencil_type = DMDA_STENCIL_STAR
-  discretization%hydr_flux_method = TWO_POINT_FLUX
-  discretization%therm_flux_method = TWO_POINT_FLUX
-  discretization%mech_flux_method = TWO_POINT_FLUX
-  discretization%lsm_flux_method = PETSC_FALSE
 
   discretization%tvd_ghost_scatter = 0
   
@@ -244,33 +219,6 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
             call InputReadNChars(input,option,discretization%filename,MAXSTRINGLENGTH, &
                                  PETSC_TRUE)
             call InputErrorMsg(input,option,'unstructured filename','GRID')
-          case('unstructured_mimetic')
-            discretization%itype = UNSTRUCTURED_GRID_MIMETIC
-            option%mimetic = PETSC_TRUE
-            word = discretization%ctype
-            discretization%ctype = 'unstructured_mimetic'
-            unstructured_grid_itype = IMPLICIT_UNSTRUCTURED_GRID
-            unstructured_grid_ctype = 'implicit unstructured'
-            call InputReadNChars(input,option,discretization%filename,MAXSTRINGLENGTH, &
-                                 PETSC_TRUE)
-            call InputErrorMsg(input,option,'unstructured filename','GRID')
-          case('structured_mimetic')
-            discretization%itype = STRUCTURED_GRID_MIMETIC
-            option%mimetic = PETSC_TRUE
-            call InputReadWord(input,option,structured_grid_ctype,PETSC_TRUE)
-            call InputDefaultMsg(input,option,'structured_grid_type')   
-            call StringToLower(structured_grid_ctype)
-            select case(trim(structured_grid_ctype))
-              case('cartesian')
-                structured_grid_itype = CARTESIAN_GRID
-              case('cylindrical')
-                structured_grid_itype = CYLINDRICAL_GRID
-              case('spherical')
-                structured_grid_itype = SPHERICAL_GRID
-              case default
-                structured_grid_itype = CARTESIAN_GRID
-                structured_grid_ctype = 'cartesian'
-            end select
           case default
             option%io_buffer = 'Discretization type: ' // &
                                trim(discretization%ctype) // &
@@ -314,7 +262,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   
   grid => GridCreate()
   select case(discretization%itype)
-    case(UNSTRUCTURED_GRID,UNSTRUCTURED_GRID_MIMETIC)
+    case(UNSTRUCTURED_GRID)
       un_str_grid => UGridCreate()
       select case(unstructured_grid_itype)
         case(IMPLICIT_UNSTRUCTURED_GRID)
@@ -325,7 +273,12 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
             call printErrMsg(option)
 #else
 
+#ifdef SCORPIO
+            call UGridReadHDF5PIOLib(un_str_grid,discretization%filename,option)
+#else
             call UGridReadHDF5(un_str_grid,discretization%filename,option)
+#endif
+! #ifdef SCORPIO
 
 #endif
 !#if !defined(PETSC_HAVE_HDF5)
@@ -351,7 +304,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       end select
       grid%itype = unstructured_grid_itype
       grid%ctype = unstructured_grid_ctype
-    case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)      
+    case(STRUCTURED_GRID)      
       if (nx*ny*nz <= 0) &
         call printErrMsg(option,'NXYZ not set correctly for structured grid.')
       str_grid => StructGridCreate()
@@ -367,7 +320,6 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       grid%itype = discretization%itype
       grid%ctype = discretization%ctype
   end select
-  grid%discretization_itype=discretization%itype
   discretization%grid => grid
   nullify(grid)
 
@@ -427,7 +379,7 @@ subroutine DiscretizationRead(discretization,input,option)
       case('TYPE','NXYZ','ORIGIN','FILE')
       case('DXYZ')
         select case(discretization%itype)
-          case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
+          case(STRUCTURED_GRID)
             call StructGridReadDXYZ(discretization%grid%structured_grid,input,option)
           case default
             call printErrMsg(option,'Keyword "DXYZ" not supported for unstructured grid')
@@ -441,7 +393,7 @@ subroutine DiscretizationRead(discretization,input,option)
         endif
       case('BOUNDS')
         select case(discretization%itype)
-          case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
+          case(STRUCTURED_GRID)
             grid => discretization%grid
 
             ! read first line and we will split off the legacy approach vs. new
@@ -556,46 +508,6 @@ subroutine DiscretizationRead(discretization,input,option)
                  ' not recognized in DISCRETIZATION, second read.'
             call printErrMsg(option)
         end select
-      case ('FLUX_METHOD')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'keyword','GRID')
-        call StringToUpper(word)
-        select case(trim(word))
-          case ('HYDRAULICS')
-            call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'keyword','GRID')
-            call StringToUpper(word)
-            select case(trim(word))
-              case ('TWO_POINT_FLUX')
-                discretization%hydr_flux_method = TWO_POINT_FLUX
-              case ('LSM_FLUX')
-                discretization%hydr_flux_method = LSM_FLUX
-                discretization%lsm_flux_method = PETSC_TRUE
-              case default
-                option%io_buffer = 'Keyword: ' // trim(word) // &
-                  ' not recognized in DISCRETIZATION, second read.'
-                call printErrMsg(option)
-            end select
-          case ('THERMAL')
-            call InputReadWord(input,option,word,PETSC_TRUE)
-            call InputErrorMsg(input,option,'keyword','GRID')
-            call StringToUpper(word)
-            select case(trim(word))
-              case ('TWO_POINT_FLUX')
-                discretization%therm_flux_method = TWO_POINT_FLUX
-              case ('LSM_FLUX')
-                discretization%therm_flux_method = LSM_FLUX
-                discretization%lsm_flux_method = PETSC_TRUE
-              case default
-                option%io_buffer = 'Keyword: ' // trim(word) // &
-                  ' not recognized in DISCRETIZATION, second read.'
-                call printErrMsg(option)
-            end select
-          case default
-            option%io_buffer = 'Keyword: ' // trim(word) // &
-            ' not recognized in DISCRETIZATION, second read.'
-            call printErrMsg(option)
-        end select
       case default
         option%io_buffer = 'Keyword: ' // trim(word) // &
                  ' not recognized in DISCRETIZATION, second read.'
@@ -604,26 +516,19 @@ subroutine DiscretizationRead(discretization,input,option)
   enddo  
 
   select case(discretization%itype)
-    case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
+    case(STRUCTURED_GRID)
       if (discretization%grid%structured_grid%invert_z_axis) then
         option%gravity(Z_DIRECTION) = -1.d0*option%gravity(Z_DIRECTION)
       endif
   end select
   
-  if(discretization%lsm_flux_method) then
-    if(discretization%stencil_type/=DMDA_STENCIL_BOX) then
-      option%io_buffer='For LSM-Flux option, the stencil type needs to be DMDA_STENCIL_BOX'
-      call printMsg(option)
-      discretization%stencil_type = DMDA_STENCIL_BOX
-      discretization%STENCIL_WIDTH = 2
-    endif
-  endif
-
 end subroutine DiscretizationRead
 
 ! ************************************************************************** !
 
-subroutine DiscretizationCreateDMs(discretization,option)
+subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
+                                    o_nphase, o_ngeomechdof, o_n_stress_strain_dof, option)
+
   ! 
   ! creates distributed, parallel meshes/grids
   ! If there are multiple degrees of freedom per grid cell, this will call
@@ -640,6 +545,11 @@ subroutine DiscretizationCreateDMs(discretization,option)
   implicit none
   
   type(discretization_type) :: discretization
+  PetscInt, intent(in) :: o_nflowdof
+  PetscInt, intent(in) :: o_ntrandof
+  PetscInt, intent(in) :: o_nphase
+  PetscInt, intent(in) :: o_ngeomechdof
+  PetscInt, intent(in) :: o_n_stress_strain_dof
   type(option_type) :: option
       
   PetscInt :: ndof
@@ -649,12 +559,12 @@ subroutine DiscretizationCreateDMs(discretization,option)
   type(unstructured_grid_type), pointer :: ugrid
 
   select case(discretization%itype)
-    case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
+    case(STRUCTURED_GRID)
       discretization%dm_index_to_ndof(ONEDOF) = 1
-      discretization%dm_index_to_ndof(NPHASEDOF) = option%nphase
-      discretization%dm_index_to_ndof(NFLOWDOF) = option%nflowdof
-      discretization%dm_index_to_ndof(NTRANDOF) = option%ntrandof
-    case(UNSTRUCTURED_GRID,UNSTRUCTURED_GRID_MIMETIC)
+      discretization%dm_index_to_ndof(NPHASEDOF) = o_nphase
+      discretization%dm_index_to_ndof(NFLOWDOF) = o_nflowdof
+      discretization%dm_index_to_ndof(NTRANDOF) = o_ntrandof
+    case(UNSTRUCTURED_GRID)
 
     
       select case(discretization%grid%itype)
@@ -667,12 +577,6 @@ subroutine DiscretizationCreateDMs(discretization,option)
 #endif
           call UGridDecompose(discretization%grid%unstructured_grid, &
                               option)
-          if(discretization%lsm_flux_method) then
-            call UGridGrowStencilSupport(discretization%grid%unstructured_grid, &
-                                         discretization%stencil_width, &
-                                         discretization%grid%ghosted_level, &
-                                         option)
-          endif
         case(EXPLICIT_UNSTRUCTURED_GRID)
 #if !defined(PETSC_HAVE_PARMETIS) && !defined(PETSC_HAVE_PTSCOTCH)
             option%io_buffer = &
@@ -701,22 +605,29 @@ subroutine DiscretizationCreateDMs(discretization,option)
                               ndof,discretization%stencil_width, &
                               discretization%stencil_type,option)
   
-  if (option%nflowdof > 0) then
-    ndof = option%nflowdof
+  if (o_nflowdof > 0) then
+    ndof = o_nflowdof
     call DiscretizationCreateDM(discretization,discretization%dm_nflowdof, &
                                 ndof,discretization%stencil_width, &
                                 discretization%stencil_type,option)
   endif
   
-  if (option%ntrandof > 0) then
-    ndof = option%ntrandof
+  if (o_ntrandof > 0) then
+    ndof = o_ntrandof
     call DiscretizationCreateDM(discretization,discretization%dm_ntrandof, &
                                 ndof,discretization%stencil_width, &
                                 discretization%stencil_type,option)
   endif
 
+  if (o_ngeomechdof > 0) then
+    ndof = o_n_stress_strain_dof
+    call DiscretizationCreateDM(discretization,discretization%dm_n_stress_strain_dof, &
+                                ndof,discretization%stencil_width, &
+                                discretization%stencil_type,option)
+  endif
+
   select case(discretization%itype)
-    case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
+    case(STRUCTURED_GRID)
       ! this function must be called to set up str_grid%lxs, etc.
       call StructGridComputeLocalBounds(discretization%grid%structured_grid, &
                                         discretization%dm_1dof%dm,option)    
@@ -724,7 +635,7 @@ subroutine DiscretizationCreateDMs(discretization,option)
       discretization%grid%ngmax = discretization%grid%structured_grid%ngmax
       discretization%grid%global_offset = &
         discretization%grid%structured_grid%global_offset
-    case(UNSTRUCTURED_GRID,UNSTRUCTURED_GRID_MIMETIC)
+    case(UNSTRUCTURED_GRID)
       discretization%grid%nmax = discretization%grid%unstructured_grid%nmax
       discretization%grid%nlmax = discretization%grid%unstructured_grid%nlmax
       discretization%grid%ngmax = discretization%grid%unstructured_grid%ngmax
@@ -757,20 +668,19 @@ subroutine DiscretizationCreateDM(discretization,dm_ptr,ndof,stencil_width, &
   PetscErrorCode :: ierr
 
   select case(discretization%itype)
-    case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
+    case(STRUCTURED_GRID)
       call StructGridCreateDM(discretization%grid%structured_grid, &
-                                  dm_ptr%dm,ndof,stencil_width,stencil_type,option)
-    case(UNSTRUCTURED_GRID,UNSTRUCTURED_GRID_MIMETIC)
+                              dm_ptr%dm,ndof,stencil_width,stencil_type,option)
+    case(UNSTRUCTURED_GRID)
       call UGridCreateUGDM(discretization%grid%unstructured_grid, &
                            dm_ptr%ugdm,ndof,option)
-      call DMShellCreate(option%mycomm,dm_ptr%dm,ierr)
-      CHKERRQ(ierr)
-      call DMShellSetGlobalToLocalVecScatter(dm_ptr%dm,dm_ptr%ugdm%scatter_gtol,ierr)
-      CHKERRQ(ierr)
-      call DMShellSetLocalToGlobalVecScatter(dm_ptr%dm,dm_ptr%ugdm%scatter_ltog,ierr)
-      CHKERRQ(ierr)
-      call DMShellSetLocalToLocalVecScatter(dm_ptr%dm,dm_ptr%ugdm%scatter_ltol,ierr)
-      CHKERRQ(ierr)
+      call DMShellCreate(option%mycomm,dm_ptr%dm,ierr);CHKERRQ(ierr)
+      call DMShellSetGlobalToLocalVecScatter(dm_ptr%dm,dm_ptr%ugdm%scatter_gtol, &
+                                             ierr);CHKERRQ(ierr)
+      call DMShellSetLocalToGlobalVecScatter(dm_ptr%dm,dm_ptr%ugdm%scatter_ltog, &
+                                             ierr);CHKERRQ(ierr)
+      call DMShellSetLocalToLocalVecScatter(dm_ptr%dm,dm_ptr%ugdm%scatter_ltol, &
+                                            ierr);CHKERRQ(ierr)
   end select
 
 end subroutine DiscretizationCreateDM
@@ -802,25 +712,21 @@ subroutine DiscretizationCreateVector(discretization,dm_index,vector, &
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
 
   select case(discretization%itype)
-    case(STRUCTURED_GRID, STRUCTURED_GRID_MIMETIC)
+    case(STRUCTURED_GRID)
       select case (vector_type)
         case(GLOBAL)
-          call DMCreateGlobalVector(dm_ptr%dm,vector,ierr)
-          CHKERRQ(ierr)
+          call DMCreateGlobalVector(dm_ptr%dm,vector,ierr);CHKERRQ(ierr)
         case(LOCAL)
-          call DMCreateLocalVector(dm_ptr%dm,vector,ierr)
-          CHKERRQ(ierr)
+          call DMCreateLocalVector(dm_ptr%dm,vector,ierr);CHKERRQ(ierr)
         case(NATURAL)
-          call DMDACreateNaturalVector(dm_ptr%dm,vector,ierr)
-          CHKERRQ(ierr)
+          call DMDACreateNaturalVector(dm_ptr%dm,vector,ierr);CHKERRQ(ierr)
       end select
-    case(UNSTRUCTURED_GRID,UNSTRUCTURED_GRID_MIMETIC)
+    case(UNSTRUCTURED_GRID)
       call UGridDMCreateVector(discretization%grid%unstructured_grid, &
                                dm_ptr%ugdm,vector, &
                                vector_type,option)
   end select
-  call VecSet(vector,0.d0,ierr)
-  CHKERRQ(ierr)
+  call VecSet(vector,0.d0,ierr);CHKERRQ(ierr)
   
 end subroutine DiscretizationCreateVector
 
@@ -841,10 +747,8 @@ subroutine DiscretizationDuplicateVector(discretization,vector1,vector2)
   Vec :: vector2
   
   PetscErrorCode :: ierr
-  call VecDuplicate(vector1,vector2,ierr)
-  CHKERRQ(ierr)
-  call VecCopy(vector1,vector2,ierr)
-  CHKERRQ(ierr)
+  call VecDuplicate(vector1,vector2,ierr);CHKERRQ(ierr)
+  call VecCopy(vector1,vector2,ierr);CHKERRQ(ierr)
   
 end subroutine DiscretizationDuplicateVector
 
@@ -934,45 +838,17 @@ subroutine DiscretizationCreateJacobian(discretization,dm_index,mat_type,Jacobia
 
   select case(discretization%itype)
     case(STRUCTURED_GRID)
-#ifndef DMGET
-      call DMSetMatType(dm_ptr%dm,mat_type,ierr)
-      CHKERRQ(ierr)
-      call DMCreateMatrix(dm_ptr%dm,Jacobian,ierr)
-      CHKERRQ(ierr)
-#else
-      call DMGetMatrix(dm_ptr%dm,mat_type,Jacobian,ierr)
-      CHKERRQ(ierr)
-#endif
-      call MatSetOption(Jacobian,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE,ierr)
-      CHKERRQ(ierr)
-      call MatSetOption(Jacobian,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)
-      CHKERRQ(ierr)
+      call DMSetMatType(dm_ptr%dm,mat_type,ierr);CHKERRQ(ierr)
+      call DMCreateMatrix(dm_ptr%dm,Jacobian,ierr);CHKERRQ(ierr)
     case(UNSTRUCTURED_GRID)
       call UGridDMCreateJacobian(discretization%grid%unstructured_grid, &
                                  dm_ptr%ugdm,mat_type,Jacobian,option)
-      call MatSetOption(Jacobian,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE,ierr)
-      CHKERRQ(ierr)
-      call MatSetOption(Jacobian,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)
-      CHKERRQ(ierr)
-    case(UNSTRUCTURED_GRID_MIMETIC)
-      select case(dm_index)
-        case(NFLOWDOF)
-          call MFDCreateJacobianLP(discretization%grid, discretization%MFD, mat_type, Jacobian, option)
-          call MatSetOption(Jacobian,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE,ierr)
-          CHKERRQ(ierr)
-          call MatSetOption(Jacobian,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)
-          CHKERRQ(ierr)
-        case(NTRANDOF)
-          call UGridDMCreateJacobian(discretization%grid%unstructured_grid, &
-                                     dm_ptr%ugdm,mat_type,Jacobian,option)
-          call MatSetOption(Jacobian,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE,ierr)
-          CHKERRQ(ierr)
-          call MatSetOption(Jacobian,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)
-          CHKERRQ(ierr)
-      end select
-
   end select
-
+  call MatSetOption(Jacobian,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE,ierr); &
+                    CHKERRQ(ierr)
+  call MatSetOption(Jacobian,MAT_ROW_ORIENTED,PETSC_FALSE,ierr);CHKERRQ(ierr)
+  call MatSetOption(Jacobian,MAT_NO_OFF_PROC_ZERO_ROWS,PETSC_TRUE,ierr); &
+                    CHKERRQ(ierr)
 
 end subroutine DiscretizationCreateJacobian
 
@@ -1043,20 +919,19 @@ subroutine DiscretizationCreateInterpolation(discretization,dm_index, &
         if (i <= mg_levels - mg_levels_y ) refine_y = 1
         if (i <= mg_levels - mg_levels_z ) refine_z = 1
         call DMDASetRefinementFactor(dm_fine_ptr%dm, refine_x, refine_y, refine_z, &
-                                   ierr)
-        CHKERRQ(ierr)
-        call DMDASetInterpolationType(dm_fine_ptr%dm, DMDA_Q0, ierr)
-        CHKERRQ(ierr)
-        call DMCoarsen(dm_fine_ptr%dm, option%mycomm, dmc_ptr(i)%dm, ierr)
-        CHKERRQ(ierr)
+                                   ierr);CHKERRQ(ierr)
+        call DMDASetInterpolationType(dm_fine_ptr%dm, DMDA_Q0,  &
+                                      ierr);CHKERRQ(ierr)
+        call DMCoarsen(dm_fine_ptr%dm, option%mycomm, dmc_ptr(i)%dm,  &
+                       ierr);CHKERRQ(ierr)
 #ifndef DMGET
         call DMCreateInterpolation(dmc_ptr(i)%dm, dm_fine_ptr%dm, &
-                                   interpolation(i), PETSC_NULL_OBJECT, ierr)
-        CHKERRQ(ierr)
+                                   interpolation(i), PETSC_NULL_OBJECT,  &
+                                   ierr);CHKERRQ(ierr)
 #else
         call DMGetInterpolation(dmc_ptr(i)%dm, dm_fine_ptr%dm, &
-                                interpolation(i), PETSC_NULL_OBJECT, ierr)
-        CHKERRQ(ierr)
+                                interpolation(i), PETSC_NULL_OBJECT,  &
+                                ierr);CHKERRQ(ierr)
 #endif
         dm_fine_ptr => dmc_ptr(i)
       enddo
@@ -1096,11 +971,10 @@ subroutine DiscretizationCreateColoring(discretization,dm_index,option,coloring)
     case(STRUCTURED_GRID)
 #ifndef DMGET
       call DMCreateColoring(dm_ptr%dm,IS_COLORING_GLOBAL,MATBAIJ,coloring,&
-                            ierr)
-      CHKERRQ(ierr)
+                            ierr);CHKERRQ(ierr)
 #else
-      call DMGetColoring(dm_ptr%dm,IS_COLORING_GLOBAL,MATBAIJ,coloring,ierr)
-      CHKERRQ(ierr)
+      call DMGetColoring(dm_ptr%dm,IS_COLORING_GLOBAL,MATBAIJ,coloring, &
+                         ierr);CHKERRQ(ierr)
 #endif
       ! I have set the above to use matrix type MATBAIJ, as that is what we 
       ! usually want (note: for DAs with 1 degree of freedom per grid cell, 
@@ -1136,68 +1010,12 @@ subroutine DiscretizationGlobalToLocal(discretization,global_vec,local_vec,dm_in
   
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
     
-  call DMGlobalToLocalBegin(dm_ptr%dm,global_vec,INSERT_VALUES,local_vec,ierr)
-  CHKERRQ(ierr)
-  call DMGlobalToLocalEnd(dm_ptr%dm,global_vec,INSERT_VALUES,local_vec,ierr)
-  CHKERRQ(ierr)
+  call DMGlobalToLocalBegin(dm_ptr%dm,global_vec,INSERT_VALUES,local_vec, &
+                            ierr);CHKERRQ(ierr)
+  call DMGlobalToLocalEnd(dm_ptr%dm,global_vec,INSERT_VALUES,local_vec, &
+                          ierr);CHKERRQ(ierr)
   
 end subroutine DiscretizationGlobalToLocal
-
-! ************************************************************************** !
-
-subroutine DiscretizationGlobalToLocalFaces(discretization,global_vec,local_vec,dm_index)
-  ! 
-  ! Performs global to local communication for MFD
-  ! 
-  ! Author: Daniil Svyatskiy
-  ! Date: 07/20/10
-  ! 
-
-  implicit none
-  
-
-  type(discretization_type) :: discretization
-  Vec :: global_vec
-  Vec :: local_vec
-  PetscInt :: dm_index
-  PetscErrorCode :: ierr
-  
-    
-  select case(discretization%itype)
-    case(STRUCTURED_GRID_MIMETIC,UNSTRUCTURED_GRID_MIMETIC)
-      call DiscretizGlobalToLocalFacesBegin(discretization,global_vec,local_vec,dm_index)
-      call DiscretizGlobalToLocalFacesEnd(discretization,global_vec,local_vec,dm_index)
-  end select
-  
-end subroutine DiscretizationGlobalToLocalFaces
-
-! ************************************************************************** !
-
-subroutine DiscretizationGlobalToLocalLP(discretization,global_vec,local_vec,dm_index)
-  ! 
-  ! Performs global to local communication for MFD
-  ! 
-  ! Author: Daniil Svyatskiy
-  ! Date: 07/20/10
-  ! 
-
-  implicit none
-  
-
-  type(discretization_type) :: discretization
-  Vec :: global_vec
-  Vec :: local_vec
-  PetscInt :: dm_index
-  PetscErrorCode :: ierr
-  
-    
-  select case(discretization%itype)
-    case(STRUCTURED_GRID_MIMETIC,UNSTRUCTURED_GRID_MIMETIC)
-      call DiscretizGlobalToLocalLPBegin(discretization,global_vec,local_vec,dm_index)
-      call DiscretizGlobalToLocalLPEnd(discretization,global_vec,local_vec,dm_index)
-  end select
-  
-end subroutine DiscretizationGlobalToLocalLP
 
 ! ************************************************************************** !
 
@@ -1222,10 +1040,10 @@ subroutine DiscretizationLocalToGlobal(discretization,local_vec,global_vec,dm_in
   
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
   
-  call DMLocalToGlobalBegin(dm_ptr%dm,local_vec,INSERT_VALUES,global_vec,ierr)
-  CHKERRQ(ierr)
-  call DMLocalToGlobalEnd(dm_ptr%dm,local_vec,INSERT_VALUES,global_vec,ierr)
-  CHKERRQ(ierr)
+  call DMLocalToGlobalBegin(dm_ptr%dm,local_vec,INSERT_VALUES,global_vec, &
+                            ierr);CHKERRQ(ierr)
+  call DMLocalToGlobalEnd(dm_ptr%dm,local_vec,INSERT_VALUES,global_vec, &
+                          ierr);CHKERRQ(ierr)
  
 end subroutine DiscretizationLocalToGlobal
 
@@ -1258,68 +1076,12 @@ subroutine DiscretizationLocalToLocal(discretization,local_vec1,local_vec2,dm_in
   
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
   
-  call DMLocalToLocalBegin(dm_ptr%dm,local_vec1,INSERT_VALUES,local_vec2,ierr)
-  CHKERRQ(ierr)
-  call DMLocalToLocalEnd(dm_ptr%dm,local_vec1,INSERT_VALUES,local_vec2,ierr)
-  CHKERRQ(ierr)
+  call DMLocalToLocalBegin(dm_ptr%dm,local_vec1,INSERT_VALUES,local_vec2, &
+                           ierr);CHKERRQ(ierr)
+  call DMLocalToLocalEnd(dm_ptr%dm,local_vec1,INSERT_VALUES,local_vec2, &
+                         ierr);CHKERRQ(ierr)
   
 end subroutine DiscretizationLocalToLocal
-
-! ************************************************************************** !
-
-subroutine DiscretizationLocalToLocalFaces(discretization,local_vec1,local_vec2,dm_index)
-  ! 
-  ! Performs local to local communication for face unknowns
-  ! 
-  ! Author: Daniil Svyatskiy
-  ! Date: 11/14/07
-  ! 
-
-  implicit none
-  
-  type(discretization_type) :: discretization
-  Vec :: local_vec1
-  Vec :: local_vec2
-  PetscInt :: dm_index
-  PetscErrorCode :: ierr
-  
-  
-  select case(discretization%itype)
-    case(STRUCTURED_GRID,STRUCTURED_GRID_MIMETIC,UNSTRUCTURED_GRID_MIMETIC)
-      call DiscretizLocalToLocalFacesBegin(discretization,local_vec1,local_vec2,dm_index)
-      call DiscretizLocalToLocalFacesEnd(discretization,local_vec1,local_vec2,dm_index)
-    case(UNSTRUCTURED_GRID)
-  end select
-  
-end subroutine DiscretizationLocalToLocalFaces
-
-! ************************************************************************** !
-
-subroutine DiscretizationLocalToLocalLP(discretization,local_vec1,local_vec2,dm_index)
-  ! 
-  ! Performs local to local communication for face unknowns
-  ! 
-  ! Author: Daniil Svyatskiy
-  ! Date: 11/14/07
-  ! 
-
-  implicit none
-  
-  type(discretization_type) :: discretization
-  Vec :: local_vec1
-  Vec :: local_vec2
-  PetscInt :: dm_index
-  PetscErrorCode :: ierr
-  
-  
-  select case(discretization%itype)
-    case(STRUCTURED_GRID,STRUCTURED_GRID_MIMETIC,UNSTRUCTURED_GRID_MIMETIC)
-      call DiscretizLocalToLocalLPBegin(discretization,local_vec1,local_vec2,dm_index)
-      call DiscretizLocalToLocalLPEnd(discretization,local_vec1,local_vec2,dm_index)
-    case(UNSTRUCTURED_GRID)
-  end select
-  
-end subroutine DiscretizationLocalToLocalLP
 
 ! ************************************************************************** !
 
@@ -1343,18 +1105,16 @@ subroutine DiscretizationGlobalToNatural(discretization,global_vec,natural_vec,d
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
   
   select case(discretization%itype)
-    case(STRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
-      call DMDAGlobalToNaturalBegin(dm_ptr%dm,global_vec,INSERT_VALUES,natural_vec,ierr)
-      CHKERRQ(ierr)
-      call DMDAGlobalToNaturalEnd(dm_ptr%dm,global_vec,INSERT_VALUES,natural_vec,ierr)
-      CHKERRQ(ierr)
-    case(UNSTRUCTURED_GRID,UNSTRUCTURED_GRID_MIMETIC)
+    case(STRUCTURED_GRID)
+      call DMDAGlobalToNaturalBegin(dm_ptr%dm,global_vec,INSERT_VALUES,natural_vec, &
+                                    ierr);CHKERRQ(ierr)
+      call DMDAGlobalToNaturalEnd(dm_ptr%dm,global_vec,INSERT_VALUES,natural_vec, &
+                                  ierr);CHKERRQ(ierr)
+    case(UNSTRUCTURED_GRID)
       call VecScatterBegin(dm_ptr%ugdm%scatter_gton,global_vec,natural_vec, &
-                           INSERT_VALUES,SCATTER_FORWARD,ierr)
-      CHKERRQ(ierr)
+                           INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
       call VecScatterEnd(dm_ptr%ugdm%scatter_gton,global_vec,natural_vec, &
-                         INSERT_VALUES,SCATTER_FORWARD,ierr)
-      CHKERRQ(ierr)       
+                         INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   end select
   
 end subroutine DiscretizationGlobalToNatural
@@ -1381,18 +1141,16 @@ subroutine DiscretizationNaturalToGlobal(discretization,natural_vec,global_vec,d
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
   
   select case(discretization%itype)
-    case(STRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
-      call DMDANaturalToGlobalBegin(dm_ptr%dm,natural_vec,INSERT_VALUES,global_vec,ierr)
-      CHKERRQ(ierr)
-      call DMDANaturalToGlobalEnd(dm_ptr%dm,natural_vec,INSERT_VALUES,global_vec,ierr)
-      CHKERRQ(ierr)
-    case(UNSTRUCTURED_GRID,UNSTRUCTURED_GRID_MIMETIC)
+    case(STRUCTURED_GRID)
+      call DMDANaturalToGlobalBegin(dm_ptr%dm,natural_vec,INSERT_VALUES,global_vec, &
+                                    ierr);CHKERRQ(ierr)
+      call DMDANaturalToGlobalEnd(dm_ptr%dm,natural_vec,INSERT_VALUES,global_vec, &
+                                  ierr);CHKERRQ(ierr)
+    case(UNSTRUCTURED_GRID)
       call VecScatterBegin(dm_ptr%ugdm%scatter_ntog,natural_vec,global_vec, &
-                           INSERT_VALUES,SCATTER_FORWARD,ierr)
-      CHKERRQ(ierr)
+                           INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
       call VecScatterEnd(dm_ptr%ugdm%scatter_ntog,natural_vec,global_vec, &
-                         INSERT_VALUES,SCATTER_FORWARD,ierr)
-      CHKERRQ(ierr)
+                         INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   end select
   
 end subroutine DiscretizationNaturalToGlobal
@@ -1422,8 +1180,8 @@ subroutine DiscretizationGlobalToLocalBegin(discretization,global_vec,local_vec,
   
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
   
-  call DMGlobalToLocalBegin(dm_ptr%dm,global_vec,INSERT_VALUES,local_vec,ierr)
-  CHKERRQ(ierr)
+  call DMGlobalToLocalBegin(dm_ptr%dm,global_vec,INSERT_VALUES,local_vec, &
+                            ierr);CHKERRQ(ierr)
   
 end subroutine DiscretizationGlobalToLocalBegin
 
@@ -1452,254 +1210,10 @@ subroutine DiscretizationGlobalToLocalEnd(discretization,global_vec,local_vec,dm
   
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
   
-  call DMGlobalToLocalEnd(dm_ptr%dm,global_vec,INSERT_VALUES,local_vec,ierr)
-  CHKERRQ(ierr)
+  call DMGlobalToLocalEnd(dm_ptr%dm,global_vec,INSERT_VALUES,local_vec, &
+                          ierr);CHKERRQ(ierr)
  
 end subroutine DiscretizationGlobalToLocalEnd
-
-! ************************************************************************** !
-
-subroutine DiscretizLocalToLocalFacesBegin(discretization,local_vec1,local_vec2,dm_index)
-  ! 
-  ! Begins Local to local communication with MFD
-  ! 
-  ! Author: Daniil Svyatskiy
-  ! Date: 07/20/10
-  ! 
-
-
-  use MFD_Aux_module
-
-  implicit none
-  
-  type(discretization_type) :: discretization
-  Vec :: local_vec1
-  Vec :: local_vec2
-  PetscInt :: dm_index
-  PetscErrorCode :: ierr
-  
-  select case(discretization%itype)
-    case(STRUCTURED_GRID_MIMETIC)
-      call VecScatterBegin( discretization%MFD%scatter_ltol_faces,local_vec1,local_vec2 , &
-                                INSERT_VALUES,SCATTER_FORWARD, ierr)
-      CHKERRQ(ierr)
-  end select
-  
-end subroutine DiscretizLocalToLocalFacesBegin
-
-! ************************************************************************** !
-
-subroutine DiscretizLocalToLocalFacesEnd(discretization,local_vec1,local_vec2,dm_index)
-  ! 
-  ! Ends local  to local communication with DM
-  ! 
-  ! Author: Daniil Svyatskiy
-  ! Date: 07/20/10
-  ! 
-
- 
- use MFD_Aux_module
-
- implicit none
-  
-  type(discretization_type) :: discretization
-  Vec :: local_vec1
-  Vec :: local_vec2
-  PetscInt :: dm_index
-  PetscErrorCode :: ierr
-  
-  
-  select case(discretization%itype)
-    case(STRUCTURED_GRID_MIMETIC)
-      call VecScatterEnd( discretization%MFD%scatter_ltol_faces,  local_vec1, local_vec2, &
-                                INSERT_VALUES,SCATTER_FORWARD, ierr)
-      CHKERRQ(ierr)
-  end select
-  
-end subroutine DiscretizLocalToLocalFacesEnd
-
-! ************************************************************************** !
-
-subroutine DiscretizGlobalToLocalFacesBegin(discretization,global_vec,local_vec,dm_index)
-  ! 
-  ! Begins global to local communication with MFD
-  ! 
-  ! Author: Daniil Svyatskiy
-  ! Date: 07/20/10
-  ! 
-
-
-  use MFD_Aux_module
-
-  implicit none
-  
-  type(discretization_type) :: discretization
-  Vec :: global_vec
-  Vec :: local_vec
-  PetscInt :: dm_index
-  PetscErrorCode :: ierr
-  
-  select case(discretization%itype)
-    case(STRUCTURED_GRID_MIMETIC)
-      call VecScatterBegin( discretization%MFD%scatter_gtol_faces, global_vec, local_vec, &
-                                INSERT_VALUES,SCATTER_FORWARD, ierr)
-      CHKERRQ(ierr)
-  end select
-  
-end subroutine DiscretizGlobalToLocalFacesBegin
-
-! ************************************************************************** !
-
-subroutine DiscretizGlobalToLocalFacesEnd(discretization,global_vec,local_vec,dm_index)
-  ! 
-  ! Ends global to local communication with DM
-  ! 
-  ! Author: Daniil Svyatskiy
-  ! Date: 07/20/10
-  ! 
-
- 
- use MFD_Aux_module
-
- implicit none
-  
-  type(discretization_type) :: discretization
-  Vec :: global_vec
-  Vec :: local_vec
-  PetscInt :: dm_index
-  PetscErrorCode :: ierr
-  
-  
-  select case(discretization%itype)
-    case(STRUCTURED_GRID_MIMETIC)
-      call VecScatterEnd( discretization%MFD%scatter_gtol_faces, global_vec, local_vec, &
-                                INSERT_VALUES,SCATTER_FORWARD, ierr)
-      CHKERRQ(ierr)
-  end select
-  
-end subroutine DiscretizGlobalToLocalFacesEnd
-
-! ************************************************************************** !
-
-subroutine DiscretizLocalToLocalLPBegin(discretization,local_vec1,local_vec2,dm_index)
-  ! 
-  ! Begins Local to local communication with MFD
-  ! 
-  ! Author: Daniil Svyatskiy
-  ! Date: 07/20/10
-  ! 
-
-
-  use MFD_Aux_module
-
-  implicit none
-  
-  type(discretization_type) :: discretization
-  Vec :: local_vec1
-  Vec :: local_vec2
-  PetscInt :: dm_index
-  PetscErrorCode :: ierr
-  
-  select case(discretization%itype)
-    case(STRUCTURED_GRID_MIMETIC)
-      call VecScatterBegin( discretization%MFD%scatter_ltol_LP,local_vec1,local_vec2 , &
-                                INSERT_VALUES,SCATTER_FORWARD, ierr)
-      CHKERRQ(ierr)
-  end select
-  
-end subroutine DiscretizLocalToLocalLPBegin
-
-! ************************************************************************** !
-
-subroutine DiscretizLocalToLocalLPEnd(discretization,local_vec1,local_vec2,dm_index)
-  ! 
-  ! Ends local  to local communication with DM
-  ! 
-  ! Author: Daniil Svyatskiy
-  ! Date: 07/20/10
-  ! 
-
- 
- use MFD_Aux_module
-
- implicit none
-  
-  type(discretization_type) :: discretization
-  Vec :: local_vec1
-  Vec :: local_vec2
-  PetscInt :: dm_index
-  PetscErrorCode :: ierr
-  
-  
-  select case(discretization%itype)
-    case(STRUCTURED_GRID_MIMETIC)
-      call VecScatterEnd( discretization%MFD%scatter_ltol_LP,  local_vec1, local_vec2, &
-                                INSERT_VALUES,SCATTER_FORWARD, ierr)
-      CHKERRQ(ierr)
-  end select
-  
-end subroutine DiscretizLocalToLocalLPEnd
-
-! ************************************************************************** !
-
-subroutine DiscretizGlobalToLocalLPBegin(discretization,global_vec,local_vec,dm_index)
-  ! 
-  ! Begins global to local communication with MFD
-  ! 
-  ! Author: Daniil Svyatskiy
-  ! Date: 07/20/10
-  ! 
-
-
-  use MFD_Aux_module
-
-  implicit none
-  
-  type(discretization_type) :: discretization
-  Vec :: global_vec
-  Vec :: local_vec
-  PetscInt :: dm_index
-  PetscErrorCode :: ierr
-  
-  select case(discretization%itype)
-    case(STRUCTURED_GRID_MIMETIC,UNSTRUCTURED_GRID_MIMETIC)
-      call VecScatterBegin( discretization%MFD%scatter_gtol_LP, global_vec, local_vec, &
-                                INSERT_VALUES,SCATTER_FORWARD, ierr)
-      CHKERRQ(ierr)
-  end select
-  
-end subroutine DiscretizGlobalToLocalLPBegin
-
-! ************************************************************************** !
-
-subroutine DiscretizGlobalToLocalLPEnd(discretization,global_vec,local_vec,dm_index)
-  ! 
-  ! Ends global to local communication with DM
-  ! 
-  ! Author: Daniil Svyatskiy
-  ! Date: 07/20/10
-  ! 
-
- 
- use MFD_Aux_module
-
- implicit none
-  
-  type(discretization_type) :: discretization
-  Vec :: global_vec
-  Vec :: local_vec
-  PetscInt :: dm_index
-  PetscErrorCode :: ierr
-  
-  
-  select case(discretization%itype)
-    case(STRUCTURED_GRID_MIMETIC,UNSTRUCTURED_GRID_MIMETIC)
-      call VecScatterEnd( discretization%MFD%scatter_gtol_LP, global_vec, local_vec, &
-                                INSERT_VALUES,SCATTER_FORWARD, ierr)
-      CHKERRQ(ierr)
-  end select
-  
-end subroutine DiscretizGlobalToLocalLPEnd
 
 ! ************************************************************************** !
 
@@ -1722,8 +1236,8 @@ subroutine DiscretizationLocalToLocalBegin(discretization,local_vec1,local_vec2,
   
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
   
-  call DMLocalToLocalBegin(dm_ptr%dm,local_vec1,INSERT_VALUES,local_vec2,ierr)
-  CHKERRQ(ierr)
+  call DMLocalToLocalBegin(dm_ptr%dm,local_vec1,INSERT_VALUES,local_vec2, &
+                           ierr);CHKERRQ(ierr)
 
 end subroutine DiscretizationLocalToLocalBegin
 
@@ -1748,8 +1262,8 @@ subroutine DiscretizationLocalToLocalEnd(discretization,local_vec1,local_vec2,dm
   
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
   
-  call DMLocalToLocalEnd(dm_ptr%dm,local_vec1,INSERT_VALUES,local_vec2,ierr)
-  CHKERRQ(ierr)
+  call DMLocalToLocalEnd(dm_ptr%dm,local_vec1,INSERT_VALUES,local_vec2, &
+                         ierr);CHKERRQ(ierr)
 
 end subroutine DiscretizationLocalToLocalEnd
 
@@ -1775,13 +1289,12 @@ subroutine DiscretizGlobalToNaturalBegin(discretization,global_vec,natural_vec,d
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
   
   select case(discretization%itype)
-    case(STRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
-      call DMDAGlobalToNaturalBegin(dm_ptr%dm,global_vec,INSERT_VALUES,natural_vec,ierr)
-      CHKERRQ(ierr)
-    case(UNSTRUCTURED_GRID,UNSTRUCTURED_GRID_MIMETIC)
+    case(STRUCTURED_GRID)
+      call DMDAGlobalToNaturalBegin(dm_ptr%dm,global_vec,INSERT_VALUES,natural_vec, &
+                                    ierr);CHKERRQ(ierr)
+    case(UNSTRUCTURED_GRID)
       call VecScatterBegin(dm_ptr%ugdm%scatter_gton,global_vec,natural_vec, &
-                           INSERT_VALUES,SCATTER_FORWARD,ierr)
-      CHKERRQ(ierr)
+                           INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   end select
   
 end subroutine DiscretizGlobalToNaturalBegin
@@ -1808,13 +1321,12 @@ subroutine DiscretizGlobalToNaturalEnd(discretization,global_vec,natural_vec,dm_
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
   
   select case(discretization%itype)
-    case(STRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
-      call DMDAGlobalToNaturalEnd(dm_ptr%dm,global_vec,INSERT_VALUES,natural_vec,ierr)
-      CHKERRQ(ierr)
-    case(UNSTRUCTURED_GRID,UNSTRUCTURED_GRID_MIMETIC)
+    case(STRUCTURED_GRID)
+      call DMDAGlobalToNaturalEnd(dm_ptr%dm,global_vec,INSERT_VALUES,natural_vec, &
+                                  ierr);CHKERRQ(ierr)
+    case(UNSTRUCTURED_GRID)
       call VecScatterEnd(dm_ptr%ugdm%scatter_gton,global_vec,natural_vec, &
-                         INSERT_VALUES,SCATTER_FORWARD,ierr)
-      CHKERRQ(ierr)       
+                         INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
   end select
   
 end subroutine DiscretizGlobalToNaturalEnd
@@ -1841,9 +1353,9 @@ subroutine DiscretizNaturalToGlobalBegin(discretization,natural_vec,global_vec,d
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
   
   select case(discretization%itype)
-    case(STRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
-      call DMDANaturalToGlobalBegin(dm_ptr%dm,natural_vec,INSERT_VALUES,global_vec,ierr)
-      CHKERRQ(ierr)
+    case(STRUCTURED_GRID)
+      call DMDANaturalToGlobalBegin(dm_ptr%dm,natural_vec,INSERT_VALUES,global_vec, &
+                                    ierr);CHKERRQ(ierr)
     case(UNSTRUCTURED_GRID)
   end select
   
@@ -1871,9 +1383,9 @@ subroutine DiscretizNaturalToGlobalEnd(discretization,natural_vec,global_vec,dm_
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
   
   select case(discretization%itype)
-    case(STRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
-      call DMDANaturalToGlobalEnd(dm_ptr%dm,natural_vec,INSERT_VALUES,global_vec,ierr)
-      CHKERRQ(ierr)
+    case(STRUCTURED_GRID)
+      call DMDANaturalToGlobalEnd(dm_ptr%dm,natural_vec,INSERT_VALUES,global_vec, &
+                                  ierr);CHKERRQ(ierr)
     case(UNSTRUCTURED_GRID)
   end select
   
@@ -1899,11 +1411,11 @@ subroutine DiscretizationUpdateTVDGhosts(discretization,global_vec, &
   PetscErrorCode :: ierr
   
   call VecScatterBegin(discretization%tvd_ghost_scatter,global_vec, &
-                       tvd_ghost_vec,INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                       tvd_ghost_vec,INSERT_VALUES,SCATTER_FORWARD, &
+                       ierr);CHKERRQ(ierr)
   call VecScatterEnd(discretization%tvd_ghost_scatter,global_vec, &
-                       tvd_ghost_vec,INSERT_VALUES,SCATTER_FORWARD,ierr)
-  CHKERRQ(ierr)
+                       tvd_ghost_vec,INSERT_VALUES,SCATTER_FORWARD, &
+                     ierr);CHKERRQ(ierr)
   
 end subroutine DiscretizationUpdateTVDGhosts
 
@@ -1928,16 +1440,59 @@ subroutine DiscretAOApplicationToPetsc(discretization,int_array)
   AO :: ao
   
   select case(discretization%itype)
-    case(STRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
-      call DMDAGetAO(discretization%dm_1dof,ao,ierr)
-      CHKERRQ(ierr)
-    case(UNSTRUCTURED_GRID,UNSTRUCTURED_GRID_MIMETIC)
+    case(STRUCTURED_GRID)
+      call DMDAGetAO(discretization%dm_1dof,ao,ierr);CHKERRQ(ierr)
+    case(UNSTRUCTURED_GRID)
       ao = discretization%grid%unstructured_grid%ao_natural_to_petsc
   end select
-  call AOApplicationToPetsc(ao,size(int_array),int_array,ierr)
-  CHKERRQ(ierr)
+  call AOApplicationToPetsc(ao,size(int_array),int_array,ierr);CHKERRQ(ierr)
   
 end subroutine DiscretAOApplicationToPetsc
+
+! ************************************************************************** !
+
+subroutine DiscretizationPrintInfo(discretization,grid,option)
+  ! 
+  ! Deallocates a discretization
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/01/07
+  ! 
+  use Option_module
+  use Grid_module
+  
+  implicit none
+  
+  type(discretization_type) :: discretization
+  type(option_type) :: option
+  
+  type(grid_type), pointer :: grid
+  
+  grid => discretization%grid
+  
+  select case(discretization%itype)
+    case(STRUCTURED_GRID)
+      if (OptionPrintToScreen(option)) then
+        write(*,'(/," Requested processors and decomposition = ", &
+                 & i5,", npx,y,z= ",3i4)') &
+            option%mycommsize,grid%structured_grid%npx, &
+            grid%structured_grid%npy,grid%structured_grid%npz
+        write(*,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
+            grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
+            grid%structured_grid%npz_final
+      endif
+      if (OptionPrintToScreen(option)) then
+        write(option%fid_out,'(/," Requested processors and decomposition = ", &
+                             & i5,", npx,y,z= ",3i4)') &
+            option%mycommsize,grid%structured_grid%npx,grid%structured_grid%npy, &
+            grid%structured_grid%npz
+        write(option%fid_out,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
+            grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
+            grid%structured_grid%npz_final
+      endif
+  end select
+  
+end subroutine DiscretizationPrintInfo
 
 ! ************************************************************************** !
 
@@ -1959,44 +1514,39 @@ subroutine DiscretizationDestroy(discretization)
   if (.not.associated(discretization)) return
       
   select case(discretization%itype)
-    case(STRUCTURED_GRID,STRUCTURED_GRID_MIMETIC)
+    case(STRUCTURED_GRID)
       if (discretization%dm_1dof%dm /= 0) then
-        call DMDestroy(discretization%dm_1dof%dm,ierr)
-        CHKERRQ(ierr)
+        call DMDestroy(discretization%dm_1dof%dm,ierr);CHKERRQ(ierr)
       endif
       discretization%dm_1dof%dm = 0
       if (discretization%dm_nflowdof%dm /= 0) then
-        call DMDestroy(discretization%dm_nflowdof%dm,ierr)
-        CHKERRQ(ierr)
+        call DMDestroy(discretization%dm_nflowdof%dm,ierr);CHKERRQ(ierr)
       endif
       discretization%dm_nflowdof%dm = 0
       if (discretization%dm_ntrandof%dm /= 0) then
-        call DMDestroy(discretization%dm_ntrandof%dm,ierr)
-        CHKERRQ(ierr)
+        call DMDestroy(discretization%dm_ntrandof%dm,ierr);CHKERRQ(ierr)
       endif
       discretization%dm_n_stress_strain_dof%dm = 0
       if (discretization%dm_nflowdof%dm /= 0) then
-        call DMDestroy(discretization%dm_n_stress_strain_dof%dm,ierr)
-        CHKERRQ(ierr)
+        call DMDestroy(discretization%dm_n_stress_strain_dof%dm, &
+                       ierr);CHKERRQ(ierr)
       endif
       discretization%dm_n_stress_strain_dof%dm = 0
       if (associated(discretization%dmc_nflowdof)) then
         do i=1,size(discretization%dmc_nflowdof)
-          call DMDestroy(discretization%dmc_nflowdof(i)%dm,ierr)
-          CHKERRQ(ierr)
+          call DMDestroy(discretization%dmc_nflowdof(i)%dm,ierr);CHKERRQ(ierr)
         enddo
         deallocate(discretization%dmc_nflowdof)
         nullify(discretization%dmc_nflowdof)
       endif
       if (associated(discretization%dmc_ntrandof)) then
         do i=1,size(discretization%dmc_ntrandof)
-          call DMDestroy(discretization%dmc_ntrandof(i)%dm,ierr)
-          CHKERRQ(ierr)
+          call DMDestroy(discretization%dmc_ntrandof(i)%dm,ierr);CHKERRQ(ierr)
         enddo
         deallocate(discretization%dmc_ntrandof)
         nullify(discretization%dmc_ntrandof)
       endif
-    case(UNSTRUCTURED_GRID,UNSTRUCTURED_GRID_MIMETIC)
+    case(UNSTRUCTURED_GRID)
       if (associated(discretization%dm_1dof%ugdm)) &
         call UGridDMDestroy(discretization%dm_1dof%ugdm)
       if (associated(discretization%dm_nflowdof%ugdm)) &
@@ -2020,10 +1570,6 @@ subroutine DiscretizationDestroy(discretization)
     deallocate(discretization%dm_n_stress_strain_dof)
   nullify(discretization%dm_n_stress_strain_dof)
 
-
-  if (associated(discretization%MFD)) &
-        call MFDAuxDestroy(discretization%MFD) 
-  nullify(discretization%MFD)
 
   if (discretization%tvd_ghost_scatter /= 0) &
     call VecScatterDestroy(discretization%tvd_ghost_scatter)

@@ -95,7 +95,9 @@ module Mapping_module
             MappingFindDistinctSourceMeshCellIds, &
             MappingCreateWeightMatrix, &
             MappingCreateScatterOfSourceMesh, &
-            MappingSourceToDestination
+            MappingFreeNotNeeded, &
+            MappingSourceToDestination, &
+            MappingDestroy
 contains
 
 ! ************************************************************************** !
@@ -210,6 +212,7 @@ contains
   ! Date: 2011
   ! 
 
+    use Utility_module, only : DeallocateArray
     use Option_module
     implicit none
 
@@ -258,6 +261,10 @@ contains
     rev_index = rev_index - 1
     call PetscSortIntWithPermutation(map%d_ncells_ghd,index,rev_index,ierr)
     map%d_nSor2Ghd = rev_index
+
+    ! free memory locally allocated
+    deallocate(index)
+    deallocate(rev_index)
 
   end subroutine MappingSetDestinationMeshCellIds
 
@@ -310,7 +317,7 @@ contains
     ! Read ASCII file through io_rank and communicate to other ranks
     if(option%myrank == option%io_rank) then
 
-      input => InputCreate(20,map_filename,option)
+      input => InputCreate(IUNIT_TEMP,map_filename,option)
 
       nwts     = -1
       prev_row = -1
@@ -346,7 +353,7 @@ contains
             hint = 'num_weights'
             call InputReadInt(input,option,nwts)
             call InputErrorMsg(input,option,'Number of weights',hint)
-            write(*,*) 'nwts = ',nwts
+            write(*,*) 'rank = ', option%myrank, 'nwts = ',nwts
           case default
             option%io_buffer = 'Unrecognized keyword "' // trim(card) // &
               '" in explicit grid file.'
@@ -463,21 +470,21 @@ contains
                     
     endif
 
-  ! Broadcast from root information regarding CLM/PFLOTRAN num soil layers
-  temp_int_array(1) = map%clm_nlevsoi
-  temp_int_array(2) = map%clm_nlevgrnd
-  temp_int_array(3) = map%clm_nlev_mapped
-  temp_int_array(4) = map%pflotran_nlev
-  temp_int_array(5) = map%pflotran_nlev_mapped
+    ! Broadcast from root information regarding CLM/PFLOTRAN num soil layers
+    temp_int_array(1) = map%clm_nlevsoi
+    temp_int_array(2) = map%clm_nlevgrnd
+    temp_int_array(3) = map%clm_nlev_mapped
+    temp_int_array(4) = map%pflotran_nlev
+    temp_int_array(5) = map%pflotran_nlev_mapped
 
-  call MPI_Bcast(temp_int_array,FIVE_INTEGER,MPI_INTEGER,option%io_rank, &
+    call MPI_Bcast(temp_int_array,FIVE_INTEGER,MPI_INTEGER,option%io_rank, &
                  option%mycomm,ierr)
     
-  map%clm_nlevsoi = temp_int_array(1)
-  map%clm_nlevgrnd = temp_int_array(2)
-  map%clm_nlev_mapped = temp_int_array(3)
-  map%pflotran_nlev = temp_int_array(4)
-  map%pflotran_nlev_mapped = temp_int_array(5)
+    map%clm_nlevsoi = temp_int_array(1)
+    map%clm_nlevgrnd = temp_int_array(2)
+    map%clm_nlev_mapped = temp_int_array(3)
+    map%pflotran_nlev = temp_int_array(4)
+    map%pflotran_nlev_mapped = temp_int_array(5)
 
   end subroutine MappingReadTxtFile
 
@@ -1007,8 +1014,11 @@ contains
     map%s2d_s_ncells = count
 
     ! Allocate memory
-    deallocate(map%s2d_wts)
-      
+    if(associated(map%s2d_wts)) deallocate(map%s2d_wts)
+    ! this free allocated memory in reading txt (Line 422/Line 461)
+    ! or hdf mesh file (Line 601) above
+    ! so that same pointer variable can be used but may be changed below
+
     allocate(map%s2d_s_ids_nidx(map%s2d_s_ncells))
     allocate(map%s2d_wts(map%s2d_s_ncells))
     allocate(tmp_int_array(map%s2d_s_ncells))
@@ -1097,7 +1107,7 @@ contains
     call VecDestroy(cumsum_nonzero_row_count_vec,ierr)
     call VecDestroy(nonzero_row_count_loc_vec,ierr)
     call VecDestroy(cumsum_nonzero_row_count_loc_vec,ierr)
-    
+
   end subroutine MappingDecompose
 
 ! ************************************************************************** !
@@ -1135,6 +1145,8 @@ contains
     end if
 
     ! Allocate memory
+    if(associated(map%s2d_jcsr)) deallocate(map%s2d_jcsr)
+    ! it has been allocated before (when reading mesh file either in txt or in hdf5)
     allocate(map%s2d_jcsr( map%s2d_s_ncells))
     allocate(int_array (map%s2d_s_ncells))
     allocate(int_array2(map%s2d_s_ncells))
@@ -1464,6 +1476,8 @@ contains
     enddo
     call ISCreateBlock(option%mycomm, 1, map%s2d_s_ncells_dis, tmp_int_array, &
          PETSC_COPY_VALUES, is_from, ierr)
+    deallocate(tmp_int_array)
+
 #ifdef MAP_DEBUG
     call PetscViewerASCIIOpen(option%mycomm, 'is_from1.out', viewer, ierr)
     call ISView(is_from, viewer,ierr)
@@ -1515,6 +1529,51 @@ contains
   end subroutine MappingCreateScatterOfSourceMesh
 
 ! ************************************************************************** !
+  ! what needed () in 'MappingSourceToDestination' after initializing mapping is as following 3,
+  ! map%s_disloc_vec
+  ! map%s2d_scat_s_gb2disloc
+  ! map%wts_mat
+  ! the rest map%??? (total 12 pointers) can be deallocated, if allocated memory before,
+  ! so that free memory not needed any more (and avoid possible memory leak).
+  subroutine MappingFreeNotNeeded(map)
+
+    implicit none
+
+    type(mapping_type), pointer :: map
+
+    if(associated(map%s_ids_loc_nidx)) deallocate(map%s_ids_loc_nidx)
+          ! allocated in L187, last used in L1409.
+
+    if(associated(map%d_ids_ghd_nidx)) deallocate(map%d_ids_ghd_nidx)
+          ! allocated in L234, last used in L968
+
+    ! in 'MappingSetDestinationMeshCellIds', the following may not really used
+    if(associated(map%d_ids_nidx_sor)) deallocate(map%d_ids_nidx_sor)   ! allocated in L235, last used in L255
+    if(associated(map%d_loc_or_gh)) deallocate(map%d_loc_or_gh)         ! allocated in L236, last used in L244
+    if(associated(map%d_nGhd2Sor)) deallocate(map%d_nGhd2Sor)           ! allocated in L237, last used in L256
+    if(associated(map%d_nSor2Ghd)) deallocate(map%d_nSor2Ghd)           ! allocated in L238, last used in L262
+    if(associated(map%d_nGhd2Sor)) deallocate(map%d_nGhd2Sor)           ! allocated in L237, last used in L256
+
+    if(associated(map%s2d_icsr)) deallocate(map%s2d_icsr)
+        ! allocated in L420/459 or L599 in reading mapping mesh file either in txt or in hdf5,
+        ! used L888, and in pflotran_model's 'initMapFrom??To??' (btw 2D and 3D mesh)
+
+    if(associated(map%s2d_jcsr)) deallocate(map%s2d_jcsr)
+        ! allocated in L421/460 or L600 in reading mapping mesh file either in txt or in hdf5,
+        ! used L855, and in pflotran_model's 'initMapFrom??To??' (btw 2D and 3D mesh)
+        ! BUT, then re-allocated in L1149 and last used in L1264
+
+    if(associated(map%s2d_wts)) deallocate(map%s2d_wts)
+        ! allocated in L422/461 or L601 in reading mapping mesh file either in txt or in hdf5,
+        ! last used L856,
+        ! BUT, then re-allocated in L1022, last used in L1265
+
+    if(associated(map%s2d_nonzero_rcount_csr)) deallocate(map%s2d_nonzero_rcount_csr)
+          ! allocated in L1005, last used in L1261
+
+  end subroutine MappingFreeNotNeeded
+
+! ************************************************************************** !
 
   subroutine MappingSourceToDestination(map,option,s_vec,d_vec)
   ! 
@@ -1536,15 +1595,21 @@ contains
     ! local variables
     PetscErrorCode              :: ierr
 
+    ! a note here:
+    ! what needed after initializing mapping is as following,
+    ! the rest map%??? can be deallocated, if allocated memory before,
+    ! so that free memory not needed any more.
+    ! map%s_disloc_vec
+    ! map%s2d_scat_s_gb2disloc
+    ! map%wts_mat
+
 !write(option%myrank+200,*) 'checking CLM-->PF mapping 1:', map%filename
     
     if (map%s2d_s_ncells > 0) then  
        ! Initialize local vector
-       call VecSet(map%s_disloc_vec, 0.d0, ierr)
-       CHKERRQ(ierr)
+       call VecSet(map%s_disloc_vec, 0.d0, ierr);CHKERRQ(ierr)
 
-       call VecSet(d_vec, 0.d0, ierr)
-       CHKERRQ(ierr)
+       call VecSet(d_vec, 0.d0, ierr);CHKERRQ(ierr)
 
     end if
 
@@ -1574,6 +1639,49 @@ contains
 !write(option%myrank+200,*) ':----------------------------------------------:'
 
   end subroutine
+
+! ************************************************************************** !
+
+  subroutine MappingDestroy(map)
+  !
+  ! This routine frees up memoery
+  !
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 08/22/2014
+  !
+
+    implicit none
+
+    ! argument
+    type(mapping_type), pointer :: map
+
+    if (associated(map%s_ids_loc_nidx)) deallocate(map%s_ids_loc_nidx)
+    if (associated(map%d_ids_ghd_nidx)) deallocate(map%d_ids_ghd_nidx)
+    if (associated(map%d_ids_nidx_sor)) deallocate(map%d_ids_nidx_sor)
+    if (associated(map%d_nGhd2Sor)) deallocate(map%d_nGhd2Sor)
+    if (associated(map%d_nSor2Ghd)) deallocate(map%d_nSor2Ghd)
+    if (associated(map%d_loc_or_gh)) deallocate(map%d_loc_or_gh)
+    if (associated(map%s2d_s_ids_nidx)) deallocate(map%s2d_s_ids_nidx)
+    if (associated(map%s2d_s_ids_nidx_dis)) deallocate(map%s2d_s_ids_nidx_dis)
+    if (associated(map%s2d_wts)) deallocate(map%s2d_wts)
+    if (associated(map%s2d_jcsr)) deallocate(map%s2d_jcsr)
+    if (associated(map%s2d_icsr)) deallocate(map%s2d_icsr)
+    if (associated(map%s2d_nonzero_rcount_csr)) deallocate(map%s2d_nonzero_rcount_csr)
+
+    nullify(map%s_ids_loc_nidx)
+    nullify(map%d_ids_ghd_nidx)
+    nullify(map%d_ids_nidx_sor)
+    nullify(map%d_nGhd2Sor)
+    nullify(map%d_nSor2Ghd)
+    nullify(map%d_loc_or_gh)
+    nullify(map%s2d_s_ids_nidx)
+    nullify(map%s2d_s_ids_nidx_dis)
+    nullify(map%s2d_wts)
+    nullify(map%s2d_jcsr)
+    nullify(map%s2d_icsr)
+    nullify(map%s2d_nonzero_rcount_csr)
+
+  end subroutine MappingDestroy
 
 end module Mapping_module
 

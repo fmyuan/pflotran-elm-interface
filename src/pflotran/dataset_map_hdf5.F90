@@ -245,8 +245,8 @@ subroutine DatasetMapHDF5ReadData(this,option)
   PetscErrorCode :: ierr
   character(len=MAXWORDLENGTH) :: dataset_name, word
 
-  !TODO(geh): add to event log
-  !call PetscLogEventBegin(logging%event_read_datset_hdf5,ierr)
+  call PetscLogEventBegin(logging%event_dataset_map_hdf5_read, &
+                          ierr);CHKERRQ(ierr)
 
   ! open the file
   call h5open_f(hdf5_err)
@@ -331,8 +331,7 @@ subroutine DatasetMapHDF5ReadData(this,option)
     endif
   endif
 
-  call PetscLogEventBegin(logging%event_h5dread_f,ierr)
-  CHKERRQ(ierr)
+  call PetscLogEventBegin(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
 
   if (associated(this%time_storage)) then
     num_dims_in_h5_file = this%rank + 1
@@ -395,8 +394,7 @@ subroutine DatasetMapHDF5ReadData(this,option)
   call h5sclose_f(file_space_id,hdf5_err)
   call h5dclose_f(dataset_id,hdf5_err)  
 
-  call PetscLogEventEnd(logging%event_h5dread_f,ierr)
-  CHKERRQ(ierr) 
+  call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
 
   option%io_buffer = 'Closing group: ' // trim(this%hdf5_dataset_name)
   call printMsg(option)  
@@ -406,8 +404,8 @@ subroutine DatasetMapHDF5ReadData(this,option)
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)
   
-  !TODO(geh): add to event log
-  !call PetscLogEventEnd(logging%event_read_ndim_real_array_hdf5,ierr)
+  call PetscLogEventEnd(logging%event_dataset_map_hdf5_read, &
+                        ierr);CHKERRQ(ierr)
                           
 end subroutine DatasetMapHDF5ReadData
 
@@ -447,8 +445,8 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   PetscErrorCode :: ierr
   character(len=MAXWORDLENGTH) :: dataset_name
 
-  !TODO(geh): add to event log
-  !call PetscLogEventBegin(logging%event_read_datset_hdf5,ierr)
+  call PetscLogEventBegin(logging%event_dataset_map_hdf5_read, &
+                          ierr);CHKERRQ(ierr)
 
   ! open the file
   call h5open_f(hdf5_err)
@@ -489,7 +487,7 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   
   nids_local=int(dims_h5(2)/option%mycommsize)
   remainder =int(dims_h5(2))-nids_local*option%mycommsize
-  if(option%myrank<remainder) nids_local=nids_local+1
+  if (option%myrank<remainder) nids_local=nids_local+1
 
   ! Find istart and iend
   istart = 0
@@ -551,6 +549,9 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   call printMsg(option)  
   call h5fclose_f(file_id,hdf5_err)
   call h5close_f(hdf5_err)  
+  
+  call PetscLogEventEnd(logging%event_dataset_map_hdf5_read, &
+                        ierr);CHKERRQ(ierr)
   
 end subroutine DatasetMapHDF5ReadMap
 #endif

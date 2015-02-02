@@ -99,7 +99,7 @@ subroutine SurfaceGlobalSetupPatch(surf_realization)
   
   ! count the number of boundary connections and allocate
   ! auxvar data structures for them  
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -120,7 +120,7 @@ subroutine SurfaceGlobalSetupPatch(surf_realization)
 
   ! count the number of source/sink connections and allocate
   ! auxvar data structures for them  
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0    
   do 
     if (.not.associated(source_sink)) exit
@@ -300,8 +300,7 @@ subroutine SurfaceGlobalSetAuxVarVecLocPatch(surf_realization,vec_loc,ivar,isubv
   grid => patch%grid
   option => surf_realization%option
   
-  call VecGetArrayF90(vec_loc,vec_loc_p,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
   
   select case(ivar)
     case(SURFACE_LIQUID_HEAD)
@@ -329,8 +328,7 @@ subroutine SurfaceGlobalSetAuxVarVecLocPatch(surf_realization,vec_loc,ivar,isubv
       end select
   end select
 
-  call VecRestoreArrayF90(vec_loc,vec_loc_p,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
 
 end subroutine SurfaceGlobalSetAuxVarVecLocPatch
 

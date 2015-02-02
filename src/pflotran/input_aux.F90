@@ -20,6 +20,13 @@ module Input_Aux_module
     PetscBool :: broadcast_read
   end type input_type
 
+  type :: input_dbase_type
+    character(len=MAXWORDLENGTH), pointer :: card(:)
+    PetscReal, pointer :: value(:)
+  end type input_dbase_type
+
+  type(input_dbase_type), pointer, public :: dbase => null()
+
   interface InputReadWord
     module procedure InputReadWord1
     module procedure InputReadWord2
@@ -98,7 +105,9 @@ module Input_Aux_module
             InputGetCommandLineString, &
             InputReadFilenames, &
             InputGetLineCount, &
-            InputReadToBuffer
+            InputReadToBuffer, &
+            InputReadASCIIDbase, &
+            InputDbaseDestroy
 
 contains
 
@@ -135,7 +144,7 @@ function InputCreate(fid,filename,option)
   input%broadcast_read = PETSC_FALSE
   
   if (fid == MAX_IN_UNIT) then
-    option%io_buffer = 'MAX_IN_UNIT in definitions.h must be increased to' // &
+    option%io_buffer = 'MAX_IN_UNIT in pflotran_constants.h must be increased to' // &
       ' accommodate a larger number of embedded files.'
     call printErrMsg(option)
   endif
@@ -429,13 +438,13 @@ subroutine InputReadInt4(string, option, int, ierr)
 end subroutine InputReadInt4
 
 #endif
+! End of defined(PETSC_USE_64BIT_INDICES) &&
+! (PETSC_SIZEOF_MPI_FINT * PETSC_BITS_PER_BYTE != 64) conditional
 
 ! ************************************************************************** !
 
 subroutine InputReadDouble1(input, option, double)
   ! 
-  ! End of defined(PETSC_USE_64BIT_INDICES) &&
-  ! (PETSC_SIZEOF_MPI_FINT * PETSC_BITS_PER_BYTE != 64) conditional
   ! reads and removes a real value from a string
   ! 
   ! Author: Glenn Hammond
@@ -449,11 +458,19 @@ subroutine InputReadDouble1(input, option, double)
   PetscReal :: double
 
   character(len=MAXWORDLENGTH) :: word
+  PetscBool :: found
 
-  call InputReadWord(input%buf,word,PETSC_TRUE,input%ierr)
+  found = PETSC_FALSE
+  if (associated(dbase)) then
+    call InputParseDbaseForDouble(input%buf,double,found,input%ierr)
+  endif
   
-  if (.not.InputError(input)) then
-    read(word,*,iostat=input%ierr) double
+  if (.not.found) then
+    call InputReadWord(input%buf,word,PETSC_TRUE,input%ierr)
+  
+    if (.not.InputError(input)) then
+      read(word,*,iostat=input%ierr) double
+    endif
   endif
 
 end subroutine InputReadDouble1
@@ -476,12 +493,21 @@ subroutine InputReadDouble2(string, option, double, ierr)
   PetscErrorCode :: ierr
 
   character(len=MAXWORDLENGTH) :: word
+  PetscBool :: found
 
   ierr = 0
-  call InputReadWord(string,word,PETSC_TRUE,ierr)
   
-  if (.not.InputError(ierr)) then
-    read(word,*,iostat=ierr) double
+  found = PETSC_FALSE
+  if (associated(dbase)) then
+    call InputParseDbaseForDouble(string,double,found,ierr)
+  endif
+  
+  if (.not.found) then
+    call InputReadWord(string,word,PETSC_TRUE,ierr)
+  
+    if (.not.InputError(ierr)) then
+      read(word,*,iostat=ierr) double
+    endif
   endif
 
 end subroutine InputReadDouble2
@@ -1164,7 +1190,9 @@ function InputCheckExit(input,option)
   enddo
 
   if (input%buf(i:i) == '/' .or. &
-      StringCompare(input%buf(i:),'END',THREE_INTEGER)) then
+!geh: this fails when the keyword starts with END
+!geh      StringCompare(input%buf(i:),'END',THREE_INTEGER)) then
+      StringCompare(input%buf(i:),'END')) then
     InputCheckExit = PETSC_TRUE
   else
     InputCheckExit = PETSC_FALSE
@@ -1609,6 +1637,271 @@ subroutine InputReadToBuffer(input, buffer)
   end do
   
 end subroutine InputReadToBuffer
+
+! ************************************************************************** !
+subroutine InputReadASCIIDbase(filename,option)
+  ! 
+  ! Read in an ASCII database
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/19/14
+  ! 
+  use Option_module
+  use String_module
+  
+  implicit none
+  
+  character(len=MAXWORDLENGTH) :: filename
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: object_name
+  type(input_type), pointer :: input
+  PetscInt :: icount
+  PetscInt :: value_count
+  PetscInt :: value_index
+  PetscInt :: num_reals_in_dataset
+  PetscReal :: tempreal
+  PetscReal, allocatable :: values(:)
+  
+  input => InputCreate(86,filename,option)
+  
+  icount = 0
+  num_reals_in_dataset = 0
+  do
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    call InputReadWord(input,option,word,PETSC_FALSE)
+    if (StringStartsWithAlpha(word)) icount = icount + 1
+    if (icount == 1) then
+      do
+        call InputReadDouble(input,option,tempreal)
+        if (input%ierr /= 0) exit
+        num_reals_in_dataset = num_reals_in_dataset + 1
+      enddo
+    endif
+  enddo
+
+  value_index = 1
+  if (option%id > 0) then
+    if (option%id > num_reals_in_dataset) then
+      write(word,*) num_reals_in_dataset
+        option%io_buffer = 'Data in DBASE_FILENAME "' // &
+        trim(filename) // &
+        '" is too small (' // trim(adjustl(word)) // &
+        ') for number of realizations.'
+      call printErrMsg(option)
+    endif
+    value_index = option%id
+  endif
+  allocate(values(num_reals_in_dataset))
+  
+  rewind(input%fid)
+  allocate(dbase)
+  allocate(dbase%card(icount))
+  dbase%card = ''
+  allocate(dbase%value(icount))
+  dbase%value = UNINITIALIZED_DOUBLE
+  icount = 0
+  do
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    call InputReadWord(input,option,word,PETSC_FALSE)
+    if (StringStartsWithAlpha(word)) then
+      object_name = word
+      icount = icount + 1
+      call StringToUpper(word)
+      dbase%card(icount) = adjustl(word)
+      values = UNINITIALIZED_DOUBLE
+      value_count = 0
+      do
+        call InputReadDouble(input,option,tempreal)
+        if (input%ierr /= 0) exit
+        value_count = value_count + 1
+        if (value_count <= num_reals_in_dataset) &
+          values(value_count) = tempreal
+      enddo
+      if (value_count /= num_reals_in_dataset) then
+        write(word,*) value_count
+        option%io_buffer = 'Data in DBASE_FILENAME "' // &
+          trim(object_name) // &
+          '" has an inconsistent number of values (' // &
+          trim(adjustl(word)) // &
+          ') for number of realizations ('
+        write(word,*) num_reals_in_dataset
+        option%io_buffer = trim(option%io_buffer) // &
+          trim(adjustl(word)) // ').'
+        call printErrMsg(option)
+      endif
+      dbase%value(icount) = values(value_index)
+    endif
+  enddo
+  deallocate(values)
+  
+  call InputDestroy(input)
+  
+end subroutine InputReadASCIIDbase
+
+! ************************************************************************** !
+subroutine InputParseDbaseForInt(buffer,value,found,ierr)
+  ! 
+  ! Parses database for an integer value
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/19/14
+  ! 
+  use String_module
+  
+  implicit none
+  
+  character(len=MAXSTRINGLENGTH) :: buffer
+  PetscInt :: value
+  PetscBool :: found
+  PetscInt :: ierr
+
+  character(len=MAXSTRINGLENGTH) :: buffer_save
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: dbase_keyword = 'DBASE_VALUE'
+  
+  buffer_save = buffer
+  found = PETSC_FALSE
+  call InputReadWord(buffer,word,PETSC_TRUE,ierr)
+  if (StringCompareIgnoreCase(word,dbase_keyword)) then
+    call InputReadWord(buffer,word,PETSC_TRUE,ierr)
+    call DbaseLookupInt(word,value,ierr)
+    if (ierr == 0) then
+      found = PETSC_TRUE
+    endif
+  else
+    buffer = buffer_save
+  endif
+  
+end subroutine InputParseDbaseForInt
+
+! ************************************************************************** !
+subroutine InputParseDbaseForDouble(buffer,value,found,ierr)
+  ! 
+  ! Parses database for an double precision value
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/19/14
+  ! 
+  use String_module
+  
+  implicit none
+  
+  character(len=MAXSTRINGLENGTH) :: buffer
+  PetscReal :: value
+  PetscBool :: found
+  PetscInt :: ierr
+
+  character(len=MAXSTRINGLENGTH) :: buffer_save
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: dbase_keyword = 'DBASE_VALUE'
+  
+  buffer_save = buffer
+  found = PETSC_FALSE
+  call InputReadWord(buffer,word,PETSC_TRUE,ierr)
+  if (StringCompareIgnoreCase(word,dbase_keyword)) then
+    call InputReadWord(buffer,word,PETSC_TRUE,ierr)
+    call DbaseLookupDouble(word,value,ierr)
+    if (ierr == 0) then
+      found = PETSC_TRUE
+    endif
+  else
+    buffer = buffer_save
+  endif
+  
+end subroutine InputParseDbaseForDouble
+
+! ************************************************************************** !
+subroutine DbaseLookupInt(keyword,value,ierr)
+  ! 
+  ! Looks up integer value in database
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/19/14
+  ! 
+  use String_module
+  
+  implicit none
+  
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscInt :: value
+  PetscInt :: ierr
+
+  ierr = 0
+  
+  call StringToUpper(keyword)
+  select case(keyword)
+    case('MATERIAL_ID')
+      value = 5
+    case default 
+      ierr = 1
+  end select
+  
+end subroutine DbaseLookupInt
+
+! ************************************************************************** !
+subroutine DbaseLookupDouble(keyword,value,ierr)
+  ! 
+  ! Looks up double precision value in database
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/19/14
+  ! 
+  use String_module
+  
+  implicit none
+  
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscReal :: value
+  PetscInt :: ierr
+  
+  PetscInt :: i
+  PetscBool :: found
+
+  ierr = 0
+  
+  call StringToUpper(keyword)
+  
+  found = PETSC_FALSE
+  do i = 1, size(dbase%card)
+    if (StringCompare(keyword,dbase%card(i))) then
+      found = PETSC_TRUE
+      value = dbase%value(i)
+      exit
+    endif
+  enddo
+  
+  if (.not.found) then
+    ierr = 1
+  endif
+  
+end subroutine DbaseLookupDouble
+
+! ************************************************************************** !
+
+subroutine InputDbaseDestroy()
+  ! 
+  ! Destroys the input dbase and members
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/20/14
+  ! 
+
+  implicit none
+  
+  if (associated(dbase)) then
+    if (associated(dbase%card)) deallocate(dbase%card)
+    nullify(dbase%card)
+    if (associated(dbase%value)) deallocate(dbase%value)
+    nullify(dbase%value)
+    deallocate(dbase)
+    nullify(dbase)
+  endif
+  
+end subroutine InputDbaseDestroy
 
 ! ************************************************************************** !
 

@@ -38,7 +38,6 @@ module Coupler_module
     type(tran_condition_type), pointer :: tran_condition     ! pointer to condition in condition array/list
     type(region_type), pointer :: region                ! pointer to region in region array/list
     type(connection_set_type), pointer :: connection_set ! pointer to an array/list of connections
-    PetscInt, pointer :: faces_set(:)                   ! ids of the elements of array grid%faces. Include local and ghosted faces. Doesn't require additional allocation of connections. Implemented in MIMETIC mode.
     PetscInt :: numfaces_set
     type(coupler_type), pointer :: next                 ! pointer to next coupler
   end type coupler_type
@@ -62,9 +61,7 @@ module Coupler_module
             CouplerDestroyList, &
             CouplerGetNumConnectionsInList, &
             CouplerListComputeConnections, &
-            CouplerGetPtrFromList, &
-            CouplerGetNumBoundConnectionsInListMFD
-
+            CouplerGetPtrFromList
   
   interface CouplerCreate
     module procedure CouplerCreate1
@@ -110,7 +107,6 @@ function CouplerCreate1()
   nullify(coupler%tran_condition)
   nullify(coupler%region)
   nullify(coupler%connection_set)
-  nullify(coupler%faces_set)
   nullify(coupler%next)
   
   CouplerCreate1 => coupler
@@ -318,9 +314,7 @@ subroutine CouplerListComputeConnections(grid,option,coupler_list)
   coupler => coupler_list%first
   do
     if (.not.associated(coupler)) exit 
-
     call CouplerComputeConnections(grid,option,coupler)
-
     if (associated(coupler%connection_set)) then
       coupler%connection_set%offset = offset
       offset = offset + coupler%connection_set%num_connections
@@ -346,8 +340,8 @@ subroutine CouplerComputeConnections(grid,option,coupler)
   use Grid_module
   use Dataset_Base_class
   use Dataset_Gridded_HDF5_class
-  use Unstructured_Grid_Aux_module
-  use Unstructured_Explicit_module, only : UGridExplicitSetBoundaryConnect, &
+  use Grid_Unstructured_Aux_module
+  use Grid_Unstructured_Explicit_module, only : UGridExplicitSetBoundaryConnect, &
                                            UGridExplicitSetConnections
   
   implicit none
@@ -481,63 +475,6 @@ end function CouplerGetNumConnectionsInList
 
 ! ************************************************************************** !
 
-function CouplerGetNumBoundConnectionsInListMFD(grid, list, option)
-  ! 
-  ! Returns the number of boundary connections associated
-  ! with all couplers in the list. Establish connections between
-  ! local face_id and bound_face_id.
-  ! (Since boundary fluxes allocated only for active boundary faces
-  ! they have different indexing
-  ! 
-  ! Author: Daniil Svyatskiy
-  ! Date: 11/04/10
-  ! 
-
-  use Grid_module
-  use Option_module
-
-  implicit none
-  
-
-  type(coupler_list_type) :: list
-  type(grid_type) :: grid
-  type(option_type) :: option
-  PetscInt :: CouplerGetNumBoundConnectionsInListMFD
- 
-  type(coupler_type), pointer :: coupler
-
-  PetscInt :: numfaces_set, iconn, local_face_id, i
-  
-  iconn = 0
-
-  coupler => list%first
-
-  allocate(grid%fL2B(grid%nlmax_faces))
-
-  grid%fL2B = 0
-
-  do
-    if (.not.associated(coupler)) exit
-
-    numfaces_set = coupler%numfaces_set
-    do i = 1, numfaces_set
-       iconn = iconn + 1
-       local_face_id = grid%fG2L(coupler%faces_set(i))
-       if (local_face_id<=0) then
-          write(*,*) "local_face_id for boundary face is <=0"
-!          call printMsg(option)
-       end if
-       grid%fL2B(local_face_id) = iconn
-    enddo
-    coupler => coupler%next
-  enddo
-
-  CouplerGetNumBoundConnectionsInListMFD = iconn
-
-end function CouplerGetNumBoundConnectionsInListMFD 
-
-! ************************************************************************** !
-
 function CouplerGetPtrFromList(coupler_name,coupler_list)
   ! 
   ! Returns a pointer to the coupler matching
@@ -643,10 +580,6 @@ subroutine CouplerDestroy(coupler)
   call ConnectionDestroy(coupler%connection_set)
   nullify(coupler%connection_set)
 
-  if (associated(coupler%faces_set)) &
-   deallocate(coupler%faces_set)
-  nullify(coupler%faces_set)
-  
   deallocate(coupler)
   nullify(coupler)
 

@@ -93,18 +93,22 @@ subroutine SurfaceTHAuxVarInit(auxvar,option)
   ! 
 
   use Option_module
+  use PFLOTRAN_Constants_module, only : UNINITIALIZED_DOUBLE
 
   implicit none
   
   type(Surface_TH_auxvar_type) :: auxvar
   type(option_type) :: option
 
-  auxvar%h = 0.d0
-  auxvar%u = 0.d0
-  auxvar%pc = 0.d0
-  auxvar%Cw = 4.188d3     ! [J/kg/K]
+  PetscReal :: uninit_value
+  uninit_value = UNINITIALIZED_DOUBLE
+  
+  auxvar%h   = uninit_value
+  auxvar%u   = uninit_value
+  auxvar%pc  = uninit_value
+  auxvar%Cw  = 4.188d3     ! [J/kg/K]
   !auxvar%Ci = 2.050d3     ! [J/kg/K]
-  auxvar%Ci = 4.188d3     ! [J/kg/K]
+  auxvar%Ci  = 4.188d3     ! [J/kg/K]
   auxvar%Cwi = 4.188d3     ! [J/kg/K]
   auxvar%k_therm = 0.57d0 ! [J/s/m/K]
   auxvar%unfrozen_fraction = 1.d0
@@ -155,8 +159,9 @@ subroutine SurfaceTHAuxVarCompute(xx,auxvar,global_auxvar, &
   use Option_module
   use Surface_Global_Aux_module
   
-  use EOS_Water_module
-  
+  use EOS_Water_module  
+  use PFLOTRAN_Constants_module, only : DUMMY_VALUE,MIN_SURFACE_WATER_HEIGHT
+
   implicit none
 
   type(option_type) :: option
@@ -195,7 +200,14 @@ subroutine SurfaceTHAuxVarCompute(xx,auxvar,global_auxvar, &
   ds_dp = 0.d0
   dkr_dp = 0.d0
 
-  call EOSWaterDensityEnthalpy(global_auxvar%temp,pw,dw_kg,dw_mol,hw,ierr)
+  if (global_auxvar%head(1) < MIN_SURFACE_WATER_HEIGHT) then
+    global_auxvar%is_dry = PETSC_TRUE
+    call EOSWaterDensityEnthalpy(0.0d0,pw,dw_kg,dw_mol,hw,ierr)
+  else
+    global_auxvar%is_dry = PETSC_FALSE
+    call EOSWaterDensityEnthalpy(global_auxvar%temp,pw,dw_kg,dw_mol,hw,ierr)
+  endif
+
   ! J/kmol -> whatever units
   hw = hw * option%scale
   

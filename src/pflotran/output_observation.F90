@@ -15,12 +15,16 @@ module Output_Observation_module
   ! flags signifying the first time a routine is called during a given
   ! simulation
   PetscBool :: observation_first
+  PetscBool :: check_for_obs_points
   PetscBool :: secondary_observation_first
+  PetscBool :: secondary_check_for_obs_points
   PetscBool :: mass_balance_first
+  PetscBool :: integral_flux_first
 
   public :: OutputObservation, &
             OutputObservationInit, &
-            OutputMassBalance
+            OutputMassBalance, &
+            OutputIntegralFlux
             
 contains
 
@@ -40,14 +44,18 @@ subroutine OutputObservationInit(num_steps)
   
   PetscInt :: num_steps
   
+  check_for_obs_points = PETSC_TRUE
+  secondary_check_for_obs_points = PETSC_TRUE
   if (num_steps == 0) then
     observation_first = PETSC_TRUE
     secondary_observation_first = PETSC_TRUE
     mass_balance_first = PETSC_TRUE
+    integral_flux_first = PETSC_TRUE
   else
     observation_first = PETSC_FALSE
-    secondary_observation_first = PETSC_TRUE
+    secondary_observation_first = PETSC_FALSE
     mass_balance_first = PETSC_FALSE
+    integral_flux_first = PETSC_FALSE
   endif
 
 end subroutine OutputObservationInit
@@ -78,6 +86,7 @@ subroutine OutputObservation(realization_base)
 !      realization_base%output_option%print_hdf5) then
   if (realization_base%output_option%print_observation) then
     call OutputObservationTecplotColumnTXT(realization_base)
+    call OutputIntegralFlux(realization_base)
     if (realization_base%option%use_mc) then
       call OutputObservationTecplotSecTXT(realization_base)
     endif
@@ -117,14 +126,12 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   type(patch_type), pointer :: patch  
   type(output_option_type), pointer :: output_option
   type(observation_type), pointer :: observation
-  PetscBool, save :: check_for_observation_points = PETSC_TRUE
   PetscBool, save :: open_file = PETSC_FALSE
   PetscInt :: local_id
   PetscInt :: icolumn
   PetscErrorCode :: ierr
 
-  call PetscLogEventBegin(logging%event_output_observation,ierr)
-  CHKERRQ(ierr)    
+  call PetscLogEventBegin(logging%event_output_observation,ierr);CHKERRQ(ierr)
   
   patch => realization_base%patch
   grid => patch%grid
@@ -132,9 +139,9 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
   field => realization_base%field
   output_option => realization_base%output_option
   
-  if (check_for_observation_points) then
+  if (check_for_obs_points) then
     open_file = PETSC_FALSE
-    observation => patch%observation%first
+    observation => patch%observation_list%first
     do
       if (.not.associated(observation)) exit
       if (observation%itype == OBSERVATION_SCALAR .or. &
@@ -145,7 +152,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
       endif
       observation => observation%next
     enddo
-    check_for_observation_points = PETSC_FALSE
+    check_for_obs_points = PETSC_FALSE
   endif
   
   
@@ -160,8 +167,9 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
       open(unit=fid,file=filename,action="write",status="replace")
       ! write header
       ! write title
-      write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
-      observation => patch%observation%first
+      write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // &
+        ']"'
+      observation => patch%observation_list%first
 
       ! must initialize icolumn here so that icolumn does not restart with
       ! each observation point
@@ -184,13 +192,13 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
  !             call printErrMsg(option)
               call WriteObservationHeaderForCoord(fid,realization_base, &
                                                   observation%region, &
-                                                  observation%print_velocities, &
+                                                 observation%print_velocities, &
                                                   icolumn)
             else
               do icell=1,observation%region%num_cells
                 call WriteObservationHeaderForCell(fid,realization_base, &
                                                    observation%region,icell, &
-                                                   observation%print_velocities, &
+                                                 observation%print_velocities, &
                                                    icolumn)
               enddo
             endif
@@ -208,7 +216,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
            position="append")
     endif
   
-    observation => patch%observation%first
+    observation => patch%observation_list%first
     write(fid,'(1es14.6)',advance="no") option%time/output_option%tconv
     do 
       if (.not.associated(observation)) exit
@@ -245,8 +253,7 @@ subroutine OutputObservationTecplotColumnTXT(realization_base)
 
   observation_first = PETSC_FALSE
   
-  call PetscLogEventEnd(logging%event_output_observation,ierr)
-  CHKERRQ(ierr)    
+  call PetscLogEventEnd(logging%event_output_observation,ierr);CHKERRQ(ierr)
       
 end subroutine OutputObservationTecplotColumnTXT
 
@@ -280,7 +287,6 @@ subroutine WriteObservationHeaderForCell(fid,realization_base,region,icell, &
   PetscInt :: icolumn
   
   PetscInt :: local_id
-  character(len=MAXHEADERLENGTH) :: header
   character(len=MAXSTRINGLENGTH) :: cell_string
   character(len=MAXWORDLENGTH) :: x_string, y_string, z_string
   type(grid_type), pointer :: grid
@@ -307,8 +313,8 @@ end subroutine WriteObservationHeaderForCell
 ! ************************************************************************** !
 
 subroutine WriteObservationHeaderForCoord(fid,realization_base,region, &
-                                         print_velocities, &
-                                         icolumn)
+                                          print_velocities, &
+                                          icolumn)
   ! 
   ! Print a header for data at a coordinate
   ! 
@@ -330,7 +336,6 @@ subroutine WriteObservationHeaderForCoord(fid,realization_base,region, &
   PetscBool :: print_velocities
   PetscInt :: icolumn
   
-  character(len=MAXHEADERLENGTH) :: header
   character(len=MAXSTRINGLENGTH) :: cell_string
   character(len=MAXWORDLENGTH) :: x_string, y_string, z_string
   
@@ -372,8 +377,7 @@ subroutine WriteObservationHeader(fid,realization_base,cell_string, &
   character(len=MAXSTRINGLENGTH) :: cell_string
   PetscInt :: icolumn
   
-  PetscInt :: i,j
-  character(len=MAXHEADERLENGTH) :: header
+  PetscInt :: variable_count
   character(len=MAXSTRINGLENGTH) :: string
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option  
@@ -381,24 +385,21 @@ subroutine WriteObservationHeader(fid,realization_base,cell_string, &
   option => realization_base%option
   output_option => realization_base%output_option
   
-  header = OutputVariableListToHeader(output_option%output_variable_list, &
-                                      cell_string,icolumn,PETSC_FALSE)
-  write(fid,'(a)',advance="no") trim(header)
+  call OutputWriteVariableListToHeader(fid,output_option%output_variable_list, &
+                                       cell_string,icolumn,PETSC_FALSE, &
+                                       variable_count)
 
   if (print_velocities) then
-    header = ''
-!   write(string,'(''[m/'',a,'']'')') trim(realization_base%output_option%tunit)
     write(string,'(''m/'',a,'' '')') trim(realization_base%output_option%tunit)
-    call OutputAppendToHeader(header,'qlx',string,cell_string,icolumn)
-    call OutputAppendToHeader(header,'qly',string,cell_string,icolumn)
-    call OutputAppendToHeader(header,'qlz',string,cell_string,icolumn)
+    call OutputWriteToHeader(fid,'qlx',string,cell_string,icolumn)
+    call OutputWriteToHeader(fid,'qly',string,cell_string,icolumn)
+    call OutputWriteToHeader(fid,'qlz',string,cell_string,icolumn)
 
     if (option%nphase > 1) then
-      call OutputAppendToHeader(header,'qgx',string,cell_string,icolumn)
-      call OutputAppendToHeader(header,'qgy',string,cell_string,icolumn)
-      call OutputAppendToHeader(header,'qgz',string,cell_string,icolumn)
+      call OutputWriteToHeader(fid,'qgx',string,cell_string,icolumn)
+      call OutputWriteToHeader(fid,'qgy',string,cell_string,icolumn)
+      call OutputWriteToHeader(fid,'qgz',string,cell_string,icolumn)
     endif
-    write(fid,'(a)',advance="no") trim(header)
   endif
     
 end subroutine WriteObservationHeader
@@ -436,14 +437,12 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
   type(patch_type), pointer :: patch  
   type(output_option_type), pointer :: output_option
   type(observation_type), pointer :: observation
-  PetscBool, save :: check_for_observation_points = PETSC_TRUE
   PetscBool, save :: open_file = PETSC_FALSE
   PetscInt :: local_id
   PetscInt :: icolumn
   PetscErrorCode :: ierr
 
-  call PetscLogEventBegin(logging%event_output_observation,ierr)
-  CHKERRQ(ierr)    
+  call PetscLogEventBegin(logging%event_output_observation,ierr);CHKERRQ(ierr)
   
   patch => realization_base%patch
   grid => patch%grid
@@ -451,9 +450,9 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
   field => realization_base%field
   output_option => realization_base%output_option
   
-  if (check_for_observation_points) then
+  if (secondary_check_for_obs_points) then
     open_file = PETSC_FALSE
-    observation => patch%observation%first
+    observation => patch%observation_list%first
     do
       if (.not.associated(observation)) exit
       if (observation%itype == OBSERVATION_SCALAR .or. &
@@ -464,7 +463,7 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
       endif
       observation => observation%next
     enddo
-    check_for_observation_points = PETSC_FALSE
+    secondary_check_for_obs_points = PETSC_FALSE
   endif
   
   
@@ -479,8 +478,9 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
       open(unit=fid,file=filename,action="write",status="replace")
       ! write header
       ! write title
-      write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'
-      observation => patch%observation%first
+      write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // &
+        ']"'
+      observation => patch%observation_list%first
 
       ! must initialize icolumn here so that icolumn does not restart with
       ! each observation point
@@ -524,7 +524,7 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
            position="append")
     endif
   
-    observation => patch%observation%first
+    observation => patch%observation_list%first
     write(fid,'(1es14.6)',advance="no") option%time/output_option%tconv
     do 
       if (.not.associated(observation)) exit
@@ -533,29 +533,34 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
               do icell=1,observation%region%num_cells
                 local_id = observation%region%cell_ids(icell)
                 if (observation%print_secondary_data(1)) then
-                  call WriteObservationSecondaryDataAtCell(fid,realization_base, &
+                  call WriteObservationSecondaryDataAtCell(fid, &
+                                                           realization_base, &
                                                            local_id, &
                                                            PRINT_SEC_TEMP)
                 endif
                 if (observation%print_secondary_data(2)) then
-                  call WriteObservationSecondaryDataAtCell(fid,realization_base, &
+                  call WriteObservationSecondaryDataAtCell(fid, &
+                                                           realization_base, &
                                                            local_id, &
                                                            PRINT_SEC_CONC)
                 endif
                 if (observation%print_secondary_data(3)) then
-                  call WriteObservationSecondaryDataAtCell(fid,realization_base, &
-                                                        local_id, &
-                                                        PRINT_SEC_MIN_VOLFRAC)
+                  call WriteObservationSecondaryDataAtCell(fid, &
+                                                           realization_base, &
+                                                           local_id, &
+                                                          PRINT_SEC_MIN_VOLFRAC)
                 endif
                 if (observation%print_secondary_data(4)) then
-                  call WriteObservationSecondaryDataAtCell(fid,realization_base, &
-                                                        local_id, &
-                                                        PRINT_SEC_MIN_RATE)
+                  call WriteObservationSecondaryDataAtCell(fid, &
+                                                           realization_base, &
+                                                           local_id, &
+                                                           PRINT_SEC_MIN_RATE)
                 endif
                 if (observation%print_secondary_data(5)) then
-                  call WriteObservationSecondaryDataAtCell(fid,realization_base, &
-                                                        local_id, &
-                                                        PRINT_SEC_MIN_SI)
+                  call WriteObservationSecondaryDataAtCell(fid, &
+                                                           realization_base, &
+                                                           local_id, &
+                                                           PRINT_SEC_MIN_SI)
                 endif
               enddo
       end select
@@ -568,8 +573,7 @@ subroutine OutputObservationTecplotSecTXT(realization_base)
 
   secondary_observation_first = PETSC_FALSE
   
-  call PetscLogEventEnd(logging%event_output_observation,ierr)
-  CHKERRQ(ierr)    
+  call PetscLogEventEnd(logging%event_output_observation,ierr);CHKERRQ(ierr)
       
 end subroutine OutputObservationTecplotSecTXT
 
@@ -604,7 +608,6 @@ subroutine WriteObservationHeaderForCellSec(fid,realization_base,region,icell, &
   PetscInt :: icolumn
   
   PetscInt :: local_id
-  character(len=MAXHEADERLENGTH) :: header
   character(len=MAXSTRINGLENGTH) :: cell_string
   character(len=MAXWORDLENGTH) :: x_string, y_string, z_string
   type(grid_type), pointer :: grid
@@ -655,7 +658,6 @@ subroutine WriteObservationHeaderForCoordSec(fid,realization_base,region, &
   PetscBool :: print_secondary_data(5)
   PetscInt :: icolumn
   
-  character(len=MAXHEADERLENGTH) :: header
   character(len=MAXSTRINGLENGTH) :: cell_string
   character(len=MAXWORDLENGTH) :: x_string, y_string, z_string
   
@@ -698,7 +700,6 @@ subroutine WriteObservationHeaderSec(fid,realization_base,cell_string, &
   PetscInt :: icolumn
   
   PetscInt :: i,j
-  character(len=MAXHEADERLENGTH) :: header
   character(len=MAXSTRINGLENGTH) :: string
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option  
@@ -710,75 +711,64 @@ subroutine WriteObservationHeaderSec(fid,realization_base,cell_string, &
   if (print_secondary_data(1)) then
     select case (option%iflowmode) 
       case (TH_MODE, MPH_MODE)
-        header = ''
         do i = 1, option%nsec_cells
           write(string,'(i2)') i
           string = 'T(' // trim(adjustl(string)) // ')'
-          call OutputAppendToHeader(header,string,'C',cell_string,icolumn)
+          call OutputWriteToHeader(fid,string,'C',cell_string,icolumn)
         enddo
       case default
-        header = ''
     end select
-    write(fid,'(a)',advance="no") trim(header)
   endif
   
   ! add secondary concentrations to header
   if (option%ntrandof > 0) then 
     reaction => realization_base%reaction
     if (print_secondary_data(2)) then
-          header = ''
-          do j = 1, reaction%naqcomp
-            do i = 1, option%nsec_cells
-              write(string,'(i2)') i
-              string = 'C(' // trim(adjustl(string)) // ') ' &
-                         // trim(reaction%primary_species_names(j))
-              call OutputAppendToHeader(header,string,'molal',cell_string, &
-                                        icolumn)
-            enddo
-          enddo
-      write(fid,'(a)',advance="no") trim(header)
+      do j = 1, reaction%naqcomp
+        do i = 1, option%nsec_cells
+          write(string,'(i2)') i
+          string = 'C(' // trim(adjustl(string)) // ') ' &
+                     // trim(reaction%primary_species_names(j))
+          call OutputWriteToHeader(fid,string,'molal',cell_string, &
+                                   icolumn)
+        enddo
+      enddo
     endif
   
   ! add secondary mineral volume fractions to header
     if (print_secondary_data(3)) then
-          header = ''
-          do j = 1, reaction%mineral%nkinmnrl
-            do i = 1, option%nsec_cells
-              write(string,'(i2)') i
-              string = 'VF(' // trim(adjustl(string)) // ') ' &
-                       // trim(reaction%mineral%mineral_names(j))
-              call OutputAppendToHeader(header,string,'',cell_string,icolumn)
-            enddo
-          enddo
-      write(fid,'(a)',advance="no") trim(header)
+      do j = 1, reaction%mineral%nkinmnrl
+        do i = 1, option%nsec_cells
+          write(string,'(i2)') i
+          string = 'VF(' // trim(adjustl(string)) // ') ' &
+                   // trim(reaction%mineral%mineral_names(j))
+          call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
+        enddo
+      enddo
     endif  
     
   ! add secondary mineral rates to header
     if (print_secondary_data(4)) then
-          header = ''
-          do j = 1, reaction%mineral%nkinmnrl
-            do i = 1, option%nsec_cells
-              write(string,'(i2)') i
-              string = 'Rate(' // trim(adjustl(string)) // ') ' &
-                       // trim(reaction%mineral%mineral_names(j))
-              call OutputAppendToHeader(header,string,'',cell_string,icolumn)
-            enddo
-          enddo
-      write(fid,'(a)',advance="no") trim(header)
+      do j = 1, reaction%mineral%nkinmnrl
+        do i = 1, option%nsec_cells
+          write(string,'(i2)') i
+          string = 'Rate(' // trim(adjustl(string)) // ') ' &
+                   // trim(reaction%mineral%mineral_names(j))
+          call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
+        enddo
+      enddo
     endif    
     
   ! add secondary mineral volume fractions to header
     if (print_secondary_data(5)) then
-          header = ''
-          do j = 1, reaction%mineral%nkinmnrl
-            do i = 1, option%nsec_cells
-              write(string,'(i2)') i
-              string = 'SI(' // trim(adjustl(string)) // ') ' &
-                       // trim(reaction%mineral%mineral_names(j))
-              call OutputAppendToHeader(header,string,'',cell_string,icolumn)
-            enddo
-          enddo
-      write(fid,'(a)',advance="no") trim(header)
+      do j = 1, reaction%mineral%nkinmnrl
+        do i = 1, option%nsec_cells
+          write(string,'(i2)') i
+          string = 'SI(' // trim(adjustl(string)) // ') ' &
+                   // trim(reaction%mineral%mineral_names(j))
+          call OutputWriteToHeader(fid,string,'',cell_string,icolumn)
+        enddo
+      enddo
     endif    
     
   endif 
@@ -878,6 +868,8 @@ subroutine WriteObservationDataForCell(fid,realization_base,local_id)
   field => realization_base%field
   output_option => realization_base%output_option
 
+100 format(es14.6)
+101 format(i2)
 110 format(es14.6)
 111 format(i2)
 
@@ -923,7 +915,7 @@ subroutine WriteObservationDataForCoord(fid,realization_base,region)
   use Reaction_Aux_module
   use Variables_module
   
-  use Structured_Grid_module
+  use Grid_Structured_module
 
   implicit none
   
@@ -953,6 +945,8 @@ subroutine WriteObservationDataForCoord(fid,realization_base,region)
   field => realization_base%field
   output_option => realization_base%output_option
 
+100 format(es14.6)
+101 format(i2)
 110 format(es14.6)
 111 format(i2)
 
@@ -1069,13 +1063,22 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
   option => realization_base%option
   reaction => realization_base%reaction
 
+100 format(es14.6)
+!100 format(es16.9)
+101 format(i2)
+110 format(es14.6)
+!110 format(',',es16.9)
+111 format(i2)
+ 
   iphase = 1
 
   ! sum up fluxes across region
   if (associated(connection_set)) then
     offset = connection_set%offset
     select case(option%iflowmode)
-      case(RICHARDS_MODE, TH_MODE)
+      case(MPH_MODE,TH_MODE,IMS_MODE,FLASH2_MODE,G_MODE)
+      case(MIS_MODE)
+      case(RICHARDS_MODE)
         sum_volumetric_flux = 0.d0
         if (associated(connection_set)) then
           do iconn = 1, connection_set%num_connections
@@ -1090,7 +1093,7 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
                         option%io_rank,option%mycomm,ierr)
         if (option%myrank == option%io_rank) then
           do i = 1, option%nphase
-!            write(fid,110,advance="no") sum_volumetric_flux_global(i)
+            write(fid,110,advance="no") sum_volumetric_flux_global(i)
           enddo
         endif
     end select
@@ -1100,7 +1103,7 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
       if (associated(connection_set)) then
         do iconn = 1, connection_set%num_connections
           sum_solute_flux(:) = sum_solute_flux(:) + &
-                               patch%boundary_fluxes(iphase,:,offset+iconn)* &
+                               patch%boundary_tran_fluxes(:,offset+iconn)* &
                                connection_set%area(iconn)
         enddo
       endif
@@ -1111,7 +1114,7 @@ subroutine WriteObservationDataForBC(fid,realization_base,patch,connection_set)
       if (option%myrank == option%io_rank) then
         !we currently only print the aqueous components
         do i = 1, reaction%naqcomp
-!          write(fid,110,advance="no") sum_solute_flux_global(i)
+          write(fid,110,advance="no") sum_solute_flux_global(i)
         enddo
       endif
     endif
@@ -1234,7 +1237,7 @@ function GetVelocityAtCell(fid,realization_base,local_id,iphase)
   enddo
 
   ! boundary velocities
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0
   do
     if (.not.associated(boundary_condition)) exit
@@ -1418,7 +1421,7 @@ function GetVelocityAtCoord(fid,realization_base,local_id,x,y,z,iphase)
   enddo
 
   ! boundary velocities
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0
   do
     if (.not.associated(boundary_condition)) exit
@@ -1496,6 +1499,11 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
   field => realization_base%field
   output_option => realization_base%output_option
 
+100 format(es14.6)
+101 format(i2)
+110 format(es14.6)
+111 format(i2)
+
   ghosted_id = grid%nL2G(local_id)
 
   if (option%nsec_cells > 0) then
@@ -1503,9 +1511,9 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
       select case(option%iflowmode)
         case(MPH_MODE,TH_MODE)
           do i = 1, option%nsec_cells 
-!            write(fid,110,advance="no") &
-!              RealizGetVariableValueAtCell(realization_base,SECONDARY_TEMPERATURE,i, &
-!                                          ghosted_id)
+            write(fid,110,advance="no") &
+              RealizGetVariableValueAtCell(realization_base,SECONDARY_TEMPERATURE,i, &
+                                          ghosted_id)
           enddo
         end select
      endif
@@ -1514,36 +1522,36 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
       if (ivar == PRINT_SEC_CONC) then
         do naqcomp = 1, reaction%naqcomp
           do i = 1, option%nsec_cells 
-!            write(fid,110,advance="no") &
-!              RealizGetVariableValueAtCell(realization_base,SECONDARY_CONCENTRATION,i, &
-!                                          ghosted_id,naqcomp)
+            write(fid,110,advance="no") &
+              RealizGetVariableValueAtCell(realization_base,SECONDARY_CONCENTRATION,i, &
+                                          ghosted_id,naqcomp)
           enddo
         enddo 
       endif
       if (ivar == PRINT_SEC_MIN_VOLFRAC) then
         do nkinmnrl = 1, reaction%mineral%nkinmnrl
           do i = 1, option%nsec_cells 
-!            write(fid,110,advance="no") &
-!              RealizGetVariableValueAtCell(realization_base,SEC_MIN_VOLFRAC,i, &
-!                                          ghosted_id,nkinmnrl)
+            write(fid,110,advance="no") &
+              RealizGetVariableValueAtCell(realization_base,SEC_MIN_VOLFRAC,i, &
+                                          ghosted_id,nkinmnrl)
           enddo
         enddo
       endif
        if (ivar == PRINT_SEC_MIN_RATE) then
         do nkinmnrl = 1, reaction%mineral%nkinmnrl
           do i = 1, option%nsec_cells 
-!            write(fid,110,advance="no") &
-!              RealizGetVariableValueAtCell(realization_base,SEC_MIN_RATE,i, &
-!                                          ghosted_id,nkinmnrl)
+            write(fid,110,advance="no") &
+              RealizGetVariableValueAtCell(realization_base,SEC_MIN_RATE,i, &
+                                          ghosted_id,nkinmnrl)
           enddo
         enddo
       endif
       if (ivar == PRINT_SEC_MIN_SI) then
         do nkinmnrl = 1, reaction%mineral%nkinmnrl
           do i = 1, option%nsec_cells 
-!            write(fid,110,advance="no") &
-!              RealizGetVariableValueAtCell(realization_base,SEC_MIN_SI,i, &
-!                                          ghosted_id,nkinmnrl)
+            write(fid,110,advance="no") &
+              RealizGetVariableValueAtCell(realization_base,SEC_MIN_SI,i, &
+                                          ghosted_id,nkinmnrl)
           enddo
         enddo
       endif           
@@ -1551,6 +1559,265 @@ subroutine WriteObservationSecondaryDataAtCell(fid,realization_base,local_id,iva
    endif 
    
 end subroutine WriteObservationSecondaryDataAtCell
+
+! ************************************************************************** !
+
+subroutine OutputIntegralFlux(realization_base)
+  ! 
+  ! Print integral fluxes to Tecplot POINT format
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/21/14
+  ! 
+
+  use Realization_class, only : realization_type
+  use Realization_Base_class, only : realization_base_type
+  use Option_module
+  use Grid_module
+  use Patch_module
+  use Output_Aux_module
+  use Reaction_Aux_module
+  use Integral_Flux_module
+  use Utility_module
+
+  implicit none
+
+  class(realization_base_type), target :: realization_base
+
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(output_option_type), pointer :: output_option
+  type(reaction_type), pointer :: reaction
+
+  character(len=MAXSTRINGLENGTH) :: filename
+  character(len=MAXWORDLENGTH) :: word, units
+  character(len=MAXSTRINGLENGTH) :: string
+  type(integral_flux_type), pointer :: integral_flux
+  PetscReal :: flow_dof_scale(10)
+  PetscReal, allocatable :: array(:,:)
+  PetscReal, allocatable :: array_global(:,:)
+  PetscReal, allocatable :: instantaneous_array(:)
+  PetscInt, parameter :: fid = 86
+  PetscInt :: i, j
+  PetscInt :: istart, iend
+  PetscInt :: icol
+  PetscMPIInt :: int_mpi
+  PetscErrorCode :: ierr
+
+  patch => realization_base%patch
+  grid => patch%grid
+  option => realization_base%option
+  output_option => realization_base%output_option
+  reaction => realization_base%reaction
+
+  if (.not.associated(patch%integral_flux_list%first)) return
+
+  flow_dof_scale = 1.d0
+  select case(option%iflowmode)
+    case(RICHARDS_MODE)
+      flow_dof_scale(1) = FMWH2O
+    case(TH_MODE)
+      flow_dof_scale(1) = FMWH2O
+    case(MIS_MODE)
+      flow_dof_scale(1) = FMWH2O
+      flow_dof_scale(2) = FMWGLYC
+    case(G_MODE)
+      flow_dof_scale(1) = FMWH2O
+      flow_dof_scale(2) = FMWAIR
+    case(MPH_MODE,FLASH2_MODE,IMS_MODE)
+      flow_dof_scale(1) = FMWH2O
+      flow_dof_scale(2) = FMWCO2
+  end select
+
+  if (len_trim(output_option%plot_name) > 2) then
+    filename = trim(output_option%plot_name) // '-int.dat'
+  else
+    filename = trim(option%global_prefix) // trim(option%group_prefix) // &
+               '-int.dat'
+  endif
+  
+  ! open file
+  if (option%myrank == option%io_rank) then
+
+!geh    option%io_buffer = '--> write tecplot mass balance file: ' // trim(filename)
+!geh    call printMsg(option)    
+
+    if (output_option%print_column_ids) then
+      icol = 1
+    else
+      icol = -1
+    endif
+  
+    if (integral_flux_first .or. .not.FileExists(filename)) then
+      open(unit=fid,file=filename,action="write",status="replace")
+
+      ! write header
+      write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // &
+        ']"'  
+      
+      if (option%iflowmode > 0) then
+        call OutputWriteToHeader(fid,'dt_flow',output_option%tunit,'',icol)
+      endif
+      
+      if (option%ntrandof > 0) then
+        call OutputWriteToHeader(fid,'dt_tran',output_option%tunit,'',icol)
+      endif
+      
+      integral_flux => patch%integral_flux_list%first
+      do
+        if (.not.associated(integral_flux)) exit
+        select case(option%iflowmode)
+          case(RICHARDS_MODE,TH_MODE,MIS_MODE,G_MODE,MPH_MODE,FLASH2_MODE, &
+               IMS_MODE)
+            string = trim(integral_flux%name) // ' Water'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            units = 'kg/' // trim(output_option%tunit) // ''
+            string = trim(integral_flux%name) // ' Water'
+            call OutputWriteToHeader(fid,string,units,'',icol)
+        end select
+        select case(option%iflowmode)
+          case(MIS_MODE)
+            string = trim(integral_flux%name) // ' Glycol'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            units = 'kg/' // trim(output_option%tunit) // ''
+            string = trim(integral_flux%name) // ' Glycol'
+            call OutputWriteToHeader(fid,string,units,'',icol)
+          case(G_MODE)
+            string = trim(integral_flux%name) // ' Air'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            units = 'kg/' // trim(output_option%tunit) // ''
+            string = trim(integral_flux%name) // ' Air'
+            call OutputWriteToHeader(fid,string,units,'',icol)
+          case(MPH_MODE,FLASH2_MODE,IMS_MODE)
+            string = trim(integral_flux%name) // ' CO2'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            units = 'kg/' // trim(output_option%tunit) // ''
+            string = trim(integral_flux%name) // ' CO2'
+            call OutputWriteToHeader(fid,string,units,'',icol)
+        end select
+        select case(option%iflowmode)
+          case(TH_MODE,MIS_MODE,G_MODE,MPH_MODE,FLASH2_MODE,IMS_MODE)
+            string = trim(integral_flux%name) // ' Energy'
+            call OutputWriteToHeader(fid,string,'MJ','',icol)
+            units = 'MJ/' // trim(output_option%tunit) // ''
+            string = trim(integral_flux%name) // ' Energy'
+            call OutputWriteToHeader(fid,string,units,'',icol)
+        end select
+        
+        if (option%ntrandof > 0) then
+          units = 'mol/' // trim(output_option%tunit) // ''
+          do i=1,reaction%naqcomp
+            if (reaction%primary_species_print(i)) then
+              string = trim(integral_flux%name) // ' ' // &
+                       trim(reaction%primary_species_names(i))
+              call OutputWriteToHeader(fid,string,'mol','',icol)
+              string = trim(integral_flux%name) // ' ' // &
+                       trim(reaction%primary_species_names(i))
+              call OutputWriteToHeader(fid,string,units,'',icol)
+            endif
+          enddo
+        endif
+        integral_flux => integral_flux%next
+      enddo
+      write(fid,'(a)') '' 
+    else
+      open(unit=fid,file=filename,action="write",status="old",position="append")
+    endif 
+  endif     
+
+100 format(100es16.8)
+110 format(100es16.8)
+
+  ! write time
+  if (option%myrank == option%io_rank) then
+    write(fid,100,advance="no") option%time/output_option%tconv
+  endif
+  
+  if (option%nflowdof > 0) then
+    if (option%myrank == option%io_rank) &
+      write(fid,100,advance="no") option%flow_dt/output_option%tconv
+  endif
+  if (option%ntrandof > 0) then
+    if (option%myrank == option%io_rank) &
+      write(fid,100,advance="no") option%tran_dt/output_option%tconv
+  endif
+  
+  allocate(array(option%nflowdof + option%ntrandof,2))
+  allocate(array_global(option%nflowdof + option%ntrandof,2))
+  allocate(instantaneous_array(max(option%nflowdof,option%ntrandof)))
+  integral_flux => patch%integral_flux_list%first
+  do
+    if (.not.associated(integral_flux)) exit
+    array = 0.d0
+    array_global = 0.d0
+    if (option%nflowdof > 0) then
+      istart = 1
+      iend = option%nflowdof
+      instantaneous_array = 0.d0
+      call IntegralFluxGetInstantaneous(integral_flux, &
+                                        patch%internal_flow_fluxes, &
+                                        patch%boundary_flow_fluxes, &
+                                        option%nflowdof, &
+                                        instantaneous_array,option)
+      array(istart:iend,1) = &
+        integral_flux%integral_value(istart:iend)
+      array(istart:iend,2) = &
+        instantaneous_array(1:option%nflowdof)
+    endif
+    if (option%ntrandof > 0) then
+      istart = option%nflowdof+1
+      iend = option%nflowdof+option%ntrandof
+      instantaneous_array = 0.d0
+      call IntegralFluxGetInstantaneous(integral_flux, &
+                                        patch%internal_tran_fluxes, &
+                                        patch%boundary_tran_fluxes, &
+                                        option%ntrandof, &
+                                        instantaneous_array,option)
+      array(istart:iend,1) = &
+        integral_flux%integral_value(istart:iend)
+      array(istart:iend,2) = &
+        instantaneous_array(1:option%ntrandof)
+    endif
+    int_mpi = size(array)
+    call MPI_Reduce(array,array_global, &
+                    int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
+                    option%io_rank,option%mycomm,ierr)
+    ! time units conversion
+    array_global(:,2) = array_global(:,2) * output_option%tconv
+    if (option%myrank == option%io_rank) then
+      if (option%nflowdof > 0) then
+        do i = 1, option%nflowdof
+          do j = 1, 2  ! 1 = integral, 2 = instantaneous
+            write(fid,110,advance="no") array_global(i,j)*flow_dof_scale(i)
+          enddo
+        enddo
+      endif
+      if (option%ntrandof > 0) then
+        istart = option%nflowdof
+        do i=1,reaction%naqcomp
+          do j = 1, 2  ! 1 = integral, 2 = instantaneous
+            if (reaction%primary_species_print(i)) then
+              write(fid,110,advance="no") array_global(istart+i,j)
+            endif
+          enddo
+        enddo
+      endif
+    endif
+    integral_flux => integral_flux%next
+  enddo
+  deallocate(array)
+  deallocate(array_global)
+  deallocate(instantaneous_array)
+  
+  if (option%myrank == option%io_rank) then
+    write(fid,'(a)') ''
+    close(fid)
+  endif
+  
+  integral_flux_first = PETSC_FALSE
+
+end subroutine OutputIntegralFlux
 
 ! ************************************************************************** !
 
@@ -1571,8 +1838,13 @@ subroutine OutputMassBalance(realization_base)
   use Utility_module
   
   use Richards_module, only : RichardsComputeMassBalance
+  use Mphase_module, only : MphaseComputeMassBalance
+  use Flash2_module, only : Flash2ComputeMassBalance
+  use Immis_module, only : ImmisComputeMassBalance
+  use Miscible_module, only : MiscibleComputeMassBalance
   use TH_module, only : THComputeMassBalance
   use Reactive_Transport_module, only : RTComputeMassBalance
+  use General_module, only : GeneralComputeMassBalance
   
   use Global_Aux_module
   use Reactive_Transport_Aux_module
@@ -1595,11 +1867,9 @@ subroutine OutputMassBalance(realization_base)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(reaction_type), pointer :: reaction
 
-  character(len=MAXHEADERLENGTH) :: header
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXWORDLENGTH) :: word, units
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=4) :: strcol
   PetscInt :: fid = 86
   PetscInt :: ios
   PetscInt :: i,icol
@@ -1666,84 +1936,77 @@ subroutine OutputMassBalance(realization_base)
       open(unit=fid,file=filename,action="write",status="replace")
 
       ! write header
-      write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // ']"'  
+      write(fid,'(a)',advance="no") ' "Time [' // trim(output_option%tunit) // &
+        ']"'  
       
-      header = ''
       if (option%iflowmode > 0) then
-        call OutputAppendToHeader(header,'dt_flow',output_option%tunit,'',icol)
+        call OutputWriteToHeader(fid,'dt_flow',output_option%tunit,'',icol)
       endif
       
       if (option%ntrandof > 0) then
-        call OutputAppendToHeader(header,'dt_tran',output_option%tunit,'',icol)
+        call OutputWriteToHeader(fid,'dt_tran',output_option%tunit,'',icol)
       endif
-      write(fid,'(a)',advance="no") trim(header)
       
-      header = ''
       select case(option%iflowmode)
         case(RICHARDS_MODE)
-          call OutputAppendToHeader(header,'Global Water Mass','kg','',icol)
+          call OutputWriteToHeader(fid,'Global Water Mass','kg','',icol)
           
         case(TH_MODE)
-          call OutputAppendToHeader(header,'Global Water Mass in Liquid Phase', &
+          call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
         case(G_MODE)
-          call OutputAppendToHeader(header,'Global Water Mass in Liquid Phase', &
+          call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
-          call OutputAppendToHeader(header,'Global Air Mass in Liquid Phase', &
+          call OutputWriteToHeader(fid,'Global Air Mass in Liquid Phase', &
                                     'kg','',icol)
-          call OutputAppendToHeader(header,'Global Water Mass in Gas Phase', &
+          call OutputWriteToHeader(fid,'Global Water Mass in Gas Phase', &
                                     'kg','',icol)
-          call OutputAppendToHeader(header,'Global Air Mass in Gas Phase', &
+          call OutputWriteToHeader(fid,'Global Air Mass in Gas Phase', &
                                     'kg','',icol)
         case(MPH_MODE,FLASH2_MODE)
-          call OutputAppendToHeader(header,'Global Water Mass in Water Phase', &
+          call OutputWriteToHeader(fid,'Global Water Mass in Water Phase', &
                                     'kmol','',icol)
-          call OutputAppendToHeader(header,'Global CO2 Mass in Water Phase', &
+          call OutputWriteToHeader(fid,'Global CO2 Mass in Water Phase', &
                                     'kmol','',icol)
-          call OutputAppendToHeader(header,'Trapped CO2 Mass in Water Phase', &
+          call OutputWriteToHeader(fid,'Trapped CO2 Mass in Water Phase', &
                                     'kmol','',icol)
-          call OutputAppendToHeader(header,'Global Water Mass in Gas Phase', &
+          call OutputWriteToHeader(fid,'Global Water Mass in Gas Phase', &
                                     'kmol','',icol)
-          call OutputAppendToHeader(header,'Global CO2 Mass in Gas Phase', &
+          call OutputWriteToHeader(fid,'Global CO2 Mass in Gas Phase', &
                                     'kmol','',icol)
-          call OutputAppendToHeader(header,'Trapped CO2 Mass in Gas Phase', &
+          call OutputWriteToHeader(fid,'Trapped CO2 Mass in Gas Phase', &
                                     'kmol','',icol)
         case(IMS_MODE)
-          call OutputAppendToHeader(header,'Global Water Mass in Water Phase', &
+          call OutputWriteToHeader(fid,'Global Water Mass in Water Phase', &
                                     'kmol','',icol)
-          call OutputAppendToHeader(header,'Global CO2 Mass in Gas Phase', &
+          call OutputWriteToHeader(fid,'Global CO2 Mass in Gas Phase', &
                                     'kmol','',icol)
         case(MIS_MODE)
-          call OutputAppendToHeader(header,'Global Water Mass in Liquid Phase', &
+          call OutputWriteToHeader(fid,'Global Water Mass in Liquid Phase', &
                                     'kg','',icol)
-          call OutputAppendToHeader(header,'Global Glycol Mass in Liquid Phase', &
+          call OutputWriteToHeader(fid,'Global Glycol Mass in Liquid Phase', &
                                     'kg','',icol)
       end select
-      write(fid,'(a)',advance="no") trim(header)
 
       if (option%ntrandof > 0) then
-        header = ''    
         do i=1,reaction%naqcomp
           if (reaction%primary_species_print(i)) then
             string = 'Global ' // trim(reaction%primary_species_names(i))
-            call OutputAppendToHeader(header,string,'mol','',icol)
+            call OutputWriteToHeader(fid,string,'mol','',icol)
           endif
         enddo
-        write(fid,'(a)',advance="no") trim(header)
 
         if (option%mass_bal_detailed) then
-          header = ''
           do i=1,reaction%mineral%nkinmnrl
             if (reaction%mineral%kinmnrl_print(i)) then
               string = 'Global ' // trim(reaction%mineral%kinmnrl_names(i))
-              call OutputAppendToHeader(header,string,'mol','',icol)
+              call OutputWriteToHeader(fid,string,'mol','',icol)
             endif
           enddo
-          write(fid,'(a)',advance="no") trim(header)
         endif
       endif
       
-      coupler => patch%boundary_conditions%first
+      coupler => patch%boundary_condition_list%first
       bcs_done = PETSC_FALSE
       do
         if (.not.associated(coupler)) then
@@ -1751,8 +2014,8 @@ subroutine OutputMassBalance(realization_base)
             exit
           else
             bcs_done = PETSC_TRUE
-            if (associated(patch%source_sinks)) then
-              coupler => patch%source_sinks%first
+            if (associated(patch%source_sink_list)) then
+              coupler => patch%source_sink_list%first
               if (.not.associated(coupler)) exit
             else
               exit
@@ -1760,84 +2023,108 @@ subroutine OutputMassBalance(realization_base)
           endif
         endif
 
-        header = ''
         select case(option%iflowmode)
           case(RICHARDS_MODE)
             string = trim(coupler%name) // ' Water Mass'
-            call OutputAppendToHeader(header,string,'kg','',icol)
+            call OutputWriteToHeader(fid,string,'kg','',icol)
             
             units = 'kg/' // trim(output_option%tunit) // ''
             string = trim(coupler%name) // ' Water Mass'
-            call OutputAppendToHeader(header,string,units,'',icol)
+            call OutputWriteToHeader(fid,string,units,'',icol)
           case(TH_MODE)
             string = trim(coupler%name) // ' Water Mass'
-            call OutputAppendToHeader(header,string,'kg','',icol)
+            call OutputWriteToHeader(fid,string,'kg','',icol)
             
             units = 'kg/' // trim(output_option%tunit) // ''
             string = trim(coupler%name) // ' Water Mass'
-            call OutputAppendToHeader(header,string,units,'',icol)
+            call OutputWriteToHeader(fid,string,units,'',icol)
           case(MIS_MODE)
             string = trim(coupler%name) // ' Water Mass'
-            call OutputAppendToHeader(header,string,'kg','',icol)
+            call OutputWriteToHeader(fid,string,'kg','',icol)
             string = trim(coupler%name) // ' Glycol Mass'
-            call OutputAppendToHeader(header,string,'kg','',icol)
+            call OutputWriteToHeader(fid,string,'kg','',icol)
             
             units = 'kg/' // trim(output_option%tunit) // ''
             string = trim(coupler%name) // ' Water Mass'
-            call OutputAppendToHeader(header,string,units,'',icol)
+            call OutputWriteToHeader(fid,string,units,'',icol)
             string = trim(coupler%name) // ' Glycol Mass'
-            call OutputAppendToHeader(header,string,units,'',icol)
+            call OutputWriteToHeader(fid,string,units,'',icol)
           case(G_MODE)
             string = trim(coupler%name) // ' Water Mass'
-            call OutputAppendToHeader(header,string,'kg','',icol)
+            call OutputWriteToHeader(fid,string,'kg','',icol)
             string = trim(coupler%name) // ' Air Mass'
-            call OutputAppendToHeader(header,string,'kg','',icol)
+            call OutputWriteToHeader(fid,string,'kg','',icol)
 
             units = 'kg/' // trim(output_option%tunit) // ''
             string = trim(coupler%name) // ' Water Mass'
-            call OutputAppendToHeader(header,string,units,'',icol)
+            call OutputWriteToHeader(fid,string,units,'',icol)
             string = trim(coupler%name) // ' Air Mass'
-            call OutputAppendToHeader(header,string,units,'',icol)
+            call OutputWriteToHeader(fid,string,units,'',icol)
           case(MPH_MODE,FLASH2_MODE,IMS_MODE)
             string = trim(coupler%name) // ' Water Mass'
-            call OutputAppendToHeader(header,string,'kmol','',icol)
+            call OutputWriteToHeader(fid,string,'kmol','',icol)
             string = trim(coupler%name) // ' CO2 Mass'
-            call OutputAppendToHeader(header,string,'kmol','',icol)
+            call OutputWriteToHeader(fid,string,'kmol','',icol)
             
             units = 'kmol/' // trim(output_option%tunit) // ''
             string = trim(coupler%name) // ' Water Mass'
-            call OutputAppendToHeader(header,string,units,'',icol)
+            call OutputWriteToHeader(fid,string,units,'',icol)
             string = trim(coupler%name) // ' CO2 Mass'
-            call OutputAppendToHeader(header,string,units,'',icol)
+            call OutputWriteToHeader(fid,string,units,'',icol)
         end select
-        write(fid,'(a)',advance="no") trim(header)
         
         if (option%ntrandof > 0) then
-          header = ''    
           do i=1,reaction%naqcomp
             if (reaction%primary_species_print(i)) then
+!              option%io_buffer = 'Check OutputObservation to ensure that ' // &
+!                'reactive transport species units are really kmol.'
+!              call printErrMsg(option)
               string = trim(coupler%name) // ' ' // &
                        trim(reaction%primary_species_names(i))
-              call OutputAppendToHeader(header,string,'kmol','',icol)
+              call OutputWriteToHeader(fid,string,'mol','',icol)
             endif
           enddo
-          write(fid,'(a)',advance="no") trim(header)
           
-          header = ''    
-          units = 'kmol/' // trim(output_option%tunit) // ''
+          units = 'mol/' // trim(output_option%tunit) // ''
           do i=1,reaction%naqcomp
             if (reaction%primary_species_print(i)) then
               string = trim(coupler%name) // ' ' // &
                        trim(reaction%primary_species_names(i))
-              call OutputAppendToHeader(header,string,units,'',icol)
+              call OutputWriteToHeader(fid,string,units,'',icol)
             endif
           enddo
-          write(fid,'(a)',advance="no") trim(header)
         endif
         coupler => coupler%next
       
       enddo
       
+#ifdef YE_FLUX
+!geh      do offset = 1, 4
+!geh        write(word,'(i6)') offset*100
+        select case(option%iflowmode)
+          case(FLASH2_MODE,MPH_MODE)
+            write(fid,'(a)',advance="no") ',"' // &
+              'Plane Water Flux [mol/s]","Plane CO2 Flux [mol/s]",' // &
+              '"Plane Energy Flux [MJ/s]"'
+          case(RICHARDS_MODE)
+            write(fid,'(a)',advance="no") ',"' // &
+              'Plane Water Flux [mol/s]"'
+          case(TH_MODE)
+            write(fid,'(a)',advance="no") ',"' // &
+              trim(adjustl(word)) // 'm Water Mass [kg]"'
+        end select
+        
+        if (option%ntrandof > 0) then
+          do i=1,reaction%naqcomp
+            if (reaction%primary_species_print(i)) then
+              write(fid,'(a)',advance="no") ',"' // &
+                  trim(adjustl(word)) // 'm ' // &
+                  trim(reaction%primary_species_names(i)) // ' [mol]"'
+            endif
+          enddo
+        endif
+!geh      enddo
+#endif      
       write(fid,'(a)') '' 
     else
       open(unit=fid,file=filename,action="write",status="old",position="append")
@@ -1874,6 +2161,16 @@ subroutine OutputMassBalance(realization_base)
             call RichardsComputeMassBalance(realization_base,sum_kg(1,:))
           case(TH_MODE)
             call THComputeMassBalance(realization_base,sum_kg(1,:))
+          case(MIS_MODE)
+            call MiscibleComputeMassBalance(realization_base,sum_kg(:,1))
+          case(MPH_MODE)
+            call MphaseComputeMassBalance(realization_base,sum_kg(:,:),sum_trapped(:))
+          case(FLASH2_MODE)
+            call Flash2ComputeMassBalance(realization_base,sum_kg(:,:),sum_trapped(:))
+          case(IMS_MODE)
+            call ImmisComputeMassBalance(realization_base,sum_kg(:,1))
+          case(G_MODE)
+            call GeneralComputeMassBalance(realization_base,sum_kg(:,:))
         end select
       class default
         option%io_buffer = 'Unrecognized realization class in MassBalance().'
@@ -1895,12 +2192,19 @@ subroutine OutputMassBalance(realization_base)
 
     if (option%myrank == option%io_rank) then
       select case(option%iflowmode)
-        case(RICHARDS_MODE, &
+        case(RICHARDS_MODE,IMS_MODE,MIS_MODE,G_MODE, &
              TH_MODE)
           do iphase = 1, option%nphase
             do ispec = 1, option%nflowspec
               write(fid,110,advance="no") sum_kg_global(ispec,iphase)
             enddo
+          enddo
+        case(MPH_MODE,FLASH2_MODE)
+          do iphase = 1, option%nphase
+            do ispec = 1, option%nflowspec
+              write(fid,110,advance="no") sum_kg_global(ispec,iphase)
+            enddo
+            write(fid,110,advance="no") sum_trapped_global(iphase)
           enddo
       end select
     endif
@@ -1965,7 +2269,7 @@ subroutine OutputMassBalance(realization_base)
     endif
   endif
 
-  coupler => patch%boundary_conditions%first
+  coupler => patch%boundary_condition_list%first
   global_auxvars_bc_or_ss => patch%aux%Global%auxvars_bc
   if (option%ntrandof > 0) then
     rt_auxvars_bc_or_ss => patch%aux%RT%auxvars_bc
@@ -1977,8 +2281,8 @@ subroutine OutputMassBalance(realization_base)
         exit
       else
         bcs_done = PETSC_TRUE
-        if (associated(patch%source_sinks)) then
-          coupler => patch%source_sinks%first
+        if (associated(patch%source_sink_list)) then
+          coupler => patch%source_sink_list%first
           if (.not.associated(coupler)) exit
           global_auxvars_bc_or_ss => patch%aux%Global%auxvars_ss
           if (option%ntrandof > 0) then
@@ -2330,6 +2634,78 @@ subroutine OutputMassBalance(realization_base)
   
   enddo
 
+#ifdef YE_FLUX
+
+!geh  do offset = 1, 4
+!geh    iconn = offset*20-1
+
+    !TODO(ye): The flux will be calculated at the plane intersecting the top
+    !          of the kth cell in the z-direction.  You need to update this.
+    k = 30
+
+    if (option%nflowdof > 0) then
+      ! really summation of moles, but we are hijacking the variable
+      sum_mol_ye = 0.d0
+      if (k-1 >= grid%structured_grid%lzs .and. &
+          k-1 < grid%structured_grid%lze) then
+        offset = (grid%structured_grid%ngx-1)*grid%structured_grid%nlyz + &
+                 (grid%structured_grid%ngy-1)*grid%structured_grid%nlxz
+        do j = grid%structured_grid%lys, grid%structured_grid%lye-1
+          do i = grid%structured_grid%lxs, grid%structured_grid%lxe-1
+            iconn = offset + (i-grid%structured_grid%lxs)* &
+                             (grid%structured_grid%ngz-1) + &
+                             (j-grid%structured_grid%lys)* &
+                             grid%structured_grid%nlx* &
+                             (grid%structured_grid%ngz-1) + &
+                             k-grid%structured_grid%lzs+1
+!gehprint *, option%myrank, grid%nG2A(grid%internal_connection_set_list%first%id_up(iconn)), &
+!gehpatch%internal_fluxes(1:option%nflowdof,1,iconn), 'sum_mol_by_conn'
+            sum_mol_ye(1:option%nflowdof) = sum_mol_ye(1:option%nflowdof) + &
+                             patch%internal_flow_fluxes(1:option%nflowdof,iconn)
+          enddo
+        enddo
+      endif
+!geh      int_mpi = option%nphase
+      int_mpi = option%nflowdof
+!gehprint *, option%myrank, sum_mol_ye(1,1), 'sum_mol_ye'
+      call MPI_Reduce(sum_mol_ye,sum_mol_global_ye, &
+                      int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
+                      option%io_rank,option%mycomm,ierr)
+                          
+      if (option%myrank == option%io_rank) then
+        ! change sign for positive in / negative out
+        ! for mphase use:
+        write(fid,110,advance="no") -sum_mol_global_ye(1:option%nflowdof)/option%flow_dt
+
+!     for Richards eqn. use:
+!       write(fid,110,advance="no") -sum_mol_global_ye(1:option%nflowdof)
+      endif
+    endif
+    
+    if (option%ntrandof > 0) then
+
+      sum_mol = 0.d0
+      sum_mol = sum_mol + patch%aux%RT%auxvars(iconn)%mass_balance
+
+      int_mpi = option%nphase*option%ntrandof
+      call MPI_Reduce(sum_mol,sum_mol_global,int_mpi, &
+                      MPI_DOUBLE_PRECISION,MPI_SUM, &
+                      option%io_rank,option%mycomm,ierr)
+
+      if (option%myrank == option%io_rank) then
+        do iphase = 1, option%nphase
+          do icomp = 1, reaction%naqcomp
+            if (reaction%primary_species_print(icomp)) then
+              ! change sign for positive in / negative out
+              write(fid,110,advance="no") -sum_mol_global(icomp,iphase)
+            endif
+          enddo
+        enddo
+      endif
+    endif
+!geh  enddo
+#endif
+  
   if (option%myrank == option%io_rank) then
     write(fid,'(a)') ''
     close(fid)

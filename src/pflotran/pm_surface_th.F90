@@ -78,7 +78,7 @@ subroutine PMSurfaceTHPreSolve(this)
   class(pm_surface_th_type) :: this
 
   if (this%option%print_screen_flag) then
-    write(*,'(/,2("=")," SURFACE TH FLOW ",62("="))')
+    write(*,'(/,2("=")," SURFACE TH FLOW ",61("="))')
   endif
 
 end subroutine PMSurfaceTHPreSolve
@@ -134,7 +134,7 @@ end subroutine PMSurfaceTHRHSFunction
 
 ! ************************************************************************** !
 
-subroutine PMSurfaceTHUpdateTimestep(this,dt,dt_max,iacceleration, &
+subroutine PMSurfaceTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                                     num_newton_iterations,tfac)
   ! 
   ! This routine
@@ -149,7 +149,7 @@ subroutine PMSurfaceTHUpdateTimestep(this,dt,dt_max,iacceleration, &
 
   class(pm_surface_th_type) :: this
   PetscReal :: dt
-  PetscReal :: dt_max
+  PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
@@ -226,18 +226,16 @@ subroutine PMSurfaceTHPostSolve(this)
   surf_field => this%surf_realization%surf_field
 
   ! Ensure evolved solution is +ve
-  call VecGetArrayF90(surf_field%flow_xx,xx_p,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(surf_field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
   do local_id = 1,this%surf_realization%discretization%grid%nlmax
     iend = local_id*this%option%nflowdof
     istart = iend - this%option%nflowdof + 1
-    if(xx_p(istart) < 1.d-15) then
+    if (xx_p(istart) < 1.d-15) then
       xx_p(istart) = 0.d0
       xx_p(iend) = 0.d0
     endif
   enddo
-  call VecRestoreArrayF90(surf_field%flow_xx,xx_p,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(surf_field%flow_xx,xx_p,ierr);CHKERRQ(ierr)
 
   ! First, update the solution vector
   call DiscretizationGlobalToLocal(this%surf_realization%discretization, &
@@ -282,7 +280,7 @@ subroutine PMSurfaceTHDestroy(this)
   ! Date: 07/23/13
   ! 
 
-!  use Surface_TH_module, only : SurfaceTHDestroy
+  use Surface_TH_module, only : SurfaceTHDestroy
 
   implicit none
 
@@ -296,9 +294,7 @@ subroutine PMSurfaceTHDestroy(this)
   call printMsg(this%option,'PMSurfaceTHDestroy()')
 #endif
 
-#ifndef SIMPLIFY
-!  call SurfaceTHDestroy(this%surf_realization)
-#endif
+  call SurfaceTHDestroy(this%surf_realization)
   call this%comm1%Destroy()
 
 end subroutine PMSurfaceTHDestroy

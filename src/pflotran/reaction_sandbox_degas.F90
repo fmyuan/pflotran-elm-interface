@@ -143,7 +143,7 @@ subroutine degasSetup(this,reaction,option)
 
   use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
   use Option_module
-  use Immobile_Aux_module, only : GetImmobileSpeciesIDFromName 
+  use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName
 
   implicit none
   

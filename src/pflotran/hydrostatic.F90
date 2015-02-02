@@ -32,11 +32,13 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   use Condition_module
   use Connection_module
   use Region_module
-  use Structured_Grid_module
+  use Grid_Structured_module
   use Utility_module, only : DotProduct
   use Dataset_Gridded_HDF5_class
   use Dataset_Ascii_class
-
+  
+  use General_Aux_module
+  
   implicit none
 
   type(coupler_type) :: coupler
@@ -90,12 +92,56 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   concentration_gradient = 0.d0
   
   select case(option%iflowmode)
+    case(G_MODE)
+      temperature_at_datum = &
+        condition%general%temperature%dataset%rarray(1)
+      if (associated(condition%general%temperature%gradient)) then
+        temperature_gradient(1:3) = &
+          condition%general%temperature%gradient%rarray(1:3)
+      endif
+      concentration_at_datum = &
+        condition%general%mole_fraction%dataset%rarray(1)
+      if (associated(condition%general%mole_fraction%gradient)) then
+        concentration_gradient(1:3) = &
+        condition%general%mole_fraction%gradient%rarray(1:3)
+      endif
+      datum(1:3) = condition%datum%rarray(1:3)
+      pressure_at_datum = &
+        condition%general%liquid_pressure%dataset%rarray(1)    
+      gas_pressure = option%reference_pressure
+      if (associated(condition%general%gas_pressure)) then
+        gas_pressure = condition%general%gas_pressure%dataset%rarray(1)
+      endif
+      ! gradient is in m/m; needs conversion to Pa/m
+      if (associated(condition%general%liquid_pressure%gradient)) then
+        piezometric_head_gradient(1:3) = &
+          condition%general%liquid_pressure%gradient%rarray(1:3)
+      endif
+      ! for liquid state
+      coupler%flow_aux_mapping(GENERAL_LIQUID_PRESSURE_INDEX) = 1
+      coupler%flow_aux_mapping(GENERAL_MOLE_FRACTION_INDEX) = 2
+      coupler%flow_aux_mapping(GENERAL_TEMPERATURE_INDEX) = 3
+      ! for two-phase state
+      coupler%flow_aux_mapping(GENERAL_GAS_PRESSURE_INDEX) = 1
+      ! air pressure here is being hijacked to store capillary pressure
+      coupler%flow_aux_mapping(GENERAL_AIR_PRESSURE_INDEX) = 2
+      coupler%flow_aux_mapping(GENERAL_TEMPERATURE_INDEX) = 3
+      coupler%flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) = 3
     case default
       ! for now, just set it; in future need to account for a different temperature datum
       if (associated(condition%temperature)) then
         if (condition%temperature%itype == DIRICHLET_BC) then
+#ifndef THDIRICHLET_TEMP_BC_HACK
           temperature_at_datum = &
             condition%temperature%dataset%rarray(1)
+#else
+          if (associated(condition%temperature%dataset%rarray)) then
+            temperature_at_datum = &
+              condition%temperature%dataset%rarray(1)
+          else
+            temperature_at_datum = option%reference_temperature
+          endif
+#endif
           if (associated(condition%temperature%gradient)) then
             temperature_gradient(1:3) = &
               condition%temperature%gradient%rarray(1:3)
@@ -112,7 +158,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
                 condition%concentration%gradient%rarray(1:3)
             endif
         else
-          concentration_at_datum = -999.d0
+          concentration_at_datum = UNINITIALIZED_DOUBLE
           concentration_gradient = 0.d0
         endif
       endif
@@ -124,10 +170,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
             datum = dataset%rarray(1:3)
           class is (dataset_gridded_hdf5_type)
             datum_dataset => dataset
-            !TODO(geh): move this to FlowSubConditionUpdateDataset()
-            !call DatasetLoad(datum_dataset,option)
             ! set datum here equal to estimated mid value of dataset
-            datum(1:3) = -999.d0
+            datum(1:3) = UNINITIALIZED_DOUBLE
             datum_dataset_rmax = maxval(datum_dataset%rarray)
             datum_dataset_rmin = minval(datum_dataset%rarray)
             datum(3) = 0.5d0*(datum_dataset_rmax+datum_dataset_rmin)
@@ -135,7 +179,9 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
             datum(3) = int(datum(3))
           class default
             option%io_buffer = &
-              'Incorrect dataset type in HydrostaticUpdateCoupler'
+              'Incorrect dataset type in HydrostaticUpdateCoupler. ' // &
+              'Dataset "' // trim(condition%datum%name) // '" in file "' // &
+              trim(condition%datum%filename) // '".'
             call printErrMsg(option)
         end select
       endif
@@ -273,71 +319,50 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   dy_conn = 0.d0
   dz_conn = 0.d0
 
-  if (grid%itype==STRUCTURED_GRID_MIMETIC .or. &
-      grid%discretization_itype==UNSTRUCTURED_GRID_MIMETIC) then
-      num_faces = coupler%numfaces_set
-  else 
-      num_faces = coupler%connection_set%num_connections
-  end if
-
+  num_faces = coupler%connection_set%num_connections
 
   do iconn=1, num_faces !geh: this should really be num_faces!
-    if (grid%itype==STRUCTURED_GRID_MIMETIC .or. &
-        grid%discretization_itype==UNSTRUCTURED_GRID_MIMETIC) then
-    !
-    else 
-
-      local_id = coupler%connection_set%id_dn(iconn)
-      ghosted_id = grid%nL2G(local_id)
+    local_id = coupler%connection_set%id_dn(iconn)
+    ghosted_id = grid%nL2G(local_id)
   
-      ! geh: note that this is a boundary connection, thus the entire distance is between
-      ! the face and cell center
-      if (associated(coupler%connection_set%dist)) then
-        dx_conn = coupler%connection_set%dist(0,iconn)*coupler%connection_set%dist(1,iconn)
-        dy_conn = coupler%connection_set%dist(0,iconn)*coupler%connection_set%dist(2,iconn)
-        dz_conn = coupler%connection_set%dist(0,iconn)*coupler%connection_set%dist(3,iconn)
-      endif
-      if (associated(datum_dataset)) then
-        ! correct datum based on dataset value
-        ! if we interpolate in x and y, then we can use grid%x/y - dx/y_conn for x and y
-        ! then we set dist_x and dist_y = 0.
-        dist_x = 0.d0
-        dist_y = 0.d0
-        !TODO(geh): check that sign is correct for dx/y_conn
-        call DatasetGriddedHDF5InterpolateReal(datum_dataset, &
-                                           grid%x(ghosted_id)-dx_conn, &
-                                           grid%y(ghosted_id)-dy_conn, &
-                                           0.d0, &
-                                           0.d0,temp_real,option)
-        ! temp_real is now the real datum
-        dist_z = grid%z(ghosted_id)-dz_conn-temp_real
-        z_offset = temp_real-datum(Z_DIRECTION)
-      else
-        ! note the negative (-) d?_conn is required due to the offset of the boundary face
-        dist_x = grid%x(ghosted_id)-dx_conn-datum(X_DIRECTION)
-        dist_y = grid%y(ghosted_id)-dy_conn-datum(Y_DIRECTION)
-        dist_z = grid%z(ghosted_id)-dz_conn-datum(Z_DIRECTION)
-        z_offset = 0.d0
-      endif
-    end if
-
+    ! geh: note that this is a boundary connection, thus the entire distance is between
+    ! the face and cell center
+    if (associated(coupler%connection_set%dist)) then
+      dx_conn = coupler%connection_set%dist(0,iconn)*coupler%connection_set%dist(1,iconn)
+      dy_conn = coupler%connection_set%dist(0,iconn)*coupler%connection_set%dist(2,iconn)
+      dz_conn = coupler%connection_set%dist(0,iconn)*coupler%connection_set%dist(3,iconn)
+    endif
+    if (associated(datum_dataset)) then
+      ! correct datum based on dataset value
+      ! if we interpolate in x and y, then we can use grid%x/y - dx/y_conn for x and y
+      ! then we set dist_x and dist_y = 0.
+      dist_x = 0.d0
+      dist_y = 0.d0
+      call DatasetGriddedHDF5InterpolateReal(datum_dataset, &
+                                          grid%x(ghosted_id)-dx_conn, &
+                                          grid%y(ghosted_id)-dy_conn, &
+                                          0.d0, &
+                                          0.d0,temp_real,option)
+      ! temp_real is now the real datum
+      dist_z = grid%z(ghosted_id)-dz_conn-temp_real
+      z_offset = temp_real-datum(Z_DIRECTION)
+    else
+      ! note the negative (-) d?_conn is required due to the offset of the boundary face
+      dist_x = grid%x(ghosted_id)-dx_conn-datum(X_DIRECTION)
+      dist_y = grid%y(ghosted_id)-dy_conn-datum(Y_DIRECTION)
+      dist_z = grid%z(ghosted_id)-dz_conn-datum(Z_DIRECTION)
+      z_offset = 0.d0
+    endif
 
     if (associated(pressure_array)) then
       ipressure = idatum+int(dist_z/delta_z)
-      if (grid%itype==STRUCTURED_GRID_MIMETIC.or. &
-          grid%discretization_itype==UNSTRUCTURED_GRID_MIMETIC) then
-        dist_z_for_pressure = conn_set_ptr%cntr(3,conn_id)-(z(ipressure) + z_offset)
-      else 
-        dist_z_for_pressure = grid%z(ghosted_id)-dz_conn-(z(ipressure) + z_offset)
-      end if
+      dist_z_for_pressure = grid%z(ghosted_id)-dz_conn-(z(ipressure) + z_offset)
       pressure = pressure_array(ipressure) + &
                  density_array(ipressure)*option%gravity(Z_DIRECTION) * &
                  dist_z_for_pressure + &
 !                 (grid%z(ghosted_id)-z(ipressure)) + &
                  pressure_gradient(X_DIRECTION)*dist_x + & ! gradient in Pa/m
                  pressure_gradient(Y_DIRECTION)*dist_y
-
- 
     else
       pressure = pressure_at_datum + &
                  pressure_gradient(X_DIRECTION)*dist_x + & ! gradient in Pa/m
@@ -368,6 +393,16 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
 
     ! assign other dofs
     select case(option%iflowmode)
+      case(MPH_MODE,IMS_MODE,FLASH2_MODE)
+        temperature = temperature_at_datum + &
+                    temperature_gradient(X_DIRECTION)*dist_x + & ! gradient in K/m
+                    temperature_gradient(Y_DIRECTION)*dist_y + &
+                    temperature_gradient(Z_DIRECTION)*dist_z 
+        coupler%flow_aux_real_var(2,iconn) = temperature
+        coupler%flow_aux_real_var(3,iconn) = concentration_at_datum
+
+        coupler%flow_aux_int_var(1,iconn) = condition%iphase
+
       case(TH_MODE)
         temperature = temperature_at_datum + &
                     temperature_gradient(X_DIRECTION)*dist_x + & ! gradient in K/m
@@ -376,79 +411,39 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
         coupler%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = temperature
         coupler%flow_aux_int_var(TH_PRESSURE_DOF,iconn) = condition%iphase
 
+      case(MIS_MODE)
+        temperature = temperature_at_datum + &
+                    temperature_gradient(X_DIRECTION)*dist_x + & ! gradient in K/m
+                    temperature_gradient(Y_DIRECTION)*dist_y + &
+                    temperature_gradient(Z_DIRECTION)*dist_z 
+!       coupler%flow_aux_real_var(2,iconn) = temperature
+        coupler%flow_aux_real_var(2,iconn) = concentration_at_datum
+
+        coupler%flow_aux_int_var(1,iconn) = condition%iphase
+
+      case(G_MODE)
+        temperature = temperature_at_datum + &
+                    temperature_gradient(X_DIRECTION)*dist_x + & ! gradient in K/m
+                    temperature_gradient(Y_DIRECTION)*dist_y + &
+                    temperature_gradient(Z_DIRECTION)*dist_z 
+        coupler%flow_aux_real_var(3,iconn) = &
+          temperature
+        ! switch to two-phase if liquid pressure drops below gas pressure
+        if (pressure < gas_pressure) then
+          ! we hijack the air pressure entry, storing capillary pressure there
+          coupler%flow_aux_real_var(1,iconn) = gas_pressure
+          coupler%flow_aux_real_var(2,iconn) = gas_pressure - pressure
+          coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = TWO_PHASE_STATE
+        else
+          coupler%flow_aux_real_var(2,iconn) = concentration_at_datum
+          coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = LIQUID_STATE
+        endif
       case default
         coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,iconn) = 1
     end select
 
   enddo
 
-  if ((grid%itype==STRUCTURED_GRID_MIMETIC.or. &
-       grid%discretization_itype==UNSTRUCTURED_GRID_MIMETIC).and. &
-      (coupler%itype == INITIAL_COUPLER_TYPE)) then
-     num_regions = coupler%region%num_cells
-     do iconn = 1, num_regions
-
-       local_id = coupler%region%cell_ids(iconn)
-       ghosted_id = grid%nL2G(local_id)
-  
-       if (associated(coupler%connection_set%dist)) then
-         dx_conn = coupler%connection_set%dist(0,iconn)*coupler%connection_set%dist(1,iconn)
-         dy_conn = coupler%connection_set%dist(0,iconn)*coupler%connection_set%dist(2,iconn)
-         dz_conn = coupler%connection_set%dist(0,iconn)*coupler%connection_set%dist(3,iconn)
-       endif
-       ! note the negative (-) d?_conn is required due to the offset of the boundary face
-       dist_x = grid%x(ghosted_id)-dx_conn-datum(X_DIRECTION)
-       dist_y = grid%y(ghosted_id)-dy_conn-datum(Y_DIRECTION)
-       dist_z = grid%z(ghosted_id)-dz_conn-datum(Z_DIRECTION)
-
-       if (associated(pressure_array)) then
-         ipressure = idatum+int(dist_z/delta_z)
-         dist_z_for_pressure = grid%z(ghosted_id)-dz_conn-z(ipressure)
-         pressure = pressure_array(ipressure) + &
-                 density_array(ipressure)*option%gravity(Z_DIRECTION) * &
-                 dist_z_for_pressure + &
-!                 (grid%z(ghosted_id)-z(ipressure)) + &
-                 pressure_gradient(X_DIRECTION)*dist_x + & ! gradient in Pa/m
-                 pressure_gradient(Y_DIRECTION)*dist_y
-
- 
-       else
-         pressure = pressure_at_datum + &
-                 pressure_gradient(X_DIRECTION)*dist_x + & ! gradient in Pa/m
-                 pressure_gradient(Y_DIRECTION)*dist_y + &
-                 pressure_gradient(Z_DIRECTION)*dist_z 
-       endif
-   
- 
-      if (pressure < option%minimum_hydrostatic_pressure) &
-          pressure = option%minimum_hydrostatic_pressure
-
-      if (condition%pressure%itype == SEEPAGE_BC) then
-        coupler%flow_aux_real_var(1,num_faces + iconn) = max(pressure,option%reference_pressure)
-      else if (condition%pressure%itype == CONDUCTANCE_BC) then
-        coupler%flow_aux_real_var(1,num_faces + iconn) = max(pressure,option%reference_pressure)
-        coupler%flow_aux_real_var(2,num_faces + iconn) = condition%pressure%aux_real(1)
-      else
-        coupler%flow_aux_real_var(1,num_faces + iconn) = pressure
-      endif
-
-      select case(option%iflowmode)
-        case(TH_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE)
-           temperature = temperature_at_datum + &
-                      temperature_gradient(X_DIRECTION)*dist_x + & ! gradient in K/m
-                      temperature_gradient(Y_DIRECTION)*dist_y + &
-                     temperature_gradient(Z_DIRECTION)*dist_z 
-           coupler%flow_aux_real_var(2,num_faces + iconn) = temperature
-           coupler%flow_aux_real_var(3,num_faces + iconn) = concentration_at_datum
-        case(G_MODE)
-      end select
-
-       coupler%flow_aux_int_var(1,num_faces + iconn) = 1
-     end do 
-  end if
-
-!   write(*,*) "End of HydrostaticUpdateCoupler" 
-!   read(*,*)
   if (associated(pressure_array)) deallocate(pressure_array)
   nullify(pressure_array)
   if (allocated(z)) deallocate(z)

@@ -18,13 +18,16 @@ TEST_OBJS = $(TEST_SRCS:.pf=$(OBJ_EXT))
 # their dependancies)! Probably need a more complex .o dependancy
 # setup like the main makefile...
 PFLOTRAN_OBJS = \
+	$(SRC_DIR)/eos_gas.o \
 	$(SRC_DIR)/eos_water.o \
 	$(SRC_DIR)/input_aux.o \
 	$(SRC_DIR)/logging.o \
 	$(SRC_DIR)/option.o \
 	$(SRC_DIR)/option_flow.o \
 	$(SRC_DIR)/option_transport.o \
+	$(SRC_DIR)/pflotran_constants.o \
 	$(SRC_DIR)/saturation_function.o \
+        $(SRC_DIR)/characteristic_curves.o \
 	$(SRC_DIR)/string.o \
 	$(SRC_DIR)/utility.o
 

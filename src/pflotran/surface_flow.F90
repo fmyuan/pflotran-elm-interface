@@ -204,7 +204,7 @@ subroutine SurfaceFlowDiffusion(hw_up, &
   endif
   
   dhead=head_up-head_dn
-  if(abs(dhead)<eps) then
+  if (abs(dhead)<eps) then
     dhead=0.d0
     vel = 0.d0
   else
@@ -239,8 +239,7 @@ subroutine SurfaceFlowUpdateSolution(surf_realization)
   PetscErrorCode                   :: ierr
 
   surf_field => surf_realization%surf_field
-  call VecCopy(surf_field%flow_xx,surf_field%flow_yy,ierr)
-  CHKERRQ(ierr)
+  call VecCopy(surf_field%flow_xx,surf_field%flow_yy,ierr);CHKERRQ(ierr)
 
 end subroutine SurfaceFlowUpdateSolution
 
@@ -337,12 +336,10 @@ subroutine SurfaceFlowRHSFunction(ts,t,xx,ff,surf_realization,ierr)
   ! Then, update the aux vars
   call SurfaceFlowUpdateAuxVars(surf_realization)
 
-  call VecGetArrayF90(ff,ff_p, ierr)
-  CHKERRQ(ierr)
-  call VecGetArrayF90(surf_field%mannings_loc,mannings_loc_p, ierr)
-  CHKERRQ(ierr)
-  call VecGetArrayF90(surf_field%area,area_p,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(ff,ff_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(surf_field%mannings_loc,mannings_loc_p,  &
+                      ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(surf_field%area,area_p,ierr);CHKERRQ(ierr)
 
   ff_p = 0.d0
   Res  = 0.d0
@@ -372,7 +369,7 @@ subroutine SurfaceFlowRHSFunction(ts,t,xx,ff,surf_realization,ierr)
       dist = sqrt(dx*dx + dy*dy + dz*dz)
       slope = dz/dist
       
-      if(surf_global_auxvars(ghosted_id_up)%head(1)<0.d0 .or. &
+      if (surf_global_auxvars(ghosted_id_up)%head(1)<0.d0 .or. &
          surf_global_auxvars(ghosted_id_dn)%head(1)<0.d0) then
         write(*,*) 'In SurfaceFlowFlux: ', surf_global_auxvars(ghosted_id_up)%head(1), &
           surf_global_auxvars(ghosted_id_dn)%head(1),ghosted_id_up,ghosted_id_dn
@@ -386,23 +383,18 @@ subroutine SurfaceFlowRHSFunction(ts,t,xx,ff,surf_realization,ierr)
             'Kinematic wave'
           call printErrMsg(option)
         case (DIFFUSION_WAVE)
-#if 1
-        call SurfaceFlowFlux(surf_global_auxvars(ghosted_id_up), &
-                             zc(ghosted_id_up), &
-                             mannings_loc_p(ghosted_id_up), &
-                             surf_global_auxvars(ghosted_id_dn), &
-                             zc(ghosted_id_dn), &
-                             mannings_loc_p(ghosted_id_dn), &
-                             dist, cur_connection_set%area(iconn), &
-                             option,vel,Res)
-#endif
+          call SurfaceFlowFlux(surf_global_auxvars(ghosted_id_up), &
+                               zc(ghosted_id_up), &
+                               mannings_loc_p(ghosted_id_up), &
+                               surf_global_auxvars(ghosted_id_dn), &
+                               zc(ghosted_id_dn), &
+                               mannings_loc_p(ghosted_id_dn), &
+                               dist, cur_connection_set%area(iconn), &
+                               option,vel,Res)
       end select
 
       patch%internal_velocities(1,sum_connection) = vel
-      patch%surf_internal_fluxes(RICHARDS_PRESSURE_DOF,sum_connection) = Res(1)
-
-      vel = patch%internal_velocities(1,sum_connection)
-      Res(1) = patch%surf_internal_fluxes(RICHARDS_PRESSURE_DOF,sum_connection)
+      patch%internal_flow_fluxes(1,sum_connection) = Res(1)
 
       if (local_id_up>0) then
         ff_p(local_id_up) = ff_p(local_id_up) - Res(1)/area_p(local_id_up)
@@ -418,7 +410,7 @@ subroutine SurfaceFlowRHSFunction(ts,t,xx,ff,surf_realization,ierr)
   enddo
 
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -436,33 +428,29 @@ subroutine SurfaceFlowRHSFunction(ts,t,xx,ff,surf_realization,ierr)
       dz = zc(ghosted_id_dn) - cur_connection_set%intercp(3,iconn)
       slope_dn = dz/sqrt(dx*dx + dy*dy + dz*dz)
 
-#if 1
       call SurfaceFlowBCFlux(boundary_condition%flow_condition%itype, &
                          surf_global_auxvars_bc(sum_connection), &
                          slope_dn, &
                          mannings_loc_p(ghosted_id_dn), &
                          cur_connection_set%area(iconn), &
                          option,vel,Res)
-#endif
 
       patch%boundary_velocities(1,sum_connection) = vel
-      patch%surf_boundary_fluxes(RICHARDS_PRESSURE_DOF,sum_connection) = Res(1)
-      vel = patch%boundary_velocities(1,sum_connection)
-      Res(1) = patch%surf_boundary_fluxes(RICHARDS_PRESSURE_DOF,sum_connection)
-      
+      patch%boundary_flow_fluxes(1,sum_connection) = Res(1)
+
       ff_p(local_id) = ff_p(local_id) + Res(1)/area_p(local_id)
     enddo
     boundary_condition => boundary_condition%next
   enddo
 
   ! Source/sink terms -------------------------------------
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0
   do
     if (.not.associated(source_sink)) exit
     
     qsrc_flow = 0.d0
-    if(source_sink%flow_condition%rate%itype/=HET_VOL_RATE_SS.and. &
+    if (source_sink%flow_condition%rate%itype/=HET_VOL_RATE_SS.and. &
        source_sink%flow_condition%rate%itype/=HET_MASS_RATE_SS) &
     qsrc_flow = source_sink%flow_condition%rate%dataset%rarray(1)
       
@@ -491,31 +479,23 @@ subroutine SurfaceFlowRHSFunction(ts,t,xx,ff,surf_realization,ierr)
     source_sink => source_sink%next
   enddo
 
-  call VecRestoreArrayF90(ff,ff_p, ierr)
-  CHKERRQ(ierr)
-  call VecRestoreArrayF90(surf_field%mannings_loc,mannings_loc_p,ierr)
-  CHKERRQ(ierr)
-  call VecRestoreArrayF90(surf_field%area,area_p,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(ff,ff_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(surf_field%mannings_loc,mannings_loc_p, &
+                          ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(surf_field%area,area_p,ierr);CHKERRQ(ierr)
 
   if (surf_realization%debug%vecview_solution) then
     string = 'Surf_xx_' // trim(adjustl(string2)) // '.bin'
     call PetscViewerBinaryOpen(surf_realization%option%mycomm,string, &
-                              FILE_MODE_WRITE,viewer,ierr)
-    CHKERRQ(ierr)
-    call VecView(xx,viewer,ierr)
-    CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr)
-    CHKERRQ(ierr)
+                              FILE_MODE_WRITE,viewer,ierr);CHKERRQ(ierr)
+    call VecView(xx,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 
     string = 'Surf_ff_' // trim(adjustl(string2)) // '.bin'
     call PetscViewerBinaryOpen(surf_realization%option%mycomm,string, &
-                              FILE_MODE_WRITE,viewer,ierr)
-    CHKERRQ(ierr)
-    call VecView(ff,viewer,ierr)
-    CHKERRQ(ierr)
-    call PetscViewerDestroy(viewer,ierr)
-    CHKERRQ(ierr)
+                              FILE_MODE_WRITE,viewer,ierr);CHKERRQ(ierr)
+    call VecView(ff,viewer,ierr);CHKERRQ(ierr)
+    call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 
   endif
 
@@ -583,10 +563,9 @@ subroutine SurfaceFlowComputeMaxDt(surf_realization,max_allowable_dt)
   surf_global_auxvars => patch%surf_aux%SurfaceGlobal%auxvars
   surf_global_auxvars_bc => patch%surf_aux%SurfaceGlobal%auxvars_bc
 
-  call VecGetArrayF90(surf_field%mannings_loc,mannings_loc_p, ierr)
-  CHKERRQ(ierr)
-  call VecGetArrayF90(surf_field%area,area_p,ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(surf_field%mannings_loc,mannings_loc_p,  &
+                      ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(surf_field%area,area_p,ierr);CHKERRQ(ierr)
 
   Res  = 0.d0
   max_allowable_dt = 1.d10
@@ -630,8 +609,8 @@ subroutine SurfaceFlowComputeMaxDt(surf_realization,max_allowable_dt)
       end select
 
       patch%internal_velocities(1,sum_connection) = vel
-      patch%surf_internal_fluxes(RICHARDS_PRESSURE_DOF,sum_connection) = Res(1)
-      if(abs(vel)>eps) then
+      patch%internal_flow_fluxes(1,sum_connection) = Res(1)
+      if (abs(vel)>eps) then
         dt = dist/abs(vel)/4.d0
         max_allowable_dt = min(max_allowable_dt,dt)
       endif
@@ -641,7 +620,7 @@ subroutine SurfaceFlowComputeMaxDt(surf_realization,max_allowable_dt)
   enddo
 
   ! Boundary Flux Terms -----------------------------------
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -667,9 +646,9 @@ subroutine SurfaceFlowComputeMaxDt(surf_realization,max_allowable_dt)
                          cur_connection_set%area(iconn), &
                          option,vel,Res)
       patch%boundary_velocities(1,sum_connection) = vel
-      patch%surf_boundary_fluxes(RICHARDS_PRESSURE_DOF,sum_connection) = Res(1)
+      patch%boundary_flow_fluxes(1,sum_connection) = Res(1)
 
-      if(abs(vel)>eps) then
+      if (abs(vel)>eps) then
         dt = dist/abs(vel)/4.d0
         max_allowable_dt = min(max_allowable_dt,dt)
       endif
@@ -677,10 +656,9 @@ subroutine SurfaceFlowComputeMaxDt(surf_realization,max_allowable_dt)
     boundary_condition => boundary_condition%next
   enddo
 
-  call VecRestoreArrayF90(surf_field%mannings_loc,mannings_loc_p,ierr)
-  CHKERRQ(ierr)
-  call VecRestoreArrayF90(surf_field%area,area_p,ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(surf_field%mannings_loc,mannings_loc_p, &
+                          ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(surf_field%area,area_p,ierr);CHKERRQ(ierr)
 
 end subroutine SurfaceFlowComputeMaxDt
 
@@ -715,52 +693,32 @@ subroutine SurfaceFlowFlux(surf_global_auxvar_up, &
   type(surface_global_auxvar_type) :: surf_global_auxvar_dn
   PetscReal :: zc_up, zc_dn
   PetscReal :: mannings_up, mannings_dn
-
-
   PetscReal :: head_up, head_dn
   PetscReal :: dist, length
   PetscReal :: vel                      ! units: m/s
   PetscReal :: Res(1:option%nflowdof)   ! units: m^3/s
 
-  PetscReal :: flux       ! units: m^2/s
   PetscReal :: hw_half
   PetscReal :: mannings_half
   PetscReal :: dhead
 
-  ! initialize
-  flux = 0.d0
-
+  ! upwind the total head and Manning's coefficient
   head_up = surf_global_auxvar_up%head(1) + zc_up
   head_dn = surf_global_auxvar_dn%head(1) + zc_dn
-
-  if (head_up>head_dn) then
+  if (head_up > head_dn) then
+    hw_half       = surf_global_auxvar_up%head(1)
     mannings_half = mannings_up
-    if (surf_global_auxvar_up%head(1)>eps) then
-      hw_half = surf_global_auxvar_up%head(1)
-    else
-      hw_half = 0.d0
-    endif
   else
+    hw_half       = surf_global_auxvar_dn%head(1)
     mannings_half = mannings_dn
-    if (surf_global_auxvar_dn%head(1)>eps) then
-      hw_half = surf_global_auxvar_dn%head(1)
-    else
-      hw_half = 0.d0
-    endif
   endif
   
-  dhead=head_up-head_dn
-  if(abs(dhead)<eps) then
-    dhead=0.d0
-    vel = 0.d0
-  else
-    vel = (hw_half**(2.d0/3.d0))/mannings_half* &
-          dhead/(abs(dhead)**(1.d0/2.d0))* &
-          1.d0/(dist**0.5d0)
-  endif
+  ! compute Manning's velocity
+  dhead = head_up - head_dn
+  vel   = sign(hw_half**(2.d0/3.d0)/mannings_half*abs(dhead/dist)**0.5d0,dhead) ! [m/s]
 
-  flux = hw_half*vel
-  Res(TH_PRESSURE_DOF) = flux*length
+  ! compute the volumetric flow rate
+  Res(TH_PRESSURE_DOF) = vel*hw_half*length ! [m^3/s]
 
 end subroutine SurfaceFlowFlux
 
@@ -873,8 +831,7 @@ subroutine SurfaceFlowUpdateAuxVars(surf_realization)
   surf_global_auxvars_bc => patch%surf_aux%SurfaceGlobal%auxvars_bc
   surf_global_auxvars_ss => patch%surf_aux%SurfaceGlobal%auxvars_ss
   
-  call VecGetArrayF90(surf_field%flow_xx_loc,xx_loc_p, ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(surf_field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
 
   ! Internal aux vars
   do ghosted_id = 1, grid%ngmax
@@ -886,13 +843,11 @@ subroutine SurfaceFlowUpdateAuxVars(surf_realization)
     endif
     surf_global_auxvars(ghosted_id)%head(1) = xx_loc_p(ghosted_id)
   enddo
-  call VecRestoreArrayF90(surf_field%flow_xx_loc,xx_loc_p, ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(surf_field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
    
-  call VecGetArrayF90(surf_field%flow_xx_loc,xx_loc_p, ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(surf_field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
   ! Boundary aux vars
-  boundary_condition => patch%boundary_conditions%first
+  boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
   do 
     if (.not.associated(boundary_condition)) exit
@@ -919,7 +874,7 @@ subroutine SurfaceFlowUpdateAuxVars(surf_realization)
 
   ! Source/Sink aux vars
   ! source/sinks
-  source_sink => patch%source_sinks%first
+  source_sink => patch%source_sink_list%first
   sum_connection = 0
   do
     if (.not.associated(source_sink)) exit
@@ -936,8 +891,7 @@ subroutine SurfaceFlowUpdateAuxVars(surf_realization)
     source_sink => source_sink%next
   enddo
 
-  call VecRestoreArrayF90(surf_field%flow_xx_loc,xx_loc_p, ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(surf_field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
 
 end subroutine SurfaceFlowUpdateAuxVars
 
@@ -1043,22 +997,20 @@ subroutine SurfaceFlowUpdateSurfState(surf_realization)
   call EOSWaterdensity(option%reference_temperature, &
                        option%reference_pressure,den,dum1,ierr)
 
-  call VecGetArrayF90(surf_field%flow_xx, hw_p, ierr)
-  CHKERRQ(ierr)
-  call VecGetArrayF90(surf_field%press_subsurf, surfpress_p, ierr)
-  CHKERRQ(ierr)
+  call VecGetArrayF90(surf_field%flow_xx, hw_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(surf_field%press_subsurf, surfpress_p,  &
+                      ierr);CHKERRQ(ierr)
 
   do local_id = 1,surf_grid%nlmax
 
     hw_p(local_id) = (surfpress_p(local_id)-option%reference_pressure)/ &
                         (abs(option%gravity(3)))/den
-    if(hw_p(local_id)<1.d-15) hw_p(local_id) = 0.d0
+    if (hw_p(local_id)<1.d-15) hw_p(local_id) = 0.d0
 
   enddo
-  call VecRestoreArrayF90(surf_field%flow_xx, hw_p, ierr)
-  CHKERRQ(ierr)
-  call VecRestoreArrayF90(surf_field%press_subsurf, surfpress_p, ierr)
-  CHKERRQ(ierr)
+  call VecRestoreArrayF90(surf_field%flow_xx, hw_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(surf_field%press_subsurf, surfpress_p,  &
+                          ierr);CHKERRQ(ierr)
 
   call DiscretizationGlobalToLocal(surf_realization%discretization, &
                                    surf_field%flow_xx, &
