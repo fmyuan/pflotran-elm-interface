@@ -1,1 +1,0 @@
-../pflotran/clm_rspfuncs.F90
