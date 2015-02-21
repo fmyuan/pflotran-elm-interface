@@ -183,8 +183,8 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
 
 #if 0
     ! Run underlying process model couplers
-    if (associated(this%below)) then
-      call this%below%RunToTime(this%timestepper%target_time,local_stop_flag)
+    if (associated(this%child)) then
+      call this%child%RunToTime(this%timestepper%target_time,local_stop_flag)
     endif
 #endif
     
@@ -230,8 +230,8 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
       ! Set data needed by process-model
       call this%SetAuxData()
       ! Run neighboring process model couplers
-      if (associated(this%next)) then
-        call this%next%RunToTime(this%timestepper%target_time,local_stop_flag)
+      if (associated(this%peer)) then
+        call this%peer%RunToTime(this%timestepper%target_time,local_stop_flag)
       endif
       call this%GetAuxData()
       call this%Checkpoint(viewer,this%timestepper%steps)
@@ -245,8 +245,8 @@ recursive subroutine PMCSurfaceRunToTime(this,sync_time,stop_flag)
   call this%SetAuxData()
 
   ! Run neighboring process model couplers
-  if (associated(this%next)) then
-    call this%next%RunToTime(sync_time,local_stop_flag)
+  if (associated(this%peer)) then
+    call this%peer%RunToTime(sync_time,local_stop_flag)
   endif
 
   stop_flag = max(stop_flag,local_stop_flag)
@@ -281,7 +281,7 @@ subroutine PMCSurfaceGetAuxData(this)
   print *, 'PMCSurfaceGetAuxData()'
 #endif
 
-  if(this%option%subsurf_surf_coupling == SEQ_COUPLED) then
+  if (this%option%subsurf_surf_coupling == SEQ_COUPLED) then
     select type(pmc => this)
       class is(pmc_surface_type)
         select case(this%option%iflowmode)
@@ -381,7 +381,7 @@ subroutine PMCSurfaceSetAuxData(this)
 
   dt = this%option%surf_subsurf_coupling_flow_dt
 
-  if(this%option%subsurf_surf_coupling == SEQ_COUPLED) then
+  if (this%option%subsurf_surf_coupling == SEQ_COUPLED) then
     select type(pmc => this)
       class is(pmc_surface_type)
 
@@ -544,7 +544,7 @@ subroutine PMCSurfaceGetAuxDataAfterRestart(this)
             do ghosted_id = 1, pmc%surf_realization%discretization%grid%ngmax
 
               local_id = pmc%surf_realization%discretization%grid%nG2L(ghosted_id)
-              if(local_id <= 0) cycle
+              if (local_id <= 0) cycle
 
               count = count + 1
               surfpress_p(count) = xx_p(ghosted_id)*den*abs(this%option%gravity(3)) + &
@@ -589,7 +589,7 @@ subroutine PMCSurfaceGetAuxDataAfterRestart(this)
             do ghosted_id = 1, pmc%surf_realization%discretization%grid%ngmax
 
               local_id = pmc%surf_realization%discretization%grid%nG2L(ghosted_id)
-              if(local_id <= 0) cycle
+              if (local_id <= 0) cycle
 
               count = count + 1
               iend = ghosted_id*this%option%nflowdof
@@ -691,18 +691,18 @@ recursive subroutine PMCSurfaceDestroy(this)
   call printMsg(this%option,'PMCSurface%Destroy()')
 #endif
 
-  if (associated(this%below)) then
-    call this%below%Destroy()
+  if (associated(this%child)) then
+    call this%child%Destroy()
     ! destroy does not currently destroy; it strips
-    deallocate(this%below)
-    nullify(this%below)
+    deallocate(this%child)
+    nullify(this%child)
   endif 
   
-  if (associated(this%next)) then
-    call this%next%Destroy()
+  if (associated(this%peer)) then
+    call this%peer%Destroy()
     ! destroy does not currently destroy; it strips
-    deallocate(this%next)
-    nullify(this%next)
+    deallocate(this%peer)
+    nullify(this%peer)
   endif
   
   call PMCSurfaceStrip(this)

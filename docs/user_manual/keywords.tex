@@ -6,8 +6,211 @@ The PFLOTRAN input file construction is based on keywords. Lines beginning with 
 
 Initial and boundary conditions and material properties are assigned to spatial regions using a novel {\em coupler} approach. In this approach, initial and boundary conditions (keyword CONDITION) are assigned to regions (keyword REGION) using keywords INITIAL\_CONDITION and BOUNDARY\_CONDITION. Material properties (keyword MATERIAL) are assigned to regions using the keyword STRATIGRAPHY.
 
+\subsection{Conventions and Notation} 
+
+Keywords are in boldface with optional modifying keywords in square brackets [\ldots], and user entries in typewriter font.
+Unless otherwise specified, units in the input file are assumed to be as listed in Table~\ref{tunits}.
+
+\begin{table}[h]\centering
+\caption{Units}\label{tunits}
+
+\vspace{3mm}
+
+%\rowcolors{row}{odd-row cyan}{even-row green}
+%\rowcolors[]{1}{red!20}{red!10}
+%\rowcolors[]{1}{blue!20}{blue!10}
+\rowcolors[]{1}{teal!20}{teal!10}
+%\rowcolors{1}{}{lightgray}
+%\rowcolors{1}{}{teal}
+\begin{tabular}{ll}
+\toprule[2pt]
+%\hline
+%Quantity & \multicolumn{1}{c}{Units}\\
+Quantity & \multicolumn{1}{c}{Units}\\
+\midrule[1pt]
+%\hline
+Pressure: & Pascal [Pa] (absolute)\\
+%\rowcolor[rgb]{0.5}
+Temperature: & Celcius [C]\\
+Distance: & meter [m]\\
+Volume: & meter$^3$ [m$^3$]\\
+Time: & second [s]\\
+Velocity: & meter/second [m/s]\\
+Concentration: & molarity [M] or molality [m] (see MOLAL keyword)\\
+Enthalpy: & kiloJoule/mole [kJ/mol]\\
+Mass: & kilogram [kg]\\
+Rate: & kilogram/second [kg/s] or cubic meter/second [m$^3$/s]\\
+Surface Site Density: & mole/meter$^{3}$ [mol/m$^{3}$]\\
+\bottomrule[1.5pt]
+%\hline
+\end{tabular}
+\end{table}
+
+\subsection{Input Deck Specification}
+
+\protect\hypertarget{target_simulation}{}
+
+PFLOTRAN input files are divided into blocks based on the process models employed. Process models are defined within the SIMULATION block which for convenience should be located at the top of the input file (but this is not required). 
+Keywords for subsurface processes are listed in Table~\ref{flkeywd}. At present  manual pages and keywords for surface processes is still under development.
+Keywords within the SIMULATION block include:
+\begin{description}
+\item {\bf SIMULATION}
+\begin{description}
+    \item Opens the SIMULATION block.
+    \end{description}
+
+\item {\bf SIMULATION\_TYPE}  <string>
+\begin{description}
+    \item Defines the domain to be modeled and the types of process 
+    models employed. Options include:
+    
+    \item {\bf SUBSURFACE}
+
+    \item {\bf SURFACE\_SUBSURFACE}
+
+    \item {\bf HYDROGEOPHYSICS}
+\end{description}
+
+\item {\bf PROCESS\_MODELS}
+\begin{description}
+\item Opens a block for defining all process models employed. 
+    At this point, the ordering and linkage of these process 
+    models is preset. For instance, SUBSURFACE\_FLOW processes 
+    always precede SUBSURFACE\_TRANSPORT processes in timestep 
+    execution. Options include:
+    
+\item {\bf SUBSURFACE\_FLOW}
+
+\item {\bf SUBSURFACE\_TRANSPORT}
+
+\item {\bf SURFACE\_FLOW}
+\end{description}
+
+\item {\bf SUBSURFACE}
+\begin{description}
+   \item Opens a block of input parameters for subsurface process models 
+    (this block is essentially, the old PFLOTRAN input file with the 
+    exception that several of the cards (i.e. flow MODE) have been 
+    moved to the SIMULATION block.
+\end{description}
+\item {\bf END\_SUBSURFACE}
+\begin{description}
+    \item Closes the subsurface block.
+    \end{description}
+\end{description}
+
+\begin{mdframed}
+
+{\bf Example:}
+\small
+\begin{verbatim}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      ...
+    /
+    SUBSURFACE_TRANSPORT transport
+      ...
+    /
+  /
+END
+
+SUBSURFACE
+...
+END_SUBSURFACE
+
+\end{verbatim}
+\end{mdframed}
+\normalsize
+
+\newpage
+\subsubsection{Keyword: SUBSURFACE\_FLOW}
+\begin{description}
+\item {\bf SUBSURFACE\_FLOW} Block
+
+\begin{description}
+\item Required Cards
+\item MODE <string>: Specifies the flow mode to be employed. 
+%Follow the links below for a description of each flow mode's options.
+\end{description}
+
+\item Water Modes:
+
+\begin{description}
+\item {\bf RICHARDS}: single-phase variably-saturated flow
+\item {\bf GENERAL}: two-phase air-water-energy
+\item {\bf TH}: variably saturated flow and energy (and optional ice phase)
+\end{description}
+
+\item CO$_2$-Related Modes:
+
+\begin{description}
+\item {\bf MPHASE}: two-phase supercritical CO$_2$-water-energy
+\item {\bf IMMISCIBLE}: immiscible two-phase CO$_2$-water-energy
+\item {\bf MISCIBLE}: miscible H$_2$O-glycol
+\item {\bf FLASH2}: two-phase supercritical CO$_2$-water-energy
+\end{description}
+
+\item Optional Cards
+\item OPTIONS: MODE-dependent block for defining options for each flow process model.
+
+\end{description}
+
+\small
+\begin{mdframed}
+{\bf Example:}
+\begin{verbatim}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+        ISOTHERMAL
+        TWO_PHASE_ENERGY_DOF TEMPERATURE
+        GAS_COMPONENT_FORMULA_WEIGHT 2.01588D0
+        MAXIMUM_PRESSURE_CHANGE 1.0D6
+      /
+    /
+  /
+END
+\end{verbatim}
+\end{mdframed}
+\normalsize
+
+\subsubsection{Keyword: SUBSURFACE\_TRANSPORT}
+
+\begin{description}
+\item {\bf SUBSURFACE\_TRANSPORT} Block
+\begin{description}
+\item Optional Cards
+\item GLOBAL\_IMPLICIT
+Specifies fully implicit coupling of transport and reaction.
+\item OPERATOR\_SPLITTING (not currently implemented)
+\end{description}
+\end{description}
+
+\small
+\begin{mdframed}
+{\bf Example:}
+\begin{verbatim}
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+  /
+END
+\end{verbatim}
+\end{mdframed}
+\normalsize
+
+\newpage
+\subsection{Links to Subsurface Keywords}
 \begin{longtable}{ll}%[h]%\centering
-%\caption{PFLOTRAN Keywords}\label{flkeywd}
+\caption{{\bf SUBSURFACE} Keywords listed in alphabetical order.}\label{flkeywd}\\
 
 %\vspace{4mm}
 
@@ -72,46 +275,6 @@ Initial and boundary conditions and material properties are assigned to spatial 
 \end{longtable}
 
 
-\subsection{Conventions and Notation} 
-
-Keywords are in boldface with optional modifying keywords in square brackets [\ldots], and user entries in typewriter font.
-Unless otherwise specified, units in the input file are assumed to be as listed in Table~\ref{tunits}.
-
-\begin{table}[h]\centering
-\caption{Units}\label{tunits}
-
-\vspace{3mm}
-
-%\rowcolors{row}{odd-row cyan}{even-row green}
-%\rowcolors[]{1}{red!20}{red!10}
-%\rowcolors[]{1}{blue!20}{blue!10}
-\rowcolors[]{1}{teal!20}{teal!10}
-%\rowcolors{1}{}{lightgray}
-%\rowcolors{1}{}{teal}
-\begin{tabular}{ll}
-\toprule[2pt]
-%\hline
-%Quantity & \multicolumn{1}{c}{Units}\\
-Quantity & \multicolumn{1}{c}{Units}\\
-\midrule[1pt]
-%\hline
-Pressure: & Pascal [Pa] (absolute)\\
-%\rowcolor[rgb]{0.5}
-Temperature: & Celcius [C]\\
-Distance: & meter [m]\\
-Volume: & meter$^3$ [m$^3$]\\
-Time: & second [s]\\
-Velocity: & meter/second [m/s]\\
-Concentration: & molarity [M] or molality [m] (see MOLAL keyword)\\
-Enthalpy: & kiloJoule/mole [kJ/mol]\\
-Mass: & kilogram [kg]\\
-Rate: & kilogram/second [kg/s] or cubic meter/second [m$^3$/s]\\
-Surface Site Density: & mole/meter$^{3}$ [mol/m$^{3}$]\\
-\bottomrule[1.5pt]
-%\hline
-\end{tabular}
-\end{table}
-
 \begin{comment}
 \begin{verbatim}
 \protect\hypertarget{target_XXX}{}
@@ -136,8 +299,25 @@ Surface Site Density: & mole/meter$^{3}$ [mol/m$^{3}$]\\
 \hypertarget{target_input_file}{}
 
 \footnotesize
-\#Description: 3D infiltration problem with calcite dissolution
-(\# denotes a comment line)\\
+\#Description: 3D infiltration problem using Richards model with calcite dissolution\\
+\noindent
+\#(\# or ! denotes following text a comment)
+
+\noindent
+\hyperlink{target_simulation}{\bf SIMULATION}\\
+  SIMULATION\_TYPE SUBSURFACE\\
+  PROCESS\_MODELS\\
+    SUBSURFACE\_FLOW flow\\
+      MODE RICHARDS\\
+    /\\
+    SUBSURFACE\_TRANSPORT transport\\
+      GLOBAL\_IMPLICIT\\
+    /\\
+  /\\
+END
+
+\noindent
+SUBSURFACE ! SUBSURFACE block ends with END\_SUBSURFACE
 
 \noindent
 \# == debugging ================================================================\\
@@ -147,10 +327,6 @@ Surface Site Density: & mole/meter$^{3}$ [mol/m$^{3}$]\\
 \#  VECVIEW\_RESIDUAL\\
 \#  VECVIEW\_SOLUTION\\
 \#/
-
-\noindent
-\# == mode =====================================================================\\
-\hyperlink{target_mode}{\bf MODE} RICHARDS
 
 \noindent
 \# == chemistry ================================================================\\
@@ -421,26 +597,33 @@ REGION all\\
 \# == transport constraints ======================================================\\
 \hyperlink{target_constraint}{\bf CONSTRAINT} Initial\\
 CONCENTRATIONS\\
-Ca++    1.d-4   M  Calcite\\
-H+      8.d0   pH\\
-CO2(aq) 1.d-2   G  CO2(g)\\
-Tracer  1.d-8   T\\
-/\\
-MINERALS ! vol. frac.  area\\
-Calcite      0.75      1.d2\\
-/\\
+\begin{tabular}{llll}
+Ca++    &1.d-4   &M  &Calcite\\[-4pt]
+H+      &8.d0   &pH\\[-4pt]
+CO2(aq) &1.d-2   &G  &CO2(g)\\[-4pt]
+Tracer  &1.d-8   &T\\[-4pt]
+/\\[-4pt]
+MINERALS &! vol. frac.  &area\\[-4pt]
+Calcite      &0.75      &1.d2\\[-4pt]
+/\\[-4pt]
+\end{tabular}\\
 /
 
 \noindent
 \hyperlink{target_constraint}{\bf CONSTRAINT} Inlet\\
 CONCENTRATIONS\\
-Ca++    1.d-6   T\\
-H+      3.d0   pH\\
-CO2(aq) 1.d-3   G  CO2(g)\\
-Tracer  1.d-0   T\\
-/\\
-/
+\begin{tabular}{lll}
+Ca++    &1.d-6   &T\\[-4pt]
+H+      &3.d0   &pH\\[-4pt]
+CO2(aq) &1.d-3   &G  CO2(g)\\[-4pt]
+Tracer  &1.d-0   &T\\[-4pt]
+/\\[-4pt]
+\end{tabular}\\
+/\\[-4pt]
+END\_SUBSURFACE
+
 \normalsize
+
 
 \newpage
 \protect\hypertarget{target_bcon}{}
@@ -448,6 +631,8 @@ Tracer  1.d-0   T\\
 \subsection{Keyword: BOUNDARY\_CONDITION}
 {\noindent\bf Description:}
 The BOUNDARY\_CONDITION keyword couples conditions specified under the FLOW\_\-CONDITION and/or TRANSPORT\_CONDITION keywords to a REGION in the problem domain.  The use of this keyword enables the use/reuse of flow and transport conditions and regions within multiple boundary and initial conditions and source/sinks in the input deck.
+
+\hfill\hyperlink{target_key}{\return}
 
 {\noindent\bf Input:}
 
@@ -521,6 +706,8 @@ END
 {\noindent\bf Description:}
 Units refer to concentration of an NaCl brine in molality, mass fraction or mole fraction with equal concentration of Na$^+$ and Cl$^-$.
 
+\hfill\hyperlink{target_key}{\return}
+
 \begin{mdframed}
 \noindent {\bf Example:}
 \begin{verbatim}
@@ -537,7 +724,10 @@ BRINE 4.d0 MOLAL
 
 \subsection{Keyword: CHARACTERISTIC\_CURVES}
 
-{\noindent\bf Description:} Specifies relative permeability and saturation functions and parameters to be associated with a material property.
+{\noindent\bf Description:} Specifies relative permeability and saturation functions and parameters to be associated with a material property. 
+{\bf Note: this keyword is currently only supported for GENERAL and RICHARDS modes; keyword SATURATION\_FUNCTION should be used in all other flow modes.}
+
+\hfill\hyperlink{target_key}{\return}
 
 %{\noindent\bf Required Cards:}
 
@@ -549,7 +739,7 @@ BRINE 4.d0 MOLAL
 
 \begin{deflist}{000}
 
-\item [SATURATION\_FUNCTION] [VAN\_GENUCHTEN, BROOKS\_COREY]
+\item [SATURATION\_FUNCTION] <string> [VAN\_GENUCHTEN, BROOKS\_COREY]
 \begin{deflist}{000}
 \item ALPHA \ <float> \ [Pa$^{-1}$]
 \item M \ <float> \ [---]
@@ -625,7 +815,7 @@ Brooks-Corey lambda [---].
 Residual saturation for liquid phase [---].
 
 \item M \ <float>
-van Genuchten $m$ as in ($m = 1-1/n$) [---].
+van Genuchten $m$ ($m = 1\!-\!1/n$) [---].
 
 \item SMOOTH
 Applies polynomial smoothing to relative permeability or saturation function. Strongly recommended for the Brooks-Corey saturation function if cells in the domain transition from saturated to variably-saturated conditions.
@@ -695,6 +885,10 @@ CHARACTERISTIC_CURVES cc2
 \protect\hypertarget{target_ckpt}{}
 
 \subsection{Keyword: CHECKPOINT}
+
+\hfill\hyperlink{target_key}{\return}
+
+
 {\noindent\bf Description:}
 Checkpoint files enable the restart of a simulation at any discrete point in simulation where a checkpoint file has been printed.  When the {\tt CHECKPOINT} card is included in the input deck, checkpoint files are printed every N time steps, where N is the checkpoint frequency, and at the end of the simulation, should the simulation finish or the be shut down properly mid-simulation using the {\tt WALL\_CLOCK\_STOP} card.  Checkpoint files are named {\tt pflotran.chkN}, where {\tt N} is the number of the timestep when the checkpoint file was printed.
 A file named {\tt restart.chk} will also be written when PFLOTRAN properly terminates execution. One use this file to pick up from where the simulation stopped by increasing the final time.
@@ -740,6 +934,8 @@ CHECKPOINT 5
 \protect\hypertarget{target_chem}{}
 
 \subsection{Keyword: CHEMISTRY}
+
+\hfill\hyperlink{target_key}{\return}
 
 \noindent
 {\bf Description:}
@@ -798,15 +994,15 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 \item [Mineral Name]  \ {\tt <Char>}
 \begin{deflist}{0000}
 \item [RATE\_CONSTANT] \ {\tt <float>} [mol/m$^2$/s], \ \ \ \ {\em If} \ {\tt <float>} $<$ 0, {\tt <float>} = 10$^{\tt <float>}$
-\item [ACTIVATION\_ENERGY] \ {\tt <float>} [kJ/mol/K], \ \ \ Referenced to rate constant at 25\degc.
+\item [ACTIVATION\_ENERGY] \ {\tt <float>} [kJ/mol], \ \ \ Referenced to rate constant at 25\degc.
 ~\\
-\item [AFFINITY\_THRESHOLD] \ {\tt <float>} [---]
-\item [AFFINITY\_POWER] \ {\tt <float>} [---]
+\item [AFFINITY\_THRESHOLD] \ {\tt <float>} \ [---]
+\item [AFFINITY\_POWER] \ {\tt <float>} \ [---] \ [see Eqn.\eqref{Im}]
 ~\\
-\item [TEMPKINS\_CONSTANT] \ {\tt <float>} [---]
+\item [TEMPKINS\_CONSTANT] \ {\tt <float>} \ [---] [See Eqn.\eqref{Im}]
 ~\\
-\item [SURFACE\_AREA\_POROSITY\_POWER] \ {\tt <float>} [---] \ \ \ [see Eqn.\eqref{surface_area_vf}]
-\item [SURFACE\_AREA\_VOL\_FRAC\_POWER] \ {\tt <float>} [---] \ \ \ [see Eqn.\eqref{surface_area_vf}]
+\item [SURFACE\_AREA\_POROSITY\_POWER] \ {\tt <float>} \ [---] \ \ \ [see Eqn.\eqref{surface_area_vf}]
+\item [SURFACE\_AREA\_VOL\_FRAC\_POWER] \ {\tt <float>} \ [---] \ \ \ [see Eqn.\eqref{surface_area_vf}]
 ~\\
 \item [RATE\_LIMITER] \ {\tt <float>} [mol/m$^2$/s] \ [see Eqn.\eqref{ratemintran}]
 ~\\
@@ -819,7 +1015,7 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 \item [PREFACTOR] ~
 \begin{deflist}{0000}
 \item [RATE\_CONSTANT] \ {\tt <float>} [mol/m$^2$/s], \ \ \ \ {\em If} \ {\tt <float>} $<$ 0, {\tt <float>} = 10$^{\tt <float>}$
-\item [ACTIVATION\_ENERGY] \ {\tt <float>} [kJ/mol/K] 
+\item [ACTIVATION\_ENERGY] \ {\tt <float>} [kJ/mol] 
 \item [PREFACTOR\_SPECIES] \ {\tt <Char>}
 \begin{deflist}{0000}
 \item [ALPHA] \ {\tt <float>} [---]
@@ -1211,6 +1407,8 @@ END
 {\bf Description:}
 COMPUTE\_STATISTICS enables the calculation statistical analysis of flow velocities during a simulation.  The average, maximum, minimum, and standard deviations velocities are computed.
 
+\hfill\hyperlink{target_key}{\return}
+
 \noindent{\bf Input:}
 \begin{deflist}{000}
 \item [COMPUTE\_STATISTICS] \{compute\_statistics = .true.\}
@@ -1238,6 +1436,8 @@ COMPUTE_STATISTICS
 
 \subsection{Keyword: CO2\_DATABASE}
 
+\hfill\hyperlink{target_key}{\return}
+
 \noindent
 {\bf Description:}
 The keyword CO2\_DATABASE is for specifying the path to CO$_2$ database file providing a lookup table for CO$_2$ fluid properties density, viscosity, fugacity and fugacity coefficient derived from the Span-Wagner (1996) EOS. The temperature-pressure range in the default lookup table is $T: 0-375$\degc\ and $P: 0.01-1250$ bars. This keyword is required for MPHASE, FLASH2 and IMMIS modes. 
@@ -1256,6 +1456,8 @@ The keyword CO2\_DATABASE is for specifying the path to CO$_2$ database file pro
 \protect\hypertarget{target_constraint}{}
 
 \subsection{Keyword: CONSTRAINT}
+
+\hfill\hyperlink{target_key}{\return}
 
 \noindent
 {\bf Description:}
@@ -1369,6 +1571,8 @@ Gypsum      0.0        1.d2
 
 \subsection{Keyword: DATASET}
 
+\hfill\hyperlink{target_key}{\return}
+
 \noindent{\bf Description:} 
 Specifies a data set to be associated with parameters sets in the model.
 
@@ -1436,6 +1640,8 @@ END
 
 \subsection{Keyword: DBASE\_FILENAME}
 
+\hfill\hyperlink{target_key}{\return}
+
 Keyword {\bf DBASE\_FILENAME} allows the user to define input parameters through an external database stored in an ASCII text or HDF5 file. These parameters can be realization dependent where an array of values is provided and indexed by the realization id.
 
 {\bf DBASE\_FILENAME} \ <string> \ 
@@ -1495,6 +1701,8 @@ Values are assigned based on the database stored in {\tt 543\_dbase.h5} and the 
 
 \subsection{Keyword: DEBUG}
 
+\hfill\hyperlink{target_key}{\return}
+
 {\noindent\bf Input:}
 \begin{deflist}{00}
 \item[DEBUG]~
@@ -1537,6 +1745,8 @@ END
 \protect\hypertarget{target_eos}{}
 
 \subsection{Keyword: EOS}
+
+\hfill\hyperlink{target_key}{\return}
 
 The {\bf EOS} keyword defines an equation of state for a simulated fluid.
 
@@ -1588,6 +1798,8 @@ END
 \protect\hypertarget{target_flow_cond}{}
 
 \subsection{Keyword: FLOW\_CONDITION}
+
+\hfill\hyperlink{target_key}{\return}
 
 {\noindent\bf Description:}
 The {\bf FLOW\_CONDITION} keyword specifies scalar or vector data sets to be associated with a given boundary or initial condition.  For instance, to specify a hydrostatic boundary condition, the use would specify a condition with a pressure associated with a point in space (i.e. datum) in space and a gradient, both vector quantities.  Note that in the case of a hydrostatic boundary condition, the vertical gradient specified in the input deck must be zero in order to enable the hydrostatic pressure calculation.  Otherwise, the specified vertical gradient overrides the hydrostatic pressure.  Transient pressures, temperatures, concentrations, datums, gradients, etc. are specified using the {\bf FILE} {\tt filename} combination for the name of the data set.
@@ -1786,6 +1998,8 @@ END
 
 \subsection{Keyword: FLUID\_PROPERTY}
 
+\hfill\hyperlink{target_key}{\return}
+
 \noindent{\bf Description:} Assign diffusion coefficients and temperature dependence.
 
 \noindent{\bf Input:}
@@ -1811,7 +2025,7 @@ where $D_m^\circ$ is the reference diffusion coefficient at temperature $T_0 = 2
 \begin{verbatim}
 FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-9      ! m^2/s
-  DIFFUSION_ACTIVATION_ENERGY 12.6 ! kJ/K/mol
+  DIFFUSION_ACTIVATION_ENERGY 12.6 ! kJ/mol
 /
 \end{verbatim}
 \end{mdframed}
@@ -1825,6 +2039,8 @@ FLUID_PROPERTY
  
 \subsection{Keyword: GEOMECHANICS}
 
+\hfill\hyperlink{target_key}{\return}
+
 \noindent{\bf Description:} This keyword is required when using geomechanics. All the geomechanics part should go in this card.
 
 \begin{description}
@@ -1834,114 +2050,61 @@ All the geomechanics keywords  should go here.
 \item[\keyend] ~
 
 \end{description}
-%
+
 %========================================================================
 
 \newpage
-\protect\hypertarget{target_geomech_grid}{}
+\protect\hypertarget{target_geomech_bc}{}
  
-\subsection{Keyword: GEOMECHANICS\_GRID}
+\subsection{Keyword: GEOMECHANICS\_BOUNDARY\_CONDITION}
 
-\noindent{\bf Description:} The grid type and the format for geomechanics is specified here.
-Only unstructured grids can be read. If you need to use a structured grid, generate the grid as an unstructured grid in the implicit format (see GRID keyword for details of the format below).
+\hfill\hyperlink{target_key}{\return}
 
-\begin{description}
-\item[GEOMECHANICS\_GRID]~
-\item[Required Input Parameters:]~
+\noindent{\bf Description:} 
+The GEOMECHANICS\_BOUNDARY\_CONDITION keyword couples condition specified under the GEOMECHANICS\_CONDITION keyword to a REGION in the problem domain.  The use of this keyword enables the use/reuse of geomechanics conditions and regions within multiple geomechanics boundary conditions the input deck.
 
-\begin{description}
-\item[TYPE <type> :] ~
+{\noindent\bf Input:}
 
-\begin{description}
-\item Grid type (unstructured)
-\end{description}
-
-\item[FILE <filename>:] Name of file containing grid information (unstructured only)
-
-\end{description}
-
-\item[Optional Input Parameters:]~
-\begin{description}
-\item[GRAVITY] <\# \# \#>: Specifies gravity vector for geomechanics calculations (or specific body force) [Default: 0 0 -9.81 m/s$^2$] 
-\end{description}
-
-
-\item[\keyend] ~
-
-\end{description}
-%========================================================================
-
-\newpage
-\protect\hypertarget{target_geomech_output}{}
- 
-\subsection{Keyword: GEOMECHANICS\_OUTPUT}
-
-\noindent{\bf Description:} This keyword is required for output of geomechanics data. The geomechanics data is saved in separate set of files (unlike flow and transport). The filenames of these files have the word \texttt{-geomech-} included in them.  Uses the same keywords as OUTPUT. 
-%========================================================================
-
-\newpage
-\protect\hypertarget{target_geomech_material_prop}{}
- 
-\subsection{Keyword: GEOMECHANICS\_MATERIAL\_PROPERTY}
-\noindent{\bf Description:} Specifies geomechanics material properties to be associated with a geomechanics region in the problem domain.
-
-\noindent{\bf Input:}
 \begin{deflist}{000}
-\item[GEOMECHANICS\_MATERIAL\_PROPERTY] \ {\tt <char>}
+\item[GEOMECHANICS\_BOUNDARY\_CONDITION] {\tt geomechanics\_boundary\_condition\_name}
 \begin{deflist}{000}
-\item[ID] \ {\tt <int>}
-\item[YOUNGS\_MODULUS] \ {\tt <float>} \ [Pa]
-\item[POISSONS\_RATIO] \ {\tt <float>}
-\item[ROCK\_DENSITY] \ {\tt <float>} \ [kg/m$^3$]
-\item[BIOT\_COEFFICIENT] \ {\tt <float>} 
-\item[THERMAL\_EXPANSION\_COEFFICIENT] \ {\tt <float>} \ [Pa/K]
+\item[GEOMECHANICS\_CONDITION] {\tt GEOMECHANICS\_condition\_name}
+\item[REGION] {\tt region\_name}
 \end{deflist}
 \item[\keyend]
 \end{deflist}
 
-\noindent{\bf Explanation:} The Young's modulus and Poisson's ratio (for the linear elastic model), rock density (used in body force calculation), Biot's coefficient and thermal expansion coefficient can be set here.
+{\noindent\bf Explanation:}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{lX}
+\toprule[1.5pt]
+\bf Keyword & \bf Description\\
+\midrule
+\bf GEOMECHANICS\_BOUNDARY\_CONDITION & Defines the beginning of a geomechanics boundary condition entry and the name of the geomechanics boundary condition.\\
+\midrule
+\bf GEOMECHANICS\_CONDITION & Defines the name of the geomechanics condition to be linked to this geomechanics boundary condition.\\
+\midrule
+\bf REGION & Defines the name of the region to which the conditions are linked.\\
+\midrule
+\bf END & Terminates the geomechanics boundary condition entry.\\
+%\midrule\midrule
+\bottomrule[1.5pt]
+\end{tabularx}
+\end{center}
+
 
 \begin{mdframed}
 
 \noindent{\bf Example:}
-\begin{verbatim}
-MATERIAL_PROPERTY rock	 
-  ID 1
-  YOUNGS_MODULUS 1.d10
-  POISSONS_RATIO 0.3
-  ROCK_DENSITY 2200
-  BIOT_COEFFICIENT 1.0
-  THERMAL_EXPANSION_COEFFICIENT 1.d-5
-END
-\end{verbatim}
-
-\end{mdframed}
-
-\hyperlink{target_key}{\return}
-
-
-%========================================================================
-
-\newpage
-\protect\hypertarget{target_geomech_region}{}
- 
-\subsection{Keyword: GEOMECHANICS\_REGION}
-
-\noindent{\bf Description:} The GEOMECHANICS\_REGION keyword defines a set of geomechanics finite element grid vertices.
- The GEOMECHANICS\_REGION name can then be used to link this set of vertices to geomechanics  material properties, strata and boundary conditions. 
-The list of vertices can be read from an ASCII file by using the keyword FILE under the GEOMECHANICS\_REGION card.
-
-\begin{mdframed}
-
-{\noindent\bf
-Examples:}
 
 \begin{verbatim}
-GEOMECHANICS_REGION top 
-  FILE top.vset 
+GEOMECHANICS_BOUNDARY_CONDITION bottom
+  GEOMECHANICS_CONDITION z_disp_zero
+  GEOMECHANICS_REGION bottom
 END
-\end{verbatim}
 
+\end{verbatim}
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -1952,6 +2115,8 @@ END
 \protect\hypertarget{target_geomech_condition}{}
  
 \subsection{Keyword: GEOMECHANICS\_CONDITION}
+
+\hfill\hyperlink{target_key}{\return}
 
 \noindent{\bf Description:} Condition coupler between regions and geomechanics boundary conditions. Since the geomechanics is solved in a quasi-steady manner, initial conditions are not needed. 
 
@@ -2033,55 +2198,81 @@ END
 %========================================================================
 
 \newpage
-\protect\hypertarget{target_geomech_bc}{}
+\protect\hypertarget{target_geomech_grid}{}
  
-\subsection{Keyword: GEOMECHANICS\_BOUNDARY\_CONDITION}
+\subsection{Keyword: GEOMECHANICS\_GRID}
 
-\noindent{\bf Description:} 
-The GEOMECHANICS\_BOUNDARY\_CONDITION keyword couples condition specified under the GEOMECHANICS\_CONDITION keyword to a REGION in the problem domain.  The use of this keyword enables the use/reuse of geomechanics conditions and regions within multiple geomechanics boundary conditions the input deck.
+\hfill\hyperlink{target_key}{\return}
 
-{\noindent\bf Input:}
+\noindent{\bf Description:} The grid type and the format for geomechanics is specified here.
+Only unstructured grids can be read. If you need to use a structured grid, generate the grid as an unstructured grid in the implicit format (see GRID keyword for details of the format below).
 
+\begin{description}
+\item[GEOMECHANICS\_GRID]~
+\item[Required Input Parameters:]~
+
+\begin{description}
+\item[TYPE <type> :] ~
+
+\begin{description}
+\item Grid type (unstructured)
+\end{description}
+
+\item[FILE <filename>:] Name of file containing grid information (unstructured only)
+
+\end{description}
+
+\item[Optional Input Parameters:]~
+\begin{description}
+\item[GRAVITY] <\# \# \#>: Specifies gravity vector for geomechanics calculations (or specific body force) [Default: 0 0 -9.81 m/s$^2$] 
+\end{description}
+
+
+\item[\keyend] ~
+
+\end{description}
+
+%========================================================================
+
+\newpage
+\protect\hypertarget{target_geomech_material_prop}{}
+ 
+\subsection{Keyword: GEOMECHANICS\_MATERIAL\_PROPERTY}
+
+\hfill\hyperlink{target_key}{\return}
+
+\noindent{\bf Description:} Specifies geomechanics material properties to be associated with a geomechanics region in the problem domain.
+
+\noindent{\bf Input:}
 \begin{deflist}{000}
-\item[GEOMECHANICS\_BOUNDARY\_CONDITION] {\tt geomechanics\_boundary\_condition\_name}
+\item[GEOMECHANICS\_MATERIAL\_PROPERTY] \ {\tt <char>}
 \begin{deflist}{000}
-\item[GEOMECHANICS\_CONDITION] {\tt GEOMECHANICS\_condition\_name}
-\item[REGION] {\tt region\_name}
+\item[ID] \ {\tt <int>}
+\item[YOUNGS\_MODULUS] \ {\tt <float>} \ [Pa]
+\item[POISSONS\_RATIO] \ {\tt <float>}
+\item[ROCK\_DENSITY] \ {\tt <float>} \ [kg/m$^3$]
+\item[BIOT\_COEFFICIENT] \ {\tt <float>} 
+\item[THERMAL\_EXPANSION\_COEFFICIENT] \ {\tt <float>} \ [Pa/K]
 \end{deflist}
 \item[\keyend]
 \end{deflist}
 
-{\noindent\bf Explanation:}
-
-\begin{center}
-\begin{tabularx}{\linewidth}{lX}
-\toprule[1.5pt]
-\bf Keyword & \bf Description\\
-\midrule
-\bf GEOMECHANICS\_BOUNDARY\_CONDITION & Defines the beginning of a geomechanics boundary condition entry and the name of the geomechanics boundary condition.\\
-\midrule
-\bf GEOMECHANICS\_CONDITION & Defines the name of the geomechanics condition to be linked to this geomechanics boundary condition.\\
-\midrule
-\bf REGION & Defines the name of the region to which the conditions are linked.\\
-\midrule
-\bf END & Terminates the geomechanics boundary condition entry.\\
-%\midrule\midrule
-\bottomrule[1.5pt]
-\end{tabularx}
-\end{center}
-
+\noindent{\bf Explanation:} The Young's modulus and Poisson's ratio (for the linear elastic model), rock density (used in body force calculation), Biot's coefficient and thermal expansion coefficient can be set here.
 
 \begin{mdframed}
 
 \noindent{\bf Example:}
-
 \begin{verbatim}
-GEOMECHANICS_BOUNDARY_CONDITION bottom
-  GEOMECHANICS_CONDITION z_disp_zero
-  GEOMECHANICS_REGION bottom
+MATERIAL_PROPERTY rock	 
+  ID 1
+  YOUNGS_MODULUS 1.d10
+  POISSONS_RATIO 0.3
+  ROCK_DENSITY 2200
+  BIOT_COEFFICIENT 1.0
+  THERMAL_EXPANSION_COEFFICIENT 1.d-5
 END
-
 \end{verbatim}
+
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -2090,9 +2281,50 @@ END
 %========================================================================
 
 \newpage
+\protect\hypertarget{target_geomech_output}{}
+ 
+\subsection{Keyword: GEOMECHANICS\_OUTPUT}
+
+\hfill\hyperlink{target_key}{\return}
+
+\noindent{\bf Description:} This keyword is required for output of geomechanics data. The geomechanics data is saved in separate set of files (unlike flow and transport). The filenames of these files have the word \texttt{-geomech-} included in them.  Uses the same keywords as OUTPUT. 
+
+%========================================================================
+
+\newpage
+\protect\hypertarget{target_geomech_region}{}
+ 
+\subsection{Keyword: GEOMECHANICS\_REGION}
+
+\hfill\hyperlink{target_key}{\return}
+
+\noindent{\bf Description:} The GEOMECHANICS\_REGION keyword defines a set of geomechanics finite element grid vertices.
+ The GEOMECHANICS\_REGION name can then be used to link this set of vertices to geomechanics  material properties, strata and boundary conditions. 
+The list of vertices can be read from an ASCII file by using the keyword FILE under the GEOMECHANICS\_REGION card.
+
+\begin{mdframed}
+
+{\noindent\bf
+Examples:}
+
+\begin{verbatim}
+GEOMECHANICS_REGION top 
+  FILE top.vset 
+END
+\end{verbatim}
+
+\end{mdframed}
+
+\hyperlink{target_key}{\return}
+
+%========================================================================
+
+\newpage
 \protect\hypertarget{target_geomech_strata}{}
  
 \subsection{Keyword: GEOMECHANICS\_STRATA}
+
+\hfill\hyperlink{target_key}{\return}
 
 \noindent{\bf Description:} 
 Couples geomechanics material IDs and/or properties with a geomechanics region in the problem domain.
@@ -2123,6 +2355,8 @@ END
 \protect\hypertarget{target_grid}{}
 
 \subsection{Keyword: GRID \hfill Required}
+
+\hfill\hyperlink{target_key}{\return}
 
 \noindent{\bf Description:} this keyword defines the descritization scheme, the type of grid and resolution, and the geometry employed in the simulation.
 
@@ -2285,6 +2519,8 @@ By using the {\tt BOUNDS} keyword, the model domain is specified in a grid-indep
 
 \subsection{Keyword: INITIAL\_CONDITION}
 
+\hfill\hyperlink{target_key}{\return}
+
 \noindent{\bf Description:} Condition coupler between regions and flow and transport conditions.
 
 \noindent{\bf Input:}
@@ -2322,9 +2558,11 @@ END
 %========================================================================
 \newpage
 
-\protect\hypertarget{Keyword: INTEGRAL\_FLUX}{}
+\protect\hypertarget{target_int_flux}{}
 
 \subsection{Keyword: INTEGRAL\_FLUX}
+
+\hfill\hyperlink{target_key}{\return}
 
 \noindent{\bf Description:} Sets up a surface through which fluxes of all primary dependent variables can be calculated.
 
@@ -2381,9 +2619,12 @@ INTEGRAL_FLUX
 
 
 \newpage
+
 \protect\hypertarget{target_linsolv}{}
 
 \subsection{Keyword: LINEAR\_SOLVER}
+
+\hfill\hyperlink{target_key}{\return}
 
 \noindent{\bf Description:}
 
@@ -2501,6 +2742,8 @@ LINEAR_SOLVER TRANSPORT
 \protect\hypertarget{target_mat}{}
 
 \subsection{Keyword: MATERIAL\_PROPERTY}
+
+\hfill\hyperlink{target_key}{\return}
 
 \noindent{\bf Description:} Specifies material properties to be associated with a region in the problem domain.
 
@@ -2674,6 +2917,8 @@ PermeabilityYZ
 
 \subsection{Keyword: MAX\_CHANGE}
 
+\hfill\hyperlink{target_key}{\return}
+
 \noindent{\bf Description:}
 
 \noindent{\bf Input:}
@@ -2704,6 +2949,8 @@ MAX_CHANGE 5.d4    5.  0.02   0.05
 \protect\hypertarget{target_mode}{}
 
 \subsection{Keyword: MODE}
+
+\hfill\hyperlink{target_key}{\return}
 
 \noindent{\bf Description:} determines the flow mode: Richards (variably saturated porous media); MPH, \linebreak MPHASE, FLASH2 (CO$_2$ + H$_2$O); TH (Thermal-Hydrologic); IMMIS, THS (Immisible).
 
@@ -2747,12 +2994,30 @@ MAX_CHANGE 5.d4    5.  0.02   0.05
 %\end{center}
 
 \begin{mdframed}
-
-\noindent{\bf Example:}
+\noindent{\bf Examples:}
+\small
 \begin{verbatim}
-MODE TH
+...
+PROCESS_MODELS
+  SUBSURFACE_FLOW flow
+    MODE RICHARDS
+  /
+/
+...
+\end{verbatim}
+
+\begin{verbatim}
+...
+PROCESS_MODELS
+  SUBSURFACE_FLOW flow
+    MODE TH
+  /
+/
+...
+
 \end{verbatim}
 \end{mdframed}
+\normalsize
 
 \hyperlink{target_key}{\return}
 
@@ -2762,6 +3027,8 @@ MODE TH
 \protect\hypertarget{target_mc}{}
 
 \subsection{Keyword: MULTIPLE\_CONTINUUM}
+
+\hfill\hyperlink{target_key}{\return}
 
 \noindent{\bf Description:} 
 This keyword initiates the multiple continuum formulation (implemented currently only for heat equation). The properties of the secondary continuum can be
@@ -2780,6 +3047,8 @@ specified under the MATERIAL\_PROPERTY keyword.
 \protect\hypertarget{target_newt}{}
 
 \subsection{Keyword: NEWTON\_SOLVER}
+
+\hfill\hyperlink{target_key}{\return}
 
 \noindent{\bf Description:} 
 
@@ -2844,6 +3113,9 @@ typedef enum {/* converged */
 \protect\hypertarget{target_nonuniform_vel}{}
 
 \subsection{Keyword: NONUNIFORM\_VELOCITY}
+
+\hfill\hyperlink{target_key}{\return}
+
 \begin{deflist}{0000000000}
 \item[NONUNIFORM\_VELOCITY] <file name>
 \end{deflist}
@@ -2945,6 +3217,9 @@ NONUNIFORM\_VELOCITY velocity.h5
 \protect\hypertarget{target_numjac_flow}{}
 
 \subsection{Keyword: NUMERICAL\_JACOBIAN\_FLOW}
+
+\hfill\hyperlink{target_key}{\return}
+
 \begin{deflist}{0000000000}
 \item[NUMERICAL\_JACOBIAN\_FLOW] 
 Uses numerically evaluated Jacobian for flow.
@@ -2959,6 +3234,9 @@ Uses numerically evaluated Jacobian for flow.
 \protect\hypertarget{target_numjac_rxn}{}
 
 \subsection{Keyword: NUMERICAL\_JACOBIAN\_RXN}
+
+\hfill\hyperlink{target_key}{\return}
+
 \begin{deflist}{0000000000}
 \item[NUMERICAL\_JACOBIAN\_RXN]
 Uses numerically evaluated Jacobian for reactions.
@@ -2973,6 +3251,9 @@ Uses numerically evaluated Jacobian for reactions.
 \protect\hypertarget{target_numjac_multi}{}
 
 \subsection{Keyword: NUMERICAL\_JACOBIAN\_MULTI\_COUPLE}
+
+\hfill\hyperlink{target_key}{\return}
+
 \begin{deflist}{0000000000}
 \item[NUMERICAL\_JACOBIAN\_MULTI\_COUPLE]
 The contribution to the primary continuum Jacobian due to primary-secondary continua coupling term is numerically evaluated.
@@ -2986,6 +3267,8 @@ The contribution to the primary continuum Jacobian due to primary-secondary cont
 \protect\hypertarget{target_observation}{}
 
 \subsection{Keyword: OBSERVATION}
+
+\hfill\hyperlink{target_key}{\return}
 
 {\noindent\bf Description:}
 The OBSERVATION card specifies a location (REGION) at which flow and transport results (e.g. pressure, saturation, flow velocities, solute concentrations, etc.) will be monitored in the output.
@@ -3040,6 +3323,9 @@ END
 \protect\hypertarget{target_orig}{}
 
 \subsection{Keyword: ORIGIN (ORIG)}
+
+\hfill\hyperlink{target_key}{\return}
+
 \begin{deflist}{0000000000}
 \item[ORIGIN (ORIG)] X\_DIRECTION \ \ Y\_DIRECTION \ \ Z\_DIRECTION
 \end{deflist}
@@ -3053,6 +3339,8 @@ END
 \protect\hypertarget{target_output}{}
 
 \subsection{Keyword: OUTPUT}
+
+\hfill\hyperlink{target_key}{\return}
 
 \noindent {\bf Description:} The {\bf OUTPUT} keyword controls formatting and time of output.
 
@@ -3095,13 +3383,15 @@ END
 \item[VOLUME] -Output cell volume
 \item[PERMEABILITY] -Output cell permeability
 \item[POROSITY] -Output cell porosity
+\item[MINERAL\_POROSITY] -Output cell porosity derived from mineral volume fractions
+\item[EFFECTIVE\_POROSITY] -Output cell effective porosity (GENERAL mode only)
 \item[FLUXES] -Output interface fluxes
 \item[VELOCITY\_AT\_FACE] -Output interface velocities 
 \item[~] -Structured grid: velocity outputted at internal faces only. Visualization support is available via XDMF.
 \item[~] -Unstructured grid: velocity outputted for internal and boundary faces. Data is outputted in HDF5 format only with no visualization support via XDMF.
-\item[VELOCITY\_AT\_CENTER] -Output cell-centered velocities (supported for structured and unstructured grids, applies to TecPlot and HDF5 output formats)
+\item[VELOCITY\_AT\_CENTER] -Output cell-centered velocities (supported for structured and unstructured grids, applies to TecPlot and HDF5 output formats). Note that this is compatible only with TecPlot BLOCK format.
 
-\item[MASS\_BALANCE:] \ output the mass balance of the system if this card is activated. It includes global mass balance as well as fluxes at all boundaries for water and chemical species specified for output in the CHEMISTRY card. For the MPHASE mode only global mass balances are provided including supercritical CO$_2$. Output times are controlled by {\tt PERIODIC\_OBSERVATION TIMESTEP and TIME}, and printout times.
+\item[MASS\_BALANCE [DETAILED]] -Output the mass balance of the system if this card is activated. It includes global mass balance as well as fluxes at all boundaries for water and chemical species specified for output in the CHEMISTRY card. For the MPHASE mode only global mass balances are provided including supercritical CO$_2$. Output times are controlled by {\tt PERIODIC\_OBSERVATION TIMESTEP and TIME}, and printout times. Option DETAILED provides total moles of minerals.
 \end{deflist}
 \item[\keyend]
 \end{deflist}
@@ -3213,6 +3503,9 @@ END
 \protect\hypertarget{target_overwrite}{}
 
 \subsection{Keyword: OVERWRITE\_RESTART\_TRANSPORT}
+
+\hfill\hyperlink{target_key}{\return}
+
 %\shadowbox{
 %\begin{minipage}{6.5in}
 \begin{deflist}{0000000000}
@@ -3231,6 +3524,8 @@ Overwrites checkpointing values with values read in from the input file on resta
 \protect\hypertarget{target_proc}{}
 
 \subsection{Keyword: PROC}
+
+\hfill\hyperlink{target_key}{\return}
 
 \begin{deflist}{0000}
 \item[PROC] <int int int> 
@@ -3258,6 +3553,8 @@ Overwrites checkpointing values with values read in from the input file on resta
 
 
 \subsection{Keyword: REGION}
+
+\hfill\hyperlink{target_key}{\return}
 
 {\noindent\bf Description:}
 The {\bf REGION} keyword defines a set of grid cells encompassed by a volume or intersected by a plane or point, or a list of grid cell ids.  The {\bf REGION} name can then be used to link this set of grid cells to material properties, strata, boundary and initial conditions, source sinks, observation points, etc.  Although a region may be defined though the use of (I, J, K) indices using the {\bf BLOCK} keyword, the user is encouraged to define regions either through {\bf COORDINATES} or lists read in from an HDF5 file in order to minimize the dependence of the input file on grid resolution.  In the case of the {\bf FILE} keyword, a list of grid cell ids is read from an HDF5 file where the {\tt region\_name} defines the HDF5 data set.  It should be noted that given a region defined by a plane or point shared by two grid cells (e.g. a plane defining the surface between two grid cells), {\bf PFLOTRAN} will select the upwind cell(s) as the region.
@@ -3352,6 +3649,9 @@ END
 \protect\hypertarget{target_restart}{}
 
 \subsection{Keyword: RESTART}
+
+\hfill\hyperlink{target_key}{\return}
+
 {\noindent\bf Description}
 
 The RESTART card defines a checkpoint file from which the current simulation should be restarted.  If a time is specified after the file name, the initial simulation time is set to that time.
@@ -3400,9 +3700,13 @@ RESTART pflotran.chk3000
 
 \subsection{Keyword: SATURATION\_FUNCTION}
 
+\hfill\hyperlink{target_key}{\return}
+
 \includegraphics[scale=0.25]{./figs/under-construction.png}
 
 \noindent{\bf Description:} Currently being revised to use a common set of saturation and relative permeability functions across all modes. Check source code for up-to-date implementation.
+
+Note: for GENERAL and RICHARDS modes use keyword CHARACTERISTIC\_CURVES; SATURATION\_FUNCTION should be used in all other flow modes.
 
 \noindent{\bf Input:}
 \begin{deflist}{000}
@@ -3454,6 +3758,9 @@ END
 \protect\hypertarget{target_src}{}
 
 \subsection{Keyword: SOURCE\_SINK}
+
+\hfill\hyperlink{target_key}{\return}
+
 \begin{deflist}{000}
 \item[SOURCE\_SINK] \ {\tt <name>}
 \begin{deflist}{000}
@@ -3486,28 +3793,37 @@ END
 
 \subsection{Keyword: STRATIGRAPHY (STRATA)}
 
+\hfill\hyperlink{target_key}{\return}
+
 Couples material IDs and/or properties with a region in the problem domain.
 
-%\shadowbox{
-%\begin{minipage}{6.5in}
 \begin{deflist}{00}
 \item[STRATIGRAPHY (STRATA)] ~
 \begin{deflist}{000}
 \item[MATERIAL] <string> \ name of the material property to be associated with a region
 \item[REGION] <string> \ name of region associated with a material property
-%\item  INACTIVE
+
+\item[Optional Cards:]~
+\begin{deflist}{00}
+\item[START\_TIME] <float> <string>
+Start time when STRATA card is relevant. The string specifies units. This keyword allows for changes in a material property at a given point in time (e.g. due to human intrusion).
+\item[END\_TIME] <float> <string>
+End time when STRATA card is relevant. The string specifies units.
+\item[INACTIVE]
+Inactivates all cells in the associated REGION.
+\end{deflist}
 \end{deflist}
 \item[\keyend]
 \end{deflist}
-%\end{minipage}
-%}
 
 \noindent
 Note: a filename can be provided instead of a material property name from which material IDs are read on a cell by cell basis. In this case there is no need for the {\tt REGION} keyword.
 
+\begin{mdframed}
+\small
+
 \noindent {\bf Examples:}
 
-\begin{mdframed}
 \noindent
 Assign {\tt hanford\_unit} material properties to the region {\tt source\_zone}
 
@@ -3530,17 +3846,62 @@ STRATA
 \noindent For a detailed example on creating the .h5 file see the PFLOTRAN wiki: \href{https://bitbucket.org/pflotran/pflotran-dev/wiki/Documentation/Strata}{Strata}.
 \end{mdframed}
 
+\normalsize
+
+\small
+
+\begin{mdframed}
+\noindent
+{\bf Evolving strata:}
+\begin{verbatim}
+MATERIAL_PROPERTY soil1
+  ID 1
+  ...
+  PERMEABILITY
+    PERM_ISO 1.d-12
+  /
+  ...
+END
+
+MATERIAL_PROPERTY soil2
+  ID 2
+  ...
+  PERMEABILITY
+    PERM_ISO 5.d-13
+  /
+  ...
+END
+
+STRATA
+  REGION all
+  MATERIAL soil1
+  START_TIME 0.d0 y
+  END_TIME 25.d0 y
+END
+
+STRATA
+  REGION all
+  MATERIAL soil2
+  START_TIME 25.d0 y
+  END_TIME 50.d0 y
+END
+\end{verbatim}
+\end{mdframed}
+\normalsize
+
 \hyperlink{target_key}{\return}
 
 %========================================================================
 
 \newpage
 \protect\hypertarget{target_time}{}
+\subsection{Keyword: TIME}
+
+\hfill\hyperlink{target_key}{\return}
 
 \noindent {\bf Description:} the keyword {\bf TIME} controls the simulation time.
 
 \noindent {\bf Input:}
-\subsection{Keyword: TIME}
 \begin{deflist}{000}
 \item[TIME] ~
 \begin{deflist}{000}
@@ -3589,7 +3950,12 @@ END
 
 \subsection{Keyword: TIMESTEPPER}
 
+\hfill\hyperlink{target_key}{\return}
+
 \noindent{\bf Description:} the keyword {\bf TIMESTEPPER} controls time stepping.
+
+\hfill
+\hyperlink{target_key}{\return}
 
 \noindent{\bf Input:}
 \begin{deflist}{000}
@@ -3680,6 +4046,8 @@ END
 \protect\hypertarget{target_trans_cond}{}
 
 \subsection{Keyword: TRANSPORT\_CONDITION}
+
+\hfill\hyperlink{target_key}{\return}
 
 \noindent{\bf Description:} Specifies a geochemical solution composition based on various user defined constraints with minerals, gases, pH, charge balance, free ion and total concentrations.
 
@@ -3786,7 +4154,8 @@ END
 \protect\hypertarget{target_unifvel}{}
 
 \subsection{Keyword: UNIFORM\_VELOCITY \hfill Optional}
-%\addcontentsline{toc}{subsection}{\thesubsection\ Keyword: UNIFORM\_VELOCITY} 
+
+\hfill\hyperlink{target_key}{\return}
 
 \noindent{\bf Description:}
 
@@ -3815,6 +4184,8 @@ UNIFORM_VELOCITY 3.84259d-6 0.d0 0.d0  ! 1.38333 cm/h
 
 \subsection{Keyword: USE\_TOUCH\_OPTIONS}
 
+\hfill\hyperlink{target_key}{\return}
+
 \noindent{\bf Description:}
 
 \noindent{\bf Input:}
@@ -3834,6 +4205,8 @@ UNIFORM_VELOCITY 3.84259d-6 0.d0 0.d0  ! 1.38333 cm/h
 \protect\hypertarget{target_veldata}{}
 
 \subsection{Keyword: VELOCITY\_DATASET}
+
+\hfill\hyperlink{target_key}{\return}
 
 \noindent{\bf Description:} Set time-dependent velocity for transport mode.
 
@@ -3886,6 +4259,9 @@ END
 \protect\hypertarget{target_wallclk}{}
 
 \subsection{Keyword: WALLCLOCK\_STOP}
+
+\hfill\hyperlink{target_key}{\return}
+
 %\shadowbox{
 %\begin{minipage}{6.5in}
 \begin{deflist}{0000000000}

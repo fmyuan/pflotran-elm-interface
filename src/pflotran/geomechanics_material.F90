@@ -93,7 +93,7 @@ subroutine GeomechanicsMaterialPropertyRead(geomech_material_property, &
   do
     call InputReadPflotranString(input,option)
     
-    if(InputCheckExit(input,option)) exit
+    if (InputCheckExit(input,option)) exit
   
     call InputReadWord(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','GEOMECHANICS_MATERIAL_PROPERTY')
@@ -129,9 +129,8 @@ subroutine GeomechanicsMaterialPropertyRead(geomech_material_property, &
         call InputErrorMsg(input,option,'THERMAL_EXPANSION_COEFFICIENT', &
                            'GEOMECHANICS_MATERIAL_PROPERTY')
       case default
-        option%io_buffer = 'Keyword: ' // trim(keyword) // &
-          ' not recognized in geomechanics_material_property'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(keyword, &
+                                 'GEOMECHANICS_MATERIAL_PROPERTY',option)
       end select
   enddo
   
@@ -329,7 +328,7 @@ recursive subroutine GeomechanicsMaterialPropertyDestroy(geomech_material_proper
   
   type(geomech_material_property_type), pointer :: geomech_material_property
   
-  if(.not.associated(geomech_material_property)) return
+  if (.not.associated(geomech_material_property)) return
   
   call GeomechanicsMaterialPropertyDestroy(geomech_material_property%next)
   

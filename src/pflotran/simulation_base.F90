@@ -1,6 +1,7 @@
 module Simulation_Base_class
 
   use PMC_Base_class
+  use PM_Base_class
   use Option_module
   use Output_Aux_module
   use Output_module
@@ -21,6 +22,7 @@ module Simulation_Base_class
     type(output_option_type), pointer :: output_option
     PetscInt :: stop_flag
     class(pmc_base_type), pointer :: process_model_coupler_list
+    class(pm_base_type), pointer :: process_model_list
     type(simulation_aux_type), pointer :: sim_aux
   contains
     procedure, public :: Init => SimulationBaseInit
@@ -86,6 +88,7 @@ subroutine SimulationBaseInit(this,option)
   nullify(this%waypoint_list)
   nullify(this%output_option)
   nullify(this%process_model_coupler_list)
+  nullify(this%process_model_list)
   this%sim_aux => SimAuxCreate()
   this%stop_flag = TS_CONTINUE
 
@@ -102,6 +105,7 @@ subroutine SimulationBaseInitializeRun(this)
   ! 
 
   use Logging_module
+  use Option_module
 
   implicit none
   
@@ -116,15 +120,20 @@ subroutine SimulationBaseInitializeRun(this)
   call printMsg(this%option,'SimulationBaseInitializeRun()')
 #endif
   
-  if (this%option%restart_flag) then
-    call this%process_model_coupler_list%Restart(viewer)
+  if (associated(this%process_model_coupler_list)) then
+    if (this%option%restart_flag) then
+      call this%process_model_coupler_list%Restart(viewer)
+    endif
+  
+    ! initialize performs overwrite of restart, if applicable
+    call this%process_model_coupler_list%InitializeRun()  
+    call this%JumpStart()
   endif
   
-  ! initialize performs overwrite of restart, if applicable
-  call this%process_model_coupler_list%InitializeRun()  
-  call this%JumpStart()
-  
-  ! pushed in Init()
+  call printMsg(this%option," ")
+  call printMsg(this%option,"  Finished Initialization")
+  call PetscLogEventEnd(logging%event_init,ierr);CHKERRQ(ierr)
+  ! pushed in PFLOTRANInitializePostPetsc()
   call PetscLogStagePop(ierr);CHKERRQ(ierr)
 
   ! popped in FinalizeRun()
@@ -167,6 +176,7 @@ subroutine ExecuteRun(this)
   ! Date: 06/11/13
   ! 
   use Waypoint_module
+  use Timestepper_Base_class, only : TS_CONTINUE
 
   implicit none
   
@@ -181,10 +191,15 @@ subroutine ExecuteRun(this)
   call printMsg(this%option,'SimulationBaseExecuteRun()')
 #endif
 
+  if (.not.associated(this%process_model_coupler_list)) then
+    return
+  endif
+
   final_time = SimulationGetFinalWaypointTime(this)
   cur_waypoint => this%waypoint_list%first
   call WaypointSkipToTime(cur_waypoint,this%option%time)
   do
+    if (this%stop_flag /= TS_CONTINUE) exit ! end simulation
     if (.not.associated(cur_waypoint)) exit
     call this%RunToTime(min(final_time,cur_waypoint%time))
     cur_waypoint => cur_waypoint%next
@@ -255,7 +270,9 @@ subroutine SimulationBaseFinalizeRun(this)
     call printMsg(this%option,"")
   endif
   
-  call this%process_model_coupler_list%FinalizeRun()
+  if (associated(this%process_model_coupler_list)) then
+    call this%process_model_coupler_list%FinalizeRun()
+  endif
   
   ! pushed in InitializeRun()
   call PetscLogStagePop(ierr);CHKERRQ(ierr)
@@ -297,7 +314,7 @@ function SimulationGetFinalWaypointTime(this)
         final_time < SimulationGetFinalWaypointTime) then
       SimulationGetFinalWaypointTime = final_time
     endif
-    cur_process_model_coupler => cur_process_model_coupler%next
+    cur_process_model_coupler => cur_process_model_coupler%peer
   enddo
 
 end function SimulationGetFinalWaypointTime

@@ -467,10 +467,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'DATASET,NAME', &
                                  'MATERIAL_PROPERTY,PERMEABILITY')   
             case default
-              option%io_buffer = 'Keyword (' // trim(word) // &
-                                 ') not recognized in MATERIAL_PROPERTY,' // &
-                                 'PERMEABILITY'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                     'MATERIAL_PROPERTY,PERMEABILITY',option)
           end select
         enddo
         if (dabs(material_property%permeability(1,1) - &
@@ -508,10 +506,8 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputReadDouble(input,option,material_property%max_permfactor)
               call InputErrorMsg(input,option,'max permfactor','PERM_FACTOR')
             case default
-              option%io_buffer = 'Keyword (' // trim(word) // &
-                                 ') not recognized in MATERIAL_PROPERTY,' // &
-                                 'PERM_FACTOR'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                     'MATERIAL_PROPERTY,PERM_FACTOR',option)
           end select
         enddo
       case('PERMEABILITY_POWER')
@@ -640,17 +636,13 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'secondary area scaling factor', &
                            'MATERIAL_PROPERTY')
             case default
-              option%io_buffer = 'Keyword (' // trim(word) // &
-                                 ') not recognized in MATERIAL_PROPERTY,' // &
-                                 'SECONDARY_CONTINUUM'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                     'MATERIAL_PROPERTY,SECONDARY_CONTINUUM',option)
           end select
         enddo
 
       case default
-        option%io_buffer = 'Keyword (' // trim(keyword) // &
-                           ') not recognized in material_property'    
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(keyword,'MATERIAL_PROPERTY',option)
     end select 
   enddo
 
@@ -811,7 +803,7 @@ subroutine MaterialPropConvertListToArray(list,array,option)
     cur_material_property => cur_material_property%next
   enddo
   
-  if(associated(array)) deallocate(array)
+  if (associated(array)) deallocate(array)
   allocate(array(max_internal_id))
   do i = 1, max_internal_id
     nullify(array(i)%ptr)
@@ -918,8 +910,9 @@ subroutine MaterialCreateIntToExtMapping(material_property_array,mapping)
 
   PetscInt :: i
   
-  allocate(mapping(size(material_property_array)))
+  allocate(mapping(0:size(material_property_array)))
   mapping = UNINITIALIZED_INTEGER
+  mapping(0) = 0
   
   do i = 1, size(material_property_array)
     mapping(material_property_array(i)%ptr%internal_id) = &
@@ -945,8 +938,9 @@ subroutine MaterialCreateExtToIntMapping(material_property_array,mapping)
   
   PetscInt :: i
   
-  allocate(mapping(MaterialGetMaxExternalID(material_property_array)))
+  allocate(mapping(0:MaterialGetMaxExternalID(material_property_array)))
   mapping = -888
+  mapping(0) = 0
   
   do i = 1, size(material_property_array)
     mapping(material_property_array(i)%ptr%external_id) = &
@@ -966,14 +960,14 @@ subroutine MaterialApplyMapping(mapping,array)
   ! 
   implicit none
   
-  PetscInt :: mapping(:)
+  PetscInt :: mapping(0:)
   PetscInt :: array(:)
 
   PetscInt :: i
   PetscInt :: mapping_size
   PetscInt :: mapped_id
 
-  mapping_size = size(mapping)
+  mapping_size = size(mapping)-1 ! subtract 1 for 0 index
   do i = 1, size(array)
     if (array(i) <= mapping_size) then
       mapped_id = mapping(array(i))
@@ -1025,21 +1019,23 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
     endif
   enddo
 
-  allocate(material_parameter%soil_heat_capacity(num_mat_prop))
-  allocate(material_parameter%soil_thermal_conductivity(2,num_mat_prop))
-  material_parameter%soil_heat_capacity = UNINITIALIZED_DOUBLE
-  material_parameter%soil_thermal_conductivity = UNINITIALIZED_DOUBLE
-  do i = 1, num_mat_prop
-    if (associated(material_property_array(i)%ptr)) then
-      ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J
-      material_parameter%soil_heat_capacity(i) = &
-        material_property_array(i)%ptr%specific_heat * option%scale ! J -> MJ
-      material_parameter%soil_thermal_conductivity(1,i) = &
-        material_property_array(i)%ptr%thermal_conductivity_dry
-      material_parameter%soil_thermal_conductivity(2,i) = &
-        material_property_array(i)%ptr%thermal_conductivity_wet
-    endif
-  enddo
+  if (option%iflowmode /= RICHARDS_MODE) then
+    allocate(material_parameter%soil_heat_capacity(num_mat_prop))
+    allocate(material_parameter%soil_thermal_conductivity(2,num_mat_prop))
+    material_parameter%soil_heat_capacity = UNINITIALIZED_DOUBLE
+    material_parameter%soil_thermal_conductivity = UNINITIALIZED_DOUBLE
+    do i = 1, num_mat_prop
+      if (associated(material_property_array(i)%ptr)) then
+        ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J
+        material_parameter%soil_heat_capacity(i) = &
+          material_property_array(i)%ptr%specific_heat * option%scale ! J -> MJ
+        material_parameter%soil_thermal_conductivity(1,i) = &
+          material_property_array(i)%ptr%thermal_conductivity_dry
+        material_parameter%soil_thermal_conductivity(2,i) = &
+          material_property_array(i)%ptr%thermal_conductivity_wet
+      endif
+    enddo
+  endif
   
 end subroutine MaterialSetup
   

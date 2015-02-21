@@ -1,6 +1,17 @@
 #Description: 3D test problem for testing chemical reactions
 #             based on chemistry from Hammond and Lichtner, WRR, 2010
 
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+  /
+END
+
+SUBSURFACE
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 2
@@ -10,10 +21,9 @@ REGRESSION
 END
 
 #=========================== flow mode ========================================
-MODE RICHARDS
 
 #=========================== solver options ===================================
-TIMESTEPPER
+TIMESTEPPER FLOW
   TS_ACCELERATION 8
 END
 
@@ -45,19 +55,19 @@ EOS WATER
 END
 
 #=========================== fluid properties =================================
-FLUID_PROPERTY 
+FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-9
 END
 
 #=========================== datasets =========================================
 skip
 DATASET U
-  HDF5_DATASET_NAME U 
+  HDF5_DATASET_NAME U
   FILENAME datasets.h5
 END
 
 DATASET Calcite
-  HDF5_DATASET_NAME Calcite 
+  HDF5_DATASET_NAME Calcite
   FILENAME datasets.h5
 END
 noskip
@@ -67,7 +77,7 @@ MATERIAL_PROPERTY soil1
   ID 1
   POROSITY 0.25d0
   TORTUOSITY 1.d0
-  SATURATION_FUNCTION sf1
+  CHARACTERISTIC_CURVES sf1
   PERMEABILITY
     PERM_X 1.d-12
     PERM_Y 1.d-12
@@ -79,7 +89,7 @@ MATERIAL_PROPERTY soil2
   ID 2
   POROSITY 0.25d0
   TORTUOSITY 1.d0
-  SATURATION_FUNCTION sf2
+  CHARACTERISTIC_CURVES sf2
   PERMEABILITY
     PERM_X 1.d-11
     PERM_Y 1.d-11
@@ -91,7 +101,7 @@ MATERIAL_PROPERTY soil3
   ID 3
   POROSITY 0.2d0
   TORTUOSITY 1.d0
-  SATURATION_FUNCTION sf3
+  CHARACTERISTIC_CURVES sf3
   PERMEABILITY
     PERM_X 1.d-10
     PERM_Y 1.d-10
@@ -103,7 +113,7 @@ MATERIAL_PROPERTY soil4
   ID 4
   POROSITY 0.25d0
   TORTUOSITY 1.d0
-  SATURATION_FUNCTION sf4
+  CHARACTERISTIC_CURVES sf4
   PERMEABILITY
     PERM_X 1.d-9
     PERM_Y 1.d-9
@@ -111,33 +121,53 @@ MATERIAL_PROPERTY soil4
   /
 END
 
-#=========================== saturation functions =============================
-SATURATION_FUNCTION sf1
-  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
-  RESIDUAL_SATURATION 0.115
-  LAMBDA 0.286
-  ALPHA 1.9401d-4
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES sf1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.286
+    ALPHA  1.9401d-4
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.286
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
 END
 
-SATURATION_FUNCTION sf2
-  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
-  RESIDUAL_SATURATION 0.110
-  LAMBDA 0.486
-  ALPHA 3.8801d-4
+CHARACTERISTIC_CURVES sf2
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.486
+    ALPHA  3.8801d-4
+    LIQUID_RESIDUAL_SATURATION 0.110
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.486
+    LIQUID_RESIDUAL_SATURATION 0.110
+  /
 END
 
-SATURATION_FUNCTION sf3
-  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
-  RESIDUAL_SATURATION 0.118
-  LAMBDA 0.541
-  ALPHA 1.0211d-4
+CHARACTERISTIC_CURVES sf3
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.541
+    ALPHA 1.0211d-4
+    LIQUID_RESIDUAL_SATURATION 0.118
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.541
+    LIQUID_RESIDUAL_SATURATION 0.118
+  /
 END
 
-SATURATION_FUNCTION sf4
-  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
-  RESIDUAL_SATURATION 0.143
-  LAMBDA 0.527
-  ALPHA 5.1054d-5
+CHARACTERISTIC_CURVES sf4
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.527
+    ALPHA 5.1054d-5
+    LIQUID_RESIDUAL_SATURATION 0.143
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.527
+    LIQUID_RESIDUAL_SATURATION 0.143
+  /
 END
 
 #=========================== output options ===================================
@@ -219,7 +249,7 @@ REGION plume
 END
 
 REGION well
-  BLOCK 4 4 2 3 3 3 
+  BLOCK 4 4 2 3 3 3
 END
 
 #=========================== flow conditions ==================================
@@ -304,3 +334,4 @@ STRATA
   MATERIAL ./543.h5
 END
 
+END_SUBSURFACE

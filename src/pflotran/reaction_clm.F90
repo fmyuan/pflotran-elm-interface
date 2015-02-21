@@ -680,9 +680,8 @@ subroutine CLMDec_Read(this,input,option)
                   UnitsConvertToInternal(word,option)
               endif
             case default
-              option%io_buffer = 'CHEMISTRY,CLM_RXN,CLMDec,' // &
-                'REACTION keyword: ' // trim(word) // ' not recognized.'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                     'CHEMISTRY,CLM_RXN,CLMDec,REACTION',option)
           end select
         enddo
         
@@ -706,9 +705,7 @@ subroutine CLMDec_Read(this,input,option)
         prev_reaction => new_reaction
         nullify(new_reaction)        
       case default
-        option%io_buffer = 'CHEMISTRY,CLM_RXN,CLMDec keyword: ' // &
-          trim(word) // ' not recognized.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(word,'CHEMISTRY,CLM_RXN,CLMDec',option)
     end select
   enddo
   
@@ -1320,7 +1317,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   ! moisture response function 
   f_w = 1.0d0
 
-  if(f_t < 1.0d-20 .or. f_w < 1.0d-20) then
+  if (f_t < 1.0d-20 .or. f_w < 1.0d-20) then
      return
   endif
 
@@ -1419,12 +1416,12 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
         this%mineral_n_stoich(irxn) = stoich_n
 
-      elseif(this%litter_decomp_type == LITTER_DECOMP_CLMMICROBE) then
+      elseif (this%litter_decomp_type == LITTER_DECOMP_CLMMICROBE) then
 
         ! Sinsabaugh et al. 2013 Ecology Letters, 16, 930-939
         resp_frac = CN_ratio_microbe * this%upstream_nc(irxn) !c_un/c_uc
 
-        if(resp_frac > CUE_max) then
+        if (resp_frac > CUE_max) then
           resp_frac = CUE_max
         endif
 
@@ -1508,7 +1505,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
                             this%mineral_n_stoich(irxn) * rate_nh4
     endif
 
-    if(this%species_id_nmin > 0 .and. this%mineral_n_stoich(irxn) > 0.0d0) then
+    if (this%species_id_nmin > 0 .and. this%mineral_n_stoich(irxn) > 0.0d0) then
        Residual(ires_nmin) = Residual(ires_nmin) - &
                              this%mineral_n_stoich(irxn) * rate_nh4
     endif
@@ -1549,7 +1546,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       RateSupply_nh4(ires_nh4) = RateSupply_nh4(ires_nh4) - & 
                            this%mineral_n_stoich(irxn) * rate_nh4
     
-      if(this%species_id_nmin > 0) then
+      if (this%species_id_nmin > 0) then
          RateSupply_nh4(ires_nmin) = RateSupply_nh4(ires_nmin) - &
                                this%mineral_n_stoich(irxn) * rate_nh4
       endif
@@ -1907,7 +1904,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           if (ispec_d == this%species_id_bacteria) then
             ! dRbacteria/dLit1C = b dR/dLit1C + R db/dLit1C
             Jacobian(ires_d,ires_uc) = Jacobian(ires_d,ires_uc) - Rdb_duc
-          elseif(ispec_d == this%species_id_fungi) then
+          elseif (ispec_d == this%species_id_fungi) then
             Jacobian(ires_d,ires_uc) = Jacobian(ires_d,ires_uc) - Rdf_duc
           else
             option%io_buffer = 'Downstream pool for CLM-Microbe should be' // &
@@ -2092,7 +2089,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
               ! dRbacteria/dLit1C = b dR/dLit1C + R db/dLit1C
               JacobianSupply_nh4(ires_d,ires_uc) = &
                 JacobianSupply_nh4(ires_d,ires_uc) - Rdb_duc
-            elseif(ispec_d == this%species_id_fungi) then
+            elseif (ispec_d == this%species_id_fungi) then
               JacobianSupply_nh4(ires_d,ires_uc) = &
                 JacobianSupply_nh4(ires_d,ires_uc) - Rdf_duc
             else
@@ -2230,7 +2227,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
               ! dRbacteria/dLit1C = b dR/dLit1C + R db/dLit1C
               JacobianDemand_nh4(ires_d,ires_uc) = &
                 JacobianDemand_nh4(ires_d,ires_uc) - Rdb_duc
-            elseif(ispec_d == this%species_id_fungi) then
+            elseif (ispec_d == this%species_id_fungi) then
               JacobianDemand_nh4(ires_d,ires_uc) = &
                 JacobianDemand_nh4(ires_d,ires_uc) - Rdf_duc
             else
@@ -3253,9 +3250,8 @@ subroutine PlantNRead(this,input,option)
       case('DEBUG_OUTPUT')
         this%bdebugoutput = PETSC_TRUE
       case default
-        option%io_buffer = 'CHEMISTRY,CLM_RXN,PLANTN,' // &
-          'REACTION keyword: ' // trim(word) // ' not recognized.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(word, &
+               'CHEMISTRY,CLM_RXN,PLANTN,REACTION',option)
     end select
   enddo
   
@@ -3796,10 +3792,9 @@ subroutine NitrRead(this,input,option)
               call InputErrorMsg(input,option,'Q10', &
                 'CHEMISTRY,CLM_RXN_NITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
             case default
-              option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION,' // &
-                'TEMPERATURE RESPONSE FUNCTION keyword: ' // &
-                trim(word) // ' not recognized.'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                'CHEMISTRY,CLM_RXN,NITRIFICATION,TEMPERATURE RESPONSE FUNCTION', &
+                option)
           end select
         enddo 
       case('RATE_CONSTANT_NO3')
@@ -3837,9 +3832,8 @@ subroutine NitrRead(this,input,option)
       case('DISABLE_MRF')
          this%disable_mrf = PETSC_TRUE
       case default
-          option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION,' // &
-            'REACTION keyword: ' // trim(word) // ' not recognized.'
-          call printErrMsg(option)
+        call InputKeywordUnrecognized(word, &
+                'CHEMISTRY,CLM_RXN,NITRIFICATION,REACTION',option)
     end select
   enddo
   
@@ -4340,10 +4334,9 @@ subroutine DeniRead(this,input,option)
               call InputErrorMsg(input,option,'Q10', &
                 'CHEMISTRY,CLM_RXN,DENITRI,TEMPERATURE RESPONSE FUNCTION')
             case default
-              option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION,' // &
-                'TEMPERATURE RESPONSE FUNCTION keyword: ' // &
-                trim(word) // ' not recognized.'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                'CHEMISTRY,CLM_RXN,DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION', &
+                option)
           end select
         enddo 
 
@@ -4373,9 +4366,8 @@ subroutine DeniRead(this,input,option)
           call printErrMsg(option)
         endif
       case default
-          option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION,' // &
-            'REACTION keyword: ' // trim(word) // ' not recognized.'
-          call printErrMsg(option)
+        call InputKeywordUnrecognized(word, &
+               'CHEMISTRY,CLM_RXN,DENITRIFICATION,REACTION',option)
     end select
   enddo
   
@@ -4504,7 +4496,7 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
   ires_ngasdeni = this%ispec_ngasdeni + reaction%offset_immobile
 
 ! denitrification (Dickinson et al. 2002)
-  if(this%ispec_n2 < 0) return
+  if (this%ispec_n2 < 0) return
 
   temp_real = 1.0d0
 
@@ -4824,9 +4816,7 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
         endif
 
       case default
-        option%io_buffer = 'CHEMISTRY,CLM_RXN keyword: ' // &
-          trim(word) // ' not recognized.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(word,'CHEMISTRY,CLM_RXN',option)
     end select
     
     call new_clmrxn%ReadInput(input,option)

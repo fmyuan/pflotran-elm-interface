@@ -1,4 +1,7 @@
 module Output_Common_module
+#ifndef LEGACY_SATURATION_FUNCTION
+#define REFACTOR_CHARACTERISTIC_CURVES
+#endif
 
   use Logging_module 
   use Output_Aux_module
@@ -1269,7 +1272,7 @@ subroutine OutputGetFaceVelOrFlowrateUGrid(realization_base, save_velocity)
           idx = (local_id_up-1)*offset + (dof-1)*MAX_FACE_PER_CELL + iface_up + 1
           vec_ptr(idx) = patch%internal_flow_fluxes(dof,sum_connection)
 
-          if(iface_dn>0) then
+          if (iface_dn>0) then
             ! Save flowrate for iface_dn of local_id_dn cell using -ve flowrate up-->dn
             flowrates(dof,iface_dn,local_id_dn) = -patch%internal_flow_fluxes(dof,sum_connection)
 
@@ -1297,7 +1300,7 @@ subroutine OutputGetFaceVelOrFlowrateUGrid(realization_base, save_velocity)
       ghosted_id_dn = cur_connection_set%id_dn(iconn)
       local_id_dn = grid%nG2L(ghosted_id_dn)
       do iface_dn = 1,MAX_FACE_PER_CELL
-        if(face_id==ugrid%cell_to_face_ghosted(iface_dn,local_id_dn)) exit
+        if (face_id==ugrid%cell_to_face_ghosted(iface_dn,local_id_dn)) exit
       enddo
 
       do dof=1,option%nflowdof
@@ -1686,6 +1689,7 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   use Connection_module
   use Global_Aux_module
   use Richards_Aux_module
+  use Material_Aux_class
 
   implicit none
 
@@ -1703,7 +1707,10 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   type(global_auxvar_type), pointer :: global_auxvar(:)
+  type(material_parameter_type), pointer :: material_parameter
+#ifndef REFACTOR_CHARACTERISTIC_CURVES
   type(richards_parameter_type), pointer :: richards_parameter
+#endif
 
 
   PetscReal, pointer :: vec_proc_ptr(:)
@@ -1730,7 +1737,11 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
   field => realization_base%field
   grid => patch%grid
   global_auxvar => patch%aux%Global%auxvars
+#ifndef REFACTOR_CHARACTERISTIC_CURVES
   richards_parameter => patch%aux%Richards%richards_parameter
+#else
+  material_parameter => patch%aux%Material%material_parameter
+#endif
   
  
   allocate(density(count))
@@ -1749,11 +1760,15 @@ subroutine OutputGetExplicitAuxVars(realization_base,count,vec_proc,density)
       local_id_dn = grid%nG2L(ghosted_id_dn) 
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
-
       if (option%myrank == int(vec_proc_ptr(sum_connection))) then
         count = count + 1
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+        sir_up = material_parameter%soil_residual_saturation(1,icap_up)
+        sir_dn = material_parameter%soil_residual_saturation(1,icap_dn)
+#else
         sir_up = richards_parameter%sir(1,icap_up)
         sir_dn = richards_parameter%sir(1,icap_dn)
+#endif
 
         if (global_auxvar(ghosted_id_up)%sat(1) > sir_up .or. &
             global_auxvar(ghosted_id_dn)%sat(1) > sir_dn) then

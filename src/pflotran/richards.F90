@@ -1,4 +1,7 @@
 module Richards_module
+#ifndef LEGACY_SATURATION_FUNCTION
+#define REFACTOR_CHARACTERISTIC_CURVES
+#endif
 
   use Richards_Aux_module
   use Richards_Common_module
@@ -26,7 +29,6 @@ module Richards_module
 #include "finclude/petscsnes.h"
 #include "finclude/petscviewer.h"
 #include "finclude/petsclog.h"
-
 
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.D-8
@@ -116,8 +118,12 @@ subroutine RichardsSetupPatch(realization)
   type(coupler_type), pointer :: boundary_condition
   type(coupler_type), pointer :: source_sink
 
-  PetscInt :: ghosted_id, iconn, sum_connection
+  PetscInt :: local_id, ghosted_id, iconn, sum_connection
   PetscInt :: i, ierr
+  PetscBool :: error_found
+  PetscInt :: flag(10)
+  type(material_parameter_type), pointer :: material_parameter
+  class(material_auxvar_type), pointer :: material_auxvars(:)  
   type(richards_auxvar_type), pointer :: rich_auxvars(:)  
   type(richards_auxvar_type), pointer :: rich_auxvars_bc(:)  
   type(richards_auxvar_type), pointer :: rich_auxvars_ss(:)  
@@ -127,6 +133,47 @@ subroutine RichardsSetupPatch(realization)
   grid => patch%grid
 
   patch%aux%Richards => RichardsAuxCreate()
+
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+  ! ensure that material properties specific to this module are properly
+  ! initialized
+  material_parameter => patch%aux%Material%material_parameter
+  error_found = PETSC_FALSE
+  if (minval(material_parameter%soil_residual_saturation(:,:)) < 0.d0) then
+    option%io_buffer = 'Non-initialized soil residual saturation.'
+    call printMsg(option)
+    error_found = PETSC_TRUE
+  endif
+  material_auxvars => patch%aux%Material%auxvars
+  flag = 0
+  !TODO(geh): change to looping over ghosted ids once the legacy code is 
+  !           history and the communicator can be passed down.
+  do local_id = 1, grid%nlmax
+    ghosted_id = grid%nL2G(local_id)
+    if (patch%imat(ghosted_id) <= 0) cycle
+    if (material_auxvars(ghosted_id)%volume < 0.d0 .and. flag(1) == 0) then
+      flag(1) = 1
+      option%io_buffer = 'Non-initialized cell volume.'
+      call printMsg(option)
+    endif
+    if (material_auxvars(ghosted_id)%porosity < 0.d0 .and. flag(2) == 0) then
+      flag(2) = 1
+      option%io_buffer = 'Non-initialized porosity.'
+      call printMsg(option)
+    endif
+    if (minval(material_auxvars(ghosted_id)%permeability) < 0.d0 .and. &
+        flag(5) == 0) then
+      option%io_buffer = 'Non-initialized permeability.'
+      call printMsg(option)
+      flag(5) = 1
+    endif
+  enddo
+
+  if (error_found .or. maxval(flag) > 0) then
+    option%io_buffer = 'Material property errors found in RichardsSetup.'
+    call printErrMsg(option)
+  endif
+#else
   allocate(patch%aux%Richards%richards_parameter%sir(option%nphase, &
                                   size(patch%saturation_function_array)))
   do i = 1, size(patch%saturation_function_array)
@@ -134,6 +181,7 @@ subroutine RichardsSetupPatch(realization)
         saturation_function_array(i)%ptr%id) = &
       patch%saturation_function_array(i)%ptr%Sr(:)
   enddo
+#endif
   
   ! allocate auxvar data structures for all grid cells  
   allocate(rich_auxvars(grid%ngmax))
@@ -188,7 +236,11 @@ subroutine RichardsCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
   use Grid_module
   use Field_module
   use Option_module
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+  use Characteristic_Curves_module
+#else
   use Saturation_Function_module
+#endif
   use Patch_module
  
   implicit none
@@ -233,11 +285,17 @@ subroutine RichardsCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       sat = global_auxvars(ghosted_id)%sat(1)
       sat_pert = sat - sign(1.d0,sat-0.5d0)*pert
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+      call patch%characteristic_curves_array( &
+             patch%sat_func_id(ghosted_id))%ptr% &
+             saturation_function%CapillaryPressure(sat_pert,pc_pert,option)
+#else
       call SatFuncGetCapillaryPressure(pc_pert,sat_pert, &
              option%reference_temperature, &
              patch%saturation_function_array( &
                patch%sat_func_id(ghosted_id))%ptr, &
             option)
+#endif
       press_pert = option%reference_pressure - pc_pert
       P0 = P_p(local_id)
       delP = dP_p(local_id)
@@ -341,6 +399,7 @@ subroutine RichardsCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
   type(global_auxvar_type), pointer :: global_auxvars(:)  
   class(material_auxvar_type), pointer :: material_auxvars(:)  
   PetscInt :: local_id, ghosted_id
+  PetscInt :: istart
   PetscReal :: Res(1)
   PetscReal :: inf_norm, global_inf_norm
   PetscErrorCode :: ierr
@@ -364,6 +423,8 @@ subroutine RichardsCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
     inf_norm = 0.d0
     do local_id = 1, grid%nlmax
       ghosted_id = grid%nL2G(local_id)
+      istart = (local_id-1)*option%nflowdof + 1
+
       if (realization%patch%imat(ghosted_id) <= 0) cycle
     
       call RichardsAccumulation(rich_auxvars(ghosted_id), &
@@ -371,7 +432,7 @@ subroutine RichardsCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
                                 material_auxvars(ghosted_id), &
                                 option,Res)
       inf_norm = max(inf_norm,min(dabs(dP_p(local_id)/P0_p(local_id)), &
-                                  dabs(r_p(local_id)/Res(1))))
+                                  dabs(r_p(istart)/Res(1))))
     enddo
     call MPI_Allreduce(inf_norm,global_inf_norm,ONE_INTEGER_MPI, &
                        MPI_DOUBLE_PRECISION, &
@@ -777,11 +838,17 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
     !geh - Ignore inactive cells with inactive materials
     if (patch%imat(ghosted_id) <= 0) cycle
 
-    call RichardsAuxVarCompute(xx_loc_p(ghosted_id:ghosted_id),rich_auxvars(ghosted_id), &
-                       global_auxvars(ghosted_id), &
-                       material_auxvars(ghosted_id), &
+    call RichardsAuxVarCompute(xx_loc_p(ghosted_id:ghosted_id), &
+                               rich_auxvars(ghosted_id), &
+                               global_auxvars(ghosted_id), &
+                               material_auxvars(ghosted_id), &
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+                               patch%characteristic_curves_array( &
+                                 patch%sat_func_id(ghosted_id))%ptr, &
+#else
                        patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr, &
-                       option)   
+#endif
+                               option)   
   enddo
 
   call PetscLogEventEnd(logging%event_r_auxvars,ierr);CHKERRQ(ierr)
@@ -801,7 +868,8 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
       if (patch%imat(ghosted_id) <= 0) cycle
 
       select case(boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF))
-        case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC,HET_SURF_SEEPAGE_BC)
+        case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC,HET_SURF_SEEPAGE_BC, &
+             HET_DIRICHLET)
           xxbc(1) = boundary_condition%flow_aux_real_var(RICHARDS_PRESSURE_DOF,iconn)
         case(NEUMANN_BC,ZERO_GRADIENT_BC,UNIT_GRADIENT_BC)
           xxbc(1) = xx_loc_p(ghosted_id)
@@ -809,10 +877,15 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
      
  
       call RichardsAuxVarCompute(xxbc(1),rich_auxvars_bc(sum_connection), &
-                         global_auxvars_bc(sum_connection), &
-                         material_auxvars(ghosted_id), &
+                                 global_auxvars_bc(sum_connection), &
+                                 material_auxvars(ghosted_id), &
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+                                 patch%characteristic_curves_array( &
+                                   patch%sat_func_id(ghosted_id))%ptr, &
+#else
                          patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr, &
-                         option)
+#endif
+                                 option)
     enddo
     boundary_condition => boundary_condition%next
   enddo
@@ -1017,7 +1090,12 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
     call RichardsAuxVarCompute(xx_p(local_id:local_id), &
                    rich_auxvars(ghosted_id),global_auxvars(ghosted_id), &
                    material_auxvars(ghosted_id), &
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+                   patch%characteristic_curves_array( &
+                         patch%sat_func_id(ghosted_id))%ptr, &
+#else
                    patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr, &
+#endif
                    option)
     call RichardsAccumulation(rich_auxvars(ghosted_id),global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
@@ -1262,6 +1340,7 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
 
   PetscErrorCode :: ierr
   PetscInt :: local_id, ghosted_id
+  PetscInt :: istart
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
 
   PetscReal, pointer :: r_p(:)
@@ -1276,7 +1355,11 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(coupler_type), pointer :: boundary_condition
+#ifndef REFACTOR_CHARACTERISTIC_CURVES
   type(richards_parameter_type), pointer :: richards_parameter
+#else
+  type(material_parameter_type), pointer :: material_parameter
+#endif
   type(richards_auxvar_type), pointer :: rich_auxvars(:), rich_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
@@ -1294,7 +1377,11 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
   grid => patch%grid
   option => realization%option
   field => realization%field
+#ifndef REFACTOR_CHARACTERISTIC_CURVES
   richards_parameter => patch%aux%Richards%richards_parameter
+#else
+  material_parameter => patch%aux%Material%material_parameter
+#endif
   rich_auxvars => patch%aux%Richards%auxvars
   rich_auxvars_bc => patch%aux%Richards%auxvars_bc
   global_auxvars => patch%aux%Global%auxvars
@@ -1310,9 +1397,7 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
 
   if (option%surf_flow_on) call RichardsComputeCoeffsForSurfFlux(realization)
 
-!  write(*,*) "RichardsResidual"
-!  read(*,*)
-! now assign access pointer to local variables
+  ! now assign access pointer to local variables
   call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
 
   r_p = 0.d0
@@ -1341,11 +1426,19 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
       call RichardsFlux(rich_auxvars(ghosted_id_up), &
                         global_auxvars(ghosted_id_up), &
                         material_auxvars(ghosted_id_up), &
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+                        material_parameter%soil_residual_saturation(1,icap_up), &
+#else
                         richards_parameter%sir(1,icap_up), &
+#endif
                         rich_auxvars(ghosted_id_dn), &
                         global_auxvars(ghosted_id_dn), &
                         material_auxvars(ghosted_id_dn), &
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+                        material_parameter%soil_residual_saturation(1,icap_dn), &
+#else
                         richards_parameter%sir(1,icap_dn), &
+#endif
                         cur_connection_set%area(iconn), &
                         cur_connection_set%dist(:,iconn), &
                         option,v_darcy,Res)
@@ -1355,11 +1448,13 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
         patch%internal_flow_fluxes(1,sum_connection) = Res(1)
       endif
       if (local_id_up>0) then
-        r_p(local_id_up) = r_p(local_id_up) + Res(1)
+        istart = (local_id_up-1)*option%nflowdof + 1
+        r_p(istart) = r_p(istart) + Res(1)
       endif
          
       if (local_id_dn>0) then
-        r_p(local_id_dn) = r_p(local_id_dn) - Res(1)
+        istart = (local_id_dn-1)*option%nflowdof + 1
+        r_p(istart) = r_p(istart) - Res(1)
       endif
 
     enddo
@@ -1397,7 +1492,11 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
                                 rich_auxvars(ghosted_id), &
                                 global_auxvars(ghosted_id), &
                                 material_auxvars(ghosted_id), &
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+                                material_parameter%soil_residual_saturation(1,icap_dn), &
+#else
                                 richards_parameter%sir(1,icap_dn), &
+#endif
                                 cur_connection_set%area(iconn), &
                                 cur_connection_set%dist(:,iconn), &
                                 option, &
@@ -1416,12 +1515,8 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
 !          global_auxvars(ghosted_id)%mass_balance_delta(1) + Res(1)
       endif
 
-#ifdef PM_RICHARDS_DEBUG
-  print *, 'Res bc', local_id
-  print *, Res(1)
-#endif
-
-      r_p(local_id)= r_p(local_id) - Res(1)
+      istart = (local_id-1)*option%nflowdof + 1
+      r_p(istart)= r_p(istart) - Res(1)
 
     enddo
     boundary_condition => boundary_condition%next
@@ -1466,6 +1561,7 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   PetscViewer :: viewer
   PetscInt :: i
   PetscInt :: local_id, ghosted_id
+  PetscInt :: istart
 
   PetscReal, pointer :: r_p(:), accum_p(:)
   PetscReal :: qsrc, qsrc_mol
@@ -1475,7 +1571,9 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
   type(field_type), pointer :: field
+#ifndef REFACTOR_CHARACTERISTIC_CURVES
   type(richards_parameter_type), pointer :: richards_parameter
+#endif
   type(richards_auxvar_type), pointer :: rich_auxvars(:), rich_auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_ss(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
@@ -1501,7 +1599,9 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
   grid => patch%grid
   option => realization%option
   field => realization%field
+#ifndef REFACTOR_CHARACTERISTIC_CURVES
   richards_parameter => patch%aux%Richards%richards_parameter
+#endif
   rich_auxvars => patch%aux%Richards%auxvars
   rich_auxvars_ss => patch%aux%Richards%auxvars_ss
   global_auxvars => patch%aux%Global%auxvars
@@ -1528,11 +1628,8 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
                                 global_auxvars(ghosted_id), &
                                 material_auxvars(ghosted_id), &
                                 option,Res) 
-#ifdef PM_RICHARDS_DEBUG
-  print *, 'Res accum', local_id
-  print *, Res(1)      
-#endif
-      r_p(local_id) = r_p(local_id) + Res(1)
+      istart = (local_id-1)*option%nflowdof + 1
+      r_p(istart) = r_p(istart) + Res(1)
     enddo
   endif
 
@@ -1579,13 +1676,13 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
           qsrc_mol = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O ! kg/sec -> kmol/sec
       
         case(WELL_SS) ! production well, SK 12/19/13
-        ! if node pessure is lower than the given extraction pressure, shut it down
-!  well parameter explanation
-!   1. well status. 1 injection; -1 production; 0 shut in!
-!   2. well factor [m^3],  the effective permeability [m^2/s]
-!   3. bottomhole pressure:  [Pa]
-!   4. max pressure: [Pa]
-!   5. min pressure: [Pa]   
+          ! if node pessure is lower than the given extraction pressure, shut it down
+          !  well parameter explanation
+          !   1. well status. 1 injection; -1 production; 0 shut in!
+          !   2. well factor [m^3],  the effective permeability [m^2/s]
+          !   3. bottomhole pressure:  [Pa]
+          !   4. max pressure: [Pa]
+          !   5. min pressure: [Pa]   
           mmsrc => source_sink%flow_condition%well%dataset%rarray
 
           well_status = mmsrc(1)
@@ -1594,8 +1691,8 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
           pressure_max = mmsrc(4)
           pressure_min = mmsrc(5)
     
-        ! production well (well status = -1)
-          if(dabs(well_status + 1.D0) < 1.D-1) then
+          ! production well (well status = -1)
+          if (dabs(well_status + 1.D0) < 1.D-1) then
             if (global_auxvars(ghosted_id)%pres(1) > pressure_min) then
               Dq = well_factor 
               dphi = global_auxvars(ghosted_id)%pres(1) - pressure_bh
@@ -1622,7 +1719,10 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
           global_auxvars_ss(sum_connection)%mass_balance_delta(1,1) - &
           qsrc_mol
       endif
-      r_p(local_id) = r_p(local_id) - qsrc_mol
+
+      istart = (local_id-1)*option%nflowdof + 1
+      r_p(istart) = r_p(istart) - qsrc_mol
+
       if (associated(patch%ss_flow_vol_fluxes)) then
         ! fluid flux [m^3/sec] = qsrc_mol [kmol/sec] / den [kmol/m^3]
         patch%ss_flow_vol_fluxes(1,sum_connection) = qsrc_mol / &
@@ -1645,18 +1745,13 @@ subroutine RichardsResidualPatch2(snes,xx,r,realization,ierr)
     enddo
   endif
 
-#ifdef PM_RICHARDS_DEBUG
-  print *, 'Residual'
-  print *, r_p(:)
-#endif
-
-  call VecRestoreArrayF90(r, r_p, ierr); CHKERRQ(ierr)
-  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr); CHKERRQ(ierr)
+  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
 
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   call VecRestoreArrayF90(clm_pf_idata%qflx_pf, qflx_pf_p, ierr); CHKERRQ(ierr)
 #endif
-  
+
 end subroutine RichardsResidualPatch2
 
 ! ************************************************************************** !
@@ -1773,6 +1868,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
   use Coupler_module
   use Field_module
   use Debug_module
+  use Material_Aux_class
   
   implicit none
 
@@ -1787,6 +1883,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn
   PetscInt :: ghosted_id_up, ghosted_id_dn
+  PetscInt :: istart_up, istart_dn, istart
   
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof), &
                Jdn(realization%option%nflowdof,realization%option%nflowdof)
@@ -1802,7 +1899,11 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option 
   type(field_type), pointer :: field 
+#ifndef REFACTOR_CHARACTERISTIC_CURVES
   type(richards_parameter_type), pointer :: richards_parameter
+#else
+  type(material_parameter_type), pointer :: material_parameter
+#endif
   type(richards_auxvar_type), pointer :: rich_auxvars(:), rich_auxvars_bc(:) 
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
@@ -1815,7 +1916,11 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
   grid => patch%grid
   option => realization%option
   field => realization%field
+#ifndef REFACTOR_CHARACTERISTIC_CURVES
   richards_parameter => patch%aux%Richards%richards_parameter
+#else
+  material_parameter => patch%aux%Material%material_parameter
+#endif
   rich_auxvars => patch%aux%Richards%auxvars
   rich_auxvars_bc => patch%aux%Richards%auxvars_bc
   global_auxvars => patch%aux%Global%auxvars
@@ -1833,8 +1938,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
   endif
 #endif
 
-#if 1
-  ! Interior Flux Terms -----------------------------------  
+  ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
   sum_connection = 0    
@@ -1859,23 +1963,33 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
       call RichardsFluxDerivative(rich_auxvars(ghosted_id_up), &
                                   global_auxvars(ghosted_id_up), &
                                   material_auxvars(ghosted_id_up), &
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+                                  material_parameter%soil_residual_saturation(1,icap_up), &
+#else
                                   richards_parameter%sir(1,icap_up), &
+#endif
                                   rich_auxvars(ghosted_id_dn), &
                                   global_auxvars(ghosted_id_dn), &
                                   material_auxvars(ghosted_id_dn), &
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+                                  material_parameter%soil_residual_saturation(1,icap_dn), &
+#else
                                   richards_parameter%sir(1,icap_dn), &
+#endif
                                   cur_connection_set%area(iconn), &
                                   cur_connection_set%dist(-1:3,iconn),&
                                   option,&
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+                               patch%characteristic_curves_array(icap_up)%ptr, &
+                               patch%characteristic_curves_array(icap_dn)%ptr, &
+#else
                                   patch%saturation_function_array(icap_up)%ptr,&
                                   patch%saturation_function_array(icap_dn)%ptr,&
+#endif
                                   Jup,Jdn)
 
       if (local_id_up > 0) then
-#ifdef PM_RICHARDS_DEBUG
-  print *, 'Jac up', local_id_up
-  print *, Jup(1,1)
-#endif      
+
 #ifdef BUFFER_MATRIX
         if (option%use_matrix_buffer) then
           call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id_up, &
@@ -1884,19 +1998,19 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
                                ghosted_id_dn,Jdn(1,1))
         else
 #endif
-          call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_up-1, &
+          istart_up = (ghosted_id_up-1)*option%nflowdof + 1
+          istart_dn = (ghosted_id_dn-1)*option%nflowdof + 1
+
+          call MatSetValuesLocal(A,1,istart_up-1,1,istart_up-1, &
                                         Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
-          call MatSetValuesLocal(A,1,ghosted_id_up-1,1,ghosted_id_dn-1, &
+          call MatSetValuesLocal(A,1,istart_up-1,1,istart_dn-1, &
                                         Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
 #ifdef BUFFER_MATRIX
         endif
 #endif
       endif
+
       if (local_id_dn > 0) then
-#ifdef PM_RICHARDS_DEBUG
-  print *, 'Jac dn', local_id_dn
-  print *, Jdn(1,1)
-#endif        
         Jup = -Jup
         Jdn = -Jdn
 #ifdef BUFFER_MATRIX
@@ -1907,9 +2021,12 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
                                ghosted_id_up,Jup(1,1))
         else
 #endif
-          call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_dn-1, &
+          istart_up = (ghosted_id_up-1)*option%nflowdof + 1
+          istart_dn = (ghosted_id_dn-1)*option%nflowdof + 1
+
+          call MatSetValuesLocal(A,1,istart_dn-1,1,istart_dn-1, &
                                         Jdn,ADD_VALUES,ierr);CHKERRQ(ierr)
-          call MatSetValuesLocal(A,1,ghosted_id_dn-1,1,ghosted_id_up-1, &
+          call MatSetValuesLocal(A,1,istart_dn-1,1,istart_up-1, &
                                         Jup,ADD_VALUES,ierr);CHKERRQ(ierr)
 #ifdef BUFFER_MATRIX
         endif
@@ -1918,7 +2035,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
     enddo
     cur_connection_set => cur_connection_set%next
   enddo
-#endif
+
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -1927,7 +2044,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
-#if 1
+
   ! Boundary Flux Terms -----------------------------------
   boundary_condition => patch%boundary_condition_list%first
   sum_connection = 0    
@@ -1958,24 +2075,31 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
                                 rich_auxvars(ghosted_id), &
                                 global_auxvars(ghosted_id), &
                                 material_auxvars(ghosted_id), &
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+                                material_parameter%soil_residual_saturation(1,icap_dn), &
+#else
                                 richards_parameter%sir(1,icap_dn), &
+#endif
                                 cur_connection_set%area(iconn), &
                                 cur_connection_set%dist(:,iconn), &
                                 option, &
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+                               patch%characteristic_curves_array(icap_dn)%ptr, &
+#else
                                 patch%saturation_function_array(icap_dn)%ptr,&
+#endif
                                 Jdn)
       Jdn = -Jdn
-#ifdef PM_RICHARDS_DEBUG
-  print *, 'Jac dn bc', local_id
-  print *, Jdn(1,1)      
-#endif
+
 #ifdef BUFFER_MATRIX
       if (option%use_matrix_buffer) then
         call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id, &
                              ghosted_id,Jdn(1,1))
       else
 #endif
-        call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jdn, &
+        istart = (ghosted_id-1)*option%nflowdof + 1
+
+        call MatSetValuesLocal(A,1,istart-1,1,istart-1,Jdn, &
                                ADD_VALUES,ierr);CHKERRQ(ierr)
 #ifdef BUFFER_MATRIX
       endif
@@ -1984,7 +2108,7 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
     enddo
     boundary_condition => boundary_condition%next
   enddo
-#endif
+
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
     call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -2028,8 +2152,11 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
   PetscErrorCode :: ierr
 
   PetscReal :: qsrc
+#ifndef REFACTOR_CHARACTERISTIC_CURVES
   PetscInt :: icap
+#endif
   PetscInt :: local_id, ghosted_id
+  PetscInt :: istart
   
   PetscReal :: Jup(realization%option%nflowdof,realization%option%nflowdof)
   
@@ -2040,7 +2167,9 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option 
   type(field_type), pointer :: field 
+#ifndef REFACTOR_CHARACTERISTIC_CURVES
   type(richards_parameter_type), pointer :: richards_parameter
+#endif
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
@@ -2060,42 +2189,50 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
   grid => patch%grid
   option => realization%option
   field => realization%field
+#ifndef REFACTOR_CHARACTERISTIC_CURVES
   richards_parameter => patch%aux%Richards%richards_parameter
+#endif
   rich_auxvars => patch%aux%Richards%auxvars
   global_auxvars => patch%aux%Global%auxvars
   material_auxvars => patch%aux%Material%auxvars
   
   if (.not.option%steady_state) then
-#if 1
+
   ! Accumulation terms ------------------------------------
   do local_id = 1, grid%nlmax  ! For each local node do...
     ghosted_id = grid%nL2G(local_id)
     !geh - Ignore inactive cells with inactive materials
     if (patch%imat(ghosted_id) <= 0) cycle
+#ifndef REFACTOR_CHARACTERISTIC_CURVES
     icap = patch%sat_func_id(ghosted_id)
+#endif
     call RichardsAccumDerivative(rich_auxvars(ghosted_id), &
                               global_auxvars(ghosted_id), &
                               material_auxvars(ghosted_id), &
                               option, &
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+                              patch%characteristic_curves_array( &
+                                patch%sat_func_id(ghosted_id))%ptr, &
+#else
                               patch%saturation_function_array(icap)%ptr,&
-                              Jup) 
-#ifdef PM_RICHARDS_DEBUG
-  print *, 'Jac accum'
-  print *, Jup(1,1)     
 #endif
+                              Jup) 
+
 #ifdef BUFFER_MATRIX
     if (option%use_matrix_buffer) then
       call MatrixBufferAdd(patch%aux%Richards%matrix_buffer,ghosted_id, &
                            ghosted_id,Jup(1,1))
     else
 #endif
-      call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup, &
+      istart = (ghosted_id-1)*option%nflowdof + 1
+
+      call MatSetValuesLocal(A,1,istart-1,1,istart-1,Jup, &
                              ADD_VALUES,ierr);CHKERRQ(ierr)
 #ifdef BUFFER_MATRIX
     endif
 #endif
   enddo
-#endif
+
   endif
   if (realization%debug%matview_Jacobian_detailed) then
     call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
@@ -2105,13 +2242,13 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
     call MatView(A,viewer,ierr);CHKERRQ(ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
-#if 1
+
   ! Source/sink terms -------------------------------------
   source_sink => patch%source_sink_list%first 
   do 
     if (.not.associated(source_sink)) exit
     
-    if(source_sink%flow_condition%itype(1)/=HET_VOL_RATE_SS.and. &
+    if (source_sink%flow_condition%itype(1)/=HET_VOL_RATE_SS.and. &
        source_sink%flow_condition%itype(1)/=HET_MASS_RATE_SS .and. &
        source_sink%flow_condition%itype(1)/=WELL_SS) &
       qsrc = source_sink%flow_condition%rate%dataset%rarray(1)
@@ -2136,13 +2273,13 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
           Jup(1,1) = -source_sink%flow_aux_real_var(ONE_INTEGER,iconn)* &
                     rich_auxvars(ghosted_id)%dden_dp*FMWH2O
         case(WELL_SS) ! production well, SK 12/19/13
-        ! if node pessure is lower than the given extraction pressure, shut it down
-!  well parameter explanation
-!   1. well status. 1 injection; -1 production; 0 shut in!
-!   2. well factor [m^3],  the effective permeability [m^2/s]
-!   3. bottomhole pressure:  [Pa]
-!   4. max pressure: [Pa]
-!   5. min pressure: [Pa]   
+          ! if node pessure is lower than the given extraction pressure, shut it down
+          !  well parameter explanation
+          !   1. well status. 1 injection; -1 production; 0 shut in!
+          !   2. well factor [m^3],  the effective permeability [m^2/s]
+          !   3. bottomhole pressure:  [Pa]
+          !   4. max pressure: [Pa]
+          !   5. min pressure: [Pa]
           mmsrc => source_sink%flow_condition%well%dataset%rarray
 
           well_status = mmsrc(1)
@@ -2151,8 +2288,8 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
           pressure_max = mmsrc(4)
           pressure_min = mmsrc(5)
     
-        ! production well (well status = -1)
-          if(dabs(well_status + 1.D0) < 1.D-1) then
+          ! production well (well status = -1)
+          if (dabs(well_status + 1.D0) < 1.D-1) then
             if (global_auxvars(ghosted_id)%pres(1) > pressure_min) then
               Dq = well_factor 
               dphi = global_auxvars(ghosted_id)%pres(1) - pressure_bh
@@ -2178,7 +2315,9 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
                              ghosted_id,Jup(1,1))
       else
 #endif
-        call MatSetValuesLocal(A,1,ghosted_id-1,1,ghosted_id-1,Jup,ADD_VALUES, &
+        istart = (ghosted_id-1)*option%nflowdof + 1
+
+        call MatSetValuesLocal(A,1,istart-1,1,istart-1,Jup,ADD_VALUES, &
                                ierr);CHKERRQ(ierr)
 #ifdef BUFFER_MATRIX
       endif
@@ -2186,7 +2325,6 @@ subroutine RichardsJacobianPatch2(snes,xx,A,B,realization,ierr)
     enddo
     source_sink => source_sink%next
   enddo
-#endif
 
   call RichardsSSSandbox(null_vec,A,PETSC_TRUE,grid,material_auxvars, &
                          global_auxvars,option)
@@ -2471,9 +2609,9 @@ subroutine RichardsUpdateSurfacePress(realization)
   do 
     if (.not.associated(boundary_condition)) exit
     cur_connection_set => boundary_condition%connection_set
-    if(StringCompare(boundary_condition%name,'from_surface_bc')) then
+    if (StringCompare(boundary_condition%name,'from_surface_bc')) then
 
-      if(boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF) /= &
+      if (boundary_condition%flow_condition%itype(RICHARDS_PRESSURE_DOF) /= &
          HET_SURF_SEEPAGE_BC) then
         call printErrMsg(option,'from_surface_bc is not of type ' // &
                         'HET_SURF_SEEPAGE_BC')
@@ -2545,7 +2683,11 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
   type(richards_auxvar_type), pointer :: rich_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars_bc(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
+#ifndef REFACTOR_CHARACTERISTIC_CURVES
   type(richards_parameter_type), pointer :: richards_parameter
+#else
+  type(material_parameter_type), pointer :: material_parameter
+#endif
   type(richards_auxvar_type) :: rich_auxvar_max
   type(global_auxvar_type) :: global_auxvar_max
   type(richards_auxvar_type),pointer :: rich_auxvar_up, rich_auxvar_dn
@@ -2589,7 +2731,11 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
   patch => realization%patch
   grid => patch%grid
 
+#ifndef REFACTOR_CHARACTERISTIC_CURVES
   richards_parameter => patch%aux%Richards%richards_parameter
+#else
+  material_parameter => patch%aux%Material%material_parameter
+#endif
   material_auxvars => patch%aux%Material%auxvars
 
   rich_auxvars => patch%aux%Richards%auxvars
@@ -2681,10 +2827,18 @@ subroutine RichardsComputeCoeffsForSurfFlux(realization)
         call RichardsAuxVarCompute(xxbc,rich_auxvar_max, &
                            global_auxvar_max, &
                            material_auxvars(ghosted_id), &
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+                           patch%characteristic_curves_array(icap_dn)%ptr, &
+#else
                            patch%saturation_function_array(icap_dn)%ptr, &
+#endif
                            option)
 
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+        sir_dn = material_parameter%soil_residual_saturation(1,icap_dn)
+#else
         sir_dn = richards_parameter%sir(1,icap_dn)
+#endif
 
         if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_max%sat(1) > sir_dn) then
 

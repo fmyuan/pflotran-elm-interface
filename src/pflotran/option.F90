@@ -74,6 +74,7 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: surf_initialize_flow_filename
     character(len=MAXSTRINGLENGTH) :: surf_restart_filename
 
+    PetscBool  :: geomech_on
     PetscInt  :: ngeomechdof
     PetscInt  :: n_stress_strain_dof
     PetscReal :: geomech_time
@@ -426,6 +427,7 @@ subroutine OptionInitRealization(option)
   option%surf_restart_flag = PETSC_FALSE
   option%surf_restart_time = UNINITIALIZED_DOUBLE
 
+  option%geomech_on = PETSC_FALSE
   option%ngeomechdof = 0
   option%n_stress_strain_dof = 0
   option%geomech_time = 0.d0
@@ -596,9 +598,6 @@ subroutine OptionCheckCommandLine(option)
   call PetscOptionsGetInt(PETSC_NULL_CHARACTER, '-chkptfreq', &
                           option%checkpoint_frequency, &
                           option%checkpoint_flag, ierr);CHKERRQ(ierr)
-  call PetscOptionsGetReal(PETSC_NULL_CHARACTER, '-max_manning_velocity', &
-                           option%max_manning_velocity, &
-                           option_found, ierr);CHKERRQ(ierr)
   ! check on possible modes                                                     
   option_found = PETSC_FALSE
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-use_richards", &
@@ -658,6 +657,7 @@ subroutine printErrMsg2(option,string)
   if (OptionPrintToScreen(option)) then
     print *
     print *, 'ERROR: ' // trim(string)
+    print *
     print *, 'Stopping!'
   endif
   call MPI_Barrier(option%mycomm,ierr)
@@ -676,7 +676,7 @@ subroutine printErrMsgByRank1(option)
   ! Prints the error message from processor with error along
   ! with rank
   ! 
-  ! Author: Glenn Hammond
+  ! Author: Glenn Hammond 
   ! Date: 11/04/11
   ! 
 
@@ -709,6 +709,7 @@ subroutine printErrMsgByRank2(option,string)
   write(word,*) option%myrank
   print *
   print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(option%io_buffer)
+  print *
   print *, 'Stopping!'
   stop
   

@@ -29,6 +29,7 @@ module PM_Base_class
     class(pm_base_type), pointer :: next
   contains
     procedure, public :: Init => PMBaseInit
+    procedure, public :: SetupSolvers => PMBaseSetupSolvers
     procedure, public :: InitializeRun => PMBaseThisOnly
     procedure, public :: FinalizeRun => PMBaseThisOnly
     procedure, public :: Residual => PMBaseResidual
@@ -36,6 +37,7 @@ module PM_Base_class
     procedure, public :: UpdateTimestep => PMBaseUpdateTimestep
     procedure, public :: InitializeTimestep => PMBaseThisOnly
     procedure, public :: PreSolve => PMBaseThisOnly
+    procedure, public :: Solve => PMBaseThisTimeError
     procedure, public :: PostSolve => PMBaseThisOnly
     procedure, public :: FinalizeTimestep => PMBaseThisOnly
     procedure, public :: AcceptSolution => PMBaseFunctionThisOnly
@@ -93,6 +95,17 @@ end subroutine PMBaseInit
 
 ! ************************************************************************** !
 
+subroutine PMBaseSetupSolvers(this,solver)
+  use Solver_module
+  implicit none
+  class(pm_base_type) :: this
+  type(solver_type) :: solver
+  print *, 'Must extend PMBaseSetupSolvers.'
+  stop
+end subroutine PMBaseSetupSolvers
+
+! ************************************************************************** !
+
 subroutine PMBaseResidual(this,snes,xx,r,ierr)
   implicit none
   class(pm_base_type) :: this
@@ -119,12 +132,12 @@ end subroutine PMBaseJacobian
 
 ! ************************************************************************** !
 
-subroutine PMBaseUpdateTimestep(this,dt,dt_max,iacceleration, &
+subroutine PMBaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                                 num_newton_iterations,tfac)
   implicit none
   class(pm_base_type) :: this
   PetscReal :: dt
-  PetscReal :: dt_max
+  PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
@@ -165,16 +178,6 @@ end subroutine PMBaseCheckUpdatePost
 
 ! ************************************************************************** !
 
-subroutine PMBasePostSolve(this)
-  implicit none
-  class(pm_base_type) :: this
-  PetscBool :: solution_accepted
-  print *, 'Must extend PMBasePostSolve.'
-  stop
-end subroutine PMBasePostSolve
-
-! ************************************************************************** !
-
 subroutine PMBaseThisOnly(this)
   implicit none
   class(pm_base_type) :: this
@@ -191,6 +194,17 @@ subroutine PMBaseThisTime(this,time)
   print *, 'Must extend PMBaseThisTime.'
   stop
 end subroutine PMBaseThisTime
+
+! ************************************************************************** !
+
+subroutine PMBaseThisTimeError(this,time,ierr)
+  implicit none
+  class(pm_base_type) :: this
+  PetscReal :: time
+  PetscInt :: ierr
+  print *, 'Must extend PMBaseThisTimeError.'
+  stop
+end subroutine PMBaseThisTimeError
 
 ! ************************************************************************** !
 

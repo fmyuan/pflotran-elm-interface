@@ -236,9 +236,8 @@ subroutine CLM_CN_Read(this,input,option)
               call InputErrorMsg(input,option,'inhibition constant', &
                      'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION')
             case default
-              option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM-CN,' // &
-                'REACTION keyword: ' // trim(word) // ' not recognized.'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                     'CHEMISTRY,REACTION_SANDBOX,CLM-CN,REACTION',option)
           end select
         enddo
         
@@ -280,9 +279,8 @@ subroutine CLM_CN_Read(this,input,option)
         prev_reaction => new_reaction
         nullify(new_reaction)        
       case default
-        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLM-CN keyword: ' // &
-          trim(word) // ' not recognized.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(word, &
+                     'CHEMISTRY,REACTION_SANDBOX,CLM-CN',option)
     end select
   enddo
   
@@ -540,7 +538,7 @@ subroutine CLM_CN_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   ! Equation: F_t = exp(308.56*(1/17.02 - 1/(T - 227.13)))
   temp_K = global_auxvar%temp + 273.15d0
 
-  if(temp_K > 227.15d0) then
+  if (temp_K > 227.15d0) then
     F_t = exp(308.56d0*(one_over_71_02 - 1.d0/(temp_K - 227.13d0)))
   else
     F_t = 0.0

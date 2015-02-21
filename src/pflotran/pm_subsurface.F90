@@ -1,8 +1,8 @@
 module PM_Subsurface_class
 
   use PM_Base_class
-!geh: using Subsurface_module here fails with gfortran (internal compiler error)
-!  use Subsurface_module
+!geh: using Init_Subsurface_module here fails with gfortran (internal compiler error)
+!  use Init_Subsurface_module
   use Realization_class
   use Communicator_Base_module
   use Option_module
@@ -30,6 +30,7 @@ module PM_Subsurface_class
   contains
 !geh: commented out subroutines can only be called externally
     procedure, public :: Init => PMSubsurfaceInit
+    procedure, public :: SetupSolvers => PMSubsurfaceSetupSolvers
     procedure, public :: PMSubsurfaceSetRealization
     procedure, public :: InitializeRun => PMSubsurfaceInitializeRun
 !    procedure, public :: FinalizeRun => PMSubsurfaceFinalizeRun
@@ -48,12 +49,15 @@ module PM_Subsurface_class
   
   public :: PMSubsurfaceCreate, &
             PMSubsurfaceInit, &
+            PMSubsurfaceSetupSolvers, &
             PMSubsurfaceInitializeTimestepA, &
             PMSubsurfaceInitializeTimestepB, &
             PMSubsurfaceInitializeRun, &
             PMSubsurfaceUpdateSolution, &
             PMSubsurfaceUpdatePropertiesNI, &
             PMSubsurfaceTimeCut, &
+            PMSubsurfaceCheckpoint, &
+            PMSubsurfaceRestart, &
             PMSubsurfaceDestroy
   
 contains
@@ -107,7 +111,7 @@ subroutine PMSubsurfaceInit(this)
     if (this%realization%reaction%update_porosity .or. &
         this%realization%reaction%update_tortuosity .or. &
         this%realization%reaction%update_permeability .or. &
-        this%realization%reaction%update_mineral_surface_area) then
+        this%realization%reaction%update_mnrl_surf_with_porosity) then
       this%store_porosity_for_ts_cut = PETSC_TRUE
       this%store_porosity_for_transport = PETSC_TRUE
     endif
@@ -120,6 +124,26 @@ subroutine PMSubsurfaceInit(this)
   endif
   
 end subroutine PMSubsurfaceInit
+
+! ************************************************************************** !
+
+subroutine PMSubsurfaceSetupSolvers(this,solver)
+  ! 
+  ! Sets up SNES solvers.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/03/14
+
+  use Solver_module
+  
+  implicit none
+  
+  class(pm_subsurface_type) :: this
+  type(solver_type) :: solver
+  
+  PetscErrorCode :: ierr
+  
+end subroutine PMSubsurfaceSetupSolvers
 
 ! ************************************************************************** !
 

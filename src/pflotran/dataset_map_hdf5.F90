@@ -151,9 +151,7 @@ subroutine DatasetMapHDF5Read(this,input,option)
           call InputReadWord(input,option,this%map_filename,PETSC_TRUE)
           call InputErrorMsg(input,option,'map filename','DATASET')
         case default
-          option%io_buffer = 'Keyword: ' // trim(keyword) // &
-                             ' not recognized in dataset'    
-          call printErrMsg(option)
+          call InputKeywordUnrecognized(keyword,'dataset',option)
       end select
     endif
   
@@ -487,7 +485,7 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   
   nids_local=int(dims_h5(2)/option%mycommsize)
   remainder =int(dims_h5(2))-nids_local*option%mycommsize
-  if(option%myrank<remainder) nids_local=nids_local+1
+  if (option%myrank<remainder) nids_local=nids_local+1
 
   ! Find istart and iend
   istart = 0

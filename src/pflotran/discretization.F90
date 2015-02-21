@@ -216,14 +216,11 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
                 unstructured_grid_itype = POLYHEDRA_UNSTRUCTURED_GRID
                 unstructured_grid_ctype = 'polyhedra unstructured'
             end select
-            call InputReadNChars(input,option,discretization%filename,MAXSTRINGLENGTH, &
-                                 PETSC_TRUE)
+            call InputReadNChars(input,option,discretization%filename, &
+                                 MAXSTRINGLENGTH,PETSC_TRUE)
             call InputErrorMsg(input,option,'unstructured filename','GRID')
           case default
-            option%io_buffer = 'Discretization type: ' // &
-                               trim(discretization%ctype) // &
-                               ' not recognized.'
-            call printErrMsg(option)
+            call InputKeywordUnrecognized(word,'discretization type',option)
         end select    
       case('NXYZ')
         call InputReadInt(input,option,nx)
@@ -248,9 +245,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       case('DXYZ','BOUNDS')
         call InputSkipToEND(input,option,word) 
       case default
-        option%io_buffer = 'Keyword: ' // trim(word) // &
-                 ' not recognized in DISCRETIZATION, first read.'
-        call printErrMsg(option)          
+        call InputKeywordUnrecognized(word,'DISCRETIZATION',option)
     end select 
   enddo  
 
@@ -504,14 +499,11 @@ subroutine DiscretizationRead(discretization,input,option)
           case ('STAR')
             discretization%stencil_type = DMDA_STENCIL_STAR
           case default
-            option%io_buffer = 'Keyword: ' // trim(word) // &
-                 ' not recognized in DISCRETIZATION, second read.'
-            call printErrMsg(option)
+            call InputKeywordUnrecognized(word, &
+                   'DISCRETIZATION,stencil type',option)
         end select
       case default
-        option%io_buffer = 'Keyword: ' // trim(word) // &
-                 ' not recognized in DISCRETIZATION, second read.'
-        call printErrMsg(option)          
+        call InputKeywordUnrecognized(word,'GRID',option)
     end select 
   enddo  
 
@@ -840,19 +832,15 @@ subroutine DiscretizationCreateJacobian(discretization,dm_index,mat_type,Jacobia
     case(STRUCTURED_GRID)
       call DMSetMatType(dm_ptr%dm,mat_type,ierr);CHKERRQ(ierr)
       call DMCreateMatrix(dm_ptr%dm,Jacobian,ierr);CHKERRQ(ierr)
-      call MatSetOption(Jacobian,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE, &
-                        ierr);CHKERRQ(ierr)
-      call MatSetOption(Jacobian,MAT_ROW_ORIENTED,PETSC_FALSE, &
-                        ierr);CHKERRQ(ierr)
     case(UNSTRUCTURED_GRID)
       call UGridDMCreateJacobian(discretization%grid%unstructured_grid, &
                                  dm_ptr%ugdm,mat_type,Jacobian,option)
-      call MatSetOption(Jacobian,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE, &
-                        ierr);CHKERRQ(ierr)
-      call MatSetOption(Jacobian,MAT_ROW_ORIENTED,PETSC_FALSE, &
-                        ierr);CHKERRQ(ierr)
   end select
-
+  call MatSetOption(Jacobian,MAT_KEEP_NONZERO_PATTERN,PETSC_FALSE,ierr); &
+                    CHKERRQ(ierr)
+  call MatSetOption(Jacobian,MAT_ROW_ORIENTED,PETSC_FALSE,ierr);CHKERRQ(ierr)
+  call MatSetOption(Jacobian,MAT_NO_OFF_PROC_ZERO_ROWS,PETSC_TRUE,ierr); &
+                    CHKERRQ(ierr)
 
 end subroutine DiscretizationCreateJacobian
 
@@ -1452,6 +1440,51 @@ subroutine DiscretAOApplicationToPetsc(discretization,int_array)
   call AOApplicationToPetsc(ao,size(int_array),int_array,ierr);CHKERRQ(ierr)
   
 end subroutine DiscretAOApplicationToPetsc
+
+! ************************************************************************** !
+
+subroutine DiscretizationPrintInfo(discretization,grid,option)
+  ! 
+  ! Deallocates a discretization
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/01/07
+  ! 
+  use Option_module
+  use Grid_module
+  
+  implicit none
+  
+  type(discretization_type) :: discretization
+  type(option_type) :: option
+  
+  type(grid_type), pointer :: grid
+  
+  grid => discretization%grid
+  
+  select case(discretization%itype)
+    case(STRUCTURED_GRID)
+      if (OptionPrintToScreen(option)) then
+        write(*,'(/," Requested processors and decomposition = ", &
+                 & i5,", npx,y,z= ",3i4)') &
+            option%mycommsize,grid%structured_grid%npx, &
+            grid%structured_grid%npy,grid%structured_grid%npz
+        write(*,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
+            grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
+            grid%structured_grid%npz_final
+      endif
+      if (OptionPrintToScreen(option)) then
+        write(option%fid_out,'(/," Requested processors and decomposition = ", &
+                             & i5,", npx,y,z= ",3i4)') &
+            option%mycommsize,grid%structured_grid%npx,grid%structured_grid%npy, &
+            grid%structured_grid%npz
+        write(option%fid_out,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
+            grid%structured_grid%npx_final,grid%structured_grid%npy_final, &
+            grid%structured_grid%npz_final
+      endif
+  end select
+  
+end subroutine DiscretizationPrintInfo
 
 ! ************************************************************************** !
 

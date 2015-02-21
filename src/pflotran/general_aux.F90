@@ -13,6 +13,9 @@ module General_Aux_module
   PetscReal, public :: general_max_pressure_change = 5.d4
   PetscInt, public :: general_max_it_before_damping = UNINITIALIZED_INTEGER
   PetscReal, public :: general_damping_factor = 0.6d0
+  PetscReal, public :: general_tough2_itol_scaled_res_e1 = 1.d-5
+  PetscReal, public :: general_tough2_itol_scaled_res_e2 = 1.d0
+  PetscBool, public :: general_tough2_conv_criteria = PETSC_FALSE
 
   ! thermodynamic state of fluid ids
   PetscInt, parameter, public :: NULL_STATE = 0
@@ -517,6 +520,9 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
       call EOSGasHenry(gen_auxvar%temp,gen_auxvar%pres(spid),K_H_tilde)
       gen_auxvar%xmol(acid,lid) = gen_auxvar%pres(apid) / K_H_tilde
+      ! immiscible.
+!      gen_auxvar%xmol(acid,lid) = 1.d-10
+      
       gen_auxvar%xmol(wid,lid) = 1.d0 - gen_auxvar%xmol(acid,lid)
       gen_auxvar%xmol(acid,gid) = gen_auxvar%pres(apid) / &
                                    gen_auxvar%pres(gid)
@@ -639,10 +645,15 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
 
 #if 0
   if (option%iflag == GENERAL_UPDATE_FOR_ACCUM) then
-    if (ghosted_id == 1) then
-    write(*,'(a,i3,7f13.4,a3)') 'i/l/g/a/c/v/s/t: ', &
-      ghosted_id, gen_auxvar%pres(1:5), gen_auxvar%sat(1), gen_auxvar%temp, &
+    write(*,'(a,i3,2f13.4,es13.6,f13.4,a3)') 'i/l/g/x[a/l]/t: ', &
+      ghosted_id, gen_auxvar%pres(1:2), gen_auxvar%xmol(acid,lid), &
+      gen_auxvar%temp, trim(state_char)
+    if (ghosted_id == 5) then
+#if 0
+    write(*,'(a,i3,8f13.4,a3)') 'i/l/g/a/c/v/s/t: ', &
+      ghosted_id, gen_auxvar%pres(1:6), gen_auxvar%sat(1), gen_auxvar%temp, &
       trim(state_char)
+#endif
 #if 0
     if (gen_auxvar%sat(2) > 0.d0) then
       write(*,'(a,7es13.6)') 'kmol/kmol/kmol/MJ/MJ/MJ: ', &
@@ -958,6 +969,7 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
 
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
   PetscReal, parameter :: perturbation_tolerance = 1.d-5
+  PetscReal, parameter :: min_mole_fraction_pert = 1.d-12
   PetscInt :: idof
 
 #ifdef DEBUG_GENERAL
@@ -981,8 +993,11 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
        pert(GENERAL_LIQUID_PRESSURE_DOF) = &
          max(perturbation_tolerance*x(GENERAL_LIQUID_PRESSURE_DOF), &
              perturbation_tolerance)
+       ! if the air mole fraction perturbation is too small, the derivatives
+       ! can be poor.
        pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = &
-         -1.d0*perturbation_tolerance*x(GENERAL_LIQUID_STATE_X_MOLE_DOF)
+         -1.d0*max(perturbation_tolerance*x(GENERAL_LIQUID_STATE_X_MOLE_DOF), &
+                   min_mole_fraction_pert)
        pert(GENERAL_ENERGY_DOF) = &
          -1.d0*perturbation_tolerance*x(GENERAL_ENERGY_DOF)
     case(GAS_STATE)

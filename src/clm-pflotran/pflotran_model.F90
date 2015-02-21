@@ -160,12 +160,13 @@ contains
     end if
 
     call OptionInitPetsc(model%option)
-    call PFLOTRANInitializePostPetsc(model%multisimulation, model%option)
-
     ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
     ! setup on mpich/mac. should be generally ok, but may need an
     ! apple/mpich ifdef if it cause problems elsewhere.
     PETSC_COMM_SELF = MPI_COMM_SELF
+    PETSC_COMM_WORLD = MPI_COMM_WORLD
+
+    call PFLOTRANInitializePostPetsc(model%simulation, model%multisimulation, model%option)
 
     ! TODO(bja, 2013-07-15) this needs to be left alone for pflotran
     ! to deal with, or we need a valid unit number from the driver as
@@ -175,22 +176,8 @@ contains
     model%pause_time_1 = -1.0d0
     model%pause_time_2 = -1.0d0
 
-    ! FIXME(bja, 2013-07-17) hard code subsurface for now....
-    model%option%simulation_mode = 'SURFACE_SUBSURFACE'
-    !model%option%simulation_mode = 'SUBSURFACE'
-    select case(model%option%simulation_mode)
-      case('SUBSURFACE')
-         call SubsurfaceInitialize(model%simulation, model%option)
-      case('HYDROGEOPHYSICS')
-         call HydrogeophysicsInitialize(model%simulation, model%option)
-      case('SURFACE')
-         call SurfaceInitialize(model%simulation, model%option)
-      case('SURFACE_SUBSURFACE')
-         call SurfSubsurfaceInitialize(model%simulation, model%option)
-      case default
-         model%option%io_buffer = 'Simulation Mode not recognized : ' // model%option%simulation_mode
-         call printErrMsg(model%option)
-    end select
+    call model%simulation%InitializeRun()
+
     ! NOTE(bja, 2013-07-15) needs to go before InitializeRun()...?
     call pflotranModelSetupMappingFiles(model)
 

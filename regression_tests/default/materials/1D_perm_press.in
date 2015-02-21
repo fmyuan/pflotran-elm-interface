@@ -1,8 +1,19 @@
 #Description: 1D test problem for permeability update with pressure
 #Satish Karra
-#01/15/2014 
+#01/15/2014
 #===================== richards mode ===============================================
-MODE RICHARDS 
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+  /
+END
+
+SUBSURFACE
+
 
 #updating permeability based on pressure
 UPDATE_FLOW_PERMEABILITY
@@ -72,8 +83,8 @@ END
 MATERIAL_PROPERTY soil1
   ID 1
   POROSITY 0.5d0
-  SATURATION_FUNCTION default 
-  PERMEABILITY 
+  CHARACTERISTIC_CURVES default
+  PERMEABILITY
     PERM_X 1.d-15
     PERM_Y 1.d-15
     PERM_Z 1.d-15
@@ -85,12 +96,17 @@ MATERIAL_PROPERTY soil1
   /
 END
 
-#========================= saturation functions ===============================
-SATURATION_FUNCTION default
-  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
-  RESIDUAL_SATURATION 0.5d-1
-  LAMBDA 0.75
-  ALPHA 1.d-3
+#=========================== characteristic curves =============================
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.75
+    ALPHA  1.d-3
+    LIQUID_RESIDUAL_SATURATION 0.5d-1
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.75
+    LIQUID_RESIDUAL_SATURATION 0.5d-1
+  /
 END
 
 #========================= output options =====================================
@@ -99,7 +115,11 @@ OUTPUT
   SCREEN PERIODIC 1
   PRINT_COLUMN_IDS
   FORMAT TECPLOT POINT
-  PERMEABILITY
+  VARIABLES
+    LIQUID_PRESSURE
+    LIQUID_SATURATION
+    PERMEABILITY
+  /
   VELOCITY_AT_CENTER
 END
 
@@ -143,15 +163,15 @@ FLOW_CONDITION initial
   PRESSURE 1.5D5
 END
 
-FLOW_CONDITION east 
-  TYPE 
+FLOW_CONDITION east
+  TYPE
     PRESSURE dirichlet
   /
   PRESSURE 1.5D5
 END
 
 FLOW_CONDITION west
-  TYPE 
+  TYPE
     PRESSURE dirichlet
   /
   PRESSURE 10.0D5
@@ -181,3 +201,4 @@ STRATA
   MATERIAL soil1
 END
 
+END_SUBSURFACE

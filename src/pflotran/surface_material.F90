@@ -89,7 +89,7 @@ subroutine SurfaceMaterialPropertyRead(surf_material_property,input,option)
   do
     call InputReadPflotranString(input,option)
     
-    if(InputCheckExit(input,option)) exit
+    if (InputCheckExit(input,option)) exit
   
     call InputReadWord(input,option,keyword,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword','SURFACE_MATERIAL_PROPERTY')
@@ -103,9 +103,7 @@ subroutine SurfaceMaterialPropertyRead(surf_material_property,input,option)
         call InputReadDouble(input,option,surf_material_property%mannings)
         call InputErrorMsg(input,option,'MANNINGS','SURFACE_MATERIAL_PROPERTY')
       case default
-        option%io_buffer = 'Keyword: ' // trim(keyword) // &
-          ' not recognized in surface_material_property'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(keyword,'SURFACE_MATERIAL_PROPERTY',option)
       end select
   enddo
   
@@ -157,7 +155,7 @@ recursive subroutine SurfaceMaterialPropertyDestroy(surf_material_property)
   
   type(surface_material_property_type), pointer :: surf_material_property
   
-  if(.not.associated(surf_material_property)) return
+  if (.not.associated(surf_material_property)) return
   
   call SurfaceMaterialPropertyDestroy(surf_material_property%next)
   

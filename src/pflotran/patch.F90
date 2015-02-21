@@ -245,7 +245,7 @@ subroutine PatchAddToList(new_patch,patch_list)
   type(patch_type), pointer :: new_patch
   type(patch_list_type) :: patch_list
   
-  if(associated(new_patch)) then
+  if (associated(new_patch)) then
      patch_list%num_patch_objects = patch_list%num_patch_objects + 1
      new_patch%id = patch_list%num_patch_objects
      if (.not.associated(patch_list%first)) patch_list%first => new_patch
@@ -577,7 +577,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
           endif
         endif
 
-        if(patch%surf_or_subsurf_flag == SURFACE) then
+        if (patch%surf_or_subsurf_flag == SURFACE) then
           strata%surf_material_property => &
             SurfaceMaterialPropGetPtrFromArray(strata%material_property_name, &
                                             patch%surf_material_property_array)
@@ -1784,7 +1784,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
           write(*,*)  trim(string)
         call printErrMsg(option)
     end select
-    if(associated(flow_condition%temperature)) then
+    if (associated(flow_condition%temperature)) then
       select case(flow_condition%temperature%itype)
         case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
           if (flow_condition%pressure%itype /= HYDROSTATIC_BC .or. &
@@ -1865,7 +1865,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
         call printErrMsg(option)
     end select
   endif
-  if(associated(flow_condition%energy_rate)) then
+  if (associated(flow_condition%energy_rate)) then
     select case (flow_condition%energy_rate%itype)
       case (ENERGY_RATE_SS)
         coupler%flow_aux_real_var(TH_TEMPERATURE_DOF,1:num_connections) = &
@@ -1989,6 +1989,7 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   use Grid_module
   use Dataset_Common_HDF5_class
   use Dataset_Gridded_HDF5_class
+  use Dataset_Ascii_class
 
   implicit none
   
@@ -2016,23 +2017,24 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   if (associated(flow_condition%pressure)) then
     select case(flow_condition%pressure%itype)
       case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        if (associated(flow_condition%pressure%dataset)) then
-          coupler%flow_aux_real_var(RICHARDS_PRESSURE_DOF, &
-                                    1:num_connections) = &
-            flow_condition%pressure%dataset%rarray(1)
-        else
-          select type(dataset => &
-                      flow_condition%pressure%dataset)
-            class is(dataset_gridded_hdf5_type)
-              call PatchUpdateCouplerFromDataset(coupler,option, &
-                                              patch%grid,dataset, &
-                                              RICHARDS_PRESSURE_DOF)
-            class default
-          end select
-        endif
+        select type(dataset => &
+                    flow_condition%pressure%dataset)
+          class is(dataset_ascii_type)
+            coupler%flow_aux_real_var(RICHARDS_PRESSURE_DOF, &
+                                      1:num_connections) = dataset%rarray(1)
+          class is(dataset_gridded_hdf5_type)
+            call PatchUpdateCouplerFromDataset(coupler,option, &
+                                            patch%grid,dataset, &
+                                            RICHARDS_PRESSURE_DOF)
+          class default
+        end select
       case(HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
    !  case(SATURATION_BC)
+      case(HET_DIRICHLET)
+        call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
+                flow_condition%pressure%dataset, &
+                num_connections,RICHARDS_PRESSURE_DOF,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
@@ -2294,7 +2296,7 @@ subroutine PatchUpdateHetroCouplerAuxVars(patch,coupler,dataset_base, &
     call printErrMsg(option)
   endif
   
-  if(option%iflowmode/=RICHARDS_MODE.and.option%iflowmode/=TH_MODE) then
+  if (option%iflowmode/=RICHARDS_MODE.and.option%iflowmode/=TH_MODE) then
     option%io_buffer='PatchUpdateHetroCouplerAuxVars only implemented '// &
       ' for RICHARDS or TH mode.'
     call printErrMsg(option)
@@ -3756,7 +3758,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
         vec_ptr(local_id) = &
           patch%imat_internal_to_external(patch%imat(grid%nL2G(local_id)))
       enddo
-    case(PROCESSOR_ID)
+    case(PROCESS_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = option%myrank
       enddo
@@ -4422,7 +4424,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
       call VecRestoreArrayF90(field%iphas_loc,vec_ptr2,ierr);CHKERRQ(ierr)
     case(MATERIAL_ID)
       value = patch%imat_internal_to_external(patch%imat(ghosted_id))
-    case(PROCESSOR_ID)
+    case(PROCESS_ID)
       value = option%myrank
     ! Need to fix the below two cases (they assume only one component) -- SK 02/06/13  
     case(SECONDARY_CONCENTRATION)
@@ -5244,9 +5246,9 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
       else if (vec_format == LOCAL) then
         patch%imat(1:grid%ngmax) = int(vec_ptr(1:grid%ngmax))
       endif
-    case(PROCESSOR_ID)
+    case(PROCESS_ID)
       call printErrMsg(option, &
-                       'Cannot set PROCESSOR_ID through PatchSetVariable()')
+                       'Cannot set PROCESS_ID through PatchSetVariable()')
   end select
 
   call VecRestoreArrayF90(vec,vec_ptr,ierr);CHKERRQ(ierr)
@@ -5425,7 +5427,7 @@ function PatchGetVarNameFromKeyword(keyword,option)
   character(len=MAXSTRINGLENGTH) :: var_name
 
   select case(keyword)
-    case('PROCESSOR_ID')
+    case('PROCESS_ID')
       var_name = 'Processor ID'
     case default
       option%io_buffer = 'Keyword "' // trim(keyword) // '" not ' // &
@@ -5460,8 +5462,8 @@ subroutine PatchGetIvarsFromKeyword(keyword,ivar,isubvar,var_type,option)
   type(option_type) :: option
 
   select case(keyword)
-    case('PROCESSOR_ID')
-      ivar = PROCESSOR_ID
+    case('PROCESS_ID')
+      ivar = PROCESS_ID
       isubvar = ZERO_INTEGER
       var_type = INT_VAR
     case default
@@ -5534,7 +5536,7 @@ subroutine PatchGetVariable2(patch,surf_field,option,output_option,vec,ivar, &
         vec_ptr(local_id) = &
           patch%imat_internal_to_external(patch%imat(grid%nL2G(local_id)))
       enddo
-    case(PROCESSOR_ID)
+    case(PROCESS_ID)
       do local_id=1,grid%nlmax
         vec_ptr(local_id) = option%myrank
       enddo

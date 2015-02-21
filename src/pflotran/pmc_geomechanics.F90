@@ -107,6 +107,8 @@ subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
 
   local_stop_flag = 0
 
+  call SetOutputFlags(this)
+
   call this%timestepper%StepDT(this%pms,local_stop_flag)
 
   ! Have to loop over all process models coupled in this object and update
@@ -124,18 +126,18 @@ subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
   enddo
 
   ! Run underlying process model couplers
-  if (associated(this%below)) then
+  if (associated(this%child)) then
     ! Set data needed by process-model
     call this%SetAuxData()
-    call this%below%RunToTime(this%timestepper%target_time,local_stop_flag)
+    call this%child%RunToTime(this%timestepper%target_time,local_stop_flag)
   endif
 
   ! Set data needed by process-model
   call this%SetAuxData()
 
   ! Run neighboring process model couplers
-  if (associated(this%next)) then
-    call this%next%RunToTime(sync_time,local_stop_flag)
+  if (associated(this%peer)) then
+    call this%peer%RunToTime(sync_time,local_stop_flag)
   endif
 
   stop_flag = max(stop_flag,local_stop_flag)

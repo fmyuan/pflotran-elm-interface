@@ -29,6 +29,7 @@ module PM_General_class
     PetscInt, pointer :: max_change_ivar(:)
     PetscInt, pointer :: max_change_isubvar(:)
   contains
+    procedure, public :: SetupSolvers => PMGeneralSetupSolvers
     procedure, public :: InitializeRun => PMGeneralInitializeRun
     procedure, public :: InitializeTimestep => PMGeneralInitializeTimestep
     procedure, public :: Residual => PMGeneralResidual
@@ -43,6 +44,8 @@ module PM_General_class
     procedure, public :: UpdateAuxvars => PMGeneralUpdateAuxvars
     procedure, public :: MaxChange => PMGeneralMaxChange
     procedure, public :: ComputeMassBalance => PMGeneralComputeMassBalance
+    procedure, public :: Checkpoint => PMGeneralCheckpoint
+    procedure, public :: Restart => PMGeneralRestart
     procedure, public :: Destroy => PMGeneralDestroy
   end type pm_general_type
   
@@ -87,9 +90,10 @@ function PMGeneralCreate()
                                 LIQUID_MOLE_FRACTION, TEMPERATURE, &
                                 GAS_SATURATION]
   allocate(general_pm%max_change_isubvar(6))
-  ! based on option%water_id = 1
-  general_pm%max_change_isubvar = [0,0,0,1,0,0]  
-  
+                                   ! UNINITIALIZED_INTEGER avoids zeroing of 
+                                   ! pressures not represented in phase
+                                       ! 2 = air in xmol(air,liquid)
+  general_pm%max_change_isubvar = [0,0,0,2,0,0]
   
   call PMSubsurfaceCreate(general_pm)
   general_pm%name = 'PMGeneral'
@@ -97,6 +101,40 @@ function PMGeneralCreate()
   PMGeneralCreate => general_pm
   
 end function PMGeneralCreate
+
+! ************************************************************************** !
+
+subroutine PMGeneralSetupSolvers(this,solver)
+  ! 
+  ! Sets up SNES solvers.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 12/03/14
+
+  use General_module, only : GeneralCheckUpdatePre, GeneralCheckUpdatePost
+  use Solver_module
+  
+  implicit none
+  
+  class(pm_general_type) :: this
+  type(solver_type) :: solver
+  
+  SNESLineSearch :: linesearch
+  PetscErrorCode :: ierr
+  
+  call PMSubsurfaceSetupSolvers(this,solver)
+
+  call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
+  call SNESLineSearchSetPreCheck(linesearch, &
+                                 GeneralCheckUpdatePre, &
+                                 this%realization,ierr);CHKERRQ(ierr)
+  if (solver%check_post_convergence) then
+    call SNESLineSearchSetPostCheck(linesearch, &
+                                    GeneralCheckUpdatePost, &
+                                    this%realization,ierr);CHKERRQ(ierr)
+  endif
+  
+end subroutine PMGeneralSetupSolvers
 
 ! ************************************************************************** !
 
@@ -195,7 +233,7 @@ end subroutine PMGeneralPostSolve
 
 ! ************************************************************************** !
 
-subroutine PMGeneralUpdateTimestep(this,dt,dt_max,iacceleration, &
+subroutine PMGeneralUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
                                     num_newton_iterations,tfac)
   ! 
   ! Author: Glenn Hammond
@@ -206,7 +244,7 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_max,iacceleration, &
   
   class(pm_general_type) :: this
   PetscReal :: dt
-  PetscReal :: dt_max
+  PetscReal :: dt_min,dt_max
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
@@ -234,7 +272,8 @@ subroutine PMGeneralUpdateTimestep(this,dt,dt_max,iacceleration, &
   ifac = max(min(num_newton_iterations,size(tfac)),1)
   dtt = fac * dt * (1.d0 + umin)
   dt = min(dtt,tfac(ifac)*dt,dt_max)
-  
+  dt = max(dt,dt_min)
+
 end subroutine PMGeneralUpdateTimestep
 
 ! ************************************************************************** !
@@ -419,7 +458,8 @@ subroutine PMGeneralMaxChange(this)
   PetscReal, pointer :: vec_ptr(:), vec_ptr2(:)
   PetscReal :: max_change_local(6)
   PetscReal :: max_change_global(6)
-  PetscInt :: i
+  PetscReal :: max_change
+  PetscInt :: i, j
   PetscInt :: local_id, ghosted_id
 
   
@@ -440,7 +480,14 @@ subroutine PMGeneralMaxChange(this)
     ! to customize
     call VecGetArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%max_change_vecs(i),vec_ptr2,ierr);CHKERRQ(ierr)
-    max_change_local(i) = maxval(dabs(vec_ptr(:)-vec_ptr2(:)))
+    max_change = 0.d0
+    do j = 1, grid%nlmax
+      ! have to week out cells that changed state
+      if (dabs(vec_ptr(j)) > 1.d-40 .and. dabs(vec_ptr2(j)) > 1.d-40) then
+        max_change = max(max_change,dabs(vec_ptr(j)-vec_ptr2(j)))
+      endif
+    enddo
+    max_change_local(i) = max_change
     call VecRestoreArrayF90(field%work,vec_ptr,ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%max_change_vecs(i),vec_ptr2, &
                             ierr);CHKERRQ(ierr)
@@ -461,7 +508,8 @@ subroutine PMGeneralMaxChange(this)
       & " dsg= ",1pe12.4)') &
       max_change_global(1:6)
   endif
-  this%dPmax = maxval(max_change_global(1:3))
+  ! ignore air pressure as it jumps during phase change
+  this%dPmax = maxval(max_change_global(1:2))
   this%dXmax = max_change_global(4)
   this%dTmax = max_change_global(5)
   this%dSmax = max_change_global(6)
@@ -487,6 +535,57 @@ subroutine PMGeneralComputeMassBalance(this,mass_balance_array)
 
 end subroutine PMGeneralComputeMassBalance
 
+! ************************************************************************** !
+
+subroutine PMGeneralCheckpoint(this,viewer)
+  ! 
+  ! Checkpoints data associated with General PM
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/18/15
+
+  use Checkpoint_module
+  use Global_module
+  use Variables_module, only : STATE
+
+  implicit none
+#include "finclude/petscviewer.h"      
+
+  class(pm_general_type) :: this
+  PetscViewer :: viewer
+  
+  call GlobalGetAuxVarVecLoc(this%realization, &
+                             this%realization%field%iphas_loc, &
+                             STATE,ZERO_INTEGER)
+  call PMSubsurfaceCheckpoint(this,viewer)
+  
+end subroutine PMGeneralCheckpoint
+
+! ************************************************************************** !
+
+subroutine PMGeneralRestart(this,viewer)
+  ! 
+  ! Restarts data associated with General PM
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/18/15
+
+  use Checkpoint_module
+  use Global_module
+  use Variables_module, only : STATE
+
+  implicit none
+#include "finclude/petscviewer.h"      
+
+  class(pm_general_type) :: this
+  PetscViewer :: viewer
+  
+  call PMSubsurfaceRestart(this,viewer)
+  call GlobalSetAuxVarVecLoc(this%realization, &
+                             this%realization%field%iphas_loc, &
+                             STATE,ZERO_INTEGER)
+  
+end subroutine PMGeneralRestart
 ! ************************************************************************** !
 
 subroutine PMGeneralDestroy(this)

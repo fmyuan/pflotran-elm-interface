@@ -1,23 +1,37 @@
 !Description! BRAGFLO Case #5 simulation...or at least an attempt at it....
 
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+        !  WINDOW_EPSILON 1.d-4
+        ISOTHERMAL
+        TWO_PHASE_ENERGY_DOF TEMPERATURE
+        GAS_COMPONENT_FORMULA_WEIGHT 2.01588D0 ! kg/kmol
+        MAXIMUM_PRESSURE_CHANGE 1.0D6
+      /
+    /
+  /
+END
+
+SUBSURFACE
+
 !=========================== flow mode ========================================
-MODE GENERAL MORE
-!  WINDOW_EPSILON 1.d-4
-  ISOTHERMAL
-  TWO_PHASE_ENERGY_DOF TEMPERATURE  
-  GAS_COMPONENT_FORMULA_WEIGHT 2.01588D0 ! kg/kmol
-  MAXIMUM_PRESSURE_CHANGE 1.0D6
-/
 
 REGRESSION
   CELLS_PER_PROCESS 10
   CELLS
-    110
+    89
+    91
+    100
     111
     112
-    113
     114
-    115
+    122
+    133
+    135
   /
 END
 !=========================== discretization ===================================
@@ -26,7 +40,7 @@ GRID
   NXYZ 11 1 21
   DXYZ
     0.5d0 10*1.d0
-    1.d0 
+    1.d0
     21*1.d0
   /
 /
@@ -37,7 +51,6 @@ TIMESTEPPER FLOW
 END
 
 NEWTON_SOLVER FLOW
-
 /
 
 LINEAR_SOLVER FLOW
@@ -225,7 +238,7 @@ END
 
 !=========================== observation points ===============================
 skip
-OBSERVATION 
+OBSERVATION
   REGION injection_point
 /
 noskip
@@ -648,3 +661,4 @@ STRATA
   REGION all
 /
 
+END_SUBSURFACE
