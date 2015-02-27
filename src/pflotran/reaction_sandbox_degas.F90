@@ -347,25 +347,19 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
          xmole_co2, xmass_co2, co2_henry, co2_fg, co2_xphi)
     c_co2_eq =  xmole_co2/H2O_kg_mol                              ! moleCO2/mole solution -> moleCO2/kg (L) water solution
 
-    temp_real = volume * 1000.0d0 * porosity * lsat        ! kgH2O
-    if (PETSC_FALSE) then
-      rate = this%k_kinetic_co2 * (c_co2_aq/c_co2_eq - 1.0d0) * temp_real
-    else
-      rate = this%k_kinetic_co2 * (c_co2_aq - c_co2_eq) * temp_real
-    endif
+    temp_real = volume * 1000.0d0 * porosity * lsat                      ! kgH2O
+    !rate = this%k_kinetic_co2 * (c_co2_aq/c_co2_eq-1.0d0) * temp_real   ! moles/second: moles/kgW/s * (-) * kgW
+    rate = this%k_kinetic_co2 * (c_co2_aq - c_co2_eq) * temp_real        ! moles/second: 1/s * moles/kgW * kgW
 
-! degas occurs if over-saturated, or gas dissolves if high gas conc.
+    ! degas occurs if over-saturated, or gas dissolves if high gas conc.
     if(abs(rate) > 1.0d-20) then
 
       Residual(ires_co2a) = Residual(ires_co2a) + rate
       Residual(ires_co2g) = Residual(ires_co2g) - rate
 
       if (compute_derivative) then
-        if (PETSC_FALSE) then
-            drate = this%k_kinetic_co2 /c_co2_eq * temp_real
-        else
-            drate = this%k_kinetic_co2 * temp_real
-        endif
+        !drate = this%k_kinetic_co2 /c_co2_eq * temp_real
+        drate = this%k_kinetic_co2 * temp_real                    ! ????? -- this seems incorrect (TODO)
 
         Jacobian(ires_co2a,ires_co2a) = Jacobian(ires_co2a,ires_co2a) + drate * &
                 rt_auxvar%aqueous%dtotal(this%ispec_co2a,this%ispec_co2a,iphase)
@@ -401,14 +395,11 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
     total_sal = 1.0d-20
     call weiss_price_n2o (temp_real, air_press, total_sal, n2o_p, &
          xmole_n2o, xmass_n2o, n2o_henry, n2o_fg, n2o_xphi)
-    c_n2o_eq =  xmole_n2o/H2O_kg_mol                            ! moleN2O/mole solution -> moleN2O/kg (L) water solution
+    c_n2o_eq =  xmole_n2o/H2O_kg_mol                                    ! moleN2O/mole solution -> moleN2O/kg (L) water solution
 
     temp_real = volume * 1000.0d0 * porosity * lsat                     ! kgH2O (L)
-    if (PETSC_FALSE) then
-      rate = this%k_kinetic_n2o * (c_n2o_aq/c_n2o_eq - 1.0d0) * temp_real
-    else
-      rate = this%k_kinetic_n2o * (c_n2o_aq - c_n2o_eq) * temp_real
-    endif
+    !rate = this%k_kinetic_n2 * (c_n2o_aq/c_n2o_eq-1.0d0) * temp_real   ! moles/second: moles/kgW/s * (-) * kgW
+    rate = this%k_kinetic_n2o * (c_n2o_aq - c_n2o_eq) * temp_real       ! moles/second: 1/s * moles/kgW * kgW
 
     ! degas occurs if over-saturated, or gas dissolves if high gas conc.
     if(abs(rate) > 1.0d-20) then
@@ -417,11 +408,8 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
       Residual(ires_n2og) = Residual(ires_n2og) - rate
 
       if (compute_derivative) then
-        if (PETSC_FALSE) then
-            drate = this%k_kinetic_n2o /c_n2o_eq * temp_real
-        else
-            drate = this%k_kinetic_n2o * temp_real
-        endif
+        !drate = this%k_kinetic_n2o /c_n2o_eq * temp_real
+        drate = this%k_kinetic_n2o * temp_real
 
         Jacobian(ires_n2oa,ires_n2oa) = Jacobian(ires_n2oa,ires_n2oa) + drate * &
             rt_auxvar%aqueous%dtotal(this%ispec_n2oa,this%ispec_n2oa,iphase)
@@ -459,24 +447,18 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
     c_n2_eq =  xmole_n2/H2O_kg_mol                            ! moleN2/mole solution -> moleN2/kg (L) water solution
 
     temp_real = volume * porosity * lsat * 1.d3                       ! kgH2O (L) <== m3
-    if (PETSC_FALSE) then
-      rate = this%k_kinetic_n2 * (c_n2_aq/c_n2_eq - 1.0d0) * temp_real
-    else
-      rate = this%k_kinetic_n2 * (c_n2_aq - c_n2_eq) * temp_real
-    endif
+    !rate = this%k_kinetic_n2 * (c_n2_aq/c_n2_eq-1.0d0) * temp_real   ! moles/second: moles/kgW/s * (-) * kgW
+    rate = this%k_kinetic_n2 * (c_n2_aq - c_n2_eq) * temp_real        ! moles/second: 1/s * moles/kgW * kgW
 
-! degas occurs if over-saturated, or gas dissolves if high gas conc.
+    ! degas occurs if over-saturated, or gas dissolves if high gas conc.
     if(abs(rate) > 1.0d-20) then
 
       Residual(ires_n2a) = Residual(ires_n2a) + rate
       Residual(ires_n2g) = Residual(ires_n2g) - rate
 
       if (compute_derivative) then
-        if (PETSC_FALSE) then
-            drate = this%k_kinetic_n2 /c_n2_eq * temp_real
-        else
-            drate = this%k_kinetic_n2 * temp_real
-        endif
+        !drate = this%k_kinetic_n2 /c_n2_eq * temp_real
+        drate = this%k_kinetic_n2 * temp_real
 
         Jacobian(ires_n2a,ires_n2a) = Jacobian(ires_n2a,ires_n2a) + drate * &
             rt_auxvar%aqueous%dtotal(this%ispec_n2a,this%ispec_n2a,iphase)

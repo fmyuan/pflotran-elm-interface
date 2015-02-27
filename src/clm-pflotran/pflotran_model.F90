@@ -134,16 +134,18 @@ module pflotran_model_module
        pflotranModelSetupMappingFiles
 
   public ::  &
-       pflotranModelResetSoilPorosity,         &
-       pflotranModelGetSoilProp,               &
+       pflotranModelResetSoilPorosity,          &
+       pflotranModelGetSoilProp,                &
        pflotranModelSetInternalTHStatesfromCLM, &    ! initializing TH from CLM to PFLOTRAN flow mode
-       pflotranModelSetInitialConcentrations,  &
-       pflotranModelUpdateTHfromCLM,           &    ! dynamically update TH from CLM to drive PFLOTRAN BGC
-       pflotranModelUpdateAqGasesFromCLM,      &
-       pflotranModelSetBGCRates,               &
-       pflotranModelGetBgcVariables,           &
-       pflotranModelSetSoilHbcs,               &
-       pflotranModelGetBCMassBalanceDelta,     &
+       pflotranModelSetInitialConcentrations,   &
+       pflotranModelUpdateTHfromCLM,            &    ! dynamically update TH from CLM to drive PFLOTRAN BGC
+       pflotranModelUpdateAqConcFromCLM,        &
+       pflotranModelUpdateAqGasesFromCLM,       &
+       pflotranModelSetBGCRates,                &
+       pflotranModelGetBgcVariables,            &
+       pflotranModelGetSaturation,              &
+       pflotranModelSetSoilHbcs,                &
+       pflotranModelGetBCMassBalanceDelta,      &
        pflotranModelUpdateFinalWaypoint
 
 contains
@@ -794,7 +796,7 @@ end subroutine pflotranModelSetICs
 #endif
 
 
-    !(TODO) need a better way to generate MVM parameters from CLM inputs (temporarily off - fmyuan)
+    !(TODO) need a better way to generate MVM parameters from CLM inputs
       ! bc_alpha [1/Pa]; while sucsat [mm of H20]
       ! [Pa] = [mm of H20] * 0.001 [m/mm] * 1000 [kg/m^3] * 9.81 [m/sec^2]
       bc_alpha = 1.d0/(sucsat_pf_loc(ghosted_id)*grav)
@@ -3161,6 +3163,7 @@ end subroutine pflotranModelSetICs
     use Realization_class
     use Patch_module
     use Grid_module
+    use Field_module
     use Global_Aux_module
     use Richards_Aux_module
     use TH_Aux_module
@@ -3181,6 +3184,7 @@ end subroutine pflotranModelSetICs
     class(realization_type), pointer          :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
+    type(field_type), pointer                 :: field
     type(global_auxvar_type), pointer         :: global_auxvars(:)
     type(richards_auxvar_type), pointer       :: rich_auxvars(:)
     type(TH_auxvar_type), pointer             :: th_auxvars(:)
@@ -3190,6 +3194,8 @@ end subroutine pflotranModelSetICs
     PetscReal, pointer :: soilisat_pf_p(:)
     PetscReal, pointer :: press_pf_p(:)
     PetscReal, pointer :: soilpsi_pf_p(:)
+    PetscReal, pointer :: porosity0_loc_p(:)     ! soil porosity in field%porosity0
+    PetscScalar, pointer :: porosity_loc_pfp(:)  ! soil porosity saved in clm-pf-idata
 
     PetscInt :: i
     PetscReal, pointer :: vec_loc(:)
@@ -3208,6 +3214,7 @@ end subroutine pflotranModelSetICs
 
     patch           => realization%patch
     grid            => patch%grid
+    field           => realization%field
     global_auxvars  => patch%aux%Global%auxvars
     select case(pflotran_model%option%iflowmode)
       case (RICHARDS_MODE)
@@ -3226,6 +3233,12 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%soilpsi_pfp, soilpsi_pf_p, ierr)
     CHKERRQ(ierr)
 
+    ! save porosity for estimating actual water content from saturation, when needed
+    call VecGetArrayF90(field%porosity0,porosity0_loc_p,ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%porosity_pfp, porosity_loc_pfp, ierr)
+    CHKERRQ(ierr)
+
     do local_id=1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
       if (ghosted_id <=0 ) cycle
@@ -3233,6 +3246,8 @@ end subroutine pflotranModelSetICs
       soillsat_pf_p(local_id)=global_auxvars(ghosted_id)%sat(1)
       press_pf_p(local_id)   =global_auxvars(ghosted_id)%pres(1)
 
+      ! PF's field porosity pass to clm-pf-idata and saved
+       porosity_loc_pfp(local_id) = porosity0_loc_p(local_id)
 
 #if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
 ! F.-M. Yuan: the following check proves DATA-passing from PF to CLM MUST BE done by ghosted_id --> local_id
@@ -3258,6 +3273,10 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%soilpsi_pfp, soilpsi_pf_p, ierr)
     CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%porosity0,porosity0_loc_p,ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%porosity_pfp, porosity_loc_pfp, ierr)
+    CHKERRQ(ierr)
 
     ! mapping to CLM vecs (seq)
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -3274,6 +3293,11 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
                                     pflotran_model%option, &
                                     clm_pf_idata%soilpsi_pfp, &
                                     clm_pf_idata%soilpsi_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%porosity_pfp, &
+                                    clm_pf_idata%porosity_clms)
 
     if (pflotran_model%option%iflowmode == TH_MODE .and. &
         pflotran_model%option%use_th_freezing) then
@@ -4259,6 +4283,223 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 1 (CLM->PF ls
     endif
 
   end subroutine pflotranModelUpdateTHfromCLM
+
+  ! ************************************************************************** !
+  !
+  ! pflotranModelUpdateAqConcFromCLM:
+  !  Get CLM aqueous nutrient concentrations (NH4, NO3 at this momment),
+  !  converts from CLM units into PFLOTRAN units, and reset concentrations in PFLOTRAN
+  !
+  !   notes: when NOT coupled with PF Hydrology, forcing CLM water saturation to reset
+  !          PF's global saturation status WOULD cause aq. phase element mass balance issue
+  !
+  !  author: Fengming YUAN
+  !  corrected by Fengming Yuan @ 02/23/2015
+  ! ************************************************************************** !
+  subroutine pflotranModelUpdateAqConcFromCLM(pflotran_model)
+
+    use Global_Aux_module
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Option_module
+    use Field_module
+    use Reaction_Aux_module
+    use Reactive_Transport_module, only : RTUpdateAuxVars
+    use Reactive_Transport_Aux_module
+    use Discretization_module
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(field_type), pointer                 :: field
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(simulation_base_type), pointer       :: simulation
+    type(global_auxvar_type), pointer         :: global_auxvars(:)
+    type(aq_species_type), pointer            :: cur_aq_spec
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id
+    PetscInt           :: ghosted_id
+    PetscReal, pointer :: xx_p(:)
+
+    PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (gN/m3)
+    PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
+    PetscReal, pointer   :: porosity0_loc_p(:)              ! current CLM-updated porosity
+
+    PetscReal, pointer :: porosity_pre_pf_loc(:)            !previous time-step porosity (m3/m3 bulk soil)
+    PetscReal, pointer :: soillsat_pre_pf_loc(:)            !previous time-step soil liq. water saturation (0 - 1)
+
+    PetscInt :: ispec_no3, ispec_nh4, offset, offset_aq
+
+    character(len=MAXWORDLENGTH) :: word
+    PetscReal, parameter :: C_molecular_weight = 12.0107d0
+    PetscReal, parameter :: N_molecular_weight = 14.0067d0
+    PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
+    PetscReal :: theta_pre
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer &
+          = "ERROR: SetInitialConcentrations not supported under this mode.."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    patch => realization%patch
+    grid  => patch%grid
+    field => realization%field
+    global_auxvars  => patch%aux%Global%auxvars
+
+    word = "NO3-"
+    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+
+    word = "NH4+"
+    ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+
+    if(ispec_nh4 < 0) then
+       word = "NH3(aq)"
+       ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    endif
+
+    if(ispec_no3 > 0) then
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%smin_no3_vr_clmp, &
+                                    clm_pf_idata%smin_no3_vr_pfs)
+    endif
+
+    if(ispec_nh4 > 0) then
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%smin_nh4_vr_clmp, &
+                                    clm_pf_idata%smin_nh4_vr_pfs)
+    endif
+
+    !
+    if(ispec_no3 > 0) then
+      call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+    if(ispec_nh4 > 0) then
+      call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+    call VecGetArrayF90(field%tran_xx,xx_p,ierr)
+    CHKERRQ(ierr)
+
+    call VecGetArrayReadF90(field%porosity0, porosity0_loc_p, ierr)
+    CHKERRQ(ierr)
+
+    ! the previous time-step porosity and lsat from PFLOTRAN, saved in clm_pf_idata
+    ! NOTE: make sure NOT modified by CLM
+    call VecGetArrayReadF90(clm_pf_idata%porosity_pfp, porosity_pre_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayReadF90(clm_pf_idata%soillsat_pfp, soillsat_pre_pf_loc, ierr)
+    CHKERRQ(ierr)
+
+    do local_id = 1, grid%nlmax
+      ghosted_id=grid%nL2G(local_id)
+      if (ghosted_id<=0 .or. local_id <= 0) cycle ! bypass ghosted corner cells
+      if (patch%imat(local_id) <= 0) cycle
+
+      offset = (local_id - 1)*realization%reaction%ncomp
+      offset_aq = offset + realization%reaction%offset_aqueous
+
+      ! at this moment, both 'saturtion' and 'porosity' have been updated from CLM and pass to PF
+      ! otherwise, it's no use.
+      saturation = global_auxvars(ghosted_id)%sat(1)          ! using 'ghosted_id' if from 'global_auxvars'
+      porosity = porosity0_loc_p(local_id)                    ! using 'local_id' if from 'field%???'
+      theta = saturation * porosity
+
+      if(ispec_no3 > 0) then
+         xx_p(offset_aq + ispec_no3) = max(smin_no3_vr_pf_loc(ghosted_id) / &      ! from 'ghosted_id' to field%xx_p's local
+                                    N_molecular_weight / theta / 1000.0d0, &
+                                    xeps0_conc)
+      endif
+
+      if(ispec_nh4 > 0) then
+         xx_p(offset_aq + ispec_nh4) = max(smin_nh4_vr_pf_loc(ghosted_id) / &
+                                    N_molecular_weight / theta / 1000.d0, &
+                                    xeps0_conc)
+      endif
+
+      ! adjusting other aq. species conc. due to CLM pass-in theta (porosity X saturation)
+      ! NOTE: (1) if NO CLM-relevant species in PF bgc input deck, the following IS NOT needed!
+      !       (2) for CLM-relevant species, the above approach IS same as the following (CANNOT be both).
+      !         However, using the above approach WILL catch any changes did by CLM. e.g. when no
+      !         hydrology coupling, N leaching is done in CLM and changes N conc.
+      !       (3) for same reason, if 'vertical SOM' transport IS ON in CLM, we need to add those species here (TODO)
+
+      ! previous timestep saved PF's 'porosity' and 'saturation' in clm-pf-idata%???_pfp
+      theta_pre = porosity_pre_pf_loc(local_id)*  &
+                  soillsat_pre_pf_loc(local_id)
+
+      cur_aq_spec => realization%reaction%primary_species_list
+      do
+        if (.not.associated(cur_aq_spec)) exit
+
+        if (theta_pre> 1.d-20 .and. theta > 1.0d-20) then
+           if (cur_aq_spec%id .ne. ispec_no3 .and. &
+               cur_aq_spec%id .ne. ispec_nh4) then
+              xx_p(offset_aq + cur_aq_spec%id) = xx_p(offset_aq + cur_aq_spec%id) &
+                                            * theta_pre / theta
+           end if
+        end if
+        cur_aq_spec => cur_aq_spec%next
+      enddo
+
+    enddo
+
+    if(ispec_no3 > 0) then
+      call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+    if(ispec_nh4 > 0) then
+      call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+    call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%porosity0, porosity0_loc_p, ierr)
+    CHKERRQ(ierr)
+
+    call VecRestoreArrayReadF90(clm_pf_idata%porosity_pfp, porosity_pre_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%soillsat_pfp, soillsat_pre_pf_loc, ierr)
+    CHKERRQ(ierr)
+
+    call DiscretizationGlobalToLocal(realization%discretization,field%tran_xx, &
+                                   field%tran_xx_loc,NTRANDOF)
+
+    call VecCopy(field%tran_xx,field%tran_yy,ierr)
+    CHKERRQ(ierr)
+    call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
+
+  end subroutine pflotranModelUpdateAqConcFromCLM
 
   ! ************************************************************************** !
   !> This routine reset gas concenctration (as immobile species) after emission adjusting
@@ -5314,35 +5555,6 @@ subroutine pflotranModelGetSoilProp(pflotran_model)
         call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  PERMEABILITY_Z,0)
     endif
-
-    ! mapping back to CLM, which are needed for calculating real VWC from PF's saturation evolved timely
-    call VecGetArrayF90(clm_pf_idata%porosity_pfp,  porosity_pfp_loc,  ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(field%porosity0, porosity0_loc_p, ierr)
-    CHKERRQ(ierr)
-    do ghosted_id = 1, grid%ngmax
-      local_id = grid%nG2L(ghosted_id)
-      if (ghosted_id < 0 .or. local_id < 0) cycle
-      if (patch%imat(ghosted_id) <= 0) cycle
-
-        ! PF's porosity
-        porosity_pfp_loc(local_id) = porosity0_loc_p(local_id)
-    enddo
-    call VecRestoreArrayF90(clm_pf_idata%porosity_pfp,  porosity_pfp_loc,  ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%porosity0, porosity0_loc_p, ierr)
-    CHKERRQ(ierr)
-
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%porosity_pfp, &
-                                    clm_pf_idata%porosity_clms)
-
-    ! need to save ice saturation data for convenience
-    !call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-    !                                pflotran_model%option, &
-    !                                clm_pf_idata%soilisat_pfp, &
-    !                                clm_pf_idata%soilisat_clms)
 
   end subroutine pflotranModelResetSoilPorosity
 

@@ -839,9 +839,9 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscInt, parameter :: iphase = 1
 
   PetscReal :: temp_real
-  PetscReal :: c_uc, c_un    ! concentration (mole/m3 or mole/L, upon species type)
-  PetscReal :: c_nh3         ! concentration (mole/L): substrate OR product
-  PetscReal :: c_no3         ! concentration (mole/L): substrate only
+  PetscReal :: c_uc, c_un    ! concentration (mole/m3 or mole/L, upon species type) => mole/m3bulk if needed
+  PetscReal :: c_nh3         ! concentration (mole/L): substrate OR product,  => mole/m3bulk
+  PetscReal :: c_no3         ! concentration (mole/L): substrate only,  => mole/m3bulk
 
   PetscInt :: irxn
   PetscInt :: ipool_up, ipool_down
@@ -913,10 +913,43 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   !------------------------------------------------------------------------------------------------
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
+  saturation = global_auxvar%sat(1)
 
+  theta = saturation * porosity
+  psi = min(global_auxvar%pres(1) - option%reference_pressure, -1.d-20)     ! if positive, saturated soil's psi is nearly zero
+
+  ! moisture response function
+#ifdef CLM_PFLOTRAN
+  ghosted_id = option%iflag
+  if(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_CLM4) then
+     f_w = GetMoistureResponse(theta, ghosted_id, this%moisture_response_function)
+  elseif(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_DLEM) then
+     f_w = GetMoistureResponse(theta, ghosted_id, this%moisture_response_function)
+  endif
+#else
+  f_w = 1.0d0
+#endif
+
+  !----------------------------------------------------------------------------------------
+  ! temperature response function
+  tc = global_auxvar%temp
+
+#ifdef CLM_PFLOTRAN
+  f_t = GetTemperatureResponse(tc,this%temperature_response_function, this%Q10)
+#else
+  f_t = 1.0d0
+#endif
+
+  if(f_t < 1.0d-20 .or. f_w < 1.0d-20) then
+     return
+  endif
+
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   ! -----------------------------------------------------------------------------------------------
   ! 'nh3' dependent rate function (DON'T change the 'rate' and 'derivatives' after this)
-  c_nh3     = rt_auxvar%total(this%species_id_nh3, iphase)
+  ires_nh3  = this%species_id_nh3 + reaction%offset_aqueous       ! as aq. species
+
+  c_nh3     = rt_auxvar%total(ires_nh3, iphase)*theta*1000.0d0    ! from mol/L -> mol/m3 bulk
   temp_real = c_nh3 + this%half_saturation_nh3
   fnh3      = c_nh3 / temp_real
   dfnh3_dnh3 = this%half_saturation_nh3 / temp_real / temp_real
@@ -953,7 +986,9 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   if (this%species_id_no3 > 0) then
     ! 'no3' dependent rate function (DON'T change the 'rate' and 'derivatives' after this)
-    c_no3 = rt_auxvar%total(this%species_id_no3, iphase)
+    ires_no3  = this%species_id_no3 + reaction%offset_aqueous        ! as aq. species
+
+    c_no3 = rt_auxvar%total(this%species_id_no3, iphase)*theta*1000.0d0    ! from mol/L -> mol/m3 bulk
     temp_real = c_no3 + this%half_saturation_no3
     fno3      = c_no3 / temp_real
     dfno3_dno3= this%half_saturation_no3 / temp_real / temp_real
@@ -1008,11 +1043,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   endif ! if (this%species_id_no3>0)
 
   !----------------------------------------------------------------------------------------------
-  ires_co2 = this%species_id_co2
-  ires_nh3 = this%species_id_nh3
-  ires_no3 = this%species_id_no3
-  ires_n2o = this%species_id_n2o
-
+  ires_co2 = this%species_id_co2 + reaction%offset_aqueous       ! as aq. species
   if(this%species_id_hrimm > 0) then
      ires_hrimm = this%species_id_hrimm + reaction%offset_immobile
   endif
@@ -1024,42 +1055,6 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   if(this%species_id_nimm > 0) then
      ires_nimm = this%species_id_nimm + reaction%offset_immobile
   endif
-
-  if(this%species_id_ngasmin > 0) then
-     ires_ngasmin = this%species_id_ngasmin + reaction%offset_immobile
-  endif
-
-  !----------------------------------------------------------------------------------------
-  ! temperature response function
-  tc = global_auxvar%temp
-
-#ifdef CLM_PFLOTRAN 
-  f_t = GetTemperatureResponse(tc,this%temperature_response_function, this%Q10) 
-#else
-  f_t = 1.0d0
-#endif
-
-  saturation = global_auxvar%sat(1)
-  theta = saturation * porosity 
-  psi = min(global_auxvar%pres(1) - option%reference_pressure, -1.d-20)     ! if positive, saturated soil's psi is nearly zero
-
-  ! moisture response function 
-#ifdef CLM_PFLOTRAN
-  ghosted_id = option%iflag
-  if(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_CLM4) then
-     f_w = GetMoistureResponse(theta, ghosted_id, this%moisture_response_function)
-  elseif(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_DLEM) then
-     f_w = GetMoistureResponse(theta, ghosted_id, this%moisture_response_function)
-  endif
-#else
-  f_w = 1.0d0
-#endif
-
-  if(f_t < 1.0d-20 .or. f_w < 1.0d-20) then
-     return
-  endif
-
-!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   net_nmin_rate     = 0.0d0
   dnet_nmin_rate_dx = 0.0d0
@@ -1077,7 +1072,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     if(this%upstream_is_aqueous(irxn)) then
       c_uc = rt_auxvar%total(ispec_uc, iphase)
       c_uc = theta * 1000.0d0 * c_uc    ! from mol/L -> mol/m3
-      ires_uc = ispec_uc
+      ires_uc = reaction%offset_aqueous + ispec_uc
     else
       c_uc = rt_auxvar%immobile(ispec_uc)
       ires_uc = reaction%offset_immobile + ispec_uc
@@ -1109,42 +1104,48 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     endif
 
     ! C substrate only dependent rate/derivative  (DON'T change after this)
-    crate_uc  = scaled_crate_const * c_uc * feps0
+    crate_uc  = scaled_crate_const * c_uc * feps0    ! moles/s: (m3 bulk/s)* (moles/m3 bulk) * (-)
     dcrate_uc_duc = scaled_crate_const * (feps0 + c_uc*dfeps0_dx)
 
     !-----------------------------------------------------------------------------------------------------
 
-    ! for litter decomposition reactions, N/C stoichiometry needs to be calculated on the fly
+    ! for varying N/C ratio C pool decomposition reactions, N/C stoichiometry needs to be calculated on the fly
     if(this%upstream_is_varycn(irxn)) then
 
       ispec_un = this%upstream_n_id(irxn)
-      ires_un = ispec_un + reaction%offset_immobile
+      if (ispec_un>0) then  ! just in case
+        if(this%upstream_is_aqueous(irxn)) then
+          c_un = rt_auxvar%total(ispec_un, iphase)
+          c_un = theta * 1000.0d0 * c_uc    ! from mol/L -> mol/m3
+          ires_un = ispec_un + reaction%offset_aqueous
+        else
+          c_un = rt_auxvar%immobile(ispec_un)
+          ires_un = ispec_un + reaction%offset_immobile
+        endif
+        this%upstream_nc(irxn) = c_un / c_uc
 
-      if(ispec_un > 0) then
-         c_un = rt_auxvar%immobile(ispec_un)
-         this%upstream_nc(irxn) = c_un / c_uc
-      endif
+        ! calculate respiration factor (CO2 stoichiometry)
+        stoich_c = 1.0d0
+        do j = 1, this%n_downstream_pools(irxn)
+          stoich_c = stoich_c - this%downstream_stoich(irxn, j)
+        enddo
 
-      ! calculate respiration factor (CO2 stoichiometry)
-      stoich_c = 1.0d0
-      do j = 1, this%n_downstream_pools(irxn)
-        stoich_c = stoich_c - this%downstream_stoich(irxn, j)
-      enddo
-
-      if(stoich_c < 0.0d0) then
-        option%io_buffer = 'SomDec variableCN ratio C pool decomposition has' // &
+        if(stoich_c < 0.0d0) then
+          option%io_buffer = 'SomDec variableCN ratio C pool decomposition has' // &
                               'a negative respiration fraction!'
-        call printErrMsg(option)
-      endif
-      this%mineral_c_stoich(irxn) = stoich_c
+          call printErrMsg(option)
+        endif
+        this%mineral_c_stoich(irxn) = stoich_c
 
-      ! calculate N (NH3) stoichiometry
-      stoich_n = this%upstream_nc(irxn)
-      do j = 1, this%n_downstream_pools(irxn)
-        stoich_n = stoich_n - this%downstream_stoich(irxn, j) * &
+        ! calculate N (NH3) stoichiometry
+        stoich_n = this%upstream_nc(irxn)
+        do j = 1, this%n_downstream_pools(irxn)
+          stoich_n = stoich_n - this%downstream_stoich(irxn, j) * &
                               this%downstream_nc(irxn, j)
-      enddo
-      this%mineral_n_stoich(irxn) = stoich_n
+        enddo
+        this%mineral_n_stoich(irxn) = stoich_n
+
+      endif
 
     endif ! end of 'upstream_is_varycn' (NOTE: 'mineral_n_stoich' for non-litter species IS constant, which are calc. in 'setup')
 
@@ -1639,9 +1640,15 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+  if(this%species_id_n2o>0) then
+    ires_n2o = this%species_id_n2o + reaction%offset_aqueous       ! as aq. species
+  endif
+  if(this%species_id_ngasmin > 0) then
+     ires_ngasmin = this%species_id_ngasmin + reaction%offset_immobile
+  endif
+
   if(this%species_id_n2o>0 .and. net_nmin_rate>this%x0eps) then
 
-#ifdef CLM_PFLOTRAN
     ! temperature/moisture/pH response functions (Parton et al. 1996)
     f_t = -0.06d0 + 0.13d0 * exp( 0.07d0 * tc )
     f_w = ((1.27d0 - saturation)/0.67d0)**(3.1777d0) * &
@@ -1660,11 +1667,6 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       endif
     endif
     f_ph = 0.56 + atan(rpi * 0.45 * (-5.0 + ph))/rpi
-#else
-    f_t = 1.0d0
-    f_w = 1.0d0
-    f_ph = 1.0d0
-#endif
 
     if(f_t > this%x0eps .and. f_w > this%x0eps .and. f_ph > this%x0eps) then
       f_t = min(f_t, 1.0d0)
@@ -1672,10 +1674,9 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       f_ph= min(f_ph, 1.0d0)
 
       temp_real = f_t * f_w * f_ph
-      temp_real = temp_real * this%n2o_frac_mineralization 
     
       ! residuals
-      rate_n2o = temp_real * net_nmin_rate * fnh3
+      rate_n2o = temp_real * (net_nmin_rate*this%n2o_frac_mineralization) * fnh3
  
       Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o 
 
@@ -1687,7 +1688,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
      !Jacobians
       if (compute_derivative) then
-        drate_n2o_dx = temp_real * &
+        drate_n2o_dx = temp_real*this%n2o_frac_mineralization * &
                   (dnet_nmin_rate_dx * fnh3 &
                   + net_nmin_rate * dfnh3_dnh3)
 
