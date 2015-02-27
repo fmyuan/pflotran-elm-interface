@@ -3,6 +3,7 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_Base_class
   use Reaction_Sandbox_CLM_CN_class
   use Reaction_Sandbox_UFD_WP_class
+  use Reaction_Sandbox_Example_class
 
   ! Add new reacton sandbox classes here.
   use Reaction_Sandbox_SomDec_class
@@ -166,6 +167,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => degasCreate()
       case('UFD-WP')
         new_sandbox => WastePackageCreate()
+      case('EXAMPLE')
+        new_sandbox => EXAMPLECreate()
       case default
         option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX keyword: ' // &
           trim(word) // ' not recognized.'
