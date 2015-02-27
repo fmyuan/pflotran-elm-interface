@@ -62,8 +62,8 @@ function NitrifCreate()
   NitrifCreate%ispec_nh4sorb = 0
   NitrifCreate%ispec_no3 = 0
   NitrifCreate%ispec_ngasnit = 0
-  NitrifCreate%k_nitr_max = 1.d-6
-  NitrifCreate%k_nitr_n2o = 3.5d-8
+  NitrifCreate%k_nitr_max = 1.d-6               ! 1/s
+  NitrifCreate%k_nitr_n2o = 3.5d-8              ! 1/s
   NitrifCreate%half_saturation = 1.0d-10
   NitrifCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   NitrifCreate%Q10 = 1.5d0
@@ -296,8 +296,8 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: rate_nitri, drate_nitri_dnh3
   PetscReal :: f_t, f_w, f_ph
   PetscReal :: rho_b
-  PetscReal :: theta
-  PetscReal :: L_water
+  PetscReal :: theta      ! m3/m3 bulk
+  PetscReal :: L_water    ! L(kg)/m3 bulk
   PetscReal :: temp_real, feps0, dfeps0_dx
 
 !---------------------------------------------------------------------------------
@@ -307,19 +307,20 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
 
   saturation = global_auxvar%sat(1)
   theta = saturation * porosity
-  L_water = theta * volume * 1.0d3      ! Litres of H2O
+  L_water = theta * 1.0d3      ! Litres of H2O per m3 bulk soil
 
   tc = global_auxvar%temp
 
   ! indices for C and N species
-  ires_nh3 = this%ispec_nh3
-  ires_no3 = this%ispec_no3
-  ires_n2o = this%ispec_n2o
+  ires_nh3 = this%ispec_nh3 + reaction%offset_aqueous
+  ires_no3 = this%ispec_no3 + reaction%offset_aqueous
+  ires_n2o = this%ispec_n2o + reaction%offset_aqueous
   ires_nh3s = this%ispec_nh4sorb + reaction%offset_immobile
   ires_ngasnit = this%ispec_ngasnit + reaction%offset_immobile
 
-  c_nh3 = rt_auxvar%total(this%ispec_nh3, iphase) * L_water     ! moles/L --> moles
+  c_nh3 = rt_auxvar%total(this%ispec_nh3, iphase) * L_water     ! moles/L --> moles/m3 bulk soil
 ! (TODO) not sure if 'absorbed NH4' should be included in the reaction.
+! BUT, if absorption is in equlibrium, then should NOT be an issue
 !  if (associated(rt_auxvar%total_sorb_eq)) then           ! original absorption-reactions in PF used
 !     s_nh3 = rt_auxvar%total_sorb_eq(this%ispec_nh3)
 !  elseif (this%ispec_nh4sorb>0) then                      ! 'reaction_sandbox_langmuir' used
@@ -368,18 +369,18 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
     saturation = max(0.d0,min(saturation,1.d0))
     f_w = saturation * (1.0d0 - saturation)/0.25d0
 
-    temp_real = this%k_nitr_max * f_t * f_w * c_nh3 / (c_nh3 + 4.0d0)                        ! 1/sec.
-    rate_nitri = temp_real * (c_nh3 * feps0)                                                 ! moles/sec.
+    temp_real = this%k_nitr_max * f_t * f_w * volume                            ! 1/sec * m3 bulk
+    rate_nitri = temp_real * (c_nh3 * feps0) * (c_nh3/(c_nh3 + 4.0d0))          ! moles/sec.
 
     Residual(ires_nh3) = Residual(ires_nh3) + rate_nitri
     Residual(ires_no3) = Residual(ires_no3) - rate_nitri
 
     if (compute_derivative) then
 
-     ! d(rate_nh3))/d(nh3), in which, rate(c_nh3) = c_nh3*c_nh3/(c_nh3+4.0)*feps0
+     ! d(rate_nh3))/d(nh3), in which, rate(nh3) = c_nh3*c_nh3/(c_nh3+4.0)*feps0    ! this is the last portion of 'rate_nitri'
      temp_real = c_nh3*c_nh3/(c_nh3+4.0d0) * dfeps0_dx + &
                  c_nh3*(c_nh3+8.0d0)/(c_nh3+4.0d0)/(c_nh3+4.0d0) * feps0
-     drate_nitri_dnh3 = f_t*f_w*this%k_nitr_max* temp_real
+     drate_nitri_dnh3 = this%k_nitr_max*f_t*f_w*volume * temp_real
  
      Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_nitri_dnh3 * &
         rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_nh3,iphase)
@@ -403,11 +404,11 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
 #endif
 
 ! moleN_Lwater*g_mol*Lwater *1.d6 = ugN
-  temp_real = N_molecular_weight*1.0d6      ! unit: ugN/(mol)
-! g soil = m3_soil*kg_m3*1.d3                      ! unit: gSoil
-  M_2_ug_per_g = temp_real/(volume*rho_b*1.d3)      ! unit: (ugN/gSoil)/(mol)
+  temp_real = N_molecular_weight*1.0d6                       ! unit: ugN/(mol)
+! g soil = m3_soil*kg_m3*1.d3                                ! unit: gSoil
+  M_2_ug_per_g = temp_real/(volume*rho_b*1.d3)               ! unit: (ugN/gSoil)/(mol)
   !c_nh3_ugg = (c_nh3 + s_nh3 / theta / 1000.0d0)* M_2_ug_per_g
-  c_nh3_ugg = c_nh3 * M_2_ug_per_g                 ! c_nh3 already in moles
+  c_nh3_ugg = c_nh3 * volume * M_2_ug_per_g                  ! c_nh3 already in moles/m3 bulk
 
   if(this%ispec_n2o > 0.0d0 .and. c_nh3_ugg > 3.0d0) then
     ! temperature response function (Parton et al. 1996)
@@ -437,7 +438,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
 
        temp_real = (1.0 - exp(-0.0105d0 * c_nh3_ugg))  &
                   * f_t * f_w * f_ph * this%k_nitr_n2o                     ! 1/s
-       rate_n2o = temp_real * (c_nh3*feps0)                                ! moles/s
+       rate_n2o = temp_real * (c_nh3*feps0) * volume                       ! moles/s
 
        Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o
        Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
@@ -459,7 +460,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
            temp_real = temp_real + (c_nh3*feps0) *  &
                        0.0105d0*M_2_ug_per_g*exp(-0.0105d0*c_nh3_ugg)  !d(1.0-exp(-0.0105d0*c_nh3*m_2_ug_per_g))/d(nh3)
 
-           drate_n2o_dnh3 = temp_real *this%k_nitr_n2o* f_t * f_w * f_ph
+           drate_n2o_dnh3 = temp_real *this%k_nitr_n2o* f_t * f_w * f_ph * volume
  
            Jacobian(ires_nh3,ires_nh3)=Jacobian(ires_nh3,ires_nh3) + &
              drate_n2o_dnh3 * &
