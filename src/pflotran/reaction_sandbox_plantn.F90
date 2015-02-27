@@ -242,6 +242,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: rate, drate_dn, nconc
   PetscReal :: volume, porosity, saturation, tc
+  PetscReal :: theta, L_water
   PetscInt :: ghosted_id
   PetscErrorCode :: ierr
 
@@ -283,11 +284,14 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 #endif 
 
   !--------------------------------------------------------------------------------------------
-  porosity = material_auxvar%porosity
   volume = material_auxvar%volume
-
+  porosity = material_auxvar%porosity
   saturation = global_auxvar%sat(1)
-  if(saturation < 0.05d0) return
+  if(saturation < 0.01d0) return
+
+  theta = saturation * porosity
+  L_water = theta * 1.0d3      ! Litres of H2O /m3 bulk soil
+
   tc = global_auxvar%temp
   if(tc < 0.01d0) return
 
@@ -295,9 +299,9 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   !--------------------------------------------------------------------------------------------
   if (this%ispec_nh3 > 0) then
-    ires_nh3 = this%ispec_nh3
+    ires_nh3 = this%ispec_nh3 + reaction%offset_aqueous
 
-    c_nh3     = rt_auxvar%total(this%ispec_nh3, iphase)
+    c_nh3     = rt_auxvar%total(this%ispec_nh3, iphase) * L_water
     temp_real = c_nh3 + this%half_saturation_nh3
     fnh3      = c_nh3 / temp_real
     dfnh3_dnh3= this%half_saturation_nh3 / temp_real / temp_real
@@ -331,7 +335,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     ! this is for quantifying plant N uptake preference btw NH4 and NO3
     ! (very similar as N immobilization now).
     if (this%ispec_no3 > 0) then
-      c_no3     = rt_auxvar%total(this%ispec_no3, iphase)
+      c_no3     = rt_auxvar%total(this%ispec_no3, iphase) * L_water
        ! (DON'T change the 'rate' and 'derivatives' after this)
       if(c_nh3>this%x0eps_nh4 .and. c_no3>this%x0eps_no3 &
         .and. this%inhibition_nh3_no3>0.d0) then

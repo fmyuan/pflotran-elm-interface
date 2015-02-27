@@ -25,7 +25,7 @@ module Reaction_Sandbox_Denitr_class
     PetscReal :: half_saturation
     PetscInt  :: temperature_response_function
     PetscReal :: Q10
-    PetscReal :: k_deni_max                 ! denitrification rate
+    PetscReal :: k_deni_max                     ! denitrification rate (1/second)
     PetscReal :: x0eps
 
   contains
@@ -63,7 +63,7 @@ function DenitrCreate()
   DenitrCreate%half_saturation = 1.0d-15
   DenitrCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   DenitrCreate%Q10 = 1.5d0
-  DenitrCreate%k_deni_max = 2.5d-6  ! max. denitrification rate
+  DenitrCreate%k_deni_max = 2.5d-6  ! max. denitrification rate (1/sec)
   DenitrCreate%x0eps = 1.0d-20
 
   nullify(DenitrCreate%next)
@@ -251,8 +251,8 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
   PetscReal :: porosity
-  PetscReal :: volume
-  PetscReal :: L_water
+  PetscReal :: volume   ! m3 bulk
+  PetscReal :: L_water  ! (kg)L/m3 bulk
   PetscInt :: ghosted_id
   PetscErrorCode :: ierr
 
@@ -268,9 +268,9 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: tc
   PetscReal :: f_t, f_w
 
-  PetscReal :: c_no3         ! moles
-  PetscReal :: fno3          ! no3 / (half_saturation + no3)
-  PetscReal :: dfno3_dno3    ! d(fno3)/d(no3)
+  PetscReal :: c_no3         ! moles/L ==> moles/m3 bulk soil
+  PetscReal :: fno3          ! c_no3 / (half_saturation + c_no3)
+  PetscReal :: dfno3_dno3    ! d(fno3)/d(c_no3)
   PetscReal :: rate_deni, drate_deni_dno3
   PetscReal :: saturation
   PetscInt, parameter :: iphase = 1
@@ -285,15 +285,15 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
   saturation = global_auxvar%sat(iphase)
-  L_water = porosity * saturation * volume * 1.d3
+  L_water = porosity * saturation * 1.d3
 
   tc = global_auxvar%temp
 
 !---------------------------------------------------------------------------------
   ! indices for C and N species
-  ires_no3 = this%ispec_no3
-  ires_n2o = this%ispec_n2o
-  ires_n2 = this%ispec_n2
+  ires_no3 = this%ispec_no3 + reaction%offset_aqueous    ! as aq. species
+  ires_n2o = this%ispec_n2o + reaction%offset_aqueous
+  ires_n2  = this%ispec_n2 + reaction%offset_aqueous
   ires_ngasdeni = this%ispec_ngasdeni + reaction%offset_immobile
 
 #ifdef CLM_PFLOTRAN
@@ -322,7 +322,7 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
      f_w = f_w ** temp_real
   endif
 
-  c_no3 = rt_auxvar%total(this%ispec_no3, iphase)*L_water       ! mol/Lw -> moles
+  c_no3 = rt_auxvar%total(ires_no3, iphase)*L_water         ! mol/Lw -> moles/m3 bulk
   if(this%x0eps>0.d0) then
     !feps0 = c_no3 / (c_no3+this%x0eps)  ! using these two for trailer smoothing, alternatively
     !dfeps0_dx = this%x0eps / (c_no3+this%x0eps) / (c_no3+this%x0eps)
@@ -359,7 +359,8 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
   if(f_t > 0.d0 .and. f_w > 0.d0) then
-     rate_deni = this%k_deni_max * f_t * f_w * fno3 * (c_no3*feps0)
+     ! unit: moles/second - 1/second * - * - * - * (moles/m3*m3*-)
+     rate_deni = this%k_deni_max * f_t * f_w * fno3 * (c_no3*volume*feps0)
 
      Residual(ires_no3) = Residual(ires_no3) + rate_deni
 
@@ -371,8 +372,8 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
      endif
 
     if (compute_derivative) then
-      temp_real = dfno3_dno3 * (c_no3*feps0) + &
-                  fno3 * (c_no3*dfeps0_dx + feps0)
+      temp_real = dfno3_dno3 * (c_no3*volume*feps0) + &
+                  fno3 * (c_no3*volume*dfeps0_dx + feps0)
       drate_deni_dno3 = this%k_deni_max * f_t * f_w * temp_real
 
       Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) +  &
