@@ -386,7 +386,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
     ! scale if necessary
     if (min_ratio < 1.d0) then
       if (min_ratio < min_allowable_scale) then
-!#ifdef DEBUG
+#ifdef DEBUG
         write(realization%option%fid_out, *) '-----checking scaling factor for RT ------'
         write(realization%option%fid_out, *) 'min. scaling factor = ', min_ratio
         j = realization%reaction%ncomp
@@ -406,7 +406,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
         write(realization%option%fid_out, *) ' min_ratio IS too small to make sense, '// &
           'which less than an allowable_scale value !'
         write(realization%option%fid_out, *) ' STOP executing ! '
-!#endif
+#endif
         write(string,'(es9.3)') min_ratio
         string = 'The update of primary species concentration is being ' // &
           'scaled by a very small value (i.e. ' // &
