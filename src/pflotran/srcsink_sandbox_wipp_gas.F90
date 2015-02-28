@@ -118,8 +118,8 @@ subroutine WIPPGasGenerationRead(this,input,option)
         call InputReadDouble(input,option,this%h2_ch2o_ratio)
         call InputDefaultMsg(input,option,'h2_ch2o_ratio')
       case default
-        call InputKeywordUnrecognized(word, &
-          'SRCSINK_SANDBOX,WIPP-GAS_GENERATION',option)
+!        call InputKeywordUnrecognized(word, &
+!          'SRCSINK_SANDBOX,WIPP-GAS_GENERATION',option)
     end select
   enddo
 

@@ -33,6 +33,8 @@ module Reaction_Sandbox_SomDec_class
 
     PetscInt :: nrxn
     PetscReal, pointer :: rate_constant(:)         !nrxn
+    PetscReal, pointer :: rate_decomposition(:)    !nrxn
+    PetscReal, pointer :: rate_ad_factor(:)        !nrxn
 
     PetscInt,  pointer :: upstream_c_id(:)         !nrxn
     PetscInt,  pointer :: upstream_n_id(:)         !nrxn
@@ -80,6 +82,8 @@ module Reaction_Sandbox_SomDec_class
     character(len=MAXWORDLENGTH) :: upstream_pool_name
     type(pool_type), pointer :: downstream_pools
     PetscReal :: rate_constant
+    PetscReal :: rate_decomposition
+    PetscReal :: rate_ad_factor
     type(somdec_reaction_type), pointer :: next
   end type somdec_reaction_type
   
@@ -120,6 +124,8 @@ function SomDecCreate()
 
   SomDecCreate%nrxn = 0
   nullify(SomDecCreate%rate_constant)
+  nullify(SomDecCreate%rate_decomposition)
+  nullify(SomDecCreate%rate_ad_factor)
   nullify(SomDecCreate%upstream_is_varycn)
   nullify(SomDecCreate%upstream_c_id)
   nullify(SomDecCreate%upstream_n_id)
@@ -179,6 +185,7 @@ subroutine SomDecRead(this,input,option)
   type(somdec_reaction_type), pointer :: new_reaction, prev_reaction
   
   PetscReal :: rate_constant, turnover_time
+  PetscReal :: rate_decomposition, rate_ad_factor
   PetscReal :: temp_real
   
   nullify(new_pool)
@@ -321,13 +328,17 @@ subroutine SomDecRead(this,input,option)
         allocate(new_reaction)
         new_reaction%upstream_pool_name = ''
         new_reaction%rate_constant = UNINITIALIZED_DOUBLE
+        new_reaction%rate_decomposition = UNINITIALIZED_DOUBLE
+        new_reaction%rate_ad_factor = 1.0d0
         nullify(new_reaction%downstream_pools)
         nullify(new_reaction%next)
         
         ! need to set these temporarily in order to check that they
         ! are not both set.
         turnover_time = 0.d0
-        rate_constant = 0.d0
+        rate_constant = -1.d0
+        rate_decomposition = -1.d0
+        rate_ad_factor = 1.d0
         
         do 
           call InputReadPflotranString(input,option)
@@ -391,6 +402,23 @@ subroutine SomDecRead(this,input,option)
                 turnover_time = turnover_time * &
                   UnitsConvertToInternal(word,option)
               endif
+            case('RATE_DECOMPOSITION')
+              call InputReadDouble(input,option,rate_decomposition)
+              call InputErrorMsg(input,option,'rate for decomposition', &
+                     'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION')
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              if (InputError(input)) then
+                input%err_buf = 'SomDec RATE DECOMPOSITION UNITS'
+                call InputDefaultMsg(input,option)
+              else
+                rate_decomposition = rate_decomposition * &
+                  UnitsConvertToInternal(word,option)
+              endif
+            case('RATE_AD_FACTOR')
+              call InputReadDouble(input,option,rate_ad_factor)
+              call InputErrorMsg(input,option,'Accelerated rate factor', &
+                     'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION')
+              call InputReadWord(input,option,word,PETSC_TRUE)
             case default
               option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec,' // &
                 'REACTION keyword: ' // trim(word) // ' not recognized.'
@@ -399,16 +427,29 @@ subroutine SomDecRead(this,input,option)
         enddo
         
         ! check to ensure that one of turnover time or rate constant is set.
-        if (turnover_time > 0.d0 .and. rate_constant > 0.d0) then
-          option%io_buffer = 'Only TURNOVER_TIME or RATE_CONSTANT may ' // &
-            'be included in a SomDec reaction definition, but not both. ' // &
+        if ( (turnover_time > 0.d0 .and. rate_constant >= 0.d0) .or. &
+             (turnover_time > 0.d0 .and. rate_decomposition >= 0.d0) .or. &
+             (rate_decomposition >= 0.d0 .and. rate_constant >= 0.d0) ) then
+          option%io_buffer = 'Only TURNOVER_TIME or RATE_CONSTANT or RATE_DECOMPOSITION ' // &
+            'may be included in a SomDec reaction definition, but not any two. ' // &
             'See reaction with upstream pool "' // &
             trim(new_reaction%upstream_pool_name) // '".'
           call printErrMsg(option)
         else if (turnover_time > 0.d0) then
           new_reaction%rate_constant = 1.d0 / turnover_time
-        else
+          new_reaction%rate_decomposition = -1.d0
+        else if (rate_constant >= 0.d0) then
           new_reaction%rate_constant = rate_constant
+          new_reaction%rate_decomposition = -1.d0
+        else if (rate_decomposition >= 0.d0) then
+          new_reaction%rate_constant = -1.d0
+          new_reaction%rate_decomposition = rate_decomposition
+        else
+          option%io_buffer = 'ONE of TURNOVER_TIME or RATE_CONSTANT or RATE_DECOMPOSITION ' // &
+            'must be correctly set in a SomDec reaction definition ' // &
+            'See reaction with upstream pool "' // &
+            trim(new_reaction%upstream_pool_name) // '".'
+          call printErrMsg(option)
         endif
         if (associated(this%reactions)) then
           prev_reaction%next => new_reaction
@@ -513,6 +554,8 @@ subroutine SomDecSetup(this,reaction,option)
   allocate(this%pool_nc_ratio(this%npool))
 
   allocate(this%rate_constant(this%nrxn))
+  allocate(this%rate_decomposition(this%nrxn))
+  allocate(this%rate_ad_factor(this%nrxn))
   allocate(this%upstream_is_varycn(this%nrxn))
   allocate(this%upstream_c_id(this%nrxn))
   allocate(this%upstream_n_id(this%nrxn))
@@ -529,6 +572,8 @@ subroutine SomDecSetup(this,reaction,option)
 
   this%pool_nc_ratio = 0.d0
   this%rate_constant = 0.d0
+  this%rate_decomposition = 0.d0
+  this%rate_ad_factor = 1.d0
   this%upstream_is_varycn = PETSC_FALSE
   this%upstream_c_id = 0
   this%upstream_n_id = 0
@@ -669,6 +714,9 @@ subroutine SomDecSetup(this,reaction,option)
     enddo
 
     this%rate_constant(icount) = cur_rxn%rate_constant
+    this%rate_decomposition(icount) = cur_rxn%rate_decomposition
+    this%rate_ad_factor(icount) = cur_rxn%rate_ad_factor
+
     cur_rxn => cur_rxn%next
   enddo 
   
@@ -907,7 +955,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 ! misc. local variables
   PetscInt :: i, j, ires
   PetscReal:: feps0, dfeps0_dx
-
+  PetscReal:: k_decomp
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
   !------------------------------------------------------------------------------------------------
@@ -1065,7 +1113,13 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     ! calculate C rate (N rate is derived by Crate*N/C)
 
     ! scaled_rate_const units: (m^3 bulk / s) = (1/s) * (m^3 bulk)
-    scaled_crate_const = this%rate_constant(irxn)*volume*f_t*f_w
+    if (this%rate_constant(irxn) >= 0.d0) then
+      k_decomp = this%rate_constant(irxn)
+    elseif (this%rate_decomposition(irxn) >= 0.d0) then
+      k_decomp = 1.0d0-exp(-this%rate_decomposition(irxn)*option%tran_dt)
+      k_decomp = k_decomp/option%tran_dt
+    endif
+    scaled_crate_const = this%rate_ad_factor(irxn)*k_decomp*volume*f_t*f_w
 
     ! substrates
     ispec_uc = this%upstream_c_id(irxn)
@@ -1777,6 +1831,8 @@ subroutine SomDecDestroy(this)
   
   call DeallocateArray(this%pool_nc_ratio)
   call DeallocateArray(this%rate_constant)
+  call DeallocateArray(this%rate_decomposition)
+  call DeallocateArray(this%rate_ad_factor)
   call DeallocateArray(this%upstream_is_varycn)
   call DeallocateArray(this%upstream_c_id)
   call DeallocateArray(this%upstream_n_id)
