@@ -466,7 +466,7 @@ subroutine SecondaryRTTimeCut(realization)
   use Reaction_Aux_module
   
   implicit none
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   type(reaction_type), pointer :: reaction
   type(sec_transport_type), pointer :: rt_sec_transport_vars(:)
   type(grid_type), pointer :: grid
@@ -990,7 +990,7 @@ subroutine SecondaryRTResJacMulti(sec_transport_vars,auxvar, &
     material_auxvar%porosity = porosity
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_TRUE, &
-                   rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+                   rt_auxvar,global_auxvar,material_auxvar,reaction,option)                     
     do j = 1, ncomp
       res(j+(i-1)*ncomp) = res(j+(i-1)*ncomp) + res_react(j) 
     enddo
@@ -1408,7 +1408,7 @@ subroutine SecondaryRTUpdateIterate(line_search,P0,dP,P1,dP_changed, &
   Vec :: P0
   Vec :: dP
   Vec :: P1
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   ! ignore changed flag for now.
   PetscBool :: dP_changed
   PetscBool :: P1_changed
@@ -1743,7 +1743,7 @@ subroutine SecondaryRTCheckResidual(sec_transport_vars,auxvar, &
     material_auxvar%porosity = porosity
     material_auxvar%volume = vol(i)
     call RReaction(res_react,jac_react,PETSC_FALSE, &
-                   rt_auxvar,global_auxvar,material_auxvar,reaction,option)
+                   rt_auxvar,global_auxvar,material_auxvar,reaction,option)                     
     do j = 1, ncomp
       res(j+(i-1)*ncomp) = res(j+(i-1)*ncomp) + res_react(j) 
     enddo

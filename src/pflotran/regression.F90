@@ -173,9 +173,7 @@ subroutine RegressionRead(regression,input,option)
         call InputReadInt(input,option,regression%num_cells_per_process)
         call InputErrorMsg(input,option,'num cells per process','REGRESSION')
       case default
-        option%io_buffer = 'Keyword: ' // trim(keyword) // &
-                           ' not recognized in regression'    
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(keyword,'REGRESSION',option)
     end select
     
   enddo
@@ -205,7 +203,7 @@ subroutine RegressionCreateMapping(regression,realization)
 #include "finclude/petscviewer.h"
 
   type(regression_type), pointer :: regression
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   
   IS :: is_petsc
   PetscInt, allocatable :: int_array(:)
@@ -481,7 +479,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   implicit none
   
   type(regression_type), pointer :: regression
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   ! these must be pointers as they can be null
   class(timestepper_BE_type), pointer :: flow_timestepper
   class(timestepper_BE_type), pointer :: tran_timestepper  

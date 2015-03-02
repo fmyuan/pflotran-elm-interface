@@ -1989,6 +1989,7 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   use Grid_module
   use Dataset_Common_HDF5_class
   use Dataset_Gridded_HDF5_class
+  use Dataset_Ascii_class
 
   implicit none
   
@@ -2016,23 +2017,24 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   if (associated(flow_condition%pressure)) then
     select case(flow_condition%pressure%itype)
       case(DIRICHLET_BC,NEUMANN_BC,ZERO_GRADIENT_BC)
-        if (associated(flow_condition%pressure%dataset)) then
-          coupler%flow_aux_real_var(RICHARDS_PRESSURE_DOF, &
-                                    1:num_connections) = &
-            flow_condition%pressure%dataset%rarray(1)
-        else
-          select type(dataset => &
-                      flow_condition%pressure%dataset)
-            class is(dataset_gridded_hdf5_type)
-              call PatchUpdateCouplerFromDataset(coupler,option, &
-                                              patch%grid,dataset, &
-                                              RICHARDS_PRESSURE_DOF)
-            class default
-          end select
-        endif
+        select type(dataset => &
+                    flow_condition%pressure%dataset)
+          class is(dataset_ascii_type)
+            coupler%flow_aux_real_var(RICHARDS_PRESSURE_DOF, &
+                                      1:num_connections) = dataset%rarray(1)
+          class is(dataset_gridded_hdf5_type)
+            call PatchUpdateCouplerFromDataset(coupler,option, &
+                                            patch%grid,dataset, &
+                                            RICHARDS_PRESSURE_DOF)
+          class default
+        end select
       case(HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
         call HydrostaticUpdateCoupler(coupler,option,patch%grid)
    !  case(SATURATION_BC)
+      case(HET_DIRICHLET)
+        call PatchUpdateHetroCouplerAuxVars(patch,coupler, &
+                flow_condition%pressure%dataset, &
+                num_connections,RICHARDS_PRESSURE_DOF,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
@@ -2819,7 +2821,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,CAPILLARY_PRESSURE,LIQUID_DENSITY_MOL, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,STATE,ICE_DENSITY, &
-         EFFECTIVE_POROSITY,LIQUID_HEAD)
+         EFFECTIVE_POROSITY,LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -3217,6 +3219,20 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
               vec_ptr(local_id) = &
                 patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                   pres(option%capillary_pressure_id)
+            enddo
+          case(VAPOR_PRESSURE)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pres(option%vapor_pressure_id)
+            enddo
+          case(SATURATION_PRESSURE)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pres(option%saturation_pressure_id)
             enddo
           case(STATE)
             do local_id=1,grid%nlmax
@@ -3871,7 +3887,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
          GAS_VISCOSITY,AIR_PRESSURE,CAPILLARY_PRESSURE, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,STATE,ICE_DENSITY, &
          SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL,EFFECTIVE_POROSITY, &
-         LIQUID_HEAD)
+         LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE)
          
      if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -4108,6 +4124,12 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(CAPILLARY_PRESSURE)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       pres(option%capillary_pressure_id)
+          case(VAPOR_PRESSURE)
+            value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      pres(option%vapor_pressure_id)
+          case(SATURATION_PRESSURE)
+            value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      pres(option%saturation_pressure_id)
           case(STATE)
             value = patch%aux%Global%auxvars(ghosted_id)%istate
           case(LIQUID_SATURATION)

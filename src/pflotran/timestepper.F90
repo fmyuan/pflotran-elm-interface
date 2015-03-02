@@ -1,7 +1,7 @@
 module Timestepper_module
  
   use Solver_module
-  use Waypoint_module
+  use Waypoint_module 
   use Convergence_module 
   use Material_module
   use Material_Aux_class
@@ -67,12 +67,12 @@ module Timestepper_module
   end type timestepper_type
   
   public :: TimestepperCreate, TimestepperDestroy, &
-#ifndef PROCESS_MODEL
+#if 0
             TimestepperExecuteRun, &
             TimestepperInitializeRun, &
             TimestepperFinalizeRun, &
 #endif            
-#ifndef PROCESS_MODEL
+#if 0
             FlowStepperStepToSteadyState, &
             StepperCheckpoint, &
             StepperJumpStart, &
@@ -90,6 +90,7 @@ module Timestepper_module
             TimestepperRestart, &
 #endif
             TimestepperRead, TimestepperPrintInfo, TimestepperReset
+        
 
 contains
 
@@ -115,7 +116,7 @@ function TimestepperCreate()
   stepper%num_linear_iterations = 0
   stepper%num_constant_time_steps = 0
 
-  stepper%max_time_step = 999999999
+  stepper%max_time_step = 999999
   stepper%max_time_step_cuts = 16
   stepper%constant_time_step_threshold = 5
   stepper%iaccel = 5
@@ -317,7 +318,7 @@ subroutine TimestepperRead(stepper,input,option)
 
 end subroutine TimestepperRead
 
-#ifndef PROCESS_MODEL
+#if 0
 
 subroutine StepperUpdateDT(flow_timestepper,tran_timestepper,option)
   ! 
@@ -835,7 +836,7 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
 #include "finclude/petscmat.h"
 #include "finclude/petscsnes.h"
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   type(timestepper_type) :: stepper
   PetscBool :: failure
   
@@ -1030,7 +1031,7 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
     endif
   enddo
   
-  stepper%steps = stepper%steps + 1
+  stepper%steps = stepper%steps + 1      
   stepper%cumulative_newton_iterations = &
     stepper%cumulative_newton_iterations + sum_newton_iterations
   stepper%cumulative_linear_iterations = &
@@ -1069,7 +1070,6 @@ subroutine StepperStepFlowDT(realization,stepper,failure)
              num_linear_iterations,' / ',num_newton_iterations
     write(*,'("  --> SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm 
   endif
-
   if (option%print_file_flag) then
     write(option%fid_out, '(" FLOW ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
       & " [",a1, &
@@ -1157,7 +1157,7 @@ subroutine FlowStepperStepToSteadyState(realization,stepper,failure)
 #include "finclude/petscmat.h"
 #include "finclude/petscsnes.h"
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   type(timestepper_type) :: stepper
   PetscBool :: failure
   
@@ -1326,7 +1326,7 @@ subroutine StepperStepFlowDT(realization,stepper,step_to_steady_state,failure)
 #include "finclude/petscviewer.h"
 #include "finclude/petscsnes.h"
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   type(timestepper_type) :: stepper
   PetscBool :: step_to_steady_state
   PetscBool :: failure
@@ -1761,7 +1761,7 @@ subroutine StepperStepTransportDT_GI(realization,stepper, &
 #include "finclude/petscviewer.h"
 #include "finclude/petscsnes.h"
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   type(timestepper_type) :: stepper
   PetscReal :: flow_t0, flow_t1
   PetscBool :: steady_flow
@@ -1911,12 +1911,13 @@ subroutine StepperStepTransportDT_GI(realization,stepper, &
       endif
 
       option%tran_dt = 0.5d0 * option%tran_dt
-
+    
       if (option%print_screen_flag) write(*,'('' -> Cut time step: snes='',i3, &
         &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
         &   1pe12.5)')  snes_reason,icut,stepper%cumulative_time_step_cuts, &
             option%tran_time/realization%output_option%tconv, &
             option%tran_dt/realization%output_option%tconv
+
 
       ! recompute weights
       if (option%nflowdof > 0 .and. .not.steady_flow) then
@@ -2055,7 +2056,7 @@ subroutine StepperStepTransportDT_OS(realization,stepper, &
 #include "finclude/petscviewer.h"
 #include "finclude/petscsnes.h"
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   type(timestepper_type) :: stepper
   PetscReal :: flow_t0, flow_t1
   PetscBool :: steady_flow
@@ -2308,7 +2309,7 @@ subroutine StepperRunSteadyState(realization,flow_timestepper,tran_timestepper)
   use Logging_module
   use Discretization_module
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   type(timestepper_type), pointer :: flow_timestepper
   type(timestepper_type), pointer :: tran_timestepper
 
@@ -2462,7 +2463,7 @@ subroutine StepperSolveFlowSteadyState(realization,stepper,failure)
 #include "finclude/petscviewer.h"
 #include "finclude/petscsnes.h"
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   type(timestepper_type) :: stepper
   PetscBool :: failure
 
@@ -2609,7 +2610,7 @@ subroutine StepperSolveTranSteadyState(realization,stepper,failure)
 #include "finclude/petscviewer.h"
 #include "finclude/petscsnes.h"
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   type(timestepper_type) :: stepper
   PetscBool :: failure
   
@@ -2730,7 +2731,7 @@ subroutine StepperUpdateSolution(realization,update_kinetics)
 
   implicit none
   
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   PetscBool :: update_kinetics
   
   ! update solution variables
@@ -2765,7 +2766,7 @@ subroutine StepperUpdateFlowSolution(realization)
 
   implicit none
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
 
   type(option_type), pointer :: option
   
@@ -2808,7 +2809,7 @@ subroutine StepperUpdateTransportSolution(realization,update_kinetics)
                                         RTUpdateMassBalance
   implicit none
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   PetscBool :: update_kinetics
 
   PetscErrorCode :: ierr
@@ -2844,7 +2845,7 @@ subroutine StepperJumpStart(realization)
 
   implicit none
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
 
   call RTJumpStartKineticSorption(realization)
 
@@ -2873,7 +2874,7 @@ subroutine StepperUpdateFlowAuxVars(realization)
 
   implicit none
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
 
   type(option_type), pointer :: option
   
@@ -2916,7 +2917,7 @@ subroutine StepperUpdateTranAuxVars(realization)
 
   implicit none
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
 
                                    ! cells     bcs        act coefs.
   call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
@@ -2949,7 +2950,7 @@ subroutine StepperSandbox(realization)
 
   implicit none
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   type(patch_type), pointer :: patch
   type(discretization_type), pointer :: discretization
   type(field_type), pointer :: field
@@ -3048,7 +3049,7 @@ subroutine StepperCheckpoint(realization,flow_timestepper,tran_timestepper,id, i
 
   implicit none
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   type(timestepper_type), pointer :: flow_timestepper
   type(timestepper_type), pointer :: tran_timestepper
   PetscInt :: num_const_timesteps, num_newton_iterations  
@@ -3128,7 +3129,7 @@ subroutine TimestepperRestart(realization,flow_timestepper,tran_timestepper, &
 
   implicit none
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   type(timestepper_type), pointer :: flow_timestepper
   type(timestepper_type), pointer :: tran_timestepper
   PetscBool :: activity_coefs_read
@@ -3274,7 +3275,7 @@ subroutine TimestepperCheckCFLLimit(stepper,realization)
   implicit none
 
   type(timestepper_type) :: stepper
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   
   PetscReal :: dt_cfl_1
   

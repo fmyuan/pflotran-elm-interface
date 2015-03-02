@@ -760,6 +760,18 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_PRESSURE,units, &
                                      CAPILLARY_PRESSURE)
+      case ('VAPOR_PRESSURE')
+        name = 'Vapor Pressure'
+        units = 'Pa'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_PRESSURE,units, &
+                                     VAPOR_PRESSURE)
+      case ('SATURATION_PRESSURE')
+        name = 'Saturation Pressure'
+        units = 'Pa'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_PRESSURE,units, &
+                                     SATURATION_PRESSURE)
       case('THERMODYNAMIC_STATE')
         name = 'Thermodynamic State'
          units = ''
@@ -860,9 +872,7 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         output_variable%iformat = 1 ! integer
         call OutputVariableAddToList(output_variable_list,output_variable)
       case default
-        option%io_buffer = 'Keyword: ' // trim(word) // &
-                                 ' not recognized in VARIABLES.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(word,'VARIABLES',option)
     end select
 
   enddo
@@ -963,11 +973,8 @@ subroutine OutputOptionDestroy(output_option)
   
   if (.not.associated(output_option)) return
   
-  if(associated(output_option%output_variable_list)) &
-    call OutputVariableListDestroy(output_option%output_variable_list)
-
-  if(associated(output_option%aveg_output_variable_list)) &
-    call OutputVariableListDestroy(output_option%aveg_output_variable_list)
+  call OutputVariableListDestroy(output_option%output_variable_list)
+  call OutputVariableListDestroy(output_option%aveg_output_variable_list)
   
   deallocate(output_option)
   nullify(output_option)

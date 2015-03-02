@@ -15,8 +15,7 @@ module Factory_Hydrogeophysics_module
 contains
 
 ! ************************************************************************** !
-
-subroutine HydrogeophysicsInitialize(simulation_base,option)
+subroutine HydrogeophysicsInitialize(simulation_base,pm_list,option)
   ! 
   ! Sets up hydrogeophysics simulation
   ! 
@@ -28,6 +27,7 @@ subroutine HydrogeophysicsInitialize(simulation_base,option)
   use Wrapper_Hydrogeophysics_module
   use Input_Aux_module
   use Simulation_Base_class 
+  use PM_Base_class  
   use Discretization_module
   use String_module
   
@@ -39,6 +39,7 @@ subroutine HydrogeophysicsInitialize(simulation_base,option)
 #include "finclude/petscviewer.h"
   
   class(simulation_base_type), pointer :: simulation_base
+  class(pm_base_type), pointer :: pm_list  
   type(option_type), pointer :: option
 
   class(hydrogeophysics_simulation_type), pointer :: simulation
@@ -182,6 +183,7 @@ subroutine HydrogeophysicsInitialize(simulation_base,option)
 !print *, 9, simulation%myrank_save, simulation%pf_e4d_scatter_comm, simulation%pf_e4d_master_comm, MPI_COMM_NULL
   
   if (simulation%pflotran_process) then
+    simulation%process_model_list => pm_list
     call HydrogeophysicsInitPostPetsc(simulation,option)
   else
     option%io_rank = -1 ! turn off I/O from E4D processes.
@@ -332,7 +334,6 @@ subroutine HydrogeophysicsInitPostPetsc(simulation, option)
   ! Date: 06/17/13
   ! 
 
-  use Simulation_module
   use Factory_Subsurface_module
   use PMC_Hydrogeophysics_class
   use Option_module

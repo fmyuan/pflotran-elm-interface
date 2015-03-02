@@ -4,6 +4,8 @@ module Surface_Init_module
 
   implicit none
 
+  private 
+  
 #include "finclude/petscsys.h"
 
 #include "finclude/petscvec.h"
@@ -41,7 +43,7 @@ subroutine SurfaceInitReadRequiredCards(surf_realization)
 
   implicit none
 
-  type(surface_realization_type)     :: surf_realization
+  class(surface_realization_type)     :: surf_realization
   type(discretization_type), pointer :: discretization
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -118,7 +120,7 @@ subroutine SurfaceInit(surf_realization,input,option)
 
   implicit none
 
-  type(surface_realization_type)               :: surf_realization
+  class(surface_realization_type)               :: surf_realization
   type(discretization_type),pointer            :: discretization
   type(grid_type), pointer                     :: grid
   type(input_type)                             :: input
@@ -223,7 +225,7 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
 
   implicit none
 
-  type(surface_realization_type)               :: surf_realization
+  class(surface_realization_type)               :: surf_realization
   type(solver_type)                            :: surf_flow_solver
   type(input_type)                             :: input
   type(option_type)                            :: option
@@ -294,11 +296,13 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
           case ('DIFFUSIVE')
             option%surface_flow_formulation = DIFFUSION_WAVE
           case default
-            option%io_buffer = 'Keyword ' // trim(word) // ' in input file ' // &
-              'not recognized'
-            call printErrMsg(option)
+            call InputKeywordUnrecognized(word, &
+                  'SURFACE_FLOW,SURF_FLOW_FORMULATION',option)
         end select
-
+      !.........................................................................
+      case ('SURF_MAX_MANNING_VELOCITY')
+        call InputReadDouble(input,option,temp_real)
+        option%max_manning_velocity = temp_real
       !.........................................................................
       ! Read surface material information
       case ('SURF_MATERIAL_PROPERTY')
@@ -460,9 +464,8 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'SURF_OUTPUT,PERIODIC,OUTPUT_FILE')
                 case default
-                  option%io_buffer = 'Keyword: ' // trim(word) // &
-                                     ' not recognized in OUTPUT,OUTPUT_FILE.'
-                  call printErrMsg(option)
+                  call InputKeywordUnrecognized(word, &
+                    'SURF_OUTPUT,PERIODIC,OUTPUT_FILE',option)
               end select
             case('SCREEN')
               call InputReadWord(input,option,word,PETSC_TRUE)
@@ -476,9 +479,8 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'SURF_OUTPUT,PERIODIC,SCREEN')
                 case default
-                  option%io_buffer = 'Keyword: ' // trim(word) // &
-                                     ' not recognized in OUTPUT,SCREEN.'
-                  call printErrMsg(option)
+                  call InputKeywordUnrecognized(word, &
+                    'SURF_OUTPUT,PERIODIC,SCREEN',option)
               end select
             case('PERIODIC')
               call InputReadWord(input,option,word,PETSC_TRUE)
@@ -542,25 +544,23 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'SURF_OUTPUT,PERIODIC,TIMESTEP')
                 case default
-                  option%io_buffer = 'Keyword: ' // trim(word) // &
-                                     ' not recognized in OUTPUT,PERIODIC,'// &
-                                     'TIMESTEP.'
-                  call printErrMsg(option)
+                  call InputKeywordUnrecognized(word, &
+                    'SURF_OUTPUT,PERIODIC,TIMESTEP',option)
               end select
             case('PERIODIC_OBSERVATION')
               output_option%print_observation = PETSC_TRUE
               call InputReadWord(input,option,word,PETSC_TRUE)
               call InputErrorMsg(input,option,'time increment', &
-                'OUTPUT, PERIODIC_OBSERVATION')
+                'SURF_OUTPUT, PERIODIC_OBSERVATION')
               call StringToUpper(word)
               select case(trim(word))
                 case('TIME')
                   call InputReadDouble(input,option,temp_real)
                   call InputErrorMsg(input,option,'time increment', &
-                                     'OUTPUT,PERIODIC_OBSERVATION,TIME')
+                                     'SURF_OUTPUT,PERIODIC_OBSERVATION,TIME')
                   call InputReadWord(input,option,word,PETSC_TRUE)
                   call InputErrorMsg(input,option,'time increment units', &
-                                     'OUTPUT,PERIODIC_OBSERVATION,TIME')
+                                     'SURF_OUTPUT,PERIODIC_OBSERVATION,TIME')
                   units_conversion = UnitsConvertToInternal(word,option) 
                   output_option%periodic_tr_output_time_incr = temp_real* &
                                                                units_conversion
@@ -568,12 +568,10 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
                   call InputReadInt(input,option, &
                                     output_option%periodic_tr_output_ts_imod)
                   call InputErrorMsg(input,option,'timestep increment', &
-                                     'OUTPUT,PERIODIC_OBSERVATION,TIMESTEP')
+                                     'SURF_OUTPUT,PERIODIC_OBSERVATION,TIMESTEP')
                 case default
-                  option%io_buffer = 'Keyword: ' // trim(word) // &
-                                     ' not recognized in OUTPUT,'// &
-                                     'PERIODIC_OBSERVATION,TIMESTEP.'
-                  call printErrMsg(option)
+                  call InputKeywordUnrecognized(word, &
+                    'SURF_OUTPUT,PERIODIC_OBSERVATION,TIMESTEP',option)
               end select
             case('FORMAT')
               call InputReadWord(input,option,word,PETSC_TRUE)
@@ -602,17 +600,13 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
                               call InputErrorMsg(input,option,'timestep increment', &
                                         'OUTPUT,FORMAT,MULTIPLE_FILES,TIMES_PER_FILE')
                             case default
-                              option%io_buffer = 'Keyword: ' // trim(word) // &
-                                     ' not recognized in OUTPUT,'// &
-                                     'FORMAT,MULTIPLE_FILES,TIMES_PER_FILE.'
-                              call printErrMsg(option)
+                              call InputKeywordUnrecognized(word, &
+                                'SURF_OUTPUT,FORMAT,HDF5,MULTIPLE_FILES',option)
                           end select
                         endif
                       case default
-                        option%io_buffer = 'HDF5 keyword (' // trim(word) // &
-                          ') not recongnized.  Use "SINGLE_FILE" or ' // &
-                          '"MULTIPLE_FILES".'
-                        call printErrMsg(option)
+                        call InputKeywordUnrecognized(word, &
+                          'SURF_OUTPUT,FORMAT,HDF5',option)
                     end select
                   endif
                 case ('MAD')
@@ -644,9 +638,8 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
                 case ('VTK')
                   output_option%print_vtk = PETSC_TRUE
                 case default
-                  option%io_buffer = 'Keyword: ' // trim(word) // &
-                                     ' not recognized in OUTPUT,FORMAT.'
-                  call printErrMsg(option)
+                  call InputKeywordUnrecognized(word, &
+                         'SURF_OUTPUT,FORMAT',option)
               end select
 
             case('VELOCITY_AT_CENTER')
@@ -679,9 +672,7 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
             case('AVERAGE_VARIABLES')
               call OutputSurfaceVariableRead(input,option,output_option%aveg_output_variable_list)
             case default
-              option%io_buffer = 'Keyword: ' // trim(word) // &
-                                 ' not recognized in OUTPUT.'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word,'SURF_OUTPUT',option)
           end select
         enddo
 
@@ -752,9 +743,7 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
               call InputErrorMsg(input,option,'Coupling Timestep Size Time Units','TIME')
               surf_realization%dt_coupling = temp_real*UnitsConvertToInternal(word,option)
             case default
-              option%io_buffer = 'Keyword: ' // trim(word) // &
-                                 ' not recognized in TIME.'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word,'TIME',option)
             end select
         enddo
       !.........................................................................
@@ -816,14 +805,11 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
                     call InputErrorMsg(input,option,'timestep increment', &
                                        'CHECKPOINT,PERIODIC,TIMESTEP')
                   case default
-                    option%io_buffer = 'Keyword: ' // trim(word) // &
-                                       ' not recognized in CHECKPOINT,PERIODIC.'
-                    call printErrMsg(option)
+                    call InputKeywordUnrecognized(word, &
+                           'CHECKPOINT,PERIODIC',option)
                 end select
               case default
-                option%io_buffer = 'Keyword: ' // trim(word) // &
-                                   ' not recognized in CHECKPOINT.'
-                call printErrMsg(option)
+                call InputKeywordUnrecognized(word,'CHECKPOINT',option)
             end select
           enddo
           if (output_option%periodic_checkpoint_time_incr /= 0.d0 .and. &
@@ -840,11 +826,11 @@ subroutine SurfaceInitReadInput(surf_realization,surf_flow_solver,input,option)
           endif
         endif
 
+      case('END_SURFACE_FLOW')
+        exit
+        
       case default
-        option%io_buffer = 'Keyword ' // trim(word) // ' in input file ' // &
-                           'not recognized'
-        call printErrMsg(option)
-
+        call InputKeywordUnrecognized(word,'SURFACE_FLOW',option)
     end select
   enddo
 

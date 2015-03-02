@@ -1,12 +1,22 @@
 #Description: 1D variably saturated flow problem
 
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+  /
+END
+
+SUBSURFACE
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 5
 END
 
 #=========================== flow mode ========================================
-MODE RICHARDS
 
 #=========================== solver options ===================================
 LINEAR_SOLVER FLOW
@@ -30,7 +40,7 @@ MATERIAL_PROPERTY soil1
   PERMEABILITY
     PERM_ISO 1.d-12
   /
-  SATURATION_FUNCTION sf1
+  CHARACTERISTIC_CURVES sf1
 END
 
 MATERIAL_PROPERTY soil2
@@ -39,22 +49,32 @@ MATERIAL_PROPERTY soil2
   PERMEABILITY
     PERM_ISO 2.d-12
   /
-  SATURATION_FUNCTION sf2
+  CHARACTERISTIC_CURVES sf2
 END
 
-#=========================== saturation functions =============================
-SATURATION_FUNCTION sf1
-  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
-  RESIDUAL_SATURATION 0.1d0
-  LAMBDA 0.5d0
-  ALPHA 1.d-4
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES sf1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 1.d-4
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
 END
 
-SATURATION_FUNCTION sf2
-  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
-  RESIDUAL_SATURATION 0.05d0
-  LAMBDA 0.6d0
-  ALPHA 2.d-4
+CHARACTERISTIC_CURVES sf2
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA 2.d-4
+    M 0.6d0
+    LIQUID_RESIDUAL_SATURATION 0.05d0
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.6d0
+    LIQUID_RESIDUAL_SATURATION 0.05d0
+  /
 END
 
 #=========================== observation points ===============================
@@ -169,3 +189,4 @@ STRATA
 END
 
 
+END_SUBSURFACE
