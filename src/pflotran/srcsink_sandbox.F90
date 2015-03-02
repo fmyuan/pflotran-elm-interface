@@ -73,13 +73,28 @@ subroutine SSSandboxSetup(region_list,option)
   type(region_list_type) :: region_list
   
   class(srcsink_sandbox_base_type), pointer :: cur_sandbox  
+  class(srcsink_sandbox_base_type), pointer :: prev_sandbox  
+  class(srcsink_sandbox_base_type), pointer :: next_sandbox  
 
   ! sandbox source/sinks
   cur_sandbox => ss_sandbox_list
+  nullify(prev_sandbox)
   do
     if (.not.associated(cur_sandbox)) exit
+    next_sandbox => cur_sandbox%next
     call cur_sandbox%Setup(region_list,option)
-    cur_sandbox => cur_sandbox%next
+    ! destory if not on process
+    if (.not.associated(cur_sandbox%region%cell_ids)) then
+      if (associated(prev_sandbox)) then
+        prev_sandbox%next => next_sandbox
+      else
+        ss_sandbox_list => next_sandbox
+      endif
+      nullify(cur_sandbox%next)
+      call SSSandboxDestroy(cur_sandbox)
+    endif
+    if (associated(cur_sandbox)) prev_sandbox => cur_sandbox
+    cur_sandbox => next_sandbox
   enddo 
 
 end subroutine SSSandboxSetup
@@ -153,9 +168,7 @@ subroutine SSSandboxRead2(local_sandbox_list,input,option)
       case('MASS_RATE_DOWNREGULATED')
         new_sandbox => DownregCreate()
       case default
-        option%io_buffer = 'SRCSINK_SANDBOX keyword: ' // &
-          trim(word) // ' not recognized.'
-        call printErrMsg(option)
+!        call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX',option)
     end select
     
     call new_sandbox%ReadInput(input,option)
