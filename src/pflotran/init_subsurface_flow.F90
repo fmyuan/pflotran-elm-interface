@@ -1,4 +1,7 @@
 module Init_Subsurface_Flow_module
+#ifndef LEGACY_SATURATION_FUNCTION
+#define REFACTOR_CHARACTERISTIC_CURVES
+#endif
 
   use PFLOTRAN_Constants_module
 
@@ -40,7 +43,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   
   implicit none
   
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -56,6 +59,12 @@ subroutine InitSubsurfFlowSetupRealization(realization)
       case(TH_MODE)
         call THSetup(realization)
       case(RICHARDS_MODE)
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
+                           patch%material_property_array, &
+                           patch%characteristic_curves_array, &
+                           realization%option)
+#endif
         call RichardsSetup(realization)
       case(MPH_MODE)
         call init_span_wagner(option)      
@@ -99,7 +108,10 @@ subroutine InitSubsurfFlowSetupRealization(realization)
       case(FLASH2_MODE)
         call Flash2UpdateAuxVars(realization)
       case(G_MODE)
-        call GeneralUpdateAuxVars(realization,PETSC_TRUE)
+        !geh: cannot update state during initialization as the guess will be
+        !     assigned as the initial conditin if the state changes. therefore,
+        !     pass in PETSC_FALSE
+        call GeneralUpdateAuxVars(realization,PETSC_FALSE)
     end select
   else ! no flow mode specified
     if (len_trim(realization%nonuniform_velocity_filename) > 0) then
@@ -142,7 +154,7 @@ subroutine InitSubsurfFlowSetupSolvers(realization,solver)
 #include "finclude/petscsnes.h"
 #include "finclude/petscpc.h"
   
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   type(solver_type), pointer :: solver
   
   type(option_type), pointer :: option
@@ -216,63 +228,10 @@ subroutine InitSubsurfFlowSetupSolvers(realization,solver)
                                            option)
   endif
     
-#if 0
-  select case(option%iflowmode)
-    case(TH_MODE)
-      call SNESSetFunction(solver%snes,field%flow_r,THResidual, &
-                            realization,ierr);CHKERRQ(ierr)
-    case(RICHARDS_MODE)
-      call SNESSetFunction(solver%snes,field%flow_r, &
-                            RichardsResidual, &
-                            realization,ierr);CHKERRQ(ierr)
-    case(MPH_MODE)
-      call SNESSetFunction(solver%snes,field%flow_r,MphaseResidual, &
-                            realization,ierr);CHKERRQ(ierr)
-    case(IMS_MODE)
-      call SNESSetFunction(solver%snes,field%flow_r,ImmisResidual, &
-                            realization,ierr);CHKERRQ(ierr)
-    case(MIS_MODE)
-      call SNESSetFunction(solver%snes,field%flow_r,MiscibleResidual, &
-                            realization,ierr);CHKERRQ(ierr)
-    case(FLASH2_MODE)
-      call SNESSetFunction(solver%snes,field%flow_r,FLASH2Residual, &
-                            realization,ierr);CHKERRQ(ierr)
-    case(G_MODE)
-      call SNESSetFunction(solver%snes,field%flow_r,GeneralResidual, &
-                            realization,ierr);CHKERRQ(ierr)
-  end select
-#endif
-    
   if (solver%J_mat_type == MATMFFD) then
     call MatCreateSNESMF(solver%snes,solver%J,ierr);CHKERRQ(ierr)
   endif
 
-#if 0
-  select case(option%iflowmode)
-    case(TH_MODE)
-      call SNESSetJacobian(solver%snes,solver%J,solver%Jpre, &
-                            THJacobian,realization,ierr);CHKERRQ(ierr)
-    case(RICHARDS_MODE)
-      call SNESSetJacobian(solver%snes,solver%J,solver%Jpre, &
-                            RichardsJacobian,realization,ierr);CHKERRQ(ierr)
-    case(MPH_MODE)
-      call SNESSetJacobian(solver%snes,solver%J,solver%Jpre, &
-                            MPHASEJacobian,realization,ierr);CHKERRQ(ierr)
-    case(IMS_MODE)
-      call SNESSetJacobian(solver%snes,solver%J,solver%Jpre, &
-                            ImmisJacobian,realization,ierr);CHKERRQ(ierr)
-    case(MIS_MODE)
-      call SNESSetJacobian(solver%snes,solver%J,solver%Jpre, &
-                            MiscibleJacobian,realization,ierr);CHKERRQ(ierr)
-    case(FLASH2_MODE)
-      call SNESSetJacobian(solver%snes,solver%J,solver%Jpre, &
-                            FLASH2Jacobian,realization,ierr);CHKERRQ(ierr)
-    case(G_MODE)
-      call SNESSetJacobian(solver%snes,solver%J,solver%Jpre, &
-                            GeneralJacobian,realization,ierr);CHKERRQ(ierr)
-  end select
-#endif
-    
   ! by default turn off line search
   call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
   call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
@@ -311,51 +270,7 @@ subroutine InitSubsurfFlowSetupSolvers(realization,solver)
   call SNESSetConvergenceTest(solver%snes,ConvergenceTest, &
                               convergence_context, &
                               PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
-    
  
-#if 1
-  call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
-  select case(option%iflowmode)
-    case(RICHARDS_MODE)
-      if (dabs(option%pressure_dampening_factor) > 0.d0 .or. &
-          dabs(option%saturation_change_limit) > 0.d0) then
-        call SNESLineSearchSetPreCheck(linesearch, &
-                                        RichardsCheckUpdatePre, &
-                                        realization,ierr);CHKERRQ(ierr)
-      endif
-    case(G_MODE)
-      call SNESLineSearchSetPreCheck(linesearch, &
-                                      GeneralCheckUpdatePre, &
-                                      realization,ierr);CHKERRQ(ierr)
-    case(TH_MODE)
-      if (dabs(option%pressure_dampening_factor) > 0.d0 .or. &
-          dabs(option%pressure_change_limit) > 0.d0 .or. &
-          dabs(option%temperature_change_limit) > 0.d0) then
-        call SNESLineSearchSetPreCheck(linesearch, &
-                                        THCheckUpdatePre, &
-                                        realization,ierr);CHKERRQ(ierr)
-      endif
-  end select
-    
-  if (solver%check_post_convergence) then
-    call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
-    select case(option%iflowmode)
-      case(RICHARDS_MODE)
-        call SNESLineSearchSetPostCheck(linesearch, &
-                                        RichardsCheckUpdatePost, &
-                                        realization,ierr);CHKERRQ(ierr)
-      case(G_MODE)
-        call SNESLineSearchSetPostCheck(linesearch, &
-                                        GeneralCheckUpdatePost, &
-                                        realization,ierr);CHKERRQ(ierr)
-      case(TH_MODE)
-        call SNESLineSearchSetPostCheck(linesearch, &
-                                        THCheckUpdatePost, &
-                                        realization,ierr);CHKERRQ(ierr)
-    end select
-  endif
-#endif        
-    
   call printMsg(option,"  Finished setting up FLOW SNES ")
  
 end subroutine InitSubsurfFlowSetupSolvers
@@ -383,7 +298,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
   
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   character(len=MAXSTRINGLENGTH) :: filename
   
   PetscInt :: local_id, idx, offset

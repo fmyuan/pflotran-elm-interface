@@ -175,7 +175,7 @@ subroutine OutputTecplotFEQUAD(surf_realization,realization)
   
   implicit none
 
-  type(surface_realization_type) :: surf_realization
+  class(surface_realization_type) :: surf_realization
   class(realization_type) :: realization
   
   PetscInt :: i
@@ -277,7 +277,7 @@ subroutine OutputTecplotHeader(fid,surf_realization,icolumn)
   implicit none
 
   PetscInt :: fid
-  type(surface_realization_type) :: surf_realization
+  class(surface_realization_type) :: surf_realization
   PetscInt :: icolumn
   
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -338,7 +338,7 @@ subroutine OutputWriteTecplotZoneHeader(fid,surf_realization,variable_count, &
   implicit none
 
   PetscInt :: fid
-  type(surface_realization_type) :: surf_realization
+  class(surface_realization_type) :: surf_realization
   PetscInt :: variable_count
   PetscInt :: tecplot_format
   
@@ -420,7 +420,7 @@ subroutine WriteTecplotUGridElements(fid, &
   implicit none
 
   PetscInt :: fid
-  type(surface_realization_type) :: surf_realization
+  class(surface_realization_type) :: surf_realization
 
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -503,7 +503,7 @@ subroutine WriteTecplotUGridVertices(fid,surf_realization)
   implicit none
 
   PetscInt :: fid
-  type(surface_realization_type) :: surf_realization 
+  class(surface_realization_type) :: surf_realization 
   
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -561,7 +561,7 @@ subroutine OutputHydrograph(surf_realization)
 
   implicit none
   
-  type(surface_realization_type) :: surf_realization
+  class(surface_realization_type) :: surf_realization
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(coupler_type), pointer :: boundary_condition
@@ -855,7 +855,7 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
   endif
-!  call printMsg(option)
+  call printMsg(option)
 
   if (first) then
     ! create a group for the coordinates data set
@@ -1740,8 +1740,7 @@ subroutine OutputSurfaceVariableRead(input,option,output_variable_list)
         output_variable%iformat = 1 ! integer
         call OutputVariableAddToList(output_variable_list,output_variable)
       case default
-        option%io_buffer = 'Keyword: ' // trim(word) // &
-                                 ' not recognized in VARIABLES.'
+        call InputKeywordUnrecognized(word,'SURFACE,VARIABLES',option)
     end select
   enddo
 

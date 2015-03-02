@@ -4,13 +4,8 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_CLM_CN_class
   use Reaction_Sandbox_UFD_WP_class
   use Reaction_Sandbox_Example_class
-
+  
   ! Add new reacton sandbox classes here.
-  use Reaction_Sandbox_SomDec_class
-  use Reaction_Sandbox_PlantN_class
-  use Reaction_Sandbox_Nitrif_class
-  use Reaction_Sandbox_Denitr_class
-  use Reaction_Sandbox_Degas_class
   
   use PFLOTRAN_Constants_module
 
@@ -155,24 +150,12 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
       case('CLM-CN')
         new_sandbox => CLM_CN_Create()
       ! Add new cases statements for new reacton sandbox classes here.
-      case('SOMDECOMP')
-        new_sandbox => SomDecCreate()
-      case('PLANTN')
-        new_sandbox => PlantNCreate()
-      case('NITRIFICATION')
-        new_sandbox => NitrifCreate()
-      case('DENITRIFICATION')
-        new_sandbox => DenitrCreate()
-      case('DEGAS')
-        new_sandbox => degasCreate()
       case('UFD-WP')
         new_sandbox => WastePackageCreate()
       case('EXAMPLE')
         new_sandbox => EXAMPLECreate()
       case default
-        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX keyword: ' // &
-          trim(word) // ' not recognized.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(word,'CHEMISTRY,REACTION_SANDBOX',option)
     end select
     
     call new_sandbox%ReadInput(input,option)

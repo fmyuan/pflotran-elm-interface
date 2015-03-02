@@ -136,7 +136,7 @@ subroutine TimestepperBaseInit(this)
   this%steps = 0
   this%num_constant_time_steps = 0
 
-  this%max_time_step = 9999999
+  this%max_time_step = 999999
   this%max_time_step_cuts = 16
   this%constant_time_step_threshold = 5
 
@@ -151,7 +151,7 @@ subroutine TimestepperBaseInit(this)
   this%prev_dt = 0.d0
   this%dt = 1.d0
   this%dt_init = 1.d0
-  this%dt_min = 1.d-20   ! Ten zeptoseconds.
+  this%dt_max = 1.d-20   ! Ten zeptoseconds.
   this%dt_max = 3.1536d6 ! One-tenth of a year.  
   this%cfl_limiter = UNINITIALIZED_DOUBLE
   this%cfl_limiter_ts = 1.d20
@@ -306,9 +306,7 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
                           'TIMESTEPPER')
 
     case default
-      option%io_buffer = 'Timestepper option: '//trim(keyword)// &
-                          ' not recognized.'
-      call printErrMsg(option)
+      call InputKeywordUnrecognized(keyword,'TIMESTEPPER',option)
   end select
 
 end subroutine TimestepperBaseProcessKeyword
@@ -483,17 +481,11 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
     this%num_contig_revert_due_to_sync = 0
   endif
 
-! fmy: begining
-! if coupled with CLM, max_time_step IS unlimited
-! because 'waypoint' is controled by the interface
-! otherwise, PF will stop at some point but CLM not-yet done
-#ifndef CLM_PFLOTRAN
+  
   if (cumulative_time_steps >= max_time_step-1) then
     nullify(cur_waypoint)
     stop_flag = TS_STOP_MAX_TIME_STEP
   endif
-#endif
-!fmy: ending
 
   ! update maximum time step size to current waypoint value
   if (associated(cur_waypoint)) then

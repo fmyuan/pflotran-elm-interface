@@ -96,9 +96,7 @@ subroutine MassTransferRead(mass_transfer,input,option)
                              MAXWORDLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,'DATASET,NAME','MASS_TRANSFER')
       case default
-        option%io_buffer = 'Keyword: ' // trim(keyword) // &
-                           ' not recognized in mass transfer'    
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(keyword,'MASS_TRANSFER',option)
     end select
     
   enddo  
@@ -179,7 +177,6 @@ recursive subroutine MassTransferInit(mass_transfer, discretization, &
   dataset_base_ptr => &
     DatasetBaseGetPointer(available_datasets,mass_transfer%dataset%name, &
                           string,option)
-
   call DatasetGlobalHDF5Destroy(mass_transfer%dataset)
   select type(dataset => dataset_base_ptr)
     class is(dataset_global_hdf5_type)
@@ -189,7 +186,6 @@ recursive subroutine MassTransferInit(mass_transfer, discretization, &
         'GLOBAL type, which is necessary for all MASS_TRANSFER objects.'
       call printErrMsg(option)
   end select
-
   ! dm_wrapper is solely a pointer; it should not be allocated
   mass_transfer%dataset%dm_wrapper => discretization%dm_1dof
   mass_transfer%dataset%local_size = discretization%grid%nlmax
@@ -198,19 +194,12 @@ recursive subroutine MassTransferInit(mass_transfer, discretization, &
                                     GLOBAL,option)
   call VecZeroEntries(mass_transfer%vec,ierr);CHKERRQ(ierr)
   
-!F.-M. YUAN: if coupled with CLM, mass-transfer dataset are passed from CLM
-! via 'mass_transfer%dataset%rarray(:)' ONLY, although 'dataset' IS a hdf5 type.
-! so, don't open/load hdf5 file.
-#ifndef CLM_PFLOTRAN
-
   if (.not.associated(mass_transfer%dataset%time_storage)) then
-
-#if defined(PETSC_HAVE_HDF5)
+#if defined(PETSC_HAVE_HDF5)    
     call DatasetCommonHDF5ReadTimes(mass_transfer%dataset%filename, &
                                     mass_transfer%dataset%hdf5_dataset_name, &
                                     mass_transfer%dataset%time_storage,option)
 #endif
-
     ! if time interpolation methods not set in hdf5 file, set to default of STEP
     if (mass_transfer%dataset%time_storage%time_interpolation_method == &
         INTERPOLATION_NULL) then
@@ -218,8 +207,6 @@ recursive subroutine MassTransferInit(mass_transfer, discretization, &
         INTERPOLATION_STEP
     endif
   endif 
-
-#endif
   
   ! update the next one recursively
   if (associated(mass_transfer%next)) then
@@ -256,27 +243,10 @@ recursive subroutine MassTransferUpdate(mass_transfer, grid, option)
   
   PetscReal, pointer :: vec_ptr(:)
   PetscErrorCode :: ierr
-  PetscInt :: i
   
   if (.not.associated(mass_transfer)) return
 
-!F.-M. YUAN: if coupled with CLM, mass-transfer dataset are passed from CLM
-! via 'mass_transfer%dataset%rarray(:)', although 'dataset' IS a hdf5 type.
-! so, don't open/load hdf5 file.
-! BUT, have to initialize 'rarray(:)', if not yet
-#ifdef CLM_PFLOTRAN
-    if (.not.associated(mass_transfer%dataset%rarray)) then ! not initialized
-      if (mass_transfer%dataset%local_size == 0) then
-        option%io_buffer = 'Local size of Global Dataset has not been set.'
-        call printErrMsg(option)
-      endif
-      allocate(mass_transfer%dataset%rarray(mass_transfer%dataset%local_size))
-      mass_transfer%dataset%rarray = 0.d0
-    endif
-
-#else
   call DatasetGlobalHDF5Load(mass_transfer%dataset,option)
-#endif
 
   call VecGetArrayF90(mass_transfer%vec,vec_ptr,ierr);CHKERRQ(ierr)
   ! multiply by -1.d0 for positive contribution to residual

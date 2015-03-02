@@ -1,12 +1,22 @@
 #Description: 3D variably saturated flow with infiltration at top
 
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+  /
+END
+
+SUBSURFACE
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 4
 END
 
 #=========================== flow mode ========================================
-MODE RICHARDS
 
 #=========================== chemistry ========================================
 skip
@@ -18,7 +28,7 @@ END
 noskip
 
 #=========================== solver options ===================================
-TIMESTEPPER
+TIMESTEPPER FLOW
   TS_ACCELERATION 8
   MAX_TS_CUTS 5
 END
@@ -65,7 +75,7 @@ GRID
 END
 
 #=========================== fluid properties =================================
-FLUID_PROPERTY 
+FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-9
 END
 
@@ -85,19 +95,24 @@ MATERIAL_PROPERTY soil1
   ID 1
   POROSITY DATASET porosity
   TORTUOSITY 1.d0
-  SATURATION_FUNCTION default
+  CHARACTERISTIC_CURVES default
   PERMEABILITY
     DATASET permeability
   /
 END
 
-#=========================== saturation functions =============================
-SATURATION_FUNCTION default
-  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
-  RESIDUAL_SATURATION 0.1d0
-  LAMBDA 0.5d0
-  ALPHA 1.d-4
-  MAX_CAPILLARY_PRESSURE 1.d8
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.5d0
+    ALPHA  1.d-4
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    MAX_CAPILLARY_PRESSURE 1.d8
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
 END
 
 #=========================== output options ===================================
@@ -149,7 +164,7 @@ END
 #256m domain: 96-160m
 #512m domain: 192-320m
 #1024m domain: 384-640m
-REGION infiltrometer 
+REGION infiltrometer
   FACE TOP
   COORDINATES
 #changeme - change X, Y and Z to fit domain
@@ -240,3 +255,4 @@ STRATA
   MATERIAL soil1
 END
 
+END_SUBSURFACE

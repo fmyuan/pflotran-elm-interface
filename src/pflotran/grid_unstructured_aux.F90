@@ -63,7 +63,6 @@ module Grid_Unstructured_Aux_module
     type(point_type), pointer :: vertices(:)
     type(point_type), pointer :: face_centroid(:)
     PetscReal, pointer :: face_area(:)
-    PetscInt, pointer :: nat_ids_of_other_grid(:)
   end type unstructured_grid_type
   
   type, public :: unstructured_explicit_type
@@ -264,8 +263,7 @@ function UGridCreate()
   nullify(unstructured_grid%connection_to_face)
   nullify(unstructured_grid%face_centroid)
   nullify(unstructured_grid%face_area)
-  nullify(unstructured_grid%nat_ids_of_other_grid)
-
+  
   UGridCreate => unstructured_grid
   
 end function UGridCreate
@@ -783,16 +781,7 @@ subroutine UGridDMCreateJacobian(unstructured_grid,ugdm,mat_type,J,option)
   ndof_local = unstructured_grid%nlmax*ugdm%ndof
 
   call MatCreate(option%mycomm,J,ierr); CHKERRQ(ierr)
-  select case(mat_type)
-    case(MATAIJ)
-      call MatSetType(J, MATAIJ, ierr); CHKERRQ(ierr) 
-    case(MATBAIJ)
-      call MatSetType(J, MATBAIJ, ierr); CHKERRQ(ierr) 
-    case default
-      option%io_buffer = 'MatType not recognized in UGridDMCreateJacobian'
-      call printErrMsg(option)
-  end select
-
+  call MatSetType(J, mat_type, ierr); CHKERRQ(ierr) 
   call MatSetSizes(J,ndof_local,ndof_local,PETSC_DETERMINE,PETSC_DETERMINE, &
                   ierr) ;CHKERRQ(ierr) 
   call MatXAIJSetPreallocation(J,ugdm%ndof,d_nnz,o_nnz, &
@@ -1672,8 +1661,7 @@ subroutine UGridDestroy(unstructured_grid)
     deallocate(unstructured_grid%face_centroid)
   nullify(unstructured_grid%face_centroid)  
   call DeallocateArray(unstructured_grid%face_area)
-  call DeallocateArray(unstructured_grid%nat_ids_of_other_grid)
-
+  
   deallocate(unstructured_grid)
   nullify(unstructured_grid)
 

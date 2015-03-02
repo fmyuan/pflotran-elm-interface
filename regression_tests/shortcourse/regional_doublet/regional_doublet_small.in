@@ -1,12 +1,25 @@
 #Description: 3D groundwater flow and solute transport
 
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+  /
+END
+
+SUBSURFACE
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 10
 END
 
 #=========================== flow mode ========================================
-MODE RICHARDS
 #CHECKPOINT 1000000
 #RESTART restart.chk
 
@@ -22,7 +35,7 @@ CHEMISTRY
 END
 
 #=========================== solver options ===================================
-TIMESTEPPER
+TIMESTEPPER FLOW
 END
 
 NEWTON_SOLVER FLOW
@@ -66,7 +79,7 @@ MATERIAL_PROPERTY soil1
   ID 1
   POROSITY 0.25d0
   TORTUOSITY 0.5d0
-  SATURATION_FUNCTION sf1
+  CHARACTERISTIC_CURVES sf1
   PERMEABILITY
     PERM_X 1.d-10
     PERM_Y 1.d-10
@@ -78,8 +91,8 @@ MATERIAL_PROPERTY soil2
   ID 2
   POROSITY 0.35d0
   TORTUOSITY 0.5d0
-  SATURATION_FUNCTION sf1
-  PERMEABILITY       
+  CHARACTERISTIC_CURVES sf1
+  PERMEABILITY
     DATASET perm_field
     VERTICAL_ANISOTROPY_RATIO 0.1
   /
@@ -89,7 +102,7 @@ MATERIAL_PROPERTY soil3
   ID 3
   POROSITY 0.25d0
   TORTUOSITY 0.5d0
-  SATURATION_FUNCTION sf1
+  CHARACTERISTIC_CURVES sf1
   PERMEABILITY
     PERM_X 5.d-11
     PERM_Y 5.d-11
@@ -101,7 +114,7 @@ MATERIAL_PROPERTY soil4
   ID 4
   POROSITY 0.2d0
   TORTUOSITY 0.5d0
-  SATURATION_FUNCTION sf1
+  CHARACTERISTIC_CURVES sf1
   PERMEABILITY
     PERM_X 1.d-10
     PERM_Y 1.d-10
@@ -109,14 +122,18 @@ MATERIAL_PROPERTY soil4
   /
 END
 
-#=========================== saturation functions =============================
-SATURATION_FUNCTION sf1
-  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
-  RESIDUAL_SATURATION 0.1d0
-  LAMBDA 0.5d0
-  ALPHA 1.d-4
-  MAX_CAPILLARY_PRESSURE 1.d8
-
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES sf1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    ALPHA  1.d-4
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    MAX_CAPILLARY_PRESSURE 1.d8
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
 END
 
 #=========================== output options ===================================
@@ -200,14 +217,14 @@ REGION top
 END
 
 REGION injection_well
-  COORDINATES 
+  COORDINATES
     1250.d0 1250.d0 20.d0
     1250.d0 1250.d0 65.d0
   /
 END
 
 REGION extraction_well
-  COORDINATES 
+  COORDINATES
     3750.d0 1250.d0 20.d0
     3750.d0 1250.d0 55.d0
   /
@@ -243,37 +260,37 @@ OBSERVATION
   AT_CELL_CENTER
   VELOCITY
 END
- 
+
 OBSERVATION
   REGION Obs_pt_center_lower
   AT_CELL_CENTER
   VELOCITY
 END
- 
+
 OBSERVATION
   REGION Obs_pt_west
   AT_CELL_CENTER
   VELOCITY
 END
- 
+
 OBSERVATION
   REGION Obs_pt_east
   AT_CELL_CENTER
   VELOCITY
 END
- 
+
 OBSERVATION
   REGION Obs_pt_south
   AT_CELL_CENTER
   VELOCITY
 END
- 
+
 OBSERVATION
   REGION Obs_pt_north
   AT_CELL_CENTER
   VELOCITY
 END
- 
+
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
@@ -387,14 +404,14 @@ BOUNDARY_CONDITION top
   REGION top
 END
 
-# source 
+# source
 SOURCE_SINK injection_well
   FLOW_CONDITION injection
   TRANSPORT_CONDITION injection
   REGION injection_well
 END
 
-# sink 
+# sink
 SOURCE_SINK extraction_well
   FLOW_CONDITION extraction
   TRANSPORT_CONDITION initial
@@ -422,3 +439,4 @@ STRATA
   MATERIAL soil4
 END
 
+END_SUBSURFACE

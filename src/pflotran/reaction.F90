@@ -593,10 +593,9 @@ subroutine ReactionReadPass1(reaction,input,option)
                         case('FREUNDLICH')
                           kd_rxn%itype = SORPTION_FREUNDLICH
                         case default
-                          option%io_buffer = &
-                            'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS,TYPE keyword: ' // &
-                            trim(word)//' not recognized'
-                          call printErrMsg(option)
+                          call InputKeywordUnrecognized(word, &
+                                'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS,TYPE', &
+                                option)
                       end select
                       if (option%use_mc) then
                         sec_cont_kd_rxn%itype = kd_rxn%itype
@@ -634,10 +633,8 @@ subroutine ReactionReadPass1(reaction,input,option)
                                          'ISOTHERM_REACTIONS,KD_MINERAL_NAME')
                       kd_rxn%kd_mineral_name = word                      
                     case default
-                      option%io_buffer = &
-                        'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS keyword: ' // &
-                        trim(word)//' not recognized'
-                      call printErrMsg(option)
+                      call InputKeywordUnrecognized(word, &
+                              'CHEMISTRY,SORPTION,ISOTHERM_REACTIONS',option)
                   end select
                 enddo
                 ! add to list
@@ -715,9 +712,8 @@ subroutine ReactionReadPass1(reaction,input,option)
                       nullify(cation)
                     enddo
                   case default
-                    option%io_buffer = 'CHEMISTRY, ION_EXCHANGE_RXN keyword: '// &
-                                     trim(word)//' not recognized'
-                    call printErrMsg(option)
+                    call InputKeywordUnrecognized(word, &
+                              'CHEMISTRY,ION_EXCHANGE_RXN',option)
                 end select
               enddo
               if (.not.associated(reaction%ion_exchange_rxn_list)) then
@@ -749,10 +745,6 @@ subroutine ReactionReadPass1(reaction,input,option)
                            'CHEMISTRY,DATABASE FILENAME')  
       case('LOG_FORMULATION')
         reaction%use_log_formulation = PETSC_TRUE
-        reaction%use_plog_formulation = PETSC_FALSE   ! only one of 'log' or 'plog'
-      case('PLOG_FORMULATION')   !fmy (2015-Jan)
-        reaction%use_plog_formulation = PETSC_TRUE
-        reaction%use_log_formulation = PETSC_FALSE   ! only one of 'log' or 'plog'
       case('GEOTHERMAL_HPT')
         reaction%use_geothermal_hpt = PETSC_TRUE           
       case('NO_CHECK_UPDATE')
@@ -779,9 +771,8 @@ subroutine ReactionReadPass1(reaction,input,option)
             case('NEWTON_ITERATION')
               reaction%act_coef_update_frequency = ACT_COEF_FREQUENCY_NEWTON_ITER
             case default
-              option%io_buffer = 'CHEMISTRY,ACTIVITY_COEFFICIENTS keyword: ' &
-                                 //trim(word)//' not recognized'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                        'CHEMISTRY,ACTIVITY_COEFFICIENTS',option)
           end select
         enddo
       case('NO_BDOT')
@@ -838,9 +829,8 @@ subroutine ReactionReadPass1(reaction,input,option)
             case('VANLEER')
               option%transport%tvd_flux_limiter = 5
             case default
-              option%io_buffer = 'TVD flux limiter ' // trim(word) // &
-                ' not recognized.'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                        'CHEMISTRY,EXPLICIT_ADVECTION',option)
           end select
           option%io_buffer = 'Flux Limiter: ' // trim(word)
           call printMsg(option)
@@ -857,8 +847,7 @@ subroutine ReactionReadPass1(reaction,input,option)
         call InputReadDouble(input,option,reaction%minimum_porosity)
         call InputErrorMsg(input,option,'minimim porosity','CHEMISTRY')
       case default
-        option%io_buffer = 'CHEMISTRY keyword: '//trim(word)//' not recognized'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(word,'CHEMISTRY',option)
     end select
   enddo
   
@@ -1298,9 +1287,6 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   use co2eos_module, only: Henry_duan_sun
   use co2_span_wagner_module, only: co2_span_wagner
 
-  ! plog inverse function
-  use lambertw_module, only: wapr
-
   implicit none
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
@@ -1353,7 +1339,6 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   
   PetscBool :: charge_balance_warning_flag = PETSC_FALSE
   PetscBool :: use_log_formulation
-  PetscBool :: use_plog_formulation
   
   PetscReal :: Jac_num(reaction%naqcomp)
   PetscReal :: Res_pert, pert, prev_value, coh0
@@ -1807,19 +1792,15 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     else
       use_log_formulation = PETSC_FALSE
     endif
-    use_plog_formulation = reaction%use_plog_formulation
       
     call RSolve(Res,Jac,rt_auxvar%pri_molal,update,reaction%naqcomp, &
-                use_log_formulation,use_plog_formulation)
+                use_log_formulation)
     
     prev_molal = rt_auxvar%pri_molal
 
     if (use_log_formulation) then
       update = dsign(1.d0,update)*min(dabs(update),reaction%max_dlnC)
       rt_auxvar%pri_molal = rt_auxvar%pri_molal*exp(-update)    
-    elseif (use_plog_formulation) then
-      !update = dsign(1.d0,update)*W(exp(-update))
-      rt_auxvar%pri_molal = rt_auxvar%pri_molal*exp(-update)  ! (TODO) will be redoing????
     else ! linear update
       ! ensure non-negative concentration
       min_ratio = 1.d20 ! large number
@@ -3276,8 +3257,6 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
 
   use Option_module
   
-  use lambertw_module, only: wapr
-
   implicit none
   
   type(reaction_type), pointer :: reaction
@@ -3391,7 +3370,7 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
     if (maxval(abs(residual)) < reaction%max_residual_tolerance) exit
 
     call RSolve(residual,J,rt_auxvar%pri_molal,update,reaction%ncomp, &
-                reaction%use_log_formulation, reaction%use_plog_formulation)
+                reaction%use_log_formulation)
     
     prev_solution(1:reaction%naqcomp) = rt_auxvar%pri_molal(1:reaction%naqcomp)
     if (reaction%nimcomp > 0) then
@@ -3402,8 +3381,6 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
     if (reaction%use_log_formulation) then
       update = dsign(1.d0,update)*min(dabs(update),reaction%max_dlnC)
       new_solution = prev_solution*exp(-update)    
-    elseif (reaction%use_plog_formulation) then
-      new_solution = prev_solution*(update+exp(-update))   ! NOT right at this moment (TODO)
     else ! linear upage
       ! ensure non-negative concentration
       min_ratio = 1.d20 ! large number
@@ -3564,7 +3541,7 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
   if (.not.option%numerical_derivatives_rxn) then ! analytical derivative
     compute_derivative = PETSC_TRUE
     call RReaction(Res,Jac,compute_derivative,rt_auxvar, &
-                   global_auxvar,material_auxvar,reaction,option)
+                   global_auxvar,material_auxvar,reaction,option)  
 
     ! add only in RReaction
 
@@ -3576,7 +3553,7 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
     call RTAuxVarCopy(rt_auxvar_pert,rt_auxvar,option)
 
     call RReaction(Res_orig,Jac_dummy,compute_derivative,rt_auxvar, &
-                   global_auxvar,material_auxvar,reaction,option)
+                   global_auxvar,material_auxvar,reaction,option)     
 
     ! aqueous species
     do jcomp = 1, reaction%naqcomp
@@ -3591,7 +3568,7 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
                         reaction,option)
       endif
       call RReaction(Res_pert,Jac_dummy,compute_derivative,rt_auxvar_pert, &
-                     global_auxvar,material_auxvar,reaction,option)
+                     global_auxvar,material_auxvar,reaction,option)    
 
       do icomp = 1, reaction%ncomp
         Jac(icomp,jcomp) = Jac(icomp,jcomp) + &
@@ -3606,7 +3583,7 @@ subroutine RReactionDerivative(Res,Jac,rt_auxvar,global_auxvar, &
       pert = rt_auxvar_pert%immobile(jcomp)*perturbation_tolerance
       rt_auxvar_pert%immobile(jcomp) = rt_auxvar_pert%immobile(jcomp) + pert
       call RReaction(Res_pert,Jac_dummy,compute_derivative,rt_auxvar_pert, &
-                     global_auxvar,material_auxvar,reaction,option)
+                     global_auxvar,material_auxvar,reaction,option)    
 
       ! j is the index in the residual vector and Jacobian
       joffset = reaction%offset_immobile + jcomp
@@ -4797,7 +4774,7 @@ end subroutine RGeneral
 
 ! ************************************************************************** !
 
-subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation,use_plog_formulation)
+subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation)
   ! 
   ! Computes the kinetic mineral precipitation/dissolution
   ! rates
@@ -4816,7 +4793,6 @@ subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation,use_plog_formula
   PetscReal :: update(ncomp)
   PetscReal :: conc(ncomp)
   PetscBool :: use_log_formulation
-  PetscBool :: use_plog_formulation
   
   PetscInt :: indices(ncomp)
   PetscReal :: rhs(ncomp)
@@ -4835,15 +4811,6 @@ subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation,use_plog_formula
     ! for derivatives with respect to ln conc
     do icomp = 1, ncomp
       Jac(:,icomp) = Jac(:,icomp)*conc(icomp)
-    enddo
-
-  elseif (use_plog_formulation) then
-    ! for derivatives with respect to conc+ln(conc)
-    do icomp = 1, ncomp
-      Jac(:,icomp) = Jac(:,icomp)*(conc(icomp)/1.d0+conc(icomp))
-      ! needs someone confirming this (?)
-      ! for lnC: dR/dlnC = dR/dC*dC/dlnC=dR/dC*1/(1/C)=dR/dC*C (i.e., line 4830)
-      ! for C+lnC: dR/d(C+lnC) = dR/dC*dC/d(C+lnC)=dR/dC*(C/(1+C))
     enddo
   endif
 

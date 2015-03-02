@@ -347,7 +347,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
   PetscReal :: ratio, min_ratio
   PetscReal, parameter :: min_allowable_scale = 1.d-10
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt :: i, n, j
+  PetscInt :: i, n
   PetscErrorCode :: ierr
   
   grid => realization%patch%grid
@@ -361,9 +361,6 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
     ! since it is not checkied in PETSc.  Thus, I don't want to spend 
     ! time checking for changes and performing an allreduce for log 
     ! formulation.
-  elseif (realization%reaction%use_plog_formulation) then
-    ! C and dC are actually C+lnC and d(C+lnC), nothing needed here ?????
-
   else
     call VecGetLocalSize(C,n,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(C,C_p,ierr);CHKERRQ(ierr)
@@ -389,27 +386,6 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
     ! scale if necessary
     if (min_ratio < 1.d0) then
       if (min_ratio < min_allowable_scale) then
-#ifdef DEBUG
-        write(realization%option%fid_out, *) '-----checking scaling factor for RT ------'
-        write(realization%option%fid_out, *) 'min. scaling factor = ', min_ratio
-        j = realization%reaction%ncomp
-        do i = 1, n
-          ratio = abs(C_p(i)/dC_p(i))
-          if (ratio<=min_allowable_scale .and. C_p(i)<=dC_p(i)) then
-            write(realization%option%fid_out, *)  &
-             ' <------ min_ratio @', i, 'cell no.=', floor((i-1.d0)/j), &
-            'rt species no. =',i-floor((i-1.d0)/j)*j, '-------------->'
-          endif
-          write(realization%option%fid_out, *) 'i=', i, &
-            'cell_no=',floor((i-1.0d0)/j), &
-            'rt_species_no.=',i-floor((i-1.0d0)/j)*j, &
-            'C_p/dC_p=', ratio, 'C_p=',C_p(i),'dC_p=',dC_p(i)
-        enddo
-        write(realization%option%fid_out, *) '-----DONE: checking scaling factor for RT ----'
-        write(realization%option%fid_out, *) ' min_ratio IS too small to make sense, '// &
-          'which less than an allowable_scale value !'
-        write(realization%option%fid_out, *) ' STOP executing ! '
-#endif
         write(string,'(es9.3)') min_ratio
         string = 'The update of primary species concentration is being ' // &
           'scaled by a very small value (i.e. ' // &
@@ -1858,7 +1834,8 @@ subroutine RTReact(realization)
     istart = (local_id-1)*reaction%ncomp+1
     iend = istart + reaction%ncomp - 1
     iendaq = istart + reaction%naqcomp - 1
-
+    
+    
     call RReact(rt_auxvars(ghosted_id),global_auxvars(ghosted_id), &
                 material_auxvars(ghosted_id), &
                 tran_xx_p(istart:iend), &
@@ -2225,7 +2202,6 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
   use Grid_module
   use Logging_module
   use Debug_module
-  use lambertw_module, only: wapr
 
   implicit none
 
@@ -2233,7 +2209,7 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
   Vec :: xx
   Vec :: r
   type(realization_type) :: realization
-  PetscReal, pointer :: xx_p(:), log_xx_p(:), plog_xx_p(:)
+  PetscReal, pointer :: xx_p(:), log_xx_p(:)
   PetscErrorCode :: ierr
   
   type(discretization_type), pointer :: discretization
@@ -2259,15 +2235,6 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
     xx_p(:) = exp(log_xx_p(:))
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(xx,log_xx_p,ierr);CHKERRQ(ierr)
-    call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
-                                     field%tran_xx_loc,NTRANDOF)
-  elseif (realization%reaction%use_plog_formulation) then
-    ! have to convert the plog concentration to non-log form
-    call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(xx,plog_xx_p,ierr);CHKERRQ(ierr)
-    !xx_p(:) = wapr(exp(plog_xx_p(:), 0, 0, 0)
-    call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(xx,plog_xx_p,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
                                      field%tran_xx_loc,NTRANDOF)
   else
@@ -2558,7 +2525,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 !        ! contribution to internal 
 !        rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) = &
 !          rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) + Res
-      endif
+        endif  
 
 #else
       call TFluxCoef_CD(option,cur_connection_set%area(iconn), &
@@ -2834,7 +2801,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
         ! contribution to internal 
 !        rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) = &
 !          rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) - Res
-      endif
+        endif
     enddo
     source_sink => source_sink%next
   enddo
@@ -2900,16 +2867,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
       if (.not.option%use_isothermal) then
         call RUpdateTempDependentCoefs(global_auxvars(ghosted_id),reaction, &
                                        PETSC_FALSE,option)
-      endif
-
-!F.-M. YUAN: option%iflag IS used here as indexing of cell-id for passing data from
-! clm_pf_idata%??? to PFLOTRAN for driving reaction sandboxes
-! note: 'local_id' is used in those sandboxes, but after checking when in parallel mode,
-! it should be 'ghosted_id', because in 'clm_pf_idata%???', those are defined as PETSC seq. vecs.
-#ifdef CLM_PFLOTRAN
-    option%iflag = ghosted_id
-#endif
-
+      endif      
       call RReaction(Res,Jup,PETSC_FALSE,rt_auxvars(ghosted_id), &
                      global_auxvars(ghosted_id), &
                      material_auxvars(ghosted_id), &
@@ -3145,9 +3103,7 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
-  ! need to check with GLEN for why and if proper to do so for plog-formulation ?
-  if (realization%reaction%use_log_formulation &
-      .or. realization%reaction%use_plog_formulation) then
+  if (realization%reaction%use_log_formulation) then
     call MatDiagonalScaleLocal(J,realization%field%tran_work_loc, &
                                ierr);CHKERRQ(ierr)
 
@@ -3611,15 +3567,6 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
         call RUpdateTempDependentCoefs(global_auxvars(ghosted_id),reaction, &
                                        PETSC_FALSE,option)
       endif      
-
-!F.-M. YUAN: option%iflag IS used here as indexing of cell-id for passing data from
-! clm_pf_idata%??? to PFLOTRAN for driving reaction sandboxes
-! note: 'local_id' is used in those sandboxes, but after checking when in parallel mode,
-! it should be 'ghosted_id', because in 'clm_pf_idata%???', those are defined as PETSC seq. vecs.
-#ifdef CLM_PFLOTRAN
-    option%iflag = ghosted_id
-#endif
-
       call RReactionDerivative(Res,Jup,rt_auxvars(ghosted_id), &
                                global_auxvars(ghosted_id), &
                                material_auxvars(ghosted_id), &
@@ -3642,10 +3589,8 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   ! the derivatives is zero.
 ! if (associated(realization%mass_transfer_list)) then
 ! endif
-
-  ! why needs the following ???
-  if (reaction%use_log_formulation .or. reaction%use_plog_formulation) then
-  !if (reaction%use_log_formulation) then
+ 
+  if (reaction%use_log_formulation) then
     call PetscLogEventBegin(logging%event_rt_jacobian_zero_calc, &
                             ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%tran_work_loc, work_loc_p, ierr);CHKERRQ(ierr)
@@ -3768,8 +3713,7 @@ subroutine RTJacobianEquilibrateCO2(J,realization)
   do i = 1, zero_count
     ghosted_id = ghosted_rows(i) ! zero indexing back to 1-based
     if (patch%imat(ghosted_id) <= 0) cycle
-!    if (reaction%use_log_formulation) then
-    if (reaction%use_log_formulation .or. reaction%use_plog_formulation) then
+    if (reaction%use_log_formulation) then
       jacobian_entry = rt_auxvars(ghosted_id)%pri_molal(jco2)
     else
       jacobian_entry = 1.d0
