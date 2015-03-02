@@ -298,13 +298,31 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   dkr_dp = 0.d0
 
   if (auxvar%pc > 0.d0) then
+
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
     if(auxvar%bc_alpha > 0.d0) then
        saturation_function%alpha  = auxvar%bc_alpha
        saturation_function%lambda = auxvar%bc_lambda
     endif
 #endif
+
     saturated = PETSC_FALSE
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+    call characteristic_curves%saturation_function% &
+                               Saturation(auxvar%pc, &
+                                          global_auxvar%sat(1), &
+                                          ds_dp,option)
+    ! if ds_dp is 0, we consider the cell saturated.
+    if (ds_dp < 1.d-40) then
+      saturated = PETSC_TRUE
+    else
+      call characteristic_curves%liq_rel_perm_function% &
+                       RelativePermeability(global_auxvar%sat(1), &
+                                            kr,dkr_Se,option)
+      dkr_dp = characteristic_curves%liq_rel_perm_function% &
+                                  DRelPerm_DPressure(ds_dp,dkr_Se)
+    endif
+#else
     call SaturationFunctionCompute(auxvar%pc, &
                                 global_auxvar%sat(1),kr, &
                                 ds_dp,dkr_dp, &

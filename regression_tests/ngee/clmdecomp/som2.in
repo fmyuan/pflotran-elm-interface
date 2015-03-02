@@ -1,5 +1,16 @@
 #Description - Batch CLM-Decomp simulation
 
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+  /
+END
+
+SUBSURFACE
+
 #=========================== regression =======================================
 REGRESSION
   CELLS
@@ -150,4 +161,4 @@ STRATA
   MATERIAL soil1
 END
 
-
+END_SUBSURFACE
