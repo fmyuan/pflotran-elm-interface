@@ -408,7 +408,7 @@ subroutine WaypointListRemoveExtraWaypnts(option,waypoint_list)
     write(option%io_buffer,'("Waypoint at time:", 1pe12.4, &
   &       " is beyond the end of simulation")') &
           prev_waypoint%time
-!    call printWrnMsg(option)
+    call printWrnMsg(option)
     call WaypointDestroy(prev_waypoint)   
   enddo
 

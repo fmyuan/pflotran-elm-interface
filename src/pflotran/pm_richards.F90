@@ -382,12 +382,11 @@ subroutine PMRichardsMaxChange(this)
   if (this%option%print_screen_flag) then
     write(*,'("  --> max chng: dpmx= ",1pe12.4)') this%option%dpmax
   endif
-#ifndef CLM_PFLOTRAN
   if (this%option%print_file_flag) then
     write(this%option%fid_out,'("  --> max chng: dpmx= ",1pe12.4)') &
       this%option%dpmax
   endif    
-#endif
+
 end subroutine PMRichardsMaxChange
 
 ! ************************************************************************** !
