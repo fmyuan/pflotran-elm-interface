@@ -44,7 +44,7 @@ subroutine GeomechicsInitReadRequiredCards(geomech_realization)
   
   implicit none
   
-  type(geomech_realization_type)             :: geomech_realization
+  class(geomech_realization_type)             :: geomech_realization
   type(geomech_discretization_type), pointer :: geomech_discretization
   
   character(len=MAXSTRINGLENGTH) :: string
@@ -95,7 +95,7 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
   
   implicit none
   
-  type(geomech_realization_type)             :: geomech_realization
+  class(geomech_realization_type)             :: geomech_realization
   type(geomech_discretization_type), pointer :: geomech_discretization
   type(geomech_patch_type), pointer          :: patch
   type(input_type)                           :: input
@@ -159,8 +159,7 @@ subroutine GeomechanicsInit(geomech_realization,input,option)
             & "  gravity    = "," [m/s^2]",3x,1p3e12.4 &
             & )') option%geomech_gravity(1:3)
       case default    
-        option%io_buffer = 'Keyword: ' // trim(word) // &
-          ' not recognized in GEOMECHANICS_GRID.'
+        call InputKeywordUnrecognized(word,'GEOMECHANICS_GRID',option)
     end select
   enddo
     
@@ -201,7 +200,7 @@ subroutine GeomechanicsInitReadInput(geomech_realization,geomech_solver, &
   
   implicit none
   
-  type(geomech_realization_type)               :: geomech_realization
+  class(geomech_realization_type)               :: geomech_realization
   type(solver_type)                            :: geomech_solver
   type(input_type)                             :: input
   type(option_type)                            :: option
@@ -342,9 +341,8 @@ subroutine GeomechanicsInitReadInput(geomech_realization,geomech_solver, &
           case ('TWO_WAY_COUPLED')      
             option%geomech_subsurf_coupling = GEOMECH_TWO_WAY_COUPLED 
           case default
-            option%io_buffer = 'Keyword: ' // trim(word) // &
-                               ' not recognized in GEOMECHANICS_SUBSURFACE_COUPLING.'
-            call printErrMsg(option)
+            call InputKeywordUnrecognized(word, &
+                   'GEOMECHANICS_SUBSURFACE_COUPLING',option)
         end select
         do
           call InputReadPflotranString(input,option)
@@ -422,9 +420,8 @@ subroutine GeomechanicsInitReadInput(geomech_realization,geomech_solver, &
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'GEOMECHANICS_OUTPUT,PERIODIC,OUTPUT_FILE')
                 case default
-                  option%io_buffer = 'Keyword: ' // trim(word) // &
-                                     ' not recognized in OUTPUT,OUTPUT_FILE.'
-                  call printErrMsg(option)
+                  call InputKeywordUnrecognized(word, &
+                         'GEOMECHANICS_OUTPUT,OUTPUT_FILE',option)
               end select
             case('SCREEN')
               call InputReadWord(input,option,word,PETSC_TRUE)
@@ -438,9 +435,8 @@ subroutine GeomechanicsInitReadInput(geomech_realization,geomech_solver, &
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'GEOMECHANICS_OUTPUT,PERIODIC,SCREEN')
                 case default
-                  option%io_buffer = 'Keyword: ' // trim(word) // &
-                                     ' not recognized in OUTPUT,SCREEN.'
-                  call printErrMsg(option)
+                  call InputKeywordUnrecognized(word, &
+                         'GEOMECHANICS,OUTPUT,SCREEN',option)
               end select
             case('PERIODIC')
               call InputReadWord(input,option,word,PETSC_TRUE)
@@ -505,10 +501,8 @@ subroutine GeomechanicsInitReadInput(geomech_realization,geomech_solver, &
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'GEOMECHANICS_OUTPUT,PERIODIC,TIMESTEP')
                 case default
-                  option%io_buffer = 'Keyword: ' // trim(word) // &
-                                     ' not recognized in GEOMECHANICS_OUTPUT,PERIODIC,'// &
-                                     'TIMESTEP.'
-                  call printErrMsg(option)
+                  call InputKeywordUnrecognized(word, &
+                         'GEOMECHANICS_OUTPUT,PERIODIC',option)
               end select
             case('PERIODIC_OBSERVATION')
               output_option%print_observation = PETSC_TRUE
@@ -533,10 +527,8 @@ subroutine GeomechanicsInitReadInput(geomech_realization,geomech_solver, &
                   call InputErrorMsg(input,option,'timestep increment', &
                                      'GEOMECHANICS_OUTPUT,PERIODIC_OBSERVATION,TIMESTEP')
                 case default
-                  option%io_buffer = 'Keyword: ' // trim(word) // &
-                                     ' not recognized in OUTPUT,'// &
-                                     'PERIODIC_OBSERVATION,TIMESTEP.'
-                  call printErrMsg(option)
+                  call InputKeywordUnrecognized(word, &
+                         'GEOMECHANICS_OUTPUT,PERIODIC_OBSERVATION',option)
               end select
             case('FORMAT')
               call InputReadWord(input,option,word,PETSC_TRUE)
@@ -573,14 +565,12 @@ subroutine GeomechanicsInitReadInput(geomech_realization,geomech_solver, &
                 case ('VTK')
                   output_option%print_vtk = PETSC_TRUE
                 case default
-                  option%io_buffer = 'Keyword: ' // trim(word) // &
-                                     ' not recognized in OUTPUT,FORMAT.'
-                  call printErrMsg(option)
+                  call InputKeywordUnrecognized(word, &
+                                 'GEOMECHANICS_OUTPUT,FORMAT',option)
               end select
             case default
-              option%io_buffer = 'Keyword: ' // trim(word) // &
-                                 ' not recognized in GEOMECHANICS_OUTPUT.'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                             'GEOMECHANICS_OUTPUT',option)
           end select
         enddo
                         
@@ -590,13 +580,14 @@ subroutine GeomechanicsInitReadInput(geomech_realization,geomech_solver, &
         call GeomechStrataRead(strata,input,option)
         call GeomechRealizAddStrata(geomech_realization,strata)
         nullify(strata)       
+      !.........................................................................
+      case ('END_GEOMECHANICS')
+        exit       
         
       !.........................................................................
       case default
-        option%io_buffer = 'Keyword ' // trim(word) // ' in input file ' // &
-                           'not recognized'
-        call printErrMsg(option)
-
+        call InputKeywordUnrecognized(word, &
+                                 'GeomechanicsInitReadInput',option)
     end select
   enddo
   
@@ -626,7 +617,7 @@ subroutine GeomechInitMatPropToGeomechRegions(geomech_realization)
 
   implicit none
   
-  type(geomech_realization_type) :: geomech_realization
+  class(geomech_realization_type) :: geomech_realization
   
   PetscReal, pointer :: vec_p(:)
   
@@ -764,8 +755,7 @@ subroutine InitGeomechSetupRealization(simulation)
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   ! 
-  use Simulation_module
-  
+  use Simulation_Geomechanics_class 
   use Geomechanics_Realization_class
   use Geomechanics_Global_module
   use Geomechanics_Force_module
@@ -775,7 +765,7 @@ subroutine InitGeomechSetupRealization(simulation)
   
   implicit none
   
-  type(simulation_type) :: simulation
+  type(geomechanics_simulation_type) :: simulation
   
   type(option_type), pointer :: option
   
@@ -844,8 +834,8 @@ subroutine InitGeomechSetupSolvers(geomech_realization,realization,solver)
 #include "finclude/petscsnes.h"
 #include "finclude/petscpc.h"
   
-  type(geomech_realization_type) :: geomech_realization
-  type(realization_type) :: realization
+  class(geomech_realization_type) :: geomech_realization
+  class(realization_type) :: realization
   type(solver_type), pointer :: solver
 
   type(option_type), pointer :: option

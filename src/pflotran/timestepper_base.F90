@@ -136,7 +136,7 @@ subroutine TimestepperBaseInit(this)
   this%steps = 0
   this%num_constant_time_steps = 0
 
-  this%max_time_step = 9999999
+  this%max_time_step = 999999
   this%max_time_step_cuts = 16
   this%constant_time_step_threshold = 5
 
@@ -151,7 +151,7 @@ subroutine TimestepperBaseInit(this)
   this%prev_dt = 0.d0
   this%dt = 1.d0
   this%dt_init = 1.d0
-  this%dt_min = 1.d-20   ! Ten zeptoseconds.
+  this%dt_max = 1.d-20   ! Ten zeptoseconds.
   this%dt_max = 3.1536d6 ! One-tenth of a year.  
   this%cfl_limiter = UNINITIALIZED_DOUBLE
   this%cfl_limiter_ts = 1.d20
@@ -306,9 +306,7 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
                           'TIMESTEPPER')
 
     case default
-      option%io_buffer = 'Timestepper option: '//trim(keyword)// &
-                          ' not recognized.'
-      call printErrMsg(option)
+      call InputKeywordUnrecognized(keyword,'TIMESTEPPER',option)
   end select
 
 end subroutine TimestepperBaseProcessKeyword

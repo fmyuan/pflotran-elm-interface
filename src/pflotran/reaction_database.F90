@@ -3357,14 +3357,9 @@ subroutine BasisInit(reaction,option)
   if (reaction%neqkdrxn > 0) then
 
     if (reaction%neqcplx > 0) then
-!      option%io_buffer = 'Isotherm reactions currently calculated as a ' // &
-!                         'function of free-ion, not totals.  Contact Glenn!'
-!      call printErrMsg(option)
-! comment out after consultation with Glenn by t6g on 4/2/2014 
-! "At this point yes, and no secondary aqueous species can exist.  
-! If I remove the error message, the sorption will be calculated based on total
-! component concentration."
-
+      option%io_buffer = 'Isotherm reactions currently calculated as a ' // &
+                         'function of free-ion, not totals.  Contact Glenn!'
+      call printErrMsg(option)
     endif
   
     ! allocate arrays

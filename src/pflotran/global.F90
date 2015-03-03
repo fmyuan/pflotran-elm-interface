@@ -13,6 +13,7 @@ module Global_module
   public GlobalSetup, &
          GlobalSetAuxVarScalar, &
          GlobalSetAuxVarVecLoc, &
+         GlobalGetAuxVarVecLoc, &
          GlobalWeightAuxVars, &
          GlobalUpdateState, &
          GlobalUpdateAuxVars
@@ -36,7 +37,7 @@ subroutine GlobalSetup(realization)
  
   implicit none
   
-  type(realization_type) :: realization
+  class(realization_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
@@ -134,7 +135,7 @@ subroutine GlobalSetAuxVarScalar(realization,value,ivar)
   
   implicit none
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   PetscReal :: value
   PetscInt :: ivar
 
@@ -211,7 +212,7 @@ subroutine GlobalSetAuxVarVecLoc(realization,vec_loc,ivar,isubvar)
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   Vec :: vec_loc
   PetscInt :: ivar
   PetscInt :: isubvar  
@@ -401,6 +402,61 @@ end subroutine GlobalSetAuxVarVecLoc
 
 ! ************************************************************************** !
 
+subroutine GlobalGetAuxVarVecLoc(realization,vec_loc,ivar,isubvar)
+  ! 
+  ! Sets values of auxvar data using a vector.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 11/19/08
+  ! 
+
+  use Realization_class
+  use Patch_module
+  use Grid_module
+  use Option_module
+  use Variables_module, only : STATE
+  
+  implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+  class(realization_type) :: realization
+  Vec :: vec_loc
+  PetscInt :: ivar
+  PetscInt :: isubvar  
+  
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  
+  PetscInt :: ghosted_id
+  PetscReal, pointer :: vec_loc_p(:)
+  PetscErrorCode :: ierr
+  
+  patch => realization%patch
+  grid => patch%grid
+  option => realization%option
+  
+  call VecGetArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+  
+  select case(ivar)
+    case(STATE)
+      do ghosted_id=1, grid%ngmax
+        vec_loc_p(ghosted_id) = &
+          dble(patch%aux%Global%auxvars(ghosted_id)%istate)
+      enddo
+    case default
+      option%io_buffer = 'Variable unrecognized in GlobalGetAuxVarVecLoc.'
+      call printErrMsg(option)
+  end select
+
+  call VecRestoreArrayReadF90(vec_loc,vec_loc_p,ierr);CHKERRQ(ierr)
+
+end subroutine GlobalGetAuxVarVecLoc
+
+! ************************************************************************** !
+
 subroutine GlobalWeightAuxVars(realization,weight)
   ! 
   ! Updates the densities and saturations in auxiliary
@@ -416,7 +472,7 @@ subroutine GlobalWeightAuxVars(realization,weight)
   
   implicit none
 
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   PetscReal :: weight
   
   type(option_type), pointer :: option
@@ -483,7 +539,7 @@ subroutine GlobalUpdateState(realization)
   use Communicator_Base_module
   use Variables_module, only : STATE
   
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   
   call RealizationGetVariable(realization,realization%field%work,STATE, &
                               ZERO_INTEGER)
@@ -516,7 +572,7 @@ subroutine GlobalUpdateAuxVars(realization,time_level,time)
                                GAS_DENSITY, GAS_SATURATION, &
                                TEMPERATURE, SC_FUGA_COEFF, GAS_DENSITY_MOL
   
-  type(realization_type) :: realization
+  class(realization_type) :: realization
   PetscReal :: time
   PetscInt :: time_level
   

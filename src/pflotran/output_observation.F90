@@ -1845,7 +1845,7 @@ subroutine OutputMassBalance(realization_base)
   use TH_module, only : THComputeMassBalance
   use Reactive_Transport_module, only : RTComputeMassBalance
   use General_module, only : GeneralComputeMassBalance
-  
+
   use Global_Aux_module
   use Reactive_Transport_Aux_module
   use Reaction_Aux_module

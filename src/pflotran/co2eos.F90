@@ -748,7 +748,7 @@ subroutine HENRY_co2_noderiv(xmole,x1m,tx,pcx,xphi,rkh,poyn)
   ! rkh   [Pa]  Henry constant
   ! poyn  [-]     Poynting factor
   ! Crovetto, R. (1991) Evaluation of solubility data of the system CO2-H2O
-  ! from 273���Z K to the critical point of water. Journal of Physical and
+  ! from 273�Z K to the critical point of water. Journal of Physical and
   ! Chemical Reference Data, 20(3), 575-589.
   ! 
 

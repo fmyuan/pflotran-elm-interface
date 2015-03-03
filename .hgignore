@@ -389,4 +389,5 @@ src/clm-pflotran/init_subsurface.F90
 src/clm-pflotran/init_subsurface_flow.F90
 src/clm-pflotran/init_subsurface_transport.F90
 src/clm-pflotran/init_surface.F90
-toms743.F90
+pm_waste_form.F90
+pmc_third_party.F90
