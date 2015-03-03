@@ -12,9 +12,9 @@ This repository is the PFLOTRAN portion for coupling. The CLM portion is in CLM-
   
 (1) default - the most updated PFLOTRAN codes with necessary editing for coupling. updated: 2015-03-02
 
-(2) default-bgc - the current stable version for coupling subsurface BGC between CLM and PFLOTRAN (including Richards only hydrology). Current Version of CLM: 4.5.38 
+(2) default-bgc - the current stable version for coupling subsurface BGC between CLM and PFLOTRAN (including Richards only hydrology). Current Version of CLM: 4.5.38; PFLOTRAN-dev change set: 7dc944a171993b2b27c4a5de84ac0856404a5194 [7dc944a17199] 
 
-(3) default-thc - the current development version of clm-pflotran, specifically for testing all thermal-hydrology and biogeochemistry portion. Target CLM Version: CLM4_5_1_r85. (2015-03-03).
+(3) default-thc - the current development version of clm-pflotran, specifically for testing all thermal-hydrology and biogeochemistry portion. Target CLM Version: CLM4_5_1_r85. (2015-03-03). PFLOTRAN-dev change set: 7a77c0606ca99efa9b58f6fe9d5ba23a82b1f8a1 [7a77c0606ca9]
 
 ### How do I get set up? ###
 
