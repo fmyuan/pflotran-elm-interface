@@ -136,6 +136,7 @@ util_obj  = \
 	${common_src}pflotran_constants.o \
 	${common_src}pflotran_provenance.o \
 	${common_src}string.o \
+	${common_src}lambertw.o \
 	${common_src}units.o \
 	${common_src}utility.o \
 	${common_src}variables.o
@@ -734,6 +735,7 @@ init_surface.o : condition_control.o convergence.o discretization.o \
 input_aux.o : option.o pflotran_constants.o string.o
 integral_flux.o : geometry.o input_aux.o option.o pflotran_constants.o \
                   string.o utility.o
+lambertw.o :
 logging.o : pflotran_constants.o
 lookup_table.o : pflotran_constants.o utility.o
 mass_transfer.o : dataset_base.o dataset_common_hdf5.o dataset_global_hdf5.o \
@@ -919,7 +921,7 @@ reaction.o : global_aux.o input_aux.o material_aux.o option.o \
              reaction_solid_solution.o reaction_solid_solution_aux.o \
              reaction_surf_complex.o reaction_surf_complex_aux.o \
              reactive_transport_aux.o string.o transport_constraint.o units.o \
-             utility.o variables.o
+             utility.o variables.o lambertw.o
 else
 reaction.o : co2_span_wagner.o co2eos.o eos_water.o global_aux.o input_aux.o \
              material_aux.o option.o pflotran_constants.o reaction_aux.o \
@@ -929,7 +931,7 @@ reaction.o : co2_span_wagner.o co2eos.o eos_water.o global_aux.o input_aux.o \
              reaction_solid_solution.o reaction_solid_solution_aux.o \
              reaction_surf_complex.o reaction_surf_complex_aux.o \
              reactive_transport_aux.o string.o transport_constraint.o units.o \
-             utility.o variables.o
+             utility.o variables.o lambertw.o
 endif
 reaction_aux.o : option.o pflotran_constants.o reaction_database_aux.o \
                  reaction_immobile_aux.o reaction_microbial_aux.o \

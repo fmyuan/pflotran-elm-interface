@@ -39,7 +39,6 @@ module pflotran_model_module
 
   ! map level constants
   PetscInt, parameter, public :: CLM_SUB_TO_PF_SUB           = 1 ! 3D --> 3D
-!  PetscInt, parameter, public :: CLM_SUB_TO_PF_EXTENDED_SUB  = 2 ! 3D --> extended 3D
   PetscInt, parameter, public :: CLM_SRF_TO_PF_2DSUB         = 3 ! 2D --> SURF of 3D grid
   PetscInt, parameter, public :: CLM_SRF_TO_PF_SRF           = 4 ! 2D --> 2D SURF grid
   PetscInt, parameter, public :: PF_SUB_TO_CLM_SUB           = 5 ! 3D --> 3D
@@ -78,7 +77,6 @@ module pflotran_model_module
     type(inside_each_overlapped_cell), pointer :: pf_cells(:)
     type(inside_each_overlapped_cell), pointer :: clm_cells(:)
     type(mapping_type),                pointer :: map_clm_sub_to_pf_sub
-!    type(mapping_type),                pointer :: map_clm_sub_to_pf_extended_sub
     type(mapping_type),                pointer :: map_clm_srf_to_pf_2dsub
     type(mapping_type),                pointer :: map_clm_srf_to_pf_srf
     type(mapping_type),                pointer :: map_pf_sub_to_clm_sub
@@ -194,15 +192,10 @@ contains
     ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
     ! setup on mpich/mac. should be generally ok, but may need an
     ! apple/mpich ifdef if it cause problems elsewhere.
-    PETSC_COMM_SELF = MPI_COMM_SELF
+    PETSC_COMM_SELF  = MPI_COMM_SELF
     PETSC_COMM_WORLD = MPI_COMM_WORLD
 
     call PFLOTRANInitializePostPetsc(model%simulation, model%multisimulation, model%option)
-
-    ! TODO(bja, 2013-07-15) this needs to be left alone for pflotran
-    ! to deal with, or we need a valid unit number from the driver as
-    ! a function parameter.
-!!$    model%option%fid_out = 16
 
     model%pause_time_1 = -1.0d0
     model%pause_time_2 = -1.0d0

@@ -361,6 +361,9 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
     ! since it is not checkied in PETSc.  Thus, I don't want to spend 
     ! time checking for changes and performing an allreduce for log 
     ! formulation.
+  elseif (realization%reaction%use_plog_formulation) then
+    ! C and dC are actually C+lnC and d(C+lnC), nothing needed here ?????
+
   else
     call VecGetLocalSize(C,n,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(C,C_p,ierr);CHKERRQ(ierr)
@@ -2223,6 +2226,7 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
   use Grid_module
   use Logging_module
   use Debug_module
+  use lambertw_module, only: wapr
 
   implicit none
 
@@ -2230,7 +2234,7 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
   Vec :: xx
   Vec :: r
   type(realization_type) :: realization
-  PetscReal, pointer :: xx_p(:), log_xx_p(:)
+  PetscReal, pointer :: xx_p(:), log_xx_p(:), plog_xx_p(:)
   PetscErrorCode :: ierr
   
   type(discretization_type), pointer :: discretization
@@ -2256,6 +2260,15 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
     xx_p(:) = exp(log_xx_p(:))
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(xx,log_xx_p,ierr);CHKERRQ(ierr)
+    call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
+                                     field%tran_xx_loc,NTRANDOF)
+  elseif (realization%reaction%use_plog_formulation) then
+    ! have to convert the plog concentration to non-log form
+    call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(xx,plog_xx_p,ierr);CHKERRQ(ierr)
+    !xx_p(:) = wapr(exp(plog_xx_p(:), 0, 0, 0)
+    call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(xx,plog_xx_p,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
                                      field%tran_xx_loc,NTRANDOF)
   else
@@ -3133,7 +3146,9 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
-  if (realization%reaction%use_log_formulation) then
+  ! need to check with GLEN for why and if proper to do so for plog-formulation ?
+  if (realization%reaction%use_log_formulation &
+      .or. realization%reaction%use_plog_formulation) then
     call MatDiagonalScaleLocal(J,realization%field%tran_work_loc, &
                                ierr);CHKERRQ(ierr)
 
@@ -3628,8 +3643,10 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   ! the derivatives is zero.
 ! if (associated(realization%mass_transfer_list)) then
 ! endif
- 
-  if (reaction%use_log_formulation) then
+
+  ! why needs the following ???
+  if (reaction%use_log_formulation .or. reaction%use_plog_formulation) then
+  !if (reaction%use_log_formulation) then
     call PetscLogEventBegin(logging%event_rt_jacobian_zero_calc, &
                             ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%tran_work_loc, work_loc_p, ierr);CHKERRQ(ierr)
@@ -3752,7 +3769,8 @@ subroutine RTJacobianEquilibrateCO2(J,realization)
   do i = 1, zero_count
     ghosted_id = ghosted_rows(i) ! zero indexing back to 1-based
     if (patch%imat(ghosted_id) <= 0) cycle
-    if (reaction%use_log_formulation) then
+!    if (reaction%use_log_formulation) then
+    if (reaction%use_log_formulation .or. reaction%use_plog_formulation) then
       jacobian_entry = rt_auxvars(ghosted_id)%pri_molal(jco2)
     else
       jacobian_entry = 1.d0

@@ -745,6 +745,10 @@ subroutine ReactionReadPass1(reaction,input,option)
                            'CHEMISTRY,DATABASE FILENAME')  
       case('LOG_FORMULATION')
         reaction%use_log_formulation = PETSC_TRUE
+        reaction%use_plog_formulation = PETSC_FALSE   ! only one of 'log' or 'plog'
+      case('PLOG_FORMULATION')   !fmy (2015-Jan)
+        reaction%use_plog_formulation = PETSC_TRUE
+        reaction%use_log_formulation = PETSC_FALSE   ! only one of 'log' or 'plog'
       case('GEOTHERMAL_HPT')
         reaction%use_geothermal_hpt = PETSC_TRUE           
       case('NO_CHECK_UPDATE')
@@ -1287,6 +1291,9 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   use co2eos_module, only: Henry_duan_sun
   use co2_span_wagner_module, only: co2_span_wagner
 
+  ! plog inverse function
+  use lambertw_module, only: wapr
+
   implicit none
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
@@ -1339,6 +1346,7 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   
   PetscBool :: charge_balance_warning_flag = PETSC_FALSE
   PetscBool :: use_log_formulation
+  PetscBool :: use_plog_formulation
   
   PetscReal :: Jac_num(reaction%naqcomp)
   PetscReal :: Res_pert, pert, prev_value, coh0
@@ -1792,15 +1800,19 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
     else
       use_log_formulation = PETSC_FALSE
     endif
+    use_plog_formulation = reaction%use_plog_formulation
       
     call RSolve(Res,Jac,rt_auxvar%pri_molal,update,reaction%naqcomp, &
-                use_log_formulation)
+                use_log_formulation,use_plog_formulation)
     
     prev_molal = rt_auxvar%pri_molal
 
     if (use_log_formulation) then
       update = dsign(1.d0,update)*min(dabs(update),reaction%max_dlnC)
       rt_auxvar%pri_molal = rt_auxvar%pri_molal*exp(-update)    
+    elseif (use_plog_formulation) then
+      !update = dsign(1.d0,update)*W(exp(-update))
+      rt_auxvar%pri_molal = rt_auxvar%pri_molal*exp(-update)  ! (TODO) will be redoing????
     else ! linear update
       ! ensure non-negative concentration
       min_ratio = 1.d20 ! large number
@@ -3257,6 +3269,8 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
 
   use Option_module
   
+  use lambertw_module, only: wapr
+
   implicit none
   
   type(reaction_type), pointer :: reaction
@@ -3370,7 +3384,7 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
     if (maxval(abs(residual)) < reaction%max_residual_tolerance) exit
 
     call RSolve(residual,J,rt_auxvar%pri_molal,update,reaction%ncomp, &
-                reaction%use_log_formulation)
+                reaction%use_log_formulation, reaction%use_plog_formulation)
     
     prev_solution(1:reaction%naqcomp) = rt_auxvar%pri_molal(1:reaction%naqcomp)
     if (reaction%nimcomp > 0) then
@@ -3381,6 +3395,8 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
     if (reaction%use_log_formulation) then
       update = dsign(1.d0,update)*min(dabs(update),reaction%max_dlnC)
       new_solution = prev_solution*exp(-update)    
+    elseif (reaction%use_plog_formulation) then
+      new_solution = prev_solution*(update+exp(-update))   ! NOT right at this moment (TODO)
     else ! linear upage
       ! ensure non-negative concentration
       min_ratio = 1.d20 ! large number
@@ -4774,7 +4790,7 @@ end subroutine RGeneral
 
 ! ************************************************************************** !
 
-subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation)
+subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation,use_plog_formulation)
   ! 
   ! Computes the kinetic mineral precipitation/dissolution
   ! rates
@@ -4793,6 +4809,7 @@ subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation)
   PetscReal :: update(ncomp)
   PetscReal :: conc(ncomp)
   PetscBool :: use_log_formulation
+  PetscBool :: use_plog_formulation
   
   PetscInt :: indices(ncomp)
   PetscReal :: rhs(ncomp)
@@ -4811,6 +4828,15 @@ subroutine RSolve(Res,Jac,conc,update,ncomp,use_log_formulation)
     ! for derivatives with respect to ln conc
     do icomp = 1, ncomp
       Jac(:,icomp) = Jac(:,icomp)*conc(icomp)
+    enddo
+
+  elseif (use_plog_formulation) then
+    ! for derivatives with respect to conc+ln(conc)
+    do icomp = 1, ncomp
+      Jac(:,icomp) = Jac(:,icomp)*(conc(icomp)/1.d0+conc(icomp))
+      ! needs someone confirming this (?)
+      ! for lnC: dR/dlnC = dR/dC*dC/dlnC=dR/dC*1/(1/C)=dR/dC*C (i.e., line 4830)
+      ! for C+lnC: dR/d(C+lnC) = dR/dC*dC/d(C+lnC)=dR/dC*(C/(1+C))
     enddo
   endif
 
