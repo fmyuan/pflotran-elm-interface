@@ -88,27 +88,6 @@ module pflotran_model_module
     type(mapping_type),                pointer :: map_pf_2dsub_to_clm_srf
     type(mapping_type),                pointer :: map_pf_2dbot_to_clm_bot
      
-    Vec :: hksat_x_clm
-    Vec :: hksat_y_clm
-    Vec :: hksat_z_clm
-    Vec :: sucsat_clm
-    Vec :: watsat_clm
-    Vec :: bsw_clm
-    Vec :: qflx_clm
-    Vec :: sat_clm
-
-    Vec :: hksat_x_pf
-    Vec :: hksat_y_pf
-    Vec :: hksat_z_pf
-    Vec :: sucsat_pf
-    Vec :: watsat_pf
-    Vec :: bsw_pf
-    Vec :: qflx_pf
-    Vec :: sat_pf
-
-    PetscInt :: nlclm
-    PetscInt :: ngclm
-
     PetscLogDouble :: timex(4), timex_wall(4)
 
   end type pflotran_model_type
@@ -167,14 +146,12 @@ contains
     use Simulation_Base_class
     use Multi_Simulation_module
     use Factory_PFLOTRAN_module
-    use Factory_Subsurface_module
+    use Factory_Subsurface_module, only : SubsurfaceInitialize
     use Factory_Hydrogeophysics_module
     use Factory_Surface_module
     use Factory_Surf_Subsurf_module
-    use PFLOTRAN_Constants_module
-    use Output_Aux_module, only : INSTANTANEOUS_VARS
-    use PFLOTRAN_Provenance_module, only : PrintProvenanceToScreen
-  
+    use Factory_Geomechanics_module
+
     implicit none
 
 #include "finclude/petscsys.h"
@@ -214,12 +191,13 @@ contains
         model%option%print_to_screen) then
       call PrintProvenanceToScreen()
     end if
-    call PFLOTRANInitializePostPetsc(model%multisimulation, model%option)
-
     ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
     ! setup on mpich/mac. should be generally ok, but may need an
     ! apple/mpich ifdef if it cause problems elsewhere.
     PETSC_COMM_SELF = MPI_COMM_SELF
+    PETSC_COMM_WORLD = MPI_COMM_WORLD
+
+    call PFLOTRANInitializePostPetsc(model%simulation, model%multisimulation, model%option)
 
     ! TODO(bja, 2013-07-15) this needs to be left alone for pflotran
     ! to deal with, or we need a valid unit number from the driver as
@@ -229,22 +207,8 @@ contains
     model%pause_time_1 = -1.0d0
     model%pause_time_2 = -1.0d0
 
-    ! FIXME(bja, 2013-07-17) hard code subsurface for now....
-    !model%option%simulation_mode = 'SURFACE_SUBSURFACE'
-    model%option%simulation_mode = 'SUBSURFACE'
-    select case(model%option%simulation_mode)
-      case('SUBSURFACE')
-         call SubsurfaceInitialize(model%simulation, model%option)
-      case('HYDROGEOPHYSICS')
-         call HydrogeophysicsInitialize(model%simulation, model%option)
-      case('SURFACE')
-         call SurfaceInitialize(model%simulation, model%option)
-      case('SURFACE_SUBSURFACE')
-         call SurfSubsurfaceInitialize(model%simulation, model%option)
-      case default
-         model%option%io_buffer = 'Simulation Mode not recognized : ' // model%option%simulation_mode
-         call printErrMsg(model%option)
-    end select
+    call model%simulation%InitializeRun()
+
     ! NOTE(bja, 2013-07-15) needs to go before InitializeRun()...?
     call pflotranModelSetupMappingFiles(model)
 
@@ -280,6 +244,8 @@ contains
 
     type(pflotran_model_type), pointer, intent(inout) :: model
     type(input_type), pointer :: input
+
+    type(mapping_type), pointer        :: map
 
     PetscBool :: clm2pf_flux_file
 !    PetscBool :: clm2pf_soil_file
@@ -317,9 +283,6 @@ contains
     model%map_clm_bot_to_pf_2dbot        => MappingCreate()
     model%map_pf_2dbot_to_clm_bot        => MappingCreate()
     model%map_pf_2dsub_to_clm_srf        => MappingCreate()
-
-    model%nlclm = -1
-    model%ngclm = -1
 
     input => InputCreate(OUTPUT_UNIT, &
                     model%option%input_filename, model%option)
@@ -424,6 +387,13 @@ contains
             ' in input file not recognized and ignored'
           call printMsg(model%option)
       end select
+
+      ! Read mapping file
+      if (index(map%filename, '.h5') > 0) then
+        call MappingReadHDF5(map, map%filename, model%option)
+      else
+        call MappingReadTxtFile(map, map%filename, model%option)
+      endif
 
     enddo
     call InputDestroy(input)
