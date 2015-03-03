@@ -451,6 +451,9 @@ subroutine SomDecRead(this,input,option)
             trim(new_reaction%upstream_pool_name) // '".'
           call printErrMsg(option)
         endif
+        if(rate_ad_factor .ne. 1.d0) then
+          new_reaction%rate_ad_factor = rate_ad_factor
+        endif
         if (associated(this%reactions)) then
           prev_reaction%next => new_reaction
         else

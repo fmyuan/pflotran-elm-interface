@@ -75,8 +75,6 @@ end function NitrifCreate
 ! ************************************************************************** !
 !
 ! NitrifRead: Reads input deck for nitrification reaction parameters (if any)
-! author: Guoping Tang
-! date: 09/09/2013
 !
 ! ************************************************************************** !
 subroutine NitrifRead(this,input,option)
@@ -160,8 +158,6 @@ end subroutine NitrifRead
 !
 ! NitrifSetup: Sets up the nitrification reaction either with parameters either
 !                read from the input deck or hardwired.
-! author: Guoping Tang
-! date: 09/09/2013
 !
 ! ************************************************************************** !
 subroutine NitrifSetup(this,reaction,option)
@@ -236,11 +232,6 @@ end subroutine NitrifSetup
 ! ************************************************************************** !
 !
 ! NitrifReact: Evaluates reaction storing residual and/or Jacobian
-! author: Guoping Tang
-! date: 09/09/2013
-!
-! Rewritten by Fengming Yuan @Aug-14-2014. The orginal was messed-up with 'patches',
-! which caused a lot of issues.
 !
 ! ************************************************************************** !
 subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
@@ -501,8 +492,6 @@ end subroutine NitrifReact
 !
 ! NitrifDestroy: Destroys allocatable or pointer objects created in this
 !                  module
-! author: Guoping Tang
-! date: 09/09/2013
 !
 ! ************************************************************************** !
 subroutine NitrifDestroy(this)
