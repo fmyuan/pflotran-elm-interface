@@ -672,6 +672,7 @@ end subroutine pflotranModelSetICs
     PetscScalar, pointer :: watsat_pf_loc(:)  ! minimum soil suction (mm)
     PetscScalar, pointer :: sucsat_pf_loc(:)  ! volumetric soil water at saturation (porosity)
     PetscScalar, pointer :: bsw_pf_loc(:)     ! Clapp and Hornberger "b"
+    PetscScalar, pointer :: zsoi_pf_loc(:)    ! soil depth (m)
 
     den = 998.2d0       ! [kg/m^3]  @ 20 degC
     vis = 0.001002d0    ! [N s/m^2] @ 20 degC
@@ -748,6 +749,11 @@ end subroutine pflotranModelSetICs
                                     clm_pf_idata%bulkdensity_dry_clm, &
                                     clm_pf_idata%bulkdensity_dry_pf)
 
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%zsoi_clmp, &
+                                    clm_pf_idata%zsoi_pfs)
+
     call VecGetArrayF90(clm_pf_idata%hksat_x_pf, hksat_x_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%hksat_y_pf, hksat_y_pf_loc, ierr)
@@ -759,6 +765,8 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(clm_pf_idata%watsat_pf,  watsat_pf_loc,  ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
     CHKERRQ(ierr)
 
     call VecGetArrayF90(field%porosity0, porosity_loc_p, ierr)
@@ -862,7 +870,7 @@ end subroutine pflotranModelSetICs
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
     CHKERRQ(ierr)
-!    call VecRestoreArrayF90(clm_pf_idata%bsw_clm,    bsw_clm_loc,    ierr)
+    call VecRestoreArrayF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
     CHKERRQ(ierr)
 
     call VecRestoreArrayF90(field%porosity0, porosity_loc_p, ierr)

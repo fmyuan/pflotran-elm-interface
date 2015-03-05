@@ -22,6 +22,7 @@ module Reaction_Sandbox_SomDec_class
     PetscInt :: temperature_response_function
     PetscInt :: moisture_response_function
     PetscReal :: Q10
+    PetscReal :: decomp_depth_efolding
     PetscReal :: half_saturation_nh3
     PetscReal :: half_saturation_no3
     PetscReal :: inhibition_nh3_no3
@@ -113,6 +114,7 @@ function SomDecCreate()
 #endif
 
   SomDecCreate%Q10 = 1.5d0
+  SomDecCreate%decomp_depth_efolding = 0.5d0
   SomDecCreate%half_saturation_nh3 = 1.0d-15
   SomDecCreate%half_saturation_no3 = 1.0d-15
   SomDecCreate%inhibition_nh3_no3 = 1.0d0
@@ -289,6 +291,11 @@ subroutine SomDecRead(this,input,option)
      case('N2O_FRAC_MINERALIZATION')
          call InputReadDouble(input,option,this%n2o_frac_mineralization)
          call InputErrorMsg(input,option,'n2o fraction from mineralization', &
+                     'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
+
+     case('DECOMP_DEPTH_EFOLDING')
+         call InputReadDouble(input,option,this%decomp_depth_efolding)
+         call InputErrorMsg(input,option,'decomp_depth_efolding', &
                      'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
 
      case('POOLS')
@@ -888,6 +895,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscInt :: ghosted_id
   PetscErrorCode :: ierr
   PetscInt, parameter :: iphase = 1
+  PetscScalar, pointer :: zsoi_pf_loc(:)    !
 
   PetscReal :: temp_real
   PetscReal :: c_uc, c_un    ! concentration (mole/m3 or mole/L, upon species type) => mole/m3bulk if needed
@@ -907,6 +915,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: tc     ! temperature in degC
   PetscReal :: f_t    ! temperature response function
   PetscReal :: f_w    ! moisture response function
+  PetscReal :: f_depth     ! reduction factor due to deep soil
 
   PetscReal :: crate       ! moleC/s: overall = crate_uc, or,
                            !                  = crate_uc*crate_nh3, or,
@@ -994,6 +1003,17 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   if(f_t < 1.0d-20 .or. f_w < 1.0d-20) then
      return
   endif
+
+#ifdef CLM_PFLOTRAN
+  call VecGetArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
+  CHKERRQ(ierr)
+  f_depth = exp(-zsoi_pf_loc(ghosted_id)/this%decomp_depth_efolding)
+  f_depth = max(1.0d0, min(0.d0, f_depth))
+  call VecRestoreArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
+  CHKERRQ(ierr)
+#else
+  f_depth = 1.0d0
+#endif
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   ! -----------------------------------------------------------------------------------------------
@@ -1122,7 +1142,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       k_decomp = 1.0d0-exp(-this%rate_decomposition(irxn)*option%tran_dt)
       k_decomp = k_decomp/option%tran_dt
     endif
-    scaled_crate_const = this%rate_ad_factor(irxn)*k_decomp*volume*f_t*f_w
+    scaled_crate_const = this%rate_ad_factor(irxn)*k_decomp*volume*f_t*f_w*f_depth
 
     ! substrates
     ispec_uc = this%upstream_c_id(irxn)
