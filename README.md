@@ -10,7 +10,7 @@ This repository is the PFLOTRAN portion for coupling. The CLM portion is in CLM-
 
 * The repository contains 3 branches for development and stable release purposes:
   
-(1) default - the most updated PFLOTRAN codes with necessary editing for coupling. updated: 2015-03-02
+(1) default - the most updated PFLOTRAN codes with necessary editing for coupling. NOT suggested to use for production run. updated: 2015-03-02
 
 (2) default-bgc - the current stable version for coupling subsurface BGC between CLM and PFLOTRAN (including Richards only hydrology). Current Version of CLM: 4.5.38; PFLOTRAN-dev change set: 7dc944a171993b2b27c4a5de84ac0856404a5194 [7dc944a17199] 
 
