@@ -815,17 +815,33 @@ end subroutine pflotranModelSetICs
     call VecGetArrayF90(perm_yy_loc,  perm_yy_loc_p,  ierr)
     call VecGetArrayF90(perm_zz_loc,  perm_zz_loc_p,  ierr)
 
+    hksat_x2_pf_loc(:) = 0.d0
+    hksat_y2_pf_loc(:) = 0.d0
+    hksat_z2_pf_loc(:) = 0.d0
+    sucsat2_pf_loc(:) = 0.d0
+    watsat2_pf_loc(:) = 0.d0
+    bsw2_pf_loc(:) = 0.d0
+    thetares2_pf_loc(:) = 0.d0
+    porosity_loc_p(:) = 0.d0
+    perm_xx_loc_p(:) = 0.d0
+    perm_yy_loc_p(:) = 0.d0
+    perm_zz_loc_p(:) = 0.d0
+
     do ghosted_id = 1, grid%ngmax
+
+      if (patch%sat_func_id(ghosted_id) < 1) cycle
+
+      saturation_function = patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
 
       select case(pflotran_model%option%iflowmode)
         case(RICHARDS_MODE)
           rich_aux_var => rich_aux_vars(ghosted_id)
-          bc_alpha  = rich_aux_var%bc_alpha
-          bc_lambda = rich_aux_var%bc_lambda
+          bc_alpha  = saturation_function%alpha
+          bc_lambda = saturation_function%lambda
         case(TH_MODE)
           th_aux_var => th_aux_vars(ghosted_id)
-          bc_alpha  = th_aux_var%bc_alpha
-          bc_lambda = th_aux_var%bc_lambda
+          bc_alpha  = saturation_function%alpha
+          bc_lambda = saturation_function%lambda
       end select
 
       ! bc_alpha [1/Pa]; while sucsat [mm of H20]
@@ -843,7 +859,6 @@ end subroutine pflotranModelSetICs
 
       watsat2_pf_loc(ghosted_id) = porosity_loc_p(ghosted_id)
 
-      saturation_function = patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
 
       iphase = 1
       thetares2_pf_loc(ghosted_id) = porosity_loc_p(ghosted_id)*saturation_function%Sr(iphase)
