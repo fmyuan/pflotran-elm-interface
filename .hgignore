@@ -373,6 +373,14 @@ src/clm-pflotran/simulation_surface.F90
 src/clm-pflotran/simulation_surfsubsurface.F90
 src/clm-pflotran/transport_constraint.F90
 src/clm-pflotran/wrapper_hydrogeophysics.F90
+src/clm-pflotran/init_common.F90
+src/clm-pflotran/init_geomechanics.F90
+src/clm-pflotran/init_subsurface.F90
+src/clm-pflotran/init_subsurface_flow.F90
+src/clm-pflotran/init_subsurface_transport.F90
+src/clm-pflotran/init_surface.F90
+src/clm-pflotran/pm_waste_form.F90
+src/clm-pflotran/pmc_third_party.F90
 
 src/epic/libepic.a
 
