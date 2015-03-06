@@ -114,7 +114,7 @@ function SomDecCreate()
 #endif
 
   SomDecCreate%Q10 = 1.5d0
-  SomDecCreate%decomp_depth_efolding = 0.5d0
+  SomDecCreate%decomp_depth_efolding = 0.d0      ! non-positive value will turn off this option
   SomDecCreate%half_saturation_nh3 = 1.0d-15
   SomDecCreate%half_saturation_no3 = 1.0d-15
   SomDecCreate%inhibition_nh3_no3 = 1.0d0
@@ -1005,12 +1005,16 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   endif
 
 #ifdef CLM_PFLOTRAN
-  call VecGetArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
-  CHKERRQ(ierr)
-  f_depth = exp(-zsoi_pf_loc(ghosted_id)/this%decomp_depth_efolding)
-  f_depth = min(1.0d0, max(1.d-20, f_depth))
-  call VecRestoreArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
-  CHKERRQ(ierr)
+  if (this%decomp_depth_efolding > 0.d0) then
+    call VecGetArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
+    CHKERRQ(ierr)
+    f_depth = exp(-zsoi_pf_loc(ghosted_id)/this%decomp_depth_efolding)
+    f_depth = min(1.0d0, max(1.d-20, f_depth))
+    call VecRestoreArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
+    CHKERRQ(ierr)
+  else
+    f_depth = 1.0d0
+  endif
 #else
   f_depth = 1.0d0
 #endif
