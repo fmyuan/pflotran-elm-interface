@@ -1008,7 +1008,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   call VecGetArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
   CHKERRQ(ierr)
   f_depth = exp(-zsoi_pf_loc(ghosted_id)/this%decomp_depth_efolding)
-  f_depth = max(1.0d0, min(1.d-20, f_depth))
+  f_depth = min(1.0d0, max(1.d-20, f_depth))
   call VecRestoreArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
   CHKERRQ(ierr)
 #else
