@@ -42,8 +42,6 @@ contains
 ! ************************************************************************** !
 !
 ! DenitrCreate: Allocates denitrification reaction object.
-! author: Guoping Tang (replace in all subroutine headers with name of developer) 
-! date: 09/09/2013 (replace in all subroutine headers with current date)
 !
 ! ************************************************************************** !
 function DenitrCreate()
@@ -73,8 +71,6 @@ end function DenitrCreate
 ! ************************************************************************** !
 !
 ! DenitrRead: Reads input deck for denitrification reaction parameters (if any)
-! author: Guoping Tang
-! date: 09/09/2013
 !
 ! ************************************************************************** !
 subroutine DenitrRead(this,input,option)
@@ -153,8 +149,6 @@ end subroutine DenitrRead
 !
 ! DenitrSetup: Sets up the denitrification reaction either with parameters either
 !                read from the input deck or hardwired.
-! author: Guoping Tang
-! date: 09/09/2013
 !
 ! ************************************************************************** !
 subroutine DenitrSetup(this,reaction,option)
@@ -217,10 +211,7 @@ end subroutine DenitrSetup
 subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
                          rt_auxvar,global_auxvar,material_auxvar,reaction, &
                          option)
-  !
-  ! Rewritten by Fengming Yuan @Aug-14-2014. The orginal was messed-up with 'patches',
-  ! which caused a lot of issues.
-  !
+!
 !---------------------------------------------------------------------------------------!
 
   use Option_module
@@ -411,8 +402,6 @@ end subroutine DenitrReact
 !
 ! DenitrDestroy: Destroys allocatable or pointer objects created in this
 !                  module
-! author: Guoping Tang
-! date: 09/09/2013
 !
 ! ************************************************************************** !
 subroutine DenitrDestroy(this)

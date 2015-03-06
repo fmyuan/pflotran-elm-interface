@@ -37,8 +37,6 @@ contains
 ! ************************************************************************** !
 !
 ! degasCreate: Allocates degas reaction object.
-! author: Guoping Tang
-! date: 04/03/2014
 !
 ! ************************************************************************** !
 function degasCreate()
@@ -70,8 +68,6 @@ end function degasCreate
 ! ************************************************************************** !
 !
 ! degasRead: Reads input deck for degas reaction parameters (if any)
-! author: Guoping Tang
-! date: 04/03/2014
 !
 ! ************************************************************************** !
 subroutine degasRead(this,input,option)
@@ -204,8 +200,6 @@ end subroutine degasSetup
 ! ************************************************************************** !
 !
 ! degasReact: Evaluates reaction storing residual and/or Jacobian
-! author: Guoping Tang
-! date: 04/03/2014
 !
 ! ************************************************************************** !
 subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
@@ -527,8 +521,6 @@ end subroutine degasReact
 !
 ! degasDestroy: Destroys allocatable or pointer objects created in this 
 !                  module
-! author: Guoping Tang
-! date: 04/03/2014
 !
 ! ************************************************************************** !
 subroutine degasDestroy(this)

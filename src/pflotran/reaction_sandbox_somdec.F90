@@ -22,6 +22,7 @@ module Reaction_Sandbox_SomDec_class
     PetscInt :: temperature_response_function
     PetscInt :: moisture_response_function
     PetscReal :: Q10
+    PetscReal :: decomp_depth_efolding
     PetscReal :: half_saturation_nh3
     PetscReal :: half_saturation_no3
     PetscReal :: inhibition_nh3_no3
@@ -113,6 +114,7 @@ function SomDecCreate()
 #endif
 
   SomDecCreate%Q10 = 1.5d0
+  SomDecCreate%decomp_depth_efolding = 0.d0      ! non-positive value will turn off this option
   SomDecCreate%half_saturation_nh3 = 1.0d-15
   SomDecCreate%half_saturation_no3 = 1.0d-15
   SomDecCreate%inhibition_nh3_no3 = 1.0d0
@@ -288,6 +290,11 @@ subroutine SomDecRead(this,input,option)
          call InputErrorMsg(input,option,'n2o fraction from mineralization', &
                      'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
 
+     case('DECOMP_DEPTH_EFOLDING')
+         call InputReadDouble(input,option,this%decomp_depth_efolding)
+         call InputErrorMsg(input,option,'decomp_depth_efolding', &
+                     'CHEMISTRY,REACTION_SANDBOX,SomDecomp,REACTION')
+
      case('POOLS')
         do
           call InputReadPflotranString(input,option)
@@ -446,6 +453,9 @@ subroutine SomDecRead(this,input,option)
             'See reaction with upstream pool "' // &
             trim(new_reaction%upstream_pool_name) // '".'
           call printErrMsg(option)
+        endif
+        if(rate_ad_factor .ne. 1.d0) then
+          new_reaction%rate_ad_factor = rate_ad_factor
         endif
         if (associated(this%reactions)) then
           prev_reaction%next => new_reaction
@@ -880,6 +890,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscInt :: ghosted_id
   PetscErrorCode :: ierr
   PetscInt, parameter :: iphase = 1
+  PetscScalar, pointer :: zsoi_pf_loc(:)    !
 
   PetscReal :: temp_real
   PetscReal :: c_uc, c_un    ! concentration (mole/m3 or mole/L, upon species type) => mole/m3bulk if needed
@@ -899,6 +910,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: tc     ! temperature in degC
   PetscReal :: f_t    ! temperature response function
   PetscReal :: f_w    ! moisture response function
+  PetscReal :: f_depth     ! reduction factor due to deep soil
 
   PetscReal :: crate       ! moleC/s: overall = crate_uc, or,
                            !                  = crate_uc*crate_nh3, or,
@@ -986,6 +998,21 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   if(f_t < 1.0d-20 .or. f_w < 1.0d-20) then
      return
   endif
+
+#ifdef CLM_PFLOTRAN
+  if (this%decomp_depth_efolding > 0.d0) then
+    call VecGetArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
+    CHKERRQ(ierr)
+    f_depth = exp(-zsoi_pf_loc(ghosted_id)/this%decomp_depth_efolding)
+    f_depth = min(1.0d0, max(1.d-20, f_depth))
+    call VecRestoreArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
+    CHKERRQ(ierr)
+  else
+    f_depth = 1.0d0
+  endif
+#else
+  f_depth = 1.0d0
+#endif
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   ! -----------------------------------------------------------------------------------------------
@@ -1105,18 +1132,22 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   do irxn = 1, this%nrxn
   
     !-----------------------------------------------------------------------------------------------------
-    ! calculate C rate (N rate is derived by Crate*N/C)
+    ! (i) calculate C rate ( and, N rate is derived by Crate*N/C)
 
-    ! scaled_rate_const units: (m^3 bulk / s) = (1/s) * (m^3 bulk)
+    ! rate in unit of 1/second
     if (this%rate_constant(irxn) >= 0.d0) then
       k_decomp = this%rate_constant(irxn)
     elseif (this%rate_decomposition(irxn) >= 0.d0) then
       k_decomp = 1.0d0-exp(-this%rate_decomposition(irxn)*option%tran_dt)
       k_decomp = k_decomp/option%tran_dt
     endif
-    scaled_crate_const = this%rate_ad_factor(irxn)*k_decomp*volume*f_t*f_w
+    k_decomp = this%rate_ad_factor(irxn)*k_decomp
+    k_decomp = min(k_decomp, 1.0d0/option%tran_dt)        ! make sure of NO over-decomposition rate (just in case, maybe not needed)
 
-    ! substrates
+    ! scaled_rate_const units: (m^3 bulk / s) = (1/s) * (m^3 bulk)
+    scaled_crate_const = k_decomp*volume*f_t*f_w*f_depth
+
+    ! (ii) substrates
     ispec_uc = this%upstream_c_id(irxn)
     if(this%upstream_is_aqueous(irxn)) then
       c_uc = rt_auxvar%total(ispec_uc, iphase)
@@ -1149,10 +1180,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     else
       feps0 = 1.0d0
       dfeps0_dx = 0.d0
-      if(c_uc <= this%x0eps) cycle     ! this may bring in 'oscillation' around 'this%x0eps'
+!      if(c_uc <= this%x0eps) cycle     ! this may bring in 'oscillation' around 'this%x0eps'
     endif
 
-    ! C substrate only dependent rate/derivative  (DON'T change after this)
+    ! (iii) C substrate only dependent rate/derivative  (DON'T change after this)
     crate_uc  = scaled_crate_const * c_uc * feps0    ! moles/s: (m3 bulk/s)* (moles/m3 bulk) * (-)
     dcrate_uc_duc = scaled_crate_const * (feps0 + c_uc*dfeps0_dx)
 

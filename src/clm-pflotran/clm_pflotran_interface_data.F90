@@ -124,12 +124,14 @@ module clm_pflotran_interface_data
   Vec :: pcwmax_clmp
   Vec :: porosity_clmp
   Vec :: press_ref_clmp
+  Vec :: zsoi_clmp
   Vec :: sr_pfs    ! MVM soil hydraulic properties
   Vec :: lamda_pfs
   Vec :: alpha_pfs
   Vec :: pcwmax_pfs
   Vec :: porosity_pfs
   Vec :: press_ref_pfs
+  Vec :: zsoi_pfs
 
   ! TH state vecs from CLM (mpi) to PF (seq) for bgc
   Vec :: press_clmp                     ! water pressure head (Pa)
@@ -443,12 +445,14 @@ contains
     clm_pf_idata%pcwmax_clmp   = 0
     clm_pf_idata%porosity_clmp = 0
     clm_pf_idata%press_ref_clmp= 0
+    clm_pf_idata%zsoi_clmp     = 0
     clm_pf_idata%sr_pfs         = 0
     clm_pf_idata%lamda_pfs      = 0
     clm_pf_idata%alpha_pfs      = 0
     clm_pf_idata%pcwmax_pfs     = 0
     clm_pf_idata%porosity_pfs   = 0
     clm_pf_idata%press_ref_pfs  = 0
+    clm_pf_idata%zsoi_pfs       = 0
 
     clm_pf_idata%eff_therm_cond_clm = 0
     clm_pf_idata%eff_therm_cond_pf = 0
@@ -799,6 +803,7 @@ contains
     call VecDuplicate(clm_pf_idata%porosity_clmp,clm_pf_idata%lamda_clmp,ierr)
     call VecDuplicate(clm_pf_idata%porosity_clmp,clm_pf_idata%alpha_clmp,ierr)
     call VecDuplicate(clm_pf_idata%porosity_clmp,clm_pf_idata%pcwmax_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_clmp,clm_pf_idata%zsoi_clmp,ierr)
 
     call VecDuplicate(clm_pf_idata%porosity_clmp,clm_pf_idata%press_clmp,ierr)                        ! TH states (3D)
     call VecDuplicate(clm_pf_idata%porosity_clmp,clm_pf_idata%soilpsi_clmp,ierr)
@@ -829,6 +834,7 @@ contains
     call VecDuplicate(clm_pf_idata%porosity_pfs,clm_pf_idata%lamda_pfs,ierr)
     call VecDuplicate(clm_pf_idata%porosity_pfs,clm_pf_idata%alpha_pfs,ierr)
     call VecDuplicate(clm_pf_idata%porosity_pfs,clm_pf_idata%pcwmax_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%porosity_pfs,clm_pf_idata%zsoi_pfs,ierr)
 
     call VecDuplicate(clm_pf_idata%porosity_pfs,clm_pf_idata%press_pfs,ierr)
     call VecDuplicate(clm_pf_idata%porosity_pfs,clm_pf_idata%soilpsi_pfs,ierr)
@@ -1145,6 +1151,8 @@ contains
        call VecDestroy(clm_pf_idata%pcwmax_clmp,ierr)
     if(clm_pf_idata%porosity_clmp /= 0) &
        call VecDestroy(clm_pf_idata%porosity_clmp,ierr)
+    if(clm_pf_idata%zsoi_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%zsoi_clmp,ierr)
 
     if(clm_pf_idata%press_clmp /= 0) &
        call VecDestroy(clm_pf_idata%press_clmp,ierr)
@@ -1196,6 +1204,8 @@ contains
        call VecDestroy(clm_pf_idata%pcwmax_pfs,ierr)
     if(clm_pf_idata%porosity_pfs /= 0) &
        call VecDestroy(clm_pf_idata%porosity_pfs,ierr)
+    if(clm_pf_idata%zsoi_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%zsoi_pfs,ierr)
 
     if(clm_pf_idata%press_pfs /= 0) &
       call VecDestroy(clm_pf_idata%press_pfs,ierr)
