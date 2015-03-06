@@ -1008,7 +1008,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   call VecGetArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
   CHKERRQ(ierr)
   f_depth = exp(-zsoi_pf_loc(ghosted_id)/this%decomp_depth_efolding)
-  f_depth = max(1.0d0, min(0.d0, f_depth))
+  f_depth = max(1.0d0, min(1.d-20, f_depth))
   call VecRestoreArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
   CHKERRQ(ierr)
 #else
@@ -1133,18 +1133,22 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   do irxn = 1, this%nrxn
   
     !-----------------------------------------------------------------------------------------------------
-    ! calculate C rate (N rate is derived by Crate*N/C)
+    ! (i) calculate C rate ( and, N rate is derived by Crate*N/C)
 
-    ! scaled_rate_const units: (m^3 bulk / s) = (1/s) * (m^3 bulk)
+    ! rate in unit of 1/second
     if (this%rate_constant(irxn) >= 0.d0) then
       k_decomp = this%rate_constant(irxn)
     elseif (this%rate_decomposition(irxn) >= 0.d0) then
       k_decomp = 1.0d0-exp(-this%rate_decomposition(irxn)*option%tran_dt)
       k_decomp = k_decomp/option%tran_dt
     endif
-    scaled_crate_const = this%rate_ad_factor(irxn)*k_decomp*volume*f_t*f_w*f_depth
+    k_decomp = this%rate_ad_factor(irxn)*k_decomp
+    k_decomp = min(k_decomp, 1.0d0/option%tran_dt)        ! make sure of NO over-decomposition rate (just in case, maybe not needed)
 
-    ! substrates
+    ! scaled_rate_const units: (m^3 bulk / s) = (1/s) * (m^3 bulk)
+    scaled_crate_const = k_decomp*volume*f_t*f_w*f_depth
+
+    ! (ii) substrates
     ispec_uc = this%upstream_c_id(irxn)
     if(this%upstream_is_aqueous(irxn)) then
       c_uc = rt_auxvar%total(ispec_uc, iphase)
@@ -1177,10 +1181,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     else
       feps0 = 1.0d0
       dfeps0_dx = 0.d0
-      if(c_uc <= this%x0eps) cycle     ! this may bring in 'oscillation' around 'this%x0eps'
+!      if(c_uc <= this%x0eps) cycle     ! this may bring in 'oscillation' around 'this%x0eps'
     endif
 
-    ! C substrate only dependent rate/derivative  (DON'T change after this)
+    ! (iii) C substrate only dependent rate/derivative  (DON'T change after this)
     crate_uc  = scaled_crate_const * c_uc * feps0    ! moles/s: (m3 bulk/s)* (moles/m3 bulk) * (-)
     dcrate_uc_duc = scaled_crate_const * (feps0 + c_uc*dfeps0_dx)
 
