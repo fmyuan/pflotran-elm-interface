@@ -277,21 +277,6 @@ module clm_pflotran_interface_data
   Vec :: smin_nh4_vr_clms               ! (gN/m3) vertically-resolved total soil mineral NH4 (incl. absorbed)
   Vec :: smin_nh4sorb_vr_clms           ! (gN/m3) vertically-resolved absorbed NH4-N
   !
-  Vec :: decomp_cpools_vr_lit1_clms_prv ! C/N states at previous time-step for pool-change calculation
-  Vec :: decomp_cpools_vr_lit2_clms_prv
-  Vec :: decomp_cpools_vr_lit3_clms_prv
-  Vec :: decomp_cpools_vr_cwd_clms_prv
-  Vec :: decomp_cpools_vr_som1_clms_prv
-  Vec :: decomp_cpools_vr_som2_clms_prv
-  Vec :: decomp_cpools_vr_som3_clms_prv
-  Vec :: decomp_cpools_vr_som4_clms_prv
-  Vec :: decomp_npools_vr_lit1_clms_prv
-  Vec :: decomp_npools_vr_lit2_clms_prv
-  Vec :: decomp_npools_vr_lit3_clms_prv
-  Vec :: decomp_npools_vr_cwd_clms_prv
-  Vec :: smin_no3_vr_clms_prv           ! (gN/m3) vertically-resolved total NO3-N
-  Vec :: smin_nh4_vr_clms_prv           ! (gN/m3) vertically-resolved total NH4-N (incl. absorbed)
-  Vec :: smin_nh4sorb_vr_clms_prv       ! (gN/m3) vertically-resolved absorbed NH4-N at previous time-step
   ! 'accextrn' is accumulative N extract by plant roots in 'PFLOTRAN' within a CLM timestep
   Vec :: accextrn_vr_pfp                ! (gN/m3) vertically-resolved root extraction N
   Vec :: accextrn_vr_clms               ! (gN/m3) vertically-resolved root extraction N
@@ -596,21 +581,6 @@ contains
     clm_pf_idata%smin_no3_vr_clms      = 0
     clm_pf_idata%smin_nh4_vr_clms      = 0
     clm_pf_idata%smin_nh4sorb_vr_clms  = 0
-    clm_pf_idata%decomp_cpools_vr_lit1_clms_prv = 0
-    clm_pf_idata%decomp_cpools_vr_lit2_clms_prv = 0
-    clm_pf_idata%decomp_cpools_vr_lit3_clms_prv = 0
-    clm_pf_idata%decomp_cpools_vr_cwd_clms_prv  = 0
-    clm_pf_idata%decomp_cpools_vr_som1_clms_prv = 0
-    clm_pf_idata%decomp_cpools_vr_som2_clms_prv = 0
-    clm_pf_idata%decomp_cpools_vr_som3_clms_prv = 0
-    clm_pf_idata%decomp_cpools_vr_som4_clms_prv = 0
-    clm_pf_idata%decomp_npools_vr_lit1_clms_prv = 0
-    clm_pf_idata%decomp_npools_vr_lit2_clms_prv = 0
-    clm_pf_idata%decomp_npools_vr_lit3_clms_prv = 0
-    clm_pf_idata%decomp_npools_vr_cwd_clms_prv  = 0
-    clm_pf_idata%smin_no3_vr_clms_prv      = 0
-    clm_pf_idata%smin_nh4_vr_clms_prv      = 0
-    clm_pf_idata%smin_nh4sorb_vr_clms_prv  = 0
 
     ! for root N extraction calculation
     clm_pf_idata%accextrn_vr_pfp       = 0
@@ -932,21 +902,6 @@ contains
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%smin_no3_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%smin_nh4_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%smin_nh4sorb_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_lit1_clms_prv,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_lit2_clms_prv,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_lit3_clms_prv,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_cwd_clms_prv,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_som1_clms_prv,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_som2_clms_prv,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_som3_clms_prv,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_cpools_vr_som4_clms_prv,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_lit1_clms_prv,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_lit2_clms_prv,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_lit3_clms_prv,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%decomp_npools_vr_cwd_clms_prv,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%smin_no3_vr_clms_prv,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%smin_nh4_vr_clms_prv,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_lit1_clms,clm_pf_idata%smin_nh4sorb_vr_clms_prv,ierr)
 
     ! (iv) TH parameters: 3D subsurface PFLOTRAN ---to--- 3D subsurface CLM
     ! MPI Vecs for PFLOTRAN
@@ -1397,37 +1352,6 @@ contains
        call VecDestroy(clm_pf_idata%smin_nh4_vr_clms,ierr)
     if(clm_pf_idata%smin_nh4sorb_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%smin_nh4sorb_vr_clms,ierr)
-
-    if(clm_pf_idata%decomp_cpools_vr_lit1_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit1_clms_prv,ierr)
-    if(clm_pf_idata%decomp_cpools_vr_lit2_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit2_clms_prv,ierr)
-    if(clm_pf_idata%decomp_cpools_vr_lit3_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit3_clms_prv,ierr)
-    if(clm_pf_idata%decomp_cpools_vr_cwd_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%decomp_cpools_vr_cwd_clms_prv,ierr)
-    if(clm_pf_idata%decomp_cpools_vr_som1_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som1_clms_prv,ierr)
-    if(clm_pf_idata%decomp_cpools_vr_som2_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som2_clms_prv,ierr)
-    if(clm_pf_idata%decomp_cpools_vr_som3_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som3_clms_prv,ierr)
-    if(clm_pf_idata%decomp_cpools_vr_som4_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som4_clms_prv,ierr)
-    if(clm_pf_idata%decomp_npools_vr_lit1_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit1_clms_prv,ierr)
-    if(clm_pf_idata%decomp_npools_vr_lit2_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit2_clms_prv,ierr)
-    if(clm_pf_idata%decomp_npools_vr_lit3_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%decomp_npools_vr_lit3_clms_prv,ierr)
-    if(clm_pf_idata%decomp_npools_vr_cwd_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%decomp_npools_vr_cwd_clms_prv,ierr)
-    if(clm_pf_idata%smin_no3_vr_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%smin_no3_vr_clms_prv,ierr)
-    if(clm_pf_idata%smin_nh4_vr_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%smin_nh4_vr_clms_prv,ierr)
-    if(clm_pf_idata%smin_nh4sorb_vr_clms_prv /= 0) &
-       call VecDestroy(clm_pf_idata%smin_nh4sorb_vr_clms_prv,ierr)
 
     ! update BGC fluxes
     if(clm_pf_idata%accextrn_vr_pfp /= 0) &
