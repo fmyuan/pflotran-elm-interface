@@ -617,7 +617,7 @@ subroutine SomDecSetup(this,reaction,option)
     this%pool_nc_ratio(icount) = cur_pool%nc_ratio
     pool_names(icount) = cur_pool%name
 
-    if (cur_pool%nc_ratio < 0.d0) then
+    if (cur_pool%nc_ratio <= 0.d0) then
       ! Since no CN ratio provided, must provide two species with the
       ! same name as the pool with C or N appended.
       word = trim(cur_pool%name) // 'C'
