@@ -383,10 +383,10 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
 #ifdef CLM_PFLOTRAN
   ghosted_id = option%iflag
 
-  call VecGetArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity, ierr)
+  call VecGetArrayReadF90(clm_pf_idata%bulkdensity_dry_sub_pfs, bulkdensity, ierr)
   CHKERRQ(ierr)
   rho_b = bulkdensity(ghosted_id) ! kg/m3
-  call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity, ierr)
+  call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_sub_pfs, bulkdensity, ierr)
   CHKERRQ(ierr)
 #else
   rho_b = 1.25d3

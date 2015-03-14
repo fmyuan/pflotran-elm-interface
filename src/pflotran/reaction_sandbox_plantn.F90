@@ -399,12 +399,12 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 #ifdef CLM_PFLOTRAN
   ghosted_id = option%iflag
 
-  call VecGetArrayReadF90(clm_pf_idata%rate_plantndemand_pfs, &
+  call VecGetArrayReadF90(clm_pf_idata%rate_plantndemand_sub_pfs, &
        rate_plantndemand_pf_loc, ierr)
 
   this%rate = rate_plantndemand_pf_loc(ghosted_id) * volume          ! moles/m3/s * m3
 
-  call VecRestoreArrayReadF90(clm_pf_idata%rate_plantndemand_pfs, &
+  call VecRestoreArrayReadF90(clm_pf_idata%rate_plantndemand_sub_pfs, &
        rate_plantndemand_pf_loc, ierr)
 #endif
   if (this%ispec_plantndemand > 0) then  ! for tracking

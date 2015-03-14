@@ -287,10 +287,10 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
 
 #ifdef CLM_PFLOTRAN
   ghosted_id = option%iflag
-  call VecGetArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
+  call VecGetArrayReadF90(clm_pf_idata%bsw_sub_pfs, bsw, ierr)
   CHKERRQ(ierr)
   temp_real = bsw(ghosted_id)
-  call VecRestoreArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
+  call VecRestoreArrayReadF90(clm_pf_idata%bsw_sub_pfs, bsw, ierr)
   CHKERRQ(ierr)
 
 #else
