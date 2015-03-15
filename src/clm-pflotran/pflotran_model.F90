@@ -59,9 +59,8 @@ module pflotran_model_module
   PetscInt, parameter, public :: CLM_FACE_MESH   = 11
   PetscInt, parameter, public :: PF_FACE_MESH    = 12
 
-  PetscReal, parameter, public :: xeps0_conc = 1.0d-20
-  PetscReal, parameter, public :: C_molecular_weight = 12.0107d0
-  PetscReal, parameter, public :: N_molecular_weight = 14.0067d0
+  PetscReal, parameter, public :: xeps0_c = 1.0d-20
+  PetscReal, parameter, public :: xeps0_n = 1.0d-21
 
   type, public :: inside_each_overlapped_cell
      PetscInt           :: id
@@ -112,9 +111,9 @@ module pflotran_model_module
        pflotranModelDestroy
 
   private :: &
-       pflotranModelSetupMappingFiles
+       pflotranModelSetupMappingFiles,       &
        pflotranModelInsertWaypoint,          &
-       pflotranModelDeleteWaypoint,          &
+       pflotranModelDeleteWaypoint
 
   public ::  &
        pflotranModelUpdateFinalWaypoint,        &
@@ -5260,7 +5259,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       ispec_som1n = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
     else
-      ispec_som1n = -999
+      ispec_som1n = UNINITIALIZED_INTEGER
     end if
 
     word = "SOM2"
@@ -5274,7 +5273,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       ispec_som2n = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
     else
-      ispec_som2n = -999
+      ispec_som2n = UNINITIALIZED_INTEGER
     end if
 
     word = "SOM3"
@@ -5288,7 +5287,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       ispec_som3n = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
     else
-      ispec_som3n = -999
+      ispec_som3n = UNINITIALIZED_INTEGER
     end if
 
     word = "SOM4"
@@ -5302,7 +5301,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       ispec_som4n = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
     else
-      ispec_som4n = -999
+      ispec_som4n = UNINITIALIZED_INTEGER
     end if
 
     word = "NO3-"
@@ -5567,87 +5566,71 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       theta = saturation * porosity
 
       if(ispec_no3 > 0) then
-         xx_p(offset + ispec_no3) = max(smin_no3_vr_pf_loc(ghosted_id) / &      ! from 'ghosted_id' to field%xx_p's local
-                                    N_molecular_weight / theta / 1000.0d0, &
-                                    xeps0_conc)
+         xx_p(offset + ispec_no3) = max(xeps0_n, smin_no3_vr_pf_loc(ghosted_id)  &      ! from 'ghosted_id' to field%xx_p's local
+                                                 / theta / 1000.0d0)
       endif
 
       if(ispec_nh4 > 0) then
-         xx_p(offset + ispec_nh4) = max(smin_nh4_vr_pf_loc(ghosted_id) / &
-                                    N_molecular_weight / theta / 1000.d0, &
-                                    xeps0_conc)
+         xx_p(offset + ispec_nh4) = max(xeps0_n, smin_nh4_vr_pf_loc(ghosted_id)  &
+                                                 / theta / 1000.d0)
       endif
 
       offsetim = offset + realization%reaction%offset_immobile
 
       if(ispec_lit1c > 0) then
-        xx_p(offsetim + ispec_lit1c) = max(decomp_cpools_vr_lit1_pf_loc(ghosted_id) &
-                                        / C_molecular_weight, xeps0_conc)
+        xx_p(offsetim + ispec_lit1c) = max(xeps0_c, decomp_cpools_vr_lit1_pf_loc(ghosted_id) )
       endif
 
       if(ispec_lit2c > 0) then
-        xx_p(offsetim + ispec_lit2c) = max(decomp_cpools_vr_lit2_pf_loc(ghosted_id) &
-                                        / C_molecular_weight, xeps0_conc)
+        xx_p(offsetim + ispec_lit2c) = max(xeps0_c, decomp_cpools_vr_lit2_pf_loc(ghosted_id) )
       endif
 
       if(ispec_lit3c > 0) then
-        xx_p(offsetim + ispec_lit3c) = max(decomp_cpools_vr_lit3_pf_loc(ghosted_id) &
-                                        / C_molecular_weight, xeps0_conc)
+        xx_p(offsetim + ispec_lit3c) = max(xeps0_c, decomp_cpools_vr_lit3_pf_loc(ghosted_id) )
       endif
 
       if(ispec_som1c > 0) then
-        xx_p(offsetim + ispec_som1c) = max(decomp_cpools_vr_som1_pf_loc(ghosted_id) &
-                                        / C_molecular_weight, xeps0_conc)
+        xx_p(offsetim + ispec_som1c) = max(xeps0_c, decomp_cpools_vr_som1_pf_loc(ghosted_id) )
       endif
 
       if(ispec_som2c > 0) then
-        xx_p(offsetim + ispec_som2c) = max(decomp_cpools_vr_som2_pf_loc(ghosted_id) &
-                                        / C_molecular_weight, xeps0_conc)
+        xx_p(offsetim + ispec_som2c) = max(xeps0_c, decomp_cpools_vr_som2_pf_loc(ghosted_id) )
       endif
 
       if(ispec_som3c > 0) then
-        xx_p(offsetim + ispec_som3c) = max(decomp_cpools_vr_som3_pf_loc(ghosted_id) &
-                                        / C_molecular_weight, xeps0_conc)
+        xx_p(offsetim + ispec_som3c) = max(xeps0_c, decomp_cpools_vr_som3_pf_loc(ghosted_id) )
       endif
 
       if(ispec_som4c > 0) then
-        xx_p(offsetim + ispec_som4c) = max(decomp_cpools_vr_som4_pf_loc(ghosted_id) &
-                                        / C_molecular_weight, xeps0_conc)
+        xx_p(offsetim + ispec_som4c) = max(xeps0_c, decomp_cpools_vr_som4_pf_loc(ghosted_id) )
       endif
 
       if(ispec_lit1n > 0) then
-        xx_p(offsetim + ispec_lit1n) = max(decomp_npools_vr_lit1_pf_loc(ghosted_id) &
-                                        / N_molecular_weight, xeps0_conc)
+        xx_p(offsetim + ispec_lit1n) = max(xeps0_n, decomp_npools_vr_lit1_pf_loc(ghosted_id) )
       endif
 
       if(ispec_lit2n > 0) then
-        xx_p(offsetim + ispec_lit2n) = max(decomp_npools_vr_lit2_pf_loc(ghosted_id) &
-                                        / N_molecular_weight, xeps0_conc)
+        xx_p(offsetim + ispec_lit2n) = max(xeps0_n, decomp_npools_vr_lit2_pf_loc(ghosted_id) )
       endif
 
       if(ispec_lit3n > 0) then
-        xx_p(offsetim + ispec_lit3n) = max(decomp_npools_vr_lit3_pf_loc(ghosted_id) &
-                                        / N_molecular_weight, xeps0_conc)
+        xx_p(offsetim + ispec_lit3n) = max(xeps0_n, decomp_npools_vr_lit3_pf_loc(ghosted_id) )
       endif
 
       if(ispec_som1n > 0) then
-        xx_p(offsetim + ispec_som1n) = max(decomp_npools_vr_som1_pf_loc(ghosted_id) &
-                                        / N_molecular_weight, xeps0_conc)
+        xx_p(offsetim + ispec_som1n) = max(xeps0_n, decomp_npools_vr_som1_pf_loc(ghosted_id) )
       endif
 
       if(ispec_som2n > 0) then
-        xx_p(offsetim + ispec_som2n) = max(decomp_npools_vr_som2_pf_loc(ghosted_id) &
-                                        / N_molecular_weight, xeps0_conc)
+        xx_p(offsetim + ispec_som2n) = max(xeps0_n, decomp_npools_vr_som2_pf_loc(ghosted_id) )
       endif
 
       if(ispec_som3n > 0) then
-        xx_p(offsetim + ispec_som3n) = max(decomp_npools_vr_som3_pf_loc(ghosted_id) &
-                                        / N_molecular_weight, xeps0_conc)
+        xx_p(offsetim + ispec_som3n) = max(xeps0_n, decomp_npools_vr_som3_pf_loc(ghosted_id) )
       endif
 
       if(ispec_som4n > 0) then
-        xx_p(offsetim + ispec_som4n) = max(decomp_npools_vr_som4_pf_loc(ghosted_id) &
-                                        / N_molecular_weight, xeps0_conc)
+        xx_p(offsetim + ispec_som4n) = max(xeps0_n, decomp_npools_vr_som4_pf_loc(ghosted_id) )
       endif
 
 #if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
@@ -5909,9 +5892,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     word = "SOM3"
     ispec_som3c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_som1c < 0) then
+    if (ispec_som3c < 0) then
       word = "SOM3C"
-      ispec_som1c = GetImmobileSpeciesIDFromName(word, &
+      ispec_som3c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
       word = "SOM3N"
       ispec_som3n = GetImmobileSpeciesIDFromName(word, &
@@ -6397,15 +6380,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       theta = saturation * porosity
 
       if(ispec_no3 > 0) then
-         xx_p(offset_aq + ispec_no3) = max(smin_no3_vr_pf_loc(ghosted_id) / &      ! from 'ghosted_id' to field%xx_p's local
-                                    N_molecular_weight / theta / 1000.0d0, &
-                                    xeps0_conc)
+         xx_p(offset_aq + ispec_no3) = max(xeps0_n, smin_no3_vr_pf_loc(ghosted_id)  &      ! from 'ghosted_id' to field%xx_p's local
+                                                    / theta / 1000.0d0 )
       endif
 
       if(ispec_nh4 > 0) then
-         xx_p(offset_aq + ispec_nh4) = max(smin_nh4_vr_pf_loc(ghosted_id) / &
-                                    N_molecular_weight / theta / 1000.d0, &
-                                    xeps0_conc)
+         xx_p(offset_aq + ispec_nh4) = max(xeps0_n, smin_nh4_vr_pf_loc(ghosted_id)  &
+                                                   / theta / 1000.0d0 )
       endif
 
       ! adjusting other aq. species conc. due to CLM pass-in theta (porosity X saturation)
@@ -6596,15 +6577,15 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                 + realization%reaction%offset_immobile
 
         if(ispec_co2 > 0) then
-            xx_p(offset + ispec_co2) = max(gco2_vr_pf_loc(ghosted_id), xeps0_conc)
+            xx_p(offset + ispec_co2) = max(gco2_vr_pf_loc(ghosted_id), xeps0_c)
         endif
 
         if(ispec_n2 > 0) then
-            xx_p(offset + ispec_n2) = max(gn2_vr_pf_loc(ghosted_id), xeps0_conc)
+            xx_p(offset + ispec_n2) = max(gn2_vr_pf_loc(ghosted_id), xeps0_n)
         endif
 
         if(ispec_n2o > 0) then
-            xx_p(offset + ispec_n2o) = max(gn2o_vr_pf_loc(ghosted_id), xeps0_conc)
+            xx_p(offset + ispec_n2o) = max(gn2o_vr_pf_loc(ghosted_id), xeps0_n)
         endif
 
     enddo
@@ -6979,73 +6960,59 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         offsetim = offset + realization%reaction%offset_immobile
 
         if (ispec_lit1c > 0) then
-          decomp_cpools_vr_lit1_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit1c), xeps0_conc) &
-                                        * C_molecular_weight
+          decomp_cpools_vr_lit1_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit1c), xeps0_c)
         endif
 
         if (ispec_lit2c > 0) then
-          decomp_cpools_vr_lit2_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit2c), xeps0_conc) &
-                                        * C_molecular_weight
+          decomp_cpools_vr_lit2_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit2c), xeps0_c)
         endif
 
         if (ispec_lit3c > 0) then
-          decomp_cpools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3c), xeps0_conc) &
-                                        * C_molecular_weight
+          decomp_cpools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3c), xeps0_c)
         endif
 
         if (ispec_lit1n > 0) then
-          decomp_npools_vr_lit1_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit1n), xeps0_conc) &
-                                        * N_molecular_weight
+          decomp_npools_vr_lit1_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit1n), xeps0_n)
         endif
 
         if (ispec_lit2n > 0) then
-          decomp_npools_vr_lit2_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit2n), xeps0_conc) &
-                                        * N_molecular_weight
+          decomp_npools_vr_lit2_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit2n), xeps0_n)
         endif
 
         if (ispec_lit3n > 0) then
-          decomp_npools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3n), xeps0_conc) &
-                                        * N_molecular_weight
+          decomp_npools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3n), xeps0_n)
         endif
 
         if (ispec_som1c > 0) then
-          decomp_cpools_vr_som1_pf_loc(local_id) = max(xx_p(offsetim + ispec_som1c), xeps0_conc) &
-                                        * C_molecular_weight
+          decomp_cpools_vr_som1_pf_loc(local_id) = max(xx_p(offsetim + ispec_som1c), xeps0_c)
         endif
 
         if (ispec_som2c > 0) then
-          decomp_cpools_vr_som2_pf_loc(local_id) = max(xx_p(offsetim + ispec_som2c), xeps0_conc) &
-                                        * C_molecular_weight
+          decomp_cpools_vr_som2_pf_loc(local_id) = max(xx_p(offsetim + ispec_som2c), xeps0_c)
         endif
 
         if (ispec_som3c > 0) then
-          decomp_cpools_vr_som3_pf_loc(local_id) = max(xx_p(offsetim + ispec_som3c), xeps0_conc) &
-                                        * C_molecular_weight
+          decomp_cpools_vr_som3_pf_loc(local_id) = max(xx_p(offsetim + ispec_som3c), xeps0_c)
         endif
 
         if (ispec_som4c > 0) then
-          decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4c), xeps0_conc) &
-                                        * C_molecular_weight
+          decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4c), xeps0_c)
         endif
 
         if (ispec_som1n > 0) then
-          decomp_npools_vr_som1_pf_loc(local_id) = max(xx_p(offsetim + ispec_som1n), xeps0_conc) &
-                                        * N_molecular_weight
+          decomp_npools_vr_som1_pf_loc(local_id) = max(xx_p(offsetim + ispec_som1n), xeps0_n)
         endif
 
         if (ispec_som2n > 0) then
-          decomp_npools_vr_som2_pf_loc(local_id) = max(xx_p(offsetim + ispec_som2n), xeps0_conc) &
-                                        * N_molecular_weight
+          decomp_npools_vr_som2_pf_loc(local_id) = max(xx_p(offsetim + ispec_som2n), xeps0_n)
         endif
 
         if (ispec_som3n > 0) then
-          decomp_npools_vr_som3_pf_loc(local_id) = max(xx_p(offsetim + ispec_som3n), xeps0_conc) &
-                                        * N_molecular_weight
+          decomp_npools_vr_som3_pf_loc(local_id) = max(xx_p(offsetim + ispec_som3n), xeps0_n)
         endif
 
         if (ispec_som4n > 0) then
-          decomp_npools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4n), xeps0_conc) &
-                                        * N_molecular_weight
+          decomp_npools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4n), xeps0_n)
         endif
 
         if(ispec_nh4 > 0) then
@@ -7053,46 +7020,45 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
             ! the following approach appears more like what output module does in pflotran
             ! but needs further checking if it efficient as directly read from 'xx_p' as above
-            ! the issue here is that 'xx_p' array ONLY for tranportable ?
             conc = rt_auxvar%pri_molal(ispec_nh4) * theta * 1000.0d0
-            smin_nh4_vr_pf_loc(local_id) = max(conc, xeps0_conc) * N_molecular_weight
+            smin_nh4_vr_pf_loc(local_id) = max(conc, xeps0_n)
 
             if (associated(rt_auxvar%total_sorb_eq)) then    ! equilibrium-sorption reactions used
                 conc = rt_auxvar%total_sorb_eq(ispec_nh4)
-                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, xeps0_conc) * N_molecular_weight
+                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, xeps0_n)
             else if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction used for soil NH4+ absorption
                 conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (molC/m3)
-                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, xeps0_conc) * N_molecular_weight
+                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, xeps0_n)
             endif
 
         endif
 
         if(ispec_no3 > 0) then
            conc = xx_p(offset + ispec_no3) * theta * 1000.0d0
-           smin_no3_vr_pf_loc(local_id)   = max(conc, xeps0_conc) * N_molecular_weight
+           smin_no3_vr_pf_loc(local_id)   = max(conc, xeps0_n)
         endif
 
         ! immobile gas conc in mol/m3 bulk soil to aovid 'theta' inconsistence (due to porosity) during unit conversion
         if(ispec_co2 > 0) then
            conc = xx_p(offsetim + ispec_co2)                    ! unit: M (molC/m3)
-           gco2_vr_pf_loc(local_id)   = max(conc, xeps0_conc)
+           gco2_vr_pf_loc(local_id)   = max(conc, xeps0_c)
         endif
 
         if(ispec_n2 > 0) then
            conc = xx_p(offsetim + ispec_n2)                     ! unit: M (molN2/m3)
-           gn2_vr_pf_loc(local_id)   = max(conc, xeps0_conc)
+           gn2_vr_pf_loc(local_id)   = max(conc, xeps0_n)
         endif
 
         if(ispec_n2o > 0) then
            conc = xx_p(offsetim + ispec_n2o)                    ! unit: M (molN2O/m3)
-           gn2o_vr_pf_loc(local_id)   = max(conc, xeps0_conc)
+           gn2o_vr_pf_loc(local_id)   = max(conc, xeps0_n)
         endif
 
         ! tracking N bgc reaction fluxes
 
         if (ispec_plantnuptake > 0) then
            conc = xx_p(offsetim + ispec_plantnuptake)
-           accextrn_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_conc) * N_molecular_weight
+           accextrn_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_n)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step only
            xx_p(offsetim + ispec_plantnuptake) = zeroing_conc
@@ -7100,7 +7066,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         if(ispec_hrimm > 0) then
            conc = xx_p(offsetim + ispec_hrimm)
-           acchr_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_conc) * C_molecular_weight
+           acchr_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_c)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
            xx_p(offsetim + ispec_hrimm) = zeroing_conc
@@ -7108,7 +7074,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         if(ispec_nmin > 0) then
            conc = xx_p(offsetim + ispec_nmin)
-           accnmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_conc) * N_molecular_weight
+           accnmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_n)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
            xx_p(offsetim + ispec_nmin) = zeroing_conc
@@ -7116,7 +7082,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         if(ispec_nimm > 0) then
            conc = xx_p(offsetim + ispec_nimm)
-           accnimm_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_conc) * N_molecular_weight
+           accnimm_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_n)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
            xx_p(offsetim + ispec_nimm) = zeroing_conc
@@ -7125,7 +7091,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         if(ispec_ngasmin > 0) then
            conc = xx_p(offsetim + ispec_ngasmin)
-           accngasmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_conc) * N_molecular_weight
+           accngasmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_n)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
            xx_p(offsetim + ispec_ngasmin) = zeroing_conc
@@ -7133,7 +7099,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         if(ispec_ngasnitr > 0) then
            conc = xx_p(offsetim + ispec_ngasnitr)
-           accngasnitr_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_conc) * N_molecular_weight
+           accngasnitr_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_n)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
            xx_p(offsetim + ispec_ngasnitr) = zeroing_conc
@@ -7141,7 +7107,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         if(ispec_ngasdeni > 0) then
            conc = xx_p(offsetim + ispec_ngasdeni)
-           accngasdeni_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_conc) * N_molecular_weight
+           accngasdeni_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_n)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
            xx_p(offsetim + ispec_ngasdeni) = zeroing_conc

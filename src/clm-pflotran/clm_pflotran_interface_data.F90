@@ -145,42 +145,42 @@ module clm_pflotran_interface_data
   Vec :: soilisat_pfs
   Vec :: soilt_pfs
   ! initial ground/soil C/N pools from CLM (mpi) to PF (seq)
-  Vec :: decomp_cpools_vr_lit1_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_lit2_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_lit3_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_cwd_clmp      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_som1_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_som2_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_som3_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_som4_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_npools_vr_lit1_clmp     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_lit2_clmp     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_lit3_clmp     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_cwd_clmp      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_som1_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_som2_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_som3_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_som4_clmp     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: smin_no3_vr_clmp               ! (gN/m3) vertically-resolved soil mineral NO3
-  Vec :: smin_nh4_vr_clmp               ! (gN/m3) vertically-resolved soil mineral NH4
-  Vec :: decomp_cpools_vr_lit1_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_lit2_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_lit3_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_cwd_pfs       ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_som1_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_som2_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_som3_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_som4_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_npools_vr_lit1_pfs      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_lit2_pfs      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_lit3_pfs      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_cwd_pfs       ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_som1_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_som2_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_som3_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_som4_pfs      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: smin_no3_vr_pfs                ! (gN/m3) vertically-resolved soil mineral NO3
-  Vec :: smin_nh4_vr_pfs                ! (gN/m3) vertically-resolved soil mineral NH4
+  Vec :: decomp_cpools_vr_lit1_clmp     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_lit2_clmp     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_lit3_clmp     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_cwd_clmp      ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som1_clmp     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som2_clmp     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som3_clmp     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som4_clmp     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_npools_vr_lit1_clmp     ! (moleN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_lit2_clmp     ! (moleN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_lit3_clmp     ! (moleN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_cwd_clmp      ! (moleN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_som1_clmp     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_som2_clmp     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_som3_clmp     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_som4_clmp     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: smin_no3_vr_clmp               ! (moleN/m3) vertically-resolved soil mineral NO3
+  Vec :: smin_nh4_vr_clmp               ! (moleN/m3) vertically-resolved soil mineral NH4
+  Vec :: decomp_cpools_vr_lit1_pfs      ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_lit2_pfs      ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_lit3_pfs      ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_cwd_pfs       ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som1_pfs      ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som2_pfs      ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som3_pfs      ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som4_pfs      ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_npools_vr_lit1_pfs      ! (moleN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_lit2_pfs      ! (moleN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_lit3_pfs      ! (moleN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_cwd_pfs       ! (moleN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_som1_pfs      ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_som2_pfs      ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_som3_pfs      ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_som4_pfs      ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: smin_no3_vr_pfs                ! (moleN/m3) vertically-resolved soil mineral NO3
+  Vec :: smin_nh4_vr_pfs                ! (moleN/m3) vertically-resolved soil mineral NH4
   ! time-varying ground/soil C/N rates from CLM (mpi) to PF (seq) (Units: moleC(N)/m3/s)
   Vec :: rate_lit1c_clmp
   Vec :: rate_lit2c_clmp
@@ -286,68 +286,68 @@ module clm_pflotran_interface_data
   Vec :: decomp_npools_vr_som3_pfp
   Vec :: decomp_npools_vr_som4_pfp
   Vec :: smin_no3_vr_pfp
-  Vec :: smin_nh4_vr_pfp                ! (gN/m3) vertically-resolved total soil mineral NH4 (incl. absorbed)
-  Vec :: smin_nh4sorb_vr_pfp            ! (gN/m3) vertically-resolved absorbed NH4-N
+  Vec :: smin_nh4_vr_pfp                ! (moleN/m3) vertically-resolved total soil mineral NH4 (incl. absorbed)
+  Vec :: smin_nh4sorb_vr_pfp            ! (moleN/m3) vertically-resolved absorbed NH4-N
   !
-  Vec :: decomp_cpools_vr_lit1_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_lit2_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_lit3_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_cwd_clms      ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_som1_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_som2_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_som3_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_cpools_vr_som4_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_npools_vr_lit1_clms     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_lit2_clms     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_lit3_clms     ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_cwd_clms      ! (gN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
-  Vec :: decomp_npools_vr_som1_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_npools_vr_som2_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_npools_vr_som3_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: decomp_npools_vr_som4_clms     ! (gC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
-  Vec :: smin_no3_vr_clms               ! (gN/m3) vertically-resolved total soil mineral NO3
-  Vec :: smin_nh4_vr_clms               ! (gN/m3) vertically-resolved total soil mineral NH4 (incl. absorbed)
-  Vec :: smin_nh4sorb_vr_clms           ! (gN/m3) vertically-resolved absorbed NH4-N
+  Vec :: decomp_cpools_vr_lit1_clms     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_lit2_clms     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_lit3_clms     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_cwd_clms      ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som1_clms     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som2_clms     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som3_clms     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_cpools_vr_som4_clms     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_npools_vr_lit1_clms     ! (moleN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_lit2_clms     ! (moleN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_lit3_clms     ! (moleN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_cwd_clms      ! (moleN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
+  Vec :: decomp_npools_vr_som1_clms     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_npools_vr_som2_clms     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_npools_vr_som3_clms     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: decomp_npools_vr_som4_clms     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
+  Vec :: smin_no3_vr_clms               ! (moleN/m3) vertically-resolved total soil mineral NO3
+  Vec :: smin_nh4_vr_clms               ! (moleN/m3) vertically-resolved total soil mineral NH4 (incl. absorbed)
+  Vec :: smin_nh4sorb_vr_clms           ! (moleN/m3) vertically-resolved absorbed NH4-N
   !
   ! 'accextrn' is accumulative N extract by plant roots in 'PFLOTRAN' within a CLM timestep
-  Vec :: accextrn_vr_pfp                ! (gN/m3) vertically-resolved root extraction N
-  Vec :: accextrn_vr_clms               ! (gN/m3) vertically-resolved root extraction N
+  Vec :: accextrn_vr_pfp                ! (moleN/m3) vertically-resolved root extraction N
+  Vec :: accextrn_vr_clms               ! (moleN/m3) vertically-resolved root extraction N
 
   ! gases in water (aqueous solution of gases)
   ! gases species is accumulative in 'PFLOTRAN', so needs to calculate their fluxes in the CLM-PF interface and reset back to PFLOTRAN
-  Vec :: gco2_vr_pfp                   ! (gC/m3) vertically-resolved soil CO2 C
-  Vec :: gco2_vr_clms                  ! (gC/m3) vertically-resolved soil CO2 C
-  Vec :: gco2_vr_clmp                  ! (gC/m3) vertically-resolved soil CO2 C, after gas emission
-  Vec :: gco2_vr_pfs                   ! (gC/m3) vertically-resolved soil CO2 C, after gas emission
+  Vec :: gco2_vr_pfp                   ! (moleC/m3) vertically-resolved soil CO2 C
+  Vec :: gco2_vr_clms                  ! (moleC/m3) vertically-resolved soil CO2 C
+  Vec :: gco2_vr_clmp                  ! (moleC/m3) vertically-resolved soil CO2 C, after gas emission
+  Vec :: gco2_vr_pfs                   ! (moleC/m3) vertically-resolved soil CO2 C, after gas emission
 
-  Vec :: gn2_vr_pfp                    ! (gN/m3) vertically-resolved N2-N
-  Vec :: gn2_vr_clms                   ! (gN/m3) vertically-resolved N2-N
-  Vec :: gn2_vr_clmp                   ! (gN/m3) vertically-resolved N2-N, after gas emission
-  Vec :: gn2_vr_pfs                    ! (gN/m3) vertically-resolved N2-N, after gas emission
+  Vec :: gn2_vr_pfp                    ! (moleN/m3) vertically-resolved N2-N
+  Vec :: gn2_vr_clms                   ! (moleN/m3) vertically-resolved N2-N
+  Vec :: gn2_vr_clmp                   ! (moleN/m3) vertically-resolved N2-N, after gas emission
+  Vec :: gn2_vr_pfs                    ! (moleN/m3) vertically-resolved N2-N, after gas emission
 
-  Vec :: gn2o_vr_pfp                   ! (gN/m3) vertically-resolved N2O-N
-  Vec :: gn2o_vr_clms                  ! (gN/m3) vertically-resolved N2O-N
-  Vec :: gn2o_vr_clmp                  ! (gN/m3) vertically-resolved N2O-N, after gas emission
-  Vec :: gn2o_vr_pfs                   ! (gN/m3) vertically-resolved N2O-N, after gas emission
+  Vec :: gn2o_vr_pfp                   ! (moleN/m3) vertically-resolved N2O-N
+  Vec :: gn2o_vr_clms                  ! (moleN/m3) vertically-resolved N2O-N
+  Vec :: gn2o_vr_clmp                  ! (moleN/m3) vertically-resolved N2O-N, after gas emission
+  Vec :: gn2o_vr_pfs                   ! (moleN/m3) vertically-resolved N2O-N, after gas emission
 
   ! some tracking variables from PFLOTRAN bgc to obtain reaction flux rates which needed by CLM
-  Vec :: acchr_vr_pfp                 ! (gC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
-  Vec :: acchr_vr_clms                ! (gC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
+  Vec :: acchr_vr_pfp                 ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
+  Vec :: acchr_vr_clms                ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
 
-  Vec :: accnmin_vr_pfp                ! (gN/m3/timestep) vertically-resolved N mineralization
-  Vec :: accnmin_vr_clms               ! (gN/m3/timestep) vertically-resolved N mineralization
+  Vec :: accnmin_vr_pfp                ! (moleN/m3/timestep) vertically-resolved N mineralization
+  Vec :: accnmin_vr_clms               ! (moleN/m3/timestep) vertically-resolved N mineralization
 
-  Vec :: accnimm_vr_pfp                ! (gN/m3/timestep) vertically-resolved N immoblization
-  Vec :: accnimm_vr_clms               ! (gN/m3/timestep) vertically-resolved N immoblization
+  Vec :: accnimm_vr_pfp                ! (moleN/m3/timestep) vertically-resolved N immoblization
+  Vec :: accnimm_vr_clms               ! (moleN/m3/timestep) vertically-resolved N immoblization
 
-  Vec :: accngasmin_vr_pfp              ! (gN/m3/timestep) vertically-resolved N2O-N from mineralization
-  Vec :: accngasmin_vr_clms             ! (gN/m3/timestep) vertically-resolved N2O-N from mineralization
+  Vec :: accngasmin_vr_pfp              ! (moleN/m3/timestep) vertically-resolved N2O-N from mineralization
+  Vec :: accngasmin_vr_clms             ! (moleN/m3/timestep) vertically-resolved N2O-N from mineralization
 
-  Vec :: accngasnitr_vr_pfp             ! (gN/m3/timestep) vertically-resolved N2O-N from nitrification
-  Vec :: accngasnitr_vr_clms            ! (gN/m3/timestep) vertically-resolved N2O-N from nitrification
+  Vec :: accngasnitr_vr_pfp             ! (moleN/m3/timestep) vertically-resolved N2O-N from nitrification
+  Vec :: accngasnitr_vr_clms            ! (moleN/m3/timestep) vertically-resolved N2O-N from nitrification
 
-  Vec :: accngasdeni_vr_pfp             ! (gN/m3/timestep) vertically-resolved N2O-N from denitrification
-  Vec :: accngasdeni_vr_clms            ! (gN/m3/timestep) vertically-resolved N2O-N from denitrification
+  Vec :: accngasdeni_vr_pfp             ! (moleN/m3/timestep) vertically-resolved N2O-N from denitrification
+  Vec :: accngasdeni_vr_clms            ! (moleN/m3/timestep) vertically-resolved N2O-N from denitrification
 
   ! actual mass water flow rate (kgH2O/sec) through the top/bottom BC of 3-D subsurface domain
   ! (+ in, - out)
@@ -357,7 +357,7 @@ module clm_pflotran_interface_data
   Vec :: qsurf_subsurf_clms   ! seq vec
   Vec :: qflux_subbase_pfp    ! mpi vec
   Vec :: qflux_subbase_clms   ! seq vec
-  ! actual aqeuous N mass flow rate(gN/m2/sec) at the top (runoff)/bottom (leaching) of 3-D subsurface domain
+  ! actual aqeuous N mass flow rate(moleN/m2/sec) at the top (runoff)/bottom (leaching) of 3-D subsurface domain
   ! (+ in, - out)
   Vec :: f_nh4_subsurf_pfp    ! mpi vec
   Vec :: f_nh4_subsurf_clms   ! seq vec
