@@ -64,11 +64,11 @@ module clm_pflotran_interface_data
   
   ! (ii) Soil properties -
   ! for CLM --> PF
-  Vec :: hksat_x_clmp             ! common properties
+  Vec :: hksat_x_clmp                 ! common properties
   Vec :: hksat_y_clmp
   Vec :: hksat_z_clmp
   Vec :: bulkdensity_dry_sub_clmp
-  Vec :: porosity_sub_clmp            ! adjustable, so NOT exactly from bulkdensity_dry
+  Vec :: effporosity_sub_clmp         ! adjustable (effective poro), so NOT exactly from bulkdensity_dry
   Vec :: press_ref_clmp
   Vec :: watsat_sub_clmp
   Vec :: watfc_sub_clmp
@@ -78,14 +78,15 @@ module clm_pflotran_interface_data
   Vec :: lamda_sub_clmp
   Vec :: alpha_sub_clmp
   Vec :: pcwmax_sub_clmp
-  Vec :: tcond_dry_sub_clmp           ! dry (bulk) thermal conductivity
-  Vec :: hc_dry_sub_clmp              ! dry (bulk) heat capacity
+  Vec :: tcond_dry_sub_clmp           ! dry thermal conductivity (W/m/K)
+  Vec :: tcond_wet_sub_clmp           ! wet thermal conductivity (W/m/K)
+  Vec :: hc_dry_sub_clmp              ! bulk dry (soil solid) heat capacity (J/m3/K)
 
-  Vec :: hksat_x_pfs             ! common properties
+  Vec :: hksat_x_pfs                  ! common properties
   Vec :: hksat_y_pfs
   Vec :: hksat_z_pfs
   Vec :: bulkdensity_dry_sub_pfs
-  Vec :: porosity_sub_pfs
+  Vec :: effporosity_sub_pfs
   Vec :: press_ref_pfs
   Vec :: watsat_sub_pfs
   Vec :: watfc_sub_pfs
@@ -96,6 +97,7 @@ module clm_pflotran_interface_data
   Vec :: alpha_sub_pfs
   Vec :: pcwmax_sub_pfs
   Vec :: tcond_dry_sub_pfs           ! dry (bulk) thermal conductivity
+  Vec :: tcond_wet_sub_pfs           ! wet (bulk) thermal conductivity
   Vec :: hc_dry_sub_pfs              ! dry (bulk) heat capacity
 
   ! for PF --> CLM
@@ -103,7 +105,7 @@ module clm_pflotran_interface_data
   Vec :: hksat_y_pfp
   Vec :: hksat_z_pfp
   Vec :: bulkdensity_dry_sub_pfp
-  Vec :: porosity_sub_pfp
+  Vec :: effporosity_sub_pfp
   Vec :: press_ref_pfp
   Vec :: watsat_sub_pfp
   Vec :: watfc_sub_pfp
@@ -114,13 +116,14 @@ module clm_pflotran_interface_data
   Vec :: alpha_sub_pfp
   Vec :: pcwmax_sub_pfp
   Vec :: tcond_dry_sub_pfp           ! dry (bulk) thermal conductivity
+  Vec :: tcond_wet_sub_pfp           ! dry (bulk) thermal conductivity
   Vec :: hc_dry_sub_pfp              ! dry (bulk) heat capacity
 
   Vec :: hksat_x_clms             ! common properties
   Vec :: hksat_y_clms
   Vec :: hksat_z_clms
   Vec :: bulkdensity_dry_sub_clms
-  Vec :: porosity_sub_clms
+  Vec :: effporosity_sub_clms
   Vec :: press_ref_clms
   Vec :: watsat_sub_clms
   Vec :: watfc_sub_clms
@@ -131,6 +134,7 @@ module clm_pflotran_interface_data
   Vec :: alpha_sub_clms
   Vec :: pcwmax_sub_clms
   Vec :: tcond_dry_sub_clms           ! dry (bulk) thermal conductivity
+  Vec :: tcond_wet_sub_clms           ! dry (bulk) thermal conductivity
   Vec :: hc_dry_sub_clms              ! dry (bulk) heat capacity
 
   ! Time variant data
@@ -396,7 +400,7 @@ contains
     clm_pf_idata%hksat_y_clmp = 0
     clm_pf_idata%hksat_z_clmp = 0
     clm_pf_idata%bulkdensity_dry_sub_clmp = 0
-    clm_pf_idata%porosity_sub_clmp  = 0
+    clm_pf_idata%effporosity_sub_clmp  = 0
     clm_pf_idata%press_ref_clmp = 0
     clm_pf_idata%watsat_sub_clmp    = 0
     clm_pf_idata%watfc_sub_clmp     = 0
@@ -407,13 +411,14 @@ contains
     clm_pf_idata%alpha_sub_clmp  = 0
     clm_pf_idata%pcwmax_sub_clmp = 0
     clm_pf_idata%tcond_dry_sub_clmp  = 0
+    clm_pf_idata%tcond_wet_sub_clmp  = 0
     clm_pf_idata%hc_dry_sub_clmp     = 0
 
     clm_pf_idata%hksat_x_pfs  = 0
     clm_pf_idata%hksat_y_pfs  = 0
     clm_pf_idata%hksat_z_pfs  = 0
     clm_pf_idata%bulkdensity_dry_sub_pfs = 0
-    clm_pf_idata%porosity_sub_pfs = 0
+    clm_pf_idata%effporosity_sub_pfs = 0
     clm_pf_idata%press_ref_pfs= 0
     clm_pf_idata%watsat_sub_pfs   = 0
     clm_pf_idata%watfc_sub_pfs    = 0
@@ -424,13 +429,14 @@ contains
     clm_pf_idata%alpha_sub_pfs = 0
     clm_pf_idata%pcwmax_sub_pfs= 0
     clm_pf_idata%tcond_dry_sub_pfs = 0
+    clm_pf_idata%tcond_wet_sub_pfs  = 0
     clm_pf_idata%hc_dry_sub_pfs    = 0
 
     clm_pf_idata%hksat_x_pfp = 0
     clm_pf_idata%hksat_y_pfp = 0
     clm_pf_idata%hksat_z_pfp = 0
     clm_pf_idata%bulkdensity_dry_sub_pfp = 0
-    clm_pf_idata%porosity_sub_pfp = 0
+    clm_pf_idata%effporosity_sub_pfp = 0
     clm_pf_idata%press_ref_pfp = 0
     clm_pf_idata%watsat_sub_pfp = 0
     clm_pf_idata%watfc_sub_pfp = 0
@@ -441,13 +447,14 @@ contains
     clm_pf_idata%alpha_sub_pfp = 0
     clm_pf_idata%pcwmax_sub_pfp = 0
     clm_pf_idata%tcond_dry_sub_pfp  = 0
+    clm_pf_idata%tcond_wet_sub_pfp  = 0
     clm_pf_idata%hc_dry_sub_pfp = 0
 
     clm_pf_idata%hksat_x_clms = 0
     clm_pf_idata%hksat_y_clms = 0
     clm_pf_idata%hksat_z_clms = 0
     clm_pf_idata%bulkdensity_dry_sub_clms = 0
-    clm_pf_idata%porosity_sub_clms = 0
+    clm_pf_idata%effporosity_sub_clms = 0
     clm_pf_idata%press_ref_clms = 0
     clm_pf_idata%watsat_sub_clms = 0
     clm_pf_idata%watfc_sub_clms = 0
@@ -458,6 +465,7 @@ contains
     clm_pf_idata%alpha_sub_clms = 0
     clm_pf_idata%pcwmax_sub_clms = 0
     clm_pf_idata%tcond_dry_sub_clms = 0
+    clm_pf_idata%tcond_dry_sub_clms  = 0
     clm_pf_idata%hc_dry_sub_clms = 0
 
   ! Time variant data
@@ -738,7 +746,7 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%hksat_y_clmp ,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%hksat_z_clmp ,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%bulkdensity_dry_sub_clmp, ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%porosity_sub_clmp , ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%effporosity_sub_clmp , ierr)
     call VecDuplicate(clm_pf_idata%area_subsurf_clmp,clm_pf_idata%press_ref_clmp, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%watsat_sub_clmp   , ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%watfc_sub_clmp    , ierr)
@@ -749,13 +757,14 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%alpha_sub_clmp , ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%pcwmax_sub_clmp, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%tcond_dry_sub_clmp , ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%tcond_wet_sub_clmp , ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%hc_dry_sub_clmp    , ierr)
 
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%hksat_x_pfs , ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%hksat_y_pfs , ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%hksat_z_pfs , ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%bulkdensity_dry_sub_pfs, ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%porosity_sub_pfs, ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%effporosity_sub_pfs, ierr)
     call VecDuplicate(clm_pf_idata%area_subsurf_pfs,clm_pf_idata%press_ref_pfs, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%watsat_sub_pfs  , ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%watfc_sub_pfs   , ierr)
@@ -766,13 +775,14 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%alpha_sub_pfs, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%pcwmax_sub_pfs, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%tcond_dry_sub_pfs, ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%tcond_wet_sub_pfs, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%hc_dry_sub_pfs   , ierr)
 
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%hksat_x_pfp , ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%hksat_y_pfp, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%hksat_z_pfp, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%bulkdensity_dry_sub_pfp, ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%porosity_sub_pfp, ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%effporosity_sub_pfp, ierr)
     call VecDuplicate(clm_pf_idata%area_subsurf_pfp,clm_pf_idata%press_ref_pfp, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%watsat_sub_pfp, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%watfc_sub_pfp, ierr)
@@ -783,13 +793,14 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%alpha_sub_pfp, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%pcwmax_sub_pfp, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%tcond_dry_sub_pfp , ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%tcond_wet_sub_pfs, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%hc_dry_sub_pfp, ierr)
 
     call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%hksat_x_clms, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%hksat_y_clms, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%hksat_z_clms, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%bulkdensity_dry_sub_clms, ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%porosity_sub_clms, ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%effporosity_sub_clms, ierr)
     call VecDuplicate(clm_pf_idata%area_subsurf_clms,clm_pf_idata%press_ref_clms, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%watsat_sub_clms, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%watfc_sub_clms, ierr)
@@ -800,6 +811,7 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%alpha_sub_clms, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%pcwmax_sub_clms, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%tcond_dry_sub_clms, ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%tcond_wet_sub_clms, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%hc_dry_sub_clms, ierr)
 
   ! Time variant data
@@ -1036,8 +1048,8 @@ contains
      call VecDestroy(clm_pf_idata%hksat_z_clmp, ierr)
     if(clm_pf_idata%bulkdensity_dry_sub_clmp /= 0) &
      call VecDestroy(clm_pf_idata%bulkdensity_dry_sub_clmp, ierr)
-    if(clm_pf_idata%porosity_sub_clmp /= 0) &
-     call VecDestroy(clm_pf_idata%porosity_sub_clmp , ierr)
+    if(clm_pf_idata%effporosity_sub_clmp /= 0) &
+     call VecDestroy(clm_pf_idata%effporosity_sub_clmp , ierr)
     if(clm_pf_idata%press_ref_clmp /= 0) &
      call VecDestroy(clm_pf_idata%press_ref_clmp, ierr)
     if(clm_pf_idata%watsat_sub_clmp /= 0) &
@@ -1058,6 +1070,8 @@ contains
      call VecDestroy(clm_pf_idata%pcwmax_sub_clmp, ierr)
     if(clm_pf_idata%tcond_dry_sub_clmp /= 0) &
      call VecDestroy(clm_pf_idata%tcond_dry_sub_clmp , ierr)
+    if(clm_pf_idata%tcond_wet_sub_clmp /= 0) &
+     call VecDestroy(clm_pf_idata%tcond_wet_sub_clmp , ierr)
     if(clm_pf_idata%hc_dry_sub_clmp /= 0) &
      call VecDestroy(clm_pf_idata%hc_dry_sub_clmp    , ierr)
 
@@ -1069,8 +1083,8 @@ contains
      call VecDestroy(clm_pf_idata%hksat_z_pfs , ierr)
     if(clm_pf_idata%bulkdensity_dry_sub_pfs /= 0) &
      call VecDestroy(clm_pf_idata%bulkdensity_dry_sub_pfs, ierr)
-    if(clm_pf_idata%porosity_sub_pfs /= 0) &
-     call VecDestroy(clm_pf_idata%porosity_sub_pfs, ierr)
+    if(clm_pf_idata%effporosity_sub_pfs /= 0) &
+     call VecDestroy(clm_pf_idata%effporosity_sub_pfs, ierr)
     if(clm_pf_idata%press_ref_pfs /= 0) &
      call VecDestroy(clm_pf_idata%press_ref_pfs, ierr)
     if(clm_pf_idata%watsat_sub_pfs /= 0) &
@@ -1091,6 +1105,8 @@ contains
      call VecDestroy(clm_pf_idata%pcwmax_sub_pfs, ierr)
     if(clm_pf_idata%tcond_dry_sub_pfs /= 0) &
      call VecDestroy(clm_pf_idata%tcond_dry_sub_pfs, ierr)
+    if(clm_pf_idata%tcond_wet_sub_pfs /= 0) &
+     call VecDestroy(clm_pf_idata%tcond_wet_sub_pfs, ierr)
     if(clm_pf_idata%hc_dry_sub_pfs /= 0) &
      call VecDestroy(clm_pf_idata%hc_dry_sub_pfs, ierr)
 
@@ -1102,8 +1118,8 @@ contains
      call VecDestroy(clm_pf_idata%hksat_z_pfp, ierr)
     if(clm_pf_idata%bulkdensity_dry_sub_pfp /= 0) &
      call VecDestroy(clm_pf_idata%bulkdensity_dry_sub_pfp, ierr)
-    if(clm_pf_idata%porosity_sub_pfp /= 0) &
-     call VecDestroy(clm_pf_idata%porosity_sub_pfp, ierr)
+    if(clm_pf_idata%effporosity_sub_pfp /= 0) &
+     call VecDestroy(clm_pf_idata%effporosity_sub_pfp, ierr)
     if(clm_pf_idata%press_ref_pfp /= 0) &
      call VecDestroy(clm_pf_idata%press_ref_pfp, ierr)
     if(clm_pf_idata%watsat_sub_pfp /= 0) &
@@ -1124,6 +1140,8 @@ contains
      call VecDestroy(clm_pf_idata%pcwmax_sub_pfp, ierr)
     if(clm_pf_idata%tcond_dry_sub_pfp /= 0) &
      call VecDestroy(clm_pf_idata%tcond_dry_sub_pfp , ierr)
+    if(clm_pf_idata%tcond_wet_sub_pfp /= 0) &
+     call VecDestroy(clm_pf_idata%tcond_wet_sub_pfp , ierr)
     if(clm_pf_idata%hc_dry_sub_pfp /= 0) &
      call VecDestroy(clm_pf_idata%hc_dry_sub_pfp, ierr)
 
@@ -1135,8 +1153,8 @@ contains
      call VecDestroy(clm_pf_idata%hksat_z_clms, ierr)
     if(clm_pf_idata%bulkdensity_dry_sub_clms /= 0) &
      call VecDestroy(clm_pf_idata%bulkdensity_dry_sub_clms, ierr)
-    if(clm_pf_idata%porosity_sub_clms /= 0) &
-     call VecDestroy(clm_pf_idata%porosity_sub_clms, ierr)
+    if(clm_pf_idata%effporosity_sub_clms /= 0) &
+     call VecDestroy(clm_pf_idata%effporosity_sub_clms, ierr)
     if(clm_pf_idata%press_ref_clms /= 0) &
      call VecDestroy(clm_pf_idata%press_ref_clms, ierr)
     if(clm_pf_idata%watsat_sub_clms /= 0) &
@@ -1157,6 +1175,8 @@ contains
      call VecDestroy(clm_pf_idata%pcwmax_sub_clms, ierr)
     if(clm_pf_idata%tcond_dry_sub_clms /= 0) &
      call VecDestroy(clm_pf_idata%tcond_dry_sub_clms, ierr)
+    if(clm_pf_idata%tcond_wet_sub_clms /= 0) &
+     call VecDestroy(clm_pf_idata%tcond_wet_sub_clms, ierr)
     if(clm_pf_idata%hc_dry_sub_clms /= 0) &
      call VecDestroy(clm_pf_idata%hc_dry_sub_clms, ierr)
 
