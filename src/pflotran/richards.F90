@@ -286,15 +286,6 @@ subroutine RichardsCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
       sat = global_auxvars(ghosted_id)%sat(1)
       sat_pert = sat - sign(1.d0,sat-0.5d0)*pert
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-      if(rich_auxvars(ghosted_id)%bc_alpha > 0.d0) then
-        patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
-           %ptr%alpha  = rich_auxvars(ghosted_id)%bc_alpha
-        patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
-           %ptr%lambda = rich_auxvars(ghosted_id)%bc_lambda
-      endif
-#endif
-
 #ifdef REFACTOR_CHARACTERISTIC_CURVES
       call patch%characteristic_curves_array( &
              patch%sat_func_id(ghosted_id))%ptr% &
