@@ -822,10 +822,6 @@ end subroutine pflotranModelSetICs
     watsat2_pf_loc(:) = 0.d0
     bsw2_pf_loc(:) = 0.d0
     thetares2_pf_loc(:) = 0.d0
-    porosity_loc_p(:) = 0.d0
-    perm_xx_loc_p(:) = 0.d0
-    perm_yy_loc_p(:) = 0.d0
-    perm_zz_loc_p(:) = 0.d0
 
     do ghosted_id = 1, grid%ngmax
 
