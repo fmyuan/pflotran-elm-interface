@@ -18,7 +18,7 @@ module Reaction_Sandbox_Nitrif_class
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_nitrif_type
     PetscInt :: ispec_proton
-    PetscInt :: ispec_nh3
+    PetscInt :: ispec_nh4
     PetscInt :: ispec_nh4sorb
     PetscInt :: ispec_no3
     PetscInt :: ispec_n2o
@@ -58,7 +58,7 @@ function NitrifCreate()
 !    nullify all pointers. E.g.
   allocate(NitrifCreate)
   NitrifCreate%ispec_proton = 0
-  NitrifCreate%ispec_nh3 = 0
+  NitrifCreate%ispec_nh4 = 0
   NitrifCreate%ispec_nh4sorb = 0
   NitrifCreate%ispec_no3 = 0
   NitrifCreate%ispec_ngasnit = 0
@@ -141,9 +141,9 @@ subroutine NitrifRead(this,input,option)
          call InputReadDouble(input,option,this%k_nitr_n2o)
          call InputErrorMsg(input,option,'N2O rate coefficient from nirification', &
                      'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
-     case('AMMONIA_HALF_SATURATION')
+     case('AMMONIUM_HALF_SATURATION')
           call InputReadDouble(input,option,this%half_saturation)
-          call InputErrorMsg(input,option,'ammonia half-saturation', &
+          call InputErrorMsg(input,option,'ammonium half-saturation', &
                  'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
       case default
           option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,' // &
@@ -179,10 +179,10 @@ subroutine NitrifSetup(this,reaction,option)
                         PETSC_FALSE,option)
 
   word = 'NH4+'
-  this%ispec_nh3 = GetPrimarySpeciesIDFromName(word,reaction, &
+  this%ispec_nh4 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
-  if(this%ispec_nh3 > 0) then
+  if(this%ispec_nh4 > 0) then
      word = 'NH4sorb'   ! this is the immobile species from 'reaction_sandbox_langmuir'
      this%ispec_nh4sorb = GetImmobileSpeciesIDFromName(word,reaction%immobile, &
                         PETSC_FALSE,option)
@@ -196,7 +196,7 @@ subroutine NitrifSetup(this,reaction,option)
   this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
-  if(this%ispec_nh3 < 0) then
+  if(this%ispec_nh4 < 0) then
      option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION: ' // &
                         ' NH4+ is not specified in the input file.'
      call printErrMsg(option)
@@ -275,16 +275,16 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal, parameter :: N_molecular_weight = 14.0067d0
   PetscReal :: M_2_ug_per_g
 
-  PetscInt :: ires_nh3s, ires_nh3, ires_no3, ires_n2o, ires
+  PetscInt :: ires_nh4s, ires_nh4, ires_no3, ires_n2o, ires
   PetscInt :: ires_ngasnit
 
   PetscScalar, pointer :: bulkdensity(:)
-  PetscReal :: c_nh3      ! mole/L
-  PetscReal :: s_nh3      ! mole/m3
-  PetscReal :: c_nh3_ugg  ! ug ammonium N / g soil
+  PetscReal :: c_nh4      ! mole/L
+  PetscReal :: s_nh4      ! mole/m3
+  PetscReal :: c_nh4_ugg  ! ug ammonium N / g soil
   PetscReal :: ph
-  PetscReal :: rate_n2o, drate_n2o_dnh3
-  PetscReal :: rate_nitri, drate_nitri_dnh3
+  PetscReal :: rate_n2o, drate_n2o_dnh4
+  PetscReal :: rate_nitri, drate_nitri_dnh4
   PetscReal :: f_t, f_w, f_ph
   PetscReal :: rho_b
   PetscReal :: theta      ! m3/m3 bulk
@@ -303,48 +303,48 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   tc = global_auxvar%temp
 
   ! indices for C and N species
-  ires_nh3 = this%ispec_nh3 + reaction%offset_aqueous
+  ires_nh4 = this%ispec_nh4 + reaction%offset_aqueous
   ires_no3 = this%ispec_no3 + reaction%offset_aqueous
   ires_n2o = this%ispec_n2o + reaction%offset_aqueous
-  ires_nh3s = this%ispec_nh4sorb + reaction%offset_immobile
+  ires_nh4s = this%ispec_nh4sorb + reaction%offset_immobile
   ires_ngasnit = this%ispec_ngasnit + reaction%offset_immobile
 
-  c_nh3 = rt_auxvar%total(this%ispec_nh3, iphase) * L_water     ! moles/L --> moles/m3 bulk soil
+  c_nh4 = rt_auxvar%total(this%ispec_nh4, iphase) * L_water     ! moles/L --> moles/m3 bulk soil
 ! (TODO) not sure if 'absorbed NH4' should be included in the reaction.
 ! BUT, if absorption is in equlibrium, then should NOT be an issue
 !  if (associated(rt_auxvar%total_sorb_eq)) then           ! original absorption-reactions in PF used
-!     s_nh3 = rt_auxvar%total_sorb_eq(this%ispec_nh3)
+!     s_nh4 = rt_auxvar%total_sorb_eq(this%ispec_nh4)
 !  elseif (this%ispec_nh4sorb>0) then                      ! 'reaction_sandbox_langmuir' used
-!     s_nh3 = rt_auxvar%immobile(this%ispec_nh4sorb)
+!     s_nh4 = rt_auxvar%immobile(this%ispec_nh4sorb)
 !  else
-!     s_nh3 = 1.d-20
+!     s_nh4 = 1.d-20
 !  endif
-! c_nh3 = c_nh3 + s_nh3*volume
+! c_nh4 = c_nh4 + s_nh4*volume
 
 
   if(this%x0eps>0.d0) then
-    !feps0 = c_nh3/(c_nh3+this%x0eps)      ! using these two for trailer smoothing, alternatively
-    !dfeps0_dx = this%x0eps/(c_nh3+this%x0eps)/(c_nh3+this%x0eps)
+    !feps0 = c_nh4/(c_nh4+this%x0eps)      ! using these two for trailer smoothing, alternatively
+    !dfeps0_dx = this%x0eps/(c_nh4+this%x0eps)/(c_nh4+this%x0eps)
 
     ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
-    if (c_nh3 <= this%x0eps) then
+    if (c_nh4 <= this%x0eps) then
       feps0     = 0.0d0
       dfeps0_dx = 0.0d0
-    elseif (c_nh3 >= this%x0eps*1.d1) then
+    elseif (c_nh4 >= this%x0eps*1.d1) then
       feps0     = 1.0d0
       dfeps0_dx = 0.0d0
     else
-      feps0 = 1.0d0 - ( 1.0d0-(c_nh3-this%x0eps)*(c_nh3-this%x0eps)       &
+      feps0 = 1.0d0 - ( 1.0d0-(c_nh4-this%x0eps)*(c_nh4-this%x0eps)       &
                                 /(81.0d0*this%x0eps*this%x0eps) ) ** 2
-      dfeps0_dx = 4.0d0 * (1.0d0 - (c_nh3-this%x0eps)*(c_nh3-this%x0eps)  &
+      dfeps0_dx = 4.0d0 * (1.0d0 - (c_nh4-this%x0eps)*(c_nh4-this%x0eps)  &
                                      /(81.0d0*this%x0eps*this%x0eps) )    &
-                          * (c_nh3-this%x0eps)/(81.0d0*this%x0eps*this%x0eps)
+                          * (c_nh4-this%x0eps)/(81.0d0*this%x0eps*this%x0eps)
     endif
 
   else
     feps0 = 1.0d0
     dfeps0_dx = 0.d0
-    if (c_nh3 < this%x0eps) return     ! this may bring in 'oscillation' around 'this%x0eps'
+    if (c_nh4 < this%x0eps) return     ! this may bring in 'oscillation' around 'this%x0eps'
   endif
 
   ! nitrification (Dickinson et al. 2002)
@@ -361,23 +361,23 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
     f_w = saturation * (1.0d0 - saturation)/0.25d0
 
     temp_real = this%k_nitr_max * f_t * f_w * volume                            ! 1/sec * m3 bulk
-    rate_nitri = temp_real * (c_nh3 * feps0) * (c_nh3/(c_nh3 + 4.0d0))          ! moles/sec.
+    rate_nitri = temp_real * (c_nh4 * feps0) * (c_nh4/(c_nh4 + 4.0d0))          ! moles/sec.
 
-    Residual(ires_nh3) = Residual(ires_nh3) + rate_nitri
+    Residual(ires_nh4) = Residual(ires_nh4) + rate_nitri
     Residual(ires_no3) = Residual(ires_no3) - rate_nitri
 
     if (compute_derivative) then
 
-     ! d(rate_nh3))/d(nh3), in which, rate(nh3) = c_nh3*c_nh3/(c_nh3+4.0)*feps0    ! this is the last portion of 'rate_nitri'
-     temp_real = c_nh3*c_nh3/(c_nh3+4.0d0) * dfeps0_dx + &
-                 c_nh3*(c_nh3+8.0d0)/(c_nh3+4.0d0)/(c_nh3+4.0d0) * feps0
-     drate_nitri_dnh3 = this%k_nitr_max*f_t*f_w*volume * temp_real
+     ! d(rate_nh4))/d(nh4), in which, rate(nh4) = c_nh4*c_nh4/(c_nh4+4.0)*feps0    ! this is the last portion of 'rate_nitri'
+     temp_real = c_nh4*c_nh4/(c_nh4+4.0d0) * dfeps0_dx + &
+                 c_nh4*(c_nh4+8.0d0)/(c_nh4+4.0d0)/(c_nh4+4.0d0) * feps0
+     drate_nitri_dnh4 = this%k_nitr_max*f_t*f_w*volume * temp_real
  
-     Jacobian(ires_nh3,ires_nh3) = Jacobian(ires_nh3,ires_nh3) + drate_nitri_dnh3 * &
-        rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_nh3,iphase)
+     Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4) + drate_nitri_dnh4 * &
+        rt_auxvar%aqueous%dtotal(this%ispec_nh4,this%ispec_nh4,iphase)
 
-     Jacobian(ires_no3,ires_nh3) = Jacobian(ires_no3,ires_nh3) - drate_nitri_dnh3 * &
-        rt_auxvar%aqueous%dtotal(this%ispec_no3,this%ispec_nh3,iphase)
+     Jacobian(ires_no3,ires_nh4) = Jacobian(ires_no3,ires_nh4) - drate_nitri_dnh4 * &
+        rt_auxvar%aqueous%dtotal(this%ispec_no3,this%ispec_nh4,iphase)
     endif
   endif
 
@@ -398,10 +398,10 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   temp_real = N_molecular_weight*1.0d6                       ! unit: ugN/(mol)
 ! g soil = m3_soil*kg_m3*1.d3                                ! unit: gSoil
   M_2_ug_per_g = temp_real/(volume*rho_b*1.d3)               ! unit: (ugN/gSoil)/(mol)
-  !c_nh3_ugg = (c_nh3 + s_nh3 / theta / 1000.0d0)* M_2_ug_per_g
-  c_nh3_ugg = c_nh3 * volume * M_2_ug_per_g                  ! c_nh3 already in moles/m3 bulk
+  !c_nh4_ugg = (c_nh4 + s_nh4 / theta / 1000.0d0)* M_2_ug_per_g
+  c_nh4_ugg = c_nh4 * volume * M_2_ug_per_g                  ! c_nh4 already in moles/m3 bulk
 
-  if(this%ispec_n2o > 0.0d0 .and. c_nh3_ugg > 3.0d0) then
+  if(this%ispec_n2o > 0.0d0 .and. c_nh4_ugg > 3.0d0) then
     ! temperature response function (Parton et al. 1996)
     f_t = -0.06d0 + 0.13d0 * exp( 0.07d0 * tc )
 
@@ -427,11 +427,11 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
        f_w  = min(f_w, 1.0d0)
        f_ph = min(f_ph, 1.0d0)
 
-       temp_real = (1.0 - exp(-0.0105d0 * c_nh3_ugg))  &
+       temp_real = (1.0 - exp(-0.0105d0 * c_nh4_ugg))  &
                   * f_t * f_w * f_ph * this%k_nitr_n2o                     ! 1/s
-       rate_n2o = temp_real * (c_nh3*feps0) * volume                       ! moles/s
+       rate_n2o = temp_real * (c_nh4*feps0) * volume                       ! moles/s
 
-       Residual(ires_nh3) = Residual(ires_nh3) + rate_n2o
+       Residual(ires_nh4) = Residual(ires_nh4) + rate_n2o
        Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
        
        if(this%ispec_ngasnit > 0) then
@@ -443,35 +443,35 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
 
        if (compute_derivative) then
 
-           ! d(rate_nh3))/d(nh3), in which,
-           ! rate(nh3) = (c_nh3*feps0) * (1.0-exp(-0.0105d0*c_nh3*m_2_ug_per_g))
-           temp_real = (c_nh3*dfeps0_dx + feps0) * &                   !d(c_nh3*feps0)/d(nh3)
-                       (1.0 - exp(-0.0105d0*c_nh3_ugg))
+           ! d(rate_nh4))/d(nh4), in which,
+           ! rate(nh4) = (c_nh4*feps0) * (1.0-exp(-0.0105d0*c_nh4*m_2_ug_per_g))
+           temp_real = (c_nh4*dfeps0_dx + feps0) * &                   !d(c_nh4*feps0)/d(nh4)
+                       (1.0 - exp(-0.0105d0*c_nh4_ugg))
 
-           temp_real = temp_real + (c_nh3*feps0) *  &
-                       0.0105d0*M_2_ug_per_g*exp(-0.0105d0*c_nh3_ugg)  !d(1.0-exp(-0.0105d0*c_nh3*m_2_ug_per_g))/d(nh3)
+           temp_real = temp_real + (c_nh4*feps0) *  &
+                       0.0105d0*M_2_ug_per_g*exp(-0.0105d0*c_nh4_ugg)  !d(1.0-exp(-0.0105d0*c_nh4*m_2_ug_per_g))/d(nh4)
 
-           drate_n2o_dnh3 = temp_real *this%k_nitr_n2o* f_t * f_w * f_ph * volume
+           drate_n2o_dnh4 = temp_real *this%k_nitr_n2o* f_t * f_w * f_ph * volume
  
-           Jacobian(ires_nh3,ires_nh3)=Jacobian(ires_nh3,ires_nh3) + &
-             drate_n2o_dnh3 * &
-             rt_auxvar%aqueous%dtotal(this%ispec_nh3,this%ispec_nh3,iphase)
+           Jacobian(ires_nh4,ires_nh4)=Jacobian(ires_nh4,ires_nh4) + &
+             drate_n2o_dnh4 * &
+             rt_auxvar%aqueous%dtotal(this%ispec_nh4,this%ispec_nh4,iphase)
 
-           Jacobian(ires_n2o,ires_nh3)=Jacobian(ires_n2o,ires_nh3) - &
-             0.5d0 * drate_n2o_dnh3 * &
-             rt_auxvar%aqueous%dtotal(this%ispec_n2o,this%ispec_nh3,iphase)
+           Jacobian(ires_n2o,ires_nh4)=Jacobian(ires_n2o,ires_nh4) - &
+             0.5d0 * drate_n2o_dnh4 * &
+             rt_auxvar%aqueous%dtotal(this%ispec_n2o,this%ispec_nh4,iphase)
       
 ! The following IS not needed and causes issue - breaking  whole reacton network if going wrong!
        !    if(this%ispec_ngasnit > 0) then
-       !      Jacobian(ires_ngasnit,ires_nh3)=Jacobian(ires_ngasnit,ires_nh3)- &
-       !        drate_n2o_dnh3
+       !      Jacobian(ires_ngasnit,ires_nh4)=Jacobian(ires_ngasnit,ires_nh4)- &
+       !        drate_n2o_dnh4
        !    endif
 
        endif  !if (compute_derivative)
 
      endif    !if(f_t > 0.0d0 .and. f_w > 0.0d0 .and. f_ph > 0.0d0)
 
-  endif       !if(this%ispec_n2o > 0.0d0 .and. c_nh3_ugg > 3.0d0)
+  endif       !if(this%ispec_n2o > 0.0d0 .and. c_nh4_ugg > 3.0d0)
 
 #ifdef DEBUG
   do ires=1, reaction%ncomp
