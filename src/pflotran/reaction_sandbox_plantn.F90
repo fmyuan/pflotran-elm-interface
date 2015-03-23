@@ -240,7 +240,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscReal :: Residual(reaction%ncomp)
   PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
-  PetscReal :: rate_plantndemand, drate_dn, nconc
+  PetscReal :: cap_rate
   PetscReal :: volume, porosity, saturation, tc
   PetscReal :: theta, L_water
   PetscInt :: ghosted_id
@@ -253,11 +253,11 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   PetscInt :: ires_plantndemand, ires_plantnuptake
   PetscInt :: ires
 
-  PetscReal :: c_nh4         ! concentration (mole/L)
+  PetscReal :: c_nh4         ! concentration (mole/m3)
   PetscReal :: fnh4          ! nh4 / (half_saturation + nh4): rate dependence on substrate
   PetscReal :: dfnh4_dnh4    ! d(fnh4)/d(nh4)
 
-  PetscReal :: c_no3         ! concentration (mole/L)
+  PetscReal :: c_no3         ! concentration (mole/m3)
   PetscReal :: fno3          ! no3 / (half_saturation + no3): rate dependence on substrate
   PetscReal :: dfno3_dno3    ! d(fno3)/d(no3)
 
@@ -301,30 +301,30 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   if (this%ispec_nh4 > 0) then
     ires_nh4 = this%ispec_nh4 + reaction%offset_aqueous
 
-    c_nh4     = rt_auxvar%total(this%ispec_nh4, iphase) * L_water
+    c_nh4     = rt_auxvar%total(this%ispec_nh4, iphase) * L_water  ! mol/L (M) --> mole/m3
     temp_real = c_nh4 + this%half_saturation_nh4
     fnh4      = c_nh4 / temp_real
     dfnh4_dnh4= this%half_saturation_nh4 / temp_real / temp_real
 
     ! the following may not be needed, but just in case
     if(this%x0eps_nh4>0.d0) then
-      !feps0  = c_nh4/(c_nh4 + this%x0eps_nh4)         ! for trailer smoothing
-      !dfeps0_dx = this%x0eps_nh4/(c_nh4 + this%x0eps_nh4)/(c_nh4 + this%x0eps_nh4)
+      feps0  = c_nh4/(c_nh4 + this%x0eps_nh4)         ! for trailer smoothing
+      dfeps0_dx = this%x0eps_nh4/(c_nh4 + this%x0eps_nh4)/(c_nh4 + this%x0eps_nh4)
 
       ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
-      if (c_nh4 <= this%x0eps_nh4) then
-        feps0     = 0.0d0
-        dfeps0_dx = 0.0d0
-      elseif (c_nh4 >= this%x0eps_nh4*1.d1) then
-        feps0     = 1.0d0
-        dfeps0_dx = 0.0d0
-      else
-        feps0 = 1.0d0 - ( 1.0d0-(c_nh4-this%x0eps_nh4)*(c_nh4-this%x0eps_nh4)       &
-                                /(81.0d0*this%x0eps_nh4*this%x0eps_nh4) ) ** 2
-        dfeps0_dx = 4.0d0 * (1.0d0 - (c_nh4-this%x0eps_nh4)*(c_nh4-this%x0eps_nh4)  &
-                                     /(81.0d0*this%x0eps_nh4*this%x0eps_nh4) )      &
-                   * (c_nh4-this%x0eps_nh4)/(81.0d0*this%x0eps_nh4*this%x0eps_nh4)
-      endif
+      !if (c_nh4 <= this%x0eps_nh4) then
+      !  feps0     = 0.0d0
+      !  dfeps0_dx = 0.0d0
+      !elseif (c_nh4 >= this%x0eps_nh4*1.d1) then
+      !  feps0     = 1.0d0
+      !  dfeps0_dx = 0.0d0
+      !else
+      !  feps0 = 1.0d0 - ( 1.0d0-(c_nh4-this%x0eps_nh4)*(c_nh4-this%x0eps_nh4)       &
+      !                          /(81.0d0*this%x0eps_nh4*this%x0eps_nh4) ) ** 2
+      !  dfeps0_dx = 4.0d0 * (1.0d0 - (c_nh4-this%x0eps_nh4)*(c_nh4-this%x0eps_nh4)  &
+      !                               /(81.0d0*this%x0eps_nh4*this%x0eps_nh4) )      &
+      !             * (c_nh4-this%x0eps_nh4)/(81.0d0*this%x0eps_nh4*this%x0eps_nh4)
+      !endif
 
       dfnh4_dnh4 = dfnh4_dnh4*feps0 + dfeps0_dx*fnh4  ! do the derivative first
       fnh4 = fnh4 * feps0
@@ -371,24 +371,24 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
     ! the following may not be needed, but just in case
     if(this%x0eps_no3>0.d0) then
-      !feps0  = c_no3/(c_no3 + this%x0eps_no3)         ! for trailer smoothing
-      !dfeps0_dx = this%x0eps_no3 &
-      !           /(c_no3 + this%x0eps_no3)/(c_no3 + this%x0eps_no3)
+      feps0  = c_no3/(c_no3 + this%x0eps_no3)         ! for trailer smoothing
+      dfeps0_dx = this%x0eps_no3 &
+                 /(c_no3 + this%x0eps_no3)/(c_no3 + this%x0eps_no3)
 
       ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
-      if (c_no3 <= this%x0eps_no3) then
-        feps0     = 0.0d0
-        dfeps0_dx = 0.0d0
-      elseif (c_no3 >= this%x0eps_no3*1.d1) then
-        feps0     = 1.0d0
-        dfeps0_dx = 0.0d0
-      else
-        feps0 = 1.0d0 - ( 1.0d0-(c_no3-this%x0eps_no3)*(c_no3-this%x0eps_no3)       &
-                                /(81.0d0*this%x0eps_no3*this%x0eps_no3) ) ** 2
-        dfeps0_dx = 4.0d0 * (1.0d0 - (c_no3-this%x0eps_no3)*(c_no3-this%x0eps_no3)  &
-                                     /(81.0d0*this%x0eps_no3*this%x0eps_no3) )      &
-                   * (c_no3-this%x0eps_no3)/(81.0d0*this%x0eps_no3*this%x0eps_no3)
-      endif
+      !if (c_no3 <= this%x0eps_no3) then
+      !  feps0     = 0.0d0
+      !  dfeps0_dx = 0.0d0
+      !elseif (c_no3 >= this%x0eps_no3*1.d1) then
+      !  feps0     = 1.0d0
+      !  dfeps0_dx = 0.0d0
+      !else
+      !  feps0 = 1.0d0 - ( 1.0d0-(c_no3-this%x0eps_no3)*(c_no3-this%x0eps_no3)       &
+      !                          /(81.0d0*this%x0eps_no3*this%x0eps_no3) ) ** 2
+      !  dfeps0_dx = 4.0d0 * (1.0d0 - (c_no3-this%x0eps_no3)*(c_no3-this%x0eps_no3)  &
+      !                               /(81.0d0*this%x0eps_no3*this%x0eps_no3) )      &
+      !             * (c_no3-this%x0eps_no3)/(81.0d0*this%x0eps_no3*this%x0eps_no3)
+      !endif
 
       dfno3_dno3 = dfno3_dno3*feps0 + dfeps0_dx*fno3  ! do the derivative first
       fno3 = fno3 * feps0
@@ -413,14 +413,21 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     Residual(ires_plantndemand) = Residual(ires_plantndemand) - this%rate_plantndemand
   endif
 
+  ! constraining 'rate' if too high compared to available
+  ! It can be achieved by cutting time-step, but it may be taking a very small timestep - implying tiny timestep in model
+  cap_rate = min((c_nh4+c_no3)/option%dt, this%rate_plantndemand)
+
   if(this%ispec_nh4 > 0) then
 
     ! rates
-    nrate_nh4 = this%rate_plantndemand * fnh4
+    nrate_nh4 = cap_rate * fnh4
     if(this%ispec_no3 > 0) then
     ! splitting (fractioning) potential uptake rate by the 'fnh4_inhibition_no3' for NH4 uptake
-      nrate_nh4 = this%rate_plantndemand * fnh4 * fnh4_inhibit_no3
+      nrate_nh4 = cap_rate * fnh4 * fnh4_inhibit_no3
     endif
+
+!print *,'ghosted_id=',ghosted_id, ' rate_demand=',this%rate_plantndemand,' cap_rate=',cap_rate,' c_nh4/dt=',c_nh4/option%dt, &
+!' c_no3/dt=',c_no3/option%dt, ' fnh4=',fnh4,' fnh4_inhibit_no3=',fnh4_inhibit_no3,' fno3=',fno3
 
     ! residuals
     Residual(ires_nh4) = Residual(ires_nh4) + nrate_nh4
@@ -434,14 +441,14 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     ! jacobians
     if(compute_derivative) then
 
-      dnrate_nh4_dnh4 = this%rate_plantndemand * dfnh4_dnh4
+      dnrate_nh4_dnh4 = cap_rate * dfnh4_dnh4
       if(this%ispec_no3 > 0) then
         temp_real = fnh4 * dfnh4_inhibit_no3_dnh4 + &
                     fnh4_inhibit_no3 * dfnh4_dnh4
-        dnrate_nh4_dnh4 = this%rate_plantndemand * temp_real
+        dnrate_nh4_dnh4 = cap_rate * temp_real
 
         temp_real = fnh4 * dfnh4_inhibit_no3_dno3     ! dfnh4_dno3 = 0
-        dnrate_nh4_dno3 = this%rate_plantndemand * temp_real
+        dnrate_nh4_dno3 = cap_rate * temp_real
       endif
 
       Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4) + &
@@ -464,12 +471,12 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   if(this%ispec_no3 > 0) then
 
     ! rates
-    nrate_no3 = this%rate_plantndemand * fno3
+    nrate_no3 = cap_rate * fno3
     if(this%ispec_nh4 > 0) then
     ! splitting (fractioning) potential uptake rate by the rest of nrate_nh4,
     ! which adjusted by 'fnh4_inhibition_no3'
     ! i.e., 1.0-fnh4*fnh4_inhibit_no3
-      nrate_no3 = this%rate_plantndemand * fno3 * &
+      nrate_no3 = cap_rate * fno3 * &
                   (1.0d0-fnh4*fnh4_inhibit_no3)
     endif
 
@@ -479,16 +486,16 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
     if (compute_derivative) then
 
-      dnrate_no3_dno3 = this%rate_plantndemand * dfno3_dno3
+      dnrate_no3_dno3 = cap_rate * dfno3_dno3
       if(this%ispec_nh4 > 0) then
         temp_real = dfno3_dno3 * (1.d0-fnh4*fnh4_inhibit_no3) + &
                     fno3 * (-1.0d0*fnh4*dfnh4_inhibit_no3_dno3)              ! 'dfnh4_dno3=0'
-        dnrate_no3_dno3 = this%rate_plantndemand * temp_real
+        dnrate_no3_dno3 = cap_rate * temp_real
 
         temp_real = fno3 * (-1.0d0) * &                                      ! 'dfno3_dnh4=0'
                     ( fnh4*dfnh4_inhibit_no3_dnh4 + &
                       dfnh4_dnh4*fnh4_inhibit_no3 )
-        dnrate_no3_dnh4 = this%rate_plantndemand * temp_real
+        dnrate_no3_dnh4 = cap_rate * temp_real
       endif
 
       Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) + &
