@@ -426,9 +426,6 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
       nrate_nh4 = cap_rate * fnh4 * fnh4_inhibit_no3
     endif
 
-!print *,'ghosted_id=',ghosted_id, ' rate_demand=',this%rate_plantndemand,' cap_rate=',cap_rate,' c_nh4/dt=',c_nh4/option%dt, &
-!' c_no3/dt=',c_no3/option%dt, ' fnh4=',fnh4,' fnh4_inhibit_no3=',fnh4_inhibit_no3,' fno3=',fno3
-
     ! residuals
     Residual(ires_nh4) = Residual(ires_nh4) + nrate_nh4
     Residual(ires_plantn) = Residual(ires_plantn) - nrate_nh4
