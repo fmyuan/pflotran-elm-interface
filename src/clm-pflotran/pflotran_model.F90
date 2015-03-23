@@ -654,14 +654,14 @@ end subroutine pflotranModelSetICs
     PetscScalar, pointer :: hksat_x_pf_loc(:) ! hydraulic conductivity in x-dir at saturation (mm H2O /s)
     PetscScalar, pointer :: hksat_y_pf_loc(:) ! hydraulic conductivity in y-dir at saturation (mm H2O /s)
     PetscScalar, pointer :: hksat_z_pf_loc(:) ! hydraulic conductivity in z-dir at saturation (mm H2O /s)
-    PetscScalar, pointer :: watsat_pf_loc(:)  ! minimum soil suction (mm)
-    PetscScalar, pointer :: sucsat_pf_loc(:)  ! volumetric soil water at saturation (porosity)
+    PetscScalar, pointer :: watsat_pf_loc(:)  ! volumetric soil water at saturation (porosity)
+    PetscScalar, pointer :: sucsat_pf_loc(:)  ! minimum soil suction (mm)
     PetscScalar, pointer :: bsw_pf_loc(:)     ! Clapp and Hornberger "b"
     PetscScalar, pointer :: zsoi_pf_loc(:)    ! soil depth (m)
 
     den = 998.2d0       ! [kg/m^3]  @ 20 degC
     vis = 0.001002d0    ! [N s/m^2] @ 20 degC
-    grav = 9.81d0       ! [m/S^2]
+    grav =GRAVITY_CONSTANT       ! [m/S^2]
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -4360,7 +4360,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     ! for adjusting permissivity
     if (pflotran_model%option%nflowdof > 0) then
 
-        unitconv  = 0.001002d0/(998.2d0*9.81d0)/1000.d0    ! from hydraulic conductivity (mmH2O/sec) to permissivity (kg/sec)
+        unitconv  = 0.001002d0/(998.2d0*GRAVITY_CONSTANT)/1000.d0    ! from hydraulic conductivity (mmH2O/sec) to permissivity (kg/sec)
         perm_adj  = 1.0d0
 
         call VecGetArrayF90(clm_pf_idata%hksat_x_pf, hksat_x_pf_loc, ierr)

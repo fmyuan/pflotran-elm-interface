@@ -1,5 +1,7 @@
 module CLM_RspFuncs_module
 
+  use PFLOTRAN_Constants_module
+
   implicit none
 
   private
@@ -115,7 +117,7 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
 #ifdef CLM_PFLOTRAN
   PetscScalar, pointer :: sucsat_pf_loc(:)    !
   PetscScalar, pointer :: watfc_pf_loc(:)     !
-  PetscScalar, pointer :: watsat_pf_loc(:)    !
+  PetscScalar, pointer :: porosity_pf_loc(:)    !
   PetscScalar, pointer :: bsw_pf_loc(:)    !
   PetscReal :: thetar, thetas, se
 #endif
@@ -129,16 +131,16 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
     case(MOISTURE_RESPONSE_FUNCTION_CLM4) 
       call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
       CHKERRQ(ierr)
-      call VecGetArrayReadF90(clm_pf_idata%watsat_pf, watsat_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%porosity_pfs, porosity_pf_loc, ierr)
       CHKERRQ(ierr)
       call VecGetArrayReadF90(clm_pf_idata%bsw_pf, bsw_pf_loc, ierr)
       CHKERRQ(ierr)
       ! sucsat [mm of H20] from CLM is the suction (positive) at water saturated (called air-entry pressure)
       ! [Pa] = [mm of H20] * 0.001 [m/mm] * 1000 [kg/m^3] * 9.81 [m/sec^2]
-      maxpsi = sucsat_pf_loc(ghosted_id) * (-9.81d0)
-      lsat = theta/watsat_pf_loc(ghosted_id)
+      maxpsi = sucsat_pf_loc(ghosted_id) * (-GRAVITY_CONSTANT)                         ! mmH2O --> -Pa
+      lsat = theta/porosity_pf_loc(ghosted_id)
       ! soil matric potential by Clapp-Hornburger method (this is the default used by CLM)
-      psi = sucsat_pf_loc(ghosted_id) * (-9.81d0) * (lsat**(-bsw_pf_loc(ghosted_id)))  ! -Pa
+      psi = sucsat_pf_loc(ghosted_id) * (-GRAVITY_CONSTANT) * (lsat**(-bsw_pf_loc(ghosted_id)))  ! mmH2O --> -Pa
       psi = min(psi, maxpsi)
       if(psi > minpsi) then
         F_theta = log(minpsi/psi)/log(minpsi/maxpsi)
@@ -147,7 +149,7 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
       endif
       call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
       CHKERRQ(ierr)
-      call VecRestoreArrayReadF90(clm_pf_idata%watsat_pf, watsat_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%porosity_pfs, porosity_pf_loc, ierr)
       CHKERRQ(ierr)
       call VecRestoreArrayReadF90(clm_pf_idata%bsw_pf, bsw_pf_loc, ierr)
       CHKERRQ(ierr)
@@ -155,11 +157,11 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
 ! DLEM 
 ! Tian et al. 2010 Biogeosciences, 7, 2673-2694 Eq. 13
     case(MOISTURE_RESPONSE_FUNCTION_DLEM) 
-      call VecGetArrayReadF90(clm_pf_idata%watsat_pf, watsat_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%porosity_pfs, porosity_pf_loc, ierr)
       CHKERRQ(ierr)
       call VecGetArrayReadF90(clm_pf_idata%watfc_pf, watfc_pf_loc, ierr)
       CHKERRQ(ierr)
-      thetas = watsat_pf_loc(ghosted_id)
+      thetas = porosity_pf_loc(ghosted_id)
       thetar = watfc_pf_loc(ghosted_id)
       if(theta >= thetas) then
         F_theta = 1.0d0
@@ -177,9 +179,9 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
            F_theta = 1.0d0
         endif
       endif
-      call VecGetArrayReadF90(clm_pf_idata%watsat_pf, watsat_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%porosity_pfs, porosity_pf_loc, ierr)
       CHKERRQ(ierr)
-      call VecGetArrayReadF90(clm_pf_idata%watfc_pf, watfc_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%watfc_pf, watfc_pf_loc, ierr)
       CHKERRQ(ierr)
     case default
         F_theta = 1.0d0
