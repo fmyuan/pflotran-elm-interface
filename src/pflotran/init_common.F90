@@ -1824,6 +1824,8 @@ subroutine InitReadInput(simulation)
         endif
         option%flow_dt = default_timestepper%dt_init
         option%tran_dt = default_timestepper%dt_init
+
+        option%dt_min = default_timestepper%dt_min
       
 !.....................
       case ('SURFACE_FLOW')

@@ -409,13 +409,15 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
       this%target_time = this%target_time - this%dt
 
       this%dt = 0.5d0 * this%dt  
-      
+
+#ifndef CLM_PFLOTRAN
       write(option%io_buffer,'('' -> Cut time step: snes='',i3, &
            &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
            &   1pe12.5)')  snes_reason,icut,this%cumulative_time_step_cuts, &
            option%time/tconv, &
            this%dt/tconv
       call printMsg(option)
+#endif
 
       this%target_time = this%target_time + this%dt
       option%dt = this%dt

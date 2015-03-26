@@ -935,6 +935,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: fno3             ! = no3/(half_saturation + no3)  ( N 'resource' limitation on immobilization)
   PetscReal :: dfno3_dno3       ! d(fnh4)/d(nh4)
 
+  PetscReal :: nratecap, dtmin  ! max. n immobilization rate within allowable min. timestep
+  PetscReal :: fnratecap        ! max. nratecap as function of c_nh4/c_no3 consumption rate vs. potential immobilization
+  PetscReal :: dfnratecap_dnh4, dfnratecap_dno3
+
   !nh4 inhibition on no3 immobilization, or microbial N immobilization preference btw nh4 and no3
   ! crate_nh4 = fnh4*fnh4_inhibit_no3, while crate_no3 = 1.-fnh4*fnh4_inhibition_no3
   ! by the following eq., if 'inhibition=1', uptake will be equal for both (if same conc.);
@@ -1147,7 +1151,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       k_decomp = k_decomp/option%tran_dt
     endif
     k_decomp = this%rate_ad_factor(irxn)*k_decomp
-    k_decomp = min(k_decomp, 1.0d0/option%tran_dt)        ! make sure of NO over-decomposition rate (just in case, maybe not needed)
+    k_decomp = min(k_decomp, 1.0d0/volume/option%tran_dt)        ! make sure of NO over-decomposition rate (just in case, maybe not needed)
 
     ! scaled_rate_const units: (m^3 bulk / s) = (1/s) * (m^3 bulk)
     scaled_crate_const = k_decomp*volume*f_t*f_w*f_depth
@@ -1243,21 +1247,57 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
     ! nh4/NO3 limiting on N-immobolization involved C rates, if any
     if(this%mineral_n_stoich(irxn) < 0.0d0) then
+
+      ! constraining 'N immobilization rate' if too high compared to available within the allowable min. time-step
+      ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
+      ! - implying tiny timestep in model, which potentially crashes model
+      dtmin = option%dt_min
+      if (abs(crate_uc*this%mineral_n_stoich(irxn)) > 0.d0) then
+        !
+        nratecap = -crate_uc*this%mineral_n_stoich(irxn)*fnh4_inhibit_no3
+        nratecap = nratecap * dtmin - c_nh4
+        if (nratecap > 0.d0) then
+          fnratecap = c_nh4/(c_nh4 + nratecap)
+          dfnratecap_dnh4 = nratecap/(c_nh4 + nratecap)/(c_nh4 + nratecap)  ! (TODO) checking here, because 'nratecap' is function of 'c_nh4'
+        else
+          fnratecap       = 1.d0
+          dfnratecap_dnh4 = 0.d0
+        endif
+        dfnh4_dnh4 = dfnh4_dnh4*fnratecap + fnh4 * dfnratecap_dnh4
+        fnh4 = fnh4 * fnratecap
+        !
+        if (this%species_id_no3 > 0) then
+          nratecap = -crate_uc*this%mineral_n_stoich(irxn)*(1.d0-fnh4_inhibit_no3)
+          nratecap = nratecap * dtmin - c_no3
+          if (nratecap > 0.d0) then
+            fnratecap = c_no3/(c_no3 + nratecap)
+            dfnratecap_dno3 = nratecap/(c_no3 + nratecap)/(c_no3 + nratecap)
+          else
+            fnratecap       = 1.d0
+            dfnratecap_dno3 = 0.d0
+          endif
+          dfno3_dno3 = dfno3_dno3*fnratecap + fno3 * dfnratecap_dno3
+          fno3 = fno3 * fnratecap
+        endif
+        !
+      endif
+
       crate_nh4 = fnh4
       ! overall C rates
       crate = crate_uc * crate_nh4
 
       if (this%species_id_no3 > 0) then
         ! 'f_nh4_inhibit_no3' is somehow a spliting fraction for NH4:NO3 immoblization,
-        crate_nh4 = fnh4*fnh4_inhibit_no3
+        crate_nh4 = fnh4 * fnh4_inhibit_no3
 
         ! f_no3 should be adjusted by R reduced by 'crate_nh4' so that it is inhibited by nh4
-        crate_no3 = fno3*(1.0d0-fnh4*fnh4_inhibit_no3)
+        crate_no3 = fno3 * (1.0d0-fnh4*fnh4_inhibit_no3)
 
         ! overall C rates
         crate = crate_uc * (crate_nh4 + crate_no3)
       endif
-    endif
+
+    endif  !if(this%mineral_n_stoich(irxn) < 0.0d0) (i.e. immobilization)
 
     ! -- Residuals for all C-N pools
     ! CO2 [1]

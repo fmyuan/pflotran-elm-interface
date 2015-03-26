@@ -360,7 +360,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
     saturation = max(0.d0,min(saturation,1.d0))
     f_w = saturation * (1.0d0 - saturation)/0.25d0
 
-    temp_real = this%k_nitr_max * f_t * f_w * volume                            ! 1/sec * m3 bulk
+    temp_real = min(this%k_nitr_max * f_t * f_w * volume, 1.d0)                 ! 1/sec * m3 bulk
     rate_nitri = temp_real * (c_nh4 * feps0) * (c_nh4/(c_nh4 + 4.0d0))          ! moles/sec.
 
     Residual(ires_nh4) = Residual(ires_nh4) + rate_nitri
