@@ -302,7 +302,9 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   c_nh4 = 0.d0
   c_no3 = 0.d0
-
+  fnh4_inhibit_no3 = 1.d0
+  dfnh4_inhibit_no3_dnh4 = 0.d0
+  dfnh4_inhibit_no3_dno3 = 0.d0
   !--------------------------------------------------------------------------------------------
   if (this%ispec_nh4 > 0) then
     ires_nh4 = this%ispec_nh4 + reaction%offset_aqueous
@@ -413,50 +415,54 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   call VecRestoreArrayReadF90(clm_pf_idata%rate_plantndemand_pfs, &
        rate_plantndemand_pf_loc, ierr)
 #endif
-  if (this%ispec_plantndemand > 0.d0) then  ! for tracking
+  if (this%ispec_plantndemand > 0) then  ! for tracking
     ires_plantndemand = this%ispec_plantndemand + reaction%offset_immobile
     Residual(ires_plantndemand) = Residual(ires_plantndemand) - this%rate_plantndemand
   endif
 
-  ! constraining 'N demand rate' if too high compared to available within the allowable min. time-step
-  ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
-  ! - implying tiny timestep in model, which potentially crashes model
-  if (this%rate_plantndemand > 0.d0) then
-    dtmin = option%dt_min  ! arbitrarily set a starting point to reduce the rate
 
-    if (this%ispec_nh4 > 0.d0) then
-       nratecap = this%rate_plantndemand * dtmin - c_nh4
-       if (this%ispec_no3 > 0) nratecap = this%rate_plantndemand*fnh4_inhibit_no3*dtmin - c_nh4
-       if (nratecap > 0.d0) then
-         fnratecap = c_nh4/(c_nh4 + nratecap)
-         dfnratecap_dnh4 = nratecap/(c_nh4 + nratecap)/(c_nh4 + nratecap)
-       else
-         fnratecap       = 1.d0
-         dfnratecap_dnh4 = 0.d0
-       endif
-      ! if needed, modifying the 'fnh4' and 'dfnh4_dnh4' so that NO need to modify the major codes below
-       dfnh4_dnh4 = dfnh4_dnh4*fnratecap + fnh4 * dfnratecap_dnh4   ! do the derivative first
-       fnh4 = fnh4 * fnratecap
+  if (this%rate_plantndemand > 0.d0) then
+    ! constraining 'N plant uptake rate' if too high compared to available
+    ! within the allowable min. time-step
+    ! It can be achieved by cutting time-step, but it may be taking a very
+    ! small timestep finally
+    ! - implying tiny timestep in model, which potentially crashes model
+    dtmin = option%dt_min
+    !
+    nratecap = this%rate_plantndemand*dtmin
+
+    if (this%ispec_nh4 > 0) then
+      if (nratecap*fnh4_inhibit_no3>c_nh4 .and. fnh4_inhibit_no3>0.d0) then
+        fnratecap       = c_nh4/(nratecap*fnh4_inhibit_no3)
+        dfnratecap_dnh4 = 1.d0/nratecap * &
+          (fnh4_inhibit_no3-c_nh4*dfnh4_inhibit_no3_dnh4) / &
+          (fnh4_inhibit_no3*fnh4_inhibit_no3)   
+      else
+        fnratecap       = 1.d0
+        dfnratecap_dnh4 = 0.d0
+      endif
+      dfnh4_dnh4 = dfnh4_dnh4*fnratecap + fnh4 * dfnratecap_dnh4
+      fnh4 = fnh4 * fnratecap
     endif
+
     !
     if (this%ispec_no3 > 0) then
-       nratecap = this%rate_plantndemand * dtmin - c_no3
-       if (this%ispec_no3 > 0) nratecap = this%rate_plantndemand*(1.-fnh4_inhibit_no3)*dtmin - c_no3
-       if (nratecap > 0.d0) then
-         fnratecap = c_no3/(c_no3 + nratecap)
-         dfnratecap_dno3 = nratecap/(c_no3 + nratecap)/(c_no3 + nratecap)
-       else
-         fnratecap       = 1.d0
-         dfnratecap_dno3 = 0.d0
-       endif
-       ! if needed, modifying the 'fno3' and 'dfno3_dno3' so that NO need to modify the major codes below
-       dfno3_dno3 = dfno3_dno3*fnratecap + fno3 * dfnratecap_dno3
-       fno3 = fno3 * fnratecap
-     endif
-
+      if (nratecap*(1.d0-fnh4_inhibit_no3)>c_no3 .and.fnh4_inhibit_no3<1.d0) then
+        fnratecap       = c_no3/(nratecap*(1.d0-fnh4_inhibit_no3)) 
+        dfnratecap_dno3 = 1.d0/nratecap * &
+           ((1.d0-fnh4_inhibit_no3)-c_no3*(-dfnh4_inhibit_no3_dno3)) / &
+           ((1.d0-fnh4_inhibit_no3)*(1.d0-fnh4_inhibit_no3))
+      else 
+        fnratecap       = 1.d0 
+        dfnratecap_dno3 = 0.d0
+      endif
+      dfno3_dno3 = dfno3_dno3*fnratecap + fno3 * dfnratecap_dno3
+      fno3 = fno3 * fnratecap
+    endif
+  
   endif
 
-  !
+  !--------------------------------------------------------------------------------------------------
   if(this%ispec_nh4 > 0) then
 
     ! rates
@@ -505,6 +511,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   endif !if(this%ispec_nh4 > 0)
 
+  !-----------------------------------------------------------------------------------
   if(this%ispec_no3 > 0) then
 
     ! rates
