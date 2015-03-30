@@ -385,29 +385,38 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
                        
     ! scale if necessary
     if (min_ratio < 1.d0) then
-!      if (min_ratio < min_allowable_scale) then
-if(realization%option%tran_dt < 2.0d0*realization%option%dt_min) then
-!#ifdef DEBUG
+
+#ifdef DEBUG
+      if(realization%option%tran_dt < 2.0d0*realization%option%dt_min .or. &
+         min_ratio < min_allowable_scale ) then
         write(realization%option%fid_out, *) '-----checking scaling factor for RT ------'
         write(realization%option%fid_out, *) 'min. scaling factor = ', min_ratio
         j = realization%reaction%ncomp
         do i = 1, n
           ratio = abs(C_p(i)/dC_p(i))
-          if (ratio<=min_allowable_scale .and. C_p(i)<=dC_p(i)) then
+          if ( (ratio<=min_allowable_scale .or. ratio<=min_ratio) &
+            .and. C_p(i)<=dC_p(i) ) then
             write(realization%option%fid_out, *)  &
              ' <------ min_ratio @', i, 'cell no.=', floor((i-1.d0)/j), &
             'rt species no. =',i-floor((i-1.d0)/j)*j, '-------------->'
+
+             write(realization%option%fid_out, *) 'i=', i, &
+               'cell_no=',floor((i-1.0d0)/j), &
+               'rt_species_no.=',i-floor((i-1.0d0)/j)*j, &
+               'C_p/dC_p=', ratio, 'C_p=',C_p(i),'dC_p=',dC_p(i)
           endif
-          write(realization%option%fid_out, *) 'i=', i, &
-            'cell_no=',floor((i-1.0d0)/j), &
-            'rt_species_no.=',i-floor((i-1.0d0)/j)*j, &
-            'C_p/dC_p=', ratio, 'C_p=',C_p(i),'dC_p=',dC_p(i)
         enddo
         write(realization%option%fid_out, *) '-----DONE: checking scaling factor for RT ----'
-        write(realization%option%fid_out, *) ' min_ratio IS too small to make sense, '// &
-          'which less than an allowable_scale value !'
-        write(realization%option%fid_out, *) ' STOP executing ! '
-!#endif
+
+        if (ratio<=min_allowable_scale) then
+          write(realization%option%fid_out, *) ' min_ratio IS too small to make sense, '// &
+            'which less than an allowable_scale value !'
+          write(realization%option%fid_out, *) ' STOP executing ! '
+        endif
+      endif
+#endif
+
+      if (min_ratio < min_allowable_scale) then
         write(string,'(es9.3)') min_ratio
         string = 'The update of primary species concentration is being ' // &
           'scaled by a very small value (i.e. ' // &
@@ -420,7 +429,7 @@ if(realization%option%tran_dt < 2.0d0*realization%option%dt_min) then
           'send your input deck to pflotran-dev@googlegroups.com and ' // &
           'ask for help.'
         realization%option%io_buffer = string
-!        call printErrMsg(realization%option)
+        call printErrMsg(realization%option)
       endif
       ! scale by 0.99 to make the update slightly smaller than the min_ratio
       dC_p = dC_p*min_ratio*0.99d0
