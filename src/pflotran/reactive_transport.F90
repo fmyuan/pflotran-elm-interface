@@ -386,7 +386,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
     ! scale if necessary
     if (min_ratio < 1.d0) then
 !      if (min_ratio < min_allowable_scale) then
-if (realization%option%tran_dt<2.d0*realization%option%dt_min) then
+if(realization%option%tran_dt < 2.0d0*realization%option%dt_min) then
 !#ifdef DEBUG
         write(realization%option%fid_out, *) '-----checking scaling factor for RT ------'
         write(realization%option%fid_out, *) 'min. scaling factor = ', min_ratio

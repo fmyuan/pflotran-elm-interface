@@ -1025,18 +1025,16 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   ! -----------------------------------------------------------------------------------------------
-
+  ! for 'nh4' dependent rate function (i.e. immobilization, will be dynamically changing for 'irxn')
   ires_nh4  = this%species_id_nh4 + reaction%offset_aqueous       ! as aq. species
   c_nh4     = rt_auxvar%total(ires_nh4, iphase)*theta*1000.0d0    ! from mol/L -> mol/m3 bulk
 
-  fnh4_inhibit_no3 = 1.d0
-  dfnh4_inhibit_no3_dnh4 = 0.d0
-  dfnh4_inhibit_no3_dno3 = 0.d0
   if (this%species_id_no3 > 0) then
-    ! 'no3' dependent rate function (DON'T change the 'rate' and 'derivatives' after this)
-    ires_no3  = this%species_id_no3 + reaction%offset_aqueous     ! as aq. species
-    c_no3= rt_auxvar%total(ires_no3, iphase)*theta*1000.0d0       ! from mol/L -> mol/m3 bulk
+    ! for 'no3' dependent rate function (i.e. immobilization), if needed
+    ires_no3  = this%species_id_no3 + reaction%offset_aqueous        ! as aq. species
+    c_no3 = rt_auxvar%total(this%species_id_no3, iphase)*theta*1000.0d0    ! from mol/L -> mol/m3 bulk
 
+    ! nh4 inhibition on no3 immobilization, if any ('this%inhibition_nh4_no3')
     ! this is for quantifying microbial N immobilization preference btw NH4 and NO3.
     ! (DON'T change the 'rate' and 'derivatives' after this)
     if(c_nh4>this%x0eps .and. c_no3>this%x0eps .and. this%inhibition_nh4_no3>0.d0) then
@@ -1107,28 +1105,17 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     endif
 
     if(this%x0eps>0.d0) then
-      !feps0 = c_uc/(c_uc+this%x0eps)    ! using these two for trailer smoothing, alternatively
-      !dfeps0_dx = this%x0eps/(c_uc+this%x0eps)/(c_uc+this%x0eps)
+      !feps0 = funcMonod(c_uc, this%x0eps, .not. compute_derivative)  ! using these two for trailer smoothing, alternatively
+      !dfeps0_dx = funcMonod(c_uc, this%x0eps, compute_derivative)
 
-      ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
-      if (c_uc <= this%x0eps) then
-        feps0     = 0.0d0
-        dfeps0_dx = 0.0d0
-      elseif (c_uc >= this%x0eps*1.d1) then
-        feps0     = 1.0d0
-        dfeps0_dx = 0.0d0
-      else
-        feps0 = 1.0d0 - ( 1.0d0-(c_uc-this%x0eps)*(c_uc-this%x0eps)       &
-                                /(81.0d0*this%x0eps*this%x0eps) ) ** 2
-        dfeps0_dx = 4.0d0 * (1.0d0 - (c_uc-this%x0eps)*(c_uc-this%x0eps)  &
-                                     /(81.0d0*this%x0eps*this%x0eps) )    &
-                          * (c_uc-this%x0eps)/(81.0d0*this%x0eps*this%x0eps)
-      endif
+      ! GP's cut-off approach
+      feps0     = funcTrailersmooth(c_uc, this%x0eps, .not. compute_derivative)
+      dfeps0_dx = funcTrailersmooth(c_uc, this%x0eps, compute_derivative)
 
     else
       feps0 = 1.0d0
       dfeps0_dx = 0.d0
-!      if(c_uc <= this%x0eps) cycle     ! this may bring in 'oscillation' around 'this%x0eps'
+      if(c_uc <= this%x0eps) cycle     ! this may bring in 'oscillation' around 'this%x0eps'
     endif
 
     ! (iii) C substrate only dependent rate/derivative  (DON'T change after this)
@@ -1154,7 +1141,6 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
         ! calculate respiration factor (CO2 stoichiometry)
         stoich_c = 1.0d0
-
         do j = 1, this%n_downstream_pools(irxn)
           stoich_c = stoich_c - this%downstream_stoich(irxn, j)
         enddo
@@ -1185,89 +1171,69 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     ! overall C rates
     crate     = crate_uc
 
-    ! nh4/NO3 limiting on N-immobolization involved C rates, if any
+    ! NH4/NO3 limiting on N-immobolization involved C rates, if any
+    ! NOTE: don't change the 'fnh4' ('fno3') and 'dfnh4_dnh4'('dfno3_dno3') after this block of codes
+    ! it will be used for each possible 'irxn' species (and for this reason, initializing it here)
+    fnh4 = 1.d0
+    dfnh4_dnh4 = 0.d0
+    fno3 = 1.d0
+    dfno3_dno3 = 0.d0
     if(this%mineral_n_stoich(irxn) < 0.0d0) then
 
-      temp_real  = c_nh4 + this%half_saturation_nh4
-      fnh4       = c_nh4 / temp_real
-      dfnh4_dnh4 = this%half_saturation_nh4 / temp_real / temp_real
- 
+      ! half-saturation regulated rate (by input, it may be representing competetiveness)
+      fnh4       = funcMonod(c_nh4, this%half_saturation_nh4, .not. compute_derivative)
+      dfnh4_dnh4 = funcMonod(c_nh4, this%half_saturation_nh4, compute_derivative)
+      if(this%species_id_no3 > 0) then
+        fno3       = funcMonod(c_no3, this%half_saturation_no3, .not. compute_derivative)
+        dfno3_dno3 = funcMonod(c_no3, this%half_saturation_no3, compute_derivative)
+      endif
+
       ! using the following for trailer smoothing
       ! note: 'x0eps' is different from 'half_saturation_nh4' above.
       !       'x0eps' is for mathematic reason in the code;
-      !       'half_saturation_nh4' is for using 'monod-type' function to
-      !       quantify
-      !       microbial
-      !    NH4 immobilization dependence on resources (NH4). So, physiologically
-      !    it
-      !    may be used as a method to quantify competition over resources.
+      !       'half_saturation_nh4' is for using 'monod-type' function to quantify microbial
+      !    NH4 immobilization dependence on resources (NH4). So, physiologically it may be
+      !    used as a method to quantify competition over resources.
       if(this%x0eps>0.d0) then
-        ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
-        if (c_nh4 <= this%x0eps) then
-          feps0     = 0.0d0
-          dfeps0_dx = 0.0d0
-        elseif (c_nh4 >= this%x0eps*1.d1) then
-          feps0     = 1.0d0
-          dfeps0_dx = 0.0d0
-        else
-          feps0 = 1.0d0 - ( 1.0d0-(c_nh4-this%x0eps)*(c_nh4-this%x0eps)       &
-                                /(81.0d0*this%x0eps*this%x0eps) ) ** 2
-          dfeps0_dx = 4.0d0 * (1.0d0 - (c_nh4-this%x0eps)*(c_nh4-this%x0eps)  &
-                                     /(81.0d0*this%x0eps*this%x0eps) )    &
-                          * (c_nh4-this%x0eps)/(81.0d0*this%x0eps*this%x0eps)
-        endif
-
-        ! fnh4 above, then, can be adjusted below
-        dfnh4_dnh4 = dfnh4_dnh4*feps0+fnh4*dfeps0_dx   ! do the derivative first
-        fnh4 = fnh4*feps0
+        !feps0 = funcMonod(c_nh4, this%x0eps, .not. compute_derivative)  ! using these two for trailer smoothing, alternatively
+        !dfeps0_dx = funcMonod(c_nh4, this%x0eps, compute_derivative)
+        ! GP's cut-off approach
+        feps0     = funcTrailersmooth(c_nh4, this%x0eps, .not. compute_derivative)
+        dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps, compute_derivative)
+      else
+        feps0 = 1.0d0
+        dfeps0_dx = 0.d0
       endif
-      
+      dfnh4_dnh4 = dfnh4_dnh4*feps0 + fnh4 * dfeps0_dx
+      fnh4 = fnh4 * feps0
       !
-      if (this%species_id_no3 > 0) then
-        temp_real  = c_no3 + this%half_saturation_no3
-        fnh4       = c_no3 / temp_real
-        dfnh4_dnh4 = this%half_saturation_no3 / temp_real / temp_real
-
-        ! using the following for trailer smoothing
-        ! note: 'x0eps' is different from 'half_saturation_no3' above.
-        !       'x0eps' is for mathematic reason in the code;
-        !       'half_saturation_no3' is for using 'monod-type' function to
-        !        quantify microbial NO3 immobilization dependence on resources (NO3). So, physiologically
-        !        it may be used as a method to quantify competition over resources.
+      if(this%species_id_no3 > 0) then
         if(this%x0eps>0.d0) then
-          ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
-          if (c_no3 <= this%x0eps) then
-            feps0     = 0.0d0
-            dfeps0_dx = 0.0d0
-          elseif (c_no3 >= this%x0eps*1.d1) then
-            feps0     = 1.0d0
-            dfeps0_dx = 0.0d0
-          else
-            feps0 = 1.0d0 - ( 1.0d0-(c_no3-this%x0eps)*(c_no3-this%x0eps)       &
-                                /(81.0d0*this%x0eps*this%x0eps) ) ** 2
-            dfeps0_dx = 4.0d0 * (1.0d0 - (c_no3-this%x0eps)*(c_no3-this%x0eps)  &
-                                     /(81.0d0*this%x0eps*this%x0eps) )    &
-                          * (c_no3-this%x0eps)/(81.0d0*this%x0eps*this%x0eps)
-          endif
-
-          ! fno3 above, then, can be adjusted below
-          dfno3_dno3 = dfno3_dno3*feps0+fno3*dfeps0_dx   ! do the derivative first
-          fno3 = fno3*feps0
+          !feps0 = funcMonod(c_no3, this%x0eps, .not. compute_derivative)  ! using these two for trailer smoothing, alternatively
+          !dfeps0_dx = funcMonod(c_no3, this%x0eps, compute_derivative)
+          ! GP's cut-off approach
+          feps0     = funcTrailersmooth(c_no3, this%x0eps, .not. compute_derivative)
+          dfeps0_dx = funcTrailersmooth(c_no3, this%x0eps, compute_derivative)
+        else
+          feps0 = 1.0d0
+          dfeps0_dx = 0.d0
         endif
+        dfno3_dno3 = dfno3_dno3*feps0 + fno3 * dfeps0_dx
+        fno3 = fno3 * feps0
       endif
 
-      ! constraining 'N immobilization rate' if too high compared to available within the allowable min. time-step
+      ! constraining 'N immobilization rate' locally if too high compared to available within the allowable min. time-step
       ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
       ! - implying tiny timestep in model, which potentially crashes model
       dtmin = option%dt_min
       if (abs(crate_uc*this%mineral_n_stoich(irxn)) > 0.d0) then
         !
         nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin
-        if (nratecap*fnh4_inhibit_no3>c_nh4 .and. fnh4_inhibit_no3>0.d0) then
-          fnratecap       = c_nh4/(nratecap*fnh4_inhibit_no3)
+        if (nratecap*fnh4_inhibit_no3 > c_nh4) then
+          fnratecap = c_nh4/(nratecap*fnh4_inhibit_no3)
           dfnratecap_dnh4 = 1.d0/nratecap * &
-            (fnh4_inhibit_no3-c_nh4*dfnh4_inhibit_no3_dnh4) / &
-            (fnh4_inhibit_no3*fnh4_inhibit_no3)        
+          (fnh4_inhibit_no3-c_nh4*dfnh4_inhibit_no3_dnh4)/ &     !d(c_nh4/fnh4_inibit_no3)/dnh4
+          (fnh4_inhibit_no3*fnh4_inhibit_no3)
         else
           fnratecap       = 1.d0
           dfnratecap_dnh4 = 0.d0
@@ -1276,11 +1242,12 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         fnh4 = fnh4 * fnratecap
         !
         if (this%species_id_no3 > 0) then
-          if (nratecap*(1.d0-fnh4_inhibit_no3)>c_no3 .and. fnh4_inhibit_no3<1.d0) then 
-            fnratecap       = c_no3/(nratecap*(1.d0-fnh4_inhibit_no3))
+          nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin
+          if (nratecap*(1.d0-fnh4_inhibit_no3) > c_no3) then
+            fnratecap = c_no3/(nratecap*(1.d0-fnh4_inhibit_no3))
             dfnratecap_dno3 = 1.d0/nratecap * &
-             ((1.d0-fnh4_inhibit_no3)-c_no3*(-dfnh4_inhibit_no3_dno3)) / &
-             ((1.d0-fnh4_inhibit_no3)*(1.d0-fnh4_inhibit_no3))   
+            ((1.d0-fnh4_inhibit_no3) - c_no3*(-dfnh4_inhibit_no3_dno3))/ &     !d(c_no3/(1-fnh4_inibit_no3))/dno3
+            ((1.d0-fnh4_inhibit_no3)*(1.0d0-fnh4_inhibit_no3))
           else
             fnratecap       = 1.d0
             dfnratecap_dno3 = 0.d0
@@ -1291,7 +1258,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         !
       endif
 
-      !------------------------------------------
+      !----------- overall rate ------
       crate_nh4 = fnh4
       ! overall C rates
       crate = crate_uc * crate_nh4
@@ -1306,6 +1273,13 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         ! overall C rates
         crate = crate_uc * (crate_nh4 + crate_no3)
       endif
+
+if(option%tran_dt<2.0d0*option%dt_min) then
+print *,'--------------------------------------'
+print *,'ghosted_id=',ghosted_id, ' irxn=', irxn, ' c_nh4=',c_nh4, ' c_no3=',c_no3, &
+' fnh4=',fnh4,'crate_nh4=',crate_uc*crate_nh4*this%mineral_n_stoich(irxn)*option%dt, &
+' fno3=',fno3,'crate_no3=',crate_uc*crate_no3*this%mineral_n_stoich(irxn)*option%dt
+endif
 
     endif  !if(this%mineral_n_stoich(irxn) < 0.0d0) (i.e. immobilization)
 
@@ -1782,23 +1756,6 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
      ires_ngasmin = this%species_id_ngasmin + reaction%offset_immobile
   endif
 
-  if(this%x0eps>0.d0) then
-    ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
-    if (c_nh4 <= this%x0eps) then
-      feps0     = 0.0d0
-      dfeps0_dx = 0.0d0
-    elseif (c_nh4 >= this%x0eps*1.d1) then
-      feps0     = 1.0d0
-      dfeps0_dx = 0.0d0
-    else
-      feps0 = 1.0d0 - ( 1.0d0-(c_nh4-this%x0eps)*(c_nh4-this%x0eps)       &
-                                /(81.0d0*this%x0eps*this%x0eps) ) ** 2
-      dfeps0_dx = 4.0d0 * (1.0d0 - (c_nh4-this%x0eps)*(c_nh4-this%x0eps)  &
-                                     /(81.0d0*this%x0eps*this%x0eps) )    &
-                          * (c_nh4-this%x0eps)/(81.0d0*this%x0eps*this%x0eps)
-   endif
-  endif
-
   if(this%species_id_n2o>0 .and. net_nmin_rate>this%x0eps) then
 
     ! temperature/moisture/pH response functions (Parton et al. 1996)
@@ -1824,49 +1781,50 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       f_t = min(f_t, 1.0d0)
       f_w = min(f_w, 1.0d0)
       f_ph= min(f_ph, 1.0d0)
-
       temp_real = f_t * f_w * f_ph
-      temp_real = temp_real*this%n2o_frac_mineralization
 
-      !---------------------------------------
-      ! constraining 'N emission rate' during mineralization if too high compared to available
-      ! within the allowable min. time-step. It can be achieved by cutting time-step, but it may be taking a very
-      ! small timestep finally
-      ! - implying tiny timestep in model, which potentially crashes model
-      dtmin = option%dt_min
-      if (temp_real*net_nmin_rate > 0.d0) then
-        !
-        nratecap = temp_real*net_nmin_rate*dtmin
-        if (nratecap>c_nh4) then
-          fnratecap       = c_nh4/nratecap
-          dfnratecap_dnh4 = 1.d0/temp_real/dtmin * &
-            (net_nmin_rate-c_nh4*dnet_nmin_rate_dx) / & !d(c_nh4/net_nmin_rate)/dnh4
-            (net_nmin_rate*net_nmin_rate)
-        else
-          fnratecap       = 1.d0
-          dfnratecap_dnh4 = 0.d0
-        endif
-        !modifying the 'dfeps0_dx' and 'feps0' calculated above
-        dfeps0_dx = dfeps0_dx*fnratecap + feps0 * dfnratecap_dnh4
-        feps0 = feps0 * fnratecap
-        !
+      if(this%x0eps>0.d0) then
+        ! GP's cut-off approach
+        feps0     = funcTrailersmooth(c_nh4, this%x0eps, .not. compute_derivative)
+        dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps, compute_derivative)
+      else
+        feps0 = 1.0d0
+        dfeps0_dx = 0.d0
       endif
+      ! constraining 'N potential rate' if too high compared to available within the allowable min. time-step
+      ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
+      ! - implying tiny timestep in model, which potentially crashes model
+      dtmin = option%dt_min  ! arbitrarily set a starting point to reduce the rate
+      nratecap = temp_real*this%n2o_frac_mineralization*dtmin*net_nmin_rate
+      if (nratecap > c_nh4) then
+         fnratecap = c_nh4/nratecap
+         dfnratecap_dnh4 = 1.d0/temp_real*this%n2o_frac_mineralization*dtmin &
+                             * (net_nmin_rate - c_nh4*dnet_nmin_rate_dx)     &    ! d(c_nh4/net_nmin_rate)/dnh4
+                             /(net_nmin_rate*net_nmin_rate)
+      else
+         fnratecap       = 1.d0
+         dfnratecap_dnh4 = 0.d0
+      endif
+      ! modifying the 'feps0' and 'dfeps0_dx' so that NO need to modify the major codes below
+      dfeps0_dx = dfeps0_dx*fnratecap + feps0 * dfnratecap_dnh4   ! do the derivative first
+      feps0 = feps0 * fnratecap
 
-      !---------------------------------------------
+      !--------------------------------------------------------------
       ! residuals
-      rate_n2o = temp_real*net_nmin_rate*feps0
-
+      rate_n2o = temp_real*this%n2o_frac_mineralization*net_nmin_rate * feps0
+ 
       Residual(ires_nh4) = Residual(ires_nh4) + rate_n2o
+
       Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
+
       if(this%species_id_ngasmin > 0) then
          Residual(ires_ngasmin) = Residual(ires_ngasmin) - rate_n2o
       endif
-     
-     !---------------------------------------------
+
      !Jacobians
       if (compute_derivative) then
-        drate_n2o_dx = temp_real * &
-                  (dnet_nmin_rate_dx * feps0 &
+        drate_n2o_dx = temp_real*this%n2o_frac_mineralization * &       ! 'constant' portion of 'rate_n2o'
+                  (dnet_nmin_rate_dx * feps0                    &       ! d(net_nmin_rate*feps0)/dnh4
                   + net_nmin_rate * dfeps0_dx)
 
         Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4) + drate_n2o_dx* &

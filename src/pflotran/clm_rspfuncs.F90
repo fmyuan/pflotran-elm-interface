@@ -33,7 +33,9 @@ module CLM_RspFuncs_module
 
   public :: GetTemperatureResponse, &
             GetMoistureResponse, &
-            GetpHResponse
+            GetpHResponse, &
+            FuncMonod, &
+            FuncTrailersmooth
 
 contains
 ! ************************************************************************** !
@@ -200,6 +202,8 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
 
 end function GetMoistureResponse
 
+! ************************************************************************** !
+
 Function GetpHResponse(pH, itype)
 
   PetscReal :: f_ph, pH, GetpHResponse
@@ -239,5 +243,71 @@ Function GetpHResponse(pH, itype)
   GetpHResponse = f_ph
 
 end function GetpHResponse
+
+! ************************************************************************** !
+! Monod function
+Function funcMonod(conc, conc_halfsat, compute_derivative)
+
+  implicit none
+
+  PetscBool :: compute_derivative
+  PetscReal :: conc, conc_halfsat
+  PetscReal :: funcMonod
+
+  !----------------------------------------------------------
+  if (.not.compute_derivative) then
+    funcMonod = conc/(conc+conc_halfsat)
+  else
+    funcMonod = conc_halfsat/(conc+conc_halfsat)/(conc+conc_halfsat)
+  endif
+
+end function funcMonod
+
+! ************************************************************************** !
+! something like GP's cut-off approach
+Function funcTrailersmooth(conc, conc_cutoff, compute_derivative)
+
+  implicit none
+
+  PetscBool :: compute_derivative
+  PetscReal :: conc
+  PetscReal :: conc_cutoff    ! starting conc to cutoff (factor of 1.0)
+  PetscReal :: conc_cutoff0 = 1.d-50  ! ending conc to cutoff (factor of 0.0)
+  PetscReal :: feps, dfeps
+  PetscReal :: funcTrailersmooth
+
+  !----------------------------------------------------------
+  ! (TODO) replace 'cutoff0' with something upon machine
+
+  if (.not.compute_derivative) then
+    if (conc < conc_cutoff0 .or. conc_cutoff < conc_cutoff0) then
+      feps  = 0.0d0
+    elseif (conc >= conc_cutoff) then
+      feps  = 1.0d0
+    else
+      feps = 1.0d0-(conc-conc_cutoff0)*(conc-conc_cutoff0)       &
+                /(conc_cutoff-conc_cutoff0)/(conc_cutoff-conc_cutoff0)
+      feps = 1.0d0 - feps*feps
+    endif
+    funcTrailersmooth = feps
+
+  else   ! derivative of factor
+    if (conc < conc_cutoff0 .or. conc_cutoff < conc_cutoff0) then
+      dfeps = 0.0d0
+    elseif (conc >= conc_cutoff) then
+      dfeps = 0.0d0
+    else
+      dfeps = 1.0d0-(conc-conc_cutoff0)*(conc-conc_cutoff0)       &
+                /(conc_cutoff-conc_cutoff0)/(conc_cutoff-conc_cutoff0)
+      dfeps = 4.0d0 * dfeps * (conc-conc_cutoff0) &
+                /(conc_cutoff-conc_cutoff0)/(conc_cutoff-conc_cutoff0)
+    endif
+    funcTrailersmooth = dfeps
+
+  endif
+
+end function funcTrailersmooth
+
+! ************************************************************************** !
 
 end module CLM_RspFuncs_module

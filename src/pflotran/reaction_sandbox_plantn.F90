@@ -218,6 +218,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   use Reaction_Aux_module
   use Reaction_Immobile_Aux_module
   use Material_Aux_class, only : material_auxvar_type
+  use CLM_RspFuncs_module
 
 #ifdef CLM_PFLOTRAN
   use clm_pflotran_interface_data
@@ -302,41 +303,21 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   c_nh4 = 0.d0
   c_no3 = 0.d0
+  fnh4       = 1.d0
+  dfnh4_dnh4 = 0.d0
+  fno3       = 1.d0
+  dfno3_dno3 = 0.d0
   fnh4_inhibit_no3 = 1.d0
   dfnh4_inhibit_no3_dnh4 = 0.d0
   dfnh4_inhibit_no3_dno3 = 0.d0
+
+  ! NOTE: the codes below are individually written for either NH4 or NO3 or both,
+  !    so that, these two N species can be used separately for plant N uptake, or none, or both
+
   !--------------------------------------------------------------------------------------------
   if (this%ispec_nh4 > 0) then
     ires_nh4 = this%ispec_nh4 + reaction%offset_aqueous
-
     c_nh4     = rt_auxvar%total(this%ispec_nh4, iphase) * L_water  ! mol/L (M) --> mole/m3
-    temp_real = c_nh4 + this%half_saturation_nh4
-    fnh4      = c_nh4 / temp_real
-    dfnh4_dnh4= this%half_saturation_nh4 / temp_real / temp_real
-
-    ! the following may not be needed, but just in case
-    if(this%x0eps_nh4>0.d0) then
-      !feps0  = c_nh4/(c_nh4 + this%x0eps_nh4)         ! for trailer smoothing
-      !dfeps0_dx = this%x0eps_nh4/(c_nh4 + this%x0eps_nh4)/(c_nh4 + this%x0eps_nh4)
-
-      ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
-      if (c_nh4 <= this%x0eps_nh4) then
-        feps0     = 0.0d0
-        dfeps0_dx = 0.0d0
-      elseif (c_nh4 >= this%x0eps_nh4*1.d1) then
-        feps0     = 1.0d0
-        dfeps0_dx = 0.0d0
-      else
-        feps0 = 1.0d0 - ( 1.0d0-(c_nh4-this%x0eps_nh4)*(c_nh4-this%x0eps_nh4)       &
-                                /(81.0d0*this%x0eps_nh4*this%x0eps_nh4) ) ** 2
-        dfeps0_dx = 4.0d0 * (1.0d0 - (c_nh4-this%x0eps_nh4)*(c_nh4-this%x0eps_nh4)  &
-                                     /(81.0d0*this%x0eps_nh4*this%x0eps_nh4) )      &
-                   * (c_nh4-this%x0eps_nh4)/(81.0d0*this%x0eps_nh4*this%x0eps_nh4)
-      endif
-
-      dfnh4_dnh4 = dfnh4_dnh4*feps0 + dfeps0_dx*fnh4  ! do the derivative first
-      fnh4 = fnh4 * feps0
-    endif
 
     !
     ! nh4 inhibition on no3 uptake, if any ('this%inhibition_nh4_no3')
@@ -364,46 +345,61 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
         dfnh4_inhibit_no3_dnh4 = 0.d0
         dfnh4_inhibit_no3_dno3 = 0.d0
       endif
-
     endif
+
+
+    ! half-saturation regulated rate (by input, it may be representing competetiveness)
+    fnh4       = funcMonod(c_nh4, this%half_saturation_nh4, .not. compute_derivative)
+    dfnh4_dnh4 = funcMonod(c_nh4, this%half_saturation_nh4, compute_derivative)
+
+    ! using the following for trailer smoothing
+    ! note: 'x0eps' is different from 'half_saturation_nh4' above.
+    !       'x0eps' is for mathematic reason in the code;
+    !       'half_saturation_nh4' is for using 'monod-type' function to quantify plant
+    !    NH4 uptake dependence on resources (NH4). So, physiologically it may be
+    !    used as a method to quantify multiple consummer competition over resources.
+    if(this%x0eps_nh4>0.d0) then
+      ! GP's cut-off approach
+      feps0     = funcTrailersmooth(c_nh4, this%x0eps_nh4, .not. compute_derivative)
+      dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps_nh4, compute_derivative)
+    else
+      feps0 = 1.0d0
+      dfeps0_dx = 0.d0
+    endif
+    dfnh4_dnh4 = dfnh4_dnh4*feps0 + fnh4 * dfeps0_dx
+    fnh4 = fnh4 * feps0
 
   endif
 
+  !--------------------------------------------------------------------------------------------
   if (this%ispec_no3 > 0) then
     ires_no3 = this%ispec_no3
-
     c_no3     = rt_auxvar%total(this%ispec_no3, iphase)
-    temp_real = c_no3 + this%half_saturation_no3
-    fno3      = c_no3 / temp_real
-    dfno3_dno3= this%half_saturation_no3 / temp_real / temp_real
+    ! half-saturation regulated rate (by input, it may be representing competetiveness)
+    fno3       = funcMonod(c_no3, this%half_saturation_no3, .not. compute_derivative)
+    dfno3_dno3 = funcMonod(c_no3, this%half_saturation_no3, compute_derivative)
 
-    ! the following may not be needed, but just in case
+    ! using the following for trailer smoothing
+    ! note: 'x0eps' is different from 'half_saturation_no3' above.
+    !       'x0eps' is for mathematic reason in the code;
+    !       'half_saturation_no3' is for using 'monod-type' function to quantify plant
+    !    NO3 uptake dependence on resources (NO3). So, physiologically it may be
+    !    used as a method to quantify multiple consummer competition over resources.
     if(this%x0eps_no3>0.d0) then
-      !feps0  = c_no3/(c_no3 + this%x0eps_no3)         ! for trailer smoothing
-      !dfeps0_dx = this%x0eps_no3 &
-      !           /(c_no3 + this%x0eps_no3)/(c_no3 + this%x0eps_no3)
-
-      ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
-      if (c_no3 <= this%x0eps_no3) then
-        feps0     = 0.0d0
-        dfeps0_dx = 0.0d0
-      elseif (c_no3 >= this%x0eps_no3*1.d1) then
-        feps0     = 1.0d0
-        dfeps0_dx = 0.0d0
-      else
-        feps0 = 1.0d0 - ( 1.0d0-(c_no3-this%x0eps_no3)*(c_no3-this%x0eps_no3)       &
-                                /(81.0d0*this%x0eps_no3*this%x0eps_no3) ) ** 2
-        dfeps0_dx = 4.0d0 * (1.0d0 - (c_no3-this%x0eps_no3)*(c_no3-this%x0eps_no3)  &
-                                     /(81.0d0*this%x0eps_no3*this%x0eps_no3) )      &
-                   * (c_no3-this%x0eps_no3)/(81.0d0*this%x0eps_no3*this%x0eps_no3)
-      endif
-
-      dfno3_dno3 = dfno3_dno3*feps0 + dfeps0_dx*fno3  ! do the derivative first
-      fno3 = fno3 * feps0
+      ! GP's cut-off approach
+      feps0     = funcTrailersmooth(c_no3, this%x0eps_no3, .not. compute_derivative)
+      dfeps0_dx = funcTrailersmooth(c_no3, this%x0eps_no3, compute_derivative)
+    else
+      feps0 = 1.0d0
+      dfeps0_dx = 0.d0
     endif
+    dfno3_dno3 = dfno3_dno3*feps0 + fno3 * dfeps0_dx
+    fno3 = fno3 * feps0
 
   endif
 
+  !--------------------------------------------------------------------------------------------
+  ! plant N demand rates
 #ifdef CLM_PFLOTRAN
   ghosted_id = option%iflag
 
@@ -420,49 +416,64 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     Residual(ires_plantndemand) = Residual(ires_plantndemand) - this%rate_plantndemand
   endif
 
-
+  ! constraining 'N demand rate' if too high compared to available within the allowable min. time-step
+  ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
+  ! - implying tiny timestep in model, which potentially crashes model
   if (this%rate_plantndemand > 0.d0) then
-    ! constraining 'N plant uptake rate' if too high compared to available
-    ! within the allowable min. time-step
-    ! It can be achieved by cutting time-step, but it may be taking a very
-    ! small timestep finally
-    ! - implying tiny timestep in model, which potentially crashes model
-    dtmin = option%dt_min
-    !
-    nratecap = this%rate_plantndemand*dtmin
+    dtmin = option%dt_min  ! arbitrarily set a starting point to reduce the rate
 
     if (this%ispec_nh4 > 0) then
-      if (nratecap*fnh4_inhibit_no3>c_nh4 .and. fnh4_inhibit_no3>0.d0) then
-        fnratecap       = c_nh4/(nratecap*fnh4_inhibit_no3)
-        dfnratecap_dnh4 = 1.d0/nratecap * &
-          (fnh4_inhibit_no3-c_nh4*dfnh4_inhibit_no3_dnh4) / &
-          (fnh4_inhibit_no3*fnh4_inhibit_no3)   
-      else
-        fnratecap       = 1.d0
-        dfnratecap_dnh4 = 0.d0
-      endif
-      dfnh4_dnh4 = dfnh4_dnh4*fnratecap + fnh4 * dfnratecap_dnh4
-      fnh4 = fnh4 * fnratecap
+       nratecap = this%rate_plantndemand * dtmin
+       if (this%ispec_no3 > 0) nratecap = this%rate_plantndemand*fnh4_inhibit_no3*dtmin
+       if (nratecap > c_nh4) then
+         fnratecap = c_nh4/nratecap
+         dfnratecap_dnh4 = 1.d0/nratecap
+         if (this%ispec_no3>0) dfnratecap_dnh4 = 1.d0/nratecap &
+                     *(fnh4_inhibit_no3-c_nh4*dfnh4_inhibit_no3_dnh4) &    !d(c_nh4/fnh4_inhibit_no3)/dnh4
+                     /(fnh4_inhibit_no3*fnh4_inhibit_no3)
+       else
+         fnratecap       = 1.d0
+         dfnratecap_dnh4 = 0.d0
+       endif
+       ! modifying the 'fnh4' and 'dfnh4_dnh4' calculated above
+       ! so that NO need to modify the major codes below
+       dfnh4_dnh4 = dfnh4_dnh4*fnratecap + fnh4 * dfnratecap_dnh4   ! do the derivative first
+       fnh4 = fnh4 * fnratecap
     endif
-
     !
     if (this%ispec_no3 > 0) then
-      if (nratecap*(1.d0-fnh4_inhibit_no3)>c_no3 .and.fnh4_inhibit_no3<1.d0) then
-        fnratecap       = c_no3/(nratecap*(1.d0-fnh4_inhibit_no3)) 
-        dfnratecap_dno3 = 1.d0/nratecap * &
-           ((1.d0-fnh4_inhibit_no3)-c_no3*(-dfnh4_inhibit_no3_dno3)) / &
-           ((1.d0-fnh4_inhibit_no3)*(1.d0-fnh4_inhibit_no3))
-      else 
-        fnratecap       = 1.d0 
-        dfnratecap_dno3 = 0.d0
-      endif
-      dfno3_dno3 = dfno3_dno3*fnratecap + fno3 * dfnratecap_dno3
-      fno3 = fno3 * fnratecap
-    endif
-  
+       nratecap = this%rate_plantndemand * dtmin
+       if (this%ispec_no3 > 0) nratecap = this%rate_plantndemand*(1.-fnh4_inhibit_no3)*dtmin
+       if (nratecap > c_no3) then
+         fnratecap = c_no3/nratecap
+         dfnratecap_dno3 = 1.d0/nratecap
+         if (this%ispec_nh4>0) dfnratecap_dno3 = 1.d0/nratecap &
+                     *((1.d0-fnh4_inhibit_no3)-c_no3*(-dfnh4_inhibit_no3_dno3)) &    !d(c_no3/(1-fnh4_inhibit_no3))/dno3
+                     /((1.d0-fnh4_inhibit_no3)*(1.d0-fnh4_inhibit_no3))
+       else
+         fnratecap       = 1.d0
+         dfnratecap_dno3 = 0.d0
+       endif
+       ! modifying the 'fno3' and 'dfno3_dno3' calculated above
+       ! so that NO need to modify the major codes below
+       dfno3_dno3 = dfno3_dno3*fnratecap + fno3 * dfnratecap_dno3
+       fno3 = fno3 * fnratecap
+     endif
+
   endif
 
-  !--------------------------------------------------------------------------------------------------
+
+if(option%tran_dt<2.0d0*option%dt_min) then
+print *,'--------------------------------------'
+print *,'ghosted_id=',ghosted_id, ' c_nh4=',c_nh4, ' c_no3=',c_no3, ' fnh4=',fnh4,' fno3=', fno3, &
+'uprate_nh4=',this%rate_plantndemand*fnh4*fnh4_inhibit_no3*option%dt, &
+'uprate_no3=',this%rate_plantndemand*fno3*(1.d0-fnh4_inhibit_no3)*option%dt
+endif
+
+
+  !--------------------------------------------------------------------------------------------
+  ! residuals and derivatives
+
   if(this%ispec_nh4 > 0) then
 
     ! rates
@@ -511,7 +522,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   endif !if(this%ispec_nh4 > 0)
 
-  !-----------------------------------------------------------------------------------
+  !
   if(this%ispec_no3 > 0) then
 
     ! rates

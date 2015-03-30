@@ -241,6 +241,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_class, only : material_auxvar_type
+  use CLM_RspFuncs_module
 
 #ifdef CLM_PFLOTRAN
   use clm_pflotran_interface_data
@@ -271,8 +272,6 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   PetscErrorCode :: ierr
 
   PetscInt, parameter :: iphase = 1
-  PetscReal, parameter :: rpi = 3.14159265358979323846
-  PetscReal, parameter :: N_molecular_weight = 14.0067d0
   PetscReal :: M_2_ug_per_g
 
   PetscInt :: ires_nh4s, ires_nh4, ires_no3, ires_n2o, ires
@@ -323,23 +322,12 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
 
 
   if(this%x0eps>0.d0) then
-    !feps0 = c_nh4/(c_nh4+this%x0eps)      ! using these two for trailer smoothing, alternatively
-    !dfeps0_dx = this%x0eps/(c_nh4+this%x0eps)/(c_nh4+this%x0eps)
+    !feps0 = funcMonod(c_nh4, this%x0eps, .not. compute_derivative)  ! using these two for trailer smoothing, alternatively
+    !dfeps0_dx = funcMonod(c_nh4, this%x0eps, compute_derivative)
 
-    ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
-    if (c_nh4 <= this%x0eps) then
-      feps0     = 0.0d0
-      dfeps0_dx = 0.0d0
-    elseif (c_nh4 >= this%x0eps*1.d1) then
-      feps0     = 1.0d0
-      dfeps0_dx = 0.0d0
-    else
-      feps0 = 1.0d0 - ( 1.0d0-(c_nh4-this%x0eps)*(c_nh4-this%x0eps)       &
-                                /(81.0d0*this%x0eps*this%x0eps) ) ** 2
-      dfeps0_dx = 4.0d0 * (1.0d0 - (c_nh4-this%x0eps)*(c_nh4-this%x0eps)  &
-                                     /(81.0d0*this%x0eps*this%x0eps) )    &
-                          * (c_nh4-this%x0eps)/(81.0d0*this%x0eps*this%x0eps)
-    endif
+    ! GP's cut-off approach
+    feps0     = funcTrailersmooth(c_nh4, this%x0eps, .not. compute_derivative)
+    dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps, compute_derivative)
 
   else
     feps0 = 1.0d0
@@ -348,6 +336,8 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
   ! nitrification (Dickinson et al. 2002)
+  rate_nitri = 0.d0
+  drate_nitri_dnh4 = 0.d0
   if(this%ispec_no3 > 0) then
     ! Eq. 28 for nitrification in Dickinson et al. 2002, can be separated into three parts:
     ! rate = k * f(trz) * (s*(1-s))/(0.25+1/nh4)
@@ -355,12 +345,17 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
     ! (2) f_w = s*(1-s)/0.25  [ranging from 0 - 1]
     ! (3) f_nh4 = nh4/(nh4 + 4.0)
 
+    ! 'f_t'
     f_t = exp(0.08d0 * (tc - 25.0d0))
 
+    ! 'f_w'
     saturation = max(0.d0,min(saturation,1.d0))
     f_w = saturation * (1.0d0 - saturation)/0.25d0
 
+    ! 'f_t', 'f_w', and volume scaled rate constant
     temp_real = min(this%k_nitr_max * f_t * f_w * volume, 1.d0)                 ! 1/sec * m3 bulk
+
+    !--------------------------------
     rate_nitri = temp_real * (c_nh4 * feps0) * (c_nh4/(c_nh4 + 4.0d0))          ! moles/sec.
 
     Residual(ires_nh4) = Residual(ires_nh4) + rate_nitri
@@ -401,6 +396,8 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   !c_nh4_ugg = (c_nh4 + s_nh4 / theta / 1000.0d0)* M_2_ug_per_g
   c_nh4_ugg = c_nh4 * volume * M_2_ug_per_g                  ! c_nh4 already in moles/m3 bulk
 
+  rate_n2o = 0.d0
+  drate_n2o_dnh4 = 0.d0
   if(this%ispec_n2o > 0.0d0 .and. c_nh4_ugg > 3.0d0) then
     ! temperature response function (Parton et al. 1996)
     f_t = -0.06d0 + 0.13d0 * exp( 0.07d0 * tc )
@@ -472,6 +469,15 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
      endif    !if(f_t > 0.0d0 .and. f_w > 0.0d0 .and. f_ph > 0.0d0)
 
   endif       !if(this%ispec_n2o > 0.0d0 .and. c_nh4_ugg > 3.0d0)
+
+
+if(option%tran_dt<2.0d0*option%dt_min) then
+print *,'--------------------------------------'
+print *,'ghosted_id=',ghosted_id, ' c_nh4=',c_nh4, &
+' ratedt_nitri=',rate_nitri*option%dt,' ratedt_nit_n2o=',rate_n2o*option%dt, &
+' drate_dnh4=',drate_nitri_dnh4,' drate_n2o_dnh4=',drate_n2o_dnh4
+endif
+
 
 #ifdef DEBUG
   do ires=1, reaction%ncomp
