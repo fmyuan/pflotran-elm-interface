@@ -462,15 +462,6 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   endif
 
-
-if(option%tran_dt<2.0d0*option%dt_min) then
-print *,'--------------------------------------'
-print *,'ghosted_id=',ghosted_id, ' c_nh4=',c_nh4, ' c_no3=',c_no3, ' fnh4=',fnh4,' fno3=', fno3, &
-'uprate_nh4=',this%rate_plantndemand*fnh4*fnh4_inhibit_no3*option%dt, &
-'uprate_no3=',this%rate_plantndemand*fno3*(1.d0-fnh4_inhibit_no3)*option%dt
-endif
-
-
   !--------------------------------------------------------------------------------------------
   ! residuals and derivatives
 
@@ -570,6 +561,18 @@ endif
   endif
 
 #ifdef DEBUG
+
+  if(option%tran_dt<2.0d0*option%dt_min) then
+    if () then
+      write(option%fid_out, *) '----------------------------------------------'
+      write(option%fid_out, *) 'Reaction Sandbox: PLANT N UPTAKE'
+      write(option%fid_out, *) 'ghosted_id=',ghosted_id, &
+         ' c_nh4=',c_nh4, ' c_no3=',c_no3, ' fnh4=',fnh4,' fno3=', fno3, &
+         'uprate_nh4=',this%rate_plantndemand*fnh4*fnh4_inhibit_no3*option%dt, &
+         'uprate_no3=',this%rate_plantndemand*fno3*(1.d0-fnh4_inhibit_no3)*option%dt
+     endif
+  endif
+
   do ires=1, reaction%ncomp
     temp_real = Residual(ires)
 

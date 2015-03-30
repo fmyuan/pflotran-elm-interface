@@ -470,20 +470,24 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
 
   endif       !if(this%ispec_n2o > 0.0d0 .and. c_nh4_ugg > 3.0d0)
 
-
-if(option%tran_dt<2.0d0*option%dt_min) then
-print *,'--------------------------------------'
-print *,'ghosted_id=',ghosted_id, ' c_nh4=',c_nh4, &
-' ratedt_nitri=',rate_nitri*option%dt,' ratedt_nit_n2o=',rate_n2o*option%dt, &
-' drate_dnh4=',drate_nitri_dnh4,' drate_n2o_dnh4=',drate_n2o_dnh4
-endif
-
-
 #ifdef DEBUG
+
+  if( option%tran_dt<2.0d0*option%dt_min.and. &
+      (rate_nitri*option%dt_min > c_nh4 .or. &
+       rate_n2o*option%dt_min > c_nh4) ) then
+
+    write(option%fid_out, *) '----------------------------------------------'
+    write(option%fid_out, *) 'Reaction Sandbox: NITRIFICATION'
+    write(option%fid_out, *) 'ghosted_id=',ghosted_id, ' c_nh4=',c_nh4, &
+    ' ratedt_nitri=',rate_nitri*option%dt,' ratedt_nit_n2o=',rate_n2o*option%dt, &
+    ' drate_dnh4=',drate_nitri_dnh4,' drate_n2o_dnh4=',drate_n2o_dnh4
+  endif
+
   do ires=1, reaction%ncomp
     temp_real = Residual(ires)
 
     if (abs(temp_real) > huge(temp_real)) then
+      write(option%fid_out, *) '----------------------------------------------'
       write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
       write(option%fid_out, *) 'Reaction Sandbox: NITRIFICATION'
       option%io_buffer = ' checking infinity of Residuals matrix @ NitrifReact '

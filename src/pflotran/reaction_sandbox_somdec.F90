@@ -1274,12 +1274,19 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         crate = crate_uc * (crate_nh4 + crate_no3)
       endif
 
-if(option%tran_dt<2.0d0*option%dt_min) then
-print *,'--------------------------------------'
-print *,'ghosted_id=',ghosted_id, ' irxn=', irxn, ' c_nh4=',c_nh4, ' c_no3=',c_no3, &
-' fnh4=',fnh4,'crate_nh4=',crate_uc*crate_nh4*this%mineral_n_stoich(irxn)*option%dt, &
-' fno3=',fno3,'crate_no3=',crate_uc*crate_no3*this%mineral_n_stoich(irxn)*option%dt
-endif
+#ifdef DEBUG
+      if(option%tran_dt<2.0d0*option%dt_min) then
+        if (crate_uc*crate_nh4*this%mineral_n_stoich(irxn)*option%dt_min < c_nh4 .or.
+            crate_uc*crate_no3*this%mineral_n_stoich(irxn)*option%dt_min < c_no3) then
+          write(option%fid_out, *) '----------------------------------------------'
+          write(option%fid_out, *) 'Reaction Sandbox: SOMDEC'
+          write(option%fid_out, *) 'ghosted_id=',ghosted_id, ' irxn=', irxn, &
+            ' c_nh4=',c_nh4, ' c_no3=',c_no3, &
+            ' fnh4=',fnh4,'crate_nh4=',crate_uc*crate_nh4*this%mineral_n_stoich(irxn)*option%dt, &
+            ' fno3=',fno3,'crate_no3=',crate_uc*crate_no3*this%mineral_n_stoich(irxn)*option%dt
+        endif
+      endif
+#endif
 
     endif  !if(this%mineral_n_stoich(irxn) < 0.0d0) (i.e. immobilization)
 
