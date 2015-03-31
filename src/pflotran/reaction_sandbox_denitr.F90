@@ -316,9 +316,11 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
 
   c_no3 = rt_auxvar%total(ires_no3, iphase)*L_water         ! mol/Lw -> moles/m3 bulk
   if(this%x0eps>0.d0) then
+    !feps0 = funcMonod(c_no3, this%x0eps, PETSC_FALSE)  ! using these two for trailer smoothing, alternatively
+    !dfeps0_dx = funcMonod(c_no3, this%x0eps, PETSC_TRUE)
     ! GP's cut-off approach
-    feps0     = funcTrailersmooth(c_no3, this%x0eps, .not. compute_derivative)
-    dfeps0_dx = funcTrailersmooth(c_no3, this%x0eps, compute_derivative)
+    feps0     = funcTrailersmooth(c_no3, this%x0eps*10.d0, this%x0eps,PETSC_FALSE)
+    dfeps0_dx = funcTrailersmooth(c_no3, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
   else
     feps0 = 1.d0
     dfeps0_dx = 0.d0
@@ -327,8 +329,8 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
 
   ! rate dependence on substrate
   if (this%half_saturation > 0.0d0) then
-    fno3      = funcMonod(c_no3, this%half_saturation, .not. compute_derivative)
-    dfno3_dno3= funcMonod(c_no3, this%half_saturation, compute_derivative)
+    fno3      = funcMonod(c_no3, this%half_saturation, PETSC_FALSE)
+    dfno3_dno3= funcMonod(c_no3, this%half_saturation, PETSC_TRUE)
   else
     fno3      = 1.0d0
     dfno3_dno3= 0.d0

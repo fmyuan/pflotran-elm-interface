@@ -1105,12 +1105,11 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     endif
 
     if(this%x0eps>0.d0) then
-      !feps0 = funcMonod(c_uc, this%x0eps, .not. compute_derivative)  ! using these two for trailer smoothing, alternatively
-      !dfeps0_dx = funcMonod(c_uc, this%x0eps, compute_derivative)
-
+      !feps0 = funcMonod(c_uc, this%x0eps, PETSC_FALSE)  ! using these two for trailer smoothing, alternatively
+      !dfeps0_dx = funcMonod(c_uc, this%x0eps, PETSC_TRUE)
       ! GP's cut-off approach
-      feps0     = funcTrailersmooth(c_uc, this%x0eps, .not. compute_derivative)
-      dfeps0_dx = funcTrailersmooth(c_uc, this%x0eps, compute_derivative)
+      feps0     = funcTrailersmooth(c_uc, this%x0eps*10.d0, this%x0eps, PETSC_FALSE)
+      dfeps0_dx = funcTrailersmooth(c_uc, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
 
     else
       feps0 = 1.0d0
@@ -1181,11 +1180,11 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     if(this%mineral_n_stoich(irxn) < 0.0d0) then
 
       ! half-saturation regulated rate (by input, it may be representing competetiveness)
-      fnh4       = funcMonod(c_nh4, this%half_saturation_nh4, .not. compute_derivative)
-      dfnh4_dnh4 = funcMonod(c_nh4, this%half_saturation_nh4, compute_derivative)
+      fnh4       = funcMonod(c_nh4, this%half_saturation_nh4, PETSC_FALSE)
+      dfnh4_dnh4 = funcMonod(c_nh4, this%half_saturation_nh4, PETSC_TRUE)
       if(this%species_id_no3 > 0) then
-        fno3       = funcMonod(c_no3, this%half_saturation_no3, .not. compute_derivative)
-        dfno3_dno3 = funcMonod(c_no3, this%half_saturation_no3, compute_derivative)
+        fno3       = funcMonod(c_no3, this%half_saturation_no3, PETSC_FALSE)
+        dfno3_dno3 = funcMonod(c_no3, this%half_saturation_no3, PETSC_TRUE)
       endif
 
       ! using the following for trailer smoothing
@@ -1195,11 +1194,11 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       !    NH4 immobilization dependence on resources (NH4). So, physiologically it may be
       !    used as a method to quantify competition over resources.
       if(this%x0eps>0.d0) then
-        !feps0 = funcMonod(c_nh4, this%x0eps, .not. compute_derivative)  ! using these two for trailer smoothing, alternatively
-        !dfeps0_dx = funcMonod(c_nh4, this%x0eps, compute_derivative)
+        !feps0 = funcMonod(c_nh4, this%x0eps, PETSC_FALSE)  ! using these two for trailer smoothing, alternatively
+        !dfeps0_dx = funcMonod(c_nh4, this%x0eps, PETSC_TRUE)
         ! GP's cut-off approach
-        feps0     = funcTrailersmooth(c_nh4, this%x0eps, .not. compute_derivative)
-        dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps, compute_derivative)
+        feps0     = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_FALSE)
+        dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
       else
         feps0 = 1.0d0
         dfeps0_dx = 0.d0
@@ -1209,11 +1208,11 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       !
       if(this%species_id_no3 > 0) then
         if(this%x0eps>0.d0) then
-          !feps0 = funcMonod(c_no3, this%x0eps, .not. compute_derivative)  ! using these two for trailer smoothing, alternatively
-          !dfeps0_dx = funcMonod(c_no3, this%x0eps, compute_derivative)
+          !feps0 = funcMonod(c_no3, this%x0eps, PETSC_FALSE)  ! using these two for trailer smoothing, alternatively
+          !dfeps0_dx = funcMonod(c_no3, this%x0eps, PETSC_TRUE)
           ! GP's cut-off approach
-          feps0     = funcTrailersmooth(c_no3, this%x0eps, .not. compute_derivative)
-          dfeps0_dx = funcTrailersmooth(c_no3, this%x0eps, compute_derivative)
+          feps0     = funcTrailersmooth(c_no3, this%x0eps*10.d0, this%x0eps, PETSC_FALSE)
+          dfeps0_dx = funcTrailersmooth(c_no3, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
         else
           feps0 = 1.0d0
           dfeps0_dx = 0.d0
@@ -1791,9 +1790,11 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       temp_real = f_t * f_w * f_ph
 
       if(this%x0eps>0.d0) then
+        !feps0 = funcMonod(c_nh4, this%x0eps, PETSC_FALSE)  ! using these two for trailer smoothing, alternatively
+        !dfeps0_dx = funcMonod(c_nh4, this%x0eps, PETSC_TRUE)
         ! GP's cut-off approach
-        feps0     = funcTrailersmooth(c_nh4, this%x0eps, .not. compute_derivative)
-        dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps, compute_derivative)
+        feps0     = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_FALSE)
+        dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
       else
         feps0 = 1.0d0
         dfeps0_dx = 0.d0

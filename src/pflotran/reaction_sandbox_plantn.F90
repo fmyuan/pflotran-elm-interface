@@ -349,8 +349,8 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
 
     ! half-saturation regulated rate (by input, it may be representing competetiveness)
-    fnh4       = funcMonod(c_nh4, this%half_saturation_nh4, .not. compute_derivative)
-    dfnh4_dnh4 = funcMonod(c_nh4, this%half_saturation_nh4, compute_derivative)
+    fnh4       = funcMonod(c_nh4, this%half_saturation_nh4, PETSC_FALSE)
+    dfnh4_dnh4 = funcMonod(c_nh4, this%half_saturation_nh4, PETSC_TRUE)
 
     ! using the following for trailer smoothing
     ! note: 'x0eps' is different from 'half_saturation_nh4' above.
@@ -359,9 +359,11 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     !    NH4 uptake dependence on resources (NH4). So, physiologically it may be
     !    used as a method to quantify multiple consummer competition over resources.
     if(this%x0eps_nh4>0.d0) then
+      !feps0 = funcMonod(c_nh4, this%x0eps_nh4, PETSC_FALSE)  ! using these two for trailer smoothing, alternatively
+      !dfeps0_dx = funcMonod(c_nh4, this%x0eps_nh4, PETSC_TRUE)
       ! GP's cut-off approach
-      feps0     = funcTrailersmooth(c_nh4, this%x0eps_nh4, .not. compute_derivative)
-      dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps_nh4, compute_derivative)
+      feps0     = funcTrailersmooth(c_nh4, this%x0eps_nh4*10.d0, this%x0eps_nh4, PETSC_FALSE)
+      dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps_nh4*10.d0, this%x0eps_nh4, PETSC_TRUE)
     else
       feps0 = 1.0d0
       dfeps0_dx = 0.d0
@@ -376,8 +378,8 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     ires_no3 = this%ispec_no3
     c_no3     = rt_auxvar%total(this%ispec_no3, iphase)
     ! half-saturation regulated rate (by input, it may be representing competetiveness)
-    fno3       = funcMonod(c_no3, this%half_saturation_no3, .not. compute_derivative)
-    dfno3_dno3 = funcMonod(c_no3, this%half_saturation_no3, compute_derivative)
+    fno3       = funcMonod(c_no3, this%half_saturation_no3, PETSC_FALSE)
+    dfno3_dno3 = funcMonod(c_no3, this%half_saturation_no3, PETSC_TRUE)
 
     ! using the following for trailer smoothing
     ! note: 'x0eps' is different from 'half_saturation_no3' above.
@@ -386,9 +388,11 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     !    NO3 uptake dependence on resources (NO3). So, physiologically it may be
     !    used as a method to quantify multiple consummer competition over resources.
     if(this%x0eps_no3>0.d0) then
+      !feps0 = funcMonod(c_no3, this%x0eps_no3, PETSC_FALSE)  ! using these two for trailer smoothing, alternatively
+      !dfeps0_dx = funcMonod(c_no3, this%x0eps_no3, PETSC_TRUE)
       ! GP's cut-off approach
-      feps0     = funcTrailersmooth(c_no3, this%x0eps_no3, .not. compute_derivative)
-      dfeps0_dx = funcTrailersmooth(c_no3, this%x0eps_no3, compute_derivative)
+      feps0     = funcTrailersmooth(c_no3, this%x0eps_no3*10.d0, this%x0eps_no3, PETSC_FALSE)
+      dfeps0_dx = funcTrailersmooth(c_no3, this%x0eps_no3*10.d0, this%x0eps_no3, PETSC_TRUE)
     else
       feps0 = 1.0d0
       dfeps0_dx = 0.d0

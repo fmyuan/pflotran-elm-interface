@@ -386,16 +386,17 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
     ! scale if necessary
     if (min_ratio < 1.d0) then
 
-#ifdef DEBUG
+!#ifdef DEBUG
       if(realization%option%tran_dt < 2.0d0*realization%option%dt_min .or. &
-         min_ratio < min_allowable_scale ) then
+         min_ratio <= min_allowable_scale ) then
         write(realization%option%fid_out, *) '-----checking scaling factor for RT ------'
         write(realization%option%fid_out, *) 'min. scaling factor = ', min_ratio
+        write(realization%option%fid_out, *) 'elapsed time = ', realization%option%time
+        write(realization%option%fid_out, *) 'elapsed time = ', realization%option%time
         j = realization%reaction%ncomp
         do i = 1, n
           ratio = abs(C_p(i)/dC_p(i))
-          if ( (ratio<=min_allowable_scale .or. ratio<=min_ratio) &
-            .and. C_p(i)<=dC_p(i) ) then
+          if ( ratio<=min_ratio ) then
             write(realization%option%fid_out, *)  &
              ' <------ min_ratio @', i, 'cell no.=', floor((i-1.d0)/j), &
             'rt species no. =',i-floor((i-1.d0)/j)*j, '-------------->'
@@ -414,7 +415,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
           write(realization%option%fid_out, *) ' STOP executing ! '
         endif
       endif
-#endif
+!#endif
 
       if (min_ratio < min_allowable_scale) then
         write(string,'(es9.3)') min_ratio
