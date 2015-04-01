@@ -194,7 +194,7 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
   ! Equation: F_theta = log(theta_min/theta) / log(theta_min/theta_max)
   ! Assumptions: theta is saturation
   !              theta_min = 0.01, theta_max = 1.
-  F_theta = 1.0d0 !log(theta_min/max(theta_min,theta)) * one_over_log_theta_min 
+  F_theta = log(theta_min/max(theta_min,theta)) * one_over_log_theta_min
   
 #endif
 
