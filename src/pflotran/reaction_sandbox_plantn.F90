@@ -424,7 +424,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
   ! - implying tiny timestep in model, which potentially crashes model
   if (this%rate_plantndemand > 0.d0) then
-    dtmin = option%dt_min  ! arbitrarily set a starting point to reduce the rate
+    dtmin = option%tran_dt !2.d0*option%dt_min  ! arbitrarily set a starting point to reduce the rate
 
     if (this%ispec_nh4 > 0) then
        nratecap = this%rate_plantndemand * dtmin
@@ -567,9 +567,11 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 #ifdef DEBUG
 
   if(option%tran_dt<2.0d0*option%dt_min) then
-    if () then
+    if (this%rate_plantndemand*fnh4*fnh4_inhibit_no3*option%dt_min>c_nh4 .or.    &
+        this%rate_plantndemand*fno3*(1.d0-fnh4_inhibit_no3)*option%dt_min>c_no3) then
       write(option%fid_out, *) '----------------------------------------------'
       write(option%fid_out, *) 'Reaction Sandbox: PLANT N UPTAKE'
+      write(option%fid_out, *) 'dt=',option%tran_dt, ' dt_min=',option%dt_min
       write(option%fid_out, *) 'ghosted_id=',ghosted_id, &
          ' c_nh4=',c_nh4, ' c_no3=',c_no3, ' fnh4=',fnh4,' fno3=', fno3, &
          'uprate_nh4=',this%rate_plantndemand*fnh4*fnh4_inhibit_no3*option%dt, &

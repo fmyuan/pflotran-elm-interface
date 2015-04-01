@@ -477,6 +477,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
 
     write(option%fid_out, *) '----------------------------------------------'
     write(option%fid_out, *) 'Reaction Sandbox: NITRIFICATION'
+    write(option%fid_out, *) 'dt=',option%tran_dt, ' dt_min=',option%dt_min
     write(option%fid_out, *) 'ghosted_id=',ghosted_id, ' c_nh4=',c_nh4, &
     ' ratedt_nitri=',rate_nitri*option%dt,' ratedt_nit_n2o=',rate_n2o*option%dt, &
     ' drate_dnh4=',drate_nitri_dnh4,' drate_n2o_dnh4=',drate_n2o_dnh4

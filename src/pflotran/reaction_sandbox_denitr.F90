@@ -380,6 +380,7 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
 
     write(option%fid_out, *) '----------------------------------------------'
     write(option%fid_out, *) 'Reaction Sandbox: DENITRIFICATION'
+    write(option%fid_out, *) 'dt=',option%tran_dt, ' dt_min=',option%dt_min
     write(option%fid_out, *) 'ghosted_id=',ghosted_id, ' c_no3=',c_no3, &
     ' ratedt_denitri=',rate_deni*option%dt, ' drate_dno3=',drate_deni_dno3
   endif

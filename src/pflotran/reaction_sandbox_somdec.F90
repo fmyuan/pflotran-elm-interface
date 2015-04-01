@@ -1224,7 +1224,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ! constraining 'N immobilization rate' locally if too high compared to available within the allowable min. time-step
       ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
       ! - implying tiny timestep in model, which potentially crashes model
-      dtmin = option%dt_min
+      dtmin = option%tran_dt !2.d0*option%dt_min
       if (abs(crate_uc*this%mineral_n_stoich(irxn)) > 0.d0) then
         !
         nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin
@@ -1241,7 +1241,6 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         fnh4 = fnh4 * fnratecap
         !
         if (this%species_id_no3 > 0) then
-          nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin
           if (nratecap*(1.d0-fnh4_inhibit_no3) > c_no3) then
             fnratecap = c_no3/(nratecap*(1.d0-fnh4_inhibit_no3))
             dfnratecap_dno3 = 1.d0/nratecap * &
@@ -1267,7 +1266,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         crate_nh4 = fnh4 * fnh4_inhibit_no3
 
         ! f_no3 should be adjusted by R reduced by 'crate_nh4' so that it is inhibited by nh4
-        crate_no3 = fno3 * (1.0d0-fnh4*fnh4_inhibit_no3)
+        crate_no3 = fno3 * (1.0d0-fnh4_inhibit_no3)
 
         ! overall C rates
         crate = crate_uc * (crate_nh4 + crate_no3)
@@ -1275,10 +1274,11 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
 #ifdef DEBUG
       if(option%tran_dt<2.0d0*option%dt_min) then
-        if (crate_uc*crate_nh4*this%mineral_n_stoich(irxn)*option%dt_min < c_nh4 .or.
-            crate_uc*crate_no3*this%mineral_n_stoich(irxn)*option%dt_min < c_no3) then
+        if (-crate_uc*crate_nh4*this%mineral_n_stoich(irxn)*option%dt_min > c_nh4 .or.  &
+            -crate_uc*crate_no3*this%mineral_n_stoich(irxn)*option%dt_min > c_no3) then
           write(option%fid_out, *) '----------------------------------------------'
           write(option%fid_out, *) 'Reaction Sandbox: SOMDEC'
+          write(option%fid_out, *) 'dt=',option%tran_dt, ' dt_min=',option%dt_min
           write(option%fid_out, *) 'ghosted_id=',ghosted_id, ' irxn=', irxn, &
             ' c_nh4=',c_nh4, ' c_no3=',c_no3, &
             ' fnh4=',fnh4,'crate_nh4=',crate_uc*crate_nh4*this%mineral_n_stoich(irxn)*option%dt, &
@@ -1289,6 +1289,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
     endif  !if(this%mineral_n_stoich(irxn) < 0.0d0) (i.e. immobilization)
 
+    !------------------------------------------------------------------------------------------
     ! -- Residuals for all C-N pools
     ! CO2 [1]
     Residual(ires_co2) = Residual(ires_co2) - this%mineral_c_stoich(irxn) * crate
@@ -1802,7 +1803,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ! constraining 'N potential rate' if too high compared to available within the allowable min. time-step
       ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
       ! - implying tiny timestep in model, which potentially crashes model
-      dtmin = option%dt_min  ! arbitrarily set a starting point to reduce the rate
+      dtmin = option%tran_dt !2.d0*option%dt_min  ! arbitrarily set a starting point to reduce the rate
       nratecap = temp_real*this%n2o_frac_mineralization*dtmin*net_nmin_rate
       if (nratecap > c_nh4) then
          fnratecap = c_nh4/nratecap
