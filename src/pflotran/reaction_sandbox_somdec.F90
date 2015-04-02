@@ -1029,6 +1029,9 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   ires_nh4  = this%species_id_nh4 + reaction%offset_aqueous       ! as aq. species
   c_nh4     = rt_auxvar%total(ires_nh4, iphase)*theta*1000.0d0    ! from mol/L -> mol/m3 bulk
 
+  fnh4_inhibit_no3 = 1.d0
+  dfnh4_inhibit_no3_dnh4 = 0.d0
+  dfnh4_inhibit_no3_dno3 = 0.d0
   if (this%species_id_no3 > 0) then
     ! for 'no3' dependent rate function (i.e. immobilization), if needed
     ires_no3  = this%species_id_no3 + reaction%offset_aqueous        ! as aq. species
@@ -1105,9 +1108,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     endif
 
     if(this%x0eps>0.d0) then
-      !feps0 = funcMonod(c_uc, this%x0eps, PETSC_FALSE)  ! using these two for trailer smoothing, alternatively
-      !dfeps0_dx = funcMonod(c_uc, this%x0eps, PETSC_TRUE)
-      ! GP's cut-off approach
+      ! GP's cut-off approach (sort of Heaviside function)
       feps0     = funcTrailersmooth(c_uc, this%x0eps*10.d0, this%x0eps, PETSC_FALSE)
       dfeps0_dx = funcTrailersmooth(c_uc, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
 
@@ -1194,9 +1195,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       !    NH4 immobilization dependence on resources (NH4). So, physiologically it may be
       !    used as a method to quantify competition over resources.
       if(this%x0eps>0.d0) then
-        !feps0 = funcMonod(c_nh4, this%x0eps, PETSC_FALSE)  ! using these two for trailer smoothing, alternatively
-        !dfeps0_dx = funcMonod(c_nh4, this%x0eps, PETSC_TRUE)
-        ! GP's cut-off approach
+        ! GP's cut-off approach (sort of Heaviside function)
         feps0     = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_FALSE)
         dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
       else
@@ -1208,8 +1207,6 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       !
       if(this%species_id_no3 > 0) then
         if(this%x0eps>0.d0) then
-          !feps0 = funcMonod(c_no3, this%x0eps, PETSC_FALSE)  ! using these two for trailer smoothing, alternatively
-          !dfeps0_dx = funcMonod(c_no3, this%x0eps, PETSC_TRUE)
           ! GP's cut-off approach
           feps0     = funcTrailersmooth(c_no3, this%x0eps*10.d0, this%x0eps, PETSC_FALSE)
           dfeps0_dx = funcTrailersmooth(c_no3, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
@@ -1224,17 +1221,17 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ! constraining 'N immobilization rate' locally if too high compared to available within the allowable min. time-step
       ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
       ! - implying tiny timestep in model, which potentially crashes model
-      dtmin = option%tran_dt !2.d0*option%dt_min
-      if (abs(crate_uc*this%mineral_n_stoich(irxn)) > 0.d0) then
+      dtmin = max(option%tran_dt, 2.d0*option%dt_min)
+      if (crate_uc*this%mineral_n_stoich(irxn) < 0.d0) then
         !
         nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin
-        if (nratecap*fnh4_inhibit_no3 > c_nh4) then
-          fnratecap = c_nh4/(nratecap*fnh4_inhibit_no3)
-          dfnratecap_dnh4 = 1.d0/nratecap * &
+        if (nratecap*fnh4_inhibit_no3 > 0.99d0*c_nh4) then
+          fnratecap = 0.99d0*c_nh4/(nratecap*fnh4_inhibit_no3)
+          dfnratecap_dnh4 = 0.99d0/nratecap * &
           (fnh4_inhibit_no3-c_nh4*dfnh4_inhibit_no3_dnh4)/ &     !d(c_nh4/fnh4_inibit_no3)/dnh4
           (fnh4_inhibit_no3*fnh4_inhibit_no3)
         else
-          fnratecap       = 1.d0
+          fnratecap       = 0.99d0
           dfnratecap_dnh4 = 0.d0
         endif
         dfnh4_dnh4 = dfnh4_dnh4*fnratecap + fnh4 * dfnratecap_dnh4
@@ -1254,6 +1251,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           fno3 = fno3 * fnratecap
         endif
         !
+
       endif
 
       !----------- overall rate ------
@@ -1791,9 +1789,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       temp_real = f_t * f_w * f_ph
 
       if(this%x0eps>0.d0) then
-        !feps0 = funcMonod(c_nh4, this%x0eps, PETSC_FALSE)  ! using these two for trailer smoothing, alternatively
-        !dfeps0_dx = funcMonod(c_nh4, this%x0eps, PETSC_TRUE)
-        ! GP's cut-off approach
+        ! GP's cut-off approach (sort of Heaviside function)
         feps0     = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_FALSE)
         dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
       else
@@ -1803,15 +1799,17 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ! constraining 'N potential rate' if too high compared to available within the allowable min. time-step
       ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
       ! - implying tiny timestep in model, which potentially crashes model
-      dtmin = option%tran_dt !2.d0*option%dt_min  ! arbitrarily set a starting point to reduce the rate
+      dtmin = max(option%tran_dt, 2.d0*option%dt_min)  ! arbitrarily set a starting point to reduce the rate
       nratecap = temp_real*this%n2o_frac_mineralization*dtmin*net_nmin_rate
-      if (nratecap > c_nh4) then
-         fnratecap = c_nh4/nratecap
-         dfnratecap_dnh4 = 1.d0/temp_real*this%n2o_frac_mineralization*dtmin &
+      if (nratecap > 0.99d0*c_nh4) then
+         fnratecap = 0.99d0*c_nh4/nratecap
+         dfnratecap_dnh4 = 0.99d0/temp_real*this%n2o_frac_mineralization*dtmin &
                              * (net_nmin_rate - c_nh4*dnet_nmin_rate_dx)     &    ! d(c_nh4/net_nmin_rate)/dnh4
                              /(net_nmin_rate*net_nmin_rate)
       else
-         fnratecap       = 1.d0
+         fnratecap       = 0.99d0
+         ! 0.99 is for avoiding tiny number issue,
+         ! for an example, when both rate and c_nh4 is very tiny, c_nh4/nratecap may not exactly less than 1 upon to machine
          dfnratecap_dnh4 = 0.d0
       endif
       ! modifying the 'feps0' and 'dfeps0_dx' so that NO need to modify the major codes below

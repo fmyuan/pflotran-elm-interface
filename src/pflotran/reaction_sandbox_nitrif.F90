@@ -322,9 +322,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
 
 
   if(this%x0eps>0.d0) then
-    !feps0 = funcMonod(c_nh4, this%x0eps, PETSC_FALSE)  ! using these two for trailer smoothing, alternatively
-    !dfeps0_dx = funcMonod(c_nh4, this%x0eps, PETSC_TRUE)
-    ! GP's cut-off approach
+    ! GP's cut-off approach (sort of Heaviside function)
     feps0     = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_FALSE)
     dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
 
