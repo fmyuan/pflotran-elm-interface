@@ -743,7 +743,7 @@ end subroutine pflotranModelSetICs
     type(saturation_function_type)            :: saturation_function
 
     PetscErrorCode     :: ierr
-    PetscInt           :: ghosted_id
+    PetscInt           :: ghosted_id, local_id
     PetscInt           :: iphase
     PetscReal          :: den, vis, grav
     PetscReal, pointer :: porosity_loc_p(:), vol_ovlap_arr(:)
@@ -829,6 +829,8 @@ end subroutine pflotranModelSetICs
 
       saturation_function = patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
 
+      local_id = grid%nG2L(ghosted_id)
+
       select case(pflotran_model%option%iflowmode)
         case(RICHARDS_MODE)
           rich_aux_var => rich_aux_vars(ghosted_id)
@@ -842,22 +844,22 @@ end subroutine pflotranModelSetICs
 
       ! bc_alpha [1/Pa]; while sucsat [mm of H20]
       ! [Pa] = [mm of H20] * 0.001 [m/mm] * 1000 [kg/m^3] * 9.81 [m/sec^2]
-      sucsat2_pf_loc(ghosted_id) = 1.d0/(bc_alpha*grav)
+      sucsat2_pf_loc(local_id) = 1.d0/(bc_alpha*grav)
 
       ! bc_lambda = 1/bsw
-      bsw2_pf_loc(ghosted_id) = 1.d0/bc_lambda
+      bsw2_pf_loc(local_id) = 1.d0/bc_lambda
 
       ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
       ! [m^2]          [mm/sec]
-      hksat_x2_pf_loc(ghosted_id) = perm_xx_loc_p(ghosted_id)/vis*(den*grav)*1000.d0
-      hksat_y2_pf_loc(ghosted_id) = perm_yy_loc_p(ghosted_id)/vis*(den*grav)*1000.d0
-      hksat_z2_pf_loc(ghosted_id) = perm_zz_loc_p(ghosted_id)/vis*(den*grav)*1000.d0
+      hksat_x2_pf_loc(local_id) = perm_xx_loc_p(ghosted_id)/vis*(den*grav)*1000.d0
+      hksat_y2_pf_loc(local_id) = perm_yy_loc_p(ghosted_id)/vis*(den*grav)*1000.d0
+      hksat_z2_pf_loc(local_id) = perm_zz_loc_p(ghosted_id)/vis*(den*grav)*1000.d0
 
-      watsat2_pf_loc(ghosted_id) = porosity_loc_p(ghosted_id)
+      watsat2_pf_loc(local_id) = porosity_loc_p(ghosted_id)
 
 
       iphase = 1
-      thetares2_pf_loc(ghosted_id) = porosity_loc_p(ghosted_id)*saturation_function%Sr(iphase)
+      thetares2_pf_loc(local_id) = porosity_loc_p(ghosted_id)*saturation_function%Sr(iphase)
 
     enddo
 
