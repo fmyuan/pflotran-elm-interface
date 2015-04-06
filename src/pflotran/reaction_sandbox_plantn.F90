@@ -420,19 +420,19 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
   ! - implying tiny timestep in model, which potentially crashes model
   if (this%rate_plantndemand > 0.d0) then
-    dtmin = max(option%tran_dt, 2.d0*option%dt_min)  ! arbitrarily set a starting point to reduce the rate
+    dtmin = option%dt_min  ! arbitrarily set a starting point to reduce the rate
 
     if (this%ispec_nh4 > 0) then
        nratecap = this%rate_plantndemand * dtmin
        if (this%ispec_no3 > 0) nratecap = this%rate_plantndemand*fnh4_inhibit_no3*dtmin
-       if (nratecap > 0.99d0*c_nh4) then
-         fnratecap = 0.99d0*c_nh4/nratecap
-         dfnratecap_dnh4 = 0.99d0/nratecap
-         if (this%ispec_no3>0) dfnratecap_dnh4 = 0.99d0/nratecap &
+       if (nratecap > c_nh4) then
+         fnratecap = c_nh4/nratecap
+         dfnratecap_dnh4 = 1.d0/nratecap
+         if (this%ispec_no3>0) dfnratecap_dnh4 = 1.d0/nratecap &
                      *(fnh4_inhibit_no3-c_nh4*dfnh4_inhibit_no3_dnh4) &    !d(c_nh4/fnh4_inhibit_no3)/dnh4
                      /(fnh4_inhibit_no3*fnh4_inhibit_no3)
        else
-         fnratecap       = 0.99d0
+         fnratecap       = 1.d0
          dfnratecap_dnh4 = 0.d0
        endif
        ! modifying the 'fnh4' and 'dfnh4_dnh4' calculated above
@@ -451,7 +451,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
                      *((1.d0-fnh4_inhibit_no3)-c_no3*(-dfnh4_inhibit_no3_dno3)) &    !d(c_no3/(1-fnh4_inhibit_no3))/dno3
                      /((1.d0-fnh4_inhibit_no3)*(1.d0-fnh4_inhibit_no3))
        else
-         fnratecap       = 0.99d0
+         fnratecap       = 1.d0
          dfnratecap_dno3 = 0.d0
        endif
        ! modifying the 'fno3' and 'dfno3_dno3' calculated above
@@ -562,9 +562,9 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
 #ifdef DEBUG
 
-  if(option%tran_dt<2.0d0*option%dt_min) then
-    if (this%rate_plantndemand*fnh4*fnh4_inhibit_no3*option%dt_min>c_nh4 .or.    &
-        this%rate_plantndemand*fno3*(1.d0-fnh4_inhibit_no3)*option%dt_min>c_no3) then
+  if(option%tran_dt<=option%dt_min) then
+    if (this%rate_plantndemand*fnh4*fnh4_inhibit_no3*option%dt_min>=c_nh4 .or.    &
+        this%rate_plantndemand*fno3*(1.d0-fnh4_inhibit_no3)*option%dt_min>=c_no3) then
       write(option%fid_out, *) '----------------------------------------------'
       write(option%fid_out, *) 'Reaction Sandbox: PLANT N UPTAKE'
       write(option%fid_out, *) 'dt=',option%tran_dt, ' dt_min=',option%dt_min

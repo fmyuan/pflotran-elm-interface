@@ -373,8 +373,8 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
 #ifdef DEBUG
-  if(option%tran_dt<2.0d0*option%dt_min .and. &
-    rate_deni*option%dt_min > c_no3) then
+  if(option%tran_dt<=option%dt_min .and. &
+    rate_deni*option%dt_min >= c_no3) then
 
     write(option%fid_out, *) '----------------------------------------------'
     write(option%fid_out, *) 'Reaction Sandbox: DENITRIFICATION'

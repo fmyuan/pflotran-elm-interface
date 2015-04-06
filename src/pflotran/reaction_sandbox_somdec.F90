@@ -1221,17 +1221,17 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ! constraining 'N immobilization rate' locally if too high compared to available within the allowable min. time-step
       ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
       ! - implying tiny timestep in model, which potentially crashes model
-      dtmin = max(option%tran_dt, 2.d0*option%dt_min)
+      dtmin = option%dt_min
       if (crate_uc*this%mineral_n_stoich(irxn) < 0.d0) then
         !
         nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin
-        if (nratecap*fnh4_inhibit_no3 > 0.99d0*c_nh4) then
-          fnratecap = 0.99d0*c_nh4/(nratecap*fnh4_inhibit_no3)
-          dfnratecap_dnh4 = 0.99d0/nratecap * &
+        if (nratecap*fnh4_inhibit_no3 > 1.d0*c_nh4) then
+          fnratecap = 1.d0*c_nh4/(nratecap*fnh4_inhibit_no3)
+          dfnratecap_dnh4 = 1.d0/nratecap * &
           (fnh4_inhibit_no3-c_nh4*dfnh4_inhibit_no3_dnh4)/ &     !d(c_nh4/fnh4_inibit_no3)/dnh4
           (fnh4_inhibit_no3*fnh4_inhibit_no3)
         else
-          fnratecap       = 0.99d0
+          fnratecap       = 1.d0
           dfnratecap_dnh4 = 0.d0
         endif
         dfnh4_dnh4 = dfnh4_dnh4*fnratecap + fnh4 * dfnratecap_dnh4
@@ -1270,20 +1270,22 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         crate = crate_uc * (crate_nh4 + crate_no3)
       endif
 
-#ifdef DEBUG
-      if(option%tran_dt<2.0d0*option%dt_min) then
-        if (-crate_uc*crate_nh4*this%mineral_n_stoich(irxn)*option%dt_min > c_nh4 .or.  &
-            -crate_uc*crate_no3*this%mineral_n_stoich(irxn)*option%dt_min > c_no3) then
+!#ifdef DEBUG
+      if(option%tran_dt<=option%dt_min) then
+        if (-crate_uc*crate_nh4*this%mineral_n_stoich(irxn)*option%dt_min>=c_nh4-this%x0eps .or.  &
+            -crate_uc*crate_no3*this%mineral_n_stoich(irxn)*option%dt_min>=c_no3-this%x0eps) then
           write(option%fid_out, *) '----------------------------------------------'
           write(option%fid_out, *) 'Reaction Sandbox: SOMDEC'
           write(option%fid_out, *) 'dt=',option%tran_dt, ' dt_min=',option%dt_min
           write(option%fid_out, *) 'ghosted_id=',ghosted_id, ' irxn=', irxn, &
             ' c_nh4=',c_nh4, ' c_no3=',c_no3, &
             ' fnh4=',fnh4,'crate_nh4=',crate_uc*crate_nh4*this%mineral_n_stoich(irxn)*option%dt, &
-            ' fno3=',fno3,'crate_no3=',crate_uc*crate_no3*this%mineral_n_stoich(irxn)*option%dt
+            'crate0_nh4=',crate_uc*this%mineral_n_stoich(irxn)*fnh4_inhibit_no3*option%dt, &
+            ' fno3=',fno3,'crate_no3=',crate_uc*crate_no3*this%mineral_n_stoich(irxn)*option%dt, &
+             'crate0_n03=',crate_uc*this%mineral_n_stoich(irxn)*(1.d0-fnh4_inhibit_no3)*option%dt
         endif
       endif
-#endif
+!#endif
 
     endif  !if(this%mineral_n_stoich(irxn) < 0.0d0) (i.e. immobilization)
 
@@ -1799,17 +1801,15 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ! constraining 'N potential rate' if too high compared to available within the allowable min. time-step
       ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
       ! - implying tiny timestep in model, which potentially crashes model
-      dtmin = max(option%tran_dt, 2.d0*option%dt_min)  ! arbitrarily set a starting point to reduce the rate
+      dtmin = option%dt_min  ! arbitrarily set a starting point to reduce the rate
       nratecap = temp_real*this%n2o_frac_mineralization*dtmin*net_nmin_rate
-      if (nratecap > 0.99d0*c_nh4) then
-         fnratecap = 0.99d0*c_nh4/nratecap
-         dfnratecap_dnh4 = 0.99d0/temp_real*this%n2o_frac_mineralization*dtmin &
+      if (nratecap > c_nh4) then
+         fnratecap = c_nh4/nratecap
+         dfnratecap_dnh4 = 1.d0/temp_real*this%n2o_frac_mineralization*dtmin &
                              * (net_nmin_rate - c_nh4*dnet_nmin_rate_dx)     &    ! d(c_nh4/net_nmin_rate)/dnh4
                              /(net_nmin_rate*net_nmin_rate)
       else
-         fnratecap       = 0.99d0
-         ! 0.99 is for avoiding tiny number issue,
-         ! for an example, when both rate and c_nh4 is very tiny, c_nh4/nratecap may not exactly less than 1 upon to machine
+         fnratecap       = 1.d0
          dfnratecap_dnh4 = 0.d0
       endif
       ! modifying the 'feps0' and 'dfeps0_dx' so that NO need to modify the major codes below
