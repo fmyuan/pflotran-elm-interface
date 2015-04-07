@@ -1178,6 +1178,9 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     dfnh4_dnh4 = 0.d0
     fno3 = 1.d0
     dfno3_dno3 = 0.d0
+    crate_nh4  = 1.d0
+    crate_no3  = 1.d0
+
     if(this%mineral_n_stoich(irxn) < 0.0d0) then
 
       ! half-saturation regulated rate (by input, it may be representing competetiveness)
@@ -1221,15 +1224,22 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ! constraining 'N immobilization rate' locally if too high compared to available within the allowable min. time-step
       ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
       ! - implying tiny timestep in model, which potentially crashes model
-      dtmin = option%dt_min
+
+      ! in the following, '2.1' multiplier is chosen because that is slightly larger(5% to avoid numerical issue) than '2.0',
+      ! which should be the previous-timestep before reaching the 'option%dt_min'
+      ! (the time-cut used in PF is like dt=0.5*dt, when cutting)
+      dtmin = 2.1d0*option%dt_min
+      !dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
+
       if (crate_uc*this%mineral_n_stoich(irxn) < 0.d0) then
         !
         nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin
-        if (nratecap*fnh4_inhibit_no3 > 1.d0*c_nh4) then
-          fnratecap = 1.d0*c_nh4/(nratecap*fnh4_inhibit_no3)
-          dfnratecap_dnh4 = 1.d0/nratecap * &
-          (fnh4_inhibit_no3-c_nh4*dfnh4_inhibit_no3_dnh4)/ &     !d(c_nh4/fnh4_inibit_no3)/dnh4
-          (fnh4_inhibit_no3*fnh4_inhibit_no3)
+        if (nratecap*fnh4_inhibit_no3 > c_nh4) then
+          ! assuming that monod type reduction used and 'nratecap' must be reduced to 'c_nh4', i.e.
+          ! c_nh4/dt = nratecap*fnh4_inhibit_no3/dt * (c_nh4/(c_nh4+c0))
+          ! then, c0 = nratecap*fnh4_inhibit_no3 - c_nh4 (this is the 'half-saturation' term used above)
+          fnratecap = funcMonod(c_nh4, nratecap*fnh4_inhibit_no3-c_nh4, PETSC_FALSE)
+          dfnratecap_dnh4 = funcMonod(c_nh4, nratecap*fnh4_inhibit_no3-c_nh4, PETSC_TRUE)
         else
           fnratecap       = 1.d0
           dfnratecap_dnh4 = 0.d0
@@ -1239,10 +1249,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         !
         if (this%species_id_no3 > 0) then
           if (nratecap*(1.d0-fnh4_inhibit_no3) > c_no3) then
-            fnratecap = c_no3/(nratecap*(1.d0-fnh4_inhibit_no3))
-            dfnratecap_dno3 = 1.d0/nratecap * &
-            ((1.d0-fnh4_inhibit_no3) - c_no3*(-dfnh4_inhibit_no3_dno3))/ &     !d(c_no3/(1-fnh4_inibit_no3))/dno3
-            ((1.d0-fnh4_inhibit_no3)*(1.0d0-fnh4_inhibit_no3))
+            fnratecap = funcMonod(c_no3, nratecap*(1.d0-fnh4_inhibit_no3)-c_no3, PETSC_FALSE)
+            dfnratecap_dnh4 = funcMonod(c_no3, nratecap*(1.d0-fnh4_inhibit_no3)-c_no3, PETSC_TRUE)
           else
             fnratecap       = 1.d0
             dfnratecap_dno3 = 0.d0
@@ -1270,7 +1278,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         crate = crate_uc * (crate_nh4 + crate_no3)
       endif
 
-!#ifdef DEBUG
+#ifdef DEBUG
       if(option%tran_dt<=option%dt_min) then
         if (-crate_uc*crate_nh4*this%mineral_n_stoich(irxn)*option%dt_min>=c_nh4-this%x0eps .or.  &
             -crate_uc*crate_no3*this%mineral_n_stoich(irxn)*option%dt_min>=c_no3-this%x0eps) then
@@ -1285,7 +1293,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
              'crate0_n03=',crate_uc*this%mineral_n_stoich(irxn)*(1.d0-fnh4_inhibit_no3)*option%dt
         endif
       endif
-!#endif
+#endif
 
     endif  !if(this%mineral_n_stoich(irxn) < 0.0d0) (i.e. immobilization)
 
@@ -1362,18 +1370,21 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         !       (4) currently, rates NOT depends upon 'un' or 'u', so,
         dc_dun  = 0.d0     ! [6-1] 'C rates'
         duc_dun = 0.d0     ! [6-2]
-        ddc_dun = 0.d0     ! [6-3 - will be done in Jacobians)
+        ddc_dun = 0.d0     ! [6-3 - will be done in Jacobians below)
 
         dn_dun  = 0.d0     ! [6-4] 'N rates'
-        dno3_dun= 0.d0     ! [6-5]
+        dno3_dun= 0.d0     ! [6-5 - not associated with SOM N mineralization]
         du_dun  = 0.d0     ! [6-6]
 
         ! so, 'uc' is the only independent variable, by this point
         dcrate_dx = dcrate_uc_duc
         dc_duc  = dcrate_dx * this%mineral_c_stoich(irxn)              ! [6-1]
         duc_duc = -1.0d0*dcrate_dx                                     ! [6-2]
+        ddc_duc = 0.d0                                                 ! [6-3 - will be done in Jacobians below)
 
         dn_duc  = dc_duc * this%mineral_n_stoich(irxn)                 ! [6-4]
+        dno3_duc= 0.d0                                                 ! [6-5 - not associated with SOM decomposition]
+        du_duc  = this%upstream_nc(irxn) * duc_duc                     ! [6-6]
 
 ! -- derivatives with variable C/N decompsing pools
         ! LitC + u LitN -> (1-di) SOMci + (u-n-n2) SOMni + d C[O2] + n N[H3] [+ n2 NO3]
@@ -1382,9 +1393,6 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         ! Note: (1) only 'u-n-n2' is implicitly calc'ed (i.e., ignored in the codes)
 
         if(this%upstream_is_varycn(irxn)) then
-
-           ! first, considering variable 'u', but not limited for 'crate_uc' (i.e., 'n' is still non-negative)
-           du_duc = this%upstream_nc(irxn) * duc_duc                                    ! [6-6]
 
 ! -- derivatives with variable C/N decompsing pools and N[H3] as reactants
            ! 'un' is limited, so 'n' is negative (nh4 as reactant, i.e. N immobilization)
@@ -1414,10 +1422,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
              if (this%species_id_no3 > 0) then
                ! -- depending on 'uc'
                ! crate = crate_uc * (crate_nh4 + crate_no3)
-               !       = crate_uc * (fnh4*fnh4_inhibit_no3+fno3*(1-fnh4*fnh4_inhibit_no3)),
-               ! So, d(crate)/d(uc) = (fnh4*fnh4_inhibit_no3+fno3-fno3*fnh4*fnh4_inhibit_no3)*dcrate_uc_duc
+               !       = crate_uc * (fnh4*fnh4_inhibit_no3+fno3*(1-fnh4_inhibit_no3)),
+               ! So, d(crate)/d(uc) = (fnh4*fnh4_inhibit_no3+fno3-fno3*fnh4_inhibit_no3)*dcrate_uc_duc
                dcrate_dx  = dcrate_uc_duc * &
-                         (fnh4*fnh4_inhibit_no3+fno3-fnh4*fno3*fnh4_inhibit_no3)
+                         (fnh4*fnh4_inhibit_no3+fno3-fno3*fnh4_inhibit_no3)
 
                dc_duc  = dcrate_dx * this%mineral_c_stoich(irxn)                         ! [6-1]
 
@@ -1427,21 +1435,23 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
                dn_duc  = dcrate_uc_duc* this%mineral_n_stoich(irxn) * &
                          fnh4*fnh4_inhibit_no3                                           ! [6-4]
 
-               ! no3rate = crate_uc*mineral_n_stoich*fno3*(1-fnh4*fnh4_inhibit_no3): 'mineral_n_stoich = u-sum(ni)'
+               ! no3rate = crate_uc*mineral_n_stoich*fno3*(1-fnh4_inhibit_no3): 'mineral_n_stoich = u-sum(ni)'
                dno3_duc= dcrate_uc_duc* this%mineral_n_stoich(irxn) * &
-                         fno3*(1.0d0-fnh4*fnh4_inhibit_no3)                              ! [6-5]
+                         fno3*(1.0d0-fnh4_inhibit_no3)                                   ! [6-5]
 
                du_duc  = this%upstream_nc(irxn) * duc_duc                                ! [6-6]
 
                ! -- depending on 'nh4'
+               ! crate = crate_uc * (crate_nh4 + crate_no3)
                ! d(crate)/d(n) = d(crate_nh4+crate_no3)*crate_uc/dnh4
-               !               = d(fnh4*fnh4_inhibit_no3+fno3*(1.-fnh4*fnh4_inhibit_no3))/dnh4*crate_uc
-               !               = d(fnh4*fnh4_inhibit_no3*(1.-fno3) + fno3)/dnh4*crate_uc
-               !               = (fnh4*dfnh4_inhibit_no3_dnh4
+               !               = d(fnh4*fnh4_inhibit_no3+fno3*(1.-fnh4_inhibit_no3))/dnh4*crate_uc
+               !               = d(fnh4_inhibit_no3*(fnh4-fno3) + fno3)/dnh4*crate_uc
+               !               = d(fnh4_inhibit_no3*(fnh4-fno3))/dnh4*crate_uc                     ! dfno3_dnh4 = 0
+               !               = (fnh4-fno3)*dfnh4_inhibit_no3_dnh4
                !                  +dfnh4_dnh4*fnh4_inhibit_no3)
-               !                 * (1.-fno3)*crate_uc                     ! dfno3_dnh4 = 0
-               dcrate_dx  = (dfnh4_dnh4*fnh4_inhibit_no3  &
-                           + fnh4*dfnh4_inhibit_no3_dnh4)*(1.d0-fno3)
+               !                 *crate_uc
+               dcrate_dx  = ( dfnh4_dnh4*fnh4_inhibit_no3  &
+                             +(fnh4-fno3)*dfnh4_inhibit_no3_dnh4)
                dcrate_dx  = dcrate_dx*crate_uc
 
                dc_dn  = dcrate_dx * this%mineral_c_stoich(irxn)                          ! [6-1]
@@ -1456,25 +1466,24 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
                        +dfnh4_dnh4*fnh4_inhibit_no3
                dn_dn  = dn_dn * crate_uc*this%mineral_n_stoich(irxn)                     ! [6-4]
 
-               ! no3rate = crate_uc*mineral_n_stoich*fno3*(1-fnh4*fnh4_inhibit_no3): 'mineral_n_stoich = u-sum(ni)'
-               ! d(no3rate)/d(n) = -1.0*fno3*(fnh4*dfnh4_inhibit_no3_dnh4)
-               !                    +dfnh4_dnh4*fnh4_inhibit_no3)         ! 'dfno3_dnh4' = 0
+               ! no3rate = crate_uc*mineral_n_stoich*fno3*(1-fnh4_inhibit_no3): 'mineral_n_stoich = u-sum(ni)'
+               ! d(no3rate)/d(n) = -1.0*(fno3*dfnh4_inhibit_no3_dnh4
+               !                    +dfno3_dnh4*fnh4_inhibit_no3)         ! 'dfno3_dnh4' = 0
                !                  * crate_uc * mineral_n_stoich
-               dno3_dn= -1.d0*fno3*(fnh4*dfnh4_inhibit_no3_dnh4  &
-                                    +dfnh4_dnh4*fnh4_inhibit_no3)
+               dno3_dn= -1.d0*fno3*dfnh4_inhibit_no3_dnh4
                dno3_dn= dno3_dn * crate_uc*this%mineral_n_stoich(irxn)                   ! [6-5]
 
                du_dn  = this%upstream_nc(irxn) * duc_dn                                  ! [6-6]
 
                ! -- depending on 'no3'
                ! d(crate)/d(no3) = d(crate_nh4+crate_no3)*crate_uc/dno3
-               !               = d(fnh4*fnh4_inhibit_no3+fno3*(1-fnh4*fnh4_inhibit_no3))/dno3*crate_uc
-               !               = ( dfnh4_dno3*fnh4_inhibit_no3           ! 'dfnh4_dno3' = 0
-               !                  +fnh4*dfnh4_inhibit_no3_dno3
-               !                  +dfno3_dno3 * (1-fnh4*fnh4_inhibit_no3)
-               !                  +fno3*(-fnh4*dfnh4_inhibit_no3_dno3)
+               !               = d(fnh4*fnh4_inhibit_no3+fno3*(1-fnh4_inhibit_no3))/dno3*crate_uc
+               !               = d((fnh4-fno3)*fnh4_inhibit_no3+fno3)/dno3*crate_uc
+               !               = (-dfno3_dno3*fnh4_inhibit_no3           ! 'dfnh4_dno3' = 0
+               !                  +(fnh4-fno3)*dfnh4_inhibit_no3_dno3
+               !                  +dfno3_dno3
                !                 ) * crate_uc
-               dcrate_dx = fnh4*(1.d0-fno3)*dfnh4_inhibit_no3_dno3    &
+               dcrate_dx = (fnh4-fno3)*dfnh4_inhibit_no3_dno3    &
                            + dfno3_dno3*(1.d0-fnh4*fnh4_inhibit_no3)
                dcrate_dx = dcrate_dx * crate_uc
 
@@ -1489,12 +1498,12 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
                dn_dno3  = fnh4*dfnh4_inhibit_no3_dno3  &
                          * crate_uc * this%mineral_n_stoich(irxn)                        ! [6-4]
 
-               ! no3rate = crate_uc*mineral_n_stoich*fno3*(1-fnh4*fnh4_inhibit_no3): 'mineral_n_stoich = u-sum(ni)'
-               ! d(no3rate)/d(no3) = ( fno3*(-fnh4*dfnh4_inhibit_no3_dno3)     ! 'dfnh4_dno3' = 0
-               !                    +dfno3_dno3*(1-fnh4*fnh4_inhibit_no3)
+               ! no3rate = crate_uc*mineral_n_stoich*fno3*(1-fnh4_inhibit_no3): 'mineral_n_stoich = u-sum(ni)'
+               ! d(no3rate)/d(no3) = ( fno3*(-dfnh4_inhibit_no3_dno3)     ! 'dfnh4_dno3' = 0
+               !                    +dfno3_dno3*(1-fnh4_inhibit_no3)
                !                 ) * crate_uc * mineral_n_stoich
-               dno3_dno3= -1.0d0*fno3*fnh4*dfnh4_inhibit_no3_dno3 &
-                          + dfno3_dno3 * (1.d0-fnh4*fnh4_inhibit_no3)
+               dno3_dno3= -1.0d0*fno3*dfnh4_inhibit_no3_dno3 &
+                          + dfno3_dno3 * (1.d0-fnh4_inhibit_no3)
                dno3_dno3= dno3_dno3 * crate_uc * this%mineral_n_stoich(irxn)             ! [6-5]
 
                du_dno3  = this%upstream_nc(irxn) * duc_dno3                              ! [6-6]
@@ -1801,13 +1810,20 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ! constraining 'N potential rate' if too high compared to available within the allowable min. time-step
       ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
       ! - implying tiny timestep in model, which potentially crashes model
-      dtmin = option%dt_min  ! arbitrarily set a starting point to reduce the rate
+
+      ! in the following, '2.1' multiplier is chosen because that is slightly larger(5% to avoid numerical issue) than '2.0',
+      ! which should be the previous-timestep before reaching the 'option%dt_min'
+      ! (the time-cut used in PF is like dt=0.5*dt, when cutting)
+      dtmin = 2.1d0*option%dt_min
+      !dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dt_min' may be accelerating the timing, but may not be good to mulitple consummers
+
       nratecap = temp_real*this%n2o_frac_mineralization*dtmin*net_nmin_rate
       if (nratecap > c_nh4) then
-         fnratecap = c_nh4/nratecap
-         dfnratecap_dnh4 = 1.d0/temp_real*this%n2o_frac_mineralization*dtmin &
-                             * (net_nmin_rate - c_nh4*dnet_nmin_rate_dx)     &    ! d(c_nh4/net_nmin_rate)/dnh4
-                             /(net_nmin_rate*net_nmin_rate)
+         ! assuming that monod type reduction used and 'nratecap' must be reduced to 'c_nh4', i.e.
+         ! c_nh4/dt = nratecap*fnh4_inhibit_no3/dt * (c_nh4/(c_nh4+c0))
+         ! then, c0 = nratecap*fnh4_inhibit_no3 - c_nh4 (this is the 'half-saturation' term used above)
+         fnratecap = funcMonod(c_nh4, nratecap*fnh4_inhibit_no3-c_nh4, PETSC_FALSE)
+         dfnratecap_dnh4 = funcMonod(c_nh4, nratecap*fnh4_inhibit_no3-c_nh4, PETSC_TRUE)
       else
          fnratecap       = 1.d0
          dfnratecap_dnh4 = 0.d0

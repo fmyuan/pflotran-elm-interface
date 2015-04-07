@@ -420,17 +420,22 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
   ! - implying tiny timestep in model, which potentially crashes model
   if (this%rate_plantndemand > 0.d0) then
-    dtmin = option%dt_min  ! arbitrarily set a starting point to reduce the rate
+
+    ! in the following, '2.1' multiplier is chosen because that is slightly larger(5% to avoid numerical issue) than '2.0',
+    ! which should be the previous-timestep before reaching the 'option%dt_min'
+    ! (the time-cut used in PF is like dt=0.5*dt, when cutting)
+    dtmin = 2.1d0*option%dt_min
+    !dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
 
     if (this%ispec_nh4 > 0) then
        nratecap = this%rate_plantndemand * dtmin
        if (this%ispec_no3 > 0) nratecap = this%rate_plantndemand*fnh4_inhibit_no3*dtmin
        if (nratecap > c_nh4) then
-         fnratecap = c_nh4/nratecap
-         dfnratecap_dnh4 = 1.d0/nratecap
-         if (this%ispec_no3>0) dfnratecap_dnh4 = 1.d0/nratecap &
-                     *(fnh4_inhibit_no3-c_nh4*dfnh4_inhibit_no3_dnh4) &    !d(c_nh4/fnh4_inhibit_no3)/dnh4
-                     /(fnh4_inhibit_no3*fnh4_inhibit_no3)
+         ! assuming that monod type reduction used and 'nratecap' must be reduced to 'c_nh4', i.e.
+         ! c_nh4/dt = nratecap*fnh4_inhibit_no3/dt * (c_nh4/(c_nh4+c0))
+         ! then, c0 = nratecap*fnh4_inhibit_no3 - c_nh4 (this is the 'half-saturation' term used above)
+         fnratecap = funcMonod(c_nh4, nratecap-c_nh4, PETSC_FALSE)
+         dfnratecap_dnh4 = funcMonod(c_nh4, nratecap-c_nh4, PETSC_TRUE)
        else
          fnratecap       = 1.d0
          dfnratecap_dnh4 = 0.d0
@@ -444,12 +449,9 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     if (this%ispec_no3 > 0) then
        nratecap = this%rate_plantndemand * dtmin
        if (this%ispec_no3 > 0) nratecap = this%rate_plantndemand*(1.-fnh4_inhibit_no3)*dtmin
-       if (nratecap > 0.99d0*c_no3) then
-         fnratecap = 0.99d0*c_no3/nratecap
-         dfnratecap_dno3 = 0.99d0/nratecap
-         if (this%ispec_nh4>0) dfnratecap_dno3 = 0.99d0/nratecap &
-                     *((1.d0-fnh4_inhibit_no3)-c_no3*(-dfnh4_inhibit_no3_dno3)) &    !d(c_no3/(1-fnh4_inhibit_no3))/dno3
-                     /((1.d0-fnh4_inhibit_no3)*(1.d0-fnh4_inhibit_no3))
+       if (nratecap > c_no3) then
+         fnratecap = funcMonod(c_no3, nratecap-c_no3, PETSC_FALSE)
+         dfnratecap_dnh4 = funcMonod(c_no3, nratecap-c_no3, PETSC_TRUE)
        else
          fnratecap       = 1.d0
          dfnratecap_dno3 = 0.d0
