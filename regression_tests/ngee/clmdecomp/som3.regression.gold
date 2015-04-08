@@ -39,10 +39,10 @@
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   2.0714998245239E-01
+   Time (seconds):   1.8352413177490E-01
    Time Steps:          204
    Newton Iterations:          431
    Solver Iterations:          431
    Time Step Cuts:            0
    Solution 2-Norm:   6.4000071737072E-01
-   Residual 2-Norm:   6.4656501699446E-22
+   Residual 2-Norm:   6.4656498002282E-22
