@@ -432,8 +432,8 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
        if (this%ispec_no3 > 0) nratecap = this%rate_plantndemand*fnh4_inhibit_no3*dtmin
        if (nratecap > c_nh4) then
          ! assuming that monod type reduction used and 'nratecap' must be reduced to 'c_nh4', i.e.
-         ! c_nh4/dt = nratecap*fnh4_inhibit_no3/dt * (c_nh4/(c_nh4+c0))
-         ! then, c0 = nratecap*fnh4_inhibit_no3 - c_nh4 (this is the 'half-saturation' term used above)
+         ! c_nh4/dt = nratecap/dt * (c_nh4/(c_nh4+c0))
+         ! then, c0 = nratecap - c_nh4 (this is the 'half-saturation' term used above)
          fnratecap = funcMonod(c_nh4, nratecap-c_nh4, PETSC_FALSE)
          dfnratecap_dnh4 = funcMonod(c_nh4, nratecap-c_nh4, PETSC_TRUE)
        else
@@ -451,7 +451,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
        if (this%ispec_no3 > 0) nratecap = this%rate_plantndemand*(1.-fnh4_inhibit_no3)*dtmin
        if (nratecap > c_no3) then
          fnratecap = funcMonod(c_no3, nratecap-c_no3, PETSC_FALSE)
-         dfnratecap_dnh4 = funcMonod(c_no3, nratecap-c_no3, PETSC_TRUE)
+         dfnratecap_dno3 = funcMonod(c_no3, nratecap-c_no3, PETSC_TRUE)
        else
          fnratecap       = 1.d0
          dfnratecap_dno3 = 0.d0
@@ -562,32 +562,33 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     endif
   endif
 
-#ifdef DEBUG
+  if (option%print_file_flag) then
 
-  if(option%tran_dt<=option%dt_min) then
-    if (this%rate_plantndemand*fnh4*fnh4_inhibit_no3*option%dt_min>=c_nh4 .or.    &
-        this%rate_plantndemand*fno3*(1.d0-fnh4_inhibit_no3)*option%dt_min>=c_no3) then
-      write(option%fid_out, *) '----------------------------------------------'
-      write(option%fid_out, *) 'Reaction Sandbox: PLANT N UPTAKE'
-      write(option%fid_out, *) 'dt=',option%tran_dt, ' dt_min=',option%dt_min
-      write(option%fid_out, *) 'ghosted_id=',ghosted_id, &
-         ' c_nh4=',c_nh4, ' c_no3=',c_no3, ' fnh4=',fnh4,' fno3=', fno3, &
-         'uprate_nh4=',this%rate_plantndemand*fnh4*fnh4_inhibit_no3*option%dt, &
-         'uprate_no3=',this%rate_plantndemand*fno3*(1.d0-fnh4_inhibit_no3)*option%dt
-     endif
-  endif
-
-  do ires=1, reaction%ncomp
-    temp_real = Residual(ires)
-
-    if (abs(temp_real) > huge(temp_real)) then
-      write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
-      write(option%fid_out, *) 'Reaction Sandbox: PLANT N UPTAKE'
-      option%io_buffer = ' checking infinity of Residuals matrix @ PlantNReact '
-      call printErrMsg(option)
+    if(option%tran_dt<=option%dt_min) then
+      if (this%rate_plantndemand*fnh4*fnh4_inhibit_no3*option%dt_min>=c_nh4 .or.    &
+          this%rate_plantndemand*fno3*(1.d0-fnh4_inhibit_no3)*option%dt_min>=c_no3) then
+        write(option%fid_out, *) '----------------------------------------------'
+        write(option%fid_out, *) 'Reaction Sandbox: PLANT N UPTAKE'
+        write(option%fid_out, *) 'dt=',option%tran_dt, ' dt_min=',option%dt_min
+        write(option%fid_out, *) 'ghosted_id=',ghosted_id, &
+          ' c_nh4=',c_nh4, ' c_no3=',c_no3, ' fnh4=',fnh4,' fno3=', fno3, &
+          'uprate_nh4=',this%rate_plantndemand*fnh4*fnh4_inhibit_no3*option%dt, &
+          'uprate_no3=',this%rate_plantndemand*fno3*(1.d0-fnh4_inhibit_no3)*option%dt
+       endif
     endif
-  enddo
-#endif
+
+    do ires=1, reaction%ncomp
+      temp_real = Residual(ires)
+
+      if (abs(temp_real) > huge(temp_real)) then
+        write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
+        write(option%fid_out, *) 'Reaction Sandbox: PLANT N UPTAKE'
+        option%io_buffer = ' checking infinity of Residuals matrix @ PlantNReact '
+        call printErrMsg(option)
+      endif
+    enddo
+
+  endif
 
 end subroutine PlantNReact
 

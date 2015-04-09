@@ -1250,7 +1250,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         if (this%species_id_no3 > 0) then
           if (nratecap*(1.d0-fnh4_inhibit_no3) > c_no3) then
             fnratecap = funcMonod(c_no3, nratecap*(1.d0-fnh4_inhibit_no3)-c_no3, PETSC_FALSE)
-            dfnratecap_dnh4 = funcMonod(c_no3, nratecap*(1.d0-fnh4_inhibit_no3)-c_no3, PETSC_TRUE)
+            dfnratecap_dno3 = funcMonod(c_no3, nratecap*(1.d0-fnh4_inhibit_no3)-c_no3, PETSC_TRUE)
           else
             fnratecap       = 1.d0
             dfnratecap_dno3 = 0.d0
@@ -1278,8 +1278,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         crate = crate_uc * (crate_nh4 + crate_no3)
       endif
 
-#ifdef DEBUG
-      if(option%tran_dt<=option%dt_min) then
+!#ifdef DEBUG
+      if(option%tran_dt<=option%dt_min .and. option%print_file_flag) then
         if (-crate_uc*crate_nh4*this%mineral_n_stoich(irxn)*option%dt_min>=c_nh4-this%x0eps .or.  &
             -crate_uc*crate_no3*this%mineral_n_stoich(irxn)*option%dt_min>=c_no3-this%x0eps) then
           write(option%fid_out, *) '----------------------------------------------'
@@ -1293,7 +1293,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
              'crate0_n03=',crate_uc*this%mineral_n_stoich(irxn)*(1.d0-fnh4_inhibit_no3)*option%dt
         endif
       endif
-#endif
+!#endif
 
     endif  !if(this%mineral_n_stoich(irxn) < 0.0d0) (i.e. immobilization)
 

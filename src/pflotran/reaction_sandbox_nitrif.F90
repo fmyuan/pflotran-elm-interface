@@ -467,9 +467,9 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
 
   endif       !if(this%ispec_n2o > 0.0d0 .and. c_nh4_ugg > 3.0d0)
 
-#ifdef DEBUG
+!#ifdef DEBUG
 
-  if( option%tran_dt<=option%dt_min.and. &
+  if( (option%tran_dt<=option%dt_min. .and. option%print_file_flag) and. &
       (rate_nitri*option%dt_min >= c_nh4 .or. &
        rate_n2o*option%dt_min >= c_nh4) ) then
 
@@ -492,7 +492,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
       call printErrMsg(option)
     endif
   enddo
-#endif
+!#endif
 
 end subroutine NitrifReact
 
