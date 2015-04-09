@@ -469,7 +469,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
 
 !#ifdef DEBUG
 
-  if( (option%tran_dt<=option%dt_min. .and. option%print_file_flag) and. &
+  if( (option%tran_dt<=option%dt_min .and. option%print_file_flag) .and. &
       (rate_nitri*option%dt_min >= c_nh4 .or. &
        rate_n2o*option%dt_min >= c_nh4) ) then
 

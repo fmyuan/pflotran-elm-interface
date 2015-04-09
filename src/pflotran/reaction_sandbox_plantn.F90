@@ -490,11 +490,12 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
       dnrate_nh4_dnh4 = this%rate_plantndemand * dfnh4_dnh4
       if(this%ispec_no3 > 0) then
-        temp_real = fnh4 * dfnh4_inhibit_no3_dnh4 + &
+        temp_real = fnh4 * dfnh4_inhibit_no3_dnh4 + &        ! d(fnh4*fnh4_inhibit_no3)/dnh4
                     fnh4_inhibit_no3 * dfnh4_dnh4
         dnrate_nh4_dnh4 = this%rate_plantndemand * temp_real
 
-        temp_real = fnh4 * dfnh4_inhibit_no3_dno3     ! dfnh4_dno3 = 0
+        ! the following may not be needed (TODO - further checking)
+        temp_real = fnh4 * dfnh4_inhibit_no3_dno3            ! d(fnh4*fnh4_inhibit_no3)/dno3
         dnrate_nh4_dno3 = this%rate_plantndemand * temp_real
       endif
 
@@ -505,6 +506,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
       Jacobian(ires_plantn,ires_nh4) = Jacobian(ires_plantn,ires_nh4) - &
         dnrate_nh4_dnh4
 
+      ! the following may not be needed (TODO - further checking)
       if(this%ispec_no3 > 0) then
         Jacobian(ires_nh4,ires_no3)=Jacobian(ires_nh4,ires_no3) + &       ! may need a checking of the sign (+/-) here
           dnrate_nh4_dno3 * &
@@ -540,6 +542,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
                     fno3 * (-1.0d0*fnh4*dfnh4_inhibit_no3_dno3)              ! 'dfnh4_dno3=0'
         dnrate_no3_dno3 = this%rate_plantndemand * temp_real
 
+        ! the following may not be needed (TODO - further checking)
         temp_real = fno3 * (-1.0d0) * &                                      ! 'dfno3_dnh4=0'
                     ( fnh4*dfnh4_inhibit_no3_dnh4 + &
                       dfnh4_dnh4*fnh4_inhibit_no3 )
@@ -553,6 +556,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
       Jacobian(ires_plantn,ires_no3) = Jacobian(ires_plantn,ires_no3) - &
         dnrate_no3_dno3
 
+      ! the following may not be needed (TODO - further checking)
       if(this%ispec_nh4 > 0) then
         Jacobian(ires_no3,ires_nh4)=Jacobian(ires_no3,ires_nh4) + &      ! may need a checking of sign (+/-) here
           dnrate_no3_dnh4 * &

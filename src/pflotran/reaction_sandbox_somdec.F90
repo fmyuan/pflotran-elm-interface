@@ -1597,7 +1597,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
             dno3_duc*  &
             rt_auxvar%aqueous%dtotal(this%species_id_no3,ispec_uc,iphase)
         else
-          Jacobian(ires_nh4,ires_uc) = Jacobian(ires_nh4,ires_uc) - &
+          Jacobian(ires_no3,ires_uc) = Jacobian(ires_no3,ires_uc) - &
             dno3_duc
         endif
         !!for tracking
