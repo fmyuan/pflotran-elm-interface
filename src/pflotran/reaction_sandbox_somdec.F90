@@ -1040,18 +1040,29 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     ! nh4 inhibition on no3 immobilization, if any ('this%inhibition_nh4_no3')
     ! this is for quantifying microbial N immobilization preference btw NH4 and NO3.
     ! (DON'T change the 'rate' and 'derivatives' after this)
-    if(c_nh4>this%x0eps .and. c_no3>this%x0eps .and. this%inhibition_nh4_no3>0.d0) then
-      temp_real = this%inhibition_nh4_no3 + c_no3/c_nh4
-      fnh4_inhibit_no3 = this%inhibition_nh4_no3/temp_real
-      dfnh4_inhibit_no3_dnh4 = this%inhibition_nh4_no3*(c_no3/c_nh4/c_nh4)  &
-                               /temp_real/temp_real     ! over 'd_nh4'
-      dfnh4_inhibit_no3_dno3 = -this%inhibition_nh4_no3/c_nh4  &
-                               /temp_real/temp_real     ! over 'd_no3'
+    if((c_nh4>0.d0 .and. c_no3>0.d0) &
+       .and. this%inhibition_nh4_no3>0.d0) then
+      ! assuming that: f = c_nh4/(c_nh4+c_no3), or, f= (c_nh4/c_no3)/(c_nh4/c_no3+1)
+      ! and adding 'preference kp - ratio of nh4/no3'
+      ! f = kp*(c_nh4/c_no3)/(kp*(c_nh4/c_no3)+1), i.e.
+      ! f = (c_nh4/c_no3)/(c_nh4/c_no3+1/kp)  - Monod type with half-saturation of 1/kp
+      temp_real = c_nh4/c_no3
+      fnh4_inhibit_no3 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_FALSE)
+
+      ! the following appears troublesome, turning off temporarily (TODO - checking later on)
+      !dfnh4_inhibit_no3_dnh4 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_TRUE)  ! over 'dtemp_real'
+      !dfnh4_inhibit_no3_dnh4 = dfnh4_inhibit_no3_dnh4*(1.d0/c_no3)                              ! df_dtemp_real * dtemp_real_dnh4
+
+      !dfnh4_inhibit_no3_dno3 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_TRUE)  ! over 'dtemp_real'
+      !dfnh4_inhibit_no3_dno3 = dfnh4_inhibit_no3_dno3*(c_nh4/c_no3/c_no3)                       ! df_dtemp_real * dtemp_real_dno3
+
+      dfnh4_inhibit_no3_dnh4 = 0.d0
+      dfnh4_inhibit_no3_dno3 = 0.d0
     else
-      if (c_nh4>this%x0eps .and. c_no3<=this%x0eps) then
-        fnh4_inhibit_no3 = 0.999d0
-      elseif (c_nh4<=this%x0eps .and. c_no3>this%x0eps) then
-        fnh4_inhibit_no3 = 0.001d0
+      if (c_nh4>0.d0 .and. c_no3<=0.d0) then
+        fnh4_inhibit_no3 = 1.0d0
+      elseif (c_nh4<=0.d0 .and. c_no3>0.d0) then
+        fnh4_inhibit_no3 = 0.0d0
       else
         fnh4_inhibit_no3 = 0.50d0
       endif

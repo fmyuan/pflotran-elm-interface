@@ -315,38 +315,51 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   !    so that, these two N species can be used separately for plant N uptake, or none, or both
 
   !--------------------------------------------------------------------------------------------
+  !
+  ! nh4 inhibition on no3 uptake, if any ('this%inhibition_nh4_no3')
+  ! this is for quantifying plant N uptake preference btw NH4 and NO3
+  ! (solely based on ratio of nh4/no3)
+  if (this%ispec_nh4 >0 .and. this%ispec_no3 > 0) then
+    c_nh4     = rt_auxvar%total(this%ispec_nh4, iphase) * L_water  ! mol/L (M) --> mole/m3
+    c_no3     = rt_auxvar%total(this%ispec_no3, iphase) * L_water
+
+    ! (DON'T change the 'rate' and 'derivatives' after this)
+    if((c_nh4>0.d0 .and. c_no3>0.d0) &
+       .and. this%inhibition_nh4_no3>0.d0) then
+       ! assuming that: f = c_nh4/(c_nh4+c_no3), or, f= (c_nh4/c_no3)/(c_nh4/c_no3+1)
+       ! and adding 'preference kp - ratio of nh4/no3'
+       ! f = kp*(c_nh4/c_no3)/(kp*(c_nh4/c_no3)+1), i.e.
+       ! f = (c_nh4/c_no3)/(c_nh4/c_no3+1/kp)  - Monod type with half-saturation of 1/kp
+      temp_real = c_nh4/c_no3
+      fnh4_inhibit_no3 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_FALSE)
+
+      ! the following appears troublesome, turning off temporarily (TODO - checking later on)
+      !dfnh4_inhibit_no3_dnh4 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_TRUE)  ! over 'dtemp_real'
+      !dfnh4_inhibit_no3_dnh4 = dfnh4_inhibit_no3_dnh4*(1.d0/c_no3)                              ! df_dtemp_real * dtemp_real_dnh4
+
+      !dfnh4_inhibit_no3_dno3 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_TRUE)  ! over 'dtemp_real'
+      !dfnh4_inhibit_no3_dno3 = dfnh4_inhibit_no3_dno3*(c_nh4/c_no3/c_no3)                       ! df_dtemp_real * dtemp_real_dno3
+
+      dfnh4_inhibit_no3_dnh4 = 0.d0
+      dfnh4_inhibit_no3_dno3 = 0.d0
+    else
+      if (c_nh4>0.d0 .and. c_no3<=0.d0) then
+        fnh4_inhibit_no3 = 1.0d0
+      elseif (c_nh4<=0.d0 .and. c_no3>0.d0) then
+        fnh4_inhibit_no3 = 0.0d0
+      else
+        fnh4_inhibit_no3 = 0.50d0
+      endif
+      dfnh4_inhibit_no3_dnh4 = 0.d0
+      dfnh4_inhibit_no3_dno3 = 0.d0
+    endif
+    !
+  endif
+
+  !--------------------------------------------------------------------------------------------
   if (this%ispec_nh4 > 0) then
     ires_nh4 = this%ispec_nh4 + reaction%offset_aqueous
-    c_nh4     = rt_auxvar%total(this%ispec_nh4, iphase) * L_water  ! mol/L (M) --> mole/m3
-
-    !
-    ! nh4 inhibition on no3 uptake, if any ('this%inhibition_nh4_no3')
-    ! this is for quantifying plant N uptake preference btw NH4 and NO3
-    ! (very similar as N immobilization now).
-    if (this%ispec_no3 > 0) then
-      c_no3     = rt_auxvar%total(this%ispec_no3, iphase) * L_water
-       ! (DON'T change the 'rate' and 'derivatives' after this)
-      if(c_nh4>this%x0eps_nh4 .and. c_no3>this%x0eps_no3 &
-        .and. this%inhibition_nh4_no3>0.d0) then
-        temp_real = this%inhibition_nh4_no3 + c_no3/c_nh4
-        fnh4_inhibit_no3 = this%inhibition_nh4_no3/temp_real
-        dfnh4_inhibit_no3_dnh4 = this%inhibition_nh4_no3*(c_no3/c_nh4/c_nh4)  &
-                               /temp_real/temp_real     ! over 'd_nh4'
-        dfnh4_inhibit_no3_dno3 = -this%inhibition_nh4_no3/c_nh4  &
-                               /temp_real/temp_real     ! over 'd_no3'
-      else
-        if (c_nh4>this%x0eps_nh4 .and. c_no3<=this%x0eps_no3) then
-          fnh4_inhibit_no3 = 0.999d0
-        elseif (c_nh4<=this%x0eps_nh4 .and. c_no3>this%x0eps_no3) then
-          fnh4_inhibit_no3 = 0.001d0
-        else
-          fnh4_inhibit_no3 = 0.50d0
-        endif
-        dfnh4_inhibit_no3_dnh4 = 0.d0
-        dfnh4_inhibit_no3_dno3 = 0.d0
-      endif
-    endif
-
+    c_nh4    = rt_auxvar%total(this%ispec_nh4, iphase) * L_water  ! mol/L (M) --> mole/m3
 
     ! half-saturation regulated rate (by input, it may be representing competetiveness)
     fnh4       = funcMonod(c_nh4, this%half_saturation_nh4, PETSC_FALSE)
@@ -374,7 +387,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   !--------------------------------------------------------------------------------------------
   if (this%ispec_no3 > 0) then
     ires_no3 = this%ispec_no3
-    c_no3     = rt_auxvar%total(this%ispec_no3, iphase)
+    c_no3     = rt_auxvar%total(this%ispec_no3, iphase) * L_water       ! mol/L (M) --> mole/m3
     ! half-saturation regulated rate (by input, it may be representing competetiveness)
     fno3       = funcMonod(c_no3, this%half_saturation_no3, PETSC_FALSE)
     dfno3_dno3 = funcMonod(c_no3, this%half_saturation_no3, PETSC_TRUE)
@@ -410,7 +423,13 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   call VecRestoreArrayReadF90(clm_pf_idata%rate_plantndemand_pfs, &
        rate_plantndemand_pf_loc, ierr)
+
+#else
+!for testing
+  this%rate_plantndemand = 1.d-2*volume
+
 #endif
+
   if (this%ispec_plantndemand > 0) then  ! for tracking
     ires_plantndemand = this%ispec_plantndemand + reaction%offset_immobile
     Residual(ires_plantndemand) = Residual(ires_plantndemand) - this%rate_plantndemand
@@ -448,7 +467,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     !
     if (this%ispec_no3 > 0) then
        nratecap = this%rate_plantndemand * dtmin
-       if (this%ispec_no3 > 0) nratecap = this%rate_plantndemand*(1.-fnh4_inhibit_no3)*dtmin
+       if (this%ispec_nh4 > 0) nratecap = this%rate_plantndemand*(1.-fnh4_inhibit_no3)*dtmin
        if (nratecap > c_no3) then
          fnratecap = funcMonod(c_no3, nratecap-c_no3, PETSC_FALSE)
          dfnratecap_dno3 = funcMonod(c_no3, nratecap-c_no3, PETSC_TRUE)
@@ -494,7 +513,6 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
                     fnh4_inhibit_no3 * dfnh4_dnh4
         dnrate_nh4_dnh4 = this%rate_plantndemand * temp_real
 
-        ! the following may not be needed (TODO - further checking)
         temp_real = fnh4 * dfnh4_inhibit_no3_dno3            ! d(fnh4*fnh4_inhibit_no3)/dno3
         dnrate_nh4_dno3 = this%rate_plantndemand * temp_real
       endif
@@ -506,9 +524,8 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
       Jacobian(ires_plantn,ires_nh4) = Jacobian(ires_plantn,ires_nh4) - &
         dnrate_nh4_dnh4
 
-      ! the following may not be needed (TODO - further checking)
       if(this%ispec_no3 > 0) then
-        Jacobian(ires_nh4,ires_no3)=Jacobian(ires_nh4,ires_no3) + &       ! may need a checking of the sign (+/-) here
+        Jacobian(ires_nh4,ires_no3)=Jacobian(ires_nh4,ires_no3) - &       ! may need a checking of the sign (+/-) here
           dnrate_nh4_dno3 * &
           rt_auxvar%aqueous%dtotal(this%ispec_nh4,this%ispec_no3,iphase)
       endif
@@ -525,27 +542,29 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     if(this%ispec_nh4 > 0) then
     ! splitting (fractioning) potential uptake rate by the rest of nrate_nh4,
     ! which adjusted by 'fnh4_inhibition_no3'
-    ! i.e., 1.0-fnh4*fnh4_inhibit_no3
-      nrate_no3 = this%rate_plantndemand * fno3 * &
-                  (1.0d0-fnh4*fnh4_inhibit_no3)
+    ! i.e., 1.0-fnh4_inhibit_no3
+      nrate_no3 = this%rate_plantndemand * fno3 * (1.0d0-fnh4_inhibit_no3)
     endif
 
     ! residuals
     Residual(ires_no3) = Residual(ires_no3) + nrate_no3
     Residual(ires_plantn) = Residual(ires_plantn) - nrate_no3
 
+    if (this%ispec_plantnuptake>0) then   ! for tracking
+      ires_plantnuptake = this%ispec_plantnuptake + reaction%offset_immobile
+      Residual(ires_plantnuptake) = Residual(ires_plantnuptake) - nrate_no3
+    endif
+
+    ! jacobians
     if (compute_derivative) then
 
       dnrate_no3_dno3 = this%rate_plantndemand * dfno3_dno3
       if(this%ispec_nh4 > 0) then
-        temp_real = dfno3_dno3 * (1.d0-fnh4*fnh4_inhibit_no3) + &
-                    fno3 * (-1.0d0*fnh4*dfnh4_inhibit_no3_dno3)              ! 'dfnh4_dno3=0'
+        temp_real = dfno3_dno3 * (1.d0-fnh4_inhibit_no3) + &
+                    fno3 * (-1.0d0*dfnh4_inhibit_no3_dno3)
         dnrate_no3_dno3 = this%rate_plantndemand * temp_real
 
-        ! the following may not be needed (TODO - further checking)
-        temp_real = fno3 * (-1.0d0) * &                                      ! 'dfno3_dnh4=0'
-                    ( fnh4*dfnh4_inhibit_no3_dnh4 + &
-                      dfnh4_dnh4*fnh4_inhibit_no3 )
+        temp_real = fno3 * (-1.0d0 * dfnh4_inhibit_no3_dnh4)                 ! 'dfno3_dnh4=0'
         dnrate_no3_dnh4 = this%rate_plantndemand * temp_real
       endif
 
@@ -556,9 +575,8 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
       Jacobian(ires_plantn,ires_no3) = Jacobian(ires_plantn,ires_no3) - &
         dnrate_no3_dno3
 
-      ! the following may not be needed (TODO - further checking)
       if(this%ispec_nh4 > 0) then
-        Jacobian(ires_no3,ires_nh4)=Jacobian(ires_no3,ires_nh4) + &      ! may need a checking of sign (+/-) here
+        Jacobian(ires_no3,ires_nh4)=Jacobian(ires_no3,ires_nh4) - &      ! may need a checking of sign (+/-) here
           dnrate_no3_dnh4 * &
           rt_auxvar%aqueous%dtotal(this%ispec_no3,this%ispec_nh4,iphase)
       endif
