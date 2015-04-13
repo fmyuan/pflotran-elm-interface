@@ -6289,14 +6289,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscInt           :: ghosted_id
     PetscReal, pointer :: xx_p(:)
 
-    PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (gN/m3)
-    PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
     PetscReal, pointer   :: porosity0_loc_p(:)              ! current CLM-updated porosity
 
     PetscReal, pointer :: porosity_pre_pf_loc(:)            !previous time-step porosity (m3/m3 bulk soil)
     PetscReal, pointer :: soillsat_pre_pf_loc(:)            !previous time-step soil liq. water saturation (0 - 1)
 
-    PetscInt :: ispec_no3, ispec_nh4, offset, offset_aq
+    PetscInt :: offset, offset_aq
 
     character(len=MAXWORDLENGTH) :: word
     PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
@@ -6318,40 +6316,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     grid  => patch%grid
     field => realization%field
     global_auxvars  => patch%aux%Global%auxvars
-
-    word = "NO3-"
-    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-
-    word = "NH4+"
-    ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-
-    if(ispec_no3 > 0) then
-       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%smin_no3_vr_clmp, &
-                                    clm_pf_idata%smin_no3_vr_pfs)
-    endif
-
-    if(ispec_nh4 > 0) then
-       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%smin_nh4_vr_clmp, &
-                                    clm_pf_idata%smin_nh4_vr_pfs)
-    endif
-
-    !
-    if(ispec_no3 > 0) then
-      call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
-    endif
-
-    if(ispec_nh4 > 0) then
-      call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
-    endif
-
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)
     CHKERRQ(ierr)
 
@@ -6379,22 +6343,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       porosity = porosity0_loc_p(local_id)                    ! using 'local_id' if from 'field%???'
       theta = saturation * porosity
 
-      if(ispec_no3 > 0) then
-         xx_p(offset_aq + ispec_no3) = max(xeps0_n, smin_no3_vr_pf_loc(ghosted_id)  &      ! from 'ghosted_id' to field%xx_p's local
-                                                    / theta / 1000.0d0 )
-      endif
-
-      if(ispec_nh4 > 0) then
-         xx_p(offset_aq + ispec_nh4) = max(xeps0_n, smin_nh4_vr_pf_loc(ghosted_id)  &
-                                                   / theta / 1000.0d0 )
-      endif
-
-      ! adjusting other aq. species conc. due to CLM pass-in theta (porosity X saturation)
-      ! NOTE: (1) if NO CLM-relevant species in PF bgc input deck, the following IS NOT needed!
-      !       (2) for CLM-relevant species, the above approach IS same as the following (CANNOT be both).
-      !         However, using the above approach WILL catch any changes did by CLM. e.g. when no
-      !         hydrology coupling, N leaching is done in CLM and changes N conc.
-      !       (3) for same reason, if 'vertical SOM' transport IS ON in CLM, we need to add those species here (TODO)
+      ! adjusting aq. species conc. due to CLM pass-in theta (porosity X saturation)
 
       ! previous timestep saved PF's 'porosity' and 'saturation' in clm-pf-idata%???_pfp
       theta_pre = porosity_pre_pf_loc(local_id)*  &
@@ -6405,26 +6354,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         if (.not.associated(cur_aq_spec)) exit
 
         if (theta_pre> 1.d-20 .and. theta > 1.0d-20) then
-           if (cur_aq_spec%id .ne. ispec_no3 .and. &
-               cur_aq_spec%id .ne. ispec_nh4) then
-              xx_p(offset_aq + cur_aq_spec%id) = xx_p(offset_aq + cur_aq_spec%id) &
+          xx_p(offset_aq + cur_aq_spec%id) = xx_p(offset_aq + cur_aq_spec%id) &
                                             * theta_pre / theta
-           end if
         end if
         cur_aq_spec => cur_aq_spec%next
       enddo
 
     enddo
-
-    if(ispec_no3 > 0) then
-      call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
-    endif
-
-    if(ispec_nh4 > 0) then
-      call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
-      CHKERRQ(ierr)
-    endif
 
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
     CHKERRQ(ierr)
