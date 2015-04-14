@@ -60,6 +60,7 @@ module Reaction_Sandbox_SomDec_class
     PetscInt :: species_id_hrimm
     PetscInt :: species_id_nmin
     PetscInt :: species_id_nimm
+    PetscInt :: species_id_nimmp
     PetscInt :: species_id_ngasmin
     PetscInt :: species_id_proton
 
@@ -149,6 +150,7 @@ function SomDecCreate()
   SomDecCreate%species_id_hrimm = 0
   SomDecCreate%species_id_nmin = 0
   SomDecCreate%species_id_nimm = 0
+  SomDecCreate%species_id_nimmp = 0
   SomDecCreate%species_id_ngasmin = 0
 
   nullify(SomDecCreate%next)
@@ -817,12 +819,26 @@ subroutine SomDecSetup(this,reaction,option)
 #ifdef CLM_PFLOTRAN
   if(this%species_id_nmin < 0) then
      option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMdec: ' // &
-       ' Nmin is not specified as immobile species in the input file. ' // &
+       ' Nmin for actual immobilization is not specified as ' // &
+       ' immobile species in the input file. ' // &
        ' It is required when coupled with CLM.'
      call printErrMsg(option)
   endif
 #endif
  
+  word = 'Nimmp'
+  this%species_id_nimmp = GetImmobileSpeciesIDFromName( &
+            word,reaction%immobile,PETSC_FALSE,option)
+#ifdef CLM_PFLOTRAN
+  if(this%species_id_nimmp < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec: ' // &
+       ' Nimmp for potential immobilization is not specified as ' // &
+       ' immobile species in the input file. ' // &
+       ' It is required when coupled with CLM.'
+     call printErrMsg(option)
+  endif
+#endif
+
   word = 'Nimm'
   this%species_id_nimm = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
@@ -908,7 +924,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscInt :: ispec_uc, ispec_un, ispec_d   ! species id for upstream C, N, and downstream
   PetscInt :: ires_uc, ires_un, ires_d      ! id used for residual and Jacobian
   PetscInt :: ires_co2, ires_nh4, ires_n2o, ires_no3
-  PetscInt :: ires_hrimm, ires_nmin, ires_nimm, ires_ngasmin
+  PetscInt :: ires_hrimm, ires_nmin, ires_nimm, ires_nimmp, ires_ngasmin
   PetscReal :: stoich_c, stoich_n
 
   PetscReal :: scaled_crate_const
@@ -1086,6 +1102,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
      ires_nimm = this%species_id_nimm + reaction%offset_immobile
   endif
 
+  if(this%species_id_nimmp > 0) then
+     ires_nimmp = this%species_id_nimmp + reaction%offset_immobile
+  endif
+
   net_nmin_rate     = 0.0d0
   dnet_nmin_rate_dx = 0.0d0
 
@@ -1232,6 +1252,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         fno3 = fno3 * feps0
       endif
 
+!#ifdef test
       ! constraining 'N immobilization rate' locally if too high compared to available within the allowable min. time-step
       ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
       ! - implying tiny timestep in model, which potentially crashes model
@@ -1239,8 +1260,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ! in the following, '2.1' multiplier is chosen because that is slightly larger(5% to avoid numerical issue) than '2.0',
       ! which should be the previous-timestep before reaching the 'option%dt_min'
       ! (the time-cut used in PF is like dt=0.5*dt, when cutting)
-      !dtmin = 2.1d0*option%dt_min
-      dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
+      dtmin = 2.1d0*option%dt_min
+      !dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
 
       if (crate_uc*this%mineral_n_stoich(irxn) < 0.d0) then
         !
@@ -1270,8 +1291,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           fno3 = fno3 * fnratecap
         endif
         !
-
       endif
+!#endif
 
       !----------- overall rate ------
       crate_nh4 = fnh4
@@ -1351,6 +1372,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
       if(this%species_id_nimm > 0) then    ! for tracking
          Residual(ires_nimm) = Residual(ires_nimm) + this%mineral_n_stoich(irxn) * crate
+      endif
+
+      if(this%species_id_nimmp > 0) then    ! for tracking
+         Residual(ires_nimmp) = Residual(ires_nimmp) + this%mineral_n_stoich(irxn) * crate_uc
       endif
 
     endif

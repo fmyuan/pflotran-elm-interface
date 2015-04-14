@@ -435,6 +435,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     Residual(ires_plantndemand) = Residual(ires_plantndemand) - this%rate_plantndemand
   endif
 
+!#ifdef test
   ! constraining 'N demand rate' if too high compared to available within the allowable min. time-step
   ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
   ! - implying tiny timestep in model, which potentially crashes model
@@ -443,8 +444,8 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     ! in the following, '2.1' multiplier is chosen because that is slightly larger(5% to avoid numerical issue) than '2.0',
     ! which should be the previous-timestep before reaching the 'option%dt_min'
     ! (the time-cut used in PF is like dt=0.5*dt, when cutting)
-    !dtmin = 2.1d0*option%dt_min
-    dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
+    dtmin = 2.1d0*option%dt_min
+    !dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
 
     if (this%ispec_nh4 > 0) then
        nratecap = this%rate_plantndemand * dtmin
@@ -479,9 +480,10 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
        ! so that NO need to modify the major codes below
        dfno3_dno3 = dfno3_dno3*fnratecap + fno3 * dfnratecap_dno3
        fno3 = fno3 * fnratecap
-     endif
-
+    endif
+    !
   endif
+!#endif
 
   !--------------------------------------------------------------------------------------------
   ! residuals and derivatives

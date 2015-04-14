@@ -119,7 +119,8 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
 #ifdef CLM_PFLOTRAN
   PetscScalar, pointer :: sucsat_pf_loc(:)    !
   PetscScalar, pointer :: watfc_pf_loc(:)     !
-  PetscScalar, pointer :: porosity_pf_loc(:)    !
+  PetscScalar, pointer :: porosity_pf_loc(:)  !
+  PetscScalar, pointer :: bd_dry_pf_loc(:)    !
   PetscScalar, pointer :: bsw_pf_loc(:)    !
   PetscReal :: thetar, thetas, se
 #endif
@@ -133,14 +134,15 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
     case(MOISTURE_RESPONSE_FUNCTION_CLM4) 
       call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
       CHKERRQ(ierr)
-      call VecGetArrayReadF90(clm_pf_idata%porosity_pfs, porosity_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bd_dry_pf_loc, ierr)   ! 'bd' (kg/m3)
       CHKERRQ(ierr)
       call VecGetArrayReadF90(clm_pf_idata%bsw_pf, bsw_pf_loc, ierr)
       CHKERRQ(ierr)
       ! sucsat [mm of H20] from CLM is the suction (positive) at water saturated (called air-entry pressure)
       ! [Pa] = [mm of H20] * 0.001 [m/mm] * 1000 [kg/m^3] * 9.81 [m/sec^2]
       maxpsi = sucsat_pf_loc(ghosted_id) * (-GRAVITY_CONSTANT)                         ! mmH2O --> -Pa
-      lsat = theta/porosity_pf_loc(ghosted_id)
+      lsat = theta/min(1.d0, 1.d0-min(0.9999d0,bd_dry_pf_loc(ghosted_id)/2.70d3))     ! bd = (1._r8-dry_porosity)*2.7d3
+
       ! soil matric potential by Clapp-Hornburger method (this is the default used by CLM)
       psi = sucsat_pf_loc(ghosted_id) * (-GRAVITY_CONSTANT) * (lsat**(-bsw_pf_loc(ghosted_id)))  ! mmH2O --> -Pa
       psi = min(psi, maxpsi)
@@ -149,9 +151,10 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
       else
         F_theta = 0.0d0
       endif
+
       call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
       CHKERRQ(ierr)
-      call VecRestoreArrayReadF90(clm_pf_idata%porosity_pfs, porosity_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bd_dry_pf_loc, ierr)
       CHKERRQ(ierr)
       call VecRestoreArrayReadF90(clm_pf_idata%bsw_pf, bsw_pf_loc, ierr)
       CHKERRQ(ierr)
