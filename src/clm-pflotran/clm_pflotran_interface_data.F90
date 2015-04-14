@@ -61,17 +61,25 @@ module clm_pflotran_interface_data
   Vec :: zsoi_sub_pfs
   Vec :: zsoi_sub_pfp
   Vec :: zsoi_sub_clms
+
+  ! in case the near-surface air pressure (grided) from CLM to PF
+  Vec :: press_ref_clmp
+  Vec :: press_ref_pfs
+  Vec :: press_ref_pfp
+  Vec :: press_ref_clms
+  PetscReal :: pressure_reference     ! currently a constant
   
   ! (ii) Soil properties -
+
   ! for CLM --> PF
   Vec :: hksat_x_clmp                 ! common properties
   Vec :: hksat_y_clmp
   Vec :: hksat_z_clmp
   Vec :: bulkdensity_dry_sub_clmp
   Vec :: effporosity_sub_clmp         ! adjustable (effective poro), so NOT exactly from bulkdensity_dry
-  Vec :: press_ref_clmp
   Vec :: watsat_sub_clmp
   Vec :: watfc_sub_clmp
+  Vec :: watpcwmax_sub_clmp
   Vec :: sucsat_sub_clmp              ! clapp-Horberger hydraulic properties
   Vec :: bsw_sub_clmp
   Vec :: sr_sub_clmp                  ! MVM soil hydraulic properties
@@ -87,9 +95,9 @@ module clm_pflotran_interface_data
   Vec :: hksat_z_pfs
   Vec :: bulkdensity_dry_sub_pfs
   Vec :: effporosity_sub_pfs
-  Vec :: press_ref_pfs
   Vec :: watsat_sub_pfs
   Vec :: watfc_sub_pfs
+  Vec :: watpcwmax_sub_pfs
   Vec :: sucsat_sub_pfs              ! clapp-Horberger hydraulic properties
   Vec :: bsw_sub_pfs
   Vec :: sr_sub_pfs                  ! MVM soil hydraulic properties
@@ -101,14 +109,14 @@ module clm_pflotran_interface_data
   Vec :: hc_dry_sub_pfs              ! dry (bulk) heat capacity
 
   ! for PF --> CLM
-  Vec :: hksat_x_pfp             ! common properties
+  Vec :: hksat_x_pfp                 ! common properties
   Vec :: hksat_y_pfp
   Vec :: hksat_z_pfp
   Vec :: bulkdensity_dry_sub_pfp
   Vec :: effporosity_sub_pfp
-  Vec :: press_ref_pfp
   Vec :: watsat_sub_pfp
   Vec :: watfc_sub_pfp
+  Vec :: watpcwmax_sub_pfp
   Vec :: sucsat_sub_pfp              ! clapp-Horberger hydraulic properties
   Vec :: bsw_sub_pfp
   Vec :: sr_sub_pfp                  ! MVM soil hydraulic properties
@@ -124,9 +132,9 @@ module clm_pflotran_interface_data
   Vec :: hksat_z_clms
   Vec :: bulkdensity_dry_sub_clms
   Vec :: effporosity_sub_clms
-  Vec :: press_ref_clms
   Vec :: watsat_sub_clms
   Vec :: watfc_sub_clms
+  Vec :: watpcwmax_sub_clms
   Vec :: sucsat_sub_clms              ! clapp-Horberger hydraulic properties
   Vec :: bsw_sub_clms
   Vec :: sr_sub_clms                  ! MVM soil hydraulic properties
@@ -150,20 +158,24 @@ module clm_pflotran_interface_data
   Vec :: gflux_sub_pfp    ! mpi vec
   Vec :: gflux_sub_clms   ! seq vec
   
-  ! (ii) surface water I/O for PFLOTRAN's 2D surface domain
-  Vec :: h2o_srf_clmp        ! mpi vec (water head)
+  ! (ii) surface water w/ heat I/O for PFLOTRAN's 2D surface domain
+  Vec :: h2o_srf_clmp        ! mpi vec (water head: mH2O)
   Vec :: h2o_srf_pfs         ! seq vec
-  Vec :: qh2o_srf_clmp       ! mpi vec (water flux)
+  Vec :: qh2o_srf_clmp       ! mpi vec (water flux: m/sec)
   Vec :: qh2o_srf_pfs        ! seq vec
-  Vec :: h2otemp_srf_clmp    ! seq vec
+  Vec :: h2otemp_srf_clmp    ! seq vec (temperature of i/o surface water flux: degC)
   Vec :: h2otemp_srf_pfs     ! mpi vec
+  Vec :: gh2o_srf_clmp       ! mpi vec (heat flux with surface i/o water flux: W/m???)
+  Vec :: gh2o_srf_pfs        ! seq vec
 
   Vec :: h2o_srf_pfp         ! mpi vec (water head)
   Vec :: h2o_srf_clms        ! seq vec
   Vec :: qh2o_srf_pfp        ! mpi vec (water flux)
   Vec :: qh2o_srf_clms       ! seq vec
-  Vec :: h2otemp_srf_pfp     ! seq vec
-  Vec :: h2otemp_srf_clms    ! mpi vec
+  Vec :: h2otemp_srf_pfp     ! mpi vec
+  Vec :: h2otemp_srf_clms    ! seq vec
+  Vec :: gh2o_srf_pfp        ! mpi vec
+  Vec :: gh2o_srf_clms       ! seq vec
 
   ! BC: water pressure (Pa) on the top/bottom of 3-D subsurface domain
   !     as boundary conditions from CLM to PF
@@ -404,6 +416,7 @@ contains
     clm_pf_idata%press_ref_clmp = 0
     clm_pf_idata%watsat_sub_clmp    = 0
     clm_pf_idata%watfc_sub_clmp     = 0
+    clm_pf_idata%watpcwmax_sub_clmp = 0
     clm_pf_idata%sucsat_sub_clmp = 0
     clm_pf_idata%bsw_sub_clmp    = 0
     clm_pf_idata%sr_sub_clmp     = 0
@@ -422,6 +435,7 @@ contains
     clm_pf_idata%press_ref_pfs= 0
     clm_pf_idata%watsat_sub_pfs   = 0
     clm_pf_idata%watfc_sub_pfs    = 0
+    clm_pf_idata%watpcwmax_sub_pfs= 0
     clm_pf_idata%sucsat_sub_pfs = 0
     clm_pf_idata%bsw_sub_pfs    = 0
     clm_pf_idata%sr_sub_pfs    = 0
@@ -440,6 +454,7 @@ contains
     clm_pf_idata%press_ref_pfp = 0
     clm_pf_idata%watsat_sub_pfp = 0
     clm_pf_idata%watfc_sub_pfp = 0
+    clm_pf_idata%watpcwmax_sub_pfp = 0
     clm_pf_idata%sucsat_sub_pfp  = 0
     clm_pf_idata%bsw_sub_pfp = 0
     clm_pf_idata%sr_sub_pfp = 0
@@ -458,6 +473,7 @@ contains
     clm_pf_idata%press_ref_clms = 0
     clm_pf_idata%watsat_sub_clms = 0
     clm_pf_idata%watfc_sub_clms = 0
+    clm_pf_idata%watpcwmax_sub_clms = 0
     clm_pf_idata%sucsat_sub_clms  = 0
     clm_pf_idata%bsw_sub_clms = 0
     clm_pf_idata%sr_sub_clms = 0
@@ -488,6 +504,8 @@ contains
     clm_pf_idata%qh2o_srf_pfs = 0
     clm_pf_idata%h2otemp_srf_clmp = 0
     clm_pf_idata%h2otemp_srf_pfs = 0
+    clm_pf_idata%gh2o_srf_clmp = 0
+    clm_pf_idata%gh2o_srf_pfs = 0
 
     clm_pf_idata%h2o_srf_pfp = 0
     clm_pf_idata%h2o_srf_clms = 0
@@ -495,6 +513,8 @@ contains
     clm_pf_idata%qh2o_srf_clms = 0
     clm_pf_idata%h2otemp_srf_pfp = 0
     clm_pf_idata%h2otemp_srf_clms = 0
+    clm_pf_idata%gh2o_srf_pfp = 0
+    clm_pf_idata%gh2o_srf_clms = 0
 
   ! BC: water pressure (Pa) on the top/bottom of 3-D subsurface domain
   !     as boundary conditions from CLM to PF
@@ -750,6 +770,7 @@ contains
     call VecDuplicate(clm_pf_idata%area_subsurf_clmp,clm_pf_idata%press_ref_clmp, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%watsat_sub_clmp   , ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%watfc_sub_clmp    , ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%watpcwmax_sub_clmp, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%sucsat_sub_clmp, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%bsw_sub_clmp   , ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clmp,clm_pf_idata%sr_sub_clmp    , ierr)
@@ -766,8 +787,9 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%bulkdensity_dry_sub_pfs, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%effporosity_sub_pfs, ierr)
     call VecDuplicate(clm_pf_idata%area_subsurf_pfs,clm_pf_idata%press_ref_pfs, ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%watsat_sub_pfs  , ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%watfc_sub_pfs   , ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%watsat_sub_pfs   , ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%watfc_sub_pfs    , ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%watpcwmax_sub_pfs, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%sucsat_sub_pfs, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%bsw_sub_pfs   , ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfs,clm_pf_idata%sr_sub_pfs   , ierr)
@@ -786,6 +808,7 @@ contains
     call VecDuplicate(clm_pf_idata%area_subsurf_pfp,clm_pf_idata%press_ref_pfp, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%watsat_sub_pfp, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%watfc_sub_pfp, ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%watpcwmax_sub_pfp, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%sucsat_sub_pfp , ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%bsw_sub_pfp, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_pfp,clm_pf_idata%sr_sub_pfp, ierr)
@@ -804,6 +827,7 @@ contains
     call VecDuplicate(clm_pf_idata%area_subsurf_clms,clm_pf_idata%press_ref_clms, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%watsat_sub_clms, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%watfc_sub_clms, ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%watpcwmax_sub_clms, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%sucsat_sub_clms , ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%bsw_sub_clms, ierr)
     call VecDuplicate(clm_pf_idata%zsoi_sub_clms,clm_pf_idata%sr_sub_clms, ierr)
@@ -1056,6 +1080,8 @@ contains
      call VecDestroy(clm_pf_idata%watsat_sub_clmp, ierr)
     if(clm_pf_idata%watfc_sub_clmp  /= 0) &
      call VecDestroy(clm_pf_idata%watfc_sub_clmp, ierr)
+    if(clm_pf_idata%watpcwmax_sub_clmp  /= 0) &
+     call VecDestroy(clm_pf_idata%watpcwmax_sub_clmp, ierr)
     if(clm_pf_idata%sucsat_sub_clmp  /= 0) &
      call VecDestroy(clm_pf_idata%sucsat_sub_clmp, ierr)
     if(clm_pf_idata%bsw_sub_clmp /= 0) &
@@ -1090,6 +1116,8 @@ contains
     if(clm_pf_idata%watsat_sub_pfs /= 0) &
      call VecDestroy(clm_pf_idata%watsat_sub_pfs, ierr)
     if(clm_pf_idata%watfc_sub_pfs /= 0) &
+     call VecDestroy(clm_pf_idata%watfc_sub_pfs, ierr)
+    if(clm_pf_idata%watfc_sub_pfs  /= 0) &
      call VecDestroy(clm_pf_idata%watfc_sub_pfs, ierr)
     if(clm_pf_idata%sucsat_sub_pfs /= 0) &
      call VecDestroy(clm_pf_idata%sucsat_sub_pfs, ierr)
@@ -1126,6 +1154,8 @@ contains
      call VecDestroy(clm_pf_idata%watsat_sub_pfp, ierr)
     if(clm_pf_idata%watfc_sub_pfp /= 0) &
      call VecDestroy(clm_pf_idata%watfc_sub_pfp, ierr)
+    if(clm_pf_idata%watpcwmax_sub_pfp  /= 0) &
+     call VecDestroy(clm_pf_idata%watpcwmax_sub_pfp, ierr)
     if(clm_pf_idata%sucsat_sub_pfp /= 0) &
      call VecDestroy(clm_pf_idata%sucsat_sub_pfp , ierr)
     if(clm_pf_idata%bsw_sub_pfp /= 0) &
@@ -1161,6 +1191,8 @@ contains
      call VecDestroy(clm_pf_idata%watsat_sub_clms, ierr)
     if(clm_pf_idata%watfc_sub_clms /= 0) &
      call VecDestroy(clm_pf_idata%watfc_sub_clms, ierr)
+    if(clm_pf_idata%watpcwmax_sub_clms  /= 0) &
+     call VecDestroy(clm_pf_idata%watpcwmax_sub_clmp, ierr)
     if(clm_pf_idata%sucsat_sub_clms /= 0) &
      call VecDestroy(clm_pf_idata%sucsat_sub_clms , ierr)
     if(clm_pf_idata%bsw_sub_clms /= 0) &
