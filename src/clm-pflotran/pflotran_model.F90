@@ -5177,24 +5177,24 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscInt           :: ghosted_id
     PetscReal, pointer :: xx_p(:)
 
-    PetscScalar, pointer :: decomp_cpools_vr_lit1_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_lit2_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_lit3_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_cwd_pf_loc(:)  ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som1_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som2_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som3_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som4_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_npools_vr_lit1_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_lit2_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_lit3_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_cwd_pf_loc(:)  ! (gN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_som1_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_som2_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_som3_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_som4_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (gN/m3)
-    PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_lit1_pf_loc(:) ! (molesC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_lit2_pf_loc(:) ! (molesC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_lit3_pf_loc(:) ! (molesC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_cwd_pf_loc(:)  ! (molesC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_som1_pf_loc(:) ! (molesC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_som2_pf_loc(:) ! (molesC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_som3_pf_loc(:) ! (molesC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_som4_pf_loc(:) ! (molesC/m3)
+    PetscScalar, pointer :: decomp_npools_vr_lit1_pf_loc(:) ! (molesN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_lit2_pf_loc(:) ! (molesN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_lit3_pf_loc(:) ! (molesN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_cwd_pf_loc(:)  ! (molesN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_som1_pf_loc(:) ! (molesN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_som2_pf_loc(:) ! (molesN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_som3_pf_loc(:) ! (molesN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_som4_pf_loc(:) ! (molesN/m3)
+    PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (molesN/m3)
+    PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (molesN/m3)
 
     PetscReal, pointer :: porosity_loc_p(:)
 
@@ -6592,35 +6592,37 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: xx_p(:)
 
-    PetscScalar, pointer :: decomp_cpools_vr_lit1_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_lit2_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_lit3_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_cwd_pf_loc(:)  ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som1_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som2_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som3_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som4_pf_loc(:) ! (gC/m3)
-    PetscScalar, pointer :: decomp_npools_vr_lit1_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_lit2_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_lit3_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_cwd_pf_loc(:)  ! (gN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_som1_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_som2_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_som3_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_som4_pf_loc(:) ! (gN/m3)
-    PetscScalar, pointer :: accextrn_vr_pf_loc(:)           ! (gN/m3)
-    PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (gN/m3)
-    PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (gN/m3)
-    PetscScalar, pointer :: smin_nh4sorb_vr_pf_loc(:)       ! (gN/m3)
-    PetscScalar, pointer :: gco2_vr_pf_loc(:)              ! (molC/m3)
-    PetscScalar, pointer :: gn2_vr_pf_loc(:)               ! (molN2/m3)
-    PetscScalar, pointer :: gn2o_vr_pf_loc(:)              ! (molN2O/m3)
-    PetscScalar, pointer :: acchr_vr_pf_loc(:)              ! (gC/m3)
-    PetscScalar, pointer :: accnmin_vr_pf_loc(:)            ! (gN/m3)
-    PetscScalar, pointer :: accnimm_vr_pf_loc(:)            ! (gN/m3)
-    PetscScalar, pointer :: accngasmin_vr_pf_loc(:)         ! (gN/m3)
-    PetscScalar, pointer :: accngasnitr_vr_pf_loc(:)        ! (gN/m3)
-    PetscScalar, pointer :: accngasdeni_vr_pf_loc(:)        ! (gN/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_lit1_pf_loc(:) ! (molesC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_lit2_pf_loc(:) ! (molesC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_lit3_pf_loc(:) ! (molesC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_cwd_pf_loc(:)  ! (molesC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_som1_pf_loc(:) ! (molesC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_som2_pf_loc(:) ! (molesC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_som3_pf_loc(:) ! (molesC/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_som4_pf_loc(:) ! (molesC/m3)
+    PetscScalar, pointer :: decomp_npools_vr_lit1_pf_loc(:) ! (molesN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_lit2_pf_loc(:) ! (molesN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_lit3_pf_loc(:) ! (molesN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_cwd_pf_loc(:)  ! (molesN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_som1_pf_loc(:) ! (molesN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_som2_pf_loc(:) ! (molesN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_som3_pf_loc(:) ! (molesN/m3)
+    PetscScalar, pointer :: decomp_npools_vr_som4_pf_loc(:) ! (molesN/m3)
+    PetscScalar, pointer :: accextrnh4_vr_pf_loc(:)         ! (molesN/m3)
+    PetscScalar, pointer :: accextrno3_vr_pf_loc(:)         ! (molesN/m3)
+    PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (molesN/m3)
+    PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (molesN/m3)
+    PetscScalar, pointer :: smin_nh4sorb_vr_pf_loc(:)       ! (molesN/m3)
+    PetscScalar, pointer :: gco2_vr_pf_loc(:)               ! (molC/m3)
+    PetscScalar, pointer :: gn2_vr_pf_loc(:)                ! (molN2/m3)
+    PetscScalar, pointer :: gn2o_vr_pf_loc(:)               ! (molN2O/m3)
+    PetscScalar, pointer :: acchr_vr_pf_loc(:)              ! (molesC/m3)
+    PetscScalar, pointer :: accnmin_vr_pf_loc(:)            ! (molesN/m3)
+    PetscScalar, pointer :: accnimmp_vr_pf_loc(:)           ! (molesN/m3)
+    PetscScalar, pointer :: accnimm_vr_pf_loc(:)            ! (molesN/m3)
+    PetscScalar, pointer :: accngasmin_vr_pf_loc(:)         ! (molesN/m3)
+    PetscScalar, pointer :: accngasnitr_vr_pf_loc(:)        ! (molesN/m3)
+    PetscScalar, pointer :: accngasdeni_vr_pf_loc(:)        ! (molesN/m3)
     PetscReal, pointer :: porosity_loc_p(:)
 
     PetscInt :: offset, offsetim
@@ -6630,8 +6632,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscInt :: ispec_som1c, ispec_som2c, ispec_som3c, ispec_som4c
     PetscInt :: ispec_som1n, ispec_som2n, ispec_som3n, ispec_som4n
     PetscInt :: ispec_co2, ispec_n2, ispec_n2o
-    PetscInt :: ispec_plantnuptake
-    PetscInt :: ispec_hrimm, ispec_nmin, ispec_nimm
+    PetscInt :: ispec_plantnh4uptake, ispec_plantno3uptake
+    PetscInt :: ispec_hrimm, ispec_nmin, ispec_nimmp, ispec_nimm
     PetscInt :: ispec_ngasmin, ispec_ngasnitr, ispec_ngasdeni
 
     PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
@@ -6771,13 +6773,20 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
             realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     ! N bgc reaction fluxes tracking (immoble species)
-    word = "Plantnuptake"
-    ispec_plantnuptake  = GetImmobileSpeciesIDFromName(word, &
+    word = "Plantnh4uptake"
+    ispec_plantnh4uptake  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    word = "Plantno3uptake"
+    ispec_plantno3uptake  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
     word = 'Nmin'
     ispec_nmin = GetImmobileSpeciesIDFromName(word, &
             realization%reaction%immobile,PETSC_FALSE,realization%option)
 
+    word = 'Nimmp'
+    ispec_nimmp = GetImmobileSpeciesIDFromName(word, &
+            realization%reaction%immobile,PETSC_FALSE,realization%option)
     word = 'Nimm'
     ispec_nimm = GetImmobileSpeciesIDFromName(word, &
             realization%reaction%immobile,PETSC_FALSE,realization%option)
@@ -6857,11 +6866,15 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecGetArrayF90(clm_pf_idata%gn2o_vr_pfp, gn2o_vr_pf_loc, ierr)
     CHKERRQ(ierr)
     !
-    call VecGetArrayF90(clm_pf_idata%accextrn_vr_pfp, accextrn_vr_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%accextrnh4_vr_pfp, accextrnh4_vr_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%accextrno3_vr_pfp, accextrno3_vr_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%acchr_vr_pfp, acchr_vr_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%accnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
     CHKERRQ(ierr)
@@ -6896,15 +6909,15 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         offsetim = offset + realization%reaction%offset_immobile
 
         if (ispec_lit1c > 0) then
-          decomp_cpools_vr_lit1_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit1c), xeps0_c)
+          decomp_cpools_vr_lit1_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit1c), 0.d0)
         endif
 
         if (ispec_lit2c > 0) then
-          decomp_cpools_vr_lit2_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit2c), xeps0_c)
+          decomp_cpools_vr_lit2_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit2c), 0.d0)
         endif
 
         if (ispec_lit3c > 0) then
-          decomp_cpools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3c), xeps0_c)
+          decomp_cpools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3c), 0.d0)
         endif
 
         if (ispec_lit1n > 0) then
@@ -6920,35 +6933,35 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if (ispec_som1c > 0) then
-          decomp_cpools_vr_som1_pf_loc(local_id) = max(xx_p(offsetim + ispec_som1c), xeps0_c)
+          decomp_cpools_vr_som1_pf_loc(local_id) = max(xx_p(offsetim + ispec_som1c), 0.d0)
         endif
 
         if (ispec_som2c > 0) then
-          decomp_cpools_vr_som2_pf_loc(local_id) = max(xx_p(offsetim + ispec_som2c), xeps0_c)
+          decomp_cpools_vr_som2_pf_loc(local_id) = max(xx_p(offsetim + ispec_som2c), 0.d0)
         endif
 
         if (ispec_som3c > 0) then
-          decomp_cpools_vr_som3_pf_loc(local_id) = max(xx_p(offsetim + ispec_som3c), xeps0_c)
+          decomp_cpools_vr_som3_pf_loc(local_id) = max(xx_p(offsetim + ispec_som3c), 0.d0)
         endif
 
         if (ispec_som4c > 0) then
-          decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4c), xeps0_c)
+          decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4c), 0.d0)
         endif
 
         if (ispec_som1n > 0) then
-          decomp_npools_vr_som1_pf_loc(local_id) = max(xx_p(offsetim + ispec_som1n), xeps0_n)
+          decomp_npools_vr_som1_pf_loc(local_id) = max(xx_p(offsetim + ispec_som1n), 0.d0)
         endif
 
         if (ispec_som2n > 0) then
-          decomp_npools_vr_som2_pf_loc(local_id) = max(xx_p(offsetim + ispec_som2n), xeps0_n)
+          decomp_npools_vr_som2_pf_loc(local_id) = max(xx_p(offsetim + ispec_som2n), 0.d0)
         endif
 
         if (ispec_som3n > 0) then
-          decomp_npools_vr_som3_pf_loc(local_id) = max(xx_p(offsetim + ispec_som3n), xeps0_n)
+          decomp_npools_vr_som3_pf_loc(local_id) = max(xx_p(offsetim + ispec_som3n), 0.d0)
         endif
 
         if (ispec_som4n > 0) then
-          decomp_npools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4n), xeps0_n)
+          decomp_npools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4n), 0.d0)
         endif
 
         if(ispec_nh4 > 0) then
@@ -6957,52 +6970,60 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
             ! the following approach appears more like what output module does in pflotran
             ! but needs further checking if it efficient as directly read from 'xx_p' as above
             conc = rt_auxvar%pri_molal(ispec_nh4) * theta * 1000.0d0
-            smin_nh4_vr_pf_loc(local_id) = max(conc, xeps0_n)
+            smin_nh4_vr_pf_loc(local_id) = max(conc, 0.d0)
 
             if (associated(rt_auxvar%total_sorb_eq)) then    ! equilibrium-sorption reactions used
                 conc = rt_auxvar%total_sorb_eq(ispec_nh4)
-                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, xeps0_n)
+                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
             else if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction used for soil NH4+ absorption
                 conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (molC/m3)
-                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, xeps0_n)
+                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
             endif
 
         endif
 
         if(ispec_no3 > 0) then
            conc = xx_p(offset + ispec_no3) * theta * 1000.0d0
-           smin_no3_vr_pf_loc(local_id)   = max(conc, xeps0_n)
+           smin_no3_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
         ! immobile gas conc in mol/m3 bulk soil to aovid 'theta' inconsistence (due to porosity) during unit conversion
         if(ispec_co2 > 0) then
            conc = xx_p(offsetim + ispec_co2)                    ! unit: M (molC/m3)
-           gco2_vr_pf_loc(local_id)   = max(conc, xeps0_c)
+           gco2_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
         if(ispec_n2 > 0) then
            conc = xx_p(offsetim + ispec_n2)                     ! unit: M (molN2/m3)
-           gn2_vr_pf_loc(local_id)   = max(conc, xeps0_n)
+           gn2_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
         if(ispec_n2o > 0) then
            conc = xx_p(offsetim + ispec_n2o)                    ! unit: M (molN2O/m3)
-           gn2o_vr_pf_loc(local_id)   = max(conc, xeps0_n)
+           gn2o_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
         ! tracking N bgc reaction fluxes
 
-        if (ispec_plantnuptake > 0) then
-           conc = xx_p(offsetim + ispec_plantnuptake)
-           accextrn_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_n)
+        if (ispec_plantnh4uptake > 0) then
+           conc = xx_p(offsetim + ispec_plantnh4uptake)
+           accextrnh4_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step only
-           xx_p(offsetim + ispec_plantnuptake) = zeroing_conc
+           xx_p(offsetim + ispec_plantnh4uptake) = zeroing_conc
+        endif
+
+        if (ispec_plantno3uptake > 0) then
+           conc = xx_p(offsetim + ispec_plantno3uptake)
+           accextrno3_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
+
+           ! resetting the tracking variable state so that cumulative IS for the time-step only
+           xx_p(offsetim + ispec_plantno3uptake) = zeroing_conc
         endif
 
         if(ispec_hrimm > 0) then
            conc = xx_p(offsetim + ispec_hrimm)
-           acchr_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_c)
+           acchr_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
            xx_p(offsetim + ispec_hrimm) = zeroing_conc
@@ -7010,15 +7031,24 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         if(ispec_nmin > 0) then
            conc = xx_p(offsetim + ispec_nmin)
-           accnmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_n)
+           accnmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
            xx_p(offsetim + ispec_nmin) = zeroing_conc
         endif
 
+        if(ispec_nimmp > 0) then
+           conc = xx_p(offsetim + ispec_nimmp)
+           accnimmp_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
+
+           ! resetting the tracking variable state so that cumulative IS for the time-step
+           xx_p(offsetim + ispec_nimmp) = zeroing_conc
+
+        endif
+
         if(ispec_nimm > 0) then
            conc = xx_p(offsetim + ispec_nimm)
-           accnimm_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_n)
+           accnimm_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
            xx_p(offsetim + ispec_nimm) = zeroing_conc
@@ -7027,7 +7057,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         if(ispec_ngasmin > 0) then
            conc = xx_p(offsetim + ispec_ngasmin)
-           accngasmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_n)
+           accngasmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
            xx_p(offsetim + ispec_ngasmin) = zeroing_conc
@@ -7035,7 +7065,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         if(ispec_ngasnitr > 0) then
            conc = xx_p(offsetim + ispec_ngasnitr)
-           accngasnitr_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_n)
+           accngasnitr_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
            xx_p(offsetim + ispec_ngasnitr) = zeroing_conc
@@ -7043,7 +7073,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         if(ispec_ngasdeni > 0) then
            conc = xx_p(offsetim + ispec_ngasdeni)
-           accngasdeni_vr_pf_loc(local_id) = max(conc-zeroing_conc, xeps0_n)
+           accngasdeni_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
            xx_p(offsetim + ispec_ngasdeni) = zeroing_conc
@@ -7098,11 +7128,15 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecRestoreArrayF90(clm_pf_idata%gn2o_vr_pfp, gn2o_vr_pf_loc, ierr)
     CHKERRQ(ierr)
     !
-    call VecRestoreArrayF90(clm_pf_idata%accextrn_vr_pfp, accextrn_vr_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%accextrnh4_vr_pfp, accextrnh4_vr_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%accextrno3_vr_pfp, accextrno3_vr_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%acchr_vr_pfp, acchr_vr_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%accnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
     CHKERRQ(ierr)
@@ -7287,11 +7321,18 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%accnmin_vr_clms)
     endif
 
-    if(ispec_plantnuptake > 0) then
+    if(ispec_plantnh4uptake > 0) then
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%accextrn_vr_pfp, &
-                                    clm_pf_idata%accextrn_vr_clms)
+                                    clm_pf_idata%accextrnh4_vr_pfp, &
+                                    clm_pf_idata%accextrnh4_vr_clms)
+    endif
+
+    if(ispec_plantno3uptake > 0) then
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%accextrno3_vr_pfp, &
+                                    clm_pf_idata%accextrno3_vr_clms)
     endif
 
     if(ispec_hrimm > 0) then
@@ -7299,6 +7340,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     pflotran_model%option, &
                                     clm_pf_idata%acchr_vr_pfp, &
                                     clm_pf_idata%acchr_vr_clms)
+    endif
+
+    if(ispec_nimmp > 0) then
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%accnimmp_vr_pfp, &
+                                    clm_pf_idata%accnimmp_vr_clms)
     endif
 
     if(ispec_nimm > 0) then

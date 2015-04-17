@@ -310,8 +310,10 @@ module clm_pflotran_interface_data
   Vec :: smin_nh4sorb_vr_clms           ! (moleN/m3) vertically-resolved absorbed NH4-N
   !
   ! 'accextrn' is accumulative N extract by plant roots in 'PFLOTRAN' within a CLM timestep
-  Vec :: accextrn_vr_pfp                ! (moleN/m3) vertically-resolved root extraction N
-  Vec :: accextrn_vr_clms               ! (moleN/m3) vertically-resolved root extraction N
+  Vec :: accextrnh4_vr_pfp                ! (moleN/m3) vertically-resolved root extraction N
+  Vec :: accextrnh4_vr_clms               ! (moleN/m3) vertically-resolved root extraction N
+  Vec :: accextrno3_vr_pfp                ! (moleN/m3) vertically-resolved root extraction N
+  Vec :: accextrno3_vr_clms               ! (moleN/m3) vertically-resolved root extraction N
 
   ! gases in water (aqueous solution of gases)
   ! gases species is accumulative in 'PFLOTRAN', so needs to calculate their fluxes in the CLM-PF interface and reset back to PFLOTRAN
@@ -337,6 +339,8 @@ module clm_pflotran_interface_data
   Vec :: accnmin_vr_pfp                ! (moleN/m3/timestep) vertically-resolved N mineralization
   Vec :: accnmin_vr_clms               ! (moleN/m3/timestep) vertically-resolved N mineralization
 
+  Vec :: accnimmp_vr_pfp                ! (moleN/m3/timestep) vertically-resolved potential N immoblization
+  Vec :: accnimmp_vr_clms               ! (moleN/m3/timestep) vertically-resolved potential N immoblization
   Vec :: accnimm_vr_pfp                ! (moleN/m3/timestep) vertically-resolved N immoblization
   Vec :: accnimm_vr_clms               ! (moleN/m3/timestep) vertically-resolved N immoblization
 
@@ -647,8 +651,10 @@ contains
     clm_pf_idata%smin_nh4sorb_vr_clms  = 0
 
     ! for root N extraction calculation
-    clm_pf_idata%accextrn_vr_pfp       = 0
-    clm_pf_idata%accextrn_vr_clms      = 0
+    clm_pf_idata%accextrnh4_vr_pfp       = 0
+    clm_pf_idata%accextrnh4_vr_clms      = 0
+    clm_pf_idata%accextrno3_vr_pfp       = 0
+    clm_pf_idata%accextrno3_vr_clms      = 0
 
     ! for soil hr calculation
     clm_pf_idata%gco2_vr_pfp            = 0
@@ -675,6 +681,8 @@ contains
     clm_pf_idata%accnmin_vr_pfp       = 0
     clm_pf_idata%accnmin_vr_clms      = 0
 
+    clm_pf_idata%accnimmp_vr_pfp      = 0
+    clm_pf_idata%accnimmp_vr_clms     = 0
     clm_pf_idata%accnimm_vr_pfp       = 0
     clm_pf_idata%accnimm_vr_clms      = 0
 
@@ -1031,11 +1039,14 @@ contains
     call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%gn2_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%gn2o_vr_pfp,ierr)
     !
-    call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%accextrn_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%accextrnh4_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%accextrno3_vr_pfp,ierr)
     !
     call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%acchr_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%accnmin_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%accnimmp_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%accnimm_vr_pfp,ierr)
+
     call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%accngasmin_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%accngasnitr_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%gco2_vr_pfp,clm_pf_idata%accngasdeni_vr_pfp,ierr)
@@ -1046,10 +1057,12 @@ contains
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%gn2_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%gn2o_vr_clms,ierr)
     !
-    call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accextrn_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accextrnh4_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accextrno3_vr_clms,ierr)
     !
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%acchr_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accnmin_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accnimmp_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accnimm_vr_clms,ierr)
 
     call VecDuplicate(clm_pf_idata%gco2_vr_clms,clm_pf_idata%accngasmin_vr_clms,ierr)
@@ -1514,10 +1527,14 @@ contains
        call VecDestroy(clm_pf_idata%smin_nh4sorb_vr_clms,ierr)
 
     ! update BGC fluxes
-    if(clm_pf_idata%accextrn_vr_pfp /= 0) &
-       call VecDestroy(clm_pf_idata%accextrn_vr_pfp,ierr)
-    if(clm_pf_idata%accextrn_vr_clms /= 0) &
-       call VecDestroy(clm_pf_idata%accextrn_vr_clms,ierr)
+    if(clm_pf_idata%accextrnh4_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%accextrnh4_vr_pfp,ierr)
+    if(clm_pf_idata%accextrno3_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%accextrno3_vr_pfp,ierr)
+    if(clm_pf_idata%accextrnh4_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%accextrnh4_vr_clms,ierr)
+    if(clm_pf_idata%accextrno3_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%accextrno3_vr_clms,ierr)
 
     if(clm_pf_idata%gco2_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%gco2_vr_pfp,ierr)
@@ -1556,8 +1573,12 @@ contains
     if(clm_pf_idata%accnmin_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%accnmin_vr_clms,ierr)
 
+    if(clm_pf_idata%accnimmp_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%accnimmp_vr_pfp,ierr)
     if(clm_pf_idata%accnimm_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%accnimm_vr_pfp,ierr)
+    if(clm_pf_idata%accnimmp_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%accnimmp_vr_clms,ierr)
     if(clm_pf_idata%accnimm_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%accnimm_vr_clms,ierr)
 

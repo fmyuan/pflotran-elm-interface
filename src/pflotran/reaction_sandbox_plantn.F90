@@ -17,7 +17,8 @@ module Reaction_Sandbox_PlantN_class
     PetscInt  :: ispec_no3
     PetscInt  :: ispec_plantn
     PetscInt  :: ispec_plantndemand
-    PetscInt  :: ispec_plantnuptake
+    PetscInt  :: ispec_plantnh4uptake
+    PetscInt  :: ispec_plantno3uptake
     PetscReal :: rate_plantndemand
     PetscReal :: half_saturation_nh4
     PetscReal :: half_saturation_no3
@@ -54,7 +55,8 @@ function PlantNCreate()
   PlantNCreate%ispec_no3 = 0
   PlantNCreate%ispec_plantn = 0
   PlantNCreate%ispec_plantndemand = 0
-  PlantNCreate%ispec_plantnuptake = 0
+  PlantNCreate%ispec_plantnh4uptake = 0
+  PlantNCreate%ispec_plantno3uptake = 0
   PlantNCreate%rate_plantndemand = 0.d0
   PlantNCreate%half_saturation_nh4 = 1.d-15
   PlantNCreate%half_saturation_no3 = 1.d-15
@@ -186,14 +188,19 @@ subroutine PlantNSetup(this,reaction,option)
   this%ispec_plantndemand = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
                  PETSC_FALSE,option)
 
-  word = 'Plantnuptake'
-  this%ispec_plantnuptake = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
+  word = 'Plantnh4uptake'
+  this%ispec_plantnh4uptake = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
                  PETSC_FALSE,option)
+  word = 'Plantno3uptake'
+  this%ispec_plantno3uptake = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
+                 PETSC_FALSE,option)
+
 #ifdef CLM_PFLOTRAN
-  if(this%ispec_plantnuptake < 0) then
+  if(this%ispec_plantnh4uptake < 0 .and. this%ispec_plantno3uptake < 0) then
      option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTN: ' // &
-       'Plantnuptake is not specified as immobile species in the ' // &
-       'input file, but It is required when coupled with CLM.'
+       'At least one of "Plantnh4uptake" or "Plantno3uptake " ' // &
+       'must be specified as immobile species in the ' // &
+       'input file, which required when coupled with CLM.'
      call printErrMsg(option)
   endif
 #endif
@@ -250,7 +257,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscInt, parameter :: iphase = 1
   PetscInt :: ires_nh4, ires_no3, ires_plantn
-  PetscInt :: ires_plantndemand, ires_plantnuptake
+  PetscInt :: ires_plantndemand, ires_plantnh4uptake, ires_plantno3uptake
   PetscInt :: ires
 
   PetscReal :: c_nh4         ! concentration (mole/m3)
@@ -444,8 +451,8 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     ! in the following, '2.1' multiplier is chosen because that is slightly larger(5% to avoid numerical issue) than '2.0',
     ! which should be the previous-timestep before reaching the 'option%dt_min'
     ! (the time-cut used in PF is like dt=0.5*dt, when cutting)
-    dtmin = 2.1d0*option%dt_min
-    !dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
+    !dtmin = 2.1d0*option%dt_min
+    dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
 
     if (this%ispec_nh4 > 0) then
        nratecap = this%rate_plantndemand * dtmin
@@ -501,9 +508,9 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     Residual(ires_nh4) = Residual(ires_nh4) + nrate_nh4
     Residual(ires_plantn) = Residual(ires_plantn) - nrate_nh4
 
-    if (this%ispec_plantnuptake>0) then   ! for tracking
-      ires_plantnuptake = this%ispec_plantnuptake + reaction%offset_immobile
-      Residual(ires_plantnuptake) = Residual(ires_plantnuptake) - nrate_nh4
+    if (this%ispec_plantnh4uptake>0) then   ! for tracking
+      ires_plantnh4uptake = this%ispec_plantnh4uptake + reaction%offset_immobile
+      Residual(ires_plantnh4uptake) = Residual(ires_plantnh4uptake) - nrate_nh4
     endif
 
     ! jacobians
@@ -552,9 +559,9 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     Residual(ires_no3) = Residual(ires_no3) + nrate_no3
     Residual(ires_plantn) = Residual(ires_plantn) - nrate_no3
 
-    if (this%ispec_plantnuptake>0) then   ! for tracking
-      ires_plantnuptake = this%ispec_plantnuptake + reaction%offset_immobile
-      Residual(ires_plantnuptake) = Residual(ires_plantnuptake) - nrate_no3
+    if (this%ispec_plantno3uptake>0) then   ! for tracking
+      ires_plantno3uptake = this%ispec_plantno3uptake + reaction%offset_immobile
+      Residual(ires_plantno3uptake) = Residual(ires_plantno3uptake) - nrate_no3
     endif
 
     ! jacobians
