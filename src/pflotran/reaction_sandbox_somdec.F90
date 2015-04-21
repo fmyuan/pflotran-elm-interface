@@ -1056,7 +1056,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     ! nh4 inhibition on no3 immobilization, if any ('this%inhibition_nh4_no3')
     ! this is for quantifying microbial N immobilization preference btw NH4 and NO3.
     ! (DON'T change the 'rate' and 'derivatives' after this)
-    if((c_nh4>0.d0 .and. c_no3>0.d0) &
+    if((c_nh4>this%x0eps .and. c_no3>this%x0eps) &
        .and. this%inhibition_nh4_no3>0.d0) then
       ! assuming that: f = c_nh4/(c_nh4+c_no3), or, f= (c_nh4/c_no3)/(c_nh4/c_no3+1)
       ! and adding 'preference kp - ratio of nh4/no3'
@@ -1075,9 +1075,9 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       dfnh4_inhibit_no3_dnh4 = 0.d0
       dfnh4_inhibit_no3_dno3 = 0.d0
     else
-      if (c_nh4>0.d0 .and. c_no3<=0.d0) then
+      if (c_nh4>this%x0eps .and. c_no3<=this%x0eps) then
         fnh4_inhibit_no3 = 1.0d0
-      elseif (c_nh4<=0.d0 .and. c_no3>0.d0) then
+      elseif (c_nh4<=this%x0eps .and. c_no3>this%x0eps) then
         fnh4_inhibit_no3 = 0.0d0
       else
         fnh4_inhibit_no3 = 0.50d0

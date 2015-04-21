@@ -306,7 +306,9 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
   tc = global_auxvar%temp
   if(tc < 0.01d0) return
 
-  ires_plantn = this%ispec_plantn + reaction%offset_immobile
+  if(this%ispec_plantn>0) ires_plantn = this%ispec_plantn + reaction%offset_immobile
+  if(this%ispec_nh4>0) ires_nh4 = this%ispec_nh4 + reaction%offset_aqueous
+  if(this%ispec_no3>0) ires_no3 = this%ispec_no3 + reaction%offset_aqueous
 
   c_nh4 = 0.d0
   c_no3 = 0.d0
@@ -331,7 +333,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     c_no3     = rt_auxvar%total(this%ispec_no3, iphase) * L_water
 
     ! (DON'T change the 'rate' and 'derivatives' after this)
-    if((c_nh4>0.d0 .and. c_no3>0.d0) &
+    if((c_nh4>this%x0eps_nh4 .and. c_no3>this%x0eps_no3) &
        .and. this%inhibition_nh4_no3>0.d0) then
        ! assuming that: f = c_nh4/(c_nh4+c_no3), or, f= (c_nh4/c_no3)/(c_nh4/c_no3+1)
        ! and adding 'preference kp - ratio of nh4/no3'
@@ -350,12 +352,13 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
       dfnh4_inhibit_no3_dnh4 = 0.d0
       dfnh4_inhibit_no3_dno3 = 0.d0
     else
-      if (c_nh4>0.d0 .and. c_no3<=0.d0) then
+      if (c_nh4>this%x0eps_nh4 .and. c_no3<=this%x0eps_no3) then
         fnh4_inhibit_no3 = 1.0d0
-      elseif (c_nh4<=0.d0 .and. c_no3>0.d0) then
+      elseif (c_nh4<=this%x0eps_nh4 .and. c_no3>this%x0eps_no3) then
         fnh4_inhibit_no3 = 0.0d0
       else
-        fnh4_inhibit_no3 = 0.50d0
+        return
+        !fnh4_inhibit_no3 = 0.50d0
       endif
       dfnh4_inhibit_no3_dnh4 = 0.d0
       dfnh4_inhibit_no3_dno3 = 0.d0
@@ -365,7 +368,6 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   !--------------------------------------------------------------------------------------------
   if (this%ispec_nh4 > 0) then
-    ires_nh4 = this%ispec_nh4 + reaction%offset_aqueous
     c_nh4    = rt_auxvar%total(this%ispec_nh4, iphase) * L_water  ! mol/L (M) --> mole/m3
 
     ! half-saturation regulated rate (by input, it may be representing competetiveness)
@@ -393,7 +395,6 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   !--------------------------------------------------------------------------------------------
   if (this%ispec_no3 > 0) then
-    ires_no3 = this%ispec_no3
     c_no3     = rt_auxvar%total(this%ispec_no3, iphase) * L_water       ! mol/L (M) --> mole/m3
     ! half-saturation regulated rate (by input, it may be representing competetiveness)
     fno3       = funcMonod(c_no3, this%half_saturation_no3, PETSC_FALSE)
@@ -442,7 +443,6 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     Residual(ires_plantndemand) = Residual(ires_plantndemand) - this%rate_plantndemand
   endif
 
-!#ifdef test
   ! constraining 'N demand rate' if too high compared to available within the allowable min. time-step
   ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
   ! - implying tiny timestep in model, which potentially crashes model
@@ -490,7 +490,6 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     endif
     !
   endif
-!#endif
 
   !--------------------------------------------------------------------------------------------
   ! residuals and derivatives
@@ -533,15 +532,24 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
       Jacobian(ires_plantn,ires_nh4) = Jacobian(ires_plantn,ires_nh4) - &
         dnrate_nh4_dnh4
 
-      if(this%ispec_no3 > 0) then
-        Jacobian(ires_nh4,ires_no3)=Jacobian(ires_nh4,ires_no3) - &       ! may need a checking of the sign (+/-) here
-          dnrate_nh4_dno3 * &
-          rt_auxvar%aqueous%dtotal(this%ispec_nh4,this%ispec_no3,iphase)
-      endif
+      !if(this%ispec_no3 > 0) then
+      !  Jacobian(ires_nh4,ires_no3)=Jacobian(ires_nh4,ires_no3) - &       ! may need a checking of the sign (+/-) here
+      !    dnrate_nh4_dno3 * &
+      !    rt_auxvar%aqueous%dtotal(this%ispec_nh4,this%ispec_no3,iphase)
+      !endif
 
     endif ! if(compute_derivative)
 
   endif !if(this%ispec_nh4 > 0)
+
+!if ((c_nh4 < 1.d-5 .or. c_no3 < 1.d-5) .and. compute_derivative ) then
+!print *, '----------------------------------------------'
+!print *, 'Reaction Sandbox: PLANT N UPTAKE 1'
+!print *, 'ghosted_id=',ghosted_id, &
+!' c_nh4=', c_nh4, ' res_nh4=', Residual(ires_nh4),  ' jac_nh4=', Jacobian(ires_nh4,ires_nh4), &
+!' c_no3=', c_no3, ' res_no3=', Residual(ires_no3),  ' jac_no3=', Jacobian(ires_no3,ires_no3)
+!endif
+
 
   !
   if(this%ispec_no3 > 0) then
@@ -584,14 +592,22 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
       Jacobian(ires_plantn,ires_no3) = Jacobian(ires_plantn,ires_no3) - &
         dnrate_no3_dno3
 
-      if(this%ispec_nh4 > 0) then
-        Jacobian(ires_no3,ires_nh4)=Jacobian(ires_no3,ires_nh4) - &      ! may need a checking of sign (+/-) here
-          dnrate_no3_dnh4 * &
-          rt_auxvar%aqueous%dtotal(this%ispec_no3,this%ispec_nh4,iphase)
-      endif
+      !if(this%ispec_nh4 > 0) then
+      !  Jacobian(ires_no3,ires_nh4)=Jacobian(ires_no3,ires_nh4) - &      ! may need a checking of sign (+/-) here
+      !    dnrate_no3_dnh4 * &
+      !    rt_auxvar%aqueous%dtotal(this%ispec_no3,this%ispec_nh4,iphase)  ! this actually is 0
+      !endif
 
     endif
+
+if (compute_derivative) then
+print *, 'ghosted_id=',ghosted_id, 'c_no3=', c_no3/L_water, 'nrate_no3=', nrate_no3, &
+   ' dnrate_no3_dno3=',dnrate_no3_dno3
+print *, ' c_no3=', c_no3, ' res_no3=', Residual(ires_no3),  ' jac_no3=', Jacobian(ires_no3,ires_no3)
+endif
+
   endif
+
 
   if (option%print_file_flag) then
 
@@ -607,6 +623,15 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
           'uprate_no3=',this%rate_plantndemand*fno3*(1.d0-fnh4_inhibit_no3)*option%dt
        endif
     endif
+
+!if ((c_nh4 < 1.d-5 .or. c_no3 < 1.d-5)  .and. compute_derivative) then
+!print *, '----------------------------------------------'
+!print *, 'Reaction Sandbox: PLANT N UPTAKE 2'
+!print *, 'ghosted_id=',ghosted_id, &
+!' c_nh4=', c_nh4, ' res_nh4=', Residual(ires_nh4),  ' jac_nh4=', Jacobian(ires_nh4,ires_nh4), &
+!' c_no3=', c_no3, ' res_no3=', Residual(ires_no3),  ' jac_no3=', Jacobian(ires_no3,ires_no3)
+!endif
+
 
     do ires=1, reaction%ncomp
       temp_real = Residual(ires)

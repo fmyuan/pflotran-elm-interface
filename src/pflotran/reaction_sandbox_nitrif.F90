@@ -335,7 +335,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   ! nitrification (Dickinson et al. 2002)
   rate_nitri = 0.d0
   drate_nitri_dnh4 = 0.d0
-  if(this%ispec_no3 > 0) then
+  if(this%ispec_nh4 > 0 .and. this%ispec_no3 > 0) then
     ! Eq. 28 for nitrification in Dickinson et al. 2002, can be separated into three parts:
     ! rate = k * f(trz) * (s*(1-s))/(0.25+1/nh4)
     ! (1) f_t = f(trz)
@@ -421,7 +421,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
        f_w  = min(f_w, 1.0d0)
        f_ph = min(f_ph, 1.0d0)
 
-       temp_real = (1.0 - exp(-0.0105d0 * c_nh4_ugg))  &
+       temp_real = (1.0d0 - exp(-0.0105d0 * c_nh4_ugg))  &
                   * f_t * f_w * f_ph * this%k_nitr_n2o                     ! 1/s
        rate_n2o = temp_real * (c_nh4*feps0) * volume                       ! moles/s
 
