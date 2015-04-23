@@ -379,7 +379,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
         ! the following IS a test, i.e., only scale the needed 'dC_p' rather than ALL by 'min_ratio',
         ! which essentially shut off all reaction and transports, if min_ratio too small.
         if (ratio<1.d0) then
-          dC_p = dC_p*ratio*0.99d0
+          dC_p(i) = dC_p(i)*ratio*0.99d0
         endif
       endif
     enddo
