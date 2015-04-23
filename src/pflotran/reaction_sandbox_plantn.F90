@@ -542,15 +542,6 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   endif !if(this%ispec_nh4 > 0)
 
-!if ((c_nh4 < 1.d-5 .or. c_no3 < 1.d-5) .and. compute_derivative ) then
-!print *, '----------------------------------------------'
-!print *, 'Reaction Sandbox: PLANT N UPTAKE 1'
-!print *, 'ghosted_id=',ghosted_id, &
-!' c_nh4=', c_nh4, ' res_nh4=', Residual(ires_nh4),  ' jac_nh4=', Jacobian(ires_nh4,ires_nh4), &
-!' c_no3=', c_no3, ' res_no3=', Residual(ires_no3),  ' jac_no3=', Jacobian(ires_no3,ires_no3)
-!endif
-
-
   !
   if(this%ispec_no3 > 0) then
 
@@ -600,14 +591,8 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
     endif
 
-if (compute_derivative) then
-print *, 'ghosted_id=',ghosted_id, 'c_no3=', c_no3/L_water, 'nrate_no3=', nrate_no3, &
-   ' dnrate_no3_dno3=',dnrate_no3_dno3
-print *, ' c_no3=', c_no3, ' res_no3=', Residual(ires_no3),  ' jac_no3=', Jacobian(ires_no3,ires_no3)
-endif
 
   endif
-
 
   if (option%print_file_flag) then
 
@@ -623,15 +608,6 @@ endif
           'uprate_no3=',this%rate_plantndemand*fno3*(1.d0-fnh4_inhibit_no3)*option%dt
        endif
     endif
-
-!if ((c_nh4 < 1.d-5 .or. c_no3 < 1.d-5)  .and. compute_derivative) then
-!print *, '----------------------------------------------'
-!print *, 'Reaction Sandbox: PLANT N UPTAKE 2'
-!print *, 'ghosted_id=',ghosted_id, &
-!' c_nh4=', c_nh4, ' res_nh4=', Residual(ires_nh4),  ' jac_nh4=', Jacobian(ires_nh4,ires_nh4), &
-!' c_no3=', c_no3, ' res_no3=', Residual(ires_no3),  ' jac_no3=', Jacobian(ires_no3,ires_no3)
-!endif
-
 
     do ires=1, reaction%ncomp
       temp_real = Residual(ires)
