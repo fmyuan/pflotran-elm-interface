@@ -457,12 +457,12 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     if (this%ispec_nh4 > 0) then
        nratecap = this%rate_plantndemand * dtmin
        if (this%ispec_no3 > 0) nratecap = this%rate_plantndemand*fnh4_inhibit_no3*dtmin
-       if (nratecap > c_nh4) then
+       if (nratecap > c_nh4*volume) then
          ! assuming that monod type reduction used and 'nratecap' must be reduced to 'c_nh4', i.e.
          ! c_nh4/dt = nratecap/dt * (c_nh4/(c_nh4+c0))
          ! then, c0 = nratecap - c_nh4 (this is the 'half-saturation' term used above)
-         fnratecap = funcMonod(c_nh4, nratecap-c_nh4, PETSC_FALSE)
-         dfnratecap_dnh4 = funcMonod(c_nh4, nratecap-c_nh4, PETSC_TRUE)
+         fnratecap = funcMonod(c_nh4*volume, nratecap-c_nh4*volume, PETSC_FALSE)
+         dfnratecap_dnh4 = funcMonod(c_nh4*volume, nratecap-c_nh4*volume, PETSC_TRUE)
        else
          fnratecap       = 1.d0
          dfnratecap_dnh4 = 0.d0
@@ -476,9 +476,9 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     if (this%ispec_no3 > 0) then
        nratecap = this%rate_plantndemand * dtmin
        if (this%ispec_nh4 > 0) nratecap = this%rate_plantndemand*(1.-fnh4_inhibit_no3)*dtmin
-       if (nratecap > c_no3) then
-         fnratecap = funcMonod(c_no3, nratecap-c_no3, PETSC_FALSE)
-         dfnratecap_dno3 = funcMonod(c_no3, nratecap-c_no3, PETSC_TRUE)
+       if (nratecap > c_no3*volume) then
+         fnratecap = funcMonod(c_no3*volume, nratecap-c_no3*volume, PETSC_FALSE)
+         dfnratecap_dno3 = funcMonod(c_no3*volume, nratecap-c_no3*volume, PETSC_TRUE)
        else
          fnratecap       = 1.d0
          dfnratecap_dno3 = 0.d0

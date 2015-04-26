@@ -1265,13 +1265,13 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
       if (crate_uc*this%mineral_n_stoich(irxn) < 0.d0) then
         !
-        nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin
-        if (nratecap*fnh4_inhibit_no3 > c_nh4) then
+        nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin   ! unit: moles
+        if (nratecap*fnh4_inhibit_no3 > c_nh4*volume) then       ! c_nh4 unit: moles/m3 bulk soil
           ! assuming that monod type reduction used and 'nratecap' must be reduced to 'c_nh4', i.e.
-          ! c_nh4/dt = nratecap*fnh4_inhibit_no3/dt * (c_nh4/(c_nh4+c0))
-          ! then, c0 = nratecap*fnh4_inhibit_no3 - c_nh4 (this is the 'half-saturation' term used above)
-          fnratecap = funcMonod(c_nh4, nratecap*fnh4_inhibit_no3-c_nh4, PETSC_FALSE)
-          dfnratecap_dnh4 = funcMonod(c_nh4, nratecap*fnh4_inhibit_no3-c_nh4, PETSC_TRUE)
+          ! c_nh4*volume/dt = nratecap*fnh4_inhibit_no3/dt * (c_nh4*volume/(c_nh4*volume+c0))
+          ! then, c0 = nratecap*fnh4_inhibit_no3 - c_nh4*volume (this is the 'half-saturation' term used above)
+          fnratecap = funcMonod(c_nh4*volume, nratecap*fnh4_inhibit_no3-c_nh4*volume, PETSC_FALSE)
+          dfnratecap_dnh4 = funcMonod(c_nh4*volume, nratecap*fnh4_inhibit_no3-c_nh4*volume, PETSC_TRUE)
         else
           fnratecap       = 1.d0
           dfnratecap_dnh4 = 0.d0
@@ -1280,9 +1280,9 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         fnh4 = fnh4 * fnratecap
         !
         if (this%species_id_no3 > 0) then
-          if (nratecap*(1.d0-fnh4_inhibit_no3) > c_no3) then
-            fnratecap = funcMonod(c_no3, nratecap*(1.d0-fnh4_inhibit_no3)-c_no3, PETSC_FALSE)
-            dfnratecap_dno3 = funcMonod(c_no3, nratecap*(1.d0-fnh4_inhibit_no3)-c_no3, PETSC_TRUE)
+          if (nratecap*(1.d0-fnh4_inhibit_no3) > c_no3*volume) then
+            fnratecap = funcMonod(c_no3*volume, nratecap*(1.d0-fnh4_inhibit_no3)-c_no3*volume, PETSC_FALSE)
+            dfnratecap_dno3 = funcMonod(c_no3*volume, nratecap*(1.d0-fnh4_inhibit_no3)-c_no3*volume, PETSC_TRUE)
           else
             fnratecap       = 1.d0
             dfnratecap_dno3 = 0.d0
