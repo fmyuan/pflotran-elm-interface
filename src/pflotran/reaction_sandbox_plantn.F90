@@ -594,6 +594,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   endif
 
+#ifdef DEBUG
   if (option%print_file_flag) then
 
     if(option%tran_dt<=option%dt_min) then
@@ -621,6 +622,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
     enddo
 
   endif
+#endif
 
 end subroutine PlantNReact
 

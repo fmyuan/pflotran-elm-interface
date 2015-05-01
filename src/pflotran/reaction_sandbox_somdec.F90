@@ -1252,7 +1252,6 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         fno3 = fno3 * feps0
       endif
 
-!#ifdef test
       ! constraining 'N immobilization rate' locally if too high compared to available within the allowable min. time-step
       ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
       ! - implying tiny timestep in model, which potentially crashes model
@@ -1292,7 +1291,6 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         endif
         !
       endif
-!#endif
 
       !----------- overall rate ------
       crate_nh4 = fnh4
@@ -1310,6 +1308,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         crate = crate_uc * (crate_nh4 + crate_no3)
       endif
 
+#ifdef DEBUG
       if(option%tran_dt<=option%dt_min .and. option%print_file_flag) then
         if (-crate_uc*crate_nh4*this%mineral_n_stoich(irxn)*option%dt_min>=c_nh4-this%x0eps .or.  &
             -crate_uc*crate_no3*this%mineral_n_stoich(irxn)*option%dt_min>=c_no3-this%x0eps) then
@@ -1324,6 +1323,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
              'crate0_n03=',crate_uc*this%mineral_n_stoich(irxn)*(1.d0-fnh4_inhibit_no3)*option%dt
         endif
       endif
+#endif
 
     endif  !if(this%mineral_n_stoich(irxn) < 0.0d0) (i.e. immobilization)
 
