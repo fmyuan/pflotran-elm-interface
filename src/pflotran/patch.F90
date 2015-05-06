@@ -1983,7 +1983,9 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   use Condition_module
   use Hydrostatic_module
   use Saturation_module
-  
+#ifdef CLM_PFLOTRAN
+  use Saturation_Function_module
+#endif
   
   use General_Aux_module
   use Grid_module
@@ -2036,6 +2038,27 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
+
+#ifdef CLM_PFLOTRAN
+    ! if coupled with CLM, hydraulic properties are varied for each cell, no matter what inputs are.
+    ! currently, only support 'Brooks_Coreys-Burdine' types of functions
+      if(patch%aux%Richards%auxvars(ghosted_id)%bc_alpha > 0.d0) then
+        patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
+           %ptr%alpha  = patch%aux%Richards%auxvars(ghosted_id)%bc_alpha
+        patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
+           %ptr%lambda = patch%aux%Richards%auxvars(ghosted_id)%bc_lambda
+        patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
+           %ptr%sr(1) = patch%aux%Richards%auxvars(ghosted_id)%bc_sr1
+
+       ! needs to re-calculate some extra variables for 'saturation_function', if changed above
+       call SatFunctionComputePolynomial(option,  &
+             patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr)
+       call PermFunctionComputePolynomial(option, &
+             patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr)
+
+      endif
+#endif
+
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
                                  patch%sat_func_id)

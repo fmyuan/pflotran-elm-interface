@@ -649,7 +649,7 @@ end subroutine pflotranModelSetICs
     PetscReal          :: den, vis, grav
     PetscReal, pointer :: porosity_loc_p(:), vol_ovlap_arr(:)
     PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
-    PetscReal          :: bc_lambda, bc_alpha
+    PetscReal          :: bc_lambda, bc_alpha, bc_sr
 
     PetscScalar, pointer :: hksat_x_pf_loc(:) ! hydraulic conductivity in x-dir at saturation (mm H2O /s)
     PetscScalar, pointer :: hksat_y_pf_loc(:) ! hydraulic conductivity in y-dir at saturation (mm H2O /s)
@@ -657,6 +657,11 @@ end subroutine pflotranModelSetICs
     PetscScalar, pointer :: watsat_pf_loc(:)  ! volumetric soil water at saturation (porosity)
     PetscScalar, pointer :: sucsat_pf_loc(:)  ! minimum soil suction (mm)
     PetscScalar, pointer :: bsw_pf_loc(:)     ! Clapp and Hornberger "b"
+    PetscScalar, pointer :: lamda_pf_loc(:)   ! Clapp and Hornberger "1/b"
+    PetscScalar, pointer :: alpha_pf_loc(:)   ! Clapp and Hornberger "alpha"
+    PetscScalar, pointer :: sr_pf_loc(:)      ! Clapp and Hornberger "sr"
+    PetscScalar, pointer :: pcwmax_pf_loc(:)  ! Clapp and Hornberger "pcwmax"
+
     PetscScalar, pointer :: zsoi_pf_loc(:)    ! soil depth (m)
 
     den = 998.2d0       ! [kg/m^3]  @ 20 degC
@@ -726,6 +731,26 @@ end subroutine pflotranModelSetICs
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
+                                    clm_pf_idata%alpha_clmp, &
+                                    clm_pf_idata%alpha_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%lamda_clmp, &
+                                    clm_pf_idata%lamda_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%sr_clmp, &
+                                    clm_pf_idata%sr_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%pcwmax_clmp, &
+                                    clm_pf_idata%pcwmax_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
                                     clm_pf_idata%watfc_clm, &
                                     clm_pf_idata%watfc_pf)
 
@@ -751,6 +776,14 @@ end subroutine pflotranModelSetICs
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
     CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%alpha_pfs,  alpha_pf_loc,   ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%lamda_pfs,  lamda_pf_loc,   ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%sr_pfs,     sr_pf_loc,      ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%pcwmax_pfs, pcwmax_pf_loc,  ierr)
+    CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
     CHKERRQ(ierr)
 
@@ -775,60 +808,58 @@ end subroutine pflotranModelSetICs
         if (patch%imat(ghosted_id) <= 0) cycle
       endif
 
-#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
-      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (watsat):
-      !  (turn it on with similar output in clm_pflotran_interfaceMod.F90 and reaction_sandbox_denitrification.F90)
-      ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
-      !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
-      !              (2) data-passing IS by from 'ghosted_id' to PF-internal (field%)-vec 'local_id';
-      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model prior to set soil properties: ', &
-        'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
-        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
-        'pfp_porosity(local_id)=',porosity_loc_p(local_id), &
-        'clms_watsat(ghosted_id)=',watsat_pf_loc(ghosted_id)
-#endif
+      !(TODO) need a better way to generate MVG parameters from CLM inputs
 
-
-    !(TODO) need a better way to generate MVM parameters from CLM inputs
-      ! bc_alpha [1/Pa]; while sucsat [mm of H20]
-      ! [Pa] = [mm of H20] * 0.001 [m/mm] * 1000 [kg/m^3] * 9.81 [m/sec^2]
-      bc_alpha = 1.d0/(sucsat_pf_loc(ghosted_id)*grav)
-
-      ! bc_lambda = 1/bsw
-      bc_lambda = 1.d0/bsw_pf_loc(ghosted_id)
-      
-      select case(pflotran_model%option%iflowmode)
-        case(RICHARDS_MODE)
-          rich_auxvar => rich_auxvars(ghosted_id)
-          rich_auxvar%bc_alpha  = min(bc_alpha,1.d-4)
-          rich_auxvar%bc_lambda = bc_lambda
-        case(TH_MODE)
-          th_auxvar => th_auxvars(ghosted_id)
-          th_auxvar%bc_alpha  = min(bc_alpha,10.d-4)
-          th_auxvar%bc_lambda = bc_lambda
-      end select
-
-#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
-      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (bsw ~ 1/lambda):
-      !              (2) data-passing IS by from 'ghosted_id' to PF-auxvars 'ghosted_id';
+      !F.-M. Yuan: (1) the following IS to pass CLM soil hydraulic data into 'saturation_function';
+      !            (2) data-passing IS by from 'ghosted_id' to PF's 'local_id'.
       if(pflotran_model%option%nflowdof > 0) then
 
        saturation_function => patch%  &
-         saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
+         saturation_function_array(patch%sat_func_id(local_id))%ptr
 
-      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model prior to set soil properties: ', &
-        'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
-        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
-        'sat_funcid(ghosted_id)=',patch%sat_func_id(ghosted_id), &
-        'pfsatfunc_alpha=',saturation_function%alpha, &
-        'clms_alpha(ghosted_id)=',bc_alpha, &
-        'pfsatfunc_lambda=',saturation_function%lambda, &
-        'clms_1/bsw(ghosted_id)=',bc_lambda
+       ! currently VG-Mulaem saturation function type - NOT YET done in CLM (TODO)
+       ! if ( saturation_function%saturation_function_itype == VAN_GENUCHTEN .and. &
+       !      saturation_function%permeability_function_itype == MUALEM )         then
+       !
+       !   bc_alpha  = alpha_pf_loc(ghosted_id)
+       !   bc_lambda = lamda_pf_loc(ghosted_id)   ! 'm' in VG function ( or, n=1/(1-m))
+       !   bc_Sr(1)  = sr_pf_loc(ghosted_id)      ! currently only for liq. water, NOTE that if at 'Sr', pc = inf
+       !   bc_pcwmax = pcwmax_pf_loc(ghosted_id)  ! this parameter IS not corresponding with 'Sr'
+
+       ! currently BC-Burdine saturation function type, with specified values to match with Clapp-Hornberger Eq.
+        if ( saturation_function%saturation_function_itype == BROOKS_COREY .and. &
+             saturation_function%permeability_function_itype == BURDINE )         then
+          ! Clapp-Hornberger: soilpsi = sucsat * (-9.81) * (fsattmp)**(-bsw)  ! mm H2O Head --> -pa
+          !                   K = Ks*fsattmp**(3+2/bsw)
+          !         vs.
+          ! BC-Burdine: pc =  (Se**(-1.d0/lambda))/alpha, with Se=(lsat-Sr)/(1-Sr)
+          !             relative_perm = Se**power, with power = 3+2/lamda
+
+          bc_alpha  = 1.d0/(9.81d0*sucsat_pf_loc(ghosted_id))
+          bc_lambda = 1.d0/bsw_pf_loc(ghosted_id)   !
+          bc_sr     = 0.0d0
+        else
+            call printErrMsg(pflotran_model%option, &
+               'Currently ONLY support Brooks_COREY-Burdine saturation function type when coupled with CLM')
+
+        end if
+
+      select case(pflotran_model%option%iflowmode)
+        case(RICHARDS_MODE)
+          rich_auxvar => rich_auxvars(ghosted_id)
+          rich_auxvar%bc_alpha  = bc_alpha
+          rich_auxvar%bc_lambda = bc_lambda
+          rich_auxvar%bc_sr1    = bc_sr
+        case(TH_MODE)
+          th_auxvar => th_auxvars(ghosted_id)
+          th_auxvar%bc_alpha  = bc_alpha
+          th_auxvar%bc_lambda = bc_lambda
+          th_auxvar%bc_sr1    = bc_sr
+      end select
 
       endif
 
-#endif
-
+      ! hydraulic conductivity => permissivity IS going to 'field%'
       ! perm = hydraulic-conductivity * viscosity / ( density * gravity )
       ! [m^2]          [mm/sec]
       if(pflotran_model%option%iflowmode==RICHARDS_MODE .or. &
@@ -840,6 +871,23 @@ end subroutine pflotranModelSetICs
       endif
 
       porosity_loc_p(local_id) = watsat_pf_loc(ghosted_id)
+
+#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
+      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (watsat):
+      !  (turn it on with similar output in clm_pflotran_interfaceMod.F90 and reaction_sandbox_denitrification.F90)
+      ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
+      !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
+      !              (2) data-passing IS by from 'ghosted_id' to PF-internal (field%)-vec 'local_id';
+      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model prior to set soil properties: ', &
+        'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'pfp_porosity(local_id)=',porosity_loc_p(local_id), &
+        'clms_watsat(ghosted_id)=',watsat_pf_loc(ghosted_id), &
+        'saturation_function_alpha=', saturation_function%alpha, &
+        'saturation_function_lambda=', saturation_function%lambda, &
+        'saturation_function_sr=', saturation_function%sr(1), &
+        'saturation_function_pcwmax=', saturation_function%pcwmax
+#endif
 
     enddo
 
@@ -854,6 +902,14 @@ end subroutine pflotranModelSetICs
     call VecRestoreArrayF90(clm_pf_idata%watsat_pf,  watsat_pf_loc,  ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%bsw_pf,     bsw_pf_loc,     ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%alpha_pfs,  alpha_pf_loc,   ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%lamda_pfs,  lamda_pf_loc,   ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%sr_pfs,     sr_pf_loc,      ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%pcwmax_pfs, pcwmax_pf_loc,  ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
     CHKERRQ(ierr)
@@ -4562,16 +4618,23 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
         'pfsatfun_alpha=',saturation_function%alpha, &
         'richauxvars_alpha= ',patch%aux%Richards%auxvars(ghosted_id)%bc_alpha, &
         'pfsatfun_lambda=',saturation_function%lambda, &
-        'richauxvars_lambda= ',patch%aux%Richards%auxvars(ghosted_id)%bc_lambda
-
+        'richauxvars_lambda= ',patch%aux%Richards%auxvars(ghosted_id)%bc_lambda, &
+        'pfsatfun_sr1=',saturation_function%sr(1), &
+        'richauxvars_sr1= ',patch%aux%Richards%auxvars(ghosted_id)%bc_sr1
 #endif
+
         if (pflotran_model%option%iflowmode==RICHARDS_MODE) then
           saturation_function%alpha  = patch%aux%Richards%auxvars(ghosted_id)%bc_alpha
           saturation_function%lambda = patch%aux%Richards%auxvars(ghosted_id)%bc_lambda
+          saturation_function%sr(1)  = patch%aux%Richards%auxvars(ghosted_id)%bc_sr1
         elseif (pflotran_model%option%iflowmode==TH_MODE) then
           saturation_function%alpha  = patch%aux%TH%auxvars(ghosted_id)%bc_alpha
           saturation_function%lambda = patch%aux%TH%auxvars(ghosted_id)%bc_lambda
+          saturation_function%sr(1)  = patch%aux%TH%auxvars(ghosted_id)%bc_sr1
         endif
+       ! needs to re-calculate some extra variables for 'saturation_function', if changed above
+       call SatFunctionComputePolynomial(pflotran_model%option,saturation_function)
+       call PermFunctionComputePolynomial(pflotran_model%option,saturation_function)
 
         ! PF's limits on soil matrix potential (Capillary pressure)
         pcwmax_loc_pfp(local_id) = saturation_function%pcwmax
@@ -4690,21 +4753,22 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
         CHKERRQ(ierr)
 
         do ghosted_id=1, grid%ngmax
-            local_id=grid%nG2L(ghosted_id)
-            if (ghosted_id<=0 .or. local_id <=0) cycle
-            if (patch%imat(local_id) <=0) cycle
+          local_id=grid%nG2L(ghosted_id)
+          if (ghosted_id<=0 .or. local_id <=0) cycle
+          if (patch%imat(local_id) <=0) cycle
 
 #if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
-! F.-M. Yuan: the following check proves DATA-passing from CLM to PF MUST BE done by ghosted_id --> ghosted_id
-! if passing to 'global_auxvars'
-write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 1 (CLM->PF lsat): ', &
-        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
-        'sat_globalvars(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
-        'sat_pfs(ghosted_id)=',soillsat_pf_loc(ghosted_id)
+       ! F.-M. Yuan: the following check proves DATA-passing from CLM to PF MUST BE done by ghosted_id --> ghosted_id
+       ! if passing to 'global_auxvars'
+          write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 1 (CLM->PF lsat): ', &
+              'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+              'sat_globalvars(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
+              'sat_pfs(ghosted_id)=',soillsat_pf_loc(ghosted_id)
 #endif
-            global_auxvars(ghosted_id)%sat(1)=soillsat_pf_loc(ghosted_id)
-            global_auxvars(ghosted_id)%pres(1)=soilpress_pf_loc(ghosted_id)
+          global_auxvars(ghosted_id)%sat(1)=soillsat_pf_loc(ghosted_id)
+          global_auxvars(ghosted_id)%pres(1)=soilpress_pf_loc(ghosted_id)
         enddo
+
         call VecRestoreArrayF90(clm_pf_idata%soillsat_pfs, soillsat_pf_loc, ierr)
         CHKERRQ(ierr)
         call VecRestoreArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)

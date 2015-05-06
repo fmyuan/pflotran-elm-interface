@@ -10,9 +10,6 @@ module Richards_module
   
   use PFLOTRAN_Constants_module
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  use clm_pflotran_interface_data
-#endif
   implicit none
   
   private 
@@ -234,12 +231,21 @@ subroutine RichardsCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
       sat = global_auxvars(ghosted_id)%sat(1)
       sat_pert = sat - sign(1.d0,sat-0.5d0)*pert
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+#ifdef CLM_PFLOTRAN
       if(rich_auxvars(ghosted_id)%bc_alpha > 0.d0) then
         patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
            %ptr%alpha  = rich_auxvars(ghosted_id)%bc_alpha
         patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
            %ptr%lambda = rich_auxvars(ghosted_id)%bc_lambda
+        patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
+           %ptr%sr(1) = rich_auxvars(ghosted_id)%bc_sr1
+
+       ! needs to re-calculate some extra variables for 'saturation_function', if changed above
+       call SatFunctionComputePolynomial(option,  &
+             patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr)
+       call PermFunctionComputePolynomial(option, &
+             patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr)
+
       endif
 #endif
 
@@ -820,6 +826,12 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
           xxbc(1) = xx_loc_p(ghosted_id)
       end select
      
+#ifdef CLM_PFLOTRAN
+      call RichardsAuxVarCopy(rich_auxvars(ghosted_id), &
+                              rich_auxvars_bc(sum_connection),option)
+      call GlobalAuxVarCopy(global_auxvars(ghosted_id), &
+                            global_auxvars_bc(sum_connection),option)
+#endif
  
       call RichardsAuxVarCompute(xxbc(1),rich_auxvars_bc(sum_connection), &
                          global_auxvars_bc(sum_connection), &
@@ -1027,6 +1039,8 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
 
     !geh - Ignore inactive cells with inactive materials
     if (patch%imat(ghosted_id) <= 0) cycle
+
+
     call RichardsAuxVarCompute(xx_p(local_id:local_id), &
                    rich_auxvars(ghosted_id),global_auxvars(ghosted_id), &
                    material_auxvars(ghosted_id), &
