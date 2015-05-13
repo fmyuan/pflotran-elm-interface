@@ -1297,9 +1297,6 @@ subroutine ReactionEquilibrateConstraint(rt_auxvar,global_auxvar, &
   use co2eos_module, only: Henry_duan_sun
   use co2_span_wagner_module, only: co2_span_wagner
 
-  ! plog inverse function
-  use lambertw_module, only: wapr
-
   implicit none
   
   type(reactive_transport_auxvar_type) :: rt_auxvar
@@ -3275,8 +3272,6 @@ subroutine RReact(rt_auxvar,global_auxvar,material_auxvar,tran_xx_p, &
 
   use Option_module
   
-  use lambertw_module, only: wapr
-
   implicit none
   
   type(reaction_type), pointer :: reaction
