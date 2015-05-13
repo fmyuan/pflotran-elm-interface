@@ -73,6 +73,7 @@ module TH_Aux_module
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
     PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
     PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda
+    PetscReal :: bc_sr1    ! Brooks Corey parameterization: sr(1)
 #endif
   end type TH_auxvar_type
 
@@ -217,7 +218,8 @@ subroutine THAuxVarInit(auxvar,option)
   ! NOTE(bja, 2013-12) always initialize ice variables to zero, even if not used!
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   auxvar%bc_alpha  = uninit_value
-  auxvar%bc_lambda  = uninit_value
+  auxvar%bc_lambda = uninit_value
+  auxvar%bc_sr1    = 1.d-9
 #endif
   auxvar%sat_ice       = uninit_value
   auxvar%sat_gas       = uninit_value
@@ -328,6 +330,7 @@ subroutine THAuxVarCopy(auxvar,auxvar2,option)
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   auxvar2%bc_alpha  = auxvar%bc_alpha
   auxvar2%bc_lambda = auxvar%bc_lambda
+  auxvar2%bc_sr1    = auxvar%bc_sr1
 #endif
 
   auxvar2%surf_wat = auxvar%surf_wat
@@ -423,6 +426,10 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
     if(auxvar%bc_alpha > 0.d0) then
        saturation_function%alpha  = auxvar%bc_alpha
        saturation_function%lambda = auxvar%bc_lambda
+       saturation_function%sr(1)  = auxvar%bc_sr1
+       ! needs to re-calculate some extra variables for 'saturation_function', if changed above
+       call SatFunctionComputePolynomial(option,saturation_function)
+       call PermFunctionComputePolynomial(option,saturation_function)
     endif
 #endif
     call SaturationFunctionCompute(auxvar%pc,global_auxvar%sat(1), &
@@ -629,6 +636,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     if(auxvar%bc_alpha > 0.d0) then
        saturation_function%alpha  = auxvar%bc_alpha
        saturation_function%lambda = auxvar%bc_lambda
+       saturation_function%sr(1)  = auxvar%bc_sr1
     endif
 #endif
 
@@ -638,6 +646,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     if(auxvar%bc_alpha > 0.d0) then
        saturation_function%alpha  = auxvar%bc_alpha
        saturation_function%lambda = auxvar%bc_lambda
+       saturation_function%sr(1)  = auxvar%bc_sr1
     endif
 #endif
 

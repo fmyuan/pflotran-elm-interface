@@ -100,6 +100,8 @@ CHEMISTRY
         UPSTREAM_POOL SOM4
         TURNOVER_TIME 27.4 y
       /
+      AMMONIUM_HALF_SATURATION 1.d-4
+      NITRATE_HALF_SATURATION 1.d-4
     /
   /
 #  LOG_FORMULATION
@@ -182,8 +184,8 @@ END
 #=========================== transport constraints ============================
 CONSTRAINT initial
   CONCENTRATIONS
-    NH4+     4.d-6      T  ! moles/L
-    NO3-     4.d-6      T  ! moles/L
+    NH4+     2.d-6      T  ! moles/L
+    NO3-     2.d-6      T  ! moles/L
     N2O(aq)  1.d-20     T  ! moles/L
     CO2(aq)  1.d-40     T  ! moles/L
     H+       6.0d0      pH

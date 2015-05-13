@@ -31,9 +31,10 @@ module Richards_Aux_module
 #endif
     PetscReal :: dsat_dp
     PetscReal :: dden_dp
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+#ifdef CLM_PFLOTRAN
     PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
-    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda    
+    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda
+    PetscReal :: bc_sr1    ! Brooks Corey parameterization: sr(1)
 #endif
 
     PetscReal :: P_min
@@ -154,10 +155,11 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%dsat_dp = 0.d0
   auxvar%dden_dp = 0.d0
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+#ifdef CLM_PFLOTRAN
   auxvar%bc_alpha  = 0.0d0
-  auxvar%bc_lambda  = 0.0d0
-#endif 
+  auxvar%bc_lambda = 0.0d0
+  auxvar%bc_sr1    = 1.0d-9
+#endif
 
   auxvar%P_min = 0.d0
   auxvar%P_max = 0.d0
@@ -201,9 +203,10 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%dsat_dp = auxvar%dsat_dp
   auxvar2%dden_dp = auxvar%dden_dp
  
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+#ifdef CLM_PFLOTRAN
   auxvar2%bc_alpha  = auxvar%bc_alpha
   auxvar2%bc_lambda = auxvar%bc_lambda
+  auxvar2%bc_sr1    = auxvar%bc_sr1
 #endif
 
   auxvar2%P_min = auxvar%P_min
@@ -299,10 +302,14 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   if (auxvar%pc > 0.d0) then
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
+#ifdef CLM_PFLOTRAN
     if(auxvar%bc_alpha > 0.d0) then
        saturation_function%alpha  = auxvar%bc_alpha
        saturation_function%lambda = auxvar%bc_lambda
+       saturation_function%sr(1)  = auxvar%bc_sr1
+       ! needs to re-calculate some extra variables for 'saturation_function', if changed above
+       call SatFunctionComputePolynomial(option,saturation_function)
+       call PermFunctionComputePolynomial(option,saturation_function)
     endif
 #endif
 
