@@ -1813,7 +1813,7 @@ subroutine HDF5ReadRegionFromFile(realization,region,filename)
                               integer_array)
                             
     region%faces => integer_array
-    region%def_type = DEFINED_BY_CELL_IDS_WTIH_FACE_IDS
+    region%def_type = DEFINED_BY_CELL_AND_FACE_IDS
   endif
   region%num_cells = num_indices
   deallocate(indices)
@@ -1852,6 +1852,10 @@ subroutine HDF5ReadRegionFromFile(realization,region,filename)
   option%io_buffer = 'Opening group: ' // trim(string)
   call printMsg(option)  
   call h5gopen_f(grp_id,string,grp_id2,hdf5_err)
+  if (hdf5_err /= 0) then
+    option%io_buffer = 'HDF5 group "' // trim(region%name) // '" not found.'
+    call printErrMsg(option)
+  endif
 
  allocate(indices(grid%nlmax))
  ! Read Cell Ids
@@ -1892,7 +1896,7 @@ subroutine HDF5ReadRegionFromFile(realization,region,filename)
                               integer_array)
                             
     region%faces => integer_array
-    region%def_type = DEFINED_BY_CELL_IDS_WTIH_FACE_IDS
+    region%def_type = DEFINED_BY_CELL_AND_FACE_IDS
   endif
   region%num_cells = num_indices
   deallocate(indices)
@@ -2140,7 +2144,7 @@ subroutine HDF5ReadUnstructuredGridRegionFromFile(option,region,filename)
        !
        ! Input data is: Cell IDs + Face IDs
        !
-       region%def_type = DEFINED_BY_CELL_IDS_WTIH_FACE_IDS
+       region%def_type = DEFINED_BY_CELL_AND_FACE_IDS
        region%num_cells = region%num_verts
        allocate(region%cell_ids(region%num_cells))
        allocate(region%faces(region%num_cells))

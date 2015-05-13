@@ -288,6 +288,8 @@ subroutine ReactionReadPass1(reaction,input,option)
           prev_immobile_species => immobile_species
           nullify(immobile_species)
         enddo        
+      case('IMMOBILE_DECAY_REACTION')
+        call ImmobileDecayRxnRead(reaction%immobile,input,option)
       case('RADIOACTIVE_DECAY_REACTION')
         reaction%nradiodecay_rxn = reaction%nradiodecay_rxn + 1
         radioactive_decay_rxn => RadioactiveDecayRxnCreate()
@@ -341,6 +343,10 @@ subroutine ReactionReadPass1(reaction,input,option)
               ! convert half life to rate constant
               radioactive_decay_rxn%rate_constant = &
                 -1.d0*log(0.5d0)/radioactive_decay_rxn%rate_constant
+            case default
+              call InputKeywordUnrecognized(word, &
+                                          'CHEMISTRY,IMMOBILE_DECAY_REACTION', &
+                                            option)
           end select
         enddo   
         if (Uninitialized(radioactive_decay_rxn%rate_constant)) then
@@ -944,8 +950,8 @@ subroutine ReactionReadPass2(reaction,input,option)
     select case(trim(word))
       case('PRIMARY_SPECIES','SECONDARY_SPECIES','GAS_SPECIES', &
             'MINERALS','COLLOIDS','GENERAL_REACTION', &
-            'IMMOBILE_SPECIES', &
-            'RADIOACTIVE_DECAY_REACTION')
+            'IMMOBILE_SPECIES','RADIOACTIVE_DECAY_REACTION', &
+            'IMMOBILE_DECAY_REACTION')
         call InputSkipToEND(input,option,card)
       case('REDOX_SPECIES')
         call ReactionReadRedoxSpecies(reaction,input,option)
@@ -1019,7 +1025,7 @@ subroutine ReactionReadPass2(reaction,input,option)
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'MICROBIAL_REACTION','CHEMISTRY')
           select case(trim(word))
-            case('INHIBITION')
+            case('INHIBITION','MONOD','BIOMASS')
               call InputSkipToEND(input,option,word)
           end select 
         enddo
@@ -3508,6 +3514,11 @@ subroutine RReaction(Res,Jac,derivative,rt_auxvar,global_auxvar, &
                     material_auxvar,reaction,option)
   endif
   
+  if (reaction%immobile%ndecay_rxn > 0) then
+    call RImmobileDecay(Res,Jac,derivative,rt_auxvar,global_auxvar, &
+                        material_auxvar,reaction,option)
+  endif
+  
   if (associated(rxn_sandbox_list)) then
     call RSandbox(Res,Jac,derivative,rt_auxvar,global_auxvar, &
                   material_auxvar,reaction,option)
@@ -4594,7 +4605,7 @@ subroutine RRadioactiveDecay(Res,Jac,compute_derivative,rt_auxvar, &
   L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
             material_auxvar%volume*1.d3 ! L water
 
-  do irxn = 1, reaction%nradiodecay_rxn ! for each mineral
+  do irxn = 1, reaction%nradiodecay_rxn ! for each reaction
     
     ! units(kf): 1/sec
     

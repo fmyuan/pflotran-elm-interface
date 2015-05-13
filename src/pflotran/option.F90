@@ -91,8 +91,6 @@ module Option_module
 
     PetscInt :: ntrandof
   
-    PetscBool :: variables_swapped
-    
     PetscInt :: iflag
     PetscInt :: status
     !geh: remove once legacy code is gone.
@@ -208,8 +206,9 @@ module Option_module
     PetscInt :: rel_perm_aveg
     PetscBool :: first_step_after_restart
 
-    ! value of a cutoff for Manning's velocity
+    ! value of a cutoff for Manning's/Infiltration velocity
     PetscReal :: max_manning_velocity
+    PetscReal :: max_infiltration_velocity
 
   end type option_type
   
@@ -561,13 +560,13 @@ subroutine OptionInitRealization(option)
   option%use_matrix_buffer = PETSC_FALSE
   option%status = PROCEED 
   option%force_newton_iteration = PETSC_FALSE
-  option%variables_swapped = PETSC_FALSE
   option%print_explicit_primal_grid = PETSC_FALSE
   option%print_explicit_dual_grid = PETSC_FALSE  
   option%secondary_continuum_solver = 1
 
   ! initially set to a large value to effectively disable
   option%max_manning_velocity = 1.d20
+  option%max_infiltration_velocity = 1.d20
   
 end subroutine OptionInitRealization
 

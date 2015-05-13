@@ -361,9 +361,6 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
     ! since it is not checkied in PETSc.  Thus, I don't want to spend 
     ! time checking for changes and performing an allreduce for log 
     ! formulation.
-  elseif (realization%reaction%use_plog_formulation) then
-    ! C and dC are actually C+lnC and d(C+lnC), nothing needed here ?????
-
   else
     call VecGetLocalSize(C,n,ierr);CHKERRQ(ierr)
     call VecGetArrayReadF90(C,C_p,ierr);CHKERRQ(ierr)
@@ -1325,7 +1322,6 @@ subroutine RTCalculateRHS_t1(realization)
   use Option_module
   use Field_module  
   use Grid_module
-  use Mass_Transfer_module, only : mass_transfer_type  
 
   implicit none
   
@@ -1351,7 +1347,6 @@ subroutine RTCalculateRHS_t1(realization)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   type(coupler_type), pointer :: source_sink
-  type(mass_transfer_type), pointer :: cur_mass_transfer
   PetscInt :: sum_connection, iconn  
   PetscReal :: qsrc
   PetscInt :: offset, istartcoll, iendcoll, istartall, iendall, icomp, ieqgas
@@ -1522,15 +1517,11 @@ subroutine RTCalculateRHS_t1(realization)
   call VecRestoreArrayF90(field%tran_rhs,rhs_p,ierr);CHKERRQ(ierr)
 
   ! Mass Transfer
-  if (associated(realization%rt_mass_transfer_list)) then
-    cur_mass_transfer => realization%rt_mass_transfer_list
-    do
-      if (.not.associated(cur_mass_transfer)) exit
-      call VecStrideScatter(cur_mass_transfer%vec,cur_mass_transfer%idof-1, &
-                            field%tran_rhs,ADD_VALUES,ierr);CHKERRQ(ierr)
-      cur_mass_transfer => cur_mass_transfer%next
-    enddo
-  endif  
+  if (field%tran_mass_transfer /= 0) then
+    ! scale by -1.d0 for contribution to residual.  A negative contribution
+    ! indicates mass being added to system.
+    call VecAXPY(field%tran_rhs,-1.d0,field%tran_mass_transfer)
+  endif
   
 end subroutine RTCalculateRHS_t1
 
@@ -2226,7 +2217,6 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
   use Grid_module
   use Logging_module
   use Debug_module
-  use lambertw_module, only: wapr
 
   implicit none
 
@@ -2234,7 +2224,7 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
   Vec :: xx
   Vec :: r
   type(realization_type) :: realization
-  PetscReal, pointer :: xx_p(:), log_xx_p(:), plog_xx_p(:)
+  PetscReal, pointer :: xx_p(:), log_xx_p(:)
   PetscErrorCode :: ierr
   
   type(discretization_type), pointer :: discretization
@@ -2260,15 +2250,6 @@ subroutine RTResidual(snes,xx,r,realization,ierr)
     xx_p(:) = exp(log_xx_p(:))
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(xx,log_xx_p,ierr);CHKERRQ(ierr)
-    call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
-                                     field%tran_xx_loc,NTRANDOF)
-  elseif (realization%reaction%use_plog_formulation) then
-    ! have to convert the plog concentration to non-log form
-    call VecGetArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(xx,plog_xx_p,ierr);CHKERRQ(ierr)
-    !xx_p(:) = wapr(exp(plog_xx_p(:), 0, 0, 0)
-    call VecRestoreArrayF90(field%tran_xx,xx_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(xx,plog_xx_p,ierr);CHKERRQ(ierr)
     call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
                                      field%tran_xx_loc,NTRANDOF)
   else
@@ -2559,7 +2540,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 !        ! contribution to internal 
 !        rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) = &
 !          rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) + Res
-      endif
+        endif  
 
 #else
       call TFluxCoef_CD(option,cur_connection_set%area(iconn), &
@@ -2620,7 +2601,6 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   use Grid_module
   use Connection_module
   use Coupler_module
-  use Mass_Transfer_module, only : mass_transfer_type
   use Debug_module
   use Logging_module
   !geh: please leave the "only" clauses for Secondary_Continuum_XXX as this
@@ -2636,7 +2616,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   type(realization_type) :: realization  
   PetscErrorCode :: ierr
   
-  PetscReal, pointer :: r_p(:), accum_p(:)
+  PetscReal, pointer :: r_p(:), accum_p(:), vec_p(:)
   PetscInt :: local_id, ghosted_id
   PetscInt, parameter :: iphase = 1
   PetscInt :: i
@@ -2659,7 +2639,6 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   PetscReal :: Res(realization%reaction%ncomp)
   
   type(coupler_type), pointer :: source_sink
-  type(mass_transfer_type), pointer :: cur_mass_transfer  
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
   PetscReal :: qsrc, molality
@@ -2835,7 +2814,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
         ! contribution to internal 
 !        rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) = &
 !          rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) - Res
-      endif
+        endif
     enddo
     source_sink => source_sink%next
   enddo
@@ -2938,16 +2917,12 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   call VecRestoreArrayReadF90(field%tran_accum, accum_p, ierr);CHKERRQ(ierr)
  
   ! Mass Transfer
-  if (associated(realization%rt_mass_transfer_list)) then
-    cur_mass_transfer => realization%rt_mass_transfer_list
-    do
-      if (.not.associated(cur_mass_transfer)) exit
-      call VecGetArrayF90(cur_mass_transfer%vec, r_p, ierr);CHKERRQ(ierr)
-      call VecRestoreArrayF90(cur_mass_transfer%vec, r_p, ierr);CHKERRQ(ierr)
-      call VecStrideScatter(cur_mass_transfer%vec,cur_mass_transfer%idof-1, &
-                            r,ADD_VALUES,ierr);CHKERRQ(ierr)
-      cur_mass_transfer => cur_mass_transfer%next
-    enddo
+  if (field%tran_mass_transfer /= 0) then
+    ! scale by -1.d0 for contribution to residual.  A negative contribution
+    ! indicates mass being added to system.
+    call VecGetArrayF90(field%tran_mass_transfer,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%tran_mass_transfer,vec_p,ierr);CHKERRQ(ierr)
+    call VecAXPY(r,-1.d0,field%tran_mass_transfer,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine RTResidualNonFlux
@@ -3146,9 +3121,7 @@ subroutine RTJacobian(snes,xx,A,B,realization,ierr)
     call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
   endif
 
-  ! need to check with GLEN for why and if proper to do so for plog-formulation ?
-  if (realization%reaction%use_log_formulation &
-      .or. realization%reaction%use_plog_formulation) then
+  if (realization%reaction%use_log_formulation) then
     call MatDiagonalScaleLocal(J,realization%field%tran_work_loc, &
                                ierr);CHKERRQ(ierr)
 
@@ -3641,12 +3614,10 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   ! Mass Transfer - since the current implementation of mass transfer has
   ! mass transfer being fixed.  Nothing to do here as the contribution to
   ! the derivatives is zero.
-! if (associated(realization%mass_transfer_list)) then
-! endif
-
-  ! why needs the following ???
-  if (reaction%use_log_formulation .or. reaction%use_plog_formulation) then
-  !if (reaction%use_log_formulation) then
+!  if (field%tran_mass_transfer /= 0) then
+!  endif
+ 
+  if (reaction%use_log_formulation) then
     call PetscLogEventBegin(logging%event_rt_jacobian_zero_calc, &
                             ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%tran_work_loc, work_loc_p, ierr);CHKERRQ(ierr)
@@ -3769,8 +3740,7 @@ subroutine RTJacobianEquilibrateCO2(J,realization)
   do i = 1, zero_count
     ghosted_id = ghosted_rows(i) ! zero indexing back to 1-based
     if (patch%imat(ghosted_id) <= 0) cycle
-!    if (reaction%use_log_formulation) then
-    if (reaction%use_log_formulation .or. reaction%use_plog_formulation) then
+    if (reaction%use_log_formulation) then
       jacobian_entry = rt_auxvars(ghosted_id)%pri_molal(jco2)
     else
       jacobian_entry = 1.d0

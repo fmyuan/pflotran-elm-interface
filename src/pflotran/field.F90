@@ -49,6 +49,10 @@ module Field_module
     Vec :: tran_log_xx, tran_work_loc
     Vec :: tran_plog_xx
     
+    ! mass transfer
+    Vec :: flow_mass_transfer
+    Vec :: tran_mass_transfer
+    
     Vec :: flow_ts_mass_balance, flow_total_mass_balance
     Vec :: tran_ts_mass_balance, tran_total_mass_balance
 
@@ -137,6 +141,9 @@ function FieldCreate()
 
   field%tran_rhs = 0
   field%tran_rhs_coef = 0
+  
+  field%flow_mass_transfer = 0
+  field%tran_mass_transfer = 0
   
   field%flow_ts_mass_balance = 0
   field%flow_total_mass_balance = 0
@@ -282,6 +289,13 @@ subroutine FieldDestroy(field)
   endif
   if (field%tran_rhs_coef /= 0) then
     call VecDestroy(field%tran_rhs_coef,ierr);CHKERRQ(ierr)
+  endif
+
+  if (field%flow_mass_transfer /= 0) then
+    call VecDestroy(field%flow_mass_transfer,ierr);CHKERRQ(ierr)
+  endif
+  if (field%tran_mass_transfer /= 0) then
+    call VecDestroy(field%tran_mass_transfer,ierr);CHKERRQ(ierr)
   endif
 
   if (field%flow_ts_mass_balance /= 0) then
