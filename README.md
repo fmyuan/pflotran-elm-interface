@@ -20,7 +20,7 @@ PFLOTRAN-dev change set: 7dc944a171993b2b27c4a5de84ac0856404a5194 [7dc944a17199]
 
 Target CLM Version: CLM4_5_1_r85. (2015-03-03). 
 
-PFLOTRAN-dev change set: d7a655438480124d6596e7a5283398e684210086 [d7a655438480] (2015-05-15)
+PFLOTRAN-dev change set: 87da2df5ab30a429a3816854a304d7f4823d765f [87da2df5ab30] (2015-05-15)
 
 ### How do I get set up? ###
 
