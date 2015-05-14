@@ -73,14 +73,14 @@ module Timestepper_Base_class
   end type timestepper_base_type
   
   type, public :: stepper_base_header_type
-    real*8 :: time
-    real*8 :: dt
-    real*8 :: prev_dt
-    integer*8 :: num_steps
-    integer*8 :: cumulative_time_step_cuts
-    integer*8 :: num_constant_time_steps
-    integer*8 :: num_contig_revert_due_to_sync
-    integer*8 :: revert_dt
+    PetscReal :: time
+    PetscReal :: dt
+    PetscReal :: prev_dt
+    PetscInt :: num_steps
+    PetscInt :: cumulative_time_step_cuts
+    PetscInt :: num_constant_time_steps
+    PetscInt :: num_contig_revert_due_to_sync
+    PetscInt :: revert_dt
   end type stepper_base_header_type
   
   public :: TimestepperBaseCreate, &
@@ -151,7 +151,7 @@ subroutine TimestepperBaseInit(this)
   this%prev_dt = 0.d0
   this%dt = 1.d0
   this%dt_init = 1.d0
-  this%dt_max = 1.d-20   ! Ten zeptoseconds.
+  this%dt_min = 1.d-20   ! Ten zeptoseconds.
   this%dt_max = 3.1536d6 ! One-tenth of a year.  
   this%cfl_limiter = UNINITIALIZED_DOUBLE
   this%cfl_limiter_ts = 1.d20
@@ -422,7 +422,11 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
   do ! we cycle just in case the next waypoint is beyond the target_time
     if (equal_to_or_exceeds_sync_time .or. &
         (equal_to_or_exceeds_waypoint .and. force_to_match_waypoint)) then
-      max_time = min(sync_time,cur_waypoint%time)
+      if (force_to_match_waypoint) then
+        max_time = min(sync_time,cur_waypoint%time)
+      else
+        max_time = sync_time
+      endif
       ! decrement by time step size
       target_time = target_time - dt
       ! set new time step size based on max time

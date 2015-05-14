@@ -40,110 +40,23 @@ module General_module
   PetscInt :: debug_timestep_count
 #endif
 
-  public GeneralRead, &
-         GeneralSetup, &
-         GeneralInitializeTimestep, &
-         GeneralUpdateSolution, &
-         GeneralTimeCut,&
-         GeneralUpdateAuxVars, &
-         GeneralUpdateFixedAccum, &
-         GeneralComputeMassBalance, &
-         GeneralResidual, &
-         GeneralJacobian, &
-         GeneralGetTecplotHeader, &
-         GeneralSetPlotVariables, &
-         GeneralCheckUpdatePre, &
-         GeneralCheckUpdatePost, &
-         GeneralMapBCAuxvarsToGlobal, &
-         GeneralDestroy
+  public :: GeneralSetup, &
+            GeneralInitializeTimestep, &
+            GeneralUpdateSolution, &
+            GeneralTimeCut,&
+            GeneralUpdateAuxVars, &
+            GeneralUpdateFixedAccum, &
+            GeneralComputeMassBalance, &
+            GeneralResidual, &
+            GeneralJacobian, &
+            GeneralGetTecplotHeader, &
+            GeneralSetPlotVariables, &
+            GeneralCheckUpdatePre, &
+            GeneralCheckUpdatePost, &
+            GeneralMapBCAuxvarsToGlobal, &
+            GeneralDestroy
 
 contains
-
-! ************************************************************************** !
-
-subroutine GeneralRead(input,option)
-  ! 
-  ! Reads parameters for general phase
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 01/21/09
-  ! 
-
-  use Option_module
-  use Input_Aux_module
-  use String_module
-
-  implicit none
-  
-  type(input_type) :: input
-  type(option_type) :: option
-  
-  character(len=MAXWORDLENGTH) :: keyword, word
-
-  call InputReadWord(input,option,keyword,PETSC_TRUE)
-  if (input%ierr /= 0) then
-    return
-  endif
-  
-  input%ierr = 0
-  do
-  
-    call InputReadPflotranString(input,option)
-
-    if (InputCheckExit(input,option)) exit  
-
-    call InputReadWord(input,option,keyword,PETSC_TRUE)
-    call InputErrorMsg(input,option,'keyword','GENERAL_MODE')
-    call StringToUpper(keyword)   
-      
-    select case(trim(keyword))
-      case('TOUGH2_ITOL_SCALED_RESIDUAL')
-        call InputReadDouble(input,option,general_tough2_itol_scaled_res_e1)
-        call InputDefaultMsg(input,option,'tough_itol_scaled_residual_e1')
-        call InputReadDouble(input,option,general_tough2_itol_scaled_res_e2)
-        call InputDefaultMsg(input,option,'tough_itol_scaled_residual_e2')
-        general_tough2_conv_criteria = PETSC_True
-      case('WINDOW_EPSILON') 
-        call InputReadDouble(input,option,window_epsilon)
-        call InputErrorMsg(input,option,'window epsilon','GENERAL_MODE')
-      case('GAS_COMPONENT_FORMULA_WEIGHT')
-        !geh: assuming gas component is index 2
-        call InputReadDouble(input,option,fmw_comp(2))
-        call InputErrorMsg(input,option,'gas component formula wt.', &
-                           'GENERAL_MODE')
-      case('TWO_PHASE_ENERGY_DOF')
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'two_phase_energy_dof','GENERAL_MODE')
-        call GeneralAuxSetEnergyDOF(word,option)
-      case('ISOTHERMAL')
-        general_isothermal = PETSC_TRUE
-      case('NO_AIR')
-        general_no_air = PETSC_TRUE
-      case('MAXIMUM_PRESSURE_CHANGE')
-        call InputReadDouble(input,option,general_max_pressure_change)
-        call InputErrorMsg(input,option,'maximum pressure change', &
-                           'GENERAL_MODE')
-      case('MAX_ITERATION_BEFORE_DAMPING')
-        call InputReadInt(input,option,general_max_it_before_damping)
-        call InputErrorMsg(input,option,'maximum iteration before damping', &
-                           'GENERAL_MODE')
-      case('DAMPING_FACTOR')
-        call InputReadDouble(input,option,general_damping_factor)
-        call InputErrorMsg(input,option,'damping factor','GENERAL_MODE')
-      case default
-        call InputKeywordUnrecognized(keyword,'GENERAL Mode',option)
-    end select
-    
-  enddo  
-  
-  if (general_isothermal .and. &
-      general_2ph_energy_dof == GENERAL_AIR_PRESSURE_INDEX) then
-    option%io_buffer = 'Isothermal GENERAL mode may only be run with ' // &
-                       'temperature as the two phase energy dof.'
-    call printErrMsg(option)
-  endif
-
-end subroutine GeneralRead
 
 ! ************************************************************************** !
 
@@ -470,6 +383,128 @@ end subroutine GeneralTimeCut
 
 ! ************************************************************************** !
 
+subroutine GeneralNumericalJacobianTest(xx,realization,B)
+  ! 
+  ! Computes the a test numerical jacobian
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/03/15
+  ! 
+
+  use Realization_class
+  use Patch_module
+  use Option_module
+  use Grid_module
+  use Field_module
+
+  implicit none
+
+  Vec :: xx
+  type(realization_type) :: realization
+  Mat :: B
+
+  Vec :: xx_pert
+  Vec :: res
+  Vec :: res_pert
+  Mat :: A
+  PetscViewer :: viewer
+  PetscErrorCode :: ierr
+
+  PetscReal, pointer :: vec_p(:), vec2_p(:)
+
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(field_type), pointer :: field
+  PetscReal :: derivative, perturbation
+  PetscReal :: perturbation_tolerance = 1.d-6
+  PetscInt, save :: icall = 0
+  character(len=MAXWORDLENGTH) :: word, word2
+
+  PetscInt :: idof, idof2, icell
+
+  patch => realization%patch
+  grid => patch%grid
+  option => realization%option
+  field => realization%field
+
+  icall = icall + 1
+  call VecDuplicate(xx,xx_pert,ierr);CHKERRQ(ierr)
+  call VecDuplicate(xx,res,ierr);CHKERRQ(ierr)
+  call VecDuplicate(xx,res_pert,ierr);CHKERRQ(ierr)
+
+  call MatCreate(option%mycomm,A,ierr);CHKERRQ(ierr)
+  call MatSetType(A,MATAIJ,ierr);CHKERRQ(ierr)
+  call MatSetSizes(A,PETSC_DECIDE,PETSC_DECIDE,grid%nlmax*option%nflowdof, &
+                   grid%nlmax*option%nflowdof, &
+                   ierr);CHKERRQ(ierr)
+  call MatSeqAIJSetPreallocation(A,27,PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+  call MatSetFromOptions(A,ierr);CHKERRQ(ierr)
+  call MatSetOption(A,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE, &
+                    ierr);CHKERRQ(ierr)
+
+  call VecZeroEntries(res,ierr);CHKERRQ(ierr)
+  call GeneralResidual(PETSC_NULL_OBJECT,xx,res,realization,ierr)
+#if 0
+  word  = 'num_0.dat'
+  call PetscViewerASCIIOpen(option%mycomm,word,viewer,ierr);CHKERRQ(ierr)
+  call VecView(res,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
+  call VecGetArrayF90(res,vec2_p,ierr);CHKERRQ(ierr)
+  do icell = 1,grid%nlmax
+    if (patch%imat(grid%nL2G(icell)) <= 0) cycle
+    do idof = (icell-1)*option%nflowdof+1,icell*option%nflowdof 
+      call VecCopy(xx,xx_pert,ierr);CHKERRQ(ierr)
+      call VecGetArrayF90(xx_pert,vec_p,ierr);CHKERRQ(ierr)
+      perturbation = vec_p(idof)*perturbation_tolerance
+      vec_p(idof) = vec_p(idof)+perturbation
+      call VecRestoreArrayF90(xx_pert,vec_p,ierr);CHKERRQ(ierr)
+      call VecZeroEntries(res_pert,ierr);CHKERRQ(ierr)
+      call GeneralResidual(PETSC_NULL_OBJECT,xx_pert,res_pert,realization,ierr)
+#if 0
+      write(word,*) idof
+      word  = 'num_' // trim(adjustl(word)) // '.dat'
+      call PetscViewerASCIIOpen(option%mycomm,word,viewer,ierr);CHKERRQ(ierr)
+      call VecView(res_pert,viewer,ierr);CHKERRQ(ierr)
+      call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
+      call VecGetArrayF90(res_pert,vec_p,ierr);CHKERRQ(ierr)
+      do idof2 = 1, grid%nlmax*option%nflowdof
+        derivative = (vec_p(idof2)-vec2_p(idof2))/perturbation
+        if (dabs(derivative) > 1.d-30) then
+          call MatSetValue(A,idof2-1,idof-1,derivative,INSERT_VALUES, &
+                           ierr);CHKERRQ(ierr)
+        endif
+      enddo
+      call VecRestoreArrayF90(res_pert,vec_p,ierr);CHKERRQ(ierr)
+    enddo
+  enddo
+  call VecRestoreArrayF90(res,vec2_p,ierr);CHKERRQ(ierr)
+
+  call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+  call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+
+#if 1
+  write(word,*) icall
+  word = 'numerical_jacobian-' // trim(adjustl(word)) // '.out'
+  call PetscViewerASCIIOpen(option%mycomm,word,viewer,ierr);CHKERRQ(ierr)
+  call MatView(A,viewer,ierr);CHKERRQ(ierr)
+  call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
+#endif
+
+!geh: uncomment to overwrite numerical Jacobian
+!  call MatCopy(A,B,DIFFERENT_NONZERO_PATTERN,ierr)
+  call MatDestroy(A,ierr);CHKERRQ(ierr)
+
+  call VecDestroy(xx_pert,ierr);CHKERRQ(ierr)
+  call VecDestroy(res,ierr);CHKERRQ(ierr)
+  call VecDestroy(res_pert,ierr);CHKERRQ(ierr)
+
+end subroutine GeneralNumericalJacobianTest
+
+! ************************************************************************** !
+
 subroutine GeneralComputeMassBalance(realization,mass_balance)
   ! 
   ! Initializes mass balance
@@ -676,6 +711,11 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
   PetscInt :: real_index, variable
   PetscReal, pointer :: xx_loc_p(:)
   PetscReal :: xxbc(realization%option%nflowdof)
+!#define DEBUG_AUXVARS
+#ifdef DEBUG_AUXVARS
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt, save :: icall = 0
+#endif
   PetscErrorCode :: ierr
   
   option => realization%option
@@ -691,6 +731,11 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
     
   call VecGetArrayReadF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
 
+#ifdef DEBUG_AUXVARS
+  icall = icall + 1
+  write(word,*) icall
+  word = 'genaux' // trim(adjustl(word))
+#endif
   do ghosted_id = 1, grid%ngmax
      if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
      
@@ -718,6 +763,12 @@ subroutine GeneralUpdateAuxVars(realization,update_state)
                                     ghosted_id, &  ! for debugging
                                     option)
     endif
+#ifdef DEBUG_AUXVARS
+!geh: for debugging
+    call GeneralOutputAuxVars(gen_auxvars(0,ghosted_id), &
+                              global_auxvars(ghosted_id),ghosted_id,word, &
+                              PETSC_TRUE,option)
+#endif
 #ifdef DEBUG_GENERAL_FILEOUTPUT
   if (debug_flag > 0) then
     write(debug_unit,'(a,i5,i3,7es24.15)') 'auxvar:', ghosted_id, &
@@ -1102,7 +1153,9 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   use Option_module
   use Material_Aux_class
   use Connection_module
-    
+  use Fracture_module
+  use Klinkenberg_module
+  
   implicit none
   
   type(general_auxvar_type) :: gen_auxvar_up, gen_auxvar_dn
@@ -1125,11 +1178,11 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscInt :: icomp, iphase
   
   PetscReal :: xmol(option%nflowspec)
-  PetscReal :: perm_up, perm_dn
   PetscReal :: density_ave, density_kg_ave
   PetscReal :: uH
   PetscReal :: H_ave
-  PetscReal :: perm_ave_over_dist
+  PetscReal :: perm_ave_over_dist(option%nphase)
+  PetscReal :: perm_up, perm_dn
   PetscReal :: delta_pressure, delta_xmol, delta_temp
   PetscReal :: pressure_ave
   PetscReal :: gravity_term
@@ -1140,6 +1193,8 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: k_eff_up, k_eff_dn, k_eff_ave, heat_flux
   PetscReal :: adv_flux(3), diff_flux(3)
   PetscReal :: debug_flux(3,3), debug_dphi(2)
+  
+  PetscReal :: dummy_perm_up, dummy_perm_dn
    
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
@@ -1150,9 +1205,55 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   call material_auxvar_up%PermeabilityTensorToScalar(dist,perm_up)
   call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
   
-  perm_ave_over_dist = (perm_up * perm_dn)/(dist_up*perm_dn + dist_dn*perm_up)
-
+  ! Fracture permeability change only available for structured grid (Heeho)
+  if (material_auxvar_up%fracture_bool) then
+    if (material_auxvar_up%fracture_flags(frac_change_perm_x_index) &
+        .and. dist(1) > 0.99999d0) then
+      call FracturePermEvaluate(material_auxvar_up,perm_up,perm_up, &
+                                dummy_perm_up)
+    else if (material_auxvar_up%fracture_flags(frac_change_perm_y_index) &
+        .and. dist(2) > 0.99999d0) then
+      call FracturePermEvaluate(material_auxvar_up,perm_up,perm_up, &
+                                dummy_perm_up)
+    else if (material_auxvar_up%fracture_flags(frac_change_perm_z_index) &
+        .and. dist(3) > 0.99999d0) then
+      call FracturePermEvaluate(material_auxvar_up,perm_up,perm_up, &
+                                dummy_perm_up)
+    endif
+  endif
+  
+  if (material_auxvar_dn%fracture_bool) then
+    if (material_auxvar_dn%fracture_flags(frac_change_perm_x_index) &
+        .and. dist(1) > 0.99999d0) then
+      call FracturePermEvaluate(material_auxvar_dn,perm_dn,perm_dn, &
+                                dummy_perm_dn)
+    else if (material_auxvar_dn%fracture_flags(frac_change_perm_y_index) &
+        .and. dist(2) > 0.99999d0) then
+      call FracturePermEvaluate(material_auxvar_dn,perm_dn,perm_dn, &
+                                dummy_perm_dn)
+    else if (material_auxvar_dn%fracture_flags(frac_change_perm_z_index) &
+        .and. dist(3) > 0.99999d0) then
+      call FracturePermEvaluate(material_auxvar_dn,perm_dn,perm_dn, &
+                                dummy_perm_dn)
+    endif
+  endif
+  
+  if (associated(klinkenberg)) then
+    perm_ave_over_dist(1) = (perm_up * perm_dn) / &
+                            (dist_up*perm_dn + dist_dn*perm_up)
+    dummy_perm_up = klinkenberg%Evaluate(perm_up, &
+                                         gen_auxvar_up%pres(option%gas_phase))
+    dummy_perm_dn = klinkenberg%Evaluate(perm_dn, &
+                                         gen_auxvar_dn%pres(option%gas_phase))
+    perm_ave_over_dist(2) = (dummy_perm_up * dummy_perm_dn) / &
+                            (dist_up*dummy_perm_dn + dist_dn*dummy_perm_up)
+  else
+    perm_ave_over_dist(:) = (perm_up * perm_dn) / &
+                            (dist_up*perm_dn + dist_dn*perm_up)
+  endif
+      
   Res = 0.d0
+  
   v_darcy = 0.d0
 #ifdef DEBUG_FLUXES  
   adv_flux = 0.d0
@@ -1200,7 +1301,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
     if (mobility > floweps) then
       ! v_darcy[m/sec] = perm[m^2] / dist[m] * kr[-] / mu[Pa-sec]
       !                    dP[Pa]]
-      v_darcy(iphase) = perm_ave_over_dist * mobility * delta_pressure
+      v_darcy(iphase) = perm_ave_over_dist(iphase) * mobility * delta_pressure
       density_ave = GeneralAverageDensity(iphase, &
                                           global_auxvar_up%istate, &
                                           global_auxvar_dn%istate, &
@@ -1377,6 +1478,8 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   ! 
   use Option_module                              
   use Material_Aux_class
+  use Fracture_module
+  use Klinkenberg_module
   
   implicit none
   
@@ -1400,7 +1503,9 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: xmol(option%nflowspec)  
   PetscReal :: density_ave, density_kg_ave
   PetscReal :: H_ave, uH
-  PetscReal :: perm_ave_over_dist, dist_gravity
+  PetscReal :: perm_dn_adj(option%nphase)
+  PetscReal :: perm_ave_over_dist
+  PetscReal :: dist_gravity
   PetscReal :: delta_pressure, delta_xmol, delta_temp
   PetscReal :: gravity_term
   PetscReal :: mobility, mole_flux, q
@@ -1413,6 +1518,8 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   
   PetscInt :: idof
   PetscBool :: neumann_bc_present
+  
+  PetscReal :: dummy_perm_dn
   
   wat_comp_id = option%water_id
   air_comp_id = option%air_id
@@ -1432,21 +1539,47 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   neumann_bc_present = PETSC_FALSE
   
   call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
+
+    ! Fracture permeability change only available for structured grid (Heeho)
+  if (material_auxvar_dn%fracture_bool) then
+    if (material_auxvar_dn%fracture_flags(frac_change_perm_x_index) & 
+        .and. dist(1) > 0.99999d0) then
+      call FracturePermEvaluate(material_auxvar_dn,perm_dn,perm_dn, &
+                                dummy_perm_dn)
+    else if (material_auxvar_dn%fracture_flags(frac_change_perm_y_index) &
+        .and. dist(2) > 0.99999d0) then
+      call FracturePermEvaluate(material_auxvar_dn,perm_dn,perm_dn, &
+                                dummy_perm_dn)
+    else if (material_auxvar_dn%fracture_flags(frac_change_perm_z_index) &
+        .and. dist(3) > 0.99999d0) then
+      call FracturePermEvaluate(material_auxvar_dn,perm_dn,perm_dn, &
+                                dummy_perm_dn)
+    endif
+  endif
+
+  if (associated(klinkenberg)) then
+    perm_dn_adj(1) = perm_dn
+                                          
+    perm_dn_adj(2) = klinkenberg%Evaluate(perm_dn, &
+                                          gen_auxvar_dn%pres(option%gas_phase))
+  else
+    perm_dn_adj(:) = perm_dn
+  endif
   
 #ifdef CONVECTION  
   do iphase = 1, option%nphase
  
-     bc_type = ibndtype(iphase)
-     select case(bc_type)
+    bc_type = ibndtype(iphase)
+    select case(bc_type)
       ! figure out the direction of flow
       case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC)
 
-      ! dist(0) = scalar - magnitude of distance
-      ! gravity = vector(3)
-      ! dist(1:3) = vector(3) - unit vector
-      dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
+        ! dist(0) = scalar - magnitude of distance
+        ! gravity = vector(3)
+        ! dist(1:3) = vector(3) - unit vector
+        dist_gravity = dist(0) * dot_product(option%gravity,dist(1:3))
       
-      if (bc_type == CONDUCTANCE_BC) then
+        if (bc_type == CONDUCTANCE_BC) then
           select case(iphase)
             case(LIQUID_PHASE)
               idof = auxvar_mapping(GENERAL_LIQUID_CONDUCTANCE_INDEX)
@@ -1455,7 +1588,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
           end select        
           perm_ave_over_dist = auxvars(idof)
         else
-          perm_ave_over_dist = perm_dn / dist(0)
+          perm_ave_over_dist = perm_dn_adj(iphase) / dist(0)
         endif
         
           
@@ -2137,6 +2270,11 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   use Debug_module
   use Material_Aux_class
 
+!#define DEBUG_WITH_TECPLOT
+#ifdef DEBUG_WITH_TECPLOT
+  use Output_Tecplot_module
+#endif
+
   implicit none
 
   SNES :: snes
@@ -2173,6 +2311,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   PetscInt :: local_id, ghosted_id
   PetscInt :: local_id_up, local_id_dn, ghosted_id_up, ghosted_id_dn
   PetscInt :: i, imat, imat_up, imat_dn
+  PetscInt, save :: iplot = 0
 
   PetscReal, pointer :: r_p(:)
   PetscReal, pointer :: accum_p(:), accum_p2(:)
@@ -2220,23 +2359,27 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   ! These 3 must be called before GeneralUpdateAuxVars()
   call DiscretizationGlobalToLocal(discretization,xx,field%flow_xx_loc,NFLOWDOF)
   
-  option%variables_swapped = PETSC_FALSE
                                              ! do update state
   call GeneralUpdateAuxVars(realization,PETSC_TRUE)
 
 ! for debugging a single grid cell
-!  i = 90
+!  i = 6
 !  call GeneralOutputAuxVars(gen_auxvars(0,i),global_auxvars(i),i,'genaux', &
 !                            PETSC_TRUE,option)
+#ifdef DEBUG_WITH_TECPLOT
+! for debugging entire solution over a single SNES solve
+  write(word,*) iplot
+  iplot = iplot + 1
+  realization%output_option%plot_name = 'general-ni-' // trim(adjustl(word))
+  call OutputTecplotPoint(realization)
+#endif
 
   ! override flags since they will soon be out of date
   patch%aux%General%auxvars_up_to_date = PETSC_FALSE 
-  if (option%variables_swapped) then
-    !geh: since this operation is not collective (i.e. all processors may
-    !     not swap), this operation may fail....
-    call DiscretizationLocalToGlobal(discretization,field%flow_xx_loc,xx, &
-                                     NFLOWDOF)
-  endif
+
+  ! always assume variables have been swapped; therefore, must copy back
+  call DiscretizationLocalToGlobal(discretization,field%flow_xx_loc,xx, &
+                                   NFLOWDOF)
 
   if (option%compute_mass_balance_new) then
     call GeneralZeroMassBalanceDelta(realization)
@@ -2278,12 +2421,12 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     
   enddo
 
-    
   call VecRestoreArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
   !Heeho dynamically update p+1 accumulation term
   if (general_tough2_conv_criteria) then
     call VecRestoreArrayReadF90(field%flow_accum2, accum_p2, ierr);CHKERRQ(ierr)
   endif
+
   ! Interior Flux Terms -----------------------------------
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
@@ -2305,7 +2448,7 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
 
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
-   
+
       call GeneralFlux(gen_auxvars(ZERO_INTEGER,ghosted_id_up), &
                        global_auxvars(ghosted_id_up), &
                        material_auxvars(ghosted_id_up), &
@@ -2483,10 +2626,12 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
       accum_p((local_id-1)*option%nflowdof+1:local_id*option%nflowdof)
   enddo
   call VecRestoreArrayReadF90(field%flow_accum, accum_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
   do local_id = 1, grid%nlmax
     write(debug_unit,'(a,i5,7es24.15)') 'residual:', local_id, &
       r_p((local_id-1)*option%nflowdof+1:local_id*option%nflowdof)
   enddo
+  call VecRestoreArrayF90(r, r_p, ierr);CHKERRQ(ierr)
 #endif
   
   
@@ -2883,7 +3028,7 @@ subroutine GeneralJacobian(snes,xx,A,B,realization,ierr)
 #if 0
   imat = 1
   if (imat == 1) then
-    call GeneralNumericalJacTest(xx,realization) 
+    call GeneralNumericalJacobianTest(xx,realization,J) 
   endif
 #endif
 

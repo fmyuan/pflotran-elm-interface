@@ -1983,7 +1983,9 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   use Condition_module
   use Hydrostatic_module
   use Saturation_module
-  
+#ifdef CLM_PFLOTRAN
+  use Saturation_Function_module
+#endif
   
   use General_Aux_module
   use Grid_module
@@ -2038,6 +2040,27 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
+
+#ifdef CLM_PFLOTRAN
+    ! if coupled with CLM, hydraulic properties are varied for each cell, no matter what inputs are.
+    ! currently, only support 'Brooks_Coreys-Burdine' types of functions
+      if(patch%aux%Richards%auxvars(ghosted_id)%bc_alpha > 0.d0) then
+        patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
+           %ptr%alpha  = patch%aux%Richards%auxvars(ghosted_id)%bc_alpha
+        patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
+           %ptr%lambda = patch%aux%Richards%auxvars(ghosted_id)%bc_lambda
+        patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
+           %ptr%sr(1) = patch%aux%Richards%auxvars(ghosted_id)%bc_sr1
+
+       ! needs to re-calculate some extra variables for 'saturation_function', if changed above
+       call SatFunctionComputePolynomial(option,  &
+             patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr)
+       call PermFunctionComputePolynomial(option, &
+             patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr)
+
+      endif
+#endif
+
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
                                  patch%sat_func_id)
@@ -2821,7 +2844,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,CAPILLARY_PRESSURE,LIQUID_DENSITY_MOL, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,STATE,ICE_DENSITY, &
-         EFFECTIVE_POROSITY,LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE)
+         EFFECTIVE_POROSITY,LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE, &
+         MAXIMUM_PRESSURE)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -3177,6 +3201,13 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
             do local_id=1,grid%nlmax
               vec_ptr(local_id) = &
                 patch%aux%General%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%temp
+            enddo
+          case(MAXIMUM_PRESSURE)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                  maxval(patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                           pres(option%liquid_phase:option%gas_phase))
             enddo
           case(LIQUID_PRESSURE)
             do local_id=1,grid%nlmax
@@ -3887,7 +3918,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
          GAS_VISCOSITY,AIR_PRESSURE,CAPILLARY_PRESSURE, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,STATE,ICE_DENSITY, &
          SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL,EFFECTIVE_POROSITY, &
-         LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE)
+         LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,MAXIMUM_PRESSURE)
          
      if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -4098,6 +4129,9 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
         select case(ivar)
           case(TEMPERATURE)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)%temp
+          case(MAXIMUM_PRESSURE)
+            value = maxval(patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                           pres(option%liquid_phase:option%gas_phase))
           case(LIQUID_PRESSURE)
             if (patch%aux%Global%auxvars(ghosted_id)%istate /= GAS_STATE) then
               value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &

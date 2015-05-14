@@ -6,6 +6,7 @@ module PMC_Surface_class
   use Timestepper_Surface_class
 
   use PFLOTRAN_Constants_module
+  use Option_module
 
   implicit none
 

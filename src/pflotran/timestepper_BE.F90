@@ -46,11 +46,10 @@ module Timestepper_BE_class
   
   ! For checkpointing
   type, public, extends(stepper_base_header_type) :: stepper_BE_header_type
-    integer*8 :: cumulative_newton_iterations
-    integer*8 :: cumulative_linear_iterations
-    integer*8 :: num_newton_iterations
+    PetscInt :: cumulative_newton_iterations
+    PetscInt :: cumulative_linear_iterations
+    PetscInt :: num_newton_iterations
   end type stepper_BE_header_type
-  PetscSizeT, parameter, private :: bagsize = 88 ! 64 (base) + 24 (BE)
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
@@ -359,6 +358,17 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
       print *, ' Stop Executing!'
       CHKERRQ(ierr)
     endif
+
+    !output tiny dt as needed
+    if(this%dt<2.d0*option%dt_min) then
+      if (option%print_file_flag) then
+        write(option%fid_out, *) '  '
+        write(option%fid_out, *) ' <---tiny time-step warning ----> '
+        write(option%fid_out, *) ' @Time (s): ', option%time, ' with dt_min=',option%dt_min
+        write(option%fid_out, *) ' current DT (s): ', this%dt
+      endif
+    endif
+
 !fmy: checking SNESSolver error and stop excuting/output messages if error occurs
 
     CHKERRQ(ierr)
@@ -389,6 +399,35 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 
       if (icut > this%max_time_step_cuts .or. this%dt < this%dt_min) then
 
+        !------fmy - checking the solution to see what's going on
+        if (option%print_file_flag) then
+
+          write(option%fid_out, *) ' <-- SNES Solver checking @TimeStepperBEStepDT -->'
+          call VecGetLocalSize(process_model%solution_vec,vecsize1,ierr2)
+          call VecGetLocalSize(process_model%residual_vec,vecsize2,ierr2)
+
+          call VecGetArrayF90(process_model%solution_vec, solution_p, ierr2)
+          call VecGetArrayF90(process_model%residual_vec, residual_p, ierr2)
+
+          write(option%fid_out, *) 'Time(s): ', option%time
+          write(option%fid_out, *) ' <---vec no.-- solution_vec ----> '
+          do i=1, vecsize1
+            write(option%fid_out, *) i, solution_p(i)
+          enddo
+          write(option%fid_out, *) '  '
+          write(option%fid_out, *) ' <---vec no.-- residual_vec ----> '
+          do i=1, vecsize2
+            write(option%fid_out, *) i, residual_p(i)
+          enddo
+          write(option%fid_out, *) '  '
+          write(option%fid_out, *) ' Stop Executing! '
+
+          call VecRestoreArrayF90(process_model%solution_vec, solution_p, ierr2)
+          call VecRestoreArrayF90(process_model%residual_vec, residual_p, ierr2)
+
+        endif
+        !------fmy
+
         write(option%io_buffer,'(" Stopping: Time step cut criteria exceeded!")')
         call printMsg(option)
         write(option%io_buffer,'("    icut =",i3,", max_time_step_cuts=",i3)') &
@@ -409,13 +448,15 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
       this%target_time = this%target_time - this%dt
 
       this%dt = 0.5d0 * this%dt  
-      
+
+#ifndef CLM_PFLOTRAN
       write(option%io_buffer,'('' -> Cut time step: snes='',i3, &
            &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
            &   1pe12.5)')  snes_reason,icut,this%cumulative_time_step_cuts, &
            option%time/tconv, &
            this%dt/tconv
       call printMsg(option)
+#endif
 
       this%target_time = this%target_time + this%dt
       option%dt = this%dt
@@ -516,8 +557,13 @@ subroutine TimestepperBECheckpoint(this,viewer,option)
   type(option_type) :: option
   
   class(stepper_BE_header_type), pointer :: header
+  type(stepper_BE_header_type) :: dummy_header
+  character(len=1),pointer :: dummy_char(:)
   PetscBag :: bag
+  PetscSizeT :: bagsize
   PetscErrorCode :: ierr
+
+  bagsize = size(transfer(dummy_header,dummy_char))
 
   call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
   call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
@@ -551,7 +597,6 @@ subroutine TimestepperBERegisterHeader(this,bag,header)
   
   PetscErrorCode :: ierr
   
-  ! bagsize = 3 * 8 bytes = 24 bytes
   call PetscBagRegisterInt(bag,header%cumulative_newton_iterations,0, &
                            "cumulative_newton_iterations","", &
                            ierr);CHKERRQ(ierr)
@@ -619,8 +664,13 @@ subroutine TimestepperBERestart(this,viewer,option)
   type(option_type) :: option
   
   class(stepper_BE_header_type), pointer :: header
+  type(stepper_BE_header_type) :: dummy_header
+  character(len=1),pointer :: dummy_char(:)
   PetscBag :: bag
+  PetscSizeT :: bagsize
   PetscErrorCode :: ierr
+
+  bagsize = size(transfer(dummy_header,dummy_char))
   
   call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
   call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)

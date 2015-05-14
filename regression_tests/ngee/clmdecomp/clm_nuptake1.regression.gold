@@ -1,0 +1,33 @@
+-- CONCENTRATION: Total NH4+ --
+      Max:   1.0571055505691E-13
+      Min:   1.0571055505691E-13
+     Mean:   1.0571055505691E-13
+        1:   1.0571055505691E-13
+-- CONCENTRATION: PlantN --
+      Max:   1.9999999999736E+00
+      Min:   1.9999999999736E+00
+     Mean:   1.9999999999736E+00
+        1:   1.9999999999736E+00
+-- CONCENTRATION: Plantnuptake --
+      Max:   1.0000000000000E-20
+      Min:   1.0000000000000E-20
+     Mean:   1.0000000000000E-20
+        1:   1.0000000000000E-20
+-- CONCENTRATION: Plantndemand --
+      Max:   8.6400000000000E+02
+      Min:   8.6400000000000E+02
+     Mean:   8.6400000000000E+02
+        1:   8.6400000000000E+02
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   1.0209991931915E+00
+   Time Steps:           90
+   Newton Iterations:         1408
+   Solver Iterations:         1408
+   Time Step Cuts:           25
+   Solution 2-Norm:   8.6400231481171E+02
+   Residual 2-Norm:   1.9905178561788E-17

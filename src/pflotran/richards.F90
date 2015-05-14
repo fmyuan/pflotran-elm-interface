@@ -13,9 +13,6 @@ module Richards_module
   
   use PFLOTRAN_Constants_module
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  use clm_pflotran_interface_data
-#endif
   implicit none
   
   private 
@@ -285,6 +282,24 @@ subroutine RichardsCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
       ghosted_id = grid%nL2G(local_id)
       sat = global_auxvars(ghosted_id)%sat(1)
       sat_pert = sat - sign(1.d0,sat-0.5d0)*pert
+
+#ifdef CLM_PFLOTRAN
+      if(rich_auxvars(ghosted_id)%bc_alpha > 0.d0) then
+        patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
+           %ptr%alpha  = rich_auxvars(ghosted_id)%bc_alpha
+        patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
+           %ptr%lambda = rich_auxvars(ghosted_id)%bc_lambda
+        patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
+           %ptr%sr(1) = rich_auxvars(ghosted_id)%bc_sr1
+
+       ! needs to re-calculate some extra variables for 'saturation_function', if changed above
+       call SatFunctionComputePolynomial(option,  &
+             patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr)
+       call PermFunctionComputePolynomial(option, &
+             patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr)
+
+      endif
+#endif
 
 #ifdef REFACTOR_CHARACTERISTIC_CURVES
       call patch%characteristic_curves_array( &
@@ -876,6 +891,12 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
           xxbc(1) = xx_loc_p(ghosted_id)
       end select
      
+#ifdef CLM_PFLOTRAN
+      call RichardsAuxVarCopy(rich_auxvars(ghosted_id), &
+                              rich_auxvars_bc(sum_connection),option)
+      call GlobalAuxVarCopy(global_auxvars(ghosted_id), &
+                            global_auxvars_bc(sum_connection),option)
+#endif
  
       call RichardsAuxVarCompute(xxbc(1),rich_auxvars_bc(sum_connection), &
                                  global_auxvars_bc(sum_connection), &
@@ -1088,6 +1109,7 @@ subroutine RichardsUpdateFixedAccumPatch(realization)
 
     !geh - Ignore inactive cells with inactive materials
     if (patch%imat(ghosted_id) <= 0) cycle
+
     call RichardsAuxVarCompute(xx_p(local_id:local_id), &
                    rich_auxvars(ghosted_id),global_auxvars(ghosted_id), &
                    material_auxvars(ghosted_id), &
@@ -1219,7 +1241,6 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   use Discretization_module
   use Option_module
   use Logging_module
-  use Mass_Transfer_module, only : mass_transfer_type
   use Material_module
   use Material_Aux_class
   use Variables_module
@@ -1237,7 +1258,6 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   type(discretization_type), pointer :: discretization
   type(field_type), pointer :: field
   type(option_type), pointer :: option
-  type(mass_transfer_type), pointer :: cur_mass_transfer
   character(len=MAXSTRINGLENGTH) :: string
 
   call PetscLogEventBegin(logging%event_r_residual,ierr);CHKERRQ(ierr)
@@ -1291,17 +1311,13 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   endif
 
   call PetscLogEventEnd(logging%event_r_residual,ierr);CHKERRQ(ierr)
-
+ 
   ! Mass Transfer
-  if (associated(realization%flow_mass_transfer_list)) then
-    cur_mass_transfer => realization%flow_mass_transfer_list
-    do
-      if (.not.associated(cur_mass_transfer)) exit
-      call VecStrideScatter(cur_mass_transfer%vec,cur_mass_transfer%idof-1, &
-                            r,ADD_VALUES,ierr);CHKERRQ(ierr)
-      cur_mass_transfer => cur_mass_transfer%next
-    enddo
-  endif
+  if (field%flow_mass_transfer /= 0) then
+    ! scale by -1.d0 for contribution to residual.  A negative contribution
+    ! indicates mass being added to system.
+    call VecAXPY(r,-1.d0,field%flow_mass_transfer,ierr);CHKERRQ(ierr)
+  endif  
 
 end subroutine RichardsResidual
 

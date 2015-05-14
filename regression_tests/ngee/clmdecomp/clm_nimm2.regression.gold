@@ -1,0 +1,43 @@
+-- CONCENTRATION: Total CO2(aq) --
+      Max:   1.9367080409281E-02
+      Min:   1.9367080409281E-02
+     Mean:   1.9367080409281E-02
+        1:   1.9367080409281E-02
+-- CONCENTRATION: Total NH4+ --
+      Max:   1.9090004346625E-08
+      Min:   1.9090004346625E-08
+     Mean:   1.9090004346625E-08
+        1:   1.9090004346625E-08
+-- CONCENTRATION: Total NO3- --
+      Max:   1.9090004346625E-08
+      Min:   1.9090004346625E-08
+     Mean:   1.9090004346625E-08
+        1:   1.9090004346625E-08
+-- CONCENTRATION: SOM1 --
+      Max:   7.5730251118798E+00
+      Min:   7.5730251118798E+00
+     Mean:   7.5730251118798E+00
+        1:   7.5730251118798E+00
+-- CONCENTRATION: Lit1C --
+      Max:   6.1052047346232E+00
+      Min:   6.1052047346232E+00
+     Mean:   6.1052047346232E+00
+        1:   6.1052047346232E+00
+-- CONCENTRATION: Lit1N --
+      Max:   1.6777906968172E-01
+      Min:   1.6777906968172E-01
+     Mean:   1.6777906968172E-01
+        1:   1.6777906968172E-01
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   2.2842788696289E-01
+   Time Steps:           42
+   Newton Iterations:          492
+   Solver Iterations:          492
+   Time Step Cuts:            9
+   Solution 2-Norm:   9.7289649550636E+00
+   Residual 2-Norm:   2.2942681093132E-05

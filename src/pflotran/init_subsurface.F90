@@ -108,11 +108,8 @@ subroutine InitSubsurfSetupRealization(realization)
     ! add waypoints associated with boundary conditions, source/sinks etc. to list
     call RealizationAddWaypointsToList(realization)
     ! fill in holes in waypoint data
-    call WaypointListFillIn(option,realization%waypoint_list)
-    call WaypointListRemoveExtraWaypnts(option,realization%waypoint_list)
-  ! geh- no longer needed
-  !  ! convert times from input time to seconds
-  !  call WaypointConvertTimes(realization%waypoint_list,realization%output_option%tconv)
+!    call WaypointListFillIn(option,realization%waypoint_list)
+!    call WaypointListRemoveExtraWaypnts(option,realization%waypoint_list)
   endif
   call PetscLogEventEnd(logging%event_setup,ierr);CHKERRQ(ierr)
   
@@ -1196,6 +1193,7 @@ subroutine InitSubsurfaceReadInput(simulation)
   use Dataset_Common_HDF5_class
   use Fluid_module
   use Realization_class
+  use Realization_Base_class
   use Region_module
   use Condition_module
   use Transport_Constraint_module
@@ -1217,15 +1215,17 @@ subroutine InitSubsurfaceReadInput(simulation)
   use Regression_module
   use Output_Aux_module
   use Output_Tecplot_module
-  use Mass_Transfer_module
+  use Data_Mediator_Dataset_class
   use EOS_module
   use EOS_Water_module
   use SrcSink_Sandbox_module
   use Creep_Closure_module
+  use Klinkenberg_module
   
   use Simulation_Subsurface_class
   use PMC_Subsurface_class
   use Timestepper_BE_class
+  use Timestepper_Steady_class
   
 #ifdef SOLID_SOLUTION
   use Reaction_Solid_Solution_module, only : SolidSolutionReadFromInputFile
@@ -1282,8 +1282,8 @@ subroutine InitSubsurfaceReadInput(simulation)
   type(output_option_type), pointer :: output_option
   type(uniform_velocity_dataset_type), pointer :: uniform_velocity_dataset
   class(dataset_base_type), pointer :: dataset
-  type(mass_transfer_type), pointer :: flow_mass_transfer
-  type(mass_transfer_type), pointer :: rt_mass_transfer
+  class(data_mediator_dataset_type), pointer :: flow_data_mediator
+  class(data_mediator_dataset_type), pointer :: rt_data_mediator
   type(input_type), pointer :: input
   
   PetscReal :: dt_init
@@ -1330,38 +1330,6 @@ subroutine InitSubsurfaceReadInput(simulation)
     call printMsg(option)
 
     select case(trim(card))
-
-!....................
-      case('CREEP_CLOSURE')
-        call CreepClosureInit()
-        creep_closure => CreepClosureCreate()
-        call creep_closure%Read(input,option)
-        option%flow%transient_porosity = PETSC_TRUE
-        
-!....................
-      case ('ONLY_VERTICAL_FLOW')
-        option%flow%only_vertical_flow = PETSC_TRUE
-        if (option%iflowmode /= TH_MODE) then
-          option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in TH_MODE'
-          call printErrMsg(option)
-        endif
-
-!....................
-      case ('RELATIVE_PERMEABILITY_AVERAGE')
-        call InputReadWord(input,option,word,PETSC_FALSE)
-        call StringToUpper(word)
-        select case (trim(word))
-          case ('UPWIND')
-            option%rel_perm_aveg = UPWIND
-          case ('HARMONIC')
-            option%rel_perm_aveg = HARMONIC
-          case ('DYNAMIC_HARMONIC')
-            option%rel_perm_aveg = DYNAMIC_HARMONIC
-          case default
-            option%io_buffer = 'Cannot identify the specificed ' // &
-              'RELATIVE_PERMEABILITY_AVERAGE.'
-            call printErrMsg(option)
-          end select
 
 !....................
       case ('GRID')
@@ -1525,23 +1493,21 @@ subroutine InitSubsurfaceReadInput(simulation)
       
 !....................
       case ('FLOW_MASS_TRANSFER')
-        flow_mass_transfer => MassTransferCreate()
-        call InputReadWord(input,option,flow_mass_transfer%name,PETSC_TRUE)
+        flow_data_mediator => DataMediatorDatasetCreate()
+        call InputReadWord(input,option,flow_data_mediator%name,PETSC_TRUE)
         call InputDefaultMsg(input,option,'Flow Mass Transfer name') 
-        call MassTransferRead(flow_mass_transfer,input,option)
-        call MassTransferAddToList(flow_mass_transfer, &
-                                   realization%flow_mass_transfer_list)
-        nullify(flow_mass_transfer)
+        call DataMediatorDatasetRead(flow_data_mediator,input,option)
+        call flow_data_mediator%AddToList(realization%flow_data_mediator_list)
+        nullify(flow_data_mediator)
       
 !....................
       case ('RT_MASS_TRANSFER')
-        rt_mass_transfer => MassTransferCreate()
-        call InputReadWord(input,option,rt_mass_transfer%name,PETSC_TRUE)
+        rt_data_mediator => DataMediatorDatasetCreate()
+        call InputReadWord(input,option,rt_data_mediator%name,PETSC_TRUE)
         call InputDefaultMsg(input,option,'RT Mass Transfer name')
-        call MassTransferRead(rt_mass_transfer,input,option)
-        call MassTransferAddToList(rt_mass_transfer, &
-                                   realization%rt_mass_transfer_list)
-        nullify(rt_mass_transfer)
+        call DataMediatorDatasetRead(rt_data_mediator,input,option)
+        call rt_data_mediator%AddToList(realization%tran_data_mediator_list)
+        nullify(rt_data_mediator)
       
 !....................
       case ('STRATIGRAPHY','STRATA')
@@ -2432,6 +2398,44 @@ subroutine InitSubsurfaceReadInput(simulation)
         call InputErrorMsg(input,option,'HDF5_WRITE_GROUP_SIZE','Group size')
 
 !....................
+      case('WIPP-CREEP_CLOSURE')
+        call CreepClosureInit()
+        creep_closure => CreepClosureCreate()
+        call creep_closure%Read(input,option)
+        option%flow%transient_porosity = PETSC_TRUE
+        
+!....................
+      case('KLINKENBERG_EFFECT')
+        call KlinkenbergInit()
+        klinkenberg => KlinkenbergCreate()
+        call Klinkenberg%Read(input,option)
+        
+!....................
+      case ('ONLY_VERTICAL_FLOW')
+        option%flow%only_vertical_flow = PETSC_TRUE
+        if (option%iflowmode /= TH_MODE) then
+          option%io_buffer = 'ONLY_VERTICAL_FLOW implemented in TH_MODE'
+          call printErrMsg(option)
+        endif
+
+!....................
+      case ('RELATIVE_PERMEABILITY_AVERAGE')
+        call InputReadWord(input,option,word,PETSC_FALSE)
+        call StringToUpper(word)
+        select case (trim(word))
+          case ('UPWIND')
+            option%rel_perm_aveg = UPWIND
+          case ('HARMONIC')
+            option%rel_perm_aveg = HARMONIC
+          case ('DYNAMIC_HARMONIC')
+            option%rel_perm_aveg = DYNAMIC_HARMONIC
+          case default
+            option%io_buffer = 'Cannot identify the specificed ' // &
+              'RELATIVE_PERMEABILITY_AVERAGE.'
+            call printErrMsg(option)
+          end select
+          
+!....................
       case ('DBASE_FILENAME')
 
 !....................
@@ -2447,6 +2451,7 @@ subroutine InitSubsurfaceReadInput(simulation)
   
   if (associated(simulation%flow_process_model_coupler)) then
     flow_timestepper%name = 'FLOW'
+    if (option%steady_state) call TimestepperSteadyCreateFromBE(flow_timestepper)
     simulation%flow_process_model_coupler%timestepper => flow_timestepper
   else
     call flow_timestepper%Destroy()
@@ -2455,6 +2460,7 @@ subroutine InitSubsurfaceReadInput(simulation)
   endif
   if (associated(simulation%rt_process_model_coupler)) then
     tran_timestepper%name = 'TRAN'
+    if (option%steady_state) call TimestepperSteadyCreateFromBE(tran_timestepper)    
     simulation%rt_process_model_coupler%timestepper => tran_timestepper
   else
     call tran_timestepper%Destroy()

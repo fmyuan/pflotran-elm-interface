@@ -29,6 +29,7 @@ module PM_Base_class
     class(pm_base_type), pointer :: next
   contains
     procedure, public :: Init => PMBaseInit
+    procedure, public :: Read => PMBaseRead
     procedure, public :: SetupSolvers => PMBaseSetupSolvers
     procedure, public :: InitializeRun => PMBaseThisOnly
     procedure, public :: FinalizeRun => PMBaseThisOnly
@@ -54,7 +55,7 @@ module PM_Base_class
   end type pm_base_type
   
   type, public :: pm_base_header_type
-    integer*8 :: ndof
+    PetscInt :: ndof
   end type pm_base_header_type
     
   public :: PMBaseCreate
@@ -83,6 +84,17 @@ subroutine PMBaseCreate(this)
   nullify(this%next)
   
 end subroutine PMBaseCreate
+
+! ************************************************************************** !
+
+subroutine PMBaseRead(this,input)
+  use Input_Aux_module
+  implicit none
+  class(pm_base_type) :: this
+  type(input_type) :: input
+  print *, 'Must extend PMBaseRead.'
+  stop
+end subroutine PMBaseRead
 
 ! ************************************************************************** !
 

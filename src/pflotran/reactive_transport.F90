@@ -375,38 +375,55 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
       if (C_p(i) <= dC_p(i)) then
         ratio = abs(C_p(i)/dC_p(i))
         if (ratio < min_ratio) min_ratio = ratio
+
+        ! the following IS a test, i.e., only scale the needed 'dC_p' rather than ALL by 'min_ratio',
+        ! which essentially shut off all reaction and transports, if min_ratio too small.
+        if (ratio<1.d0) then
+          dC_p(i) = dC_p(i)*ratio*0.99d0
+        endif
       endif
     enddo
-    ratio = min_ratio
+    !ratio = min_ratio
     
     ! get global minimum
-    call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                       MPI_MIN,realization%option%mycomm,ierr)
+    !call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+    !                   MPI_MIN,realization%option%mycomm,ierr)
                        
     ! scale if necessary
     if (min_ratio < 1.d0) then
-      if (min_ratio < min_allowable_scale) then
-#ifdef DEBUG
+
+!#ifdef DEBUG
+      if(realization%option%tran_dt < 2.0d0*realization%option%dt_min .or. &
+         min_ratio <= min_allowable_scale ) then
         write(realization%option%fid_out, *) '-----checking scaling factor for RT ------'
         write(realization%option%fid_out, *) 'min. scaling factor = ', min_ratio
+        write(realization%option%fid_out, *) 'elapsed time = ', realization%option%time
+        write(realization%option%fid_out, *) 'elapsed time = ', realization%option%time
         j = realization%reaction%ncomp
         do i = 1, n
           ratio = abs(C_p(i)/dC_p(i))
-          if (ratio<=min_allowable_scale .and. C_p(i)<=dC_p(i)) then
+          if ( ratio<=min_ratio ) then
             write(realization%option%fid_out, *)  &
              ' <------ min_ratio @', i, 'cell no.=', floor((i-1.d0)/j), &
             'rt species no. =',i-floor((i-1.d0)/j)*j, '-------------->'
+
+             write(realization%option%fid_out, *) 'i=', i, &
+               'cell_no=',floor((i-1.0d0)/j), &
+               'rt_species_no.=',i-floor((i-1.0d0)/j)*j, &
+               'C_p/dC_p=', ratio, 'C_p=',C_p(i),'dC_p=',dC_p(i)
           endif
-          write(realization%option%fid_out, *) 'i=', i, &
-            'cell_no=',floor((i-1.0d0)/j), &
-            'rt_species_no.=',i-floor((i-1.0d0)/j)*j, &
-            'C_p/dC_p=', ratio, 'C_p=',C_p(i),'dC_p=',dC_p(i)
         enddo
         write(realization%option%fid_out, *) '-----DONE: checking scaling factor for RT ----'
-        write(realization%option%fid_out, *) ' min_ratio IS too small to make sense, '// &
-          'which less than an allowable_scale value !'
-        write(realization%option%fid_out, *) ' STOP executing ! '
-#endif
+
+        if (ratio<=min_allowable_scale) then
+          write(realization%option%fid_out, *) ' min_ratio IS too small to make sense, '// &
+            'which less than an allowable_scale value !'
+          write(realization%option%fid_out, *) ' STOP executing ! '
+        endif
+      endif
+!#endif
+
+      if (min_ratio < min_allowable_scale) then
         write(string,'(es9.3)') min_ratio
         string = 'The update of primary species concentration is being ' // &
           'scaled by a very small value (i.e. ' // &
@@ -422,7 +439,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
         call printErrMsg(realization%option)
       endif
       ! scale by 0.99 to make the update slightly smaller than the min_ratio
-      dC_p = dC_p*min_ratio*0.99d0
+      !dC_p = dC_p*min_ratio*0.99d0
       changed = PETSC_TRUE
     endif
     call VecRestoreArrayReadF90(C,C_p,ierr);CHKERRQ(ierr)
@@ -1322,7 +1339,6 @@ subroutine RTCalculateRHS_t1(realization)
   use Option_module
   use Field_module  
   use Grid_module
-  use Mass_Transfer_module, only : mass_transfer_type  
 
   implicit none
   
@@ -1348,7 +1364,6 @@ subroutine RTCalculateRHS_t1(realization)
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   type(coupler_type), pointer :: source_sink
-  type(mass_transfer_type), pointer :: cur_mass_transfer
   PetscInt :: sum_connection, iconn  
   PetscReal :: qsrc
   PetscInt :: offset, istartcoll, iendcoll, istartall, iendall, icomp, ieqgas
@@ -1519,15 +1534,11 @@ subroutine RTCalculateRHS_t1(realization)
   call VecRestoreArrayF90(field%tran_rhs,rhs_p,ierr);CHKERRQ(ierr)
 
   ! Mass Transfer
-  if (associated(realization%rt_mass_transfer_list)) then
-    cur_mass_transfer => realization%rt_mass_transfer_list
-    do
-      if (.not.associated(cur_mass_transfer)) exit
-      call VecStrideScatter(cur_mass_transfer%vec,cur_mass_transfer%idof-1, &
-                            field%tran_rhs,ADD_VALUES,ierr);CHKERRQ(ierr)
-      cur_mass_transfer => cur_mass_transfer%next
-    enddo
-  endif  
+  if (field%tran_mass_transfer /= 0) then
+    ! scale by -1.d0 for contribution to residual.  A negative contribution
+    ! indicates mass being added to system.
+    call VecAXPY(field%tran_rhs,-1.d0,field%tran_mass_transfer)
+  endif
   
 end subroutine RTCalculateRHS_t1
 
@@ -2546,7 +2557,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 !        ! contribution to internal 
 !        rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) = &
 !          rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) + Res
-      endif
+        endif  
 
 #else
       call TFluxCoef_CD(option,cur_connection_set%area(iconn), &
@@ -2607,7 +2618,6 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   use Grid_module
   use Connection_module
   use Coupler_module
-  use Mass_Transfer_module, only : mass_transfer_type
   use Debug_module
   use Logging_module
   !geh: please leave the "only" clauses for Secondary_Continuum_XXX as this
@@ -2623,7 +2633,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   type(realization_type) :: realization  
   PetscErrorCode :: ierr
   
-  PetscReal, pointer :: r_p(:), accum_p(:)
+  PetscReal, pointer :: r_p(:), accum_p(:), vec_p(:)
   PetscInt :: local_id, ghosted_id
   PetscInt, parameter :: iphase = 1
   PetscInt :: i
@@ -2646,7 +2656,6 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   PetscReal :: Res(realization%reaction%ncomp)
   
   type(coupler_type), pointer :: source_sink
-  type(mass_transfer_type), pointer :: cur_mass_transfer  
   type(connection_set_type), pointer :: cur_connection_set
   PetscInt :: iconn
   PetscReal :: qsrc, molality
@@ -2822,7 +2831,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
         ! contribution to internal 
 !        rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) = &
 !          rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) - Res
-      endif
+        endif
     enddo
     source_sink => source_sink%next
   enddo
@@ -2925,16 +2934,12 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
   call VecRestoreArrayReadF90(field%tran_accum, accum_p, ierr);CHKERRQ(ierr)
  
   ! Mass Transfer
-  if (associated(realization%rt_mass_transfer_list)) then
-    cur_mass_transfer => realization%rt_mass_transfer_list
-    do
-      if (.not.associated(cur_mass_transfer)) exit
-      call VecGetArrayF90(cur_mass_transfer%vec, r_p, ierr);CHKERRQ(ierr)
-      call VecRestoreArrayF90(cur_mass_transfer%vec, r_p, ierr);CHKERRQ(ierr)
-      call VecStrideScatter(cur_mass_transfer%vec,cur_mass_transfer%idof-1, &
-                            r,ADD_VALUES,ierr);CHKERRQ(ierr)
-      cur_mass_transfer => cur_mass_transfer%next
-    enddo
+  if (field%tran_mass_transfer /= 0) then
+    ! scale by -1.d0 for contribution to residual.  A negative contribution
+    ! indicates mass being added to system.
+    call VecGetArrayF90(field%tran_mass_transfer,vec_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%tran_mass_transfer,vec_p,ierr);CHKERRQ(ierr)
+    call VecAXPY(r,-1.d0,field%tran_mass_transfer,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine RTResidualNonFlux
@@ -3626,8 +3631,8 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
   ! Mass Transfer - since the current implementation of mass transfer has
   ! mass transfer being fixed.  Nothing to do here as the contribution to
   ! the derivatives is zero.
-! if (associated(realization%mass_transfer_list)) then
-! endif
+!  if (field%tran_mass_transfer /= 0) then
+!  endif
  
   if (reaction%use_log_formulation) then
     call PetscLogEventBegin(logging%event_rt_jacobian_zero_calc, &

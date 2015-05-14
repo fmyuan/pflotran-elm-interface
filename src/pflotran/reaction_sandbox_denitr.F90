@@ -217,6 +217,7 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_class, only : material_auxvar_type
+  use CLM_RspFuncs_module
 
 #ifdef CLM_PFLOTRAN
   use clm_pflotran_interface_data
@@ -313,24 +314,9 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
 
   c_no3 = rt_auxvar%total(ires_no3, iphase)*L_water         ! mol/Lw -> moles/m3 bulk
   if(this%x0eps>0.d0) then
-    !feps0 = c_no3 / (c_no3+this%x0eps)  ! using these two for trailer smoothing, alternatively
-    !dfeps0_dx = this%x0eps / (c_no3+this%x0eps) / (c_no3+this%x0eps)
-
-    ! GP's cut-off approach (from 'x0eps*10' to 'x0eps')
-    if (c_no3 <= this%x0eps) then
-      feps0     = 0.0d0
-      dfeps0_dx = 0.0d0
-    elseif (c_no3 >= this%x0eps*1.d1) then
-      feps0     = 1.0d0
-      dfeps0_dx = 0.0d0
-    else
-      feps0 = 1.0d0 - ( 1.0d0-(c_no3-this%x0eps)*(c_no3-this%x0eps)       &
-                                /(81.0d0*this%x0eps*this%x0eps) ) ** 2
-      dfeps0_dx = 4.0d0 * (1.0d0 - (c_no3-this%x0eps)*(c_no3-this%x0eps)  &
-                                     /(81.0d0*this%x0eps*this%x0eps) )    &
-                          * (c_no3-this%x0eps)/(81.0d0*this%x0eps*this%x0eps)
-    endif
-
+    ! GP's cut-off approach (sort of Heaviside function)
+    feps0     = funcTrailersmooth(c_no3, this%x0eps*10.d0, this%x0eps,PETSC_FALSE)
+    dfeps0_dx = funcTrailersmooth(c_no3, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
   else
     feps0 = 1.d0
     dfeps0_dx = 0.d0
@@ -339,14 +325,15 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
 
   ! rate dependence on substrate
   if (this%half_saturation > 0.0d0) then
-    temp_real = c_no3 + this%half_saturation
-    fno3      = c_no3 / temp_real
-    dfno3_dno3= this%half_saturation / temp_real / temp_real
+    fno3      = funcMonod(c_no3, this%half_saturation, PETSC_FALSE)
+    dfno3_dno3= funcMonod(c_no3, this%half_saturation, PETSC_TRUE)
   else
     fno3      = 1.0d0
     dfno3_dno3= 0.d0
   endif
 
+  rate_deni = 0.d0
+  drate_deni_dno3 = 0.d0
   if(f_t > 0.d0 .and. f_w > 0.d0) then
      ! unit: moles/second - 1/second * - * - * - * (moles/m3*m3*-)
      rate_deni = this%k_deni_max * f_t * f_w * fno3 * (c_no3*volume*feps0)
@@ -384,6 +371,16 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
 #ifdef DEBUG
+  if( (option%tran_dt<=option%dt_min .and. option%print_file_flag) .and. &
+     rate_deni*option%dt_min >= c_no3) then
+
+    write(option%fid_out, *) '----------------------------------------------'
+    write(option%fid_out, *) 'Reaction Sandbox: DENITRIFICATION'
+    write(option%fid_out, *) 'dt=',option%tran_dt, ' dt_min=',option%dt_min
+    write(option%fid_out, *) 'ghosted_id=',ghosted_id, ' c_no3=',c_no3, &
+    ' ratedt_denitri=',rate_deni*option%dt, ' drate_dno3=',drate_deni_dno3
+  endif
+
   do ires=1, reaction%ncomp
     temp_real = Residual(ires)
 

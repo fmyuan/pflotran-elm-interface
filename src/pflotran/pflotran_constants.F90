@@ -10,7 +10,7 @@ module PFLOTRAN_Constants_module
 
   ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS MODIFIED TO PREVENT
   ! COMPATIBILITY ISSUES - geh.
-  PetscInt, parameter, public :: CHECKPOINT_REVISION_NUMBER = 5
+  PetscInt, parameter, public :: CHECKPOINT_REVISION_NUMBER = 1
   
   PetscInt, parameter, public :: MAXSTRINGLENGTH = 512
   PetscInt, parameter, public :: MAXWORDLENGTH = 32
@@ -42,6 +42,7 @@ module PFLOTRAN_Constants_module
   PetscReal, parameter, public :: HEAT_OF_FUSION = 3.34d5  ! J/kg
   PetscReal, parameter, public :: PI = 3.14159265359d0
   PetscReal, parameter, public :: Faraday = 96485.3365d0 ! C/mol
+  PetscReal, parameter, public :: GRAVITY_CONSTANT = 9.80616d0    ! m/s^2
   
   PetscInt, parameter, public :: ZERO_INTEGER = 0
   PetscInt, parameter, public :: ONE_INTEGER = 1
