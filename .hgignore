@@ -391,3 +391,8 @@ src/clm-pflotran/init_subsurface_transport.F90
 src/clm-pflotran/init_surface.F90
 pm_waste_form.F90
 pmc_third_party.F90
+timestepper_steady.F90
+src/clm-pflotran/data_mediator.F90
+src/clm-pflotran/data_mediator_base.F90
+src/clm-pflotran/data_mediator_dataset.F90
+src/clm-pflotran/data_mediator_vec.F90

@@ -215,7 +215,6 @@ chem_obj = \
 	${common_src}reaction_aux.o \
 	${common_src}reaction_clm.o \
 	${common_src}clm_rspfuncs.o \
-	${common_src}lambertw.o \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
 	${common_src}reaction_sandbox_clm_cn.o \

@@ -2276,7 +2276,7 @@ end subroutine pflotranModelSetInternalThFromCLM
   !
   ! Author: Gautam Bisht, LBNL
   ! Date: 11/11/2013
-  !
+  ! Modified by Fengming YUAN, ORNL @2015-May
 
     use clm_pflotran_interface_data
     use Connection_module
@@ -2298,7 +2298,7 @@ end subroutine pflotranModelSetInternalThFromCLM
     class(surface_realization_type), pointer  :: surf_realization
     type(coupler_type), pointer               :: source_sink
     type(connection_set_type), pointer        :: cur_connection_set
-    PetscScalar, pointer                      :: gflux_surf_pf_loc(:)   ! surface i/o heat flux
+    PetscScalar, pointer                      :: gflux_surf_pf_loc(:)   ! surface i/o heat flux with water
     PetscScalar, pointer                      :: gtemp_surf_pf_loc(:)   ! surface i/o water temperature
     PetscBool                                 :: found
     PetscInt                                  :: iconn
@@ -2309,8 +2309,8 @@ end subroutine pflotranModelSetInternalThFromCLM
     ! 1) Mapping energy flux
     call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_srf, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%gflux_subsurf_clmp, &
-                                    clm_pf_idata%gflux_surf_pf)
+                                    clm_pf_idata%gh2o_srf_clmp, &
+                                    clm_pf_idata%gh2o_srf_pfs)
 
     ! Get pointer to surface-realization
     select type (simulation => pflotran_model%simulation)
@@ -2333,7 +2333,7 @@ end subroutine pflotranModelSetInternalThFromCLM
     end select
 
     ! Update the 'clm_heat_srf_ss' source/sink term
-    call VecGetArrayF90(clm_pf_idata%gflux_surf_pf,gflux_surf_pf_loc,ierr)
+    call VecGetArrayF90(clm_pf_idata%gh2o_srf_pfs,gflux_surf_pf_loc,ierr)
     CHKERRQ(ierr)
     found = PETSC_FALSE
     source_sink => surf_realization%patch%source_sink_list%first
@@ -2359,7 +2359,7 @@ end subroutine pflotranModelSetInternalThFromCLM
 
       source_sink => source_sink%next
     enddo
-    call VecRestoreArrayF90(clm_pf_idata%gflux_surf_pf,gflux_surf_pf_loc,ierr)
+    call VecRestoreArrayF90(clm_pf_idata%gh2o_srf_pfs,gflux_surf_pf_loc,ierr)
     CHKERRQ(ierr)
 
     if (.not.found) &
@@ -2370,11 +2370,11 @@ end subroutine pflotranModelSetInternalThFromCLM
     !write(*,*) 'call MappingSourceToDestination()'
     call MappingSourceToDestination(pflotran_model%map_clm_srf_to_pf_srf, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%temp_clm, &
-                                    clm_pf_idata%rain_temp_pf)
+                                    clm_pf_idata%h2otemp_srf_clmp, &
+                                    clm_pf_idata%h2otemp_srf_pfs)
 
     ! Update the 'clm_rain_srf_ss' source/sink term
-    call VecGetArrayF90(clm_pf_idata%rain_temp_pf,rain_temp_pf_loc,ierr)
+    call VecGetArrayF90(clm_pf_idata%h2otemp_srf_pfs,rain_temp_pf_loc,ierr)
     CHKERRQ(ierr)
     found = PETSC_FALSE
     source_sink => surf_realization%patch%source_sink_list%first
@@ -2399,14 +2399,14 @@ end subroutine pflotranModelSetInternalThFromCLM
 
       source_sink => source_sink%next
     enddo
-    call VecRestoreArrayF90(clm_pf_idata%rain_temp_pf,rain_temp_pf_loc,ierr)
+    call VecRestoreArrayF90(clm_pf_idata%h2otemp_srf_pfs,rain_temp_pf_loc,ierr)
     CHKERRQ(ierr)
 
     if (.not.found) &
       call printErrMsg(pflotran_model%option,'clm_rain_srf_ss not found in ' // &
                        'source-sink list of surface model.')
 
-  end subroutine pflotranModelUpdateSubTCond
+  end subroutine pflotranModelUpdateSurfTCond
 
 
 
