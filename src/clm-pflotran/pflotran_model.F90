@@ -6985,15 +6985,15 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if (ispec_lit1n > 0) then
-          decomp_npools_vr_lit1_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit1n), xeps0_n)
+          decomp_npools_vr_lit1_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit1n), 0.d0)
         endif
 
         if (ispec_lit2n > 0) then
-          decomp_npools_vr_lit2_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit2n), xeps0_n)
+          decomp_npools_vr_lit2_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit2n), 0.d0)
         endif
 
         if (ispec_lit3n > 0) then
-          decomp_npools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3n), xeps0_n)
+          decomp_npools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3n), 0.d0)
         endif
 
         if (ispec_som1c > 0) then
