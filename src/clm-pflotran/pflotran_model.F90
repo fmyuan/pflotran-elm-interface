@@ -338,6 +338,7 @@ contains
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_clm_sub_to_pf_sub%filename = &
             trim(model%map_clm_sub_to_pf_sub%filename)//CHAR(0)
+          model%map_clm_sub_to_pf_sub%id = ONE_INTEGER
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')   
           clm2pf_flux_file=PETSC_TRUE
@@ -354,6 +355,7 @@ contains
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_clm_srf_to_pf_2dsub%filename = &
             trim(model%map_clm_srf_to_pf_2dsub%filename)//CHAR(0)
+          model%map_clm_srf_to_pf_2dsub%id = TWO_INTEGER
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_gflux_file=PETSC_TRUE
@@ -362,6 +364,7 @@ contains
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_clm_srf_to_pf_srf%filename = &
             trim(model%map_clm_srf_to_pf_srf%filename)//CHAR(0)
+          model%map_clm_srf_to_pf_srf%id = THREE_INTEGER
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_rflux_file=PETSC_TRUE
@@ -371,11 +374,13 @@ contains
                MAXSTRINGLENGTH, PETSC_TRUE)
             model%map_pf_srf_to_clm_srf%filename = &
               trim(model%map_pf_srf_to_clm_srf%filename)//CHAR(0)
+            model%map_pf_srf_to_clm_srf%id = FOUR_INTEGER
           else
             call InputReadNChars(input, model%option, model%map_pf_2dsub_to_clm_srf%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
             model%map_pf_2dsub_to_clm_srf%filename = &
               trim(model%map_pf_2dsub_to_clm_srf%filename)//CHAR(0)
+            model%map_pf_2dsub_to_clm_srf%id = FOUR_INTEGER
           endif
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
@@ -385,6 +390,7 @@ contains
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_pf_sub_to_clm_sub%filename = &
             trim(model%map_pf_sub_to_clm_sub%filename)//CHAR(0)
+          model%map_pf_sub_to_clm_sub%id = FIVE_INTEGER
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')   
           pf2clm_flux_file=PETSC_TRUE
@@ -393,6 +399,7 @@ contains
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_clm_bot_to_pf_2dbot%filename = &
             trim(model%map_clm_bot_to_pf_2dbot%filename)//CHAR(0)
+          model%map_clm_bot_to_pf_2dbot%id = SIX_INTEGER
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_bcbot_file=PETSC_TRUE
@@ -401,6 +408,7 @@ contains
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_pf_2dbot_to_clm_bot%filename = &
             trim(model%map_pf_2dbot_to_clm_bot%filename)//CHAR(0)
+          model%map_pf_2dbot_to_clm_bot%id = SEVEN_INTEGER
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           pf2clm_bcbot_file=PETSC_TRUE
@@ -1045,6 +1053,7 @@ end subroutine pflotranModelSetICs
     use Simulation_Surface_class, only : surface_simulation_type
     use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Mapping_module
+    use clm_pflotran_interface_data
 
     implicit none
 
@@ -1115,6 +1124,13 @@ end subroutine pflotranModelSetICs
       call MappingReadHDF5(map, map%filename, option)
     else
       call MappingReadTxtFile(map, map%filename, option)
+
+      ! checking if the CLM-PF has same number of soil layers for mapping
+      if (map%pflotran_nlev /= clm_pf_idata%nzclm_mapped) then
+         option%io_buffer = 'Invalid mapping soil layers between CLM and PFLOTRAN!'
+        call printErrMsg(option)
+      endif
+
     endif
 
     grid_clm_npts_ghost=0
@@ -1131,18 +1147,14 @@ end subroutine pflotranModelSetICs
     grid_pf_npts_ghost = grid%ngmax - grid%nlmax
 
     allocate(grid_pf_cell_ids_nindex(grid%ngmax))
-    do local_id = 1, grid%ngmax
-      grid_pf_cell_ids_nindex(local_id) = grid%nG2A(local_id)-1
-    enddo
-
     allocate(grid_pf_local_nindex(grid%ngmax))
     do local_id = 1, grid%ngmax
+      grid_pf_cell_ids_nindex(local_id) = grid%nG2A(local_id)-1
       if (grid%nG2L(local_id) <= 0) then
         grid_pf_local_nindex(local_id) = 0 ! GHOST
       else
         grid_pf_local_nindex(local_id) = 1 ! LOCAL
       endif
-
     enddo
 
     select case(source_mesh_id)
@@ -7009,7 +7021,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if (ispec_som4c > 0) then
-          decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4c), 0.d0)
+          !decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4c), 0.d0)
+          decomp_cpools_vr_som4_pf_loc(local_id) = grid%y(local_id)   ! this IS a test for mesh mapping from PF to CLM
         endif
 
         if (ispec_som1n > 0) then
