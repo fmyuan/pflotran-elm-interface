@@ -1082,12 +1082,6 @@ contains
 
     do ii=1,map%s2d_s_ncells
        tmp_int_array(ii) = ii-1
-
-write(option%myrank+200,*) 'ii', ii, 'int_array=',tmp_int_array(ii), &
-'s2d_dids_index=',map%d_ids_ghd_nidx(ii)
-
-
-
     enddo
 
     call ISCreateBlock(option%mycomm,1,map%s2d_s_ncells,tmp_int_array, &

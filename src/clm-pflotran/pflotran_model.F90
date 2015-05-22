@@ -7021,9 +7021,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if (ispec_som4c > 0) then
-          !decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4c), 0.d0)
-          decomp_cpools_vr_som4_pf_loc(local_id) = grid%y(local_id)   ! this IS a test for mesh mapping from PF to CLM
-        endif
+          decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4c), 0.d0)
+         endif
 
         if (ispec_som1n > 0) then
           decomp_npools_vr_som1_pf_loc(local_id) = max(xx_p(offsetim + ispec_som1n), 0.d0)
