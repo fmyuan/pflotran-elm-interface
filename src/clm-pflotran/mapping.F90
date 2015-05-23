@@ -25,7 +25,7 @@ module Mapping_module
     !
     ! where W - Weight matrix      (nd x ns)
     !       s - Source vector      (ns x 1)
-    !       d - Destination vector (ns x 1)
+    !       d - Destination vector (nd x 1)
     !
     ! In CLM-PFLOTRAN coupling, s and d vectors are decomposed over multiple processors.
     ! The decomposition of vectors need not be in a contiguous order.

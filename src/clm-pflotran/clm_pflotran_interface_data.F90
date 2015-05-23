@@ -1479,7 +1479,7 @@ contains
     if(clm_pf_idata%decomp_npools_vr_som3_pfp /= 0) &
        call VecDestroy(clm_pf_idata%decomp_npools_vr_som3_pfp,ierr)
     if(clm_pf_idata%decomp_npools_vr_som4_pfp /= 0) &
-       call VecDestroy(clm_pf_idata%decomp_cpools_vr_som4_pfp,ierr)
+       call VecDestroy(clm_pf_idata%decomp_npools_vr_som4_pfp,ierr)
     if(clm_pf_idata%smin_no3_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%smin_no3_vr_pfp,ierr)
     if(clm_pf_idata%smin_nh4_vr_pfp /= 0) &
