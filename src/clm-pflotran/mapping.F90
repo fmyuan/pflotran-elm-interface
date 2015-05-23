@@ -1,5 +1,5 @@
 module Mapping_module
-#define MAP_DEBUG
+
   use PFLOTRAN_Constants_module
 
   implicit none
