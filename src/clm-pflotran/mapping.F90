@@ -46,8 +46,8 @@ module Mapping_module
     ! Source mesh
     PetscInt           :: s_ncells_loc              ! # of local source mesh cells present
     PetscInt,pointer   :: s_ids_loc_nidx(:)         ! IDs of local source mesh cells
-    PetscInt           :: s_ncells_ghd              ! # of local+ghosted source mesh cells present
-    PetscInt,pointer   :: s_ids_ghd_nidx(:)         ! IDs of local+ghosted source mesh cells
+    PetscInt,pointer   :: s_locids_loc_nidx(:)      ! loal IDs of local source mesh cells
+    PetscInt,pointer   :: s_ghdids_loc_nidx(:)      ! ghosted IDs of local source mesh cells
 
     ! Destination mesh
     PetscInt           :: d_ncells_loc              ! # of local destination mesh cells present
@@ -122,8 +122,8 @@ contains
 
     map%s_ncells_loc = 0
     nullify(map%s_ids_loc_nidx)
-    map%s_ncells_ghd = 0
-    nullify(map%s_ids_ghd_nidx)
+    nullify(map%s_locids_loc_nidx)
+    nullify(map%s_ghdids_loc_nidx)
 
     ! Destination mesh
     map%d_ncells_loc = 0
@@ -171,7 +171,7 @@ contains
                                           ncells_loc, &
                                           ncells_gh, &
                                           cell_ids_ghd, &
-                                          loc_or_gh &
+                                          locids_ghd &
                                         )
   ! 
   ! This routine sets cell ids source mesh.
@@ -187,19 +187,19 @@ contains
     type(option_type),  pointer :: option
 
     PetscInt                    :: ncells_loc, ncells_gh, ii, iloc
-    PetscInt,pointer            :: cell_ids_ghd(:), loc_or_gh(:)
+    PetscInt,pointer            :: cell_ids_ghd(:), locids_ghd(:)
 
     map%s_ncells_loc = ncells_loc
     allocate(map%s_ids_loc_nidx(map%s_ncells_loc))
-    map%s_ncells_ghd = ncells_loc + ncells_gh
-    allocate(map%s_ids_ghd_nidx(map%s_ncells_ghd))
+    allocate(map%s_locids_loc_nidx(map%s_ncells_loc))
+    allocate(map%s_ghdids_loc_nidx(map%s_ncells_loc))
 
-    iloc = 1
     do ii = 1,ncells_loc+ncells_gh
-      map%s_ids_ghd_nidx(ii) = cell_ids_ghd(ii)
-      if(loc_or_gh(ii) == 1) then
+      iloc = locids_ghd(ii)
+      if(iloc >= 1) then
          map%s_ids_loc_nidx(iloc) = cell_ids_ghd(ii)
-         iloc = iloc + 1
+         map%s_locids_loc_nidx(iloc) = iloc
+         map%s_ghdids_loc_nidx(iloc) = ii
       endif
     enddo
 
@@ -1716,7 +1716,8 @@ contains
     type(mapping_type), pointer :: map
 
     if (associated(map%s_ids_loc_nidx)) deallocate(map%s_ids_loc_nidx)
-    if (associated(map%s_ids_ghd_nidx)) deallocate(map%s_ids_ghd_nidx)
+    if (associated(map%s_locids_loc_nidx)) deallocate(map%s_locids_loc_nidx)
+    if (associated(map%s_ghdids_loc_nidx)) deallocate(map%s_ghdids_loc_nidx)
     if (associated(map%d_ids_ghd_nidx)) deallocate(map%d_ids_ghd_nidx)
     if (associated(map%d_ids_nidx_sor)) deallocate(map%d_ids_nidx_sor)
     if (associated(map%d_nGhd2Sor)) deallocate(map%d_nGhd2Sor)

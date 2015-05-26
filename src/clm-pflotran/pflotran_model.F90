@@ -1064,9 +1064,10 @@ end subroutine pflotranModelSetICs
     character(len=MAXSTRINGLENGTH)                    :: filename
 
     ! local
-    PetscInt                           :: local_id, grid_pf_npts_local, grid_pf_npts_ghost
+    PetscInt                           :: local_id, ghosted_id, grid_pf_npts_local, grid_pf_npts_ghost
     PetscInt                           :: grid_clm_npts_ghost, source_mesh_id
     PetscInt                           :: dest_mesh_id
+    PetscInt                           :: k, j, i, ij, local_id_shuffle
     PetscInt, pointer                  :: grid_pf_cell_ids_nindex(:)
     PetscInt, pointer                  :: grid_pf_local_nindex(:)
     PetscInt, pointer                  :: grid_clm_local_nindex(:)
@@ -1074,7 +1075,7 @@ end subroutine pflotranModelSetICs
 
     type(mapping_type), pointer        :: map
     type(option_type), pointer         :: option
-    class(realization_type), pointer    :: realization
+    class(realization_type), pointer   :: realization
     type(grid_type), pointer           :: grid
     type(patch_type), pointer          :: patch
     !type(coupler_type), pointer        :: boundary_condition
@@ -1139,7 +1140,8 @@ end subroutine pflotranModelSetICs
     ! Note: Presently all CLM cells are local
     allocate(grid_clm_local_nindex(grid_clm_npts_local))
     do local_id = 1, grid_clm_npts_local
-      grid_clm_local_nindex(local_id) = 1 ! LOCAL
+      grid_clm_local_nindex(local_id) = local_id     ! LOCAL ID
+
     enddo
 
     ! Find cell IDs for PFLOTRAN grid
@@ -1148,12 +1150,14 @@ end subroutine pflotranModelSetICs
 
     allocate(grid_pf_cell_ids_nindex(grid%ngmax))
     allocate(grid_pf_local_nindex(grid%ngmax))
-    do local_id = 1, grid%ngmax
-      grid_pf_cell_ids_nindex(local_id) = grid%nG2A(local_id)-1
-      if (grid%nG2L(local_id) <= 0) then
-        grid_pf_local_nindex(local_id) = 0 ! GHOST
+    do ghosted_id = 1, grid%ngmax
+      local_id = grid%nG2L(ghosted_id)
+      grid_pf_cell_ids_nindex(ghosted_id) = grid%nG2A(ghosted_id)-1
+      if (local_id <= 0) then
+        grid_pf_local_nindex(ghosted_id) = 0        ! GHOST
       else
-        grid_pf_local_nindex(local_id) = 1 ! LOCAL
+        grid_pf_local_nindex(ghosted_id) = local_id        ! LOCAL ID
+
       endif
     enddo
 
