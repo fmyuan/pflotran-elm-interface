@@ -5780,7 +5780,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
     if(ispec_som4c > 0) then
-      call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfs, decomp_cpools_vr_som4_pf_loc, ierr)
+      call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_clmp, decomp_cpools_vr_som4_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
