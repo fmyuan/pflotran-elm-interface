@@ -1067,10 +1067,10 @@ end subroutine pflotranModelSetICs
     PetscInt                           :: local_id, ghosted_id, grid_pf_npts_local, grid_pf_npts_ghost
     PetscInt                           :: grid_clm_npts_ghost, source_mesh_id
     PetscInt                           :: dest_mesh_id
-    PetscInt                           :: k, j, i, ij, local_id_shuffle
     PetscInt, pointer                  :: grid_pf_cell_ids_nindex(:)
     PetscInt, pointer                  :: grid_pf_local_nindex(:)
-    PetscInt, pointer                  :: grid_clm_local_nindex(:)
+    PetscInt, pointer                  :: grid_clm_local_nindex(:), grid_clm_local_shuffle_nindex(:)
+    PetscInt                           :: numg, numz, g, k
     PetscErrorCode:: ierr
 
     type(mapping_type), pointer        :: map
@@ -1139,9 +1139,20 @@ end subroutine pflotranModelSetICs
     ! Allocate memory to identify if CLM cells are local or ghosted.
     ! Note: Presently all CLM cells are local
     allocate(grid_clm_local_nindex(grid_clm_npts_local))
+    allocate(grid_clm_local_shuffle_nindex(grid_clm_npts_local))
     do local_id = 1, grid_clm_npts_local
       grid_clm_local_nindex(local_id) = local_id     ! LOCAL ID
 
+      ! the following is working for passing Data from CLMp vec -> PF array directly for 2-D domain
+      ! it will twist horizontal and vertical axis of CLM domain.
+      numz = clm_pf_idata%nzclm_mapped
+      numg = grid_clm_npts_local/numz
+      k = mod(local_id-1, numg) + 1
+      g = (local_id - k )/numg + 1
+      grid_clm_local_shuffle_nindex(local_id) = (k-1)*numz + g
+
+!write(option%myrank+200, *) 'local_id=',local_id, 'g=',g,'k=',k, &
+!'local_id_shuffle=',grid_clm_local_shuffle_nindex(local_id)
     enddo
 
     ! Find cell IDs for PFLOTRAN grid
@@ -1166,7 +1177,7 @@ end subroutine pflotranModelSetICs
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
                                          grid_clm_npts_ghost, &
                                          grid_clm_cell_ids_nindex, &
-                                         grid_clm_local_nindex)
+                                         grid_clm_local_shuffle_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
@@ -1194,6 +1205,7 @@ end subroutine pflotranModelSetICs
     deallocate(grid_pf_cell_ids_nindex)
     deallocate(grid_pf_local_nindex)
     deallocate(grid_clm_local_nindex)
+    deallocate(grid_clm_local_shuffle_nindex)
 
   end subroutine pflotranModelInitMappingSub2Sub
 
@@ -5563,7 +5575,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
     if(ispec_som4c > 0) then
-      call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfs, &
+      call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_clmp, &
                         decomp_cpools_vr_som4_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
@@ -5682,7 +5694,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       endif
 
       if(ispec_som4c > 0) then
-        xx_p(offsetim + ispec_som4c) = max(xeps0_c, decomp_cpools_vr_som4_pf_loc(ghosted_id) )
+        xx_p(offsetim + ispec_som4c) = max(xeps0_c, &
+        decomp_cpools_vr_som4_pf_loc(pflotran_model%map_clm_sub_to_pf_sub%s_locids_loc_nidx(local_id)) )
       endif
 
       if(ispec_lit1n > 0) then
