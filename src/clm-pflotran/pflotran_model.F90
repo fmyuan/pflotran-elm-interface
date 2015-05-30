@@ -1069,8 +1069,9 @@ end subroutine pflotranModelSetICs
     PetscInt                           :: dest_mesh_id
     PetscInt, pointer                  :: grid_pf_cell_ids_nindex(:)
     PetscInt, pointer                  :: grid_pf_local_nindex(:)
-    PetscInt, pointer                  :: grid_clm_local_nindex(:), grid_clm_local_shuffle_nindex(:)
-    PetscInt                           :: numg, numz, g, k
+    PetscInt, pointer                  :: grid_clm_local_nindex(:)
+    PetscInt, pointer                  :: grid_clm_local_shuffle_nindex(:)
+    PetscInt                           :: numg, numk, g, k
     PetscErrorCode:: ierr
 
     type(mapping_type), pointer        :: map
@@ -1143,17 +1144,15 @@ end subroutine pflotranModelSetICs
     do local_id = 1, grid_clm_npts_local
       grid_clm_local_nindex(local_id) = local_id     ! LOCAL ID
 
-      ! the following is working for passing Data from CLMp vec -> PF array directly for 2-D domain
+      ! the following is a hack for passing Data from CLMp vec -> PF array --> CLMs vec directly for 2-D domain
       ! it will twist horizontal and vertical axis of CLM domain.
-      numz = clm_pf_idata%nzclm_mapped
-      numg = grid_clm_npts_local/numz
-      k = mod(local_id-1, numg) + 1
-      g = (local_id - k )/numg + 1
-      grid_clm_local_shuffle_nindex(local_id) = (k-1)*numz + g
+      numk = clm_pf_idata%nzclm_mapped
+      numg = grid_clm_npts_local/numk
+      g = mod(local_id-1, numg) + 1
+      k = (local_id - g )/numg + 1
+      grid_clm_local_shuffle_nindex(local_id) = (g-1)*numk + k
 
-!write(option%myrank+200, *) 'local_id=',local_id, 'g=',g,'k=',k, &
-!'local_id_shuffle=',grid_clm_local_shuffle_nindex(local_id)
-    enddo
+     enddo
 
     ! Find cell IDs for PFLOTRAN grid
     grid_pf_npts_local = grid%nlmax
@@ -1190,7 +1189,7 @@ end subroutine pflotranModelSetICs
         call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
                                               grid_clm_npts_ghost, &
                                               grid_clm_cell_ids_nindex, &
-                                              grid_clm_local_nindex)
+                                              grid_clm_local_shuffle_nindex)
       case default
         option%io_buffer = 'Invalid argument source_mesh_id passed to pflotranModelInitMapping'
         call printErrMsg(option)
@@ -5575,6 +5574,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
     if(ispec_som4c > 0) then
+!      call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfs, &
       call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_clmp, &
                         decomp_cpools_vr_som4_pf_loc, ierr)
       CHKERRQ(ierr)
@@ -5695,6 +5695,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       if(ispec_som4c > 0) then
         xx_p(offsetim + ispec_som4c) = max(xeps0_c, &
+!        decomp_cpools_vr_som4_pf_loc(ghosted_id) )
         decomp_cpools_vr_som4_pf_loc(pflotran_model%map_clm_sub_to_pf_sub%s_locids_loc_nidx(local_id)) )
       endif
 
@@ -5780,6 +5781,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
     if(ispec_som4c > 0) then
+!      call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfs, decomp_cpools_vr_som4_pf_loc, ierr)
       call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_clmp, decomp_cpools_vr_som4_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
@@ -6683,7 +6685,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
-    PetscReal, pointer :: xx_p(:)
+    PetscReal, pointer :: xx_p(:), xx_loc(:)
 
     PetscScalar, pointer :: decomp_cpools_vr_lit1_pf_loc(:) ! (molesC/m3)
     PetscScalar, pointer :: decomp_cpools_vr_lit2_pf_loc(:) ! (molesC/m3)
@@ -6717,6 +6719,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscScalar, pointer :: accngasnitr_vr_pf_loc(:)        ! (molesN/m3)
     PetscScalar, pointer :: accngasdeni_vr_pf_loc(:)        ! (molesN/m3)
     PetscReal, pointer :: porosity_loc_p(:)
+
+    PetscScalar, pointer :: clmp_loc(:)
+
 
     PetscInt :: offset, offsetim
     PetscInt :: ispec_no3, ispec_nh4, ispec_nh4sorb
@@ -6918,7 +6923,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfp, &
                         decomp_cpools_vr_som3_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfp, &
+
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_clmp, &
+                        clmp_loc, ierr)
+    CHKERRQ(ierr)
+
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_clms, &
                         decomp_cpools_vr_som4_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfp, &
@@ -6979,16 +6989,29 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     CHKERRQ(ierr)
 
     ! (iii) pass the data from internal to PFLOTRAN vecs
+
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)
+    CHKERRQ(ierr)  ! extract data from pflotran internal portion
+    call VecGetArrayF90(field%tran_xx_loc,xx_loc,ierr)
     CHKERRQ(ierr)  ! extract data from pflotran internal portion
     call VecGetArrayReadF90(field%porosity0, porosity_loc_p, ierr)
     CHKERRQ(ierr)
 
+write(pflotran_model%option%myrank+200,*) '------------------------------CHECKING PF==>CLM -----'
+write(pflotran_model%option%myrank+200,*) 'Rank=',pflotran_model%option%myrank
+
+
     do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
+        if (ghosted_id <= 0) cycle
         if (associated(patch%imat)) then
            if (patch%imat(ghosted_id) <= 0) cycle
         endif
+
+
+write(pflotran_model%option%myrank+200,*) 'local_id=',local_id, 'ghosted_id=',ghosted_id
+
+
 
         global_auxvar  => patch%aux%Global%auxvars(ghosted_id)
         rt_auxvar => patch%aux%RT%auxvars(ghosted_id)
@@ -7038,7 +7061,19 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if (ispec_som4c > 0) then
-          decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4c), 0.d0)
+!          decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4c), 0.d0)
+           decomp_cpools_vr_som4_pf_loc(pflotran_model%map_clm_sub_to_pf_sub%s_locids_loc_nidx(local_id)) = &
+                        max(xx_p(offsetim + ispec_som4c), 0.d0)
+
+
+write(pflotran_model%option%myrank+200,*) &
+'clm_s_locid=',pflotran_model%map_clm_sub_to_pf_sub%s_locids_loc_nidx(local_id)
+
+write(pflotran_model%option%myrank+200,*) 'xx_p=',xx_p(offsetim + ispec_som4c), &
+'clm_p(locid)=',clmp_loc(local_id), &
+'clm_p(s_locid)=',clmp_loc(pflotran_model%map_clm_sub_to_pf_sub%s_locids_loc_nidx(local_id))
+
+
          endif
 
         if (ispec_som1n > 0) then
@@ -7188,7 +7223,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfp, decomp_cpools_vr_som3_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfp, decomp_cpools_vr_som4_pf_loc, ierr)
+
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_clmp, clmp_loc, ierr)
+    CHKERRQ(ierr)
+
+
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_clms, decomp_cpools_vr_som4_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfp, decomp_npools_vr_lit1_pf_loc, ierr)
     CHKERRQ(ierr)
@@ -7241,6 +7281,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     CHKERRQ(ierr)
     !
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%tran_xx_loc,xx_loc,ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayReadF90(field%porosity0, porosity_loc_p, ierr)
     CHKERRQ(ierr)
@@ -7304,12 +7346,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%decomp_cpools_vr_som3_clms)
     endif
 
-    if (ispec_som4c > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_som4_pfp, &
-                                    clm_pf_idata%decomp_cpools_vr_som4_clms)
-    endif
+!    if (ispec_som4c > 0) then
+!      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+!                                    pflotran_model%option, &
+!                                    clm_pf_idata%decomp_cpools_vr_som4_pfp, &
+!                                    clm_pf_idata%decomp_cpools_vr_som4_clms)
+!    endif
 
     if (ispec_lit1n > 0) then
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &

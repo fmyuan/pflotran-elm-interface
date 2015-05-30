@@ -1215,7 +1215,6 @@ contains
       int_array2(ii) = ii
     enddo
 
-#ifdef SORTING
     int_array2 = int_array2 - 1
     call PetscSortIntWithPermutation(map%s2d_s_ncells,int_array,int_array2,ierr)
     int_array2 = int_array2 + 1
@@ -1234,11 +1233,6 @@ contains
       endif
       int_array4(int_array2(ii)) = count 
     enddo
-#else
-    int_array3 = int_array
-    int_array4 = int_array2
-    count = map%s2d_s_ncells
-#endif
     
     ! Change 1-based index to 0-based index
     int_array4 = int_array4 - 1
