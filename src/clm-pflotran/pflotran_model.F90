@@ -5574,8 +5574,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
     if(ispec_som4c > 0) then
-!      call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfs, &
-      call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_clmp, &
+      call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfs, &
                         decomp_cpools_vr_som4_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
@@ -5694,9 +5693,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       endif
 
       if(ispec_som4c > 0) then
-        xx_p(offsetim + ispec_som4c) = max(xeps0_c, &
-!        decomp_cpools_vr_som4_pf_loc(ghosted_id) )
-        decomp_cpools_vr_som4_pf_loc(pflotran_model%map_clm_sub_to_pf_sub%s_locids_loc_nidx(local_id)) )
+        xx_p(offsetim + ispec_som4c) = max(xeps0_c, decomp_cpools_vr_som4_pf_loc(ghosted_id) )
       endif
 
       if(ispec_lit1n > 0) then
@@ -5781,8 +5778,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
     if(ispec_som4c > 0) then
-!      call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfs, decomp_cpools_vr_som4_pf_loc, ierr)
-      call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_clmp, decomp_cpools_vr_som4_pf_loc, ierr)
+      call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfs, decomp_cpools_vr_som4_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
@@ -6685,7 +6681,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
-    PetscReal, pointer :: xx_p(:), xx_loc(:)
+    PetscReal, pointer :: xx_p(:)
 
     PetscScalar, pointer :: decomp_cpools_vr_lit1_pf_loc(:) ! (molesC/m3)
     PetscScalar, pointer :: decomp_cpools_vr_lit2_pf_loc(:) ! (molesC/m3)
@@ -6719,9 +6715,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscScalar, pointer :: accngasnitr_vr_pf_loc(:)        ! (molesN/m3)
     PetscScalar, pointer :: accngasdeni_vr_pf_loc(:)        ! (molesN/m3)
     PetscReal, pointer :: porosity_loc_p(:)
-
-    PetscScalar, pointer :: clmp_loc(:)
-
 
     PetscInt :: offset, offsetim
     PetscInt :: ispec_no3, ispec_nh4, ispec_nh4sorb
@@ -6923,12 +6916,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfp, &
                         decomp_cpools_vr_som3_pf_loc, ierr)
     CHKERRQ(ierr)
-
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_clmp, &
-                        clmp_loc, ierr)
-    CHKERRQ(ierr)
-
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_clms, &
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfp, &
                         decomp_cpools_vr_som4_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfp, &
@@ -6992,14 +6980,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)
     CHKERRQ(ierr)  ! extract data from pflotran internal portion
-    call VecGetArrayF90(field%tran_xx_loc,xx_loc,ierr)
-    CHKERRQ(ierr)  ! extract data from pflotran internal portion
     call VecGetArrayReadF90(field%porosity0, porosity_loc_p, ierr)
     CHKERRQ(ierr)
-
-write(pflotran_model%option%myrank+200,*) '------------------------------CHECKING PF==>CLM -----'
-write(pflotran_model%option%myrank+200,*) 'Rank=',pflotran_model%option%myrank
-
 
     do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
@@ -7007,11 +6989,6 @@ write(pflotran_model%option%myrank+200,*) 'Rank=',pflotran_model%option%myrank
         if (associated(patch%imat)) then
            if (patch%imat(ghosted_id) <= 0) cycle
         endif
-
-
-write(pflotran_model%option%myrank+200,*) 'local_id=',local_id, 'ghosted_id=',ghosted_id
-
-
 
         global_auxvar  => patch%aux%Global%auxvars(ghosted_id)
         rt_auxvar => patch%aux%RT%auxvars(ghosted_id)
@@ -7061,20 +7038,8 @@ write(pflotran_model%option%myrank+200,*) 'local_id=',local_id, 'ghosted_id=',gh
         endif
 
         if (ispec_som4c > 0) then
-!          decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4c), 0.d0)
-           decomp_cpools_vr_som4_pf_loc(pflotran_model%map_clm_sub_to_pf_sub%s_locids_loc_nidx(local_id)) = &
-                        max(xx_p(offsetim + ispec_som4c), 0.d0)
-
-
-write(pflotran_model%option%myrank+200,*) &
-'clm_s_locid=',pflotran_model%map_clm_sub_to_pf_sub%s_locids_loc_nidx(local_id)
-
-write(pflotran_model%option%myrank+200,*) 'xx_p=',xx_p(offsetim + ispec_som4c), &
-'clm_p(locid)=',clmp_loc(local_id), &
-'clm_p(s_locid)=',clmp_loc(pflotran_model%map_clm_sub_to_pf_sub%s_locids_loc_nidx(local_id))
-
-
-         endif
+          decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4c), 0.d0)
+        endif
 
         if (ispec_som1n > 0) then
           decomp_npools_vr_som1_pf_loc(local_id) = max(xx_p(offsetim + ispec_som1n), 0.d0)
@@ -7223,12 +7188,7 @@ write(pflotran_model%option%myrank+200,*) 'xx_p=',xx_p(offsetim + ispec_som4c), 
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfp, decomp_cpools_vr_som3_pf_loc, ierr)
     CHKERRQ(ierr)
-
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_clmp, clmp_loc, ierr)
-    CHKERRQ(ierr)
-
-
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_clms, decomp_cpools_vr_som4_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfp, decomp_cpools_vr_som4_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfp, decomp_npools_vr_lit1_pf_loc, ierr)
     CHKERRQ(ierr)
@@ -7281,8 +7241,6 @@ write(pflotran_model%option%myrank+200,*) 'xx_p=',xx_p(offsetim + ispec_som4c), 
     CHKERRQ(ierr)
     !
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%tran_xx_loc,xx_loc,ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayReadF90(field%porosity0, porosity_loc_p, ierr)
     CHKERRQ(ierr)
@@ -7346,12 +7304,12 @@ write(pflotran_model%option%myrank+200,*) 'xx_p=',xx_p(offsetim + ispec_som4c), 
                                     clm_pf_idata%decomp_cpools_vr_som3_clms)
     endif
 
-!    if (ispec_som4c > 0) then
-!      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-!                                    pflotran_model%option, &
-!                                    clm_pf_idata%decomp_cpools_vr_som4_pfp, &
-!                                    clm_pf_idata%decomp_cpools_vr_som4_clms)
-!    endif
+    if (ispec_som4c > 0) then
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%decomp_cpools_vr_som4_pfp, &
+                                    clm_pf_idata%decomp_cpools_vr_som4_clms)
+    endif
 
     if (ispec_lit1n > 0) then
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
