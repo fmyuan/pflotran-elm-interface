@@ -95,16 +95,16 @@ module clm_pflotran_interface_data
   PetscInt :: nlpf_sub  ! num of local pflotran cells
   PetscInt :: ngpf_sub  ! num of ghosted pflotran cells (ghosted = local+ghosts)
 
-  ! Number of cells for the surface of the 3D subsurface domain
-  PetscInt :: nlclm_2dsub  ! num of local clm cells
-  PetscInt :: ngclm_2dsub  ! num of ghosted clm cells (ghosted = local+ghosts)
-  PetscInt :: nlpf_2dsub   ! num of local pflotran cells
-  PetscInt :: ngpf_2dsub   ! num of ghosted pflotran cells (ghosted = local+ghosts)
+  ! Number of cells for the top/bottom face of the 3D subsurface domain
+  PetscInt :: nlclm_2dtop  ! num of local clm cells
+  PetscInt :: ngclm_2dtop  ! num of ghosted clm cells (ghosted = local+ghosts)
+  PetscInt :: nlpf_2dtop   ! num of local pflotran cells
+  PetscInt :: ngpf_2dtop   ! num of ghosted pflotran cells (ghosted = local+ghosts)
 
-  PetscInt :: nlclm_bottom  ! num of local clm cells
-  PetscInt :: ngclm_bottom  ! num of ghosted clm cells (ghosted = local+ghosts)
-  PetscInt :: nlpf_bottom   ! num of local pflotran cells
-  PetscInt :: ngpf_bottom   ! num of ghosted pflotran cells (ghosted = local+ghosts)
+  PetscInt :: nlclm_2dbot  ! num of local clm cells
+  PetscInt :: ngclm_2dbot  ! num of ghosted clm cells (ghosted = local+ghosts)
+  PetscInt :: nlpf_2dbot   ! num of local pflotran cells
+  PetscInt :: ngpf_2dbot   ! num of ghosted pflotran cells (ghosted = local+ghosts)
 
   ! Number of cells for the 2D surface domain
   PetscInt :: nlclm_srf  ! num of local clm cells
@@ -401,15 +401,15 @@ contains
     clm_pf_idata%nlpf_sub = 0
     clm_pf_idata%ngpf_sub = 0
 
-    clm_pf_idata%nlclm_2dsub = 0
-    clm_pf_idata%ngclm_2dsub = 0
-    clm_pf_idata%nlpf_2dsub = 0
-    clm_pf_idata%ngpf_2dsub = 0
+    clm_pf_idata%nlclm_2dtop = 0
+    clm_pf_idata%ngclm_2dtop = 0
+    clm_pf_idata%nlpf_2dtop = 0
+    clm_pf_idata%ngpf_2dtop = 0
 
-    clm_pf_idata%nlclm_bottom = 0
-    clm_pf_idata%ngclm_bottom = 0
-    clm_pf_idata%nlpf_bottom = 0
-    clm_pf_idata%ngpf_bottom = 0
+    clm_pf_idata%nlclm_2dbot = 0
+    clm_pf_idata%ngclm_2dbot = 0
+    clm_pf_idata%nlpf_2dbot = 0
+    clm_pf_idata%ngpf_2dbot = 0
 
     clm_pf_idata%nlclm_srf = 0
     clm_pf_idata%ngclm_srf = 0
@@ -752,7 +752,7 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%watfc_clm,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_clm,clm_pf_idata%bulkdensity_dry_clm,ierr)
 
-    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE,clm_pf_idata%gflux_subsurf_clm,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dtop,PETSC_DECIDE,clm_pf_idata%gflux_subsurf_clm,ierr)
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_clm,ierr)
     call VecCreateMPI(mycomm,clm_pf_idata%nlclm_srf,PETSC_DECIDE,clm_pf_idata%rain_temp_clm,ierr)
     call VecSet(clm_pf_idata%gflux_subsurf_clm,0.d0,ierr)
@@ -774,7 +774,7 @@ contains
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%watfc_pf,ierr)
     call VecDuplicate(clm_pf_idata%hksat_x_pf,clm_pf_idata%bulkdensity_dry_pf,ierr)
 
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dsub,clm_pf_idata%gflux_subsurf_pf,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dtop,clm_pf_idata%gflux_subsurf_pf,ierr)
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf,clm_pf_idata%gflux_surf_pf,ierr)
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf,clm_pf_idata%rain_pf,ierr)
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_srf,clm_pf_idata%rain_temp_pf,ierr)
@@ -812,7 +812,7 @@ contains
     call VecDuplicate(clm_pf_idata%sat_clm,clm_pf_idata%eff_therm_cond_clm,ierr)
 
     ! 2D Surface PFLOTRAN ---to--- 2D Surface CLM
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%nlclm_2dsub,clm_pf_idata%h2osfc_clm,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%nlclm_2dtop,clm_pf_idata%h2osfc_clm,ierr)
     call VecSet(clm_pf_idata%h2osfc_clm,0.d0,ierr)
 
     !--------------------------------------------------------------------------------------------------------------------------
@@ -915,14 +915,14 @@ contains
     call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_smin_nh4_clmp,ierr)
     call VecDuplicate(clm_pf_idata%rate_lit1c_clmp,clm_pf_idata%rate_plantndemand_clmp,ierr)
 
-    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dsub,PETSC_DECIDE,clm_pf_idata%press_subsurf_clmp,ierr)    ! TH top BC (2D)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dtop,PETSC_DECIDE,clm_pf_idata%press_subsurf_clmp,ierr)    ! TH top BC (2D)
     call VecSet(clm_pf_idata%press_subsurf_clmp,0.d0,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%qflux_subsurf_clmp,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%press_maxponding_clmp,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%gtemp_subsurf_clmp,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_clmp,clm_pf_idata%press_ref_clmp,ierr)
 
-    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_bottom,PETSC_DECIDE,clm_pf_idata%press_subbase_clmp,ierr)    ! TH bottom BC (2D)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dbot,PETSC_DECIDE,clm_pf_idata%press_subbase_clmp,ierr)    ! TH bottom BC (2D)
     call VecSet(clm_pf_idata%press_subbase_clmp,0.d0,ierr)
     call VecDuplicate(clm_pf_idata%press_subbase_clmp,clm_pf_idata%qflux_subbase_clmp,ierr)
     call VecDuplicate(clm_pf_idata%press_subbase_clmp,clm_pf_idata%gflux_subbase_clmp,ierr)
@@ -950,14 +950,14 @@ contains
     call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_smin_nh4_pfs,ierr)
     call VecDuplicate(clm_pf_idata%rate_lit1c_pfs,clm_pf_idata%rate_plantndemand_pfs,ierr)
 
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dsub,clm_pf_idata%press_subsurf_pfs,ierr)   ! H
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dtop,clm_pf_idata%press_subsurf_pfs,ierr)   ! H
     call VecSet(clm_pf_idata%press_subsurf_pfs,0.d0,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%qflux_subsurf_pfs,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%press_maxponding_pfs,ierr)
     call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%gtemp_subsurf_pfs,ierr)            ! T
     call VecDuplicate(clm_pf_idata%press_subsurf_pfs,clm_pf_idata%press_ref_pfs,ierr)
 
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_bottom,clm_pf_idata%press_subbase_pfs,ierr)  ! H
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dbot,clm_pf_idata%press_subbase_pfs,ierr)  ! H
     call VecSet(clm_pf_idata%press_subbase_pfs,0.d0,ierr)
     call VecDuplicate(clm_pf_idata%press_subbase_pfs,clm_pf_idata%qflux_subbase_pfs,ierr)
     call VecDuplicate(clm_pf_idata%press_subbase_pfs,clm_pf_idata%gflux_subbase_pfs,ierr)            ! T
@@ -1082,25 +1082,25 @@ contains
 
     ! (v) BC flow variables: 2D faces of subsurface PFLOTRAN ---to--- 2D faces of subsurface CLM
     ! MPI Vecs for PFLOTRAN
-    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_2dsub,PETSC_DECIDE,clm_pf_idata%qinfl_subsurf_pfp,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_2dtop,PETSC_DECIDE,clm_pf_idata%qinfl_subsurf_pfp,ierr)
     call VecSet(clm_pf_idata%qinfl_subsurf_pfp,0.d0,ierr)
     call VecDuplicate(clm_pf_idata%qinfl_subsurf_pfp,clm_pf_idata%qsurf_subsurf_pfp,ierr)
     call VecDuplicate(clm_pf_idata%qinfl_subsurf_pfp,clm_pf_idata%f_nh4_subsurf_pfp,ierr)
     call VecDuplicate(clm_pf_idata%qinfl_subsurf_pfp,clm_pf_idata%f_no3_subsurf_pfp,ierr)
 
-    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_bottom,PETSC_DECIDE,clm_pf_idata%qflux_subbase_pfp,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_2dbot,PETSC_DECIDE,clm_pf_idata%qflux_subbase_pfp,ierr)
     call VecSet(clm_pf_idata%qflux_subbase_pfp,0.d0,ierr)
     call VecDuplicate(clm_pf_idata%qflux_subbase_pfp,clm_pf_idata%f_nh4_subbase_pfp,ierr)
     call VecDuplicate(clm_pf_idata%qflux_subbase_pfp,clm_pf_idata%f_no3_subbase_pfp,ierr)
 
     ! Seq. Vecs for CLM
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_2dsub,clm_pf_idata%qinfl_subsurf_clms,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_2dtop,clm_pf_idata%qinfl_subsurf_clms,ierr)
     call VecSet(clm_pf_idata%qinfl_subsurf_clms,0.d0,ierr)
     call VecDuplicate(clm_pf_idata%qinfl_subsurf_clms,clm_pf_idata%qsurf_subsurf_clms,ierr)
     call VecDuplicate(clm_pf_idata%qinfl_subsurf_clms,clm_pf_idata%f_nh4_subsurf_clms,ierr)
     call VecDuplicate(clm_pf_idata%qinfl_subsurf_clms,clm_pf_idata%f_no3_subsurf_clms,ierr)
 
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_bottom,clm_pf_idata%qflux_subbase_clms,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_2dbot,clm_pf_idata%qflux_subbase_clms,ierr)
     call VecSet(clm_pf_idata%qflux_subbase_clms,0.d0,ierr)
     call VecDuplicate(clm_pf_idata%qflux_subbase_clms,clm_pf_idata%f_nh4_subbase_clms,ierr)
     call VecDuplicate(clm_pf_idata%qflux_subbase_clms,clm_pf_idata%f_no3_subbase_clms,ierr)
