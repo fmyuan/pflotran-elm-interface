@@ -106,10 +106,11 @@ module pflotran_model_module
        pflotranModelResetSoilPorosityFromCLM, &
        pflotranModelGetSoilPropFromPF,        &
        ! T/H
-       pflotranModelUpdateFlowConds,            &
-       pflotranModelSetInternalTHStatesfromCLM, &    ! T/H from CLM to PFLOTRAN flow mode's field%**
-       pflotranModelUpdateTHfromCLM,            &    ! dynamically update TH from CLM to PF's global vars to drive PFLOTRAN BGC
-       pflotranModelSetSoilHbcsFromCLM,         &
+       pflotranModelUpdateFlowConds,            &    ! water src/sink (e.g., ET)
+       pflotranModelUpdateSubsurfTCond,         &    ! thermal BC
+       pflotranModelSetSoilHbcsFromCLM,         &    ! water BC
+       pflotranModelSetInternalTHStatesfromCLM, &    ! T/H states from CLM to PFLOTRAN flow mode's field%**
+       pflotranModelUpdateTHfromCLM,            &    ! dynamically update TH states from CLM to PF's global vars to drive PFLOTRAN BGC
        pflotranModelGetUpdatedTHStates,         &
        pflotranModelGetSaturation,              &
        ! BGC
@@ -2392,17 +2393,6 @@ contains
     type(pflotran_model_type), pointer        :: pflotran_model
 
     call pflotranModelUpdateSourceSink(pflotran_model)
-    if (pflotran_model%option%nsurfflowdof > 0) then
-      call pflotranModelUpdateSurfSource(pflotran_model)
-    endif
-
-    if (pflotran_model%option%iflowmode == TH_MODE) then
-      if (pflotran_model%option%nsurfflowdof == 0) then
-        call pflotranModelUpdateSubsurfTCond(pflotran_model)
-      else
-        call pflotranModelUpdateSurfTCond(pflotran_model)
-      endif
-    endif
 
   end subroutine pflotranModelUpdateFlowConds
 
