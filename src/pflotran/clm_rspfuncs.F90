@@ -132,11 +132,11 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
   select case(itype)
 !   CLM-CN
     case(MOISTURE_RESPONSE_FUNCTION_CLM4) 
-      call VecGetArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%sucsat_pfs, sucsat_pf_loc, ierr)
       CHKERRQ(ierr)
-      call VecGetArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bd_dry_pf_loc, ierr)   ! 'bd' (kg/m3)
+      call VecGetArrayReadF90(clm_pf_idata%bulkdensity_dry_pfs, bd_dry_pf_loc, ierr)   ! 'bd' (kg/m3)
       CHKERRQ(ierr)
-      call VecGetArrayReadF90(clm_pf_idata%bsw_pf, bsw_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%bsw_pfs, bsw_pf_loc, ierr)
       CHKERRQ(ierr)
       ! sucsat [mm of H20] from CLM is the suction (positive) at water saturated (called air-entry pressure)
       ! [Pa] = [mm of H20] * 0.001 [m/mm] * 1000 [kg/m^3] * 9.81 [m/sec^2]
@@ -152,11 +152,11 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
         F_theta = 0.0d0
       endif
 
-      call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pf, sucsat_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%sucsat_pfs, sucsat_pf_loc, ierr)
       CHKERRQ(ierr)
-      call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bd_dry_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pfs, bd_dry_pf_loc, ierr)
       CHKERRQ(ierr)
-      call VecRestoreArrayReadF90(clm_pf_idata%bsw_pf, bsw_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%bsw_pfs, bsw_pf_loc, ierr)
       CHKERRQ(ierr)
 
 ! DLEM 
@@ -164,7 +164,7 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
     case(MOISTURE_RESPONSE_FUNCTION_DLEM) 
       call VecGetArrayReadF90(clm_pf_idata%porosity_pfs, porosity_pf_loc, ierr)
       CHKERRQ(ierr)
-      call VecGetArrayReadF90(clm_pf_idata%watfc_pf, watfc_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%watfc_pfs, watfc_pf_loc, ierr)
       CHKERRQ(ierr)
       thetas = porosity_pf_loc(ghosted_id)
       thetar = watfc_pf_loc(ghosted_id)
@@ -186,7 +186,7 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
       endif
       call VecRestoreArrayReadF90(clm_pf_idata%porosity_pfs, porosity_pf_loc, ierr)
       CHKERRQ(ierr)
-      call VecRestoreArrayReadF90(clm_pf_idata%watfc_pf, watfc_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%watfc_pfs, watfc_pf_loc, ierr)
       CHKERRQ(ierr)
     case default
         F_theta = 1.0d0
