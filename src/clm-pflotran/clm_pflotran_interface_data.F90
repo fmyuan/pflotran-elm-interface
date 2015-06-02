@@ -64,36 +64,35 @@ module clm_pflotran_interface_data
   Vec :: hksat_x_clmp
   Vec :: hksat_y_clmp
   Vec :: hksat_z_clmp
-  Vec :: bulkdensity_dry_clmp
-  Vec :: porosity_clmp
-
-  Vec :: sucsat_clmp
   Vec :: watsat_clmp
   Vec :: watfc_clmp
-  Vec :: bsw_clmp
+  Vec :: bulkdensity_dry_clmp
+  Vec :: porosity_clmp
 
   Vec :: hksat_x_pfs
   Vec :: hksat_y_pfs
   Vec :: hksat_z_pfs
+  Vec :: watsat_pfs
+  Vec :: watfc_pfs
   Vec :: bulkdensity_dry_pfs
   Vec :: porosity_pfs
 
+  ! clapp-Horburger's function
+  Vec :: sucsat_clmp
+  Vec :: bsw_clmp
+
   Vec :: sucsat_pfs
-  Vec :: watsat_pfs
-  Vec :: watfc_pfs
   Vec :: bsw_pfs
 
-  ! CLM's future one ?
+  ! CLM's future set of hydraulic functions ?
   Vec :: sr_clmp    ! MVM soil hydraulic properties
   Vec :: lamda_clmp
   Vec :: alpha_clmp
   Vec :: pcwmax_clmp
-  Vec :: press_ref_clmp
-  Vec :: sr_pfs    ! MVM soil hydraulic properties
+  Vec :: sr_pfs     ! MVM soil hydraulic properties
   Vec :: lamda_pfs
   Vec :: alpha_pfs
   Vec :: pcwmax_pfs
-  Vec :: press_ref_pfs
 
   ! TH state vecs from CLM (mpi) to PF (seq)
   Vec :: press_clmp                     ! water pressure head (Pa)
@@ -114,12 +113,17 @@ module clm_pflotran_interface_data
   Vec :: gflux_clmp   ! mpi vec (Heat)
   Vec :: gflux_pfs    ! seq vec
 
+  ! this could be atm. pressure for each grid-cell
+  Vec :: press_ref_clmp
+  Vec :: press_ref_pfs
+
   ! BC: water pressure (Pa) on the top/bottom of 3-D subsurface domain as boundary conditions from CLM to PF
   Vec :: press_subsurf_clmp    ! mpi vec
   Vec :: press_subbase_clmp    ! mpi vec
-  Vec :: press_maxponding_clmp ! mpi vec
   Vec :: press_subsurf_pfs     ! seq vec
   Vec :: press_subbase_pfs     ! seq vec
+
+  Vec :: press_maxponding_clmp ! mpi vec
   Vec :: press_maxponding_pfs  ! seq vec
   ! OR, BC: water infiltration/recharge(drainage) (mH2O/sec) on the top/bottom of 3-D subsurface domain as boundary conditions from CLM to PF
   Vec :: qflux_subsurf_clmp    ! mpi vec
@@ -127,12 +131,12 @@ module clm_pflotran_interface_data
   Vec :: qflux_subsurf_pfs     ! seq vec
   Vec :: qflux_subbase_pfs     ! seq vec
 
-  ! if ground temperature at the subsurface interface is known
-  Vec :: gtemp_subsurf_clmp  ! mpi vec
-  Vec :: gtemp_subsurf_pfs   ! seq vec
   ! if ground heat flux at the subsurface interface is known
   Vec :: gflux_subsurf_clmp  ! mpi vec
   Vec :: gflux_subsurf_pfs   ! seq vec
+  ! if ground temperature at the subsurface interface is known
+  Vec :: gtemp_subsurf_clmp  ! mpi vec
+  Vec :: gtemp_subsurf_pfs   ! seq vec
   ! if bottom heat flux at the subsurface interface is known
   Vec :: gflux_subbase_clmp  ! mpi vec
   Vec :: gflux_subbase_pfs   ! seq vec
@@ -343,8 +347,8 @@ module clm_pflotran_interface_data
   Vec :: accngasnitr_vr_pfp             ! (moleN/m3/timestep) vertically-resolved N2O-N from nitrification
   Vec :: accngasnitr_vr_clms            ! (moleN/m3/timestep) vertically-resolved N2O-N from nitrification
 
-  Vec :: accngasdeni_vr_pfp             ! (moleN/m3/timestep) vertically-resolved N2O-N from denitrification
-  Vec :: accngasdeni_vr_clms            ! (moleN/m3/timestep) vertically-resolved N2O-N from denitrification
+  Vec :: accngasdeni_vr_pfp             ! (moleN/m3/timestep) vertically-resolved N2-N from denitrification
+  Vec :: accngasdeni_vr_clms            ! (moleN/m3/timestep) vertically-resolved N2-N from denitrification
 
   ! actual aqeuous N mass flow rate(moleN/m2/sec) at the top (runoff)/bottom (leaching) of 3-D subsurface domain
   ! (+ in, - out)
@@ -747,13 +751,14 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%hksat_x_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%hksat_y_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%hksat_z_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%sucsat_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%watsat_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%bsw_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%watsat_clmp,ierr)       ! total vwc at saturation (total 'porosity')
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%watfc_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%bulkdensity_dry_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%porosity_clmp,ierr)     ! this may/may not same as 'bd'/'watsat' above
 
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%porosity_clmp,ierr)     ! this may/may not same as 'bd' above
+    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%sucsat_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%bsw_clmp,ierr)
+
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%sr_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%lamda_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%alpha_clmp,ierr)
@@ -775,6 +780,7 @@ contains
     call VecDuplicate(clm_pf_idata%area_top_face_clmp,clm_pf_idata%qflux_subsurf_clmp,ierr)
     call VecDuplicate(clm_pf_idata%area_top_face_clmp,clm_pf_idata%gtemp_subsurf_clmp,ierr)
     call VecDuplicate(clm_pf_idata%area_top_face_clmp,clm_pf_idata%gflux_subsurf_clmp,ierr)
+
     call VecDuplicate(clm_pf_idata%area_top_face_clmp,clm_pf_idata%press_ref_clmp,ierr)
     call VecDuplicate(clm_pf_idata%area_top_face_clmp,clm_pf_idata%press_maxponding_clmp,ierr)
 
@@ -790,19 +796,20 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%hksat_x_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%hksat_y_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%hksat_z_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%sucsat_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%watsat_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%bsw_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%watfc_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%bulkdensity_dry_pfs,ierr)
-
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%porosity_pfs,ierr)
+
+    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%sucsat_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%bsw_pfs,ierr)
+
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%sr_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%lamda_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%alpha_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%pcwmax_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%zsoi_pfs,ierr)
 
+    !
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%press_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%soilpsi_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%soillsat_pfs,ierr)
@@ -818,14 +825,15 @@ contains
     call VecDuplicate(clm_pf_idata%area_top_face_pfs,clm_pf_idata%qflux_subsurf_pfs,ierr)
     call VecDuplicate(clm_pf_idata%area_top_face_pfs,clm_pf_idata%gtemp_subsurf_pfs,ierr)            ! T
     call VecDuplicate(clm_pf_idata%area_top_face_pfs,clm_pf_idata%gflux_subsurf_pfs,ierr)            ! T
+
     call VecDuplicate(clm_pf_idata%area_top_face_pfs,clm_pf_idata%press_ref_pfs,ierr)
     call VecDuplicate(clm_pf_idata%area_top_face_pfs,clm_pf_idata%press_maxponding_pfs,ierr)
 
     ! TH bottom BC (2D): supposing SAME bot-cell numbers as top-cells!
     call VecDuplicate(clm_pf_idata%area_top_face_pfs,clm_pf_idata%press_subbase_pfs,ierr)
     call VecDuplicate(clm_pf_idata%area_top_face_pfs,clm_pf_idata%qflux_subbase_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%area_top_face_pfs,clm_pf_idata%gflux_subbase_pfs,ierr)            ! T
     call VecDuplicate(clm_pf_idata%area_top_face_pfs,clm_pf_idata%gtemp_subbase_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%area_top_face_pfs,clm_pf_idata%gflux_subbase_pfs,ierr)            ! T
 
 
     !
@@ -836,6 +844,7 @@ contains
 
     ! 3-D
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%porosity_pfp,ierr)
+
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%sr_pcwmax_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%pcwmax_pfp,ierr)
 
@@ -856,6 +865,20 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%soillsat_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%soilisat_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%soilt_clms,ierr)
+
+    ! actual BC flow variables: 2D faces of subsurface PFLOTRAN ---to--- 2D faces of subsurface CLM
+    ! MPI Vecs for PFLOTRAN
+    call VecDuplicate(clm_pf_idata%area_top_face_pfp,clm_pf_idata%qinfl_subsurf_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%area_top_face_pfp,clm_pf_idata%qsurf_subsurf_pfp,ierr)
+      ! the following assumes SAME bot-cell number as top-cells
+    call VecDuplicate(clm_pf_idata%area_top_face_pfp,clm_pf_idata%qflux_subbase_pfp,ierr)
+
+    ! Seq. Vecs for CLM
+    call VecDuplicate(clm_pf_idata%area_top_face_clms,clm_pf_idata%qinfl_subsurf_clms,ierr)
+    call VecDuplicate(clm_pf_idata%area_top_face_clms,clm_pf_idata%qsurf_subsurf_clms,ierr)
+      ! the following assumes SAME bot-cell number as top-cells
+    call VecDuplicate(clm_pf_idata%area_top_face_clms,clm_pf_idata%qflux_subbase_clms,ierr)
+
 
 
     !--------------------------------------------------------------------------------------------------------------------------
@@ -949,7 +972,7 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_plantndemand_pfs,ierr)
 
 
-    ! (iv) BGC state variables: 3D subsurface PFLOTRAN ---to--- 3D subsurface CLM
+    ! (iii) BGC state variables: 3D subsurface PFLOTRAN ---to--- 3D subsurface CLM
     ! MPI Vecs for PFLOTRAN
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_cpools_vr_lit1_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_cpools_vr_lit2_pfp,ierr)
@@ -992,7 +1015,7 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%smin_nh4sorb_vr_clms,ierr)
 
 
-    ! (v) BGC flux variables: 3D subsurface PFLOTRAN ---to--- 3D subsurface CLM
+    ! (iv) BGC flux variables: 3D subsurface PFLOTRAN ---to--- 3D subsurface CLM
     ! MPI Vecs for PFLOTRAN
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%gco2_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%gn2_vr_pfp,ierr)
@@ -1038,24 +1061,19 @@ contains
 
     ! (vi) BC flow variables: 2D faces of subsurface PFLOTRAN ---to--- 2D faces of subsurface CLM
     ! MPI Vecs for PFLOTRAN
-    call VecDuplicate(clm_pf_idata%area_top_face_pfp,clm_pf_idata%qinfl_subsurf_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%area_top_face_pfp,clm_pf_idata%qsurf_subsurf_pfp,ierr)
     call VecDuplicate(clm_pf_idata%area_top_face_pfp,clm_pf_idata%f_nh4_subsurf_pfp,ierr)
     call VecDuplicate(clm_pf_idata%area_top_face_pfp,clm_pf_idata%f_no3_subsurf_pfp,ierr)
       ! the following assumes SAME bot-cell number as top-cells
-    call VecDuplicate(clm_pf_idata%area_top_face_pfp,clm_pf_idata%qflux_subbase_pfp,ierr)
     call VecDuplicate(clm_pf_idata%area_top_face_pfp,clm_pf_idata%f_nh4_subbase_pfp,ierr)
     call VecDuplicate(clm_pf_idata%area_top_face_pfp,clm_pf_idata%f_no3_subbase_pfp,ierr)
 
     ! Seq. Vecs for CLM
-    call VecDuplicate(clm_pf_idata%area_top_face_clms,clm_pf_idata%qinfl_subsurf_clms,ierr)
-    call VecDuplicate(clm_pf_idata%area_top_face_clms,clm_pf_idata%qsurf_subsurf_clms,ierr)
     call VecDuplicate(clm_pf_idata%area_top_face_clms,clm_pf_idata%f_nh4_subsurf_clms,ierr)
     call VecDuplicate(clm_pf_idata%area_top_face_clms,clm_pf_idata%f_no3_subsurf_clms,ierr)
       ! the following assumes SAME bot-cell number as top-cells
-    call VecDuplicate(clm_pf_idata%area_top_face_clms,clm_pf_idata%qflux_subbase_clms,ierr)
     call VecDuplicate(clm_pf_idata%area_top_face_clms,clm_pf_idata%f_nh4_subbase_clms,ierr)
     call VecDuplicate(clm_pf_idata%area_top_face_clms,clm_pf_idata%f_no3_subbase_clms,ierr)
+
 
     !---------------------------------------------
 
