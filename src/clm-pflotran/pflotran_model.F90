@@ -22,8 +22,8 @@ module pflotran_model_module
   !
   ! CLM has the following:
   !   (i) 3D subsurface grid (CLM_SUB);
-  !   (ii) 2D topface grid (CLM_TOP).
-  !   (iii) 2D bottom grid (CLM_BOT)
+  !   (ii) 2D top-cell grid (CLM_2DTOP).
+  !   (iii) 2D bottom-cell grid (CLM_2DBOT)
   ! CLM decomposes the 3D subsurface grid across processors in a 2D (i.e.
   ! cells in Z are not split across processors). Thus, the surface cells of
   ! 3D subsurface grid are on the same processors as the 2D surface grid.
@@ -40,10 +40,10 @@ module pflotran_model_module
   PetscInt, parameter, public :: CLM_SUB_TO_PF_SUB           = 1 ! 3D --> 3D
   PetscInt, parameter, public :: PF_SUB_TO_CLM_SUB           = 2 ! 3D --> 3D
 
-  PetscInt, parameter, public :: CLM_TOP_TO_PF_2DTOP         = 3 ! TOP face of 3D cell
-  PetscInt, parameter, public :: PF_2DTOP_TO_CLM_TOP         = 4 ! TOP face of 3D cell
-  PetscInt, parameter, public :: CLM_BOT_TO_PF_2DBOT         = 5 ! BOTTOM face of 3D cell
-  PetscInt, parameter, public :: PF_2DBOT_TO_CLM_BOT         = 6 ! BOTTOM face of 3D cell
+  PetscInt, parameter, public :: CLM_2DTOP_TO_PF_2DTOP       = 3 ! TOP face of 3D cell
+  PetscInt, parameter, public :: PF_2DTOP_TO_CLM_2DTOP       = 4 ! TOP face of 3D cell
+  PetscInt, parameter, public :: CLM_2DBOT_TO_PF_2DBOT       = 5 ! BOTTOM face of 3D cell
+  PetscInt, parameter, public :: PF_2DBOT_TO_CLM_2DBOT       = 6 ! BOTTOM face of 3D cell
 
   ! mesh ids
   PetscInt, parameter, public :: CLM_SUB_MESH   = 1
@@ -51,7 +51,7 @@ module pflotran_model_module
   PetscInt, parameter, public :: CLM_FACE_MESH  = 3
   PetscInt, parameter, public :: PF_FACE_MESH   = 4
 
-  PetscInt, parameter, public :: CLM_TOP_MESH   = 5
+  PetscInt, parameter, public :: CLM_2DTOP_MESH   = 5
   PetscInt, parameter, public :: PF_2DTOP_MESH  = 6
 
 
@@ -75,13 +75,13 @@ module pflotran_model_module
     type(inside_each_overlapped_cell), pointer :: pf_cells(:)
     type(inside_each_overlapped_cell), pointer :: clm_cells(:)
     type(mapping_type),                pointer :: map_clm_sub_to_pf_sub
-    type(mapping_type),                pointer :: map_clm_top_to_pf_2dtop
-    type(mapping_type),                pointer :: map_clm_srf_to_pf_srf
+    type(mapping_type),                pointer :: map_clm_2dtop_to_pf_2dtop
+    !type(mapping_type),                pointer :: map_clm_srf_to_pf_srf
     type(mapping_type),                pointer :: map_pf_sub_to_clm_sub
-    type(mapping_type),                pointer :: map_pf_2dtop_to_clm_top
+    type(mapping_type),                pointer :: map_pf_2dtop_to_clm_2dtop
 
-    type(mapping_type),                pointer :: map_clm_bot_to_pf_2dbot
-    type(mapping_type),                pointer :: map_pf_2dbot_to_clm_bot
+    type(mapping_type),                pointer :: map_clm_2dbot_to_pf_2dbot
+    type(mapping_type),                pointer :: map_pf_2dbot_to_clm_2dbot
      
     PetscInt :: nlclm
     PetscInt :: ngclm
@@ -271,19 +271,19 @@ contains
     nullify(model%pf_cells)
     nullify(model%clm_cells)
     nullify(model%map_clm_sub_to_pf_sub)
-    nullify(model%map_clm_top_to_pf_2dtop)
+    nullify(model%map_clm_2dtop_to_pf_2dtop)
     nullify(model%map_pf_sub_to_clm_sub)
     !
-    nullify(model%map_clm_bot_to_pf_2dbot)
-    nullify(model%map_pf_2dbot_to_clm_bot)
-    nullify(model%map_pf_2dtop_to_clm_top)
+    nullify(model%map_clm_2dbot_to_pf_2dbot)
+    nullify(model%map_pf_2dbot_to_clm_2dbot)
+    nullify(model%map_pf_2dtop_to_clm_2dtop)
 
-    model%map_clm_sub_to_pf_sub          => MappingCreate()
-    model%map_clm_top_to_pf_2dtop        => MappingCreate()
-    model%map_pf_sub_to_clm_sub          => MappingCreate()
-    model%map_pf_2dtop_to_clm_top        => MappingCreate()
-    model%map_clm_bot_to_pf_2dbot        => MappingCreate()
-    model%map_pf_2dbot_to_clm_bot        => MappingCreate()
+    model%map_clm_sub_to_pf_sub            => MappingCreate()
+    model%map_clm_2dtop_to_pf_2dtop        => MappingCreate()
+    model%map_pf_sub_to_clm_sub            => MappingCreate()
+    model%map_pf_2dtop_to_clm_2dtop        => MappingCreate()
+    model%map_clm_2dbot_to_pf_2dbot        => MappingCreate()
+    model%map_pf_2dbot_to_clm_2dbot        => MappingCreate()
 
     model%nlclm = -1
     model%ngclm = -1
@@ -331,38 +331,38 @@ contains
                              model%option, 'type', 'MAPPING_FILES')
           pf2clm_3dsub_file=PETSC_TRUE
         case('CLM2PF_BCTOP_FILE')
-          call InputReadNChars(input, model%option, model%map_clm_top_to_pf_2dtop%filename, &
+          call InputReadNChars(input, model%option, model%map_clm_2dtop_to_pf_2dtop%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
-          model%map_clm_top_to_pf_2dtop%filename = &
-            trim(model%map_clm_top_to_pf_2dtop%filename)//CHAR(0)
-          model%map_clm_top_to_pf_2dtop%id = THREE_INTEGER
+          model%map_clm_2dtop_to_pf_2dtop%filename = &
+            trim(model%map_clm_2dtop_to_pf_2dtop%filename)//CHAR(0)
+          model%map_clm_2dtop_to_pf_2dtop%id = THREE_INTEGER
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_bctop_file=PETSC_TRUE
         case('PF2CLM_BCTOP_FILE')
-          call InputReadNChars(input, model%option, model%map_pf_2dtop_to_clm_top%filename, &
+          call InputReadNChars(input, model%option, model%map_pf_2dtop_to_clm_2dtop%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
-          model%map_pf_2dtop_to_clm_top%filename = &
-              trim(model%map_pf_2dtop_to_clm_top%filename)//CHAR(0)
-          model%map_pf_2dtop_to_clm_top%id = FOUR_INTEGER
+          model%map_pf_2dtop_to_clm_2dtop%filename = &
+              trim(model%map_pf_2dtop_to_clm_2dtop%filename)//CHAR(0)
+          model%map_pf_2dtop_to_clm_2dtop%id = FOUR_INTEGER
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           pf2clm_bctop_file=PETSC_TRUE
         case('CLM2PF_BCBOT_FILE')
-          call InputReadNChars(input, model%option, model%map_clm_bot_to_pf_2dbot%filename, &
+          call InputReadNChars(input, model%option, model%map_clm_2dbot_to_pf_2dbot%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
-          model%map_clm_bot_to_pf_2dbot%filename = &
-            trim(model%map_clm_bot_to_pf_2dbot%filename)//CHAR(0)
-          model%map_clm_bot_to_pf_2dbot%id = FIVE_INTEGER
+          model%map_clm_2dbot_to_pf_2dbot%filename = &
+            trim(model%map_clm_2dbot_to_pf_2dbot%filename)//CHAR(0)
+          model%map_clm_2dbot_to_pf_2dbot%id = FIVE_INTEGER
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_bcbot_file=PETSC_TRUE
         case('PF2CLM_BCBOT_FILE')
-          call InputReadNChars(input, model%option, model%map_pf_2dbot_to_clm_bot%filename, &
+          call InputReadNChars(input, model%option, model%map_pf_2dbot_to_clm_2dbot%filename, &
                MAXSTRINGLENGTH, PETSC_TRUE)
-          model%map_pf_2dbot_to_clm_bot%filename = &
-            trim(model%map_pf_2dbot_to_clm_bot%filename)//CHAR(0)
-          model%map_pf_2dbot_to_clm_bot%id = SIX_INTEGER
+          model%map_pf_2dbot_to_clm_2dbot%filename = &
+            trim(model%map_pf_2dbot_to_clm_2dbot%filename)//CHAR(0)
+          model%map_pf_2dbot_to_clm_2dbot%id = SIX_INTEGER
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           pf2clm_bcbot_file=PETSC_TRUE
@@ -831,13 +831,13 @@ contains
                                       grid_clm_npts_local, &
                                       map_id)
       ! A more generalized Mapping for Faces (sidesets) is now implemented (F.-M. Yuan)
-      !case (CLM_TOP_TO_PF_2DTOP, PF_2DTOP_TO_CLM_TOP)
+      !case (CLM_2DTOP_TO_PF_2DTOP, PF_2DTOP_TO_CLM_2DTOP)
       !  call pflotranModelInitMapTopTo2DSub(pflotran_model,  &
       !                                      grid_clm_cell_ids_nindex, &
       !                                      grid_clm_npts_local, &
       !                                      map_id)
-      case (CLM_TOP_TO_PF_2DTOP, PF_2DTOP_TO_CLM_TOP, &
-            CLM_BOT_TO_PF_2DBOT, PF_2DBOT_TO_CLM_BOT)
+      case (CLM_2DTOP_TO_PF_2DTOP, PF_2DTOP_TO_CLM_2DTOP, &
+            CLM_2DBOT_TO_PF_2DBOT, PF_2DBOT_TO_CLM_2DBOT)
         call pflotranModelInitMapFaceToFace(pflotran_model,  &
                                             grid_clm_cell_ids_nindex, &
                                             grid_clm_npts_local, &
@@ -1127,14 +1127,14 @@ contains
 
     ! Choose the appriopriate map
     select case(map_id)
-      case(CLM_TOP_TO_PF_2DTOP)
-        map => pflotran_model%map_clm_top_to_pf_2dtop
-        source_mesh_id = CLM_TOP_MESH
+      case(CLM_2DTOP_TO_PF_2DTOP)
+        map => pflotran_model%map_clm_2dtop_to_pf_2dtop
+        source_mesh_id = CLM_2DTOP_MESH
         dest_mesh_id = PF_2DTOP_MESH
-      case(PF_2DTOP_TO_CLM_TOP)
-        map => pflotran_model%map_pf_2dtop_to_clm_top
+      case(PF_2DTOP_TO_CLM_2DTOP)
+        map => pflotran_model%map_pf_2dtop_to_clm_2dtop
         source_mesh_id = PF_2DTOP_MESH
-        dest_mesh_id = CLM_TOP_MESH
+        dest_mesh_id = CLM_2DTOP_MESH
       case default
         option%io_buffer = 'Invalid map_id argument to ' // &
           'pflotranModelInitMappingSurfTo2DSub'
@@ -1541,7 +1541,7 @@ contains
     CHKERRQ(ierr)
 
     select case(source_mesh_id)
-      case(CLM_TOP_MESH)
+      case(CLM_2DTOP_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
                                          grid_clm_npts_ghost, &
                                          grid_clm_cell_ids_nindex_copy, &
@@ -2437,13 +2437,13 @@ contains
     if (clm_pf_idata%nlpf_2dtop <= 0 .and. clm_pf_idata%ngpf_2dtop <= 0 ) return
 
     ! Map ground-heat flux from CLM--to--PF grid
-    call MappingSourceToDestination(pflotran_model%map_clm_top_to_pf_2dtop, &
+    call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
                                     pflotran_model%option, &
                                     clm_pf_idata%gflux_subsurf_clmp, &
                                     clm_pf_idata%gflux_subsurf_pfs)
 
     ! Map ground temperature from CLM--to--PF grid
-    call MappingSourceToDestination(pflotran_model%map_clm_top_to_pf_2dtop, &
+    call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
                                     pflotran_model%option, &
                                     clm_pf_idata%gtemp_subsurf_clmp, &
                                     clm_pf_idata%gtemp_subsurf_pfs)
@@ -2980,7 +2980,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     patch => realization%patch
     grid => patch%grid
 
-    call VecGetArrayF90(clm_pf_idata%area_top_face_pfs, area_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%area_top_face_pfp, area_p, ierr)
     CHKERRQ(ierr)
     if(grid%itype == STRUCTURED_GRID) then
       ! Structured grid
@@ -3015,7 +3015,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
         area_p(local_id) = grid%unstructured_grid%face_area(face_id)
       enddo
     endif
-    call VecRestoreArrayF90(clm_pf_idata%area_top_face_pfs, area_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%area_top_face_pfp, area_p, ierr)
     CHKERRQ(ierr)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -3059,17 +3059,17 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     if (associated(model%map_clm_sub_to_pf_sub)) &
       call MappingDestroy(model%map_clm_sub_to_pf_sub)
-    if (associated(model%map_clm_top_to_pf_2dtop)) &
-      call MappingDestroy(model%map_clm_top_to_pf_2dtop)
-    if (associated(model%map_clm_bot_to_pf_2dbot)) &
-      call MappingDestroy(model%map_clm_bot_to_pf_2dbot)
+    if (associated(model%map_clm_2dtop_to_pf_2dtop)) &
+      call MappingDestroy(model%map_clm_2dtop_to_pf_2dtop)
+    if (associated(model%map_clm_2dbot_to_pf_2dbot)) &
+      call MappingDestroy(model%map_clm_2dbot_to_pf_2dbot)
 
     if (associated(model%map_pf_sub_to_clm_sub)) &
       call MappingDestroy(model%map_pf_sub_to_clm_sub)
-    if (associated(model%map_pf_2dtop_to_clm_top)) &
-      call MappingDestroy(model%map_pf_2dtop_to_clm_top)
-    if (associated(model%map_pf_2dbot_to_clm_bot)) &
-      call MappingDestroy(model%map_pf_2dbot_to_clm_bot)
+    if (associated(model%map_pf_2dtop_to_clm_2dtop)) &
+      call MappingDestroy(model%map_pf_2dtop_to_clm_2dtop)
+    if (associated(model%map_pf_2dbot_to_clm_2dbot)) &
+      call MappingDestroy(model%map_pf_2dbot_to_clm_2dbot)
 
     if (associated(model)) deallocate(model)
     nullify(model)
@@ -3326,26 +3326,26 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     ! Choose the appriopriate map
     select case(map_id)
-      case(CLM_TOP_TO_PF_2DTOP)
-        map => pflotran_model%map_clm_top_to_pf_2dtop
+      case(CLM_2DTOP_TO_PF_2DTOP)
+        map => pflotran_model%map_clm_2dtop_to_pf_2dtop
         source_mesh_id = CLM_FACE_MESH
         dest_mesh_id = PF_FACE_MESH
         condition_name = 'clm_gflux_bc'
 
-      case(PF_2DTOP_TO_CLM_TOP)
-        map => pflotran_model%map_pf_2dtop_to_clm_top
+      case(PF_2DTOP_TO_CLM_2DTOP)
+        map => pflotran_model%map_pf_2dtop_to_clm_2dtop
         source_mesh_id = PF_FACE_MESH
         dest_mesh_id = CLM_FACE_MESH
         condition_name = 'clm_gflux_bc'
 
-      case(CLM_BOT_TO_PF_2DBOT)
-        map => pflotran_model%map_clm_bot_to_pf_2dbot
+      case(CLM_2DBOT_TO_PF_2DBOT)
+        map => pflotran_model%map_clm_2dbot_to_pf_2dbot
         source_mesh_id = CLM_FACE_MESH
         dest_mesh_id = PF_FACE_MESH
         condition_name = 'clm_bflux_bc'
 
-      case(PF_2DBOT_TO_CLM_BOT)
-        map => pflotran_model%map_pf_2dbot_to_clm_bot
+      case(PF_2DBOT_TO_CLM_2DBOT)
+        map => pflotran_model%map_pf_2dbot_to_clm_2dbot
         source_mesh_id = PF_FACE_MESH
         dest_mesh_id = CLM_FACE_MESH
         condition_name = 'clm_bflux_bc'
@@ -3764,12 +3764,12 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     ! Setting the number of cells constituting the face of the 3D
     ! subsurface domain for each model.
     select case(map_id)
-      case(CLM_TOP_TO_PF_2DTOP, PF_2DTOP_TO_CLM_TOP)
+      case(CLM_2DTOP_TO_PF_2DTOP, PF_2DTOP_TO_CLM_2DTOP)
         clm_pf_idata%nlclm_2dtop = grid_clm_npts_local
         clm_pf_idata%ngclm_2dtop = grid_clm_npts_local
         clm_pf_idata%nlpf_2dtop  = grid_pf_npts_local
         clm_pf_idata%ngpf_2dtop  = grid_pf_npts_local
-      case(CLM_BOT_TO_PF_2DBOT, PF_2DBOT_TO_CLM_BOT)
+      case(CLM_2DBOT_TO_PF_2DBOT, PF_2DBOT_TO_CLM_2DBOT)
         clm_pf_idata%nlclm_2dbot = grid_clm_npts_local
         clm_pf_idata%ngclm_2dbot = grid_clm_npts_local
         clm_pf_idata%nlpf_2dbot  = grid_pf_npts_local
@@ -4455,27 +4455,27 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     patch           => realization%patch
     grid            => patch%grid
 
-    call MappingSourceToDestination(pflotran_model%map_clm_top_to_pf_2dtop, &
+    call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
                                     pflotran_model%option, &
                                     clm_pf_idata%press_subsurf_clmp, &
                                     clm_pf_idata%press_subsurf_pfs)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_top_to_pf_2dtop, &
+    call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qflux_subsurf_clmp, &
                                     clm_pf_idata%qflux_subsurf_pfs)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_top_to_pf_2dtop, &
+    call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
                                     pflotran_model%option, &
                                     clm_pf_idata%press_maxponding_clmp, &
                                     clm_pf_idata%press_maxponding_pfs)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_bot_to_pf_2dbot, &
+    call MappingSourceToDestination(pflotran_model%map_clm_2dbot_to_pf_2dbot, &
                                     pflotran_model%option, &
                                     clm_pf_idata%press_subbase_clmp, &
                                     clm_pf_idata%press_subbase_pfs)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_bot_to_pf_2dbot, &
+    call MappingSourceToDestination(pflotran_model%map_clm_2dbot_to_pf_2dbot, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qflux_subbase_clmp, &
                                     clm_pf_idata%qflux_subbase_pfs)
@@ -4492,7 +4492,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecGetArrayF90(clm_pf_idata%press_maxponding_pfs, press_maxponding_pf_loc, ierr)
     CHKERRQ(ierr)
 
-    call VecGetArrayF90(clm_pf_idata%area_top_face_pfs, toparea_p, ierr)
+    call VecGetArrayF90(clm_pf_idata%area_top_face_pfp, toparea_p, ierr)
     CHKERRQ(ierr)
 
     ! passing from interface to internal
@@ -4580,7 +4580,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecRestoreArrayF90(clm_pf_idata%press_maxponding_pfs, press_maxponding_pf_loc, ierr)
     CHKERRQ(ierr)
 
-    call VecRestoreArrayF90(clm_pf_idata%area_top_face_pfs, toparea_p, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%area_top_face_pfp, toparea_p, ierr)
     CHKERRQ(ierr)
 
     select case(pflotran_model%option%iflowmode)
@@ -7078,19 +7078,19 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     ! pass vecs to CLM
     if (clm_pf_idata%nlpf_2dtop > 0 .and. clm_pf_idata%ngpf_2dtop > 0 ) then
-      call MappingSourceToDestination(pflotran_model%map_pf_2dtop_to_clm_top, &
+      call MappingSourceToDestination(pflotran_model%map_pf_2dtop_to_clm_2dtop, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qinfl_subsurf_pfp, &
                                     clm_pf_idata%qinfl_subsurf_clms)
 
-      call MappingSourceToDestination(pflotran_model%map_pf_2dtop_to_clm_top, &
+      call MappingSourceToDestination(pflotran_model%map_pf_2dtop_to_clm_2dtop, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qsurf_subsurf_pfp, &
                                     clm_pf_idata%qsurf_subsurf_clms)
     endif
 
     if (clm_pf_idata%nlpf_2dbot > 0 .and. clm_pf_idata%ngpf_2dbot > 0 ) then
-      call MappingSourceToDestination(pflotran_model%map_pf_2dbot_to_clm_bot, &
+      call MappingSourceToDestination(pflotran_model%map_pf_2dbot_to_clm_2dbot, &
                                     pflotran_model%option, &
                                     clm_pf_idata%qflux_subbase_pfp, &
                                     clm_pf_idata%qflux_subbase_clms)
