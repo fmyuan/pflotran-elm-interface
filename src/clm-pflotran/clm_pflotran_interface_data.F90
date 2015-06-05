@@ -81,7 +81,7 @@ module clm_pflotran_interface_data
   Vec :: watsat_clmp
   Vec :: watfc_clmp
   Vec :: bulkdensity_dry_clmp
-  Vec :: porosity_clmp
+  Vec :: effporosity_clmp
 
   Vec :: hksat_x_pfs
   Vec :: hksat_y_pfs
@@ -89,7 +89,7 @@ module clm_pflotran_interface_data
   Vec :: watsat_pfs
   Vec :: watfc_pfs
   Vec :: bulkdensity_dry_pfs
-  Vec :: porosity_pfs
+  Vec :: effporosity_pfs
 
   ! clapp-Horburger's function
   Vec :: sucsat_clmp
@@ -247,10 +247,10 @@ module clm_pflotran_interface_data
   ! TH properties (useful to do some calculation in the interface)
   Vec :: sr_pcwmax_pfp     ! MVM soil hydraulic properties
   Vec :: pcwmax_pfp
-  Vec :: porosity_pfp
+  Vec :: effporosity_pfp
   Vec :: sr_pcwmax_clms    ! MVM soil hydraulic properties
   Vec :: pcwmax_clms
-  Vec :: porosity_clms
+  Vec :: effporosity_clms
 
   PetscReal :: pressure_reference
 
@@ -438,7 +438,7 @@ contains
     clm_pf_idata%watsat_clmp = 0
     clm_pf_idata%watfc_clmp = 0
     clm_pf_idata%bulkdensity_dry_clmp = 0
-    clm_pf_idata%porosity_clmp = 0
+    clm_pf_idata%effporosity_clmp = 0
 
     clm_pf_idata%hksat_x_pfs = 0
     clm_pf_idata%hksat_y_pfs = 0
@@ -446,7 +446,7 @@ contains
     clm_pf_idata%watsat_pfs = 0
     clm_pf_idata%watfc_pfs = 0
     clm_pf_idata%bulkdensity_dry_pfs = 0
-    clm_pf_idata%porosity_pfs   = 0
+    clm_pf_idata%effporosity_pfs   = 0
 
     clm_pf_idata%sucsat_clmp = 0
     clm_pf_idata%bsw_clmp = 0
@@ -585,10 +585,10 @@ contains
     !
     clm_pf_idata%sr_pcwmax_pfp= 0
     clm_pf_idata%pcwmax_pfp   = 0
-    clm_pf_idata%porosity_pfp = 0
+    clm_pf_idata%effporosity_pfp = 0
     clm_pf_idata%sr_pcwmax_clms= 0
     clm_pf_idata%pcwmax_clms   = 0
-    clm_pf_idata%porosity_clms = 0
+    clm_pf_idata%effporosity_clms = 0
 
     clm_pf_idata%area_top_face_pfp  = 0
     clm_pf_idata%area_top_face_clms = 0
@@ -774,7 +774,7 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%watsat_clmp,ierr)       ! total vwc at saturation (total 'porosity')
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%watfc_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%bulkdensity_dry_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%porosity_clmp,ierr)     ! this may/may not same as 'bd'/'watsat' above
+    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%effporosity_clmp,ierr)     ! this may/may not same as 'bd'/'watsat' above
 
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%sucsat_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%bsw_clmp,ierr)
@@ -819,7 +819,7 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%watsat_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%watfc_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%bulkdensity_dry_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%porosity_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%effporosity_pfs,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%sucsat_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%bsw_pfs,ierr)
@@ -865,7 +865,7 @@ contains
     ! 3-D
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%area_top_face_pfp,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%porosity_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%effporosity_pfp,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%sr_pcwmax_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%pcwmax_pfp,ierr)
@@ -880,7 +880,7 @@ contains
 
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%area_top_face_clms,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%porosity_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%effporosity_clms,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%sr_pcwmax_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%pcwmax_clms,ierr)
@@ -1186,8 +1186,8 @@ contains
        call VecDestroy(clm_pf_idata%alpha_clmp,ierr)
     if(clm_pf_idata%pcwmax_clmp /= 0) &
        call VecDestroy(clm_pf_idata%pcwmax_clmp,ierr)
-    if(clm_pf_idata%porosity_clmp /= 0) &
-       call VecDestroy(clm_pf_idata%porosity_clmp,ierr)
+    if(clm_pf_idata%effporosity_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%effporosity_clmp,ierr)
 
     if(clm_pf_idata%sr_pfs /= 0) &
        call VecDestroy(clm_pf_idata%sr_pfs,ierr)
@@ -1197,23 +1197,23 @@ contains
        call VecDestroy(clm_pf_idata%alpha_pfs,ierr)
     if(clm_pf_idata%pcwmax_pfs /= 0) &
        call VecDestroy(clm_pf_idata%pcwmax_pfs,ierr)
-    if(clm_pf_idata%porosity_pfs /= 0) &
-       call VecDestroy(clm_pf_idata%porosity_pfs,ierr)
+    if(clm_pf_idata%effporosity_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%effporosity_pfs,ierr)
 
     ! -----
     if(clm_pf_idata%sr_pcwmax_pfp /= 0) &
        call VecDestroy(clm_pf_idata%sr_pcwmax_pfp,ierr)
     if(clm_pf_idata%pcwmax_pfp /= 0) &
        call VecDestroy(clm_pf_idata%pcwmax_pfp,ierr)
-    if(clm_pf_idata%porosity_pfp /= 0) &
-       call VecDestroy(clm_pf_idata%porosity_pfp,ierr)
+    if(clm_pf_idata%effporosity_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%effporosity_pfp,ierr)
 
     if(clm_pf_idata%sr_pcwmax_clms /= 0) &
        call VecDestroy(clm_pf_idata%sr_pcwmax_clms,ierr)
     if(clm_pf_idata%pcwmax_clms /= 0) &
        call VecDestroy(clm_pf_idata%pcwmax_clms,ierr)
-    if(clm_pf_idata%porosity_clms /= 0) &
-       call VecDestroy(clm_pf_idata%porosity_clms,ierr)
+    if(clm_pf_idata%effporosity_clms /= 0) &
+       call VecDestroy(clm_pf_idata%effporosity_clms,ierr)
 
     !----
     if(clm_pf_idata%press_clmp /= 0) &
