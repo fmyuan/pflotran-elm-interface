@@ -4201,7 +4201,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
         do ghosted_id=1, grid%ngmax
           local_id=grid%nG2L(ghosted_id)
           if (ghosted_id<=0 .or. local_id <=0) cycle
-          if (patch%imat(local_id) <=0) cycle
+          !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
 
 #if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
        ! F.-M. Yuan: the following check proves DATA-passing from CLM to PF MUST BE done by ghosted_id --> ghosted_id
@@ -4233,7 +4233,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
         do ghosted_id=1, grid%ngmax
             local_id=grid%nG2L(ghosted_id)
             if (ghosted_id<=0 .or. local_id<=0) cycle
-            if (patch%imat(local_id)<=0) cycle
+            !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
 
             global_auxvars(ghosted_id)%temp=soilt_pf_loc(ghosted_id)
         enddo
@@ -5067,7 +5067,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     do local_id = 1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
       if (ghosted_id<=0 .or. local_id <= 0) cycle ! bypass ghosted corner cells
-      if (patch%imat(local_id) <= 0) cycle
+      !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
 
       offset = (local_id - 1)*realization%reaction%ncomp
 
@@ -5639,7 +5639,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
          do local_id = 1, grid%nlmax
             ghosted_id = grid%nL2G(local_id)
             if (local_id<=0 .or. ghosted_id<=0) cycle
-            if (patch%imat(local_id) <= 0) cycle
+            !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
 
             if(cur_mass_transfer%idof == ispec_nh4                  &
                .or. cur_mass_transfer%idof == ispec_no3             &
@@ -5842,7 +5842,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     do local_id = 1, grid%nlmax
       ghosted_id=grid%nL2G(local_id)
       if (ghosted_id<=0 .or. local_id <= 0) cycle ! bypass ghosted corner cells
-      if (patch%imat(local_id) <= 0) cycle
+      !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
 
       offset = (local_id - 1)*realization%reaction%ncomp
       offset_aq = offset + realization%reaction%offset_aqueous
