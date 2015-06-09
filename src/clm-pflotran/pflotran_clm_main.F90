@@ -59,8 +59,8 @@ module pflotran_clm_main_module
        pflotranModelSetSoilHbcsFromCLM,         &    ! water BC
        pflotranModelSetInternalTHStatesfromCLM, &    ! T/H states from CLM to PFLOTRAN flow mode's field%**
        pflotranModelUpdateTHfromCLM,            &    ! dynamically update TH states from CLM to PF's global vars to drive PFLOTRAN BGC
-       pflotranModelGetTemperature,             &
-       pflotranModelGetSaturation,              &
+       pflotranModelGetTemperatureFromPF,       &
+       pflotranModelGetSaturationFromPF,        &
        ! BGC
        pflotranModelSetBGCRatesFromCLM,         &
        pflotranModelUpdateAqConcFromCLM,        &
@@ -1273,7 +1273,7 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelGetSaturation(pflotran_model)
+  subroutine pflotranModelGetSaturationFromPF(pflotran_model)
   ! 
   ! Extract soil saturation values simulated by
   ! PFLOTRAN in a PETSc vector.
@@ -1443,11 +1443,11 @@ contains
                                       clm_pf_idata%soilisat_clms)
     endif
 
-  end subroutine pflotranModelGetSaturation
+  end subroutine pflotranModelGetSaturationFromPF
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelGetTemperature(pflotran_model)
+  subroutine pflotranModelGetTemperatureFromPF(pflotran_model)
   !
   ! This routine get updated states evoloved by PFLOTRAN.
   !
@@ -1508,7 +1508,7 @@ contains
         ! because 'uniform_velocity' with [0, 0, 0] velocity transport doesn't need specific flowmode,
         ! which is used for BGC coupling only (i.e., no TH coupling)
         if (pflotran_model%option%ntrandof .le. 0) then
-            pflotran_model%option%io_buffer='pflotranModelGetTemperature ' // &
+            pflotran_model%option%io_buffer='pflotranModelGetTemperatureFromPF ' // &
              'implmentation in this mode is not supported!'
 
             call printErrMsg(pflotran_model%option)
@@ -1531,7 +1531,7 @@ contains
                                     clm_pf_idata%soilt_pfp, &
                                     clm_pf_idata%soilt_clms)
 
-  end subroutine pflotranModelGetTemperature
+  end subroutine pflotranModelGetTemperatureFromPF
 
 
 
