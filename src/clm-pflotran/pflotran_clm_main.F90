@@ -128,7 +128,7 @@ contains
 
 ! ************************************************************************** !
 
-  function pflotranModelCreate(mpicomm, pflotran_prefix)
+  subroutine pflotranModelCreate(mpicomm, pflotran_prefix, model)
   ! 
   ! Allocates and initializes the pflotranModel object.
   ! It performs the same sequence of commands as done in pflotran.F90
@@ -158,59 +158,65 @@ contains
     PetscInt, intent(in) :: mpicomm
     character(len=256), intent(in) :: pflotran_prefix
 
-    type(pflotran_model_type), pointer :: pflotranModelCreate
+    !type(pflotran_model_type), pointer :: pflotranModelCreate
 
-    type(pflotran_model_type),   pointer :: pflotran_model
+    type(pflotran_model_type),   pointer, intent(inout) :: model
+
     type(option_type),           pointer :: option
     class(simulation_base_type), pointer :: simulation
     type(multi_simulation_type), pointer :: multisimulation
 
     !----------------------------------------------
-    allocate(pflotran_model)
+    !allocate(model)
 
-    option => pflotran_model%option
-    simulation => pflotran_model%simulation
-    multisimulation => pflotran_model%multisimulation
+    !option => model%option
+    !simulation => model%simulation
+    !multisimulation => model%multisimulation
 
-    nullify(simulation)
-    nullify(multisimulation)
-    nullify(option)
+    nullify(model%simulation)
+    nullify(model%multisimulation)
+    nullify(model%option)
 
-    option => OptionCreate()
-    call OptionInitMPI(option, mpicomm)
-    call PFLOTRANInitializePrePetsc(multisimulation, option)
+    model%option => OptionCreate()
+    call OptionInitMPI(model%option, mpicomm)
+    call PFLOTRANInitializePrePetsc(model%multisimulation, model%option)
 
     ! NOTE(bja) 2013-06-25 : external driver must provide an input
     ! prefix string. If the driver wants to use pflotran.in, then it
     ! should explicitly request that with 'pflotran'.
     if (len(trim(pflotran_prefix)) > 1) then
-      option%input_prefix   = trim(pflotran_prefix)
-      option%input_filename = trim(option%input_prefix) // '.in'
-      option%global_prefix  = option%input_prefix
+      model%option%input_prefix   = trim(pflotran_prefix)
+      model%option%input_filename = trim(model%option%input_prefix) // '.in'
+      model%option%global_prefix  = model%option%input_prefix
     else
-      option%io_buffer = 'The external driver must provide the ' // &
+      model%option%io_buffer = 'The external driver must provide the ' // &
            'pflotran input file prefix.'
-      call printErrMsg(option)
+      call printErrMsg(model%option)
     end if
 
-    call OptionInitPetsc(option)
-    if (option%myrank == option%io_rank .and. &
-       option%print_to_screen) then
+    call OptionInitPetsc(model%option)
+    if (model%option%myrank == model%option%io_rank .and. &
+       model%option%print_to_screen) then
       call PrintProvenanceToScreen()
     end if
-    call PFLOTRANInitializePostPetsc(simulation, multisimulation, option)
+    call PFLOTRANInitializePostPetsc(model%simulation, model%multisimulation, model%option)
+
+    call model%simulation%InitializeRun()
 
     ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
     ! setup on mpich/mac. should be generally ok, but may need an
     ! apple/mpich ifdef if it cause problems elsewhere.
     PETSC_COMM_SELF = MPI_COMM_SELF
 
-    pflotran_model%pause_time_1 = -1.0d0
-    pflotran_model%pause_time_2 = -1.0d0
+    model%pause_time_1 = -1.0d0
+    model%pause_time_2 = -1.0d0
 
-    pflotranModelCreate => pflotran_model
+    ! read-in RT species index and names for use in this module.
+    call pflotranModelGetRTspecies(model)
 
-  end function pflotranModelCreate
+  end subroutine pflotranModelCreate
+
+
 
 ! ************************************************************************** !
 
@@ -227,8 +233,6 @@ contains
     type(pflotran_model_type), pointer, intent(inout) :: pflotran_model
 
     call pflotran_model%simulation%InitializeRun()
-
-    call pflotranModelGetRTspecies(pflotran_model)
 
   end subroutine pflotranModelStepperRunInit
 
@@ -1289,7 +1293,9 @@ contains
     use Grid_module
     use Field_module
     use Global_Aux_module
+    use Richards_module
     use Richards_Aux_module
+    use TH_module
     use TH_Aux_module
     use Simulation_Base_class, only : simulation_base_type
     use Simulation_Subsurface_class, only : subsurface_simulation_type
@@ -1460,6 +1466,7 @@ contains
     use Patch_module
     use Grid_module
     use Global_Aux_module
+    use TH_module
     use TH_Aux_module
     use Simulation_Base_class, only : simulation_base_type
     use Simulation_Subsurface_class, only : subsurface_simulation_type
@@ -2324,6 +2331,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   ! ************************************************************************** !
   subroutine pflotranModelGetRTspecies(pflotran_model)
 
+    use Option_module
     use Realization_class
     use Reaction_Aux_module
     use Reaction_Immobile_Aux_module
@@ -3664,7 +3672,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscScalar, pointer :: gn2o_vr_pf_loc(:)              ! (molN2O-N/m3 bulk soil)
 
     PetscInt :: offset
-    PetscInt :: ispec_co2, ispec_n2, ispec_n2o
 
     character(len=MAXWORDLENGTH) :: word
 

@@ -1,11 +1,11 @@
 module pflotran_clm_setmapping_module
 
-!  use Option_module, only : option_type
-!  use Simulation_Base_class, only : simulation_base_type
-!  use Multi_Simulation_module, only : multi_simulation_type
-!  use Realization_Base_class, only : realization_base_type
+  use Option_module, only : option_type
+  use Simulation_Base_class, only : simulation_base_type
+  use Multi_Simulation_module, only : multi_simulation_type
+  use Realization_Base_class, only : realization_base_type
   use Mapping_module, only : mapping_type
-  use pflotran_clm_main_module
+  use pflotran_clm_main_module, only : pflotran_model_type
 
   use PFLOTRAN_Constants_module
 
@@ -97,12 +97,17 @@ contains
     use Input_Aux_module
     use Mapping_module
 
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Realization_class, only : realization_type
+
     implicit none
 
 #include "finclude/petscsys.h"
 
     type(pflotran_model_type), pointer, intent(inout) :: model
     type(input_type), pointer :: input
+    type(option_type), pointer :: option
+    class(realization_type), pointer    :: realization
 
     PetscBool :: clm2pf_3dsub_file
     PetscBool :: pf2clm_3dsub_file
@@ -136,7 +141,7 @@ contains
     model%nlclm = -1
     model%ngclm = -1
 
-    input => InputCreate(OUTPUT_UNIT, &
+    input => InputCreate(IUNIT_TEMP, &
                     model%option%input_filename, model%option)
 
     ! Read names of mapping file
