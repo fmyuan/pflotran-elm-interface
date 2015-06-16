@@ -382,7 +382,8 @@ geomech_obj = \
 	${common_src}timestepper_geomechanics.o
 
 clm_interface_obj = \
-	${common_src}pflotran_model.o \
+	${common_src}pflotran_clm_main.o \
+	${common_src}pflotran_clm_setmapping.o \
 	${common_src}clm_pflotran_interface_data.o \
 	${common_src}mapping.o
 
@@ -434,12 +435,13 @@ endif
 # the long list below is easier to update from the main makefile.
 clm_pflotran_interface_data.o :
 mapping.o : option.o pflotran_constants.o input_aux.o
-pflotran_model.o : factory_geomechanics.o factory_hydrogeophysics.o \
+pflotran_clm_main.o : factory_geomechanics.o factory_hydrogeophysics.o \
              factory_pflotran.o factory_subsurface.o \
              factory_surface.o factory_surfsubsurface.o \
              multisimulation.o option.o pflotran_constants.o \
              pflotran_provenance.o simulation_base.o \
              mapping.o clm_pflotran_interface_data.o
+pflotran_clm_setmapping.o : pflotran_clm_main.o mapping.o
 
 # Dependencies stemming from "use" statements.
 # These ensure that the module files are built in the correct order.
