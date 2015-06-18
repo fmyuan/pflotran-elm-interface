@@ -201,7 +201,7 @@ contains
     end if
     call PFLOTRANInitializePostPetsc(model%simulation, model%multisimulation, model%option)
 
-    call model%simulation%InitializeRun()
+    call model%simulation%InitializeRun()   ! if called here, seems NO need to call StepperRunInit().
 
     ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
     ! setup on mpich/mac. should be generally ok, but may need an
