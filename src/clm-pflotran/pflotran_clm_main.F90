@@ -18,9 +18,6 @@ module pflotran_clm_main_module
 #include "finclude/petscviewer.h"
 #include "finclude/petscvec.h"
 
-  PetscReal, parameter, public :: xeps0_c = 1.0d-20
-  PetscReal, parameter, public :: xeps0_n = 1.0d-21
-
   type, public :: pflotran_model_type
     class(simulation_base_type),  pointer :: simulation
     type(multi_simulation_type), pointer :: multisimulation
@@ -39,7 +36,7 @@ module pflotran_clm_main_module
     PetscInt :: ngclm
 
   end type pflotran_model_type
-
+  !
   public::pflotranModelCreate,               &
        ! PF running
        pflotranModelStepperRunInit,          &
@@ -59,7 +56,7 @@ module pflotran_clm_main_module
        pflotranModelSetSoilHbcsFromCLM,         &    ! water BC
        pflotranModelSetInternalTHStatesfromCLM, &    ! T/H states from CLM to PFLOTRAN flow mode's field%**
        pflotranModelUpdateTHfromCLM,            &    ! dynamically update TH states from CLM to PF's global vars to drive PFLOTRAN BGC
-       pflotranModelGetTemperatureFromPF,         &
+       pflotranModelGetTemperatureFromPF,       &
        pflotranModelGetSaturationFromPF,        &
        ! BGC
        pflotranModelSetBGCRatesFromCLM,         &
@@ -72,8 +69,57 @@ module pflotran_clm_main_module
 
   private :: &
        pflotranModelInsertWaypoint,          &
-       pflotranModelDeleteWaypoint
+       pflotranModelDeleteWaypoint,          &
+       pflotranModelGetRTspecies
 
+!------------------------------------------------------------
+  !NOTES: The following is what PF bgc right now using for CLM-PFLOTRAN coupling
+  ! if need adding or modifying, it's possible and update BOTH here and subroutine 'pflotranModelGetRTspecies'
+  ! (Of course, it must be modifying the PF input card and get those variables and relevant reactions in RT).
+
+  ! RT bgc species 'idof' and 'name'
+  PetscInt:: ispec_lit1c, ispec_lit2c, ispec_lit3c, ispec_cwdc
+  PetscInt:: ispec_lit1n, ispec_lit2n, ispec_lit3n, ispec_cwdn
+  PetscInt:: ispec_som1c, ispec_som2c, ispec_som3c, ispec_som4c
+  PetscInt:: ispec_som1n, ispec_som2n, ispec_som3n, ispec_som4n
+  character(len=MAXWORDLENGTH):: name_lit1 = "Labile"           ! appending 'C' or 'N' for real PF species name
+  character(len=MAXWORDLENGTH):: name_lit2 = "Cellulose"
+  character(len=MAXWORDLENGTH):: name_lit3 = "Lignin"
+  character(len=MAXWORDLENGTH):: name_cwd  = "CWD"
+  character(len=MAXWORDLENGTH):: name_som1 = "SOM1"
+  character(len=MAXWORDLENGTH):: name_som2 = "SOM2"
+  character(len=MAXWORDLENGTH):: name_som3 = "SOM3"
+  character(len=MAXWORDLENGTH):: name_som4 = "SOM4"
+
+  PetscInt:: ispec_nh4, ispec_no3, ispec_nh4sorb
+  character(len=MAXWORDLENGTH):: name_nh4     = "NH4+"
+  character(len=MAXWORDLENGTH):: name_no3     = "NO3-"
+  character(len=MAXWORDLENGTH):: name_nh4sorb = "NH4sorb"
+
+  PetscInt :: ispec_plantndemand, ispec_plantnh4uptake, ispec_plantno3uptake
+  character(len=MAXWORDLENGTH):: name_plantndemand   = "Plantndemand"
+  character(len=MAXWORDLENGTH):: name_plantnh4uptake = "Plantnh4uptake"
+  character(len=MAXWORDLENGTH):: name_plantno3uptake = "Plantno3uptake"
+
+  PetscInt :: ispec_hr, ispec_nmin, ispec_nimmp, ispec_nimm
+  character(len=MAXWORDLENGTH):: name_hr   = "HRimm"
+  character(len=MAXWORDLENGTH):: name_nmin = "nmin"
+  character(len=MAXWORDLENGTH):: name_nimmp= "nimmp"
+  character(len=MAXWORDLENGTH):: name_nimm = "nimm"
+
+  PetscInt :: ispec_ngasmin, ispec_ngasnitr, ispec_ngasdeni
+  character(len=MAXWORDLENGTH):: name_ngasmin = "NGASmin"
+  character(len=MAXWORDLENGTH):: name_ngasnitr= "NGASnitr"
+  character(len=MAXWORDLENGTH):: name_ngasdeni= "NGASdeni"
+
+  PetscInt :: ispec_co2, ispec_n2, ispec_n2o
+  character(len=MAXWORDLENGTH):: name_co2 = "CO2imm"
+  character(len=MAXWORDLENGTH):: name_n2o = "N2Oimm"
+  character(len=MAXWORDLENGTH):: name_n2  = "N2imm"
+
+  PetscReal, parameter :: xeps0_c = 1.0d-20
+  PetscReal, parameter :: xeps0_n = 1.0d-21
+!------------------------------------------------------------
 
 contains
 
@@ -157,16 +203,17 @@ contains
     select case(model%option%simulation_mode)
       case('SUBSURFACE')
          call SubsurfaceInitialize(model%simulation, model%option)
-      case('HYDROGEOPHYSICS')
-         call HydrogeophysicsInitialize(model%simulation, model%option)
-      case('SURFACE')
-         call SurfaceInitialize(model%simulation, model%option)
       case('SURFACE_SUBSURFACE')
          call SurfSubsurfaceInitialize(model%simulation, model%option)
       case default
          model%option%io_buffer = 'Simulation Mode not recognized : ' // model%option%simulation_mode
          call printErrMsg(model%option)
     end select
+
+    ! if BGC is on
+    if(model%option%ntrandof > 0) then
+      call pflotranModelGetRTspecies(model)
+    endif
 
     pflotranModelCreate => model
 
@@ -2340,6 +2387,213 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
 
   ! ************************************************************************** !
+  ! pflotranModelGetRTspecies:
+  !  PF RT bgc species Name and index (idof)
+  !  Then, all indices is saved for using in this module
+  !  so if modification needed, only this subroutine
+  !     and the 'ispec_*' and 'name_*' put in the header of this module are modified.
+  !
+  ! ************************************************************************** !
+  subroutine pflotranModelGetRTspecies(pflotran_model)
+
+    use Option_module
+    use Realization_class
+    use Reaction_Aux_module
+    use Reaction_Immobile_Aux_module
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+
+    use clm_pflotran_interface_data
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer  :: pflotran_model
+    class(realization_type), pointer    :: realization
+    type(simulation_base_type), pointer :: simulation
+
+    PetscErrorCode     :: ierr
+
+    character(len=MAXWORDLENGTH) :: word
+
+    !----------------------------------------
+    if (pflotran_model%option%ntrandof <= 0) return
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer &
+          = "ERROR: SetInitialConcentrations not supported under this mode.."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    !
+    !immobile species for liter and SOM
+
+    word = trim(name_lit1) // "C"
+    ispec_lit1c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    word = trim(name_lit1) // "N"
+    ispec_lit1n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = trim(name_lit2) // "C"
+    ispec_lit2c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    word = trim(name_lit2) // "N"
+    ispec_lit2n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = trim(name_lit3) // "C"
+    ispec_lit3c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    word = trim(name_lit3) // "N"
+    ispec_lit3n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = trim(name_cwd) // "C"
+    ispec_cwdc = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    word = trim(name_cwd) // "N"
+    ispec_cwdn = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = name_som1
+    ispec_som1c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_som1c < 0) then
+      word = trim(name_som1) // "C"
+      ispec_som1c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+      word = trim(name_som1) // "N"
+      ispec_som1n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    else
+      ispec_som1n = UNINITIALIZED_INTEGER
+    endif
+
+    word = name_som2
+    ispec_som2c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_som2c < 0) then
+      word = trim(name_som2) // "C"
+      ispec_som2c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+      word = trim(name_som2) // "N"
+      ispec_som2n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    else
+      ispec_som2n = UNINITIALIZED_INTEGER
+    endif
+
+    word = name_som3
+    ispec_som3c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_som3c < 0) then
+      word = trim(name_som3) // "C"
+      ispec_som3c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+      word = trim(name_som3) // "N"
+      ispec_som3n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    else
+      ispec_som3n = UNINITIALIZED_INTEGER
+    endif
+
+    word = name_som4
+    ispec_som4c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_som4c < 0) then
+      word = trim(name_som4) // "C"
+      ispec_som4c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+      word = trim(name_som4) // "N"
+      ispec_som4n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    else
+      ispec_som4n = UNINITIALIZED_INTEGER
+    endif
+
+    ! aq. species in soil solution/absorbed
+    word = name_nh4
+    ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    if (ispec_nh4 > 0) then
+      word = name_nh4sorb
+      ispec_nh4sorb  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    else
+      ispec_nh4sorb  = UNINITIALIZED_INTEGER
+    endif
+
+    word = name_no3
+    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+
+    !
+    ! species for gases
+    word = name_co2
+    ispec_co2  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    word = name_n2
+    ispec_n2  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = name_n2o
+    ispec_n2o = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    ! CO2 productin from C decomposition reaction network for tracking (immoble species)
+    word = name_hr
+    ispec_hr = GetImmobileSpeciesIDFromName(word, &
+            realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    ! N bgc reaction fluxes for tracking (immoble species)
+    word = name_plantndemand
+    ispec_plantndemand  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    word = name_plantnh4uptake
+    ispec_plantnh4uptake  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    word = name_plantno3uptake
+    ispec_plantno3uptake  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = name_nmin
+    ispec_nmin = GetImmobileSpeciesIDFromName(word, &
+            realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = name_nimmp
+    ispec_nimmp = GetImmobileSpeciesIDFromName(word, &
+            realization%reaction%immobile,PETSC_FALSE,realization%option)
+    word = name_nimm
+    ispec_nimm = GetImmobileSpeciesIDFromName(word, &
+            realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = name_ngasmin
+    ispec_ngasmin = GetImmobileSpeciesIDFromName(word, &
+           realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = name_ngasnitr
+    ispec_ngasnitr = GetImmobileSpeciesIDFromName( word, &
+           realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = name_ngasdeni
+    ispec_ngasdeni = GetImmobileSpeciesIDFromName( word, &
+           realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+  end subroutine pflotranModelGetRTspecies
+
+  ! ************************************************************************** !
+  ! TEMPORARILY OFF!
   !> This routine Pass CLM SOM decomposition rate constants for PFLOTRAN bgc
   !! So that both are consistent
   !!
@@ -2450,13 +2704,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscReal, pointer :: porosity_loc_p(:)
 
-    PetscInt :: ispec_no3, ispec_nh4, offset, offsetim
-    PetscInt :: ispec_lit1c, ispec_lit2c, ispec_lit3c, ispec_cwdc
-    PetscInt :: ispec_lit1n, ispec_lit2n, ispec_lit3n, ispec_cwdn
-    PetscInt :: ispec_som1c, ispec_som2c, ispec_som3c, ispec_som4c
-    PetscInt :: ispec_som1n, ispec_som2n, ispec_som3n, ispec_som4n
-
-    character(len=MAXWORDLENGTH) :: word
+    PetscInt  :: offset, offsetim
     PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
 
     select type (simulation => pflotran_model%simulation)
@@ -2475,94 +2723,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     grid  => patch%grid
     field => realization%field
     global_auxvars  => patch%aux%Global%auxvars
-
-    word = "LabileC"
-    ispec_lit1c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "CelluloseC"
-    ispec_lit2c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "LigninC"
-    ispec_lit3c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "LabileN"
-    ispec_lit1n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "CelluloseN"
-    ispec_lit2n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "LigninN"
-    ispec_lit3n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "SOM1"
-    ispec_som1c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_som1c < 0) then
-      word = "SOM1C"
-      ispec_som1c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-      word = "SOM1N"
-      ispec_som1n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    else
-      ispec_som1n = UNINITIALIZED_INTEGER
-    end if
-
-    word = "SOM2"
-    ispec_som2c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_som2c < 0) then
-      word = "SOM2C"
-      ispec_som2c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-      word = "SOM2N"
-      ispec_som2n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    else
-      ispec_som2n = UNINITIALIZED_INTEGER
-    end if
-
-    word = "SOM3"
-    ispec_som3c  = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_som3c < 0) then
-      word = "SOM3C"
-      ispec_som3c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-      word = "SOM3N"
-      ispec_som3n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    else
-      ispec_som3n = UNINITIALIZED_INTEGER
-    end if
-
-    word = "SOM4"
-    ispec_som4c  = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_som4c < 0) then
-      word = "SOM4C"
-      ispec_som4c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-      word = "SOM4N"
-      ispec_som4n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    else
-      ispec_som4n = UNINITIALIZED_INTEGER
-    end if
-
-    word = "NO3-"
-    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-
-    word = "NH4+"
-    ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
 
     if (ispec_lit1c > 0) then
       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -2885,7 +3045,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         xx_p(offsetim + ispec_som4n) = max(xeps0_n, decomp_npools_vr_som4_pf_loc(ghosted_id) )
       endif
 
-#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
+#ifdef CLM_PF_DEBUG
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (som4c pool):
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
       !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
@@ -3048,19 +3208,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     type(mass_transfer_type), pointer   :: cur_mass_transfer
 
     PetscErrorCode     :: ierr
-    PetscInt           :: local_id
-
-    PetscInt:: ispec_nh4, ispec_no3
-    PetscInt:: ispec_lit1c, ispec_lit2c, ispec_lit3c, ispec_cwdc
-    PetscInt:: ispec_lit1n, ispec_lit2n, ispec_lit3n, ispec_cwdn
-    PetscInt:: ispec_som1c, ispec_som2c, ispec_som3c, ispec_som4c
-    PetscInt:: ispec_som1n, ispec_som2n, ispec_som3n, ispec_som4n
-    PetscInt:: ghosted_id, offset, offsetim
+    PetscInt           :: ghosted_id,local_id
+    PetscInt           :: offset, offsetim
 
     PetscScalar, pointer :: rate_pf_loc(:)   !
-    PetscReal, pointer :: volume_p(:)
 
-    character(len=MAXWORDLENGTH) :: word
+    PetscReal, pointer :: volume_p(:)
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -3077,97 +3230,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     patch => realization%patch
     grid  => patch%grid
     field => realization%field
-
-    word = "NH4+"
-    ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-    word = "NO3-"
-    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-
-    word = "LabileC"
-    ispec_lit1c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    word = "LabileN"
-    ispec_lit1n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "CelluloseC"
-    ispec_lit2c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    word = "CelluloseN"
-    ispec_lit2n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "LigninC"
-    ispec_lit3c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    word = "LigninN"
-    ispec_lit3n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "CWDC"
-    ispec_cwdc = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    word = "CWDN"
-    ispec_cwdn = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "SOM1"
-    ispec_som1c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_som1c < 0) then
-      word = "SOM1C"
-      ispec_som1c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-      word = "SOM1N"
-      ispec_som1n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    else
-      ispec_som1n = UNINITIALIZED_INTEGER
-    endif
-
-    word = "SOM2"
-    ispec_som2c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_som2c < 0) then
-      word = "SOM2C"
-      ispec_som2c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-      word = "SOM2N"
-      ispec_som2n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    else
-      ispec_som2n = UNINITIALIZED_INTEGER
-    endif
-
-    word = "SOM3"
-    ispec_som3c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_som3c < 0) then
-      word = "SOM3C"
-      ispec_som3c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-      word = "SOM3N"
-      ispec_som3n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    else
-      ispec_som3n = UNINITIALIZED_INTEGER
-    endif
-
-    word = "SOM4"
-    ispec_som4c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_som4c < 0) then
-      word = "SOM4C"
-      ispec_som4c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-      word = "SOM4N"
-      ispec_som4n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    else
-      ispec_som4n = UNINITIALIZED_INTEGER
-    endif
 
     ! mapping data from CLM to PFLOTRAN
     if(ispec_lit1c >0) then
@@ -3686,7 +3748,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscScalar, pointer :: gn2o_vr_pf_loc(:)              ! (molN2O-N/m3 bulk soil)
 
     PetscInt :: offset
-    PetscInt :: ispec_co2, ispec_n2, ispec_n2o
 
     character(len=MAXWORDLENGTH) :: word
 
@@ -3706,21 +3767,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     grid  => patch%grid
     field => realization%field
     global_auxvars  => patch%aux%Global%auxvars
-
-    ! (i) indices of bgc variables in PFLOTRAN immobiles
-
-    ! immobile species
-    word = "CO2imm"
-    ispec_co2  = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "N2imm"
-    ispec_n2  = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "N2Oimm"
-    ispec_n2o = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     ! mapping CLM vecs to PF vecs
     if(ispec_co2 > 0) then
@@ -3875,23 +3921,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscScalar, pointer :: accngasmin_vr_pf_loc(:)         ! (molesN/m3)
     PetscScalar, pointer :: accngasnitr_vr_pf_loc(:)        ! (molesN/m3)
     PetscScalar, pointer :: accngasdeni_vr_pf_loc(:)        ! (molesN/m3)
-    PetscReal, pointer :: porosity_loc_p(:)
 
-    PetscInt :: offset, offsetim
-    PetscInt :: ispec_no3, ispec_nh4, ispec_nh4sorb
-    PetscInt :: ispec_lit1c, ispec_lit2c, ispec_lit3c, ispec_cwdc
-    PetscInt :: ispec_lit1n, ispec_lit2n, ispec_lit3n, ispec_cwdn
-    PetscInt :: ispec_som1c, ispec_som2c, ispec_som3c, ispec_som4c
-    PetscInt :: ispec_som1n, ispec_som2n, ispec_som3n, ispec_som4n
-    PetscInt :: ispec_co2, ispec_n2, ispec_n2o
-    PetscInt :: ispec_plantnh4uptake, ispec_plantno3uptake
-    PetscInt :: ispec_hrimm, ispec_nmin, ispec_nimmp, ispec_nimm
-    PetscInt :: ispec_ngasmin, ispec_ngasnitr, ispec_ngasdeni
+    PetscReal, pointer :: porosity_loc_p(:)
 
     PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
     PetscReal :: conc
+    PetscInt  :: offset, offsetim
 
-    character(len=MAXWORDLENGTH) :: word
     PetscReal, parameter :: zeroing_conc = 1.0d-10
 
     select type (simulation => pflotran_model%simulation)
@@ -3910,150 +3946,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     grid  => patch%grid
     field => realization%field
     reaction => realization%reaction
-
-    ! (i) indices of bgc variables in PFLOTRAN immobiles
-    word = "LabileC"
-    ispec_lit1c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "CelluloseC"
-    ispec_lit2c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "LigninC"
-    ispec_lit3c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "LabileN"
-    ispec_lit1n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "CelluloseN"
-    ispec_lit2n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "LigninN"
-    ispec_lit3n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "SOM1"
-    ispec_som1c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_som1c < 0) then
-      word = "SOM1C"
-      ispec_som1c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-      word = "SOM1N"
-      ispec_som1n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    else
-      ispec_som1n = UNINITIALIZED_INTEGER
-    end if
-
-    word = "SOM2"
-    ispec_som2c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_som2c < 0) then
-      word = "SOM2C"
-      ispec_som2c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-      word = "SOM2N"
-      ispec_som2n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    else
-      ispec_som2n = UNINITIALIZED_INTEGER
-    end if
-
-    word = "SOM3"
-    ispec_som3c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_som3c < 0) then
-      word = "SOM3C"
-      ispec_som3c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-      word = "SOM3N"
-      ispec_som3n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    else
-      ispec_som3n = UNINITIALIZED_INTEGER
-    end if
-
-    word = "SOM4"
-    ispec_som4c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_som4c < 0) then
-      word = "SOM4C"
-      ispec_som4c = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-      word = "SOM4N"
-      ispec_som4n = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    else
-      ispec_som4n = UNINITIALIZED_INTEGER
-    end if
-
-    ! primary species
-    word = "NO3-"
-    ispec_no3  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-
-    word = "NH4+"
-    ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
-
-    if (ispec_nh4 > 0) then
-       word = 'NH4sorb'   ! if using 'reaction_sandbox_langumir' for NH4 sorption reaction
-       ispec_nh4sorb = GetImmobileSpeciesIDFromName( word, &
-            realization%reaction%immobile,PETSC_FALSE,realization%option)
-    endif
-
-    !immobile species for gas
-    word = "CO2imm"
-    ispec_co2  = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    word = "N2imm"
-    ispec_n2  = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = "N2Oimm"
-    ispec_n2o = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    ! CO2 productin from C decomposition reaction network tracking (immoble species)
-    word = 'HRimm'
-    ispec_hrimm = GetImmobileSpeciesIDFromName(word, &
-            realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    ! N bgc reaction fluxes tracking (immoble species)
-    word = "Plantnh4uptake"
-    ispec_plantnh4uptake  = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-    word = "Plantno3uptake"
-    ispec_plantno3uptake  = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = 'Nmin'
-    ispec_nmin = GetImmobileSpeciesIDFromName(word, &
-            realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = 'Nimmp'
-    ispec_nimmp = GetImmobileSpeciesIDFromName(word, &
-            realization%reaction%immobile,PETSC_FALSE,realization%option)
-    word = 'Nimm'
-    ispec_nimm = GetImmobileSpeciesIDFromName(word, &
-            realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = 'NGASmin'
-    ispec_ngasmin = GetImmobileSpeciesIDFromName(word, &
-           realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = 'NGASnitr'
-    ispec_ngasnitr = GetImmobileSpeciesIDFromName( word, &
-           realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = 'NGASdeni'
-    ispec_ngasdeni = GetImmobileSpeciesIDFromName( word, &
-           realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     ! (ii) get the original 'pf' vecs
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfp, &
@@ -4275,12 +4167,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
            xx_p(offsetim + ispec_plantno3uptake) = zeroing_conc
         endif
 
-        if(ispec_hrimm > 0) then
-           conc = xx_p(offsetim + ispec_hrimm)
+        if(ispec_hr > 0) then
+           conc = xx_p(offsetim + ispec_hr)
            acchr_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_hrimm) = zeroing_conc
+           xx_p(offsetim + ispec_hr) = zeroing_conc
         endif
 
         if(ispec_nmin > 0) then
@@ -4589,7 +4481,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%accextrno3_vr_clms)
     endif
 
-    if(ispec_hrimm > 0) then
+    if(ispec_hr > 0) then
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%acchr_vr_pfp, &
