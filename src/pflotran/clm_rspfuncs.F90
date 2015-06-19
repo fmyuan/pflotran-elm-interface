@@ -162,7 +162,7 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
 ! DLEM 
 ! Tian et al. 2010 Biogeosciences, 7, 2673-2694 Eq. 13
     case(MOISTURE_RESPONSE_FUNCTION_DLEM) 
-      call VecGetArrayReadF90(clm_pf_idata%porosity_pfs, porosity_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%effporosity_pfs, porosity_pf_loc, ierr)
       CHKERRQ(ierr)
       call VecGetArrayReadF90(clm_pf_idata%watfc_pfs, watfc_pf_loc, ierr)
       CHKERRQ(ierr)
@@ -184,7 +184,7 @@ Function GetMoistureResponse(theta, ghosted_id, itype)
            F_theta = 1.0d0
         endif
       endif
-      call VecRestoreArrayReadF90(clm_pf_idata%porosity_pfs, porosity_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%effporosity_pfs, porosity_pf_loc, ierr)
       CHKERRQ(ierr)
       call VecRestoreArrayReadF90(clm_pf_idata%watfc_pfs, watfc_pf_loc, ierr)
       CHKERRQ(ierr)

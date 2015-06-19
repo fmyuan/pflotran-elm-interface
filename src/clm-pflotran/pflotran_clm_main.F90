@@ -125,7 +125,7 @@ contains
 
 ! ************************************************************************** !
 
-  function pflotranModelCreate(mpicomm, pflotran_prefix)
+  subroutine pflotranModelCreate(mpicomm, pflotran_prefix, model)
   ! 
   ! Allocates and initializes the pflotranModel object.
   ! It performs the same sequence of commands as done in pflotran.F90
@@ -154,8 +154,6 @@ contains
 
     PetscInt, intent(in) :: mpicomm
     character(len=256), intent(in) :: pflotran_prefix
-
-    type(pflotran_model_type), pointer :: pflotranModelCreate
 
     type(pflotran_model_type),      pointer :: model
 
@@ -203,10 +201,8 @@ contains
     select case(model%option%simulation_mode)
       case('SUBSURFACE')
          call SubsurfaceInitialize(model%simulation, model%option)
-      case('SURFACE_SUBSURFACE')
-         call SurfSubsurfaceInitialize(model%simulation, model%option)
       case default
-         model%option%io_buffer = 'Simulation Mode not recognized : ' // model%option%simulation_mode
+         model%option%io_buffer = 'Simulation Mode not supported: ' // model%option%simulation_mode
          call printErrMsg(model%option)
     end select
 
@@ -215,9 +211,7 @@ contains
       call pflotranModelGetRTspecies(model)
     endif
 
-    pflotranModelCreate => model
-
-  end function pflotranModelCreate
+  end subroutine pflotranModelCreate
 
 ! ************************************************************************** !
 
@@ -1176,7 +1170,7 @@ contains
     ! save porosity for estimating actual water content from saturation, when needed
     call VecGetArrayF90(field%porosity0,porosity0_loc_p,ierr)
     CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%porosity_pfp, porosity_loc_pfp, ierr)
+    call VecGetArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
     CHKERRQ(ierr)
 
     do local_id=1, grid%nlmax
@@ -1215,7 +1209,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     CHKERRQ(ierr)
     call VecRestoreArrayF90(field%porosity0,porosity0_loc_p,ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%porosity_pfp, porosity_loc_pfp, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
     CHKERRQ(ierr)
 
     ! mapping to CLM vecs (seq)
@@ -1236,8 +1230,8 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%porosity_pfp, &
-                                    clm_pf_idata%porosity_clms)
+                                    clm_pf_idata%effporosity_pfp, &
+                                    clm_pf_idata%effporosity_clms)
 
     if (pflotran_model%option%iflowmode == TH_MODE .and. &
         pflotran_model%option%use_th_freezing) then
@@ -1640,10 +1634,10 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%porosity_clmp, &
-                                    clm_pf_idata%porosity_pfs)
+                                    clm_pf_idata%effporosity_clmp, &
+                                    clm_pf_idata%effporosity_pfs)
     ! for adjusting porosity
-    call VecGetArrayF90(clm_pf_idata%porosity_pfs,  porosity_pfs_loc,  ierr)
+    call VecGetArrayF90(clm_pf_idata%effporosity_pfs,  porosity_pfs_loc,  ierr)
     CHKERRQ(ierr)   !seq. vec (to receive '_clmp' vec)
     call VecGetArrayF90(field%porosity0, porosity0_loc_p, ierr)
     CHKERRQ(ierr)
@@ -1706,7 +1700,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     enddo
 
-    call VecRestoreArrayF90(clm_pf_idata%porosity_pfs,  porosity_pfs_loc,  ierr)
+    call VecRestoreArrayF90(clm_pf_idata%effporosity_pfs,  porosity_pfs_loc,  ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(field%porosity0, porosity0_loc_p, ierr)
     CHKERRQ(ierr)
@@ -1824,7 +1818,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     call VecGetArrayF90(field%porosity0,porosity_loc_p,ierr)
     CHKERRQ(ierr)
 
-    call VecGetArrayF90(clm_pf_idata%porosity_pfp, porosity_loc_pfp, ierr)
+    call VecGetArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%sr_pcwmax_pfp, sr_pcwmax_loc_pfp, ierr)
     CHKERRQ(ierr)
@@ -1884,7 +1878,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     call VecRestoreArrayF90(field%porosity0,porosity_loc_p,ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%porosity_pfp, porosity_loc_pfp, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%sr_pcwmax_pfp, sr_pcwmax_loc_pfp, ierr)
     CHKERRQ(ierr)
@@ -1894,8 +1888,8 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     !
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%porosity_pfp, &
-                                    clm_pf_idata%porosity_clms)
+                                    clm_pf_idata%effporosity_pfp, &
+                                    clm_pf_idata%effporosity_clms)
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
@@ -3638,7 +3632,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     ! the previous time-step porosity and lsat from PFLOTRAN, saved in clm_pf_idata
     ! NOTE: make sure NOT modified by CLM
-    call VecGetArrayReadF90(clm_pf_idata%porosity_pfp, porosity_pre_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%effporosity_pfp, porosity_pre_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayReadF90(clm_pf_idata%soillsat_pfp, soillsat_pre_pf_loc, ierr)
     CHKERRQ(ierr)
@@ -3681,7 +3675,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecRestoreArrayF90(field%porosity0, porosity0_loc_p, ierr)
     CHKERRQ(ierr)
 
-    call VecRestoreArrayReadF90(clm_pf_idata%porosity_pfp, porosity_pre_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%effporosity_pfp, porosity_pre_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayReadF90(clm_pf_idata%soillsat_pfp, soillsat_pre_pf_loc, ierr)
     CHKERRQ(ierr)
