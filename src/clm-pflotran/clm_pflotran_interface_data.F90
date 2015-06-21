@@ -179,13 +179,13 @@ module clm_pflotran_interface_data
   Vec :: smin_no3_vr_pfs           ! (moleN/m3) vertically-resolved soil mineral NO3
   Vec :: smin_nh4_vr_pfs           ! (moleN/m3) vertically-resolved soil mineral NH4
   ! time-varying ground/soil C/N rates from CLM (mpi) to PF (seq) (Units: moleC(N)/m3/s)
-  Vec :: rate_decompc_clmp
-  Vec :: rate_decompn_clmp
+  Vec :: rate_decomp_c_clmp
+  Vec :: rate_decomp_n_clmp
   Vec :: rate_smin_no3_clmp
   Vec :: rate_smin_nh4_clmp
   Vec :: rate_plantndemand_clmp
-  Vec :: rate_decompc_pfs
-  Vec :: rate_decompn_pfs
+  Vec :: rate_decomp_c_pfs
+  Vec :: rate_decomp_n_pfs
   Vec :: rate_smin_no3_pfs
   Vec :: rate_smin_nh4_pfs
   Vec :: rate_plantndemand_pfs
@@ -416,14 +416,14 @@ contains
     clm_pf_idata%smin_nh4_vr_pfs      = 0
 
     !ground/soil C/N rates as source/sink
-    clm_pf_idata%rate_decompc_clmp          = 0
-    clm_pf_idata%rate_decompn_clmp          = 0
+    clm_pf_idata%rate_decomp_c_clmp          = 0
+    clm_pf_idata%rate_decomp_n_clmp          = 0
     clm_pf_idata%rate_smin_no3_clmp         = 0
     clm_pf_idata%rate_smin_nh4_clmp         = 0
     clm_pf_idata%rate_plantndemand_clmp     = 0
 
-    clm_pf_idata%rate_decompc_pfs          = 0
-    clm_pf_idata%rate_decompn_pfs          = 0
+    clm_pf_idata%rate_decomp_c_pfs          = 0
+    clm_pf_idata%rate_decomp_n_pfs          = 0
     clm_pf_idata%rate_smin_no3_pfs         = 0
     clm_pf_idata%rate_smin_nh4_pfs         = 0
     clm_pf_idata%rate_plantndemand_pfs     = 0
@@ -776,16 +776,16 @@ contains
 
     ! (iii) BGC/TH interface source/sink (rate): 3D subsurface CLM ---to--- 3D subsurface PFLOTRAN
     ! MPI Vecs for CLM
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clmp,clm_pf_idata%rate_decompc_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clmp,clm_pf_idata%rate_decompn_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clmp,clm_pf_idata%rate_decomp_c_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clmp,clm_pf_idata%rate_decomp_n_clmp,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_smin_no3_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_smin_nh4_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_plantndemand_clmp,ierr)
 
     ! Seq. Vecs for PFLOTRAN
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfs,clm_pf_idata%rate_decompc_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfs,clm_pf_idata%rate_decompn_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfs,clm_pf_idata%rate_decomp_c_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfs,clm_pf_idata%rate_decomp_n_pfs,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_smin_no3_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_smin_nh4_pfs,ierr)
@@ -1131,10 +1131,10 @@ contains
 
 
     ! soil C/N fluxes at interface (source/sink)
-    if(clm_pf_idata%rate_decompc_clmp /= 0) &
-       call VecDestroy(clm_pf_idata%rate_decompc_clmp,ierr)
-    if(clm_pf_idata%rate_decompn_clmp /= 0) &
-       call VecDestroy(clm_pf_idata%rate_decompn_clmp,ierr)
+    if(clm_pf_idata%rate_decomp_c_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%rate_decomp_c_clmp,ierr)
+    if(clm_pf_idata%rate_decomp_n_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%rate_decomp_n_clmp,ierr)
 
     if(clm_pf_idata%rate_plantndemand_clmp /= 0) &
        call VecDestroy(clm_pf_idata%rate_plantndemand_clmp,ierr)
@@ -1143,10 +1143,10 @@ contains
     if(clm_pf_idata%rate_smin_nh4_clmp /= 0) &
        call VecDestroy(clm_pf_idata%rate_smin_nh4_clmp,ierr)
 
-    if(clm_pf_idata%rate_decompc_pfs /= 0) &
-       call VecDestroy(clm_pf_idata%rate_decompc_pfs,ierr)
-    if(clm_pf_idata%rate_decompn_pfs /= 0) &
-       call VecDestroy(clm_pf_idata%rate_decompn_pfs,ierr)
+    if(clm_pf_idata%rate_decomp_c_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%rate_decomp_c_pfs,ierr)
+    if(clm_pf_idata%rate_decomp_n_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%rate_decomp_n_pfs,ierr)
 
     if(clm_pf_idata%rate_plantndemand_pfs /= 0) &
        call VecDestroy(clm_pf_idata%rate_plantndemand_pfs,ierr)

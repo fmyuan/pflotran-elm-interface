@@ -78,9 +78,9 @@ module pflotran_clm_main_module
   ! (Of course, it must be modifying the PF input card and get those variables and relevant reactions in RT).
 
   ! RT bgc species 'idof' and 'name'
-  PetscInt, pointer:: ispec_decomps_c(:)
-  PetscInt, pointer:: ispec_decomps_n(:)
-  character(len=MAXWORDLENGTH), allocatable :: name_decomps(:)          ! appending 'C' or 'N' for real PF species name
+  PetscInt, pointer:: ispec_decomp_c(:)
+  PetscInt, pointer:: ispec_decomp_n(:)
+  character(len=MAXWORDLENGTH), allocatable :: name_decomp(:)          ! appending 'C' or 'N' for real PF species name
 
   PetscInt:: ispec_nh4, ispec_no3, ispec_nh4sorb
   character(len=MAXWORDLENGTH):: name_nh4     = "NH4+"
@@ -1404,12 +1404,11 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     if (associated(model)) deallocate(model)
     nullify(model)
 
-    if (associated(ispec_decomps_c)) deallocate(ispec_decomps_c)
-    nullify(ispec_decomps_c)
-    if (associated(ispec_decomps_n)) deallocate(ispec_decomps_n)
-    nullify(ispec_decomps_n)
-    if (associated(name_decomps)) deallocate(name_decomps)
-    nullify(name_decomps)
+    if (associated(ispec_decomp_c)) deallocate(ispec_decomp_c)
+    nullify(ispec_decomp_c)
+    if (associated(ispec_decomp_n)) deallocate(ispec_decomp_n)
+    nullify(ispec_decomp_n)
+    deallocate(name_decomp)
 
   end subroutine pflotranModelDestroy
 
@@ -2431,15 +2430,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     !
     !immobile species for liter and SOM (decomposing pools)
-    if (.not.associated(ispec_decomps_c)) &
-      allocate(ispec_decomps_c(clm_pf_idata%ndecomp_pools))
-    ispec_decomps_c(:) = 0
-    if (.not.associated(ispec_decomps_n)) &
-      allocate(ispec_decomps_n(clm_pf_idata%ndecomp_pools))
-    ispec_decomps_n(:) = 0
-    if (.not.associated(name_decomps)) &
-    allocate(name_decomps(clm_pf_idata%ndecomp_pools))
-    name_decomps(:) = ""
+    if (.not.associated(ispec_decomp_c)) &
+      allocate(ispec_decomp_c(clm_pf_idata%ndecomp_pools))
+    ispec_decomp_c(:) = 0
+    if (.not.associated(ispec_decomp_n)) &
+      allocate(ispec_decomp_n(clm_pf_idata%ndecomp_pools))
+    ispec_decomp_n(:) = 0
+    allocate(name_decomp(clm_pf_idata%ndecomp_pools))
+    name_decomp(:) = ""
 
     do k=1, clm_pf_idata%ndecomp_pools
 
@@ -2448,44 +2446,44 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       ! (2) varying-CN ratio decomposing pool: 2 pool names are defined with ending letter 'C' or 'N'
 
       if (clm_pf_idata%floating_cn_ratio(k)) then
-        word = trim(name_decomps(k)) // "C"
-        ispec_decomps_c(k) = GetImmobileSpeciesIDFromName(word, &
+        word = trim(name_decomp(k)) // "C"
+        ispec_decomp_c(k) = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
         !
-        if (ispec_decomps_c(k) <= 0) then
+        if (ispec_decomp_c(k) <= 0) then
           pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
             trim(word) // &
             'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
-          call printErrMsg(option)
+          call printErrMsg(pflotran_model%option)
         endif
 
-        word = trim(name_decomps(k)) // "N"
-        ispec_decomps_n(k) = GetImmobileSpeciesIDFromName(word, &
+        word = trim(name_decomp(k)) // "N"
+        ispec_decomp_n(k) = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-        if (ispec_decomps_n(k) <= 0) then
+        if (ispec_decomp_n(k) <= 0) then
           pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
             trim(word) // &
             'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
-          call printErrMsg(option)
+          call printErrMsg(pflotran_model%option)
         endif
       !
 
       else
 
-        word = trim(name_decomps(k))
-        ispec_decomps_c(k) = GetImmobileSpeciesIDFromName(word, &
+        word = trim(name_decomp(k))
+        ispec_decomp_c(k) = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-        if (ispec_decomps_c(k) <= 0) then
+        if (ispec_decomp_c(k) <= 0) then
           pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
             trim(word) // &
             'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
-          call printErrMsg(option)
+          call printErrMsg(pflotran_model%option)
         endif
 
         !
-        ispec_decomps_n(k) = UNINITIALIZED_INTEGER
+        ispec_decomp_n(k) = UNINITIALIZED_INTEGER
 
       endif
 
@@ -2665,7 +2663,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscInt, pointer :: idecomp_clmp_index(:), idecomp_pfs_index(:)
     Vec               :: vec_clmp, vec_pfs
-    PetscInt          :: j, k, vec_ioffset
+    PetscInt          :: j, k, vec_offset
 
 !------------------------------------------------------------------------------------------------
 
@@ -2702,13 +2700,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       idecomp_pfs_index(j) = j-1
     enddo
 
-    ! decomps'C'
-    if (associated(ispec_decompc)) then
+    ! decomp'C'
+    if (associated(ispec_decomp_c)) then
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
-        call VecGetValues(clm_pf_idata%decomp_cpools_vr_clmp,               &
-                          idecomp_clmp_index+(k-1)*clm_pf_idata%ngclm_sub,  &
-                          clm_pf_idata%ngclm_sub,                           &
+        vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! decomp_clmp vec: 'cell' first, then 'species'
+        call VecGetValues(clm_pf_idata%decomp_cpools_vr_clmp,      &
+                          idecomp_clmp_index+vec_offset,           &
+                          clm_pf_idata%ngclm_sub,                  &
                           vec_clmp, INSERT_VALUES, ierr)
         CHKERRQ(ierr)
         ! assembly the 'vec_clmp'
@@ -2724,9 +2723,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     vec_pfs)
 
         ! insert 'vec_pfs' into the whole '_pfs' vec
-        call VecSetValues(clm_pf_idata%decomp_cpools_vr_pfs,              &
-                          idecomp_pfs_index+(k-1)*clm_pf_idata%nlpf_sub,  &
-                          clm_pf_idata%nlpf_sub,                          &
+        vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! decomp_pfs vec: 'cell' first, then 'species'
+        call VecSetValues(clm_pf_idata%decomp_cpools_vr_pfs,      &
+                          idecomp_pfs_index+vec_offset,           &
+                          clm_pf_idata%nlpf_sub,                  &
                           vec_pfs, INSERT_VALUES, ierr)
         CHKERRQ(ierr)
 
@@ -2740,13 +2740,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     endif
 
-    ! decomps_'N'
-    if (associated(ispec_decompn)) then
+    ! decomp_'N'
+    if (associated(ispec_decomp_n)) then
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
-        vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! decomps_clmp vec: 'cell' first, then 'species'
+        vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! decomp_clmp vec: 'cell' first, then 'species'
         call VecGetValues(clm_pf_idata%decomp_npools_vr_clmp,   &
-                          idecomp_clmp_index+vec_offset,        &       ! decomps_clmp vec: 'cell' first, then 'species'
+                          idecomp_clmp_index+vec_offset,        &       ! decomp_clmp vec: 'cell' first, then 'species'
                           clm_pf_idata%ngclm_sub,               &
                           vec_clmp, INSERT_VALUES, ierr)
         CHKERRQ(ierr)
@@ -2763,9 +2763,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     vec_pfs)
 
         ! insert 'vec_pfs' into the whole '_pfs' vec
-        vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! decomps_pfs vec: 'cell' first, then 'species'
+        vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! decomp_pfs vec: 'cell' first, then 'species'
         call VecSetValues(clm_pf_idata%decomp_npools_vr_pfs,    &
-                          idecomp_pfs_index+vec_offset,         &       ! decomps_pfs vec: 'cell' first, then 'species'
+                          idecomp_pfs_index+vec_offset,         &       ! decomp_pfs vec: 'cell' first, then 'species'
                           clm_pf_idata%nlpf_sub,                &
                           vec_pfs, INSERT_VALUES, ierr)
         CHKERRQ(ierr)
@@ -2777,7 +2777,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       CHKERRQ(ierr)
       call VecAssemblyEnd(clm_pf_idata%decomp_npools_vr_pfs, ierr)
       CHKERRQ(ierr)
-      enddo
+
     endif
 
     ! clear-up of temporary vecs/arrarys
@@ -2790,7 +2790,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
 
 
-    ! for individual vecs
+    ! for single variable vecs
 
     if(ispec_no3 > 0) then
        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -2808,13 +2808,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     !----------------------------------------------------------------------------
 
-    if(associated(ispec_decomps_c)) then
+    if(associated(ispec_decomp_c)) then
       call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_pfs, &
                         decomp_cpools_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
-    if(associated(ispec_decomps_n)) then
+    if(associated(ispec_decomp_n)) then
       call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_pfs, &
                         decomp_npools_vr_pf_loc, ierr)
       CHKERRQ(ierr)
@@ -2862,15 +2862,15 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       offsetim = offset + realization%reaction%offset_immobile
 
       do k=1, clm_pf_idata%ndecomp_pools
-        vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! decomps_pfs vec: 'cell' first, then 'species'
-        if(ispec_decomps_c(k) > 0) then
-          xx_p(offsetim + ispec_decomps_c(k)) = max( xeps0_c, &
+        vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! decomp_pfs vec: 'cell' first, then 'species'
+        if(ispec_decomp_c(k) > 0) then
+          xx_p(offsetim + ispec_decomp_c(k)) = max( xeps0_c, &
                        decomp_cpools_vr_pf_loc(ghosted_id+vec_offset) )
         endif
 
-        if(ispec_decomps_n(k) > 0) then
-          xx_p(offsetim + ispec_decomps_n(k)) = max( xeps0_n, &
-                       decomp_npools_vr_pf_loc(ghosted_i+vec_offsetd) )
+        if(ispec_decomp_n(k) > 0) then
+          xx_p(offsetim + ispec_decomp_n(k)) = max( xeps0_n, &
+                       decomp_npools_vr_pf_loc(ghosted_id+vec_offset) )
         endif
       enddo
 
@@ -2892,13 +2892,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     enddo
 
     !----------------------------------------------------------------------------------------------------
-    if(associated(ispec_decomps_c)) then
+    if(associated(ispec_decomp_c)) then
       call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_pfs, &
                         decomp_cpools_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
-    if(associated(ispec_decomps_n)) then
+    if(associated(ispec_decomp_n)) then
       call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_pfs, &
                         decomp_npools_vr_pf_loc, ierr)
       CHKERRQ(ierr)
@@ -2973,8 +2973,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscInt           :: offset, offsetim
 
     PetscScalar, pointer :: rate_pf_loc(:)   !
-
     PetscReal, pointer :: volume_p(:)
+
+    PetscInt, pointer :: idecomp_clmp_index(:), idecomp_pfs_index(:)
+    Vec               :: vec_clmp, vec_pfs
+    PetscInt          :: j, k, vec_offset, vec_offset_k
+    PetscBool         :: is_rtmasstr
+
+!------------------------------------------------------------------------------------------------
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -2992,28 +2998,121 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     grid  => patch%grid
     field => realization%field
 
+    !-----------------------------------------------------------------
     ! mapping data from CLM to PFLOTRAN
-    if(ispec_lit1c >0) then
-      call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%rate_decompsc_clmp, &
-                                    clm_pf_idata%rate_decompsc_pfs)
+
+    !(i) for decomp_pools's source/sink (RT mass-transfer-rate)
+
+    ! create temporary vecs/arrays for each 'decomp_pool' data-mapping
+    call VecDuplicate(clm_pf_idata%zsoi_clmp, vec_clmp,ierr)
+    CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_pfs, vec_pfs,ierr)
+    CHKERRQ(ierr)
+    allocate(idecomp_clmp_index(clm_pf_idata%ngclm_sub))
+    do j=1, clm_pf_idata%ngclm_sub
+      idecomp_clmp_index(j) = j-1
+    enddo
+    allocate(idecomp_pfs_index(clm_pf_idata%nlpf_sub))
+    do j=1, clm_pf_idata%nlpf_sub
+      idecomp_pfs_index(j) = j-1
+    enddo
+
+    ! decomp'C'
+    if (associated(ispec_decomp_c)) then
+      do k=1,clm_pf_idata%ndecomp_pools
+        ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
+        vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! decomp_clmp vec: 'cell' first, then 'species'
+        call VecGetValues(clm_pf_idata%rate_decomp_c_clmp,         &
+                          idecomp_clmp_index+vec_offset,           &
+                          clm_pf_idata%ngclm_sub,                  &
+                          vec_clmp, INSERT_VALUES, ierr)
+        CHKERRQ(ierr)
+        ! assembly the 'vec_clmp'
+        call VecAssemblyBegin(vec_clmp, ierr)
+        CHKERRQ(ierr)
+        call VecAssemblyEnd(vec_clmp, ierr)
+        CHKERRQ(ierr)
+
+        ! mapping
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option,                    &
+                                    vec_clmp,                                 &
+                                    vec_pfs)
+
+        ! insert 'vec_pfs' into the whole '_pfs' vec
+        vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! decomp_pfs vec: 'cell' first, then 'species'
+        call VecSetValues(clm_pf_idata%rate_decomp_c_pfs,         &
+                          idecomp_pfs_index+vec_offset,           &
+                          clm_pf_idata%nlpf_sub,                  &
+                          vec_pfs, INSERT_VALUES, ierr)
+        CHKERRQ(ierr)
+
+      enddo
+
+      ! assembly the whole '_pfs' vec
+      call VecAssemblyBegin(clm_pf_idata%rate_decomp_c_pfs, ierr)
+      CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%rate_decomp_c_pfs, ierr)
+      CHKERRQ(ierr)
+
     endif
 
+    ! decomp_'N'
+    if (associated(ispec_decomp_n)) then
+      do k=1,clm_pf_idata%ndecomp_pools
+        ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
+        vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! decomp_clmp vec: 'cell' first, then 'species'
+        call VecGetValues(clm_pf_idata%rate_decomp_n_clmp,   &
+                          idecomp_clmp_index+vec_offset,        &       ! decomp_clmp vec: 'cell' first, then 'species'
+                          clm_pf_idata%ngclm_sub,               &
+                          vec_clmp, INSERT_VALUES, ierr)
+        CHKERRQ(ierr)
+        ! assembly the 'vec_clmp'
+        call VecAssemblyBegin(vec_clmp, ierr)
+        CHKERRQ(ierr)
+        call VecAssemblyEnd(vec_clmp, ierr)
+        CHKERRQ(ierr)
 
-    if(ispec_lit1n >0) then
-      call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%rate_decompsn_clmp, &
-                                    clm_pf_idata%rate_decompsn_pfs)
+        ! mapping
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option,                    &
+                                    vec_clmp,                                 &
+                                    vec_pfs)
+
+        ! insert 'vec_pfs' into the whole '_pfs' vec
+        vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! decomp_pfs vec: 'cell' first, then 'species'
+        call VecSetValues(clm_pf_idata%rate_decomp_n_pfs,    &
+                          idecomp_pfs_index+vec_offset,         &       ! decomp_pfs vec: 'cell' first, then 'species'
+                          clm_pf_idata%nlpf_sub,                &
+                          vec_pfs, INSERT_VALUES, ierr)
+        CHKERRQ(ierr)
+
+      enddo
+
+      ! assembly the whole '_pfs' vec
+      call VecAssemblyBegin(clm_pf_idata%rate_decomp_n_pfs, ierr)
+      CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%rate_decomp_n_pfs, ierr)
+      CHKERRQ(ierr)
+
     endif
+
+    ! clear-up of temporary vecs/arrarys
+    call VecDestroy(vec_clmp,ierr)
+    CHKERRQ(ierr)
+    call VecDestroy(vec_pfs,ierr)
+    CHKERRQ(ierr)
+    deallocate(idecomp_clmp_index)
+    deallocate(idecomp_pfs_index)
 
 
     ! NOTE: direct data passing from interface to PF for N demand
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+    if(ispec_plantndemand >0) then
+      call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_plantndemand_clmp, &
                                     clm_pf_idata%rate_plantndemand_pfs)
+    endif
 
     if(ispec_no3 >0) then
       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -3044,129 +3143,91 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
        do
          if (.not.associated(cur_mass_transfer)) exit
 
+         ! find matched-up 'idof' for RT mass transfer
+         vec_offset_k = 0
+         is_rtmasstr = PETSC_FALSE
          if(cur_mass_transfer%idof == ispec_nh4) then
+           is_rtmasstr = PETSC_TRUE
            call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
+
          elseif(cur_mass_transfer%idof == ispec_no3) then
+           is_rtmasstr = PETSC_TRUE
            call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-         elseif(cur_mass_transfer%idof == ispec_lit1c+offsetim) then
-           call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_lit1n+offsetim) then
-           call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
+         else  ! need to loop for 'decomp_pools'
+           do k=1,clm_pf_idata%nlpf_sub
+             vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! decomp_pfs vec: 'cell' first, then 'species'
+             if(cur_mass_transfer%idof == ispec_decomp_c(k)+offsetim) then
+               vec_offset_k = vec_offset
+               is_rtmasstr = PETSC_TRUE
+               call VecGetArrayReadF90(clm_pf_idata%rate_decomp_c_pfs, rate_pf_loc, ierr)
+               CHKERRQ(ierr)
+               exit
+             elseif(cur_mass_transfer%idof == ispec_decomp_n(k)+offsetim) then
+               vec_offset_k = vec_offset
+               is_rtmasstr = PETSC_TRUE
+               call VecGetArrayReadF90(clm_pf_idata%rate_decomp_n_pfs, rate_pf_loc, ierr)
+               CHKERRQ(ierr)
+               exit
+             endif
+           enddo
+
          endif
 
-         do local_id = 1, grid%nlmax
-            ghosted_id = grid%nL2G(local_id)
-            if (local_id<=0 .or. ghosted_id<=0) cycle
-            !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
-
-            if(cur_mass_transfer%idof == ispec_nh4                  &
-               .or. cur_mass_transfer%idof == ispec_no3             &
-               .or. cur_mass_transfer%idof == ispec_lit1c+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_lit2c+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_lit3c+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_lit1n+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_lit2n+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_lit3n+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_cwdc+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_cwdn+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_som1c+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_som2c+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_som3c+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_som4c+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_som1n+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_som2n+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_som3n+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_som4n+offsetim  &
-              ) then
+         ! passing data, if matching-up
+         if (is_rtmasstr) then
+           do local_id = 1, grid%nlmax
+             ghosted_id = grid%nL2G(local_id)
+             if (local_id<=0 .or. ghosted_id<=0) cycle
+             !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
 
 #ifdef CLM_PF_DEBUG
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (mass transfer rate):
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
       !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
       !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
-      if (cur_mass_transfer%idof == ispec_nh4) &
-      write(pflotran_model%option%myrank+200,*) 'checking bgc-mass-rate - pflotran_model: ', &
-        'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
-        'rate_nh4_pfs(ghosted_id)=',rate_pf_loc(ghosted_id), &
-        'masstransfer_nh4_predataset(local_id)=',cur_mass_transfer%dataset%rarray(local_id)
+             if (cur_mass_transfer%idof == ispec_nh4) &
+               write(pflotran_model%option%myrank+200,*) 'checking bgc-mass-rate - pflotran_model: ', &
+                'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+                'rate_nh4_pfs(ghosted_id)=',rate_pf_loc(ghosted_id), &
+                'masstransfer_nh4_predataset(local_id)=',cur_mass_transfer%dataset%rarray(local_id)
 #endif
 
-               cur_mass_transfer%dataset%rarray(local_id) = &
-                        rate_pf_loc(ghosted_id)*volume_p(local_id)  ! mol/m3s * m3
+             cur_mass_transfer%dataset%rarray(local_id) = &
+                rate_pf_loc(ghosted_id+vec_offset_k)*volume_p(local_id)  ! mol/m3s * m3
 
-            endif
-         enddo
+           enddo ! 'local_id' loop
+         endif ! 'if (is_rtmasstr)' block
 
-         if(cur_mass_transfer%idof == ispec_nh4) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_no3) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
+         ! close vec, if opened
+         if (is_rtmasstr) then
+           if(cur_mass_transfer%idof == ispec_nh4) then
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
+             CHKERRQ(ierr)
 
-         elseif(cur_mass_transfer%idof == ispec_lit1c+offsetim) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_lit2c+offsetim) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_lit3c+offsetim) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
+           elseif(cur_mass_transfer%idof == ispec_no3) then
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
+             CHKERRQ(ierr)
 
-         elseif(cur_mass_transfer%idof == ispec_lit1n+offsetim) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_lit2n+offsetim) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_lit3n+offsetim) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-
-         elseif(cur_mass_transfer%idof == ispec_cwdc+offsetim) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_cwdc_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_cwdn+offsetim) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_cwdn_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-
-         elseif(cur_mass_transfer%idof == ispec_som1c+offsetim) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_som1c_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som2c+offsetim) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_som2c_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som3c+offsetim) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_som3c_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som4c+offsetim) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_som4c_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-
-        elseif(cur_mass_transfer%idof == ispec_som1n+offsetim) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_som1n_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som2n+offsetim) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_som2n_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som3n+offsetim) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_som3n_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som4n+offsetim) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_som4n_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-
-         endif
+           else  ! need to loop for 'decomp_pools'
+             do k=1,clm_pf_idata%nlpf_sub
+               vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! decomp_pfs vec: 'cell' first, then 'species'
+               if(cur_mass_transfer%idof == ispec_decomp_c(k)+offsetim) then
+                 call VecRestoreArrayReadF90(clm_pf_idata%rate_decomp_c_pfs, rate_pf_loc, ierr)
+                 CHKERRQ(ierr)
+               elseif(cur_mass_transfer%idof == ispec_decomp_n(k)+offsetim) then
+                 call VecRestoreArrayReadF90(clm_pf_idata%rate_decomp_n_pfs, rate_pf_loc, ierr)
+                 CHKERRQ(ierr)
+               endif
+             enddo
+           endif
+         endif ! 'if (is_rtmasstr)' block
 
          cur_mass_transfer => cur_mass_transfer%next
-       enddo
-    endif
+       enddo  ! 'RT mass transfer' list loop
+    endif     !
 
     call VecRestoreArrayReadF90(field%volume0,volume_p,ierr)
     CHKERRQ(ierr)
@@ -3509,23 +3570,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscInt           :: local_id, ghosted_id
     PetscReal, pointer :: xx_p(:)
 
-    PetscScalar, pointer :: decomp_cpools_vr_lit1_pf_loc(:) ! (molesC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_lit2_pf_loc(:) ! (molesC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_lit3_pf_loc(:) ! (molesC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_cwd_pf_loc(:)  ! (molesC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som1_pf_loc(:) ! (molesC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som2_pf_loc(:) ! (molesC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som3_pf_loc(:) ! (molesC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som4_pf_loc(:) ! (molesC/m3)
-    PetscScalar, pointer :: decomp_npools_vr_lit1_pf_loc(:) ! (molesN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_lit2_pf_loc(:) ! (molesN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_lit3_pf_loc(:) ! (molesN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_cwd_pf_loc(:)  ! (molesN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_som1_pf_loc(:) ! (molesN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_som2_pf_loc(:) ! (molesN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_som3_pf_loc(:) ! (molesN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_som4_pf_loc(:) ! (molesN/m3)
-    PetscScalar, pointer :: accextrnh4_vr_pf_loc(:)         ! (molesN/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_pf_loc(:)      ! (molesC/m3): cell-species
+    PetscScalar, pointer :: decomp_npools_vr_pf_loc(:)      ! (molesN/m3): cell-species
+    PetscScalar, pointer :: accextrnh4_vr_pf_loc(:)         ! (molesN/m3): cell
     PetscScalar, pointer :: accextrno3_vr_pf_loc(:)         ! (molesN/m3)
     PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (molesN/m3)
     PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (molesN/m3)
@@ -3549,6 +3596,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscReal, parameter :: zeroing_conc = 1.0d-10
 
+    PetscInt, pointer :: idecomp_pfp_index(:), idecomp_clms_index(:)
+    Vec               :: vec_pfp, vec_clms
+    PetscInt          :: j, k, vec_offset
+
+    !------------------------------------------------------------------------------------
+
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
          realization => simulation%realization
@@ -3566,55 +3619,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     field => realization%field
     reaction => realization%reaction
 
-    ! (ii) get the original 'pf' vecs
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfp, &
-                        decomp_cpools_vr_lit1_pf_loc, ierr)
+    ! (i) get the original '_pfp' vecs to be updated
+    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_pfp, &
+                        decomp_cpools_vr_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pfp, &
-                        decomp_cpools_vr_lit2_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_pfp, &
+                        decomp_npools_vr_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit3_pfp, &
-                        decomp_cpools_vr_lit3_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_cwd_pfp,  &
-                        decomp_cpools_vr_cwd_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som1_pfp, &
-                        decomp_cpools_vr_som1_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som2_pfp, &
-                        decomp_cpools_vr_som2_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfp, &
-                        decomp_cpools_vr_som3_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfp, &
-                        decomp_cpools_vr_som4_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfp, &
-                        decomp_npools_vr_lit1_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pfp, &
-                        decomp_npools_vr_lit2_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pfp, &
-                        decomp_npools_vr_lit3_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pfp, &
-                        decomp_npools_vr_cwd_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_som1_pfp, &
-                        decomp_npools_vr_som1_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_som2_pfp, &
-                        decomp_npools_vr_som2_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_som3_pfp, &
-                        decomp_npools_vr_som3_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%decomp_npools_vr_som4_pfp, &
-                        decomp_npools_vr_som4_pf_loc, ierr)
-    CHKERRQ(ierr)
+
     call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfp, smin_no3_vr_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfp, smin_nh4_vr_pf_loc, ierr)
@@ -3673,61 +3685,18 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         offsetim = offset + realization%reaction%offset_immobile
 
-        if (ispec_lit1c > 0) then
-          decomp_cpools_vr_lit1_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit1c), 0.d0)
-        endif
+        do k=1, clm_pf_idata%ndecomp_pools
+          vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! decomp_pfp vec: 'cell' first, then 'species'
+          if(ispec_decomp_c(k) > 0) then
+            conc = xx_p(offsetim + ispec_decomp_c(k))    ! unit: M (molC/m3)
+            decomp_cpools_vr_pf_loc(local_id+vec_offset) = max(conc, 0.d0)
+          endif
 
-        if (ispec_lit2c > 0) then
-          decomp_cpools_vr_lit2_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit2c), 0.d0)
-        endif
-
-        if (ispec_lit3c > 0) then
-          decomp_cpools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3c), 0.d0)
-        endif
-
-        if (ispec_lit1n > 0) then
-          decomp_npools_vr_lit1_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit1n), 0.d0)
-        endif
-
-        if (ispec_lit2n > 0) then
-          decomp_npools_vr_lit2_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit2n), 0.d0)
-        endif
-
-        if (ispec_lit3n > 0) then
-          decomp_npools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3n), 0.d0)
-        endif
-
-        if (ispec_som1c > 0) then
-          decomp_cpools_vr_som1_pf_loc(local_id) = max(xx_p(offsetim + ispec_som1c), 0.d0)
-        endif
-
-        if (ispec_som2c > 0) then
-          decomp_cpools_vr_som2_pf_loc(local_id) = max(xx_p(offsetim + ispec_som2c), 0.d0)
-        endif
-
-        if (ispec_som3c > 0) then
-          decomp_cpools_vr_som3_pf_loc(local_id) = max(xx_p(offsetim + ispec_som3c), 0.d0)
-        endif
-
-        if (ispec_som4c > 0) then
-          decomp_cpools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4c), 0.d0)
-        endif
-
-        if (ispec_som1n > 0) then
-          decomp_npools_vr_som1_pf_loc(local_id) = max(xx_p(offsetim + ispec_som1n), 0.d0)
-        endif
-
-        if (ispec_som2n > 0) then
-          decomp_npools_vr_som2_pf_loc(local_id) = max(xx_p(offsetim + ispec_som2n), 0.d0)
-        endif
-
-        if (ispec_som3n > 0) then
-          decomp_npools_vr_som3_pf_loc(local_id) = max(xx_p(offsetim + ispec_som3n), 0.d0)
-        endif
-
-        if (ispec_som4n > 0) then
-          decomp_npools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4n), 0.d0)
-        endif
+          if(ispec_decomp_n(k) > 0) then
+            conc = xx_p(offsetim + ispec_decomp_n(k))    ! unit: M (molN/m3)
+            decomp_npools_vr_pf_loc(local_id+vec_offset) = max(conc, 0.d0)
+          endif
+        enddo
 
         if(ispec_nh4 > 0) then
 !           conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0
@@ -3846,37 +3815,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     enddo
 
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfp, decomp_cpools_vr_lit1_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_pfp, decomp_cpools_vr_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit2_pfp, decomp_cpools_vr_lit2_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_lit3_pfp, decomp_cpools_vr_lit3_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_cwd_pfp,  decomp_cpools_vr_cwd_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som1_pfp, decomp_cpools_vr_som1_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som2_pfp, decomp_cpools_vr_som2_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som3_pfp, decomp_cpools_vr_som3_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_som4_pfp, decomp_cpools_vr_som4_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit1_pfp, decomp_npools_vr_lit1_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit2_pfp, decomp_npools_vr_lit2_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_lit3_pfp, decomp_npools_vr_lit3_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_cwd_pfp,  decomp_npools_vr_cwd_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_som1_pfp, decomp_npools_vr_som1_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_som2_pfp, decomp_npools_vr_som2_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_som3_pfp, decomp_npools_vr_som3_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_som4_pfp, decomp_npools_vr_som4_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%decomp_npools_vr_pfp, decomp_npools_vr_pf_loc, ierr)
     CHKERRQ(ierr)
     !
     call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfp, smin_no3_vr_pf_loc, ierr)
@@ -3925,120 +3866,114 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
 
 
-   ! (iv) pass the 'pf' vecs to 'clm' vecs, which then can be passed to CLMCN (implemented in 'clm_pflotran_interfaceMod'
+    !-----------------------------------------------------------------
+    ! (iv) pass the 'pf' vecs to 'clm' vecs, which then can be passed to CLMCN
+    ! (implemented in 'clm_pflotran_interfaceMod'
 
-    if (ispec_lit1c > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_lit1_pfp, &
-                                    clm_pf_idata%decomp_cpools_vr_lit1_clms)
+    ! create temporary vecs/arrays for each 'decomp_pools' data-mapping
+    call VecDuplicate(clm_pf_idata%zsoi_pfp, vec_pfp,ierr)
+    CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_clms, vec_clms,ierr)
+    CHKERRQ(ierr)
+    allocate(idecomp_pfp_index(clm_pf_idata%ngpf_sub))
+    do j=1, clm_pf_idata%ngpf_sub
+      idecomp_pfp_index(j) = j-1
+    enddo
+    allocate(idecomp_clms_index(clm_pf_idata%nlclm_sub))
+    do j=1, clm_pf_idata%nlclm_sub
+      idecomp_clms_index(j) = j-1
+    enddo
+
+    ! decomp'C'
+    if (associated(ispec_decomp_c)) then
+      do k=1,clm_pf_idata%ndecomp_pools
+        ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
+        vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! decomp_pfp vec: 'cell' first, then 'species'
+        call VecGetValues(clm_pf_idata%decomp_cpools_vr_pfp,      &
+                          idecomp_pfp_index+vec_offset,           &
+                          clm_pf_idata%ngpf_sub,                  &
+                          vec_pfp, INSERT_VALUES, ierr)
+        CHKERRQ(ierr)
+        ! assembly the 'vec_pfp'
+        call VecAssemblyBegin(vec_pfp, ierr)
+        CHKERRQ(ierr)
+        call VecAssemblyEnd(vec_pfp, ierr)
+        CHKERRQ(ierr)
+
+        ! mapping
+        call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option,                    &
+                                    vec_pfp,                                  &
+                                    vec_clms)
+
+        ! insert 'vec_clms' into the whole '_clms' vec
+        vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! decomp_clms vec: 'cell' first, then 'species'
+        call VecSetValues(clm_pf_idata%decomp_cpools_vr_clms,      &
+                          idecomp_clms_index+vec_offset,           &
+                          clm_pf_idata%nlclm_sub,                  &
+                          vec_clms, INSERT_VALUES, ierr)
+        CHKERRQ(ierr)
+
+      enddo
+
+      ! assembly the whole '_pfs' vec
+      call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_pfs, ierr)
+      CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_pfs, ierr)
+      CHKERRQ(ierr)
+
     endif
 
-    if (ispec_lit2c > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_lit2_pfp, &
-                                    clm_pf_idata%decomp_cpools_vr_lit2_clms)
+    ! decomp_'N'
+    if (associated(ispec_decomp_n)) then
+      do k=1,clm_pf_idata%ndecomp_pools
+        ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
+        vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! decomp_pfp vec: 'cell' first, then 'species'
+        call VecGetValues(clm_pf_idata%decomp_npools_vr_pfp,   &
+                          idecomp_pfp_index+vec_offset,        &       ! decomp_pfp vec: 'cell' first, then 'species'
+                          clm_pf_idata%ngpf_sub,               &
+                          vec_pfp, INSERT_VALUES, ierr)
+        CHKERRQ(ierr)
+        ! assembly the 'vec_clmp'
+        call VecAssemblyBegin(vec_pfp, ierr)
+        CHKERRQ(ierr)
+        call VecAssemblyEnd(vec_pfp, ierr)
+        CHKERRQ(ierr)
+
+        ! mapping
+        call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option,                    &
+                                    vec_pfp,                                  &
+                                    vec_clms)
+
+        ! insert 'vec_clms' into the whole '_clms' vec
+        vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! decomp_clms vec: 'cell' first, then 'species'
+        call VecSetValues(clm_pf_idata%decomp_npools_vr_clms,    &
+                          idecomp_clms_index+vec_offset,         &       ! decomp_pfs vec: 'cell' first, then 'species'
+                          clm_pf_idata%nlclm_sub,                &
+                          vec_clms, INSERT_VALUES, ierr)
+        CHKERRQ(ierr)
+
+      enddo
+
+      ! assembly the whole '_clms' vec
+      call VecAssemblyBegin(clm_pf_idata%decomp_npools_vr_clms, ierr)
+      CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%decomp_npools_vr_clms, ierr)
+      CHKERRQ(ierr)
+
     endif
 
-    if (ispec_lit3c > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_lit3_pfp, &
-                                    clm_pf_idata%decomp_cpools_vr_lit3_clms)
-    endif
+    ! clear-up of temporary vecs/arrarys
+    call VecDestroy(vec_pfp,ierr)
+    CHKERRQ(ierr)
+    call VecDestroy(vec_clms,ierr)
+    CHKERRQ(ierr)
+    deallocate(idecomp_pfp_index)
+    deallocate(idecomp_clms_index)
 
-    if (ispec_cwdc > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_cwd_pfp, &
-                                    clm_pf_idata%decomp_cpools_vr_cwd_clms)
-    endif
 
-    if (ispec_som1c > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_som1_pfp, &
-                                    clm_pf_idata%decomp_cpools_vr_som1_clms)
-    endif
-
-    if (ispec_som2c > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_som2_pfp, &
-                                    clm_pf_idata%decomp_cpools_vr_som2_clms)
-    endif
-
-    if (ispec_som3c > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_som3_pfp, &
-                                    clm_pf_idata%decomp_cpools_vr_som3_clms)
-    endif
-
-    if (ispec_som4c > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_cpools_vr_som4_pfp, &
-                                    clm_pf_idata%decomp_cpools_vr_som4_clms)
-    endif
-
-    if (ispec_lit1n > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_npools_vr_lit1_pfp, &
-                                    clm_pf_idata%decomp_npools_vr_lit1_clms)
-    endif
-
-    if (ispec_lit2n > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_npools_vr_lit2_pfp, &
-                                    clm_pf_idata%decomp_npools_vr_lit2_clms)
-    endif
-
-    if (ispec_lit3n > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_npools_vr_lit3_pfp, &
-                                    clm_pf_idata%decomp_npools_vr_lit3_clms)
-    endif
-
-    if (ispec_cwdn > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_npools_vr_cwd_pfp, &
-                                    clm_pf_idata%decomp_npools_vr_cwd_clms)
-    endif
-
-    if (ispec_som1n > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_npools_vr_som1_pfp, &
-                                    clm_pf_idata%decomp_npools_vr_som1_clms)
-    endif
-
-    if (ispec_som2n > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_npools_vr_som2_pfp, &
-                                    clm_pf_idata%decomp_npools_vr_som2_clms)
-    endif
-
-    if (ispec_som3n > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_npools_vr_som3_pfp, &
-                                    clm_pf_idata%decomp_npools_vr_som3_clms)
-    endif
-
-    if (ispec_som4n > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%decomp_npools_vr_som4_pfp, &
-                                    clm_pf_idata%decomp_npools_vr_som4_clms)
-    endif
-
+    ! for single-variable vecs
     if (ispec_co2 > 0) then
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
