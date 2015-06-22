@@ -25,7 +25,7 @@ module clm_pflotran_interface_data
 
   ! Soil BGC decomposing pools
   PetscInt :: ndecomp_pools
-  PetscBool, pointer :: floating_cn_ratio(:)         ! TRUE => pool has fixed C:N ratio
+  logical, pointer :: floating_cn_ratio(:)           ! TRUE => pool has fixed C:N ratio
   character(len=8), pointer :: decomp_pool_name(:)   ! name of pool
 
   ! Number of cells for the 3D subsurface domain
@@ -324,9 +324,7 @@ contains
 
     clm_pf_idata%nzclm_mapped = 0
 
-    clm_pf_idata%ndecomp_pools       = 0
-    clm_pf_idata%floating_cn_ratio   = PETSC_FALSE
-    clm_pf_idata%decomp_pool_name    = ''
+    clm_pf_idata%ndecomp_pools = 0
 
     clm_pf_idata%nlclm_sub = 0
     clm_pf_idata%ngclm_sub = 0
@@ -566,8 +564,6 @@ contains
     
     PetscErrorCode :: ierr
     PetscMPIInt    :: mycomm, rank
-    PetscReal      :: zero = 0.0d0
-    Vec :: vec_test
 
     allocate(clm_pf_idata%floating_cn_ratio(1:clm_pf_idata%ndecomp_pools))
     allocate(clm_pf_idata%decomp_pool_name(1:clm_pf_idata%ndecomp_pools))

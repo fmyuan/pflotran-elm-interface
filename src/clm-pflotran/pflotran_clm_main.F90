@@ -59,6 +59,7 @@ module pflotran_clm_main_module
        pflotranModelGetTemperatureFromPF,       &
        pflotranModelGetSaturationFromPF,        &
        ! BGC
+       pflotranModelGetRTspecies,               &
        pflotranModelSetBGCRatesFromCLM,         &
        pflotranModelUpdateAqConcFromCLM,        &
        pflotranModelUpdateAqGasesFromCLM,       &
@@ -69,8 +70,7 @@ module pflotran_clm_main_module
 
   private :: &
        pflotranModelInsertWaypoint,          &
-       pflotranModelDeleteWaypoint,          &
-       pflotranModelGetRTspecies
+       pflotranModelDeleteWaypoint
 
 !------------------------------------------------------------
   !NOTES: The following is what PF bgc right now using for CLM-PFLOTRAN coupling
@@ -93,7 +93,7 @@ module pflotran_clm_main_module
   character(len=MAXWORDLENGTH):: name_plantno3uptake = "Plantno3uptake"
 
   PetscInt :: ispec_hr, ispec_nmin, ispec_nimmp, ispec_nimm
-  character(len=MAXWORDLENGTH):: name_hr   = "HR"
+  character(len=MAXWORDLENGTH):: name_hr   = "HRimm"
   character(len=MAXWORDLENGTH):: name_nmin = "nmin"
   character(len=MAXWORDLENGTH):: name_nimmp= "nimmp"
   character(len=MAXWORDLENGTH):: name_nimm = "nimm"
@@ -196,11 +196,6 @@ contains
          model%option%io_buffer = 'Simulation Mode not supported: ' // model%option%simulation_mode
          call printErrMsg(model%option)
     end select
-
-    ! if BGC is on
-    if(model%option%ntrandof > 0) then
-      call pflotranModelGetRTspecies(model)
-    endif
 
   end subroutine pflotranModelCreate
 
@@ -2437,7 +2432,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       allocate(ispec_decomp_n(clm_pf_idata%ndecomp_pools))
     ispec_decomp_n(:) = 0
     allocate(name_decomp(clm_pf_idata%ndecomp_pools))
-    name_decomp(:) = ""
+    name_decomp = clm_pf_idata%decomp_pool_name
 
     do k=1, clm_pf_idata%ndecomp_pools
 
