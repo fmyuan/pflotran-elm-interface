@@ -998,9 +998,26 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   theta = saturation * porosity
   psi = min(global_auxvar%pres(1) - option%reference_pressure, -1.d-20)     ! if positive, saturated soil's psi is nearly zero
 
-  ! moisture response function
 #ifdef CLM_PFLOTRAN
   ghosted_id = option%iflag
+
+#ifdef CLM_PF_DEBUG
+! for testing data passing
+  write(option%fid_out, *) 'ghosted_id=', ghosted_id
+  do irxn = 1, this%nrxn
+    ispec_uc = this%upstream_c_id(irxn)
+    if(this%upstream_is_aqueous(irxn)) then
+      write(option%fid_out, *) 'irxn=', irxn, 'conc(irxn)=', rt_auxvar%total(ispec_uc, iphase)
+    else
+      write(option%fid_out, *) 'irxn=', irxn, 'conc(irxn)=', rt_auxvar%immobile(ispec_uc)
+    endif
+  enddo
+#endif
+!
+#endif
+
+  ! moisture response function
+#ifdef CLM_PFLOTRAN
   if(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_CLM4) then
      f_w = GetMoistureResponse(theta, ghosted_id, this%moisture_response_function)
   elseif(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_DLEM) then

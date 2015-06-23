@@ -3918,7 +3918,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                           clm_pf_idata%ngpf_sub,               &
                           idecomp_pfp_index+vec_offset,        &       ! decomp_pfp vec: 'cell' first, then 'species'
                           array_pfp, ierr); CHKERRQ(ierr)
-        call VecGetArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
 
         ! mapping
         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
