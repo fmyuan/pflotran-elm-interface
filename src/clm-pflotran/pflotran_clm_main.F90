@@ -2656,9 +2656,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscInt  :: offset, offsetim
     PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
 
-    PetscInt, pointer :: idecomp_clmp_index(:), idecomp_pfs_index(:)
-    Vec               :: vec_clmp, vec_pfs
-    PetscInt          :: j, k, vec_offset
+    PetscInt, pointer    :: idecomp_clmp_index(:), idecomp_pfs_index(:)
+    Vec                  :: vec_clmp, vec_pfs
+    PetscScalar, pointer :: array_clmp(:), array_pfs(:)
+    PetscInt             :: j, k, vec_offset
 
 !------------------------------------------------------------------------------------------------
 
@@ -2697,19 +2698,18 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     ! decomp'C'
     if (associated(ispec_decomp_c)) then
+      ! assembly the 'vec_clmp' (?? not sure if needed)
+      !call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_clmp, ierr); CHKERRQ(ierr)
+      !call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_clmp, ierr); CHKERRQ(ierr)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! decomp_clmp vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
         call VecGetValues(clm_pf_idata%decomp_cpools_vr_clmp,      &
-                          idecomp_clmp_index+vec_offset,           &
                           clm_pf_idata%ngclm_sub,                  &
-                          vec_clmp, INSERT_VALUES, ierr)
-        CHKERRQ(ierr)
-        ! assembly the 'vec_clmp'
-        call VecAssemblyBegin(vec_clmp, ierr)
-        CHKERRQ(ierr)
-        call VecAssemblyEnd(vec_clmp, ierr)
-        CHKERRQ(ierr)
+                          idecomp_clmp_index+vec_offset,           &
+                          array_clmp, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
 
         ! mapping
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -2719,11 +2719,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         ! insert 'vec_pfs' into the whole '_pfs' vec
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! decomp_pfs vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
         call VecSetValues(clm_pf_idata%decomp_cpools_vr_pfs,      &
-                          idecomp_pfs_index+vec_offset,           &
                           clm_pf_idata%nlpf_sub,                  &
-                          vec_pfs, INSERT_VALUES, ierr)
-        CHKERRQ(ierr)
+                          idecomp_pfs_index+vec_offset,           &
+                          array_pfs, INSERT_VALUES, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
 
       enddo
 
@@ -2740,16 +2741,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! decomp_clmp vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
         call VecGetValues(clm_pf_idata%decomp_npools_vr_clmp,   &
-                          idecomp_clmp_index+vec_offset,        &       ! decomp_clmp vec: 'cell' first, then 'species'
                           clm_pf_idata%ngclm_sub,               &
-                          vec_clmp, INSERT_VALUES, ierr)
-        CHKERRQ(ierr)
-        ! assembly the 'vec_clmp'
-        call VecAssemblyBegin(vec_clmp, ierr)
-        CHKERRQ(ierr)
-        call VecAssemblyEnd(vec_clmp, ierr)
-        CHKERRQ(ierr)
+                          idecomp_clmp_index+vec_offset,        &       ! decomp_clmp vec: 'cell' first, then 'species'
+                          array_clmp, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
 
         ! mapping
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -2759,11 +2756,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         ! insert 'vec_pfs' into the whole '_pfs' vec
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! decomp_pfs vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
         call VecSetValues(clm_pf_idata%decomp_npools_vr_pfs,    &
-                          idecomp_pfs_index+vec_offset,         &       ! decomp_pfs vec: 'cell' first, then 'species'
                           clm_pf_idata%nlpf_sub,                &
-                          vec_pfs, INSERT_VALUES, ierr)
-        CHKERRQ(ierr)
+                          idecomp_pfs_index+vec_offset,         &       ! decomp_pfs vec: 'cell' first, then 'species'
+                          array_pfs, INSERT_VALUES, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
 
       enddo
 
@@ -2776,10 +2774,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
     ! clear-up of temporary vecs/arrarys
-    call VecDestroy(vec_clmp,ierr)
-    CHKERRQ(ierr)
-    call VecDestroy(vec_pfs,ierr)
-    CHKERRQ(ierr)
+    call VecDestroy(vec_clmp,ierr); CHKERRQ(ierr)
+    call VecDestroy(vec_pfs,ierr); CHKERRQ(ierr)
     deallocate(idecomp_clmp_index)
     deallocate(idecomp_pfs_index)
 
@@ -2970,10 +2966,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscScalar, pointer :: rate_pf_loc(:)   !
     PetscReal, pointer :: volume_p(:)
 
-    PetscInt, pointer :: idecomp_clmp_index(:), idecomp_pfs_index(:)
-    Vec               :: vec_clmp, vec_pfs
-    PetscInt          :: j, k, vec_offset, vec_offset_k
-    PetscBool         :: is_rtmasstr
+    PetscInt, pointer    :: idecomp_clmp_index(:), idecomp_pfs_index(:)
+    Vec                  :: vec_clmp, vec_pfs
+    PetscScalar, pointer :: array_clmp(:), array_pfs(:)
+    PetscInt             :: j, k, vec_offset, vec_offset_k
+    PetscBool            :: is_rtmasstr
 
 !------------------------------------------------------------------------------------------------
 
@@ -3017,16 +3014,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! decomp_clmp vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
         call VecGetValues(clm_pf_idata%rate_decomp_c_clmp,         &
-                          idecomp_clmp_index+vec_offset,           &
                           clm_pf_idata%ngclm_sub,                  &
-                          vec_clmp, INSERT_VALUES, ierr)
-        CHKERRQ(ierr)
-        ! assembly the 'vec_clmp'
-        call VecAssemblyBegin(vec_clmp, ierr)
-        CHKERRQ(ierr)
-        call VecAssemblyEnd(vec_clmp, ierr)
-        CHKERRQ(ierr)
+                          idecomp_clmp_index+vec_offset,           &
+                          array_clmp, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
 
         ! mapping
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -3036,11 +3029,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         ! insert 'vec_pfs' into the whole '_pfs' vec
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! decomp_pfs vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
         call VecSetValues(clm_pf_idata%rate_decomp_c_pfs,         &
-                          idecomp_pfs_index+vec_offset,           &
                           clm_pf_idata%nlpf_sub,                  &
-                          vec_pfs, INSERT_VALUES, ierr)
-        CHKERRQ(ierr)
+                          idecomp_pfs_index+vec_offset,           &
+                          array_pfs, INSERT_VALUES, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
 
       enddo
 
@@ -3057,16 +3051,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! decomp_clmp vec: 'cell' first, then 'species'
-        call VecGetValues(clm_pf_idata%rate_decomp_n_clmp,   &
-                          idecomp_clmp_index+vec_offset,        &       ! decomp_clmp vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+        call VecGetValues(clm_pf_idata%rate_decomp_n_clmp,      &
                           clm_pf_idata%ngclm_sub,               &
-                          vec_clmp, INSERT_VALUES, ierr)
-        CHKERRQ(ierr)
-        ! assembly the 'vec_clmp'
-        call VecAssemblyBegin(vec_clmp, ierr)
-        CHKERRQ(ierr)
-        call VecAssemblyEnd(vec_clmp, ierr)
-        CHKERRQ(ierr)
+                          idecomp_clmp_index+vec_offset,        &       ! decomp_clmp vec: 'cell' first, then 'species'
+                          array_clmp, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
 
         ! mapping
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -3076,11 +3066,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         ! insert 'vec_pfs' into the whole '_pfs' vec
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! decomp_pfs vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
         call VecSetValues(clm_pf_idata%rate_decomp_n_pfs,    &
-                          idecomp_pfs_index+vec_offset,         &       ! decomp_pfs vec: 'cell' first, then 'species'
-                          clm_pf_idata%nlpf_sub,                &
-                          vec_pfs, INSERT_VALUES, ierr)
-        CHKERRQ(ierr)
+                          clm_pf_idata%nlpf_sub,             &
+                          idecomp_pfs_index+vec_offset,      &       ! decomp_pfs vec: 'cell' first, then 'species'
+                          array_pfs, INSERT_VALUES, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
 
       enddo
 
@@ -3593,6 +3584,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscInt, pointer :: idecomp_pfp_index(:), idecomp_clms_index(:)
     Vec               :: vec_pfp, vec_clms
+    PetscScalar, pointer :: array_pfp(:), array_clms(:)
     PetscInt          :: j, k, vec_offset
 
     !------------------------------------------------------------------------------------
@@ -3884,16 +3876,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! decomp_pfp vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
         call VecGetValues(clm_pf_idata%decomp_cpools_vr_pfp,      &
-                          idecomp_pfp_index+vec_offset,           &
                           clm_pf_idata%ngpf_sub,                  &
-                          vec_pfp, INSERT_VALUES, ierr)
-        CHKERRQ(ierr)
-        ! assembly the 'vec_pfp'
-        call VecAssemblyBegin(vec_pfp, ierr)
-        CHKERRQ(ierr)
-        call VecAssemblyEnd(vec_pfp, ierr)
-        CHKERRQ(ierr)
+                          idecomp_pfp_index+vec_offset,           &
+                          array_pfp, ierr); CHKERRQ(ierr)
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
 
         ! mapping
         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -3903,11 +3891,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         ! insert 'vec_clms' into the whole '_clms' vec
         vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! decomp_clms vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
         call VecSetValues(clm_pf_idata%decomp_cpools_vr_clms,      &
-                          idecomp_clms_index+vec_offset,           &
                           clm_pf_idata%nlclm_sub,                  &
-                          vec_clms, INSERT_VALUES, ierr)
-        CHKERRQ(ierr)
+                          idecomp_clms_index+vec_offset,           &
+                          array_clms, INSERT_VALUES, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
 
       enddo
 
@@ -3924,16 +3913,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! decomp_pfp vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
         call VecGetValues(clm_pf_idata%decomp_npools_vr_pfp,   &
-                          idecomp_pfp_index+vec_offset,        &       ! decomp_pfp vec: 'cell' first, then 'species'
                           clm_pf_idata%ngpf_sub,               &
-                          vec_pfp, INSERT_VALUES, ierr)
-        CHKERRQ(ierr)
-        ! assembly the 'vec_clmp'
-        call VecAssemblyBegin(vec_pfp, ierr)
-        CHKERRQ(ierr)
-        call VecAssemblyEnd(vec_pfp, ierr)
-        CHKERRQ(ierr)
+                          idecomp_pfp_index+vec_offset,        &       ! decomp_pfp vec: 'cell' first, then 'species'
+                          array_pfp, ierr); CHKERRQ(ierr)
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
 
         ! mapping
         call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
@@ -3943,11 +3928,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         ! insert 'vec_clms' into the whole '_clms' vec
         vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! decomp_clms vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
         call VecSetValues(clm_pf_idata%decomp_npools_vr_clms,    &
-                          idecomp_clms_index+vec_offset,         &       ! decomp_pfs vec: 'cell' first, then 'species'
                           clm_pf_idata%nlclm_sub,                &
-                          vec_clms, INSERT_VALUES, ierr)
-        CHKERRQ(ierr)
+                          idecomp_clms_index+vec_offset,         &       ! decomp_pfs vec: 'cell' first, then 'species'
+                          array_clms, INSERT_VALUES, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
 
       enddo
 
