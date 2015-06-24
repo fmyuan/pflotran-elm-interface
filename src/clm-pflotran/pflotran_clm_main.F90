@@ -82,14 +82,14 @@ module pflotran_clm_main_module
   PetscInt:: ispec_lit1n, ispec_lit2n, ispec_lit3n, ispec_cwdn
   PetscInt:: ispec_som1c, ispec_som2c, ispec_som3c, ispec_som4c
   PetscInt:: ispec_som1n, ispec_som2n, ispec_som3n, ispec_som4n
-  character(len=MAXWORDLENGTH):: name_lit1 = "Labile"           ! appending 'C' or 'N' for real PF species name
-  character(len=MAXWORDLENGTH):: name_lit2 = "Cellulose"
-  character(len=MAXWORDLENGTH):: name_lit3 = "Lignin"
+  character(len=MAXWORDLENGTH):: name_lit1 = "LITR1"           ! appending 'C' or 'N' for real PF species name
+  character(len=MAXWORDLENGTH):: name_lit2 = "LITR2"
+  character(len=MAXWORDLENGTH):: name_lit3 = "LITR3"
   character(len=MAXWORDLENGTH):: name_cwd  = "CWD"
-  character(len=MAXWORDLENGTH):: name_som1 = "SOM1"
-  character(len=MAXWORDLENGTH):: name_som2 = "SOM2"
-  character(len=MAXWORDLENGTH):: name_som3 = "SOM3"
-  character(len=MAXWORDLENGTH):: name_som4 = "SOM4"
+  character(len=MAXWORDLENGTH):: name_som1 = "SOIL1"
+  character(len=MAXWORDLENGTH):: name_som2 = "SOIL2"
+  character(len=MAXWORDLENGTH):: name_som3 = "SOIL3"
+  character(len=MAXWORDLENGTH):: name_som4 = "SOIL4"
 
   PetscInt:: ispec_nh4, ispec_no3, ispec_nh4sorb
   character(len=MAXWORDLENGTH):: name_nh4     = "NH4+"
