@@ -2995,6 +2995,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         xx_p(offsetim + ispec_lit3c) = max(xeps0_c, decomp_cpools_vr_lit3_pf_loc(ghosted_id) )
       endif
 
+      if(ispec_cwdc > 0) then
+        xx_p(offsetim + ispec_cwdc) = max(xeps0_c, decomp_cpools_vr_cwd_pf_loc(ghosted_id) )
+      endif
+
       if(ispec_som1c > 0) then
         xx_p(offsetim + ispec_som1c) = max(xeps0_c, decomp_cpools_vr_som1_pf_loc(ghosted_id) )
       endif
@@ -3021,6 +3025,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       if(ispec_lit3n > 0) then
         xx_p(offsetim + ispec_lit3n) = max(xeps0_n, decomp_npools_vr_lit3_pf_loc(ghosted_id) )
+      endif
+
+      if(ispec_cwdn > 0) then
+        xx_p(offsetim + ispec_cwdn) = max(xeps0_c, decomp_npools_vr_cwd_pf_loc(ghosted_id) )
       endif
 
       if(ispec_som1n > 0) then
@@ -3340,10 +3348,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
     ! NOTE: direct data passing from interface to PF for N demand
+    if(ispec_plantndemand >0) then
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_plantndemand_clmp, &
                                     clm_pf_idata%rate_plantndemand_pfs)
+    endif
 
     if(ispec_no3 >0) then
       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -4070,6 +4080,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         if (ispec_lit3n > 0) then
           decomp_npools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3n), 0.d0)
+        endif
+
+        if (ispec_cwdc > 0) then
+          decomp_cpools_vr_cwd_pf_loc(local_id) = max(xx_p(offsetim + ispec_cwdc), 0.d0)
+        endif
+
+        if (ispec_cwdn > 0) then
+          decomp_npools_vr_cwd_pf_loc(local_id) = max(xx_p(offsetim + ispec_cwdn), 0.d0)
         endif
 
         if (ispec_som1c > 0) then
