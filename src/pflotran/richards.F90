@@ -34,6 +34,7 @@ module Richards_module
   PetscReal, parameter :: eps       = 1.D-8
   PetscReal, parameter :: floweps   = 1.D-24
   PetscReal, parameter :: perturbation_tolerance = 1.d-6
+  PetscReal, parameter :: unit_z(3) = [0.d0,0.d0,1.d0]
   
   public RichardsResidual, &
          RichardsJacobian, &
@@ -1218,7 +1219,6 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   use Discretization_module
   use Option_module
   use Logging_module
-  use Mass_Transfer_module, only : mass_transfer_type
   use Material_module
   use Material_Aux_class
   use Variables_module
@@ -1236,7 +1236,6 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   type(discretization_type), pointer :: discretization
   type(field_type), pointer :: field
   type(option_type), pointer :: option
-  type(mass_transfer_type), pointer :: cur_mass_transfer
   character(len=MAXSTRINGLENGTH) :: string
 
   call PetscLogEventBegin(logging%event_r_residual,ierr);CHKERRQ(ierr)
@@ -1290,17 +1289,13 @@ subroutine RichardsResidual(snes,xx,r,realization,ierr)
   endif
 
   call PetscLogEventEnd(logging%event_r_residual,ierr);CHKERRQ(ierr)
-
+ 
   ! Mass Transfer
-  if (associated(realization%flow_mass_transfer_list)) then
-    cur_mass_transfer => realization%flow_mass_transfer_list
-    do
-      if (.not.associated(cur_mass_transfer)) exit
-      call VecStrideScatter(cur_mass_transfer%vec,cur_mass_transfer%idof-1, &
-                            r,ADD_VALUES,ierr);CHKERRQ(ierr)
-      cur_mass_transfer => cur_mass_transfer%next
-    enddo
-  endif
+  if (field%flow_mass_transfer /= 0) then
+    ! scale by -1.d0 for contribution to residual.  A negative contribution
+    ! indicates mass being added to system.
+    call VecAXPY(r,-1.d0,field%flow_mass_transfer,ierr);CHKERRQ(ierr)
+  endif  
 
 end subroutine RichardsResidual
 
@@ -1419,6 +1414,13 @@ subroutine RichardsResidualPatch1(snes,xx,r,realization,ierr)
 
       if (patch%imat(ghosted_id_up) <= 0 .or.  &
           patch%imat(ghosted_id_dn) <= 0) cycle
+
+      if (option%flow%only_vertical_flow) then
+        !geh: place second conditional within first to avoid excessive 
+        !     dot products when .not. option%flow%only_vertical_flow
+        if (dot_product(cur_connection_set%dist(1:3,iconn),unit_z) < &
+            1.d-10) cycle
+      endif
 
       icap_up = patch%sat_func_id(ghosted_id_up)
       icap_dn = patch%sat_func_id(ghosted_id_dn)
@@ -1952,6 +1954,13 @@ subroutine RichardsJacobianPatch1(snes,xx,A,B,realization,ierr)
 
       if (patch%imat(ghosted_id_up) <= 0 .or. &
           patch%imat(ghosted_id_dn) <= 0) cycle
+
+      if (option%flow%only_vertical_flow) then
+        !geh: place second conditional within first to avoid excessive 
+        !     dot products when .not. option%flow%only_vertical_flow
+        if (dot_product(cur_connection_set%dist(1:3,iconn),unit_z) < &
+            1.d-10) cycle
+      endif
 
       local_id_up = grid%nG2L(ghosted_id_up) ! = zero for ghost nodes
       local_id_dn = grid%nG2L(ghosted_id_dn) ! Ghost to local mapping   

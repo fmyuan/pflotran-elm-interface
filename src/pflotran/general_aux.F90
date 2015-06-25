@@ -312,6 +312,7 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   use Characteristic_Curves_module
   use Material_Aux_class
   use Creep_Closure_module
+  use Fracture_module
   
   implicit none
 
@@ -441,7 +442,8 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         write(option%io_buffer,'(''Negative gas pressure at cell '', &
           & i5,'' in GeneralAuxVarCompute().  Attempting bailout.'')') &
           ghosted_id
-        call printErrMsgByRank(option)
+!        call printErrMsgByRank(option)
+        call printMsgByRank(option)
         ! set vapor pressure to just under saturation pressure
         gen_auxvar%pres(vpid) = 0.5d0*gen_auxvar%pres(spid)
         ! set gas pressure to vapor pressure + air pressure
@@ -542,10 +544,6 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
   ! calculate effective porosity as a function of pressure
   if (option%iflag /= GENERAL_UPDATE_FOR_BOUNDARY) then
     gen_auxvar%effective_porosity = material_auxvar%porosity_base
-    if (soil_compressibility_index > 0) then
-      call MaterialCompressSoil(material_auxvar,cell_pressure, &
-                                gen_auxvar%effective_porosity,dummy)
-    endif                   
     if (associated(creep_closure)) then
       if (creep_closure%imat == material_auxvar%id) then
         ! option%time here is the t time, not t + dt time.
@@ -556,7 +554,13 @@ subroutine GeneralAuxVarCompute(x,gen_auxvar,global_auxvar,material_auxvar, &
         gen_auxvar%effective_porosity = &
           creep_closure%Evaluate(creep_closure_time,cell_pressure)
       endif
-    endif
+    else if (material_auxvar%fracture_bool) then
+      call FracturePoroEvaluate(material_auxvar,cell_pressure, &
+                                gen_auxvar%effective_porosity,dummy)
+    else if (soil_compressibility_index > 0) then
+      call MaterialCompressSoil(material_auxvar,cell_pressure, &
+                                gen_auxvar%effective_porosity,dummy)
+    endif   
     if (option%iflag /= GENERAL_UPDATE_FOR_DERIVATIVE) then
       material_auxvar%porosity = gen_auxvar%effective_porosity
     endif
@@ -777,7 +781,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
           option%io_buffer = 'Negative gas pressure during state change ' // &
             'at ' // trim(adjustl(string))
 !          call printErrMsg(option)
-          call printMsg(option)
+          call printMsgByRank(option)
           x(GENERAL_GAS_PRESSURE_DOF) = gen_auxvar%pres(spid)
 !geh          x(GENERAL_GAS_PRESSURE_DOF) = 2.d0*gen_auxvar%pres(spid)
         endif
@@ -871,7 +875,7 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
           write(string,*) ghosted_id
           option%io_buffer = 'Negative air mole fraction during state change ' // &
             'at ' // trim(adjustl(string))
-          call printMsg(option)
+          call printMsgByRank(option)
           x(GENERAL_LIQUID_STATE_X_MOLE_DOF) = two_phase_epsilon
         endif
         if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
@@ -932,7 +936,6 @@ subroutine GeneralAuxVarUpdateState(x,gen_auxvar,global_auxvar, &
                              'After Update',option)
 #endif
 !#endif
-    option%variables_swapped = PETSC_TRUE
   endif
 
 end subroutine GeneralAuxVarUpdateState
@@ -968,8 +971,15 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
                pert(option%nflowdof), x_pert_save(option%nflowdof)
 
   PetscReal :: res(option%nflowdof), res_pert(option%nflowdof)
+  PetscReal :: tempreal
+!#define LEGACY_PERTURBATION
+#ifdef LEGACY_PERTURBATION
   PetscReal, parameter :: perturbation_tolerance = 1.d-5
+#else
+  PetscReal, parameter :: perturbation_tolerance = 1.d-8
+#endif
   PetscReal, parameter :: min_mole_fraction_pert = 1.d-12
+  PetscReal, parameter :: min_perturbation = 1.d-10
   PetscInt :: idof
 
 #ifdef DEBUG_GENERAL
@@ -988,6 +998,7 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
          gen_auxvar(ZERO_INTEGER)%xmol(option%air_id,option%liquid_phase)
        x(GENERAL_ENERGY_DOF) = &
          gen_auxvar(ZERO_INTEGER)%temp
+#ifdef LEGACY_PERTURBATION
        ! if the liquid state, the liquid pressure will always be greater
        ! than zero.
        pert(GENERAL_LIQUID_PRESSURE_DOF) = &
@@ -1000,12 +1011,26 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
                    min_mole_fraction_pert)
        pert(GENERAL_ENERGY_DOF) = &
          -1.d0*perturbation_tolerance*x(GENERAL_ENERGY_DOF)
+#else
+       pert(GENERAL_LIQUID_PRESSURE_DOF) = &
+         perturbation_tolerance*x(GENERAL_LIQUID_PRESSURE_DOF) + &
+         min_perturbation
+       if (x(GENERAL_LIQUID_STATE_X_MOLE_DOF) > &
+           1.d3 * perturbation_tolerance) then
+         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = -1.d0 * perturbation_tolerance
+       else
+         pert(GENERAL_LIQUID_STATE_X_MOLE_DOF) = perturbation_tolerance
+       endif
+       pert(GENERAL_ENERGY_DOF) = -1.d0 * &
+         (perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation)
+#endif
     case(GAS_STATE)
        x(GENERAL_GAS_PRESSURE_DOF) = &
          gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
        x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = &
          gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
        x(GENERAL_ENERGY_DOF) = gen_auxvar(ZERO_INTEGER)%temp
+#ifdef LEGACY_PERTURBATION
        ! gas pressure [p(g)] must always be perturbed down as p(v) = p(g) - p(a)
        ! and p(v) >= Psat (i.e. an increase in p(v)) results in two phase.
        pert(GENERAL_GAS_PRESSURE_DOF) = &
@@ -1024,6 +1049,24 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
        endif
        pert(GENERAL_ENERGY_DOF) = &
          perturbation_tolerance*x(GENERAL_ENERGY_DOF)
+#else
+       ! gas pressure [p(g)] must always be perturbed down as p(v) = p(g) - p(a)
+       ! and p(v) >= Psat (i.e. an increase in p(v)) results in two phase.
+       pert(GENERAL_GAS_PRESSURE_DOF) = -1.d0 * &
+         (perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF) + min_perturbation)
+       ! perturb air pressure towards gas pressure unless the perturbed
+       ! air pressure exceeds the gas pressure
+       tempreal = perturbation_tolerance* &
+                  x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) + min_perturbation
+       if (x(GENERAL_GAS_PRESSURE_DOF) - &
+           x(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) > tempreal) then
+         pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = tempreal
+       else
+         pert(GENERAL_GAS_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
+       endif
+       pert(GENERAL_ENERGY_DOF) = &
+         perturbation_tolerance*x(GENERAL_ENERGY_DOF) + min_perturbation
+#endif
     case(TWO_PHASE_STATE)
        x(GENERAL_GAS_PRESSURE_DOF) = &
          gen_auxvar(ZERO_INTEGER)%pres(option%gas_phase)
@@ -1031,6 +1074,7 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
 !         gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
        x(GENERAL_GAS_SATURATION_DOF) = &
          gen_auxvar(ZERO_INTEGER)%sat(option%gas_phase)
+#ifdef LEGACY_PERTURBATION
        if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
          x(GENERAL_ENERGY_DOF) = &
            gen_auxvar(ZERO_INTEGER)%temp
@@ -1062,6 +1106,35 @@ subroutine GeneralAuxVarPerturb(gen_auxvar,global_auxvar, &
          pert(GENERAL_GAS_SATURATION_DOF) = &
            perturbation_tolerance*x(GENERAL_GAS_SATURATION_DOF)
        endif
+#else
+       if (general_2ph_energy_dof == GENERAL_TEMPERATURE_INDEX) then
+         x(GENERAL_ENERGY_DOF) = &
+           gen_auxvar(ZERO_INTEGER)%temp
+         pert(GENERAL_ENERGY_DOF) = &
+           perturbation_tolerance*x(GENERAL_ENERGY_DOF)+min_perturbation
+       else
+         ! here GENERAL_2PH_STATE_AIR_PRESSURE_DOF = GENERAL_ENERGY_DOF
+         x(GENERAL_ENERGY_DOF) = &
+           gen_auxvar(ZERO_INTEGER)%pres(option%air_pressure_id)
+         ! perturb air pressure towards gas pressure unless the perturbed
+         ! air pressure exceeds the gas pressure
+         tempreal = perturbation_tolerance* &
+                    x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) + min_perturbation
+         if (x(GENERAL_GAS_PRESSURE_DOF) - &
+             x(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) > tempreal) then
+           pert(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = tempreal
+         else
+           pert(GENERAL_2PH_STATE_AIR_PRESSURE_DOF) = -1.d0 * tempreal
+         endif
+       endif
+       pert(GENERAL_GAS_PRESSURE_DOF) = &
+         perturbation_tolerance*x(GENERAL_GAS_PRESSURE_DOF)+min_perturbation
+       if (x(GENERAL_GAS_SATURATION_DOF) > 0.5d0) then 
+         pert(GENERAL_GAS_SATURATION_DOF) = -1.d0 * perturbation_tolerance
+       else
+         pert(GENERAL_GAS_SATURATION_DOF) = perturbation_tolerance
+       endif
+#endif
   end select
   
   ! GENERAL_UPDATE_FOR_DERIVATIVE indicates call from perturbation

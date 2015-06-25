@@ -710,7 +710,7 @@ subroutine PatchProcessCouplers(patch,flow_conditions,transport_conditions, &
     endif
     ! transport
     if (option%ntrandof > 0) then
-      allocate(patch%boundary_tran_coefs(option%ntrandof,temp_int))
+      allocate(patch%boundary_tran_coefs(option%nphase,temp_int))
       patch%boundary_tran_coefs = 0.d0
       if (option%transport%store_fluxes) then
         allocate(patch%boundary_tran_fluxes(option%ntrandof,temp_int))
@@ -843,13 +843,15 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                 coupler%flow_aux_int_var = 0
 
               case(TH_MODE)
-                allocate(coupler%flow_aux_real_var(option%nflowdof*option%nphase,num_connections))
+                allocate(coupler%flow_aux_real_var(option%nflowdof* &
+                                                 option%nphase,num_connections))
                 allocate(coupler%flow_aux_int_var(1,num_connections))
                 coupler%flow_aux_real_var = 0.d0
                 coupler%flow_aux_int_var = 0
 
               case(MPH_MODE, IMS_MODE, FLASH2_MODE, MIS_MODE)
-                allocate(coupler%flow_aux_real_var(option%nflowdof,num_connections))
+                allocate(coupler%flow_aux_real_var(option%nflowdof, &
+                                                   num_connections))
                 allocate(coupler%flow_aux_int_var(1,num_connections))
                 coupler%flow_aux_real_var = 0.d0
                 coupler%flow_aux_int_var = 0
@@ -857,7 +859,8 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
               case(G_MODE)
                 allocate(coupler%flow_aux_mapping(GENERAL_MAX_INDEX))
                 allocate(coupler%flow_bc_type(THREE_INTEGER))
-                allocate(coupler%flow_aux_real_var(FIVE_INTEGER,num_connections))
+                allocate(coupler%flow_aux_real_var(FIVE_INTEGER, &
+                                                   num_connections))
                 allocate(coupler%flow_aux_int_var(ONE_INTEGER,num_connections))
                 coupler%flow_aux_mapping = 0
                 coupler%flow_bc_type = 0
@@ -898,6 +901,15 @@ subroutine PatchInitCouplerAuxVars(coupler_list,patch,option)
                   trim(adjustl(string))
                 call printErrMsg(option)
             end select
+          ! handles source/sinks in general mode
+          else if (associated(coupler%flow_condition%general)) then
+            if (associated(coupler%flow_condition%general%rate)) then
+              select case(coupler%flow_condition%general%rate%itype)
+                case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
+                  allocate(coupler%flow_aux_real_var(1,num_connections))
+                  coupler%flow_aux_real_var = 0.d0
+              end select
+            endif
           endif ! associated(coupler%flow_condition%rate)
         endif ! coupler%itype == SRC_SINK_COUPLER_TYPE
       endif ! associated(coupler%flow_condition)
@@ -1337,7 +1349,10 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
           call printErrMsg(option)
       end select                
     case(ANY_STATE)
-      coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = ANY_STATE
+      if (associated(coupler%flow_aux_int_var)) then ! not used with rate
+        coupler%flow_aux_int_var(GENERAL_STATE_INDEX,1:num_connections) = &
+          ANY_STATE
+      endif
       if (associated(general%temperature)) then
         real_count = real_count + 1
         select case(general%temperature%itype)
@@ -1390,6 +1405,13 @@ subroutine PatchUpdateCouplerAuxVarsG(patch,coupler,option)
     coupler%flow_aux_real_var(real_count,1:num_connections) = &
       general%energy_flux%dataset%rarray(1)
     dof3 = PETSC_TRUE
+  endif
+
+  if (associated(general%rate)) then
+    select case(general%rate%itype)
+      case(SCALED_MASS_RATE_SS,SCALED_VOLUMETRIC_RATE_SS)
+        call PatchScaleSourceSink(patch,coupler,option)
+    end select
   endif
 
   !geh: is this really correct, or should it be .or.
@@ -2153,7 +2175,12 @@ subroutine PatchScaleSourceSink(patch,source_sink,option)
 
   cur_connection_set => source_sink%connection_set
 
-  iscale_type = source_sink%flow_condition%rate%isubtype
+  select case(option%iflowmode)
+    case(G_MODE)
+      iscale_type = source_sink%flow_condition%general%rate%isubtype
+    case default
+      iscale_type = source_sink%flow_condition%rate%isubtype
+  end select
   
   select case(iscale_type)
     case(SCALE_BY_VOLUME)
@@ -2821,7 +2848,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
          LIQUID_DENSITY,GAS_DENSITY,GAS_DENSITY_MOL,LIQUID_VISCOSITY, &
          GAS_VISCOSITY,CAPILLARY_PRESSURE,LIQUID_DENSITY_MOL, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,STATE,ICE_DENSITY, &
-         EFFECTIVE_POROSITY,LIQUID_HEAD)
+         EFFECTIVE_POROSITY,LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE, &
+         MAXIMUM_PRESSURE)
 
       if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -3178,6 +3206,13 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
               vec_ptr(local_id) = &
                 patch%aux%General%auxvars(ZERO_INTEGER,grid%nL2G(local_id))%temp
             enddo
+          case(MAXIMUM_PRESSURE)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                  maxval(patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                           pres(option%liquid_phase:option%gas_phase))
+            enddo
           case(LIQUID_PRESSURE)
             do local_id=1,grid%nlmax
               ghosted_id = grid%nL2G(local_id)
@@ -3219,6 +3254,20 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec,ivar,
               vec_ptr(local_id) = &
                 patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                   pres(option%capillary_pressure_id)
+            enddo
+          case(VAPOR_PRESSURE)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pres(option%vapor_pressure_id)
+            enddo
+          case(SATURATION_PRESSURE)
+            do local_id=1,grid%nlmax
+              ghosted_id = grid%nL2G(local_id)
+              vec_ptr(local_id) = &
+                patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                  pres(option%saturation_pressure_id)
             enddo
           case(STATE)
             do local_id=1,grid%nlmax
@@ -3873,7 +3922,7 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
          GAS_VISCOSITY,AIR_PRESSURE,CAPILLARY_PRESSURE, &
          LIQUID_MOBILITY,GAS_MOBILITY,SC_FUGA_COEFF,STATE,ICE_DENSITY, &
          SECONDARY_TEMPERATURE,LIQUID_DENSITY_MOL,EFFECTIVE_POROSITY, &
-         LIQUID_HEAD)
+         LIQUID_HEAD,VAPOR_PRESSURE,SATURATION_PRESSURE,MAXIMUM_PRESSURE)
          
      if (associated(patch%aux%TH)) then
         select case(ivar)
@@ -4084,6 +4133,9 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
         select case(ivar)
           case(TEMPERATURE)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)%temp
+          case(MAXIMUM_PRESSURE)
+            value = maxval(patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                           pres(option%liquid_phase:option%gas_phase))
           case(LIQUID_PRESSURE)
             if (patch%aux%Global%auxvars(ghosted_id)%istate /= GAS_STATE) then
               value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
@@ -4110,6 +4162,12 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
           case(CAPILLARY_PRESSURE)
             value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
                       pres(option%capillary_pressure_id)
+          case(VAPOR_PRESSURE)
+            value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      pres(option%vapor_pressure_id)
+          case(SATURATION_PRESSURE)
+            value = patch%aux%General%auxvars(ZERO_INTEGER,ghosted_id)% &
+                      pres(option%saturation_pressure_id)
           case(STATE)
             value = patch%aux%Global%auxvars(ghosted_id)%istate
           case(LIQUID_SATURATION)

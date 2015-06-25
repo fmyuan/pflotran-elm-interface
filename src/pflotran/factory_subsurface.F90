@@ -33,6 +33,8 @@ subroutine SubsurfaceInitialize(simulation_base,pm_list,option)
   use Option_module
   use Simulation_Base_class
   use PM_Base_class
+  use Creep_Closure_module
+  use Klinkenberg_module
   
   implicit none
   
@@ -42,6 +44,10 @@ subroutine SubsurfaceInitialize(simulation_base,pm_list,option)
 
   class(subsurface_simulation_type), pointer :: simulation
 
+  ! Modules that must be initialized
+  call CreepClosureInit()
+  call KlinkenbergInit()
+  
   ! NOTE: PETSc must already have been initialized here!
   simulation => SubsurfaceSimulationCreate(option)
   simulation%process_model_list => pm_list
@@ -75,6 +81,7 @@ subroutine SubsurfaceInitializePostPetsc(simulation, option)
   use Simulation_Subsurface_class
   use Solver_module
   use Waypoint_module
+  use Init_Common_module
   use Init_Subsurface_module
   use Input_Aux_module
   
@@ -87,7 +94,7 @@ subroutine SubsurfaceInitializePostPetsc(simulation, option)
   class(pmc_third_party_type), pointer :: pmc_third_party
   class(pm_subsurface_type), pointer :: pm_flow
   class(pm_rt_type), pointer :: pm_rt
-  class(pm_mpm_type), pointer :: pm_waste_form
+  class(pm_fmdm_type), pointer :: pm_waste_form
   class(pm_base_type), pointer :: cur_pm, prev_pm
   class(realization_type), pointer :: realization
   class(timestepper_BE_type), pointer :: timestepper
@@ -106,7 +113,7 @@ subroutine SubsurfaceInitializePostPetsc(simulation, option)
         pm_flow => cur_pm
       class is(pm_rt_type)
         pm_rt => cur_pm
-      class is (pm_mpm_type)
+      class is (pm_fmdm_type)
         pm_waste_form => cur_pm
       class default
         option%io_buffer = &
@@ -181,10 +188,10 @@ subroutine SubsurfaceInitializePostPetsc(simulation, option)
   call InitSubsurfaceReadRequiredCards(simulation)
   call InitSubsurfaceReadInput(simulation)
   if (associated(pm_waste_form)) then
-    string = 'MPM'
+    string = 'FMDM'
     call InputFindStringInFile(realization%input,option,string)
     call InputFindStringErrorMsg(realization%input,option,string)
-    call pm_waste_form%Read(realization%input,option)
+    call pm_waste_form%Read(realization%input)
   endif
   call InputDestroy(realization%input)
   call InitSubsurfaceSimulation(simulation)
@@ -196,11 +203,28 @@ subroutine SubsurfaceInitializePostPetsc(simulation, option)
     pmc_third_party%pm_ptr%ptr => pm_waste_form
     pmc_third_party%realization => realization
     ! set up logging stage
-    string = 'MPM'
+    string = 'FMDM'
     call LoggingCreateStage(string,pmc_third_party%stage)
     simulation%rt_process_model_coupler%child => pmc_third_party
     nullify(pmc_third_party)
   endif
+
+  ! clean up waypoints
+  if (.not.option%steady_state) then
+    ! fill in holes in waypoint data
+    call WaypointListFillIn(option,realization%waypoint_list)
+    call WaypointListRemoveExtraWaypnts(option,realization%waypoint_list)
+  endif
+
+
+  ! debugging output
+  if (realization%debug%print_couplers) then
+    call InitCommonVerifyAllCouplers(realization)
+  endif
+  if (realization%debug%print_waypoints) then
+    call WaypointListPrint(realization%waypoint_list,option, &
+                           realization%output_option)
+  endif  
 
   call SubsurfaceJumpStart(simulation)
   ! set first process model coupler as the master
@@ -288,6 +312,8 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%nflowspec = 2
       option%itable = 2
       option%use_isothermal = PETSC_FALSE
+      option%water_id = 1
+      option%air_id = 2
     class is (pm_general_type)
       option%iflowmode = G_MODE
       option%nphase = 2
@@ -335,6 +361,8 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
       option%itable = 2 ! read CO2DATA0.dat
 !     option%itable = 1 ! create CO2 database: co2data.dat
       option%use_isothermal = PETSC_FALSE
+      option%water_id = 1
+      option%air_id = 2
     class is (pm_richards_type)
       option%iflowmode = RICHARDS_MODE
       option%nphase = 1
@@ -385,7 +413,7 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
   implicit none
   
   type(input_type) :: input
-  type(option_type) :: option
+  type(option_type), pointer :: option
   class(pm_base_type), pointer :: pm
   
   character(len=MAXWORDLENGTH) :: word
@@ -424,6 +452,7 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
             call InputKeywordUnrecognized(word, &
                      'SIMULATION,PROCESS_MODELS,SUBSURFACE_FLOW,MODE',option)
         end select
+        pm%option => option
       case('OPTIONS')
         if (.not.associated(pm)) then
           option%io_buffer = 'MODE keyword must be read first under ' // &
@@ -435,9 +464,9 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
             ! inorder to not immediately return out of GeneralRead
             !TODO(geh): remove dummy word
             input%buf = 'dummy_word'
-            call GeneralRead(input,option)
+            call pm%Read(input)
           class is(pm_th_type)
-            call pm%Read(input,option)
+            call pm%Read(input)
           class default
             option%io_buffer = 'OPTIONS not set up for PM.'
             call printErrMsg(option)
@@ -476,7 +505,7 @@ subroutine SubsurfaceReadRTPM(input, option, pm)
   implicit none
   
   type(input_type) :: input
-  type(option_type) :: option
+  type(option_type), pointer :: option
   class(pm_base_type), pointer :: pm
   
   character(len=MAXWORDLENGTH) :: word
@@ -485,6 +514,7 @@ subroutine SubsurfaceReadRTPM(input, option, pm)
   error_string = 'SIMULATION,PROCESS_MODEL'
 
   pm => PMRTCreate()
+  pm%option => option
   
   word = ''
   do   
@@ -517,7 +547,7 @@ subroutine SubsurfaceReadWasteFormPM(input, option, pm)
   implicit none
   
   type(input_type) :: input
-  type(option_type) :: option
+  type(option_type), pointer :: option
   class(pm_base_type), pointer :: pm
   
   character(len=MAXWORDLENGTH) :: word
@@ -526,6 +556,7 @@ subroutine SubsurfaceReadWasteFormPM(input, option, pm)
   error_string = 'SIMULATION,PROCESS_MODEL'
 
   pm => PMWasteFormCreate()
+  pm%option => option
   
   word = ''
   do   
@@ -555,7 +586,6 @@ subroutine InitSubsurfaceSimulation(simulation)
   
   
   use Global_module
-  use Init_Common_module
   use Init_Subsurface_module
   use Init_Subsurface_Flow_module
   use Init_Subsurface_Tran_module
@@ -630,24 +660,18 @@ subroutine InitSubsurfaceSimulation(simulation)
     ! check for non-initialized data sets, e.g. porosity, permeability
   call RealizationNonInitializedData(realization)
 
-  if (realization%debug%print_couplers) then
-    call InitCommonVerifyAllCouplers(realization)
-  endif
-  if (realization%debug%print_waypoints) then
-    call WaypointListPrint(realization%waypoint_list,option, &
-                           realization%output_option)
-  endif  
-
   if (option%nflowdof > 0) then
     select type(ts => simulation%flow_process_model_coupler%timestepper)
       class is (timestepper_BE_type)
-        call InitSubsurfFlowSetupSolvers(realization,ts%solver)
+        call InitSubsurfFlowSetupSolvers(realization,ts%convergence_context, &
+                                         ts%solver)
     end select
   endif
   if (option%ntrandof > 0) then
     select type(ts => simulation%rt_process_model_coupler%timestepper)
       class is (timestepper_BE_type)
-        call InitSubsurfTranSetupSolvers(realization,ts%solver)
+        call InitSubsurfTranSetupSolvers(realization,ts%convergence_context, &
+                                         ts%solver)
     end select
   endif
   call RegressionCreateMapping(simulation%regression,realization)
@@ -690,7 +714,7 @@ subroutine InitSubsurfaceSimulation(simulation)
             call cur_process_model%PMSubsurfaceSetRealization(realization)
           class is (pm_rt_type)
             call cur_process_model%PMRTSetRealization(realization)
-          class is (pm_mpm_type)
+          class is (pm_fmdm_type)
             call cur_process_model%PMwasteFormSetRealization(realization)
         end select
         ! set time stepper
@@ -862,7 +886,8 @@ subroutine SubsurfaceJumpStart(simulation)
 
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-vecload_block_size", & 
                            failure, ierr);CHKERRQ(ierr)
-                             
+
+#if 0
   if (option%steady_state) then
     option%io_buffer = 'Running in steady-state not yet supported in refactored code.'
     call printErrMsg(option)
@@ -873,7 +898,8 @@ subroutine SubsurfaceJumpStart(simulation)
     option%status = DONE
     return 
   endif
-  
+#endif  
+
   if (associated(flow_timestepper)) then
     master_timestepper => flow_timestepper
   else

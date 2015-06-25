@@ -605,6 +605,12 @@ subroutine OutputVariableRead(input,option,output_variable_list)
     call StringToUpper(word)
     
     select case(trim(word))
+      case ('MAXIMUM_PRESSURE')
+        name = 'Maximum Pressure'
+        units = 'Pa'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_PRESSURE,units, &
+                                     MAXIMUM_PRESSURE)
       case ('LIQUID_PRESSURE')
         name = 'Liquid Pressure'
         units = 'Pa'
@@ -760,6 +766,18 @@ subroutine OutputVariableRead(input,option,output_variable_list)
         call OutputVariableAddToList(output_variable_list,name, &
                                      OUTPUT_PRESSURE,units, &
                                      CAPILLARY_PRESSURE)
+      case ('VAPOR_PRESSURE')
+        name = 'Vapor Pressure'
+        units = 'Pa'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_PRESSURE,units, &
+                                     VAPOR_PRESSURE)
+      case ('SATURATION_PRESSURE')
+        name = 'Saturation Pressure'
+        units = 'Pa'
+        call OutputVariableAddToList(output_variable_list,name, &
+                                     OUTPUT_PRESSURE,units, &
+                                     SATURATION_PRESSURE)
       case('THERMODYNAMIC_STATE')
         name = 'Thermodynamic State'
          units = ''

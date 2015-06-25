@@ -2714,7 +2714,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   diffdp = por_dn*tor_dn/dd_dn*area
   select case(ibndtype(TH_PRESSURE_DOF))
     ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,HET_SURF_SEEPAGE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC)
       Dq = perm_dn / dd_dn
       ! Flow term
       if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn) then
@@ -2748,30 +2748,92 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           dphi_dt_dn = -auxvar_dn%dpres_fh2o_dt + dgravity_dden_dn*auxvar_dn%dden_dt
         endif
 
-        if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC .or. &
-            ibndtype(TH_PRESSURE_DOF) == HET_SURF_SEEPAGE_BC) then
+        if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
               ! flow in         ! boundary cell is <= pref
           if (dphi > 0.d0 .and. global_auxvar_up%pres(1)-option%reference_pressure < eps) then
             dphi = 0.d0
             dphi_dp_dn = 0.d0
             dphi_dt_dn = 0.d0
           endif
+        endif
 
-
-          if (ibndtype(TH_PRESSURE_DOF) == HET_SURF_SEEPAGE_BC .and. &
-              option%surf_flow_on) then
-            ! ---------------------------
-            ! Surface-subsurface simulation
-            ! ---------------------------
-
-            ! If surface-water is frozen, zero out the darcy velocity
-            if (global_auxvar_up%temp < 0.d0) then
-              dphi = 0.d0
-              dphi_dp_dn = 0.d0
-              dphi_dt_dn = 0.d0
-            endif
+        if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
+                                   !( dgravity_dden_up                   ) (dden_dt_up)
+          dphi_dt_dn = dphi_dt_dn + upweight*auxvar_up%avgmw*dist_gravity*auxvar_up%dden_dt
+        endif
+        
+        if (dphi>=0.D0) then
+          ukvr = auxvar_up%kvr
+          if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
+            dukvr_dt_dn = auxvar_up%dkvr_dt
           endif
+        else
+          ukvr = auxvar_dn%kvr
+          dukvr_dp_dn = auxvar_dn%dkvr_dp
+          dukvr_dt_dn = auxvar_dn%dkvr_dt
+        endif      
 
+        if (ukvr*Dq>floweps) then
+          v_darcy = Dq * ukvr * dphi
+          q = v_darcy * area
+          dq_dp_dn = Dq*(dukvr_dp_dn*dphi+ukvr*dphi_dp_dn)*area
+          dq_dt_dn = Dq*(dukvr_dt_dn*dphi+ukvr*dphi_dt_dn)*area
+        endif
+      endif
+
+    case(HET_SURF_SEEPAGE_BC)
+      Dq = perm_dn / dd_dn
+      ! Flow term
+      if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn) then
+        upweight=1.D0
+        if (global_auxvar_up%sat(1) < eps) then
+          upweight=0.d0
+        else if (global_auxvar_dn%sat(1) < eps) then 
+          upweight=1.d0
+        endif
+        
+        density_ave = upweight*global_auxvar_up%den(1)+(1.D0-upweight)*global_auxvar_dn%den(1)
+        dden_ave_dp_dn = (1.D0-upweight)*auxvar_dn%dden_dp
+        dden_ave_dt_dn = (1.D0-upweight)*auxvar_dn%dden_dt
+
+        if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
+          dden_ave_dt_dn = dden_ave_dt_dn + upweight*auxvar_up%dden_dt
+        endif
+        
+        gravity = (upweight*global_auxvar_up%den(1)*auxvar_up%avgmw + &
+                  (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
+                  * dist_gravity
+        dgravity_dden_dn = (1.d0-upweight)*auxvar_dn%avgmw*dist_gravity
+
+        if (option%ice_model /= DALL_AMICO) then
+          dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
+          dphi_dp_dn = -1.d0 + dgravity_dden_dn*auxvar_dn%dden_dp
+          dphi_dt_dn = dgravity_dden_dn*auxvar_dn%dden_dt
+        else
+          dphi = auxvar_up%pres_fh2o - auxvar_dn%pres_fh2o + gravity
+          dphi_dp_dn = -auxvar_dn%dpres_fh2o_dp + dgravity_dden_dn*auxvar_dn%dden_dp
+          dphi_dt_dn = -auxvar_dn%dpres_fh2o_dt + dgravity_dden_dn*auxvar_dn%dden_dt
+        endif
+
+        ! flow in         ! boundary cell is <= pref
+        if (dphi > 0.d0 .and. global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+          dphi = 0.d0
+          dphi_dp_dn = 0.d0
+          dphi_dt_dn = 0.d0
+        endif
+
+
+        if (option%surf_flow_on) then
+          ! ---------------------------
+          ! Surface-subsurface simulation
+          ! ---------------------------
+          
+          ! If surface-water is frozen, zero out the darcy velocity
+          if (global_auxvar_up%temp < 0.d0) then
+            dphi = 0.d0
+            dphi_dp_dn = 0.d0
+            dphi_dt_dn = 0.d0
+          endif
         endif
 
         if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
@@ -2807,8 +2869,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           dq_dp_dn = Dq*(dukvr_dp_dn*dphi+ukvr*dphi_dp_dn)*area
           dq_dt_dn = Dq*(dukvr_dt_dn*dphi+ukvr*dphi_dt_dn)*area
 
-          if (ibndtype(TH_PRESSURE_DOF) == HET_SURF_SEEPAGE_BC .and. &
-              option%surf_flow_on .and. &
+          if (option%surf_flow_on .and. &
               option%subsurf_surf_coupling /= DECOUPLED) then
 
             ! ---------------------------
@@ -2898,7 +2959,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           endif
         endif
       endif
-
+      
     case(NEUMANN_BC)
       if (dabs(auxvars(TH_PRESSURE_DOF)) > floweps) then
         v_darcy = auxvars(TH_PRESSURE_DOF)
@@ -3311,8 +3372,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   ! Flow
   diffdp = por_dn*tor_dn/dd_dn*area
   select case(ibndtype(TH_PRESSURE_DOF))
-    ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,HET_SURF_SEEPAGE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC)
       Dq = perm_dn / dd_dn
       ! Flow term
       if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn) then
@@ -3334,25 +3394,11 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
           dphi = auxvar_up%pres_fh2o - auxvar_dn%pres_fh2o + gravity
         endif
 
-        if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC .or. &
-            ibndtype(TH_PRESSURE_DOF) == HET_SURF_SEEPAGE_BC) then
+        if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
           ! flow in         ! boundary cell is <= pref
           if (dphi > 0.d0 .and. global_auxvar_up%pres(1) - option%reference_pressure < eps) then
             dphi = 0.d0
           endif
-
-          if (ibndtype(TH_PRESSURE_DOF) == HET_SURF_SEEPAGE_BC .and. &
-              option%surf_flow_on) then
-            ! ---------------------------
-            ! Surface-subsurface simulation
-            ! ---------------------------
-
-            ! If surface-water is frozen, zero out the darcy velocity
-            if (global_auxvar_up%temp < 0.d0) then
-              dphi = 0.d0
-            endif
-          endif
-
         endif
         
         if (dphi>=0.D0) then
@@ -3368,15 +3414,63 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
 
         if (ukvr*Dq>floweps) then
           v_darcy = Dq * ukvr * dphi
+        endif
+      endif 
 
-          if (ibndtype(TH_PRESSURE_DOF) == HET_SURF_SEEPAGE_BC .and. &
-              option%surf_flow_on .and. &
-              option%subsurf_surf_coupling /= DECOUPLED) then
-
+    case(HET_SURF_SEEPAGE_BC)
+      Dq = perm_dn / dd_dn
+      ! Flow term
+      if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn) then
+        upweight=1.D0
+        if (global_auxvar_up%sat(1) < eps) then 
+          upweight=0.d0
+        else if (global_auxvar_dn%sat(1) < eps) then 
+          upweight=1.d0
+        endif
+        density_ave = upweight*global_auxvar_up%den(1)+(1.D0-upweight)*global_auxvar_dn%den(1)
+        
+        gravity = (upweight*global_auxvar_up%den(1)*auxvar_up%avgmw + &
+             (1.D0-upweight)*global_auxvar_dn%den(1)*auxvar_dn%avgmw) &
+             * dist_gravity
+        
+        if (option%ice_model /= DALL_AMICO) then
+          dphi = global_auxvar_up%pres(1) - global_auxvar_dn%pres(1) + gravity
+        else
+          dphi = auxvar_up%pres_fh2o - auxvar_dn%pres_fh2o + gravity
+        endif
+        
+        if (dphi > 0.d0 .and. global_auxvar_up%pres(1) - option%reference_pressure < eps) then
+          dphi = 0.d0
+        endif
+        
+        if (option%surf_flow_on) then
+          ! If surface-water is frozen, zero out the darcy velocity
+          if (global_auxvar_up%temp < 0.d0) then
+            dphi = 0.d0
+          endif
+        endif
+        
+        if (dphi>=0.D0) then
+          ukvr = auxvar_up%kvr
+        else
+          ukvr = auxvar_dn%kvr
+        endif
+        
+        call InterfaceApprox(auxvar_up%kvr, auxvar_dn%kvr, &
+             dphi, &
+             option%rel_perm_aveg, &
+             ukvr)
+        
+        if (ukvr*Dq>floweps) then
+          v_darcy = Dq * ukvr * dphi
+          
+          if (option%surf_flow_on .and. &
+               option%subsurf_surf_coupling /= DECOUPLED) then
+            
             ! ---------------------------
             ! Surface-subsurface simulation
             ! ---------------------------
-              
+            
             ! Temperature-smoothing
             fctT = 1.d0
             if (global_auxvar_up%temp < 0.d0) then
@@ -3394,38 +3488,38 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
               endif
             endif
 
-
             ! If needed, apply pressure-smoothing
             if (.not. auxvar_dn%bcflux_default_scheme) then
               if (global_auxvar_dn%pres(1) <= auxvar_dn%P_min) then
-
+                
                 ! Linear approximation
                 call Interpolate(auxvar_dn%range_for_linear_approx(2), &
-                                 auxvar_dn%range_for_linear_approx(1), &
-                                 global_auxvar_dn%pres(1), &
-                                 auxvar_dn%range_for_linear_approx(4), &
-                                 auxvar_dn%range_for_linear_approx(3), &
-                                 q_approx)
+                     auxvar_dn%range_for_linear_approx(1), &
+                     global_auxvar_dn%pres(1), &
+                     auxvar_dn%range_for_linear_approx(4), &
+                     auxvar_dn%range_for_linear_approx(3), &
+                     q_approx)
                 v_darcy = q_approx/area
-
+                
               else if (global_auxvar_dn%pres(1) <= auxvar_dn%P_max) then
-
+                
                 ! Cubic approximation
                 call CubicPolynomialEvaluate(auxvar_dn%coeff_for_cubic_approx, &
-                                             global_auxvar_dn%pres(1)-option%reference_pressure, &
-                                             !global_auxvar_dn%pres(1), &
-                                             q_approx, dq_approx)
+                     global_auxvar_dn%pres(1)-option%reference_pressure, &
+                     !global_auxvar_dn%pres(1), &
+                     q_approx, dq_approx)
                 v_darcy = q_approx/area
               endif
             endif
-
+            
             ! Now apply temperature-smoothing
             v_darcy = v_darcy*fctT
-
+            
           endif
-
+          
         endif
-      endif 
+      endif
+      v_darcy = min(v_darcy,option%max_infiltration_velocity)
 
     case(NEUMANN_BC)
       if (dabs(auxvars(TH_PRESSURE_DOF)) > floweps) then
@@ -3698,6 +3792,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   type(TH_auxvar_type), pointer :: auxvars(:), auxvars_bc(:)
   type(TH_auxvar_type), pointer :: auxvars_ss(:)
   type(global_auxvar_type), pointer :: global_auxvars(:), global_auxvars_bc(:)
+  type(global_auxvar_type), pointer :: global_auxvars_ss(:)
   class(material_auxvar_type), pointer :: material_auxvars(:)
   type(coupler_type), pointer :: boundary_condition, source_sink
   type(connection_set_list_type), pointer :: connection_set_list
@@ -3730,6 +3825,7 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
   auxvars_ss => patch%aux%TH%auxvars_ss
   global_auxvars => patch%aux%Global%auxvars
   global_auxvars_bc => patch%aux%Global%auxvars_bc
+  global_auxvars_ss => patch%aux%Global%auxvars_ss
   material_auxvars => patch%aux%Material%auxvars
   TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
   
@@ -3823,19 +3919,24 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
     do iconn = 1, cur_connection_set%num_connections      
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
+      iend = local_id * option%nflowdof
+      istart = iend - option%nflowdof + 1
       ghosted_id = grid%nL2G(local_id)
       if (patch%imat(ghosted_id) <= 0) cycle
       
+      Res = 0.d0
       select case (source_sink%flow_condition%rate%itype)
         case(MASS_RATE_SS)
-          r_p((local_id-1)*option%nflowdof + jh2o) = &
-            r_p((local_id-1)*option%nflowdof + jh2o) - &
-            qsrc1
+          Res(jh2o) = qsrc1
+!          r_p((local_id-1)*option%nflowdof + jh2o) = &
+!            r_p((local_id-1)*option%nflowdof + jh2o) - &
+!            qsrc1
         case(HET_MASS_RATE_SS)
           qsrc1 = source_sink%flow_aux_real_var(ONE_INTEGER,iconn)/FMWH2O
-          r_p((local_id-1)*option%nflowdof + jh2o) = &
-            r_p((local_id-1)*option%nflowdof + jh2o) - &
-            qsrc1
+!          r_p((local_id-1)*option%nflowdof + jh2o) = &
+!            r_p((local_id-1)*option%nflowdof + jh2o) - &
+!            qsrc1
+          Res(jh2o) = qsrc1
         case default
           write(string,*) source_sink%flow_condition%rate%itype
           option%io_buffer='TH mode source_sink%flow_condition%rate%itype = ' // &
@@ -3850,16 +3951,28 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
           esrc1 = source_sink%flow_aux_real_var(TWO_INTEGER,iconn)
       end select
       ! convert J/s --> MJ/s
-      r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - esrc1*option%scale
+!      r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - esrc1*option%scale
+      Res(2) = esrc1*option%scale
 
       ! Update residual term associated with T
       if (qsrc1 > 0.d0) then ! injection
-        r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - &
+!        r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - &
+        Res(2) = Res(2) - &
               qsrc1*auxvars_ss(sum_connection)%h
       else
         ! extraction
-        r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - &
+!        r_p(local_id*option%nflowdof) = r_p(local_id*option%nflowdof) - &
+        Res(2) = Res(2) - &
               qsrc1*auxvars(ghosted_id)%h
+      endif
+
+      r_p(istart:iend) = r_p(istart:iend) - Res(1:2)
+
+      if (option%compute_mass_balance_new) then
+        ! contribution to boundary
+        global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) = &
+          global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) - &
+          Res(1:2)
       endif
 
     enddo
@@ -4020,6 +4133,12 @@ subroutine THResidualPatch(snes,xx,r,realization,ierr)
       patch%boundary_flow_fluxes(:,sum_connection) = Res(:)
       patch%boundary_energy_flux(1,sum_connection) = fluxe_bulk
       patch%boundary_energy_flux(2,sum_connection) = fluxe_cond
+
+      if (option%compute_mass_balance_new) then
+        ! contribution to boundary
+        global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) = &
+          global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) - Res(1:2)
+      endif
 
       iend = local_id*option%nflowdof
       istart = iend-option%nflowdof+1
@@ -5449,9 +5568,11 @@ subroutine EnergyToTemperatureBisection(T,TL,TR,h,energy,Cwi,Pr,option)
 
 end subroutine EnergyToTemperatureBisection
 
+! ************************************************************************** !
+
 subroutine THUpdateSurfaceBC(realization)
   ! 
-  ! Deallocates variables associated with Richard
+  ! Updates pressure and temperature BC associated with surface-flow
   ! 
   ! Author: Gautam Bisht
   ! Date: 10/23/13
@@ -5607,12 +5728,16 @@ subroutine THUpdateSurfaceBC(realization)
 
             TL = -100.d0
             TR =  100.d0
-            call EnergyToTemperatureBisection(surftemp_new,TL,TR, &
-                                              one, &
-                                              eng_per_unitvol_new, &
-                                              Cwi, &
-                                              option%reference_pressure, &
-                                              option)
+            if (den*Cwi*(TL+273.15d0) < eng_per_unitvol_new) then
+              surftemp_new = surftemp_old
+            else
+              call EnergyToTemperatureBisection(surftemp_new,TL,TR, &
+                                                one, &
+                                                eng_per_unitvol_new, &
+                                                Cwi, &
+                                                option%reference_pressure, &
+                                                option)
+            endif
 
             ! 2) Find new surface-temperature due to heat transfer via bulk-movement
             !    water transport
@@ -5644,12 +5769,16 @@ subroutine THUpdateSurfaceBC(realization)
 
             TL = -100.d0
             TR =  100.d0
-            call EnergyToTemperatureBisection(surftemp_new,TL,TR, &
-                                              head_new, &
-                                              eng_times_ht_per_unitvol_new, &
-                                              Cwi, &
-                                              option%reference_pressure, &
-                                              option)
+            if (den*Cwi*head_new*(TL+273.15d0) < eng_times_ht_per_unitvol_new) then
+              surftemp_new = surftemp_old
+            else
+              call EnergyToTemperatureBisection(surftemp_new,TL,TR, &
+                                                head_new, &
+                                                eng_times_ht_per_unitvol_new, &
+                                                Cwi, &
+                                                option%reference_pressure, &
+                                                option)
+            endif
 
             call EOSWaterdensity(surftemp_new,option%reference_pressure,den,dum1,ierr)
             surfpress_new = head_new*(abs(option%gravity(3)))*den + &

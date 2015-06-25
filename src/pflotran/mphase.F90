@@ -925,7 +925,7 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
   call VecGetArrayF90(field%flow_xx_loc,xx_loc_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
-  
+
   do ghosted_id = 1, grid%ngmax
     if (grid%nG2L(ghosted_id) < 0) cycle ! bypass ghosted corner cells
     !geh - Ignore inactive cells with inactive materials
@@ -2968,7 +2968,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
 
       if (associated(patch%boundary_flow_fluxes)) then
         patch%boundary_flow_fluxes(1:option%nflowdof,sum_connection) = &
-                                                       Res(1:option%nflowdof)
+                                   Res(1:option%nflowdof)/option%flow_dt
       endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
@@ -3061,7 +3061,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
       endif
 
       if (associated(patch%internal_flow_fluxes)) then
-        patch%internal_flow_fluxes(:,sum_connection) = Res(:)
+        patch%internal_flow_fluxes(:,sum_connection) = Res(:)/option%flow_dt
       endif
 
     enddo

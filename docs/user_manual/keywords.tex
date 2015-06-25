@@ -79,12 +79,26 @@ Keywords within the SIMULATION block include:
     always precede SUBSURFACE\_TRANSPORT processes in timestep 
     execution. Options include:
     
-\item {\bf SUBSURFACE\_FLOW}
-
-\item {\bf SUBSURFACE\_TRANSPORT}
-
-\item {\bf SURFACE\_FLOW}
+\item {\bf SUBSURFACE\_FLOW} \ <string>
+\begin{description}
+\item GENERAL, RICHARDS, MPHASE
 \end{description}
+\item \keyend
+
+\item {\bf SUBSURFACE\_TRANSPORT} \ <string>
+\begin{description}
+\item GLOBAL\_IMPLICIT
+\end{description}
+\item \keyend
+
+\item {\bf SURFACE\_FLOW} \ <string>
+\begin{description}
+\item \ldots
+\end{description}
+\item \keyend
+\end{description}
+
+\item \keyend
 
 \item {\bf SUBSURFACE}
 \begin{description}
@@ -102,22 +116,26 @@ Keywords within the SIMULATION block include:
 \begin{mdframed}
 
 {\bf Example:}
-\small
+\footnotesize
 \begin{verbatim}
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
-      ...
+      RICHARDS
     /
     SUBSURFACE_TRANSPORT transport
-      ...
+      GLOBAL_IMPLICIT
     /
   /
 END
 
 SUBSURFACE
-...
+
+.
+.
+.
+
 END_SUBSURFACE
 
 \end{verbatim}
@@ -160,6 +178,7 @@ END_SUBSURFACE
 \small
 \begin{mdframed}
 {\bf Example:}
+\footnotesize
 \begin{verbatim}
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -176,6 +195,7 @@ SIMULATION
   /
 END
 \end{verbatim}
+\normalsize
 \end{mdframed}
 \normalsize
 
@@ -194,6 +214,7 @@ Specifies fully implicit coupling of transport and reaction.
 \small
 \begin{mdframed}
 {\bf Example:}
+\footnotesize
 \begin{verbatim}
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -204,11 +225,12 @@ SIMULATION
   /
 END
 \end{verbatim}
+\normalsize
 \end{mdframed}
 \normalsize
 
 \newpage
-\subsection{Links to Subsurface Keywords}
+\subsection{Subsurface Keyword Links}
 \begin{longtable}{ll}%[h]%\centering
 \caption{{\bf SUBSURFACE} Keywords listed in alphabetical order.}\label{flkeywd}\\
 
@@ -224,9 +246,16 @@ END
 \hyperlink{target_charcrv}{\bf CHARCTERISTIC\_CURVES} & \\
 \hyperlink{target_ckpt}{\bf CHECKPOINT} & \\
 \hyperlink{target_chem}{\bf CHEMISTRY} & \\
+\qquad \hyperlink{target_chem_minkin}{\bf MINERAL\_KINETICS} &\\
+\qquad \hyperlink{target_chem_sorp}{\bf SORPTION} &\\
+\qquad \hyperlink{target_chem_rad}{\bf RADIOACTIVE\_DECAY\_REACTION} &\\
+\qquad \hyperlink{target_chem_genrxn}{\bf GENERAL\_REACTION} &\\
+\qquad \hyperlink{target_chem_micro}{\bf MICROBIAL\_REACTION} &\\
+\qquad \hyperlink{target_chem_rxnsand}{\bf REACTION\_SANDBOX} &\\
+\qquad \hyperlink{target_chem_output}{\bf OUTPUT} &\\
 \hyperlink{target_stat}{\bf COMPUTE\_STATISTICS} & \\
 \hyperlink{target_co2dat}{\bf CO2\_DATABASE} & \\
-\hyperlink{target_constraint}{\bf CONSTRAINT} & transport (optional)\\
+\hyperlink{target_constraint}{\bf CONSTRAINT} & Transport (required)\\
 \hyperlink{target_datset}{\bf DATASET} & \\
 \hyperlink{target_dbase}{\bf DBASE\_DATASET} & \\
 \hyperlink{target_dbg}{\bf DEBUG} & \\
@@ -242,7 +271,10 @@ END
 \hyperlink{target_geomech_bc}{\bf GEOMECHANICS\_BOUNDARY\_CONDITION} & \\
 \hyperlink{target_geomech_strata}{\bf GEOMECHANICS\_STRATA} & \\
 \hyperlink{target_grid}{\bf GRID} & (required)\\
+\hyperlink{target_immob}{\bf IMMOBILE\_DECAY\_REACTION} & \\
 \hyperlink{target_init}{\bf INITIAL\_CONDITION} & \\
+\hyperlink{target_init_flow}{\bf INITIALIZE\_FLOW\_FROM\_FILE} & \\
+\hyperlink{target_init_trans}{\bf INITIALIZE\_TRANSPORT\_FROM\_FILE} & \\
 \hyperlink{target_int_flux}{\bf INTEGRAL\_FLUX} & \\
 \hyperlink{target_linsolv}{\bf LINEAR\_SOLVER} & \\
 \hyperlink{target_mat}{\bf MATERIAL\_PROPERTY} & \\
@@ -673,6 +705,7 @@ The BOUNDARY\_CONDITION keyword couples conditions specified under the FLOW\_\-C
 \begin{mdframed}
 
 {\noindent\bf Examples:}
+\footnotesize
 
 \begin{verbatim}
 BOUNDARY_CONDITION river
@@ -687,7 +720,7 @@ BOUNDARY_CONDITION recharge
   REGION ground_surface
 END
 \end{verbatim}
-
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -710,9 +743,11 @@ Units refer to concentration of an NaCl brine in molality, mass fraction or mole
 
 \begin{mdframed}
 \noindent {\bf Example:}
+\footnotesize
 \begin{verbatim}
 BRINE 4.d0 MOLAL
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -832,6 +867,7 @@ Applies polynomial smoothing to relative permeability or saturation function. St
 \begin{mdframed}
 
 {\bf Examples:}
+\footnotesize
 
 \begin{verbatim}
 CHARACTERISTIC_CURVES cc1
@@ -875,6 +911,7 @@ CHARACTERISTIC_CURVES cc2
   /
 /
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -919,12 +956,14 @@ Checkpointing can be used to start from an initial steady-state solution, but no
 \begin{mdframed}
 
 {\noindent\bf Examples:}
+\footnotesize
+
 \begin{verbatim}
 CHECKPOINT 1000
 
 CHECKPOINT 5
 \end{verbatim}
-
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -939,10 +978,8 @@ CHECKPOINT 5
 
 \noindent
 {\bf Description:}
-The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides input for primary species, secondary species, minerals, gases, colloids and colloid-facilitated transport, and sorption including ion exchange and surface complexation. Mineral reactions are described through a kinetic rate law based on transition state theory and surface complexation reactions may involve equilibrium, kinetic (reversible or irreversible) or a multirate formulation.
-
-%\shadowbox{
-%\begin{minipage}{6.5in}
+Specifies geochemisty for multicomponent transport.
+The {\bf CHEMISTRY} keyword invokes the reactive transport mode coupling a reaction network consisting of aqueous species, minerals and gases to advection, diffusion and dispersion. This keyword provides input for primary species, secondary species implemented through local equilibrium mass action relations, minerals, gases, colloids. Homogeneous aqueous complexing reactions and heterogeneous mineral precipitation and dissolution, sorption including ion exchange and surface complexation, radioactive decay, microbial reactions are provided. Homogeneous complexing reactions may be described through local equilibrium by specifying secondary species or through a kinetic formulation using the GENERAL\_REACTION keyword. Mineral precipitation and dissolution reactions are described through a kinetic rate law based on transition state theory. Surface complexation reactions may involve equilibrium, kinetic (reversible or irreversible) or a multirate formulation. Colloid-facilitated transport taking into account sorption on colloids is included.
 
 \noindent {\bf Input:}
 
@@ -981,15 +1018,135 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 
 ~\\
 
+\item[IMMOBILE\_SPECIES]
+\item {\tt Species Name}
+\item [\keyend]
+
+~\\
+
+\item[IMMOBILE\_DECAY\_REACTION] ~
+\begin{deflist}{000}
+\item SPECIES\_NAME \ <string>
+\item RATE\_CONSTANT \ <float>
+\end{deflist}
+
+\item [\keyend]
+
+~\\
+
 \item[COLLOIDS]
 \item {\tt Colloid Name} \ \ \ \ {\tt Mobile\_Fraction} [---]
 \item [\keyend]
 
 ~\\
+\end{deflist}
 
+\begin{mdframed}
+{\bf Example: } Specification of primary species, secondary species, gases and minerals.
+\footnotesize
+\begin{verbatim}
+#=========================== chemistry ==========================
+CHEMISTRY
+
+PRIMARY_SPECIES
+  Na+
+  K+
+  Ca++
+  Mg++
+  Al+++
+  H+
+  CO2(aq)
+  SiO2(aq)
+  Cl-
+/
+
+SECONDARY_SPECIES
+  OH-
+  CO3--
+  HCO3-
+  
+  CaCO3(aq)
+  CaHCO3+
+  CaCl2(aq)
+  CaCl+
+  # CaOH+
+
+  MgCO3(aq)
+  MgHCO3+
+  MgCl+
+  MgOH+
+
+  Al(OH)4-
+  Al(OH)3(aq)
+  Al(OH)2+
+  AlOH++
+
+  H3SiO4-
+  H2SiO4--
+
+  HCl(aq)
+  KCl(aq)
+  # KOH(aq)
+
+  NaCl(aq)
+  NaCO3-
+  # NaHCO3(aq)
+  NaHSiO3(aq)
+  NaOH(aq)
+/
+
+GAS_SPECIES
+  CO2(g)
+  O2(g)
+/
+
+MINERALS
+  Quartz
+  K-Feldspar
+  Kaolinite
+  Gibbsite
+  Muscovite
+  Oligoclase
+  Illite
+  Albite
+  Anorthite
+  Brucite
+  Magnesite
+  Calcite
+/
+\end{verbatim}
+\normalsize
+\end{mdframed}
+
+\begin{mdframed}
+{\bf Example: } Deactivate redox equilibrium reactions for the listed redox pairs.
+\footnotesize
+\begin{verbatim}
+REDOX_SPECIES
+  Fe++
+  Fe+++
+  SO4--
+  HS-
+  Acetate-
+  Ethanol(aq)
+/
+\end{verbatim}
+\normalsize
+\end{mdframed}
+
+\hfill\hyperlink{target_key}{\return}
+
+\clearpage
+\protect\hypertarget{target_chem_minkin}{}
+
+\subsubsection{Keyword: MINERAL\_KINETICS}
+
+The keyword MINERAL\_KINETICS specifies parameters for kinetic mineral precipitation-dissolution reactions based on transition state theory.
+
+\hfill\hyperlink{target_key}{\return}
+
+\begin{deflist}{000}
 \item[MINERAL\_KINETICS] ~
-
-%\begin{deflist}{000000000000000000000}
 \begin{deflist}{0000}
 \item [Mineral Name]  \ {\tt <Char>}
 \begin{deflist}{0000}
@@ -999,7 +1156,7 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 \item [AFFINITY\_THRESHOLD] \ {\tt <float>} \ [---]
 \item [AFFINITY\_POWER] \ {\tt <float>} \ [---] \ [see Eqn.\eqref{Im}]
 ~\\
-\item [TEMPKINS\_CONSTANT] \ {\tt <float>} \ [---] [See Eqn.\eqref{Im}]
+\item [TEMKIN\_CONSTANT] \ {\tt <float>} \ [---] [See Eqn.\eqref{Im}]
 ~\\
 \item [SURFACE\_AREA\_POROSITY\_POWER] \ {\tt <float>} \ [---] \ \ \ [see Eqn.\eqref{surface_area_vf}]
 \item [SURFACE\_AREA\_VOL\_FRAC\_POWER] \ {\tt <float>} \ [---] \ \ \ [see Eqn.\eqref{surface_area_vf}]
@@ -1032,11 +1189,86 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 \item [\keyend]
 \end{deflist}
 \item [\keyend] ~
+\end{deflist}
 
-~\\
+\begin{mdframed}
+{\bf Example:} Mineral kinetics.
+\footnotesize
+\begin{verbatim}
+CHEMISTRY
+  ...
+  MINERALS
+    Quartz
+    Calcite
+    Gibbsite
+  /
+  MINERAL_KINETICS
+    Calcite
+      RATE_CONSTANT 1.d-12 mol/cm^2-sec
+    /
+  /
+  OUTPUT
+    ALL
+    Gibbsite
+  /
+  ...
+END
+\end{verbatim}
+\normalsize
+\end{mdframed}
 
+\begin{mdframed}
+\noindent
+{\bf Examples:}
+Using PREFACTOR for mineral TST kinetics [see Eqn.\eqref{prefactor}].
+\footnotesize
+\begin{verbatim}
+MINERAL_KINETICS
+  Quartz 
+    RATE_CONSTANT -17.99d0 mol/cm^2-sec
+    ACTIVATION_ENERGY 87.7d0
+  /
+  Albite 
+    PREFACTOR
+      RATE_CONSTANT -16.56d0 mol/cm^2-sec
+      ACTIVATION_ENERGY 69.8d0
+    /
+    PREFACTOR
+      RATE_CONSTANT -14.16d0 mol/cm^2-sec
+      ACTIVATION_ENERGY 65.0d0
+      PREFACTOR_SPECIES H+
+        ALPHA           0.457d0
+      ! BETA
+      ! ATTENUATION_COEF
+      /
+    /
+    PREFACTOR
+      RATE_CONSTANT -19.6d0 mol/cm^2-sec
+      ACTIVATION_ENERGY 71.0d0
+      PREFACTOR_SPECIES H+
+        ALPHA           -0.572d0
+      ! BETA
+      ! ATTENUATION_COEF
+      /
+    /
+  /
+END
+\end{verbatim}
+\normalsize
+\end{mdframed}
+
+\hfill\hyperlink{target_key}{\return}
+\clearpage
+\protect\hypertarget{target_chem_sorb}{}
+
+\subsubsection{Keyword: SORPTION}
+
+The keyword SORPTION specifies parameters for ion-exchange and surface-complexation reactions.
+
+\hfill\hyperlink{target_key}{\return}
+
+\begin{deflist}{000}
 \item[SORPTION] ~
-
 \begin{deflist}{000}
 \item[SURFACE\_COMPLEXATION\_RXN] ~
 
@@ -1091,7 +1323,6 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 
 \item [\keyend]
 \end{deflist}
-
 ~\\
 
 \begin{deflist}{000}
@@ -1131,6 +1362,7 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 \end{deflist}
 
 \item [\keyend] ~
+\end{deflist}
 
 ~\\
 
@@ -1140,8 +1372,366 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 \end{deflist}
 
 \item [\keyend]
+
 ~\\
-\item [OPERATOR\_SPLITTING] \ Toggles operator-splitting mode (Default implicit, not currently implemented)
+
+\begin{mdframed}
+{\bf Example:} Linear sorption distribution coefficient and mean age of a tracer.
+\footnotesize
+\begin{verbatim}
+  SORPTION
+    ISOTHERM_REACTIONS
+      Tracer
+        TYPE LINEAR 
+        DISTRIBUTION_COEFFICIENT 500. ! kg water/m^3 bulk
+      /
+      Tracer_Age
+        TYPE LINEAR 
+        DISTRIBUTION_COEFFICIENT 500. ! kg water/m^3 bulk
+      /
+    /
+  /
+\end{verbatim}
+\normalsize
+\end{mdframed}
+
+\begin{mdframed}
+{\bf Example:} Ion exchange.
+\footnotesize
+\begin{verbatim}
+  SORPTION
+    ION_EXCHANGE_RXN
+      CEC 0.11 ! eq/m3bulk
+      CATIONS
+        Na+   1.
+        Ca++  0.158489
+        K+    0.199526
+      /
+    /
+  /
+\end{verbatim}
+\normalsize
+\end{mdframed}
+
+\clearpage
+\protect\hypertarget{target_chem_rad}{}
+\subsubsection{Keyword: RADIOACTIVE\_DECAY\_REACTION}
+
+Specifies parameters for radioactive decay reaction. This reaction differs from the GENERAL\_REACTION in that only one reactant species may be specified with a unit stoichiometry (i.e. the rate is always first order) and the reactant species is decayed in both the aqueous and sorbed phases.
+
+\hfill\hyperlink{target_key}{\return}
+
+\begin{deflist}{000}
+\item[RADIOACTIVE\_DECAY\_REACTION] ~
+\begin{deflist}{000}
+
+\item [REACTION] <string>
+Reaction equation. Only one reactant species may be listed on the left side of the equation (i.e. or on the right side with a negative stoichiometry). The reactant's stoichiometry is fixed at 1.0. The forward rate is applied to that one species as a first order rate constant [1/sec]. Multiple species are supported as daughter products on the right hand side and stoichiometries can be specified.
+
+\item [RATE\_CONSTANT or HALF\_LIFE] (but not both)
+
+\item [RATE\_CONSTANT] <float>
+rate constant for 1st-order decay reaction [1/sec]. The rate constant may be calculated from ln(2) / half-life.
+
+\item [HALF\_LIFE] <float>
+half life of species [sec].
+Note that rate constant or half life units other than sec or 1/sec may be specified.
+\end{deflist}
+
+\item [\keyend]
+\end{deflist}
+
+\begin{mdframed}
+{\bf Examples:}
+\footnotesize
+\begin{verbatim}
+RADIOACTIVE_DECAY_REACTION
+  REACTION Tracer <-> Tracer2
+  RATE_CONSTANT 1.7584d-7 ! half life at 0.125 y
+/
+-----------------------------------
+CHEMISTRY
+  PRIMARY_SPECIES
+    A(aq)
+    B(aq)
+    C(aq)
+  /
+  ...
+  RADIOACTIVE_DECAY_REACTION
+    REACTION A(aq) <-> B(aq)
+    ! Calculating forward rate from half-life
+    ! rate = -ln(0.5) / half-life [1/sec]
+    RATE_CONSTANT 1.75836d-9  ! 1/s  half life = 12.5 yrs
+  /
+  RADIOACTIVE_DECAY_REACTION
+    REACTION B(aq) <-> C(aq)
+    RATE_CONSTANT 8.7918d-10  ! 1/s  half life = 25. yrs
+  /
+  RADIOACTIVE_DECAY_REACTION
+    ! Note that C(aq) decays with no daughter products
+    REACTION C(aq) <->
+    HALF_LIFE 5. y
+  /
+  ...
+/
+\end{verbatim}
+\normalsize
+\end{mdframed}
+
+\hfill\hyperlink{target_key}{\return}
+
+\clearpage
+\protect\hypertarget{target_chem_genrxn}{}
+
+\subsubsection{Keyword: GENERAL\_REACTION}
+Specifies rate constants and stoichiometry for a general kinetic homogeneous aqueous forward/backward reaction. It does not apply to reactions containing a solid phase, however.
+
+\hfill\hyperlink{target_key}{\return}
+
+\begin{deflist}{000}
+\item[GENERAL\_REACTION] ~
+
+\begin{deflist}{000}
+
+\item [REACTION] <string>
+Reaction equation. The forward rate is applied to reaction quotient of species on left side of reaction. The reverse or backward rate is applied to the right side. Reactions can also be irreversible if one of the rate constants is zero.
+
+\item [FORWARD\_RATE] <float>
+rate constant for $n^{\rm th}$-order forward reaction \break [kg$^{(n-1)}$/mol$^{(n-1)}$-sec]
+\item [BACKWARD\_RATE] <float>
+rate constant for $n^{\rm th}$-order reverse reaction \break [kg$^{(n-1)}$/mol$^{(n-1)}$-sec]
+\end{deflist}
+\item[\keyend]
+\end{deflist}
+
+\begin{mdframed}
+{\bf Examples:}
+\footnotesize
+\begin{verbatim}
+GENERAL_REACTION
+  REACTION Tracer <-> Tracer2
+  FORWARD_RATE 1.7584d-7 ! half life at 0.125 y
+  BACKWARD_RATE 0.d0
+/
+CHEMISTRY
+  PRIMARY_SPECIES
+    A(aq)
+    B(aq)
+    C(aq)
+  /
+  ...
+  GENERAL_REACTION
+    REACTION A(aq) <-> B(aq)
+    ! Calculating forward rate from half-life
+    ! forward rate = -ln(0.5) / half-life [1/sec]
+    FORWARD_RATE 1.75836d-9  ! 1/s  half life = 12.5 yrs
+    BACKWARD_RATE 0.d0
+  /
+  GENERAL_REACTION
+    REACTION B(aq) <-> C(aq)
+    FORWARD_RATE 8.7918d-10  ! 1/s  half life = 25. yrs
+    BACKWARD_RATE 0.d0
+  /
+  GENERAL_REACTION
+    ! Note that C(aq) decays with no daughter products
+    REACTION C(aq) <->
+    FORWARD_RATE 4.3959d-9  ! 1/s  half life = 5. yrs
+    BACKWARD_RATE 0.d0
+  /
+  ...
+/
+\end{verbatim}
+\normalsize
+\end{mdframed}
+
+\hfill\hyperlink{target_key}{\return}
+
+\clearpage
+\protect\hypertarget{target_chem_micro}{}
+\subsubsection{Keyword: MICROBIAL\_REACTION}
+Specifies parameters for microbially-mediated reactions.
+
+\hfill\hyperlink{target_key}{\return}
+
+\begin{deflist}{000}
+\item[MICROBIAL\_REACTION] ~
+
+\begin{deflist}{000}
+%Required Cards:
+  \item [REACTION] \ <string> \ Reaction equation. The rate constant is multiplied by the Monod expressions for electron donor and acceptor for select species on the left side of the equation. The reaction may be inhibited by any species in the system.
+
+  \item [RATE\_CONSTANT] \ <float>
+Rate constant for the reaction.
+
+%Optional Cards:
+
+  \item [MONOD] \ <string> \ <float> \ 
+Specifies the Monod equation for the electron donor and acceptor (named by the string) and the half saturation constant.
+
+  \item [INHIBITION] Specifies inhibition based on species concentration and an inhibition constant(s). Three types of inhibition are currently supported: MONOD, \linebreak INVERSE\_MONOD, and THRESHOLD.
+
+  \begin{deflist}{000}
+    \item [Monod Inhibition:] ~
+
+    \begin{deflist}{000}
+      \item [INHIBITION] ~
+      \begin{deflist}{000}
+        \item [SPECIES\_NAME] \ <string>
+        \item [TYPE MONOD] Specifies the type of inhibition to be Monod. The reaction proceeds as long as the species concentration is well below the half saturation constant: inhibition = C$_{th}$/ (C$_{th}$ + concentration)
+
+        \item [INHIBITION\_CONSTANT] <float> Half saturation constant.
+      \end{deflist}
+    \end{deflist}
+ 
+    \item [Inverse Monod Inhibition:] ~
+
+    \begin{deflist}{000}
+      \item [INHIBITION] ~
+
+      \begin{deflist}{000}
+         \item [SPECIES\_NAME] \ <string>
+
+         \item [TYPE INVERSE\_MONOD] Specifies the type of inhibition to be inverse Monod. The reaction proceeds as long as the species concentration is well above the half saturation constant: inhibition = concentration / (C$_{th}$ + concentration)
+
+        \item [INHIBITION\_CONSTANT] \ <float> \ Half saturation constant.
+
+      \end{deflist}
+    \end{deflist}
+
+\item [Threshold Inhibition:] ~ %%%%%%%%%%%%%%%%
+\begin{deflist}{000}
+\item [INHIBITION] ~
+\item [SPECIES\_NAME] \ <string>
+
+\item [TYPE THRESHOLD] \ <float> \ 
+Specifies the type of inhibition to be threshold and the scaling factor to be applied. Inhibition is calculated based on the following equation: inhibition = 0.5 + arctan((concentration $-$ C$_{th}$) $\times$ f) / $\pi$. Inhibition is above and below C$_{th}$ when the sign of C$_{th}$ is negative or positive, respectively.
+
+\item [INHIBITION\_CONSTANT] \ <float> \ Threshold concentration
+\end{deflist}
+\end{deflist}
+\item[\keyend]
+\item [BIOMASS] ~
+\begin{deflist}{000}
+\item [SPECIES\_NAME]  <string> \ Specifies biomass species.
+\item [YIELD] \ <float> \  Biomass yield.
+\end{deflist}
+\item[\keyend]
+\end{deflist}
+\item[\keyend]
+\end{deflist}
+
+{\bf Examples:}
+\begin{mdframed}
+\footnotesize
+\begin{verbatim}
+CHEMISTRY
+  PRIMARY_SPECIES
+    A(aq)
+    B(aq)
+    C(aq)
+  /
+  MICROBIAL_REACTION
+    REACTION A(aq) + 2 B(aq) <-> 1.5 C(aq)
+    RATE_CONSTANT 1.d-12
+    MONOD A(aq) 1.d-5        ! A is the donor
+    MONOD B(aq) 1.d-4        ! B is the acceptor
+    INHIBITION
+      SPECIES_NAME C(aq)
+      TYPE MONOD
+      INHIBITION_CONSTANT 6.d-4   ! C is the product and 
+                                  ! inhibits when too high
+    /
+  /
+...
+\end{verbatim}
+\end{mdframed}
+
+\begin{mdframed}
+\footnotesize
+\begin{verbatim}
+CHEMISTRY
+  PRIMARY_SPECIES
+    A(aq)
+    B(aq)
+    C(aq)
+  /
+  IMMOBILE_SPECIES
+    Microbe_D
+  /
+  MICROBIAL_REACTION
+    REACTION A(aq) + 2 B(aq) <-> 1.5 C(aq)
+    RATE_CONSTANT 1.d-12
+    MONOD A(aq) 1.d-5      ! A is the donor
+    MONOD B(aq) 1.d-4      ! B is the acceptor
+    INHIBITION C(aq) 6.d-4 ! C is the product and inhibits when too high
+    BIOMASS Microbe_D 1.d-1
+  /
+  ...
+END
+
+CONSTRAINT biomass
+  CONCENTRATIONS
+    A(aq) 1.d-7  T
+    B(aq) 1.d-7  T
+    C(aq) 1.d-7  T
+  /
+  IMMOBILE
+    Microbe_D 1.d0
+  /
+END
+\end{verbatim}
+\normalsize
+\end{mdframed}
+
+\hfill\hyperlink{target_key}{\return}
+
+\clearpage
+\protect\hypertarget{target_chem_rxnsand}{}
+\subsubsection{Keyword: REACTION\_SANDBOX}
+Specifies parameters for user-defined reactions.
+
+\hfill\hyperlink{target_key}{\return}
+
+\begin{deflist}{000}
+%Required Cards:
+\item [REACTION\_SANDBOX]
+Opens the reaction sandbox block. Terminate with END, ., /.
+%Optional Cards:
+\item [CLM-CN]
+Block for specifying CLM-CN reaction parameters
+\end{deflist}
+
+\begin{mdframed}
+{\bf Examples:}
+\footnotesize
+\begin{verbatim}
+REACTION_SANDBOX
+  CLM-CN
+    POOLS
+      SOM1 12.d0
+      Lit1
+    /
+    REACTION
+      UPSTREAM_POOL Lit1
+      DOWNSTREAM_POOL SOM1
+      TURNOVER_TIME 20. h
+      RESPIRATION_FRACTION 0.39d0
+      N_INHIBITION 1.d-10
+    /
+  /
+/
+\end{verbatim}
+\normalsize
+\end{mdframed}
+
+\hfill\hyperlink{target_key}{\return}
+
+\clearpage
+
+%~\\
+\begin{deflist}{000}
+
+\item[OPERATOR\_SPLITTING] \ Toggles operator-splitting mode (Default implicit, {\bf not currently implemented})
 ~\\
 \item[GEOTHERMAL\_HPT] Use high pressure and temperature thermodynamic database
 \item[DATABASE] {\tt Path/Database\_Name}
@@ -1163,9 +1753,21 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 %\item[UPDATE\_MINERAL\_SURFACE\_AREA]
 \item[MAX\_DLNC] \rm (Default 5)
 
+\item[MAX\_RELATIVE\_CHANGE\_TOLERANCE] Relative speciation tolerance (Default 1.d-12)
+\item[MAX\_RESIDUAL\_TOLERANCE] Speciation tolerance (Default 1.d-12)
+
+\end{deflist}
 ~\\
 
-\item[OUTPUT] ~
+\clearpage
+\protect\hypertarget{target_chem_output}{}
+\subsubsection{Keyword: OUTPUT}
+
+\hfill\hyperlink{target_key}{\return}
+
+\begin{deflist}{000}
+\item [OUTPUT] ~
+
 \begin{deflist}{000000000000000000000000}
 \item[MOLALITY]
 \item[MOLARITY]
@@ -1196,25 +1798,16 @@ The {\bf CHEMISTRY} keyword invokes the reactive transport mode and provides inp
 \item[SITE\_DENSITY]
 \end{deflist}
 
-\item [\keyend]
-
-~ 
-
-\end{deflist}
-\begin{deflist}{000000000000000000000}
-\item[MAX\_RELATIVE\_CHANGE\_TOLERANCE] Relative speciation tolerance (Default 1.d-12)
-\item[MAX\_RESIDUAL\_TOLERANCE] Speciation tolerance (Default 1.d-12)
+\item [\keyend] ~
 \end{deflist}
 
 \item [\keyend]
 \end{deflist}
-%\end{minipage}
-%}
 
 \begin{mdframed}
 \noindent
-{\bf Example:} 
-Output total and free-ion primary species concentrations.
+{\bf Example:} Output total and free-ion primary species concentrations.
+\footnotesize
 \begin{verbatim}
  OUTPUT
    ...
@@ -1224,55 +1817,26 @@ Output total and free-ion primary species concentrations.
    ...
  /
 \end{verbatim}
+\normalsize
 \end{mdframed}
+
+\hfill\hyperlink{target_key}{\return}
 
 \begin{center}
 \begin{tabularx}{\linewidth}{lX}
 \toprule
-\bf Keyword & \bf Description\\
+\bf Keyword & \multicolumn{1}{c}{\bf Description}\\
 \midrule
-\bf Primary\_Species & List of primary species that fully describe the chemical composition of the fluid. The set of primary species must form an independent set of species in terms of which all homogeneous aqueous equilibrium reactions can be expressed.\\
+\bf Primary\_Species & List of primary species that fully describe the chemical composition of the fluid terminated by END, ., or /. The set of primary species must form an independent set of species in terms of which all homogeneous aqueous equilibrium reactions can be expressed.\\
 \midrule
-\bf Secondary\_Species & List of aqueous species in equilibrium with primary species.\\
+\bf Secondary\_Species & List of aqueous species in equilibrium with primary species terminated by END, ., or /.\\
 \midrule
-\bf Gas\_Species & List of gas species.\\
+\bf Gas\_Species & List of gas species terminated by END, ., or /.\\
+\midrule
+\bf Minerals & List of minerals, both passive and active, terminated by END, ., or /. Active minerals must be associated with a kinetic rate law under MINERAL\_KINETICS and listed under CONSTRAINTS. For passive mineral only the mineral saturation index is calculated for initial and boundary conditions.\\
 \midrule
 \bf Sorption & Surface complexation, ion exchange and specified isotherm.\\
 \end{tabularx}
-
-\begin{mdframed}
-{\bf Example:} Linear sorption distribution coefficient and mean age of a tracer.
-\begin{verbatim}
-  SORPTION
-    ISOTHERM_REACTIONS
-      Tracer
-        TYPE LINEAR 
-        DISTRIBUTION_COEFFICIENT 500. ! kg water/m^3 bulk
-      /
-      Tracer_Age
-        TYPE LINEAR 
-        DISTRIBUTION_COEFFICIENT 500. ! kg water/m^3 bulk
-      /
-    /
-  /
-\end{verbatim}
-\end{mdframed}
-
-\begin{mdframed}
-{\bf Example:} Ion exchange.
-\begin{verbatim}
-  SORPTION
-    ION_EXCHANGE_RXN
-      CEC 0.11 ! eq/m3bulk
-      CATIONS
-        Na+   1.
-        Ca++  0.158489
-        K+    0.199526
-      /
-    /
-  /
-\end{verbatim}
-\end{mdframed}
 
 \end{center}
 
@@ -1280,12 +1844,13 @@ Output total and free-ion primary species concentrations.
 \begin{tabularx}{\linewidth}{lX}
 \midrule
 \bf Output &
-To print secondary aqueous complex concentrations, either add the names of the secondary species of interest or the keyword ``SECONDARY\_SPECIES'' for all secondary species to the CHEMISTRY OUTPUT card:
+To print secondary aqueous complex concentrations, either add the individual names of the secondary species of interest or add the keyword ``SECONDARY\_SPECIES'' for all secondary species to the CHEMISTRY OUTPUT card:
 \end{tabularx}
 \end{center}
 
 \begin{mdframed}
-{\bf Example:} Output and redox chemistry.
+{\bf Example:}
+\footnotesize
 \begin{verbatim}
 CHEMISTRY
   ...
@@ -1298,54 +1863,14 @@ CHEMISTRY
   ...
 END
 \end{verbatim}
-
-Deactivate redox equilibrium reactions for the listed redox pairs:
-\begin{verbatim}
-REDOX_SPECIES
-  Fe++
-  Fe+++
-  SO4--
-  HS-
-  Acetate-
-  Ethanol(aq)
-/
-\end{verbatim}
+\normalsize
 \end{mdframed}
 
 \begin{center}
 \begin{tabularx}{\linewidth}{lX}
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ & By default, if ALL or MINERALS are listed under CHEMISTRY OUTPUT, the volume fractions and rates of kinetic minerals are printed.  To print out the saturation indices of minerals listed under the MINERAL keyword, add the name of the mineral to the OUTPUT specification.  In other words, if the following appears in the input deck:
-\end{tabularx}
-\end{center}
-
-\begin{mdframed}
-{\bf Example:} Mineral kinetics.
-\begin{verbatim}
-CHEMISTRY
-  ...
-  MINERALS
-    Quartz
-    Calcite
-    Gibbsite
-  /
-  MINERAL_KINETICS
-    Calcite
-      RATE_CONSTANT 1.d-12 mol/cm^2-sec
-    /
-  /
-  OUTPUT
-    ALL
-    Gibbsite
-  /
-  ...
-END
-\end{verbatim}
-\end{mdframed}
-
-\begin{center}
-\begin{tabularx}{\linewidth}{lX}
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ & volume fraction and reaction rate are printed for both calcite and gibbsite and saturation indices are printed for gibbsite. Saturation indices are not printed when only ALL or MINERALS are specified since an input deck. Outputting tens to hundreds of minerals, most of which are simply considered, but not modeled through a kinetic precipitation-dissolution reaction, would overwhelm the output. \\
-
+& 
+By default, if ALL or MINERALS are listed under CHEMISTRY OUTPUT, the volume fractions and rates of kinetic minerals are printed.  To print out the saturation indices of minerals listed under the MINERAL keyword, add the name of the mineral to the OUTPUT specification.  
+Saturation indices are not printed when only ALL or MINERALS are specified. Outputting tens to hundreds of minerals, most of which are simply considered as potential candidates for active minerals, but not modeled through a kinetic precipitation-dissolution reaction, would overwhelm the output. \\
 \midrule
 \ldots & \\
 \bottomrule
@@ -1353,45 +1878,6 @@ END
 \end{center}
 
 \bigskip
-
-\begin{mdframed}
-
-\noindent
-{\bf Examples:}
-Using PREFACTOR for mineral TST kinetics [see Eqn.\eqref{prefactor}].
-\begin{verbatim}
-MINERAL_KINETICS
-  Quartz 
-    RATE_CONSTANT -17.99d0 mol/cm^2-sec
-    ACTIVATION_ENERGY 87.7d0
-  /
-  Albite 
-    PREFACTOR
-      RATE_CONSTANT -16.56d0 mol/cm^2-sec
-      ACTIVATION_ENERGY 69.8d0
-    /
-    PREFACTOR
-      RATE_CONSTANT -14.16d0 mol/cm^2-sec
-      ACTIVATION_ENERGY 65.0d0
-      PREFACTOR_SPECIES H+
-        ALPHA           0.457d0
-      ! BETA
-      ! ATTENUATION_COEF
-      /
-    /
-    PREFACTOR
-      RATE_CONSTANT -19.6d0 mol/cm^2-sec
-      ACTIVATION_ENERGY 71.0d0
-      PREFACTOR_SPECIES H+
-        ALPHA           -0.572d0
-      ! BETA
-      ! ATTENUATION_COEF
-      /
-    /
-  /
-END
-\end{verbatim}
-\end{mdframed}
 
 \hyperlink{target_key}{\return}
 
@@ -1420,13 +1906,14 @@ COMPUTE\_STATISTICS enables the calculation statistical analysis of flow velocit
 
 \noindent
 {\bf Example:}
+\footnotesize
 \begin{verbatim}
 COMPUTE_STATISTICS
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
-
 
 %========================================================================
 
@@ -1507,6 +1994,7 @@ Z, \ CHG & --Charge balance
 
 \noindent
 {\bf Example:}
+\footnotesize
 \begin{verbatim}
 CONSTRAINT initial
   CONCENTRATIONS
@@ -1536,9 +2024,11 @@ CONSTRAINT initial
   /
 END
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \begin{mdframed}
+\footnotesize
 \begin{Verbatim}
 :====== secondary constraint ===================
 SECONDARY_CONSTRAINT sec
@@ -1558,7 +2048,7 @@ Gypsum      0.0        1.d2
 /
 /
 \end{Verbatim}
-
+\normalsize
 \end{mdframed}
 
 
@@ -1605,6 +2095,7 @@ Specifies a data set to be associated with parameters sets in the model.
 
 Reading heterogeneous permeability and porosity for the Hanford unit for realization ID = 99. The name of the data sets within the HDF5 file are PERMEABILITY99 and POROSITY99, respectively.
 
+\footnotesize
 \begin{verbatim}
 
 DATASET perm
@@ -1628,7 +2119,7 @@ MATERIAL_PROPERTY hanford_unit
   ...
 END
 \end{verbatim}
-
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -1653,6 +2144,7 @@ The names of the parameters to be read from the database file. This card combina
 \begin{mdframed}
 
 {\noindent\bf Examples:}
+\footnotesize
 \begin{verbatim}
 DBASE_FILENAME 543_dbase.h5
 ...
@@ -1685,6 +2177,7 @@ CONSTRAINT river_water
   /
 END
 \end{verbatim}
+\normalsize
 Values are assigned based on the database stored in {\tt 543\_dbase.h5} and the command line argument {\tt -realization\_id 5} (note the zero-based index of 4 in the HDF5 file is actually the 5th realization). An example script for creating the database file may be found in {\tt PFLOTRAN\_DIR/src/python/dbase\_creator.py}.
 \end{mdframed}
 
@@ -1729,12 +2222,14 @@ VIEW\_JACOBIAN\_DETAILED]
 \begin{mdframed}
 
 {\noindent\bf Examples:}
+\footnotesize
 \begin{verbatim}
 DEBUG
   PRINT_RESIDUAL
   PRINT_JACOBIAN
 END
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -1778,6 +2273,7 @@ Default water EOS based on International Formulation Committee of the Sixth Inte
 \begin{mdframed}
 
 {\noindent\bf Examples:}
+\footnotesize
 \begin{verbatim}
 EOS WATER
   DENSITY EXPONENTIAL 997.16d0 101325.d0 1.d-8
@@ -1788,6 +2284,7 @@ EOS WATER
   VISCOSITY CONSTANT 8.904156d-4
 END
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -1857,24 +2354,24 @@ The {\bf FLOW\_CONDITION} keyword specifies scalar or vector data sets to be ass
 \end{deflist}
 \item[GRADIENT, GRAD] ~
 \begin{deflist}{000}
-\item [PRES, PRESS, PRESSURE] ~
+\item [PRESSURE] ~
 \begin{deflist}{000}
 \item[$d_{dx}$ $d_{dy}$ $d_{dz}$]
 \item[{\bf FILE} \ {\tt file\_name}]
 \end{deflist}
 \item [FLUX]
-\item [TEMP, \ TEMPERATURE]
-\item [CONC, \ CONCENTRATION]
+\item [TEMPERATURE]
+\item [CONCENTRATION]
 \item [H, \ ENTHALPY]
 \end{deflist}
 \item[\keyend]
 \item[TEMPERATURE, \ TEMP] \ {\tt <float>}
-\item[ENTHALPY, H] \ {\tt <float>}
-\item[PRESSURE, \ PRES, \ RESS] \ {\tt <float>}
+\item[ENTHALPY] \ {\tt <float>}
+\item[PRESSURE] \ {\tt <float>}
 \item[RATE] \ {\tt <float>}
 \item[FLUX, \ VELOCITY, \ VEL] \ {\tt <float>}
-\item[CONC, \ CONCENTRATION] \ {\tt <float>}
-\item[SAT, \ SATURATION] \ {\tt <float>}
+\item[CONCENTRATION] \ {\tt <float>}
+\item[SATURATION] \ {\tt <float>}
 \item[CONDUCTANCE] \ {\tt <float>}
 %\item[CONSTRAINT\_LIST]
 \end{deflist}
@@ -1985,9 +2482,8 @@ FLOW_CONDITION East
   PRESSURE 101325.d0
 END
 \end{verbatim}
-\end{mdframed}
-
 \normalsize
+\end{mdframed}
 
 \hyperlink{target_key}{\return}
 
@@ -2022,12 +2518,14 @@ where $D_m^\circ$ is the reference diffusion coefficient at temperature $T_0 = 2
 \begin{mdframed}
 
 \noindent{\bf Example:}
+\footnotesize
 \begin{verbatim}
 FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-9      ! m^2/s
   DIFFUSION_ACTIVATION_ENERGY 12.6 ! kJ/mol
 /
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -2098,6 +2596,8 @@ The GEOMECHANICS\_BOUNDARY\_CONDITION keyword couples condition specified under 
 
 \noindent{\bf Example:}
 
+\footnotesize
+
 \begin{verbatim}
 GEOMECHANICS_BOUNDARY_CONDITION bottom
   GEOMECHANICS_CONDITION z_disp_zero
@@ -2105,6 +2605,7 @@ GEOMECHANICS_BOUNDARY_CONDITION bottom
 END
 
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -2181,6 +2682,8 @@ END
 
 \noindent{\bf Example:}
 
+\footnotesize
+
 \begin{verbatim}
 GEOMECHANICS_CONDITION
   TYPE
@@ -2190,6 +2693,7 @@ DISPLACEMENT_Z 0.d0
 END
 
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -2262,6 +2766,9 @@ Only unstructured grids can be read. If you need to use a structured grid, gener
 \begin{mdframed}
 
 \noindent{\bf Example:}
+
+\footnotesize
+
 \begin{verbatim}
 MATERIAL_PROPERTY rock	 
   ID 1
@@ -2272,7 +2779,7 @@ MATERIAL_PROPERTY rock
   THERMAL_EXPANSION_COEFFICIENT 1.d-5
 END
 \end{verbatim}
-
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -2299,7 +2806,7 @@ END
 \hfill\hyperlink{target_key}{\return}
 
 \noindent{\bf Description:} The GEOMECHANICS\_REGION keyword defines a set of geomechanics finite element grid vertices.
- The GEOMECHANICS\_REGION name can then be used to link this set of vertices to geomechanics  material properties, strata and boundary conditions. 
+The GEOMECHANICS\_REGION name can then be used to link this set of vertices to geomechanics  material properties, strata and boundary conditions. 
 The list of vertices can be read from an ASCII file by using the keyword FILE under the GEOMECHANICS\_REGION card.
 
 \begin{mdframed}
@@ -2307,12 +2814,14 @@ The list of vertices can be read from an ASCII file by using the keyword FILE un
 {\noindent\bf
 Examples:}
 
+\footnotesize
+
 \begin{verbatim}
 GEOMECHANICS_REGION top 
   FILE top.vset 
 END
 \end{verbatim}
-
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -2340,12 +2849,15 @@ Couples geomechanics material IDs and/or properties with a geomechanics region i
 
 \begin{mdframed}
 \noindent{\bf Example:}
+
+\footnotesize
 \begin{verbatim}
 GEOMECHANICS_STRATA
   GEOMECHANICS_MATERIAL granite 
   GEOMECHANICS_REGION all
 END
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 
@@ -2360,55 +2872,168 @@ END
 
 \noindent{\bf Description:} this keyword defines the descritization scheme, the type of grid and resolution, and the geometry employed in the simulation.
 
-\begin{description}
+\begin{deflist}{000}
 \item[GRID]~
 \item[Required Input Parameters:]~
 
-\begin{description}
-\item[TYPE <type> <symmetry>:] ~
+\begin{deflist}{000}
+\item[TYPE] \ <type> \ <symmetry>
 
-\begin{description}
-\item Grid type (structured, structured\_mimetic, unstructured, amr)
+\begin{deflist}{000}
+\item Grid type (structured, structured\_mimetic, unstructured)
 
 \item Symmetry type (cartesian [default], cylindrical, spherical)
-\end{description}
+\end{deflist}
 
-\item[NXYZ <\# \# \#>:] \# of grid cells in $x$, $y$, $z$ directions (structured only)
+\item[NXYZ] \ <\# \# \#> \ \# of grid cells in $x$, $y$, $z$ directions (structured only)
 
-\item[FILE <filename>:] Name of file containing grid information (unstructured only)
+\item[FILE] \ <filename> \ Name of file containing grid information (unstructured only)
 
 ~\\
 
 \noindent
-\item[BOUNDS:] ~
-\begin{description}
+\item[BOUNDS] ~
+\begin{deflist}{000}
 \item[<x\_min, \ y\_min, \ z\_min>]~
 \item[<x\_max, \ y\_max, \ z\_max>]~
-\end{description}
+\end{deflist}
 \item[\keyend] ~
 
 ~\\
 
-\item[DXYZ:] Specifies grid spacing of structured cartesian grid (see examples below)
-\begin{description}
+\item[DXYZ] \ Specifies grid spacing of structured cartesian grid (see examples below)
+\begin{deflist}{000000}
 \item[<{\bf dx}>] ~
 \item[<{\bf dy}>] ~
 \item[<{\bf dz}>] ~
-\end{description}
+\end{deflist}
 \item[\keyend] ~
-\end{description}
+\end{deflist}
 
 \item[Optional Input Parameters:] ~
 
-\begin{description}
+\begin{deflist}{000000000000000000}
 
-\item[GRAVITY <\# \# \#>:] Specifies gravity vector [Default: 0 0 $-$9.8068 m/s$^2$]
+\item[GRAVITY <\# \# \#>] \ Specifies gravity vector [Default: 0 0 $-$9.8068 m/s$^2$]
 
-\item[ORIGIN <\# \# \#>:] Coordinate of grid origin [Default: 0 0 0]
+\item[ORIGIN <\# \# \#>] \ Coordinate of grid origin [Default: 0 0 0]
 
-\item[INVERT\_Z:] Inverts the $z$-axis [Default: positive $z$ points downward]
-\end{description}
-\end{description}
+\item[INVERT\_Z] \ Inverts the $z$-axis [Default: positive $z$ points upward]
+
+\item[FILE] \ Read from file
+\item[MAX\_CELLS\_SHARING\_A\_VERTEX] ~
+\item[STENCIL\_WIDTH] ~
+\item[STENCIL\_TYPE] ~
+\begin{deflist}{000000}
+\item [BOX]
+\item [STAR]
+\end{deflist}
+%\item[FLUX\_METHOD]
+\end{deflist}
+\item[\keyend]
+\end{deflist}
+
+
+%\subsubsection{Unstructured Grids}
+
+\noindent
+The following two types of unstructured grid formats, implicit and explicit, are currently supported by PFLOTRAN.
+
+\subsubsection{Implicit Unstructured Grids}
+
+In this format, the grid is defined by 
+({\romannumeral 1}) nodal set for each control volume; and 
+({\romannumeral 2}) coordinates of cell nodes (or cell vertices). 
+Control volumes in an implicit unstructured grid can be comprised of the following
+cell types:
+({\romannumeral 1}) tetrahedron,
+({\romannumeral 2}) pyramid,
+({\romannumeral 3}) wedge, 
+({\romannumeral 4}) hexadron, and
+({\romannumeral 5}) a mix of above mentioned four cell types.
+The local number of cell nodes and faces is shown in Figure~\ref{fig:umesh_cell_types};
+while Table~\ref{tab:sideset} summarizes the side set node order for the four supported
+cell types.
+
+\begin{figure}[H]\centering
+\includegraphics[width=1\textwidth]{./figs/pflotran_umesh_cell_types}
+\caption{Side set numbering of supported cell types within unstructured grid}
+\label{fig:umesh_cell_types}
+\end{figure}
+
+\begin{table}[H]\centering
+\caption{Side set node ordering}
+
+\vspace{3mm}
+
+\label{tab:sideset}
+\begin{tabular}{ccc}
+\toprule
+Element type & Side \# & Node order\\
+\midrule
+Tetrahedron & 1 & 1--2--4 \\
+ & 2 & 2--3--4 \\
+ & 3 & 1--4--3 \\
+ & 4 & 1--3--2\\
+\midrule
+Pyramid & 1 & 1--2--5 \\
+ & 2 & 2--3--5 \\
+ & 3 & 3--4--5 \\
+ & 4 & 4--1--5 \\
+ & 5 & 1--4--3--2 \\
+\midrule
+Wedge & 1  & 1--2--5--4\\
+ & 2 & 2--3--6--5 \\
+ & 3 & 3--1--4--6 \\
+ & 4 & 1--3--2 \\
+ & 5 & 4--5--6\\
+\midrule
+Hexahedron & 1 & 1--2--6--5 \\
+ & 2 & 2--3--7--6 \\
+ & 3 & 3--4--8--7 \\
+ & 4 & 4--1--5--8 \\
+ & 5 & 1--4--3--2 \\
+ & 6 & 5--6--7--8 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\subsubsection{Explicit Unstructured Grids}
+The explicit unstructured grid format comprises of information about 
+({\romannumeral 1}) cells ( id, x, y, z, and volume), and
+({\romannumeral 2}) cell connections (upstream and downstream cell
+ids, centroid and area of side joining cells).
+
+{\tt
+\hspace{-0.8cm}CELLS NUM\_CELLS\\
+CELL\_ID X Y Z VOLUME\\
+%CELL\_ID X Y Z VOLUME\\
+\dots\\
+CONNECTIONS NUM\_CONNECTIONS \\
+CELL\_ID\_UP CELL\_ID\_DOWN FACE\_X FACE\_Y FACE\_Z AREA \\
+%CELL\_ID\_UP CELL\_ID\_DOWN FACE\_X FACE\_Y FACE\_Z AREA \\
+\dots\\
+}
+
+\begin{figure}[H]\centering
+\includegraphics[width=0.6\textwidth]{./figs/5x4x3_domain}
+\caption{
+(a) Example of a 5$\times$4$\times$3 unstructured grid problem 
+with default decomposition across two processors. Cells labelled in natural ID.
+(b) ParMETIS decomposition of the domain; 
+(c) Representation of a global PETSc vector}
+\label{fig:543_domain_decomp}
+\end{figure}
+
+\begin{figure}[H]\centering
+\includegraphics[width=1\textwidth]{./figs/5x4x3_local_domain}
+\caption{(a-b) Local and ghost cells on proc-0 and proc-1 with cell IDs in PETSc order.
+(c-d) Local PETSc Vector with cell IDs in local ghosted order.}
+\label{fig:543_local_vec}
+\end{figure}
+
+\clearpage
 
 \begin{mdframed}
 
@@ -2437,6 +3062,7 @@ Implicitly defined grid:
 ! xcoord ycoord zcoord ! coordinates of vertex num_vertices (real)
 ! -----------------------------------------------------------------
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \normalsize
@@ -2473,14 +3099,14 @@ Explicitly defined grid:
 ! id_up_M id_dn_M x_M y_M z_M area_M
 ! -----------------------------------------------------------------
 \end{verbatim}
-\end{mdframed}
-
 \normalsize
+\end{mdframed}
 
 \begin{mdframed}
 
 \noindent
 {\bf Examples:}
+\footnotesize
 \begin{verbatim}
 GRID
   TYPE structured cylindrical
@@ -2503,6 +3129,7 @@ GRID
   /
 END
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \noindent
@@ -2511,6 +3138,57 @@ By using the {\tt BOUNDS} keyword, the model domain is specified in a grid-indep
 \hyperlink{target_key}{\return}
 
 \hyperlink{target_input_file}{\returnb}
+
+%========================================================================
+
+\newpage
+\protect\hypertarget{target_immob}{}
+
+\subsection{Keyword: IMMOBILE\_DECAY\_REACTION}
+
+\hfill\hyperlink{target_key}{\return}
+
+\noindent{\bf Description:} Specifies parameters for first-order decay of an immobile species.
+
+\noindent{\bf Input:}
+\begin{deflist}{000}
+\item[IMMOBILE\_DECAY\_REACTION] \ [{\tt Name}]
+\begin{deflist}{000}
+\item[SPECIES\_NAME] \ <string> \ Name of immobile species to undergo first-order decay.
+\item[RATE\_CONSTANT] \ <float> \ First-order rate constant [1/sec].
+\item[HALF\_LIFE] \ <float> \ Species half life [sec]. 
+\end{deflist}
+\item[\keyend] ~
+\end{deflist}
+
+\noindent{\bf Explanation:} {\em Note that units for rate constant or half life other than 1/sec or sec, respectively, may be specified.} Only specify one of rate constant or half life, but not both.
+
+\begin{mdframed}
+
+\noindent{\bf Example:}
+
+\footnotesize
+\begin{verbatim}
+CHEMISTRY
+  PRIMARY_SPECIES
+    ...
+  /
+  IMMOBILE_SPECIES
+    D(im)
+  /
+  ...
+  IMMOBILE_DECAY_REACTION
+    SPECIES_NAME D(im)
+    RATE_CONSTANT 1.d-9
+  /
+  ...
+/
+\end{verbatim}
+\normalsize
+\end{mdframed}
+
+\hyperlink{target_key}{\return}
+
 
 %========================================================================
 
@@ -2542,6 +3220,7 @@ By using the {\tt BOUNDS} keyword, the model domain is specified in a grid-indep
 
 \noindent{\bf Example:}
 
+\footnotesize
 \begin{verbatim}
 :=========== condition couplers ==============
 : initial condition
@@ -2551,9 +3230,59 @@ INITIAL_CONDITION
   REGION all
 END
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
+
+
+%========================================================================
+
+\newpage
+\protect\hypertarget{target_init_flow}{}
+
+\subsection{Keyword: INITIALIZE\_FLOW\_FROM\_FILE}
+
+\hfill\hyperlink{target_key}{\return}
+
+\begin{deflist}{000}
+\item[INITIALIZE\_FLOW\_FROM\_FILE] \ <string> \ Filename
+\end{deflist}
+
+\noindent{\bf Description:} Set initial conditions for flow from specified HDF5 file.
+
+\begin{mdframed}
+\noindent{\bf Example: } {\footnotesize\tt ./regression\_tests/default/543/543\_flow.in}
+\footnotesize
+\begin{verbatim}
+INITIALIZE_FLOW_FROM_FILE 543_initial_pressure.h5
+\end{verbatim}
+\normalsize
+\end{mdframed}
+
+\protect\hypertarget{target_init_trans}{}
+
+\subsection{Keyword: INITIALIZE\_TRANSPORT\_FROM\_FILE}
+
+%\hfill\hyperlink{target_key}{\return}
+
+\begin{deflist}{000}
+\item[INITIALIZE\_TRANSPORT\_FROM\_FILE] \ <string> \ Filename
+\end{deflist}
+
+\noindent{\bf Description:} Set initial conditions for transport from specified HDF5 file.
+
+\begin{mdframed}
+\noindent{\bf Example: } %{\footnotesize\tt ./regression\_tests/default/543/543\_flow.in}
+\footnotesize
+\begin{verbatim}
+INITIALIZE_TRANSPORT_FROM_FILE filename.h5 
+\end{verbatim}
+\normalsize
+\end{mdframed}
+
+\hyperlink{target_key}{\return}
+
 
 %========================================================================
 \newpage
@@ -2593,6 +3322,7 @@ Inverts the sign of the flux. For fluxes at upwind boundaries, influx will be ne
 \begin{mdframed}
 
 \noindent{\bf Examples:}
+\footnotesize
 
 \begin{verbatim}
 INTEGRAL_FLUX flux_up_shaft
@@ -2611,6 +3341,7 @@ INTEGRAL_FLUX
   INVERT_DIRECTION
 /
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -2706,6 +3437,7 @@ INTEGRAL_FLUX
 \begin{mdframed}
 
 \noindent{\bf Examples:}
+\footnotesize
 \begin{verbatim}
 LINEAR_SOLVER FLOW
   SOLVER DIRECT
@@ -2732,6 +3464,7 @@ LINEAR_SOLVER TRANSPORT
   LU_ZERO_PIVOT_TOL 1d-15
 /
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -2814,6 +3547,7 @@ LINEAR_SOLVER TRANSPORT
 \begin{mdframed}
 
 \noindent{\bf Example:}
+\footnotesize
 \begin{verbatim}
 MATERIAL_PROPERTY  Hanford
   ID 1
@@ -2846,12 +3580,14 @@ MATERIAL_PROPERTY soil1
   /
 END
 \end{verbatim}
+\normalsize
 
 \noindent
 {\bf Example: reading from a file for multiple realization simulation}
 
 {\scriptsize\tt mpirun -np 10000 ./pflotran -stochastic -num\_realizations 1000 -num\_groups 100}
 
+\footnotesize
 \begin{verbatim}
 PFLOTRAN input file:
 
@@ -2877,6 +3613,8 @@ DATASET Permeability
 /
 
 \end{verbatim}
+\normalsize
+
 \noindent
 Python script fragment to generate permeability field:
 \begin{Verbatim}
@@ -2895,6 +3633,8 @@ print 'done with ', dataset_name
 
 \noindent
 For the full permeability tensor the dataset naming convention is:
+\footnotesize
+
 \begin{Verbatim}
 PermeabilityX
 PermeabilityY
@@ -2903,7 +3643,7 @@ PermeabilityXY
 PermeabilityXZ
 PermeabilityYZ
 \end{Verbatim}
-
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -2931,6 +3671,7 @@ PermeabilityYZ
 \begin{mdframed}
 
 \noindent{\bf Example:}
+\footnotesize
 \begin{verbatim}
 :          dpmax dtmax dsmax dcmax
 :geh - this is bogus!
@@ -2938,6 +3679,7 @@ MAX_CHANGE 5.d4    5.  0.02   0.05
 /
 /
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -2981,7 +3723,7 @@ MAX_CHANGE 5.d4    5.  0.02   0.05
 \bf GENERAL & Two-phase air-water, nonisothermal, variably saturated groundwater flow\\
 \bf RICHARDS & Single-phase, isothermal, variably saturated groundwater flow using Richards equation\\
 %\midrule
-\bf MPHASE (MPH) & Two-phase supercritical CO$_2$-brine-energy based on variable switching for phase changes\\
+\bf MPHASE (MPH) & Two-phase supercritical CO$_2$-brine-energy based on variable switching for phase changes (see Sections \ref{subsection_mphase} and \ref{sec_mphase})\\
 %\midrule
 \bf FLASH2 & Two-phase supercritical CO$_2$-brine-energy based on the flash method for phase changes with a persistent set of unknowns\\
 %\midrule
@@ -2995,7 +3737,7 @@ MAX_CHANGE 5.d4    5.  0.02   0.05
 
 \begin{mdframed}
 \noindent{\bf Examples:}
-\small
+\footnotesize
 \begin{verbatim}
 ...
 PROCESS_MODELS
@@ -3016,8 +3758,8 @@ PROCESS_MODELS
 ...
 
 \end{verbatim}
-\end{mdframed}
 \normalsize
+\end{mdframed}
 
 \hyperlink{target_key}{\return}
 
@@ -3199,14 +3941,17 @@ h5dset = h5file.create_dataset(dataset_name, data=rarray)
 h5file.close()
 print('done with everything')
 \end{Verbatim}
+\normalsize
 \end{mdframed}
 
 \begin{mdframed}
 {\bf Example: }
+\footnotesize
 
 \begin{Verbatim}
 NONUNIFORM\_VELOCITY velocity.h5
 \end{Verbatim}
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -3303,6 +4048,7 @@ The user must specify either a region or boundary condition to which the observa
 \begin{mdframed}
 
 {\noindent\bf Examples:}
+\footnotesize
 \begin{verbatim}
 OBSERVATION
   REGION well1
@@ -3313,6 +4059,7 @@ OBSERVATION
 BOUNDARY_CONDITION river
 END
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -3342,12 +4089,12 @@ END
 
 \hfill\hyperlink{target_key}{\return}
 
-\noindent {\bf Description:} The {\bf OUTPUT} keyword controls formatting and time of output.
+\noindent {\bf Description:} \ Specifies output options for biogeochemical transport.
 
 \noindent {\bf Input:}
 
 \begin{deflist}{000}
-\item[OUTPUT] ~
+\item[OUTPUT] 
 \begin{deflist}{000}
 \item[TIMES] {\tt Unit (s, min, h (hr), d, w, mo, y (yr))} \ \ \ {\tt <float>} 
 \item[SCREEN \ OFF] \ suppress screen output
@@ -3480,6 +4227,7 @@ where $s_\a^0$ denotes the residual saturation. There are as many rows of cumula
 
 \noindent {\bf Examples:}
 
+\footnotesize
 \begin{verbatim}
 OUTPUT
   !SCREEN PERIODIC 10
@@ -3493,6 +4241,7 @@ OUTPUT
   MASS_BALANCE
 END
 \end{verbatim}
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -3500,23 +4249,45 @@ END
 %========================================================================
 
 \newpage
+\protect\hypertarget{target_overwrite_restart_flow}{}
+
+\subsection{Keyword: OVERWRITE\_RESTART\_FLOW\_PARAMS}
+
+\hfill\hyperlink{target_key}{\return}
+
+\begin{deflist}{0000000000}
+\item[OVERWRITE\_RESTART\_FLOW\_PARAMS] \{overwrite\_restart\_flow\_params = .true.\}
+\end{deflist}
+
+Overwrites checkpointing values with values read in from the input file on restart.
+
+\protect\hypertarget{target_overwrite_restart}{}
+
+\subsection{Keyword: OVERWRITE\_RESTART\_TRANSPORT}
+
+\hfill\hyperlink{target_key}{\return}
+
+\begin{deflist}{0000000000}
+\item[OVERWRITE\_RESTART\_TRANSPORT] ~
+\end{deflist}
+
+Overwrites checkpointing values with values read in from the input file on restart.
+
 \protect\hypertarget{target_overwrite}{}
 
 \subsection{Keyword: OVERWRITE\_RESTART\_TRANSPORT}
 
 \hfill\hyperlink{target_key}{\return}
 
-%\shadowbox{
-%\begin{minipage}{6.5in}
 \begin{deflist}{0000000000}
 \item[OVERWRITE\_RESTART\_TRANSPORT] \{overwrite\_restart\_transport = .true.\}
 \end{deflist}
-%\end{minipage}
-%}
 
 Overwrites checkpointing values with values read in from the input file on restart.
 
 \hyperlink{target_key}{\return}
+
+
 
 %================================================================
 
@@ -3535,13 +4306,14 @@ Overwrites checkpointing values with values read in from the input file on resta
 \begin{mdframed}
 
 \noindent {\bf Examples:}
+\footnotesize
 
 {\tt PROC 100 10 10} \ \ \ \ \ ! 10,000 processes
 
 {\tt PROC 2 2 2} \ \ \ \ \ ! 2$\times$2$\times$2 decomposition
 
 {\tt PROC 1 1 8} \ \ \ \ ! Force decomposition in z direction only (1$\times$1$\times$8 decomposition).
-
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -3595,6 +4367,7 @@ region\_name contains a list of grid cells corresponding to a region.
 
 {\noindent\bf
 Examples:}
+\footnotesize
 
 \begin{verbatim}
 REGION source_zone
@@ -3638,7 +4411,7 @@ REGION west_boundary
   FACE WEST
 END
 \end{verbatim}
-
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -3675,6 +4448,7 @@ The RESTART card defines a checkpoint file from which the current simulation sho
 Examples:}
 
 \begin{mdframed}
+\footnotesize
 
 \begin{verbatim}
 : restart the simulation from the end of the previous /
@@ -3688,7 +4462,7 @@ RESTART restart.chk 0.d0 y
 RESTART pflotran.chk3000
 
 \end{verbatim}
-
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -3738,6 +4512,7 @@ MODES: MPHASE ({\bf VAN\_GENUCHTEN\_PARKER})
 \begin{mdframed}
 
 \noindent{\bf Example:}
+\footnotesize
 \begin{verbatim}
 SATURATION_FUNCTION sf1
   SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
@@ -3747,7 +4522,7 @@ SATURATION_FUNCTION sf1
   MAX_CAPILLARY_PRESSURE 1d8
 END
 \end{verbatim}
-
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -3774,6 +4549,7 @@ END
 \begin{mdframed}
 
 \noindent{\bf Example:}
+\footnotesize
 \begin{verbatim}
 SOURCE_SINK Well_2-9_1
   FLOW_CONDITION Injection_1
@@ -3781,7 +4557,7 @@ SOURCE_SINK Well_2-9_1
   REGION Well_2-9_1
 END
 \end{verbatim}
-
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -3820,39 +4596,41 @@ Inactivates all cells in the associated REGION.
 Note: a filename can be provided instead of a material property name from which material IDs are read on a cell by cell basis. In this case there is no need for the {\tt REGION} keyword.
 
 \begin{mdframed}
-\small
 
 \noindent {\bf Examples:}
 
 \noindent
 Assign {\tt hanford\_unit} material properties to the region {\tt source\_zone}
 
+\footnotesize
 \begin{verbatim}
 STRATA
   MATERIAL hanford_unit
   REGION source_zone
 /
 \end{verbatim}
+\normalsize
 
 \noindent
 Assign material properties through material IDs read from an HDF5 formatted file. In this case there is no need to specify a region as material IDs are assigned to the entire grid on a cell by cell basis.
 
+\footnotesize
 \begin{verbatim}
 STRATA
   MATERIAL ../../field_material_ids.h5
 /
 \end{verbatim}
+\normalsize
 
 \noindent For a detailed example on creating the .h5 file see the PFLOTRAN wiki: \href{https://bitbucket.org/pflotran/pflotran-dev/wiki/Documentation/Strata}{Strata}.
 \end{mdframed}
 
 \normalsize
 
-\small
-
 \begin{mdframed}
 \noindent
 {\bf Evolving strata:}
+\footnotesize
 \begin{verbatim}
 MATERIAL_PROPERTY soil1
   ID 1
@@ -3886,8 +4664,8 @@ STRATA
   END_TIME 50.d0 y
 END
 \end{verbatim}
-\end{mdframed}
 \normalsize
+\end{mdframed}
 
 \hyperlink{target_key}{\return}
 
@@ -3919,6 +4697,7 @@ END
 \begin{mdframed}
 
 \noindent{\bf Example:}
+\footnotesize
 \begin{verbatim}
 TIME
   FINAL_TIME 100. h
@@ -3938,7 +4717,7 @@ TIME
   MAXIMUM_TIMESTEP_SIZE 10. y at 11. y
 END
 \end{verbatim}
-
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -3950,8 +4729,6 @@ END
 
 \subsection{Keyword: TIMESTEPPER}
 
-\hfill\hyperlink{target_key}{\return}
-
 \noindent{\bf Description:} the keyword {\bf TIMESTEPPER} controls time stepping.
 
 \hfill
@@ -3959,7 +4736,7 @@ END
 
 \noindent{\bf Input:}
 \begin{deflist}{000}
-\item[TIMESTEPPER] [{\bf FLOW, TRAN, TRANSPORT}]
+\item[TIMESTEPPER] [{\bf FLOW, TRANSPORT}] Must include one of FLOW or TRANSPORT
 \begin{deflist}{000}
 \item[NUM\_STEPS\_AFTER\_CUT] \ {\tt <int>} 
 
@@ -3985,9 +4762,8 @@ The maximum CFL number allowed for transport. Enables Courant (CFL) number limit
 
 Array of floating point numbers of tfac array {\em (expert users only)}.
 
-\item[INITIALIZE\_TO\_STEADY\_STATE] ~
-
-Flag indicating that the simulation is to be run as steady state {\em (Warning: not robust)}.
+\item[INITIALIZE\_TO\_STEADY\_STATE] \ {\tt <float>} (steady state convergence relative tolerance).
+Flag indicating that the simulation is to be initialized as steady state {\em (Warning: not robust)}.
 
 \item[RUN\_AS\_STEADY\_STATE] ~
 
@@ -4057,8 +4833,8 @@ END
 
 \begin{deflist}{000}
 \item[TYPE] [{\bf dirichlet, dirichlet\_zero\_gradient, equilibrium, neumann, mole, mole\_rate, \linebreak zero\_gradient}]
-\item[TIME] \ {\tt <Value>}
-\item[UNITS] \ {\bf s, sec, min, hr, d, day, y, yr}
+%\item[TIME\_UNITS] \ {\tt <Value>}
+%\item[UNITS] \ {\bf s, sec, min, hr, d, day, y, yr}
 \item[CONSTRAINT\_LIST]
 \item {\tt time} \ {\tt constraint\_name}
 \item[\keyend]
@@ -4072,6 +4848,7 @@ END
 \begin{mdframed}
 
 \noindent{\bf Example:}
+\footnotesize
 
 \begin{verbatim}
 TRANSPORT_CONDITION Initial
@@ -4146,6 +4923,29 @@ END
 
 \end{mdframed}
 
+\begin{mdframed}
+\footnotesize
+\begin{verbatim}
+TRANSPORT_CONDITION
+  TIME_UNITS h
+  CONSTRAINT_LIST
+    0. name_of_constraint
+    1. name_of_constraint
+    2. name_of_constraint
+  /
+END
+ 
+TRANSPORT_CONDITION
+  CONSTRAINT_LIST
+    0. h name_of_constraint
+    1. h name_of_constraint
+    2. h name_of_constraint
+  /
+END
+\end{verbatim}
+\normalsize
+\end{mdframed}
+
 \hyperlink{target_key}{\return}
 
 %========================================================================
@@ -4166,13 +4966,13 @@ END
 
 \noindent{\bf Explanation:} Set uniform velocity for transport mode.
 
-\begin{mdframed}
-
 \noindent{\bf Example:}
+\begin{mdframed}
+\footnotesize
 \begin{verbatim}
 UNIFORM_VELOCITY 3.84259d-6 0.d0 0.d0  ! 1.38333 cm/h
 \end{verbatim}
-
+\normalsize
 \end{mdframed}
 
 \hyperlink{target_key}{\return}
@@ -4247,9 +5047,8 @@ VELOCITY_DATASET
   /
 END
 \end{verbatim}
-
-\end{mdframed}
 \normalsize
+\end{mdframed}
 
 \hyperlink{target_key}{\return}
 
@@ -4272,7 +5071,11 @@ END
 
 \begin{mdframed}
 
-\noindent{\bf Example:} {\tt WALLCLOCK\_STOP 9.5 h}
+\noindent{\bf Example:} 
+
+\footnotesize
+{\tt WALLCLOCK\_STOP 9.5 h}
+\normalsize
 
 \end{mdframed}
 

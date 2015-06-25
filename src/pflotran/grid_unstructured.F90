@@ -593,6 +593,7 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
 
   use Input_Aux_module
   use Option_module
+  use HDF5_Aux_module
 
   implicit none
 
@@ -640,7 +641,7 @@ subroutine UGridReadHDF5SurfGrid(unstructured_grid,filename,option)
 #endif
 
   ! Open the file collectively
-  call h5fopen_f(filename, H5F_ACC_RDONLY_F, file_id, hdf5_err, prop_id)
+  call HDF5OpenFileReadOnly(filename,file_id,prop_id,option)
   call h5pclose_f(prop_id, hdf5_err)
   
   !
@@ -871,6 +872,7 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
 
   use Input_Aux_module
   use Option_module
+  use HDF5_Aux_module
 
   implicit none
 
@@ -918,7 +920,7 @@ subroutine UGridReadHDF5(unstructured_grid,filename,option)
 #endif
 
   ! Open the file collectively
-  call h5fopen_f(filename, H5F_ACC_RDONLY_F, file_id, hdf5_err, prop_id)
+  call HDF5OpenFileReadOnly(filename,file_id,prop_id,option)
   call h5pclose_f(prop_id, hdf5_err)
   
   !
@@ -3859,7 +3861,8 @@ subroutine UGridGrowStencilSupport(unstructured_grid,stencil_width, &
         do ivertex=1,nvertices
           vertex_id_local=unstructured_grid%cell_vertices(ivertex,local_id)
           vertex_id_nat=unstructured_grid%vertex_ids_natural(vertex_id_local)
-          call MatSetValues(Mat_vert_to_proc,1,option%myrank,1,vertex_id_nat-1,1.d0,INSERT_VALUES, &
+          call MatSetValues(Mat_vert_to_proc,1,option%myrank, &
+                            1,vertex_id_nat-1,1.d0,INSERT_VALUES, &
                             ierr);CHKERRQ(ierr)
         enddo
       enddo
@@ -3871,7 +3874,8 @@ subroutine UGridGrowStencilSupport(unstructured_grid,stencil_width, &
         do ivertex=1,nvertices
           vertex_id_local=unstructured_grid%cell_vertices(ivertex,ghosted_id)
           vertex_id_nat=unstructured_grid%vertex_ids_natural(vertex_id_local)
-          call MatSetValues(Mat_vert_to_proc,1,option%myrank,1,vertex_id_nat-1,1.d0,INSERT_VALUES, &
+          call MatSetValues(Mat_vert_to_proc,1,option%myrank, &
+                            1,vertex_id_nat-1,1.d0,INSERT_VALUES, &
                             ierr);CHKERRQ(ierr)
         enddo
       enddo

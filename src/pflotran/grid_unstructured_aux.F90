@@ -147,6 +147,7 @@ module Grid_Unstructured_Aux_module
                                          ! subsurface grids for 1-DOF
     VecScatter :: scatter_bet_grids_ndof ! scatter context between surface and
                                          ! subsurface grids for N-DOFs
+    AO :: ao_natural_to_petsc
   end type ugdm_type
 
   !  PetscInt, parameter :: HEX_TYPE          = 1
@@ -208,6 +209,7 @@ function UGDMCreate()
   ugdm%scatter_bet_grids = 0
   ugdm%scatter_bet_grids_1dof = 0
   ugdm%scatter_bet_grids_ndof = 0
+  ugdm%ao_natural_to_petsc = 0 ! this is solely a pointer, do not destroy
   UGDMCreate => ugdm
 
 end function UGDMCreate
@@ -712,6 +714,9 @@ subroutine UGridCreateUGDM(unstructured_grid,ugdm,ndof,option)
   call VecScatterView(ugdm%scatter_ntog,viewer,ierr);CHKERRQ(ierr)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif
+
+  ! set the ao_natural_to_petsc pointer
+  ugdm%ao_natural_to_petsc = unstructured_grid%ao_natural_to_petsc
 
 end subroutine UGridCreateUGDM
 
@@ -1706,6 +1711,9 @@ subroutine UGridDMDestroy(ugdm)
   call VecScatterDestroy(ugdm%scatter_bet_grids,ierr);CHKERRQ(ierr)
   call VecScatterDestroy(ugdm%scatter_bet_grids_1dof,ierr);CHKERRQ(ierr)
   call VecScatterDestroy(ugdm%scatter_bet_grids_ndof,ierr);CHKERRQ(ierr)
+  ! ugdm%ao_natural_to_petsc is a pointer to ugrid%ao_natural_to_petsc.  Do
+  ! not destroy here.
+  ugdm%ao_natural_to_petsc = 0 
   deallocate(ugdm)
   nullify(ugdm)
 
