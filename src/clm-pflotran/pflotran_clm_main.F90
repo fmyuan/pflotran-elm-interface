@@ -3028,7 +3028,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       endif
 
       if(ispec_cwdn > 0) then
-        xx_p(offsetim + ispec_cwdn) = max(xeps0_c, decomp_npools_vr_cwd_pf_loc(ghosted_id) )
+        xx_p(offsetim + ispec_cwdn) = max(xeps0_n, decomp_npools_vr_cwd_pf_loc(ghosted_id) )
       endif
 
       if(ispec_som1n > 0) then
