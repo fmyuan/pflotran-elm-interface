@@ -174,10 +174,12 @@ module clm_pflotran_interface_data
   Vec :: decomp_npools_vr_clmp     ! (moleN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
   Vec :: smin_no3_vr_clmp          ! (moleN/m3) vertically-resolved soil mineral NO3
   Vec :: smin_nh4_vr_clmp          ! (moleN/m3) vertically-resolved soil mineral NH4
+  Vec :: smin_nh4sorb_vr_clmp      ! (moleN/m3) vertically-resolved soil absorbed mineral NH4
   Vec :: decomp_cpools_vr_pfs      ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
   Vec :: decomp_npools_vr_pfs      ! (moleN/m3)  vertically-resolved decomposing (litter, cwd, soil) N pools
   Vec :: smin_no3_vr_pfs           ! (moleN/m3) vertically-resolved soil mineral NO3
   Vec :: smin_nh4_vr_pfs           ! (moleN/m3) vertically-resolved soil mineral NH4
+  Vec :: smin_nh4sorb_vr_pfs       ! (moleN/m3) vertically-resolved soil absorbed mineral NH4
   ! time-varying ground/soil C/N rates from CLM (mpi) to PF (seq) (Units: moleC(N)/m3/s)
   Vec :: rate_decomp_c_clmp
   Vec :: rate_decomp_n_clmp
@@ -407,11 +409,13 @@ contains
     clm_pf_idata%decomp_npools_vr_clmp = 0
     clm_pf_idata%smin_no3_vr_clmp      = 0
     clm_pf_idata%smin_nh4_vr_clmp      = 0
+    clm_pf_idata%smin_nh4sorb_vr_clmp  = 0
 
     clm_pf_idata%decomp_cpools_vr_pfs = 0
     clm_pf_idata%decomp_npools_vr_pfs = 0
     clm_pf_idata%smin_no3_vr_pfs      = 0
     clm_pf_idata%smin_nh4_vr_pfs      = 0
+    clm_pf_idata%smin_nh4sorb_vr_pfs  = 0
 
     !ground/soil C/N rates as source/sink
     clm_pf_idata%rate_decomp_c_clmp          = 0
@@ -760,6 +764,7 @@ contains
 
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%smin_no3_vr_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%smin_nh4_vr_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%smin_nh4sorb_vr_clmp,ierr)
 
     ! Seq. Vecs for PFLOTRAN
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ndecomp_pools*clm_pf_idata%ngpf_sub, &   ! no. of decomp_pools X 3D Subsurface cells
@@ -769,6 +774,7 @@ contains
 
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%smin_no3_vr_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%smin_nh4_vr_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%smin_nh4sorb_vr_pfs,ierr)
 
     ! (iii) BGC/TH interface source/sink (rate): 3D subsurface CLM ---to--- 3D subsurface PFLOTRAN
     ! MPI Vecs for CLM
@@ -1113,6 +1119,8 @@ contains
        call VecDestroy(clm_pf_idata%smin_no3_vr_clmp,ierr)
     if(clm_pf_idata%smin_nh4_vr_clmp /= 0) &
        call VecDestroy(clm_pf_idata%smin_nh4_vr_clmp,ierr)
+    if(clm_pf_idata%smin_nh4sorb_vr_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%smin_nh4sorb_vr_clmp,ierr)
 
     !
     if(clm_pf_idata%decomp_cpools_vr_pfs /= 0) &
@@ -1124,6 +1132,8 @@ contains
        call VecDestroy(clm_pf_idata%smin_no3_vr_pfs,ierr)
     if(clm_pf_idata%smin_nh4_vr_pfs /= 0) &
       call VecDestroy(clm_pf_idata%smin_nh4_vr_pfs,ierr)
+    if(clm_pf_idata%smin_nh4sorb_vr_pfs /= 0) &
+      call VecDestroy(clm_pf_idata%smin_nh4sorb_vr_pfs,ierr)
 
 
     ! soil C/N fluxes at interface (source/sink)
