@@ -466,7 +466,7 @@ contains
       local_id = grid%nG2L(ghosted_id)
       if (ghosted_id < 0 .or. local_id <= 0) cycle
       if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id) <= 0) cycle
+        if (patch%imat(ghosted_id) < 0) cycle
       endif
 
       !(TODO) need a better way to generate MVG parameters from CLM inputs
@@ -1670,7 +1670,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     do ghosted_id = 1, grid%ngmax
       local_id = grid%nG2L(ghosted_id)
       if (ghosted_id < 0 .or. local_id < 0) cycle
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (patch%imat(ghosted_id) < 0) cycle
 
 #ifdef CLM_PF_DEBUG
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (ice-adjusted porosity):
@@ -1828,7 +1828,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
         if (associated(patch%imat)) then
-           if (patch%imat(ghosted_id) <= 0) cycle
+           if (patch%imat(ghosted_id) < 0) cycle
         endif
 
         ! PF's porosity
@@ -2128,7 +2128,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
     do local_id = 1, grid%nlmax
        ghosted_id = grid%nL2G(local_id)
        if (associated(patch%imat)) then
-          if (patch%imat(ghosted_id) <= 0) cycle
+          if (patch%imat(ghosted_id) < 0) cycle
        endif
 
        iend = local_id*pflotran_model%option%nflowdof
@@ -2299,7 +2299,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
        do iconn = 1, cur_connection_set%num_connections
           local_id = cur_connection_set%id_dn(iconn)
           ghosted_id = grid%nL2G(local_id)
-          if (patch%imat(ghosted_id) <= 0) cycle
+          if (patch%imat(ghosted_id) < 0) cycle
 
           if(StringCompare(boundary_condition%name,'clm_gflux_bc') .and. &
              boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
@@ -3808,7 +3808,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
         if (associated(patch%imat)) then
-           if (patch%imat(ghosted_id) <= 0) cycle
+           if (patch%imat(ghosted_id) < 0) cycle
         endif
 
         offset = (local_id-1) * realization%reaction%ncomp &
@@ -4044,7 +4044,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         ghosted_id = grid%nL2G(local_id)
         if (ghosted_id <= 0) cycle
         if (associated(patch%imat)) then
-           if (patch%imat(ghosted_id) <= 0) cycle
+           if (patch%imat(ghosted_id) < 0) cycle
         endif
 
         global_auxvar  => patch%aux%Global%auxvars(ghosted_id)
@@ -4123,18 +4123,18 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_nh4 > 0) then
-!           conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0
+           conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0
 
             ! the following approach appears more like what output module does in pflotran
             ! but needs further checking if it efficient as directly read from 'xx_p' as above
-            conc = rt_auxvar%pri_molal(ispec_nh4) * theta * 1000.0d0
+!            conc = rt_auxvar%pri_molal(ispec_nh4) * theta * 1000.0d0
             smin_nh4_vr_pf_loc(local_id) = max(conc, 0.d0)
 
             if (associated(rt_auxvar%total_sorb_eq)) then    ! equilibrium-sorption reactions used
                 conc = rt_auxvar%total_sorb_eq(ispec_nh4)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
             else if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction used for soil NH4+ absorption
-                conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (molC/m3)
+                conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (mol/m3)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
             endif
 
