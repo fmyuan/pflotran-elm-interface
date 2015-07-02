@@ -2522,8 +2522,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                   realization%reaction,PETSC_FALSE,realization%option)
     if (ispec_nh4 > 0) then
       word = name_nh4sorb
-      ispec_nh4sorb  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
+      ispec_nh4sorb  = GetImmobileSpeciesIDFromName(word, &                        ! for using sandbox of absorption
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
     else
       ispec_nh4sorb  = UNINITIALIZED_INTEGER
     endif
@@ -2695,6 +2695,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscScalar, pointer :: decomp_npools_vr_som4_pf_loc(:) ! (molesN/m3)
     PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (molesN/m3)
     PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (molesN/m3)
+    PetscScalar, pointer :: smin_nh4sorb_vr_pf_loc(:)       ! (molesN/m3)
 
     PetscReal, pointer :: porosity_loc_p(:)
 
@@ -2842,6 +2843,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     pflotran_model%option, &
                                     clm_pf_idata%smin_nh4_vr_clmp, &
                                     clm_pf_idata%smin_nh4_vr_pfs)
+
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%smin_nh4sorb_vr_clmp, &
+                                    clm_pf_idata%smin_nh4sorb_vr_pfs)
     endif
 
     !----------------------------------------------------------------------------
@@ -2951,6 +2957,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if(ispec_nh4 > 0) then
       call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
       CHKERRQ(ierr)
+
+      call VecGetArrayF90(clm_pf_idata%smin_nh4sorb_vr_pfs, smin_nh4sorb_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
     endif
 
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)
@@ -2982,6 +2991,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       endif
 
       offsetim = offset + realization%reaction%offset_immobile
+
+      if(ispec_nh4sorb > 0) then   ! for absorbed NH4 as immobile species used in sandbox of absorption
+         xx_p(offsetim + ispec_nh4sorb) = max(xeps0_n, smin_nh4sorb_vr_pf_loc(ghosted_id) )
+      endif
 
       if(ispec_lit1c > 0) then
         xx_p(offsetim + ispec_lit1c) = max(xeps0_c, decomp_cpools_vr_lit1_pf_loc(ghosted_id) )
@@ -3153,6 +3166,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if(ispec_nh4 > 0) then
       call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
       CHKERRQ(ierr)
+
+      call VecRestoreArrayF90(clm_pf_idata%smin_nh4sorb_vr_pfs, smin_nh4sorb_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+
     endif
 
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
@@ -3191,7 +3208,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Simulation_Base_class, only : simulation_base_type
     use Simulation_Subsurface_class, only : subsurface_simulation_type
     use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-    use Mass_Transfer_module, only : mass_transfer_type
+    use Mass_Transfer_module, only : mass_transfer_type, MassTransferUpdate
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -3474,11 +3491,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
       !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
       !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
-      if (cur_mass_transfer%idof == ispec_nh4) &
+      if (cur_mass_transfer%idof == ispec_no3 .and. abs(rate_pf_loc(ghosted_id))>1.d-20) &
       write(pflotran_model%option%myrank+200,*) 'checking bgc-mass-rate - pflotran_model: ', &
         'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
-        'rate_nh4_pfs(ghosted_id)=',rate_pf_loc(ghosted_id), &
-        'masstransfer_nh4_predataset(local_id)=',cur_mass_transfer%dataset%rarray(local_id)
+        'rate_no3_pfs(ghosted_id)=',rate_pf_loc(ghosted_id)*volume_p(local_id), &
+        'masstransfer_no3_predataset(local_id)=',cur_mass_transfer%dataset%rarray(local_id)
 #endif
 
                cur_mass_transfer%dataset%rarray(local_id) = &
@@ -3555,6 +3572,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     call VecRestoreArrayReadF90(field%volume0,volume_p,ierr)
     CHKERRQ(ierr)
+
+    ! MUST call the following subroutine, OTHERWISE there is one time-step delay of data-passing
+    call MassTransferUpdate(realization%rt_mass_transfer_list, &
+                          realization%patch%grid, &
+                          realization%option)
 
   end subroutine pflotranModelSetBGCRatesFromCLM
 
