@@ -724,8 +724,8 @@ subroutine SomDecSetup(this,reaction,option)
         if (ipool == 0) then
           option%io_buffer = 'Downstream pool "' // &
           trim(cur_pool%name) // &
-          '" in reaction with upstream pool "' // &
-          trim(cur_rxn%upstream_pool_name) // '" not found in list of pools.'
+          '" in reaction with downstream pool "' // &
+          trim(cur_pool%name) // '" not found in list of pools.'
           call printErrMsg(option)
         else
           this%downstream_c_id(icount, jcount) = species_id_pool_c(ipool)
@@ -734,8 +734,15 @@ subroutine SomDecSetup(this,reaction,option)
           this%downstream_nc(icount, jcount) = this%pool_nc_ratio(ipool) 
           this%downstream_is_aqueous(icount, jcount) = pool_is_aqueous(ipool) 
 
-          if (this%downstream_nc(icount,jcount) <= 0.d0) then
-            this%downstream_is_varycn = PETSC_TRUE
+          if (this%downstream_n_id(icount,jcount) > 0) then
+            this%downstream_is_varycn(icount,jcount) = PETSC_TRUE
+          else
+            if(this%downstream_nc(icount, icount) < 0.0d0) then
+              option%io_buffer = 'SOM decomposition reaction with downstream pool ' // &
+                trim(cur_pool%name) // &
+                'has negative C:N ratio in downstream pool.'
+              call printErrMsg(option)
+            endif
           endif
 
         endif
