@@ -1681,9 +1681,9 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       else
         Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - dco2_duc
       endif
-      !if(this%species_id_hrimm > 0) then    ! for tracking
-      !  Jacobian(ires_hrimm,ires_uc) = Jacobian(ires_hrimm,ires_uc) - dc_duc
-      !endif
+      if(this%species_id_hrimm > 0) then    ! for tracking
+        Jacobian(ires_hrimm,ires_uc) = Jacobian(ires_hrimm,ires_uc) - dco2_duc
+      endif
 
       ! upstream C pool [7-2]
       if(this%upstream_is_aqueous(irxn)) then
@@ -1724,13 +1724,14 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       else
         Jacobian(ires_nh4,ires_uc) = Jacobian(ires_nh4,ires_uc) - dnh4_duc
       endif
-      !!for tracking
-      !if(this%species_id_nmin > 0 .and. this%mineral_n_stoich(irxn) > 0.0d0) then
-      !  Jacobian(ires_nmin,ires_uc) = Jacobian(ires_nmin,ires_uc) - dn_duc
-      !endif
-      !if(this%species_id_nimm > 0 .and. this%mineral_n_stoich(irxn) < 0.0d0) then
-      !  Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) + dn_duc
-      !endif
+      !for tracking
+      if(this%species_id_nmin > 0 ) then
+        if(this%mineral_n_stoich(irxn) >= 0.0d0) then
+          Jacobian(ires_nmin,ires_uc) = Jacobian(ires_nmin,ires_uc) - dnh4_duc
+        else
+          Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) + dnh4_duc
+        endif
+      endif
 
       ! NO3 [7-5], if any
       if (this%species_id_no3>0 .and. &
@@ -1745,10 +1746,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           Jacobian(ires_no3,ires_uc) = Jacobian(ires_no3,ires_uc) - &
             dno3_duc
         endif
-        !!for tracking
-        !if(this%species_id_nimm >0) then
-        !  Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) + dn_duc
-        !endif
+        !for tracking
+        if(this%species_id_nimm >0) then
+          Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) + dno3_duc
+        endif
       endif
 
       ! upstream N pool [7-6], if any
@@ -1799,9 +1800,9 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         ! CO2 [7-1]
         Jacobian(ires_co2,ires_nh4) = Jacobian(ires_co2,ires_nh4) - dco2_dnh4 * &
           rt_auxvar%aqueous%dtotal(this%species_id_co2,this%species_id_nh4,iphase)
-        !if(this%species_id_hrimm > 0) then   ! for tracking
-        !  Jacobian(ires_hrimm,ires_nh4) = Jacobian(ires_hrimm,ires_nh4) - dco2_dnh4
-        !endif
+        if(this%species_id_hrimm > 0) then   ! for tracking
+          Jacobian(ires_hrimm,ires_nh4) = Jacobian(ires_hrimm,ires_nh4) - dco2_dnh4
+        endif
 
         ! upstream C [7-2]
         if(this%upstream_is_aqueous(irxn)) then
@@ -1834,18 +1835,18 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         ! NH4 [7-4]
         Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4) - dnh4_dnh4 * &
           rt_auxvar%aqueous%dtotal(this%species_id_nh4,this%species_id_nh4,iphase)
-        !if(this%species_id_nimm > 0) then  ! for tracking
-        !  Jacobian(ires_nimm,ires_nh4) = Jacobian(ires_nimm,ires_nh4) + dn_dn
-        !endif
+        if(this%species_id_nimm > 0) then  ! for tracking
+          Jacobian(ires_nimm,ires_nh4) = Jacobian(ires_nimm,ires_nh4) + dnh4_dnh4
+        endif
 
         ! NO3 [7-5], if any
         if (this%species_id_no3>0) then
           Jacobian(ires_no3,ires_nh4) = Jacobian(ires_no3,ires_nh4) - dno3_dnh4*  &
             rt_auxvar%aqueous%dtotal(this%species_id_no3,this%species_id_nh4,iphase)
-          !!for tracking
-          !if(this%species_id_nimm >0) then
-          !  Jacobian(ires_nimm,ires_nh4) = Jacobian(ires_nimm,ires_nh4) + dno3_dn
-          !endif
+          !for tracking
+          if(this%species_id_nimm >0) then
+            Jacobian(ires_nimm,ires_nh4) = Jacobian(ires_nimm,ires_nh4) + dno3_dnh4
+          endif
         endif
 
         ! upstream N pool [7-6], if any
@@ -1896,9 +1897,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         ! CO2 [7-1]
         Jacobian(ires_co2,ires_no3) = Jacobian(ires_co2,ires_no3) - dco2_dno3 * &
           rt_auxvar%aqueous%dtotal(this%species_id_co2,this%species_id_no3,iphase)
-        !if(this%species_id_hrimm > 0) then  ! for tracking
-        !  Jacobian(ires_hrimm,ires_no3) = Jacobian(ires_hrimm,ires_no3) - dco2_dno3
-        !endif
+        ! for tracking
+        if(this%species_id_hrimm > 0) then
+          Jacobian(ires_hrimm,ires_no3) = Jacobian(ires_hrimm,ires_no3) - dco2_dno3
+        endif
 
         ! upstream C pool [7-2]
         if(this%upstream_is_aqueous(irxn)) then
@@ -1930,16 +1932,18 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         ! NH4 [7-4]
         Jacobian(ires_nh4,ires_no3) = Jacobian(ires_nh4,ires_no3) - dnh4_dno3 * &
           rt_auxvar%aqueous%dtotal(this%species_id_nh4,this%species_id_no3,iphase)
-        !if(this%species_id_nimm > 0) then  ! for tracking
-        !  Jacobian(ires_nimm,ires_no3) = Jacobian(ires_nimm,ires_no3) + dnh4_dno3
-        !endif
+        ! for tracking
+        if(this%species_id_nimm > 0) then
+          Jacobian(ires_nimm,ires_no3) = Jacobian(ires_nimm,ires_no3) + dnh4_dno3
+        endif
 
         ! NO3 [7-5]
         Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) - dno3_dno3 * &
           rt_auxvar%aqueous%dtotal(this%species_id_no3,this%species_id_no3,iphase)
-        !if(this%species_id_nimm > 0) then  ! for tracking
-        !  Jacobian(ires_nimm,ires_no3) = Jacobian(ires_nimm,ires_no3) + dno3_dno3
-        !endif
+        ! for tracking
+        if(this%species_id_nimm > 0) then
+          Jacobian(ires_nimm,ires_no3) = Jacobian(ires_nimm,ires_no3) + dno3_dno3
+        endif
 
         ! upstream N pool [7-6]
         Jacobian(ires_un,ires_no3) = Jacobian(ires_un,ires_no3) - dun_dno3
@@ -2071,11 +2075,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         Jacobian(ires_n2o,ires_nh4) = Jacobian(ires_n2o,ires_nh4) - 0.5d0*drate_n2o_dx* &
            rt_auxvar%aqueous%dtotal(this%species_id_n2o,this%species_id_nh4,iphase)
 
-! The following IS not needed and causes issue - breaking  whole reacton network if going wrong!
-        !if(this%species_id_ngasmin > 0) then
-        !   Jacobian(ires_ngasmin,ires_nh4) = Jacobian(ires_ngasmin,ires_nh4) - &
-        !                              drate_n2o_dx
-        !endif
+        if(this%species_id_ngasmin > 0) then
+           Jacobian(ires_ngasmin,ires_nh4) = Jacobian(ires_ngasmin,ires_nh4) - &
+                                      drate_n2o_dx
+        endif
       endif
 
     endif  ! end of 'f_t/f_w/f_ph > 1.0d-20'
