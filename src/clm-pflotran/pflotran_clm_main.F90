@@ -3954,7 +3954,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscReal :: conc
     PetscInt  :: offset, offsetim
 
-    PetscReal, parameter :: zeroing_conc = 1.0d-10
+    PetscReal, parameter :: zeroing_conc = 1.0d-5
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
