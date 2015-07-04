@@ -3461,6 +3461,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
            CHKERRQ(ierr)
          endif
 
+         cur_mass_transfer%dataset%rarray(:) = 0.d0
+
          do local_id = 1, grid%nlmax
             ghosted_id = grid%nL2G(local_id)
             if (local_id<=0 .or. ghosted_id<=0) cycle
@@ -3954,7 +3956,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscReal :: conc
     PetscInt  :: offset, offsetim
 
-    PetscReal, parameter :: zeroing_conc = 1.0d-5
+    PetscReal, parameter :: zeroing_conc = 1.0d-20
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
