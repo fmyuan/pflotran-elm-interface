@@ -466,7 +466,7 @@ contains
       local_id = grid%nG2L(ghosted_id)
       if (ghosted_id < 0 .or. local_id <= 0) cycle
       if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id) <= 0) cycle
+        if (patch%imat(ghosted_id) < 0) cycle
       endif
 
       !(TODO) need a better way to generate MVG parameters from CLM inputs
@@ -1670,7 +1670,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     do ghosted_id = 1, grid%ngmax
       local_id = grid%nG2L(ghosted_id)
       if (ghosted_id < 0 .or. local_id < 0) cycle
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (patch%imat(ghosted_id) < 0) cycle
 
 #ifdef CLM_PF_DEBUG
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (ice-adjusted porosity):
@@ -1828,7 +1828,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
         if (associated(patch%imat)) then
-           if (patch%imat(ghosted_id) <= 0) cycle
+           if (patch%imat(ghosted_id) < 0) cycle
         endif
 
         ! PF's porosity
@@ -2128,7 +2128,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
     do local_id = 1, grid%nlmax
        ghosted_id = grid%nL2G(local_id)
        if (associated(patch%imat)) then
-          if (patch%imat(ghosted_id) <= 0) cycle
+          if (patch%imat(ghosted_id) < 0) cycle
        endif
 
        iend = local_id*pflotran_model%option%nflowdof
@@ -2299,7 +2299,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
        do iconn = 1, cur_connection_set%num_connections
           local_id = cur_connection_set%id_dn(iconn)
           ghosted_id = grid%nL2G(local_id)
-          if (patch%imat(ghosted_id) <= 0) cycle
+          if (patch%imat(ghosted_id) < 0) cycle
 
           if(StringCompare(boundary_condition%name,'clm_gflux_bc') .and. &
              boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
@@ -2522,8 +2522,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                   realization%reaction,PETSC_FALSE,realization%option)
     if (ispec_nh4 > 0) then
       word = name_nh4sorb
-      ispec_nh4sorb  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
+      ispec_nh4sorb  = GetImmobileSpeciesIDFromName(word, &                        ! for using sandbox of absorption
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
     else
       ispec_nh4sorb  = UNINITIALIZED_INTEGER
     endif
@@ -2842,8 +2842,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     pflotran_model%option, &
                                     clm_pf_idata%smin_nh4_vr_clmp, &
                                     clm_pf_idata%smin_nh4_vr_pfs)
-    endif
 
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%smin_nh4sorb_vr_clmp, &
+                                    clm_pf_idata%smin_nh4sorb_vr_pfs)
     !----------------------------------------------------------------------------
 
     if(ispec_lit1c > 0) then
@@ -2951,6 +2954,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if(ispec_nh4 > 0) then
       call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
       CHKERRQ(ierr)
+
+      call VecGetArrayF90(clm_pf_idata%smin_nh4sorb_vr_pfs, smin_nh4sorb_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
     endif
 
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)
@@ -2981,8 +2987,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                                  / theta / 1000.d0)
       endif
 
+      !
       offsetim = offset + realization%reaction%offset_immobile
 
+      if(ispec_nh4sorb > 0) then   ! for absorbed NH4 as immobile species used in sandbox of absorption
+         xx_p(offsetim + ispec_nh4sorb) = max(xeps0_n, smin_nh4sorb_vr_pf_loc(ghosted_id) )
       if(ispec_lit1c > 0) then
         xx_p(offsetim + ispec_lit1c) = max(xeps0_c, decomp_cpools_vr_lit1_pf_loc(ghosted_id) )
       endif
@@ -3145,6 +3154,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if(ispec_nh4 > 0) then
       call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
       CHKERRQ(ierr)
+
+      call VecRestoreArrayF90(clm_pf_idata%smin_nh4sorb_vr_pfs, smin_nh4sorb_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+
     endif
 
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
@@ -3183,7 +3196,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Simulation_Base_class, only : simulation_base_type
     use Simulation_Subsurface_class, only : subsurface_simulation_type
     use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-    use Mass_Transfer_module, only : mass_transfer_type
+    use Mass_Transfer_module, only : mass_transfer_type, MassTransferUpdate
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -3225,6 +3238,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     grid  => patch%grid
     field => realization%field
 
+    !-----------------------------------------------------------------
     ! mapping data from CLM to PFLOTRAN
     if(ispec_lit1c >0) then
       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -3340,10 +3354,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
     ! NOTE: direct data passing from interface to PF for N demand
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+    if(ispec_plantndemand >0) then
+      call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_plantndemand_clmp, &
                                     clm_pf_idata%rate_plantndemand_pfs)
+    endif
 
     if(ispec_no3 >0) then
       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -3545,6 +3561,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     call VecRestoreArrayReadF90(field%volume0,volume_p,ierr)
     CHKERRQ(ierr)
+
+    ! MUST call the following subroutine, OTHERWISE there is one time-step delay of data-passing
+    call MassTransferUpdate(realization%rt_mass_transfer_list, &
+                          realization%patch%grid, &
+                          realization%option)
 
   end subroutine pflotranModelSetBGCRatesFromCLM
 
@@ -3798,7 +3819,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
         if (associated(patch%imat)) then
-           if (patch%imat(ghosted_id) <= 0) cycle
+           if (patch%imat(ghosted_id) < 0) cycle
         endif
 
         offset = (local_id-1) * realization%reaction%ncomp &
@@ -3922,7 +3943,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscReal :: conc
     PetscInt  :: offset, offsetim
 
-    PetscReal, parameter :: zeroing_conc = 1.0d-10
+    PetscReal, parameter :: zeroing_conc = 1.0d-20
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -4034,7 +4055,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         ghosted_id = grid%nL2G(local_id)
         if (ghosted_id <= 0) cycle
         if (associated(patch%imat)) then
-           if (patch%imat(ghosted_id) <= 0) cycle
+           if (patch%imat(ghosted_id) < 0) cycle
         endif
 
         global_auxvar  => patch%aux%Global%auxvars(ghosted_id)
@@ -4105,18 +4126,18 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_nh4 > 0) then
-!           conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0
+           conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0
 
             ! the following approach appears more like what output module does in pflotran
             ! but needs further checking if it efficient as directly read from 'xx_p' as above
-            conc = rt_auxvar%pri_molal(ispec_nh4) * theta * 1000.0d0
+!            conc = rt_auxvar%pri_molal(ispec_nh4) * theta * 1000.0d0
             smin_nh4_vr_pf_loc(local_id) = max(conc, 0.d0)
 
             if (associated(rt_auxvar%total_sorb_eq)) then    ! equilibrium-sorption reactions used
                 conc = rt_auxvar%total_sorb_eq(ispec_nh4)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
             else if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction used for soil NH4+ absorption
-                conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (molC/m3)
+                conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (mol/m3)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
             endif
 
@@ -4300,7 +4321,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
 
 
-   ! (iv) pass the 'pf' vecs to 'clm' vecs, which then can be passed to CLMCN (implemented in 'clm_pflotran_interfaceMod'
+    !-----------------------------------------------------------------
+    ! (iv) pass the 'pf' vecs to 'clm' vecs, which then can be passed to CLMCN
+    ! (implemented in 'clm_pflotran_interfaceMod'
 
     if (ispec_lit1c > 0) then
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
