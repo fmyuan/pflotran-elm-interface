@@ -2885,15 +2885,15 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       enddo
 
 #ifdef CLM_PF_DEBUG
-      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (NH4):
+      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (som4c pool):
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
       !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
       !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
       write(pflotran_model%option%myrank+200,*) 'checking bgc - pflotran-model setting init. conc.: ', &
         'rank=',pflotran_model%option%myrank, &
-        'local_id=',local_id, 'ghosted_id=',ghosted_id, 'xxp_nh4_id', offset+ispec_nh4, &
-        'smin_nh4_pfs(ghosted_id)=',smin_nh4_vr_pf_loc(ghosted_id), &
-        'xx_p(xxp_nh4_id)=',xx_p(offset + ispec_nh4), &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id, 'xxp_som4_id', offsetim+ispec_som4, &
+        'som4_pfs(ghosted_id)=',decomp_cpools_vr_som4_pf_loc(ghosted_id), &
+        'xx_p(xxp_som4_id)=',xx_p(offsetim + ispec_som4), &
         'sat_glob(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
         'poro(local_id)=',porosity_loc_p(local_id)
 
@@ -3198,11 +3198,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
       !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
       !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
-      if (cur_mass_transfer%idof == ispec_no3 .and. abs(rate_pf_loc(ghosted_id))>1.d-20) &
+      if (cur_mass_transfer%idof == ispec_nh4) &
       write(pflotran_model%option%myrank+200,*) 'checking bgc-mass-rate - pflotran_model: ', &
         'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
-        'rate_no3_pfs(ghosted_id)=',rate_pf_loc(ghosted_id)*volume_p(local_id), &
-        'masstransfer_no3_predataset(local_id)=',cur_mass_transfer%dataset%rarray(local_id)
+        'rate_nh4_pfs(ghosted_id)=',rate_pf_loc(ghosted_id), &
+        'masstransfer_nh4_predataset(local_id)=',cur_mass_transfer%dataset%rarray(local_id)
 #endif
 
              cur_mass_transfer%dataset%rarray(local_id) = &
