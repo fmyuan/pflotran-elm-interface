@@ -82,14 +82,14 @@ module pflotran_clm_main_module
   PetscInt:: ispec_lit1n, ispec_lit2n, ispec_lit3n, ispec_cwdn
   PetscInt:: ispec_som1c, ispec_som2c, ispec_som3c, ispec_som4c
   PetscInt:: ispec_som1n, ispec_som2n, ispec_som3n, ispec_som4n
-  character(len=MAXWORDLENGTH):: name_lit1 = "Labile"           ! appending 'C' or 'N' for real PF species name
-  character(len=MAXWORDLENGTH):: name_lit2 = "Cellulose"
-  character(len=MAXWORDLENGTH):: name_lit3 = "Lignin"
+  character(len=MAXWORDLENGTH):: name_lit1 = "LITR1"           ! appending 'C' or 'N' for real PF species name
+  character(len=MAXWORDLENGTH):: name_lit2 = "LITR2"
+  character(len=MAXWORDLENGTH):: name_lit3 = "LITR3"
   character(len=MAXWORDLENGTH):: name_cwd  = "CWD"
-  character(len=MAXWORDLENGTH):: name_som1 = "SOM1"
-  character(len=MAXWORDLENGTH):: name_som2 = "SOM2"
-  character(len=MAXWORDLENGTH):: name_som3 = "SOM3"
-  character(len=MAXWORDLENGTH):: name_som4 = "SOM4"
+  character(len=MAXWORDLENGTH):: name_som1 = "SOIL1"
+  character(len=MAXWORDLENGTH):: name_som2 = "SOIL2"
+  character(len=MAXWORDLENGTH):: name_som3 = "SOIL3"
+  character(len=MAXWORDLENGTH):: name_som4 = "SOIL4"
 
   PetscInt:: ispec_nh4, ispec_no3, ispec_nh4sorb
   character(len=MAXWORDLENGTH):: name_nh4     = "NH4+"
@@ -2695,6 +2695,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscScalar, pointer :: decomp_npools_vr_som4_pf_loc(:) ! (molesN/m3)
     PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (molesN/m3)
     PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (molesN/m3)
+    PetscScalar, pointer :: smin_nh4sorb_vr_pf_loc(:)       ! (molesN/m3)
 
     PetscReal, pointer :: porosity_loc_p(:)
 
@@ -2847,6 +2848,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     pflotran_model%option, &
                                     clm_pf_idata%smin_nh4sorb_vr_clmp, &
                                     clm_pf_idata%smin_nh4sorb_vr_pfs)
+    endif
+
     !----------------------------------------------------------------------------
 
     if(ispec_lit1c > 0) then
@@ -2992,6 +2995,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       if(ispec_nh4sorb > 0) then   ! for absorbed NH4 as immobile species used in sandbox of absorption
          xx_p(offsetim + ispec_nh4sorb) = max(xeps0_n, smin_nh4sorb_vr_pf_loc(ghosted_id) )
+      endif
+
       if(ispec_lit1c > 0) then
         xx_p(offsetim + ispec_lit1c) = max(xeps0_c, decomp_cpools_vr_lit1_pf_loc(ghosted_id) )
       endif
@@ -3002,6 +3007,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       if(ispec_lit3c > 0) then
         xx_p(offsetim + ispec_lit3c) = max(xeps0_c, decomp_cpools_vr_lit3_pf_loc(ghosted_id) )
+      endif
+
+      if(ispec_cwdc > 0) then
+        xx_p(offsetim + ispec_cwdc) = max(xeps0_c, decomp_cpools_vr_cwd_pf_loc(ghosted_id) )
       endif
 
       if(ispec_som1c > 0) then
@@ -3030,6 +3039,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       if(ispec_lit3n > 0) then
         xx_p(offsetim + ispec_lit3n) = max(xeps0_n, decomp_npools_vr_lit3_pf_loc(ghosted_id) )
+      endif
+
+      if(ispec_cwdn > 0) then
+        xx_p(offsetim + ispec_cwdn) = max(xeps0_n, decomp_npools_vr_cwd_pf_loc(ghosted_id) )
       endif
 
       if(ispec_som1n > 0) then
@@ -3449,6 +3462,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
            call VecGetArrayReadF90(clm_pf_idata%rate_som4n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
          endif
+
+         cur_mass_transfer%dataset%rarray(:) = 0.d0
 
          do local_id = 1, grid%nlmax
             ghosted_id = grid%nL2G(local_id)
@@ -4091,6 +4106,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         if (ispec_lit3n > 0) then
           decomp_npools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3n), 0.d0)
+        endif
+
+        if (ispec_cwdc > 0) then
+          decomp_cpools_vr_cwd_pf_loc(local_id) = max(xx_p(offsetim + ispec_cwdc), 0.d0)
+        endif
+
+        if (ispec_cwdn > 0) then
+          decomp_npools_vr_cwd_pf_loc(local_id) = max(xx_p(offsetim + ispec_cwdn), 0.d0)
         endif
 
         if (ispec_som1c > 0) then
