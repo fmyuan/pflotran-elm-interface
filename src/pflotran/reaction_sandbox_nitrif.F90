@@ -453,11 +453,11 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
              0.5d0 * drate_n2o_dnh4 * &
              rt_auxvar%aqueous%dtotal(this%ispec_n2o,this%ispec_nh4,iphase)
       
-! The following IS not needed and causes issue - breaking  whole reacton network if going wrong!
-       !    if(this%ispec_ngasnit > 0) then
-       !      Jacobian(ires_ngasnit,ires_nh4)=Jacobian(ires_ngasnit,ires_nh4)- &
-       !        drate_n2o_dnh4
-       !    endif
+           ! for tracking
+           if(this%ispec_ngasnit > 0) then
+             Jacobian(ires_ngasnit,ires_nh4)=Jacobian(ires_ngasnit,ires_nh4)- &
+               drate_n2o_dnh4
+           endif
 
        endif  !if (compute_derivative)
 
