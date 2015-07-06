@@ -3609,7 +3609,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscReal :: conc
     PetscInt  :: offset, offsetim
 
-    PetscReal, parameter :: zeroing_conc = 1.0d-5
+    PetscReal, parameter :: zeroing_conc = 1.0d-20
 
     PetscInt, pointer :: idecomp_pfp_index(:), idecomp_clms_index(:)
     Vec               :: vec_pfp, vec_clms
