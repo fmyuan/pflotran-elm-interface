@@ -2597,8 +2597,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   ! ************************************************************************** !
   !
   ! pflotranModelSetBgcConc:
-  !  Get CLM concentrations (C, N), converts from CLM units into PFLOTRAN units.
-  !  and set concentrations in PFLOTRAN
+  !  Get CLM concentrations (C, N) and set concentrations in PFLOTRAN
   ! ************************************************************************** !
   subroutine pflotranModelSetBgcConcFromCLM(pflotran_model)
 
@@ -2639,22 +2638,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscInt           :: ghosted_id
     PetscReal, pointer :: xx_p(:)
 
-    PetscScalar, pointer :: decomp_cpools_vr_lit1_pf_loc(:) ! (molesC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_lit2_pf_loc(:) ! (molesC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_lit3_pf_loc(:) ! (molesC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_cwd_pf_loc(:)  ! (molesC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som1_pf_loc(:) ! (molesC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som2_pf_loc(:) ! (molesC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som3_pf_loc(:) ! (molesC/m3)
-    PetscScalar, pointer :: decomp_cpools_vr_som4_pf_loc(:) ! (molesC/m3)
-    PetscScalar, pointer :: decomp_npools_vr_lit1_pf_loc(:) ! (molesN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_lit2_pf_loc(:) ! (molesN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_lit3_pf_loc(:) ! (molesN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_cwd_pf_loc(:)  ! (molesN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_som1_pf_loc(:) ! (molesN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_som2_pf_loc(:) ! (molesN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_som3_pf_loc(:) ! (molesN/m3)
-    PetscScalar, pointer :: decomp_npools_vr_som4_pf_loc(:) ! (molesN/m3)
+    PetscScalar, pointer :: decomp_cpools_vr_pf_loc(:)      ! (molesC/m3)
+    PetscScalar, pointer :: decomp_npools_vr_pf_loc(:)      ! (molesN/m3)
     PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (molesN/m3)
     PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (molesN/m3)
     PetscScalar, pointer :: smin_nh4sorb_vr_pf_loc(:)       ! (molesN/m3)
@@ -2663,6 +2648,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscInt  :: offset, offsetim
     PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
+
+    PetscInt, pointer    :: idecomp_clmp_index(:), idecomp_pfs_index(:)
+    Vec                  :: vec_clmp
+    Vec                  :: vec_pfs
+    PetscScalar, pointer :: array_clmp(:), array_pfs(:)
+    PetscInt             :: j, k, vec_offset
+
+!------------------------------------------------------------------------------------------------
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -2682,10 +2675,108 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     global_auxvars  => patch%aux%Global%auxvars
 
 
+    !-----------------------------------------------------------------
+
+    ! create temporary vecs/arrays for each 'decomp_pool' data-mapping
+    call VecDuplicate(clm_pf_idata%zsoi_clmp, vec_clmp,ierr)
+    CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_pfs, vec_pfs,ierr)
+    CHKERRQ(ierr)
+    allocate(idecomp_clmp_index(clm_pf_idata%nlclm_sub))   ! MPI vec size is the local cell number
+    do j=1, clm_pf_idata%nlclm_sub
+      idecomp_clmp_index(j) = j-1
+    enddo
+    allocate(idecomp_pfs_index(clm_pf_idata%ngpf_sub))     ! SEQ vec size is the global cell number
+    do j=1, clm_pf_idata%ngpf_sub
+      idecomp_pfs_index(j) = j-1
+    enddo
+
+    ! decomp'C'
+    if (associated(ispec_decomp_c)) then
+      ! assembly the 'vec_clmp' (?? not sure if needed, though 'PETSC' manual said so)
+      !call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_clmp, ierr); CHKERRQ(ierr)
+      !call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_clmp, ierr); CHKERRQ(ierr)
+      do k=1,clm_pf_idata%ndecomp_pools
+        ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
+        vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+        call VecGetValues(clm_pf_idata%decomp_cpools_vr_clmp,      &
+                          clm_pf_idata%nlclm_sub,                  &
+                          idecomp_clmp_index+vec_offset,           &
+                          array_clmp, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+
+        ! mapping from MPI vec to Seq. vec
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option,                    &
+                                    vec_clmp,                                 &
+                                    vec_pfs)
+
+        ! insert 'vec_pfs' into the whole '_pfs' vec
+        vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
+        call VecSetValues(clm_pf_idata%decomp_cpools_vr_pfs,      &
+                          clm_pf_idata%ngpf_sub,                  &
+                          idecomp_pfs_index+vec_offset,           &
+                          array_pfs, INSERT_VALUES, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
+
+      enddo
+
+      ! assembly the whole '_pfs' vec
+      call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_pfs, ierr)
+      CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_pfs, ierr)
+      CHKERRQ(ierr)
+
+    endif
+
+    ! decomp_'N'
+    if (associated(ispec_decomp_n)) then
+      do k=1,clm_pf_idata%ndecomp_pools
+        ! get a segment of data from the whole '_clmp' vec for the 'k'th pool
+        vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+        call VecGetValues(clm_pf_idata%decomp_npools_vr_clmp,   &
+                          clm_pf_idata%nlclm_sub,               &
+                          idecomp_clmp_index+vec_offset,        &
+                          array_clmp, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+
+        ! mapping from MPI vec to Seq. Vec
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option,                    &
+                                    vec_clmp,                                 &
+                                    vec_pfs)
+
+        ! insert 'vec_pfs' into the whole '_pfs' vec
+        vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! Seq. decomp_pfs vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
+        call VecSetValues(clm_pf_idata%decomp_npools_vr_pfs,    &
+                          clm_pf_idata%ngpf_sub,                &
+                          idecomp_pfs_index+vec_offset,         &
+                          array_pfs, INSERT_VALUES, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
+
+      enddo
+
+      ! assembly the whole '_pfs' vec, which then pass to PF's field%
+      call VecAssemblyBegin(clm_pf_idata%decomp_npools_vr_pfs, ierr)
+      CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%decomp_npools_vr_pfs, ierr)
+      CHKERRQ(ierr)
+
+    endif
+
+    ! clear-up of temporary vecs/arrarys
+    call VecDestroy(vec_clmp,ierr); CHKERRQ(ierr)
+    call VecDestroy(vec_pfs,ierr); CHKERRQ(ierr)
+    deallocate(idecomp_clmp_index)
+    deallocate(idecomp_pfs_index)
 
 
 
-
+    !-----------------------------------------------------------------
 
     if(ispec_no3 > 0) then
        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -2708,21 +2799,26 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     !----------------------------------------------------------------------------
 
+    if (associated(ispec_decomp_c)) then
+      call VecGetArrayReadF90(clm_pf_idata%decomp_cpools_vr_pfs, decomp_cpools_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+    if (associated(ispec_decomp_n)) then
+      call VecGetArrayReadF90(clm_pf_idata%decomp_npools_vr_pfs, decomp_npools_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
 
-
-
-
-
+    !
     if(ispec_no3 > 0) then
-      call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
     if(ispec_nh4 > 0) then
-      call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
       CHKERRQ(ierr)
 
-      call VecGetArrayF90(clm_pf_idata%smin_nh4sorb_vr_pfs, smin_nh4sorb_vr_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%smin_nh4sorb_vr_pfs, smin_nh4sorb_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
@@ -2761,10 +2857,21 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
          xx_p(offsetim + ispec_nh4sorb) = max(xeps0_n, smin_nh4sorb_vr_pf_loc(ghosted_id) )
       endif
 
+      !
+      do k=1,clm_pf_idata%ndecomp_pools
+        vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! Seq. decomp_pfs vec: 'cell' first, then 'species'
 
+        if(ispec_decomp_c(k) > 0) then
+          xx_p(offsetim + ispec_decomp_c(k)) = max( xeps0_c, &               ! field%tran_xx vec IS arranged 'species' first and then 'cell'
+                       decomp_cpools_vr_pf_loc(vec_offset+ghosted_id) )      ! Seq. decomp_pfs vec: 'cell' first, then 'species'
+        endif
 
+        if(ispec_decomp_n(k) > 0) then
+          xx_p(offsetim + ispec_decomp_n(k)) = max( xeps0_n, &               ! field%tran_xx vec IS arranged 'species' first and then 'cell'
+                       decomp_npools_vr_pf_loc(vec_offset+ghosted_id) )      ! Seq. decomp_pfs vec: 'cell' first, then 'species'
+        endif
 
-
+      enddo
 
 #ifdef CLM_PF_DEBUG
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (som4c pool):
@@ -2785,20 +2892,26 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     !----------------------------------------------------------------------------------------------------
 
+    if (associated(ispec_decomp_c)) then
+      call VecRestoreArrayReadF90(clm_pf_idata%decomp_cpools_vr_pfs, decomp_cpools_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+    if (associated(ispec_decomp_n)) then
+      call VecRestoreArrayReadF90(clm_pf_idata%decomp_npools_vr_pfs, decomp_npools_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
 
-
-
-
+    !
     if(ispec_no3 > 0) then
-      call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
     if(ispec_nh4 > 0) then
-      call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
       CHKERRQ(ierr)
 
-      call VecRestoreArrayF90(clm_pf_idata%smin_nh4sorb_vr_pfs, smin_nh4sorb_vr_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%smin_nh4sorb_vr_pfs, smin_nh4sorb_vr_pf_loc, ierr)
       CHKERRQ(ierr)
 
     endif
