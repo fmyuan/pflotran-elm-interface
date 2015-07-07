@@ -24,7 +24,7 @@ STATUS: UNDER development for flexible decomposing C/N pools.
 Current Version of CLM: 4.5.38; 
 PFLOTRAN-dev change set: 7dc944a171993b2b27c4a5de84ac0856404a5194 [7dc944a17199]
 
-STATUS: UNDER test (esp. Richards mode) and stable (revision 9944 @Jun-23-2015).  
+STATUS: UNDER test of Richards mode and stable (81bfd59d8396fd45272856fd96d24791e59b4966 [81bfd59d8396] @July-07-2015).  
 
 (4) default-thc - the current development version of clm-pflotran, specifically for testing all thermal-hydrology and biogeochemistry portion. 
 
@@ -42,4 +42,4 @@ PFLOTRAN-dev change set: 87da2df5ab30a429a3816854a304d7f4823d765f [87da2df5ab30]
 
 (4) if coupled with PFLOTRAN, first build a libpflotran.a in ./Src/clm-pflotran (First, run the script link_files.sh to copy PFLOTRAN codes, and then build the library: make PETSC_DIR=$PETSC_DIR libpflotran.a). Then build CLM with this library. 
 
-UPDATED: 2015-06-24
+UPDATED: 2015-07-07
