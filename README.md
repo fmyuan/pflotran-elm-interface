@@ -24,7 +24,7 @@ STATUS: UNDER development for flexible decomposing C/N pools.
 Current Version of CLM: 4.5.38; 
 PFLOTRAN-dev change set: 7dc944a171993b2b27c4a5de84ac0856404a5194 [7dc944a17199]
 
-STATUS: UNDER test of Richards mode and stable (81bfd59d8396fd45272856fd96d24791e59b4966 [81bfd59d8396] @July-07-2015).  
+STATUS: UNDER test of Richards mode; stable for BGC coupling. (81bfd59d8396fd45272856fd96d24791e59b4966 [81bfd59d8396] @July-07-2015).  
 
 (4) default-thc - the current development version of clm-pflotran, specifically for testing all thermal-hydrology and biogeochemistry portion. 
 
