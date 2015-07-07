@@ -2802,13 +2802,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%smin_nh4sorb_vr_pfs)
     endif
 
-    if(ispec_nh4sorb > 0) then
-       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%smin_nh4sorb_vr_clmp, &
-                                    clm_pf_idata%smin_nh4sorb_vr_pfs)
-    endif
-
     !----------------------------------------------------------------------------
 
     if(associated(ispec_decomp_c)) then
