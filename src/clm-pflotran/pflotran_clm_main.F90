@@ -2978,6 +2978,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscReal, pointer :: volume_p(:)
 
+    PetscInt, pointer    :: idecomp_clmp_index(:), idecomp_pfs_index(:)
+    Vec                  :: vec_clmp
+    Vec                  :: vec_pfs
+    PetscScalar, pointer :: array_clmp(:), array_pfs(:)
+    PetscInt             :: j, k, vec_offset
+    PetscBool            :: found_rtmasstr
+
+    !----------------------------------------------------------------------------------
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
          realization => simulation%realization
@@ -2995,13 +3003,107 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     field => realization%field
 
     !-----------------------------------------------------------------
-    ! mapping data from CLM to PFLOTRAN
+
+    ! create temporary vecs/arrays for rate of each 'decomp_pool''s data-mapping
+    call VecDuplicate(clm_pf_idata%zsoi_clmp, vec_clmp,ierr)
+    CHKERRQ(ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_pfs, vec_pfs,ierr)
+    CHKERRQ(ierr)
+    allocate(idecomp_clmp_index(clm_pf_idata%nlclm_sub))   ! MPI vec size is the local cell number
+    do j=1, clm_pf_idata%nlclm_sub
+      idecomp_clmp_index(j) = j-1
+    enddo
+    allocate(idecomp_pfs_index(clm_pf_idata%ngpf_sub))     ! SEQ vec size is the global cell number
+    do j=1, clm_pf_idata%ngpf_sub
+      idecomp_pfs_index(j) = j-1
+    enddo
+
+    ! rate of decomp_'C' pools from CLM-CN
+    if (associated(ispec_decomp_c)) then
+      ! assembly the 'vec_clmp' (?? not sure if needed, though 'PETSC' manual said so)
+      !call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_clmp, ierr); CHKERRQ(ierr)
+      !call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_clmp, ierr); CHKERRQ(ierr)
+      do k=1,clm_pf_idata%ndecomp_pools
+        ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
+        vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+        call VecGetValues(clm_pf_idata%rate_decomp_c_clmp,         &
+                          clm_pf_idata%nlclm_sub,                  &
+                          idecomp_clmp_index+vec_offset,           &
+                          array_clmp, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+
+        ! mapping from MPI vec to Seq. vec
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option,                    &
+                                    vec_clmp,                                 &
+                                    vec_pfs)
+
+        ! insert 'vec_pfs' into the whole '_pfs' vec
+        vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
+        call VecSetValues(clm_pf_idata%rate_decomp_c_pfs,         &
+                          clm_pf_idata%ngpf_sub,                  &
+                          idecomp_pfs_index+vec_offset,           &
+                          array_pfs, INSERT_VALUES, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
+
+      enddo
+
+      ! assembly the whole '_pfs' vec
+      call VecAssemblyBegin(clm_pf_idata%rate_decomp_c_pfs, ierr)
+      CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%rate_decomp_c_pfs, ierr)
+      CHKERRQ(ierr)
+
+    endif
+
+    ! rate of decomp_'N' pools from CLM-CN
+    if (associated(ispec_decomp_n)) then
+      do k=1,clm_pf_idata%ndecomp_pools
+        ! get a segment of data from the whole '_clmp' vec for the 'k'th pool
+        vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+        call VecGetValues(clm_pf_idata%rate_decomp_n_clmp,      &
+                          clm_pf_idata%nlclm_sub,               &
+                          idecomp_clmp_index+vec_offset,        &
+                          array_clmp, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_clmp, array_clmp, ierr); CHKERRQ(ierr)
+
+        ! mapping from MPI vec to Seq. Vec
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option,                    &
+                                    vec_clmp,                                 &
+                                    vec_pfs)
+
+        ! insert 'vec_pfs' into the whole '_pfs' vec
+        vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! Seq. decomp_pfs vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
+        call VecSetValues(clm_pf_idata%rate_decomp_n_pfs,       &
+                          clm_pf_idata%ngpf_sub,                &
+                          idecomp_pfs_index+vec_offset,         &
+                          array_pfs, INSERT_VALUES, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
+
+      enddo
+
+      ! assembly the whole '_pfs' vec, which then pass to PF's field%
+      call VecAssemblyBegin(clm_pf_idata%rate_decomp_n_pfs, ierr)
+      CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%rate_decomp_n_pfs, ierr)
+      CHKERRQ(ierr)
+
+    endif
+
+    ! clear-up of temporary vecs/arrarys
+    call VecDestroy(vec_clmp,ierr); CHKERRQ(ierr)
+    call VecDestroy(vec_pfs,ierr); CHKERRQ(ierr)
+    deallocate(idecomp_clmp_index)
+    deallocate(idecomp_pfs_index)
 
 
 
-
-
-
+    !-----------------------------------------------------------------
 
     ! NOTE: direct data passing from interface to PF for N demand
     if(ispec_plantndemand >0) then
@@ -3040,27 +3142,54 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
        do
          if (.not.associated(cur_mass_transfer)) exit
 
+         !
+         found_rtmasstr = PETSC_FALSE
+         vec_offset = 0
+         !
          if(cur_mass_transfer%idof == ispec_nh4) then
            call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
+           found_rtmasstr = PETSC_TRUE
+
          elseif(cur_mass_transfer%idof == ispec_no3) then
            call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
+           found_rtmasstr = PETSC_TRUE
 
+         else
+         !--------------------------------------------------------------------------
+           if (associated(ispec_decomp_c) .or. associated(ispec_decomp_n)) then
+             do k=1,clm_pf_idata%ndecomp_pools
+               if( cur_mass_transfer%idof == (offsetim + ispec_decomp_c(k)) ) then
+                 vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! Seq. decomp_pfs vec: 'cell' first, then 'species'
+                 call VecGetArrayReadF90(clm_pf_idata%decomp_cpools_vr_pfs, rate_pf_loc, ierr)
+                 CHKERRQ(ierr)
+                 found_rtmasstr = PETSC_TRUE
 
+                 exit   ! exit the 'do k=1, ...' loop
 
+               elseif( cur_mass_transfer%idof == (offsetim + ispec_decomp_n(k)) ) then
+                 vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! Seq. decomp_pfs vec: 'cell' first, then 'species'
+                 call VecGetArrayReadF90(clm_pf_idata%decomp_npools_vr_pfs, rate_pf_loc, ierr)
+                 CHKERRQ(ierr)
+                 found_rtmasstr = PETSC_TRUE
+
+                 exit   ! exit the 'do k=1, ...' loop
+               endif
+             enddo
+           endif
+         !--------------------------------------------------------------------------
          endif
 
          cur_mass_transfer%dataset%rarray(:) = 0.d0
 
-         do local_id = 1, grid%nlmax
-            ghosted_id = grid%nL2G(local_id)
-            if (local_id<=0 .or. ghosted_id<=0) cycle
-            !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
+         ! found a RT mass-transfer variable in the list
+         if(found_rtmasstr) then
 
-            if(cur_mass_transfer%idof == ispec_nh4                  &
-               .or. cur_mass_transfer%idof == ispec_no3             &
-              ) then
+           do local_id = 1, grid%nlmax
+             ghosted_id = grid%nL2G(local_id)
+             if (local_id<=0 .or. ghosted_id<=0) cycle
+             !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
 
 #ifdef CLM_PF_DEBUG
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (mass transfer rate):
@@ -3075,19 +3204,40 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 #endif
 
                cur_mass_transfer%dataset%rarray(local_id) = &
-                        rate_pf_loc(ghosted_id)*volume_p(local_id)  ! mol/m3s * m3
+                         rate_pf_loc(vec_offset+ghosted_id) &    ! for 'decomp' species, must be offset the vecs' starting location
+                       * volume_p(local_id)                      ! from mol/m3s --> mol/s
 
-            endif
-         enddo
+           enddo  !do local_id = 1, grid%nlmax
 
-         if(cur_mass_transfer%idof == ispec_nh4) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_no3) then
-           call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
+           ! close the open vecs
+           if(cur_mass_transfer%idof == ispec_nh4) then
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
+             CHKERRQ(ierr)
+           elseif(cur_mass_transfer%idof == ispec_no3) then
+             call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
+             CHKERRQ(ierr)
 
-         endif
+           else
+           !--------------------------------------------------------------------------
+             if (associated(ispec_decomp_c) .or. associated(ispec_decomp_n)) then
+               do k=1,clm_pf_idata%ndecomp_pools
+                 if( cur_mass_transfer%idof == (offsetim + ispec_decomp_c(k)) ) then
+                   call VecRestoreArrayReadF90(clm_pf_idata%decomp_cpools_vr_pfs, rate_pf_loc, ierr)
+                   CHKERRQ(ierr)
+                   exit   ! exit the 'do k=1, ...' loop
+
+                 elseif( cur_mass_transfer%idof == (offsetim + ispec_decomp_n(k)) ) then
+                   call VecRestoreArrayReadF90(clm_pf_idata%decomp_npools_vr_pfs, rate_pf_loc, ierr)
+                   CHKERRQ(ierr)
+                   exit   ! exit the 'do k=1, ...' loop
+                 endif
+               enddo
+             endif
+         !--------------------------------------------------------------------------
+
+           endif
+
+         endif ! if(found_rtmasstr) block
 
          cur_mass_transfer => cur_mass_transfer%next
        enddo
