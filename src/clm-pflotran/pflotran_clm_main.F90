@@ -3696,8 +3696,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
            if (patch%imat(ghosted_id) < 0) cycle
         endif
 
-        global_auxvar  => patch%aux%Global%auxvars(ghosted_id)
-        rt_auxvar => patch%aux%RT%auxvars(ghosted_id)
+        global_auxvar    => patch%aux%Global%auxvars(ghosted_id)
+        rt_auxvar        => patch%aux%RT%auxvars(ghosted_id)
 
         saturation = global_auxvar%sat(1)
         porosity = porosity_loc_p(local_id)
@@ -3730,25 +3730,28 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         !
         if(ispec_nh4 > 0) then
-           conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0
+           !conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0      ! 7-8-2015: this is NOT right.
 
             ! the following approach appears more like what output module does in pflotran
             ! but needs further checking if it efficient as directly read from 'xx_p' as above
-!            conc = rt_auxvar%pri_molal(ispec_nh4) * theta * 1000.0d0
+            ! 7-8-2015: checked that the directly reading from 'xx_p' is incorrect, which may
+            !           cause mass-balance errors. (TODO - for immobile species appears OK)
+            conc = rt_auxvar%total(ispec_nh4, 1) * theta * 1000.0d0
             smin_nh4_vr_pf_loc(local_id) = max(conc, 0.d0)
 
-            if (associated(rt_auxvar%total_sorb_eq)) then    ! equilibrium-sorption reactions used
-                conc = rt_auxvar%total_sorb_eq(ispec_nh4)
-                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
-            else if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction used for soil NH4+ absorption
+            if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction sandbox used for soil NH4+ absorption
                 conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (mol/m3)
+                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
+            elseif (reaction%neqsorb > 0) then  ! equilibrium-sorption reactions used
+                conc = rt_auxvar%total_sorb_eq(ispec_nh4)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
             endif
 
         endif
 
         if(ispec_no3 > 0) then
-           conc = xx_p(offset + ispec_no3) * theta * 1000.0d0
+           !conc = xx_p(offset + ispec_no3) * theta * 1000.0d0     ! 7-8-2015: this is NOT right.
+           conc = rt_auxvar%total(ispec_no3, 1) * theta * 1000.0d0
            smin_no3_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
