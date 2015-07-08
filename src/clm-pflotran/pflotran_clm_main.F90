@@ -3162,7 +3162,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
              do k=1,clm_pf_idata%ndecomp_pools
                if( cur_mass_transfer%idof == (offsetim + ispec_decomp_c(k)) ) then
                  vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! Seq. decomp_pfs vec: 'cell' first, then 'species'
-                 call VecGetArrayReadF90(clm_pf_idata%decomp_cpools_vr_pfs, rate_pf_loc, ierr)
+                 call VecGetArrayReadF90(clm_pf_idata%rate_decomp_c_pfs, rate_pf_loc, ierr)
                  CHKERRQ(ierr)
                  found_rtmasstr = PETSC_TRUE
 
@@ -3170,7 +3170,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
                elseif( cur_mass_transfer%idof == (offsetim + ispec_decomp_n(k)) ) then
                  vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! Seq. decomp_pfs vec: 'cell' first, then 'species'
-                 call VecGetArrayReadF90(clm_pf_idata%decomp_npools_vr_pfs, rate_pf_loc, ierr)
+                 call VecGetArrayReadF90(clm_pf_idata%rate_decomp_n_pfs, rate_pf_loc, ierr)
                  CHKERRQ(ierr)
                  found_rtmasstr = PETSC_TRUE
 
@@ -3222,12 +3222,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
              if (associated(ispec_decomp_c) .or. associated(ispec_decomp_n)) then
                do k=1,clm_pf_idata%ndecomp_pools
                  if( cur_mass_transfer%idof == (offsetim + ispec_decomp_c(k)) ) then
-                   call VecRestoreArrayReadF90(clm_pf_idata%decomp_cpools_vr_pfs, rate_pf_loc, ierr)
+                   call VecRestoreArrayReadF90(clm_pf_idata%rate_decomp_c_pfs, rate_pf_loc, ierr)
                    CHKERRQ(ierr)
                    exit   ! exit the 'do k=1, ...' loop
 
                  elseif( cur_mass_transfer%idof == (offsetim + ispec_decomp_n(k)) ) then
-                   call VecRestoreArrayReadF90(clm_pf_idata%decomp_npools_vr_pfs, rate_pf_loc, ierr)
+                   call VecRestoreArrayReadF90(clm_pf_idata%rate_decomp_n_pfs, rate_pf_loc, ierr)
                    CHKERRQ(ierr)
                    exit   ! exit the 'do k=1, ...' loop
                  endif
