@@ -3714,14 +3714,16 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
           if(ispec_decomp_c(k) > 0) then
              ! field%tran_xx vec IS arranged 'species' first and then 'cell'
-             conc = xx_p(offsetim + ispec_decomp_c(k))                      ! unit: M (mol/m3)
+             !conc = xx_p(offsetim + ispec_decomp_c(k))                      ! unit: M (mol/m3)
+             conc = rt_auxvar%immobile(ispec_decomp_c(k))
              ! MPI decomp_pfs vec: 'cell' first, then 'species'
              decomp_cpools_vr_pf_loc(vec_offset+local_id)= max(conc, 0.d0)
           endif
 
           if(ispec_decomp_n(k) > 0) then
              ! field%tran_xx vec IS arranged 'species' first and then 'cell'
-             conc = xx_p(offsetim + ispec_decomp_n(k))                      ! unit: M (mol/m3)
+!             conc = xx_p(offsetim + ispec_decomp_n(k))                      ! unit: M (mol/m3)
+             conc = rt_auxvar%immobile(ispec_decomp_n(k))
              ! MPI decomp_pfs vec: 'cell' first, then 'species'
              decomp_npools_vr_pf_loc(vec_offset+local_id)= max(conc, 0.d0)
           endif
@@ -3740,7 +3742,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
             smin_nh4_vr_pf_loc(local_id) = max(conc, 0.d0)
 
             if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction sandbox used for soil NH4+ absorption
-                conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (mol/m3)
+                !conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (mol/m3)
+                conc = rt_auxvar%immobile(ispec_nh4sorb)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
             elseif (reaction%neqsorb > 0) then  ! equilibrium-sorption reactions used
                 conc = rt_auxvar%total_sorb_eq(ispec_nh4)
@@ -3757,24 +3760,28 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         ! immobile gas conc in mol/m3 bulk soil to aovid 'theta' inconsistence (due to porosity) during unit conversion
         if(ispec_co2 > 0) then
-           conc = xx_p(offsetim + ispec_co2)                    ! unit: M (molC/m3)
+           !conc = xx_p(offsetim + ispec_co2)                    ! unit: M (molC/m3)
+           conc = rt_auxvar%immobile(ispec_co2)
            gco2_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
         if(ispec_n2 > 0) then
-           conc = xx_p(offsetim + ispec_n2)                     ! unit: M (molN2/m3)
+           !conc = xx_p(offsetim + ispec_n2)                     ! unit: M (molN2/m3)
+           conc = rt_auxvar%immobile(ispec_n2)
            gn2_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
         if(ispec_n2o > 0) then
-           conc = xx_p(offsetim + ispec_n2o)                    ! unit: M (molN2O/m3)
+           !conc = xx_p(offsetim + ispec_n2o)                    ! unit: M (molN2O/m3)
+           conc = rt_auxvar%immobile(ispec_n2o)
            gn2o_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
         ! tracking N bgc reaction fluxes
 
         if (ispec_plantnh4uptake > 0) then
-           conc = xx_p(offsetim + ispec_plantnh4uptake)
+           !conc = xx_p(offsetim + ispec_plantnh4uptake)
+           conc = rt_auxvar%immobile(ispec_plantnh4uptake)
            accextrnh4_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step only
@@ -3782,7 +3789,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if (ispec_plantno3uptake > 0) then
-           conc = xx_p(offsetim + ispec_plantno3uptake)
+           !conc = xx_p(offsetim + ispec_plantno3uptake)
+           conc = rt_auxvar%immobile(ispec_plantno3uptake)
            accextrno3_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step only
@@ -3790,7 +3798,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_hr > 0) then
-           conc = xx_p(offsetim + ispec_hr)
+           !conc = xx_p(offsetim + ispec_hr)
+           conc = rt_auxvar%immobile(ispec_hr)
            acchr_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -3798,7 +3807,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_nmin > 0) then
-           conc = xx_p(offsetim + ispec_nmin)
+           !conc = xx_p(offsetim + ispec_nmin)
+           conc = rt_auxvar%immobile(ispec_nmin)
            accnmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -3806,7 +3816,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_nimmp > 0) then
-           conc = xx_p(offsetim + ispec_nimmp)
+           !conc = xx_p(offsetim + ispec_nimmp)
+           conc = rt_auxvar%immobile(ispec_nimmp)
            accnimmp_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -3815,7 +3826,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_nimm > 0) then
-           conc = xx_p(offsetim + ispec_nimm)
+           !conc = xx_p(offsetim + ispec_nimm)
+           conc = rt_auxvar%immobile(ispec_nimm)
            accnimm_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -3824,7 +3836,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_ngasmin > 0) then
-           conc = xx_p(offsetim + ispec_ngasmin)
+           !conc = xx_p(offsetim + ispec_ngasmin)
+           conc = rt_auxvar%immobile(ispec_ngasmin)
            accngasmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -3832,7 +3845,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_ngasnitr > 0) then
-           conc = xx_p(offsetim + ispec_ngasnitr)
+           !conc = xx_p(offsetim + ispec_ngasnitr)
+           conc = rt_auxvar%immobile(ispec_ngasnitr)
            accngasnitr_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -3840,7 +3854,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_ngasdeni > 0) then
-           conc = xx_p(offsetim + ispec_ngasdeni)
+           !conc = xx_p(offsetim + ispec_ngasdeni)
+           conc = rt_auxvar%immobile(ispec_ngasdeni)
            accngasdeni_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
