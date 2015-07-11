@@ -27,6 +27,8 @@ module Option_Transport_module
     PetscBool :: no_checkpoint_kinetic_sorption
     PetscBool :: no_restart_kinetic_sorption
     PetscBool :: no_restart_mineral_vol_frac
+
+    PetscBool :: only_vertical_tran
         
   end type transport_option_type
   
@@ -121,6 +123,8 @@ subroutine OptionTransportInitRealization(option)
   option%check_post_convergence = PETSC_FALSE
   option%inf_rel_update_tol = UNINITIALIZED_DOUBLE
   option%inf_scaled_res_tol = UNINITIALIZED_DOUBLE 
+
+  option%only_vertical_tran = PETSC_FALSE
   
 end subroutine OptionTransportInitRealization
 

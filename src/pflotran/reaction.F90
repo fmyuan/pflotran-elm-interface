@@ -852,6 +852,10 @@ subroutine ReactionReadPass1(reaction,input,option)
       case('MINIMUM_POROSITY')
         call InputReadDouble(input,option,reaction%minimum_porosity)
         call InputErrorMsg(input,option,'minimim porosity','CHEMISTRY')
+      !-------------------------------------------------
+      case('ONLY_VERTICAL_TRANPORT')
+        option%transport%only_vertical_tran = PETSC_TRUE
+      !-------------------------------------------------
       case default
         option%io_buffer = 'CHEMISTRY keyword: '//trim(word)//' not recognized'
         call printErrMsg(option)
