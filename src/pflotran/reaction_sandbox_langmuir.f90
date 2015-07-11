@@ -67,6 +67,7 @@ end function LangmuirCreate
 ! LangmuirRead: Reads input deck for langmuir reaction parameters (if any)
 ! author: Guoping Tang
 ! date: 09/09/2013
+! revised by Fengming Yuan @07-10-2015
 !
 ! ************************************************************************** !
 subroutine LangmuirRead(this,input,option)
@@ -133,6 +134,7 @@ end subroutine LangmuirRead
 !                read from the input deck or hardwired.
 ! author: Guoping Tang
 ! date: 09/09/2013
+! revised by Fengming Yuan @07-10-2015
 !
 ! ************************************************************************** !
 subroutine LangmuirSetup(this,reaction,option)
@@ -176,6 +178,7 @@ end subroutine LangmuirSetup
 ! LangmuirReact: Evaluates reaction storing residual and/or Jacobian
 ! author: Guoping Tang
 ! date: 09/09/2013
+! revised by Fengming Yuan @07-10-2015
 !
 ! ************************************************************************** !
 subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
@@ -185,6 +188,7 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_class, only : material_auxvar_type
+  use CLM_RspFuncs_module
 
   implicit none
 
@@ -217,39 +221,46 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: c_sorb_eq      ! mole/m3
   PetscReal :: rate, drate_daq, drate_dsorb
   PetscReal :: Lwater         ! m3 h2o
+  PetscReal :: temp_real
 
   !-------------------------------------------------------------------------------
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
-  Lwater = volume * 1000.0d0 * porosity * global_auxvar%sat(1)
+  Lwater = volume * 1000.0d0 * porosity * global_auxvar%sat(1)     ! Liters H2O
 
   ires_aq = this%ispec_aq
   ires_sorb = this%ispec_sorb + reaction%offset_immobile
 
-  c_aq    = rt_auxvar%total(this%ispec_aq, iphase)
-  c_sorb  = rt_auxvar%immobile(this%ispec_sorb)
+  c_aq    = rt_auxvar%total(this%ispec_aq, iphase)      ! moles/L
+  c_sorb  = rt_auxvar%immobile(this%ispec_sorb)         ! moles/m3
 
-  !
-  c_aq_eq = c_sorb / (this%s_max - c_sorb) / this%k_equilibrium
+  ! c_sorb_eq = s_max * (Kl*c_eq/(1+Kl*c_eq))
+  c_aq_eq = c_sorb / (this%s_max - c_sorb) / this%k_equilibrium        ! here will cause infinity error
+  c_sorb_eq = this%s_max * (this%k_equilibrium*c_aq/(1.d0+this%k_equilibrium*c_aq))
 
-  rate = this%k_kinetic * (c_aq - c_aq_eq) * Lwater
+  ! the following IS wrong - there is no way that the aq. concentration over eq. conc WILL throw away to absorbed state
+  ! esp. when there is a max. capacity of sorption
+  !rate = this%k_kinetic * (c_aq - c_aq_eq) * Lwater      ! moles/L/s --> moles/s
+  rate = this%k_kinetic * (c_sorb_eq - c_sorb) * volume   ! positive, when sorption; negative when desorption. ANd moles/m3/s --> moles/s
+  if (abs(rate)<this%x0eps/option%tran_dt) return
 
+  ! --------------------------------------------------
   Residual(ires_aq)   = Residual(ires_aq) + rate
   Residual(ires_sorb) = Residual(ires_sorb) - rate
 
   if (compute_derivative) then
-     drate_daq   = this%k_kinetic * Lwater
-     drate_dsorb = -1.0d0 * this%k_kinetic * this%s_max / this%k_equilibrium &
-             / (this%s_max - c_sorb) / (this%s_max - c_sorb)
+     !
+     drate_dsorb = -1.d0 * this%k_kinetic * volume                 ! drate_dsorb
+     !
+     temp_real = this%k_kinetic*this%s_max*this%k_equilibrium * volume
+     drate_daq = temp_real / (this%k_equilibrium*c_aq+1.d0)/(this%k_equilibrium*c_aq+1.0d0)
 
-     Jacobian(ires_aq,ires_aq) = Jacobian(ires_aq,ires_aq) + drate_daq * &
-        rt_auxvar%aqueous%dtotal(this%ispec_aq,this%ispec_aq,iphase)
-
+     Jacobian(ires_aq,ires_aq) = Jacobian(ires_aq,ires_aq) + drate_daq !* &
+       ! rt_auxvar%aqueous%dtotal(this%ispec_aq,this%ispec_aq,iphase)
      Jacobian(ires_sorb,ires_aq) = Jacobian(ires_sorb,ires_aq) - drate_daq
 
      Jacobian(ires_aq,ires_sorb) = Jacobian(ires_aq,ires_sorb) + drate_dsorb
-
      Jacobian(ires_sorb,ires_sorb) = Jacobian(ires_sorb,ires_sorb) - drate_dsorb
 
   endif
