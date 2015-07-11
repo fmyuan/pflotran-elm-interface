@@ -594,7 +594,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
   endif
 
-#ifdef DEBUG
+!#ifdef DEBUG
   if (option%print_file_flag) then
 
     if(option%tran_dt<=option%dt_min) then
@@ -621,8 +621,15 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
       endif
     enddo
 
+    if (temp_real /= temp_real) then
+      write(option%fid_out, *) 'NaN of Residual matrix checking at ires=', ires
+      write(option%fid_out, *) 'Reaction Sandbox: PLANT N UPTAKE'
+      option%io_buffer = ' checking NaN of Residuals matrix  @ PlantNReact '
+      call printErrMsg(option)
+    endif
+
   endif
-#endif
+!#endif
 
 end subroutine PlantNReact
 

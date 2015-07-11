@@ -502,7 +502,7 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
 
   endif 
 
-#ifdef DEBUG
+!#ifdef DEBUG
   do ires=1, reaction%ncomp
     temp_real = Residual(ires)
 
@@ -513,8 +513,16 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
       option%io_buffer = 'checking infinity of Residuals matrix @ degasReact '
       call printErrMsg(option)
     endif
+
+    if (temp_real /= temp_real) then
+      write(option%fid_out, *) 'NaN of Residual matrix checking at ires=', ires
+      write(option%fid_out, *) 'Reaction Sandbox: DEGAS'
+      option%io_buffer = ' checking NaN of Residuals matrix  @ degasReact '
+      call printErrMsg(option)
+    endif
+
   enddo
-#endif
+!#endif
 
 end subroutine degasReact
 

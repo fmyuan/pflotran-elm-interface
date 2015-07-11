@@ -2085,18 +2085,26 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   endif ! end of 'species_id_n2o > 0'
 
-#ifdef DEBUG
+!#ifdef DEBUG
   do ires=1, reaction%ncomp
     temp_real = Residual(ires)
 
     if (abs(temp_real) > huge(temp_real)) then
       write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
-      write(option%fid_out, *) 'Reaction Sandbox: DECOMPOSITION'
+      write(option%fid_out, *) 'Reaction Sandbox: SOMDEC'
       option%io_buffer = ' checking infinity of Residuals matrix  @ SomDecReact '
       call printErrMsg(option)
     endif
+
+    if (temp_real /= temp_real) then
+      write(option%fid_out, *) 'NaN of Residual matrix checking at ires=', ires
+      write(option%fid_out, *) 'Reaction Sandbox: SOMDEC'
+      option%io_buffer = ' checking NaN of Residuals matrix  @ SomDecReact '
+      call printErrMsg(option)
+    endif
+
   enddo
-#endif
+!#endif
 
 end subroutine SomDecReact
 

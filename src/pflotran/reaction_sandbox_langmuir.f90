@@ -213,21 +213,21 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscInt, parameter :: iphase = 1
 
-  PetscInt :: ires_aq, ires_sorb
+  PetscInt :: ires_aq, ires_sorb, ires
 
   PetscReal :: c_aq           ! mole/L
   PetscReal :: c_aq_eq        ! mole/L
   PetscReal :: c_sorb         ! mole/m3
   PetscReal :: c_sorb_eq      ! mole/m3
   PetscReal :: rate, drate_daq, drate_dsorb
-  PetscReal :: Lwater         ! m3 h2o
+  PetscReal :: Lwater         ! litres h2o
   PetscReal :: temp_real
 
   !-------------------------------------------------------------------------------
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
-  Lwater = volume * 1000.0d0 * porosity * global_auxvar%sat(1)     ! Liters H2O
+  Lwater = volume * 1000.0d0 * porosity * global_auxvar%sat(1)     ! Litres H2O
 
   ires_aq = this%ispec_aq
   ires_sorb = this%ispec_sorb + reaction%offset_immobile
@@ -265,7 +265,7 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
 
   endif
 
-#ifdef DEBUG
+!#ifdef DEBUG
   do ires=1, reaction%ncomp
     temp_real = Residual(ires)
 
@@ -275,8 +275,16 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
       option%io_buffer = ' checking infinity of Residuals matrix  @ LangmuiReact '
       call printErrMsg(option)
     endif
+
+    if (temp_real /= temp_real) then
+      write(option%fid_out, *) 'NaN of Residual matrix checking at ires=', ires
+      write(option%fid_out, *) 'Reaction Sandbox: LANGMUIR'
+      option%io_buffer = ' checking NaN of Residuals matrix  @ LangmuiReact '
+      call printErrMsg(option)
+    endif
+
   enddo
-#endif
+!#endif
 
 end subroutine LangmuirReact
 
