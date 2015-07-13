@@ -853,7 +853,7 @@ subroutine ReactionReadPass1(reaction,input,option)
         call InputReadDouble(input,option,reaction%minimum_porosity)
         call InputErrorMsg(input,option,'minimim porosity','CHEMISTRY')
       !-------------------------------------------------
-      case('ONLY_VERTICAL_TRANPORT')
+      case('ONLY_VERTICAL_TRANSPORT')
         option%transport%only_vertical_tran = PETSC_TRUE
       !-------------------------------------------------
       case default
