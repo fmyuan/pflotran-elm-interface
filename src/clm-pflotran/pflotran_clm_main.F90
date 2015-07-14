@@ -3610,6 +3610,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscReal, pointer :: porosity_loc_p(:)
 
     PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
+    PetscReal :: den_kg_per_L, xmass
+
     PetscReal :: conc
     PetscInt  :: offset, offsetim
 
@@ -3687,7 +3689,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecGetArrayReadF90(field%porosity0, porosity_loc_p, ierr)
     CHKERRQ(ierr)
 
-
     ! loop over cells
     do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
@@ -3698,6 +3699,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         global_auxvar    => patch%aux%Global%auxvars(ghosted_id)
         rt_auxvar        => patch%aux%RT%auxvars(ghosted_id)
+
+        ! for convertion btw liq. water mass and volume
+        xmass = 1.d0
+        if (associated(global_auxvar%xmass)) xmass = global_auxvar%xmass(1)
+        den_kg_per_L = global_auxvar%den_kg(1)*xmass*1.d-3      ! kg/L
 
         saturation = global_auxvar%sat(1)
         porosity = porosity_loc_p(local_id)
@@ -3738,7 +3744,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
             ! but needs further checking if it efficient as directly read from 'xx_p' as above
             ! 7-8-2015: checked that the directly reading from 'xx_p' is incorrect, which may
             !           cause mass-balance errors. (TODO - for immobile species appears OK)
-            conc = rt_auxvar%total(ispec_nh4, 1) * theta * 1000.0d0
+            ! 7-14-2015: if taking data from 'xx_p', the unit always is in moles/m3 bulk volume
+            !            if taking data from 'rt_auxvar%total', for aq. species, is in moles/L water
+            !        but, still has errors - best solution: fixed water density to 1.d3 kg/m3 in input cards
+            !                                      which will eliminate the difference btw two approaches
+
+            conc = rt_auxvar%total(ispec_nh4, 1) * theta * (1000.0d0/den_kg_per_L)
+
             smin_nh4_vr_pf_loc(local_id) = max(conc, 0.d0)
 
             if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction sandbox used for soil NH4+ absorption
@@ -3753,8 +3765,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_no3 > 0) then
-           !conc = xx_p(offset + ispec_no3) * theta * 1000.0d0     ! 7-8-2015: this is NOT right.
-           conc = rt_auxvar%total(ispec_no3, 1) * theta * 1000.0d0
+           !conc = xx_p(offset + ispec_no3) * theta * 1000.0d0                        ! 7-14-2015: converting from /m3 bulk.
+           conc = rt_auxvar%total(ispec_no3, 1) * theta * (1000.0d0/den_kg_per_L)     !
            smin_no3_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
