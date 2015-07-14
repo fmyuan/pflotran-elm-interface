@@ -109,7 +109,7 @@ module pflotran_clm_main_module
   character(len=MAXWORDLENGTH):: name_n2  = "N2imm"
 
   PetscReal, parameter :: xeps0_c = 1.0d-20
-  PetscReal, parameter :: xeps0_n = 1.0d-21
+  PetscReal, parameter :: xeps0_n = 1.0d-20
 !------------------------------------------------------------
 
 contains
@@ -2842,12 +2842,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       if(ispec_no3 > 0) then
          xx_p(offset + ispec_no3) = max(xeps0_n, smin_no3_vr_pf_loc(ghosted_id)  &      ! from 'ghosted_id' to field%xx_p's local
-                                                 / theta / 1000.0d0)
+                                                / theta / 1000.0d0)
       endif
 
       if(ispec_nh4 > 0) then
          xx_p(offset + ispec_nh4) = max(xeps0_n, smin_nh4_vr_pf_loc(ghosted_id)  &
-                                                 / theta / 1000.d0)
+                                                / theta / 1000.d0)
       endif
 
       !

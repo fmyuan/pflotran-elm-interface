@@ -236,32 +236,37 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
   c_sorb  = rt_auxvar%immobile(this%ispec_sorb)         ! moles/m3
 
   ! c_sorb_eq = s_max * (Kl*c_eq/(1+Kl*c_eq))
-  c_aq_eq = c_sorb / (this%s_max - c_sorb) / this%k_equilibrium        ! here will cause infinity error
+  !c_aq_eq = c_sorb / (this%s_max - c_sorb) / this%k_equilibrium        ! here will cause infinity error
   c_sorb_eq = this%s_max * (this%k_equilibrium*c_aq/(1.d0+this%k_equilibrium*c_aq))
 
   ! the following IS wrong - there is no way that the aq. concentration over eq. conc WILL throw away to absorbed state
   ! esp. when there is a max. capacity of sorption
   !rate = this%k_kinetic * (c_aq - c_aq_eq) * Lwater      ! moles/L/s --> moles/s
   rate = this%k_kinetic * (c_sorb_eq - c_sorb) * volume   ! positive, when sorption; negative when desorption. ANd moles/m3/s --> moles/s
+
   if (abs(rate)<this%x0eps/option%tran_dt) return
 
   ! --------------------------------------------------
-  Residual(ires_aq)   = Residual(ires_aq) + rate
-  Residual(ires_sorb) = Residual(ires_sorb) - rate
+  Residual(ires_aq)   = Residual(ires_aq) - rate
+  Residual(ires_sorb) = Residual(ires_sorb) + rate
 
   if (compute_derivative) then
      !
-     drate_dsorb = -1.d0 * this%k_kinetic * volume                 ! drate_dsorb
+     ! drate/d(Csorb*volume)
+     drate_dsorb = -1.d0 * this%k_kinetic
      !
-     temp_real = this%k_kinetic*this%s_max*this%k_equilibrium * volume
-     drate_daq = temp_real / (this%k_equilibrium*c_aq+1.d0)/(this%k_equilibrium*c_aq+1.0d0)
+     ! drate/d(Caq*Lwater): this%k_kinetic*this%s_max*this%k_equilibrium*volume*
+     !               d(Caq*Lwater/(Lwater+k*Caq*Lwater)) / d(Caq*Lwater)
+     temp_real = this%k_kinetic*this%s_max*this%k_equilibrium*volume
+     drate_daq = temp_real * Lwater/(this%k_equilibrium*c_aq+Lwater)/(this%k_equilibrium*c_aq+Lwater)
 
-     Jacobian(ires_aq,ires_aq) = Jacobian(ires_aq,ires_aq) + drate_daq !* &
-       ! rt_auxvar%aqueous%dtotal(this%ispec_aq,this%ispec_aq,iphase)
-     Jacobian(ires_sorb,ires_aq) = Jacobian(ires_sorb,ires_aq) - drate_daq
+     Jacobian(ires_aq,ires_aq) = Jacobian(ires_aq,ires_aq) - drate_daq * &
+        rt_auxvar%aqueous%dtotal(this%ispec_aq,this%ispec_aq,iphase)
 
-     Jacobian(ires_aq,ires_sorb) = Jacobian(ires_aq,ires_sorb) + drate_dsorb
-     Jacobian(ires_sorb,ires_sorb) = Jacobian(ires_sorb,ires_sorb) - drate_dsorb
+     Jacobian(ires_sorb,ires_aq) = Jacobian(ires_sorb,ires_aq) + drate_daq
+
+     Jacobian(ires_aq,ires_sorb) = Jacobian(ires_aq,ires_sorb) - drate_dsorb
+     Jacobian(ires_sorb,ires_sorb) = Jacobian(ires_sorb,ires_sorb) + drate_dsorb
 
   endif
 
