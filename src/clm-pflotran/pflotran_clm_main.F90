@@ -59,6 +59,7 @@ module pflotran_clm_main_module
        pflotranModelGetTemperatureFromPF,       &
        pflotranModelGetSaturationFromPF,        &
        ! BGC
+       pflotranModelGetRTspecies,               &
        pflotranModelSetBGCRatesFromCLM,         &
        pflotranModelUpdateAqConcFromCLM,        &
        pflotranModelUpdateAqGasesFromCLM,       &
@@ -69,8 +70,7 @@ module pflotran_clm_main_module
 
   private :: &
        pflotranModelInsertWaypoint,          &
-       pflotranModelDeleteWaypoint,          &
-       pflotranModelGetRTspecies
+       pflotranModelDeleteWaypoint
 
 !------------------------------------------------------------
   !NOTES: The following is what PF bgc right now using for CLM-PFLOTRAN coupling
@@ -205,11 +205,6 @@ contains
          model%option%io_buffer = 'Simulation Mode not supported: ' // model%option%simulation_mode
          call printErrMsg(model%option)
     end select
-
-    ! if BGC is on
-    if(model%option%ntrandof > 0) then
-      call pflotranModelGetRTspecies(model)
-    endif
 
   end subroutine pflotranModelCreate
 

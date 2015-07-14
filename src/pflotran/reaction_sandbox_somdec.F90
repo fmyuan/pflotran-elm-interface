@@ -1043,9 +1043,26 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   theta = saturation * porosity
   psi = min(global_auxvar%pres(1) - option%reference_pressure, -1.d-20)     ! if positive, saturated soil's psi is nearly zero
 
-  ! moisture response function
 #ifdef CLM_PFLOTRAN
   ghosted_id = option%iflag
+
+#ifdef CLM_PF_DEBUG
+! for testing data passing
+  write(option%fid_out, *) 'ghosted_id=', ghosted_id
+  do irxn = 1, this%nrxn
+    ispec_uc = this%upstream_c_id(irxn)
+    if(this%upstream_is_aqueous(irxn)) then
+      write(option%fid_out, *) 'irxn=', irxn, 'conc(irxn)=', rt_auxvar%total(ispec_uc, iphase)
+    else
+      write(option%fid_out, *) 'irxn=', irxn, 'conc(irxn)=', rt_auxvar%immobile(ispec_uc)
+    endif
+  enddo
+#endif
+!
+#endif
+
+  ! moisture response function
+#ifdef CLM_PFLOTRAN
   if(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_CLM4) then
      f_w = GetMoistureResponse(theta, ghosted_id, this%moisture_response_function)
   elseif(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_DLEM) then
@@ -1331,14 +1348,14 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ! in the following, '2.1' multiplier is chosen because that is slightly larger(5% to avoid numerical issue) than '2.0',
       ! which should be the previous-timestep before reaching the 'option%dt_min'
       ! (the time-cut used in PF is like dt=0.5*dt, when cutting)
-      !dtmin = 2.1d0*option%dt_min
-      dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
+      dtmin = 2.1d0*option%dt_min
+      !dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
 
       if (crate_uc*this%mineral_n_stoich(irxn) < 0.d0) then
         !
         nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin   ! unit: moles
         if (nratecap*fnh4_inhibit_no3 > c_nh4*volume) then       ! c_nh4 unit: moles/m3 bulk soil
-          ! assuming that monod type reduction used and 'nratecap' must be reduced to 'c_nh4', i.e.
+          ! assuming that monod type reduction used and 'nratecap' must be reduced to 'c_nh4*volume', i.e.
           ! c_nh4*volume/dt = nratecap*fnh4_inhibit_no3/dt * (c_nh4*volume/(c_nh4*volume+c0))
           ! then, c0 = nratecap*fnh4_inhibit_no3 - c_nh4*volume (this is the 'half-saturation' term used above)
           fnratecap = funcMonod(c_nh4*volume, nratecap*fnh4_inhibit_no3-c_nh4*volume, PETSC_FALSE)
@@ -2020,13 +2037,13 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       dtmin = 2.1d0*option%dt_min
       !dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dt_min' may be accelerating the timing, but may not be good to mulitple consummers
 
-      nratecap = temp_real*this%n2o_frac_mineralization*dtmin*net_nmin_rate
-      if (nratecap > c_nh4) then
-         ! assuming that monod type reduction used and 'nratecap' must be reduced to 'c_nh4', i.e.
-         ! c_nh4/dt = nratecap*fnh4_inhibit_no3/dt * (c_nh4/(c_nh4+c0))
-         ! then, c0 = nratecap*fnh4_inhibit_no3 - c_nh4 (this is the 'half-saturation' term used above)
-         fnratecap = funcMonod(c_nh4, nratecap*fnh4_inhibit_no3-c_nh4, PETSC_FALSE)
-         dfnratecap_dnh4 = funcMonod(c_nh4, nratecap*fnh4_inhibit_no3-c_nh4, PETSC_TRUE)
+      nratecap = temp_real*this%n2o_frac_mineralization*net_nmin_rate*dtmin        ! moles
+      if (nratecap > c_nh4*volume) then
+         ! assuming that monod type reduction used and 'nratecap' must be reduced to 'c_nh4*volume', i.e.
+         ! c_nh4*volume/dt = nratecap/dt * (c_nh4*volume/(c_nh4*volume+c0))
+         ! then, c0 = nratecap - c_nh4*volume (this is the 'half-saturation' term used above)
+         fnratecap = funcMonod(c_nh4*volume, nratecap-c_nh4*volume, PETSC_FALSE)
+         dfnratecap_dnh4 = funcMonod(c_nh4*volume, nratecap-c_nh4*volume, PETSC_TRUE)
       else
          fnratecap       = 1.d0
          dfnratecap_dnh4 = 0.d0
@@ -2068,18 +2085,27 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   endif ! end of 'species_id_n2o > 0'
 
-#ifdef DEBUG
+!#ifdef DEBUG
   do ires=1, reaction%ncomp
     temp_real = Residual(ires)
 
     if (abs(temp_real) > huge(temp_real)) then
       write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
-      write(option%fid_out, *) 'Reaction Sandbox: DECOMPOSITION'
+      write(option%fid_out, *) 'Reaction Sandbox: SOMDEC'
       option%io_buffer = ' checking infinity of Residuals matrix  @ SomDecReact '
       call printErrMsg(option)
     endif
+
+    if (temp_real /= temp_real) then
+      write(option%fid_out, *) 'NaN of Residual matrix checking at ires=', ires
+      write(option%fid_out, *) 'Reaction Sandbox: SOMDEC'
+      option%io_buffer = ' checking NaN of Residuals matrix  @ SomDecReact '
+
+      call printErrMsg(option)
+    endif
+
   enddo
-#endif
+!#endif
 
 end subroutine SomDecReact
 

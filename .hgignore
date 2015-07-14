@@ -396,3 +396,4 @@ src/clm-pflotran/data_mediator_vec.F90
 src/clm-pflotran/pm_waste_form.F90
 src/clm-pflotran/pmc_third_party.F90
 src/clm-pflotran/timestepper_steady.F90
+reaction_sandbox_langmuir.F90

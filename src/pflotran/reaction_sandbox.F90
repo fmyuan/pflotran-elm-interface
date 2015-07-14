@@ -8,6 +8,7 @@ module Reaction_Sandbox_module
   ! Add new reacton sandbox classes here.
   use Reaction_Sandbox_SomDec_class
   use Reaction_Sandbox_PlantN_class
+  use Reaction_Sandbox_Langmuir_class
   use Reaction_Sandbox_Nitrif_class
   use Reaction_Sandbox_Denitr_class
   use Reaction_Sandbox_Degas_class
@@ -165,6 +166,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => DenitrCreate()
       case('DEGAS')
         new_sandbox => degasCreate()
+      case('LANGMUIR')
+        new_sandbox => LangmuirCreate()
       case('UFD-WP')
         new_sandbox => WastePackageCreate()
       case('EXAMPLE')
