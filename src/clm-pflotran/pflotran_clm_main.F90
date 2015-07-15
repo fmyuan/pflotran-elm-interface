@@ -46,6 +46,8 @@ module pflotran_clm_main_module
        pflotranModelStepperRunFinalize,      &
        pflotranModelStepperCheckpoint,       &
        pflotranModelDestroy,                 &
+       ! soil domain
+       pflotranModelSetSoilDimension,        &
        ! Soil properties
        pflotranModelSetSoilProp,              &
        pflotranModelResetSoilPorosityFromCLM, &
@@ -239,15 +241,102 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelSetSoilProp(pflotran_model)
+  subroutine pflotranModelSetSoilDimension(pflotran_model)
   ! 
+  ! Force soil dimension from CLM to PFLOTRAN subsurface domain.
+
+    use Realization_class
+    use Discretization_module
+    use Patch_module
+    use Grid_module
+    use Option_module
+    use Material_module
+    use Material_Aux_class
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+
+    use clm_pflotran_interface_data
+    use Mapping_module
+    use Saturation_Function_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(discretization_type), pointer        :: discretization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(simulation_base_type), pointer :: simulation
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id
+
+    PetscScalar, pointer :: toparea_pf_loc(:)    ! soil top face area (m^2) for 3-D PF cells
+    PetscScalar, pointer :: zsoi_pf_loc(:)    ! soil depth (m) for 3-D PF cells
+
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: pflotranModelSetSoilDimension only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    patch           => realization%patch
+    discretization  => realization%discretization
+    grid            => patch%grid
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%area_top_face_clmp, &
+                                    clm_pf_idata%area_top_face_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%zsoi_clmp, &
+                                    clm_pf_idata%zsoi_pfs)
+
+    call VecGetArrayReadF90(clm_pf_idata%area_top_face_pfs, toparea_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
+    CHKERRQ(ierr)
+
+    do ghosted_id = 1, grid%ngmax
+      local_id = grid%nG2L(ghosted_id)
+      if (ghosted_id < 0 .or. local_id < 0) cycle
+
+
+    enddo
+
+    call VecRestoreArrayReadF90(clm_pf_idata%area_top_face_pfs, toparea_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
+    CHKERRQ(ierr)
+
+
+  end subroutine pflotranModelSetSoilDimension
+
+! ************************************************************************** !
+! ************************************************************************** !
+
+  subroutine pflotranModelSetSoilProp(pflotran_model)
+  !
   ! Converts hydraulic properties from CLM units
   ! into PFLOTRAN units.
   ! #ifdef CLM_PFLOTRAN
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 10/22/2010
-  ! 
+  !
   ! (fmy) 4/28/2014: modifications after updating to pflotran-dev
 
     use Realization_class
@@ -308,8 +397,6 @@ contains
     PetscScalar, pointer :: alpha_pf_loc(:)   ! Clapp and Hornberger "alpha"
     PetscScalar, pointer :: sr_pf_loc(:)      ! Clapp and Hornberger "sr"
     PetscScalar, pointer :: pcwmax_pf_loc(:)  ! Clapp and Hornberger "pcwmax"
-
-    PetscScalar, pointer :: zsoi_pf_loc(:)    ! soil depth (m)
 
     den = 998.2d0       ! [kg/m^3]  @ 20 degC
     vis = 0.001002d0    ! [N s/m^2] @ 20 degC
@@ -406,11 +493,6 @@ contains
                                     clm_pf_idata%bulkdensity_dry_clmp, &
                                     clm_pf_idata%bulkdensity_dry_pfs)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%zsoi_clmp, &
-                                    clm_pf_idata%zsoi_pfs)
-
     call VecGetArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%hksat_y_pfs, hksat_y_pf_loc, ierr)
@@ -430,8 +512,6 @@ contains
     call VecGetArrayF90(clm_pf_idata%sr_pfs,     sr_pf_loc,      ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%pcwmax_pfs, pcwmax_pf_loc,  ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
     CHKERRQ(ierr)
 
     call VecGetArrayF90(field%porosity0, porosity_loc_p, ierr)
@@ -557,8 +637,6 @@ contains
     call VecRestoreArrayF90(clm_pf_idata%sr_pfs,     sr_pf_loc,      ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%pcwmax_pfs, pcwmax_pf_loc,  ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
     CHKERRQ(ierr)
 
     call VecRestoreArrayF90(field%porosity0, porosity_loc_p, ierr)
