@@ -111,7 +111,7 @@ module pflotran_clm_main_module
   character(len=MAXWORDLENGTH):: name_n2  = "N2imm"
 
   PetscReal, parameter :: xeps0_c = 1.0d-20
-  PetscReal, parameter :: xeps0_n = 1.0d-20
+  PetscReal, parameter :: xeps0_n = 1.0d-21
 !------------------------------------------------------------
 
 contains
@@ -2726,6 +2726,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscInt  :: offset, offsetim
     PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
+    PetscReal :: xmass, den_kg_per_L         ! for from mol/L to mol/kg
 
     PetscInt, pointer    :: idecomp_clmp_index(:), idecomp_pfs_index(:)
     Vec                  :: vec_clmp
@@ -2918,14 +2919,23 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       porosity = porosity_loc_p(local_id)                     ! using 'local_id' if from 'field%???'
       theta = saturation * porosity
 
+      ! needs the following (water density) to do convertion (esp. if it's upon estimating by EOSwater module in PF)
+      ! 'xx_p' is in molality (moles/kgH2o) for aq. species, while 'clm_pf_idata%???' is in moles/m3.
+      ! but they're same for immobile species
+      xmass = 1.d0
+      if (associated(global_auxvars(ghosted_id)%xmass)) then
+        xmass = global_auxvars(ghosted_id)%xmass(1)
+      endif
+      den_kg_per_L = global_auxvars(ghosted_id)%den_kg(1)*xmass*1.d-3
+
       if(ispec_no3 > 0) then
          xx_p(offset + ispec_no3) = max(xeps0_n, smin_no3_vr_pf_loc(ghosted_id)  &      ! from 'ghosted_id' to field%xx_p's local
-                                                / theta / 1000.0d0)
+                                                / (theta*1000.d0*den_kg_per_L) )    ! moles/m3 /(m3/m3 * L/m3 * kg/L) = moles/kgh2o
       endif
 
       if(ispec_nh4 > 0) then
          xx_p(offset + ispec_nh4) = max(xeps0_n, smin_nh4_vr_pf_loc(ghosted_id)  &
-                                                / theta / 1000.d0)
+                                                / (theta*1000.d0*den_kg_per_L) )
       endif
 
       !
@@ -3283,7 +3293,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
                cur_mass_transfer%dataset%rarray(local_id) = &
                          rate_pf_loc(vec_offset+ghosted_id) &    ! for 'decomp' species, must be offset the vecs' starting location
-                       * volume_p(local_id)                      ! from mol/m3s --> mol/s
+                       * volume_p(local_id)                      ! from moles/m3/s --> moles/s
 
            enddo  !do local_id = 1, grid%nlmax
 
@@ -3827,7 +3837,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
             !        but, still has errors - best solution: fixed water density to 1.d3 kg/m3 in input cards
             !                                      which will eliminate the difference btw two approaches
 
-            conc = rt_auxvar%total(ispec_nh4, 1) * theta * (1000.0d0/den_kg_per_L)
+            conc = rt_auxvar%total(ispec_nh4, 1) * (theta * 1000.0d0 * den_kg_per_L)
 
             smin_nh4_vr_pf_loc(local_id) = max(conc, 0.d0)
 
@@ -3844,7 +3854,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         if(ispec_no3 > 0) then
            !conc = xx_p(offset + ispec_no3) * theta * 1000.0d0                        ! 7-14-2015: converting from /m3 bulk.
-           conc = rt_auxvar%total(ispec_no3, 1) * theta * (1000.0d0/den_kg_per_L)     !
+           conc = rt_auxvar%total(ispec_no3, 1) * (theta * 1000.0d0 * den_kg_per_L)     !
            smin_no3_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
