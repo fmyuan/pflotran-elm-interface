@@ -287,7 +287,7 @@ contains
          realization => simulation%realization
       class default
          nullify(realization)
-         pflotran_model%option%io_buffer = "ERROR: pflotranModelSetSoilDimension only works on subsurface simulations."
+         pflotran_model%option%io_buffer = "ERROR: currently only works on structured grids."
          call printErrMsg(pflotran_model%option)
     end select
 
@@ -310,9 +310,21 @@ contains
     call VecGetArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
     CHKERRQ(ierr)
 
+    !
+    select case(grid%itype)
+      case(STRUCTURED_GRID)
+         pflotran_model%option%io_buffer = "INFO: CLM column dimension will over-ride PF structured grid mesh."
+         call printMsg(pflotran_model%option)
+      case default
+         pflotran_model%option%io_buffer = "ERROR: Currently only works on structured grids."
+         call printErrMsg(pflotran_model%option)
+
+    end select
+
     do ghosted_id = 1, grid%ngmax
       local_id = grid%nG2L(ghosted_id)
       if (ghosted_id < 0 .or. local_id < 0) cycle
+
 
 
     enddo
@@ -2773,8 +2785,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     ! decomp'C'
     if (associated(ispec_decomp_c)) then
       ! assembly the 'vec_clmp' (?? not sure if needed, though 'PETSC' manual said so)
-      !call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_clmp, ierr); CHKERRQ(ierr)
-      !call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_clmp, ierr); CHKERRQ(ierr)
+      call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_clmp, ierr); CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_clmp, ierr); CHKERRQ(ierr)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
@@ -2802,6 +2814,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       enddo
 
+
       ! assembly the whole '_pfs' vec
       call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_pfs, ierr)
       CHKERRQ(ierr)
@@ -2812,6 +2825,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     ! decomp_'N'
     if (associated(ispec_decomp_n)) then
+      call VecAssemblyBegin(clm_pf_idata%decomp_npools_vr_clmp, ierr); CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%decomp_npools_vr_clmp, ierr); CHKERRQ(ierr)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a segment of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
@@ -3109,8 +3124,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     ! rate of decomp_'C' pools from CLM-CN
     if (associated(ispec_decomp_c)) then
       ! assembly the 'vec_clmp' (?? not sure if needed, though 'PETSC' manual said so)
-      !call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_clmp, ierr); CHKERRQ(ierr)
-      !call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_clmp, ierr); CHKERRQ(ierr)
+      call VecAssemblyBegin(clm_pf_idata%rate_decomp_c_clmp, ierr); CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%rate_decomp_c_clmp, ierr); CHKERRQ(ierr)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
@@ -3148,6 +3163,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     ! rate of decomp_'N' pools from CLM-CN
     if (associated(ispec_decomp_n)) then
+
+      call VecAssemblyBegin(clm_pf_idata%rate_decomp_n_clmp, ierr); CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%rate_decomp_n_clmp, ierr); CHKERRQ(ierr)
+
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a segment of data from the whole '_clmp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlclm_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
@@ -4037,8 +4056,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     ! decomp'C'
     if (associated(ispec_decomp_c)) then
       ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
-      !call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_pfp, ierr); CHKERRQ(ierr)
-      !call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_pfp, ierr); CHKERRQ(ierr)
+      call VecAssemblyBegin(clm_pf_idata%decomp_cpools_vr_pfp, ierr); CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%decomp_cpools_vr_pfp, ierr); CHKERRQ(ierr)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
@@ -4077,8 +4096,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     ! decomp'N'
     if (associated(ispec_decomp_n)) then
       ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
-      !call VecAssemblyBegin(clm_pf_idata%decomp_npools_vr_pfp, ierr); CHKERRQ(ierr)
-      !call VecAssemblyEnd(clm_pf_idata%decomp_npools_vr_pfp, ierr); CHKERRQ(ierr)
+      call VecAssemblyBegin(clm_pf_idata%decomp_npools_vr_pfp, ierr); CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%decomp_npools_vr_pfp, ierr); CHKERRQ(ierr)
       do k=1,clm_pf_idata%ndecomp_pools
         ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
         vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
