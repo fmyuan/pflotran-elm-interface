@@ -2523,6 +2523,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     word = trim(name_lit1) // "N"
     ispec_lit1n = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit1c <= 0 .or. ispec_lit1n <=0 ) then
+          pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
+            trim(name_lit1) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
+    endif
 
     word = trim(name_lit2) // "C"
     ispec_lit2c = GetImmobileSpeciesIDFromName(word, &
@@ -2530,6 +2536,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     word = trim(name_lit2) // "N"
     ispec_lit2n = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit2c <= 0 .or. ispec_lit2n <=0 ) then
+          pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
+            trim(name_lit2) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
+    endif
 
     word = trim(name_lit3) // "C"
     ispec_lit3c = GetImmobileSpeciesIDFromName(word, &
@@ -2537,6 +2549,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     word = trim(name_lit3) // "N"
     ispec_lit3n = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit3c <= 0 .or. ispec_lit3n <=0 ) then
+          pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
+            trim(name_lit3) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
+    endif
 
     word = trim(name_cwd) // "C"
     ispec_cwdc = GetImmobileSpeciesIDFromName(word, &
@@ -2544,7 +2562,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     word = trim(name_cwd) // "N"
     ispec_cwdn = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_cwdc <= 0 .or. ispec_cwdn <=0 ) then
+          pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
+            trim(name_cwd) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
+    endif
 
+    !
     word = name_som1
     ispec_som1c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
@@ -2557,6 +2582,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
     else
       ispec_som1n = UNINITIALIZED_INTEGER
+    endif
+    if (ispec_som1c <= 0) then
+          pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
+            trim(name_som1) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
     endif
 
     word = name_som2
@@ -2572,6 +2603,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     else
       ispec_som2n = UNINITIALIZED_INTEGER
     endif
+    if (ispec_som2c <= 0) then
+          pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
+            trim(name_som2) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
+    endif
 
     word = name_som3
     ispec_som3c = GetImmobileSpeciesIDFromName(word, &
@@ -2585,6 +2622,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
     else
       ispec_som3n = UNINITIALIZED_INTEGER
+    endif
+    if (ispec_som3c <= 0) then
+          pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
+            trim(name_som3) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
     endif
 
     word = name_som4
@@ -2600,6 +2643,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     else
       ispec_som4n = UNINITIALIZED_INTEGER
     endif
+    if (ispec_som4c <= 0) then
+          pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
+            trim(name_som4) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
+    endif
 
     ! aq. species in soil solution/absorbed
     word = name_nh4
@@ -2612,10 +2661,22 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     else
       ispec_nh4sorb  = UNINITIALIZED_INTEGER
     endif
+    if (ispec_nh4 <= 0) then
+          pflotran_model%option%io_buffer = 'CLM inorg. N pool ' // &
+            trim(name_nh4) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
+    endif
 
     word = name_no3
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
+    if (ispec_no3 <= 0) then
+          pflotran_model%option%io_buffer = 'CLM inorg. N pool ' // &
+            trim(name_no3) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
+    endif
 
     !
     ! species for gases
@@ -3081,8 +3142,16 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       endif
 
       if(ispec_nh4 > 0) then
-         xx_p(offset + ispec_nh4) = max(xeps0_n, smin_nh4_vr_pf_loc(ghosted_id)  &
+        if (ispec_nh4sorb > 0) then
+           xx_p(offset + ispec_nh4) = max(xeps0_n, smin_nh4_vr_pf_loc(ghosted_id)  &
                                                 / (theta*1000.d0*den_kg_per_L) )
+
+        else    ! if 'nh4sorb' NOT as used as immobile species
+           xx_p(offset + ispec_nh4) = max(xeps0_n, (smin_nh4_vr_pf_loc(ghosted_id)  &
+                                               +smin_nh4sorb_vr_pf_loc(ghosted_id)) &
+                                                / (theta*1000.d0*den_kg_per_L) )
+
+        endif
       endif
 
       !
