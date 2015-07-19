@@ -46,6 +46,8 @@ module pflotran_clm_main_module
        pflotranModelStepperRunFinalize,      &
        pflotranModelStepperCheckpoint,       &
        pflotranModelDestroy,                 &
+       ! soil domain
+       pflotranModelSetSoilDimension,        &
        ! Soil properties
        pflotranModelSetSoilProp,              &
        pflotranModelResetSoilPorosityFromCLM, &
@@ -248,15 +250,114 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelSetSoilProp(pflotran_model)
+  subroutine pflotranModelSetSoilDimension(pflotran_model)
   ! 
+  ! Force soil dimension from CLM to PFLOTRAN subsurface domain.
+
+    use Realization_class
+    use Discretization_module
+    use Patch_module
+    use Grid_module
+    use Option_module
+    use Material_module
+    use Material_Aux_class
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+
+    use clm_pflotran_interface_data
+    use Mapping_module
+    use Saturation_Function_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(discretization_type), pointer        :: discretization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(simulation_base_type), pointer :: simulation
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id
+
+    PetscScalar, pointer :: toparea_pf_loc(:)    ! soil top face area (m^2) for 3-D PF cells
+    PetscScalar, pointer :: zsoi_pf_loc(:)    ! soil depth (m) for 3-D PF cells
+
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: currently only works on structured grids."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    patch           => realization%patch
+    discretization  => realization%discretization
+    grid            => patch%grid
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%area_top_face_clmp, &
+                                    clm_pf_idata%area_top_face_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%zsoi_clmp, &
+                                    clm_pf_idata%zsoi_pfs)
+
+    call VecGetArrayReadF90(clm_pf_idata%area_top_face_pfs, toparea_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
+    CHKERRQ(ierr)
+
+    !
+    select case(grid%itype)
+      case(STRUCTURED_GRID)
+         pflotran_model%option%io_buffer = "INFO: CLM column dimension will over-ride PF structured grid mesh."
+         call printMsg(pflotran_model%option)
+      case default
+         pflotran_model%option%io_buffer = "ERROR: Currently only works on structured grids."
+         call printErrMsg(pflotran_model%option)
+
+    end select
+
+    do ghosted_id = 1, grid%ngmax
+      local_id = grid%nG2L(ghosted_id)
+      if (ghosted_id < 0 .or. local_id < 0) cycle
+
+
+
+    enddo
+
+    call VecRestoreArrayReadF90(clm_pf_idata%area_top_face_pfs, toparea_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
+    CHKERRQ(ierr)
+
+
+  end subroutine pflotranModelSetSoilDimension
+
+! ************************************************************************** !
+! ************************************************************************** !
+
+  subroutine pflotranModelSetSoilProp(pflotran_model)
+  !
   ! Converts hydraulic properties from CLM units
   ! into PFLOTRAN units.
   ! #ifdef CLM_PFLOTRAN
-  ! 
+  !
   ! Author: Gautam Bisht
   ! Date: 10/22/2010
-  ! 
+  !
   ! (fmy) 4/28/2014: modifications after updating to pflotran-dev
 
     use Realization_class
@@ -317,8 +418,6 @@ contains
     PetscScalar, pointer :: alpha_pf_loc(:)   ! Clapp and Hornberger "alpha"
     PetscScalar, pointer :: sr_pf_loc(:)      ! Clapp and Hornberger "sr"
     PetscScalar, pointer :: pcwmax_pf_loc(:)  ! Clapp and Hornberger "pcwmax"
-
-    PetscScalar, pointer :: zsoi_pf_loc(:)    ! soil depth (m)
 
     den = 998.2d0       ! [kg/m^3]  @ 20 degC
     vis = 0.001002d0    ! [N s/m^2] @ 20 degC
@@ -415,11 +514,6 @@ contains
                                     clm_pf_idata%bulkdensity_dry_clmp, &
                                     clm_pf_idata%bulkdensity_dry_pfs)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%zsoi_clmp, &
-                                    clm_pf_idata%zsoi_pfs)
-
     call VecGetArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%hksat_y_pfs, hksat_y_pf_loc, ierr)
@@ -439,8 +533,6 @@ contains
     call VecGetArrayF90(clm_pf_idata%sr_pfs,     sr_pf_loc,      ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%pcwmax_pfs, pcwmax_pf_loc,  ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
     CHKERRQ(ierr)
 
     call VecGetArrayF90(field%porosity0, porosity_loc_p, ierr)
@@ -566,8 +658,6 @@ contains
     call VecRestoreArrayF90(clm_pf_idata%sr_pfs,     sr_pf_loc,      ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%pcwmax_pfs, pcwmax_pf_loc,  ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
     CHKERRQ(ierr)
 
     call VecRestoreArrayF90(field%porosity0, porosity_loc_p, ierr)
@@ -2696,6 +2786,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscInt  :: offset, offsetim
     PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
+    PetscReal :: xmass, den_kg_per_L         ! for from mol/L to mol/kg
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -2721,7 +2812,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%decomp_cpools_vr_lit1_pfs)
     end if
 
-    if (ispec_lit3c > 0) then
+    if (ispec_lit2c > 0) then
       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_lit2_clmp, &
@@ -2945,15 +3036,15 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
 
     if(ispec_no3 > 0) then
-      call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
     if(ispec_nh4 > 0) then
-      call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
       CHKERRQ(ierr)
 
-      call VecGetArrayF90(clm_pf_idata%smin_nh4sorb_vr_pfs, smin_nh4sorb_vr_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%smin_nh4sorb_vr_pfs, smin_nh4sorb_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
@@ -2975,14 +3066,23 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       porosity = porosity_loc_p(local_id)                     ! using 'local_id' if from 'field%???'
       theta = saturation * porosity
 
+      ! needs the following (water density) to do convertion (esp. if it's upon estimating by EOSwater module in PF)
+      ! 'xx_p' is in molality (moles/kgH2o) for aq. species, while 'clm_pf_idata%???' is in moles/m3.
+      ! but they're same for immobile species
+      xmass = 1.d0
+      if (associated(global_auxvars(ghosted_id)%xmass)) then
+        xmass = global_auxvars(ghosted_id)%xmass(1)
+      endif
+      den_kg_per_L = global_auxvars(ghosted_id)%den_kg(1)*xmass*1.d-3
+
       if(ispec_no3 > 0) then
          xx_p(offset + ispec_no3) = max(xeps0_n, smin_no3_vr_pf_loc(ghosted_id)  &      ! from 'ghosted_id' to field%xx_p's local
-                                                 / theta / 1000.0d0)
+                                                / (theta*1000.d0*den_kg_per_L) )    ! moles/m3 /(m3/m3 * L/m3 * kg/L) = moles/kgh2o
       endif
 
       if(ispec_nh4 > 0) then
          xx_p(offset + ispec_nh4) = max(xeps0_n, smin_nh4_vr_pf_loc(ghosted_id)  &
-                                                 / theta / 1000.d0)
+                                                / (theta*1000.d0*den_kg_per_L) )
       endif
 
       !
@@ -3155,15 +3255,15 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
     if(ispec_no3 > 0) then
-      call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
     if(ispec_nh4 > 0) then
-      call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
       CHKERRQ(ierr)
 
-      call VecRestoreArrayF90(clm_pf_idata%smin_nh4sorb_vr_pfs, smin_nh4sorb_vr_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%smin_nh4sorb_vr_pfs, smin_nh4sorb_vr_pf_loc, ierr)
       CHKERRQ(ierr)
 
     endif
@@ -3950,10 +4050,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscReal, pointer :: porosity_loc_p(:)
 
     PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
+    PetscReal :: den_kg_per_L, xmass
+
     PetscReal :: conc
     PetscInt  :: offset, offsetim
 
     PetscReal, parameter :: zeroing_conc = 1.0d-20
+
+    !-----------------------------------------------------------------------------------------
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -4054,7 +4158,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecGetArrayF90(clm_pf_idata%accngasdeni_vr_pfp, accngasdeni_vr_pf_loc, ierr)
     CHKERRQ(ierr)
 
-    ! (iii) pass the data from internal to PFLOTRAN vecs
+    ! (iii) pass the data from internal to CLM-PFLOTRAN interface vecs
 
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)
     CHKERRQ(ierr)  ! extract data from pflotran internal portion
@@ -4068,8 +4172,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
            if (patch%imat(ghosted_id) < 0) cycle
         endif
 
-        global_auxvar  => patch%aux%Global%auxvars(ghosted_id)
-        rt_auxvar => patch%aux%RT%auxvars(ghosted_id)
+        global_auxvar    => patch%aux%Global%auxvars(ghosted_id)
+        rt_auxvar        => patch%aux%RT%auxvars(ghosted_id)
+
+        ! for convertion btw liq. water mass and volume
+        xmass = 1.d0
+        if (associated(global_auxvar%xmass)) xmass = global_auxvar%xmass(1)
+        den_kg_per_L = global_auxvar%den_kg(1)*xmass*1.d-3      ! kg/L
 
         saturation = global_auxvar%sat(1)
         porosity = porosity_loc_p(local_id)
@@ -4144,48 +4253,62 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_nh4 > 0) then
-           conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0
+           !conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0      ! 7-8-2015: this is NOT right.
 
             ! the following approach appears more like what output module does in pflotran
             ! but needs further checking if it efficient as directly read from 'xx_p' as above
-!            conc = rt_auxvar%pri_molal(ispec_nh4) * theta * 1000.0d0
+            ! 7-8-2015: checked that the directly reading from 'xx_p' is incorrect, which may
+            !           cause mass-balance errors. (TODO - for immobile species appears OK)
+            ! 7-14-2015: if taking data from 'xx_p', the unit always is in moles/m3 bulk volume
+            !            if taking data from 'rt_auxvar%total', for aq. species, is in moles/L water
+            !        but, still has errors - best solution: fixed water density to 1.d3 kg/m3 in input cards
+            !                                      which will eliminate the difference btw two approaches
+
+            conc = rt_auxvar%total(ispec_nh4, 1) * (theta * 1000.0d0 * den_kg_per_L)
+
             smin_nh4_vr_pf_loc(local_id) = max(conc, 0.d0)
 
-            if (associated(rt_auxvar%total_sorb_eq)) then    ! equilibrium-sorption reactions used
-                conc = rt_auxvar%total_sorb_eq(ispec_nh4)
+            if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction sandbox used for soil NH4+ absorption
+                !conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (mol/m3)
+                conc = rt_auxvar%immobile(ispec_nh4sorb)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
-            else if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction used for soil NH4+ absorption
-                conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (mol/m3)
+            elseif (reaction%neqsorb > 0) then  ! equilibrium-sorption reactions used
+                conc = rt_auxvar%total_sorb_eq(ispec_nh4)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
             endif
 
         endif
 
         if(ispec_no3 > 0) then
-           conc = xx_p(offset + ispec_no3) * theta * 1000.0d0
+           !conc = xx_p(offset + ispec_no3) * theta * 1000.0d0                        ! 7-14-2015: converting from /m3 bulk.
+           conc = rt_auxvar%total(ispec_no3, 1) * (theta * 1000.0d0 * den_kg_per_L)     !
            smin_no3_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
         ! immobile gas conc in mol/m3 bulk soil to aovid 'theta' inconsistence (due to porosity) during unit conversion
         if(ispec_co2 > 0) then
-           conc = xx_p(offsetim + ispec_co2)                    ! unit: M (molC/m3)
+           !conc = xx_p(offsetim + ispec_co2)                    ! unit: M (molC/m3)
+           conc = rt_auxvar%immobile(ispec_co2)
            gco2_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
         if(ispec_n2 > 0) then
-           conc = xx_p(offsetim + ispec_n2)                     ! unit: M (molN2/m3)
+           !conc = xx_p(offsetim + ispec_n2)                     ! unit: M (molN2/m3)
+           conc = rt_auxvar%immobile(ispec_n2)
            gn2_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
         if(ispec_n2o > 0) then
-           conc = xx_p(offsetim + ispec_n2o)                    ! unit: M (molN2O/m3)
+           !conc = xx_p(offsetim + ispec_n2o)                    ! unit: M (molN2O/m3)
+           conc = rt_auxvar%immobile(ispec_n2o)
            gn2o_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
         ! tracking N bgc reaction fluxes
 
         if (ispec_plantnh4uptake > 0) then
-           conc = xx_p(offsetim + ispec_plantnh4uptake)
+           !conc = xx_p(offsetim + ispec_plantnh4uptake)
+           conc = rt_auxvar%immobile(ispec_plantnh4uptake)
            accextrnh4_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step only
@@ -4193,7 +4316,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if (ispec_plantno3uptake > 0) then
-           conc = xx_p(offsetim + ispec_plantno3uptake)
+           !conc = xx_p(offsetim + ispec_plantno3uptake)
+           conc = rt_auxvar%immobile(ispec_plantno3uptake)
            accextrno3_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step only
@@ -4201,7 +4325,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_hr > 0) then
-           conc = xx_p(offsetim + ispec_hr)
+           !conc = xx_p(offsetim + ispec_hr)
+           conc = rt_auxvar%immobile(ispec_hr)
            acchr_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -4209,7 +4334,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_nmin > 0) then
-           conc = xx_p(offsetim + ispec_nmin)
+           !conc = xx_p(offsetim + ispec_nmin)
+           conc = rt_auxvar%immobile(ispec_nmin)
            accnmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -4217,7 +4343,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_nimmp > 0) then
-           conc = xx_p(offsetim + ispec_nimmp)
+           !conc = xx_p(offsetim + ispec_nimmp)
+           conc = rt_auxvar%immobile(ispec_nimmp)
            accnimmp_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -4226,7 +4353,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_nimm > 0) then
-           conc = xx_p(offsetim + ispec_nimm)
+           !conc = xx_p(offsetim + ispec_nimm)
+           conc = rt_auxvar%immobile(ispec_nimm)
            accnimm_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -4235,7 +4363,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_ngasmin > 0) then
-           conc = xx_p(offsetim + ispec_ngasmin)
+           !conc = xx_p(offsetim + ispec_ngasmin)
+           conc = rt_auxvar%immobile(ispec_ngasmin)
            accngasmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -4243,7 +4372,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_ngasnitr > 0) then
-           conc = xx_p(offsetim + ispec_ngasnitr)
+           !conc = xx_p(offsetim + ispec_ngasnitr)
+           conc = rt_auxvar%immobile(ispec_ngasnitr)
            accngasnitr_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -4251,7 +4381,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_ngasdeni > 0) then
-           conc = xx_p(offsetim + ispec_ngasdeni)
+           !conc = xx_p(offsetim + ispec_ngasdeni)
+           conc = rt_auxvar%immobile(ispec_ngasdeni)
            accngasdeni_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -4340,7 +4471,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
 
     !-----------------------------------------------------------------
-    ! (iv) pass the 'pf' vecs to 'clm' vecs, which then can be passed to CLMCN
+    ! (iv) pass the '_pfp' vecs to '_clms' vecs, which then can be passed to CLMCN
     ! (implemented in 'clm_pflotran_interfaceMod'
 
     if (ispec_lit1c > 0) then

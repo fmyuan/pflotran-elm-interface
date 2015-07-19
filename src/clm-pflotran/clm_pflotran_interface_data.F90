@@ -56,6 +56,8 @@ module clm_pflotran_interface_data
   Vec :: area_subsurf_clms ! seq vec
 
   ! Area of top face of PF cells (in 3D) (note: a PF cell has faces (facets) of top/bottom/east/west/south/north)
+  Vec :: area_top_face_clmp ! mpi vec
+  Vec :: area_top_face_pfs  ! seq vec
   Vec :: area_top_face_pfp  ! mpi vec
   Vec :: area_top_face_clms ! seq vec
 
@@ -594,6 +596,8 @@ contains
     clm_pf_idata%pcwmax_clms   = 0
     clm_pf_idata%effporosity_clms = 0
 
+    clm_pf_idata%area_top_face_clmp = 0
+    clm_pf_idata%area_top_face_pfs  = 0
     clm_pf_idata%area_top_face_pfp  = 0
     clm_pf_idata%area_top_face_clms = 0
 
@@ -747,7 +751,7 @@ contains
     ! PFLOTRAN(seq)
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%zsoi_pfs,ierr)                   ! 3D Subsurface CLM
     call VecSet(clm_pf_idata%zsoi_pfs,0.d0,ierr)
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%area_subsurf_pfs,ierr)           ! 2D top-cells of 3D Subsurface CLM
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dtop,clm_pf_idata%area_subsurf_pfs,ierr)         ! 2D top-cells of 3D Subsurface CLM
     call VecSet(clm_pf_idata%area_subsurf_pfs,0.d0,ierr)
 
 
@@ -755,12 +759,12 @@ contains
     ! PFLOTRAN(mpi)
     call VecCreateMPI(mycomm,clm_pf_idata%nlpf_sub,PETSC_DECIDE,clm_pf_idata%zsoi_pfp,ierr)               ! 3D Subsurface PFLOTRAN
     call VecSet(clm_pf_idata%zsoi_pfp,0.d0,ierr)
-    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_2dtop,PETSC_DECIDE,clm_pf_idata%area_subsurf_pfp,ierr)    ! 2D top-cells of 3D Subsurface PFLOTRAN
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_2dtop,PETSC_DECIDE,clm_pf_idata%area_subsurf_pfp,ierr)     ! 2D top-cells of 3D Subsurface PFLOTRAN
     call VecSet(clm_pf_idata%area_subsurf_pfp,0.d0,ierr)
     ! CLM(seq)
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_sub,clm_pf_idata%zsoi_clms,ierr)                 ! 3D Subsurface CLM
     call VecSet(clm_pf_idata%zsoi_clms,0.d0,ierr)
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_sub,clm_pf_idata%area_subsurf_clms,ierr)        ! 2D top-cells of 3D Subsurface CLM
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_2dtop,clm_pf_idata%area_subsurf_clms,ierr)       ! 2D top-cells of 3D Subsurface CLM
     call VecSet(clm_pf_idata%area_subsurf_clms,0.d0,ierr)
 
 
@@ -770,6 +774,8 @@ contains
     !
 
     ! (by copying) Create MPI Vectors for CLM ---------------------------------
+
+    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%area_top_face_clmp,ierr)
 
     ! soil physical properties (3D)
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%hksat_x_clmp,ierr)
@@ -817,6 +823,8 @@ contains
     ! (by copying) Create Seq. Vectors for PFLOTRAN  ----------------------
 
     ! 3-D
+    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%area_top_face_pfs,ierr)
+
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%hksat_x_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%hksat_y_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%hksat_z_pfs,ierr)
@@ -1143,6 +1151,10 @@ contains
     if(clm_pf_idata%area_subsurf_clms  /= 0) &
       call VecDestroy(clm_pf_idata%area_subsurf_clms,ierr)
 
+    if(clm_pf_idata%area_top_face_clmp  /= 0) &
+      call VecDestroy(clm_pf_idata%area_top_face_clmp,ierr)
+    if(clm_pf_idata%area_top_face_pfs  /= 0) &
+      call VecDestroy(clm_pf_idata%area_top_face_pfs,ierr)
     if(clm_pf_idata%area_top_face_pfp  /= 0) &
       call VecDestroy(clm_pf_idata%area_top_face_pfp,ierr)
     if(clm_pf_idata%area_top_face_clms  /= 0) &
