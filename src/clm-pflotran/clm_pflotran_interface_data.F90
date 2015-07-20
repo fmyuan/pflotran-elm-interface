@@ -725,14 +725,12 @@ contains
   ! 
   ! Author: Gautam Bisht, ORNL
   ! Date: 2011
-  ! 
+  ! Revised by Fengming Yuan
   
     implicit none
     
     PetscErrorCode :: ierr
     PetscMPIInt    :: mycomm, rank
-    PetscReal      :: zero = 0.0d0
-    Vec :: vec_test
 
     call MPI_Comm_rank(mycomm,rank, ierr)
 
