@@ -95,10 +95,10 @@ module pflotran_clm_main_module
   character(len=MAXWORDLENGTH):: name_plantno3uptake = "Plantno3uptake"
 
   PetscInt :: ispec_hr, ispec_nmin, ispec_nimmp, ispec_nimm
-  character(len=MAXWORDLENGTH):: name_hr   = "HRimm"
-  character(len=MAXWORDLENGTH):: name_nmin = "nmin"
-  character(len=MAXWORDLENGTH):: name_nimmp= "nimmp"
-  character(len=MAXWORDLENGTH):: name_nimm = "nimm"
+  character(len=MAXWORDLENGTH):: name_hr    = "HRimm"
+  character(len=MAXWORDLENGTH):: name_nmin  = "Nmin"
+  character(len=MAXWORDLENGTH):: name_nimmp = "Nimmp"
+  character(len=MAXWORDLENGTH):: name_nimm  = "Nimm"
 
   PetscInt :: ispec_ngasmin, ispec_ngasnitr, ispec_ngasdeni
   character(len=MAXWORDLENGTH):: name_ngasmin = "NGASmin"
@@ -3307,7 +3307,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       write(pflotran_model%option%myrank+200,*) 'checking bgc-mass-rate - pflotran_model: ', &
         'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'rate_nh4_pfs(ghosted_id)=',rate_pf_loc(ghosted_id), &
-        'masstransfer_nh4_predataset(local_id)=',cur_mass_transfer%dataset%rarray(local_id)
+        'masstransfer_nh4_predataset(local_id)=',cur_mass_transfer%dataset%rarray(local_id)/volume_p(local_id)
 #endif
 
                cur_mass_transfer%dataset%rarray(local_id) = &
@@ -3728,7 +3728,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscScalar, pointer :: array_pfp(:), array_clms(:)
     PetscInt             :: j, k, vec_offset
 
-    PetscReal, parameter :: zeroing_conc = 1.0d-20
+    PetscReal, parameter :: zeroing_conc = 1.0d-21
 
     !-----------------------------------------------------------------------------------------
 
