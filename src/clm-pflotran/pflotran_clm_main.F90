@@ -104,10 +104,10 @@ module pflotran_clm_main_module
   character(len=MAXWORDLENGTH):: name_plantno3uptake = "Plantno3uptake"
 
   PetscInt :: ispec_hr, ispec_nmin, ispec_nimmp, ispec_nimm
-  character(len=MAXWORDLENGTH):: name_hr   = "HRimm"
-  character(len=MAXWORDLENGTH):: name_nmin = "nmin"
-  character(len=MAXWORDLENGTH):: name_nimmp= "nimmp"
-  character(len=MAXWORDLENGTH):: name_nimm = "nimm"
+  character(len=MAXWORDLENGTH):: name_hr    = "HRimm"
+  character(len=MAXWORDLENGTH):: name_nmin  = "Nmin"
+  character(len=MAXWORDLENGTH):: name_nimmp = "Nimmp"
+  character(len=MAXWORDLENGTH):: name_nimm  = "Nimm"
 
   PetscInt :: ispec_ngasmin, ispec_ngasnitr, ispec_ngasdeni
   character(len=MAXWORDLENGTH):: name_ngasmin = "NGASmin"
@@ -2500,6 +2500,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     character(len=MAXWORDLENGTH) :: word
 
     !----------------------------------------
+
     if (pflotran_model%option%ntrandof <= 0) return
 
     select type (simulation => pflotran_model%simulation)
@@ -2660,6 +2661,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
     else
       ispec_nh4sorb  = UNINITIALIZED_INTEGER
+
+      pflotran_model%option%io_buffer = 'CLM N pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+
     endif
     if (ispec_nh4 <= 0) then
           pflotran_model%option%io_buffer = 'CLM inorg. N pool ' // &
@@ -2671,64 +2678,145 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     word = name_no3
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
-    if (ispec_no3 <= 0) then
-          pflotran_model%option%io_buffer = 'CLM inorg. N pool ' // &
-            trim(name_no3) // &
+    if (ispec_no3<=0) then
+      pflotran_model%option%io_buffer = 'CLM N pool ' // &
+            trim(word) // &
             'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
-          call printErrMsg(pflotran_model%option)
+      call printErrMsg(pflotran_model%option)
     endif
-
     !
     ! species for gases
     word = name_co2
     ispec_co2  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_co2<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
+
     word = name_n2
     ispec_n2  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_n2<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
     word = name_n2o
     ispec_n2o = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_n2o<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
     ! CO2 productin from C decomposition reaction network for tracking (immoble species)
     word = name_hr
     ispec_hr = GetImmobileSpeciesIDFromName(word, &
             realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_hr<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
     ! N bgc reaction fluxes for tracking (immoble species)
     word = name_plantndemand
     ispec_plantndemand  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_plantndemand<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
+
     word = name_plantnh4uptake
     ispec_plantnh4uptake  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_plantnh4uptake<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
+
     word = name_plantno3uptake
     ispec_plantno3uptake  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_plantno3uptake<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
     word = name_nmin
     ispec_nmin = GetImmobileSpeciesIDFromName(word, &
             realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_nmin<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
     word = name_nimmp
     ispec_nimmp = GetImmobileSpeciesIDFromName(word, &
             realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_nimmp<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
+
     word = name_nimm
     ispec_nimm = GetImmobileSpeciesIDFromName(word, &
             realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_nimm<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
     word = name_ngasmin
     ispec_ngasmin = GetImmobileSpeciesIDFromName(word, &
            realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_ngasmin<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
     word = name_ngasnitr
     ispec_ngasnitr = GetImmobileSpeciesIDFromName( word, &
            realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_ngasnitr<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
     word = name_ngasdeni
     ispec_ngasdeni = GetImmobileSpeciesIDFromName( word, &
            realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_ngasdeni<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
   end subroutine pflotranModelGetRTspecies
 
@@ -2781,8 +2869,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   ! ************************************************************************** !
   !
   ! pflotranModelSetBgcConc:
-  !  Get CLM concentrations (C, N), converts from CLM units into PFLOTRAN units.
-  !  and set concentrations in PFLOTRAN
+  !  Get CLM concentrations (C, N) and set concentrations in PFLOTRAN
   ! ************************************************************************** !
   subroutine pflotranModelSetBgcConcFromCLM(pflotran_model)
 
@@ -3663,7 +3750,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       write(pflotran_model%option%myrank+200,*) 'checking bgc-mass-rate - pflotran_model: ', &
         'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'rate_nh4_pfs(ghosted_id)=',rate_pf_loc(ghosted_id), &
-        'masstransfer_nh4_predataset(local_id)=',cur_mass_transfer%dataset%rarray(local_id)
+        'masstransfer_nh4_predataset(local_id)=',cur_mass_transfer%dataset%rarray(local_id)/volume_p(local_id)
 #endif
 
                cur_mass_transfer%dataset%rarray(local_id) = &
