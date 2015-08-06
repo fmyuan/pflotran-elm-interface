@@ -21,7 +21,13 @@ module clm_pflotran_interface_data
 
   ! Time invariant data:
 
-  PetscInt :: nzclm_mapped ! num of CLM soil layers that are mapped to/from PFLOTRAN
+  ! num of CLM soil layers that are mapped to/from PFLOTRAN
+  PetscInt :: nzclm_mapped
+
+  ! Soil BGC decomposing pools
+  PetscInt :: ndecomp_pools
+  logical, pointer :: floating_cn_ratio(:)           ! TRUE => pool has fixed C:N ratio
+  character(len=8), pointer :: decomp_pool_name(:)   ! name of pool
 
   ! Number of cells for the 3D subsurface domain
   PetscInt :: nlclm_sub ! num of local clm cells
@@ -405,6 +411,8 @@ contains
 
     clm_pf_idata%nzclm_mapped = 0
 
+    clm_pf_idata%ndecomp_pools = 0
+
     clm_pf_idata%nlclm_sub = 0
     clm_pf_idata%ngclm_sub = 0
     clm_pf_idata%nlpf_sub = 0
@@ -731,6 +739,9 @@ contains
     
     PetscErrorCode :: ierr
     PetscMPIInt    :: mycomm, rank
+
+    allocate(clm_pf_idata%floating_cn_ratio(1:clm_pf_idata%ndecomp_pools))
+    allocate(clm_pf_idata%decomp_pool_name(1:clm_pf_idata%ndecomp_pools))
 
     call MPI_Comm_rank(mycomm,rank, ierr)
 
@@ -1345,6 +1356,10 @@ contains
 
     !
     ! -----------------------------------------------------------------------------------------------------------
+
+    deallocate(clm_pf_idata%floating_cn_ratio)
+    deallocate(clm_pf_idata%decomp_pool_name)
+
     ! soil C/N pools (initial)
     if(clm_pf_idata%decomp_cpools_vr_lit1_clmp /= 0) &
        call VecDestroy(clm_pf_idata%decomp_cpools_vr_lit1_clmp,ierr)
