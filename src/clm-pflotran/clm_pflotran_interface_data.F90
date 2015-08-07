@@ -19,6 +19,11 @@ module clm_pflotran_interface_data
 
   type, public :: clm_pflotran_idata_type
 
+  ! the following constants are for consistently coverting mass and moles btw CLM-CN and PF bgc
+  ! so that mass balance error would not be caused by these
+  PetscReal :: N_molecular_weight
+  PetscReal :: C_molecular_weight
+
   ! Time invariant data:
 
   ! num of CLM soil layers that are mapped to/from PFLOTRAN
@@ -408,6 +413,9 @@ contains
   ! Revised by Fengming Yuan, CCSI-ORNL @May-2015
   
     implicit none
+
+    clm_pf_idata%N_molecular_weight = 14.0067d0
+    clm_pf_idata%C_molecular_weight = 12.0110d0
 
     clm_pf_idata%nzclm_mapped = 0
 

@@ -1046,6 +1046,33 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 #ifdef CLM_PFLOTRAN
   ghosted_id = option%iflag
 
+  ! put an error checking for C/N unit conversion here
+  ! because it may cause CLM-CN mass-balance error due to conversion btw mass (CLM-CN) and mole (PF)
+  temp_real = clm_pf_idata%N_molecular_weight/clm_pf_idata%C_molecular_weight
+  if (abs(temp_real-CN_ratio_mass_to_mol)>1.d-15) then
+     option%io_buffer = 'SomDec: ' // &
+       ' CN_ratio_mass_to_mol convertor in clm_rspfuncs.F90 is NOT matching with that ' // &
+       ' in clm_pflotran_interface_data.F90. ' // &
+       ' It may cause detectable mass blance error in CLM-CN. Please check it.'
+     call printErrMsg(option)
+  end if
+
+  if (abs(clm_pf_idata%C_molecular_weight-C_molecular_weight)>1.d-15) then
+     option%io_buffer = 'SomDec: ' // &
+       ' C_molecular_weight constant in clm_rspfuncs.F90 is NOT matching with that ' // &
+       ' in clm_pflotran_interface_data.F90. ' // &
+       ' It may cause detectable mass blance error in CLM-CN. Please check it.'
+     call printErrMsg(option)
+  end if
+
+  if (abs(clm_pf_idata%N_molecular_weight-N_molecular_weight)>1.d-15) then
+     option%io_buffer = 'SomDec: ' // &
+       ' N_molecular_weight constant in clm_rspfuncs.F90 is NOT matching with that ' // &
+       ' in clm_pflotran_interface_data.F90. ' // &
+       ' It may cause detectable mass blance error in CLM-CN. Please check it.'
+     call printErrMsg(option)
+  end if
+
 #ifdef CLM_PF_DEBUG
 ! for testing data passing
   write(option%fid_out, *) 'ghosted_id=', ghosted_id
