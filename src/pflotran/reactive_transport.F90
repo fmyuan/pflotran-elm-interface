@@ -375,19 +375,13 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
       if (C_p(i) <= dC_p(i)) then
         ratio = abs(C_p(i)/dC_p(i))
         if (ratio < min_ratio) min_ratio = ratio
-
-        ! the following IS a test, i.e., only scale the needed 'dC_p' rather than ALL by 'min_ratio',
-        ! which essentially shut off all reaction and transports, if min_ratio too small.
-        if (ratio<1.d0) then
-          dC_p(i) = dC_p(i)*ratio*0.99d0
-        endif
-      endif
+      end if
     enddo
-    !ratio = min_ratio
+    ratio = min_ratio
     
     ! get global minimum
-    !call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-    !                   MPI_MIN,realization%option%mycomm,ierr)
+    call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                       MPI_MIN,realization%option%mycomm,ierr)
                        
     ! scale if necessary
     if (min_ratio < 1.d0) then
@@ -406,16 +400,16 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
             write(realization%option%fid_out, *)  &
              ' <------ min_ratio @', i, 'cell no.=', floor((i-1.d0)/j), &
             'rt species no. =',i-floor((i-1.d0)/j)*j, '-------------->'
-
-             write(realization%option%fid_out, *) 'i=', i, &
-               'cell_no=',floor((i-1.0d0)/j), &
-               'rt_species_no.=',i-floor((i-1.0d0)/j)*j, &
-               'C_p/dC_p=', ratio, 'C_p=',C_p(i),'dC_p=',dC_p(i)
           endif
+
+          write(realization%option%fid_out, *) 'i=', i, &
+            'cell_no=',floor((i-1.0d0)/j), &
+            'rt_species_no.=',i-floor((i-1.0d0)/j)*j, &
+            'C_p/dC_p=', ratio, 'C_p=',C_p(i),'dC_p=',dC_p(i)
         enddo
         write(realization%option%fid_out, *) '-----DONE: checking scaling factor for RT ----'
 
-        if (ratio<=min_allowable_scale) then
+        if (min_ratio<=min_allowable_scale) then
           write(realization%option%fid_out, *) ' min_ratio IS too small to make sense, '// &
             'which less than an allowable_scale value !'
           write(realization%option%fid_out, *) ' STOP executing ! '
@@ -440,6 +434,16 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
       endif
       ! scale by 0.99 to make the update slightly smaller than the min_ratio
       !dC_p = dC_p*min_ratio*0.99d0
+
+      ! the following IS a test, i.e., only scale the needed 'dC_p' rather than ALL by 'min_ratio',
+      ! which essentially shut off all reaction and transports, if min_ratio too small.
+      do i = 1, n
+        ratio = abs(C_p(i)/dC_p(i))
+        if (ratio<1.d0) then
+          dC_p(i) = dC_p(i)*ratio*0.99d0
+        endif
+      end do
+
       changed = PETSC_TRUE
     endif
     call VecRestoreArrayReadF90(C,C_p,ierr);CHKERRQ(ierr)
