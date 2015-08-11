@@ -344,11 +344,11 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
       ! the following appears troublesome (TODO - checking later on)
       ! symtomps: if both NH4 and NO3 available, the sum is NOT matching with single species of exactly same of total conc.
-      dfnh4_inhibit_no3_dnh4 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_TRUE)  ! over 'dtemp_real'
-      dfnh4_inhibit_no3_dnh4 = dfnh4_inhibit_no3_dnh4*(1.d0/c_no3)                              ! df_dtemp_real * dtemp_real_dnh4
+      !dfnh4_inhibit_no3_dnh4 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_TRUE)  ! over 'dtemp_real'
+      !dfnh4_inhibit_no3_dnh4 = dfnh4_inhibit_no3_dnh4*(1.d0/c_no3)                              ! df_dtemp_real * dtemp_real_dnh4
 
-      dfnh4_inhibit_no3_dno3 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_TRUE)  ! over 'dtemp_real'
-      dfnh4_inhibit_no3_dno3 = dfnh4_inhibit_no3_dno3*(c_nh4/c_no3/c_no3)                       ! df_dtemp_real * dtemp_real_dno3
+      !dfnh4_inhibit_no3_dno3 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_TRUE)  ! over 'dtemp_real'
+      !dfnh4_inhibit_no3_dno3 = dfnh4_inhibit_no3_dno3*(c_nh4/c_no3/c_no3)                       ! df_dtemp_real * dtemp_real_dno3
 
     else
       if (c_nh4>this%x0eps_nh4 .and. c_no3<=this%x0eps_no3) then

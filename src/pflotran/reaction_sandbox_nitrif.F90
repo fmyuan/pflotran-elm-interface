@@ -414,7 +414,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
                  rt_auxvar%sec_act_coef(abs(reaction%species_idx%h_ion_id)))
       endif
     endif
-    f_ph = 0.56 + atan(rpi * 0.45 * (-5.0 + ph))/rpi
+    f_ph = 0.56d0 + atan(rpi * 0.45d0 * (-5.0d0 + ph))/rpi
 
     if(f_t > 0.0d0 .and. f_w > 0.0d0 .and. f_ph > 0.0d0) then
        f_t  = min(f_t, 1.0d0)
@@ -440,7 +440,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
            ! d(rate_nh4))/d(nh4), in which,
            ! rate(nh4) = (c_nh4*feps0) * (1.0-exp(-0.0105d0*c_nh4*m_2_ug_per_g))
            temp_real = (c_nh4*dfeps0_dx + feps0) * &                   !d(c_nh4*feps0)/d(nh4)
-                       (1.0 - exp(-0.0105d0*c_nh4_ugg))
+                       (1.0d0 - exp(-0.0105d0*c_nh4_ugg))
 
            temp_real = temp_real + (c_nh4*feps0) *  &
                        0.0105d0*M_2_ug_per_g*exp(-0.0105d0*c_nh4_ugg)  !d(1.0-exp(-0.0105d0*c_nh4*m_2_ug_per_g))/d(nh4)
