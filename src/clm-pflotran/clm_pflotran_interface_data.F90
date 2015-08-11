@@ -26,7 +26,8 @@ module clm_pflotran_interface_data
 
   ! Time invariant data:
 
-  PetscInt :: nzclm_mapped ! num of CLM soil layers that are mapped to/from PFLOTRAN
+  ! num of CLM soil layers that are mapped to/from PFLOTRAN
+  PetscInt :: nzclm_mapped
 
   ! Soil BGC decomposing pools
   PetscInt :: ndecomp_pools

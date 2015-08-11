@@ -342,15 +342,14 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
       temp_real = c_nh4/c_no3
       fnh4_inhibit_no3 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_FALSE)
 
-      ! the following appears troublesome, turning off temporarily (TODO - checking later on)
+      ! the following appears troublesome (TODO - checking later on)
+      ! symtomps: if both NH4 and NO3 available, the sum is NOT matching with single species of exactly same of total conc.
       !dfnh4_inhibit_no3_dnh4 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_TRUE)  ! over 'dtemp_real'
       !dfnh4_inhibit_no3_dnh4 = dfnh4_inhibit_no3_dnh4*(1.d0/c_no3)                              ! df_dtemp_real * dtemp_real_dnh4
 
       !dfnh4_inhibit_no3_dno3 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_TRUE)  ! over 'dtemp_real'
       !dfnh4_inhibit_no3_dno3 = dfnh4_inhibit_no3_dno3*(c_nh4/c_no3/c_no3)                       ! df_dtemp_real * dtemp_real_dno3
 
-      dfnh4_inhibit_no3_dnh4 = 0.d0
-      dfnh4_inhibit_no3_dno3 = 0.d0
     else
       if (c_nh4>this%x0eps_nh4 .and. c_no3<=this%x0eps_no3) then
         fnh4_inhibit_no3 = 1.0d0
@@ -532,10 +531,15 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
       Jacobian(ires_plantn,ires_nh4) = Jacobian(ires_plantn,ires_nh4) - &
         dnrate_nh4_dnh4
 
+      if (this%ispec_plantnh4uptake>0) then   ! for tracking
+        Jacobian(ires_plantnh4uptake,ires_nh4) = Jacobian(ires_plantnh4uptake,ires_nh4) - &
+          dnrate_nh4_dnh4
+      endif
+
       !if(this%ispec_no3 > 0) then
       !  Jacobian(ires_nh4,ires_no3)=Jacobian(ires_nh4,ires_no3) - &       ! may need a checking of the sign (+/-) here
       !    dnrate_nh4_dno3 * &
-      !    rt_auxvar%aqueous%dtotal(this%ispec_nh4,this%ispec_no3,iphase)
+      !    rt_auxvar%aqueous%dtotal(this%ispec_nh4,this%ispec_no3,iphase)  ! this actually is 0
       !endif
 
     endif ! if(compute_derivative)
@@ -582,6 +586,11 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
 
       Jacobian(ires_plantn,ires_no3) = Jacobian(ires_plantn,ires_no3) - &
         dnrate_no3_dno3
+
+      if (this%ispec_plantno3uptake>0) then   ! for tracking
+        Jacobian(ires_plantno3uptake,ires_no3) = Jacobian(ires_plantno3uptake,ires_no3) - &
+          dnrate_no3_dno3
+      endif
 
       !if(this%ispec_nh4 > 0) then
       !  Jacobian(ires_no3,ires_nh4)=Jacobian(ires_no3,ires_nh4) - &      ! may need a checking of sign (+/-) here
