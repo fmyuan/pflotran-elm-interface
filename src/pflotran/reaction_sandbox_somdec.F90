@@ -1041,6 +1041,33 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 #ifdef CLM_PFLOTRAN
   ghosted_id = option%iflag
 
+  ! put an error checking for C/N unit conversion here
+  ! because it may cause CLM-CN mass-balance error due to conversion btw mass (CLM-CN) and mole (PF)
+  temp_real = clm_pf_idata%N_molecular_weight/clm_pf_idata%C_molecular_weight
+  if (abs(temp_real-CN_ratio_mass_to_mol)>1.d-15) then
+     option%io_buffer = 'SomDec: ' // &
+       ' CN_ratio_mass_to_mol convertor in clm_rspfuncs.F90 is NOT matching with that ' // &
+       ' in clm_pflotran_interface_data.F90. ' // &
+       ' It may cause detectable mass blance error in CLM-CN. Please check it.'
+     call printErrMsg(option)
+  end if
+
+  if (abs(clm_pf_idata%C_molecular_weight-C_molecular_weight)>1.d-15) then
+     option%io_buffer = 'SomDec: ' // &
+       ' C_molecular_weight constant in clm_rspfuncs.F90 is NOT matching with that ' // &
+       ' in clm_pflotran_interface_data.F90. ' // &
+       ' It may cause detectable mass blance error in CLM-CN. Please check it.'
+     call printErrMsg(option)
+  end if
+
+  if (abs(clm_pf_idata%N_molecular_weight-N_molecular_weight)>1.d-15) then
+     option%io_buffer = 'SomDec: ' // &
+       ' N_molecular_weight constant in clm_rspfuncs.F90 is NOT matching with that ' // &
+       ' in clm_pflotran_interface_data.F90. ' // &
+       ' It may cause detectable mass blance error in CLM-CN. Please check it.'
+     call printErrMsg(option)
+  end if
+
 #ifdef CLM_PF_DEBUG
 ! for testing data passing
   write(option%fid_out, *) 'ghosted_id=', ghosted_id
@@ -1343,14 +1370,14 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ! in the following, '2.1' multiplier is chosen because that is slightly larger(5% to avoid numerical issue) than '2.0',
       ! which should be the previous-timestep before reaching the 'option%dt_min'
       ! (the time-cut used in PF is like dt=0.5*dt, when cutting)
-      !dtmin = 2.1d0*option%dt_min
-      dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
+      dtmin = 2.1d0*option%dt_min
+      !dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
 
       if (crate_uc*this%mineral_n_stoich(irxn) < 0.d0) then
         !
         nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin   ! unit: moles
         if (nratecap*fnh4_inhibit_no3 > c_nh4*volume) then       ! c_nh4 unit: moles/m3 bulk soil
-          ! assuming that monod type reduction used and 'nratecap' must be reduced to 'c_nh4', i.e.
+          ! assuming that monod type reduction used and 'nratecap' must be reduced to 'c_nh4*volume', i.e.
           ! c_nh4*volume/dt = nratecap*fnh4_inhibit_no3/dt * (c_nh4*volume/(c_nh4*volume+c0))
           ! then, c0 = nratecap*fnh4_inhibit_no3 - c_nh4*volume (this is the 'half-saturation' term used above)
           fnratecap = funcMonod(c_nh4*volume, nratecap*fnh4_inhibit_no3-c_nh4*volume, PETSC_FALSE)
@@ -2032,13 +2059,13 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       dtmin = 2.1d0*option%dt_min
       !dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dt_min' may be accelerating the timing, but may not be good to mulitple consummers
 
-      nratecap = temp_real*this%n2o_frac_mineralization*dtmin*net_nmin_rate
-      if (nratecap > c_nh4) then
-         ! assuming that monod type reduction used and 'nratecap' must be reduced to 'c_nh4', i.e.
-         ! c_nh4/dt = nratecap*fnh4_inhibit_no3/dt * (c_nh4/(c_nh4+c0))
-         ! then, c0 = nratecap*fnh4_inhibit_no3 - c_nh4 (this is the 'half-saturation' term used above)
-         fnratecap = funcMonod(c_nh4, nratecap*fnh4_inhibit_no3-c_nh4, PETSC_FALSE)
-         dfnratecap_dnh4 = funcMonod(c_nh4, nratecap*fnh4_inhibit_no3-c_nh4, PETSC_TRUE)
+      nratecap = temp_real*this%n2o_frac_mineralization*net_nmin_rate*dtmin        ! moles
+      if (nratecap > c_nh4*volume) then
+         ! assuming that monod type reduction used and 'nratecap' must be reduced to 'c_nh4*volume', i.e.
+         ! c_nh4*volume/dt = nratecap/dt * (c_nh4*volume/(c_nh4*volume+c0))
+         ! then, c0 = nratecap - c_nh4*volume (this is the 'half-saturation' term used above)
+         fnratecap = funcMonod(c_nh4*volume, nratecap-c_nh4*volume, PETSC_FALSE)
+         dfnratecap_dnh4 = funcMonod(c_nh4*volume, nratecap-c_nh4*volume, PETSC_TRUE)
       else
          fnratecap       = 1.d0
          dfnratecap_dnh4 = 0.d0
@@ -2080,18 +2107,27 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   endif ! end of 'species_id_n2o > 0'
 
-#ifdef DEBUG
+!#ifdef DEBUG
   do ires=1, reaction%ncomp
     temp_real = Residual(ires)
 
     if (abs(temp_real) > huge(temp_real)) then
       write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
-      write(option%fid_out, *) 'Reaction Sandbox: DECOMPOSITION'
+      write(option%fid_out, *) 'Reaction Sandbox: SOMDEC'
       option%io_buffer = ' checking infinity of Residuals matrix  @ SomDecReact '
       call printErrMsg(option)
     endif
+
+    if (temp_real /= temp_real) then
+      write(option%fid_out, *) 'NaN of Residual matrix checking at ires=', ires
+      write(option%fid_out, *) 'Reaction Sandbox: SOMDEC'
+      option%io_buffer = ' checking NaN of Residuals matrix  @ SomDecReact '
+
+      call printErrMsg(option)
+    endif
+
   enddo
-#endif
+!#endif
 
 end subroutine SomDecReact
 

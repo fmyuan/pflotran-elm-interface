@@ -24,11 +24,8 @@ module pflotran_clm_main_module
     type(option_type),      pointer :: option
     PetscReal :: pause_time_1
     PetscReal :: pause_time_2
-    !type(inside_each_overlapped_cell), pointer :: pf_cells(:)
-    !type(inside_each_overlapped_cell), pointer :: clm_cells(:)
     type(mapping_type),                pointer :: map_clm_sub_to_pf_sub
     type(mapping_type),                pointer :: map_clm_2dtop_to_pf_2dtop
-    !type(mapping_type),                pointer :: map_clm_srf_to_pf_srf
     type(mapping_type),                pointer :: map_pf_sub_to_clm_sub
     type(mapping_type),                pointer :: map_pf_2dtop_to_clm_2dtop
 
@@ -39,7 +36,7 @@ module pflotran_clm_main_module
     PetscInt :: ngclm
 
   end type pflotran_model_type
-
+  !
   public::pflotranModelCreate,               &
        ! PF running
        pflotranModelStepperRunInit,          &
@@ -49,6 +46,8 @@ module pflotran_clm_main_module
        pflotranModelStepperRunFinalize,      &
        pflotranModelStepperCheckpoint,       &
        pflotranModelDestroy,                 &
+       ! soil domain
+       pflotranModelSetSoilDimension,        &
        ! Soil properties
        pflotranModelSetSoilProp,              &
        pflotranModelResetSoilPorosityFromCLM, &
@@ -62,6 +61,7 @@ module pflotran_clm_main_module
        pflotranModelGetTemperatureFromPF,       &
        pflotranModelGetSaturationFromPF,        &
        ! BGC
+       pflotranModelGetRTspecies,               &
        pflotranModelSetBGCRatesFromCLM,         &
        pflotranModelUpdateAqConcFromCLM,        &
        pflotranModelUpdateAqGasesFromCLM,       &
@@ -72,8 +72,7 @@ module pflotran_clm_main_module
 
   private :: &
        pflotranModelInsertWaypoint,          &
-       pflotranModelDeleteWaypoint,          &
-       pflotranModelGetRTspecies
+       pflotranModelDeleteWaypoint
 
 !------------------------------------------------------------
   !NOTES: The following is what PF bgc right now using for CLM-PFLOTRAN coupling
@@ -85,14 +84,14 @@ module pflotran_clm_main_module
   PetscInt:: ispec_lit1n, ispec_lit2n, ispec_lit3n, ispec_cwdn
   PetscInt:: ispec_som1c, ispec_som2c, ispec_som3c, ispec_som4c
   PetscInt:: ispec_som1n, ispec_som2n, ispec_som3n, ispec_som4n
-  character(len=MAXWORDLENGTH):: name_lit1 = "Labile"           ! appending 'C' or 'N' for real PF species name
-  character(len=MAXWORDLENGTH):: name_lit2 = "Cellulose"
-  character(len=MAXWORDLENGTH):: name_lit3 = "Lignin"
+  character(len=MAXWORDLENGTH):: name_lit1 = "LITR1"           ! appending 'C' or 'N' for real PF species name
+  character(len=MAXWORDLENGTH):: name_lit2 = "LITR2"
+  character(len=MAXWORDLENGTH):: name_lit3 = "LITR3"
   character(len=MAXWORDLENGTH):: name_cwd  = "CWD"
-  character(len=MAXWORDLENGTH):: name_som1 = "SOM1"
-  character(len=MAXWORDLENGTH):: name_som2 = "SOM2"
-  character(len=MAXWORDLENGTH):: name_som3 = "SOM3"
-  character(len=MAXWORDLENGTH):: name_som4 = "SOM4"
+  character(len=MAXWORDLENGTH):: name_som1 = "SOIL1"
+  character(len=MAXWORDLENGTH):: name_som2 = "SOIL2"
+  character(len=MAXWORDLENGTH):: name_som3 = "SOIL3"
+  character(len=MAXWORDLENGTH):: name_som4 = "SOIL4"
 
   PetscInt:: ispec_nh4, ispec_no3, ispec_nh4sorb
   character(len=MAXWORDLENGTH):: name_nh4     = "NH4+"
@@ -105,10 +104,10 @@ module pflotran_clm_main_module
   character(len=MAXWORDLENGTH):: name_plantno3uptake = "Plantno3uptake"
 
   PetscInt :: ispec_hr, ispec_nmin, ispec_nimmp, ispec_nimm
-  character(len=MAXWORDLENGTH):: name_hr   = "HRimm"
-  character(len=MAXWORDLENGTH):: name_nmin = "nmin"
-  character(len=MAXWORDLENGTH):: name_nimmp= "nimmp"
-  character(len=MAXWORDLENGTH):: name_nimm = "nimm"
+  character(len=MAXWORDLENGTH):: name_hr    = "HRimm"
+  character(len=MAXWORDLENGTH):: name_nmin  = "Nmin"
+  character(len=MAXWORDLENGTH):: name_nimmp = "Nimmp"
+  character(len=MAXWORDLENGTH):: name_nimm  = "Nimm"
 
   PetscInt :: ispec_ngasmin, ispec_ngasnitr, ispec_ngasdeni
   character(len=MAXWORDLENGTH):: name_ngasmin = "NGASmin"
@@ -158,20 +157,9 @@ contains
     PetscInt, intent(in) :: mpicomm
     character(len=256), intent(in) :: pflotran_prefix
 
-    !type(pflotran_model_type), pointer :: pflotranModelCreate
+    type(pflotran_model_type),      pointer :: model
 
-    type(pflotran_model_type),   pointer, intent(inout) :: model
-
-    type(option_type),           pointer :: option
-    class(simulation_base_type), pointer :: simulation
-    type(multi_simulation_type), pointer :: multisimulation
-
-    !----------------------------------------------
-    !allocate(model)
-
-    !option => model%option
-    !simulation => model%simulation
-    !multisimulation => model%multisimulation
+    allocate(model)
 
     nullify(model%simulation)
     nullify(model%multisimulation)
@@ -185,9 +173,9 @@ contains
     ! prefix string. If the driver wants to use pflotran.in, then it
     ! should explicitly request that with 'pflotran'.
     if (len(trim(pflotran_prefix)) > 1) then
-      model%option%input_prefix   = trim(pflotran_prefix)
+      model%option%input_prefix = trim(pflotran_prefix)
       model%option%input_filename = trim(model%option%input_prefix) // '.in'
-      model%option%global_prefix  = model%option%input_prefix
+      model%option%global_prefix = model%option%input_prefix
     else
       model%option%io_buffer = 'The external driver must provide the ' // &
            'pflotran input file prefix.'
@@ -196,12 +184,10 @@ contains
 
     call OptionInitPetsc(model%option)
     if (model%option%myrank == model%option%io_rank .and. &
-       model%option%print_to_screen) then
+        model%option%print_to_screen) then
       call PrintProvenanceToScreen()
     end if
     call PFLOTRANInitializePostPetsc(model%simulation, model%multisimulation, model%option)
-
-    call model%simulation%InitializeRun()   ! if called here, seems NO need to call StepperRunInit().
 
     ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
     ! setup on mpich/mac. should be generally ok, but may need an
@@ -211,12 +197,8 @@ contains
     model%pause_time_1 = -1.0d0
     model%pause_time_2 = -1.0d0
 
-    ! read-in RT species index and names for use in this module.
-    call pflotranModelGetRTspecies(model)
 
   end subroutine pflotranModelCreate
-
-
 
 ! ************************************************************************** !
 
@@ -779,8 +761,6 @@ contains
     PetscScalar, pointer :: sr_pf_loc(:)      ! Clapp and Hornberger "sr"
     PetscScalar, pointer :: pcwmax_pf_loc(:)  ! Clapp and Hornberger "pcwmax"
 
-    PetscScalar, pointer :: zsoi_pf_loc(:)    ! soil depth (m)
-
     den = 998.2d0       ! [kg/m^3]  @ 20 degC
     vis = 0.001002d0    ! [N s/m^2] @ 20 degC
     grav =GRAVITY_CONSTANT       ! [m/S^2]
@@ -876,11 +856,6 @@ contains
                                     clm_pf_idata%bulkdensity_dry_clmp, &
                                     clm_pf_idata%bulkdensity_dry_pfs)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%zsoi_clmp, &
-                                    clm_pf_idata%zsoi_pfs)
-
     call VecGetArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%hksat_y_pfs, hksat_y_pf_loc, ierr)
@@ -901,8 +876,6 @@ contains
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%pcwmax_pfs, pcwmax_pf_loc,  ierr)
     CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
-    CHKERRQ(ierr)
 
     call VecGetArrayF90(field%porosity0, porosity_loc_p, ierr)
     CHKERRQ(ierr)
@@ -922,7 +895,7 @@ contains
       local_id = grid%nG2L(ghosted_id)
       if (ghosted_id < 0 .or. local_id <= 0) cycle
       if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id) <= 0) cycle
+        if (patch%imat(ghosted_id) < 0) cycle
       endif
 
       !(TODO) need a better way to generate MVG parameters from CLM inputs
@@ -988,6 +961,23 @@ contains
       endif
 
       porosity_loc_p(local_id) = watsat_pf_loc(ghosted_id)
+
+#ifdef CLM_PF_DEBUG
+      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (watsat):
+      !  (turn it on with similar output in clm_pflotran_interfaceMod.F90 and reaction_sandbox_denitrification.F90)
+      ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
+      !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
+      !              (2) data-passing IS by from 'ghosted_id' to PF-internal (field%)-vec 'local_id';
+      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model prior to set soil properties: ', &
+        'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'pfp_porosity(local_id)=',porosity_loc_p(local_id), &
+        'clms_watsat(ghosted_id)=',watsat_pf_loc(ghosted_id), &
+        'saturation_function_alpha=', saturation_function%alpha, &
+        'saturation_function_lambda=', saturation_function%lambda, &
+        'saturation_function_sr=', saturation_function%sr(1), &
+        'saturation_function_pcwmax=', saturation_function%pcwmax
+#endif
 
     enddo
 
@@ -1058,7 +1048,7 @@ contains
   !
   ! Author: Gautam Bisht
   ! Date: 11/22/2011
-  !
+  ! Revised by Fengming YUAN
 
     use clm_pflotran_interface_data
     use Connection_module
@@ -1143,6 +1133,14 @@ contains
           ghosted_id = grid%nL2G(local_id)
 
           source_sink%flow_aux_real_var(press_dof,iconn) = qflx_pf_loc(ghosted_id)
+
+#ifdef CLM_PF_DEBUG
+      ! the following checking shows data passing IS from 'ghosted_id' to 'iconn (local_id)' (multiple processors)
+      write(pflotran_model%option%myrank+200,*) 'checking H-et ss. -pf_model-UpdateSrcSink:', &
+        'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'iconn=',iconn, 'qflx_pfs_loc(iconn)=',qflx_pf_loc(iconn), &
+        'qflx_pfs_loc(ghosted_id)=',qflx_pf_loc(ghosted_id)
+#endif
 
         enddo
       endif
@@ -1274,7 +1272,6 @@ contains
 
   end subroutine pflotranModelUpdateSubsurfTCond
 
-
 ! ************************************************************************** !
 
   subroutine pflotranModelGetSaturationFromPF(pflotran_model)
@@ -1387,6 +1384,16 @@ contains
 
       ! PF's field porosity pass to clm-pf-idata and saved
       porosity_loc_pfp(local_id) = porosity0_loc_p(local_id)
+
+#ifdef CLM_PF_DEBUG
+! F.-M. Yuan: the following check proves DATA-passing from PF to CLM MUST BE done by ghosted_id --> local_id
+! if passing from 'global_auxvars'
+write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id,  &
+        'sat_globalvar(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
+        'idata%sat_pfp(local_id)=',soillsat_pf_p(local_id)
+#endif
+
 
       if (pflotran_model%option%iflowmode == RICHARDS_MODE) then
         soilpsi_pf_p(local_id) = rich_auxvars(ghosted_id)%pc
@@ -1517,7 +1524,6 @@ contains
         if (pflotran_model%option%ntrandof .le. 0) then
             pflotran_model%option%io_buffer='pflotranModelGetTemperatureFromPF ' // &
              'implmentation in this mode is not supported!'
-
             call printErrMsg(pflotran_model%option)
         endif
     end select
@@ -1543,6 +1549,207 @@ contains
 
 
 ! ************************************************************************** !
+
+  subroutine pflotranModelDestroy(model)
+  ! 
+  ! Deallocates the pflotranModel object
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  ! 
+
+    use Factory_PFLOTRAN_module, only : PFLOTRANFinalize
+    use Option_module, only : OptionFinalize
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: model
+
+    ! FIXME(bja, 2013-07) none of the mapping information appears to
+    ! be cleaned up, so we are leaking memory....
+
+    call model%simulation%FinalizeRun()
+    !call model%simulation%Strip()    ! this causes petsc error of seq. fault issue, although doesn't matter.
+    if(associated(model%simulation)) deallocate(model%simulation)
+    nullify(model%simulation)
+
+    call PFLOTRANFinalize(model%option)
+    call OptionFinalize(model%option)
+
+    call CLMPFLOTRANIDataDestroy()
+
+    if (associated(model%map_clm_sub_to_pf_sub)) &
+      call MappingDestroy(model%map_clm_sub_to_pf_sub)
+    if (associated(model%map_clm_2dtop_to_pf_2dtop)) &
+      call MappingDestroy(model%map_clm_2dtop_to_pf_2dtop)
+    if (associated(model%map_clm_2dbot_to_pf_2dbot)) &
+      call MappingDestroy(model%map_clm_2dbot_to_pf_2dbot)
+
+    if (associated(model%map_pf_sub_to_clm_sub)) &
+      call MappingDestroy(model%map_pf_sub_to_clm_sub)
+    if (associated(model%map_pf_2dtop_to_clm_2dtop)) &
+      call MappingDestroy(model%map_pf_2dtop_to_clm_2dtop)
+    if (associated(model%map_pf_2dbot_to_clm_2dbot)) &
+      call MappingDestroy(model%map_pf_2dbot_to_clm_2dbot)
+
+    if (associated(model)) deallocate(model)
+    nullify(model)
+
+  end subroutine pflotranModelDestroy
+
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++!
+!
+! THE FOLLOWING BLOCKS OF CODES ARE FOR CLM-PFLOTRAN BGC COUPLING
+!
+!
+! ************************************************************************** !
+  !
+  ! pflotranModelUpdateFinalWaypoint:
+  !  Get CLM final timestep and converts it to PFLOTRAN final way point.
+  !  And also set an option for turning on/off PF printing
+! ************************************************************************** !
+
+  subroutine pflotranModelUpdateFinalWaypoint(model, waypoint_time, isprintout)
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+
+    use Realization_class, only : realization_type, &
+      RealizationAddWaypointsToList
+    use Surface_Realization_class, only : surface_realization_type, &
+      SurfRealizAddWaypointsToList
+
+    use Waypoint_module, only : waypoint_type, WaypointCreate, &
+      WaypointDeleteFromList, WaypointInsertInList, &
+      WaypointListFillIn, WaypointListRemoveExtraWaypnts
+    use Units_module, only : UnitsConvertToInternal
+    use Option_module, only : printErrMsg
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: model
+    type(waypoint_type), pointer       :: waypoint, waypoint1, waypoint2
+    PetscReal, intent(in)              :: waypoint_time
+    PetscBool, intent(in)              :: isprintout
+    character(len=MAXWORDLENGTH)       :: word
+
+    class(realization_type), pointer    :: realization
+    class(surface_realization_type), pointer :: surf_realization
+
+!-------------------------------------------------------------------------
+    select type (simulation => model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+         nullify(surf_realization)
+      class is (surface_simulation_type)
+         nullify(realization)
+         surf_realization => simulation%surf_realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+         surf_realization => simulation%surf_realization
+      class default
+         nullify(realization)
+         nullify(surf_realization)
+         model%option%io_buffer = "pflotranModelUPdateFinalWaypoint is " // &
+              "Not support in this mode."
+         call printErrMsg(model%option)
+    end select
+
+    ! new final waypoint
+    word = 's'
+    waypoint1 => WaypointCreate()
+    waypoint1%time          = waypoint_time * UnitsConvertToInternal(word, model%option)
+    waypoint1%print_output  = PETSC_TRUE
+    waypoint1%final         = PETSC_TRUE
+    waypoint1%dt_max        = waypoint_time * UnitsConvertToInternal(word, model%option)
+
+    ! update subsurface-realization final waypoint
+    if (associated(realization)) then
+      ! remove original final waypoint
+      waypoint => realization%waypoint_list%first
+      do
+        if (.not.associated(waypoint)) exit
+        if (waypoint%final) then
+          waypoint%final = PETSC_FALSE
+          exit
+
+        else
+           waypoint => waypoint%next
+        endif
+      enddo
+
+      ! insert new final waypoint
+      call WaypointInsertInList(waypoint1, realization%waypoint_list)
+      call RealizationAddWaypointsToList(realization)
+      call WaypointListFillIn(model%option,realization%waypoint_list)
+      call WaypointListRemoveExtraWaypnts(model%option,realization%waypoint_list)
+
+      ! turn off the 'print out' if required from CLM
+      if(.not.isprintout) then
+        if (model%option%io_rank == model%option%myrank) then
+          write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
+            'for subsurface flow from PFLOTRAN IS OFF! '
+        endif
+        waypoint => realization%waypoint_list%first
+        do
+          if (.not.associated(waypoint)) exit
+          waypoint%print_output = PETSC_FALSE
+          waypoint => waypoint%next
+        enddo
+      endif
+
+    endif  !if (associated(realization))
+
+    ! update surface-realization final waypoint
+    if (associated(surf_realization)) then
+      ! remove original final waypoint
+      waypoint => surf_realization%waypoint_list%first
+      do
+        if (.not.associated(waypoint)) exit
+        if (waypoint%final) then
+          waypoint%final = PETSC_FALSE
+          exit
+
+        else
+           waypoint => waypoint%next
+        endif
+      enddo
+
+      ! insert new final waypoint2 (copied from waypoint1)
+      waypoint2 => WaypointCreate(waypoint1)
+      ! just in case that subsurface realization NOT there (e.g. only surf_simulation),
+      ! the above 'WaypointCreate()' will allocate memory for 'waypoint1',
+      ! which never have a chance to deallocate and potentially leak memory
+      if(associated(waypoint1)) deallocate(waypoint1)
+
+      call WaypointInsertInList(waypoint2, surf_realization%waypoint_list)
+      call SurfRealizAddWaypointsToList(surf_realization)
+      call WaypointListFillIn(model%option,surf_realization%waypoint_list)
+      call WaypointListRemoveExtraWaypnts(model%option,surf_realization%waypoint_list)
+
+      ! turn off the 'print out' if required from CLM
+      if(.not.isprintout) then
+        if (model%option%io_rank == model%option%myrank) then
+          write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
+            'for surface flow from PFLOTRAN IS OFF! '
+        endif
+        waypoint => surf_realization%waypoint_list%first
+        do
+          if (.not.associated(waypoint)) exit
+          waypoint%print_output = PETSC_FALSE
+          waypoint => waypoint%next
+        enddo
+      endif
+
+    end if !if (associated(surf_realization))
+
+  end subroutine pflotranModelUpdateFinalWaypoint
+
+  ! ************************************************************************** !
 
   subroutine pflotranModelResetSoilPorosityFromCLM(pflotran_model)
   !
@@ -1647,7 +1854,18 @@ contains
     do ghosted_id = 1, grid%ngmax
       local_id = grid%nG2L(ghosted_id)
       if (ghosted_id < 0 .or. local_id < 0) cycle
-      if (patch%imat(ghosted_id) <= 0) cycle
+      if (patch%imat(ghosted_id) < 0) cycle
+
+#ifdef CLM_PF_DEBUG
+      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (ice-adjusted porosity):
+      ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
+      !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
+      !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
+      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model prior to resetting porosity:', &
+        'rank=',pflotran_model%option%myrank, &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'porosity0(local_id)=',porosity0_loc_p(local_id),'adjporo(ghosted_id)=',porosity_pfs_loc(ghosted_id)
+#endif
 
       porosity0_loc_p(local_id) = porosity_pfs_loc(ghosted_id)
 
@@ -1794,7 +2012,7 @@ contains
     do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
         if (associated(patch%imat)) then
-           if (patch%imat(ghosted_id) <= 0) cycle
+           if (patch%imat(ghosted_id) < 0) cycle
         endif
 
         ! PF's porosity
@@ -1802,6 +2020,21 @@ contains
 
         saturation_function => patch%    &
             saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
+
+#ifdef CLM_PF_DEBUG
+      !F.-M. Yuan: the following IS a checking, comparing CLM passing data (bsw ~ 1/lambda --> PFsat_func --> CLM):
+      write(pflotran_model%option%myrank+200,*) &
+        'checking pflotran-model prior to get soil properties from PF: ', &
+        'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'sat_funcid(ghosted_id)=',patch%sat_func_id(ghosted_id), &
+        'pfsatfun_alpha=',saturation_function%alpha, &
+        'richauxvars_alpha= ',patch%aux%Richards%auxvars(ghosted_id)%bc_alpha, &
+        'pfsatfun_lambda=',saturation_function%lambda, &
+        'richauxvars_lambda= ',patch%aux%Richards%auxvars(ghosted_id)%bc_lambda, &
+        'pfsatfun_sr1=',saturation_function%sr(1), &
+        'richauxvars_sr1= ',patch%aux%Richards%auxvars(ghosted_id)%bc_sr1
+#endif
 
         if (pflotran_model%option%iflowmode==RICHARDS_MODE) then
           saturation_function%alpha  = patch%aux%Richards%auxvars(ghosted_id)%bc_alpha
@@ -2146,6 +2379,14 @@ contains
           if (ghosted_id<=0 .or. local_id <=0) cycle
           !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
 
+#ifdef CLM_PF_DEBUG
+       ! F.-M. Yuan: the following check proves DATA-passing from CLM to PF MUST BE done by ghosted_id --> ghosted_id
+       ! if passing to 'global_auxvars'
+          write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 1 (CLM->PF lsat): ', &
+              'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+              'sat_globalvars(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
+              'sat_pfs(ghosted_id)=',soillsat_pf_loc(ghosted_id)
+#endif
           global_auxvars(ghosted_id)%sat(1)=soillsat_pf_loc(ghosted_id)
           global_auxvars(ghosted_id)%pres(1)=soilpress_pf_loc(ghosted_id)
         enddo
@@ -2280,7 +2521,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
     do local_id = 1, grid%nlmax
        ghosted_id = grid%nL2G(local_id)
        if (associated(patch%imat)) then
-          if (patch%imat(ghosted_id) <= 0) cycle
+          if (patch%imat(ghosted_id) < 0) cycle
        endif
 
        iend = local_id*pflotran_model%option%nflowdof
@@ -2379,6 +2620,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     word = trim(name_lit1) // "N"
     ispec_lit1n = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit1c <= 0 .or. ispec_lit1n <=0 ) then
+          pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
+            trim(name_lit1) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
+    endif
 
     word = trim(name_lit2) // "C"
     ispec_lit2c = GetImmobileSpeciesIDFromName(word, &
@@ -2386,6 +2633,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     word = trim(name_lit2) // "N"
     ispec_lit2n = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit2c <= 0 .or. ispec_lit2n <=0 ) then
+          pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
+            trim(name_lit2) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
+    endif
 
     word = trim(name_lit3) // "C"
     ispec_lit3c = GetImmobileSpeciesIDFromName(word, &
@@ -2393,6 +2646,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     word = trim(name_lit3) // "N"
     ispec_lit3n = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit3c <= 0 .or. ispec_lit3n <=0 ) then
+          pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
+            trim(name_lit3) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
+    endif
 
     word = trim(name_cwd) // "C"
     ispec_cwdc = GetImmobileSpeciesIDFromName(word, &
@@ -2400,7 +2659,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     word = trim(name_cwd) // "N"
     ispec_cwdn = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_cwdc <= 0 .or. ispec_cwdn <=0 ) then
+          pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
+            trim(name_cwd) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
+    endif
 
+    !
     word = name_som1
     ispec_som1c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
@@ -2413,6 +2679,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
     else
       ispec_som1n = UNINITIALIZED_INTEGER
+    endif
+    if (ispec_som1c <= 0) then
+          pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
+            trim(name_som1) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
     endif
 
     word = name_som2
@@ -2428,6 +2700,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     else
       ispec_som2n = UNINITIALIZED_INTEGER
     endif
+    if (ispec_som2c <= 0) then
+          pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
+            trim(name_som2) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
+    endif
 
     word = name_som3
     ispec_som3c = GetImmobileSpeciesIDFromName(word, &
@@ -2441,6 +2719,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
     else
       ispec_som3n = UNINITIALIZED_INTEGER
+    endif
+    if (ispec_som3c <= 0) then
+          pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
+            trim(name_som3) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
     endif
 
     word = name_som4
@@ -2456,6 +2740,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     else
       ispec_som4n = UNINITIALIZED_INTEGER
     endif
+    if (ispec_som4c <= 0) then
+          pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
+            trim(name_som4) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
+    endif
 
     ! aq. species in soil solution/absorbed
     word = name_nh4
@@ -2463,67 +2753,166 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                   realization%reaction,PETSC_FALSE,realization%option)
     if (ispec_nh4 > 0) then
       word = name_nh4sorb
-      ispec_nh4sorb  = GetPrimarySpeciesIDFromName(word, &
-                  realization%reaction,PETSC_FALSE,realization%option)
+      ispec_nh4sorb  = GetImmobileSpeciesIDFromName(word, &                        ! for using sandbox of absorption
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
     else
       ispec_nh4sorb  = UNINITIALIZED_INTEGER
+
+      pflotran_model%option%io_buffer = 'CLM N pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+
+    endif
+    if (ispec_nh4 <= 0) then
+          pflotran_model%option%io_buffer = 'CLM inorg. N pool ' // &
+            trim(name_nh4) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
     endif
 
     word = name_no3
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
-
+    if (ispec_no3<=0) then
+      pflotran_model%option%io_buffer = 'CLM N pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
     !
     ! species for gases
     word = name_co2
     ispec_co2  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_co2<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
+
     word = name_n2
     ispec_n2  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_n2<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
     word = name_n2o
     ispec_n2o = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_n2o<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
     ! CO2 productin from C decomposition reaction network for tracking (immoble species)
     word = name_hr
     ispec_hr = GetImmobileSpeciesIDFromName(word, &
             realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_hr<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
     ! N bgc reaction fluxes for tracking (immoble species)
     word = name_plantndemand
     ispec_plantndemand  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_plantndemand<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
+
     word = name_plantnh4uptake
     ispec_plantnh4uptake  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_plantnh4uptake<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
+
     word = name_plantno3uptake
     ispec_plantno3uptake  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_plantno3uptake<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
     word = name_nmin
     ispec_nmin = GetImmobileSpeciesIDFromName(word, &
             realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_nmin<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
     word = name_nimmp
     ispec_nimmp = GetImmobileSpeciesIDFromName(word, &
             realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_nimmp<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
+
     word = name_nimm
     ispec_nimm = GetImmobileSpeciesIDFromName(word, &
             realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_nimm<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
     word = name_ngasmin
     ispec_ngasmin = GetImmobileSpeciesIDFromName(word, &
            realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_ngasmin<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
     word = name_ngasnitr
     ispec_ngasnitr = GetImmobileSpeciesIDFromName( word, &
            realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_ngasnitr<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
     word = name_ngasdeni
     ispec_ngasdeni = GetImmobileSpeciesIDFromName( word, &
            realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_ngasdeni<=0) then
+      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
 
   end subroutine pflotranModelGetRTspecies
 
@@ -2575,8 +2964,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   ! ************************************************************************** !
   !
   ! pflotranModelSetBgcConc:
-  !  Get CLM concentrations (C, N), converts from CLM units into PFLOTRAN units.
-  !  and set concentrations in PFLOTRAN
+  !  Get CLM concentrations (C, N) and set concentrations in PFLOTRAN
   ! ************************************************************************** !
   subroutine pflotranModelSetBgcConcFromCLM(pflotran_model)
 
@@ -2615,7 +3003,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscErrorCode     :: ierr
     PetscInt           :: local_id
     PetscInt           :: ghosted_id
-    PetscInt           :: offset, offsetim
     PetscReal, pointer :: xx_p(:)
 
     PetscScalar, pointer :: decomp_cpools_vr_lit1_pf_loc(:) ! (molesC/m3)
@@ -2636,12 +3023,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscScalar, pointer :: decomp_npools_vr_som4_pf_loc(:) ! (molesN/m3)
     PetscScalar, pointer :: smin_no3_vr_pf_loc(:)           ! (molesN/m3)
     PetscScalar, pointer :: smin_nh4_vr_pf_loc(:)           ! (molesN/m3)
+    PetscScalar, pointer :: smin_nh4sorb_vr_pf_loc(:)       ! (molesN/m3)
 
     PetscReal, pointer :: porosity_loc_p(:)
 
+    PetscInt  :: offset, offsetim
     PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
-
-    !------------------------------------------------------
+    PetscReal :: xmass, den_kg_per_L         ! for from mol/L to mol/kg
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -2667,7 +3055,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%decomp_cpools_vr_lit1_pfs)
     end if
 
-    if (ispec_lit3c > 0) then
+    if (ispec_lit2c > 0) then
       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%decomp_cpools_vr_lit2_clmp, &
@@ -2784,6 +3172,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     pflotran_model%option, &
                                     clm_pf_idata%smin_nh4_vr_clmp, &
                                     clm_pf_idata%smin_nh4_vr_pfs)
+
+       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%smin_nh4sorb_vr_clmp, &
+                                    clm_pf_idata%smin_nh4sorb_vr_pfs)
     endif
 
     !----------------------------------------------------------------------------
@@ -2886,12 +3279,15 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
 
     if(ispec_no3 > 0) then
-      call VecGetArrayF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
     if(ispec_nh4 > 0) then
-      call VecGetArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+
+      call VecGetArrayReadF90(clm_pf_idata%smin_nh4sorb_vr_pfs, smin_nh4sorb_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
@@ -2913,17 +3309,39 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       porosity = porosity_loc_p(local_id)                     ! using 'local_id' if from 'field%???'
       theta = saturation * porosity
 
+      ! needs the following (water density) to do convertion (esp. if it's upon estimating by EOSwater module in PF)
+      ! 'xx_p' is in molality (moles/kgH2o) for aq. species, while 'clm_pf_idata%???' is in moles/m3.
+      ! but they're same for immobile species
+      xmass = 1.d0
+      if (associated(global_auxvars(ghosted_id)%xmass)) then
+        xmass = global_auxvars(ghosted_id)%xmass(1)
+      endif
+      den_kg_per_L = global_auxvars(ghosted_id)%den_kg(1)*xmass*1.d-3
+
       if(ispec_no3 > 0) then
          xx_p(offset + ispec_no3) = max(xeps0_n, smin_no3_vr_pf_loc(ghosted_id)  &      ! from 'ghosted_id' to field%xx_p's local
-                                                 / theta / 1000.0d0)
+                                                / (theta*1000.d0*den_kg_per_L) )    ! moles/m3 /(m3/m3 * L/m3 * kg/L) = moles/kgh2o
       endif
 
       if(ispec_nh4 > 0) then
-         xx_p(offset + ispec_nh4) = max(xeps0_n, smin_nh4_vr_pf_loc(ghosted_id)  &
-                                                 / theta / 1000.d0)
+        if (ispec_nh4sorb > 0) then
+           xx_p(offset + ispec_nh4) = max(xeps0_n, smin_nh4_vr_pf_loc(ghosted_id)  &
+                                                / (theta*1000.d0*den_kg_per_L) )
+
+        else    ! if 'nh4sorb' NOT as used as immobile species
+           xx_p(offset + ispec_nh4) = max(xeps0_n, (smin_nh4_vr_pf_loc(ghosted_id)  &
+                                               +smin_nh4sorb_vr_pf_loc(ghosted_id)) &
+                                                / (theta*1000.d0*den_kg_per_L) )
+
+        endif
       endif
 
+      !
       offsetim = offset + realization%reaction%offset_immobile
+
+      if(ispec_nh4sorb > 0) then   ! for absorbed NH4 as immobile species used in sandbox of absorption
+         xx_p(offsetim + ispec_nh4sorb) = max(xeps0_n, smin_nh4sorb_vr_pf_loc(ghosted_id) )
+      endif
 
       if(ispec_lit1c > 0) then
         xx_p(offsetim + ispec_lit1c) = max(xeps0_c, decomp_cpools_vr_lit1_pf_loc(ghosted_id) )
@@ -2935,6 +3353,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       if(ispec_lit3c > 0) then
         xx_p(offsetim + ispec_lit3c) = max(xeps0_c, decomp_cpools_vr_lit3_pf_loc(ghosted_id) )
+      endif
+
+      if(ispec_cwdc > 0) then
+        xx_p(offsetim + ispec_cwdc) = max(xeps0_c, decomp_cpools_vr_cwd_pf_loc(ghosted_id) )
       endif
 
       if(ispec_som1c > 0) then
@@ -2965,6 +3387,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         xx_p(offsetim + ispec_lit3n) = max(xeps0_n, decomp_npools_vr_lit3_pf_loc(ghosted_id) )
       endif
 
+      if(ispec_cwdn > 0) then
+        xx_p(offsetim + ispec_cwdn) = max(xeps0_n, decomp_npools_vr_cwd_pf_loc(ghosted_id) )
+      endif
+
       if(ispec_som1n > 0) then
         xx_p(offsetim + ispec_som1n) = max(xeps0_n, decomp_npools_vr_som1_pf_loc(ghosted_id) )
       endif
@@ -2981,7 +3407,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         xx_p(offsetim + ispec_som4n) = max(xeps0_n, decomp_npools_vr_som4_pf_loc(ghosted_id) )
       endif
 
-#if defined(CHECK_DATAPASSING) && defined(CLM_PFLOTRAN)
+#ifdef CLM_PF_DEBUG
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (som4c pool):
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
       !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
@@ -3080,13 +3506,17 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
     if(ispec_no3 > 0) then
-      call VecRestoreArrayF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
     if(ispec_nh4 > 0) then
-      call VecRestoreArrayF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
       CHKERRQ(ierr)
+
+      call VecRestoreArrayReadF90(clm_pf_idata%smin_nh4sorb_vr_pfs, smin_nh4sorb_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+
     endif
 
     call VecRestoreArrayF90(field%tran_xx,xx_p,ierr)
@@ -3142,14 +3572,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     type(simulation_base_type), pointer :: simulation
 
     PetscErrorCode     :: ierr
-    PetscInt           :: local_id, ghosted_id, offset_field, idof
+    PetscInt           :: ghosted_id,local_id
+    PetscInt           :: offset, offsetim
 
     PetscScalar, pointer :: rate_pf_loc(:)   !
 
     PetscReal, pointer :: volume_p(:)
-    PetscReal, pointer :: rt_masstransfer_p(:)
-
-    !-------------------------------------------------------
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -3167,7 +3595,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     grid  => patch%grid
     field => realization%field
 
-
+    !-----------------------------------------------------------------
     ! mapping data from CLM to PFLOTRAN
     if(ispec_lit1c >0) then
       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -3283,7 +3711,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
     ! NOTE: direct data passing from interface to PF for N demand
-    if (ispec_plantndemand >0) then
+    if(ispec_plantndemand >0) then
       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_plantndemand_clmp, &
@@ -3306,7 +3734,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     !----------------------------------------------------------------------
 
-   ! get cell volume to convert mass transfer rate unit from moles/m3/s to moles/s
+    ! get cell volume to convert mass transfer rate unit from moles/m3/s to moles/s
     call VecGetArrayReadF90(field%volume0,volume_p,ierr)
     CHKERRQ(ierr)
 
@@ -3476,6 +3904,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     CHKERRQ(ierr)
     call VecRestoreArrayF90(field%tran_mass_transfer,rt_masstransfer_p,ierr)
     CHKERRQ(ierr)
+
+    ! MUST call the following subroutine, OTHERWISE there is one time-step delay of data-passing
+    call MassTransferUpdate(realization%rt_mass_transfer_list, &
+                          realization%patch%grid, &
+                          realization%option)
 
   end subroutine pflotranModelSetBGCRatesFromCLM
 
@@ -3728,7 +4161,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
         if (associated(patch%imat)) then
-           if (patch%imat(ghosted_id) <= 0) cycle
+           if (patch%imat(ghosted_id) < 0) cycle
         endif
 
         offset = (local_id-1) * realization%reaction%ncomp &
@@ -3845,16 +4278,19 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscScalar, pointer :: accngasmin_vr_pf_loc(:)         ! (molesN/m3)
     PetscScalar, pointer :: accngasnitr_vr_pf_loc(:)        ! (molesN/m3)
     PetscScalar, pointer :: accngasdeni_vr_pf_loc(:)        ! (molesN/m3)
+
     PetscReal, pointer :: porosity_loc_p(:)
 
     PetscInt :: offset, offsetim
 
     PetscReal :: porosity, saturation, theta ! for concentration conversion from mol/m3 to mol/L
+    PetscReal :: den_kg_per_L, xmass
+
     PetscReal :: conc
 
-    PetscReal, parameter :: zeroing_conc = 1.0d-10
+    PetscReal, parameter :: zeroing_conc = 1.0d-20
 
-    !---------------------------------------------------------
+    !-----------------------------------------------------------------------------------------
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -3872,7 +4308,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     grid  => patch%grid
     field => realization%field
     reaction => realization%reaction
-
 
     ! (ii) get the original 'pf' vecs
     call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_lit1_pfp, &
@@ -3956,7 +4391,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecGetArrayF90(clm_pf_idata%accngasdeni_vr_pfp, accngasdeni_vr_pf_loc, ierr)
     CHKERRQ(ierr)
 
-    ! (iii) pass the data from internal to PFLOTRAN vecs
+    ! (iii) pass the data from internal to CLM-PFLOTRAN interface vecs
 
     call VecGetArrayF90(field%tran_xx,xx_p,ierr)
     CHKERRQ(ierr)  ! extract data from pflotran internal portion
@@ -3967,11 +4402,16 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         ghosted_id = grid%nL2G(local_id)
         if (ghosted_id <= 0) cycle
         if (associated(patch%imat)) then
-           if (patch%imat(ghosted_id) <= 0) cycle
+           if (patch%imat(ghosted_id) < 0) cycle
         endif
 
         global_auxvar  => patch%aux%Global%auxvars(ghosted_id)
         rt_auxvar => patch%aux%RT%auxvars(ghosted_id)
+
+        ! for convertion btw liq. water mass and volume
+        xmass = 1.d0
+        if (associated(global_auxvar%xmass)) xmass = global_auxvar%xmass(1)
+        den_kg_per_L = global_auxvar%den_kg(1)*xmass*1.d-3      ! kg/L
 
         saturation = global_auxvar%sat(1)
         porosity = porosity_loc_p(local_id)
@@ -4038,48 +4478,62 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_nh4 > 0) then
-!           conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0
+           !conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0      ! 7-8-2015: this is NOT right.
 
             ! the following approach appears more like what output module does in pflotran
             ! but needs further checking if it efficient as directly read from 'xx_p' as above
-            conc = rt_auxvar%pri_molal(ispec_nh4) * theta * 1000.0d0
+            ! 7-8-2015: checked that the directly reading from 'xx_p' is incorrect, which may
+            !           cause mass-balance errors. (TODO - for immobile species appears OK)
+            ! 7-14-2015: if taking data from 'xx_p', the unit always is in moles/m3 bulk volume
+            !            if taking data from 'rt_auxvar%total', for aq. species, is in moles/L water
+            !        but, still has errors - best solution: fixed water density to 1.d3 kg/m3 in input cards
+            !                                      which will eliminate the difference btw two approaches
+
+            conc = rt_auxvar%total(ispec_nh4, 1) * (theta * 1000.0d0 * den_kg_per_L)
+
             smin_nh4_vr_pf_loc(local_id) = max(conc, 0.d0)
 
-            if (associated(rt_auxvar%total_sorb_eq)) then    ! equilibrium-sorption reactions used
-                conc = rt_auxvar%total_sorb_eq(ispec_nh4)
+            if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction sandbox used for soil NH4+ absorption
+                !conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (mol/m3)
+                conc = rt_auxvar%immobile(ispec_nh4sorb)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
-            else if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction used for soil NH4+ absorption
-                conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (molC/m3)
+            elseif (reaction%neqsorb > 0) then  ! equilibrium-sorption reactions used
+                conc = rt_auxvar%total_sorb_eq(ispec_nh4)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
             endif
 
         endif
 
         if(ispec_no3 > 0) then
-           conc = xx_p(offset + ispec_no3) * theta * 1000.0d0
+           !conc = xx_p(offset + ispec_no3) * theta * 1000.0d0                        ! 7-14-2015: converting from /m3 bulk.
+           conc = rt_auxvar%total(ispec_no3, 1) * (theta * 1000.0d0 * den_kg_per_L)     !
            smin_no3_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
         ! immobile gas conc in mol/m3 bulk soil to aovid 'theta' inconsistence (due to porosity) during unit conversion
         if(ispec_co2 > 0) then
-           conc = xx_p(offsetim + ispec_co2)                    ! unit: M (molC/m3)
+           !conc = xx_p(offsetim + ispec_co2)                    ! unit: M (molC/m3)
+           conc = rt_auxvar%immobile(ispec_co2)
            gco2_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
         if(ispec_n2 > 0) then
-           conc = xx_p(offsetim + ispec_n2)                     ! unit: M (molN2/m3)
+           !conc = xx_p(offsetim + ispec_n2)                     ! unit: M (molN2/m3)
+           conc = rt_auxvar%immobile(ispec_n2)
            gn2_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
         if(ispec_n2o > 0) then
-           conc = xx_p(offsetim + ispec_n2o)                    ! unit: M (molN2O/m3)
+           !conc = xx_p(offsetim + ispec_n2o)                    ! unit: M (molN2O/m3)
+           conc = rt_auxvar%immobile(ispec_n2o)
            gn2o_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
         ! tracking N bgc reaction fluxes
 
         if (ispec_plantnh4uptake > 0) then
-           conc = xx_p(offsetim + ispec_plantnh4uptake)
+           !conc = xx_p(offsetim + ispec_plantnh4uptake)
+           conc = rt_auxvar%immobile(ispec_plantnh4uptake)
            accextrnh4_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step only
@@ -4087,7 +4541,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if (ispec_plantno3uptake > 0) then
-           conc = xx_p(offsetim + ispec_plantno3uptake)
+           !conc = xx_p(offsetim + ispec_plantno3uptake)
+           conc = rt_auxvar%immobile(ispec_plantno3uptake)
            accextrno3_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step only
@@ -4095,7 +4550,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_hr > 0) then
-           conc = xx_p(offsetim + ispec_hr)
+           !conc = xx_p(offsetim + ispec_hr)
+           conc = rt_auxvar%immobile(ispec_hr)
            acchr_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -4103,7 +4559,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_nmin > 0) then
-           conc = xx_p(offsetim + ispec_nmin)
+           !conc = xx_p(offsetim + ispec_nmin)
+           conc = rt_auxvar%immobile(ispec_nmin)
            accnmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -4111,7 +4568,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_nimmp > 0) then
-           conc = xx_p(offsetim + ispec_nimmp)
+           !conc = xx_p(offsetim + ispec_nimmp)
+           conc = rt_auxvar%immobile(ispec_nimmp)
            accnimmp_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -4120,7 +4578,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_nimm > 0) then
-           conc = xx_p(offsetim + ispec_nimm)
+           !conc = xx_p(offsetim + ispec_nimm)
+           conc = rt_auxvar%immobile(ispec_nimm)
            accnimm_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -4129,7 +4588,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_ngasmin > 0) then
-           conc = xx_p(offsetim + ispec_ngasmin)
+           !conc = xx_p(offsetim + ispec_ngasmin)
+           conc = rt_auxvar%immobile(ispec_ngasmin)
            accngasmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -4137,7 +4597,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_ngasnitr > 0) then
-           conc = xx_p(offsetim + ispec_ngasnitr)
+           !conc = xx_p(offsetim + ispec_ngasnitr)
+           conc = rt_auxvar%immobile(ispec_ngasnitr)
            accngasnitr_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -4145,7 +4606,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         if(ispec_ngasdeni > 0) then
-           conc = xx_p(offsetim + ispec_ngasdeni)
+           !conc = xx_p(offsetim + ispec_ngasdeni)
+           conc = rt_auxvar%immobile(ispec_ngasdeni)
            accngasdeni_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step
@@ -4233,7 +4695,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call RTUpdateAuxVars(realization,PETSC_TRUE,PETSC_TRUE,PETSC_TRUE)
 
 
-   ! (iv) pass the 'pf' vecs to 'clm' vecs, which then can be passed to CLMCN (implemented in 'clm_pflotran_interfaceMod'
+    !-----------------------------------------------------------------
+    ! (iv) pass the '_pfp' vecs to '_clms' vecs, which then can be passed to CLMCN
+    ! (implemented in 'clm_pflotran_interfaceMod'
 
     if (ispec_lit1c > 0) then
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &

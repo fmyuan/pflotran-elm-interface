@@ -9,11 +9,7 @@ module CLM_RspFuncs_module
 #include "finclude/petscsys.h"
 
 ! constants  
-  PetscReal, parameter, public :: rpi = 3.14159265358979323846
-
-! unit conversion
-                          ! 14.00674d0 / 12.011d0
-  PetscReal, parameter, public :: CN_ratio_mass_to_mol = 1.16616d0 
+  PetscReal, parameter, public :: rpi = 3.14159265358979323846d0
 
 ! temperature response function
   PetscInt, parameter, public :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1 
@@ -30,6 +26,10 @@ module CLM_RspFuncs_module
 
 ! molecular weight
   PetscReal, parameter, public :: N_molecular_weight = 14.0067d0
+  PetscReal, parameter, public :: C_molecular_weight = 12.0110d0
+  PetscReal, parameter, public :: CN_ratio_mass_to_mol = 1.166156023644992d0
+  ! A NOTE here: when coupled with CLM-CN, make sure that the above constants ARE consistent with CLM
+  ! otherwise may cause some tiny but detectable mass-balance errors due to unit conversion.
 
   public :: GetTemperatureResponse, &
             GetMoistureResponse, &

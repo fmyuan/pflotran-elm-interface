@@ -370,7 +370,7 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
 
   endif
 
-#ifdef DEBUG
+!#ifdef DEBUG
   if( (option%tran_dt<=option%dt_min .and. option%print_file_flag) .and. &
      rate_deni*option%dt_min >= c_no3) then
 
@@ -390,8 +390,16 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
       option%io_buffer = ' checking infinity of Residuals matrix @ DenitrReact '
       call printErrMsg(option)
     endif
+
+    if (temp_real /= temp_real) then
+      write(option%fid_out, *) 'NaN of Residual matrix checking at ires=', ires
+      write(option%fid_out, *) 'Reaction Sandbox: DENITRIFICATION'
+      option%io_buffer = ' checking NaN of Residuals matrix  @ DenitrReact '
+      call printErrMsg(option)
+    endif
+
   enddo
-#endif
+!#endif
 
 end subroutine DenitrReact
 
