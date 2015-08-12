@@ -691,6 +691,104 @@ contains
 !
 ! ************************************************************************** !
 !
+  subroutine pflotranModelSetSoilDimension(pflotran_model)
+  !
+  ! Force soil dimension from CLM to PFLOTRAN subsurface domain.
+
+    use Realization_class
+    use Discretization_module
+    use Patch_module
+    use Grid_module
+    use Option_module
+    use Material_module
+    use Material_Aux_class
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+
+    use clm_pflotran_interface_data
+    use Mapping_module
+    use Saturation_Function_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(discretization_type), pointer        :: discretization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(simulation_base_type), pointer :: simulation
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id
+
+    PetscScalar, pointer :: toparea_pf_loc(:)    ! soil top face area (m^2) for 3-D PF cells
+    PetscScalar, pointer :: zsoi_pf_loc(:)    ! soil depth (m) for 3-D PF cells
+
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: currently only works on structured grids."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    patch           => realization%patch
+    discretization  => realization%discretization
+    grid            => patch%grid
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%area_top_face_clmp, &
+                                    clm_pf_idata%area_top_face_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%zsoi_clmp, &
+                                    clm_pf_idata%zsoi_pfs)
+
+    call VecGetArrayReadF90(clm_pf_idata%area_top_face_pfs, toparea_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
+    CHKERRQ(ierr)
+
+    !
+    select case(grid%itype)
+      case(STRUCTURED_GRID)
+         pflotran_model%option%io_buffer = "INFO: CLM column dimension will over-ride PF structured grid mesh."
+         call printMsg(pflotran_model%option)
+      case default
+         pflotran_model%option%io_buffer = "ERROR: Currently only works on structured grids."
+         call printErrMsg(pflotran_model%option)
+
+    end select
+
+    do ghosted_id = 1, grid%ngmax
+      local_id = grid%nG2L(ghosted_id)
+      if (ghosted_id < 0 .or. local_id < 0) cycle
+
+
+
+    enddo
+
+    call VecRestoreArrayReadF90(clm_pf_idata%area_top_face_pfs, toparea_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
+    CHKERRQ(ierr)
+
+
+  end subroutine pflotranModelSetSoilDimension
+
+! ************************************************************************** !
+!
 
   subroutine pflotranModelSetSoilProp(pflotran_model)
   !
@@ -1000,8 +1098,6 @@ contains
     call VecRestoreArrayF90(clm_pf_idata%sr_pfs,     sr_pf_loc,      ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%pcwmax_pfs, pcwmax_pf_loc,  ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
     CHKERRQ(ierr)
 
     call VecRestoreArrayF90(field%porosity0, porosity_loc_p, ierr)
@@ -1545,209 +1641,6 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
                                     clm_pf_idata%soilt_clms)
 
   end subroutine pflotranModelGetTemperatureFromPF
-
-
-
-! ************************************************************************** !
-
-  subroutine pflotranModelDestroy(model)
-  ! 
-  ! Deallocates the pflotranModel object
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 9/10/2010
-  ! 
-
-    use Factory_PFLOTRAN_module, only : PFLOTRANFinalize
-    use Option_module, only : OptionFinalize
-    use clm_pflotran_interface_data
-    use Mapping_module
-
-    implicit none
-
-    type(pflotran_model_type), pointer :: model
-
-    ! FIXME(bja, 2013-07) none of the mapping information appears to
-    ! be cleaned up, so we are leaking memory....
-
-    call model%simulation%FinalizeRun()
-    !call model%simulation%Strip()    ! this causes petsc error of seq. fault issue, although doesn't matter.
-    if(associated(model%simulation)) deallocate(model%simulation)
-    nullify(model%simulation)
-
-    call PFLOTRANFinalize(model%option)
-    call OptionFinalize(model%option)
-
-    call CLMPFLOTRANIDataDestroy()
-
-    if (associated(model%map_clm_sub_to_pf_sub)) &
-      call MappingDestroy(model%map_clm_sub_to_pf_sub)
-    if (associated(model%map_clm_2dtop_to_pf_2dtop)) &
-      call MappingDestroy(model%map_clm_2dtop_to_pf_2dtop)
-    if (associated(model%map_clm_2dbot_to_pf_2dbot)) &
-      call MappingDestroy(model%map_clm_2dbot_to_pf_2dbot)
-
-    if (associated(model%map_pf_sub_to_clm_sub)) &
-      call MappingDestroy(model%map_pf_sub_to_clm_sub)
-    if (associated(model%map_pf_2dtop_to_clm_2dtop)) &
-      call MappingDestroy(model%map_pf_2dtop_to_clm_2dtop)
-    if (associated(model%map_pf_2dbot_to_clm_2dbot)) &
-      call MappingDestroy(model%map_pf_2dbot_to_clm_2dbot)
-
-    if (associated(model)) deallocate(model)
-    nullify(model)
-
-  end subroutine pflotranModelDestroy
-
-!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++!
-!
-! THE FOLLOWING BLOCKS OF CODES ARE FOR CLM-PFLOTRAN BGC COUPLING
-!
-!
-! ************************************************************************** !
-  !
-  ! pflotranModelUpdateFinalWaypoint:
-  !  Get CLM final timestep and converts it to PFLOTRAN final way point.
-  !  And also set an option for turning on/off PF printing
-! ************************************************************************** !
-
-  subroutine pflotranModelUpdateFinalWaypoint(model, waypoint_time, isprintout)
-
-    use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-
-    use Realization_class, only : realization_type, &
-      RealizationAddWaypointsToList
-    use Surface_Realization_class, only : surface_realization_type, &
-      SurfRealizAddWaypointsToList
-
-    use Waypoint_module, only : waypoint_type, WaypointCreate, &
-      WaypointDeleteFromList, WaypointInsertInList, &
-      WaypointListFillIn, WaypointListRemoveExtraWaypnts
-    use Units_module, only : UnitsConvertToInternal
-    use Option_module, only : printErrMsg
-
-    implicit none
-
-    type(pflotran_model_type), pointer :: model
-    type(waypoint_type), pointer       :: waypoint, waypoint1, waypoint2
-    PetscReal, intent(in)              :: waypoint_time
-    PetscBool, intent(in)              :: isprintout
-    character(len=MAXWORDLENGTH)       :: word
-
-    class(realization_type), pointer    :: realization
-    class(surface_realization_type), pointer :: surf_realization
-
-!-------------------------------------------------------------------------
-    select type (simulation => model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-         nullify(surf_realization)
-      class is (surface_simulation_type)
-         nullify(realization)
-         surf_realization => simulation%surf_realization
-      class is (surfsubsurface_simulation_type)
-         realization => simulation%realization
-         surf_realization => simulation%surf_realization
-      class default
-         nullify(realization)
-         nullify(surf_realization)
-         model%option%io_buffer = "pflotranModelUPdateFinalWaypoint is " // &
-              "Not support in this mode."
-         call printErrMsg(model%option)
-    end select
-
-    ! new final waypoint
-    word = 's'
-    waypoint1 => WaypointCreate()
-    waypoint1%time          = waypoint_time * UnitsConvertToInternal(word, model%option)
-    waypoint1%print_output  = PETSC_TRUE
-    waypoint1%final         = PETSC_TRUE
-    waypoint1%dt_max        = waypoint_time * UnitsConvertToInternal(word, model%option)
-
-    ! update subsurface-realization final waypoint
-    if (associated(realization)) then
-      ! remove original final waypoint
-      waypoint => realization%waypoint_list%first
-      do
-        if (.not.associated(waypoint)) exit
-        if (waypoint%final) then
-          waypoint%final = PETSC_FALSE
-          exit
-
-        else
-           waypoint => waypoint%next
-        endif
-      enddo
-
-      ! insert new final waypoint
-      call WaypointInsertInList(waypoint1, realization%waypoint_list)
-      call RealizationAddWaypointsToList(realization)
-      call WaypointListFillIn(model%option,realization%waypoint_list)
-      call WaypointListRemoveExtraWaypnts(model%option,realization%waypoint_list)
-
-      ! turn off the 'print out' if required from CLM
-      if(.not.isprintout) then
-        if (model%option%io_rank == model%option%myrank) then
-          write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
-            'for subsurface flow from PFLOTRAN IS OFF! '
-        endif
-        waypoint => realization%waypoint_list%first
-        do
-          if (.not.associated(waypoint)) exit
-          waypoint%print_output = PETSC_FALSE
-          waypoint => waypoint%next
-        enddo
-      endif
-
-    endif  !if (associated(realization))
-
-    ! update surface-realization final waypoint
-    if (associated(surf_realization)) then
-      ! remove original final waypoint
-      waypoint => surf_realization%waypoint_list%first
-      do
-        if (.not.associated(waypoint)) exit
-        if (waypoint%final) then
-          waypoint%final = PETSC_FALSE
-          exit
-
-        else
-           waypoint => waypoint%next
-        endif
-      enddo
-
-      ! insert new final waypoint2 (copied from waypoint1)
-      waypoint2 => WaypointCreate(waypoint1)
-      ! just in case that subsurface realization NOT there (e.g. only surf_simulation),
-      ! the above 'WaypointCreate()' will allocate memory for 'waypoint1',
-      ! which never have a chance to deallocate and potentially leak memory
-      if(associated(waypoint1)) deallocate(waypoint1)
-
-      call WaypointInsertInList(waypoint2, surf_realization%waypoint_list)
-      call SurfRealizAddWaypointsToList(surf_realization)
-      call WaypointListFillIn(model%option,surf_realization%waypoint_list)
-      call WaypointListRemoveExtraWaypnts(model%option,surf_realization%waypoint_list)
-
-      ! turn off the 'print out' if required from CLM
-      if(.not.isprintout) then
-        if (model%option%io_rank == model%option%myrank) then
-          write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
-            'for surface flow from PFLOTRAN IS OFF! '
-        endif
-        waypoint => surf_realization%waypoint_list%first
-        do
-          if (.not.associated(waypoint)) exit
-          waypoint%print_output = PETSC_FALSE
-          waypoint => waypoint%next
-        enddo
-      endif
-
-    end if !if (associated(surf_realization))
-
-  end subroutine pflotranModelUpdateFinalWaypoint
 
   ! ************************************************************************** !
 
@@ -3535,7 +3428,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
   ! ************************************************************************** !
   ! pflotranModelSetBGCRatesFromCLM:
-  !  Get CLM litter, som, mineral N production and plant demand rates
+  !  Get CLM litter, som, mineral N adding/removal and plant demand rates
   !  Convert from CLM units into PFLOTRAN units.
   !  Set values in PFLOTRAN
   ! ************************************************************************** !
@@ -3573,11 +3466,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscErrorCode     :: ierr
     PetscInt           :: ghosted_id,local_id
-    PetscInt           :: offset, offsetim
+    PetscInt           :: offset, offsetim, offset_field, idof
 
     PetscScalar, pointer :: rate_pf_loc(:)   !
 
     PetscReal, pointer :: volume_p(:)
+    PetscReal, pointer :: rt_masstransfer_p(:)
 
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
@@ -3747,7 +3641,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       do local_id = 1, grid%nlmax
          ghosted_id = grid%nL2G(local_id)
          if (local_id<=0 .or. ghosted_id<=0) cycle
-         !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
+         if (patch%imat(local_id) < 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
 
          offset_field = (local_id - 1)*realization%reaction%ncomp
 
@@ -3906,9 +3800,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     CHKERRQ(ierr)
 
     ! MUST call the following subroutine, OTHERWISE there is one time-step delay of data-passing
-    call MassTransferUpdate(realization%rt_mass_transfer_list, &
-                          realization%patch%grid, &
-                          realization%option)
+    !call MassTransferUpdate(realization%rt_mass_transfer_list, &
+    !                      realization%patch%grid, &
+    !                      realization%option)
 
   end subroutine pflotranModelSetBGCRatesFromCLM
 

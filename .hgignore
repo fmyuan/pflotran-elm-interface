@@ -396,3 +396,5 @@ src/clm-pflotran/data_mediator.F90
 src/clm-pflotran/data_mediator_base.F90
 src/clm-pflotran/data_mediator_dataset.F90
 src/clm-pflotran/data_mediator_vec.F90
+reaction_sandbox_langmuir.F90
+reaction_sandbox_langmu.F90
