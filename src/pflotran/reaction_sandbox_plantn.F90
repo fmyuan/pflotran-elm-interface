@@ -131,8 +131,9 @@ subroutine PlantNRead(this,input,option)
           call InputErrorMsg(input,option,'x0eps_no3', &
                   'CHEMISTRY,REACTION_SANDBOX,PLANTN,REACTION')
       case default
-          call InputKeywordUnrecognized(word, &
-                  'CHEMISTRY,REACTION_SANDBOX,PLANTN,REACTION',option)
+          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTN,' // &
+                'REACTION keyword: ' // trim(word) // ' not recognized.'
+          call printErrMsg(option)
     end select
   enddo
   

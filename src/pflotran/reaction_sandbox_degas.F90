@@ -119,8 +119,9 @@ subroutine degasRead(this,input,option)
                      'CHEMISTRY,REACTION_SANDBOX,DEGAS,REACTION')
          this%b_fixph = PETSC_TRUE
       case default
-         call InputKeywordUnrecognized(word, &
-                     'CHEMISTRY,REACTION_SANDBOX,DEGAS,REACTION',option)
+          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DEGAS,' // &
+            'REACTION keyword: ' // trim(word) // ' not recognized.'
+          call printErrMsg(option)
     end select
   enddo
   

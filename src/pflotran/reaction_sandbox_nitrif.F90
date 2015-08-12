@@ -124,8 +124,9 @@ subroutine NitrifRead(this,input,option)
               call InputErrorMsg(input,option,'Q10', &
                 'CHEMISTRY,REACTION_SANDBOX_NITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
             case default
-              call InputKeywordUnrecognized(word, &
-                'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,TEMPERATURE RESPONSE FUNCTION',option)
+              option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                trim(word) // ' not recognized.'
+              call printErrMsg(option)
           end select
         enddo 
      case('X0EPS')
@@ -145,8 +146,9 @@ subroutine NitrifRead(this,input,option)
           call InputErrorMsg(input,option,'ammonium half-saturation', &
                  'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
       case default
-          call InputKeywordUnrecognized(word, &
-                 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION',option)
+          option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,' // &
+            'REACTION keyword: ' // trim(word) // ' not recognized.'
+          call printErrMsg(option)
     end select
   enddo
   

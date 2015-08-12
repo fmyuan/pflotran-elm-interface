@@ -120,8 +120,9 @@ subroutine DenitrRead(this,input,option)
               call InputErrorMsg(input,option,'Q10', &
                 'CHEMISTRY,REACTION_SANDBOX_DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
             case default
-              call InputKeywordUnrecognized(word, &
-                'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION',option)
+              option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                trim(word) // ' not recognized.'
+              call printErrMsg(option)
           end select
         enddo 
 
@@ -138,8 +139,9 @@ subroutine DenitrRead(this,input,option)
         call InputErrorMsg(input,option,'x0eps', &
                   'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
       case default
-        call InputKeywordUnrecognized(word, &
-          'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,REACTION',option)
+        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,' // &
+          'REACTION keyword: ' // trim(word) // ' not recognized.'
+        call printErrMsg(option)
     end select
   enddo
   

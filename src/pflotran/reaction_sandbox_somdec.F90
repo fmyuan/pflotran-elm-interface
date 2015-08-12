@@ -236,8 +236,10 @@ subroutine SomDecRead(this,input,option)
                   call InputErrorMsg(input,option,'Q10', 'CHEMISTRY,' // &
                        'REACTION_SANDBOX_SomDecomp,TEMPERATURE RESPONSE FUNCTION')
               case default
-                  call InputKeywordUnrecognized(word, &
-                     'CHEMISTRY,REACTION_SANDBOX,SomDec,TEMPERATURE RESPONSE FUNCTION',option)
+                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec,' // &
+                                'TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                                     trim(word) // ' not recognized.'
+                  call printErrMsg(option)
             end select
          enddo 
       case('MOISTURE_RESPONSE_FUNCTION')
@@ -257,8 +259,9 @@ subroutine SomDecRead(this,input,option)
               case('DLEM')
                   this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_DLEM    
               case default
-                  call InputKeywordUnrecognized(word, &
-                     'CHEMISTRY,REACTION_SANDBOX,SomDec,TEMPERATURE RESPONSE FUNCTION',option)
+                  option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDecomp,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                                     trim(word) // ' not recognized.'
+                  call printErrMsg(option)
             end select
          enddo 
 
@@ -428,8 +431,9 @@ subroutine SomDecRead(this,input,option)
                      'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION')
               call InputReadWord(input,option,word,PETSC_TRUE)
             case default
-              call InputKeywordUnrecognized(word, &
-                    'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION',option)
+              option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec,' // &
+                'REACTION keyword: ' // trim(word) // ' not recognized.'
+              call printErrMsg(option)
           end select
         enddo
         
@@ -469,8 +473,9 @@ subroutine SomDecRead(this,input,option)
         prev_reaction => new_reaction
         nullify(new_reaction)        
       case default
-        call InputKeywordUnrecognized(word, &
-             'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION',option)
+        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec keyword: ' // &
+          trim(word) // ' not recognized.'
+        call printErrMsg(option)
     end select
   enddo
   
