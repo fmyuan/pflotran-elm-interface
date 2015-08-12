@@ -10,7 +10,7 @@ This repository is the PFLOTRAN portion for coupling. The CLM portion is in CLM-
 
 * The repository contains 3 branches for development and stable release purposes:
   
-***(1) default*** - the most updated PFLOTRAN codes with necessary editing for coupling. NOT suggested to use for production run. updated: 2015-08-12
+***(1) default*** - the most updated PFLOTRAN codes (change set:0ae6a7aa171ccc738fc3e5788c1be636cf88866b [0ae6a7aa171c]) with necessary editing for coupling. NOT suggested to use for production run. updated: 2015-08-12
 
 STATUS: UNDER development.
 
@@ -36,7 +36,7 @@ STATUS: UNDER test of Richards mode; stable for BGC coupling. (81bfd59d8396fd452
 
 Target CLM Version: CLM4_5_1_r85. (2015-08-12). 
 
-PFLOTRAN-dev change set: 87da2df5ab30a429a3816854a304d7f4823d765f [87da2df5ab30] (2015-05-15)
+PFLOTRAN-dev change set: 0ae6a7aa171ccc738fc3e5788c1be636cf88866b [0ae6a7aa171c] (2015-08-12)
 
 ### How do I get set up? ###
 
