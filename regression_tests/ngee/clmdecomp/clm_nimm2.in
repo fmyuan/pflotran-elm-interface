@@ -1,5 +1,5 @@
 #Description: CLM-CN N immobilization module test
-# (1) NH4-N as reactant
+# (1) NH4-N and NO3-N as reactant
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -71,8 +71,8 @@ LINEAR_SOLVER TRANSPORT
 END
 
 NEWTON_SOLVER TRANSPORT
-  !ATOL 1.d-15
-  !RTOL 1.d-10
+  ATOL 1.d-30
+  RTOL 1.d-10
 END
 
 #=========================== discretization ===================================
