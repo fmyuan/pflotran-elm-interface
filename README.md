@@ -10,7 +10,7 @@ This repository is the PFLOTRAN portion for coupling. The CLM portion is in CLM-
 
 * The repository contains 3 branches for development and stable release purposes:
   
-***(1) default*** - the most updated PFLOTRAN codes with necessary editing for coupling. NOT suggested to use for production run. updated: 2015-05-15
+***(1) default*** - the most updated PFLOTRAN codes (change set:0ae6a7aa171ccc738fc3e5788c1be636cf88866b [0ae6a7aa171c]) with necessary editing for coupling. NOT suggested to use for production run. updated: 2015-08-12
 
 STATUS: UNDER development.
 
@@ -34,9 +34,9 @@ STATUS: UNDER test of Richards mode; stable for BGC coupling. (81bfd59d8396fd452
 
 ***(4) default-thc*** - the current development version of clm-pflotran, specifically for testing all thermal-hydrology and biogeochemistry portion. 
 
-Target CLM Version: CLM4_5_1_r85. (2015-03-03). 
+Target CLM Version: CLM4_5_1_r85. (2015-08-12). 
 
-PFLOTRAN-dev change set: 87da2df5ab30a429a3816854a304d7f4823d765f [87da2df5ab30] (2015-05-15)
+PFLOTRAN-dev change set: 0ae6a7aa171ccc738fc3e5788c1be636cf88866b [0ae6a7aa171c] (2015-08-12)
 
 ### How do I get set up? ###
 
@@ -48,4 +48,4 @@ PFLOTRAN-dev change set: 87da2df5ab30a429a3816854a304d7f4823d765f [87da2df5ab30]
 
 (4) if coupled with PFLOTRAN, first build a libpflotran.a in ./Src/clm-pflotran (First, run the script link_files.sh to copy PFLOTRAN codes, and then build the library: make PETSC_DIR=$PETSC_DIR libpflotran.a). Then build CLM with this library. 
 
-UPDATED: 2015-08-10
+UPDATED: 2015-08-12
