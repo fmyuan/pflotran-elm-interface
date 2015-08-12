@@ -223,8 +223,10 @@ subroutine RealizationCreateDiscretization(realization)
                                      field%tortuosity0)
   call DiscretizationDuplicateVector(discretization,field%work, &
                                      field%volume0)
-  call DiscretizationDuplicateVector(discretization,field%work, &
-                                     field%compressibility0)
+!geh: this is now allocated in 
+!     init_subsurface.F90:SubsurfAllocMatPropDataStructs()
+!  call DiscretizationDuplicateVector(discretization,field%work, &
+!                                     field%compressibility0)
   if (option%flow%transient_porosity) then
     call DiscretizationDuplicateVector(discretization,field%work, &
                                        field%porosity_base_store)
@@ -733,6 +735,12 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           CharacteristicCurvesGetID(patch%characteristic_curves_array, &
                              cur_material_property%saturation_function_name, &
                              cur_material_property%name,option)
+      endif
+      if (cur_material_property%saturation_function_id == 0) then
+        option%io_buffer = 'Characteristic curve "' // &
+          trim(cur_material_property%saturation_function_name) // &
+          '" not found.'
+        call printErrMsg(option)
       endif
     endif
     

@@ -25,7 +25,7 @@ module PM_TH_class
   type, public, extends(pm_subsurface_type) :: pm_th_type
     class(communicator_type), pointer :: commN
   contains
-    procedure, public :: Init => PMTHInit
+    procedure, public :: Setup => PMTHSetup
     procedure, public :: Read => PMTHRead
     procedure, public :: InitializeTimestep => PMTHInitializeTimestep
     procedure, public :: Residual => PMTHResidual
@@ -37,7 +37,7 @@ module PM_TH_class
     procedure, public :: CheckUpdatePost => PMTHCheckUpdatePost
     procedure, public :: TimeCut => PMTHTimeCut
     procedure, public :: UpdateSolution => PMTHUpdateSolution
-    procedure, public :: UpdateAuxvars => PMTHUpdateAuxvars
+    procedure, public :: UpdateAuxVars => PMTHUpdateAuxVars
     procedure, public :: MaxChange => PMTHMaxChange
     procedure, public :: ComputeMassBalance => PMTHComputeMassBalance
     procedure, public :: Destroy => PMTHDestroy
@@ -154,7 +154,7 @@ end subroutine PMTHRead
 
 ! ************************************************************************** !
 
-subroutine PMTHInit(this)
+subroutine PMTHSetup(this)
   ! 
   ! This routine
   ! 
@@ -171,7 +171,7 @@ subroutine PMTHInit(this)
   
   class(pm_th_type) :: this
 
-  call PMSubsurfaceInit(this)
+  call PMSubsurfaceSetup(this)
   
   ! set up communicator
   select case(this%realization%discretization%itype)
@@ -182,7 +182,7 @@ subroutine PMTHInit(this)
   end select
   call this%commN%SetDM(this%realization%discretization%dm_nflowdof)
 
-end subroutine PMTHInit
+end subroutine PMTHSetup
 
 ! ************************************************************************** !
 
@@ -491,7 +491,7 @@ end subroutine PMTHUpdateSolution
 
 ! ************************************************************************** !
 
-subroutine PMTHUpdateAuxvars(this)
+subroutine PMTHUpdateAuxVars(this)
   ! 
   ! Author: Glenn Hammond
   ! Date: 04/21/14
@@ -504,7 +504,7 @@ subroutine PMTHUpdateAuxvars(this)
 
   call THUpdateAuxVars(this%realization)
 
-end subroutine PMTHUpdateAuxvars   
+end subroutine PMTHUpdateAuxVars   
 
 ! ************************************************************************** !
 

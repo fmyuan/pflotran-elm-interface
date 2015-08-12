@@ -375,19 +375,13 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
       if (C_p(i) <= dC_p(i)) then
         ratio = abs(C_p(i)/dC_p(i))
         if (ratio < min_ratio) min_ratio = ratio
-
-        ! the following IS a test, i.e., only scale the needed 'dC_p' rather than ALL by 'min_ratio',
-        ! which essentially shut off all reaction and transports, if min_ratio too small.
-        if (ratio<1.d0) then
-          dC_p(i) = dC_p(i)*ratio*0.99d0
-        endif
       endif
     enddo
-    !ratio = min_ratio
+    ratio = min_ratio
     
     ! get global minimum
-    !call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-    !                   MPI_MIN,realization%option%mycomm,ierr)
+    call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                       MPI_MIN,realization%option%mycomm,ierr)
                        
     ! scale if necessary
     if (min_ratio < 1.d0) then
@@ -440,6 +434,16 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
       endif
       ! scale by 0.99 to make the update slightly smaller than the min_ratio
       !dC_p = dC_p*min_ratio*0.99d0
+
+      ! the following IS a test, i.e., only scale the needed 'dC_p' rather than ALL by 'min_ratio',
+      ! which essentially shut off all reaction and transports, if min_ratio too small.
+      do i = 1, n
+        ratio = abs(C_p(i)/dC_p(i))
+        if (ratio<1.d0) then
+          dC_p(i) = dC_p(i)*ratio*0.99d0
+        endif
+      end do
+
       changed = PETSC_TRUE
     endif
     call VecRestoreArrayReadF90(C,C_p,ierr);CHKERRQ(ierr)
@@ -2975,7 +2979,8 @@ subroutine RTResidualEquilibrateCO2(r,realization)
   PetscInt :: jco2
   PetscReal :: tc, pg, henry, m_na, m_cl
   PetscReal :: Qkco2, mco2eq, xphi
-  
+  PetscReal :: eps = 1.d-6
+
   ! CO2-specific
   PetscReal :: dg,dddt,dddp,fg,dfgdp,dfgdt,eng,hg,dhdt,dhdp,visg,dvdt,dvdp,&
                yco2,sat_pressure,lngamco2
@@ -3006,8 +3011,8 @@ subroutine RTResidualEquilibrateCO2(r,realization)
   do local_id = 1, grid%nlmax  ! For each local node do...
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
-    if (global_auxvars(ghosted_id)%sat(GAS_PHASE) > 0.d0 .and. &
-      global_auxvars(ghosted_id)%sat(GAS_PHASE) < 1.d0) then
+    if (global_auxvars(ghosted_id)%sat(GAS_PHASE) > eps .and. &
+      global_auxvars(ghosted_id)%sat(GAS_PHASE) < 1.d0-eps) then
 
       jco2 = reaction%species_idx%co2_aq_id
 
@@ -3721,7 +3726,8 @@ subroutine RTJacobianEquilibrateCO2(J,realization)
   PetscInt :: zero_count
   PetscInt :: i, jco2
   PetscReal :: jacobian_entry
-  
+  PetscReal :: eps = 1.d-6
+
   option => realization%option
   field => realization%field
   patch => realization%patch  
@@ -3742,8 +3748,8 @@ subroutine RTJacobianEquilibrateCO2(J,realization)
   do local_id = 1, grid%nlmax  ! For each local node do...
     ghosted_id = grid%nL2G(local_id)
     if (patch%imat(ghosted_id) <= 0) cycle
-    if (global_auxvars(ghosted_id)%sat(GAS_PHASE) > 0.d0 .and. &
-      global_auxvars(ghosted_id)%sat(GAS_PHASE) < 1.d0) then
+    if (global_auxvars(ghosted_id)%sat(GAS_PHASE) > eps .and. &
+      global_auxvars(ghosted_id)%sat(GAS_PHASE) < 1.d0-eps) then
       zero_count = zero_count + 1
       zero_rows(zero_count) = jco2+(ghosted_id-1)*reaction%ncomp-1
       ghosted_rows(zero_count) = ghosted_id
@@ -3903,6 +3909,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
                            patch%aux%Global%auxvars(ghosted_id), &
                            patch%aux%Material%auxvars(ghosted_id), &
                            reaction,option)
+#if 0                           
       if (associated(reaction%species_idx) .and. &
           associated(patch%aux%Global%auxvars(ghosted_id)%m_nacl)) then
         if (reaction%species_idx%na_ion_id /= 0 .and. reaction%species_idx%cl_ion_id /= 0) then
@@ -3914,6 +3921,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
           patch%aux%Global%auxvars(ghosted_id)%m_nacl = option%m_nacl
         endif
       endif
+#endif
     enddo
 
     call PetscLogEventEnd(logging%event_rt_auxvars,ierr);CHKERRQ(ierr)
@@ -4155,7 +4163,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
             ! print *,'RT redo constrain on BCs: 2: ', sum_connection  
           endif         
         endif
-
+#if 0
         if (associated(reaction%species_idx) .and. &
             associated(patch%aux%Global%auxvars_bc(sum_connection)%m_nacl)) then
           if (reaction%species_idx%na_ion_id /= 0 .and. reaction%species_idx%cl_ion_id /= 0) then
@@ -4167,6 +4175,7 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
             patch%aux%Global%auxvars_bc(sum_connection)%m_nacl = option%m_nacl
           endif
         endif
+#endif        
       enddo ! iconn
       boundary_condition => boundary_condition%next
     enddo

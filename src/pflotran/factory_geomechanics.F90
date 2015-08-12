@@ -167,11 +167,12 @@ subroutine GeomechanicsInitializePostPETSc(simulation, option)
  
     call GeomechInitSetupRealization(geomech_realization,subsurf_realization)
     call GeomechInitSetupSolvers(geomech_realization,subsurf_realization, &
-                                  timestepper%solver)
+                                 timestepper%convergence_context, &
+                                 timestepper%solver)
                                   
 
     call pm_geomech%PMGeomechForceSetRealization(geomech_realization)
-    call pm_geomech%Init()
+    call pm_geomech%Setup()
     call SNESSetFunction(timestepper%solver%snes, &
                          pm_geomech%residual_vec, &
                          PMResidual, &
@@ -1123,7 +1124,8 @@ end subroutine GeomechInitSetupRealization
 
 ! ************************************************************************** !
 
-subroutine GeomechInitSetupSolvers(geomech_realization,realization,solver)
+subroutine GeomechInitSetupSolvers(geomech_realization,realization, &
+                                   convergence_context,solver)
   ! 
   ! Initializes material property data structres and assign them to the domain.
   ! 
@@ -1151,10 +1153,10 @@ subroutine GeomechInitSetupSolvers(geomech_realization,realization,solver)
   
   class(geomech_realization_type), pointer :: geomech_realization
   class(realization_type), pointer :: realization
+  type(convergence_context_type), pointer :: convergence_context
   type(solver_type), pointer :: solver
 
   type(option_type), pointer :: option
-  type(convergence_context_type), pointer :: convergence_context
   SNESLineSearch :: linesearch
   character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr

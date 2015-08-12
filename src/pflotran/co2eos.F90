@@ -40,8 +40,7 @@ subroutine CO2(TX,PCX,DC,FC,PHI,HC)
   ! Revision 1.1  2002/04/12 19:03:10  lichtner
   ! Initial entry
   ! 
-      
-  use PFLOTRAN_Constants_module
+      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT    
 
       implicit none
       
@@ -85,7 +84,7 @@ subroutine CO2(TX,PCX,DC,FC,PHI,HC)
 !
 
       PARAMETER(XMWC = 4.40098D-02)
-      PARAMETER(R    = 8.3147295D0)
+      PARAMETER(R    = IDEAL_GAS_CONSTANT)
       PARAMETER(B    = 5.8D-05)
 !      
 !
@@ -162,6 +161,8 @@ end subroutine CO2
 
 subroutine MRK(Y,T,PCX,V,DV,AT)
       
+      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT    
+
       implicit none
 
 !     MODIFIED REDLICH-KWONG EQUATION OF STATE FOR CO2
@@ -198,7 +199,7 @@ subroutine MRK(Y,T,PCX,V,DV,AT)
       PetscReal :: T2,V2,V3,V4,Y2,Y3
       PetscReal :: B2,B3,CT,DT,ET,FT,FV
 
-      PARAMETER(R   =  8.3147295D0)
+      PARAMETER(R   =  IDEAL_GAS_CONSTANT)
       PARAMETER(B   =  5.8D-05)
       PARAMETER(C1  =  2.39534D+01)
       PARAMETER(C2  = -4.55309D-02)
@@ -256,6 +257,8 @@ end subroutine MRK
 
 subroutine FUGACITY(Y,T,V,Z,PHI)
       
+      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT    
+
       implicit none
 
 !
@@ -290,7 +293,7 @@ subroutine FUGACITY(Y,T,V,Z,PHI)
       PetscReal :: R,B,C1,C2,C3,D1,D2,D3,E1,E2,E3,F1,F2,F3
       PetscReal :: T2,V2,V3,B2,B3,B4,CT,DT,ET,FT
       
-      PARAMETER(R   =  8.3147295D0)
+      PARAMETER(R   =  IDEAL_GAS_CONSTANT)
       PARAMETER(B   =  5.8D-05)
       PARAMETER(C1  =  2.39534D+01)
       PARAMETER(C2  = -4.55309D-02)
@@ -351,6 +354,8 @@ end subroutine FUGACITY
 
 subroutine ENTHALPY(T,V,Z,H)
 
+      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT    
+
       implicit none
 !
 !     This subroutine is called from subroutine CO2 during the       
@@ -401,7 +406,7 @@ subroutine ENTHALPY(T,V,Z,H)
                    B2,B3,B4,XI1,XI2,URES
       
       PARAMETER(BETA=  304.21D0)
-      PARAMETER(R   =  8.3147295D0)
+      PARAMETER(R   =  IDEAL_GAS_CONSTANT)
       PARAMETER(TREF=  2.7316D+02)
       PARAMETER(B   =  5.8D-05)
       PARAMETER(C1  =  2.39534D+01)
@@ -509,6 +514,8 @@ subroutine duanco2 (tt,p,dc,fc,phi)
   ! 8000 bar. Geochimica Cosmochimica Acta, 56, 2605-2617.
   ! 
 
+      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT    
+
       implicit none
       
       PetscReal :: a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,alpha,beta,gamma
@@ -553,7 +560,7 @@ subroutine duanco2 (tt,p,dc,fc,phi)
       d = a7 + (a8 + a9*tr1)*tr2
       e = a10 + (a11 + a12*tr1)*tr2
 
-      rgas = 0.083144621 !bar dm**3 / k
+      rgas = IDEAL_GAS_CONSTANT * 1.d-2 !bar dm**3 / k
       vc = rgas*tc/pc
 
 !-----solve
@@ -824,7 +831,7 @@ subroutine HENRY_co2_noderiv(xmole,x1m,tx,pcx,xphi,rkh,poyn)
 
 !-----Poynting term
 !     vid = 3.5d-5
-!     rgas = 8.3144621D0
+!     rgas = IDEAL_GAS_CONSTANT
 !     call sat(tx,ps)
  
 !     poyn = exp(-(VID*(PCX-PS))/(Rgas*Tk))
@@ -842,6 +849,8 @@ end subroutine HENRY_CO2_NODERIV
 ! ************************************************************************** !
 
 subroutine HENRY_sullivan (TX,PCX,PS,FC,X1M,XCO2,HP)
+
+      use PFLOTRAN_Constants_module, only : IDEAL_GAS_CONSTANT    
 
       implicit none
 
@@ -889,7 +898,7 @@ subroutine HENRY_sullivan (TX,PCX,PS,FC,X1M,XCO2,HP)
       
       PARAMETER(XMWC = 4.40098D-02)
       PARAMETER(XMWW = 1.801534D-02)
-      PARAMETER(R    = 8.3147295D0)
+      PARAMETER(R    = IDEAL_GAS_CONSTANT)
       PARAMETER(VID  = 3.0D-05)
 
 !    Calculate TAU:
@@ -1089,6 +1098,8 @@ end subroutine VISCO2
 subroutine SAT(T,P)
 !--------- Fast SAT M.J.O'Sullivan - 17 SEPT 1990 ---------
 !
+      use PFLOTRAN_Constants_module, only : H2O_CRITICAL_PRESSURE, &
+                                            H2O_CRITICAL_TEMPERATURE
       implicit none
 
       PetscReal :: T,P,A1,A2,A3,A4,A5,A6,A7,A8,A9
@@ -1099,7 +1110,7 @@ subroutine SAT(T,P)
       -1.189646225E2,4.167117320,2.097506760E1,1.E9,6./
 
       if (T.LT.1..OR.T.GT.500.) GOTO 10
-      TC=(T+273.15d0)/647.3d0
+      TC=(T+273.15d0)/H2O_CRITICAL_TEMPERATURE
       X1=1.d0-TC
       X2=X1*X1
       SC=A5*X1+A4
@@ -1108,7 +1119,7 @@ subroutine SAT(T,P)
       SC=SC*X1+A1
       SC=SC*X1
       PC_=EXP(SC/(TC*(1.d0+A6*X1+A7*X2))-X1/(A8*X2+A9))
-      P=PC_*2.212E7
+      P=PC_*H2O_CRITICAL_PRESSURE
       RETURN
    10 continue
       WRITE(6,1) ' ',T
@@ -1120,6 +1131,8 @@ end subroutine SAT
 
 subroutine COWAT0(TF,PP,D,U)
 !--------- Fast COWAT M.J.O'Sullivan - 17 SEPT 1990 ---------
+      use PFLOTRAN_Constants_module, only : H2O_CRITICAL_PRESSURE, &
+                                            H2O_CRITICAL_TEMPERATURE
 
       implicit none
       
@@ -1145,7 +1158,7 @@ subroutine COWAT0(TF,PP,D,U)
       4.975858870E-2,6.537154300E-1,1.150E-6,1.51080E-5, &
       1.41880E-1,7.002753165E0,2.995284926E-4,2.040E-1   /
 
-      TKR=(TF+273.15)/647.3
+      TKR=(TF+273.15)/H2O_CRITICAL_TEMPERATURE
       TKR2=TKR*TKR
       TKR3=TKR*TKR2
       TKR4=TKR2*TKR2
@@ -1159,7 +1172,7 @@ subroutine COWAT0(TF,PP,D,U)
       TKR19=TKR8*TKR11
       TKR18=TKR8*TKR10
       TKR20=TKR10*TKR10
-      PNMR=PP/2.212E7
+      PNMR=PP/H2O_CRITICAL_PRESSURE
       PNMR2=PNMR*PNMR
       PNMR3=PNMR*PNMR2
       PNMR4=PNMR*PNMR3
@@ -1228,6 +1241,8 @@ subroutine SUPST(T,P,D,U)
 ! SUPST    1.0 S     1 February  1991
 ! VAPOR DENSITY AND INTERNAL ENERGY AS FUNCTION OF TEMPERATURE AND 
 ! PRESSURE (M. OS.)
+      use PFLOTRAN_Constants_module, only : H2O_CRITICAL_PRESSURE, &
+                                            H2O_CRITICAL_TEMPERATURE
       
       implicit none
       
@@ -1260,8 +1275,8 @@ subroutine SUPST(T,P,D,U)
       7.633333333E-1,4.006073948E-1,8.636081627E-2,-8.532322921E-1, &
       3.460208861E-1/
 
-      THETA=(T+273.15)/647.3
-      BETA=P/2.212E7
+      THETA=(T+273.15)/H2O_CRITICAL_TEMPERATURE
+      BETA=P/H2O_CRITICAL_PRESSURE
       I1=4.260321148
       X=EXP(SB*(1.d0-THETA))
 
@@ -1412,6 +1427,7 @@ end subroutine TSAT
 ! ************************************************************************** !
 
 subroutine SIGMA(T,ST)
+      use PFLOTRAN_Constants_module, only : H2O_CRITICAL_TEMPERATURE
       implicit none
 !
 !-----COMPUTE SURFACE TENSION OF WATER, USING THE
@@ -1421,8 +1437,8 @@ subroutine SIGMA(T,ST)
       PetscReal :: T,ST
       
       if (T.GE.374.15) GOTO 1
-      ST=1.-0.625*(374.15-T)/647.3
-      ST=ST*.2358*((374.15-T)/647.3)**1.256
+      ST=1.-0.625*(374.15-T)/H2O_CRITICAL_TEMPERATURE
+      ST=ST*.2358*((374.15-T)/H2O_CRITICAL_TEMPERATURE)**1.256
       RETURN
 
     1 CONTINUE

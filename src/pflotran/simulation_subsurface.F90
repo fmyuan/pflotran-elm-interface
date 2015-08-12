@@ -21,7 +21,6 @@ module Simulation_Subsurface_class
     class(pmc_subsurface_type), pointer :: flow_process_model_coupler
     ! pointer to reactive transport process model coupler
     class(pmc_subsurface_type), pointer :: rt_process_model_coupler
-    class(pmc_third_party_type), pointer :: misc_process_model_coupler
     ! pointer to realization object shared by flow and reactive transport
     class(realization_type), pointer :: realization 
     ! regression object
@@ -90,7 +89,6 @@ subroutine SubsurfaceSimulationInit(this,option)
   call SimulationBaseInit(this,option)
   nullify(this%flow_process_model_coupler)
   nullify(this%rt_process_model_coupler)
-  nullify(this%misc_process_model_coupler)
   nullify(this%realization)
   nullify(this%regression)
   
@@ -231,7 +229,8 @@ subroutine SubsurfaceFinalizeRun(this)
   use Timestepper_BE_class
   use Reaction_Sandbox_module, only : RSandboxDestroy
   use SrcSink_Sandbox_module, only : SSSandboxDestroy
-  use Creep_Closure_module, only : CreepClosureDestroy
+  use WIPP_module, only : WIPPDestroy
+  use Klinkenberg_module, only : KlinkenbergDestroy
   use CLM_Rxn_module, only : RCLMRxnDestroy
 
   implicit none
@@ -257,7 +256,8 @@ subroutine SubsurfaceFinalizeRun(this)
         flow_timestepper => ts
     end select
     call SSSandboxDestroy()
-    call CreepClosureDestroy()
+    call WIPPDestroy()
+    call KlinkenbergDestroy()
   endif
   if (associated(this%rt_process_model_coupler)) then
     select type(ts => this%rt_process_model_coupler%timestepper)

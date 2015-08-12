@@ -19,7 +19,9 @@ module Option_module
     type(transport_option_type), pointer :: transport
   
     PetscInt :: id                         ! id of realization
-  
+    PetscInt :: successful_exit_code       ! code passed out of PFLOTRAN 
+                                           ! indicating successful completion 
+                                           ! of simulation
     PetscMPIInt :: global_comm             ! MPI_COMM_WORLD
     PetscMPIInt :: global_rank             ! rank in MPI_COMM_WORLD
     PetscMPIInt :: global_commsize         ! size of MPI_COMM_WORLD
@@ -211,6 +213,9 @@ module Option_module
     PetscReal :: max_manning_velocity
     PetscReal :: max_infiltration_velocity
 
+    ! when the scaling factor is too small, stop in reactive transport 
+    PetscReal :: min_allowable_scale
+
   end type option_type
   
   PetscInt, parameter, public :: SUBSURFACE_SIM_TYPE = 1
@@ -329,6 +334,7 @@ subroutine OptionInitAll(option)
   call OptionTransportInitAll(option%transport)
   
   option%id = 0
+  option%successful_exit_code = 0
 
   option%global_comm = 0
   option%global_rank = 0
@@ -569,6 +575,9 @@ subroutine OptionInitRealization(option)
   ! initially set to a large value to effectively disable
   option%max_manning_velocity = 1.d20
   option%max_infiltration_velocity = 1.d20
+  
+  ! when the scaling factor is too small, stop in reactive transport 
+  option%min_allowable_scale = 1.0d-10
   
 end subroutine OptionInitRealization
 
@@ -1296,6 +1305,7 @@ subroutine OptionFinalize(option)
   
   type(option_type), pointer :: option
   
+  PetscInt :: iflag
   PetscErrorCode :: ierr
   
   call LoggingDestroy()
@@ -1303,10 +1313,11 @@ subroutine OptionFinalize(option)
   ! list any PETSc objects that have not been freed - for debugging
   call PetscOptionsSetValue('-objects_left','yes',ierr);CHKERRQ(ierr)
   call MPI_Barrier(option%global_comm,ierr)
+  iflag = option%successful_exit_code
   call OptionDestroy(option)
   call PetscFinalize(ierr);CHKERRQ(ierr)
   call MPI_Finalize(ierr)
-  call exit(86)
+  call exit(iflag)
   
 end subroutine OptionFinalize
 

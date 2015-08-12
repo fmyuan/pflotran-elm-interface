@@ -190,6 +190,8 @@ subroutine PFLOTRANReadSimulation(simulation,option)
               call SubsurfaceReadRTPM(input, option, new_pm)
             case('WASTE_FORM')
               call SubsurfaceReadWasteFormPM(input, option,new_pm)
+            case('UFD_DECAY')
+              call SubsurfaceReadUFDDecayPM(input, option,new_pm)
             case('HYDROGEOPHYSICS')
             case('SURFACE_SUBSURFACE')
               option%surf_flow_on = PETSC_TRUE
@@ -419,6 +421,10 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   string = '-v'
   call InputGetCommandLineInt(string,i,option_found,option)
   if (option_found) option%verbosity = i
+ 
+  string = '-successful_exit_code'
+  call InputGetCommandLineInt(string,i,option_found,option)
+  if (option_found) option%successful_exit_code = i
  
   ! this will get overwritten later if stochastic
   string = '-realization_id'
