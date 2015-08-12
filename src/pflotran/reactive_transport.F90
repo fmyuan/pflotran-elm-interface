@@ -375,7 +375,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
       if (C_p(i) <= dC_p(i)) then
         ratio = abs(C_p(i)/dC_p(i))
         if (ratio < min_ratio) min_ratio = ratio
-      endif
+      end if
     enddo
     ratio = min_ratio
     
@@ -400,16 +400,16 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
             write(realization%option%fid_out, *)  &
              ' <------ min_ratio @', i, 'cell no.=', floor((i-1.d0)/j), &
             'rt species no. =',i-floor((i-1.d0)/j)*j, '-------------->'
-
-             write(realization%option%fid_out, *) 'i=', i, &
-               'cell_no=',floor((i-1.0d0)/j), &
-               'rt_species_no.=',i-floor((i-1.0d0)/j)*j, &
-               'C_p/dC_p=', ratio, 'C_p=',C_p(i),'dC_p=',dC_p(i)
           endif
+
+          write(realization%option%fid_out, *) 'i=', i, &
+            'cell_no=',floor((i-1.0d0)/j), &
+            'rt_species_no.=',i-floor((i-1.0d0)/j)*j, &
+            'C_p/dC_p=', ratio, 'C_p=',C_p(i),'dC_p=',dC_p(i)
         enddo
         write(realization%option%fid_out, *) '-----DONE: checking scaling factor for RT ----'
 
-        if (ratio<=min_allowable_scale) then
+        if (min_ratio<=min_allowable_scale) then
           write(realization%option%fid_out, *) ' min_ratio IS too small to make sense, '// &
             'which less than an allowable_scale value !'
           write(realization%option%fid_out, *) ' STOP executing ! '
@@ -1128,6 +1128,7 @@ subroutine RTUpdateTransportCoefs(realization)
   endif
   
   ! Interior Flux Terms -----------------------------------
+
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
   sum_connection = 0  
@@ -2387,6 +2388,9 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   PetscReal :: msrc(1:realization%option%nflowspec)
   PetscInt :: icomp, ieqgas
 
+  ! zero out xy-direction transport
+  PetscReal :: unitvec_xy(3)
+
   option => realization%option
   field => realization%field
   patch => realization%patch
@@ -2424,6 +2428,9 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   vol_frac_prim = 1.d0
 
   ! Interior Flux Terms -----------------------------------
+  unitvec_xy(1:2) = 0.d0
+  unitvec_xy(3)   = 1.d0
+
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
   sum_connection = 0  
@@ -2440,6 +2447,12 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 
       if (patch%imat(ghosted_id_up) <= 0 .or.  &
           patch%imat(ghosted_id_dn) <= 0) cycle
+
+      !----------------
+      if ( option%flow%only_vertical_flow .or. option%transport%only_vertical_tran ) then
+         if(dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xy) < 1.d-20) cycle
+      end if
+      !----------------
 
       ! TFluxCoef will eventually be moved to another routine where it should be
       ! called only once per flux interface at the beginning of a transport
@@ -2482,6 +2495,12 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
         istart = iend-reaction%ncomp+1
         r_p(istart:iend) = r_p(istart:iend) - Res(1:reaction%ncomp)
       endif
+
+      if (associated(patch%internal_tran_fluxes)) then
+        patch%internal_tran_fluxes(1:reaction%ncomp,iconn) = &
+            Res(1:reaction%ncomp)
+      endif
+
 #else
       call TFluxCoef_CD(option,cur_connection_set%area(iconn), &
                  patch%internal_velocities(:,sum_connection), &
@@ -2506,11 +2525,15 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
         istart = iend-reaction%ncomp+1
         r_p(istart:iend) = r_p(istart:iend) + Res_2(1:reaction%ncomp)
       endif
-#endif
+
       if (associated(patch%internal_tran_fluxes)) then
         patch%internal_tran_fluxes(1:reaction%ncomp,iconn) = &
-            Res(1:reaction%ncomp)
+            Res_1(1:reaction%ncomp) + Res_2(1:reaction%ncomp)
       endif
+
+#endif
+
+
     enddo
     cur_connection_set => cur_connection_set%next
   enddo
@@ -2563,6 +2586,10 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 !          rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) + Res
         endif  
 
+      if (associated(patch%boundary_tran_fluxes)) then
+        patch%boundary_tran_fluxes(1:reaction%ncomp,sum_connection) = &
+            -Res(1:reaction%ncomp)
+
 #else
       call TFluxCoef_CD(option,cur_connection_set%area(iconn), &
                 patch%boundary_velocities(:,sum_connection), &
@@ -2589,10 +2616,12 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 !          rt_auxvars(ghosted_id)%mass_balance_delta(:,iphase) + Res
         endif  
       
-#endif                   
       if (associated(patch%boundary_tran_fluxes)) then
         patch%boundary_tran_fluxes(1:reaction%ncomp,sum_connection) = &
-            -Res(1:reaction%ncomp)
+            -Res_2(1:reaction%ncomp)
+
+#endif
+
       endif
     enddo
     boundary_condition => boundary_condition%next
@@ -3232,6 +3261,9 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
   PetscReal :: Res(realization%reaction%ncomp)  
 #endif
 
+  ! zero out xy-direction transport
+  PetscReal :: unitvec_xy(3)
+
   option => realization%option
   field => realization%field
   patch => realization%patch  
@@ -3250,6 +3282,9 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
   vol_frac_prim = 1.d0
 
   ! Interior Flux Terms -----------------------------------
+  unitvec_xy(1:2) = 0.d0
+  unitvec_xy(3)   = 1.d0
+
   ! must zero out Jacobian blocks
 
   call PetscLogEventBegin(logging%event_rt_jacobian_flux,ierr);CHKERRQ(ierr)
@@ -3270,6 +3305,12 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
 
       if (patch%imat(ghosted_id_up) <= 0 .or.  &
           patch%imat(ghosted_id_dn) <= 0) cycle
+
+      !----------------
+      if ( option%flow%only_vertical_flow .or. option%transport%only_vertical_tran ) then
+         if(dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xy) < 1.d-20) cycle
+      end if
+      !----------------
 
       if (option%use_mc) then
         vol_frac_prim = rt_sec_transport_vars(local_id_up)%epsilon
@@ -4826,6 +4867,9 @@ subroutine RTExplicitAdvection(realization)
   PetscErrorCode :: ierr
   PetscViewer :: viewer
 
+  ! zero out xy-direction transport
+  PetscReal :: unitvec_xy(3)
+
   procedure (TFluxLimiterDummy), pointer :: TFluxLimitPtr
   
   select case(realization%option%transport%tvd_flux_limiter)
@@ -4942,6 +4986,9 @@ subroutine RTExplicitAdvection(realization)
   endif
   
 ! Interior Flux Terms -----------------------------------
+  unitvec_xy(1:2) = 0.d0
+  unitvec_xy(3)   = 1.d0
+
   call VecGetArrayF90(field%tvd_ghosts,tvd_ghosts_p,ierr);CHKERRQ(ierr)
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
@@ -4959,6 +5006,12 @@ subroutine RTExplicitAdvection(realization)
 
       if (patch%imat(ghosted_id_up) <= 0 .or.  &
           patch%imat(ghosted_id_dn) <= 0) cycle
+
+      !----------------
+      if ( option%flow%only_vertical_flow .or. option%transport%only_vertical_tran ) then
+         if(dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xy) < 1.d-20) cycle
+      end if
+      !----------------
         
       if (associated(cur_connection_set%id_dn2)) then
         id_up2 = cur_connection_set%id_up2(iconn)

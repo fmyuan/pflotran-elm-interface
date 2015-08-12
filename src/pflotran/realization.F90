@@ -663,6 +663,18 @@ subroutine RealizationProcessConditions(realization)
     cur_data_mediator => cur_data_mediator%next
   enddo
 
+#ifdef CLM_PFLOTRAN
+  ! if coupled with CLM, always initialize 'field%tran_mass_transfer' vec
+  ! so that NO need to pass data to rt_mass_transfer via the HDF5 dataset vec
+  ! (fmyuan, 2015-06-12)
+  if (realization%option%ntrandof > 0) then
+    if (.not.associated( realization%tran_data_mediator_list) ) then
+      call RealizCreateTranMassTransferVec(realization)
+    endif
+  endif
+#endif
+
+
 end subroutine RealizationProcessConditions
 
 ! ************************************************************************** !

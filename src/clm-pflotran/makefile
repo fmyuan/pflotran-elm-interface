@@ -10,6 +10,7 @@ include ${PETSC_DIR}/conf/variables
 include ${PETSC_DIR}/conf/rules
 
 MYFLAGS = -I.
+MYFLAGS += ${FC_DEFINE_FLAG}PROCESS_MODEL
 MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN
 MYFLAGS += ${FC_DEFINE_FLAG}STORE_FLOWRATES
 
@@ -214,18 +215,18 @@ chem_obj = \
 	${common_src}reaction.o \
 	${common_src}reaction_aux.o \
 	${common_src}reaction_clm.o \
-	${common_src}clm_rspfuncs.o \
-	${common_src}lambertw.o \
 	${common_src}reaction_sandbox.o \
 	${common_src}reaction_sandbox_base.o \
 	${common_src}reaction_sandbox_clm_cn.o \
 	${common_src}reaction_sandbox_example.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
 	${common_src}reaction_sandbox_denitr.o \
-	${common_src}reaction_sandbox_degas.o \
-	${common_src}reaction_sandbox_plantn.o \
+	${common_src}reaction_sandbox_degas.o  \
+	${common_src}reaction_sandbox_langmu.o \
 	${common_src}reaction_sandbox_nitrif.o \
+	${common_src}reaction_sandbox_plantn.o \
 	${common_src}reaction_sandbox_somdec.o \
+	${common_src}clm_rspfuncs.o \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \
 	${common_src}reaction_surf_complex.o \
@@ -392,9 +393,10 @@ geomech_obj = \
 	${common_src}timestepper_steady.o
 
 clm_interface_obj = \
-	${common_src}pflotran_model.o \
 	${common_src}clm_pflotran_interface_data.o \
-	${common_src}mapping.o
+	${common_src}mapping.o \
+	${common_src}pflotran_clm_main.o \
+	${common_src}pflotran_clm_setmapping.o
 
 # End Source Block
 
@@ -444,12 +446,13 @@ endif
 # the long list below is easier to update from the main makefile.
 clm_pflotran_interface_data.o :
 mapping.o : option.o pflotran_constants.o input_aux.o
-pflotran_model.o : factory_geomechanics.o factory_hydrogeophysics.o \
+pflotran_clm_main.o : factory_geomechanics.o factory_hydrogeophysics.o \
              factory_pflotran.o factory_subsurface.o \
              factory_surface.o factory_surfsubsurface.o \
              multisimulation.o option.o pflotran_constants.o \
              pflotran_provenance.o simulation_base.o \
-             mapping.o clm_pflotran_interface_data.o
+             clm_pflotran_interface_data.o mapping.o
+pflotran_clm_setmapping.o : mapping.o pflotran_clm_main.o
 
 # Dependencies stemming from "use" statements.
 # These ensure that the module files are built in the correct order.
@@ -999,8 +1002,9 @@ reaction_sandbox.o : global_aux.o input_aux.o material_aux.o option.o \
                      reaction_sandbox_example.o reaction_sandbox_ufd_wp.o \
                      reactive_transport_aux.o string.o utility.o \
                      reaction_sandbox_somdec.o \
-                     reaction_sandbox_plantn.o \
+                     reaction_sandbox_langmu.o \
                      reaction_sandbox_nitrif.o \
+                     reaction_sandbox_plantn.o \
                      reaction_sandbox_denitr.o \
                      reaction_sandbox_degas.o
 reaction_sandbox_base.o : global_aux.o input_aux.o material_aux.o option.o \
@@ -1024,11 +1028,16 @@ reaction_sandbox_denitr.o : global_aux.o reaction_immobile_aux.o input_aux.o \
                             reaction_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \
                             utility.o clm_rspfuncs.o
-reaction_sandbox_degas.o : global_aux.o reaction_immobile_aux.o input_aux.o \
+reaction_sandbox_degas.o  : global_aux.o reaction_immobile_aux.o input_aux.o \
                             material_aux.o option.o pflotran_constants.o \
                             reaction_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \
-                            utility.o co2eos.o clm_rspfuncs.o
+                            utility.o co2eos.o
+reaction_sandbox_langmu.o : global_aux.o reaction_immobile_aux.o input_aux.o \
+                            material_aux.o option.o pflotran_constants.o \
+                            reaction_aux.o reaction_sandbox_base.o \
+                            reactive_transport_aux.o string.o units.o \
+                            utility.o clm_rspfuncs.o
 reaction_sandbox_nitrif.o : global_aux.o reaction_immobile_aux.o input_aux.o \
                             material_aux.o option.o pflotran_constants.o \
                             reaction_aux.o reaction_sandbox_base.o \

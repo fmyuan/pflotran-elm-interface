@@ -25,7 +25,7 @@ module Mapping_module
     !
     ! where W - Weight matrix      (nd x ns)
     !       s - Source vector      (ns x 1)
-    !       d - Destination vector (ns x 1)
+    !       d - Destination vector (nd x 1)
     !
     ! In CLM-PFLOTRAN coupling, s and d vectors are decomposed over multiple processors.
     ! The decomposition of vectors need not be in a contiguous order.
@@ -39,12 +39,14 @@ module Mapping_module
     !
 
     character(len=MAXSTRINGLENGTH) :: filename
+    PetscInt                       :: id
 
     ! Note: IDs of source/destination mesh are 0-based
 
     ! Source mesh
     PetscInt           :: s_ncells_loc              ! # of local source mesh cells present
-    PetscInt,pointer   :: s_ids_loc_nidx(:)         ! IDs of source mesh cells
+    PetscInt,pointer   :: s_ids_loc_nidx(:)         ! IDs of local source mesh cells
+    PetscInt,pointer   :: s_locids_loc_nidx(:)      ! loal IDs of local source mesh cells
 
     ! Destination mesh
     PetscInt           :: d_ncells_loc              ! # of local destination mesh cells present
@@ -119,10 +121,11 @@ contains
 
     map%s_ncells_loc = 0
     nullify(map%s_ids_loc_nidx)
+    nullify(map%s_locids_loc_nidx)
 
     ! Destination mesh
     map%d_ncells_loc = 0
-    map%d_ncells_gh = 0
+    map%d_ncells_gh  = 0
     map%d_ncells_ghd = 0
 
     ! natuaral-index starting with 0
@@ -161,12 +164,11 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine MappingSetSourceMeshCellIds( map, &
-                                          option, &
-                                          ncells_loc, &
-                                          ncells_gh, &
-                                          cell_ids_ghd, &
-                                          loc_or_gh &
+  subroutine MappingSetSourceMeshCellIds( map,                           &
+                                          option,                        &
+                                          ncells_loc, ncells_gh,         &
+                                          cell_ids_ghd,                  &
+                                          local_ids_ghd                  &
                                         )
   ! 
   ! This routine sets cell ids source mesh.
@@ -181,17 +183,20 @@ contains
     type(mapping_type), pointer :: map
     type(option_type),  pointer :: option
 
-    PetscInt                    :: ncells_loc, ncells_gh, ii, iloc
-    PetscInt,pointer            :: cell_ids_ghd(:), loc_or_gh(:)
+    PetscInt                    :: ncells_loc, ncells_gh, iloc, ii
+    PetscInt,pointer            :: cell_ids_ghd(:), local_ids_ghd(:)
 
     map%s_ncells_loc = ncells_loc
     allocate(map%s_ids_loc_nidx(map%s_ncells_loc))
+    allocate(map%s_locids_loc_nidx(map%s_ncells_loc))
 
-    iloc = 1
+    iloc = 0
     do ii = 1,ncells_loc+ncells_gh
-      if(loc_or_gh(ii) == 0) cycle
-      map%s_ids_loc_nidx(iloc) = cell_ids_ghd(ii)
-      iloc = iloc + 1
+      if (local_ids_ghd(ii)>=1) then
+        iloc = iloc+1
+        map%s_ids_loc_nidx(iloc)    = cell_ids_ghd(ii)
+        map%s_locids_loc_nidx(iloc) = local_ids_ghd(ii)
+      endif
     enddo
 
   end subroutine MappingSetSourceMeshCellIds
@@ -224,7 +229,7 @@ contains
 
     PetscInt                    :: ii
     PetscInt, pointer           :: index(:),rev_index(:)
-    PetscErrorCode               :: ierr
+    PetscErrorCode              :: ierr
 
     ! Initialize
     map%d_ncells_loc = ncells_loc
@@ -801,7 +806,7 @@ contains
 
   subroutine MappingDecompose(map,option)
   ! 
-  ! This routine decomposes the mapping when running on more than processor,
+  ! This routine decomposes the mapping when running on more than 1 processor,
   ! while accounting for different domain decomposition of source and
   ! destination grid.
   ! 
@@ -898,7 +903,9 @@ contains
     deallocate(row)
     deallocate(row_count)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'nonzero_row_count_vec.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_nonzero_row_count_vec.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecView(nonzero_row_count_vec, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -929,7 +936,9 @@ contains
     call VecRestoreArrayF90(cumsum_nonzero_row_count_vec,vloc2,ierr)
 
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'cumsum_nonzero_row_count_vec.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_cumsum_nonzero_row_count_vec.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecView(cumsum_nonzero_row_count_vec, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -940,7 +949,7 @@ contains
     !    - cell ids of source mesh
     !
     !    Use VecScatter() to save portion of nonzero_row_count_vec and
-    !    cumsum_nonzero_row_count_vec corresponding which correspond to
+    !    cumsum_nonzero_row_count_vec corresponding to
     !    ghosted (local+ghost) cell ids destination mesh on a given proc.
     
     !
@@ -959,7 +968,9 @@ contains
     deallocate(tmp_int_array)
     
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'is_to.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_is_to1.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call ISView(is_to,viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -968,7 +979,9 @@ contains
                       map%d_ids_ghd_nidx, PETSC_COPY_VALUES,is_from,ierr)
 
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'is_from.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_is_from1.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call ISView(is_from, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -980,7 +993,9 @@ contains
     call ISDestroy(is_from,ierr)
     call ISDestroy(is_to,ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'vec_scat.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_vscat1.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecScatterView(vec_scat, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -992,6 +1007,14 @@ contains
     call VecScatterEnd(vec_scat,nonzero_row_count_vec, &
                       nonzero_row_count_loc_vec,INSERT_VALUES,SCATTER_FORWARD, &
                       ierr)
+#ifdef MAP_DEBUG
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_vscat1b.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
+    call VecView(cumsum_nonzero_row_count_vec, viewer,ierr)
+    call PetscViewerDestroy(viewer, ierr)
+#endif
+
     call VecScatterBegin(vec_scat,cumsum_nonzero_row_count_vec, &
                         cumsum_nonzero_row_count_loc_vec,INSERT_VALUES,SCATTER_FORWARD, &
                         ierr)
@@ -999,6 +1022,14 @@ contains
                       cumsum_nonzero_row_count_loc_vec,INSERT_VALUES,SCATTER_FORWARD, &
                       ierr)
     call VecScatterDestroy(vec_scat,ierr)
+
+#ifdef MAP_DEBUG
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_vscat1c.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
+    call VecView(cumsum_nonzero_row_count_vec, viewer,ierr)
+    call PetscViewerDestroy(viewer, ierr)
+#endif
     
     call VecGetArrayF90(nonzero_row_count_loc_vec,vloc1,ierr)
     call VecGetArrayF90(cumsum_nonzero_row_count_loc_vec,vloc2,ierr)
@@ -1038,7 +1069,9 @@ contains
     call ISCreateBlock(option%mycomm,1,map%s2d_s_ncells,tmp_int_array, &
          PETSC_COPY_VALUES,is_from,ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'is_from2.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_is_from2.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call ISView(is_from,viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -1051,7 +1084,9 @@ contains
          PETSC_COPY_VALUES,is_to,ierr)
     deallocate(tmp_int_array)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'is_to2.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_is_to2.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call ISView(is_to,viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -1064,7 +1099,9 @@ contains
     ! Create scatter context
     call VecScatterCreate(row_vec,is_from,row_loc_vec,is_to,vec_scat,ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'scatter_wts_data.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_vscat2.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecScatterView(vec_scat, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -1177,7 +1214,7 @@ contains
       int_array(ii)  = map%s2d_s_ids_nidx(ii)
       int_array2(ii) = ii
     enddo
-    
+
     int_array2 = int_array2 - 1
     call PetscSortIntWithPermutation(map%s2d_s_ncells,int_array,int_array2,ierr)
     int_array2 = int_array2 + 1
@@ -1201,6 +1238,7 @@ contains
     int_array4 = int_array4 - 1
     
     map%s2d_s_ncells_dis = count
+
     ! Save the distinct ids
     allocate(map%s2d_s_ids_nidx_dis(map%s2d_s_ncells_dis))
     
@@ -1241,7 +1279,7 @@ contains
     PetscInt, pointer            :: index(:)
     PetscInt                     :: ii,jj,kk
     PetscErrorCode               :: ierr
-    character(len=MAXSTRINGLENGTH)     :: string  
+    character(len=MAXSTRINGLENGTH)     :: string, string1
     PetscViewer :: viewer
 
     allocate(index(map%s2d_s_ncells))
@@ -1272,7 +1310,8 @@ contains
 
 #ifdef MAP_DEBUG
     write(string,*) option%myrank
-    string = 'mat_wts' // trim(adjustl(string)) // '.out'
+    write(string1,*) map%id
+    string = 'mat_wts' // trim(adjustl(string)) // '_' // trim(adjustl(string1)) // '.out'
     call PetscViewerASCIIOpen(PETSC_COMM_SELF, trim(string), viewer, ierr)
     call MatView(map%wts_mat, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
@@ -1284,7 +1323,7 @@ contains
 
   subroutine MappingCreateScatterOfSourceMesh(map,option)
   ! 
-  ! This routine screates a vector scatter context from source to destination
+  ! This routine creates a vector scatter context from source to destination
   ! grid.
   ! 
   ! Author: Gautam Bisht, ORNL
@@ -1313,6 +1352,8 @@ contains
     PetscInt,pointer             :: tmp_int_array(:)
     PetscScalar,pointer          :: v_loc(:)
     PetscErrorCode               :: ierr
+
+    character(len=MAXSTRINGLENGTH)     :: string
 
     !
     ! Example:
@@ -1369,7 +1410,9 @@ contains
     enddo
     call VecRestoreArrayF90(nindex,v_loc,ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm,'nindex.out',viewer,ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_nindex.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecView(nindex,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1382,7 +1425,9 @@ contains
     enddo
     call VecRestoreArrayF90(pindex,v_loc,ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm,'pindex.out',viewer,ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_pindex.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecView(pindex,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1395,8 +1440,9 @@ contains
     call ISCreateBlock(option%mycomm, 1, map%s_ncells_loc, tmp_int_array, PETSC_COPY_VALUES, &
          is_from, ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm,'is_from.out', &
-                              viewer,ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_is_from3.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call ISView(is_from,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1409,8 +1455,9 @@ contains
          is_to, ierr)
     deallocate(tmp_int_array)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm,'is_to.out', &
-                              viewer,ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_is_to3.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call ISView(is_to,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1420,7 +1467,9 @@ contains
     call ISDestroy(is_to,ierr)
     call ISDestroy(is_from,ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'vscat.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_vscat3.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecScatterView(vscat, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -1430,7 +1479,9 @@ contains
     call VecScatterEnd(  vscat, pindex, N2P, INSERT_VALUES, SCATTER_FORWARD, ierr)
     call VecScatterDestroy(vscat,ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm,'N2P.out',viewer,ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_N2P.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecView(N2P,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1463,7 +1514,9 @@ contains
     call ISCreateBlock(option%mycomm, 1, map%s2d_s_ncells_dis, map%s2d_s_ids_nidx_dis, &
          PETSC_COPY_VALUES, is_to, ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'is_to1.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_is_to4.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call ISView(is_to, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
@@ -1479,17 +1532,22 @@ contains
     deallocate(tmp_int_array)
 
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm, 'is_from1.out', viewer, ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_is_from4.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call ISView(is_from, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
 #endif
 
     ! Create vector scatter
     call VecScatterCreate(N2P, is_to, pindex_req, is_from, vscat, ierr)
+
     call ISDestroy(is_to,ierr)
     call ISDestroy(is_from, ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm,'vscat1.out',viewer,ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_vscat4.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecScatterView(vscat,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1498,7 +1556,9 @@ contains
     call VecScatterBegin(vscat, N2P, pindex_req, INSERT_VALUES, SCATTER_FORWARD, ierr)
     call VecScatterEnd(  vscat, N2P, pindex_req, INSERT_VALUES, SCATTER_FORWARD, ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm,'pindex_req.out',viewer,ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_pindex_req.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecView(pindex_req,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1510,12 +1570,14 @@ contains
 
     call VecGetArrayF90(pindex_req,v_loc,ierr)
     call ISCreateBlock(option%mycomm, 1, map%s2d_s_ncells_dis, INT(v_loc),&
-         PETSC_COPY_VALUES, is_to, ierr)
+         PETSC_COPY_VALUES, is_from, ierr)
     call VecRestoreArrayF90(pindex_req,v_loc,ierr)
 
-    call VecScatterCreate(N2P, is_to, pindex_req, is_from, map%s2d_scat_s_gb2disloc, ierr)
+    call VecScatterCreate(N2P, is_from, pindex_req, is_to, map%s2d_scat_s_gb2disloc, ierr)
 #ifdef MAP_DEBUG
-    call PetscViewerASCIIOpen(option%mycomm,'s2d_scat_s_gb2disloc.out',viewer,ierr)
+    write(string,*) map%id
+    string = 'map' // trim(adjustl(string)) // '_s2d_scat_s_gb2disloc.out'
+    call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecScatterView(map%s2d_scat_s_gb2disloc,viewer,ierr)
     call PetscViewerDestroy(viewer,ierr)
 #endif
@@ -1603,8 +1665,6 @@ contains
     ! map%s2d_scat_s_gb2disloc
     ! map%wts_mat
 
-!write(option%myrank+200,*) 'checking CLM-->PF mapping 1:', map%filename
-    
     if (map%s2d_s_ncells > 0) then  
        ! Initialize local vector
        call VecSet(map%s_disloc_vec, 0.d0, ierr);CHKERRQ(ierr)
@@ -1613,30 +1673,20 @@ contains
 
     end if
 
-!write(option%myrank+200,*) 'checking CLM-->PF mapping 2:'
-
     ! Scatter the source vector
     call VecScatterBegin(map%s2d_scat_s_gb2disloc, s_vec, map%s_disloc_vec, &
          INSERT_VALUES, SCATTER_FORWARD, ierr)
     CHKERRQ(ierr)
 
-!write(option%myrank+200,*) 'checking CLM-->PF mapping 3:'
-
     call VecScatterEnd(map%s2d_scat_s_gb2disloc, s_vec, map%s_disloc_vec, &
          INSERT_VALUES, SCATTER_FORWARD, ierr)
     CHKERRQ(ierr)
 
-!write(option%myrank+200,*) 'checking CLM-->PF mapping 4:'
-
-    
     if (map%s2d_s_ncells > 0) then  
        ! Perform Matrix-Vector product
        call MatMult(map%wts_mat, map%s_disloc_vec, d_vec, ierr)
        CHKERRQ(ierr)
     end if
-
-!write(option%myrank+200,*) 'checking CLM-->PF mapping 5:'
-!write(option%myrank+200,*) ':----------------------------------------------:'
 
   end subroutine
 
@@ -1656,6 +1706,7 @@ contains
     type(mapping_type), pointer :: map
 
     if (associated(map%s_ids_loc_nidx)) deallocate(map%s_ids_loc_nidx)
+    if (associated(map%s_locids_loc_nidx)) deallocate(map%s_locids_loc_nidx)
     if (associated(map%d_ids_ghd_nidx)) deallocate(map%d_ids_ghd_nidx)
     if (associated(map%d_ids_nidx_sor)) deallocate(map%d_ids_nidx_sor)
     if (associated(map%d_nGhd2Sor)) deallocate(map%d_nGhd2Sor)

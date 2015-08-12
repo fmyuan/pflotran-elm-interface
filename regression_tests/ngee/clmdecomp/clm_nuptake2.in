@@ -31,7 +31,7 @@ CHEMISTRY
   /
   IMMOBILE_SPECIES
     PlantN         ! (3) total plant N pool
-    Plantnuptake   ! (4) accumulative plant N uptake (for tracking)
+    Plantno3uptake ! (4) accumulative plant N uptake (for tracking)
     Plantndemand   ! (5) accumulative plant N demand (for tracking)
   /
 
@@ -61,8 +61,8 @@ LINEAR_SOLVER TRANSPORT
 END
 
 NEWTON_SOLVER TRANSPORT
-  !ATOL 1.d-15
-  !RTOL 1.d-10
+  ATOL 1.d-30
+  RTOL 1.d-12
 END
 
 #=========================== discretization ===================================
@@ -91,13 +91,17 @@ END
 OUTPUT
   PERIODIC TIMESTEP 1
   FORMAT HDF5
+  VARIABLES
+    VOLUME
+    POROSITY
+  /
 END
 
 #=========================== times ============================================
 TIME
   FINAL_TIME 1.d0 d
   INITIAL_TIMESTEP_SIZE 1.d0 m
-  MAXIMUM_TIMESTEP_SIZE 1.d0 h
+  MAXIMUM_TIMESTEP_SIZE 0.5d0 h
 END
 
 #=========================== regions ==========================================
@@ -128,12 +132,12 @@ END
 #=========================== transport constraints ============================
 CONSTRAINT initial
   CONCENTRATIONS
-    NO3-     8.d-3      T  ! moles/L
+    NO3-     8.d-3      T    ! moles/L
   /
   IMMOBILE
     PlantN       1.d-20
-    Plantnuptake 1.d-20    ! 0-resetting its value at end of a CLM time-step, when coupled
-    Plantndemand 1.d-20    ! 0-resetting its value at end of a CLM time-step, when coupled
+    Plantno3uptake 1.d-20    ! 0-resetting its value at end of a CLM time-step, when coupled
+    Plantndemand 1.d-20      ! 0-resetting its value at end of a CLM time-step, when coupled
   /
 END
 

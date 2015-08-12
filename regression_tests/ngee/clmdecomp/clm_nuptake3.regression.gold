@@ -1,23 +1,38 @@
+-- GENERIC: Volume --
+      Max:   1.0000000000000E+00
+      Min:   1.0000000000000E+00
+     Mean:   1.0000000000000E+00
+        1:   1.0000000000000E+00
+-- GENERIC: Porosity --
+      Max:   2.5000000000000E-01
+      Min:   2.5000000000000E-01
+     Mean:   2.5000000000000E-01
+        1:   2.5000000000000E-01
 -- CONCENTRATION: Total NH4+ --
-      Max:   9.7205217482607E-14
-      Min:   9.7205217482607E-14
-     Mean:   9.7205217482607E-14
-        1:   9.7205217482607E-14
+      Max:   6.2550786389248E-14
+      Min:   6.2550786389248E-14
+     Mean:   6.2550786389248E-14
+        1:   6.2550786389248E-14
 -- CONCENTRATION: Total NO3- --
-      Max:   9.7205217482607E-14
-      Min:   9.7205217482607E-14
-     Mean:   9.7205217482607E-14
-        1:   9.7205217482607E-14
+      Max:   6.2550786389248E-14
+      Min:   6.2550786389248E-14
+     Mean:   6.2550786389248E-14
+        1:   6.2550786389248E-14
 -- CONCENTRATION: PlantN --
-      Max:   1.9999999999514E+00
-      Min:   1.9999999999514E+00
-     Mean:   1.9999999999514E+00
-        1:   1.9999999999514E+00
--- CONCENTRATION: Plantnuptake --
-      Max:   1.0000000000000E-20
-      Min:   1.0000000000000E-20
-     Mean:   1.0000000000000E-20
-        1:   1.0000000000000E-20
+      Max:   1.9999999999687E+00
+      Min:   1.9999999999687E+00
+     Mean:   1.9999999999687E+00
+        1:   1.9999999999687E+00
+-- CONCENTRATION: Plantnh4uptake --
+      Max:   9.9999999998436E-01
+      Min:   9.9999999998436E-01
+     Mean:   9.9999999998436E-01
+        1:   9.9999999998436E-01
+-- CONCENTRATION: Plantno3uptake --
+      Max:   9.9999999998436E-01
+      Min:   9.9999999998436E-01
+     Mean:   9.9999999998436E-01
+        1:   9.9999999998436E-01
 -- CONCENTRATION: Plantndemand --
       Max:   8.6400000000000E+02
       Min:   8.6400000000000E+02
@@ -29,10 +44,10 @@
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   1.0136785507202E+00
-   Time Steps:           88
-   Newton Iterations:         1399
-   Solver Iterations:         1399
+   Time (seconds):   6.0923790931702E-01
+   Time Steps:          111
+   Newton Iterations:         1454
+   Solver Iterations:         1454
    Time Step Cuts:           24
-   Solution 2-Norm:   8.6400231481171E+02
-   Residual 2-Norm:   5.2685563859317E-17
+   Solution 2-Norm:   8.6400347221525E+02
+   Residual 2-Norm:   1.8038760191272E-17

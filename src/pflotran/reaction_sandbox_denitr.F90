@@ -120,8 +120,9 @@ subroutine DenitrRead(this,input,option)
               call InputErrorMsg(input,option,'Q10', &
                 'CHEMISTRY,REACTION_SANDBOX_DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
             case default
-              call InputKeywordUnrecognized(word, &
-                'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION',option)
+              option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                trim(word) // ' not recognized.'
+              call printErrMsg(option)
           end select
         enddo 
 
@@ -138,8 +139,9 @@ subroutine DenitrRead(this,input,option)
         call InputErrorMsg(input,option,'x0eps', &
                   'CHEMISTRY,REACTION_SANDBOX,NITRIFICATION,REACTION')
       case default
-        call InputKeywordUnrecognized(word, &
-          'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,REACTION',option)
+        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION,' // &
+          'REACTION keyword: ' // trim(word) // ' not recognized.'
+        call printErrMsg(option)
     end select
   enddo
   
@@ -288,10 +290,10 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
 
 #ifdef CLM_PFLOTRAN
   ghosted_id = option%iflag
-  call VecGetArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
+  call VecGetArrayReadF90(clm_pf_idata%bsw_pfs, bsw, ierr)
   CHKERRQ(ierr)
   temp_real = bsw(ghosted_id)
-  call VecRestoreArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
+  call VecRestoreArrayReadF90(clm_pf_idata%bsw_pfs, bsw, ierr)
   CHKERRQ(ierr)
 
 #else
@@ -360,17 +362,17 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
         0.5d0*drate_deni_dno3 * &
         rt_auxvar%aqueous%dtotal(this%ispec_n2,this%ispec_no3,iphase)
 
-! The following IS not needed and causes issue - breaking  whole reacton network if going wrong!
-!      if(this%ispec_ngasdeni > 0) then
-!        Jacobian(ires_ngasdeni,ires_no3) = &
-!          Jacobian(ires_ngasdeni,ires_no3) - drate_deni_dno3
-!      endif
+      ! for tracking
+      if(this%ispec_ngasdeni > 0) then
+        Jacobian(ires_ngasdeni,ires_no3) = &
+          Jacobian(ires_ngasdeni,ires_no3) - drate_deni_dno3
+      endif
 
     endif
 
   endif
 
-#ifdef DEBUG
+!#ifdef DEBUG
   if( (option%tran_dt<=option%dt_min .and. option%print_file_flag) .and. &
      rate_deni*option%dt_min >= c_no3) then
 
@@ -390,8 +392,16 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
       option%io_buffer = ' checking infinity of Residuals matrix @ DenitrReact '
       call printErrMsg(option)
     endif
+
+    if (temp_real /= temp_real) then
+      write(option%fid_out, *) 'NaN of Residual matrix checking at ires=', ires
+      write(option%fid_out, *) 'Reaction Sandbox: DENITRIFICATION'
+      option%io_buffer = ' checking NaN of Residuals matrix  @ DenitrReact '
+      call printErrMsg(option)
+    endif
+
   enddo
-#endif
+!#endif
 
 end subroutine DenitrReact
 
