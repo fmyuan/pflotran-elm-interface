@@ -42,7 +42,7 @@ module PM_General_class
     procedure, public :: CheckUpdatePost => PMGeneralCheckUpdatePost
     procedure, public :: TimeCut => PMGeneralTimeCut
     procedure, public :: UpdateSolution => PMGeneralUpdateSolution
-    procedure, public :: UpdateAuxvars => PMGeneralUpdateAuxvars
+    procedure, public :: UpdateAuxVars => PMGeneralUpdateAuxVars
     procedure, public :: MaxChange => PMGeneralMaxChange
     procedure, public :: ComputeMassBalance => PMGeneralComputeMassBalance
     procedure, public :: Checkpoint => PMGeneralCheckpoint
@@ -196,6 +196,17 @@ subroutine PMGeneralRead(this,input)
         call InputErrorMsg(input,option, &
                            'maximum allowable mole fraction change', &
                            'GENERAL_MODE')
+      case('DEBUG_CELL')
+        call InputReadInt(input,option,general_debug_cell_id)
+        call InputErrorMsg(input,option,'debug cell id','GENERAL_MODE')
+      case('NO_TEMP_DEPENDENT_DIFFUSION')
+        general_temp_dep_gas_air_diff = PETSC_FALSE
+      case('DIFFUSE_XMASS')
+        general_diffuse_xmol = PETSC_FALSE
+      case('HARMONIC_GAS_DIFFUSIVE_DENSITY')
+        general_harmonic_diff_density = PETSC_TRUE
+      case('ARITHMETIC_GAS_DIFFUSIVE_DENSITY')
+        general_harmonic_diff_density = PETSC_FALSE
       case default
         call InputKeywordUnrecognized(keyword,'GENERAL Mode',option)
     end select
@@ -255,6 +266,7 @@ recursive subroutine PMGeneralInitializeRun(this)
   ! Date: 04/21/14 
 
   use Realization_Base_class
+  use General_module, only : GeneralSetReferencePressures
   
   implicit none
   
@@ -274,7 +286,11 @@ recursive subroutine PMGeneralInitializeRun(this)
                                 this%max_change_ivar(i), &
                                 this%max_change_isubvar(i))
   enddo
-  
+
+  ! this call must come before PMSubsurfaceInitializeRun() so that auxvars
+  ! are updated at beginning of run and prior to initial output.
+  call GeneralSetReferencePressures(this%realization)
+
   ! call parent implementation
   call PMSubsurfaceInitializeRun(this)
 
@@ -508,7 +524,7 @@ subroutine PMGeneralUpdateSolution(this)
   ! 
 
   use General_module, only : GeneralUpdateSolution, &
-                             GeneralMapBCAuxvarsToGlobal
+                             GeneralMapBCAuxVarsToGlobal
 
   implicit none
   
@@ -516,13 +532,13 @@ subroutine PMGeneralUpdateSolution(this)
   
   call PMSubsurfaceUpdateSolution(this)
   call GeneralUpdateSolution(this%realization)
-  call GeneralMapBCAuxvarsToGlobal(this%realization)
+  call GeneralMapBCAuxVarsToGlobal(this%realization)
 
 end subroutine PMGeneralUpdateSolution     
 
 ! ************************************************************************** !
 
-subroutine PMGeneralUpdateAuxvars(this)
+subroutine PMGeneralUpdateAuxVars(this)
   ! 
   ! Author: Glenn Hammond
   ! Date: 04/21/14
@@ -534,7 +550,7 @@ subroutine PMGeneralUpdateAuxvars(this)
 
   call GeneralUpdateAuxVars(this%realization,PETSC_FALSE)
 
-end subroutine PMGeneralUpdateAuxvars   
+end subroutine PMGeneralUpdateAuxVars   
 
 ! ************************************************************************** !
 

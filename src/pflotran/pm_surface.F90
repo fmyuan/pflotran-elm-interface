@@ -23,18 +23,18 @@ module PM_Surface_class
     class(surface_realization_type), pointer :: surf_realization
     class(communicator_type), pointer :: comm1
   contains
-    procedure, public :: Init => PMSurfaceInit
+    procedure, public :: Setup => PMSurfaceSetup
     procedure, public :: PMSurfaceSetRealization
     procedure, public :: InitializeRun => PMSurfaceInitializeRun
     procedure, public :: PreSolve => PMSurfacePreSolve
     procedure, public :: PostSolve => PMSurfacePostSolve
     procedure, public :: Checkpoint => PMSurfaceCheckpoint
     procedure, public :: Restart => PMSurfaceRestart
-    procedure, public :: UpdateAuxvars => PMSurfaceUpdateAuxvars
+    procedure, public :: UpdateAuxVars => PMSurfaceUpdateAuxVars
   end type pm_surface_type
 
   public :: PMSurfaceCreate, &
-            PMSurfaceInit, &
+            PMSurfaceSetup, &
             PMSurfaceUpdateSolution, &
             PMSurfaceDestroy
   
@@ -56,13 +56,13 @@ subroutine PMSurfaceCreate(this)
   nullify(this%surf_realization)
   nullify(this%comm1)
   
-  call PMBaseCreate(this)
+  call PMBaseInit(this)
 
 end subroutine PMSurfaceCreate
 
 ! ************************************************************************** !
 
-subroutine PMSurfaceInit(this)
+subroutine PMSurfaceSetup(this)
   ! 
   ! Initializes variables associated with subsurface process models
   ! 
@@ -90,7 +90,7 @@ subroutine PMSurfaceInit(this)
   ! set the communicator
   call this%comm1%SetDM(this%surf_realization%discretization%dm_1dof)
 
-end subroutine PMSurfaceInit
+end subroutine PMSurfaceSetup
 
 ! ************************************************************************** !
 
@@ -201,7 +201,7 @@ end subroutine PMSurfaceUpdateSolution
 
 ! ************************************************************************** !
 
-subroutine PMSurfaceUpdateAuxvars(this)
+subroutine PMSurfaceUpdateAuxVars(this)
   ! 
   ! Author: Gautam Bisht, LBNL
   ! Date: 04/22/14
@@ -210,10 +210,10 @@ subroutine PMSurfaceUpdateAuxvars(this)
   
   class(pm_surface_type) :: this
 
-  this%option%io_buffer = 'PMSurfaceUpdateAuxvars() must be extended.'
+  this%option%io_buffer = 'PMSurfaceUpdateAuxVars() must be extended.'
   call printErrMsg(this%option)
 
-end subroutine PMSurfaceUpdateAuxvars
+end subroutine PMSurfaceUpdateAuxVars
 
 ! ************************************************************************** !
 

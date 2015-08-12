@@ -53,7 +53,8 @@ module General_module
             GeneralSetPlotVariables, &
             GeneralCheckUpdatePre, &
             GeneralCheckUpdatePost, &
-            GeneralMapBCAuxvarsToGlobal, &
+            GeneralMapBCAuxVarsToGlobal, &
+            GeneralSetReferencePressures, &
             GeneralDestroy
 
 contains
@@ -231,6 +232,13 @@ subroutine GeneralSetup(realization)
   endif
 
   call GeneralSetPlotVariables(realization) 
+  
+  if (general_tough2_conv_criteria .and. &
+      Initialized(option%flow%inf_scaled_res_tol)) then
+    ! override what was set in OPTION block of GENERAL process model
+    general_tough2_itol_scaled_res_e1 = option%flow%inf_scaled_res_tol
+  endif
+      
   
 #ifdef DEBUG_GENERAL_FILEOUTPUT
   debug_flag = 0
@@ -1011,7 +1019,8 @@ subroutine GeneralUpdateFixedAccum(realization)
     call GeneralAccumulation(gen_auxvars(ZERO_INTEGER,ghosted_id), &
                              material_auxvars(ghosted_id), &
                              material_parameter%soil_heat_capacity(imat), &
-                             option,accum_p(local_start:local_end)) 
+                             option,accum_p(local_start:local_end), &
+                             local_id == general_debug_cell_id) 
   enddo
   
   if (general_tough2_conv_criteria) then
@@ -1032,7 +1041,7 @@ end subroutine GeneralUpdateFixedAccum
 ! ************************************************************************** !
 
 subroutine GeneralAccumulation(gen_auxvar,material_auxvar, &
-                               soil_heat_capacity,option,Res)
+                               soil_heat_capacity,option,Res,debug_cell)
   ! 
   ! Computes the non-fixed portion of the accumulation
   ! term for the residual
@@ -1052,6 +1061,7 @@ subroutine GeneralAccumulation(gen_auxvar,material_auxvar, &
   PetscReal :: soil_heat_capacity
   type(option_type) :: option
   PetscReal :: Res(option%nflowdof) 
+  PetscBool :: debug_cell
   
   PetscInt :: wat_comp_id, air_comp_id, energy_id
   PetscInt :: icomp, iphase
@@ -1143,7 +1153,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
                        sir_dn, &
                        thermal_conductivity_dn, &
                        area, dist, general_parameter, &
-                       option,v_darcy,Res)
+                       option,v_darcy,Res,debug_connection)
   ! 
   ! Computes the internal flux terms for the residual
   ! 
@@ -1170,6 +1180,7 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: thermal_conductivity_dn(2)
   PetscReal :: thermal_conductivity_up(2)
   PetscReal :: Res(option%nflowdof)
+  PetscBool :: debug_connection
 
   PetscReal :: dist_gravity  ! distance along gravity vector
   PetscReal :: dist_up, dist_dn
@@ -1184,14 +1195,17 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   PetscReal :: perm_ave_over_dist(option%nphase)
   PetscReal :: perm_up, perm_dn
   PetscReal :: delta_pressure, delta_xmol, delta_temp
+  PetscReal :: xmol_air_up, xmol_air_dn
+  PetscReal :: xmass_air_up, xmass_air_dn, delta_xmass
+  PetscReal :: delta_X_whatever
   PetscReal :: pressure_ave
   PetscReal :: gravity_term
   PetscReal :: mobility, mole_flux, q
-  PetscReal :: stp_up, stp_dn
-  PetscReal :: sat_up, sat_dn
-  PetscReal :: temp_ave, stp_ave_over_dist, v_air
+  PetscReal :: stpd_up, stpd_dn
+  PetscReal :: sat_up, sat_dn, den_up, den_dn
+  PetscReal :: temp_ave, stpd_ave_over_dist, tempreal
   PetscReal :: k_eff_up, k_eff_dn, k_eff_ave, heat_flux
-  PetscReal :: adv_flux(3), diff_flux(3)
+  PetscReal :: adv_flux(3,2), diff_flux(2,2)
   PetscReal :: debug_flux(3,3), debug_dphi(2)
   
   PetscReal :: dummy_perm_up, dummy_perm_dn
@@ -1206,36 +1220,13 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
   
   ! Fracture permeability change only available for structured grid (Heeho)
-  if (material_auxvar_up%fracture_bool) then
-    if (material_auxvar_up%fracture_flags(frac_change_perm_x_index) &
-        .and. dist(1) > 0.99999d0) then
-      call FracturePermEvaluate(material_auxvar_up,perm_up,perm_up, &
-                                dummy_perm_up)
-    else if (material_auxvar_up%fracture_flags(frac_change_perm_y_index) &
-        .and. dist(2) > 0.99999d0) then
-      call FracturePermEvaluate(material_auxvar_up,perm_up,perm_up, &
-                                dummy_perm_up)
-    else if (material_auxvar_up%fracture_flags(frac_change_perm_z_index) &
-        .and. dist(3) > 0.99999d0) then
-      call FracturePermEvaluate(material_auxvar_up,perm_up,perm_up, &
-                                dummy_perm_up)
-    endif
+  if (associated(material_auxvar_up%fracture)) then
+    call FracturePermEvaluate(material_auxvar_up,perm_up,perm_up, &
+                              dummy_perm_up,dist)
   endif
-  
-  if (material_auxvar_dn%fracture_bool) then
-    if (material_auxvar_dn%fracture_flags(frac_change_perm_x_index) &
-        .and. dist(1) > 0.99999d0) then
-      call FracturePermEvaluate(material_auxvar_dn,perm_dn,perm_dn, &
-                                dummy_perm_dn)
-    else if (material_auxvar_dn%fracture_flags(frac_change_perm_y_index) &
-        .and. dist(2) > 0.99999d0) then
-      call FracturePermEvaluate(material_auxvar_dn,perm_dn,perm_dn, &
-                                dummy_perm_dn)
-    else if (material_auxvar_dn%fracture_flags(frac_change_perm_z_index) &
-        .and. dist(3) > 0.99999d0) then
-      call FracturePermEvaluate(material_auxvar_dn,perm_dn,perm_dn, &
-                                dummy_perm_dn)
-    endif
+  if (associated(material_auxvar_dn%fracture)) then
+    call FracturePermEvaluate(material_auxvar_dn,perm_dn,perm_dn, &
+                              dummy_perm_dn,dist)
   endif
   
   if (associated(klinkenberg)) then
@@ -1372,35 +1363,55 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
           sat_dn = max(sat_dn,eps)
         endif
       endif
-      density_ave = GeneralAverageDensity(iphase, &
-                                          global_auxvar_up%istate, &
-                                          global_auxvar_dn%istate, &
-                                          gen_auxvar_up%den, &
-                                          gen_auxvar_dn%den)
-      stp_up = sat_up*material_auxvar_up%tortuosity* &
-               gen_auxvar_up%effective_porosity
-      stp_dn = sat_dn*material_auxvar_dn%tortuosity* &
-               gen_auxvar_dn%effective_porosity
-      stp_ave_over_dist = (stp_up*stp_dn)/(stp_up*dist_dn+stp_dn*dist_up)
-      delta_xmol = gen_auxvar_up%xmol(air_comp_id,iphase) - &
-                   gen_auxvar_dn%xmol(air_comp_id,iphase)
-      ! need to account for multiple phases
-      ! units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
-      if (iphase == option%liquid_phase) then
-        ! Eq. 1.9a.  The water density is added below
-        v_air = stp_ave_over_dist * &
-                general_parameter%diffusion_coefficient(iphase) * delta_xmol
+      if (general_harmonic_diff_density) then
+        den_up = gen_auxvar_up%den(iphase)
+        den_dn = gen_auxvar_dn%den(iphase)
       else
+        ! we use upstream weighting when iphase is not equal, otherwise
+        ! arithmetic with 50/50 weighting
+        den_up = GeneralAverageDensity(iphase, &
+                                       global_auxvar_up%istate, &
+                                       global_auxvar_dn%istate, &
+                                       gen_auxvar_up%den, &
+                                       gen_auxvar_dn%den)
+        ! by setting both equal, we avoid the harmonic weighting below
+        den_dn = den_up
+      endif
+      stpd_up = sat_up*material_auxvar_up%tortuosity* &
+                gen_auxvar_up%effective_porosity*den_up
+      stpd_dn = sat_dn*material_auxvar_dn%tortuosity* &
+                gen_auxvar_dn%effective_porosity*den_dn
+      if (general_diffuse_xmol) then
+        delta_xmol = gen_auxvar_up%xmol(air_comp_id,iphase) - &
+                     gen_auxvar_dn%xmol(air_comp_id,iphase)
+        delta_X_whatever = delta_xmol
+      else
+        xmol_air_up = gen_auxvar_up%xmol(air_comp_id,iphase)
+        xmol_air_dn = gen_auxvar_dn%xmol(air_comp_id,iphase)
+        xmass_air_up = xmol_air_up*fmw_comp(2) / &
+                   (xmol_air_up*fmw_comp(2) + (1.d0-xmol_air_up)*fmw_comp(1))
+        xmass_air_dn = xmol_air_dn*fmw_comp(2) / &
+                   (xmol_air_dn*fmw_comp(2) + (1.d0-xmol_air_dn)*fmw_comp(1))
+        delta_xmass = xmass_air_up - xmass_air_dn
+        delta_X_whatever = delta_xmass
+      endif
+      ! units = [mole/m^4 bulk]
+      stpd_ave_over_dist = (stpd_up*stpd_dn)/(stpd_up*dist_dn+stpd_dn*dist_up)
+      ! need to account for multiple phases
+      tempreal = 1.d0
+      ! Eq. 1.9b.  The gas density is added below
+      if (general_temp_dep_gas_air_diff .and. &
+          iphase == option%gas_phase) then
         temp_ave = 0.5d0*(gen_auxvar_up%temp+gen_auxvar_dn%temp)
-        pressure_ave = 0.5d0*(gen_auxvar_up%pres(iphase)+gen_auxvar_dn%pres(iphase))
-        ! Eq. 1.9b.  The gas density is added below
-        v_air = stp_ave_over_dist * &
-                ((temp_ave+273.15)/273.15d0)**1.8d0 * &
-                101325.d0 / pressure_ave * &
-                general_parameter%diffusion_coefficient(iphase) * delta_xmol      
-      endif      
-      q =  v_air * area
-      mole_flux = q * density_ave
+        pressure_ave = 0.5d0*(gen_auxvar_up%pres(iphase)+ &
+                              gen_auxvar_dn%pres(iphase))
+        tempreal = ((temp_ave+273.15d0)/273.15d0)**1.8d0 * &
+                    101325.d0 / pressure_ave
+      endif
+      ! units = mole/sec
+      mole_flux = stpd_ave_over_dist * tempreal * &
+                  general_parameter%diffusion_coefficient(iphase) * &
+                  delta_X_whatever * area
       Res(wat_comp_id) = Res(wat_comp_id) - mole_flux
       Res(air_comp_id) = Res(air_comp_id) + mole_flux
 #ifdef DEBUG_FLUXES  
@@ -1437,21 +1448,43 @@ subroutine GeneralFlux(gen_auxvar_up,global_auxvar_up, &
   ! area = m^2
   ! heat_flux = k_eff * delta_temp * area = J/s
   delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
-  heat_flux = k_eff_ave * delta_temp * area
+  heat_flux = k_eff_ave * delta_temp * area * 1.d-6 ! J/s -> MJ/s
   ! MJ/s
-  Res(energy_id) = Res(energy_id) + heat_flux * 1.d-6 ! J/s -> MJ/s
+  Res(energy_id) = Res(energy_id) + heat_flux
 ! CONDUCTION
 #endif
 #ifdef DEBUG_FLUXES  
-  diff_flux(3) = diff_flux(3) + heat_flux * 1.d-6
-
-  if (option%iflag == 1) then  
-    write(*,'(a,7es12.4)') 'in: ', adv_flux(:)*dist(3), diff_flux(:)*dist(3)
+  if (debug_connection) then  
+!    write(*,'(a,7es12.4)') 'in: ', adv_flux(:)*dist(1), diff_flux(:)*dist(1)
+    write(*,'('' phase: gas'')')
+    write(*,'(''  pressure   :'',2es12.4)') gen_auxvar_up%pres(2), gen_auxvar_dn%pres(2)
+    write(*,'(''  saturation :'',2es12.4)') gen_auxvar_up%sat(2), gen_auxvar_dn%sat(2)
+    write(*,'(''  water --'')')
+    write(*,'(''   darcy flux:'',es12.4)') adv_flux(1,2)
+    write(*,'(''   xmol      :'',2es12.4)') gen_auxvar_up%xmol(1,2), gen_auxvar_dn%xmol(1,2)
+    write(*,'(''   diff flux :'',es12.4)') diff_flux(1,2)
+    write(*,'(''  air --'')')
+    write(*,'(''   darcy flux:'',es12.4)') adv_flux(2,2)
+    write(*,'(''   xmol      :'',2es12.4)') gen_auxvar_up%xmol(2,2), gen_auxvar_dn%xmol(2,2)
+    write(*,'(''   diff flux :'',es12.4)') diff_flux(2,2)
+    write(*,'(''  heat flux  :'',es12.4)') (adv_flux(3,2) + heat_flux)*1.d6
+    write(*,'('' phase: liquid'')')
+    write(*,'(''  pressure   :'',2es12.4)') gen_auxvar_up%pres(1), gen_auxvar_dn%pres(1)
+    write(*,'(''  saturation :'',2es12.4)') gen_auxvar_up%sat(1), gen_auxvar_dn%sat(1)
+    write(*,'(''  water --'')')
+    write(*,'(''   darcy flux:'',es12.4)') adv_flux(1,1)
+    write(*,'(''   xmol      :'',2es12.4)') gen_auxvar_up%xmol(1,1), gen_auxvar_dn%xmol(1,1)
+    write(*,'(''   diff flux :'',es12.4)') diff_flux(1,1)
+    write(*,'(''  air --'')')
+    write(*,'(''   darcy flux:'',es12.4)') adv_flux(2,1)
+    write(*,'(''   xmol      :'',2es12.4)') gen_auxvar_up%xmol(2,1), gen_auxvar_dn%xmol(2,1)
+    write(*,'(''   diff flux :'',es12.4)') diff_flux(2,1)
+    write(*,'(''  heat flux  :'',es12.4)') (adv_flux(3,1) + heat_flux)*1.d6
   endif
 #endif
 
 #ifdef DEBUG_GENERAL_FILEOUTPUT
-  debug_flux(energy_id,1) = debug_flux(energy_id,1) + heat_flux * 1.d-6
+  debug_flux(energy_id,1) = debug_flux(energy_id,1) + heat_flux
   if (debug_flag > 0) then  
     write(debug_unit,'(a,7es24.15)') 'dif flux (liquid):', debug_flux(:,1)
     write(debug_unit,'(a,7es24.15)') 'dif flux (gas):', debug_flux(:,2)
@@ -1469,7 +1502,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
                          sir_dn, &
                          thermal_conductivity_dn, &
                          area,dist,general_parameter, &
-                         option,v_darcy,Res)
+                         option,v_darcy,Res,debug_connection)
   ! 
   ! Computes the boundary flux terms for the residual
   ! 
@@ -1496,6 +1529,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscInt :: ibndtype(1:option%nflowdof)
   PetscInt :: auxvar_mapping(GENERAL_MAX_INDEX)
   PetscReal :: thermal_conductivity_dn(2)
+  PetscBool :: debug_connection
   
   PetscInt :: wat_comp_id, air_comp_id, energy_id
   PetscInt :: icomp, iphase
@@ -1509,12 +1543,16 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   PetscReal :: delta_pressure, delta_xmol, delta_temp
   PetscReal :: gravity_term
   PetscReal :: mobility, mole_flux, q
-  PetscReal :: sat_dn, perm_dn
-  PetscReal :: temp_ave, stp_ave_over_dist, v_air, pres_ave
+  PetscReal :: sat_dn, perm_dn, den_dn
+  PetscReal :: temp_ave, stpd_ave_over_dist, pres_ave
   PetscReal :: k_eff_up, k_eff_dn, k_eff_ave, heat_flux
-  PetscReal :: adv_flux(3), diff_flux(3)
+  PetscReal :: adv_flux(3,2), diff_flux(2,2)
   PetscReal :: debug_flux(3,3), debug_dphi(2)
   PetscReal :: boundary_pressure
+  PetscReal :: xmass_air_up, xmass_air_dn, delta_xmass  
+  PetscReal :: xmol_air_up, xmol_air_dn
+  PetscReal :: tempreal
+  PetscReal :: delta_X_whatever
   
   PetscInt :: idof
   PetscBool :: neumann_bc_present
@@ -1540,23 +1578,12 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
   
   call material_auxvar_dn%PermeabilityTensorToScalar(dist,perm_dn)
 
-    ! Fracture permeability change only available for structured grid (Heeho)
-  if (material_auxvar_dn%fracture_bool) then
-    if (material_auxvar_dn%fracture_flags(frac_change_perm_x_index) & 
-        .and. dist(1) > 0.99999d0) then
-      call FracturePermEvaluate(material_auxvar_dn,perm_dn,perm_dn, &
-                                dummy_perm_dn)
-    else if (material_auxvar_dn%fracture_flags(frac_change_perm_y_index) &
-        .and. dist(2) > 0.99999d0) then
-      call FracturePermEvaluate(material_auxvar_dn,perm_dn,perm_dn, &
-                                dummy_perm_dn)
-    else if (material_auxvar_dn%fracture_flags(frac_change_perm_z_index) &
-        .and. dist(3) > 0.99999d0) then
-      call FracturePermEvaluate(material_auxvar_dn,perm_dn,perm_dn, &
-                                dummy_perm_dn)
-    endif
-  endif
-
+  ! Fracture permeability change only available for structured grid (Heeho)
+  if (associated(material_auxvar_dn%fracture)) then
+    call FracturePermEvaluate(material_auxvar_dn,perm_dn,perm_dn, &
+                              dummy_perm_dn,dist)
+  endif  
+  
   if (associated(klinkenberg)) then
     perm_dn_adj(1) = perm_dn
                                           
@@ -1697,7 +1724,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       enddo
 #ifdef DEBUG_FLUXES  
       do icomp = 1, option%nflowspec
-        adv_flux(icomp) = adv_flux(icomp) + mole_flux * xmol(icomp)
+        adv_flux(icomp,iphase) = adv_flux(icomp,iphase) + mole_flux * xmol(icomp)
       enddo
 #endif
 #ifdef DEBUG_GENERAL_FILEOUTPUT
@@ -1708,7 +1735,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       ! Res[MJ/sec] = mole_flux[kmol comp/sec] * H_ave[MJ/kmol comp]
       Res(energy_id) = Res(energy_id) + mole_flux * uH ! H_ave
 #ifdef DEBUG_FLUXES  
-      adv_flux(energy_id) = adv_flux(energy_id) + mole_flux * uH
+      adv_flux(energy_id,iphase) = adv_flux(energy_id,iphase) + mole_flux * uH
 #endif
 #ifdef DEBUG_GENERAL_FILEOUTPUT
       debug_flux(energy_id,iphase) = debug_flux(energy_id,iphase) + mole_flux * uH
@@ -1746,45 +1773,57 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
     ! phase.
     if (gen_auxvar_dn%sat(iphase) > eps) then
       sat_dn = gen_auxvar_dn%sat(iphase)
-      density_ave = GeneralAverageDensity(iphase, &
-                                          global_auxvar_up%istate, &
-                                          global_auxvar_dn%istate, &
-                                          gen_auxvar_up%den, &
-                                          gen_auxvar_dn%den)
-      ! units = (m^3 water/m^3 por)*(m^3 por/m^3 bulk)/(m bulk) 
-      !       = m^3 water/m^4 bulk 
-      !    stp_ave = tor_dn*por_dn*(sat_up*sat_dn)/ &
-      !              ((sat_up+sat_dn)*dist_dn)
-      ! should saturation be distance weighted?
-      stp_ave_over_dist = material_auxvar_dn%tortuosity * &
-                          gen_auxvar_dn%effective_porosity * &
-                          sat_dn / dist(0)
-      delta_xmol = gen_auxvar_up%xmol(air_comp_id,iphase) - &
-                   gen_auxvar_dn%xmol(air_comp_id,iphase)
+      if (general_harmonic_diff_density) then
+        den_dn = gen_auxvar_dn%den(iphase)
+      else
+        ! we use upstream weighting when iphase is not equal, otherwise
+        ! arithmetic with 50/50 weighting
+        den_dn = GeneralAverageDensity(iphase, &
+                                       global_auxvar_up%istate, &
+                                       global_auxvar_dn%istate, &
+                                       gen_auxvar_up%den, &
+                                       gen_auxvar_dn%den)
+      endif
+      ! units = [mole/m^4 bulk]
+      stpd_ave_over_dist = sat_dn*material_auxvar_dn%tortuosity * &
+                           gen_auxvar_dn%effective_porosity * &
+                           den_dn / dist(0)
+      if (general_diffuse_xmol) then
+        delta_xmol = gen_auxvar_up%xmol(air_comp_id,iphase) - &
+                     gen_auxvar_dn%xmol(air_comp_id,iphase)
+        delta_X_whatever = delta_xmol
+      else
+        xmol_air_up = gen_auxvar_up%xmol(air_comp_id,iphase)
+        xmol_air_dn = gen_auxvar_dn%xmol(air_comp_id,iphase)
+        xmass_air_up = xmol_air_up*fmw_comp(2) / &
+                   (xmol_air_up*fmw_comp(2) + (1.d0-xmol_air_up)*fmw_comp(1))
+        xmass_air_dn = xmol_air_dn*fmw_comp(2) / &
+                   (xmol_air_dn*fmw_comp(2) + (1.d0-xmol_air_dn)*fmw_comp(1))
+        delta_xmass = xmass_air_up - xmass_air_dn
+        delta_X_whatever = delta_xmass
+      endif
       ! need to account for multiple phases
       ! units = (m^3 water/m^4 bulk)*(m^2 bulk/sec) = m^3 water/m^2 bulk/sec
-      if (iphase == option%liquid_phase) then
-        ! Eq. 1.9a.  The water density is added below
-        v_air = stp_ave_over_dist * &
-                general_parameter%diffusion_coefficient(iphase) * delta_xmol
-      else
-        temp_ave = 0.5d0*(gen_auxvar_up%temp + gen_auxvar_dn%temp)
-        pres_ave = 0.5d0*(gen_auxvar_up%pres(iphase)+gen_auxvar_dn%pres(iphase))
-        ! Eq. 1.9b.  The gas density is added below
-        v_air = stp_ave_over_dist * &
-                ((temp_ave+273.15)/273.15d0)**1.8d0 * &
-                101325.d0 / &
-                pres_ave * &
-                general_parameter%diffusion_coefficient(iphase) * delta_xmol      
+      tempreal = 1.d0
+      ! Eq. 1.9b.  The gas density is added below
+      if (general_temp_dep_gas_air_diff .and. &
+          iphase == option%gas_phase) then
+        temp_ave = 0.5d0*(gen_auxvar_up%temp+gen_auxvar_dn%temp)
+        pres_ave = 0.5d0*(gen_auxvar_up%pres(iphase)+ &
+                          gen_auxvar_dn%pres(iphase))
+        tempreal = ((temp_ave+273.15d0)/273.15d0)**1.8d0 * &
+                    101325.d0 / pres_ave
       endif
-      q =  v_air * area
-      mole_flux = q * density_ave
+      ! units = mole/sec
+      mole_flux = stpd_ave_over_dist * tempreal * &
+                  general_parameter%diffusion_coefficient(iphase) * &
+                  delta_X_whatever * area
       Res(wat_comp_id) = Res(wat_comp_id) - mole_flux
       Res(air_comp_id) = Res(air_comp_id) + mole_flux
 #ifdef DEBUG_FLUXES  
       ! equal but opposite
-      diff_flux(wat_comp_id) = diff_flux(wat_comp_id) - mole_flux
-      diff_flux(air_comp_id) = diff_flux(air_comp_id) + mole_flux
+      diff_flux(wat_comp_id,iphase) = diff_flux(wat_comp_id,iphase) - mole_flux
+      diff_flux(air_comp_id,iphase) = diff_flux(air_comp_id,iphase) + mole_flux
 #endif
 #ifdef DEBUG_GENERAL_FILEOUTPUT
       debug_flux(wat_comp_id,iphase) = debug_flux(wat_comp_id,iphase) - mole_flux
@@ -1797,6 +1836,7 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
 
 #ifdef CONDUCTION
   ! add heat conduction flux
+  heat_flux = 0.d0
   select case (ibndtype(GENERAL_ENERGY_EQUATION_INDEX))
     case (DIRICHLET_BC)
       ! based on Somerton et al., 1974:
@@ -1811,9 +1851,9 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
       ! heat_flux = J/s
       k_eff_ave = k_eff_dn / dist(0)
       delta_temp = gen_auxvar_up%temp - gen_auxvar_dn%temp
-      heat_flux = k_eff_ave * delta_temp * area
+      heat_flux = k_eff_ave * delta_temp * area * 1.d-6 ! convert W -> MW
     case(NEUMANN_BC)
-                  ! flux prescribed as W/m^2
+                  ! flux prescribed as MW/m^2
       heat_flux = auxvars(auxvar_mapping(GENERAL_ENERGY_FLUX_INDEX)) * area
 
     case default
@@ -1821,19 +1861,42 @@ subroutine GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
         'GeneralBCFlux heat conduction loop.'
       call printErrMsg(option)
   end select
-  Res(energy_id) = Res(energy_id) + heat_flux * 1.d-6 ! J/s -> MJ/s
+  Res(energy_id) = Res(energy_id) + heat_flux ! MW
 ! CONDUCTION
 #endif
 
 #ifdef DEBUG_FLUXES  
-  diff_flux(3) = diff_flux(3) + heat_flux * 1.d-6
-  if (option%iflag == 1) then
-    write(*,'(a,7es12.4)') 'bc: ', adv_flux(:)*dist(3), diff_flux(:)*dist(3)
+  if (debug_connection) then  
+!    write(*,'(a,7es12.4)') 'in: ', adv_flux(:)*dist(1), diff_flux(:)*dist(1)
+    write(*,'('' phase: gas'')')
+    write(*,'(''  pressure   :'',2es12.4)') gen_auxvar_up%pres(2), gen_auxvar_dn%pres(2)
+    write(*,'(''  saturation :'',2es12.4)') gen_auxvar_up%sat(2), gen_auxvar_dn%sat(2)
+    write(*,'(''  water --'')')
+    write(*,'(''   darcy flux:'',es12.4)') adv_flux(1,2)
+    write(*,'(''   xmol      :'',2es12.4)') gen_auxvar_up%xmol(1,2), gen_auxvar_dn%xmol(1,2)
+    write(*,'(''   diff flux :'',es12.4)') diff_flux(1,2)
+    write(*,'(''  air --'')')
+    write(*,'(''   darcy flux:'',es12.4)') adv_flux(2,2)
+    write(*,'(''   xmol      :'',2es12.4)') gen_auxvar_up%xmol(2,2), gen_auxvar_dn%xmol(2,2)
+    write(*,'(''   diff flux :'',es12.4)') diff_flux(2,2)
+    write(*,'(''  heat flux  :'',es12.4)') (adv_flux(3,2) + heat_flux)*1.d6
+    write(*,'('' phase: liquid'')')
+    write(*,'(''  pressure   :'',2es12.4)') gen_auxvar_up%pres(1), gen_auxvar_dn%pres(1)
+    write(*,'(''  saturation :'',2es12.4)') gen_auxvar_up%sat(1), gen_auxvar_dn%sat(1)
+    write(*,'(''  water --'')')
+    write(*,'(''   darcy flux:'',es12.4)') adv_flux(1,1)
+    write(*,'(''   xmol      :'',2es12.4)') gen_auxvar_up%xmol(1,1), gen_auxvar_dn%xmol(1,1)
+    write(*,'(''   diff flux :'',es12.4)') diff_flux(1,1)
+    write(*,'(''  air --'')')
+    write(*,'(''   darcy flux:'',es12.4)') adv_flux(2,1)
+    write(*,'(''   xmol      :'',2es12.4)') gen_auxvar_up%xmol(2,1), gen_auxvar_dn%xmol(2,1)
+    write(*,'(''   diff flux :'',es12.4)') diff_flux(2,1)
+    write(*,'(''  heat flux  :'',es12.4)') (adv_flux(3,1) + heat_flux)*1.d6
   endif
 #endif
 
 #ifdef DEBUG_GENERAL_FILEOUTPUT
-  debug_flux(energy_id,1) = debug_flux(energy_id,1) + heat_flux * 1.d-6
+  debug_flux(energy_id,1) = debug_flux(energy_id,1) + heat_flux
   if (debug_flag > 0) then  
     write(debug_unit,'(a,7es24.15)') 'bc dif flux (liquid):', debug_flux(:,1)*dist(3)
     write(debug_unit,'(a,7es24.15)') 'bc dif flux (gas):', debug_flux(:,2)*dist(3)
@@ -1846,7 +1909,7 @@ end subroutine GeneralBCFlux
 
 subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
                           gen_auxvar,global_auxvar,ss_flow_vol_flux, &
-                          scale,Res)
+                          scale,Res,debug_cell)
   ! 
   ! Computes the source/sink terms for the residual
   ! 
@@ -1869,6 +1932,7 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
   PetscReal :: ss_flow_vol_flux(option%nphase)
   PetscReal :: scale
   PetscReal :: Res(option%nflowdof)
+  PetscBool :: debug_cell
       
   PetscReal :: qsrc_mol
   PetscReal :: den, den_kg, enthalpy, internal_energy
@@ -1894,6 +1958,14 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
     ss_flow_vol_flux(icomp) = qsrc_mol/gen_auxvar%den(icomp)
     Res(icomp) = qsrc_mol
   enddo
+  if (dabs(qsrc(TWO_INTEGER)) < 1.d-40 .and. &
+      qsrc(ONE_INTEGER) < 0.d0) then ! extraction only
+    ! Res(1) holds qsrc_mol for water.  If the src/sink value for air is zero,
+    ! remove/add the equivalent mole fraction of air in the liquid phase.
+    qsrc_mol = Res(ONE_INTEGER)*gen_auxvar%xmol(TWO_INTEGER,ONE_INTEGER)
+    Res(TWO_INTEGER) = qsrc_mol
+    ss_flow_vol_flux(TWO_INTEGER) = qsrc_mol/gen_auxvar%den(TWO_INTEGER)
+  endif
   ! energy units: MJ/sec
   if (size(qsrc) == THREE_INTEGER) then
     if (dabs(qsrc(THREE_INTEGER)) < 1.d-40) then
@@ -1920,7 +1992,7 @@ subroutine GeneralSrcSink(option,qsrc,flow_src_sink_type, &
                                                         enthalpy
       endif
     else
-      Res(option%energy_id) = qsrc(THREE_INTEGER) ! MJ/s
+      Res(option%energy_id) = qsrc(THREE_INTEGER)*scale ! MJ/s
     endif
   endif
   
@@ -1962,12 +2034,13 @@ subroutine GeneralAccumDerivative(gen_auxvar,material_auxvar, &
 !geh:print *, 'GeneralAccumDerivative'
 
   call GeneralAccumulation(gen_auxvar(ZERO_INTEGER), &
-                           material_auxvar,soil_heat_capacity,option,res)
+                           material_auxvar,soil_heat_capacity,option,res, &
+                           PETSC_FALSE)
                            
   do idof = 1, option%nflowdof
     call GeneralAccumulation(gen_auxvar(idof), &
                              material_auxvar,soil_heat_capacity, &
-                             option,res_pert)
+                             option,res_pert,PETSC_FALSE)
     do irow = 1, option%nflowdof
       J(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar(idof)%pert
 !geh:print *, irow, idof, J(irow,idof), gen_auxvar(idof)%pert
@@ -2045,7 +2118,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
                    material_auxvar_dn,sir_dn, &
                    thermal_conductivity_dn, &
                    area,dist,general_parameter, &
-                   option,v_darcy,res)
+                   option,v_darcy,res,PETSC_FALSE)
                            
   ! upgradient derivatives
   do idof = 1, option%nflowdof
@@ -2056,7 +2129,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
                      material_auxvar_dn,sir_dn, &
                      thermal_conductivity_dn, &
                      area,dist,general_parameter, &
-                     option,v_darcy,res_pert)
+                     option,v_darcy,res_pert,PETSC_FALSE)
     do irow = 1, option%nflowdof
       Jup(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_up(idof)%pert
 !geh:print *, 'up: ', irow, idof, Jup(irow,idof), gen_auxvar_up(idof)%pert
@@ -2072,7 +2145,7 @@ subroutine GeneralFluxDerivative(gen_auxvar_up,global_auxvar_up, &
                      material_auxvar_dn,sir_dn, &
                      thermal_conductivity_dn, &
                      area,dist,general_parameter, &
-                     option,v_darcy,res_pert)
+                     option,v_darcy,res_pert,PETSC_FALSE)
     do irow = 1, option%nflowdof
       Jdn(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_dn(idof)%pert
 !geh:print *, 'dn: ', irow, idof, Jdn(irow,idof), gen_auxvar_dn(idof)%pert
@@ -2154,7 +2227,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                      sir_dn, &
                      thermal_conductivity_dn, &
                      area,dist,general_parameter, &
-                     option,v_darcy,res)                     
+                     option,v_darcy,res,PETSC_FALSE)                     
   ! downgradient derivatives
   do idof = 1, option%nflowdof
     call GeneralBCFlux(ibndtype,auxvar_mapping,auxvars, &
@@ -2164,7 +2237,7 @@ subroutine GeneralBCFluxDerivative(ibndtype,auxvar_mapping,auxvars, &
                        sir_dn, &
                        thermal_conductivity_dn, &
                        area,dist,general_parameter, &
-                       option,v_darcy,res_pert)   
+                       option,v_darcy,res_pert,PETSC_FALSE)   
     do irow = 1, option%nflowdof
       Jdn(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvar_dn(idof)%pert
 !print *, 'bc: ', irow, idof, Jdn(irow,idof), gen_auxvar_dn(idof)%pert
@@ -2219,12 +2292,12 @@ subroutine GeneralSrcSinkDerivative(option,qsrc,flow_src_sink_type, &
   option%iflag = -3
   call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
                       gen_auxvars(ZERO_INTEGER),global_auxvar,dummy_real, &
-                      scale,res)
+                      scale,res,PETSC_FALSE)
   ! downgradient derivatives
   do idof = 1, option%nflowdof
     call GeneralSrcSink(option,qsrc,flow_src_sink_type, &
                         gen_auxvars(idof),global_auxvar,dummy_real, &
-                        scale,res_pert)            
+                        scale,res_pert,PETSC_FALSE)            
     do irow = 1, option%nflowdof
       Jac(irow,idof) = (res_pert(irow)-res(irow))/gen_auxvars(idof)%pert
     enddo !irow
@@ -2406,12 +2479,13 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
     !geh - Ignore inactive cells with inactive materials
     imat = patch%imat(ghosted_id)
     if (imat <= 0) cycle
-      local_end = local_id * option%nflowdof
-      local_start = local_end - option%nflowdof + 1
+    local_end = local_id * option%nflowdof
+    local_start = local_end - option%nflowdof + 1
     call GeneralAccumulation(gen_auxvars(ZERO_INTEGER,ghosted_id), &
                               material_auxvars(ghosted_id), &
                               material_parameter%soil_heat_capacity(imat), &
-                              option,Res) 
+                              option,Res, &
+                              local_id == general_debug_cell_id) 
     r_p(local_start:local_end) =  r_p(local_start:local_end) + Res(:)
     
     !Heeho dynamically update p+1 accumulation term
@@ -2461,7 +2535,9 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                        material_parameter%soil_thermal_conductivity(:,imat_dn), &
                        cur_connection_set%area(iconn), &
                        cur_connection_set%dist(:,iconn), &
-                       general_parameter,option,v_darcy,Res)
+                       general_parameter,option,v_darcy,Res, &
+                       (local_id_up == general_debug_cell_id .or. &
+                        local_id_dn == general_debug_cell_id))
 
       patch%internal_velocities(:,sum_connection) = v_darcy
       if (associated(patch%internal_flow_fluxes)) then
@@ -2521,7 +2597,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                      cur_connection_set%area(iconn), &
                      cur_connection_set%dist(:,iconn), &
                      general_parameter,option, &
-                     v_darcy,Res)
+                     v_darcy,Res, &
+                     local_id == general_debug_cell_id)
       patch%boundary_velocities(:,sum_connection) = v_darcy
       if (associated(patch%boundary_flow_fluxes)) then
         patch%boundary_flow_fluxes(:,sum_connection) = Res(:)
@@ -2570,7 +2647,8 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
                         gen_auxvars(ZERO_INTEGER,ghosted_id), &
                         global_auxvars(ghosted_id), &
                         ss_flow_vol_flux, &
-                        scale,Res)
+                        scale,Res, &
+                        local_id == general_debug_cell_id)
 
       r_p(local_start:local_end) =  r_p(local_start:local_end) - Res(:)
 
@@ -2601,6 +2679,16 @@ subroutine GeneralResidual(snes,xx,r,realization,ierr)
   
   call GeneralSSSandbox(r,null_mat,PETSC_FALSE,grid,material_auxvars, &
                         gen_auxvars,option)
+
+  if (Initialized(general_debug_cell_id)) then
+    call VecGetArrayReadF90(r, r_p, ierr);CHKERRQ(ierr)
+    do local_id = general_debug_cell_id-1, general_debug_cell_id+1
+      write(*,'(''  residual   : '',i2,10es12.4)') local_id, &
+        r_p((local_id-1)*option%nflowdof+1:(local_id-1)*option%nflowdof+2), &
+        r_p(local_id*option%nflowdof)*1.d6
+    enddo
+    call VecRestoreArrayReadF90(r, r_p, ierr);CHKERRQ(ierr)
+  endif
   
   if (general_isothermal) then
     call VecGetArrayF90(r, r_p, ierr);CHKERRQ(ierr)
@@ -3175,6 +3263,7 @@ subroutine GeneralCheckUpdatePre(line_search,X,dX,changed,realization,ierr)
   PetscInt :: liquid_pressure_index, gas_pressure_index, air_pressure_index
   PetscInt :: saturation_index, temperature_index, xmol_index
   PetscInt :: lid, gid, apid, cpid, vpid, spid
+  PetscInt :: pgas_index
   PetscReal :: liquid_pressure0, liquid_pressure1, del_liquid_pressure
   PetscReal :: gas_pressure0, gas_pressure1, del_gas_pressure
   PetscReal :: air_pressure0, air_pressure1, del_air_pressure
@@ -3222,11 +3311,19 @@ subroutine GeneralCheckUpdatePre(line_search,X,dX,changed,realization,ierr)
         xmol_index = offset + GENERAL_LIQUID_STATE_X_MOLE_DOF
         if (X_p(xmol_index) - dX_p(xmol_index) < 0.d0) then
           ! we use 1.d-10 since cancelation can occur with smaller values
-          dX_p(xmol_index) = X_p(xmol_index) - 1.d-10
+          dX_p(xmol_index) = X_p(xmol_index)
+        endif
+      case(TWO_PHASE_STATE)
+        pgas_index = offset + GENERAL_GAS_PRESSURE_DOF
+        if (X_p(pgas_index) - dX_p(pgas_index) < &
+            gen_auxvars(ZERO_INTEGER,ghosted_id)% &
+              pres(option%saturation_pressure_id)) then
+          dX_p(pgas_index) = X_p(pgas_index) - &
+            gen_auxvars(ZERO_INTEGER,ghosted_id)% &
+              pres(option%saturation_pressure_id)
         endif
     end select
   enddo
-
 
   scale = initial_scale
   if (general_max_it_before_damping > 0 .and. &
@@ -4323,7 +4420,7 @@ end subroutine GeneralSSSandboxLoadAuxReal
 
 ! ************************************************************************** !
 
-subroutine GeneralMapBCAuxvarsToGlobal(realization)
+subroutine GeneralMapBCAuxVarsToGlobal(realization)
   ! 
   ! Deallocates variables associated with Richard
   ! 
@@ -4375,7 +4472,74 @@ subroutine GeneralMapBCAuxvarsToGlobal(realization)
     boundary_condition => boundary_condition%next
   enddo
   
-end subroutine GeneralMapBCAuxvarsToGlobal
+end subroutine GeneralMapBCAuxVarsToGlobal
+
+! ************************************************************************** !
+
+subroutine GeneralSetReferencePressures(realization)
+  ! 
+  ! Sets the initial pressure associated with WIPP fracture module.  This is
+  ! WIPP specific.
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 07/09/15
+  ! 
+  use Realization_class
+  use Realization_Base_class
+  use Patch_module
+  use Grid_module
+  use Material_Aux_class
+  use Fracture_module
+  use WIPP_module, only : wipp
+  use Variables_module, only : MAXIMUM_PRESSURE, SOIL_REFERENCE_PRESSURE
+
+  implicit none
+
+  type(realization_type) :: realization
+
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  class(material_auxvar_type), pointer :: material_auxvars(:)
+  type(material_type), pointer :: Material  
+  PetscReal, pointer :: vec_loc_p(:)
+
+  PetscInt :: ghosted_id
+  PetscErrorCode :: ierr
+
+  patch => realization%patch
+  grid => patch%grid
+  material_auxvars => patch%aux%Material%auxvars
+  
+  call RealizationGetVariable(realization,realization%field%work_loc, &
+                              MAXIMUM_PRESSURE,ZERO_INTEGER)
+  call VecGetArrayReadF90(realization%field%work_loc,vec_loc_p, &
+                          ierr); CHKERRQ(ierr)
+
+  do ghosted_id = 1, grid%ngmax
+    if (patch%imat(ghosted_id) <= 0) cycle
+    if (associated(material_auxvars(ghosted_id)%fracture)) then
+      call FractureSetInitialPressure(material_auxvars(ghosted_id)%fracture, &
+                                      vec_loc_p(ghosted_id))
+    endif
+  enddo
+  if (associated(wipp)) then
+    if (wipp%cell_by_cell_soil_ref_pres) then
+      Material => patch%aux%Material
+      do ghosted_id = 1, grid%ngmax
+        if (patch%imat(ghosted_id) <= 0) cycle
+          ! use patch%aux%Material due to a bug in setting array members of 
+          ! material_auxvar class
+          call MaterialAuxVarSetValue(Material%auxvars(ghosted_id), &
+                                      SOIL_REFERENCE_PRESSURE, &
+                                      vec_loc_p(ghosted_id))
+      enddo
+    endif
+  endif
+
+  call VecRestoreArrayReadF90(realization%field%work_loc,vec_loc_p, &
+                              ierr); CHKERRQ(ierr)
+
+end subroutine GeneralSetReferencePressures
 
 ! ************************************************************************** !
 

@@ -33,7 +33,7 @@ module PM_RT_class
     ! for transport only
     PetscBool :: transient_porosity
   contains
-    procedure, public :: Init => PMRTInit
+    procedure, public :: Setup => PMRTSetup
     procedure, public :: PMRTSetRealization
     procedure, public :: InitializeRun => PMRTInitializeRun
     procedure, public :: FinalizeRun => PMRTFinalizeRun
@@ -49,6 +49,7 @@ module PM_RT_class
     procedure, public :: CheckUpdatePost => PMRTCheckUpdatePost
     procedure, public :: TimeCut => PMRTTimeCut
     procedure, public :: UpdateSolution => PMRTUpdateSolution1
+    procedure, public :: UpdateAuxVars => PMRTUpdateAuxVars
     procedure, public :: MaxChange => PMRTMaxChange
     procedure, public :: ComputeMassBalance => PMRTComputeMassBalance
     procedure, public :: SetTranWeights => SetTranWeights
@@ -99,7 +100,7 @@ function PMRTCreate()
   ! these flags can only be true for transport only
   rt_pm%transient_porosity = PETSC_FALSE
 
-  call PMBaseCreate(rt_pm)
+  call PMBaseInit(rt_pm)
   rt_pm%name = 'PMRT'
   
   PMRTCreate => rt_pm
@@ -108,7 +109,7 @@ end function PMRTCreate
 
 ! ************************************************************************** !
 
-subroutine PMRTInit(this)
+subroutine PMRTSetup(this)
   ! 
   ! Initializes variables associated with reactive transport
   ! 
@@ -128,7 +129,7 @@ subroutine PMRTInit(this)
   class(pm_rt_type) :: this
 
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%Init()')
+  call printMsg(this%option,'PMRT%Setup()')
 #endif
   
 #ifndef SIMPLIFY  
@@ -157,7 +158,7 @@ subroutine PMRTInit(this)
     endif
   endif
   
-end subroutine PMRTInit
+end subroutine PMRTSetup
 
 ! ************************************************************************** !
 
@@ -302,7 +303,7 @@ subroutine PMRTInitializeTimestep(this)
                                  this%realization%field,this%comm1)
     endif
     ! set densities and saturations to t
-    call GlobalWeightAuxvars(this%realization,this%tran_weight_t0)
+    call GlobalWeightAuxVars(this%realization,this%tran_weight_t0)
   else if (this%transient_porosity) then
     this%tran_weight_t0 = 0.d0
     call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
@@ -773,6 +774,23 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
                           INTEGRATE_TRANSPORT,this%option)
 
 end subroutine PMRTUpdateSolution2     
+
+! ************************************************************************** !
+
+subroutine PMRTUpdateAuxVars(this)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 04/21/14
+
+  use Reactive_Transport_module, only : RTUpdateAuxVars
+  
+  implicit none
+  
+  class(pm_rt_type) :: this
+                                      ! cells      bcs         act. coefs.
+  call RTUpdateAuxVars(this%realization,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
+
+end subroutine PMRTUpdateAuxVars  
 
 ! ************************************************************************** !
 
