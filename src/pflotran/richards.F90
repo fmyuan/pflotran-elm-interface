@@ -285,7 +285,6 @@ subroutine RichardsCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
       endif
 #endif
 
-#ifdef REFACTOR_CHARACTERISTIC_CURVES
       call patch%characteristic_curves_array( &
              patch%sat_func_id(ghosted_id))%ptr% &
              saturation_function%CapillaryPressure(sat_pert,pc_pert,option)
