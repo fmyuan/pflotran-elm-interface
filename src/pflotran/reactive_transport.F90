@@ -396,7 +396,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
         j = realization%reaction%ncomp
         do i = 1, n
           ratio = abs(C_p(i)/dC_p(i))
-          if ( ratio<=min_ratio ) then
+          if ( ratio<=min_ratio .and. C_p(i)<=dC_p(i) ) then
             write(realization%option%fid_out, *)  &
              ' <------ min_ratio @', i, 'cell no.=', floor((i-1.d0)/j), &
             'rt species no. =',i-floor((i-1.d0)/j)*j, '-------------->'
@@ -439,7 +439,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
       ! which essentially shut off all reaction and transports, if min_ratio too small.
       do i = 1, n
         ratio = abs(C_p(i)/dC_p(i))
-        if (ratio<1.d0) then
+        if ( ratio<1.d0 .and. C_p(i) <= dC_p(i) ) then
           dC_p(i) = dC_p(i)*ratio*0.99d0
         endif
       end do
