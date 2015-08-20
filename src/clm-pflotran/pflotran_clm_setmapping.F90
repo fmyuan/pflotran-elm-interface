@@ -69,7 +69,7 @@ module pflotran_clm_setmapping_module
        pflotranModelInitMapping,             &
        pflotranModelGetTopFaceArea
 
-  private ::
+  private ::                                 &
        pflotranModelInitMappingSub2Sub,      &
        pflotranModelInitMapTopTo2DSub,       &
        pflotranModelNSurfCells3DDomain,      &
