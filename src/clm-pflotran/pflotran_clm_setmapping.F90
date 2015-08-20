@@ -63,11 +63,17 @@ module pflotran_clm_setmapping_module
 !     PetscReal          :: total_vol_overlap
 !  end type inside_each_overlapped_cell
 
-  public::                                   &
+  public ::                                  &
        ! mesh-mapping
        pflotranModelSetupMappingFiles,       &
        pflotranModelInitMapping,             &
        pflotranModelGetTopFaceArea
+
+  private ::
+       pflotranModelInitMappingSub2Sub,      &
+       pflotranModelInitMapTopTo2DSub,       &
+       pflotranModelNSurfCells3DDomain,      &
+       pflotranModelInitMapFaceToFace
 
 contains
 
