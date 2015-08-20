@@ -335,8 +335,8 @@ src/clm-pflotran/unstructured_polyhedra.F90
 *.pyc
 src/clm-pflotran/reaction_sandbox_degas.F90
 src/clm-pflotran/srcsink_sandbox_downreg.F90
-reaction_sandbox_plantn.F90
-characteristic_curves.F90
+src/clm-pflotran/reaction_sandbox_plantn.F90
+src/clm-pflotran/characteristic_curves.F90
 src/clm-pflotran/pm_base_pointer.F90
 src/clm-pflotran/pmc_material.F90
 src/clm-pflotran/subsurface.F90
@@ -396,5 +396,4 @@ src/clm-pflotran/data_mediator_vec.F90
 src/clm-pflotran/pm_waste_form.F90
 src/clm-pflotran/pmc_third_party.F90
 src/clm-pflotran/timestepper_steady.F90
-reaction_sandbox_langmuir.F90
-reaction_sandbox_langmu.F90
+src/clm-pflotran/reaction_sandbox_langmu.F90
