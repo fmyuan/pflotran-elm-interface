@@ -737,7 +737,7 @@ subroutine SomDecSetup(this,reaction,option)
           if (this%downstream_n_id(icount,jcount) > 0) then
             this%downstream_is_varycn(icount,jcount) = PETSC_TRUE
           else
-            if(this%downstream_nc(icount, icount) < 0.0d0) then
+            if(this%downstream_nc(icount, jcount) < 0.0d0) then
               option%io_buffer = 'SOM decomposition reaction with downstream pool ' // &
                 trim(cur_pool%name) // &
                 'has negative C:N ratio in downstream pool.'

@@ -154,6 +154,7 @@ subroutine SubsurfaceInitializePostPetsc(simulation, option)
   endif
   if (associated(pm_rt)) then
     pmc_subsurface => PMCSubsurfaceCreate()
+    pmc_subsurface%name = 'PMCSubsurfaceTransport'
     pmc_subsurface%option => option
     pmc_subsurface%pms => pm_rt
     pmc_subsurface%pm_ptr%ptr => pm_rt
@@ -673,6 +674,7 @@ subroutine InitSubsurfaceSimulation(simulation)
   ! 
 
   use Realization_class
+  use Discretization_module
   use Option_module
   use Output_module, only : Output
   use Output_Aux_module
@@ -770,6 +772,9 @@ subroutine InitSubsurfaceSimulation(simulation)
   endif
   call RegressionCreateMapping(simulation%regression,realization)
 ! end from old Init()
+
+  call DiscretizationPrintInfo(realization%discretization, &
+                               realization%patch%grid,option)
   
   simulation%waypoint_list => RealizCreateSyncWaypointList(realization)
 
