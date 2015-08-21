@@ -24,7 +24,11 @@ module Init_Common_module
 #endif
             InitCommonVerifyAllCouplers, &
             setSurfaceFlowMode
-            
+
+#if defined(SCORPIO)
+  public :: InitCommonCreateIOGroups
+#endif  
+  
 contains
 
 ! ************************************************************************** !
@@ -638,7 +642,7 @@ subroutine InitCommonCreateIOGroups(option)
 
   ! create read IO groups
   numiogroups = option%mycommsize/option%hdf5_read_group_size
-  call scorpio_iogroup_init(numiogroups, option%mycomm, option%ioread_group_id, ierr)
+  call fscorpio_iogroup_init(numiogroups, option%mycomm, option%ioread_group_id, ierr)
 
   if ( option%hdf5_read_group_size == option%hdf5_write_group_size ) then
     ! reuse read_group to use for writing too as both groups are same size
@@ -646,7 +650,7 @@ subroutine InitCommonCreateIOGroups(option)
   else   
       ! create write IO groups
       numiogroups = option%mycommsize/option%hdf5_write_group_size
-      call scorpio_iogroup_init(numiogroups, option%mycomm, option%iowrite_group_id, ierr)
+      call fscorpio_iogroup_init(numiogroups, option%mycomm, option%iowrite_group_id, ierr)
   end if
 
     write(option%io_buffer, '(" Read group id :  ", i6)') option%ioread_group_id
