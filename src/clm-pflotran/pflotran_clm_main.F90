@@ -82,6 +82,10 @@ module pflotran_clm_main_module
   ! RT bgc species 'idof' and 'name'
   PetscInt, pointer:: ispec_decomp_c(:)
   PetscInt, pointer:: ispec_decomp_n(:)
+  PetscInt, pointer:: ispec_decomp_hr(:)
+  PetscInt, pointer:: ispec_decomp_nmin(:)
+  PetscInt, pointer:: ispec_decomp_nimp(:)
+  PetscInt, pointer:: ispec_decomp_nimm(:)
   character(len=MAXWORDLENGTH), allocatable :: name_decomp(:)          ! appending 'C' or 'N' for real PF species name
 
   PetscInt:: ispec_nh4, ispec_no3, ispec_nh4sorb
@@ -93,12 +97,6 @@ module pflotran_clm_main_module
   character(len=MAXWORDLENGTH):: name_plantndemand   = "Plantndemand"
   character(len=MAXWORDLENGTH):: name_plantnh4uptake = "Plantnh4uptake"
   character(len=MAXWORDLENGTH):: name_plantno3uptake = "Plantno3uptake"
-
-  PetscInt :: ispec_hr, ispec_nmin, ispec_nimmp, ispec_nimm
-  character(len=MAXWORDLENGTH):: name_hr    = "HRimm"
-  character(len=MAXWORDLENGTH):: name_nmin  = "Nmin"
-  character(len=MAXWORDLENGTH):: name_nimmp = "Nimmp"
-  character(len=MAXWORDLENGTH):: name_nimm  = "Nimm"
 
   PetscInt :: ispec_ngasmin, ispec_ngasnitr, ispec_ngasdeni
   character(len=MAXWORDLENGTH):: name_ngasmin = "NGASmin"
@@ -2515,6 +2513,19 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (.not.associated(ispec_decomp_n)) &
       allocate(ispec_decomp_n(clm_pf_idata%ndecomp_pools))
     ispec_decomp_n(:) = 0
+    if (.not.associated(ispec_decomp_hr)) &
+      allocate(ispec_decomp_hr(clm_pf_idata%ndecomp_pools))
+    ispec_decomp_hr(:) = 0
+    if (.not.associated(ispec_decomp_nmin)) &
+      allocate(ispec_decomp_nmin(clm_pf_idata%ndecomp_pools))
+    ispec_decomp_nmin(:) = 0
+    if (.not.associated(ispec_decomp_nimp)) &
+      allocate(ispec_decomp_nimp(clm_pf_idata%ndecomp_pools))
+    ispec_decomp_nimp(:) = 0
+    if (.not.associated(ispec_decomp_nimm)) &
+      allocate(ispec_decomp_nimm(clm_pf_idata%ndecomp_pools))
+    ispec_decomp_nimm(:) = 0
+
     allocate(name_decomp(clm_pf_idata%ndecomp_pools))
     name_decomp = clm_pf_idata%decomp_pool_name
 
@@ -2564,6 +2575,48 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         !
         ispec_decomp_n(k) = UNINITIALIZED_INTEGER
 
+      endif
+
+      ! tracking CO2 release and Nmin/Nimm for each decomposible Pools
+      word = trim(name_decomp(k)) // "CHR"
+      ispec_decomp_hr(k) = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+      if (ispec_decomp_hr(k) <= 0) then
+          pflotran_model%option%io_buffer = 'CLM pool tracking variable ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+        call printErrMsg(pflotran_model%option)
+      endif
+      !
+
+      word = trim(name_decomp(k)) // "NMIN"
+      ispec_decomp_nmin(k) = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+      if (ispec_decomp_nmin(k) <= 0) then
+          pflotran_model%option%io_buffer = 'CLM pool tracking variable ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+        call printErrMsg(pflotran_model%option)
+      endif
+
+      word = trim(name_decomp(k)) // "NIMP"
+      ispec_decomp_nimp(k) = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+      if (ispec_decomp_nimp(k) <= 0) then
+          pflotran_model%option%io_buffer = 'CLM pool tracking variable ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+        call printErrMsg(pflotran_model%option)
+      endif
+
+      word = trim(name_decomp(k)) // "NIMM"
+      ispec_decomp_nimm(k) = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+      if (ispec_decomp_nimm(k) <= 0) then
+          pflotran_model%option%io_buffer = 'CLM pool tracking variable ' // &
+            trim(word) // &
+            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+        call printErrMsg(pflotran_model%option)
       endif
 
     end do
@@ -2627,17 +2680,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       call printErrMsg(pflotran_model%option)
     endif
 
-    ! CO2 productin from C decomposition reaction network for tracking (immoble species)
-    word = name_hr
-    ispec_hr = GetImmobileSpeciesIDFromName(word, &
-            realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_hr<=0) then
-      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
-            trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
-      call printErrMsg(pflotran_model%option)
-    endif
-
     ! N bgc reaction fluxes for tracking (immoble species)
     word = name_plantndemand
     ispec_plantndemand  = GetImmobileSpeciesIDFromName(word, &
@@ -2663,36 +2705,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     ispec_plantno3uptake  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
     if (ispec_plantno3uptake<=0) then
-      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
-            trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
-      call printErrMsg(pflotran_model%option)
-    endif
-
-    word = name_nmin
-    ispec_nmin = GetImmobileSpeciesIDFromName(word, &
-            realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_nmin<=0) then
-      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
-            trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
-      call printErrMsg(pflotran_model%option)
-    endif
-
-    word = name_nimmp
-    ispec_nimmp = GetImmobileSpeciesIDFromName(word, &
-            realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_nimmp<=0) then
-      pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
-            trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
-      call printErrMsg(pflotran_model%option)
-    endif
-
-    word = name_nimm
-    ispec_nimm = GetImmobileSpeciesIDFromName(word, &
-            realization%reaction%immobile,PETSC_FALSE,realization%option)
-    if (ispec_nimm<=0) then
       pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
             trim(word) // &
             'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
@@ -3922,7 +3934,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
              ! field%tran_xx vec IS arranged 'species' first and then 'cell'
              !conc = xx_p(offsetim + ispec_decomp_c(k))                      ! unit: M (mol/m3)
              conc = rt_auxvar%immobile(ispec_decomp_c(k))
-             ! MPI decomp_pfs vec: 'cell' first, then 'species'
+             ! MPI decomp_pfp vec: 'cell' first, then 'species'
              decomp_cpools_vr_pf_loc(vec_offset+local_id)= max(conc, 0.d0)
           endif
 
@@ -3930,8 +3942,52 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
              ! field%tran_xx vec IS arranged 'species' first and then 'cell'
 !             conc = xx_p(offsetim + ispec_decomp_n(k))                      ! unit: M (mol/m3)
              conc = rt_auxvar%immobile(ispec_decomp_n(k))
-             ! MPI decomp_pfs vec: 'cell' first, then 'species'
+             ! MPI decomp_pfp vec: 'cell' first, then 'species'
              decomp_npools_vr_pf_loc(vec_offset+local_id)= max(conc, 0.d0)
+          endif
+
+          if(ispec_decomp_hr(k) > 0) then
+             ! field%tran_xx vec IS arranged 'species' first and then 'cell'
+!             conc = xx_p(offsetim + ispec_decomp_hr(k))                      ! unit: M (mol/m3)
+             conc = rt_auxvar%immobile(ispec_decomp_hr(k))
+             ! MPI acchr_vr_pfp vec: 'cell' first, then 'species'
+             acchr_vr_pf_loc(vec_offset+local_id)= max(conc-zeroing_conc, 0.d0)
+
+             ! resetting the tracking variable state so that cumulative IS for the time-step
+             xx_p(offsetim + ispec_decomp_hr(k)) = zeroing_conc
+          endif
+
+          if(ispec_decomp_nmin(k) > 0) then
+             ! field%tran_xx vec IS arranged 'species' first and then 'cell'
+!             conc = xx_p(offsetim + ispec_decomp_nmin(k))                      ! unit: M (mol/m3)
+             conc = rt_auxvar%immobile(ispec_decomp_nmin(k))
+             ! MPI accnmin_vr_pfp vec: 'cell' first, then 'species'
+             accnmin_vr_pf_loc(vec_offset+local_id)= max(conc-zeroing_conc, 0.d0)
+
+             ! resetting the tracking variable state so that cumulative IS for the time-step
+             xx_p(offsetim + ispec_decomp_nmin(k)) = zeroing_conc
+          endif
+
+          if(ispec_decomp_nimp(k) > 0) then
+             ! field%tran_xx vec IS arranged 'species' first and then 'cell'
+!             conc = xx_p(offsetim + ispec_decomp_nimp(k))                      ! unit: M (mol/m3)
+             conc = rt_auxvar%immobile(ispec_decomp_nimp(k))
+             ! MPI accnmin_vr_pfp vec: 'cell' first, then 'species'
+             accnimmp_vr_pf_loc(vec_offset+local_id)= max(conc-zeroing_conc, 0.d0)
+
+             ! resetting the tracking variable state so that cumulative IS for the time-step
+             xx_p(offsetim + ispec_decomp_nimp(k)) = zeroing_conc
+          endif
+
+          if(ispec_decomp_nimm(k) > 0) then
+             ! field%tran_xx vec IS arranged 'species' first and then 'cell'
+!             conc = xx_p(offsetim + ispec_decomp_nimm(k))                      ! unit: M (mol/m3)
+             conc = rt_auxvar%immobile(ispec_decomp_nimm(k))
+             ! MPI accnmin_vr_pfp vec: 'cell' first, then 'species'
+             accnimm_vr_pf_loc(vec_offset+local_id)= max(conc-zeroing_conc, 0.d0)
+
+             ! resetting the tracking variable state so that cumulative IS for the time-step
+             xx_p(offsetim + ispec_decomp_nimm(k)) = zeroing_conc
           endif
 
         enddo
@@ -4007,44 +4063,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
            ! resetting the tracking variable state so that cumulative IS for the time-step only
            xx_p(offsetim + ispec_plantno3uptake) = zeroing_conc
-        endif
-
-        if(ispec_hr > 0) then
-           !conc = xx_p(offsetim + ispec_hr)
-           conc = rt_auxvar%immobile(ispec_hr)
-           acchr_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
-
-           ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_hr) = zeroing_conc
-        endif
-
-        if(ispec_nmin > 0) then
-           !conc = xx_p(offsetim + ispec_nmin)
-           conc = rt_auxvar%immobile(ispec_nmin)
-           accnmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
-
-           ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_nmin) = zeroing_conc
-        endif
-
-        if(ispec_nimmp > 0) then
-           !conc = xx_p(offsetim + ispec_nimmp)
-           conc = rt_auxvar%immobile(ispec_nimmp)
-           accnimmp_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
-
-           ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_nimmp) = zeroing_conc
-
-        endif
-
-        if(ispec_nimm > 0) then
-           !conc = xx_p(offsetim + ispec_nimm)
-           conc = rt_auxvar%immobile(ispec_nimm)
-           accnimm_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
-
-           ! resetting the tracking variable state so that cumulative IS for the time-step
-           xx_p(offsetim + ispec_nimm) = zeroing_conc
-
         endif
 
         if(ispec_ngasmin > 0) then
@@ -4226,6 +4244,166 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     endif
 
+    ! HR from decomp'C'
+    if (associated(ispec_decomp_hr)) then
+      ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
+      call VecAssemblyBegin(clm_pf_idata%acchr_vr_pfp, ierr); CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%acchr_vr_pfp, ierr); CHKERRQ(ierr)
+      do k=1,clm_pf_idata%ndecomp_pools
+        ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
+        vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call VecGetValues(clm_pf_idata%acchr_vr_pfp,   &
+                          clm_pf_idata%nlpf_sub,               &
+                          idecomp_pfp_index+vec_offset,        &
+                          array_pfp, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+
+        ! mapping from MPI vec to Seq. vec
+        call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                        pflotran_model%option,                &
+                                        vec_pfp,                              &
+                                        vec_clms)
+
+        ! insert 'vec_clms' into the whole '_clms' vec
+        vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+        call VecSetValues(clm_pf_idata%acchr_vr_clms,  &
+                          clm_pf_idata%ngclm_sub,              &
+                          idecomp_clms_index+vec_offset,       &
+                          array_clms, INSERT_VALUES, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+
+      enddo
+
+      ! assembly the whole '_clms' vec, after k compositing pools updated
+      call VecAssemblyBegin(clm_pf_idata%acchr_vr_clms, ierr)
+      CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%acchr_vr_clms, ierr)
+      CHKERRQ(ierr)
+
+    endif
+
+    ! NMIN from decomp'N'
+    if (associated(ispec_decomp_nmin)) then
+      ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
+      call VecAssemblyBegin(clm_pf_idata%accnmin_vr_pfp, ierr); CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%accnmin_vr_pfp, ierr); CHKERRQ(ierr)
+      do k=1,clm_pf_idata%ndecomp_pools
+        ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
+        vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call VecGetValues(clm_pf_idata%accnmin_vr_pfp,   &
+                          clm_pf_idata%nlpf_sub,               &
+                          idecomp_pfp_index+vec_offset,        &
+                          array_pfp, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+
+        ! mapping from MPI vec to Seq. vec
+        call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                        pflotran_model%option,                &
+                                        vec_pfp,                              &
+                                        vec_clms)
+
+        ! insert 'vec_clms' into the whole '_clms' vec
+        vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+        call VecSetValues(clm_pf_idata%accnmin_vr_clms,  &
+                          clm_pf_idata%ngclm_sub,              &
+                          idecomp_clms_index+vec_offset,       &
+                          array_clms, INSERT_VALUES, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+
+      enddo
+
+      ! assembly the whole '_clms' vec, after k compositing pools updated
+      call VecAssemblyBegin(clm_pf_idata%accnmin_vr_clms, ierr)
+      CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%accnmin_vr_clms, ierr)
+      CHKERRQ(ierr)
+
+    endif
+
+    ! NIMP from decomp'N'
+    if (associated(ispec_decomp_nimp)) then
+      ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
+      call VecAssemblyBegin(clm_pf_idata%accnimmp_vr_pfp, ierr); CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%accnimmp_vr_pfp, ierr); CHKERRQ(ierr)
+      do k=1,clm_pf_idata%ndecomp_pools
+        ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
+        vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call VecGetValues(clm_pf_idata%accnimmp_vr_pfp,   &
+                          clm_pf_idata%nlpf_sub,               &
+                          idecomp_pfp_index+vec_offset,        &
+                          array_pfp, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+
+        ! mapping from MPI vec to Seq. vec
+        call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                        pflotran_model%option,                &
+                                        vec_pfp,                              &
+                                        vec_clms)
+
+        ! insert 'vec_clms' into the whole '_clms' vec
+        vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+        call VecSetValues(clm_pf_idata%accnimmp_vr_clms,  &
+                          clm_pf_idata%ngclm_sub,              &
+                          idecomp_clms_index+vec_offset,       &
+                          array_clms, INSERT_VALUES, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+
+      enddo
+
+      ! assembly the whole '_clms' vec, after k compositing pools updated
+      call VecAssemblyBegin(clm_pf_idata%accnimmp_vr_clms, ierr)
+      CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%accnimmp_vr_clms, ierr)
+      CHKERRQ(ierr)
+
+    endif
+
+    ! NIMM from decomp'N'
+    if (associated(ispec_decomp_nimm)) then
+      ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
+      call VecAssemblyBegin(clm_pf_idata%accnimm_vr_pfp, ierr); CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%accnimm_vr_pfp, ierr); CHKERRQ(ierr)
+      do k=1,clm_pf_idata%ndecomp_pools
+        ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
+        vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+        call VecGetValues(clm_pf_idata%accnimm_vr_pfp,   &
+                          clm_pf_idata%nlpf_sub,               &
+                          idecomp_pfp_index+vec_offset,        &
+                          array_pfp, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_pfp, array_pfp, ierr); CHKERRQ(ierr)
+
+        ! mapping from MPI vec to Seq. vec
+        call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                        pflotran_model%option,                &
+                                        vec_pfp,                              &
+                                        vec_clms)
+
+        ! insert 'vec_clms' into the whole '_clms' vec
+        vec_offset = (k-1)*clm_pf_idata%ngclm_sub       ! SEQ. decomp_pfs vec: 'cell' first, then 'species'
+        call VecGetArrayF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+        call VecSetValues(clm_pf_idata%accnimm_vr_clms,  &
+                          clm_pf_idata%ngclm_sub,              &
+                          idecomp_clms_index+vec_offset,       &
+                          array_clms, INSERT_VALUES, ierr); CHKERRQ(ierr)
+        call VecRestoreArrayF90(vec_clms, array_clms, ierr); CHKERRQ(ierr)
+
+      enddo
+
+      ! assembly the whole '_clms' vec, after k compositing pools updated
+      call VecAssemblyBegin(clm_pf_idata%accnimm_vr_clms, ierr)
+      CHKERRQ(ierr)
+      call VecAssemblyEnd(clm_pf_idata%accnimm_vr_clms, ierr)
+      CHKERRQ(ierr)
+
+    endif
+
     ! clear-up of temporary vecs/arrarys
     call VecDestroy(vec_pfp,ierr); CHKERRQ(ierr)
     call VecDestroy(vec_clms,ierr); CHKERRQ(ierr)
@@ -4275,13 +4453,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%gn2o_vr_clms)
     endif
 
-    if(ispec_nmin > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%accnmin_vr_pfp, &
-                                    clm_pf_idata%accnmin_vr_clms)
-    endif
-
     if(ispec_plantnh4uptake > 0) then
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
@@ -4294,27 +4465,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     pflotran_model%option, &
                                     clm_pf_idata%accextrno3_vr_pfp, &
                                     clm_pf_idata%accextrno3_vr_clms)
-    endif
-
-    if(ispec_hr > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%acchr_vr_pfp, &
-                                    clm_pf_idata%acchr_vr_clms)
-    endif
-
-    if(ispec_nimmp > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%accnimmp_vr_pfp, &
-                                    clm_pf_idata%accnimmp_vr_clms)
-    endif
-
-    if(ispec_nimm > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%accnimm_vr_pfp, &
-                                    clm_pf_idata%accnimm_vr_clms)
     endif
 
     if(ispec_ngasmin > 0) then

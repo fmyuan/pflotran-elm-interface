@@ -39,6 +39,10 @@ module Reaction_Sandbox_SomDec_class
 
     PetscInt,  pointer :: upstream_c_id(:)         !nrxn
     PetscInt,  pointer :: upstream_n_id(:)         !nrxn
+    PetscInt,  pointer :: upstream_hr_id(:)        !nrxn
+    PetscInt,  pointer :: upstream_nmin_id(:)      !nrxn
+    PetscInt,  pointer :: upstream_nimp_id(:)      !nrxn
+    PetscInt,  pointer :: upstream_nimm_id(:)      !nrxn
     PetscReal, pointer :: upstream_nc(:)           !nrxn
     PetscBool, pointer :: upstream_is_aqueous(:)   !nrxn
     PetscBool, pointer :: upstream_is_varycn(:)
@@ -58,10 +62,10 @@ module Reaction_Sandbox_SomDec_class
     PetscInt :: species_id_no3
     PetscInt :: species_id_n2o
 
-    PetscInt :: species_id_hrimm
+    PetscInt :: species_id_hr
     PetscInt :: species_id_nmin
     PetscInt :: species_id_nimm
-    PetscInt :: species_id_nimmp
+    PetscInt :: species_id_nimp
     PetscInt :: species_id_ngasmin
     PetscInt :: species_id_proton
 
@@ -133,6 +137,10 @@ function SomDecCreate()
   nullify(SomDecCreate%upstream_is_varycn)
   nullify(SomDecCreate%upstream_c_id)
   nullify(SomDecCreate%upstream_n_id)
+  nullify(SomDecCreate%upstream_hr_id)
+  nullify(SomDecCreate%upstream_nmin_id)
+  nullify(SomDecCreate%upstream_nimp_id)
+  nullify(SomDecCreate%upstream_nimm_id)
   nullify(SomDecCreate%upstream_nc)
   nullify(SomDecCreate%upstream_is_aqueous)
   
@@ -149,10 +157,10 @@ function SomDecCreate()
   SomDecCreate%species_id_nh4 = 0
   SomDecCreate%species_id_no3 = 0
   SomDecCreate%species_id_n2o = 0
-  SomDecCreate%species_id_hrimm = 0
+  SomDecCreate%species_id_hr  = 0
   SomDecCreate%species_id_nmin = 0
   SomDecCreate%species_id_nimm = 0
-  SomDecCreate%species_id_nimmp = 0
+  SomDecCreate%species_id_nimp = 0
   SomDecCreate%species_id_ngasmin = 0
 
   nullify(SomDecCreate%next)
@@ -508,6 +516,10 @@ subroutine SomDecSetup(this,reaction,option)
   
   PetscInt, pointer :: species_id_pool_c(:)
   PetscInt, pointer :: species_id_pool_n(:)
+  PetscInt, pointer :: species_id_pool_hr(:)
+  PetscInt, pointer :: species_id_pool_nmin(:)
+  PetscInt, pointer :: species_id_pool_nimp(:)
+  PetscInt, pointer :: species_id_pool_nimm(:)
   PetscBool, pointer :: pool_is_aqueous(:)
 
   PetscInt :: icount, jcount, max_downstream_pools, ipool
@@ -573,6 +585,10 @@ subroutine SomDecSetup(this,reaction,option)
   allocate(this%upstream_is_varycn(this%nrxn))
   allocate(this%upstream_c_id(this%nrxn))
   allocate(this%upstream_n_id(this%nrxn))
+  allocate(this%upstream_hr_id(this%nrxn))
+  allocate(this%upstream_nmin_id(this%nrxn))
+  allocate(this%upstream_nimp_id(this%nrxn))
+  allocate(this%upstream_nimm_id(this%nrxn))
   allocate(this%upstream_nc(this%nrxn))
   allocate(this%upstream_is_aqueous(this%nrxn))
   
@@ -592,6 +608,10 @@ subroutine SomDecSetup(this,reaction,option)
   this%upstream_is_varycn = PETSC_FALSE
   this%upstream_c_id = 0
   this%upstream_n_id = 0
+  this%upstream_hr_id = 0
+  this%upstream_nmin_id = 0
+  this%upstream_nimp_id = 0
+  this%upstream_nimm_id = 0
   this%upstream_nc = UNINITIALIZED_DOUBLE
   this%upstream_is_aqueous = PETSC_FALSE
 
@@ -608,11 +628,19 @@ subroutine SomDecSetup(this,reaction,option)
   allocate(pool_is_aqueous(this%npool))
   allocate(species_id_pool_c(this%npool))
   allocate(species_id_pool_n(this%npool))
+  allocate(species_id_pool_hr(this%npool))
+  allocate(species_id_pool_nmin(this%npool))
+  allocate(species_id_pool_nimp(this%npool))
+  allocate(species_id_pool_nimm(this%npool))
 
   pool_names = ''
   pool_is_aqueous = PETSC_FALSE
   species_id_pool_c = UNINITIALIZED_INTEGER
   species_id_pool_n = UNINITIALIZED_INTEGER
+  species_id_pool_hr   = UNINITIALIZED_INTEGER
+  species_id_pool_nmin = UNINITIALIZED_INTEGER
+  species_id_pool_nimp = UNINITIALIZED_INTEGER
+  species_id_pool_nimm = UNINITIALIZED_INTEGER
 
 ! pools
   icount = 0
@@ -678,6 +706,24 @@ subroutine SomDecSetup(this,reaction,option)
       endif
       
     endif
+
+    word = trim(cur_pool%name) // 'CHR'
+    species_id_pool_hr(icount) = &
+        GetImmobileSpeciesIDFromName(word,reaction%immobile, &
+                                     PETSC_FALSE,option)
+    word = trim(cur_pool%name) // 'NMIN'
+    species_id_pool_nmin(icount) = &
+        GetImmobileSpeciesIDFromName(word,reaction%immobile, &
+                                     PETSC_FALSE,option)
+    word = trim(cur_pool%name) // 'NIMP'
+    species_id_pool_nimp(icount) = &
+        GetImmobileSpeciesIDFromName(word,reaction%immobile, &
+                                     PETSC_FALSE,option)
+    word = trim(cur_pool%name) // 'NIMM'
+    species_id_pool_nimm(icount) = &
+        GetImmobileSpeciesIDFromName(word,reaction%immobile, &
+                                     PETSC_FALSE,option)
+
     cur_pool => cur_pool%next
   enddo
  
@@ -709,6 +755,11 @@ subroutine SomDecSetup(this,reaction,option)
             call printErrMsg(option)
          endif
       endif
+      this%upstream_hr_id(icount)   = species_id_pool_hr(ipool)
+      this%upstream_nmin_id(icount) = species_id_pool_nmin(ipool)
+      this%upstream_nimp_id(icount) = species_id_pool_nimp(ipool)
+      this%upstream_nimm_id(icount) = species_id_pool_nimm(ipool)
+
     endif
 
 !   downstream pools
@@ -763,6 +814,10 @@ subroutine SomDecSetup(this,reaction,option)
   call DeallocateArray(pool_is_aqueous)
   call DeallocateArray(species_id_pool_c)
   call DeallocateArray(species_id_pool_n)
+  call DeallocateArray(species_id_pool_hr)
+  call DeallocateArray(species_id_pool_nmin)
+  call DeallocateArray(species_id_pool_nimp)
+  call DeallocateArray(species_id_pool_nimm)
 
 ! set stoichiometric coefficients for fixed-CNratio SOM decomposition reactions
   do icount = 1, this%nrxn
@@ -830,66 +885,24 @@ subroutine SomDecSetup(this,reaction,option)
                         PETSC_FALSE,option)
 
   word = 'HRimm'
-  this%species_id_hrimm = GetImmobileSpeciesIDFromName( &
+  this%species_id_hr = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
-#ifdef CLM_PFLOTRAN
-  if(this%species_id_hrimm < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMdec: ' // &
-       ' HRimm is not specified as immobile species in the input file. ' // &
-       ' It is required when coupled with CLM.'
-     call printErrMsg(option)
-  endif
-#endif
 
   word = 'Nmin'
   this%species_id_nmin = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
-#ifdef CLM_PFLOTRAN
-  if(this%species_id_nmin < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMdec: ' // &
-       ' Nmin for actual immobilization is not specified as ' // &
-       ' immobile species in the input file. ' // &
-       ' It is required when coupled with CLM.'
-     call printErrMsg(option)
-  endif
-#endif
  
   word = 'Nimmp'
-  this%species_id_nimmp = GetImmobileSpeciesIDFromName( &
+  this%species_id_nimp = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
-#ifdef CLM_PFLOTRAN
-  if(this%species_id_nimmp < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec: ' // &
-       ' Nimmp for potential immobilization is not specified as ' // &
-       ' immobile species in the input file. ' // &
-       ' It is required when coupled with CLM.'
-     call printErrMsg(option)
-  endif
-#endif
 
   word = 'Nimm'
   this%species_id_nimm = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
-#ifdef CLM_PFLOTRAN
-  if(this%species_id_nimm < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec: ' // &
-       ' Nimm is not specified as immobile species in the input file. ' // &
-       ' It is required when coupled with CLM.'
-     call printErrMsg(option)
-  endif
-#endif
  
   word = 'NGASmin'
   this%species_id_ngasmin = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
-#ifdef CLM_PFLOTRAN
-  if(this%species_id_ngasmin < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec: ' // &
-       ' NGASmin is not specified as immobile species in the input file. ' // &
-       ' It is required when coupled with CLM.'
-     call printErrMsg(option)
-  endif
-#endif
 
 end subroutine SomDecSetup
 
@@ -951,9 +964,11 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscInt :: ipool_up, ipool_down
 
   PetscInt :: ispec_uc, ispec_un, ispec_dc, ispec_dn   ! species id for upstream C, N, and downstream (used in loops)
-  PetscInt :: ires_uc, ires_un, ires_dc, ires_dn      ! id used for residual and Jacobian (used in loops)
+  PetscInt :: ires_uc,   ires_un, ires_dc, ires_dn       ! id used for residual and Jacobian (used in loops)
+  PetscInt :: ires_uchr, ires_unmin, ires_unimp, ires_unimm   ! for individual upstream pool
+  PetscInt :: ires_hr,   ires_nmin,  ires_nimp,  ires_nimm    ! for sum of all pools
   PetscInt :: ires_co2, ires_nh4, ires_n2o, ires_no3
-  PetscInt :: ires_hrimm, ires_nmin, ires_nimm, ires_nimmp, ires_ngasmin
+  PetscInt :: ires_ngasmin
   PetscReal :: stoich_c, stoich_n
 
   PetscReal :: scaled_crate_const
@@ -1179,8 +1194,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   !----------------------------------------------------------------------------------------------
   ires_co2 = this%species_id_co2 + reaction%offset_aqueous       ! as aq. species
-  if(this%species_id_hrimm > 0) then
-     ires_hrimm = this%species_id_hrimm + reaction%offset_immobile
+  if(this%species_id_hr > 0) then
+     ires_hr = this%species_id_hr + reaction%offset_immobile
   endif
 
   if(this%species_id_nmin > 0) then
@@ -1191,8 +1206,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
      ires_nimm = this%species_id_nimm + reaction%offset_immobile
   endif
 
-  if(this%species_id_nimmp > 0) then
-     ires_nimmp = this%species_id_nimmp + reaction%offset_immobile
+  if(this%species_id_nimp > 0) then
+     ires_nimp = this%species_id_nimp + reaction%offset_immobile
   endif
 
   net_nmin_rate     = 0.0d0
@@ -1226,6 +1241,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       c_uc = rt_auxvar%immobile(ispec_uc)
       ires_uc = reaction%offset_immobile + ispec_uc
     endif
+    ires_uchr  = reaction%offset_immobile + this%upstream_hr_id(irxn)
+    ires_unmin = reaction%offset_immobile + this%upstream_nmin_id(irxn)
+    ires_unimp = reaction%offset_immobile + this%upstream_nimp_id(irxn)
+    ires_unimm = reaction%offset_immobile + this%upstream_nimm_id(irxn)
 
     if(this%x0eps>0.d0) then
       ! GP's cut-off approach (sort of Heaviside function)
@@ -1450,8 +1469,11 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
     ! CO2 [2]
     Residual(ires_co2) = Residual(ires_co2) - this%mineral_c_stoich(irxn) * crate
-    if (this%species_id_hrimm > 0) then    ! for tracking
-       Residual(ires_hrimm) = Residual(ires_hrimm) - this%mineral_c_stoich(irxn) * crate
+    if (this%upstream_hr_id(irxn) > 0) then        ! for tracking individual pool CO2 release
+       Residual(ires_uchr) = Residual(ires_uchr) - this%mineral_c_stoich(irxn) * crate
+    endif
+    if (this%species_id_hr > 0) then               ! for tracking all pool CO2 release
+       Residual(ires_hr) = Residual(ires_hr) - this%mineral_c_stoich(irxn) * crate
     endif
     
     ! downstream non-mineral C pools [3]
@@ -1480,7 +1502,11 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     if(this%mineral_n_stoich(irxn) >= 0.0d0) then        ! mineralization
       Residual(ires_nh4) = Residual(ires_nh4) - this%mineral_n_stoich(irxn) * crate
 
-      if(this%species_id_nmin > 0) then    ! for tracking
+      if(this%upstream_nmin_id(irxn) > 0) then    ! for tracking individual pool N mineralization
+        Residual(ires_unmin) = Residual(ires_unmin) - this%mineral_n_stoich(irxn) * crate
+      endif
+
+      if(this%species_id_nmin > 0) then    ! for tracking all pool N mineralization
         Residual(ires_nmin) = Residual(ires_nmin) - this%mineral_n_stoich(irxn) * crate
       endif
 
@@ -1493,12 +1519,18 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           this%mineral_n_stoich(irxn) * crate_uc * crate_no3
       endif
 
-      if(this%species_id_nimm > 0) then    ! for tracking
-         Residual(ires_nimm) = Residual(ires_nimm) + this%mineral_n_stoich(irxn) * crate
+      if(this%upstream_nimm_id(irxn) > 0) then    ! for tracking individual pool N immoblization
+        Residual(ires_unimm) = Residual(ires_unimm) + this%mineral_n_stoich(irxn) * crate
+      endif
+      if(this%upstream_nimp_id(irxn) > 0) then    ! for tracking individual pool N immoblization (potential)
+        Residual(ires_unimp) = Residual(ires_unimp) + this%mineral_n_stoich(irxn) * crate_uc
       endif
 
-      if(this%species_id_nimmp > 0) then    ! for tracking
-         Residual(ires_nimmp) = Residual(ires_nimmp) + this%mineral_n_stoich(irxn) * crate_uc
+      if(this%species_id_nimm > 0) then    ! for tracking all pool N immoblization
+         Residual(ires_nimm) = Residual(ires_nimm) + this%mineral_n_stoich(irxn) * crate
+      endif
+      if(this%species_id_nimp > 0) then    ! for tracking all pool N potential immoblization
+         Residual(ires_nimp) = Residual(ires_nimp) + this%mineral_n_stoich(irxn) * crate_uc
       endif
 
     endif
@@ -1708,8 +1740,14 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       else
         Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - dco2_duc
       endif
-      if(this%species_id_hrimm > 0) then    ! for tracking
-        Jacobian(ires_hrimm,ires_uc) = Jacobian(ires_hrimm,ires_uc) - dco2_duc
+
+      ! for tracking
+      if(this%upstream_hr_id(irxn) > 0) then   ! individual pool CO2 release
+        Jacobian(ires_uchr,ires_uc) = Jacobian(ires_uchr,ires_uc) - dco2_duc
+      endif
+
+      if(this%species_id_hr > 0) then          ! sum of all pool CO2 release
+        Jacobian(ires_hr,ires_uc) = Jacobian(ires_hr,ires_uc) - dco2_duc
       endif
 
       ! upstream C pool [7-2]
@@ -1751,13 +1789,22 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       else
         Jacobian(ires_nh4,ires_uc) = Jacobian(ires_nh4,ires_uc) - dnh4_duc
       endif
+
       !for tracking
-      if(this%species_id_nmin > 0 ) then
-        if(this%mineral_n_stoich(irxn) >= 0.0d0) then
+      if(this%mineral_n_stoich(irxn) >= 0.0d0) then
+        if(this%upstream_nmin_id(irxn) > 0 ) &  !individual pool N mineralization
+          Jacobian(ires_unmin,ires_uc) = Jacobian(ires_unmin,ires_uc) - dnh4_duc
+      else
+        if(this%upstream_nimm_id(irxn) > 0 ) &  !individual pool N immoblization
+          Jacobian(ires_unimm,ires_uc) = Jacobian(ires_unimm,ires_uc) + dnh4_duc
+      endif
+
+      if(this%mineral_n_stoich(irxn) >= 0.0d0) then
+        if(this%species_id_nmin > 0 ) &   !sum of all pool N mineralization
           Jacobian(ires_nmin,ires_uc) = Jacobian(ires_nmin,ires_uc) - dnh4_duc
-        else
+      else
+        if(this%species_id_nimm > 0 ) &   !sum of all pool N immoblization
           Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) + dnh4_duc
-        endif
       endif
 
       ! NO3 [7-5], if any
@@ -1773,7 +1820,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           Jacobian(ires_no3,ires_uc) = Jacobian(ires_no3,ires_uc) - &
             dno3_duc
         endif
-        !for tracking
+
+        ! for tracking
+        if(this%upstream_nimm_id(irxn) > 0 ) &
+          Jacobian(ires_unimm,ires_uc) = Jacobian(ires_unimm,ires_uc) + dno3_duc
         if(this%species_id_nimm >0) then
           Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) + dno3_duc
         endif
@@ -1827,8 +1877,12 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         ! CO2 [7-1]
         Jacobian(ires_co2,ires_nh4) = Jacobian(ires_co2,ires_nh4) - dco2_dnh4 * &
           rt_auxvar%aqueous%dtotal(this%species_id_co2,this%species_id_nh4,iphase)
-        if(this%species_id_hrimm > 0) then   ! for tracking
-          Jacobian(ires_hrimm,ires_nh4) = Jacobian(ires_hrimm,ires_nh4) - dco2_dnh4
+        ! for tracking
+        if(this%upstream_hr_id(irxn) > 0) then
+          Jacobian(ires_uchr,ires_nh4) = Jacobian(ires_uchr,ires_nh4) - dco2_dnh4
+        endif
+        if(this%species_id_hr > 0) then
+          Jacobian(ires_hr,ires_nh4) = Jacobian(ires_hr,ires_nh4) - dco2_dnh4
         endif
 
         ! upstream C [7-2]
@@ -1862,7 +1916,11 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         ! NH4 [7-4]
         Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4) - dnh4_dnh4 * &
           rt_auxvar%aqueous%dtotal(this%species_id_nh4,this%species_id_nh4,iphase)
-        if(this%species_id_nimm > 0) then  ! for tracking
+        ! for tracking
+        if(this%upstream_nimm_id(irxn) > 0) then
+          Jacobian(ires_unimm,ires_nh4) = Jacobian(ires_unimm,ires_nh4) + dnh4_dnh4
+        endif
+        if(this%species_id_nimm > 0) then
           Jacobian(ires_nimm,ires_nh4) = Jacobian(ires_nimm,ires_nh4) + dnh4_dnh4
         endif
 
@@ -1871,6 +1929,9 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           Jacobian(ires_no3,ires_nh4) = Jacobian(ires_no3,ires_nh4) - dno3_dnh4*  &
             rt_auxvar%aqueous%dtotal(this%species_id_no3,this%species_id_nh4,iphase)
           !for tracking
+          if(this%upstream_nimm_id(irxn) > 0) then
+            Jacobian(ires_unimm,ires_nh4) = Jacobian(ires_unimm,ires_nh4) + dno3_dnh4
+          endif
           if(this%species_id_nimm >0) then
             Jacobian(ires_nimm,ires_nh4) = Jacobian(ires_nimm,ires_nh4) + dno3_dnh4
           endif
@@ -1925,8 +1986,11 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         Jacobian(ires_co2,ires_no3) = Jacobian(ires_co2,ires_no3) - dco2_dno3 * &
           rt_auxvar%aqueous%dtotal(this%species_id_co2,this%species_id_no3,iphase)
         ! for tracking
-        if(this%species_id_hrimm > 0) then
-          Jacobian(ires_hrimm,ires_no3) = Jacobian(ires_hrimm,ires_no3) - dco2_dno3
+        if(this%upstream_hr_id(irxn) > 0) then
+          Jacobian(ires_uchr,ires_no3) = Jacobian(ires_uchr,ires_no3) - dco2_dno3
+        endif
+        if(this%species_id_hr > 0) then
+          Jacobian(ires_hr,ires_no3) = Jacobian(ires_hr,ires_no3) - dco2_dno3
         endif
 
         ! upstream C pool [7-2]
@@ -1960,6 +2024,9 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         Jacobian(ires_nh4,ires_no3) = Jacobian(ires_nh4,ires_no3) - dnh4_dno3 * &
           rt_auxvar%aqueous%dtotal(this%species_id_nh4,this%species_id_no3,iphase)
         ! for tracking
+        if(this%upstream_nimm_id(irxn) > 0) then
+          Jacobian(ires_unimm,ires_no3) = Jacobian(ires_unimm,ires_no3) + dnh4_dno3
+        endif
         if(this%species_id_nimm > 0) then
           Jacobian(ires_nimm,ires_no3) = Jacobian(ires_nimm,ires_no3) + dnh4_dno3
         endif
@@ -1968,6 +2035,9 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) - dno3_dno3 * &
           rt_auxvar%aqueous%dtotal(this%species_id_no3,this%species_id_no3,iphase)
         ! for tracking
+        if(this%upstream_nimm_id(irxn) > 0) then
+          Jacobian(ires_unimm,ires_no3) = Jacobian(ires_unimm,ires_no3) + dno3_dno3
+        endif
         if(this%species_id_nimm > 0) then
           Jacobian(ires_nimm,ires_no3) = Jacobian(ires_nimm,ires_no3) + dno3_dno3
         endif
@@ -2195,6 +2265,9 @@ subroutine SomDecDestroy(this)
   call DeallocateArray(this%upstream_is_varycn)
   call DeallocateArray(this%upstream_c_id)
   call DeallocateArray(this%upstream_n_id)
+  call DeallocateArray(this%upstream_hr_id)
+  call DeallocateArray(this%upstream_nmin_id)
+  call DeallocateArray(this%upstream_nimm_id)
   call DeallocateArray(this%upstream_nc)
   call DeallocateArray(this%upstream_is_aqueous)
   call DeallocateArray(this%downstream_c_id)

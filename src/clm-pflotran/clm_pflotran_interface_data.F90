@@ -842,10 +842,10 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accextrnh4_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accextrno3_vr_pfp,ierr)
     !
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%acchr_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accnmin_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accnimmp_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accnimm_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfp,clm_pf_idata%acchr_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfp,clm_pf_idata%accnmin_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfp,clm_pf_idata%accnimmp_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfp,clm_pf_idata%accnimm_vr_pfp,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accngasmin_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accngasnitr_vr_pfp,ierr)
@@ -859,10 +859,10 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accextrnh4_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accextrno3_vr_clms,ierr)
     !
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%acchr_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accnmin_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accnimmp_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accnimm_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%acchr_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnmin_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnimmp_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnimm_vr_clms,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accngasmin_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accngasnitr_vr_clms,ierr)
