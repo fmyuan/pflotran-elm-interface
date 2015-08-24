@@ -222,7 +222,7 @@ chem_obj = \
 	${common_src}reaction_sandbox_example.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
 	${common_src}reaction_sandbox_denitr.o \
-	${common_src}reaction_sandbox_degas.o  \
+	${common_src}reaction_sandbox_degas.o \
 	${common_src}reaction_sandbox_langmu.o \
 	${common_src}reaction_sandbox_nitrif.o \
 	${common_src}reaction_sandbox_plantn.o \
@@ -466,7 +466,7 @@ block_tridiag.o : pflotran_constants.o
 clm_rspfuncs.o : clm_pflotran_interface_data.o
 characteristic_curves.o : input_aux.o option.o pflotran_constants.o string.o \
                           utility.o
-checkpoint.o : discretization.o field.o global.o grid.o material.o option.o \
+checkpoint.o : discretization.o field.o global.o grid.o hdf5.o material.o option.o \
                pflotran_constants.o realization.o string.o variables.o
 checkpoint_surface.o : discretization.o grid.o option.o output_aux.o \
                        pflotran_constants.o surface_field.o \
