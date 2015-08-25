@@ -1394,8 +1394,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ! in the following, '2.1' multiplier is chosen because that is slightly larger(5% to avoid numerical issue) than '2.0',
       ! which should be the previous-timestep before reaching the 'option%dt_min'
       ! (the time-cut used in PF is like dt=0.5*dt, when cutting)
-      dtmin = 2.1d0*option%dt_min
-      !dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
+      !dtmin = 2.1d0*option%dt_min
+      dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
 
       if (crate_uc*this%mineral_n_stoich(irxn) < 0.d0) then
         !
@@ -2131,8 +2131,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       ! in the following, '2.1' multiplier is chosen because that is slightly larger(5% to avoid numerical issue) than '2.0',
       ! which should be the previous-timestep before reaching the 'option%dt_min'
       ! (the time-cut used in PF is like dt=0.5*dt, when cutting)
-      dtmin = 2.1d0*option%dt_min
-      !dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dt_min' may be accelerating the timing, but may not be good to mulitple consummers
+      !dtmin = 2.1d0*option%dt_min
+      dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dt_min' may be accelerating the timing, but may not be good to mulitple consummers
 
       nratecap = temp_real*this%n2o_frac_mineralization*net_nmin_rate*dtmin        ! moles
       if (nratecap > c_nh4*volume) then
@@ -2172,10 +2172,13 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         Jacobian(ires_n2o,ires_nh4) = Jacobian(ires_n2o,ires_nh4) - 0.5d0*drate_n2o_dx* &
            rt_auxvar%aqueous%dtotal(this%species_id_n2o,this%species_id_nh4,iphase)
 
-        if(this%species_id_ngasmin > 0) then
-           Jacobian(ires_ngasmin,ires_nh4) = Jacobian(ires_ngasmin,ires_nh4) - &
-                                      drate_n2o_dx
-        endif
+        ! Something wrong in the following, temporarily OFF (TODO - checking)
+        ! Symtoms: may have 'negative rate' from resolution.
+        !if(this%species_id_ngasmin > 0) then
+        !   Jacobian(ires_ngasmin,ires_nh4) = Jacobian(ires_ngasmin,ires_nh4) - &
+        !                              drate_n2o_dx
+        !endif
+
       endif
 
     endif  ! end of 'f_t/f_w/f_ph > 1.0d-20'
