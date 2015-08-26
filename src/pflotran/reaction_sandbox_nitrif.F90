@@ -455,11 +455,13 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
              0.5d0 * drate_n2o_dnh4 * &
              rt_auxvar%aqueous%dtotal(this%ispec_n2o,this%ispec_nh4,iphase)
       
+#ifndef nojacobian_track_vars
            ! for tracking
            if(this%ispec_ngasnit > 0) then
              Jacobian(ires_ngasnit,ires_nh4)=Jacobian(ires_ngasnit,ires_nh4)- &
                drate_n2o_dnh4
            endif
+#endif
 
        endif  !if (compute_derivative)
 
