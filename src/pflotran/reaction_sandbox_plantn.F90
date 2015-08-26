@@ -531,10 +531,12 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
       Jacobian(ires_plantn,ires_nh4) = Jacobian(ires_plantn,ires_nh4) - &
         dnrate_nh4_dnh4
 
+#ifndef nojacobian_track_vars
       if (this%ispec_plantnh4uptake>0) then   ! for tracking
         Jacobian(ires_plantnh4uptake,ires_nh4) = Jacobian(ires_plantnh4uptake,ires_nh4) - &
           dnrate_nh4_dnh4
       endif
+#endif
 
       !if(this%ispec_no3 > 0) then
       !  Jacobian(ires_nh4,ires_no3)=Jacobian(ires_nh4,ires_no3) - &       ! may need a checking of the sign (+/-) here
@@ -587,10 +589,12 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative, &
       Jacobian(ires_plantn,ires_no3) = Jacobian(ires_plantn,ires_no3) - &
         dnrate_no3_dno3
 
+#ifndef nojacobian_track_vars
       if (this%ispec_plantno3uptake>0) then   ! for tracking
         Jacobian(ires_plantno3uptake,ires_no3) = Jacobian(ires_plantno3uptake,ires_no3) - &
           dnrate_no3_dno3
       endif
+#endif
 
       !if(this%ispec_nh4 > 0) then
       !  Jacobian(ires_no3,ires_nh4)=Jacobian(ires_no3,ires_nh4) - &      ! may need a checking of sign (+/-) here

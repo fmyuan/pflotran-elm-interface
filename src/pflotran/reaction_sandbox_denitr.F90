@@ -362,11 +362,13 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
         0.5d0*drate_deni_dno3 * &
         rt_auxvar%aqueous%dtotal(this%ispec_n2,this%ispec_no3,iphase)
 
+#ifndef nojacobian_track_vars
       ! for tracking
       if(this%ispec_ngasdeni > 0) then
         Jacobian(ires_ngasdeni,ires_no3) = &
           Jacobian(ires_ngasdeni,ires_no3) - drate_deni_dno3
       endif
+#endif
 
     endif
 

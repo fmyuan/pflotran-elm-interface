@@ -11,7 +11,9 @@ include ${PETSC_DIR}/conf/rules
 MYFLAGS = -I.
 MYFLAGS += ${FC_DEFINE_FLAG}PROCESS_MODEL
 MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN
-MYFLAGS += ${FC_DEFINE_FLAG}STORE_FLOWRATES
+
+# calculate the jacobians for tracking variables if coupled with CLM-CN
+#MYFLAGS += ${FC_DEFINE_FLAG}nojacobian_track_vars
 
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
 # PFLOTRAN_RXN_FLAG 
