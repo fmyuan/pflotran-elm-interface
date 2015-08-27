@@ -929,10 +929,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   implicit none
 
-#ifdef CLM_PFLOTRAN
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
-#endif
 
   class(reaction_sandbox_somdec_type) :: this
   type(option_type) :: option
@@ -1365,8 +1363,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       !    used as a method to quantify competition over resources.
       if(this%x0eps>0.d0) then
         ! GP's cut-off approach (sort of Heaviside function)
-        feps0     = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_FALSE)
-        dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
+        feps0     = funcTrailersmooth(c_nh4, this%x0eps*100.d0, this%x0eps, PETSC_FALSE)
+        dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps*100.d0, this%x0eps, PETSC_TRUE)
       else
         feps0 = 1.0d0
         dfeps0_dx = 0.d0
@@ -1377,8 +1375,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       if(this%species_id_no3 > 0) then
         if(this%x0eps>0.d0) then
           ! GP's cut-off approach
-          feps0     = funcTrailersmooth(c_no3, this%x0eps*10.d0, this%x0eps, PETSC_FALSE)
-          dfeps0_dx = funcTrailersmooth(c_no3, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
+          feps0     = funcTrailersmooth(c_no3, this%x0eps*100.d0, this%x0eps, PETSC_FALSE)
+          dfeps0_dx = funcTrailersmooth(c_no3, this%x0eps*100.d0, this%x0eps, PETSC_TRUE)
         else
           feps0 = 1.0d0
           dfeps0_dx = 0.d0
@@ -2213,7 +2211,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   endif ! end of 'species_id_n2o > 0'
 
-!#ifdef DEBUG
+#ifdef DEBUG
   do ires=1, reaction%ncomp
     temp_real = Residual(ires)
 
@@ -2233,7 +2231,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     endif
 
   enddo
-!#endif
+#endif
 
 end subroutine SomDecReact
 

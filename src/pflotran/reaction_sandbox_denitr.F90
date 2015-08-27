@@ -374,7 +374,7 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
 
   endif
 
-!#ifdef DEBUG
+#ifdef DEBUG
   if( (option%tran_dt<=option%dt_min .and. option%print_file_flag) .and. &
      rate_deni*option%dt_min >= c_no3) then
 
@@ -403,7 +403,7 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
     endif
 
   enddo
-!#endif
+#endif
 
 end subroutine DenitrReact
 

@@ -192,10 +192,8 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
 
   implicit none
 
-#ifdef CLM_PFLOTRAN
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
-#endif
   
   class(reaction_sandbox_langmuir_type) :: this  
   type(option_type) :: option
@@ -270,7 +268,7 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
 
   endif
 
-!#ifdef DEBUG
+#ifdef DEBUG
   do ires=1, reaction%ncomp
     temp_real = Residual(ires)
 
@@ -289,7 +287,7 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
     endif
 
   enddo
-!#endif
+#endif
 
 end subroutine LangmuirReact
 
