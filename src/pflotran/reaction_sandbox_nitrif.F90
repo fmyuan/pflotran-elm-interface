@@ -249,10 +249,8 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   
   implicit none
 
-#ifdef CLM_PFLOTRAN
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
-#endif
   
   class(reaction_sandbox_nitrif_type) :: this
   type(option_type) :: option
@@ -469,7 +467,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
 
   endif       !if(this%ispec_n2o > 0.0d0 .and. c_nh4_ugg > 3.0d0)
 
-!#ifdef DEBUG
+#ifdef DEBUG
   if( (option%tran_dt<=option%dt_min .and. option%print_file_flag) .and. &
       (rate_nitri*option%dt_min >= c_nh4 .or. &
        rate_n2o*option%dt_min >= c_nh4) ) then
@@ -501,7 +499,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
     endif
 
   enddo
-!#endif
+#endif
 
 end subroutine NitrifReact
 
