@@ -867,10 +867,12 @@ subroutine SomDecSetup(this,reaction,option)
   word = 'NH4+'
   this%species_id_nh4 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
+#ifdef CLM_PFLORAN
   if(this%species_id_nh4 <= 0) then
     option%io_buffer = 'NH4+ is not specified in the input file!'
     call printErrMsg(option)
   endif
+#endif
 
   word = 'NO3-'
   this%species_id_no3 = GetPrimarySpeciesIDFromName(word,reaction, &
