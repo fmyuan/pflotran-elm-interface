@@ -1,5 +1,5 @@
-#Description: CLM-CN N immobilization module test
-# (2) NO3-N as reactant for 1 reaction
+#Description: CLM-CN N immobilization/mineralization module test
+# (3) NH4-N and NO3-N as reactants for 3 reactions; NH4 as productant 
 
 
 #=========================== regression =======================================
@@ -18,27 +18,55 @@ REFERENCE_DENSITY 1.d3
 CHEMISTRY
   PRIMARY_SPECIES
     CO2(aq)
+    NH4+
     NO3-
   /
   
   IMMOBILE_SPECIES
-    SOM1
+    SOM
     Lit1C
     Lit1N
+    Lit2C
+    Lit2N
+    Lit3C
+    Lit3N
+    Nmin
+    Nimm
+    HRimm
   /
   
   REACTION_SANDBOX
     SOMDECOMP
       POOLS
-        SOM1 12.d0
+        SOM  12.d0
         Lit1
+        Lit2
+        Lit3
       /
 
       REACTION
         UPSTREAM_POOL Lit1
-        DOWNSTREAM_POOL SOM1 0.61d0
-        TURNOVER_TIME 20. h
+        DOWNSTREAM_POOL SOM 0.61d0
+        TURNOVER_TIME 2.d0 d
       /
+
+      REACTION
+        UPSTREAM_POOL Lit2
+        DOWNSTREAM_POOL SOM 0.61d0
+        TURNOVER_TIME 20.d0 d
+      /
+
+      REACTION
+        UPSTREAM_POOL Lit3
+        DOWNSTREAM_POOL SOM 0.61d0
+        TURNOVER_TIME 200.0d0 d
+      /
+
+      REACTION
+        UPSTREAM_POOL SOM
+        TURNOVER_TIME 100.0d0 d
+      /
+
 
     /
 
@@ -94,10 +122,10 @@ END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 50.d0 d
+  FINAL_TIME 1.d0 y
   INITIAL_TIMESTEP_SIZE 1.0d0 m
-  MINIMUM_TIMESTEP_SIZE 1.0d1 m
-  MAXIMUM_TIMESTEP_SIZE 1.d0 h
+  MINIMUM_TIMESTEP_SIZE 12.0d0 h
+  MAXIMUM_TIMESTEP_SIZE 1.d0 d
 END
 
 #=========================== regions ==========================================
@@ -129,12 +157,20 @@ END
 CONSTRAINT initial
   CONCENTRATIONS
     CO2(aq)  1.d-40     T  ! moles/L
+    NH4+     8.d-4      T  ! moles/L
     NO3-     8.d-4      T  ! moles/L
   /
   IMMOBILE
-    SOM1  1.d-40
+    SOM   1.d01
     Lit1C 1.852d1
     Lit1N 0.0508954d1
+    Lit2C 1.852d1
+    Lit2N 0.0508954d1
+    Lit3C 1.852d1
+    Lit3N 0.0508954d1
+    Nmin  1.d-40
+    Nimm  1.d-40
+    HRimm 1.d-40
   /
 END
 

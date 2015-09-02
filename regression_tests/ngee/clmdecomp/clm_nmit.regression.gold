@@ -1,0 +1,78 @@
+-- CONCENTRATION: Total CO2(aq) --
+      Max:   2.4034642912916E-01
+      Min:   2.4034642912916E-01
+     Mean:   2.4034642912916E-01
+        1:   2.4034642912916E-01
+-- CONCENTRATION: Total NH4+ --
+      Max:   9.4951078018593E-03
+      Min:   9.4951078018593E-03
+     Mean:   9.4951078018593E-03
+        1:   9.4951078018593E-03
+-- CONCENTRATION: Total NO3- --
+      Max:   3.3845992175834E-05
+      Min:   3.3845992175834E-05
+     Mean:   3.3845992175834E-05
+        1:   3.3845992175834E-05
+-- CONCENTRATION: SOM --
+      Max:   2.4740707464730E+00
+      Min:   2.4740707464730E+00
+     Mean:   2.4740707464730E+00
+        1:   2.4740707464730E+00
+-- CONCENTRATION: Lit1C --
+      Max:   1.2092354729992E-20
+      Min:   1.2092354729992E-20
+     Mean:   1.2092354729992E-20
+        1:   1.2092354729992E-20
+-- CONCENTRATION: Lit1N --
+      Max:   3.3231383959223E-22
+      Min:   3.3231383959223E-22
+     Mean:   3.3231383959223E-22
+        1:   3.3231383959223E-22
+-- CONCENTRATION: Lit2C --
+      Max:   3.4121644370018E-07
+      Min:   3.4121644370018E-07
+     Mean:   3.4121644370018E-07
+        1:   3.4121644370018E-07
+-- CONCENTRATION: Lit2N --
+      Max:   9.3770774237030E-09
+      Min:   9.3770774237030E-09
+     Mean:   9.3770774237030E-09
+        1:   9.3770774237030E-09
+-- CONCENTRATION: Lit3C --
+      Max:   2.9993216300214E+00
+      Min:   2.9993216300214E+00
+     Mean:   2.9993216300214E+00
+        1:   2.9993216300214E+00
+-- CONCENTRATION: Lit3N --
+      Max:   8.2425309983042E-02
+      Min:   8.2425309983042E-02
+     Mean:   8.2425309983042E-02
+        1:   8.2425309983042E-02
+-- CONCENTRATION: Nmin --
+      Max:   2.8289484174492E+00
+      Min:   2.8289484174492E+00
+     Mean:   2.8289484174492E+00
+        1:   2.8289484174492E+00
+-- CONCENTRATION: Nimm --
+      Max:   8.4670996894039E-01
+      Min:   8.4670996894039E-01
+     Mean:   8.4670996894039E-01
+        1:   8.4670996894039E-01
+-- CONCENTRATION: HRimm --
+      Max:   6.0086607282289E+01
+      Min:   6.0086607282289E+01
+     Mean:   6.0086607282289E+01
+        1:   6.0086607282289E+01
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   3.7392401695251E-01
+   Time Steps:          368
+   Newton Iterations:          769
+   Solver Iterations:          769
+   Time Step Cuts:            0
+   Solution 2-Norm:   6.0285171049031E+01
+   Residual 2-Norm:   5.2136319570648E-15
