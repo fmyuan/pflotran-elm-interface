@@ -1,0 +1,63 @@
+-- CONCENTRATION: Total CO2(aq) --
+      Max:   3.8735651219948E-02
+      Min:   3.8735651219948E-02
+     Mean:   3.8735651219948E-02
+        1:   3.8735651219948E-02
+-- CONCENTRATION: Total NH4+ --
+      Max:   2.5562162184681E-11
+      Min:   2.5562162184681E-11
+     Mean:   2.5562162184681E-11
+        1:   2.5562162184681E-11
+-- CONCENTRATION: Total NO3- --
+      Max:   2.5562162184681E-11
+      Min:   2.5562162184681E-11
+     Mean:   2.5562162184681E-11
+        1:   2.5562162184681E-11
+-- CONCENTRATION: SOM --
+      Max:   1.5146632849243E+01
+      Min:   1.5146632849243E+01
+     Mean:   1.5146632849243E+01
+        1:   1.5146632849243E+01
+-- CONCENTRATION: Lit1C --
+      Max:   1.0616649004706E-03
+      Min:   1.0616649004706E-03
+     Mean:   1.0616649004706E-03
+        1:   1.0616649004706E-03
+-- CONCENTRATION: Lit1N --
+      Max:   2.9175950202705E-05
+      Min:   2.9175950202705E-05
+     Mean:   2.9175950202705E-05
+        1:   2.9175950202705E-05
+-- CONCENTRATION: Lit2C --
+      Max:   1.2229508612410E+01
+      Min:   1.2229508612410E+01
+     Mean:   1.2229508612410E+01
+        1:   1.2229508612410E+01
+-- CONCENTRATION: Lit2N --
+      Max:   3.3608300898059E-01
+      Min:   3.3608300898059E-01
+     Mean:   3.3608300898059E-01
+        1:   3.3608300898059E-01
+-- CONCENTRATION: Lit3C --
+      Max:   1.8498884068193E+01
+      Min:   1.8498884068193E+01
+     Mean:   1.8498884068193E+01
+        1:   1.8498884068193E+01
+-- CONCENTRATION: Lit3N --
+      Max:   5.0837370637383E-01
+      Min:   5.0837370637383E-01
+     Mean:   5.0837370637383E-01
+        1:   5.0837370637383E-01
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   6.6423892974854E-01
+   Time Steps:          748
+   Newton Iterations:         1393
+   Solver Iterations:         1393
+   Time Step Cuts:            4
+   Solution 2-Norm:   2.6861924289450E+01
+   Residual 2-Norm:   1.6773268517451E-15
