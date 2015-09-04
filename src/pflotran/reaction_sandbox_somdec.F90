@@ -1193,14 +1193,14 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     ! N mineralization type decomposition reaction
     if(this%mineral_n_stoich(irxn) >= 0.0d0) then
       call SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,   &
-                        rt_auxvar, option,                                     &
+                        rt_auxvar, material_auxvar, option,                    &
                         irxn, crate_uc, dcrate_uc_duc, nmin)
 
       net_nmin_rate = net_nmin_rate + nmin
     else
     ! N immoblization type decomposition reaction
       call SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction,   &
-                        rt_auxvar, global_auxvar, material_auxvar, option,   &
+                        rt_auxvar, global_auxvar, material_auxvar, option,     &
                         irxn, crate_uc, dcrate_uc_duc, nimm)
       net_nmin_rate = net_nmin_rate + nimm  ! 'nimm' should be in negative
     endif
@@ -1239,7 +1239,8 @@ end subroutine SomDecReact
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction, rt_auxvar, option, &
+subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,  &
+                        rt_auxvar, material_auxvar, option,                   &
                         irxn, crate_uc, dcrate_uc_duc, nmin)
   !
   ! Evaluates reaction storing residual and/or Jacobian for N mineralizartion associated
@@ -1250,6 +1251,7 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction, rt_
 ! ----------------------------------------------------------------------------!
   use Option_module
   use Reaction_Aux_module
+  use Material_Aux_class, only : material_auxvar_type
 
   implicit none
 
@@ -1260,6 +1262,7 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction, rt_
   type(option_type) :: option
   type(reaction_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
+  class(material_auxvar_type) :: material_auxvar
 
   PetscBool :: compute_derivative
   PetscReal :: Residual(reaction%ncomp)
@@ -1273,7 +1276,7 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction, rt_
 
   PetscErrorCode :: ierr
 
-  PetscReal :: temp_real
+  PetscReal :: temp_real, volume
 
   !PetscInt :: ipool_up, ipool_down
 
@@ -1356,6 +1359,8 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction, rt_
   if(this%upstream_nmin_id(irxn) > 0) then
     ires_unmin  = this%upstream_nmin_id(irxn) + reaction%offset_immobile
   endif
+
+  volume= material_auxvar%volume
 
   !-----------------------------------------------------------------------------------------------------
     ! calculation of residuals
@@ -1594,6 +1599,85 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction, rt_
       !
 
     endif ! if(compute_derivative) then -- end of jacobian calculations
+
+#ifdef CLM_PFLOTRAN
+    !--------------------------------------------------------------------------------------
+    ! THE FOLLOWING IF FOR TRACKING reaction flow rates: NEGATIVE - out of reactant; POSITIVE - flow in productants
+    ! unit: moles/m3 bulk/sec
+    ! NOTE: the 2-D 'reaction_rate' variable HAS been zeroed for accumulating the data in a time-stepper, BE SUPER-CAUTIOUS here!
+
+    if (.not. compute_derivative) then
+      ! upstream c
+      rt_auxvar%reaction_rate(ires_uc, ires_uc) = rt_auxvar%reaction_rate(ires_uc, ires_uc) &
+                             - crate/volume
+
+      ! downstream CO2 (sum of all)
+      rt_auxvar%reaction_rate(ires_co2, ires_co2) = rt_auxvar%reaction_rate(ires_co2, ires_co2) &
+                             + this%mineral_c_stoich(irxn) * crate/volume
+
+      ! downstream CO2 (individual upstream pool CO2 release)
+      rt_auxvar%reaction_rate(ires_uc, ires_co2) = rt_auxvar%reaction_rate(ires_uc, ires_co2) &
+                             + this%mineral_c_stoich(irxn) * crate/volume
+
+      ! downstream non-CO2 C pools
+      do j = 1, this%n_downstream_pools(irxn)
+        ispec_dc = this%downstream_c_id(irxn, j)
+        if(this%downstream_is_aqueous(irxn, j)) then
+          ires_dc = ispec_dc
+        else
+          ires_dc = reaction%offset_immobile + ispec_dc
+        endif
+        if(ispec_dc > 0) then
+          rt_auxvar%reaction_rate(ires_uc, ires_dc) = rt_auxvar%reaction_rate(ires_uc, ires_dc) &
+                             + this%downstream_stoich(irxn, j) * crate/volume
+        endif
+
+      enddo
+
+      ! upstream n
+      if(this%upstream_is_varycn(irxn)) then
+        rt_auxvar%reaction_rate(ires_un, ires_un) = rt_auxvar%reaction_rate(ires_un, ires_un) &
+                             - this%upstream_nc(irxn) * crate/volume
+      endif
+
+      ! downstream inorg. nitrogen (NH4+)
+      if(this%mineral_n_stoich(irxn) >= 0.0d0) then
+        ! total mineralization
+        rt_auxvar%reaction_rate(ires_nh4, ires_nh4) = rt_auxvar%reaction_rate(ires_nh4, ires_nh4) &
+                             + this%mineral_n_stoich(irxn) * crate/volume
+
+        ! individual pool N mineralization
+        rt_auxvar%reaction_rate(ires_un, ires_nh4) = rt_auxvar%reaction_rate(ires_un, ires_nh4) &
+                             + this%mineral_n_stoich(irxn) * crate/volume
+
+      endif
+
+      ! downstream non-inorgan. N pools
+      do j = 1, this%n_downstream_pools(irxn)
+        if (this%downstream_is_varycn(irxn,j)) then
+          ispec_dn = this%downstream_n_id(irxn, j)
+          if(this%downstream_is_aqueous(irxn, j)) then
+            ires_dn = ispec_dn
+          else
+            ires_dn = reaction%offset_immobile + ispec_dn
+          endif
+          if(ispec_dn > 0) then
+            ! if having mutilple upstream pools, sum it
+            rt_auxvar%reaction_rate(ires_dn, ires_dn) = rt_auxvar%reaction_rate(ires_dn, ires_dn) &
+                              + this%downstream_stoich(irxn, j) * crate/volume                    &
+                                 * this%downstream_nc(irxn, j)
+            ! individual upstream pool
+            rt_auxvar%reaction_rate(ires_un, ires_dn) = rt_auxvar%reaction_rate(ires_un, ires_dn) &
+                              + this%downstream_stoich(irxn, j) * crate/volume                    &
+                                 * this%downstream_nc(irxn, j)
+          endif
+
+        endif
+      enddo
+
+     endif
+    !--------------------------------------------------------------------------------------
+#endif
 
 end subroutine SomDecReact1
 
@@ -2493,6 +2577,96 @@ subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
       endif       !if(this%species_id_no3>0)
 
     endif ! if(compute_derivative) then -- end of jacobian calculations
+
+
+#ifdef CLM_PFLOTRAN
+    !--------------------------------------------------------------------------------------
+    ! THE FOLLOWING IF FOR TRACKING reaction flow rates: NEGATIVE - out of reactant; POSITIVE - flow in productants
+    ! unit: mole/m3 bulk/sec
+    ! NOTE: the 2-D 'reaction_rate' variable HAS been zeroed for accumulating the data in a time-stepper, BE SUPER-CAUTIOUS here!
+
+    if (.not. compute_derivative) then
+      ! upstream c
+      rt_auxvar%reaction_rate(ires_uc, ires_uc) = rt_auxvar%reaction_rate(ires_uc, ires_uc) &
+                             - crate/volume
+
+      ! downstream CO2 (sum of all)
+      rt_auxvar%reaction_rate(ires_co2, ires_co2) = rt_auxvar%reaction_rate(ires_co2, ires_co2) &
+                             + this%mineral_c_stoich(irxn) * crate/volume
+
+      ! downstream CO2 (individual upstream pool CO2 release)
+      rt_auxvar%reaction_rate(ires_uc, ires_co2) = rt_auxvar%reaction_rate(ires_uc, ires_co2) &
+                             + this%mineral_c_stoich(irxn) * crate/volume
+
+      ! downstream non-CO2 C pools
+      do j = 1, this%n_downstream_pools(irxn)
+        ispec_dc = this%downstream_c_id(irxn, j)
+        if(this%downstream_is_aqueous(irxn, j)) then
+          ires_dc = ispec_dc
+        else
+          ires_dc = reaction%offset_immobile + ispec_dc
+        endif
+        if(ispec_dc > 0) then
+          rt_auxvar%reaction_rate(ires_uc, ires_dc) = rt_auxvar%reaction_rate(ires_uc, ires_dc) &
+                             + this%downstream_stoich(irxn, j) * crate/volume
+        endif
+
+      enddo
+
+      ! upstream n
+      if(this%upstream_is_varycn(irxn)) then
+        rt_auxvar%reaction_rate(ires_un, ires_un) = rt_auxvar%reaction_rate(ires_un, ires_un) &
+                             + this%upstream_nc(irxn) * crate/volume
+      endif
+
+      ! downstream inorg. nitrogen (NH4+/NO3-)
+      if(this%mineral_n_stoich(irxn) < 0.0d0) then
+        if (this%species_id_nh4 > 0) then
+          ! total
+          rt_auxvar%reaction_rate(ires_nh4, ires_nh4) = rt_auxvar%reaction_rate(ires_nh4, ires_nh4) &
+                             - this%mineral_n_stoich(irxn) * crate_nh4/volume  ! rate IS in non-negative
+          ! individual pool N immobilization
+          rt_auxvar%reaction_rate(ires_un, ires_nh4) = rt_auxvar%reaction_rate(ires_un, ires_nh4) &
+                             - this%mineral_n_stoich(irxn) * crate_nh4/volume
+        endif
+
+        if (this%species_id_no3 > 0) then
+          ! total
+          rt_auxvar%reaction_rate(ires_no3, ires_no3) = rt_auxvar%reaction_rate(ires_no3, ires_no3) &
+                             - this%mineral_n_stoich(irxn) * crate_no3/volume
+          ! individual pool N immobilization
+          rt_auxvar%reaction_rate(ires_un, ires_no3) = rt_auxvar%reaction_rate(ires_un, ires_no3) &
+                             - this%mineral_n_stoich(irxn) * crate_no3/volume
+        endif
+
+      endif
+
+      ! downstream non-inorgan. N pools
+      do j = 1, this%n_downstream_pools(irxn)
+        if (this%downstream_is_varycn(irxn,j)) then
+          ispec_dn = this%downstream_n_id(irxn, j)
+          if(this%downstream_is_aqueous(irxn, j)) then
+            ires_dn = ispec_dn
+          else
+            ires_dn = reaction%offset_immobile + ispec_dn
+          endif
+          if(ispec_dn > 0) then
+            ! if having mutilple upstream pools, sum it
+            rt_auxvar%reaction_rate(ires_dn, ires_dn) = rt_auxvar%reaction_rate(ires_dn, ires_dn) &
+                             + this%downstream_stoich(irxn, j) * crate                            &
+                                 * this%downstream_nc(irxn, j)/volume
+            ! individual upstream pool
+            rt_auxvar%reaction_rate(ires_un, ires_dn) = rt_auxvar%reaction_rate(ires_un, ires_dn) &
+                             + this%downstream_stoich(irxn, j) * crate                            &
+                                 * this%downstream_nc(irxn, j)/volume
+          endif
+
+        endif
+      enddo
+
+     endif
+    !--------------------------------------------------------------------------------------
+#endif
 
 end subroutine SomDecReact2
 

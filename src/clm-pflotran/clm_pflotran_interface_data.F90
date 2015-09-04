@@ -32,8 +32,28 @@ module clm_pflotran_interface_data
   ! Soil BGC decomposing pools
   PetscInt :: ndecomp_pools
   logical, pointer :: floating_cn_ratio(:)           ! TRUE => pool has fixed C:N ratio
-  character(len=8), pointer :: decomp_pool_name(:)   ! name of pool
 
+  ! RT bgc species 'idof'/name
+  ! NOTES: The following is what PF bgc right now using for CLM-PFLOTRAN coupling
+  ! if need adding or modifying, it's possible and update BOTH here and subroutine 'pflotranModelGetRTspecies'
+  ! (Of course, it must be modifying the PF input card and get those variables and relevant reactions in RT).
+
+  character(len=32), pointer :: name_decomp(:)   ! name of pools, which will be appending 'C' or 'N' for real PF species name
+  PetscInt, pointer:: ispec_decomp_c(:)
+  PetscInt, pointer:: ispec_decomp_n(:)
+
+  PetscInt:: ispec_hr, ispec_nh4, ispec_no3, ispec_nh4sorb
+  character(len=32):: name_hr      = "CO2(aq)"
+  character(len=32):: name_nh4     = "NH4+"
+  character(len=32):: name_no3     = "NO3-"
+  character(len=32):: name_nh4sorb = "NH4sorb"
+
+  PetscInt :: ispec_co2, ispec_n2, ispec_n2o
+  character(len=32):: name_co2 = "CO2imm"
+  character(len=32):: name_n2o = "N2Oimm"
+  character(len=32):: name_n2  = "N2imm"
+
+  !-------------------------------------------------------------
   ! Number of cells for the 3D subsurface domain
   PetscInt :: nlclm_sub ! num of local clm cells
   PetscInt :: ngclm_sub ! num of ghosted clm cells (ghosted = local+ghosts)
@@ -254,10 +274,10 @@ module clm_pflotran_interface_data
   Vec :: smin_nh4sorb_vr_clms           ! (moleN/m3) vertically-resolved absorbed NH4-N
   !
   ! 'accextrn' is accumulative N extract by plant roots in 'PFLOTRAN' within a CLM timestep
-  Vec :: accextrnh4_vr_pfp                ! (moleN/m3) vertically-resolved root extraction N
-  Vec :: accextrnh4_vr_clms               ! (moleN/m3) vertically-resolved root extraction N
-  Vec :: accextrno3_vr_pfp                ! (moleN/m3) vertically-resolved root extraction N
-  Vec :: accextrno3_vr_clms               ! (moleN/m3) vertically-resolved root extraction N
+  Vec :: accextrnh4_vr_pfp                ! (moleN/m3/timestep) vertically-resolved root extraction N
+  Vec :: accextrnh4_vr_clms               ! (moleN/m3/timestep) vertically-resolved root extraction N
+  Vec :: accextrno3_vr_pfp                ! (moleN/m3/timestep) vertically-resolved root extraction N
+  Vec :: accextrno3_vr_clms               ! (moleN/m3/timestep) vertically-resolved root extraction N
 
   ! gases in water (aqueous solution of gases)
   ! gases species is accumulative in 'PFLOTRAN', so needs to calculate their fluxes in the CLM-PF interface and reset back to PFLOTRAN
@@ -277,25 +297,25 @@ module clm_pflotran_interface_data
   Vec :: gn2o_vr_pfs                   ! (moleN/m3) vertically-resolved N2O-N, after gas emission
 
   ! some tracking variables from PFLOTRAN bgc to obtain reaction flux rates which needed by CLM
-  Vec :: acchr_vr_pfp                 ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
-  Vec :: acchr_vr_clms                ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
+  Vec :: acchr_vr_pfp                  ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
+  Vec :: acchr_vr_clms                 ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
 
   Vec :: accnmin_vr_pfp                ! (moleN/m3/timestep) vertically-resolved N mineralization
   Vec :: accnmin_vr_clms               ! (moleN/m3/timestep) vertically-resolved N mineralization
 
-  Vec :: accnimmp_vr_pfp                ! (moleN/m3/timestep) vertically-resolved potential N immoblization
-  Vec :: accnimmp_vr_clms               ! (moleN/m3/timestep) vertically-resolved potential N immoblization
+  Vec :: accnimmp_vr_pfp               ! (moleN/m3/timestep) vertically-resolved potential N immoblization
+  Vec :: accnimmp_vr_clms              ! (moleN/m3/timestep) vertically-resolved potential N immoblization
   Vec :: accnimm_vr_pfp                ! (moleN/m3/timestep) vertically-resolved N immoblization
   Vec :: accnimm_vr_clms               ! (moleN/m3/timestep) vertically-resolved N immoblization
 
-  Vec :: accngasmin_vr_pfp              ! (moleN/m3/timestep) vertically-resolved N2O-N from mineralization
-  Vec :: accngasmin_vr_clms             ! (moleN/m3/timestep) vertically-resolved N2O-N from mineralization
+  Vec :: accngasmin_vr_pfp             ! (moleN/m3/timestep) vertically-resolved N2O-N from mineralization
+  Vec :: accngasmin_vr_clms            ! (moleN/m3/timestep) vertically-resolved N2O-N from mineralization
 
-  Vec :: accngasnitr_vr_pfp             ! (moleN/m3/timestep) vertically-resolved N2O-N from nitrification
-  Vec :: accngasnitr_vr_clms            ! (moleN/m3/timestep) vertically-resolved N2O-N from nitrification
+  Vec :: accngasnitr_vr_pfp            ! (moleN/m3/timestep) vertically-resolved N2O-N from nitrification
+  Vec :: accngasnitr_vr_clms           ! (moleN/m3/timestep) vertically-resolved N2O-N from nitrification
 
-  Vec :: accngasdeni_vr_pfp             ! (moleN/m3/timestep) vertically-resolved N2-N from denitrification
-  Vec :: accngasdeni_vr_clms            ! (moleN/m3/timestep) vertically-resolved N2-N from denitrification
+  Vec :: accngasdeni_vr_pfp            ! (moleN/m3/timestep) vertically-resolved N2-N from denitrification
+  Vec :: accngasdeni_vr_clms           ! (moleN/m3/timestep) vertically-resolved N2-N from denitrification
 
   ! actual aqeuous N mass flow rate(moleN/m2/sec) at the top (runoff)/bottom (leaching) of 3-D subsurface domain
   ! (+ in, - out)
@@ -337,7 +357,18 @@ contains
 
     clm_pf_idata%nzclm_mapped = 0
 
+    !--------------------------------
     clm_pf_idata%ndecomp_pools = 0
+    clm_pf_idata%ispec_hr      = 0
+    clm_pf_idata%ispec_nh4     = 0
+    clm_pf_idata%ispec_no3     = 0
+    clm_pf_idata%ispec_nh4sorb = 0
+
+    clm_pf_idata%ispec_co2 = 0
+    clm_pf_idata%ispec_n2  = 0
+    clm_pf_idata%ispec_n2o = 0
+
+    !---------------------------------
 
     clm_pf_idata%nlclm_sub = 0
     clm_pf_idata%ngclm_sub = 0
@@ -583,7 +614,9 @@ contains
     PetscMPIInt    :: mycomm, rank
 
     allocate(clm_pf_idata%floating_cn_ratio(1:clm_pf_idata%ndecomp_pools))
-    allocate(clm_pf_idata%decomp_pool_name(1:clm_pf_idata%ndecomp_pools))
+    allocate(clm_pf_idata%ispec_decomp_c(1:clm_pf_idata%ndecomp_pools))
+    allocate(clm_pf_idata%ispec_decomp_n(1:clm_pf_idata%ndecomp_pools))
+    allocate(clm_pf_idata%name_decomp(1:clm_pf_idata%ndecomp_pools))
 
     call MPI_Comm_rank(mycomm,rank, ierr)
 
@@ -1128,7 +1161,9 @@ contains
     ! -----------------------------------------------------------------------------------------------------------
 
     deallocate(clm_pf_idata%floating_cn_ratio)
-    deallocate(clm_pf_idata%decomp_pool_name)
+    deallocate(clm_pf_idata%name_decomp)
+    deallocate(clm_pf_idata%ispec_decomp_c)
+    deallocate(clm_pf_idata%ispec_decomp_n)
 
     ! soil C/N pools (initial)
     if(clm_pf_idata%decomp_cpools_vr_clmp /= 0) &

@@ -217,15 +217,6 @@ subroutine NitrifSetup(this,reaction,option)
   word = 'NGASnitr'
   this%ispec_ngasnit = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
-#ifdef CLM_PFLOTRAN
-  if(this%ispec_ngasnit < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,NITRIF: ' // &
-       'NGASnitr is not specified as immobile species in the input file' // &
-        ' It is required when coupled with CLM.'
-     call printErrMsg(option)
-  endif
-#endif
-
  
 end subroutine NitrifSetup
 

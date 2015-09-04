@@ -509,11 +509,11 @@ subroutine RTCheckUpdatePost(line_search,X0,dX,X1,dX_changed, &
     max_relative_change = maxval(dabs(dX_p(:)/X0_p(:)))
     call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
     max_scaled_residual = maxval(dabs(r_p(:)/accum_p(:)))
-    call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
     converged_due_to_rel_update = &
       (option%transport%inf_rel_update_tol > 0.d0 .and. &
        max_relative_change < option%transport%inf_rel_update_tol)
@@ -700,6 +700,10 @@ subroutine RTUpdateMassBalance(realization)
   use Option_module
   use Patch_module
   use Grid_module
+  ! for passing reaction rates from PFLTORAN bgc to CLM-PFLOTRAN interface vecs
+#ifdef CLM_PFLOTRAN
+  use clm_pflotran_interface_data
+#endif
  
   implicit none
   
@@ -711,6 +715,15 @@ subroutine RTUpdateMassBalance(realization)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars_ss(:)
 
   PetscInt :: iconn
+
+  ! for passing reaction rates from PFLTORAN bgc to CLM-PFLOTRAN interface vecs
+#ifdef CLM_PFLOTRAN
+  PetscInt :: k, kcomp, jcomp, vec_offset
+  PetscReal, pointer :: array_pfp(:)
+  PetscInt :: ghosted_id, local_id
+  PetscInt :: ierr
+#endif
+
 
   option => realization%option
   patch => realization%patch
@@ -737,6 +750,35 @@ subroutine RTUpdateMassBalance(realization)
       rt_auxvars_ss(iconn)%mass_balance + &
       rt_auxvars_ss(iconn)%mass_balance_delta*option%tran_dt
   enddo
+
+#ifdef CLM_PFLOTRAN
+!F.-M. YUAN: tracking reaction rates for CLM-CN
+! (1) 'Jup' above will be calculated as reaction flow rate from upstream species to downstream species
+!     NOW, only done for relevant CLM-CN reaction sandboxes; BUT if need every reaction, have to add
+! (2) NOW, only good for tracking 'reaction NON flux' portion, but can be done for 'flux' portion
+
+  if (associated(realization%reaction)) then
+    do local_id = 1, patch%grid%nlmax
+      ghosted_id = patch%grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) < 0) cycle
+
+      call VecGetArrayF90(clm_pf_idata%acchr_vr_pfp, array_pfp, ierr); CHKERRQ(ierr)
+      do k=1,clm_pf_idata%ndecomp_pools
+        ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
+        vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
+        kcomp = clm_pf_idata%ispec_decomp_c(k)+realization%reaction%offset_immobile
+
+        jcomp = clm_pf_idata%ispec_hr
+        array_pfp(vec_offset + local_id) = array_pfp(vec_offset + local_id) + &    ! zeroing has been done at begining of each CLM-timestep
+               patch%aux%RT%auxvars(ghosted_id)%reaction_rate(kcomp, jcomp) * &    ! unit: moles/m3/sec
+               option%tran_dt                                                      ! unit: moles/m3/sec --> moles/m3
+
+      enddo
+      call VecRestoreArrayF90(clm_pf_idata%acchr_vr_pfp, array_pfp, ierr); CHKERRQ(ierr)
+
+    enddo
+  endif
+#endif
 
 end subroutine RTUpdateMassBalance
 
@@ -2949,7 +2991,8 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 ! note: 'local_id' is used in those sandboxes, but after checking when in parallel mode,
 ! it should be 'ghosted_id', because in 'clm_pf_idata%???', those are defined as PETSC seq. vecs.
 #ifdef CLM_PFLOTRAN
-    option%iflag = ghosted_id
+      option%iflag = ghosted_id
+      rt_auxvars(ghosted_id)%reaction_rate(:,:) = 0.d0
 #endif
 
       call RReaction(Res,Jup,PETSC_FALSE,rt_auxvars(ghosted_id), &
