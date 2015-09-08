@@ -1193,14 +1193,14 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     ! N mineralization type decomposition reaction
     if(this%mineral_n_stoich(irxn) >= 0.0d0) then
       call SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,   &
-                        rt_auxvar, option,                                     &
+                        rt_auxvar, material_auxvar, option,                    &
                         irxn, crate_uc, dcrate_uc_duc, nmin)
 
       net_nmin_rate = net_nmin_rate + nmin
     else
     ! N immoblization type decomposition reaction
       call SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction,   &
-                        rt_auxvar, global_auxvar, material_auxvar, option,   &
+                        rt_auxvar, global_auxvar, material_auxvar, option,     &
                         irxn, crate_uc, dcrate_uc_duc, nimm)
       net_nmin_rate = net_nmin_rate + nimm  ! 'nimm' should be in negative
     endif
@@ -1239,7 +1239,8 @@ end subroutine SomDecReact
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction, rt_auxvar, option, &
+subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,  &
+                        rt_auxvar, material_auxvar, option,                   &
                         irxn, crate_uc, dcrate_uc_duc, nmin)
   !
   ! Evaluates reaction storing residual and/or Jacobian for N mineralizartion associated
@@ -1250,6 +1251,7 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction, rt_
 ! ----------------------------------------------------------------------------!
   use Option_module
   use Reaction_Aux_module
+  use Material_Aux_class, only : material_auxvar_type
 
   implicit none
 
@@ -1260,6 +1262,7 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction, rt_
   type(option_type) :: option
   type(reaction_type) :: reaction
   type(reactive_transport_auxvar_type) :: rt_auxvar
+  class(material_auxvar_type) :: material_auxvar
 
   PetscBool :: compute_derivative
   PetscReal :: Residual(reaction%ncomp)
@@ -1273,7 +1276,7 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction, rt_
 
   PetscErrorCode :: ierr
 
-  PetscReal :: temp_real
+  PetscReal :: temp_real, volume
 
   !PetscInt :: ipool_up, ipool_down
 
@@ -1356,6 +1359,8 @@ subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction, rt_
   if(this%upstream_nmin_id(irxn) > 0) then
     ires_unmin  = this%upstream_nmin_id(irxn) + reaction%offset_immobile
   endif
+
+  volume= material_auxvar%volume
 
   !-----------------------------------------------------------------------------------------------------
     ! calculation of residuals
