@@ -3712,7 +3712,8 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
 ! note: 'local_id' is used in those sandboxes, but after checking when in parallel mode,
 ! it should be 'ghosted_id', because in 'clm_pf_idata%???', those are defined as PETSC seq. vecs.
 #ifdef CLM_PFLOTRAN
-    option%iflag = ghosted_id
+      option%iflag = ghosted_id
+      rt_auxvars(ghosted_id)%reaction_rate(:,:) = 0.d0
 #endif
 
       call RReactionDerivative(Res,Jup,rt_auxvars(ghosted_id), &

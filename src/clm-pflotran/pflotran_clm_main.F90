@@ -4180,19 +4180,15 @@ print *, k, clm_pf_idata%ispec_decomp_c(k),clm_pf_idata%ispec_decomp_n(k)
                                     clm_pf_idata%gn2o_vr_clms)
     endif
 
-    if(clm_pf_idata%ispec_plantnh4uptake > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%accextrnh4_vr_pfp, &
                                     clm_pf_idata%accextrnh4_vr_clms)
-    endif
 
-    if(clm_pf_idata%ispec_plantno3uptake > 0) then
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%accextrno3_vr_pfp, &
                                     clm_pf_idata%accextrno3_vr_clms)
-    endif
 
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
