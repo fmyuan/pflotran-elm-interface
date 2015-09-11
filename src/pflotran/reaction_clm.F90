@@ -1449,9 +1449,9 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 #endif
 
 #ifdef CLM_PFLOTRAN
-    call VecGetArrayF90(clm_pf_idata%w_scalar_pf, w_scalar_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%w_scalar_pfs, w_scalar_pf_loc, ierr)
     w_scalar_pf_loc(local_id) = f_w
-    call VecRestoreArrayF90(clm_pf_idata%w_scalar_pf, w_scalar_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%w_scalar_pfs, w_scalar_pf_loc, ierr)
 #endif
 
   if (f_t < 1.0d-20 .or. f_w < 1.0d-20) then
@@ -2989,10 +2989,10 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     ! temperature/moisture/pH response functions (Parton et al. 1996)
     f_t = -0.06d0 + 0.13d0 * exp( 0.07d0 * tc )
     call VecGetArrayReadF90(clm_pf_idata%h2osoi_vol_pfs, h2osoi_vol_pf_loc, ierr)
-    call VecGetArrayReadF90(clm_pf_idata%watsat_pf, watsat_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%watsat_pfs, watsat_pf_loc, ierr)
     saturation = h2osoi_vol_pf_loc(local_id)/watsat_pf_loc(local_id)
     call VecRestoreArrayReadF90(clm_pf_idata%h2osoi_vol_pfs, h2osoi_vol_pf_loc, ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%watsat_pf, watsat_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%watsat_pfs, watsat_pf_loc, ierr)
 
     f_w = ((1.27d0 - saturation)/0.67d0)**(3.1777d0) * &
         ((saturation - 0.0012d0)/0.5988d0)**2.84d0  
@@ -3690,7 +3690,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   local_id = option%iflag 
 
-  call VecGetArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, &
+  call VecGetArrayReadF90(clm_pf_idata%rate_plantndemand_pfs, &
        rate_plantnuptake_pf_loc, ierr)
 
   call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, &
@@ -3722,7 +3722,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     rate_no3_clm_input = rate_smin_no3_pf_loc(local_id) * volume ! mol/m3/s * m3
   endif 
 
-  call VecRestoreArrayReadF90(clm_pf_idata%rate_plantnuptake_pfs, &
+  call VecRestoreArrayReadF90(clm_pf_idata%rate_plantndemand_pfs, &
        rate_plantnuptake_pf_loc, ierr)
 
   call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, &
@@ -4358,11 +4358,11 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
       ! removed.  t6g 4/1/2015   CNNDynamicsMod.F90 line 831
 #ifdef CLM_PFLOTRAN
       call VecGetArrayReadF90(clm_pf_idata%h2osoi_vol_pfs, h2osoi_vol_pf_loc, ierr)
-      call VecGetArrayReadF90(clm_pf_idata%watsat_pf, watsat_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%watsat_pfs, watsat_pf_loc, ierr)
       saturation = h2osoi_vol_pf_loc(local_id)/watsat_pf_loc(local_id)
       h2osoi = h2osoi_vol_pf_loc(local_id)
       call VecRestoreArrayReadF90(clm_pf_idata%h2osoi_vol_pfs, h2osoi_vol_pf_loc, ierr)
-      call VecRestoreArrayReadF90(clm_pf_idata%watsat_pf, watsat_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%watsat_pfs, watsat_pf_loc, ierr)
 #endif
 
       f_w = saturation * (1.0d0 - saturation)
@@ -4434,18 +4434,18 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
       call printErrMsg(option)
     endif
 
-    call VecGetArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%bulkdensity_dry_pfs, bulkdensity, ierr)
     rho_b = bulkdensity(local_id) ! kg/m3
-    call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pf, bulkdensity, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pfs, bulkdensity, ierr)
 #else
     rho_b = 1.25d0
 #endif
 #ifdef CLM_PFLOTRAN
     call VecGetArrayReadF90(clm_pf_idata%h2osoi_vol_pfs, h2osoi_vol_pf_loc, ierr)
-    call VecGetArrayReadF90(clm_pf_idata%watsat_pf, watsat_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%watsat_pfs, watsat_pf_loc, ierr)
     saturation = h2osoi_vol_pf_loc(local_id)/watsat_pf_loc(local_id)
     call VecRestoreArrayReadF90(clm_pf_idata%h2osoi_vol_pfs, h2osoi_vol_pf_loc, ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%watsat_pf, watsat_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%watsat_pfs, watsat_pf_loc, ierr)
 #endif
 
     if (this%is_NH4_aqueous) then   
@@ -5013,9 +5013,9 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
     call printErrMsg(option)
   endif
 
-  call VecGetArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
+  call VecGetArrayReadF90(clm_pf_idata%bsw_pfs, bsw, ierr)
   temp_real = bsw(local_id)
-  call VecRestoreArrayReadF90(clm_pf_idata%bsw_pf, bsw, ierr)
+  call VecRestoreArrayReadF90(clm_pf_idata%bsw_pfs, bsw, ierr)
 #else
   temp_real = 1.0d0
 #endif
@@ -5029,10 +5029,10 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
   ! make it consistent with CLM CNNDynamicsMod.F90 line 666
 #ifdef CLM_PFLOTRAN
   call VecGetArrayReadF90(clm_pf_idata%h2osoi_vol_pfs, h2osoi_vol_pf_loc, ierr)
-  call VecGetArrayReadF90(clm_pf_idata%watsat_pf, watsat_pf_loc, ierr)
+  call VecGetArrayReadF90(clm_pf_idata%watsat_pfs, watsat_pf_loc, ierr)
   saturation = h2osoi_vol_pf_loc(local_id)/watsat_pf_loc(local_id)
   call VecRestoreArrayReadF90(clm_pf_idata%h2osoi_vol_pfs, h2osoi_vol_pf_loc, ierr)
-  call VecRestoreArrayReadF90(clm_pf_idata%watsat_pf, watsat_pf_loc, ierr)
+  call VecRestoreArrayReadF90(clm_pf_idata%watsat_pfs, watsat_pf_loc, ierr)
 #endif
 
   s_min = 0.6d0
@@ -5514,9 +5514,9 @@ subroutine CWDFragReact(this,Residual,Jacobian,compute_derivative, &
 #endif
 
 #ifdef CLM_PFLOTRAN
-    call VecGetArrayF90(clm_pf_idata%w_scalar_pf, w_scalar_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%w_scalar_pfs, w_scalar_pf_loc, ierr)
     w_scalar_pf_loc(local_id) = f_w
-    call VecRestoreArrayF90(clm_pf_idata%w_scalar_pf, w_scalar_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%w_scalar_pfs, w_scalar_pf_loc, ierr)
 #endif
 
   if (f_t < 1.0d-20 .or. f_w < 1.0d-20) then

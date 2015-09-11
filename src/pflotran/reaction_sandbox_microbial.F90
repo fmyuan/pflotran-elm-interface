@@ -17,7 +17,7 @@ module Reaction_Sandbox_Microbial_class
   use Reaction_Database_Aux_module
 
 #ifdef CLM_PFLOTRAN
-  use CLM_BGC_module
+  use CLM_RspFuncs_module
 #endif
 
   implicit none

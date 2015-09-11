@@ -2087,6 +2087,23 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
         CHKERRQ(ierr)
         call VecRestoreArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
         CHKERRQ(ierr)
+
+        ! for exactly using moisture response functions of decomposition from CLM-CN
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%w_scalar_clmp, &
+                                    clm_pf_idata%w_scalar_pfs)
+
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%o_scalar_clmp, &
+                                    clm_pf_idata%o_scalar_pfs)
+
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%h2osoi_vol_clmp, &
+                                    clm_pf_idata%h2osoi_vol_pfs)
+
     endif
 
     ! Save soil temperature values from CLM to PFLOTRAN, if needed
@@ -2107,6 +2124,13 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
         enddo
         call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
         CHKERRQ(ierr)
+
+        ! for exactly using temperature response function of decomposition from CLM-CN
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%t_scalar_clmp, &
+                                    clm_pf_idata%t_scalar_pfs)
+
     endif
 
   end subroutine pflotranModelUpdateTHfromCLM
