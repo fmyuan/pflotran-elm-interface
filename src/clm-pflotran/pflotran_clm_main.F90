@@ -88,15 +88,29 @@ module pflotran_clm_main_module
   character(len=MAXWORDLENGTH):: name_lit2 = "LITR2"
   character(len=MAXWORDLENGTH):: name_lit3 = "LITR3"
   character(len=MAXWORDLENGTH):: name_cwd  = "CWD"
-  character(len=MAXWORDLENGTH):: name_som1 = "SOIL1"
-  character(len=MAXWORDLENGTH):: name_som2 = "SOIL2"
-  character(len=MAXWORDLENGTH):: name_som3 = "SOIL3"
-  character(len=MAXWORDLENGTH):: name_som4 = "SOIL4"
+  character(len=MAXWORDLENGTH):: name_soil1= "SOIL1"
+  character(len=MAXWORDLENGTH):: name_soil2= "SOIL2"
+  character(len=MAXWORDLENGTH):: name_soil3= "SOIL3"
+  character(len=MAXWORDLENGTH):: name_soil4= "SOIL4"
 
-  PetscInt:: ispec_nh4, ispec_no3, ispec_nh4sorb
+  character(len=MAXWORDLENGTH):: name_labile    = "Labile"
+  character(len=MAXWORDLENGTH):: name_cellulose = "Cellulose"
+  character(len=MAXWORDLENGTH):: name_lignin    = "Lignin"
+  character(len=MAXWORDLENGTH):: name_som1 = "SOM1"
+  character(len=MAXWORDLENGTH):: name_som2 = "SOM2"
+  character(len=MAXWORDLENGTH):: name_som3 = "SOM3"
+  character(len=MAXWORDLENGTH):: name_som4 = "SOM4"
+
+  PetscInt:: ispec_fungi, ispec_bacteria
+  character(len=MAXWORDLENGTH):: name_fungi    = "Fungi"
+  character(len=MAXWORDLENGTH):: name_bacteria = "Bacteria"
+
+  PetscInt:: ispec_nh4, ispec_no3, ispec_nh4sorb, ispec_nh4imm, ispec_no3imm
   character(len=MAXWORDLENGTH):: name_nh4     = "NH4+"
   character(len=MAXWORDLENGTH):: name_no3     = "NO3-"
   character(len=MAXWORDLENGTH):: name_nh4sorb = "NH4sorb"
+  character(len=MAXWORDLENGTH):: name_nh4imm  = "Ammonium"
+  character(len=MAXWORDLENGTH):: name_no3imm  = "Nitrate"
 
   PetscInt :: ispec_plantndemand, ispec_plantnh4uptake, ispec_plantno3uptake
   character(len=MAXWORDLENGTH):: name_plantndemand   = "Plantndemand"
@@ -2545,9 +2559,20 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     word = trim(name_lit1) // "C"
     ispec_lit1c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit1c<=0) then
+      word = trim(name_labile) // "C"
+      ispec_lit1c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     word = trim(name_lit1) // "N"
     ispec_lit1n = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit1n<=0) then
+      word = trim(name_labile) // "N"
+      ispec_lit1n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
+
     if (ispec_lit1c <= 0 .or. ispec_lit1n <=0 ) then
           pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
             trim(name_lit1) // &
@@ -2555,12 +2580,23 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           call printErrMsg(pflotran_model%option)
     endif
 
+    !
     word = trim(name_lit2) // "C"
     ispec_lit2c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit2c<=0) then
+      word = trim(name_cellulose) // "C"
+      ispec_lit2c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     word = trim(name_lit2) // "N"
     ispec_lit2n = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit2n<=0) then
+      word = trim(name_cellulose) // "N"
+      ispec_lit2n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     if (ispec_lit2c <= 0 .or. ispec_lit2n <=0 ) then
           pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
             trim(name_lit2) // &
@@ -2568,12 +2604,23 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           call printErrMsg(pflotran_model%option)
     endif
 
+    !
     word = trim(name_lit3) // "C"
     ispec_lit3c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit3c<=0) then
+      word = trim(name_lignin) // "C"
+      ispec_lit3c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     word = trim(name_lit3) // "N"
     ispec_lit3n = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit3n<=0) then
+      word = trim(name_lignin) // "N"
+      ispec_lit3n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     if (ispec_lit3c <= 0 .or. ispec_lit3n <=0 ) then
           pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
             trim(name_lit3) // &
@@ -2581,6 +2628,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           call printErrMsg(pflotran_model%option)
     endif
 
+    !
     word = trim(name_cwd) // "C"
     ispec_cwdc = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
@@ -2595,9 +2643,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
     !
-    word = name_som1
+    word = name_soil1
     ispec_som1c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_som1c<=0) then
+      word = trim(name_som1)
+      ispec_som1c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     if (ispec_som1c < 0) then
       word = trim(name_som1) // "C"
       ispec_som1c = GetImmobileSpeciesIDFromName(word, &
@@ -2615,9 +2668,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           call printErrMsg(pflotran_model%option)
     endif
 
-    word = name_som2
+    word = name_soil2
     ispec_som2c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_som2c<=0) then
+      word = trim(name_som2)
+      ispec_som2c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     if (ispec_som2c < 0) then
       word = trim(name_som2) // "C"
       ispec_som2c = GetImmobileSpeciesIDFromName(word, &
@@ -2635,9 +2693,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           call printErrMsg(pflotran_model%option)
     endif
 
-    word = name_som3
+    word = name_soil3
     ispec_som3c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_som3c<=0) then
+      word = trim(name_som3)
+      ispec_som3c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     if (ispec_som3c < 0) then
       word = trim(name_som3) // "C"
       ispec_som3c = GetImmobileSpeciesIDFromName(word, &
@@ -2655,9 +2718,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           call printErrMsg(pflotran_model%option)
     endif
 
-    word = name_som4
+    word = name_soil4
     ispec_som4c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_som4c<=0) then
+      word = trim(name_som4)
+      ispec_som4c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     if (ispec_som4c < 0) then
       word = trim(name_som4) // "C"
       ispec_som4c = GetImmobileSpeciesIDFromName(word, &
@@ -2675,38 +2743,69 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           call printErrMsg(pflotran_model%option)
     endif
 
+    !
+    word = trim(name_fungi)
+    ispec_fungi = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = trim(name_bacteria)
+    ispec_bacteria = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
     ! aq. species in soil solution/absorbed
     word = name_nh4
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
+    if (ispec_nh4<=0) then   ! in case NH4 is defined in immobile species in PF chemistry
+      word = trim(name_nh4imm)
+      ispec_nh4imm = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    else
+      ispec_nh4imm = UNINITIALIZED_INTEGER
+    endif
+
     if (ispec_nh4 > 0) then
       word = name_nh4sorb
       ispec_nh4sorb  = GetImmobileSpeciesIDFromName(word, &                        ! for using sandbox of absorption
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
     else
       ispec_nh4sorb  = UNINITIALIZED_INTEGER
+    endif
 
+    if (ispec_nh4 <= 0 .and. ispec_nh4imm <= 0) then
       pflotran_model%option%io_buffer = 'CLM N pool ' // &
-            trim(word) // &
+            trim(word) // ' or ' // trim(name_nh4imm) // &
             'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
-
     endif
-    if (ispec_nh4 <= 0) then
+    if (ispec_nh4 > 0 .and. ispec_nh4imm > 0) then
           pflotran_model%option%io_buffer = 'CLM inorg. N pool ' // &
-            trim(name_nh4) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            trim(name_nh4) // ' and ' // trim(name_nh4imm) // &
+            'in PFLOTRAN_CLM_MAIN interface CANNOT both in list of PF chemical species pools.'
           call printErrMsg(pflotran_model%option)
     endif
 
     word = name_no3
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
-    if (ispec_no3<=0) then
+    if (ispec_no3<=0) then   ! in case NH4 is defined in immobile species in PF chemistry
+      word = trim(name_no3imm)
+      ispec_no3imm = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    else
+      ispec_no3imm = UNINITIALIZED_INTEGER
+    endif
+    if (ispec_no3<=0 .and. ispec_no3imm <=0) then
       pflotran_model%option%io_buffer = 'CLM N pool ' // &
-            trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            trim(name_no3)  // ' or ' // trim(name_no3imm)// &
+            'in PFLOTRAN_CLM_MAIN interface NOT found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
+    endif
+    if (ispec_no3 > 0 .and. ispec_no3imm > 0) then
+          pflotran_model%option%io_buffer = 'CLM inorg. N pool ' // &
+            trim(name_no3) // ' and ' // trim(name_no3imm) // &
+            'in PFLOTRAN_CLM_MAIN interface CANNOT both in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
     endif
     !
     ! species for gases
@@ -3089,14 +3188,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%decomp_npools_vr_som4_pfs)
     end if
 
-    if(ispec_no3 > 0) then
+    if(ispec_no3 > 0 .or. ispec_no3imm >0) then
        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%smin_no3_vr_clmp, &
                                     clm_pf_idata%smin_no3_vr_pfs)
     endif
 
-    if(ispec_nh4 > 0) then
+    if(ispec_nh4 > 0 .or. ispec_nh4imm >0) then
        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%smin_nh4_vr_clmp, &
@@ -3207,12 +3306,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
 
-    if(ispec_no3 > 0) then
+    if(ispec_no3 > 0 .or. ispec_no3imm > 0) then
       call VecGetArrayReadF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
-    if(ispec_nh4 > 0) then
+    if(ispec_nh4 > 0 .or. ispec_nh4imm > 0) then
       call VecGetArrayReadF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
       CHKERRQ(ierr)
 
@@ -3247,12 +3346,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       endif
       den_kg_per_L = global_auxvars(ghosted_id)%den_kg(1)*xmass*1.d-3
 
-      if(ispec_no3 > 0) then
+      if(ispec_no3 > 0 .and. ispec_no3imm <= 0) then
          xx_p(offset + ispec_no3) = max(xeps0_n, smin_no3_vr_pf_loc(ghosted_id)  &      ! from 'ghosted_id' to field%xx_p's local
                                                 / (theta*1000.d0*den_kg_per_L) )    ! moles/m3 /(m3/m3 * L/m3 * kg/L) = moles/kgh2o
       endif
 
-      if(ispec_nh4 > 0) then
+      if(ispec_nh4 > 0 .and. ispec_nh4imm <= 0) then
         if (ispec_nh4sorb > 0) then
            xx_p(offset + ispec_nh4) = max(xeps0_n, smin_nh4_vr_pf_loc(ghosted_id)  &
                                                 / (theta*1000.d0*den_kg_per_L) )
@@ -3267,6 +3366,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       !
       offsetim = offset + realization%reaction%offset_immobile
+
+      if(ispec_nh4imm > 0 .and. ispec_nh4 <=0) then   ! for NH4 as immobile species
+         xx_p(offsetim + ispec_nh4imm) = max(xeps0_n, smin_nh4_vr_pf_loc(ghosted_id) )
+      endif
+
+      if(ispec_no3imm > 0 .and. ispec_no3 <=0) then   ! for NO3 as immobile species
+         xx_p(offsetim + ispec_no3imm) = max(xeps0_n, smin_no3_vr_pf_loc(ghosted_id) )
+      endif
 
       if(ispec_nh4sorb > 0) then   ! for absorbed NH4 as immobile species used in sandbox of absorption
          xx_p(offsetim + ispec_nh4sorb) = max(xeps0_n, smin_nh4sorb_vr_pf_loc(ghosted_id) )
@@ -3434,12 +3541,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       CHKERRQ(ierr)
     endif
 
-    if(ispec_no3 > 0) then
+    if(ispec_no3 > 0 .or. ispec_no3imm >0) then
       call VecRestoreArrayReadF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
-    if(ispec_nh4 > 0) then
+    if(ispec_nh4 > 0 .or. ispec_nh4imm >0) then
       call VecRestoreArrayReadF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
       CHKERRQ(ierr)
 
@@ -3649,14 +3756,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%rate_plantndemand_pfs)
     endif
 
-    if(ispec_no3 >0) then
+    if(ispec_no3 >0 .or. ispec_no3imm >0) then
       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_smin_no3_clmp, &
                                     clm_pf_idata%rate_smin_no3_pfs)
     endif
 
-    if(ispec_nh4 >0) then
+    if(ispec_nh4 >0 .or. ispec_nh4imm >0) then
       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_smin_nh4_clmp, &
@@ -3678,10 +3785,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
        do
          if (.not.associated(cur_mass_transfer)) exit
 
-         if(cur_mass_transfer%idof == ispec_nh4) then
+         if(cur_mass_transfer%idof == ispec_nh4 .or. &
+            cur_mass_transfer%idof == ispec_nh4imm) then
            call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_no3) then
+         elseif(cur_mass_transfer%idof == ispec_no3 .or. &
+                cur_mass_transfer%idof == ispec_no3imm) then
            call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
@@ -3746,15 +3855,17 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
             !if (patch%imat(local_id) <= 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
 
             if(cur_mass_transfer%idof == ispec_nh4                  &
+               .or. cur_mass_transfer%idof == ispec_nh4imm          &
                .or. cur_mass_transfer%idof == ispec_no3             &
+               .or. cur_mass_transfer%idof == ispec_no3imm          &
                .or. cur_mass_transfer%idof == ispec_lit1c+offsetim  &
                .or. cur_mass_transfer%idof == ispec_lit2c+offsetim  &
                .or. cur_mass_transfer%idof == ispec_lit3c+offsetim  &
                .or. cur_mass_transfer%idof == ispec_lit1n+offsetim  &
                .or. cur_mass_transfer%idof == ispec_lit2n+offsetim  &
                .or. cur_mass_transfer%idof == ispec_lit3n+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_cwdc+offsetim  &
-               .or. cur_mass_transfer%idof == ispec_cwdn+offsetim  &
+               .or. cur_mass_transfer%idof == ispec_cwdc+offsetim   &
+               .or. cur_mass_transfer%idof == ispec_cwdn+offsetim   &
                .or. cur_mass_transfer%idof == ispec_som1c+offsetim  &
                .or. cur_mass_transfer%idof == ispec_som2c+offsetim  &
                .or. cur_mass_transfer%idof == ispec_som3c+offsetim  &
@@ -3770,7 +3881,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
       !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
       !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
-      if (cur_mass_transfer%idof == ispec_nh4) &
+      if (cur_mass_transfer%idof == ispec_nh4 .or. &
+          cur_mass_transfer%idof == ispec_nh4imm ) &
       write(pflotran_model%option%myrank+200,*) 'checking bgc-mass-rate - pflotran_model: ', &
         'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'rate_nh4_pfs(ghosted_id)=',rate_pf_loc(ghosted_id), &
@@ -3783,10 +3895,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
             endif
          enddo
 
-         if(cur_mass_transfer%idof == ispec_nh4) then
+         if(cur_mass_transfer%idof == ispec_nh4 .or. &
+            cur_mass_transfer%idof == ispec_nh4imm) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_no3) then
+         elseif(cur_mass_transfer%idof == ispec_no3 .or. &
+            cur_mass_transfer%idof == ispec_no3imm) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
@@ -4432,7 +4546,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           decomp_npools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4n), 0.d0)
         endif
 
-        if(ispec_nh4 > 0) then
+        if(ispec_nh4 > 0 .and. ispec_nh4imm <=0) then
            !conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0      ! 7-8-2015: this is NOT right.
 
             ! the following approach appears more like what output module does in pflotran
@@ -4448,7 +4562,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
             smin_nh4_vr_pf_loc(local_id) = max(conc, 0.d0)
 
-            if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction sandbox used for soil NH4+ absorption
+            if (ispec_nh4sorb>0) then    ! kinetic-langmuir adsorption reaction sandbox used for soil NH4+ absorption
                 !conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (mol/m3)
                 conc = rt_auxvar%immobile(ispec_nh4sorb)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
@@ -4457,13 +4571,23 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
             endif
 
+        elseif(ispec_nh4 <= 0 .and. ispec_nh4imm >0) then
+           !conc = xx_p(offsetim + ispec_nh4imm)                    ! unit: M (molC/m3)
+           conc = rt_auxvar%immobile(ispec_nh4imm)
+           smin_nh4_vr_pf_loc(local_id)   = max(conc, 0.d0)
+
         endif
 
-        if(ispec_no3 > 0) then
+        if(ispec_no3 > 0 .and. ispec_no3imm <=0) then
            !conc = xx_p(offset + ispec_no3) * theta * 1000.0d0                        ! 7-14-2015: converting from /m3 bulk.
            conc = rt_auxvar%total(ispec_no3, 1) * (theta * 1000.0d0 * den_kg_per_L)     !
            smin_no3_vr_pf_loc(local_id)   = max(conc, 0.d0)
+        elseif(ispec_no3 <= 0 .and. ispec_no3imm >0) then
+           !conc = xx_p(offsetim + ispec_no3imm)                    ! unit: M (molC/m3)
+           conc = rt_auxvar%immobile(ispec_no3imm)
+           smin_no3_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
+
 
         ! immobile gas conc in mol/m3 bulk soil to aovid 'theta' inconsistence (due to porosity) during unit conversion
         if(ispec_co2 > 0) then
@@ -4773,14 +4897,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%gco2_vr_clms)
     endif
 
-    if(ispec_no3 > 0) then
+    if(ispec_no3 > 0 .or. ispec_no3imm > 0) then
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%smin_no3_vr_pfp, &
                                     clm_pf_idata%smin_no3_vr_clms)
     endif
 
-    if(ispec_nh4 > 0) then
+    if(ispec_nh4 > 0 .or. ispec_nh4imm > 0) then
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%smin_nh4_vr_pfp, &
