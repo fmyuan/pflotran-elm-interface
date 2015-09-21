@@ -386,7 +386,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
     ! scale if necessary
     if (min_ratio < 1.d0) then
 
-!#ifdef DEBUG
+!#ifdef CLM_PF_DEBUG
       if(min_ratio < min_allowable_scale ) then
         write(realization%option%fid_out, *) '-----checking scaling factor for RT ------'
         write(realization%option%fid_out, *) 'min. scaling factor = ', min_ratio
@@ -4213,7 +4213,8 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
               boundary_condition%tran_condition%cur_constraint_coupler%immobile_species, &
               boundary_condition%tran_condition%cur_constraint_coupler%num_iterations, &
               PETSC_TRUE,option)
-            ! print *,'RT redo constrain on BCs: 2: ', sum_connection  
+            ! print *,'RT redo constrain on BCs: 2: ', sum_connection
+
           endif         
         endif
 

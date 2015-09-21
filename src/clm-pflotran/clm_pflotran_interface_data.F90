@@ -28,6 +28,9 @@ module clm_pflotran_interface_data
 
   ! num of CLM soil layers that are mapped to/from PFLOTRAN
   PetscInt :: nzclm_mapped
+  PetscInt :: nxclm_mapped
+  PetscInt :: nyclm_mapped
+  PetscReal, pointer :: dzclm_global(:)              ! this is NOT the 3-D vec 'zsoi' defined below, rather it's the universal soil layer thickness for all gridcells
 
   ! Soil BGC decomposing pools
   PetscInt :: ndecomp_pools
@@ -430,6 +433,8 @@ contains
     clm_pf_idata%C_molecular_weight = 12.0110d0
 
     clm_pf_idata%nzclm_mapped = 0
+    clm_pf_idata%nxclm_mapped = 0
+    clm_pf_idata%nyclm_mapped = 0
 
     clm_pf_idata%ndecomp_pools = 0
 
@@ -772,6 +777,9 @@ contains
     
     PetscErrorCode :: ierr
     PetscMPIInt    :: mycomm, rank
+
+    if (.not. associated(clm_pf_idata%dzclm_global)) &
+    allocate(clm_pf_idata%dzclm_global(1:clm_pf_idata%nzclm_mapped))
 
     allocate(clm_pf_idata%floating_cn_ratio(1:clm_pf_idata%ndecomp_pools))
     allocate(clm_pf_idata%decomp_pool_name(1:clm_pf_idata%ndecomp_pools))
@@ -1406,6 +1414,7 @@ contains
     !
     ! -----------------------------------------------------------------------------------------------------------
 
+    deallocate(clm_pf_idata%dzclm_global)
     deallocate(clm_pf_idata%floating_cn_ratio)
     deallocate(clm_pf_idata%decomp_pool_name)
 

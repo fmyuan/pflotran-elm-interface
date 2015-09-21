@@ -3356,11 +3356,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
            xx_p(offset + ispec_nh4) = max(xeps0_n, smin_nh4_vr_pf_loc(ghosted_id)  &
                                                 / (theta*1000.d0*den_kg_per_L) )
 
-        else    ! if 'nh4sorb' NOT as used as immobile species
+        else    ! if not absorption sandbox applied
            xx_p(offset + ispec_nh4) = max(xeps0_n, (smin_nh4_vr_pf_loc(ghosted_id)  &
                                                +smin_nh4sorb_vr_pf_loc(ghosted_id)) &
                                                 / (theta*1000.d0*den_kg_per_L) )
-
         endif
       endif
 
@@ -4559,16 +4558,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
             !                                      which will eliminate the difference btw two approaches
 
             conc = rt_auxvar%total(ispec_nh4, 1) * (theta * 1000.0d0 * den_kg_per_L)
-
             smin_nh4_vr_pf_loc(local_id) = max(conc, 0.d0)
 
             if (ispec_nh4sorb>0) then    ! kinetic-langmuir adsorption reaction sandbox used for soil NH4+ absorption
                 !conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (mol/m3)
                 conc = rt_auxvar%immobile(ispec_nh4sorb)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
-            elseif (reaction%neqsorb > 0) then  ! equilibrium-sorption reactions used
-                conc = rt_auxvar%total_sorb_eq(ispec_nh4)
-                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
+            else
+                smin_nh4sorb_vr_pf_loc(local_id) = 0.d0
             endif
 
         elseif(ispec_nh4 <= 0 .and. ispec_nh4imm >0) then
