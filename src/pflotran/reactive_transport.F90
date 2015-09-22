@@ -397,8 +397,10 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
           ratio = abs(C_p(i)/dC_p(i))
           if ( ratio<=min_ratio .and. C_p(i)<=dC_p(i) ) then
             write(realization%option%fid_out, *)  &
-             ' <------ min_ratio @', i, 'cell no.=', floor((i-1.d0)/j), &
-            'rt species no. =',i-floor((i-1.d0)/j)*j, '-------------->'
+              ' <------ min_ratio @', i, 'cell no.=', floor((i-1.d0)/j), &
+              'rt species no. =',i-floor((i-1.d0)/j)*j, '-------------->'
+            write(realization%option%fid_out, *)  &
+              'ratio=',ratio, ' Cp(i)=', C_p(i), ' dCp(i)=', dC_p(i)
           endif
 
         enddo
