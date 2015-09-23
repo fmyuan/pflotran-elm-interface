@@ -220,6 +220,7 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: rate, drate_daq, drate_dsorb  ! units: moles/s, 1/s (moles/s/moles) - i.e. bulk volume adjusted
   PetscReal :: Lwater         ! litres h2o
   PetscReal :: temp_real
+  PetscReal :: ratecap, fratecap, dfratecap_dx, dtmin
 
   !-------------------------------------------------------------------------------
 
@@ -233,31 +234,62 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
   c_aq    = rt_auxvar%total(this%ispec_aq, iphase)      ! moles/L
   c_sorb  = rt_auxvar%immobile(this%ispec_sorb)         ! moles/m3
 
-  ! if already max. absorbed, No need to further
-  if (abs(this%s_max-c_sorb)<this%x0eps) return
-
   ! EQUATION: c_sorb_eq = s_max * (Kl*c_eq/(1+Kl*c_eq))
 
-  ! if 'c_sorb' beyond 's_max', desorption without updating Jacobians (i.e. NO dependence on either variables).
-  ! NOTE: this will be good to avoid negative/infinite 'c_aq_eq' calculated below (which are NOT right)
-  if (this%s_max<c_sorb+this%x0eps) then
-    rate = (this%s_max-c_sorb)/option%tran_dt
 
-    Residual(ires_aq)   = Residual(ires_aq) + rate
-    Residual(ires_sorb) = Residual(ires_sorb) - rate
+  if (this%s_max<c_sorb) then
+    ! if 'c_sorb' beyond 's_max', equilibrium-desorption
+    ! NOTE: (1) this will be good to avoid negative 'c_aq_eq' calculated below (which are NOT right)
+    !       (2) DON't include 's_max==c_sorb', otherwise it will cause NO desorption even if 'c_aq' is small
+    dtmin = max(option%tran_dt, 2.1d0*option%dt_min)
+    rate = (this%s_max-c_sorb)*volume/dtmin
+    ! drate/d(Csorb*volume):
+    drate_dsorb = -1.d0/dtmin
+    ! drate/d(Caq*Lwater):
+    drate_daq = 0.d0
 
-    return
+  else
+
+    ! the following is 'c_sorb' dependent absorption-desorption, with NEGATIVE rate for desorption
+    c_aq_eq = 0.99d0*c_sorb / (this%s_max - 0.99d0*c_sorb) / this%k_equilibrium        ! '0.99' scalor to avoid infinity error
+    rate = this%k_kinetic * (c_aq - c_aq_eq) * Lwater      ! moles/L/s --> moles/s
+    ! drate/d(Csorb*volume):
+    temp_real = -this%k_kinetic/this%k_equilibrium*Lwater/volume
+    drate_dsorb = temp_real * this%s_max/(this%s_max-0.99d0*c_sorb)/(this%s_max-0.99d0*c_sorb)
+    ! drate/d(Caq*Lwater):
+    drate_daq =  this%k_kinetic
+
+    ! rate-max scaling: 'c_aq' may be NEVER close to 'c_aq_eq' when absorption filling all sorption site ('s_max')
+    ! But, 'rate' calculated above may be STILL so large, then have to scaling it.
+    ! Otherwise, model will be hard to converge (long iteration/tiny timestep).
+    ! (NOTE: if desorption, it's no issue because the 'rate' calculated above is NOT constrained by 'c_aq')
+    fratecap = 1.0d0
+    dfratecap_dx = 0.d0
+    if (rate > 0.d0) then
+
+      ! in the following, '2.1' multiplier is chosen because that is slightly larger(5% to avoid numerical issue) than '2.0',
+      ! which should be the previous-timestep before reaching the 'option%dt_min'
+      ! (the time-cut used in PF is like dt=0.5*dt, when cutting)
+      dtmin = max(option%tran_dt, 2.1d0*option%dt_min)
+      ratecap = (this%s_max-c_sorb)*volume/dtmin
+      if (ratecap < rate) then
+        fratecap = ratecap/rate        ! A simple linear reducing factor
+
+        !_dsorb:
+        temp_real= -1.0d0/dtmin   ! d(ratecap)/d(Csorb*volume)
+        dfratecap_dx= (ratecap*drate_dsorb-rate*temp_real)/rate/rate
+        drate_dsorb = fratecap*drate_dsorb + rate*dfratecap_dx           !
+
+        !_daq:
+
+        ! modifying the 'rate'
+        rate = rate * fratecap
+
+      endif
+
+    endif
+
   endif
-
-  ! the following is 'c_sorb' dependent absorption-desorption, with NEGATIVE rate for desorption
-  c_aq_eq = c_sorb / (this%s_max - c_sorb) / this%k_equilibrium        ! here may cause infinity error
-
-  rate = this%k_kinetic * (c_aq - c_aq_eq) * Lwater      ! moles/L/s --> moles/s
-  ! drate/d(Csorb*volume):
-  temp_real = -this%k_kinetic/this%k_equilibrium*Lwater/volume
-  drate_dsorb = temp_real * this%s_max/(this%s_max-c_sorb)/(this%s_max-c_sorb)
-  ! drate/d(Caq*Lwater):
-  drate_daq =  this%k_kinetic
 
   ! --------------------------------------------------
   Residual(ires_aq)   = Residual(ires_aq) + rate
