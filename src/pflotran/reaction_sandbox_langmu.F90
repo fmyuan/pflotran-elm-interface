@@ -263,6 +263,9 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
     ! But, 'rate' calculated above may be STILL so large, then have to scaling it.
     ! Otherwise, model will be hard to converge (long iteration/tiny timestep).
     ! (NOTE: if desorption, it's no issue because the 'rate' calculated above is NOT constrained by 'c_aq')
+
+    ! TODO -checking: the initial 'c_aq' could not be too large:
+    !  e.g., c_nh4 initial value of 1.d5 (moles/L), there appears an over-absorption when reaching 's_max', then starting 'desorption'
     fratecap = 1.0d0
     dfratecap_dx = 0.d0
     if (rate > 0.d0) then
