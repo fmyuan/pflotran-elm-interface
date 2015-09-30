@@ -251,11 +251,12 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
   else
 
     ! the following is 'c_sorb' dependent absorption-desorption, with NEGATIVE rate for desorption
-    c_aq_eq = 0.99d0*c_sorb / (this%s_max - 0.99d0*c_sorb) / this%k_equilibrium        ! '0.99' scalor to avoid infinity error
+    c_aq_eq = 0.999d0*c_sorb / (this%s_max - 0.999d0*c_sorb) / this%k_equilibrium        ! '0.99' scalor to avoid infinity error
     rate = this%k_kinetic * (c_aq - c_aq_eq) * Lwater      ! moles/L/s --> moles/s
+
     ! drate/d(Csorb*volume):
     temp_real = -this%k_kinetic/this%k_equilibrium*Lwater/volume
-    drate_dsorb = temp_real * this%s_max/(this%s_max-0.99d0*c_sorb)/(this%s_max-0.99d0*c_sorb)
+    drate_dsorb = temp_real * this%s_max/(this%s_max-0.999d0*c_sorb)/(this%s_max-0.999d0*c_sorb)
     ! drate/d(Caq*Lwater):
     drate_daq =  this%k_kinetic
 
@@ -274,17 +275,44 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
       ! which should be the previous-timestep before reaching the 'option%dt_min'
       ! (the time-cut used in PF is like dt=0.5*dt, when cutting)
       dtmin = max(option%tran_dt, 2.1d0*option%dt_min)
-      ratecap = (this%s_max-c_sorb)*volume/dtmin
+
+      ! constrained by 'this%s_max', i.e. the max. absorption capacity
+      ratecap = 0.999d0*(this%s_max-c_sorb)*volume/dtmin
       if (ratecap < rate) then
         fratecap = ratecap/rate        ! A simple linear reducing factor
 
-        !_dsorb:
-        temp_real= -1.0d0/dtmin   ! d(ratecap)/d(Csorb*volume)
-        dfratecap_dx= (ratecap*drate_dsorb-rate*temp_real)/rate/rate
-        drate_dsorb = fratecap*drate_dsorb + rate*dfratecap_dx           !
+        if (compute_derivative) then
+          !_dsorb:
+          temp_real= -0.999d0/dtmin   ! d(ratecap)/d(Csorb*volume)
+          dfratecap_dx= (ratecap*drate_dsorb-rate*temp_real)/rate/rate
+          drate_dsorb = fratecap*drate_dsorb + rate*dfratecap_dx           !
 
-        !_daq:
+          !_daq:
 
+        endif
+        ! modifying the 'rate'
+        rate = rate * fratecap
+
+      endif
+
+      ! constrained by 'c_aq'.
+      ! because the 'rate' in the eq. 'k*(c_aq-c_aq_eq)*Lwater' NOT guarranttes non-negative 'c_aq' when absorption
+      ratecap = 0.999d0*(c_aq-c_aq_eq)*Lwater/dtmin
+      if (ratecap < rate) then
+        fratecap = ratecap/rate        ! A simple linear reducing factor
+
+        if (compute_derivative) then
+          !_dsorb:
+          temp_real = -0.999d0/this%k_equilibrium*Lwater/volume/dtmin   ! d(ratecap)/d(Caq_eq*vol)=d(-c_aq_eq*Lwater/dtmin)/(d(Caq_eq*vol)
+          temp_real = temp_real * this%s_max/(this%s_max-0.999d0*c_sorb)/(this%s_max-0.999d0*c_sorb)
+          dfratecap_dx= (ratecap*drate_dsorb-rate*temp_real)/rate/rate
+          drate_dsorb = fratecap*drate_dsorb + rate*dfratecap_dx           !
+
+          !_daq:
+          temp_real= 0.999d0/dtmin   ! d(ratecap)/d(Caq*Lwater), and, 'c_aq_eq' ONLY upon 'c_sorb'
+          dfratecap_dx= (ratecap*drate_daq-rate*temp_real)/rate/rate
+          drate_daq = fratecap*drate_daq + rate*dfratecap_dx           !
+        endif
         ! modifying the 'rate'
         rate = rate * fratecap
 
