@@ -195,6 +195,16 @@ subroutine PlantNSetup(this,reaction,option)
   this%ispec_plantno3uptake = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
                  PETSC_FALSE,option)
 
+#ifdef CLM_PFLOTRAN
+  if(this%ispec_plantnh4uptake < 0 .and. this%ispec_plantno3uptake < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,PLANTN: ' // &
+       'At least one of "Plantnh4uptake" or "Plantno3uptake " ' // &
+       'must be specified as immobile species in the ' // &
+       'input file, which required when coupled with CLM.'
+     call printErrMsg(option)
+  endif
+#endif
+
 end subroutine PlantNSetup
 
 ! ************************************************************************** !

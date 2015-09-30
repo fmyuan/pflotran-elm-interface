@@ -198,6 +198,14 @@ subroutine DenitrSetup(this,reaction,option)
   word = 'NGASdeni'
   this%ispec_ngasdeni = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
+#ifdef CLM_PFLOTRAN
+  if(this%ispec_ngasdeni < 0) then
+     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,DENITRIFICATION: ' // &
+       ' NGASdeni is not specified as immobile species in the input file. ' // &
+       ' It is required when coupled with CLM.'
+     call printErrMsg(option)
+  endif
+#endif
  
 end subroutine DenitrSetup
 

@@ -230,6 +230,62 @@ contains
 
 end module CLM_Rxn_Base_class
 
+module CLM_Rxn_Common_module
+
+  implicit none
+  
+  private
+  
+#include "finclude/petscsys.h"
+
+  public :: CalNLimitFunc
+
+contains
+
+subroutine CalNLimitFunc(c_n, ac_n, &
+                         residual, half_saturation, &
+                         cutoff_0, cutoff_1, f_n, d_n)
+
+  PetscReal c_n, ac_n, residual, half_saturation, cutoff_0, cutoff_1, f_n, d_n
+  PetscReal temp_real, regulator, dregulator, xxx, delta
+
+  f_n = 1.0d0
+  d_n = 0.0d0
+
+  if (half_saturation >= 1.0d-20) then
+    temp_real = (c_n - residual) * ac_n + half_saturation
+    f_n       = (c_n - residual) * ac_n / temp_real 
+    d_n       = ac_n * half_saturation / temp_real / temp_real
+  endif    
+
+  if (cutoff_0 > 0.0d0) then
+
+    ! additional down regulation for N uptake / immobimization
+    if (c_n <= cutoff_0) then
+      regulator = 0.0d0
+      dregulator = 0.0d0
+    elseif (c_n >= cutoff_1 .or. cutoff_1 - cutoff_0 <= 1.0d-20) then
+      regulator = 1.0d0
+      dregulator = 0.0d0
+    else
+      xxx   = c_n - cutoff_0
+      delta = cutoff_1 - cutoff_0
+      regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
+      dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx &
+                 / delta / delta
+    endif
+    
+    ! rate = rate_orginal * regulator
+    ! drate = drate_original * regulator + rate_orginal * dregulator
+    d_n = d_n * regulator + f_n * dregulator
+
+    f_n = f_n * regulator
+
+  endif
+
+end subroutine CalNLimitFunc
+
+end module CLM_Rxn_Common_module
 
 module CLM_Rxn_Decomp_class
 
@@ -237,6 +293,10 @@ module CLM_Rxn_Decomp_class
   use Global_Aux_module
   use Reactive_Transport_Aux_module
   use PFLOTRAN_Constants_module
+
+#ifdef CLM_PFLOTRAN
+  use CLM_RspFuncs_module
+#endif
 
 ! ------------------------------------------------------------------------------
 ! Description
@@ -271,8 +331,10 @@ module CLM_Rxn_Decomp_class
   PetscInt, parameter :: LITTER_DECOMP_CLMCN = 1 
   PetscInt, parameter :: LITTER_DECOMP_CLMMICROBE = 2 
 
-                          ! 14.00674d0 / 12.011d0
-  PetscReal, parameter :: CN_ratio_mass_to_mol = 1.16616d0
+#ifndef CLM_PFLOTRAN
+  PetscReal, parameter :: C_molecular_weight = 12.0107d0
+  PetscReal, parameter :: N_molecular_weight = 14.0067d0
+#endif
 
   ! Sinsabaugh et al. 2013 Ecology Letters, 16, 930-939
   PetscReal, parameter :: CN_ratio_microbe = 9.32928d0   ! 8.0d0 
@@ -341,6 +403,10 @@ module CLM_Rxn_Decomp_class
     PetscInt :: species_id_nimm
     PetscInt :: species_id_ngasmin
     PetscInt :: species_id_proton
+    PetscBool :: bdebugoutput
+    PetscBool :: bskipn2ojacobian
+    PetscBool :: is_NH4_aqueous
+    PetscBool :: is_NO3_aqueous
 
     type(pool_type), pointer :: pools
     type(clmdec_reaction_type), pointer :: reactions
@@ -380,16 +446,21 @@ function CLMDec_Create()
   
   allocate(CLMDec_Create)
 
+#ifdef CLM_PFLOTRAN
+  CLMDec_Create%temperature_response_function=TEMPERATURE_RESPONSE_FUNCTION_CLM4
+  CLMDec_Create%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLM4
+#endif
+
   CLMDec_Create%Q10 = 1.5d0
   CLMDec_Create%litter_decomp_type=LITTER_DECOMP_CLMCN
-  CLMDec_Create%half_saturation_nh4 = -1.0d-15
-  CLMDec_Create%half_saturation_no3 = -1.0d-15
+  CLMDec_Create%half_saturation_nh4 =  1.0d-6
+  CLMDec_Create%half_saturation_no3 =  1.0d-6
   CLMDec_Create%inhibition_nh4_no3 = -1.0d-15
   CLMDec_Create%n2o_frac_mineralization = 0.02d0  ! Parton et al. 2001
 
   CLMDec_Create%residual_cpool = 1.0d-20
-  CLMDec_Create%residual_nh4 = 0.0d-20
-  CLMDec_Create%residual_no3 = 0.0d-20
+  CLMDec_Create%residual_nh4 = 1.0d-10
+  CLMDec_Create%residual_no3 = 1.0d-10
 
   CLMDec_Create%cutoff_no3_0 = -1.0d-9 
   CLMDec_Create%cutoff_no3_1 = 1.0d-7
@@ -437,6 +508,10 @@ function CLMDec_Create()
   CLMDec_Create%species_id_nmin = 0
   CLMDec_Create%species_id_nimm = 0
   CLMDec_Create%species_id_ngasmin = 0
+
+  CLMDec_Create%is_NH4_aqueous = PETSC_TRUE
+  CLMDec_Create%is_NO3_aqueous = PETSC_TRUE
+  CLMDec_Create%bdebugoutput = PETSC_FALSE
 
   nullify(CLMDec_Create%next)
   nullify(CLMDec_Create%pools)
@@ -491,6 +566,60 @@ subroutine CLMDec_Read(this,input,option)
       'CHEMISTRY,CLM_RXN,CLMDec')
     call StringToUpper(word)   
     select case(trim(word))
+
+#ifdef CLM_PFLOTRAN
+      case('TEMPERATURE_RESPONSE_FUNCTION')
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword', &
+            'CHEMISTRY,REACTION_SANDBOX,CLMDec,TEMPERATURE RESPONSE FUNCTION')
+          call StringToUpper(word)   
+
+          select case(trim(word))
+            case('CLM4')
+              this%temperature_response_function = &
+                TEMPERATURE_RESPONSE_FUNCTION_CLM4    
+            case('Q10') 
+              this%temperature_response_function = &
+                TEMPERATURE_RESPONSE_FUNCTION_Q10    
+              call InputReadDouble(input,option,this%Q10)  
+              call InputErrorMsg(input,option,'Q10', 'CHEMISTRY,' // &
+                'REACTION_SANDBOX_CLMDec,TEMPERATURE RESPONSE FUNCTION')
+            case default
+              option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMDec,' // &
+                'TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                trim(word) // ' not recognized.'
+              call printErrMsg(option)
+          end select
+        enddo 
+      case('MOISTURE_RESPONSE_FUNCTION')
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword', &
+            'CHEMISTRY,REACTION_SANDBOX,CLMDec,MOISTURE RESPONSE FUNCTION')
+          call StringToUpper(word)   
+
+          select case(trim(word))
+            case('CLM4')
+              this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLM4
+            case('DLEM')
+              this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_DLEM    
+            case default
+              option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMDec,' // &
+                'TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                trim(word) // ' not recognized.'
+              call printErrMsg(option)
+          end select
+        enddo 
+#endif
 
       case('CLM-MICROBE-LITTER-DECOMPOSITION')
         this%litter_decomp_type = LITTER_DECOMP_CLMMICROBE    
@@ -560,6 +689,12 @@ subroutine CLMDec_Read(this,input,option)
           call printErrMsg(option)
         endif
 
+     case('DEBUG_OUTPUT')
+       this%bdebugoutput = PETSC_TRUE
+
+     case('JACOBIAN_N2O_TRACKING_SKIP')
+       this%bskipn2ojacobian = PETSC_TRUE
+
      case('NH4_INHIBITION_NO3')
        call InputReadDouble(input,option,this%inhibition_nh4_no3)
        call InputErrorMsg(input,option,'NH4 inhibition coefficient', &
@@ -590,7 +725,8 @@ subroutine CLMDec_Read(this,input,option)
          else
            ! convert CN ratio from mass C/mass N to mol C/mol N
            if (temp_real > 0.0d0 ) then
-             new_pool%nc_ratio = 1.0d0/temp_real/CN_ratio_mass_to_mol
+             new_pool%nc_ratio = 1.0d0/temp_real/N_molecular_weight &
+               * C_molecular_weight
            endif
          endif
 
@@ -680,8 +816,8 @@ subroutine CLMDec_Read(this,input,option)
                   UnitsConvertToInternal(word,option)
               endif
             case default
-              option%io_buffer = 'CHEMISTRY,CLM_RXN,CLMDec,' // &
-                'REACTION keyword: ' // trim(word) // ' not recognized.'
+              option%io_buffer = 'CHEMISTRY,CLM_RXN,CLMDec,REACTION keyword: ' // &
+                                  trim(word) // ' not recognized.'
               call printErrMsg(option)
           end select
         enddo
@@ -707,7 +843,7 @@ subroutine CLMDec_Read(this,input,option)
         nullify(new_reaction)        
       case default
         option%io_buffer = 'CHEMISTRY,CLM_RXN,CLMDec keyword: ' // &
-          trim(word) // ' not recognized.'
+                            trim(word) // ' not recognized.'
         call printErrMsg(option)
     end select
   enddo
@@ -1018,8 +1154,17 @@ subroutine CLMDec_Setup(this,reaction,option)
                         PETSC_FALSE,option)
   endif
 
+  if (this%species_id_nh4 < 0) then
+    word = 'Ammonium'
+    this%species_id_nh4 = GetImmobileSpeciesIDFromName( &
+            word,reaction%immobile,PETSC_FALSE,option)
+    if (this%species_id_nh4 > 0) then
+      this%is_NH4_aqueous = PETSC_FALSE
+    endif
+  endif 
+
   if (this%species_id_nh4 <= 0) then
-    option%io_buffer = 'Neither NH4+ nor NH3(aq) is specified in the input' // &
+    option%io_buffer = 'NH4+, NH3(aq) or Ammonium is specified in the input' // &
       'file for CLMDec!'
     call printErrMsg(option)
   endif
@@ -1028,6 +1173,15 @@ subroutine CLMDec_Setup(this,reaction,option)
   this%species_id_no3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
   
+  if (this%species_id_no3 < 0) then
+    word = 'Nitrate'
+    this%species_id_no3 = GetImmobileSpeciesIDFromName( &
+            word,reaction%immobile,PETSC_FALSE,option)
+    if (this%species_id_no3 > 0) then
+      this%is_NO3_aqueous = PETSC_FALSE
+    endif
+  endif 
+
   word = 'N2O(aq)'
   this%species_id_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
@@ -1083,9 +1237,19 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_class, only : material_auxvar_type
+  use CLM_Rxn_Common_module, only: CalNLimitFunc
+
+#ifdef CLM_PFLOTRAN
+  use clm_pflotran_interface_data
+#endif
 
   implicit none
 
+#ifdef CLM_PFLOTRAN
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+#endif
+  
   class(clm_rxn_clmdec_type) :: this
   type(option_type) :: option
   type(reaction_type) :: reaction
@@ -1176,97 +1340,53 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   PetscInt :: ires_b, ires_f
   PetscReal :: xxx, delta, regulator, dregulator
+#ifdef CLM_PFLOTRAN
+  PetscScalar, pointer :: h2osoi_vol_pf_loc(:)    !
+  PetscScalar, pointer :: watsat_pf_loc(:)    !
+  PetscScalar, pointer :: w_scalar_pf_loc(:)    !
+#endif
+
+
+#ifdef CLM_PFLOTRAN
+  local_id = option%iflag 
+#endif
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
-    
-  c_nh4     = rt_auxvar%pri_molal(this%species_id_nh4)
-  ac_nh4    = rt_auxvar%pri_act_coef(this%species_id_nh4)
+  ires_nh4 = -999
+  ires_no3 = -999
 
-  f_nh4 = 1.0d0
-  d_nh4 = 0.0d0
-
-  if (this%half_saturation_nh4 >= 1.0d-20) then
-    temp_real = (c_nh4 - this%residual_nh4) * ac_nh4 &
-              + this%half_saturation_nh4
-    f_nh4     = (c_nh4 - this%residual_nh4) * ac_nh4 / temp_real 
-    if (compute_derivative) then
-      d_nh4     = ac_nh4 * this%half_saturation_nh4 / temp_real / temp_real
-    endif
+  if (this%is_NH4_aqueous) then   
+    c_nh4    = rt_auxvar%pri_molal(this%species_id_nh4)
+    ac_nh4   = rt_auxvar%pri_act_coef(this%species_id_nh4)
+    ires_nh4 = this%species_id_nh4
+  else
+    c_nh4    = rt_auxvar%immobile(this%species_id_nh4)
+    ac_nh4   = 1.0d0
+    ires_nh4 = this%species_id_nh4 + reaction%offset_immobile
   endif
 
-  if (this%cutoff_nh4_0 > 0.0d0) then
-    ! additional down regulation for NH4+ immobilization 
-    if (c_nh4 <= this%cutoff_nh4_0) then
-      regulator = 0.0d0
-      dregulator = 0.0d0
-    elseif (c_nh4 >= this%cutoff_nh4_1 .or. &
-            this%cutoff_nh4_1 - this%cutoff_nh4_0 <= 1.0d-20) then
-      regulator = 1.0d0
-      dregulator = 0.0d0
-    else
-      xxx = c_nh4 - this%cutoff_nh4_0
-      delta = this%cutoff_nh4_1 - this%cutoff_nh4_0
-      regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
-      dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx &
-                 / delta / delta
-    endif
-    
-    ! rate = rate_orginal * regulator
-    ! drate = drate_original * regulator + rate_orginal * dregulator
-    if (compute_derivative) then
-      d_nh4 = d_nh4 * regulator + f_nh4 * dregulator
-    endif
-
-    f_nh4 = f_nh4 * regulator
-
-  endif
-
-  f_no3 = 1.0d0
-  d_no3 = 0.0d0
+  call CalNLimitFunc(c_nh4, ac_nh4, this%residual_nh4, &
+    this%half_saturation_nh4, this%cutoff_nh4_0, this%cutoff_nh4_1, &
+    f_nh4, d_nh4)
 
   f_nh4_inhibit = 1.0d0
   d_nh4_inhibit_dnh4 = 0.0d0
 
   if (this%species_id_no3 > 0) then
-    c_no3     = rt_auxvar%pri_molal(this%species_id_no3)
-    ac_no3    = rt_auxvar%pri_act_coef(this%species_id_no3)
-
-    if (this%half_saturation_no3 >= 1.0d-20) then
-      temp_real = (c_no3 - this%residual_no3) * ac_no3 &
-                + this%half_saturation_no3
-      f_no3 = (c_no3 - this%residual_no3) * ac_no3 / temp_real
-
-      if (compute_derivative) then
-        d_no3 = ac_no3 * this%half_saturation_no3 / temp_real / temp_real 
-      endif
+    if (this%is_NO3_aqueous) then   
+      c_no3     = rt_auxvar%pri_molal(this%species_id_no3)
+      ac_no3    = rt_auxvar%pri_act_coef(this%species_id_no3)
+      ires_no3 = this%species_id_no3
+    else
+      c_no3    = rt_auxvar%immobile(this%species_id_no3)
+      ac_no3   = 1.0d0
+      ires_no3 = this%species_id_no3 + reaction%offset_immobile
     endif
 
-    if (this%cutoff_no3_0 > 0.0d0) then
-      ! additional down regulation for NO3- immobilization
-      if (c_no3 <= this%cutoff_no3_0) then
-        regulator = 0.0d0
-        dregulator = 0.0d0
-      elseif (c_no3 >= this%cutoff_no3_1 .or. &
-              this%cutoff_no3_1 - this%cutoff_no3_0 <= 1.0d-20) then
-        regulator = 1.0d0
-        dregulator = 0.0d0
-      else
-        xxx = c_no3 - this%cutoff_no3_0
-        delta = this%cutoff_no3_1 - this%cutoff_no3_0
-        regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
-        dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx &
-                   / delta / delta
-      endif
-
-      ! rate = rate_orginal * regulator
-      ! drate = drate_original * regulator + rate_orginal * dregulator
-      if (compute_derivative) then
-        d_no3 = d_no3 * regulator + f_no3 * dregulator
-      endif
-      f_no3 = f_no3 * regulator
-
-    endif
+    call CalNLimitFunc(c_no3, ac_no3, this%residual_no3, &
+      this%half_saturation_no3, this%cutoff_no3_0, this%cutoff_no3_1, &
+      f_no3, d_no3)
 
     if (this%inhibition_nh4_no3 > this%residual_nh4) then 
       temp_real = this%inhibition_nh4_no3 + c_nh4 * ac_nh4
@@ -1279,8 +1399,6 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   endif 
 
   ires_co2 = this%species_id_co2
-  ires_nh4 = this%species_id_nh4
-  ires_no3 = this%species_id_no3
   ires_n2o = this%species_id_n2o
 
   ires_un = -999
@@ -1311,6 +1429,9 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   tc = global_auxvar%temp
 
   f_t = 1.0d0
+#ifdef CLM_PFLOTRAN 
+  f_t = GetTemperatureResponse(tc,this%temperature_response_function, this%Q10) 
+#endif
 
   saturation = global_auxvar%sat(1)
   theta = saturation * porosity 
@@ -1319,6 +1440,19 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   ! moisture response function 
   f_w = 1.0d0
+#ifdef CLM_PFLOTRAN
+  if(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_CLM4) then
+     f_w = GetMoistureResponse(psi, local_id, this%moisture_response_function)
+  elseif(this%moisture_response_function==MOISTURE_RESPONSE_FUNCTION_DLEM) then
+     f_w = GetMoistureResponse(theta, local_id, this%moisture_response_function)
+  endif
+#endif
+
+#ifdef CLM_PFLOTRAN
+    call VecGetArrayF90(clm_pf_idata%w_scalar_pfs, w_scalar_pf_loc, ierr)
+    w_scalar_pf_loc(local_id) = f_w
+    call VecRestoreArrayF90(clm_pf_idata%w_scalar_pfs, w_scalar_pf_loc, ierr)
+#endif
 
   if (f_t < 1.0d-20 .or. f_w < 1.0d-20) then
      return
@@ -1390,6 +1524,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         ac_un   = 1.0d0
         ires_un = ispec_un + reaction%offset_immobile
       endif
+
       this%upstream_nc(irxn) = c_un / c_uc
 
       if (this%litter_decomp_type == LITTER_DECOMP_CLMCN) then
@@ -1747,14 +1882,14 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         if (this%litter_decomp_type == LITTER_DECOMP_CLMCN) then
           ! LitC + u LitN -> di SOMi + (1 - di) CO2 + n N
           ! Rdu/duc = R (-1) LitN/LitC^2 = - u R / LitC 
-          Rdu_duc = -1.0d0 * this%upstream_nc(irxn) * rate_nh4 / c_uc
+          Rdu_duc = -1.0d0 * this%upstream_nc(irxn) * drate_nh4_duc
          
           ! n = u - (1 - di) ni
           ! dn/dLitC = du/dLitC
           Rdn_duc = Rdu_duc
 
           ! Rdu/dun = R /LitC 
-          Rdu_dun = rate_nh4 / c_uc 
+          Rdu_dun = drate_nh4_duc 
 
           ! Rdn/dun = Rdu/dLitN = Rdu/dun
           Rdn_dun = Rdu_dun
@@ -1767,11 +1902,11 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           ! b = g (1 - c)
           ! f = (1 - g) (1 - c)
 
-          Rdu_duc = -1.0d0 * this%upstream_nc(irxn) * rate_nh4 / c_uc
+          Rdu_duc = -1.0d0 * this%upstream_nc(irxn) * drate_nh4_duc
    
           if (resp_frac < CUE_max) then
             ! Rdc/dLit1C = -RLit1N/Lit1C^2*CN_ratio_microbe           
-            Rdc_duc = -1.0d0 * this%upstream_nc(irxn) * rate_nh4 / c_uc  &
+            Rdc_duc = -1.0d0 * this%upstream_nc(irxn) * drate_nh4_duc  &
                     * CN_ratio_microbe
           else
             Rdc_duc = 0.0d0 
@@ -1788,11 +1923,11 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
                   - this%nc_fungi * Rdf_duc
 
           ! Rdu/dun = R/LitC = dR/duc
-          Rdu_dun = rate_nh4 / c_uc 
+          Rdu_dun = drate_nh4_duc 
 
           if (resp_frac < CUE_max) then
             ! Rdc/dLitN = R/LitC*CN_ratio_microbe
-            Rdc_dun = rate_nh4 / c_uc * CN_ratio_microbe
+            Rdc_dun = drate_nh4_duc * CN_ratio_microbe
           else
             Rdc_dun = 0.0d0 
           endif
@@ -2336,14 +2471,14 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           if (this%litter_decomp_type == LITTER_DECOMP_CLMCN) then
             ! Lit1C + u Lit1N -> di SOMi + (1 - di) CO2 + n N
             ! Rdu/duc = R (-1) Lit1N/Lit1C^2 
-            Rno3du_duc = -1.0d0 * this%upstream_nc(irxn) * rate_no3 / c_uc
+            Rno3du_duc = -1.0d0 * this%upstream_nc(irxn) * drate_no3_duc
 
             ! n = u - (1 - di) ni
             ! dn/dLit1C = du/dLit1C
             Rno3dn_duc = Rno3du_duc
 
             ! Rdu/dun = R /Lit1C 
-            Rno3du_dun = rate_no3 / c_uc
+            Rno3du_dun = drate_no3_duc
 
             ! Rdn/dun = du/dLit1C = dR/duc 
             Rno3dn_dun = Rno3du_dun
@@ -2356,11 +2491,11 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
             ! b = g (1 - c)
             ! f = (1 - g) (1 - c)
 
-            Rno3du_duc = -1.0d0 * this%upstream_nc(irxn) * rate_no3 / c_uc
+            Rno3du_duc = -1.0d0 * this%upstream_nc(irxn) * drate_no3_duc
 
             if (resp_frac < CUE_max) then
               ! Rdc/dLit1C = -RLit1N/Lit1C^2*CN_ratio_microbe           
-              Rno3dc_duc = -1.0d0 * this%upstream_nc(irxn) * rate_no3 / c_uc &
+              Rno3dc_duc = -1.0d0 * this%upstream_nc(irxn) * drate_no3_duc &
                          * CN_ratio_microbe
             else
               Rno3dc_duc = 0.0d0
@@ -2377,11 +2512,11 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
                        - this%nc_fungi * Rno3df_duc
 
             ! Rdu/dun = R /Lit1N 
-            Rno3du_dun = rate_no3 / c_uc
+            Rno3du_dun = drate_no3_duc
 
             if (resp_frac < CUE_max) then
               ! Rdc/dLit1N = R/Lit1C*CN_ratio_microbe = dR/dLit1C*CN_ratio_microbe           
-              Rno3dc_dun = rate_no3 / c_uc * CN_ratio_microbe
+              Rno3dc_dun = drate_no3_duc * CN_ratio_microbe
             else
               Rno3dc_dun = 0.0d0
             endif
@@ -2850,9 +2985,36 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   if (this%species_id_n2o > 0) then
 
+#ifdef CLM_PFLOTRAN
+    ! temperature/moisture/pH response functions (Parton et al. 1996)
+    f_t = -0.06d0 + 0.13d0 * exp( 0.07d0 * tc )
+    call VecGetArrayReadF90(clm_pf_idata%h2osoi_vol_pfs, h2osoi_vol_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%watsat_pfs, watsat_pf_loc, ierr)
+    saturation = h2osoi_vol_pf_loc(local_id)/watsat_pf_loc(local_id)
+    call VecRestoreArrayReadF90(clm_pf_idata%h2osoi_vol_pfs, h2osoi_vol_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%watsat_pfs, watsat_pf_loc, ierr)
+
+    f_w = ((1.27d0 - saturation)/0.67d0)**(3.1777d0) * &
+        ((saturation - 0.0012d0)/0.5988d0)**2.84d0  
+
+    ph = 6.5d0       ! default
+    if (this%species_id_proton > 0) then
+      if (reaction%species_idx%h_ion_id > 0) then
+        ph = &
+          -log10(rt_auxvar%pri_molal(reaction%species_idx%h_ion_id)* &
+                 rt_auxvar%pri_act_coef(reaction%species_idx%h_ion_id))
+      else if (reaction%species_idx%h_ion_id < 0) then
+        ph = &
+          -log10(rt_auxvar%sec_molal(abs(reaction%species_idx%h_ion_id))* &
+                 rt_auxvar%sec_act_coef(abs(reaction%species_idx%h_ion_id)))
+      endif
+    endif
+    f_ph = 0.56 + atan(rpi * 0.45 * (-5.0 + ph))/rpi
+#else
     f_t = 1.0d0
     f_w = 1.0d0
     f_ph = 1.0d0
+#endif
 
     if (f_t > 1.0d-20 .and. f_w > 1.0d-20 .and. f_ph > 1.0d-20) then
       temp_real = f_t * f_w * f_ph
@@ -2886,7 +3048,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
 
       if (this%species_id_ngasmin > 0) then
-         Residual(ires_ngasmin) = Residual(ires_ngasmin) - 0.5d0 * rate_n2o
+        Residual(ires_ngasmin) = Residual(ires_ngasmin) - rate_n2o
       endif
 
       RateDemand_nh4(ires_nh4) = RateDemand_nh4(ires_nh4) + rate_n2o 
@@ -2894,8 +3056,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       RateDemand_nh4(ires_n2o) = RateDemand_nh4(ires_n2o) - 0.5d0 * rate_n2o
 
       if (this%species_id_ngasmin > 0) then
-         RateDemand_nh4(ires_ngasmin) = RateDemand_nh4(ires_ngasmin) &
-                                      - 0.5d0 * rate_n2o
+        RateDemand_nh4(ires_ngasmin) = RateDemand_nh4(ires_ngasmin) &
+                                     - rate_n2o
       endif
 
       if (compute_derivative) then
@@ -2908,18 +3070,18 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4)+drate_n2o_dnh4
         Jacobian(ires_n2o,ires_nh4) = Jacobian(ires_n2o,ires_nh4) &
                                     - 0.5d0 * drate_n2o_dnh4
-        if (this%species_id_ngasmin > 0) then
-           Jacobian(ires_ngasmin,ires_nh4) = Jacobian(ires_ngasmin,ires_nh4) &
-                                           - 0.5d0 * drate_n2o_dnh4
+        if (this%species_id_ngasmin > 0 .and. (.not.this%bskipn2ojacobian)) then
+          Jacobian(ires_ngasmin,ires_nh4) = Jacobian(ires_ngasmin,ires_nh4) &
+                                          - drate_n2o_dnh4
         endif
 
         JacobianDemand_nh4(ires_nh4,ires_nh4) = &
           JacobianDemand_nh4(ires_nh4,ires_nh4) + drate_n2o_dnh4
         JacobianDemand_nh4(ires_n2o,ires_nh4) = &
           JacobianDemand_nh4(ires_n2o,ires_nh4) - 0.5d0 * drate_n2o_dnh4
-        if (this%species_id_ngasmin > 0) then
-           JacobianDemand_nh4(ires_ngasmin,ires_nh4) = &
-             JacobianDemand_nh4(ires_ngasmin,ires_nh4) - 0.5d0 * drate_n2o_dnh4
+        if (this%species_id_ngasmin > 0 .and. (.not.this%bskipn2ojacobian)) then
+          JacobianDemand_nh4(ires_ngasmin,ires_nh4) = &
+            JacobianDemand_nh4(ires_ngasmin,ires_nh4) - drate_n2o_dnh4
         endif
 
         if (this%species_id_no3 > 0) then
@@ -2931,33 +3093,33 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           Jacobian(ires_n2o,ires_no3) = Jacobian(ires_n2o,ires_no3) &
                                       - 0.5d0 * drate_n2o_dno3
 
-          if (this%species_id_ngasmin > 0) then
-             Jacobian(ires_ngasmin,ires_no3) = Jacobian(ires_ngasmin,ires_no3) &
-                                             - 0.5d0 * drate_n2o_dno3
+          if (this%species_id_ngasmin > 0 .and. (.not.this%bskipn2ojacobian)) then
+            Jacobian(ires_ngasmin,ires_no3) = Jacobian(ires_ngasmin,ires_no3) &
+                                            - drate_n2o_dno3
           endif
 
           Jacobian(ires_n2o,ires_no3) = Jacobian(ires_n2o,ires_no3) &
                                       - 0.5d0 * drate_n2o_dno3
 
-          if (this%species_id_ngasmin > 0) then
-             Jacobian(ires_ngasmin,ires_no3) = Jacobian(ires_ngasmin,ires_no3) &
-                                             - 0.5d0 * drate_n2o_dno3
+          if (this%species_id_ngasmin > 0 .and. (.not.this%bskipn2ojacobian)) then
+            Jacobian(ires_ngasmin,ires_no3) = Jacobian(ires_ngasmin,ires_no3) &
+                                            - drate_n2o_dno3
           endif
 
           JacobianDemand_nh4(ires_n2o,ires_no3) = &
             JacobianDemand_nh4(ires_n2o,ires_no3) - 0.5d0 * drate_n2o_dno3
 
-          if (this%species_id_ngasmin > 0) then
-             JacobianDemand_nh4(ires_ngasmin,ires_no3) = &
-               JacobianDemand_nh4(ires_ngasmin,ires_no3) - 0.5d0 *drate_n2o_dno3
+          if (this%species_id_ngasmin > 0 .and. (.not.this%bskipn2ojacobian)) then
+            JacobianDemand_nh4(ires_ngasmin,ires_no3) = &
+              JacobianDemand_nh4(ires_ngasmin,ires_no3) - drate_n2o_dno3
           endif
 
           JacobianDemand_nh4(ires_n2o,ires_no3) = &
             JacobianDemand_nh4(ires_n2o,ires_no3) - 0.5d0 * drate_n2o_dno3
 
-          if (this%species_id_ngasmin > 0) then
-             JacobianDemand_nh4(ires_ngasmin,ires_no3) = &
-               JacobianDemand_nh4(ires_ngasmin,ires_no3) - 0.5d0 *drate_n2o_dno3
+          if (this%species_id_ngasmin > 0 .and. (.not.this%bskipn2ojacobian)) then
+            JacobianDemand_nh4(ires_ngasmin,ires_no3) = &
+              JacobianDemand_nh4(ires_ngasmin,ires_no3) - drate_n2o_dno3
           endif
         endif       
 
@@ -2980,15 +3142,18 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
           JacobianDemand_nh4(ires_n2o,ires_uc) = &
             JacobianDemand_nh4(ires_n2o,ires_uc) - 0.5d0 * drate_n2o_duc
-          if (this%species_id_ngasmin > 0) then
+          if (this%species_id_ngasmin > 0 .and. (.not.this%bskipn2ojacobian)) then
             Jacobian(ires_ngasmin,ires_uc) = Jacobian(ires_ngasmin,ires_uc) &
-                                           - 0.5d0 * drate_n2o_duc
+                                           - drate_n2o_duc
             JacobianDemand_nh4(ires_ngasmin,ires_uc) = &
-              JacobianDemand_nh4(ires_ngasmin,ires_uc) - 0.5d0 * drate_n2o_duc
+              JacobianDemand_nh4(ires_ngasmin,ires_uc) - drate_n2o_duc
           endif
        
         enddo
 
+        if (this%bdebugoutput) then
+          write(*, *) 'CLMDEC N2O:', rate_n2o, drate_n2o_dnh4, drate_n2o_dno3
+        endif
       endif
 
     endif
@@ -3091,6 +3256,8 @@ module CLM_Rxn_PlantN_class
   type, public, &
     extends(clm_rxn_base_type) :: clm_rxn_plantn_type
     PetscReal :: rate_plantntake
+    PetscReal :: rate_plantntake_nh4
+    PetscReal :: rate_plantntake_no3
     PetscReal :: rate_deposition_nh4
     PetscReal :: rate_deposition_no3
     PetscReal :: half_saturation_nh4
@@ -3111,6 +3278,12 @@ module CLM_Rxn_PlantN_class
     PetscInt :: ispec_plantndemand
 
     PetscBool :: bdebugoutput
+    PetscBool :: enable_clm_n_in
+    PetscBool :: bfixed_clm_n_in
+    PetscBool :: disable_plantntake
+    PetscBool :: is_NH4_aqueous
+    PetscBool :: is_NO3_aqueous
+    PetscBool :: bskippno3jacobian
 
   contains
     procedure, public :: ReadInput => PlantNRead
@@ -3136,13 +3309,15 @@ function PlantNCreate()
 
   allocate(PlantNCreate)
   PlantNCreate%rate_plantntake = 1.d-10
+  PlantNCreate%rate_plantntake_nh4 = 1.d-10
+  PlantNCreate%rate_plantntake_no3 = 1.d-10
   PlantNCreate%rate_deposition_nh4 = 1.0d-11
   PlantNCreate%rate_deposition_no3 = 1.0d-11
-  PlantNCreate%half_saturation_nh4 = -1.d-15
-  PlantNCreate%half_saturation_no3 = -1.d-15
+  PlantNCreate%half_saturation_nh4 =  1.d-6
+  PlantNCreate%half_saturation_no3 =  1.d-6
   PlantNCreate%inhibition_nh4_no3  = -1.d-15
-  PlantNCreate%residual_nh4  = 0.d-20
-  PlantNCreate%residual_no3  = 0.d-20
+  PlantNCreate%residual_nh4  = 1.d-10
+  PlantNCreate%residual_no3  = 1.d-10
   PlantNCreate%cutoff_no3_0 = -1.0d-9 
   PlantNCreate%cutoff_no3_1 = 1.0d-7
   PlantNCreate%cutoff_nh4_0 = -1.0d-9 
@@ -3155,6 +3330,13 @@ function PlantNCreate()
   PlantNCreate%ispec_plantndemand = -1
 
   PlantNCreate%bdebugoutput = PETSC_FALSE
+  PlantNCreate%enable_clm_n_in = PETSC_TRUE
+  PlantNCreate%bfixed_clm_n_in = PETSC_FALSE
+  PlantNCreate%disable_plantntake = PETSC_FALSE
+
+  PlantNCreate%is_NH4_aqueous = PETSC_TRUE
+  PlantNCreate%is_NO3_aqueous = PETSC_TRUE
+  PlantNCreate%bskippno3jacobian = PETSC_FALSE
 
   nullify(PlantNCreate%next)  
       
@@ -3192,9 +3374,13 @@ subroutine PlantNRead(this,input,option)
     call StringToUpper(word)   
 
     select case(trim(word))
-      case('RATE_PLANTNTAKE')
-        call InputReadDouble(input,option,this%rate_plantntake)
-        call InputErrorMsg(input,option,'rate plantntake', &
+      case('RATE_PLANTNTAKE_NH4')
+        call InputReadDouble(input,option,this%rate_plantntake_nh4)
+        call InputErrorMsg(input,option,'rate plantntake nh4+', &
+          'CHEMISTRY,CLM_RXN,PLANTN')
+      case('RATE_PLANTNTAKE_NO3')
+        call InputReadDouble(input,option,this%rate_plantntake_no3)
+        call InputErrorMsg(input,option,'rate plantntake no3-', &
           'CHEMISTRY,CLM_RXN,PLANTN')
       case('RATE_DEPOSITION_NH4')
         call InputReadDouble(input,option,this%rate_deposition_nh4)
@@ -3252,9 +3438,17 @@ subroutine PlantNRead(this,input,option)
         endif
       case('DEBUG_OUTPUT')
         this%bdebugoutput = PETSC_TRUE
+      case('DISABLE_CLM_N_INPUT')
+        this%enable_clm_n_in = PETSC_FALSE
+      case('FIXED_CLM_N_INPUT')
+        this%bfixed_clm_n_in = PETSC_TRUE
+      case('DISABLE_PLANTNTAKE')
+        this%disable_plantntake = PETSC_TRUE
+      case('JACOBIAN_PLANT_NO3_SKIP')
+        this%bskippno3jacobian = PETSC_TRUE
       case default
-        option%io_buffer = 'CHEMISTRY,CLM_RXN,PLANTN,' // &
-          'REACTION keyword: ' // trim(word) // ' not recognized.'
+        option%io_buffer = 'CHEMISTRY,CLM_RXN,PLANTN,REACTION keyword: ' // &
+                                  trim(word) // ' not recognized.'
         call printErrMsg(option)
     end select
   enddo
@@ -3290,13 +3484,31 @@ subroutine PlantNSetup(this,reaction,option)
   endif
   
   if (this%ispec_nh4 < 0) then
-    option%io_buffer = 'Neither NH4+ nor NH3(aq) is specified in the input' // &
+    word = 'Ammonium'
+    this%ispec_nh4 = GetImmobileSpeciesIDFromName( &
+            word,reaction%immobile,PETSC_FALSE,option)
+    if (this%ispec_nh4 > 0) then
+      this%is_NH4_aqueous = PETSC_FALSE
+    endif
+  endif 
+
+  if (this%ispec_nh4 < 0) then
+    option%io_buffer = 'NH4+, NH3(aq) or Ammonium is specified in the input' // &
       'file for PlantN sandbox!'
     call printErrMsg(option)
   endif
 
   word = 'NO3-'
   this%ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction,PETSC_FALSE,option)
+
+  if (this%ispec_no3 < 0) then
+    word = 'Nitrate'
+    this%ispec_no3 = GetImmobileSpeciesIDFromName( &
+            word,reaction%immobile,PETSC_FALSE,option)
+    if (this%ispec_no3 > 0) then
+      this%is_NO3_aqueous = PETSC_FALSE
+    endif
+  endif 
 
   word = 'PlantN'
   this%ispec_plantn = GetImmobileSpeciesIDFromName(word, reaction%immobile, &
@@ -3338,9 +3550,19 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   use Reaction_Aux_module
   use Reaction_Immobile_Aux_module
   use Material_Aux_class, only : material_auxvar_type
+  use CLM_Rxn_Common_module, only: CalNLimitFunc
+
+#ifdef CLM_PFLOTRAN
+  use clm_pflotran_interface_data
+#endif
 
   implicit none
 
+#ifdef CLM_PFLOTRAN
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+#endif
+  
   class(clm_rxn_plantn_type) :: this  
   type(option_type) :: option
   type(reaction_type) :: reaction
@@ -3394,6 +3616,12 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: xxx, delta, regulator, dregulator
   PetscReal :: rate_nh4_clm_input, rate_no3_clm_input
 
+#ifdef CLM_PFLOTRAN
+  PetscScalar, pointer :: rate_plantnuptake_pf_loc(:)
+  PetscScalar, pointer :: rate_smin_nh4_pf_loc(:)
+  PetscScalar, pointer :: rate_smin_no3_pf_loc(:)
+#endif 
+
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
 
@@ -3413,41 +3641,19 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   d_nh4 = 0.0d0
 
   if (this%ispec_nh4 > 0) then
-    c_nh4     = rt_auxvar%pri_molal(this%ispec_nh4)
-    ac_nh4    = rt_auxvar%pri_act_coef(this%ispec_nh4)
-
-    if (this%half_saturation_nh4 >= 1.0d-20) then
-      temp_real = (c_nh4 - this%residual_nh4) * ac_nh4 &
-                + this%half_saturation_nh4
-      f_nh4     = (c_nh4 - this%residual_nh4) * ac_nh4 / temp_real 
-      d_nh4     = ac_nh4 * this%half_saturation_nh4 / temp_real / temp_real
-    endif    
-
-    if (this%cutoff_nh4_0 > 0.0d0) then
-      ! additional down regulation for plant NH4+ uptake
-      if (c_nh4 <= this%cutoff_nh4_0) then
-        regulator = 0.0d0
-        dregulator = 0.0d0
-      elseif (c_nh4 >= this%cutoff_nh4_1 .or. &
-              this%cutoff_nh4_1 - this%cutoff_nh4_0 <= 1.0d-20) then
-        regulator = 1.0d0
-        dregulator = 0.0d0
-      else
-        xxx = c_nh4 - this%cutoff_nh4_0
-        delta = this%cutoff_nh4_1 - this%cutoff_nh4_0
-        regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
-        dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx &
-                   / delta / delta
-      endif
-    
-      ! rate = rate_orginal * regulator
-      ! drate = drate_original * regulator + rate_orginal * dregulator
-      d_nh4 = d_nh4 * regulator + f_nh4 * dregulator
-
-      f_nh4 = f_nh4 * regulator
-
+    if (this%is_NH4_aqueous) then   
+      c_nh4    = rt_auxvar%pri_molal(this%ispec_nh4)
+      ac_nh4   = rt_auxvar%pri_act_coef(this%ispec_nh4)
+      ires_nh4 = this%ispec_nh4
+    else
+      c_nh4    = rt_auxvar%immobile(this%ispec_nh4)
+      ac_nh4   = 1.0d0
+      ires_nh4 = this%ispec_nh4 + reaction%offset_immobile
     endif
 
+    call CalNLimitFunc(c_nh4, ac_nh4, this%residual_nh4, &
+      this%half_saturation_nh4, this%cutoff_nh4_0, this%cutoff_nh4_1, &
+      f_nh4, d_nh4)
   endif
 
   f_no3 = 1.0d0
@@ -3457,38 +3663,19 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   d_nh4_inhibit = 0.0d0
 
   if (this%ispec_no3 > 0) then
-    c_no3     = rt_auxvar%pri_molal(this%ispec_no3)
-    ac_no3    = rt_auxvar%pri_act_coef(this%ispec_no3)
-
-    if (this%half_saturation_no3 >= 1.0d-20) then
-      temp_real = c_no3 -this%residual_no3 + this%half_saturation_no3
-      f_no3 = (c_no3 - this%residual_no3) * ac_no3 / temp_real
-      d_no3 = ac_no3 * this%half_saturation_no3 / temp_real / temp_real
+    if (this%is_NO3_aqueous) then   
+      c_no3     = rt_auxvar%pri_molal(this%ispec_no3)
+      ac_no3    = rt_auxvar%pri_act_coef(this%ispec_no3)
+      ires_no3 = this%ispec_no3
+    else
+      c_no3    = rt_auxvar%immobile(this%ispec_no3)
+      ac_no3   = 1.0d0
+      ires_no3 = this%ispec_no3 + reaction%offset_immobile
     endif
 
-    if (this%cutoff_no3_0 > 0.0d0) then
-      ! additional down regulation for plant NO3- uptake
-      if (c_no3 <= this%cutoff_no3_0) then
-        regulator = 0.0d0
-        dregulator = 0.0d0
-      elseif (c_no3 >= this%cutoff_no3_1 .or. &
-              this%cutoff_no3_1 - this%cutoff_no3_0 <= 1.0d-20) then
-        regulator = 1.0d0
-        dregulator = 0.0d0
-      else
-        xxx = c_no3 - this%cutoff_no3_0
-        delta = this%cutoff_no3_1 - this%cutoff_no3_0
-        regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
-        dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx &
-                   / delta / delta
-      endif
-
-      ! rate = rate_orginal * regulator
-      ! drate = drate_original * regulator + rate_orginal * dregulator
-      d_no3 = d_no3 * regulator + f_no3 * dregulator
-      f_no3 = f_no3 * regulator
-
-    endif
+    call CalNLimitFunc(c_no3, ac_no3, this%residual_no3, &
+      this%half_saturation_no3, this%cutoff_no3_0, this%cutoff_no3_1, &
+      f_no3, d_no3)
 
     if (this%ispec_nh4 > 0 .and. &
       this%inhibition_nh4_no3 > this%residual_nh4) then
@@ -3499,10 +3686,71 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     endif
   endif
 
-  rate_nh4 = 0.5d0 * this%rate_plantntake
-  rate_no3 = 0.5d0 * this%rate_plantntake
-  rate_nh4_clm_input = this%rate_deposition_nh4 
-  rate_no3_clm_input = this%rate_deposition_no3 
+#ifdef CLM_PFLOTRAN
+
+  local_id = option%iflag 
+
+  call VecGetArrayReadF90(clm_pf_idata%rate_plantndemand_pfs, &
+       rate_plantnuptake_pf_loc, ierr)
+
+  call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, &
+       rate_smin_nh4_pf_loc, ierr)
+ 
+  call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, &
+       rate_smin_no3_pf_loc, ierr)
+
+
+  rate_plantn = rate_plantnuptake_pf_loc(local_id) ! mol/m3/s 
+
+  if (this%inhibition_nh4_no3 > this%residual_nh4) then
+    ! use inhibitition to partition the demand to NH4+ and NO3-
+    ! if inhibition coefficient = half saturation for NH4+, the maximum uptake
+    ! is equal to demand
+    rate_nh4 = rate_plantn * volume
+    rate_no3 = rate_plantn * volume
+  else
+    rate_nh4 = 0.5d0 * rate_plantn * volume
+    rate_no3 = 0.5d0 * rate_plantn * volume
+  endif
+
+  if (this%bfixed_clm_n_in) then
+    rate_nh4_clm_input = this%rate_deposition_nh4 * volume
+    rate_no3_clm_input = this%rate_deposition_no3 * volume
+  else
+    rate_nh4_clm_input = rate_smin_nh4_pf_loc(local_id) * volume ! mol/m3/s * m3
+
+    rate_no3_clm_input = rate_smin_no3_pf_loc(local_id) * volume ! mol/m3/s * m3
+  endif 
+
+  call VecRestoreArrayReadF90(clm_pf_idata%rate_plantndemand_pfs, &
+       rate_plantnuptake_pf_loc, ierr)
+
+  call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, &
+       rate_smin_nh4_pf_loc, ierr)
+
+  call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, &
+       rate_smin_no3_pf_loc, ierr)
+#else
+  if (this%inhibition_nh4_no3 > this%residual_nh4) then
+    rate_nh4 = this%rate_plantntake * volume
+    rate_no3 = this%rate_plantntake * volume
+  else
+    rate_nh4 = this%rate_plantntake_nh4 * volume
+    rate_no3 = this%rate_plantntake_no3 * volume
+  endif
+
+  rate_nh4_clm_input = this%rate_deposition_nh4 * volume
+  rate_no3_clm_input = this%rate_deposition_no3 * volume
+#endif
+
+  if (this%enable_clm_n_in) then
+    Residual(ires_nh4) = Residual(ires_nh4) - rate_nh4_clm_input
+    RateSupply_nh4(ires_nh4) = RateSupply_nh4(ires_nh4) - rate_nh4_clm_input 
+    Residual(ires_no3) = Residual(ires_no3) - rate_no3_clm_input
+    RateSupply_no3(ires_no3) = RateSupply_no3(ires_no3) - rate_no3_clm_input 
+  endif
+
+  if (this%disable_plantntake) return
 
   if (this%ispec_plantndemand > 0) then
     Residual(ires_plantndemand) = Residual(ires_plantndemand) - rate_nh4
@@ -3528,9 +3776,6 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     if (this%ispec_nh4in > 0) then
       RateDemand_nh4(ires_nh4in) = RateDemand_nh4(ires_nh4in) - rate_nh4
     endif
-
-    Residual(ires_nh4) = Residual(ires_nh4) - rate_nh4_clm_input
-    RateSupply_nh4(ires_nh4) = RateSupply_nh4(ires_nh4) - rate_nh4_clm_input 
 
     if (compute_derivative) then
       Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4) + drate_nh4_dnh4
@@ -3579,16 +3824,13 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       RateDemand_no3(ires_no3in) = RateDemand_no3(ires_no3in) - rate_no3
     endif
 
-    Residual(ires_no3) = Residual(ires_no3) - rate_no3_clm_input
-    RateSupply_no3(ires_no3) = RateSupply_no3(ires_no3) - rate_no3_clm_input 
-
     if (compute_derivative) then
       Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) + drate_no3_dno3
 
       Jacobian(ires_plantn,ires_no3) = Jacobian(ires_plantn,ires_no3) &
                                      - drate_no3_dno3
 
-      if (this%ispec_no3in > 0) then
+      if (this%ispec_no3in > 0 .and. (.not.this%bskippno3jacobian)) then
         Jacobian(ires_no3in,ires_no3) = Jacobian(ires_no3in,ires_no3) &
                                       - drate_no3_dno3
       endif
@@ -3598,7 +3840,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       Jacobian(ires_plantn,ires_nh4) = Jacobian(ires_plantn,ires_nh4) &
                                      - drate_no3_dnh4
 
-      if (this%ispec_no3in > 0) then
+      if (this%ispec_no3in > 0 .and. (.not.this%bskippno3jacobian)) then
         Jacobian(ires_no3in,ires_nh4) = Jacobian(ires_no3in,ires_nh4) &
                                       - drate_no3_dnh4
       endif
@@ -3609,7 +3851,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       JacobianDemand_no3(ires_plantn,ires_no3) = &
         JacobianDemand_no3(ires_plantn,ires_no3) - drate_no3_dno3
 
-      if (this%ispec_no3in > 0) then
+      if (this%ispec_no3in > 0 .and. (.not.this%bskippno3jacobian)) then
         JacobianDemand_no3(ires_no3in,ires_no3) = &
           JacobianDemand_no3(ires_no3in,ires_no3) - drate_no3_dno3
       endif
@@ -3620,7 +3862,7 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       JacobianDemand_no3(ires_plantn,ires_nh4) = &
         JacobianDemand_no3(ires_plantn,ires_nh4) - drate_no3_dnh4
 
-      if (this%ispec_no3in > 0) then
+      if (this%ispec_no3in > 0 .and. (.not.this%bskippno3jacobian)) then
         JacobianDemand_no3(ires_no3in,ires_nh4) = &
           JacobianDemand_no3(ires_no3in,ires_nh4) - drate_no3_dnh4
       endif
@@ -3664,6 +3906,11 @@ module CLM_Rxn_Nitr_class
 !   NH4+ -> 0.5 N2O
 !   rate   = kmax ftheta fT fpH (1 - exp(-0.0104e6mN rhob/theta  NH4+)
 ! by t6g 10/06/2014 
+!   1/(0.25 + 1 / NH4+) = 4 NH4+ /(NH4+ + 4)
+!   simplifies to the general Monod function, add DICKINSON if not 
+!   1 - exp(-x) = x + ... (remove high order terms)
+!   simplify to first order rate, add PARTON if not
+! by t6g 2/13/2015
 ! ------------------------------------------------------------------------------
 
   use CLM_Rxn_Base_class
@@ -3672,14 +3919,20 @@ module CLM_Rxn_Nitr_class
   use Reactive_Transport_Aux_module
   use PFLOTRAN_Constants_module
   
+#ifdef CLM_PFLOTRAN
+  use CLM_RspFuncs_module
+#endif
+
   implicit none
   
   private
   
 #include "finclude/petscsys.h"
 
-  PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1
-  PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2
+#ifndef CLM_PFLOTRAN
+  PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1 
+  PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2 
+#endif
 
   type, public, &
     extends(clm_rxn_base_type) :: clm_rxn_nitr_type
@@ -3694,11 +3947,20 @@ module CLM_Rxn_Nitr_class
     PetscInt :: temperature_response_function
     PetscReal :: Q10
     PetscReal :: residual_conc
+    PetscReal :: half_saturation
     PetscReal :: cutoff_nh4_0  ! shut off
     PetscReal :: cutoff_nh4_1  ! start to decrease from 1
     PetscReal :: c_nh4_ugg_0      
     PetscReal :: c_nh4_ugg_1    ! N2O production from nitr (Parton et al. 1996) 
     PetscBool :: disable_mrf    ! for testing purpose 
+    PetscBool :: bdebugoutput
+    ! to use 1/(0.25 + 1/NH4+) rather than the simple Monod substrate limiting function
+    PetscBool :: bDickinson
+    ! to use (1 - exp(-0.0104e6mN rhob/theta  NH4+) rather than first order
+    PetscBool :: bParton
+    PetscBool :: is_NH4_aqueous
+    PetscBool :: is_NO3_aqueous
+    PetscBool :: bskipnitrjacobian
 
   contains
     procedure, public :: ReadInput => NitrRead
@@ -3732,12 +3994,19 @@ function NitrCreate()
   NitrCreate%k_nitr_n2o = 3.5d-8
   NitrCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   NitrCreate%Q10 = 1.5d0
-  NitrCreate%residual_conc = 0.0d-20
-  NitrCreate%cutoff_nh4_0 = 1.0d-20 
+  NitrCreate%residual_conc = 1.0d-10
+  NitrCreate%half_saturation =  1.0d-6 
+  NitrCreate%cutoff_nh4_0 =-1.0d-20 
   NitrCreate%cutoff_nh4_1 = 1.0d-20
   NitrCreate%c_nh4_ugg_0 = 2.9d0
   NitrCreate%c_nh4_ugg_1 = 3.0d0   ! N2O production from nitr (Parton et al. 1996) 
   NitrCreate%disable_mrf = PETSC_FALSE
+  NitrCreate%bdebugoutput = PETSC_FALSE
+  NitrCreate%bDickinson = PETSC_FALSE
+  NitrCreate%bParton = PETSC_FALSE
+  NitrCreate%is_NH4_aqueous = PETSC_TRUE
+  NitrCreate%is_NO3_aqueous = PETSC_TRUE
+  NitrCreate%bskipnitrjacobian = PETSC_FALSE
   nullify(NitrCreate%next)  
       
 end function NitrCreate
@@ -3796,9 +4065,8 @@ subroutine NitrRead(this,input,option)
               call InputErrorMsg(input,option,'Q10', &
                 'CHEMISTRY,CLM_RXN_NITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
             case default
-              option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION,' // &
-                'TEMPERATURE RESPONSE FUNCTION keyword: ' // &
-                trim(word) // ' not recognized.'
+              option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION,TEMPERATURE RESPONSE FUNCTION: ' // &
+                                  trim(word) // ' not recognized.'
               call printErrMsg(option)
           end select
         enddo 
@@ -3813,6 +4081,10 @@ subroutine NitrRead(this,input,option)
       case('RESIDUAL_NH4')
         call InputReadDouble(input,option,this%residual_conc)
         call InputErrorMsg(input,option,'residual NH4+', &
+                  'CHEMISTRY,CLM_RXN,NITRIFICATION,REACTION')
+      case('HALF_SATURATION_NH4')
+        call InputReadDouble(input,option,this%half_saturation)
+        call InputErrorMsg(input,option,'half saturation NH4+', &
                   'CHEMISTRY,CLM_RXN,NITRIFICATION,REACTION')
       case('CUTOFF_NH4')
         call InputReadDouble(input,option,this%cutoff_nh4_0)
@@ -3834,12 +4106,20 @@ subroutine NitrRead(this,input,option)
         call InputReadDouble(input,option,this%c_nh4_ugg_1)
         call InputErrorMsg(input,option,'c_nh4_ugg_1', &
           'CHEMISTRY,CLM_RXN,NITRIFICATION,REACTION')
+      case('DICKINSON')
+        this%bDickinson = PETSC_TRUE
+      case('PARTON')
+        this%bParton = PETSC_TRUE
       case('DISABLE_MRF')
-         this%disable_mrf = PETSC_TRUE
+        this%disable_mrf = PETSC_TRUE
+      case('DEBUG_OUTPUT')
+        this%bdebugoutput = PETSC_TRUE
+      case('JACOBIAN_NITR_SKIP')
+        this%bskipnitrjacobian = PETSC_TRUE
       case default
-          option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION,' // &
-            'REACTION keyword: ' // trim(word) // ' not recognized.'
-          call printErrMsg(option)
+        option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION, REACTION: ' // &
+                                  trim(word) // ' not recognized.'
+        call printErrMsg(option)
     end select
   enddo
   
@@ -3879,22 +4159,35 @@ subroutine NitrSetup(this,reaction,option)
                         PETSC_FALSE,option)
   endif
 
+  if (this%ispec_nh4 < 0) then
+    word = 'Ammonium'
+    this%ispec_nh4 = GetImmobileSpeciesIDFromName( &
+            word,reaction%immobile,PETSC_FALSE,option)
+    if (this%ispec_nh4 > 0) then
+      this%is_NH4_aqueous = PETSC_FALSE
+    endif
+  endif 
+
   word = 'NO3-'
   this%ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
 
+  if (this%ispec_no3 < 0) then
+    word = 'Nitrate'
+    this%ispec_no3 = GetImmobileSpeciesIDFromName( &
+            word,reaction%immobile,PETSC_FALSE,option)
+    if (this%ispec_no3 > 0) then
+      this%is_NO3_aqueous = PETSC_FALSE
+    endif
+  endif 
+
   word = 'N2O(aq)'
   this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
-  if (this%ispec_n2o < 0) then
-    word = 'NO2-'
-    this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
-  endif
 
   if (this%ispec_nh4 < 0) then
      option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION: ' // &
-       ' Ammonia (either NH3(aq) or NH4+) is not specified in the input file.'
+       'NH3(aq), NH4+, or Ammonium is not specified in the input file.'
      call printErrMsg(option)
   endif
 
@@ -3903,12 +4196,6 @@ subroutine NitrSetup(this,reaction,option)
                         ' NO3- is not specified in the input file.'
      call printErrMsg(option)
   endif
-
-!  if (this%ispec_n2o < 0) then
-!     option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION: ' // &
-!                        ' N2O(aq) is not specified in the input file.'
-!     call printErrMsg(option)
-!  endif
 
   word = 'NGASnitr'
   this%ispec_ngasnit = GetImmobileSpeciesIDFromName( &
@@ -3931,9 +4218,19 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_class, only : material_auxvar_type
+  use CLM_Rxn_Common_module, only: CalNLimitFunc
 
+#ifdef CLM_PFLOTRAN
+  use clm_pflotran_interface_data
+#endif
+  
   implicit none
 
+#ifdef CLM_PFLOTRAN
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+#endif
+  
   class(clm_rxn_nitr_type) :: this  
   type(option_type) :: option
   type(reaction_type) :: reaction
@@ -3963,6 +4260,7 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal, parameter :: rpi = 3.14159265358979323846
   PetscReal, parameter :: N_molecular_weight = 14.0067d0
   PetscReal :: M_2_ug_per_g
+  PetscReal :: mol_m3_2_ug_per_g
 
   PetscInt :: ires_nh4, ires_no3, ires_n2o
 
@@ -3970,6 +4268,7 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: rho_b
   PetscReal :: theta
   PetscReal :: c_nh4      ! mole/L
+  PetscReal :: ac_nh4      ! mole/L
   PetscReal :: s_nh4      ! mole/m3
   PetscReal :: c_nh4_ugg  ! ug ammonia N / g soil
   PetscReal :: ph
@@ -3980,19 +4279,42 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: saturation
   PetscReal :: tc
   PetscReal :: kg_water
+  PetscReal :: h2osoi
   PetscInt :: ires_ngasnit
   PetscReal :: xxx, delta, regulator, dregulator
+  PetscReal :: f_nh4, d_nh4     ! for monod substrate limitation
   PetscReal :: f_n2o, d_n2o     ! for smoothing N2O production
   PetscReal :: c_nh4_0, c_nh4_1
+  PetscReal :: temp_real
+  PetscReal :: unitconv
+
+#ifdef CLM_PFLOTRAN
+  PetscScalar, pointer :: h2osoi_vol_pf_loc(:)    !
+  PetscScalar, pointer :: watsat_pf_loc(:)    !
+#endif
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
   kg_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
             material_auxvar%volume*global_auxvar%den_kg(iphase)
 
+  unitconv = 1.0d0
+  M_2_ug_per_g = 1.0d0
+  mol_m3_2_ug_per_g = 1.0d0
+  h2osoi = 1.0d0
+
+  local_id = option%iflag
   ! indices for C and N species
   ires_nh4 = this%ispec_nh4
-  ires_no3 = this%ispec_no3
+
+  if (this%ispec_no3 > 0) then
+    if (this%is_NO3_aqueous) then   
+      ires_no3 = this%ispec_no3
+    else
+      ires_no3 = this%ispec_no3 + reaction%offset_immobile
+    endif
+  endif
+
   ires_n2o = this%ispec_n2o
   ires_ngasnit = this%ispec_ngasnit + reaction%offset_immobile
 
@@ -4001,28 +4323,18 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
 
   tc = global_auxvar%temp
 
-  c_nh4 = rt_auxvar%pri_molal(this%ispec_nh4)
-
-  if (this%cutoff_nh4_0 > 0.0d0) then
-    ! additional down regulation for nitr 
-    if (c_nh4 <= this%cutoff_nh4_0) then
-      regulator = 0.0d0
-      dregulator = 0.0d0
-    elseif (c_nh4 >= this%cutoff_nh4_1 .or. &
-      this%cutoff_nh4_1 - this%cutoff_nh4_0 <= 1.0d-20) then
-      regulator = 1.0d0
-      dregulator = 0.0d0
-    else
-      xxx = c_nh4 - this%cutoff_nh4_0
-      delta = this%cutoff_nh4_1 - this%cutoff_nh4_0
-      regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
-      dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx &
-                 / delta / delta
-    endif
+  if (this%is_NH4_aqueous) then   
+    c_nh4    = rt_auxvar%pri_molal(this%ispec_nh4)
+    ac_nh4   = rt_auxvar%pri_act_coef(this%ispec_nh4)
+    ires_nh4 = this%ispec_nh4
   else
-    regulator = 1.0d0
-    dregulator = 0.0d0  
+    c_nh4    = rt_auxvar%immobile(this%ispec_nh4)
+    ac_nh4   = 1.0d0
+    ires_nh4 = this%ispec_nh4 + reaction%offset_immobile
   endif
+
+  call CalNLimitFunc(c_nh4, ac_nh4, this%residual_conc, this%half_saturation, &
+                     this%cutoff_nh4_0, this%cutoff_nh4_1, f_nh4, d_nh4)
 
   if (associated(rt_auxvar%total_sorb_eq)) then           ! original absorption-reactions in PF used
      s_nh4 = rt_auxvar%total_sorb_eq(this%ispec_nh4)
@@ -4030,38 +4342,72 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
      s_nh4 = 1.d-20
   endif
 
-  c_nh4 = c_nh4 - this%residual_conc
+  c_nh4 = (c_nh4 - this%residual_conc) * ac_nh4
 
   ! nitrification (Dickinson et al. 2002)
   if (this%ispec_no3 > 0) then
     f_t = exp(0.08d0 * (tc - 298.0d0 + 273.15d0))
+
+    if (tc < 0.0d0) f_t = 0.0d0   ! to be consistent in CLM  CNNDynamicsMod.F90 line 839
+
     if (this%disable_mrf) then
       f_w = 1.0d0
     else
+      ! use variables passed from clm at this time for direct comparison
+      ! once saturation is correctly transferred to pflotran, this can be 
+      ! removed.  t6g 4/1/2015   CNNDynamicsMod.F90 line 831
+#ifdef CLM_PFLOTRAN
+      call VecGetArrayReadF90(clm_pf_idata%h2osoi_vol_pfs, h2osoi_vol_pf_loc, ierr)
+      call VecGetArrayReadF90(clm_pf_idata%watsat_pfs, watsat_pf_loc, ierr)
+      saturation = h2osoi_vol_pf_loc(local_id)/watsat_pf_loc(local_id)
+      h2osoi = h2osoi_vol_pf_loc(local_id)
+      call VecRestoreArrayReadF90(clm_pf_idata%h2osoi_vol_pfs, h2osoi_vol_pf_loc, ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%watsat_pfs, watsat_pf_loc, ierr)
+#endif
+
       f_w = saturation * (1.0d0 - saturation)
     endif
+  
+    if (this%is_NH4_aqueous) then   
+      temp_real = f_t * f_w * this%k_nitr_max * kg_water
+    else
+      temp_real = f_t * f_w * this%k_nitr_max * volume
+    endif
 
-    rate_nitri = f_t * f_w * this%k_nitr_max * c_nh4 * c_nh4 / &
-         (0.25d0 * c_nh4 + 1.0d0) * kg_water
+    if (this%bDickinson) then
+      ! to make is consistent with clm CNNDynamicsMod.F90 line 832
+      if (this%is_NH4_aqueous) then
+        unitconv = N_molecular_weight * h2osoi * 1000.0d0  ! from mol/L to g/m^3
+      else
+        unitconv = N_molecular_weight ! from mol/m^3 to g/m^3
+      endif
+      rate_nitri = temp_real * c_nh4 * c_nh4 / (0.25d0 * c_nh4 + 1.0d0/unitconv)
+    else
+      rate_nitri = temp_real * c_nh4
+    endif
 
-    Residual(ires_nh4) = Residual(ires_nh4) + rate_nitri * regulator
-    Residual(ires_no3) = Residual(ires_no3) - rate_nitri * regulator
+    Residual(ires_nh4) = Residual(ires_nh4) + rate_nitri * f_nh4
+    Residual(ires_no3) = Residual(ires_no3) - rate_nitri * f_nh4
 
-    RateDemand_nh4(ires_nh4) = RateDemand_nh4(ires_nh4) + rate_nitri * regulator
-    RateDemand_nh4(ires_no3) = RateDemand_nh4(ires_no3) - rate_nitri * regulator
+    RateDemand_nh4(ires_nh4) = RateDemand_nh4(ires_nh4) + rate_nitri * f_nh4
+    RateDemand_nh4(ires_no3) = RateDemand_nh4(ires_no3) - rate_nitri * f_nh4
 
-    Rate_nh4_to_no3 = Rate_nh4_to_no3 + rate_nitri * regulator
+    Rate_nh4_to_no3 = Rate_nh4_to_no3 + rate_nitri * f_nh4
 
     if (compute_derivative) then
-      ! f = x^2/(x/4+1)
-      ! f' = [2x(x/4+1) - x^2/4]/(x/4 + 1)^2 
-      !    = (x^2/4 + 2x)/(x/4 + 1)^2
-      drate_nitri = f_t*f_w*this%k_nitr_max*(0.25d0*c_nh4*c_nh4+2.0d0*c_nh4) &
-                 / (0.25d0*c_nh4+1.0d0) / (0.25d0 * c_nh4 + 1.0d0) * kg_water
- 
-      ! rate = rate_orginal * regulator
-      ! drate = drate_original * regulator + rate_orginal * dregulator
-      drate_nitri = drate_nitri * regulator + rate_nitri * dregulator
+      if (this%bDickinson) then
+        ! f = x^2/(x/4+1/u)
+        ! f' = [2x(x/4+1/u) - x^2/4]/(x/4 + 1/u)^2 
+        !    = (x^2/4 + 2x/u)/(x/4 + 1/u)^2
+        drate_nitri = temp_real &
+                  * (0.25d0 * c_nh4 * c_nh4 + 2.0d0 * c_nh4 / unitconv) &
+                  / (0.25d0 * c_nh4 + 1.0d0/unitconv) &
+                  / (0.25d0 * c_nh4 + 1.0d0/unitconv) * ac_nh4
+      else
+        drate_nitri = temp_real
+      endif 
+
+      drate_nitri = drate_nitri * f_nh4 + rate_nitri * d_nh4
 
       Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4) + drate_nitri
 
@@ -4078,17 +4424,48 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
   endif
 
   ! N2O production from nitr (Parton et al. 1996)
-  if (this%ispec_n2o > 0) then
+  if (this%ispec_n2o > 0 .and. this%bParton) then
+#ifdef CLM_PFLOTRAN
+    local_id = option%iflag ! temporary measure suggested by Glenn
 
+    if (local_id < 1) then
+      write(option%io_buffer,'("Nitr sandbox cell id is ", I2, &
+        & ", check option%iflag!")') local_id
+      call printErrMsg(option)
+    endif
+
+    call VecGetArrayReadF90(clm_pf_idata%bulkdensity_dry_pfs, bulkdensity, ierr)
+    rho_b = bulkdensity(local_id) ! kg/m3
+    call VecRestoreArrayReadF90(clm_pf_idata%bulkdensity_dry_pfs, bulkdensity, ierr)
+#else
     rho_b = 1.25d0
+#endif
+#ifdef CLM_PFLOTRAN
+    call VecGetArrayReadF90(clm_pf_idata%h2osoi_vol_pfs, h2osoi_vol_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%watsat_pfs, watsat_pf_loc, ierr)
+    saturation = h2osoi_vol_pf_loc(local_id)/watsat_pf_loc(local_id)
+    call VecRestoreArrayReadF90(clm_pf_idata%h2osoi_vol_pfs, h2osoi_vol_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%watsat_pfs, watsat_pf_loc, ierr)
+#endif
 
-    ! mole/L * 1000 L/m3 * g/mol / kg/m3 = g/kg = mg/g = 1000 ug/g  
-    M_2_ug_per_g  = theta *1000.0d0 * N_molecular_weight / rho_b * 1000.0d0
-    !c_nh4_ugg = (c_nh4 + s_nh4 / theta / 1000.0d0)* M_2_ug_per_g
-    c_nh4_ugg = c_nh4 * M_2_ug_per_g
+    if (this%is_NH4_aqueous) then   
+      ! mole/L * 1000 L/m3 * g/mol / kg/m3 = g/kg = mg/g = 1000 ug/g  
+      M_2_ug_per_g  = theta *1000.0d0 * N_molecular_weight / rho_b * 1000.0d0
+      !c_nh4_ugg = (c_nh4 + s_nh4 / theta / 1000.0d0)* M_2_ug_per_g
+      c_nh4_ugg = c_nh4 * M_2_ug_per_g
 
-    c_nh4_0 = this%c_nh4_ugg_0 / M_2_ug_per_g
-    c_nh4_1 = this%c_nh4_ugg_1 / M_2_ug_per_g
+      c_nh4_0 = this%c_nh4_ugg_0 / M_2_ug_per_g
+      c_nh4_1 = this%c_nh4_ugg_1 / M_2_ug_per_g
+    else
+      ! mole/m3 * g/mol / kg/m3 = g/kg = mg/g = 1000 ug/g  
+      mol_m3_2_ug_per_g  = N_molecular_weight / rho_b * 1000.0d0
+      !c_nh4_ugg = (c_nh4 + s_nh4 / theta / 1000.0d0)* M_2_ug_per_g
+      c_nh4_ugg = c_nh4 * mol_m3_2_ug_per_g
+
+      c_nh4_0 = this%c_nh4_ugg_0 / mol_m3_2_ug_per_g
+      c_nh4_1 = this%c_nh4_ugg_1 / mol_m3_2_ug_per_g
+
+    endif
   
     if (c_nh4 <= c_nh4_0) then
       f_n2o = 0.0d0
@@ -4132,17 +4509,24 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
        if (f_ph > 1.0d0) then
          f_ph = 1.0d0
        endif
+    
+      if (this%is_NH4_aqueous) then   
+        temp_real = f_t * f_w * f_ph * this%k_nitr_n2o * kg_water
+      else
+        temp_real = f_t * f_w * f_ph * this%k_nitr_n2o * volume
+      endif
+
 
        rate_n2o = 1.0 - exp(-0.0105d0 * c_nh4_ugg)  ! need to change units 
        ! Parton et al. 1996 unit is g N ha^-1 d^-1
-       rate_n2o = rate_n2o * f_t * f_w * f_ph * this%k_nitr_n2o * kg_water
-       rate_n2o = rate_n2o * regulator * f_n2o
+       rate_n2o = rate_n2o * temp_real 
+       rate_n2o = rate_n2o * f_nh4 * f_n2o
     
        Residual(ires_nh4) = Residual(ires_nh4) + rate_n2o
        Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
        
        if (this%ispec_ngasnit > 0) then
-         Residual(ires_ngasnit) = Residual(ires_ngasnit) - 0.5d0 * rate_n2o
+         Residual(ires_ngasnit) = Residual(ires_ngasnit) - rate_n2o
        endif
 
        RateDemand_nh4(ires_nh4) = RateDemand_nh4(ires_nh4) + rate_n2o
@@ -4150,17 +4534,21 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
        
        if (this%ispec_ngasnit > 0) then
          RateDemand_nh4(ires_ngasnit) = RateDemand_nh4(ires_ngasnit) &
-                                      - 0.5d0 * rate_n2o
+                                      - rate_n2o
        endif
 
        if (compute_derivative) then
-         drate_n2o = 0.0105d0*exp(-0.0105d0*c_nh4_ugg) &
-                   * M_2_ug_per_g
-         drate_n2o = drate_n2o * f_t * f_w * f_ph * this%k_nitr_n2o * kg_water
+         if (this%is_NH4_aqueous) then   
+           drate_n2o = 0.0105d0*exp(-0.0105d0*c_nh4_ugg) &
+                     * M_2_ug_per_g
+         else
+           drate_n2o = 0.0105d0*exp(-0.0105d0*c_nh4_ugg) &
+                     * mol_m3_2_ug_per_g
+         endif
+
+         drate_n2o = drate_n2o * temp_real
  
-         ! rate = rate_orginal * regulator
-         ! drate = drate_original * regulator + rate_orginal * dregulator
-         drate_n2o = drate_n2o * regulator + rate_n2o * dregulator 
+         drate_n2o = drate_n2o * f_nh4 + rate_n2o * d_nh4 
          drate_n2o = drate_n2o * f_n2o + rate_n2o * d_n2o 
 
          Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4) + drate_n2o
@@ -4168,9 +4556,9 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
          Jacobian(ires_n2o,ires_nh4) = Jacobian(ires_n2o,ires_nh4) - &
            0.5d0 * drate_n2o
       
-         if (this%ispec_ngasnit > 0) then
+         if (this%ispec_ngasnit > 0 .and. (.not.this%bskipnitrjacobian)) then
            Jacobian(ires_ngasnit,ires_nh4)=Jacobian(ires_ngasnit,ires_nh4) - &
-             0.5d0 * drate_n2o
+             drate_n2o
          endif
 
          JacobianDemand_nh4(ires_nh4,ires_nh4) = &
@@ -4179,10 +4567,85 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
          JacobianDemand_nh4(ires_n2o,ires_nh4) = &
            JacobianDemand_nh4(ires_n2o,ires_nh4) - 0.5d0 * drate_n2o
       
-         if (this%ispec_ngasnit > 0) then
+         if (this%ispec_ngasnit > 0 .and. (.not.this%bskipnitrjacobian)) then
            JacobianDemand_nh4(ires_ngasnit,ires_nh4) = &
-             JacobianDemand_nh4(ires_ngasnit,ires_nh4) - 0.5d0 * drate_n2o
+             JacobianDemand_nh4(ires_ngasnit,ires_nh4) - drate_n2o
          endif
+
+        if (this%bdebugoutput) then
+          write(*, *) 'Nitri: N2O', rate_n2o, drate_n2o
+        endif
+
+       endif
+     endif
+  endif
+
+  ! N2O production from nitr (Parton et al. 1996), simplify 1 - e^(-x) to x
+  if (this%ispec_n2o > 0 .and. (.not.this%bParton)) then
+    ! temperature response function (Parton et al. 1996)
+    f_t = -0.06d0 + 0.13d0 * exp( 0.07d0 * tc )
+
+    f_w = ((1.27d0 - saturation)/0.67d0)**(3.1777d0) * &
+        ((saturation - 0.0012d0)/0.5988d0)**2.84d0
+
+    f_ph = 1.0d0 ! not ready yet,  0.56 + atan(rpi * 0.45 * (-5.0 + ph))/rpi
+
+    if (f_t > 0.0d0 .and. f_w > 0.0d0 .and. f_ph > 0.0d0) then
+      if (f_w > 1.0d0) then
+        f_w = 1.0d0
+      endif
+
+      if (this%is_NH4_aqueous) then   
+        temp_real = f_t * f_w * f_ph * this%k_nitr_n2o * kg_water
+      else
+        temp_real = f_t * f_w * f_ph * this%k_nitr_n2o * volume
+      endif
+
+      rate_n2o = temp_real * c_nh4 * f_nh4
+    
+      Residual(ires_nh4) = Residual(ires_nh4) + rate_n2o
+      Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
+       
+      if (this%ispec_ngasnit > 0) then
+        Residual(ires_ngasnit) = Residual(ires_ngasnit) - rate_n2o
+      endif
+
+      RateDemand_nh4(ires_nh4) = RateDemand_nh4(ires_nh4) + rate_n2o
+      RateDemand_nh4(ires_n2o) = RateDemand_nh4(ires_n2o) - 0.5d0 * rate_n2o
+       
+      if (this%ispec_ngasnit > 0) then
+        RateDemand_nh4(ires_ngasnit) = RateDemand_nh4(ires_ngasnit) &
+                                     - rate_n2o
+      endif
+
+      if (compute_derivative) then
+        drate_n2o = temp_real * f_nh4 + temp_real * c_nh4 * d_nh4 
+
+        Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4) + drate_n2o
+
+        Jacobian(ires_n2o,ires_nh4) = Jacobian(ires_n2o,ires_nh4) - &
+          0.5d0 * drate_n2o
+      
+        if (this%ispec_ngasnit > 0 .and. (.not.this%bskipnitrjacobian)) then
+          Jacobian(ires_ngasnit,ires_nh4)=Jacobian(ires_ngasnit,ires_nh4) - &
+            drate_n2o
+        endif
+
+        JacobianDemand_nh4(ires_nh4,ires_nh4) = &
+          JacobianDemand_nh4(ires_nh4,ires_nh4) + drate_n2o
+
+        JacobianDemand_nh4(ires_n2o,ires_nh4) = &
+          JacobianDemand_nh4(ires_n2o,ires_nh4) - 0.5d0 * drate_n2o
+      
+        if (this%ispec_ngasnit > 0 .and. (.not.this%bskipnitrjacobian)) then
+          JacobianDemand_nh4(ires_ngasnit,ires_nh4) = &
+            JacobianDemand_nh4(ires_ngasnit,ires_nh4) - drate_n2o
+        endif
+
+        if (this%bdebugoutput) then
+          write(*, *) 'Nitri: N2O', rate_n2o, drate_n2o
+        endif
+
        endif
      endif
   endif
@@ -4224,28 +4687,37 @@ module CLM_Rxn_Deni_class
   use Reactive_Transport_Aux_module
   use PFLOTRAN_Constants_module
   
+#ifdef CLM_PFLOTRAN
+  use CLM_RspFuncs_module
+#endif
+
   implicit none
   
   private
   
 #include "finclude/petscsys.h"
 
+#ifndef CLM_PFLOTRAN
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2
+#endif
 
   type, public, &
     extends(clm_rxn_base_type) :: clm_rxn_deni_type
     PetscInt :: ispec_no3
     PetscInt :: ispec_n2
-    PetscInt :: ispec_n2o
     PetscInt :: ispec_ngasdeni
-    PetscReal :: half_saturation
     PetscInt :: temperature_response_function
     PetscReal :: Q10
     PetscReal :: k_deni_max                 ! deni rate
-    PetscReal :: residual_conc
+    PetscReal :: half_saturation
     PetscReal :: cutoff_no3_0  ! shut off
     PetscReal :: cutoff_no3_1  ! start to decrease from 1
+    PetscReal :: residual_conc
+    PetscBool :: bdebugoutput
+    PetscBool :: is_NH4_aqueous
+    PetscBool :: is_NO3_aqueous
+    PetscBool :: bskipdenijacobian
 
   contains
     procedure, public :: ReadInput => DeniRead
@@ -4271,16 +4743,19 @@ function DeniCreate()
 
   allocate(DeniCreate)
   DeniCreate%ispec_no3 = 0
-  DeniCreate%ispec_n2o = 0
   DeniCreate%ispec_n2 = 0
   DeniCreate%ispec_ngasdeni = 0
-  DeniCreate%half_saturation = -1.0d-10
   DeniCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   DeniCreate%Q10 = 1.5d0
   DeniCreate%k_deni_max = 2.5d-6  ! deni rate
-  DeniCreate%residual_conc = 0.0d-20
-  DeniCreate%cutoff_no3_0 = 1.0d-20 
+  DeniCreate%half_saturation =  1.0d-6
+  DeniCreate%cutoff_no3_0 =-1.0d-20 
   DeniCreate%cutoff_no3_1 = 1.0d-20
+  DeniCreate%residual_conc = 1.0d-10
+  DeniCreate%bdebugoutput = PETSC_FALSE
+  DeniCreate%is_NH4_aqueous = PETSC_TRUE
+  DeniCreate%is_NO3_aqueous = PETSC_TRUE
+  DeniCreate%bskipdenijacobian = PETSC_FALSE
 
   nullify(DeniCreate%next)  
       
@@ -4340,9 +4815,8 @@ subroutine DeniRead(this,input,option)
               call InputErrorMsg(input,option,'Q10', &
                 'CHEMISTRY,CLM_RXN,DENITRI,TEMPERATURE RESPONSE FUNCTION')
             case default
-              option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION,' // &
-                'TEMPERATURE RESPONSE FUNCTION keyword: ' // &
-                trim(word) // ' not recognized.'
+              option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION, TEMPERATURE RESPONSE FUNCTION: ' // &
+                                  trim(word) // ' not recognized.'
               call printErrMsg(option)
           end select
         enddo 
@@ -4351,14 +4825,14 @@ subroutine DeniRead(this,input,option)
         call InputReadDouble(input,option,this%k_deni_max)
         call InputErrorMsg(input,option,'k_deni_max', &
                  'CHEMISTRY,CLM_RXN,DENITRIFICATION,REACTION')
-      case('HALF_SATURATION')
-        call InputReadDouble(input,option,this%half_saturation)
-        call InputErrorMsg(input,option,'half saturation', &
-                 'CHEMISTRY,CLM_RXN,DENITRIFICATION,REACTION')
       case('RESIDUAL_NO3')
         call InputReadDouble(input,option,this%residual_conc)
         call InputErrorMsg(input,option,'residual_NO3', &
                   'CHEMISTRY,CLM_RXN,NITRIFICATION,REACTION')
+      case('HALF_SATURATION_NO3')
+        call InputReadDouble(input,option,this%half_saturation)
+        call InputErrorMsg(input,option,'half saturation no3-', &
+                 'CHEMISTRY,CLM_RXN,DENITRIFICATION,REACTION')
       case('CUTOFF_NO3')
         call InputReadDouble(input,option,this%cutoff_no3_0)
         call InputErrorMsg(input,option,'cutoff_no3_0', &
@@ -4372,10 +4846,14 @@ subroutine DeniRead(this,input,option)
             'where down regulation function = 1.'
           call printErrMsg(option)
         endif
+      case('DEBUG_OUTPUT')
+        this%bdebugoutput = PETSC_TRUE
+      case('JACOBIAN_DENI_SKIP')
+        this%bskipdenijacobian = PETSC_TRUE
       case default
-          option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION,' // &
-            'REACTION keyword: ' // trim(word) // ' not recognized.'
-          call printErrMsg(option)
+        option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION, REACTION: ' // &
+                                  trim(word) // ' not recognized.'
+        call printErrMsg(option)
     end select
   enddo
   
@@ -4404,15 +4882,21 @@ subroutine DeniSetup(this,reaction,option)
   word = 'NO3-'
   this%ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
+
+  if (this%ispec_no3 < 0) then
+    word = 'Nitrate'
+    this%ispec_no3 = GetImmobileSpeciesIDFromName( &
+            word,reaction%immobile,PETSC_FALSE,option)
+    if (this%ispec_no3 > 0) then
+      this%is_NO3_aqueous = PETSC_FALSE
+    endif
+  endif 
+
   if (this%ispec_no3 < 0) then
      option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION: ' // &
-                        ' NO3- is not specified in the input file.'
+                        ' NO3- or nitrate is not specified in the input file.'
      call printErrMsg(option)
   endif
-
-  word = 'N2O(aq)'
-  this%ispec_n2o = GetPrimarySpeciesIDFromName(word,reaction, &
-                        PETSC_FALSE,option)
 
   word = 'N2(aq)'
   this%ispec_n2 = GetPrimarySpeciesIDFromName(word,reaction, &
@@ -4442,8 +4926,18 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
   use Option_module
   use Reaction_Aux_module
   use Material_Aux_class, only : material_auxvar_type
+  use CLM_Rxn_Common_module, only: CalNLimitFunc
+
+#ifdef CLM_PFLOTRAN
+  use clm_pflotran_interface_data
+#endif
 
   implicit none
+
+#ifdef CLM_PFLOTRAN
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+#endif
 
   class(clm_rxn_deni_type) :: this
   type(option_type) :: option
@@ -4478,18 +4972,23 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
 
   PetscScalar, pointer :: bsw(:)
   PetscScalar, pointer :: bulkdensity(:)
+#ifdef CLM_PFLOTRAN
+  PetscScalar, pointer :: h2osoi_vol_pf_loc(:)    !
+  PetscScalar, pointer :: watsat_pf_loc(:)    !
+#endif
+
 
   PetscReal :: s_min
   PetscReal :: tc
   PetscReal :: f_t, f_w
 
   PetscReal :: c_no3         ! mole/kg
+  PetscReal :: ac_no3        ! mole/kg
   PetscReal :: f_no3         ! no3 / (half_saturation + no3)
   PetscReal :: d_no3         ! half_saturation/(no3 + half_saturation)^2
   PetscReal :: rate_deni, drate_deni
   PetscReal :: saturation
   PetscInt, parameter :: iphase = 1
-  PetscReal :: xxx, delta, regulator, dregulator
 
   porosity = material_auxvar%porosity
   volume = material_auxvar%volume
@@ -4499,19 +4998,43 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
 
   ! indices for C and N species
   ires_no3 = this%ispec_no3
-  ires_n2o = this%ispec_n2o
   ires_n2 = this%ispec_n2
   ires_ngasdeni = this%ispec_ngasdeni + reaction%offset_immobile
 
 ! denitrification (Dickinson et al. 2002)
   if (this%ispec_n2 < 0) return
 
+#ifdef CLM_PFLOTRAN
+  local_id = option%iflag ! temporary measure suggested by Glenn
+
+  if (local_id < 1) then
+    write(option%io_buffer,'("Deni sandbox cell id is ", I2, &
+      & ", check option%iflag!")') local_id
+    call printErrMsg(option)
+  endif
+
+  call VecGetArrayReadF90(clm_pf_idata%bsw_pfs, bsw, ierr)
+  temp_real = bsw(local_id)
+  call VecRestoreArrayReadF90(clm_pf_idata%bsw_pfs, bsw, ierr)
+#else
   temp_real = 1.0d0
+#endif
 
   tc = global_auxvar%temp
-  f_t = exp(0.08d0 * (tc - 25.d0))
+  ! f_t = exp(0.08d0 * (tc - 25.d0))
+  ! make it consistent with CLM CNNDynamicsMod.F90 line 652
+  f_t = exp(0.08d0 * (tc + 273.15d0 - 298.0d0))
 
   saturation = global_auxvar%sat(1)
+  ! make it consistent with CLM CNNDynamicsMod.F90 line 666
+#ifdef CLM_PFLOTRAN
+  call VecGetArrayReadF90(clm_pf_idata%h2osoi_vol_pfs, h2osoi_vol_pf_loc, ierr)
+  call VecGetArrayReadF90(clm_pf_idata%watsat_pfs, watsat_pf_loc, ierr)
+  saturation = h2osoi_vol_pf_loc(local_id)/watsat_pf_loc(local_id)
+  call VecRestoreArrayReadF90(clm_pf_idata%h2osoi_vol_pfs, h2osoi_vol_pf_loc, ierr)
+  call VecRestoreArrayReadF90(clm_pf_idata%watsat_pfs, watsat_pf_loc, ierr)
+#endif
+
   s_min = 0.6d0
   f_w = 0.d0
   if (saturation > s_min) then
@@ -4519,51 +5042,35 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
      f_w = f_w ** temp_real
   endif
 
-  c_no3 = rt_auxvar%pri_molal(this%ispec_no3)
-
-  if (this%half_saturation > 0.0d0) then
-    temp_real = c_no3 - this%residual_conc + this%half_saturation
-    f_no3 = (c_no3 - this%residual_conc) * (c_no3 - this%residual_conc) &
-          / temp_real
-    d_no3 = (c_no3 - this%residual_conc) * (c_no3 - this%residual_conc + &
-             2.d0 * this%half_saturation) / temp_real /temp_real
+  if (this%is_NO3_aqueous) then   
+    c_no3     = rt_auxvar%pri_molal(this%ispec_no3)
+    ac_no3    = rt_auxvar%pri_act_coef(this%ispec_no3)
+    ires_no3 = this%ispec_no3
   else
-    f_no3 = c_no3 - this%residual_conc
-    d_no3 = 1.0d0
+    c_no3    = rt_auxvar%immobile(this%ispec_no3)
+    ac_no3   = 1.0d0
+    ires_no3 = this%ispec_no3 + reaction%offset_immobile
   endif
 
-  if (this%cutoff_no3_0 > 0.0d0) then
-    ! additional down regulation for deni
-    if (c_no3 <= this%cutoff_no3_0) then
-      regulator = 0.0d0
-      dregulator = 0.0d0
-    elseif (c_no3 >= this%cutoff_no3_1 .or. &
-      this%cutoff_no3_1 - this%cutoff_no3_0 <= 1.0d-20) then
-      regulator = 1.0d0
-      dregulator = 0.0d0
-    else
-      xxx = c_no3 - this%cutoff_no3_0
-      delta = this%cutoff_no3_1 - this%cutoff_no3_0
-      regulator = 1.0d0 - (1.0d0 - xxx * xxx / delta / delta) ** 2
-      dregulator = 4.0d0 * (1.0d0 - xxx * xxx / delta / delta) * xxx &
-                 / delta / delta
-    endif
+  call CalNLimitFunc(c_no3, ac_no3, this%residual_conc, this%half_saturation, &
+                     this%cutoff_no3_0, this%cutoff_no3_1, f_no3, d_no3)
 
-    ! rate = rate_orginal * regulator
-    ! drate = drate_original * regulator + rate_orginal * dregulator
-    d_no3 = d_no3 * regulator + f_no3 * dregulator
-    f_no3 = f_no3 * regulator
-
-  endif
-
+  ! add first order rate
+  d_no3 = (c_no3 - this%residual_conc) * ac_no3 * d_no3 + ac_no3 * f_no3
+  f_no3 = (c_no3 - this%residual_conc) * ac_no3 * f_no3
+ 
   if (f_t > 0.d0 .and. f_w > 0.d0) then
-    rate_deni = this%k_deni_max * f_t * f_w * kg_water * f_no3
+    if (this%is_NO3_aqueous) then   
+      rate_deni = this%k_deni_max * f_t * f_w * kg_water * f_no3
+    else
+      rate_deni = this%k_deni_max * f_t * f_w * volume * f_no3
+    endif
 
     Residual(ires_no3) = Residual(ires_no3) + rate_deni
     Residual(ires_n2) = Residual(ires_n2) - 0.5d0 * rate_deni
     
     if (this%ispec_ngasdeni > 0) then
-      Residual(ires_ngasdeni) = Residual(ires_ngasdeni) - 0.5d0 * rate_deni
+      Residual(ires_ngasdeni) = Residual(ires_ngasdeni) - rate_deni
     endif
 
     RateDemand_no3(ires_no3) = RateDemand_no3(ires_no3) + rate_deni
@@ -4571,20 +5078,24 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
     
     if (this%ispec_ngasdeni > 0) then
       RateDemand_no3(ires_ngasdeni) = RateDemand_no3(ires_ngasdeni) &
-                                    - 0.5d0 * rate_deni
+                                    - rate_deni
     endif
 
     if (compute_derivative) then
 
-      drate_deni = this%k_deni_max * f_t * f_w * kg_water * d_no3 
+      if (this%is_NO3_aqueous) then   
+        drate_deni = this%k_deni_max * f_t * f_w * kg_water * d_no3 
+      else
+        drate_deni = this%k_deni_max * f_t * f_w * volume * d_no3 
+      endif
 
       Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) + drate_deni
 
       Jacobian(ires_n2,ires_no3)=Jacobian(ires_n2,ires_no3) - 0.5d0*drate_deni
     
-      if (this%ispec_ngasdeni > 0) then
+      if (this%ispec_ngasdeni > 0 .and. (.not.this%bskipdenijacobian)) then
         Jacobian(ires_ngasdeni,ires_no3) = Jacobian(ires_ngasdeni,ires_no3) &
-                                         - 0.5d0 * drate_deni
+                                         - drate_deni
       endif
 
       JacobianDemand_no3(ires_no3,ires_no3) = &
@@ -4593,10 +5104,15 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
       JacobianDemand_no3(ires_n2,ires_no3) = &
         JacobianDemand_no3(ires_n2,ires_no3) - 0.5d0 * drate_deni
     
-      if (this%ispec_ngasdeni > 0) then
+      if (this%ispec_ngasdeni > 0 .and. (.not.this%bskipdenijacobian)) then
         JacobianDemand_no3(ires_ngasdeni,ires_no3) = &
-          JacobianDemand_no3(ires_ngasdeni,ires_no3) - 0.5d0 * drate_deni
+          JacobianDemand_no3(ires_ngasdeni,ires_no3) - drate_deni
       endif
+
+      if (this%bdebugoutput) then
+        write(*, *) 'Deni:', rate_deni, drate_deni
+      endif
+
     endif
   endif
 
@@ -4618,6 +5134,435 @@ end subroutine DeniDestroy
 
 end module CLM_Rxn_Deni_class
 
+module CLM_Rxn_CWDFrag_class
+
+! ------------------------------------------------------------------------------
+! Description
+! CWD defragmentation 
+!    CWD => 0.76 Celluse + 0.24 Lignin
+! by t6g 07/18/2015 
+! ------------------------------------------------------------------------------
+
+  use CLM_Rxn_Base_class
+  use Global_Aux_module
+  use Reactive_Transport_Aux_module
+  use PFLOTRAN_Constants_module
+  
+#ifdef CLM_PFLOTRAN
+  use CLM_RspFuncs_module
+#endif
+
+  implicit none
+  
+  private
+  
+#include "finclude/petscsys.h"
+
+#ifndef CLM_PFLOTRAN
+  PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1
+  PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2
+  PetscInt, parameter, public :: MOISTURE_RESPONSE_FUNCTION_CLM4 = 1 
+  PetscInt, parameter, public :: MOISTURE_RESPONSE_FUNCTION_DLEM = 2
+#endif
+
+  type, public, &
+    extends(clm_rxn_base_type) :: clm_rxn_cwdfrag_type
+    PetscInt :: ires_cwdc, ires_cwdn
+    PetscInt :: ires_cellulose_c, ires_cellulose_n
+    PetscInt :: ires_lignin_c, ires_lignin_n
+    PetscInt :: ispec_cwdc, ispec_cwdn
+    PetscInt :: ispec_cellulose_c, ispec_cellulose_n
+    PetscInt :: ispec_lignin_c, ispec_lignin_n
+    PetscInt :: temperature_response_function
+    PetscReal :: Q10
+    PetscInt  :: moisture_response_function
+    PetscReal :: k_cwdfrag                 ! cwdfrag rate
+    PetscReal :: residual_conc
+
+  contains
+    procedure, public :: ReadInput => CWDFragRead
+    procedure, public :: Setup => CWDFragSetup
+    procedure, public :: Evaluate => CWDFragReact
+    procedure, public :: Destroy => CWDFragDestroy
+  end type clm_rxn_cwdfrag_type
+
+  public :: CWDFragCreate
+
+contains
+
+! ************************************************************************** !
+!
+! CWDFragCreate: Allocates cwdfrag reaction object.
+!
+! ************************************************************************** !
+function CWDFragCreate()
+
+  implicit none
+  
+  class(clm_rxn_cwdfrag_type), pointer :: CWDFragCreate
+
+  allocate(CWDFragCreate)
+  CWDFragCreate%ires_cwdc         = 0
+  CWDFragCreate%ires_cwdn         = 0
+  CWDFragCreate%ires_cellulose_c  = 0
+  CWDFragCreate%ires_cellulose_n  = 0
+  CWDFragCreate%ires_lignin_c     = 0
+  CWDFragCreate%ires_lignin_n     = 0
+  CWDFragCreate%ispec_cwdc        = 0
+  CWDFragCreate%ispec_cwdn        = 0
+  CWDFragCreate%ispec_cellulose_c = 0
+  CWDFragCreate%ispec_cellulose_n = 0
+  CWDFragCreate%ispec_lignin_c    = 0
+  CWDFragCreate%ispec_lignin_n    = 0
+
+  CWDFragCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
+  CWDFragCreate%Q10 = 1.5d0
+  CWDFragCreate%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLM4
+
+  CWDFragCreate%k_cwdfrag = 1.158d-8  ! cwdfrag rate 0.001 1/day
+  CWDFragCreate%residual_conc = 1.0d-10
+
+  nullify(CWDFragCreate%next)  
+      
+end function CWDFragCreate
+
+! ************************************************************************** !
+!
+! CWDFragRead: Reads input deck for cwdfrag reaction parameters (if any)
+!
+! ************************************************************************** !
+subroutine CWDFragRead(this,input,option)
+
+  use Option_module
+  use String_module
+  use Input_Aux_module
+  use Units_module, only : UnitsConvertToInternal
+  
+  implicit none
+  
+  class(clm_rxn_cwdfrag_type) :: this
+  type(input_type) :: input
+  type(option_type) :: option
+
+  PetscInt :: i
+  character(len=MAXWORDLENGTH) :: word
+  
+  do 
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword', &
+                       'CHEMISTRY,CLM_RXN,CWDFRAGMENTATION')
+    call StringToUpper(word)   
+
+    select case(trim(word))
+      case('TEMPERATURE_RESPONSE_FUNCTION')
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword', &
+            'CHEMISTRY,CLM_RXN,CWDFRAGMENTATION,TEMPERATURE RESPONSE FUNCTION')
+          call StringToUpper(word)   
+
+          select case(trim(word))
+            case('CLM4')
+              this%temperature_response_function = &
+                TEMPERATURE_RESPONSE_FUNCTION_CLM4
+            case('Q10')
+              this%temperature_response_function = &
+                TEMPERATURE_RESPONSE_FUNCTION_Q10
+              call InputReadDouble(input,option,this%Q10)  
+              call InputErrorMsg(input,option,'Q10', &
+                'CHEMISTRY,CLM_RXN,CWDFRAGMENTATION,TEMPERATURE RESPONSE FUNCTION')
+            case default
+              option%io_buffer = 'CHEMISTRY,CLM_RXN,CWDFRAGMENTATION, TEMPERATURE RESPONSE FUNCTION: ' // &
+                                  trim(word) // ' not recognized.'
+              call printErrMsg(option)
+          end select
+        enddo 
+      case('MOISTURE_RESPONSE_FUNCTION')
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword', &
+            'CHEMISTRY,REACTION_SANDBOX,CWDFRAGMENTATION,MOISTURE RESPONSE FUNCTION')
+          call StringToUpper(word)
+
+          select case(trim(word))
+            case('CLM4')
+              this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_CLM4
+            case('DLEM')
+              this%moisture_response_function = MOISTURE_RESPONSE_FUNCTION_DLEM
+            case default
+              option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMDec,' // &
+                'TEMPERATURE RESPONSE FUNCTION keyword: ' // &
+                trim(word) // ' not recognized.'
+              call printErrMsg(option)
+          end select
+        enddo
+
+      case('RATE_CONSTANT')
+        call InputReadDouble(input,option,this%k_cwdfrag)
+        call InputErrorMsg(input,option,'k_cwdfrag', &
+                 'CHEMISTRY,CLM_RXN,CWDFRAGMENTATION,REACTION')
+      case('RESIDUAL_CONCENTRATION')
+        call InputReadDouble(input,option,this%residual_conc)
+        call InputErrorMsg(input,option,'residual_concentration', &
+                  'CHEMISTRY,CLM_RXN,CWDFRAGMENTATION,REACTION')
+      case default
+        option%io_buffer = 'CHEMISTRY,CLM_RXN,CWDFRAGMENTATION, REACTION: ' // &
+                                  trim(word) // ' not recognized.'
+        call printErrMsg(option)
+    end select
+  enddo
+  
+end subroutine CWDFragRead
+
+! ************************************************************************** !
+!
+! CWDFragSetup: Sets up the cwdfrag reaction either with parameters either
+!                read from the input deck or hardwired.
+!
+! ************************************************************************** !
+subroutine CWDFragSetup(this,reaction,option)
+
+  use Reaction_Aux_module, only : reaction_type, GetPrimarySpeciesIDFromName
+  use Option_module
+  use Reaction_Immobile_Aux_module, only : GetImmobileSpeciesIDFromName 
+
+  implicit none
+  
+  class(clm_rxn_cwdfrag_type) :: this
+  type(reaction_type) :: reaction
+  type(option_type) :: option
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: ispec
+ 
+  word = 'CWDC'
+  ispec = GetImmobileSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+
+  if (ispec < 0) then
+    option%io_buffer = 'CHEMISTRY,CLM_RXN,CWDFRAGMENTATION: ' // &
+                        ' CWDC is not specified in the input file.'
+    call printErrMsg(option)
+  endif
+  
+  this%ispec_cwdc = ispec
+  this%ires_cwdc = ispec + reaction%offset_immobile 
+
+  word = 'CWDN'
+  ispec = GetImmobileSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+
+  if (ispec < 0) then
+    option%io_buffer = 'CHEMISTRY,CLM_RXN,CWDFRAGMENTATION: ' // &
+                        ' CWDN is not specified in the input file.'
+    call printErrMsg(option)
+  endif
+  
+  this%ispec_cwdn = ispec
+  this%ires_cwdn = ispec + reaction%offset_immobile 
+
+  word = 'CelluloseC'
+  ispec = GetImmobileSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+
+  if (ispec < 0) then
+    option%io_buffer = 'CHEMISTRY,CLM_RXN,CWDFRAGMENTATION: ' // &
+                        ' CelluloseC is not specified in the input file.'
+    call printErrMsg(option)
+  endif
+  
+  this%ispec_cellulose_c = ispec
+  this%ires_cellulose_c = ispec + reaction%offset_immobile 
+
+  word = 'CelluloseN'
+  ispec = GetImmobileSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+
+  if (ispec < 0) then
+    option%io_buffer = 'CHEMISTRY,CLM_RXN,CWDFRAGMENTATION: ' // &
+                        ' CelluloseN is not specified in the input file.'
+    call printErrMsg(option)
+  endif
+  
+  this%ispec_cellulose_n = ispec
+  this%ires_cellulose_n = ispec + reaction%offset_immobile 
+
+  word = 'LigninC'
+  ispec = GetImmobileSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+
+  if (ispec < 0) then
+    option%io_buffer = 'CHEMISTRY,CLM_RXN,CWDFRAGMENTATION: ' // &
+                        ' LigninC is not specified in the input file.'
+    call printErrMsg(option)
+  endif
+  
+  this%ispec_lignin_c = ispec
+  this%ires_lignin_c = ispec + reaction%offset_immobile 
+
+  word = 'LigninN'
+  ispec = GetImmobileSpeciesIDFromName(word,reaction%immobile,PETSC_FALSE,option)
+
+  if (ispec < 0) then
+    option%io_buffer = 'CHEMISTRY,CLM_RXN,CWDFRAGMENTATION: ' // &
+                        ' LigninN is not specified in the input file.'
+    call printErrMsg(option)
+  endif
+  
+  this%ispec_lignin_n = ispec
+  this%ires_lignin_n = ispec + reaction%offset_immobile 
+
+end subroutine CWDFragSetup
+
+! ************************************************************************** !
+subroutine CWDFragReact(this,Residual,Jacobian,compute_derivative, &
+                     rt_auxvar,global_auxvar,material_auxvar,reaction,option, &
+                     RateDemand_nh4,RateSupply_nh4, &
+                     JacobianDemand_nh4,JacobianSupply_nh4, &
+                     RateDemand_no3,RateSupply_no3, &
+                     JacobianDemand_no3,JacobianSupply_no3, &
+                     Rate_nh4_to_no3,Jacobian_nh4_to_no3)
+
+  use Option_module
+  use Reaction_Aux_module
+  use Material_Aux_class, only : material_auxvar_type
+  use CLM_Rxn_Common_module, only: CalNLimitFunc
+
+#ifdef CLM_PFLOTRAN
+  use clm_pflotran_interface_data
+#endif
+
+  implicit none
+
+#ifdef CLM_PFLOTRAN
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+#endif
+
+  class(clm_rxn_cwdfrag_type) :: this
+  type(option_type) :: option
+  type(reaction_type) :: reaction
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
+
+  PetscBool :: compute_derivative
+  PetscReal :: Residual(reaction%ncomp)
+  PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
+  PetscReal :: RateDemand_nh4(reaction%ncomp)
+  PetscReal :: RateSupply_nh4(reaction%ncomp)
+  PetscReal :: RateDemand_no3(reaction%ncomp)
+  PetscReal :: RateSupply_no3(reaction%ncomp)
+  PetscReal :: JacobianDemand_nh4(reaction%ncomp,reaction%ncomp)
+  PetscReal :: JacobianSupply_nh4(reaction%ncomp,reaction%ncomp)
+  PetscReal :: JacobianDemand_no3(reaction%ncomp,reaction%ncomp)
+  PetscReal :: JacobianSupply_no3(reaction%ncomp,reaction%ncomp)
+  PetscReal :: Rate_nh4_to_no3
+  PetscReal :: Jacobian_nh4_to_no3(reaction%ncomp)
+  PetscReal :: porosity
+  PetscReal :: volume
+  PetscInt :: local_id
+  PetscErrorCode :: ierr
+
+  PetscReal :: temp_real
+  PetscReal :: c_cwdc, c_cwdn
+  PetscReal :: rate_c, rate_n, drate
+  PetscReal :: saturation, tc, theta
+  PetscReal :: f_t, f_w, psi
+
+
+#ifdef CLM_PFLOTRAN
+  PetscScalar, pointer :: h2osoi_vol_pf_loc(:)    !
+  PetscScalar, pointer :: watsat_pf_loc(:)    !
+  PetscScalar, pointer :: w_scalar_pf_loc(:)    !
+#endif
+
+  volume = material_auxvar%volume
+
+#ifdef CLM_PFLOTRAN
+  local_id = option%iflag
+#endif
+
+  tc = global_auxvar%temp
+
+  f_t = 1.0d0
+#ifdef CLM_PFLOTRAN 
+  f_t = GetTemperatureResponse(tc,this%temperature_response_function, this%Q10)
+#endif
+
+  saturation = global_auxvar%sat(1)
+  porosity = material_auxvar%porosity
+  theta = saturation * porosity
+  ! if positive, saturated soil's psi is nearly zero
+  psi = min(global_auxvar%pres(1) - option%reference_pressure, -1.d-20)
+
+  ! moisture response function 
+  f_w = 1.0d0
+#ifdef CLM_PFLOTRAN
+  if(this%moisture_response_function == MOISTURE_RESPONSE_FUNCTION_CLM4) then
+     f_w = GetMoistureResponse(psi, local_id, this%moisture_response_function)
+  elseif(this%moisture_response_function==MOISTURE_RESPONSE_FUNCTION_DLEM) then
+     f_w = GetMoistureResponse(theta, local_id, this%moisture_response_function)
+  endif
+#endif
+
+#ifdef CLM_PFLOTRAN
+    call VecGetArrayF90(clm_pf_idata%w_scalar_pfs, w_scalar_pf_loc, ierr)
+    w_scalar_pf_loc(local_id) = f_w
+    call VecRestoreArrayF90(clm_pf_idata%w_scalar_pfs, w_scalar_pf_loc, ierr)
+#endif
+
+  if (f_t < 1.0d-20 .or. f_w < 1.0d-20) then
+     return
+  endif
+
+  c_cwdc = rt_auxvar%immobile(this%ispec_cwdc)
+  c_cwdn = rt_auxvar%immobile(this%ispec_cwdn)
+
+  rate_c = this%k_cwdfrag * f_t * f_w * volume * (c_cwdc - this%residual_conc) 
+  rate_n = this%k_cwdfrag * f_t * f_w * volume * (c_cwdn - this%residual_conc) 
+  drate = this%k_cwdfrag  * f_t * f_w * volume
+
+  Residual(this%ires_cwdc) = Residual(this%ires_cwdc) + rate_c
+  Residual(this%ires_cwdn) = Residual(this%ires_cwdn) + rate_n
+  Residual(this%ires_cellulose_c) = Residual(this%ires_cellulose_c) - 0.76 * rate_c
+  Residual(this%ires_cellulose_n) = Residual(this%ires_cellulose_n) - 0.76 * rate_n
+  Residual(this%ires_lignin_c) = Residual(this%ires_lignin_c) - 0.24 * rate_c
+  Residual(this%ires_lignin_n) = Residual(this%ires_lignin_n) - 0.24 * rate_n
+
+  if (compute_derivative) then
+    Jacobian(this%ires_cwdc,this%ires_cwdc)        = Jacobian(this%ires_cwdc,this%ires_cwdc) + drate
+    Jacobian(this%ires_cellulose_c,this%ires_cwdc) = Jacobian(this%ires_cellulose_c,this%ires_cwdc) - 0.76 * drate
+    Jacobian(this%ires_lignin_c,this%ires_cwdc)    = Jacobian(this%ires_cellulose_c,this%ires_cwdc) - 0.24 * drate
+    Jacobian(this%ires_cwdn,this%ires_cwdn)        = Jacobian(this%ires_cwdc,this%ires_cwdc) + drate
+    Jacobian(this%ires_cellulose_n,this%ires_cwdn) = Jacobian(this%ires_cellulose_c,this%ires_cwdc) - 0.76 * drate
+    Jacobian(this%ires_lignin_n,this%ires_cwdn)    = Jacobian(this%ires_cellulose_c,this%ires_cwdc) - 0.24 * drate
+  endif
+end subroutine CWDFragReact
+
+! ************************************************************************** !
+!
+! DeniDestroy: Destroys allocatable or pointer objects created in this 
+!                  module
+!
+! ************************************************************************** !
+subroutine CWDFragDestroy(this)
+
+  implicit none
+  
+  class(clm_rxn_CWDFrag_type) :: this  
+
+end subroutine CWDFragDestroy
+
+end module CLM_Rxn_CWDFrag_class
+
 module CLM_Rxn_module
 
   ! extended from reaction_sandbox to implement demand based down regulation
@@ -4625,6 +5570,7 @@ module CLM_Rxn_module
 
   use CLM_Rxn_Base_class
   use CLM_Rxn_Decomp_class
+  use CLM_Rxn_CWDFrag_class
   use CLM_Rxn_Deni_class
   use CLM_Rxn_Nitr_class
   use CLM_Rxn_PlantN_class
@@ -4641,6 +5587,7 @@ module CLM_Rxn_module
 
   PetscBool :: bdownreg
   PetscBool :: bdebugoutput
+  PetscBool :: b_ignore_production
   PetscReal :: residual_nh4
   PetscReal :: residual_no3
   PetscReal :: accelerator
@@ -4648,6 +5595,7 @@ module CLM_Rxn_module
   PetscReal :: cutoff_nh4_1
   PetscReal :: cutoff_no3_0
   PetscReal :: cutoff_no3_1
+  PetscReal :: reset_concentration
 
   interface RCLMRxnRead
     module procedure RCLMRxnRead1
@@ -4666,6 +5614,8 @@ module CLM_Rxn_module
             RCLMRxn, &
             RCLMRxnDestroy
 
+  public :: reset_concentration
+
 contains
 
 ! ************************************************************************** !
@@ -4682,15 +5632,18 @@ subroutine RCLMRxnInit(option)
     call RCLMRxnDestroy()
   endif
   nullify(clmrxn_list)
-  bdownreg = PETSC_TRUE
+  bdownreg = PETSC_FALSE
   bdebugoutput = PETSC_FALSE
+  b_ignore_production = PETSC_FALSE
+  
   residual_nh4 =  1.0d-20
   residual_no3 =  1.0d-20
   accelerator  =  1.0d0
   cutoff_nh4_0 = -1.0d-18
-  cutoff_nh4_1 = -1.0d-18
-  cutoff_no3_0 =  1.0d-15
+  cutoff_nh4_1 =  1.0d-18
+  cutoff_no3_0 = -1.0d-15
   cutoff_no3_1 =  1.0d-15
+  reset_concentration = 1.0d0
 
 end subroutine RCLMRxnInit
 
@@ -4781,16 +5734,20 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
     select case(trim(word))
       case('DECOMPOSITION')
         new_clmrxn => CLMDec_Create()
+      case('CWDFRAGMENTATION')
+        new_clmrxn => CWDFragCreate()
       case('DENITRIFICATION')
         new_clmrxn => DeniCreate()
       case('NITRIFICATION')
         new_clmrxn => NitrCreate()
       case('PLANTNTAKE')
         new_clmrxn => PlantNCreate()
-      case('DISABLE_DOWNREGULATION')
-        bdownreg = PETSC_FALSE
+      case('ENABLE_DOWNREGULATION')
+        bdownreg = PETSC_TRUE
       case('DEBUG_OUTPUT')
         bdebugoutput = PETSC_TRUE
+      case('IGNORE_PRODUCTION')
+        b_ignore_production = PETSC_TRUE
       case('RESIDUAL_NH4')
         call InputReadDouble(input,option,residual_nh4)
         call InputErrorMsg(input,option,'residual nh4','CHEMISTRY,CLMRXN')
@@ -4823,9 +5780,18 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
           call printErrMsg(option)
         endif
 
+      case('RESET_CONCENTRATION')
+        call InputReadDouble(input,option,reset_concentration)
+        call InputErrorMsg(input,option,'reset concentration','CHEMISTRY,CLMRXN')
+        if (reset_concentration < 0.0d0) then
+          option%io_buffer = 'CHEMISTRY,CLM_RXN,' // &
+            'reset concentration is negative! '
+          call printErrMsg(option)
+        endif
+
       case default
-        option%io_buffer = 'CHEMISTRY,CLM_RXN keyword: ' // &
-          trim(word) // ' not recognized.'
+        option%io_buffer = 'CHEMISTRY,CLM_RXN: ' // &
+                           trim(word) // ' not recognized.'
         call printErrMsg(option)
     end select
     
@@ -4882,6 +5848,7 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
   use Reaction_Aux_module
   use Reactive_Transport_Aux_module
   use Global_Aux_module
+  use Reaction_Immobile_Aux_module
   use Material_Aux_class, only: material_auxvar_type
   
   implicit none
@@ -4914,10 +5881,10 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   PetscReal :: Rate_nh4_to_no3
   PetscReal :: Jacobian_nh4_to_no3(reaction%ncomp)
-
+  PetscReal :: f_supply
 
   PetscReal :: dt
-  PetscReal :: kg_water
+  PetscReal :: kg_water_or_volume
   PetscReal :: c_nh4,avail_nh4,davail_nh4
   PetscReal :: c_no3,avail_no3,davail_no3
   PetscReal :: demand_nh4,supply_nh4,downscale_nh4
@@ -4926,19 +5893,19 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   PetscBool :: b_nh4_downscaled
   PetscBool :: b_no3_downscaled
+  PetscBool :: is_nh4_aqueous, is_no3_aqueous
 
   PetscInt, parameter :: iphase = 1
   PetscInt :: i,j 
   PetscInt :: ispec_nh4
   PetscInt :: ispec_no3
+  PetscInt :: ires_nh4
+  PetscInt :: ires_no3
 
   character(len=MAXWORDLENGTH) :: word
 
   ResidualPre = Residual
   JacobianPre = Jacobian 
-
-  kg_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
-             material_auxvar%volume*global_auxvar%den_kg(iphase)
 
   RateDemand_nh4      = 0.0d0
   RateSupply_nh4      = 0.0d0
@@ -4973,34 +5940,86 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
   if (.not.bdownreg) return
 
   ! down regulate sink if sink * dt > source * dt + conc 
- 
+
+  is_nh4_aqueous = PETSC_TRUE 
   word = 'NH4+'
   ispec_nh4 = GetPrimarySpeciesIDFromName(word,reaction,PETSC_FALSE,option)
 
+  ires_nh4 = -999 
   if (ispec_nh4 < 0) then
     word = 'NH3(aq)'
-    ispec_nh4 = GetPrimarySpeciesIDFromName(word,reaction,PETSC_FALSE, &
-      option)
+    ispec_nh4 = GetPrimarySpeciesIDFromName(word,reaction,PETSC_FALSE, option)
   endif
-  
+ 
+  if (ispec_nh4 > 0) ires_nh4 = ispec_nh4
+ 
   if (ispec_nh4 < 0) then
-    option%io_buffer = 'Neither NH4+ nor NH3(aq) is specified in the input' // &
+    word = 'Ammonium'
+    ispec_nh4 = GetImmobileSpeciesIDFromName( &
+            word,reaction%immobile,PETSC_FALSE,option)
+    if (ispec_nh4 > 0) then
+      is_nh4_aqueous = PETSC_FALSE
+      ires_nh4 = ispec_nh4 + reaction%offset_immobile 
+    endif
+  endif 
+
+  if (ispec_nh4 < 0) then
+    option%io_buffer = 'NH4+, NH3(aq) or Ammonium is specified in the input' // &
       'file for clm_rxn!'
     call printErrMsg(option)
   endif
 
   word = 'NO3-'
   ispec_no3 = GetPrimarySpeciesIDFromName(word,reaction,PETSC_FALSE,option)
-   
+ 
+  ires_no3 = -999 
+  if (ispec_no3 > 0) ires_no3 = ispec_no3
+
+  if (ispec_no3 < 0) then
+    word = 'Nitrate'
+    ispec_no3 = GetImmobileSpeciesIDFromName( &
+            word,reaction%immobile,PETSC_FALSE,option)
+    if (ispec_no3 > 0) then
+      is_no3_aqueous = PETSC_FALSE
+      ires_no3 = ispec_no3 + reaction%offset_immobile 
+    endif
+  endif 
+
+  if (ispec_nh4 > 0 .and. ispec_no3 > 0) then
+    if ((is_nh4_aqueous .and. (.not.is_no3_aqueous)) .or. & 
+        ((.not.is_nh4_aqueous) .and. is_no3_aqueous)) then
+      option%io_buffer = 'ERROR: Ammonium and nitrate have different phases: one in aqueous, the other in immobile,' // &
+        'please use the same in the input file!'
+      call printErrMsg(option)
+    endif
+  endif
+
+  if (is_nh4_aqueous) then 
+    kg_water_or_volume = material_auxvar%porosity*global_auxvar%sat(iphase)* &
+               material_auxvar%volume*global_auxvar%den_kg(iphase)
+  else
+    kg_water_or_volume = material_auxvar%volume
+  endif
+
   b_nh4_downscaled = PETSC_FALSE
   b_no3_downscaled = PETSC_FALSE
   dt = option%tran_dt
 
+  if (b_ignore_production) then
+    f_supply = 0.0d0
+  else
+    f_supply = 1.0d0
+  endif
+
   ! if there is NH4+ demand
-  if (RateDemand_nh4(ispec_nh4) > 0.0d0) then
+  if (RateDemand_nh4(ires_nh4) > 0.0d0) then
     ! following residual calculation sign, sink/demand is positive, 
     !                                      source/production is negative
-    c_nh4 = rt_auxvar%pri_molal(ispec_nh4)
+    if (is_nh4_aqueous) then
+      c_nh4 = rt_auxvar%pri_molal(ispec_nh4)
+    else
+      c_nh4 = rt_auxvar%immobile(ispec_nh4)
+    endif
 
     if (cutoff_nh4_0 > 0.0d0) then
       if (c_nh4 <= cutoff_nh4_0) then
@@ -5025,9 +6044,11 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
     avail_nh4 = (c_nh4 - residual_nh4) * regulator
     davail_nh4 = regulator + (c_nh4 - residual_nh4) * dregulator
 
-    demand_nh4 = RateDemand_nh4(ispec_nh4) * dt
-    supply_nh4 = RateSupply_nh4(ispec_nh4) * dt - avail_nh4 * kg_water 
-  
+    demand_nh4 = RateDemand_nh4(ires_nh4) * dt
+
+    supply_nh4 = RateSupply_nh4(ires_nh4) * dt * f_supply &
+                 - avail_nh4 * kg_water_or_volume 
+ 
     ! if no supply, demand reactions will not occur
     if (supply_nh4 >= 0.0d0) then
       downscale_nh4 = 0.0d0
@@ -5053,16 +6074,16 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
                                + downscale_nh4 * JacobianDemand_nh4 
 
         do i = 1, reaction%ncomp
-          if (i == ispec_nh4) then          
+          if (i == ires_nh4) then          
             ddownscale_nh4(i) =-1.0d0 * ( &
-              (JacobianSupply_nh4(ispec_nh4,i) * dt - davail_nh4*kg_water) * &
-              demand_nh4 - &
-              supply_nh4 * JacobianDemand_nh4(ispec_nh4,i) * dt) / &
+              (JacobianSupply_nh4(ires_nh4,i) * dt * f_supply - &
+              davail_nh4 * kg_water_or_volume) * demand_nh4 - &
+              supply_nh4 * JacobianDemand_nh4(ires_nh4,i) * dt) / &
               demand_nh4 / demand_nh4   
           else
             ddownscale_nh4(i) =-1.0d0 * ( &
-              JacobianSupply_nh4(ispec_nh4,i) * dt * demand_nh4 - & 
-              supply_nh4 * JacobianDemand_nh4(ispec_nh4,i) * dt) / &
+              JacobianSupply_nh4(ires_nh4,i) * dt * f_supply * demand_nh4 - & 
+              supply_nh4 * JacobianDemand_nh4(ires_nh4,i) * dt) / &
               demand_nh4 / demand_nh4   
           endif
         enddo
@@ -5086,9 +6107,10 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
     if (bdebugoutput) then
       write(*, *) 'Cell id = ', option%iflag, &
                   'downscale_nh4 = ', downscale_nh4, &
-                  'NH4+ = ', rt_auxvar%pri_molal(ispec_nh4), &
+                  'NH4+ = ', rt_auxvar%pri_molal(ires_nh4), &
                   'supply = ', supply_nh4, &
-                  'demand = ', demand_nh4
+                  'demand = ', demand_nh4, &
+                  'residual = ', Residual(ires_nh4)
       !write(*, *) 'residual = '
       !write(*, *) (Residual(i), i = 1, reaction%ncomp)
       if (compute_derivative) then
@@ -5106,12 +6128,16 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
     endif
   endif
 
-  if (ispec_no3 > 0) then
+  if (ires_no3 > 0) then
     ! if there is NO3- demand
-    if (RateDemand_no3(ispec_no3) > 0.0d0) then
+    if (RateDemand_no3(ires_no3) > 0.0d0) then
 
-      c_no3 = rt_auxvar%pri_molal(ispec_no3)
- 
+      if (is_no3_aqueous) then
+        c_no3 = rt_auxvar%pri_molal(ispec_no3)
+      else
+        c_no3 = rt_auxvar%immobile(ispec_no3)
+      endif 
+
       if (cutoff_no3_0 > 0.0d0) then
         if (c_no3 <= cutoff_no3_0) then
           regulator = 0.0d0
@@ -5135,10 +6161,11 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
       avail_no3 = (c_no3 - residual_no3) * regulator
       davail_no3 = regulator + (c_no3 - residual_no3) * dregulator
 
-      demand_no3 = RateDemand_no3(ispec_no3) * dt
+      demand_no3 = RateDemand_no3(ires_no3) * dt
 
-      supply_no3 = RateSupply_no3(ispec_no3) * dt - avail_no3 * kg_water - &
-        Rate_nh4_to_no3 * downscale_nh4 * dt
+      supply_no3 = RateSupply_no3(ires_no3) * dt * f_supply - &
+        avail_no3 * kg_water_or_volume - &
+        Rate_nh4_to_no3 * downscale_nh4 * dt * f_supply
 
       if (supply_no3 >= 0.0d0) then
         ! if no NO3- supply, demanding reactions won't occur
@@ -5182,19 +6209,21 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
                               + downscale_no3 * JacobianDemand_no3 
 
           do i = 1, reaction%ncomp
-            if (i == ispec_no3) then          
+            if (i == ires_no3) then          
               ddownscale_no3(i) =-1.0d0 * ( &
-                (JacobianSupply_no3(ispec_no3,i) * dt - davail_no3* kg_water - &
-                Jacobian_nh4_to_no3(i) * downscale_nh4 * dt  - &
-                Rate_nh4_to_no3 * ddownscale_nh4(i) * dt) * demand_no3 - &
-                supply_no3 * JacobianDemand_no3(ispec_no3,i)* dt ) / &
+                (JacobianSupply_no3(ires_no3,i) * dt * f_supply - &
+                davail_no3* kg_water_or_volume - &
+                Jacobian_nh4_to_no3(i) * downscale_nh4 * dt * f_supply  - &
+                Rate_nh4_to_no3 * ddownscale_nh4(i) * dt * f_supply) * demand_no3 - &
+                supply_no3 * JacobianDemand_no3(ires_no3,i)* dt ) / &
                 demand_no3 / demand_no3   
             else
               ddownscale_no3(i) =-1.0d0 * ( &
-                (JacobianSupply_no3(ispec_no3,i) * dt - &
-                Jacobian_nh4_to_no3(i) * downscale_nh4 * dt  - &
-                Rate_nh4_to_no3 * ddownscale_nh4(i) * dt) * demand_no3 - &
-                supply_no3 * JacobianDemand_no3(ispec_no3,i) * dt ) / &
+                (JacobianSupply_no3(ires_no3,i) * dt * f_supply - &
+                Jacobian_nh4_to_no3(i) * downscale_nh4 * dt * f_supply  - &
+                Rate_nh4_to_no3 * ddownscale_nh4(i) * dt * f_supply) * &
+                demand_no3 - &
+                supply_no3 * JacobianDemand_no3(ires_no3,i) * dt ) / &
                 demand_no3 / demand_no3   
             endif
           enddo
@@ -5218,9 +6247,10 @@ subroutine RCLMRxn(Residual,Jacobian,compute_derivative,rt_auxvar, &
       if (bdebugoutput) then
         write(*, *) 'Cell id = ', option%iflag, &
                     'downscale_no3 = ', downscale_no3, &
-                    'NO3- = ', rt_auxvar%pri_molal(ispec_no3), &
+                    'NO3- = ', rt_auxvar%pri_molal(ires_no3), &
                     'supply = ', supply_no3, &
-                    'demand = ', demand_no3
+                    'demand = ', demand_no3, &
+                    'residual = ', Residual(ires_no3)
         !write(*, *) 'residual = '
         !write(*, *) (Residual(i), i = 1, reaction%ncomp)
         if (compute_derivative) then

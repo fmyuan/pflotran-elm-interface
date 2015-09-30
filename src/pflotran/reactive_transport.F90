@@ -386,7 +386,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
     ! scale if necessary
     if (min_ratio < 1.d0) then
 
-!#ifdef DEBUG
+!#ifdef CLM_PF_DEBUG
       if(min_ratio < min_allowable_scale ) then
         write(realization%option%fid_out, *) '-----checking scaling factor for RT ------'
         write(realization%option%fid_out, *) 'min. scaling factor = ', min_ratio
@@ -397,8 +397,10 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
           ratio = abs(C_p(i)/dC_p(i))
           if ( ratio<=min_ratio .and. C_p(i)<=dC_p(i) ) then
             write(realization%option%fid_out, *)  &
-             ' <------ min_ratio @', i, 'cell no.=', floor((i-1.d0)/j), &
-            'rt species no. =',i-floor((i-1.d0)/j)*j, '-------------->'
+              ' <------ min_ratio @', i, 'cell no.=', floor((i-1.d0)/j), &
+              'rt species no. =',i-floor((i-1.d0)/j)*j, '-------------->'
+            write(realization%option%fid_out, *)  &
+              'ratio=',ratio, ' Cp(i)=', C_p(i), ' dCp(i)=', dC_p(i)
           endif
 
         enddo
@@ -425,6 +427,9 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
           'send your input deck to pflotran-dev@googlegroups.com and ' // &
           'ask for help.'
         realization%option%io_buffer = string
+#ifdef CLM_PFLOTRAN
+        if (realization%option%time > 1.0d-20) &
+#endif
         call printErrMsg(realization%option)
       endif
       ! scale by 0.99 to make the update slightly smaller than the min_ratio
@@ -700,10 +705,6 @@ subroutine RTUpdateMassBalance(realization)
   use Option_module
   use Patch_module
   use Grid_module
-  ! for passing reaction rates from PFLTORAN bgc to CLM-PFLOTRAN interface vecs
-#ifdef CLM_PFLOTRAN
-  use clm_pflotran_interface_data
-#endif
  
   implicit none
   
@@ -715,15 +716,6 @@ subroutine RTUpdateMassBalance(realization)
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars_ss(:)
 
   PetscInt :: iconn
-
-  ! for passing reaction rates from PFLTORAN bgc to CLM-PFLOTRAN interface vecs
-#ifdef CLM_PFLOTRAN
-  PetscInt :: k, kcomp, jcomp, vec_offset
-  PetscReal, pointer :: array_pfp(:)
-  PetscInt :: ghosted_id, local_id
-  PetscInt :: ierr
-#endif
-
 
   option => realization%option
   patch => realization%patch
@@ -750,35 +742,6 @@ subroutine RTUpdateMassBalance(realization)
       rt_auxvars_ss(iconn)%mass_balance + &
       rt_auxvars_ss(iconn)%mass_balance_delta*option%tran_dt
   enddo
-
-#ifdef CLM_PFLOTRAN
-!F.-M. YUAN: tracking reaction rates for CLM-CN
-! (1) 'Jup' above will be calculated as reaction flow rate from upstream species to downstream species
-!     NOW, only done for relevant CLM-CN reaction sandboxes; BUT if need every reaction, have to add
-! (2) NOW, only good for tracking 'reaction NON flux' portion, but can be done for 'flux' portion
-
-  if (associated(realization%reaction)) then
-    do local_id = 1, patch%grid%nlmax
-      ghosted_id = patch%grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) < 0) cycle
-
-      call VecGetArrayF90(clm_pf_idata%acchr_vr_pfp, array_pfp, ierr); CHKERRQ(ierr)
-      do k=1,clm_pf_idata%ndecomp_pools
-        ! get a seg. of data from the whole '_pfp' vec for the 'k'th pool
-        vec_offset = (k-1)*clm_pf_idata%nlpf_sub       ! MPI decomp_clmp vec: 'cell' first, then 'species'
-        kcomp = clm_pf_idata%ispec_decomp_c(k)+realization%reaction%offset_immobile
-
-        jcomp = clm_pf_idata%ispec_hr
-        array_pfp(vec_offset + local_id) = array_pfp(vec_offset + local_id) + &    ! zeroing has been done at begining of each CLM-timestep
-               patch%aux%RT%auxvars(ghosted_id)%reaction_rate(kcomp, jcomp) * &    ! unit: moles/m3/sec
-               option%tran_dt                                                      ! unit: moles/m3/sec --> moles/m3
-
-      enddo
-      call VecRestoreArrayF90(clm_pf_idata%acchr_vr_pfp, array_pfp, ierr); CHKERRQ(ierr)
-
-    enddo
-  endif
-#endif
 
 end subroutine RTUpdateMassBalance
 
@@ -2991,8 +2954,7 @@ subroutine RTResidualNonFlux(snes,xx,r,realization,ierr)
 ! note: 'local_id' is used in those sandboxes, but after checking when in parallel mode,
 ! it should be 'ghosted_id', because in 'clm_pf_idata%???', those are defined as PETSC seq. vecs.
 #ifdef CLM_PFLOTRAN
-      option%iflag = ghosted_id
-      rt_auxvars(ghosted_id)%reaction_rate(:,:) = 0.d0
+    option%iflag = ghosted_id
 #endif
 
       call RReaction(Res,Jup,PETSC_FALSE,rt_auxvars(ghosted_id), &
@@ -3712,8 +3674,7 @@ subroutine RTJacobianNonFlux(snes,xx,A,B,realization,ierr)
 ! note: 'local_id' is used in those sandboxes, but after checking when in parallel mode,
 ! it should be 'ghosted_id', because in 'clm_pf_idata%???', those are defined as PETSC seq. vecs.
 #ifdef CLM_PFLOTRAN
-      option%iflag = ghosted_id
-      rt_auxvars(ghosted_id)%reaction_rate(:,:) = 0.d0
+    option%iflag = ghosted_id
 #endif
 
       call RReactionDerivative(Res,Jup,rt_auxvars(ghosted_id), &
@@ -4257,7 +4218,8 @@ subroutine RTUpdateAuxVars(realization,update_cells,update_bcs, &
               boundary_condition%tran_condition%cur_constraint_coupler%immobile_species, &
               boundary_condition%tran_condition%cur_constraint_coupler%num_iterations, &
               PETSC_TRUE,option)
-            ! print *,'RT redo constrain on BCs: 2: ', sum_connection  
+            ! print *,'RT redo constrain on BCs: 2: ', sum_connection
+
           endif         
         endif
 
