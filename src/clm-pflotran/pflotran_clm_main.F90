@@ -588,11 +588,11 @@ contains
        !   bc_Sr(1)  = sr_pf_loc(ghosted_id)      ! currently only for liq. water, NOTE that if at 'Sr', pc = inf
        !   bc_pcwmax = pcwmax_pf_loc(ghosted_id)  ! this parameter IS not corresponding with 'Sr'
 
-       ! currently BC-Burdine saturation function type, with specified values to match with Clapp-Hornberger Eq.
+       ! currently BC-Burdine saturation/permisivity function type, with specified values to match with Clapp-Hornberger Eq.
         if ( saturation_function%saturation_function_itype == BROOKS_COREY .and. &
              saturation_function%permeability_function_itype == BURDINE )         then
           ! Clapp-Hornberger: soilpsi = sucsat * (-9.81) * (fsattmp)**(-bsw)  ! mm H2O Head --> -pa
-          !                   K = Ks*fsattmp**(3+2/bsw)
+          !                   K = Ks*fsattmp**(3+2*bsw)
           !         vs.
           ! BC-Burdine: pc =  (Se**(-1.d0/lambda))/alpha, with Se=(lsat-Sr)/(1-Sr)
           !             relative_perm = Se**power, with power = 3+2/lamda
