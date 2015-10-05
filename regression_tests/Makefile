@@ -41,15 +41,18 @@ STANDARD_CFG = \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
+	default/batch/batch.cfg \
 	default/eos/eos.cfg \
 	default/materials/materials.cfg \
 	default/materials/soil_compressibility/soil_compressibility.cfg \
 	default/materials/mineral_volume/mineral_volume.cfg \
 	default/infiltrometer/infiltrometer.cfg \
 	default/condition/condition.cfg \
+	default/condition/dataset/dataset.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	default/scco2/mphase/mphase.cfg \
 	default/scco2/flash2/flash2.cfg \
+	default/regions/regions.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
         general/general.cfg \
         hydrogeophysics/hydrogeophysics.cfg \
@@ -79,6 +82,7 @@ GEOCHEMISTRY_CFG = \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
+	default/batch/batch.cfg \
 	default/multicontinuum/multicontinuum.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
         ngee/ngee.cfg \
@@ -216,4 +220,5 @@ clean-tests :
 	-rm -f wipp/nuts/case3-int.dat
 	-rm -f wipp/nuts/case4r1_modified-int.dat
 	-rm -f wipp/bragflo/gas_generation_2d-np4.h5
+	-rm -f default/543/543_hanford_srfcplx_base*.h5
 

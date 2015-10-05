@@ -673,6 +673,10 @@ STRATA
 END
 
 #=========================== checkpoint / restart =============================
-CHECKPOINT 10
+CHECKPOINT
+  PERIODIC TIMESTEP 10
+  FORMAT BINARY
+  FORMAT HDF5
+END
 
 END_SUBSURFACE
