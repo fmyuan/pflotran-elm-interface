@@ -28,17 +28,20 @@ module clm_pflotran_interface_data
 
   ! num of CLM soil layers that are mapped to/from PFLOTRAN
   PetscInt :: nzclm_mapped
+  PetscInt :: nxclm_mapped
+  PetscInt :: nyclm_mapped
+  PetscReal, pointer :: dzclm_global(:)              ! this is NOT the 3-D vec 'zsoi' defined below, rather it's the universal soil layer thickness for all gridcells
 
   ! Soil BGC decomposing pools
   PetscInt :: ndecomp_pools
   logical, pointer :: floating_cn_ratio(:)           ! TRUE => pool has fixed C:N ratio
+  character(len=8), pointer :: decomp_pool_name(:)   ! name of pool
 
   ! RT bgc species 'idof'/name
   ! NOTES: The following is what PF bgc right now using for CLM-PFLOTRAN coupling
   ! if need adding or modifying, it's possible and update BOTH here and subroutine 'pflotranModelGetRTspecies'
   ! (Of course, it must be modifying the PF input card and get those variables and relevant reactions in RT).
 
-  character(len=32), pointer :: name_decomp(:)   ! name of pools, which will be appending 'C' or 'N' for real PF species name
   PetscInt, pointer:: ispec_decomp_c(:)
   PetscInt, pointer:: ispec_decomp_n(:)
 
@@ -147,11 +150,21 @@ module clm_pflotran_interface_data
   Vec :: soillsat_clmp                  ! soil liq. water saturation (0 - 1)
   Vec :: soilisat_clmp                  ! soil ice water saturation (0 - 1)
   Vec :: soilt_clmp                     ! soil temperature (degC)
+  Vec :: h2osoi_vol_clmp                ! volume soil water content (inc. ice and liq water)
+  Vec :: t_scalar_clmp                  ! temperature response function value from CLM for decomposition reations
+  Vec :: w_scalar_clmp                  ! soil moisture response function value from CLM for decomposition reations
+  Vec :: o_scalar_clmp                  ! soil anoxic response function value from CLM for decomposition and/or CH4/NOx processes
+  Vec :: depth_scalar_clmp              ! soil depth response function value from CLM for decomposition reations
   Vec :: press_pfs
   Vec :: soilpsi_pfs
   Vec :: soillsat_pfs
   Vec :: soilisat_pfs
   Vec :: soilt_pfs
+  Vec :: h2osoi_vol_pfs
+  Vec :: t_scalar_pfs                  ! temperature response function value from CLM for decomposition reations
+  Vec :: w_scalar_pfs                  ! soil moisture response function value from CLM for decomposition reations
+  Vec :: o_scalar_pfs                  ! soil anoxic response function value from CLM for decomposition and/or CH4/NOx processes
+  Vec :: depth_scalar_pfs              ! soil depth response function value from CLM for decomposition reations
 
   ! Sink/Source of water/heat for PFLOTRAN's 3D subsurface domain
   Vec :: qflux_clmp   ! mpi vec (H2O)
@@ -274,10 +287,10 @@ module clm_pflotran_interface_data
   Vec :: smin_nh4sorb_vr_clms           ! (moleN/m3) vertically-resolved absorbed NH4-N
   !
   ! 'accextrn' is accumulative N extract by plant roots in 'PFLOTRAN' within a CLM timestep
-  Vec :: accextrnh4_vr_pfp                ! (moleN/m3/timestep) vertically-resolved root extraction N
-  Vec :: accextrnh4_vr_clms               ! (moleN/m3/timestep) vertically-resolved root extraction N
-  Vec :: accextrno3_vr_pfp                ! (moleN/m3/timestep) vertically-resolved root extraction N
-  Vec :: accextrno3_vr_clms               ! (moleN/m3/timestep) vertically-resolved root extraction N
+  Vec :: accextrnh4_vr_pfp                ! (moleN/m3) vertically-resolved root extraction N
+  Vec :: accextrnh4_vr_clms               ! (moleN/m3) vertically-resolved root extraction N
+  Vec :: accextrno3_vr_pfp                ! (moleN/m3) vertically-resolved root extraction N
+  Vec :: accextrno3_vr_clms               ! (moleN/m3) vertically-resolved root extraction N
 
   ! gases in water (aqueous solution of gases)
   ! gases species is accumulative in 'PFLOTRAN', so needs to calculate their fluxes in the CLM-PF interface and reset back to PFLOTRAN
@@ -297,25 +310,25 @@ module clm_pflotran_interface_data
   Vec :: gn2o_vr_pfs                   ! (moleN/m3) vertically-resolved N2O-N, after gas emission
 
   ! some tracking variables from PFLOTRAN bgc to obtain reaction flux rates which needed by CLM
-  Vec :: acchr_vr_pfp                  ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
-  Vec :: acchr_vr_clms                 ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
+  Vec :: acchr_vr_pfp                 ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
+  Vec :: acchr_vr_clms                ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
 
   Vec :: accnmin_vr_pfp                ! (moleN/m3/timestep) vertically-resolved N mineralization
   Vec :: accnmin_vr_clms               ! (moleN/m3/timestep) vertically-resolved N mineralization
 
-  Vec :: accnimmp_vr_pfp               ! (moleN/m3/timestep) vertically-resolved potential N immoblization
-  Vec :: accnimmp_vr_clms              ! (moleN/m3/timestep) vertically-resolved potential N immoblization
+  Vec :: accnimmp_vr_pfp                ! (moleN/m3/timestep) vertically-resolved potential N immoblization
+  Vec :: accnimmp_vr_clms               ! (moleN/m3/timestep) vertically-resolved potential N immoblization
   Vec :: accnimm_vr_pfp                ! (moleN/m3/timestep) vertically-resolved N immoblization
   Vec :: accnimm_vr_clms               ! (moleN/m3/timestep) vertically-resolved N immoblization
 
-  Vec :: accngasmin_vr_pfp             ! (moleN/m3/timestep) vertically-resolved N2O-N from mineralization
-  Vec :: accngasmin_vr_clms            ! (moleN/m3/timestep) vertically-resolved N2O-N from mineralization
+  Vec :: accngasmin_vr_pfp              ! (moleN/m3/timestep) vertically-resolved N2O-N from mineralization
+  Vec :: accngasmin_vr_clms             ! (moleN/m3/timestep) vertically-resolved N2O-N from mineralization
 
-  Vec :: accngasnitr_vr_pfp            ! (moleN/m3/timestep) vertically-resolved N2O-N from nitrification
-  Vec :: accngasnitr_vr_clms           ! (moleN/m3/timestep) vertically-resolved N2O-N from nitrification
+  Vec :: accngasnitr_vr_pfp             ! (moleN/m3/timestep) vertically-resolved N2O-N from nitrification
+  Vec :: accngasnitr_vr_clms            ! (moleN/m3/timestep) vertically-resolved N2O-N from nitrification
 
-  Vec :: accngasdeni_vr_pfp            ! (moleN/m3/timestep) vertically-resolved N2-N from denitrification
-  Vec :: accngasdeni_vr_clms           ! (moleN/m3/timestep) vertically-resolved N2-N from denitrification
+  Vec :: accngasdeni_vr_pfp             ! (moleN/m3/timestep) vertically-resolved N2-N from denitrification
+  Vec :: accngasdeni_vr_clms            ! (moleN/m3/timestep) vertically-resolved N2-N from denitrification
 
   ! actual aqeuous N mass flow rate(moleN/m2/sec) at the top (runoff)/bottom (leaching) of 3-D subsurface domain
   ! (+ in, - out)
@@ -356,6 +369,8 @@ contains
     clm_pf_idata%C_molecular_weight = 12.0110d0
 
     clm_pf_idata%nzclm_mapped = 0
+    clm_pf_idata%nxclm_mapped = 0
+    clm_pf_idata%nyclm_mapped = 0
 
     !--------------------------------
     clm_pf_idata%ndecomp_pools = 0
@@ -441,14 +456,27 @@ contains
     clm_pf_idata%soillsat_clmp = 0
     clm_pf_idata%soilisat_clmp = 0
     clm_pf_idata%soilt_clmp    = 0
+    clm_pf_idata%h2osoi_vol_clmp = 0
     clm_pf_idata%press_pfs      = 0
     clm_pf_idata%soilpsi_pfs    = 0
     clm_pf_idata%soillsat_pfs   = 0
     clm_pf_idata%soilisat_pfs   = 0
     clm_pf_idata%soilt_pfs      = 0
+    clm_pf_idata%h2osoi_vol_pfs = 0
 
     clm_pf_idata%decomp_cpools_vr_clmp = 0
     clm_pf_idata%decomp_npools_vr_clmp = 0
+
+    !
+    clm_pf_idata%t_scalar_clmp     = 0
+    clm_pf_idata%w_scalar_clmp     = 0
+    clm_pf_idata%o_scalar_clmp     = 0
+    clm_pf_idata%depth_scalar_clmp = 0
+    clm_pf_idata%t_scalar_pfs     = 0
+    clm_pf_idata%w_scalar_pfs     = 0
+    clm_pf_idata%o_scalar_pfs     = 0
+    clm_pf_idata%depth_scalar_pfs = 0
+
     clm_pf_idata%smin_no3_vr_clmp      = 0
     clm_pf_idata%smin_nh4_vr_clmp      = 0
     clm_pf_idata%smin_nh4sorb_vr_clmp  = 0
@@ -613,10 +641,13 @@ contains
     PetscErrorCode :: ierr
     PetscMPIInt    :: mycomm, rank
 
+    if (.not. associated(clm_pf_idata%dzclm_global)) &
+    allocate(clm_pf_idata%dzclm_global(1:clm_pf_idata%nzclm_mapped))
+
     allocate(clm_pf_idata%floating_cn_ratio(1:clm_pf_idata%ndecomp_pools))
     allocate(clm_pf_idata%ispec_decomp_c(1:clm_pf_idata%ndecomp_pools))
     allocate(clm_pf_idata%ispec_decomp_n(1:clm_pf_idata%ndecomp_pools))
-    allocate(clm_pf_idata%name_decomp(1:clm_pf_idata%ndecomp_pools))
+    allocate(clm_pf_idata%decomp_pool_name(1:clm_pf_idata%ndecomp_pools))
 
     call MPI_Comm_rank(mycomm,rank, ierr)
 
@@ -684,6 +715,7 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%soillsat_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%soilisat_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%soilt_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%h2osoi_vol_clmp,ierr)
 
     ! TH Src/Sink (3D)
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%qflux_clmp,ierr)
@@ -731,6 +763,7 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%soillsat_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%soilisat_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%soilt_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%h2osoi_vol_pfs,ierr)
 
     ! TH Src/Sink (3D)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%qflux_pfs,ierr)
@@ -812,6 +845,11 @@ contains
     call VecSet(clm_pf_idata%decomp_cpools_vr_clmp,0.d0,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clmp, clm_pf_idata%decomp_npools_vr_clmp,ierr)
 
+    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%t_scalar_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%w_scalar_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%o_scalar_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%depth_scalar_clmp,ierr)
+
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%smin_no3_vr_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%smin_nh4_vr_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%smin_nh4sorb_vr_clmp,ierr)
@@ -821,6 +859,10 @@ contains
           clm_pf_idata%decomp_cpools_vr_pfs,ierr)
     call VecSet(clm_pf_idata%decomp_cpools_vr_pfs,0.d0,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfs, clm_pf_idata%decomp_npools_vr_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%t_scalar_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%w_scalar_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%o_scalar_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%depth_scalar_pfs,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%smin_no3_vr_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%smin_nh4_vr_pfs,ierr)
@@ -875,10 +917,10 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accextrnh4_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accextrno3_vr_pfp,ierr)
     !
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfp,clm_pf_idata%acchr_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfp,clm_pf_idata%accnmin_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfp,clm_pf_idata%accnimmp_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfp,clm_pf_idata%accnimm_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%acchr_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accnmin_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accnimmp_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accnimm_vr_pfp,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accngasmin_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accngasnitr_vr_pfp,ierr)
@@ -892,10 +934,10 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accextrnh4_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accextrno3_vr_clms,ierr)
     !
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%acchr_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnmin_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnimmp_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnimm_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%acchr_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accnmin_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accnimmp_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accnimm_vr_clms,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accngasmin_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accngasnitr_vr_clms,ierr)
@@ -1056,6 +1098,8 @@ contains
        call VecDestroy(clm_pf_idata%soilisat_clmp,ierr)
     if(clm_pf_idata%soilt_clmp /= 0) &
        call VecDestroy(clm_pf_idata%soilt_clmp,ierr)
+    if(clm_pf_idata%h2osoi_vol_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%h2osoi_vol_clmp,ierr)
     
     if(clm_pf_idata%press_pfs /= 0) &
       call VecDestroy(clm_pf_idata%press_pfs,ierr)
@@ -1067,6 +1111,8 @@ contains
       call VecDestroy(clm_pf_idata%soilisat_pfs,ierr)
     if(clm_pf_idata%soilt_pfs /= 0) &
       call VecDestroy(clm_pf_idata%soilt_pfs,ierr)
+    if(clm_pf_idata%h2osoi_vol_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%h2osoi_vol_pfs,ierr)
 
     !-----
     if(clm_pf_idata%qflux_clmp  /= 0) &
@@ -1160,10 +1206,20 @@ contains
     !
     ! -----------------------------------------------------------------------------------------------------------
 
+    deallocate(clm_pf_idata%dzclm_global)
     deallocate(clm_pf_idata%floating_cn_ratio)
-    deallocate(clm_pf_idata%name_decomp)
     deallocate(clm_pf_idata%ispec_decomp_c)
     deallocate(clm_pf_idata%ispec_decomp_n)
+    deallocate(clm_pf_idata%decomp_pool_name)
+
+    if(clm_pf_idata%t_scalar_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%t_scalar_clmp,ierr)
+    if(clm_pf_idata%w_scalar_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%w_scalar_clmp,ierr)
+    if(clm_pf_idata%o_scalar_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%o_scalar_clmp,ierr)
+    if(clm_pf_idata%depth_scalar_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%depth_scalar_clmp,ierr)
 
     ! soil C/N pools (initial)
     if(clm_pf_idata%decomp_cpools_vr_clmp /= 0) &
@@ -1183,6 +1239,14 @@ contains
        call VecDestroy(clm_pf_idata%decomp_cpools_vr_pfs,ierr)
     if(clm_pf_idata%decomp_npools_vr_pfs /= 0) &
        call VecDestroy(clm_pf_idata%decomp_npools_vr_pfs,ierr)
+    if(clm_pf_idata%t_scalar_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%t_scalar_pfs,ierr)
+    if(clm_pf_idata%w_scalar_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%w_scalar_pfs,ierr)
+    if(clm_pf_idata%o_scalar_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%o_scalar_pfs,ierr)
+    if(clm_pf_idata%depth_scalar_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%depth_scalar_pfs,ierr)
 
     if(clm_pf_idata%smin_no3_vr_pfs /= 0) &
        call VecDestroy(clm_pf_idata%smin_no3_vr_pfs,ierr)

@@ -531,11 +531,11 @@ contains
        !   bc_Sr(1)  = sr_pf_loc(ghosted_id)      ! currently only for liq. water, NOTE that if at 'Sr', pc = inf
        !   bc_pcwmax = pcwmax_pf_loc(ghosted_id)  ! this parameter IS not corresponding with 'Sr'
 
-       ! currently BC-Burdine saturation function type, with specified values to match with Clapp-Hornberger Eq.
+       ! currently BC-Burdine saturation/permisivity function type, with specified values to match with Clapp-Hornberger Eq.
         if ( saturation_function%saturation_function_itype == BROOKS_COREY .and. &
              saturation_function%permeability_function_itype == BURDINE )         then
           ! Clapp-Hornberger: soilpsi = sucsat * (-9.81) * (fsattmp)**(-bsw)  ! mm H2O Head --> -pa
-          !                   K = Ks*fsattmp**(3+2/bsw)
+          !                   K = Ks*fsattmp**(3+2*bsw)
           !         vs.
           ! BC-Burdine: pc =  (Se**(-1.d0/lambda))/alpha, with Se=(lsat-Sr)/(1-Sr)
           !             relative_perm = Se**power, with power = 3+2/lamda
@@ -2044,6 +2044,24 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
         CHKERRQ(ierr)
         call VecRestoreArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
         CHKERRQ(ierr)
+
+        !
+        ! for exactly using moisture and other response functions of decomposition from CLM-CN
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%w_scalar_clmp, &
+                                    clm_pf_idata%w_scalar_pfs)
+
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%o_scalar_clmp, &
+                                    clm_pf_idata%o_scalar_pfs)
+
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%h2osoi_vol_clmp, &
+                                    clm_pf_idata%h2osoi_vol_pfs)
+
     endif
 
     ! Save soil temperature values from CLM to PFLOTRAN, if needed
@@ -2064,6 +2082,15 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
         enddo
         call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
         CHKERRQ(ierr)
+
+
+        ! for exactly using temperature response function of decomposition from CLM-CN
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%t_scalar_clmp, &
+                                    clm_pf_idata%t_scalar_pfs)
+
+
     endif
 
   end subroutine pflotranModelUpdateTHfromCLM
@@ -2485,7 +2512,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       ! (2) varying-CN ratio decomposing pool: 2 pool names are defined with ending letter 'C' or 'N'
 
       if (clm_pf_idata%floating_cn_ratio(k)) then
-        word = trim(clm_pf_idata%name_decomp(k)) // "C"
+        word = trim(clm_pf_idata%decomp_pool_name(k)) // "C"
         clm_pf_idata%ispec_decomp_c(k) = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
         !
@@ -2496,7 +2523,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           call printErrMsg(pflotran_model%option)
         endif
 
-        word = trim(clm_pf_idata%name_decomp(k)) // "N"
+        word = trim(clm_pf_idata%decomp_pool_name(k)) // "N"
         clm_pf_idata%ispec_decomp_n(k) = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
@@ -2510,7 +2537,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       else
 
-        word = trim(clm_pf_idata%name_decomp(k))
+        word = trim(clm_pf_idata%decomp_pool_name(k))
         clm_pf_idata%ispec_decomp_c(k) = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
