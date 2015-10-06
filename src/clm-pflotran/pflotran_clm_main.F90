@@ -141,7 +141,7 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelCreate(mpicomm, pflotran_prefix, model)
+  subroutine pflotranModelCreate(mpicomm, pflotran_prefix, pflotran_model)
   ! 
   ! Allocates and initializes the pflotranModel object.
   ! It performs the same sequence of commands as done in pflotran.F90
@@ -171,52 +171,52 @@ contains
     PetscInt, intent(in) :: mpicomm
     character(len=256), intent(in) :: pflotran_prefix
 
-    type(pflotran_model_type),      pointer :: model
+    type(pflotran_model_type),      pointer :: pflotran_model
 
-    allocate(model)
+    allocate(pflotran_model)
 
-    nullify(model%simulation)
-    nullify(model%multisimulation)
-    nullify(model%option)
+    nullify(pflotran_model%simulation)
+    nullify(pflotran_model%multisimulation)
+    nullify(pflotran_model%option)
 
-    model%option => OptionCreate()
-    call OptionInitMPI(model%option, mpicomm)
-    call PFLOTRANInitializePrePetsc(model%multisimulation, model%option)
+    pflotran_model%option => OptionCreate()
+    call OptionInitMPI(pflotran_model%option, mpicomm)
+    call PFLOTRANInitializePrePetsc(pflotran_model%multisimulation, pflotran_model%option)
 
     ! NOTE(bja) 2013-06-25 : external driver must provide an input
     ! prefix string. If the driver wants to use pflotran.in, then it
     ! should explicitly request that with 'pflotran'.
     if (len(trim(pflotran_prefix)) > 1) then
-      model%option%input_prefix = trim(pflotran_prefix)
-      model%option%input_filename = trim(model%option%input_prefix) // '.in'
-      model%option%global_prefix = model%option%input_prefix
+      pflotran_model%option%input_prefix = trim(pflotran_prefix)
+      pflotran_model%option%input_filename = trim(pflotran_model%option%input_prefix) // '.in'
+      pflotran_model%option%global_prefix = pflotran_model%option%input_prefix
     else
-      model%option%io_buffer = 'The external driver must provide the ' // &
+      pflotran_model%option%io_buffer = 'The external driver must provide the ' // &
            'pflotran input file prefix.'
-      call printErrMsg(model%option)
+      call printErrMsg(pflotran_model%option)
     end if
 
-    call OptionInitPetsc(model%option)
-    if (model%option%myrank == model%option%io_rank .and. &
-        model%option%print_to_screen) then
+    call OptionInitPetsc(pflotran_model%option)
+    if (pflotran_model%option%myrank == pflotran_model%option%io_rank .and. &
+        pflotran_model%option%print_to_screen) then
       call PrintProvenanceToScreen()
     end if
-    call PFLOTRANInitializePostPetsc(model%simulation, model%multisimulation, model%option)
+    call PFLOTRANInitializePostPetsc(pflotran_model%simulation, pflotran_model%multisimulation, pflotran_model%option)
 
     ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
     ! setup on mpich/mac. should be generally ok, but may need an
     ! apple/mpich ifdef if it cause problems elsewhere.
     PETSC_COMM_SELF = MPI_COMM_SELF
 
-    model%pause_time_1 = -1.0d0
-    model%pause_time_2 = -1.0d0
+    pflotran_model%pause_time_1 = -1.0d0
+    pflotran_model%pause_time_2 = -1.0d0
 
 
   end subroutine pflotranModelCreate
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelStepperRunInit(model)
+  subroutine pflotranModelStepperRunInit(pflotran_model)
   ! 
   ! It performs the same execution of commands
   ! that are carried out in StepperRun() before the model integration
@@ -226,15 +226,15 @@ contains
   ! Date: 9/10/2010
   ! 
 
-    type(pflotran_model_type), pointer, intent(inout) :: model
+    type(pflotran_model_type), pointer, intent(inout) :: pflotran_model
 
-    call model%simulation%InitializeRun()
+    call pflotran_model%simulation%InitializeRun()
 
   end subroutine pflotranModelStepperRunInit
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelStepperCheckpoint(model, id_stamp)
+  subroutine pflotranModelStepperCheckpoint(pflotran_model, id_stamp)
   ! 
   ! wrapper around StepperCheckpoint
   ! NOTE(bja, 2013-06-27) : the date stamp from clm is 32 characters
@@ -244,7 +244,7 @@ contains
 
     implicit none
 
-    type(pflotran_model_type), pointer :: model
+    type(pflotran_model_type), pointer :: pflotran_model
     character(len=MAXWORDLENGTH), intent(in) :: id_stamp
     PetscViewer :: viewer
 
@@ -254,8 +254,307 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelSetSoilDimension(pflotran_model)
+  subroutine pflotranModelStepperRunTillPauseTime(pflotran_model, pause_time, dtime, isprintout)
+  !
+  ! It performs the model integration
+  ! till the specified pause_time.
+  ! NOTE: It is assumed 'pause_time' is in seconds.
+  ! NOTE(bja, 2013-07) the strange waypoint insertion of t+30min /
+  ! deletion of t is to ensure that we always have a valid waypoint in
+  ! front of us, but pflotran does not delete them, so we don't want
+  ! to accumulate too large of a list.
   ! 
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  ! Revised by Fengming YUAN
+
+    implicit none
+
+#include "finclude/petscsys.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer :: pflotran_model
+    PetscReal, intent(in) :: pause_time
+    PetscReal, intent(in) :: dtime
+    PetscBool, intent(in) :: isprintout
+
+    PetscReal :: pause_time1
+
+    if(isprintout) then
+      if (pflotran_model%option%io_rank == pflotran_model%option%myrank) then
+        write(pflotran_model%option%fid_out, *) '>>>> Inserting waypoint at pause_time (s) = ', pause_time
+        write(pflotran_model%option%fid_out, *) '>>>> for CLM timestep: ', pause_time/dtime
+      endif
+    endif
+
+    pause_time1 = pause_time + dtime!1800.0d0
+    call pflotranModelInsertWaypoint(pflotran_model, pause_time1)
+
+    call pflotran_model%simulation%RunToTime(pause_time)
+
+    call pflotranModelDeleteWaypoint(pflotran_model, pause_time)
+
+  end subroutine pflotranModelStepperRunTillPauseTime
+
+! ************************************************************************** !
+
+  subroutine pflotranModelInsertWaypoint(pflotran_model, waypoint_time)
+  !
+  ! Inserts a waypoint within the waypoint list
+  ! so that the model integration can be paused when that waypoint is
+  ! reached
+  ! NOTE: It is assumed the 'waypoint_time' is in seconds
+  !
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  ! Revised by Fengming YUAN
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+
+    use Realization_class, only : realization_type
+    use Surface_Realization_class, only : surface_realization_type
+
+    use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointInsertInList
+    use Units_module, only : UnitsConvertToInternal
+    use Option_module, only : printErrMsg
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: pflotran_model
+    type(waypoint_type), pointer       :: waypoint
+    type(waypoint_type), pointer       :: waypoint2
+    PetscReal                          :: waypoint_time
+    character(len=MAXWORDLENGTH)       :: word
+
+    class(realization_type), pointer    :: realization
+    class(surface_realization_type), pointer :: surf_realization
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+         nullify(surf_realization)
+      class is (surface_simulation_type)
+         nullify(realization)
+         surf_realization => simulation%surf_realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+         surf_realization => simulation%surf_realization
+      class default
+         nullify(realization)
+         nullify(surf_realization)
+         pflotran_model%option%io_buffer = "pflotranModelInsertWaypoint only " // &
+              "works on combinations of surface and subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    word = 's'
+    waypoint => WaypointCreate()
+    waypoint%time              = waypoint_time * UnitsConvertToInternal(word, pflotran_model%option)
+    waypoint%update_conditions = PETSC_TRUE
+    waypoint%print_output      = PETSC_FALSE
+    waypoint%final             = PETSC_FALSE
+    waypoint%dt_max            = waypoint_time * UnitsConvertToInternal(word, pflotran_model%option)
+
+    if (associated(realization)) then
+      call WaypointInsertInList(waypoint, realization%waypoint_list)
+    end if
+
+    if (associated(surf_realization)) then
+      waypoint2 => WaypointCreate(waypoint)
+      ! just in case that subsurface realization NOT there (e.g. only surf_simulation),
+      ! the above 'WaypointCreate()' will allocate memory for 'waypoint',
+      ! which never have a chance to deallocate and potentially leak memory
+      if(associated(waypoint)) deallocate(waypoint)
+
+      call WaypointInsertInList(waypoint2, surf_realization%waypoint_list)
+    end if
+
+  end subroutine pflotranModelInsertWaypoint
+
+! ************************************************************************** !
+
+  subroutine pflotranModelDeleteWaypoint(pflotran_model, waypoint_time)
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+
+    use Realization_class, only : realization_type
+    use Surface_Realization_class, only : surface_realization_type
+    use Surface_Realization_class, only : surface_realization_type
+
+    use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointDeleteFromList
+    use Units_module, only : UnitsConvertToInternal
+    use Option_module, only : printErrMsg
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: pflotran_model
+    type(waypoint_type), pointer       :: waypoint
+    PetscReal                          :: waypoint_time
+    character(len=MAXWORDLENGTH)       :: word
+
+    class(realization_type), pointer    :: realization
+    class(surface_realization_type), pointer :: surf_realization
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+         nullify(surf_realization)
+      class is (surface_simulation_type)
+         nullify(realization)
+         surf_realization => simulation%surf_realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+         surf_realization => simulation%surf_realization
+      class default
+         nullify(realization)
+         nullify(surf_realization)
+         pflotran_model%option%io_buffer = "pflotranModelDeleteWaypoint only " // &
+              "works on combinations of surface and subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    word = 's'
+    waypoint => WaypointCreate()
+    waypoint%time              = waypoint_time * UnitsConvertToInternal(word, pflotran_model%option)
+    waypoint%update_conditions = PETSC_TRUE
+    waypoint%dt_max            = 3153600
+
+    if (associated(realization)) then
+       call WaypointDeleteFromList(waypoint, realization%waypoint_list)
+    end if
+
+    if (associated(surf_realization)) then
+       call WaypointDeleteFromList(waypoint, surf_realization%waypoint_list)
+    end if
+
+    ! when call 'WaypointCreate()', 'waypoint' will be allocated memory,
+    ! and the 'WaypointDeleteFromList''s destroy appears not work( TODO checking)
+    ! which causes memory leak continuously - it's very dangerous to system if runs long
+    if(associated(waypoint)) deallocate(waypoint)
+  end subroutine pflotranModelDeleteWaypoint
+
+! ************************************************************************** !
+
+  subroutine pflotranModelSetupRestart(pflotran_model, restart_stamp)
+  !
+  ! pflotranModelSetupRestart()
+  ! This checks to see if a restart file stamp was provided by the
+  ! driver. If so, we set the restart flag and reconstruct the
+  ! restart file name. The actual restart is handled by the standard
+  ! pflotran mechanism in TimeStepperInitializeRun()
+  ! NOTE: this must be called between pflotranModelCreate() and
+  ! pflotranModelStepperRunInit()
+  !
+
+    use Option_module
+    use String_module
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: pflotran_model
+    character(len=MAXWORDLENGTH) :: restart_stamp
+
+    pflotran_model%option%io_buffer = 'restart is not implemented in clm-pflotran.' // &
+       'AND, pflotran will be initialized from CLM'
+
+    if (.not. StringNull(restart_stamp)) then
+       pflotran_model%option%restart_flag = PETSC_TRUE
+       pflotran_model%option%restart_filename = &
+            trim(pflotran_model%option%global_prefix) // &
+            trim(pflotran_model%option%group_prefix) // &
+            '-' // trim(restart_stamp) // '.chk'
+
+       pflotran_model%option%io_buffer = 'restart file is: ' // &
+            trim(pflotran_model%option%restart_filename)
+
+    end if
+
+    call printWrnMsg(pflotran_model%option)
+
+  end subroutine pflotranModelSetupRestart
+
+! ************************************************************************** !
+
+  subroutine pflotranModelStepperRunFinalize(pflotran_model)
+  !
+  ! It performs the same execution of commands
+  ! that are carried out in StepperRun() once the model integration is
+  ! finished
+  !
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  !
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: pflotran_model
+
+    call pflotran_model%simulation%FinalizeRun()
+
+  end subroutine pflotranModelStepperRunFinalize
+
+! ************************************************************************** !
+
+  subroutine pflotranModelDestroy(pflotran_model)
+  !
+  ! Deallocates the pflotranModel object
+  !
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  !
+
+    use Factory_PFLOTRAN_module, only : PFLOTRANFinalize
+    use Option_module, only : OptionFinalize
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: pflotran_model
+
+    ! FIXME(bja, 2013-07) none of the mapping information appears to
+    ! be cleaned up, so we are leaking memory....
+
+    call pflotran_model%simulation%FinalizeRun()
+    !call pflotran_model%simulation%Strip()    ! this causes petsc error of seq. fault issue, although doesn't matter.
+    if(associated(pflotran_model%simulation)) deallocate(pflotran_model%simulation)
+    nullify(pflotran_model%simulation)
+
+    call PFLOTRANFinalize(pflotran_model%option)
+    call OptionFinalize(pflotran_model%option)
+
+    call CLMPFLOTRANIDataDestroy()
+
+    if (associated(pflotran_model%map_clm_sub_to_pf_sub)) &
+      call MappingDestroy(pflotran_model%map_clm_sub_to_pf_sub)
+    if (associated(pflotran_model%map_clm_2dtop_to_pf_2dtop)) &
+      call MappingDestroy(pflotran_model%map_clm_2dtop_to_pf_2dtop)
+    if (associated(pflotran_model%map_clm_2dbot_to_pf_2dbot)) &
+      call MappingDestroy(pflotran_model%map_clm_2dbot_to_pf_2dbot)
+
+    if (associated(pflotran_model%map_pf_sub_to_clm_sub)) &
+      call MappingDestroy(pflotran_model%map_pf_sub_to_clm_sub)
+    if (associated(pflotran_model%map_pf_2dtop_to_clm_2dtop)) &
+      call MappingDestroy(pflotran_model%map_pf_2dtop_to_clm_2dtop)
+    if (associated(pflotran_model%map_pf_2dbot_to_clm_2dbot)) &
+      call MappingDestroy(pflotran_model%map_pf_2dbot_to_clm_2dbot)
+
+    if (associated(pflotran_model)) deallocate(pflotran_model)
+    nullify(pflotran_model)
+
+  end subroutine pflotranModelDestroy
+
+!
+! ************************************************************************** !
+!
+  subroutine pflotranModelSetSoilDimension(pflotran_model)
+  !
   ! Force soil dimension from CLM to PFLOTRAN subsurface domain.
 
     use Realization_class
@@ -347,9 +646,9 @@ contains
     call VecRestoreArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
     CHKERRQ(ierr)
 
-
   end subroutine pflotranModelSetSoilDimension
 
+!
 ! ************************************************************************** !
 !
 
@@ -697,232 +996,6 @@ contains
     endif
 
   end subroutine pflotranModelSetSoilProp
-
-
-  subroutine pflotranModelStepperRunTillPauseTime(model, pause_time, dtime, isprintout)
-  ! 
-  ! It performs the model integration
-  ! till the specified pause_time.
-  ! NOTE: It is assumed 'pause_time' is in seconds.
-  ! NOTE(bja, 2013-07) the strange waypoint insertion of t+30min /
-  ! deletion of t is to ensure that we always have a valid waypoint in
-  ! front of us, but pflotran does not delete them, so we don't want
-  ! to accumulate too large of a list.
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 9/10/2010
-  ! Revised by Fengming YUAN
-
-    implicit none
-
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h90"
-
-    type(pflotran_model_type), pointer :: model
-    PetscReal, intent(in) :: pause_time
-    PetscReal, intent(in) :: dtime
-    PetscBool, intent(in) :: isprintout
-
-    PetscReal :: pause_time1
-
-    if(isprintout) then
-      if (model%option%io_rank == model%option%myrank) then
-        write(model%option%fid_out, *) '>>>> Inserting waypoint at pause_time (s) = ', pause_time
-        write(model%option%fid_out, *) '>>>> for CLM timestep: ', pause_time/dtime
-      endif
-    endif
-
-    pause_time1 = pause_time + dtime!1800.0d0
-    call pflotranModelInsertWaypoint(model, pause_time1)
-
-    call model%simulation%RunToTime(pause_time)
-
-    call pflotranModelDeleteWaypoint(model, pause_time)
-
-  end subroutine pflotranModelStepperRunTillPauseTime
-
-! ************************************************************************** !
-
-  subroutine pflotranModelInsertWaypoint(model, waypoint_time)
-  ! 
-  ! Inserts a waypoint within the waypoint list
-  ! so that the model integration can be paused when that waypoint is
-  ! reached
-  ! NOTE: It is assumed the 'waypoint_time' is in seconds
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 9/10/2010
-  ! Revised by Fengming YUAN
-
-    use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-
-    use Realization_class, only : realization_type
-    use Surface_Realization_class, only : surface_realization_type
-
-    use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointInsertInList
-    use Units_module, only : UnitsConvertToInternal
-    use Option_module, only : printErrMsg
-
-    implicit none
-
-    type(pflotran_model_type), pointer :: model
-    type(waypoint_type), pointer       :: waypoint
-    type(waypoint_type), pointer       :: waypoint2
-    PetscReal                          :: waypoint_time
-    character(len=MAXWORDLENGTH)       :: word
-
-    class(realization_type), pointer    :: realization
-    class(surface_realization_type), pointer :: surf_realization
-
-    select type (simulation => model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-         nullify(surf_realization)
-      class is (surface_simulation_type)
-         nullify(realization)
-         surf_realization => simulation%surf_realization
-      class is (surfsubsurface_simulation_type)
-         realization => simulation%realization
-         surf_realization => simulation%surf_realization
-      class default
-         nullify(realization)
-         nullify(surf_realization)
-         model%option%io_buffer = "pflotranModelInsertWaypoint only " // &
-              "works on combinations of surface and subsurface simulations."
-         call printErrMsg(model%option)
-    end select
-
-    word = 's'
-    waypoint => WaypointCreate()
-    waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
-    waypoint%update_conditions = PETSC_TRUE
-    waypoint%print_output      = PETSC_FALSE
-    waypoint%final             = PETSC_FALSE
-    waypoint%dt_max            = waypoint_time * UnitsConvertToInternal(word, model%option)!3153600.d0
-
-    if (associated(realization)) then
-      call WaypointInsertInList(waypoint, realization%waypoint_list)
-    end if
-
-    if (associated(surf_realization)) then
-      waypoint2 => WaypointCreate(waypoint)
-      ! just in case that subsurface realization NOT there (e.g. only surf_simulation),
-      ! the above 'WaypointCreate()' will allocate memory for 'waypoint',
-      ! which never have a chance to deallocate and potentially leak memory
-      if(associated(waypoint)) deallocate(waypoint)
-
-      call WaypointInsertInList(waypoint2, surf_realization%waypoint_list)
-    end if
-
-  end subroutine pflotranModelInsertWaypoint
-
-! ************************************************************************** !
-
-  subroutine pflotranModelDeleteWaypoint(model, waypoint_time)
-
-    use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-
-    use Realization_class, only : realization_type
-    use Surface_Realization_class, only : surface_realization_type
-    use Surface_Realization_class, only : surface_realization_type
-
-    use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointDeleteFromList
-    use Units_module, only : UnitsConvertToInternal
-    use Option_module, only : printErrMsg
-
-    implicit none
-
-    type(pflotran_model_type), pointer :: model
-    type(waypoint_type), pointer       :: waypoint
-    PetscReal                          :: waypoint_time
-    character(len=MAXWORDLENGTH)       :: word
-
-    class(realization_type), pointer    :: realization
-    class(surface_realization_type), pointer :: surf_realization
-
-    select type (simulation => model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-         nullify(surf_realization)
-      class is (surface_simulation_type)
-         nullify(realization)
-         surf_realization => simulation%surf_realization
-      class is (surfsubsurface_simulation_type)
-         realization => simulation%realization
-         surf_realization => simulation%surf_realization
-      class default
-         nullify(realization)
-         nullify(surf_realization)
-         model%option%io_buffer = "pflotranModelDeleteWaypoint only " // &
-              "works on combinations of surface and subsurface simulations."
-         call printErrMsg(model%option)
-    end select
-
-    word = 's'
-    waypoint => WaypointCreate()
-    waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
-    waypoint%update_conditions = PETSC_TRUE
-    waypoint%dt_max            = 3153600
-
-    if (associated(realization)) then
-       call WaypointDeleteFromList(waypoint, realization%waypoint_list)
-    end if
-
-    if (associated(surf_realization)) then
-       call WaypointDeleteFromList(waypoint, surf_realization%waypoint_list)
-    end if
-
-    ! when call 'WaypointCreate()', 'waypoint' will be allocated memory,
-    ! and the 'WaypointDeleteFromList''s destroy appears not work( TODO checking)
-    ! which causes memory leak continuously - it's very dangerous to system if runs long
-    if(associated(waypoint)) deallocate(waypoint)
-  end subroutine pflotranModelDeleteWaypoint
-
-! ************************************************************************** !
-
-  subroutine pflotranModelSetupRestart(model, restart_stamp)
-  !
-  ! pflotranModelSetupRestart()
-  ! This checks to see if a restart file stamp was provided by the
-  ! driver. If so, we set the restart flag and reconstruct the
-  ! restart file name. The actual restart is handled by the standard
-  ! pflotran mechanism in TimeStepperInitializeRun()
-  ! NOTE: this must be called between pflotranModelCreate() and
-  ! pflotranModelStepperRunInit()
-  !
-
-    use Option_module
-    use String_module
-
-    implicit none
-
-    type(pflotran_model_type), pointer :: model
-    character(len=MAXWORDLENGTH) :: restart_stamp
-
-    model%option%io_buffer = 'restart is not implemented in clm-pflotran.' // &
-       'AND, pflotran will be initialized from CLM'
-
-    if (.not. StringNull(restart_stamp)) then
-       model%option%restart_flag = PETSC_TRUE
-       model%option%restart_filename = &
-            trim(model%option%global_prefix) // &
-            trim(model%option%group_prefix) // &
-            '-' // trim(restart_stamp) // '.chk'
-
-       model%option%io_buffer = 'restart file is: ' // &
-            trim(model%option%restart_filename)
-
-    end if
-
-    call printWrnMsg(model%option)
-
-  end subroutine pflotranModelSetupRestart
 
 ! ************************************************************************** !
 
@@ -1430,76 +1503,6 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
   end subroutine pflotranModelGetTemperatureFromPF
 
-! ************************************************************************** !
-
-  subroutine pflotranModelStepperRunFinalize(model)
-  ! 
-  ! It performs the same execution of commands
-  ! that are carried out in StepperRun() once the model integration is
-  ! finished
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 9/10/2010
-  ! 
-
-    implicit none
-
-    type(pflotran_model_type), pointer :: model
-
-    call model%simulation%FinalizeRun()
-
-  end subroutine pflotranModelStepperRunFinalize
-
-! ************************************************************************** !
-
-  subroutine pflotranModelDestroy(model)
-  ! 
-  ! Deallocates the pflotranModel object
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 9/10/2010
-  ! 
-
-    use Factory_PFLOTRAN_module, only : PFLOTRANFinalize
-    use Option_module, only : OptionFinalize
-    use clm_pflotran_interface_data
-    use Mapping_module
-
-    implicit none
-
-    type(pflotran_model_type), pointer :: model
-
-    ! FIXME(bja, 2013-07) none of the mapping information appears to
-    ! be cleaned up, so we are leaking memory....
-
-    call model%simulation%FinalizeRun()
-    !call model%simulation%Strip()    ! this causes petsc error of seq. fault issue, although doesn't matter.
-    if(associated(model%simulation)) deallocate(model%simulation)
-    nullify(model%simulation)
-
-    call PFLOTRANFinalize(model%option)
-    call OptionFinalize(model%option)
-
-    call CLMPFLOTRANIDataDestroy()
-
-    if (associated(model%map_clm_sub_to_pf_sub)) &
-      call MappingDestroy(model%map_clm_sub_to_pf_sub)
-    if (associated(model%map_clm_2dtop_to_pf_2dtop)) &
-      call MappingDestroy(model%map_clm_2dtop_to_pf_2dtop)
-    if (associated(model%map_clm_2dbot_to_pf_2dbot)) &
-      call MappingDestroy(model%map_clm_2dbot_to_pf_2dbot)
-
-    if (associated(model%map_pf_sub_to_clm_sub)) &
-      call MappingDestroy(model%map_pf_sub_to_clm_sub)
-    if (associated(model%map_pf_2dtop_to_clm_2dtop)) &
-      call MappingDestroy(model%map_pf_2dtop_to_clm_2dtop)
-    if (associated(model%map_pf_2dbot_to_clm_2dbot)) &
-      call MappingDestroy(model%map_pf_2dbot_to_clm_2dbot)
-
-    if (associated(model)) deallocate(model)
-    nullify(model)
-
-  end subroutine pflotranModelDestroy
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++!
 !
@@ -1513,7 +1516,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
   !  And also set an option for turning on/off PF printing
 ! ************************************************************************** !
 
-  subroutine pflotranModelUpdateFinalWaypoint(model, waypoint_time, isprintout)
+  subroutine pflotranModelUpdateFinalWaypoint(pflotran_model, waypoint_time, isprintout)
 
     use Simulation_Base_class, only : simulation_base_type
     use Simulation_Subsurface_class, only : subsurface_simulation_type
@@ -1533,7 +1536,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     implicit none
 
-    type(pflotran_model_type), pointer :: model
+    type(pflotran_model_type), pointer :: pflotran_model
     type(waypoint_type), pointer       :: waypoint, waypoint1, waypoint2
     PetscReal, intent(in)              :: waypoint_time
     PetscBool, intent(in)              :: isprintout
@@ -1543,7 +1546,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     class(surface_realization_type), pointer :: surf_realization
 
 !-------------------------------------------------------------------------
-    select type (simulation => model%simulation)
+    select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
          realization => simulation%realization
          nullify(surf_realization)
@@ -1556,18 +1559,18 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
       class default
          nullify(realization)
          nullify(surf_realization)
-         model%option%io_buffer = "pflotranModelUPdateFinalWaypoint is " // &
+         pflotran_model%option%io_buffer = "pflotranModelUPdateFinalWaypoint is " // &
               "Not support in this mode."
-         call printErrMsg(model%option)
+         call printErrMsg(pflotran_model%option)
     end select
 
     ! new final waypoint
     word = 's'
     waypoint1 => WaypointCreate()
-    waypoint1%time          = waypoint_time * UnitsConvertToInternal(word, model%option)
+    waypoint1%time          = waypoint_time * UnitsConvertToInternal(word, pflotran_model%option)
     waypoint1%print_output  = PETSC_TRUE
     waypoint1%final         = PETSC_TRUE
-    waypoint1%dt_max        = waypoint_time * UnitsConvertToInternal(word, model%option)
+    waypoint1%dt_max        = waypoint_time * UnitsConvertToInternal(word, pflotran_model%option)
 
     ! update subsurface-realization final waypoint
     if (associated(realization)) then
@@ -1587,13 +1590,13 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
       ! insert new final waypoint
       call WaypointInsertInList(waypoint1, realization%waypoint_list)
       call RealizationAddWaypointsToList(realization)
-      call WaypointListFillIn(model%option,realization%waypoint_list)
-      call WaypointListRemoveExtraWaypnts(model%option,realization%waypoint_list)
+      call WaypointListFillIn(pflotran_model%option,realization%waypoint_list)
+      call WaypointListRemoveExtraWaypnts(pflotran_model%option,realization%waypoint_list)
 
       ! turn off the 'print out' if required from CLM
       if(.not.isprintout) then
-        if (model%option%io_rank == model%option%myrank) then
-          write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
+        if (pflotran_model%option%io_rank == pflotran_model%option%myrank) then
+          write(pflotran_model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
             'for subsurface flow from PFLOTRAN IS OFF! '
         endif
         waypoint => realization%waypoint_list%first
@@ -1630,13 +1633,13 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
       call WaypointInsertInList(waypoint2, surf_realization%waypoint_list)
       call SurfRealizAddWaypointsToList(surf_realization)
-      call WaypointListFillIn(model%option,surf_realization%waypoint_list)
-      call WaypointListRemoveExtraWaypnts(model%option,surf_realization%waypoint_list)
+      call WaypointListFillIn(pflotran_model%option,surf_realization%waypoint_list)
+      call WaypointListRemoveExtraWaypnts(pflotran_model%option,surf_realization%waypoint_list)
 
       ! turn off the 'print out' if required from CLM
       if(.not.isprintout) then
-        if (model%option%io_rank == model%option%myrank) then
-          write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
+        if (pflotran_model%option%io_rank == pflotran_model%option%myrank) then
+          write(pflotran_model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
             'for surface flow from PFLOTRAN IS OFF! '
         endif
         waypoint => surf_realization%waypoint_list%first
@@ -1650,6 +1653,14 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     end if !if (associated(surf_realization))
 
   end subroutine pflotranModelUpdateFinalWaypoint
+
+
+
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++!
+!
+! THE FOLLOWING BLOCKS OF CODES ARE FOR CLM-PFLOTRAN TH Mode COUPLING
+!
+!
 
   ! ************************************************************************** !
 
@@ -2204,7 +2215,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
   ! ************************************************************************** !
   !> This routine Updates TH drivers (PF global vars) for PFLOTRAN bgc that are from CLM
-  !! for testing PFLOTRAN-BGC mode
+  !! for stand-alone PFLOTRAN-BGC mode
   !!
   !
   subroutine pflotranModelUpdateTHfromCLM(pflotran_model, pf_hmode, pf_tmode)
@@ -2358,7 +2369,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
   ! author: Fengming YUAN
   ! date: 9/23/2013
   ! ************************************************************************** !
-subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
+  subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
 
     use Realization_class
     use Patch_module
@@ -2484,7 +2495,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
         endif
     end select
 
-end subroutine pflotranModelSetInternalTHStatesfromCLM
+  end subroutine pflotranModelSetInternalTHStatesfromCLM
 
 
 
@@ -3770,87 +3781,88 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
          if (patch%imat(local_id) < 0) cycle  !(TODO) imat IS 0 for some cells when decomposing domain in X and Y directions.
 
          offset_field = (local_id - 1)*realization%reaction%ncomp
+         offsetim = realization%reaction%offset_immobile
 
-         if(cur_mass_transfer%idof == ispec_nh4 .or. &
-            cur_mass_transfer%idof == ispec_nh4imm) then
+         if(idof == ispec_nh4 .or. &
+            idof == ispec_nh4imm+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_no3 .or. &
-                cur_mass_transfer%idof == ispec_no3imm) then
+         elseif(idof == ispec_no3 .or. &
+                idof == ispec_no3imm+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-         elseif(cur_mass_transfer%idof == ispec_lit1c+offsetim) then
+         elseif(idof == ispec_lit1c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_lit1n+offsetim) then
+         elseif(idof == ispec_lit1n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_lit2c+offsetim) then
+         elseif(idof == ispec_lit2c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_lit2n+offsetim) then
+         elseif(idof == ispec_lit2n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_lit3c+offsetim) then
+         elseif(idof == ispec_lit3c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_lit3n+offsetim) then
+         elseif(idof == ispec_lit3n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-         elseif(cur_mass_transfer%idof == ispec_cwdc+offsetim) then
+         elseif(idof == ispec_cwdc+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_cwdc_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_cwdn+offsetim) then
+         elseif(idof == ispec_cwdn+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_cwdn_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-         elseif(cur_mass_transfer%idof == ispec_som1c+offsetim) then
+         elseif(idof == ispec_som1c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_som1c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som2c+offsetim) then
+         elseif(idof == ispec_som2c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_som2c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som3c+offsetim) then
+         elseif(idof == ispec_som3c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_som3c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som4c+offsetim) then
+         elseif(idof == ispec_som4c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_som4c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-        elseif(cur_mass_transfer%idof == ispec_som1n+offsetim) then
+        elseif(idof == ispec_som1n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_som1n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som2n+offsetim) then
+         elseif(idof == ispec_som2n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_som2n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som3n+offsetim) then
+         elseif(idof == ispec_som3n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_som3n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som4n+offsetim) then
+         elseif(idof == ispec_som4n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_som4n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
          endif
 
-         if(idof == ispec_nh4         &
-            .or. idof == ispec_no3    &
-            .or. idof == ispec_lit1c  &
-            .or. idof == ispec_lit2c  &
-            .or. idof == ispec_lit3c  &
-            .or. idof == ispec_lit1n  &
-            .or. idof == ispec_lit2n  &
-            .or. idof == ispec_lit3n  &
-            .or. idof == ispec_cwdc   &
-            .or. idof == ispec_cwdn   &
-            .or. idof == ispec_som1c  &
-            .or. idof == ispec_som2c  &
-            .or. idof == ispec_som3c  &
-            .or. idof == ispec_som4c  &
-            .or. idof == ispec_som1n  &
-            .or. idof == ispec_som2n  &
-            .or. idof == ispec_som3n  &
-            .or. idof == ispec_som4n    ) then
+         if(idof == ispec_nh4 .or. idof == ispec_nh4imm+offsetim        &
+            .or. idof == ispec_no3 .or. idof == ispec_no3imm+offsetim   &
+            .or. idof == ispec_lit1c+offsetim  &
+            .or. idof == ispec_lit2c+offsetim  &
+            .or. idof == ispec_lit3c+offsetim  &
+            .or. idof == ispec_lit1n+offsetim  &
+            .or. idof == ispec_lit2n+offsetim  &
+            .or. idof == ispec_lit3n+offsetim  &
+            .or. idof == ispec_cwdc+offsetim   &
+            .or. idof == ispec_cwdn+offsetim   &
+            .or. idof == ispec_som1c+offsetim  &
+            .or. idof == ispec_som2c+offsetim  &
+            .or. idof == ispec_som3c+offsetim  &
+            .or. idof == ispec_som4c+offsetim  &
+            .or. idof == ispec_som1n+offsetim  &
+            .or. idof == ispec_som2n+offsetim  &
+            .or. idof == ispec_som3n+offsetim  &
+            .or. idof == ispec_som4n+offsetim    ) then
 
             rt_masstransfer_p(offset_field+idof) = rt_masstransfer_p(offset_field+idof) &
                       + rate_pf_loc(ghosted_id)*volume_p(local_id)  ! mol/m3s * m3          ! (TODO) needs a check of + or - here
@@ -3860,61 +3872,61 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
          if(idof == ispec_nh4) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_no3 .or. &
-            cur_mass_transfer%idof == ispec_no3imm) then
+         elseif(idof == ispec_no3 .or. &
+            idof == ispec_no3imm) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-         elseif(cur_mass_transfer%idof == ispec_lit1c+offsetim) then
+         elseif(idof == ispec_lit1c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_lit2c+offsetim) then
+         elseif(idof == ispec_lit2c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_lit3c+offsetim) then
+         elseif(idof == ispec_lit3c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-         elseif(cur_mass_transfer%idof == ispec_lit1n+offsetim) then
+         elseif(idof == ispec_lit1n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_lit2n+offsetim) then
+         elseif(idof == ispec_lit2n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_lit3n+offsetim) then
+         elseif(idof == ispec_lit3n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-         elseif(cur_mass_transfer%idof == ispec_cwdc+offsetim) then
+         elseif(idof == ispec_cwdc+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_cwdc_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_cwdn+offsetim) then
+         elseif(idof == ispec_cwdn+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_cwdn_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-         elseif(cur_mass_transfer%idof == ispec_som1c+offsetim) then
+         elseif(idof == ispec_som1c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_som1c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som2c+offsetim) then
+         elseif(idof == ispec_som2c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_som2c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som3c+offsetim) then
+         elseif(idof == ispec_som3c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_som3c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som4c+offsetim) then
+         elseif(idof == ispec_som4c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_som4c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-        elseif(cur_mass_transfer%idof == ispec_som1n+offsetim) then
+        elseif(idof == ispec_som1n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_som1n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som2n+offsetim) then
+         elseif(idof == ispec_som2n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_som2n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som3n+offsetim) then
+         elseif(idof == ispec_som3n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_som3n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(cur_mass_transfer%idof == ispec_som4n+offsetim) then
+         elseif(idof == ispec_som4n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_som4n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
