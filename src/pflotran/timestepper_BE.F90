@@ -361,16 +361,6 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
       CHKERRQ(ierr)
     endif
 
-    !output tiny dt as needed
-    if(this%dt<2.d0*option%dt_min) then
-      if (option%print_file_flag) then
-        write(option%fid_out, *) '  '
-        write(option%fid_out, *) ' <---tiny time-step warning ----> '
-        write(option%fid_out, *) ' @Time (s): ', option%time, ' with dt_min=',option%dt_min
-        write(option%fid_out, *) ' current DT (s): ', this%dt
-      endif
-    endif
-
 !fmy: checking SNESSolver error and stop excuting/output messages if error occurs
 
     CHKERRQ(ierr)

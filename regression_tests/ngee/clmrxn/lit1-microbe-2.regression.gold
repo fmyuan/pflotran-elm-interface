@@ -1,0 +1,48 @@
+-- CONCENTRATION: Total NH3(aq) --
+      Max:   1.0000000000000E-20
+      Min:   1.0000000000000E-20
+     Mean:   1.0000000000000E-20
+        1:   1.0000000000000E-20
+-- CONCENTRATION: Total NO3- --
+      Max:   7.3930044734701E-06
+      Min:   7.3930044734701E-06
+     Mean:   7.3930044734701E-06
+        1:   7.3930044734701E-06
+-- CONCENTRATION: Total HCO3- --
+      Max:   1.8992697492543E-04
+      Min:   1.8992697492543E-04
+     Mean:   1.8992697492543E-04
+        1:   1.8992697492543E-04
+-- CONCENTRATION: LabileC --
+      Max:   1.0001488428282E-20
+      Min:   1.0001488428282E-20
+     Mean:   1.0001488428282E-20
+        1:   1.0001488428282E-20
+-- CONCENTRATION: LabileN --
+      Max:   2.7485407891620E-22
+      Min:   2.7485407891620E-22
+     Mean:   2.7485407891620E-22
+        1:   2.7485407891620E-22
+-- CONCENTRATION: Bacteria --
+      Max:   4.6951827114435E-02
+      Min:   4.6951827114435E-02
+     Mean:   4.6951827114435E-02
+        1:   4.6951827114435E-02
+-- CONCENTRATION: Fungi --
+      Max:   9.0766429154365E-02
+      Min:   9.0766429154365E-02
+     Mean:   9.0766429154365E-02
+        1:   9.0766429154365E-02
+-- DISCRETE: Material ID --
+      Max:         1
+      Min:         1
+     Mean:   1.0000000000000E+00
+        1:         1
+-- SOLUTION: Transport --
+   Time (seconds):   5.8605670928955E-02
+   Time Steps:          102
+   Newton Iterations:          115
+   Solver Iterations:          115
+   Time Step Cuts:            0
+   Solution 2-Norm:   1.0219126605405E-01
+   Residual 2-Norm:   7.3563103084468E-29

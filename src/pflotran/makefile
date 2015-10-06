@@ -220,6 +220,7 @@ chem_obj = \
 	${common_src}reaction_sandbox_denitr.o \
 	${common_src}reaction_sandbox_degas.o \
 	${common_src}reaction_sandbox_langmu.o \
+    ${common_src}reaction_sandbox_microbial.o \
 	${common_src}reaction_sandbox_nitrif.o \
 	${common_src}reaction_sandbox_plantn.o \
 	${common_src}reaction_sandbox_somdec.o \
@@ -983,6 +984,7 @@ reaction_sandbox.o : global_aux.o input_aux.o material_aux.o option.o \
                      reactive_transport_aux.o string.o utility.o \
                      reaction_sandbox_somdec.o \
                      reaction_sandbox_langmu.o \
+                     reaction_sandbox_microbial.o \
                      reaction_sandbox_nitrif.o \
                      reaction_sandbox_plantn.o \
                      reaction_sandbox_denitr.o \
@@ -1014,6 +1016,11 @@ reaction_sandbox_degas.o  : global_aux.o reaction_immobile_aux.o input_aux.o \
                             reactive_transport_aux.o string.o units.o \
                             utility.o co2eos.o
 reaction_sandbox_langmu.o : global_aux.o reaction_immobile_aux.o input_aux.o \
+                            material_aux.o option.o pflotran_constants.o \
+                            reaction_aux.o reaction_sandbox_base.o \
+                            reactive_transport_aux.o string.o units.o \
+                            utility.o clm_rspfuncs.o
+reaction_sandbox_microbial.o : global_aux.o reaction_immobile_aux.o input_aux.o \
                             material_aux.o option.o pflotran_constants.o \
                             reaction_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \

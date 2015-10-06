@@ -63,13 +63,17 @@ module pflotran_clm_setmapping_module
 !     PetscReal          :: total_vol_overlap
 !  end type inside_each_overlapped_cell
 
-  public::                                   &
+  public ::                                  &
        ! mesh-mapping
        pflotranModelSetupMappingFiles,       &
        pflotranModelInitMapping,             &
-       pflotranModelNSurfCells3DDomain,      &
        pflotranModelGetTopFaceArea
 
+  private ::                                 &
+       pflotranModelInitMappingSub2Sub,      &
+       pflotranModelInitMapTopTo2DSub,       &
+       pflotranModelNSurfCells3DDomain,      &
+       pflotranModelInitMapFaceToFace
 
 contains
 
@@ -90,7 +94,7 @@ contains
   !
   ! Author: Gautam Bisht
   ! Date: 9/10/2010
-  !
+  ! Revised by Fengming YUAN
 
     use String_module
     use Option_module
@@ -245,34 +249,30 @@ contains
 
 ! ************************************************************************** !
 
-
-! ************************************************************************** !
-
   subroutine pflotranModelInitMapping(pflotran_model,  &
                                       grid_clm_cell_ids_nindex, &
                                       grid_clm_npts_local, &
                                       map_id)
   ! 
-  ! #endif
   ! Initialize mapping between the two model grid
   ! (CLM and PFLTORAN)
   ! 
   ! Author: Gautam Bisht
   ! Date: 03/24/2011
-  ! 
+  ! Revised by Fengming YUAN
 
-    use Input_Aux_module
+    !use Input_Aux_module
     use Option_module
-    use Realization_class
-    use Grid_module
-    use Patch_module
-    use Coupler_module
-    use Connection_module
+    !use Realization_class
+    !use Grid_module
+    !use Patch_module
+    !use Coupler_module
+    !use Connection_module
     use String_module
-    use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_subsurf_class, only : surfsubsurface_simulation_type
+    !use Simulation_Base_class, only : simulation_base_type
+    !use Simulation_Subsurface_class, only : subsurface_simulation_type
+    !use Simulation_Surface_class, only : surface_simulation_type
+    !use Simulation_Surf_subsurf_class, only : surfsubsurface_simulation_type
     use Mapping_module
 
     implicit none
@@ -322,19 +322,16 @@ contains
   ! 
   ! Author: Gautam Bisht
   ! Date: 11/09/2013
-  ! 
+  ! Revised by Fengming YUAN
 
-    use Input_Aux_module
+    !use Input_Aux_module
     use Option_module
     use Realization_class
     use Grid_module
     use Patch_module
-    use Coupler_module
-    use Connection_module
     use String_module
     use Simulation_Base_class, only : simulation_base_type
     use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
     use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Mapping_module
     use clm_pflotran_interface_data
@@ -500,7 +497,7 @@ contains
   ! Date: 04/09/13
   ! Revised by Fengming Yuan, CCSI-ORNL
 
-    use Input_Aux_module
+    !use Input_Aux_module
     use Option_module
     use Realization_class
     use Grid_module
@@ -511,7 +508,7 @@ contains
     use clm_pflotran_interface_data
     use Simulation_Base_class, only : simulation_base_type
     use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
+    !use Simulation_Surface_class, only : surface_simulation_type
     use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Mapping_module
 
@@ -553,11 +550,11 @@ contains
 
     type(mapping_type), pointer        :: map
     type(option_type), pointer         :: option
-    class(realization_type), pointer    :: realization
+    class(realization_type), pointer   :: realization
     type(grid_type), pointer           :: grid
     type(patch_type), pointer          :: patch
     type(coupler_type), pointer        :: boundary_condition
-    type(coupler_type), pointer        :: source_sink
+    !type(coupler_type), pointer        :: source_sink
     type(connection_set_type), pointer :: cur_connection_set
 
 !-----------------------------------------------------------------------------
@@ -1031,462 +1028,6 @@ contains
 
   end subroutine pflotranModelInitMapTopTo2DSub
 
-! ************************************************************************** !
-
-  subroutine pflotranModelInitMapSrfToSrf(pflotran_model,  &
-                                          grid_clm_cell_ids_nindex, &
-                                          grid_clm_npts_local, &
-                                          map_id)
-  ! 
-  ! This routine maps CLM surface grid onto PFLOTRAN 2D surface grid or
-  ! vice-versa.
-  ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 04/09/13
-  ! 
-    use Input_Aux_module
-    use Option_module
-    use Realization_class
-    use Grid_module
-    use Patch_module
-    use Coupler_module
-    use Connection_module
-    use String_module
-    use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-    use Surface_Realization_class, only : surface_realization_type
-    use clm_pflotran_interface_data
-    use Realization_class, only : realization_type
-    use Surface_Realization_class, only : surface_realization_type
-    use Mapping_module
-
-    implicit none
-
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscviewer.h"
-
-    type(pflotran_model_type), intent(inout), pointer :: pflotran_model
-    PetscInt, intent(in), pointer                     :: grid_clm_cell_ids_nindex(:)
-    PetscInt, intent(in)                              :: grid_clm_npts_local
-    PetscInt, intent(in)                              :: map_id
-    character(len=MAXSTRINGLENGTH)                    :: filename
-    
-    ! local
-    PetscInt                           :: local_id, grid_pf_npts_local, grid_pf_npts_ghost
-    PetscInt                           :: grid_clm_npts_ghost, source_mesh_id
-    PetscInt                           :: dest_mesh_id
-    PetscInt, pointer                  :: grid_pf_cell_ids_nindex(:)
-    PetscInt, pointer                  :: grid_pf_local_nindex(:)
-    PetscInt, pointer                  :: grid_clm_local_nindex(:)
-    PetscInt, pointer                  :: grid_clm_cell_ids_nindex_copy(:)
-    PetscInt                           :: count
-    PetscInt                           :: sum_connection
-    PetscInt                           :: ghosted_id
-    PetscInt                           :: iconn
-    PetscInt                           :: istart
-    PetscInt, pointer                  :: int_array(:)
-    PetscBool                          :: found
-    PetscScalar,pointer                :: v_loc(:)
-    PetscErrorCode                     :: ierr
-
-    Vec                                :: surf_ids
-    Vec                                :: surf_ids_loc
-    IS                                 :: is_from
-    IS                                 :: is_to
-    VecScatter                         :: vec_scat
-
-    type(mapping_type), pointer        :: map
-    type(option_type), pointer         :: option
-    class(realization_type), pointer    :: realization
-    class(surface_realization_type), pointer :: surf_realization
-    type(grid_type), pointer           :: grid
-    type(patch_type), pointer          :: patch
-    type(coupler_type), pointer        :: boundary_condition
-    type(coupler_type), pointer        :: source_sink
-    type(connection_set_type), pointer :: cur_connection_set
-
-#ifdef SURFACE_FLOW
-
-    option          => pflotran_model%option
-
-    select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
-         realization => simulation%realization
-      class default
-         nullify(realization)
-         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
-    end select
-
-    allocate(grid_clm_cell_ids_nindex_copy(grid_clm_npts_local))
-    grid_clm_cell_ids_nindex_copy = grid_clm_cell_ids_nindex
-
-    ! Choose the appriopriate map
-    select case(map_id)
-      case(CLM_SRF_TO_PF_SRF)
-        map => pflotran_model%map_clm_srf_to_pf_srf
-        source_mesh_id = CLM_SRF_MESH
-        dest_mesh_id = PF_SRF_MESH
-      case(PF_SRF_TO_CLM_SRF)
-        map => pflotran_model%map_pf_srf_to_clm_srf
-        source_mesh_id = PF_SRF_MESH
-        dest_mesh_id = CLM_SRF_MESH
-      case default
-        option%io_buffer = 'Invalid map_id argument to ' // &
-          'pflotranModelInitMappingSurf2D'
-        call printErrMsg(option)
-    end select
-
-    ! Read mapping file
-    if (index(map%filename, '.h5') > 0) then
-      call MappingReadHDF5(map, map%filename, option)
-    else
-      call MappingReadTxtFile(map, map%filename, option)
-    endif
-
-    grid_clm_npts_ghost=0
-
-    ! Allocate memory to identify if CLM cells are local or ghosted.
-    ! Note: Presently all CLM cells are local
-    allocate(grid_clm_local_nindex(grid_clm_npts_local))
-    do local_id = 1, grid_clm_npts_local
-      grid_clm_local_nindex(local_id) = 1 ! LOCAL
-    enddo
-
-    ! Mapping to/from surface of PFLOTRAN domain
-    ! Destination mesh is surface-mesh
-    select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         nullify(realization)
-         pflotran_model%option%io_buffer = "ERROR: XXX only works on surface simulations."
-         call printErrMsg(pflotran_model%option)
-      class is (surfsubsurface_simulation_type)
-         surf_realization => simulation%surf_realization
-      class is (surface_simulation_type)
-         surf_realization => simulation%surf_realization
-      class default
-    end select
-    patch => surf_realization%patch
-    grid => patch%grid
-
-    !
-    ! Step-1: Find surface cells-ids of PFLOTRAN surface domain
-    !
-    grid_pf_npts_local = grid%nlmax
-    grid_pf_npts_ghost = 0
-
-    allocate(v_loc(grid%nlmax))
-    allocate(grid_pf_cell_ids_nindex(grid%nlmax))
-    allocate(grid_pf_local_nindex(grid%nlmax))
-    
-    grid_pf_local_nindex = 1
-    call VecCreateMPI(option%mycomm, &
-                      realization%patch%grid%nlmax, &
-                      PETSC_DECIDE, &
-                      surf_ids, &
-                      ierr)
-    CHKERRQ(ierr)
-    call VecSet(surf_ids, -1.d0, ierr)
-    CHKERRQ(ierr)
-
-    do local_id = 1,grid%nlmax
-      v_loc(local_id) = grid%unstructured_grid%cell_ids_natural(local_id)-1
-      grid_pf_cell_ids_nindex(local_id) = &
-        grid%unstructured_grid%nat_ids_of_other_grid(local_id)-1
-    enddo
-
-    !
-    call VecSetValues(surf_ids, grid_pf_npts_local, grid_pf_cell_ids_nindex, &
-                      v_loc, INSERT_VALUES, ierr)
-    CHKERRQ(ierr)
-    call VecAssemblyBegin(surf_ids, ierr)
-    CHKERRQ(ierr)
-    call VecAssemblyEnd(surf_ids, ierr)
-    CHKERRQ(ierr)
-
-    do local_id = 1,grid%nlmax
-      grid_pf_cell_ids_nindex(local_id) = &
-        grid%unstructured_grid%cell_ids_natural(local_id)-1
-    enddo   
-    
-    !
-    ! Step-2: Recompute 'map%s2d_icsr'
-    !
-    call VecCreateSeq(PETSC_COMM_SELF, map%s2d_nwts, surf_ids_loc, ierr)
-    CHKERRQ(ierr)
-    allocate(int_array(map%s2d_nwts))
-    do iconn = 1, map%s2d_nwts
-      int_array(iconn) = iconn - 1
-    enddo
-    call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
-                         PETSC_COPY_VALUES, is_to, ierr)
-    CHKERRQ(ierr)
-
-    do iconn = 1, map%s2d_nwts
-      if (source_mesh_id == PF_SRF_MESH) then
-        int_array(iconn) = map%s2d_jcsr(iconn)
-      else
-        int_array(iconn) = map%s2d_icsr(iconn)
-      endif
-    enddo
-    call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
-                         PETSC_COPY_VALUES, is_from, ierr)
-    CHKERRQ(ierr)
-    deallocate(int_array)
-
-    ! create scatter context
-    call VecScatterCreate(surf_ids, is_from, surf_ids_loc, is_to, vec_scat, &
-                          ierr)
-    CHKERRQ(ierr)
-    call ISDestroy(is_from, ierr)
-    CHKERRQ(ierr)
-    call ISDestroy(is_to, ierr)
-    CHKERRQ(ierr)
-
-    call VecScatterBegin(vec_scat, surf_ids, surf_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    CHKERRQ(ierr)
-    call VecScatterEnd(vec_scat, surf_ids, surf_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    CHKERRQ(ierr)
-    call VecScatterDestroy(vec_scat, ierr)
-    CHKERRQ(ierr)
-
-    call VecGetArrayF90(surf_ids_loc, v_loc, ierr)
-    CHKERRQ(ierr)
-    count = 0
-    do iconn = 1, map%s2d_nwts
-      if (v_loc(iconn)>-1) then
-        count = count + 1
-        if (source_mesh_id == PF_SRF_MESH) then
-          map%s2d_jcsr(count) = INT(v_loc(iconn))
-        else
-          map%s2d_icsr(count) = INT(v_loc(iconn))
-        endif
-      endif
-    enddo
-    call VecRestoreArrayF90(surf_ids_loc, v_loc, ierr)
-    CHKERRQ(ierr)
-    call VecDestroy(surf_ids_loc, ierr)
-    CHKERRQ(ierr)
-    
-    if(count /= map%s2d_nwts) then
-      write(*,*) 'count = ',option%myrank,count,map%s2d_nwts
-      option%io_buffer='No. of surface cells in mapping dataset does not ' // &
-        'match surface cells on which BC is applied. [pflotranModelInitMappingSurf2D]'
-      call printErrMsg(option)
-    endif
-    call VecDestroy(surf_ids, ierr)
-    CHKERRQ(ierr)
-
-    !
-    ! Step-3: Find surface cells-ids of CLM subsurface domain
-    !
-    allocate(v_loc(grid_clm_npts_local))
-    v_loc = 1.d0
-    call VecCreateSeq(PETSC_COMM_SELF, grid_clm_npts_local, surf_ids_loc, ierr)
-    CHKERRQ(ierr)
-    call VecCreateMPI(option%mycomm, clm_pf_idata%nlclm_sub, PETSC_DECIDE, surf_ids, ierr)
-    CHKERRQ(ierr)
-    call VecSet(surf_ids, -1.d0, ierr)
-    CHKERRQ(ierr)
-
-    ! Set 1.0 to all cells that make up surface of CLM subsurface domain
-    call VecSetValues(surf_ids, grid_clm_npts_local, grid_clm_cell_ids_nindex_copy, &
-                      v_loc, INSERT_VALUES, ierr)
-    CHKERRQ(ierr)
-
-    deallocate(v_loc)
-    call VecAssemblyBegin(surf_ids, ierr)
-    CHKERRQ(ierr)
-    call VecAssemblyEnd(surf_ids, ierr)
-    CHKERRQ(ierr)
-
-    call VecGetArrayF90(surf_ids, v_loc, ierr)
-    CHKERRQ(ierr)
-    count = 0
-    do local_id=1,clm_pf_idata%nlclm_sub
-      if(v_loc(local_id) == 1.d0) count = count + 1
-    enddo
-
-    istart = 0
-    call MPI_Exscan(count, istart, ONE_INTEGER_MPI, MPIU_INTEGER, MPI_SUM, &
-                    option%mycomm, ierr)
-    CHKERRQ(ierr)
-
-    count = 0
-    do local_id=1,clm_pf_idata%nlclm_sub
-      if(v_loc(local_id) == 1.d0) then
-        v_loc(local_id) = istart + count
-        count = count + 1
-      endif
-    enddo
-    call VecRestoreArrayF90(surf_ids, v_loc, ierr)
-    CHKERRQ(ierr)
-
-    !
-    allocate(int_array(grid_clm_npts_local))
-    do iconn = 1, grid_clm_npts_local
-      int_array(iconn) = iconn - 1
-    enddo
-    call ISCreateGeneral(option%mycomm, grid_clm_npts_local, int_array, &
-                         PETSC_COPY_VALUES, is_to, ierr)
-    CHKERRQ(ierr)
-    deallocate(int_array)
-
-    call ISCreateGeneral(option%mycomm, grid_clm_npts_local, grid_clm_cell_ids_nindex_copy, &
-                         PETSC_COPY_VALUES, is_from, ierr)
-    CHKERRQ(ierr)
-
-
-    ! create scatter context
-    call VecScatterCreate(surf_ids, is_from, surf_ids_loc, is_to, vec_scat, &
-                          ierr)
-    CHKERRQ(ierr)
-    call ISDestroy(is_from, ierr)
-    CHKERRQ(ierr)
-    call ISDestroy(is_to, ierr)
-    CHKERRQ(ierr)
-
-    call VecScatterBegin(vec_scat, surf_ids, surf_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    CHKERRQ(ierr)
-    call VecScatterEnd(vec_scat, surf_ids, surf_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    CHKERRQ(ierr)
-    call VecScatterDestroy(vec_scat, ierr)
-    CHKERRQ(ierr)
-
-    call VecGetArrayF90(surf_ids_loc, v_loc, ierr)
-    CHKERRQ(ierr)
-    count = 0
-    do iconn = 1, grid_clm_npts_local
-      if (v_loc(iconn)>-1) then
-        count = count + 1
-        grid_clm_cell_ids_nindex_copy(count) = INT(v_loc(iconn))
-      endif
-    enddo
-    call VecRestoreArrayF90(surf_ids_loc, v_loc, ierr)
-    CHKERRQ(ierr)
-    call VecDestroy(surf_ids_loc, ierr)
-    CHKERRQ(ierr)
-
-    !
-    ! Step-4: Recompute 'map%s2d_jscr'
-    !
-    call VecCreateSeq(PETSC_COMM_SELF, map%s2d_nwts, surf_ids_loc, ierr)
-    CHKERRQ(ierr)
-    allocate(int_array(map%s2d_nwts))
-    do iconn = 1, map%s2d_nwts
-      int_array(iconn) = iconn - 1
-    enddo
-    call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
-                         PETSC_COPY_VALUES, is_to, ierr)
-    CHKERRQ(ierr)
-
-
-    do iconn = 1, map%s2d_nwts
-      if (source_mesh_id == PF_SRF_MESH) then
-        int_array(iconn) = map%s2d_icsr(iconn)
-      else
-        int_array(iconn) = map%s2d_jcsr(iconn)
-      endif
-    enddo
-    call ISCreateGeneral(option%mycomm, map%s2d_nwts, int_array, &
-                         PETSC_COPY_VALUES, is_from, ierr)
-    CHKERRQ(ierr)
-    deallocate(int_array)
-
-    ! create scatter context
-    call VecScatterCreate(surf_ids, is_from, surf_ids_loc, is_to, vec_scat, &
-                          ierr)
-    CHKERRQ(ierr)
-    call ISDestroy(is_from, ierr)
-    CHKERRQ(ierr)
-    call ISDestroy(is_to, ierr)
-    CHKERRQ(ierr)
-
-    call VecScatterBegin(vec_scat, surf_ids, surf_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    CHKERRQ(ierr)
-    call VecScatterEnd(vec_scat, surf_ids, surf_ids_loc, INSERT_VALUES, &
-                        SCATTER_FORWARD, ierr)
-    CHKERRQ(ierr)
-    call VecScatterDestroy(vec_scat, ierr)
-    CHKERRQ(ierr)
-
-    call VecGetArrayF90(surf_ids_loc, v_loc, ierr)
-    CHKERRQ(ierr)
-    count = 0
-    do iconn = 1, map%s2d_nwts
-      if (v_loc(iconn)>-1) then
-        count = count + 1
-        if (source_mesh_id == PF_SRF_MESH) then
-          map%s2d_icsr(count) = INT(v_loc(iconn))
-        else
-          map%s2d_jcsr(count) = INT(v_loc(iconn))
-        endif
-      endif
-    enddo
-    call VecRestoreArrayF90(surf_ids_loc, v_loc, ierr)
-    CHKERRQ(ierr)
-    
-    if(count /= map%s2d_nwts) then
-      write(*,*) 'count = ',option%myrank,count,map%s2d_nwts
-      option%io_buffer='No. of surface cells in mapping dataset does not ' // &
-        'match surface cells on which BC is applied. [pflotranModelInitMappingSurf2D]'
-      call printErrMsgByRank(option)
-    endif
-    call VecDestroy(surf_ids, ierr)
-    CHKERRQ(ierr)
-
-    select case(source_mesh_id)
-      case(CLM_SRF_MESH)
-        call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
-                                         grid_clm_cell_ids_nindex_copy)
-        call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
-                                              grid_pf_npts_ghost, &
-                                              grid_pf_cell_ids_nindex, &
-                                              grid_pf_local_nindex)
-      case(PF_SRF_MESH)
-        call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
-                                        grid_pf_cell_ids_nindex)
-        call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
-                                              grid_clm_npts_ghost, &
-                                              grid_clm_cell_ids_nindex_copy, &
-                                              grid_clm_local_nindex)
-      case default
-        option%io_buffer = 'Invalid argument source_mesh_id passed to ' // &
-          'pflotranModelInitMappingSurf2D'
-        call printErrMsg(option)
-    end select
-
-    deallocate(grid_pf_cell_ids_nindex)
-    deallocate(grid_pf_local_nindex)
-    deallocate(grid_clm_cell_ids_nindex_copy)
-    deallocate(grid_clm_local_nindex)
-
-    call MappingDecompose(map, option)
-    call MappingFindDistinctSourceMeshCellIds(map, option)
-    call MappingCreateWeightMatrix(map, option)
-    call MappingCreateScatterOfSourceMesh(map, option)
-    call MappingFreeNotNeeded(map)
-#endif
-  end subroutine pflotranModelInitMapSrfToSrf
-
-! ************************************************************************** !
-
-
-! ************************************************************************** !
-
-
-! ************************************************************************** !
-
  ! ************************************************************************** !
 
   function pflotranModelNSurfCells3DDomain(pflotran_model)
@@ -1580,7 +1121,7 @@ contains
     use Utility_module, only : DotProduct, CrossProduct
     use Simulation_Base_class, only : simulation_base_type
     use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
+    !use Simulation_Surface_class, only : surface_simulation_type
     use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Surface_Realization_class, only : surface_realization_type
     use Realization_class, only : realization_type
@@ -1692,7 +1233,7 @@ contains
   ! NOTE: for TOP face, BC condition name: 'clm_gflux_bc') ('g' for ground);
   !       for BOTTOM face, BC condition name: 'clm_bflux_bc') ('b' for bottom);
 
-    use Input_Aux_module
+    !use Input_Aux_module
     use Option_module
     use Realization_class
     use Grid_module
@@ -1703,7 +1244,7 @@ contains
     use clm_pflotran_interface_data
     use Simulation_Base_class, only : simulation_base_type
     use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
+    !use Simulation_Surface_class, only : surface_simulation_type
     use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Mapping_module
 

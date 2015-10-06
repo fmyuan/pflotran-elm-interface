@@ -249,10 +249,8 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   
   implicit none
 
-#ifdef CLM_PFLOTRAN
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
-#endif
   
   class(reaction_sandbox_nitrif_type) :: this
   type(option_type) :: option
@@ -455,11 +453,13 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
              0.5d0 * drate_n2o_dnh4 * &
              rt_auxvar%aqueous%dtotal(this%ispec_n2o,this%ispec_nh4,iphase)
       
+#ifndef nojacobian_track_vars
            ! for tracking
            if(this%ispec_ngasnit > 0) then
              Jacobian(ires_ngasnit,ires_nh4)=Jacobian(ires_ngasnit,ires_nh4)- &
                drate_n2o_dnh4
            endif
+#endif
 
        endif  !if (compute_derivative)
 
@@ -467,7 +467,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
 
   endif       !if(this%ispec_n2o > 0.0d0 .and. c_nh4_ugg > 3.0d0)
 
-!#ifdef DEBUG
+#ifdef DEBUG
   if( (option%tran_dt<=option%dt_min .and. option%print_file_flag) .and. &
       (rate_nitri*option%dt_min >= c_nh4 .or. &
        rate_n2o*option%dt_min >= c_nh4) ) then
@@ -499,7 +499,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
     endif
 
   enddo
-!#endif
+#endif
 
 end subroutine NitrifReact
 

@@ -12,6 +12,7 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_Nitrif_class
   use Reaction_Sandbox_Denitr_class
   use Reaction_Sandbox_Degas_class
+  use Reaction_Sandbox_Microbial_class
   
   use PFLOTRAN_Constants_module
 
@@ -164,6 +165,8 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => NitrifCreate()
       case('DENITRIFICATION')
         new_sandbox => DenitrCreate()
+      case('MICROBIAL')
+        new_sandbox => MicrobialCreate()
       case('DEGAS')
         new_sandbox => degasCreate()
       case('LANGMUIR')

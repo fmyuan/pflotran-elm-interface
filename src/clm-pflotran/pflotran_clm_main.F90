@@ -88,15 +88,29 @@ module pflotran_clm_main_module
   character(len=MAXWORDLENGTH):: name_lit2 = "LITR2"
   character(len=MAXWORDLENGTH):: name_lit3 = "LITR3"
   character(len=MAXWORDLENGTH):: name_cwd  = "CWD"
-  character(len=MAXWORDLENGTH):: name_som1 = "SOIL1"
-  character(len=MAXWORDLENGTH):: name_som2 = "SOIL2"
-  character(len=MAXWORDLENGTH):: name_som3 = "SOIL3"
-  character(len=MAXWORDLENGTH):: name_som4 = "SOIL4"
+  character(len=MAXWORDLENGTH):: name_soil1= "SOIL1"
+  character(len=MAXWORDLENGTH):: name_soil2= "SOIL2"
+  character(len=MAXWORDLENGTH):: name_soil3= "SOIL3"
+  character(len=MAXWORDLENGTH):: name_soil4= "SOIL4"
 
-  PetscInt:: ispec_nh4, ispec_no3, ispec_nh4sorb
+  character(len=MAXWORDLENGTH):: name_labile    = "Labile"
+  character(len=MAXWORDLENGTH):: name_cellulose = "Cellulose"
+  character(len=MAXWORDLENGTH):: name_lignin    = "Lignin"
+  character(len=MAXWORDLENGTH):: name_som1 = "SOM1"
+  character(len=MAXWORDLENGTH):: name_som2 = "SOM2"
+  character(len=MAXWORDLENGTH):: name_som3 = "SOM3"
+  character(len=MAXWORDLENGTH):: name_som4 = "SOM4"
+
+  PetscInt:: ispec_fungi, ispec_bacteria
+  character(len=MAXWORDLENGTH):: name_fungi    = "Fungi"
+  character(len=MAXWORDLENGTH):: name_bacteria = "Bacteria"
+
+  PetscInt:: ispec_nh4, ispec_no3, ispec_nh4sorb, ispec_nh4imm, ispec_no3imm
   character(len=MAXWORDLENGTH):: name_nh4     = "NH4+"
   character(len=MAXWORDLENGTH):: name_no3     = "NO3-"
   character(len=MAXWORDLENGTH):: name_nh4sorb = "NH4sorb"
+  character(len=MAXWORDLENGTH):: name_nh4imm  = "Ammonium"
+  character(len=MAXWORDLENGTH):: name_no3imm  = "Nitrate"
 
   PetscInt :: ispec_plantndemand, ispec_plantnh4uptake, ispec_plantno3uptake
   character(len=MAXWORDLENGTH):: name_plantndemand   = "Plantndemand"
@@ -202,7 +216,7 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelStepperRunInit(pflotran_model)
+  subroutine pflotranModelStepperRunInit(model)
   ! 
   ! It performs the same execution of commands
   ! that are carried out in StepperRun() before the model integration
@@ -212,15 +226,15 @@ contains
   ! Date: 9/10/2010
   ! 
 
-    type(pflotran_model_type), pointer, intent(inout) :: pflotran_model
+    type(pflotran_model_type), pointer, intent(inout) :: model
 
-    call pflotran_model%simulation%InitializeRun()
+    call model%simulation%InitializeRun()
 
   end subroutine pflotranModelStepperRunInit
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelStepperCheckpoint(pflotran_model, id_stamp)
+  subroutine pflotranModelStepperCheckpoint(model, id_stamp)
   ! 
   ! wrapper around StepperCheckpoint
   ! NOTE(bja, 2013-06-27) : the date stamp from clm is 32 characters
@@ -230,7 +244,7 @@ contains
 
     implicit none
 
-    type(pflotran_model_type), pointer :: pflotran_model
+    type(pflotran_model_type), pointer :: model
     character(len=MAXWORDLENGTH), intent(in) :: id_stamp
     PetscViewer :: viewer
 
@@ -240,459 +254,8 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelStepperRunTillPauseTime(model, pause_time, dtime, isprintout)
-  ! 
-  ! It performs the model integration
-  ! till the specified pause_time.
-  ! NOTE: It is assumed 'pause_time' is in seconds.
-  ! NOTE(bja, 2013-07) the strange waypoint insertion of t+30min /
-  ! deletion of t is to ensure that we always have a valid waypoint in
-  ! front of us, but pflotran does not delete them, so we don't want
-  ! to accumulate too large of a list.
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 9/10/2010
-  ! 
-  ! Revised by Fengming Yuan @CCSI-ORNL
-
-    implicit none
-
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h90"
-
-    type(pflotran_model_type), pointer :: model
-    PetscReal, intent(in) :: pause_time
-    PetscReal, intent(in) :: dtime
-    PetscBool, intent(in) :: isprintout
-
-    PetscReal :: pause_time1
-
-    if(isprintout) then
-      if (model%option%io_rank == model%option%myrank) then
-        write(model%option%fid_out, *) '>>>> Inserting waypoint at pause_time (s) = ', pause_time
-        write(model%option%fid_out, *) '>>>> for CLM timestep: ', pause_time/dtime
-      endif
-    endif
-
-    pause_time1 = pause_time + dtime
-    call pflotranModelInsertWaypoint(model, pause_time1)
-
-    call model%simulation%RunToTime(pause_time)
-
-    call pflotranModelDeleteWaypoint(model, pause_time)
-
-  end subroutine pflotranModelStepperRunTillPauseTime
-
-! ************************************************************************** !
-
-  subroutine pflotranModelInsertWaypoint(model, waypoint_time)
-  !
-  ! Inserts a waypoint within the waypoint list
-  ! so that the model integration can be paused when that waypoint is
-  ! reached
-  ! NOTE: It is assumed the 'waypoint_time' is in seconds
-  !
-  ! Author: Gautam Bisht
-  ! Date: 9/10/2010
-  !
-  ! Revised by Fengming Yuan @CCSI-ORNL
-
-    use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-
-    use Realization_class, only : realization_type
-    use Surface_Realization_class, only : surface_realization_type
-
-    use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointInsertInList
-    use Units_module, only : UnitsConvertToInternal
-    use Option_module, only : printErrMsg
-
-    implicit none
-
-    type(pflotran_model_type), pointer :: model
-    type(waypoint_type), pointer       :: waypoint
-    type(waypoint_type), pointer       :: waypoint2
-    PetscReal                          :: waypoint_time
-    character(len=MAXWORDLENGTH)       :: word
-
-    class(realization_type), pointer    :: realization
-    class(surface_realization_type), pointer :: surf_realization
-
-    select type (simulation => model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-         nullify(surf_realization)
-      class is (surface_simulation_type)
-         nullify(realization)
-         surf_realization => simulation%surf_realization
-      class is (surfsubsurface_simulation_type)
-         realization => simulation%realization
-         surf_realization => simulation%surf_realization
-      class default
-         nullify(realization)
-         nullify(surf_realization)
-         model%option%io_buffer = "pflotranModelInsertWaypoint only " // &
-              "works on combinations of surface and subsurface simulations."
-         call printErrMsg(model%option)
-    end select
-
-    word = 's'
-    waypoint => WaypointCreate()
-    waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
-    waypoint%update_conditions = PETSC_TRUE
-    waypoint%print_output      = PETSC_FALSE
-    waypoint%final             = PETSC_FALSE
-    waypoint%dt_max            = waypoint_time * UnitsConvertToInternal(word, model%option)!3153600.d0
-
-    if (associated(realization)) then
-      call WaypointInsertInList(waypoint, realization%waypoint_list)
-    end if
-
-    if (associated(surf_realization)) then
-      waypoint2 => WaypointCreate(waypoint)
-      ! just in case that subsurface realization NOT there (e.g. only surf_simulation),
-      ! the above 'WaypointCreate()' will allocate memory for 'waypoint',
-      ! which never have a chance to deallocate and potentially leak memory
-      if(associated(waypoint)) deallocate(waypoint)
-
-      call WaypointInsertInList(waypoint2, surf_realization%waypoint_list)
-    end if
-
-  end subroutine pflotranModelInsertWaypoint
-
-! ************************************************************************** !
-
-  subroutine pflotranModelDeleteWaypoint(model, waypoint_time)
-
-    use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-
-    use Realization_class, only : realization_type
-    use Surface_Realization_class, only : surface_realization_type
-    use Surface_Realization_class, only : surface_realization_type
-
-    use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointDeleteFromList
-    use Units_module, only : UnitsConvertToInternal
-    use Option_module, only : printErrMsg
-
-    implicit none
-
-    type(pflotran_model_type), pointer :: model
-    type(waypoint_type), pointer       :: waypoint
-    PetscReal                          :: waypoint_time
-    character(len=MAXWORDLENGTH)       :: word
-
-    class(realization_type), pointer    :: realization
-    class(surface_realization_type), pointer :: surf_realization
-
-    select type (simulation => model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-         nullify(surf_realization)
-      class is (surface_simulation_type)
-         nullify(realization)
-         surf_realization => simulation%surf_realization
-      class is (surfsubsurface_simulation_type)
-         realization => simulation%realization
-         surf_realization => simulation%surf_realization
-      class default
-         nullify(realization)
-         nullify(surf_realization)
-         model%option%io_buffer = "pflotranModelDeleteWaypoint only " // &
-              "works on combinations of surface and subsurface simulations."
-         call printErrMsg(model%option)
-    end select
-
-    word = 's'
-    waypoint => WaypointCreate()
-    waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
-    waypoint%update_conditions = PETSC_TRUE
-    waypoint%dt_max            = 3153600
-
-    if (associated(realization)) then
-       call WaypointDeleteFromList(waypoint, realization%waypoint_list)
-    end if
-
-    if (associated(surf_realization)) then
-       call WaypointDeleteFromList(waypoint, surf_realization%waypoint_list)
-    end if
-
-    ! when call 'WaypointCreate()', 'waypoint' will be allocated memory,
-    ! and the 'WaypointDeleteFromList''s destroy appears not work( TODO checking)
-    ! which causes memory leak continuously - it's very dangerous to system if runs long
-    if(associated(waypoint)) deallocate(waypoint)
-  end subroutine pflotranModelDeleteWaypoint
-
-! ************************************************************************** !
-  !
-  ! pflotranModelUpdateFinalWaypoint:
-  !  Get CLM final timestep and converts it to PFLOTRAN final way point.
-  !  And also set an option for turning on/off PF printing
-! ************************************************************************** !
-
-  subroutine pflotranModelUpdateFinalWaypoint(model, waypoint_time, isprintout)
-
-    use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-
-    use Realization_class, only : realization_type, &
-      RealizationAddWaypointsToList
-    use Surface_Realization_class, only : surface_realization_type, &
-      SurfRealizAddWaypointsToList
-
-    use Waypoint_module, only : waypoint_type, WaypointCreate, &
-      WaypointDeleteFromList, WaypointInsertInList, &
-      WaypointListFillIn, WaypointListRemoveExtraWaypnts
-    use Units_module, only : UnitsConvertToInternal
-    use Option_module, only : printErrMsg
-
-    implicit none
-
-    type(pflotran_model_type), pointer :: model
-    type(waypoint_type), pointer       :: waypoint, waypoint1, waypoint2
-    PetscReal, intent(in)              :: waypoint_time
-    PetscBool, intent(in)              :: isprintout
-    character(len=MAXWORDLENGTH)       :: word
-
-    class(realization_type), pointer    :: realization
-    class(surface_realization_type), pointer :: surf_realization
-
-!-------------------------------------------------------------------------
-    select type (simulation => model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-         nullify(surf_realization)
-      class is (surface_simulation_type)
-         nullify(realization)
-         surf_realization => simulation%surf_realization
-      class is (surfsubsurface_simulation_type)
-         realization => simulation%realization
-         surf_realization => simulation%surf_realization
-      class default
-         nullify(realization)
-         nullify(surf_realization)
-         model%option%io_buffer = "pflotranModelUPdateFinalWaypoint is " // &
-              "Not support in this mode."
-         call printErrMsg(model%option)
-    end select
-
-    ! new final waypoint
-    word = 's'
-    waypoint1 => WaypointCreate()
-    waypoint1%time          = waypoint_time * UnitsConvertToInternal(word, model%option)
-    waypoint1%print_output  = PETSC_TRUE
-    waypoint1%final         = PETSC_TRUE
-    waypoint1%dt_max        = waypoint_time * UnitsConvertToInternal(word, model%option)
-
-    ! update subsurface-realization final waypoint
-    if (associated(realization)) then
-      ! remove original final waypoint
-      waypoint => realization%waypoint_list%first
-      do
-        if (.not.associated(waypoint)) exit
-        if (waypoint%final) then
-          waypoint%final = PETSC_FALSE
-          exit
-
-        else
-           waypoint => waypoint%next
-        endif
-      enddo
-
-      ! insert new final waypoint
-      call WaypointInsertInList(waypoint1, realization%waypoint_list)
-      call RealizationAddWaypointsToList(realization)
-      call WaypointListFillIn(model%option,realization%waypoint_list)
-      call WaypointListRemoveExtraWaypnts(model%option,realization%waypoint_list)
-
-      ! turn off the 'print out' if required from CLM
-      if(.not.isprintout) then
-        if (model%option%io_rank == model%option%myrank) then
-          write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
-            'for subsurface flow from PFLOTRAN IS OFF! '
-        endif
-        waypoint => realization%waypoint_list%first
-        do
-          if (.not.associated(waypoint)) exit
-          waypoint%print_output = PETSC_FALSE
-          waypoint => waypoint%next
-        enddo
-      endif
-
-    endif  !if (associated(realization))
-
-    ! update surface-realization final waypoint
-    if (associated(surf_realization)) then
-      ! remove original final waypoint
-      waypoint => surf_realization%waypoint_list%first
-      do
-        if (.not.associated(waypoint)) exit
-        if (waypoint%final) then
-          waypoint%final = PETSC_FALSE
-          exit
-
-        else
-           waypoint => waypoint%next
-        endif
-      enddo
-
-      ! insert new final waypoint2 (copied from waypoint1)
-      waypoint2 => WaypointCreate(waypoint1)
-      ! just in case that subsurface realization NOT there (e.g. only surf_simulation),
-      ! the above 'WaypointCreate()' will allocate memory for 'waypoint1',
-      ! which never have a chance to deallocate and potentially leak memory
-      if(associated(waypoint1)) deallocate(waypoint1)
-
-      call WaypointInsertInList(waypoint2, surf_realization%waypoint_list)
-      call SurfRealizAddWaypointsToList(surf_realization)
-      call WaypointListFillIn(model%option,surf_realization%waypoint_list)
-      call WaypointListRemoveExtraWaypnts(model%option,surf_realization%waypoint_list)
-
-      ! turn off the 'print out' if required from CLM
-      if(.not.isprintout) then
-        if (model%option%io_rank == model%option%myrank) then
-          write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
-            'for surface flow from PFLOTRAN IS OFF! '
-        endif
-        waypoint => surf_realization%waypoint_list%first
-        do
-          if (.not.associated(waypoint)) exit
-          waypoint%print_output = PETSC_FALSE
-          waypoint => waypoint%next
-        enddo
-      endif
-
-    end if !if (associated(surf_realization))
-
-  end subroutine pflotranModelUpdateFinalWaypoint
-
-! ************************************************************************** !
-
-  subroutine pflotranModelSetupRestart(model, restart_stamp)
-  !
-  ! pflotranModelSetupRestart()
-  ! This checks to see if a restart file stamp was provided by the
-  ! driver. If so, we set the restart flag and reconstruct the
-  ! restart file name. The actual restart is handled by the standard
-  ! pflotran mechanism in TimeStepperInitializeRun()
-  ! NOTE: this must be called between pflotranModelCreate() and
-  ! pflotranModelStepperRunInit()
-  !
-
-    use Option_module
-    use String_module
-
-    implicit none
-
-    type(pflotran_model_type), pointer :: model
-    character(len=MAXWORDLENGTH) :: restart_stamp
-
-    model%option%io_buffer = 'restart is not implemented in clm-pflotran.' // &
-       'AND, pflotran will be initialized from CLM'
-
-    if (.not. StringNull(restart_stamp)) then
-       model%option%restart_flag = PETSC_TRUE
-       model%option%restart_filename = &
-            trim(model%option%global_prefix) // &
-            trim(model%option%group_prefix) // &
-            '-' // trim(restart_stamp) // '.chk'
-
-       model%option%io_buffer = 'restart file is: ' // &
-            trim(model%option%restart_filename)
-
-    end if
-
-    call printWrnMsg(model%option)
-
-  end subroutine pflotranModelSetupRestart
-
-! ************************************************************************** !
-
-  subroutine pflotranModelStepperRunFinalize(model)
-  !
-  ! It performs the same execution of commands
-  ! that are carried out in StepperRun() once the model integration is
-  ! finished
-  !
-  ! Author: Gautam Bisht
-  ! Date: 9/10/2010
-  !
-
-    implicit none
-
-    type(pflotran_model_type), pointer :: model
-
-    call model%simulation%FinalizeRun()
-
-  end subroutine pflotranModelStepperRunFinalize
-
-
-! ************************************************************************** !
-
-  subroutine pflotranModelDestroy(model)
-  !
-  ! Deallocates the pflotranModel object
-  !
-  ! Author: Gautam Bisht
-  ! Date: 9/10/2010
-  !
-
-    use Factory_PFLOTRAN_module, only : PFLOTRANFinalize
-    use Option_module, only : OptionFinalize
-    use clm_pflotran_interface_data
-    use Mapping_module
-
-    implicit none
-
-    type(pflotran_model_type), pointer :: model
-
-    ! FIXME(bja, 2013-07) none of the mapping information appears to
-    ! be cleaned up, so we are leaking memory....
-
-    call model%simulation%FinalizeRun()
-    !call model%simulation%Strip()    ! this causes petsc error of seq. fault issue, although doesn't matter.
-    if(associated(model%simulation)) deallocate(model%simulation)
-    nullify(model%simulation)
-
-    call PFLOTRANFinalize(model%option)
-    call OptionFinalize(model%option)
-
-    call CLMPFLOTRANIDataDestroy()
-
-    if (associated(model%map_clm_sub_to_pf_sub)) &
-      call MappingDestroy(model%map_clm_sub_to_pf_sub)
-    if (associated(model%map_clm_2dtop_to_pf_2dtop)) &
-      call MappingDestroy(model%map_clm_2dtop_to_pf_2dtop)
-    if (associated(model%map_clm_2dbot_to_pf_2dbot)) &
-      call MappingDestroy(model%map_clm_2dbot_to_pf_2dbot)
-
-    if (associated(model%map_pf_sub_to_clm_sub)) &
-      call MappingDestroy(model%map_pf_sub_to_clm_sub)
-    if (associated(model%map_pf_2dtop_to_clm_2dtop)) &
-      call MappingDestroy(model%map_pf_2dtop_to_clm_2dtop)
-    if (associated(model%map_pf_2dbot_to_clm_2dbot)) &
-      call MappingDestroy(model%map_pf_2dbot_to_clm_2dbot)
-
-    if (associated(model)) deallocate(model)
-    nullify(model)
-
-  end subroutine pflotranModelDestroy
-
-!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++!
-!
-! THE FOLLOWING BLOCKS OF CODES ARE FOR CLM-PFLOTRAN THERMAL-HYDROLOGY (TH) COUPLING
-!
-!
-! ************************************************************************** !
-!
   subroutine pflotranModelSetSoilDimension(pflotran_model)
-  !
+  ! 
   ! Force soil dimension from CLM to PFLOTRAN subsurface domain.
 
     use Realization_class
@@ -1014,11 +577,11 @@ contains
        !   bc_Sr(1)  = sr_pf_loc(ghosted_id)      ! currently only for liq. water, NOTE that if at 'Sr', pc = inf
        !   bc_pcwmax = pcwmax_pf_loc(ghosted_id)  ! this parameter IS not corresponding with 'Sr'
 
-       ! currently BC-Burdine saturation function type, with specified values to match with Clapp-Hornberger Eq.
+       ! currently BC-Burdine saturation/permisivity function type, with specified values to match with Clapp-Hornberger Eq.
         if ( saturation_function%saturation_function_itype == BROOKS_COREY .and. &
              saturation_function%permeability_function_itype == BURDINE )         then
           ! Clapp-Hornberger: soilpsi = sucsat * (-9.81) * (fsattmp)**(-bsw)  ! mm H2O Head --> -pa
-          !                   K = Ks*fsattmp**(3+2/bsw)
+          !                   K = Ks*fsattmp**(3+2*bsw)
           !         vs.
           ! BC-Burdine: pc =  (Se**(-1.d0/lambda))/alpha, with Se=(lsat-Sr)/(1-Sr)
           !             relative_perm = Se**power, with power = 3+2/lamda
@@ -1135,6 +698,231 @@ contains
 
   end subroutine pflotranModelSetSoilProp
 
+
+  subroutine pflotranModelStepperRunTillPauseTime(model, pause_time, dtime, isprintout)
+  ! 
+  ! It performs the model integration
+  ! till the specified pause_time.
+  ! NOTE: It is assumed 'pause_time' is in seconds.
+  ! NOTE(bja, 2013-07) the strange waypoint insertion of t+30min /
+  ! deletion of t is to ensure that we always have a valid waypoint in
+  ! front of us, but pflotran does not delete them, so we don't want
+  ! to accumulate too large of a list.
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  ! Revised by Fengming YUAN
+
+    implicit none
+
+#include "finclude/petscsys.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer :: model
+    PetscReal, intent(in) :: pause_time
+    PetscReal, intent(in) :: dtime
+    PetscBool, intent(in) :: isprintout
+
+    PetscReal :: pause_time1
+
+    if(isprintout) then
+      if (model%option%io_rank == model%option%myrank) then
+        write(model%option%fid_out, *) '>>>> Inserting waypoint at pause_time (s) = ', pause_time
+        write(model%option%fid_out, *) '>>>> for CLM timestep: ', pause_time/dtime
+      endif
+    endif
+
+    pause_time1 = pause_time + dtime!1800.0d0
+    call pflotranModelInsertWaypoint(model, pause_time1)
+
+    call model%simulation%RunToTime(pause_time)
+
+    call pflotranModelDeleteWaypoint(model, pause_time)
+
+  end subroutine pflotranModelStepperRunTillPauseTime
+
+! ************************************************************************** !
+
+  subroutine pflotranModelInsertWaypoint(model, waypoint_time)
+  ! 
+  ! Inserts a waypoint within the waypoint list
+  ! so that the model integration can be paused when that waypoint is
+  ! reached
+  ! NOTE: It is assumed the 'waypoint_time' is in seconds
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  ! Revised by Fengming YUAN
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+
+    use Realization_class, only : realization_type
+    use Surface_Realization_class, only : surface_realization_type
+
+    use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointInsertInList
+    use Units_module, only : UnitsConvertToInternal
+    use Option_module, only : printErrMsg
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: model
+    type(waypoint_type), pointer       :: waypoint
+    type(waypoint_type), pointer       :: waypoint2
+    PetscReal                          :: waypoint_time
+    character(len=MAXWORDLENGTH)       :: word
+
+    class(realization_type), pointer    :: realization
+    class(surface_realization_type), pointer :: surf_realization
+
+    select type (simulation => model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+         nullify(surf_realization)
+      class is (surface_simulation_type)
+         nullify(realization)
+         surf_realization => simulation%surf_realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+         surf_realization => simulation%surf_realization
+      class default
+         nullify(realization)
+         nullify(surf_realization)
+         model%option%io_buffer = "pflotranModelInsertWaypoint only " // &
+              "works on combinations of surface and subsurface simulations."
+         call printErrMsg(model%option)
+    end select
+
+    word = 's'
+    waypoint => WaypointCreate()
+    waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
+    waypoint%update_conditions = PETSC_TRUE
+    waypoint%print_output      = PETSC_FALSE
+    waypoint%final             = PETSC_FALSE
+    waypoint%dt_max            = waypoint_time * UnitsConvertToInternal(word, model%option)!3153600.d0
+
+    if (associated(realization)) then
+      call WaypointInsertInList(waypoint, realization%waypoint_list)
+    end if
+
+    if (associated(surf_realization)) then
+      waypoint2 => WaypointCreate(waypoint)
+      ! just in case that subsurface realization NOT there (e.g. only surf_simulation),
+      ! the above 'WaypointCreate()' will allocate memory for 'waypoint',
+      ! which never have a chance to deallocate and potentially leak memory
+      if(associated(waypoint)) deallocate(waypoint)
+
+      call WaypointInsertInList(waypoint2, surf_realization%waypoint_list)
+    end if
+
+  end subroutine pflotranModelInsertWaypoint
+
+! ************************************************************************** !
+
+  subroutine pflotranModelDeleteWaypoint(model, waypoint_time)
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+
+    use Realization_class, only : realization_type
+    use Surface_Realization_class, only : surface_realization_type
+    use Surface_Realization_class, only : surface_realization_type
+
+    use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointDeleteFromList
+    use Units_module, only : UnitsConvertToInternal
+    use Option_module, only : printErrMsg
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: model
+    type(waypoint_type), pointer       :: waypoint
+    PetscReal                          :: waypoint_time
+    character(len=MAXWORDLENGTH)       :: word
+
+    class(realization_type), pointer    :: realization
+    class(surface_realization_type), pointer :: surf_realization
+
+    select type (simulation => model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+         nullify(surf_realization)
+      class is (surface_simulation_type)
+         nullify(realization)
+         surf_realization => simulation%surf_realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+         surf_realization => simulation%surf_realization
+      class default
+         nullify(realization)
+         nullify(surf_realization)
+         model%option%io_buffer = "pflotranModelDeleteWaypoint only " // &
+              "works on combinations of surface and subsurface simulations."
+         call printErrMsg(model%option)
+    end select
+
+    word = 's'
+    waypoint => WaypointCreate()
+    waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
+    waypoint%update_conditions = PETSC_TRUE
+    waypoint%dt_max            = 3153600
+
+    if (associated(realization)) then
+       call WaypointDeleteFromList(waypoint, realization%waypoint_list)
+    end if
+
+    if (associated(surf_realization)) then
+       call WaypointDeleteFromList(waypoint, surf_realization%waypoint_list)
+    end if
+
+    ! when call 'WaypointCreate()', 'waypoint' will be allocated memory,
+    ! and the 'WaypointDeleteFromList''s destroy appears not work( TODO checking)
+    ! which causes memory leak continuously - it's very dangerous to system if runs long
+    if(associated(waypoint)) deallocate(waypoint)
+  end subroutine pflotranModelDeleteWaypoint
+
+! ************************************************************************** !
+
+  subroutine pflotranModelSetupRestart(model, restart_stamp)
+  !
+  ! pflotranModelSetupRestart()
+  ! This checks to see if a restart file stamp was provided by the
+  ! driver. If so, we set the restart flag and reconstruct the
+  ! restart file name. The actual restart is handled by the standard
+  ! pflotran mechanism in TimeStepperInitializeRun()
+  ! NOTE: this must be called between pflotranModelCreate() and
+  ! pflotranModelStepperRunInit()
+  !
+
+    use Option_module
+    use String_module
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: model
+    character(len=MAXWORDLENGTH) :: restart_stamp
+
+    model%option%io_buffer = 'restart is not implemented in clm-pflotran.' // &
+       'AND, pflotran will be initialized from CLM'
+
+    if (.not. StringNull(restart_stamp)) then
+       model%option%restart_flag = PETSC_TRUE
+       model%option%restart_filename = &
+            trim(model%option%global_prefix) // &
+            trim(model%option%group_prefix) // &
+            '-' // trim(restart_stamp) // '.chk'
+
+       model%option%io_buffer = 'restart file is: ' // &
+            trim(model%option%restart_filename)
+
+    end if
+
+    call printWrnMsg(model%option)
+
+  end subroutine pflotranModelSetupRestart
 
 ! ************************************************************************** !
 
@@ -1394,7 +1182,7 @@ contains
     use Simulation_Subsurface_class, only : subsurface_simulation_type
     use Simulation_Surface_class, only : surface_simulation_type
     use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-    use Surface_Realization_class, only : surface_realization_type
+!    use Surface_Realization_class, only : surface_realization_type
     use clm_pflotran_interface_data
     use Mapping_module
 
@@ -1641,6 +1429,227 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
                                     clm_pf_idata%soilt_clms)
 
   end subroutine pflotranModelGetTemperatureFromPF
+
+! ************************************************************************** !
+
+  subroutine pflotranModelStepperRunFinalize(model)
+  ! 
+  ! It performs the same execution of commands
+  ! that are carried out in StepperRun() once the model integration is
+  ! finished
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  ! 
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: model
+
+    call model%simulation%FinalizeRun()
+
+  end subroutine pflotranModelStepperRunFinalize
+
+! ************************************************************************** !
+
+  subroutine pflotranModelDestroy(model)
+  ! 
+  ! Deallocates the pflotranModel object
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  ! 
+
+    use Factory_PFLOTRAN_module, only : PFLOTRANFinalize
+    use Option_module, only : OptionFinalize
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: model
+
+    ! FIXME(bja, 2013-07) none of the mapping information appears to
+    ! be cleaned up, so we are leaking memory....
+
+    call model%simulation%FinalizeRun()
+    !call model%simulation%Strip()    ! this causes petsc error of seq. fault issue, although doesn't matter.
+    if(associated(model%simulation)) deallocate(model%simulation)
+    nullify(model%simulation)
+
+    call PFLOTRANFinalize(model%option)
+    call OptionFinalize(model%option)
+
+    call CLMPFLOTRANIDataDestroy()
+
+    if (associated(model%map_clm_sub_to_pf_sub)) &
+      call MappingDestroy(model%map_clm_sub_to_pf_sub)
+    if (associated(model%map_clm_2dtop_to_pf_2dtop)) &
+      call MappingDestroy(model%map_clm_2dtop_to_pf_2dtop)
+    if (associated(model%map_clm_2dbot_to_pf_2dbot)) &
+      call MappingDestroy(model%map_clm_2dbot_to_pf_2dbot)
+
+    if (associated(model%map_pf_sub_to_clm_sub)) &
+      call MappingDestroy(model%map_pf_sub_to_clm_sub)
+    if (associated(model%map_pf_2dtop_to_clm_2dtop)) &
+      call MappingDestroy(model%map_pf_2dtop_to_clm_2dtop)
+    if (associated(model%map_pf_2dbot_to_clm_2dbot)) &
+      call MappingDestroy(model%map_pf_2dbot_to_clm_2dbot)
+
+    if (associated(model)) deallocate(model)
+    nullify(model)
+
+  end subroutine pflotranModelDestroy
+
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++!
+!
+! THE FOLLOWING BLOCKS OF CODES ARE FOR CLM-PFLOTRAN BGC COUPLING
+!
+!
+! ************************************************************************** !
+  !
+  ! pflotranModelUpdateFinalWaypoint:
+  !  Get CLM final timestep and converts it to PFLOTRAN final way point.
+  !  And also set an option for turning on/off PF printing
+! ************************************************************************** !
+
+  subroutine pflotranModelUpdateFinalWaypoint(model, waypoint_time, isprintout)
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+
+    use Realization_class, only : realization_type, &
+      RealizationAddWaypointsToList
+    use Surface_Realization_class, only : surface_realization_type, &
+      SurfRealizAddWaypointsToList
+
+    use Waypoint_module, only : waypoint_type, WaypointCreate, &
+      WaypointDeleteFromList, WaypointInsertInList, &
+      WaypointListFillIn, WaypointListRemoveExtraWaypnts
+    use Units_module, only : UnitsConvertToInternal
+    use Option_module, only : printErrMsg
+
+    implicit none
+
+    type(pflotran_model_type), pointer :: model
+    type(waypoint_type), pointer       :: waypoint, waypoint1, waypoint2
+    PetscReal, intent(in)              :: waypoint_time
+    PetscBool, intent(in)              :: isprintout
+    character(len=MAXWORDLENGTH)       :: word
+
+    class(realization_type), pointer    :: realization
+    class(surface_realization_type), pointer :: surf_realization
+
+!-------------------------------------------------------------------------
+    select type (simulation => model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+         nullify(surf_realization)
+      class is (surface_simulation_type)
+         nullify(realization)
+         surf_realization => simulation%surf_realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+         surf_realization => simulation%surf_realization
+      class default
+         nullify(realization)
+         nullify(surf_realization)
+         model%option%io_buffer = "pflotranModelUPdateFinalWaypoint is " // &
+              "Not support in this mode."
+         call printErrMsg(model%option)
+    end select
+
+    ! new final waypoint
+    word = 's'
+    waypoint1 => WaypointCreate()
+    waypoint1%time          = waypoint_time * UnitsConvertToInternal(word, model%option)
+    waypoint1%print_output  = PETSC_TRUE
+    waypoint1%final         = PETSC_TRUE
+    waypoint1%dt_max        = waypoint_time * UnitsConvertToInternal(word, model%option)
+
+    ! update subsurface-realization final waypoint
+    if (associated(realization)) then
+      ! remove original final waypoint
+      waypoint => realization%waypoint_list%first
+      do
+        if (.not.associated(waypoint)) exit
+        if (waypoint%final) then
+          waypoint%final = PETSC_FALSE
+          exit
+
+        else
+           waypoint => waypoint%next
+        endif
+      enddo
+
+      ! insert new final waypoint
+      call WaypointInsertInList(waypoint1, realization%waypoint_list)
+      call RealizationAddWaypointsToList(realization)
+      call WaypointListFillIn(model%option,realization%waypoint_list)
+      call WaypointListRemoveExtraWaypnts(model%option,realization%waypoint_list)
+
+      ! turn off the 'print out' if required from CLM
+      if(.not.isprintout) then
+        if (model%option%io_rank == model%option%myrank) then
+          write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
+            'for subsurface flow from PFLOTRAN IS OFF! '
+        endif
+        waypoint => realization%waypoint_list%first
+        do
+          if (.not.associated(waypoint)) exit
+          waypoint%print_output = PETSC_FALSE
+          waypoint => waypoint%next
+        enddo
+      endif
+
+    endif  !if (associated(realization))
+
+    ! update surface-realization final waypoint
+    if (associated(surf_realization)) then
+      ! remove original final waypoint
+      waypoint => surf_realization%waypoint_list%first
+      do
+        if (.not.associated(waypoint)) exit
+        if (waypoint%final) then
+          waypoint%final = PETSC_FALSE
+          exit
+
+        else
+           waypoint => waypoint%next
+        endif
+      enddo
+
+      ! insert new final waypoint2 (copied from waypoint1)
+      waypoint2 => WaypointCreate(waypoint1)
+      ! just in case that subsurface realization NOT there (e.g. only surf_simulation),
+      ! the above 'WaypointCreate()' will allocate memory for 'waypoint1',
+      ! which never have a chance to deallocate and potentially leak memory
+      if(associated(waypoint1)) deallocate(waypoint1)
+
+      call WaypointInsertInList(waypoint2, surf_realization%waypoint_list)
+      call SurfRealizAddWaypointsToList(surf_realization)
+      call WaypointListFillIn(model%option,surf_realization%waypoint_list)
+      call WaypointListRemoveExtraWaypnts(model%option,surf_realization%waypoint_list)
+
+      ! turn off the 'print out' if required from CLM
+      if(.not.isprintout) then
+        if (model%option%io_rank == model%option%myrank) then
+          write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
+            'for surface flow from PFLOTRAN IS OFF! '
+        endif
+        waypoint => surf_realization%waypoint_list%first
+        do
+          if (.not.associated(waypoint)) exit
+          waypoint%print_output = PETSC_FALSE
+          waypoint => waypoint%next
+        enddo
+      endif
+
+    end if !if (associated(surf_realization))
+
+  end subroutine pflotranModelUpdateFinalWaypoint
 
   ! ************************************************************************** !
 
@@ -2288,6 +2297,23 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
         CHKERRQ(ierr)
         call VecRestoreArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
         CHKERRQ(ierr)
+
+        ! for exactly using moisture response functions of decomposition from CLM-CN
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%w_scalar_clmp, &
+                                    clm_pf_idata%w_scalar_pfs)
+
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%o_scalar_clmp, &
+                                    clm_pf_idata%o_scalar_pfs)
+
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%h2osoi_vol_clmp, &
+                                    clm_pf_idata%h2osoi_vol_pfs)
+
     endif
 
     ! Save soil temperature values from CLM to PFLOTRAN, if needed
@@ -2308,6 +2334,13 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
         enddo
         call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
         CHKERRQ(ierr)
+
+        ! for exactly using temperature response function of decomposition from CLM-CN
+        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%t_scalar_clmp, &
+                                    clm_pf_idata%t_scalar_pfs)
+
     endif
 
   end subroutine pflotranModelUpdateTHfromCLM
@@ -2510,9 +2543,20 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     word = trim(name_lit1) // "C"
     ispec_lit1c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit1c<=0) then
+      word = trim(name_labile) // "C"
+      ispec_lit1c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     word = trim(name_lit1) // "N"
     ispec_lit1n = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit1n<=0) then
+      word = trim(name_labile) // "N"
+      ispec_lit1n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
+
     if (ispec_lit1c <= 0 .or. ispec_lit1n <=0 ) then
           pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
             trim(name_lit1) // &
@@ -2520,12 +2564,23 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           call printErrMsg(pflotran_model%option)
     endif
 
+    !
     word = trim(name_lit2) // "C"
     ispec_lit2c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit2c<=0) then
+      word = trim(name_cellulose) // "C"
+      ispec_lit2c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     word = trim(name_lit2) // "N"
     ispec_lit2n = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit2n<=0) then
+      word = trim(name_cellulose) // "N"
+      ispec_lit2n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     if (ispec_lit2c <= 0 .or. ispec_lit2n <=0 ) then
           pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
             trim(name_lit2) // &
@@ -2533,12 +2588,23 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           call printErrMsg(pflotran_model%option)
     endif
 
+    !
     word = trim(name_lit3) // "C"
     ispec_lit3c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit3c<=0) then
+      word = trim(name_lignin) // "C"
+      ispec_lit3c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     word = trim(name_lit3) // "N"
     ispec_lit3n = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_lit3n<=0) then
+      word = trim(name_lignin) // "N"
+      ispec_lit3n = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     if (ispec_lit3c <= 0 .or. ispec_lit3n <=0 ) then
           pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
             trim(name_lit3) // &
@@ -2546,6 +2612,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           call printErrMsg(pflotran_model%option)
     endif
 
+    !
     word = trim(name_cwd) // "C"
     ispec_cwdc = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
@@ -2560,9 +2627,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
     !
-    word = name_som1
+    word = name_soil1
     ispec_som1c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_som1c<=0) then
+      word = trim(name_som1)
+      ispec_som1c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     if (ispec_som1c < 0) then
       word = trim(name_som1) // "C"
       ispec_som1c = GetImmobileSpeciesIDFromName(word, &
@@ -2580,9 +2652,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           call printErrMsg(pflotran_model%option)
     endif
 
-    word = name_som2
+    word = name_soil2
     ispec_som2c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_som2c<=0) then
+      word = trim(name_som2)
+      ispec_som2c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     if (ispec_som2c < 0) then
       word = trim(name_som2) // "C"
       ispec_som2c = GetImmobileSpeciesIDFromName(word, &
@@ -2600,9 +2677,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           call printErrMsg(pflotran_model%option)
     endif
 
-    word = name_som3
+    word = name_soil3
     ispec_som3c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_som3c<=0) then
+      word = trim(name_som3)
+      ispec_som3c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     if (ispec_som3c < 0) then
       word = trim(name_som3) // "C"
       ispec_som3c = GetImmobileSpeciesIDFromName(word, &
@@ -2620,9 +2702,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           call printErrMsg(pflotran_model%option)
     endif
 
-    word = name_som4
+    word = name_soil4
     ispec_som4c = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
+    if (ispec_som4c<=0) then
+      word = trim(name_som4)
+      ispec_som4c = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    endif
     if (ispec_som4c < 0) then
       word = trim(name_som4) // "C"
       ispec_som4c = GetImmobileSpeciesIDFromName(word, &
@@ -2640,38 +2727,69 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           call printErrMsg(pflotran_model%option)
     endif
 
+    !
+    word = trim(name_fungi)
+    ispec_fungi = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = trim(name_bacteria)
+    ispec_bacteria = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
     ! aq. species in soil solution/absorbed
     word = name_nh4
     ispec_nh4  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
+    if (ispec_nh4<=0) then   ! in case NH4 is defined in immobile species in PF chemistry
+      word = trim(name_nh4imm)
+      ispec_nh4imm = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    else
+      ispec_nh4imm = UNINITIALIZED_INTEGER
+    endif
+
     if (ispec_nh4 > 0) then
       word = name_nh4sorb
       ispec_nh4sorb  = GetImmobileSpeciesIDFromName(word, &                        ! for using sandbox of absorption
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
     else
       ispec_nh4sorb  = UNINITIALIZED_INTEGER
+    endif
 
+    if (ispec_nh4 <= 0 .and. ispec_nh4imm <= 0) then
       pflotran_model%option%io_buffer = 'CLM N pool ' // &
-            trim(word) // &
+            trim(word) // ' or ' // trim(name_nh4imm) // &
             'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
-
     endif
-    if (ispec_nh4 <= 0) then
+    if (ispec_nh4 > 0 .and. ispec_nh4imm > 0) then
           pflotran_model%option%io_buffer = 'CLM inorg. N pool ' // &
-            trim(name_nh4) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            trim(name_nh4) // ' and ' // trim(name_nh4imm) // &
+            'in PFLOTRAN_CLM_MAIN interface CANNOT both in list of PF chemical species pools.'
           call printErrMsg(pflotran_model%option)
     endif
 
     word = name_no3
     ispec_no3  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
-    if (ispec_no3<=0) then
+    if (ispec_no3<=0) then   ! in case NH4 is defined in immobile species in PF chemistry
+      word = trim(name_no3imm)
+      ispec_no3imm = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+    else
+      ispec_no3imm = UNINITIALIZED_INTEGER
+    endif
+    if (ispec_no3<=0 .and. ispec_no3imm <=0) then
       pflotran_model%option%io_buffer = 'CLM N pool ' // &
-            trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            trim(name_no3)  // ' or ' // trim(name_no3imm)// &
+            'in PFLOTRAN_CLM_MAIN interface NOT found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
+    endif
+    if (ispec_no3 > 0 .and. ispec_no3imm > 0) then
+          pflotran_model%option%io_buffer = 'CLM inorg. N pool ' // &
+            trim(name_no3) // ' and ' // trim(name_no3imm) // &
+            'in PFLOTRAN_CLM_MAIN interface CANNOT both in list of PF chemical species pools.'
+          call printErrMsg(pflotran_model%option)
     endif
     !
     ! species for gases
@@ -2810,6 +2928,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   end subroutine pflotranModelGetRTspecies
 
   ! ************************************************************************** !
+  ! TEMPORARILY OFF!
   !> This routine Pass CLM SOM decomposition rate constants for PFLOTRAN bgc
   !! So that both are consistent
   !!
@@ -3053,14 +3172,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%decomp_npools_vr_som4_pfs)
     end if
 
-    if(ispec_no3 > 0) then
+    if(ispec_no3 > 0 .or. ispec_no3imm >0) then
        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%smin_no3_vr_clmp, &
                                     clm_pf_idata%smin_no3_vr_pfs)
     endif
 
-    if(ispec_nh4 > 0) then
+    if(ispec_nh4 > 0 .or. ispec_nh4imm >0) then
        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%smin_nh4_vr_clmp, &
@@ -3171,12 +3290,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     endif
 
 
-    if(ispec_no3 > 0) then
+    if(ispec_no3 > 0 .or. ispec_no3imm > 0) then
       call VecGetArrayReadF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
-    if(ispec_nh4 > 0) then
+    if(ispec_nh4 > 0 .or. ispec_nh4imm > 0) then
       call VecGetArrayReadF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
       CHKERRQ(ierr)
 
@@ -3211,26 +3330,33 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       endif
       den_kg_per_L = global_auxvars(ghosted_id)%den_kg(1)*xmass*1.d-3
 
-      if(ispec_no3 > 0) then
+      if(ispec_no3 > 0 .and. ispec_no3imm <= 0) then
          xx_p(offset + ispec_no3) = max(xeps0_n, smin_no3_vr_pf_loc(ghosted_id)  &      ! from 'ghosted_id' to field%xx_p's local
                                                 / (theta*1000.d0*den_kg_per_L) )    ! moles/m3 /(m3/m3 * L/m3 * kg/L) = moles/kgh2o
       endif
 
-      if(ispec_nh4 > 0) then
+      if(ispec_nh4 > 0 .and. ispec_nh4imm <= 0) then
         if (ispec_nh4sorb > 0) then
            xx_p(offset + ispec_nh4) = max(xeps0_n, smin_nh4_vr_pf_loc(ghosted_id)  &
                                                 / (theta*1000.d0*den_kg_per_L) )
 
-        else    ! if 'nh4sorb' NOT as used as immobile species
+        else    ! if not absorption sandbox applied
            xx_p(offset + ispec_nh4) = max(xeps0_n, (smin_nh4_vr_pf_loc(ghosted_id)  &
                                                +smin_nh4sorb_vr_pf_loc(ghosted_id)) &
                                                 / (theta*1000.d0*den_kg_per_L) )
-
         endif
       endif
 
       !
       offsetim = offset + realization%reaction%offset_immobile
+
+      if(ispec_nh4imm > 0 .and. ispec_nh4 <=0) then   ! for NH4 as immobile species
+         xx_p(offsetim + ispec_nh4imm) = max(xeps0_n, smin_nh4_vr_pf_loc(ghosted_id) )
+      endif
+
+      if(ispec_no3imm > 0 .and. ispec_no3 <=0) then   ! for NO3 as immobile species
+         xx_p(offsetim + ispec_no3imm) = max(xeps0_n, smin_no3_vr_pf_loc(ghosted_id) )
+      endif
 
       if(ispec_nh4sorb > 0) then   ! for absorbed NH4 as immobile species used in sandbox of absorption
          xx_p(offsetim + ispec_nh4sorb) = max(xeps0_n, smin_nh4sorb_vr_pf_loc(ghosted_id) )
@@ -3398,12 +3524,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       CHKERRQ(ierr)
     endif
 
-    if(ispec_no3 > 0) then
+    if(ispec_no3 > 0 .or. ispec_no3imm >0) then
       call VecRestoreArrayReadF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
-    if(ispec_nh4 > 0) then
+    if(ispec_nh4 > 0 .or. ispec_nh4imm >0) then
       call VecRestoreArrayReadF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
       CHKERRQ(ierr)
 
@@ -3428,7 +3554,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
   ! ************************************************************************** !
   ! pflotranModelSetBGCRatesFromCLM:
-  !  Get CLM litter, som, mineral N adding/removal and plant demand rates
+  !  Get CLM litter, som, mineral N production and plant demand rates
   !  Convert from CLM units into PFLOTRAN units.
   !  Set values in PFLOTRAN
   ! ************************************************************************** !
@@ -3612,14 +3738,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%rate_plantndemand_pfs)
     endif
 
-    if(ispec_no3 >0) then
+    if(ispec_no3 >0 .or. ispec_no3imm >0) then
       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_smin_no3_clmp, &
                                     clm_pf_idata%rate_smin_no3_pfs)
     endif
 
-    if(ispec_nh4 >0) then
+    if(ispec_nh4 >0 .or. ispec_nh4imm >0) then
       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%rate_smin_nh4_clmp, &
@@ -3645,61 +3771,64 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
          offset_field = (local_id - 1)*realization%reaction%ncomp
 
-         if(idof == ispec_nh4) then
+         if(cur_mass_transfer%idof == ispec_nh4 .or. &
+            cur_mass_transfer%idof == ispec_nh4imm) then
            call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_no3) then
+         elseif(cur_mass_transfer%idof == ispec_no3 .or. &
+                cur_mass_transfer%idof == ispec_no3imm) then
            call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-         elseif(idof == ispec_lit1c) then
+         elseif(cur_mass_transfer%idof == ispec_lit1c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_lit1n) then
+         elseif(cur_mass_transfer%idof == ispec_lit1n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_lit2c) then
+         elseif(cur_mass_transfer%idof == ispec_lit2c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_lit2n) then
+         elseif(cur_mass_transfer%idof == ispec_lit2n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_lit3c) then
+         elseif(cur_mass_transfer%idof == ispec_lit3c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_lit3n) then
+         elseif(cur_mass_transfer%idof == ispec_lit3n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-         elseif(idof == ispec_cwdc) then
+         elseif(cur_mass_transfer%idof == ispec_cwdc+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_cwdc_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_cwdn) then
+         elseif(cur_mass_transfer%idof == ispec_cwdn+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_cwdn_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-         elseif(idof == ispec_som1c) then
+         elseif(cur_mass_transfer%idof == ispec_som1c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_som1c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_som2c) then
+         elseif(cur_mass_transfer%idof == ispec_som2c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_som2c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_som3c) then
+         elseif(cur_mass_transfer%idof == ispec_som3c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_som3c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_som4c) then
+         elseif(cur_mass_transfer%idof == ispec_som4c+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_som4c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_som1n) then
+
+        elseif(cur_mass_transfer%idof == ispec_som1n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_som1n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_som2n) then
+         elseif(cur_mass_transfer%idof == ispec_som2n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_som2n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_som3n) then
+         elseif(cur_mass_transfer%idof == ispec_som3n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_som3n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_som4n) then
+         elseif(cur_mass_transfer%idof == ispec_som4n+offsetim) then
            call VecGetArrayReadF90(clm_pf_idata%rate_som4n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
          endif
@@ -3731,60 +3860,61 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
          if(idof == ispec_nh4) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_no3) then
+         elseif(cur_mass_transfer%idof == ispec_no3 .or. &
+            cur_mass_transfer%idof == ispec_no3imm) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-         elseif(idof == ispec_lit1c) then
+         elseif(cur_mass_transfer%idof == ispec_lit1c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_lit2c) then
+         elseif(cur_mass_transfer%idof == ispec_lit2c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_lit3c) then
+         elseif(cur_mass_transfer%idof == ispec_lit3c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-         elseif(idof == ispec_lit1n) then
+         elseif(cur_mass_transfer%idof == ispec_lit1n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit1n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_lit2n) then
+         elseif(cur_mass_transfer%idof == ispec_lit2n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit2n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_lit3n) then
+         elseif(cur_mass_transfer%idof == ispec_lit3n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_lit3n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-         elseif(idof == ispec_cwdc) then
+         elseif(cur_mass_transfer%idof == ispec_cwdc+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_cwdc_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_cwdn) then
+         elseif(cur_mass_transfer%idof == ispec_cwdn+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_cwdn_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-         elseif(idof == ispec_som1c) then
+         elseif(cur_mass_transfer%idof == ispec_som1c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_som1c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_som2c) then
+         elseif(cur_mass_transfer%idof == ispec_som2c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_som2c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_som3c) then
+         elseif(cur_mass_transfer%idof == ispec_som3c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_som3c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-         elseif(idof == ispec_som4c) then
+         elseif(cur_mass_transfer%idof == ispec_som4c+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_som4c_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
-        elseif(idof == ispec_som1n) then
+        elseif(cur_mass_transfer%idof == ispec_som1n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_som1n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-        elseif(idof == ispec_som2n) then
+         elseif(cur_mass_transfer%idof == ispec_som2n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_som2n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-        elseif(idof == ispec_som3n) then
+         elseif(cur_mass_transfer%idof == ispec_som3n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_som3n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
-        elseif(idof == ispec_som4n) then
+         elseif(cur_mass_transfer%idof == ispec_som4n+offsetim) then
            call VecRestoreArrayReadF90(clm_pf_idata%rate_som4n_pfs, rate_pf_loc, ierr)
            CHKERRQ(ierr)
 
@@ -4339,6 +4469,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           decomp_npools_vr_lit3_pf_loc(local_id) = max(xx_p(offsetim + ispec_lit3n), 0.d0)
         endif
 
+        if (ispec_cwdc > 0) then
+          decomp_cpools_vr_cwd_pf_loc(local_id) = max(xx_p(offsetim + ispec_cwdc), 0.d0)
+        endif
+
+        if (ispec_cwdn > 0) then
+          decomp_npools_vr_cwd_pf_loc(local_id) = max(xx_p(offsetim + ispec_cwdn), 0.d0)
+        endif
+
         if (ispec_som1c > 0) then
           decomp_cpools_vr_som1_pf_loc(local_id) = max(xx_p(offsetim + ispec_som1c), 0.d0)
         endif
@@ -4371,7 +4509,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           decomp_npools_vr_som4_pf_loc(local_id) = max(xx_p(offsetim + ispec_som4n), 0.d0)
         endif
 
-        if(ispec_nh4 > 0) then
+        if(ispec_nh4 > 0 .and. ispec_nh4imm <=0) then
            !conc = xx_p(offset + ispec_nh4) * theta * 1000.0d0      ! 7-8-2015: this is NOT right.
 
             ! the following approach appears more like what output module does in pflotran
@@ -4384,25 +4522,33 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
             !                                      which will eliminate the difference btw two approaches
 
             conc = rt_auxvar%total(ispec_nh4, 1) * (theta * 1000.0d0 * den_kg_per_L)
-
             smin_nh4_vr_pf_loc(local_id) = max(conc, 0.d0)
 
-            if (ispec_nh4sorb>0) then    ! kinetic-languir adsorption reaction sandbox used for soil NH4+ absorption
+            if (ispec_nh4sorb>0) then    ! kinetic-langmuir adsorption reaction sandbox used for soil NH4+ absorption
                 !conc = xx_p(offsetim + ispec_nh4sorb)                 ! unit: M (mol/m3)
                 conc = rt_auxvar%immobile(ispec_nh4sorb)
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
-            elseif (reaction%neqsorb > 0) then  ! equilibrium-sorption reactions used
-                conc = rt_auxvar%total_sorb_eq(ispec_nh4)
-                smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
+            else
+                smin_nh4sorb_vr_pf_loc(local_id) = 0.d0
             endif
+
+        elseif(ispec_nh4 <= 0 .and. ispec_nh4imm >0) then
+           !conc = xx_p(offsetim + ispec_nh4imm)                    ! unit: M (molC/m3)
+           conc = rt_auxvar%immobile(ispec_nh4imm)
+           smin_nh4_vr_pf_loc(local_id)   = max(conc, 0.d0)
 
         endif
 
-        if(ispec_no3 > 0) then
+        if(ispec_no3 > 0 .and. ispec_no3imm <=0) then
            !conc = xx_p(offset + ispec_no3) * theta * 1000.0d0                        ! 7-14-2015: converting from /m3 bulk.
            conc = rt_auxvar%total(ispec_no3, 1) * (theta * 1000.0d0 * den_kg_per_L)     !
            smin_no3_vr_pf_loc(local_id)   = max(conc, 0.d0)
+        elseif(ispec_no3 <= 0 .and. ispec_no3imm >0) then
+           !conc = xx_p(offsetim + ispec_no3imm)                    ! unit: M (molC/m3)
+           conc = rt_auxvar%immobile(ispec_no3imm)
+           smin_no3_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
+
 
         ! immobile gas conc in mol/m3 bulk soil to aovid 'theta' inconsistence (due to porosity) during unit conversion
         if(ispec_co2 > 0) then
@@ -4712,14 +4858,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%gco2_vr_clms)
     endif
 
-    if(ispec_no3 > 0) then
+    if(ispec_no3 > 0 .or. ispec_no3imm > 0) then
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%smin_no3_vr_pfp, &
                                     clm_pf_idata%smin_no3_vr_clms)
     endif
 
-    if(ispec_nh4 > 0) then
+    if(ispec_nh4 > 0 .or. ispec_nh4imm > 0) then
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%smin_nh4_vr_pfp, &

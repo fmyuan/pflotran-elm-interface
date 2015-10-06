@@ -192,10 +192,8 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
 
   implicit none
 
-#ifdef CLM_PFLOTRAN
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
-#endif
   
   class(reaction_sandbox_langmuir_type) :: this  
   type(option_type) :: option
@@ -219,9 +217,10 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
   PetscReal :: c_aq_eq        ! mole/L
   PetscReal :: c_sorb         ! mole/m3
   PetscReal :: c_sorb_eq      ! mole/m3
-  PetscReal :: rate, drate_daq, drate_dsorb
+  PetscReal :: rate, drate_daq, drate_dsorb  ! units: moles/s, 1/s (moles/s/moles) - i.e. bulk volume adjusted
   PetscReal :: Lwater         ! litres h2o
   PetscReal :: temp_real
+  PetscReal :: ratecap, fratecap, dfratecap_dx, dtmin
 
   !-------------------------------------------------------------------------------
 
@@ -235,42 +234,111 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
   c_aq    = rt_auxvar%total(this%ispec_aq, iphase)      ! moles/L
   c_sorb  = rt_auxvar%immobile(this%ispec_sorb)         ! moles/m3
 
-  ! c_sorb_eq = s_max * (Kl*c_eq/(1+Kl*c_eq))
-  !c_aq_eq = c_sorb / (this%s_max - c_sorb) / this%k_equilibrium        ! here will cause infinity error
-  c_sorb_eq = this%s_max * (this%k_equilibrium*c_aq/(1.d0+this%k_equilibrium*c_aq))
+  ! EQUATION: c_sorb_eq = s_max * (Kl*c_eq/(1+Kl*c_eq))
 
-  ! the following IS wrong - there is no way that the aq. concentration over eq. conc WILL throw away to absorbed state
-  ! esp. when there is a max. capacity of sorption
-  !rate = this%k_kinetic * (c_aq - c_aq_eq) * Lwater      ! moles/L/s --> moles/s
-  rate = this%k_kinetic * (c_sorb_eq - c_sorb) * volume   ! positive, when sorption; negative when desorption. ANd moles/m3/s --> moles/s
 
-  if (abs(rate)<this%x0eps/option%tran_dt) return
+  if (this%s_max<c_sorb) then
+    ! if 'c_sorb' beyond 's_max', equilibrium-desorption
+    ! NOTE: (1) this will be good to avoid negative 'c_aq_eq' calculated below (which are NOT right)
+    !       (2) DON't include 's_max==c_sorb', otherwise it will cause NO desorption even if 'c_aq' is small
+    dtmin = max(option%tran_dt, 2.1d0*option%dt_min)
+    rate = (this%s_max-c_sorb)*volume/dtmin
+    ! drate/d(Csorb*volume):
+    drate_dsorb = -1.d0/dtmin
+    ! drate/d(Caq*Lwater):
+    drate_daq = 0.d0
 
-  ! --------------------------------------------------
-  Residual(ires_aq)   = Residual(ires_aq) - rate
-  Residual(ires_sorb) = Residual(ires_sorb) + rate
+  else
 
-  if (compute_derivative) then
-     !
-     ! drate/d(Csorb*volume)
-     drate_dsorb = -1.d0 * this%k_kinetic
-     !
-     ! drate/d(Caq*Lwater): this%k_kinetic*this%s_max*this%k_equilibrium*volume*
-     !               d(Caq*Lwater/(Lwater+k*Caq*Lwater)) / d(Caq*Lwater)
-     temp_real = this%k_kinetic*this%s_max*this%k_equilibrium*volume
-     drate_daq = temp_real * Lwater/(this%k_equilibrium*c_aq+Lwater)/(this%k_equilibrium*c_aq+Lwater)
+    ! the following is 'c_sorb' dependent absorption-desorption, with NEGATIVE rate for desorption
+    c_aq_eq = 0.999d0*c_sorb / (this%s_max - 0.999d0*c_sorb) / this%k_equilibrium        ! '0.99' scalor to avoid infinity error
+    rate = this%k_kinetic * (c_aq - c_aq_eq) * Lwater      ! moles/L/s --> moles/s
 
-     Jacobian(ires_aq,ires_aq) = Jacobian(ires_aq,ires_aq) - drate_daq * &
-        rt_auxvar%aqueous%dtotal(this%ispec_aq,this%ispec_aq,iphase)
+    ! drate/d(Csorb*volume):
+    temp_real = -this%k_kinetic/this%k_equilibrium*Lwater/volume
+    drate_dsorb = temp_real * this%s_max/(this%s_max-0.999d0*c_sorb)/(this%s_max-0.999d0*c_sorb)
+    ! drate/d(Caq*Lwater):
+    drate_daq =  this%k_kinetic
 
-     Jacobian(ires_sorb,ires_aq) = Jacobian(ires_sorb,ires_aq) + drate_daq
+    ! rate-max scaling: 'c_aq' may be NEVER close to 'c_aq_eq' when absorption filling all sorption site ('s_max')
+    ! But, 'rate' calculated above may be STILL so large, then have to scaling it.
+    ! Otherwise, model will be hard to converge (long iteration/tiny timestep).
+    ! (NOTE: if desorption, it's no issue because the 'rate' calculated above is NOT constrained by 'c_aq')
 
-     Jacobian(ires_aq,ires_sorb) = Jacobian(ires_aq,ires_sorb) - drate_dsorb
-     Jacobian(ires_sorb,ires_sorb) = Jacobian(ires_sorb,ires_sorb) + drate_dsorb
+    ! TODO -checking: the initial 'c_aq' could not be too large:
+    !  e.g., c_nh4 initial value of 1.d5 (moles/L), there appears an over-absorption when reaching 's_max', then starting 'desorption'
+    fratecap = 1.0d0
+    dfratecap_dx = 0.d0
+    if (rate > 0.d0) then
+
+      ! in the following, '2.1' multiplier is chosen because that is slightly larger(5% to avoid numerical issue) than '2.0',
+      ! which should be the previous-timestep before reaching the 'option%dt_min'
+      ! (the time-cut used in PF is like dt=0.5*dt, when cutting)
+      dtmin = max(option%tran_dt, 2.1d0*option%dt_min)
+
+      ! constrained by 'this%s_max', i.e. the max. absorption capacity
+      ratecap = 0.999d0*(this%s_max-c_sorb)*volume/dtmin
+      if (ratecap < rate) then
+        fratecap = ratecap/rate        ! A simple linear reducing factor
+
+        if (compute_derivative) then
+          !_dsorb:
+          temp_real= -0.999d0/dtmin   ! d(ratecap)/d(Csorb*volume)
+          dfratecap_dx= (ratecap*drate_dsorb-rate*temp_real)/rate/rate
+          drate_dsorb = fratecap*drate_dsorb + rate*dfratecap_dx           !
+
+          !_daq:
+
+        endif
+        ! modifying the 'rate'
+        rate = rate * fratecap
+
+      endif
+
+      ! constrained by 'c_aq'.
+      ! because the 'rate' in the eq. 'k*(c_aq-c_aq_eq)*Lwater' NOT guarranttes non-negative 'c_aq' when absorption
+      ratecap = 0.999d0*(c_aq-c_aq_eq)*Lwater/dtmin
+      if (ratecap < rate) then
+        fratecap = ratecap/rate        ! A simple linear reducing factor
+
+        if (compute_derivative) then
+          !_dsorb:
+          temp_real = -0.999d0/this%k_equilibrium*Lwater/volume/dtmin   ! d(ratecap)/d(Caq_eq*vol)=d(-c_aq_eq*Lwater/dtmin)/(d(Caq_eq*vol)
+          temp_real = temp_real * this%s_max/(this%s_max-0.999d0*c_sorb)/(this%s_max-0.999d0*c_sorb)
+          dfratecap_dx= (ratecap*drate_dsorb-rate*temp_real)/rate/rate
+          drate_dsorb = fratecap*drate_dsorb + rate*dfratecap_dx           !
+
+          !_daq:
+          temp_real= 0.999d0/dtmin   ! d(ratecap)/d(Caq*Lwater), and, 'c_aq_eq' ONLY upon 'c_sorb'
+          dfratecap_dx= (ratecap*drate_daq-rate*temp_real)/rate/rate
+          drate_daq = fratecap*drate_daq + rate*dfratecap_dx           !
+        endif
+        ! modifying the 'rate'
+        rate = rate * fratecap
+
+      endif
+
+    endif
 
   endif
 
-!#ifdef DEBUG
+  ! --------------------------------------------------
+  Residual(ires_aq)   = Residual(ires_aq) + rate
+  Residual(ires_sorb) = Residual(ires_sorb) - rate
+
+  if (compute_derivative) then
+     !
+     Jacobian(ires_aq,ires_aq) = Jacobian(ires_aq,ires_aq) + drate_daq * &
+        rt_auxvar%aqueous%dtotal(this%ispec_aq,this%ispec_aq,iphase)
+
+     Jacobian(ires_sorb,ires_aq) = Jacobian(ires_sorb,ires_aq) - drate_daq
+
+     Jacobian(ires_aq,ires_sorb) = Jacobian(ires_aq,ires_sorb) + drate_dsorb
+     Jacobian(ires_sorb,ires_sorb) = Jacobian(ires_sorb,ires_sorb) - drate_dsorb
+
+  endif
+
+#ifdef CLM_PF_DEBUG
   do ires=1, reaction%ncomp
     temp_real = Residual(ires)
 
@@ -289,7 +357,7 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
     endif
 
   enddo
-!#endif
+#endif
 
 end subroutine LangmuirReact
 

@@ -14,6 +14,9 @@ MYFLAGS += ${FC_DEFINE_FLAG}PROCESS_MODEL
 MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN
 MYFLAGS += ${FC_DEFINE_FLAG}STORE_FLOWRATES
 
+# calculate the jacobians for tracking variables if coupled with CLM-CN
+#MYFLAGS += ${FC_DEFINE_FLAG}nojacobian_track_vars
+
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
 # PFLOTRAN_RXN_FLAG 
 ifneq (,$(filter libpflotranchem.a pflotran_rxn,$(MAKECMDGOALS)))
@@ -224,6 +227,7 @@ chem_obj = \
 	${common_src}reaction_sandbox_denitr.o \
 	${common_src}reaction_sandbox_degas.o \
 	${common_src}reaction_sandbox_langmu.o \
+	${common_src}reaction_sandbox_microbial.o \
 	${common_src}reaction_sandbox_nitrif.o \
 	${common_src}reaction_sandbox_plantn.o \
 	${common_src}reaction_sandbox_somdec.o \
@@ -394,10 +398,10 @@ geomech_obj = \
 	${common_src}timestepper_steady.o
 
 clm_interface_obj = \
-	${common_src}clm_pflotran_interface_data.o \
-	${common_src}mapping.o \
 	${common_src}pflotran_clm_main.o \
-	${common_src}pflotran_clm_setmapping.o
+	${common_src}pflotran_clm_setmapping.o \
+	${common_src}clm_pflotran_interface_data.o \
+	${common_src}mapping.o
 
 # End Source Block
 
@@ -970,7 +974,7 @@ reaction_aux.o : option.o pflotran_constants.o reaction_database_aux.o \
                  reaction_surf_complex_aux.o string.o utility.o
 reaction_clm.o : global_aux.o input_aux.o material_aux.o option.o \
                  pflotran_constants.o reaction_aux.o reaction_immobile_aux.o \
-                 reactive_transport_aux.o string.o units.o utility.o
+                 reactive_transport_aux.o string.o units.o utility.o clm_rspfuncs.o
 reaction_database.o : input_aux.o option.o pflotran_constants.o reaction.o \
                       reaction_aux.o reaction_clm.o reaction_database_aux.o \
                       reaction_immobile.o reaction_immobile_aux.o \
@@ -1010,6 +1014,7 @@ reaction_sandbox.o : global_aux.o input_aux.o material_aux.o option.o \
                      reactive_transport_aux.o string.o utility.o \
                      reaction_sandbox_somdec.o \
                      reaction_sandbox_langmu.o \
+                     reaction_sandbox_microbial.o \
                      reaction_sandbox_nitrif.o \
                      reaction_sandbox_plantn.o \
                      reaction_sandbox_denitr.o \
@@ -1041,6 +1046,11 @@ reaction_sandbox_degas.o  : global_aux.o reaction_immobile_aux.o input_aux.o \
                             reactive_transport_aux.o string.o units.o \
                             utility.o co2eos.o
 reaction_sandbox_langmu.o : global_aux.o reaction_immobile_aux.o input_aux.o \
+                            material_aux.o option.o pflotran_constants.o \
+                            reaction_aux.o reaction_sandbox_base.o \
+                            reactive_transport_aux.o string.o units.o \
+                            utility.o clm_rspfuncs.o
+reaction_sandbox_microbial.o : global_aux.o reaction_immobile_aux.o input_aux.o \
                             material_aux.o option.o pflotran_constants.o \
                             reaction_aux.o reaction_sandbox_base.o \
                             reactive_transport_aux.o string.o units.o \

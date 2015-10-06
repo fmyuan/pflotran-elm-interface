@@ -39,6 +39,10 @@ module Reaction_Sandbox_SomDec_class
 
     PetscInt,  pointer :: upstream_c_id(:)         !nrxn
     PetscInt,  pointer :: upstream_n_id(:)         !nrxn
+    PetscInt,  pointer :: upstream_hr_id(:)        !nrxn
+    PetscInt,  pointer :: upstream_nmin_id(:)      !nrxn
+    PetscInt,  pointer :: upstream_nimp_id(:)      !nrxn
+    PetscInt,  pointer :: upstream_nimm_id(:)      !nrxn
     PetscReal, pointer :: upstream_nc(:)           !nrxn
     PetscBool, pointer :: upstream_is_aqueous(:)   !nrxn
     PetscBool, pointer :: upstream_is_varycn(:)
@@ -58,10 +62,10 @@ module Reaction_Sandbox_SomDec_class
     PetscInt :: species_id_no3
     PetscInt :: species_id_n2o
 
-    PetscInt :: species_id_hrimm
+    PetscInt :: species_id_hr
     PetscInt :: species_id_nmin
     PetscInt :: species_id_nimm
-    PetscInt :: species_id_nimmp
+    PetscInt :: species_id_nimp
     PetscInt :: species_id_ngasmin
     PetscInt :: species_id_proton
 
@@ -133,6 +137,10 @@ function SomDecCreate()
   nullify(SomDecCreate%upstream_is_varycn)
   nullify(SomDecCreate%upstream_c_id)
   nullify(SomDecCreate%upstream_n_id)
+  nullify(SomDecCreate%upstream_hr_id)
+  nullify(SomDecCreate%upstream_nmin_id)
+  nullify(SomDecCreate%upstream_nimp_id)
+  nullify(SomDecCreate%upstream_nimm_id)
   nullify(SomDecCreate%upstream_nc)
   nullify(SomDecCreate%upstream_is_aqueous)
   
@@ -149,10 +157,10 @@ function SomDecCreate()
   SomDecCreate%species_id_nh4 = 0
   SomDecCreate%species_id_no3 = 0
   SomDecCreate%species_id_n2o = 0
-  SomDecCreate%species_id_hrimm = 0
+  SomDecCreate%species_id_hr  = 0
   SomDecCreate%species_id_nmin = 0
   SomDecCreate%species_id_nimm = 0
-  SomDecCreate%species_id_nimmp = 0
+  SomDecCreate%species_id_nimp = 0
   SomDecCreate%species_id_ngasmin = 0
 
   nullify(SomDecCreate%next)
@@ -508,6 +516,10 @@ subroutine SomDecSetup(this,reaction,option)
   
   PetscInt, pointer :: species_id_pool_c(:)
   PetscInt, pointer :: species_id_pool_n(:)
+  PetscInt, pointer :: species_id_pool_hr(:)
+  PetscInt, pointer :: species_id_pool_nmin(:)
+  PetscInt, pointer :: species_id_pool_nimp(:)
+  PetscInt, pointer :: species_id_pool_nimm(:)
   PetscBool, pointer :: pool_is_aqueous(:)
 
   PetscInt :: icount, jcount, max_downstream_pools, ipool
@@ -573,6 +585,10 @@ subroutine SomDecSetup(this,reaction,option)
   allocate(this%upstream_is_varycn(this%nrxn))
   allocate(this%upstream_c_id(this%nrxn))
   allocate(this%upstream_n_id(this%nrxn))
+  allocate(this%upstream_hr_id(this%nrxn))
+  allocate(this%upstream_nmin_id(this%nrxn))
+  allocate(this%upstream_nimp_id(this%nrxn))
+  allocate(this%upstream_nimm_id(this%nrxn))
   allocate(this%upstream_nc(this%nrxn))
   allocate(this%upstream_is_aqueous(this%nrxn))
   
@@ -592,6 +608,10 @@ subroutine SomDecSetup(this,reaction,option)
   this%upstream_is_varycn = PETSC_FALSE
   this%upstream_c_id = 0
   this%upstream_n_id = 0
+  this%upstream_hr_id = 0
+  this%upstream_nmin_id = 0
+  this%upstream_nimp_id = 0
+  this%upstream_nimm_id = 0
   this%upstream_nc = UNINITIALIZED_DOUBLE
   this%upstream_is_aqueous = PETSC_FALSE
 
@@ -608,11 +628,19 @@ subroutine SomDecSetup(this,reaction,option)
   allocate(pool_is_aqueous(this%npool))
   allocate(species_id_pool_c(this%npool))
   allocate(species_id_pool_n(this%npool))
+  allocate(species_id_pool_hr(this%npool))
+  allocate(species_id_pool_nmin(this%npool))
+  allocate(species_id_pool_nimp(this%npool))
+  allocate(species_id_pool_nimm(this%npool))
 
   pool_names = ''
   pool_is_aqueous = PETSC_FALSE
   species_id_pool_c = UNINITIALIZED_INTEGER
   species_id_pool_n = UNINITIALIZED_INTEGER
+  species_id_pool_hr   = UNINITIALIZED_INTEGER
+  species_id_pool_nmin = UNINITIALIZED_INTEGER
+  species_id_pool_nimp = UNINITIALIZED_INTEGER
+  species_id_pool_nimm = UNINITIALIZED_INTEGER
 
 ! pools
   icount = 0
@@ -678,6 +706,24 @@ subroutine SomDecSetup(this,reaction,option)
       endif
       
     endif
+
+    word = trim(cur_pool%name) // 'CHR'
+    species_id_pool_hr(icount) = &
+        GetImmobileSpeciesIDFromName(word,reaction%immobile, &
+                                     PETSC_FALSE,option)
+    word = trim(cur_pool%name) // 'NMIN'
+    species_id_pool_nmin(icount) = &
+        GetImmobileSpeciesIDFromName(word,reaction%immobile, &
+                                     PETSC_FALSE,option)
+    word = trim(cur_pool%name) // 'NIMP'
+    species_id_pool_nimp(icount) = &
+        GetImmobileSpeciesIDFromName(word,reaction%immobile, &
+                                     PETSC_FALSE,option)
+    word = trim(cur_pool%name) // 'NIMM'
+    species_id_pool_nimm(icount) = &
+        GetImmobileSpeciesIDFromName(word,reaction%immobile, &
+                                     PETSC_FALSE,option)
+
     cur_pool => cur_pool%next
   enddo
  
@@ -709,6 +755,11 @@ subroutine SomDecSetup(this,reaction,option)
             call printErrMsg(option)
          endif
       endif
+      this%upstream_hr_id(icount)   = species_id_pool_hr(ipool)
+      this%upstream_nmin_id(icount) = species_id_pool_nmin(ipool)
+      this%upstream_nimp_id(icount) = species_id_pool_nimp(ipool)
+      this%upstream_nimm_id(icount) = species_id_pool_nimm(ipool)
+
     endif
 
 !   downstream pools
@@ -763,6 +814,10 @@ subroutine SomDecSetup(this,reaction,option)
   call DeallocateArray(pool_is_aqueous)
   call DeallocateArray(species_id_pool_c)
   call DeallocateArray(species_id_pool_n)
+  call DeallocateArray(species_id_pool_hr)
+  call DeallocateArray(species_id_pool_nmin)
+  call DeallocateArray(species_id_pool_nimp)
+  call DeallocateArray(species_id_pool_nimm)
 
 ! set stoichiometric coefficients for fixed-CNratio SOM decomposition reactions
   do icount = 1, this%nrxn
@@ -812,10 +867,12 @@ subroutine SomDecSetup(this,reaction,option)
   word = 'NH4+'
   this%species_id_nh4 = GetPrimarySpeciesIDFromName(word,reaction, &
                         PETSC_FALSE,option)
+#ifdef CLM_PFLORAN
   if(this%species_id_nh4 <= 0) then
     option%io_buffer = 'NH4+ is not specified in the input file!'
     call printErrMsg(option)
   endif
+#endif
 
   word = 'NO3-'
   this%species_id_no3 = GetPrimarySpeciesIDFromName(word,reaction, &
@@ -830,66 +887,24 @@ subroutine SomDecSetup(this,reaction,option)
                         PETSC_FALSE,option)
 
   word = 'HRimm'
-  this%species_id_hrimm = GetImmobileSpeciesIDFromName( &
+  this%species_id_hr = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
-#ifdef CLM_PFLOTRAN
-  if(this%species_id_hrimm < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMdec: ' // &
-       ' HRimm is not specified as immobile species in the input file. ' // &
-       ' It is required when coupled with CLM.'
-     call printErrMsg(option)
-  endif
-#endif
 
   word = 'Nmin'
   this%species_id_nmin = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
-#ifdef CLM_PFLOTRAN
-  if(this%species_id_nmin < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,CLMdec: ' // &
-       ' Nmin for actual immobilization is not specified as ' // &
-       ' immobile species in the input file. ' // &
-       ' It is required when coupled with CLM.'
-     call printErrMsg(option)
-  endif
-#endif
  
   word = 'Nimmp'
-  this%species_id_nimmp = GetImmobileSpeciesIDFromName( &
+  this%species_id_nimp = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
-#ifdef CLM_PFLOTRAN
-  if(this%species_id_nimmp < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec: ' // &
-       ' Nimmp for potential immobilization is not specified as ' // &
-       ' immobile species in the input file. ' // &
-       ' It is required when coupled with CLM.'
-     call printErrMsg(option)
-  endif
-#endif
 
   word = 'Nimm'
   this%species_id_nimm = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
-#ifdef CLM_PFLOTRAN
-  if(this%species_id_nimm < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec: ' // &
-       ' Nimm is not specified as immobile species in the input file. ' // &
-       ' It is required when coupled with CLM.'
-     call printErrMsg(option)
-  endif
-#endif
  
   word = 'NGASmin'
   this%species_id_ngasmin = GetImmobileSpeciesIDFromName( &
             word,reaction%immobile,PETSC_FALSE,option)
-#ifdef CLM_PFLOTRAN
-  if(this%species_id_ngasmin < 0) then
-     option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,SomDec: ' // &
-       ' NGASmin is not specified as immobile species in the input file. ' // &
-       ' It is required when coupled with CLM.'
-     call printErrMsg(option)
-  endif
-#endif
 
 end subroutine SomDecSetup
 
@@ -916,10 +931,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
   implicit none
 
-#ifdef CLM_PFLOTRAN
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
-#endif
 
   class(reaction_sandbox_somdec_type) :: this
   type(option_type) :: option
@@ -936,7 +949,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: saturation
   PetscReal :: theta
   PetscReal :: psi
-  PetscInt :: ghosted_id
+  PetscInt  :: ghosted_id
   PetscErrorCode :: ierr
   PetscInt, parameter :: iphase = 1
   PetscScalar, pointer :: zsoi_pf_loc(:)    !
@@ -944,16 +957,9 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: temp_real
   PetscReal :: c_uc, c_un    ! concentration (mole/m3 or mole/L, upon species type) => mole/m3bulk if needed
   PetscReal :: c_dc, c_dn    ! concentration (mole/m3 or mole/L, upon species type) => mole/m3bulk if needed
-  PetscReal :: c_nh4         ! concentration (mole/L): substrate OR product,  => mole/m3bulk
-  PetscReal :: c_no3         ! concentration (mole/L): substrate only,  => mole/m3bulk
 
-  PetscInt :: irxn
-  PetscInt :: ipool_up, ipool_down
-
-  PetscInt :: ispec_uc, ispec_un, ispec_dc, ispec_dn   ! species id for upstream C, N, and downstream (used in loops)
-  PetscInt :: ires_uc, ires_un, ires_dc, ires_dn      ! id used for residual and Jacobian (used in loops)
-  PetscInt :: ires_co2, ires_nh4, ires_n2o, ires_no3
-  PetscInt :: ires_hrimm, ires_nmin, ires_nimm, ires_nimmp, ires_ngasmin
+  PetscInt  :: irxn
+  PetscInt  :: ispec_uc, ispec_un, ispec_dc, ispec_dn   ! species id for upstream C, N, and downstream (used in loops)
   PetscReal :: stoich_c, stoich_n
 
   PetscReal :: scaled_crate_const
@@ -962,75 +968,14 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   PetscReal :: f_w    ! moisture response function
   PetscReal :: f_depth     ! reduction factor due to deep soil
 
-  PetscReal :: crate       ! moleC/s: overall = crate_uc, or,
-                           !                  = crate_uc*crate_nh4, or,
-                           !                  = crate_uc*(crate_nh4*(1-fnh4_inhibit_no3)+crate_no3*fnh4_inhibit_no3)
-  PetscReal :: dcrate_dx   ! d(crate)/d(x), x = uc, un, dc, dn, nh4, or no3, respectively
-
   PetscReal :: crate_uc        ! crate function of upstream C ('uc')
   PetscReal :: dcrate_uc_duc   ! d crate_uc / d uc
 
-  PetscReal :: crate_nh4        ! crate function of c_nh4 (for nh4 immobilization)
-  PetscReal :: dcrate_nh4_dnh4  ! d(crate_nh4)/d(nh4) (for nh4 immobilization)
-  PetscReal :: fnh4             ! = nh4/(half_saturation + nh4)  ( N 'resource' limitation on immobilization)
-  PetscReal :: dfnh4_dnh4       ! d(fnh4)/d(nh4)
+  ! save net N mineralization rate for associated N2O calculation
+  PetscReal :: nmin, nimm, net_nmin_rate
 
-  PetscReal :: crate_no3        ! crate function of c_no3 (for no3 immobilization)
-  PetscReal :: dcrate_no3_dno3  ! d(crate_no3)/d(no3)
-  PetscReal :: fno3             ! = no3/(half_saturation + no3)  ( N 'resource' limitation on immobilization)
-  PetscReal :: dfno3_dno3       ! d(fnh4)/d(nh4)
-
-  PetscReal :: nratecap, dtmin  ! max. n immobilization rate within allowable min. timestep
-  PetscReal :: fnratecap        ! max. nratecap as function of c_nh4/c_no3 consumption rate vs. potential immobilization
-  PetscReal :: dfnratecap_dnh4, dfnratecap_dno3
-
-  !nh4 inhibition on no3 immobilization, or microbial N immobilization preference btw nh4 and no3
-  ! crate_nh4 = fnh4*fnh4_inhibit_no3, while crate_no3 = 1.-fnh4*fnh4_inhibition_no3
-  ! by the following eq., if 'inhibition=1', uptake will be equal for both (if same conc.);
-  ! higher coef, strong NH4 inhibition on NO3 (i.e., more NH4 immobilization over NO3)
-  PetscReal :: fnh4_inhibit_no3 ! inhibition_coef/(inhibition_coef + no3/nh4):
-  PetscReal :: dfnh4_inhibit_no3_dnh4 ! d(fnh4_inhibit_no3)/dnh4
-  PetscReal :: dfnh4_inhibit_no3_dno3 ! d(fnh4_inhibit_no3)/dno3
-
-  ! save mineral N fraction and decomposition rate for net N mineralization and associated N2O calculation
-  PetscReal :: net_nmin_rate
-  PetscReal :: dnet_nmin_rate_dx
-  PetscReal :: ph, f_ph
-  PetscReal :: rate_n2o, drate_n2o_dx
-
-! other local variables
-
-  ! General Equation for this subroutine
-
-  ! UC + u*UN --> di*DCi + ni*DNi + d*CO2 + n*NH4 [+ n2*NO3],
-  ! [2]    [6]       [3]      [7]     [1]        [4]         [5]
-  ! and,
-  !  (1) the reaction (decomposition) rate = crate, and independent unkowns: d, n1, and possibly u, n2.
-  !  (2) 'di','ni' imply multi-downpools' fraction, AND sum(di)+d=1, sum(ni)+n1+n2=u
-  !       (note: d, di, u, n1, n2, ni, are 'stoich' variables in the codes)
-  !  (3) n may be negative, i.e., n*nh4 should be in the left side of the Eq. (N immobilization).
-  !  (4) n2 must be negative, i.e., n2*NO3 should be in the left side of the Eq. (N immobilization).
-  !  (5) u = (UC/UN), uc/un for upstream C/N (UC/UN here), n for nh4, c for CO2
-  !
-  !  So, total 7+ variables: UC, UN, DC[i], DN[i], CO2, NH4, [NO3]
-  !      (1) 'di' is as input, 'ni' is either fixed or calc'ed by 'di*nci', in which nci = DNi/DCi
-  !      (2) actually 'd' and 'n1[+n2]' are calc'ed, by d=1-sum(di), n[+n2]=1-sum(ni);
-  !      (3) any rates NOW are not functions of down-stream C-N pools (i.e. ONE-way reaction).
-  !
-  ! and, 4 possible independent variables:
-  ! 'UC' as independent variable ('_dxx'), have secondary derivatives ('dx_dxx'):
-  PetscReal :: dco2_duc, duc_duc, ddc_duc, dnh4_duc, dno3_duc, dun_duc, ddn_duc
-  ! 'UN' as independent variable, have secondary derivatives
-  ! (TODO - this sets NOT yet available, i.e. assuming that decomposition rate is NOT upon UN.
-  !      this is scientifically right if involving microbial C pools)
-  PetscReal :: dco2_dun, duc_dun, ddc_dun, dnh4_dun, dno3_dun, dun_dun, ddn_dun
-  ! (optional) 'NH4' as independent variable,have secondary derivatives:
-  PetscReal :: dco2_dnh4, duc_dnh4, ddc_dnh4, dnh4_dnh4, dno3_dnh4, dun_dnh4, ddn_dnh4
-  ! (optional) 'NO3' as independent variable, have secondary derivatives:
-  PetscReal :: dco2_dno3, duc_dno3, ddc_dno3, dnh4_dno3, dno3_dno3, dun_dno3, ddn_dno3
-
-! misc. local variables
-  PetscInt :: i, j, ires
+  ! misc. local variables
+  PetscInt :: i, j
   PetscReal:: feps0, dfeps0_dx
   PetscReal:: k_decomp
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1128,75 +1073,9 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   f_depth = 1.0d0
 #endif
 
-!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  ! -----------------------------------------------------------------------------------------------
-  ! for 'nh4' dependent rate function (i.e. immobilization, will be dynamically changing for 'irxn')
-  ires_nh4  = this%species_id_nh4 + reaction%offset_aqueous       ! as aq. species
-  c_nh4     = rt_auxvar%total(ires_nh4, iphase)*theta*1000.0d0    ! from mol/L -> mol/m3 bulk
-
-  fnh4_inhibit_no3 = 1.d0
-  dfnh4_inhibit_no3_dnh4 = 0.d0
-  dfnh4_inhibit_no3_dno3 = 0.d0
-  if (this%species_id_no3 > 0) then
-    ! for 'no3' dependent rate function (i.e. immobilization), if needed
-    ires_no3  = this%species_id_no3 + reaction%offset_aqueous        ! as aq. species
-    c_no3 = rt_auxvar%total(this%species_id_no3, iphase)*theta*1000.0d0    ! from mol/L -> mol/m3 bulk
-
-    ! nh4 inhibition on no3 immobilization, if any ('this%inhibition_nh4_no3')
-    ! this is for quantifying microbial N immobilization preference btw NH4 and NO3.
-    ! (DON'T change the 'rate' and 'derivatives' after this)
-    if((c_nh4>this%x0eps .and. c_no3>this%x0eps) &
-       .and. this%inhibition_nh4_no3>0.d0) then
-      ! assuming that: f = c_nh4/(c_nh4+c_no3), or, f= (c_nh4/c_no3)/(c_nh4/c_no3+1)
-      ! and adding 'preference kp - ratio of nh4/no3'
-      ! f = kp*(c_nh4/c_no3)/(kp*(c_nh4/c_no3)+1), i.e.
-      ! f = (c_nh4/c_no3)/(c_nh4/c_no3+1/kp)  - Monod type with half-saturation of 1/kp
-      temp_real = c_nh4/c_no3
-      fnh4_inhibit_no3 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_FALSE)
-
-      ! the following appears troublesome, turning off temporarily (TODO - checking later on)
-      !dfnh4_inhibit_no3_dnh4 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_TRUE)  ! over 'dtemp_real'
-      !dfnh4_inhibit_no3_dnh4 = dfnh4_inhibit_no3_dnh4*(1.d0/c_no3)                              ! df_dtemp_real * dtemp_real_dnh4
-
-      !dfnh4_inhibit_no3_dno3 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_TRUE)  ! over 'dtemp_real'
-      !dfnh4_inhibit_no3_dno3 = dfnh4_inhibit_no3_dno3*(c_nh4/c_no3/c_no3)                       ! df_dtemp_real * dtemp_real_dno3
-
-      dfnh4_inhibit_no3_dnh4 = 0.d0
-      dfnh4_inhibit_no3_dno3 = 0.d0
-    else
-      if (c_nh4>this%x0eps .and. c_no3<=this%x0eps) then
-        fnh4_inhibit_no3 = 1.0d0
-      elseif (c_nh4<=this%x0eps .and. c_no3>this%x0eps) then
-        fnh4_inhibit_no3 = 0.0d0
-      else
-        fnh4_inhibit_no3 = 0.50d0
-      endif
-      dfnh4_inhibit_no3_dnh4 = 0.d0
-      dfnh4_inhibit_no3_dno3 = 0.d0
-    endif
-
-  endif ! if (this%species_id_no3>0)
-
   !----------------------------------------------------------------------------------------------
-  ires_co2 = this%species_id_co2 + reaction%offset_aqueous       ! as aq. species
-  if(this%species_id_hrimm > 0) then
-     ires_hrimm = this%species_id_hrimm + reaction%offset_immobile
-  endif
-
-  if(this%species_id_nmin > 0) then
-     ires_nmin = this%species_id_nmin + reaction%offset_immobile
-  endif
-
-  if(this%species_id_nimm > 0) then
-     ires_nimm = this%species_id_nimm + reaction%offset_immobile
-  endif
-
-  if(this%species_id_nimmp > 0) then
-     ires_nimmp = this%species_id_nimmp + reaction%offset_immobile
-  endif
 
   net_nmin_rate     = 0.0d0
-  dnet_nmin_rate_dx = 0.0d0
 
   do irxn = 1, this%nrxn
   
@@ -1221,10 +1100,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     if(this%upstream_is_aqueous(irxn)) then
       c_uc = rt_auxvar%total(ispec_uc, iphase)
       c_uc = theta * 1000.0d0 * c_uc    ! from mol/L -> mol/m3
-      ires_uc = reaction%offset_aqueous + ispec_uc
+      !ires_uc = reaction%offset_aqueous + ispec_uc
     else
       c_uc = rt_auxvar%immobile(ispec_uc)
-      ires_uc = reaction%offset_immobile + ispec_uc
+      !ires_uc = reaction%offset_immobile + ispec_uc
     endif
 
     if(this%x0eps>0.d0) then
@@ -1255,17 +1134,17 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           if(this%downstream_is_aqueous(irxn, j)) then
             c_dc = rt_auxvar%total(ispec_dc, iphase)
             c_dc = theta * 1000.0d0 * c_dc    ! from mol/L -> mol/m3
-            ires_dc = ispec_dc + reaction%offset_aqueous
+            !ires_dc = ispec_dc + reaction%offset_aqueous
 
             c_dn = rt_auxvar%total(ispec_dn, iphase)
             c_dn = theta * 1000.0d0 * c_dn    ! from mol/L -> mol/m3
-            ires_dn = ispec_dn + reaction%offset_aqueous
+            !ires_dn = ispec_dn + reaction%offset_aqueous
           else
             c_dc = rt_auxvar%immobile(ispec_dc)
-            ires_dc = ispec_dc + reaction%offset_immobile
+            !ires_dc = ispec_dc + reaction%offset_immobile
 
             c_dn = rt_auxvar%immobile(ispec_dn)
-            ires_dn = ispec_dn + reaction%offset_immobile
+            !ires_dn = ispec_dn + reaction%offset_immobile
           endif
           this%downstream_nc(irxn, j) = c_dn / c_dc
         endif
@@ -1279,10 +1158,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         if(this%upstream_is_aqueous(irxn)) then
           c_un = rt_auxvar%total(ispec_un, iphase)
           c_un = theta * 1000.0d0 * c_un    ! from mol/L -> mol/m3
-          ires_un = ispec_un + reaction%offset_aqueous
+          !ires_un = ispec_un + reaction%offset_aqueous
         else
           c_un = rt_auxvar%immobile(ispec_un)
-          ires_un = ispec_un + reaction%offset_immobile
+          !ires_un = ispec_un + reaction%offset_immobile
         endif
         this%upstream_nc(irxn) = c_un / c_uc
 
@@ -1311,137 +1190,184 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
     endif ! end of 'upstream_is_varycn' (NOTE: 'mineral_n_stoich' for non-litter species IS constant, which are calc. in 'setup')
 
-    !-----------------------------------------------------------------------------------------------------
+    ! N mineralization type decomposition reaction
+    if(this%mineral_n_stoich(irxn) >= 0.0d0) then
+      call SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,   &
+                        rt_auxvar, material_auxvar, option,                    &
+                        irxn, crate_uc, dcrate_uc_duc, nmin)
+
+      net_nmin_rate = net_nmin_rate + nmin
+    else
+    ! N immoblization type decomposition reaction
+      call SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction,   &
+                        rt_auxvar, global_auxvar, material_auxvar, option,     &
+                        irxn, crate_uc, dcrate_uc_duc, nimm)
+      net_nmin_rate = net_nmin_rate + nimm  ! 'nimm' should be in negative
+    endif
+
+  enddo ! reactions loop
+
+  ! N gaseous emission during mineralization
+  if (net_nmin_rate > this%x0eps) then
+    call SomDecNemission(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
+                       global_auxvar,material_auxvar,reaction,option, net_nmin_rate)
+  end if
+
+#ifdef DEBUG
+  do ires=1, reaction%ncomp
+    temp_real = Residual(ires)
+
+    if (abs(temp_real) > huge(temp_real)) then
+      write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
+      write(option%fid_out, *) 'Reaction Sandbox: SOMDEC'
+      option%io_buffer = ' checking infinity of Residuals matrix  @ SomDecReact '
+      call printErrMsg(option)
+    endif
+
+    if (temp_real /= temp_real) then
+      write(option%fid_out, *) 'NaN of Residual matrix checking at ires=', ires
+      write(option%fid_out, *) 'Reaction Sandbox: SOMDEC'
+      option%io_buffer = ' checking NaN of Residuals matrix  @ SomDecReact '
+
+      call printErrMsg(option)
+    endif
+
+  enddo
+#endif
+
+end subroutine SomDecReact
+
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+subroutine SomDecReact1(this,Residual,Jacobian,compute_derivative, reaction,  &
+                        rt_auxvar, material_auxvar, option,                   &
+                        irxn, crate_uc, dcrate_uc_duc, nmin)
+  !
+  ! Evaluates reaction storing residual and/or Jacobian for N mineralizartion associated
+  ! 1 single pool SOM-DECOMPOSITION
+  !
+  ! Rewritten by Fengming Yuan @Aug-14-2015.
+  !
+! ----------------------------------------------------------------------------!
+  use Option_module
+  use Reaction_Aux_module
+  use Material_Aux_class, only : material_auxvar_type
+
+  implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+  class(reaction_sandbox_somdec_type) :: this
+  type(option_type) :: option
+  type(reaction_type) :: reaction
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  class(material_auxvar_type) :: material_auxvar
+
+  PetscBool :: compute_derivative
+  PetscReal :: Residual(reaction%ncomp)
+  PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
+
+ ! C substrate only dependent rate/derivative  (input)
+  PetscInt  :: irxn
+  PetscReal :: crate_uc        ! crate function of upstream C ('uc') (moles/s)
+  PetscReal :: dcrate_uc_duc   ! d crate_uc / d uc
+  PetscReal :: nmin
+
+  PetscErrorCode :: ierr
+
+  PetscReal :: temp_real, volume
+
+  !PetscInt :: ipool_up, ipool_down
+
+  PetscInt :: ispec_uc, ispec_un, ispec_dc, ispec_dn     ! species id for upstream C, N, and downstream (used in loops)
+  PetscInt :: ires_uc,   ires_un, ires_dc, ires_dn       ! id used for residual and Jacobian (used in loops)
+  PetscInt :: ires_uchr, ires_unmin                      ! for individual upstream pool
+  PetscInt :: ires_hr,   ires_nmin                       ! for sum of all pools
+  PetscInt :: ires_co2, ires_nh4
+  PetscReal :: stoich_c, stoich_n
+
+  PetscReal :: crate       ! moleC/s: overall = crate_uc, or,
+                           !                  = crate_uc*crate_nh4, or,
+                           !                  = crate_uc*(crate_nh4*(1-fnh4_inhibit_no3)+crate_no3*fnh4_inhibit_no3)
+  PetscReal :: dcrate_dx   ! d(crate)/d(x), x = uc, un, dc, dn, nh4, or no3, respectively
+
+! other local variables
+
+  ! General Equation for this subroutine
+
+  ! UC + u*UN --> di*DCi + ni*DNi + d*CO2 + n*NH4
+  ! [2]  [5]      [3]      [6]      [1]     [4]
+  ! and,
+  !  (1) the reaction (decomposition) rate = crate, and independent unkowns: d, n, and possibly u (not-yet).
+  !  (2) 'di','ni' imply multi-downpools' fraction, AND sum(di)+d=1, sum(ni)+n=u
+  !       (note: d, di, u, n, ni, are 'stoich' variables in the codes)
+  !  (3) n MUST not be negative
+  !  (4) u = (UC/UN), uc/un for upstream C/N (UC/UN here), n for nh4, c for CO2
+  !
+  !  So, total 6+ variables: UC, UN, DC[i], DN[i], CO2, NH4
+  !      (1) 'di' is as input, 'ni' is either fixed or calc'ed by 'di*nci', in which nci = DNi/DCi
+  !      (2) actually 'd' and 'n' are calc'ed, by d=1-sum(di), n=1-sum(ni);
+  !      (3) any rates NOW are not functions of down-stream C-N pools (i.e. ONE-way reaction).
+  !
+  ! and, 2 possible independent variables:
+  ! 'UC' as independent variable ('_dxx'), have secondary derivatives ('dx_dxx'):
+  PetscReal :: dco2_duc, duc_duc, ddc_duc, dnh4_duc, dun_duc, ddn_duc
+  ! 'UN' as independent variable, have secondary derivatives
+  ! (TODO - this sets NOT yet available, i.e. assuming that decomposition rate is NOT upon UN.
+  !      this is scientifically right if involving microbial C pools)
+  PetscReal :: dco2_dun, duc_dun, ddc_dun, dnh4_dun, dun_dun, ddn_dun
+
+! misc. local variables
+  PetscInt :: j, ires
+
+  !------------------------------------------------------------------------------------------------
+
+  nmin = 0.d0
+  if(this%mineral_n_stoich(irxn) < 0.0d0) return        ! not for immoblization
+
+  ! -----------------------------------------------------------------------------------------------
+  ! ispec, ires
+  ispec_uc = this%upstream_c_id(irxn)
+  if(this%upstream_is_aqueous(irxn)) then
+    ires_uc = reaction%offset_aqueous + ispec_uc
+  else
+    ires_uc = reaction%offset_immobile + ispec_uc
+  endif
+
+  if(this%upstream_is_varycn(irxn)) then
+    ispec_un = this%upstream_n_id(irxn)
+    if(this%upstream_is_aqueous(irxn)) then
+      ires_un = ispec_un + reaction%offset_aqueous
+    else
+      ires_un = ispec_un + reaction%offset_immobile
+    endif
+  endif
+
+  ires_co2 = this%species_id_co2 + reaction%offset_aqueous       ! as aq. species
+  if(this%species_id_hr > 0) then
+    ires_hr = this%species_id_hr + reaction%offset_immobile
+  endif
+  if(this%upstream_hr_id(irxn) > 0) then
+    ires_uchr  = this%upstream_hr_id(irxn) + reaction%offset_immobile
+  endif
+
+  ires_nh4  = this%species_id_nh4 + reaction%offset_aqueous       ! as aq. species
+  if(this%species_id_nmin > 0) then
+     ires_nmin = this%species_id_nmin + reaction%offset_immobile
+  endif
+  if(this%upstream_nmin_id(irxn) > 0) then
+    ires_unmin  = this%upstream_nmin_id(irxn) + reaction%offset_immobile
+  endif
+
+  volume= material_auxvar%volume
+
+  !-----------------------------------------------------------------------------------------------------
     ! calculation of residuals
     ! residual units: (mol/sec) = (m^3 bulk/s) * (mol/m^3 bulk)
 
     ! overall C decomposition rates
     crate     = crate_uc
-
-    ! NH4/NO3 limiting on N-immobolization involved C rates, if any
-    ! NOTE: don't change the 'fnh4' ('fno3') and 'dfnh4_dnh4'('dfno3_dno3') after this block of codes
-    ! it will be used for each possible 'irxn' species (and for this reason, initializing it here)
-    fnh4 = 1.d0
-    dfnh4_dnh4 = 0.d0
-    fno3 = 1.d0
-    dfno3_dno3 = 0.d0
-    crate_nh4  = 1.d0
-    crate_no3  = 1.d0
-
-    if(this%mineral_n_stoich(irxn) < 0.0d0) then
-
-      ! half-saturation regulated rate (by input, it may be representing competetiveness)
-      fnh4       = funcMonod(c_nh4, this%half_saturation_nh4, PETSC_FALSE)
-      dfnh4_dnh4 = funcMonod(c_nh4, this%half_saturation_nh4, PETSC_TRUE)
-      if(this%species_id_no3 > 0) then
-        fno3       = funcMonod(c_no3, this%half_saturation_no3, PETSC_FALSE)
-        dfno3_dno3 = funcMonod(c_no3, this%half_saturation_no3, PETSC_TRUE)
-      endif
-
-      ! using the following for trailer smoothing
-      ! note: 'x0eps' is different from 'half_saturation_nh4' above.
-      !       'x0eps' is for mathematic reason in the code;
-      !       'half_saturation_nh4' is for using 'monod-type' function to quantify microbial
-      !    NH4 immobilization dependence on resources (NH4). So, physiologically it may be
-      !    used as a method to quantify competition over resources.
-      if(this%x0eps>0.d0) then
-        ! GP's cut-off approach (sort of Heaviside function)
-        feps0     = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_FALSE)
-        dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
-      else
-        feps0 = 1.0d0
-        dfeps0_dx = 0.d0
-      endif
-      dfnh4_dnh4 = dfnh4_dnh4*feps0 + fnh4 * dfeps0_dx
-      fnh4 = fnh4 * feps0
-      !
-      if(this%species_id_no3 > 0) then
-        if(this%x0eps>0.d0) then
-          ! GP's cut-off approach
-          feps0     = funcTrailersmooth(c_no3, this%x0eps*10.d0, this%x0eps, PETSC_FALSE)
-          dfeps0_dx = funcTrailersmooth(c_no3, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
-        else
-          feps0 = 1.0d0
-          dfeps0_dx = 0.d0
-        endif
-        dfno3_dno3 = dfno3_dno3*feps0 + fno3 * dfeps0_dx
-        fno3 = fno3 * feps0
-      endif
-
-      ! constraining 'N immobilization rate' locally if too high compared to available within the allowable min. time-step
-      ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
-      ! - implying tiny timestep in model, which potentially crashes model
-
-      ! in the following, '2.1' multiplier is chosen because that is slightly larger(5% to avoid numerical issue) than '2.0',
-      ! which should be the previous-timestep before reaching the 'option%dt_min'
-      ! (the time-cut used in PF is like dt=0.5*dt, when cutting)
-      !dtmin = 2.1d0*option%dt_min
-      dtmin = max(option%tran_dt, 2.1d0*option%dt_min)   ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
-
-      if (crate_uc*this%mineral_n_stoich(irxn) < 0.d0) then
-        !
-        nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin   ! unit: moles
-        if (nratecap*fnh4_inhibit_no3 > c_nh4*volume) then       ! c_nh4 unit: moles/m3 bulk soil
-          ! assuming that monod type reduction used and 'nratecap' must be reduced to 'c_nh4*volume', i.e.
-          ! c_nh4*volume/dt = nratecap*fnh4_inhibit_no3/dt * (c_nh4*volume/(c_nh4*volume+c0))
-          ! then, c0 = nratecap*fnh4_inhibit_no3 - c_nh4*volume (this is the 'half-saturation' term used above)
-          fnratecap = funcMonod(c_nh4*volume, nratecap*fnh4_inhibit_no3-c_nh4*volume, PETSC_FALSE)
-          dfnratecap_dnh4 = funcMonod(c_nh4*volume, nratecap*fnh4_inhibit_no3-c_nh4*volume, PETSC_TRUE)
-        else
-          fnratecap       = 1.d0
-          dfnratecap_dnh4 = 0.d0
-        endif
-        dfnh4_dnh4 = dfnh4_dnh4*fnratecap + fnh4 * dfnratecap_dnh4
-        fnh4 = fnh4 * fnratecap
-        !
-        if (this%species_id_no3 > 0) then
-          if (nratecap*(1.d0-fnh4_inhibit_no3) > c_no3*volume) then
-            fnratecap = funcMonod(c_no3*volume, nratecap*(1.d0-fnh4_inhibit_no3)-c_no3*volume, PETSC_FALSE)
-            dfnratecap_dno3 = funcMonod(c_no3*volume, nratecap*(1.d0-fnh4_inhibit_no3)-c_no3*volume, PETSC_TRUE)
-          else
-            fnratecap       = 1.d0
-            dfnratecap_dno3 = 0.d0
-          endif
-          dfno3_dno3 = dfno3_dno3*fnratecap + fno3 * dfnratecap_dno3
-          fno3 = fno3 * fnratecap
-        endif
-        !
-      endif
-
-      !----------- overall rate ------
-      crate_nh4 = fnh4
-      ! overall C rates
-      crate = crate_uc * crate_nh4
-
-      if (this%species_id_no3 > 0) then
-        ! 'f_nh4_inhibit_no3' is somehow a spliting fraction for NH4:NO3 immoblization,
-        crate_nh4 = fnh4 * fnh4_inhibit_no3
-
-        ! f_no3 should be adjusted by R reduced by 'crate_nh4' so that it is inhibited by nh4
-        crate_no3 = fno3 * (1.0d0-fnh4_inhibit_no3)
-
-        ! overall C rates
-        crate = crate_uc * (crate_nh4 + crate_no3)
-      endif
-
-#ifdef DEBUG
-      if(option%tran_dt<=option%dt_min .and. option%print_file_flag) then
-        if (-crate_uc*crate_nh4*this%mineral_n_stoich(irxn)*option%dt_min>=c_nh4-this%x0eps .or.  &
-            -crate_uc*crate_no3*this%mineral_n_stoich(irxn)*option%dt_min>=c_no3-this%x0eps) then
-          write(option%fid_out, *) '----------------------------------------------'
-          write(option%fid_out, *) 'Reaction Sandbox: SOMDEC'
-          write(option%fid_out, *) 'dt=',option%tran_dt, ' dt_min=',option%dt_min
-          write(option%fid_out, *) 'ghosted_id=',ghosted_id, ' irxn=', irxn, &
-            ' c_nh4=',c_nh4, ' c_no3=',c_no3, &
-            ' fnh4=',fnh4,'crate_nh4=',crate_uc*crate_nh4*this%mineral_n_stoich(irxn)*option%dt, &
-            'crate0_nh4=',crate_uc*this%mineral_n_stoich(irxn)*fnh4_inhibit_no3*option%dt, &
-            ' fno3=',fno3,'crate_no3=',crate_uc*crate_no3*this%mineral_n_stoich(irxn)*option%dt, &
-             'crate0_n03=',crate_uc*this%mineral_n_stoich(irxn)*(1.d0-fnh4_inhibit_no3)*option%dt
-        endif
-      endif
-#endif
-
-    endif  !if(this%mineral_n_stoich(irxn) < 0.0d0) (i.e. immobilization)
 
     !------------------------------------------------------------------------------------------
     ! -- Residuals for all C-N pools
@@ -1450,10 +1376,13 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
 
     ! CO2 [2]
     Residual(ires_co2) = Residual(ires_co2) - this%mineral_c_stoich(irxn) * crate
-    if (this%species_id_hrimm > 0) then    ! for tracking
-       Residual(ires_hrimm) = Residual(ires_hrimm) - this%mineral_c_stoich(irxn) * crate
+    if (this%upstream_hr_id(irxn) > 0) then        ! for tracking individual pool CO2 release
+       Residual(ires_uchr) = Residual(ires_uchr) - this%mineral_c_stoich(irxn) * crate
     endif
-    
+    if (this%species_id_hr > 0) then               ! for tracking all pool CO2 release
+       Residual(ires_hr) = Residual(ires_hr) - this%mineral_c_stoich(irxn) * crate
+    endif
+
     ! downstream non-mineral C pools [3]
     do j = 1, this%n_downstream_pools(irxn)
        ispec_dc = this%downstream_c_id(irxn, j)
@@ -1476,36 +1405,21 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     endif
 
 
-    ! inorg. nitrogen (NH4+/nh4(aq)) [5], [and, no3 [6] ]
+    ! inorg. nitrogen (NH4+/nh4(aq)) [5]
     if(this%mineral_n_stoich(irxn) >= 0.0d0) then        ! mineralization
       Residual(ires_nh4) = Residual(ires_nh4) - this%mineral_n_stoich(irxn) * crate
 
-      if(this%species_id_nmin > 0) then    ! for tracking
+      nmin = this%mineral_n_stoich(irxn) * crate
+
+      if(this%upstream_nmin_id(irxn) > 0) then    ! for tracking individual pool N mineralization
+        Residual(ires_unmin) = Residual(ires_unmin) - this%mineral_n_stoich(irxn) * crate
+      endif
+
+      if(this%species_id_nmin > 0) then    ! for tracking all pool N mineralization
         Residual(ires_nmin) = Residual(ires_nmin) - this%mineral_n_stoich(irxn) * crate
       endif
 
-    else                                                 ! immobilization
-
-      Residual(ires_nh4) = Residual(ires_nh4) - &
-        this%mineral_n_stoich(irxn) * crate_uc * crate_nh4
-      if (this%species_id_no3 > 0) then
-        Residual(ires_no3) = Residual(ires_no3) - &
-          this%mineral_n_stoich(irxn) * crate_uc * crate_no3
-      endif
-
-      if(this%species_id_nimm > 0) then    ! for tracking
-         Residual(ires_nimm) = Residual(ires_nimm) + this%mineral_n_stoich(irxn) * crate
-      endif
-
-      if(this%species_id_nimmp > 0) then    ! for tracking
-         Residual(ires_nimmp) = Residual(ires_nimmp) + this%mineral_n_stoich(irxn) * crate_uc
-      endif
-
     endif
-
-    ! sum of net mineralization for estimating Ngas emission during mineralization
-    net_nmin_rate = net_nmin_rate + &
-        this%mineral_n_stoich(irxn) * crate
 
     ! downstream non-mineral N pools [7], if any
     do j = 1, this%n_downstream_pools(irxn)
@@ -1537,7 +1451,6 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         ddc_dun = 0.d0     ! [7-3]
 
         dnh4_dun= 0.d0     ! [7-4] 'N rates'
-        dno3_dun= 0.d0     ! [7-5]
         dun_dun = 0.d0     ! [7-6]
         ddn_dun = 0.d0     ! [7-7]
 
@@ -1557,64 +1470,596 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         ddc_duc = 0.d0                                                 ! [7-3 - will be done on fly in Jacobians below)
 
         dnh4_duc= dco2_duc * this%mineral_n_stoich(irxn)               ! [7-4]
-        dno3_duc= 0.d0                                                 ! [7-5 - not associated with SOM decomposition]
         dun_duc = this%upstream_nc(irxn) * duc_duc                     ! [7-6]
         ddn_duc = 0.d0                                                 ! [7-7 - will be done on fly in Jacobians below)
 
 ! -- derivatives with variable C/N decompsing pools
-        ! LitC + u LitN -> di SOMci + ni SOMni + d C[O2] + n N[H3] [+ n2 NO3]
-        ! [2]    [6]       [3]            [7]        [1]       [4]        [5]
-        ! 'n+n2' IS mineral_n_stoich (may/may not be negative: if positive, same as above)
-        ! NOTE: (1) 'di/ni' is implicitly assumed as: sum(di) + d = 1;  sum(ni) + n + n2 = u
+        ! LitC + u LitN -> di SOMci + ni SOMni + d C[O2] + n N[H3]
+        ! [2]    [6]       [3]            [7]        [1]       [4]
+        ! 'n' IS mineral_n_stoich (may/may not be negative: if positive, same as above)
+        ! NOTE: (1) 'di/ni' is implicitly assumed as: sum(di) + d = 1;  sum(ni) + n = u
 
         if(this%upstream_is_varycn(irxn)) then
+           ! NOT YET SUPPORTED
+        endif  !this%upstream_is_varycn(irxn)
 
-! -- derivatives with variable C/N decompsing pools and N[H3] as reactants
-           ! 'un' is limited, so 'n' is negative (nh4 as reactant, i.e. N immobilization)
-           if (this%mineral_n_stoich(irxn) < 0.d0) then
+! --------------
 
-             ! -- depending on 'uc'
-             ! crate = crate_uc * crate_nh4 = crate_uc*fnh4,
-             ! So, d(crate)/d(uc) = fnh4*dcrate_uc_duc + crate_uc * dfnh4_duc
-             !     in which 'dfnh4_duc' = 0, because crate_nh4 = fnh4, only dependent on 'nh4'
-             dcrate_dx = dcrate_uc_duc*fnh4
-             dco2_duc  =  dcrate_dx * this%mineral_c_stoich(irxn)                       ! [7-1]
-             duc_duc = -1.0d0 * dcrate_dx                                               ! [7-2]
+! -- Jacobians with respect to upstream C ('uc')
+      ! CO2 [7-1]
+      if(this%upstream_is_aqueous(irxn)) then   ! aqueous c pools must have fixed CN ratio
+        Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - dco2_duc*  &
+          rt_auxvar%aqueous%dtotal(this%species_id_co2,ispec_uc, 1)
+      else
+        Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - dco2_duc
+      endif
 
-             dnh4_duc= dco2_duc * this%mineral_n_stoich(irxn)                           ! [7-4]
-             dun_duc = this%upstream_nc(irxn) * duc_duc                                 ! [7-6]
+#ifndef nojacobian_track_vars
+      ! for tracking
+      if(this%upstream_hr_id(irxn) > 0) then   ! individual pool CO2 release
+        Jacobian(ires_uchr,ires_uc) = Jacobian(ires_uchr,ires_uc) - dco2_duc
+      endif
 
-             ! -- depending on 'nh4'
-             ! d(crate)/d(nh4) = d(crate_nh4)*crate_uc = dfnh4_dnh4*crate_uc
-             dcrate_dx = dfnh4_dnh4*crate_uc
-             dco2_dnh4= dcrate_dx * this%mineral_c_stoich(irxn)                           ! [7-1]
-             duc_dnh4 = -1.0d0*dcrate_dx                                                  ! [7-2]
+      if(this%species_id_hr > 0) then          ! sum of all pool CO2 release
+        Jacobian(ires_hr,ires_uc) = Jacobian(ires_hr,ires_uc) - dco2_duc
+      endif
+#endif
 
-             dnh4_dnh4= dco2_dnh4 * this%mineral_n_stoich(irxn)                           ! [7-4]
-             dun_dnh4 = this%upstream_nc(irxn) * duc_dnh4                                 ! [7-6]
+      ! upstream C pool [7-2]
+      if(this%upstream_is_aqueous(irxn)) then
+        Jacobian(ires_uc,ires_uc) = Jacobian(ires_uc,ires_uc) - duc_duc * &
+          rt_auxvar%aqueous%dtotal(ispec_uc,ispec_uc,1)
+      else
+        Jacobian(ires_uc,ires_uc) = Jacobian(ires_uc,ires_uc) - duc_duc
+      endif
 
-! -- derivatives with variable C/N decompsing pools and N[H3]+NO3 as reactants
-             if (this%species_id_no3 > 0) then
+      ! downstream C pools [7-3]
+      do j = 1, this%n_downstream_pools(irxn)
+         ispec_dc = this%downstream_c_id(irxn, j)
+         if(this%downstream_is_aqueous(irxn, j)) then
+           ires_dc = ispec_dc
+         else
+           ires_dc = reaction%offset_immobile + ispec_dc
+         endif
+
+         ! if given that: 'mineral_c_stoich + sum(di) = 1',
+         !                 [7-1] dc_dx=dcrate_dx*mineral_c_stoich,
+         !             and,[7-2] duc_dx=-dcrate_dx
+         ! then, d(dci)/dx = -duc_dx * di
+         ddc_duc = this%downstream_stoich(irxn, j) * (-1.d0*duc_duc)
+
+         if(this%upstream_is_aqueous(irxn) .and. &
+           this%downstream_is_aqueous(irxn, j)) then
+             Jacobian(ires_dc,ires_uc) = Jacobian(ires_dc,ires_uc) - ddc_duc * &
+                 rt_auxvar%aqueous%dtotal(ispec_dc,ispec_uc,1)
+         else
+             Jacobian(ires_dc,ires_uc) = Jacobian(ires_dc,ires_uc) - ddc_duc
+         endif
+      enddo
+
+      ! NH4 [7-4]
+      if(this%upstream_is_aqueous(irxn)) then
+        Jacobian(ires_nh4,ires_uc) = Jacobian(ires_nh4,ires_uc) - dnh4_duc*  &
+          rt_auxvar%aqueous%dtotal(this%species_id_nh4,ispec_uc,1)
+      else
+        Jacobian(ires_nh4,ires_uc) = Jacobian(ires_nh4,ires_uc) - dnh4_duc
+      endif
+
+#ifndef nojacobian_track_vars
+      !for tracking
+      if(this%mineral_n_stoich(irxn) >= 0.0d0) then
+        if(this%upstream_nmin_id(irxn) > 0 ) &  !individual pool N mineralization
+          Jacobian(ires_unmin,ires_uc) = Jacobian(ires_unmin,ires_uc) - dnh4_duc
+
+        if(this%species_id_nmin > 0 ) &   !sum of all pool N mineralization
+          Jacobian(ires_nmin,ires_uc) = Jacobian(ires_nmin,ires_uc) - dnh4_duc
+
+      endif
+#endif
+
+      ! upstream N pool [7-6], if any
+      if (this%upstream_is_varycn(irxn)) then
+        if(this%upstream_is_aqueous(irxn)) then
+          Jacobian(ires_un,ires_uc) = Jacobian(ires_un,ires_uc) - dun_duc * &
+            rt_auxvar%aqueous%dtotal(ispec_un,ispec_uc,1)
+        else
+          Jacobian(ires_un,ires_uc) = Jacobian(ires_un,ires_uc) - dun_duc
+        endif
+      endif
+
+      ! downstream N pools [7-7], if any
+      do j = 1, this%n_downstream_pools(irxn)
+        if (this%downstream_is_varycn(irxn,j)) then
+          ispec_dn = this%downstream_n_id(irxn, j)
+          if(this%downstream_is_aqueous(irxn, j)) then
+            ires_dn = ispec_dn
+          else
+            ires_dn = reaction%offset_immobile + ispec_dn
+          endif
+
+         ! given that: 'downstream_nc = downstream_n/downstream_c',
+         !             and, d(dci)/dx = -duc_dx * di
+         !  then, d(dni)/dx = d(dci*downstream_nc)/dx = downstream_nc * (-duc_dx*di)
+          ddn_duc = this%downstream_stoich(irxn, j) * (-1.d0*duc_duc) &
+            * this%downstream_nc(irxn, j)
+
+          if(this%upstream_is_aqueous(irxn) .and. &
+            this%downstream_is_aqueous(irxn, j)) then
+              Jacobian(ires_dn,ires_uc) = Jacobian(ires_dn,ires_uc) - ddn_duc * &
+                 rt_auxvar%aqueous%dtotal(ispec_dn,ispec_uc,1)
+          else
+              Jacobian(ires_dn,ires_uc) = Jacobian(ires_dn,ires_uc) - ddn_duc
+          endif
+
+        endif !if (this%downstream_is_varycn(irxn,j))
+      enddo
+
+! -- Jacobians with respect to upstream n ('un' or'u', due to variable CN ratio reactant)
+      ! (TODO) currently not-yet-supported function.
+      !
+
+    endif ! if(compute_derivative) then -- end of jacobian calculations
+
+end subroutine SomDecReact1
+
+
+!++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+subroutine SomDecReact2(this,Residual,Jacobian,compute_derivative, reaction, &
+                        rt_auxvar, global_auxvar, material_auxvar, option,   &
+                        irxn, crate_uc, dcrate_uc_duc, nimm)
+  !
+  ! Evaluates reaction storing residual and/or Jacobian for
+  ! 1 single pool of SOM: N immobilization associated SOM-DECOMPOSITION
+  !
+  ! Rewritten by Fengming Yuan @Aug-14-2015.
+  !
+! ----------------------------------------------------------------------------!
+  use Option_module
+  use Reaction_Aux_module
+  use Material_Aux_class, only : material_auxvar_type
+
+  implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+  class(reaction_sandbox_somdec_type) :: this
+  type(option_type) :: option
+  type(reaction_type) :: reaction
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
+
+  PetscBool :: compute_derivative
+  PetscReal :: Residual(reaction%ncomp)
+  PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
+
+  PetscInt  :: irxn
+  PetscReal :: crate_uc        ! crate function of upstream C ('uc')
+  PetscReal :: dcrate_uc_duc   ! d crate_uc / d uc
+  PetscReal :: nimm            ! sum of N immoblization
+
+  PetscInt, parameter :: iphase = 1
+
+  PetscReal :: temp_real
+  PetscReal :: theta, volume
+  PetscReal :: c_nh4         ! concentration (mole/L): substrate OR product,  => mole/m3bulk
+  PetscReal :: c_no3         ! concentration (mole/L): substrate only,  => mole/m3bulk
+
+  PetscInt :: ispec_uc,  ispec_un, ispec_dc, ispec_dn   ! species id for upstream C, N, and downstream (used in loops)
+  PetscInt :: ires_uc,   ires_un, ires_dc, ires_dn       ! id used for residual and Jacobian (used in loops)
+  PetscInt :: ires_uchr, ires_unimp, ires_unimm   ! for individual upstream pool
+  PetscInt :: ires_hr,   ires_nimp,  ires_nimm    ! for sum of all pools
+  PetscInt :: ires_co2,  ires_nh4, ires_no3
+
+  PetscReal :: crate       ! moleC/s: overall = crate_uc, or,
+                           !                  = crate_uc*crate_nh4, or,
+                           !                  = crate_uc*(crate_nh4*(1-fnh4_inhibit_no3)+crate_no3*fnh4_inhibit_no3)
+  PetscReal :: dcrate_dx   ! d(crate)/d(x), x = uc, un, dc, dn, nh4, or no3, respectively
+
+  PetscReal :: crate_nh4        ! crate function of c_nh4 (for nh4 immobilization)
+  PetscReal :: dcrate_nh4_dnh4  ! d(crate_nh4)/d(nh4) (for nh4 immobilization)
+  PetscReal :: fnh4             ! = nh4/(half_saturation + nh4)  ( N 'resource' limitation on immobilization)
+  PetscReal :: dfnh4_dnh4       ! d(fnh4)/d(nh4)
+
+  PetscReal :: crate_no3        ! crate function of c_no3 (for no3 immobilization)
+  PetscReal :: dcrate_no3_dno3  ! d(crate_no3)/d(no3)
+  PetscReal :: fno3             ! = no3/(half_saturation + no3)  ( N 'resource' limitation on immobilization)
+  PetscReal :: dfno3_dno3       ! d(fnh4)/d(nh4)
+
+  PetscReal :: nratecap, dtmin  ! max. n immobilization rate within allowable min. timestep
+  PetscReal :: fnratecap        ! max. nratecap as function of c_nh4/c_no3 consumption rate vs. potential immobilization
+  PetscReal :: dfnratecap_dnh4, dfnratecap_dno3
+
+  !nh4 inhibition on no3 immobilization, or microbial N immobilization preference btw nh4 and no3
+  ! crate_nh4 = fnh4*fnh4_inhibit_no3, while crate_no3 = 1.-fnh4*fnh4_inhibition_no3
+  ! by the following eq., if 'inhibition=1', uptake will be equal for both (if same conc.);
+  ! higher coef, strong NH4 inhibition on NO3 (i.e., more NH4 immobilization over NO3)
+  PetscReal :: fnh4_inhibit_no3 ! inhibition_coef/(inhibition_coef + no3/nh4):
+  PetscReal :: dfnh4_inhibit_no3_dnh4 ! d(fnh4_inhibit_no3)/dnh4
+  PetscReal :: dfnh4_inhibit_no3_dno3 ! d(fnh4_inhibit_no3)/dno3
+
+! other local variables
+
+  ! General Equation for this subroutine
+
+  ! UC + u*UN --> di*DCi + ni*DNi + d*CO2 + n*NH4 [+ n2*NO3],
+  ! [2]    [6]       [3]      [7]     [1]        [4]         [5]
+  ! and,
+  !  (1) the reaction (decomposition) rate = crate, and independent unkowns: d, n1, and possibly u, n2.
+  !  (2) 'di','ni' imply multi-downpools' fraction, AND sum(di)+d=1, sum(ni)+n1+n2=u
+  !       (note: d, di, u, n1, n2, ni, are 'stoich' variables in the codes)
+  !  (3) n may be negative, i.e., n*nh4 should be in the left side of the Eq. (N immobilization).
+  !  (4) n2 must be negative, i.e., n2*NO3 should be in the left side of the Eq. (N immobilization).
+  !  (5) u = (UC/UN), uc/un for upstream C/N (UC/UN here), n for nh4, c for CO2
+  !
+  !  So, total 7+ variables: UC, UN, DC[i], DN[i], CO2, NH4, [NO3]
+  !      (1) 'di' is as input, 'ni' is either fixed or calc'ed by 'di*nci', in which nci = DNi/DCi
+  !      (2) actually 'd' and 'n1[+n2]' are calc'ed, by d=1-sum(di), n[+n2]=1-sum(ni);
+  !      (3) any rates NOW are not functions of down-stream C-N pools (i.e. ONE-way reaction).
+  !
+  ! and, 4 possible independent variables:
+  ! 'UC' as independent variable ('_dxx'), have secondary derivatives ('dx_dxx'):
+  PetscReal :: dco2_duc, duc_duc, ddc_duc, dnh4_duc, dno3_duc, dun_duc, ddn_duc
+  ! 'UN' as independent variable, have secondary derivatives
+  ! (TODO - this sets NOT yet available, i.e. assuming that decomposition rate is NOT upon UN.
+  !      this is scientifically right if involving microbial C pools)
+  PetscReal :: dco2_dun, duc_dun, ddc_dun, dnh4_dun, dno3_dun, dun_dun, ddn_dun
+  ! (optional) 'NH4' as independent variable,have secondary derivatives:
+  PetscReal :: dco2_dnh4, duc_dnh4, ddc_dnh4, dnh4_dnh4, dno3_dnh4, dun_dnh4, ddn_dnh4
+  ! (optional) 'NO3' as independent variable, have secondary derivatives:
+  PetscReal :: dco2_dno3, duc_dno3, ddc_dno3, dnh4_dno3, dno3_dno3, dun_dno3, ddn_dno3
+
+
+! misc. local variables
+  PetscInt :: j, ires
+  PetscReal:: feps0, dfeps0_dx
+
+  !------------------------------------------------------------------------------------------------
+
+  nimm = 0.d0
+  if(this%mineral_n_stoich(irxn) >= 0.0d0) return        ! not for mineralization-type
+
+  !----------------------------------------------------------------------------------------------
+  ! ispec, ires
+  ispec_uc = this%upstream_c_id(irxn)
+  if(this%upstream_is_aqueous(irxn)) then
+    ires_uc = reaction%offset_aqueous + ispec_uc
+  else
+    ires_uc = reaction%offset_immobile + ispec_uc
+  endif
+
+  if(this%upstream_is_varycn(irxn)) then
+    ispec_un = this%upstream_n_id(irxn)
+    if(this%upstream_is_aqueous(irxn)) then
+      ires_un = ispec_un + reaction%offset_aqueous
+    else
+      ires_un = ispec_un + reaction%offset_immobile
+    endif
+  endif
+
+  ires_co2 = this%species_id_co2 + reaction%offset_aqueous       ! as aq. species
+  if(this%species_id_hr > 0) then
+     ires_hr = this%species_id_hr + reaction%offset_immobile
+  endif
+  if(this%upstream_hr_id(irxn) > 0) then
+    ires_uchr  = this%upstream_hr_id(irxn) + reaction%offset_immobile
+  endif
+
+  ires_nh4  = this%species_id_nh4 + reaction%offset_aqueous       ! as aq. species
+  if(this%species_id_no3 > 0) then
+    ires_no3  = this%species_id_no3 + reaction%offset_aqueous     ! as aq. species
+  endif
+
+  if(this%species_id_nimm > 0) then
+     ires_nimm = this%species_id_nimm + reaction%offset_immobile
+  endif
+  if(this%upstream_nimm_id(irxn) > 0) then
+    ires_unimm  = this%upstream_nimm_id(irxn) + reaction%offset_immobile
+  endif
+
+  if(this%species_id_nimp > 0) then
+     ires_nimp = this%species_id_nimp + reaction%offset_immobile
+  endif
+  if(this%upstream_nimp_id(irxn) > 0) then
+    ires_unimp  = this%upstream_nimp_id(irxn) + reaction%offset_immobile
+  endif
+
+  ! -----------------------------------------------------------------------------------------------
+
+  theta = global_auxvar%sat(1)* material_auxvar%porosity
+  volume= material_auxvar%volume
+
+  ! splitting N immoblization between NH4 and NO3, if both exist
+  c_nh4 = 0.d0
+  c_no3 = 0.d0
+  fnh4_inhibit_no3 = 1.d0
+  dfnh4_inhibit_no3_dnh4 = 0.d0
+  dfnh4_inhibit_no3_dno3 = 0.d0
+
+  if (this%species_id_nh4 > 0) then
+    c_nh4 = rt_auxvar%total(ires_nh4, iphase)*theta*1000.0d0    ! from mol/L -> mol/m3 bulk
+  end if
+
+  if (this%species_id_no3 > 0) then
+    c_no3 = rt_auxvar%total(this%species_id_no3, iphase)*theta*1000.0d0    ! from mol/L -> mol/m3 bulk
+  end if
+
+  ! nh4 inhibition on no3 immobilization, if any ('this%inhibition_nh4_no3')
+  ! this is for quantifying microbial N immobilization preference btw NH4 and NO3.
+  ! (DON'T change the 'rate' and 'derivatives' after this)
+  if(this%inhibition_nh4_no3>0.d0) then
+    if(c_nh4>this%x0eps .and. c_no3>this%x0eps) then
+      ! assuming that: f = c_nh4/(c_nh4+c_no3), or, f= (c_nh4/c_no3)/(c_nh4/c_no3+1)
+      ! and adding 'preference kp - ratio of nh4/no3'
+      ! f = kp*(c_nh4/c_no3)/(kp*(c_nh4/c_no3)+1), i.e.
+      ! f = (c_nh4/c_no3)/(c_nh4/c_no3+1/kp)  - Monod type with half-saturation of 1/kp
+      temp_real = c_nh4/c_no3
+      fnh4_inhibit_no3 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_FALSE)
+
+      ! the following appears troublesome, turning off temporarily (TODO - checking later on)
+      !dfnh4_inhibit_no3_dnh4 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_TRUE)  ! over 'dtemp_real'
+      !dfnh4_inhibit_no3_dnh4 = dfnh4_inhibit_no3_dnh4*(1.d0/c_no3)                              ! df_dtemp_real * dtemp_real_dnh4
+
+      !dfnh4_inhibit_no3_dno3 = funcMonod(temp_real, 1.0d0/this%inhibition_nh4_no3, PETSC_TRUE)  ! over 'dtemp_real'
+      !dfnh4_inhibit_no3_dno3 = dfnh4_inhibit_no3_dno3*(c_nh4/c_no3/c_no3)                       ! df_dtemp_real * dtemp_real_dno3
+
+      dfnh4_inhibit_no3_dnh4 = 0.d0
+      dfnh4_inhibit_no3_dno3 = 0.d0
+
+    else
+      if (c_nh4>this%x0eps .and. c_no3<=this%x0eps) then
+        fnh4_inhibit_no3 = 1.0d0
+      elseif (c_nh4<=this%x0eps .and. c_no3>this%x0eps) then
+        fnh4_inhibit_no3 = 0.0d0
+      else
+        return    ! both c_nh4 and c_no3 are very tiny
+      endif
+      dfnh4_inhibit_no3_dnh4 = 0.d0
+      dfnh4_inhibit_no3_dno3 = 0.d0
+    endif
+
+  endif ! if (inhibition_nh4_no3>0.d0)
+
+  !-----------------------------------------------------------------------------------------------------
+
+  ! NH4/NO3 limiting on N-immobolization involved C rates, if any
+  ! NOTE: don't change the 'fnh4' ('fno3') and 'dfnh4_dnh4'('dfno3_dno3') after this block of codes
+  ! it will be used for each possible 'irxn' species (and for this reason, initializing it here)
+  fnh4 = 1.d0
+  dfnh4_dnh4 = 0.d0
+  fno3 = 1.d0
+  dfno3_dno3 = 0.d0
+
+  ! half-saturation regulated rate (by input, it may be representing competetiveness)
+  if(this%species_id_nh4 > 0) then
+    fnh4       = funcMonod(c_nh4, this%half_saturation_nh4, PETSC_FALSE)
+    dfnh4_dnh4 = funcMonod(c_nh4, this%half_saturation_nh4, PETSC_TRUE)
+  endif
+  !
+  if(this%species_id_no3 > 0) then
+    fno3       = funcMonod(c_no3, this%half_saturation_no3, PETSC_FALSE)
+    dfno3_dno3 = funcMonod(c_no3, this%half_saturation_no3, PETSC_TRUE)
+  endif
+
+  ! using the following for trailer smoothing
+  ! note: 'x0eps' is different from 'half_saturation_nh4' above.
+  !       'x0eps' is for mathematic reason in the code;
+  !       'half_saturation_nh4' is for using 'monod-type' function to quantify microbial
+  !    NH4 immobilization dependence on resources (NH4). So, physiologically it may be
+  !    used as a method to quantify competition over resources.
+  if(this%species_id_nh4 > 0) then
+    if(this%x0eps>0.d0) then
+      ! GP's cut-off approach (sort of Heaviside function)
+      feps0     = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_FALSE)
+      dfeps0_dx = funcTrailersmooth(c_nh4, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
+    else
+      feps0 = 1.0d0
+      dfeps0_dx = 0.d0
+    endif
+    dfnh4_dnh4 = dfnh4_dnh4*feps0 + fnh4 * dfeps0_dx
+    fnh4 = fnh4 * feps0
+  endif
+  !
+  if(this%species_id_no3 > 0) then
+    if(this%x0eps>0.d0) then
+      ! GP's cut-off approach
+      feps0     = funcTrailersmooth(c_no3, this%x0eps*10.d0, this%x0eps, PETSC_FALSE)
+      dfeps0_dx = funcTrailersmooth(c_no3, this%x0eps*10.d0, this%x0eps, PETSC_TRUE)
+    else
+      feps0 = 1.0d0
+      dfeps0_dx = 0.d0
+    endif
+    dfno3_dno3 = dfno3_dno3*feps0 + fno3 * dfeps0_dx
+    fno3 = fno3 * feps0
+  endif
+
+  !-----------------------------------------------------------------------------------------------------
+  ! constraining 'N immobilization rate' locally if too high compared to available within the allowable min. time-step
+  ! It can be achieved by cutting time-step, but it may be taking a very small timestep finally
+  ! - implying tiny timestep in model, which potentially crashes model
+
+      ! in the following, '2.1' multiplier is chosen because that is slightly larger(5% to avoid numerical issue) than '2.0',
+      ! which should be the previous-timestep before reaching the 'option%dt_min'
+      ! (the time-cut used in PF is like dt=0.5*dt, when cutting)
+  !dtmin = 2.1d0*option%dt_min
+  dtmin = max(option%tran_dt, 2.1d0*option%dt_min)         ! this 'dtmin' may be accelerating the timing, but may not be appropriate to mulitple consummers
+  nratecap = -crate_uc*this%mineral_n_stoich(irxn)*dtmin   ! positive with unit: moles
+
+  if(this%species_id_nh4 > 0) then
+    if (nratecap*fnh4_inhibit_no3 > c_nh4*volume) then       ! c_nh4 unit: moles/m3 bulk soil
+          ! assuming that monod type reduction used and 'nratecap' must be reduced to 'c_nh4*volume', i.e.
+          ! c_nh4*volume/dt = nratecap*fnh4_inhibit_no3/dt * (c_nh4*volume/(c_nh4*volume+c0))
+          ! then, c0 = nratecap*fnh4_inhibit_no3 - c_nh4*volume (this is the 'half-saturation' term used above)
+      fnratecap = funcMonod(c_nh4*volume, nratecap*fnh4_inhibit_no3-c_nh4*volume, PETSC_FALSE)
+      dfnratecap_dnh4 = funcMonod(c_nh4*volume, nratecap*fnh4_inhibit_no3-c_nh4*volume, PETSC_TRUE)
+    else
+      fnratecap       = 1.d0
+      dfnratecap_dnh4 = 0.d0
+    endif
+    dfnh4_dnh4 = dfnh4_dnh4*fnratecap + fnh4 * dfnratecap_dnh4
+    fnh4 = fnh4 * fnratecap
+  endif
+  !
+  if (this%species_id_no3 > 0) then
+    if (nratecap*(1.d0-fnh4_inhibit_no3) > c_no3*volume) then
+      fnratecap = funcMonod(c_no3*volume, nratecap*(1.d0-fnh4_inhibit_no3)-c_no3*volume, PETSC_FALSE)
+      dfnratecap_dno3 = funcMonod(c_no3*volume, nratecap*(1.d0-fnh4_inhibit_no3)-c_no3*volume, PETSC_TRUE)
+    else
+      fnratecap       = 1.d0
+      dfnratecap_dno3 = 0.d0
+    endif
+    dfno3_dno3 = dfno3_dno3*fnratecap + fno3 * dfnratecap_dno3
+    fno3 = fno3 * fnratecap
+  endif
+
+  !-----------------------------------------------------------------------------------------------------
+  ! 'f_nh4_inhibit_no3' is somehow a spliting fraction for NH4:NO3 immoblization,
+  crate_nh4 = crate_uc * fnh4 * fnh4_inhibit_no3
+
+  ! f_no3 should be adjusted by R reduced by 'crate_nh4' so that it is inhibited by nh4
+  crate_no3 = crate_uc * fno3 * (1.0d0-fnh4_inhibit_no3)
+
+  ! overall C rates
+  crate = crate_nh4 + crate_no3
+
+
+    !
+    !------------------------------------------------------------------------------------------
+    ! calculation of residuals
+    ! residual units: (mol/sec) = (m^3 bulk/s) * (mol/m^3 bulk)
+
+    ! -- Residuals for all C-N pools
+    ! upstream c [1]
+    Residual(ires_uc) = Residual(ires_uc) + crate
+
+    ! CO2 [2]
+    Residual(ires_co2) = Residual(ires_co2) - this%mineral_c_stoich(irxn) * crate
+    if (this%upstream_hr_id(irxn) > 0) then        ! for tracking individual pool CO2 release
+       Residual(ires_uchr) = Residual(ires_uchr) - this%mineral_c_stoich(irxn) * crate
+    endif
+    if (this%species_id_hr > 0) then               ! for tracking all pool CO2 release
+       Residual(ires_hr) = Residual(ires_hr) - this%mineral_c_stoich(irxn) * crate
+    endif
+
+    ! downstream non-mineral C pools [3]
+    do j = 1, this%n_downstream_pools(irxn)
+       ispec_dc = this%downstream_c_id(irxn, j)
+       if(this%downstream_is_aqueous(irxn, j)) then
+         ires_dc = ispec_dc
+       else
+         ires_dc = reaction%offset_immobile + ispec_dc
+       endif
+       if(ispec_dc > 0) then
+          Residual(ires_dc) = Residual(ires_dc) - this%downstream_stoich(irxn, j) * crate
+       endif
+
+    enddo
+
+    !------
+
+    ! upstream n [4]
+    if(this%upstream_is_varycn(irxn)) then
+      Residual(ires_un) = Residual(ires_un) + this%upstream_nc(irxn) * crate
+    endif
+
+
+    ! inorg. nitrogen (NH4+/nh4(aq)) [5], and no3 [6]
+    nimm = 0.d0
+    if (this%species_id_nh4 > 0) then
+      Residual(ires_nh4) = Residual(ires_nh4) - &
+        this%mineral_n_stoich(irxn) * crate_nh4
+
+      nimm = nimm + this%mineral_n_stoich(irxn) * crate_nh4
+    endif
+    if (this%species_id_no3 > 0) then
+      Residual(ires_no3) = Residual(ires_no3) - &
+        this%mineral_n_stoich(irxn) * crate_no3
+
+      nimm = nimm + this%mineral_n_stoich(irxn) * crate_no3
+    endif
+
+    if(this%upstream_nimm_id(irxn) > 0) then    ! for tracking individual pool N immoblization
+      Residual(ires_unimm) = Residual(ires_unimm) + this%mineral_n_stoich(irxn) * crate
+    endif
+    if(this%upstream_nimp_id(irxn) > 0) then    ! for tracking individual pool N immoblization (potential)
+      Residual(ires_unimp) = Residual(ires_unimp) + this%mineral_n_stoich(irxn) * crate_uc
+    endif
+
+    if(this%species_id_nimm > 0) then    ! for tracking all pool N immoblization
+      Residual(ires_nimm) = Residual(ires_nimm) + this%mineral_n_stoich(irxn) * crate
+    endif
+    if(this%species_id_nimp > 0) then    ! for tracking all pool N immoblization (potential)
+      Residual(ires_nimp) = Residual(ires_nimp) + this%mineral_n_stoich(irxn) * crate_uc
+    endif
+
+    ! downstream non-mineral N pools [7], if any
+    do j = 1, this%n_downstream_pools(irxn)
+      if (this%downstream_is_varycn(irxn,j)) then
+        ispec_dn = this%downstream_n_id(irxn, j)
+        if(this%downstream_is_aqueous(irxn, j)) then
+          ires_dn = ispec_dn
+        else
+          ires_dn = reaction%offset_immobile + ispec_dn
+        endif
+        if(ispec_dn > 0) then
+          ! note: ni = downstream_nc*downstream_stoich, OR, down_nrate = downstream_nc * downstream_crate (as [3] above)
+          Residual(ires_dn) = Residual(ires_dn) -  this%downstream_stoich(irxn, j) * crate &
+                                 * this%downstream_nc(irxn, j)
+        endif
+
+      endif
+    enddo
+
+    !-----------------------------------------------------------------------------------------------------
+    ! calculate jacobians
+    if (compute_derivative) then
+
+        ! SOMc + u SOMn -> di SOMci + ni SOMni + d C[O2] + n N[H4] [+ n2 NO3]
+        ! [2]    [6]       [3]           [7]        [1]       [4]        [5]
+!     or,
+        ! LitC + u LitN -> di SOMci + ni SOMni + d C[O2] + n N[H4] [+ n2 NO3]
+        ! [2]    [6]       [3]           [7]        [1]       [4]        [5]
+
+        ! NOTE: (1) 'di/ni' is implicitly assumed as: sum(di) + d = 1;  sum(ni) + n + n2 = u
+
+        ! d - minearl_c_stoich, n[+n2] - mineral_n_stoich (NEGATIVE!!!!), u - upstream_nc, di/ni - (multi-)downstream_stoich
+        ! NOTE: (1) 'di/ni' is implicitly assumed as: sum(di) + d = 1;  sum(ni) + n = u
+        !       (2) 'SOMci' will be caclucated below, because multiple-downstream pools are allowed
+        !       (3) 'u' here is implicitly calc'ed using 'nc' ratios.
+
+! -- currently, rates NOT depend upon 'UN' or 'u', so,
+      dco2_dun= 0.d0     ! [7-1] 'C rates'
+      duc_dun = 0.d0     ! [7-2]
+      ddc_dun = 0.d0     ! [7-3]
+
+      dnh4_dun= 0.d0     ! [7-4] 'N rates'
+      dno3_dun= 0.d0     ! [7-5]
+      dun_dun = 0.d0     ! [7-6]
+      ddn_dun = 0.d0     ! [7-7]
+
+! -- derivatives with 'uc', NH4, and/or NO3 as reactants
                ! -- depending on 'uc'
                ! crate = crate_uc * (crate_nh4 + crate_no3)
                !       = crate_uc * (fnh4*fnh4_inhibit_no3+fno3*(1-fnh4_inhibit_no3)),
                ! So, d(crate)/d(uc) = (fnh4*fnh4_inhibit_no3+fno3-fno3*fnh4_inhibit_no3)*dcrate_uc_duc
-               dcrate_dx  = dcrate_uc_duc * &
-                         (fnh4*fnh4_inhibit_no3+fno3-fno3*fnh4_inhibit_no3)
+        dcrate_dx  = dcrate_uc_duc * &
+                     (fnh4*fnh4_inhibit_no3+fno3-fno3*fnh4_inhibit_no3)
 
-               dco2_duc= dcrate_dx * this%mineral_c_stoich(irxn)                         ! [7-1]
+        dco2_duc= dcrate_dx * this%mineral_c_stoich(irxn)                         ! [7-1]
 
-               duc_duc = -1.0d0 * dcrate_dx                                              ! [7-2]
+        duc_duc = -1.0d0 * dcrate_dx                                              ! [7-2]
 
-               ! nh4rate = crate_uc*mineral_n_stoich*fnh4*fnh4_inhibit_no3: 'mineral_n_stoich = u-sum(ni)'
-               dnh4_duc = dcrate_uc_duc* this%mineral_n_stoich(irxn) * &
-                         fnh4*fnh4_inhibit_no3                                           ! [7-4]
+        ! nh4rate = crate_uc*mineral_n_stoich*fnh4*fnh4_inhibit_no3: 'mineral_n_stoich = u-sum(ni)'
+        dnh4_duc = dcrate_uc_duc* this%mineral_n_stoich(irxn) * &
+                         fnh4*fnh4_inhibit_no3                                    ! [7-4]
 
-               ! no3rate = crate_uc*mineral_n_stoich*fno3*(1-fnh4_inhibit_no3): 'mineral_n_stoich = u-sum(ni)'
-               dno3_duc= dcrate_uc_duc* this%mineral_n_stoich(irxn) * &
-                         fno3*(1.0d0-fnh4_inhibit_no3)                                   ! [7-5]
+        ! no3rate = crate_uc*mineral_n_stoich*fno3*(1-fnh4_inhibit_no3): 'mineral_n_stoich = u-sum(ni)'
+        dno3_duc= dcrate_uc_duc* this%mineral_n_stoich(irxn) * &
+                         fno3*(1.0d0-fnh4_inhibit_no3)                            ! [7-5]
 
-               dun_duc = this%upstream_nc(irxn) * duc_duc                                ! [7-6]
+        dun_duc = this%upstream_nc(irxn) * duc_duc                                ! [7-6]
 
                ! -- depending on 'nh4'
                ! crate = crate_uc * (crate_nh4 + crate_no3)
@@ -1625,30 +2070,30 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
                !               = (fnh4-fno3)*dfnh4_inhibit_no3_dnh4
                !                  +dfnh4_dnh4*fnh4_inhibit_no3)
                !                 *crate_uc
-               dcrate_dx  = ( dfnh4_dnh4*fnh4_inhibit_no3  &
+        dcrate_dx  = ( dfnh4_dnh4*fnh4_inhibit_no3  &
                              +(fnh4-fno3)*dfnh4_inhibit_no3_dnh4)
-               dcrate_dx  = dcrate_dx*crate_uc
+        dcrate_dx  = dcrate_dx*crate_uc
 
-               dco2_dnh4  = dcrate_dx * this%mineral_c_stoich(irxn)                        ! [7-1]
+        dco2_dnh4  = dcrate_dx * this%mineral_c_stoich(irxn)                        ! [7-1]
 
-               duc_dnh4 = -1.0d0 * dcrate_dx                                               ! [7-2]
+        duc_dnh4 = -1.0d0 * dcrate_dx                                               ! [7-2]
 
                ! nrate = crate_uc*mineral_n_stoich*fnh4*fnh4_inhibit_no3: 'mineral_n_stoich = u-sum(ni)'
                ! d(nrate)/d(nh4) = ( fnh4*dfnh4_inhibit_no3_dnh4
                !                  +dfnh4_dnh4*fnh4_inhibit_no3
                !                 ) * crate_uc * mineral_n_stoich
-               dnh4_dnh4  = fnh4*dfnh4_inhibit_no3_dnh4 &
+        dnh4_dnh4  = fnh4*dfnh4_inhibit_no3_dnh4 &
                        +dfnh4_dnh4*fnh4_inhibit_no3
-               dnh4_dnh4  = dnh4_dnh4 * crate_uc*this%mineral_n_stoich(irxn)               ! [7-4]
+        dnh4_dnh4  = dnh4_dnh4 * crate_uc*this%mineral_n_stoich(irxn)               ! [7-4]
 
                ! no3rate = crate_uc*mineral_n_stoich*fno3*(1-fnh4_inhibit_no3): 'mineral_n_stoich = u-sum(ni)'
                ! d(no3rate)/d(nh4) = -1.0*(fno3*dfnh4_inhibit_no3_dnh4
                !                    +dfno3_dnh4*fnh4_inhibit_no3)         ! 'dfno3_dnh4' = 0
                !                  * crate_uc * mineral_n_stoich
-               dno3_dnh4= -1.d0*fno3*dfnh4_inhibit_no3_dnh4
-               dno3_dnh4= dno3_dnh4 * crate_uc*this%mineral_n_stoich(irxn)                 ! [7-5]
+        dno3_dnh4= -1.d0*fno3*dfnh4_inhibit_no3_dnh4
+        dno3_dnh4= dno3_dnh4 * crate_uc*this%mineral_n_stoich(irxn)                 ! [7-5]
 
-               dun_dnh4 = this%upstream_nc(irxn) * duc_dnh4                                ! [7-6]
+        dun_dnh4 = this%upstream_nc(irxn) * duc_dnh4                                ! [7-6]
 
                ! -- depending on 'no3'
                ! d(crate)/d(no3) = d(crate_nh4+crate_no3)*crate_uc/dno3
@@ -1658,45 +2103,31 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
                !                  +(fnh4-fno3)*dfnh4_inhibit_no3_dno3
                !                  +dfno3_dno3
                !                 ) * crate_uc
-               dcrate_dx = (fnh4-fno3)*dfnh4_inhibit_no3_dno3    &
+        dcrate_dx = (fnh4-fno3)*dfnh4_inhibit_no3_dno3    &
                            + dfno3_dno3*(1.d0-fnh4*fnh4_inhibit_no3)
-               dcrate_dx = dcrate_dx * crate_uc
+        dcrate_dx = dcrate_dx * crate_uc
 
-               dco2_dno3 = dcrate_dx * this%mineral_c_stoich(irxn)                       ! [7-1]
+        dco2_dno3 = dcrate_dx * this%mineral_c_stoich(irxn)                       ! [7-1]
 
-               duc_dno3 = -1.0d0*dcrate_dx                                               ! [7-2]
+        duc_dno3 = -1.0d0*dcrate_dx                                               ! [7-2]
 
                ! nrate = crate_uc*mineral_n_stoich*fnh4*fnh4_inhibit_no3: 'mineral_n_stoich = u-sum(ni)'
                ! d(nrate)/d(no3) = ( fnh4*dfnh4_inhibit_no3_dno3
                !                    +dfnh4_dno3*fnh4_inhibit_no3               ! 'dfnh4_dno3' = 0
                !                   ) * crate_uc * mineral_n_stoich
-               dnh4_dno3  = fnh4*dfnh4_inhibit_no3_dno3  &
-                         * crate_uc * this%mineral_n_stoich(irxn)                        ! [7-4]
+        dnh4_dno3  = fnh4*dfnh4_inhibit_no3_dno3  &
+                         * crate_uc * this%mineral_n_stoich(irxn)                 ! [7-4]
 
                ! no3rate = crate_uc*mineral_n_stoich*fno3*(1-fnh4_inhibit_no3): 'mineral_n_stoich = u-sum(ni)'
                ! d(no3rate)/d(no3) = ( fno3*(-dfnh4_inhibit_no3_dno3)     ! 'dfnh4_dno3' = 0
                !                    +dfno3_dno3*(1-fnh4_inhibit_no3)
                !                 ) * crate_uc * mineral_n_stoich
-               dno3_dno3= -1.0d0*fno3*dfnh4_inhibit_no3_dno3 &
+        dno3_dno3= -1.0d0*fno3*dfnh4_inhibit_no3_dno3 &
                           + dfno3_dno3 * (1.d0-fnh4_inhibit_no3)
-               dno3_dno3= dno3_dno3 * crate_uc * this%mineral_n_stoich(irxn)             ! [7-5]
+        dno3_dno3= dno3_dno3 * crate_uc * this%mineral_n_stoich(irxn)             ! [7-5]
 
-               dun_dno3 = this%upstream_nc(irxn) * duc_dno3                              ! [7-6]
+        dun_dno3 = this%upstream_nc(irxn) * duc_dno3                              ! [7-6]
 
-             endif  ! this%species_id_no3 > 0
-
-           endif !this%mineral_n_stoich(irxn) < 0.d0
-
-        endif  !this%upstream_is_varycn(irxn)
-
-!--- mixed derivatives for 'net_nmin_rate' (TODO - need more thinking here?)
-        dnet_nmin_rate_dx = dnet_nmin_rate_dx + dnh4_duc + dnh4_dun
-        if(this%mineral_n_stoich(irxn) < 0.d0) then
-          dnet_nmin_rate_dx = dnet_nmin_rate_dx + dnh4_dnh4
-          if(this%species_id_no3>0) then
-            dnet_nmin_rate_dx = dnet_nmin_rate_dx + dnh4_dno3
-          endif
-        endif
 
 ! --------------
 
@@ -1708,9 +2139,17 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       else
         Jacobian(ires_co2,ires_uc) = Jacobian(ires_co2,ires_uc) - dco2_duc
       endif
-      if(this%species_id_hrimm > 0) then    ! for tracking
-        Jacobian(ires_hrimm,ires_uc) = Jacobian(ires_hrimm,ires_uc) - dco2_duc
+
+#ifndef nojacobian_track_vars
+      ! for tracking
+      if(this%upstream_hr_id(irxn) > 0) then   ! individual pool CO2 release
+        Jacobian(ires_uchr,ires_uc) = Jacobian(ires_uchr,ires_uc) - dco2_duc
       endif
+
+      if(this%species_id_hr > 0) then          ! sum of all pool CO2 release
+        Jacobian(ires_hr,ires_uc) = Jacobian(ires_hr,ires_uc) - dco2_duc
+      endif
+#endif
 
       ! upstream C pool [7-2]
       if(this%upstream_is_aqueous(irxn)) then
@@ -1734,7 +2173,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
          !             and,[7-2] duc_dx=-dcrate_dx
          ! then, d(dci)/dx = -duc_dx * di
          ddc_duc = this%downstream_stoich(irxn, j) * (-1.d0*duc_duc)
-         
+
          if(this%upstream_is_aqueous(irxn) .and. &
            this%downstream_is_aqueous(irxn, j)) then
              Jacobian(ires_dc,ires_uc) = Jacobian(ires_dc,ires_uc) - ddc_duc * &
@@ -1745,25 +2184,29 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       enddo
 
       ! NH4 [7-4]
-      if(this%upstream_is_aqueous(irxn)) then
-        Jacobian(ires_nh4,ires_uc) = Jacobian(ires_nh4,ires_uc) - dnh4_duc*  &
-          rt_auxvar%aqueous%dtotal(this%species_id_nh4,ispec_uc,iphase)
-      else
-        Jacobian(ires_nh4,ires_uc) = Jacobian(ires_nh4,ires_uc) - dnh4_duc
-      endif
-      !for tracking
-      if(this%species_id_nmin > 0 ) then
-        if(this%mineral_n_stoich(irxn) >= 0.0d0) then
-          Jacobian(ires_nmin,ires_uc) = Jacobian(ires_nmin,ires_uc) - dnh4_duc
+      if (this%species_id_nh4>0) then
+        if(this%upstream_is_aqueous(irxn)) then
+          Jacobian(ires_nh4,ires_uc) = Jacobian(ires_nh4,ires_uc) - &
+            dnh4_duc*  &
+            rt_auxvar%aqueous%dtotal(this%species_id_nh4,ispec_uc,iphase)
         else
+          Jacobian(ires_nh4,ires_uc) = Jacobian(ires_nh4,ires_uc) - dnh4_duc
+        endif
+
+#ifndef nojacobian_track_vars
+        !for tracking
+        if(this%upstream_nimm_id(irxn) > 0 ) then  !individual pool N immoblization
+          Jacobian(ires_unimm,ires_uc) = Jacobian(ires_unimm,ires_uc) + dnh4_duc
+        endif
+
+        if(this%species_id_nimm > 0 ) then   !sum of all pool N immoblization
           Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) + dnh4_duc
         endif
+#endif
       endif
 
       ! NO3 [7-5], if any
-      if (this%species_id_no3>0 .and. &
-          this%upstream_is_varycn(irxn) .and. &
-          this%mineral_n_stoich(irxn) < 0.0d0) then
+      if (this%species_id_no3>0) then
 
         if(this%upstream_is_aqueous(irxn)) then
           Jacobian(ires_no3,ires_uc) = Jacobian(ires_no3,ires_uc) - &
@@ -1773,10 +2216,16 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           Jacobian(ires_no3,ires_uc) = Jacobian(ires_no3,ires_uc) - &
             dno3_duc
         endif
-        !for tracking
+
+#ifndef nojacobian_track_vars
+        ! for tracking
+        if(this%upstream_nimm_id(irxn) > 0 ) &
+          Jacobian(ires_unimm,ires_uc) = Jacobian(ires_unimm,ires_uc) + dno3_duc
+
         if(this%species_id_nimm >0) then
           Jacobian(ires_nimm,ires_uc) = Jacobian(ires_nimm,ires_uc) + dno3_duc
         endif
+#endif
       endif
 
       ! upstream N pool [7-6], if any
@@ -1821,15 +2270,21 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       !
 
 ! -- Jacobians with respect to nh4, if any (nh4 as a reactant for N immoblization)
-      if(this%upstream_is_varycn(irxn) .and. &
-         this%mineral_n_stoich(irxn) < 0.0d0) then
+      if (this%species_id_nh4>0) then
 
         ! CO2 [7-1]
         Jacobian(ires_co2,ires_nh4) = Jacobian(ires_co2,ires_nh4) - dco2_dnh4 * &
           rt_auxvar%aqueous%dtotal(this%species_id_co2,this%species_id_nh4,iphase)
-        if(this%species_id_hrimm > 0) then   ! for tracking
-          Jacobian(ires_hrimm,ires_nh4) = Jacobian(ires_hrimm,ires_nh4) - dco2_dnh4
+
+#ifndef nojacobian_track_vars
+        ! for tracking
+        if(this%upstream_hr_id(irxn) > 0) then
+          Jacobian(ires_uchr,ires_nh4) = Jacobian(ires_uchr,ires_nh4) - dco2_dnh4
         endif
+        if(this%species_id_hr > 0) then
+          Jacobian(ires_hr,ires_nh4) = Jacobian(ires_hr,ires_nh4) - dco2_dnh4
+        endif
+#endif
 
         ! upstream C [7-2]
         if(this%upstream_is_aqueous(irxn)) then
@@ -1838,7 +2293,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         else
           Jacobian(ires_uc,ires_nh4) = Jacobian(ires_uc,ires_nh4) - duc_dnh4
         endif
- 
+
         ! downstream C pools [7-3]
         do j = 1, this%n_downstream_pools(irxn)
            ispec_dc = this%downstream_c_id(irxn, j)
@@ -1862,18 +2317,32 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         ! NH4 [7-4]
         Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4) - dnh4_dnh4 * &
           rt_auxvar%aqueous%dtotal(this%species_id_nh4,this%species_id_nh4,iphase)
-        if(this%species_id_nimm > 0) then  ! for tracking
+
+#ifndef nojacobian_track_vars
+        ! for tracking
+        if(this%upstream_nimm_id(irxn) > 0) then
+          Jacobian(ires_unimm,ires_nh4) = Jacobian(ires_unimm,ires_nh4) + dnh4_dnh4
+        endif
+        if(this%species_id_nimm > 0) then
           Jacobian(ires_nimm,ires_nh4) = Jacobian(ires_nimm,ires_nh4) + dnh4_dnh4
         endif
+#endif
 
         ! NO3 [7-5], if any
         if (this%species_id_no3>0) then
           Jacobian(ires_no3,ires_nh4) = Jacobian(ires_no3,ires_nh4) - dno3_dnh4*  &
             rt_auxvar%aqueous%dtotal(this%species_id_no3,this%species_id_nh4,iphase)
+
+#ifndef nojacobian_track_vars
           !for tracking
+          if(this%upstream_nimm_id(irxn) > 0) then
+            Jacobian(ires_unimm,ires_nh4) = Jacobian(ires_unimm,ires_nh4) + dno3_dnh4
+          endif
           if(this%species_id_nimm >0) then
             Jacobian(ires_nimm,ires_nh4) = Jacobian(ires_nimm,ires_nh4) + dno3_dnh4
           endif
+#endif
+
         endif
 
         ! upstream N pool [7-6], if any
@@ -1913,21 +2382,24 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           endif !if (this%downstream_is_varycn(irxn,j))
         enddo !j = 1, this%n_downstream_pools(irxn)
 
-      endif !if(this%upstream_is_varycn(irxn) .and. &
-            !   this%mineral_n_stoich(irxn) < 0.0d0)
+      endif !if(this%species_id_nh4>0)
 
 ! -- Jacobians with respect to no3 (NO3 as a reactant for N immobilization)
-      if(this%upstream_is_varycn(irxn) .and. &
-         this%mineral_n_stoich(irxn) < 0.0d0 .and. &
-         this%species_id_no3>0) then
+      if(this%species_id_no3>0) then
 
         ! CO2 [7-1]
         Jacobian(ires_co2,ires_no3) = Jacobian(ires_co2,ires_no3) - dco2_dno3 * &
           rt_auxvar%aqueous%dtotal(this%species_id_co2,this%species_id_no3,iphase)
+
+#ifndef nojacobian_track_vars
         ! for tracking
-        if(this%species_id_hrimm > 0) then
-          Jacobian(ires_hrimm,ires_no3) = Jacobian(ires_hrimm,ires_no3) - dco2_dno3
+        if(this%upstream_hr_id(irxn) > 0) then
+          Jacobian(ires_uchr,ires_no3) = Jacobian(ires_uchr,ires_no3) - dco2_dno3
         endif
+        if(this%species_id_hr > 0) then
+          Jacobian(ires_hr,ires_no3) = Jacobian(ires_hr,ires_no3) - dco2_dno3
+        endif
+#endif
 
         ! upstream C pool [7-2]
         if(this%upstream_is_aqueous(irxn)) then
@@ -1936,7 +2408,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         else
           Jacobian(ires_uc,ires_no3) = Jacobian(ires_uc,ires_no3) - duc_dno3
         endif
- 
+
         ! downstream C pools [7-3]
         do j = 1, this%n_downstream_pools(irxn)
            ispec_dc = this%downstream_c_id(irxn, j)
@@ -1957,23 +2429,44 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
         enddo
 
         ! NH4 [7-4]
-        Jacobian(ires_nh4,ires_no3) = Jacobian(ires_nh4,ires_no3) - dnh4_dno3 * &
-          rt_auxvar%aqueous%dtotal(this%species_id_nh4,this%species_id_no3,iphase)
-        ! for tracking
-        if(this%species_id_nimm > 0) then
-          Jacobian(ires_nimm,ires_no3) = Jacobian(ires_nimm,ires_no3) + dnh4_dno3
+        if (this%species_id_nh4>0) then
+          Jacobian(ires_nh4,ires_no3) = Jacobian(ires_nh4,ires_no3) - dnh4_dno3 * &
+            rt_auxvar%aqueous%dtotal(this%species_id_nh4,this%species_id_no3,iphase)
+
+#ifndef nojacobian_track_vars
+          ! for tracking
+          if(this%upstream_nimm_id(irxn) > 0) then
+            Jacobian(ires_unimm,ires_no3) = Jacobian(ires_unimm,ires_no3) + dnh4_dno3
+          endif
+          if(this%species_id_nimm > 0) then
+            Jacobian(ires_nimm,ires_no3) = Jacobian(ires_nimm,ires_no3) + dnh4_dno3
+          endif
+#endif
         endif
 
         ! NO3 [7-5]
         Jacobian(ires_no3,ires_no3) = Jacobian(ires_no3,ires_no3) - dno3_dno3 * &
           rt_auxvar%aqueous%dtotal(this%species_id_no3,this%species_id_no3,iphase)
+
+#ifndef nojacobian_track_vars
         ! for tracking
+        if(this%upstream_nimm_id(irxn) > 0) then
+          Jacobian(ires_unimm,ires_no3) = Jacobian(ires_unimm,ires_no3) + dno3_dno3
+        endif
         if(this%species_id_nimm > 0) then
           Jacobian(ires_nimm,ires_no3) = Jacobian(ires_nimm,ires_no3) + dno3_dno3
         endif
+#endif
 
-        ! upstream N pool [7-6]
-        Jacobian(ires_un,ires_no3) = Jacobian(ires_un,ires_no3) - dun_dno3
+        ! upstream N pool [7-6], if any
+        if (this%upstream_is_varycn(irxn)) then
+          if(this%upstream_is_aqueous(irxn)) then
+            Jacobian(ires_un,ires_no3) = Jacobian(ires_un,ires_no3) - dun_dno3 * &
+              rt_auxvar%aqueous%dtotal(ispec_un,this%species_id_no3,iphase)
+          else
+            Jacobian(ires_un,ires_no3) = Jacobian(ires_un,ires_no3) - dun_dno3
+          endif
+        endif
 
         ! downstream N pools [7-7], if any
         do j = 1, this%n_downstream_pools(irxn)
@@ -2002,19 +2495,86 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           endif !if (this%downstream_is_varycn(irxn,j))
         enddo !j = 1, this%n_downstream_pools(irxn)
 
-      endif       !if(this%upstream_is_varycn(irxn) .and. &
-                  !   this%mineral_n_stoich(irxn) < 0.0d0 .and. &
-                  !   this%species_id_no3>0) then
+      endif       !if(this%species_id_no3>0)
 
     endif ! if(compute_derivative) then -- end of jacobian calculations
 
-  enddo ! reactions loop
+end subroutine SomDecReact2
+
 
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+subroutine SomDecNemission(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
+                       global_auxvar,material_auxvar,reaction,option, net_nmin_rate)
+
+! ----------------------------------------------------------------------------!
+  use Option_module
+  use Reaction_Aux_module
+  use Material_Aux_class, only : material_auxvar_type
+
+  implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+  class(reaction_sandbox_somdec_type) :: this
+  type(option_type) :: option
+  type(reaction_type) :: reaction
+  type(reactive_transport_auxvar_type) :: rt_auxvar
+  type(global_auxvar_type) :: global_auxvar
+  class(material_auxvar_type) :: material_auxvar
+
+  PetscBool :: compute_derivative
+  PetscReal :: Residual(reaction%ncomp)
+  PetscReal :: Jacobian(reaction%ncomp,reaction%ncomp)
+  PetscReal :: net_nmin_rate
+
+  PetscErrorCode :: ierr
+
+  PetscReal :: temp_real
+  PetscReal :: c_nh4         ! concentration (mole/L): substrate OR product,  => mole/m3bulk
+  PetscInt  :: ires_nh4, ires_n2o, ires_ngasmin
+
+  PetscReal :: nratecap, dtmin  ! max. n rate within allowable min. timestep
+  PetscReal :: fnratecap        ! max. nratecap as function of c_nh4 consumption rate vs. potential
+  PetscReal :: dfnratecap_dnh4
+
+  PetscReal :: tc     ! temperature in degC
+  PetscReal :: f_t    ! temperature response function
+  PetscReal :: porosity
+  PetscReal :: volume
+  PetscReal :: saturation
+  PetscReal :: theta
+  PetscReal :: f_w    ! moisture response function
+  PetscReal :: ph
+  PetscReal :: f_ph
+
+  PetscReal :: rate_n2o, drate_n2o_dx
+
+  ! misc. local variables
+  PetscInt :: i, j, ires
+  PetscReal:: feps0, dfeps0_dx
+
+  ! --------------------------------------
+
+  ! moisture
+  porosity   = material_auxvar%porosity
+  volume     = material_auxvar%volume
+  saturation = global_auxvar%sat(1)
+  theta      = saturation * porosity
+
+  ! temperature
+  tc = global_auxvar%temp
+
+
+  !
+  ires_nh4  = this%species_id_nh4 + reaction%offset_aqueous       ! as aq. species
+  c_nh4     = rt_auxvar%total(ires_nh4, 1)*theta*1000.0d0         ! from mol/L -> mol/m3 bulk
 
   if(this%species_id_n2o>0) then
     ires_n2o = this%species_id_n2o + reaction%offset_aqueous       ! as aq. species
   endif
+
   if(this%species_id_ngasmin > 0) then
      ires_ngasmin = this%species_id_ngasmin + reaction%offset_immobile
   endif
@@ -2094,47 +2654,28 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
      !Jacobians
       if (compute_derivative) then
         drate_n2o_dx = temp_real*this%n2o_frac_mineralization * &       ! 'constant' portion of 'rate_n2o'
-                  (dnet_nmin_rate_dx * feps0                    &       ! d(net_nmin_rate*feps0)/dnh4
-                  + net_nmin_rate * dfeps0_dx)
+                  net_nmin_rate * dfeps0_dx
 
         Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4) + drate_n2o_dx* &
-           rt_auxvar%aqueous%dtotal(this%species_id_nh4,this%species_id_nh4,iphase)
+           rt_auxvar%aqueous%dtotal(this%species_id_nh4,this%species_id_nh4, 1)
         Jacobian(ires_n2o,ires_nh4) = Jacobian(ires_n2o,ires_nh4) - 0.5d0*drate_n2o_dx* &
-           rt_auxvar%aqueous%dtotal(this%species_id_n2o,this%species_id_nh4,iphase)
+           rt_auxvar%aqueous%dtotal(this%species_id_n2o,this%species_id_nh4, 1)
 
+#ifndef nojacobian_track_vars
         if(this%species_id_ngasmin > 0) then
            Jacobian(ires_ngasmin,ires_nh4) = Jacobian(ires_ngasmin,ires_nh4) - &
                                       drate_n2o_dx
         endif
+
+#endif
+
       endif
 
     endif  ! end of 'f_t/f_w/f_ph > 1.0d-20'
 
   endif ! end of 'species_id_n2o > 0'
 
-!#ifdef DEBUG
-  do ires=1, reaction%ncomp
-    temp_real = Residual(ires)
-
-    if (abs(temp_real) > huge(temp_real)) then
-      write(option%fid_out, *) 'infinity of Residual matrix checking at ires=', ires
-      write(option%fid_out, *) 'Reaction Sandbox: SOMDEC'
-      option%io_buffer = ' checking infinity of Residuals matrix  @ SomDecReact '
-      call printErrMsg(option)
-    endif
-
-    if (temp_real /= temp_real) then
-      write(option%fid_out, *) 'NaN of Residual matrix checking at ires=', ires
-      write(option%fid_out, *) 'Reaction Sandbox: SOMDEC'
-      option%io_buffer = ' checking NaN of Residuals matrix  @ SomDecReact '
-
-      call printErrMsg(option)
-    endif
-
-  enddo
-!#endif
-
-end subroutine SomDecReact
+end subroutine SomDecNemission
 
 ! ************************************************************************** !
 !
@@ -2195,6 +2736,9 @@ subroutine SomDecDestroy(this)
   call DeallocateArray(this%upstream_is_varycn)
   call DeallocateArray(this%upstream_c_id)
   call DeallocateArray(this%upstream_n_id)
+  call DeallocateArray(this%upstream_hr_id)
+  call DeallocateArray(this%upstream_nmin_id)
+  call DeallocateArray(this%upstream_nimm_id)
   call DeallocateArray(this%upstream_nc)
   call DeallocateArray(this%upstream_is_aqueous)
   call DeallocateArray(this%downstream_c_id)

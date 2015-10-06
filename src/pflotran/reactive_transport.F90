@@ -397,16 +397,16 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
       ! scale if necessary
       if (min_ratio < 1.d0) then
 
-!#ifdef CLM_PF_DEBUG
-        if(realization%option%tran_dt < 2.0d0*realization%option%dt_min .or. &
-           min_ratio <= min_allowable_scale ) then
+        if( min_ratio <= min_allowable_scale ) then
+
+#ifdef DEBUG
           write(realization%option%fid_out, *) '-----checking scaling factor for RT ------'
           write(realization%option%fid_out, *) 'min. scaling factor = ', min_ratio
           write(realization%option%fid_out, *) 'elapsed time = ', realization%option%time
           j = realization%reaction%ncomp
           do i = 1, n
             ratio = abs(C_p(i)/dC_p(i))
-            if ( ratio<=min_ratio ) then
+            if ( ratio<=min_allowable_scale ) then
               write(realization%option%fid_out, *)  &
                ' <------ min_ratio @', i, 'cell no.=', floor((i-1.d0)/j), &
               'rt species no. =',i-floor((i-1.d0)/j)*j, '-------------->'
@@ -417,15 +417,11 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
           enddo
           write(realization%option%fid_out, *) '-----DONE: checking scaling factor for RT ----'
 
-          if (min_ratio<=min_allowable_scale) then
-            write(realization%option%fid_out, *) ' min_ratio IS too small to make sense, '// &
+          write(realization%option%fid_out, *) ' min_ratio IS too small to make sense, '// &
               'which less than an allowable_scale value !'
-            write(realization%option%fid_out, *) ' STOP executing ! '
-          endif
-        endif
-!#endif
+          write(realization%option%fid_out, *) ' STOP executing ! '
+#endif
 
-        if (min_ratio < min_allowable_scale) then
           write(string,'(es9.3)') min_ratio
           string = 'The update of primary species concentration is being ' // &
           'scaled by a very small value (i.e. ' // &
@@ -453,10 +449,10 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
         end do
 
         changed = PETSC_TRUE
-      endif
-    endif
+      endif ! (min_ratio < 1.d0)
+    endif ! (Initialized(reaction%truncated_concentration))
     call VecRestoreArrayReadF90(C,C_p,ierr);CHKERRQ(ierr)
-  endif
+  endif  ! (reaction%use_log_formulation)
 
   call VecRestoreArrayF90(dC,dC_p,ierr);CHKERRQ(ierr)
 
