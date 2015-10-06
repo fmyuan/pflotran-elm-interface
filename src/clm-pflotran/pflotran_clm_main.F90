@@ -234,7 +234,7 @@ contains
     character(len=MAXWORDLENGTH), intent(in) :: id_stamp
     PetscViewer :: viewer
 
-    call pflotran_model%simulation%process_model_coupler_list%Checkpoint(viewer, -1, id_stamp)
+    call pflotran_model%simulation%process_model_coupler_list%CheckpointBinary(viewer, -1, id_stamp)
 
   end subroutine pflotranModelStepperCheckpoint
 

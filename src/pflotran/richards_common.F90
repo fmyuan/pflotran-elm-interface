@@ -706,9 +706,10 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                   dq_dp_dn = dq_approx
                 endif
               endif
-            endif   !if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0)
+            endif   !if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%surf_flow_on)
 
-          endif     !if (.not. rich_auxvar_dn%bcflux_default_scheme)
+          endif     !if (rich_auxvar_dn%vars_for_sflow(11) == 0.d0)
+          endif     !if (option%surf_flow_on)
 
 #ifdef CLM_PFLOTRAN
           ! when coupled with CLM, 'pressure-type' BC due to water-column formed on the BC-contacted cell(s)
@@ -735,7 +736,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
 
         endif      !if (ukvr*Dq>floweps)
 
-       endif       !if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn)
+      endif       !if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn)
 
     case(NEUMANN_BC)
       if (dabs(auxvars(RICHARDS_PRESSURE_DOF)) > floweps) then

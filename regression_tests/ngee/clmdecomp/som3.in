@@ -61,6 +61,7 @@ CHEMISTRY
   DATABASE ./hanford-clm.dat
   OUTPUT
     all
+    pH
     TOTAL
   /
 END

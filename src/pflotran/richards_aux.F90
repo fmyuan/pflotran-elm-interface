@@ -146,11 +146,6 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%bc_sr1    = 1.0d-9
 #endif
 
-  auxvar%P_min = 0.d0
-  auxvar%P_max = 0.d0
-  auxvar%coeff_for_cubic_approx(:) = 0.d0
-  auxvar%range_for_linear_approx(:) = 0.d0
-  auxvar%bcflux_default_scheme = PETSC_FALSE
   if (option%surf_flow_on) then
     allocate(auxvar%vars_for_sflow(11))
     auxvar%vars_for_sflow(:) = 0.d0
@@ -200,11 +195,6 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%bc_sr1    = auxvar%bc_sr1
 #endif
 
-  auxvar2%P_min = auxvar%P_min
-  auxvar2%P_max = auxvar%P_max
-  auxvar2%coeff_for_cubic_approx(:) = auxvar%coeff_for_cubic_approx(:)
-  auxvar2%range_for_linear_approx(:) = auxvar%range_for_linear_approx(:)
-  auxvar2%bcflux_default_scheme = auxvar%bcflux_default_scheme
   if (option%surf_flow_on) &
     auxvar2%vars_for_sflow(:) = auxvar%vars_for_sflow(:)
 
@@ -283,12 +273,32 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
 #ifdef CLM_PFLOTRAN
     if(auxvar%bc_alpha > 0.d0) then
-       saturation_function%alpha  = auxvar%bc_alpha
-       saturation_function%lambda = auxvar%bc_lambda
-       saturation_function%sr(1)  = auxvar%bc_sr1
-       ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-       call SatFunctionComputePolynomial(option,saturation_function)
-       call PermFunctionComputePolynomial(option,saturation_function)
+      characteristic_curves%saturation_function%Sr = auxvar%bc_Sr1
+
+      select type(saturation_function => characteristic_curves%saturation_function)
+        class is(sat_func_BC_type)
+          saturation_function%alpha  = auxvar%bc_alpha
+          saturation_function%lambda = auxvar%bc_lambda
+          ! needs to re-calculate some extra variables for BC-type 'saturation_function', if changed above
+          call SatFunctionComputePolynomial(option,saturation_function)
+
+        class default
+          option%io_buffer = 'CLM_PFLOTRAN coupled code currently ONLY supports for saturation ' // &
+                           'function class: Brook-Corey type.'
+          call printErrMsg(option)
+      end select
+
+      select type(rpf_liq => characteristic_curves%liq_rel_perm_function)
+        class is(rpf_Burdine_BC_liq_type)
+          rpf_liq%lambda = auxvar%bc_lambda
+        class default
+          option%io_buffer = 'CLM_PFLOTRAN coupled code currently ONLY supports for permeability ' // &
+                           'function class: BURDINE-BC type.'
+          call printErrMsg(option)
+      end select
+
+      call PermFunctionComputePolynomial(option,characteristic_curves%saturation_function)
+
     endif
 #endif
 
