@@ -238,6 +238,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: fs, ani_A, ani_B, ani_C, ani_n, ani_coef
   PetscReal :: dkr_Se
   PetscReal, parameter :: tol = 1.d-3
+  character(len=MAXSTRINGLENGTH) :: error_string
   
   global_auxvar%sat = 0.d0
   global_auxvar%den = 0.d0
@@ -273,14 +274,15 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
 #ifdef CLM_PFLOTRAN
     if(auxvar%bc_alpha > 0.d0) then
-      characteristic_curves%saturation_function%Sr = auxvar%bc_Sr1
 
-      select type(saturation_function => characteristic_curves%saturation_function)
+      select type(sf => characteristic_curves%saturation_function)
         class is(sat_func_BC_type)
-          saturation_function%alpha  = auxvar%bc_alpha
-          saturation_function%lambda = auxvar%bc_lambda
-          ! needs to re-calculate some extra variables for BC-type 'saturation_function', if changed above
-          call SatFunctionComputePolynomial(option,saturation_function)
+          sf%Sr     = auxvar%bc_Sr1
+          sf%alpha  = auxvar%bc_alpha
+          sf%lambda = auxvar%bc_lambda
+
+          ! needs to re-calculate some extra variables for 'BC-type saturation_function', if changed above
+          call sf%SetupPolynomials(option, error_string)
 
         class default
           option%io_buffer = 'CLM_PFLOTRAN coupled code currently ONLY supports for saturation ' // &
@@ -290,6 +292,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
       select type(rpf_liq => characteristic_curves%liq_rel_perm_function)
         class is(rpf_Burdine_BC_liq_type)
+          rpf_liq%Sr     = auxvar%bc_Sr1
           rpf_liq%lambda = auxvar%bc_lambda
         class default
           option%io_buffer = 'CLM_PFLOTRAN coupled code currently ONLY supports for permeability ' // &
@@ -297,9 +300,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
           call printErrMsg(option)
       end select
 
-      call PermFunctionComputePolynomial(option,characteristic_curves%saturation_function)
-
-    endif
+     endif
 #endif
 
     saturated = PETSC_FALSE

@@ -246,6 +246,7 @@ subroutine RichardsCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
   PetscReal :: P_R, P0, P1, delP
   PetscReal :: scale, sat, sat_pert, pert, pc_pert, press_pert, delP_pert
   PetscErrorCode :: ierr
+  character(len=MAXSTRINGLENGTH) :: error_string
   
   grid => realization%patch%grid
   option => realization%option
@@ -269,18 +270,33 @@ subroutine RichardsCheckUpdatePre(line_search,P,dP,changed,realization,ierr)
 
 #ifdef CLM_PFLOTRAN
       if(rich_auxvars(ghosted_id)%bc_alpha > 0.d0) then
-        patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
-           %ptr%alpha  = rich_auxvars(ghosted_id)%bc_alpha
-        patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
-           %ptr%lambda = rich_auxvars(ghosted_id)%bc_lambda
-        patch%saturation_function_array(patch%sat_func_id(ghosted_id))  &
-           %ptr%sr(1) = rich_auxvars(ghosted_id)%bc_sr1
+        !
+        select type(sf => patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr% &
+                          saturation_function)
+          class is(sat_func_BC_type)
+            sf%Sr     = rich_auxvars(ghosted_id)%bc_sr1
+            sf%alpha  = rich_auxvars(ghosted_id)%bc_alpha
+            sf%lambda = rich_auxvars(ghosted_id)%bc_lambda
 
-       ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-       call SatFunctionComputePolynomial(option,  &
-             patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr)
-       call PermFunctionComputePolynomial(option, &
-             patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr)
+            ! needs to re-calculate some extra variables for 'BC-type saturation_function', if changed above
+            call sf%SetupPolynomials(option, error_string)
+
+          class default
+            option%io_buffer = 'CLM_PFLOTRAN coupled code currently ONLY supports for saturation ' // &
+                           'function class: Brook-Corey type.'
+            call printErrMsg(option)
+        end select
+        !
+        select type(rpf_liq => patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr% &
+                               liq_rel_perm_function)
+          class is(rpf_Burdine_BC_liq_type)
+            rpf_liq%Sr     = rich_auxvars(ghosted_id)%bc_Sr1
+            rpf_liq%lambda = rich_auxvars(ghosted_id)%bc_lambda
+          class default
+            option%io_buffer = 'CLM_PFLOTRAN coupled code currently ONLY supports for permeability ' // &
+                           'function class: BURDINE-BC type.'
+            call printErrMsg(option)
+        end select
 
       endif
 #endif
