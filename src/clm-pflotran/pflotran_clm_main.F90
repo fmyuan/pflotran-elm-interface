@@ -40,11 +40,11 @@ module pflotran_clm_main_module
   public::pflotranModelCreate,               &
        ! PF running
        pflotranModelStepperRunInit,          &
+       pflotranModelSetupRestart,            &
        pflotranModelUpdateFinalWaypoint,     &
        pflotranModelStepperRunTillPauseTime, &
-       pflotranModelSetupRestart,            &
-       pflotranModelStepperRunFinalize,      &
        pflotranModelStepperCheckpoint,       &
+       pflotranModelStepperRunFinalize,      &
        pflotranModelDestroy,                 &
        ! soil domain
        pflotranModelSetSoilDimension,        &
@@ -53,14 +53,14 @@ module pflotran_clm_main_module
        pflotranModelResetSoilPorosityFromCLM, &
        pflotranModelGetSoilPropFromPF,        &
        ! T/H
+       pflotranModelSetSoilHbcsFromCLM,         &    ! water BC
        pflotranModelUpdateHSourceSink,          &    ! water src/sink (e.g., ET)
        pflotranModelUpdateSubsurfTCond,         &    ! thermal BC
-       pflotranModelSetSoilHbcsFromCLM,         &    ! water BC
-       pflotranModelSetInternalTHStatesfromCLM, &    ! T/H states from CLM to PFLOTRAN flow mode's field%**
-       pflotranModelUpdateTHfromCLM,            &    ! dynamically update TH states from CLM to PF's global vars to drive PFLOTRAN BGC
        pflotranModelGetTemperatureFromPF,       &
        pflotranModelGetSaturationFromPF,        &
+       pflotranModelSetInternalTHStatesfromCLM, &    ! T/H states from CLM to PFLOTRAN flow mode's field%** (can be used as initialization)
        ! BGC
+       pflotranModelUpdateTHfromCLM,            &    ! dynamically update TH states from CLM to PF's global vars to drive PFLOTRAN BGC
        pflotranModelGetRTspecies,               &
        pflotranModelSetBGCRatesFromCLM,         &
        pflotranModelUpdateAqConcFromCLM,        &
@@ -253,48 +253,149 @@ contains
   end subroutine pflotranModelStepperCheckpoint
 
 ! ************************************************************************** !
-
-  subroutine pflotranModelStepperRunTillPauseTime(pflotran_model, pause_time, dtime, isprintout)
   !
-  ! It performs the model integration
-  ! till the specified pause_time.
-  ! NOTE: It is assumed 'pause_time' is in seconds.
-  ! NOTE(bja, 2013-07) the strange waypoint insertion of t+30min /
-  ! deletion of t is to ensure that we always have a valid waypoint in
-  ! front of us, but pflotran does not delete them, so we don't want
-  ! to accumulate too large of a list.
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 9/10/2010
-  ! Revised by Fengming YUAN
+  ! pflotranModelUpdateFinalWaypoint:
+  !  Get CLM final timestep and converts it to PFLOTRAN final way point.
+  !  And also set an option for turning on/off PF printing
+! ************************************************************************** !
+
+  subroutine pflotranModelUpdateFinalWaypoint(pflotran_model, waypoint_time, isprintout)
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+
+    use Realization_class, only : realization_type, &
+      RealizationAddWaypointsToList
+    use Surface_Realization_class, only : surface_realization_type, &
+      SurfRealizAddWaypointsToList
+
+    use Waypoint_module, only : waypoint_type, WaypointCreate, &
+      WaypointDeleteFromList, WaypointInsertInList, &
+      WaypointListFillIn, WaypointListRemoveExtraWaypnts
+    use Units_module, only : UnitsConvertToInternal
+    use Option_module, only : printErrMsg
 
     implicit none
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h90"
-
     type(pflotran_model_type), pointer :: pflotran_model
-    PetscReal, intent(in) :: pause_time
-    PetscReal, intent(in) :: dtime
-    PetscBool, intent(in) :: isprintout
+    type(waypoint_type), pointer       :: waypoint, waypoint1, waypoint2
+    PetscReal, intent(in)              :: waypoint_time
+    PetscBool, intent(in)              :: isprintout
+    character(len=MAXWORDLENGTH)       :: word
 
-    PetscReal :: pause_time1
+    class(realization_type), pointer    :: realization
+    class(surface_realization_type), pointer :: surf_realization
 
-    if(isprintout) then
-      if (pflotran_model%option%io_rank == pflotran_model%option%myrank) then
-        write(pflotran_model%option%fid_out, *) '>>>> Inserting waypoint at pause_time (s) = ', pause_time
-        write(pflotran_model%option%fid_out, *) '>>>> for CLM timestep: ', pause_time/dtime
+!-------------------------------------------------------------------------
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+         nullify(surf_realization)
+      class is (surface_simulation_type)
+         nullify(realization)
+         surf_realization => simulation%surf_realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+         surf_realization => simulation%surf_realization
+      class default
+         nullify(realization)
+         nullify(surf_realization)
+         pflotran_model%option%io_buffer = "pflotranModelUPdateFinalWaypoint is " // &
+              "Not support in this mode."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    ! new final waypoint
+    word = 's'
+    waypoint1 => WaypointCreate()
+    waypoint1%time          = waypoint_time * UnitsConvertToInternal(word, pflotran_model%option)
+    waypoint1%print_output  = PETSC_TRUE
+    waypoint1%final         = PETSC_TRUE
+    waypoint1%dt_max        = waypoint_time * UnitsConvertToInternal(word, pflotran_model%option)
+
+    ! update subsurface-realization final waypoint
+    if (associated(realization)) then
+      ! remove original final waypoint
+      waypoint => realization%waypoint_list%first
+      do
+        if (.not.associated(waypoint)) exit
+        if (waypoint%final) then
+          waypoint%final = PETSC_FALSE
+          exit
+
+        else
+           waypoint => waypoint%next
+        endif
+      enddo
+
+      ! insert new final waypoint
+      call WaypointInsertInList(waypoint1, realization%waypoint_list)
+      call RealizationAddWaypointsToList(realization)
+      call WaypointListFillIn(pflotran_model%option,realization%waypoint_list)
+      call WaypointListRemoveExtraWaypnts(pflotran_model%option,realization%waypoint_list)
+
+      ! turn off the 'print out' if required from CLM
+      if(.not.isprintout) then
+        if (pflotran_model%option%io_rank == pflotran_model%option%myrank) then
+          write(pflotran_model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
+            'for subsurface flow from PFLOTRAN IS OFF! '
+        endif
+        waypoint => realization%waypoint_list%first
+        do
+          if (.not.associated(waypoint)) exit
+          waypoint%print_output = PETSC_FALSE
+          waypoint => waypoint%next
+        enddo
       endif
-    endif
 
-    pause_time1 = pause_time + dtime!1800.0d0
-    call pflotranModelInsertWaypoint(pflotran_model, pause_time1)
+    endif  !if (associated(realization))
 
-    call pflotran_model%simulation%RunToTime(pause_time)
+    ! update surface-realization final waypoint
+    if (associated(surf_realization)) then
+      ! remove original final waypoint
+      waypoint => surf_realization%waypoint_list%first
+      do
+        if (.not.associated(waypoint)) exit
+        if (waypoint%final) then
+          waypoint%final = PETSC_FALSE
+          exit
 
-    call pflotranModelDeleteWaypoint(pflotran_model, pause_time)
+        else
+           waypoint => waypoint%next
+        endif
+      enddo
 
-  end subroutine pflotranModelStepperRunTillPauseTime
+      ! insert new final waypoint2 (copied from waypoint1)
+      waypoint2 => WaypointCreate(waypoint1)
+      ! just in case that subsurface realization NOT there (e.g. only surf_simulation),
+      ! the above 'WaypointCreate()' will allocate memory for 'waypoint1',
+      ! which never have a chance to deallocate and potentially leak memory
+      if(associated(waypoint1)) deallocate(waypoint1)
+
+      call WaypointInsertInList(waypoint2, surf_realization%waypoint_list)
+      call SurfRealizAddWaypointsToList(surf_realization)
+      call WaypointListFillIn(pflotran_model%option,surf_realization%waypoint_list)
+      call WaypointListRemoveExtraWaypnts(pflotran_model%option,surf_realization%waypoint_list)
+
+      ! turn off the 'print out' if required from CLM
+      if(.not.isprintout) then
+        if (pflotran_model%option%io_rank == pflotran_model%option%myrank) then
+          write(pflotran_model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
+            'for surface flow from PFLOTRAN IS OFF! '
+        endif
+        waypoint => surf_realization%waypoint_list%first
+        do
+          if (.not.associated(waypoint)) exit
+          waypoint%print_output = PETSC_FALSE
+          waypoint => waypoint%next
+        enddo
+      endif
+
+    end if !if (associated(surf_realization))
+
+  end subroutine pflotranModelUpdateFinalWaypoint
 
 ! ************************************************************************** !
 
@@ -441,6 +542,50 @@ contains
 
 ! ************************************************************************** !
 
+  subroutine pflotranModelStepperRunTillPauseTime(pflotran_model, pause_time, dtime, isprintout)
+  !
+  ! It performs the model integration
+  ! till the specified pause_time.
+  ! NOTE: It is assumed 'pause_time' is in seconds.
+  ! NOTE(bja, 2013-07) the strange waypoint insertion of t+30min /
+  ! deletion of t is to ensure that we always have a valid waypoint in
+  ! front of us, but pflotran does not delete them, so we don't want
+  ! to accumulate too large of a list.
+  !
+  ! Author: Gautam Bisht
+  ! Date: 9/10/2010
+  ! Revised by Fengming YUAN
+
+    implicit none
+
+#include "finclude/petscsys.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer :: pflotran_model
+    PetscReal, intent(in) :: pause_time
+    PetscReal, intent(in) :: dtime
+    PetscBool, intent(in) :: isprintout
+
+    PetscReal :: pause_time1
+
+    if(isprintout) then
+      if (pflotran_model%option%io_rank == pflotran_model%option%myrank) then
+        write(pflotran_model%option%fid_out, *) '>>>> Inserting waypoint at pause_time (s) = ', pause_time
+        write(pflotran_model%option%fid_out, *) '>>>> for CLM timestep: ', pause_time/dtime
+      endif
+    endif
+
+    pause_time1 = pause_time + dtime!1800.0d0
+    call pflotranModelInsertWaypoint(pflotran_model, pause_time1)
+
+    call pflotran_model%simulation%RunToTime(pause_time)
+
+    call pflotranModelDeleteWaypoint(pflotran_model, pause_time)
+
+  end subroutine pflotranModelStepperRunTillPauseTime
+
+! ************************************************************************** !
+
   subroutine pflotranModelSetupRestart(pflotran_model, restart_stamp)
   !
   ! pflotranModelSetupRestart()
@@ -571,7 +716,6 @@ contains
 
     use clm_pflotran_interface_data
     use Mapping_module
-    use Saturation_Function_module
 
     implicit none
 
@@ -648,6 +792,12 @@ contains
 
   end subroutine pflotranModelSetSoilDimension
 
+
+!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++!
+!
+! THE FOLLOWING BLOCKS OF CODES ARE FOR CLM-PFLOTRAN TH Mode COUPLING
+!
+!
 !
 ! ************************************************************************** !
 !
@@ -683,7 +833,7 @@ contains
 
     use clm_pflotran_interface_data
     use Mapping_module
-    use Saturation_Function_module
+    use Characteristic_Curves_module
 
     implicit none
 
@@ -701,7 +851,6 @@ contains
     type(richards_auxvar_type), pointer       :: rich_auxvar
     type(th_auxvar_type), pointer             :: th_auxvars(:)
     type(th_auxvar_type), pointer             :: th_auxvar
-    type(saturation_function_type), pointer   :: saturation_function
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
@@ -720,6 +869,13 @@ contains
     PetscScalar, pointer :: alpha_pf_loc(:)   ! Clapp and Hornberger "alpha"
     PetscScalar, pointer :: sr_pf_loc(:)      ! Clapp and Hornberger "sr"
     PetscScalar, pointer :: pcwmax_pf_loc(:)  ! Clapp and Hornberger "pcwmax"
+
+    ! CLM-PFLOTRAN Saturation/Permeability functions supported
+    PetscInt  :: sf_itype, rpf_liq_itype, rpf_gas_itype
+    PetscInt, parameter :: VAN_GENUCHTEN = 1
+    PetscInt, parameter :: BROOKS_COREY = 2
+    PetscInt, parameter :: BURDINE = 1
+    PetscInt, parameter :: MUALEM = 2
 
     den = 998.2d0       ! [kg/m^3]  @ 20 degC
     vis = 0.001002d0    ! [N s/m^2] @ 20 degC
@@ -864,8 +1020,26 @@ contains
       !            (2) data-passing IS by from 'ghosted_id' to PF's 'local_id'.
       if(pflotran_model%option%nflowdof > 0) then
 
-       saturation_function => patch%  &
-         saturation_function_array(patch%sat_func_id(local_id))%ptr
+        ! checking PF's characteristic_curve types
+        select type(sf => patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr% &
+                          saturation_function)
+          class is(sat_func_BC_type)
+            sf_itype = BROOKS_COREY
+          class default
+            pflotran_model%option%io_buffer = 'CLM_PFLOTRAN coupled code currently ONLY supports for saturation ' // &
+                           'function class: Brook-Corey type.'
+            call printErrMsg(pflotran_model%option)
+        end select
+        !
+        select type(rpf_liq => patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr% &
+                               liq_rel_perm_function)
+          class is(rpf_Burdine_BC_liq_type)
+            rpf_liq_itype = BURDINE
+          class default
+            pflotran_model%option%io_buffer = 'CLM_PFLOTRAN coupled code currently ONLY supports for permeability ' // &
+                           'function class: BURDINE-BC type.'
+            call printErrMsg(pflotran_model%option)
+        end select
 
        ! currently VG-Mulaem saturation function type - NOT YET done in CLM (TODO)
        ! if ( saturation_function%saturation_function_itype == VAN_GENUCHTEN .and. &
@@ -877,8 +1051,7 @@ contains
        !   bc_pcwmax = pcwmax_pf_loc(ghosted_id)  ! this parameter IS not corresponding with 'Sr'
 
        ! currently BC-Burdine saturation/permisivity function type, with specified values to match with Clapp-Hornberger Eq.
-        if ( saturation_function%saturation_function_itype == BROOKS_COREY .and. &
-             saturation_function%permeability_function_itype == BURDINE )         then
+        if ( sf_itype == BROOKS_COREY .and. rpf_liq_itype == BURDINE )         then
           ! Clapp-Hornberger: soilpsi = sucsat * (-9.81) * (fsattmp)**(-bsw)  ! mm H2O Head --> -pa
           !                   K = Ks*fsattmp**(3+2*bsw)
           !         vs.
@@ -921,23 +1094,6 @@ contains
       endif
 
       porosity_loc_p(local_id) = watsat_pf_loc(ghosted_id)
-
-#ifdef CLM_PF_DEBUG
-      !F.-M. Yuan: the following IS a checking, comparing CLM passed data (watsat):
-      !  (turn it on with similar output in clm_pflotran_interfaceMod.F90 and reaction_sandbox_denitrification.F90)
-      ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
-      !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
-      !              (2) data-passing IS by from 'ghosted_id' to PF-internal (field%)-vec 'local_id';
-      write(pflotran_model%option%myrank+200,*) 'checking pflotran-model prior to set soil properties: ', &
-        'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
-        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
-        'pfp_porosity(local_id)=',porosity_loc_p(local_id), &
-        'clms_watsat(ghosted_id)=',watsat_pf_loc(ghosted_id), &
-        'saturation_function_alpha=', saturation_function%alpha, &
-        'saturation_function_lambda=', saturation_function%lambda, &
-        'saturation_function_sr=', saturation_function%sr(1), &
-        'saturation_function_pcwmax=', saturation_function%pcwmax
-#endif
 
     enddo
 
@@ -996,671 +1152,6 @@ contains
     endif
 
   end subroutine pflotranModelSetSoilProp
-
-! ************************************************************************** !
-
-  subroutine pflotranModelUpdateHSourceSink(pflotran_model)
-  !
-  ! Update the source/sink term of hydrology
-  !
-  ! Author: Gautam Bisht
-  ! Date: 11/22/2011
-  ! Revised by Fengming YUAN
-
-    use clm_pflotran_interface_data
-    use Connection_module
-    use Coupler_module
-    use Grid_module
-    use Mapping_module
-    use Option_module
-    use Realization_class, only : realization_type
-    use Simulation_Base_class, only : simulation_base_type
-    use String_module
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-
-    implicit none
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-
-    type(pflotran_model_type), pointer        :: pflotran_model
-
-    class(realization_type), pointer          :: subsurf_realization
-    type(coupler_type), pointer               :: source_sink
-    type(grid_type), pointer                  :: grid
-    type(connection_set_type), pointer        :: cur_connection_set
-    PetscScalar, pointer                      :: qflx_pf_loc(:)
-    PetscBool                                 :: found
-    PetscInt                                  :: iconn, local_id, ghosted_id
-    PetscErrorCode                            :: ierr
-    PetscInt                                  :: press_dof
-
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%qflux_clmp, &
-                                    clm_pf_idata%qflux_pfs)
-
-    ! Get pointer to subsurface-realization
-    select type (simulation => pflotran_model%simulation)
-      class is (surfsubsurface_simulation_type)
-         subsurf_realization => simulation%realization
-      class is (subsurface_simulation_type)
-         subsurf_realization => simulation%realization
-      class default
-         pflotran_model%option%io_buffer = " Unsupported simulation_type " // &
-            " in pflotranModelUpdateSourceSink."
-         call printErrMsg(pflotran_model%option)
-    end select
-
-    ! Find value of pressure-dof depending on flow mode
-    select case (pflotran_model%option%iflowmode)
-      case (RICHARDS_MODE)
-        press_dof = RICHARDS_PRESSURE_DOF
-      case (TH_MODE)
-        press_dof = TH_PRESSURE_DOF
-      case default
-        pflotran_model%option%io_buffer = 'Unsupported Flow mode'
-        call printErrMsg(pflotran_model%option)
-    end select
-
-    ! Update the 'clm_et_ss' source/sink term
-    call VecGetArrayF90(clm_pf_idata%qflux_pfs,qflx_pf_loc,ierr)
-    CHKERRQ(ierr)
-    found = PETSC_FALSE
-
-    source_sink => subsurf_realization%patch%source_sink_list%first
-    grid        => subsurf_realization%patch%grid
-
-    do
-      if (.not.associated(source_sink)) exit
-
-      cur_connection_set => source_sink%connection_set
-
-      ! Find appropriate Source/Sink from the list of Source/Sinks
-      if(StringCompare(source_sink%name,'clm_et_ss')) then
-
-        found = PETSC_TRUE
-        if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS) then
-          call printErrMsg(pflotran_model%option,'clm_et_ss is not of ' // &
-                           'HET_MASS_RATE_SS')
-        endif
-
-        do iconn = 1, cur_connection_set%num_connections
-          local_id = cur_connection_set%id_dn(iconn)
-          ghosted_id = grid%nL2G(local_id)
-
-          source_sink%flow_aux_real_var(press_dof,iconn) = qflx_pf_loc(ghosted_id)
-
-#ifdef CLM_PF_DEBUG
-      ! the following checking shows data passing IS from 'ghosted_id' to 'iconn (local_id)' (multiple processors)
-      write(pflotran_model%option%myrank+200,*) 'checking H-et ss. -pf_model-UpdateSrcSink:', &
-        'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
-        'iconn=',iconn, 'qflx_pfs_loc(iconn)=',qflx_pf_loc(iconn), &
-        'qflx_pfs_loc(ghosted_id)=',qflx_pf_loc(ghosted_id)
-#endif
-
-        enddo
-      endif
-
-      source_sink => source_sink%next
-    enddo
-    call VecRestoreArrayF90(clm_pf_idata%qflux_pfs,qflx_pf_loc,ierr)
-    CHKERRQ(ierr)
-
-    if(.not.found) &
-      call printErrMsg(pflotran_model%option,'clm_et_ss not found in ' // &
-                       'source-sink list of subsurface model.')
-
-  end subroutine pflotranModelUpdateHSourceSink
-
-
-! ************************************************************************** !
-
-  subroutine pflotranModelUpdateSubsurfTCond(pflotran_model)
-  ! 
-  ! This routine updates subsurface boundary condtions of PFLOTRAN related to
-  ! energy equation.
-  ! 
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 11/08/2013
-  ! 
-  ! Revised by Fengming Yuan @CCSI-ORNL
-
-    use clm_pflotran_interface_data
-    use Connection_module
-    use Coupler_module
-    use Mapping_module
-    use Option_module
-    use Realization_class, only : realization_type
-    use Simulation_Base_class, only : simulation_base_type
-    use String_module
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-
-    implicit none
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-
-    type(pflotran_model_type), pointer        :: pflotran_model
-
-    class(realization_type), pointer          :: subsurf_realization
-    type(coupler_type), pointer               :: boundary_condition
-    type(connection_set_type), pointer        :: cur_connection_set
-    PetscScalar, pointer                      :: gflux_subsurf_pf_loc(:)
-    PetscScalar, pointer                      :: gtemp_subsurf_pf_loc(:)
-    PetscBool                                 :: found
-    PetscInt                                  :: iconn
-    PetscErrorCode                            :: ierr
-
-    if (clm_pf_idata%nlpf_2dtop <= 0 .and. clm_pf_idata%ngpf_2dtop <= 0 ) return
-
-    ! Map ground-heat flux from CLM--to--PF grid
-    call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%gflux_subsurf_clmp, &
-                                    clm_pf_idata%gflux_subsurf_pfs)
-
-    ! Map ground temperature from CLM--to--PF grid
-    call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%gtemp_subsurf_clmp, &
-                                    clm_pf_idata%gtemp_subsurf_pfs)
-
-    ! Get pointer to subsurface-realization
-    select type (simulation => pflotran_model%simulation)
-      class is (surfsubsurface_simulation_type)
-         subsurf_realization => simulation%realization
-      class is (subsurface_simulation_type)
-         subsurf_realization => simulation%realization
-      class default
-         pflotran_model%option%io_buffer = " Unsupported simulation_type " // &
-            " in pflotranModelUpdateSourceSink."
-         call printErrMsg(pflotran_model%option)
-    end select
-
-    ! Update the 'clm_gflux_bc' ground heat flux BC term
-    call VecGetArrayF90(clm_pf_idata%gflux_subsurf_pfs,gflux_subsurf_pf_loc,ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
-    CHKERRQ(ierr)
-    found = PETSC_FALSE
-    boundary_condition => subsurf_realization%patch%boundary_condition_list%first
-    do
-      if (.not.associated(boundary_condition)) exit
-
-      cur_connection_set => boundary_condition%connection_set
-
-      ! Find appropriate BC from the list of boundary conditions
-      if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then
-
-        !if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
-        !    /= NEUMANN_BC) then
-          !call printErrMsg(pflotran_model%option,'clm_gflux_bc is not of ' // &
-          !                 'NEUMANN_BC')
-        !endif
-        found = PETSC_TRUE
-
-        do iconn = 1, cur_connection_set%num_connections
-            if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
-                == NEUMANN_BC) then
-                 boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
-                          gflux_subsurf_pf_loc(iconn)
-
-            elseif (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
-                == DIRICHLET_BC) then
-                 boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
-                          gtemp_subsurf_pf_loc(iconn)
-
-            end if
-
-        enddo
-      endif
-
-      boundary_condition => boundary_condition%next
-    enddo
-    call VecRestoreArrayF90(clm_pf_idata%gflux_subsurf_pfs,gflux_subsurf_pf_loc,ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
-    CHKERRQ(ierr)
-
-    if(.not.found) &
-      call printErrMsg(pflotran_model%option,'clm_gflux_bc not found in ' // &
-                       'boundary-condition list of subsurface model.')
-
-  end subroutine pflotranModelUpdateSubsurfTCond
-
-! ************************************************************************** !
-
-  subroutine pflotranModelGetSaturationFromPF(pflotran_model)
-  ! 
-  ! Extract soil saturation values simulated by
-  ! PFLOTRAN in a PETSc vector.
-  ! 
-  ! Author: Gautam Bisht
-  ! Date: 11/22/2011
-  ! 
-  ! 4/28/2014: fmy - updates
-
-    use Option_module
-    use Realization_class
-    use Patch_module
-    use Grid_module
-    use Field_module
-    use Global_Aux_module
-    use Richards_module
-    use Richards_Aux_module
-    use TH_module
-    use TH_Aux_module
-    use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-!    use Surface_Realization_class, only : surface_realization_type
-    use clm_pflotran_interface_data
-    use Mapping_module
-
-    implicit none
-
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-
-    type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer          :: realization
-    type(patch_type), pointer                 :: patch
-    type(grid_type), pointer                  :: grid
-    type(field_type), pointer                 :: field
-    type(global_auxvar_type), pointer         :: global_auxvars(:)
-    type(richards_auxvar_type), pointer       :: rich_auxvars(:)
-    type(TH_auxvar_type), pointer             :: th_auxvars(:)
-    PetscErrorCode     :: ierr
-    PetscInt           :: local_id, ghosted_id
-    PetscReal, pointer :: soillsat_pf_p(:)
-    PetscReal, pointer :: soilisat_pf_p(:)
-    PetscReal, pointer :: press_pf_p(:)
-    PetscReal, pointer :: soilpsi_pf_p(:)
-    PetscReal, pointer :: porosity0_loc_p(:)     ! soil porosity in field%porosity0
-    PetscScalar, pointer :: porosity_loc_pfp(:)  ! soil porosity saved in clm-pf-idata
-
-    PetscInt :: i
-    PetscReal, pointer :: vec_loc(:)
-    PetscViewer :: viewer
-
-    select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
-         realization => simulation%realization
-      class default
-         nullify(realization)
-         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
-    end select
-
-    patch           => realization%patch
-    grid            => patch%grid
-    field           => realization%field
-    global_auxvars  => patch%aux%Global%auxvars
-
-    select case(pflotran_model%option%iflowmode)
-      case (RICHARDS_MODE)
-        call RichardsUpdateAuxVars(realization)
-      case (TH_MODE)
-        call THUpdateAuxVars(realization)
-      case default
-        !F.-M. Yuan: if no flowmode AND no reactive-transport, then let crash the run
-        ! because 'uniform_velocity' with [0, 0, 0] velocity transport doesn't need specific flowmode,
-        ! which is used for BGC coupling only (i.e., no TH coupling)
-        if (pflotran_model%option%ntrandof .le. 0) then
-            pflotran_model%option%io_buffer='pflotranModelGetUpdatedStates ' // &
-             'implmentation in this mode is not supported!'
-
-            call printErrMsg(pflotran_model%option)
-        endif
-    end select
-
-    ! Save the saturation/pc/pressure values
-    call VecGetArrayF90(clm_pf_idata%soillsat_pfp, soillsat_pf_p, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%soilpsi_pfp, soilpsi_pf_p, ierr)
-    CHKERRQ(ierr)
-
-    ! save porosity for estimating actual water content from saturation, when needed
-    call VecGetArrayF90(field%porosity0,porosity0_loc_p,ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
-    CHKERRQ(ierr)
-
-    do local_id=1, grid%nlmax
-      ghosted_id=grid%nL2G(local_id)
-      if (ghosted_id <=0 ) cycle
-
-      soillsat_pf_p(local_id)=global_auxvars(ghosted_id)%sat(1)
-      press_pf_p(local_id)   =global_auxvars(ghosted_id)%pres(1)
-
-      ! PF's field porosity pass to clm-pf-idata and saved
-      porosity_loc_pfp(local_id) = porosity0_loc_p(local_id)
-
-#ifdef CLM_PF_DEBUG
-! F.-M. Yuan: the following check proves DATA-passing from PF to CLM MUST BE done by ghosted_id --> local_id
-! if passing from 'global_auxvars'
-write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
-        'local_id=',local_id, 'ghosted_id=',ghosted_id,  &
-        'sat_globalvar(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
-        'idata%sat_pfp(local_id)=',soillsat_pf_p(local_id)
-#endif
-
-
-      if (pflotran_model%option%iflowmode == RICHARDS_MODE) then
-        soilpsi_pf_p(local_id) = rich_auxvars(ghosted_id)%pc
-
-      else if (pflotran_model%option%iflowmode == TH_MODE) then
-        soilpsi_pf_p(local_id) = th_auxvars(ghosted_id)%pc
-
-      endif
-    enddo
-    call VecRestoreArrayF90(clm_pf_idata%soillsat_pfp, soillsat_pf_p, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%soilpsi_pfp, soilpsi_pf_p, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(field%porosity0,porosity0_loc_p,ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
-    CHKERRQ(ierr)
-
-    ! mapping to CLM vecs (seq)
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%soillsat_pfp, &
-                                    clm_pf_idata%soillsat_clms)
-
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%press_pfp, &
-                                    clm_pf_idata%press_clms)
-
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%soilpsi_pfp, &
-                                    clm_pf_idata%soilpsi_clms)
-
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%effporosity_pfp, &
-                                    clm_pf_idata%effporosity_clms)
-
-    if (pflotran_model%option%iflowmode == TH_MODE .and. &
-        pflotran_model%option%use_th_freezing) then
-
-      TH_auxvars => patch%aux%TH%auxvars
-
-      call VecGetArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
-      CHKERRQ(ierr)
-      do local_id = 1, grid%nlmax
-        ghosted_id = grid%nL2G(local_id)
-        if (ghosted_id <=0 ) cycle
-        soilisat_pf_p(local_id) = TH_auxvars(ghosted_id)%sat_ice
-      enddo
-      call VecRestoreArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
-      CHKERRQ(ierr)
-
-      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                      pflotran_model%option, &
-                                      clm_pf_idata%soilisat_pfp, &
-                                      clm_pf_idata%soilisat_clms)
-    endif
-
-  end subroutine pflotranModelGetSaturationFromPF
-
-! ************************************************************************** !
-
-  subroutine pflotranModelGetTemperatureFromPF(pflotran_model)
-  !
-  ! This routine get updated states evoloved by PFLOTRAN.
-  !
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 5/14/2013
-  !
-
-    use Option_module
-    use Realization_class
-    use Patch_module
-    use Grid_module
-    use Global_Aux_module
-    use TH_module
-    use TH_Aux_module
-    use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-    use Surface_Realization_class, only : surface_realization_type
-    use clm_pflotran_interface_data
-    use Mapping_module
-
-    implicit none
-
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-
-    type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer          :: realization
-    type(patch_type), pointer                 :: patch
-    type(grid_type), pointer                  :: grid
-    type(global_auxvar_type), pointer         :: global_auxvars(:)
-    type(th_auxvar_type), pointer             :: th_auxvars(:)
-
-    PetscErrorCode     :: ierr
-    PetscInt           :: local_id, ghosted_id
-    PetscReal, pointer :: soilt_pf_p(:)
-
-    select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
-         realization => simulation%realization
-      class default
-         nullify(realization)
-         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
-    end select
-    patch           => realization%patch
-    grid            => patch%grid
-    global_auxvars  => patch%aux%Global%auxvars
-    th_auxvars      => patch%aux%TH%auxvars
-
-    select case(pflotran_model%option%iflowmode)
-      case (TH_MODE)
-        call THUpdateAuxVars(realization)
-      case default
-        !F.-M. Yuan: if no flowmode AND no reactive-transport, then let crash the run
-        ! because 'uniform_velocity' with [0, 0, 0] velocity transport doesn't need specific flowmode,
-        ! which is used for BGC coupling only (i.e., no TH coupling)
-        if (pflotran_model%option%ntrandof .le. 0) then
-            pflotran_model%option%io_buffer='pflotranModelGetTemperatureFromPF ' // &
-             'implmentation in this mode is not supported!'
-            call printErrMsg(pflotran_model%option)
-        endif
-    end select
-
-    call VecGetArrayF90(clm_pf_idata%soilt_pfp, soilt_pf_p, ierr)
-    CHKERRQ(ierr)
-    do local_id=1,grid%nlmax
-      ghosted_id = grid%nL2G(ghosted_id)
-      if (ghosted_id>0) then
-        soilt_pf_p(local_id) = global_auxvars(ghosted_id)%temp
-      endif
-    enddo
-    call VecRestoreArrayF90(clm_pf_idata%soilt_pfp, soilt_pf_p, ierr)
-    CHKERRQ(ierr)
-
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%soilt_pfp, &
-                                    clm_pf_idata%soilt_clms)
-
-  end subroutine pflotranModelGetTemperatureFromPF
-
-
-!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++!
-!
-! THE FOLLOWING BLOCKS OF CODES ARE FOR CLM-PFLOTRAN BGC COUPLING
-!
-!
-! ************************************************************************** !
-  !
-  ! pflotranModelUpdateFinalWaypoint:
-  !  Get CLM final timestep and converts it to PFLOTRAN final way point.
-  !  And also set an option for turning on/off PF printing
-! ************************************************************************** !
-
-  subroutine pflotranModelUpdateFinalWaypoint(pflotran_model, waypoint_time, isprintout)
-
-    use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-
-    use Realization_class, only : realization_type, &
-      RealizationAddWaypointsToList
-    use Surface_Realization_class, only : surface_realization_type, &
-      SurfRealizAddWaypointsToList
-
-    use Waypoint_module, only : waypoint_type, WaypointCreate, &
-      WaypointDeleteFromList, WaypointInsertInList, &
-      WaypointListFillIn, WaypointListRemoveExtraWaypnts
-    use Units_module, only : UnitsConvertToInternal
-    use Option_module, only : printErrMsg
-
-    implicit none
-
-    type(pflotran_model_type), pointer :: pflotran_model
-    type(waypoint_type), pointer       :: waypoint, waypoint1, waypoint2
-    PetscReal, intent(in)              :: waypoint_time
-    PetscBool, intent(in)              :: isprintout
-    character(len=MAXWORDLENGTH)       :: word
-
-    class(realization_type), pointer    :: realization
-    class(surface_realization_type), pointer :: surf_realization
-
-!-------------------------------------------------------------------------
-    select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-         nullify(surf_realization)
-      class is (surface_simulation_type)
-         nullify(realization)
-         surf_realization => simulation%surf_realization
-      class is (surfsubsurface_simulation_type)
-         realization => simulation%realization
-         surf_realization => simulation%surf_realization
-      class default
-         nullify(realization)
-         nullify(surf_realization)
-         pflotran_model%option%io_buffer = "pflotranModelUPdateFinalWaypoint is " // &
-              "Not support in this mode."
-         call printErrMsg(pflotran_model%option)
-    end select
-
-    ! new final waypoint
-    word = 's'
-    waypoint1 => WaypointCreate()
-    waypoint1%time          = waypoint_time * UnitsConvertToInternal(word, pflotran_model%option)
-    waypoint1%print_output  = PETSC_TRUE
-    waypoint1%final         = PETSC_TRUE
-    waypoint1%dt_max        = waypoint_time * UnitsConvertToInternal(word, pflotran_model%option)
-
-    ! update subsurface-realization final waypoint
-    if (associated(realization)) then
-      ! remove original final waypoint
-      waypoint => realization%waypoint_list%first
-      do
-        if (.not.associated(waypoint)) exit
-        if (waypoint%final) then
-          waypoint%final = PETSC_FALSE
-          exit
-
-        else
-           waypoint => waypoint%next
-        endif
-      enddo
-
-      ! insert new final waypoint
-      call WaypointInsertInList(waypoint1, realization%waypoint_list)
-      call RealizationAddWaypointsToList(realization)
-      call WaypointListFillIn(pflotran_model%option,realization%waypoint_list)
-      call WaypointListRemoveExtraWaypnts(pflotran_model%option,realization%waypoint_list)
-
-      ! turn off the 'print out' if required from CLM
-      if(.not.isprintout) then
-        if (pflotran_model%option%io_rank == pflotran_model%option%myrank) then
-          write(pflotran_model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
-            'for subsurface flow from PFLOTRAN IS OFF! '
-        endif
-        waypoint => realization%waypoint_list%first
-        do
-          if (.not.associated(waypoint)) exit
-          waypoint%print_output = PETSC_FALSE
-          waypoint => waypoint%next
-        enddo
-      endif
-
-    endif  !if (associated(realization))
-
-    ! update surface-realization final waypoint
-    if (associated(surf_realization)) then
-      ! remove original final waypoint
-      waypoint => surf_realization%waypoint_list%first
-      do
-        if (.not.associated(waypoint)) exit
-        if (waypoint%final) then
-          waypoint%final = PETSC_FALSE
-          exit
-
-        else
-           waypoint => waypoint%next
-        endif
-      enddo
-
-      ! insert new final waypoint2 (copied from waypoint1)
-      waypoint2 => WaypointCreate(waypoint1)
-      ! just in case that subsurface realization NOT there (e.g. only surf_simulation),
-      ! the above 'WaypointCreate()' will allocate memory for 'waypoint1',
-      ! which never have a chance to deallocate and potentially leak memory
-      if(associated(waypoint1)) deallocate(waypoint1)
-
-      call WaypointInsertInList(waypoint2, surf_realization%waypoint_list)
-      call SurfRealizAddWaypointsToList(surf_realization)
-      call WaypointListFillIn(pflotran_model%option,surf_realization%waypoint_list)
-      call WaypointListRemoveExtraWaypnts(pflotran_model%option,surf_realization%waypoint_list)
-
-      ! turn off the 'print out' if required from CLM
-      if(.not.isprintout) then
-        if (pflotran_model%option%io_rank == pflotran_model%option%myrank) then
-          write(pflotran_model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
-            'for surface flow from PFLOTRAN IS OFF! '
-        endif
-        waypoint => surf_realization%waypoint_list%first
-        do
-          if (.not.associated(waypoint)) exit
-          waypoint%print_output = PETSC_FALSE
-          waypoint => waypoint%next
-        enddo
-      endif
-
-    end if !if (associated(surf_realization))
-
-  end subroutine pflotranModelUpdateFinalWaypoint
-
-
-
-!+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++!
-!
-! THE FOLLOWING BLOCKS OF CODES ARE FOR CLM-PFLOTRAN TH Mode COUPLING
-!
-!
 
   ! ************************************************************************** !
 
@@ -1863,7 +1354,6 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     use TH_Aux_module
     use Field_module
     use Option_module
-    use Saturation_Function_module
 
     use Simulation_Base_class, only : simulation_base_type
     use Simulation_Subsurface_class, only : subsurface_simulation_type
@@ -1871,6 +1361,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     use clm_pflotran_interface_data
     use Mapping_module
+    use Characteristic_Curves_module
 
     implicit none
 
@@ -1883,11 +1374,12 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     type(grid_type), pointer                  :: grid
     type(field_type), pointer                 :: field
     type(simulation_base_type), pointer :: simulation
-    type(saturation_function_type), pointer :: saturation_function
+    type(richards_auxvar_type), pointer :: rich_auxvars(:)
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
-    PetscReal          :: tempreal
+    PetscReal          :: pcmax, lsat, ds_dp
+    character(len=MAXSTRINGLENGTH) :: error_string
 
     ! pf internal variables
     PetscReal, pointer :: porosity_loc_p(:)
@@ -1912,6 +1404,21 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     grid            => patch%grid
     field           => realization%field
 
+    select case(pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        rich_auxvars    => patch%aux%Richards%auxvars
+      case default
+        !F.-M. Yuan: if no flowmode AND no reactive-transport, then let crash the run
+        ! because 'uniform_velocity' with [0, 0, 0] velocity transport doesn't need specific flowmode,
+        ! which is used for BGC coupling only (i.e., no TH coupling)
+        if (pflotran_model%option%ntrandof .le. 0) then
+            pflotran_model%option%io_buffer='pflotranModelGetSoilPropFromPF ' // &
+             'implmentation in this mode is not supported!'
+
+            call printErrMsg(pflotran_model%option)
+        endif
+    end select
+
     call VecGetArrayF90(field%porosity0,porosity_loc_p,ierr)
     CHKERRQ(ierr)
 
@@ -1923,56 +1430,49 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     CHKERRQ(ierr)
 
     do local_id=1,grid%nlmax
-        ghosted_id = grid%nL2G(local_id)
-        if (associated(patch%imat)) then
-           if (patch%imat(ghosted_id) < 0) cycle
-        endif
+      ghosted_id = grid%nL2G(local_id)
+      if (associated(patch%imat)) then
+         if (patch%imat(ghosted_id) < 0) cycle
+      endif
 
-        ! PF's porosity
-        porosity_loc_pfp(local_id) = porosity_loc_p(local_id)
+      ! PF's porosity
+      porosity_loc_pfp(local_id) = porosity_loc_p(local_id)
 
-        saturation_function => patch%    &
-            saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
+      ! PF's other hydraulic properties useful to CLM
+      if(rich_auxvars(ghosted_id)%bc_alpha > 0.d0) then
+        select type(sf => patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))% &
+                          ptr%saturation_function)
+          class is(sat_func_BC_type)
+            sf%Sr     = rich_auxvars(ghosted_id)%bc_sr1
+            sf%alpha  = rich_auxvars(ghosted_id)%bc_alpha
+            sf%lambda = rich_auxvars(ghosted_id)%bc_lambda
 
-#ifdef CLM_PF_DEBUG
-      !F.-M. Yuan: the following IS a checking, comparing CLM passing data (bsw ~ 1/lambda --> PFsat_func --> CLM):
-      write(pflotran_model%option%myrank+200,*) &
-        'checking pflotran-model prior to get soil properties from PF: ', &
-        'rank=',pflotran_model%option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
-        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
-        'sat_funcid(ghosted_id)=',patch%sat_func_id(ghosted_id), &
-        'pfsatfun_alpha=',saturation_function%alpha, &
-        'richauxvars_alpha= ',patch%aux%Richards%auxvars(ghosted_id)%bc_alpha, &
-        'pfsatfun_lambda=',saturation_function%lambda, &
-        'richauxvars_lambda= ',patch%aux%Richards%auxvars(ghosted_id)%bc_lambda, &
-        'pfsatfun_sr1=',saturation_function%sr(1), &
-        'richauxvars_sr1= ',patch%aux%Richards%auxvars(ghosted_id)%bc_sr1
-#endif
+            ! needs to re-calculate some extra variables for 'BC-type saturation_function', if changed above
+            call sf%SetupPolynomials(pflotran_model%option, error_string)
 
-        if (pflotran_model%option%iflowmode==RICHARDS_MODE) then
-          saturation_function%alpha  = patch%aux%Richards%auxvars(ghosted_id)%bc_alpha
-          saturation_function%lambda = patch%aux%Richards%auxvars(ghosted_id)%bc_lambda
-          saturation_function%sr(1)  = patch%aux%Richards%auxvars(ghosted_id)%bc_sr1
-        elseif (pflotran_model%option%iflowmode==TH_MODE) then
-          saturation_function%alpha  = patch%aux%TH%auxvars(ghosted_id)%bc_alpha
-          saturation_function%lambda = patch%aux%TH%auxvars(ghosted_id)%bc_lambda
-          saturation_function%sr(1)  = patch%aux%TH%auxvars(ghosted_id)%bc_sr1
-        endif
-       ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-       call SatFunctionComputePolynomial(pflotran_model%option,saturation_function)
-       call PermFunctionComputePolynomial(pflotran_model%option,saturation_function)
+          class default
+            pflotran_model%option%io_buffer = 'CLM_PFLOTRAN coupled code currently ONLY supports  ' // &
+                           'for saturation function class: Brook-Corey type.'
+            call printErrMsg(pflotran_model%option)
+        end select
 
+        !
         ! PF's limits on soil matrix potential (Capillary pressure)
-        pcwmax_loc_pfp(local_id) = saturation_function%pcwmax
+        pcmax = patch%characteristic_curves_array                                    &
+                     (patch%sat_func_id(ghosted_id))%ptr%saturation_function%pcmax
+        pcwmax_loc_pfp(local_id) = pcmax
 
-        ! PF's limits on soil water at pcwmax (NOT: not 'Sr', at which PC is nearly 'inf')
-        call SaturationFunctionCompute(saturation_function%pcwmax, tempreal, &
-                                      saturation_function, &
-                                      pflotran_model%option)
-        sr_pcwmax_loc_pfp(local_id) = tempreal
+        ! PF's limits on soil water at pcmax (NOT: not 'Sr', at which PC is nearly 'inf')
+        call patch%characteristic_curves_array                                               &
+                          (patch%sat_func_id(ghosted_id))%ptr%saturation_function%Saturation &
+                          (pcmax,lsat, ds_dp, pflotran_model%option)
+        sr_pcwmax_loc_pfp(local_id) = lsat
+
+      endif
 
     enddo
 
+    !
     call VecRestoreArrayF90(field%porosity0,porosity_loc_p,ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
@@ -2204,6 +1704,512 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     end select
 
   end subroutine pflotranModelSetSoilHbcsFromCLM
+
+! ************************************************************************** !
+
+  subroutine pflotranModelUpdateHSourceSink(pflotran_model)
+  !
+  ! Update the source/sink term of hydrology
+  !
+  ! Author: Gautam Bisht
+  ! Date: 11/22/2011
+  ! Revised by Fengming YUAN
+
+    use clm_pflotran_interface_data
+    use Connection_module
+    use Coupler_module
+    use Grid_module
+    use Mapping_module
+    use Option_module
+    use Realization_class, only : realization_type
+    use Simulation_Base_class, only : simulation_base_type
+    use String_module
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+
+    implicit none
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+
+    class(realization_type), pointer          :: subsurf_realization
+    type(coupler_type), pointer               :: source_sink
+    type(grid_type), pointer                  :: grid
+    type(connection_set_type), pointer        :: cur_connection_set
+    PetscScalar, pointer                      :: qflx_pf_loc(:)
+    PetscBool                                 :: found
+    PetscInt                                  :: iconn, local_id, ghosted_id
+    PetscErrorCode                            :: ierr
+    PetscInt                                  :: press_dof
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%qflux_clmp, &
+                                    clm_pf_idata%qflux_pfs)
+
+    ! Get pointer to subsurface-realization
+    select type (simulation => pflotran_model%simulation)
+      class is (surfsubsurface_simulation_type)
+         subsurf_realization => simulation%realization
+      class is (subsurface_simulation_type)
+         subsurf_realization => simulation%realization
+      class default
+         pflotran_model%option%io_buffer = " Unsupported simulation_type " // &
+            " in pflotranModelUpdateSourceSink."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    ! Find value of pressure-dof depending on flow mode
+    select case (pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        press_dof = RICHARDS_PRESSURE_DOF
+      case (TH_MODE)
+        press_dof = TH_PRESSURE_DOF
+      case default
+        pflotran_model%option%io_buffer = 'Unsupported Flow mode'
+        call printErrMsg(pflotran_model%option)
+    end select
+
+    ! Update the 'clm_et_ss' source/sink term
+    call VecGetArrayF90(clm_pf_idata%qflux_pfs,qflx_pf_loc,ierr)
+    CHKERRQ(ierr)
+    found = PETSC_FALSE
+
+    source_sink => subsurf_realization%patch%source_sink_list%first
+    grid        => subsurf_realization%patch%grid
+
+    do
+      if (.not.associated(source_sink)) exit
+
+      cur_connection_set => source_sink%connection_set
+
+      ! Find appropriate Source/Sink from the list of Source/Sinks
+      if(StringCompare(source_sink%name,'clm_et_ss')) then
+
+        found = PETSC_TRUE
+        if (source_sink%flow_condition%rate%itype /= HET_MASS_RATE_SS) then
+          call printErrMsg(pflotran_model%option,'clm_et_ss is not of ' // &
+                           'HET_MASS_RATE_SS')
+        endif
+
+        do iconn = 1, cur_connection_set%num_connections
+          local_id = cur_connection_set%id_dn(iconn)
+          ghosted_id = grid%nL2G(local_id)
+
+          source_sink%flow_aux_real_var(press_dof,iconn) = qflx_pf_loc(ghosted_id)
+
+#ifdef CLM_PF_DEBUG
+      ! the following checking shows data passing IS from 'ghosted_id' to 'iconn (local_id)' (multiple processors)
+      write(pflotran_model%option%myrank+200,*) 'checking H-et ss. -pf_model-UpdateSrcSink:', &
+        'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+        'iconn=',iconn, 'qflx_pfs_loc(iconn)=',qflx_pf_loc(iconn), &
+        'qflx_pfs_loc(ghosted_id)=',qflx_pf_loc(ghosted_id)
+#endif
+
+        enddo
+      endif
+
+      source_sink => source_sink%next
+    enddo
+    call VecRestoreArrayF90(clm_pf_idata%qflux_pfs,qflx_pf_loc,ierr)
+    CHKERRQ(ierr)
+
+    if(.not.found) &
+      call printErrMsg(pflotran_model%option,'clm_et_ss not found in ' // &
+                       'source-sink list of subsurface model.')
+
+  end subroutine pflotranModelUpdateHSourceSink
+
+
+! ************************************************************************** !
+
+  subroutine pflotranModelUpdateSubsurfTCond(pflotran_model)
+  !
+  ! This routine updates subsurface boundary condtions of PFLOTRAN related to
+  ! energy equation.
+  !
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 11/08/2013
+  !
+  ! Revised by Fengming Yuan @CCSI-ORNL
+
+    use clm_pflotran_interface_data
+    use Connection_module
+    use Coupler_module
+    use Mapping_module
+    use Option_module
+    use Realization_class, only : realization_type
+    use Simulation_Base_class, only : simulation_base_type
+    use String_module
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+
+    implicit none
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+
+    class(realization_type), pointer          :: subsurf_realization
+    type(coupler_type), pointer               :: boundary_condition
+    type(connection_set_type), pointer        :: cur_connection_set
+    PetscScalar, pointer                      :: gflux_subsurf_pf_loc(:)
+    PetscScalar, pointer                      :: gtemp_subsurf_pf_loc(:)
+    PetscBool                                 :: found
+    PetscInt                                  :: iconn
+    PetscErrorCode                            :: ierr
+
+    if (clm_pf_idata%nlpf_2dtop <= 0 .and. clm_pf_idata%ngpf_2dtop <= 0 ) return
+
+    ! Map ground-heat flux from CLM--to--PF grid
+    call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%gflux_subsurf_clmp, &
+                                    clm_pf_idata%gflux_subsurf_pfs)
+
+    ! Map ground temperature from CLM--to--PF grid
+    call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%gtemp_subsurf_clmp, &
+                                    clm_pf_idata%gtemp_subsurf_pfs)
+
+    ! Get pointer to subsurface-realization
+    select type (simulation => pflotran_model%simulation)
+      class is (surfsubsurface_simulation_type)
+         subsurf_realization => simulation%realization
+      class is (subsurface_simulation_type)
+         subsurf_realization => simulation%realization
+      class default
+         pflotran_model%option%io_buffer = " Unsupported simulation_type " // &
+            " in pflotranModelUpdateSourceSink."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    ! Update the 'clm_gflux_bc' ground heat flux BC term
+    call VecGetArrayF90(clm_pf_idata%gflux_subsurf_pfs,gflux_subsurf_pf_loc,ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
+    CHKERRQ(ierr)
+    found = PETSC_FALSE
+    boundary_condition => subsurf_realization%patch%boundary_condition_list%first
+    do
+      if (.not.associated(boundary_condition)) exit
+
+      cur_connection_set => boundary_condition%connection_set
+
+      ! Find appropriate BC from the list of boundary conditions
+      if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then
+
+        !if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+        !    /= NEUMANN_BC) then
+          !call printErrMsg(pflotran_model%option,'clm_gflux_bc is not of ' // &
+          !                 'NEUMANN_BC')
+        !endif
+        found = PETSC_TRUE
+
+        do iconn = 1, cur_connection_set%num_connections
+            if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+                == NEUMANN_BC) then
+                 boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          gflux_subsurf_pf_loc(iconn)
+
+            elseif (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+                == DIRICHLET_BC) then
+                 boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          gtemp_subsurf_pf_loc(iconn)
+
+            end if
+
+        enddo
+      endif
+
+      boundary_condition => boundary_condition%next
+    enddo
+    call VecRestoreArrayF90(clm_pf_idata%gflux_subsurf_pfs,gflux_subsurf_pf_loc,ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
+    CHKERRQ(ierr)
+
+    if(.not.found) &
+      call printErrMsg(pflotran_model%option,'clm_gflux_bc not found in ' // &
+                       'boundary-condition list of subsurface model.')
+
+  end subroutine pflotranModelUpdateSubsurfTCond
+
+! ************************************************************************** !
+
+  subroutine pflotranModelGetSaturationFromPF(pflotran_model)
+  !
+  ! Extract soil saturation values simulated by
+  ! PFLOTRAN in a PETSc vector.
+  !
+  ! Author: Gautam Bisht
+  ! Date: 11/22/2011
+  !
+  ! 4/28/2014: fmy - updates
+
+    use Option_module
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Field_module
+    use Global_Aux_module
+    use Richards_module
+    use Richards_Aux_module
+    use TH_module
+    use TH_Aux_module
+    use Simulation_Base_class, only : simulation_base_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+!    use Surface_Realization_class, only : surface_realization_type
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(field_type), pointer                 :: field
+    type(global_auxvar_type), pointer         :: global_auxvars(:)
+    type(richards_auxvar_type), pointer       :: rich_auxvars(:)
+    type(TH_auxvar_type), pointer             :: th_auxvars(:)
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id
+    PetscReal, pointer :: soillsat_pf_p(:)
+    PetscReal, pointer :: soilisat_pf_p(:)
+    PetscReal, pointer :: press_pf_p(:)
+    PetscReal, pointer :: soilpsi_pf_p(:)
+    PetscReal, pointer :: porosity0_loc_p(:)     ! soil porosity in field%porosity0
+    PetscScalar, pointer :: porosity_loc_pfp(:)  ! soil porosity saved in clm-pf-idata
+
+    PetscInt :: i
+    PetscReal, pointer :: vec_loc(:)
+    PetscViewer :: viewer
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    patch           => realization%patch
+    grid            => patch%grid
+    field           => realization%field
+    global_auxvars  => patch%aux%Global%auxvars
+
+    select case(pflotran_model%option%iflowmode)
+      case (RICHARDS_MODE)
+        rich_auxvars    => patch%aux%Richards%auxvars
+        call RichardsUpdateAuxVars(realization)
+      case (TH_MODE)
+        call THUpdateAuxVars(realization)
+      case default
+        !F.-M. Yuan: if no flowmode AND no reactive-transport, then let crash the run
+        ! because 'uniform_velocity' with [0, 0, 0] velocity transport doesn't need specific flowmode,
+        ! which is used for BGC coupling only (i.e., no TH coupling)
+        if (pflotran_model%option%ntrandof .le. 0) then
+            pflotran_model%option%io_buffer='pflotranModelGetUpdatedStates ' // &
+             'implmentation in this mode is not supported!'
+
+            call printErrMsg(pflotran_model%option)
+        endif
+    end select
+
+    ! Save the saturation/pc/pressure values
+    call VecGetArrayF90(clm_pf_idata%soillsat_pfp, soillsat_pf_p, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%soilpsi_pfp, soilpsi_pf_p, ierr)
+    CHKERRQ(ierr)
+
+    ! save porosity for estimating actual water content from saturation, when needed
+    call VecGetArrayF90(field%porosity0,porosity0_loc_p,ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
+    CHKERRQ(ierr)
+
+    do local_id=1, grid%nlmax
+      ghosted_id=grid%nL2G(local_id)
+      if (ghosted_id <=0 ) cycle
+
+      soillsat_pf_p(local_id)=global_auxvars(ghosted_id)%sat(1)
+      press_pf_p(local_id)   =global_auxvars(ghosted_id)%pres(1)
+
+      ! PF's field porosity pass to clm-pf-idata and saved
+      porosity_loc_pfp(local_id) = porosity0_loc_p(local_id)
+
+#ifdef CLM_PF_DEBUG
+! F.-M. Yuan: the following check proves DATA-passing from PF to CLM MUST BE done by ghosted_id --> local_id
+! if passing from 'global_auxvars'
+write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id,  &
+        'sat_globalvar(ghosted_id)=',global_auxvars(ghosted_id)%sat(1), &
+        'idata%sat_pfp(local_id)=',soillsat_pf_p(local_id)
+#endif
+
+      if (pflotran_model%option%iflowmode == RICHARDS_MODE) then
+        soilpsi_pf_p(local_id) = rich_auxvars(ghosted_id)%pc
+
+      else if (pflotran_model%option%iflowmode == TH_MODE) then
+        soilpsi_pf_p(local_id) = th_auxvars(ghosted_id)%pc
+
+      endif
+    enddo
+    call VecRestoreArrayF90(clm_pf_idata%soillsat_pfp, soillsat_pf_p, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%press_pfp, press_pf_p, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%soilpsi_pfp, soilpsi_pf_p, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(field%porosity0,porosity0_loc_p,ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
+    CHKERRQ(ierr)
+
+    ! mapping to CLM vecs (seq)
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%soillsat_pfp, &
+                                    clm_pf_idata%soillsat_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%press_pfp, &
+                                    clm_pf_idata%press_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%soilpsi_pfp, &
+                                    clm_pf_idata%soilpsi_clms)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%effporosity_pfp, &
+                                    clm_pf_idata%effporosity_clms)
+
+    if (pflotran_model%option%iflowmode == TH_MODE .and. &
+        pflotran_model%option%use_th_freezing) then
+
+      TH_auxvars => patch%aux%TH%auxvars
+
+      call VecGetArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
+      CHKERRQ(ierr)
+      do local_id = 1, grid%nlmax
+        ghosted_id = grid%nL2G(local_id)
+        if (ghosted_id <=0 ) cycle
+        soilisat_pf_p(local_id) = TH_auxvars(ghosted_id)%sat_ice
+      enddo
+      call VecRestoreArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
+      CHKERRQ(ierr)
+
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                      pflotran_model%option, &
+                                      clm_pf_idata%soilisat_pfp, &
+                                      clm_pf_idata%soilisat_clms)
+    endif
+
+  end subroutine pflotranModelGetSaturationFromPF
+
+! ************************************************************************** !
+
+  subroutine pflotranModelGetTemperatureFromPF(pflotran_model)
+  !
+  ! This routine get updated states evoloved by PFLOTRAN.
+  !
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 5/14/2013
+  !
+
+    use Option_module
+    use Realization_class
+    use Patch_module
+    use Grid_module
+    use Global_Aux_module
+    use TH_module
+    use TH_Aux_module
+    use Simulation_Base_class, only : simulation_base_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surface_class, only : surface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Surface_Realization_class, only : surface_realization_type
+    use clm_pflotran_interface_data
+    use Mapping_module
+
+    implicit none
+
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+
+    type(pflotran_model_type), pointer        :: pflotran_model
+    class(realization_type), pointer          :: realization
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    type(global_auxvar_type), pointer         :: global_auxvars(:)
+    type(th_auxvar_type), pointer             :: th_auxvars(:)
+
+    PetscErrorCode     :: ierr
+    PetscInt           :: local_id, ghosted_id
+    PetscReal, pointer :: soilt_pf_p(:)
+
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
+         call printErrMsg(pflotran_model%option)
+    end select
+    patch           => realization%patch
+    grid            => patch%grid
+    global_auxvars  => patch%aux%Global%auxvars
+    th_auxvars      => patch%aux%TH%auxvars
+
+    select case(pflotran_model%option%iflowmode)
+      case (TH_MODE)
+        call THUpdateAuxVars(realization)
+      case default
+        !F.-M. Yuan: if no flowmode AND no reactive-transport, then let crash the run
+        ! because 'uniform_velocity' with [0, 0, 0] velocity transport doesn't need specific flowmode,
+        ! which is used for BGC coupling only (i.e., no TH coupling)
+        if (pflotran_model%option%ntrandof .le. 0) then
+            pflotran_model%option%io_buffer='pflotranModelGetTemperatureFromPF ' // &
+             'implmentation in this mode is not supported!'
+            call printErrMsg(pflotran_model%option)
+        endif
+    end select
+
+    call VecGetArrayF90(clm_pf_idata%soilt_pfp, soilt_pf_p, ierr)
+    CHKERRQ(ierr)
+    do local_id=1,grid%nlmax
+      ghosted_id = grid%nL2G(ghosted_id)
+      if (ghosted_id>0) then
+        soilt_pf_p(local_id) = global_auxvars(ghosted_id)%temp
+      endif
+    enddo
+    call VecRestoreArrayF90(clm_pf_idata%soilt_pfp, soilt_pf_p, ierr)
+    CHKERRQ(ierr)
+
+    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%soilt_pfp, &
+                                    clm_pf_idata%soilt_clms)
+
+  end subroutine pflotranModelGetTemperatureFromPF
 
 
 
