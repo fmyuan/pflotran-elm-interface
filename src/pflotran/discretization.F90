@@ -10,6 +10,10 @@ module Discretization_module
 
   use PFLOTRAN_Constants_module
 
+#ifdef CLM_PFLOTRAN
+  use clm_pflotran_interface_data
+#endif
+
   implicit none
 
   private
@@ -305,6 +309,14 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       grid%itype = unstructured_grid_itype
       grid%ctype = unstructured_grid_ctype
     case(STRUCTURED_GRID)      
+
+#ifdef CLM_PFLOTRAN
+      ! override readings from input cards, if coupled with CLM
+      nx = clm_pf_idata%nxclm_mapped
+      ny = clm_pf_idata%nyclm_mapped
+      nz = clm_pf_idata%nzclm_mapped
+#endif
+
       if (nx*ny*nz <= 0) &
         call printErrMsg(option,'NXYZ not set correctly for structured grid.')
       str_grid => StructGridCreate()
@@ -381,6 +393,13 @@ subroutine DiscretizationRead(discretization,input,option)
         select case(discretization%itype)
           case(STRUCTURED_GRID)
             call StructGridReadDXYZ(discretization%grid%structured_grid,input,option)
+
+#ifdef CLM_PFLOTRAN
+            !override input cards, if coupled wit CLM
+            discretization%grid%structured_grid%dz_global = &
+                clm_pf_idata%dzclm_global
+#endif
+
           case default
             call printErrMsg(option,'Keyword "DXYZ" not supported for unstructured grid')
         end select
