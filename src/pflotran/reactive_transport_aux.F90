@@ -54,9 +54,6 @@ module Reactive_Transport_Aux_module
     
     PetscReal, pointer :: mass_balance(:,:)
     PetscReal, pointer :: mass_balance_delta(:,:)
-    ! store reaction flow rate (2D matrix: 1:ncomp,1:ncomp)
-    ! updated when doing RTupdateMassBalance
-    PetscReal, pointer :: reaction_rate(:,:)
     
     PetscReal, pointer :: kinmr_total_sorb(:,:,:)
 
@@ -344,13 +341,6 @@ subroutine RTAuxVarInit(auxvar,reaction,option)
     nullify(auxvar%mass_balance)
     nullify(auxvar%mass_balance_delta)
   endif
-
-  if (reaction%ncomp > 0) then
-    allocate(auxvar%reaction_rate(reaction%ncomp,reaction%ncomp))
-    auxvar%reaction_rate = 0.d0
-  else
-    nullify(auxvar%reaction_rate)
-  endif
   
   if (reaction%ncollcomp > 0) then
     allocate(auxvar%colloid)
@@ -459,9 +449,6 @@ subroutine RTAuxVarCopy(auxvar,auxvar2,option)
   if (associated(auxvar%mass_balance)) then
     auxvar%mass_balance = auxvar2%mass_balance
     auxvar%mass_balance_delta = auxvar2%mass_balance_delta
-  endif
-  if (associated(auxvar%reaction_rate)) then
-    auxvar%reaction_rate = auxvar2%reaction_rate
   endif
 
   if (associated(auxvar%kinmr_total_sorb)) then
@@ -587,7 +574,6 @@ subroutine RTAuxVarStrip(auxvar)
   
   call DeallocateArray(auxvar%mass_balance)
   call DeallocateArray(auxvar%mass_balance_delta)
-  call DeallocateArray(auxvar%reaction_rate)
   
   call DeallocateArray(auxvar%kinmr_total_sorb)
   

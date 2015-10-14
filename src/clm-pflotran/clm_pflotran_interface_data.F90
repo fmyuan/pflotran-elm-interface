@@ -372,18 +372,7 @@ contains
     clm_pf_idata%nxclm_mapped = 0
     clm_pf_idata%nyclm_mapped = 0
 
-    !--------------------------------
     clm_pf_idata%ndecomp_pools = 0
-    clm_pf_idata%ispec_hr      = 0
-    clm_pf_idata%ispec_nh4     = 0
-    clm_pf_idata%ispec_no3     = 0
-    clm_pf_idata%ispec_nh4sorb = 0
-
-    clm_pf_idata%ispec_co2 = 0
-    clm_pf_idata%ispec_n2  = 0
-    clm_pf_idata%ispec_n2o = 0
-
-    !---------------------------------
 
     clm_pf_idata%nlclm_sub = 0
     clm_pf_idata%ngclm_sub = 0
