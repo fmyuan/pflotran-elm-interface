@@ -2564,23 +2564,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       endif
 
       ! 'nmin'
-      word = trim(clm_pf_idata%decomp_pool_name(k)) // "CHR"
-      clm_pf_idata%ispec_decomp_hr(k) = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-      !
-      if (clm_pf_idata%ispec_decomp_hr(k) <= 0) then
-        pflotran_model%option%io_buffer = 'CLM decomposing pool HR: ' // &
-          trim(word) // &
-          ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
-        call printErrMsg(pflotran_model%option)
-      endif
-
-      ! 'nimm'
       word = trim(clm_pf_idata%decomp_pool_name(k)) // "NMIN"
-      clm_pf_idata%ispec_decomp_hr(k) = GetImmobileSpeciesIDFromName(word, &
+      clm_pf_idata%ispec_decomp_nmin(k) = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
       !
-      if (clm_pf_idata%ispec_decomp_hr(k) <= 0) then
+      if (clm_pf_idata%ispec_decomp_nmin(k) <= 0) then
         pflotran_model%option%io_buffer = 'CLM decomposing pool NMIN: ' // &
           trim(word) // &
           ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
@@ -2589,10 +2577,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       ! 'nimm'
       word = trim(clm_pf_idata%decomp_pool_name(k)) // "NIMM"
-      clm_pf_idata%ispec_decomp_hr(k) = GetImmobileSpeciesIDFromName(word, &
+      clm_pf_idata%ispec_decomp_nimm(k) = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
       !
-      if (clm_pf_idata%ispec_decomp_hr(k) <= 0) then
+      if (clm_pf_idata%ispec_decomp_nimm(k) <= 0) then
         pflotran_model%option%io_buffer = 'CLM decomposing pool NIMM: ' // &
           trim(word) // &
           ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
@@ -2601,10 +2589,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       ! 'nimp'
       word = trim(clm_pf_idata%decomp_pool_name(k)) // "NIMP"
-      clm_pf_idata%ispec_decomp_hr(k) = GetImmobileSpeciesIDFromName(word, &
+      clm_pf_idata%ispec_decomp_nimp(k) = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
       !
-      if (clm_pf_idata%ispec_decomp_hr(k) <= 0) then
+      if (clm_pf_idata%ispec_decomp_nimp(k) <= 0) then
         pflotran_model%option%io_buffer = 'CLM decomposing pool NIMP: ' // &
           trim(word) // &
           ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
