@@ -35,23 +35,40 @@ module clm_pflotran_interface_data
   ! Soil BGC decomposing pools
   PetscInt :: ndecomp_pools
   logical, pointer :: floating_cn_ratio(:)           ! TRUE => pool has fixed C:N ratio
-  character(len=8), pointer :: decomp_pool_name(:)   ! name of pool
 
-  ! RT bgc species 'idof'/name
-  ! NOTES: The following is what PF bgc right now using for CLM-PFLOTRAN coupling
+  !NOTES: The following is what PF bgc right now using for CLM-PFLOTRAN coupling
   ! if need adding or modifying, it's possible and update BOTH here and subroutine 'pflotranModelGetRTspecies'
   ! (Of course, it must be modifying the PF input card and get those variables and relevant reactions in RT).
 
-  PetscInt, pointer:: ispec_decomp_c(:)
-  PetscInt, pointer:: ispec_decomp_n(:)
+  ! RT bgc species 'idof' and 'name'
+  PetscInt, pointer:: ispec_decomp_c(:)              ! name: pool_name, OR, pool_name // "C"
+  PetscInt, pointer:: ispec_decomp_n(:)              ! name: "", OR, pool_name // "N"
+  PetscInt, pointer:: ispec_decomp_hr(:)             ! name: pool_name // "CHR"
+  PetscInt, pointer:: ispec_decomp_nmin(:)           ! name: pool_name // "NMIN"
+  PetscInt, pointer:: ispec_decomp_nimp(:)           ! name: pool_name // "NIMM"
+  PetscInt, pointer:: ispec_decomp_nimm(:)           ! name: pool_name // "NIMP"
+  character(len=32), pointer :: decomp_pool_name(:)  ! name of pools
 
-  PetscInt:: ispec_hr, ispec_nh4, ispec_no3, ispec_nh4sorb
-  character(len=32):: name_hr      = "CO2(aq)"
+  PetscInt:: ispec_hrimm
+  character(len=32):: name_hrim   = "HRimm"        ! this is for total HR
+
+  PetscInt:: ispec_co2aq, ispec_nh4, ispec_no3, ispec_nh4sorb
+  character(len=32):: name_co2aq   = "CO2(aq)"
   character(len=32):: name_nh4     = "NH4+"
   character(len=32):: name_no3     = "NO3-"
   character(len=32):: name_nh4sorb = "NH4sorb"
 
-  PetscInt :: ispec_co2, ispec_n2, ispec_n2o
+  PetscInt :: ispec_plantndemand, ispec_plantnh4uptake, ispec_plantno3uptake
+  character(len=32):: name_plantndemand   = "Plantndemand"
+  character(len=32):: name_plantnh4uptake = "Plantnh4uptake"
+  character(len=32):: name_plantno3uptake = "Plantno3uptake"
+
+  PetscInt :: ispec_ngasmin, ispec_ngasnitr, ispec_ngasdeni
+  character(len=32):: name_ngasmin = "NGASmin"
+  character(len=32):: name_ngasnitr= "NGASnitr"
+  character(len=32):: name_ngasdeni= "NGASdeni"
+
+  PetscInt :: ispec_co2, ispec_n2, ispec_n2o    ! for gas species (temporarily as immobile species)
   character(len=32):: name_co2 = "CO2imm"
   character(len=32):: name_n2o = "N2Oimm"
   character(len=32):: name_n2  = "N2imm"
@@ -634,9 +651,13 @@ contains
     allocate(clm_pf_idata%dzclm_global(1:clm_pf_idata%nzclm_mapped))
 
     allocate(clm_pf_idata%floating_cn_ratio(1:clm_pf_idata%ndecomp_pools))
+    allocate(clm_pf_idata%decomp_pool_name(1:clm_pf_idata%ndecomp_pools))
     allocate(clm_pf_idata%ispec_decomp_c(1:clm_pf_idata%ndecomp_pools))
     allocate(clm_pf_idata%ispec_decomp_n(1:clm_pf_idata%ndecomp_pools))
-    allocate(clm_pf_idata%decomp_pool_name(1:clm_pf_idata%ndecomp_pools))
+    allocate(clm_pf_idata%ispec_decomp_hr(1:clm_pf_idata%ndecomp_pools))
+    allocate(clm_pf_idata%ispec_decomp_nmin(1:clm_pf_idata%ndecomp_pools))
+    allocate(clm_pf_idata%ispec_decomp_nimm(1:clm_pf_idata%ndecomp_pools))
+    allocate(clm_pf_idata%ispec_decomp_nimp(1:clm_pf_idata%ndecomp_pools))
 
     call MPI_Comm_rank(mycomm,rank, ierr)
 
@@ -906,10 +927,10 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accextrnh4_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accextrno3_vr_pfp,ierr)
     !
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%acchr_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accnmin_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accnimmp_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accnimm_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfp,clm_pf_idata%acchr_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfp,clm_pf_idata%accnmin_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfp,clm_pf_idata%accnimmp_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfp,clm_pf_idata%accnimm_vr_pfp,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accngasmin_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accngasnitr_vr_pfp,ierr)
@@ -923,10 +944,10 @@ contains
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accextrnh4_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accextrno3_vr_clms,ierr)
     !
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%acchr_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accnmin_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accnimmp_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accnimm_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%acchr_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnmin_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnimmp_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnimm_vr_clms,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accngasmin_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accngasnitr_vr_clms,ierr)
@@ -1200,6 +1221,10 @@ contains
     deallocate(clm_pf_idata%ispec_decomp_c)
     deallocate(clm_pf_idata%ispec_decomp_n)
     deallocate(clm_pf_idata%decomp_pool_name)
+    deallocate(clm_pf_idata%ispec_decomp_hr)
+    deallocate(clm_pf_idata%ispec_decomp_nmin)
+    deallocate(clm_pf_idata%ispec_decomp_nimm)
+    deallocate(clm_pf_idata%ispec_decomp_nimp)
 
     if(clm_pf_idata%t_scalar_clmp /= 0) &
        call VecDestroy(clm_pf_idata%t_scalar_clmp,ierr)
