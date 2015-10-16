@@ -520,7 +520,7 @@ debug.o : input_aux.o option.o pflotran_constants.o
 discretization.o : dm_kludge.o grid.o grid_structured.o grid_unstructured.o \
                    grid_unstructured_aux.o grid_unstructured_explicit.o \
                    grid_unstructured_polyhedra.o input_aux.o option.o \
-                   pflotran_constants.o string.o
+                   pflotran_constants.o string.o clm_pflotran_interface_data.o
 dm_kludge.o : grid_unstructured_aux.o pflotran_constants.o
 e4d_mat_inv.o :
 e4d_run.o : e4d_vars.o

@@ -35,8 +35,66 @@ module clm_pflotran_interface_data
   ! Soil BGC decomposing pools
   PetscInt :: ndecomp_pools
   logical, pointer :: floating_cn_ratio(:)           ! TRUE => pool has fixed C:N ratio
-  character(len=8), pointer :: decomp_pool_name(:)   ! name of pool
 
+  !NOTES: The following is what PF bgc right now using for CLM-PFLOTRAN coupling
+  ! if need adding or modifying, it's possible and update BOTH here and subroutine 'pflotranModelGetRTspecies'
+  ! (Of course, it must be modifying the PF input card and get those variables and relevant reactions in RT).
+
+  ! RT bgc species 'idof' and 'name'
+  PetscInt:: ispec_lit1c, ispec_lit2c, ispec_lit3c, ispec_cwdc
+  PetscInt:: ispec_lit1n, ispec_lit2n, ispec_lit3n, ispec_cwdn
+  PetscInt:: ispec_som1c, ispec_som2c, ispec_som3c, ispec_som4c
+  PetscInt:: ispec_som1n, ispec_som2n, ispec_som3n, ispec_som4n
+  character(len=32):: name_lit1 = "LITR1"           ! appending 'C' or 'N' for real PF species name
+  character(len=32):: name_lit2 = "LITR2"
+  character(len=32):: name_lit3 = "LITR3"
+  character(len=32):: name_cwd  = "CWD"
+  character(len=32):: name_soil1= "SOIL1"
+  character(len=32):: name_soil2= "SOIL2"
+  character(len=32):: name_soil3= "SOIL3"
+  character(len=32):: name_soil4= "SOIL4"
+
+  character(len=32):: name_labile    = "Labile"     ! i.e., 'lit1' above
+  character(len=32):: name_cellulose = "Cellulose"  ! i.e., 'lit2' above
+  character(len=32):: name_lignin    = "Lignin"     ! i.e., 'lit3' above
+  character(len=32):: name_som1 = "SOM1"            ! i.e., 'soil1' above
+  character(len=32):: name_som2 = "SOM2"            ! i.e., 'soil2' above
+  character(len=32):: name_som3 = "SOM3"            ! i.e., 'soil3' above
+  character(len=32):: name_som4 = "SOM4"            ! i.e., 'soil4' above
+
+  PetscInt:: ispec_fungi, ispec_bacteria
+  character(len=32):: name_fungi    = "Fungi"
+  character(len=32):: name_bacteria = "Bacteria"
+
+  PetscInt:: ispec_nh4, ispec_no3, ispec_nh4sorb, ispec_nh4imm, ispec_no3imm
+  character(len=32):: name_nh4     = "NH4+"
+  character(len=32):: name_no3     = "NO3-"
+  character(len=32):: name_nh4sorb = "NH4sorb"
+  character(len=32):: name_nh4imm  = "Ammonium"
+  character(len=32):: name_no3imm  = "Nitrate"
+
+  PetscInt :: ispec_plantndemand, ispec_plantnh4uptake, ispec_plantno3uptake
+  character(len=32):: name_plantndemand   = "Plantndemand"
+  character(len=32):: name_plantnh4uptake = "Plantnh4uptake"
+  character(len=32):: name_plantno3uptake = "Plantno3uptake"
+
+  PetscInt :: ispec_hrimm, ispec_nmin, ispec_nimmp, ispec_nimm
+  character(len=32):: name_hr    = "HRimm"
+  character(len=32):: name_nmin  = "Nmin"
+  character(len=32):: name_nimmp = "Nimmp"
+  character(len=32):: name_nimm  = "Nimm"
+
+  PetscInt :: ispec_ngasmin, ispec_ngasnitr, ispec_ngasdeni
+  character(len=32):: name_ngasmin = "NGASmin"
+  character(len=32):: name_ngasnitr= "NGASnitr"
+  character(len=32):: name_ngasdeni= "NGASdeni"
+
+  PetscInt :: ispec_co2, ispec_n2, ispec_n2o
+  character(len=32):: name_co2 = "CO2imm"
+  character(len=32):: name_n2o = "N2Oimm"
+  character(len=32):: name_n2  = "N2imm"
+
+  !-------------------------------------------------------------
   ! Number of cells for the 3D subsurface domain
   PetscInt :: nlclm_sub ! num of local clm cells
   PetscInt :: ngclm_sub ! num of ghosted clm cells (ghosted = local+ghosts)
@@ -131,12 +189,20 @@ module clm_pflotran_interface_data
   Vec :: soilisat_clmp                  ! soil ice water saturation (0 - 1)
   Vec :: soilt_clmp                     ! soil temperature (degC)
   Vec :: h2osoi_vol_clmp                ! volume soil water content (inc. ice and liq water)
+  Vec :: t_scalar_clmp                  ! temperature response function value from CLM for decomposition reations
+  Vec :: w_scalar_clmp                  ! soil moisture response function value from CLM for decomposition reations
+  Vec :: o_scalar_clmp                  ! soil anoxic response function value from CLM for decomposition and/or CH4/NOx processes
+  Vec :: depth_scalar_clmp              ! soil depth response function value from CLM for decomposition reations
   Vec :: press_pfs
   Vec :: soilpsi_pfs
   Vec :: soillsat_pfs
   Vec :: soilisat_pfs
   Vec :: soilt_pfs
   Vec :: h2osoi_vol_pfs
+  Vec :: t_scalar_pfs                  ! temperature response function value from CLM for decomposition reations
+  Vec :: w_scalar_pfs                  ! soil moisture response function value from CLM for decomposition reations
+  Vec :: o_scalar_pfs                  ! soil anoxic response function value from CLM for decomposition and/or CH4/NOx processes
+  Vec :: depth_scalar_pfs              ! soil depth response function value from CLM for decomposition reations
 
   ! Sink/Source of water/heat for PFLOTRAN's 3D subsurface domain
   Vec :: qflux_clmp   ! mpi vec (H2O)
@@ -180,15 +246,6 @@ module clm_pflotran_interface_data
 
   ! -----BGC vecs from CLM to PF --------------------
 
-  ! soil water/temperature/oxygen factors for decomposition directly from CLM bgc to PF bgc
-  Vec :: t_scalar_clmp
-  Vec :: w_scalar_clmp
-  Vec :: depth_scalar_clmp
-  Vec :: o_scalar_clmp
-  Vec :: t_scalar_pfs
-  Vec :: w_scalar_pfs
-  Vec :: depth_scalar_pfs
-  Vec :: o_scalar_pfs
 
   ! initial ground/soil C/N pools from CLM (mpi) to PF (seq)
   Vec :: decomp_cpools_vr_lit1_clmp     ! (moleC/m3) vertically-resolved decomposing (litter, cwd, soil) c pools
@@ -782,7 +839,6 @@ contains
     allocate(clm_pf_idata%dzclm_global(1:clm_pf_idata%nzclm_mapped))
 
     allocate(clm_pf_idata%floating_cn_ratio(1:clm_pf_idata%ndecomp_pools))
-    allocate(clm_pf_idata%decomp_pool_name(1:clm_pf_idata%ndecomp_pools))
 
     call MPI_Comm_rank(mycomm,rank, ierr)
 
@@ -1416,7 +1472,6 @@ contains
 
     deallocate(clm_pf_idata%dzclm_global)
     deallocate(clm_pf_idata%floating_cn_ratio)
-    deallocate(clm_pf_idata%decomp_pool_name)
 
     if(clm_pf_idata%t_scalar_clmp /= 0) &
        call VecDestroy(clm_pf_idata%t_scalar_clmp,ierr)
