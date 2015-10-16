@@ -514,11 +514,11 @@ subroutine RTCheckUpdatePost(line_search,X0,dX,X1,dX_changed, &
     max_relative_change = maxval(dabs(dX_p(:)/X0_p(:)))
     call VecRestoreArrayReadF90(dX,dX_p,ierr);CHKERRQ(ierr)
     call VecRestoreArrayReadF90(X0,X0_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-    call VecGetArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
     max_scaled_residual = maxval(dabs(r_p(:)/accum_p(:)))
-    call VecRestoreArrayReadF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(field%flow_accum,accum_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
     converged_due_to_rel_update = &
       (option%transport%inf_rel_update_tol > 0.d0 .and. &
        max_relative_change < option%transport%inf_rel_update_tol)
