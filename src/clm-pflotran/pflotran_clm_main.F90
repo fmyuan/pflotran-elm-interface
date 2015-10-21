@@ -2834,7 +2834,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         call VecGetArrayF90(clm_pf_idata%decomp_cpools_vr_pfs, array_temp, ierr)
         call VecGetArrayReadF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
 
-        array_temp(vec_offset+1:vec_offset+clm_pf_idata%nlclm_sub) = array_pfs
+        array_temp(vec_offset+1:vec_offset+clm_pf_idata%ngpf_sub) = array_pfs
 
         call VecRestoreArrayF90(clm_pf_idata%decomp_cpools_vr_pfs, array_temp, ierr)
         call VecRestoreArrayReadF90(vec_pfs, array_pfs, ierr); CHKERRQ(ierr)
@@ -3848,7 +3848,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         !-----------------------------------------------------------------
         ! loop over 'decomp_pools casecade'
         do k=1,clm_pf_idata%ndecomp_pools
-          vec_offset = (k-1)*clm_pf_idata%ngpf_sub              ! MPI decomp_pfs vec: 'cell' first, then 'species'
+          vec_offset = (k-1)*clm_pf_idata%nlpf_sub              ! MPI decomp_pfs vec: 'cell' first, then 'species'
 
           if(clm_pf_idata%ispec_decomp_c(k) > 0) then
              ! field%tran_xx vec IS arranged 'species' first and then 'cell'
