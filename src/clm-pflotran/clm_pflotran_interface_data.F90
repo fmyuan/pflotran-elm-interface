@@ -391,6 +391,21 @@ contains
 
     clm_pf_idata%ndecomp_pools = 0
 
+    clm_pf_idata%ispec_hrimm   = 0
+    clm_pf_idata%ispec_co2aq   = 0
+    clm_pf_idata%ispec_nh4     = 0
+    clm_pf_idata%ispec_no3     = 0
+    clm_pf_idata%ispec_nh4sorb = 0
+    clm_pf_idata%ispec_plantndemand   = 0
+    clm_pf_idata%ispec_plantnh4uptake = 0
+    clm_pf_idata%ispec_plantno3uptake = 0
+    clm_pf_idata%ispec_ngasmin  = 0
+    clm_pf_idata%ispec_ngasnitr = 0
+    clm_pf_idata%ispec_ngasdeni = 0
+    clm_pf_idata%ispec_co2 = 0
+    clm_pf_idata%ispec_n2  = 0
+    clm_pf_idata%ispec_n2o = 0
+
     clm_pf_idata%nlclm_sub = 0
     clm_pf_idata%ngclm_sub = 0
     clm_pf_idata%nlpf_sub = 0
