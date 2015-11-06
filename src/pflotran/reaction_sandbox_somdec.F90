@@ -29,12 +29,12 @@ module Reaction_Sandbox_SomDec_class
     PetscReal :: n2o_frac_mineralization    ! fraction of n2o from net N mineralization
     PetscReal :: x0eps
 
-    PetscInt :: npool                       ! litter or variable CN ration pools
+    PetscInt :: npool                       ! number of total decomposition pools
     PetscReal, pointer :: pool_nc_ratio(:)         ! NC ratio in mole  
 
     PetscInt :: nrxn
-    PetscReal, pointer :: rate_constant(:)         !nrxn
-    PetscReal, pointer :: rate_decomposition(:)    !nrxn
+    PetscReal, pointer :: rate_constant(:)         !nrxn: rate = kd * [C], i.e. C = C0*exp(-kd*t)
+    PetscReal, pointer :: rate_decomposition(:)    !nrxn: this is the K in Eq: 1.0-exp(-K*dt) as in CLM-CN's CTC framework)
     PetscReal, pointer :: rate_ad_factor(:)        !nrxn
 
     PetscInt,  pointer :: upstream_c_id(:)         !nrxn
@@ -54,8 +54,8 @@ module Reaction_Sandbox_SomDec_class
     PetscReal, pointer :: downstream_stoich(:,:)  !nrxn by maximum # of downstream pools
     PetscReal, pointer :: downstream_nc(:,:)      !nrxn by maximum # of downstream pools
     PetscBool, pointer :: downstream_is_varycn(:,:)
-    PetscReal, pointer :: mineral_c_stoich(:)     !nrxn by maximum # of downstream pools
-    PetscReal, pointer :: mineral_n_stoich(:)     !nrxn by maximum # of downstream pools
+    PetscReal, pointer :: mineral_c_stoich(:)     !nrxn
+    PetscReal, pointer :: mineral_n_stoich(:)     !nrxn
 
     PetscInt :: species_id_co2
     PetscInt :: species_id_nh4
@@ -353,8 +353,8 @@ subroutine SomDecRead(this,input,option)
         nullify(new_reaction%next)
         
         ! need to set these temporarily in order to check that they
-        ! are not both set.
-        turnover_time = 0.d0
+        ! are not all set.
+        turnover_time = -1.d0
         rate_constant = -1.d0
         rate_decomposition = -1.d0
         rate_ad_factor = 1.d0
@@ -446,9 +446,9 @@ subroutine SomDecRead(this,input,option)
         enddo
         
         ! check to ensure that one of turnover time or rate constant is set.
-        if ( (turnover_time > 0.d0 .and. rate_constant >= 0.d0) .or. &
-             (turnover_time > 0.d0 .and. rate_decomposition >= 0.d0) .or. &
-             (rate_decomposition >= 0.d0 .and. rate_constant >= 0.d0) ) then
+        if ( (turnover_time > 0.d0 .and. rate_constant > 0.d0) .or. &
+             (turnover_time > 0.d0 .and. rate_decomposition > 0.d0) .or. &
+             (rate_decomposition > 0.d0 .and. rate_constant > 0.d0) ) then
           option%io_buffer = 'Only TURNOVER_TIME or RATE_CONSTANT or RATE_DECOMPOSITION ' // &
             'may be included in a SomDec reaction definition, but not any two. ' // &
             'See reaction with upstream pool "' // &
@@ -457,10 +457,10 @@ subroutine SomDecRead(this,input,option)
         else if (turnover_time > 0.d0) then
           new_reaction%rate_constant = 1.d0 / turnover_time
           new_reaction%rate_decomposition = -1.d0
-        else if (rate_constant >= 0.d0) then
+        else if (rate_constant > 0.d0) then
           new_reaction%rate_constant = rate_constant
           new_reaction%rate_decomposition = -1.d0
-        else if (rate_decomposition >= 0.d0) then
+        else if (rate_decomposition > 0.d0) then
           new_reaction%rate_constant = -1.d0
           new_reaction%rate_decomposition = rate_decomposition
         else
@@ -601,9 +601,9 @@ subroutine SomDecSetup(this,reaction,option)
   allocate(this%mineral_c_stoich(this%nrxn))
   allocate(this%mineral_n_stoich(this%nrxn))
 
-  this%pool_nc_ratio = 0.d0
-  this%rate_constant = 0.d0
-  this%rate_decomposition = 0.d0
+  this%pool_nc_ratio = UNINITIALIZED_DOUBLE
+  this%rate_constant = UNINITIALIZED_DOUBLE
+  this%rate_decomposition = UNINITIALIZED_DOUBLE
   this%rate_ad_factor = 1.d0
   this%upstream_is_varycn = PETSC_FALSE
   this%upstream_c_id = 0

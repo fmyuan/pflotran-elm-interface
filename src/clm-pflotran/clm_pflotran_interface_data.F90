@@ -34,7 +34,9 @@ module clm_pflotran_interface_data
 
   ! Soil BGC decomposing pools
   PetscInt :: ndecomp_pools
-  logical, pointer :: floating_cn_ratio(:)           ! TRUE => pool has fixed C:N ratio
+  logical, pointer :: floating_cn_ratio(:)           ! TRUE => pool has variable C:N ratio
+  PetscInt :: ndecomp_elements                       ! no. of elements considered: C, N
+  PetscReal, pointer:: decomp_element_ratios(:,:)    ! ratios of elements in decomposing pools
 
   !NOTES: The following is what PF bgc right now using for CLM-PFLOTRAN coupling
   ! if need adding or modifying, it's possible and update BOTH here and subroutine 'pflotranModelGetRTspecies'
@@ -48,6 +50,8 @@ module clm_pflotran_interface_data
   PetscInt, pointer:: ispec_decomp_nimp(:)           ! name: pool_name // "NIMM"
   PetscInt, pointer:: ispec_decomp_nimm(:)           ! name: pool_name // "NIMP"
   character(len=32), pointer :: decomp_pool_name(:)  ! name of pools
+  PetscReal, pointer:: ck_decomp_c(:)                ! K: corrected first-order decomposition rate constant in 1/sec
+  PetscReal, pointer:: fr_decomp_c(:,:)              ! fractions of downstream pools (receivers - pools excluding donor but adding CO2, note (k,k) is that fraction of CO2 respired)
 
   PetscInt:: ispec_hrimm
   character(len=32):: name_hrim   = "HRimm"        ! this is for total HR
@@ -389,7 +393,8 @@ contains
     clm_pf_idata%nxclm_mapped = 0
     clm_pf_idata%nyclm_mapped = 0
 
-    clm_pf_idata%ndecomp_pools = 0
+    clm_pf_idata%ndecomp_pools    = 0
+    clm_pf_idata%ndecomp_elements = 0
 
     clm_pf_idata%ispec_hrimm   = 0
     clm_pf_idata%ispec_co2aq   = 0
@@ -667,12 +672,15 @@ contains
 
     allocate(clm_pf_idata%floating_cn_ratio(1:clm_pf_idata%ndecomp_pools))
     allocate(clm_pf_idata%decomp_pool_name(1:clm_pf_idata%ndecomp_pools))
+    allocate(clm_pf_idata%decomp_element_ratios(1:clm_pf_idata%ndecomp_pools,1:clm_pf_idata%ndecomp_elements))
     allocate(clm_pf_idata%ispec_decomp_c(1:clm_pf_idata%ndecomp_pools))
     allocate(clm_pf_idata%ispec_decomp_n(1:clm_pf_idata%ndecomp_pools))
     allocate(clm_pf_idata%ispec_decomp_hr(1:clm_pf_idata%ndecomp_pools))
     allocate(clm_pf_idata%ispec_decomp_nmin(1:clm_pf_idata%ndecomp_pools))
     allocate(clm_pf_idata%ispec_decomp_nimm(1:clm_pf_idata%ndecomp_pools))
     allocate(clm_pf_idata%ispec_decomp_nimp(1:clm_pf_idata%ndecomp_pools))
+    allocate(clm_pf_idata%ck_decomp_c(1:clm_pf_idata%ndecomp_pools))
+    allocate(clm_pf_idata%fr_decomp_c(1:clm_pf_idata%ndecomp_pools,1:clm_pf_idata%ndecomp_pools))
 
     call MPI_Comm_rank(mycomm,rank, ierr)
 
@@ -1233,6 +1241,7 @@ contains
 
     deallocate(clm_pf_idata%dzclm_global)
     deallocate(clm_pf_idata%floating_cn_ratio)
+    deallocate(clm_pf_idata%decomp_element_ratios)
     deallocate(clm_pf_idata%ispec_decomp_c)
     deallocate(clm_pf_idata%ispec_decomp_n)
     deallocate(clm_pf_idata%decomp_pool_name)
@@ -1240,6 +1249,8 @@ contains
     deallocate(clm_pf_idata%ispec_decomp_nmin)
     deallocate(clm_pf_idata%ispec_decomp_nimm)
     deallocate(clm_pf_idata%ispec_decomp_nimp)
+    deallocate(clm_pf_idata%ck_decomp_c)
+    deallocate(clm_pf_idata%fr_decomp_c)
 
     if(clm_pf_idata%t_scalar_clmp /= 0) &
        call VecDestroy(clm_pf_idata%t_scalar_clmp,ierr)

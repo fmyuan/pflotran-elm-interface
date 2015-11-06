@@ -62,6 +62,7 @@ module pflotran_clm_main_module
        pflotranModelGetSaturationFromPF,        &
        ! BGC
        pflotranModelGetRTspecies,               &
+       pflotranModelSetSOMKfromCLM,             &
        pflotranModelSetBGCRatesFromCLM,         &
        pflotranModelUpdateAqConcFromCLM,        &
        pflotranModelUpdateAqGasesFromCLM,       &
@@ -2742,41 +2743,133 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   !!
   !! Date: 12/5/2014
   ! ************************************************************************** !
-!  subroutine pflotranModelSetSOMKfromCLM(pflotran_model, pf_cmode)
-!
-!    use Option_module
-!    use Reaction_module
-!    use Reaction_Aux_module
-!    use Reactive_Transport_Aux_module
-!    use Global_Aux_module
-!    use Material_Aux_class, only: material_auxvar_type
-!    use Reaction_Sandbox_module
-!    use Reaction_Sandbox_SomDec_class
-!
-!    use Simulation_Base_class, only : simulation_base_type
-!    use Simulation_Subsurface_class, only : subsurface_simulation_type
-!    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-!
-!    implicit none
-!
-!    type(option_type) :: option
-!    type(reaction_type) :: reaction
-!    type(reactive_transport_auxvar_type) :: rt_auxvar
-!    type(global_auxvar_type) :: global_auxvar
-!    class(material_auxvar_type) :: material_auxvar
-!
-!    class(reaction_sandbox_base_type), pointer :: cur_reaction
-!
-!    cur_reaction => rxn_sandbox_list
-!    do
-!        if (.not.associated(cur_reaction)) exit
-!
-!
-!
-!        cur_reaction => cur_reaction%next
-!    enddo
-!
-!  end subroutine pflotranModelSetSOMKfromCLM
+  subroutine pflotranModelSetSOMKfromCLM(pflotran_model)
+
+    use Option_module
+    use Realization_class
+    use Reaction_module
+    !use Reaction_Aux_module
+    !use Reactive_Transport_Aux_module
+    !use Global_Aux_module
+    !use Material_Aux_class, only: material_auxvar_type
+    use Reaction_Sandbox_module
+    use Reaction_Sandbox_Base_class
+    use Reaction_Sandbox_SomDec_class
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+
+    use clm_pflotran_interface_data
+
+    implicit none
+
+    type(option_type) :: option
+    type(pflotran_model_type), pointer  :: pflotran_model
+    class(realization_type), pointer    :: realization
+    type(simulation_base_type), pointer :: simulation
+    class(reaction_sandbox_base_type), pointer  :: cur_rtsandbox
+    class(reaction_sandbox_somdec_type), pointer :: rtsandbox_somdec
+
+    !
+    PetscInt :: irxn, jdown, ki, kj
+
+   !------------------------------------------------------
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer &
+          = "ERROR: SetInitialConcentrations not supported under this mode.."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    if (associated(rxn_sandbox_list)) then   ! note: 'rxn_sandbox_list' IS PUBLIC in 'Reaction_module'
+      cur_rtsandbox => rxn_sandbox_list
+      do
+        if (.not.associated(cur_rtsandbox)) exit
+
+        select type (cur_rtsandbox)
+          class is (reaction_sandbox_somdec_type)
+            rtsandbox_somdec => cur_rtsandbox
+
+            !
+            do irxn = 1, rtsandbox_somdec%nrxn
+
+              do ki = 1, clm_pf_idata%ndecomp_pools
+                if (clm_pf_idata%ispec_decomp_c(ki) == &
+                     rtsandbox_somdec%upstream_c_id(irxn)) then
+                   exit
+                else
+                   if (ki==clm_pf_idata%ndecomp_pools) then   ! didn't find the decomposing pool
+                     pflotran_model%option%io_buffer &
+                       = "ERROR: CLM decomposing pool NOT found in sandbox of SOMDECOMP"
+                     call printErrMsg(pflotran_model%option)
+                   end if
+                end if
+              end do
+
+              rtsandbox_somdec%rate_constant(irxn)      = clm_pf_idata%ck_decomp_c(ki)
+              rtsandbox_somdec%rate_decomposition(irxn) = UNINITIALIZED_DOUBLE
+              rtsandbox_somdec%rate_ad_factor(irxn)     = 1.0d0     ! note the rate_constant already adjusted by ad_factor
+              rtsandbox_somdec%upstream_is_varycn(irxn) = clm_pf_idata%floating_cn_ratio(ki)
+              rtsandbox_somdec%upstream_nc(irxn)        = clm_pf_idata%decomp_element_ratios(ki,2) &
+                                                         /clm_pf_idata%decomp_element_ratios(ki,1)
+              rtsandbox_somdec%mineral_c_stoich(irxn)   = clm_pf_idata%fr_decomp_c(ki,ki)  ! this is the decomposed C fraction as respirted CO2)
+
+
+              do jdown = 1, rtsandbox_somdec%n_downstream_pools(irxn)
+                do kj = 1, clm_pf_idata%ndecomp_pools
+                  if (clm_pf_idata%ispec_decomp_c(kj) == &
+                    rtsandbox_somdec%downstream_c_id(irxn,jdown)) then
+                    exit
+                  else
+                    if (kj==clm_pf_idata%ndecomp_pools) then   ! didn't find the decomposing downstream pool
+                      pflotran_model%option%io_buffer &
+                        = "ERROR: CLM decomposing downstream pool NOT found in sandbox of SOMDECOMP, for: " // &
+                          trim(clm_pf_idata%decomp_pool_name(ki))
+                      call printErrMsg(pflotran_model%option)
+                    end if
+                  end if
+                end do
+
+                rtsandbox_somdec%downstream_is_varycn(irxn, jdown) = clm_pf_idata%floating_cn_ratio(kj)
+                rtsandbox_somdec%downstream_nc(irxn, jdown)        = clm_pf_idata%decomp_element_ratios(kj,2) &
+                                                                    /clm_pf_idata%decomp_element_ratios(kj,1)
+                rtsandbox_somdec%downstream_stoich(irxn, jdown)    = clm_pf_idata%fr_decomp_c(ki,kj)
+
+              end do
+
+
+            end do
+
+            ! finally, exit the do-loop expcilitly so that NO duplicate sandbox checking
+            exit
+
+          class default
+            if (.not.associated(cur_rtsandbox%next)) then
+              pflotran_model%option%io_buffer &
+                = "ERROR: SetSOMK from CLM currently only supported sandbox of SOMDECOMP"
+              call printErrMsg(pflotran_model%option)
+            end if
+
+        end select
+
+
+        cur_rtsandbox => cur_rtsandbox%next
+      enddo
+
+    else
+      pflotran_model%option%io_buffer &
+          = "ERROR: SetSOMK from CLM currently only supported sandbox approach"
+      call printErrMsg(pflotran_model%option)
+
+    end if
+
+  end subroutine pflotranModelSetSOMKfromCLM
 
   ! ************************************************************************** !
   !
