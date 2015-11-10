@@ -2773,6 +2773,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     !
     PetscInt :: irxn, jdown, ki, kj
+    PetscReal:: sum_cfrac, sum_nfrac
 
    !------------------------------------------------------
     select type (simulation => pflotran_model%simulation)
@@ -2820,7 +2821,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                                          /clm_pf_idata%decomp_element_ratios(ki,1)
               rtsandbox_somdec%mineral_c_stoich(irxn)   = clm_pf_idata%fr_decomp_c(ki,ki)  ! this is the decomposed C fraction as respirted CO2)
 
-
+              sum_cfrac = 0.d0
+              sum_nfrac = 0.d0
               do jdown = 1, rtsandbox_somdec%n_downstream_pools(irxn)
                 do kj = 1, clm_pf_idata%ndecomp_pools
                   if (clm_pf_idata%ispec_decomp_c(kj) == &
@@ -2841,7 +2843,23 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                 rtsandbox_somdec%downstream_nc(irxn, jdown)        = clm_pf_idata%decomp_element_ratios(kj,2) &
                                                                     /clm_pf_idata%decomp_element_ratios(kj,1)
                 rtsandbox_somdec%downstream_stoich(irxn, jdown)    = clm_pf_idata%fr_decomp_c(ki,kj)
+                sum_cfrac = sum_cfrac + rtsandbox_somdec%downstream_stoich(irxn, jdown)
+                sum_nfrac = sum_nfrac + rtsandbox_somdec%downstream_stoich(irxn, jdown) * &
+                                        rtsandbox_somdec%downstream_nc(irxn, jdown)
+
               end do
+
+              if (abs(sum_cfrac+rtsandbox_somdec%mineral_c_stoich(irxn)-1.d0)>1.0d-30) then
+                pflotran_model%option%io_buffer &
+                  = "ERROR: fraction of CLM decomposing downstream pools NOT summed to 1.0, for: " // &
+                          trim(clm_pf_idata%decomp_pool_name(ki))
+                call printErrMsg(pflotran_model%option)
+              else
+                rtsandbox_somdec%mineral_c_stoich(irxn) = 1.0d0 - sum_cfrac    ! just in case (may not be needed)
+
+                rtsandbox_somdec%mineral_n_stoich(irxn) = rtsandbox_somdec%upstream_nc(irxn) - sum_nfrac
+
+              endif
 
             end do
 
