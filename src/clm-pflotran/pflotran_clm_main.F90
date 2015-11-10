@@ -2837,12 +2837,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                 end do
 
                 rtsandbox_somdec%downstream_is_varycn(irxn, jdown) = clm_pf_idata%floating_cn_ratio(kj)
+                ! note: the following is the initial NC ratios, which for 'varying_cn' species will be modified
                 rtsandbox_somdec%downstream_nc(irxn, jdown)        = clm_pf_idata%decomp_element_ratios(kj,2) &
                                                                     /clm_pf_idata%decomp_element_ratios(kj,1)
                 rtsandbox_somdec%downstream_stoich(irxn, jdown)    = clm_pf_idata%fr_decomp_c(ki,kj)
-
               end do
-
 
             end do
 

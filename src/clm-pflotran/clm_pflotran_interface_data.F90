@@ -36,7 +36,7 @@ module clm_pflotran_interface_data
   PetscInt :: ndecomp_pools
   logical, pointer :: floating_cn_ratio(:)           ! TRUE => pool has variable C:N ratio
   PetscInt :: ndecomp_elements                       ! no. of elements considered: C, N
-  PetscReal, pointer:: decomp_element_ratios(:,:)    ! ratios of elements in decomposing pools
+  PetscReal, pointer:: decomp_element_ratios(:,:)    ! ratios of elements in decomposing pools (unit: moles)
 
   !NOTES: The following is what PF bgc right now using for CLM-PFLOTRAN coupling
   ! if need adding or modifying, it's possible and update BOTH here and subroutine 'pflotranModelGetRTspecies'
