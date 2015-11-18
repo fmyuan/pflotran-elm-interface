@@ -315,6 +315,10 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       nx = clm_pf_idata%nxclm_mapped
       ny = clm_pf_idata%nyclm_mapped
       nz = clm_pf_idata%nzclm_mapped
+
+      discretization%origin(X_DIRECTION) = 0.d0
+      discretization%origin(Y_DIRECTION) = 0.d0
+      discretization%origin(Z_DIRECTION) = 0.d0
 #endif
 
       if (nx*ny*nz <= 0) &
@@ -392,17 +396,35 @@ subroutine DiscretizationRead(discretization,input,option)
       case('DXYZ')
         select case(discretization%itype)
           case(STRUCTURED_GRID)
-            call StructGridReadDXYZ(discretization%grid%structured_grid,input,option)
 
 #ifdef CLM_PFLOTRAN
             !override input cards, if coupled wit CLM
+            allocate(discretization%grid%structured_grid%dx_global &
+              (discretization%grid%structured_grid%nx))
+            discretization%grid%structured_grid%dx_global = &
+              clm_pf_idata%dxclm_global                               ! unit: longitudal degrees
+
+            allocate(discretization%grid%structured_grid%dy_global &
+              (discretization%grid%structured_grid%ny))
+            discretization%grid%structured_grid%dy_global = &
+              clm_pf_idata%dyclm_global                               ! unit: latitudal degrees
+
+            allocate(discretization%grid%structured_grid%dz_global &
+              (discretization%grid%structured_grid%nz))
             discretization%grid%structured_grid%dz_global = &
-                clm_pf_idata%dzclm_global
+              clm_pf_idata%dzclm_global                               ! unit: vertical meters
+
+#else
+            call StructGridReadDXYZ(discretization%grid%structured_grid,input,option)
 #endif
 
           case default
             call printErrMsg(option,'Keyword "DXYZ" not supported for unstructured grid')
         end select
+
+#ifdef CLM_PFLOTRAN
+        call InputSkipToEND(input,option,'')    ! skip 'GRID/DXYZ ... END' block
+#else
         call InputReadPflotranString(input,option) ! read END card
         call InputReadStringErrorMsg(input,option,'DISCRETIZATION,DXYZ,END')
         if (.not.(InputCheckExit(input,option))) then
@@ -410,6 +432,8 @@ subroutine DiscretizationRead(discretization,input,option)
                    '(one for each grid direction or NX+NY+NZ entries)'
           call printErrMsg(option)
         endif
+#endif
+
       case('BOUNDS')
         select case(discretization%itype)
           case(STRUCTURED_GRID)

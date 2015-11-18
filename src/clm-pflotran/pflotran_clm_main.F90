@@ -216,6 +216,7 @@ contains
     use Discretization_module
     use Patch_module
     use Grid_module
+    use Grid_Structured_module
     use Option_module
     use Material_module
     use Material_Aux_class
@@ -232,6 +233,7 @@ contains
 
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
+#include "geodesic.inc"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_type), pointer          :: realization
@@ -241,12 +243,25 @@ contains
     type(simulation_base_type), pointer :: simulation
 
     PetscErrorCode     :: ierr
-    PetscInt           :: local_id, ghosted_id
+    PetscInt           :: local_id, ghosted_id, i, j, k
 
     PetscScalar, pointer :: toparea_pf_loc(:)    ! soil top face area (m^2) for 3-D PF cells
-    PetscScalar, pointer :: zsoi_pf_loc(:)    ! soil depth (m) for 3-D PF cells
+    PetscScalar, pointer :: dzsoil_pf_loc(:)       ! soil cell length/width/thickness (m) for 3-D PF cells
+    PetscScalar, pointer :: lonc_pf_loc(:),latc_pf_loc(:), zisoil_pf_loc(:)           ! soil cell coordinates (deg/deg/m) for 3-D PF cells
+    PetscReal            :: lon_c, lat_c, lon_e, lon_w, lat_s, lat_n
+    PetscReal            :: x_global, y_global
+    PetscReal            :: tempreal
 
+    ! for calling functions in 'geodesic.for'
+    double precision a, f, lat1, lon1, azi1, lat2, lon2, azi2, s12,   &
+        dummy1, dummy2, dummy3, dummy4, dummy5
+    double precision lats(4), lons(4)
+    integer omask
+    a = 6378137.0d0           ! major-axis length of Earth Ellipsoid in metres in WGS-84
+    f = 1.d0/298.257223563d0  ! flatening of Earth Ellipsoid in WGS-84
+    omask = 0
 
+    !----------------------------------------------------------
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
          realization => simulation%realization
@@ -264,17 +279,35 @@ contains
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%area_top_face_clmp, &
-                                    clm_pf_idata%area_top_face_pfs)
+                                    clm_pf_idata%dzsoil_clmp, &
+                                    clm_pf_idata%dzsoil_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%zsoi_clmp, &
-                                    clm_pf_idata%zsoi_pfs)
+                                    clm_pf_idata%zisoil_clmp, &
+                                    clm_pf_idata%zisoil_pfs)
 
-    call VecGetArrayReadF90(clm_pf_idata%area_top_face_pfs, toparea_pf_loc, ierr)
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%xisoil_clmp, &
+                                    clm_pf_idata%xisoil_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%yisoil_clmp, &
+                                    clm_pf_idata%yisoil_pfs)
+
+    !
+    call VecGetArrayReadF90(clm_pf_idata%dzsoil_pfs, dzsoil_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecGetArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayReadF90(clm_pf_idata%xisoil_pfs, lonc_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayReadF90(clm_pf_idata%yisoil_pfs, latc_pf_loc, ierr)
+    CHKERRQ(ierr)
+
+    call VecGetArrayF90(clm_pf_idata%area_top_face_pfs, toparea_pf_loc, ierr)
     CHKERRQ(ierr)
 
     !
@@ -282,24 +315,213 @@ contains
       case(STRUCTURED_GRID)
          pflotran_model%option%io_buffer = "INFO: CLM column dimension will over-ride PF structured grid mesh."
          call printMsg(pflotran_model%option)
+
+         select case(grid%structured_grid%itype)
+           case(CARTESIAN_GRID)
+             pflotran_model%option%io_buffer = "INFO: CLM column dimension will over-ride PF structured CARTESIAN_GRID."
+             call printMsg(pflotran_model%option)
+
+           case default
+             pflotran_model%option%io_buffer = "ERROR: Currently only works on structured  CARTESIAN_GRID mesh."
+             call printErrMsg(pflotran_model%option)
+         end select
+
       case default
          pflotran_model%option%io_buffer = "ERROR: Currently only works on structured grids."
          call printErrMsg(pflotran_model%option)
-
     end select
 
     do ghosted_id = 1, grid%ngmax
       local_id = grid%nG2L(ghosted_id)
-      if (ghosted_id < 0 .or. local_id < 0) cycle
+      if (ghosted_id <= 0 .or. local_id <= 0) cycle
 
+        ! hack cell's 3-D dimensions
 
+        call StructGridGetIJKFromLocalID(grid%structured_grid,local_id,i,j,k)
+
+        !        4--(lonc, latc+1/2*dy)-3              ^
+        !       /            |           \             |
+        !      /             |            \            |
+        !     +--------(lonc, latc)--------+     dyg_local(j)
+        !    <--------dxg_local(i)---------->          |
+        !   /                |               \         |
+        !  /                 |                \        |
+        ! 1---------(lonc, latc-1/2*dy)--------2       V
+
+        lon_c = lonc_pf_loc(ghosted_id)
+        lat_c = latc_pf_loc(ghosted_id)
+        lon_e = lon_c + grid%structured_grid%dxg_local(i)/2.0d0  ! East
+        lon_w = lon_c - grid%structured_grid%dxg_local(i)/2.0d0  ! West
+        lat_s = lat_c - grid%structured_grid%dyg_local(j)/2.0d0  ! South
+        lat_n = lat_c + grid%structured_grid%dyg_local(j)/2.0d0  ! North
+        lats(1) = lat_s
+        lons(1) = lon_w
+        lats(2) = lat_s
+        lons(2) = lon_e
+        lats(3) = lat_n
+        lons(3) = lon_e
+        lats(4) = lat_n
+        lons(4) = lon_w
+
+        ! mid-longitudal length of trapezoid (x-axis) -
+        lat1 = lat_c
+        lon1 = lon_w
+        lat2 = lat_c
+        lon2 = lon_e
+        call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
+          dummy1, dummy2, dummy3, dummy4 , dummy5)
+        grid%structured_grid%dx(ghosted_id) = s12
+
+        ! mid-latitudal height of trapezoid (y-axis) -
+        lat1 = lat_s
+        lon1 = lon_c
+        lat2 = lat_n
+        lon2 = lon_c
+        call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
+          dummy1, dummy2, dummy3, dummy4 , dummy5)
+        grid%structured_grid%dy(ghosted_id) = s12
+
+        ! vertical (z-axis)
+        grid%structured_grid%dz(ghosted_id) = dzsoil_pf_loc(ghosted_id)
+        grid%z(ghosted_id)   = zisoil_pf_loc(ghosted_id)    ! directly over-ride PF 'z' coordinate from CLM soil layer 'zi'
+if(i*j==1) &
+print *, i, j, k, 'dz=', grid%structured_grid%dz(ghosted_id), &
+'dx*dy*dz=', grid%structured_grid%dx(ghosted_id)*grid%structured_grid%dy(ghosted_id)*grid%structured_grid%dz(ghosted_id)
+
+        ! some checking
+        ! areas of grid (x,y)
+        call area(a, f, lats, lons, 4, dummy1, dummy2)
+        tempreal = grid%structured_grid%dx(ghosted_id)*grid%structured_grid%dy(ghosted_id)/dummy1
+        if (abs(tempreal-1.d0)>1.e-5) then
+          pflotran_model%option%io_buffer = "Warning: remarkably large gaps in grid areas btw two approaches FOR cell: "
+          call printMsg(pflotran_model%option)
+        end if
+
+        ! bottom/top segment line length
+        lat1 = lats(1)
+        lon1 = lons(1)
+        lat2 = lats(2)
+        lon2 = lons(2)
+        call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
+          dummy1, dummy2, dummy3, dummy4 , dummy5)
+        tempreal = s12
+
+        lat1 = lats(3)
+        lon1 = lons(3)
+        lat2 = lats(4)
+        lon2 = lons(4)
+        call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
+          dummy1, dummy2, dummy3, dummy4 , dummy5)
+        tempreal = tempreal+s12
+        tempreal = 0.5d0*tempreal/grid%structured_grid%dx(ghosted_id)
+        if (abs(tempreal-1.d0)>1.e-5) then   ! mathematically, dx = 0.5*(a+b)
+          pflotran_model%option%io_buffer = "Warning: remarkably large gaps in longitudal-length FOR a cell: "
+          call printMsg(pflotran_model%option)
+        end if
+
+        ! isoscele side line length
+        lat1 = lats(2)
+        lon1 = lons(2)
+        lat2 = lats(3)
+        lon2 = lons(3)
+        call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
+          dummy1, dummy2, dummy3, dummy4 , dummy5)
+        tempreal = s12
+
+        lat1 = lats(1)
+        lon1 = lons(1)
+        lat2 = lats(4)
+        lon2 = lons(4)
+        call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
+          dummy1, dummy2, dummy3, dummy4 , dummy5)
+        tempreal = tempreal/s12
+        if (abs(tempreal-1.d0)>1.e-5) then   ! mathematically, c=d
+          pflotran_model%option%io_buffer = "Warning: remarkably large gaps in isoscele latitudal-length FOR a cell: "
+          call printMsg(pflotran_model%option)
+        end if
 
     enddo
 
-    call VecRestoreArrayReadF90(clm_pf_idata%area_top_face_pfs, toparea_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%dzsoil_pfs, dzsoil_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
     CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%xisoil_pfs, lonc_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%yisoil_pfs, latc_pf_loc, ierr)
+    CHKERRQ(ierr)
+
+    call VecRestoreArrayF90(clm_pf_idata%area_top_face_pfs, toparea_pf_loc, ierr)
+    CHKERRQ(ierr)
+
+    ! re-do some dimension calculations after changes above
+    call GridComputeVolumes(grid, patch%field%volume0, pflotran_model%option)      ! cell volumes
+    call GridComputeInternalConnect(grid, pflotran_model%option)                   ! cell internal connection distances
+    call PatchProcessCouplers( realization%patch,realization%flow_conditions,   &  ! BC/IC/SrcSink connection (face) areas
+                             realization%transport_conditions,                  &
+                             realization%option)
+
+    ! re-do grid-cell x/y coordiantes in unit of meters  ('z' coordinate already done above)
+    ! (originally in lon-deg/lat-deg derived from 'dxg/dyg_local' calculated in subroutine 'StructGridComputeCoord()')
+    grid%x_min_local = 1.d20
+    grid%x_max_local = -1.d20
+    grid%y_min_local = 1.d20
+    grid%y_max_local = -1.d20
+    grid%z_min_local = 1.d20
+    grid%z_max_local = -1.d20
+    do k = 1, grid%structured_grid%nz
+      y_global = discretization%origin(Y_DIRECTION)
+      do j = 1, grid%structured_grid%ny
+        y_global = y_global + grid%structured_grid%dy(j)          ! accumulating 'dy' for 'y'
+
+        x_global = discretization%origin(X_DIRECTION)
+        do i = 1, grid%structured_grid%nx
+          x_global = x_global + grid%structured_grid%dx(i)        ! accumlating 'dx' for 'x'
+
+          ghosted_id = i+(j-1)*grid%structured_grid%nx+(k-1)*grid%structured_grid%nxy
+          local_id = grid%nG2L(ghosted_id)
+          if (ghosted_id <= 0 .or. local_id <= 0) cycle      ! avoiding non-existing node
+          grid%x(ghosted_id) = x_global
+          grid%y(ghosted_id) = y_global
+
+          if (grid%x_min_local>=grid%x(ghosted_id)) grid%x_min_local=grid%x(ghosted_id)
+          if (grid%y_min_local>=grid%y(ghosted_id)) grid%y_min_local=grid%y(ghosted_id)
+          if (grid%z_min_local>=grid%z(ghosted_id)) grid%z_min_local=grid%z(ghosted_id)
+          if (grid%x_max_local<=grid%x(ghosted_id)) grid%x_max_local=grid%x(ghosted_id)
+          if (grid%y_max_local<=grid%y(ghosted_id)) grid%y_max_local=grid%y(ghosted_id)
+          if (grid%z_max_local<=grid%z(ghosted_id)) grid%z_max_local=grid%z(ghosted_id)
+
+        enddo
+      enddo
+    enddo
+
+    if (associated(grid%structured_grid)) then
+      ! compute global max/min from the local max/in
+      call MPI_Allreduce(grid%x_min_local,grid%x_min_global,ONE_INTEGER_MPI, &
+                      MPI_DOUBLE_PRECISION,MPI_MIN, pflotran_model%option%mycomm,ierr)
+      call MPI_Allreduce(grid%y_min_local,grid%y_min_global,ONE_INTEGER_MPI, &
+                      MPI_DOUBLE_PRECISION,MPI_MIN, pflotran_model%option%mycomm,ierr)
+      call MPI_Allreduce(grid%z_min_local,grid%z_min_global,ONE_INTEGER_MPI, &
+                      MPI_DOUBLE_PRECISION,MPI_MIN, pflotran_model%option%mycomm,ierr)
+      call MPI_Allreduce(grid%x_max_local,grid%x_max_global,ONE_INTEGER_MPI, &
+                      MPI_DOUBLE_PRECISION,MPI_MAX, pflotran_model%option%mycomm,ierr)
+      call MPI_Allreduce(grid%y_max_local,grid%y_max_global,ONE_INTEGER_MPI, &
+                      MPI_DOUBLE_PRECISION,MPI_MAX, pflotran_model%option%mycomm,ierr)
+      call MPI_Allreduce(grid%z_max_local,grid%z_max_global,ONE_INTEGER_MPI, &
+                      MPI_DOUBLE_PRECISION,MPI_MAX, pflotran_model%option%mycomm,ierr)
+    endif
+
+    ! the following variable is directly used in 'sandbox_somdec'
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%zsoil_clmp, &
+                                    clm_pf_idata%zsoil_pfs)
+
+    ! the following are 'wtgcell' adjusted 'TOP' face area (not yet figured out how to use it for multiple columns in ONE grid)
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%area_top_face_clmp, &
+                                    clm_pf_idata%area_top_face_pfs)
 
 
   end subroutine pflotranModelSetSoilDimension
@@ -2972,9 +3194,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     !-----------------------------------------------------------------
 
     ! create temporary vecs/arrays for each 'decomp_pool' data-mapping
-    call VecDuplicate(clm_pf_idata%zsoi_clmp, vec_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp, vec_clmp,ierr)
     CHKERRQ(ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs, vec_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs, vec_pfs,ierr)
     CHKERRQ(ierr)
 
     ! decomp'C'
@@ -3144,6 +3366,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
          xx_p(offset + clm_pf_idata%ispec_no3) = max(xeps0_n,                     &      ! from 'ghosted_id' to field%xx_p's local
                                                 smin_no3_vr_pf_loc(ghosted_id)    &
                                                 / (theta*1000.d0*den_kg_per_L) )    ! moles/m3 /(m3/m3 * L/m3 * kg/L) = moles/kgh2o
+
       endif
 
       if(clm_pf_idata%ispec_nh4 > 0) then
@@ -3307,9 +3530,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     !-----------------------------------------------------------------
 
     ! create temporary vecs/arrays for rate of each 'decomp_pool''s data-mapping
-    call VecDuplicate(clm_pf_idata%zsoi_clmp, vec_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp, vec_clmp,ierr)
     CHKERRQ(ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs, vec_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs, vec_pfs,ierr)
     CHKERRQ(ierr)
 
     ! rate of decomp_'C' pools from CLM-CN
@@ -3496,7 +3719,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
       !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
       !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
-      if (cur_mass_transfer%idof == ispec_nh4) &
+      if (cur_mass_transfer%idof == clm_pf_idata%ispec_nh4) &
       write(pflotran_model%option%myrank+200,*) 'checking bgc-mass-rate - pflotran_model: ', &
         'rank=',pflotran_model%option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'rate_nh4_pfs(ghosted_id)=',rate_pf_loc(ghosted_id), &
@@ -4247,9 +4470,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     ! for 'decomp_pools', NEED to do looping over each pool
 
     ! create temporary vecs/arrays for each 'decomp_pool' data-mapping
-    call VecDuplicate(clm_pf_idata%zsoi_pfp, vec_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp, vec_pfp,ierr)
     CHKERRQ(ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms, vec_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms, vec_clms,ierr)
     CHKERRQ(ierr)
 
     ! decomp'C'

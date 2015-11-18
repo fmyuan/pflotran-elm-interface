@@ -834,7 +834,7 @@ subroutine StructGridGetIJKFromLocalID(structured_grid,local_id,i,j,k)
   type(structured_grid_type) :: structured_grid
   type(option_type) :: option
   PetscInt :: local_id
-  PetscReal :: i, j, k
+  PetscInt :: i, j, k
   
   k= int((local_id-1)/structured_grid%nlxy) + 1
   j= int(mod((local_id-1),structured_grid%nlxy)/structured_grid%nlx) + 1
