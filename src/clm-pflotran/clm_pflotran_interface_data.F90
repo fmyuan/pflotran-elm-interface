@@ -30,9 +30,12 @@ module clm_pflotran_interface_data
   PetscInt :: nzclm_mapped
   PetscInt :: nxclm_mapped
   PetscInt :: nyclm_mapped
+  PetscReal :: x0clm_global
+  PetscReal :: y0clm_global
+  PetscReal :: z0clm_global
   PetscReal, pointer :: dxclm_global(:)              ! this is NOT the 3-D vec 'dxsoil' defined below, rather it's the universal x-direction interval (OR, longitudal degree interval from CLM land surf grids) for all gridcells
   PetscReal, pointer :: dyclm_global(:)              ! this is NOT the 3-D vec 'dysoil' defined below, rather it's the universal y-direction interval (OR, longitudal degree interval from CLM land surf grids)
-  PetscReal, pointer :: dzclm_global(:)              ! this is NOT the 3-D vec 'dzsoil' defined below, rather it's the universal soil layer thickness for all gridcells
+  PetscReal, pointer :: dzclm_global(:)              ! this is NOT the 3-D vec 'dzsoil' defined below, rather it's the universal soil layer thickness (unit: m) for all gridcells
 
   ! Soil BGC decomposing pools
   PetscInt :: ndecomp_pools
@@ -124,6 +127,16 @@ module clm_pflotran_interface_data
   Vec :: zsoil_pfp           ! mpi vec
   Vec :: zsoil_clms          ! seq vec
 
+  ! x/y-axis (in 3D), grid center of a soil cell in unit of meters
+  Vec :: xsoil_clmp          ! mpi vec
+  Vec :: xsoil_pfs           ! seq vec
+  Vec :: ysoil_clmp          ! mpi vec
+  Vec :: ysoil_pfs           ! seq vec
+
+  ! soil cell inter-nodes coordinates ('vertex' called in PF mesh; 'interface level' called in CLM soil layers)
+  Vec :: zisoil_clmp          ! mpi vec
+  Vec :: zisoil_pfs           ! seq vec
+
   ! length/width/thickness of soil cells (in 3D) in unit of meters
   Vec :: dxsoil_clmp          ! mpi vec
   Vec :: dxsoil_pfs           ! seq vec
@@ -131,15 +144,6 @@ module clm_pflotran_interface_data
   Vec :: dysoil_pfs           ! seq vec
   Vec :: dzsoil_clmp          ! mpi vec
   Vec :: dzsoil_pfs           ! seq vec
-
-  ! soil cell inter-nodes coordinates ('vertex' called in PF mesh; 'interface level' called in CLM soil layers)
-  Vec :: xisoil_clmp          ! mpi vec
-  Vec :: xisoil_pfs           ! seq vec
-  Vec :: yisoil_clmp          ! mpi vec
-  Vec :: yisoil_pfs           ! seq vec
-  Vec :: zisoil_clmp          ! mpi vec
-  Vec :: zisoil_pfs           ! seq vec
-
   ! a NOTE here: Given a 3D-cell's 'area_gtop_face' and 'zsoi' known, it's possible to calculate its volume (may be useful ?)
 
   !-------------------------------------------------------------------------------------
@@ -410,6 +414,10 @@ contains
     clm_pf_idata%nxclm_mapped = 0
     clm_pf_idata%nyclm_mapped = 0
 
+    clm_pf_idata%x0clm_global = 0
+    clm_pf_idata%y0clm_global = 0
+    clm_pf_idata%z0clm_global = 0
+
     clm_pf_idata%ndecomp_pools    = 0
     clm_pf_idata%ndecomp_elements = 0
 
@@ -459,10 +467,10 @@ contains
     clm_pf_idata%dysoil_pfs      = 0
     clm_pf_idata%dzsoil_clmp     = 0
     clm_pf_idata%dzsoil_pfs      = 0
-    clm_pf_idata%xisoil_clmp     = 0
-    clm_pf_idata%xisoil_pfs      = 0
-    clm_pf_idata%yisoil_clmp     = 0
-    clm_pf_idata%yisoil_pfs      = 0
+    clm_pf_idata%xsoil_clmp      = 0
+    clm_pf_idata%xsoil_pfs       = 0
+    clm_pf_idata%ysoil_clmp      = 0
+    clm_pf_idata%ysoil_pfs       = 0
     clm_pf_idata%zisoil_clmp     = 0
     clm_pf_idata%zisoil_pfs      = 0
 
@@ -736,8 +744,8 @@ contains
 
     ! (by copying) Create MPI Vectors for CLM ---------------------------------
 
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%xisoil_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%yisoil_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%xsoil_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%ysoil_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%zisoil_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%dxsoil_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%dysoil_clmp,ierr)
@@ -791,8 +799,8 @@ contains
     ! (by copying) Create Seq. Vectors for PFLOTRAN  ----------------------
 
     ! 3-D
-    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%xisoil_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%yisoil_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%xsoil_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%ysoil_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%zisoil_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%dxsoil_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%dysoil_pfs,ierr)
@@ -1054,14 +1062,14 @@ contains
     if(clm_pf_idata%zsoil_clms /= 0) &
        call VecDestroy(clm_pf_idata%zsoil_clms,ierr)
 
-    if(clm_pf_idata%xisoil_clmp /= 0) &
-       call VecDestroy(clm_pf_idata%xisoil_clmp,ierr)
-    if(clm_pf_idata%xisoil_pfs /= 0) &
-       call VecDestroy(clm_pf_idata%xisoil_pfs,ierr)
-    if(clm_pf_idata%yisoil_clmp /= 0) &
-       call VecDestroy(clm_pf_idata%yisoil_clmp,ierr)
-    if(clm_pf_idata%yisoil_pfs /= 0) &
-       call VecDestroy(clm_pf_idata%yisoil_pfs,ierr)
+    if(clm_pf_idata%xsoil_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%xsoil_clmp,ierr)
+    if(clm_pf_idata%xsoil_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%xsoil_pfs,ierr)
+    if(clm_pf_idata%ysoil_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%ysoil_clmp,ierr)
+    if(clm_pf_idata%ysoil_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%ysoil_pfs,ierr)
     if(clm_pf_idata%zisoil_clmp /= 0) &
        call VecDestroy(clm_pf_idata%zisoil_clmp,ierr)
     if(clm_pf_idata%zisoil_pfs /= 0) &

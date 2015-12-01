@@ -1177,7 +1177,6 @@ contains
           area1 = grid%structured_grid%dx(ghosted_id)* &
                   grid%structured_grid%dy(ghosted_id)
           area_p(local_id) = area1
-print *, local_id, area1
         endif
       enddo
     else if (grid%itype == UNSTRUCTURED_GRID) then

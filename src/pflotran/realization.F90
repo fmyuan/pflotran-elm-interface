@@ -455,11 +455,31 @@ subroutine RealizationLocalizeRegions(realization)
   implicit none
   
   type(realization_type) :: realization
+  type(grid_type), pointer :: grid
   
   type (region_type), pointer :: cur_region, cur_region2
   type(option_type), pointer :: option
 
   option => realization%option
+
+#ifdef CLM_PFLOTRAN
+  grid   => realization%patch%grid
+  if (associated(grid)) then
+    ! checking first
+    if (grid%x_min_global >=  1.d20 .or. &
+      grid%x_max_global <= -1.d20 .or. &
+      grid%y_min_global >=  1.d20 .or. &
+      grid%y_max_global <= -1.d20 .or. &
+      grid%z_min_global >=  1.d20 .or. &
+      grid%z_max_global <= -1.d20        ) then
+      option%io_buffer = 'GRID x/y/z_max/min_global NOT YET set ! '
+      call printErrMsg(option)
+    else
+      option%io_buffer = 'GRID x/y/z_max/min_global WILL over-ride read-in from INPUT CARDS ! '
+      call printMsg(option)
+    end if
+  endif
+#endif
 
   ! check to ensure that region names are not duplicated
   cur_region => realization%region_list%first
@@ -474,6 +494,54 @@ subroutine RealizationLocalizeRegions(realization)
       endif
       cur_region2 => cur_region2%next
     enddo
+
+! fmy - need to over-ride input cards' information on REGION from GRID maximums/minimums, if coupling with CLM
+!    (1) 'REGION' cards are read-in, which NOT YET match up with 'GRID' which has been hacked by CLM-grids
+!    (2) the max/min_global should have calculated in 'RealizationCreateDiscretization()' when calling 'GridComputeCoordinates'
+!    (3) This is a hack (not sure if here is the right place to put in this hack), but 3 REGIONS usually defined by CLM as following
+
+#ifdef CLM_PFLOTRAN
+    if (associated(grid)) then
+
+      ! the whole CLM soil domain (3-D) with a REGION name 'all' in PF input card
+      if (StringCompareIgnoreCase(trim(cur_region%name), 'all')) then
+        cur_region%coordinates(1)%x = grid%x_min_global
+        cur_region%coordinates(2)%x = grid%x_max_global
+
+        cur_region%coordinates(1)%y = grid%y_min_global
+        cur_region%coordinates(2)%y = grid%y_max_global
+
+        cur_region%coordinates(1)%z = grid%z_min_global
+        cur_region%coordinates(2)%z = grid%z_max_global
+
+      ! the top cells of CLM soil domain (3-D) with a REGION name 'top' in PF input card
+      elseif (StringCompareIgnoreCase(trim(cur_region%name), 'top')) then
+        cur_region%coordinates(1)%x = grid%x_min_global
+        cur_region%coordinates(2)%x = grid%x_max_global
+
+        cur_region%coordinates(1)%y = grid%y_min_global
+        cur_region%coordinates(2)%y = grid%y_max_global
+
+        cur_region%coordinates(1)%z = grid%z_max_global     ! NOTE: PF soil depth starting from BOTTOM
+        cur_region%coordinates(2)%z = grid%z_max_global
+
+      ! the bottom cells of CLM soil domain (3-D) with a REGION name 'bottom' in PF input card
+      elseif (StringCompareIgnoreCase(trim(cur_region%name), 'bottom')) then
+        cur_region%coordinates(1)%x = grid%x_min_global
+        cur_region%coordinates(2)%x = grid%x_max_global
+
+        cur_region%coordinates(1)%y = grid%y_min_global
+        cur_region%coordinates(2)%y = grid%y_max_global
+
+        cur_region%coordinates(1)%z = grid%z_min_global     ! NOTE: PF soil depth starting from BOTTOM
+        cur_region%coordinates(2)%z = grid%z_min_global
+
+      endif
+
+    endif
+
+#endif
+
     cur_region => cur_region%next
   enddo
 

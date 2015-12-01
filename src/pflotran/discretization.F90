@@ -316,9 +316,10 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       ny = clm_pf_idata%nyclm_mapped
       nz = clm_pf_idata%nzclm_mapped
 
-      discretization%origin(X_DIRECTION) = 0.d0
-      discretization%origin(Y_DIRECTION) = 0.d0
-      discretization%origin(Z_DIRECTION) = 0.d0
+      discretization%origin(X_DIRECTION) = clm_pf_idata%x0clm_global
+      discretization%origin(Y_DIRECTION) = clm_pf_idata%y0clm_global
+      discretization%origin(Z_DIRECTION) = clm_pf_idata%z0clm_global
+
 #endif
 
       if (nx*ny*nz <= 0) &

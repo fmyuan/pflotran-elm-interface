@@ -245,7 +245,7 @@ contains
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id, i, j, k
 
-    PetscScalar, pointer :: toparea_pf_loc(:)    ! soil top face area (m^2) for 3-D PF cells
+    !PetscScalar, pointer :: toparea_pf_loc(:)    ! soil top face area (m^2) for 3-D PF cells
     PetscScalar, pointer :: dzsoil_pf_loc(:)       ! soil cell length/width/thickness (m) for 3-D PF cells
     PetscScalar, pointer :: lonc_pf_loc(:),latc_pf_loc(:), zisoil_pf_loc(:)           ! soil cell coordinates (deg/deg/m) for 3-D PF cells
     PetscReal            :: lon_c, lat_c, lon_e, lon_w, lat_s, lat_n
@@ -289,25 +289,22 @@ contains
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%xisoil_clmp, &
-                                    clm_pf_idata%xisoil_pfs)
+                                    clm_pf_idata%xsoil_clmp, &
+                                    clm_pf_idata%xsoil_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%yisoil_clmp, &
-                                    clm_pf_idata%yisoil_pfs)
+                                    clm_pf_idata%ysoil_clmp, &
+                                    clm_pf_idata%ysoil_pfs)
 
     !
     call VecGetArrayReadF90(clm_pf_idata%dzsoil_pfs, dzsoil_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecGetArrayReadF90(clm_pf_idata%xisoil_pfs, lonc_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%xsoil_pfs, lonc_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecGetArrayReadF90(clm_pf_idata%yisoil_pfs, latc_pf_loc, ierr)
-    CHKERRQ(ierr)
-
-    call VecGetArrayF90(clm_pf_idata%area_top_face_pfs, toparea_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%ysoil_pfs, latc_pf_loc, ierr)
     CHKERRQ(ierr)
 
     !
@@ -337,7 +334,7 @@ contains
 
         ! hack cell's 3-D dimensions
 
-        call StructGridGetIJKFromLocalID(grid%structured_grid,local_id,i,j,k)
+        call StructGridGetIJKFromGhostedID(grid%structured_grid,ghosted_id,i,j,k)
 
         !        4--(lonc, latc+1/2*dy)-3              ^
         !       /            |           \             |
@@ -384,10 +381,16 @@ contains
         ! vertical (z-axis)
         grid%structured_grid%dz(ghosted_id) = dzsoil_pf_loc(ghosted_id)
         grid%z(ghosted_id)   = zisoil_pf_loc(ghosted_id)    ! directly over-ride PF 'z' coordinate from CLM soil layer 'zi'
-if(i*j==1) &
-print *, i, j, k, 'dz=', grid%structured_grid%dz(ghosted_id), &
-'dx*dy*dz=', grid%structured_grid%dx(ghosted_id)*grid%structured_grid%dy(ghosted_id)*grid%structured_grid%dz(ghosted_id)
 
+!#if 0
+write(pflotran_model%option%myrank+200,*) 'rank=',pflotran_model%option%myrank, &
+        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
+         i, j, k, 'dx,dy, dz=', grid%structured_grid%dx(ghosted_id),  &
+         grid%structured_grid%dy(ghosted_id),  grid%structured_grid%dz(ghosted_id)
+!write(pflotran_model%option%myrank+200,*) 'ghosted_id=',ghosted_id, &
+!'dx*dy=', grid%structured_grid%dx(ghosted_id)*grid%structured_grid%dy(ghosted_id), &
+!'dx*dy*dz=', grid%structured_grid%dx(ghosted_id)*grid%structured_grid%dy(ghosted_id)*grid%structured_grid%dz(ghosted_id)
+!#endif
         ! some checking
         ! areas of grid (x,y)
         call area(a, f, lats, lons, 4, dummy1, dummy2)
@@ -446,13 +449,11 @@ print *, i, j, k, 'dz=', grid%structured_grid%dz(ghosted_id), &
     CHKERRQ(ierr)
     call VecRestoreArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%xisoil_pfs, lonc_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%xsoil_pfs, lonc_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%yisoil_pfs, latc_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%ysoil_pfs, latc_pf_loc, ierr)
     CHKERRQ(ierr)
 
-    call VecRestoreArrayF90(clm_pf_idata%area_top_face_pfs, toparea_pf_loc, ierr)
-    CHKERRQ(ierr)
 
     ! re-do some dimension calculations after changes above
     call GridComputeVolumes(grid, patch%field%volume0, pflotran_model%option)      ! cell volumes
@@ -461,55 +462,6 @@ print *, i, j, k, 'dz=', grid%structured_grid%dz(ghosted_id), &
                              realization%transport_conditions,                  &
                              realization%option)
 
-    ! re-do grid-cell x/y coordiantes in unit of meters  ('z' coordinate already done above)
-    ! (originally in lon-deg/lat-deg derived from 'dxg/dyg_local' calculated in subroutine 'StructGridComputeCoord()')
-    grid%x_min_local = 1.d20
-    grid%x_max_local = -1.d20
-    grid%y_min_local = 1.d20
-    grid%y_max_local = -1.d20
-    grid%z_min_local = 1.d20
-    grid%z_max_local = -1.d20
-    do k = 1, grid%structured_grid%nz
-      y_global = discretization%origin(Y_DIRECTION)
-      do j = 1, grid%structured_grid%ny
-        y_global = y_global + grid%structured_grid%dy(j)          ! accumulating 'dy' for 'y'
-
-        x_global = discretization%origin(X_DIRECTION)
-        do i = 1, grid%structured_grid%nx
-          x_global = x_global + grid%structured_grid%dx(i)        ! accumlating 'dx' for 'x'
-
-          ghosted_id = i+(j-1)*grid%structured_grid%nx+(k-1)*grid%structured_grid%nxy
-          local_id = grid%nG2L(ghosted_id)
-          if (ghosted_id <= 0 .or. local_id <= 0) cycle      ! avoiding non-existing node
-          grid%x(ghosted_id) = x_global
-          grid%y(ghosted_id) = y_global
-
-          if (grid%x_min_local>=grid%x(ghosted_id)) grid%x_min_local=grid%x(ghosted_id)
-          if (grid%y_min_local>=grid%y(ghosted_id)) grid%y_min_local=grid%y(ghosted_id)
-          if (grid%z_min_local>=grid%z(ghosted_id)) grid%z_min_local=grid%z(ghosted_id)
-          if (grid%x_max_local<=grid%x(ghosted_id)) grid%x_max_local=grid%x(ghosted_id)
-          if (grid%y_max_local<=grid%y(ghosted_id)) grid%y_max_local=grid%y(ghosted_id)
-          if (grid%z_max_local<=grid%z(ghosted_id)) grid%z_max_local=grid%z(ghosted_id)
-
-        enddo
-      enddo
-    enddo
-
-    if (associated(grid%structured_grid)) then
-      ! compute global max/min from the local max/in
-      call MPI_Allreduce(grid%x_min_local,grid%x_min_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MIN, pflotran_model%option%mycomm,ierr)
-      call MPI_Allreduce(grid%y_min_local,grid%y_min_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MIN, pflotran_model%option%mycomm,ierr)
-      call MPI_Allreduce(grid%z_min_local,grid%z_min_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MIN, pflotran_model%option%mycomm,ierr)
-      call MPI_Allreduce(grid%x_max_local,grid%x_max_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MAX, pflotran_model%option%mycomm,ierr)
-      call MPI_Allreduce(grid%y_max_local,grid%y_max_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MAX, pflotran_model%option%mycomm,ierr)
-      call MPI_Allreduce(grid%z_max_local,grid%z_max_global,ONE_INTEGER_MPI, &
-                      MPI_DOUBLE_PRECISION,MPI_MAX, pflotran_model%option%mycomm,ierr)
-    endif
 
     ! the following variable is directly used in 'sandbox_somdec'
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -731,7 +683,7 @@ print *, i, j, k, 'dz=', grid%structured_grid%dz(ghosted_id), &
 
     do ghosted_id = 1, grid%ngmax
       local_id = grid%nG2L(ghosted_id)
-      if (ghosted_id < 0 .or. local_id <= 0) cycle
+      if (ghosted_id < 0 .or. local_id < 0) cycle
       if (associated(patch%imat)) then
         if (patch%imat(ghosted_id) < 0) cycle
       endif
