@@ -215,6 +215,7 @@ contains
     use Realization_class
     use Discretization_module
     use Patch_module
+    use Field_module
     use Grid_module
     use Grid_Structured_module
     use Option_module
@@ -229,6 +230,8 @@ contains
     use Mapping_module
     use Saturation_Function_module
 
+    use Variables_module, only : VOLUME
+
     implicit none
 
 #include "finclude/petscvec.h"
@@ -240,6 +243,7 @@ contains
     type(discretization_type), pointer        :: discretization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
+    type(field_type), pointer                 :: field
     type(simulation_base_type), pointer :: simulation
 
     PetscErrorCode     :: ierr
@@ -274,6 +278,7 @@ contains
     end select
 
     patch           => realization%patch
+    field           => realization%field
     discretization  => realization%discretization
     grid            => patch%grid
 
@@ -382,15 +387,6 @@ contains
         grid%structured_grid%dz(ghosted_id) = dzsoil_pf_loc(ghosted_id)
         grid%z(ghosted_id)   = zisoil_pf_loc(ghosted_id)    ! directly over-ride PF 'z' coordinate from CLM soil layer 'zi'
 
-!#if 0
-write(pflotran_model%option%myrank+200,*) 'rank=',pflotran_model%option%myrank, &
-        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
-         i, j, k, 'dx,dy, dz=', grid%structured_grid%dx(ghosted_id),  &
-         grid%structured_grid%dy(ghosted_id),  grid%structured_grid%dz(ghosted_id)
-!write(pflotran_model%option%myrank+200,*) 'ghosted_id=',ghosted_id, &
-!'dx*dy=', grid%structured_grid%dx(ghosted_id)*grid%structured_grid%dy(ghosted_id), &
-!'dx*dy*dz=', grid%structured_grid%dx(ghosted_id)*grid%structured_grid%dy(ghosted_id)*grid%structured_grid%dz(ghosted_id)
-!#endif
         ! some checking
         ! areas of grid (x,y)
         call area(a, f, lats, lons, 4, dummy1, dummy2)
@@ -456,11 +452,17 @@ write(pflotran_model%option%myrank+200,*) 'rank=',pflotran_model%option%myrank, 
 
 
     ! re-do some dimension calculations after changes above
-    call GridComputeVolumes(grid, patch%field%volume0, pflotran_model%option)      ! cell volumes
-    call GridComputeInternalConnect(grid, pflotran_model%option)                   ! cell internal connection distances
-    call PatchProcessCouplers( realization%patch,realization%flow_conditions,   &  ! BC/IC/SrcSink connection (face) areas
-                             realization%transport_conditions,                  &
-                             realization%option)
+    call GridComputeVolumes(grid, field%volume0, pflotran_model%option)      ! cell volumes
+    call GridComputeInternalConnect(grid, pflotran_model%option)             ! cell internal connection distances
+    call PatchProcessCouplers(patch,realization%flow_conditions,             &  ! BC/IC/SrcSink connection (face) areas
+                              realization%transport_conditions,              &
+                              realization%option)
+
+    ! re-assign updated field%volume0 to material_auxvar%volume
+    call DiscretizationGlobalToLocal(discretization,field%volume0, &
+                                   field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material, &
+                               field%work_loc,VOLUME,ZERO_INTEGER)
 
 
     ! the following variable is directly used in 'sandbox_somdec'
