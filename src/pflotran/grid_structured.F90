@@ -957,6 +957,8 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
   PetscInt, pointer :: int_array1(:), int_array2(:),int_array3(:),int_array4(:),int_array5(:),index(:)
   PetscInt :: count
 
+  PetscReal :: tempreal
+
   radius => xc
 
   ! the adjustments in the case of AMR are based on the PIMS code adjustments by LC
@@ -1026,6 +1028,30 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
               connections%dist(1,iconn) = 1.d0  ! x component of unit vector
               connections%area(iconn) = structured_grid%dy(id_up)* &
                                         structured_grid%dz(id_up)
+
+#ifdef CLM_PFLOTRAN
+              ! need to adjust 'dist' by elevation (z-coordinate) differences, if any, when coupled with CLM
+              ! by coupling, grid%z is CLM grid's elevation in meters
+              tempreal = abs(zc(id_up) - zc(id_dn))
+              if (tempreal>1.d-6) then    !'1.d-6' is the limit of mircometer
+                 tempreal = tempreal*tempreal+(dist_up+dist_dn)*(dist_up+dist_dn)
+                 connections%dist(0,iconn) = sqrt(tempreal)
+              endif
+
+              ! dx is the mid-length of a isoceles trapezoid grid, so need to adjust the connection (interface) face area
+              tempreal = structured_grid%dy(id_dn) - structured_grid%dy(id_up)
+              if (tempreal>1.d-6) then    ! 'up' is the short parallel side
+                 tempreal = abs(tempreal)*(dist_up/(dist_up+dist_dn))+structured_grid%dy(id_up)
+                 connections%area(iconn) = tempreal* &
+                                    structured_grid%dz(id_up)
+
+              elseif (tempreal<-1.d-6) then    ! 'dn' is the short parallel side
+                 tempreal = abs(tempreal)*(dist_dn/(dist_up+dist_dn))+structured_grid%dy(id_dn)
+                 connections%area(iconn) = tempreal* &
+                                    structured_grid%dz(id_up)
+              endif
+#endif
+
             enddo
           enddo
         enddo
@@ -1116,6 +1142,30 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
               connections%dist(2,iconn) = 1.d0  ! y component of unit vector
               connections%area(iconn) = structured_grid%dx(id_up)* &
                                     structured_grid%dz(id_up)
+
+
+#ifdef CLM_PFLOTRAN
+              ! need to adjust 'dist' by elevation (z-coordinate) differences, if any, when coupled with CLM
+              ! by coupling, grid%z is CLM grid's elevation in meters
+              tempreal = abs(zc(id_up) - zc(id_dn))
+              if (tempreal>1.d-6) then    !'1.d-6' is mircometer
+                 tempreal = tempreal*tempreal+(dist_up+dist_dn)*(dist_up+dist_dn)
+                 connections%dist(0,iconn) = sqrt(tempreal)
+              endif
+
+              ! dx is the mid-length of a isoceles trapezoid grid, so need to adjust the connection (interface) face area
+              tempreal = structured_grid%dx(id_dn) - structured_grid%dx(id_up)
+              if (tempreal>1.d-6) then    ! 'up' is the short parallel side
+                 tempreal = abs(tempreal)*(dist_up/(dist_up+dist_dn))+structured_grid%dx(id_up)
+                 connections%area(iconn) = tempreal* &
+                                    structured_grid%dz(id_up)
+              elseif (tempreal<-1.d-6) then    ! 'dn' is the short parallel side
+                 tempreal = abs(tempreal)*(dist_dn/(dist_up+dist_dn))+structured_grid%dx(id_dn)
+                 connections%area(iconn) = tempreal* &
+                                    structured_grid%dz(id_up)
+              endif
+#endif
+
             enddo
           enddo
         enddo

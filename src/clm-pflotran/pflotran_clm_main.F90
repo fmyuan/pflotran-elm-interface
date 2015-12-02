@@ -249,7 +249,6 @@ contains
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id, i, j, k
 
-    !PetscScalar, pointer :: toparea_pf_loc(:)    ! soil top face area (m^2) for 3-D PF cells
     PetscScalar, pointer :: dzsoil_pf_loc(:)       ! soil cell length/width/thickness (m) for 3-D PF cells
     PetscScalar, pointer :: lonc_pf_loc(:),latc_pf_loc(:), zisoil_pf_loc(:)           ! soil cell coordinates (deg/deg/m) for 3-D PF cells
     PetscReal            :: lon_c, lat_c, lon_e, lon_w, lat_s, lat_n
@@ -335,7 +334,6 @@ contains
 
     do ghosted_id = 1, grid%ngmax
       local_id = grid%nG2L(ghosted_id)
-      if (ghosted_id <= 0 .or. local_id <= 0) cycle
 
         ! hack cell's 3-D dimensions
 
@@ -452,6 +450,8 @@ contains
 
 
     ! re-do some dimension calculations after changes above
+    call MPI_Barrier(pflotran_model%option%mycomm,ierr)
+
     call GridComputeVolumes(grid, field%volume0, pflotran_model%option)      ! cell volumes
     call GridComputeInternalConnect(grid, pflotran_model%option)             ! cell internal connection distances
     call PatchProcessCouplers(patch,realization%flow_conditions,             &  ! BC/IC/SrcSink connection (face) areas
