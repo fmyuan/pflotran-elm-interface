@@ -400,18 +400,28 @@ subroutine DiscretizationRead(discretization,input,option)
 
 #ifdef CLM_PFLOTRAN
             !override input cards, if coupled wit CLM
-            allocate(discretization%grid%structured_grid%dx_global &
-              (discretization%grid%structured_grid%nx))
-            discretization%grid%structured_grid%dx_global = &
-              clm_pf_idata%dxclm_global                               ! unit: longitudal degrees
 
-            allocate(discretization%grid%structured_grid%dy_global &
-              (discretization%grid%structured_grid%ny))
-            discretization%grid%structured_grid%dy_global = &
-              clm_pf_idata%dyclm_global                               ! unit: latitudal degrees
+            if(clm_pf_idata%dxclm_global(1)>1.d-6 .and. clm_pf_idata%dyclm_global(1)>1.d-6) then
+              allocate(discretization%grid%structured_grid%dx_global &
+                (discretization%grid%structured_grid%nx))
+              discretization%grid%structured_grid%dx_global = &
+                clm_pf_idata%dxclm_global                               ! unit: longitudal degrees
 
-            allocate(discretization%grid%structured_grid%dz_global &
-              (discretization%grid%structured_grid%nz))
+              allocate(discretization%grid%structured_grid%dy_global &
+                (discretization%grid%structured_grid%ny))
+              discretization%grid%structured_grid%dy_global = &
+                clm_pf_idata%dyclm_global                               ! unit: latitudal degrees
+
+            else  ! the following IS needed, if CLM-grid NOT available
+              call StructGridReadDXYZ(discretization%grid%structured_grid,input,option)
+
+            endif
+
+            ! always over-riding z-thickness
+            if (.not.associated(discretization%grid%structured_grid%dz_global)) then
+              allocate(discretization%grid%structured_grid%dz_global &
+                 (discretization%grid%structured_grid%nz))
+            endif
             discretization%grid%structured_grid%dz_global = &
               clm_pf_idata%dzclm_global                               ! unit: vertical meters
 

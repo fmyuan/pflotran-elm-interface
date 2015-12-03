@@ -249,7 +249,7 @@ contains
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id, i, j, k
 
-    PetscScalar, pointer :: dzsoil_pf_loc(:)       ! soil cell length/width/thickness (m) for 3-D PF cells
+    PetscScalar, pointer :: dlon_pf_loc(:),dlat_pf_loc(:), dzsoil_pf_loc(:)           ! soil cell length/width/thickness (deg/deg/m) for 3-D PF cells
     PetscScalar, pointer :: lonc_pf_loc(:),latc_pf_loc(:), zisoil_pf_loc(:)           ! soil cell coordinates (deg/deg/m) for 3-D PF cells
     PetscReal            :: lon_c, lat_c, lon_e, lon_w, lat_s, lat_n
     PetscReal            :: x_global, y_global
@@ -283,6 +283,16 @@ contains
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
+                                    clm_pf_idata%dxsoil_clmp, &
+                                    clm_pf_idata%dxsoil_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%dysoil_clmp, &
+                                    clm_pf_idata%dysoil_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
                                     clm_pf_idata%dzsoil_clmp, &
                                     clm_pf_idata%dzsoil_pfs)
 
@@ -302,6 +312,10 @@ contains
                                     clm_pf_idata%ysoil_pfs)
 
     !
+    call VecGetArrayReadF90(clm_pf_idata%dxsoil_pfs, dlon_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayReadF90(clm_pf_idata%dysoil_pfs, dlat_pf_loc, ierr)
+    CHKERRQ(ierr)
     call VecGetArrayReadF90(clm_pf_idata%dzsoil_pfs, dzsoil_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
@@ -350,10 +364,21 @@ contains
 
         lon_c = lonc_pf_loc(ghosted_id)
         lat_c = latc_pf_loc(ghosted_id)
-        lon_e = lon_c + grid%structured_grid%dxg_local(i)/2.0d0  ! East
-        lon_w = lon_c - grid%structured_grid%dxg_local(i)/2.0d0  ! West
-        lat_s = lat_c - grid%structured_grid%dyg_local(j)/2.0d0  ! South
-        lat_n = lat_c + grid%structured_grid%dyg_local(j)/2.0d0  ! North
+        if(dlon_pf_loc(ghosted_id) >0.d0 .and. dlat_pf_loc(ghosted_id) >0.d0) then
+          ! the following assumes an isoceles trapezoid grid from CLM unstructured or 1-D gridcells
+          ! may have distortion for area estimation, but should be good for distance calculation
+          lon_e = lon_c + dlon_pf_loc(ghosted_id)/2.0d0  ! East
+          lon_w = lon_c - dlon_pf_loc(ghosted_id)/2.0d0  ! West
+          lat_s = lat_c - dlat_pf_loc(ghosted_id)/2.0d0  ! South
+          lat_n = lat_c + dlat_pf_loc(ghosted_id)/2.0d0  ! North
+
+        else
+          lon_e = lon_c + grid%structured_grid%dxg_local(i)/2.0d0  ! East
+          lon_w = lon_c - grid%structured_grid%dxg_local(i)/2.0d0  ! West
+          lat_s = lat_c - grid%structured_grid%dyg_local(j)/2.0d0  ! South
+          lat_n = lat_c + grid%structured_grid%dyg_local(j)/2.0d0  ! North
+        endif
+
         lats(1) = lat_s
         lons(1) = lon_w
         lats(2) = lat_s
@@ -439,6 +464,10 @@ contains
 
     enddo
 
+    call VecRestoreArrayReadF90(clm_pf_idata%dxsoil_pfs, dlon_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%dysoil_pfs, dlat_pf_loc, ierr)
+    CHKERRQ(ierr)
     call VecRestoreArrayReadF90(clm_pf_idata%dzsoil_pfs, dzsoil_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
