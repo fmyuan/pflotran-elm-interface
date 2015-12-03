@@ -6,16 +6,16 @@ module Checkpoint_module
   
   private
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscdm.h"
-#include "finclude/petscdm.h90"
-#include "finclude/petscdef.h"
-#include "finclude/petscis.h"
-#include "finclude/petscis.h90"
-#include "finclude/petsclog.h"
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscdm.h"
+#include "petsc/finclude/petscdm.h90"
+#include "petsc/finclude/petscdef.h"
+#include "petsc/finclude/petscis.h"
+#include "petsc/finclude/petscis.h90"
+#include "petsc/finclude/petsclog.h"
+#include "petsc/finclude/petscviewer.h"
 
   type :: checkpoint_header_type
     PetscInt :: version
@@ -43,7 +43,7 @@ module Checkpoint_module
     subroutine PetscBagGetData(bag,header,ierr)
       import :: checkpoint_header_type
       implicit none
-#include "finclude/petscbag.h"
+#include "petsc/finclude/petscbag.h"
       PetscBag :: bag
       type(checkpoint_header_type), pointer :: header
       PetscErrorCode :: ierr
@@ -120,8 +120,8 @@ subroutine CheckpointOpenFileForWriteBinary(viewer,id,option,id_stamp)
 
   implicit none
 
-#include "finclude/petscviewer.h"
-#include "finclude/petscbag.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscbag.h"
 
   PetscViewer :: viewer
   PetscInt :: id
@@ -179,8 +179,8 @@ subroutine CheckPointWriteCompatibilityBinary(viewer,option)
   
   implicit none
 
-#include "finclude/petscviewer.h"
-#include "finclude/petscbag.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscbag.h"
 
   PetscViewer :: viewer
   type(option_type) :: option
@@ -235,8 +235,8 @@ subroutine CheckPointReadCompatibilityBinary(viewer,option)
   
   implicit none
 
-#include "finclude/petscviewer.h"
-#include "finclude/petscbag.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscbag.h"
 
   PetscViewer :: viewer
   type(option_type) :: option
@@ -308,9 +308,9 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
   
   implicit none
 
-#include "finclude/petscviewer.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   PetscViewer :: viewer
   class(realization_type) :: realization
@@ -342,7 +342,7 @@ subroutine CheckpointFlowProcessModelBinary(viewer,realization)
     ! that holds variables derived from the primary ones via the translator.
     select case(option%iflowmode)
       case(MPH_MODE,TH_MODE,RICHARDS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,G_MODE)
+           FLASH2_MODE,G_MODE,TOIL_IMS_MODE)
         call DiscretizationLocalToGlobal(realization%discretization, &
                                          field%iphas_loc,global_vec,ONEDOF)
         call VecView(global_vec, viewer, ierr);CHKERRQ(ierr)
@@ -403,9 +403,9 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
   
   implicit none
 
-#include "finclude/petscviewer.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   PetscViewer :: viewer
   class(realization_type) :: realization
@@ -435,7 +435,7 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
 
     select case(option%iflowmode)
       case(MPH_MODE,TH_MODE,RICHARDS_MODE,IMS_MODE,MIS_MODE, &
-           FLASH2_MODE,G_MODE)
+           FLASH2_MODE,G_MODE,TOIL_IMS_MODE)
         call VecLoad(global_vec,viewer,ierr);CHKERRQ(ierr)
         call DiscretizationGlobalToLocal(discretization,global_vec, &
                                          field%iphas_loc,ONEDOF)
@@ -446,6 +446,10 @@ subroutine RestartFlowProcessModelBinary(viewer,realization)
           ! need to copy iphase into global_auxvar%istate
           call GlobalSetAuxVarVecLoc(realization,field%iphas_loc,STATE, &
                                      ZERO_INTEGER)
+        endif
+        if (option%iflowmode == TOIL_IMS_MODE) then
+          !iphase value not needed - leave it as initialised
+          ! consider to remove iphase for all ims modes
         endif
         if (option%iflowmode == MPH_MODE) then
         ! set vardof vec in mphase
@@ -684,8 +688,8 @@ subroutine CheckPointWriteIntDatasetHDF5(chk_grp_id, dataset_name, dataset_rank,
   
   implicit none
 
-#include "finclude/petscviewer.h"
-#include "finclude/petscbag.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscbag.h"
 
 #if defined(SCORPIO_WRITE)
   integer :: chk_grp_id
@@ -796,8 +800,8 @@ subroutine CheckPointWriteRealDatasetHDF5(chk_grp_id, dataset_name, dataset_rank
   
   implicit none
 
-#include "finclude/petscviewer.h"
-#include "finclude/petscbag.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscbag.h"
 
 #if defined(SCORPIO_WRITE)
   integer :: chk_grp_id
@@ -1098,8 +1102,8 @@ subroutine CheckPointWriteCompatibilityHDF5(chk_grp_id, option)
 
   implicit none
 
-#include "finclude/petscviewer.h"
-#include "finclude/petscbag.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscbag.h"
 
 #if defined(SCORPIO_WRITE)
   integer :: chk_grp_id
@@ -1261,8 +1265,8 @@ subroutine CheckpointFlowProcessModelHDF5(pm_grp_id, realization)
   use HDF5_module, only : HDF5WriteDataSetFromVec
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
 #if defined(SCORPIO_WRITE)
   integer :: pm_grp_id
@@ -1406,8 +1410,8 @@ subroutine RestartFlowProcessModelHDF5(pm_grp_id, realization)
   use HDF5_module, only : HDF5ReadDataSetInVec
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
 #if defined(SCORPIO_WRITE)
   integer :: pm_grp_id

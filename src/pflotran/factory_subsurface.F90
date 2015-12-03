@@ -8,7 +8,7 @@ module Factory_Subsurface_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: SubsurfaceInitialize, &
             SubsurfaceInitializePostPETSc, &
@@ -323,6 +323,7 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
   use PM_Mphase_class
   use PM_Richards_class
   use PM_TH_class
+  use PM_TOilIms_class
 
   implicit none 
 
@@ -366,6 +367,23 @@ subroutine SubsurfaceSetFlowMode(pm_flow,option)
 
       option%nflowdof = 3
       option%nflowspec = 2
+      option%use_isothermal = PETSC_FALSE
+    class is (pm_toil_ims_type)
+      option%iflowmode = TOIL_IMS_MODE
+      option%nphase = 2
+      option%liquid_phase = 1           ! liquid_pressure
+      option%oil_phase = 2              ! oil_pressure
+
+      option%capillary_pressure_id = 3  ! capillary pressure
+
+      option%nflowdof = 3
+      !two species (H2O,OIL): each present only in its own rich phase
+      option%nflowspec = 2  
+
+      option%water_id = 1
+      option%oil_id = 2
+      option%energy_id = 3
+
       option%use_isothermal = PETSC_FALSE
     class is (pm_immis_type)
       option%iflowmode = IMS_MODE
@@ -440,6 +458,7 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
   use PM_Mphase_class
   use PM_Richards_class
   use PM_TH_class
+  use PM_TOilIms_class
   
   use Init_Common_module
 
@@ -483,6 +502,8 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
             pm => PMRichardsCreate()
           case('TH')
             pm => PMTHCreate()
+          case('TOIL_IMS')
+            pm => PMToilImsCreate() 
           case default
             error_string = trim(error_string) // ',MODE'
             call InputKeywordUnrecognized(word,error_string,option)
@@ -495,12 +516,16 @@ subroutine SubsurfaceReadFlowPM(input, option, pm)
           call printErrMsg(option)
         endif
         select type(pm)
+!          class is(pm_general_type,pm_richards_type,pm_th_type)
+          !geh: why I cannot shove all these in a single 'class is' statement
+          !     is beyond me.
           class is(pm_general_type)
-            ! inorder to not immediately return out of GeneralRead
-            !TODO(geh): remove dummy word
-            input%buf = 'dummy_word'
+            call pm%Read(input)
+          class is(pm_richards_type)
             call pm%Read(input)
           class is(pm_th_type)
+            call pm%Read(input)
+          class is(pm_toil_ims_type)
             call pm%Read(input)
           class default
             option%io_buffer = 'OPTIONS not set up for PM.'
@@ -701,12 +726,13 @@ subroutine InitSubsurfaceSimulation(simulation)
   use PM_RT_class
   use PM_Waste_Form_class
   use PM_UFD_Decay_class
+  use PM_TOilIms_class
 
   use Timestepper_BE_class
   
   implicit none
   
-#include "finclude/petscsnes.h" 
+#include "petsc/finclude/petscsnes.h" 
 
   class(subsurface_simulation_type) :: simulation
   
@@ -841,18 +867,28 @@ subroutine InitSubsurfaceSimulation(simulation)
               select type(cur_process_model)
                 ! flow solutions
                 class is(pm_subsurface_type)
-                  if (ts%solver%check_post_convergence) then
+                  if (ts%solver%check_post_convergence .or. &
+                      cur_process_model%check_post_convergence) then
                     call SNESLineSearchSetPostCheck(linesearch, &
                                                     PMCheckUpdatePostPtr, &
                                              cur_process_model_coupler%pm_ptr, &
                                                     ierr);CHKERRQ(ierr)
+                    !geh: it is possible that the other side has not been set
+                    ts%solver%check_post_convergence = PETSC_TRUE
+                    cur_process_model%check_post_convergence = PETSC_TRUE
                   endif
                 class is(pm_rt_type)
-                  if (ts%solver%check_post_convergence .or. option%use_mc) then
+                  if (ts%solver%check_post_convergence .or. &
+                      cur_process_model%print_EKG .or. &
+                      option%use_mc) then
                     call SNESLineSearchSetPostCheck(linesearch, &
                                                     PMCheckUpdatePostPtr, &
                                              cur_process_model_coupler%pm_ptr, &
                                                     ierr);CHKERRQ(ierr)
+                    if (cur_process_model%print_EKG) then
+                      ts%solver%check_post_convergence = PETSC_TRUE
+                      option%transport%check_post_convergence = PETSC_TRUE
+                    endif
                   endif
               end select
               ! Pre
@@ -866,6 +902,11 @@ subroutine InitSubsurfaceSimulation(simulation)
                                                    ierr);CHKERRQ(ierr)
                   endif              
                 class is(pm_general_type)
+                  call SNESLineSearchSetPreCheck(linesearch, &
+                                                 PMCheckUpdatePrePtr, &
+                                             cur_process_model_coupler%pm_ptr, &
+                                                 ierr);CHKERRQ(ierr)
+                class is(pm_toil_ims_type)
                   call SNESLineSearchSetPreCheck(linesearch, &
                                                  PMCheckUpdatePrePtr, &
                                              cur_process_model_coupler%pm_ptr, &

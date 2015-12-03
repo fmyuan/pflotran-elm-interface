@@ -8,7 +8,7 @@ module PMC_Subsurface_class
 
   implicit none
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
   
   private
 
@@ -174,8 +174,8 @@ subroutine PMCSubsurfaceGetAuxDataFromSurf(this)
 
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   class(pmc_subsurface_type) :: this
   
@@ -432,8 +432,8 @@ subroutine PMCSubsurfaceSetAuxDataForSurf(this)
 
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   class(pmc_subsurface_type) :: this
   
@@ -554,9 +554,9 @@ subroutine PMCSubsurfaceGetAuxDataFromGeomech(this)
 
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscviewer.h"
 
   class (pmc_subsurface_type) :: this
 
@@ -643,8 +643,8 @@ subroutine PMCSubsurfaceSetAuxDataForGeomech(this)
 
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   class (pmc_subsurface_type) :: this
 

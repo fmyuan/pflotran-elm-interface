@@ -10,7 +10,7 @@ module Option_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
 
   type, public :: option_type 
@@ -58,6 +58,7 @@ module Option_module
     PetscInt :: nphase
     PetscInt :: liquid_phase
     PetscInt :: gas_phase
+    PetscInt :: oil_phase
     PetscInt :: nflowdof
     PetscInt :: nflowspec
     PetscInt :: nmechdof
@@ -89,6 +90,7 @@ module Option_module
     PetscInt :: saturation_pressure_id 
     PetscInt :: water_id  ! index of water component dof
     PetscInt :: air_id  ! index of air component dof
+    PetscInt :: oil_id  ! index of oil component dof
     PetscInt :: energy_id  ! index of energy dof
 
     PetscInt :: ntrandof
@@ -217,6 +219,8 @@ module Option_module
 
     ! when the scaling factor is too small, stop in reactive transport 
     PetscReal :: min_allowable_scale
+
+    PetscBool :: print_ekg
 
   end type option_type
   
@@ -580,6 +584,8 @@ subroutine OptionInitRealization(option)
   
   ! when the scaling factor is too small, stop in reactive transport 
   option%min_allowable_scale = 1.0d-10
+
+  option%print_ekg = PETSC_FALSE
   
 end subroutine OptionInitRealization
 
@@ -727,7 +733,7 @@ subroutine printErrMsgByRank2(option,string)
   
   write(word,*) option%myrank
   print *
-  print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(option%io_buffer)
+  print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(string)
   print *
   print *, 'Stopping!'
   stop
@@ -880,7 +886,7 @@ subroutine printMsgByRank2(option,string)
   character(len=MAXWORDLENGTH) :: word
   
   write(word,*) option%myrank
-  print *, '(' // trim(adjustl(word)) // '): ' // trim(option%io_buffer)
+  print *, '(' // trim(adjustl(word)) // '): ' // trim(string)
   
 end subroutine printMsgByRank2
 
@@ -1156,7 +1162,7 @@ subroutine OptionBeginTiming(option)
   
   implicit none
   
-#include "finclude/petsclog.h"
+#include "petsc/finclude/petsclog.h"
   
   type(option_type) :: option
   
@@ -1182,7 +1188,7 @@ subroutine OptionEndTiming(option)
   
   implicit none
   
-#include "finclude/petsclog.h"
+#include "petsc/finclude/petsclog.h"
   
   type(option_type) :: option
   

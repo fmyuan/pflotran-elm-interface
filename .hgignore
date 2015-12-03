@@ -399,3 +399,4 @@ src/clm-pflotran/data_mediator_vec.F90
 reaction_sandbox_langmuir.F90
 reaction_sandbox_langmu.F90
 pm_ufd_decay.F90
+reaction_sandbox_microbial.F90

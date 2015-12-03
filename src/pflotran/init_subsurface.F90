@@ -6,7 +6,7 @@ module Init_Subsurface_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: InitSubsurfAssignMatIDsToRegns, &
             InitSubsurfAssignMatProperties, &
@@ -356,8 +356,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
   
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   class(realization_type) :: realization
   
@@ -639,8 +639,8 @@ subroutine SubsurfReadMaterialIDsFromFile(realization,realization_dependent, &
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
   class(realization_type) :: realization
   PetscBool :: realization_dependent
@@ -736,8 +736,8 @@ subroutine SubsurfReadPermsFromFile(realization,material_property)
   
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   class(realization_type) :: realization
   type(material_property_type) :: material_property
@@ -916,8 +916,8 @@ subroutine SubsurfReadCompressFromFile(realization,material_property)
   
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   class(realization_type) :: realization
   type(material_property_type) :: material_property
@@ -1467,7 +1467,9 @@ subroutine InitSubsurfaceReadInput(simulation)
         call printMsg(option,flow_condition%name)
         if (option%iflowmode == G_MODE) then
           call FlowConditionGeneralRead(flow_condition,input,option)
-        else
+        else if(option%iflowmode == TOIL_IMS_MODE) then
+          call FlowConditionTOilImsRead(flow_condition,input,option)
+        else 
           call FlowConditionRead(flow_condition,input,option)
         endif
         call FlowConditionAddToList(flow_condition,realization%flow_conditions)
@@ -1859,13 +1861,14 @@ subroutine InitSubsurfaceReadInput(simulation)
         select case(word)
           case('FLOW')
             call SolverReadNewton(flow_timestepper%solver,input,option)
-            if (flow_timestepper%solver%check_post_convergence) then
-              option%flow%check_post_convergence = PETSC_TRUE
-              option%flow%inf_scaled_res_tol = &
-                flow_timestepper%solver%newton_inf_scaled_res_tol
-              option%flow%inf_rel_update_tol = &
-                flow_timestepper%solver%newton_inf_rel_update_tol
-            endif
+!TODO(geh): remove after 11/30/15 as inf_scaled_res_tol is no longer used
+!            if (flow_timestepper%solver%check_post_convergence) then
+!              option%flow%check_post_convergence = PETSC_TRUE
+!            option%flow%inf_scaled_res_tol = &
+!              flow_timestepper%solver%newton_inf_scaled_res_tol
+!              option%flow%inf_rel_update_tol = &
+!                flow_timestepper%solver%newton_inf_rel_update_tol
+!            endif
           case('TRAN','TRANSPORT')
             call SolverReadNewton(tran_timestepper%solver,input,option)
             if (tran_timestepper%solver%check_post_convergence) then

@@ -4,7 +4,7 @@ module Variables_module
 
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
   
   ! variables definitions
   PetscInt, parameter, public :: X_COORDINATE =             1
@@ -128,5 +128,12 @@ module Variables_module
 
 !  PetscInt, parameter, public :: LIQUID_VELOCITY_CELL_CENT = 58
 !  PetscInt, parameter, public :: LIQUID_VELOCITY_CELL_FACE = 59
+
+  PetscInt, parameter, public :: OIL_PRESSURE            = 108
+  PetscInt, parameter, public :: OIL_SATURATION          = 109
+  PetscInt, parameter, public :: OIL_DENSITY             = 110
+  PetscInt, parameter, public :: OIL_DENSITY_MOL         = 111
+  PetscInt, parameter, public :: OIL_ENERGY              = 112
+  PetscInt, parameter, public :: OIL_MOBILITY            = 113
 
 end module Variables_module
