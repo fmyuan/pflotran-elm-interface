@@ -6,7 +6,7 @@ module Reaction_Database_Aux_module
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, public :: database_rxn_type
     PetscInt :: nspec
@@ -83,7 +83,7 @@ function DatabaseRxnCreateFromRxnString(reaction_string, &
   character(len=MAXWORDLENGTH) :: primary_aq_species_names(naqcomp)
   PetscInt :: nimcomp ! immobile primary speces (e.g. biomass)
   PetscInt :: im_offset ! offset for aqueous species
-  character(len=MAXWORDLENGTH) :: primary_im_species_names(nimcomp)
+  character(len=MAXWORDLENGTH), pointer :: primary_im_species_names(:)
   PetscBool :: consider_immobile_species
   type(option_type) :: option
     

@@ -9,7 +9,7 @@ module CLM_Rxn_Base_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, abstract, public :: clm_rxn_base_type
     class(clm_rxn_base_type), pointer :: next
@@ -236,7 +236,7 @@ module CLM_Rxn_Common_module
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: CalNLimitFunc
 
@@ -326,7 +326,7 @@ module CLM_Rxn_Decomp_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter :: LITTER_DECOMP_CLMCN = 1 
   PetscInt, parameter :: LITTER_DECOMP_CLMMICROBE = 2 
@@ -1243,8 +1243,8 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   implicit none
 
 #ifdef CLM_PFLOTRAN
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 #endif
   
   class(clm_rxn_clmdec_type) :: this
@@ -3248,7 +3248,7 @@ module CLM_Rxn_PlantN_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, public, &
     extends(clm_rxn_base_type) :: clm_rxn_plantn_type
@@ -3555,8 +3555,8 @@ subroutine PlantNReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   implicit none
 
 #ifdef CLM_PFLOTRAN
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 #endif
   
   class(clm_rxn_plantn_type) :: this  
@@ -3926,7 +3926,7 @@ module CLM_Rxn_Nitr_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
 #ifndef CLM_PFLOTRAN
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1 
@@ -4225,8 +4225,8 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
   implicit none
 
 #ifdef CLM_PFLOTRAN
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 #endif
   
   class(clm_rxn_nitr_type) :: this  
@@ -4693,7 +4693,7 @@ module CLM_Rxn_Deni_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
 #ifndef CLM_PFLOTRAN
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1
@@ -4932,8 +4932,8 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
   implicit none
 
 #ifdef CLM_PFLOTRAN
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 #endif
 
   class(clm_rxn_deni_type) :: this
@@ -5153,7 +5153,7 @@ module CLM_Rxn_CWDFrag_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
 #ifndef CLM_PFLOTRAN
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1
@@ -5439,8 +5439,8 @@ subroutine CWDFragReact(this,Residual,Jacobian,compute_derivative, &
   implicit none
 
 #ifdef CLM_PFLOTRAN
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 #endif
 
   class(clm_rxn_cwdfrag_type) :: this
@@ -5578,7 +5578,7 @@ module CLM_Rxn_module
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   class(clm_rxn_base_type), pointer, public :: clmrxn_list
 

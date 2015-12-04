@@ -10,7 +10,7 @@ module Reaction_Sandbox_Langmuir_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_langmuir_type
@@ -192,8 +192,8 @@ subroutine LangmuirReact(this,Residual,Jacobian,compute_derivative, &
 
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
   class(reaction_sandbox_langmuir_type) :: this  
   type(option_type) :: option

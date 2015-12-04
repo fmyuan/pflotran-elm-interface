@@ -9,15 +9,15 @@ module Richards_Common_module
   
   private 
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscsnes.h"
-#include "finclude/petscviewer.h"
-#include "finclude/petsclog.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscsnes.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petsclog.h"
 
 
 ! Cutoff parameters
@@ -671,45 +671,45 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
           ! If running with surface-flow model, ensure (darcy_velocity*dt) does
           ! not exceed depth of standing water.
           if (option%surf_flow_on) then
-          if (rich_auxvar_dn%vars_for_sflow(11) == 0.d0) then
-            if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%surf_flow_on) then
-              call EOSWaterdensity(option%reference_temperature, &
+            if (rich_auxvar_dn%vars_for_sflow(11) == 0.d0) then
+              if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%surf_flow_on) then
+                call EOSWaterdensity(option%reference_temperature, &
                                    option%reference_pressure,rho,dum1,ierr)
 
-              if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%vars_for_sflow(1)) then
+                if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%vars_for_sflow(1)) then
 
-                ! Linear approximation
-                call Interpolate(rich_auxvar_dn%vars_for_sflow(8), &
+                  ! Linear approximation
+                  call Interpolate(rich_auxvar_dn%vars_for_sflow(8), &
                                  rich_auxvar_dn%vars_for_sflow(7), &
                                  global_auxvar_dn%pres(1), &
                                  rich_auxvar_dn%vars_for_sflow(10), &
                                  rich_auxvar_dn%vars_for_sflow(9), &
                                  q_approx)
-                v_darcy = q_approx/area
-                q       = q_approx
+                  v_darcy = q_approx/area
+                  q       = q_approx
 
-                dP_lin = rich_auxvar_dn%vars_for_sflow(8) - &
+                  dP_lin = rich_auxvar_dn%vars_for_sflow(8) - &
                          rich_auxvar_dn%vars_for_sflow(7)
-                dq_lin = rich_auxvar_dn%vars_for_sflow(10) - &
+                  dq_lin = rich_auxvar_dn%vars_for_sflow(10) - &
                          rich_auxvar_dn%vars_for_sflow(9)
-                dq_dp_dn = dq_lin/dP_lin
+                  dq_dp_dn = dq_lin/dP_lin
 
-              else
-                if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%vars_for_sflow(2)) then
+                else
+                  if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%vars_for_sflow(2)) then
 
-                  ! Cubic approximation
-                  call CubicPolynomialEvaluate(rich_auxvar_dn%vars_for_sflow(3:6), &
+                    ! Cubic approximation
+                    call CubicPolynomialEvaluate(rich_auxvar_dn%vars_for_sflow(3:6), &
                                                global_auxvar_dn%pres(1) - option%reference_pressure, &
                                                q_approx, dq_approx)
-                  v_darcy = q_approx/area
-                  q = q_approx
-                  dq_dp_dn = dq_approx
+                    v_darcy = q_approx/area
+                    q = q_approx
+                    dq_dp_dn = dq_approx
+                  endif
                 endif
-              endif
-            endif   !if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%surf_flow_on)
+              endif   !if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%surf_flow_on)
 
-          endif     !if (rich_auxvar_dn%vars_for_sflow(11) == 0.d0)
-          endif     !if (option%surf_flow_on)
+            endif     !if (rich_auxvar_dn%vars_for_sflow(11) == 0.d0)
+          endif   !if (option%surf_flow_on)
 
 #ifdef CLM_PFLOTRAN
           ! when coupled with CLM, 'pressure-type' BC due to water-column formed on the BC-contacted cell(s)
@@ -731,12 +731,12 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                dq_dp_dn = Dq*(dukvr_dp_dn*dphi + ukvr*dphi_dp_dn)*area
             endif
 
-           endif     !if (pressure_bc_type == DIRICHLET_BC)
+          endif     !if (pressure_bc_type == DIRICHLET_BC)
 #endif
 
         endif      !if (ukvr*Dq>floweps)
 
-      endif       !if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn)
+       endif       !if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn)
 
     case(NEUMANN_BC)
       if (dabs(auxvars(RICHARDS_PRESSURE_DOF)) > floweps) then

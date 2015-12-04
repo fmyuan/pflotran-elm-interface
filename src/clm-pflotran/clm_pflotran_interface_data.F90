@@ -13,8 +13,8 @@ module clm_pflotran_interface_data
   implicit none
 
 #include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   private
 
   type, public :: clm_pflotran_idata_type

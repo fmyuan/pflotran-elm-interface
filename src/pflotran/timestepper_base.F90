@@ -8,7 +8,7 @@ module Timestepper_Base_class
 
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
  
   PetscInt, parameter, public :: TS_CONTINUE = 0
   PetscInt, parameter, public :: TS_STOP_END_SIMULATION = 1
@@ -49,6 +49,7 @@ module Timestepper_Base_class
     PetscInt :: start_time_step ! the first time step of a given run
     PetscReal :: time_step_tolerance ! scalar used in determining time step size
     PetscReal :: target_time    ! time at end of "synchronized" time step 
+    PetscBool :: print_ekg
 
     type(waypoint_type), pointer :: cur_waypoint
     type(waypoint_type), pointer :: prev_waypoint
@@ -168,6 +169,7 @@ subroutine TimestepperBaseInit(this)
   nullify(this%prev_waypoint)
   this%revert_dt = PETSC_FALSE
   this%num_contig_revert_due_to_sync = 0
+  this%print_ekg = PETSC_FALSE
   
 end subroutine TimestepperBaseInit
 
@@ -307,6 +309,10 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
       call InputErrorMsg(input,option,'TEMPERATURE_CHANGE_LIMIT', &
                           'TIMESTEPPER')
 
+    case('PRINT_EKG')
+      this%print_ekg = PETSC_TRUE
+      option%print_ekg = PETSC_TRUE
+
     case default
       call InputKeywordUnrecognized(keyword,'TIMESTEPPER',option)
   end select
@@ -421,6 +427,10 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
   force_to_match_waypoint = WaypointForceMatchToTime(cur_waypoint)
   equal_to_or_exceeds_waypoint = target_time + tolerance*dt >= cur_waypoint%time
   equal_to_or_exceeds_sync_time = target_time + tolerance*dt >= sync_time
+  if (equal_to_or_exceeds_sync_time .and. sync_time < cur_waypoint%time) then
+    ! flip back if the sync time arrives before the waypoint time.
+    equal_to_or_exceeds_waypoint = PETSC_FALSE
+  endif
   do ! we cycle just in case the next waypoint is beyond the target_time
     if (equal_to_or_exceeds_sync_time .or. &
         (equal_to_or_exceeds_waypoint .and. force_to_match_waypoint)) then
@@ -602,7 +612,7 @@ subroutine TimestepperBaseCheckpointBinary(this,viewer,option)
 
   implicit none
 
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscviewer.h"
 
   class(timestepper_base_type) :: this
   PetscViewer :: viewer
@@ -639,7 +649,7 @@ subroutine TimestepperBaseCheckpointHDF5(this, chk_grp_id, option)
 
   implicit none
 
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscviewer.h"
 
   class(timestepper_base_type) :: this
 #if defined(SCORPIO_WRITE)
@@ -681,7 +691,7 @@ subroutine TimestepperBaseRestartHDF5(this, chk_grp_id, option)
 
   implicit none
 
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscviewer.h"
 
   class(timestepper_base_type) :: this
 #if defined(SCORPIO_WRITE)
@@ -711,7 +721,7 @@ subroutine TimestepperBaseRegisterHeader(this,bag,header)
 
   implicit none
   
-#include "finclude/petscbag.h"  
+#include "petsc/finclude/petscbag.h"  
 
   class(timestepper_base_type) :: this
   class(stepper_base_header_type) :: header
@@ -752,7 +762,7 @@ subroutine TimestepperBaseSetHeader(this,bag,header)
 
   implicit none
   
-#include "finclude/petscbag.h"  
+#include "petsc/finclude/petscbag.h"  
 
   class(timestepper_base_type) :: this
   class(stepper_base_header_type) :: header
@@ -789,7 +799,7 @@ subroutine TimestepperBaseRestartBinary(this,viewer,option)
 
   implicit none
 
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscviewer.h"
 
   class(timestepper_base_type) :: this
   PetscViewer :: viewer
@@ -814,7 +824,7 @@ subroutine TimestepperBaseGetHeader(this,header)
 
   implicit none
   
-#include "finclude/petscbag.h"  
+#include "petsc/finclude/petscbag.h"  
 
   class(timestepper_base_type) :: this
   class(stepper_base_header_type) :: header
@@ -891,6 +901,25 @@ function TimestepperBaseWallClockStop(this,option)
   endif
   
 end function TimestepperBaseWallClockStop
+
+
+! ************************************************************************** !
+
+subroutine TimestepperBasePrintEKG(this)
+  ! 
+  ! Deallocates members of a time stepper
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 07/22/13
+  ! 
+
+  implicit none
+  
+  class(timestepper_base_type) :: this
+  
+  
+  
+end subroutine TimestepperBasePrintEKG
 
 ! ************************************************************************** !
 

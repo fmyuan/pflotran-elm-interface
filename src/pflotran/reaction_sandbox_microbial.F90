@@ -24,7 +24,7 @@ module Reaction_Sandbox_Microbial_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, public :: rate_type
     character(len=MAXWORDLENGTH) :: name
@@ -454,8 +454,8 @@ subroutine MicrobialReact(this,Residual,Jacobian,compute_derivative, &
   implicit none
   
 #ifdef CLM_PFLOTRAN
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 #endif
   
   class(reaction_sandbox_microbial_type) :: this  

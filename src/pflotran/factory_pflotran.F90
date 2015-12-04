@@ -6,7 +6,7 @@ module Factory_PFLOTRAN_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: PFLOTRANInitializePrePetsc, &
             PFLOTRANInitializePostPetsc, &
@@ -107,6 +107,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   
   use Simulation_Base_class
   use PM_Base_class
+  use PM_Surface_Flow_class
   use PM_Surface_TH_class
   use PM_Geomechanics_Force_class
   use PMC_Base_class
@@ -115,6 +116,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   use Factory_Hydrogeophysics_module
   use Factory_Surf_Subsurf_module
   use Factory_Geomechanics_module
+  use Factory_Surf_Subsurf_module, only : SurfSubsurfaceReadFlowPM
   
   implicit none
   
@@ -134,31 +136,19 @@ subroutine PFLOTRANReadSimulation(simulation,option)
 
   class(pmc_base_type), pointer :: pmc_master
   
+  PetscBool :: print_ekg
+  
   nullify(pm_master)
   nullify(cur_pm)
   nullify(new_pm)
   
   nullify(pmc_master)
+  print_ekg = PETSC_FALSE
   
   input => InputCreate(IN_UNIT,option%input_filename,option)
 
   string = 'SIMULATION'
   call InputFindStringInFile(input,option,string)
-  !TODO(geh): remove after 8/5/2015
-  if (input%ierr /= 0) then
-    call printMsg(option,'')
-    call printMsg(option,'***************************************************')
-    call printMsg(option,'')
-    call printMsg(option,'IMPORTANT: The PFLOTRAN input deck has been ' // &
-                 'refactored. Please see')
-    call printMsg(option,'')
-    call printMsg(option,'https://bitbucket.org/pflotran/' // &
-                  'pflotran-dev/wiki/Documentation/RefactoredInput')
-    call printMsg(option,'')
-    call printMsg(option,'for instructions on updating your input deck.')
-    call printMsg(option,'')
-    call printMsg(option,'***************************************************')
-  endif
   call InputFindStringErrorMsg(input,option,string)
   word = ''
   do
@@ -194,8 +184,7 @@ subroutine PFLOTRANReadSimulation(simulation,option)
               call SubsurfaceReadUFDDecayPM(input, option,new_pm)
             case('HYDROGEOPHYSICS')
             case('SURFACE_SUBSURFACE')
-              option%surf_flow_on = PETSC_TRUE
-              new_pm => PMSurfaceTHCreate()
+              call SurfSubsurfaceReadFlowPM(input, option, new_pm)
             case('GEOMECHANICS_SUBSURFACE')
               option%geomech_on = PETSC_TRUE
               new_pm => PMGeomechForceCreate()
@@ -218,6 +207,8 @@ subroutine PFLOTRANReadSimulation(simulation,option)
         enddo
       case('MASTER')
         call PFLOTRANSetupPMCHierarchy(input,option,pmc_master)
+      case('PRINT_EKG')
+        option%print_ekg = PETSC_TRUE
       case default
         call InputKeywordUnrecognized(word,'SIMULATION',option)            
     end select
@@ -226,6 +217,15 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   if (.not.associated(pm_master)) then
     option%io_buffer = 'No process models defined in SIMULATION block.'
     call printErrMsg(option)
+  endif
+  
+  if (option%print_ekg) then
+    cur_pm => pm_master
+    do
+      if (.not.associated(cur_pm)) exit
+      cur_pm%print_ekg = PETSC_TRUE
+      cur_pm => cur_pm%next
+    enddo
   endif
 
   select case(simulation_type)
@@ -344,6 +344,7 @@ subroutine PFLOTRANFinalize(option)
 !
   use Option_module
   use Logging_module
+  use Output_EKG_module
   
   implicit none
   
@@ -353,8 +354,9 @@ subroutine PFLOTRANFinalize(option)
   ! pushed in FinalizeRun()
   call PetscLogStagePop(ierr);CHKERRQ(ierr)
   call OptionEndTiming(option)
-  if (option%myrank == option%io_rank .and. option%print_to_file) then
+  if (OptionPrintToFile(option)) then
     close(option%fid_out)
+    call OutputEKGFinalize()
   endif
 
 end subroutine PFLOTRANFinalize

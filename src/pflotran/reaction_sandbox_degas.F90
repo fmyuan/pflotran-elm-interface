@@ -10,7 +10,7 @@ module Reaction_Sandbox_degas_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_degas_type
@@ -221,8 +221,8 @@ subroutine degasReact(this,Residual,Jacobian,compute_derivative, &
   implicit none
 
 #ifdef CLM_PFLOTRAN
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 #endif
   
   class(reaction_sandbox_degas_type) :: this  
@@ -559,7 +559,7 @@ end subroutine degasDestroy
 
       implicit none
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
       PetscReal, intent(in) :: tt, tp, ts, pco2
       PetscReal, intent(out):: xmole, xmass, kh, fg, phi
@@ -643,7 +643,7 @@ end subroutine degasDestroy
 
       implicit none
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
       PetscReal, intent(in) :: tt, tp, ts, pn2o
       PetscReal, intent(out):: xmole, xmass, kh, fg, phi
@@ -725,7 +725,7 @@ end subroutine degasDestroy
 
       implicit none
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
       PetscReal, intent(in) :: tt, tp, ts, pn2
       PetscReal, intent(out):: xmole, xmass, kh

@@ -17,7 +17,7 @@ module pflotran_clm_setmapping_module
 #include "finclude/petsclog.h"
 #include "finclude/petscsysdef.h"
 #include "finclude/petscviewer.h"
-#include "finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h"
 
   ! Note:
   !
@@ -514,8 +514,8 @@ contains
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 #include "finclude/petscviewer.h"
 
     type(pflotran_model_type), intent(inout), pointer :: pflotran_model
@@ -1128,8 +1128,8 @@ contains
     use Mapping_module
 
     implicit none
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer :: pflotran_model
 
@@ -1250,8 +1250,8 @@ contains
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 #include "finclude/petscviewer.h"
 
     type(pflotran_model_type), intent(inout), pointer :: pflotran_model

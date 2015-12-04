@@ -10,7 +10,7 @@ module Reaction_Sandbox_Nitrif_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1 
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2 
@@ -249,8 +249,8 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
   class(reaction_sandbox_nitrif_type) :: this
   type(option_type) :: option
