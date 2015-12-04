@@ -13,10 +13,10 @@ module pflotran_clm_setmapping_module
 
   private
 
-#include "finclude/petscsys.h"
-#include "finclude/petsclog.h"
-#include "finclude/petscsysdef.h"
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petsclog.h"
+#include "petsc/finclude/petscsysdef.h"
+#include "petsc/finclude/petscviewer.h"
 #include "petsc/finclude/petscvec.h"
 
   ! Note:
@@ -106,7 +106,7 @@ contains
 
     implicit none
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
     type(pflotran_model_type), pointer, intent(inout) :: model
     type(input_type), pointer :: input
@@ -516,7 +516,7 @@ contains
 
 #include "petsc/finclude/petscvec.h"
 #include "petsc/finclude/petscvec.h90"
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscviewer.h"
 
     type(pflotran_model_type), intent(inout), pointer :: pflotran_model
     PetscInt, intent(in), pointer                     :: grid_clm_cell_ids_nindex(:)
@@ -1252,7 +1252,7 @@ contains
 
 #include "petsc/finclude/petscvec.h"
 #include "petsc/finclude/petscvec.h90"
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscviewer.h"
 
     type(pflotran_model_type), intent(inout), pointer :: pflotran_model
     PetscInt, intent(in), pointer                     :: grid_clm_cell_ids_nindex(:)

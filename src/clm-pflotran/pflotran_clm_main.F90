@@ -12,10 +12,10 @@ module pflotran_clm_main_module
 
   private
 
-#include "finclude/petscsys.h"
-#include "finclude/petsclog.h"
-#include "finclude/petscsysdef.h"
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petsclog.h"
+#include "petsc/finclude/petscsysdef.h"
+#include "petsc/finclude/petscviewer.h"
 #include "petsc/finclude/petscvec.h"
 
   type, public :: pflotran_model_type
@@ -166,7 +166,7 @@ contains
   
     implicit none
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
     PetscInt, intent(in) :: mpicomm
     character(len=256), intent(in) :: pflotran_prefix
@@ -558,7 +558,7 @@ contains
 
     implicit none
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 #include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer :: pflotran_model

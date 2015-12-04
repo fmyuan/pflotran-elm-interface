@@ -4,14 +4,14 @@ module Mapping_module
 
   implicit none
 
-#include "finclude/petscsys.h"
-#include "finclude/petsclog.h"
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petsclog.h"
+#include "petsc/finclude/petscviewer.h"
 #include "petsc/finclude/petscvec.h"
 #include "petsc/finclude/petscvec.h90"
-#include "finclude/petscis.h"
-#include "finclude/petscis.h90"
-#include "finclude/petscmat.h"
+#include "petsc/finclude/petscis.h"
+#include "petsc/finclude/petscis.h90"
+#include "petsc/finclude/petscmat.h"
 
   private
 
@@ -1332,7 +1332,7 @@ contains
   
     use Option_module
     implicit none
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscviewer.h"
 
     ! argument
     type(mapping_type), pointer  :: map
