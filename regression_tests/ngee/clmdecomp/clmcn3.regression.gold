@@ -1,8 +1,3 @@
--- GENERIC: pH --
-      Max:   4.4758426352357E+00
-      Min:   4.4758426352357E+00
-     Mean:   4.4758426352357E+00
-        1:   4.4758426352357E+00
 -- CONCENTRATION: Total CO2(aq) --
       Max:   2.4311120651442E-03
       Min:   2.4311120651442E-03
@@ -84,7 +79,7 @@
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   1.1120416641235E+01
+   Time (seconds):   1.1062403066098E+01
    Time Steps:         4803
    Newton Iterations:        26314
    Solver Iterations:        26314

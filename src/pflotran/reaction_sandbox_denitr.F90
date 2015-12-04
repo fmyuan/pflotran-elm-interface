@@ -10,7 +10,7 @@ module Reaction_Sandbox_Denitr_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1 
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2 

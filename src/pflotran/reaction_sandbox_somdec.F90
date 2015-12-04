@@ -14,7 +14,7 @@ module Reaction_Sandbox_SomDec_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_somdec_type

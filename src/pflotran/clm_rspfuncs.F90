@@ -6,7 +6,7 @@ module CLM_RspFuncs_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
 ! constants  
   PetscReal, parameter, public :: rpi = 3.14159265358979323846d0

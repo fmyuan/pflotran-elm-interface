@@ -302,9 +302,6 @@ subroutine RealizationCreateDiscretization(realization)
                                            field%tran_log_xx)
         call DiscretizationDuplicateVector(discretization,field%tran_xx_loc, &
                                            field%tran_work_loc)
-      elseif (realization%reaction%use_plog_formulation) then
-        call DiscretizationDuplicateVector(discretization,field%tran_xx, &
-                                           field%tran_plog_xx)
         call DiscretizationDuplicateVector(discretization,field%tran_xx_loc, &
                                            field%tran_work_loc)
       endif

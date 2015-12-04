@@ -149,11 +149,6 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%bc_sr1    = 1.0d-9
 #endif
 
-  auxvar%P_min = 0.d0
-  auxvar%P_max = 0.d0
-  auxvar%coeff_for_cubic_approx(:) = 0.d0
-  auxvar%range_for_linear_approx(:) = 0.d0
-  auxvar%bcflux_default_scheme = PETSC_FALSE
   if (option%surf_flow_on) then
     allocate(auxvar%vars_for_sflow(11))
     auxvar%vars_for_sflow(:) = 0.d0
@@ -203,11 +198,6 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%bc_sr1    = auxvar%bc_sr1
 #endif
 
-  auxvar2%P_min = auxvar%P_min
-  auxvar2%P_max = auxvar%P_max
-  auxvar2%coeff_for_cubic_approx(:) = auxvar%coeff_for_cubic_approx(:)
-  auxvar2%range_for_linear_approx(:) = auxvar%range_for_linear_approx(:)
-  auxvar2%bcflux_default_scheme = auxvar%bcflux_default_scheme
   if (option%surf_flow_on) &
     auxvar2%vars_for_sflow(:) = auxvar%vars_for_sflow(:)
 
