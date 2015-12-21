@@ -62,6 +62,7 @@ module pflotran_clm_main_module
        pflotranModelGetSaturationFromPF,        &
        ! BGC
        pflotranModelGetRTspecies,               &
+       pflotranModelSetSOMKfromCLM,             &
        pflotranModelSetBGCRatesFromCLM,         &
        pflotranModelUpdateAqConcFromCLM,        &
        pflotranModelUpdateAqGasesFromCLM,       &
@@ -75,6 +76,7 @@ module pflotran_clm_main_module
        pflotranModelDeleteWaypoint
 
 !------------------------------------------------------------
+
   PetscReal, parameter :: xeps0_c = 1.0d-20
   PetscReal, parameter :: xeps0_n = 1.0d-21
 !------------------------------------------------------------
@@ -213,7 +215,9 @@ contains
     use Realization_class
     use Discretization_module
     use Patch_module
+    use Field_module
     use Grid_module
+    use Grid_Structured_module
     use Option_module
     use Material_module
     use Material_Aux_class
@@ -226,25 +230,41 @@ contains
     use Mapping_module
     use Saturation_Function_module
 
+    use Variables_module, only : VOLUME
+
     implicit none
 
 #include "finclude/petscvec.h"
 #include "finclude/petscvec.h90"
+#include "geodesic.inc"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_type), pointer          :: realization
     type(discretization_type), pointer        :: discretization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
+    type(field_type), pointer                 :: field
     type(simulation_base_type), pointer :: simulation
 
     PetscErrorCode     :: ierr
-    PetscInt           :: local_id, ghosted_id
+    PetscInt           :: local_id, ghosted_id, i, j, k
 
-    PetscScalar, pointer :: toparea_pf_loc(:)    ! soil top face area (m^2) for 3-D PF cells
-    PetscScalar, pointer :: zsoi_pf_loc(:)    ! soil depth (m) for 3-D PF cells
+    PetscScalar, pointer :: dlon_pf_loc(:),dlat_pf_loc(:), dzsoil_pf_loc(:)           ! soil cell length/width/thickness (deg/deg/m) for 3-D PF cells
+    PetscScalar, pointer :: lonc_pf_loc(:),latc_pf_loc(:), zisoil_pf_loc(:)           ! soil cell coordinates (deg/deg/m) for 3-D PF cells
+    PetscReal            :: lon_c, lat_c, lon_e, lon_w, lat_s, lat_n
+    PetscReal            :: x_global, y_global
+    PetscReal            :: tempreal
 
+    ! for calling functions in 'geodesic.for'
+    double precision a, f, lat1, lon1, azi1, lat2, lon2, azi2, s12,   &
+        dummy1, dummy2, dummy3, dummy4, dummy5
+    double precision lats(4), lons(4)
+    integer omask
+    a = 6378137.0d0           ! major-axis length of Earth Ellipsoid in metres in WGS-84
+    f = 1.d0/298.257223563d0  ! flatening of Earth Ellipsoid in WGS-84
+    omask = 0
 
+    !----------------------------------------------------------
     select type (simulation => pflotran_model%simulation)
       class is (subsurface_simulation_type)
          realization => simulation%realization
@@ -257,22 +277,52 @@ contains
     end select
 
     patch           => realization%patch
+    field           => realization%field
     discretization  => realization%discretization
     grid            => patch%grid
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%area_top_face_clmp, &
-                                    clm_pf_idata%area_top_face_pfs)
+                                    clm_pf_idata%dxsoil_clmp, &
+                                    clm_pf_idata%dxsoil_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%zsoi_clmp, &
-                                    clm_pf_idata%zsoi_pfs)
+                                    clm_pf_idata%dysoil_clmp, &
+                                    clm_pf_idata%dysoil_pfs)
 
-    call VecGetArrayReadF90(clm_pf_idata%area_top_face_pfs, toparea_pf_loc, ierr)
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%dzsoil_clmp, &
+                                    clm_pf_idata%dzsoil_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%zisoil_clmp, &
+                                    clm_pf_idata%zisoil_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%xsoil_clmp, &
+                                    clm_pf_idata%xsoil_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%ysoil_clmp, &
+                                    clm_pf_idata%ysoil_pfs)
+
+    !
+    call VecGetArrayReadF90(clm_pf_idata%dxsoil_pfs, dlon_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecGetArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
+    call VecGetArrayReadF90(clm_pf_idata%dysoil_pfs, dlat_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayReadF90(clm_pf_idata%dzsoil_pfs, dzsoil_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayReadF90(clm_pf_idata%xsoil_pfs, lonc_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayReadF90(clm_pf_idata%ysoil_pfs, latc_pf_loc, ierr)
     CHKERRQ(ierr)
 
     !
@@ -280,24 +330,181 @@ contains
       case(STRUCTURED_GRID)
          pflotran_model%option%io_buffer = "INFO: CLM column dimension will over-ride PF structured grid mesh."
          call printMsg(pflotran_model%option)
+
+         select case(grid%structured_grid%itype)
+           case(CARTESIAN_GRID)
+             pflotran_model%option%io_buffer = "INFO: CLM column dimension will over-ride PF structured CARTESIAN_GRID."
+             call printMsg(pflotran_model%option)
+
+           case default
+             pflotran_model%option%io_buffer = "ERROR: Currently only works on structured  CARTESIAN_GRID mesh."
+             call printErrMsg(pflotran_model%option)
+         end select
+
       case default
          pflotran_model%option%io_buffer = "ERROR: Currently only works on structured grids."
          call printErrMsg(pflotran_model%option)
-
     end select
 
     do ghosted_id = 1, grid%ngmax
       local_id = grid%nG2L(ghosted_id)
-      if (ghosted_id < 0 .or. local_id < 0) cycle
 
+        ! hack cell's 3-D dimensions
 
+        call StructGridGetIJKFromGhostedID(grid%structured_grid,ghosted_id,i,j,k)
+
+        !        4--(lonc, latc+1/2*dy)-3              ^
+        !       /            |           \             |
+        !      /             |            \            |
+        !     +--------(lonc, latc)--------+     dyg_local(j)
+        !    <--------dxg_local(i)---------->          |
+        !   /                |               \         |
+        !  /                 |                \        |
+        ! 1---------(lonc, latc-1/2*dy)--------2       V
+
+        lon_c = lonc_pf_loc(ghosted_id)
+        lat_c = latc_pf_loc(ghosted_id)
+        if(dlon_pf_loc(ghosted_id) >0.d0 .and. dlat_pf_loc(ghosted_id) >0.d0) then
+          ! the following assumes an isoceles trapezoid grid from CLM unstructured or 1-D gridcells
+          ! may have distortion for area estimation, but should be good for distance calculation
+          lon_e = lon_c + dlon_pf_loc(ghosted_id)/2.0d0  ! East
+          lon_w = lon_c - dlon_pf_loc(ghosted_id)/2.0d0  ! West
+          lat_s = lat_c - dlat_pf_loc(ghosted_id)/2.0d0  ! South
+          lat_n = lat_c + dlat_pf_loc(ghosted_id)/2.0d0  ! North
+
+        else
+          lon_e = lon_c + grid%structured_grid%dxg_local(i)/2.0d0  ! East
+          lon_w = lon_c - grid%structured_grid%dxg_local(i)/2.0d0  ! West
+          lat_s = lat_c - grid%structured_grid%dyg_local(j)/2.0d0  ! South
+          lat_n = lat_c + grid%structured_grid%dyg_local(j)/2.0d0  ! North
+        endif
+
+        lats(1) = lat_s
+        lons(1) = lon_w
+        lats(2) = lat_s
+        lons(2) = lon_e
+        lats(3) = lat_n
+        lons(3) = lon_e
+        lats(4) = lat_n
+        lons(4) = lon_w
+
+        ! mid-longitudal length of trapezoid (x-axis) -
+        lat1 = lat_c
+        lon1 = lon_w
+        lat2 = lat_c
+        lon2 = lon_e
+        call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
+          dummy1, dummy2, dummy3, dummy4 , dummy5)
+        grid%structured_grid%dx(ghosted_id) = s12
+
+        ! mid-latitudal height of trapezoid (y-axis) -
+        lat1 = lat_s
+        lon1 = lon_c
+        lat2 = lat_n
+        lon2 = lon_c
+        call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
+          dummy1, dummy2, dummy3, dummy4 , dummy5)
+        grid%structured_grid%dy(ghosted_id) = s12
+
+        ! vertical (z-axis)
+        grid%structured_grid%dz(ghosted_id) = dzsoil_pf_loc(ghosted_id)
+        grid%z(ghosted_id)   = zisoil_pf_loc(ghosted_id)    ! directly over-ride PF 'z' coordinate from CLM soil layer 'zi'
+
+        ! some checking
+        ! areas of grid (x,y)
+        call area(a, f, lats, lons, 4, dummy1, dummy2)
+        tempreal = grid%structured_grid%dx(ghosted_id)*grid%structured_grid%dy(ghosted_id)/dummy1
+        if (abs(tempreal-1.d0)>1.e-5) then
+          pflotran_model%option%io_buffer = "Warning: remarkably large gaps in grid areas btw two approaches FOR cell: "
+          call printMsg(pflotran_model%option)
+        end if
+
+        ! bottom/top segment line length
+        lat1 = lats(1)
+        lon1 = lons(1)
+        lat2 = lats(2)
+        lon2 = lons(2)
+        call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
+          dummy1, dummy2, dummy3, dummy4 , dummy5)
+        tempreal = s12
+
+        lat1 = lats(3)
+        lon1 = lons(3)
+        lat2 = lats(4)
+        lon2 = lons(4)
+        call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
+          dummy1, dummy2, dummy3, dummy4 , dummy5)
+        tempreal = tempreal+s12
+        tempreal = 0.5d0*tempreal/grid%structured_grid%dx(ghosted_id)
+        if (abs(tempreal-1.d0)>1.e-5) then   ! mathematically, dx = 0.5*(a+b)
+          pflotran_model%option%io_buffer = "Warning: remarkably large gaps in longitudal-length FOR a cell: "
+          call printMsg(pflotran_model%option)
+        end if
+
+        ! isoscele side line length
+        lat1 = lats(2)
+        lon1 = lons(2)
+        lat2 = lats(3)
+        lon2 = lons(3)
+        call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
+          dummy1, dummy2, dummy3, dummy4 , dummy5)
+        tempreal = s12
+
+        lat1 = lats(1)
+        lon1 = lons(1)
+        lat2 = lats(4)
+        lon2 = lons(4)
+        call invers(a, f, lat1, lon1, lat2, lon2, s12, azi1, azi2, omask,     &
+          dummy1, dummy2, dummy3, dummy4 , dummy5)
+        tempreal = tempreal/s12
+        if (abs(tempreal-1.d0)>1.e-5) then   ! mathematically, c=d
+          pflotran_model%option%io_buffer = "Warning: remarkably large gaps in isoscele latitudal-length FOR a cell: "
+          call printMsg(pflotran_model%option)
+        end if
 
     enddo
 
-    call VecRestoreArrayReadF90(clm_pf_idata%area_top_face_pfs, toparea_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%dxsoil_pfs, dlon_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%zsoi_pfs, zsoi_pf_loc, ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%dysoil_pfs, dlat_pf_loc, ierr)
     CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%dzsoil_pfs, dzsoil_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%xsoil_pfs, lonc_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(clm_pf_idata%ysoil_pfs, latc_pf_loc, ierr)
+    CHKERRQ(ierr)
+
+
+    ! re-do some dimension calculations after changes above
+    call MPI_Barrier(pflotran_model%option%mycomm,ierr)
+
+    call GridComputeVolumes(grid, field%volume0, pflotran_model%option)      ! cell volumes
+    call GridComputeInternalConnect(grid, pflotran_model%option)             ! cell internal connection distances
+    call PatchProcessCouplers(patch,realization%flow_conditions,             &  ! BC/IC/SrcSink connection (face) areas
+                              realization%transport_conditions,              &
+                              realization%option)
+
+    ! re-assign updated field%volume0 to material_auxvar%volume
+    call DiscretizationGlobalToLocal(discretization,field%volume0, &
+                                   field%work_loc,ONEDOF)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material, &
+                               field%work_loc,VOLUME,ZERO_INTEGER)
+
+
+    ! the following variable is directly used in 'sandbox_somdec'
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%zsoil_clmp, &
+                                    clm_pf_idata%zsoil_pfs)
+
+    ! the following are 'wtgcell' adjusted 'TOP' face area (not yet figured out how to use it for multiple columns in ONE grid)
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%area_top_face_clmp, &
+                                    clm_pf_idata%area_top_face_pfs)
 
 
   end subroutine pflotranModelSetSoilDimension
@@ -507,7 +714,7 @@ contains
 
     do ghosted_id = 1, grid%ngmax
       local_id = grid%nG2L(ghosted_id)
-      if (ghosted_id < 0 .or. local_id <= 0) cycle
+      if (ghosted_id < 0 .or. local_id < 0) cycle
       if (associated(patch%imat)) then
         if (patch%imat(ghosted_id) < 0) cycle
       endif
@@ -2044,7 +2251,8 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
         call VecRestoreArrayF90(clm_pf_idata%press_pfs, soilpress_pf_loc, ierr)
         CHKERRQ(ierr)
 
-        ! for exactly using moisture response functions of decomposition from CLM-CN
+        !
+        ! for exactly using moisture and other response functions of decomposition from CLM-CN
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%w_scalar_clmp, &
@@ -2475,7 +2683,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     class(realization_type), pointer    :: realization
     type(simulation_base_type), pointer :: simulation
 
-    PetscErrorCode     :: ierr
+    PetscErrorCode  :: ierr
+    PetscInt        :: k
 
     character(len=MAXWORDLENGTH) :: word
 
@@ -2750,14 +2959,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           call printErrMsg(pflotran_model%option)
     endif
     !
-    ! species for gases
+    ! species for gases (now as immobile species)
     word = clm_pf_idata%name_co2
     clm_pf_idata%ispec_co2  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
     if (clm_pf_idata%ispec_co2<=0) then
       pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
             trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
     endif
 
@@ -2767,7 +2976,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_n2<=0) then
       pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
             trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
     endif
 
@@ -2777,12 +2986,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_n2o<=0) then
       pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
             trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
     endif
 
     ! CO2 productin from C decomposition reaction network for tracking (immoble species)
-    word = clm_pf_idata%name_hr
+    word = clm_pf_idata%name_hrim
     clm_pf_idata%ispec_hrimm = GetImmobileSpeciesIDFromName(word, &
             realization%reaction%immobile,PETSC_FALSE,realization%option)
     if (clm_pf_idata%ispec_hrimm<=0) then
@@ -2883,6 +3092,87 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       call printErrMsg(pflotran_model%option)
     endif
 
+    ! decomp_pools are reassigned in format of array, if PF bgc hard-weired RT species names used
+    do k=1, clm_pf_idata%ndecomp_pools
+      if (k==1) then
+        clm_pf_idata%ispec_decomp_c(k)   = clm_pf_idata%ispec_lit1c
+        clm_pf_idata%ispec_decomp_n(k)   = clm_pf_idata%ispec_lit1n
+        if(.not.(trim(clm_pf_idata%name_lit1)=='')) then
+          clm_pf_idata%decomp_pool_name(k) = clm_pf_idata%name_lit1
+        elseif(.not.(trim(clm_pf_idata%name_labile)=='')) then
+          clm_pf_idata%decomp_pool_name(k) = clm_pf_idata%name_labile
+        endif
+
+      elseif (k==2) then
+        clm_pf_idata%ispec_decomp_c(k)   = clm_pf_idata%ispec_lit2c
+        clm_pf_idata%ispec_decomp_n(k)   = clm_pf_idata%ispec_lit2n
+        if(.not.(trim(clm_pf_idata%name_lit2)=='')) then
+          clm_pf_idata%decomp_pool_name(k) = clm_pf_idata%name_lit2
+        elseif(.not.(trim(clm_pf_idata%name_cellulose))=='') then
+          clm_pf_idata%decomp_pool_name(k) = clm_pf_idata%name_cellulose
+        endif
+
+      elseif (k==3) then
+        clm_pf_idata%ispec_decomp_c(k)   = clm_pf_idata%ispec_lit3c
+        clm_pf_idata%ispec_decomp_n(k)   = clm_pf_idata%ispec_lit3n
+        if(.not.(trim(clm_pf_idata%name_lit3)=='')) then
+          clm_pf_idata%decomp_pool_name(k) = clm_pf_idata%name_lit3
+        elseif(.not.(trim(clm_pf_idata%name_lignin))=='') then
+          clm_pf_idata%decomp_pool_name(k) = clm_pf_idata%name_lignin
+        endif
+
+      elseif (k==4) then
+        clm_pf_idata%ispec_decomp_c(k)   = clm_pf_idata%ispec_cwdc
+        clm_pf_idata%ispec_decomp_n(k)   = clm_pf_idata%ispec_cwdn
+        if(.not.(trim(clm_pf_idata%name_cwd)=='')) then
+          clm_pf_idata%decomp_pool_name(k) = clm_pf_idata%name_cwd
+        endif
+
+      elseif (k==5) then
+        clm_pf_idata%ispec_decomp_c(k)   = clm_pf_idata%ispec_som1c
+        clm_pf_idata%ispec_decomp_n(k)   = clm_pf_idata%ispec_som1n
+        if(.not.(trim(clm_pf_idata%name_soil1)=='')) then
+          clm_pf_idata%decomp_pool_name(k) = clm_pf_idata%name_soil1
+        elseif(.not.(trim(clm_pf_idata%name_som1)=='')) then
+          clm_pf_idata%decomp_pool_name(k) = clm_pf_idata%name_som1
+        endif
+
+      elseif (k==6) then
+        clm_pf_idata%ispec_decomp_c(k)   = clm_pf_idata%ispec_som2c
+        clm_pf_idata%ispec_decomp_n(k)   = clm_pf_idata%ispec_som2n
+        if(.not.(trim(clm_pf_idata%name_soil2)=='')) then
+          clm_pf_idata%decomp_pool_name(k) = clm_pf_idata%name_soil2
+        elseif(.not.(trim(clm_pf_idata%name_som2)=='')) then
+          clm_pf_idata%decomp_pool_name(k) = clm_pf_idata%name_som2
+        endif
+
+      elseif (k==7) then
+        clm_pf_idata%ispec_decomp_c(k)   = clm_pf_idata%ispec_som3c
+        clm_pf_idata%ispec_decomp_n(k)   = clm_pf_idata%ispec_som3n
+        if(.not.(trim(clm_pf_idata%name_soil3)=='')) then
+          clm_pf_idata%decomp_pool_name(k) = clm_pf_idata%name_soil3
+        elseif(.not.(trim(clm_pf_idata%name_som3)=='')) then
+          clm_pf_idata%decomp_pool_name(k) = clm_pf_idata%name_som3
+        endif
+
+      elseif (k==8) then
+        clm_pf_idata%ispec_decomp_c(k)   = clm_pf_idata%ispec_som4c
+        clm_pf_idata%ispec_decomp_n(k)   = clm_pf_idata%ispec_som4n
+        if(.not.(trim(clm_pf_idata%name_soil4)=='')) then
+          clm_pf_idata%decomp_pool_name(k) = clm_pf_idata%name_soil4
+        elseif(.not.(trim(clm_pf_idata%name_som4)=='')) then
+          clm_pf_idata%decomp_pool_name(k) = clm_pf_idata%name_som4
+        endif
+
+      else
+        pflotran_model%option%io_buffer = 'Soil litter/som pools definition ' // &
+            'in PFLOTRAN_CLM_MAIN interface Are beyond allowed in CLM-CN/BGC.'
+        call printErrMsg(pflotran_model%option)
+
+      end if
+
+    end do
+
   end subroutine pflotranModelGetRTspecies
 
   ! ************************************************************************** !
@@ -2895,41 +3185,150 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   !!
   !! Date: 12/5/2014
   ! ************************************************************************** !
-!  subroutine pflotranModelSetSOMKfromCLM(pflotran_model, pf_cmode)
-!
-!    use Option_module
-!    use Reaction_module
-!    use Reaction_Aux_module
-!    use Reactive_Transport_Aux_module
-!    use Global_Aux_module
-!    use Material_Aux_class, only: material_auxvar_type
-!    use Reaction_Sandbox_module
-!    use Reaction_Sandbox_SomDec_class
-!
-!    use Simulation_Base_class, only : simulation_base_type
-!    use Simulation_Subsurface_class, only : subsurface_simulation_type
-!    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-!
-!    implicit none
-!
-!    type(option_type) :: option
-!    type(reaction_type) :: reaction
-!    type(reactive_transport_auxvar_type) :: rt_auxvar
-!    type(global_auxvar_type) :: global_auxvar
-!    class(material_auxvar_type) :: material_auxvar
-!
-!    class(reaction_sandbox_base_type), pointer :: cur_reaction
-!
-!    cur_reaction => rxn_sandbox_list
-!    do
-!        if (.not.associated(cur_reaction)) exit
-!
-!
-!
-!        cur_reaction => cur_reaction%next
-!    enddo
-!
-!  end subroutine pflotranModelSetSOMKfromCLM
+  subroutine pflotranModelSetSOMKfromCLM(pflotran_model)
+
+    use Option_module
+    use Realization_class
+    use Reaction_module
+    !use Reaction_Aux_module
+    !use Reactive_Transport_Aux_module
+    !use Global_Aux_module
+    !use Material_Aux_class, only: material_auxvar_type
+    use Reaction_Sandbox_module
+    use Reaction_Sandbox_Base_class
+    use Reaction_Sandbox_SomDec_class
+
+    use Simulation_Base_class, only : simulation_base_type
+    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+
+    use clm_pflotran_interface_data
+
+    implicit none
+
+    type(option_type) :: option
+    type(pflotran_model_type), pointer  :: pflotran_model
+    class(realization_type), pointer    :: realization
+    type(simulation_base_type), pointer :: simulation
+    class(reaction_sandbox_base_type), pointer  :: cur_rtsandbox
+    class(reaction_sandbox_somdec_type), pointer :: rtsandbox_somdec
+
+    !
+    PetscInt :: irxn, jdown, ki, kj
+    PetscReal:: sum_cfrac, sum_nfrac
+
+   !------------------------------------------------------
+    select type (simulation => pflotran_model%simulation)
+      class is (subsurface_simulation_type)
+         realization => simulation%realization
+      class is (surfsubsurface_simulation_type)
+         realization => simulation%realization
+      class default
+         nullify(realization)
+         pflotran_model%option%io_buffer &
+          = "ERROR: SetInitialConcentrations not supported under this mode.."
+         call printErrMsg(pflotran_model%option)
+    end select
+
+    if (associated(rxn_sandbox_list)) then   ! note: 'rxn_sandbox_list' IS PUBLIC in 'Reaction_module'
+      cur_rtsandbox => rxn_sandbox_list
+      do
+        if (.not.associated(cur_rtsandbox)) exit
+
+        select type (cur_rtsandbox)
+          class is (reaction_sandbox_somdec_type)
+            rtsandbox_somdec => cur_rtsandbox
+
+            !
+            do irxn = 1, rtsandbox_somdec%nrxn
+
+              do ki = 1, clm_pf_idata%ndecomp_pools
+                if (clm_pf_idata%ispec_decomp_c(ki) == &
+                     rtsandbox_somdec%upstream_c_id(irxn)) then
+                   exit
+                else
+                   if (ki==clm_pf_idata%ndecomp_pools) then   ! didn't find the decomposing pool
+                     pflotran_model%option%io_buffer &
+                       = "ERROR: CLM decomposing pool NOT found in sandbox of SOMDECOMP"
+                     call printErrMsg(pflotran_model%option)
+                   end if
+                end if
+              end do
+
+              rtsandbox_somdec%rate_constant(irxn)      = clm_pf_idata%ck_decomp_c(ki)
+              rtsandbox_somdec%rate_decomposition(irxn) = UNINITIALIZED_DOUBLE
+              rtsandbox_somdec%rate_ad_factor(irxn)     = 1.0d0     ! note the rate_constant already adjusted by ad_factor
+              rtsandbox_somdec%upstream_is_varycn(irxn) = clm_pf_idata%floating_cn_ratio(ki)
+              rtsandbox_somdec%upstream_nc(irxn)        = clm_pf_idata%decomp_element_ratios(ki,2) &
+                                                         /clm_pf_idata%decomp_element_ratios(ki,1)
+              rtsandbox_somdec%mineral_c_stoich(irxn)   = clm_pf_idata%fr_decomp_c(ki,ki)  ! this is the decomposed C fraction as respirted CO2)
+
+              sum_cfrac = 0.d0
+              sum_nfrac = 0.d0
+              do jdown = 1, rtsandbox_somdec%n_downstream_pools(irxn)
+                do kj = 1, clm_pf_idata%ndecomp_pools
+                  if (clm_pf_idata%ispec_decomp_c(kj) == &
+                    rtsandbox_somdec%downstream_c_id(irxn,jdown)) then
+                    exit
+                  else
+                    if (kj==clm_pf_idata%ndecomp_pools) then   ! didn't find the decomposing downstream pool
+                      pflotran_model%option%io_buffer &
+                        = "ERROR: CLM decomposing downstream pool NOT found in sandbox of SOMDECOMP, for: " // &
+                          trim(clm_pf_idata%decomp_pool_name(ki))
+                      call printErrMsg(pflotran_model%option)
+                    end if
+                  end if
+                end do
+
+                rtsandbox_somdec%downstream_is_varycn(irxn, jdown) = clm_pf_idata%floating_cn_ratio(kj)
+                ! note: the following is the initial NC ratios, which for 'varying_cn' species will be modified
+                rtsandbox_somdec%downstream_nc(irxn, jdown)        = clm_pf_idata%decomp_element_ratios(kj,2) &
+                                                                    /clm_pf_idata%decomp_element_ratios(kj,1)
+                rtsandbox_somdec%downstream_stoich(irxn, jdown)    = clm_pf_idata%fr_decomp_c(ki,kj)
+                sum_cfrac = sum_cfrac + rtsandbox_somdec%downstream_stoich(irxn, jdown)
+                sum_nfrac = sum_nfrac + rtsandbox_somdec%downstream_stoich(irxn, jdown) * &
+                                        rtsandbox_somdec%downstream_nc(irxn, jdown)
+
+              end do
+
+              if (abs(sum_cfrac+rtsandbox_somdec%mineral_c_stoich(irxn)-1.d0)>1.0d-30) then
+                pflotran_model%option%io_buffer &
+                  = "ERROR: fraction of CLM decomposing downstream pools NOT summed to 1.0, for: " // &
+                          trim(clm_pf_idata%decomp_pool_name(ki))
+                call printErrMsg(pflotran_model%option)
+              else
+                rtsandbox_somdec%mineral_c_stoich(irxn) = 1.0d0 - sum_cfrac    ! just in case (may not be needed)
+
+                rtsandbox_somdec%mineral_n_stoich(irxn) = rtsandbox_somdec%upstream_nc(irxn) - sum_nfrac
+
+              endif
+
+            end do
+
+            ! finally, exit the do-loop expcilitly so that NO duplicate sandbox checking
+            exit
+
+          class default
+            if (.not.associated(cur_rtsandbox%next)) then
+              pflotran_model%option%io_buffer &
+                = "ERROR: SetSOMK from CLM currently only supported sandbox of SOMDECOMP"
+              call printErrMsg(pflotran_model%option)
+            end if
+
+        end select
+
+
+        cur_rtsandbox => cur_rtsandbox%next
+      enddo
+
+    else
+      pflotran_model%option%io_buffer &
+          = "ERROR: SetSOMK from CLM currently only supported sandbox approach"
+      call printErrMsg(pflotran_model%option)
+
+    end if
+
+  end subroutine pflotranModelSetSOMKfromCLM
 
   ! ************************************************************************** !
   !

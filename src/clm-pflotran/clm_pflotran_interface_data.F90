@@ -26,21 +26,46 @@ module clm_pflotran_interface_data
 
   ! Time invariant data:
 
-  ! num of CLM soil layers that are mapped to/from PFLOTRAN
+  ! num of CLM soil layers that are mapped to/from PFLOTRAN (global constants, not local copy)
   PetscInt :: nzclm_mapped
   PetscInt :: nxclm_mapped
   PetscInt :: nyclm_mapped
-  PetscReal, pointer :: dzclm_global(:)              ! this is NOT the 3-D vec 'zsoi' defined below, rather it's the universal soil layer thickness for all gridcells
+  PetscReal :: x0clm_global
+  PetscReal :: y0clm_global
+  PetscReal :: z0clm_global
+  PetscReal, pointer :: dxclm_global(:)              ! this is NOT the 3-D vec 'dxsoil' defined below, rather it's the universal x-direction interval (OR, longitudal degree interval from CLM land surf grids) for all gridcells
+  PetscReal, pointer :: dyclm_global(:)              ! this is NOT the 3-D vec 'dysoil' defined below, rather it's the universal y-direction interval (OR, longitudal degree interval from CLM land surf grids)
+  PetscReal, pointer :: dzclm_global(:)              ! this is NOT the 3-D vec 'dzsoil' defined below, rather it's the universal soil layer thickness (unit: m) for all gridcells
 
   ! Soil BGC decomposing pools
   PetscInt :: ndecomp_pools
-  logical, pointer :: floating_cn_ratio(:)           ! TRUE => pool has fixed C:N ratio
+  logical, pointer :: floating_cn_ratio(:)           ! TRUE => pool has variable C:N ratio
+  PetscInt :: ndecomp_elements                       ! no. of elements considered: C, N
+  PetscReal, pointer:: decomp_element_ratios(:,:)    ! ratios of elements in decomposing pools (unit: moles)
 
   !NOTES: The following is what PF bgc right now using for CLM-PFLOTRAN coupling
   ! if need adding or modifying, it's possible and update BOTH here and subroutine 'pflotranModelGetRTspecies'
   ! (Of course, it must be modifying the PF input card and get those variables and relevant reactions in RT).
 
   ! RT bgc species 'idof' and 'name'
+  PetscInt, pointer:: ispec_decomp_c(:)              ! name: pool_name, OR, pool_name // "C"
+  PetscInt, pointer:: ispec_decomp_n(:)              ! name: "", OR, pool_name // "N"
+  PetscInt, pointer:: ispec_decomp_hr(:)             ! name: pool_name // "CHR"
+  PetscInt, pointer:: ispec_decomp_nmin(:)           ! name: pool_name // "NMIN"
+  PetscInt, pointer:: ispec_decomp_nimp(:)           ! name: pool_name // "NIMM"
+  PetscInt, pointer:: ispec_decomp_nimm(:)           ! name: pool_name // "NIMP"
+  character(len=32), pointer :: decomp_pool_name(:)  ! name of pools
+  PetscReal, pointer:: ck_decomp_c(:)                ! K: corrected first-order decomposition rate constant in 1/sec
+  PetscReal, pointer:: fr_decomp_c(:,:)              ! fractions of downstream pools (receivers - pools excluding donor but adding CO2, note (k,k) is that fraction of CO2 respired)
+
+  PetscInt:: ispec_hrimm
+  character(len=32):: name_hrim   = "HRimm"          ! this is for total HR
+
+  PetscInt :: ispec_nmin, ispec_nimmp, ispec_nimm
+  character(len=32):: name_nmin  = "Nmin"            ! this is for total Nmin
+  character(len=32):: name_nimmp = "Nimmp"           ! this is for total Nimmp
+  character(len=32):: name_nimm  = "Nimm"            ! this is for total Nimm
+
   PetscInt:: ispec_lit1c, ispec_lit2c, ispec_lit3c, ispec_cwdc
   PetscInt:: ispec_lit1n, ispec_lit2n, ispec_lit3n, ispec_cwdn
   PetscInt:: ispec_som1c, ispec_som2c, ispec_som3c, ispec_som4c
@@ -77,12 +102,6 @@ module clm_pflotran_interface_data
   character(len=32):: name_plantndemand   = "Plantndemand"
   character(len=32):: name_plantnh4uptake = "Plantnh4uptake"
   character(len=32):: name_plantno3uptake = "Plantno3uptake"
-
-  PetscInt :: ispec_hrimm, ispec_nmin, ispec_nimmp, ispec_nimm
-  character(len=32):: name_hr    = "HRimm"
-  character(len=32):: name_nmin  = "Nmin"
-  character(len=32):: name_nimmp = "Nimmp"
-  character(len=32):: name_nimm  = "Nimm"
 
   PetscInt :: ispec_ngasmin, ispec_ngasnitr, ispec_ngasdeni
   character(len=32):: name_ngasmin = "NGASmin"
@@ -133,13 +152,29 @@ module clm_pflotran_interface_data
   Vec :: area_top_face_pfp  ! mpi vec
   Vec :: area_top_face_clms ! seq vec
 
-  ! z-axis (in 3D)
-  Vec :: zsoi_clmp          ! mpi vec
-  Vec :: zsoi_pfs           ! seq vec
+  ! z-axis (in 3D), soil depth of center of a soil cell in unit of meters
+  Vec :: zsoil_clmp          ! mpi vec
+  Vec :: zsoil_pfs           ! seq vec
+  Vec :: zsoil_pfp           ! mpi vec
+  Vec :: zsoil_clms          ! seq vec
 
-  Vec :: zsoi_pfp           ! mpi vec
-  Vec :: zsoi_clms          ! seq vec
-  
+  ! x/y-axis (in 3D), grid center of a soil cell in unit of meters
+  Vec :: xsoil_clmp          ! mpi vec
+  Vec :: xsoil_pfs           ! seq vec
+  Vec :: ysoil_clmp          ! mpi vec
+  Vec :: ysoil_pfs           ! seq vec
+
+  ! soil cell inter-nodes coordinates ('vertex' called in PF mesh; 'interface level' called in CLM soil layers)
+  Vec :: zisoil_clmp          ! mpi vec
+  Vec :: zisoil_pfs           ! seq vec
+
+  ! length/width/thickness of soil cells (in 3D) in unit of meters
+  Vec :: dxsoil_clmp          ! mpi vec
+  Vec :: dxsoil_pfs           ! seq vec
+  Vec :: dysoil_clmp          ! mpi vec
+  Vec :: dysoil_pfs           ! seq vec
+  Vec :: dzsoil_clmp          ! mpi vec
+  Vec :: dzsoil_pfs           ! seq vec
   ! a NOTE here: Given a 3D-cell's 'area_gtop_face' and 'zsoi' known, it's possible to calculate its volume (may be useful ?)
 
   !-------------------------------------------------------------------------------------
@@ -493,7 +528,26 @@ contains
     clm_pf_idata%nxclm_mapped = 0
     clm_pf_idata%nyclm_mapped = 0
 
-    clm_pf_idata%ndecomp_pools = 0
+    clm_pf_idata%x0clm_global = 0
+    clm_pf_idata%y0clm_global = 0
+    clm_pf_idata%z0clm_global = 0
+
+    clm_pf_idata%ndecomp_pools    = 0
+    clm_pf_idata%ndecomp_elements = 0
+
+    clm_pf_idata%ispec_hrimm   = 0
+    clm_pf_idata%ispec_nh4     = 0
+    clm_pf_idata%ispec_no3     = 0
+    clm_pf_idata%ispec_nh4sorb = 0
+    clm_pf_idata%ispec_plantndemand   = 0
+    clm_pf_idata%ispec_plantnh4uptake = 0
+    clm_pf_idata%ispec_plantno3uptake = 0
+    clm_pf_idata%ispec_ngasmin  = 0
+    clm_pf_idata%ispec_ngasnitr = 0
+    clm_pf_idata%ispec_ngasdeni = 0
+    clm_pf_idata%ispec_co2 = 0
+    clm_pf_idata%ispec_n2  = 0
+    clm_pf_idata%ispec_n2o = 0
 
     clm_pf_idata%nlclm_sub = 0
     clm_pf_idata%ngclm_sub = 0
@@ -516,10 +570,22 @@ contains
     clm_pf_idata%ngpf_srf = 0
 
     !
-    clm_pf_idata%zsoi_clmp     = 0
-    clm_pf_idata%zsoi_pfs      = 0
-    clm_pf_idata%zsoi_pfp      = 0
-    clm_pf_idata%zsoi_clms     = 0
+    clm_pf_idata%zsoil_clmp     = 0
+    clm_pf_idata%zsoil_pfs      = 0
+    clm_pf_idata%zsoil_pfp      = 0
+    clm_pf_idata%zsoil_clms     = 0
+    clm_pf_idata%dxsoil_clmp     = 0
+    clm_pf_idata%dxsoil_pfs      = 0
+    clm_pf_idata%dysoil_clmp     = 0
+    clm_pf_idata%dysoil_pfs      = 0
+    clm_pf_idata%dzsoil_clmp     = 0
+    clm_pf_idata%dzsoil_pfs      = 0
+    clm_pf_idata%xsoil_clmp      = 0
+    clm_pf_idata%xsoil_pfs       = 0
+    clm_pf_idata%ysoil_clmp      = 0
+    clm_pf_idata%ysoil_pfs       = 0
+    clm_pf_idata%zisoil_clmp     = 0
+    clm_pf_idata%zisoil_pfs      = 0
 
     clm_pf_idata%area_subsurf_clmp     = 0
     clm_pf_idata%area_subsurf_pfs      = 0
@@ -835,11 +901,6 @@ contains
     PetscErrorCode :: ierr
     PetscMPIInt    :: mycomm, rank
 
-    if (.not. associated(clm_pf_idata%dzclm_global)) &
-    allocate(clm_pf_idata%dzclm_global(1:clm_pf_idata%nzclm_mapped))
-
-    allocate(clm_pf_idata%floating_cn_ratio(1:clm_pf_idata%ndecomp_pools))
-
     call MPI_Comm_rank(mycomm,rank, ierr)
 
     ! The following block of data definition is for THC coupled clm-pflotran (Currently ONLY subsurface or soil)
@@ -850,26 +911,25 @@ contains
 
     ! -------- FOR CLM (mpi) ==> PFLOTRAN (seq)
     ! CLM(mpi)
-    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_sub,PETSC_DECIDE,clm_pf_idata%zsoi_clmp,ierr)             ! 3D Subsurface PFLOTRAN
-    call VecSet(clm_pf_idata%zsoi_clmp,0.d0,ierr)
-    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dtop,PETSC_DECIDE,clm_pf_idata%area_subsurf_clmp,ierr)   ! 2D top-cells of 3D Subsurface PFLOTRAN
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_sub,PETSC_DECIDE,clm_pf_idata%zsoil_clmp,ierr)             ! 3D Subsurface PFLOTRAN
+    call VecSet(clm_pf_idata%zsoil_clmp,0.d0,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlclm_2dtop,PETSC_DECIDE,clm_pf_idata%area_subsurf_clmp,ierr)     ! 2D top-cells of 3D Subsurface PFLOTRAN
     call VecSet(clm_pf_idata%area_subsurf_clmp,0.d0,ierr)
     ! PFLOTRAN(seq)
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%zsoi_pfs,ierr)                   ! 3D Subsurface CLM
-    call VecSet(clm_pf_idata%zsoi_pfs,0.d0,ierr)
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dtop,clm_pf_idata%area_subsurf_pfs,ierr)         ! 2D top-cells of 3D Subsurface CLM
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_sub,clm_pf_idata%zsoil_pfs,ierr)                   ! 3D Subsurface CLM
+    call VecSet(clm_pf_idata%zsoil_pfs,0.d0,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngpf_2dtop,clm_pf_idata%area_subsurf_pfs,ierr)           ! 2D top-cells of 3D Subsurface CLM
     call VecSet(clm_pf_idata%area_subsurf_pfs,0.d0,ierr)
-
 
     ! -------- FOR PFLOTRAN (mpi) ==> CLM (seq)
     ! PFLOTRAN(mpi)
-    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_sub,PETSC_DECIDE,clm_pf_idata%zsoi_pfp,ierr)               ! 3D Subsurface PFLOTRAN
-    call VecSet(clm_pf_idata%zsoi_pfp,0.d0,ierr)
+    call VecCreateMPI(mycomm,clm_pf_idata%nlpf_sub,PETSC_DECIDE,clm_pf_idata%zsoil_pfp,ierr)               ! 3D Subsurface PFLOTRAN
+    call VecSet(clm_pf_idata%zsoil_pfp,0.d0,ierr)
     call VecCreateMPI(mycomm,clm_pf_idata%nlpf_2dtop,PETSC_DECIDE,clm_pf_idata%area_subsurf_pfp,ierr)     ! 2D top-cells of 3D Subsurface PFLOTRAN
     call VecSet(clm_pf_idata%area_subsurf_pfp,0.d0,ierr)
     ! CLM(seq)
-    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_sub,clm_pf_idata%zsoi_clms,ierr)                 ! 3D Subsurface CLM
-    call VecSet(clm_pf_idata%zsoi_clms,0.d0,ierr)
+    call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_sub,clm_pf_idata%zsoil_clms,ierr)                 ! 3D Subsurface CLM
+    call VecSet(clm_pf_idata%zsoil_clms,0.d0,ierr)
     call VecCreateSeq(PETSC_COMM_SELF,clm_pf_idata%ngclm_2dtop,clm_pf_idata%area_subsurf_clms,ierr)       ! 2D top-cells of 3D Subsurface CLM
     call VecSet(clm_pf_idata%area_subsurf_clms,0.d0,ierr)
 
@@ -881,36 +941,42 @@ contains
 
     ! (by copying) Create MPI Vectors for CLM ---------------------------------
 
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%area_top_face_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%xsoil_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%ysoil_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%zisoil_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%dxsoil_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%dysoil_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%dzsoil_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%area_top_face_clmp,ierr)
 
     ! soil physical properties (3D)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%hksat_x_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%hksat_y_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%hksat_z_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%watsat_clmp,ierr)       ! total vwc at saturation (total 'porosity')
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%watfc_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%bulkdensity_dry_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%effporosity_clmp,ierr)     ! this may/may not same as 'bd'/'watsat' above
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hksat_x_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hksat_y_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hksat_z_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%watsat_clmp,ierr)       ! total vwc at saturation (total 'porosity')
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%watfc_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%bulkdensity_dry_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%effporosity_clmp,ierr)     ! this may/may not same as 'bd'/'watsat' above
 
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%sucsat_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%bsw_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%sucsat_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%bsw_clmp,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%sr_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%lamda_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%alpha_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%pcwmax_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%sr_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%lamda_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%alpha_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%pcwmax_clmp,ierr)
 
     ! TH states (3D)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%press_clmp,ierr)        ! this depends upon 'reference pressure'
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%soilpsi_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%soillsat_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%soilisat_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%soilt_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%h2osoi_vol_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%press_clmp,ierr)        ! this depends upon 'reference pressure'
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%soilpsi_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%soillsat_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%soilisat_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%soilt_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%h2osoi_vol_clmp,ierr)
 
     ! TH Src/Sink (3D)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%qflux_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%gflux_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%qflux_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%gflux_clmp,ierr)
 
     ! TH top BC (2D)
     call VecDuplicate(clm_pf_idata%area_subsurf_clmp,clm_pf_idata%press_subsurf_clmp,ierr)
@@ -930,35 +996,41 @@ contains
     ! (by copying) Create Seq. Vectors for PFLOTRAN  ----------------------
 
     ! 3-D
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%area_top_face_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%xsoil_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%ysoil_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%zisoil_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%dxsoil_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%dysoil_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%dzsoil_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%area_top_face_pfs,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%hksat_x_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%hksat_y_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%hksat_z_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%watsat_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%watfc_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%bulkdensity_dry_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%effporosity_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%hksat_x_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%hksat_y_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%hksat_z_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%watsat_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%watfc_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%bulkdensity_dry_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%effporosity_pfs,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%sucsat_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%bsw_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%sucsat_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%bsw_pfs,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%sr_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%lamda_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%alpha_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%pcwmax_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%sr_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%lamda_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%alpha_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%pcwmax_pfs,ierr)
 
     !
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%press_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%soilpsi_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%soillsat_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%soilisat_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%soilt_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%h2osoi_vol_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%press_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%soilpsi_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%soillsat_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%soilisat_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%soilt_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%h2osoi_vol_pfs,ierr)
 
     ! TH Src/Sink (3D)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%qflux_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%gflux_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%qflux_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%gflux_pfs,ierr)
 
     ! TH top BC (2D)
     call VecDuplicate(clm_pf_idata%area_subsurf_pfs,clm_pf_idata%press_subsurf_pfs,ierr)
@@ -983,33 +1055,33 @@ contains
     ! (by copying) Create MPI Vectors for PFLOTRAN ------------
 
     ! 3-D
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%area_top_face_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%area_top_face_pfp,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%effporosity_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%effporosity_pfp,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%sr_pcwmax_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%pcwmax_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%sr_pcwmax_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%pcwmax_pfp,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%press_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%soilpsi_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%soillsat_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%soilisat_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%soilt_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%press_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%soilpsi_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%soillsat_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%soilisat_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%soilt_pfp,ierr)
 
     ! (by copying) create Seq. Vectors for CLM ---------
 
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%area_top_face_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%area_top_face_clms,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%effporosity_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%effporosity_clms,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%sr_pcwmax_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%pcwmax_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%sr_pcwmax_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%pcwmax_clms,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%press_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%soilpsi_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%soillsat_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%soilisat_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%soilt_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%press_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%soilpsi_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%soillsat_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%soilisat_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%soilt_clms,ierr)
 
     ! actual BC flow variables: 2D faces of subsurface PFLOTRAN ---to--- 2D faces of subsurface CLM
     ! MPI Vecs for PFLOTRAN
@@ -1032,189 +1104,189 @@ contains
     ! (ii) BGC state variables: 3D subsurface CLM ---to--- 3D subsurface PFLOTRAN (e.g., initialization or restarting)
     ! MPI Vecs for CLM
 
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%t_scalar_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%w_scalar_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%o_scalar_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%depth_scalar_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%t_scalar_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%w_scalar_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%o_scalar_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%depth_scalar_clmp,ierr)
 
 !(TODO) the following 'decomp_cpools' or 'decomp_npools' will be redone to match with CLM-BGC's approach so that allow flexibility of SOM components
 ! and, right now is ONLY good for CLM-CN approach.
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%decomp_cpools_vr_lit1_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%decomp_cpools_vr_lit2_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%decomp_cpools_vr_lit3_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%decomp_cpools_vr_cwd_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%decomp_cpools_vr_som1_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%decomp_cpools_vr_som2_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%decomp_cpools_vr_som3_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%decomp_cpools_vr_som4_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%decomp_npools_vr_lit1_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%decomp_npools_vr_lit2_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%decomp_npools_vr_lit3_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%decomp_npools_vr_cwd_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%decomp_npools_vr_som1_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%decomp_npools_vr_som2_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%decomp_npools_vr_som3_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%decomp_npools_vr_som4_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%smin_no3_vr_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%smin_nh4_vr_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%smin_nh4sorb_vr_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%decomp_cpools_vr_lit1_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%decomp_cpools_vr_lit2_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%decomp_cpools_vr_lit3_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%decomp_cpools_vr_cwd_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%decomp_cpools_vr_som1_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%decomp_cpools_vr_som2_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%decomp_cpools_vr_som3_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%decomp_cpools_vr_som4_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%decomp_npools_vr_lit1_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%decomp_npools_vr_lit2_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%decomp_npools_vr_lit3_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%decomp_npools_vr_cwd_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%decomp_npools_vr_som1_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%decomp_npools_vr_som2_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%decomp_npools_vr_som3_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%decomp_npools_vr_som4_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%smin_no3_vr_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%smin_nh4_vr_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%smin_nh4sorb_vr_clmp,ierr)
 
     ! Seq. Vecs for PFLOTRAN
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%t_scalar_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%w_scalar_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%o_scalar_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%depth_scalar_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%t_scalar_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%w_scalar_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%o_scalar_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%depth_scalar_pfs,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%decomp_cpools_vr_lit1_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%decomp_cpools_vr_lit2_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%decomp_cpools_vr_lit3_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%decomp_cpools_vr_cwd_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%decomp_cpools_vr_som1_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%decomp_cpools_vr_som2_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%decomp_cpools_vr_som3_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%decomp_cpools_vr_som4_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%decomp_npools_vr_lit1_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%decomp_npools_vr_lit2_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%decomp_npools_vr_lit3_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%decomp_npools_vr_cwd_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%decomp_npools_vr_som1_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%decomp_npools_vr_som2_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%decomp_npools_vr_som3_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%decomp_npools_vr_som4_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%smin_no3_vr_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%smin_nh4_vr_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%smin_nh4sorb_vr_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%decomp_cpools_vr_lit1_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%decomp_cpools_vr_lit2_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%decomp_cpools_vr_lit3_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%decomp_cpools_vr_cwd_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%decomp_cpools_vr_som1_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%decomp_cpools_vr_som2_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%decomp_cpools_vr_som3_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%decomp_cpools_vr_som4_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%decomp_npools_vr_lit1_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%decomp_npools_vr_lit2_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%decomp_npools_vr_lit3_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%decomp_npools_vr_cwd_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%decomp_npools_vr_som1_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%decomp_npools_vr_som2_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%decomp_npools_vr_som3_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%decomp_npools_vr_som4_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%smin_no3_vr_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%smin_nh4_vr_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%smin_nh4sorb_vr_pfs,ierr)
 
     ! (iii) BGC/TH interface source/sink (rate): 3D subsurface CLM ---to--- 3D subsurface PFLOTRAN
     ! MPI Vecs for CLM
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_lit1c_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_lit2c_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_lit3c_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_cwdc_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_som1c_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_som2c_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_som3c_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_som4c_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_lit1n_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_lit2n_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_lit3n_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_cwdn_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_som1n_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_som2n_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_som3n_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_som4n_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_smin_no3_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_smin_nh4_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%rate_plantndemand_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_lit1c_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_lit2c_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_lit3c_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_cwdc_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_som1c_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_som2c_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_som3c_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_som4c_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_lit1n_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_lit2n_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_lit3n_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_cwdn_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_som1n_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_som2n_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_som3n_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_som4n_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_smin_no3_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_smin_nh4_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%rate_plantndemand_clmp,ierr)
 
     ! Seq. Vecs for PFLOTRAN
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_lit1c_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_lit2c_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_lit3c_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_cwdc_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_som1c_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_som2c_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_som3c_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_som4c_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_lit1n_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_lit2n_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_lit3n_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_cwdn_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_som1n_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_som2n_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_som3n_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_som4n_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_smin_no3_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_smin_nh4_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%rate_plantndemand_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_lit1c_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_lit2c_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_lit3c_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_cwdc_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_som1c_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_som2c_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_som3c_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_som4c_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_lit1n_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_lit2n_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_lit3n_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_cwdn_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_som1n_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_som2n_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_som3n_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_som4n_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_smin_no3_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_smin_nh4_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%rate_plantndemand_pfs,ierr)
 
 
     ! (iii) BGC state variables: 3D subsurface PFLOTRAN ---to--- 3D subsurface CLM
     ! MPI Vecs for PFLOTRAN
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_cpools_vr_lit1_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_cpools_vr_lit2_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_cpools_vr_lit3_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_cpools_vr_cwd_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_cpools_vr_som1_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_cpools_vr_som2_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_cpools_vr_som3_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_cpools_vr_som4_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_npools_vr_lit1_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_npools_vr_lit2_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_npools_vr_lit3_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_npools_vr_cwd_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_npools_vr_som1_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_npools_vr_som2_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_npools_vr_som3_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%decomp_npools_vr_som4_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%smin_no3_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%smin_nh4_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%smin_nh4sorb_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%decomp_cpools_vr_lit1_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%decomp_cpools_vr_lit2_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%decomp_cpools_vr_lit3_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%decomp_cpools_vr_cwd_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%decomp_cpools_vr_som1_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%decomp_cpools_vr_som2_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%decomp_cpools_vr_som3_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%decomp_cpools_vr_som4_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%decomp_npools_vr_lit1_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%decomp_npools_vr_lit2_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%decomp_npools_vr_lit3_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%decomp_npools_vr_cwd_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%decomp_npools_vr_som1_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%decomp_npools_vr_som2_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%decomp_npools_vr_som3_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%decomp_npools_vr_som4_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%smin_no3_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%smin_nh4_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%smin_nh4sorb_vr_pfp,ierr)
     ! Seq. Vecs for CLM
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%decomp_cpools_vr_lit1_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%decomp_cpools_vr_lit2_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%decomp_cpools_vr_lit3_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%decomp_cpools_vr_cwd_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%decomp_cpools_vr_som1_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%decomp_cpools_vr_som2_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%decomp_cpools_vr_som3_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%decomp_cpools_vr_som4_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%decomp_npools_vr_lit1_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%decomp_npools_vr_lit2_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%decomp_npools_vr_lit3_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%decomp_npools_vr_cwd_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%decomp_npools_vr_som1_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%decomp_npools_vr_som2_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%decomp_npools_vr_som3_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%decomp_npools_vr_som4_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%smin_no3_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%smin_nh4_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%smin_nh4sorb_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%decomp_cpools_vr_lit1_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%decomp_cpools_vr_lit2_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%decomp_cpools_vr_lit3_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%decomp_cpools_vr_cwd_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%decomp_cpools_vr_som1_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%decomp_cpools_vr_som2_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%decomp_cpools_vr_som3_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%decomp_cpools_vr_som4_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%decomp_npools_vr_lit1_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%decomp_npools_vr_lit2_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%decomp_npools_vr_lit3_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%decomp_npools_vr_cwd_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%decomp_npools_vr_som1_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%decomp_npools_vr_som2_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%decomp_npools_vr_som3_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%decomp_npools_vr_som4_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%smin_no3_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%smin_nh4_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%smin_nh4sorb_vr_clms,ierr)
 
 
     ! (iv) BGC flux variables: 3D subsurface PFLOTRAN ---to--- 3D subsurface CLM
     ! MPI Vecs for PFLOTRAN
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%gco2_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%gn2_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%gn2o_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%gco2_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%gn2_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%gn2o_vr_pfp,ierr)
     !
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accextrnh4_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accextrno3_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%accextrnh4_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%accextrno3_vr_pfp,ierr)
     !
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%acchr_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accnmin_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accnimmp_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accnimm_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%acchr_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%accnmin_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%accnimmp_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%accnimm_vr_pfp,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accngasmin_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accngasnitr_vr_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfp,clm_pf_idata%accngasdeni_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%accngasmin_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%accngasnitr_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%accngasdeni_vr_pfp,ierr)
 
     ! Seq. Vecs for CLM
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%gco2_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%gn2_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%gn2o_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%gco2_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%gn2_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%gn2o_vr_clms,ierr)
     !
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accextrnh4_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accextrno3_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%accextrnh4_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%accextrno3_vr_clms,ierr)
     !
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%acchr_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accnmin_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accnimmp_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accnimm_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%acchr_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%accnmin_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%accnimmp_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%accnimm_vr_clms,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accngasmin_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accngasnitr_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clms,clm_pf_idata%accngasdeni_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%accngasmin_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%accngasnitr_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%accngasdeni_vr_clms,ierr)
 
     ! MPI Vecs for CLM to pass reset aq. conc back to PF
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%gco2_vr_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%gn2_vr_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_clmp,clm_pf_idata%gn2o_vr_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%gco2_vr_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%gn2_vr_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%gn2o_vr_clmp,ierr)
     ! Seq. Vecs for PFLOTRAN to get reset aq. conc back from CLM
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%gco2_vr_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%gn2_vr_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoi_pfs,clm_pf_idata%gn2o_vr_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%gco2_vr_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%gn2_vr_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%gn2o_vr_pfs,ierr)
 
     ! (vi) BC flow variables: 2D faces of subsurface PFLOTRAN ---to--- 2D faces of subsurface CLM
     ! MPI Vecs for PFLOTRAN
@@ -1251,14 +1323,40 @@ contains
     PetscErrorCode :: ierr
 
     !-----
-    if(clm_pf_idata%zsoi_clmp /= 0) &
-       call VecDestroy(clm_pf_idata%zsoi_clmp,ierr)
-    if(clm_pf_idata%zsoi_pfs /= 0) &
-       call VecDestroy(clm_pf_idata%zsoi_pfs,ierr)
-    if(clm_pf_idata%zsoi_pfp /= 0) &
-       call VecDestroy(clm_pf_idata%zsoi_pfp,ierr)
-    if(clm_pf_idata%zsoi_clms /= 0) &
-       call VecDestroy(clm_pf_idata%zsoi_clms,ierr)
+    if(clm_pf_idata%zsoil_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%zsoil_clmp,ierr)
+    if(clm_pf_idata%zsoil_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%zsoil_pfs,ierr)
+    if(clm_pf_idata%zsoil_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%zsoil_pfp,ierr)
+    if(clm_pf_idata%zsoil_clms /= 0) &
+       call VecDestroy(clm_pf_idata%zsoil_clms,ierr)
+
+    if(clm_pf_idata%xsoil_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%xsoil_clmp,ierr)
+    if(clm_pf_idata%xsoil_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%xsoil_pfs,ierr)
+    if(clm_pf_idata%ysoil_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%ysoil_clmp,ierr)
+    if(clm_pf_idata%ysoil_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%ysoil_pfs,ierr)
+    if(clm_pf_idata%zisoil_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%zisoil_clmp,ierr)
+    if(clm_pf_idata%zisoil_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%zisoil_pfs,ierr)
+
+    if(clm_pf_idata%dxsoil_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%dxsoil_clmp,ierr)
+    if(clm_pf_idata%dxsoil_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%dxsoil_pfs,ierr)
+    if(clm_pf_idata%dysoil_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%dysoil_clmp,ierr)
+    if(clm_pf_idata%dysoil_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%dysoil_pfs,ierr)
+    if(clm_pf_idata%dzsoil_clmp /= 0) &
+       call VecDestroy(clm_pf_idata%dzsoil_clmp,ierr)
+    if(clm_pf_idata%dzsoil_pfs /= 0) &
+       call VecDestroy(clm_pf_idata%dzsoil_pfs,ierr)
 
     if(clm_pf_idata%area_subsurf_clmp  /= 0) &
       call VecDestroy(clm_pf_idata%area_subsurf_clmp,ierr)
@@ -1470,8 +1568,23 @@ contains
     !
     ! -----------------------------------------------------------------------------------------------------------
 
+    if (associated(clm_pf_idata%dxclm_global)) &
+    deallocate(clm_pf_idata%dxclm_global)
+
+    if (associated(clm_pf_idata%dyclm_global)) &
+    deallocate(clm_pf_idata%dyclm_global)
+
+    if (associated(clm_pf_idata%dzclm_global)) &
     deallocate(clm_pf_idata%dzclm_global)
+
+    if (associated(clm_pf_idata%floating_cn_ratio)) &
     deallocate(clm_pf_idata%floating_cn_ratio)
+
+    if (associated(clm_pf_idata%ck_decomp_c)) &
+    deallocate(clm_pf_idata%ck_decomp_c)
+
+    if (associated(clm_pf_idata%fr_decomp_c)) &
+    deallocate(clm_pf_idata%fr_decomp_c)
 
     if(clm_pf_idata%t_scalar_clmp /= 0) &
        call VecDestroy(clm_pf_idata%t_scalar_clmp,ierr)

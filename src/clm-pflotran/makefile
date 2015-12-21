@@ -389,7 +389,9 @@ clm_interface_obj = \
 	${common_src}pflotran_clm_main.o \
 	${common_src}pflotran_clm_setmapping.o \
 	${common_src}clm_pflotran_interface_data.o \
-	${common_src}mapping.o
+	${common_src}mapping.o \
+	${common_src}geodesic.o
+	
 
 # End Source Block
 
@@ -434,6 +436,8 @@ endif
 # Should add this to default PETSc targets as well?
 %.mod : %.F90
 	${FC} -c ${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS} $<
+%.mod : %.for
+	${FC} -c ${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS} $<
 
 # NOTE(bja, 2013-07) dependencies for clm interface. Keep these separate so that
 # the long list below is easier to update from the main makefile.
@@ -446,6 +450,8 @@ pflotran_clm_main.o : factory_geomechanics.o factory_hydrogeophysics.o \
              pflotran_provenance.o simulation_base.o \
              mapping.o clm_pflotran_interface_data.o
 pflotran_clm_setmapping.o : pflotran_clm_main.o mapping.o
+# the subroutine for geodesic functions (author: C. F. F. Karney)
+geodesic.o :
 
 # Dependencies stemming from "use" statements.
 # These ensure that the module files are built in the correct order.
