@@ -2751,7 +2751,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_lit2c <= 0 .or. clm_pf_idata%ispec_lit2n <=0 ) then
           pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
             trim(clm_pf_idata%name_lit2) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
           call printErrMsg(pflotran_model%option)
     endif
 
@@ -2775,7 +2775,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_lit3c <= 0 .or. clm_pf_idata%ispec_lit3n <=0 ) then
           pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
             trim(clm_pf_idata%name_lit3) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
           call printErrMsg(pflotran_model%option)
     endif
 
@@ -2789,7 +2789,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_cwdc <= 0 .or. clm_pf_idata%ispec_cwdn <=0 ) then
           pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
             trim(clm_pf_idata%name_cwd) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
           call printErrMsg(pflotran_model%option)
     endif
 
@@ -2815,7 +2815,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_som1c <= 0) then
           pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
             trim(clm_pf_idata%name_som1) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
           call printErrMsg(pflotran_model%option)
     endif
 
@@ -2840,7 +2840,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_som2c <= 0) then
           pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
             trim(clm_pf_idata%name_som2) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
           call printErrMsg(pflotran_model%option)
     endif
 
@@ -2865,7 +2865,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_som3c <= 0) then
           pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
             trim(clm_pf_idata%name_som3) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
           call printErrMsg(pflotran_model%option)
     endif
 
@@ -2890,7 +2890,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_som4c <= 0) then
           pflotran_model%option%io_buffer = 'CLM decomposing pool ' // &
             trim(clm_pf_idata%name_som4) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
           call printErrMsg(pflotran_model%option)
     endif
 
@@ -2926,13 +2926,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_nh4 <= 0 .and. clm_pf_idata%ispec_nh4imm <= 0) then
       pflotran_model%option%io_buffer = 'CLM N pool ' // &
             trim(word) // ' or ' // trim(clm_pf_idata%name_nh4imm) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
     endif
     if (clm_pf_idata%ispec_nh4 > 0 .and. clm_pf_idata%ispec_nh4imm > 0) then
           pflotran_model%option%io_buffer = 'CLM inorg. N pool ' // &
             trim(clm_pf_idata%name_nh4) // ' and ' // trim(clm_pf_idata%name_nh4imm) // &
-            'in PFLOTRAN_CLM_MAIN interface CANNOT both in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface CANNOT both in list of PF chemical species pools.'
           call printErrMsg(pflotran_model%option)
     endif
 
@@ -2949,13 +2949,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_no3<=0 .and. clm_pf_idata%ispec_no3imm <=0) then
       pflotran_model%option%io_buffer = 'CLM N pool ' // &
             trim(clm_pf_idata%name_no3)  // ' or ' // trim(clm_pf_idata%name_no3imm)// &
-            'in PFLOTRAN_CLM_MAIN interface NOT found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface NOT found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
     endif
     if (clm_pf_idata%ispec_no3 > 0 .and. clm_pf_idata%ispec_no3imm > 0) then
           pflotran_model%option%io_buffer = 'CLM inorg. N pool ' // &
             trim(clm_pf_idata%name_no3) // ' and ' // trim(clm_pf_idata%name_no3imm) // &
-            'in PFLOTRAN_CLM_MAIN interface CANNOT both in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface CANNOT both in list of PF chemical species pools.'
           call printErrMsg(pflotran_model%option)
     endif
     !
@@ -2997,7 +2997,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_hrimm<=0) then
       pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
             trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
     endif
 
@@ -3008,7 +3008,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_plantndemand<=0) then
       pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
             trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
     endif
 
@@ -3018,7 +3018,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_plantnh4uptake<=0) then
       pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
             trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
     endif
 
@@ -3028,7 +3028,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_plantno3uptake<=0) then
       pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
             trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
     endif
 
@@ -3038,7 +3038,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_nmin<=0) then
       pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
             trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
     endif
 
@@ -3048,7 +3048,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_nimmp<=0) then
       pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
             trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
     endif
 
@@ -3058,7 +3058,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_nimm<=0) then
       pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
             trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
     endif
 
@@ -3068,7 +3068,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_ngasmin<=0) then
       pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
             trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
     endif
 
@@ -3078,7 +3078,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_ngasnitr<=0) then
       pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
             trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
     endif
 
@@ -3088,7 +3088,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (clm_pf_idata%ispec_ngasdeni<=0) then
       pflotran_model%option%io_buffer = 'CLM-PF bgc pool ' // &
             trim(word) // &
-            'in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
     endif
 
@@ -3166,7 +3166,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       else
         pflotran_model%option%io_buffer = 'Soil litter/som pools definition ' // &
-            'in PFLOTRAN_CLM_MAIN interface Are beyond allowed in CLM-CN/BGC.'
+            ' in PFLOTRAN_CLM_MAIN interface Are beyond allowed in CLM-CN/BGC.'
         call printErrMsg(pflotran_model%option)
 
       end if
