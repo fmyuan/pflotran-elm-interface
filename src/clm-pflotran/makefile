@@ -12,7 +12,6 @@ include ${PETSC_DIR}/lib/petsc/conf/rules
 MYFLAGS = -I.
 MYFLAGS += ${FC_DEFINE_FLAG}PROCESS_MODEL
 MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN
-MYFLAGS += ${FC_DEFINE_FLAG}STORE_FLOWRATES
 
 # calculate the jacobians for tracking variables if coupled with CLM-CN
 #MYFLAGS += ${FC_DEFINE_FLAG}nojacobian_track_vars
@@ -406,7 +405,9 @@ clm_interface_obj = \
 	${common_src}pflotran_clm_main.o \
 	${common_src}pflotran_clm_setmapping.o \
 	${common_src}clm_pflotran_interface_data.o \
-	${common_src}mapping.o
+	${common_src}mapping.o \
+	${common_src}geodesic.o
+	
 
 # End Source Block
 
@@ -451,6 +452,8 @@ endif
 # Should add this to default PETSc targets as well?
 %.mod : %.F90
 	${FC} -c ${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS} $<
+%.mod : %.for
+	${FC} -c ${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS} $<
 
 # NOTE(bja, 2013-07) dependencies for clm interface. Keep these separate so that
 # the long list below is easier to update from the main makefile.
@@ -461,8 +464,10 @@ pflotran_clm_main.o : factory_geomechanics.o factory_hydrogeophysics.o \
              factory_surface.o factory_surfsubsurface.o \
              multisimulation.o option.o pflotran_constants.o \
              pflotran_provenance.o simulation_base.o \
-             clm_pflotran_interface_data.o mapping.o
-pflotran_clm_setmapping.o : mapping.o pflotran_clm_main.o
+             mapping.o clm_pflotran_interface_data.o
+pflotran_clm_setmapping.o : pflotran_clm_main.o mapping.o
+# the subroutine for geodesic functions (author: C. F. F. Karney)
+geodesic.o :
 
 # Dependencies stemming from "use" statements.
 # These ensure that the module files are built in the correct order.
@@ -545,7 +550,7 @@ debug.o : input_aux.o option.o pflotran_constants.o
 discretization.o : dm_kludge.o grid.o grid_structured.o grid_unstructured.o \
                    grid_unstructured_aux.o grid_unstructured_explicit.o \
                    grid_unstructured_polyhedra.o input_aux.o option.o \
-                   pflotran_constants.o string.o
+                   pflotran_constants.o string.o clm_pflotran_interface_data.o
 dm_kludge.o : grid_unstructured_aux.o pflotran_constants.o
 e4d_mat_inv.o :
 e4d_run.o : e4d_vars.o
