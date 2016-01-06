@@ -420,7 +420,7 @@ contains
 
     else
       ! directly mapping between CLM and PF meshes, if no user-defined mapping file
-      map%pflotran_nlev_mapped = grid%structured_grid%nlz
+      map%pflotran_nlev_mapped = grid%structured_grid%nz
       map%clm_nlev_mapped = clm_pf_idata%nzclm_mapped
       if (dest_mesh_id == PF_SUB_MESH) then
         call MappingFromCLMGrids(map, grid, PETSC_TRUE, option)
@@ -437,10 +437,6 @@ contains
     allocate(grid_clm_local_nindex(grid_clm_npts_local))
     do local_id = 1, grid_clm_npts_local
       grid_clm_local_nindex(local_id) = local_id     ! LOCAL ID
-
-      write(option%myrank+200,*) 'clm_cell_id:',&
- local_id, grid_clm_cell_ids_nindex(local_id)
-
     enddo
 
     ! Find cell IDs for PFLOTRAN grid

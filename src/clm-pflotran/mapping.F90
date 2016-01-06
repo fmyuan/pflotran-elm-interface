@@ -334,21 +334,6 @@ contains
         call printErrMsg(option)
     end select
 
-    ! Broadcast from root information regarding CLM/PFLOTRAN num soil layers
-    temp_int = map%clm_nlev_mapped
-    call MPI_Bcast(temp_int,ONE_INTEGER,MPI_INTEGER,option%myrank, &
-                 option%mycomm,ierr)
-    map%clm_nlev_mapped = temp_int
-
-    temp_int = map%pflotran_nlev_mapped
-    call MPI_Bcast(temp_int,ONE_INTEGER,MPI_INTEGER,option%myrank, &
-                 option%mycomm,ierr)
-    map%pflotran_nlev_mapped = temp_int
-
-    temp_int = map%id
-    call MPI_Bcast(temp_int,ONE_INTEGER,MPI_INTEGER,option%myrank, &
-                 option%mycomm,ierr)
-    map%id = temp_int
     !
     nwts = -999
     if (map%clm_nlev_mapped == map%pflotran_nlev_mapped) then
