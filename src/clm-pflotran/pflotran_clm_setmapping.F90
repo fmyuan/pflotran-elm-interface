@@ -174,7 +174,7 @@ contains
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_clm_sub_to_pf_sub%filename = &
             trim(model%map_clm_sub_to_pf_sub%filename)//CHAR(0)
-          model%map_clm_sub_to_pf_sub%id = ONE_INTEGER
+          model%map_clm_sub_to_pf_sub%id = CLM_SUB_TO_PF_SUB
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')   
           clm2pf_3dsub_file=PETSC_TRUE
@@ -183,7 +183,7 @@ contains
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_pf_sub_to_clm_sub%filename = &
             trim(model%map_pf_sub_to_clm_sub%filename)//CHAR(0)
-          model%map_pf_sub_to_clm_sub%id = TWO_INTEGER
+          model%map_pf_sub_to_clm_sub%id = PF_SUB_TO_CLM_SUB
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           pf2clm_3dsub_file=PETSC_TRUE
@@ -192,7 +192,7 @@ contains
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_clm_2dtop_to_pf_2dtop%filename = &
             trim(model%map_clm_2dtop_to_pf_2dtop%filename)//CHAR(0)
-          model%map_clm_2dtop_to_pf_2dtop%id = THREE_INTEGER
+          model%map_clm_2dtop_to_pf_2dtop%id = CLM_2DTOP_TO_PF_2DTOP
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_bctop_file=PETSC_TRUE
@@ -201,7 +201,7 @@ contains
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_pf_2dtop_to_clm_2dtop%filename = &
               trim(model%map_pf_2dtop_to_clm_2dtop%filename)//CHAR(0)
-          model%map_pf_2dtop_to_clm_2dtop%id = FOUR_INTEGER
+          model%map_pf_2dtop_to_clm_2dtop%id = PF_2DTOP_TO_CLM_2DTOP
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           pf2clm_bctop_file=PETSC_TRUE
@@ -210,7 +210,7 @@ contains
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_clm_2dbot_to_pf_2dbot%filename = &
             trim(model%map_clm_2dbot_to_pf_2dbot%filename)//CHAR(0)
-          model%map_clm_2dbot_to_pf_2dbot%id = FIVE_INTEGER
+          model%map_clm_2dbot_to_pf_2dbot%id = CLM_2DBOT_TO_PF_2DBOT
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           clm2pf_bcbot_file=PETSC_TRUE
@@ -219,7 +219,7 @@ contains
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_pf_2dbot_to_clm_2dbot%filename = &
             trim(model%map_pf_2dbot_to_clm_2dbot%filename)//CHAR(0)
-          model%map_pf_2dbot_to_clm_2dbot%id = SIX_INTEGER
+          model%map_pf_2dbot_to_clm_2dbot%id = PF_2DBOT_TO_CLM_2DBOT
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           pf2clm_bcbot_file=PETSC_TRUE
@@ -234,15 +234,41 @@ contains
 
     if ((.not. clm2pf_3dsub_file) .or. &
         (.not. pf2clm_3dsub_file) ) then
-      model%option%io_buffer='One of the 3D soil-mesh mapping files not found'
-      call printErrMsg(model%option)
+      model%option%io_buffer='One of the 3D soil-mesh mapping files not found - So,' // &
+      ' CLM grids conversion to PF structured-cartesian grid USED!'
+      call printMsg(model%option)
+
+      if(associated(model%map_clm_sub_to_pf_sub)) then
+        model%map_clm_sub_to_pf_sub%id = CLM_SUB_TO_PF_SUB
+      endif
+
+      if(associated(model%map_pf_sub_to_clm_sub)) then
+        model%map_pf_sub_to_clm_sub%id = PF_SUB_TO_CLM_SUB
+      endif
+
     endif
     
     if(   (model%option%iflowmode==TH_MODE .or. model%option%iflowmode==RICHARDS_MODE)  &
      .and.(.not.clm2pf_bctop_file .or. .not.pf2clm_bctop_file .or. &
            .not.clm2pf_bcbot_file .or. .not.pf2clm_bcbot_file) ) then
-      model%option%io_buffer='Running in TH_MODE/Richards_MODE without one of 4 top/bottom-cell mesh files'
-      call printErrMsg(model%option)
+      model%option%io_buffer='Running in TH_MODE/Richards_MODE without one of 4 top/bottom-cell mesh files - SO, ' // &
+      ' CLM grids conversion to PF structured-cartesian grid USED!'
+      call printMsg(model%option)
+
+      if(associated(model%map_clm_2dtop_to_pf_2dtop)) then
+        model%map_clm_2dtop_to_pf_2dtop%id = CLM_2DTOP_TO_PF_2DTOP
+      endif
+      if(associated(model%map_pf_2dtop_to_clm_2dtop)) then
+        model%map_pf_2dtop_to_clm_2dtop%id = PF_2DTOP_TO_CLM_2DTOP
+      endif
+
+      if(associated(model%map_clm_2dbot_to_pf_2dbot)) then
+        model%map_clm_2dbot_to_pf_2dbot%id = CLM_2DBOT_TO_PF_2DBOT
+      endif
+      if(associated(model%map_pf_2dbot_to_clm_2dbot)) then
+        model%map_pf_2dbot_to_clm_2dbot%id = PF_2DBOT_TO_CLM_2DBOT
+      endif
+
     endif
 
   end subroutine pflotranModelSetupMappingFiles
@@ -261,18 +287,8 @@ contains
   ! Date: 03/24/2011
   ! Revised by Fengming YUAN
 
-    !use Input_Aux_module
     use Option_module
-    !use Realization_class
-    !use Grid_module
-    !use Patch_module
-    !use Coupler_module
-    !use Connection_module
     use String_module
-    !use Simulation_Base_class, only : simulation_base_type
-    !use Simulation_Subsurface_class, only : subsurface_simulation_type
-    !use Simulation_Surface_class, only : surface_simulation_type
-    !use Simulation_Surf_subsurf_class, only : surfsubsurface_simulation_type
     use Mapping_module
 
     implicit none
@@ -351,8 +367,6 @@ contains
     PetscInt, pointer                  :: grid_pf_cell_ids_nindex(:)
     PetscInt, pointer                  :: grid_pf_local_nindex(:)
     PetscInt, pointer                  :: grid_clm_local_nindex(:)
-    PetscInt, pointer                  :: grid_clm_local_shuffle_nindex(:)
-    PetscInt                           :: numg, numk, g, k
     PetscErrorCode:: ierr
 
     type(mapping_type), pointer        :: map
@@ -396,16 +410,22 @@ contains
         call printErrMsg(option)
     end select
 
-    ! Read mapping file
-    if (index(map%filename, '.h5') > 0) then
-      call MappingReadHDF5(map, map%filename, option)
-    else
-      call MappingReadTxtFile(map, map%filename, option)
+    if (len(trim(map%filename)) > 0) then
+      ! Read mapping file
+      if (index(map%filename, '.h5') > 0) then
+        call MappingReadHDF5(map, map%filename, option)
+      else
+        call MappingReadTxtFile(map, map%filename, option)
+      endif
 
-      ! checking if the CLM-PF has same number of soil layers for mapping
-      if (map%pflotran_nlev /= clm_pf_idata%nzclm_mapped) then
-         option%io_buffer = 'Invalid mapping soil layers between CLM and PFLOTRAN!'
-        call printErrMsg(option)
+    else
+      ! directly mapping between CLM and PF meshes, if no user-defined mapping file
+      map%pflotran_nlev_mapped = grid%structured_grid%nlz
+      map%clm_nlev_mapped = clm_pf_idata%nzclm_mapped
+      if (dest_mesh_id == PF_SUB_MESH) then
+        call MappingFromCLMGrids(map, grid, PETSC_TRUE, option)
+      elseif(dest_mesh_id == CLM_SUB_MESH) then
+        call MappingFromCLMGrids(map, grid, PETSC_FALSE, option)
       endif
 
     endif
@@ -415,19 +435,13 @@ contains
     ! Allocate memory to identify if CLM cells are local or ghosted.
     ! Note: Presently all CLM cells are local
     allocate(grid_clm_local_nindex(grid_clm_npts_local))
-    allocate(grid_clm_local_shuffle_nindex(grid_clm_npts_local))
     do local_id = 1, grid_clm_npts_local
       grid_clm_local_nindex(local_id) = local_id     ! LOCAL ID
 
-      ! the following is a hack for passing Data from CLMp vec -> PF array --> CLMs vec directly for 2-D domain
-      ! it will twist horizontal and vertical axis of CLM domain.
-      numk = clm_pf_idata%nzclm_mapped
-      numg = grid_clm_npts_local/numk
-      g = mod(local_id-1, numg) + 1
-      k = (local_id - g )/numg + 1
-      grid_clm_local_shuffle_nindex(local_id) = (g-1)*numk + k
+      write(option%myrank+200,*) 'clm_cell_id:',&
+ local_id, grid_clm_cell_ids_nindex(local_id)
 
-     enddo
+    enddo
 
     ! Find cell IDs for PFLOTRAN grid
     grid_pf_npts_local = grid%nlmax
@@ -451,7 +465,7 @@ contains
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
                                          grid_clm_npts_ghost, &
                                          grid_clm_cell_ids_nindex, &
-                                         grid_clm_local_shuffle_nindex)
+                                         grid_clm_local_nindex)
         call MappingSetDestinationMeshCellIds(map, option, grid_pf_npts_local, &
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
@@ -464,7 +478,7 @@ contains
         call MappingSetDestinationMeshCellIds(map, option, grid_clm_npts_local, &
                                               grid_clm_npts_ghost, &
                                               grid_clm_cell_ids_nindex, &
-                                              grid_clm_local_shuffle_nindex)
+                                              grid_clm_local_nindex)
       case default
         option%io_buffer = 'Invalid argument source_mesh_id passed to pflotranModelInitMapping'
         call printErrMsg(option)
@@ -479,7 +493,6 @@ contains
     deallocate(grid_pf_cell_ids_nindex)
     deallocate(grid_pf_local_nindex)
     deallocate(grid_clm_local_nindex)
-    deallocate(grid_clm_local_shuffle_nindex)
 
   end subroutine pflotranModelInitMappingSub2Sub
 
@@ -591,11 +604,24 @@ contains
         call printErrMsg(option)
     end select
 
-    ! Read mapping file
-    if (index(map%filename, '.h5') > 0) then
-      call MappingReadHDF5(map, map%filename, option)
+    if (len(trim(map%filename)) > 0) then
+      ! Read mapping file
+      if (index(map%filename, '.h5') > 0) then
+        call MappingReadHDF5(map, map%filename, option)
+      else
+        call MappingReadTxtFile(map, map%filename, option)
+      endif
+
     else
-      call MappingReadTxtFile(map, map%filename, option)
+      ! directly mapping between CLM and PF meshes, if no user-defined mapping file
+      map%pflotran_nlev_mapped = grid%structured_grid%nlz
+      map%clm_nlev_mapped = clm_pf_idata%nzclm_mapped
+      if (dest_mesh_id == PF_2DTOP_MESH) then
+        call MappingFromCLMGrids(map, grid, PETSC_FALSE, option)
+      elseif(dest_mesh_id == CLM_2DTOP_MESH) then
+        call MappingFromCLMGrids(map, grid, PETSC_TRUE, option)
+      endif
+
     endif
 
     grid_clm_npts_ghost=0
@@ -1342,11 +1368,24 @@ contains
         call printErrMsg(option)
     end select
 
-    ! Read mapping file
-    if (index(map%filename, '.h5') > 0) then
-      call MappingReadHDF5(map, map%filename, option)
+    if (len(trim(map%filename)) > 0) then
+      ! Read mapping file
+      if (index(map%filename, '.h5') > 0) then
+        call MappingReadHDF5(map, map%filename, option)
+      else
+        call MappingReadTxtFile(map, map%filename, option)
+      endif
+
     else
-      call MappingReadTxtFile(map, map%filename, option)
+      ! directly mapping between CLM and PF meshes, if no user-defined mapping file
+      map%pflotran_nlev_mapped = grid%structured_grid%nlz
+      map%clm_nlev_mapped = clm_pf_idata%nzclm_mapped
+      if (dest_mesh_id == PF_FACE_MESH) then
+        call MappingFromCLMGrids(map, grid, PETSC_FALSE, option)
+      elseif(dest_mesh_id == CLM_FACE_MESH) then
+        call MappingFromCLMGrids(map, grid, PETSC_TRUE, option)
+      endif
+
     endif
 
     grid_clm_npts_ghost=0
