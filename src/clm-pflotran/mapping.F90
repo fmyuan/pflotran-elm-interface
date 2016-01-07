@@ -362,14 +362,14 @@ contains
           do i = 1, grid%structured_grid%nx
 
             ! PF global cell id in natural order (1-based)
-            natural_id = i +                               &   ! x third
+            natural_id = i +                               &   ! x first
                          (j-1)*grid%structured_grid%nx  +  &   ! y second
-                         (k-1)*grid%structured_grid%nxy        ! z first
+                         (k-1)*grid%structured_grid%nxy        ! z third
 
 
             ! CLM global grid numering (1-based)
-            grid_count = i +                          &        ! south-north (y: latitudal) direction third
-                        (j-1)*grid%structured_grid%nx          ! west-east (x: longitudal) direction second
+            grid_count = i +                          &        ! west-east (x: longitudal) direction third
+                        (j-1)*grid%structured_grid%nx          ! south-north (y: latitudal) direction second
 
             ! cell ids globally
             if (map%id == 1 .or. map%id == 2) then  ! 3D subsurface (soil) domain

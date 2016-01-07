@@ -251,6 +251,7 @@ contains
 
     PetscScalar, pointer :: dlon_pf_loc(:),dlat_pf_loc(:), dzsoil_pf_loc(:)           ! soil cell length/width/thickness (deg/deg/m) for 3-D PF cells
     PetscScalar, pointer :: lonc_pf_loc(:),latc_pf_loc(:), zisoil_pf_loc(:)           ! soil cell coordinates (deg/deg/m) for 3-D PF cells
+    PetscScalar, pointer :: topface_pf_loc(:)
     PetscReal            :: lon_c, lat_c, lon_e, lon_w, lat_s, lat_n
     PetscReal            :: x_global, y_global
     PetscReal            :: tempreal
@@ -500,12 +501,26 @@ contains
                                     clm_pf_idata%zsoil_clmp, &
                                     clm_pf_idata%zsoil_pfs)
 
-    ! the following are 'wtgcell' adjusted 'TOP' face area (not yet figured out how to use it for multiple columns in ONE grid)
+    ! the following are 'wtgcell' and 'landfrac' adjusted 'TOP' face area (not yet figured out how to use it for multiple columns in ONE grid)
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%area_top_face_clmp, &
                                     clm_pf_idata%area_top_face_pfs)
+    ! inactive cells with weighted top-surface area of 0 (i.e. CLM grid of inactive or zero coverage of land)
+    ! by setting their 'material' id to -999
+    call VecGetArrayReadF90(clm_pf_idata%area_top_face_pfs, topface_pf_loc, ierr)
+    CHKERRQ(ierr)
+    do ghosted_id = 1, grid%ngmax
+      local_id = grid%nG2L(ghosted_id)
+      if (ghosted_id < 0 .or. local_id < 0) cycle
 
+      if (topface_pf_loc(ghosted_id)<=1.d-20 .and. associated(patch%imat)) then
+        patch%imat(ghosted_id) = -999
+      endif
+
+    end do
+    call VecRestoreArrayReadF90(clm_pf_idata%area_top_face_pfs, topface_pf_loc, ierr)
+    CHKERRQ(ierr)
 
   end subroutine pflotranModelSetSoilDimension
 
