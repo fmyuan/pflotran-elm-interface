@@ -1038,7 +1038,7 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
                  connections%dist(0,iconn) = sqrt(tempreal)
               endif
 
-              ! dx is the mid-length of a isoceles trapezoid grid, so need to adjust the connection (interface) face area
+              ! dy is the length of height in a isoceles trapezoid grid, so need to adjust the connection (interface) face area
               tempreal = structured_grid%dy(id_dn) - structured_grid%dy(id_up)
               if (tempreal>1.d-6) then    ! 'up' is the short parallel side
                  tempreal = abs(tempreal)*(dist_up/(dist_up+dist_dn))+structured_grid%dy(id_up)

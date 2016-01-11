@@ -311,13 +311,16 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
     case(STRUCTURED_GRID)      
 
 #ifdef CLM_PFLOTRAN
-      ! override readings from input cards, if coupled with CLM
-      nx = clm_pf_idata%nxclm_mapped
-      ny = clm_pf_idata%nyclm_mapped
-      nz = clm_pf_idata%nzclm_mapped
+      ! override readings from input cards above, if coupled with CLM 2D-grid
+      if (clm_pf_idata%nxclm_mapped == 1 .or. clm_pf_idata%nyclm_mapped == 1) then
+        nx = clm_pf_idata%nxclm_mapped
+        ny = clm_pf_idata%nyclm_mapped
+        discretization%origin(X_DIRECTION) = clm_pf_idata%x0clm_global
+        discretization%origin(Y_DIRECTION) = clm_pf_idata%y0clm_global
+      end if
 
-      discretization%origin(X_DIRECTION) = clm_pf_idata%x0clm_global
-      discretization%origin(Y_DIRECTION) = clm_pf_idata%y0clm_global
+      ! but always over-ride soil (vertical) discretization scheme
+      nz = clm_pf_idata%nzclm_mapped
       discretization%origin(Z_DIRECTION) = clm_pf_idata%z0clm_global
 
 #endif
@@ -399,9 +402,9 @@ subroutine DiscretizationRead(discretization,input,option)
           case(STRUCTURED_GRID)
 
 #ifdef CLM_PFLOTRAN
-            !override input cards, if coupled wit CLM
 
-            if(clm_pf_idata%dxclm_global(1)>1.d-6 .and. clm_pf_idata%dyclm_global(1)>1.d-6) then
+            !don't read input cards of PF grid, if coupled with CLM 2-D grid
+            if (clm_pf_idata%nxclm_mapped == 1 .or. clm_pf_idata%nyclm_mapped == 1) then
               allocate(discretization%grid%structured_grid%dx_global &
                 (discretization%grid%structured_grid%nx))
               discretization%grid%structured_grid%dx_global = &
@@ -412,7 +415,7 @@ subroutine DiscretizationRead(discretization,input,option)
               discretization%grid%structured_grid%dy_global = &
                 clm_pf_idata%dyclm_global                               ! unit: latitudal degrees
 
-            else  ! the following IS needed, if CLM-grid NOT available
+            else  ! the following IS needed, if 1D CLM-grid ( this either real 1D-grid, or unstructured in CLM)
               call StructGridReadDXYZ(discretization%grid%structured_grid,input,option)
 
             endif

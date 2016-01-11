@@ -284,16 +284,6 @@ contains
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%dxsoil_clmp, &
-                                    clm_pf_idata%dxsoil_pfs)
-
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%dysoil_clmp, &
-                                    clm_pf_idata%dysoil_pfs)
-
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%dzsoil_clmp, &
                                     clm_pf_idata%dzsoil_pfs)
 
@@ -301,30 +291,44 @@ contains
                                     pflotran_model%option, &
                                     clm_pf_idata%zisoil_clmp, &
                                     clm_pf_idata%zisoil_pfs)
+    call VecGetArrayReadF90(clm_pf_idata%dzsoil_pfs, dzsoil_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
+    CHKERRQ(ierr)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+    !
+    if (clm_pf_idata%nxclm_mapped == 1 .or. clm_pf_idata%nyclm_mapped == 1) then
+
+      call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%dxsoil_clmp, &
+                                    clm_pf_idata%dxsoil_pfs)
+
+      call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%dysoil_clmp, &
+                                    clm_pf_idata%dysoil_pfs)
+
+      call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%xsoil_clmp, &
                                     clm_pf_idata%xsoil_pfs)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+      call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%ysoil_clmp, &
                                     clm_pf_idata%ysoil_pfs)
 
     !
-    call VecGetArrayReadF90(clm_pf_idata%dxsoil_pfs, dlon_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayReadF90(clm_pf_idata%dysoil_pfs, dlat_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayReadF90(clm_pf_idata%dzsoil_pfs, dzsoil_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayReadF90(clm_pf_idata%xsoil_pfs, lonc_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayReadF90(clm_pf_idata%ysoil_pfs, latc_pf_loc, ierr)
-    CHKERRQ(ierr)
+      call VecGetArrayReadF90(clm_pf_idata%dxsoil_pfs, dlon_pf_loc, ierr)
+      CHKERRQ(ierr)
+      call VecGetArrayReadF90(clm_pf_idata%dysoil_pfs, dlat_pf_loc, ierr)
+      CHKERRQ(ierr)
+      call VecGetArrayReadF90(clm_pf_idata%xsoil_pfs, lonc_pf_loc, ierr)
+      CHKERRQ(ierr)
+      call VecGetArrayReadF90(clm_pf_idata%ysoil_pfs, latc_pf_loc, ierr)
+      CHKERRQ(ierr)
+    end if
 
     !
     select case(grid%itype)
@@ -350,7 +354,10 @@ contains
     do ghosted_id = 1, grid%ngmax
       local_id = grid%nG2L(ghosted_id)
 
-        ! hack cell's 3-D dimensions
+      ! hack cell's 3-D dimensions
+
+      ! adjusting (x,y) if runs with 2D CLM grid (usually in lat/lon paired grid)
+      if (clm_pf_idata%nxclm_mapped == 1 .or. clm_pf_idata%nyclm_mapped == 1) then
 
         call StructGridGetIJKFromGhostedID(grid%structured_grid,ghosted_id,i,j,k)
 
@@ -407,10 +414,6 @@ contains
           dummy1, dummy2, dummy3, dummy4 , dummy5)
         grid%structured_grid%dy(ghosted_id) = s12
 
-        ! vertical (z-axis)
-        grid%structured_grid%dz(ghosted_id) = dzsoil_pf_loc(ghosted_id)
-        grid%z(ghosted_id)   = zisoil_pf_loc(ghosted_id)    ! directly over-ride PF 'z' coordinate from CLM soil layer 'zi'
-
         ! some checking
         ! areas of grid (x,y)
         call area(a, f, lats, lons, 4, dummy1, dummy2)
@@ -463,19 +466,28 @@ contains
           call printMsg(pflotran_model%option)
         end if
 
+      end if ! if (clm_pf_idata%nxclm_mapped == 1 .or. clm_pf_idata%nyclm_mapped == 1)
+
+      ! vertical (z-axis) (always from CLM to PF)
+      grid%structured_grid%dz(ghosted_id) = dzsoil_pf_loc(ghosted_id)
+      grid%z(ghosted_id)   = zisoil_pf_loc(ghosted_id)    ! directly over-ride PF 'z' coordinate from CLM soil layer 'zi'
+
     enddo
 
-    call VecRestoreArrayReadF90(clm_pf_idata%dxsoil_pfs, dlon_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%dysoil_pfs, dlat_pf_loc, ierr)
-    CHKERRQ(ierr)
+    if (clm_pf_idata%nxclm_mapped == 1 .or. clm_pf_idata%nyclm_mapped == 1) then
+      call VecRestoreArrayReadF90(clm_pf_idata%dxsoil_pfs, dlon_pf_loc, ierr)
+      CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%dysoil_pfs, dlat_pf_loc, ierr)
+      CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%xsoil_pfs, lonc_pf_loc, ierr)
+      CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%ysoil_pfs, latc_pf_loc, ierr)
+      CHKERRQ(ierr)
+    end if
+
     call VecRestoreArrayReadF90(clm_pf_idata%dzsoil_pfs, dzsoil_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%xsoil_pfs, lonc_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%ysoil_pfs, latc_pf_loc, ierr)
     CHKERRQ(ierr)
 
 
@@ -531,7 +543,6 @@ contains
   !
   ! Converts hydraulic properties from CLM units
   ! into PFLOTRAN units.
-  ! #ifdef CLM_PFLOTRAN
   !
   ! Author: Gautam Bisht
   ! Date: 10/22/2010
