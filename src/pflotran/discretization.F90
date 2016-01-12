@@ -312,7 +312,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
 
 #ifdef CLM_PFLOTRAN
       ! override readings from input cards above, if coupled with CLM 2D-grid
-      if (clm_pf_idata%nxclm_mapped == 1 .or. clm_pf_idata%nyclm_mapped == 1) then
+      if (clm_pf_idata%nxclm_mapped > 1 .and. clm_pf_idata%nyclm_mapped > 1) then
         nx = clm_pf_idata%nxclm_mapped
         ny = clm_pf_idata%nyclm_mapped
         discretization%origin(X_DIRECTION) = clm_pf_idata%x0clm_global
@@ -404,7 +404,7 @@ subroutine DiscretizationRead(discretization,input,option)
 #ifdef CLM_PFLOTRAN
 
             !don't read input cards of PF grid, if coupled with CLM 2-D grid
-            if (clm_pf_idata%nxclm_mapped == 1 .or. clm_pf_idata%nyclm_mapped == 1) then
+            if (clm_pf_idata%nxclm_mapped > 1 .and. clm_pf_idata%nyclm_mapped > 1) then
               allocate(discretization%grid%structured_grid%dx_global &
                 (discretization%grid%structured_grid%nx))
               discretization%grid%structured_grid%dx_global = &

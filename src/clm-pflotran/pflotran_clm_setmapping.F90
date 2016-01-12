@@ -418,7 +418,13 @@ contains
         call MappingReadTxtFile(map, map%filename, option)
       endif
 
-    else
+      ! checking if the CLM-PF has same number of soil layers for mapping
+      if (map%pflotran_nlev /= clm_pf_idata%nzclm_mapped) then
+         option%io_buffer = 'Invalid mapping soil layers between CLM and PFLOTRAN!'
+        call printErrMsg(option)
+      end if
+
+    elseif(clm_pf_idata%nxclm_mapped>1 .and. clm_pf_idata%nyclm_mapped>1) then
       ! directly mapping between CLM and PF meshes, if no user-defined mapping file
       map%pflotran_nlev_mapped = grid%structured_grid%nz
       map%clm_nlev_mapped = clm_pf_idata%nzclm_mapped
@@ -427,6 +433,11 @@ contains
       elseif(dest_mesh_id == CLM_SUB_MESH) then
         call MappingFromCLMGrids(map, grid, PETSC_FALSE, option)
       endif
+
+    else
+
+        option%io_buffer = 'MUST provide mapping files between CLM and PFLOTRAN! '
+        call printErrMsg(option)
 
     endif
 

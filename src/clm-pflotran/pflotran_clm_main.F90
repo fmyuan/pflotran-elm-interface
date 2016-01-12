@@ -297,7 +297,7 @@ contains
     CHKERRQ(ierr)
 
     !
-    if (clm_pf_idata%nxclm_mapped == 1 .or. clm_pf_idata%nyclm_mapped == 1) then
+    if (clm_pf_idata%nxclm_mapped > 1 .and. clm_pf_idata%nyclm_mapped > 1) then
 
       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
@@ -357,7 +357,7 @@ contains
       ! hack cell's 3-D dimensions
 
       ! adjusting (x,y) if runs with 2D CLM grid (usually in lat/lon paired grid)
-      if (clm_pf_idata%nxclm_mapped == 1 .or. clm_pf_idata%nyclm_mapped == 1) then
+      if (clm_pf_idata%nxclm_mapped > 1 .and. clm_pf_idata%nyclm_mapped > 1) then
 
         call StructGridGetIJKFromGhostedID(grid%structured_grid,ghosted_id,i,j,k)
 
@@ -466,15 +466,14 @@ contains
           call printMsg(pflotran_model%option)
         end if
 
-      end if ! if (clm_pf_idata%nxclm_mapped == 1 .or. clm_pf_idata%nyclm_mapped == 1)
+      end if ! if (clm_pf_idata%nxclm_mapped > 1 .and. clm_pf_idata%nyclm_mapped > 1)
 
       ! vertical (z-axis) (always from CLM to PF)
       grid%structured_grid%dz(ghosted_id) = dzsoil_pf_loc(ghosted_id)
       grid%z(ghosted_id)   = zisoil_pf_loc(ghosted_id)    ! directly over-ride PF 'z' coordinate from CLM soil layer 'zi'
-
     enddo
 
-    if (clm_pf_idata%nxclm_mapped == 1 .or. clm_pf_idata%nyclm_mapped == 1) then
+    if (clm_pf_idata%nxclm_mapped > 1 .and. clm_pf_idata%nyclm_mapped > 1) then
       call VecRestoreArrayReadF90(clm_pf_idata%dxsoil_pfs, dlon_pf_loc, ierr)
       CHKERRQ(ierr)
       call VecRestoreArrayReadF90(clm_pf_idata%dysoil_pfs, dlat_pf_loc, ierr)
@@ -489,7 +488,6 @@ contains
     CHKERRQ(ierr)
     call VecRestoreArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
     CHKERRQ(ierr)
-
 
     ! re-do some dimension calculations after changes above
     call MPI_Barrier(pflotran_model%option%mycomm,ierr)
@@ -506,7 +504,6 @@ contains
     call MaterialSetAuxVarVecLoc(patch%aux%Material, &
                                field%work_loc,VOLUME,ZERO_INTEGER)
 
-
     ! the following variable is directly used in 'sandbox_somdec'
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
@@ -518,21 +515,25 @@ contains
                                     pflotran_model%option, &
                                     clm_pf_idata%area_top_face_clmp, &
                                     clm_pf_idata%area_top_face_pfs)
-    ! inactive cells with weighted top-surface area of 0 (i.e. CLM grid of inactive or zero coverage of land)
-    ! by setting their 'material' id to -999
-    call VecGetArrayReadF90(clm_pf_idata%area_top_face_pfs, topface_pf_loc, ierr)
-    CHKERRQ(ierr)
-    do ghosted_id = 1, grid%ngmax
-      local_id = grid%nG2L(ghosted_id)
-      if (ghosted_id < 0 .or. local_id < 0) cycle
 
-      if (topface_pf_loc(ghosted_id)<=1.d-20 .and. associated(patch%imat)) then
-        patch%imat(ghosted_id) = -999
-      endif
+    if (clm_pf_idata%nxclm_mapped > 1 .and. clm_pf_idata%nyclm_mapped > 1) then
+      ! inactive cells with weighted top-surface area of 0 (i.e. CLM grid of inactive or zero coverage of land)
+      ! by setting their 'material' id to -999
+      call VecGetArrayReadF90(clm_pf_idata%area_top_face_pfs, topface_pf_loc, ierr)
+      CHKERRQ(ierr)
 
-    end do
-    call VecRestoreArrayReadF90(clm_pf_idata%area_top_face_pfs, topface_pf_loc, ierr)
-    CHKERRQ(ierr)
+      do ghosted_id = 1, grid%ngmax
+        local_id = grid%nG2L(ghosted_id)
+        if (ghosted_id < 0 .or. local_id < 0) cycle
+
+        if (topface_pf_loc(ghosted_id)<=1.d-20 .and. associated(patch%imat)) then
+          patch%imat(ghosted_id) = -999
+        endif
+      end do
+
+      call VecRestoreArrayReadF90(clm_pf_idata%area_top_face_pfs, topface_pf_loc, ierr)
+      CHKERRQ(ierr)
+    end if
 
   end subroutine pflotranModelSetSoilDimension
 
