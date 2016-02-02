@@ -37,6 +37,8 @@ module clm_pflotran_interface_data
   PetscReal, pointer :: dyclm_global(:)              ! this is NOT the 3-D vec 'dysoil' defined below, rather it's the universal y-direction interval (OR, longitudal degree interval from CLM land surf grids)
   PetscReal, pointer :: dzclm_global(:)              ! this is NOT the 3-D vec 'dzsoil' defined below, rather it's the universal soil layer thickness (unit: m) for all gridcells
 
+  PetscInt :: npx, npy, npz    ! decompose domain in 3-D: processors no. (only work with structured PF grid)
+
   ! Soil BGC decomposing pools
   PetscInt :: ndecomp_pools
   logical, pointer :: floating_cn_ratio(:)           ! TRUE => pool has variable C:N ratio
@@ -521,8 +523,29 @@ contains
   
     implicit none
 
+    nullify(clm_pf_idata%dxclm_global)
+    nullify(clm_pf_idata%dyclm_global)
+    nullify(clm_pf_idata%dzclm_global)
+
+    nullify(clm_pf_idata%floating_cn_ratio)
+    nullify(clm_pf_idata%decomp_element_ratios)
+    nullify(clm_pf_idata%ispec_decomp_c)
+    nullify(clm_pf_idata%ispec_decomp_n)
+    nullify(clm_pf_idata%ispec_decomp_hr)
+    nullify(clm_pf_idata%ispec_decomp_nmin)
+    nullify(clm_pf_idata%ispec_decomp_nimp)
+    nullify(clm_pf_idata%ispec_decomp_nimm)
+    nullify(clm_pf_idata%decomp_pool_name)
+    nullify(clm_pf_idata%ck_decomp_c)
+    nullify(clm_pf_idata%fr_decomp_c)
+
+    !
     clm_pf_idata%N_molecular_weight = 14.0067d0
     clm_pf_idata%C_molecular_weight = 12.0110d0
+
+    clm_pf_idata%npx = 1    !default 'np' for PF mesh decompose is 1x1x1
+    clm_pf_idata%npy = 1
+    clm_pf_idata%npz = 1
 
     clm_pf_idata%nzclm_mapped = 0
     clm_pf_idata%nxclm_mapped = 0
@@ -1570,21 +1593,34 @@ contains
 
     if (associated(clm_pf_idata%dxclm_global)) &
     deallocate(clm_pf_idata%dxclm_global)
-
     if (associated(clm_pf_idata%dyclm_global)) &
     deallocate(clm_pf_idata%dyclm_global)
-
     if (associated(clm_pf_idata%dzclm_global)) &
     deallocate(clm_pf_idata%dzclm_global)
 
+    if (associated(clm_pf_idata%decomp_element_ratios)) &
+    deallocate(clm_pf_idata%decomp_element_ratios)
     if (associated(clm_pf_idata%floating_cn_ratio)) &
     deallocate(clm_pf_idata%floating_cn_ratio)
-
     if (associated(clm_pf_idata%ck_decomp_c)) &
     deallocate(clm_pf_idata%ck_decomp_c)
-
     if (associated(clm_pf_idata%fr_decomp_c)) &
     deallocate(clm_pf_idata%fr_decomp_c)
+
+    if (associated(clm_pf_idata%ispec_decomp_c)) &
+    deallocate(clm_pf_idata%ispec_decomp_c)
+    if (associated(clm_pf_idata%ispec_decomp_n)) &
+    deallocate(clm_pf_idata%ispec_decomp_n)
+    if (associated(clm_pf_idata%ispec_decomp_hr)) &
+    deallocate(clm_pf_idata%ispec_decomp_hr)
+    if (associated(clm_pf_idata%ispec_decomp_nmin)) &
+    deallocate(clm_pf_idata%ispec_decomp_nmin)
+    if (associated(clm_pf_idata%ispec_decomp_nimp)) &
+    deallocate(clm_pf_idata%ispec_decomp_nimp)
+    if (associated(clm_pf_idata%ispec_decomp_nimm)) &
+    deallocate(clm_pf_idata%ispec_decomp_nimm)
+    if (associated(clm_pf_idata%decomp_pool_name)) &
+    deallocate(clm_pf_idata%decomp_pool_name)
 
     if(clm_pf_idata%t_scalar_clmp /= 0) &
        call VecDestroy(clm_pf_idata%t_scalar_clmp,ierr)

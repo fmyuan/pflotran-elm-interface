@@ -167,117 +167,6 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine MappingSetSourceMeshCellIds( map,                           &
-                                          option,                        &
-                                          ncells_loc, ncells_gh,         &
-                                          cell_ids_ghd,                  &
-                                          local_ids_ghd                  &
-                                        )
-  ! 
-  ! This routine sets cell ids source mesh.
-  ! 
-  ! Author: Gautam Bisht, ORNL
-  ! Date: 2011
-  ! 
-
-    use Option_module
-    implicit none
-
-    type(mapping_type), pointer :: map
-    type(option_type),  pointer :: option
-
-    PetscInt                    :: ncells_loc, ncells_gh, iloc, ii
-    PetscInt,pointer            :: cell_ids_ghd(:), local_ids_ghd(:)
-
-    map%s_ncells_loc = ncells_loc
-    allocate(map%s_ids_loc_nidx(map%s_ncells_loc))
-    allocate(map%s_locids_loc_nidx(map%s_ncells_loc))
-
-    iloc = 0
-    do ii = 1,ncells_loc+ncells_gh
-      if (local_ids_ghd(ii)>=1) then
-        iloc = iloc+1
-        map%s_ids_loc_nidx(iloc)    = cell_ids_ghd(ii)
-        map%s_locids_loc_nidx(iloc) = local_ids_ghd(ii)
-      endif
-    enddo
-
-  end subroutine MappingSetSourceMeshCellIds
-
-! ************************************************************************** !
-
-  subroutine MappingSetDestinationMeshCellIds(map, &
-                                              option, &
-                                              ncells_loc, &
-                                              ncells_gh, &
-                                              cell_ids_ghd, &
-                                              loc_or_gh &
-                                              )
-  ! 
-  ! This routine sets the cell ids of destination mesh.
-  ! 
-  ! Author: Gautam Bisht, ORNL
-  ! Date: 2011
-  ! 
-
-    use Utility_module, only : DeallocateArray
-    use Option_module
-    implicit none
-
-    type(mapping_type), pointer :: map
-    type(option_type), pointer  :: option
-
-    PetscInt                    :: ncells_loc, ncells_gh
-    PetscInt,pointer            :: cell_ids_ghd(:), loc_or_gh(:)
-
-    PetscInt                    :: ii
-    PetscInt, pointer           :: index(:),rev_index(:)
-    PetscErrorCode              :: ierr
-
-    ! Initialize
-    map%d_ncells_loc = ncells_loc
-    map%d_ncells_gh  = ncells_gh
-    map%d_ncells_ghd = ncells_loc + ncells_gh
-
-    ! Allocate memory
-    allocate(map%d_ids_ghd_nidx(map%d_ncells_ghd))
-    allocate(map%d_ids_nidx_sor(map%d_ncells_ghd))
-    allocate(map%d_loc_or_gh(   map%d_ncells_ghd))
-    allocate(map%d_nGhd2Sor(    map%d_ncells_ghd))
-    allocate(map%d_nSor2Ghd(    map%d_ncells_ghd))
-    allocate(index(             map%d_ncells_ghd))
-    allocate(rev_index(         map%d_ncells_ghd))
-
-    do ii=1,ncells_loc+ncells_gh
-      map%d_ids_ghd_nidx(ii) = cell_ids_ghd(ii)
-      map%d_loc_or_gh(ii)    = loc_or_gh(ii)
-      index(ii)              = ii
-      rev_index(ii)          = ii
-    enddo
-
-    ! Sort cell_ids_ghd
-    index = index - 1 ! Needs to be 0-based
-    call PetscSortIntWithPermutation(map%d_ncells_ghd,cell_ids_ghd,index,ierr)
-    index = index + 1
-
-    do ii=1,ncells_loc+ncells_gh
-      map%d_ids_nidx_sor(ii) = cell_ids_ghd(index(ii))
-      map%d_nGhd2Sor(ii)     = index(ii)
-    enddo
-
-    ! Sort the index
-    rev_index = rev_index - 1
-    call PetscSortIntWithPermutation(map%d_ncells_ghd,index,rev_index,ierr)
-    map%d_nSor2Ghd = rev_index
-
-    ! free memory locally allocated
-    deallocate(index)
-    deallocate(rev_index)
-
-  end subroutine MappingSetDestinationMeshCellIds
-
-! ************************************************************************** !
-
   subroutine MappingFromCLMGrids(map,grid,if_dest_pf,option)
   !
   ! This routine directly obtains grids/soils from CLM.
@@ -1042,6 +931,117 @@ contains
 
 ! ************************************************************************** !
 
+  subroutine MappingSetSourceMeshCellIds( map,                           &
+                                          option,                        &
+                                          ncells_loc, ncells_gh,         &
+                                          cell_ids_ghd,                  &
+                                          local_ids_ghd                  &
+                                        )
+  !
+  ! This routine sets cell ids source mesh.
+  !
+  ! Author: Gautam Bisht, ORNL
+  ! Date: 2011
+  !
+
+    use Option_module
+    implicit none
+
+    type(mapping_type), pointer :: map
+    type(option_type),  pointer :: option
+
+    PetscInt                    :: ncells_loc, ncells_gh, iloc, ii
+    PetscInt,pointer            :: cell_ids_ghd(:), local_ids_ghd(:)
+
+    map%s_ncells_loc = ncells_loc
+    allocate(map%s_ids_loc_nidx(map%s_ncells_loc))
+    allocate(map%s_locids_loc_nidx(map%s_ncells_loc))
+
+    iloc = 0
+    do ii = 1,ncells_loc+ncells_gh
+      if (local_ids_ghd(ii)>=1) then
+        iloc = iloc+1
+        map%s_ids_loc_nidx(iloc)    = cell_ids_ghd(ii)
+        map%s_locids_loc_nidx(iloc) = local_ids_ghd(ii)
+      endif
+    enddo
+
+  end subroutine MappingSetSourceMeshCellIds
+
+! ************************************************************************** !
+
+  subroutine MappingSetDestinationMeshCellIds(map, &
+                                              option, &
+                                              ncells_loc, &
+                                              ncells_gh, &
+                                              cell_ids_ghd, &
+                                              loc_or_gh &
+                                              )
+  !
+  ! This routine sets the cell ids of destination mesh.
+  !
+  ! Author: Gautam Bisht, ORNL
+  ! Date: 2011
+  !
+
+    use Utility_module, only : DeallocateArray
+    use Option_module
+    implicit none
+
+    type(mapping_type), pointer :: map
+    type(option_type), pointer  :: option
+
+    PetscInt                    :: ncells_loc, ncells_gh
+    PetscInt,pointer            :: cell_ids_ghd(:), loc_or_gh(:)
+
+    PetscInt                    :: ii
+    PetscInt, pointer           :: index(:),rev_index(:)
+    PetscErrorCode              :: ierr
+
+    ! Initialize
+    map%d_ncells_loc = ncells_loc
+    map%d_ncells_gh  = ncells_gh
+    map%d_ncells_ghd = ncells_loc + ncells_gh
+
+    ! Allocate memory
+    allocate(map%d_ids_ghd_nidx(map%d_ncells_ghd))
+    allocate(map%d_ids_nidx_sor(map%d_ncells_ghd))
+    allocate(map%d_loc_or_gh(   map%d_ncells_ghd))
+    allocate(map%d_nGhd2Sor(    map%d_ncells_ghd))
+    allocate(map%d_nSor2Ghd(    map%d_ncells_ghd))
+    allocate(index(             map%d_ncells_ghd))
+    allocate(rev_index(         map%d_ncells_ghd))
+
+    do ii=1,ncells_loc+ncells_gh
+      map%d_ids_ghd_nidx(ii) = cell_ids_ghd(ii)
+      map%d_loc_or_gh(ii)    = loc_or_gh(ii)
+      index(ii)              = ii
+      rev_index(ii)          = ii
+    enddo
+
+    ! Sort cell_ids_ghd
+    index = index - 1 ! Needs to be 0-based
+    call PetscSortIntWithPermutation(map%d_ncells_ghd,cell_ids_ghd,index,ierr)
+    index = index + 1
+
+    do ii=1,ncells_loc+ncells_gh
+      map%d_ids_nidx_sor(ii) = cell_ids_ghd(index(ii))
+      map%d_nGhd2Sor(ii)     = index(ii)
+    enddo
+
+    ! Sort the index
+    rev_index = rev_index - 1
+    call PetscSortIntWithPermutation(map%d_ncells_ghd,index,rev_index,ierr)
+    map%d_nSor2Ghd = rev_index
+
+    ! free memory locally allocated
+    deallocate(index)
+    deallocate(rev_index)
+
+  end subroutine MappingSetDestinationMeshCellIds
+
+! ************************************************************************** !
+
   subroutine MappingDecompose(map,option)
   ! 
   ! This routine decomposes the mapping when running on more than 1 processor,
@@ -1232,7 +1232,7 @@ contains
     call ISDestroy(is_to,ierr)
 #ifdef MAP_DEBUG
     write(string,*) map%id
-    string = 'map' // trim(adjustl(string)) // '_vscat1.out'
+    string = 'map' // trim(adjustl(string)) // '_vscat1a.out'
     call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecScatterView(vec_scat, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)

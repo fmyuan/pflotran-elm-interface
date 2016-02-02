@@ -424,7 +424,7 @@ contains
         call printErrMsg(option)
       end if
 
-    elseif(clm_pf_idata%nxclm_mapped>1 .and. clm_pf_idata%nyclm_mapped>1) then
+    elseif(.not.option%mapping_files) then
       ! directly mapping between CLM and PF meshes, if no user-defined mapping file
       map%pflotran_nlev_mapped = grid%structured_grid%nz
       map%clm_nlev_mapped = clm_pf_idata%nzclm_mapped
