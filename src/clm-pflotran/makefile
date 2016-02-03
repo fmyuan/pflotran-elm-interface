@@ -436,8 +436,6 @@ endif
 # Should add this to default PETSc targets as well?
 %.mod : %.F90
 	${FC} -c ${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS} $<
-%.mod : %.for
-	${FC} -c ${FC_FLAGS} ${FFLAGS} ${FCPPFLAGS} $<
 
 # NOTE(bja, 2013-07) dependencies for clm interface. Keep these separate so that
 # the long list below is easier to update from the main makefile.
@@ -448,7 +446,7 @@ pflotran_clm_main.o : factory_geomechanics.o factory_hydrogeophysics.o \
              factory_surface.o factory_surfsubsurface.o \
              multisimulation.o option.o pflotran_constants.o \
              pflotran_provenance.o simulation_base.o \
-             mapping.o clm_pflotran_interface_data.o
+             mapping.o clm_pflotran_interface_data.o geodesic.o
 pflotran_clm_setmapping.o : pflotran_clm_main.o mapping.o
 # the subroutine for geodesic functions (author: C. F. F. Karney)
 geodesic.o :
