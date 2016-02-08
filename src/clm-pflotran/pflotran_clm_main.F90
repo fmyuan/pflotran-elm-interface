@@ -341,6 +341,17 @@ contains
              pflotran_model%option%io_buffer = "INFO: CLM column dimension will over-ride PF structured CARTESIAN_GRID."
              call printMsg(pflotran_model%option)
 
+             write(pflotran_model%option%fid_out, &
+              '(/," Requested processors and decomposition = ", i5,", npx,y,z= ",3i4)') &
+               pflotran_model%option%mycommsize, &
+               grid%structured_grid%npx, &
+               grid%structured_grid%npy, &
+               grid%structured_grid%npz
+             write(pflotran_model%option%fid_out,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
+               grid%structured_grid%npx_final, &
+               grid%structured_grid%npy_final, &
+               grid%structured_grid%npz_final
+
            case default
              pflotran_model%option%io_buffer = "ERROR: Currently only works on structured  CARTESIAN_GRID mesh."
              call printErrMsg(pflotran_model%option)
