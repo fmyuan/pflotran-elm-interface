@@ -251,6 +251,7 @@ contains
 
     PetscScalar, pointer :: dlon_pf_loc(:),dlat_pf_loc(:), dzsoil_pf_loc(:)           ! soil cell length/width/thickness (deg/deg/m) for 3-D PF cells
     PetscScalar, pointer :: lonc_pf_loc(:),latc_pf_loc(:), zisoil_pf_loc(:)           ! soil cell coordinates (deg/deg/m) for 3-D PF cells
+    PetscScalar, pointer :: topface_pf_loc(:)
     PetscReal            :: lon_c, lat_c, lon_e, lon_w, lat_s, lat_n
     PetscReal            :: x_global, y_global
     PetscReal            :: tempreal
@@ -283,16 +284,6 @@ contains
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
-                                    clm_pf_idata%dxsoil_clmp, &
-                                    clm_pf_idata%dxsoil_pfs)
-
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
-                                    clm_pf_idata%dysoil_clmp, &
-                                    clm_pf_idata%dysoil_pfs)
-
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    pflotran_model%option, &
                                     clm_pf_idata%dzsoil_clmp, &
                                     clm_pf_idata%dzsoil_pfs)
 
@@ -300,30 +291,44 @@ contains
                                     pflotran_model%option, &
                                     clm_pf_idata%zisoil_clmp, &
                                     clm_pf_idata%zisoil_pfs)
+    call VecGetArrayReadF90(clm_pf_idata%dzsoil_pfs, dzsoil_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
+    CHKERRQ(ierr)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+    !
+    if (clm_pf_idata%nxclm_mapped > 1 .and. clm_pf_idata%nyclm_mapped > 1) then
+
+      call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%dxsoil_clmp, &
+                                    clm_pf_idata%dxsoil_pfs)
+
+      call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    pflotran_model%option, &
+                                    clm_pf_idata%dysoil_clmp, &
+                                    clm_pf_idata%dysoil_pfs)
+
+      call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%xsoil_clmp, &
                                     clm_pf_idata%xsoil_pfs)
 
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+      call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%ysoil_clmp, &
                                     clm_pf_idata%ysoil_pfs)
 
     !
-    call VecGetArrayReadF90(clm_pf_idata%dxsoil_pfs, dlon_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayReadF90(clm_pf_idata%dysoil_pfs, dlat_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayReadF90(clm_pf_idata%dzsoil_pfs, dzsoil_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayReadF90(clm_pf_idata%xsoil_pfs, lonc_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayReadF90(clm_pf_idata%ysoil_pfs, latc_pf_loc, ierr)
-    CHKERRQ(ierr)
+      call VecGetArrayReadF90(clm_pf_idata%dxsoil_pfs, dlon_pf_loc, ierr)
+      CHKERRQ(ierr)
+      call VecGetArrayReadF90(clm_pf_idata%dysoil_pfs, dlat_pf_loc, ierr)
+      CHKERRQ(ierr)
+      call VecGetArrayReadF90(clm_pf_idata%xsoil_pfs, lonc_pf_loc, ierr)
+      CHKERRQ(ierr)
+      call VecGetArrayReadF90(clm_pf_idata%ysoil_pfs, latc_pf_loc, ierr)
+      CHKERRQ(ierr)
+    end if
 
     !
     select case(grid%itype)
@@ -335,6 +340,17 @@ contains
            case(CARTESIAN_GRID)
              pflotran_model%option%io_buffer = "INFO: CLM column dimension will over-ride PF structured CARTESIAN_GRID."
              call printMsg(pflotran_model%option)
+
+             write(pflotran_model%option%fid_out, &
+              '(/," Requested processors and decomposition = ", i5,", npx,y,z= ",3i4)') &
+               pflotran_model%option%mycommsize, &
+               grid%structured_grid%npx, &
+               grid%structured_grid%npy, &
+               grid%structured_grid%npz
+             write(pflotran_model%option%fid_out,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
+               grid%structured_grid%npx_final, &
+               grid%structured_grid%npy_final, &
+               grid%structured_grid%npz_final
 
            case default
              pflotran_model%option%io_buffer = "ERROR: Currently only works on structured  CARTESIAN_GRID mesh."
@@ -349,7 +365,10 @@ contains
     do ghosted_id = 1, grid%ngmax
       local_id = grid%nG2L(ghosted_id)
 
-        ! hack cell's 3-D dimensions
+      ! hack cell's 3-D dimensions
+
+      ! adjusting (x,y) if runs with 2D CLM grid (usually in lat/lon paired grid)
+      if (clm_pf_idata%nxclm_mapped > 1 .and. clm_pf_idata%nyclm_mapped > 1) then
 
         call StructGridGetIJKFromGhostedID(grid%structured_grid,ghosted_id,i,j,k)
 
@@ -406,10 +425,6 @@ contains
           dummy1, dummy2, dummy3, dummy4 , dummy5)
         grid%structured_grid%dy(ghosted_id) = s12
 
-        ! vertical (z-axis)
-        grid%structured_grid%dz(ghosted_id) = dzsoil_pf_loc(ghosted_id)
-        grid%z(ghosted_id)   = zisoil_pf_loc(ghosted_id)    ! directly over-ride PF 'z' coordinate from CLM soil layer 'zi'
-
         ! some checking
         ! areas of grid (x,y)
         call area(a, f, lats, lons, 4, dummy1, dummy2)
@@ -462,21 +477,28 @@ contains
           call printMsg(pflotran_model%option)
         end if
 
+      end if ! if (clm_pf_idata%nxclm_mapped > 1 .and. clm_pf_idata%nyclm_mapped > 1)
+
+      ! vertical (z-axis) (always from CLM to PF)
+      grid%structured_grid%dz(ghosted_id) = dzsoil_pf_loc(ghosted_id)
+      grid%z(ghosted_id)   = zisoil_pf_loc(ghosted_id)    ! directly over-ride PF 'z' coordinate from CLM soil layer 'zi'
     enddo
 
-    call VecRestoreArrayReadF90(clm_pf_idata%dxsoil_pfs, dlon_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%dysoil_pfs, dlat_pf_loc, ierr)
-    CHKERRQ(ierr)
+    if (clm_pf_idata%nxclm_mapped > 1 .and. clm_pf_idata%nyclm_mapped > 1) then
+      call VecRestoreArrayReadF90(clm_pf_idata%dxsoil_pfs, dlon_pf_loc, ierr)
+      CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%dysoil_pfs, dlat_pf_loc, ierr)
+      CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%xsoil_pfs, lonc_pf_loc, ierr)
+      CHKERRQ(ierr)
+      call VecRestoreArrayReadF90(clm_pf_idata%ysoil_pfs, latc_pf_loc, ierr)
+      CHKERRQ(ierr)
+    end if
+
     call VecRestoreArrayReadF90(clm_pf_idata%dzsoil_pfs, dzsoil_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayReadF90(clm_pf_idata%zisoil_pfs, zisoil_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%xsoil_pfs, lonc_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayReadF90(clm_pf_idata%ysoil_pfs, latc_pf_loc, ierr)
-    CHKERRQ(ierr)
-
 
     ! re-do some dimension calculations after changes above
     call MPI_Barrier(pflotran_model%option%mycomm,ierr)
@@ -493,19 +515,36 @@ contains
     call MaterialSetAuxVarVecLoc(patch%aux%Material, &
                                field%work_loc,VOLUME,ZERO_INTEGER)
 
-
     ! the following variable is directly used in 'sandbox_somdec'
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%zsoil_clmp, &
                                     clm_pf_idata%zsoil_pfs)
 
-    ! the following are 'wtgcell' adjusted 'TOP' face area (not yet figured out how to use it for multiple columns in ONE grid)
+    ! the following are 'wtgcell' and 'landfrac' adjusted 'TOP' face area (not yet figured out how to use it for multiple columns in ONE grid)
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%area_top_face_clmp, &
                                     clm_pf_idata%area_top_face_pfs)
 
+    if (clm_pf_idata%nxclm_mapped > 1 .and. clm_pf_idata%nyclm_mapped > 1) then
+      ! inactive cells with weighted top-surface area of 0 (i.e. CLM grid of inactive or zero coverage of land)
+      ! by setting their 'material' id to -999
+      call VecGetArrayReadF90(clm_pf_idata%area_top_face_pfs, topface_pf_loc, ierr)
+      CHKERRQ(ierr)
+
+      do ghosted_id = 1, grid%ngmax
+        local_id = grid%nG2L(ghosted_id)
+        if (ghosted_id < 0 .or. local_id < 0) cycle
+
+        if (topface_pf_loc(ghosted_id)<=1.d-20 .and. associated(patch%imat)) then
+          patch%imat(ghosted_id) = -999
+        endif
+      end do
+
+      call VecRestoreArrayReadF90(clm_pf_idata%area_top_face_pfs, topface_pf_loc, ierr)
+      CHKERRQ(ierr)
+    end if
 
   end subroutine pflotranModelSetSoilDimension
 
@@ -516,7 +555,6 @@ contains
   !
   ! Converts hydraulic properties from CLM units
   ! into PFLOTRAN units.
-  ! #ifdef CLM_PFLOTRAN
   !
   ! Author: Gautam Bisht
   ! Date: 10/22/2010
@@ -2289,13 +2327,11 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
         call VecRestoreArrayF90(clm_pf_idata%soilt_pfs, soilt_pf_loc, ierr)
         CHKERRQ(ierr)
 
-
         ! for exactly using temperature response function of decomposition from CLM-CN
         call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
                                     clm_pf_idata%t_scalar_clmp, &
                                     clm_pf_idata%t_scalar_pfs)
-
 
     endif
 
@@ -2685,8 +2721,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     class(realization_type), pointer    :: realization
     type(simulation_base_type), pointer :: simulation
 
-    PetscInt           :: k
-    PetscErrorCode     :: ierr
+    PetscErrorCode  :: ierr
+    PetscInt        :: k
 
     character(len=MAXWORDLENGTH) :: word
 

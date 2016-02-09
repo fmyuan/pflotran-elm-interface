@@ -1030,25 +1030,28 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
                                         structured_grid%dz(id_up)
 
 #ifdef CLM_PFLOTRAN
-              ! need to adjust 'dist' by elevation (z-coordinate) differences, if any, when coupled with CLM
-              ! by coupling, grid%z is CLM grid's elevation in meters
-              tempreal = abs(zc(id_up) - zc(id_dn))
-              if (tempreal>1.d-6) then    !'1.d-6' is the limit of mircometer
-                 tempreal = tempreal*tempreal+(dist_up+dist_dn)*(dist_up+dist_dn)
-                 connections%dist(0,iconn) = sqrt(tempreal)
-              endif
+              if(.not.option%mapping_files) then
+                ! need to adjust 'dist' by elevation (z-coordinate) differences, if any, when coupled with CLM
+                ! by coupling, grid%z is CLM grid's elevation in meters
+                tempreal = abs(zc(id_up) - zc(id_dn))
+                if (tempreal>1.d-6) then    !'1.d-6' is the limit of mircometer
+                  tempreal = tempreal*tempreal+(dist_up+dist_dn)*(dist_up+dist_dn)
+                  connections%dist(0,iconn) = sqrt(tempreal)
+                endif
 
-              ! dx is the mid-length of a isoceles trapezoid grid, so need to adjust the connection (interface) face area
-              tempreal = structured_grid%dy(id_dn) - structured_grid%dy(id_up)
-              if (tempreal>1.d-6) then    ! 'up' is the short parallel side
-                 tempreal = abs(tempreal)*(dist_up/(dist_up+dist_dn))+structured_grid%dy(id_up)
-                 connections%area(iconn) = tempreal* &
+                ! dy is the length of height in a isoceles trapezoid grid, so need to adjust the connection (interface) face area
+                tempreal = structured_grid%dy(id_dn) - structured_grid%dy(id_up)
+                if (tempreal>1.d-6) then    ! 'up' is the short parallel side
+                  tempreal = abs(tempreal)*(dist_up/(dist_up+dist_dn))+structured_grid%dy(id_up)
+                  connections%area(iconn) = tempreal* &
                                     structured_grid%dz(id_up)
 
-              elseif (tempreal<-1.d-6) then    ! 'dn' is the short parallel side
-                 tempreal = abs(tempreal)*(dist_dn/(dist_up+dist_dn))+structured_grid%dy(id_dn)
-                 connections%area(iconn) = tempreal* &
+                elseif (tempreal<-1.d-6) then    ! 'dn' is the short parallel side
+                  tempreal = abs(tempreal)*(dist_dn/(dist_up+dist_dn))+structured_grid%dy(id_dn)
+                  connections%area(iconn) = tempreal* &
                                     structured_grid%dz(id_up)
+                endif
+
               endif
 #endif
 
@@ -1145,24 +1148,27 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
 
 
 #ifdef CLM_PFLOTRAN
-              ! need to adjust 'dist' by elevation (z-coordinate) differences, if any, when coupled with CLM
-              ! by coupling, grid%z is CLM grid's elevation in meters
-              tempreal = abs(zc(id_up) - zc(id_dn))
-              if (tempreal>1.d-6) then    !'1.d-6' is mircometer
-                 tempreal = tempreal*tempreal+(dist_up+dist_dn)*(dist_up+dist_dn)
-                 connections%dist(0,iconn) = sqrt(tempreal)
-              endif
+              if(.not.option%mapping_files) then
+                ! need to adjust 'dist' by elevation (z-coordinate) differences, if any, when coupled with CLM
+                ! by coupling, grid%z is CLM grid's elevation in meters
+                tempreal = abs(zc(id_up) - zc(id_dn))
+                if (tempreal>1.d-6) then    !'1.d-6' is mircometer
+                  tempreal = tempreal*tempreal+(dist_up+dist_dn)*(dist_up+dist_dn)
+                  connections%dist(0,iconn) = sqrt(tempreal)
+                endif
 
-              ! dx is the mid-length of a isoceles trapezoid grid, so need to adjust the connection (interface) face area
-              tempreal = structured_grid%dx(id_dn) - structured_grid%dx(id_up)
-              if (tempreal>1.d-6) then    ! 'up' is the short parallel side
-                 tempreal = abs(tempreal)*(dist_up/(dist_up+dist_dn))+structured_grid%dx(id_up)
-                 connections%area(iconn) = tempreal* &
+                ! dx is the mid-length of a isoceles trapezoid grid, so need to adjust the connection (interface) face area
+                tempreal = structured_grid%dx(id_dn) - structured_grid%dx(id_up)
+                if (tempreal>1.d-6) then    ! 'up' is the short parallel side
+                  tempreal = abs(tempreal)*(dist_up/(dist_up+dist_dn))+structured_grid%dx(id_up)
+                  connections%area(iconn) = tempreal* &
                                     structured_grid%dz(id_up)
-              elseif (tempreal<-1.d-6) then    ! 'dn' is the short parallel side
-                 tempreal = abs(tempreal)*(dist_dn/(dist_up+dist_dn))+structured_grid%dx(id_dn)
-                 connections%area(iconn) = tempreal* &
+                elseif (tempreal<-1.d-6) then    ! 'dn' is the short parallel side
+                  tempreal = abs(tempreal)*(dist_dn/(dist_up+dist_dn))+structured_grid%dx(id_dn)
+                  connections%area(iconn) = tempreal* &
                                     structured_grid%dz(id_up)
+                endif
+
               endif
 #endif
 

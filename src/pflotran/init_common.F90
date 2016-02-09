@@ -339,6 +339,10 @@ subroutine InitReadRequiredCardsFromInput(realization)
   use Reaction_module  
   use Reaction_Aux_module  
 
+#ifdef CLM_PFLOTRAN
+  use clm_pflotran_interface_data
+#endif
+
   implicit none
 
   type(realization_type) :: realization
@@ -437,7 +441,15 @@ subroutine InitReadRequiredCardsFromInput(realization)
           call InputDefaultMsg(input,option,'npy')
           call InputReadInt(input,option,grid%structured_grid%npz)
           call InputDefaultMsg(input,option,'npz')
- 
+
+#ifdef CLM_PFLOTRAN
+          !note that, if coupled with CLM, CLM land domain configuration
+          ! will over-ride 'npx/npy/npz' read above
+          grid%structured_grid%npx = clm_pf_idata%npx
+          grid%structured_grid%npy = clm_pf_idata%npy
+          grid%structured_grid%npz = clm_pf_idata%npz
+#endif
+
           if (option%myrank == option%io_rank .and. &
               option%print_to_screen) then
             option%io_buffer = ' Processor Decomposition:'
@@ -469,6 +481,13 @@ subroutine InitReadRequiredCardsFromInput(realization)
         !     multicontinuum
         option%use_mc = PETSC_TRUE
         call ReactionInit(realization%reaction,input,option)
+
+!-------------------
+#ifdef CLM_PFLOTRAN
+      case('MAPPING_FILES')
+        option%mapping_files = PETSC_TRUE
+#endif
+
     end select
   enddo
   

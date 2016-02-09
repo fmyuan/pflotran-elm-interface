@@ -91,6 +91,7 @@ module Mapping_module
   public :: MappingCreate, &
             MappingSetSourceMeshCellIds, &
             MappingSetDestinationMeshCellIds, &
+            MappingFromCLMGrids, &
             MappingReadTxtFile, &
             MappingReadHDF5, &
             MappingDecompose, &
@@ -119,6 +120,8 @@ contains
 
     allocate(map)
 
+    map%filename = ''
+    map%id = -999
     map%s_ncells_loc = 0
     nullify(map%s_ids_loc_nidx)
     nullify(map%s_locids_loc_nidx)
@@ -164,114 +167,238 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine MappingSetSourceMeshCellIds( map,                           &
-                                          option,                        &
-                                          ncells_loc, ncells_gh,         &
-                                          cell_ids_ghd,                  &
-                                          local_ids_ghd                  &
-                                        )
-  ! 
-  ! This routine sets cell ids source mesh.
-  ! 
-  ! Author: Gautam Bisht, ORNL
-  ! Date: 2011
-  ! 
+  subroutine MappingFromCLMGrids(map,grid,if_dest_pf,option)
+  !
+  ! This routine directly obtains grids/soils from CLM.
+  ! NOTE: only works with structured/cartsian type of pflotran mesh
+  ! (modified from subroutine:: MappingReadTxtFile below
+  ! Author: Fengming Yuan, ORNL
+  ! Date: Jan. 2016
+  !
 
     use Option_module
+    use String_module
+    use Grid_module
+    use Grid_Structured_module
+    use PFLOTRAN_Constants_module
+
     implicit none
 
-    type(mapping_type), pointer :: map
-    type(option_type),  pointer :: option
+    ! argument
+    type(mapping_type), pointer     :: map
+    type(grid_type), pointer        :: grid
+    PetscBool                       :: if_dest_pf   ! True: PF mesh as destination mesh
+    type(option_type), pointer      :: option
 
-    PetscInt                    :: ncells_loc, ncells_gh, iloc, ii
-    PetscInt,pointer            :: cell_ids_ghd(:), local_ids_ghd(:)
+    ! local variables
+    PetscInt                        :: temp_int
+    PetscInt                        :: nwts
+    PetscInt,pointer                :: wts_clmid(:), wts_pfid(:)
+    PetscInt                        :: i, j, k, natural_id, grid_count, cell_count
+    PetscInt,pointer                :: wts_row_tmp(:), wts_col_tmp(:)
+    PetscReal,pointer               :: wts_tmp(:)
 
-    map%s_ncells_loc = ncells_loc
-    allocate(map%s_ids_loc_nidx(map%s_ncells_loc))
-    allocate(map%s_locids_loc_nidx(map%s_ncells_loc))
+    PetscErrorCode                  :: ierr
+    PetscMPIInt                     :: status_mpi(MPI_STATUS_SIZE)
+    PetscInt                        :: nread, cum_nread, nwts_tmp, remainder, irank, ii
 
-    iloc = 0
-    do ii = 1,ncells_loc+ncells_gh
-      if (local_ids_ghd(ii)>=1) then
-        iloc = iloc+1
-        map%s_ids_loc_nidx(iloc)    = cell_ids_ghd(ii)
-        map%s_locids_loc_nidx(iloc) = local_ids_ghd(ii)
+    ! Do the 'entire' domain of grid-mesh conversion/scaling through io_rank and communicate to other ranks
+
+    select case(grid%itype)
+      case(STRUCTURED_GRID)
+        option%io_buffer = 'MAPPING INFO: CLM grid/column dimension will be mapped into ' // &
+           'PF structured/cartesian grid mesh.'
+        call printMsg(option)
+
+        select case(grid%structured_grid%itype)
+          case(CARTESIAN_GRID)
+             !
+          case default
+            option%io_buffer = "MAPPING ERROR: Currently only works on structured CARTESIAN_GRID mesh."
+             call printErrMsg(option)
+        end select
+
+      case default
+        option%io_buffer = "MAPPING ERROR: Currently only works on structured grids."
+        call printErrMsg(option)
+    end select
+
+    !
+    nwts = -999
+    if (map%clm_nlev_mapped == map%pflotran_nlev_mapped) then
+      if (map%id == 1 .or. map%id == 2) nwts = grid%structured_grid%nmax
+      if (map%id == 3 .or. map%id == 4) nwts = grid%structured_grid%nxy
+      if (map%id == 5 .or. map%id == 5) nwts = grid%structured_grid%nxy
+    else
+      option%io_buffer = 'not equal numbers of soil layers mapped btw CLM and PFLOTRAN! '
+      call printErrMsg(option)
+    end if
+
+    !
+    if(option%myrank == option%io_rank) then
+      ! some information on CLM-PFLOTRAN mesh matching-up (passing)
+      write(*,*) 'CLM nlevsoil mapped = ', map%clm_nlev_mapped
+      write(*,*) 'PFLOTRAN nlevsoil mapped = ', map%pflotran_nlev_mapped
+      write(*,*) 'CLM-PFLOTRAN ncell mapped = ', nwts
+
+      ! obtain the global cell natural ids for both CLM and PFLTORAN
+      allocate(wts_pfid(nwts))
+      allocate(wts_clmid(nwts))
+      cell_count = 0
+
+      do k = 1, grid%structured_grid%nz
+        do j = 1, grid%structured_grid%ny
+          do i = 1, grid%structured_grid%nx
+
+            ! PF global cell id in natural order (1-based)
+            natural_id = i +                               &   ! x first
+                         (j-1)*grid%structured_grid%nx  +  &   ! y second
+                         (k-1)*grid%structured_grid%nxy        ! z third
+
+
+            ! CLM global grid numering (1-based)
+            grid_count = i +                          &        ! west-east (x: longitudal) direction third
+                        (j-1)*grid%structured_grid%nx          ! south-north (y: latitudal) direction second
+
+            ! cell ids globally
+            if (map%id == 1 .or. map%id == 2) then  ! 3D subsurface (soil) domain
+              cell_count = cell_count + 1
+              wts_pfid(cell_count)  = natural_id
+              wts_clmid(cell_count) = (grid_count-1) * grid%structured_grid%nz + &  ! soil layer numbering first
+                                      grid%structured_grid%nz-k+1                   ! reverse vertical-numbering
+
+            elseif((map%id == 3 .or. map%id == 4) .and. k==grid%structured_grid%nz) then  ! 2D top face
+              cell_count = cell_count + 1
+              wts_pfid(cell_count)  = natural_id
+              wts_clmid(cell_count) = (grid_count-1) * grid%structured_grid%nz + &  ! soil layer numbering first
+                                      grid%structured_grid%nz-k+1                   ! reverse vertical-numbering
+
+            elseif((map%id == 5 .or. map%id == 6) .and. k==1) then  ! 2D bottom face
+              cell_count = cell_count + 1
+              wts_pfid(cell_count)  = natural_id
+              wts_clmid(cell_count) = (grid_count-1) * grid%structured_grid%nz + &  ! soil layer numbering first
+                                      grid%structured_grid%nz-k+1                   ! reverse vertical-numbering
+
+            endif
+
+          end do   ! x
+        end do   ! y
+      end do   ! z
+      ! just in case, do the following checking
+      if (cell_count /= nwts) then
+        option%io_buffer = 'not equal numbers of cell_counts mapped btw CLM and PFLOTRAN! '
+        call printErrMsg(option)
       endif
-    enddo
 
-  end subroutine MappingSetSourceMeshCellIds
+      ! sort destination mesh id obtained above
+      ! because mapping approach requires 'destination mesh' id (row-id in wts_matrix) in descending order
+      if (if_dest_pf) then
+        ! PF mesh as destination mesh (row-id in wts_matrix), while CLM mesh is source-mesh
+        call PetscSortIntWithArray(nwts,wts_pfid,wts_clmid,ierr)
 
-! ************************************************************************** !
+      else
+        ! CLM mesh as destination mesh (row-id in wts_matrix), while PF mesh is source-mesh
+        call PetscSortIntWithArray(nwts,wts_clmid,wts_pfid,ierr)
+      end if
 
-  subroutine MappingSetDestinationMeshCellIds(map, &
-                                              option, &
-                                              ncells_loc, &
-                                              ncells_gh, &
-                                              cell_ids_ghd, &
-                                              loc_or_gh &
-                                              )
-  ! 
-  ! This routine sets the cell ids of destination mesh.
-  ! 
-  ! Author: Gautam Bisht, ORNL
-  ! Date: 2011
-  ! 
 
-    use Utility_module, only : DeallocateArray
-    use Option_module
-    implicit none
+      ! calculting mapping matrix/vecs to be send to each processor equally (almost)
+      nwts_tmp = nwts/option%mycommsize
+      remainder= nwts - nwts_tmp*option%mycommsize
 
-    type(mapping_type), pointer :: map
-    type(option_type), pointer  :: option
+      allocate(wts_row_tmp(nwts_tmp+1))   ! row number is for destination mesh
+      allocate(wts_col_tmp(nwts_tmp+1))
+      allocate(wts_tmp(nwts_tmp+1))
 
-    PetscInt                    :: ncells_loc, ncells_gh
-    PetscInt,pointer            :: cell_ids_ghd(:), loc_or_gh(:)
+      cum_nread = 0
+      do irank = 0,option%mycommsize-1
 
-    PetscInt                    :: ii
-    PetscInt, pointer           :: index(:),rev_index(:)
-    PetscErrorCode              :: ierr
+        ! Determine the number of rows
+        nread = nwts_tmp
+        if(irank<remainder) nread = nread+1
+        cum_nread = cum_nread + nread
 
-    ! Initialize
-    map%d_ncells_loc = ncells_loc
-    map%d_ncells_gh  = ncells_gh
-    map%d_ncells_ghd = ncells_loc + ncells_gh
 
-    ! Allocate memory
-    allocate(map%d_ids_ghd_nidx(map%d_ncells_ghd))
-    allocate(map%d_ids_nidx_sor(map%d_ncells_ghd))
-    allocate(map%d_loc_or_gh(   map%d_ncells_ghd))
-    allocate(map%d_nGhd2Sor(    map%d_ncells_ghd))
-    allocate(map%d_nSor2Ghd(    map%d_ncells_ghd))
-    allocate(index(             map%d_ncells_ghd))
-    allocate(rev_index(         map%d_ncells_ghd))
+        if (irank == option%myrank) then
+          ! Save data locally, if io_rank
+          map%s2d_nwts = nread
+          allocate(map%s2d_icsr(map%s2d_nwts))
+          allocate(map%s2d_jcsr(map%s2d_nwts))
+          allocate(map%s2d_wts( map%s2d_nwts))
 
-    do ii=1,ncells_loc+ncells_gh
-      map%d_ids_ghd_nidx(ii) = cell_ids_ghd(ii)
-      map%d_loc_or_gh(ii)    = loc_or_gh(ii)
-      index(ii)              = ii
-      rev_index(ii)          = ii
-    enddo
+          do ii = 1, nread
+            if (if_dest_pf) then
+              map%s2d_icsr(ii) = wts_pfid(cum_nread-nread+ii) - 1        ! 1-based --> 0-based
+              map%s2d_jcsr(ii) = wts_clmid(cum_nread-nread+ii) - 1
+            else
+              map%s2d_icsr(ii) = wts_clmid(cum_nread-nread+ii) - 1        ! 1-based --> 0-based
+              map%s2d_jcsr(ii) = wts_pfid(cum_nread-nread+ii) - 1
+            end if
+           ! set 'wts' to 1.0, assuming 1:1 mapping btw CLM and PF
+           ! i.e. no scaling or weighting of area/volume.
+           ! SO, all data passing MUST be in unit of per area/volume or independent of area/volume.
+            map%s2d_wts(ii)  = 1.d0
 
-    ! Sort cell_ids_ghd
-    index = index - 1 ! Needs to be 0-based
-    call PetscSortIntWithPermutation(map%d_ncells_ghd,cell_ids_ghd,index,ierr)
-    index = index + 1
+          enddo
 
-    do ii=1,ncells_loc+ncells_gh
-      map%d_ids_nidx_sor(ii) = cell_ids_ghd(index(ii))
-      map%d_nGhd2Sor(ii)     = index(ii)
-    enddo
+        else
+          ! Otherwise send data to other ranks
 
-    ! Sort the index
-    rev_index = rev_index - 1
-    call PetscSortIntWithPermutation(map%d_ncells_ghd,index,rev_index,ierr)
-    map%d_nSor2Ghd = rev_index
+          do ii = 1, nread
+            if (if_dest_pf) then
+              wts_row_tmp(ii) = wts_pfid(cum_nread-nread+ii) - 1        ! 1-based --> 0-based
+              wts_col_tmp(ii) = wts_clmid(cum_nread-nread+ii) - 1
+            else
+              wts_row_tmp(ii) = wts_clmid(cum_nread-nread+ii) - 1        ! 1-based --> 0-based
+              wts_col_tmp(ii) = wts_pfid(cum_nread-nread+ii) - 1
+            end if
+           ! set 'wts' to 1.0, assuming 1:1 mapping btw CLM and PF
+           ! i.e. no scaling or weighting of area/volume.
+           ! SO, all data passing MUST be in unit of per area/volume or independent of area/volume.
+            wts_tmp(ii)  = 1.d0
 
-    ! free memory locally allocated
-    deallocate(index)
-    deallocate(rev_index)
+          enddo
 
-  end subroutine MappingSetDestinationMeshCellIds
+          call MPI_Send(nread,1,MPI_INTEGER,irank,option%myrank,option%mycomm, &
+                        ierr)
+          call MPI_Send(wts_row_tmp,nread,MPI_INTEGER,irank,option%myrank, &
+                        option%mycomm,ierr)
+          call MPI_Send(wts_col_tmp,nread,MPI_INTEGER,irank,option%myrank, &
+                        option%mycomm,ierr)
+          call MPI_Send(wts_tmp,nread,MPI_DOUBLE_PRECISION,irank,option%myrank, &
+                        option%mycomm,ierr)
+
+        endif
+
+      end do
+
+      deallocate(wts_row_tmp)
+      deallocate(wts_col_tmp)
+      deallocate(wts_tmp)
+      deallocate(wts_pfid)
+      deallocate(wts_clmid)
+
+    else
+      ! Other ranks receive data from io_rank
+
+      call MPI_Recv(nread,1,MPI_INTEGER,option%io_rank,MPI_ANY_TAG, &
+                    option%mycomm,status_mpi,ierr)
+
+      map%s2d_nwts = nread
+      allocate(map%s2d_icsr(map%s2d_nwts))
+      allocate(map%s2d_jcsr(map%s2d_nwts))
+      allocate(map%s2d_wts( map%s2d_nwts))
+
+      call MPI_Recv(map%s2d_icsr,nread,MPI_INTEGER,option%io_rank,MPI_ANY_TAG, &
+                    option%mycomm,status_mpi,ierr)
+      call MPI_Recv(map%s2d_jcsr,nread,MPI_INTEGER,option%io_rank,MPI_ANY_TAG, &
+                    option%mycomm,status_mpi,ierr)
+      call MPI_Recv(map%s2d_wts,nread,MPI_DOUBLE_PRECISION,option%io_rank,MPI_ANY_TAG, &
+                    option%mycomm,status_mpi,ierr)
+
+    end if !else of if(option%myrank == option%io_rank)
+
+  end subroutine MappingFromCLMGrids
 
 ! ************************************************************************** !
 
@@ -804,6 +931,117 @@ contains
 
 ! ************************************************************************** !
 
+  subroutine MappingSetSourceMeshCellIds( map,                           &
+                                          option,                        &
+                                          ncells_loc, ncells_gh,         &
+                                          cell_ids_ghd,                  &
+                                          local_ids_ghd                  &
+                                        )
+  !
+  ! This routine sets cell ids source mesh.
+  !
+  ! Author: Gautam Bisht, ORNL
+  ! Date: 2011
+  !
+
+    use Option_module
+    implicit none
+
+    type(mapping_type), pointer :: map
+    type(option_type),  pointer :: option
+
+    PetscInt                    :: ncells_loc, ncells_gh, iloc, ii
+    PetscInt,pointer            :: cell_ids_ghd(:), local_ids_ghd(:)
+
+    map%s_ncells_loc = ncells_loc
+    allocate(map%s_ids_loc_nidx(map%s_ncells_loc))
+    allocate(map%s_locids_loc_nidx(map%s_ncells_loc))
+
+    iloc = 0
+    do ii = 1,ncells_loc+ncells_gh
+      if (local_ids_ghd(ii)>=1) then
+        iloc = iloc+1
+        map%s_ids_loc_nidx(iloc)    = cell_ids_ghd(ii)
+        map%s_locids_loc_nidx(iloc) = local_ids_ghd(ii)
+      endif
+    enddo
+
+  end subroutine MappingSetSourceMeshCellIds
+
+! ************************************************************************** !
+
+  subroutine MappingSetDestinationMeshCellIds(map, &
+                                              option, &
+                                              ncells_loc, &
+                                              ncells_gh, &
+                                              cell_ids_ghd, &
+                                              loc_or_gh &
+                                              )
+  !
+  ! This routine sets the cell ids of destination mesh.
+  !
+  ! Author: Gautam Bisht, ORNL
+  ! Date: 2011
+  !
+
+    use Utility_module, only : DeallocateArray
+    use Option_module
+    implicit none
+
+    type(mapping_type), pointer :: map
+    type(option_type), pointer  :: option
+
+    PetscInt                    :: ncells_loc, ncells_gh
+    PetscInt,pointer            :: cell_ids_ghd(:), loc_or_gh(:)
+
+    PetscInt                    :: ii
+    PetscInt, pointer           :: index(:),rev_index(:)
+    PetscErrorCode              :: ierr
+
+    ! Initialize
+    map%d_ncells_loc = ncells_loc
+    map%d_ncells_gh  = ncells_gh
+    map%d_ncells_ghd = ncells_loc + ncells_gh
+
+    ! Allocate memory
+    allocate(map%d_ids_ghd_nidx(map%d_ncells_ghd))
+    allocate(map%d_ids_nidx_sor(map%d_ncells_ghd))
+    allocate(map%d_loc_or_gh(   map%d_ncells_ghd))
+    allocate(map%d_nGhd2Sor(    map%d_ncells_ghd))
+    allocate(map%d_nSor2Ghd(    map%d_ncells_ghd))
+    allocate(index(             map%d_ncells_ghd))
+    allocate(rev_index(         map%d_ncells_ghd))
+
+    do ii=1,ncells_loc+ncells_gh
+      map%d_ids_ghd_nidx(ii) = cell_ids_ghd(ii)
+      map%d_loc_or_gh(ii)    = loc_or_gh(ii)
+      index(ii)              = ii
+      rev_index(ii)          = ii
+    enddo
+
+    ! Sort cell_ids_ghd
+    index = index - 1 ! Needs to be 0-based
+    call PetscSortIntWithPermutation(map%d_ncells_ghd,cell_ids_ghd,index,ierr)
+    index = index + 1
+
+    do ii=1,ncells_loc+ncells_gh
+      map%d_ids_nidx_sor(ii) = cell_ids_ghd(index(ii))
+      map%d_nGhd2Sor(ii)     = index(ii)
+    enddo
+
+    ! Sort the index
+    rev_index = rev_index - 1
+    call PetscSortIntWithPermutation(map%d_ncells_ghd,index,rev_index,ierr)
+    map%d_nSor2Ghd = rev_index
+
+    ! free memory locally allocated
+    deallocate(index)
+    deallocate(rev_index)
+
+  end subroutine MappingSetDestinationMeshCellIds
+
+! ************************************************************************** !
+
   subroutine MappingDecompose(map,option)
   ! 
   ! This routine decomposes the mapping when running on more than 1 processor,
@@ -994,7 +1232,7 @@ contains
     call ISDestroy(is_to,ierr)
 #ifdef MAP_DEBUG
     write(string,*) map%id
-    string = 'map' // trim(adjustl(string)) // '_vscat1.out'
+    string = 'map' // trim(adjustl(string)) // '_vscat1a.out'
     call PetscViewerASCIIOpen(option%mycomm, trim(string), viewer, ierr)
     call VecScatterView(vec_scat, viewer,ierr)
     call PetscViewerDestroy(viewer, ierr)
@@ -1688,7 +1926,7 @@ contains
        CHKERRQ(ierr)
     end if
 
-  end subroutine
+  end subroutine MappingSourceToDestination
 
 ! ************************************************************************** !
 
