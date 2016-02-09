@@ -68,7 +68,7 @@ module clm_pflotran_interface_data
   character(len=32):: name_nimmp = "Nimmp"           ! this is for total Nimmp
   character(len=32):: name_nimm  = "Nimm"            ! this is for total Nimm
 
-  PetscInt:: ispec_nh4, ispec_no3, ispec_nh4sorb, ispec_nh4imm, ispec_no3imm
+  PetscInt:: ispec_nh4, ispec_no3, ispec_nh4sorb
   character(len=32):: name_nh4     = "NH4+"
   character(len=32):: name_no3     = "NO3-"
   character(len=32):: name_nh4sorb = "NH4sorb"
@@ -83,7 +83,12 @@ module clm_pflotran_interface_data
   character(len=32):: name_ngasnitr= "NGASnitr"
   character(len=32):: name_ngasdeni= "NGASdeni"
 
-  PetscInt :: ispec_co2, ispec_n2, ispec_n2o
+  PetscInt :: ispec_co2aq, ispec_n2aq, ispec_n2oaq
+  character(len=32):: name_co2aq   = "CO2(aq)"
+  character(len=32):: name_n2aq    = "N2(aq)"
+  character(len=32):: name_n2oaq   = "N2O(aq)"
+
+  PetscInt :: ispec_co2, ispec_n2, ispec_n2o   ! this is for gases
   character(len=32):: name_co2 = "CO2imm"
   character(len=32):: name_n2o = "N2Oimm"
   character(len=32):: name_n2  = "N2imm"

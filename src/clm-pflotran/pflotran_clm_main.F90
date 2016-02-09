@@ -2843,12 +2843,49 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     end do
 
-    ! aq. species in soil solution/absorbed
+    ! for total HR, Nmin, Nimm, and Nimmp
+    word = clm_pf_idata%name_hrim
+    clm_pf_idata%ispec_hrimm  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = clm_pf_idata%name_Nmin
+    clm_pf_idata%ispec_nmin  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = clm_pf_idata%name_nimm
+    clm_pf_idata%ispec_nimm  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = clm_pf_idata%name_nimmp
+    clm_pf_idata%ispec_nimmp  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    ! aq. species in soil solution
     word = clm_pf_idata%name_co2aq
     clm_pf_idata%ispec_co2aq  = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
     if (clm_pf_idata%ispec_co2aq<=0) then
-      pflotran_model%option%io_buffer = 'CLM co2(aq) species ' // &
+      pflotran_model%option%io_buffer = 'CLM co2 (aq) species ' // &
+            trim(word) // &
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
+
+    word = clm_pf_idata%name_n2aq
+    clm_pf_idata%ispec_co2aq  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    if (clm_pf_idata%ispec_co2aq<=0) then
+      pflotran_model%option%io_buffer = 'CLM n2 (aq) species ' // &
+            trim(word) // &
+            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+      call printErrMsg(pflotran_model%option)
+    endif
+
+    word = clm_pf_idata%name_n2oaq
+    clm_pf_idata%ispec_co2aq  = GetPrimarySpeciesIDFromName(word, &
+                  realization%reaction,PETSC_FALSE,realization%option)
+    if (clm_pf_idata%ispec_co2aq<=0) then
+      pflotran_model%option%io_buffer = 'CLM n2o (aq) species ' // &
             trim(word) // &
             ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
       call printErrMsg(pflotran_model%option)
