@@ -406,14 +406,17 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
         enddo
         write(realization%option%fid_out, *) '-----DONE: checking scaling factor for RT ----'
 
+#ifndef CLM_PFLOTRAN
         if (min_ratio<min_allowable_scale) then
           write(realization%option%fid_out, *) ' min_ratio IS too small to make sense, '// &
             'which less than an allowable_scale value !'
-          write(realization%option%fid_out, *) ' STOP executing ! '
+          !write(realization%option%fid_out, *) ' STOP executing ! '
         endif
+#endif
       endif
 !#endif
 
+#ifndef CLM_PFLOTRAN
       if (min_ratio < min_allowable_scale) then
         write(string,'(es9.3)') min_ratio
         string = 'The update of primary species concentration is being ' // &
@@ -427,14 +430,12 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
           'send your input deck to pflotran-dev@googlegroups.com and ' // &
           'ask for help.'
         realization%option%io_buffer = string
-#ifdef CLM_PFLOTRAN
-        if (realization%option%time > 1.0d-20) &
-#endif
         call printErrMsg(realization%option)
       endif
       ! scale by 0.99 to make the update slightly smaller than the min_ratio
-      !dC_p = dC_p*min_ratio*0.99d0
+      dC_p = dC_p*min_ratio*0.99d0
 
+#else
       ! the following IS a test, i.e., only scale the needed 'dC_p' rather than ALL by 'min_ratio',
       ! which essentially shut off all reaction and transports, if min_ratio too small.
       do i = 1, n
@@ -443,6 +444,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
           dC_p(i) = dC_p(i)*ratio*0.99d0
         endif
       end do
+#endif
 
       changed = PETSC_TRUE
     endif
