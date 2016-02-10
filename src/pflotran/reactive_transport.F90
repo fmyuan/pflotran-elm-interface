@@ -410,7 +410,7 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
         if (min_ratio<min_allowable_scale) then
           write(realization%option%fid_out, *) ' min_ratio IS too small to make sense, '// &
             'which less than an allowable_scale value !'
-          !write(realization%option%fid_out, *) ' STOP executing ! '
+          write(realization%option%fid_out, *) ' STOP executing ! '
         endif
 #endif
       endif
