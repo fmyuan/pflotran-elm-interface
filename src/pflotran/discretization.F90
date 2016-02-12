@@ -423,9 +423,11 @@ subroutine DiscretizationRead(discretization,input,option)
             !don't read input cards of PF grid, if coupled with CLM but no mapping files provided
             if (.not.option%mapping_files) then
 
-              if (.not.associated(clm_pf_idata%dxclm_global) .or.  &
-                  .not.associated(clm_pf_idata%dyclm_global) ) then
-                call printErrMsg(option,'dxclm_global or dyclm_global NOT valid')
+              if (.not.associated(clm_pf_idata%dxclm_global) .or. &
+                  .not.associated(clm_pf_idata%dyclm_global) .or. &
+                   minval(clm_pf_idata%dxclm_global)<=1.d-6  .or. &
+                   minval(clm_pf_idata%dyclm_global)<=1.d-6 )    then
+                call printErrMsg(option,'dxclm_global or dyclm_global NOT valid FOR using CLM provided grid')
               endif
 
               allocate(discretization%grid%structured_grid%dx_global &
