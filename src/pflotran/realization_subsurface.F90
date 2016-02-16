@@ -1,4 +1,4 @@
-module Realization_class
+module Realization_Subsurface_class
   
   use Realization_Base_class
 
@@ -17,7 +17,6 @@ module Realization_class
   use Field_module
   use Debug_module
   use Uniform_Velocity_module
-  use Waypoint_module
   use Output_Aux_module
   
   use Reaction_Aux_module
@@ -33,7 +32,7 @@ private
 #include "petsc/finclude/petscsys.h"
 #include "petsc/finclude/petscvec.h"
 #include "petsc/finclude/petscvec.h90"
-  type, public, extends(realization_base_type) :: realization_type
+  type, public, extends(realization_base_type) :: realization_subsurface_type
 
     type(region_list_type), pointer :: region_list
     type(condition_list_type), pointer :: flow_conditions
@@ -51,9 +50,7 @@ private
     type(uniform_velocity_dataset_type), pointer :: uniform_velocity_dataset
     character(len=MAXSTRINGLENGTH) :: nonuniform_velocity_filename
     
-    type(waypoint_list_type), pointer :: waypoint_list
-    
-  end type realization_type
+  end type realization_subsurface_type
 
   interface RealizationCreate
     module procedure RealizationCreate1
@@ -66,6 +63,7 @@ private
             RealizationProcessCouplers, &
             RealizationInitAllCouplerAuxVars, &
             RealizationProcessConditions, &
+            RealizationProcessDatasets, &
             RealizationAddWaypointsToList, &
             RealizationCreateDiscretization, &
             RealizationLocalizeRegions, &
@@ -89,8 +87,7 @@ private
             RealLocalToLocalWithArray, &
             RealizationCalculateCFL1Timestep, &
             RealizationNonInitializedData, &
-            RealizUpdateAllCouplerAuxVars, &
-            RealizCreateSyncWaypointList
+            RealizUpdateAllCouplerAuxVars
 
   !TODO(intel)
   ! public from Realization_Base_class
@@ -110,9 +107,9 @@ function RealizationCreate1()
 
   implicit none
   
-  class(realization_type), pointer :: RealizationCreate1
+  class(realization_subsurface_type), pointer :: RealizationCreate1
   
-  class(realization_type), pointer :: realization
+  class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
   
   nullify(option)
@@ -134,9 +131,9 @@ function RealizationCreate2(option)
   
   type(option_type), pointer :: option
   
-  class(realization_type), pointer :: RealizationCreate2
+  class(realization_subsurface_type), pointer :: RealizationCreate2
   
-  class(realization_type), pointer :: realization
+  class(realization_subsurface_type), pointer :: realization
   
   allocate(realization)
   call RealizationBaseInit(realization,option)
@@ -160,8 +157,6 @@ function RealizationCreate2(option)
   nullify(realization%uniform_velocity_dataset)
   nullify(realization%sec_transport_constraint)
   realization%nonuniform_velocity_filename = ''
-
-  nullify(realization%waypoint_list)
 
   RealizationCreate2 => realization
   
@@ -194,7 +189,7 @@ subroutine RealizationCreateDiscretization(realization)
 #include "petsc/finclude/petscvec.h"
 #include "petsc/finclude/petscvec.h90"
 
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
@@ -345,8 +340,8 @@ subroutine RealizationCreateDiscretization(realization)
                                        discretization%tvd_ghost_scatter, &
                                        option)
       endif
-      call GridComputeSpacing(grid,option)
-      call GridComputeCoordinates(grid,discretization%origin,option)
+      call GridComputeSpacing(grid,discretization%origin_global,option)
+      call GridComputeCoordinates(grid,discretization%origin_global,option)
       call GridComputeVolumes(grid,field%volume0,option)
       ! set up internal connectivity, distance, etc.
       call GridComputeInternalConnect(grid,option)
@@ -357,7 +352,7 @@ subroutine RealizationCreateDiscretization(realization)
                           discretization%dm_1dof, &
                           discretization%stencil_type,&
                           option)
-      call GridComputeCoordinates(grid,discretization%origin,option, & 
+      call GridComputeCoordinates(grid,discretization%origin_global,option, & 
                                     discretization%dm_1dof%ugdm) 
       if (grid%itype == IMPLICIT_UNSTRUCTURED_GRID) then
         call UGridEnsureRightHandRule(grid%unstructured_grid,grid%x, &
@@ -456,32 +451,12 @@ subroutine RealizationLocalizeRegions(realization)
 
   implicit none
   
-  class(realization_type) :: realization
-  type(grid_type), pointer :: grid
+  class(realization_subsurface_type) :: realization
   
   type (region_type), pointer :: cur_region, cur_region2
   type(option_type), pointer :: option
 
   option => realization%option
-
-#ifdef CLM_PFLOTRAN
-  grid   => realization%patch%grid
-  if (associated(grid)) then
-    ! checking first
-    if (grid%x_min_global >=  1.d20 .or. &
-      grid%x_max_global <= -1.d20 .or. &
-      grid%y_min_global >=  1.d20 .or. &
-      grid%y_max_global <= -1.d20 .or. &
-      grid%z_min_global >=  1.d20 .or. &
-      grid%z_max_global <= -1.d20        ) then
-      option%io_buffer = 'GRID x/y/z_max/min_global NOT YET set ! '
-      call printErrMsg(option)
-    else
-      option%io_buffer = 'GRID x/y/z_max/min_global WILL over-ride read-in from INPUT CARDS ! '
-      call printMsg(option)
-    end if
-  endif
-#endif
 
   ! check to ensure that region names are not duplicated
   cur_region => realization%region_list%first
@@ -496,54 +471,6 @@ subroutine RealizationLocalizeRegions(realization)
       endif
       cur_region2 => cur_region2%next
     enddo
-
-! fmy - need to over-ride input cards' information on REGION from GRID maximums/minimums, if coupling with CLM
-!    (1) 'REGION' cards are read-in, which NOT YET match up with 'GRID' which has been hacked by CLM-grids
-!    (2) the max/min_global should have calculated in 'RealizationCreateDiscretization()' when calling 'GridComputeCoordinates'
-!    (3) This is a hack (not sure if here is the right place to put in this hack), but 3 REGIONS usually defined by CLM as following
-
-#ifdef CLM_PFLOTRAN
-    if (associated(grid)) then
-
-      ! the whole CLM soil domain (3-D) with a REGION name 'all' in PF input card
-      if (StringCompareIgnoreCase(trim(cur_region%name), 'all')) then
-        cur_region%coordinates(1)%x = grid%x_min_global
-        cur_region%coordinates(2)%x = grid%x_max_global
-
-        cur_region%coordinates(1)%y = grid%y_min_global
-        cur_region%coordinates(2)%y = grid%y_max_global
-
-        cur_region%coordinates(1)%z = grid%z_min_global
-        cur_region%coordinates(2)%z = grid%z_max_global
-
-      ! the top cells of CLM soil domain (3-D) with a REGION name 'top' in PF input card
-      elseif (StringCompareIgnoreCase(trim(cur_region%name), 'top')) then
-        cur_region%coordinates(1)%x = grid%x_min_global
-        cur_region%coordinates(2)%x = grid%x_max_global
-
-        cur_region%coordinates(1)%y = grid%y_min_global
-        cur_region%coordinates(2)%y = grid%y_max_global
-
-        cur_region%coordinates(1)%z = grid%z_max_global     ! NOTE: PF soil depth starting from BOTTOM
-        cur_region%coordinates(2)%z = grid%z_max_global
-
-      ! the bottom cells of CLM soil domain (3-D) with a REGION name 'bottom' in PF input card
-      elseif (StringCompareIgnoreCase(trim(cur_region%name), 'bottom')) then
-        cur_region%coordinates(1)%x = grid%x_min_global
-        cur_region%coordinates(2)%x = grid%x_max_global
-
-        cur_region%coordinates(1)%y = grid%y_min_global
-        cur_region%coordinates(2)%y = grid%y_max_global
-
-        cur_region%coordinates(1)%z = grid%z_min_global     ! NOTE: PF soil depth starting from BOTTOM
-        cur_region%coordinates(2)%z = grid%z_min_global
-
-      endif
-
-    endif
-
-#endif
-
     cur_region => cur_region%next
   enddo
 
@@ -566,7 +493,7 @@ subroutine RealizationPassPtrsToPatches(realization)
 
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   realization%patch%field => realization%field
   realization%patch%datasets => realization%datasets
@@ -588,7 +515,7 @@ subroutine RealizationAddCoupler(realization,coupler)
 
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(coupler_type), pointer :: coupler
   
   type(patch_type), pointer :: patch
@@ -627,7 +554,7 @@ subroutine RealizationAddStrata(realization,strata)
 
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(strata_type), pointer :: strata
   
   type(strata_type), pointer :: new_strata
@@ -655,13 +582,32 @@ subroutine RealizationProcessCouplers(realization)
 
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   call PatchProcessCouplers( realization%patch,realization%flow_conditions, &
                              realization%transport_conditions, &
                              realization%option)
   
 end subroutine RealizationProcessCouplers
+
+! ************************************************************************** !
+
+subroutine RealizationProcessDatasets(realization)
+  ! 
+  ! Processes datasets before they are linked to anything else
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 01/20/16
+  ! 
+  use Dataset_module
+  
+  implicit none
+  
+  class(realization_subsurface_type) :: realization
+
+  call DatasetScreenForNonCellIndexed(realization%datasets,realization%option)
+  
+end subroutine RealizationProcessDatasets
 
 ! ************************************************************************** !
 
@@ -675,15 +621,12 @@ subroutine RealizationProcessConditions(realization)
   ! 
   use Data_Mediator_Base_class
   use Data_Mediator_Dataset_class
-  use Dataset_module
   
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   class(data_mediator_base_type), pointer :: cur_data_mediator
 
-  call DatasetScreenForNonCellIndexed(realization%datasets,realization%option)
-  
   if (realization%option%nflowdof > 0) then
     call RealProcessFlowConditions(realization)
   endif
@@ -754,10 +697,11 @@ subroutine RealProcessMatPropAndSatFunc(realization)
 
   use String_module
   use Dataset_Common_HDF5_class
+  use Dataset_module
   
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   PetscBool :: found
   PetscInt :: i
@@ -820,13 +764,15 @@ subroutine RealProcessMatPropAndSatFunc(realization)
     endif
     
     ! if named, link dataset to property
-    if (.not.StringNull(cur_material_property%porosity_dataset_name)) then
+    if (associated(cur_material_property%porosity_dataset)) then
+!    if (.not.StringNull(cur_material_property%porosity_dataset_name)) then
       string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
                '),POROSITY'
       dataset => &
         DatasetBaseGetPointer(realization%datasets, &
-                              cur_material_property%porosity_dataset_name, &
+                              cur_material_property%porosity_dataset%name, &
                               string,option)
+      call DatasetDestroy(cur_material_property%porosity_dataset)
       select type(dataset)
         class is (dataset_common_hdf5_type)
           cur_material_property%porosity_dataset => dataset
@@ -835,13 +781,15 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           call printErrMsg(option)
       end select
     endif
-    if (.not.StringNull(cur_material_property%permeability_dataset_name)) then
+    if (associated(cur_material_property%permeability_dataset)) then
+!    if (.not.StringNull(cur_material_property%permeability_dataset_name)) then
       string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
                '),PERMEABILITY'
       dataset => &
         DatasetBaseGetPointer(realization%datasets, &
-                              cur_material_property%permeability_dataset_name, &
-                              string,option)
+                            cur_material_property%permeability_dataset%name, &
+                            string,option)
+      call DatasetDestroy(cur_material_property%permeability_dataset)
       select type(dataset)
         class is (dataset_common_hdf5_type)
           cur_material_property%permeability_dataset => dataset
@@ -850,13 +798,15 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           call printErrMsg(option)
       end select      
     endif
-    if (.not.StringNull(cur_material_property%compressibility_dataset_name)) then
+    if (associated(cur_material_property%compressibility_dataset)) then
+!    if (.not.StringNull(cur_material_property%compressibility_dataset_name)) then
       string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
                '),SOIL_COMPRESSIBILITY'
       dataset => &
         DatasetBaseGetPointer(realization%datasets, &
-                              cur_material_property%compressibility_dataset_name, &
-                              string,option)
+                         cur_material_property%compressibility_dataset%name, &
+                         string,option)
+      call DatasetDestroy(cur_material_property%compressibility_dataset)
       select type(dataset)
         class is (dataset_common_hdf5_type)
           cur_material_property%compressibility_dataset => dataset
@@ -884,7 +834,7 @@ subroutine RealProcessFluidProperties(realization)
   
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   PetscBool :: found
   type(option_type), pointer :: option
@@ -930,7 +880,7 @@ subroutine RealProcessFlowConditions(realization)
 
   implicit none
 
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(flow_condition_type), pointer :: cur_flow_condition
   type(flow_sub_condition_type), pointer :: cur_flow_sub_condition
@@ -986,7 +936,7 @@ subroutine RealProcessTranConditions(realization)
   
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   
   PetscBool :: found
@@ -1120,7 +1070,7 @@ subroutine RealizationInitConstraints(realization)
 
   implicit none
 
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   
@@ -1148,7 +1098,7 @@ subroutine RealizationPrintCouplers(realization)
   
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   type(coupler_type), pointer :: cur_coupler
@@ -1281,7 +1231,7 @@ subroutine RealizationInitAllCouplerAuxVars(realization)
 
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   !geh: Must update conditions prior to initializing the aux vars.  
   !     Otherwise, datasets will not have been read for routines such as
@@ -1310,7 +1260,7 @@ subroutine RealizUpdateAllCouplerAuxVars(realization,force_update_flag)
 
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscBool :: force_update_flag
 
   !TODO(geh): separate flow from transport in these calls
@@ -1337,7 +1287,7 @@ subroutine RealizationRevertFlowParameters(realization)
 
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(field_type), pointer :: field
   type(option_type), pointer :: option
@@ -1352,20 +1302,25 @@ subroutine RealizationRevertFlowParameters(realization)
   if (option%nflowdof > 0) then
     call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
                                      field%work_loc,ONEDOF)  
-    call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_X,0)
+    call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_X, &
+                                 ZERO_INTEGER)
     call DiscretizationGlobalToLocal(discretization,field%perm0_yy, &
                                      field%work_loc,ONEDOF)  
-    call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_Y,0)
+    call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_Y, &
+                                 ZERO_INTEGER)
     call DiscretizationGlobalToLocal(discretization,field%perm0_zz, &
                                      field%work_loc,ONEDOF)  
-    call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_Z,0)
+    call MaterialSetAuxVarVecLoc(Material,field%work_loc,PERMEABILITY_Z, &
+                                 ZERO_INTEGER)
   endif   
   call DiscretizationGlobalToLocal(discretization,field%porosity0, &
-                                    field%work_loc,ONEDOF)  
-  call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY,0)
+                                   field%work_loc,ONEDOF)  
+  call MaterialSetAuxVarVecLoc(Material,field%work_loc,POROSITY, &
+                               ZERO_INTEGER)
   call DiscretizationGlobalToLocal(discretization,field%tortuosity0, &
-                                    field%work_loc,ONEDOF)  
-  call MaterialSetAuxVarVecLoc(Material,field%work_loc,TORTUOSITY,0)
+                                   field%work_loc,ONEDOF)  
+  call MaterialSetAuxVarVecLoc(Material,field%work_loc,TORTUOSITY, &
+                               ZERO_INTEGER)
 
 end subroutine RealizationRevertFlowParameters
 
@@ -1383,7 +1338,7 @@ subroutine RealizUpdateUniformVelocity(realization)
 
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   call UniformVelocityDatasetUpdate(realization%option, &
                                     realization%option%time, &
@@ -1396,7 +1351,7 @@ end subroutine RealizUpdateUniformVelocity
 
 ! ************************************************************************** !
 
-subroutine RealizationAddWaypointsToList(realization)
+subroutine RealizationAddWaypointsToList(realization,waypoint_list)
   ! 
   ! Creates waypoints associated with source/sinks
   ! boundary conditions, etc. and add to list
@@ -1414,9 +1369,9 @@ subroutine RealizationAddWaypointsToList(realization)
 
   implicit none
   
-  class(realization_type) :: realization
-  
-  type(waypoint_list_type), pointer :: waypoint_list
+  class(realization_subsurface_type) :: realization
+  type(waypoint_list_type) :: waypoint_list
+
   type(flow_condition_type), pointer :: cur_flow_condition
   type(tran_condition_type), pointer :: cur_tran_condition
   type(flow_sub_condition_type), pointer :: sub_condition
@@ -1430,7 +1385,6 @@ subroutine RealizationAddWaypointsToList(realization)
   PetscReal, pointer :: times(:)
 
   option => realization%option
-  waypoint_list => realization%waypoint_list
   nullify(times)
   
   ! set flag for final output
@@ -1531,7 +1485,7 @@ subroutine RealizationAddWaypointsToList(realization)
               waypoint%time = &
                 cur_data_mediator%dataset%time_storage%times(itime)
               waypoint%update_conditions = PETSC_TRUE
-              call WaypointInsertInList(waypoint,realization%waypoint_list)
+              call WaypointInsertInList(waypoint,waypoint_list)
             enddo
           endif
         class default
@@ -1553,7 +1507,7 @@ subroutine RealizationAddWaypointsToList(realization)
               waypoint%time = &
                 cur_data_mediator%dataset%time_storage%times(itime)
               waypoint%update_conditions = PETSC_TRUE
-              call WaypointInsertInList(waypoint,realization%waypoint_list)
+              call WaypointInsertInList(waypoint,waypoint_list)
             enddo
           endif
         class default
@@ -1561,53 +1515,6 @@ subroutine RealizationAddWaypointsToList(realization)
       cur_data_mediator => cur_data_mediator%next
     enddo
   endif 
-
-  ! add waypoints for periodic output
-  if (realization%output_option%periodic_output_time_incr > 0.d0 .or. &
-      realization%output_option%periodic_tr_output_time_incr > 0.d0) then
-
-    if (realization%output_option%periodic_output_time_incr > 0.d0) then
-      ! standard output
-      temp_real = 0.d0
-      do
-        temp_real = temp_real + realization%output_option%periodic_output_time_incr
-        if (temp_real > final_time) exit
-        waypoint => WaypointCreate()
-        waypoint%time = temp_real
-        waypoint%print_output = PETSC_TRUE
-        call WaypointInsertInList(waypoint,realization%waypoint_list)
-      enddo
-    endif
-    
-    if (realization%output_option%periodic_tr_output_time_incr > 0.d0) then
-      ! transient observation output
-      temp_real = 0.d0
-      do
-        temp_real = temp_real + realization%output_option%periodic_tr_output_time_incr
-        if (temp_real > final_time) exit
-        waypoint => WaypointCreate()
-        waypoint%time = temp_real
-        waypoint%print_tr_output = PETSC_TRUE 
-        call WaypointInsertInList(waypoint,realization%waypoint_list)
-      enddo
-    endif
-
-  endif
-
-  ! add waypoints for periodic checkpoint
-  if (realization%output_option%periodic_checkpoint_time_incr > 0.d0) then
-
-    ! standard output
-    temp_real = 0.d0
-    do
-      temp_real = temp_real + realization%output_option%periodic_checkpoint_time_incr
-      if (temp_real > final_time) exit
-      waypoint => WaypointCreate()
-      waypoint%time = temp_real
-      waypoint%print_checkpoint = PETSC_TRUE
-      call WaypointInsertInList(waypoint,realization%waypoint_list)
-    enddo
-  endif
 
   ! add in strata that change over time
   cur_strata => realization%patch%strata_list%first
@@ -1617,59 +1524,18 @@ subroutine RealizationAddWaypointsToList(realization)
       waypoint => WaypointCreate()
       waypoint%time = cur_strata%start_time
       waypoint%sync = PETSC_TRUE
-      call WaypointInsertInList(waypoint,realization%waypoint_list)
+      call WaypointInsertInList(waypoint,waypoint_list)
     endif
     if (Initialized(cur_strata%final_time)) then
       waypoint => WaypointCreate()
       waypoint%time = cur_strata%final_time
       waypoint%sync = PETSC_TRUE
-      call WaypointInsertInList(waypoint,realization%waypoint_list)
+      call WaypointInsertInList(waypoint,waypoint_list)
     endif
     cur_strata => cur_strata%next
   enddo
 
 end subroutine RealizationAddWaypointsToList
-
-! ************************************************************************** !
-
-function RealizCreateSyncWaypointList(realization)
-  ! 
-  ! Creates a list of waypoints for outer synchronization of simulation process
-  ! model couplers
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 10/08/14
-  ! 
-
-  use Option_module
-  use Waypoint_module
-  use Time_Storage_module
-
-  implicit none
-  
-  class(realization_type) :: realization
-  
-  type(waypoint_list_type), pointer :: RealizCreateSyncWaypointList
-
-  type(waypoint_list_type), pointer :: new_waypoint_list
-  type(waypoint_type), pointer :: cur_waypoint
-  type(waypoint_type), pointer :: new_waypoint
-
-  new_waypoint_list => WaypointListCreate()
-  
-  cur_waypoint => realization%waypoint_list%first
-  do
-    if (.not.associated(cur_waypoint)) exit
-    if (cur_waypoint%sync .or. cur_waypoint%final) then
-      new_waypoint => WaypointCreate(cur_waypoint)
-      call WaypointInsertInList(new_waypoint,new_waypoint_list)
-      if (cur_waypoint%final) exit
-    endif
-    cur_waypoint => cur_waypoint%next
-  enddo
-  RealizCreateSyncWaypointList => new_waypoint_list
-
-end function RealizCreateSyncWaypointList
 
 ! ************************************************************************** !
 
@@ -1689,7 +1555,7 @@ subroutine RealizationUpdatePropertiesTS(realization)
  
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1961,7 +1827,7 @@ subroutine RealizationUpdatePropertiesNI(realization)
  
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
 
 #if 0
   type(option_type), pointer :: option
@@ -2018,7 +1884,7 @@ subroutine RealizationCalcMineralPorosity(realization)
  
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -2086,7 +1952,7 @@ subroutine RealLocalToLocalWithArray(realization,array_id)
 
   implicit none
 
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscInt :: array_id
   
   type(patch_type), pointer :: patch
@@ -2135,7 +2001,7 @@ subroutine RealizationCountCells(realization,global_total_count, &
 
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   PetscInt :: global_total_count
   PetscInt :: global_active_count
   PetscInt :: total_count
@@ -2180,7 +2046,7 @@ subroutine RealizationPrintGridStatistics(realization)
 
   implicit none
 
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(grid_type), pointer :: grid
@@ -2376,7 +2242,7 @@ subroutine RealizationCalculateCFL1Timestep(realization,max_dt_cfl_1)
 
   implicit none
 
-  class(realization_type) realization
+  class(realization_subsurface_type) realization
   PetscReal :: max_dt_cfl_1
   
   type(patch_type), pointer :: patch
@@ -2416,7 +2282,7 @@ subroutine RealizationNonInitializedData(realization)
 
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
@@ -2490,7 +2356,7 @@ subroutine RealizationDestroyLegacy(realization)
 
   implicit none
   
-  class(realization_type), pointer :: realization
+  class(realization_subsurface_type), pointer :: realization
   
   if (.not.associated(realization)) return
     
@@ -2531,8 +2397,6 @@ subroutine RealizationDestroyLegacy(realization)
   
   call TranConstraintDestroy(realization%sec_transport_constraint)
   
-  call WaypointListDestroy(realization%waypoint_list)
-  
   deallocate(realization)
   nullify(realization)
   
@@ -2552,7 +2416,7 @@ subroutine RealizationStrip(this)
 
   implicit none
   
-  class(realization_type) :: this
+  class(realization_subsurface_type) :: this
   
   call RealizationBaseStrip(this)
   call RegionDestroyList(this%region_list)
@@ -2579,8 +2443,6 @@ subroutine RealizationStrip(this)
   
   call TranConstraintDestroy(this%sec_transport_constraint)
   
-  call WaypointListDestroy(this%waypoint_list)
-  
 end subroutine RealizationStrip
 
-end module Realization_class
+end module Realization_Subsurface_class

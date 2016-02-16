@@ -81,7 +81,7 @@ subroutine ExampleRead(this,input,option)
   implicit none
   
   class(reaction_sandbox_example_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   PetscInt :: i
@@ -139,7 +139,7 @@ subroutine ExampleRead(this,input,option)
         else              
           ! If units exist, convert to internal units of 1/s
           this%rate_constant = this%rate_constant * &
-            UnitsConvertToInternal(word,option)
+            UnitsConvertToInternal(word,'unitless/time',option)
         endif
       case default
         call InputKeywordUnrecognized(word, &
@@ -261,7 +261,7 @@ subroutine ExampleReact(this,Residual,Jacobian,compute_derivative, &
   ! 1.d3 converts m^3 water -> L water
   L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
             material_auxvar%volume*1.d3
-  ! alway subtract contribution from residual
+  ! always subtract contribution from residual
   Residual(this%species_id) = Residual(this%species_id) - &
     this%rate_constant * &  ! 1/sec
     L_water * & ! L water

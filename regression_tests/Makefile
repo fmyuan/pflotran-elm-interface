@@ -38,6 +38,7 @@ endif
 STANDARD_CFG = \
 	ascem/batch/batch.cfg \
 	ascem/1d/1d-calcite/1d-calcite.cfg \
+	default/input_format/input_format.cfg \
 	default/543/543.cfg \
 	default/anisothermal/anisothermal.cfg \
 	default/column/column.cfg \
@@ -62,6 +63,7 @@ STANDARD_CFG = \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
+        toil_ims/toil_ims.cfg \
 	ufd/ufd.cfg \
 	wipp/nuts/nuts.cfg \
 	wipp/bragflo/bragflo.cfg
@@ -99,6 +101,7 @@ FLOW_CFG = \
 	default/scco2/mphase/mphase.cfg \
 	default/scco2/flash2/flash2.cfg \
 	general/general.cfg \
+        toil_ims/toil_ims.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/copper_leaching/cu_leaching.cfg \
 	wipp/bragflo/bragflo.cfg
