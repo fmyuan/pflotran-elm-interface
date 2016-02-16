@@ -52,7 +52,7 @@ subroutine TOilImsSetup(realization)
   ! Date: 10/20/15
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Option_module
   use Coupler_module
@@ -63,7 +63,7 @@ subroutine TOilImsSetup(realization)
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
@@ -215,11 +215,11 @@ subroutine TOilImsInitializeTimestep(realization)
   ! Date: 03/10/11
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   call TOilImsUpdateFixedAccum(realization)
   
@@ -236,7 +236,7 @@ subroutine TOilImsCreateZeroArray(patch,option)
   ! Date: 10/20/15
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Grid_module
   use Option_module
@@ -315,7 +315,7 @@ end subroutine TOilImsCreateZeroArray
 !  ! Date: 10/22/15
 !  !
 !
-!  use Realization_class
+!  use Realization_Subsurface_class
 !  use Grid_module
 !  use Field_module
 !  use Option_module
@@ -328,7 +328,7 @@ end subroutine TOilImsCreateZeroArray
 !  Vec :: X
 !  Vec :: dX
 !  PetscBool :: changed
-!  type(realization_type) :: realization
+!  type(realization_subsurface_type) :: realization
 !  PetscReal, pointer :: X_p(:)
 !  PetscReal, pointer :: dX_p(:)
 !  PetscErrorCode :: ierr
@@ -457,7 +457,7 @@ end subroutine TOilImsCreateZeroArray
 !  ! Date: 11/07/15
 !  ! 
 !
-!  use Realization_class
+!  use Realization_Subsurface_class
 !  use Grid_module
 !  use Field_module
 !  use Patch_module
@@ -470,7 +470,7 @@ end subroutine TOilImsCreateZeroArray
 !  Vec :: X0
 !  Vec :: dX
 !  Vec :: X1
-!  type(realization_type) :: realization
+!  type(realization_subsurface_type) :: realization
 !  ! ignore changed flag for now.
 !  PetscBool :: dX_changed
 !  PetscBool :: X1_changed
@@ -617,13 +617,13 @@ subroutine TOilImsSetPlotVariables(realization)
   ! Date: 10/20/15
   ! 
   
-  use Realization_class
+  use Realization_Subsurface_class
   use Output_Aux_module
   use Variables_module
     
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   character(len=MAXWORDLENGTH) :: name, units
   type(output_variable_list_type), pointer :: list
@@ -700,7 +700,7 @@ subroutine TOilImsTimeCut(realization)
   ! Author: Paolo Orsini
   ! Date: 11/09/15
   ! 
-  use Realization_class
+  use Realization_Subsurface_class
   !use Option_module
   !use Field_module
   !use Patch_module
@@ -709,7 +709,7 @@ subroutine TOilImsTimeCut(realization)
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   !type(option_type), pointer :: option
   !type(patch_type), pointer :: patch
@@ -757,7 +757,7 @@ subroutine TOilImsUpdateAuxVars(realization)
   ! Date: 10/21/15
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Option_module
   use Field_module
@@ -771,7 +771,7 @@ subroutine TOilImsUpdateAuxVars(realization)
   
   implicit none
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscBool :: update_state
   
   type(option_type), pointer :: option
@@ -787,7 +787,7 @@ subroutine TOilImsUpdateAuxVars(realization)
 
   class(material_auxvar_type), pointer :: material_auxvars(:)
 
-  PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn
+  PetscInt :: ghosted_id, local_id, sum_connection, idof, iconn, natural_id
   PetscInt :: ghosted_start, ghosted_end
   !PetscInt :: iphasebc, iphase
   PetscInt :: offset
@@ -824,14 +824,14 @@ subroutine TOilImsUpdateAuxVars(realization)
     ghosted_start = ghosted_end - option%nflowdof + 1
     ! TOIL_IMS_UPDATE_FOR_ACCUM indicates call from non-perturbation
     option%iflag = TOIL_IMS_UPDATE_FOR_ACCUM
-
+    natural_id = grid%nG2A(ghosted_id)
     call TOilImsAuxVarCompute(xx_loc_p(ghosted_start:ghosted_end), &
                        toil_auxvars(ZERO_INTEGER,ghosted_id), &
                        global_auxvars(ghosted_id), &
                        material_auxvars(ghosted_id), &
                        patch%characteristic_curves_array( &
                          patch%sat_func_id(ghosted_id))%ptr, &
-                       ghosted_id, &
+                       natural_id, &
                        option)
 
   enddo
@@ -846,6 +846,8 @@ subroutine TOilImsUpdateAuxVars(realization)
       sum_connection = sum_connection + 1
       local_id = cur_connection_set%id_dn(iconn)
       ghosted_id = grid%nL2G(local_id)
+      !negate to indicate boundary connection, not actual cell
+      natural_id = -grid%nG2A(ghosted_id) 
       offset = (ghosted_id-1)*option%nflowdof
       if (patch%imat(ghosted_id) <= 0) cycle
 
@@ -874,7 +876,7 @@ subroutine TOilImsUpdateAuxVars(realization)
                                 material_auxvars(ghosted_id), &
                                 patch%characteristic_curves_array( &
                                   patch%sat_func_id(ghosted_id))%ptr, &
-                                ghosted_id, &
+                                natural_id, &
                                 option)
     enddo
     boundary_condition => boundary_condition%next
@@ -897,7 +899,7 @@ subroutine TOilImsUpdateFixedAccum(realization)
   ! Date: 10/23/15
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Option_module
   use Field_module
@@ -906,7 +908,7 @@ subroutine TOilImsUpdateFixedAccum(realization)
 
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -997,7 +999,7 @@ subroutine TOilImsUpdateSolution(realization)
   ! Date: 10/23/15
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   !use Field_module
   !use Patch_module
   !use Discretization_module
@@ -1006,7 +1008,7 @@ subroutine TOilImsUpdateSolution(realization)
   
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   !type(option_type), pointer :: option
   !type(patch_type), pointer :: patch
@@ -1042,7 +1044,7 @@ subroutine TOilImsComputeMassBalance(realization,mass_balance)
   ! Date: 11/12/15
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Field_module
@@ -1051,7 +1053,7 @@ subroutine TOilImsComputeMassBalance(realization,mass_balance)
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nflowspec, &
                             realization%option%nphase)
 
@@ -1112,7 +1114,7 @@ subroutine TOilImsUpdateMassBalance(realization)
   ! Date: 10/23/15
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Grid_module
@@ -1120,7 +1122,7 @@ subroutine TOilImsUpdateMassBalance(realization)
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1173,14 +1175,14 @@ subroutine TOilImsZeroMassBalanceDelta(realization)
   ! Date: 10/23/15
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Grid_module
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1214,7 +1216,7 @@ subroutine TOilImsMapBCAuxVarsToGlobal(realization)
   ! Date: 10/23/15
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Coupler_module
@@ -1222,7 +1224,7 @@ subroutine TOilImsMapBCAuxVarsToGlobal(realization)
 
   implicit none
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1543,7 +1545,8 @@ subroutine TOilImsFlux(toil_auxvar_up,global_auxvar_up, &
     endif  ! if mobility larger than given tolerance                 
 
   enddo
-#endif ! TOIL_CONVECTION
+#endif 
+! TOIL_CONVECTION
 
 !#ifdef DEBUG_GENERAL_FILEOUTPUT
 !  if (debug_flag > 0) then  
@@ -1890,7 +1893,8 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
 !#endif
     endif
   enddo
-#endif ! end of TOIL_CONVECTION
+#endif 
+! end of TOIL_CONVECTION
   
 !#ifdef DEBUG_GENERAL_FILEOUTPUT
 !  if (debug_flag > 0) then 
@@ -1933,7 +1937,8 @@ subroutine TOilImsBCFlux(ibndtype,auxvar_mapping,auxvars, &
       call printErrMsg(option)
   end select
   Res(energy_id) = Res(energy_id) + heat_flux ! MW
-#endif ! end of TOIL_CONDUCTION
+#endif 
+! end of TOIL_CONDUCTION
 
 !#ifdef DEBUG_FLUXES  
 !  if (debug_connection) then  
@@ -2011,11 +2016,12 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
   PetscReal :: qsrc_mol
   PetscReal :: den, den_kg, enthalpy, internal_energy, temperature
   PetscReal :: cell_pressure, dummy_pressure
-  PetscInt :: iphase, ierr
+  PetscInt :: iphase
   PetscInt :: energy_var
+  PetscErrorCode :: ierr
 
   ! this can be removed when etxending to pressure condition
-  if(.not.associated(src_sink_condition%rate) ) then
+  if (.not.associated(src_sink_condition%rate) ) then
     option%io_buffer = 'TOilImsSrcSink fow condition rate not defined ' // &
     'rate is needed for a valid src/sink term'
     call printErrMsg(option)  
@@ -2025,9 +2031,9 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
   qsrc => src_sink_condition%rate%dataset%rarray
 
   energy_var = 0
-  if( associated(src_sink_condition%temperature) ) then
+  if ( associated(src_sink_condition%temperature) ) then
     energy_var = SRC_TEMPERATURE 
-  else if( associated(src_sink_condition%enthalpy) ) then
+  else if ( associated(src_sink_condition%enthalpy) ) then
     energy_var = SRC_ENTHALPY
   end if
 
@@ -2035,7 +2041,7 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
 
  ! checks that qsrc(liquid_phase) and qsrc(oil_phase) 
  ! do not have different signs
-  if( (qsrc(option%liquid_phase)>0.0d0 .and. qsrc(option%oil_phase)<0.d0).or.&
+  if ( (qsrc(option%liquid_phase)>0.0d0 .and. qsrc(option%oil_phase)<0.d0).or.&
       (qsrc(option%liquid_phase)<0.0d0 .and. qsrc(option%oil_phase)>0.d0)  & 
     ) then
     option%io_buffer = "TOilImsSrcSink error: " // &
@@ -2045,20 +2051,20 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
 
   ! approximates BHP with local pressure
   ! to compute BHP we need to solve an IPR equation
-  if( ( (flow_src_sink_type == VOLUMETRIC_RATE_SS) .or. &
-        ( associated(src_sink_condition%temperature) ) &
-      ) .and. &
-      ( (qsrc(option%liquid_phase) > 0.d0).or. &
-        (qsrc(option%oil_phase) > 0.d0) &
-      ) & 
-    ) then  
+  if ( ( (flow_src_sink_type == VOLUMETRIC_RATE_SS) .or. &
+         ( associated(src_sink_condition%temperature) ) &
+       ) .and. &
+       (  (qsrc(option%liquid_phase) > 0.d0).or. &
+         (qsrc(option%oil_phase) > 0.d0) &
+       ) & 
+     ) then  
     cell_pressure = &
         maxval(toil_auxvar%pres(option%liquid_phase:option%oil_phase))
   end if
 
   ! if enthalpy is used to define enthelpy or energy rate is used  
   ! approximate bottom hole temperature (BHT) with local temp
-  if( energy_var == SRC_TEMPERATURE) then
+  if ( energy_var == SRC_TEMPERATURE) then
     temperature = src_sink_condition%temperature%dataset%rarray(1)
   else   
     temperature = toil_auxvar%temp
@@ -2068,7 +2074,7 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
   Res = 0.d0
   do iphase = 1, option%nphase
     qsrc_mol = 0.d0
-    if( qsrc(iphase) > 0.d0) then 
+    if ( qsrc(iphase) > 0.d0) then 
       select case(iphase)
         case(LIQUID_PHASE)
           call EOSWaterDensity(temperature,cell_pressure,den_kg,den,ierr)
@@ -2102,24 +2108,27 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
 
   ! Res(option%energy_id), energy units: MJ/sec
 
-  if( associated(src_sink_condition%temperature) .or. &
+  if ( associated(src_sink_condition%temperature) .or. &
       associated(src_sink_condition%enthalpy) &
-    ) then
+     ) then
     ! if injection compute local pressure that will be used as BHP
     ! approximation used to overcome the solution of an IPR
-    !if( qsrc(option%liquid_phase)>0.d0 .or. 
+    !if ( qsrc(option%liquid_phase)>0.d0 .or. 
     !    qsrc(option%oil_phase)>0.d0 ) then
     !  cell_pressure = &
     !      maxval(toil_auxvar%pres(option%liquid_phase:option%oil_phase))
     !end if
     ! water injection 
-    if(qsrc(option%liquid_phase) > 0.d0) then !implies qsrc(option%oil_phase)>=0
-      if( energy_var == SRC_TEMPERATURE ) then
-        call EOSWaterDensityEnthalpy(src_sink_condition%temperature% &
-                                     dataset%rarray(1), cell_pressure, &
-                                     den_kg,den,enthalpy,ierr)
+    if (qsrc(option%liquid_phase) > 0.d0) then !implies qsrc(option%oil_phase)>=0
+      if ( energy_var == SRC_TEMPERATURE ) then
+        call EOSWaterDensity(src_sink_condition%temperature% &
+                             dataset%rarray(1), cell_pressure, &
+                             den_kg,den,ierr)
+        call EOSWaterEnthalpy(src_sink_condition%temperature% &
+                              dataset%rarray(1), cell_pressure, &
+                              enthalpy,ierr)
         ! enthalpy = [J/kmol]
-      else if( energy_var == SRC_ENTHALPY ) then
+      else if ( energy_var == SRC_ENTHALPY ) then
         !input as J/kg
         enthalpy = src_sink_condition%enthalpy% &
                        dataset%rarray(option%liquid_phase)
@@ -2132,12 +2141,12 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
                               Res(option%liquid_phase) * enthalpy
     end if
     ! oil injection 
-    if(qsrc(option%oil_phase) > 0.d0) then !implies qsrc(option%liquid_phase)>=0
-      if( energy_var == SRC_TEMPERATURE ) then
+    if (qsrc(option%oil_phase) > 0.d0) then !implies qsrc(option%liquid_phase)>=0
+      if ( energy_var == SRC_TEMPERATURE ) then
         call EOSOilEnthalpy(src_sink_condition%temperature%dataset%rarray(1), &
                             cell_pressure, enthalpy, ierr)
         ! enthalpy = [J/kmol] 
-      else if( energy_var == SRC_ENTHALPY ) then
+      else if ( energy_var == SRC_ENTHALPY ) then
         enthalpy = src_sink_condition%enthalpy% &
                      dataset%rarray(option%oil_phase)
                       !J/kg * kg/kmol = J/kmol  
@@ -2149,14 +2158,14 @@ subroutine TOilImsSrcSink(option,src_sink_condition, toil_auxvar, &
                               Res(option%oil_phase) * enthalpy
     end if
     ! water energy extraction due to water production
-    if(qsrc(option%liquid_phase) < 0.d0) then !implies qsrc(option%oil_phase)<=0
+    if (qsrc(option%liquid_phase) < 0.d0) then !implies qsrc(option%oil_phase)<=0
       ! auxvar enthalpy units: MJ/kmol ! water component mass                     
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%liquid_phase) * &
                               toil_auxvar%H(option%liquid_phase)
     end if
     !oil energy extraction due to oil production 
-    if(qsrc(option%oil_phase) < 0.d0) then !implies qsrc(option%liquid_phase)<=0
+    if (qsrc(option%oil_phase) < 0.d0) then !implies qsrc(option%liquid_phase)<=0
       ! auxvar enthalpy units: MJ/kmol ! water component mass                     
       Res(option%energy_id) = Res(option%energy_id) + &
                               Res(option%oil_phase) * &
@@ -2481,7 +2490,7 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
   ! Date: 03/09/11
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Field_module
   use Patch_module
   use Discretization_module
@@ -2503,7 +2512,7 @@ subroutine TOilImsResidual(snes,xx,r,realization,ierr)
   SNES :: snes
   Vec :: xx
   Vec :: r
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscViewer :: viewer
   PetscErrorCode :: ierr
   
@@ -2856,7 +2865,7 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   ! Date: 11/05/15
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Grid_module
   use Option_module
@@ -2871,7 +2880,7 @@ subroutine TOilImsJacobian(snes,xx,A,B,realization,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
 
   Mat :: J
@@ -3240,11 +3249,11 @@ subroutine TOilImsDestroy(realization)
   ! Date: 11/09/15
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
 
   implicit none
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   ! place anything that needs to be freed here.
   ! auxvars are deallocated in auxiliary.F90.
@@ -3265,7 +3274,7 @@ end subroutine TOilImsDestroy
 !  ! Date: 11/05/15
 !  ! 
 !
-!  use Realization_class
+!  use Realization_Subsurface_class
 !  use Grid_module
 !  use Field_module
 !  use Option_module
@@ -3278,7 +3287,7 @@ end subroutine TOilImsDestroy
 !  Vec :: X
 !  Vec :: dX
 !  PetscBool :: changed
-!  type(realization_type) :: realization
+!  type(realization_subsurface_type) :: realization
 !  
 !  PetscReal, pointer :: X_p(:)
 !  PetscReal, pointer :: dX_p(:)

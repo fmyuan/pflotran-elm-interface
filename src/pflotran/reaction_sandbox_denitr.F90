@@ -83,7 +83,7 @@ subroutine DenitrRead(this,input,option)
   implicit none
   
   class(reaction_sandbox_denitr_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   PetscInt :: i

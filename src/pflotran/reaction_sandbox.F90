@@ -110,7 +110,7 @@ subroutine RSandboxRead1(input,option)
   
   implicit none
   
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   call RSandboxRead(rxn_sandbox_list,input,option)
@@ -135,7 +135,7 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
   implicit none
   
   class(reaction_sandbox_base_type), pointer :: local_sandbox_list  
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -209,7 +209,7 @@ subroutine RSandboxSkipInput(input,option)
   
   implicit none
   
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   class(reaction_sandbox_base_type), pointer :: dummy_list
