@@ -58,7 +58,6 @@ STANDARD_CFG = \
         general/general.cfg \
         hydrogeophysics/hydrogeophysics.cfg \
 	ngee/ngee.cfg \
-	ngee/clmdecomp/clmdecomp.cfg \
         shortcourse/1D_Calcite/calcite.cfg \
 	shortcourse/1D_variably_saturated_flow/vsat_flow.cfg \
 	shortcourse/regional_doublet/regional_doublet.cfg \
