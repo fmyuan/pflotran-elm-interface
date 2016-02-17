@@ -44,7 +44,7 @@ CHEMISTRY
       REACTION
         UPSTREAM_POOL SOM1
         DOWNSTREAM_POOL SOM2 0.64d0
-        RATE_CONSTANT 0.7 1/d
+        RATE_CONSTANT 0.7 unitless/d
       /
     /
   /

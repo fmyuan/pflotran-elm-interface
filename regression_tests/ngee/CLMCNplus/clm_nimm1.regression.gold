@@ -1,38 +1,38 @@
 -- CONCENTRATION: Total CO2(aq) --
-      Max:   1.9366912926907E-02
-      Min:   1.9366912926907E-02
-     Mean:   1.9366912926907E-02
-        1:   1.9366912926907E-02
+      Max:   1.9317834645722E-02
+      Min:   1.9317834645722E-02
+     Mean:   1.9317834645722E-02
+        1:   1.9317834645722E-02
 -- CONCENTRATION: Total NH4+ --
-      Max:   3.7700402253940E-08
-      Min:   3.7700402253940E-08
-     Mean:   3.7700402253940E-08
-        1:   3.7700402253940E-08
+      Max:   2.0619472037648E-06
+      Min:   2.0619472037648E-06
+     Mean:   2.0619472037648E-06
+        1:   2.0619472037648E-06
 -- CONCENTRATION: SOM1 --
-      Max:   7.5729597701926E+00
-      Min:   7.5729597701926E+00
-     Mean:   7.5729597701926E+00
-        1:   7.5729597701926E+00
+      Max:   7.5537969426437E+00
+      Min:   7.5537969426437E+00
+     Mean:   7.5537969426437E+00
+        1:   7.5537969426437E+00
 -- CONCENTRATION: Lit1C --
-      Max:   6.1053118521433E+00
-      Min:   6.1053118521433E+00
-     Mean:   6.1053118521433E+00
-        1:   6.1053118521433E+00
+      Max:   6.1367263235349E+00
+      Min:   6.1367263235349E+00
+     Mean:   6.1367263235349E+00
+        1:   6.1367263235349E+00
 -- CONCENTRATION: Lit1N --
-      Max:   1.6778201341230E-01
-      Min:   1.6778201341230E-01
-     Mean:   1.6778201341230E-01
-        1:   1.6778201341230E-01
+      Max:   1.6864532447454E-01
+      Min:   1.6864532447454E-01
+     Mean:   1.6864532447454E-01
+        1:   1.6864532447454E-01
 -- DISCRETE: Material ID --
       Max:         1
       Min:         1
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   2.1268773078918E-01
-   Time Steps:           42
-   Newton Iterations:          492
-   Solver Iterations:          492
-   Time Step Cuts:            9
-   Solution 2-Norm:   9.7289813636484E+00
-   Residual 2-Norm:   4.0454163082607E-05
+   Time (seconds):   1.8175927852280E-01
+   Time Steps:           28
+   Newton Iterations:          178
+   Solver Iterations:          178
+   Time Step Cuts:            3
+   Solution 2-Norm:   9.7338621648792E+00
+   Residual 2-Norm:   4.9604384669279E-05

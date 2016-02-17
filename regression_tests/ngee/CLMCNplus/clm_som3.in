@@ -44,7 +44,7 @@ CHEMISTRY
       REACTION
         UPSTREAM_POOL SOM1
         DOWNSTREAM_POOL SOM2 0.64d0
-        RATE_CONSTANT 0.07 1/d
+        RATE_CONSTANT 0.07 unitless/d
       /
     /
   /
@@ -80,7 +80,7 @@ END
 
 #=========================== fluid properties =================================
 FLUID_PROPERTY 
-  DIFFUSION_COEFFICIENT 1.d-9
+  DIFFUSION_COEFFICIENT 0.d-9
 END
 
 #=========================== material properties ==============================

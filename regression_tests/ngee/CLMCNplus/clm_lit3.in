@@ -44,7 +44,7 @@ CHEMISTRY
       REACTION
         UPSTREAM_POOL Labile
         DOWNSTREAM_POOL SOM1 0.61d0
-        RATE_CONSTANT 0.7d1 1/d
+        RATE_CONSTANT 0.7d1 unitless/d
       /
       AMMONIUM_INHIBITION_NITRATE 1.d-5
 

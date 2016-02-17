@@ -440,6 +440,13 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
     dpw_dp = 1.d0
   endif  
 
+  ! adding error checking for 'pw' if out of EOS limits ( 0 - 16.54 MPa)
+  if (pw > 165.4d5) then
+      option%io_buffer = 'THAuxVarComputeNoFreezing: Pressure out of EOS limits.'
+ print *, pw
+      call printMsg(option)
+  endif
+
 !  call wateos_noderiv(option%temp,pw,dw_kg,dw_mol,hw,option%scale,ierr)
   call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,dw_dp,dw_dt,ierr)
   call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,hw_dp,hw_dt,ierr)
@@ -618,6 +625,12 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     pw = global_auxvar%pres(1)
     dpw_dp = 1.d0
   endif  
+  ! adding error checking for 'pw' if out of EOS limits ( 0 - 16.54 MPa)
+  if (pw > 165.4d5) then
+      option%io_buffer = 'THAuxVarComputeNoFreezing: Pressure out of EOS limits.'
+ print *, pw
+      call printMsg(option)
+  endif
   
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
     if(auxvar%bc_alpha > 0.d0) then
