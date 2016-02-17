@@ -22,7 +22,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   ! 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Option_module
   use Init_Common_module
@@ -41,7 +41,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -140,7 +140,7 @@ subroutine InitSubsurfFlowSetupSolvers(realization,convergence_context,solver)
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   ! 
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Init_Common_module
   
@@ -164,7 +164,7 @@ subroutine InitSubsurfFlowSetupSolvers(realization,convergence_context,solver)
 #include "petsc/finclude/petscsnes.h"
 #include "petsc/finclude/petscpc.h"
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(convergence_context_type), pointer :: convergence_context
   type(solver_type), pointer :: solver
   
@@ -294,7 +294,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   ! Date: 03/05/10, 12/04/14
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Field_module
   use Grid_module
@@ -307,7 +307,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
 #include "petsc/finclude/petscvec.h"
 #include "petsc/finclude/petscvec.h90"
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   character(len=MAXSTRINGLENGTH) :: filename
   
   PetscInt :: local_id, idx, offset
@@ -329,11 +329,10 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   field => realization%field
   patch => realization%patch
 
-  if (option%iflowmode /= RICHARDS_MODE) then
+  if (option%iflowmode /= RICHARDS_MODE .or. option%iflowmode /= TH_MODE) then
     option%io_buffer = 'Reading of flow initial conditions from HDF5 ' // &
                        'file (' // trim(filename) // &
                        'not currently not supported for mode: ' // &
-
                        trim(option%flowmode)
   endif      
 
@@ -347,7 +346,12 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
     call VecGetArrayF90(field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
 
     ! Pressure for all modes 
-    offset = 1
+    if (option%iflowmode == RICHARDS_MODE) then
+      offset = RICHARDS_PRESSURE_DOF
+    elseif (option%iflowmode == TH_MODE) then
+      offset = TH_PRESSURE_DOF
+    endif
+    !offset = 1
     group_name = ''
     dataset_name = 'Pressure'
     call HDF5ReadCellIndexedRealArray(realization,field%work, &
@@ -364,6 +368,27 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
       xx_p(idx) = vec_p(local_id)
     enddo
     call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+
+    ! Temperature for TH mode
+    if (option%iflowmode == TH_MODE) then
+      offset = TH_TEMPERATURE_DOF
+      group_name = ''
+      dataset_name = 'Temperature'
+      call HDF5ReadCellIndexedRealArray(realization,field%work, &
+                                      filename,group_name, &
+                                      dataset_name,option%id>0)
+      call VecGetArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+      do local_id=1, grid%nlmax
+        if (cur_patch%imat(grid%nL2G(local_id)) <= 0) cycle
+        if (dabs(vec_p(local_id)) < 1.d-40) then
+          print *,  option%myrank, grid%nG2A(grid%nL2G(local_id)), &
+              ': Potential error - zero pressure in Initial Condition read from file.'
+        endif
+        idx = (local_id-1)*option%nflowdof + offset
+        xx_p(idx) = vec_p(local_id)
+      enddo
+      call VecRestoreArrayF90(field%work,vec_p,ierr);CHKERRQ(ierr)
+    endif
 
     call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
         

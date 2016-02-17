@@ -47,6 +47,7 @@ module Field_module
     Vec :: tran_rhs_coef
     
     Vec :: tran_log_xx, tran_work_loc
+    Vec :: tran_plog_xx
     
     ! mass transfer
     Vec :: flow_mass_transfer
@@ -181,6 +182,7 @@ subroutine FieldDestroy(field)
   
   PetscErrorCode :: ierr
   PetscInt :: ivar
+  PetscInt :: num_vecs
 
   ! Destroy PetscVecs
   if (field%porosity0 /= 0) then
@@ -336,8 +338,9 @@ subroutine FieldDestroy(field)
   endif
 
   if (associated(field%max_change_vecs)) then
-    call VecDestroyVecsF90(size(field%max_change_vecs), &
-                           field%max_change_vecs,ierr);CHKERRQ(ierr)
+    !geh: kludge as the compiler returns i4 in 64-bit
+    num_vecs = size(field%max_change_vecs)
+    call VecDestroyVecsF90(num_vecs,field%max_change_vecs,ierr);CHKERRQ(ierr)
   endif
 
   deallocate(field)

@@ -189,7 +189,7 @@ subroutine SomDecRead(this,input,option)
   implicit none
   
   class(reaction_sandbox_somdec_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: word
@@ -407,7 +407,7 @@ subroutine SomDecRead(this,input,option)
                 call InputDefaultMsg(input,option)
               else              
                 rate_constant = rate_constant * &
-                  UnitsConvertToInternal(word,option)
+                  UnitsConvertToInternal(word,'concentration/time',option)
               endif
             case('TURNOVER_TIME')
               call InputReadDouble(input,option,turnover_time)
@@ -419,7 +419,7 @@ subroutine SomDecRead(this,input,option)
                 call InputDefaultMsg(input,option)
               else              
                 turnover_time = turnover_time * &
-                  UnitsConvertToInternal(word,option)
+                 UnitsConvertToInternal(word,'time',option)
               endif
             case('RATE_DECOMPOSITION')
               call InputReadDouble(input,option,rate_decomposition)
@@ -431,7 +431,7 @@ subroutine SomDecRead(this,input,option)
                 call InputDefaultMsg(input,option)
               else
                 rate_decomposition = rate_decomposition * &
-                  UnitsConvertToInternal(word,option)
+                  UnitsConvertToInternal(word,'Kd in [1.0-exp(-Kd*t)]',option)
               endif
             case('RATE_AD_FACTOR')
               call InputReadDouble(input,option,rate_ad_factor)

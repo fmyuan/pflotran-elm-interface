@@ -166,7 +166,7 @@ subroutine MicrobialRead(this,input,option)
   implicit none
   
   class(reaction_sandbox_microbial_type) :: this
-  type(input_type)                       :: input
+  type(input_type), pointer              :: input
   type(option_type)                      :: option
   type(rate_type), pointer :: inhibition, inhibition_prev
 

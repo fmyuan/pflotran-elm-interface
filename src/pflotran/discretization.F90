@@ -10,10 +10,6 @@ module Discretization_module
 
   use PFLOTRAN_Constants_module
 
-#ifdef CLM_PFLOTRAN
-  use clm_pflotran_interface_data
-#endif
-
   implicit none
 
   private
@@ -34,7 +30,7 @@ module Discretization_module
     !geh: note that differentiating between implicit and explicit unstructured 
     !     grids is handled within the grid%itype variable, not discritization%itype
     character(len=MAXWORDLENGTH) :: ctype
-    PetscReal :: origin(3) ! origin of global domain
+    PetscReal :: origin_global(3) ! origin of global domain
     type(grid_type), pointer :: grid  ! pointer to a grid object
     character(len=MAXSTRINGLENGTH) :: filename
 
@@ -49,7 +45,7 @@ module Discretization_module
     VecScatter :: tvd_ghost_scatter
     
     PetscInt :: stencil_width
-    PetscInt :: stencil_type
+    PetscEnum :: stencil_type
     
   end type discretization_type
 
@@ -102,7 +98,7 @@ function DiscretizationCreate()
   allocate(discretization)
   discretization%ctype = ''
   discretization%itype = 0
-  discretization%origin = 0.d0
+  discretization%origin_global = 0.d0
   discretization%filename = ''
 
   ! nullify DM pointers
@@ -153,8 +149,8 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   type(discretization_type),pointer :: discretization
   character(len=MAXWORDLENGTH) :: word
   type(grid_type), pointer :: grid, grid2
-  type(structured_grid_type), pointer :: str_grid
-  type(unstructured_grid_type), pointer :: un_str_grid
+  type(grid_structured_type), pointer :: str_grid
+  type(grid_unstructured_type), pointer :: un_str_grid
   character(len=MAXWORDLENGTH) :: structured_grid_ctype
   character(len=MAXWORDLENGTH) :: unstructured_grid_ctype
 
@@ -193,7 +189,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           case('structured')
             discretization%itype = STRUCTURED_GRID
             call InputReadWord(input,option,structured_grid_ctype,PETSC_TRUE)
-            call InputDefaultMsg(input,option,'structured_grid_type') 
+            call InputDefaultMsg(input,option,'grid_structured_type') 
             call StringToLower(structured_grid_ctype)
             select case(trim(structured_grid_ctype))
               case('cartesian')
@@ -239,11 +235,14 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           if (structured_grid_itype /= CYLINDRICAL_GRID) nz = 1 ! spherical has 1 cell in Z
         endif
       case('ORIGIN')
-        call InputReadDouble(input,option,discretization%origin(X_DIRECTION))
+        call InputReadDouble(input,option, &
+                             discretization%origin_global(X_DIRECTION))
         call InputErrorMsg(input,option,'X direction','Origin')
-        call InputReadDouble(input,option,discretization%origin(Y_DIRECTION))
+        call InputReadDouble(input,option, &
+                             discretization%origin_global(Y_DIRECTION))
         call InputErrorMsg(input,option,'Y direction','Origin')
-        call InputReadDouble(input,option,discretization%origin(Z_DIRECTION))
+        call InputReadDouble(input,option, &
+                             discretization%origin_global(Z_DIRECTION))
         call InputErrorMsg(input,option,'Z direction','Origin')        
       case('FILE','GRAVITY','INVERT_Z','MAX_CELLS_SHARING_A_VERTEX',&
            'STENCIL_WIDTH','STENCIL_TYPE','FLUX_METHOD')
@@ -305,19 +304,6 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
       grid%itype = unstructured_grid_itype
       grid%ctype = unstructured_grid_ctype
     case(STRUCTURED_GRID)      
-
-#ifdef CLM_PFLOTRAN
-      ! override readings from input cards, if coupled with CLM
-      nx = clm_pf_idata%nxclm_mapped
-      ny = clm_pf_idata%nyclm_mapped
-      nz = clm_pf_idata%nzclm_mapped
-
-      discretization%origin(X_DIRECTION) = clm_pf_idata%x0clm_global
-      discretization%origin(Y_DIRECTION) = clm_pf_idata%y0clm_global
-      discretization%origin(Z_DIRECTION) = clm_pf_idata%z0clm_global
-
-#endif
-
       if (nx*ny*nz <= 0) &
         call printErrMsg(option,'NXYZ not set correctly for structured grid.')
       str_grid => StructGridCreate()
@@ -359,8 +345,8 @@ subroutine DiscretizationRead(discretization,input,option)
   type(discretization_type),pointer :: discretization
   character(len=MAXWORDLENGTH) :: word
   type(grid_type), pointer :: grid, grid2
-  type(structured_grid_type), pointer :: str_grid
-  type(unstructured_grid_type), pointer :: un_str_grid
+  type(grid_structured_type), pointer :: str_grid
+  type(grid_unstructured_type), pointer :: un_str_grid
   character(len=MAXWORDLENGTH) :: structured_grid_ctype
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
@@ -393,45 +379,11 @@ subroutine DiscretizationRead(discretization,input,option)
       case('DXYZ')
         select case(discretization%itype)
           case(STRUCTURED_GRID)
-
-#ifdef CLM_PFLOTRAN
-            !override input cards, if coupled wit CLM
-
-            if(clm_pf_idata%dxclm_global(1)>1.d-6 .and. clm_pf_idata%dyclm_global(1)>1.d-6) then
-              allocate(discretization%grid%structured_grid%dx_global &
-                (discretization%grid%structured_grid%nx))
-              discretization%grid%structured_grid%dx_global = &
-                clm_pf_idata%dxclm_global                               ! unit: longitudal degrees
-
-              allocate(discretization%grid%structured_grid%dy_global &
-                (discretization%grid%structured_grid%ny))
-              discretization%grid%structured_grid%dy_global = &
-                clm_pf_idata%dyclm_global                               ! unit: latitudal degrees
-
-            else  ! the following IS needed, if CLM-grid NOT available
-              call StructGridReadDXYZ(discretization%grid%structured_grid,input,option)
-
-            endif
-
-            ! always over-riding z-thickness
-            if (.not.associated(discretization%grid%structured_grid%dz_global)) then
-              allocate(discretization%grid%structured_grid%dz_global &
-                 (discretization%grid%structured_grid%nz))
-            endif
-            discretization%grid%structured_grid%dz_global = &
-              clm_pf_idata%dzclm_global                               ! unit: vertical meters
-
-#else
             call StructGridReadDXYZ(discretization%grid%structured_grid,input,option)
-#endif
-
           case default
-            call printErrMsg(option,'Keyword "DXYZ" not supported for unstructured grid')
+            call printErrMsg(option,&
+                           'Keyword "DXYZ" not supported for unstructured grid')
         end select
-
-#ifdef CLM_PFLOTRAN
-        call InputSkipToEND(input,option,'')    ! skip 'GRID/DXYZ ... END' block
-#else
         call InputReadPflotranString(input,option) ! read END card
         call InputReadStringErrorMsg(input,option,'DISCRETIZATION,DXYZ,END')
         if (.not.(InputCheckExit(input,option))) then
@@ -439,8 +391,6 @@ subroutine DiscretizationRead(discretization,input,option)
                    '(one for each grid direction or NX+NY+NZ entries)'
           call printErrMsg(option)
         endif
-#endif
-
       case('BOUNDS')
         select case(discretization%itype)
           case(STRUCTURED_GRID)
@@ -492,22 +442,22 @@ subroutine DiscretizationRead(discretization,input,option)
             if (.not.(InputCheckExit(input,option))) then
               if (OptionPrintToScreen(option)) then
                 if (grid%structured_grid%itype == CARTESIAN_GRID) then
-                  print *, 'BOUNDS card for a cartesian structured grid must include ' // &
-                           '4 lines.  I.e.'
+                  print *, 'BOUNDS card for a cartesian structured grid ' // &
+                    'must include 4 lines.  I.e.'
                   print *, 'BOUNDS'
                   print *, '  x_min  y_min  z_min'
                   print *, '  x_max  y_max  z_max'
                   print *, 'END'
                 else if (grid%structured_grid%itype == CYLINDRICAL_GRID) then
-                  print *, 'BOUNDS card for a cylindrical structured grid must include ' // &
-                           '4 lines.  I.e.'
+                  print *, 'BOUNDS card for a cylindrical structured grid ' // &
+                    'must include 4 lines.  I.e.'
                   print *, 'BOUNDS'
                   print *, '  r_min  z_min'
                   print *, '  r_max  z_max'
                   print *, 'END'
                 else if (grid%structured_grid%itype == SPHERICAL_GRID) then
-                  print *, 'BOUNDS card for a spherical structured grid must include ' // &
-                           '4 lines.  I.e.'
+                  print *, 'BOUNDS card for a spherical structured grid ' // &
+                    'must include 4 lines.  I.e.'
                   print *, 'BOUNDS'
                   print *, '  r_min'
                   print *, '  r_max'
@@ -516,9 +466,12 @@ subroutine DiscretizationRead(discretization,input,option)
               endif
               stop
             endif            
-            discretization%origin(X_DIRECTION) = grid%structured_grid%bounds(X_DIRECTION,LOWER)
-            discretization%origin(Y_DIRECTION) = grid%structured_grid%bounds(Y_DIRECTION,LOWER)
-            discretization%origin(Z_DIRECTION) = grid%structured_grid%bounds(Z_DIRECTION,LOWER)
+            discretization%origin_global(X_DIRECTION) = &
+              grid%structured_grid%bounds(X_DIRECTION,LOWER)
+            discretization%origin_global(Y_DIRECTION) = &
+              grid%structured_grid%bounds(Y_DIRECTION,LOWER)
+            discretization%origin_global(Z_DIRECTION) = &
+              grid%structured_grid%bounds(Z_DIRECTION,LOWER)
         end select
       case ('GRAVITY')
         call InputReadDouble(input,option,option%gravity(X_DIRECTION))
@@ -603,7 +556,7 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
   !PetscInt, parameter :: stencil_width = 1
   PetscErrorCode :: ierr
   PetscInt :: i
-  type(unstructured_grid_type), pointer :: ugrid
+  type(grid_unstructured_type), pointer :: ugrid
 
   select case(discretization%itype)
     case(STRUCTURED_GRID)
@@ -710,7 +663,8 @@ subroutine DiscretizationCreateDM(discretization,dm_ptr,ndof,stencil_width, &
   type(discretization_type) :: discretization
   type(dm_ptr_type), pointer :: dm_ptr
   PetscInt :: ndof
-  PetscInt :: stencil_width,stencil_type
+  PetscInt :: stencil_width
+  PetscEnum :: stencil_type
   type(option_type) :: option
   PetscErrorCode :: ierr
 

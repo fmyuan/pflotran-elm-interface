@@ -158,7 +158,8 @@ function TOilImsAuxCreate(option)
         TOIL_IMS_TEMPERATURE_INDEX]
 
   toil_ims_fmw_comp(LIQUID_PHASE) = FMWH2O
-  toil_ims_fmw_comp(TOIL_IMS_OIL_PHASE) = fmw_oil ! this defines the dead oil
+  !toil_ims_fmw_comp(TOIL_IMS_OIL_PHASE) = fmw_oil ! this defines the dead oil
+  toil_ims_fmw_comp(TOIL_IMS_OIL_PHASE) = EOSOilGetFMW() !defines the dead oil
   
   allocate(aux) 
   aux%auxvars_up_to_date = PETSC_FALSE
@@ -235,7 +236,7 @@ end subroutine TOilImsAuxVarInit
 ! ************************************************************************** !
 
 subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
-                                characteristic_curves,ghosted_id,option)
+                                characteristic_curves,natural_id,option)
   ! 
   ! Computes auxiliary variables for each grid cell
   ! 
@@ -259,7 +260,7 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
   type(global_auxvar_type) :: global_auxvar ! passing this for salt conc.
                                             ! not currenty used  
   class(material_auxvar_type) :: material_auxvar
-  PetscInt :: ghosted_id !only for debugging - it for now
+  PetscInt :: natural_id !only for debugging/print out - currently not used 
 
   PetscInt :: lid, oid, cpid
   PetscReal :: cell_pressure, wat_sat_pres
@@ -305,7 +306,7 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
                                option)                             
 
   ! Testing zero capillary pressure
-  toil_auxvar%pres(cpid) = 0.d0
+  !toil_auxvar%pres(cpid) = 0.d0
 
   toil_auxvar%pres(lid) = toil_auxvar%pres(oid) - &
                           toil_auxvar%pres(cpid)
@@ -330,9 +331,9 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
 
   ! Liquid phase thermodynamic properties
   ! must use cell_pressure as the pressure, not %pres(lid)
-  call EOSWaterDensityEnthalpy(toil_auxvar%temp,cell_pressure, &
-                               toil_auxvar%den_kg(lid),toil_auxvar%den(lid), &
-                               toil_auxvar%H(lid),ierr)
+  call EOSWaterDensity(toil_auxvar%temp,cell_pressure, &
+                       toil_auxvar%den_kg(lid),toil_auxvar%den(lid),ierr)
+  call EOSWaterEnthalpy(toil_auxvar%temp,cell_pressure,toil_auxvar%H(lid),ierr)
   toil_auxvar%H(lid) = toil_auxvar%H(lid) * 1.d-6 ! J/kmol -> MJ/kmol
   ! MJ/kmol comp
   toil_auxvar%U(lid) = toil_auxvar%H(lid) - &
@@ -368,7 +369,8 @@ subroutine TOilImsAuxVarCompute(x,toil_auxvar,global_auxvar,material_auxvar, &
                            toil_auxvar%den(oid),toil_auxvar%H(oid), &
                            toil_auxvar%U(oid),ierr)
 
-  toil_auxvar%den_kg(oid) = toil_auxvar%den(oid) * fmw_oil 
+  !toil_auxvar%den_kg(oid) = toil_auxvar%den(oid) * fmw_oil 
+  toil_auxvar%den_kg(oid) = toil_auxvar%den(oid) * EOSOilGetFMW()
 
   toil_auxvar%H(oid) = toil_auxvar%H(oid) * 1.d-6 ! J/kmol -> MJ/kmol
   toil_auxvar%U(oid) = toil_auxvar%U(oid) * 1.d-6 ! J/kmol -> MJ/kmol
@@ -401,7 +403,7 @@ end subroutine TOilImsAuxVarCompute
 
 subroutine TOilImsAuxVarPerturb(toil_auxvar,global_auxvar, &
                                 material_auxvar, &
-                                characteristic_curves,ghosted_id, &
+                                characteristic_curves,natural_id, &
                                 option)
   ! 
   ! Calculates auxiliary variables for perturbed system
@@ -418,7 +420,7 @@ subroutine TOilImsAuxVarPerturb(toil_auxvar,global_auxvar, &
   implicit none
 
   type(option_type) :: option
-  PetscInt :: ghosted_id
+  PetscInt :: natural_id !only for debugging/print out - currently not used 
   type(toil_ims_auxvar_type) :: toil_auxvar(0:)
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
@@ -489,7 +491,7 @@ subroutine TOilImsAuxVarPerturb(toil_auxvar,global_auxvar, &
     x_pert_save = x_pert
     call TOilImsAuxVarCompute(x_pert,toil_auxvar(idof),global_auxvar, &
                               material_auxvar, &
-                              characteristic_curves,ghosted_id,option)
+                              characteristic_curves,natural_id,option)
 
 !#ifdef DEBUG_GENERAL
 !    call GlobalAuxVarCopy(global_auxvar,global_auxvar_debug,option)
@@ -498,12 +500,12 @@ subroutine TOilImsAuxVarPerturb(toil_auxvar,global_auxvar, &
 !                                  global_auxvar_debug, &
 !                                  material_auxvar, &
 !                                  characteristic_curves, &
-!                                  ghosted_id,option)
+!                                  natural_id,option)
 !    if (global_auxvar%istate /= global_auxvar_debug%istate) then
 !      write(option%io_buffer, &
 !            &'(''Change in state due to perturbation: '',i3,'' -> '',i3, &
 !            &'' at cell '',i3,'' for dof '',i3)') &
-!        global_auxvar%istate, global_auxvar_debug%istate, ghosted_id, idof
+!        global_auxvar%istate, global_auxvar_debug%istate, natural_id, idof
 !      call printMsg(option)
 !      write(option%io_buffer,'(''orig: '',6es17.8)') x(1:3)
 !      call printMsg(option)

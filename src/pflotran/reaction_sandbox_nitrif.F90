@@ -87,7 +87,7 @@ subroutine NitrifRead(this,input,option)
   implicit none
   
   class(reaction_sandbox_nitrif_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   PetscInt :: i
@@ -249,8 +249,10 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   
   implicit none
 
-#include "petsc/finclude/petscvec.h"
-#include "petsc/finclude/petscvec.h90"
+#ifdef CLM_PFLOTRAN
+#include "finclude/petscvec.h"
+#include "finclude/petscvec.h90"
+#endif
   
   class(reaction_sandbox_nitrif_type) :: this
   type(option_type) :: option
