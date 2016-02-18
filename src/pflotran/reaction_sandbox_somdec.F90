@@ -184,7 +184,7 @@ subroutine SomDecRead(this,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, internal_units
   
   type(pool_type), pointer :: new_pool, prev_pool
   type(pool_type), pointer :: new_pool_rxn, prev_pool_rxn
@@ -390,6 +390,7 @@ subroutine SomDecRead(this,input,option)
               nullify(new_pool_rxn)
 
             case('RATE_CONSTANT')
+              internal_units = 'mol/L-sec|1/sec|L/mol-sec'
               call InputReadDouble(input,option,rate_constant)
               call InputErrorMsg(input,option,'rate constant', &
                      'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION')
@@ -399,9 +400,10 @@ subroutine SomDecRead(this,input,option)
                 call InputDefaultMsg(input,option)
               else              
                 rate_constant = rate_constant * &
-                  UnitsConvertToInternal(word,'concentration/time',option)
+                  UnitsConvertToInternal(word,internal_units,option)
               endif
             case('TURNOVER_TIME')
+              internal_units = 'sec'
               call InputReadDouble(input,option,turnover_time)
               call InputErrorMsg(input,option,'turnover time', &
                      'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION')
@@ -411,9 +413,10 @@ subroutine SomDecRead(this,input,option)
                 call InputDefaultMsg(input,option)
               else              
                 turnover_time = turnover_time * &
-                 UnitsConvertToInternal(word,'time',option)
+                  UnitsConvertToInternal(word,internal_units,option)
               endif
             case('RATE_DECOMPOSITION')
+              internal_units = '1/sec'
               call InputReadDouble(input,option,rate_decomposition)
               call InputErrorMsg(input,option,'rate for decomposition', &
                      'CHEMISTRY,REACTION_SANDBOX,SomDec,REACTION')
@@ -423,7 +426,7 @@ subroutine SomDecRead(this,input,option)
                 call InputDefaultMsg(input,option)
               else
                 rate_decomposition = rate_decomposition * &
-                  UnitsConvertToInternal(word,'Kd in [1.0-exp(-Kd*t)]',option)
+                  UnitsConvertToInternal(word,internal_units,option)
               endif
             case('RATE_AD_FACTOR')
               call InputReadDouble(input,option,rate_ad_factor)
