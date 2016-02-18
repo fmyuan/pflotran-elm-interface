@@ -441,9 +441,9 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   endif  
 
   ! adding error checking for 'pw' if out of EOS limits ( 0 - 16.54 MPa)
-  if (pw > 165.4d5) then
+  pw = global_auxvar%pres(1)
+  if (pw > 165.4d5 .or. pw < 1.d-20) then
       option%io_buffer = 'THAuxVarComputeNoFreezing: Pressure out of EOS limits.'
- print *, pw
       call printMsg(option)
   endif
 
@@ -626,8 +626,8 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     dpw_dp = 1.d0
   endif  
   ! adding error checking for 'pw' if out of EOS limits ( 0 - 16.54 MPa)
-  if (pw > 165.4d5) then
-      option%io_buffer = 'THAuxVarComputeNoFreezing: Pressure out of EOS limits.'
+  if (pw > 165.4d5 .or. pw< 1.d-20) then
+      option%io_buffer = 'THAuxVarComputeFreezing: Pressure out of EOS limits.'
  print *, pw
       call printMsg(option)
   endif
