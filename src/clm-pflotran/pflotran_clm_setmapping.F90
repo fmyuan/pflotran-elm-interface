@@ -13,56 +13,6 @@ module pflotran_clm_setmapping_module
 
   private
 
-#include "finclude/petscsys.h"
-#include "finclude/petsclog.h"
-#include "finclude/petscsysdef.h"
-#include "finclude/petscviewer.h"
-#include "finclude/petscvec.h"
-
-  ! Note:
-  !
-  ! CLM has the following:
-  !   (i) 3D subsurface grid (CLM_SUB);
-  !   (ii) 2D top-cell grid (CLM_2DTOP).
-  !   (iii) 2D bottom-cell grid (CLM_2DBOT)
-  ! CLM decomposes the 3D subsurface grid across processors in a 2D (i.e.
-  ! cells in Z are not split across processors). Thus, the surface cells of
-  ! 3D subsurface grid are on the same processors as the 2D surface grid.
-  !
-  ! PFLOTRAN has the following:
-  !   (i) 3D subsurface grid (PF_SUB);
-  !   (ii) top-face control volumes of 3D subsurface grid (PF_2DTOP);
-  !   (iii) bottom face control volumes of 3D subsurface grid (PF_2DBOT);
-  ! In PFLOTRAN, control volumes in PF_2DSUB and PF_SRF may reside on different
-  ! processors. PF_SUB and PF_2DSUB are derived from simulation%realization;
-  ! while PF_SRF refers to simulation%surf_realization.
-
-  ! map level constants
-  PetscInt, parameter, public :: CLM_SUB_TO_PF_SUB           = 1 ! 3D --> 3D
-  PetscInt, parameter, public :: PF_SUB_TO_CLM_SUB           = 2 ! 3D --> 3D
-
-  PetscInt, parameter, public :: CLM_2DTOP_TO_PF_2DTOP       = 3 ! TOP face of 3D cell
-  PetscInt, parameter, public :: PF_2DTOP_TO_CLM_2DTOP       = 4 ! TOP face of 3D cell
-  PetscInt, parameter, public :: CLM_2DBOT_TO_PF_2DBOT       = 5 ! BOTTOM face of 3D cell
-  PetscInt, parameter, public :: PF_2DBOT_TO_CLM_2DBOT       = 6 ! BOTTOM face of 3D cell
-
-  ! mesh ids
-  PetscInt, parameter, public :: CLM_SUB_MESH   = 1
-  PetscInt, parameter, public :: PF_SUB_MESH    = 2
-  PetscInt, parameter, public :: CLM_FACE_MESH  = 3
-  PetscInt, parameter, public :: PF_FACE_MESH   = 4
-
-  PetscInt, parameter, public :: CLM_2DTOP_MESH = 5
-  PetscInt, parameter, public :: PF_2DTOP_MESH  = 6
-
-!  type, public :: inside_each_overlapped_cell
-!     PetscInt           :: id
-!     PetscInt           :: ocell_count
-!     PetscInt,  pointer :: ocell_id(:)
-!     PetscReal, pointer :: perc_vol_overlap(:)
-!     PetscReal          :: total_vol_overlap
-!  end type inside_each_overlapped_cell
-
   public ::                                  &
        ! mesh-mapping
        pflotranModelSetupMappingFiles,       &
@@ -74,6 +24,21 @@ module pflotran_clm_setmapping_module
        pflotranModelInitMapTopTo2DSub,       &
        pflotranModelNSurfCells3DDomain,      &
        pflotranModelInitMapFaceToFace
+
+#include "finclude/petscsys.h"
+#include "finclude/petsclog.h"
+#include "finclude/petscsysdef.h"
+#include "finclude/petscviewer.h"
+#include "finclude/petscvec.h"
+
+  ! mesh ids
+  PetscInt, parameter :: CLM_3DSUB_MESH = 1
+  PetscInt, parameter :: PF_3DSUB_MESH  = 2
+  PetscInt, parameter :: CLM_FACE_MESH  = 3
+  PetscInt, parameter :: PF_FACE_MESH   = 4
+
+  PetscInt, parameter :: CLM_2DTOP_MESH = 5
+  PetscInt, parameter :: PF_2DTOP_MESH  = 6
 
 contains
 
@@ -174,7 +139,7 @@ contains
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_clm_sub_to_pf_sub%filename = &
             trim(model%map_clm_sub_to_pf_sub%filename)//CHAR(0)
-          model%map_clm_sub_to_pf_sub%id = CLM_SUB_TO_PF_SUB
+          model%map_clm_sub_to_pf_sub%id = CLM_3DSUB_TO_PF_3DSUB
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')   
           clm2pf_3dsub_file=PETSC_TRUE
@@ -183,7 +148,7 @@ contains
                MAXSTRINGLENGTH, PETSC_TRUE)
           model%map_pf_sub_to_clm_sub%filename = &
             trim(model%map_pf_sub_to_clm_sub%filename)//CHAR(0)
-          model%map_pf_sub_to_clm_sub%id = PF_SUB_TO_CLM_SUB
+          model%map_pf_sub_to_clm_sub%id = PF_3DSUB_TO_CLM_3DSUB
           call InputErrorMsg(input, &
                              model%option, 'type', 'MAPPING_FILES')
           pf2clm_3dsub_file=PETSC_TRUE
@@ -239,11 +204,11 @@ contains
       call printMsg(model%option)
 
       if(associated(model%map_clm_sub_to_pf_sub)) then
-        model%map_clm_sub_to_pf_sub%id = CLM_SUB_TO_PF_SUB
+        model%map_clm_sub_to_pf_sub%id = CLM_3DSUB_TO_PF_3DSUB
       endif
 
       if(associated(model%map_pf_sub_to_clm_sub)) then
-        model%map_pf_sub_to_clm_sub%id = PF_SUB_TO_CLM_SUB
+        model%map_pf_sub_to_clm_sub%id = PF_3DSUB_TO_CLM_3DSUB
       endif
 
     endif
@@ -300,7 +265,7 @@ contains
     character(len=MAXSTRINGLENGTH)                    :: filename
     
     select case (map_id)
-      case (CLM_SUB_TO_PF_SUB, PF_SUB_TO_CLM_SUB)
+      case (CLM_3DSUB_TO_PF_3DSUB, PF_3DSUB_TO_CLM_3DSUB)
         call pflotranModelInitMappingSub2Sub(pflotran_model,  &
                                       grid_clm_cell_ids_nindex, &
                                       grid_clm_npts_local, &
@@ -397,14 +362,14 @@ contains
 
     ! Choose the appriopriate map
     select case(map_id)
-      case(CLM_SUB_TO_PF_SUB)
+      case(CLM_3DSUB_TO_PF_3DSUB)
         map => pflotran_model%map_clm_sub_to_pf_sub
-        source_mesh_id = CLM_SUB_MESH
-        dest_mesh_id = PF_SUB_MESH
-      case(PF_SUB_TO_CLM_SUB)
+        source_mesh_id = CLM_3DSUB_MESH
+        dest_mesh_id = PF_3DSUB_MESH
+      case(PF_3DSUB_TO_CLM_3DSUB)
         map => pflotran_model%map_pf_sub_to_clm_sub
-        source_mesh_id = PF_SUB_MESH
-        dest_mesh_id = CLM_SUB_MESH
+        source_mesh_id = PF_3DSUB_MESH
+        dest_mesh_id = CLM_3DSUB_MESH
       case default
         option%io_buffer = 'Invalid map_id argument to pflotranModelInitMapping'
         call printErrMsg(option)
@@ -428,9 +393,9 @@ contains
       ! directly mapping between CLM and PF meshes, if no user-defined mapping file
       map%pflotran_nlev_mapped = grid%structured_grid%nz
       map%clm_nlev_mapped = clm_pf_idata%nzclm_mapped
-      if (dest_mesh_id == PF_SUB_MESH) then
+      if (dest_mesh_id == PF_3DSUB_MESH) then
         call MappingFromCLMGrids(map, grid, PETSC_TRUE, option)
-      elseif(dest_mesh_id == CLM_SUB_MESH) then
+      elseif(dest_mesh_id == CLM_3DSUB_MESH) then
         call MappingFromCLMGrids(map, grid, PETSC_FALSE, option)
       endif
 
@@ -468,7 +433,7 @@ contains
     enddo
 
     select case(source_mesh_id)
-      case(CLM_SUB_MESH)
+      case(CLM_3DSUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_clm_npts_local, &
                                          grid_clm_npts_ghost, &
                                          grid_clm_cell_ids_nindex, &
@@ -477,7 +442,7 @@ contains
                                               grid_pf_npts_ghost, &
                                               grid_pf_cell_ids_nindex, &
                                               grid_pf_local_nindex)
-      case(PF_SUB_MESH)
+      case(PF_3DSUB_MESH)
         call MappingSetSourceMeshCellIds(map, option, grid_pf_npts_local, &
                                         grid_pf_npts_ghost, &
                                         grid_pf_cell_ids_nindex, &
@@ -968,9 +933,9 @@ contains
     CHKERRQ(ierr)
 
     do iconn = 1, map%s2d_nwts
-      if (source_mesh_id == CLM_SUB_MESH) then
+      if (source_mesh_id == CLM_3DSUB_MESH) then
          int_array(iconn) = map%s2d_jcsr(iconn)
-      elseif (dest_mesh_id == CLM_SUB_MESH) then
+      elseif (dest_mesh_id == CLM_3DSUB_MESH) then
          int_array(iconn) = map%s2d_icsr(iconn)
       endif
     enddo
@@ -1003,9 +968,9 @@ contains
     do iconn = 1, map%s2d_nwts
       if (v_loc(iconn)>-1) then
         count = count + 1
-        if (source_mesh_id == CLM_SUB_MESH) then
+        if (source_mesh_id == CLM_3DSUB_MESH) then
            map%s2d_jcsr(count) = INT(v_loc(iconn))
-        elseif (dest_mesh_id == CLM_SUB_MESH) then
+        elseif (dest_mesh_id == CLM_3DSUB_MESH) then
            map%s2d_icsr(count) = INT(v_loc(iconn))
         endif
       endif
@@ -1340,6 +1305,9 @@ contains
          call printErrMsg(pflotran_model%option)
     end select
 
+    patch => realization%patch
+    grid => patch%grid
+
     allocate(grid_clm_cell_ids_nindex_copy(grid_clm_npts_local))
     grid_clm_cell_ids_nindex_copy = grid_clm_cell_ids_nindex
 
@@ -1383,15 +1351,20 @@ contains
         call MappingReadTxtFile(map, map%filename, option)
       endif
 
-    else
+    elseif(.not.option%mapping_files) then
       ! directly mapping between CLM and PF meshes, if no user-defined mapping file
-      map%pflotran_nlev_mapped = grid%structured_grid%nlz
+      map%pflotran_nlev_mapped = grid%structured_grid%nz
       map%clm_nlev_mapped = clm_pf_idata%nzclm_mapped
       if (dest_mesh_id == PF_FACE_MESH) then
-        call MappingFromCLMGrids(map, grid, PETSC_FALSE, option)
-      elseif(dest_mesh_id == CLM_FACE_MESH) then
         call MappingFromCLMGrids(map, grid, PETSC_TRUE, option)
+      elseif(dest_mesh_id == CLM_FACE_MESH) then
+        call MappingFromCLMGrids(map, grid, PETSC_FALSE, option)
       endif
+
+    else
+
+        option%io_buffer = 'MUST provide mapping files between CLM and PFLOTRAN! '
+        call printErrMsg(option)
 
     endif
 

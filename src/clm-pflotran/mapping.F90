@@ -15,6 +15,32 @@ module Mapping_module
 
   private
 
+  ! Note:
+  !
+  ! CLM has the following:
+  !   (i) 3D subsurface grid (CLM_3DSUB);
+  !   (ii) 2D top-cell grid (CLM_2DTOP).
+  !   (iii) 2D bottom-cell grid (CLM_2DBOT)
+  ! CLM decomposes the 3D subsurface grid across processors in a 2D (i.e.
+  ! cells in Z are not split across processors). Thus, the surface cells of
+  ! 3D subsurface grid are on the same processors as the 2D surface grid.
+  !
+  ! PFLOTRAN has the following:
+  !   (i) 3D subsurface grid (PF_3DSUB);
+  !   (ii) top-face control volumes of 3D subsurface grid (PF_2DTOP);
+  !   (iii) bottom face control volumes of 3D subsurface grid (PF_2DBOT);
+  ! In PFLOTRAN, control volumes in PF_2DSUB and PF_SRF may reside on different
+  ! processors. PF_3DSUB and PF_2DSUB are derived from simulation%realization;
+  ! while PF_SRF refers to simulation%surf_realization.
+
+  PetscInt, parameter, public :: CLM_3DSUB_TO_PF_3DSUB       = 1 ! 3D --> 3D
+  PetscInt, parameter, public :: PF_3DSUB_TO_CLM_3DSUB       = 2 ! 3D --> 3D
+
+  PetscInt, parameter, public :: CLM_2DTOP_TO_PF_2DTOP       = 3 ! TOP face of 3D cell
+  PetscInt, parameter, public :: PF_2DTOP_TO_CLM_2DTOP       = 4 ! TOP face of 3D cell
+  PetscInt, parameter, public :: CLM_2DBOT_TO_PF_2DBOT       = 5 ! BOTTOM face of 3D cell
+  PetscInt, parameter, public :: PF_2DBOT_TO_CLM_2DBOT       = 6 ! BOTTOM face of 3D cell
+
   type, public  :: mapping_type
 
     !
@@ -226,9 +252,9 @@ contains
     !
     nwts = -999
     if (map%clm_nlev_mapped == map%pflotran_nlev_mapped) then
-      if (map%id == 1 .or. map%id == 2) nwts = grid%structured_grid%nmax
-      if (map%id == 3 .or. map%id == 4) nwts = grid%structured_grid%nxy
-      if (map%id == 5 .or. map%id == 5) nwts = grid%structured_grid%nxy
+      if (map%id == CLM_3DSUB_TO_PF_3DSUB .or. map%id == PF_3DSUB_TO_CLM_3DSUB) nwts = grid%structured_grid%nmax
+      if (map%id == CLM_2DTOP_TO_PF_2DTOP .or. map%id == PF_2DTOP_TO_CLM_2DTOP) nwts = grid%structured_grid%nxy
+      if (map%id == CLM_2DBOT_TO_PF_2DBOT .or. map%id == PF_2DBOT_TO_CLM_2DBOT) nwts = grid%structured_grid%nxy
     else
       option%io_buffer = 'not equal numbers of soil layers mapped btw CLM and PFLOTRAN! '
       call printErrMsg(option)
@@ -261,19 +287,21 @@ contains
                         (j-1)*grid%structured_grid%nx          ! south-north (y: latitudal) direction second
 
             ! cell ids globally
-            if (map%id == 1 .or. map%id == 2) then  ! 3D subsurface (soil) domain
+            if (map%id == CLM_3DSUB_TO_PF_3DSUB .or. map%id == PF_3DSUB_TO_CLM_3DSUB) then  ! 3D subsurface (soil) domain
               cell_count = cell_count + 1
               wts_pfid(cell_count)  = natural_id
               wts_clmid(cell_count) = (grid_count-1) * grid%structured_grid%nz + &  ! soil layer numbering first
                                       grid%structured_grid%nz-k+1                   ! reverse vertical-numbering
 
-            elseif((map%id == 3 .or. map%id == 4) .and. k==grid%structured_grid%nz) then  ! 2D top face
+            elseif((map%id == CLM_2DTOP_TO_PF_2DTOP .or. map%id == PF_2DTOP_TO_CLM_2DTOP) &
+               .and. k==grid%structured_grid%nz) then  ! 2D top face
               cell_count = cell_count + 1
               wts_pfid(cell_count)  = natural_id
               wts_clmid(cell_count) = (grid_count-1) * grid%structured_grid%nz + &  ! soil layer numbering first
                                       grid%structured_grid%nz-k+1                   ! reverse vertical-numbering
 
-            elseif((map%id == 5 .or. map%id == 6) .and. k==1) then  ! 2D bottom face
+            elseif((map%id == CLM_2DBOT_TO_PF_2DBOT .or. map%id == PF_2DBOT_TO_CLM_2DBOT) &
+               .and. k==1) then  ! 2D bottom face
               cell_count = cell_count + 1
               wts_pfid(cell_count)  = natural_id
               wts_clmid(cell_count) = (grid_count-1) * grid%structured_grid%nz + &  ! soil layer numbering first

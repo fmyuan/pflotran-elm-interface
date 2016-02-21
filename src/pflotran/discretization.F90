@@ -311,34 +311,43 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
     case(STRUCTURED_GRID)      
 
 #ifdef CLM_PFLOTRAN
+
       ! override readings from input cards above, if coupled with CLM BUT no mapping files provided
       if (.not.option%mapping_files) then
-        nx = clm_pf_idata%nxclm_mapped
-        ny = clm_pf_idata%nyclm_mapped
-        discretization%origin(X_DIRECTION) = clm_pf_idata%x0clm_global
-        discretization%origin(Y_DIRECTION) = clm_pf_idata%y0clm_global
-
-        if (clm_pf_idata%x0clm_global == -9999.d0 .or.  &
-            clm_pf_idata%y0clm_global == -9999.d0) then
-          call printErrMsg(option,'x0clm_global/y0clm_global NOT valid')
-        endif
+        !  nodes along X/Y direction
         if (clm_pf_idata%nxclm_mapped <= 0 .or.  &
             clm_pf_idata%nyclm_mapped <= 0) then
           call printErrMsg(option,'nxclm_mapped/nyclm_mapped NOT valid')
+
+        else
+          nx = clm_pf_idata%nxclm_mapped
+          ny = clm_pf_idata%nyclm_mapped
+        endif
+
+        ! X/Y origins
+        if (clm_pf_idata%x0clm_global == -9999.d0 .or.  &
+            clm_pf_idata%y0clm_global == -9999.d0) then
+          call printErrMsg(option,'x0clm_global/y0clm_global NOT valid')
+
+        else
+          discretization%origin(X_DIRECTION) = clm_pf_idata%x0clm_global
+          discretization%origin(Y_DIRECTION) = clm_pf_idata%y0clm_global
+
         endif
 
       end if
 
-      ! but always over-ride soil (vertical) discretization scheme
-      nz = clm_pf_idata%nzclm_mapped
-      discretization%origin(Z_DIRECTION) = clm_pf_idata%z0clm_global
 
-      ! some checkings
+      ! but always over-ride soil (vertical) discretization scheme
       if (clm_pf_idata%nyclm_mapped <= 0.or.  &
           clm_pf_idata%z0clm_global == -9999.d0) then
         call printErrMsg(option,'nx0clm_mapped/z0clm_global NOT valid')
-      endif
 
+      else
+        nz = clm_pf_idata%nzclm_mapped
+        discretization%origin(Z_DIRECTION) = clm_pf_idata%z0clm_global
+
+      endif
 
 #endif
 
@@ -440,6 +449,7 @@ subroutine DiscretizationRead(discretization,input,option)
                 (discretization%grid%structured_grid%ny))
               discretization%grid%structured_grid%dy_global = &
                 clm_pf_idata%dyclm_global                               ! unit: latitudal degrees
+
             else  ! the following IS needed, if providing mapping files
               call StructGridReadDXYZ(discretization%grid%structured_grid,input,option)
 
