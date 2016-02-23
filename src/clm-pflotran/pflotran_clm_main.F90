@@ -342,16 +342,18 @@ contains
              pflotran_model%option%io_buffer = "INFO: CLM column dimension will over-ride PF structured CARTESIAN_GRID."
              call printMsg(pflotran_model%option)
 
-             write(pflotran_model%option%fid_out, &
+             if (pflotran_model%option%io_rank == pflotran_model%option%myrank) then
+               write(pflotran_model%option%fid_out, &
               '(/," Requested processors and decomposition = ", i5,", npx,y,z= ",3i4)') &
                pflotran_model%option%mycommsize, &
                grid%structured_grid%npx, &
                grid%structured_grid%npy, &
                grid%structured_grid%npz
-             write(pflotran_model%option%fid_out,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
+               write(pflotran_model%option%fid_out,'(" Actual decomposition: npx,y,z= ",3i4,/)') &
                grid%structured_grid%npx_final, &
                grid%structured_grid%npy_final, &
                grid%structured_grid%npz_final
+             endif
 
            case default
              pflotran_model%option%io_buffer = "ERROR: Currently only works on structured  CARTESIAN_GRID mesh."
@@ -539,7 +541,7 @@ contains
 
       do ghosted_id = 1, grid%ngmax
         local_id = grid%nG2L(ghosted_id)
-        if (ghosted_id < 0 .or. local_id < 0) cycle
+        if (ghosted_id <= 0 .or. local_id <= 0) cycle
 
         if (topface_pf_loc(ghosted_id)<=1.d-20 .and. associated(patch%imat)) then
           patch%imat(ghosted_id) = -999
@@ -624,6 +626,8 @@ contains
     PetscScalar, pointer :: sr_pf_loc(:)      ! Clapp and Hornberger "sr"
     PetscScalar, pointer :: pcwmax_pf_loc(:)  ! Clapp and Hornberger "pcwmax"
 
+    ! -------------------------------------------
+
     den = 998.2d0       ! [kg/m^3]  @ 20 degC
     vis = 0.001002d0    ! [N s/m^2] @ 20 degC
     grav =GRAVITY_CONSTANT       ! [m/S^2]
@@ -658,6 +662,8 @@ contains
                'Current PFLOTRAN mode not supported by pflotranModelSetSoilProp')
         endif
     end select
+
+    ! ---------------------
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     pflotran_model%option, &
@@ -719,6 +725,9 @@ contains
                                     clm_pf_idata%bulkdensity_dry_clmp, &
                                     clm_pf_idata%bulkdensity_dry_pfs)
 
+    !
+    !---------------------
+    !
     call VecGetArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%hksat_y_pfs, hksat_y_pf_loc, ierr)
@@ -754,11 +763,12 @@ contains
       CHKERRQ(ierr)
     endif
 
+    !
     do ghosted_id = 1, grid%ngmax
       local_id = grid%nG2L(ghosted_id)
-      if (ghosted_id < 0 .or. local_id < 0) cycle
+      if (ghosted_id <= 0 .or. local_id <= 0) cycle
       if (associated(patch%imat)) then
-        if (patch%imat(ghosted_id) < 0) cycle
+        if (patch%imat(ghosted_id) < 0) cycle    ! imat maybe 0, which causes issue
       endif
 
       !(TODO) need a better way to generate MVG parameters from CLM inputs
@@ -878,24 +888,30 @@ contains
       CHKERRQ(ierr)
     endif
 
+    call MPI_Barrier(pflotran_model%option%mycomm,ierr)
+
     ! update ghosted values after resetting soil physical properties from CLM
     call DiscretizationGlobalToLocal(discretization,field%porosity0, &
                                field%work_loc,ONEDOF)
+
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,0)
+                               POROSITY,POROSITY_MINERAL)
+    call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+                               POROSITY,POROSITY_CURRENT)
+
     if (pflotran_model%option%nflowdof > 0) then
         call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
                                      field%work_loc,ONEDOF)
         call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                                 PERMEABILITY_X,0)
+                                 PERMEABILITY_X,ZERO_INTEGER)
         call DiscretizationGlobalToLocal(discretization,field%perm0_yy, &
                                      field%work_loc,ONEDOF)
         call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                                 PERMEABILITY_Y,0)
+                                 PERMEABILITY_Y,ZERO_INTEGER)
         call DiscretizationGlobalToLocal(discretization,field%perm0_zz, &
                                      field%work_loc,ONEDOF)
         call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                                 PERMEABILITY_Z,0)
+                                 PERMEABILITY_Z,ZERO_INTEGER)
     endif
 
   end subroutine pflotranModelSetSoilProp
@@ -1959,8 +1975,8 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     do ghosted_id = 1, grid%ngmax
       local_id = grid%nG2L(ghosted_id)
-      if (ghosted_id < 0 .or. local_id < 0) cycle
-      if (patch%imat(ghosted_id) < 0) cycle
+      if (ghosted_id <= 0 .or. local_id <= 0) cycle
+      if (patch%imat(ghosted_id) < 0) cycle    ! imat maybe 0, which causes issue
 
 #ifdef CLM_PF_DEBUG
       !F.-M. Yuan: the following IS a checking, comparing CLM passed data (ice-adjusted porosity):
@@ -2019,21 +2035,21 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     call DiscretizationGlobalToLocal(discretization,field%porosity0, &
                                field%work_loc,ONEDOF)
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                               POROSITY,0)
+                               POROSITY,ZERO_INTEGER)
 
     if (pflotran_model%option%nflowdof > 0) then
         call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
                                      field%work_loc,ONEDOF)
         call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                                 PERMEABILITY_X,0)
+                                 PERMEABILITY_X,ZERO_INTEGER)
         call DiscretizationGlobalToLocal(discretization,field%perm0_yy, &
                                      field%work_loc,ONEDOF)
         call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                                 PERMEABILITY_Y,0)
+                                 PERMEABILITY_Y,ZERO_INTEGER)
         call DiscretizationGlobalToLocal(discretization,field%perm0_zz, &
                                      field%work_loc,ONEDOF)
         call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
-                                 PERMEABILITY_Z,0)
+                                 PERMEABILITY_Z,ZERO_INTEGER)
     endif
 
   end subroutine pflotranModelResetSoilPorosityFromCLM
@@ -2117,8 +2133,9 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
+        if (ghosted_id <= 0 .or. local_id <= 0) cycle
         if (associated(patch%imat)) then
-           if (patch%imat(ghosted_id) < 0) cycle
+           if (patch%imat(ghosted_id) < 0) cycle    ! imat maybe 0, which causes issue
         endif
 
         ! PF's porosity
@@ -2442,6 +2459,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
 
     do local_id = 1, grid%nlmax
        ghosted_id = grid%nL2G(local_id)
+       if (ghosted_id <= 0 .or. local_id <= 0) cycle
        if (associated(patch%imat)) then
           if (patch%imat(ghosted_id) < 0) cycle
        endif
@@ -2614,6 +2632,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
        do iconn = 1, cur_connection_set%num_connections
           local_id = cur_connection_set%id_dn(iconn)
           ghosted_id = grid%nL2G(local_id)
+          if (ghosted_id <= 0 .or. local_id <= 0) cycle
           if (patch%imat(ghosted_id) < 0) cycle
 
           if(StringCompare(boundary_condition%name,'clm_gflux_bc') .and. &
@@ -4604,6 +4623,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
+        if (ghosted_id <= 0 .or. local_id <= 0) cycle
         if (associated(patch%imat)) then
            if (patch%imat(ghosted_id) < 0) cycle
         endif
@@ -4843,7 +4863,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     do local_id=1,grid%nlmax
         ghosted_id = grid%nL2G(local_id)
-        if (ghosted_id <= 0) cycle
+        if (ghosted_id <= 0 .or. local_id <= 0) cycle
         if (associated(patch%imat)) then
            if (patch%imat(ghosted_id) < 0) cycle
         endif
@@ -5496,7 +5516,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           do iconn = 1, cur_connection_set%num_connections
              local_id = cur_connection_set%id_dn(iconn)
              ghosted_id = grid%nL2G(local_id)
-             if (patch%imat(ghosted_id) <= 0) cycle
+             if (ghosted_id <= 0 .or. local_id <= 0) cycle
+             if (patch%imat(ghosted_id) < 0) cycle
 
              if(StringCompare(boundary_condition%name,'clm_gpress_bc')) then          ! infilitration (+)
                 qinfl_subsurf_pf_loc(iconn) = &
