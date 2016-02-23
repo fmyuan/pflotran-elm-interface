@@ -364,7 +364,21 @@ subroutine InitReadRequiredCardsFromInput(realization)
   
 ! Read in select required cards
 !.........................................................................
-  
+!-------------------
+  ! when coupling with CLM, need to know if meshmaps are provided prior to 'GRID' reading
+  ! if not, CLM mesh will directly over-ride whatever in PF input card
+#ifdef CLM_PFLOTRAN
+  string = "MAPPING_FILES"
+  call InputFindStringInFile(input,option,string)
+  if (.not.InputError(input)) then
+    option%mapping_files = PETSC_TRUE
+    option%io_buffer = ' CLM-PF grid/mesh mapping files will be USED!'
+    call printMsg(option)
+  end if
+  rewind(input%fid)
+#endif
+!-------------------
+
   ! GRID information - GRID is a required card for every simulation
   string = "GRID"
   call InputFindStringInFile(input,option,string)
@@ -445,6 +459,9 @@ subroutine InitReadRequiredCardsFromInput(realization)
 #ifdef CLM_PFLOTRAN
           !note that, if coupled with CLM, CLM land domain configuration
           ! will over-ride 'npx/npy/npz' read above
+          option%io_buffer = ' CLM land mpi configuration will over-ride PF'
+          call printMsg(option)
+
           grid%structured_grid%npx = clm_pf_idata%npx
           grid%structured_grid%npy = clm_pf_idata%npy
           grid%structured_grid%npz = clm_pf_idata%npz
@@ -481,12 +498,6 @@ subroutine InitReadRequiredCardsFromInput(realization)
         !     multicontinuum
         option%use_mc = PETSC_TRUE
         call ReactionInit(realization%reaction,input,option)
-
-!-------------------
-#ifdef CLM_PFLOTRAN
-      case('MAPPING_FILES')
-        option%mapping_files = PETSC_TRUE
-#endif
 
     end select
   enddo

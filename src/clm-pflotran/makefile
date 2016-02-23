@@ -684,7 +684,7 @@ grid.o : connection.o dm_kludge.o grid_structured.o grid_unstructured.o \
          grid_unstructured_polyhedra.o logging.o option.o pflotran_constants.o \
          region.o utility.o
 grid_structured.o : connection.o input_aux.o option.o pflotran_constants.o \
-                    string.o utility.o
+                    string.o utility.o clm_pflotran_interface_data.o 
 grid_unstructured.o : connection.o geometry.o grid_unstructured_aux.o \
                       grid_unstructured_cell.o hdf5_aux.o input_aux.o option.o \
                       pflotran_constants.o string.o utility.o

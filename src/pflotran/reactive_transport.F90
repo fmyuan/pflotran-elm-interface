@@ -388,15 +388,18 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
 
 !#ifdef CLM_PF_DEBUG
       if(min_ratio < min_allowable_scale ) then
-        write(realization%option%fid_out, *) '-----checking scaling factor for RT ------'
-        write(realization%option%fid_out, *) 'min. scaling factor = ', min_ratio
-        write(realization%option%fid_out, *) 'elapsed time = ', realization%option%time
-        write(realization%option%fid_out, *) 'elapsed time = ', realization%option%time
+        if (realization%option%myrank == realization%option%io_rank) then
+          write(realization%option%fid_out, *) '-----checking scaling factor for RT ------'
+          write(realization%option%fid_out, *) 'min. scaling factor = ', min_ratio
+          write(realization%option%fid_out, *) 'elapsed time = ', realization%option%time
+          write(realization%option%fid_out, *) 'elapsed time = ', realization%option%time
+        endif
+
         j = realization%reaction%ncomp
         do i = 1, n
           ratio = abs(C_p(i)/dC_p(i))
           if ( ratio<=min_ratio .and. C_p(i)<=dC_p(i) ) then
-            write(realization%option%fid_out, *)  &
+            write(realization%option%fid_out, *)  'rank: ', realization%option%myrank, &
               ' <------ min_ratio @', i, 'cell no.=', floor((i-1.d0)/j), &
               'rt species no. =',i-floor((i-1.d0)/j)*j, '-------------->'
             write(realization%option%fid_out, *)  &
@@ -404,13 +407,14 @@ subroutine RTCheckUpdatePre(line_search,C,dC,changed,realization,ierr)
           endif
 
         enddo
-        write(realization%option%fid_out, *) '-----DONE: checking scaling factor for RT ----'
+        if (realization%option%myrank == realization%option%io_rank) &
+          write(realization%option%fid_out, *) '-----DONE: checking scaling factor for RT ----'
 
 #ifndef CLM_PFLOTRAN
         if (min_ratio<min_allowable_scale) then
           write(realization%option%fid_out, *) ' min_ratio IS too small to make sense, '// &
             'which less than an allowable_scale value !'
-          !write(realization%option%fid_out, *) ' STOP executing ! '
+          write(realization%option%fid_out, *) ' STOP executing ! '
         endif
 #endif
       endif

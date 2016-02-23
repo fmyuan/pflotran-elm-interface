@@ -37,7 +37,13 @@ module clm_pflotran_interface_data
   PetscReal, pointer :: dyclm_global(:)              ! this is NOT the 3-D vec 'dysoil' defined below, rather it's the universal y-direction interval (OR, longitudal degree interval from CLM land surf grids)
   PetscReal, pointer :: dzclm_global(:)              ! this is NOT the 3-D vec 'dzsoil' defined below, rather it's the universal soil layer thickness (unit: m) for all gridcells
 
-  PetscInt :: npx, npy, npz    ! decompose domain in 3-D: processors no. (only work with structured PF grid)
+  ! decompose domain in 3-D (only work with structured PF grid currently)
+  ! processors no.
+  PetscInt :: npx, npy, npz
+  ! domain nodes no. for each processors
+  PetscInt, pointer :: clm_lx(:)   ! array size is 'npx'
+  PetscInt, pointer :: clm_ly(:)   ! array size is 'npy'
+  PetscInt, pointer :: clm_lz(:)   ! array size is 'npz'
 
   ! Soil BGC decomposing pools
   PetscInt :: ndecomp_pools
@@ -441,6 +447,9 @@ contains
     clm_pf_idata%npx = 1    !default 'np' for PF mesh decompose is 1x1x1
     clm_pf_idata%npy = 1
     clm_pf_idata%npz = 1
+    nullify(clm_pf_idata%clm_lx)
+    nullify(clm_pf_idata%clm_ly)
+    nullify(clm_pf_idata%clm_lz)
 
     clm_pf_idata%nzclm_mapped = 0
     clm_pf_idata%nxclm_mapped = 0

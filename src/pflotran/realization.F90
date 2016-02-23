@@ -475,7 +475,13 @@ subroutine RealizationLocalizeRegions(realization)
       option%io_buffer = 'GRID x/y/z_max/min_global NOT YET set ! '
       call printErrMsg(option)
     else
-      option%io_buffer = 'GRID x/y/z_max/min_global WILL over-ride read-in from INPUT CARDS ! '
+
+      if (.not.option%mapping_files) then
+        option%io_buffer = 'GRID x/y_max/min_global WILL over-ride read-in! '
+        call printMsg(option)
+      end if
+
+      option%io_buffer = 'GRID z_max/min_global WILL always over-ride read-in! '
       call printMsg(option)
     end if
   endif
@@ -505,33 +511,43 @@ subroutine RealizationLocalizeRegions(realization)
 
       ! the whole CLM soil domain (3-D) with a REGION name 'all' in PF input card
       if (StringCompareIgnoreCase(trim(cur_region%name), 'all')) then
-        cur_region%coordinates(1)%x = grid%x_min_global
-        cur_region%coordinates(2)%x = grid%x_max_global
 
-        cur_region%coordinates(1)%y = grid%y_min_global
-        cur_region%coordinates(2)%y = grid%y_max_global
+
+        if (.not.option%mapping_files) then
+          cur_region%coordinates(1)%x = grid%x_min_global
+          cur_region%coordinates(2)%x = grid%x_max_global
+
+          cur_region%coordinates(1)%y = grid%y_min_global
+          cur_region%coordinates(2)%y = grid%y_max_global
+        end if
 
         cur_region%coordinates(1)%z = grid%z_min_global
         cur_region%coordinates(2)%z = grid%z_max_global
 
       ! the top cells of CLM soil domain (3-D) with a REGION name 'top' in PF input card
       elseif (StringCompareIgnoreCase(trim(cur_region%name), 'top')) then
-        cur_region%coordinates(1)%x = grid%x_min_global
-        cur_region%coordinates(2)%x = grid%x_max_global
+        if (.not.option%mapping_files) then
+          cur_region%coordinates(1)%x = grid%x_min_global
+          cur_region%coordinates(2)%x = grid%x_max_global
 
-        cur_region%coordinates(1)%y = grid%y_min_global
-        cur_region%coordinates(2)%y = grid%y_max_global
+          cur_region%coordinates(1)%y = grid%y_min_global
+          cur_region%coordinates(2)%y = grid%y_max_global
+        end if
 
         cur_region%coordinates(1)%z = grid%z_max_global     ! NOTE: PF soil depth starting from BOTTOM
         cur_region%coordinates(2)%z = grid%z_max_global
 
       ! the bottom cells of CLM soil domain (3-D) with a REGION name 'bottom' in PF input card
       elseif (StringCompareIgnoreCase(trim(cur_region%name), 'bottom')) then
-        cur_region%coordinates(1)%x = grid%x_min_global
-        cur_region%coordinates(2)%x = grid%x_max_global
 
-        cur_region%coordinates(1)%y = grid%y_min_global
-        cur_region%coordinates(2)%y = grid%y_max_global
+
+        if (.not.option%mapping_files) then
+          cur_region%coordinates(1)%x = grid%x_min_global
+          cur_region%coordinates(2)%x = grid%x_max_global
+
+          cur_region%coordinates(1)%y = grid%y_min_global
+          cur_region%coordinates(2)%y = grid%y_max_global
+        end if
 
         cur_region%coordinates(1)%z = grid%z_min_global     ! NOTE: PF soil depth starting from BOTTOM
         cur_region%coordinates(2)%z = grid%z_min_global
