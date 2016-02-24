@@ -1093,7 +1093,7 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
       k_decomp = k_decomp/option%tran_dt
     endif
     k_decomp = this%rate_ad_factor(irxn)*k_decomp
-    k_decomp = min(k_decomp, 1.0d0/volume/option%tran_dt)        ! make sure of NO over-decomposition rate (just in case, maybe not needed)
+    k_decomp = min(k_decomp, 1.0d0/option%tran_dt)        ! make sure of NO over-decomposition rate (just in case, maybe not needed)
 
     ! scaled_rate_const units: (m^3 bulk / s) = (1/s) * (m^3 bulk)
     scaled_crate_const = k_decomp*volume*f_t*f_w*f_depth

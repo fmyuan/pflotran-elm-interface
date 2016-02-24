@@ -209,6 +209,10 @@ module Option_module
 
     PetscBool :: print_ekg
 
+#ifdef CLM_PFLOTRAN
+    PetscBool :: mapping_files
+#endif
+
   end type option_type
   
   PetscInt, parameter, public :: SUBSURFACE_SIM_TYPE = 1
@@ -508,6 +512,8 @@ subroutine OptionInitRealization(option)
 !fmy: mass_balance for bc/ss IS needed by default if coupled with CLM
 #ifdef CLM_PFLOTRAN
   option%compute_mass_balance_new = PETSC_TRUE
+  option%mapping_files = PETSC_FALSE
+  ! user-defined CLM-PFLOTRAN mesh maps NOT provided (default)
 #endif
 !fmy: mass_balance for bc/ss IS needed by default if coupled with CLM
 

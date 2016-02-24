@@ -249,10 +249,8 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   
   implicit none
 
-#ifdef CLM_PFLOTRAN
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#endif
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
   class(reaction_sandbox_nitrif_type) :: this
   type(option_type) :: option

@@ -629,6 +629,12 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
           xxbc(1) = xx_loc_p(ghosted_id)
       end select
      
+#ifdef CLM_PFLOTRAN
+      call RichardsAuxVarCopy(rich_auxvars(ghosted_id), &
+                              rich_auxvars_bc(sum_connection),option)
+      call GlobalAuxVarCopy(global_auxvars(ghosted_id), &
+                            global_auxvars_bc(sum_connection),option)
+#endif
  
       call RichardsAuxVarCompute(xxbc(1),rich_auxvars_bc(sum_connection), &
                                  global_auxvars_bc(sum_connection), &
