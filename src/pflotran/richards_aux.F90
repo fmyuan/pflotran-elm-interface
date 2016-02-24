@@ -10,7 +10,7 @@ module Richards_Aux_module
   
   private 
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, public :: richards_auxvar_type
   

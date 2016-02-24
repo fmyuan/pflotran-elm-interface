@@ -7,7 +7,7 @@ module Creep_Closure_module
   
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, public :: creep_closure_type
     character(len=MAXWORDLENGTH) :: material_name

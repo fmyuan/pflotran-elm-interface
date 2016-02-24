@@ -6,7 +6,7 @@ module TH_Aux_module
   
   private 
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, public :: TH_auxvar_type
     PetscReal :: avgmw

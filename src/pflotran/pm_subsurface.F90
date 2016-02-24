@@ -13,13 +13,13 @@ module PM_Subsurface_class
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscsnes.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscsnes.h"
 
   type, public, extends(pm_base_type) :: pm_subsurface_type
     class(realization_type), pointer :: realization
@@ -518,7 +518,7 @@ subroutine PMSubsurfaceCheckpoint(this,viewer)
   use Checkpoint_module
 
   implicit none
-#include "finclude/petscviewer.h"      
+#include "petsc/finclude/petscviewer.h"      
 
   class(pm_subsurface_type) :: this
   PetscViewer :: viewer
@@ -539,7 +539,7 @@ subroutine PMSubsurfaceRestart(this,viewer)
   use Checkpoint_module
 
   implicit none
-#include "finclude/petscviewer.h"      
+#include "petsc/finclude/petscviewer.h"      
 
   class(pm_subsurface_type) :: this
   PetscViewer :: viewer

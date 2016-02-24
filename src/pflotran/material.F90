@@ -9,7 +9,7 @@ module Material_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
  
   type, public :: material_property_type
     PetscInt :: external_id
@@ -1400,8 +1400,8 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   type(material_type) :: Material ! from realization%patch%aux%Material
   Vec :: vec_loc
@@ -1493,8 +1493,8 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   type(material_type) :: Material ! from realization%patch%aux%Material
   Vec :: vec_loc
@@ -1591,8 +1591,8 @@ subroutine MaterialWeightAuxVars(Material,weight,field,comm1)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   type(material_type) :: Material
   type(field_type) :: field
@@ -1657,8 +1657,8 @@ subroutine MaterialUpdateAuxVars(Material,comm1,vec_loc,time_level,time)
 
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
   type(material_type) :: Material
   class(communicator_type) :: comm1
@@ -1698,8 +1698,8 @@ subroutine MaterialAuxVarCommunicate(comm,Material,vec_loc,ivar,isubvar)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   class(communicator_type), pointer :: comm
   type(material_type) :: Material ! from realization%patch%aux%Material
@@ -1728,8 +1728,8 @@ subroutine MaterialUpdatePorosity(Material,global_auxvars,porosity_loc)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   type(material_type) :: Material ! from realization%patch%aux%Material
   type(global_auxvar_type) :: global_auxvars(:)

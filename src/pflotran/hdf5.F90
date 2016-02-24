@@ -6,7 +6,7 @@ module HDF5_module
 
   implicit none
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   private
   
@@ -1451,8 +1451,8 @@ subroutine HDF5ReadArray(discretization,grid,option,file_id,dataset_name, &
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
 #if defined(SCORPIO)
  
@@ -1715,8 +1715,8 @@ subroutine HDF5ReadRegionFromFile(realization,region,filename)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   type(realization_type) :: realization
   type(region_type) :: region
@@ -1949,8 +1949,8 @@ subroutine HDF5ReadUnstructuredGridRegionFromFile(option,region,filename)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   !type(realization_type)         :: realization
   type(option_type), pointer :: option
@@ -2209,8 +2209,8 @@ subroutine HDF5ReadCellIndexedIntegerArray(realization,global_vec,filename, &
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   type(realization_type) :: realization
   Vec :: global_vec
@@ -2426,8 +2426,8 @@ subroutine HDF5ReadCellIndexedRealArray(realization,global_vec,filename, &
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   type(realization_type) :: realization
   Vec :: global_vec
@@ -2639,8 +2639,8 @@ subroutine HDF5WriteStructDataSetFromVec(name,realization_base,vec,file_id,data_
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   character(len=*) :: name
   class(realization_base_type) :: realization_base
@@ -2695,8 +2695,8 @@ subroutine HDF5WriteUnstructuredDataSetFromVec(name,option,vec,file_id,data_type
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   character(len=32) :: name
   type(realization_type) :: realization

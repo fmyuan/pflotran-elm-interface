@@ -23,7 +23,7 @@ module Surface_Realization_class
 private
 
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   PetscReal, parameter :: eps       = 1.D-8
 
@@ -689,10 +689,10 @@ subroutine SurfRealizMapSurfSubsurfGrids(realization,surf_realization)
 
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
 
   type(realization_type), pointer         :: realization
   type(surface_realization_type), pointer :: surf_realization
@@ -1067,10 +1067,10 @@ subroutine SurfRealizMapSurfSubsurfGrid( &
 
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
 
   type(realization_type), pointer         :: realization
   type(surface_realization_type), pointer :: surf_realization

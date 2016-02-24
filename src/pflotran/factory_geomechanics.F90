@@ -7,7 +7,7 @@ module Factory_Geomechanics_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: GeomechanicsInitialize
 
@@ -68,8 +68,8 @@ subroutine GeomechanicsInitializePostPETSc(simulation, option)
   use Factory_Subsurface_module
 
   implicit none
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   class(geomechanics_simulation_type) :: simulation
   type(option_type), pointer :: option

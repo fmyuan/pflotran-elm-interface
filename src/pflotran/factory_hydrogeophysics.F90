@@ -8,7 +8,7 @@ module Factory_Hydrogeophysics_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: HydrogeophysicsInitialize
 
@@ -33,10 +33,10 @@ subroutine HydrogeophysicsInitialize(simulation_base,option)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscis.h"
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscis.h"
+#include "petsc/finclude/petscviewer.h"
   
   class(simulation_base_type), pointer :: simulation_base
   type(option_type), pointer :: option
@@ -340,8 +340,8 @@ subroutine HydrogeophysicsInitPostPetsc(simulation, option)
   
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
   class(hydrogeophysics_simulation_type) :: simulation
   type(option_type), pointer :: option

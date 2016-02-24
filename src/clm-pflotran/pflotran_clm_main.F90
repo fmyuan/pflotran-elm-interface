@@ -12,11 +12,11 @@ module pflotran_clm_main_module
 
   private
 
-#include "finclude/petscsys.h"
-#include "finclude/petsclog.h"
-#include "finclude/petscsysdef.h"
-#include "finclude/petscviewer.h"
-#include "finclude/petscvec.h"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petsclog.h"
+#include "petsc/finclude/petscsysdef.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscvec.h"
 
   type, public :: pflotran_model_type
     class(simulation_base_type),  pointer :: simulation
@@ -110,7 +110,7 @@ contains
   
     implicit none
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
     PetscInt, intent(in) :: mpicomm
     character(len=256), intent(in) :: pflotran_prefix
@@ -234,8 +234,8 @@ contains
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 #include "geodesic.inc"
 
     type(pflotran_model_type), pointer        :: pflotran_model
@@ -592,8 +592,8 @@ contains
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_type), pointer          :: realization
@@ -934,8 +934,8 @@ contains
 
     implicit none
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer :: model
     PetscReal, intent(in) :: pause_time
@@ -1166,8 +1166,8 @@ contains
     use Simulation_Subsurface_class, only : subsurface_simulation_type
 
     implicit none
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
 
@@ -1283,8 +1283,8 @@ contains
     use Simulation_Subsurface_class, only : subsurface_simulation_type
 
     implicit none
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
 
@@ -1406,8 +1406,8 @@ contains
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_type), pointer          :: realization
@@ -1589,8 +1589,8 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_type), pointer          :: realization
@@ -1899,8 +1899,8 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_type), pointer          :: realization
@@ -2083,8 +2083,8 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_type), pointer          :: realization
@@ -2236,8 +2236,8 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_type), pointer          :: realization
@@ -2393,8 +2393,8 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_type), pointer          :: realization
@@ -2532,8 +2532,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_type), pointer          :: realization
@@ -2737,8 +2737,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer  :: pflotran_model
     class(realization_type), pointer    :: realization
@@ -3419,8 +3419,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_type), pointer          :: realization
@@ -3999,8 +3999,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer  :: pflotran_model
     class(realization_type), pointer    :: realization
@@ -4406,8 +4406,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_type), pointer          :: realization
@@ -4548,8 +4548,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_type), pointer          :: realization
@@ -4694,8 +4694,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
     class(realization_type), pointer          :: realization
@@ -5426,8 +5426,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer :: pflotran_model
     class(realization_type), pointer :: realization

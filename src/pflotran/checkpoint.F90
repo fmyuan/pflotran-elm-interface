@@ -11,17 +11,17 @@ module Checkpoint_module
             CheckpointFlowProcessModel, &
             RestartFlowProcessModel
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscdm.h"
-#include "finclude/petscdm.h90"
-#include "finclude/petscdef.h"
-#include "finclude/petscis.h"
-#include "finclude/petscis.h90"
-#include "finclude/petsclog.h"
-#include "finclude/petscviewer.h"
-#include "finclude/petscbag.h"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscdm.h"
+#include "petsc/finclude/petscdm.h90"
+#include "petsc/finclude/petscdef.h"
+#include "petsc/finclude/petscis.h"
+#include "petsc/finclude/petscis.h90"
+#include "petsc/finclude/petsclog.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscbag.h"
 
 contains
 
@@ -40,7 +40,7 @@ subroutine OpenCheckpointFile(viewer,id,option,id_stamp)
   
   implicit none
 
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscviewer.h"
 
   PetscViewer :: viewer
   PetscInt :: id
@@ -97,7 +97,7 @@ subroutine CloseCheckpointFile(viewer)
   
   implicit none
 
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscviewer.h"
 
   PetscViewer :: viewer
   PetscErrorCode :: ierr
@@ -127,9 +127,9 @@ subroutine CheckpointFlowProcessModel(viewer,realization)
   
   implicit none
 
-#include "finclude/petscviewer.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   PetscViewer :: viewer
   type(realization_type) :: realization
@@ -222,9 +222,9 @@ subroutine RestartFlowProcessModel(viewer,realization)
   
   implicit none
 
-#include "finclude/petscviewer.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   PetscViewer :: viewer
   type(realization_type) :: realization

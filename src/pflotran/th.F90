@@ -9,15 +9,15 @@ module TH_module
   
   private 
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscsnes.h"
-#include "finclude/petscviewer.h"
-#include "finclude/petsclog.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscsnes.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petsclog.h"
 
 ! Cutoff parameters
   PetscReal, parameter :: eps       = 1.D-8
@@ -5104,7 +5104,7 @@ subroutine THComputeGradient(grid, global_auxvars, ghosted_id, gradient, &
   use Utility_module
 
   implicit none
-#include "finclude/petscdmda.h"
+#include "petsc/finclude/petscdmda.h"
 
   type(option_type) :: option
   type(grid_type), pointer :: grid

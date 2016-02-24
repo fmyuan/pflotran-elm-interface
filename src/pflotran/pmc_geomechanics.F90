@@ -7,7 +7,7 @@ module PMC_Geomechanics_class
 
   implicit none
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   private
 
@@ -158,8 +158,8 @@ subroutine PMCGeomechanicsSetAuxData(this)
 
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   class(pmc_geomechanics_type) :: this
 
@@ -248,8 +248,8 @@ subroutine PMCGeomechanicsGetAuxData(this)
 
   implicit none
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
 
   class(pmc_geomechanics_type) :: this
 

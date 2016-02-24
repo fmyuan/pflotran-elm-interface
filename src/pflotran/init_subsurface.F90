@@ -6,7 +6,7 @@ module Init_Subsurface_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: InitSubsurfAssignMatIDsToRegns, &
             InitSubsurfAssignMatProperties, &
@@ -335,8 +335,8 @@ subroutine InitSubsurfAssignMatProperties(realization)
   
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   type(realization_type) :: realization
   
@@ -595,8 +595,8 @@ subroutine SubsurfReadMaterialIDsFromFile(realization,realization_dependent, &
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
   type(realization_type) :: realization
   PetscBool :: realization_dependent
@@ -692,8 +692,8 @@ subroutine SubsurfReadPermsFromFile(realization,material_property)
   
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   type(realization_type) :: realization
   type(material_property_type) :: material_property
@@ -872,8 +872,8 @@ subroutine SubsurfReadCompressFromFile(realization,material_property)
   
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   type(realization_type) :: realization
   type(material_property_type) :: material_property

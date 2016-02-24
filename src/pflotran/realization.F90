@@ -31,9 +31,9 @@ module Realization_class
 
 private
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   type, public, extends(realization_base_type) :: realization_type
 
     type(region_list_type), pointer :: region_list
@@ -193,8 +193,8 @@ subroutine RealizationCreateDiscretization(realization)
   
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   type(realization_type) :: realization
   
