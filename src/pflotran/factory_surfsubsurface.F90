@@ -8,7 +8,7 @@ module Factory_Surf_Subsurf_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: SurfSubsurfaceInitialize
 
@@ -68,8 +68,8 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation, option)
   use PFLOTRAN_Constants_module
   
   implicit none
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   class(surfsubsurface_simulation_type) :: simulation
   type(option_type), pointer :: option
@@ -209,10 +209,10 @@ subroutine SurfSubsurfCreateSurfSubSurfVScats(realization, surf_realization, &
 
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
 
   type(realization_type),pointer         :: realization
   type(surface_realization_type),pointer :: surf_realization
@@ -527,10 +527,10 @@ subroutine SurfSubsurfCreateSurfSubSurfVScat( &
 
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
 
   type(realization_type),pointer         :: realization
   type(surface_realization_type),pointer :: surf_realization

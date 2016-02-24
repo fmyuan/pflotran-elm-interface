@@ -14,15 +14,15 @@ module Richards_module
   
   private 
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscsnes.h"
-#include "finclude/petscviewer.h"
-#include "finclude/petsclog.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscsnes.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petsclog.h"
 
 
 ! Cutoff parameters
@@ -2800,10 +2800,10 @@ subroutine RichardsSSSandbox(residual,Jacobian,compute_derivative, &
   
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
 
   PetscBool :: compute_derivative
   Vec :: residual

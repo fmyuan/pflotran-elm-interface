@@ -10,7 +10,7 @@ module Reaction_Sandbox_Denitr_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1 
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2 
@@ -228,8 +228,8 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
   implicit none
 
 #ifdef CLM_PFLOTRAN
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 #endif
 
   class(reaction_sandbox_denitr_type) :: this

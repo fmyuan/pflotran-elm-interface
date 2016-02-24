@@ -14,13 +14,13 @@ module PM_RT_class
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscsnes.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscsnes.h"
 
   type, public, extends(pm_base_type) :: pm_rt_type
     class(realization_type), pointer :: realization
@@ -803,10 +803,10 @@ subroutine PMRTCheckpoint(this,viewer)
   
   implicit none
 
-#include "finclude/petscviewer.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscbag.h"      
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscbag.h"      
 
   interface PetscBagGetData
 
@@ -815,7 +815,7 @@ subroutine PMRTCheckpoint(this,viewer)
     subroutine PetscBagGetData(bag,header,ierr)
       import :: pm_rt_header_type
       implicit none
-#include "finclude/petscbag.h"      
+#include "petsc/finclude/petscbag.h"      
       PetscBag :: bag
       class(pm_rt_header_type), pointer :: header
       PetscErrorCode :: ierr
@@ -937,10 +937,10 @@ subroutine PMRTRestart(this,viewer)
   
   implicit none
 
-#include "finclude/petscviewer.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscbag.h"      
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscbag.h"      
 
   interface PetscBagGetData
 
@@ -949,7 +949,7 @@ subroutine PMRTRestart(this,viewer)
     subroutine PetscBagGetData(bag,header,ierr)
       import :: pm_rt_header_type
       implicit none
-#include "finclude/petscbag.h"      
+#include "petsc/finclude/petscbag.h"      
       PetscBag :: bag
       class(pm_rt_header_type), pointer :: header
       PetscErrorCode :: ierr

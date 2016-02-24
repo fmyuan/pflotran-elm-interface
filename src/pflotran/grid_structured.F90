@@ -6,7 +6,7 @@ module Grid_Structured_module
  
   private
  
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
 ! structured grid faces
   PetscInt, parameter, public :: NULL_FACE = 0
@@ -208,12 +208,12 @@ subroutine StructGridCreateDM(structured_grid,da,ndof,stencil_width, &
         
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscdm.h"
-#include "finclude/petscdm.h90"
-#include "finclude/petscdmda.h"
-#include "finclude/petscdmda.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscdm.h"
+#include "petsc/finclude/petscdm.h90"
+#include "petsc/finclude/petscdmda.h"
+#include "petsc/finclude/petscdmda.h90"
 
   type(option_type) :: option
   type(structured_grid_type) :: structured_grid
@@ -322,10 +322,10 @@ subroutine StructGridComputeLocalBounds(structured_grid,da,option)
   
   implicit none
      
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscdm.h"
-#include "finclude/petscdm.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscdm.h"
+#include "petsc/finclude/petscdm.h90"
 
   type(structured_grid_type) :: structured_grid
   type(option_type) :: option
@@ -1522,8 +1522,8 @@ subroutine StructGridComputeVolumes(radius,structured_grid,option,nL2G,volume)
   implicit none
 
 ! These includes are needed for VecRestoreArrayF90() - geh
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
   type(structured_grid_type) :: structured_grid
   type(option_type) :: option
@@ -1603,9 +1603,9 @@ subroutine StructGridMapIndices(structured_grid,stencil_type, &
 
   implicit none
   
-#include "finclude/petscdm.h"
-#include "finclude/petscdm.h90"
-#include "finclude/petscdmda.h"  
+#include "petsc/finclude/petscdm.h"
+#include "petsc/finclude/petscdm.h90"
+#include "petsc/finclude/petscdmda.h"  
 
   type(structured_grid_type) :: structured_grid
   PetscInt :: stencil_type
@@ -1726,7 +1726,7 @@ subroutine StructGridGetGhostedNeighbors(structured_grid,ghosted_id, &
   use Option_module
 
   implicit none
-#include "finclude/petscdmda.h"
+#include "petsc/finclude/petscdmda.h"
   
   type(structured_grid_type) :: structured_grid
   type(option_type) :: option
@@ -1804,7 +1804,7 @@ subroutine StructGridGetGhostedNeighborsCorners(structured_grid,ghosted_id, &
   use Option_module
 
   implicit none
-#include "finclude/petscdmda.h"
+#include "petsc/finclude/petscdmda.h"
   
   type(structured_grid_type) :: structured_grid
   type(option_type) :: option
@@ -1905,9 +1905,9 @@ subroutine StructGridCreateTVDGhosts(structured_grid,ndof,global_vec, &
 
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscviewer.h"
 
   type(structured_grid_type) :: structured_grid
   PetscInt :: ndof

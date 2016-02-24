@@ -8,9 +8,9 @@ module Mass_Transfer_module
 
   private
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
  
   type, public :: mass_transfer_type
     PetscInt :: idof
@@ -155,8 +155,8 @@ recursive subroutine MassTransferInit(mass_transfer, discretization, &
 
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"  
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"  
   
   type(mass_transfer_type), pointer :: mass_transfer
   type(discretization_type) :: discretization
@@ -246,8 +246,8 @@ recursive subroutine MassTransferUpdate(mass_transfer, grid, option)
   
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"  
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"  
   
   type(mass_transfer_type), pointer :: mass_transfer
   type(grid_type) :: grid
