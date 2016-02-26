@@ -109,6 +109,7 @@ subroutine OptionTransportInitRealization(option)
     
   option%tvd_flux_limiter = 1
   option%rt_idof = UNINITIALIZED_INTEGER
+  option%store_fluxes = PETSC_FALSE
   
   option%reactive_transport_coupling = GLOBAL_IMPLICIT
   

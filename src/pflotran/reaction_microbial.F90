@@ -33,7 +33,7 @@ subroutine MicrobialRead(microbial,input,option)
   implicit none
   
   type(microbial_type) :: microbial
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: word
@@ -67,17 +67,42 @@ subroutine MicrobialRead(microbial,input,option)
                             'CHEMISTRY,MICROBIAL_REACTION,REACTION')     
       case('RATE_CONSTANT')
         call InputReadDouble(input,option,microbial_rxn%rate_constant)  
-        call InputDefaultMsg(input,option, &
-                              'CHEMISTRY,MICROBIAL_REACTION,RATE_CONSTANT') 
+        call InputErrorMsg(input,option,'rate constant', &
+                           'CHEMISTRY,MICROBIAL_REACTION') 
+      case('ACTIVATION_ENERGY')
+        call InputReadDouble(input,option,microbial_rxn%activation_energy)  
+        call InputErrorMsg(input,option,'activation energy', &
+                           'CHEMISTRY,MICROBIAL_REACTION') 
       case('MONOD')
         monod => MicrobialMonodCreate()
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'species name', &
+        do 
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword', &
+                             'CHEMISTRY,MICROBIAL_REACTION,MONOD')
+          call StringToUpper(word)   
+          select case(trim(word))
+            case('SPECIES_NAME')
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,'species name', &
                            'CHEMISTRY,MICROBIAL_REACTION,MONOD')
-        monod%species_name = word
-        call InputReadDouble(input,option,monod%half_saturation_constant)  
-        call InputErrorMsg(input,option,'half saturation constant', &
-                           'CHEMISTRY,MICROBIAL_REACTION,MONOD')
+              monod%species_name = word
+            case('HALF_SATURATION_CONSTANT')
+              call InputReadDouble(input,option,monod%half_saturation_constant)
+              call InputErrorMsg(input,option,'half saturation constant', &
+                                 'CHEMISTRY,MICROBIAL_REACTION,MONOD')
+            case('THRESHOLD_CONCENTRATION')
+              call InputReadDouble(input,option,monod%threshold_concentration)  
+              call InputErrorMsg(input,option,'threshold concdntration', &
+                                 'CHEMISTRY,MICROBIAL_REACTION,MONOD')
+            case default
+              call InputKeywordUnrecognized(word, &
+                                            'CHEMISTRY,MICROBIAL_REACTION,MONOD', &
+                                            option)
+          end select
+        enddo
         ! append to list
         if (.not.associated(microbial_rxn%monod)) then
           microbial_rxn%monod => monod
@@ -92,12 +117,10 @@ subroutine MicrobialRead(microbial,input,option)
           call InputReadPflotranString(input,option)
           if (InputError(input)) exit
           if (InputCheckExit(input,option)) exit
-
           call InputReadWord(input,option,word,PETSC_TRUE)
           call InputErrorMsg(input,option,'keyword', &
-                             'CHEMISTRY,MICROBIAL_REACTION')
+                             'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')
           call StringToUpper(word)   
-
           select case(trim(word))
             case('SPECIES_NAME')
               call InputReadWord(input,option,word,PETSC_TRUE)
@@ -122,19 +145,16 @@ subroutine MicrobialRead(microbial,input,option)
                                      'CHEMISTRY,MICROBIAL_REACTION,&
                                      &INHIBITION,THRESHOLD_INHIBITION')
                 case default
-                  option%io_buffer = &
-                    'CHEMISTRY,MICROBIAL_REACTION,INHIBITION ' // &
-                    'TYPE keyword: ' // trim(word) // ' not recognized.'
-                  call printErrMsg(option)
+                  call InputKeywordUnrecognized(word, &
+                         'CHEMISTRY,MICROBIAL_REACTION,INHIBITION,TYPE',option)
               end select
             case('INHIBITION_CONSTANT')
               call InputReadDouble(input,option,inhibition%inhibition_constant)  
               call InputErrorMsg(input,option,'inhibition constant', &
                                  'CHEMISTRY,MICROBIAL_REACTION,INHIBITION')
             case default
-              option%io_buffer = 'CHEMISTRY,MICROBIAL_REACTION,' // &
-                'INHIBITION keyword: ' // trim(word) // ' not recognized.'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                      'CHEMISTRY,MICROBIAL_REACTION,INHIBITION',option)
           end select        
         enddo
         if (len_trim(inhibition%species_name) < 2 .or. &
@@ -158,17 +178,33 @@ subroutine MicrobialRead(microbial,input,option)
           call MicrobialBiomassDestroy(microbial_biomass)
         endif
         microbial_biomass => MicrobialBiomassCreate()
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'species name', &
-                           'CHEMISTRY,MICROBIAL_REACTION,BIOMASS')
-        microbial_biomass%species_name = word
-        call InputReadDouble(input,option,microbial_biomass%yield)  
-        call InputErrorMsg(input,option,'yield', &
-                           'CHEMISTRY,MICROBIAL_REACTION,BIOMASS')
+        do 
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword', &
+                             'CHEMISTRY,MICROBIAL_REACTION,BIOMASS')
+          call StringToUpper(word)   
+          select case(trim(word))
+            case('SPECIES_NAME')
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,'species name', &
+                                 'CHEMISTRY,MICROBIAL_REACTION,BIOMASS')
+              microbial_biomass%species_name = word
+            case('YIELD')
+              call InputReadDouble(input,option,microbial_biomass%yield)
+              call InputErrorMsg(input,option,'yield', &
+                                 'CHEMISTRY,MICROBIAL_REACTION,BIOMASS')
+            case default
+              call InputKeywordUnrecognized(word, &
+                                      'CHEMISTRY,MICROBIAL_REACTION,BIOMASS', &
+                                            option)
+          end select
+        enddo
       case default
-        option%io_buffer = 'CHEMISTRY,MICROBIAL_REACTION keyword: ' // &
-          trim(word) // ' not recognized.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(word,'CHEMISTRY,MICROBIAL_REACTION', &
+                                      option)
     end select
   enddo
   
@@ -233,7 +269,7 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
   PetscReal :: act_coef
   PetscReal :: monod(10)
   PetscReal :: inhibition(10)
-  PetscReal :: biomass_conc
+  PetscReal :: biomass_conc, yield
   PetscInt :: immobile_id
   PetscReal :: denominator, dR_dX, dX_dc, dR_dc, dR_dbiomass
   PetscReal :: tempreal
@@ -252,15 +288,26 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
     ! units:
     !   without biomass: mol/L-sec
     !   with biomass: mol/L-sec * (m^3 bulk / mol biomass)
+
+    ncomp = microbial%specid(0,irxn)
     rate_constant = microbial%rate_constant(irxn)
     Im = rate_constant
+    if (associated(microbial%activation_energy)) then
+      ! ideal gas constant units: J/mol-K
+      Im = Im * exp(microbial%activation_energy(irxn)/IDEAL_GAS_CONSTANT* &
+                    (1.d0/298.15d0-1.d0/(global_auxvar%temp+273.15d0)))
+    endif
+    yield = 0.d0
+    biomass_conc = 0.d0
 
     ! monod expressions
     do ii = 1, microbial%monodid(0,irxn)
       imonod = microbial%monodid(ii,irxn)
       icomp = microbial%monod_specid(imonod)
       activity = rt_auxvar%pri_molal(icomp)*rt_auxvar%pri_act_coef(icomp)
-      monod(ii) = activity / (microbial%monod_K(imonod) + activity)
+      monod(ii) = (activity - microbial%monod_Cth(imonod)) / &
+                  (microbial%monod_K(imonod) + activity - &
+                   microbial%monod_Cth(imonod))
       Im = Im*monod(ii)
     enddo
 
@@ -292,6 +339,7 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
     if (ibiomass > 0) then
       immobile_id = reaction%offset_immobile + ibiomass
       biomass_conc = rt_auxvar%immobile(ibiomass)
+      yield = microbial%biomass_yield(irxn)
       Im = Im*biomass_conc
     endif
     
@@ -303,14 +351,13 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
     Im = Im * 1.d3*por_sat_vol
     ! Im units (after): mol/sec
     
-    ncomp = microbial%specid(0,irxn)
     do i = 1, ncomp
       icomp = microbial%specid(i,irxn)
       Res(icomp) = Res(icomp) - microbial%stoich(i,irxn)*Im
     enddo
 
     if (ibiomass > 0) then
-      Res(immobile_id) = Res(immobile_id) - microbial%biomass_yield(irxn)*Im
+      Res(immobile_id) = Res(immobile_id) - yield*Im
     endif
     
     if (.not. compute_derivative) cycle
@@ -324,10 +371,12 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
         
       dR_dX = Im / monod(ii)
         
-      denominator = microbial%monod_K(imonod) + activity
+      denominator = microbial%monod_K(imonod) + activity - &
+                    microbial%monod_Cth(imonod)
         
       dX_dc = act_coef / denominator - &
-              act_coef * activity / (denominator*denominator)
+              act_coef * (activity - microbial%monod_Cth(imonod)) / &
+              (denominator*denominator)
         
       dR_dc = -1.d0*dR_dX*dX_dc
       do i = 1, ncomp
@@ -337,8 +386,7 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
                             microbial%stoich(i,irxn)*dR_dc
       enddo
       if (ibiomass > 0) then
-        Jac(immobile_id,jcomp) = Jac(immobile_id,jcomp) + &
-          microbial%biomass_yield(irxn)*dR_dc      
+        Jac(immobile_id,jcomp) = Jac(immobile_id,jcomp) + yield*dR_dc      
       endif      
     enddo
 
@@ -377,23 +425,21 @@ subroutine RMicrobial(Res,Jac,compute_derivative,rt_auxvar, &
                             microbial%stoich(i,irxn)*dR_dc
       enddo
       if (ibiomass > 0) then
-        Jac(immobile_id,jcomp) = Jac(immobile_id,jcomp) + &
-          microbial%biomass_yield(irxn)*dR_dc      
+        Jac(immobile_id,jcomp) = Jac(immobile_id,jcomp) + yield*dR_dc        
       endif
     enddo
 
     ! biomass expression
     if (ibiomass > 0) then
-      dR_dbiomass = Im / biomass_conc
-!      option%io_buffer = "Shouldn't biomass contribution be negative"
-!      call printErrMsg(option)
+      dR_dbiomass = -1.d0*Im / biomass_conc
       do i = 1, ncomp
-        ! units = (mol/sec)*(kg water/mol) = kg water/sec
+        icomp = microbial%specid(i,irxn)
+        ! units = (mol/sec)*(m^3/mol) = m^3/sec
         Jac(icomp,immobile_id) = Jac(icomp,immobile_id) + &
                             microbial%stoich(i,irxn)*dR_dbiomass
       enddo
       Jac(immobile_id,immobile_id) = Jac(immobile_id,immobile_id) + &
-        microbial%biomass_yield(irxn)*dR_dbiomass
+        yield*dR_dbiomass
     endif
     
   enddo

@@ -36,7 +36,7 @@ subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
   implicit none
   
   type(solid_solution_type), pointer :: solid_solution_list
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -286,9 +286,8 @@ subroutine SolidSolutionReadFromDatabase(solid_solution_rxn,option)
         solid_solution_rxn%num_dbase_temperatures = &
           size(solid_solution_rxn%dbase_temperatures)
       case default
-        option%io_buffer = 'SOLID SOLUTION DATABASE keyword: ' // trim(word) &
-                           // 'not recognized'
-        call printErrMsg(option)        
+        call InputKeywordUnrecognized(word, &
+                     'SOLID SOLUTION,DATABASE',option)
     end select
   enddo
     

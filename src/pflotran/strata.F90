@@ -25,10 +25,10 @@ module Strata_module
     type(material_property_type), pointer :: material_property ! pointer to material in material array/list
     type(region_type), pointer :: region                ! pointer to region in region array/list
     type(surface_material_property_type),pointer :: surf_material_property
-    PetscInt                                     :: isurf_material_property ! id of material in material array/list
+    PetscInt :: isurf_material_property ! id of material in material array/list
     PetscInt :: surf_or_subsurf_flag
     PetscReal :: start_time
-    PetscReal :: end_time
+    PetscReal :: final_time
     type(strata_type), pointer :: next            ! pointer to next strata
   end type strata_type
   
@@ -86,7 +86,7 @@ function StrataCreate1()
   strata%imaterial_property = 0
   strata%surf_or_subsurf_flag = SUBSURFACE
   strata%start_time = UNINITIALIZED_DOUBLE
-  strata%end_time = UNINITIALIZED_DOUBLE
+  strata%final_time = UNINITIALIZED_DOUBLE
 
   nullify(strata%region)
   nullify(strata%material_property)
@@ -126,7 +126,7 @@ function StrataCreateFromStrata(strata)
   new_strata%region_name = strata%region_name
   new_strata%iregion = strata%iregion
   new_strata%start_time = strata%start_time
-  new_strata%end_time = strata%end_time
+  new_strata%final_time = strata%final_time
   ! keep these null
   nullify(new_strata%region)
   nullify(new_strata%material_property)
@@ -178,14 +178,16 @@ subroutine StrataRead(strata,input,option)
   implicit none
   
   type(strata_type) :: strata
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: internal_units
 
   input%ierr = 0
+
   do
   
     call InputReadPflotranString(input,option)
@@ -203,47 +205,44 @@ subroutine StrataRead(strata,input,option)
       case('MATERIAL')
         call InputReadNChars(input,option,string,MAXSTRINGLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,'material property name','STRATA')
-        if (StringCompareIgnoreCase(string,'realization_dependent')) then
-          strata%realization_dependent = PETSC_TRUE
-          call InputReadNChars(input,option,string,MAXSTRINGLENGTH,PETSC_TRUE)
-          call InputErrorMsg(input,option,'material property name','STRATA')
-        endif
         strata%material_property_name = trim(string)
         strata%material_property_filename = string
+      case('REALIZATION_DEPENDENT')
+        strata%realization_dependent = PETSC_TRUE
       case('START_TIME')
         call InputReadDouble(input,option,strata%start_time)
         call InputErrorMsg(input,option,'start time','STRATA')
         ! read units, if present
+        internal_units = 'sec'
         call InputReadWord(input,option,word,PETSC_TRUE)
         if (input%ierr == 0) then
           strata%start_time = strata%start_time * &
-                              UnitsConvertToInternal(word,option)
+                              UnitsConvertToInternal(word,internal_units,option)
         endif
-      case('END_TIME')
-        call InputReadDouble(input,option,strata%end_time)
-        call InputErrorMsg(input,option,'end time','STRATA')
+      case('FINAL_TIME')
+        call InputReadDouble(input,option,strata%final_time)
+        call InputErrorMsg(input,option,'final time','STRATA')
         ! read units, if present
+        internal_units = 'sec'
         call InputReadWord(input,option,word,PETSC_TRUE)
         if (input%ierr == 0) then
-          strata%end_time = strata%end_time * &
-                              UnitsConvertToInternal(word,option)
+          strata%final_time = strata%final_time * &
+                              UnitsConvertToInternal(word,internal_units,option)
         endif
       case('INACTIVE')
         strata%active = PETSC_FALSE
       case default
-        option%io_buffer = 'Keyword "' // trim(keyword) // &
-          '" in STRATA block not recognized.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(keyword,'STRATA',option)
     end select 
   
   enddo
   
   if ((Initialized(strata%start_time) .and. &
-       Uninitialized(strata%end_time)) .or. &
+       Uninitialized(strata%final_time)) .or. &
       (Uninitialized(strata%start_time) .and. &
-       Initialized(strata%end_time))) then
+       Initialized(strata%final_time))) then
     option%io_buffer = &
-      'Both START_TIME and END_TIME must be set for STRATA with region "' // &
+      'Both START_TIME and FINAL_TIME must be set for STRATA with region "' // &
       trim(strata%region_name) // '".'
     call printErrMsg(option)
   endif
@@ -295,7 +294,7 @@ function StrataWithinTimePeriod(strata,time)
   StrataWithinTimePeriod = PETSC_TRUE
   if (Initialized(strata%start_time)) then
     StrataWithinTimePeriod = (time >= strata%start_time - 1.d0 .and. &
-                              time < strata%end_time - 1.d0)
+                              time < strata%final_time - 1.d0)
   endif
   
 end function StrataWithinTimePeriod
@@ -321,7 +320,7 @@ function StrataEvolves(strata_list)
   strata => strata_list%first
   do 
     if (.not.associated(strata)) exit
-    if (Initialized(strata%start_time) .or. Initialized(strata%end_time)) then
+    if (Initialized(strata%start_time) .or. Initialized(strata%final_time)) then
       StrataEvolves = PETSC_TRUE
       exit
     endif

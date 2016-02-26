@@ -145,7 +145,7 @@ subroutine DatasetCommonHDF5Read(this,input,option)
   implicit none
   
   class(dataset_common_hdf5_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword
@@ -165,9 +165,7 @@ subroutine DatasetCommonHDF5Read(this,input,option)
     call DatasetCommonHDF5ReadSelectCase(this,input,keyword,found,option)
 
     if (.not.found) then
-      option%io_buffer = 'Keyword: ' // trim(keyword) // &
-                         ' not recognized in dataset'    
-      call printErrMsg(option)
+      call InputKeywordUnrecognized(keyword,'dataset',option)
     endif
   
   enddo
@@ -242,6 +240,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   use Units_module, only : UnitsConvertToInternal
   use Option_module
   use Logging_module
+  use HDF5_Aux_module
   
   implicit none
 
@@ -265,6 +264,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
   PetscMPIInt :: array_rank_mpi
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: attribute_name, time_units
+  character(len=MAXWORDLENGTH) :: internal_units
   PetscMPIInt :: int_mpi
   PetscInt :: temp_int, num_times_read_by_iorank
   PetscMPIInt :: hdf5_err, h5fopen_err
@@ -293,7 +293,7 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
 !#ifndef SERIAL_HDF5
 !    call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 !#endif
-    call h5fopen_f(filename,H5F_ACC_RDONLY_F,file_id,hdf5_err,prop_id)
+    call HDF5OpenFileReadOnly(filename,file_id,prop_id,option)
     h5fopen_err = hdf5_err
     call h5pclose_f(prop_id,hdf5_err)
 
@@ -385,8 +385,9 @@ subroutine DatasetCommonHDF5ReadTimes(filename,dataset_name,time_storage, &
     call printMsg(option)  
     call h5fclose_f(file_id,hdf5_err)
     call h5close_f(hdf5_err) 
+    internal_units = 'sec'
     time_storage%times = time_storage%times * &
-      UnitsConvertToInternal(time_units,option)
+      UnitsConvertToInternal(time_units,internal_units,option)
   endif
 
   int_mpi = num_times
@@ -591,7 +592,7 @@ subroutine DatasetCommonHDF5Strip(this)
 
   implicit none
   
-  class(dataset_common_hdf5_type)  :: this
+  class(dataset_common_hdf5_type) :: this
   
   call DatasetBaseStrip(this)
   

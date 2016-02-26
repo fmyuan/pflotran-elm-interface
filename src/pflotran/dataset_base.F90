@@ -14,6 +14,7 @@ module Dataset_Base_class
     character(len=MAXWORDLENGTH) :: name
     character(len=MAXSTRINGLENGTH) :: filename
     type(time_storage_type), pointer :: time_storage ! stores transient times
+    character(len=MAXSTRINGLENGTH) :: header
     PetscInt :: rank  ! size of dims(:)
     PetscInt, pointer :: dims(:)    ! dimensions of arrays (excludes time)
     PetscInt :: data_type
@@ -82,6 +83,7 @@ subroutine DatasetBaseInit(this)
   
   this%name = ''
   this%filename = ''
+  this%header = ''
   this%rank = 0
   this%data_type = 0
   nullify(this%time_storage)
@@ -509,7 +511,7 @@ subroutine DatasetBasePrint(this,option)
     if (associated(this%dims)) then
       write(option%fid_out,'(12x,''Dims: '',10i4)') this%dims
     endif
-    write(option%fid_out,'(12x,''Buffer Slice Size: '',i2)') this%buffer_nslice
+    write(option%fid_out,'(12x,''Buffer Slice Size: '',i3)') this%buffer_nslice
   endif
 
 end subroutine DatasetBasePrint
@@ -528,7 +530,7 @@ subroutine DatasetBaseStrip(this)
 
   implicit none
   
-  class(dataset_base_type)  :: this
+  class(dataset_base_type) :: this
   
   call DeallocateArray(this%iarray)
   call DeallocateArray(this%rarray)

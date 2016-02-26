@@ -2,6 +2,10 @@ module Checkpoint_Surface_Header_module
 
   implicit none
 
+  private
+
+#include "petsc/finclude/petscsys.h"
+
 ! We must manually specify the number of bytes required for the 
 ! checkpoint header ('surface_bagsize'), since sizeof() is not supported by 
 ! some Fortran compilers.  To be on the safe side, we assume an integer is 8 
@@ -50,9 +54,9 @@ module Checkpoint_Surface_module
 
   private
 
-  public :: SurfaceCheckpoint, SurfaceRestart
-  public :: SurfaceCheckpointProcessModel, &
-            SurfaceRestartProcessModel
+  public :: SurfaceCheckpointBinary, SurfaceRestartBinary
+  public :: SurfaceCheckpointProcessModelBinary, &
+            SurfaceRestartProcessModelBinary
 
 #include "petsc/finclude/petscsys.h"
 #include "petsc/finclude/petscvec.h"
@@ -79,9 +83,9 @@ contains
 
 ! ************************************************************************** !
 
-subroutine SurfaceCheckpoint(surf_realization, &
-                             surf_flow_prev_dt, &
-                             id)
+subroutine SurfaceCheckpointBinary(surf_realization, &
+                                   surf_flow_prev_dt, &
+                                   id)
   ! 
   ! This subroutine writes a checkpoint file for surface realization.
   ! 
@@ -89,7 +93,7 @@ subroutine SurfaceCheckpoint(surf_realization, &
   ! Date: 06/11/13
   ! 
 
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Surface_Field_module
   use Grid_module
   use Discretization_module
@@ -98,7 +102,7 @@ subroutine SurfaceCheckpoint(surf_realization, &
 
   implicit none
 
-  type(surface_realization_type) :: surf_realization
+  class(realization_surface_type) :: surf_realization
   PetscReal :: surf_flow_prev_dt
   PetscInt, intent(in) :: id ! id should not be altered within this subroutine
 
@@ -124,6 +128,9 @@ subroutine SurfaceCheckpoint(surf_realization, &
   option => surf_realization%option
   discretization => surf_realization%discretization
   grid => discretization%grid 
+
+  option%io_buffer = 'Checkpointing of surface flow must be updated.'
+  call printErrMsg(option)
 
   ! Open the checkpoint file.
   call PetscTime(tstart,ierr);CHKERRQ(ierr)
@@ -196,11 +203,11 @@ subroutine SurfaceCheckpoint(surf_realization, &
         '("      Seconds to write to checkpoint file: ", f10.2)') tend-tstart
   call printMsg(option)
 
-end subroutine SurfaceCheckpoint
+end subroutine SurfaceCheckpointBinary
 
 ! ************************************************************************** !
 
-subroutine SurfaceRestart(surf_realization, surf_flow_prev_dt, surf_flow_read)
+subroutine SurfaceRestartBinary(surf_realization, surf_flow_prev_dt, surf_flow_read)
   ! 
   ! This subroutine restarts surface-realization simulation by reading a
   ! checkpoint file.
@@ -210,7 +217,7 @@ subroutine SurfaceRestart(surf_realization, surf_flow_prev_dt, surf_flow_read)
   ! 
 
 
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Surface_Field_module
   use Grid_module
   use Discretization_module
@@ -219,7 +226,7 @@ subroutine SurfaceRestart(surf_realization, surf_flow_prev_dt, surf_flow_read)
 
   implicit none
 
-  type(surface_realization_type) :: surf_realization
+  class(realization_surface_type) :: surf_realization
   PetscReal :: surf_flow_prev_dt
   PetscBool :: surf_flow_read
   
@@ -344,7 +351,7 @@ subroutine SurfaceRestart(surf_realization, surf_flow_prev_dt, surf_flow_read)
   call printMsg(option)
 
 
-end subroutine SurfaceRestart
+end subroutine SurfaceRestartBinary
 
 ! ************************************************************************** !
 
@@ -416,7 +423,7 @@ end subroutine SurfCheckpointRegisterBagHeader
 
 ! ************************************************************************** !
 
-subroutine SurfaceCheckpointProcessModel(viewer, surf_realization)
+subroutine SurfaceCheckpointProcessModelBinary(viewer, surf_realization)
   ! 
   ! This subroutine writes a checkpoint file for surface realization using
   ! process model approach.
@@ -425,7 +432,7 @@ subroutine SurfaceCheckpointProcessModel(viewer, surf_realization)
   ! Date: 09/19/13
   ! 
 
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Surface_Field_module
   use Grid_module
   use Discretization_module
@@ -438,7 +445,7 @@ subroutine SurfaceCheckpointProcessModel(viewer, surf_realization)
 #include "petsc/finclude/petscvec.h"
 #include "petsc/finclude/petscvec.h90"
 
-  type(surface_realization_type) :: surf_realization
+  class(realization_surface_type) :: surf_realization
   PetscViewer :: viewer
 
   type(surface_field_type), pointer :: surf_field
@@ -475,11 +482,11 @@ subroutine SurfaceCheckpointProcessModel(viewer, surf_realization)
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif
 
-end subroutine SurfaceCheckpointProcessModel
+end subroutine SurfaceCheckpointProcessModelBinary
 
 ! ************************************************************************** !
 
-subroutine SurfaceRestartProcessModel(viewer,surf_realization)
+subroutine SurfaceRestartProcessModelBinary(viewer,surf_realization)
   ! 
   ! This subroutine reads a checkpoint file for surface realization using
   ! process model approach.
@@ -488,7 +495,7 @@ subroutine SurfaceRestartProcessModel(viewer,surf_realization)
   ! Date: 09/19/13
   ! 
 
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Surface_Field_module
   use Grid_module
   use Discretization_module
@@ -497,7 +504,7 @@ subroutine SurfaceRestartProcessModel(viewer,surf_realization)
 
   implicit none
 
-  type(surface_realization_type) :: surf_realization
+  class(realization_surface_type) :: surf_realization
   PetscViewer :: viewer
 
   type(surface_field_type), pointer :: surf_field
@@ -533,6 +540,6 @@ subroutine SurfaceRestartProcessModel(viewer,surf_realization)
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif
 
-end subroutine SurfaceRestartProcessModel
+end subroutine SurfaceRestartProcessModelBinary
 
 end module Checkpoint_Surface_module

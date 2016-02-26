@@ -157,7 +157,7 @@ subroutine GeomechStrataRead(strata,input,option)
   implicit none
   
   type(geomech_strata_type) :: strata
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword
@@ -194,9 +194,7 @@ subroutine GeomechStrataRead(strata,input,option)
       case('INACTIVE')
         strata%active = PETSC_FALSE
       case default
-        option%io_buffer = 'Keyword "' // trim(keyword) // &
-          '" in GEOMECHANICS STRATA block not recognized.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(keyword,'GEOMECHANICS_STRATA',option)
     end select 
   
   enddo  

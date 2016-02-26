@@ -19,25 +19,25 @@
      Mean:   1.1297200000000E+01
         1:   1.1297200000000E+01
 -- CONCENTRATION: Lit1C --
-      Max:   2.0319033525390E-20
-      Min:   2.0319033525390E-20
-     Mean:   2.0319033525390E-20
-        1:   2.0319033525390E-20
+      Max:   2.0319185492505E-20
+      Min:   2.0319185492505E-20
+     Mean:   2.0319185492505E-20
+        1:   2.0319185492505E-20
 -- CONCENTRATION: Lit1N --
-      Max:   5.5839381149466E-22
-      Min:   5.5839381149466E-22
-     Mean:   5.5839381149466E-22
-        1:   5.5839381149466E-22
+      Max:   5.5839798775121E-22
+      Min:   5.5839798775121E-22
+     Mean:   5.5839798775121E-22
+        1:   5.5839798775121E-22
 -- DISCRETE: Material ID --
       Max:         1
       Min:         1
      Mean:   1.0000000000000E+00
         1:         1
 -- SOLUTION: Transport --
-   Time (seconds):   8.0241036415100E-01
-   Time Steps:         1209
-   Newton Iterations:         1211
-   Solver Iterations:         1211
+   Time (seconds):   1.3869100996526E+00
+   Time Steps:         1203
+   Newton Iterations:         1204
+   Solver Iterations:         1204
    Time Step Cuts:            0
    Solution 2-Norm:   1.1297236946445E+01
-   Residual 2-Norm:   5.3374250385684E-27
+   Residual 2-Norm:   5.3376211270486E-27

@@ -1570,7 +1570,7 @@ subroutine OutputIntegralFlux(realization_base)
   ! Date: 10/21/14
   ! 
 
-  use Realization_class, only : realization_type
+  use Realization_Subsurface_class, only : realization_subsurface_type
   use Realization_Base_class, only : realization_base_type
   use Option_module
   use Grid_module
@@ -1603,6 +1603,7 @@ subroutine OutputIntegralFlux(realization_base)
   PetscInt :: istart, iend
   PetscInt :: icol
   PetscMPIInt :: int_mpi
+  PetscReal :: tempreal
   PetscErrorCode :: ierr
 
   patch => realization_base%patch
@@ -1726,8 +1727,9 @@ subroutine OutputIntegralFlux(realization_base)
     endif 
   endif     
 
-100 format(100es16.8)
-110 format(100es16.8)
+100 format(100es17.8)
+110 format(100es17.8)
+120 format(100es17.8e3)
 
   ! write time
   if (option%myrank == option%io_rank) then
@@ -1789,7 +1791,12 @@ subroutine OutputIntegralFlux(realization_base)
       if (option%nflowdof > 0) then
         do i = 1, option%nflowdof
           do j = 1, 2  ! 1 = integral, 2 = instantaneous
-            write(fid,110,advance="no") array_global(i,j)*flow_dof_scale(i)
+            tempreal = array_global(i,j)*flow_dof_scale(i)
+            if (dabs(tempreal) > 0.d0 .and. dabs(tempreal) < 1.d-99) then
+              write(fid,120,advance="no") tempreal
+            else
+              write(fid,110,advance="no") tempreal
+            endif
           enddo
         enddo
       endif
@@ -1798,7 +1805,12 @@ subroutine OutputIntegralFlux(realization_base)
         do i=1,reaction%naqcomp
           do j = 1, 2  ! 1 = integral, 2 = instantaneous
             if (reaction%primary_species_print(i)) then
-              write(fid,110,advance="no") array_global(istart+i,j)
+              tempreal = array_global(istart+i,j)
+              if (dabs(tempreal) > 0.d0 .and. dabs(tempreal) < 1.d-99) then
+                write(fid,120,advance="no") tempreal
+              else
+                write(fid,110,advance="no") tempreal
+              endif
             endif
           enddo
         enddo
@@ -1829,7 +1841,7 @@ subroutine OutputMassBalance(realization_base)
   ! Date: 06/18/08
   ! 
 
-  use Realization_class, only : realization_type
+  use Realization_Subsurface_class, only : realization_subsurface_type
   use Realization_Base_class, only : realization_base_type
   use Patch_module
   use Grid_module
@@ -1845,7 +1857,9 @@ subroutine OutputMassBalance(realization_base)
   use TH_module, only : THComputeMassBalance
   use Reactive_Transport_module, only : RTComputeMassBalance
   use General_module, only : GeneralComputeMassBalance
-  
+  use TOilIms_module, only : TOilImsComputeMassBalance
+  use TOilIms_Aux_module ! for formula weights
+
   use Global_Aux_module
   use Reactive_Transport_Aux_module
   use Reaction_Aux_module
@@ -1963,6 +1977,11 @@ subroutine OutputMassBalance(realization_base)
                                     'kg','',icol)
           call OutputWriteToHeader(fid,'Global Air Mass in Gas Phase', &
                                     'kg','',icol)
+        case(TOIL_IMS_MODE)
+          call OutputWriteToHeader(fid,'Global Water Mass', &
+                                    'kg','',icol)
+          call OutputWriteToHeader(fid,'Global Oil Mass', &
+                                    'kg','',icol)
         case(MPH_MODE,FLASH2_MODE)
           call OutputWriteToHeader(fid,'Global Water Mass in Water Phase', &
                                     'kmol','',icol)
@@ -1992,6 +2011,13 @@ subroutine OutputMassBalance(realization_base)
         do i=1,reaction%naqcomp
           if (reaction%primary_species_print(i)) then
             string = 'Global ' // trim(reaction%primary_species_names(i))
+            call OutputWriteToHeader(fid,string,'mol','',icol)
+          endif
+        enddo
+
+        do i=1,reaction%nimcomp
+          if (reaction%immobile%print_me(i)) then
+            string = 'Global ' // trim(reaction%immobile%names(i))
             call OutputWriteToHeader(fid,string,'mol','',icol)
           endif
         enddo
@@ -2059,6 +2085,17 @@ subroutine OutputMassBalance(realization_base)
             string = trim(coupler%name) // ' Water Mass'
             call OutputWriteToHeader(fid,string,units,'',icol)
             string = trim(coupler%name) // ' Air Mass'
+            call OutputWriteToHeader(fid,string,units,'',icol)
+          case(TOIL_IMS_MODE)
+            string = trim(coupler%name) // ' Water Mass'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+            string = trim(coupler%name) // ' Oil Mass'
+            call OutputWriteToHeader(fid,string,'kg','',icol)
+
+            units = 'kg/' // trim(output_option%tunit) // ''
+            string = trim(coupler%name) // ' Water Mass'
+            call OutputWriteToHeader(fid,string,units,'',icol)
+            string = trim(coupler%name) // ' Oil Mass'
             call OutputWriteToHeader(fid,string,units,'',icol)
           case(MPH_MODE,FLASH2_MODE,IMS_MODE)
             string = trim(coupler%name) // ' Water Mass'
@@ -2155,7 +2192,7 @@ subroutine OutputMassBalance(realization_base)
     sum_kg = 0.d0
     sum_trapped = 0.d0
     select type(realization_base)
-      class is(realization_type)
+      class is(realization_subsurface_type)
         select case(option%iflowmode)
           case(RICHARDS_MODE)
             call RichardsComputeMassBalance(realization_base,sum_kg(1,:))
@@ -2171,6 +2208,8 @@ subroutine OutputMassBalance(realization_base)
             call ImmisComputeMassBalance(realization_base,sum_kg(:,1))
           case(G_MODE)
             call GeneralComputeMassBalance(realization_base,sum_kg(:,:))
+          case(TOIL_IMS_MODE)
+            call TOilImsComputeMassBalance(realization_base,sum_kg(:,:))
         end select
       class default
         option%io_buffer = 'Unrecognized realization class in MassBalance().'
@@ -2199,6 +2238,10 @@ subroutine OutputMassBalance(realization_base)
               write(fid,110,advance="no") sum_kg_global(ispec,iphase)
             enddo
           enddo
+        case(TOIL_IMS_MODE)
+          do iphase = 1, option%nphase
+              write(fid,110,advance="no") sum_kg_global(iphase,1)
+          enddo
         case(MPH_MODE,FLASH2_MODE)
           do iphase = 1, option%nphase
             do ispec = 1, option%nflowspec
@@ -2213,7 +2256,7 @@ subroutine OutputMassBalance(realization_base)
   if (option%ntrandof > 0) then
     sum_mol = 0.d0
     select type(realization_base)
-      class is(realization_type)
+      class is(realization_subsurface_type)
         call RTComputeMassBalance(realization_base,sum_mol)
       class default
         option%io_buffer = 'Unrecognized realization class in MassBalance().'
@@ -2233,6 +2276,13 @@ subroutine OutputMassBalance(realization_base)
           endif
         enddo
 !      enddo
+        ! immobile species
+        do icomp = 1, reaction%nimcomp
+          if (reaction%immobile%print_me(icomp)) then
+            write(fid,110,advance="no") &
+              sum_mol_global(reaction%offset_immobile+icomp,iphase)
+          endif
+        enddo
     endif
 
 !   print out mineral contribution to mass balance
@@ -2573,6 +2623,41 @@ subroutine OutputMassBalance(realization_base)
           enddo
           sum_kg(1,1) = sum_kg(1,1)*FMWH2O
           sum_kg(2,1) = sum_kg(2,1)*FMWAIR
+          
+          int_mpi = option%nphase
+          call MPI_Reduce(sum_kg,sum_kg_global, &
+                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
+                          option%io_rank,option%mycomm,ierr)
+                              
+          if (option%myrank == option%io_rank) then
+            ! change sign for positive in / negative out
+            write(fid,110,advance="no") -sum_kg_global(:,1)*output_option%tconv
+          endif
+        case(TOIL_IMS_MODE)
+          ! print out cumulative H2O and Oil fluxes
+          sum_kg = 0.d0
+          do iconn = 1, coupler%connection_set%num_connections
+            sum_kg = sum_kg + global_auxvars_bc_or_ss(offset+iconn)%mass_balance
+          enddo
+
+          int_mpi = option%nphase
+          call MPI_Reduce(sum_kg,sum_kg_global, &
+                          int_mpi,MPI_DOUBLE_PRECISION,MPI_SUM, &
+                          option%io_rank,option%mycomm,ierr)
+                              
+          if (option%myrank == option%io_rank) then
+            ! change sign for positive in / negative out
+            write(fid,110,advance="no") -sum_kg_global(:,1)
+          endif
+
+          ! print out H2O and oil fluxes
+          sum_kg = 0.d0
+          do iconn = 1, coupler%connection_set%num_connections
+            sum_kg(:,1) = sum_kg(:,1) + &
+              global_auxvars_bc_or_ss(offset+iconn)%mass_balance_delta(:,1)
+          enddo
+          sum_kg(1,1) = sum_kg(1,1)*toil_ims_fmw_comp(1) 
+          sum_kg(2,1) = sum_kg(2,1)*toil_ims_fmw_comp(2)
           
           int_mpi = option%nphase
           call MPI_Reduce(sum_kg,sum_kg_global, &

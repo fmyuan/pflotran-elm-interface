@@ -20,10 +20,10 @@ module PM_Geomechanics_Force_class
 #include "petsc/finclude/petscts.h"
 
   type, public, extends(pm_base_type) :: pm_geomech_force_type
-    class(geomech_realization_type), pointer :: geomech_realization
+    class(realization_geomech_type), pointer :: geomech_realization
     class(communicator_type), pointer :: comm1
   contains
-    procedure, public :: Init => PMGeomechForceInit
+    procedure, public :: Setup => PMGeomechForceSetup
     procedure, public :: PMGeomechForceSetRealization
     procedure, public :: InitializeRun => PMGeomechForceInitializeRun
     procedure, public :: FinalizeRun => PMGeomechForceFinalizeRun
@@ -32,8 +32,8 @@ module PM_Geomechanics_Force_class
     procedure, public :: Jacobian => PMGeomechForceJacobian
     procedure, public :: PreSolve => PMGeomechForcePreSolve
     procedure, public :: UpdateSolution => PMGeomechForceUpdateSolution
-    procedure, public :: Checkpoint => PMGeomechForceCheckpoint
-    procedure, public :: Restart => PMGeomechForceRestart
+    procedure, public :: CheckpointBinary => PMGeomechForceCheckpointBinary
+    procedure, public :: RestartBinary => PMGeomechForceRestartBinary
     procedure, public :: Destroy => PMGeomechForceDestroy
     procedure, public :: FinalizeTimestep => PMGeomechForceFinalizeTimestep
   end type pm_geomech_force_type
@@ -64,7 +64,7 @@ function PMGeomechForceCreate()
   nullify(geomech_force_pm%geomech_realization)
   nullify(geomech_force_pm%comm1)
 
-  call PMBaseCreate(geomech_force_pm)
+  call PMBaseInit(geomech_force_pm)
 
   PMGeomechForceCreate => geomech_force_pm
 
@@ -72,7 +72,7 @@ end function PMGeomechForceCreate
 
 ! ************************************************************************** !
 
-subroutine PMGeomechForceInit(this)
+subroutine PMGeomechForceSetup(this)
   ! 
   ! This routine
   ! 
@@ -99,7 +99,7 @@ subroutine PMGeomechForceInit(this)
 
   !call this%comm1%SetDM(this%geomech_realization%geomech_discretization%dm_1dof)
 
-end subroutine PMGeomechForceInit
+end subroutine PMGeomechForceSetup
 
 ! ************************************************************************** !
 
@@ -158,7 +158,7 @@ subroutine PMGeomechForceSetRealization(this, geomech_realization)
   implicit none
 
   class(pm_geomech_force_type) :: this
-  class(geomech_realization_type), pointer :: geomech_realization
+  class(realization_geomech_type), pointer :: geomech_realization
 
   this%geomech_realization => geomech_realization
   this%realization_base => geomech_realization
@@ -325,7 +325,7 @@ end subroutine PMGeomechForceFinalizeTimestep
 
 ! ************************************************************************** !
 
-subroutine PMGeomechForceCheckpoint(this,viewer)
+subroutine PMGeomechForceCheckpointBinary(this,viewer)
   ! 
   ! This routine
   ! 
@@ -343,11 +343,11 @@ subroutine PMGeomechForceCheckpoint(this,viewer)
   
   call printErrMsg(this%option,'add code for checkpointing Geomech in PM approach')
   
-end subroutine PMGeomechForceCheckpoint
+end subroutine PMGeomechForceCheckpointBinary
 
 ! ************************************************************************** !
 
-subroutine PMGeomechForceRestart(this,viewer)
+subroutine PMGeomechForceRestartBinary(this,viewer)
   ! 
   ! This routine
   ! 
@@ -365,7 +365,7 @@ subroutine PMGeomechForceRestart(this,viewer)
   
   call printErrMsg(this%option,'add code for restarting Geomech in PM approach')
   
-end subroutine PMGeomechForceRestart
+end subroutine PMGeomechForceRestartBinary
 
 ! ************************************************************************** !
 

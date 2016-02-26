@@ -102,8 +102,6 @@ contains
     use Factory_PFLOTRAN_module
     use Factory_Subsurface_module
     use Factory_Hydrogeophysics_module
-    use Factory_Surface_module
-    use Factory_Surf_Subsurf_module
     use PFLOTRAN_Constants_module
     use Output_Aux_module, only : INSTANTANEOUS_VARS
     use PFLOTRAN_Provenance_module, only : PrintProvenanceToScreen
@@ -145,26 +143,17 @@ contains
         model%option%print_to_screen) then
       call PrintProvenanceToScreen()
     end if
-    call PFLOTRANInitializePostPetsc(model%multisimulation, model%option)
 
     ! NOTE(bja, 2013-07-19) GB's Hack to get communicator correctly
     ! setup on mpich/mac. should be generally ok, but may need an
     ! apple/mpich ifdef if it cause problems elsewhere.
     PETSC_COMM_SELF = MPI_COMM_SELF
+    PETSC_COMM_WORLD = MPI_COMM_WORLD
+
+    call PFLOTRANInitializePostPetsc(model%multisimulation, model%option)
 
     model%pause_time_1 = -1.0d0
     model%pause_time_2 = -1.0d0
-
-    ! FIXME(bja, 2013-07-17) hard code subsurface for this version of CLM-PFLOTRAN
-    model%option%simulation_mode = 'SUBSURFACE'
-
-    select case(model%option%simulation_mode)
-      case('SUBSURFACE')
-         call SubsurfaceInitialize(model%simulation, model%option)
-      case default
-         model%option%io_buffer = 'Simulation Mode not supported: ' // model%option%simulation_mode
-         call printErrMsg(model%option)
-    end select
 
   end subroutine pflotranModelCreate
 
@@ -212,7 +201,7 @@ contains
   ! 
   ! Force soil dimension from CLM to PFLOTRAN subsurface domain.
 
-    use Realization_class
+    use Realization_Base_class
     use Discretization_module
     use Patch_module
     use Field_module
@@ -223,8 +212,7 @@ contains
     use Material_Aux_class
 
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -239,7 +227,7 @@ contains
 #include "geodesic.inc"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer          :: realization
+    type(realization_base_type), pointer      :: realization
     type(discretization_type), pointer        :: discretization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
@@ -267,9 +255,7 @@ contains
 
     !----------------------------------------------------------
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)
@@ -567,7 +553,7 @@ contains
   !
   ! (fmy) 4/28/2014: modifications after updating to pflotran-dev
 
-    use Realization_class
+    use Realization_Base_class
     use Discretization_module
     use Patch_module
     use Grid_module
@@ -583,12 +569,11 @@ contains
                                TORTUOSITY, POROSITY
 
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
+    use Saturation_Function_module
 
     use clm_pflotran_interface_data
     use Mapping_module
-    use Saturation_Function_module
 
     implicit none
 
@@ -596,7 +581,7 @@ contains
 #include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer          :: realization
+    type(realization_base_type), pointer          :: realization
     type(discretization_type), pointer        :: discretization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
@@ -633,9 +618,7 @@ contains
     grav =GRAVITY_CONSTANT       ! [m/S^2]
 
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)
@@ -974,12 +957,10 @@ contains
   ! Revised by Fengming YUAN
 
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
-    use Realization_class, only : realization_type
-    use Surface_Realization_class, only : surface_realization_type
+    use Realization_Base_class, only : realization_base_type
+    use Realization_Subsurface_class, only : realization_subsurface_type
 
     use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointInsertInList
     use Units_module, only : UnitsConvertToInternal
@@ -993,27 +974,9 @@ contains
     PetscReal                          :: waypoint_time
     character(len=MAXWORDLENGTH)       :: word
 
-    class(realization_type), pointer    :: realization
-    class(surface_realization_type), pointer :: surf_realization
+    class(realization_subsurface_type), pointer    :: realization
 
-    select type (simulation => model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-         nullify(surf_realization)
-      class is (surface_simulation_type)
-         nullify(realization)
-         surf_realization => simulation%surf_realization
-      class is (surfsubsurface_simulation_type)
-         realization => simulation%realization
-         surf_realization => simulation%surf_realization
-      class default
-         nullify(realization)
-         nullify(surf_realization)
-         model%option%io_buffer = "pflotranModelInsertWaypoint only " // &
-              "works on combinations of surface and subsurface simulations."
-         call printErrMsg(model%option)
-    end select
-
+    !
     word = 's'
     waypoint => WaypointCreate()
     waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
@@ -1022,19 +985,17 @@ contains
     waypoint%final             = PETSC_FALSE
     waypoint%dt_max            = waypoint_time * UnitsConvertToInternal(word, model%option)!3153600.d0
 
-    if (associated(realization)) then
-      call WaypointInsertInList(waypoint, realization%waypoint_list)
-    end if
+    select type (simulation => model%simulation)
+      class is (simulation_subsurface_type)
+        realization => simulation%realization
+        call WaypointInsertInList(waypoint, realization%waypoint_list)
 
-    if (associated(surf_realization)) then
-      waypoint2 => WaypointCreate(waypoint)
-      ! just in case that subsurface realization NOT there (e.g. only surf_simulation),
-      ! the above 'WaypointCreate()' will allocate memory for 'waypoint',
-      ! which never have a chance to deallocate and potentially leak memory
-      if(associated(waypoint)) deallocate(waypoint)
+      class default
+         model%option%io_buffer = "pflotranModelInsertWaypoint only " // &
+              "works on subsurface simulations."
+         call printErrMsg(model%option)
 
-      call WaypointInsertInList(waypoint2, surf_realization%waypoint_list)
-    end if
+    end select
 
   end subroutine pflotranModelInsertWaypoint
 
@@ -1043,13 +1004,9 @@ contains
   subroutine pflotranModelDeleteWaypoint(model, waypoint_time)
 
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
-    use Realization_class, only : realization_type
-    use Surface_Realization_class, only : surface_realization_type
-    use Surface_Realization_class, only : surface_realization_type
+    use Realization_Base_class, only : realization_base_type
 
     use Waypoint_module, only : waypoint_type, WaypointCreate, WaypointDeleteFromList
     use Units_module, only : UnitsConvertToInternal
@@ -1062,24 +1019,15 @@ contains
     PetscReal                          :: waypoint_time
     character(len=MAXWORDLENGTH)       :: word
 
-    class(realization_type), pointer    :: realization
-    class(surface_realization_type), pointer :: surf_realization
+    type(realization_base_type), pointer    :: realization
 
     select type (simulation => model%simulation)
-      class is (subsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
-         nullify(surf_realization)
-      class is (surface_simulation_type)
-         nullify(realization)
-         surf_realization => simulation%surf_realization
-      class is (surfsubsurface_simulation_type)
-         realization => simulation%realization
-         surf_realization => simulation%surf_realization
       class default
          nullify(realization)
-         nullify(surf_realization)
          model%option%io_buffer = "pflotranModelDeleteWaypoint only " // &
-              "works on combinations of surface and subsurface simulations."
+              "works on subsurface simulations."
          call printErrMsg(model%option)
     end select
 
@@ -1087,14 +1035,10 @@ contains
     waypoint => WaypointCreate()
     waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
     waypoint%update_conditions = PETSC_TRUE
-    waypoint%dt_max            = 3153600
+    waypoint%dt_max            = 86400.0d0
 
     if (associated(realization)) then
        call WaypointDeleteFromList(waypoint, realization%waypoint_list)
-    end if
-
-    if (associated(surf_realization)) then
-       call WaypointDeleteFromList(waypoint, surf_realization%waypoint_list)
     end if
 
     ! when call 'WaypointCreate()', 'waypoint' will be allocated memory,
@@ -1159,11 +1103,10 @@ contains
     use Grid_module
     use Mapping_module
     use Option_module
-    use Realization_class, only : realization_type
+    use Realization_Base_class, only : realization_type
     use Simulation_Base_class, only : simulation_base_type
     use String_module
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     implicit none
 #include "petsc/finclude/petscvec.h"
@@ -1171,7 +1114,7 @@ contains
 
     type(pflotran_model_type), pointer        :: pflotran_model
 
-    class(realization_type), pointer          :: subsurf_realization
+    type(realization_base_type), pointer          :: subsurf_realization
     type(coupler_type), pointer               :: source_sink
     type(grid_type), pointer                  :: grid
     type(connection_set_type), pointer        :: cur_connection_set
@@ -1188,9 +1131,7 @@ contains
 
     ! Get pointer to subsurface-realization
     select type (simulation => pflotran_model%simulation)
-      class is (surfsubsurface_simulation_type)
-         subsurf_realization => simulation%realization
-      class is (subsurface_simulation_type)
+      class is (simulation_subsurface_type)
          subsurf_realization => simulation%realization
       class default
          pflotran_model%option%io_buffer = " Unsupported simulation_type " // &
@@ -1276,11 +1217,10 @@ contains
     use Coupler_module
     use Mapping_module
     use Option_module
-    use Realization_class, only : realization_type
+    use Realization_Base_class, only : realization_type
     use Simulation_Base_class, only : simulation_base_type
     use String_module
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     implicit none
 #include "petsc/finclude/petscvec.h"
@@ -1288,7 +1228,7 @@ contains
 
     type(pflotran_model_type), pointer        :: pflotran_model
 
-    class(realization_type), pointer          :: subsurf_realization
+    type(realization_base_type), pointer          :: subsurf_realization
     type(coupler_type), pointer               :: boundary_condition
     type(connection_set_type), pointer        :: cur_connection_set
     PetscScalar, pointer                      :: gflux_subsurf_pf_loc(:)
@@ -1313,9 +1253,7 @@ contains
 
     ! Get pointer to subsurface-realization
     select type (simulation => pflotran_model%simulation)
-      class is (surfsubsurface_simulation_type)
-         subsurf_realization => simulation%realization
-      class is (subsurface_simulation_type)
+       class is (simulation_subsurface_type)
          subsurf_realization => simulation%realization
       class default
          pflotran_model%option%io_buffer = " Unsupported simulation_type " // &
@@ -1387,7 +1325,7 @@ contains
   ! 4/28/2014: fmy - updates
 
     use Option_module
-    use Realization_class
+    use Realization_Base_class
     use Patch_module
     use Grid_module
     use Field_module
@@ -1397,10 +1335,8 @@ contains
     use TH_module
     use TH_Aux_module
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-!    use Surface_Realization_class, only : surface_realization_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
+
     use clm_pflotran_interface_data
     use Mapping_module
 
@@ -1410,7 +1346,7 @@ contains
 #include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer          :: realization
+    type(realization_base_type), pointer          :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(field_type), pointer                 :: field
@@ -1431,9 +1367,7 @@ contains
     PetscViewer :: viewer
 
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)
@@ -1573,17 +1507,15 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
   ! 
 
     use Option_module
-    use Realization_class
+    use Realization_Base_class
     use Patch_module
     use Grid_module
     use Global_Aux_module
     use TH_module
     use TH_Aux_module
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-    use Surface_Realization_class, only : surface_realization_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
+
     use clm_pflotran_interface_data
     use Mapping_module
 
@@ -1593,7 +1525,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 #include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer          :: realization
+    type(realization_base_type), pointer          :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(global_auxvar_type), pointer         :: global_auxvars(:)
@@ -1604,9 +1536,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     PetscReal, pointer :: soilt_pf_p(:)
 
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)
@@ -1736,14 +1666,10 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
   subroutine pflotranModelUpdateFinalWaypoint(model, waypoint_time, isprintout)
 
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
-    use Realization_class, only : realization_type, &
+    use Realization_Base_class, only : realization_type, &
       RealizationAddWaypointsToList
-    use Surface_Realization_class, only : surface_realization_type, &
-      SurfRealizAddWaypointsToList
 
     use Waypoint_module, only : waypoint_type, WaypointCreate, &
       WaypointDeleteFromList, WaypointInsertInList, &
@@ -1759,20 +1685,13 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     PetscBool, intent(in)              :: isprintout
     character(len=MAXWORDLENGTH)       :: word
 
-    class(realization_type), pointer    :: realization
-    class(surface_realization_type), pointer :: surf_realization
+    type(realization_base_type), pointer    :: realization
 
 !-------------------------------------------------------------------------
     select type (simulation => model%simulation)
-      class is (subsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
          nullify(surf_realization)
-      class is (surface_simulation_type)
-         nullify(realization)
-         surf_realization => simulation%surf_realization
-      class is (surfsubsurface_simulation_type)
-         realization => simulation%realization
-         surf_realization => simulation%surf_realization
       class default
          nullify(realization)
          nullify(surf_realization)
@@ -1826,49 +1745,6 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     endif  !if (associated(realization))
 
-    ! update surface-realization final waypoint
-    if (associated(surf_realization)) then
-      ! remove original final waypoint
-      waypoint => surf_realization%waypoint_list%first
-      do
-        if (.not.associated(waypoint)) exit
-        if (waypoint%final) then
-          waypoint%final = PETSC_FALSE
-          exit
-
-        else
-           waypoint => waypoint%next
-        endif
-      enddo
-
-      ! insert new final waypoint2 (copied from waypoint1)
-      waypoint2 => WaypointCreate(waypoint1)
-      ! just in case that subsurface realization NOT there (e.g. only surf_simulation),
-      ! the above 'WaypointCreate()' will allocate memory for 'waypoint1',
-      ! which never have a chance to deallocate and potentially leak memory
-      if(associated(waypoint1)) deallocate(waypoint1)
-
-      call WaypointInsertInList(waypoint2, surf_realization%waypoint_list)
-      call SurfRealizAddWaypointsToList(surf_realization)
-      call WaypointListFillIn(model%option,surf_realization%waypoint_list)
-      call WaypointListRemoveExtraWaypnts(model%option,surf_realization%waypoint_list)
-
-      ! turn off the 'print out' if required from CLM
-      if(.not.isprintout) then
-        if (model%option%io_rank == model%option%myrank) then
-          write(model%option%fid_out, *) 'NOTE: h5 output at input-defined interval ' // &
-            'for surface flow from PFLOTRAN IS OFF! '
-        endif
-        waypoint => surf_realization%waypoint_list%first
-        do
-          if (.not.associated(waypoint)) exit
-          waypoint%print_output = PETSC_FALSE
-          waypoint => waypoint%next
-        enddo
-      endif
-
-    end if !if (associated(surf_realization))
-
   end subroutine pflotranModelUpdateFinalWaypoint
 
   ! ************************************************************************** !
@@ -1879,7 +1755,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
   ! Note: this is used to adjust porosity of ice from total, when Thermal mode is NOT used in PFLOTRAN
   ! F.-M. YUAN:  4/28/2014
 
-    use Realization_class
+    use Realization_Base_class
     use Discretization_module
     use Patch_module
     use Grid_module
@@ -1891,8 +1767,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
                                PERMEABILITY_Z, POROSITY
 
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -1903,7 +1778,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 #include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer          :: realization
+    type(realization_base_type), pointer          :: realization
     type(discretization_type), pointer        :: discretization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
@@ -1923,9 +1798,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     !---------------------------------------------------------------------------------
 
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)
@@ -2065,7 +1938,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
   ! Date: 1/30/2014
   !
 
-    use Realization_class
+    use Realization_Base_class
     use Patch_module
     use Grid_module
     use Richards_Aux_module
@@ -2075,8 +1948,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     use Saturation_Function_module
 
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -2087,7 +1959,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 #include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer          :: realization
+    type(realization_base_type), pointer          :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(field_type), pointer                 :: field
@@ -2107,9 +1979,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     PetscScalar, pointer :: pcwmax_loc_pfp(:)    ! max. capillary pressure
 
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)
@@ -2222,15 +2092,13 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
   subroutine pflotranModelUpdateTHfromCLM(pflotran_model, pf_hmode, pf_tmode)
 
     use Option_module
-    use Realization_class
+    use Realization_Base_class
     use Patch_module
     use Grid_module
     use Global_Aux_module
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-    use Surface_Realization_class, only : surface_realization_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
+
     use clm_pflotran_interface_data
     use Mapping_module
 
@@ -2240,7 +2108,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 #include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer          :: realization
+    type(realization_base_type), pointer          :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(global_auxvar_type), pointer         :: global_auxvars(:)
@@ -2253,13 +2121,11 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     logical, intent(in):: pf_hmode, pf_tmode
     !---------------------------------------------------------------------
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)
-         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface/surfsubsurface simulations."
+         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
          call printErrMsg(pflotran_model%option)
     end select
     patch           => realization%patch
@@ -2373,7 +2239,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
   ! ************************************************************************** !
 subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
 
-    use Realization_class
+    use Realization_Base_class
     use Patch_module
     use Grid_module
     use Field_module
@@ -2387,8 +2253,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
     use clm_pflotran_interface_data
 
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
     use Mapping_module
 
     implicit none
@@ -2397,7 +2262,7 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
 #include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer          :: realization
+    type(realization_base_type), pointer          :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(field_type), pointer                 :: field
@@ -2411,14 +2276,12 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
     PetscScalar, pointer :: soilpress_pf_loc(:)  ! water pressure (Pa)
 
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)
          pflotran_model%option%io_buffer = 'ERROR: pflotranModelSetInitialTStatesfromCLM ' // &
-               'only works on subsurface/surfsubsurface simulations.'
+               'only works on subsurface simulations.'
          call printErrMsg(pflotran_model%option)
     end select
     patch           => realization%patch
@@ -2509,7 +2372,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   ! ************************************************************************** !
   subroutine pflotranModelSetSoilHbcsFromCLM(pflotran_model)
 
-    use Realization_class
+    use Realization_Base_class
     use Option_module
     use Patch_module
     use Grid_module
@@ -2524,8 +2387,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use String_module
 
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -2536,7 +2398,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 #include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer          :: realization
+    type(realization_base_type), pointer          :: realization
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(simulation_base_type), pointer :: simulation
@@ -2558,9 +2420,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     !------------------------------------------------------------------------------------
 
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)
@@ -2725,13 +2585,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   subroutine pflotranModelGetRTspecies(pflotran_model)
 
     use Option_module
-    use Realization_class
+    use Realization_Base_class
     use Reaction_Aux_module
     use Reaction_Immobile_Aux_module
 
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use clm_pflotran_interface_data
 
@@ -2741,7 +2600,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 #include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer  :: pflotran_model
-    class(realization_type), pointer    :: realization
+    type(realization_base_type), pointer    :: realization
     type(simulation_base_type), pointer :: simulation
 
     PetscErrorCode  :: ierr
@@ -2754,9 +2613,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     if (pflotran_model%option%ntrandof <= 0) return
 
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)
@@ -3047,7 +2904,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   subroutine pflotranModelSetSOMKfromCLM(pflotran_model)
 
     use Option_module
-    use Realization_class
+    use Realization_Base_class
     use Reaction_module
     !use Reaction_Aux_module
     !use Reactive_Transport_Aux_module
@@ -3058,8 +2915,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Reaction_Sandbox_SomDec_class
 
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use clm_pflotran_interface_data
 
@@ -3067,7 +2923,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     type(option_type) :: option
     type(pflotran_model_type), pointer  :: pflotran_model
-    class(realization_type), pointer    :: realization
+    type(realization_base_type), pointer    :: realization
     type(simulation_base_type), pointer :: simulation
     class(reaction_sandbox_base_type), pointer  :: cur_rtsandbox
     class(reaction_sandbox_somdec_type), pointer :: rtsandbox_somdec
@@ -3078,9 +2934,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
    !------------------------------------------------------
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)
@@ -3197,7 +3051,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   subroutine pflotranModelSetBgcConcFromCLM(pflotran_model)
 
     use Global_Aux_module
-    use Realization_class
+    use Realization_Base_class
     use Patch_module
     use Grid_module
     use Option_module
@@ -3209,8 +3063,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Discretization_module
 
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -3221,7 +3074,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 #include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer          :: realization
+    type(realization_base_type), pointer          :: realization
     type(field_type), pointer                 :: field
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
@@ -3253,9 +3106,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 !------------------------------------------------------------------------------------------------
 
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)
@@ -3543,7 +3394,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   ! ************************************************************************** !
   subroutine pflotranModelSetBGCRatesFromCLM(pflotran_model)
 
-    use Realization_class
+    use Realization_Base_class
     use Patch_module
     use Grid_module
     use Option_module
@@ -3553,11 +3404,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Reactive_Transport_module, only : RTUpdateAuxVars
     use Reactive_Transport_Aux_module
     use Discretization_module
+    use Mass_Transfer_module, only : mass_transfer_type, MassTransferUpdate
 
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-    use Mass_Transfer_module, only : mass_transfer_type, MassTransferUpdate
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -3568,7 +3418,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 #include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer  :: pflotran_model
-    class(realization_type), pointer    :: realization
+    type(realization_base_type), pointer    :: realization
     type(field_type), pointer           :: field
     type(patch_type), pointer           :: patch
     type(grid_type), pointer            :: grid
@@ -3583,17 +3433,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscReal, pointer :: volume_p(:)
 
-    Vec                  :: vec_clmp
-    Vec                  :: vec_pfs
-    PetscScalar, pointer :: array_clmp(:), array_pfs(:), array_temp(:)
-    PetscInt             :: j, k, vec_offset
-    PetscBool            :: found_rtmasstr
-
-    !----------------------------------------------------------------------------------
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)
@@ -3869,7 +3710,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   subroutine pflotranModelUpdateAqConcFromCLM(pflotran_model)
 
     use Global_Aux_module
-    use Realization_class
+    use Realization_Base_class
     use Patch_module
     use Grid_module
     use Option_module
@@ -3880,8 +3721,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Discretization_module
 
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -3892,7 +3732,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 #include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer          :: realization
+    type(realization_base_type), pointer          :: realization
     type(field_type), pointer                 :: field
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
@@ -3917,9 +3757,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscReal :: theta_pre
 
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)
@@ -4010,7 +3848,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   subroutine pflotranModelUpdateAqGasesFromCLM(pflotran_model)
 
     use Global_Aux_module
-    use Realization_class
+    use Realization_Base_class
     use Patch_module
     use Grid_module
     use Option_module
@@ -4022,8 +3860,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Reactive_Transport_Aux_module
 
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -4034,7 +3871,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 #include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer          :: realization
+    type(realization_base_type), pointer          :: realization
     type(field_type), pointer                 :: field
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
@@ -4054,9 +3891,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     character(len=MAXWORDLENGTH) :: word
 
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)
@@ -4155,7 +3990,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   subroutine pflotranModelGetBgcVariablesFromPF(pflotran_model)
 
     use Global_Aux_module
-    use Realization_class
+    use Realization_Base_class
     use Patch_module
     use Grid_module
     use Option_module
@@ -4168,8 +4003,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Discretization_module
 
     use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -4180,7 +4014,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 #include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer        :: pflotran_model
-    class(realization_type), pointer          :: realization
+    type(realization_base_type), pointer          :: realization
     type(field_type), pointer                 :: field
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
@@ -4219,19 +4053,12 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscReal :: conc
     PetscInt  :: offset, offsetim
 
-    Vec                  :: vec_pfp
-    Vec                  :: vec_clms
-    PetscScalar, pointer :: array_pfp(:), array_clms(:), array_temp(:)
-    PetscInt             :: j, k, vec_offset
-
-    PetscReal, parameter :: zeroing_conc = 1.0d-21
+    PetscReal, parameter :: zeroing_conc = 1.0d-20
 
     !-----------------------------------------------------------------------------------------
 
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)
@@ -4946,7 +4773,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   ! Author: Fengming Yuan
   ! Date: 03/14/2014
   !
-    use Realization_class
+    use Realization_Base_class
     use Patch_module
     use Grid_module
     use Option_module
@@ -4955,8 +4782,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Utility_module
     use String_module
 
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use Global_Aux_module
     use Reactive_Transport_Aux_module
@@ -4971,7 +4797,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 #include "petsc/finclude/petscvec.h90"
 
     type(pflotran_model_type), pointer :: pflotran_model
-    class(realization_type), pointer :: realization
+    type(realization_base_type), pointer :: realization
 
     type(option_type), pointer :: option
     type(patch_type), pointer :: patch
@@ -5003,9 +4829,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     !
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
          nullify(realization)

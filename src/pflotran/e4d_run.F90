@@ -5,22 +5,25 @@ module e4d_run
   logical :: first_sol = .true.
   logical :: sim_e4d = .false.
   integer :: mcomm
-  real*8 :: pf_time
+  !real*8 :: pf_time
 contains
   
   !_____________________________________________________________________
   subroutine run_e4d
   
     implicit none
+    logical :: first_flag = .true.
     
     if (my_rank>0) then
        call slave_run
        return
     end if
-
+   
     if (.not. allocated(pf_tracer)) allocate(pf_tracer(pflotran_vec_size))
     if (.not. allocated(pf_saturation)) allocate(pf_saturation(pflotran_vec_size))
+    if (.not. allocated(pf_saturation_0)) allocate(pf_saturation_0(pflotran_vec_size))
     if (.not. allocated(sigma)) allocate(sigma(nelem))
+   
 
     call get_mcomm
     call cpu_time(Cbeg)
@@ -28,20 +31,27 @@ contains
 
        call get_pf_time      !!get the pflotran solution time
        call get_pf_sol       !!get the pflotran solution
-       call cpu_time(Cend)
-       etm=Cend-Cbeg
+      
        call elog(36,mcomm,mcomm)
 
        call check_e4d_sim    !!see if we should do an e4d sim for this time
        
        if (sim_e4d) then
+
+          
+
+          if (first_flag) then
+             pf_saturation_0 = pf_saturation
+             !call compute_FF
+             first_flag = .false.
+          end if
+ 
           call map_pf_e4d       !!map/transform the solution to the E4D mesh
-          call send_sigma       !!send the transformed solution to the slaves 
-                   
+          call send_sigma       !!send the transformed solution to the slaves           
           call send_command(3)  !!instruct slaves to build A matrix
           call send_command(5)  !!instruct slaves to build KSP solver
           call send_command(6)  !!instruct slaves to solve  
-          call get_dpred        !!assemble the simulated data
+         call get_dpred        !!assemble the simulated data
           call cpu_time(Cbeg)
        end if
      
@@ -120,6 +130,7 @@ contains
     implicit none
     call MPI_BCAST(pf_time,1,MPI_DOUBLE_PRECISION,0,PFE4D_MASTER_COMM, &
                    ierr)
+   
   end subroutine get_pf_time
   !____________________________________________________________________
 
@@ -143,6 +154,9 @@ contains
                        INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
     call VecGetArrayF90(pflotran_tracer_vec_seq,vec_ptr,ierr);CHKERRQ(ierr)
     pf_tracer = vec_ptr
+ 
+
+
     call VecRestoreArrayF90(pflotran_tracer_vec_seq,vec_ptr, &
                             ierr);CHKERRQ(ierr)
     ! saturation                
@@ -161,29 +175,28 @@ contains
 
   !____________________________________________________________________
   subroutine map_pf_e4d
+
     implicit none
-    integer :: i 
+    integer :: i,cnt 
     character*40 :: filename, word
-    real :: K
+    real :: K,St,C,parSat,delSigb,Sigf,delSigb_min
+    real, parameter :: m=2.0      !!m is the saturation exponent ... assumed to be 2    
+    
+    do i=1,nmap 
+
+       Sigf = gw_sig + (sw_sig-gw_sig)*pf_tracer(map_inds(i,2))           !pore water conductivity
+       delSigb = (Sigf*pf_saturation(map_inds(i,2))**(m))/FF-sigma(map_inds(i,1)) 
+       sigma(map_inds(i,1)) = sigma(map_inds(i,1)) + map(i)*delSigb
+
+    end do
+    
    
   
-    do i=1,nmap
-       if (zones(map_inds(i,1))==2) then
-          sigma(map_inds(i,1))=base_sigma(map_inds(i,1))
-       end if
-    end do
-  
-    K=(sw_sig-gw_sig)/FF
-   
-    do i=1,nmap
-       if (zones(map_inds(i,1))==2) then
-          sigma(map_inds(i,1))=sigma(map_inds(i,1))+pf_tracer(map_inds(i,2))*map(i)*K
-       end if
-    end do
     do i=1,nelem
-       if (sigma(i)<1e-5) sigma(i)=1e-5
+       if (sigma(i)<1e-6) sigma(i)=1e-6
     end do
-    write(*,*) pf_time
+
+    !write(*,*) pf_time
     write(word,'(i15.15)') int(pf_time)
     filename = 'sigma_' // &
                trim(adjustl(pflotran_group_prefix)) // &
@@ -192,13 +205,32 @@ contains
                '.txt' 
     !write(*,*) filename
     open(unit=86,file=trim(filename),status='replace',action='write')
-    write(86,*) nelem, "1"
+    write(86,*) nelem, "1", minval(sigma),maxval(sigma)
     do i = 1, nelem
        write(86,*) sigma(i) 
     enddo
     close(86)
 
   end subroutine map_pf_e4d
+  !____________________________________________________________________
+
+  !____________________________________________________________________
+  !subroutine compute_FF
+  !  implicit none
+  !  integer :: i
+  !  real, parameter :: m = 2
+  !  allocate(ffac(nelem))
+  !  ffac = 0
+  !  do i=1,nmap
+  !      ffac(map_inds(i,1)) = ffac(map_inds(i,1)) + map(i)*(gw_sig*pf_saturation_0(map_inds(i,2))**(m))/sigma(map_inds(i,1))
+  !  end do
+  !  open(13,file='FF_Derived.txt',status='replace',action='write')
+  !  write(13,*) nelem
+  !  do i=1,nelem
+  !     write(13,*) ffac(i)
+  !  end do
+  !  close(13)
+  !end subroutine compute_FF
   !____________________________________________________________________
 
   !____________________________________________________________________
@@ -329,18 +361,18 @@ contains
     integer, save :: num_calls = 0
     call MPI_BCAST(sigma, nelem,MPI_REAL,0,E4D_COMM,ierr)   
 !geh
-#if 0 
-write(filename,*) num_calls
-write(word,*) my_rank
-filename = 'sigma_' // trim(adjustl(word)) // '_' // &
-           trim(adjustl(filename)) // '.txt'
-open(unit=86,file=filename)
-do i = 1, nelem
-  write(86,*) sigma(i)
-enddo
-close(86)
-#endif
-num_calls = num_calls + 1
+
+!write(filename,*) num_calls
+!write(word,*) my_rank
+!filename = 'sigma_' // trim(adjustl(word)) // '_' // &
+!           trim(adjustl(filename)) // '.txt'
+!open(unit=86,file=filename,status='replace',action='write')
+!do i = 1, nelem
+!  write(86,*) sigma(i)
+!enddo
+!close(86)
+
+!num_calls = num_calls + 1
 !    print *, 'sigma received by slave', sigma(16)
   end subroutine receive_sigma
   !__________________________________________________________________
@@ -372,10 +404,11 @@ num_calls = num_calls + 1
        !lower triangle
        if ((rbv>=2 .and. rbv<=6) .or. (cbv>=2 .and. cbv<=6)) then
           !one or both nodes are on a boundary so set to zero for bc's
-          val(1) = 0
+          val(1) = 1e-30
        else
           
           val(1) = sigma(S_map(i))*delA(i)
+    
        end if
        
        prn(1) = row-1
@@ -421,8 +454,7 @@ num_calls = num_calls + 1
     
   end subroutine build_ksp
   !__________________________________________________________________
-
-  !____________________________________________________________________
+ !____________________________________________________________________
   subroutine forward_run
     implicit none
     integer :: i,m,n,niter,j,enum
@@ -449,21 +481,24 @@ num_calls = num_calls + 1
        eindx(1)=e_nods(enum)
        val=1.0
        call VecSetValues(B,1,eindx-1,val,ADD_VALUES,perr)
+
        !if (tank_flag) call VecSetValues(B,1,i_zpot-1,-val,ADD_VALUES,perr)
            
        call VecAssemblyBegin(B,perr)
        call VecAssemblyEnd(B,perr) 
        
        call KSPSolve(KS,B,psol,perr)
-       
+       !call KSPView(KS,PETSC_VIEWER_STDOUT_SELF,perr)
+
        call VecGetArrayF90(psol,vloc,ierr);CHKERRQ(ierr)
        poles(:,i)= real(vloc(1:nnodes))
        call VecRestoreArrayF90(psol,vloc,ierr);CHKERRQ(ierr)
-       
+      
        call KSPGetIterationNumber(KS,niter,perr)
-       call cpu_time(tend)
-       pck(1)=tend-tstart
-       pck(2)=real(niter)
+       !write(*,*) my_rank,niter
+       !call cpu_time(tend)
+       !pck(1)=tend-tstart
+       !pck(2)=real(niter)
        !call MPI_SEND(pck,2,MPI_REAL,0,1,MPI_COMM_WORLD,ierr)
        !write(*,*) "Slave ",my_rank," solved for pole ",eind(my_rank,1)+i-1,'in ',tend-tstart,' seconds and ',niter,' iters'
        
@@ -478,7 +513,8 @@ num_calls = num_calls + 1
     
     
   end subroutine forward_run
-  !____________________________________________________________________
+!_________________________________________________________________________________________________
+
 
    !__________________________________________________________________
     subroutine send_dpred

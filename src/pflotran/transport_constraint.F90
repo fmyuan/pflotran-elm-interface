@@ -178,11 +178,12 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
   
   type(tran_constraint_type) :: constraint
   type(reaction_type) :: reaction
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: internal_units
   character(len=MAXSTRINGLENGTH) :: block_string
   PetscInt :: icomp, imnrl, iimmobile
   PetscInt :: isrfcplx
@@ -281,9 +282,8 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                 aq_species_constraint%constraint_type(icomp) = &
                   CONSTRAINT_CHARGE_BAL
               case default
-                option%io_buffer = 'Keyword: ' // trim(word) // &
-                         ' not recognized in constraint,concentration'
-                call printErrMsg(option)
+                call InputKeywordUnrecognized(word, &
+                       'CONSTRAINT,CONCENTRATION,TYPE',option)
             end select 
             
             if (aq_species_constraint%constraint_type(icomp) == &
@@ -448,10 +448,11 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
             tempreal = -1.d0
             mineral_constraint%constraint_area(imnrl) = sqrt(tempreal)
             ! read units if they exist
+            internal_units = 'm^2/m^3'
             call InputReadWord(input,option,word,PETSC_TRUE)
             if (.not.InputError(input)) then
               ! convert just to ensure that the units were properly set
-              tempreal = UnitsConvertToInternal(word,option)
+              tempreal = UnitsConvertToInternal(word,internal_units,option)
               option%io_buffer = 'If mineral specific surface areas are ' // &
                 'defined through a DATASET, their units must be SI ' // &
                 '[m^2/m^3].  Unit conversion cannot be performed as ' // &
@@ -464,6 +465,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
                                  mineral_constraint%constraint_area(imnrl))
             call InputErrorMsg(input,option,'surface area',block_string)
             ! read units if they exist
+            internal_units = 'm^2/m^3'
             call InputReadWord(input,option,word,PETSC_TRUE)
             if (InputError(input)) then
               input%err_buf = trim(mineral_constraint%names(imnrl)) // &
@@ -472,7 +474,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
             else
               mineral_constraint%constraint_area(imnrl) = &
                 mineral_constraint%constraint_area(imnrl) * &
-                UnitsConvertToInternal(word,option)
+                UnitsConvertToInternal(word,internal_units,option)
             endif
           endif
         enddo  
@@ -617,8 +619,8 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
             call printErrMsg(option)
           endif
           
-          call InputReadWord(input,option,immobile_constraint%names(iimmobile), &
-                             PETSC_TRUE)
+          call InputReadWord(input,option, &
+                             immobile_constraint%names(iimmobile),PETSC_TRUE)
           call InputErrorMsg(input,option,'immobile name',block_string)
           option%io_buffer = 'Constraint Immobile: ' // &
                              trim(immobile_constraint%names(iimmobile))
@@ -645,6 +647,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           endif
 
           ! read units if they exist
+          internal_units = 'mol/m^3'
           call InputReadWord(input,option,word,PETSC_TRUE)
           if (InputError(input)) then
             input%err_buf = trim(immobile_constraint%names(iimmobile)) // &
@@ -653,14 +656,14 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
           else
             immobile_constraint%constraint_conc(iimmobile) = &
               immobile_constraint%constraint_conc(iimmobile) * &
-              UnitsConvertToInternal(word,option)
+              UnitsConvertToInternal(word,internal_units,option)
           endif
         enddo  
         
         if (iimmobile < reaction%immobile%nimmobile) then
           option%io_buffer = &
                    'Immobile lists in constraints must provide a ' // &
-                   'concentration all immobile species ' // &
+                   'concentration for all immobile species ' // &
                    '(listed under IMMOBILE card in CHEMISTRY), ' // &
                    'regardless of whether or not they are present.'
           call printErrMsg(option)        
@@ -672,9 +675,7 @@ subroutine TranConstraintRead(constraint,reaction,input,option)
         constraint%immobile_species => immobile_constraint 
         
       case default
-        option%io_buffer = 'Keyword: ' // trim(word) // &
-                 ' not recognized in transport constraint'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(word,'CONSTRAINT',option)
     end select 
   
   enddo  

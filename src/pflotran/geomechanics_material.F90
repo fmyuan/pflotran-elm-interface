@@ -9,13 +9,13 @@ module Geomechanics_Material_module
 #include "petsc/finclude/petscsys.h"  
 
   type, public :: geomech_material_property_type
-    character(len=MAXWORDLENGTH)   :: name
-    PetscInt                       :: id
-    PetscReal                      :: youngs_modulus
-    PetscReal                      :: poissons_ratio
-    PetscReal                      :: density
-    PetscReal                      :: biot_coeff
-    PetscReal                      :: thermal_exp_coeff
+    character(len=MAXWORDLENGTH) :: name
+    PetscInt :: id
+    PetscReal :: youngs_modulus
+    PetscReal :: poissons_ratio
+    PetscReal :: density
+    PetscReal :: biot_coeff
+    PetscReal :: thermal_exp_coeff
   
     type(geomech_material_property_type), pointer :: next
   end type geomech_material_property_type
@@ -84,8 +84,8 @@ subroutine GeomechanicsMaterialPropertyRead(geomech_material_property, &
   implicit none
   
   type(geomech_material_property_type) :: geomech_material_property
-  type(input_type)                     :: input
-  type(option_type)                    :: option
+  type(input_type), pointer :: input
+  type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword, word
   character(len=MAXSTRINGLENGTH) :: string
@@ -129,9 +129,8 @@ subroutine GeomechanicsMaterialPropertyRead(geomech_material_property, &
         call InputErrorMsg(input,option,'THERMAL_EXPANSION_COEFFICIENT', &
                            'GEOMECHANICS_MATERIAL_PROPERTY')
       case default
-        option%io_buffer = 'Keyword: ' // trim(keyword) // &
-          ' not recognized in geomechanics_material_property'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(keyword, &
+                                 'GEOMECHANICS_MATERIAL_PROPERTY',option)
       end select
   enddo
   
@@ -139,7 +138,8 @@ end subroutine GeomechanicsMaterialPropertyRead
 
 ! ************************************************************************** !
 
-subroutine GeomechanicsMaterialPropertyAddToList(geomech_material_property,list)
+subroutine GeomechanicsMaterialPropertyAddToList(geomech_material_property, &
+                                                 list)
   ! 
   ! Destroys a geomechanics material
   ! property
@@ -316,7 +316,8 @@ end function GeomechanicsMaterialPropGetPtrFromArray
 
 ! ************************************************************************** !
 
-recursive subroutine GeomechanicsMaterialPropertyDestroy(geomech_material_property)
+recursive subroutine GeomechanicsMaterialPropertyDestroy(&
+                                                    geomech_material_property)
   ! 
   ! Destroys a geomechanics material
   ! property

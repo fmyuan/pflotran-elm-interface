@@ -23,7 +23,7 @@ module Material_Aux_class
   PetscInt, public :: soil_compressibility_index
   PetscInt, public :: soil_reference_pressure_index
   PetscInt, public :: max_material_index
- 
+  
   type, public :: material_auxvar_type
     PetscInt :: id
     PetscReal :: volume
@@ -35,11 +35,18 @@ module Material_Aux_class
     PetscReal, pointer :: permeability(:)
     PetscReal, pointer :: sat_func_prop(:)
     PetscReal, pointer :: soil_properties(:) ! den, therm. cond., heat cap.
+    type(fracture_auxvar_type), pointer :: fracture
+
 !    procedure(SaturationFunction), nopass, pointer :: SaturationFunction
   contains
     procedure, public :: PermeabilityTensorToScalar => &
                            MaterialDiagPermTensorToScalar
   end type material_auxvar_type
+  
+  type, public :: fracture_auxvar_type
+    PetscReal, pointer :: properties(:)
+    PetscReal, pointer :: vector(:) ! < 0. 0. 0. >
+  end type fracture_auxvar_type
   
   type, public :: material_parameter_type
     PetscReal, pointer :: soil_residual_saturation(:,:)
@@ -154,6 +161,8 @@ subroutine MaterialAuxVarInit(auxvar,option)
     nullify(auxvar%permeability)
   endif
   nullify(auxvar%sat_func_prop)
+  nullify(auxvar%fracture)
+
   if (max_material_index > 0) then
     allocate(auxvar%soil_properties(max_material_index))
     ! initialize these to zero for now
@@ -272,6 +281,9 @@ function MaterialAuxVarGetValue(material_auxvar,ivar)
     case(SOIL_COMPRESSIBILITY)
       MaterialAuxVarGetValue = material_auxvar% &
                                  soil_properties(soil_compressibility_index)
+    case(SOIL_REFERENCE_PRESSURE)
+      MaterialAuxVarGetValue = material_auxvar% &
+                                 soil_properties(soil_reference_pressure_index)
   end select
   
 end function MaterialAuxVarGetValue
@@ -315,6 +327,10 @@ subroutine MaterialAuxVarSetValue(material_auxvar,ivar,value)
       material_auxvar%permeability(perm_yz_index) = value
     case(PERMEABILITY_XZ)
       material_auxvar%permeability(perm_xz_index) = value
+    case(SOIL_COMPRESSIBILITY)
+      material_auxvar%soil_properties(soil_compressibility_index) = value
+    case(SOIL_REFERENCE_PRESSURE)
+      material_auxvar%soil_properties(soil_reference_pressure_index) = value
   end select
   
 end subroutine MaterialAuxVarSetValue

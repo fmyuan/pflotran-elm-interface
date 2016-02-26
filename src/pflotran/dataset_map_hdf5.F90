@@ -14,11 +14,11 @@ module Dataset_Map_HDF5_class
     character(len=MAXSTRINGLENGTH) :: h5_dataset_map_name
     character(len=MAXSTRINGLENGTH) :: map_filename
     PetscInt, pointer :: mapping(:,:)
-    PetscInt          :: map_dims_global(2)
-    PetscInt          :: map_dims_local(2)
+    PetscInt :: map_dims_global(2)
+    PetscInt :: map_dims_local(2)
     PetscInt, pointer :: datatocell_ids(:)
     PetscInt, pointer :: cell_ids_local(:)
-    PetscBool         :: first_time
+    PetscBool :: first_time
   end type dataset_map_hdf5_type
   
   PetscInt, parameter :: MAX_NSLICE = 100
@@ -124,7 +124,7 @@ subroutine DatasetMapHDF5Read(this,input,option)
   implicit none
   
   class(dataset_map_hdf5_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword
@@ -151,9 +151,7 @@ subroutine DatasetMapHDF5Read(this,input,option)
           call InputReadWord(input,option,this%map_filename,PETSC_TRUE)
           call InputErrorMsg(input,option,'map filename','DATASET')
         case default
-          option%io_buffer = 'Keyword: ' // trim(keyword) // &
-                             ' not recognized in dataset'    
-          call printErrMsg(option)
+          call InputKeywordUnrecognized(keyword,'dataset',option)
       end select
     endif
   
@@ -218,6 +216,7 @@ subroutine DatasetMapHDF5ReadData(this,option)
   use Option_module
   use Units_module
   use Logging_module
+  use HDF5_Aux_module
   
   implicit none
   
@@ -258,7 +257,7 @@ subroutine DatasetMapHDF5ReadData(this,option)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 #endif
-  call h5fopen_f(this%filename,H5F_ACC_RDONLY_F,file_id,hdf5_err,prop_id)
+  call HDF5OpenFileReadOnly(this%filename,file_id,prop_id,option)
   call h5pclose_f(prop_id,hdf5_err)
 
   ! the dataset is actually stored in a group.  the group contains
@@ -423,6 +422,7 @@ subroutine DatasetMapHDF5ReadMap(this,option)
   use Option_module
   use Units_module
   use Logging_module
+  use HDF5_Aux_module
   
   implicit none
   
@@ -458,7 +458,7 @@ subroutine DatasetMapHDF5ReadMap(this,option)
 #ifndef SERIAL_HDF5
   call h5pset_fapl_mpio_f(prop_id,option%mycomm,MPI_INFO_NULL,hdf5_err)
 #endif
-  call h5fopen_f(this%map_filename,H5F_ACC_RDONLY_F,file_id,hdf5_err,prop_id)
+  call HDF5OpenFileReadOnly(this%map_filename,file_id,prop_id,option)
   call h5pclose_f(prop_id,hdf5_err)
 
   ! the dataset is actually stored in a group.  the group contains
@@ -605,7 +605,7 @@ subroutine DatasetMapHDF5Strip(this)
 
   implicit none
   
-  class(dataset_map_hdf5_type)  :: this
+  class(dataset_map_hdf5_type) :: this
   
   call DatasetCommonHDF5Strip(this)
   

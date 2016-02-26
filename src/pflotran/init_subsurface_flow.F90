@@ -22,7 +22,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   ! 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Option_module
   use Init_Common_module
@@ -35,12 +35,13 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   use Richards_module
   use TH_module
   use General_module
+  use TOilIms_module
   use Condition_Control_module
   use co2_sw_module, only : init_span_wagner
   
   implicit none
   
-  type(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -56,6 +57,10 @@ subroutine InitSubsurfFlowSetupRealization(realization)
       case(TH_MODE)
         call THSetup(realization)
       case(RICHARDS_MODE)
+        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
+                           patch%material_property_array, &
+                           patch%characteristic_curves_array, &
+                           realization%option)
         call RichardsSetup(realization)
       case(MPH_MODE)
         call init_span_wagner(option)      
@@ -74,6 +79,12 @@ subroutine InitSubsurfFlowSetupRealization(realization)
                            patch%characteristic_curves_array, &
                            realization%option)
         call GeneralSetup(realization)
+      case(TOIL_IMS_MODE)
+        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
+                           patch%material_property_array, &
+                           patch%characteristic_curves_array, &
+                           realization%option)
+        call TOilImsSetup(realization)
     end select
   
     ! assign initial conditionsRealizAssignFlowInitCond
@@ -99,11 +110,22 @@ subroutine InitSubsurfFlowSetupRealization(realization)
       case(FLASH2_MODE)
         call Flash2UpdateAuxVars(realization)
       case(G_MODE)
-        call GeneralUpdateAuxVars(realization,PETSC_TRUE)
+        !geh: cannot update state during initialization as the guess will be
+        !     assigned as the initial conditin if the state changes. therefore,
+        !     pass in PETSC_FALSE
+        call GeneralUpdateAuxVars(realization,PETSC_FALSE)
+      case(TOIL_IMS_MODE)
+        call TOilImsUpdateAuxVars(realization)
     end select
   else ! no flow mode specified
     if (len_trim(realization%nonuniform_velocity_filename) > 0) then
+#if defined(PETSC_HAVE_HDF5)
       call InitCommonReadVelocityField(realization)
+#else
+      write(option%io_buffer,'("PFLOTRAN must be compiled with HDF5 to ", &
+                               &"read HDF5 formatted fluxes in for transport with no flow.")')
+      call printErrMsg(option)
+#endif
     endif
   endif  
   
@@ -111,14 +133,14 @@ end subroutine InitSubsurfFlowSetupRealization
 
 ! ************************************************************************** !
 
-subroutine InitSubsurfFlowSetupSolvers(realization,solver)
+subroutine InitSubsurfFlowSetupSolvers(realization,convergence_context,solver)
   ! 
   ! Initializes material property data structres and assign them to the domain.
   ! 
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   ! 
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Init_Common_module
   
@@ -142,11 +164,11 @@ subroutine InitSubsurfFlowSetupSolvers(realization,solver)
 #include "petsc/finclude/petscsnes.h"
 #include "petsc/finclude/petscpc.h"
   
-  type(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
+  type(convergence_context_type), pointer :: convergence_context
   type(solver_type), pointer :: solver
   
   type(option_type), pointer :: option
-  type(convergence_context_type), pointer :: convergence_context
   SNESLineSearch :: linesearch
   character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
@@ -180,7 +202,8 @@ subroutine InitSubsurfFlowSetupSolvers(realization,solver)
         write(*,'(" mode = TH: p, T")')
       case(RICHARDS_MODE)
         write(*,'(" mode = Richards: p")')  
-      case(G_MODE)    
+      case(G_MODE) 
+      case(TOIL_IMS_MODE)   
     end select
   endif
 
@@ -216,63 +239,10 @@ subroutine InitSubsurfFlowSetupSolvers(realization,solver)
                                            option)
   endif
     
-#if 0
-  select case(option%iflowmode)
-    case(TH_MODE)
-      call SNESSetFunction(solver%snes,field%flow_r,THResidual, &
-                            realization,ierr);CHKERRQ(ierr)
-    case(RICHARDS_MODE)
-      call SNESSetFunction(solver%snes,field%flow_r, &
-                            RichardsResidual, &
-                            realization,ierr);CHKERRQ(ierr)
-    case(MPH_MODE)
-      call SNESSetFunction(solver%snes,field%flow_r,MphaseResidual, &
-                            realization,ierr);CHKERRQ(ierr)
-    case(IMS_MODE)
-      call SNESSetFunction(solver%snes,field%flow_r,ImmisResidual, &
-                            realization,ierr);CHKERRQ(ierr)
-    case(MIS_MODE)
-      call SNESSetFunction(solver%snes,field%flow_r,MiscibleResidual, &
-                            realization,ierr);CHKERRQ(ierr)
-    case(FLASH2_MODE)
-      call SNESSetFunction(solver%snes,field%flow_r,FLASH2Residual, &
-                            realization,ierr);CHKERRQ(ierr)
-    case(G_MODE)
-      call SNESSetFunction(solver%snes,field%flow_r,GeneralResidual, &
-                            realization,ierr);CHKERRQ(ierr)
-  end select
-#endif
-    
   if (solver%J_mat_type == MATMFFD) then
     call MatCreateSNESMF(solver%snes,solver%J,ierr);CHKERRQ(ierr)
   endif
 
-#if 0
-  select case(option%iflowmode)
-    case(TH_MODE)
-      call SNESSetJacobian(solver%snes,solver%J,solver%Jpre, &
-                            THJacobian,realization,ierr);CHKERRQ(ierr)
-    case(RICHARDS_MODE)
-      call SNESSetJacobian(solver%snes,solver%J,solver%Jpre, &
-                            RichardsJacobian,realization,ierr);CHKERRQ(ierr)
-    case(MPH_MODE)
-      call SNESSetJacobian(solver%snes,solver%J,solver%Jpre, &
-                            MPHASEJacobian,realization,ierr);CHKERRQ(ierr)
-    case(IMS_MODE)
-      call SNESSetJacobian(solver%snes,solver%J,solver%Jpre, &
-                            ImmisJacobian,realization,ierr);CHKERRQ(ierr)
-    case(MIS_MODE)
-      call SNESSetJacobian(solver%snes,solver%J,solver%Jpre, &
-                            MiscibleJacobian,realization,ierr);CHKERRQ(ierr)
-    case(FLASH2_MODE)
-      call SNESSetJacobian(solver%snes,solver%J,solver%Jpre, &
-                            FLASH2Jacobian,realization,ierr);CHKERRQ(ierr)
-    case(G_MODE)
-      call SNESSetJacobian(solver%snes,solver%J,solver%Jpre, &
-                            GeneralJacobian,realization,ierr);CHKERRQ(ierr)
-  end select
-#endif
-    
   ! by default turn off line search
   call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
   call SNESLineSearchSetType(linesearch, SNESLINESEARCHBASIC,  &
@@ -304,58 +274,12 @@ subroutine InitSubsurfFlowSetupSolvers(realization,solver)
 
   ! shell for custom convergence test.  The default SNES convergence test  
   ! is call within this function.
-  !TODO(geh): free this convergence context somewhere!
-  option%io_buffer = 'DEALLOCATE FLOW CONVERGENCE CONTEXT somewhere!!!'
   convergence_context => ConvergenceContextCreate(solver,option, &
                                                   realization%patch%grid)
   call SNESSetConvergenceTest(solver%snes,ConvergenceTest, &
                               convergence_context, &
                               PETSC_NULL_FUNCTION,ierr);CHKERRQ(ierr)
-    
  
-#if 1
-  call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
-  select case(option%iflowmode)
-    case(RICHARDS_MODE)
-      if (dabs(option%pressure_dampening_factor) > 0.d0 .or. &
-          dabs(option%saturation_change_limit) > 0.d0) then
-        call SNESLineSearchSetPreCheck(linesearch, &
-                                        RichardsCheckUpdatePre, &
-                                        realization,ierr);CHKERRQ(ierr)
-      endif
-    case(G_MODE)
-      call SNESLineSearchSetPreCheck(linesearch, &
-                                      GeneralCheckUpdatePre, &
-                                      realization,ierr);CHKERRQ(ierr)
-    case(TH_MODE)
-      if (dabs(option%pressure_dampening_factor) > 0.d0 .or. &
-          dabs(option%pressure_change_limit) > 0.d0 .or. &
-          dabs(option%temperature_change_limit) > 0.d0) then
-        call SNESLineSearchSetPreCheck(linesearch, &
-                                        THCheckUpdatePre, &
-                                        realization,ierr);CHKERRQ(ierr)
-      endif
-  end select
-    
-  if (solver%check_post_convergence) then
-    call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
-    select case(option%iflowmode)
-      case(RICHARDS_MODE)
-        call SNESLineSearchSetPostCheck(linesearch, &
-                                        RichardsCheckUpdatePost, &
-                                        realization,ierr);CHKERRQ(ierr)
-      case(G_MODE)
-        call SNESLineSearchSetPostCheck(linesearch, &
-                                        GeneralCheckUpdatePost, &
-                                        realization,ierr);CHKERRQ(ierr)
-      case(TH_MODE)
-        call SNESLineSearchSetPostCheck(linesearch, &
-                                        THCheckUpdatePost, &
-                                        realization,ierr);CHKERRQ(ierr)
-    end select
-  endif
-#endif        
-    
   call printMsg(option,"  Finished setting up FLOW SNES ")
  
 end subroutine InitSubsurfFlowSetupSolvers
@@ -370,7 +294,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   ! Date: 03/05/10, 12/04/14
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Field_module
   use Grid_module
@@ -383,7 +307,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
 #include "petsc/finclude/petscvec.h"
 #include "petsc/finclude/petscvec.h90"
   
-  type(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   character(len=MAXSTRINGLENGTH) :: filename
   
   PetscInt :: local_id, idx, offset

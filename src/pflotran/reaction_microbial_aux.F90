@@ -20,6 +20,7 @@ module Reaction_Microbial_Aux_module
     PetscInt :: itype
     character(len=MAXSTRINGLENGTH) :: reaction
     PetscReal :: rate_constant
+    PetscReal :: activation_energy
     PetscBool :: print_me
     type(database_rxn_type), pointer :: dbaserxn    
     type(monod_type), pointer :: monod
@@ -32,6 +33,7 @@ module Reaction_Microbial_Aux_module
     PetscInt :: id
     character(len=MAXWORDLENGTH) :: species_name
     PetscReal :: half_saturation_constant
+    PetscReal :: threshold_concentration
     type(monod_type), pointer :: next
   end type monod_type
 
@@ -58,6 +60,7 @@ module Reaction_Microbial_Aux_module
 
     ! microbial reactions
     PetscReal, pointer :: rate_constant(:)
+    PetscReal, pointer :: activation_energy(:)
     PetscReal, pointer :: stoich(:,:)
     PetscInt, pointer :: specid(:,:)
     PetscInt, pointer :: biomassid(:)
@@ -66,6 +69,7 @@ module Reaction_Microbial_Aux_module
     PetscInt, pointer :: inhibitionid(:,:)
     PetscInt, pointer :: monod_specid(:)
     PetscReal, pointer :: monod_K(:)
+    PetscReal, pointer :: monod_Cth(:)
     PetscInt, pointer :: inhibition_type(:)
     PetscInt, pointer :: inhibition_specid(:)
     PetscReal, pointer :: inhibition_C(:)
@@ -110,6 +114,7 @@ function MicrobialCreate()
   microbial%nrxn = 0
 
   nullify(microbial%rate_constant)
+  nullify(microbial%activation_energy)
   nullify(microbial%stoich)
   nullify(microbial%specid)
   nullify(microbial%biomassid)
@@ -118,6 +123,7 @@ function MicrobialCreate()
   nullify(microbial%inhibitionid)
   nullify(microbial%monod_specid)
   nullify(microbial%monod_K)
+  nullify(microbial%monod_Cth)
   nullify(microbial%inhibition_type)
   nullify(microbial%inhibition_specid)
   nullify(microbial%inhibition_C)
@@ -148,6 +154,7 @@ function MicrobialRxnCreate()
   microbial_rxn%itype = 0
   microbial_rxn%reaction = ''
   microbial_rxn%rate_constant = 0.d0
+  microbial_rxn%activation_energy = 0.d0
   microbial_rxn%print_me = PETSC_FALSE
   nullify(microbial_rxn%biomass)
   nullify(microbial_rxn%dbaserxn)
@@ -179,6 +186,7 @@ function MicrobialMonodCreate()
   monod%id = 0
   monod%species_name = ''
   monod%half_saturation_constant = 0.d0
+  monod%threshold_concentration = 0.d0
   nullify(monod%next)
   
   MicrobialMonodCreate => monod
@@ -452,6 +460,7 @@ subroutine MicrobialDestroy(microbial)
   nullify(microbial%microbial_rxn_list)
   
   call DeallocateArray(microbial%rate_constant)
+  call DeallocateArray(microbial%activation_energy)
   call DeallocateArray(microbial%stoich)
   call DeallocateArray(microbial%specid)
   call DeallocateArray(microbial%biomassid)
@@ -460,6 +469,7 @@ subroutine MicrobialDestroy(microbial)
   call DeallocateArray(microbial%inhibitionid)
   call DeallocateArray(microbial%monod_specid)
   call DeallocateArray(microbial%monod_K)
+  call DeallocateArray(microbial%monod_Cth)
   call DeallocateArray(microbial%inhibition_type)
   call DeallocateArray(microbial%inhibition_specid)
   call DeallocateArray(microbial%inhibition_C)

@@ -12,6 +12,9 @@ module Richards_Aux_module
 
 #include "petsc/finclude/petscsys.h"
 
+  PetscReal, public :: richards_itol_scaled_res = 1.d-5
+  PetscReal, public :: richards_itol_rel_update = UNINITIALIZED_DOUBLE
+
   type, public :: richards_auxvar_type
   
     PetscReal :: pc
@@ -34,17 +37,16 @@ module Richards_Aux_module
     PetscReal :: bc_sr1    ! Brooks Corey parameterization: sr(1)
 #endif
 
-    PetscReal :: P_min
-    PetscReal :: P_max
-    PetscReal :: coeff_for_cubic_approx(4)
-    PetscReal :: range_for_linear_approx(4)
-    PetscBool :: bcflux_default_scheme
+    ! OLD-VAR-NAMES            = NEW-VAR
+    ! ------------------------------------------------
+    ! P_min                    = vars_for_sflow(1)
+    ! P_max                    = vars_for_sflow(2)
+    ! coeff_for_cubic_approx   = vars_for_sflow(3:6)
+    ! range_for_linear_approx  = vars_for_sflow(7:10)
+    ! bcflux_default_scheme    = vars_for_sflow(11)
+    PetscReal, pointer :: vars_for_sflow(:)
 
   end type richards_auxvar_type
-  
-  type, public :: richards_parameter_type
-    PetscReal, pointer :: sir(:,:)
-  end type richards_parameter_type
   
   type, public :: richards_type
     PetscInt :: n_zero_rows
@@ -54,7 +56,6 @@ module Richards_Aux_module
     PetscBool :: auxvars_cell_pressures_up_to_date
     PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
-    type(richards_parameter_type), pointer :: richards_parameter
     type(richards_auxvar_type), pointer :: auxvars(:)
     type(richards_auxvar_type), pointer :: auxvars_bc(:)
     type(richards_auxvar_type), pointer :: auxvars_ss(:)
@@ -98,10 +99,6 @@ function RichardsAuxCreate()
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
   aux%n_zero_rows = 0
-  allocate(aux%richards_parameter)
-  ! don't allocate richards_parameter%sir quite yet, since we don't know the
-  ! number of saturation functions
-  nullify(aux%richards_parameter%sir)
   nullify(aux%zero_rows_local)
   nullify(aux%zero_rows_local_ghosted)
 #ifdef BUFFER_MATRIX
@@ -152,11 +149,12 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%bc_sr1    = 1.0d-9
 #endif
 
-  auxvar%P_min = 0.d0
-  auxvar%P_max = 0.d0
-  auxvar%coeff_for_cubic_approx(:) = 0.d0
-  auxvar%range_for_linear_approx(:) = 0.d0
-  auxvar%bcflux_default_scheme = PETSC_FALSE
+  if (option%surf_flow_on) then
+    allocate(auxvar%vars_for_sflow(11))
+    auxvar%vars_for_sflow(:) = 0.d0
+  else
+    nullify(auxvar%vars_for_sflow)
+  endif
   
 end subroutine RichardsAuxVarInit
 
@@ -199,19 +197,16 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%bc_lambda = auxvar%bc_lambda
   auxvar2%bc_sr1    = auxvar%bc_sr1
 #endif
-!
-  auxvar2%P_min = auxvar%P_min
-  auxvar2%P_max = auxvar%P_max
-  auxvar2%coeff_for_cubic_approx(:) = auxvar%coeff_for_cubic_approx(:)
-  auxvar2%range_for_linear_approx(:) = auxvar%range_for_linear_approx(:)
-  auxvar2%bcflux_default_scheme = auxvar%bcflux_default_scheme
+
+  if (option%surf_flow_on) &
+    auxvar2%vars_for_sflow(:) = auxvar%vars_for_sflow(:)
 
 end subroutine RichardsAuxVarCopy
 
 ! ************************************************************************** !
 
 subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
-                                 saturation_function,option)
+                                 characteristic_curves,option)
   ! 
   ! Computes auxiliary variables for each grid cell
   ! 
@@ -223,13 +218,13 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   use Global_Aux_module
   
   use EOS_Water_module
-  use Saturation_Function_module
+  use Characteristic_Curves_module
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
-  type(saturation_function_type) :: saturation_function
+  class(characteristic_curves_type) :: characteristic_curves
   PetscReal :: x(option%nflowdof)
   type(richards_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -244,6 +239,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dw_dp, dw_dt, hw_dp, hw_dt
   PetscReal :: pert, pw_pert, dw_kg_pert
   PetscReal :: fs, ani_A, ani_B, ani_C, ani_n, ani_coef
+  PetscReal :: dkr_Se
   PetscReal, parameter :: tol = 1.d-3
   
   global_auxvar%sat = 0.d0
@@ -279,25 +275,52 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (auxvar%pc > 0.d0) then
 
 #ifdef CLM_PFLOTRAN
-    if(auxvar%bc_alpha > 0.d0) then
-       saturation_function%alpha  = auxvar%bc_alpha
-       saturation_function%lambda = auxvar%bc_lambda
-       saturation_function%sr(1)  = auxvar%bc_sr1
-       ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-       call SatFunctionComputePolynomial(option,saturation_function)
-       call PermFunctionComputePolynomial(option,saturation_function)
-    endif
+    select type(sf => characteristic_curves%saturation_function)
+      !class is(sat_func_VG_type)
+       ! not-yet
+      class is(sat_func_BC_type)
+        sf%alpha  = auxvar%bc_alpha
+        sf%lambda = auxvar%bc_lambda
+        sf%Sr  = auxvar%bc_sr1
+        ! needs to re-calculate some extra variables for 'saturation_function', if changed above
+        call SatFunctionComputePolynomial(option,    &
+          characteristic_curves%saturation_function)
+        call PermFunctionComputePolynomial(option,   &
+          characteristic_curves%saturation_function)
+      class default
+        option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
+           ' when coupled with CLM.'
+        call printErrMsg(option)
+    end select
+
+    select type(rpf => characteristic_curves%liq_rel_perm_function)
+      !class is(rpf_Mualem_VG_liq_type)
+      class is(rpf_Burdine_BC_liq_type)
+        rpf%lambda = auxvar%bc_lambda
+        rpf%Sr  = auxvar%bc_sr1
+      class default
+        option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
+           ' when coupled with CLM.'
+        call printErrMsg(option)
+    end select
+
 #endif
 
     saturated = PETSC_FALSE
-    call SaturationFunctionCompute(auxvar%pc, &
-                                global_auxvar%sat(1),kr, &
-                                ds_dp,dkr_dp, &
-                                saturation_function, &
-                                material_auxvar%porosity, &
-                                material_auxvar%permeability(perm_xx_index), &
-                                saturated, &
-                                option)
+    call characteristic_curves%saturation_function% &
+                               Saturation(auxvar%pc, &
+                                          global_auxvar%sat(1), &
+                                          ds_dp,option)
+    ! if ds_dp is 0, we consider the cell saturated.
+    if (ds_dp < 1.d-40) then
+      saturated = PETSC_TRUE
+    else
+      call characteristic_curves%liq_rel_perm_function% &
+                       RelativePermeability(global_auxvar%sat(1), &
+                                            kr,dkr_Se,option)
+      dkr_dp = characteristic_curves%liq_rel_perm_function% &
+                                  DRelPerm_DPressure(ds_dp,dkr_Se)
+    endif
   else
     saturated = PETSC_TRUE
   endif  
@@ -395,11 +418,6 @@ subroutine RichardsAuxDestroy(aux)
   
   call DeallocateArray(aux%zero_rows_local)
   call DeallocateArray(aux%zero_rows_local_ghosted)
-  if (associated(aux%richards_parameter)) then
-    call DeallocateArray(aux%richards_parameter%sir)
-    deallocate(aux%richards_parameter)
-  endif
-  nullify(aux%richards_parameter)
 
 #ifdef BUFFER_MATRIX
   if (associated(aux%matrix_buffer)) then

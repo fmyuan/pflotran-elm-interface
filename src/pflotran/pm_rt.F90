@@ -4,7 +4,7 @@ module PM_RT_class
 !geh: using Reactive_Transport_module here fails with gfortran (internal 
 !     compiler error)
 !  use Reactive_Transport_module
-  use Realization_class
+  use Realization_Subsurface_class
   use Communicator_Base_module  
   use Option_module
   
@@ -23,15 +23,22 @@ module PM_RT_class
 #include "petsc/finclude/petscsnes.h"
 
   type, public, extends(pm_base_type) :: pm_rt_type
-    class(realization_type), pointer :: realization
+    class(realization_subsurface_type), pointer :: realization
     class(communicator_type), pointer :: comm1
     class(communicator_type), pointer :: commN
     ! local variables
     PetscBool :: steady_flow
     PetscReal :: tran_weight_t0
     PetscReal :: tran_weight_t1
+    ! these govern the size of subsequent time steps
+    PetscReal :: max_concentration_change
+    PetscReal :: max_volfrac_change
+    PetscReal :: volfrac_change_governor
+    ! for transport only
+    PetscBool :: transient_porosity
   contains
-    procedure, public :: Init => PMRTInit
+    procedure, public :: Setup => PMRTSetup
+    procedure, public :: Read => PMRTRead
     procedure, public :: PMRTSetRealization
     procedure, public :: InitializeRun => PMRTInitializeRun
     procedure, public :: FinalizeRun => PMRTFinalizeRun
@@ -47,18 +54,20 @@ module PM_RT_class
     procedure, public :: CheckUpdatePost => PMRTCheckUpdatePost
     procedure, public :: TimeCut => PMRTTimeCut
     procedure, public :: UpdateSolution => PMRTUpdateSolution1
+    procedure, public :: UpdateAuxVars => PMRTUpdateAuxVars
     procedure, public :: MaxChange => PMRTMaxChange
     procedure, public :: ComputeMassBalance => PMRTComputeMassBalance
     procedure, public :: SetTranWeights => SetTranWeights
-    procedure, public :: Checkpoint => PMRTCheckpoint
-    procedure, public :: Restart => PMRTRestart
+    procedure, public :: CheckpointBinary => PMRTCheckpointBinary
+    procedure, public :: CheckpointHDF5 => PMRTCheckpointHDF5
+    procedure, public :: RestartBinary => PMRTRestartBinary
+    procedure, public :: RestartHDF5 => PMRTRestartHDF5
     procedure, public :: Destroy => PMRTDestroy
   end type pm_rt_type
   
   type, public, extends(pm_base_header_type) :: pm_rt_header_type
-    integer*8 :: checkpoint_activity_coefs
+    PetscInt :: checkpoint_activity_coefs
   end type pm_rt_header_type  
-  PetscSizeT, parameter, private :: bagsize = 16
   
   public :: PMRTCreate
 
@@ -95,8 +104,13 @@ function PMRTCreate()
   rt_pm%steady_flow = PETSC_FALSE
   rt_pm%tran_weight_t0 = 0.d0
   rt_pm%tran_weight_t1 = 0.d0
+  rt_pm%max_concentration_change = 0.d0
+  rt_pm%max_volfrac_change = 0.d0
+  rt_pm%volfrac_change_governor = 1.d0
+  ! these flags can only be true for transport only
+  rt_pm%transient_porosity = PETSC_FALSE
 
-  call PMBaseCreate(rt_pm)
+  call PMBaseInit(rt_pm)
   rt_pm%name = 'PMRT'
   
   PMRTCreate => rt_pm
@@ -105,7 +119,57 @@ end function PMRTCreate
 
 ! ************************************************************************** !
 
-subroutine PMRTInit(this)
+subroutine PMRTRead(this,input)
+  ! 
+  ! Reads input file parameters associated with the reactive transport 
+  ! process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 01/25/16
+  !
+  use Input_Aux_module
+  use String_module
+  use Option_module
+ 
+  implicit none
+  
+  class(pm_rt_type) :: this
+  type(input_type), pointer :: input
+  
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+
+  option => this%option
+  
+  error_string = 'Reactive Transport Options'
+  
+  input%ierr = 0
+  do
+  
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+    
+    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(word)
+    
+    select case(trim(word))
+      case('GLOBAL_IMPLICIT','OPERATOR_SPLIT','OPERATOR_SPLITTING')
+      case('MAX_VOLUME_FRACTION_CHANGE')
+        call InputReadDouble(input,option,this%volfrac_change_governor)
+        call InputDefaultMsg(input,option,'maximum volume fraction change')
+      case default
+        call InputKeywordUnrecognized(word,error_string,option)
+    end select
+  enddo
+  
+end subroutine PMRTRead
+
+! ************************************************************************** !
+
+subroutine PMRTSetup(this)
   ! 
   ! Initializes variables associated with reactive transport
   ! 
@@ -125,7 +189,7 @@ subroutine PMRTInit(this)
   class(pm_rt_type) :: this
 
 #ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%Init()')
+  call printMsg(this%option,'PMRT%Setup()')
 #endif
   
 #ifndef SIMPLIFY  
@@ -141,8 +205,20 @@ subroutine PMRTInit(this)
 
   ! set the communicator
   this%comm1 => this%realization%comm1
+
+  ! only set these flags if transport only
+  if (this%option%nflowdof == 0) then
+    if (associated(this%realization%reaction)) then
+      if (this%realization%reaction%update_porosity & !.or. &
+!          this%realization%reaction%update_tortuosity .or. &
+!          this%realization%reaction%update_mnrl_surf_with_porosity &
+          ) then
+        this%transient_porosity = PETSC_TRUE
+      endif
+    endif
+  endif
   
-end subroutine PMRTInit
+end subroutine PMRTSetup
 
 ! ************************************************************************** !
 
@@ -152,12 +228,12 @@ subroutine PMRTSetRealization(this,realization)
   ! Date: 03/14/13
   ! 
 
-  use Realization_class  
+  use Realization_Subsurface_class  
 
   implicit none
   
   class(pm_rt_type) :: this
-  class(realization_type), pointer :: realization
+  class(realization_subsurface_type), pointer :: realization
 
 #ifdef PM_RT_DEBUG  
   call printMsg(this%option,'PMRT%SetRealization()')
@@ -174,6 +250,76 @@ subroutine PMRTSetRealization(this,realization)
   this%residual_vec = realization%field%tran_r
   
 end subroutine PMRTSetRealization
+
+! ************************************************************************** !
+
+recursive subroutine PMRTInitializeRun(this)
+  ! 
+  ! Initializes the time stepping
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/18/13
+  ! 
+
+  use Reactive_Transport_module, only : RTUpdateEquilibriumState, &
+                                        RTJumpStartKineticSorption
+  use Condition_Control_module
+  use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
+  use Reactive_Transport_module, only : RTUpdateAuxVars, &
+                                        RTClearActivityCoefficients
+  use Variables_module, only : POROSITY
+  use Material_Aux_class, only : POROSITY_MINERAL 
+  use Material_module, only : MaterialGetAuxVarVecLoc
+
+  implicit none
+  
+  class(pm_rt_type) :: this
+  PetscErrorCode :: ierr
+  
+#ifdef PM_RT_DEBUG  
+  call printMsg(this%option,'PMRT%InitializeRun()')
+#endif
+
+  if (this%transient_porosity) then
+    call RealizationCalcMineralPorosity(this%realization)
+    call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                 this%realization%field%work_loc, &
+                                 POROSITY,POROSITY_MINERAL)
+    call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
+                                  this%realization%field%porosity0)
+    call VecCopy(this%realization%field%porosity0, &
+                 this%realization%field%porosity_t,ierr);CHKERRQ(ierr)
+    call VecCopy(this%realization%field%porosity0, &
+                 this%realization%field%porosity_tpdt,ierr);CHKERRQ(ierr)
+  endif
+  
+  ! restart
+  if (this%option%restart_flag .and. &
+      this%option%overwrite_restart_transport) then
+    call RTClearActivityCoefficients(this%realization)
+    call CondControlAssignTranInitCond(this%realization)  
+  endif
+  
+  ! pass PETSC_FALSE to turn off update of kinetic state variables
+  call PMRTUpdateSolution2(this,PETSC_FALSE)
+  
+#if 0
+  if (this%option%jumpstart_kinetic_sorption .and. &
+      this%option%time < 1.d-40) then
+    ! only user jumpstart for a restarted simulation
+    if (.not. this%option%restart_flag) then
+      this%option%io_buffer = 'Only use JUMPSTART_KINETIC_SORPTION on a ' // &
+        'restarted simulation.  ReactionEquilibrateConstraint() will ' // &
+        'appropriately set sorbed initial concentrations for a normal ' // &
+        '(non-restarted) simulation.'
+      call printErrMsg(this%option)
+    endif
+    call RTJumpStartKineticSorption(this%realization)
+  endif
+  ! check on MAX_STEPS < 0 to quit after initialization.
+#endif  
+    
+end subroutine PMRTInitializeRun
 
 ! ************************************************************************** !
 
@@ -215,7 +361,12 @@ subroutine PMRTInitializeTimestep(this)
                                  this%realization%field,this%comm1)
     endif
     ! set densities and saturations to t
-    call GlobalWeightAuxvars(this%realization,this%tran_weight_t0)
+    call GlobalWeightAuxVars(this%realization,this%tran_weight_t0)
+  else if (this%transient_porosity) then
+    this%tran_weight_t0 = 0.d0
+    call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
+                               this%tran_weight_t0, &
+                               this%realization%field,this%comm1)
   endif
 
   call RTInitializeTimestep(this%realization)
@@ -231,6 +382,11 @@ subroutine PMRTInitializeTimestep(this)
                                  this%realization%field,this%comm1)
     endif
     call GlobalWeightAuxVars(this%realization,this%tran_weight_t1)
+  else if (this%transient_porosity) then
+    this%tran_weight_t1 = 1.d0
+    call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
+                               this%tran_weight_t1, &
+                               this%realization%field,this%comm1)
   endif
 
   call RTUpdateTransportCoefs(this%realization)
@@ -251,6 +407,7 @@ subroutine PMRTPreSolve(this)
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Global_module  
   use Material_module
+  use Data_Mediator_module
 
   implicit none
   
@@ -273,6 +430,11 @@ subroutine PMRTPreSolve(this)
                                  this%realization%field,this%comm1)
     endif
     call GlobalWeightAuxVars(this%realization,this%tran_weight_t1)
+  else if (this%transient_porosity) then
+    this%tran_weight_t1 = 1.d0
+    call MaterialWeightAuxVars(this%realization%patch%aux%Material, &
+                               this%tran_weight_t1, &
+                               this%realization%field,this%comm1)
   endif
 
   call RTUpdateTransportCoefs(this%realization)
@@ -290,6 +452,10 @@ subroutine PMRTPreSolve(this)
                  this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)
     call VecLog(this%realization%field%tran_log_xx,ierr);CHKERRQ(ierr)
   endif
+  
+  call DataMediatorUpdate(this%realization%tran_data_mediator_list, &
+                          this%realization%field%tran_mass_transfer, &
+                          this%realization%option)
   
 end subroutine PMRTPreSolve
 
@@ -320,27 +486,56 @@ subroutine PMRTFinalizeTimestep(this)
   ! 
 
   use Reactive_Transport_module, only : RTMaxChange
+  use Variables_module, only : POROSITY
+  use Material_module, only : MaterialGetAuxVarVecLoc
+  use Material_Aux_class, only : POROSITY_MINERAL 
   use Global_module
 
   implicit none
   
   class(pm_rt_type) :: this
   PetscReal :: time  
+  PetscErrorCode :: ierr
+
+  if (this%transient_porosity) then
+    call VecCopy(this%realization%field%porosity_tpdt, &
+                 this%realization%field%porosity_t,ierr);CHKERRQ(ierr)
+    call RealizationUpdatePropertiesTS(this%realization)
+    call MaterialGetAuxVarVecLoc(this%realization%patch%aux%Material, &
+                                 this%realization%field%work_loc, &
+                                 POROSITY,POROSITY_MINERAL)
+    call this%comm1%LocalToGlobal(this%realization%field%work_loc, &
+                                  this%realization%field%porosity_tpdt)
+  endif
   
-  call RTMaxChange(this%realization)
+  call RTMaxChange(this%realization,this%max_concentration_change, &
+                   this%max_volfrac_change)
   if (this%option%print_screen_flag) then
-    write(*,'("  --> max chng: dcmx= ",1pe12.4," dc/dt= ",1pe12.4, &
+    write(*,'("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
             &" [mol/s]")') &
-      this%option%dcmax,this%option%dcmax/this%option%tran_dt
+      this%max_concentration_change, &
+      this%max_concentration_change/this%option%tran_dt
+    if (this%realization%reaction%mineral%nkinmnrl > 0) then
+      write(*,'("               dvfmx= ",1pe12.4," dvf/dt= ",1pe12.4, &
+            &" [1/s]")') &
+        this%max_volfrac_change, this%max_volfrac_change/this%option%tran_dt
+    endif
   endif
 
 !fmy: begining
 #ifndef CLM_PFLOTRAN
 !the following generates a large ascii file if coupled with CLM duo to long run steps
   if (this%option%print_file_flag) then  
-    write(this%option%fid_out,'("  --> max chng: dcmx= ",1pe12.4, &
-                              &" dc/dt= ",1pe12.4," [mol/s]")') &
-      this%option%dcmax,this%option%dcmax/this%option%tran_dt
+    write(this%option%fid_out,&
+            '("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
+            &" [mol/s]")') &
+      this%max_concentration_change, &
+      this%max_concentration_change/this%option%tran_dt
+    if (this%realization%reaction%mineral%nkinmnrl > 0) then
+      write(this%option%fid_out, &
+        '("               dvfmx= ",1pe12.4," dvf/dt= ",1pe12.4," [1/s]")') &
+        this%max_volfrac_change, this%max_volfrac_change/this%option%tran_dt
+    endif
   endif
 #endif
 !fmy: ending
@@ -389,22 +584,47 @@ subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
   
-  PetscReal :: dtt
+  PetscReal :: dtt, uvf, dt_vf, dt_tfac, fac
+  PetscInt :: ifac
+  PetscReal, parameter :: pert = 1.d-20
   
 #ifdef PM_RT_DEBUG  
   call printMsg(this%option,'PMRT%UpdateTimestep()')  
 #endif
   
-  dtt = dt
-  if (num_newton_iterations <= iacceleration) then
-    if (num_newton_iterations <= size(tfac)) then
-      dtt = tfac(num_newton_iterations) * dt
+  if (this%volfrac_change_governor < 1.d0) then
+    ! with volume fraction potentially scaling the time step.
+    if (iacceleration > 0) then
+      fac = 0.5d0
+      if (num_newton_iterations >= iacceleration) then
+        fac = 0.33d0
+        uvf = 0.d0
+      else
+        uvf = this%volfrac_change_governor/(this%max_volfrac_change+pert)
+      endif
+      dtt = fac * dt * (1.d0 + uvf)
+    else
+      ifac = max(min(num_newton_iterations,size(tfac)),1)
+      dt_tfac = tfac(ifac) * dt
+
+      fac = 0.5d0
+      uvf= this%volfrac_change_governor/(this%max_volfrac_change+pert)
+      dt_vf = fac * dt * (1.d0 + uvf)
+
+      dtt = min(dt_tfac,dt_vf)
+    endif
+  else
+    ! original implementation
+    dtt = dt
+    if (num_newton_iterations <= iacceleration) then
+      if (num_newton_iterations <= size(tfac)) then
+        dtt = tfac(num_newton_iterations) * dt
+      else
+        dtt = 0.5d0 * dt
+      endif
     else
       dtt = 0.5d0 * dt
     endif
-  else
-!       dtt = 2.d0 * dt
-    dtt = 0.5d0 * dt
   endif
 
   if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
@@ -412,61 +632,8 @@ subroutine PMRTUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   ! geh: see comment above under flow stepper
   dtt = max(dtt,dt_min)
   dt = dtt
-
+  
 end subroutine PMRTUpdateTimestep
-
-! ************************************************************************** !
-
-recursive subroutine PMRTInitializeRun(this)
-  ! 
-  ! Initializes the time stepping
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 03/18/13
-  ! 
-
-  use Reactive_Transport_module, only : RTUpdateEquilibriumState, &
-                                        RTJumpStartKineticSorption
-  use Condition_Control_module
-  use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
-  use Reactive_Transport_module, only : RTUpdateAuxVars, &
-                                        RTClearActivityCoefficients
-
-  implicit none
-  
-  class(pm_rt_type) :: this
-  
-#ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%InitializeRun()')
-#endif
-  
-  ! restart
-  if (this%option%restart_flag .and. &
-      this%option%overwrite_restart_transport) then
-    call RTClearActivityCoefficients(this%realization)
-    call CondControlAssignTranInitCond(this%realization)  
-  endif
-  
-  ! pass PETSC_FALSE to turn off update of kinetic state variables
-  call PMRTUpdateSolution2(this,PETSC_FALSE)
-  
-#if 0
-  if (this%option%jumpstart_kinetic_sorption .and. &
-      this%option%time < 1.d-40) then
-    ! only user jumpstart for a restarted simulation
-    if (.not. this%option%restart_flag) then
-      this%option%io_buffer = 'Only use JUMPSTART_KINETIC_SORPTION on a ' // &
-        'restarted simulation.  ReactionEquilibrateConstraint() will ' // &
-        'appropriately set sorbed initial concentrations for a normal ' // &
-        '(non-restarted) simulation.'
-      call printErrMsg(this%option)
-    endif
-    call RTJumpStartKineticSorption(this%realization)
-  endif
-  ! check on MAX_STEPS < 0 to quit after initialization.
-#endif  
-    
-end subroutine PMRTInitializeRun
 
 ! ************************************************************************** !
 
@@ -548,61 +715,228 @@ end subroutine PMRTJacobian
 
 ! ************************************************************************** !
 
-subroutine PMRTCheckUpdatePre(this,line_search,P,dP,changed,ierr)
+subroutine PMRTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
+  ! 
+  ! In the case of the log formulation, ensures that the update
+  ! vector does not exceed a prescribed tolerance
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 03/16/09
   ! 
 
-  use Reactive_Transport_module, only : RTCheckUpdatePre
+  use Realization_Subsurface_class
+  use Grid_module
+  use Option_module
+  use Reaction_Aux_module
 
   implicit none
   
   class(pm_rt_type) :: this
   SNESLineSearch :: line_search
-  Vec :: P
-  Vec :: dP
+  Vec :: X
+  Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
   
-#ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%CheckUpdatePre()')
-#endif
+  PetscReal, pointer :: C_p(:)
+  PetscReal, pointer :: dC_p(:)
+  type(grid_type), pointer :: grid
+  type(reaction_type), pointer :: reaction
+  PetscReal :: ratio, min_ratio
+  PetscReal, parameter :: min_allowable_scale = 1.d-10
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: i, n
   
-#ifndef SIMPLIFY 
-  call RTCheckUpdatePre(line_search,P,dP,changed,this%realization,ierr)
+  grid => this%realization%patch%grid
+  reaction => this%realization%reaction
+  
+  call VecGetArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
+
+  if (reaction%use_log_formulation) then
+    ! C and dC are actually lnC and dlnC
+    dC_p = dsign(1.d0,dC_p)*min(dabs(dC_p),reaction%max_dlnC)
+    ! at this point, it does not matter whether "changed" is set to true, 
+    ! since it is not checkied in PETSc.  Thus, I don't want to spend 
+    ! time checking for changes and performing an allreduce for log 
+    ! formulation.
+  else
+    call VecGetLocalSize(X,n,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+    
+    if (Initialized(reaction%truncated_concentration)) then
+      dC_p = min(dC_p,C_p-reaction%truncated_concentration)
+    else
+      ! C^p+1 = C^p - dC^p
+      ! if dC is positive and abs(dC) larger than C
+      ! we need to scale the update
+      
+      ! compute smallest ratio of C to dC
+#if 0
+      min_ratio = 1.d0/maxval(dC_p/C_p)
+#else
+      min_ratio = 1.d20 ! large number
+      do i = 1, n
+        if (C_p(i) <= dC_p(i)) then
+          ratio = abs(C_p(i)/dC_p(i))
+          if (ratio < min_ratio) min_ratio = ratio
+        endif
+      enddo
 #endif
+      ratio = min_ratio
+    
+      ! get global minimum
+      call MPI_Allreduce(ratio,min_ratio,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                         MPI_MIN,this%realization%option%mycomm,ierr)
+                       
+      ! scale if necessary
+      if (min_ratio < 1.d0) then
+        if (min_ratio < this%realization%option%min_allowable_scale) then
+          write(string,'(es9.3)') min_ratio
+          string = 'The update of primary species concentration is being ' // &
+            'scaled by a very small value (i.e. ' // &
+            trim(adjustl(string)) // &
+            ') to prevent negative concentrations.  This value is too ' // &
+            'small and will likely cause the solver to mistakenly ' // &
+            'converge based on the infinity norm of the update vector. ' // &
+            'In this case, it is recommended that you use the ' // &
+            'LOG_FORMULATION for chemistry or truncate concentrations ' // &
+            '(TRUNCATE_CONCENTRATION <float> in CHEMISTRY block). ' // &
+            'If that does not work, please send your input deck to ' // &
+            'pflotran-dev@googlegroups.com and ask for help.'
+          this%realization%option%io_buffer = string
+          call printErrMsg(this%realization%option)
+        endif
+        ! scale by 0.99 to make the update slightly smaller than the min_ratio
+        dC_p = dC_p*min_ratio*0.99d0
+        changed = PETSC_TRUE
+      endif
+    endif
+    call VecRestoreArrayReadF90(X,C_p,ierr);CHKERRQ(ierr)
+  endif
+
+  call VecRestoreArrayF90(dX,dC_p,ierr);CHKERRQ(ierr)
 
 end subroutine PMRTCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMRTCheckUpdatePost(this,line_search,P0,dP,P1,dP_changed, &
-                                  P1_changed,ierr)
+subroutine PMRTCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+                               X1_changed,ierr)
+  ! 
+  ! Checks convergence after to update
   ! 
   ! Author: Glenn Hammond
-  ! Date: 03/14/13
+  ! Date: 03/04/14
   ! 
-
-  use Reactive_Transport_module, only : RTCheckUpdatePost
+  use Realization_Subsurface_class
+  use Grid_module
+  use Field_module
+  use Patch_module
+  use Option_module
+  use Secondary_Continuum_module, only : SecondaryRTUpdateIterate
+  use Output_EKG_module
 
   implicit none
   
   class(pm_rt_type) :: this
   SNESLineSearch :: line_search
-  Vec :: P0
-  Vec :: dP
-  Vec :: P1
-  PetscBool :: dP_changed
-  PetscBool :: P1_changed
+  Vec :: X0
+  Vec :: dX
+  Vec :: X1
+  PetscBool :: dX_changed
+  PetscBool :: X1_changed
   PetscErrorCode :: ierr
   
-#ifdef PM_RT_DEBUG  
-  call printMsg(this%option,'PMRT%CheckUpdatePost()')
-#endif
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(patch_type), pointer :: patch  
+  PetscReal, pointer :: C0_p(:)
+  PetscReal, pointer :: dC_p(:)
+  PetscReal, pointer :: r_p(:)
+  PetscReal, pointer :: accum_p(:)  
+  PetscBool :: converged_due_to_rel_update
+  PetscBool :: converged_due_to_residual
+  PetscReal :: max_relative_change
+  PetscReal :: max_scaled_residual
+  PetscInt :: converged_flag
+  PetscInt :: temp_int
+  PetscReal :: max_relative_change_by_dof(this%option%ntrandof)
+  PetscReal :: global_max_rel_change_by_dof(this%option%ntrandof)
+  PetscMPIInt :: mpi_int
+  PetscInt :: local_id, offset, idof, index
+  PetscReal :: tempreal
   
-  call RTCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
-                         P1_changed,this%realization,ierr)
+  grid => this%realization%patch%grid
+  option => this%realization%option
+  field => this%realization%field
+  patch => this%realization%patch
+  
+  dX_changed = PETSC_FALSE
+  X1_changed = PETSC_FALSE
+  
+  converged_flag = 0
+  if (option%transport%check_post_convergence) then
+    converged_due_to_rel_update = PETSC_FALSE
+    converged_due_to_residual = PETSC_FALSE
+    call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
+    max_relative_change = maxval(dabs(dC_p(:)/C0_p(:)))
+    call VecRestoreArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
+    max_scaled_residual = maxval(dabs(r_p(:)/accum_p(:)))
+    call VecRestoreArrayReadF90(field%tran_r,r_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%tran_accum,accum_p,ierr);CHKERRQ(ierr)
+    converged_due_to_rel_update = &
+      (option%transport%inf_rel_update_tol > 0.d0 .and. &
+       max_relative_change < option%transport%inf_rel_update_tol)
+    converged_due_to_residual = &
+      (option%transport%inf_scaled_res_tol  > 0.d0 .and. &
+       max_scaled_residual < option%transport%inf_scaled_res_tol)
+    if (converged_due_to_rel_update .or. converged_due_to_residual) then
+      converged_flag = 1
+    endif
+  endif
+  
+  ! get global minimum
+  call MPI_Allreduce(converged_flag,temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     MPI_MIN,this%realization%option%mycomm,ierr)
+
+  option%converged = PETSC_FALSE
+  if (temp_int == 1) then
+    option%converged = PETSC_TRUE
+  endif
+  
+  if (option%use_mc) then  
+    call SecondaryRTUpdateIterate(line_search,X0,dX,X1,dX_changed, &
+                                  X1_changed,this%realization,ierr)
+  endif
+  
+  if (this%print_ekg) then
+    call VecGetArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
+    max_relative_change_by_dof = -1.d20
+    do local_id = 1, grid%nlmax
+      offset = (local_id-1)*option%ntrandof
+      do idof = 1, option%ntrandof
+        index = idof + offset
+        tempreal = dabs(dC_p(index)/C0_p(index))
+        max_relative_change_by_dof(idof) = &
+          max(max_relative_change_by_dof(idof),tempreal)
+      enddo
+    enddo
+    call VecRestoreArrayReadF90(dX,dC_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(X0,C0_p,ierr);CHKERRQ(ierr)
+    mpi_int = option%ntrandof
+    call MPI_Allreduce(max_relative_change_by_dof,MPI_IN_PLACE,mpi_int, &
+                       MPI_DOUBLE_PRECISION,MPI_MAX,this%option%mycomm,ierr)
+    if (OptionPrintToFile(option)) then
+100 format("REACTIVE TRANSPORT  NEWTON_ITERATION ",30es16.8)
+      write(IUNIT_EKG,100) max_relative_change_by_dof(:)
+    endif    
+  endif
 
 end subroutine PMRTCheckUpdatePost
 
@@ -642,7 +976,6 @@ subroutine PMRTUpdateSolution1(this)
 
   use Reactive_Transport_module
   use Condition_module
-  use Mass_Transfer_module
 
   implicit none
   
@@ -662,7 +995,6 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
 
   use Reactive_Transport_module
   use Condition_module
-  use Mass_Transfer_module
   use Integral_Flux_module
 
   implicit none
@@ -687,9 +1019,11 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
   if (update_kinetics) &
     call RTUpdateKineticState(this%realization)
   
-  call MassTransferUpdate(this%realization%rt_mass_transfer_list, &
-                          this%realization%patch%grid, &
-                          this%realization%option)
+!TODO(geh): MassTransfer
+!geh - moved to RTPreSolve()
+!  call MassTransferUpdate(this%realization%rt_data_mediator_list, &
+!                          this%realization%patch%grid, &
+!                          this%realization%option)
   
   if (this%realization%option%compute_mass_balance_new) then
     call RTUpdateMassBalance(this%realization)
@@ -700,6 +1034,23 @@ subroutine PMRTUpdateSolution2(this, update_kinetics)
                           INTEGRATE_TRANSPORT,this%option)
 
 end subroutine PMRTUpdateSolution2     
+
+! ************************************************************************** !
+
+subroutine PMRTUpdateAuxVars(this)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 04/21/14
+
+  use Reactive_Transport_module, only : RTUpdateAuxVars
+  
+  implicit none
+  
+  class(pm_rt_type) :: this
+                                      ! cells      bcs         act. coefs.
+  call RTUpdateAuxVars(this%realization,PETSC_TRUE,PETSC_FALSE,PETSC_FALSE)
+
+end subroutine PMRTUpdateAuxVars  
 
 ! ************************************************************************** !
 
@@ -718,8 +1069,10 @@ subroutine PMRTMaxChange(this)
 #ifdef PM_RT_DEBUG  
   call printMsg(this%option,'PMRT%MaxChange()')
 #endif
-  
-  call RTMaxChange(this%realization)
+
+  print *, 'PMRTMaxChange not implemented'
+  stop
+!  call RTMaxChange(this%realization)
 
 end subroutine PMRTMaxChange
 
@@ -781,7 +1134,7 @@ end subroutine SetTranWeights
 
 ! ************************************************************************** !
 
-subroutine PMRTCheckpoint(this,viewer)
+subroutine PMRTCheckpointBinary(this,viewer)
   ! 
   ! Checkpoints flow reactive transport process model
   ! 
@@ -790,12 +1143,12 @@ subroutine PMRTCheckpoint(this,viewer)
   ! 
 
   use Option_module
-  use Realization_class
+  use Realization_Subsurface_class
   use Realization_Base_class
   use Field_module
   use Discretization_module
   use Grid_module
-  use Reactive_Transport_module, only : RTCheckpointKineticSorption  
+  use Reactive_Transport_module, only : RTCheckpointKineticSorptionBinary  
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
                                SECONDARY_ACTIVITY_COEF, &
@@ -826,7 +1179,7 @@ subroutine PMRTCheckpoint(this,viewer)
   class(pm_rt_type) :: this
   PetscErrorCode :: ierr
 
-  class(realization_type), pointer :: realization
+  class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
@@ -835,7 +1188,10 @@ subroutine PMRTCheckpoint(this,viewer)
   PetscInt :: i
 
   class(pm_rt_header_type), pointer :: header
+  type(pm_rt_header_type) :: dummy_header
+  character(len=1),pointer :: dummy_char(:)
   PetscBag :: bag
+  PetscSizeT :: bagsize
   
   realization => this%realization
   option => realization%option
@@ -844,6 +1200,8 @@ subroutine PMRTCheckpoint(this,viewer)
   grid => realization%patch%grid
   
   global_vec = 0
+
+  bagsize = size(transfer(dummy_header,dummy_char))
   
   call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
   call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
@@ -902,7 +1260,7 @@ subroutine PMRTCheckpoint(this,viewer)
     if (realization%reaction%surface_complexation%nkinmrsrfcplxrxn > 0 .and. &
         .not.option%transport%no_checkpoint_kinetic_sorption) then
       ! PETSC_TRUE flag indicates write to file
-      call RTCheckpointKineticSorption(realization,viewer,PETSC_TRUE)
+      call RTCheckpointKineticSorptionBinary(realization,viewer,PETSC_TRUE)
     endif
   endif
 
@@ -910,11 +1268,11 @@ subroutine PMRTCheckpoint(this,viewer)
     call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
   endif
   
-end subroutine PMRTCheckpoint
+end subroutine PMRTCheckpointBinary
 
 ! ************************************************************************** !
 
-subroutine PMRTRestart(this,viewer)
+subroutine PMRTRestartBinary(this,viewer)
   ! 
   ! Restarts flow reactive transport process model
   ! 
@@ -923,12 +1281,12 @@ subroutine PMRTRestart(this,viewer)
   ! 
 
   use Option_module
-  use Realization_class
+  use Realization_Subsurface_class
   use Realization_Base_class
   use Field_module
   use Discretization_module
   use Grid_module
-  use Reactive_Transport_module, only : RTCheckpointKineticSorption, &
+  use Reactive_Transport_module, only : RTCheckpointKineticSorptionBinary, &
                                         RTUpdateAuxVars
   use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
   use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
@@ -960,7 +1318,7 @@ subroutine PMRTRestart(this,viewer)
   class(pm_rt_type) :: this
   PetscErrorCode :: ierr
 
-  class(realization_type), pointer :: realization
+  class(realization_subsurface_type), pointer :: realization
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   type(discretization_type), pointer :: discretization
@@ -969,7 +1327,10 @@ subroutine PMRTRestart(this,viewer)
   PetscInt :: i
 
   class(pm_rt_header_type), pointer :: header
+  type(pm_rt_header_type) :: dummy_header
+  character(len=1),pointer :: dummy_char(:)
   PetscBag :: bag
+  PetscSizeT :: bagsize
   
   realization => this%realization
   option => realization%option
@@ -980,6 +1341,8 @@ subroutine PMRTRestart(this,viewer)
   global_vec = 0
   local_vec = 0
   
+  bagsize = size(transfer(dummy_header,dummy_char))
+
   call PetscBagCreate(this%option%mycomm, bagsize, bag, ierr);CHKERRQ(ierr)
   call PetscBagGetData(bag, header, ierr);CHKERRQ(ierr)
   call PetscBagRegisterInt(bag,header%checkpoint_activity_coefs,0, &
@@ -1035,7 +1398,7 @@ subroutine PMRTRestart(this,viewer)
       ! checkpoint file
       .not.option%transport%no_restart_kinetic_sorption) then
     ! PETSC_FALSE flag indicates read from file
-    call RTCheckpointKineticSorption(realization,viewer,PETSC_FALSE)
+    call RTCheckpointKineticSorptionBinary(realization,viewer,PETSC_FALSE)
   endif
     
   ! We are finished, so clean up.
@@ -1055,7 +1418,400 @@ subroutine PMRTRestart(this,viewer)
   ! do not update kinetics.
   call PMRTUpdateSolution2(this,PETSC_FALSE)
   
-end subroutine PMRTRestart
+end subroutine PMRTRestartBinary
+
+! ************************************************************************** !
+
+subroutine PMRTCheckpointHDF5(this, pm_grp_id)
+  ! 
+  ! Checkpoints flow reactive transport process model
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 07/30/15
+  ! 
+
+#if  !defined(PETSC_HAVE_HDF5)
+  implicit none
+  class(pm_rt_type) :: this
+  integer :: pm_grp_id
+  type(option_type) :: option
+  print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
+        'write HDF5 formatted checkpoint file. Darn.'
+  stop
+#else
+
+  use Option_module
+  use Realization_Subsurface_class
+  use Realization_Base_class
+  use Field_module
+  use Discretization_module
+  use Grid_module
+  use Reactive_Transport_module, only : RTCheckpointKineticSorptionHDF5
+  use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
+  use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
+                               SECONDARY_ACTIVITY_COEF, &
+                               MINERAL_VOLUME_FRACTION
+  use hdf5
+  use Checkpoint_module, only: CheckPointWriteIntDatasetHDF5
+  use HDF5_module, only : HDF5WriteDataSetFromVec
+
+  implicit none
+
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+
+  class(pm_rt_type) :: this
+#if defined(SCORPIO_WRITE)
+  integer :: pm_grp_id
+#else
+  integer(HID_T) :: pm_grp_id
+#endif
+
+#if defined(SCORPIO_WRITE)
+  integer, pointer :: dims(:)
+  integer, pointer :: start(:)
+  integer, pointer :: stride(:)
+  integer, pointer :: length(:)
+#else
+  integer(HSIZE_T), pointer :: dims(:)
+  integer(HSIZE_T), pointer :: start(:)
+  integer(HSIZE_T), pointer :: stride(:)
+  integer(HSIZE_T), pointer :: length(:)
+#endif
+
+  PetscMPIInt :: dataset_rank
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  PetscInt, pointer :: int_array(:)
+
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(discretization_type), pointer :: discretization
+  type(grid_type), pointer :: grid
+  Vec :: global_vec
+  Vec :: natural_vec
+  PetscInt :: i
+  PetscErrorCode :: ierr
+
+  realization => this%realization
+  option => realization%option
+  field => realization%field
+  discretization => realization%discretization
+  grid => realization%patch%grid
+
+  allocate(start(1))
+  allocate(dims(1))
+  allocate(length(1))
+  allocate(stride(1))
+  allocate(int_array(1))
+
+  dataset_rank = 1
+  dims(1) = ONE_INTEGER
+  start(1) = 0
+  length(1) = ONE_INTEGER
+  stride(1) = ONE_INTEGER
+
+  if (associated(realization%reaction)) then
+    if (realization%reaction%checkpoint_activity_coefs .and. &
+        realization%reaction%act_coef_update_frequency /= &
+        ACT_COEF_FREQUENCY_OFF) then
+      int_array(1) = ONE_INTEGER
+    else
+      int_array(1) = ZERO_INTEGER
+    endif
+  else
+    int_array(1) = ZERO_INTEGER
+  endif
+
+  dataset_name = "Checkpoint_Activity_Coefs" // CHAR(0)
+  call CheckPointWriteIntDatasetHDF5(pm_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+
+  dataset_name = "NDOF" // CHAR(0)
+  int_array(1) = option%ntrandof
+  call CheckPointWriteIntDatasetHDF5(pm_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+
+  !geh: %ndof should be pushed down to the base class, but this is not possible
+  !     as long as option%ntrandof is used.
+
+  if (option%ntrandof > 0) then
+
+    call DiscretizationCreateVector(realization%discretization, NTRANDOF, &
+                                     natural_vec, NATURAL, option)
+    call DiscretizationGlobalToNatural(realization%discretization, field%tran_xx, &
+                                        natural_vec, NTRANDOF)
+    dataset_name = "Primary_Variable" // CHAR(0)
+    call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
+           pm_grp_id, H5T_NATIVE_DOUBLE)
+    call VecDestroy(natural_vec, ierr); CHKERRQ(ierr)
+
+    ! create a global vec for writing below
+    call DiscretizationCreateVector(realization%discretization,ONEDOF, &
+                                      global_vec,GLOBAL,option)
+    call DiscretizationCreateVector(realization%discretization, ONEDOF, &
+                                     natural_vec, NATURAL, option)
+
+    if (realization%reaction%checkpoint_activity_coefs .and. &
+        realization%reaction%act_coef_update_frequency /= &
+        ACT_COEF_FREQUENCY_OFF) then
+
+      do i = 1, realization%reaction%naqcomp
+        call RealizationGetVariable(realization,global_vec, &
+                                    PRIMARY_ACTIVITY_COEF,i)
+        call DiscretizationGlobalToNatural(realization%discretization, global_vec, &
+                                        natural_vec, ONEDOF)
+        write(dataset_name,*) i
+        dataset_name = 'Aq_comp_' // trim(adjustl(dataset_name))
+        call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
+           pm_grp_id, H5T_NATIVE_DOUBLE)
+      enddo
+
+      do i = 1, realization%reaction%neqcplx
+        call RealizationGetVariable(realization,global_vec, &
+                                   SECONDARY_ACTIVITY_COEF,i)
+        call DiscretizationGlobalToNatural(realization%discretization, global_vec, &
+                                        natural_vec, ONEDOF)
+        write(dataset_name,*) i
+        dataset_name = 'Eq_cplx_' // trim(adjustl(dataset_name))
+        call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
+           pm_grp_id, H5T_NATIVE_DOUBLE)
+      enddo
+    endif
+
+    ! mineral volume fractions for kinetic minerals
+    if (realization%reaction%mineral%nkinmnrl > 0) then
+      do i = 1, realization%reaction%mineral%nkinmnrl
+        call RealizationGetVariable(realization,global_vec, &
+                                   MINERAL_VOLUME_FRACTION,i)
+        call DiscretizationGlobalToNatural(realization%discretization, global_vec, &
+                                        natural_vec, ONEDOF)
+        write(dataset_name,*) i
+        dataset_name = 'Kinetic_mineral_' // trim(adjustl(dataset_name))
+        call HDF5WriteDataSetFromVec(dataset_name, option, natural_vec, &
+           pm_grp_id, H5T_NATIVE_DOUBLE)
+      enddo
+    endif
+
+    if (realization%reaction%surface_complexation%nkinmrsrfcplxrxn > 0 .and. &
+        .not.option%transport%no_checkpoint_kinetic_sorption) then
+      ! PETSC_TRUE flag indicates write to file
+      call RTCheckpointKineticSorptionHDF5(realization, pm_grp_id, PETSC_TRUE)
+    endif
+
+    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
+
+   endif
+#endif
+
+end subroutine PMRTCheckpointHDF5
+
+! ************************************************************************** !
+
+subroutine PMRTRestartHDF5(this, pm_grp_id)
+  ! 
+  ! Checkpoints flow reactive transport process model
+  ! 
+  ! Author: Gautam Bisht
+  ! Date: 07/30/15
+  ! 
+
+#if  !defined(PETSC_HAVE_HDF5)
+  implicit none
+  class(pm_rt_type) :: this
+  integer :: pm_grp_id
+  type(option_type) :: option
+  print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
+        'write HDF5 formatted checkpoint file. Darn.'
+  stop
+#else
+
+  use Option_module
+  use Realization_Subsurface_class
+  use Realization_Base_class
+  use Field_module
+  use Discretization_module
+  use Grid_module
+  use Reactive_Transport_module, only : RTCheckpointKineticSorptionHDF5, &
+                                        RTUpdateAuxVars
+  use Reaction_Aux_module, only : ACT_COEF_FREQUENCY_OFF
+  use Variables_module, only : PRIMARY_ACTIVITY_COEF, &
+                               SECONDARY_ACTIVITY_COEF, &
+                               MINERAL_VOLUME_FRACTION
+  use hdf5
+  use Checkpoint_module, only: CheckPointReadIntDatasetHDF5
+  use HDF5_module, only : HDF5ReadDataSetInVec
+
+  implicit none
+
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+
+  class(pm_rt_type) :: this
+#if defined(SCORPIO_WRITE)
+  integer :: pm_grp_id
+#else
+  integer(HID_T) :: pm_grp_id
+#endif
+
+#if defined(SCORPIO_WRITE)
+  integer, pointer :: dims(:)
+  integer, pointer :: start(:)
+  integer, pointer :: stride(:)
+  integer, pointer :: length(:)
+#else
+  integer(HSIZE_T), pointer :: dims(:)
+  integer(HSIZE_T), pointer :: start(:)
+  integer(HSIZE_T), pointer :: stride(:)
+  integer(HSIZE_T), pointer :: length(:)
+#endif
+
+  PetscMPIInt :: dataset_rank
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  PetscInt, pointer :: int_array(:)
+
+  class(realization_subsurface_type), pointer :: realization
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(discretization_type), pointer :: discretization
+  type(grid_type), pointer :: grid
+  Vec :: local_vec
+  Vec :: global_vec
+  Vec :: natural_vec
+  PetscInt :: i
+  PetscInt :: checkpoint_activity_coefs
+  PetscErrorCode :: ierr
+
+  realization => this%realization
+  option => realization%option
+  field => realization%field
+  discretization => realization%discretization
+  grid => realization%patch%grid
+
+  allocate(start(1))
+  allocate(dims(1))
+  allocate(length(1))
+  allocate(stride(1))
+  allocate(int_array(1))
+
+  dataset_rank = 1
+  dims(1) = ONE_INTEGER
+  start(1) = 0
+  length(1) = ONE_INTEGER
+  stride(1) = ONE_INTEGER
+
+  dataset_name = "Checkpoint_Activity_Coefs" // CHAR(0)
+  call CheckPointReadIntDatasetHDF5(pm_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+  checkpoint_activity_coefs = int_array(1)
+  
+  dataset_name = "NDOF" // CHAR(0)
+  int_array(1) = option%ntrandof
+  call CheckPointReadIntDatasetHDF5(pm_grp_id, dataset_name, dataset_rank, &
+                                    dims, start, length, stride, int_array, option)
+  option%ntrandof = int_array(1)
+  
+  !geh: %ndof should be pushed down to the base class, but this is not possible
+  !     as long as option%ntrandof is used.
+
+  if (option%ntrandof > 0) then
+
+    call DiscretizationCreateVector(discretization, NTRANDOF, &
+                                     natural_vec, NATURAL, option)
+    dataset_name = "Primary_Variable" // CHAR(0)
+    call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
+                             pm_grp_id, H5T_NATIVE_DOUBLE)
+    call DiscretizationNaturalToGlobal(discretization, natural_vec, field%tran_xx, &
+                                       NTRANDOF)
+    call DiscretizationGlobalToLocal(discretization,field%tran_xx, &
+                                    field%tran_xx_loc,NTRANDOF)
+    call VecCopy(field%tran_xx,field%tran_yy,ierr);CHKERRQ(ierr)
+    call VecDestroy(natural_vec, ierr); CHKERRQ(ierr)
+
+    ! create a global vec for reading
+    call DiscretizationCreateVector(discretization,ONEDOF, &
+                                    global_vec,GLOBAL,option)
+    call DiscretizationCreateVector(discretization, ONEDOF, &
+                                    natural_vec, NATURAL, option)
+    call DiscretizationCreateVector(discretization,ONEDOF,local_vec, &
+                                    LOCAL,option)
+
+    if (checkpoint_activity_coefs == ONE_INTEGER) then
+
+      do i = 1, realization%reaction%naqcomp
+        write(dataset_name,*) i
+        dataset_name = 'Aq_comp_' // trim(adjustl(dataset_name))
+        call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
+           pm_grp_id, H5T_NATIVE_DOUBLE)
+
+        call DiscretizationNaturalToGlobal(discretization, natural_vec, &
+                                           global_vec, ONEDOF)
+        call DiscretizationGlobalToLocal(discretization, global_vec, &
+                                         local_vec, ONEDOF)
+        call RealizationSetVariable(realization, local_vec, LOCAL, &
+                                    PRIMARY_ACTIVITY_COEF,i)
+      enddo
+
+      do i = 1, realization%reaction%neqcplx
+        write(dataset_name,*) i
+        dataset_name = 'Eq_cplx_' // trim(adjustl(dataset_name))
+        call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
+           pm_grp_id, H5T_NATIVE_DOUBLE)
+
+        call DiscretizationNaturalToGlobal(discretization, natural_vec, &
+                                           global_vec, ONEDOF)
+        call DiscretizationGlobalToLocal(discretization, global_vec, &
+                                         local_vec, ONEDOF)
+        call RealizationSetVariable(realization, local_vec, LOCAL, &
+                                   SECONDARY_ACTIVITY_COEF, i)
+      enddo
+    endif
+
+    ! mineral volume fractions for kinetic minerals
+    if (realization%reaction%mineral%nkinmnrl > 0) then
+      do i = 1, realization%reaction%mineral%nkinmnrl
+        write(dataset_name,*) i
+        dataset_name = 'Kinetic_mineral_' // trim(adjustl(dataset_name))
+        call HDF5ReadDataSetInVec(dataset_name, option, natural_vec, &
+           pm_grp_id, H5T_NATIVE_DOUBLE)
+
+        call DiscretizationNaturalToGlobal(discretization, natural_vec, &
+                                           global_vec, ONEDOF)
+        call DiscretizationGlobalToLocal(discretization, global_vec, &
+                                         local_vec, ONEDOF)
+        call RealizationSetVariable(realization, local_vec, LOCAL, &
+                                   MINERAL_VOLUME_FRACTION,i)
+      enddo
+    endif
+
+    if (realization%reaction%surface_complexation%nkinmrsrfcplxrxn > 0 .and. &
+        .not.option%transport%no_checkpoint_kinetic_sorption) then
+      ! PETSC_TRUE flag indicates write to file
+      call RTCheckpointKineticSorptionHDF5(realization, pm_grp_id, PETSC_TRUE)
+    endif
+
+    call VecDestroy(global_vec,ierr);CHKERRQ(ierr)
+    call VecDestroy(natural_vec,ierr);CHKERRQ(ierr)
+
+  endif
+
+  if (realization%reaction%use_full_geochemistry) then
+                                     ! cells     bcs        act coefs.
+    call RTUpdateAuxVars(realization,PETSC_FALSE,PETSC_TRUE,PETSC_FALSE)
+  endif
+  ! do not update kinetics.
+  call PMRTUpdateSolution2(this,PETSC_FALSE)
+
+  deallocate(start)
+  deallocate(dims)
+  deallocate(length)
+  deallocate(stride)
+  deallocate(int_array)
+
+#endif
+
+end subroutine PMRTRestartHDF5
 
 ! ************************************************************************** !
 

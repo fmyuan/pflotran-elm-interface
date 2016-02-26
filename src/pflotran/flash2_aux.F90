@@ -393,7 +393,8 @@ subroutine Flash2AuxVarCompute_NINC(x,auxvar,global_auxvar, &
 ! **************  Gas phase properties ********************
     auxvar%avgmw(2) = auxvar%xmol(3)*FMWH2O + auxvar%xmol(4)*FMWCO2
     pw = p
-    call EOSWaterDensityEnthalpy(t,pw,dw_kg,dw_mol,hw,ierr)
+    call EOSWaterDensity(t,pw,dw_kg,dw_mol,ierr)
+    call EOSWaterEnthalpy(t,pw,hw,ierr)
     hw = hw * option%scale ! J/kmol -> whatever units
     auxvar%den(2) = 1.D0/(auxvar%xmol(4)/dg + auxvar%xmol(3)/dw_mol)
     auxvar%h(2) = hg  
@@ -407,7 +408,7 @@ subroutine Flash2AuxVarCompute_NINC(x,auxvar,global_auxvar, &
 !       fluid_properties%diff_base(2)
 
 !  z factor    
-    auxvar%zco2=auxvar%den(2)/(p/IDEAL_GAS_CONST/(t+273.15D0)*1D-3)
+    auxvar%zco2=auxvar%den(2)/(p/IDEAL_GAS_CONSTANT/(t+273.15D0)*1D-3)
 
  !***************  Liquid phase properties **************************
  

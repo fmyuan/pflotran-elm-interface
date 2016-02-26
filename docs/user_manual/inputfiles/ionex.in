@@ -1,14 +1,15 @@
-#Description: 3D 5-spot copper leaching problem
- 
-# == debugging ================================================================
-#DEBUG
-#MATVIEW_JACOBIAN
-#VECVIEW_RESIDUAL
-#VECVIEW_SOLUTION
-#/
+#Description: 1D ion exchange problem
 
-# == mode =====================================================================
-#MODE RICHARDS
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+  /
+END
+
+SUBSURFACE
 
 # m/s
 UNIFORM_VELOCITY 5.69333e-4 0.d0 0.d0
@@ -52,22 +53,21 @@ CO2(g)
 MINERALS
 Halite
 /
-#
+
 MINERAL_KINETICS
 Halite
 RATE_CONSTANT 1.e-30
 /
 /
 SORPTION
-ION_EXCHANGE_RXN
-MINERAL Halite
-#CEC 68.676  ! mol/m^3
-CEC 71.004
-CATIONS
-Na+   7.94328
-Ca++  1.
-Mg++  1.44544
-/
+  ION_EXCHANGE_RXN
+# MINERAL Halite
+  CEC 71.004  ! mol/m^3
+  CATIONS
+    Ca++   1.0 REFERENCE
+    Na+    0.125893
+    Mg++   0.691831
+  /
 /
 /
 DATABASE /Users/lichtner/projects/parallel/repository/pflotran/database/hanford.dat
@@ -76,6 +76,8 @@ ACTIVITY_COEFFICIENTS ! NEWTON_ITERATION
 MOLAL
 OUTPUT
 All
+TOTAL
+FREE_ION
 /
 /
 
@@ -278,7 +280,6 @@ CONSTRAINT_LIST
 /
 
 # == couplers =================================================================
-
 INITIAL_CONDITION Initial
 #FLOW_CONDITION Initial
 TRANSPORT_CONDITION Initial
@@ -358,3 +359,5 @@ Cl-           3.d-4   Z
 Tracer        9.4d-3  T
 /
 /
+
+END_SUBSURFACE

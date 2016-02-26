@@ -19,7 +19,9 @@ module Option_module
     type(transport_option_type), pointer :: transport
   
     PetscInt :: id                         ! id of realization
-  
+    PetscInt :: successful_exit_code       ! code passed out of PFLOTRAN 
+                                           ! indicating successful completion 
+                                           ! of simulation
     PetscMPIInt :: global_comm             ! MPI_COMM_WORLD
     PetscMPIInt :: global_rank             ! rank in MPI_COMM_WORLD
     PetscMPIInt :: global_commsize         ! size of MPI_COMM_WORLD
@@ -46,7 +48,6 @@ module Option_module
   
     PetscInt :: fid_out
     
-    character(len=MAXWORDLENGTH) :: simulation_mode
     ! defines the mode (e.g. mph, richards, vadose, etc.
     character(len=MAXWORDLENGTH) :: flowmode
     PetscInt :: iflowmode
@@ -56,6 +57,7 @@ module Option_module
     PetscInt :: nphase
     PetscInt :: liquid_phase
     PetscInt :: gas_phase
+    PetscInt :: oil_phase
     PetscInt :: nflowdof
     PetscInt :: nflowspec
     PetscInt :: nmechdof
@@ -74,10 +76,11 @@ module Option_module
     character(len=MAXSTRINGLENGTH) :: surf_initialize_flow_filename
     character(len=MAXSTRINGLENGTH) :: surf_restart_filename
 
-    PetscInt  :: ngeomechdof
-    PetscInt  :: n_stress_strain_dof
+    PetscBool :: geomech_on
+    PetscInt :: ngeomechdof
+    PetscInt :: n_stress_strain_dof
     PetscReal :: geomech_time
-    PetscInt  :: geomech_subsurf_coupling
+    PetscInt :: geomech_subsurf_coupling
     PetscReal :: geomech_gravity(3)
     PetscBool :: sec_vars_update
     PetscInt :: air_pressure_id
@@ -86,12 +89,11 @@ module Option_module
     PetscInt :: saturation_pressure_id 
     PetscInt :: water_id  ! index of water component dof
     PetscInt :: air_id  ! index of air component dof
+    PetscInt :: oil_id  ! index of oil component dof
     PetscInt :: energy_id  ! index of energy dof
 
     PetscInt :: ntrandof
   
-    PetscBool :: variables_swapped
-    
     PetscInt :: iflag
     PetscInt :: status
     !geh: remove once legacy code is gone.
@@ -127,10 +129,6 @@ module Option_module
     PetscBool :: match_waypoint
     PetscReal :: refactor_dt
   
-      ! Basically our target number of newton iterations per time step.
-    PetscReal :: dpmxe,dtmpmxe,dsmxe,dcmxe !maximum allowed changes in field vars.
-    PetscReal :: dpmax,dtmpmax,dsmax,dcmax
-
     PetscReal :: gravity(3)
     
     PetscReal :: scale
@@ -145,10 +143,6 @@ module Option_module
     PetscReal :: reference_porosity
     PetscReal :: reference_saturation
     
-    PetscReal :: pressure_dampening_factor
-    PetscReal :: saturation_change_limit
-    PetscReal :: pressure_change_limit
-    PetscReal :: temperature_change_limit
     PetscBool :: converged
     
     PetscReal :: infnorm_res_sec  ! inf. norm of secondary continuum rt residual
@@ -164,8 +158,6 @@ module Option_module
     PetscReal :: restart_time
     character(len=MAXSTRINGLENGTH) :: restart_filename
     character(len=MAXSTRINGLENGTH) :: input_filename
-    PetscBool :: checkpoint_flag
-    PetscInt :: checkpoint_frequency
     
     PetscLogDouble :: start_time
     PetscBool :: wallclock_stop_flag
@@ -208,8 +200,14 @@ module Option_module
     PetscInt :: rel_perm_aveg
     PetscBool :: first_step_after_restart
 
-    ! value of a cutoff for Manning's velocity
+    ! value of a cutoff for Manning's/Infiltration velocity
     PetscReal :: max_manning_velocity
+    PetscReal :: max_infiltration_velocity
+
+    ! when the scaling factor is too small, stop in reactive transport 
+    PetscReal :: min_allowable_scale
+
+    PetscBool :: print_ekg
 
 #ifdef CLM_PFLOTRAN
     PetscBool :: mapping_files
@@ -333,6 +331,7 @@ subroutine OptionInitAll(option)
   call OptionTransportInitAll(option%transport)
   
   option%id = 0
+  option%successful_exit_code = 0
 
   option%global_comm = 0
   option%global_rank = 0
@@ -366,7 +365,6 @@ subroutine OptionInitAll(option)
 
   option%out_of_table = PETSC_FALSE
 
-  option%simulation_mode = 'SUBSURFACE'
   option%subsurface_simulation_type = SUBSURFACE_SIM_TYPE
  
   option%rel_perm_aveg = UPWIND
@@ -431,6 +429,7 @@ subroutine OptionInitRealization(option)
   option%surf_restart_flag = PETSC_FALSE
   option%surf_restart_time = UNINITIALIZED_DOUBLE
 
+  option%geomech_on = PETSC_FALSE
   option%ngeomechdof = 0
   option%n_stress_strain_dof = 0
   option%geomech_time = 0.d0
@@ -469,10 +468,6 @@ subroutine OptionInitRealization(option)
   option%reference_porosity = 0.25d0
   option%reference_saturation = 1.d0
   
-  option%pressure_dampening_factor = 0.d0
-  option%saturation_change_limit = 0.d0
-  option%pressure_change_limit = 0.d0
-  option%temperature_change_limit = 0.d0
   option%converged = PETSC_FALSE
   
   option%infnorm_res_sec = 0.d0
@@ -486,16 +481,6 @@ subroutine OptionInitRealization(option)
 
   option%gravity(:) = 0.d0
   option%gravity(3) = -9.8068d0    ! m/s^2
-
-  option%dpmxe = 5.d5
-  option%dtmpmxe = 5.d0
-  option%dsmxe = 0.5d0
-  option%dcmxe = 1.d0
-
-  option%dpmax = 0.d0
-  option%dtmpmax = 0.d0
-  option%dsmax = 0.d0
-  option%dcmax = 0.d0
 
   !physical constants and defult variables
 !  option%difaq = 1.d-9 ! m^2/s read from input file
@@ -511,8 +496,6 @@ subroutine OptionInitRealization(option)
   option%restart_flag = PETSC_FALSE
   option%restart_filename = ""
   option%restart_time = UNINITIALIZED_DOUBLE
-  option%checkpoint_flag = PETSC_FALSE
-  option%checkpoint_frequency = huge(option%checkpoint_frequency)
   
   option%start_time = 0.d0
   option%wallclock_stop_flag = PETSC_FALSE
@@ -540,8 +523,6 @@ subroutine OptionInitRealization(option)
   option%overwrite_restart_transport = PETSC_FALSE
   option%overwrite_restart_flow = PETSC_FALSE
 
-  option%flow_time = 0.d0
-  option%tran_time = 0.d0
   option%time = 0.d0
   option%flow_dt = 0.d0
   option%tran_dt = 0.d0
@@ -567,13 +548,18 @@ subroutine OptionInitRealization(option)
   option%use_matrix_buffer = PETSC_FALSE
   option%status = PROCEED 
   option%force_newton_iteration = PETSC_FALSE
-  option%variables_swapped = PETSC_FALSE
   option%print_explicit_primal_grid = PETSC_FALSE
   option%print_explicit_dual_grid = PETSC_FALSE  
   option%secondary_continuum_solver = 1
 
   ! initially set to a large value to effectively disable
   option%max_manning_velocity = 1.d20
+  option%max_infiltration_velocity = 1.d20
+  
+  ! when the scaling factor is too small, stop in reactive transport 
+  option%min_allowable_scale = 1.0d-10
+
+  option%print_ekg = PETSC_FALSE
   
 end subroutine OptionInitRealization
 
@@ -608,12 +594,6 @@ subroutine OptionCheckCommandLine(option)
   call PetscOptionsGetString(PETSC_NULL_CHARACTER, '-restart', &
                              option%restart_filename, &
                              option%restart_flag, ierr);CHKERRQ(ierr)
-  call PetscOptionsGetInt(PETSC_NULL_CHARACTER, '-chkptfreq', &
-                          option%checkpoint_frequency, &
-                          option%checkpoint_flag, ierr);CHKERRQ(ierr)
-  call PetscOptionsGetReal(PETSC_NULL_CHARACTER, '-max_manning_velocity', &
-                           option%max_manning_velocity, &
-                           option_found, ierr);CHKERRQ(ierr)
   ! check on possible modes                                                     
   option_found = PETSC_FALSE
   call PetscOptionsHasName(PETSC_NULL_CHARACTER, "-use_richards", &
@@ -673,8 +653,9 @@ subroutine printErrMsg2(option,string)
   if (OptionPrintToScreen(option)) then
     print *
     print *, 'ERROR: ' // trim(string)
+    print *
     print *, 'Stopping!'
-  endif
+  endif    
   call MPI_Barrier(option%mycomm,ierr)
   call PetscInitialized(petsc_initialized, ierr);CHKERRQ(ierr)
   if (petsc_initialized) then
@@ -723,7 +704,8 @@ subroutine printErrMsgByRank2(option,string)
   
   write(word,*) option%myrank
   print *
-  print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(option%io_buffer)
+  print *, 'ERROR(' // trim(adjustl(word)) // '): ' // trim(string)
+  print *
   print *, 'Stopping!'
   stop
   
@@ -875,7 +857,7 @@ subroutine printMsgByRank2(option,string)
   character(len=MAXWORDLENGTH) :: word
   
   write(word,*) option%myrank
-  print *, '(' // trim(adjustl(word)) // '): ' // trim(option%io_buffer)
+  print *, '(' // trim(adjustl(word)) // '): ' // trim(string)
   
 end subroutine printMsgByRank2
 
@@ -1147,6 +1129,8 @@ subroutine OptionBeginTiming(option)
   ! Date: 06/07/13
   ! 
 
+  use Logging_module
+  
   implicit none
   
 #include "petsc/finclude/petsclog.h"
@@ -1171,6 +1155,8 @@ subroutine OptionEndTiming(option)
   ! Date: 06/07/13
   ! 
 
+  use Logging_module
+  
   implicit none
   
 #include "petsc/finclude/petsclog.h"
@@ -1298,6 +1284,7 @@ subroutine OptionFinalize(option)
   
   type(option_type), pointer :: option
   
+  PetscInt :: iflag
   PetscErrorCode :: ierr
   
   call LoggingDestroy()
@@ -1305,10 +1292,11 @@ subroutine OptionFinalize(option)
   ! list any PETSc objects that have not been freed - for debugging
   call PetscOptionsSetValue('-objects_left','yes',ierr);CHKERRQ(ierr)
   call MPI_Barrier(option%global_comm,ierr)
+  iflag = option%successful_exit_code
   call OptionDestroy(option)
   call PetscFinalize(ierr);CHKERRQ(ierr)
   call MPI_Finalize(ierr)
-  call exit(86)
+  call exit(iflag)
   
 end subroutine OptionFinalize
 

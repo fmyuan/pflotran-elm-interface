@@ -43,7 +43,7 @@ subroutine MineralRead(mineral,input,option)
   implicit none
   
   type(mineral_type) :: mineral
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   type(mineral_rxn_type), pointer :: cur_mineral, prev_mineral
@@ -91,7 +91,7 @@ subroutine MineralReadKinetics(mineral,input,option)
   implicit none
   
   type(mineral_type) :: mineral
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXSTRINGLENGTH) :: string
@@ -99,6 +99,7 @@ subroutine MineralReadKinetics(mineral,input,option)
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: name
   character(len=MAXWORDLENGTH) :: card
+  character(len=MAXWORDLENGTH) :: internal_units
   
   type(mineral_rxn_type), pointer :: cur_mineral
   type(transition_state_rxn_type), pointer :: tstrxn, cur_tstrxn
@@ -155,12 +156,14 @@ subroutine MineralReadKinetics(mineral,input,option)
               endif
               call InputErrorMsg(input,option,'rate',error_string)
               ! read units if they exist
+              internal_units = 'mol/m^2-sec'
               call InputReadWord(input,option,word,PETSC_TRUE)
               if (InputError(input)) then
                 input%err_buf = trim(cur_mineral%name) // ' RATE UNITS'
                 call InputDefaultMsg(input,option)
               else
-                tstrxn%rate = tstrxn%rate * UnitsConvertToInternal(word,option)
+                tstrxn%rate = tstrxn%rate * &
+                  UnitsConvertToInternal(word,internal_units,option)
               endif
             case('ACTIVATION_ENERGY')
 !             read activation energy for Arrhenius law
@@ -175,10 +178,10 @@ subroutine MineralReadKinetics(mineral,input,option)
 !             reads exponent on affinity term
               call InputReadDouble(input,option,tstrxn%affinity_factor_beta)
               call InputErrorMsg(input,option,'affinity power',error_string)
-            case('TEMPKINS_CONSTANT')
+            case('TEMKIN_CONSTANT')
 !             reads exponent on affinity term
               call InputReadDouble(input,option,tstrxn%affinity_factor_sigma)
-              call InputErrorMsg(input,option,"Tempkin's constant", &
+              call InputErrorMsg(input,option,"Temkin's constant", &
                                  error_string)
             case('SURFACE_AREA_POROSITY_POWER')
               call InputReadDouble(input,option,tstrxn%surf_area_porosity_pwr)
@@ -234,6 +237,7 @@ subroutine MineralReadKinetics(mineral,input,option)
                       prefactor%rate = 10.d0**prefactor%rate
                     endif
                     ! read units if they exist
+                    internal_units = 'mol/m^2-sec'
                     call InputReadWord(input,option,word,PETSC_TRUE)
                     if (InputError(input)) then
                       input%err_buf = trim(cur_mineral%name) // &
@@ -241,16 +245,19 @@ subroutine MineralReadKinetics(mineral,input,option)
                       call InputDefaultMsg(input,option)
                     else
                       prefactor%rate = prefactor%rate * &
-                                       UnitsConvertToInternal(word,option)
+                        UnitsConvertToInternal(word,internal_units,option)
                     endif
                   case('ACTIVATION_ENERGY')
                     ! read activation energy for Arrhenius law
-                    call InputReadDouble(input,option,prefactor%activation_energy)
+                    call InputReadDouble(input,option, &
+                                         prefactor%activation_energy)
                     call InputErrorMsg(input,option,'activation',error_string)
                   case('PREFACTOR_SPECIES')
-                    error_string = 'CHEMISTRY,MINERAL_KINETICS,PREFACTOR,SPECIES'
+                    error_string = 'CHEMISTRY,MINERAL_KINETICS,PREFACTOR,&
+                                   &SPECIES'
                     prefactor_species => TSPrefactorSpeciesCreate()
-                    call InputReadWord(input,option,prefactor_species%name,PETSC_TRUE)
+                    call InputReadWord(input,option,prefactor_species%name, &
+                                       PETSC_TRUE)
                     call InputErrorMsg(input,option,'name',error_string)
                     do
                       call InputReadPflotranString(input,option)
@@ -274,10 +281,9 @@ subroutine MineralReadKinetics(mineral,input,option)
                                              'attenuation coefficient', &
                                              error_string)
                         case default
-                          option%io_buffer = 'CHEMISTRY,MINERAL_KINETICS,PREFACTOR, ' // &
-                                             'SPECIES keyword: ' // &
-                                             trim(word) // ' not recognized'
-                          call printErrMsg(option)
+                          call InputKeywordUnrecognized(word, &
+                            'CHEMISTRY,MINERAL_KINETICS,PREFACTOR,SPECIES', &
+                            option)
                       end select
                     enddo
                     ! add prefactor species
@@ -296,9 +302,8 @@ subroutine MineralReadKinetics(mineral,input,option)
                     endif                    
                     error_string = 'CHEMISTRY,MINERAL_KINETICS,PREFACTOR'
                   case default
-                    option%io_buffer = 'CHEMISTRY,MINERAL_KINETICS,PREFACTOR ' // &
-                                 'keyword: ' // trim(word) // ' not recognized'
-                    call printErrMsg(option)
+                    call InputKeywordUnrecognized(word, &
+                      'CHEMISTRY,MINERAL_KINETICS,PREFACTOR',option)
                 end select
               enddo
               ! add prefactor
@@ -317,9 +322,8 @@ subroutine MineralReadKinetics(mineral,input,option)
               endif
               error_string = 'CHEMISTRY,MINERAL_KINETICS'
             case default
-              option%io_buffer = 'CHEMISTRY,MINERAL_KINETICS keyword: ' // &
-                                 trim(word) // ' not recognized'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                      'CHEMISTRY,MINERAL_KINETICS',option)
           end select
         enddo
         ! Loop over prefactors and set kinetic rates and activation energies
@@ -414,7 +418,7 @@ subroutine MineralReadFromDatabase(mineral,num_dbase_temperatures,input, &
   
   type(mineral_rxn_type) :: mineral
   PetscInt :: num_dbase_temperatures
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   PetscInt :: ispec
@@ -606,7 +610,7 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
 
   PetscInt, parameter :: needs_to_be_fixed = 1
   
-  PetscReal :: arrhenius_factor, rgas = 8.3144621d-3
+  PetscReal :: arrhenius_factor
 
   iphase = 1  
   mineral => reaction%mineral
@@ -685,9 +689,9 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
       QK = 1.d3
     endif
     
-    if (associated(mineral%kinmnrl_Tempkin_const)) then
+    if (associated(mineral%kinmnrl_Temkin_const)) then
       affinity_factor = 1.d0-QK**(1.d0/ &
-                                 mineral%kinmnrl_Tempkin_const(imnrl))
+                                 mineral%kinmnrl_Temkin_const(imnrl))
     else
       affinity_factor = 1.d0-QK
     endif
@@ -745,7 +749,8 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
           arrhenius_factor = 1.d0
           if (mineral%kinmnrl_pref_activation_energy(ipref,imnrl) > 0.d0) then
             arrhenius_factor = &
-              exp(mineral%kinmnrl_pref_activation_energy(ipref,imnrl)/rgas &
+              exp(mineral%kinmnrl_pref_activation_energy(ipref,imnrl)/ &
+                  IDEAL_GAS_CONSTANT &
                   *(1.d0/(25.d0+273.15d0)-1.d0/(global_auxvar%temp+ &
                                                 273.15d0)))
           endif
@@ -757,7 +762,8 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
         ! Arrhenius factor
         arrhenius_factor = 1.d0
         if (mineral%kinmnrl_activation_energy(imnrl) > 0.d0) then
-          arrhenius_factor = exp(mineral%kinmnrl_activation_energy(imnrl)/rgas &
+          arrhenius_factor = exp(mineral%kinmnrl_activation_energy(imnrl)/ &
+                                 IDEAL_GAS_CONSTANT &
             *(1.d0/(25.d0+273.15d0)-1.d0/(global_auxvar%temp+273.15d0)))
         endif
         sum_prefactor_rate = mineral%kinmnrl_rate(imnrl)*arrhenius_factor
@@ -812,8 +818,8 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
       dIm_dQK = -Im_const*sum_prefactor_rate
     endif
     
-    if (associated(mineral%kinmnrl_Tempkin_const)) then
-      dIm_dQK = dIm_dQK*(1.d0/mineral%kinmnrl_Tempkin_const(imnrl))/QK
+    if (associated(mineral%kinmnrl_Temkin_const)) then
+      dIm_dQK = dIm_dQK*(1.d0/mineral%kinmnrl_Temkin_const(imnrl))/QK*(1.d0-affinity_factor)
     endif
     
     ! derivatives with respect to primary species in reaction quotient
@@ -861,7 +867,8 @@ subroutine RKineticMineral(Res,Jac,compute_derivative,rt_auxvar, &
         arrhenius_factor = 1.d0
         if (mineral%kinmnrl_pref_activation_energy(ipref,imnrl) > 0.d0) then
           arrhenius_factor = &
-            exp(mineral%kinmnrl_pref_activation_energy(ipref,imnrl)/rgas &
+            exp(mineral%kinmnrl_pref_activation_energy(ipref,imnrl)/ &
+                IDEAL_GAS_CONSTANT &
                 *(1.d0/(25.d0+273.15d0)-1.d0/(global_auxvar%temp+ &
                                               273.15d0)))
         endif
@@ -990,7 +997,6 @@ subroutine RMineralRate(imnrl,ln_act,ln_sec_act,rt_auxvar,global_auxvar, &
   PetscReal :: ln_prefactor, ln_numerator, ln_denominator
   
   PetscReal :: arrhenius_factor
-  PetscReal, parameter :: rgas = 8.3144621d-3
   PetscInt, parameter :: iphase = 1
   
   cycle_ = PETSC_FALSE
@@ -1016,9 +1022,9 @@ subroutine RMineralRate(imnrl,ln_act,ln_sec_act,rt_auxvar,global_auxvar, &
     QK = 1.d3
   endif
     
-  if (associated(mineral%kinmnrl_Tempkin_const)) then
+  if (associated(mineral%kinmnrl_Temkin_const)) then
     affinity_factor = 1.d0-QK**(1.d0/ &
-                                mineral%kinmnrl_Tempkin_const(imnrl))
+                                mineral%kinmnrl_Temkin_const(imnrl))
   else
     affinity_factor = 1.d0-QK
   endif
@@ -1079,7 +1085,8 @@ subroutine RMineralRate(imnrl,ln_act,ln_sec_act,rt_auxvar,global_auxvar, &
         arrhenius_factor = 1.d0
         if (mineral%kinmnrl_pref_activation_energy(ipref,imnrl) > 0.d0) then
           arrhenius_factor = &
-            exp(mineral%kinmnrl_pref_activation_energy(ipref,imnrl)/rgas &
+            exp(mineral%kinmnrl_pref_activation_energy(ipref,imnrl)/ &
+                IDEAL_GAS_CONSTANT &
                 *(1.d0/(25.d0+273.15d0)-1.d0/(global_auxvar%temp+ &
                                               273.15d0)))
         endif
@@ -1091,7 +1098,8 @@ subroutine RMineralRate(imnrl,ln_act,ln_sec_act,rt_auxvar,global_auxvar, &
       ! Arrhenius factor
       arrhenius_factor = 1.d0
       if (mineral%kinmnrl_activation_energy(imnrl) > 0.d0) then
-        arrhenius_factor = exp(mineral%kinmnrl_activation_energy(imnrl)/rgas &
+        arrhenius_factor = exp(mineral%kinmnrl_activation_energy(imnrl)/ &
+                               IDEAL_GAS_CONSTANT &
           *(1.d0/(25.d0+273.15d0)-1.d0/(global_auxvar%temp+273.15d0)))
       endif
       sum_prefactor_rate = mineral%kinmnrl_rate(imnrl)*arrhenius_factor

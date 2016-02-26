@@ -13,11 +13,25 @@ module EOS_Gas_module
   PetscReal :: constant_enthalpy
   PetscReal :: constant_viscosity
   PetscReal :: constant_henry
-
+  PetscBool :: hydrogen
+  PetscReal :: Tc
+  PetscReal :: Pc
+  PetscReal :: acentric
+  PetscReal :: coeff_a
+  PetscReal :: coeff_b
+  
   ! exponential
   PetscReal :: exponent_reference_density
   PetscReal :: exponent_reference_pressure
   PetscReal :: exponent_gas_compressibility
+
+  ! This is the offset added to temperature [C] used to calculate the energy
+  ! equation of state.  Swithing between 0. and 273.15 greatly changes results.
+#if defined(MATCH_TOUGH2)
+  PetscReal, parameter :: T_energy_offset = 0.d0
+#else
+  PetscReal, parameter :: T_energy_offset = 273.15d0
+#endif
 
   ! In order to support generic EOS subroutines, we need the following:
   ! 1. An interface declaration that defines the argument list (best to have 
@@ -206,6 +220,41 @@ subroutine EOSGasVerify(ierr,error_string)
     ierr = 1
   endif
   
+  if (associated(EOSGasDensityPtr,EOSGasDensityRKS)) then
+    if (hydrogen) then
+      ! Assign default hydrogen parameters if not assigned
+      if (Uninitialized(Tc)) then
+        Tc = 41.67d0
+        ierr = 5
+        error_string = trim(error_string) // " Tc"
+      endif
+      if (Uninitialized(Pc)) then
+        Pc = 2.1029d6
+        ierr = 5
+        error_string = trim(error_string) // " Pc"
+      endif
+      if (Uninitialized(coeff_a)) then
+        coeff_a = 0.42747d0
+        ierr = 5
+        error_string = trim(error_string) // " omega_a"
+      endif
+      if (Uninitialized(coeff_b)) then
+        coeff_b = 0.08664d0
+        ierr = 5
+        error_string = trim(error_string) // " omega_b"
+      endif
+    else
+      if (Uninitialized(Tc) .or. Uninitialized(coeff_a) .or. &
+        Uninitialized(Pc) .or. Uninitialized(coeff_b) .or. &
+        Uninitialized(acentric)) then
+          error_string = trim(error_string) // &
+          " RKS parameters not set for non-hydrogen gas"
+          ierr = 1
+      endif
+    endif
+  endif
+
+      
 end subroutine EOSGasVerify
 
 ! ************************************************************************** !
@@ -221,9 +270,23 @@ end subroutine EOSGasSetDensityIdeal
 
 ! ************************************************************************** !
 
-subroutine EOSGasSetDensityRKS()
+subroutine EOSGasSetDensityRKS(h,rks_tc,rks_pc,rks_acen,rks_omegaa,rks_omegab)
 
   implicit none
+
+  PetscBool :: h
+  PetscReal :: rks_tc
+  PetscReal :: rks_pc
+  PetscReal :: rks_acen
+  PetscReal :: rks_omegaa
+  PetscReal :: rks_omegab
+  
+  hydrogen = h
+  Tc = rks_tc
+  Pc = rks_pc
+  acentric = rks_acen
+  coeff_a = rks_omegaa
+  coeff_b = rks_omegab
   
   EOSGasDensityEnergyPtr => EOSGasDensityEnergyGeneral
   EOSGasDensityPtr => EOSGasDensityRKS
@@ -629,11 +692,10 @@ subroutine EOSGasDensityIdeal(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
   PetscReal, intent(out) :: dRho_dP ! derivative gas density wrt pressure
   PetscErrorCode, intent(out) :: ierr
 
-  PetscReal, parameter:: Rg = 8.31451 !8.31415 
   PetscReal  T_kelvin
 
   T_kelvin = T + 273.15d0
-  Rho_gas = P / T_kelvin / Rg * 1.d-3 ! mol/m^3 -> kmol/m^3
+  Rho_gas = P / T_kelvin / IDEAL_GAS_CONSTANT * 1.d-3 ! mol/m^3 -> kmol/m^3
 
   dRho_dP =  Rho_gas / P
   dRho_dT = -Rho_gas / T_kelvin
@@ -662,18 +724,14 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
   PetscReal, intent(out) :: dRho_dP ! derivative gas density wrt pressure
   PetscErrorCode, intent(out) :: ierr
   
-  PetscReal, parameter :: Rg = 8.31451 
   PetscReal :: T_kelvin, RT, alpha, a, B , a_RT, p_RT
   PetscReal :: b2, V, f, dfdV, dVd
   PetscInt :: i
-  PetscReal, parameter :: coeff_a = 0.42747
-  PetscReal, parameter :: coeff_b = 0.08664
+  PetscReal :: coeff_alpha
   
   !for hydrogen
   ! American Petroleum Institute,
   ! "Technical Data Book-Petroleum Refining" (1977)
-  PetscReal, parameter :: Tc = 41.67d0
-  PetscReal, parameter :: Pc = 2.1029d6
   
   !solver
   PetscReal :: coef(4)
@@ -682,21 +740,21 @@ subroutine EOSGasDensityRKS(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
   dRho_dP = UNINITIALIZED_DOUBLE
   
   T_kelvin = T + 273.15d0
-  RT = Rg * T_kelvin
+  RT = IDEAL_GAS_CONSTANT * T_kelvin
   
-  ! if hydrogen then
+  if (hydrogen) then
     ! suggested by Peter Lichtner
     ! this function honors alpha(Tc)=1 while closely fitting Graboski curve from
     ! "A Modified Soave Equation of State for Phase Equilibrium
     !  Calculations. 3. Systems Containing Hydrogen"
     alpha = EXP(0.340d0*(1-T_kelvin/Tc))
-  ! else
-  !   coeff_alpha = 0.48508d0 + acentric*(1.55171d0 - 0.15613*acentric)
-  !   alpha = (1.d0 + coeff_alpha*(1.d0 - SQRT(T_Kelvin/Tc)))**2
-  ! end if
+  else
+    coeff_alpha = 0.48508d0 + acentric*(1.55171d0 - 0.15613*acentric)
+    alpha = (1.d0 + coeff_alpha*(1.d0 - SQRT(T_Kelvin/Tc)))**2
+  end if
   
-  a = coeff_a * alpha * (Rg * Tc)**2 / Pc
-  b = coeff_b * Rg * Tc / Pc
+  a = coeff_a * alpha * (IDEAL_GAS_CONSTANT * Tc)**2 / Pc
+  b = coeff_b * IDEAL_GAS_CONSTANT * Tc / Pc
   
   a_RT = a / RT
   P_RT = P / RT
@@ -751,7 +809,6 @@ subroutine EOSGasDensityPRMethane(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
   PetscReal, intent(out) :: dRho_dP ! derivative gas density wrt pressure
   PetscErrorCode, intent(out) :: ierr
   
-  PetscReal, parameter :: Rg = 8.31451 ! in J/mol/K 
   PetscReal :: T_kelvin, RT, alpha,  T_r, Z
   PetscReal :: f, dfdZ, dZd
   PetscReal :: a, b
@@ -769,12 +826,12 @@ subroutine EOSGasDensityPRMethane(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
   PetscInt, parameter :: maxit = 50
   
   T_kelvin = T + 273.15d0
-  RT = Rg*T_kelvin
+  RT = IDEAL_GAS_CONSTANT*T_kelvin
   T_r = T_kelvin/Tc
   alpha = (1 + (0.3744 + 1.5422*omega - 0.26992*omega**2)*(1-T_r**(0.5)))**2
   
-  a = coeff_a * alpha * (Rg * Tc)**2 / Pc
-  b = coeff_b * Rg * Tc / Pc
+  a = coeff_a * alpha * (IDEAL_GAS_CONSTANT * Tc)**2 / Pc
+  b = coeff_b * IDEAL_GAS_CONSTANT * Tc / Pc
 
   A = alpha * a / (RT)**2
   B = b * P / RT 
@@ -819,7 +876,6 @@ subroutine EOSGasFugacity(T,P,Rho_gas,phi,ierr)
   PetscReal, intent(in) :: Rho_gas  ! gas density [kmol/m^3]
   PetscReal, intent(out) :: phi     ! fugacity coefficient
   PetscErrorCode, intent(out) :: ierr
-  PetscReal, parameter :: Rg = 8.31451  ! gas constant
 
   !for hydrogen
   ! American Petroleum Institute,
@@ -837,7 +893,7 @@ subroutine EOSGasFugacity(T,P,Rho_gas,phi,ierr)
 
   A = 0.42747 * alpha * (P/Pc) / (T/Tc)**2
   B = 0.08664 * (P/Pc) / (T/Tc)
-  Z = P*V / (Rg*T)
+  Z = P*V / (IDEAL_GAS_CONSTANT*T)
   
   ! Fugacity Coefficient
   LHS = Z - 1.d0 - LOG(Z-B) - A/B * LOG((Z+B)/Z)
@@ -865,19 +921,22 @@ subroutine EOSGasEnergyIdealMethane(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
   PetscReal, intent(out) :: dU_dP   ! deriv. internal energy wrt pressure
   PetscErrorCode, intent(out) :: ierr
 
-  PetscReal, parameter:: Rg = 8.31415 
   ! Cpg units: J/mol-K
-  PetscReal, parameter:: Cp_methane = 35.69 ! at 298.15 K and 1 bar http://webbook.nist.gov/cgi/cbook.cgi?ID=C74828&Units=SI&Mask=1
-  PetscReal  T_kelvin
+  PetscReal, parameter :: Cp_methane = 35.69 ! at 298.15 K and 1 bar http://webbook.nist.gov/cgi/cbook.cgi?ID=C74828&Units=SI&Mask=1
+  PetscReal :: T_energy
+  PetscReal :: T_k
 
-  T_kelvin = T + 273.15d0
-  H = Cp_methane * T_kelvin * 1.d3  ! J/mol -> J/kmol
-  U = (Cp_methane - Rg) * T_kelvin * 1.d3 ! J/mol -> J/kmol
+  ! T_energy is either T or T + 273.15
+  ! do not change below
+  T_energy = T + T_energy_offset
+  T_k = T + 273.15d0
+  H = Cp_methane * T_energy * 1.d3  ! J/mol -> J/kmol
+  U = H - IDEAL_GAS_CONSTANT * T_k * 1.d3 ! J/mol -> J/kmol
 
   dH_dP = 0.d0
   dH_dT = Cp_methane * 1.d3
   dU_dP = 0.d0
-  dU_dT = (Cp_methane - Rg) * 1.d3
+  dU_dT = (Cp_methane - IDEAL_GAS_CONSTANT) * 1.d3
     
 end subroutine EOSGasEnergyIdealMethane
 
@@ -897,19 +956,22 @@ subroutine EOSGasEnergyIdeal(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
   PetscReal, intent(out) :: dU_dP   ! deriv. internal energy wrt pressure
   PetscErrorCode, intent(out) :: ierr
 
-  PetscReal, parameter:: Rg = 8.31415 
   ! Cv_air units: J/mol-K
-  PetscReal, parameter:: Cv_air = 20.85 ! head capacity wiki
-  PetscReal  T_kelvin
+  PetscReal, parameter :: Cv_air = 20.85 ! heat capacity wiki [J/mol-K]
+  PetscReal :: T_energy
+  PetscReal :: T_k
 
-  T_kelvin = T + 273.15d0
-  U = Cv_air * T_kelvin * 1.d3  ! J/mol -> J/kmol
-  H = (Cv_air + Rg) * T_kelvin * 1.d3 ! J/mol -> J/kmol
+  ! T_energy is either T or T + 273.15
+  ! do not change below
+  T_energy = T + T_energy_offset
+  T_k = T + 273.15d0
+  U = Cv_air * T_energy * 1.d3  ! J/mol -> J/kmol
+  H = U + IDEAL_GAS_CONSTANT * T_k * 1.d3 ! J/mol -> J/kmol
 
   dU_dP = 0.d0
   dU_dT = Cv_air * 1.d3
   dH_dP = 0.d0
-  dH_dT = (Cv_air + Rg) * 1.d3
+  dH_dT = dU_dT + IDEAL_GAS_CONSTANT * 1.d3
     
 end subroutine EOSGasEnergyIdeal
 
@@ -926,6 +988,7 @@ subroutine EOSGasDensityConstant(T,P,Rho_gas,dRho_dT,dRho_dP,ierr)
   PetscReal, intent(out) :: dRho_dP ! derivative gas density wrt pressure
   PetscErrorCode, intent(out) :: ierr
   
+  ierr = 0
   Rho_gas = constant_density ! kmol/m^3
 
   dRho_dT = 0.d0
@@ -949,18 +1012,19 @@ subroutine EOSGasEnergyConstant(T,P,H,dH_dT,dH_dP,U,dU_dT,dU_dP,ierr)
   PetscReal, intent(out) :: dU_dP   ! deriv. internal energy wrt pressure
   PetscErrorCode, intent(out) :: ierr
   
-  PetscReal :: T_kelvin
-  PetscReal, parameter:: Rg = 8.31415 
+  PetscReal :: T_energy
 
+  ierr = 0
   H = constant_enthalpy ! J/kmol
-  T_kelvin = T + 273.15d0
-!  U = (H/(T_kelvin*1.d3) - Rg) * T_kelvin * 1.d3 ! J/mol -> J/kmol
-  U = H - Rg * T_kelvin * 1.d3 ! J/mol -> J/kmol
+  ! T_energy is either T or T + 273.15
+  ! do not change below
+  T_energy = T + T_energy_offset
+  U = H - IDEAL_GAS_CONSTANT * T_energy * 1.d3 ! J/mol -> J/kmol
   
   dH_dP = 0.d0
   dH_dT = 0.d0
   dU_dP = 0.d0
-  dU_dT = -Rg * 1.d3
+  dU_dT = -1.d0 * IDEAL_GAS_CONSTANT * 1.d3
   
   print *, 'Calculation of internal gas energy not set up properly in ' // &
     'EOSGasEnergyConstant.'
@@ -993,7 +1057,7 @@ subroutine EOSGasHenry_air_noderiv(tc,ps,Henry)
 
     implicit none
     PetscReal,intent(in) :: tc,ps
-    PetscReal,intent(out):: Henry
+    PetscReal,intent(out) :: Henry
 
     PetscReal  Tr,tao,tmp,t
     PetscReal, parameter :: a=-9.67578d0, b=4.72162d0, c=11.70585d0
@@ -1012,7 +1076,7 @@ end subroutine EOSGasHenry_air_noderiv
 subroutine EOSGasHenry_air(tc,ps,ps_p,ps_t,Henry,Henry_p,Henry_t)
    implicit none
     PetscReal,intent(in) :: tc,ps,ps_p,ps_t
-    PetscReal,intent(out):: Henry,Henry_p,Henry_t
+    PetscReal,intent(out) :: Henry,Henry_p,Henry_t
 ! note t/K, p/Pa, Henry/Pa 
 
     PetscReal  Tr,tao,tmp,t
@@ -1038,7 +1102,7 @@ subroutine EOSGasHenryConstant(T,Psat,Hc)
    implicit none
     PetscReal, intent(in) :: T    ! temperature [C]
     PetscReal, intent(in) :: Psat ! saturation pressure [Pa]
-    PetscReal, intent(out):: Hc   ! Henry's constant [Pa]
+    PetscReal, intent(out) :: Hc   ! Henry's constant [Pa]
 
     Hc = constant_henry
     

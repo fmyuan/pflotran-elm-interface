@@ -39,7 +39,7 @@ module Field_module
     Vec :: tran_r
     
     ! Solution vectors (yy = previous solution, xx = current iterate)
-    Vec :: flow_xx, flow_xx_loc, flow_dxx, flow_yy, flow_accum
+    Vec :: flow_xx, flow_xx_loc, flow_dxx, flow_yy, flow_accum, flow_accum2
     Vec :: tran_xx, tran_xx_loc, tran_dxx, tran_yy, tran_accum
 
     ! vectors for operator splitting
@@ -47,6 +47,11 @@ module Field_module
     Vec :: tran_rhs_coef
     
     Vec :: tran_log_xx, tran_work_loc
+    Vec :: tran_plog_xx
+    
+    ! mass transfer
+    Vec :: flow_mass_transfer
+    Vec :: tran_mass_transfer
     
     Vec :: flow_ts_mass_balance, flow_total_mass_balance
     Vec :: tran_ts_mass_balance, tran_total_mass_balance
@@ -121,6 +126,7 @@ function FieldCreate()
   field%flow_dxx = 0
   field%flow_yy = 0
   field%flow_accum = 0
+  field%flow_accum2 = 0
 
   field%tran_r = 0
   field%tran_log_xx = 0
@@ -135,6 +141,9 @@ function FieldCreate()
 
   field%tran_rhs = 0
   field%tran_rhs_coef = 0
+  
+  field%flow_mass_transfer = 0
+  field%tran_mass_transfer = 0
   
   field%flow_ts_mass_balance = 0
   field%flow_total_mass_balance = 0
@@ -173,6 +182,7 @@ subroutine FieldDestroy(field)
   
   PetscErrorCode :: ierr
   PetscInt :: ivar
+  PetscInt :: num_vecs
 
   ! Destroy PetscVecs
   if (field%porosity0 /= 0) then
@@ -246,6 +256,9 @@ subroutine FieldDestroy(field)
   if (field%flow_accum /= 0) then
     call VecDestroy(field%flow_accum,ierr);CHKERRQ(ierr)
   endif
+  if (field%flow_accum2 /= 0) then
+    call VecDestroy(field%flow_accum2,ierr);CHKERRQ(ierr)
+  endif
   
   if (field%tran_r /= 0) then
     call VecDestroy(field%tran_r,ierr);CHKERRQ(ierr)
@@ -277,6 +290,13 @@ subroutine FieldDestroy(field)
   endif
   if (field%tran_rhs_coef /= 0) then
     call VecDestroy(field%tran_rhs_coef,ierr);CHKERRQ(ierr)
+  endif
+
+  if (field%flow_mass_transfer /= 0) then
+    call VecDestroy(field%flow_mass_transfer,ierr);CHKERRQ(ierr)
+  endif
+  if (field%tran_mass_transfer /= 0) then
+    call VecDestroy(field%tran_mass_transfer,ierr);CHKERRQ(ierr)
   endif
 
   if (field%flow_ts_mass_balance /= 0) then
@@ -318,8 +338,9 @@ subroutine FieldDestroy(field)
   endif
 
   if (associated(field%max_change_vecs)) then
-    call VecDestroyVecsF90(size(field%max_change_vecs), &
-                           field%max_change_vecs,ierr);CHKERRQ(ierr)
+    !geh: kludge as the compiler returns i4 in 64-bit
+    num_vecs = size(field%max_change_vecs)
+    call VecDestroyVecsF90(num_vecs,field%max_change_vecs,ierr);CHKERRQ(ierr)
   endif
 
   deallocate(field)

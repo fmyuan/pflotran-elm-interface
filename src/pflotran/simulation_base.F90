@@ -1,6 +1,7 @@
 module Simulation_Base_class
 
   use PMC_Base_class
+  use PM_Base_class
   use Option_module
   use Output_Aux_module
   use Output_module
@@ -17,10 +18,12 @@ module Simulation_Base_class
 
   type, public :: simulation_base_type
     type(option_type), pointer :: option
-    type(waypoint_list_type), pointer :: waypoint_list ! for outer sync loop
+    type(waypoint_list_type), pointer :: waypoint_list_outer ! for outer sync loop
+    type(checkpoint_option_type), pointer :: checkpoint_option
     type(output_option_type), pointer :: output_option
     PetscInt :: stop_flag
     class(pmc_base_type), pointer :: process_model_coupler_list
+    class(pm_base_type), pointer :: process_model_list
     type(simulation_aux_type), pointer :: sim_aux
   contains
     procedure, public :: Init => SimulationBaseInit
@@ -76,6 +79,8 @@ subroutine SimulationBaseInit(this,option)
   ! 
   use Timestepper_Base_class, only : TS_CONTINUE
   use Option_module
+  use Output_Aux_module
+  use Waypoint_module
 
   implicit none
   
@@ -83,9 +88,11 @@ subroutine SimulationBaseInit(this,option)
   type(option_type), pointer :: option
 
   this%option => option
-  nullify(this%waypoint_list)
-  nullify(this%output_option)
+  this%waypoint_list_outer => WaypointListCreate()
+  this%output_option => OutputOptionCreate()
+  nullify(this%checkpoint_option)
   nullify(this%process_model_coupler_list)
+  nullify(this%process_model_list)
   this%sim_aux => SimAuxCreate()
   this%stop_flag = TS_CONTINUE
 
@@ -103,6 +110,9 @@ subroutine SimulationBaseInitializeRun(this)
 
   use Logging_module
   use Option_module
+#if defined(PETSC_HAVE_HDF5)
+  use hdf5
+#endif
 
   implicit none
   
@@ -110,6 +120,11 @@ subroutine SimulationBaseInitializeRun(this)
 
   class(simulation_base_type) :: this
 
+#if defined(SCORPIO_WRITE) || !defined(PETSC_HAVE_HDF5)
+  integer :: chk_grp_id
+#else
+  integer(HID_T) :: chk_grp_id
+#endif
   PetscViewer :: viewer
   PetscErrorCode :: ierr
   
@@ -117,13 +132,23 @@ subroutine SimulationBaseInitializeRun(this)
   call printMsg(this%option,'SimulationBaseInitializeRun()')
 #endif
   
-  if (this%option%restart_flag) then
-    call this%process_model_coupler_list%Restart(viewer)
-  endif
+  if (associated(this%process_model_coupler_list)) then
+    if (this%option%restart_flag) then
+      if (index(this%option%restart_filename,'.chk') > 0) then
+        call this%process_model_coupler_list%RestartBinary(viewer)
+      elseif (index(this%option%restart_filename,'.h5') > 0) then
+        call this%process_model_coupler_list%RestartHDF5(chk_grp_id)
+      else
+        this%option%io_buffer = 'Unknown restart filename format. ' // &
+        'Only *.chk and *.h5 supported.'
+        call printErrMsg(this%option)
+      endif
+    endif
   
-  ! initialize performs overwrite of restart, if applicable
-  call this%process_model_coupler_list%InitializeRun()  
-  call this%JumpStart()
+    ! initialize performs overwrite of restart, if applicable
+    call this%process_model_coupler_list%InitializeRun()  
+    call this%JumpStart()
+  endif
   
   call printMsg(this%option," ")
   call printMsg(this%option,"  Finished Initialization")
@@ -170,8 +195,10 @@ subroutine ExecuteRun(this)
   ! Author: Glenn Hammond
   ! Date: 06/11/13
   ! 
+
   use Waypoint_module
   use Timestepper_Base_class, only : TS_CONTINUE
+  use Checkpoint_module
 
   implicit none
   
@@ -180,14 +207,20 @@ subroutine ExecuteRun(this)
   PetscReal :: final_time
   PetscReal :: sync_time
   type(waypoint_type), pointer :: cur_waypoint
-  PetscViewer :: viewer
-  
+  character(len=MAXSTRINGLENGTH) :: append_name
+
 #ifdef DEBUG
   call printMsg(this%option,'SimulationBaseExecuteRun()')
 #endif
 
+  if (.not.associated(this%process_model_coupler_list)) then
+    return
+  endif
+
+  append_name = '-restart'
+
   final_time = SimulationGetFinalWaypointTime(this)
-  cur_waypoint => this%waypoint_list%first
+  cur_waypoint => this%waypoint_list_outer%first
   call WaypointSkipToTime(cur_waypoint,this%option%time)
   do
     if (this%stop_flag /= TS_CONTINUE) exit ! end simulation
@@ -195,10 +228,10 @@ subroutine ExecuteRun(this)
     call this%RunToTime(min(final_time,cur_waypoint%time))
     cur_waypoint => cur_waypoint%next
   enddo
-  if (this%option%checkpoint_flag) then
-    call this%process_model_coupler_list%Checkpoint(viewer,-1)
+  if (associated(this%process_model_coupler_list%checkpoint_option)) then
+    call this%process_model_coupler_list%Checkpoint(append_name)
   endif
-  
+
 end subroutine ExecuteRun
 
 ! ************************************************************************** !
@@ -261,7 +294,9 @@ subroutine SimulationBaseFinalizeRun(this)
     call printMsg(this%option,"")
   endif
   
-  call this%process_model_coupler_list%FinalizeRun()
+  if (associated(this%process_model_coupler_list)) then
+    call this%process_model_coupler_list%FinalizeRun()
+  endif
   
   ! pushed in InitializeRun()
   call PetscLogStagePop(ierr);CHKERRQ(ierr)
@@ -298,7 +333,8 @@ function SimulationGetFinalWaypointTime(this)
   cur_process_model_coupler => this%process_model_coupler_list
   do
     if (.not.associated(cur_process_model_coupler)) exit
-    final_time = WaypointListGetFinalTime(cur_process_model_coupler%waypoint_list)
+    final_time = WaypointListGetFinalTime(cur_process_model_coupler% &
+                                            waypoint_list)
     if (SimulationGetFinalWaypointTime < 1.d-40 .or. &
         final_time < SimulationGetFinalWaypointTime) then
       SimulationGetFinalWaypointTime = final_time
@@ -319,6 +355,7 @@ subroutine SimulationBaseStrip(this)
   ! 
   use Input_Aux_module
   use Waypoint_module
+  use EOS_module
   
   implicit none
   
@@ -327,8 +364,10 @@ subroutine SimulationBaseStrip(this)
 #ifdef DEBUG
   call printMsg(this%option,'SimulationBaseStrip()')
 #endif
-  call WaypointListDestroy(this%waypoint_list)
+  call WaypointListDestroy(this%waypoint_list_outer)
   call SimAuxDestroy(this%sim_aux)
+  call CheckpointOptionDestroy(this%checkpoint_option)
+  call OutputOptionDestroy(this%output_option)
   if (associated(this%process_model_coupler_list)) then
     call this%process_model_coupler_list%Destroy()
     ! destroy does not currently destroy; it strips
@@ -336,6 +375,8 @@ subroutine SimulationBaseStrip(this)
     nullify(this%process_model_coupler_list)
   endif
   call InputDbaseDestroy()
+
+  call AllEOSDBaseDestroy()
   
 end subroutine SimulationBaseStrip
 

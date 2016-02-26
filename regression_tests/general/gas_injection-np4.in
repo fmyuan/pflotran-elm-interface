@@ -1,7 +1,20 @@
-#Description: 
+#Description:
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+        ARITHMETIC_GAS_DIFFUSIVE_DENSITY
+      /
+    /
+  /
+END
+
+SUBSURFACE
 
 #=========================== flow mode ========================================
-MODE GENERAL
 
 #=========================== regression =======================================
 REGRESSION
@@ -184,11 +197,11 @@ REGION bottom_pt
 /
 
 #=========================== observation points ===============================
-OBSERVATION 
+OBSERVATION
   REGION bottom_pt
 /
 
-OBSERVATION 
+OBSERVATION
   REGION top_pt
 /
 
@@ -225,6 +238,7 @@ FLOW_CONDITION injection
   /
   RATE LIST
     TIME_UNITS y
+    DATA_UNITS kg/s kg/s MW
               ! 10 kg/yr
     0.d0 0.d0 3.170979198d-7 0.d0
     0.5d0 0.d0 0.d0 0.d0
@@ -263,3 +277,4 @@ STRATA
   REGION impermeable_zone
 /
 
+END_SUBSURFACE

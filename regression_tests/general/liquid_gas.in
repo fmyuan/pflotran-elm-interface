@@ -1,4 +1,19 @@
-#Description: 
+#Description:
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE GENERAL
+      OPTIONS
+        MAX_SATURATION_CHANGE 1.d0
+        MAX_CONCENTRATION_CHANGE 0.5d0
+      /
+    /
+  /
+END
+
+SUBSURFACE
 
 #=========================== regression =======================================
 REGRESSION
@@ -9,7 +24,6 @@ REGRESSION
 END
 
 #=========================== flow mode ========================================
-MODE GENERAL
 
 #=========================== debug settings ===================================
 #USE_TOUCH_OPTIONS
@@ -21,7 +35,7 @@ MODE GENERAL
 #/
 
 #=========================== time stepper options =============================
-TIMESTEPPER
+TIMESTEPPER FLOW
 #  MAX_STEPS -1
 /
 
@@ -138,12 +152,12 @@ REGION gas_side
 /
 
 #=========================== observation points ===============================
-OBSERVATION 
+OBSERVATION
   REGION liquid_side
   VELOCITY
 /
 
-OBSERVATION 
+OBSERVATION
   REGION gas_side
   VELOCITY
 /
@@ -171,8 +185,9 @@ FLOW_CONDITION gas_phase
   ! psat at 25 C is 3165.9896022949661
   ! at 100% humidity, p_a = p_g - p_sat
   ! mole fraction = p_a / p_g = (p_g - p_sat) / p_g
-  !               = (111325. - 3165.9896022949661) / 101325.
-  MOLE_FRACTION 0.971560838967d0
+  !               = (111325. - 3157.9744387448523) / 111325.
+  !               = 0.971632836838d0
+  MOLE_FRACTION 0.971632837d0
   TEMPERATURE 25.d0
 /
 
@@ -206,3 +221,4 @@ STRATA
 /
 
 
+END_SUBSURFACE

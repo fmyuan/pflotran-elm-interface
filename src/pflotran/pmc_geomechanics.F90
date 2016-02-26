@@ -1,7 +1,7 @@
 module PMC_Geomechanics_class
 
   use PMC_Base_class
-  use Realization_class
+  use Realization_Subsurface_class
   use Geomechanics_Realization_class
   use PFLOTRAN_Constants_module
 
@@ -12,8 +12,8 @@ module PMC_Geomechanics_class
   private
 
   type, public, extends(pmc_base_type) :: pmc_geomechanics_type
-    class(realization_type), pointer :: subsurf_realization
-    class(geomech_realization_type), pointer :: geomech_realization
+    class(realization_subsurface_type), pointer :: subsurf_realization
+    class(realization_geomech_type), pointer :: geomech_realization
   contains
     procedure, public :: Init => PMCGeomechanicsInit
     procedure, public :: RunToTime => PMCGeomechanicsRunToTime
@@ -78,7 +78,7 @@ end subroutine PMCGeomechanicsInit
 
 ! ************************************************************************** !
 
-subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
+recursive subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
   ! 
   ! This routine runs the geomechanics simulation.
   ! 
@@ -89,17 +89,21 @@ subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
   use Timestepper_Base_class
   use Option_module
   use PM_Base_class
+  use Output_Geomechanics_module
 
   implicit none
 
   class(pmc_geomechanics_type), target :: this
   PetscReal :: sync_time
   PetscInt :: stop_flag
-
   PetscInt :: local_stop_flag
+  PetscBool :: plot_flag
+  PetscBool :: transient_plot_flag
+  PetscBool :: checkpoint_flag  
+    
   class(pm_base_type), pointer :: cur_pm
 
-  this%option%io_buffer = trim(this%name) // ':' // trim(this%pms%name)
+  this%option%io_buffer = trim(this%name) // ':' // trim(this%pm_list%name)
   call printVerboseMsg(this%option)
   
   ! Get data of other process-model
@@ -107,12 +111,17 @@ subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
 
   local_stop_flag = 0
 
-  call this%timestepper%StepDT(this%pms,local_stop_flag)
+  call SetOutputFlags(this)
+
+  call this%timestepper%SetTargetTime(sync_time,this%option, &
+                                        local_stop_flag,plot_flag, &
+                                        transient_plot_flag,checkpoint_flag)
+  call this%timestepper%StepDT(this%pm_list,local_stop_flag)
 
   ! Have to loop over all process models coupled in this object and update
   ! the time step size.  Still need code to force all process models to
   ! use the same time step size if tightly or iteratively coupled.
-  cur_pm => this%pms
+  cur_pm => this%pm_list
   do
     if (.not.associated(cur_pm)) exit
     ! have to update option%time for conditions
@@ -129,7 +138,23 @@ subroutine PMCGeomechanicsRunToTime(this,sync_time,stop_flag)
     call this%SetAuxData()
     call this%child%RunToTime(this%timestepper%target_time,local_stop_flag)
   endif
-
+  
+  if (this%timestepper%time_step_cut_flag) then
+    plot_flag = PETSC_FALSE
+  endif
+  ! however, if we are using the modulus of the output_option%imod, we may
+  ! still print
+  if (mod(this%timestepper%steps,this%pm_list% &
+                output_option%periodic_output_ts_imod) == 0) then
+    plot_flag = PETSC_TRUE
+  endif
+  if (plot_flag .or. mod(this%timestepper%steps,this%pm_list%output_option% &
+                               periodic_tr_output_ts_imod) == 0) then
+    transient_plot_flag = PETSC_TRUE
+  endif
+  call OutputGeomechanics(this%geomech_realization,plot_flag, &
+                          transient_plot_flag)
+     
   ! Set data needed by process-model
   call this%SetAuxData()
 

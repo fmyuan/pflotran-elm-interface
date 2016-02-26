@@ -816,6 +816,7 @@ subroutine BasisInit(reaction,option)
   type(general_rxn_type), pointer :: cur_general_rxn
   type(radioactive_decay_rxn_type), pointer :: cur_radiodecay_rxn
   type(microbial_rxn_type), pointer :: cur_microbial_rxn
+  type(immobile_decay_rxn_type), pointer :: cur_immobile_decay_rxn
   type(kd_rxn_type), pointer :: cur_kd_rxn, sec_cont_cur_kd_rxn
   type(colloid_type), pointer :: cur_colloid
   type(database_rxn_type), pointer :: dbaserxn
@@ -869,7 +870,7 @@ subroutine BasisInit(reaction,option)
   PetscInt :: itemp_high, itemp_low
   PetscInt :: species_count, max_species_count
   PetscInt :: max_monod_count, max_inhibition_count
-  PetscInt :: monod_count, inhibition_count
+  PetscInt :: monod_count, inhibition_count, activation_energy_count
   PetscInt :: forward_count, max_forward_count
   PetscInt :: backward_count, max_backward_count
   PetscInt :: max_aq_species
@@ -2024,7 +2025,7 @@ subroutine BasisInit(reaction,option)
       endif
     endif
     
-    ! Determine whether Tempkins constant is used in any TST reactions
+    ! Determine whether Temkin's constant is used in any TST reactions
     cur_mineral => mineral%mineral_list
     found = PETSC_FALSE
     do
@@ -2038,8 +2039,8 @@ subroutine BasisInit(reaction,option)
       cur_mineral => cur_mineral%next
     enddo
     if (found) then
-      allocate(mineral%kinmnrl_Tempkin_const(mineral%nkinmnrl))
-      mineral%kinmnrl_Tempkin_const = 1.d0    
+      allocate(mineral%kinmnrl_Temkin_const(mineral%nkinmnrl))
+      mineral%kinmnrl_Temkin_const = 1.d0
     endif
 
     ! Determine whether affinity factor has power
@@ -2205,7 +2206,8 @@ subroutine BasisInit(reaction,option)
 
       ! geh - for now, the user must specify they want each individual
       !       mineral printed for non-kinetic reactions (e.g. for SI).
-      mineral%mnrl_print(imnrl) = cur_mineral%print_me
+      mineral%mnrl_print(imnrl) = cur_mineral%print_me .or. &
+                                  reaction%mineral%print_all
       if (cur_mineral%itype == MINERAL_KINETIC) then
         mineral%kinmnrl_names(ikinmnrl) = mineral%mineral_names(imnrl)
         mineral%kinmnrl_print(ikinmnrl) = cur_mineral%print_me .or. &
@@ -2311,7 +2313,7 @@ subroutine BasisInit(reaction,option)
               tstrxn%activation_energy
           endif
           if (Initialized(tstrxn%affinity_factor_sigma)) then
-            mineral%kinmnrl_Tempkin_const(ikinmnrl) = &
+            mineral%kinmnrl_Temkin_const(ikinmnrl) = &
               tstrxn%affinity_factor_sigma
           endif
           if (Initialized(tstrxn%affinity_factor_beta)) then
@@ -2966,7 +2968,7 @@ subroutine BasisInit(reaction,option)
                                        reaction%nimcomp, &
                                        reaction%offset_immobile, &
                                        reaction%immobile%names, &
-                                       option)
+                                       PETSC_FALSE,option)
       cur_radiodecay_rxn => cur_radiodecay_rxn%next
     enddo
     nullify(cur_radiodecay_rxn)
@@ -3059,7 +3061,7 @@ subroutine BasisInit(reaction,option)
                                        reaction%nimcomp, &
                                        reaction%offset_immobile, &
                                        reaction%immobile%names, &
-                                       option)
+                                       PETSC_FALSE,option)
       cur_general_rxn => cur_general_rxn%next
     enddo
     nullify(cur_general_rxn)
@@ -3169,6 +3171,7 @@ subroutine BasisInit(reaction,option)
     max_inhibition_count = 0
     monod_count = 0
     inhibition_count = 0
+    activation_energy_count = 0
     cur_microbial_rxn => microbial%microbial_rxn_list
     do
       if (.not.associated(cur_microbial_rxn)) exit
@@ -3180,7 +3183,10 @@ subroutine BasisInit(reaction,option)
                                        reaction%nimcomp, &
                                        reaction%offset_immobile, &
                                        reaction%immobile%names, &
-                                       option)
+                                       PETSC_TRUE,option)
+      if (cur_microbial_rxn%activation_energy > 0.d0) then
+        activation_energy_count = activation_energy_count + 1
+      endif
       temp_int = cur_microbial_rxn%dbaserxn%nspec
       if (temp_int > max_species_count) max_species_count = temp_int
       temp_int = MicrobialGetMonodCount(cur_microbial_rxn)
@@ -3196,12 +3202,18 @@ subroutine BasisInit(reaction,option)
     ! rate constant
     allocate(microbial%rate_constant(microbial%nrxn))
     microbial%rate_constant = 0.d0
+
+    ! activation_energy
+    if (activation_energy_count > 0) then
+      allocate(microbial%activation_energy(microbial%nrxn))
+      microbial%activation_energy = 0.d0
+    endif
     
     ! species ids and stoichiometry
     allocate(microbial%specid(0:max_species_count,microbial%nrxn))
     microbial%specid = 0
     allocate(microbial%stoich(max_species_count,microbial%nrxn))
-    microbial%stoich = 0
+    microbial%stoich = 0.d0
     
     ! biomass id and yield
     allocate(microbial%biomassid(microbial%nrxn))
@@ -3220,7 +3232,9 @@ subroutine BasisInit(reaction,option)
     allocate(microbial%monod_specid(monod_count))
     microbial%monod_specid = 0
     allocate(microbial%monod_K(monod_count))
-    microbial%monod_K = 0
+    microbial%monod_K = 0.d0
+    allocate(microbial%monod_Cth(monod_count))
+    microbial%monod_Cth = 0.d0
     
     ! inhibition 
     allocate(microbial%inhibition_specid(inhibition_count))
@@ -3228,9 +3242,9 @@ subroutine BasisInit(reaction,option)
     allocate(microbial%inhibition_type(inhibition_count))
     microbial%inhibition_type = 0
     allocate(microbial%inhibition_C(inhibition_count))
-    microbial%inhibition_C = 0
+    microbial%inhibition_C = 0.d0
     allocate(microbial%inhibition_C2(inhibition_count))
-    microbial%inhibition_C2 = 0
+    microbial%inhibition_C2 = 0.d0
 
     ! load the data into the compressed arrays
     irxn = 0
@@ -3245,6 +3259,9 @@ subroutine BasisInit(reaction,option)
       irxn = irxn + 1
      
       microbial%rate_constant(irxn) = cur_microbial_rxn%rate_constant
+      if (associated(microbial%activation_energy)) then
+        microbial%activation_energy(irxn) = cur_microbial_rxn%activation_energy
+      endif
       
       microbial%specid(0,irxn) = dbaserxn%nspec
       do i = 1, dbaserxn%nspec
@@ -3309,6 +3326,7 @@ subroutine BasisInit(reaction,option)
         microbial%monod_specid(monod_count) = &
           GetPrimarySpeciesIDFromName(cur_monod%species_name,reaction,option)
         microbial%monod_K(monod_count) = cur_monod%half_saturation_constant
+        microbial%monod_Cth(monod_count) = cur_monod%threshold_concentration
         cur_monod => cur_monod%next
       enddo
       
@@ -3352,19 +3370,52 @@ subroutine BasisInit(reaction,option)
               
   endif 
   
+  ! immobile decay reaction
+  
+  if (reaction%immobile%ndecay_rxn > 0) then
+  
+    allocate(reaction%immobile%decayspecid(reaction%immobile%ndecay_rxn))
+    allocate(reaction%immobile%decay_rate_constant(reaction%immobile%ndecay_rxn))
+  
+    cur_immobile_decay_rxn => reaction%immobile%decay_rxn_list
+    irxn = 0
+    do
+      if (.not.associated(cur_immobile_decay_rxn)) exit
+      
+      irxn = irxn + 1
+
+      found = PETSC_FALSE
+      do i = 1, reaction%immobile%nimmobile
+        if (StringCompare(cur_immobile_decay_rxn%species_name, &
+                          reaction%immobile%names(i), &
+                          MAXWORDLENGTH)) then
+          reaction%immobile%decayspecid(irxn) = i
+          found = PETSC_TRUE
+          exit      
+        endif
+      enddo
+      if (.not.found) then
+        option%io_buffer = 'Species "' // &
+        trim(cur_immobile_decay_rxn%species_name) // &
+        '" in immobile decay reaction not found among immobile species.'
+        call printErrMsg(option)
+      endif
+      reaction%immobile%decay_rate_constant(irxn) = &
+        cur_immobile_decay_rxn%rate_constant
+      cur_immobile_decay_rxn => cur_immobile_decay_rxn%next
+    enddo
+    nullify(cur_immobile_decay_rxn)
+
+  endif 
+  
   ! Kd reactions
   
   if (reaction%neqkdrxn > 0) then
 
     if (reaction%neqcplx > 0) then
-!      option%io_buffer = 'Isotherm reactions currently calculated as a ' // &
-!                         'function of free-ion, not totals.  Contact Glenn!'
-!      call printErrMsg(option)
-! comment out after consultation with Glenn by t6g on 4/2/2014 
-! "At this point yes, and no secondary aqueous species can exist.  
-! If I remove the error message, the sorption will be calculated based on total
-! component concentration."
-
+      option%io_buffer = 'Isotherm reactions currently calculated as a ' // &
+                         'function of free-ion, not totals.  Contact Glenn!'
+      call printErrMsg(option)
     endif
   
     ! allocate arrays

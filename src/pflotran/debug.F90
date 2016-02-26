@@ -80,7 +80,7 @@ subroutine DebugRead(debug,input,option)
   implicit none
     
   type(debug_type) :: debug
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword
@@ -117,9 +117,7 @@ subroutine DebugRead(debug,input,option)
       case('BINARY_FORMAT')
         debug%binary_format = PETSC_TRUE
       case default
-        option%io_buffer = 'Option "' // trim(keyword) // &
-          '" not recognized under DEBUG.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(keyword,'DEBUG',option)
     end select 
   
   enddo  

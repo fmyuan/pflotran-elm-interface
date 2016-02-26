@@ -38,6 +38,7 @@ module SrcSink_Sandbox_Downreg_class
   contains
     procedure, public :: ReadInput => DownregRead
     procedure, public :: Setup => DownregSetup
+    procedure, public :: Update => DownregUpdate
     procedure, public :: Evaluate => DownregSrcSink
     procedure, public :: Destroy => DownregDestroy
   end type srcsink_sandbox_downreg_type
@@ -82,24 +83,29 @@ subroutine DownregRead(this,input,option)
   use Input_Aux_module
   use Units_module, only : UnitsConvertToInternal
   use Condition_module 
+  use Dataset_module
   use Dataset_Ascii_class
+  use Time_Storage_module
   
   implicit none
   
   class(srcsink_sandbox_downreg_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   class(dataset_ascii_type), pointer :: dataset_ascii
 
   PetscInt :: i
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: units
+  character(len=MAXWORDLENGTH) :: units, internal_units
+  type(time_storage_type), pointer :: null_time_storage
   PetscBool :: found
+
+  nullify(null_time_storage)
   
   dataset_ascii => DatasetAsciiCreate()
   call DatasetAsciiInit(dataset_ascii)
-  dataset_ascii%array_rank = option%nflowdof
+  dataset_ascii%array_width = option%nflowdof
   dataset_ascii%data_type = DATASET_REAL
   this%dataset => dataset_ascii
   nullify(dataset_ascii)
@@ -121,28 +127,54 @@ subroutine DownregRead(this,input,option)
     select case(trim(word))
 
       case('RATE')
-        call ConditionReadValues(input,option,word,string,this%dataset,units)
+        internal_units = 'unitless/sec'
+        call ConditionReadValues(input,option,word,this%dataset, &
+                                 units,internal_units)
       case('POSITIVE_REG_PRESSURE')
         call InputReadDouble(input,option,this%pressure_max)
-        call InputErrorMsg(input,option,'maximum pressure (Pa)', &
+        call InputErrorMsg(input,option,'maximum pressure', &
           'SOURCE_SINK_SANDBOX,DOWNREG')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (input%ierr == 0) then
+          internal_units = 'Pa'
+          this%pressure_max = this%pressure_max * &
+            UnitsConvertToInternal(word,internal_units,option)
+        endif
       case('NEGATIVE_REG_PRESSURE')
         call InputReadDouble(input,option,this%pressure_min)
-        call InputErrorMsg(input,option,'minimum pressure (Pa)', &
+        call InputErrorMsg(input,option,'minimum pressure', &
           'SOURCE_SINK_SANDBOX,DOWNREG')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (input%ierr == 0) then
+          internal_units = 'Pa'
+          this%pressure_min = this%pressure_min * &
+            UnitsConvertToInternal(word,internal_units,option)
+        endif
       case('DELTA_REG_PRESSURE')
         call InputReadDouble(input,option,this%pressure_delta)
-        call InputErrorMsg(input,option,'delta pressure (Pa)', &
+        call InputErrorMsg(input,option,'delta pressure', &
           'SOURCE_SINK_SANDBOX,DOWNREG')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (input%ierr == 0) then
+          internal_units = 'Pa'
+          this%pressure_delta = this%pressure_delta * &
+            UnitsConvertToInternal(word,internal_units,option)
+        endif
         if (this%pressure_delta <= 1.0d-10) then
           option%io_buffer = 'SRCSINK_SANDBOX,DOWNREG,DELTA_REG_PRESSURE' // &
             ': the pressure delta is too close to 0 Pa.'
           call printErrMsg(option)
         endif 
       case default
-!        call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX,DOWNREG',option)
+        call InputKeywordUnrecognized(word,'SRCSINK_SANDBOX,DOWNREG',option)
     end select
   enddo
+
+  if (associated(this%dataset%time_storage)) then
+    ! for now, forcing to step, which makes sense for src/sinks.
+    this%dataset%time_storage%time_interpolation_method = INTERPOLATION_STEP
+  endif
+  call DatasetVerify(this%dataset,null_time_storage,option)
   
 end subroutine DownregRead
 
@@ -170,6 +202,23 @@ subroutine DownregSetup(this,region_list,option)
   call SSSandboxBaseSetup(this,region_list,option)
 
 end subroutine DownregSetup 
+
+! ************************************************************************** !
+
+subroutine DownregUpdate(this,time,option)
+
+  use Option_module
+  use Dataset_module
+
+  implicit none
+
+  class(srcsink_sandbox_downreg_type) :: this
+  PetscReal :: time
+  type(option_type) :: option
+
+  call DatasetUpdate(this%dataset,time,option)
+
+end subroutine DownregUpdate
 
 ! ************************************************************************** !
 

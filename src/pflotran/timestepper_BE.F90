@@ -34,8 +34,12 @@ module Timestepper_BE_class
 !    procedure, public :: SetTargetTime => TimestepperBaseSetTargetTime
     procedure, public :: StepDT => TimestepperBEStepDT
     procedure, public :: UpdateDT => TimestepperBEUpdateDT
-    procedure, public :: Checkpoint => TimestepperBECheckpoint
-    procedure, public :: Restart => TimestepperBERestart
+    procedure, public :: CheckpointBinary => TimestepperBECheckpointBinary
+    procedure, public :: RestartBinary => TimestepperBERestartBinary
+#if defined(PETSC_HAVE_HDF5)
+    procedure, public :: CheckpointHDF5 => TimestepperBECheckpointHDF5
+    procedure, public :: RestartHDF5 => TimestepperBERestartHDF5
+#endif
     procedure, public :: Reset => TimestepperBEReset
     procedure, public :: PrintInfo => TimestepperBEPrintInfo
     procedure, public :: FinalizeRun => TimestepperBEFinalizeRun
@@ -46,11 +50,10 @@ module Timestepper_BE_class
   
   ! For checkpointing
   type, public, extends(stepper_base_header_type) :: stepper_BE_header_type
-    integer*8 :: cumulative_newton_iterations
-    integer*8 :: cumulative_linear_iterations
-    integer*8 :: num_newton_iterations
+    PetscInt :: cumulative_newton_iterations
+    PetscInt :: cumulative_linear_iterations
+    PetscInt :: num_newton_iterations
   end type stepper_BE_header_type
-  PetscSizeT, parameter, private :: bagsize = 88 ! 64 (base) + 24 (BE)
 
   interface PetscBagGetData
     subroutine PetscBagGetData(bag,header,ierr)
@@ -149,7 +152,7 @@ subroutine TimestepperBERead(this,input,option)
   implicit none
 
   class(timestepper_BE_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword
@@ -182,7 +185,9 @@ subroutine TimestepperBERead(this,input,option)
         call TimestepperBaseProcessKeyword(this,input,option,keyword)
     end select 
   
-  enddo  
+  enddo
+  
+  this%solver%print_ekg = this%print_ekg
 
 end subroutine TimestepperBERead
 
@@ -253,6 +258,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   use PM_Base_class
   use Option_module
   use Output_module, only : Output
+  use Output_EKG_module, only : IUNIT_EKG
   
   implicit none
 
@@ -276,7 +282,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscInt :: num_linear_iterations
   PetscInt :: sum_newton_iterations
   PetscInt :: sum_linear_iterations
-  character(len=2) :: tunit
+  character(len=MAXWORDLENGTH) :: tunit
   PetscReal :: tconv
   PetscReal :: fnorm, inorm, scaled_fnorm
   PetscBool :: plot_flag, transient_plot_flag
@@ -360,6 +366,16 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
       CHKERRQ(ierr)
     endif
 
+    !output tiny dt as needed
+    if(this%dt<2.d0*option%dt_min) then
+      if (option%print_file_flag) then
+        write(option%fid_out, *) '  '
+        write(option%fid_out, *) ' <---tiny time-step warning ----> '
+        write(option%fid_out, *) ' @Time (s): ', option%time, ' with dt_min=',option%dt_min
+        write(option%fid_out, *) ' current DT (s): ', this%dt
+      endif
+    endif
+
 !fmy: checking SNESSolver error and stop excuting/output messages if error occurs
 
     CHKERRQ(ierr)
@@ -420,6 +436,8 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
         !------fmy
 
         write(option%io_buffer,'(" Stopping: Time step cut criteria exceeded!")')
+        write(option%io_buffer,'(" Stopping: Time step cut criteria &
+                                   &exceeded!")')
         call printMsg(option)
         write(option%io_buffer,'("    icut =",i3,", max_time_step_cuts=",i3)') &
              icut,this%max_time_step_cuts
@@ -431,7 +449,8 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
         process_model%output_option%plot_name = 'flow_cut_to_failure'
         plot_flag = PETSC_TRUE
         transient_plot_flag = PETSC_FALSE
-        call Output(process_model%realization_base,plot_flag,transient_plot_flag)
+        call Output(process_model%realization_base,plot_flag, &
+                    transient_plot_flag)
         stop_flag = TS_STOP_FAILURE
         return
       endif
@@ -476,16 +495,19 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   call VecNorm(residual_vec,NORM_2,fnorm,ierr);CHKERRQ(ierr)
   call VecNorm(residual_vec,NORM_INFINITY,inorm,ierr);CHKERRQ(ierr)
   if (option%print_screen_flag) then
-    write(*, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5," [",a1,"]", &
-      & " snes_conv_reason: ",i4,/,"  newton = ",i3," [",i8,"]", &
-      & " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
-      this%steps, &
-      this%target_time/tconv, &
-      this%dt/tconv, &
-      tunit,snes_reason,sum_newton_iterations, &
-      this%cumulative_newton_iterations,sum_linear_iterations, &
-      this%cumulative_linear_iterations,icut, &
-      this%cumulative_time_step_cuts
+    ! jmf: write to stepper_string or solver_string
+      write(*, '(/," Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
+           & " [",a,"]", " snes_conv_reason: ",i4,/,"  newton = ",i3, &
+           & " [",i8,"]", " linear = ",i5," [",i10,"]"," cuts = ",i2, &
+           & " [",i4,"]")') &
+           this%steps, &
+           this%target_time/tconv, &
+           this%dt/tconv, &
+           trim(tunit),snes_reason,sum_newton_iterations, &
+           this%cumulative_newton_iterations,sum_linear_iterations, &
+           this%cumulative_linear_iterations,icut, &
+           this%cumulative_time_step_cuts
+
 
     if (associated(process_model%realization_base%discretization%grid)) then
        scaled_fnorm = fnorm/process_model%realization_base% &
@@ -504,13 +526,12 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 ! the following output produces a large ascii file if coupled with CLM
   if (option%print_file_flag) then
     write(option%fid_out, '(" Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
-      & " [",a1, &
-      & "]"," snes_conv_reason: ",i4,/,"  newton = ",i3," [",i8,"]", &
-      & " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
+      & " [",a,"]"," snes_conv_reason: ",i4,/,"  newton = ",i3, &
+      & " [",i8,"]", " linear = ",i5," [",i10,"]"," cuts = ",i2," [",i4,"]")') &
       this%steps, &
       this%target_time/tconv, &
       this%dt/tconv, &
-      tunit,snes_reason,sum_newton_iterations, &
+      trim(tunit),snes_reason,sum_newton_iterations, &
       this%cumulative_newton_iterations,sum_linear_iterations, &
       this%cumulative_linear_iterations,icut, &
       this%cumulative_time_step_cuts
@@ -521,13 +542,22 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   option%time = this%target_time
   call process_model%FinalizeTimestep()
   
+  if (this%print_ekg .and. OptionPrintToFile(option)) then
+100 format(a32," TIMESTEP ",i10,2es16.8,a,i3,i5,i3,i5,i5,i10)
+    write(IUNIT_EKG,100) trim(this%name), this%steps, this%target_time/tconv, &
+      this%dt/tconv, trim(tunit), &
+      icut, this%cumulative_time_step_cuts, &
+      sum_newton_iterations, this%cumulative_newton_iterations, &
+      sum_linear_iterations, this%cumulative_linear_iterations
+  endif
+  
   if (option%print_screen_flag) print *, ""  
   
 end subroutine TimestepperBEStepDT
 
 ! ************************************************************************** !
 
-subroutine TimestepperBECheckpoint(this,viewer,option)
+subroutine TimestepperBECheckpointBinary(this,viewer,option)
   ! 
   ! Checkpoints parameters/variables associated with
   ! a time stepper.
@@ -548,8 +578,13 @@ subroutine TimestepperBECheckpoint(this,viewer,option)
   type(option_type) :: option
   
   class(stepper_BE_header_type), pointer :: header
+  type(stepper_BE_header_type) :: dummy_header
+  character(len=1),pointer :: dummy_char(:)
   PetscBag :: bag
+  PetscSizeT :: bagsize
   PetscErrorCode :: ierr
+
+  bagsize = size(transfer(dummy_header,dummy_char))
 
   call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
   call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
@@ -558,7 +593,7 @@ subroutine TimestepperBECheckpoint(this,viewer,option)
   call PetscBagView(bag,viewer,ierr);CHKERRQ(ierr)
   call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
 
-end subroutine TimestepperBECheckpoint
+end subroutine TimestepperBECheckpointBinary
 
 ! ************************************************************************** !
 
@@ -583,7 +618,6 @@ subroutine TimestepperBERegisterHeader(this,bag,header)
   
   PetscErrorCode :: ierr
   
-  ! bagsize = 3 * 8 bytes = 24 bytes
   call PetscBagRegisterInt(bag,header%cumulative_newton_iterations,0, &
                            "cumulative_newton_iterations","", &
                            ierr);CHKERRQ(ierr)
@@ -630,7 +664,7 @@ end subroutine TimestepperBESetHeader
 
 ! ************************************************************************** !
 
-subroutine TimestepperBERestart(this,viewer,option)
+subroutine TimestepperBERestartBinary(this,viewer,option)
   ! 
   ! Checkpoints parameters/variables associated with
   ! a time stepper.
@@ -651,8 +685,13 @@ subroutine TimestepperBERestart(this,viewer,option)
   type(option_type) :: option
   
   class(stepper_BE_header_type), pointer :: header
+  type(stepper_BE_header_type) :: dummy_header
+  character(len=1),pointer :: dummy_char(:)
   PetscBag :: bag
+  PetscSizeT :: bagsize
   PetscErrorCode :: ierr
+
+  bagsize = size(transfer(dummy_header,dummy_char))
   
   call PetscBagCreate(option%mycomm,bagsize,bag,ierr);CHKERRQ(ierr)
   call PetscBagGetData(bag,header,ierr);CHKERRQ(ierr)
@@ -661,7 +700,263 @@ subroutine TimestepperBERestart(this,viewer,option)
   call TimestepperBEGetHeader(this,header)
   call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
 
-end subroutine TimestepperBERestart
+end subroutine TimestepperBERestartBinary
+
+! ************************************************************************** !
+
+#if defined(PETSC_HAVE_HDF5)
+subroutine TimestepperBECheckpointHDF5(this, chk_grp_id, option)
+  !
+  ! Checkpoints parameters/variables associated with
+  ! a time stepper.
+  !
+  ! Author: Gautam Bisht
+  ! Date: 07/30/15
+  !
+  use Option_module
+  use hdf5
+  use Checkpoint_module, only : CheckPointWriteIntDatasetHDF5
+  use Checkpoint_module, only : CheckPointWriteRealDatasetHDF5
+
+  implicit none
+  
+  class(timestepper_BE_type) :: this
+  PetscInt :: chk_grp_id
+  type(option_type) :: option
+
+#if defined(SCORPIO_WRITE)
+  integer :: h5_chk_grp_id
+  integer, pointer :: dims(:)
+  integer, pointer :: start(:)
+  integer, pointer :: stride(:)
+  integer, pointer :: length(:)
+  integer :: timestepper_grp_id
+#else
+  integer(HSIZE_T), pointer :: dims(:)
+  integer(HSIZE_T), pointer :: start(:)
+  integer(HSIZE_T), pointer :: stride(:)
+  integer(HSIZE_T), pointer :: length(:)
+  integer(HID_T) :: timestepper_grp_id
+  integer(HID_T) :: h5_chk_grp_id
+#endif
+
+  PetscMPIInt :: dataset_rank
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt, pointer :: int_array(:)
+  PetscReal, pointer :: real_array(:)
+  PetscMPIInt :: hdf5_err
+
+  string = "Timestepper"
+  call h5gcreate_f(chk_grp_id, string, timestepper_grp_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+
+  allocate(start(1))
+  allocate(dims(1))
+  allocate(length(1))
+  allocate(stride(1))
+  allocate(int_array(1))
+  allocate(real_array(1))
+
+  dataset_rank = 1
+  dims(1) = ONE_INTEGER
+  start(1) = 0
+  length(1) = ONE_INTEGER
+  stride(1) = ONE_INTEGER
+
+  dataset_name = "Cumulative_newton_iterations" // CHAR(0)
+  int_array(1) = this%cumulative_newton_iterations
+  call CheckPointWriteIntDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+
+  dataset_name = "Cumulative_linear_iterations" // CHAR(0)
+  int_array(1) = this%cumulative_linear_iterations
+  call CheckPointWriteIntDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+
+  dataset_name = "Num_newton_iterations" // CHAR(0)
+  int_array(1) = this%num_newton_iterations
+  call CheckPointWriteIntDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+
+  dataset_name = "Time" // CHAR(0)
+  real_array(1) = this%target_time
+  call CheckPointWriteRealDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, real_array, option)
+
+  dataset_name = "Dt" // CHAR(0)
+  real_array(1) = this%dt
+  call CheckPointWriteRealDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, real_array, option)
+
+  dataset_name = "Prev_dt" // CHAR(0)
+  real_array(1) = this%prev_dt
+  call CheckPointWriteRealDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, real_array, option)
+
+  dataset_name = "Num_steps" // CHAR(0)
+  int_array(1) = this%steps
+  call CheckPointWriteIntDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+
+  dataset_name = "Cumulative_time_step_cuts" // CHAR(0)
+  int_array(1) = this%cumulative_time_step_cuts
+  call CheckPointWriteIntDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+
+  dataset_name = "Num_constant_time_steps" // CHAR(0)
+  int_array(1) = this%num_constant_time_steps
+  call CheckPointWriteIntDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+
+  dataset_name = "Num_contig_revert_due_to_sync" // CHAR(0)
+  int_array(1) = this%num_contig_revert_due_to_sync
+  call CheckPointWriteIntDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+
+  dataset_name = "Revert_dt" // CHAR(0)
+  int_array(1) = ZERO_INTEGER
+  if (this%revert_dt) int_array(1) = ONE_INTEGER
+  call CheckPointWriteIntDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+
+  call h5gclose_f(timestepper_grp_id, hdf5_err)
+
+  deallocate(start)
+  deallocate(dims)
+  deallocate(length)
+  deallocate(stride)
+  deallocate(int_array)
+  deallocate(real_array)
+
+end subroutine TimestepperBECheckpointHDF5
+
+! ************************************************************************** !
+
+subroutine TimestepperBERestartHDF5(this, chk_grp_id, option)
+  !
+  ! Restarts parameters/variables associated with
+  ! a time stepper.
+  !
+  ! Author: Gautam Bisht
+  ! Date: 08/16/15
+  !
+  use Option_module
+  use hdf5
+  use Checkpoint_module, only : CheckPointReadIntDatasetHDF5
+  use Checkpoint_module, only : CheckPointReadRealDatasetHDF5
+
+  implicit none
+  
+  class(timestepper_BE_type) :: this
+  PetscInt :: chk_grp_id
+  type(option_type) :: option
+
+#if defined(SCORPIO_WRITE)
+  integer :: h5_chk_grp_id
+  integer, pointer :: dims(:)
+  integer, pointer :: start(:)
+  integer, pointer :: stride(:)
+  integer, pointer :: length(:)
+  integer :: timestepper_grp_id
+#else
+  integer(HSIZE_T), pointer :: dims(:)
+  integer(HSIZE_T), pointer :: start(:)
+  integer(HSIZE_T), pointer :: stride(:)
+  integer(HSIZE_T), pointer :: length(:)
+  integer(HID_T) :: timestepper_grp_id
+  integer(HID_T) :: h5_chk_grp_id
+#endif
+
+  PetscMPIInt :: dataset_rank
+  character(len=MAXSTRINGLENGTH) :: dataset_name
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt, pointer :: int_array(:)
+  PetscReal, pointer :: real_array(:)
+  PetscMPIInt :: hdf5_err
+
+  string = "Timestepper"
+  h5_chk_grp_id = chk_grp_id
+  call h5gopen_f(h5_chk_grp_id, string, timestepper_grp_id, hdf5_err)
+
+  allocate(start(1))
+  allocate(dims(1))
+  allocate(length(1))
+  allocate(stride(1))
+  allocate(int_array(1))
+  allocate(real_array(1))
+
+  dataset_rank = 1
+  dims(1) = ONE_INTEGER
+  start(1) = 0
+  length(1) = ONE_INTEGER
+  stride(1) = ONE_INTEGER
+
+  dataset_name = "Cumulative_newton_iterations" // CHAR(0)
+  call CheckPointReadIntDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+  this%cumulative_newton_iterations = int_array(1)
+
+  dataset_name = "Cumulative_linear_iterations" // CHAR(0)
+  call CheckPointReadIntDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+  this%cumulative_linear_iterations = int_array(1)
+
+  dataset_name = "Num_newton_iterations" // CHAR(0)
+  call CheckPointReadIntDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+  this%num_newton_iterations = int_array(1)
+
+  dataset_name = "Time" // CHAR(0)
+  call CheckPointReadRealDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, real_array, option)
+  this%target_time = real_array(1)
+
+  dataset_name = "Dt" // CHAR(0)
+  call CheckPointReadRealDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, real_array, option)
+  this%dt = real_array(1)
+
+  dataset_name = "Prev_dt" // CHAR(0)
+  call CheckPointReadRealDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, real_array, option)
+  this%prev_dt = real_array(1)
+
+  dataset_name = "Num_steps" // CHAR(0)
+  call CheckPointReadIntDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+  this%steps = int_array(1)
+
+  dataset_name = "Cumulative_time_step_cuts" // CHAR(0)
+  call CheckPointReadIntDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+  this%cumulative_time_step_cuts = int_array(1)
+
+  dataset_name = "Num_constant_time_steps" // CHAR(0)
+  call CheckPointReadIntDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+  this%num_constant_time_steps = int_array(1)
+
+  dataset_name = "Num_contig_revert_due_to_sync" // CHAR(0)
+  call CheckPointReadIntDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+  this%num_contig_revert_due_to_sync = int_array(1)
+
+  dataset_name = "Revert_dt" // CHAR(0)
+  call CheckPointReadIntDatasetHDF5(timestepper_grp_id, dataset_name, dataset_rank, &
+                                     dims, start, length, stride, int_array, option)
+  this%revert_dt = (int_array(1) == ONE_INTEGER)
+
+  call h5gclose_f(timestepper_grp_id, hdf5_err)
+
+  deallocate(start)
+  deallocate(dims)
+  deallocate(length)
+  deallocate(stride)
+  deallocate(int_array)
+  deallocate(real_array)
+
+end subroutine TimestepperBERestartHDF5
+#endif
 
 ! ************************************************************************** !
 

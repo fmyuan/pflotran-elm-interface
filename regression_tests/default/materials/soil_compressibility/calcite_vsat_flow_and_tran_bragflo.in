@@ -1,12 +1,25 @@
 #Description: 1D Calcite dissolution problem
 
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+  /
+END
+
+SUBSURFACE
+
 #=========================== regression =======================================
 REGRESSION
   CELLS_PER_PROCESS 5
 END
 
 #=========================== flow mode ========================================
-MODE RICHARDS
 
 #=========================== chemistry ========================================
 CHEMISTRY
@@ -65,7 +78,7 @@ GRID
 END
 
 #=========================== fluid properties =================================
-FLUID_PROPERTY 
+FLUID_PROPERTY
   DIFFUSION_COEFFICIENT 1.d-9
 END
 
@@ -80,17 +93,22 @@ MATERIAL_PROPERTY soil1
   PERMEABILITY
     PERM_ISO 1.d-12
   /
-  SATURATION_FUNCTION sf1
+  CHARACTERISTIC_CURVES sf1
 END
 
-#=========================== saturation function ==============================
-SATURATION_FUNCTION sf1
-  SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
-  RESIDUAL_SATURATION 0.1d0
-  LAMBDA 0.5d0
-  ALPHA 1.d-4
-  MAX_CAPILLARY_PRESSURE 1.d8
-/
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES sf1
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.5d0
+    ALPHA  1.d-4
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    MAX_CAPILLARY_PRESSURE 1.d8
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.5d0
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+  /
+END
 
 #=========================== output options ===================================
 OUTPUT
@@ -182,8 +200,8 @@ END
 CONSTRAINT inlet
   CONCENTRATIONS
     H+     5.         P
-    HCO3-  1.d-3      T 
-    Ca++   1.d-6      Z 
+    HCO3-  1.d-3      T
+    Ca++   1.d-6      Z
   /
 END
 
@@ -214,3 +232,4 @@ STRATA
 END
 
 
+END_SUBSURFACE

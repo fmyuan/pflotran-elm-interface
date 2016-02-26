@@ -38,7 +38,9 @@ contains
 
 subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
                                    material_auxvar, &
-                                   option,sat_func,J)
+                                   option, &
+                                   characteristic_curves, &
+                                   J)
   ! 
   ! Computes derivatives of the accumulation
   ! term for the Jacobian
@@ -48,7 +50,7 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
   ! 
 
   use Option_module
-  use Saturation_Function_module
+  use Characteristic_Curves_module
   use Material_Aux_class, only : material_auxvar_type, &
                                  soil_compressibility_index, &
                                  MaterialAuxVarInit, &
@@ -62,7 +64,7 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
   type(global_auxvar_type) :: global_auxvar
   class(material_auxvar_type) :: material_auxvar
   type(option_type) :: option
-  type(saturation_function_type) :: sat_func
+  type(characteristic_curves_type) :: characteristic_curves
   PetscReal :: J(option%nflowdof,option%nflowdof)
      
   PetscInt :: ispec 
@@ -113,7 +115,9 @@ subroutine RichardsAccumDerivative(rich_auxvar,global_auxvar, &
     x_pert(ideriv) = x_pert(ideriv) + pert
     
     call RichardsAuxVarCompute(x_pert(1),rich_auxvar_pert,global_auxvar_pert, &
-                               material_auxvar_pert,sat_func,option)
+                               material_auxvar_pert, &
+                               characteristic_curves, &
+                               option)
     call RichardsAccumulation(rich_auxvar_pert,global_auxvar_pert, &
                               material_auxvar_pert, &
                               option,res_pert)
@@ -177,7 +181,10 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
                                   rich_auxvar_dn,global_auxvar_dn, &
                                   material_auxvar_dn,sir_dn, &
                                   area, dist, &
-                                  option,sat_func_up,sat_func_dn,Jup,Jdn)
+                                  option, &
+                                  characteristic_curves_up, &
+                                  characteristic_curves_dn, &
+                                  Jup,Jdn)
   ! 
   ! Computes the derivatives of the internal flux terms
   ! for the Jacobian
@@ -186,7 +193,7 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
   ! Date: 12/13/07
   ! 
   use Option_module 
-  use Saturation_Function_module 
+  use Characteristic_Curves_module
   use Material_Aux_class
   use Connection_module
   
@@ -198,7 +205,8 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
   type(option_type) :: option
   PetscReal :: sir_up, sir_dn
   PetscReal :: v_darcy, area, dist(-1:3)
-  type(saturation_function_type) :: sat_func_up, sat_func_dn
+  type(characteristic_curves_type) :: characteristic_curves_up
+  type(characteristic_curves_type) :: characteristic_curves_dn
   PetscReal :: Jup(option%nflowdof,option%nflowdof)
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
      
@@ -352,11 +360,13 @@ subroutine RichardsFluxDerivative(rich_auxvar_up,global_auxvar_up, &
     x_pert_dn(ideriv) = x_pert_dn(ideriv) + pert_dn
     call RichardsAuxVarCompute(x_pert_up(1),rich_auxvar_pert_up, &
                                global_auxvar_pert_up, &
-                               material_auxvar_pert_up,sat_func_up, &
+                               material_auxvar_pert_up, &
+                               characteristic_curves_up, &
                                option)
     call RichardsAuxVarCompute(x_pert_dn(1),rich_auxvar_pert_dn, &
                                global_auxvar_pert_dn, &
-                               material_auxvar_pert_dn,sat_func_dn, &
+                               material_auxvar_pert_dn, &
+                               characteristic_curves_dn, &
                                option)
     call RichardsFlux(rich_auxvar_pert_up,global_auxvar_pert_up, &
                       material_auxvar_pert_up,sir_up, &
@@ -495,7 +505,8 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                                     material_auxvar_dn, &
                                     sir_dn, &
                                     area,dist,option, &
-                                    sat_func_dn,Jdn)
+                                    characteristic_curves_dn, &
+                                    Jdn)
   ! 
   ! Computes the derivatives of the boundary flux
   ! terms for the Jacobian
@@ -504,7 +515,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
   ! Date: 12/13/07
   ! 
   use Option_module
-  use Saturation_Function_module
+  use Characteristic_Curves_module
   use Material_Aux_class
   use EOS_Water_module
   use Utility_module
@@ -524,7 +535,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
   ! dist(1:3) = unit vector
   ! dist(0)*dist(1:3) = vector
   PetscReal :: dist(-1:3)
-  type(saturation_function_type) :: sat_func_dn  
+  type(characteristic_curves_type) :: characteristic_curves_dn
   PetscReal :: Jdn(option%nflowdof,option%nflowdof)
   
   PetscReal :: dist_gravity  ! distance along gravity vector
@@ -577,7 +588,8 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
   pressure_bc_type = ibndtype(RICHARDS_PRESSURE_DOF)
   select case(pressure_bc_type)
     ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC,HET_SURF_SEEPAGE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC,HET_SURF_SEEPAGE_BC, &
+         HET_DIRICHLET)
 
       ! dist(0) = scalar - magnitude of distance
       ! gravity = vector(3)
@@ -658,44 +670,46 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
 
           ! If running with surface-flow model, ensure (darcy_velocity*dt) does
           ! not exceed depth of standing water.
-          if (.not. rich_auxvar_dn%bcflux_default_scheme) then
-            if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%surf_flow_on) then
-              call EOSWaterdensity(option%reference_temperature, &
+          if (option%surf_flow_on) then
+            if (rich_auxvar_dn%vars_for_sflow(11) == 0.d0) then
+              if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%surf_flow_on) then
+                call EOSWaterdensity(option%reference_temperature, &
                                    option%reference_pressure,rho,dum1,ierr)
 
-              if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%P_min) then
-              
-                ! Linear approximation
-                call Interpolate(rich_auxvar_dn%range_for_linear_approx(2), &
-                                 rich_auxvar_dn%range_for_linear_approx(1), &
+                if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%vars_for_sflow(1)) then
+
+                  ! Linear approximation
+                  call Interpolate(rich_auxvar_dn%vars_for_sflow(8), &
+                                 rich_auxvar_dn%vars_for_sflow(7), &
                                  global_auxvar_dn%pres(1), &
-                                 rich_auxvar_dn%range_for_linear_approx(4), &
-                                 rich_auxvar_dn%range_for_linear_approx(3), &
+                                 rich_auxvar_dn%vars_for_sflow(10), &
+                                 rich_auxvar_dn%vars_for_sflow(9), &
                                  q_approx)
-                v_darcy = q_approx/area
-                q       = q_approx
+                  v_darcy = q_approx/area
+                  q       = q_approx
 
-                dP_lin = rich_auxvar_dn%range_for_linear_approx(2) - &
-                         rich_auxvar_dn%range_for_linear_approx(1)
-                dq_lin = rich_auxvar_dn%range_for_linear_approx(4) - &
-                         rich_auxvar_dn%range_for_linear_approx(3)
-                dq_dp_dn = dq_lin/dP_lin
+                  dP_lin = rich_auxvar_dn%vars_for_sflow(8) - &
+                         rich_auxvar_dn%vars_for_sflow(7)
+                  dq_lin = rich_auxvar_dn%vars_for_sflow(10) - &
+                         rich_auxvar_dn%vars_for_sflow(9)
+                  dq_dp_dn = dq_lin/dP_lin
 
-              else
-                if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%P_max) then
+                else
+                  if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%vars_for_sflow(2)) then
 
-                  ! Cubic approximation
-                  call CubicPolynomialEvaluate(rich_auxvar_dn%coeff_for_cubic_approx, &
+                    ! Cubic approximation
+                    call CubicPolynomialEvaluate(rich_auxvar_dn%vars_for_sflow(3:6), &
                                                global_auxvar_dn%pres(1) - option%reference_pressure, &
                                                q_approx, dq_approx)
-                  v_darcy = q_approx/area
-                  q = q_approx
-                  dq_dp_dn = dq_approx
+                    v_darcy = q_approx/area
+                    q = q_approx
+                    dq_dp_dn = dq_approx
+                  endif
                 endif
-              endif
-            endif   !if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0)
+              endif   !if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%surf_flow_on)
 
-          endif     !if (.not. rich_auxvar_dn%bcflux_default_scheme)
+            endif     !if (rich_auxvar_dn%vars_for_sflow(11) == 0.d0)
+          endif   !if (option%surf_flow_on)
 
 #ifdef CLM_PFLOTRAN
           ! when coupled with CLM, 'pressure-type' BC due to water-column formed on the BC-contacted cell(s)
@@ -717,7 +731,7 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
                dq_dp_dn = Dq*(dukvr_dp_dn*dphi + ukvr*dphi_dp_dn)*area
             endif
 
-           endif     !if (pressure_bc_type == DIRICHLET_BC)
+          endif     !if (pressure_bc_type == DIRICHLET_BC)
 #endif
 
         endif      !if (ukvr*Dq>floweps)
@@ -816,11 +830,13 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
     endif   
     call RichardsAuxVarCompute(x_pert_dn(1),rich_auxvar_pert_dn, &
                                global_auxvar_pert_dn, &
-                               material_auxvar_pert_dn,sat_func_dn, &
+                               material_auxvar_pert_dn, &
+                               characteristic_curves_dn, &
                                option)
     call RichardsAuxVarCompute(x_pert_up(1),rich_auxvar_pert_up, &
                                global_auxvar_pert_up, &
-                               material_auxvar_pert_up,sat_func_dn, &
+                               material_auxvar_pert_up, &
+                               characteristic_curves_dn, &
                                option)
     call RichardsBCFlux(ibndtype,auxvars, &
                         rich_auxvar_pert_up,global_auxvar_pert_up, &
@@ -901,7 +917,8 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
   pressure_bc_type = ibndtype(RICHARDS_PRESSURE_DOF)
   select case(pressure_bc_type)
     ! figure out the direction of flow
-    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC,HET_SURF_SEEPAGE_BC)
+    case(DIRICHLET_BC,HYDROSTATIC_BC,SEEPAGE_BC,CONDUCTANCE_BC,HET_SURF_SEEPAGE_BC, &
+         HET_DIRICHLET)
 
       ! dist(0) = scalar - magnitude of distance
       ! gravity = vector(3)
@@ -937,9 +954,9 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
             dphi = 0.d0
           endif
         endif
-
+   
        if (dphi>=0.D0) then
-#ifdef USE_ANISOTROPIC_MOBILITY
+#ifdef USE_ANISOTROPIC_MOBILITY       
          if (dabs(dabs(dist(1))-1) < 1e-6) then
            ukvr = rich_auxvar_up%kvr_x
          else if (dabs(dabs(dist(2))-1) < 1e-6) then
@@ -975,30 +992,30 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
           call EOSWaterdensity(option%reference_temperature, &
                                option%reference_pressure,rho,dum1,ierr)
 
-          if (.not. rich_auxvar_dn%bcflux_default_scheme) then
-            if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%P_min) then
+          if (rich_auxvar_dn%vars_for_sflow(11) == 0.d0) then
+            if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%vars_for_sflow(1)) then
 
-              if (rich_auxvar_dn%range_for_linear_approx(1) == -99999.d0) then
+              if (rich_auxvar_dn%vars_for_sflow(7) == -99999.d0) then
                 call printErrMsg(option,'Coeffs for linear approx for darcy flux not set')
               endif
 
               ! Linear approximation
-              call Interpolate(rich_auxvar_dn%range_for_linear_approx(2), &
-                               rich_auxvar_dn%range_for_linear_approx(1), &
+              call Interpolate(rich_auxvar_dn%vars_for_sflow(8), &
+                               rich_auxvar_dn%vars_for_sflow(7), &
                                global_auxvar_dn%pres(1), &
-                               rich_auxvar_dn%range_for_linear_approx(4), &
-                               rich_auxvar_dn%range_for_linear_approx(3), &
+                               rich_auxvar_dn%vars_for_sflow(2), &
+                               rich_auxvar_dn%vars_for_sflow(1), &
                                q_approx)
               v_darcy = q_approx/area
 
-            else if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%P_max) then
+            else if (global_auxvar_dn%pres(1) <= rich_auxvar_dn%vars_for_sflow(2)) then
 
-              if (rich_auxvar_dn%coeff_for_cubic_approx(1) == -99999.d0) then
+              if (rich_auxvar_dn%vars_for_sflow(3) == -99999.d0) then
                 call printErrMsg(option,'Coeffs for cubic approx for darcy flux not set')
               endif
 
               ! Cubic approximation
-              call CubicPolynomialEvaluate(rich_auxvar_dn%coeff_for_cubic_approx, &
+              call CubicPolynomialEvaluate(rich_auxvar_dn%vars_for_sflow(3:6), &
                                            global_auxvar_dn%pres(1) - option%reference_pressure, &
                                            q_approx, dq_approx)
               v_darcy = q_approx/area

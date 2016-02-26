@@ -12,7 +12,6 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_Nitrif_class
   use Reaction_Sandbox_Denitr_class
   use Reaction_Sandbox_Degas_class
-  use Reaction_Sandbox_Microbial_class
   
   use PFLOTRAN_Constants_module
 
@@ -111,7 +110,7 @@ subroutine RSandboxRead1(input,option)
   
   implicit none
   
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   call RSandboxRead(rxn_sandbox_list,input,option)
@@ -136,7 +135,7 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
   implicit none
   
   class(reaction_sandbox_base_type), pointer :: local_sandbox_list  
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -165,8 +164,6 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => NitrifCreate()
       case('DENITRIFICATION')
         new_sandbox => DenitrCreate()
-      case('MICROBIAL')
-        new_sandbox => MicrobialCreate()
       case('DEGAS')
         new_sandbox => degasCreate()
       case('LANGMUIR')
@@ -176,9 +173,7 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
       case('EXAMPLE')
         new_sandbox => EXAMPLECreate()
       case default
-        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX keyword: ' // &
-          trim(word) // ' not recognized.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(word,'CHEMISTRY,REACTION_SANDBOX',option)
     end select
     
     call new_sandbox%ReadInput(input,option)
@@ -214,7 +209,7 @@ subroutine RSandboxSkipInput(input,option)
   
   implicit none
   
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   class(reaction_sandbox_base_type), pointer :: dummy_list

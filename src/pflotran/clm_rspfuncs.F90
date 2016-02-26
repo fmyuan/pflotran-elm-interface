@@ -13,7 +13,7 @@ module CLM_RspFuncs_module
 
 ! temperature response function
   PetscInt, parameter, public :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1 
-  PetscInt, parameter, public :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2 
+  PetscInt, parameter, public :: TEMPERATURE_RESPONSE_FUNCTION_Q10  = 2
   PetscInt, parameter, public :: TEMPERATURE_RESPONSE_FUNCTION_DLEM = 3
 
 ! moisture response function

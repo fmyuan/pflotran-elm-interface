@@ -1,7 +1,7 @@
 module CLM_Rxn_Base_class
   
-  ! extended from reaction_sandbox_base to implement demand based down regulation
-  ! for use in CLM_Rxn t6g 10/06/2014 
+  ! extended from reaction_sandbox_base to implement demand based 
+  ! down regulation for use in CLM_Rxn t6g 10/06/2014 
 
   use PFLOTRAN_Constants_module
 
@@ -57,7 +57,7 @@ module CLM_Rxn_Base_class
       implicit none
   
       class(clm_rxn_base_type) :: this
-      type(input_type) :: input
+      type(input_type), pointer :: input
       type(option_type) :: option
   
     end subroutine Base_Read 
@@ -72,7 +72,7 @@ module CLM_Rxn_Base_class
       implicit none
   
       class(clm_rxn_base_type) :: this
-      type(input_type) :: input
+      type(input_type), pointer :: input
       type(option_type) :: option
   
     end subroutine Base_SkipBlock 
@@ -158,7 +158,7 @@ contains
     implicit none
   
     class(clm_rxn_base_type) :: this
-    type(input_type) :: input
+    type(input_type), pointer :: input
     type(option_type) :: option
   
   end subroutine Base_Read
@@ -173,7 +173,7 @@ contains
     implicit none
   
     class(clm_rxn_base_type) :: this
-    type(input_type) :: input
+    type(input_type), pointer :: input
     type(option_type) :: option
   
   end subroutine Base_SkipBlock   
@@ -343,11 +343,11 @@ module CLM_Rxn_Decomp_class
   type, public, &
     extends(clm_rxn_base_type) :: clm_rxn_clmdec_type
 
-    PetscInt  :: temperature_response_function
+    PetscInt :: temperature_response_function
     PetscReal :: Q10
-    PetscInt  :: moisture_response_function
+    PetscInt :: moisture_response_function
 
-    PetscInt  :: litter_decomp_type          ! CLM-CN or CLM-Microbe
+    PetscInt :: litter_decomp_type          ! CLM-CN or CLM-Microbe
 
     PetscReal :: half_saturation_nh4
     PetscReal :: half_saturation_no3
@@ -535,10 +535,10 @@ subroutine CLMDec_Read(this,input,option)
   implicit none
   
   class(clm_rxn_clmdec_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, internal_units
   
   type(pool_type), pointer :: new_pool, prev_pool
   type(pool_type), pointer :: new_pool_rxn, prev_pool_rxn
@@ -792,6 +792,7 @@ subroutine CLMDec_Read(this,input,option)
               nullify(new_pool_rxn)
 
             case('RATE_CONSTANT')
+              internal_units = 'mol/L-s|1/s|L/mol-s'
               call InputReadDouble(input,option,rate_constant)
               call InputErrorMsg(input,option,'rate constant', &
                      'CHEMISTRY,CLM_RXN,CLMDec,')
@@ -801,9 +802,10 @@ subroutine CLMDec_Read(this,input,option)
                 call InputDefaultMsg(input,option)
               else              
                 rate_constant = rate_constant * &
-                  UnitsConvertToInternal(word,option)
+                  UnitsConvertToInternal(word,internal_units,option)
               endif
             case('TURNOVER_TIME')
+              internal_units = 'sec'
               call InputReadDouble(input,option,turnover_time)
               call InputErrorMsg(input,option,'turnover time', &
                      'CHEMISTRY,CLM_RXN,CLMDec')
@@ -813,12 +815,11 @@ subroutine CLMDec_Read(this,input,option)
                 call InputDefaultMsg(input,option)
               else              
                 turnover_time = turnover_time * &
-                  UnitsConvertToInternal(word,option)
+                  UnitsConvertToInternal(word,internal_units,option)
               endif
             case default
-              option%io_buffer = 'CHEMISTRY,CLM_RXN,CLMDec,REACTION keyword: ' // &
-                                  trim(word) // ' not recognized.'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                     'CHEMISTRY,CLM_RXN,CLMDec,REACTION',option)
           end select
         enddo
         
@@ -842,9 +843,7 @@ subroutine CLMDec_Read(this,input,option)
         prev_reaction => new_reaction
         nullify(new_reaction)        
       case default
-        option%io_buffer = 'CHEMISTRY,CLM_RXN,CLMDec keyword: ' // &
-                            trim(word) // ' not recognized.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(word,'CHEMISTRY,CLM_RXN,CLMDec',option)
     end select
   enddo
   
@@ -1355,7 +1354,7 @@ subroutine CLMDec_React(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
   volume = material_auxvar%volume
   ires_nh4 = -999
   ires_no3 = -999
-
+    
   if (this%is_NH4_aqueous) then   
     c_nh4    = rt_auxvar%pri_molal(this%species_id_nh4)
     ac_nh4   = rt_auxvar%pri_act_coef(this%species_id_nh4)
@@ -3357,11 +3356,11 @@ subroutine PlantNRead(this,input,option)
   implicit none
   
   class(clm_rxn_plantn_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   PetscInt :: i
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, internal_units
   
   do 
     call InputReadPflotranString(input,option)
@@ -3447,9 +3446,8 @@ subroutine PlantNRead(this,input,option)
       case('JACOBIAN_PLANT_NO3_SKIP')
         this%bskippno3jacobian = PETSC_TRUE
       case default
-        option%io_buffer = 'CHEMISTRY,CLM_RXN,PLANTN,REACTION keyword: ' // &
-                                  trim(word) // ' not recognized.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(word, &
+               'CHEMISTRY,CLM_RXN,PLANTN,REACTION',option)
     end select
   enddo
   
@@ -4026,11 +4024,11 @@ subroutine NitrRead(this,input,option)
   implicit none
   
   class(clm_rxn_nitr_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   PetscInt :: i
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, internal_units
   
   do 
     call InputReadPflotranString(input,option)
@@ -4065,9 +4063,9 @@ subroutine NitrRead(this,input,option)
               call InputErrorMsg(input,option,'Q10', &
                 'CHEMISTRY,CLM_RXN_NITRIFICATION,TEMPERATURE RESPONSE FUNCTION')
             case default
-              option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION,TEMPERATURE RESPONSE FUNCTION: ' // &
-                                  trim(word) // ' not recognized.'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                'CHEMISTRY,CLM_RXN,NITRIFICATION,TEMPERATURE RESPONSE FUNCTION', &
+                option)
           end select
         enddo 
       case('RATE_CONSTANT_NO3')
@@ -4117,9 +4115,8 @@ subroutine NitrRead(this,input,option)
       case('JACOBIAN_NITR_SKIP')
         this%bskipnitrjacobian = PETSC_TRUE
       case default
-        option%io_buffer = 'CHEMISTRY,CLM_RXN,NITRIFICATION, REACTION: ' // &
-                                  trim(word) // ' not recognized.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(word, &
+                'CHEMISTRY,CLM_RXN,NITRIFICATION,REACTION',option)
     end select
   enddo
   
@@ -4367,7 +4364,7 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
 
       f_w = saturation * (1.0d0 - saturation)
     endif
-  
+
     if (this%is_NH4_aqueous) then   
       temp_real = f_t * f_w * this%k_nitr_max * kg_water
     else
@@ -4406,7 +4403,7 @@ subroutine NitrReact(this,Residual,Jacobian,compute_derivative, &
       else
         drate_nitri = temp_real
       endif 
-
+ 
       drate_nitri = drate_nitri * f_nh4 + rate_nitri * d_nh4
 
       Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4) + drate_nitri
@@ -4776,11 +4773,11 @@ subroutine DeniRead(this,input,option)
   implicit none
   
   class(clm_rxn_deni_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   PetscInt :: i
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, internal_units
   
   do 
     call InputReadPflotranString(input,option)
@@ -4815,9 +4812,9 @@ subroutine DeniRead(this,input,option)
               call InputErrorMsg(input,option,'Q10', &
                 'CHEMISTRY,CLM_RXN,DENITRI,TEMPERATURE RESPONSE FUNCTION')
             case default
-              option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION, TEMPERATURE RESPONSE FUNCTION: ' // &
-                                  trim(word) // ' not recognized.'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                'CHEMISTRY,CLM_RXN,DENITRIFICATION,TEMPERATURE RESPONSE FUNCTION', &
+                option)
           end select
         enddo 
 
@@ -4851,9 +4848,8 @@ subroutine DeniRead(this,input,option)
       case('JACOBIAN_DENI_SKIP')
         this%bskipdenijacobian = PETSC_TRUE
       case default
-        option%io_buffer = 'CHEMISTRY,CLM_RXN,DENITRIFICATION, REACTION: ' // &
-                                  trim(word) // ' not recognized.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(word, &
+               'CHEMISTRY,CLM_RXN,DENITRIFICATION,REACTION',option)
     end select
   enddo
   
@@ -4976,7 +4972,6 @@ subroutine DeniReact(this,Residual,Jacobian,compute_derivative, &
   PetscScalar, pointer :: h2osoi_vol_pf_loc(:)    !
   PetscScalar, pointer :: watsat_pf_loc(:)    !
 #endif
-
 
   PetscReal :: s_min
   PetscReal :: tc
@@ -5241,7 +5236,7 @@ subroutine CWDFragRead(this,input,option)
   implicit none
   
   class(clm_rxn_cwdfrag_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   PetscInt :: i
@@ -5692,7 +5687,7 @@ subroutine RCLMRxnRead1(input,option)
   
   implicit none
   
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   call RCLMRxnRead(clmrxn_list,input,option)
@@ -5714,7 +5709,7 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
   implicit none
   
   class(clm_rxn_base_type), pointer :: local_clmrxn_list  
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -5790,9 +5785,7 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
         endif
 
       case default
-        option%io_buffer = 'CHEMISTRY,CLM_RXN: ' // &
-                           trim(word) // ' not recognized.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(word,'CHEMISTRY,CLM_RXN',option)
     end select
     
     call new_clmrxn%ReadInput(input,option)
@@ -5825,7 +5818,7 @@ subroutine RCLMRxnSkipInput(input,option)
   
   implicit none
   
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   class(clm_rxn_base_type), pointer :: dummy_list

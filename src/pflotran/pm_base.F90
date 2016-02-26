@@ -25,10 +25,12 @@ module PM_Base_class
     type(output_option_type), pointer :: output_option
     Vec :: solution_vec
     Vec :: residual_vec
+    PetscBool :: print_ekg
     class(realization_base_type), pointer :: realization_base
     class(pm_base_type), pointer :: next
   contains
-    procedure, public :: Init => PMBaseInit
+    procedure, public :: Setup => PMBaseInit
+    procedure, public :: Read => PMBaseRead
     procedure, public :: SetupSolvers => PMBaseSetupSolvers
     procedure, public :: InitializeRun => PMBaseThisOnly
     procedure, public :: FinalizeRun => PMBaseThisOnly
@@ -37,6 +39,7 @@ module PM_Base_class
     procedure, public :: UpdateTimestep => PMBaseUpdateTimestep
     procedure, public :: InitializeTimestep => PMBaseThisOnly
     procedure, public :: PreSolve => PMBaseThisOnly
+    procedure, public :: Solve => PMBaseThisTimeError
     procedure, public :: PostSolve => PMBaseThisOnly
     procedure, public :: FinalizeTimestep => PMBaseThisOnly
     procedure, public :: AcceptSolution => PMBaseFunctionThisOnly
@@ -44,19 +47,22 @@ module PM_Base_class
     procedure, public :: CheckUpdatePost => PMBaseCheckUpdatePost
     procedure, public :: TimeCut => PMBaseThisOnly
     procedure, public :: UpdateSolution => PMBaseThisOnly
+    procedure, public :: UpdateAuxVars => PMBaseThisOnly
     procedure, public :: MaxChange => PMBaseThisOnly
     procedure, public :: ComputeMassBalance => PMBaseComputeMassBalance
     procedure, public :: Destroy => PMBaseThisOnly
     procedure, public :: RHSFunction => PMBaseRHSFunction
-    procedure, public :: Checkpoint => PMBaseCheckpoint
-    procedure, public :: Restart => PMBaseCheckpoint
+    procedure, public :: CheckpointBinary => PMBaseCheckpointBinary
+    procedure, public :: RestartBinary => PMBaseCheckpointBinary
+    procedure, public :: CheckpointHDF5 => PMBaseCheckpointHDF5
+    procedure, public :: RestartHDF5 => PMBaseCheckpointHDF5
   end type pm_base_type
   
   type, public :: pm_base_header_type
-    integer*8 :: ndof
+    PetscInt :: ndof
   end type pm_base_header_type
     
-  public :: PMBaseCreate
+  public :: PMBaseInit
   
   public :: PMBaseResidual
   public :: PMBaseJacobian
@@ -66,7 +72,7 @@ contains
 
 ! ************************************************************************** !
 
-subroutine PMBaseCreate(this)
+subroutine PMBaseInit(this)
 
   implicit none
   
@@ -79,18 +85,30 @@ subroutine PMBaseCreate(this)
   nullify(this%realization_base)
   this%solution_vec = 0
   this%residual_vec = 0
+  this%print_ekg = PETSC_FALSE
   nullify(this%next)
   
-end subroutine PMBaseCreate
+end subroutine PMBaseInit
 
 ! ************************************************************************** !
 
-subroutine PMBaseInit(this)
+subroutine PMBaseRead(this,input)
+  use Input_Aux_module
   implicit none
   class(pm_base_type) :: this
-  print *, 'Must extend PMBaseInit.'
+  type(input_type), pointer :: input
+  print *, 'Must extend PMBaseRead.'
   stop
-end subroutine PMBaseInit
+end subroutine PMBaseRead
+
+! ************************************************************************** !
+
+subroutine PMBaseSetup(this)
+  implicit none
+  class(pm_base_type) :: this
+  print *, 'Must extend c.'
+  stop
+end subroutine PMBaseSetup
 
 ! ************************************************************************** !
 
@@ -99,7 +117,7 @@ subroutine PMBaseSetupSolvers(this,solver)
   implicit none
   class(pm_base_type) :: this
   type(solver_type) :: solver
-  print *, 'Must extend PMBaseInit.'
+  print *, 'Must extend PMBaseSetupSolvers.'
   stop
 end subroutine PMBaseSetupSolvers
 
@@ -146,12 +164,12 @@ end subroutine PMBaseUpdateTimestep
 
 ! ************************************************************************** !
 
-subroutine PMBaseCheckUpdatePre(this,line_search,P,dP,changed,ierr)
+subroutine PMBaseCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   class(pm_base_type) :: this
   SNESLineSearch :: line_search
-  Vec :: P
-  Vec :: dP
+  Vec :: X
+  Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
   print *, 'Must extend PMBaseCheckUpdatePre.'
@@ -160,30 +178,20 @@ end subroutine PMBaseCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMBaseCheckUpdatePost(this,line_search,P0,dP,P1,dP_changed, &
-                                  P1_changed,ierr)
+subroutine PMBaseCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+                                 X1_changed,ierr)
   implicit none
   class(pm_base_type) :: this
   SNESLineSearch :: line_search
-  Vec :: P0
-  Vec :: dP
-  Vec :: P1
-  PetscBool :: dP_changed
-  PetscBool :: P1_changed
+  Vec :: X0
+  Vec :: dX
+  Vec :: X1
+  PetscBool :: dX_changed
+  PetscBool :: X1_changed
   PetscErrorCode :: ierr
   print *, 'Must extend PMBaseCheckUpdatePost.'
   stop
 end subroutine PMBaseCheckUpdatePost
-
-! ************************************************************************** !
-
-subroutine PMBasePostSolve(this)
-  implicit none
-  class(pm_base_type) :: this
-  PetscBool :: solution_accepted
-  print *, 'Must extend PMBasePostSolve.'
-  stop
-end subroutine PMBasePostSolve
 
 ! ************************************************************************** !
 
@@ -203,6 +211,17 @@ subroutine PMBaseThisTime(this,time)
   print *, 'Must extend PMBaseThisTime.'
   stop
 end subroutine PMBaseThisTime
+
+! ************************************************************************** !
+
+subroutine PMBaseThisTimeError(this,time,ierr)
+  implicit none
+  class(pm_base_type) :: this
+  PetscReal :: time
+  PetscErrorCode :: ierr
+  print *, 'Must extend PMBaseThisTimeError.'
+  stop
+end subroutine PMBaseThisTimeError
 
 ! ************************************************************************** !
 
@@ -241,13 +260,41 @@ end subroutine PMBaseRHSFunction
 
 ! ************************************************************************** !
 
-subroutine PMBaseCheckpoint(this,viewer)
+subroutine PMBaseCheckpointBinary(this,viewer)
   implicit none
 #include "petsc/finclude/petscviewer.h"      
   class(pm_base_type) :: this
   PetscViewer :: viewer
-  print *, 'Must extend PMBaseCheckpoint/Restart.'
+  print *, 'Must extend PMBaseCheckpointBinary/RestartBinary.'
   stop
-end subroutine PMBaseCheckpoint
+end subroutine PMBaseCheckpointBinary
+
+! ************************************************************************** !
+
+subroutine PMBaseCheckpointHDF5(this, pm_grp_id)
+
+#if  !defined(PETSC_HAVE_HDF5)
+  implicit none
+  class(pm_base_type) :: this
+  integer :: pm_grp_id
+  print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
+        'write HDF5 formatted checkpoint file. Darn.'
+  stop
+#else
+
+  use hdf5
+  implicit none
+
+  class(pm_base_type) :: this
+#if defined(SCORPIO_WRITE)
+  integer :: pm_grp_id
+#else
+  integer(HID_T) :: pm_grp_id
+#endif
+  print *, 'Must extend PMBaseCheckpointHDF5/RestartHDF5.'
+  stop
+#endif
+
+end subroutine PMBaseCheckpointHDF5
 
 end module PM_Base_class

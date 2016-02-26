@@ -114,14 +114,14 @@ subroutine OutputHDF5(realization_base,var_list_type)
   PetscInt :: var_list_type
 
 #if defined(SCORPIO_WRITE)
-  integer:: file_id
-  integer:: grp_id
-  integer:: file_space_id
-  integer:: realization_set_id
-  integer:: prop_id
+  integer :: file_id
+  integer :: grp_id
+  integer :: file_space_id
+  integer :: realization_set_id
+  integer :: prop_id
   PetscMPIInt :: rank
-  integer:: dims(3)
-  integer:: pio_dataset_groupid
+  integer :: dims(3)
+  integer :: pio_dataset_groupid
 #else
   integer(HID_T) :: file_id
   integer(HID_T) :: grp_id
@@ -176,7 +176,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
     ! create a group for the coordinates data set
 #if defined(SCORPIO_WRITE)
     string = "Coordinates" // CHAR(0)
-    call scorpio_create_dataset_group(pio_dataset_groupid, string, file_id, &
+    call fscorpio_create_dataset_group(pio_dataset_groupid, string, file_id, &
                                         option%iowrite_group_id, ierr)
         ! set grp_id here
         ! As we already created the group, we will use file_id as group_id
@@ -190,7 +190,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
     ! write out coordinates in x, y, and z directions
     string = "X [m]"
     allocate(array(grid%structured_grid%nx+1))
-    array(1) = grid%structured_grid%origin(X_DIRECTION)
+    array(1) = discretization%origin_global(X_DIRECTION)
     do i=2,grid%structured_grid%nx+1
       array(i) = array(i-1) + grid%structured_grid%dx_global(i-1)
     enddo
@@ -199,7 +199,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
 
     string = "Y [m]"
     allocate(array(grid%structured_grid%ny+1))
-    array(1) = grid%structured_grid%origin(Y_DIRECTION)
+    array(1) = discretization%origin_global(Y_DIRECTION)
     do i=2,grid%structured_grid%ny+1
       array(i) = array(i-1) + grid%structured_grid%dy_global(i-1)
     enddo
@@ -208,7 +208,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
 
     string = "Z [m]"
     allocate(array(grid%structured_grid%nz+1))
-    array(1) = grid%structured_grid%origin(Z_DIRECTION)
+    array(1) = discretization%origin_global(Z_DIRECTION)
     do i=2,grid%structured_grid%nz+1
       array(i) = array(i-1) + grid%structured_grid%dz_global(i-1)
     enddo
@@ -217,7 +217,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
     !GEH - Structured Grid Dependence - End
 
 #if defined(SCORPIO_WRITE)
-    call scorpio_close_dataset_group(pio_dataset_groupid, file_id, &
+    call fscorpio_close_dataset_group(pio_dataset_groupid, file_id, &
                                         option%iowrite_group_id, ierr)
 #else
     call h5gclose_f(grp_id,hdf5_err)
@@ -235,7 +235,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
 #if defined(SCORPIO_WRITE)
   string = trim(string) //CHAR(0)
     ! This opens existing dataset and creates it if needed
-  call scorpio_create_dataset_group(pio_dataset_groupid, string, file_id, &
+  call fscorpio_create_dataset_group(pio_dataset_groupid, string, file_id, &
                                         option%iowrite_group_id, ierr)
   grp_id = file_id
 #else
@@ -307,15 +307,15 @@ subroutine OutputHDF5(realization_base,var_list_type)
                                          global_vec_vy,global_vec_vz, &
                                          LIQUID_PHASE)
 
-    string = "Liquid X-Velocity"
+    string = "Liquid X-Velocity [m_per_" // trim(output_option%tunit) // "]"
     call HDF5WriteStructDataSetFromVec(string,realization_base,global_vec_vx,grp_id, &
           H5T_NATIVE_DOUBLE)
 
-    string = "Liquid Y-Velocity"
+    string = "Liquid Y-Velocity [m_per_" // trim(output_option%tunit) // "]"
     call HDF5WriteStructDataSetFromVec(string,realization_base,global_vec_vy,grp_id, &
           H5T_NATIVE_DOUBLE)
 
-    string = "Liquid Z-Velocity"
+    string = "Liquid Z-Velocity [m_per_" // trim(output_option%tunit) // "]"
     call HDF5WriteStructDataSetFromVec(string,realization_base,global_vec_vz,grp_id, &
           H5T_NATIVE_DOUBLE)
 
@@ -375,7 +375,7 @@ subroutine OutputHDF5(realization_base,var_list_type)
   call VecDestroy(global_vec_vz,ierr);CHKERRQ(ierr)
 
 #if defined(SCORPIO_WRITE)
-    call scorpio_close_dataset_group(pio_dataset_groupid, file_id, &
+    call fscorpio_close_dataset_group(pio_dataset_groupid, file_id, &
             option%iowrite_group_id, ierr)
 #else
     call h5gclose_f(grp_id,hdf5_err)
@@ -412,7 +412,7 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   PetscInt, intent(in) :: var_list_type
   character(len=MAXSTRINGLENGTH) :: filename
   integer, intent(out) :: file_id
-  integer:: prop_id
+  integer :: prop_id
   PetscBool, intent(in) :: first
 
   call printMsg(option,'')
@@ -431,10 +431,11 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   PetscInt, intent(in) :: var_list_type
   character(len=MAXSTRINGLENGTH) :: filename
   PetscBool, intent(out) :: first
+  PetscErrorCode :: ierr
 
 #if defined(SCORPIO_WRITE)
   integer, intent(out) :: file_id
-  integer:: prop_id
+  integer :: prop_id
 #else
   integer(HID_T), intent(out) :: file_id
   integer(HID_T) :: prop_id
@@ -482,13 +483,13 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
 #if defined(SCORPIO_WRITE)
   if (.not.first) then
     filename = trim(filename) // CHAR(0)
-    call scorpio_open_file(filename, option%iowrite_group_id, &
+    call fscorpio_open_file(filename, option%iowrite_group_id, &
                               SCORPIO_FILE_READWRITE, file_id, ierr)
     if (file_id == -1) first = PETSC_TRUE
   endif
   if (first) then
     filename = trim(filename) // CHAR(0)
-    call scorpio_open_file(filename, option%iowrite_group_id, &
+    call fscorpio_open_file(filename, option%iowrite_group_id, &
                               SCORPIO_FILE_CREATE, file_id, ierr)
   endif
 
@@ -558,7 +559,7 @@ subroutine OutputHDF5CloseFile(option, file_id)
   PetscErrorCode :: ierr
 
 #if defined(SCORPIO_WRITE)
-  call scorpio_close_file(file_id, option%iowrite_group_id, ierr)
+  call fscorpio_close_file(file_id, option%iowrite_group_id, ierr)
 #else
   call h5fclose_f(file_id, hdf5_err)
   call h5close_f(hdf5_err)
@@ -611,7 +612,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
 #endif
 
   use hdf5
-  use HDF5_module, only : HDF5WriteUnstructuredDataSetFromVec
+  use HDF5_module, only : HDF5WriteDataSetFromVec
   use HDF5_Aux_module
   
   implicit none
@@ -624,17 +625,17 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   PetscInt :: var_list_type
 
 #if defined(SCORPIO_WRITE)
-  integer:: file_id
-  integer:: data_type
-  integer:: grp_id
-  integer:: file_space_id
-  integer:: memory_space_id
-  integer:: data_set_id
-  integer:: realization_set_id
-  integer:: prop_id
+  integer :: file_id
+  integer :: data_type
+  integer :: grp_id
+  integer :: file_space_id
+  integer :: memory_space_id
+  integer :: data_set_id
+  integer :: realization_set_id
+  integer :: prop_id
   PetscMPIInt :: rank
   integer :: rank_mpi,file_space_rank_mpi
-  integer:: dims(3)
+  integer :: dims(3)
   integer :: start(3), length(3), stride(3),istart
 #else
   integer(HID_T) :: file_id
@@ -821,10 +822,10 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
           string = trim(string) // ' [' // trim(word) // ']'
         endif
         if (cur_variable%iformat == 0) then
-          call HDF5WriteUnstructuredDataSetFromVec(string,option, &
+          call HDF5WriteDataSetFromVec(string,option, &
                                               natural_vec,grp_id,H5T_NATIVE_DOUBLE)
         else
-          call HDF5WriteUnstructuredDataSetFromVec(string,option, &
+          call HDF5WriteDataSetFromVec(string,option, &
                                               natural_vec,grp_id,H5T_NATIVE_INTEGER)
         endif
         att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" // trim(string)
@@ -847,7 +848,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
 
           call DiscretizationGlobalToNatural(discretization,field%avg_vars_vec(ivar), &
                                             natural_vec,ONEDOF)
-          call HDF5WriteUnstructuredDataSetFromVec(string,option, &
+          call HDF5WriteDataSetFromVec(string,option, &
                                             natural_vec,grp_id,H5T_NATIVE_DOUBLE)
           att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" // trim(string)
           if (option%myrank == option%io_rank) then
@@ -890,7 +891,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
     string = "Liquid X-Velocity [m_per_" // trim(output_option%tunit) // "]"
     call DiscretizationGlobalToNatural(discretization,global_vec_vx, &
                                        natural_vec,ONEDOF)
-    call HDF5WriteUnstructuredDataSetFromVec(string,option, &
+    call HDF5WriteDataSetFromVec(string,option, &
                                               natural_vec,grp_id,H5T_NATIVE_DOUBLE)
     att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" // trim(string)
     if (option%myrank == option%io_rank) then
@@ -900,7 +901,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
     string = "Liquid Y-Velocity [m_per_" // trim(output_option%tunit) // "]"
     call DiscretizationGlobalToNatural(discretization,global_vec_vy, &
                                        natural_vec,ONEDOF)
-    call HDF5WriteUnstructuredDataSetFromVec(string,option,natural_vec,grp_id, &
+    call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
                                              H5T_NATIVE_DOUBLE)
     att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" // trim(string)
     if (option%myrank == option%io_rank) then
@@ -910,7 +911,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
     string = "Liquid Z-Velocity [m_per_" // trim(output_option%tunit) // "]"
     call DiscretizationGlobalToNatural(discretization,global_vec_vz, &
                                        natural_vec,ONEDOF)
-    call HDF5WriteUnstructuredDataSetFromVec(string,option,natural_vec,grp_id, &
+    call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
                                              H5T_NATIVE_DOUBLE)
     att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" // trim(string)
     if (option%myrank == option%io_rank) then
@@ -925,7 +926,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
         string = "Gas X-Velocity [m_per_" // trim(output_option%tunit) // "]"
         call DiscretizationGlobalToNatural(discretization,global_vec_vx, &
                                            natural_vec,ONEDOF)
-        call HDF5WriteUnstructuredDataSetFromVec(string,option,natural_vec,grp_id, &
+        call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
                                                  H5T_NATIVE_DOUBLE)
         att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" // trim(string)
         if (option%myrank == option%io_rank) then
@@ -935,7 +936,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
         string = "Gas Y-Velocity [m_per_" // trim(output_option%tunit) // "]"
         call DiscretizationGlobalToNatural(discretization,global_vec_vy, &
                                            natural_vec,ONEDOF)
-        call HDF5WriteUnstructuredDataSetFromVec(string,option,natural_vec,grp_id, &
+        call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
                                                  H5T_NATIVE_DOUBLE)
         att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" // trim(string)
         if (option%myrank == option%io_rank) then
@@ -945,7 +946,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
         string = "Gas Z-Velocity [m_per_" // trim(output_option%tunit) // "]"
         call DiscretizationGlobalToNatural(discretization,global_vec_vz, &
                                            natural_vec,ONEDOF)
-        call HDF5WriteUnstructuredDataSetFromVec(string,option,natural_vec,grp_id, &
+        call HDF5WriteDataSetFromVec(string,option,natural_vec,grp_id, &
                                                  H5T_NATIVE_DOUBLE)
         att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" // trim(string)
         if (option%myrank == option%io_rank) then
@@ -1033,7 +1034,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
 #endif
 
   use hdf5
-  use HDF5_module, only : HDF5WriteUnstructuredDataSetFromVec
+  use HDF5_module, only : HDF5WriteDataSetFromVec
   use HDF5_Aux_module
   
   implicit none
@@ -1046,17 +1047,17 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   PetscInt :: var_list_type
 
 #if defined(SCORPIO_WRITE)
-  integer:: file_id
-  integer:: data_type
-  integer:: grp_id
-  integer:: file_space_id
-  integer:: memory_space_id
-  integer:: data_set_id
-  integer:: realization_set_id
-  integer:: prop_id
+  integer :: file_id, new_file_id
+  integer :: data_type
+  integer :: grp_id, new_grp_id
+  integer :: file_space_id
+  integer :: memory_space_id
+  integer :: data_set_id
+  integer :: realization_set_id
+  integer :: prop_id, new_prop_id
   PetscMPIInt :: rank
   integer :: rank_mpi,file_space_rank_mpi
-  integer:: dims(3)
+  integer :: dims(3)
   integer :: start(3), length(3), stride(3),istart
 #else
   integer(HID_T) :: file_id, new_file_id
@@ -1251,10 +1252,10 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
           string = trim(string) // ' [' // trim(word) // ']'
         endif
         if (cur_variable%iformat == 0) then
-          call HDF5WriteUnstructuredDataSetFromVec(string,option, &
+          call HDF5WriteDataSetFromVec(string,option, &
                                               natural_vec,grp_id,H5T_NATIVE_DOUBLE)
         else
-          call HDF5WriteUnstructuredDataSetFromVec(string,option, &
+          call HDF5WriteDataSetFromVec(string,option, &
                                               natural_vec,grp_id,H5T_NATIVE_INTEGER)
         endif
         att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" // trim(string)
@@ -1277,7 +1278,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
 
           call DiscretizationGlobalToNatural(discretization,field%avg_vars_vec(ivar), &
                                             natural_vec,ONEDOF)
-          call HDF5WriteUnstructuredDataSetFromVec(string,option, &
+          call HDF5WriteDataSetFromVec(string,option, &
                                             natural_vec,grp_id,H5T_NATIVE_DOUBLE)
           att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" // trim(string)
           if (option%myrank == option%io_rank .and. option%print_explicit_primal_grid) then
@@ -1556,14 +1557,14 @@ subroutine WriteHDF5Coordinates(name,option,length,array,file_id)
   type(option_type) :: option
   PetscInt :: length
   PetscReal :: array(:)
-  integer:: file_id
+  integer :: file_id
 
-  integer:: file_space_id
-  integer:: data_set_id
-  integer:: prop_id
-  integer:: dims(3)
+  integer :: file_space_id
+  integer :: data_set_id
+  integer :: prop_id
+  integer :: dims(3)
   PetscMPIInt :: rank
-  integer:: globaldims(3)
+  integer :: globaldims(3)
 #else
   character(len=32) :: name
   type(option_type) :: option
@@ -1603,7 +1604,7 @@ subroutine WriteHDF5Coordinates(name,option,length,array,file_id)
   endif
 
   call PetscLogEventBegin(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
-  call scorpio_write_dataset(array, SCORPIO_DOUBLE, rank, globaldims, dims, &
+  call fscorpio_write_dataset(array, SCORPIO_DOUBLE, rank, globaldims, dims, &
        file_id, name, option%iowrite_group_id, SCORPIO_NONUNIFORM_CONTIGUOUS_WRITE, &
        ierr)
   call PetscLogEventEnd(logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
@@ -1671,15 +1672,15 @@ subroutine WriteHDF5CoordinatesUGrid(grid,option,file_id)
   type(option_type), pointer :: option
 
 #if defined(SCORPIO_WRITE)
-  integer:: file_id
-  integer:: data_type
-  integer:: grp_id
-  integer:: file_space_id
-  integer:: memory_space_id
-  integer:: data_set_id
-  integer:: realization_set_id
-  integer:: prop_id
-  integer:: dims(3)
+  integer :: file_id
+  integer :: data_type
+  integer :: grp_id
+  integer :: file_space_id
+  integer :: memory_space_id
+  integer :: data_set_id
+  integer :: realization_set_id
+  integer :: prop_id
+  integer :: dims(3)
   integer :: start(3), length(3), stride(3),istart
   integer :: rank_mpi,file_space_rank_mpi
   integer :: hdf5_flag
@@ -1981,15 +1982,15 @@ subroutine WriteHDF5CoordinatesUGridXDMF(realization_base,option,file_id)
   type(option_type), pointer :: option
 
 #if defined(SCORPIO_WRITE)
-  integer:: file_id
-  integer:: data_type
-  integer:: grp_id
-  integer:: file_space_id
-  integer:: memory_space_id
-  integer:: data_set_id
-  integer:: realization_set_id
-  integer:: prop_id
-  integer:: dims(3)
+  integer :: file_id
+  integer :: data_type
+  integer :: grp_id
+  integer :: file_space_id
+  integer :: memory_space_id
+  integer :: data_set_id
+  integer :: realization_set_id
+  integer :: prop_id
+  integer :: dims(3)
   integer :: start(3), length(3), stride(3),istart
   integer :: rank_mpi,file_space_rank_mpi
   integer :: hdf5_flag
@@ -2512,15 +2513,15 @@ subroutine WriteHDF5CoordinatesUGridXDMFExplicit(realization_base,option,file_id
   type(option_type), pointer :: option
 
 #if defined(SCORPIO_WRITE)
-  integer:: file_id
-  integer:: data_type
-  integer:: grp_id
-  integer:: file_space_id
-  integer:: memory_space_id
-  integer:: data_set_id
-  integer:: realization_set_id
-  integer:: prop_id
-  integer:: dims(3)
+  integer :: file_id
+  integer :: data_type
+  integer :: grp_id
+  integer :: file_space_id
+  integer :: memory_space_id
+  integer :: data_set_id
+  integer :: realization_set_id
+  integer :: prop_id
+  integer :: dims(3)
   integer :: start(3), length(3), stride(3),istart
   integer :: rank_mpi,file_space_rank_mpi
   integer :: hdf5_flag
@@ -2799,15 +2800,15 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id,var_list_type
   PetscInt :: var_list_type  
 
 #if defined(SCORPIO_WRITE)
-  integer:: file_id
-  integer:: data_type
-  integer:: grp_id
-  integer:: file_space_id
-  integer:: memory_space_id
-  integer:: data_set_id
-  integer:: realization_set_id
-  integer:: prop_id
-  integer:: dims(3)
+  integer :: file_id
+  integer :: data_type
+  integer :: grp_id
+  integer :: file_space_id
+  integer :: memory_space_id
+  integer :: data_set_id
+  integer :: realization_set_id
+  integer :: prop_id
+  integer :: dims(3)
   integer :: start(3), length(3), stride(3),istart
   integer :: rank_mpi,file_space_rank_mpi
   integer :: hdf5_flag
@@ -2830,7 +2831,7 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id,var_list_type
 
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
-  type(unstructured_grid_type),pointer :: ugrid
+  type(grid_unstructured_type),pointer :: ugrid
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   type(coupler_type), pointer :: boundary_condition
@@ -3068,15 +3069,15 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id,var_list_type)
   PetscInt :: var_list_type
 
 #if defined(SCORPIO_WRITE)
-  integer:: file_id
-  integer:: data_type
-  integer:: grp_id
-  integer:: file_space_id
-  integer:: memory_space_id
-  integer:: data_set_id
-  integer:: realization_set_id
-  integer:: prop_id
-  integer:: dims(3)
+  integer :: file_id
+  integer :: data_type
+  integer :: grp_id
+  integer :: file_space_id
+  integer :: memory_space_id
+  integer :: data_set_id
+  integer :: realization_set_id
+  integer :: prop_id
+  integer :: dims(3)
   integer :: start(3), length(3), stride(3),istart
   integer :: rank_mpi,file_space_rank_mpi
   integer :: hdf5_flag
@@ -3099,7 +3100,7 @@ subroutine WriteHDF5FaceVelUGrid(realization_base,option,file_id,var_list_type)
 
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
-  type(unstructured_grid_type),pointer :: ugrid
+  type(grid_unstructured_type),pointer :: ugrid
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   type(coupler_type), pointer :: boundary_condition
@@ -3357,35 +3358,49 @@ subroutine OutputHDF5Provenance_PFLOTRAN(option, provenance_id, string_type)
 
   ! Create the pflotran group under provenance
   name = "PFLOTRAN"
-  call h5gcreate_f(provenance_id, name, pflotran_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+  call h5gcreate_f(provenance_id, name, pflotran_id, hdf5_err, &
+                   OBJECT_NAMELEN_DEFAULT_F)
 
-  call OutputHDF5DatasetStringArray(pflotran_id, string_type, "pflotran_compile_date_time", &
-       1, pflotran_compile_date_time)
+  call OutputHDF5DatasetStringArray(pflotran_id, string_type, &
+                                    "pflotran_compile_date_time", &
+                                    ONE_INTEGER, pflotran_compile_date_time)
 
-  call OutputHDF5DatasetStringArray(pflotran_id, string_type, "pflotran_compile_user", &
-       1, pflotran_compile_user)
+  call OutputHDF5DatasetStringArray(pflotran_id, string_type, &
+                                    "pflotran_compile_user", &
+                                    ONE_INTEGER, pflotran_compile_user)
 
-  call OutputHDF5DatasetStringArray(pflotran_id, string_type, "pflotran_compile_hostname", &
-       1, pflotran_compile_hostname)
+  call OutputHDF5DatasetStringArray(pflotran_id, string_type, &
+                                    "pflotran_compile_hostname", &
+                                    ONE_INTEGER, pflotran_compile_hostname)
 
-  call OutputHDF5AttributeStringArray(pflotran_id, string_type, "pflotran_status", &
-       1, pflotran_status)
+  call OutputHDF5AttributeStringArray(pflotran_id, string_type, &
+                                      "pflotran_status", &
+                                      ONE_INTEGER, pflotran_status)
 
-  call OutputHDF5AttributeStringArray(pflotran_id, string_type, "pflotran_changeset", &
-       1, pflotran_changeset)
+  call OutputHDF5AttributeStringArray(pflotran_id, string_type, &
+                                      "pflotran_changeset", &
+                                      ONE_INTEGER, pflotran_changeset)
 
-  call OutputHDF5DatasetStringArray(pflotran_id, string_type, "detail_pflotran_fflags", &
-       detail_pflotran_fflags_len, detail_pflotran_fflags)
+  call OutputHDF5DatasetStringArray(pflotran_id, string_type, &
+                                    "detail_pflotran_fflags", &
+                                    detail_pflotran_fflags_len, &
+                                    detail_pflotran_fflags)
 
-  call OutputHDF5DatasetStringArray(pflotran_id, string_type, "detail_pflotran_status", &
-       detail_pflotran_status_len, detail_pflotran_status)
+  call OutputHDF5DatasetStringArray(pflotran_id, string_type, &
+                                    "detail_pflotran_status", &
+                                    detail_pflotran_status_len, &
+                                    detail_pflotran_status)
 
-  call OutputHDF5DatasetStringArray(pflotran_id, string_type, "detail_pflotran_parent", &
-       detail_pflotran_parent_len, detail_pflotran_parent)
+  call OutputHDF5DatasetStringArray(pflotran_id, string_type, &
+                                    "detail_pflotran_parent", &
+                                    detail_pflotran_parent_len, &
+                                    detail_pflotran_parent)
 
   ! FIXME(bja, 2013-11-25): break gcc when diffs are present  
-  call OutputHDF5DatasetStringArray(pflotran_id, string_type, "detail_pflotran_diff", &
-       detail_pflotran_diff_len, detail_pflotran_diff)
+  call OutputHDF5DatasetStringArray(pflotran_id, string_type, &
+                                    "detail_pflotran_diff", &
+                                    detail_pflotran_diff_len, &
+                                    detail_pflotran_diff)
 
   call OutputHDF5Provenance_input(option, pflotran_id)
 
@@ -3427,8 +3442,9 @@ subroutine OutputHDF5Provenance_input(option, pflotran_id)
   call h5tcopy_f(H5T_FORTRAN_S1, input_string_type, hdf5_err)
   size_t_int = MAXWORDLENGTH
   call h5tset_size_f(input_string_type, size_t_int, hdf5_err)
-  call OutputHDF5DatasetStringArray(pflotran_id, input_string_type, "pflotran_input_file", &
-       input_line_count, input_buffer)
+  call OutputHDF5DatasetStringArray(pflotran_id, input_string_type, &
+                                    "pflotran_input_file", &
+                                    input_line_count, input_buffer)
   call h5tclose_f(input_string_type, hdf5_err)
   deallocate(input_buffer)
   call InputDestroy(input)
@@ -3457,22 +3473,30 @@ subroutine OutputHDF5Provenance_PETSc(provenance_id, string_type)
 
   ! create the petsc group under provenance
   name = "PETSc"
-  call h5gcreate_f(provenance_id, name, petsc_id, hdf5_err, OBJECT_NAMELEN_DEFAULT_F)
+  call h5gcreate_f(provenance_id, name, petsc_id, hdf5_err, &
+                   OBJECT_NAMELEN_DEFAULT_F)
 
   call OutputHDF5AttributeStringArray(petsc_id, string_type, "petsc_status", &
-       1, petsc_status)
+                                      ONE_INTEGER, petsc_status)
 
-  call OutputHDF5AttributeStringArray(petsc_id, string_type, "petsc_changeset", &
-       1, petsc_changeset)
+  call OutputHDF5AttributeStringArray(petsc_id, string_type, &
+                                      "petsc_changeset", &
+                                      ONE_INTEGER, petsc_changeset)
 
-  call OutputHDF5DatasetStringArray(petsc_id, string_type, "detail_petsc_status", &
-       detail_petsc_status_len, detail_petsc_status)
+  call OutputHDF5DatasetStringArray(petsc_id, string_type, &
+                                    "detail_petsc_status", &
+                                    detail_petsc_status_len, &
+                                    detail_petsc_status)
 
-  call OutputHDF5DatasetStringArray(petsc_id, string_type, "detail_petsc_parent", &
-       detail_petsc_parent_len, detail_petsc_parent)
+  call OutputHDF5DatasetStringArray(petsc_id, string_type, &
+                                    "detail_petsc_parent", &
+                                    detail_petsc_parent_len, &
+                                    detail_petsc_parent)
 
-  call OutputHDF5DatasetStringArray(petsc_id, string_type, "detail_petsc_config", &
-       detail_petsc_config_len, detail_petsc_config)
+  call OutputHDF5DatasetStringArray(petsc_id, string_type, &
+                                    "detail_petsc_config", &
+                                    detail_petsc_config_len, &
+                                    detail_petsc_config)
 
   ! close the petsc group
   call h5gclose_f(petsc_id, hdf5_err)

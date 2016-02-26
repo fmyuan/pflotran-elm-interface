@@ -1,7 +1,7 @@
 module PM_Surface_class
 
   use PM_Base_class
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Communicator_Base_module
   use Option_module
   use PFLOTRAN_Constants_module
@@ -20,22 +20,28 @@ module PM_Surface_class
 #include "petsc/finclude/petscts.h"
 
   type, public, extends(pm_base_type) :: pm_surface_type
-    class(surface_realization_type), pointer :: surf_realization
+    class(realization_surface_type), pointer :: surf_realization
     class(communicator_type), pointer :: comm1
+    PetscReal :: pressure_change_governor
+    PetscReal :: temperature_change_governor
+    PetscReal :: pressure_dampening_factor
+    PetscReal :: pressure_change_limit
+    PetscReal :: temperature_change_limit
   contains
-    procedure, public :: Init => PMSurfaceInit
+    procedure, public :: Setup => PMSurfaceSetup
     procedure, public :: PMSurfaceSetRealization
     procedure, public :: InitializeRun => PMSurfaceInitializeRun
     procedure, public :: PreSolve => PMSurfacePreSolve
     procedure, public :: PostSolve => PMSurfacePostSolve
-    procedure, public :: Checkpoint => PMSurfaceCheckpoint
-    procedure, public :: Restart => PMSurfaceRestart
+    procedure, public :: CheckpointBinary => PMSurfaceCheckpointBinary
+    procedure, public :: RestartBinary => PMSurfaceRestartBinary
     procedure, public :: UpdateAuxvars => PMSurfaceUpdateAuxvars
   end type pm_surface_type
 
   public :: PMSurfaceCreate, &
-            PMSurfaceInit, &
+            PMSurfaceSetup, &
             PMSurfaceUpdateSolution, &
+            PMSurfaceReadSelectCase, &
             PMSurfaceDestroy
   
 contains
@@ -53,16 +59,76 @@ subroutine PMSurfaceCreate(this)
   
   class(pm_surface_type) :: this
   
+  this%pressure_change_governor = 5.d5
+  this%temperature_change_governor = 5.d0
+  this%pressure_dampening_factor = UNINITIALIZED_DOUBLE
+  this%pressure_change_limit = UNINITIALIZED_DOUBLE
+  this%temperature_change_limit = UNINITIALIZED_DOUBLE
+
   nullify(this%surf_realization)
   nullify(this%comm1)
   
-  call PMBaseCreate(this)
+  call PMBaseInit(this)
 
 end subroutine PMSurfaceCreate
 
 ! ************************************************************************** !
 
-subroutine PMSurfaceInit(this)
+subroutine PMSurfaceReadSelectCase(this,input,keyword,found,option)
+  ! 
+  ! Reads input file parameters associated with the subsurface flow process 
+  !       model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 01/05/16
+
+  use Input_Aux_module
+  use String_module
+  use Option_module
+
+  implicit none
+
+  class(pm_surface_type) :: this
+  type(input_type) :: input
+
+  character(len=MAXWORDLENGTH) :: keyword
+  PetscBool :: found
+  type(option_type) :: option
+
+  found = PETSC_TRUE
+  select case(trim(keyword))
+
+    case('MAX_PRESSURE_CHANGE')
+      call InputReadDouble(input,option,this%pressure_change_governor)
+      call InputDefaultMsg(input,option,'dpmxe')
+
+    case('MAX_TEMPERATURE_CHANGE')
+      call InputReadDouble(input,option,this%temperature_change_governor)
+      call InputDefaultMsg(input,option,'dtmpmxe')
+
+    case('PRESSURE_DAMPENING_FACTOR')
+      call InputReadDouble(input,option,this%pressure_dampening_factor)
+      call InputErrorMsg(input,option,'PRESSURE_DAMPENING_FACTOR', &
+                          'TIMESTEPPER')
+
+    case('PRESSURE_CHANGE_LIMIT')
+      call InputReadDouble(input,option,this%pressure_change_limit)
+      call InputErrorMsg(input,option,'PRESSURE_CHANGE_LIMIT', &
+                          'TIMESTEPPER')
+
+    case('TEMPERATURE_CHANGE_LIMIT')
+      call InputReadDouble(input,option,this%temperature_change_limit)
+      call InputErrorMsg(input,option,'TEMPERATURE_CHANGE_LIMIT', &
+                          'TIMESTEPPER')
+    case default
+      found = PETSC_FALSE
+  end select
+
+end subroutine PMSurfaceReadSelectCase
+
+! ************************************************************************** !
+
+subroutine PMSurfaceSetup(this)
   ! 
   ! Initializes variables associated with subsurface process models
   ! 
@@ -90,7 +156,7 @@ subroutine PMSurfaceInit(this)
   ! set the communicator
   call this%comm1%SetDM(this%surf_realization%discretization%dm_1dof)
 
-end subroutine PMSurfaceInit
+end subroutine PMSurfaceSetup
 
 ! ************************************************************************** !
 
@@ -102,13 +168,13 @@ subroutine PMSurfaceSetRealization(this, surf_realization)
   ! Date: 04/22/14
   ! 
 
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Grid_module
 
   implicit none
 
   class(pm_surface_type) :: this
-  class(surface_realization_type), pointer :: surf_realization
+  class(realization_surface_type), pointer :: surf_realization
 
   this%surf_realization => surf_realization
   this%realization_base => surf_realization
@@ -195,13 +261,13 @@ subroutine PMSurfaceUpdateSolution(this)
                            this%surf_realization%option, &
                            this%surf_realization%option%time)
 
-  call SurfRealizAllCouplerAuxVars(this%surf_realization,force_update_flag)
+  call RealizSurfAllCouplerAuxVars(this%surf_realization,force_update_flag)
 
 end subroutine PMSurfaceUpdateSolution
 
 ! ************************************************************************** !
 
-subroutine PMSurfaceUpdateAuxvars(this)
+subroutine PMSurfaceUpdateAuxVars(this)
   ! 
   ! Author: Gautam Bisht, LBNL
   ! Date: 04/22/14
@@ -210,14 +276,14 @@ subroutine PMSurfaceUpdateAuxvars(this)
   
   class(pm_surface_type) :: this
 
-  this%option%io_buffer = 'PMSurfaceUpdateAuxvars() must be extended.'
+  this%option%io_buffer = 'PMSurfaceUpdateAuxVars() must be extended.'
   call printErrMsg(this%option)
 
-end subroutine PMSurfaceUpdateAuxvars
+end subroutine PMSurfaceUpdateAuxVars
 
 ! ************************************************************************** !
 
-subroutine PMSurfaceCheckpoint(this,viewer)
+subroutine PMSurfaceCheckpointBinary(this,viewer)
   ! 
   ! This routine checkpoints data associated with surface-flow PM
   ! 
@@ -233,13 +299,13 @@ subroutine PMSurfaceCheckpoint(this,viewer)
   class(pm_surface_type) :: this
   PetscViewer :: viewer
 
-  call SurfaceCheckpointProcessModel(viewer,this%surf_realization)
+  call SurfaceCheckpointProcessModelBinary(viewer,this%surf_realization)
 
-end subroutine PMSurfaceCheckpoint
+end subroutine PMSurfaceCheckpointBinary
 
 ! ************************************************************************** !
 
-subroutine PMSurfaceRestart(this,viewer)
+subroutine PMSurfaceRestartBinary(this,viewer)
   ! 
   ! This routine reads checkpoint data associated with surface-flow PM
   ! 
@@ -255,11 +321,11 @@ subroutine PMSurfaceRestart(this,viewer)
   class(pm_surface_type) :: this
   PetscViewer :: viewer
 
-  call SurfaceRestartProcessModel(viewer,this%surf_realization)
+  call SurfaceRestartProcessModelBinary(viewer,this%surf_realization)
   call this%UpdateAuxVars()
   call this%UpdateSolution()
 
-end subroutine PMSurfaceRestart
+end subroutine PMSurfaceRestartBinary
 
 ! ************************************************************************** !
 

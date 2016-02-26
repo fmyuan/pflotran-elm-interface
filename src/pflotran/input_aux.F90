@@ -18,6 +18,8 @@ module Input_Aux_module
     character(len=MAXSTRINGLENGTH) :: err_buf
     character(len=MAXSTRINGLENGTH) :: err_buf2
     PetscBool :: broadcast_read
+    PetscBool :: force_units ! force user to declare units on datasets
+    type(input_type), pointer :: parent
   end type input_type
 
   type :: input_dbase_type
@@ -107,7 +109,10 @@ module Input_Aux_module
             InputGetLineCount, &
             InputReadToBuffer, &
             InputReadASCIIDbase, &
-            InputDbaseDestroy
+            InputKeywordUnrecognized, &
+            InputCheckMandatoryUnits, &
+            InputDbaseDestroy, &
+            InputPushExternalFile
 
 contains
 
@@ -142,6 +147,8 @@ function InputCreate(fid,filename,option)
   input%err_buf = ''
   input%err_buf2 = ''
   input%broadcast_read = PETSC_FALSE
+  input%force_units = PETSC_FALSE
+  nullify(input%parent)
   
   if (fid == MAX_IN_UNIT) then
     option%io_buffer = 'MAX_IN_UNIT in pflotran_constants.h must be increased to' // &
@@ -341,11 +348,19 @@ subroutine InputReadInt1(input, option, int)
   PetscInt :: int
 
   character(len=MAXWORDLENGTH) :: word
+  PetscBool :: found
 
-  call InputReadWord(input%buf,word,PETSC_TRUE,input%ierr)
+  found = PETSC_FALSE
+  if (associated(dbase)) then
+    call InputParseDbaseForInt(input%buf,int,found,input%ierr)
+  endif
   
-  if (.not.InputError(input)) then
-    read(word,*,iostat=input%ierr) int
+  if (.not.found) then
+    call InputReadWord(input%buf,word,PETSC_TRUE,input%ierr)
+  
+    if (.not.InputError(input)) then
+      read(word,*,iostat=input%ierr) int
+    endif
   endif
 
 end subroutine InputReadInt1
@@ -368,12 +383,21 @@ subroutine InputReadInt2(string, option, int, ierr)
   PetscErrorCode :: ierr
 
   character(len=MAXWORDLENGTH) :: word
+  PetscBool :: found
 
   ierr = 0
-  call InputReadWord(string,word,PETSC_TRUE,ierr)
+
+  found = PETSC_FALSE
+  if (associated(dbase)) then
+    call InputParseDbaseForInt(string,int,found,ierr)
+  endif
   
-  if (.not.InputError(ierr)) then
-    read(word,*,iostat=ierr) int
+  if (.not.found) then
+    call InputReadWord(string,word,PETSC_TRUE,ierr)
+  
+    if (.not.InputError(ierr)) then
+      read(word,*,iostat=ierr) int
+    endif
   endif
 
 end subroutine InputReadInt2
@@ -578,7 +602,7 @@ subroutine InputReadPflotranString(input, option)
 
   implicit none
 
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   PetscErrorCode :: ierr
@@ -617,7 +641,7 @@ subroutine InputReadPflotranStringSlave(input, option)
   
   implicit none
 
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) ::  tempstring
   character(len=MAXWORDLENGTH) :: word
@@ -636,14 +660,28 @@ subroutine InputReadPflotranStringSlave(input, option)
     read(input%fid,'(a512)',iostat=input%ierr) input%buf
     call StringAdjustl(input%buf)
 
-    if (InputError(input)) exit
+    if (InputError(input)) then
+      ! check to see if another file is on the stack
+      if (InputPopExternalFile(input)) then
+        cycle
+      else
+        exit
+      endif
+    endif
 
     if (input%buf(1:1) == '#' .or. input%buf(1:1) == '!') cycle
 
     tempstring = input%buf
     call InputReadWord(tempstring,word,PETSC_TRUE,input%ierr)
     call StringToUpper(word)
-    if (word(1:4) == 'SKIP') then
+    
+    if (word(1:13) == 'EXTERNAL_FILE') then
+      ! have to stip the card 'EXTERNAL_FILE' from the buffer
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      ! push a new input file to stack
+      call InputPushExternalFile(input,option)
+      cycle
+    else if (word(1:4) == 'SKIP') then
       skip_count = 1
       do 
         read(input%fid,'(a512)',iostat=input%ierr) tempstring
@@ -670,9 +708,7 @@ subroutine InputReadPflotranStringSlave(input, option)
   ! Check for comment midway along a string
   if (.not.InputError(input)) then
     tempstring = input%buf
-    do i=1,MAXSTRINGLENGTH
-      input%buf(i:i) = ' '
-    enddo
+    input%buf = repeat(' ',MAXSTRINGLENGTH)
     do i=1,len_trim(tempstring)
       if (tempstring(i:i) /= '#' .and. tempstring(i:i) /= '!') then
         input%buf(i:i) = tempstring(i:i)
@@ -701,9 +737,6 @@ subroutine InputReadWord1(input, option, word, return_blank_error)
   character(len=MAXWORDLENGTH) :: word
   PetscBool :: return_blank_error
   
-  PetscInt :: i, begins, ends, lenword
-  character(len=1) :: tab, backslash
-
   if (InputError(input)) return
   
   call InputReadWord2(input%buf, word, return_blank_error, input%ierr)
@@ -728,14 +761,11 @@ subroutine InputReadWord2(string, word, return_blank_error, ierr)
   PetscBool :: return_blank_error
   PetscErrorCode :: ierr
   
-  PetscInt :: i, begins, ends
-  character(len=1) :: tab, backslash  
+  PetscInt :: i, begins, ends, length
+  character(len=1), parameter :: tab = achar(9), backslash = achar(92)
 
   if (ierr /= 0) return
 
-  tab = achar(9)
-  backslash = achar(92)
-  
   ! Initialize character string to blank.
   ! Initialize character string to blank.  len_trim(word) is not
   ! defined if word is allocated but not initialized.  This works on
@@ -746,9 +776,9 @@ subroutine InputReadWord2(string, word, return_blank_error, ierr)
   !   word(i:i) = ' '
   ! enddo
 
-  ierr = len_trim(string)
+  length = len_trim(string)
   
-  if (ierr == 0) then
+  if (length == 0) then
     if (return_blank_error) then
       ierr = 1
     else
@@ -760,11 +790,20 @@ subroutine InputReadWord2(string, word, return_blank_error, ierr)
 
     ! Remove leading blanks and tabs
     i=1
-    do while(string(i:i) == ' ' .or. string(i:i) == ',' .or. &
-             string(i:i) == tab) 
+    do while((string(i:i) == ' ' .or. string(i:i) == ',' .or. &
+             string(i:i) == tab) .and. i <= length) 
       i=i+1
     enddo
 
+    if (i > length) then
+      if (return_blank_error) then
+        ierr = 1
+      else
+        ierr = 0
+      endif
+      return
+    endif
+    
     begins=i
 
     ! Count # of continuous characters (no blanks, commas, etc. in between)
@@ -836,17 +875,12 @@ subroutine InputReadNChars2(string, chars, n, return_blank_error, ierr)
   PetscInt :: i, n, begins, ends
   character(len=n) :: chars
   PetscErrorCode :: ierr
-  character(len=1) :: tab, backslash    
+  character(len=1), parameter :: tab = achar(9), backslash = achar(92)
 
   if (InputError(ierr)) return
 
-  tab = achar(9)
-  backslash = achar(92)
-
   ! Initialize character string to blank.
-  do i=1,n
-    chars(i:i) = ' '
-  enddo
+  chars(1:n) = repeat(' ',n)
 
   ierr = len_trim(string)
   if (.not.InputError(ierr)) then
@@ -905,23 +939,19 @@ subroutine InputReadQuotedWord(input, option, word, return_blank_error)
 
   type(input_type) :: input
   type(option_type) :: option
-  PetscInt :: i, begins, ends, realends
+  PetscInt :: i, begins, ends, realends, len_trim_word
   PetscBool :: return_blank_error ! Return an error for a blank line
                                 ! Therefore, a blank line is not acceptable.
   character(len=*) :: word
   PetscBool :: openquotefound
-  character(len=1) :: tab, backslash    
+  character(len=1), parameter :: tab = achar(9), backslash = achar(92)
 
   if (InputError(input)) return
 
-  tab = achar(9)
-  backslash = achar(92)
-
   openquotefound = PETSC_FALSE
   ! Initialize character string to blank.
-  do i=1,len_trim(word)
-    word(i:i) = ' '
-  enddo
+  len_trim_word = len_trim(word)
+  word(1:len_trim_word) = repeat(' ',len_trim_word)
   
   if (len_trim(input%buf) == 0) then
     if (return_blank_error) then
@@ -991,18 +1021,14 @@ subroutine InputReadPath(string, word, return_blank_error, ierr)
   PetscBool :: return_blank_error
   PetscErrorCode :: ierr
   
-  PetscInt :: i, begins, ends
-  character(len=1) :: slash, backslash  
+  PetscInt :: i, begins, ends, len_trim_word
+  character(len=1), parameter :: slash = achar(47), backslash = achar(92)
 
   if (ierr /= 0) return
 
-  slash = achar(47)
-  backslash = achar(92)
-
   ! Initialize character string to blank.
-  do i=1,len_trim(word)
-    word(i:i) = ' '
-  enddo
+  len_trim_word = len_trim(word)
+  word(1:len_trim_word) = repeat(' ',len_trim_word)
 
   ierr = len_trim(string)
   
@@ -1060,7 +1086,7 @@ subroutine InputFindStringInFile1(input, option, string)
 
   implicit none
 
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: string
   
@@ -1084,7 +1110,7 @@ subroutine InputFindStringInFile2(input, option, string, print_warning)
 
   implicit none
 
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: string
   PetscBool :: print_warning
@@ -1148,7 +1174,7 @@ subroutine InputSkipToEND(input,option,string)
 
   implicit none
   
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   character(len=*) :: string
 
@@ -1192,7 +1218,9 @@ function InputCheckExit(input,option)
   if (input%buf(i:i) == '/' .or. &
 !geh: this fails when the keyword starts with END
 !geh      StringCompare(input%buf(i:),'END',THREE_INTEGER)) then
-      StringCompare(input%buf(i:),'END')) then
+      StringCompare(input%buf(i:),'END') .or. &
+      ! to end a block, e.g. END_SUBSURFACE
+      StringStartsWith(input%buf(i:),'END_')) then
     InputCheckExit = PETSC_TRUE
   else
     InputCheckExit = PETSC_FALSE
@@ -1664,7 +1692,7 @@ subroutine InputReadASCIIDbase(filename,option)
   PetscReal :: tempreal
   PetscReal, allocatable :: values(:)
   
-  input => InputCreate(86,filename,option)
+  input => InputCreate(IUNIT_TEMP,filename,option)
   
   icount = 0
   num_reals_in_dataset = 0
@@ -1757,7 +1785,7 @@ subroutine InputParseDbaseForInt(buffer,value,found,ierr)
   character(len=MAXSTRINGLENGTH) :: buffer
   PetscInt :: value
   PetscBool :: found
-  PetscInt :: ierr
+  PetscErrorCode :: ierr
 
   character(len=MAXSTRINGLENGTH) :: buffer_save
   character(len=MAXWORDLENGTH) :: word
@@ -1793,7 +1821,7 @@ subroutine InputParseDbaseForDouble(buffer,value,found,ierr)
   character(len=MAXSTRINGLENGTH) :: buffer
   PetscReal :: value
   PetscBool :: found
-  PetscInt :: ierr
+  PetscErrorCode :: ierr
 
   character(len=MAXSTRINGLENGTH) :: buffer_save
   character(len=MAXWORDLENGTH) :: word
@@ -1828,7 +1856,7 @@ subroutine DbaseLookupInt(keyword,value,ierr)
   
   character(len=MAXWORDLENGTH) :: keyword
   PetscInt :: value
-  PetscInt :: ierr
+  PetscErrorCode :: ierr
 
   ierr = 0
   
@@ -1856,7 +1884,7 @@ subroutine DbaseLookupDouble(keyword,value,ierr)
   
   character(len=MAXWORDLENGTH) :: keyword
   PetscReal :: value
-  PetscInt :: ierr
+  PetscErrorCode :: ierr
   
   PetscInt :: i
   PetscBool :: found
@@ -1879,6 +1907,112 @@ subroutine DbaseLookupDouble(keyword,value,ierr)
   endif
   
 end subroutine DbaseLookupDouble
+
+! ************************************************************************** !
+subroutine InputKeywordUnrecognized(keyword,string,option)
+  ! 
+  ! Looks up double precision value in database
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/19/14
+  ! 
+  use Option_module
+  
+  implicit none
+  
+  character(len=*) :: keyword
+  character(len=*) :: string
+  type(option_type) :: option
+  
+  option%io_buffer = 'Keyword "' // &
+                     trim(keyword) // &
+                     '" not recognized in ' // &
+                     trim(string) // '.'
+  call printErrMsg(option)
+  
+end subroutine InputKeywordUnrecognized
+
+! ************************************************************************** !
+
+subroutine InputCheckMandatoryUnits(input,option)
+  ! 
+  ! Looks up double precision value in database
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/19/14
+  ! 
+  use Option_module
+  
+  implicit none
+  
+  type(input_type) :: input
+  type(option_type) :: option
+  
+  if (input%force_units) then
+    option%io_buffer = 'Missing units'
+    if (len_trim(input%err_buf) > 1) then
+      option%io_buffer = trim(option%io_buffer) // ' in ' // &
+                         trim(input%err_buf) // '.'
+    endif
+    call printErrMsg(option)
+  endif
+  
+end subroutine InputCheckMandatoryUnits
+
+! ************************************************************************** !
+
+subroutine InputPushExternalFile(input,option)
+  ! 
+  ! Looks up double precision value in database
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/19/14
+  ! 
+  use Option_module
+  
+  implicit none
+  
+  type(input_type), pointer :: input
+  type(option_type) :: option
+
+  character(len=MAXSTRINGLENGTH) :: string
+  type(input_type), pointer :: input_child
+  
+  call InputReadNChars(input,option,string,MAXSTRINGLENGTH,PETSC_TRUE)
+  call InputErrorMsg(input,option,'filename','EXTERNAL_FILE')
+  input_child => InputCreate(input%fid+1,string,option) 
+  input_child%parent => input
+  input => input_child
+
+end subroutine InputPushExternalFile
+
+! ************************************************************************** !
+
+function InputPopExternalFile(input)
+  ! 
+  ! Looks up double precision value in database
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 08/19/14
+  ! 
+  
+  implicit none
+  
+  type(input_type), pointer :: input
+
+  PetscBool :: InputPopExternalFile
+  type(input_type), pointer :: input_parent
+  
+  InputPopExternalFile = PETSC_FALSE
+  if (associated(input%parent)) then
+    input_parent => input%parent
+    call InputDestroy(input)
+    input => input_parent
+    nullify(input_parent)
+    InputPopExternalFile = PETSC_TRUE
+  endif
+
+end function InputPopExternalFile
 
 ! ************************************************************************** !
 

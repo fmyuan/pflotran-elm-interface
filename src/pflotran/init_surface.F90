@@ -6,25 +6,192 @@ module Init_Surface_module
 
 #include "petsc/finclude/petscsys.h"
 
-  public :: InitSurfaceSetupRealization, &
+  public :: SurfaceInitReadRequiredCards, &
+            InitSurfaceSetupRealization, &
             InitSurfaceSetupSolvers
 contains
 
 ! ************************************************************************** !
 
-subroutine InitSurfaceSetupRealization(simulation)
+subroutine SurfaceInitReadRequiredCards(surf_realization)
+  ! 
+  ! This routine reads the required input file cards related to surface flows
+  ! 
+  ! Author: Gautam Bisht, ORNL
+  ! Date: 02/18/12
+  ! 
+
+  use Option_module
+  use Discretization_module
+  use Grid_module
+  use Input_Aux_module
+  use String_module
+  use Patch_module
+
+  use Realization_Surface_class
+  use Surface_Auxiliary_module
+
+  implicit none
+
+  class(realization_surface_type) :: surf_realization
+  type(discretization_type), pointer :: discretization
+
+  character(len=MAXSTRINGLENGTH) :: string
+  
+  type(patch_type), pointer :: patch
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(input_type), pointer :: input
+  
+  patch          => surf_realization%patch
+  option         => surf_realization%option
+  discretization => surf_realization%discretization
+  
+  input => surf_realization%input
+  
+! Read in select required cards
+!.........................................................................
+ 
+  ! GRID information
+!  string = "GRID"
+!  call InputFindStringInFile(input,option,string)
+!  call InputFindStringErrorMsg(input,option,string)
+
+  ! SURFACE_FLOW information
+  string = "SURFACE_FLOW"
+  call InputFindStringInFile(input,option,string)
+  if (InputError(input)) return
+  option%surf_flow_on = PETSC_TRUE
+  option%nsurfflowdof = 1
+  
+  string = "SURF_GRID"
+  call InputFindStringInFile(input,option,string)
+!  call SurfaceFlowReadRequiredCardsFromInput(surf_realization,input,option)
+  call SurfaceInit(surf_realization,input,option)
+
+  select case(discretization%itype)
+    case(STRUCTURED_GRID,UNSTRUCTURED_GRID)
+      patch => PatchCreate()
+      patch%grid => discretization%grid
+      patch%surf_or_subsurf_flag = SURFACE
+      if (.not.associated(surf_realization%patch_list)) then
+        surf_realization%patch_list => PatchCreateList()
+      endif
+      call PatchAddToList(patch,surf_realization%patch_list)
+      surf_realization%patch => patch
+  end select
+    
+end subroutine SurfaceInitReadRequiredCards
+
+! ************************************************************************** !
+
+subroutine SurfaceInit(surf_realization,input,option)
+  ! 
+  ! This routine reads required surface flow data from the input file
+  ! grids.
+  ! 
+  ! Author: Gautam Bisht, ORNL
+  ! Date: 02/09/12
+  ! 
+
+  use Option_module
+  use Input_Aux_module
+  use String_module
+  use Surface_Material_module
+  use Realization_Surface_class
+  use Grid_module
+  use Grid_Structured_module
+  use Grid_Unstructured_module
+  use Grid_Unstructured_Aux_module
+  use Discretization_module
+  use Region_module
+  use Condition_module
+  use Grid_Unstructured_Aux_module
+
+  implicit none
+
+  class(realization_surface_type) :: surf_realization
+  type(discretization_type),pointer :: discretization
+  type(grid_type), pointer :: grid
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  type(grid_unstructured_type), pointer :: un_str_sfgrid
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: unstructured_grid_ctype
+  PetscInt :: unstructured_grid_itype
+
+  discretization => surf_realization%discretization
+
+  input%ierr = 0
+  ! we initialize the word to blanks to avoid error reported by valgrind
+  word = ''
+
+  call InputReadPflotranString(input,option)
+  call InputReadWord(input,option,word,PETSC_TRUE)
+  call InputErrorMsg(input,option,'keyword','SURFACE_FLOW')
+  call StringToUpper(word)
+    
+  select case(trim(word))
+    case ('TYPE')
+      call InputReadWord(input,option,word,PETSC_TRUE)
+      call InputErrorMsg(input,option,'keyword','TYPE')
+      call StringToUpper(word)
+
+      select case(trim(word))
+        case ('UNSTRUCTURED')
+          unstructured_grid_itype = IMPLICIT_UNSTRUCTURED_GRID
+          unstructured_grid_ctype = 'implicit unstructured'
+          discretization%itype = UNSTRUCTURED_GRID
+          call InputReadNChars(input,option, &
+                               discretization%filename, &
+                               MAXSTRINGLENGTH, &
+                               PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword','filename')
+
+          grid => GridCreate()
+          un_str_sfgrid => UGridCreate()
+          un_str_sfgrid%grid_type = TWO_DIM_GRID
+          if (index(discretization%filename,'.h5') > 0) then
+#if defined(PETSC_HAVE_HDF5)
+            call UGridReadHDF5SurfGrid( un_str_sfgrid, &
+                                        discretization%filename, &
+                                        option)
+#endif
+          else
+            call UGridReadSurfGrid(un_str_sfgrid, &
+                                   surf_realization%subsurf_filename, &
+                                   discretization%filename, &
+                                   option)
+          endif
+          grid%unstructured_grid => un_str_sfgrid
+          discretization%grid => grid
+          grid%itype = unstructured_grid_itype
+          grid%ctype = unstructured_grid_ctype
+
+        case default
+          option%io_buffer = 'Surface-flow supports only unstructured grid'
+          call printErrMsg(option)
+      end select
+  end select
+
+end subroutine SurfaceInit
+
+! ************************************************************************** !
+
+subroutine InitSurfaceSetupRealization(surf_realization,subsurf_realization, &
+                                       waypoint_list)
   ! 
   ! Initializes material property data structres and assign them to the domain.
   ! 
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   ! 
-  use Simulation_module
-  
   use Surface_Flow_module
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Surface_TH_module
   use Surface_Global_module
+  use Timestepper_Base_class
+  use Realization_Subsurface_class
   
   use Option_module
   use Waypoint_module
@@ -33,13 +200,15 @@ subroutine InitSurfaceSetupRealization(simulation)
   
   implicit none
   
-  type(simulation_type) :: simulation
+  class(realization_surface_type), pointer :: surf_realization
+  class(realization_subsurface_type), pointer :: subsurf_realization
+  type(waypoint_list_type) :: waypoint_list
   
   type(option_type), pointer :: option
   PetscReal :: dum1
   PetscErrorCode :: ierr
   
-  option => simulation%realization%option
+  option => surf_realization%option
 
   ! initialize reference density
   if (option%reference_water_density < 1.d-40) then
@@ -49,7 +218,7 @@ subroutine InitSurfaceSetupRealization(simulation)
                          dum1,ierr)    
   endif  
   
-  call SurfRealizCreateDiscretization(simulation%surf_realization)
+  call RealizSurfCreateDiscretization(surf_realization)
 
   ! Check if surface-flow is compatible with the given flowmode
   select case(option%iflowmode)
@@ -59,41 +228,35 @@ subroutine InitSurfaceSetupRealization(simulation)
       call printErrMsgByRank(option)
   end select
 
-  call SurfaceInitReadRegionFiles(simulation%surf_realization)
-  call SurfRealizMapSurfSubsurfGrids(simulation%realization, &
-                                      simulation%surf_realization)
-  call SurfRealizLocalizeRegions(simulation%surf_realization)
-  call SurfRealizPassFieldPtrToPatches(simulation%surf_realization)
-  call SurfRealizProcessMatProp(simulation%surf_realization)
-  call SurfRealizProcessCouplers(simulation%surf_realization)
-  call SurfRealizProcessConditions(simulation%surf_realization)
-  !call RealProcessFluidProperties(simulation%surf_realization)
-  call SurfaceInitMatPropToRegions(simulation%surf_realization)
-  call SurfRealizInitAllCouplerAuxVars(simulation%surf_realization)
-  !call SurfaceRealizationPrintCouplers(simulation%surf_realization)
+  call SurfaceInitReadRegionFiles(surf_realization)
+  call RealizSurfMapSurfSubsurfGrids(subsurf_realization,surf_realization)
+  call RealizSurfLocalizeRegions(surf_realization)
+  call RealizSurfPassFieldPtrToPatches(surf_realization)
+  call RealizSurfProcessMatProp(surf_realization)
+  call RealizSurfProcessCouplers(surf_realization)
+  call RealizSurfProcessConditions(surf_realization)
+  !call RealProcessFluidProperties(surf_realization)
+  call SurfaceInitMatPropToRegions(surf_realization)
+  call RealizSurfInitAllCouplerAuxVars(surf_realization)
+  !call SurfaceRealizationPrintCouplers(surf_realization)
 
   ! add waypoints associated with boundary conditions, source/sinks etc. to list
-  call SurfRealizAddWaypointsToList(simulation%surf_realization)
-  call WaypointListFillIn(option,simulation%surf_realization%waypoint_list)
-  call WaypointListRemoveExtraWaypnts(option,simulation%surf_realization%waypoint_list)
-  if (associated(simulation%flow_timestepper)) then
-    simulation%surf_flow_timestepper%cur_waypoint => simulation%surf_realization%waypoint_list%first
-  endif
+  call RealizSurfAddWaypointsToList(surf_realization,waypoint_list)
 
   select case(option%iflowmode)
     case(RICHARDS_MODE)
-      call SurfaceFlowSetup(simulation%surf_realization)
+      call SurfaceFlowSetup(surf_realization)
     case default
     case(TH_MODE)
-      call SurfaceTHSetup(simulation%surf_realization)
+      call SurfaceTHSetup(surf_realization)
   end select
 
-  call SurfaceGlobalSetup(simulation%surf_realization)
+  call SurfaceGlobalSetup(surf_realization)
   ! initialize FLOW
   ! set up auxillary variable arrays
 
   ! assign initial conditionsRealizAssignFlowInitCond
-  call CondControlAssignFlowInitCondSurface(simulation%surf_realization)
+  call CondControlAssignFlowInitCondSurface(surf_realization)
 
   ! override initial conditions if they are to be read from a file
   if (len_trim(option%surf_initialize_flow_filename) > 1) then
@@ -103,9 +266,9 @@ subroutine InitSurfaceSetupRealization(simulation)
   
   select case(option%iflowmode)
     case(RICHARDS_MODE)
-      call SurfaceFlowUpdateAuxVars(simulation%surf_realization)
+      call SurfaceFlowUpdateAuxVars(surf_realization)
     case(TH_MODE)
-      call SurfaceTHUpdateAuxVars(simulation%surf_realization)
+      call SurfaceTHUpdateAuxVars(surf_realization)
     case default
       option%io_buffer = 'For surface-flow only RICHARDS and TH mode implemented'
       call printErrMsgByRank(option)
@@ -115,14 +278,14 @@ end subroutine InitSurfaceSetupRealization
 
 ! ************************************************************************** !
 
-subroutine InitSurfaceSetupSolvers(surf_realization,solver)
+subroutine InitSurfaceSetupSolvers(surf_realization,solver,final_time)
   ! 
   ! Initializes material property data structres and assign them to the domain.
   ! 
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   ! 
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Option_module
   
   use Solver_module
@@ -141,8 +304,9 @@ subroutine InitSurfaceSetupSolvers(surf_realization,solver)
 #include "petsc/finclude/petscpc.h"
 #include "petsc/finclude/petscts.h"
   
-  type(surface_realization_type) :: surf_realization
+  class(realization_surface_type) :: surf_realization
   type(solver_type), pointer :: solver
+  PetscReal :: final_time
   
   type(option_type), pointer :: option
   type(convergence_context_type), pointer :: convergence_context
@@ -160,25 +324,7 @@ subroutine InitSurfaceSetupSolvers(surf_realization,solver)
   call SolverCreateTS(solver,option%mycomm)
   call TSSetProblemType(solver%ts,TS_NONLINEAR, &
                         ierr);CHKERRQ(ierr)
-  select case(option%iflowmode)
-    case (RICHARDS_MODE)
-      call TSSetRHSFunction(solver%ts,PETSC_NULL_OBJECT, &
-                            SurfaceFlowRHSFunction, &
-                            surf_realization, &
-                            ierr);CHKERRQ(ierr)
-    case (TH_MODE)
-      call TSSetRHSFunction(solver%ts,PETSC_NULL_OBJECT, &
-                            SurfaceTHRHSFunction, &
-                            surf_realization, &
-                            ierr);CHKERRQ(ierr)
-      call TSSetIFunction(solver%ts,PETSC_NULL_OBJECT, &
-                          SurfaceTHIFunction, &
-                          surf_realization, &
-                          ierr);CHKERRQ(ierr)
-  end select
-  call TSSetDuration(solver%ts,ONE_INTEGER, &
-                      surf_realization%waypoint_list%last%time, &
-                      ierr);CHKERRQ(ierr)
+  call TSSetDuration(solver%ts,ONE_INTEGER,final_time,ierr);CHKERRQ(ierr)
   
 end subroutine InitSurfaceSetupSolvers
 
@@ -193,7 +339,7 @@ subroutine SurfaceInitMatPropToRegions(surf_realization)
   ! Date: 02/13/12
   ! 
 
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Discretization_module
   use Strata_module
   use Region_module
@@ -212,7 +358,7 @@ subroutine SurfaceInitMatPropToRegions(surf_realization)
 #include "petsc/finclude/petscvec.h"
 #include "petsc/finclude/petscvec.h90"
 
-  type(surface_realization_type) :: surf_realization
+  class(realization_surface_type) :: surf_realization
   
   PetscReal, pointer :: man0_p(:)
   PetscReal, pointer :: vec_p(:)
@@ -301,7 +447,7 @@ subroutine SurfaceInitMatPropToRegions(surf_realization)
 
   if (update_ghosted_material_ids) then
     ! update ghosted material ids
-    call SurfRealizLocalToLocalWithArray(surf_realization,MATERIAL_ID_ARRAY)
+    call RealizSurfLocalToLocalWithArray(surf_realization,MATERIAL_ID_ARRAY)
   endif
 
   ! set cell by cell material properties
@@ -372,17 +518,23 @@ subroutine SurfaceInitReadRegionFiles(surf_realization)
   ! Date: 02/20/12
   ! 
 
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Region_module
   use HDF5_module
   use Grid_module
+  use Option_module
 
   implicit none
 
-  type(surface_realization_type) :: surf_realization
+  class(realization_surface_type) :: surf_realization
   
+  type(option_type), pointer :: option
   type(region_type), pointer :: surf_region
-  
+  PetscBool :: cell_ids_exists
+  PetscBool :: face_ids_exists
+  PetscBool :: vert_ids_exists
+
+  option => surf_realization%option
   surf_region => surf_realization%surf_regions%first
   do 
     if (.not.associated(surf_region)) exit
@@ -392,9 +544,32 @@ subroutine SurfaceInitReadRegionFiles(surf_realization)
           !call HDF5ReadRegionFromFile(surf_realization,surf_region,surf_region%filename)
         else
 #if defined(PETSC_HAVE_HDF5)
-          call HDF5ReadUnstructuredGridRegionFromFile(surf_realization%option, &
-                                                      surf_region, &
-                                                      surf_region%filename)
+          if ( .not. surf_region%hdf5_ugrid_kludge) then
+
+            call HDF5QueryRegionDefinition(surf_region, surf_region%filename, surf_realization%option, &
+                 cell_ids_exists, face_ids_exists, vert_ids_exists)
+
+            if ( (.not. cell_ids_exists) .and. &
+                 (.not. face_ids_exists) .and. &
+                 (.not. vert_ids_exists)) then
+
+               option%io_buffer = '"Regions/' // trim(surf_region%name) // &
+                    ' is not defined by "Cell Ids" or "Face Ids" or "Vertex Ids".'
+               call printErrMsg(option)
+            end if
+
+            if (cell_ids_exists .or. face_ids_exists) then
+              call HDF5ReadRegionFromFile(surf_realization%patch%grid, surf_region, surf_region%filename, option)
+            else
+              call HDF5ReadRegionDefinedByVertex(option, &
+                   surf_region, surf_region%filename)
+            end if
+
+          else
+            call HDF5ReadUnstructuredGridRegionFromFile(surf_realization%option, &
+                                                        surf_region, &
+                                                        surf_region%filename)
+          endif
 #endif      
         endif
       else if (index(surf_region%filename,'.ss') > 0) then
@@ -410,5 +585,6 @@ subroutine SurfaceInitReadRegionFiles(surf_realization)
   enddo
 
 end subroutine SurfaceInitReadRegionFiles
+
 
 end module Init_Surface_module

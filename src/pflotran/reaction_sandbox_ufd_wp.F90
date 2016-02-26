@@ -78,11 +78,11 @@ subroutine WastePackageRead(this,input,option)
   implicit none
   
   class(reaction_sandbox_ufd_wp_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   PetscInt :: i
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, internal_units
   
   do 
     call InputReadPflotranString(input,option)
@@ -133,13 +133,13 @@ subroutine WastePackageRead(this,input,option)
           call InputDefaultMsg(input,option)
         else              
           ! If units exist, convert to internal units of 1/s
+          internal_units = 'unitless/sec'
           this%rate_constant = this%rate_constant * &
-            UnitsConvertToInternal(word,option)
+            UnitsConvertToInternal(word,internal_units,option)
         endif
       case default
-        option%io_buffer = 'CHEMISTRY,REACTION_SANDBOX,UFD-WP keyword: ' // &
-          trim(word) // ' not recognized.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(word, &
+                     'CHEMISTRY,REACTION_SANDBOX,UFD-WP',option)
     end select
   enddo
   

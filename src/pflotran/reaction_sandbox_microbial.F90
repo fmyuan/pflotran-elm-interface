@@ -166,7 +166,7 @@ subroutine MicrobialRead(this,input,option)
   implicit none
   
   class(reaction_sandbox_microbial_type) :: this
-  type(input_type)                       :: input
+  type(input_type), pointer              :: input
   type(option_type)                      :: option
   type(rate_type), pointer :: inhibition, inhibition_prev
 
@@ -381,9 +381,12 @@ subroutine MicrobialSetup(this,reaction,option)
   character(len=MAXWORDLENGTH) :: word
 
   ! parse reaction
-  this%dbase_rxn => DatabaseRxnCreateFromRxnString(this%str_reaction, &
-    reaction%naqcomp,reaction%offset_aqueous,reaction%primary_species_names, &
-    reaction%nimcomp,reaction%offset_immobile,reaction%immobile%names,option)
+  this%dbase_rxn => DatabaseRxnCreateFromRxnString(this%str_reaction,  &
+                           reaction%naqcomp, reaction%offset_aqueous,  &
+                           reaction%primary_species_names,             &
+                           reaction%nimcomp, reaction%offset_immobile, &
+                           reaction%immobile%names,                    &
+                           PETSC_TRUE, option)
 
   ! electron donor
   if (trim(this%name_e_donor) /= '') then

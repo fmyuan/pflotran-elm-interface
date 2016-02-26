@@ -1,17 +1,27 @@
-#Description: 1D infiltration
+# Description: 1D infiltration
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+  /
+END
+
+SUBSURFACE
 
 #=========================== flow mode ========================================
-MODE RICHARDS
 
 #=========================== discretization ===================================
 GRID
 TYPE structured
 ORIGIN 0.d0 0.d0 0.d0
 NXYZ 1 1 10
-DXYZ 
-1.d0 
-1.d0 
-1.d0 
+DXYZ
+1.d0
+1.d0
+1.d0
 /
 END
 
@@ -28,13 +38,18 @@ PERM_Z 1.d-10
 /
 /
 
-#=========================== saturation functions =============================
-SATURATION_FUNCTION default
-SATURATION_FUNCTION_TYPE VAN_GENUCHTEN
-RESIDUAL_SATURATION 0.1d0
-LAMBDA 0.8d0
-ALPHA 1.d-4
-/
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES default
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    M 0.8d0
+    ALPHA  1.d-4
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    M 0.8d0
+    LIQUID_RESIDUAL_SATURATION 0.115
+  /
+END
 
 #=========================== output options ===================================
 OUTPUT
@@ -110,3 +125,4 @@ STRATA
 REGION all
 MATERIAL soil
 END
+END_SUBSURFACE

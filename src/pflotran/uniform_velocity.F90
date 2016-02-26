@@ -85,11 +85,11 @@ subroutine UniformVelocityDatasetRead(dataset,input,option)
   implicit none
   
   type(uniform_velocity_dataset_type) :: dataset
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: word, units
+  character(len=MAXWORDLENGTH) :: word, units, internal_units
   PetscReal :: units_conversion
 
   PetscErrorCode :: ierr
@@ -135,18 +135,18 @@ subroutine UniformVelocityDatasetRead(dataset,input,option)
         call UniVelocityDatasetReadValues(input,option,word,string, &
                                           dataset,units)
       case default
-        option%io_buffer = 'Keyword: ' // trim(word) // &
-                           ' not recognized in VELOCITY_DATASET'
-        call printErrMsg(option)                                 
+        call InputKeywordUnrecognized(word,'VELOCITY_DATASET',option)
     end select 
   
   enddo
 
   if (len_trim(units) > 1) then
-    units_conversion = UnitsConvertToInternal(units,option)
+    internal_units = 'meter/sec'
+    units_conversion = UnitsConvertToInternal(units,internal_units,option)
     dataset%values = dataset%values * units_conversion
     word = units(index(units,'/')+1:)
-    units_conversion = UnitsConvertToInternal(word,option)
+    internal_units = 'sec'
+    units_conversion = UnitsConvertToInternal(word,internal_units,option)
     dataset%times = dataset%times * units_conversion
   endif
   

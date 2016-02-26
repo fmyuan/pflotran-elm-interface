@@ -90,7 +90,7 @@ subroutine IntegralFluxRead(integral_flux,input,option)
   implicit none
   
   type(integral_flux_type) :: integral_flux
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword
@@ -115,9 +115,7 @@ subroutine IntegralFluxRead(integral_flux,input,option)
         call GeometryReadCoordinates(input,option,integral_flux%name, &
                                      integral_flux%coordinates)
       case default
-        option%io_buffer = 'Keyword (' // trim(keyword) // &
-                           ') not recognized under integral_flux.'
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(keyword,'INTEGRAL_FLUX',option)
     end select 
   
   enddo  

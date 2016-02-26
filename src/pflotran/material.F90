@@ -1,9 +1,10 @@
 module Material_module
  
-  use Dataset_Common_HDF5_class
+  use Dataset_Base_class
 
   use PFLOTRAN_Constants_module
   use Material_Aux_class
+  use Fracture_module
 
   implicit none
 
@@ -19,11 +20,13 @@ module Material_module
     PetscBool :: isotropic_permeability
     PetscReal :: vertical_anisotropy_ratio ! (vertical / horizontal)
     PetscReal :: permeability_scaling_factor
-    character(len=MAXWORDLENGTH) :: permeability_dataset_name
-    class(dataset_common_hdf5_type), pointer :: permeability_dataset
+!    character(len=MAXWORDLENGTH) :: permeability_dataset_name
+    class(dataset_base_type), pointer :: permeability_dataset
+    class(dataset_base_type), pointer :: permeability_dataset_y
+    class(dataset_base_type), pointer :: permeability_dataset_z
     PetscReal :: porosity
-    character(len=MAXWORDLENGTH) :: porosity_dataset_name
-    class(dataset_common_hdf5_type), pointer :: porosity_dataset
+!    character(len=MAXWORDLENGTH) :: porosity_dataset_name
+    class(dataset_base_type), pointer :: porosity_dataset
     PetscReal :: tortuosity
     PetscInt :: saturation_function_id
     character(len=MAXWORDLENGTH) :: saturation_function_name
@@ -33,11 +36,13 @@ module Material_module
     PetscReal :: thermal_conductivity_wet
     PetscReal :: alpha    ! conductivity saturation relation exponent
 
+    class(fracture_type), pointer :: fracture
+    
     character(len=MAXWORDLENGTH) :: soil_compressibility_function
     PetscReal :: soil_compressibility
     PetscReal :: soil_reference_pressure
-    character(len=MAXWORDLENGTH) :: compressibility_dataset_name
-    class(dataset_common_hdf5_type), pointer :: compressibility_dataset
+!    character(len=MAXWORDLENGTH) :: compressibility_dataset_name
+    class(dataset_base_type), pointer :: compressibility_dataset
 
     ! ice properties
     PetscReal :: thermal_conductivity_frozen
@@ -130,16 +135,18 @@ function MaterialPropertyCreate()
   ! initialize to UNINITIALIZED_DOUBLE to catch bugs
   material_property%permeability = UNINITIALIZED_DOUBLE
   material_property%isotropic_permeability = PETSC_TRUE
-  material_property%vertical_anisotropy_ratio = 0.d0
+  material_property%vertical_anisotropy_ratio = UNINITIALIZED_DOUBLE
   material_property%permeability_scaling_factor = 0.d0
   material_property%permeability_pwr = 1.d0
   material_property%permeability_crit_por = 0.d0
   material_property%permeability_min_scale_fac = 1.d0
-  material_property%permeability_dataset_name = ''
+!  material_property%permeability_dataset_name = ''
   nullify(material_property%permeability_dataset)
+  nullify(material_property%permeability_dataset_y)
+  nullify(material_property%permeability_dataset_z)
   ! initialize to UNINITIALIZED_DOUBLE to catch bugs
   material_property%porosity = UNINITIALIZED_DOUBLE
-  material_property%porosity_dataset_name = ''
+!  material_property%porosity_dataset_name = ''
   nullify(material_property%porosity_dataset)
   material_property%tortuosity = 1.d0
   material_property%tortuosity_pwr = 0.d0
@@ -151,10 +158,12 @@ function MaterialPropertyCreate()
   material_property%thermal_conductivity_wet = UNINITIALIZED_DOUBLE
   material_property%alpha = 0.45d0
 
+  nullify(material_property%fracture)
+  
   material_property%soil_compressibility_function = ''
   material_property%soil_compressibility = UNINITIALIZED_DOUBLE
   material_property%soil_reference_pressure = UNINITIALIZED_DOUBLE
-  material_property%compressibility_dataset_name = ''
+!  material_property%compressibility_dataset_name = ''
   nullify(material_property%compressibility_dataset)
 
   material_property%thermal_conductivity_frozen = 0.d0
@@ -202,11 +211,13 @@ subroutine MaterialPropertyRead(material_property,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
-
+  use Fracture_module
+  use Dataset_module
+  
   implicit none
   
   type(material_property_type) :: material_property
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword, word
@@ -300,27 +311,11 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'soil compressibility function', &
                            'MATERIAL_PROPERTY')
       case('SOIL_COMPRESSIBILITY') 
- !       call InputReadDouble(input,option, &
- !                            material_property%soil_compressibility)
- !       call InputErrorMsg(input,option,'soil compressibility', &
- !                          'MATERIAL_PROPERTY')
-        buffer_save = input%buf
-        call InputReadNChars(input,option,string,MAXSTRINGLENGTH,PETSC_TRUE)
-        call InputErrorMsg(input,option,'soil compressibility','MATERIAL_PROPERTY')
-        call StringToUpper(string)
-        if (StringCompare(string,'DATASET',SEVEN_INTEGER)) then
-          call InputReadNChars(input,option, &
-                               material_property%compressibility_dataset_name,&
-                               MAXWORDLENGTH,PETSC_TRUE)
-          call InputErrorMsg(input,option,'DATASET,NAME', &
-                             'MATERIAL_PROPERTY,SOIL_COMPRESSIBILITY')   
-        else
-          input%buf = buffer_save
-          call InputReadDouble(input,option, &
-                               material_property%soil_compressibility)
-          call InputErrorMsg(input,option,'soil compressibility', &
-                             'MATERIAL_PROPERTY')
-        endif
+        call DatasetReadDoubleOrDataset(input,material_property% &
+                                          soil_compressibility, &
+                                        material_property%porosity_dataset, &
+                                        'soil compressibility', &
+                                        'MATERIAL_PROPERTY',option)
       case('SOIL_REFERENCE_PRESSURE') 
         call InputReadDouble(input,option, &
                              material_property%soil_reference_pressure)
@@ -332,31 +327,27 @@ subroutine MaterialPropertyRead(material_property,input,option)
         call InputErrorMsg(input,option,'thermal expansitivity', &
                            'MATERIAL_PROPERTY')
       case('POROSITY')
-        buffer_save = input%buf
-        call InputReadNChars(input,option,string,MAXSTRINGLENGTH,PETSC_TRUE)
-        call InputErrorMsg(input,option,'porosity','MATERIAL_PROPERTY')
-        call StringToUpper(string)
-        if (StringCompare(string,'DATASET',SEVEN_INTEGER)) then
-          call InputReadNChars(input,option, &
-                               material_property%porosity_dataset_name,&
-                               MAXWORDLENGTH,PETSC_TRUE)
-          call InputErrorMsg(input,option,'DATASET,NAME', &
-                             'MATERIAL_PROPERTY,POROSITY')   
-        else
-          input%buf = buffer_save
-          call InputReadDouble(input,option,material_property%porosity)
-          call InputErrorMsg(input,option,'porosity','MATERIAL_PROPERTY')
-        endif
+        call DatasetReadDoubleOrDataset(input,material_property%porosity, &
+                                        material_property%porosity_dataset, &
+                                        'porosity','MATERIAL_PROPERTY',option)
       case('TORTUOSITY')
         call InputReadDouble(input,option,material_property%tortuosity)
         call InputErrorMsg(input,option,'tortuosity','MATERIAL_PROPERTY')
+      case('WIPP-FRACTURE')
+        ! Calculates permeability and porosity induced by fracture,
+        ! which is described by pressure within certain range of pressure
+        ! BRAGFLO_6.02_UM Eq. (136)
+        ! 4.10 Pressure-Induced Fracture Treatment
+        material_property%fracture => FractureCreate()
+        call material_property%fracture%Read(input,option)
+        option%flow%transient_porosity = PETSC_TRUE
       case('PERMEABILITY')
         do
           call InputReadPflotranString(input,option)
           call InputReadStringErrorMsg(input,option, &
                                        'MATERIAL_PROPERTY,PERMEABILITY')
           
-          if (InputCheckExit(input,option)) exit          
+          if (InputCheckExit(input,option)) exit
           
           if (InputError(input)) exit
           call InputReadWord(input,option,word,PETSC_TRUE)
@@ -461,16 +452,16 @@ subroutine MaterialPropertyRead(material_property,input,option)
                 'the PERMEABILITY card.'
               call printErrMsg(option)
             case('DATASET')
+              material_property%permeability_dataset => DatasetBaseCreate()
               call InputReadNChars(input,option, &
-                                   material_property%permeability_dataset_name,&
+                                   material_property% &
+                                     permeability_dataset%name, &
                                    MAXWORDLENGTH,PETSC_TRUE)
               call InputErrorMsg(input,option,'DATASET,NAME', &
                                  'MATERIAL_PROPERTY,PERMEABILITY')   
             case default
-              option%io_buffer = 'Keyword (' // trim(word) // &
-                                 ') not recognized in MATERIAL_PROPERTY,' // &
-                                 'PERMEABILITY'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                     'MATERIAL_PROPERTY,PERMEABILITY',option)
           end select
         enddo
         if (dabs(material_property%permeability(1,1) - &
@@ -508,24 +499,25 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputReadDouble(input,option,material_property%max_permfactor)
               call InputErrorMsg(input,option,'max permfactor','PERM_FACTOR')
             case default
-              option%io_buffer = 'Keyword (' // trim(word) // &
-                                 ') not recognized in MATERIAL_PROPERTY,' // &
-                                 'PERM_FACTOR'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                     'MATERIAL_PROPERTY,PERM_FACTOR',option)
           end select
         enddo
       case('PERMEABILITY_POWER')
         call InputReadDouble(input,option, &
                              material_property%permeability_pwr)
-        call InputErrorMsg(input,option,'permeability power','MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,'permeability power', &
+                           'MATERIAL_PROPERTY')
       case('PERMEABILITY_CRITICAL_POROSITY')
         call InputReadDouble(input,option, &
                              material_property%permeability_crit_por)
-        call InputErrorMsg(input,option,'permeability critical porosity','MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,'permeability critical porosity', &
+                           'MATERIAL_PROPERTY')
       case('PERMEABILITY_MIN_SCALE_FACTOR')
         call InputReadDouble(input,option, &
                              material_property%permeability_min_scale_fac)
-        call InputErrorMsg(input,option,'permeability min scale factor','MATERIAL_PROPERTY')
+        call InputErrorMsg(input,option,'permeability min scale factor', &
+                           'MATERIAL_PROPERTY')
       case('TORTUOSITY_POWER')
         call InputReadDouble(input,option, &
                              material_property%tortuosity_pwr)
@@ -557,12 +549,12 @@ subroutine MaterialPropertyRead(material_property,input,option)
                                 'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
             case('MATRIX_BLOCK_SIZE')
               call InputReadDouble(input,option, &
-                                   material_property%secondary_continuum_matrix_block_size)
+                        material_property%secondary_continuum_matrix_block_size)
               call InputErrorMsg(input,option,'matrix_block_size', &
                                  'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
             case('FRACTURE_SPACING')
               call InputReadDouble(input,option, &
-                                   material_property%secondary_continuum_fracture_spacing)
+                        material_property%secondary_continuum_fracture_spacing)
               call InputErrorMsg(input,option,'fracture_spacing', &
                                  'MATERIAL_PROPERTY, SECONDARY_CONTINUUM')
             case('RADIUS')
@@ -615,8 +607,9 @@ subroutine MaterialPropertyRead(material_property,input,option)
             case('DIFFUSION_COEFFICIENT')
               call InputReadDouble(input,option, &
                              material_property%secondary_continuum_diff_coeff)
-              call InputErrorMsg(input,option,'secondary continuum diff coeff', &
-                           'MATERIAL_PROPERTY')
+              call InputErrorMsg(input,option, &
+                                 'secondary continuum diff coeff', &
+                                 'MATERIAL_PROPERTY')
             case('MINERAL_VOLFRAC')
               call InputReadDouble(input,option, &
                              material_property%secondary_continuum_mnrl_volfrac)
@@ -640,19 +633,28 @@ subroutine MaterialPropertyRead(material_property,input,option)
               call InputErrorMsg(input,option,'secondary area scaling factor', &
                            'MATERIAL_PROPERTY')
             case default
-              option%io_buffer = 'Keyword (' // trim(word) // &
-                                 ') not recognized in MATERIAL_PROPERTY,' // &
-                                 'SECONDARY_CONTINUUM'
-              call printErrMsg(option)
+              call InputKeywordUnrecognized(word, &
+                     'MATERIAL_PROPERTY,SECONDARY_CONTINUUM',option)
           end select
         enddo
 
       case default
-        option%io_buffer = 'Keyword (' // trim(keyword) // &
-                           ') not recognized in material_property'    
-        call printErrMsg(option)
+        call InputKeywordUnrecognized(keyword,'MATERIAL_PROPERTY',option)
     end select 
   enddo
+
+  if (associated(material_property%permeability_dataset) .and. &
+      .not.material_property%isotropic_permeability .and. &
+      Uninitialized(material_property%vertical_anisotropy_ratio)) then
+    material_property%permeability_dataset_y => DatasetBaseCreate()
+    material_property%permeability_dataset_z => DatasetBaseCreate()
+    material_property%permeability_dataset_y%name = &
+      trim(material_property%permeability_dataset%name) // 'Y'
+    material_property%permeability_dataset_z%name = &
+      trim(material_property%permeability_dataset%name) // 'Z'
+    material_property%permeability_dataset%name = &
+      trim(material_property%permeability_dataset%name) // 'X'
+  endif
 
   if (option%iflowmode == TH_MODE) then
      if (option%use_th_freezing .eqv. PETSC_TRUE) then
@@ -672,7 +674,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   if (len(trim(material_property%soil_compressibility_function)) > 0) then
     option%flow%transient_porosity = PETSC_TRUE
     if (Uninitialized(material_property%soil_compressibility) .and. &
-         (material_property%compressibility_dataset_name == '')) then
+        .not.associated(material_property%compressibility_dataset)) then
       option%io_buffer = 'SOIL_COMPRESSIBILITY_FUNCTION is specified in ' // &
         'inputdeck for MATERIAL_PROPERTY card, but SOIL_COMPRESSIBILITY ' // &
         'is not defined.'
@@ -813,7 +815,6 @@ subroutine MaterialPropConvertListToArray(list,array,option)
   
   if (associated(array)) deallocate(array)
   allocate(array(max_internal_id))
-
   do i = 1, max_internal_id
     nullify(array(i)%ptr)
   enddo
@@ -1028,21 +1029,23 @@ subroutine MaterialSetup(material_parameter, material_property_array, &
     endif
   enddo
 
-  allocate(material_parameter%soil_heat_capacity(num_mat_prop))
-  allocate(material_parameter%soil_thermal_conductivity(2,num_mat_prop))
-  material_parameter%soil_heat_capacity = UNINITIALIZED_DOUBLE
-  material_parameter%soil_thermal_conductivity = UNINITIALIZED_DOUBLE
-  do i = 1, num_mat_prop
-    if (associated(material_property_array(i)%ptr)) then
-      ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J
-      material_parameter%soil_heat_capacity(i) = &
-        material_property_array(i)%ptr%specific_heat * option%scale ! J -> MJ
-      material_parameter%soil_thermal_conductivity(1,i) = &
-        material_property_array(i)%ptr%thermal_conductivity_dry
-      material_parameter%soil_thermal_conductivity(2,i) = &
-        material_property_array(i)%ptr%thermal_conductivity_wet
-    endif
-  enddo
+  if (option%iflowmode /= RICHARDS_MODE) then
+    allocate(material_parameter%soil_heat_capacity(num_mat_prop))
+    allocate(material_parameter%soil_thermal_conductivity(2,num_mat_prop))
+    material_parameter%soil_heat_capacity = UNINITIALIZED_DOUBLE
+    material_parameter%soil_thermal_conductivity = UNINITIALIZED_DOUBLE
+    do i = 1, num_mat_prop
+      if (associated(material_property_array(i)%ptr)) then
+        ! kg rock/m^3 rock * J/kg rock-K * 1.e-6 MJ/J
+        material_parameter%soil_heat_capacity(i) = &
+          material_property_array(i)%ptr%specific_heat * option%scale ! J -> MJ
+        material_parameter%soil_thermal_conductivity(1,i) = &
+          material_property_array(i)%ptr%thermal_conductivity_dry
+        material_parameter%soil_thermal_conductivity(2,i) = &
+          material_property_array(i)%ptr%thermal_conductivity_wet
+      endif
+    enddo
+  endif
   
 end subroutine MaterialSetup
   
@@ -1203,7 +1206,7 @@ subroutine MaterialInitAuxIndices(material_property_ptrs,option)
       call StringToUpper(material_property_ptrs(i)%ptr% &
                            soil_compressibility_function)
       select case(material_property_ptrs(i)%ptr%soil_compressibility_function)
-        case('BRAGFLO')
+        case('BRAGFLO','WIPP')
           MaterialCompressSoilPtrTmp => MaterialCompressSoilBRAGFLO
         case('LEIJNSE','DEFAULT')
           MaterialCompressSoilPtrTmp => MaterialCompressSoilLeijnse
@@ -1290,6 +1293,7 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
   !
   use Material_Aux_class
   use Option_module
+  use Fracture_module 
   
   implicit none
   
@@ -1301,6 +1305,11 @@ subroutine MaterialAssignPropertyToAux(material_auxvar,material_property, &
     material_auxvar%soil_particle_density = &
       material_property%rock_density
   endif
+  
+  if (associated(material_property%fracture)) then
+    call FracturePropertytoAux(material_auxvar, material_property%fracture)
+  endif
+  
   if (soil_compressibility_index > 0) then
     material_auxvar%soil_properties(soil_compressibility_index) = &
       material_property%soil_compressibility
@@ -1423,7 +1432,12 @@ subroutine MaterialSetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
       do ghosted_id=1, Material%num_aux
         Material%auxvars(ghosted_id)% &
           soil_properties(soil_compressibility_index) = vec_loc_p(ghosted_id)
-      enddo      
+      enddo
+    case(SOIL_REFERENCE_PRESSURE)
+      do ghosted_id=1, Material%num_aux
+        Material%auxvars(ghosted_id)% &
+          soil_properties(soil_reference_pressure_index) = vec_loc_p(ghosted_id)
+      enddo
     case(VOLUME)
       do ghosted_id=1, Material%num_aux
         Material%auxvars(ghosted_id)%volume = vec_loc_p(ghosted_id)
@@ -1513,10 +1527,23 @@ subroutine MaterialGetAuxVarVecLoc(Material,vec_loc,ivar,isubvar)
   
   select case(ivar)
     case(SOIL_COMPRESSIBILITY)
-      do ghosted_id=1, Material%num_aux
-        vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)% &
-                                   soil_properties(soil_compressibility_index)
-      enddo
+      if (soil_compressibility_index > 0) then
+        do ghosted_id=1, Material%num_aux
+          vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)% &
+                                     soil_properties(soil_compressibility_index)
+        enddo
+      else
+        vec_loc_p(:) = UNINITIALIZED_DOUBLE
+      endif
+    case(SOIL_REFERENCE_PRESSURE)
+      if (soil_reference_pressure_index > 0) then
+        do ghosted_id=1, Material%num_aux
+          vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)% &
+                                  soil_properties(soil_reference_pressure_index)
+        enddo
+      else
+        vec_loc_p(:) = UNINITIALIZED_DOUBLE
+      endif
     case(VOLUME)
       do ghosted_id=1, Material%num_aux
         vec_loc_p(ghosted_id) = Material%auxvars(ghosted_id)%volume
@@ -1776,9 +1803,12 @@ recursive subroutine MaterialPropertyDestroy(material_property)
   if (.not.associated(material_property)) return
   
   call MaterialPropertyDestroy(material_property%next)
+  call FractureDestroy(material_property%fracture)
   
   ! simply nullify since the datasets reside in a list within realization
   nullify(material_property%permeability_dataset)
+  nullify(material_property%permeability_dataset_y)
+  nullify(material_property%permeability_dataset_z)
   nullify(material_property%porosity_dataset)
   nullify(material_property%compressibility_dataset)
     

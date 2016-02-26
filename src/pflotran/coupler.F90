@@ -231,7 +231,7 @@ subroutine CouplerRead(coupler,input,option)
   
   type(option_type) :: option
   type(coupler_type) :: coupler
-  type(input_type) :: input
+  type(input_type), pointer :: input
   
   character(len=MAXWORDLENGTH) :: word
 
@@ -255,8 +255,7 @@ subroutine CouplerRead(coupler,input,option)
       case('TRANSPORT_CONDITION')
         call InputReadWord(input,option,coupler%tran_condition_name,PETSC_TRUE)
       case default
-        option%io_buffer = 'Coupler card (' // trim(word) // ') not recognized.'
-        call printErrMsg(option)        
+        call InputKeywordUnrecognized(word,'coupler ',option)
     end select 
   
   enddo  
@@ -405,7 +404,7 @@ subroutine CouplerComputeConnections(grid,option,coupler)
                                           region%cell_ids, &
                                      region%explicit_faceset%face_centroids, &
                                      region%explicit_faceset%face_areas, &
-                                     option)
+                                     region%name,option)
       else
         connection_set => &
           UGridExplicitSetConnections(grid%unstructured_grid% &

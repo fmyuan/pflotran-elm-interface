@@ -1,6 +1,16 @@
 #Description: CLM-CN N immobilization module test
 # (1) NH4-N as reactant
 
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+  /
+END
+
+SUBSURFACE
 
 #=========================== regression =======================================
 REGRESSION
@@ -95,8 +105,8 @@ END
 #=========================== times ============================================
 TIME
   FINAL_TIME 50.d0 d
-  INITIAL_TIMESTEP_SIZE 1.0d0 m
-  MINIMUM_TIMESTEP_SIZE 1.0d1 m
+  INITIAL_TIMESTEP_SIZE 1.0d0 min
+  MINIMUM_TIMESTEP_SIZE 1.0d1 min
   MAXIMUM_TIMESTEP_SIZE 1.d0 h
 END
 
@@ -150,5 +160,7 @@ STRATA
   REGION all
   MATERIAL soil1
 END
+
+END_SUBSURFACE
 
 

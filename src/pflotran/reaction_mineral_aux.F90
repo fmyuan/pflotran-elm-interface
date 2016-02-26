@@ -77,6 +77,7 @@ module Reaction_Mineral_Aux_module
   
     PetscInt :: nmnrl
     PetscBool :: print_all
+    PetscBool :: print_saturation_index
     character(len=MAXWORDLENGTH), pointer :: mineral_names(:)
     
     type(mineral_rxn_type), pointer :: mineral_list
@@ -112,7 +113,7 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: kinmnrl_pref_atten_coef(:,:,:)
     PetscReal, pointer :: kinmnrl_pref_rate(:,:)
     PetscReal, pointer :: kinmnrl_pref_activation_energy(:,:)
-    PetscReal, pointer :: kinmnrl_Tempkin_const(:)
+    PetscReal, pointer :: kinmnrl_Temkin_const(:)
     PetscReal, pointer :: kinmnrl_affinity_power(:)
     PetscReal, pointer :: kinmnrl_affinity_threshold(:)
     PetscReal, pointer :: kinmnrl_rate_limiter(:)
@@ -166,6 +167,7 @@ function MineralCreate()
     
   nullify(mineral%mineral_list)
   mineral%print_all = PETSC_FALSE
+  mineral%print_saturation_index = PETSC_FALSE
   
   ! for saturation states
   mineral%nmnrl = 0  
@@ -201,7 +203,7 @@ function MineralCreate()
   nullify(mineral%kinmnrl_pref_rate)
   nullify(mineral%kinmnrl_pref_activation_energy)
 
-  nullify(mineral%kinmnrl_Tempkin_const)
+  nullify(mineral%kinmnrl_Temkin_const)
   nullify(mineral%kinmnrl_affinity_power)
   nullify(mineral%kinmnrl_affinity_threshold)
   nullify(mineral%kinmnrl_irreversible)
@@ -721,7 +723,7 @@ subroutine MineralDestroy(mineral)
   call DeallocateArray(mineral%kinmnrl_pref_rate)
   call DeallocateArray(mineral%kinmnrl_pref_activation_energy)
   
-  call DeallocateArray(mineral%kinmnrl_Tempkin_const)
+  call DeallocateArray(mineral%kinmnrl_Temkin_const)
   call DeallocateArray(mineral%kinmnrl_affinity_power)
   call DeallocateArray(mineral%kinmnrl_affinity_threshold)
   call DeallocateArray(mineral%kinmnrl_activation_energy)
