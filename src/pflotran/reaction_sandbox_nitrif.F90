@@ -424,7 +424,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
        rate_n2o = temp_real * (c_nh4*feps0) * volume                       ! moles/s
 
        Residual(ires_nh4) = Residual(ires_nh4) + rate_n2o
-       Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0 * rate_n2o
+       Residual(ires_n2o) = Residual(ires_n2o) - rate_n2o
        
        if(this%ispec_ngasnit > 0) then
           Residual(ires_ngasnit) = Residual(ires_ngasnit) - rate_n2o
@@ -450,7 +450,7 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
              rt_auxvar%aqueous%dtotal(this%ispec_nh4,this%ispec_nh4,iphase)
 
            Jacobian(ires_n2o,ires_nh4)=Jacobian(ires_n2o,ires_nh4) - &
-             0.5d0 * drate_n2o_dnh4 * &
+             drate_n2o_dnh4 * &
              rt_auxvar%aqueous%dtotal(this%ispec_n2o,this%ispec_nh4,iphase)
       
 #ifndef nojacobian_track_vars

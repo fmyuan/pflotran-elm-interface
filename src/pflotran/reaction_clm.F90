@@ -5596,6 +5596,7 @@ module CLM_Rxn_module
   PetscReal :: cutoff_no3_0
   PetscReal :: cutoff_no3_1
   PetscReal :: reset_concentration
+  PetscReal :: residual_concentration
 
   interface RCLMRxnRead
     module procedure RCLMRxnRead1
@@ -5614,7 +5615,8 @@ module CLM_Rxn_module
             RCLMRxn, &
             RCLMRxnDestroy
 
-  public :: reset_concentration
+  public :: reset_concentration, &
+            residual_concentration
 
 contains
 
@@ -5644,6 +5646,7 @@ subroutine RCLMRxnInit(option)
   cutoff_no3_0 = -1.0d-15
   cutoff_no3_1 =  1.0d-15
   reset_concentration = 1.0d0
+  residual_concentration = 1.0d-10
 
 end subroutine RCLMRxnInit
 
@@ -5786,6 +5789,15 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
         if (reset_concentration < 0.0d0) then
           option%io_buffer = 'CHEMISTRY,CLM_RXN,' // &
             'reset concentration is negative! '
+          call printErrMsg(option)
+        endif
+
+      case('RESIDUAL_CONCENTRATION')
+        call InputReadDouble(input,option,residual_concentration)
+        call InputErrorMsg(input,option,'residual concentration','CHEMISTRY,CLMRXN')
+        if (residual_concentration < 0.0d0) then
+          option%io_buffer = 'CHEMISTRY,CLM_RXN,' // &
+            'residual concentration is negative! '
           call printErrMsg(option)
         endif
 
