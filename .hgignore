@@ -400,3 +400,17 @@ reaction_sandbox_langmuir.F90
 reaction_sandbox_langmu.F90
 pm_ufd_decay.F90
 reaction_sandbox_microbial.F90
+src/clm-pflotran/eos_database.F90
+src/clm-pflotran/eos_oil.F90
+src/clm-pflotran/hydrostatic_multi_phase.F90
+output_ekg.F90
+src/clm-pflotran/pm_auxiliary.F90
+src/clm-pflotran/pm_subsurface_flow.F90
+src/clm-pflotran/pm_toil_ims.F90
+src/clm-pflotran/pmc_auxiliary.F90
+src/clm-pflotran/reaction_sandbox_pnnl_N.F90
+src/clm-pflotran/reaction_sandbox_simple.F90
+src/clm-pflotran/realization_subsurface.F90
+src/clm-pflotran/realization_surface.F90
+src/clm-pflotran/toil_ims.F90
+src/clm-pflotran/toil_ims_aux.F90

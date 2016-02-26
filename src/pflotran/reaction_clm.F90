@@ -5236,7 +5236,7 @@ subroutine CWDFragRead(this,input,option)
   implicit none
   
   class(clm_rxn_cwdfrag_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   PetscInt :: i

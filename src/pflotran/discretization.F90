@@ -329,13 +329,12 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           call printErrMsg(option,'x0clm_global/y0clm_global NOT valid')
 
         else
-          discretization%origin(X_DIRECTION) = clm_pf_idata%x0clm_global
-          discretization%origin(Y_DIRECTION) = clm_pf_idata%y0clm_global
+          discretization%origin_global(X_DIRECTION) = clm_pf_idata%x0clm_global
+          discretization%origin_global(Y_DIRECTION) = clm_pf_idata%y0clm_global
 
         endif
 
       end if
-
 
       ! but always over-ride soil (vertical) discretization scheme
       if (clm_pf_idata%nyclm_mapped <= 0.or.  &
@@ -344,7 +343,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
 
       else
         nz = clm_pf_idata%nzclm_mapped
-        discretization%origin(Z_DIRECTION) = clm_pf_idata%z0clm_global
+        discretization%origin_global(Z_DIRECTION) = clm_pf_idata%z0clm_global
 
       endif
 

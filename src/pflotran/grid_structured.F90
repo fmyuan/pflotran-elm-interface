@@ -918,6 +918,8 @@ function StructGridComputeInternConnect(structured_grid, xc, yc, zc, option)
   PetscInt, pointer :: int_array1(:), int_array2(:),int_array3(:),int_array4(:),int_array5(:),index(:)
   PetscInt :: count
 
+  PetscReal :: tempreal
+
   radius => xc
 
   ! the adjustments in the case of AMR are based on the PIMS code adjustments by LC

@@ -275,14 +275,35 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   if (auxvar%pc > 0.d0) then
 
 #ifdef CLM_PFLOTRAN
-    if(auxvar%bc_alpha > 0.d0) then
-       saturation_function%alpha  = auxvar%bc_alpha
-       saturation_function%lambda = auxvar%bc_lambda
-       saturation_function%sr(1)  = auxvar%bc_sr1
-       ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-       call SatFunctionComputePolynomial(option,saturation_function)
-       call PermFunctionComputePolynomial(option,saturation_function)
-    endif
+    select type(sf => characteristic_curves%saturation_function)
+      !class is(sat_func_VG_type)
+       ! not-yet
+      class is(sat_func_BC_type)
+        sf%alpha  = auxvar%bc_alpha
+        sf%lambda = auxvar%bc_lambda
+        sf%Sr  = auxvar%bc_sr1
+        ! needs to re-calculate some extra variables for 'saturation_function', if changed above
+        call SatFunctionComputePolynomial(option,    &
+          characteristic_curves%saturation_function)
+        call PermFunctionComputePolynomial(option,   &
+          characteristic_curves%saturation_function)
+      class default
+        option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
+           ' when coupled with CLM.'
+        call printErrMsg(option)
+    end select
+
+    select type(rpf => characteristic_curves%liq_rel_perm_function)
+      !class is(rpf_Mualem_VG_liq_type)
+      class is(rpf_Burdine_BC_liq_type)
+        rpf%lambda = auxvar%bc_lambda
+        rpf%Sr  = auxvar%bc_sr1
+      class default
+        option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
+           ' when coupled with CLM.'
+        call printErrMsg(option)
+    end select
+
 #endif
 
     saturated = PETSC_FALSE
