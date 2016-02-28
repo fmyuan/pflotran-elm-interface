@@ -67,7 +67,7 @@ function NitrifCreate()
   NitrifCreate%half_saturation = 1.0d-10
   NitrifCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   NitrifCreate%Q10 = 1.5d0
-  NitrifCreate%x0eps = 1.0d-20
+  NitrifCreate%x0eps = 1.0d-15
   nullify(NitrifCreate%next)
       
 end function NitrifCreate
@@ -327,8 +327,9 @@ subroutine NitrifReact(this,Residual,Jacobian,compute_derivative, &
   else
     feps0 = 1.0d0
     dfeps0_dx = 0.d0
-    if (c_nh4 < this%x0eps) return     ! this may bring in 'oscillation' around 'this%x0eps'
   endif
+
+  if (c_nh4 < this%x0eps) return     ! this may bring in 'oscillation' around 'this%x0eps'
 
   ! nitrification (Dickinson et al. 2002)
   rate_nitri = 0.d0

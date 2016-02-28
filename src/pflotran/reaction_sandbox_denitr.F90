@@ -58,11 +58,11 @@ function DenitrCreate()
   DenitrCreate%ispec_n2 = 0
   DenitrCreate%ispec_ngasdeni = 0
 
-  DenitrCreate%half_saturation = 1.0d-15
+  DenitrCreate%half_saturation = 1.0d-10
   DenitrCreate%temperature_response_function = TEMPERATURE_RESPONSE_FUNCTION_CLM4
   DenitrCreate%Q10 = 1.5d0
   DenitrCreate%k_deni_max = 2.5d-6  ! max. denitrification rate (1/sec)
-  DenitrCreate%x0eps = 1.0d-20
+  DenitrCreate%x0eps = 1.0d-15
 
   nullify(DenitrCreate%next)
       
@@ -322,8 +322,9 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
   else
     feps0 = 1.d0
     dfeps0_dx = 0.d0
-    if(c_no3 <= this%x0eps) return     ! this may bring in 'oscillation' around 'this%x0eps'
   endif
+
+  if(c_no3 <= this%x0eps) return     ! this may bring in 'oscillation' around 'this%x0eps'
 
   ! rate dependence on substrate
   if (this%half_saturation > 0.0d0) then

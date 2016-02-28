@@ -106,7 +106,7 @@ function SomDecCreate()
   ! 
   ! Author: Guoping Tang
   ! Date: 02/04/14
-  ! 
+  ! Revised: Fengming Yuan
 
   implicit none
   
@@ -121,11 +121,11 @@ function SomDecCreate()
 
   SomDecCreate%Q10 = 1.5d0
   SomDecCreate%decomp_depth_efolding = 0.d0      ! non-positive value will turn off this option
-  SomDecCreate%half_saturation_nh4 = 1.0d-15
-  SomDecCreate%half_saturation_no3 = 1.0d-15
+  SomDecCreate%half_saturation_nh4 = 1.0d-10
+  SomDecCreate%half_saturation_no3 = 1.0d-10
   SomDecCreate%inhibition_nh4_no3 = 1.0d0
   SomDecCreate%n2o_frac_mineralization = 0.02d0  ! Parton et al. 2001
-  SomDecCreate%x0eps = 1.0d-20
+  SomDecCreate%x0eps = 1.0d-15
 
   SomDecCreate%npool = 0
   nullify(SomDecCreate%pool_nc_ratio)
@@ -178,6 +178,7 @@ subroutine SomDecRead(this,input,option)
   ! 
   ! Author: Guoping Tang
   ! Date: 02/04/14
+  ! Revised: Fengming Yuan
   ! 
 
   use Option_module
@@ -497,6 +498,7 @@ subroutine SomDecSetup(this,reaction,option)
   ! 
   ! Author: Guoping Tang
   ! Date: 02/04/14
+  ! Revised: Fengming Yuan
   ! 
 
   use Reaction_Aux_module
@@ -1114,8 +1116,10 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
     else
       feps0 = 1.0d0
       dfeps0_dx = 0.d0
-      if(c_uc <= this%x0eps) cycle     ! this may bring in 'oscillation' around 'this%x0eps'
+      !if(c_uc <= this%x0eps) cycle     ! this may bring in 'oscillation' around 'this%x0eps'
     endif
+
+    if(c_uc <= this%x0eps) cycle     ! this may bring in 'oscillation' around 'this%x0eps'
 
     ! (iii) C substrate only dependent rate/derivative  (DON'T change after this)
     crate_uc  = scaled_crate_const * c_uc * feps0    ! moles/s: (m3 bulk/s)* (moles/m3 bulk) * (-)
@@ -1164,6 +1168,8 @@ subroutine SomDecReact(this,Residual,Jacobian,compute_derivative,rt_auxvar, &
           !ires_un = ispec_un + reaction%offset_immobile
         endif
         this%upstream_nc(irxn) = c_un / c_uc
+
+        if(c_un <= this%x0eps) cycle     ! this may bring in 'oscillation' around 'this%x0eps'
 
         ! calculate respiration factor (CO2 stoichiometry)
         stoich_c = 1.0d0

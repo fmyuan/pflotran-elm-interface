@@ -58,11 +58,11 @@ function PlantNCreate()
   PlantNCreate%ispec_plantnh4uptake = 0
   PlantNCreate%ispec_plantno3uptake = 0
   PlantNCreate%rate_plantndemand = 0.d0
-  PlantNCreate%half_saturation_nh4 = 1.d-15
-  PlantNCreate%half_saturation_no3 = 1.d-15
+  PlantNCreate%half_saturation_nh4 = 1.d-10
+  PlantNCreate%half_saturation_no3 = 1.d-10
   PlantNCreate%inhibition_nh4_no3  = 1.d0
-  PlantNCreate%x0eps_nh4  = 1.d-20
-  PlantNCreate%x0eps_no3  = 1.d-20
+  PlantNCreate%x0eps_nh4  = 1.d-15
+  PlantNCreate%x0eps_no3  = 1.d-15
   nullify(PlantNCreate%next)
       
 end function PlantNCreate
