@@ -2651,7 +2651,7 @@ subroutine SomDecNemission(this,Residual,Jacobian,compute_derivative,rt_auxvar, 
  
       Residual(ires_nh4) = Residual(ires_nh4) + rate_n2o
 
-      Residual(ires_n2o) = Residual(ires_n2o) - rate_n2o
+      Residual(ires_n2o) = Residual(ires_n2o) - 0.5d0*rate_n2o
 
       if(this%species_id_ngasmin > 0) then
          Residual(ires_ngasmin) = Residual(ires_ngasmin) - rate_n2o
@@ -2664,7 +2664,7 @@ subroutine SomDecNemission(this,Residual,Jacobian,compute_derivative,rt_auxvar, 
 
         Jacobian(ires_nh4,ires_nh4) = Jacobian(ires_nh4,ires_nh4) + drate_n2o_dx* &
            rt_auxvar%aqueous%dtotal(this%species_id_nh4,this%species_id_nh4, 1)
-        Jacobian(ires_n2o,ires_nh4) = Jacobian(ires_n2o,ires_nh4) - drate_n2o_dx* &
+        Jacobian(ires_n2o,ires_nh4) = Jacobian(ires_n2o,ires_nh4) - 0.5d0*drate_n2o_dx* &
            rt_auxvar%aqueous%dtotal(this%species_id_n2o,this%species_id_nh4, 1)
 
 #ifndef nojacobian_track_vars

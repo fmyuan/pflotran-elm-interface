@@ -343,7 +343,7 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
 
      Residual(ires_no3) = Residual(ires_no3) + rate_deni
 
-     Residual(ires_n2) = Residual(ires_n2) - rate_deni
+     Residual(ires_n2) = Residual(ires_n2) - 0.50d0*rate_deni
      !(TODO) currently not separate denitrification gas into 'n2' and 'n2o', but needed soon.
 
      if(this%ispec_ngasdeni > 0) then
@@ -360,7 +360,7 @@ subroutine DenitrReact(this,Residual,Jacobian,compute_derivative, &
         rt_auxvar%aqueous%dtotal(this%ispec_no3,this%ispec_no3,iphase)
 
       Jacobian(ires_n2,ires_no3) = Jacobian(ires_n2,ires_no3) - &
-        drate_deni_dno3 * &
+        0.50d0*drate_deni_dno3 * &
         rt_auxvar%aqueous%dtotal(this%ispec_n2,this%ispec_no3,iphase)
 
 #ifndef nojacobian_track_vars
