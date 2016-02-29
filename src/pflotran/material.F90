@@ -213,6 +213,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   use String_module
   use Fracture_module
   use Dataset_module
+  use Units_module
   
   implicit none
   
@@ -220,7 +221,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
   type(input_type), pointer :: input
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: keyword, word, internal_units
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXSTRINGLENGTH) :: buffer_save
 
@@ -260,6 +261,12 @@ subroutine MaterialPropertyRead(material_property,input,option)
       case('ROCK_DENSITY') 
         call InputReadDouble(input,option,material_property%rock_density)
         call InputErrorMsg(input,option,'rock density','MATERIAL_PROPERTY')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (input%ierr == 0) then
+          internal_units = 'kg/m^3'
+          material_property%rock_density = material_property%rock_density * &
+            UnitsConvertToInternal(word,internal_units,option)
+        endif
       case('SPECIFIC_HEAT','HEAT_CAPACITY') 
         call InputReadDouble(input,option,material_property%specific_heat)
         call InputErrorMsg(input,option,'specific heat','MATERIAL_PROPERTY')
@@ -313,7 +320,7 @@ subroutine MaterialPropertyRead(material_property,input,option)
       case('SOIL_COMPRESSIBILITY') 
         call DatasetReadDoubleOrDataset(input,material_property% &
                                           soil_compressibility, &
-                                        material_property%porosity_dataset, &
+                                   material_property%compressibility_dataset, &
                                         'soil compressibility', &
                                         'MATERIAL_PROPERTY',option)
       case('SOIL_REFERENCE_PRESSURE') 
@@ -659,31 +666,33 @@ subroutine MaterialPropertyRead(material_property,input,option)
   if (option%iflowmode == TH_MODE) then
      if (option%use_th_freezing .eqv. PETSC_TRUE) then
         if (.not. therm_k_frz) then
-           option%io_buffer = 'THERMAL_CONDUCTIVITY_FROZEN must be set ' // &
-             'in inputdeck for MODE TH(C) ICE'
+           option%io_buffer = 'THERMAL_CONDUCTIVITY_FROZEN must be set &
+             &in inputdeck for MODE TH(C) ICE'
            call printErrMsg(option)
         endif
         if (.not. therm_k_exp_frz) then
-           option%io_buffer = 'THERMAL_COND_EXPONENT_FROZEN must be set ' // &
-             'in inputdeck for MODE TH(C) ICE'
+           option%io_buffer = 'THERMAL_COND_EXPONENT_FROZEN must be set &
+             &in inputdeck for MODE TH(C) ICE'
            call printErrMsg(option)
         endif
      endif
   endif
 
-  if (len(trim(material_property%soil_compressibility_function)) > 0) then
+  if (len_trim(material_property%soil_compressibility_function) > 0) then
     option%flow%transient_porosity = PETSC_TRUE
     if (Uninitialized(material_property%soil_compressibility) .and. &
         .not.associated(material_property%compressibility_dataset)) then
-      option%io_buffer = 'SOIL_COMPRESSIBILITY_FUNCTION is specified in ' // &
-        'inputdeck for MATERIAL_PROPERTY card, but SOIL_COMPRESSIBILITY ' // &
-        'is not defined.'
+      option%io_buffer = 'SOIL_COMPRESSIBILITY_FUNCTION is specified in &
+        &inputdeck for MATERIAL_PROPERTY "' // &
+        trim(material_property%name) // &
+        '", but SOIL_COMPRESSIBILITY is not defined.'
       call printErrMsg(option)
     endif
     if (Uninitialized(material_property%soil_reference_pressure)) then
-      option%io_buffer = 'SOIL_COMPRESSIBILITY_FUNCTION is specified in ' // &
-        'inputdeck for MATERIAL_PROPERTY card, but SOIL_REFERENCE_PRESSURE ' // &
-        'is not defined.'
+      option%io_buffer = 'SOIL_COMPRESSIBILITY_FUNCTION is specified in &
+        &inputdeck for MATERIAL_PROPERTY "' // &
+        trim(material_property%name) // &
+        '", but SOIL_REFERENCE_PRESSURE is not defined.'
       call printErrMsg(option)
     endif
   endif
@@ -693,9 +702,9 @@ subroutine MaterialPropertyRead(material_property,input,option)
     write(word,*) material_property%external_id
     option%io_buffer = 'Material ID in MATERIAL_PROPERTY "' // &
       trim(material_property%name) // '" must be > 0 (' // &
-      trim(adjustl(word)) // '). If you would like to inactivate a ' // &
-      'material, please do so by adding INACTIVE to the STRATA to which ' // &
-      'the MATERIAL_PROPERTY is coupled.'
+      trim(adjustl(word)) // '). If you would like to inactivate a &
+      &material, please do so by adding INACTIVE to the STRATA to which &
+      &the MATERIAL_PROPERTY is coupled.'
     call printErrMsg(option)
   endif
 

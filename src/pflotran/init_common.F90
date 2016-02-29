@@ -290,7 +290,8 @@ subroutine InitCommonReadRegionFiles(realization)
       if (index(region%filename,'.h5') > 0) then
         if (.not.region%hdf5_ugrid_kludge) then
 
-           call HDF5QueryRegionDefinition(region, region%filename, realization%option, &
+           call HDF5QueryRegionDefinition(region, region%filename, &
+                                          realization%option, &
                 cell_ids_exists, face_ids_exists, vert_ids_exists)
 
            if ( (.not. cell_ids_exists) .and. &
@@ -298,15 +299,16 @@ subroutine InitCommonReadRegionFiles(realization)
                 (.not. vert_ids_exists)) then
 
               option%io_buffer = '"Regions/' // trim(region%name) // &
-                   ' is not defined by "Cell Ids" or "Face Ids" or "Vertex Ids".'
+                ' is not defined by "Cell Ids" or "Face Ids" or "Vertex Ids".'
               call printErrMsg(option)
            end if
 
            if (cell_ids_exists .or. face_ids_exists) then
-              call HDF5ReadRegionFromFile(realization%patch%grid,region,region%filename,option)
+              call HDF5ReadRegionFromFile(realization%patch%grid,region, &
+                                          region%filename,option)
            else
               call HDF5ReadRegionDefinedByVertex(realization%option, &
-                   region, region%filename)
+                                                 region, region%filename)
            end if
         else
           !geh: Do not skip this subroutine if PETSC_HAVE_HDF5 is not
@@ -314,7 +316,8 @@ subroutine InitCommonReadRegionFiles(realization)
           !     informing the user of the error.  If you skip the subroutine,
           !     no error message is printed and the user is unaware of the
           !     region not being read.
-          call HDF5ReadUnstructuredGridRegionFromFile(realization%option,region, &
+          call HDF5ReadUnstructuredGridRegionFromFile(realization%option, &
+                                                      region, &
                                                       region%filename)
         endif
       else if (index(region%filename,'.ss') > 0) then
@@ -513,7 +516,8 @@ subroutine InitCommonCreateIOGroups(option)
 
   ! create read IO groups
   numiogroups = option%mycommsize/option%hdf5_read_group_size
-  call fscorpio_iogroup_init(numiogroups, option%mycomm, option%ioread_group_id, ierr)
+  call fscorpio_iogroup_init(numiogroups, option%mycomm, &
+                             option%ioread_group_id, ierr)
 
   if ( option%hdf5_read_group_size == option%hdf5_write_group_size ) then
     ! reuse read_group to use for writing too as both groups are same size
@@ -521,12 +525,14 @@ subroutine InitCommonCreateIOGroups(option)
   else   
       ! create write IO groups
       numiogroups = option%mycommsize/option%hdf5_write_group_size
-      call fscorpio_iogroup_init(numiogroups, option%mycomm, option%iowrite_group_id, ierr)
+      call fscorpio_iogroup_init(numiogroups, option%mycomm, &
+                                 option%iowrite_group_id, ierr)
   end if
 
     write(option%io_buffer, '(" Read group id :  ", i6)') option%ioread_group_id
     call printMsg(option)      
-    write(option%io_buffer, '(" Write group id :  ", i6)') option%iowrite_group_id
+    write(option%io_buffer, '(" Write group id :  ", i6)') &
+      option%iowrite_group_id
     call printMsg(option)      
   call PetscLogEventEnd(logging%event_create_iogroups,ierr);CHKERRQ(ierr)
 #endif
@@ -620,7 +626,8 @@ subroutine InitCommonReadVelocityField(realization)
         dataset_name = 'Internal Velocity Z'
     end select
     if (.not.HDF5DatasetExists(filename,group_name,dataset_name,option)) then
-      option%io_buffer = 'Dataset "' // trim(group_name) // '/' // trim(dataset_name) // &
+      option%io_buffer = 'Dataset "' // trim(group_name) // '/' // &
+        trim(dataset_name) // &
         '" not found in HDF5 file "' // trim(filename) // '".'
       call printErrMsg(option)
     endif
@@ -652,7 +659,8 @@ subroutine InitCommonReadVelocityField(realization)
     if (.not.associated(boundary_condition)) exit
     dataset_name = boundary_condition%name
     if (.not.HDF5DatasetExists(filename,group_name,dataset_name,option)) then
-      option%io_buffer = 'Dataset "' // trim(group_name) // '/' // trim(dataset_name) // &
+      option%io_buffer = 'Dataset "' // trim(group_name) // '/' // &
+        trim(dataset_name) // &
         '" not found in HDF5 file "' // trim(filename) // '".'
       call printErrMsg(option)
     endif
@@ -696,37 +704,44 @@ subroutine InitCommonAddOutputWaypoints(output_option,waypoint_list)
   
   final_time = WaypointListGetFinalTime(waypoint_list)
   
-  ! add waypoints for periodic output
-  if (output_option%periodic_output_time_incr > 0.d0 .or. &
-      output_option%periodic_tr_output_time_incr > 0.d0) then
+  ! Add waypoints for periodic snapshot output
+  if (output_option%periodic_snap_output_time_incr > 0.d0) then
+    temp_real = 0.d0
+    do
+      temp_real = temp_real + output_option%periodic_snap_output_time_incr
+      if (temp_real > final_time) exit
+      waypoint => WaypointCreate()
+      waypoint%time = temp_real
+      waypoint%print_snap_output = PETSC_TRUE
+      call WaypointInsertInList(waypoint,waypoint_list)
+    enddo
+  endif
 
-    if (output_option%periodic_output_time_incr > 0.d0) then
-      ! standard output
-      temp_real = 0.d0
-      do
-        temp_real = temp_real + output_option%periodic_output_time_incr
-        if (temp_real > final_time) exit
-        waypoint => WaypointCreate()
-        waypoint%time = temp_real
-        waypoint%print_output = PETSC_TRUE
-        call WaypointInsertInList(waypoint,waypoint_list)
-      enddo
-    endif
-    
-    if (output_option%periodic_tr_output_time_incr > 0.d0) then
-      ! transient observation output
-      temp_real = 0.d0
-      do
-        temp_real = temp_real + output_option%periodic_tr_output_time_incr
-        if (temp_real > final_time) exit
-        waypoint => WaypointCreate()
-        waypoint%time = temp_real
-        waypoint%print_tr_output = PETSC_TRUE 
-        call WaypointInsertInList(waypoint,waypoint_list)
-      enddo
-    endif
+  ! Add waypoints for periodic observation output
+  if (output_option%periodic_obs_output_time_incr > 0.d0) then
+    temp_real = 0.d0
+    do
+      temp_real = temp_real + output_option%periodic_obs_output_time_incr
+      if (temp_real > final_time) exit
+      waypoint => WaypointCreate()
+      waypoint%time = temp_real
+      waypoint%print_obs_output = PETSC_TRUE
+      call WaypointInsertInList(waypoint,waypoint_list)
+    enddo
+  endif
 
-  endif  
+  ! Add waypoints for periodic mass balance output
+  if (output_option%periodic_msbl_output_time_incr > 0.d0) then
+    temp_real = 0.d0
+    do
+      temp_real = temp_real + output_option%periodic_msbl_output_time_incr
+      if (temp_real > final_time) exit
+      waypoint => WaypointCreate()
+      waypoint%time = temp_real
+      waypoint%print_msbl_output = PETSC_TRUE
+      call WaypointInsertInList(waypoint,waypoint_list)
+    enddo
+  endif 
   
 end subroutine InitCommonAddOutputWaypoints
 
