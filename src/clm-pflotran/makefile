@@ -468,11 +468,11 @@ endif
 clm_pflotran_interface_data.o :
 mapping.o : option.o pflotran_constants.o input_aux.o
 pflotran_clm_main.o : mapping.o clm_pflotran_interface_data.o geodesic.o \
+             factory_geomechanics.o factory_hydrogeophysics.o \
              factory_pflotran.o factory_subsurface.o factory_surface.o \
              factory_surfsubsurface.o multisimulation.o option.o output_aux.o \
              pflotran_constants.o pflotran_provenance.o pm_base.o \
              simulation_base.o
-
 pflotran_clm_setmapping.o : pflotran_clm_main.o mapping.o
 # the subroutine for geodesic functions (author: C. F. F. Karney)
 geodesic.o :
