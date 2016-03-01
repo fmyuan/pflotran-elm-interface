@@ -666,7 +666,6 @@ contains
           " only works on subsurface simulations."
          call printErrMsg(option)
     end select
-    !discretization  => realization%discretization
     patch           => realization%patch
     grid            => patch%grid
     !------------
