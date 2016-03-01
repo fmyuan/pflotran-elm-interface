@@ -4130,10 +4130,6 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     CHKERRQ(ierr)
 
     ! MUST call the following subroutine, OTHERWISE there is one time-step delay of data-passing
-    !call MassTransferUpdate(realization%rt_mass_transfer_list, &
-    !                      realization%patch%grid, &
-    !                      realization%option)
-
     call DataMediatorUpdate(realization%tran_data_mediator_list,  &
                             realization%field%tran_mass_transfer, &
                             realization%option)
