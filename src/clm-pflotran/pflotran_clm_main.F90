@@ -3814,6 +3814,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     use Reactive_Transport_module, only : RTUpdateAuxVars
     use Reactive_Transport_Aux_module
     use Discretization_module
+    use Data_Mediator_Base_class, only : data_mediator_base_type
     use Data_Mediator_Dataset_class, only : data_mediator_dataset_type
     use Data_Mediator_module
 
@@ -3836,7 +3837,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     type(patch_type), pointer           :: patch
     type(grid_type), pointer            :: grid
 
-    class(data_mediator_dataset_type), pointer   :: cur_mass_transfer
+    class(data_mediator_base_type), pointer :: cur_data_mediator
 
     PetscErrorCode      :: ierr
     PetscInt            :: ghosted_id,local_id
@@ -3998,44 +3999,36 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     call VecGetArrayReadF90(field%volume0,volume_p,ierr)
     CHKERRQ(ierr)
 
-    if (associated(realization%tran_data_mediator_list)) then
+    !
+    offsetim = realization%reaction%offset_immobile
 
-       offsetim = realization%reaction%offset_immobile
+    cur_data_mediator => realization%tran_data_mediator_list
+    do
+      if (.not.associated(cur_data_mediator)) exit
 
-       select type (rtmasstr => realization%tran_data_mediator_list)
-         class is (data_mediator_dataset_type)
-           cur_mass_transfer => rtmasstr
 
-         class default
-           option%io_buffer = ' tran_mass_DATASET is not of type of ' // &
-            'data_mediator_dataset_type.'
-           call printErrMsg(option)
+      select type (cur_data_mediator)
+        class is (data_mediator_dataset_type)
+          !
+          found_rtmasstr = PETSC_FALSE
+          vec_offset = 0
+          !
+          if(cur_data_mediator%idof == clm_pf_idata%ispec_nh4) then
+            call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
+            CHKERRQ(ierr)
+            found_rtmasstr = PETSC_TRUE
 
-       end select
+          elseif(cur_data_mediator%idof == clm_pf_idata%ispec_no3) then
+            call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
+            CHKERRQ(ierr)
+            found_rtmasstr = PETSC_TRUE
 
-       do
-         if (.not.associated(cur_mass_transfer)) exit
-
-         !
-         found_rtmasstr = PETSC_FALSE
-         vec_offset = 0
-         !
-         if(cur_mass_transfer%idof == clm_pf_idata%ispec_nh4) then
-           call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-           found_rtmasstr = PETSC_TRUE
-
-         elseif(cur_mass_transfer%idof == clm_pf_idata%ispec_no3) then
-           call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
-           CHKERRQ(ierr)
-           found_rtmasstr = PETSC_TRUE
-
-         else
-         !--------------------------------------------------------------------------
-           if (associated(clm_pf_idata%ispec_decomp_c) .or. &
+          else
+          !--------------------------------------------------------------------------
+            if (associated(clm_pf_idata%ispec_decomp_c) .or. &
                associated(clm_pf_idata%ispec_decomp_n)) then
              do k=1,clm_pf_idata%ndecomp_pools
-               if( cur_mass_transfer%idof == (offsetim + clm_pf_idata%ispec_decomp_c(k)) ) then
+               if( cur_data_mediator%idof == (offsetim + clm_pf_idata%ispec_decomp_c(k)) ) then
                  vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! Seq. decomp_pfs vec: 'cell' first, then 'species'
                  call VecGetArrayReadF90(clm_pf_idata%rate_decomp_c_pfs, rate_pf_loc, ierr)
                  CHKERRQ(ierr)
@@ -4043,7 +4036,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
                  exit   ! exit the 'do k=1, ...' loop
 
-               elseif( cur_mass_transfer%idof == (offsetim + clm_pf_idata%ispec_decomp_n(k)) ) then
+               elseif( cur_data_mediator%idof == (offsetim + clm_pf_idata%ispec_decomp_n(k)) ) then
                  vec_offset = (k-1)*clm_pf_idata%ngpf_sub       ! Seq. decomp_pfs vec: 'cell' first, then 'species'
                  call VecGetArrayReadF90(clm_pf_idata%rate_decomp_n_pfs, rate_pf_loc, ierr)
                  CHKERRQ(ierr)
@@ -4056,7 +4049,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
          !--------------------------------------------------------------------------
          endif
 
-         cur_mass_transfer%dataset%rarray(:) = 0.d0
+         cur_data_mediator%dataset%rarray(:) = 0.d0
 
          ! found a RT mass-transfer variable in the list
          if(found_rtmasstr) then
@@ -4071,24 +4064,24 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
       ! Conclusions: (1) local_id runs from 1 ~ grid%nlmax; and ghosted_id is obtained by 'nL2G' as corrected above;
       !              OR, ghosted_id runs from 1 ~ grid%ngmax; and local_id is obtained by 'nG2L'.
       !              (2) data-passing IS by from 'ghosted_id' to 'local_id'
-      if (cur_mass_transfer%idof == clm_pf_idata%ispec_nh4) &
+      if (cur_data_mediator%idof == clm_pf_idata%ispec_nh4) &
       write(option%myrank+200,*) 'checking bgc-mass-rate - pflotran_model: ', &
         'rank=',option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'rate_nh4_pfs(ghosted_id)=',rate_pf_loc(ghosted_id), &
-        'masstransfer_nh4_predataset(local_id)=',cur_mass_transfer%dataset%rarray(local_id)/volume_p(local_id)
+        'masstransfer_nh4_predataset(local_id)=',cur_data_mediator%dataset%rarray(local_id)/volume_p(local_id)
 #endif
 
-               cur_mass_transfer%dataset%rarray(local_id) = &
+               cur_data_mediator%dataset%rarray(local_id) = &
                          rate_pf_loc(vec_offset+ghosted_id) &    ! for 'decomp' species, must be offset the vecs' starting location
                        * volume_p(local_id)                      ! from moles/m3/s --> moles/s
 
            enddo  !do local_id = 1, grid%nlmax
 
            ! close the open vecs
-           if(cur_mass_transfer%idof == clm_pf_idata%ispec_nh4) then
+           if(cur_data_mediator%idof == clm_pf_idata%ispec_nh4) then
              call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
              CHKERRQ(ierr)
-           elseif(cur_mass_transfer%idof == clm_pf_idata%ispec_no3) then
+           elseif(cur_data_mediator%idof == clm_pf_idata%ispec_no3) then
              call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
              CHKERRQ(ierr)
 
@@ -4097,12 +4090,12 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
              if (associated(clm_pf_idata%ispec_decomp_c) .or. &
                  associated(clm_pf_idata%ispec_decomp_n)) then
                do k=1,clm_pf_idata%ndecomp_pools
-                 if( cur_mass_transfer%idof == (offsetim + clm_pf_idata%ispec_decomp_c(k)) ) then
+                 if( cur_data_mediator%idof == (offsetim + clm_pf_idata%ispec_decomp_c(k)) ) then
                    call VecRestoreArrayReadF90(clm_pf_idata%rate_decomp_c_pfs, rate_pf_loc, ierr)
                    CHKERRQ(ierr)
                    exit   ! exit the 'do k=1, ...' loop
 
-                 elseif( cur_mass_transfer%idof == (offsetim + clm_pf_idata%ispec_decomp_n(k)) ) then
+                 elseif( cur_data_mediator%idof == (offsetim + clm_pf_idata%ispec_decomp_n(k)) ) then
                    call VecRestoreArrayReadF90(clm_pf_idata%rate_decomp_n_pfs, rate_pf_loc, ierr)
                    CHKERRQ(ierr)
                    exit   ! exit the 'do k=1, ...' loop
@@ -4113,27 +4106,27 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
            endif
 
-         endif ! if(found_rtmasstr) block
-
-
-         select type (rtmasstr => realization%tran_data_mediator_list%next)
-           class is (data_mediator_dataset_type)
-             cur_mass_transfer => rtmasstr
-           class default
-             cycle
-
-           end select
-       enddo
-    endif
-
-    call VecRestoreArrayReadF90(field%volume0,volume_p,ierr)
-    CHKERRQ(ierr)
-
-    ! MUST call the following subroutine, OTHERWISE there is one time-step delay of data-passing
-    call DataMediatorUpdate(realization%tran_data_mediator_list,  &
+           ! MUST call the following subroutine, OTHERWISE there is one time-step delay of data-passing
+           call DataMediatorUpdate(realization%tran_data_mediator_list,  &
                             realization%field%tran_mass_transfer, &
                             realization%option)
 
+          endif ! if(found_rtmasstr) block
+
+        ! end of class is (data_mediator_dataset_type)
+
+        class default
+          option%io_buffer = ' tran_mass_DATASET is not of type of ' // &
+            'data_mediator_dataset_type.'
+          call printErrMsg(option)
+
+      end select
+
+      cur_data_mediator => cur_data_mediator%next
+    end do
+
+    call VecRestoreArrayReadF90(field%volume0,volume_p,ierr)
+    CHKERRQ(ierr)
 
   end subroutine pflotranModelSetBGCRatesFromCLM
 
