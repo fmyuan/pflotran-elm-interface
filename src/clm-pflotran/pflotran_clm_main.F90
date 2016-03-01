@@ -941,6 +941,7 @@ contains
   !
   ! (fmy) 4/28/2014: modifications after updating to pflotran-dev
 
+    use Option_module
     use Realization_Base_class
     use Simulation_Base_class
     use Discretization_module
@@ -979,6 +980,8 @@ contains
 
     type(richards_auxvar_type), pointer       :: rich_auxvars(:)
     type(richards_auxvar_type), pointer       :: rich_auxvar
+    class(characteristic_curves_type), pointer :: characteristic_curves
+
     type(th_auxvar_type), pointer             :: th_auxvars(:)
     type(th_auxvar_type), pointer             :: th_auxvar
     type(saturation_function_type), pointer :: saturation_function
@@ -992,6 +995,7 @@ contains
     PetscReal, pointer :: porosity_loc_p(:), vol_ovlap_arr(:)
     PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
     PetscReal          :: bc_lambda, bc_alpha, bc_sr
+    PetscInt           :: sf_func_type, rpf_func_type
 
     PetscScalar, pointer :: hksat_x_pf_loc(:) ! hydraulic conductivity in x-dir at saturation (mm H2O /s)
     PetscScalar, pointer :: hksat_y_pf_loc(:) ! hydraulic conductivity in y-dir at saturation (mm H2O /s)
@@ -1011,7 +1015,7 @@ contains
     grav =GRAVITY_CONSTANT       ! [m/S^2]
 
 
-    subname = 'pflotranModelSetSoilDimension'
+    subname = 'pflotranModelSetSoilProp'
 !-------------------------------------------------------------------------
     option => pflotran_model%option
     select type (modelsim => pflotran_model%simulation)
@@ -1040,8 +1044,9 @@ contains
         ! because 'uniform_velocity' with [0, 0, 0] velocity transport doesn't need specific flowmode,
         ! which is used for BGC coupling only (i.e., no TH coupling)
         if(option%ntrandof.le.0) then
-            call printErrMsg(option, &
-               'Current PFLOTRAN mode not supported by pflotranModelSetSoilProp')
+            option%io_buffer =  &
+               'Current PFLOTRAN mode not supported by pflotranModelSetSoilProp'
+            call printErrMsg(option)
         endif
     end select
 
@@ -1159,12 +1164,47 @@ contains
       !            (2) data-passing IS by from 'ghosted_id' to PF's 'local_id'.
       if(option%nflowdof > 0) then
 
-       saturation_function => patch%  &
-         saturation_function_array(patch%sat_func_id(local_id))%ptr
+        if(option%iflowmode == RICHARDS_MODE) then
+          ! Richards_MODE now is using 'charateristic_curves' module
+          characteristic_curves => patch%  &
+            characteristic_curves_array(patch%sat_func_id(local_id))%ptr
+
+          select type(sf => characteristic_curves%saturation_function)
+            !class is(sat_func_VG_type)
+             ! not-yet (TODO)
+            class is(sat_func_BC_type)
+              sf_func_type = BROOKS_COREY
+            class default
+              option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
+              ' when coupled with CLM.'
+              call printErrMsg(option)
+          end select
+
+          select type(rpf => characteristic_curves%liq_rel_perm_function)
+            !class is(rpf_Mualem_VG_liq_type)
+              ! (TODO)
+            class is(rpf_Burdine_BC_liq_type)
+              rpf_func_type = BURDINE
+            class default
+              option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
+               ' when coupled with CLM.'
+              call printErrMsg(option)
+          end select
+
+        ! TH_mode is still using 'saturation_function' module
+        elseif(option%iflowmode == TH_MODE) then
+
+          saturation_function => patch%  &
+            saturation_function_array(patch%sat_func_id(local_id))%ptr
+
+          sf_func_type = saturation_function%saturation_function_itype
+          rpf_func_type= saturation_function%permeability_function_itype
+
+        endif
 
        ! currently VG-Mulaem saturation function type - NOT YET done in CLM (TODO)
-       ! if ( saturation_function%saturation_function_itype == VAN_GENUCHTEN .and. &
-       !      saturation_function%permeability_function_itype == MUALEM )         then
+       ! if ( sf_func_type == VAN_GENUCHTEN .and. &
+       !      rpf_func_type == MUALEM )         then
        !
        !   bc_alpha  = alpha_pf_loc(ghosted_id)
        !   bc_lambda = lamda_pf_loc(ghosted_id)   ! 'm' in VG function ( or, n=1/(1-m))
@@ -1172,8 +1212,8 @@ contains
        !   bc_pcwmax = pcwmax_pf_loc(ghosted_id)  ! this parameter IS not corresponding with 'Sr'
 
        ! currently BC-Burdine saturation/permisivity function type, with specified values to match with Clapp-Hornberger Eq.
-        if ( saturation_function%saturation_function_itype == BROOKS_COREY .and. &
-             saturation_function%permeability_function_itype == BURDINE )         then
+        if ( sf_func_type == BROOKS_COREY .and. &
+             sf_func_type == BURDINE )         then
           ! Clapp-Hornberger: soilpsi = sucsat * (-9.81) * (fsattmp)**(-bsw)  ! mm H2O Head --> -pa
           !                   K = Ks*fsattmp**(3+2*bsw)
           !         vs.
@@ -1184,23 +1224,24 @@ contains
           bc_lambda = 1.d0/bsw_pf_loc(ghosted_id)   !
           bc_sr     = 0.0d0
         else
-            call printErrMsg(option, &
-               'Currently ONLY support Brooks_COREY-Burdine saturation function type when coupled with CLM')
+          option%io_buffer = &
+             'Currently ONLY support Brooks_COREY-Burdine saturation function type when coupled with CLM'
+          call printErrMsg(option)
 
         end if
 
-      select case(option%iflowmode)
-        case(RICHARDS_MODE)
-          rich_auxvar => rich_auxvars(ghosted_id)
-          rich_auxvar%bc_alpha  = bc_alpha
-          rich_auxvar%bc_lambda = bc_lambda
-          rich_auxvar%bc_sr1    = bc_sr
-        case(TH_MODE)
-          th_auxvar => th_auxvars(ghosted_id)
-          th_auxvar%bc_alpha  = bc_alpha
-          th_auxvar%bc_lambda = bc_lambda
-          th_auxvar%bc_sr1    = bc_sr
-      end select
+        select case(option%iflowmode)
+          case(RICHARDS_MODE)
+            rich_auxvar => rich_auxvars(ghosted_id)
+            rich_auxvar%bc_alpha  = bc_alpha
+            rich_auxvar%bc_lambda = bc_lambda
+            rich_auxvar%bc_sr1    = bc_sr
+          case(TH_MODE)
+            th_auxvar => th_auxvars(ghosted_id)
+            th_auxvar%bc_alpha  = bc_alpha
+            th_auxvar%bc_lambda = bc_lambda
+            th_auxvar%bc_sr1    = bc_sr
+        end select
 
       endif
 
@@ -1350,7 +1391,7 @@ contains
 
     !---------------------------------------------------------------------------------
 
-    subname = 'pflotranModelSetSoilDimension'
+    subname = 'ModelResetSoilPorosityFromCLM'
 
 !-------------------------------------------------------------------------
     option => pflotran_model%option
@@ -1507,6 +1548,7 @@ contains
     use Simulation_Subsurface_class, only : simulation_subsurface_type
 
     use Richards_Aux_module
+    use Characteristic_Curves_module
     use TH_Aux_module
     use Saturation_Function_module
 
@@ -1528,10 +1570,14 @@ contains
     class(realization_subsurface_type), pointer :: realization
 
     type(saturation_function_type), pointer :: saturation_function
+    type(th_auxvar_type), pointer :: th_auxvar
+
+    class(characteristic_curves_type), pointer :: characteristic_curves
+    type(richards_auxvar_type), pointer :: rich_auxvar
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
-    PetscReal          :: tempreal
+    PetscReal          :: tempreal, tempreal2
 
     ! pf internal variables
     PetscReal, pointer :: porosity_loc_p(:)
@@ -1540,6 +1586,9 @@ contains
     PetscScalar, pointer :: porosity_loc_pfp(:)  ! soil porosity
     PetscScalar, pointer :: sr_pcwmax_loc_pfp(:) ! soil vwc at max. capillary pressure (note: not 'Sr')
     PetscScalar, pointer :: pcwmax_loc_pfp(:)    ! max. capillary pressure
+
+    character(len=MAXSTRINGLENGTH) :: error_string
+    PetscInt :: cur_sat_func_id
 
     subname = 'pflotranModelGetSoilPropFromPF'
 
@@ -1571,45 +1620,48 @@ contains
     CHKERRQ(ierr)
 
     do local_id=1,grid%nlmax
-        ghosted_id = grid%nL2G(local_id)
-        if (ghosted_id <= 0 .or. local_id <= 0) cycle
-        if (associated(patch%imat)) then
-           if (patch%imat(ghosted_id) < 0) cycle    ! imat maybe 0, which causes issue
-        endif
+      ghosted_id = grid%nL2G(local_id)
+      if (ghosted_id <= 0 .or. local_id <= 0) cycle
+      if (associated(patch%imat)) then
+         if (patch%imat(ghosted_id) < 0) cycle    ! imat maybe 0, which causes issue
+      endif
 
-        ! PF's porosity
-        porosity_loc_pfp(local_id) = porosity_loc_p(local_id)
+      ! PF's porosity
+      porosity_loc_pfp(local_id) = porosity_loc_p(local_id)
 
-        saturation_function => patch%    &
-            saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
+      ! soil hydraulic properties ID for current cell
+      cur_sat_func_id = patch%sat_func_id(ghosted_id)
 
-#ifdef CLM_PF_DEBUG
-      !F.-M. Yuan: the following IS a checking, comparing CLM passing data (bsw ~ 1/lambda --> PFsat_func --> CLM):
-      write(option%myrank+200,*) &
-        'checking pflotran-model prior to get soil properties from PF: ', &
-        'rank=',option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
-        'local_id=',local_id, 'ghosted_id=',ghosted_id, &
-        'sat_funcid(ghosted_id)=',patch%sat_func_id(ghosted_id), &
-        'pfsatfun_alpha=',saturation_function%alpha, &
-        'richauxvars_alpha= ',patch%aux%Richards%auxvars(ghosted_id)%bc_alpha, &
-        'pfsatfun_lambda=',saturation_function%lambda, &
-        'richauxvars_lambda= ',patch%aux%Richards%auxvars(ghosted_id)%bc_lambda, &
-        'pfsatfun_sr1=',saturation_function%sr(1), &
-        'richauxvars_sr1= ',patch%aux%Richards%auxvars(ghosted_id)%bc_sr1
-#endif
+      !
+      if (option%iflowmode==RICHARDS_MODE) then
+        ! Richards_MODE now is using 'charateristic_curves' module
 
-        if (option%iflowmode==RICHARDS_MODE) then
-          saturation_function%alpha  = patch%aux%Richards%auxvars(ghosted_id)%bc_alpha
-          saturation_function%lambda = patch%aux%Richards%auxvars(ghosted_id)%bc_lambda
-          saturation_function%sr(1)  = patch%aux%Richards%auxvars(ghosted_id)%bc_sr1
-        elseif (option%iflowmode==TH_MODE) then
-          saturation_function%alpha  = patch%aux%TH%auxvars(ghosted_id)%bc_alpha
-          saturation_function%lambda = patch%aux%TH%auxvars(ghosted_id)%bc_lambda
-          saturation_function%sr(1)  = patch%aux%TH%auxvars(ghosted_id)%bc_sr1
-        endif
-       ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-       call SatFunctionComputePolynomial(option,saturation_function)
-       call PermFunctionComputePolynomial(option,saturation_function)
+        characteristic_curves => patch% &
+          characteristic_curves_array(cur_sat_func_id)%ptr
+        rich_auxvar => patch%aux%Richards%auxvars(ghosted_id)
+
+        select type(sf => characteristic_curves%saturation_function)
+          !class is(sat_func_VG_type)
+             ! not-yet (TODO)
+          class is(sat_func_BC_type)
+            ! PF's limits on soil matrix potential (Capillary pressure)
+            pcwmax_loc_pfp(local_id) = sf%pcmax
+
+            ! PF's limits on soil water at pcwmax (NOT: not 'Sr', at which PC is nearly 'inf')
+            call sf%Saturation(sf%pcmax, tempreal, tempreal2, option)
+            sr_pcwmax_loc_pfp(local_id) = tempreal
+
+          class default
+            option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
+              ' when coupled with CLM.'
+            call printErrMsg(option)
+        end select
+
+      !
+      elseif (option%iflowmode==TH_MODE) then
+        ! 'saturation_function' module NOW only with TH_mode
+        saturation_function => patch%saturation_function_array(cur_sat_func_id)%ptr
+        th_auxvar => patch%aux%TH%auxvars(ghosted_id)
 
         ! PF's limits on soil matrix potential (Capillary pressure)
         pcwmax_loc_pfp(local_id) = saturation_function%pcwmax
@@ -1619,6 +1671,7 @@ contains
                                       saturation_function, &
                                       option)
         sr_pcwmax_loc_pfp(local_id) = tempreal
+      endif
 
     enddo
 
@@ -1839,6 +1892,8 @@ subroutine pflotranModelSetInternalTHStatesfromCLM(pflotran_model)
 
     use Simulation_Subsurface_class, only : simulation_subsurface_type
     use Realization_Subsurface_class, only : realization_subsurface_type
+    use TH_module, only : THUpdateAuxVars
+    use Richards_module, Only : RichardsUpdateAuxVars
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -1980,6 +2035,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     use Realization_Subsurface_class, only : realization_subsurface_type
     use Simulation_Subsurface_class, only : simulation_subsurface_type
+    use TH_module, only : THUpdateAuxVars
+    use Richards_module, Only : RichardsUpdateAuxVars
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -2442,13 +2499,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     use Grid_module
     use Field_module
     use Global_Aux_module
-!    use Richards_module
     use Richards_Aux_module
-!    use TH_module
     use TH_Aux_module
 
     use Realization_Subsurface_class, only : realization_subsurface_type
     use Simulation_Subsurface_class, only : simulation_subsurface_type
+    use TH_module, only : THUpdateAuxVars
+    use Richards_module, Only : RichardsUpdateAuxVars
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -2635,10 +2692,11 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     use Patch_module
     use Grid_module
     use Global_Aux_module
-!    use TH_module
     use TH_Aux_module
+
     use Realization_Subsurface_class, only : realization_subsurface_type
     use Simulation_Subsurface_class, only : simulation_subsurface_type
+    use TH_module, only : THUpdateAuxVars
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -4404,7 +4462,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     use Field_module
     use Reaction_module
     use Reaction_Aux_module
-    !use Reactive_Transport_module
+    use Reactive_Transport_module, only : RTUpdateAuxVars
     use Reactive_Transport_Aux_module
     use Reaction_Immobile_Aux_module
     use Discretization_module

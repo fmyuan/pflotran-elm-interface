@@ -241,6 +241,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: fs, ani_A, ani_B, ani_C, ani_n, ani_coef
   PetscReal :: dkr_Se
   PetscReal, parameter :: tol = 1.d-3
+  character(len=MAXSTRINGLENGTH) :: error_string
   
   global_auxvar%sat = 0.d0
   global_auxvar%den = 0.d0
@@ -283,10 +284,9 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
         sf%lambda = auxvar%bc_lambda
         sf%Sr  = auxvar%bc_sr1
         ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-        call SatFunctionComputePolynomial(option,    &
-          characteristic_curves%saturation_function)
-        call PermFunctionComputePolynomial(option,   &
-          characteristic_curves%saturation_function)
+        error_string = 'passing CLM characterisitc-curves parameters: sat_function'
+        call sf%SetupPolynomials(option,error_string)
+
       class default
         option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
            ' when coupled with CLM.'
@@ -298,6 +298,11 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
       class is(rpf_Burdine_BC_liq_type)
         rpf%lambda = auxvar%bc_lambda
         rpf%Sr  = auxvar%bc_sr1
+
+        ! needs to re-calculate some extra variables for 'saturation_function', if changed above
+        error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
+        call rpf%SetupPolynomials(option,error_string)
+
       class default
         option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
            ' when coupled with CLM.'
