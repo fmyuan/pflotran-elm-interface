@@ -473,7 +473,8 @@ contains
       endif
     endif
 
-    pause_time1 = pause_time + dtime!1800.0d0
+    pause_time1 = pause_time + 0.1d0*dtime
+    call pflotranModelUpdateFinalWaypoint(model, pause_time1, PETSC_FALSE)
     call pflotranModelInsertWaypoint(model, pause_time, dtime, PETSC_FALSE)
 
     call model%simulation%RunToTime(pause_time)

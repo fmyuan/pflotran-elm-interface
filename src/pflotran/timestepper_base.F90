@@ -351,7 +351,9 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
   PetscBool :: equal_to_or_exceeds_sync_time
   PetscBool :: revert_due_to_waypoint
   PetscBool :: revert_due_to_sync_time
-  type(waypoint_type), pointer :: cur_waypoint
+  PetscBool :: truncated_due_to_next_dt_max
+  PetscReal :: temp_time
+  type(waypoint_type), pointer :: cur_waypoint, next_waypoint, prev_waypoint
 
 !geh: for debugging
 #ifdef DEBUG
@@ -396,10 +398,33 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
   do ! we cycle just in case the next waypoint is beyond the target_time
     dt_max = cur_waypoint%dt_max
     dt = min(dt,dt_max)
+    ! ensure that the time step does not overstep the next waypoint time +
+    ! dtmax combination.
     target_time = this%target_time + dt
+
+!---! This section of code ensures that no time step over steps the next
+    ! maximum time step (dt_max) if a waypoint is surpassed.
+    force_to_match_waypoint = PETSC_FALSE
+    if (associated(cur_waypoint%next)) then
+      if (dt_max > cur_waypoint%next%dt_max .and. &
+          dt > cur_waypoint%next%dt_max .and. &
+          target_time > cur_waypoint%time) then
+        if (this%target_time + cur_waypoint%next%dt_max < &
+            cur_waypoint%time) then
+          force_to_match_waypoint = PETSC_TRUE
+        else
+          dt = cur_waypoint%next%dt_max
+          target_time = this%target_time + dt
+        endif
+      endif
+    endif
+!---
+
+
     ! If a waypoint calls for a plot or change in src/sinks, adjust time step
     ! to match waypoint.
-    force_to_match_waypoint = WaypointForceMatchToTime(cur_waypoint)
+    force_to_match_waypoint = WaypointForceMatchToTime(cur_waypoint) .or. &
+                              force_to_match_waypoint
     equal_to_or_exceeds_waypoint = target_time + tolerance*dt >= &
                                    cur_waypoint%time
     equal_to_or_exceeds_sync_time = target_time + tolerance*dt >= sync_time
@@ -472,17 +497,10 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
     this%num_contig_revert_due_to_sync = 0
   endif
 
-! fmy: begining
-! if coupled with CLM, max_time_step IS unlimited
-! because 'waypoint' is controled by the interface
-! otherwise, PF will stop at some point but CLM not-yet done
-#ifndef CLM_PFLOTRAN
   if (cumulative_time_steps >= max_time_step-1) then
     nullify(cur_waypoint)
     stop_flag = TS_STOP_MAX_TIME_STEP
   endif
-#endif
-!fmy: ending
 
   ! update maximum time step size to current waypoint value
   if (associated(cur_waypoint)) then
