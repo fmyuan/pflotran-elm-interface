@@ -233,7 +233,7 @@ contains
     waypoint1%time          = waypoint_time * UnitsConvertToInternal(word, internal_units, option)
     waypoint1%print_output  = PETSC_TRUE
     waypoint1%final         = PETSC_TRUE
-    waypoint1%dt_max        = waypoint_time * UnitsConvertToInternal(word, internal_units, option)
+    waypoint1%dt_max        = 1800.d0 * UnitsConvertToInternal(word, internal_units, option)
 
     ! update subsurface-realization final waypoint
     if (associated(realization) .and. associated(simulation)) then
@@ -276,7 +276,7 @@ contains
 
   !-------------------------------------------------------------------!
 
-  subroutine pflotranModelInsertWaypoint(model, waypoint_time)
+  subroutine pflotranModelInsertWaypoint(model, waypoint_time, waypoint_dtmax, waypoint_final)
   !
   ! Inserts a waypoint within the waypoint list
   ! so that the model integration can be paused when that waypoint is
@@ -301,8 +301,11 @@ contains
 
     type(Option_type), pointer :: option
     type(pflotran_model_type), pointer :: model
-    type(waypoint_type), pointer       :: waypoint
     PetscReal, intent(in)              :: waypoint_time
+    PetscReal, intent(in)              :: waypoint_dtmax
+    PetscBool, intent(in)              :: waypoint_final
+
+    type(waypoint_type), pointer       :: waypoint
     character(len=MAXWORDLENGTH) :: word, internal_units
 
     class(simulation_subsurface_type), pointer  :: simulation
@@ -317,8 +320,10 @@ contains
     waypoint%time              = waypoint_time * UnitsConvertToInternal(word, internal_units, option)
     waypoint%update_conditions = PETSC_TRUE
     waypoint%print_output      = PETSC_FALSE
-    waypoint%final             = PETSC_FALSE
-    waypoint%dt_max            = waypoint_time * UnitsConvertToInternal(word, internal_units, option)
+    waypoint%print_tr_output   = PETSC_FALSE
+    waypoint%print_checkpoint  = PETSC_FALSE
+    waypoint%final             = waypoint_final
+    waypoint%dt_max            = waypoint_dtmax * UnitsConvertToInternal(word, internal_units, option)
 
     select type (modsim => model%simulation)
       class is (simulation_subsurface_type)
@@ -469,7 +474,7 @@ contains
     endif
 
     pause_time1 = pause_time + dtime!1800.0d0
-    call pflotranModelInsertWaypoint(model, pause_time1)
+    call pflotranModelInsertWaypoint(model, pause_time, dtime, PETSC_FALSE)
 
     call model%simulation%RunToTime(pause_time)
 
