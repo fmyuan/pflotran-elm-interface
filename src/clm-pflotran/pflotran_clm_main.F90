@@ -951,18 +951,18 @@ contains
       endif
     endif
 
-    pause_time1 = pause_time + dtime!1800.0d0
-    call pflotranModelInsertWaypoint(model, pause_time1)
+    pause_time1 = pause_time + dtime
+    call pflotranModelInsertWaypoint(model, pause_time1, dtime)
 
     call model%simulation%RunToTime(pause_time)
 
-    call pflotranModelDeleteWaypoint(model, pause_time)
+    call pflotranModelDeleteWaypoint(model, pause_time, dtime)
 
   end subroutine pflotranModelStepperRunTillPauseTime
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelInsertWaypoint(model, waypoint_time)
+  subroutine pflotranModelInsertWaypoint(model, waypoint_time, waypoint_dtmax)
   ! 
   ! Inserts a waypoint within the waypoint list
   ! so that the model integration can be paused when that waypoint is
@@ -990,7 +990,7 @@ contains
     type(pflotran_model_type), pointer :: model
     type(waypoint_type), pointer       :: waypoint
     type(waypoint_type), pointer       :: waypoint2
-    PetscReal                          :: waypoint_time
+    PetscReal                          :: waypoint_time, waypoint_dtmax
     character(len=MAXWORDLENGTH)       :: word
 
     class(realization_type), pointer    :: realization
@@ -1020,7 +1020,7 @@ contains
     waypoint%update_conditions = PETSC_TRUE
     waypoint%print_output      = PETSC_FALSE
     waypoint%final             = PETSC_FALSE
-    waypoint%dt_max            = waypoint_time * UnitsConvertToInternal(word, model%option)!3153600.d0
+    waypoint%dt_max            = waypoint_dtmax * UnitsConvertToInternal(word, model%option)
 
     if (associated(realization)) then
       call WaypointInsertInList(waypoint, realization%waypoint_list)
@@ -1040,7 +1040,7 @@ contains
 
 ! ************************************************************************** !
 
-  subroutine pflotranModelDeleteWaypoint(model, waypoint_time)
+  subroutine pflotranModelDeleteWaypoint(model, waypoint_time, waypoint_dtmax)
 
     use Simulation_Base_class, only : simulation_base_type
     use Simulation_Subsurface_class, only : subsurface_simulation_type
@@ -1059,7 +1059,7 @@ contains
 
     type(pflotran_model_type), pointer :: model
     type(waypoint_type), pointer       :: waypoint
-    PetscReal                          :: waypoint_time
+    PetscReal                          :: waypoint_time, waypoint_dtmax
     character(len=MAXWORDLENGTH)       :: word
 
     class(realization_type), pointer    :: realization
@@ -1087,7 +1087,7 @@ contains
     waypoint => WaypointCreate()
     waypoint%time              = waypoint_time * UnitsConvertToInternal(word, model%option)
     waypoint%update_conditions = PETSC_TRUE
-    waypoint%dt_max            = 3153600
+    waypoint%dt_max            = waypoint_dtmax
 
     if (associated(realization)) then
        call WaypointDeleteFromList(waypoint, realization%waypoint_list)
@@ -1733,7 +1733,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
   !  And also set an option for turning on/off PF printing
 ! ************************************************************************** !
 
-  subroutine pflotranModelUpdateFinalWaypoint(model, waypoint_time, isprintout)
+  subroutine pflotranModelUpdateFinalWaypoint(model, waypoint_time, waypoint_dtmax, isprintout)
 
     use Simulation_Base_class, only : simulation_base_type
     use Simulation_Subsurface_class, only : subsurface_simulation_type
@@ -1755,7 +1755,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
 
     type(pflotran_model_type), pointer :: model
     type(waypoint_type), pointer       :: waypoint, waypoint1, waypoint2
-    PetscReal, intent(in)              :: waypoint_time
+    PetscReal, intent(in)              :: waypoint_time, waypoint_dtmax
     PetscBool, intent(in)              :: isprintout
     character(len=MAXWORDLENGTH)       :: word
 
@@ -1787,7 +1787,7 @@ write(pflotran_model%option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM ls
     waypoint1%time          = waypoint_time * UnitsConvertToInternal(word, model%option)
     waypoint1%print_output  = PETSC_TRUE
     waypoint1%final         = PETSC_TRUE
-    waypoint1%dt_max        = waypoint_time * UnitsConvertToInternal(word, model%option)
+    waypoint1%dt_max        = waypoint_dtmax * UnitsConvertToInternal(word, model%option)
 
     ! update subsurface-realization final waypoint
     if (associated(realization)) then
