@@ -183,7 +183,7 @@ contains
   !  Get CLM final timestep and converts it to PFLOTRAN final way point.
   !  And also set an option for turning on/off PF printing
 
-  subroutine pflotranModelUpdateFinalWaypoint(model, waypoint_time, isprintout)
+  subroutine pflotranModelUpdateFinalWaypoint(model, waypoint_time, waypoint_dtmax, isprintout)
 
     use Simulation_Base_class, only : simulation_base_type
     use Simulation_Subsurface_class, only : simulation_subsurface_type
@@ -202,7 +202,7 @@ contains
 
     type(Option_type), pointer :: option
     type(pflotran_model_type), pointer :: model
-    PetscReal, intent(in)              :: waypoint_time
+    PetscReal, intent(in)              :: waypoint_time, waypoint_dtmax
     PetscBool, intent(in)              :: isprintout
 
     type(waypoint_list_type), pointer  :: waypoint_list
@@ -233,7 +233,7 @@ contains
     waypoint1%time          = waypoint_time * UnitsConvertToInternal(word, internal_units, option)
     waypoint1%print_output  = PETSC_TRUE
     waypoint1%final         = PETSC_TRUE
-    waypoint1%dt_max        = 1800.d0 * UnitsConvertToInternal(word, internal_units, option)
+    waypoint1%dt_max        = waypoint_dtmax * UnitsConvertToInternal(word, internal_units, option)
 
     ! update subsurface-realization final waypoint
     if (associated(realization) .and. associated(simulation)) then
@@ -473,9 +473,9 @@ contains
       endif
     endif
 
-    pause_time1 = pause_time + 0.1d0*dtime
-    call pflotranModelUpdateFinalWaypoint(model, pause_time1, PETSC_FALSE)
-    call pflotranModelInsertWaypoint(model, pause_time, dtime, PETSC_FALSE)
+    pause_time1 = pause_time + dtime
+    !call pflotranModelUpdateFinalWaypoint(model, pause_time1, dtime, PETSC_FALSE)
+    call pflotranModelInsertWaypoint(model, pause_time1, dtime, PETSC_FALSE)
 
     call model%simulation%RunToTime(pause_time)
 
