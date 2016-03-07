@@ -50,6 +50,11 @@ ifdef pcl
   MYFLAGS += ${FC_DEFINE_FLAG}PCL ${FC_DEFINE_FLAG}MUALEM_SPLINE
 endif
 
+ifdef smooth_vgm
+  MYFLAGS += ${FC_DEFINE_FLAG}MUALEM_SPLINE 
+  #MYFLAGS += ${FC_DEFINE_FLAG}VG_SPLINE 
+endif
+
 ifdef condnr
   MYFLAGS += ${FC_DEFINE_FLAG}CONDNR
 endif
