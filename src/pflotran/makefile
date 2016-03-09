@@ -11,6 +11,8 @@ include ${PETSC_DIR}/lib/petsc/conf/rules
 
 MYFLAGS = -I.
 
+MYFLAGS += ${FC_DEFINE_FLAG}use_characteristic_curves_module
+
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
 # PFLOTRAN_RXN_FLAG 
 ifneq (,$(filter libpflotranchem.a pflotran_rxn,$(MAKECMDGOALS)))
@@ -1294,7 +1296,7 @@ th.o : condition.o connection.o coupler.o debug.o discretization.o eos_water.o \
        realization_subsurface.o region.o saturation_function.o \
        secondary_continuum.o secondary_continuum_aux.o string.o th_aux.o \
        utility.o variables.o
-th_aux.o : eos_water.o global_aux.o material_aux.o option.o \
+th_aux.o :  characteristic_curves.o eos_water.o global_aux.o material_aux.o option.o \
            pflotran_constants.o saturation_function.o
 time_storage.o : option.o pflotran_constants.o
 timestepper_BE.o : checkpoint.o convergence.o input_aux.o option.o output.o \
