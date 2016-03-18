@@ -3960,8 +3960,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                       log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
                         patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
               enddo
-              tk = patch%aux%Global%auxvars(ghosted_id)%temp + &
-                   273.15d0
+              tk = patch%aux%Global%auxvars(ghosted_id)%temp + 273.15d0
               ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/faraday
               eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
               pe0 = eh0/ehfac
@@ -3994,8 +3993,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                       log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
                         patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
               enddo
-              tk = patch%aux%Global%auxvars(ghosted_id)%temp + &
-                   273.15d0
+              tk = patch%aux%Global%auxvars(ghosted_id)%temp + 273.15d0
               ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/faraday
               eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
               pe0 = eh0/ehfac
