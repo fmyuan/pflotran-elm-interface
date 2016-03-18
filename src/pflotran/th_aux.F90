@@ -983,7 +983,7 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
 
             Hfunc = sign(0.5d0, -(Tk-Tf))+0.5d0                ! Heaviside function
             dHfunc = 0.d0
-            if(abs(Tk-Tf)<1.d-5) dHfunc = -1.0d20
+            !if(abs(Tk-Tf)<1.d-5) dHfunc = -1.0d20
 #if 0
 ! smoothed Heaviside function (approximation)
            ! assuming: Hfunc = 0.5d0+0.5d0*tanh(-x/scalor)
