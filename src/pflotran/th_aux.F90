@@ -922,7 +922,7 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
 
   ! (1) densities (calculated at first, so that may be used later)
   ! liq. water
-  call EOSWaterDensity   (tc, pw, &
+  call EOSWaterDensity   (min(max(tc,-1.0d-2),99.9d0), min(pw, 165.4d5), &
                           denw_kg, denw_mol, ddenw_dp, ddenw_dt, ierr)
 
   global_auxvar%den    = denw_mol
@@ -933,7 +933,7 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
   auxvar%dden_dp       = ddenw_dp
 
   ! ice water, if any
-  call EOSWaterDensityIce(tc, pw, &
+  call EOSWaterDensityIce(min(max(tc,-50.d0), 1.0d-2), min(pw, 165.4d5), &
                           den_ice, dden_ice_dt, dden_ice_dp, ierr)
 
   auxvar%den_ice = den_ice
@@ -1063,7 +1063,7 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
 #if 0
   ! The following print will produce a txt file, which can be imported to other tools for checking
   write(option%myrank+100, *) pc, pw, xplice, tc, Tf,                &
-    !denw_mol, ddenw_dp, ddenw_dt, den_ice, dden_ice_dp, dden_ice_dt, &
+    denw_mol, ddenw_dp, ddenw_dt, den_ice, dden_ice_dp, dden_ice_dt, &
     sl, dsl_dp, dsl_dt, si, dsi_dp, dsi_dt,                          &
     sli, dsli_dp, slx, dslx_dx
 
