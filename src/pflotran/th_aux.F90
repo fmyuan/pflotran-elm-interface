@@ -922,7 +922,7 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
 
   ! (1) densities (calculated at first, so that may be used later)
   ! liq. water
-  call EOSWaterDensity   (min(max(tc,-1.0d-2),99.9d0), min(pw, 165.4d5), &
+  call EOSWaterDensity   (min(max(tc,-1.0d0),99.9d0), min(pw, 165.4d5), &
                           denw_kg, denw_mol, ddenw_dp, ddenw_dt, ierr)
 
   global_auxvar%den    = denw_mol
@@ -983,22 +983,23 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
 
             Hfunc = sign(0.5d0, -(Tk-Tf))+0.5d0                ! Heaviside function
             dHfunc = 0.d0
-            !if(abs(Tk-Tf)<1.d-5) dHfunc = -1.0d20
+
+! the following smoothing NOT works as expected, OFF now and TODO checking
 #if 0
-! smoothed Heaviside function (approximation)
-           ! assuming: Hfunc = 0.5d0+0.5d0*tanh(-x/scalor)
+            ! smoothed Heaviside function (approximation)
+            ! assuming: Hfunc = 0.5d0+0.5d0*tanh(-x/scalor)
 
             ! freezing-point depression shift (down) so that,
-            ! @Tf, Hfunc ~ 0 (say, 1.0d-15); @Tf-deltaTf, Hfunc = 0.5; and, @Tf-2*deltaTf, Hfunc ~ 1.0
-            deltaTf = 0.25d0
+            ! @Tf-1.d-5, Hfunc ~ 0 (say, 1.0d-15); @Tf-deltaTf, Hfunc = 0.5; and, @Tf-2*deltaTf, Hfunc ~ 1.0
+            deltaTf = 0.05d0
             scalor = 1.0d0                                      ! control how wide (sharpness) of the 'Hfunc' (1.0 is the default)
-            ! @Tf-1.d-5, Hfunc = 1.0d-15: ==> scalor
+            ! @Tf, Hfunc = 1.0d-15: ==> scalor
             tempreal = 1.d-15/0.5d0-1.d0
             tempreal = atanh(tempreal)               ! 'atanh()' requires FORTRAN 2008 and later
-            scalor = -(deltaTf+1.d-5)/tempreal
+            scalor = -deltaTf/tempreal
 
-            ! shifting 'Tf' by 'deltaTf', so 'Hfunc' now runs approximately from 'Tf-2*deltaTf' -- 'Tf-deltaTf' -- 'Tf'
-            xTf = (Tk-(Tf-1.d-5-deltaTf))/scalor
+            ! shifting 'Tf' by 'deltaTf', so 'Hfunc' now runs approximately from 'Tf-deltaTf' -- 'Tf' -- 'Tf+deltaTf'
+            xTf = (Tk-(Tf-deltaTf))/scalor
             Hfunc   = 0.5d0+0.5d0*tanh(-xTf)     ! (exp(xTf)-exp(xTf))/(exp(xTf)+exp(-xTf)) ! smoothing Heaviside function
             tempreal= 2.d0/(exp(xTf)+exp(-xTf))  ! dHfunc w.r.t dt = -0.5*sech(x)*sech(x): sech(x) = 2/(exp(x)+exp(-x)) (because 'sech()' NOT available in most fortran intrinsic function)
             dHfunc  = -0.5d0*tempreal*tempreal
@@ -1177,10 +1178,7 @@ print *, Tk, Tf, sli, sl, si, pl0, xplice
   auxvar%dsat_gas_dp = dsg_dp
   auxvar%dsat_gas_dt = dsg_dt
 
-! ignore 'gas' phase for testing
-! test shows that, with 'gas' component on as following, infiltration will cause unsaturated cell temperature increase if constant T BC assumed
-#if 0
-  Tk    = tc + Tf_0
+  Tk    = tc + Tf0
   p_g   = pw
 
   mol_g    = psat/p_g
@@ -1190,9 +1188,18 @@ print *, Tk, Tf, sli, sl, si, pl0, xplice
 
   C_g   = C_wv*mol_g*FMWH2O + C_a*(1.d0 - mol_g)*FMWAIR        ! in MJ/kmol/K
 
+! editing 'gas' density component for testing
+! test shows that, with 'gas' component on as following,
+! infiltration will cause unsaturated cell temperature increase about 0.14oC if constant T BC assumed; otherwise, only increase 0.02oC.
+! and also, timestep almost doubles.
   auxvar%den_gas     = p_g/(IDEAL_GAS_CONSTANT*Tk)*1.d-3       ! in kmol/m3
-  auxvar%dden_gas_dt = - p_g/(IDEAL_GAS_CONSTANT*Tk**2)*1.d-3
   auxvar%dden_gas_dp = 1.d0/(IDEAL_GAS_CONSTANT*Tk)*1.d-3
+  auxvar%dden_gas_dt = - p_g/(IDEAL_GAS_CONSTANT*Tk**2)*1.d-3
+#if 0
+#else
+  auxvar%den_gas     = 0.d0         ! this change is related to the temperature increasing
+  auxvar%dden_gas_dp = 0.d0         ! this is responsible to time-step issue
+#endif
 
   auxvar%mol_gas     = mol_g
   auxvar%dmol_gas_dt = dmolg_dt
@@ -1201,22 +1208,6 @@ print *, Tk, Tf, sli, sl, si, pl0, xplice
   auxvar%u_gas       = C_g*Tk           ! in MJ/kmol
   auxvar%du_gas_dt   = C_g + Tk*(C_wv*FMWH2O-C_a*FMWAIR)*dmolg_dt
   auxvar%du_gas_dp   = Tk*(C_wv*FMWH2O-C_a*FMWAIR)*dmolg_dp
-
-#else
-  ! ignore 'gas' phase
-  auxvar%den_gas     = 0.d0
-  auxvar%dden_gas_dp = 0.d0
-  auxvar%dden_gas_dt = 0.d0
-
-  auxvar%mol_gas     = 0.d0
-  auxvar%dmol_gas_dp = 0.d0
-  auxvar%dmol_gas_dt = 0.d0
-
-  auxvar%u_gas       = 0.d0
-  auxvar%du_gas_dp   = 0.d0
-  auxvar%du_gas_dt   = 0.d0
-
-#endif
 
   !***************  mixture properties **************************
   ! Parameters for computation of effective thermal conductivity
