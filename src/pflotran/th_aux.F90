@@ -1189,19 +1189,20 @@ print *, Tk, Tf, sli, sl, si, pl0, xplice
   C_g   = C_wv*mol_g*FMWH2O + C_a*(1.d0 - mol_g)*FMWAIR        ! in MJ/kmol/K
 
 ! editing 'gas' density component for testing
-! test shows that, with 'gas' component on as following,
-! infiltration will cause unsaturated cell temperature increase about 0.14oC if constant T BC assumed; otherwise, only increase 0.02oC.
-! and also, timestep almost doubles.
-  auxvar%den_gas     = p_g/(IDEAL_GAS_CONSTANT*Tk)*1.d-3       ! in kmol/m3
-  auxvar%dden_gas_dp = 1.d0/(IDEAL_GAS_CONSTANT*Tk)*1.d-3
-  auxvar%dden_gas_dt = - p_g/(IDEAL_GAS_CONSTANT*Tk**2)*1.d-3
-#if 0
-#else
-  auxvar%den_gas     = 0.d0         ! this change is related to the temperature increasing
-  auxvar%dden_gas_dp = 0.d0         ! this is responsible to time-step issue
-#endif
+! test shows that, with 'gas' density as following,
+! infiltration will cause unsaturated cell temperature increase about 0.14oC if constant T BC assumed;
+! otherwise, only increase 0.02oC, and it also reduces timesteps.
+  if(.not.saturated) then
+    auxvar%den_gas     = p_g/(IDEAL_GAS_CONSTANT*Tk)*1.d-3       ! in kmol/m3
+    auxvar%dden_gas_dt = - p_g/(IDEAL_GAS_CONSTANT*Tk**2)*1.d-3
+    auxvar%dden_gas_dp = 0.d0
+  else
+    auxvar%den_gas     = 0.d0
+    auxvar%dden_gas_dt = 0.d0
+    auxvar%dden_gas_dp = 0.d0
+  endif
 
-  auxvar%mol_gas     = mol_g
+  auxvar%mol_gas     = mol_g        ! vapor fraction in (air) gas
   auxvar%dmol_gas_dt = dmolg_dt
   auxvar%dmol_gas_dp = dmolg_dp
 
