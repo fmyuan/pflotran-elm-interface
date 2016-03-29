@@ -43,6 +43,7 @@ module Characteristic_Curves_module
   contains
     procedure, public :: Init => SF_VG_Init
     procedure, public :: Verify => SF_VG_Verify
+    procedure, public :: SetupPolynomials => SF_VG_SetupPolynomials
     procedure, public :: CapillaryPressure => SF_VG_CapillaryPressure
     procedure, public :: Saturation => SF_VG_Saturation
   end type sat_func_VG_type  
@@ -103,6 +104,7 @@ module Characteristic_Curves_module
   ! Begin Relative Permeability Functions
   type :: rel_perm_func_base_type
     type(polynomial_type), pointer :: poly
+    type(polynomial_type), pointer :: poly2     ! dry-end of the curve
     PetscReal :: Sr
   contains
     procedure, public :: Init => RPFBaseInit
@@ -687,6 +689,11 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
 
   select type(sf => saturation_function)
     class is(sat_func_VG_type)
+      if (.not.smooth) then
+        option%io_buffer = 'van-Genuchten saturation function is being used ' // &
+          'without SMOOTH option.'
+        call printWrnMsg(option)
+      endif
     class is(sat_func_BC_type)
       if (.not.smooth) then
         option%io_buffer = 'Brooks-Corey saturation function is being used ' // &
@@ -1404,6 +1411,7 @@ subroutine RPFBaseInit(this)
 
   ! Cannot allocate here.  Allocation takes place in daughter class
   nullify(this%poly)
+  nullify(this%poly2)
   this%Sr = UNINITIALIZED_DOUBLE
   
 end subroutine RPFBaseInit
@@ -1830,6 +1838,85 @@ subroutine SF_VG_Verify(this,name,option)
 end subroutine SF_VG_Verify
 
 ! ************************************************************************** !
+subroutine SF_VG_SetupPolynomials(this,option,error_string)
+
+  ! Sets up polynomials for smoothing Van Genuchten saturation function
+
+  use Option_module
+  use Utility_module
+
+  implicit none
+
+  class(sat_func_VG_type) :: this
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  PetscReal :: low, high, sat, dsat, x
+  PetscReal :: b(4)
+
+  !fmy: tests don't indicate that wet-end smoothing is necessary.
+!#if 0
+  !WET-end of retention curve
+  if(associated(this%pres_poly)) then
+    deallocate(this%pres_poly)
+    nullify(this%pres_poly)
+  endif
+
+  ! Using smoothed Heaviside function to do header smoothing: high --> low
+  low  = 0.d0                              ! saturated
+  high = 1.0d1  !*option%reference_pressure   ! just below saturated
+
+  b(1) = 1.d0      ! non-smoothed (original VG): sat @low
+  call SF_VG_Saturation(this, high, sat, dsat, option)
+  b(2) = sat       ! non-smoothed (original VG): sat @high - defining the starting point to smooth (until 1.0@0pc
+
+  ! Hfunc = 0.5d0+0.5d0*tanh(x), where x = (log10(pc)-(log10(1.d0)+delta))*sharpness, and delta = log10(high/1.0d0)
+  ! function primarily works: delta*2 (~1.0) --> (high) delta (~0.5) --> (1.d0) (~1.d-10)
+  b(3) = log10(high)                         ! this is to control the primary working ranges
+  x    = 1.d-10/0.5d0-1.d0                   ! @low, Hfunc = 1.d-10
+  x    = atanh(x)                            ! 'atanh()' requires FORTRAN 2008 and later
+  b(4) = -x/b(3)                 ! sharpness (derived from b(3)) of Hfunc
+
+  this%pres_poly => PolynomialCreate()
+  this%pres_poly%low  = low
+  this%pres_poly%high = high
+  this%pres_poly%coefficients(1:4) = b(1:4)
+!#endif
+
+  ! DRY-end of retention curves:
+  ! NOTE - 'this%sat_poly' is used here, i.e. 'sat_poly' is not for inverse of this%pres_poly (which for wet-end smooth)
+
+  if(associated(this%sat_poly)) then
+    deallocate(this%sat_poly)
+    nullify(this%sat_poly)
+  endif
+
+  ! Using smoothed Heaviside function to do trailer smoothing: low --> high
+  high  = this%pcmax           ! @Sr
+  low   = high/5.0d0           ! @0.5*(S-Sr) + 0.5*Sr
+  ! Hfunc = 0.5d0+0.5d0*tanh(-x), where x = (log10(pc)-(log10(high)-delta))*sharpness, and delta=log10((high/low)
+  ! Hfunc_inv = -atanh(Hfunc_pc/0.5d0-1.d0),
+  !   with atanh(xx) = 0.5*ln((1+xx)/(1-xx)) if 'atanh' not available in FORTRAN intrinsic functions
+
+
+  call SF_VG_Saturation(this, low, sat, dsat, option)
+  b(1) = this%Sr  ! non-smoothed (original VG): sat @high
+  b(2) = sat      ! non-smoothed (original VG): sat @low - defining the starting point to smooth (until Sr@pcmax)
+
+  ! function primarily works: pcmax/delta**2 (~1.0) --> pcmax/delta (~0.5) --> pcmax (~1.d-10)
+  b(3) = log10(high) - log10(low)      ! this is to control the primary working ranges
+  x    = 1.d-10/0.5d0-1.d0             ! @high
+  x    = atanh(x)                      ! 'atanh()' requires FORTRAN 2008 and later
+  b(4) = -x/b(3)                       ! sharpness (derived from b(3)) of Hfunc
+
+  this%sat_poly => PolynomialCreate()   ! cannot be called prior to this point because it then will be used in Saturation function
+  this%sat_poly%low  = low
+  this%sat_poly%high = high
+  this%sat_poly%coefficients(1:4) = b(1:4)
+
+end subroutine SF_VG_SetupPolynomials
+
+! ************************************************************************** !
 
 subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
                                    capillary_pressure,option)
@@ -1858,7 +1945,8 @@ subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
   PetscReal :: one_plus_pc_alpha_n
   PetscReal :: pc_alpha_n
   PetscReal :: pc_alpha
-  
+  PetscReal :: Hfunc, x, delta, sharpness
+
   if (liquid_saturation <= this%Sr) then
     capillary_pressure = this%pcmax
     return
@@ -1880,8 +1968,32 @@ subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
 #endif
 
 
-  capillary_pressure = min(capillary_pressure,this%pcmax)
-  
+  if (associated(this%sat_poly)) then
+  ! fmy: by VG function, mathemaatically @Sr, pc = infinity
+  !      So, @pcmax, S is not necessarily equaled to Sr, and requiring smoothing
+
+  ! the best way to do the smoothing of this dry-end curves is the inverse function of 'SF_VG_Saturation'
+  ! but it's hard mathematically
+
+  ! the following is an smoothed (approxmatation) Heaviside function
+    ! Hfunc  = 0.5d0+0.5d0*tanh(x), where x = (Sat-(Sr+delta)))*sharpness
+    ! function primarily works: Sr+2*delta (~1.0) --> Sr+delta (~0.5) --> Sr(~1.d-10)
+    ! 'sat_poly%coefficients(2)' ~ saturation @ pressure lower than pcmax for starting point to smooth
+    delta = this%sat_poly%coefficients(2)-this%sat_poly%coefficients(1)
+    x = 1.d-10/0.5d0-1.d0
+    x = atanh(x)               ! 'atanh()' requires FORTRAN 2008 and later
+    sharpness = -x/delta
+
+    x = (liquid_Saturation-(this%Sr+delta))*sharpness
+    Hfunc = 0.5d0+0.50d0*tanh(x)
+
+    capillary_pressure = capillary_pressure*Hfunc + this%pcmax * (1.d0-Hfunc)
+
+  else
+    capillary_pressure = min(capillary_pressure,this%pcmax)
+
+  endif
+
 end subroutine SF_VG_CapillaryPressure
 
 ! ************************************************************************** !
@@ -1918,18 +2030,30 @@ subroutine SF_VG_Saturation(this,capillary_pressure,liquid_saturation, &
   PetscReal :: one_plus_pc_alpha_n
   PetscReal :: Se
   PetscReal :: dSe_dpc
+  PetscReal :: x, delta, sharpness, Hfunc, dHfunc
+
   
   dsat_dpres = 0.d0
   
   if (associated(this%pres_poly)) then
-    if (capillary_pressure < this%pres_poly%low) then
+    if (capillary_pressure <= this%pres_poly%low) then
       liquid_saturation = 1.d0
       return
-    else if (capillary_pressure < this%pres_poly%high) then
-      call CubicPolynomialEvaluate(this%pres_poly%coefficients, &
-                                   capillary_pressure,Se,dSe_dpc)
-      liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
-      dsat_dpres = -(1.d0-this%Sr)*dSe_dpc
+    ! fmy: cubicpolynomial sometime may not generate monotonic function
+    !   rather, a smoothed Heaviside function used as a factor as below
+
+    !else if (capillary_pressure <= this%pres_poly%high) then
+    !  call CubicPolynomialEvaluate(this%pres_poly%coefficients, &
+    !                               capillary_pressure,Se,dSe_dpc)
+    !  liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+    !  dsat_dpres = -(1.d0-this%Sr)*dSe_dpc
+    !  return
+    endif
+  endif
+
+  if (associated(this%sat_poly)) then
+    if (capillary_pressure >= this%sat_poly%high) then
+      liquid_saturation = this%Sr
       return
     endif
   endif
@@ -1956,6 +2080,48 @@ subroutine SF_VG_Saturation(this,capillary_pressure,liquid_saturation, &
             (pc_alpha*one_plus_pc_alpha_n**(this%m+1.d0))
     liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
     dsat_dpres = -(1.d0-this%Sr)*dSe_dpc
+
+
+    ! Wet-end curve
+    if (associated(this%pres_poly)) then
+    ! Hfunc = 0.5d0+0.5d0*tanh(x), where x = (log10(pc)-(log10(1.d0)+delta))*sharpness, and delta = log10(high/1.0d0)
+    ! function primarily works: delta*2 (~1.0) --> (high) delta (~0.5) --> (1.d0) (~1.d-10)
+      delta     = this%pres_poly%coefficients(3)
+      sharpness = this%pres_poly%coefficients(4)
+
+      x = (log10(capillary_pressure)-delta)*sharpness
+      Hfunc  = 0.5d0+0.5d0*tanh(x)
+      dHfunc = 2.d0/(exp(x)+exp(-x))  ! dHfunc w.r.t dt = 0.5*sech(x)*sech(x): sech(x) = 2/(exp(x)+exp(-x)) (because 'sech()' NOT available in most fortran intrinsic function)
+      dHfunc = 0.5d0*dHfunc*dHfunc
+
+      dsat_dpres = Hfunc*dsat_dpres + &
+        (liquid_saturation-this%pres_poly%coefficients(1)) * dHfunc
+      liquid_saturation = (liquid_saturation-this%pres_poly%coefficients(1))*Hfunc + &
+        this%pres_poly%coefficients(1)
+
+    endif
+
+    ! Dry-end curve
+    if (associated(this%sat_poly)) then
+    ! fmy: by VG function, mathemaatically @Sr, pc = infinity
+    !      So, @pcmax, S is not necessarily equaled to Sr
+
+    ! the following is smoothed (approxmatation) Heaviside function
+    ! Hfunc = 0.5d0+0.5d0*tanh(-x), where x = (log10(pc)-(log10(high)-delta))*sharpness, and delta=log10((high/low)
+      delta     = this%sat_poly%coefficients(3)       ! function primarily works: pcmax/delta**2 (~1.0) --> pcmax/delta (~0.5) --> pcmax (~1.d-10)
+      sharpness = this%sat_poly%coefficients(4)
+
+      x = (log10(capillary_pressure/this%sat_poly%high) + delta)*sharpness
+      Hfunc  = 0.5d0+0.5d0*tanh(-x)
+      dHfunc = 2.d0/(exp(x)+exp(-x))  ! dHfunc w.r.t dt = -0.5*sech(x)*sech(x): sech(x) = 2/(exp(x)+exp(-x)) (because 'sech()' NOT available in most fortran intrinsic function)
+      dHfunc = -0.5d0*dHfunc*dHfunc
+
+      dsat_dpres = Hfunc*dsat_dpres + &
+        (liquid_saturation-this%sat_poly%coefficients(1)) * dHfunc
+      liquid_saturation = (liquid_saturation-this%sat_poly%coefficients(1))*Hfunc + &
+        this%sat_poly%coefficients(1)
+    endif
+
   endif
   
 end subroutine SF_VG_Saturation
@@ -2969,7 +3135,9 @@ subroutine RPF_Mualem_SetupPolynomials(this,option,error_string)
   
   PetscReal :: b(4)
   PetscReal :: one_over_m, Se_one_over_m, m
+  PetscReal :: se_low, se_high, S, rpf, drpf
 
+#if 0
   this%poly => PolynomialCreate()
   ! fill matix with values
   this%poly%low = 0.99d0  ! just below saturated
@@ -2985,10 +3153,55 @@ subroutine RPF_Mualem_SetupPolynomials(this,option,error_string)
           2.d0*this%poly%low**(one_over_m-0.5d0)* &
           (1.d0-Se_one_over_m)**(m-1.d0)* &
           (1.d0-(1.d0-Se_one_over_m)**m)
-  
+#endif
+
+  ! WET-end of perm-sat curve
+
+  if(associated(this%poly)) deallocate(this%poly)  ! just in case, which will invalidate the calling of RPF function
+  ! b(1:2): RPFs values for effective saturation interval ('high' -> 'low') to be interpolated
+  ! b(3:4): RPFs derivatives for effective saturation interval ('high' -> 'low') to be interpolated
+  se_low  = 0.99d0        ! just below saturated
+  se_high = 1.00d0        ! saturated
+
+  ! @ high
+  b(1) = 1.d0
+  b(3) = 0.d0
+  ! @ low
+  S = this%Sr + se_low * (1.d0 - this%Sr)
+  call RPF_Mualem_VG_Liq_RelPerm(this, S, rpf, drpf, option)
+  b(2) = rpf
+  b(4) = drpf
+
+  this%poly => PolynomialCreate()
+  this%poly%high = se_high
+  this%poly%low  = se_low
+
   call CubicPolynomialSetup(this%poly%high,this%poly%low,b)
-  
   this%poly%coefficients(1:4) = b(1:4)
+
+  ! DRY-end of perm-sat curve
+
+  if(associated(this%poly2)) deallocate(this%poly2)  ! just in case, which will invalidate the calling of RPF function
+  ! b(1:2): RPFs values for effective saturation interval ('high' -> 'low') to be interpolated
+  ! b(3:4): RPFs derivatives for effective saturation interval ('high' -> 'low') to be interpolated
+  se_low  = 0.00d0        !
+  se_high = 0.01d0       !
+
+  ! @ high
+  S = this%Sr + se_high * (1.d0 - this%Sr)
+  call RPF_Mualem_VG_Liq_RelPerm(this, S, rpf, drpf, option)
+  b(1) = rpf
+  b(3) = drpf
+  ! @ low
+  b(2) = 0.d0
+  b(4) = 0.d0
+  
+  this%poly2 => PolynomialCreate()
+  this%poly2%high = se_high
+  this%poly2%low  = se_low
+  
+  call CubicPolynomialSetup(this%poly2%high,this%poly2%low,b)
+  this%poly2%coefficients(1:4) = b(1:4)
   
 end subroutine RPF_Mualem_SetupPolynomials
 
@@ -3035,14 +3248,25 @@ subroutine RPF_Mualem_VG_Liq_RelPerm(this,liquid_saturation, &
     return
   endif
   
+  ! WET-end smoothing
   if (associated(this%poly)) then
-    if (Se > this%poly%low) then
+    if (Se >= this%poly%low .and. Se <= this%poly%high) then
       call CubicPolynomialEvaluate(this%poly%coefficients, &
                                    Se,relative_permeability,dkr_Se)
       return
     endif
   endif
+
+  ! DRY-end smoothing
+  if (associated(this%poly2)) then
+    if (Se >= this%poly2%low .and. Se <= this%poly2%high) then
+      call CubicPolynomialEvaluate(this%poly2%coefficients, &
+                                   Se,relative_permeability,dkr_Se)
+      return
+    endif
+  endif
   
+  ! NORMAL range
   one_over_m = 1.d0/this%m
   Se_one_over_m = Se**one_over_m
   relative_permeability = sqrt(Se)*(1.d0-(1.d0-Se_one_over_m)**this%m)**2.d0
@@ -3050,7 +3274,7 @@ subroutine RPF_Mualem_VG_Liq_RelPerm(this,liquid_saturation, &
             2.d0*Se**(one_over_m-0.5d0)* &
                 (1.d0-Se_one_over_m)**(this%m-1.d0)* &
                 (1.d0-(1.d0-Se_one_over_m)**this%m)
-  
+
 end subroutine RPF_Mualem_VG_Liq_RelPerm
 ! End RPF: Mualem, Van Genuchten (Liquid)
 
@@ -5200,6 +5424,7 @@ subroutine PermeabilityFunctionDestroy(rpf)
   if (.not.associated(rpf)) return
   
   call PolynomialDestroy(rpf%poly)
+  call PolynomialDestroy(rpf%poly2)
   deallocate(rpf)
   nullify(rpf)
 
