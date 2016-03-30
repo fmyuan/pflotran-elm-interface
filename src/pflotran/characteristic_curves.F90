@@ -1851,68 +1851,31 @@ subroutine SF_VG_SetupPolynomials(this,option,error_string)
   type(option_type) :: option
   character(len=MAXSTRINGLENGTH) :: error_string
 
-  PetscReal :: low, high, sat, dsat, x
+  PetscReal :: low, high, sat, dsat
   PetscReal :: b(4)
 
-  !fmy: tests don't indicate that wet-end smoothing is necessary.
-!#if 0
+  !fmy: tests don't indicate that wet-end smoothing is necessary for VG function (???).
   !WET-end of retention curve
   if(associated(this%pres_poly)) then
     deallocate(this%pres_poly)
     nullify(this%pres_poly)
   endif
 
-  ! Using smoothed Heaviside function to do header smoothing: high --> low
-  low  = 0.d0                              ! saturated
-  high = 1.0d1  !*option%reference_pressure   ! just below saturated
+  low  = 0.d0  ! saturated
+  high = 0.01d0*option%reference_pressure  ! just below saturated
 
-  b(1) = 1.d0      ! non-smoothed (original VG): sat @low
   call SF_VG_Saturation(this, high, sat, dsat, option)
-  b(2) = sat       ! non-smoothed (original VG): sat @high - defining the starting point to smooth (until 1.0@0pc
+  b(1) = sat
+  b(2) = 1.d0
+  b(3) = dsat
+  b(4) = 0.d0
 
-  ! Hfunc = 0.5d0+0.5d0*tanh(x), where x = (log10(pc)-(log10(1.d0)+delta))*sharpness, and delta = log10(high/1.0d0)
-  ! function primarily works: delta*2 (~1.0) --> (high) delta (~0.5) --> (1.d0) (~1.d-10)
-  b(3) = log10(high)                         ! this is to control the primary working ranges
-  x    = 1.d-10/0.5d0-1.d0                   ! @low, Hfunc = 1.d-10
-  x    = atanh(x)                            ! 'atanh()' requires FORTRAN 2008 and later
-  b(4) = -x/b(3)                 ! sharpness (derived from b(3)) of Hfunc
+  call CubicPolynomialSetup(high,low,b)
 
   this%pres_poly => PolynomialCreate()
-  this%pres_poly%low  = low
+  this%pres_poly%low = low
   this%pres_poly%high = high
   this%pres_poly%coefficients(1:4) = b(1:4)
-!#endif
-
-  ! DRY-end of retention curves:
-  ! NOTE - 'this%sat_poly' is used here, i.e. 'sat_poly' is not for inverse of this%pres_poly (which for wet-end smooth)
-
-  if(associated(this%sat_poly)) then
-    deallocate(this%sat_poly)
-    nullify(this%sat_poly)
-  endif
-
-  ! Using smoothed Heaviside function to do trailer smoothing: low --> high
-  high  = this%pcmax           ! @Sr
-  low   = high/5.0d0           ! @0.5*(S-Sr) + 0.5*Sr
-  ! Hfunc = 0.5d0+0.5d0*tanh(-x), where x = (log10(pc)-(log10(high)-delta))*sharpness, and delta=log10((high/low)
-  ! Hfunc_inv = -atanh(Hfunc_pc/0.5d0-1.d0),
-  !   with atanh(xx) = 0.5*ln((1+xx)/(1-xx)) if 'atanh' not available in FORTRAN intrinsic functions
-
-
-  call SF_VG_Saturation(this, low, sat, dsat, option)
-  b(1) = this%Sr  ! non-smoothed (original VG): sat @high
-  b(2) = sat      ! non-smoothed (original VG): sat @low - defining the starting point to smooth (until Sr@pcmax)
-
-  ! function primarily works: pcmax/delta**2 (~1.0) --> pcmax/delta (~0.5) --> pcmax (~1.d-10)
-  b(3) = log10(high) - log10(low)      ! this is to control the primary working ranges
-  x    = 1.d-10/0.5d0-1.d0             ! @high
-  x    = atanh(x)                      ! 'atanh()' requires FORTRAN 2008 and later
-  b(4) = -x/b(3)                       ! sharpness (derived from b(3)) of Hfunc
-
-  this%sat_poly => PolynomialCreate()   ! cannot be called prior to this point because it then will be used in Saturation function
-  this%sat_poly%low  = low
-  this%sat_poly%high = high
-  this%sat_poly%coefficients(1:4) = b(1:4)
 
 end subroutine SF_VG_SetupPolynomials
 
@@ -1945,7 +1908,7 @@ subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
   PetscReal :: one_plus_pc_alpha_n
   PetscReal :: pc_alpha_n
   PetscReal :: pc_alpha
-  PetscReal :: Hfunc, x, delta, sharpness
+  PetscReal :: Hfunc, x, dx, delta, sharpness
 
   if (liquid_saturation <= this%Sr) then
     capillary_pressure = this%pcmax
@@ -1967,32 +1930,33 @@ subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
   endif
 #endif
 
+#if 0
+  capillary_pressure = min(capillary_pressure,this%pcmax)
 
-  if (associated(this%sat_poly)) then
+#else
   ! fmy: by VG function, mathemaatically @Sr, pc = infinity
   !      So, @pcmax, S is not necessarily equaled to Sr, and requiring smoothing
 
-  ! the best way to do the smoothing of this dry-end curves is the inverse function of 'SF_VG_Saturation'
-  ! but it's hard mathematically
 
   ! the following is an smoothed (approxmatation) Heaviside function
     ! Hfunc  = 0.5d0+0.5d0*tanh(x), where x = (Sat-(Sr+delta)))*sharpness
     ! function primarily works: Sr+2*delta (~1.0) --> Sr+delta (~0.5) --> Sr(~1.d-10)
     ! 'sat_poly%coefficients(2)' ~ saturation @ pressure lower than pcmax for starting point to smooth
-    delta = this%sat_poly%coefficients(2)-this%sat_poly%coefficients(1)
-    x = 1.d-10/0.5d0-1.d0
-    x = atanh(x)               ! 'atanh()' requires FORTRAN 2008 and later
-    sharpness = -x/delta
+  delta   = this%pcmax/10.0d0           ! pc@0.5*(S-Sr) + 0.5*Sr
+  call SF_VG_Saturation(this, delta, x, dx, option)
+  delta = x-this%Sr
+  x = 1.d-10/0.5d0-1.d0
+  x = atanh(x)               ! 'atanh()' requires FORTRAN 2008 and later
+  sharpness = -x/delta
 
-    x = (liquid_Saturation-(this%Sr+delta))*sharpness
-    Hfunc = 0.5d0+0.50d0*tanh(x)
+  x = (liquid_Saturation-(this%Sr+delta))*sharpness
+  Hfunc = 0.5d0+0.50d0*tanh(x)
 
-    capillary_pressure = capillary_pressure*Hfunc + this%pcmax * (1.d0-Hfunc)
+  capillary_pressure = capillary_pressure*Hfunc + this%pcmax * (1.d0-Hfunc)
 
-  else
-    capillary_pressure = min(capillary_pressure,this%pcmax)
+#endif
 
-  endif
+  ! A note @Mar-30-2016: this function appears NOT called anywhere by this moment (????)
 
 end subroutine SF_VG_CapillaryPressure
 
@@ -2039,21 +2003,12 @@ subroutine SF_VG_Saturation(this,capillary_pressure,liquid_saturation, &
     if (capillary_pressure <= this%pres_poly%low) then
       liquid_saturation = 1.d0
       return
-    ! fmy: cubicpolynomial sometime may not generate monotonic function
-    !   rather, a smoothed Heaviside function used as a factor as below
 
-    !else if (capillary_pressure <= this%pres_poly%high) then
-    !  call CubicPolynomialEvaluate(this%pres_poly%coefficients, &
-    !                               capillary_pressure,Se,dSe_dpc)
-    !  liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
-    !  dsat_dpres = -(1.d0-this%Sr)*dSe_dpc
-    !  return
-    endif
-  endif
-
-  if (associated(this%sat_poly)) then
-    if (capillary_pressure >= this%sat_poly%high) then
-      liquid_saturation = this%Sr
+    else if (capillary_pressure <= this%pres_poly%high) then
+      call CubicPolynomialEvaluate(this%pres_poly%coefficients, &
+                                   capillary_pressure,Se,dSe_dpc)
+      liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+      dsat_dpres = -(1.d0-this%Sr)*dSe_dpc
       return
     endif
   endif
@@ -2080,47 +2035,6 @@ subroutine SF_VG_Saturation(this,capillary_pressure,liquid_saturation, &
             (pc_alpha*one_plus_pc_alpha_n**(this%m+1.d0))
     liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
     dsat_dpres = -(1.d0-this%Sr)*dSe_dpc
-
-
-    ! Wet-end curve
-    if (associated(this%pres_poly)) then
-    ! Hfunc = 0.5d0+0.5d0*tanh(x), where x = (log10(pc)-(log10(1.d0)+delta))*sharpness, and delta = log10(high/1.0d0)
-    ! function primarily works: delta*2 (~1.0) --> (high) delta (~0.5) --> (1.d0) (~1.d-10)
-      delta     = this%pres_poly%coefficients(3)
-      sharpness = this%pres_poly%coefficients(4)
-
-      x = (log10(capillary_pressure)-delta)*sharpness
-      Hfunc  = 0.5d0+0.5d0*tanh(x)
-      dHfunc = 2.d0/(exp(x)+exp(-x))  ! dHfunc w.r.t dt = 0.5*sech(x)*sech(x): sech(x) = 2/(exp(x)+exp(-x)) (because 'sech()' NOT available in most fortran intrinsic function)
-      dHfunc = 0.5d0*dHfunc*dHfunc
-
-      dsat_dpres = Hfunc*dsat_dpres + &
-        (liquid_saturation-this%pres_poly%coefficients(1)) * dHfunc
-      liquid_saturation = (liquid_saturation-this%pres_poly%coefficients(1))*Hfunc + &
-        this%pres_poly%coefficients(1)
-
-    endif
-
-    ! Dry-end curve
-    if (associated(this%sat_poly)) then
-    ! fmy: by VG function, mathemaatically @Sr, pc = infinity
-    !      So, @pcmax, S is not necessarily equaled to Sr
-
-    ! the following is smoothed (approxmatation) Heaviside function
-    ! Hfunc = 0.5d0+0.5d0*tanh(-x), where x = (log10(pc)-(log10(high)-delta))*sharpness, and delta=log10((high/low)
-      delta     = this%sat_poly%coefficients(3)       ! function primarily works: pcmax/delta**2 (~1.0) --> pcmax/delta (~0.5) --> pcmax (~1.d-10)
-      sharpness = this%sat_poly%coefficients(4)
-
-      x = (log10(capillary_pressure/this%sat_poly%high) + delta)*sharpness
-      Hfunc  = 0.5d0+0.5d0*tanh(-x)
-      dHfunc = 2.d0/(exp(x)+exp(-x))  ! dHfunc w.r.t dt = -0.5*sech(x)*sech(x): sech(x) = 2/(exp(x)+exp(-x)) (because 'sech()' NOT available in most fortran intrinsic function)
-      dHfunc = -0.5d0*dHfunc*dHfunc
-
-      dsat_dpres = Hfunc*dsat_dpres + &
-        (liquid_saturation-this%sat_poly%coefficients(1)) * dHfunc
-      liquid_saturation = (liquid_saturation-this%sat_poly%coefficients(1))*Hfunc + &
-        this%sat_poly%coefficients(1)
-    endif
 
   endif
   
