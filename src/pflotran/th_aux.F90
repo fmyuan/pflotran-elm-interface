@@ -870,19 +870,10 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
   PetscReal :: tc, Tk, pres_l, pc
   PetscInt  :: i,j
   PetscBool :: saturated
-  !----------------------------------
+
+  !-----------------------------------------------------------------------------
   pres_l = x(TH_PRESSURE_DOF)
   tc = x(TH_TEMPERATURE_DOF)
-
-#if 0
-  ! The following 2 do-loops are for testing 3-phase saturations and derivatives regarding to P and T
-   write(option%myrank+100, *) "pc, pw, xplice, tc, Tf, denw_mol, ddenw_dp, ddenw_dt, den_ice, " // &
-    "dden_ice_dp, dden_ice_dt, sl, dsl_dp, dsl_dt, si, dsi_dp, dsi_dt, sli, dsli_dp, slx, dslx_dx"
-  do i=-1,9
-  do j=-900,100
-  pres_l = -(10**i-0.1d0)+option%reference_pressure
-  tc = j*0.03d0
-#endif
 
   global_auxvar%pres   = pres_l
   global_auxvar%temp   = tc
@@ -922,19 +913,25 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
 
   ! (1) densities (calculated at first, so that may be used later)
   ! liq. water
-  call EOSWaterDensity   (min(max(tc,-1.0d0),99.9d0), min(pw, 165.4d5), &
+  call EOSWaterDensity(min(max(tc,-1.0d0),99.9d0), min(pw, 165.4d5), &
                           denw_kg, denw_mol, ddenw_dp, ddenw_dt, ierr)
+  if (.not.saturated) ddenw_dp = 0.d0
+  if (pw>165.4d5+erf(165.4d5)) ddenw_dp = 0.d0
+  if (tc<-1.d0+erf(-1.d0) .or. tc>99.9d0+erf(99.9d0)) ddenw_dt = 0.d0
 
   global_auxvar%den    = denw_mol
   global_auxvar%den_kg = denw_kg
-
   auxvar%dden_dt       = ddenw_dt
-  if (.not.saturated) ddenw_dp = 0.d0 !kludge since pw is constant in the unsat zone
   auxvar%dden_dp       = ddenw_dp
 
   ! ice water, if any
-  call EOSWaterDensityIce(min(max(tc,-50.d0), 1.0d-2), min(pw, 165.4d5), &
+  ! when tc ~ -15oC, Ice-density change in the following function causes presure non-monotonic issue
+  call EOSWaterDensityIce(min(max(-10.d0,tc), 0.1d0), min(pres_l, 165.4d5), &
                           den_ice, dden_ice_dt, dden_ice_dp, ierr)
+  if (pres_l>165.4d5+erf(165.4d5)) dden_ice_dp = 0.d0
+  if (tc<-10.d0+erf(-10.d0)) dden_ice_dt = 0.d0
+  if (tc>0.1d0+erf(0.1d0)) dden_ice_dt = 0.d0
+  ! erf() function appears helpful to avoid zero-pivot issue around the criteria for truncation (???)
 
   auxvar%den_ice = den_ice
   auxvar%dden_ice_dt = dden_ice_dt
@@ -958,10 +955,12 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
 
       pl0 = pc
       call sf%Saturation(pl0, sli, dsli_dp, option)
+      ! in 'Saturaton_Function.F90', PKE subroutine: dsl_dp = -dS;
+      ! which appears opposite when using Characteristic_curves_module (see characteristic_curves.F90: line 2082)
 
       ! initial liq. saturation and derivatives
       sl = sli
-      dsl_dp = dsli_dp     ! in 'Saturaton_Function.F90', PKE subroutine: dsl_dp = -dS; which appears opposite when using Characteristic_curves_module (TODO checking)
+      dsl_dp = dsli_dp
       dsl_dt = 0.d0
 
       ! if ice module turns on, 2-phase saturation recalculated (liq. and ice) under common 'pw' and 't'
@@ -969,9 +968,16 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
         select case (option%ice_model)
           case (PAINTER_KARRA_EXPLICIT)
            ! explicit model from Painter & Karra, VJZ (2014)
+#if 0
+           ! fmy: added, but test shows the following NOT necessary
             rhol     = denw_mol*FMWH2O    ! kg/m3: kmol/m3*kg/kmol
             drhol_dp = ddenw_dp*FMWH2O
             drhol_dt = ddenw_dt*FMWH2O
+#endif
+            ! constant 'rhol'
+            rhol     = 999.8d0            ! kg/m3: kmol/m3*kg/kmol
+            drhol_dp = 0.d0
+            drhol_dt = 0.d0
 
             Tk = tc + Tf0                                       ! convert to K
             Tf = Tf0 - 1.d0/beta*Tf0/Lf/rhol*pl0                ! P.-K. Eq.(10): used below???
@@ -1033,15 +1039,17 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
                          + (1.d0-Hfunc)
 
             call sf%Saturation(xplice, slx, dslx_dx, option)
+            ! in 'Saturaton_Function.F90', PKE subroutine: dsl_dp = -dS;
+            ! which appears opposite when using Characteristic_curves_module (see characteristic_curves.F90: line 2082)
 
             !if (Tk<=Tf) then     ! not needed if with Heaviside function
               sl = slx
-              dsl_dt = -dslx_dx*dxplice_dt       ! In PKE subroutine of Sat_func, sign is opposite (when Hfunc=0, dxplice_dt = 0(liq.); when Hfunc=1, dxplice_dt=-beta*Lf*rhol/Tf0 (ice))
-              dsl_dp = dslx_dx*dxplice_dp        ! In PKE subroutine of Sat_func, sign is opposite (when Hfunc=0, dxplice_dp = 1(liq.); when Hfunc=1, dxplice_dp=0(ice))
+              dsl_dt = -dslx_dx*dxplice_dt       ! In PKE subroutine of Sat_func, it's not adjusted by  'rhol(t)': dsl_dT = dS_dX*1.d0/T_0*(-beta*rho_l*L_f)
+              dsl_dp = dslx_dx*dxplice_dp        ! In PKE subroutine of Sat_func, it's 0 when Hfunc=1; it's -dS when Hfunc=0
 
-              si = 1.d0 - slx/sli                ! P.-K. Eq.(19)
+              si = 1.d0 - sl/sli                 ! P.-K. Eq.(19)
               dsi_dt = -1.d0/sli*dsl_dt          ! dsli_dt = 0 (see above)
-              dsi_dp = -1.d0*(-sl*dsli_dp+sli*dsl_dp)/(sli**2)   ! note: positive for 'dsli_dp', while is negative in PKE subroutine of Sat_func
+              dsi_dp = (sl*dsli_dp-sli*dsl_dp)/(sli**2)
 
             !endif
 
@@ -1061,28 +1069,13 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
   dsg_dp = -dsl_dp - dsi_dp
   dsg_dt = -dsl_dt - dsi_dt
 
-#if 0
-  ! The following print will produce a txt file, which can be imported to other tools for checking
-  write(option%myrank+100, *) pc, pw, xplice, tc, Tf,                &
-    denw_mol, ddenw_dp, ddenw_dt, den_ice, dden_ice_dp, dden_ice_dt, &
-    sl, dsl_dp, dsl_dt, si, dsi_dp, dsi_dt,                          &
-    sli, dsli_dp, slx, dslx_dx
-
-  ! end of 2-do-loops for testing 3-phase water saturation and derivatives
-  enddo
-  enddo
-  option%io_buffer = 'testing freezing-thawing curve'
-  call printErrMsg(option)
-#endif
-
   ! Check for bounds on saturations
   if ((sl-1.d0)>1.d-15 .or. sl<-1.d-15) then
     option%io_buffer = 'TH with ice mode: Liquid Saturation error: >1 or <0'
     call printErrMsg(option)
   endif
   if ((si-1.d0)>1.d-15 .or. si<-1.d-15) then
-
-print *, Tk, Tf, sli, sl, si, pl0, xplice
+    print *, Tk, Tf, sli, sl, si, pl0, xplice
     option%io_buffer = 'TH with ice mode: ICE Saturation error:  >1 or <0'
     call printErrMsg(option)
   endif
@@ -1109,7 +1102,8 @@ print *, Tk, Tf, sli, sl, si, pl0, xplice
       call rpf_liq%RelativePermeability(sl, kr, dkr_dse, option)
       dkr_dp = rpf_liq%DRelPerm_DPressure(dsl_dp, dkr_dse)
 
-      dkr_dt = dkr_dse*dsl_dt
+      dkr_dt = dkr_dse/(1.d0-characteristic_curves%saturation_function%Sr) &
+              *dsl_dt
 
     class default
       option%io_buffer = 'THAuxVarComputeFreezing2: ' // &
@@ -1242,16 +1236,6 @@ print *, Tk, Tf, sli, sl, si, pl0, xplice
     auxvar%dKe_fr_dp = dKe_fr_dp
     auxvar%dKe_fr_dt = dKe_fr_dt
   endif
-
-#if 0
-  write(option%myrank+100, *) 'Sats:', sl, dsl_dp, dsl_dt, si, dsi_dp, dsi_dt, sg, dsg_dp, dsg_dt
-  write(option%myrank+100, *) 'U:', auxvar%u, auxvar%du_dp, auxvar%du_dt, &
-    auxvar%u_ice, auxvar%du_ice_dt, auxvar%u_gas, auxvar%du_gas_dt
-  write(option%myrank+100, *) 'kr/kvr:', kr, dkr_dp, dkr_dt, &
-    auxvar%kvr, auxvar%dkvr_dp, auxvar%dkvr_dt
-  write(option%myrank+100, *) 'Ke/Ke_fr:', auxvar%Ke, auxvar%dKe_dp, auxvar%dKe_dt, &
-    auxvar%Ke_fr, auxvar%dKe_fr_dp, auxvar%dKe_fr_dt
-#endif
 
 end subroutine THAuxVarComputeFreezing2
 
