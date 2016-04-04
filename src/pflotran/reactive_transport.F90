@@ -2176,7 +2176,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   PetscInt :: icomp, ieqgas
 
   ! zero out xy-direction transport
-  PetscReal :: unitvec_xy(3)
+  PetscReal :: unitvec_xyz(3)
 
   option => realization%option
   field => realization%field
@@ -2215,8 +2215,8 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
   vol_frac_prim = 1.d0
 
   ! Interior Flux Terms -----------------------------------
-  unitvec_xy(1:2) = 0.d0
-  unitvec_xy(3)   = 1.d0
+  unitvec_xyz(1:2) = 0.d0
+  unitvec_xyz(3)   = 1.d0
 
   connection_set_list => grid%internal_connection_set_list
   cur_connection_set => connection_set_list%first
@@ -2237,7 +2237,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 
       !----------------
       if ( option%flow%only_vertical_flow .or. option%transport%only_vertical_tran ) then
-         if(dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xy) < 1.d-20) cycle
+         if(abs(dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xyz)) < 0.999d0) cycle
       end if
       !----------------
 
@@ -3049,7 +3049,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
 #endif
 
   ! zero out xy-direction transport
-  PetscReal :: unitvec_xy(3)
+  PetscReal :: unitvec_xyz(3)
 
   option => realization%option
   field => realization%field
@@ -3069,8 +3069,8 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
   vol_frac_prim = 1.d0
 
   ! Interior Flux Terms -----------------------------------
-  unitvec_xy(1:2) = 0.d0
-  unitvec_xy(3)   = 1.d0
+  unitvec_xyz(1:2) = 0.d0
+  unitvec_xyz(3)   = 1.d0
 
   ! must zero out Jacobian blocks
 
@@ -3095,7 +3095,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
 
       !----------------
       if ( option%flow%only_vertical_flow .or. option%transport%only_vertical_tran ) then
-         if(dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xy) < 1.d-20) cycle
+         if(abs(dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xyz)) < 0.999d0) cycle
       end if
       !----------------
 
@@ -4996,7 +4996,7 @@ subroutine RTExplicitAdvection(realization)
 
       !----------------
       if ( option%flow%only_vertical_flow .or. option%transport%only_vertical_tran ) then
-         if(dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xy) < 1.d-20) cycle
+        if(abs(dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xy))<0.999d0) cycle
       end if
       !----------------
         

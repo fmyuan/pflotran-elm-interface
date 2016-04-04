@@ -436,8 +436,6 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
         !------fmy
 
         write(option%io_buffer,'(" Stopping: Time step cut criteria exceeded!")')
-        write(option%io_buffer,'(" Stopping: Time step cut criteria &
-                                   &exceeded!")')
         call printMsg(option)
         write(option%io_buffer,'("    icut =",i3,", max_time_step_cuts=",i3)') &
              icut,this%max_time_step_cuts

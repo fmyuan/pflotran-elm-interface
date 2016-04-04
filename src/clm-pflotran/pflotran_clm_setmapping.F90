@@ -2,10 +2,7 @@ module pflotran_clm_setmapping_module
 
   use Option_module, only : option_type
   use Simulation_Base_class, only : simulation_base_type
-  use Multi_Simulation_module, only : multi_simulation_type
   use Realization_Base_class, only : realization_base_type
-  use Mapping_module, only : mapping_type
-  use pflotran_clm_main_module, only : pflotran_model_type
 
   use PFLOTRAN_Constants_module
 
@@ -63,9 +60,10 @@ contains
     use Option_module
     use Input_Aux_module
     use Mapping_module
+    use pflotran_clm_main_module, only : pflotran_model_type
 
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Realization_class, only : realization_type
+    !use Simulation_Subsurface_class, only : subsurface_simulation_type
+    !use Realization_class, only : realization_type
 
     implicit none
 
@@ -74,7 +72,7 @@ contains
     type(pflotran_model_type), pointer, intent(inout) :: model
     type(input_type), pointer :: input
     type(option_type), pointer :: option
-    class(realization_type), pointer    :: realization
+    !class(realization_type), pointer    :: realization
 
     PetscBool :: clm2pf_3dsub_file
     PetscBool :: pf2clm_3dsub_file
@@ -253,6 +251,7 @@ contains
     use Option_module
     use String_module
     use Mapping_module
+    use pflotran_clm_main_module, only : pflotran_model_type
 
     implicit none
 
@@ -303,15 +302,14 @@ contains
   ! Date: 11/09/2013
   ! Revised by Fengming YUAN
 
-    !use Input_Aux_module
     use Option_module
-    use Realization_class
     use Grid_module
     use Patch_module
     use String_module
-    use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
+    use Realization_subsurface_class, only : realization_subsurface_type
+
+    use pflotran_clm_main_module, only : pflotran_model_type
     use Mapping_module
     use clm_pflotran_interface_data
 
@@ -334,23 +332,23 @@ contains
 
     type(mapping_type), pointer        :: map
     type(option_type), pointer         :: option
-    class(realization_type), pointer   :: realization
+    class(realization_subsurface_type), pointer   :: realization
     type(grid_type), pointer           :: grid
     type(patch_type), pointer          :: patch
 
-!-----------------------------------------------------------------------------------
+    character(len=MAXSTRINGLENGTH)     :: subname
+    !-----------------------------------------------------------------------------------
+    subname = "ModelInitMappingSub2Sub"
 
+    option          => pflotran_model%option
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
-         nullify(realization)
-         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
+         option%io_buffer = "subroutine: " // trim(subname) //&
+          " only works on subsurface simulations."
+         call printErrMsg(option)
     end select
-    option          => pflotran_model%option
     patch           => realization%patch
     grid            => patch%grid
 
@@ -476,21 +474,19 @@ contains
   ! 
 
     use Option_module
-    use Patch_module
     use Discretization_module
+    use Patch_module
+    use Grid_module
     use Grid_Unstructured_Aux_module
     use Grid_Unstructured_Cell_module
     use Grid_Unstructured_module
-    use Grid_module
-    use clm_pflotran_interface_data
     use Utility_module, only : DotProduct, CrossProduct
-    use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    !use Simulation_Surface_class, only : surface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
-    use Surface_Realization_class, only : surface_realization_type
-    use Realization_class, only : realization_type
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
+    use Realization_Subsurface_class, only : realization_subsurface_type
+
+    use pflotran_clm_main_module, only : pflotran_model_type
     use Mapping_module
+    use clm_pflotran_interface_data
 
     implicit none
 #include "petsc/finclude/petscvec.h"
@@ -498,11 +494,12 @@ contains
 
     type(pflotran_model_type), pointer :: pflotran_model
 
-    type(option_type), pointer :: option
-    class(realization_type), pointer :: realization
+    type(option_type), pointer         :: option
+    class(realization_subsurface_type), pointer   :: realization
+    type(grid_type), pointer           :: grid
+    type(patch_type), pointer          :: patch
     type(discretization_type), pointer :: discretization
-    type(patch_type), pointer :: patch
-    type(grid_type), pointer :: grid
+
     type(point_type) :: point1, point2, point3, point4
 
     PetscInt :: local_id
@@ -517,20 +514,24 @@ contains
     PetscScalar, pointer :: area_p(:)
     PetscErrorCode :: ierr
 
-    option => pflotran_model%option
+
+    character(len=MAXSTRINGLENGTH)     :: subname
+    !-----------------------------------------------------------------------------------
+    subname = "ModelGetTopFaceArea"
+
+    option          => pflotran_model%option
     select type (simulation => pflotran_model%simulation)
-      type is (subsurface_simulation_type)
-         realization => simulation%realization
-      type is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
-         nullify(realization)
-         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
+         option%io_buffer = "subroutine: " // trim(subname) //&
+          " only works on subsurface simulations."
+         call printErrMsg(option)
     end select
-    discretization => realization%discretization
-    patch => realization%patch
-    grid => patch%grid
+    discretization  => realization%discretization
+    patch           => realization%patch
+    grid            => patch%grid
+    !------------
 
     call VecGetArrayF90(clm_pf_idata%area_top_face_pfp, area_p, ierr)
     CHKERRQ(ierr)
@@ -599,15 +600,15 @@ contains
   !       for BOTTOM face, BC condition name: 'clm_bflux_bc') ('b' for bottom);
 
     use Option_module
-    use Realization_class
     use Grid_module
     use Patch_module
     use Region_module
     use String_module
+    use Simulation_Subsurface_class, only : simulation_subsurface_type
+    use Realization_Subsurface_class, only : realization_subsurface_type
+
+    use pflotran_clm_main_module, only : pflotran_model_type
     use clm_pflotran_interface_data
-    use Simulation_Base_class, only : simulation_base_type
-    use Simulation_Subsurface_class, only : subsurface_simulation_type
-    use Simulation_Surf_Subsurf_class, only : surfsubsurface_simulation_type
     use Mapping_module
 
     implicit none
@@ -646,28 +647,28 @@ contains
 
     type(mapping_type), pointer        :: map
     type(option_type), pointer         :: option
-    class(realization_type), pointer   :: realization
+    class(realization_subsurface_type), pointer   :: realization
     type(grid_type), pointer           :: grid
     type(patch_type), pointer          :: patch
     type(region_type), pointer         :: cur_region
     character(len=MAXSTRINGLENGTH)     :: region_name
 
-!-------------------------------------------------------------------
-!
+    character(len=MAXSTRINGLENGTH)     :: subname
+    !-----------------------------------------------------------------------------------
+    subname = "ModelInitMapFaceToFace"
+
+    option          => pflotran_model%option
     select type (simulation => pflotran_model%simulation)
-      class is (subsurface_simulation_type)
-         realization => simulation%realization
-      class is (surfsubsurface_simulation_type)
+      class is (simulation_subsurface_type)
          realization => simulation%realization
       class default
-         nullify(realization)
-         pflotran_model%option%io_buffer = "ERROR: XXX only works on subsurface simulations."
-         call printErrMsg(pflotran_model%option)
+         option%io_buffer = "subroutine: " // trim(subname) //&
+          " only works on subsurface simulations."
+         call printErrMsg(option)
     end select
-
-    option => pflotran_model%option
-    patch  => realization%patch
-    grid   => patch%grid
+    patch           => realization%patch
+    grid            => patch%grid
+    !------------
 
     allocate(grid_clm_cell_ids_nindex_copy(grid_clm_npts_local))
     grid_clm_cell_ids_nindex_copy = grid_clm_cell_ids_nindex
