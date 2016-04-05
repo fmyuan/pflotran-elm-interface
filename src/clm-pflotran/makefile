@@ -13,7 +13,13 @@ MYFLAGS = -I.
 MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN
 
 # calculate the jacobians for tracking variables if coupled with CLM-CN
-#MYFLAGS += ${FC_DEFINE_FLAG}nojacobian_track_vars
+ifdef nojacboian_track_vars
+  MYFLAGS += ${FC_DEFINE_FLAG}nojacobian_track_vars
+endif
+
+ifdef use_characteristic_curves
+  MYFLAGS += ${FC_DEFINE_FLAG}use_characteristic_curves_module
+endif
 
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
 # PFLOTRAN_RXN_FLAG 
@@ -52,6 +58,11 @@ endif
 
 ifdef pcl
   MYFLAGS += ${FC_DEFINE_FLAG}PCL ${FC_DEFINE_FLAG}MUALEM_SPLINE
+endif
+
+ifdef smooth_vgm
+  MYFLAGS += ${FC_DEFINE_FLAG}MUALEM_SPLINE 
+  #MYFLAGS += ${FC_DEFINE_FLAG}VG_SPLINE 
 endif
 
 ifdef condnr
@@ -1321,7 +1332,7 @@ th.o : condition.o connection.o coupler.o debug.o discretization.o eos_water.o \
        realization_subsurface.o region.o saturation_function.o \
        secondary_continuum.o secondary_continuum_aux.o string.o th_aux.o \
        utility.o variables.o
-th_aux.o : eos_water.o global_aux.o material_aux.o option.o \
+th_aux.o :  characteristic_curves.o eos_water.o global_aux.o material_aux.o option.o \
            pflotran_constants.o saturation_function.o
 time_storage.o : option.o pflotran_constants.o
 timestepper_BE.o : checkpoint.o convergence.o input_aux.o option.o output.o \

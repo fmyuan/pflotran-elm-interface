@@ -11,7 +11,9 @@ include ${PETSC_DIR}/lib/petsc/conf/rules
 
 MYFLAGS = -I.
 
-MYFLAGS += ${FC_DEFINE_FLAG}use_characteristic_curves_module
+ifdef use_characteristic_curves
+  MYFLAGS += ${FC_DEFINE_FLAG}use_characteristic_curves_module
+endif
 
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
 # PFLOTRAN_RXN_FLAG 
