@@ -3035,6 +3035,23 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     !
     !immobile species for liter and SOM (decomposing pools)
 
+    ! for total HR, Nmin, Nimm, and Nimmp
+    word = clm_pf_idata%name_hrim
+    clm_pf_idata%ispec_hrimm  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = clm_pf_idata%name_Nmin
+    clm_pf_idata%ispec_nmin  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = clm_pf_idata%name_nimm
+    clm_pf_idata%ispec_nimm  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+    word = clm_pf_idata%name_nimmp
+    clm_pf_idata%ispec_nimmp  = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
     do k=1, clm_pf_idata%ndecomp_pools
 
       ! NOTE: the PF soil bgc sandbox 'SomDec' has a naming protocol as following
@@ -3088,7 +3105,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
       clm_pf_idata%ispec_decomp_hr(k) = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
       !
-      if (clm_pf_idata%ispec_decomp_hr(k) <= 0) then
+      if (clm_pf_idata%ispec_decomp_hr(k) <= 0 .and. clm_pf_idata%ispec_hrimm <= 0 ) then
         option%io_buffer = 'CLM decomposing pool HR: ' // &
           trim(word) // &
           ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
@@ -3100,7 +3117,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
       clm_pf_idata%ispec_decomp_nmin(k) = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
       !
-      if (clm_pf_idata%ispec_decomp_nmin(k) <= 0) then
+      if (clm_pf_idata%ispec_decomp_nmin(k) <= 0 .and. clm_pf_idata%ispec_nmin <= 0 ) then
         option%io_buffer = 'CLM decomposing pool NMIN: ' // &
           trim(word) // &
           ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
@@ -3112,7 +3129,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
       clm_pf_idata%ispec_decomp_nimm(k) = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
       !
-      if (clm_pf_idata%ispec_decomp_nimm(k) <= 0) then
+      if (clm_pf_idata%ispec_decomp_nimm(k) <= 0 .and. clm_pf_idata%ispec_nimm <= 0 ) then
         option%io_buffer = 'CLM decomposing pool NIMM: ' // &
           trim(word) // &
           ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
@@ -3124,7 +3141,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
       clm_pf_idata%ispec_decomp_nimp(k) = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
       !
-      if (clm_pf_idata%ispec_decomp_nimp(k) <= 0) then
+      if (clm_pf_idata%ispec_decomp_nimp(k) <= 0 .and. clm_pf_idata%ispec_nimmp <= 0 ) then
         option%io_buffer = 'CLM decomposing pool NIMP: ' // &
           trim(word) // &
           ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
@@ -3132,23 +3149,6 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
       endif
 
     end do
-
-    ! for total HR, Nmin, Nimm, and Nimmp
-    word = clm_pf_idata%name_hrim
-    clm_pf_idata%ispec_hrimm  = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = clm_pf_idata%name_Nmin
-    clm_pf_idata%ispec_nmin  = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = clm_pf_idata%name_nimm
-    clm_pf_idata%ispec_nimm  = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
-
-    word = clm_pf_idata%name_nimmp
-    clm_pf_idata%ispec_nimmp  = GetImmobileSpeciesIDFromName(word, &
-                  realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     ! aq. species in soil solution
     word = clm_pf_idata%name_co2aq
@@ -4572,14 +4572,39 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%accextrno3_vr_pfp, accextrno3_vr_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%acchr_vr_pfp, acchr_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%accnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+
+    if (clm_pf_idata%ispec_hrimm>0) then
+      call VecGetArrayF90(clm_pf_idata%acctothr_vr_pfp, acchr_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else
+      call VecGetArrayF90(clm_pf_idata%acchr_vr_pfp, acchr_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+    if (clm_pf_idata%ispec_nmin>0) then
+      call VecGetArrayF90(clm_pf_idata%acctotnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else   ! can have both, but now NOT
+      call VecGetArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+    if (clm_pf_idata%ispec_nimmp>0) then
+      call VecGetArrayF90(clm_pf_idata%acctotnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else   ! can have both, but now NOT
+      call VecGetArrayF90(clm_pf_idata%accnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+    if (clm_pf_idata%ispec_nimm>0) then
+      call VecGetArrayF90(clm_pf_idata%acctotnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else   ! can have both, but now NOT
+      call VecGetArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
     call VecGetArrayF90(clm_pf_idata%accngasmin_vr_pfp, accngasmin_vr_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%accngasnitr_vr_pfp, accngasnitr_vr_pf_loc, ierr)
@@ -4643,50 +4668,68 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
           endif
 
           if(clm_pf_idata%ispec_decomp_hr(k) > 0) then
-             ! field%tran_xx vec IS arranged 'species' first and then 'cell'
-!             conc = xx_p(offsetim + ispec_decomp_hr(k))                      ! unit: M (mol/m3)
-             conc = rt_auxvar%immobile(clm_pf_idata%ispec_decomp_hr(k))
-             ! MPI acchr_vr_pfp vec: 'cell' first, then 'species'
-             acchr_vr_pf_loc(vec_offset+local_id)= max(conc-zeroing_conc, 0.d0)
+             if(clm_pf_idata%ispec_hrimm <= 0) then   ! only when NO total HR tracked in PF, do the data-passing
+               ! field%tran_xx vec IS arranged 'species' first and then 'cell'
+!               conc = xx_p(offsetim + ispec_decomp_hr(k))                      ! unit: M (mol/m3)
+               conc = rt_auxvar%immobile(clm_pf_idata%ispec_decomp_hr(k))
+               ! MPI acchr_vr_pfp vec: 'cell' first, then 'species'
+               acchr_vr_pf_loc(vec_offset+local_id)= max(conc-zeroing_conc, 0.d0)
+             endif
 
              ! resetting the tracking variable state so that cumulative IS for the time-step
              xx_p(offsetim + clm_pf_idata%ispec_decomp_hr(k)) = zeroing_conc
           endif
 
           if(clm_pf_idata%ispec_decomp_nmin(k) > 0) then
-             ! field%tran_xx vec IS arranged 'species' first and then 'cell'
+            if (clm_pf_idata%ispec_nmin <= 0) then   ! only when NO total NMIN tracked in PF, then do data-passing
+              ! field%tran_xx vec IS arranged 'species' first and then 'cell'
 !             conc = xx_p(offsetim + ispec_decomp_nmin(k))                      ! unit: M (mol/m3)
-             conc = rt_auxvar%immobile(clm_pf_idata%ispec_decomp_nmin(k))
-             ! MPI accnmin_vr_pfp vec: 'cell' first, then 'species'
-             accnmin_vr_pf_loc(vec_offset+local_id)= max(conc-zeroing_conc, 0.d0)
+              conc = rt_auxvar%immobile(clm_pf_idata%ispec_decomp_nmin(k))
+              ! MPI accnmin_vr_pfp vec: 'cell' first, then 'species'
+              accnmin_vr_pf_loc(vec_offset+local_id)= max(conc-zeroing_conc, 0.d0)
+            endif
 
-             ! resetting the tracking variable state so that cumulative IS for the time-step
-             xx_p(offsetim + clm_pf_idata%ispec_decomp_nmin(k)) = zeroing_conc
+            ! resetting the tracking variable state so that cumulative IS for the time-step
+            xx_p(offsetim + clm_pf_idata%ispec_decomp_nmin(k)) = zeroing_conc
           endif
 
           if(clm_pf_idata%ispec_decomp_nimp(k) > 0) then
-             ! field%tran_xx vec IS arranged 'species' first and then 'cell'
+            if (clm_pf_idata%ispec_nimp <= 0) then   ! only when NO total NIMP tracked in PF, then do data-passing
+              ! field%tran_xx vec IS arranged 'species' first and then 'cell'
 !             conc = xx_p(offsetim + ispec_decomp_nimp(k))                      ! unit: M (mol/m3)
-             conc = rt_auxvar%immobile(clm_pf_idata%ispec_decomp_nimp(k))
-             ! MPI accnmin_vr_pfp vec: 'cell' first, then 'species'
-             accnimmp_vr_pf_loc(vec_offset+local_id)= max(conc-zeroing_conc, 0.d0)
+              conc = rt_auxvar%immobile(clm_pf_idata%ispec_decomp_nimp(k))
+              ! MPI accnmin_vr_pfp vec: 'cell' first, then 'species'
+              accnimmp_vr_pf_loc(vec_offset+local_id)= max(conc-zeroing_conc, 0.d0)
+            endif
 
-             ! resetting the tracking variable state so that cumulative IS for the time-step
-             xx_p(offsetim + clm_pf_idata%ispec_decomp_nimp(k)) = zeroing_conc
+            ! resetting the tracking variable state so that cumulative IS for the time-step
+            xx_p(offsetim + clm_pf_idata%ispec_decomp_nimp(k)) = zeroing_conc
           endif
 
           if(clm_pf_idata%ispec_decomp_nimm(k) > 0) then
-             ! field%tran_xx vec IS arranged 'species' first and then 'cell'
+            if(clm_pf_idata%ispec_nimm <= 0) then   ! only when NO total NIMM tracked in PF, then do data-passing
+              ! field%tran_xx vec IS arranged 'species' first and then 'cell'
 !             conc = xx_p(offsetim + ispec_decomp_nimm(k))                      ! unit: M (mol/m3)
-             conc = rt_auxvar%immobile(clm_pf_idata%ispec_decomp_nimm(k))
-             ! MPI accnmin_vr_pfp vec: 'cell' first, then 'species'
-             accnimm_vr_pf_loc(vec_offset+local_id)= max(conc-zeroing_conc, 0.d0)
+              conc = rt_auxvar%immobile(clm_pf_idata%ispec_decomp_nimm(k))
+              ! MPI accnmin_vr_pfp vec: 'cell' first, then 'species'
+              accnimm_vr_pf_loc(vec_offset+local_id)= max(conc-zeroing_conc, 0.d0)
+            endif
 
-             ! resetting the tracking variable state so that cumulative IS for the time-step
-             xx_p(offsetim + clm_pf_idata%ispec_decomp_nimm(k)) = zeroing_conc
+            ! resetting the tracking variable state so that cumulative IS for the time-step
+            xx_p(offsetim + clm_pf_idata%ispec_decomp_nimm(k)) = zeroing_conc
           endif
 
         enddo  ! end of loop of 'decomp_pools'
+
+        ! total HR from all decomposition
+        if (clm_pf_idata%ispec_hrimm > 0) then
+           !conc = xx_p(offsetim + clm_pf_idata%ispec_hrimm)
+           conc = rt_auxvar%immobile(clm_pf_idata%ispec_hrimm)
+           acchr_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
+
+           ! resetting the tracking variable state so that cumulative IS for the time-step only
+           xx_p(offsetim + clm_pf_idata%ispec_hrimm) = zeroing_conc
+        endif
 
         !
         if(clm_pf_idata%ispec_nh4 > 0) then
@@ -4742,6 +4785,34 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         endif
 
         ! tracking N bgc reaction fluxes
+
+        ! total NMIN from decomposition
+        if (clm_pf_idata%ispec_nmin > 0) then
+           !conc = xx_p(offsetim + clm_pf_idata%ispec_nmin)
+           conc = rt_auxvar%immobile(clm_pf_idata%ispec_nmin)
+           accnmin_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
+
+           ! resetting the tracking variable state so that cumulative IS for the time-step only
+           xx_p(offsetim + clm_pf_idata%ispec_nmin) = zeroing_conc
+        endif
+        ! total NIMP from decomposition
+        if (clm_pf_idata%ispec_nimp > 0) then
+           !conc = xx_p(offsetim + clm_pf_idata%ispec_nimp)
+           conc = rt_auxvar%immobile(clm_pf_idata%ispec_nimp)
+           accnimp_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
+
+           ! resetting the tracking variable state so that cumulative IS for the time-step only
+           xx_p(offsetim + clm_pf_idata%ispec_nimp) = zeroing_conc
+        endif
+        ! total NIMM from decomposition
+        if (clm_pf_idata%ispec_nmin > 0) then
+           !conc = xx_p(offsetim + clm_pf_idata%ispec_nimm)
+           conc = rt_auxvar%immobile(clm_pf_idata%ispec_nimm)
+           accnimm_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
+
+           ! resetting the tracking variable state so that cumulative IS for the time-step only
+           xx_p(offsetim + clm_pf_idata%ispec_nimm) = zeroing_conc
+        endif
 
         if (clm_pf_idata%ispec_plantnh4uptake > 0) then
            !conc = xx_p(offsetim + clm_pf_idata%ispec_plantnh4uptake)
@@ -4814,14 +4885,39 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%accextrno3_vr_pfp, accextrno3_vr_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%acchr_vr_pfp, acchr_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%accnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+
+    if (clm_pf_idata%ispec_hrimm>0) then
+      call VecGetArrayF90(clm_pf_idata%acctothr_vr_pfp, acchr_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else
+      call VecRestoreArrayF90(clm_pf_idata%acchr_vr_pfp, acchr_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+    if (clm_pf_idata%ispec_nmin>0) then
+      call VecGetArrayF90(clm_pf_idata%acctotmin_vr_pfp, accnmin_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else
+      call VecRestoreArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+    if (clm_pf_idata%ispec_nimp>0) then
+      call VecGetArrayF90(clm_pf_idata%acctothr_vr_pfp, accimmp_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else
+      call VecRestoreArrayF90(clm_pf_idata%accnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+    if (clm_pf_idata%ispec_nimm>0) then
+      call VecGetArrayF90(clm_pf_idata%acctotimm_vr_pfp, accimm_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else
+      call VecRestoreArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
     call VecRestoreArrayF90(clm_pf_idata%accngasmin_vr_pfp, accngasmin_vr_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%accngasnitr_vr_pfp, accngasnitr_vr_pf_loc, ierr)
@@ -4940,7 +5036,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     endif
 
     ! HR from decomp'C'
-    if (associated(clm_pf_idata%ispec_decomp_c)) then
+    if (associated(clm_pf_idata%ispec_decomp_c) .and. clm_pf_idata%ispec_hrimm<=0) then
       ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
       call VecAssemblyBegin(clm_pf_idata%acchr_vr_pfp, ierr); CHKERRQ(ierr)
       call VecAssemblyEnd(clm_pf_idata%acchr_vr_pfp, ierr); CHKERRQ(ierr)
@@ -4982,7 +5078,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     endif
 
     ! NMIN from decomp'N'
-    if (associated(clm_pf_idata%ispec_decomp_n)) then
+    if (associated(clm_pf_idata%ispec_decomp_n) .and. clm_pf_idata%ispec_nmin<=0) then
       ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
       call VecAssemblyBegin(clm_pf_idata%accnmin_vr_pfp, ierr); CHKERRQ(ierr)
       call VecAssemblyEnd(clm_pf_idata%accnmin_vr_pfp, ierr); CHKERRQ(ierr)
@@ -5024,7 +5120,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     endif
 
     ! NIMP from decomp'N'
-    if (associated(clm_pf_idata%ispec_decomp_n)) then
+    if (associated(clm_pf_idata%ispec_decomp_n) .and. clm_pf_idata%ispec_nimp<=0) then
       ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
       call VecAssemblyBegin(clm_pf_idata%accnimmp_vr_pfp, ierr); CHKERRQ(ierr)
       call VecAssemblyEnd(clm_pf_idata%accnimmp_vr_pfp, ierr); CHKERRQ(ierr)
@@ -5066,7 +5162,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     endif
 
     ! NIMM from decomp'N'
-    if (associated(clm_pf_idata%ispec_decomp_n)) then
+    if (associated(clm_pf_idata%ispec_decomp_n) .and. clm_pf_idata%ispec_nimm<=0) then
       ! assembly the 'vec_pfp' (?? not sure if needed, though 'PETSC' manual said so)
       call VecAssemblyBegin(clm_pf_idata%accnimm_vr_pfp, ierr); CHKERRQ(ierr)
       call VecAssemblyEnd(clm_pf_idata%accnimm_vr_pfp, ierr); CHKERRQ(ierr)

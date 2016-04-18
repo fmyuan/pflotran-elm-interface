@@ -369,16 +369,25 @@ module clm_pflotran_interface_data
   Vec :: gn2o_vr_pfs                   ! (moleN/m3) vertically-resolved N2O-N, after gas emission
 
   ! some tracking variables from PFLOTRAN bgc to obtain reaction flux rates which needed by CLM
-  Vec :: acchr_vr_pfp                 ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
-  Vec :: acchr_vr_clms                ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
+  Vec :: acchr_vr_pfp                  ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from individual decomposition
+  Vec :: acchr_vr_clms                 ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from individual decomposition
+  Vec :: acctothr_vr_pfp               ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from all decomposition
+  Vec :: acctothr_vr_clms              ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from all decomposition
 
   Vec :: accnmin_vr_pfp                ! (moleN/m3/timestep) vertically-resolved N mineralization
   Vec :: accnmin_vr_clms               ! (moleN/m3/timestep) vertically-resolved N mineralization
+  Vec :: acctotnmin_vr_pfp             ! (moleN/m3/timestep) vertically-resolved total N mineralization
+  Vec :: acctotnmin_vr_clms            ! (moleN/m3/timestep) vertically-resolved total N mineralization
 
-  Vec :: accnimmp_vr_pfp                ! (moleN/m3/timestep) vertically-resolved potential N immoblization
-  Vec :: accnimmp_vr_clms               ! (moleN/m3/timestep) vertically-resolved potential N immoblization
+  Vec :: accnimmp_vr_pfp               ! (moleN/m3/timestep) vertically-resolved potential N immoblization
+  Vec :: accnimmp_vr_clms              ! (moleN/m3/timestep) vertically-resolved potential N immoblization
+  Vec :: acctotnimmp_vr_pfp            ! (moleN/m3/timestep) vertically-resolved potential total N immoblization
+  Vec :: acctotnimmp_vr_clms           ! (moleN/m3/timestep) vertically-resolved potential total N immoblization
+
   Vec :: accnimm_vr_pfp                ! (moleN/m3/timestep) vertically-resolved N immoblization
   Vec :: accnimm_vr_clms               ! (moleN/m3/timestep) vertically-resolved N immoblization
+  Vec :: acctotnimm_vr_pfp             ! (moleN/m3/timestep) vertically-resolved total N immoblization
+  Vec :: acctotnimm_vr_clms            ! (moleN/m3/timestep) vertically-resolved total N immoblization
 
   Vec :: accngasmin_vr_pfp              ! (moleN/m3/timestep) vertically-resolved N2O-N from mineralization
   Vec :: accngasmin_vr_clms             ! (moleN/m3/timestep) vertically-resolved N2O-N from mineralization
@@ -692,14 +701,23 @@ contains
     ! tracking variables in C-N cycle
     clm_pf_idata%acchr_vr_pfp       = 0
     clm_pf_idata%acchr_vr_clms      = 0
+    clm_pf_idata%acctothr_vr_pfp    = 0
+    clm_pf_idata%acctothr_vr_clms   = 0
 
     clm_pf_idata%accnmin_vr_pfp       = 0
     clm_pf_idata%accnmin_vr_clms      = 0
+    clm_pf_idata%acctotnmin_vr_pfp    = 0
+    clm_pf_idata%acctotnmin_vr_clms   = 0
 
     clm_pf_idata%accnimmp_vr_pfp      = 0
     clm_pf_idata%accnimmp_vr_clms     = 0
+    clm_pf_idata%acctotnimmp_vr_pfp   = 0
+    clm_pf_idata%acctotnimmp_vr_clms  = 0
+
     clm_pf_idata%accnimm_vr_pfp       = 0
     clm_pf_idata%accnimm_vr_clms      = 0
+    clm_pf_idata%acctotnimm_vr_pfp    = 0
+    clm_pf_idata%acctotnimm_vr_clms   = 0
 
     clm_pf_idata%accngasmin_vr_pfp       = 0
     clm_pf_idata%accngasmin_vr_clms      = 0
@@ -1028,6 +1046,11 @@ contains
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfp,clm_pf_idata%accnimmp_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfp,clm_pf_idata%accnimm_vr_pfp,ierr)
 
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%acctothr_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%acctotnmin_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%acctotnimmp_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%acctotnimm_vr_pfp,ierr)
+
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%accngasmin_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%accngasnitr_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%accngasdeni_vr_pfp,ierr)
@@ -1044,6 +1067,11 @@ contains
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnmin_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnimmp_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnimm_vr_clms,ierr)
+
+    call VecDuplicate(clm_pf_idata%zsoil_vr_clms,clm_pf_idata%acctothr_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_vr_clms,clm_pf_idata%acctotnmin_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_vr_clms,clm_pf_idata%acctotnimmp_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_vr_clms,clm_pf_idata%acctotnimm_vr_clms,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%accngasmin_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%accngasnitr_vr_clms,ierr)
@@ -1503,19 +1531,40 @@ contains
     if(clm_pf_idata%acchr_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%acchr_vr_clms,ierr)
 
+    if(clm_pf_idata%acctothr_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%acctothr_vr_pfp,ierr)
+    if(clm_pf_idata%acctothr_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%acctothr_vr_clms,ierr)
+
     if(clm_pf_idata%accnmin_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%accnmin_vr_pfp,ierr)
     if(clm_pf_idata%accnmin_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%accnmin_vr_clms,ierr)
 
+    if(clm_pf_idata%acctotnmin_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%acctotnmin_vr_pfp,ierr)
+    if(clm_pf_idata%acctotnmin_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%acctotnmin_vr_clms,ierr)
+
     if(clm_pf_idata%accnimmp_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%accnimmp_vr_pfp,ierr)
-    if(clm_pf_idata%accnimm_vr_pfp /= 0) &
-       call VecDestroy(clm_pf_idata%accnimm_vr_pfp,ierr)
     if(clm_pf_idata%accnimmp_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%accnimmp_vr_clms,ierr)
+
+    if(clm_pf_idata%acctotnimmp_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%acctotnimmp_vr_pfp,ierr)
+    if(clm_pf_idata%acctotnimmp_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%acctotnimmp_vr_clms,ierr)
+
+    if(clm_pf_idata%accnimm_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%accnimm_vr_pfp,ierr)
     if(clm_pf_idata%accnimm_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%accnimm_vr_clms,ierr)
+
+    if(clm_pf_idata%acctotnimm_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%acctotnimm_vr_pfp,ierr)
+    if(clm_pf_idata%acctotnimm_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%acctotnimm_vr_clms,ierr)
 
     if(clm_pf_idata%accngasmin_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%accngasmin_vr_pfp,ierr)
