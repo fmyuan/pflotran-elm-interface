@@ -5310,6 +5310,34 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
                                     clm_pf_idata%accngasdeni_vr_clms)
     endif
 
+    ! if total HR/NMIN/NIMM/NIMP tracked, otherwise have already done above
+    if(clm_pf_idata%ispec_hrimm > 0) then
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    option, &
+                                    clm_pf_idata%acctothr_vr_pfp, &
+                                    clm_pf_idata%acctothr_vr_clms)
+    endif
+
+    if(clm_pf_idata%ispec_nmin > 0) then
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    option, &
+                                    clm_pf_idata%acctotnmin_vr_pfp, &
+                                    clm_pf_idata%acctotnmin_vr_clms)
+    endif
+
+    if(clm_pf_idata%ispec_nimm > 0) then
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    option, &
+                                    clm_pf_idata%acctotnimm_vr_pfp, &
+                                    clm_pf_idata%acctotnimm_vr_clms)
+    endif
+
+    if(clm_pf_idata%ispec_nimp > 0) then
+      call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
+                                    option, &
+                                    clm_pf_idata%acctotnimmp_vr_pfp, &
+                                    clm_pf_idata%acctotnimmp_vr_clms)
+    endif
     !
     ! -----------------------------------------------------------------------------------------
     !
