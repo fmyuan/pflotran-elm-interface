@@ -3035,7 +3035,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     !
     !immobile species for liter and SOM (decomposing pools)
 
-    ! for total HR, Nmin, Nimm, and Nimmp
+    ! for total HR, Nmin, Nimm, and Nimmp (NOTE: do this 'total' before 'individual')
     word = clm_pf_idata%name_hrim
     clm_pf_idata%ispec_hrimm  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
@@ -3048,8 +3048,8 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     clm_pf_idata%ispec_nimm  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
-    word = clm_pf_idata%name_nimmp
-    clm_pf_idata%ispec_nimmp  = GetImmobileSpeciesIDFromName(word, &
+    word = clm_pf_idata%name_nimp
+    clm_pf_idata%ispec_nimp  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
     do k=1, clm_pf_idata%ndecomp_pools
@@ -3141,7 +3141,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
       clm_pf_idata%ispec_decomp_nimp(k) = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
       !
-      if (clm_pf_idata%ispec_decomp_nimp(k) <= 0 .and. clm_pf_idata%ispec_nimmp <= 0 ) then
+      if (clm_pf_idata%ispec_decomp_nimp(k) <= 0 .and. clm_pf_idata%ispec_nimp <= 0 ) then
         option%io_buffer = 'CLM decomposing pool NIMP: ' // &
           trim(word) // &
           ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
@@ -3186,24 +3186,37 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
                   realization%reaction,PETSC_FALSE,realization%option)
     if (clm_pf_idata%ispec_nh4 > 0) then
       word = clm_pf_idata%name_nh4sorb
-      clm_pf_idata%ispec_nh4sorb  = GetImmobileSpeciesIDFromName(word, &                        ! for using sandbox of absorption
+      clm_pf_idata%ispec_nh4sorb = GetImmobileSpeciesIDFromName(word, &                        ! for using sandbox of absorption
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
     else
-      option%io_buffer = 'CLM N pool ' // &
-            trim(word) // &
-            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
-      call printErrMsg(option)
+      word = clm_pf_idata%name_nh4s
+      clm_pf_idata%ispec_nh4s = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
 
+      if (clm_pf_idata%ispec_nh4s <= 0) then
+        option%io_buffer = 'CLM N pool ' // &
+          ' either, ' // trim(clm_pf_idata%name_nh4) // &
+          ' or,' // trim(clm_pf_idata%name_nh4s) // &
+          ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+        call printErrMsg(option)
+      endif
     endif
 
     word = clm_pf_idata%name_no3
-    clm_pf_idata%ispec_no3  = GetPrimarySpeciesIDFromName(word, &
+    clm_pf_idata%ispec_no3    = GetPrimarySpeciesIDFromName(word, &
                   realization%reaction,PETSC_FALSE,realization%option)
-    if (clm_pf_idata%ispec_no3<=0) then
-      option%io_buffer = 'CLM N pool ' // &
-            trim(word) // &
-            ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
-      call printErrMsg(option)
+    if (clm_pf_idata%ispec_no3 <=0 ) then
+      word = clm_pf_idata%name_no3s
+      clm_pf_idata%ispec_no3s = GetImmobileSpeciesIDFromName(word, &
+                  realization%reaction%immobile,PETSC_FALSE,realization%option)
+
+      if (clm_pf_idata%ispec_no3s <= 0) then
+        option%io_buffer = 'CLM N pool ' // &
+          ' either, ' // trim(clm_pf_idata%name_no3) // &
+          ' or,' // trim(clm_pf_idata%name_no3s) // &
+          ' in PFLOTRAN_CLM_MAIN interface not found in list of PF chemical species pools.'
+        call printErrMsg(option)
+      endif
     endif
     !
     ! species for gases (now as immobile species)
@@ -3638,14 +3651,14 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
     !-----------------------------------------------------------------
 
-    if(clm_pf_idata%ispec_no3 > 0) then
+    if(clm_pf_idata%ispec_no3 > 0 .or. clm_pf_idata%ispec_no3s > 0) then
        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
                                     clm_pf_idata%smin_no3_vr_clmp, &
                                     clm_pf_idata%smin_no3_vr_pfs)
     endif
 
-    if(clm_pf_idata%ispec_nh4 > 0) then
+    if(clm_pf_idata%ispec_nh4 > 0 .or. clm_pf_idata%ispec_nh4s > 0) then
        call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
                                     clm_pf_idata%smin_nh4_vr_clmp, &
@@ -3669,12 +3682,12 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     endif
 
     !
-    if(clm_pf_idata%ispec_no3 > 0) then
+    if(clm_pf_idata%ispec_no3 > 0 .or. clm_pf_idata%ispec_nh4s > 0) then
       call VecGetArrayReadF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
-    if(clm_pf_idata%ispec_nh4 > 0) then
+    if(clm_pf_idata%ispec_nh4 > 0 .or. clm_pf_idata%ispec_nh4s > 0) then
       call VecGetArrayReadF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
       CHKERRQ(ierr)
 
@@ -3714,12 +3727,21 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
                                                 smin_no3_vr_pf_loc(ghosted_id)    &
                                                 / (theta*1000.d0*den_kg_per_L) )    ! moles/m3 /(m3/m3 * L/m3 * kg/L) = moles/kgh2o
 
+      elseif (clm_pf_idata%ispec_no3s > 0) then  ! in immobile form
+         xx_p(offsetim + clm_pf_idata%ispec_no3s) = max(xeps0_n,                  &
+                                        smin_no3_vr_pf_loc(ghosted_id) )
+
       endif
 
       if(clm_pf_idata%ispec_nh4 > 0) then
          xx_p(offset + clm_pf_idata%ispec_nh4) = max(xeps0_n,                     &
                                                 smin_nh4_vr_pf_loc(ghosted_id)    &
                                                 / (theta*1000.d0*den_kg_per_L) )
+
+      elseif (clm_pf_idata%ispec_nh4s > 0) then  ! in immobile form
+         xx_p(offsetim + clm_pf_idata%ispec_nh4s) = max(xeps0_n,                  &
+                                        smin_nh4_vr_pf_loc(ghosted_id) )
+
       endif
 
       !
@@ -3775,12 +3797,12 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     endif
 
     !
-    if(clm_pf_idata%ispec_no3 > 0) then
+    if(clm_pf_idata%ispec_no3 > 0 .or. clm_pf_idata%ispec_no3s > 0) then
       call VecRestoreArrayReadF90(clm_pf_idata%smin_no3_vr_pfs, smin_no3_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     endif
 
-    if(clm_pf_idata%ispec_nh4 > 0) then
+    if(clm_pf_idata%ispec_nh4 > 0 .or. clm_pf_idata%ispec_nh4s > 0) then
       call VecRestoreArrayReadF90(clm_pf_idata%smin_nh4_vr_pfs, smin_nh4_vr_pf_loc, ierr)
       CHKERRQ(ierr)
 
@@ -3985,14 +4007,14 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
                                     clm_pf_idata%rate_plantndemand_pfs)
     endif
 
-    if(clm_pf_idata%ispec_no3 >0) then
+    if(clm_pf_idata%ispec_no3 >0 .or. clm_pf_idata%ispec_no3s > 0) then
       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
                                     clm_pf_idata%rate_smin_no3_clmp, &
                                     clm_pf_idata%rate_smin_no3_pfs)
     endif
 
-    if(clm_pf_idata%ispec_nh4 >0) then
+    if(clm_pf_idata%ispec_nh4 >0 .or. clm_pf_idata%ispec_no3s > 0) then
       call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
                                     clm_pf_idata%rate_smin_nh4_clmp, &
@@ -4019,12 +4041,14 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
           found_rtmasstr = PETSC_FALSE
           vec_offset = 0
           !
-          if(cur_data_mediator%idof == clm_pf_idata%ispec_nh4) then
+          if(cur_data_mediator%idof == clm_pf_idata%ispec_nh4 .or. &
+             cur_data_mediator%idof == clm_pf_idata%ispec_nh4s) then
             call VecGetArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
             CHKERRQ(ierr)
             found_rtmasstr = PETSC_TRUE
 
-          elseif(cur_data_mediator%idof == clm_pf_idata%ispec_no3) then
+          elseif(cur_data_mediator%idof == clm_pf_idata%ispec_no3 .or. &
+             cur_data_mediator%idof == clm_pf_idata%ispec_no3s) then
             call VecGetArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
             CHKERRQ(ierr)
             found_rtmasstr = PETSC_TRUE
@@ -4084,10 +4108,12 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
            enddo  !do local_id = 1, grid%nlmax
 
            ! close the open vecs
-           if(cur_data_mediator%idof == clm_pf_idata%ispec_nh4) then
+           if(cur_data_mediator%idof == clm_pf_idata%ispec_nh4 .or. &
+              cur_data_mediator%idof == clm_pf_idata%ispec_nh4s) then
              call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_nh4_pfs, rate_pf_loc, ierr)
              CHKERRQ(ierr)
-           elseif(cur_data_mediator%idof == clm_pf_idata%ispec_no3) then
+           elseif(cur_data_mediator%idof == clm_pf_idata%ispec_no3 .or. &
+                  cur_data_mediator%idof == clm_pf_idata%ispec_no3s) then
              call VecRestoreArrayReadF90(clm_pf_idata%rate_smin_no3_pfs, rate_pf_loc, ierr)
              CHKERRQ(ierr)
 
@@ -4589,7 +4615,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
       CHKERRQ(ierr)
     endif
 
-    if (clm_pf_idata%ispec_nimmp>0) then
+    if (clm_pf_idata%ispec_nimp>0) then
       call VecGetArrayF90(clm_pf_idata%acctotnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     else   ! can have both, but now NOT
@@ -4757,11 +4783,21 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
                 smin_nh4sorb_vr_pf_loc(local_id) = max(conc, 0.d0)
             endif
 
+        elseif(clm_pf_idata%ispec_nh4s > 0) then ! as immobile form
+           !conc = xx_p(offsetim + clm_pf_idata%ispec_nh4s)                   ! unit: M (molN/m3)
+           conc = rt_auxvar%immobile(clm_pf_idata%ispec_nh4s)
+           smin_nh4_vr_pf_loc(local_id)   = max(conc, 0.d0)
+
         endif
 
         if(clm_pf_idata%ispec_no3 > 0) then
            !conc = xx_p(offset + clm_pf_idata%ispec_no3) * theta * 1000.0d0                        ! 7-14-2015: converting from /m3 bulk.
            conc = rt_auxvar%total(clm_pf_idata%ispec_no3, 1) * (theta * 1000.0d0 * den_kg_per_L)     !
+           smin_no3_vr_pf_loc(local_id)   = max(conc, 0.d0)
+
+        elseif(clm_pf_idata%ispec_no3s > 0) then ! as immobile form
+           !conc = xx_p(offsetim + clm_pf_idata%ispec_no3s)                   ! unit: M (molN/m3)
+           conc = rt_auxvar%immobile(clm_pf_idata%ispec_no3s)
            smin_no3_vr_pf_loc(local_id)   = max(conc, 0.d0)
         endif
 
@@ -4799,7 +4835,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
         if (clm_pf_idata%ispec_nimp > 0) then
            !conc = xx_p(offsetim + clm_pf_idata%ispec_nimp)
            conc = rt_auxvar%immobile(clm_pf_idata%ispec_nimp)
-           accnimp_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
+           accnimmp_vr_pf_loc(local_id) = max(conc-zeroing_conc, 0.d0)
 
            ! resetting the tracking variable state so that cumulative IS for the time-step only
            xx_p(offsetim + clm_pf_idata%ispec_nimp) = zeroing_conc
@@ -4895,7 +4931,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     endif
 
     if (clm_pf_idata%ispec_nmin>0) then
-      call VecGetArrayF90(clm_pf_idata%acctotmin_vr_pfp, accnmin_vr_pf_loc, ierr)
+      call VecGetArrayF90(clm_pf_idata%acctotnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     else
       call VecRestoreArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
@@ -4903,7 +4939,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     endif
 
     if (clm_pf_idata%ispec_nimp>0) then
-      call VecGetArrayF90(clm_pf_idata%acctothr_vr_pfp, accimmp_vr_pf_loc, ierr)
+      call VecGetArrayF90(clm_pf_idata%acctotnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     else
       call VecRestoreArrayF90(clm_pf_idata%accnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
@@ -4911,7 +4947,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     endif
 
     if (clm_pf_idata%ispec_nimm>0) then
-      call VecGetArrayF90(clm_pf_idata%acctotimm_vr_pfp, accimm_vr_pf_loc, ierr)
+      call VecGetArrayF90(clm_pf_idata%acctotnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
       CHKERRQ(ierr)
     else
       call VecRestoreArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
@@ -5211,14 +5247,14 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     ! for single element, mapping approach directly
 
     !
-    if(clm_pf_idata%ispec_no3 > 0) then
+    if(clm_pf_idata%ispec_no3 > 0 .or. clm_pf_idata%ispec_no3s > 0) then
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     option, &
                                     clm_pf_idata%smin_no3_vr_pfp, &
                                     clm_pf_idata%smin_no3_vr_clms)
     endif
 
-    if(clm_pf_idata%ispec_nh4 > 0) then
+    if(clm_pf_idata%ispec_nh4 > 0 .or. clm_pf_idata%ispec_nh4s > 0) then
       call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     option, &
                                     clm_pf_idata%smin_nh4_vr_pfp, &
@@ -5281,14 +5317,38 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     !     (may not be needed due to update at end of every timestep, but just in case)
     !
 
-    call VecGetArrayF90(clm_pf_idata%acchr_vr_pfp, acchr_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%accnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    if (clm_pf_idata%ispec_hrimm>0) then
+      call VecGetArrayF90(clm_pf_idata%acctothr_vr_pfp, acchr_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else
+      call VecGetArrayF90(clm_pf_idata%acchr_vr_pfp, acchr_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+    if (clm_pf_idata%ispec_nmin>0) then
+      call VecGetArrayF90(clm_pf_idata%acctotnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else
+      call VecGetArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+    if (clm_pf_idata%ispec_nimp>0) then
+      call VecGetArrayF90(clm_pf_idata%acctotnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else
+      call VecGetArrayF90(clm_pf_idata%accnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+    if (clm_pf_idata%ispec_nimm>0) then
+      call VecGetArrayF90(clm_pf_idata%acctotnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else
+      call VecGetArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
     call VecGetArrayF90(clm_pf_idata%accextrnh4_vr_pfp, accextrnh4_vr_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%accextrno3_vr_pfp, accextrno3_vr_pf_loc, ierr)
@@ -5310,14 +5370,38 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     accngasnitr_vr_pf_loc(:)= 0.d0
     accngasdeni_vr_pf_loc(:)= 0.d0
 
-    call VecRestoreArrayF90(clm_pf_idata%acchr_vr_pfp, acchr_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%accnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
-    CHKERRQ(ierr)
+    if (clm_pf_idata%ispec_hrimm>0) then
+      call VecRestoreArrayF90(clm_pf_idata%acctothr_vr_pfp, acchr_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else
+      call VecRestoreArrayF90(clm_pf_idata%acchr_vr_pfp, acchr_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+    if (clm_pf_idata%ispec_nmin>0) then
+      call VecRestoreArrayF90(clm_pf_idata%acctotnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else
+      call VecRestoreArrayF90(clm_pf_idata%accnmin_vr_pfp, accnmin_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+    if (clm_pf_idata%ispec_nimp>0) then
+      call VecRestoreArrayF90(clm_pf_idata%acctotnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else
+      call VecRestoreArrayF90(clm_pf_idata%accnimmp_vr_pfp, accnimmp_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
+    if (clm_pf_idata%ispec_nimm>0) then
+      call VecRestoreArrayF90(clm_pf_idata%acctotnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    else
+      call VecRestoreArrayF90(clm_pf_idata%accnimm_vr_pfp, accnimm_vr_pf_loc, ierr)
+      CHKERRQ(ierr)
+    endif
+
     call VecRestoreArrayF90(clm_pf_idata%accextrnh4_vr_pfp, accextrnh4_vr_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%accextrno3_vr_pfp, accextrno3_vr_pf_loc, ierr)

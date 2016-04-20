@@ -69,14 +69,16 @@ module clm_pflotran_interface_data
   PetscInt:: ispec_hrimm
   character(len=32):: name_hrim   = "HRimm"          ! this is for total HR
 
-  PetscInt :: ispec_nmin, ispec_nimmp, ispec_nimm
+  PetscInt :: ispec_nmin, ispec_nimp, ispec_nimm
   character(len=32):: name_nmin  = "Nmin"            ! this is for total Nmin
-  character(len=32):: name_nimmp = "Nimmp"           ! this is for total Nimmp
+  character(len=32):: name_nimp  = "Nimp"            ! this is for total Nimmp
   character(len=32):: name_nimm  = "Nimm"            ! this is for total Nimm
 
-  PetscInt:: ispec_nh4, ispec_no3, ispec_nh4sorb
+  PetscInt:: ispec_nh4, ispec_no3, ispec_nh4s, ispec_no3s, ispec_nh4sorb
   character(len=32):: name_nh4     = "NH4+"
   character(len=32):: name_no3     = "NO3-"
+  character(len=32):: name_nh4s    = "Ammonium"
+  character(len=32):: name_no3s    = "Nitrate"
   character(len=32):: name_nh4sorb = "NH4sorb"
 
   PetscInt :: ispec_plantndemand, ispec_plantnh4uptake, ispec_plantno3uptake
@@ -472,8 +474,14 @@ contains
     clm_pf_idata%ndecomp_elements = 0
 
     clm_pf_idata%ispec_hrimm   = 0
+    clm_pf_idata%ispec_nmin    = 0
+    clm_pf_idata%ispec_nimm    = 0
+    clm_pf_idata%ispec_nimp    = 0
+
     clm_pf_idata%ispec_nh4     = 0
     clm_pf_idata%ispec_no3     = 0
+    clm_pf_idata%ispec_nh4s    = 0
+    clm_pf_idata%ispec_no3s    = 0
     clm_pf_idata%ispec_nh4sorb = 0
     clm_pf_idata%ispec_plantndemand   = 0
     clm_pf_idata%ispec_plantnh4uptake = 0
@@ -1068,10 +1076,10 @@ contains
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnimmp_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnimm_vr_clms,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoil_vr_clms,clm_pf_idata%acctothr_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_vr_clms,clm_pf_idata%acctotnmin_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_vr_clms,clm_pf_idata%acctotnimmp_vr_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_vr_clms,clm_pf_idata%acctotnimm_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%acctothr_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%acctotnmin_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%acctotnimmp_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%acctotnimm_vr_clms,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%accngasmin_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%accngasnitr_vr_clms,ierr)
