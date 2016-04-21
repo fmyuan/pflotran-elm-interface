@@ -47,8 +47,11 @@ PFLOTRAN-dev change set: 8b1a371a7198bd6693e1c693b6c086855e0c62ce [8b1a371a7198]
 (3) if not coupled with CLM, this repository should be a stand-alone PFLOTRAN model (the Source code directory: ./Src/pflotran, and build it by issuing command: make PETSC_DIR=$PETSC_DIR pflotran, where $PETSC_DIR is your PETSC_DIR directory).
 
 (4) if coupled with PFLOTRAN, first build a libpflotran.a in ./Src/clm-pflotran - 
+
 First, run the script link_files.sh to copy PFLOTRAN codes
+
 Secondly, build the library: make PETSC_DIR=$PETSC_DIR use_characteristic_curves=TRUE libpflotran.a
+
 Then build CLM with this library. 
 
 UPDATED: 2016-04-21
