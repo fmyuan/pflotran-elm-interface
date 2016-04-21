@@ -69,42 +69,17 @@ module clm_pflotran_interface_data
   PetscInt:: ispec_hrimm
   character(len=32):: name_hrim   = "HRimm"          ! this is for total HR
 
-  PetscInt :: ispec_nmin, ispec_nimmp, ispec_nimm
+  PetscInt :: ispec_nmin, ispec_nimp, ispec_nimm
   character(len=32):: name_nmin  = "Nmin"            ! this is for total Nmin
-  character(len=32):: name_nimmp = "Nimmp"           ! this is for total Nimmp
+  character(len=32):: name_nimp  = "Nimp"            ! this is for total Nimmp
   character(len=32):: name_nimm  = "Nimm"            ! this is for total Nimm
 
-  PetscInt:: ispec_lit1c, ispec_lit2c, ispec_lit3c, ispec_cwdc
-  PetscInt:: ispec_lit1n, ispec_lit2n, ispec_lit3n, ispec_cwdn
-  PetscInt:: ispec_som1c, ispec_som2c, ispec_som3c, ispec_som4c
-  PetscInt:: ispec_som1n, ispec_som2n, ispec_som3n, ispec_som4n
-  character(len=32):: name_lit1 = "LITR1"           ! appending 'C' or 'N' for real PF species name
-  character(len=32):: name_lit2 = "LITR2"
-  character(len=32):: name_lit3 = "LITR3"
-  character(len=32):: name_cwd  = "CWD"
-  character(len=32):: name_soil1= "SOIL1"
-  character(len=32):: name_soil2= "SOIL2"
-  character(len=32):: name_soil3= "SOIL3"
-  character(len=32):: name_soil4= "SOIL4"
-
-  character(len=32):: name_labile    = "Labile"     ! i.e., 'lit1' above
-  character(len=32):: name_cellulose = "Cellulose"  ! i.e., 'lit2' above
-  character(len=32):: name_lignin    = "Lignin"     ! i.e., 'lit3' above
-  character(len=32):: name_som1 = "SOM1"            ! i.e., 'soil1' above
-  character(len=32):: name_som2 = "SOM2"            ! i.e., 'soil2' above
-  character(len=32):: name_som3 = "SOM3"            ! i.e., 'soil3' above
-  character(len=32):: name_som4 = "SOM4"            ! i.e., 'soil4' above
-
-  PetscInt:: ispec_fungi, ispec_bacteria
-  character(len=32):: name_fungi    = "Fungi"
-  character(len=32):: name_bacteria = "Bacteria"
-
-  PetscInt:: ispec_nh4, ispec_no3, ispec_nh4sorb, ispec_nh4imm, ispec_no3imm
+  PetscInt:: ispec_nh4, ispec_no3, ispec_nh4s, ispec_no3s, ispec_nh4sorb
   character(len=32):: name_nh4     = "NH4+"
   character(len=32):: name_no3     = "NO3-"
+  character(len=32):: name_nh4s    = "Ammonium"
+  character(len=32):: name_no3s    = "Nitrate"
   character(len=32):: name_nh4sorb = "NH4sorb"
-  character(len=32):: name_nh4imm  = "Ammonium"
-  character(len=32):: name_no3imm  = "Nitrate"
 
   PetscInt :: ispec_plantndemand, ispec_plantnh4uptake, ispec_plantno3uptake
   character(len=32):: name_plantndemand   = "Plantndemand"
@@ -396,16 +371,25 @@ module clm_pflotran_interface_data
   Vec :: gn2o_vr_pfs                   ! (moleN/m3) vertically-resolved N2O-N, after gas emission
 
   ! some tracking variables from PFLOTRAN bgc to obtain reaction flux rates which needed by CLM
-  Vec :: acchr_vr_pfp                 ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
-  Vec :: acchr_vr_clms                ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from decomposition
+  Vec :: acchr_vr_pfp                  ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from individual decomposition
+  Vec :: acchr_vr_clms                 ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from individual decomposition
+  Vec :: acctothr_vr_pfp               ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from all decomposition
+  Vec :: acctothr_vr_clms              ! (moleC/m3/timestep) vertically-resolved heterotrophic resp. C from all decomposition
 
   Vec :: accnmin_vr_pfp                ! (moleN/m3/timestep) vertically-resolved N mineralization
   Vec :: accnmin_vr_clms               ! (moleN/m3/timestep) vertically-resolved N mineralization
+  Vec :: acctotnmin_vr_pfp             ! (moleN/m3/timestep) vertically-resolved total N mineralization
+  Vec :: acctotnmin_vr_clms            ! (moleN/m3/timestep) vertically-resolved total N mineralization
 
-  Vec :: accnimmp_vr_pfp                ! (moleN/m3/timestep) vertically-resolved potential N immoblization
-  Vec :: accnimmp_vr_clms               ! (moleN/m3/timestep) vertically-resolved potential N immoblization
+  Vec :: accnimmp_vr_pfp               ! (moleN/m3/timestep) vertically-resolved potential N immoblization
+  Vec :: accnimmp_vr_clms              ! (moleN/m3/timestep) vertically-resolved potential N immoblization
+  Vec :: acctotnimmp_vr_pfp            ! (moleN/m3/timestep) vertically-resolved potential total N immoblization
+  Vec :: acctotnimmp_vr_clms           ! (moleN/m3/timestep) vertically-resolved potential total N immoblization
+
   Vec :: accnimm_vr_pfp                ! (moleN/m3/timestep) vertically-resolved N immoblization
   Vec :: accnimm_vr_clms               ! (moleN/m3/timestep) vertically-resolved N immoblization
+  Vec :: acctotnimm_vr_pfp             ! (moleN/m3/timestep) vertically-resolved total N immoblization
+  Vec :: acctotnimm_vr_clms            ! (moleN/m3/timestep) vertically-resolved total N immoblization
 
   Vec :: accngasmin_vr_pfp              ! (moleN/m3/timestep) vertically-resolved N2O-N from mineralization
   Vec :: accngasmin_vr_clms             ! (moleN/m3/timestep) vertically-resolved N2O-N from mineralization
@@ -490,8 +474,14 @@ contains
     clm_pf_idata%ndecomp_elements = 0
 
     clm_pf_idata%ispec_hrimm   = 0
+    clm_pf_idata%ispec_nmin    = 0
+    clm_pf_idata%ispec_nimm    = 0
+    clm_pf_idata%ispec_nimp    = 0
+
     clm_pf_idata%ispec_nh4     = 0
     clm_pf_idata%ispec_no3     = 0
+    clm_pf_idata%ispec_nh4s    = 0
+    clm_pf_idata%ispec_no3s    = 0
     clm_pf_idata%ispec_nh4sorb = 0
     clm_pf_idata%ispec_plantndemand   = 0
     clm_pf_idata%ispec_plantnh4uptake = 0
@@ -719,14 +709,23 @@ contains
     ! tracking variables in C-N cycle
     clm_pf_idata%acchr_vr_pfp       = 0
     clm_pf_idata%acchr_vr_clms      = 0
+    clm_pf_idata%acctothr_vr_pfp    = 0
+    clm_pf_idata%acctothr_vr_clms   = 0
 
     clm_pf_idata%accnmin_vr_pfp       = 0
     clm_pf_idata%accnmin_vr_clms      = 0
+    clm_pf_idata%acctotnmin_vr_pfp    = 0
+    clm_pf_idata%acctotnmin_vr_clms   = 0
 
     clm_pf_idata%accnimmp_vr_pfp      = 0
     clm_pf_idata%accnimmp_vr_clms     = 0
+    clm_pf_idata%acctotnimmp_vr_pfp   = 0
+    clm_pf_idata%acctotnimmp_vr_clms  = 0
+
     clm_pf_idata%accnimm_vr_pfp       = 0
     clm_pf_idata%accnimm_vr_clms      = 0
+    clm_pf_idata%acctotnimm_vr_pfp    = 0
+    clm_pf_idata%acctotnimm_vr_clms   = 0
 
     clm_pf_idata%accngasmin_vr_pfp       = 0
     clm_pf_idata%accngasmin_vr_clms      = 0
@@ -1055,6 +1054,11 @@ contains
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfp,clm_pf_idata%accnimmp_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_pfp,clm_pf_idata%accnimm_vr_pfp,ierr)
 
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%acctothr_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%acctotnmin_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%acctotnimmp_vr_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%acctotnimm_vr_pfp,ierr)
+
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%accngasmin_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%accngasnitr_vr_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%accngasdeni_vr_pfp,ierr)
@@ -1071,6 +1075,11 @@ contains
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnmin_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnimmp_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%decomp_cpools_vr_clms,clm_pf_idata%accnimm_vr_clms,ierr)
+
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%acctothr_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%acctotnmin_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%acctotnimmp_vr_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%acctotnimm_vr_clms,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%accngasmin_vr_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%accngasnitr_vr_clms,ierr)
@@ -1530,19 +1539,40 @@ contains
     if(clm_pf_idata%acchr_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%acchr_vr_clms,ierr)
 
+    if(clm_pf_idata%acctothr_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%acctothr_vr_pfp,ierr)
+    if(clm_pf_idata%acctothr_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%acctothr_vr_clms,ierr)
+
     if(clm_pf_idata%accnmin_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%accnmin_vr_pfp,ierr)
     if(clm_pf_idata%accnmin_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%accnmin_vr_clms,ierr)
 
+    if(clm_pf_idata%acctotnmin_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%acctotnmin_vr_pfp,ierr)
+    if(clm_pf_idata%acctotnmin_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%acctotnmin_vr_clms,ierr)
+
     if(clm_pf_idata%accnimmp_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%accnimmp_vr_pfp,ierr)
-    if(clm_pf_idata%accnimm_vr_pfp /= 0) &
-       call VecDestroy(clm_pf_idata%accnimm_vr_pfp,ierr)
     if(clm_pf_idata%accnimmp_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%accnimmp_vr_clms,ierr)
+
+    if(clm_pf_idata%acctotnimmp_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%acctotnimmp_vr_pfp,ierr)
+    if(clm_pf_idata%acctotnimmp_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%acctotnimmp_vr_clms,ierr)
+
+    if(clm_pf_idata%accnimm_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%accnimm_vr_pfp,ierr)
     if(clm_pf_idata%accnimm_vr_clms /= 0) &
        call VecDestroy(clm_pf_idata%accnimm_vr_clms,ierr)
+
+    if(clm_pf_idata%acctotnimm_vr_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%acctotnimm_vr_pfp,ierr)
+    if(clm_pf_idata%acctotnimm_vr_clms /= 0) &
+       call VecDestroy(clm_pf_idata%acctotnimm_vr_clms,ierr)
 
     if(clm_pf_idata%accngasmin_vr_pfp /= 0) &
        call VecDestroy(clm_pf_idata%accngasmin_vr_pfp,ierr)
