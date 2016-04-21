@@ -3052,6 +3052,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     clm_pf_idata%ispec_nimp  = GetImmobileSpeciesIDFromName(word, &
                   realization%reaction%immobile,PETSC_FALSE,realization%option)
 
+
     do k=1, clm_pf_idata%ndecomp_pools
 
       ! NOTE: the PF soil bgc sandbox 'SomDec' has a naming protocol as following
@@ -3352,7 +3353,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     PetscReal:: sum_cfrac, sum_nfrac
 
     !-------------------------------------------------------------------------
-    subname = 'pflotranModelGetRTSpecies'
+    subname = 'pflotranModelSetSOMKformCLM'
     !-------------------------------------------------------------------------
     option => pflotran_model%option
     select type (modelsim => pflotran_model%simulation)
