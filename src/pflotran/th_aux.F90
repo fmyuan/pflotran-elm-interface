@@ -922,7 +922,7 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
     class is(sat_func_BC_type)
       sf%alpha  = auxvar%bc_alpha
       sf%lambda = auxvar%bc_lambda
-      sf%Sr  = auxvar%bc_sr1
+      sf%Sr     = auxvar%bc_sr1
       ! needs to re-calculate some extra variables for 'saturation_function', if changed above
       error_string = 'passing CLM characterisitc-curves parameters: sat_function'
       call sf%SetupPolynomials(option,error_string)
@@ -935,13 +935,15 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
 
   select type(rpf => characteristic_curves%liq_rel_perm_function)
     !class is(rpf_Mualem_VG_liq_type)
+      !TODO
+
+      ! needs to re-calculate some extra variables for 'saturation_function', if changed above
+      ! error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
+      ! call rpf%SetupPolynomials(option,error_string)
+
     class is(rpf_Burdine_BC_liq_type)
       rpf%lambda = auxvar%bc_lambda
       rpf%Sr  = auxvar%bc_sr1
-
-      ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-      error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
-      call rpf%SetupPolynomials(option,error_string)
 
     class default
       option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
@@ -1006,12 +1008,18 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
   dsg_dt = 0.d0
 
   select type (sf => characteristic_curves%saturation_function)
-    ! class is(sat_func_BC_type)
-       ! not-yet
+    class is(sat_func_BC_type)
+      !
     class is(sat_func_VG_type)
+      !
+    class default
+      option%io_buffer = 'Only van Genuchten/Brooks-Corey SF supported with ice model option'
+      call printErrMsg(option)
+
+  end select ! select type (sf=>characteristic_curves%saturation_function)
 
       pl0 = pc
-      call sf%Saturation(pl0, sli, dsli_dp, option)
+      call characteristic_curves%saturation_function%Saturation(pl0, sli, dsli_dp, option)
       ! in 'Saturaton_Function.F90', PKE subroutine: dsl_dp = -dS;
       ! which appears opposite when using Characteristic_curves_module (see characteristic_curves.F90: line 2082)
 
@@ -1095,7 +1103,7 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
             dxplice_dp = -beta*Lf*Hfunc*(tftheta*drhol_dp+rhol*dtftheta_dp) &
                          + (1.d0-Hfunc)
 
-            call sf%Saturation(xplice, slx, dslx_dx, option)
+            call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
             ! in 'Saturaton_Function.F90', PKE subroutine: dsl_dp = -dS;
             ! which appears opposite when using Characteristic_curves_module (see characteristic_curves.F90: line 2082)
 
@@ -1116,11 +1124,6 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
         end select ! select case (option%ice_model)
 
       endif ! 'option%use_th_freezing'
-
-    class default
-      option%io_buffer = 'Only van Genuchten supported with ice model option'
-      call printErrMsg(option)
-  end select ! select type (sf=>characteristic_curves%saturation_function)
   !
   sg = 1.d0 - sl - si
   dsg_dp = -dsl_dp - dsi_dp
@@ -1153,21 +1156,23 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
   dkrg_dp= 0.d0
   dkrg_dt= 0.d0
 
-  select type (rpf_liq => characteristic_curves%liq_rel_perm_function)
+  select type (rpf => characteristic_curves%liq_rel_perm_function)
+    class is(rpf_BURDINE_BC_liq_type)
+      !
     class is(rpf_Mualem_VG_liq_type)
-
-      call rpf_liq%RelativePermeability(sl, kr, dkr_dse, option)
-      dkr_dp = rpf_liq%DRelPerm_DPressure(dsl_dp, dkr_dse)
-
-      dkr_dt = dkr_dse/(1.d0-characteristic_curves%saturation_function%Sr) &
-              *dsl_dt
-
+      !
     class default
       option%io_buffer = 'THAuxVarComputeFreezing2: ' // &
-        'TH with Ice model now only support rpf_liq: Mualem_VG_liq_type.'
+        'TH with Ice model now only support rpf_liq: Mualem_VG_liq_type/BURDINE_BC_liq_type.'
       call printErrMsg(option)
 
   end select
+
+  call characteristic_curves%liq_rel_perm_function%RelativePermeability(sl, kr, dkr_dse, option)
+  dkr_dp = characteristic_curves%liq_rel_perm_function%DRelPerm_DPressure(dsl_dp, dkr_dse)
+  dkr_dt = dkr_dse/(1.d0-characteristic_curves%saturation_function%Sr) &
+              *dsl_dt
+
 
   !***************  liq. phase properties **************************
   ! saturation

@@ -857,6 +857,9 @@ subroutine FlowConditionRead(condition,input,option)
             case('mass_rate')
               sub_condition_ptr%itype = MASS_RATE_SS
               rate_string = 'kg/sec'
+            case('energy_flux')
+              sub_condition_ptr%itype = NEUMANN_BC
+              rate_string = 'MW/m^2|MJ/sec-m^2'
             case('energy_rate')
               sub_condition_ptr%itype = ENERGY_RATE_SS
               rate_string = 'MJ/sec|MW'
