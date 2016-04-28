@@ -984,13 +984,11 @@ contains
     type(grid_type), pointer                  :: grid
     type(field_type), pointer                 :: field
 
+    class(characteristic_curves_type), pointer :: characteristic_curves
     type(richards_auxvar_type), pointer       :: rich_auxvars(:)
     type(richards_auxvar_type), pointer       :: rich_auxvar
-    class(characteristic_curves_type), pointer :: characteristic_curves
-
     type(th_auxvar_type), pointer             :: th_auxvars(:)
     type(th_auxvar_type), pointer             :: th_auxvar
-    type(saturation_function_type), pointer :: saturation_function
 
     class(simulation_subsurface_type), pointer  :: simulation
     class(realization_subsurface_type), pointer :: realization
@@ -1146,7 +1144,7 @@ contains
     CHKERRQ(ierr)
 
     if(option%iflowmode==RICHARDS_MODE .or. &
-      option%iflowmode==TH_MODE) then
+       option%iflowmode==TH_MODE) then
       ! F.-M. Yuan: without flowmode, the folllowing will throw out segementation fault error
       call VecGetArrayF90(field%perm0_xx,  perm_xx_loc_p,  ierr)
       CHKERRQ(ierr)
@@ -1168,45 +1166,33 @@ contains
 
       !F.-M. Yuan: (1) the following IS to pass CLM soil hydraulic data into 'saturation_function';
       !            (2) data-passing IS by from 'ghosted_id' to PF's 'local_id'.
-      if(option%nflowdof > 0) then
-
-        if(option%iflowmode == RICHARDS_MODE) then
-          ! Richards_MODE now is using 'charateristic_curves' module
-          characteristic_curves => patch%  &
+      if(option%iflowmode == RICHARDS_MODE .or. &
+         option%iflowmode == TH_MODE) then
+          ! Richards_MODE/TH_MODE now are using 'charateristic_curves' module
+        characteristic_curves => patch%  &
             characteristic_curves_array(patch%sat_func_id(local_id))%ptr
 
-          select type(sf => characteristic_curves%saturation_function)
-            !class is(sat_func_VG_type)
+        select type(sf => characteristic_curves%saturation_function)
+          !class is(sat_func_VG_type)
              ! not-yet (TODO)
-            class is(sat_func_BC_type)
-              sf_func_type = BROOKS_COREY
-            class default
-              option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
+          class is(sat_func_BC_type)
+            sf_func_type = BROOKS_COREY
+          class default
+            option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
               ' when coupled with CLM.'
               call printErrMsg(option)
-          end select
+        end select
 
-          select type(rpf => characteristic_curves%liq_rel_perm_function)
-            !class is(rpf_Mualem_VG_liq_type)
+        select type(rpf => characteristic_curves%liq_rel_perm_function)
+          !class is(rpf_Mualem_VG_liq_type)
               ! (TODO)
-            class is(rpf_Burdine_BC_liq_type)
-              rpf_func_type = BURDINE
-            class default
-              option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
-               ' when coupled with CLM.'
-              call printErrMsg(option)
-          end select
-
-        ! TH_mode is still using 'saturation_function' module
-        elseif(option%iflowmode == TH_MODE) then
-
-          saturation_function => patch%  &
-            saturation_function_array(patch%sat_func_id(local_id))%ptr
-
-          sf_func_type = saturation_function%saturation_function_itype
-          rpf_func_type= saturation_function%permeability_function_itype
-
-        endif
+          class is(rpf_Burdine_BC_liq_type)
+            rpf_func_type = BURDINE
+          class default
+            option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
+             ' when coupled with CLM.'
+            call printErrMsg(option)
+        end select
 
        ! currently VG-Mulaem saturation function type - NOT YET done in CLM (TODO)
        ! if ( sf_func_type == VAN_GENUCHTEN .and. &
@@ -1219,7 +1205,7 @@ contains
 
        ! currently BC-Burdine saturation/permisivity function type, with specified values to match with Clapp-Hornberger Eq.
         if ( sf_func_type == BROOKS_COREY .and. &
-             sf_func_type == BURDINE )         then
+             rpf_func_type == BURDINE )         then
           ! Clapp-Hornberger: soilpsi = sucsat * (-9.81) * (fsattmp)**(-bsw)  ! mm H2O Head --> -pa
           !                   K = Ks*fsattmp**(3+2*bsw)
           !         vs.
@@ -1306,6 +1292,7 @@ contains
 
     call VecRestoreArrayF90(field%porosity0, porosity_loc_p, ierr)
     CHKERRQ(ierr)
+
     if(option%iflowmode==RICHARDS_MODE .or. &
       option%iflowmode==TH_MODE) then
       ! F.-M. Yuan: without flowmode, the folllowing will throw out segementation fault error
@@ -1328,18 +1315,19 @@ contains
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                POROSITY,POROSITY_CURRENT)
 
-    if (option%nflowdof > 0) then
-        call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
+    if(option%iflowmode==RICHARDS_MODE .or. &
+       option%iflowmode==TH_MODE) then
+      call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
                                      field%work_loc,ONEDOF)
-        call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+      call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  PERMEABILITY_X,ZERO_INTEGER)
-        call DiscretizationGlobalToLocal(discretization,field%perm0_yy, &
+      call DiscretizationGlobalToLocal(discretization,field%perm0_yy, &
                                      field%work_loc,ONEDOF)
-        call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+      call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  PERMEABILITY_Y,ZERO_INTEGER)
-        call DiscretizationGlobalToLocal(discretization,field%perm0_zz, &
+      call DiscretizationGlobalToLocal(discretization,field%perm0_zz, &
                                      field%work_loc,ONEDOF)
-        call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
+      call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                  PERMEABILITY_Z,ZERO_INTEGER)
     endif
 
@@ -1428,7 +1416,8 @@ contains
     CHKERRQ(ierr)
 
     ! for adjusting permissivity
-    if (option%nflowdof > 0) then
+    if(option%iflowmode==RICHARDS_MODE .or. &
+       option%iflowmode==TH_MODE) then
 
         unitconv  = 0.001002d0/(998.2d0*GRAVITY_CONSTANT)/1000.d0    ! from hydraulic conductivity (mmH2O/sec) to permissivity (kg/sec)
         perm_adj  = 1.0d0
@@ -1470,7 +1459,8 @@ contains
 
       porosity0_loc_p(local_id) = porosity_pfs_loc(ghosted_id)
 
-      if (option%nflowdof > 0) then
+      if(option%iflowmode==RICHARDS_MODE .or. &
+         option%iflowmode==TH_MODE) then
            ! Ksat is based on actaul porosity, so when porosity is using the effective one, Ksat should be effective as well
            ! This will prevent large hydraulic conductivity in PFLOTRAN when shrinking pore size
            ! because PFLOTRAN uses pressure (saturation) in its rel. perm calculation.
@@ -1490,7 +1480,8 @@ contains
     call VecRestoreArrayF90(field%porosity0, porosity0_loc_p, ierr)
     CHKERRQ(ierr)
     !
-    if (option%nflowdof > 0) then
+    if(option%iflowmode==RICHARDS_MODE .or. &
+       option%iflowmode==TH_MODE) then
         call VecRestoreArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
         CHKERRQ(ierr)
         call VecRestoreArrayF90(clm_pf_idata%hksat_y_pfs, hksat_y_pf_loc, ierr)
@@ -1516,7 +1507,8 @@ contains
     call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                POROSITY,ZERO_INTEGER)
 
-    if (option%nflowdof > 0) then
+    if(option%iflowmode==RICHARDS_MODE .or. &
+       option%iflowmode==TH_MODE) then
         call DiscretizationGlobalToLocal(discretization,field%perm0_xx, &
                                      field%work_loc,ONEDOF)
         call MaterialSetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
@@ -1553,10 +1545,9 @@ contains
     use Realization_Subsurface_class, only : realization_subsurface_type
     use Simulation_Subsurface_class, only : simulation_subsurface_type
 
-    use Richards_Aux_module
     use Characteristic_Curves_module
+    use Richards_Aux_module
     use TH_Aux_module
-    use Saturation_Function_module
 
     use clm_pflotran_interface_data
     use Mapping_module
@@ -1575,11 +1566,9 @@ contains
     class(simulation_subsurface_type), pointer  :: simulation
     class(realization_subsurface_type), pointer :: realization
 
-    type(saturation_function_type), pointer :: saturation_function
-    type(th_auxvar_type), pointer :: th_auxvar
-
     class(characteristic_curves_type), pointer :: characteristic_curves
     type(richards_auxvar_type), pointer :: rich_auxvar
+    type(th_auxvar_type), pointer :: th_auxvar
 
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
@@ -1640,44 +1629,34 @@ contains
 
       !
       if (option%iflowmode==RICHARDS_MODE) then
-        ! Richards_MODE now is using 'charateristic_curves' module
-
-        characteristic_curves => patch% &
-          characteristic_curves_array(cur_sat_func_id)%ptr
         rich_auxvar => patch%aux%Richards%auxvars(ghosted_id)
 
-        select type(sf => characteristic_curves%saturation_function)
-          !class is(sat_func_VG_type)
-             ! not-yet (TODO)
-          class is(sat_func_BC_type)
-            ! PF's limits on soil matrix potential (Capillary pressure)
-            pcwmax_loc_pfp(local_id) = sf%pcmax
-
-            ! PF's limits on soil water at pcwmax (NOT: not 'Sr', at which PC is nearly 'inf')
-            call sf%Saturation(sf%pcmax, tempreal, tempreal2, option)
-            sr_pcwmax_loc_pfp(local_id) = tempreal
-
-          class default
-            option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
-              ' when coupled with CLM.'
-            call printErrMsg(option)
-        end select
-
-      !
-      elseif (option%iflowmode==TH_MODE) then
-        ! 'saturation_function' module NOW only with TH_mode
-        saturation_function => patch%saturation_function_array(cur_sat_func_id)%ptr
+      elseif(option%iflowmode==TH_MODE) then
         th_auxvar => patch%aux%TH%auxvars(ghosted_id)
 
-        ! PF's limits on soil matrix potential (Capillary pressure)
-        pcwmax_loc_pfp(local_id) = saturation_function%pcwmax
-
-        ! PF's limits on soil water at pcwmax (NOT: not 'Sr', at which PC is nearly 'inf')
-        call SaturationFunctionCompute(saturation_function%pcwmax, tempreal, &
-                                      saturation_function, &
-                                      option)
-        sr_pcwmax_loc_pfp(local_id) = tempreal
       endif
+
+      ! Richards_MODE/TH_MODE now are using 'charateristic_curves' module
+
+      characteristic_curves => patch% &
+          characteristic_curves_array(cur_sat_func_id)%ptr
+
+      select type(sf => characteristic_curves%saturation_function)
+        !class is(sat_func_VG_type)
+             ! not-yet (TODO)
+        class is(sat_func_BC_type)
+          ! PF's limits on soil matrix potential (Capillary pressure)
+          pcwmax_loc_pfp(local_id) = sf%pcmax
+
+          ! PF's limits on soil water at pcwmax (NOT: not 'Sr', at which PC is nearly 'inf')
+          call sf%Saturation(sf%pcmax, tempreal, tempreal2, option)
+          sr_pcwmax_loc_pfp(local_id) = tempreal
+
+        class default
+            option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
+              ' when coupled with CLM.'
+         call printErrMsg(option)
+      end select
 
     enddo
 
@@ -2157,48 +2136,59 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           if (ghosted_id <= 0 .or. local_id <= 0) cycle
           if (patch%imat(ghosted_id) < 0) cycle
 
-          if(StringCompare(boundary_condition%name,'clm_gflux_bc') .and. &
-             boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
+          if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then
+             if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
                    boundary_condition%flow_aux_real_var(press_dof,iconn)= &
                        qflux_subsurf_pf_loc(iconn)
 
-             cur_connection_set%area(iconn) = toparea_p(local_id)     ! normally it's ON (MPI vec, it's from 'local_id')
-             if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! shut-off the BC by resetting the BC 'area' to a tiny value
-                cur_connection_set%area(iconn) = 0.d0
-             endif
+               cur_connection_set%area(iconn) = toparea_p(local_id)     ! normally it's ON (MPI vec, it's from 'local_id')
+               if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! shut-off the BC by resetting the BC 'area' to a tiny value
+                 cur_connection_set%area(iconn) = 0.d0
+               endif
 
+             else
+               option%io_buffer='pflotranModelSetTHbcs -  ' // &
+                 ' for CLM-PFLOTRAN coupling - flow condition MUST be named as following: ' // &
+                 ' "clm_gflux_bc/NEUMANN " for subsurface-top TYPE I  '
+               call printErrMsg(option)
+             endif
           endif
 
-          if(StringCompare(boundary_condition%name,'clm_gpress_bc') .and. &
-             boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
+          if(StringCompare(boundary_condition%name,'clm_gpress_bc')) then
+             if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
                    boundary_condition%flow_aux_real_var(press_dof,iconn)= &
                        press_subsurf_pf_loc(iconn)
 
-             cur_connection_set%area(iconn) = 0.d0               ! normally shut-off this BC
-             if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! turn on the BC by resetting the BC 'area' to real value
-                cur_connection_set%area(iconn) = toparea_p(local_id)
+               cur_connection_set%area(iconn) = 0.d0               ! normally shut-off this BC
+               if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! turn on the BC by resetting the BC 'area' to real value
+                  cur_connection_set%area(iconn) = toparea_p(local_id)
 
-#ifdef CLM_PF_DEBUG
-     ! the following shows BC connection IS matching up exactly with surface control volume id from CLM
-     ! probably because it's in 2D. but for toparea_p, it's in 3D (all cells, not only surface)
-      write(option%myrank+200,*) 'checking H-PRESS. -pf_model-setSoilHbc:', &
-        'rank=',option%myrank, 'local_id=',local_id, 'ghosted_id=',ghosted_id, &
-        'iconn=',iconn, 'press_top(iconn)=',press_subsurf_pf_loc(iconn), &
-        'toparea_p(iconn)=', toparea_p(local_id),&
-        'press_dof=',press_dof, &
-        'bc_itype=',boundary_condition%flow_condition%itype(press_dof)
-#endif
+               endif
+
+             else
+               option%io_buffer='pflotranModelSetTHbcs -  ' // &
+                 ' for CLM-PFLOTRAN coupling - flow condition MUST be named as following: ' // &
+                 ' "clm_gpress_bc/DIRICHLET " for subsurface-top TYPE II  '
+               call printErrMsg(option)
              endif
 
           endif
 
           if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then
               if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
-                   boundary_condition%flow_aux_real_var(press_dof,iconn)= &
+                boundary_condition%flow_aux_real_var(press_dof,iconn)= &
                        press_subbase_pf_loc(iconn)
               else if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
-                   boundary_condition%flow_aux_real_var(press_dof,iconn)= &
+                boundary_condition%flow_aux_real_var(press_dof,iconn)= &
                        qflux_subbase_pf_loc(iconn)
+
+              else
+                option%io_buffer='pflotranModelSetTHbcs -  ' // &
+                  ' for CLM-PFLOTRAN coupling - flow condition MUST be named as following: ' // &
+                  ' "clm_bflux_bc/NEUMANN " for subsurface-base TYPE I;  ' // &
+                  ' "clm_bflux_bc/DIRICHLET " for subsurface-base TYPE II;  '
+                call printErrMsg(option)
+
               end if
           endif
 
@@ -2354,7 +2344,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     CHKERRQ(ierr)
 
     if(.not.found) &
-      call printErrMsg(option,'clm_et_ss not found in ' // &
+      call printMsg(option,'clm_et_ss not found in ' // &
                        'source-sink list of subsurface model.')
 
   end subroutine pflotranModelUpdateHSourceSink
@@ -2401,6 +2391,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscScalar, pointer                      :: gflux_subsurf_pf_loc(:)
     PetscScalar, pointer                      :: gtemp_subsurf_pf_loc(:)
+    PetscScalar, pointer                      :: gflux_subbase_pf_loc(:)
+    PetscScalar, pointer                      :: gtemp_subbase_pf_loc(:)
     PetscBool                                 :: found
     PetscInt                                  :: iconn
     PetscErrorCode                            :: ierr
@@ -2436,11 +2428,30 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%gtemp_subsurf_clmp, &
                                     clm_pf_idata%gtemp_subsurf_pfs)
 
-    ! Update the 'clm_gflux_bc' ground heat flux BC term
+    ! Map base-heat flux from CLM--to--PF grid
+    call MappingSourceToDestination(pflotran_model%map_clm_2dbot_to_pf_2dbot, &
+                                    option, &
+                                    clm_pf_idata%gflux_subbase_clmp, &
+                                    clm_pf_idata%gflux_subbase_pfs)
+
+    ! Map base temperature from CLM--to--PF grid
+    call MappingSourceToDestination(pflotran_model%map_clm_2dbot_to_pf_2dbot, &
+                                    option, &
+                                    clm_pf_idata%gtemp_subbase_clmp, &
+                                    clm_pf_idata%gtemp_subbase_pfs)
+
+    ! Update the 'clm_gflux_bc' ground heat flux/ground-temperature BC term
     call VecGetArrayF90(clm_pf_idata%gflux_subsurf_pfs,gflux_subsurf_pf_loc,ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
     CHKERRQ(ierr)
+
+    ! Update the 'clm_bflux_bc' base heat/energy flux/base-temperature BC term
+    call VecGetArrayF90(clm_pf_idata%gflux_subbase_pfs,gflux_subbase_pf_loc,ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%gtemp_subbase_pfs,gtemp_subbase_pf_loc,ierr)
+    CHKERRQ(ierr)
+
     found = PETSC_FALSE
     boundary_condition => patch%boundary_condition_list%first
     do
@@ -2449,13 +2460,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       cur_connection_set => boundary_condition%connection_set
 
       ! Find appropriate BC from the list of boundary conditions
-      if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then
+      ! TOP of subsurface
+      if(StringCompare(boundary_condition%name,'clm_gflux_bc') .or. &
+         StringCompare(boundary_condition%name,'clm_gpress_bc')) then
 
-        !if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
-        !    /= NEUMANN_BC) then
-          !call printErrMsg(option,'clm_gflux_bc is not of ' // &
-          !                 'NEUMANN_BC')
-        !endif
         found = PETSC_TRUE
 
         do iconn = 1, cur_connection_set%num_connections
@@ -2471,6 +2479,25 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
             end if
 
+
+        enddo
+      endif
+
+      ! BOTTOM (BASE) of subsurface
+      if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then
+         do iconn = 1, cur_connection_set%num_connections
+            if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+                == NEUMANN_BC) then
+                 boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          gflux_subbase_pf_loc(iconn)
+
+            elseif (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+                == DIRICHLET_BC) then
+                 boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          gtemp_subbase_pf_loc(iconn)
+
+            end if
+
         enddo
       endif
 
@@ -2480,9 +2507,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
     CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%gflux_subbase_pfs,gflux_subbase_pf_loc,ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%gtemp_subbase_pfs,gtemp_subbase_pf_loc,ierr)
+    CHKERRQ(ierr)
 
     if(.not.found) &
-      call printErrMsg(option,'clm_gflux_bc not found in ' // &
+      call printErrMsg(option,' "clm_gflux_bc" or "clm_gpress_bc" not found in ' // &
                        'boundary-condition list of subsurface model.')
 
   end subroutine pflotranModelUpdateSubsurfTCond
@@ -2763,7 +2794,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     call VecGetArrayF90(clm_pf_idata%soilt_pfp, soilt_pf_p, ierr)
     CHKERRQ(ierr)
     do local_id=1,grid%nlmax
-      ghosted_id = grid%nL2G(ghosted_id)
+      ghosted_id = grid%nL2G(local_id)
       if (ghosted_id>0) then
         soilt_pf_p(local_id) = global_auxvars(ghosted_id)%temp
       endif
