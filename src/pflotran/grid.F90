@@ -331,7 +331,6 @@ subroutine GridComputeSpacing(grid,origin_global,option)
   ! Author: Glenn Hammond
   ! Date: 10/26/07
   ! 
-
   use Option_module
 
   implicit none
@@ -630,7 +629,6 @@ subroutine GridLocalizeRegions(grid,region_list,option)
         trim(region%name) // '".'
       call printErrMsg(option)
     endif
-
     region => region%next
 
   enddo
@@ -731,6 +729,8 @@ subroutine GridLocalizeRegions(grid,region_list,option)
     
   enddo
 #endif
+
+  ! Assign 
 
 end subroutine GridLocalizeRegions
 
@@ -2130,5 +2130,6 @@ subroutine GridGetLocalIDFromCoordinate(grid,coordinate,option,local_id)
   endif
     
 end subroutine GridGetLocalIDFromCoordinate
+
 
 end module Grid_module

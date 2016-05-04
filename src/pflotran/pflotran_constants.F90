@@ -23,6 +23,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: MAX_IN_UNIT = 25
   PetscInt, parameter, public :: IUNIT_TEMP = 86
   ! EKG_UNIT = 87
+  PetscInt, parameter, public :: INPUT_RECORD_UNIT = 88
   PetscInt, parameter, public :: HHISTORY_LENGTH = 1000
   ! HHISTORY_LENGTH is the length of the array used to store the differencing
   ! values h.
@@ -53,7 +54,6 @@ module PFLOTRAN_Constants_module
   PetscReal, parameter, public :: HEAT_OF_FUSION = 3.34d5  ! J/kg
   PetscReal, parameter, public :: PI = 3.14159265359d0
   PetscReal, parameter, public :: Faraday = 96485.3365d0 ! C/mol
-  PetscReal, parameter, public :: GRAVITY_CONSTANT = 9.80616d0    ! m/s^2
   
   PetscInt, parameter, public :: ZERO_INTEGER = 0
   PetscInt, parameter, public :: ONE_INTEGER = 1

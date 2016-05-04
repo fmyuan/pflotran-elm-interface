@@ -71,11 +71,6 @@ module TH_Aux_module
     PetscReal :: dlinear_slope_dT
     PetscBool :: bcflux_default_scheme
 
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
-    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda
-    PetscReal :: bc_sr1    ! Brooks Corey parameterization: sr(1)
-#endif
   end type TH_auxvar_type
 
   type, public :: TH_parameter_type
@@ -213,11 +208,6 @@ subroutine THAuxVarInit(auxvar,option)
   auxvar%dKe_fr_dp = uninit_value
   auxvar%dKe_fr_dt = uninit_value
   ! NOTE(bja, 2013-12) always initialize ice variables to zero, even if not used!
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  auxvar%bc_alpha  = uninit_value
-  auxvar%bc_lambda = uninit_value
-  auxvar%bc_sr1    = 1.d-9
-#endif
   auxvar%sat_ice       = uninit_value
   auxvar%sat_gas       = uninit_value
   auxvar%dsat_dt       = uninit_value
@@ -321,13 +311,6 @@ subroutine THAuxVarCopy(auxvar,auxvar2,option)
      auxvar2%mol_gas = auxvar%mol_gas
      auxvar2%dmol_gas_dt = auxvar%dmol_gas_dt
   endif
-
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-  auxvar2%bc_alpha  = auxvar%bc_alpha
-  auxvar2%bc_lambda = auxvar%bc_lambda
-  auxvar2%bc_sr1    = auxvar%bc_sr1
-#endif
-
   auxvar2%surf_wat = auxvar%surf_wat
   auxvar2%P_min = auxvar%P_min
   auxvar2%P_max = auxvar%P_max
@@ -414,16 +397,6 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 !  if (auxvar%pc > 0.d0) then
   if (auxvar%pc > 1.d0) then
     iphase = 3
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-    if(auxvar%bc_alpha > 0.d0) then
-       saturation_function%alpha  = auxvar%bc_alpha
-       saturation_function%lambda = auxvar%bc_lambda
-       saturation_function%sr(1)  = auxvar%bc_sr1
-       ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-       call SatFunctionComputePolynomial(option,saturation_function)
-       call PermFunctionComputePolynomial(option,saturation_function)
-    endif
-#endif
     call SaturationFunctionCompute(auxvar%pc,global_auxvar%sat(1), &
                                    kr,ds_dp,dkr_dp, &
                                    saturation_function, &
@@ -626,23 +599,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     dpw_dp = 1.d0
   endif  
   
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-    if(auxvar%bc_alpha > 0.d0) then
-       saturation_function%alpha  = auxvar%bc_alpha
-       saturation_function%lambda = auxvar%bc_lambda
-       saturation_function%sr(1)  = auxvar%bc_sr1
-    endif
-#endif
-
   call CapillaryPressureThreshold(saturation_function,p_th,option)
-
-#if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-    if(auxvar%bc_alpha > 0.d0) then
-       saturation_function%alpha  = auxvar%bc_alpha
-       saturation_function%lambda = auxvar%bc_lambda
-       saturation_function%sr(1)  = auxvar%bc_sr1
-    endif
-#endif
 
   select case (option%ice_model)
     case (PAINTER_EXPLICIT)
@@ -787,8 +744,8 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   ! Derivative of Kersten number
   auxvar%dKe_dp = alpha*(global_auxvar%sat(1) + epsilon)**(alpha - 1.d0)*auxvar%dsat_dp
   auxvar%dKe_dt = alpha*(global_auxvar%sat(1) + epsilon)**(alpha - 1.d0)*auxvar%dsat_dt
-  auxvar%dKe_fr_dt = alpha_fr*(global_auxvar%sat(1) + epsilon)**(alpha_fr - 1.d0)*auxvar%dsat_dt
-  auxvar%dKe_fr_dp = alpha_fr*(global_auxvar%sat(1) + epsilon)**(alpha_fr - 1.d0)*auxvar%dsat_dp
+  auxvar%dKe_fr_dt = alpha_fr*(auxvar%sat_ice + epsilon)**(alpha_fr - 1.d0)*auxvar%dsat_ice_dt
+  auxvar%dKe_fr_dp = alpha_fr*(auxvar%sat_ice + epsilon)**(alpha_fr - 1.d0)*auxvar%dsat_ice_dp
 
   if (option%ice_model == DALL_AMICO) then
     auxvar%den_ice = dw_mol

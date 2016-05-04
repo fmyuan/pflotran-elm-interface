@@ -204,7 +204,7 @@ subroutine OutputTecplotGeomechanics(geomech_realization)
   call WriteTecplotGeomechGridVertices(OUTPUT_UNIT,geomech_realization)
 
   ! loop over variables and write to file
-  cur_variable => output_option%output_variable_list%first
+  cur_variable => output_option%output_snap_variable_list%first
   do
     if (.not.associated(cur_variable)) exit
     call OutputGeomechGetVarFromArray(geomech_realization,global_vec, &
@@ -446,7 +446,8 @@ subroutine OutputTecplotHeader(fid,geomech_realization,icolumn)
            '"Z [m]"'
   write(fid,'(a)',advance="no") trim(string)
 
-  call OutputWriteVariableListToHeader(fid,output_option%output_variable_list, &
+  call OutputWriteVariableListToHeader(fid, &
+                                      output_option%output_snap_variable_list, &
                                        '',icolumn,PETSC_TRUE,variable_count)
  ! need to terminate line
   write(fid,'(a)') ''
@@ -1263,7 +1264,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   PetscMPIInt :: rank
   integer :: rank_mpi,file_space_rank_mpi
   integer :: dims(3)
-  integer :: start(3), length(3), stride(3),istart
+  integer :: start(3), length(3), stride(3)
 #else
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
@@ -1276,7 +1277,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   PetscMPIInt :: rank
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   integer(HSIZE_T) :: dims(3)
-  integer(HSIZE_T) :: start(3), length(3), stride(3),istart
+  integer(HSIZE_T) :: start(3), length(3), stride(3)
 #endif
 
   type(geomech_grid_type), pointer :: grid
@@ -1297,6 +1298,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   character(len=MAXWORDLENGTH) :: word
   character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
   PetscReal, pointer :: array(:)
+  PetscInt :: istart
   PetscInt :: i
   PetscInt :: nviz_flow, nviz_tran, nviz_dof
   PetscInt :: current_component
@@ -1395,7 +1397,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
     call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
     call WriteHDF5CoordinatesXDMFGeomech(geomech_realization,option,grp_id)
     call h5gclose_f(grp_id,hdf5_err)
-  endif
+  endif 
 
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write xmf geomech output file: ' // &
@@ -1437,7 +1439,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
 
     case (INSTANTANEOUS_VARS)
       ! loop over variables and write to file
-      cur_variable => output_option%output_variable_list%first
+      cur_variable => output_option%output_snap_variable_list%first
       do
         if (.not.associated(cur_variable)) exit
         call OutputGeomechGetVarFromArray(geomech_realization,global_vec, &
@@ -1558,7 +1560,7 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   integer :: realization_set_id
   integer :: prop_id
   integer :: dims(3)
-  integer :: start(3), length(3), stride(3),istart
+  integer :: start(3), length(3), stride(3)
   integer :: rank_mpi,file_space_rank_mpi
   integer :: hdf5_flag
   integer, parameter :: ON=1, OFF=0
@@ -1572,12 +1574,13 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
   integer(HSIZE_T) :: dims(3)
-  integer(HSIZE_T) :: start(3), length(3), stride(3),istart
+  integer(HSIZE_T) :: start(3), length(3), stride(3)
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
 #endif
 
+  PetscInt :: istart
   type(geomech_grid_type), pointer :: grid
   character(len=MAXSTRINGLENGTH) :: string
   PetscMPIInt :: hdf5_err  

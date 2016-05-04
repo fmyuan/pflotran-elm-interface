@@ -62,6 +62,7 @@ module PM_RT_class
     procedure, public :: CheckpointHDF5 => PMRTCheckpointHDF5
     procedure, public :: RestartBinary => PMRTRestartBinary
     procedure, public :: RestartHDF5 => PMRTRestartHDF5
+    procedure, public :: InputRecord => PMRTInputRecord
     procedure, public :: Destroy => PMRTDestroy
   end type pm_rt_type
   
@@ -521,10 +522,6 @@ subroutine PMRTFinalizeTimestep(this)
         this%max_volfrac_change, this%max_volfrac_change/this%option%tran_dt
     endif
   endif
-
-!fmy: begining
-#ifndef CLM_PFLOTRAN
-!the following generates a large ascii file if coupled with CLM duo to long run steps
   if (this%option%print_file_flag) then  
     write(this%option%fid_out,&
             '("  --> max chng: dcmx= ",1pe12.4,"  dc/dt= ",1pe12.4, &
@@ -537,9 +534,7 @@ subroutine PMRTFinalizeTimestep(this)
         this%max_volfrac_change, this%max_volfrac_change/this%option%tran_dt
     endif
   endif
-#endif
-!fmy: ending
-
+  
 end subroutine PMRTFinalizeTimestep
 
 ! ************************************************************************** !
@@ -802,7 +797,7 @@ subroutine PMRTCheckUpdatePre(this,line_search,X,dX,changed,ierr)
             'LOG_FORMULATION for chemistry or truncate concentrations ' // &
             '(TRUNCATE_CONCENTRATION <float> in CHEMISTRY block). ' // &
             'If that does not work, please send your input deck to ' // &
-            'pflotran-dev@googlegroups.com and ask for help.'
+            'pflotran-dev@googlegroups.com.'
           this%realization%option%io_buffer = string
           call printErrMsg(this%realization%option)
         endif
@@ -1815,6 +1810,30 @@ end subroutine PMRTRestartHDF5
 
 ! ************************************************************************** !
 
+subroutine PMRTInputRecord(this)
+  ! 
+  ! Writes ingested information to the input record file.
+  ! 
+  ! Author: Jenn Frederick, SNL
+  ! Date: 03/21/2016
+  ! 
+  
+  implicit none
+  
+  class(pm_rt_type) :: this
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: id
+
+  id = INPUT_RECORD_UNIT
+
+  write(id,'(a29)',advance='no') 'pm: '
+  write(id,'(a)') this%name
+
+end subroutine PMRTInputRecord
+
+! ************************************************************************** !
+
 subroutine PMRTDestroy(this)
   ! 
   ! Destroys RT process model
@@ -1832,6 +1851,8 @@ subroutine PMRTDestroy(this)
   call RTDestroy(this%realization)
   ! destroyed in realization
   nullify(this%comm1)
+  nullify(this%option)
+  nullify(this%output_option)
   call this%commN%Destroy()
   if (associated(this%commN)) deallocate(this%commN)
   nullify(this%commN)  

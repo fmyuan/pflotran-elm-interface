@@ -19,7 +19,9 @@ module PM_Auxiliary_class
     type(pm_auxiliary_salinity_type), pointer :: salinity
     procedure(PMAuxliaryEvaluate), pointer :: Evaluate => null()
   contains
+    procedure, public :: Setup => PMAuxiliarySetup
     procedure, public :: InitializeRun => PMAuxiliaryInitializeRun
+    procedure, public :: InputRecord => PMAuxiliaryInputRecord
     procedure, public :: Destroy => PMAuxiliaryDestroy
   end type pm_auxiliary_type
 
@@ -45,6 +47,7 @@ module PM_Auxiliary_class
             PMAuxiliaryInit, &
             PMAuxiliaryCast, &
             PMAuxiliaryRead, &
+            PMAuxiliaryInputRecord, &
             PMAuxiliarySetFunctionPointer
   
 contains
@@ -89,12 +92,27 @@ subroutine PMAuxiliaryInit(this)
   nullify(this%comm1)
   nullify(this%salinity)
   this%ctype = ''
+  this%name = ''
   
   call PMBaseInit(this)
   
 end subroutine PMAuxiliaryInit
 
- 
+! ************************************************************************** !
+
+subroutine PMAuxiliarySetup(this)
+  ! 
+  ! Sets up auxiliary process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 03/02/16
+
+  implicit none
+  
+  class(pm_auxiliary_type) :: this  
+
+end subroutine PMAuxiliarySetup
+
 ! ************************************************************************** !
 
 function PMAuxiliaryCast(this)
@@ -214,13 +232,15 @@ subroutine PMAuxiliarySetFunctionPointer(this,string)
   
   class(pm_auxiliary_type) :: this
   character(len=*) :: string
-
+  
   this%ctype = trim(string)
   select case(string)
     case('EVOLVING_STRATA')
       this%Evaluate => PMAuxiliaryEvolvingStrata
+      this%name = 'auxiliary evolving strata'
     case('SALINITY')
       this%Evaluate => PMAuxiliarySalinity
+      this%name = 'auxiliary salinity'
     case default
       this%option%io_buffer = 'Function pointer "' // trim(string) // '" not &
         &found among available functions in PMAuxiliarySetFunctionPointer.'
@@ -251,6 +271,10 @@ recursive subroutine PMAuxiliaryInitializeRun(this)
   time = 0.d0
   select case(this%ctype)
     case('EVOLVING_STRATA')
+!      call MatSetOption(Jacobian,MAT_NEW_NONZERO_LOCATION_ERR,PETSC_FALSE, &
+!                        ierr);CHKERRQ(ierr)
+!      call MatSetOption(Jacobian,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE, &
+!                        ierr);CHKERRQ(ierr)
     case('SALINITY')
       ! set up species names
       do i =1, this%salinity%nspecies
@@ -285,8 +309,11 @@ subroutine PMAuxiliaryEvolvingStrata(this,time,ierr)
   PetscReal :: time
   PetscErrorCode :: ierr
 
+  PetscInt :: ndof
+
   call InitSubsurfAssignMatIDsToRegns(this%realization)
   call InitSubsurfAssignMatProperties(this%realization)
+  call InitSubsurfaceSetupZeroArrays(this%realization)
   
 end subroutine PMAuxiliaryEvolvingStrata
 
@@ -308,7 +335,7 @@ subroutine PMAuxiliarySalinity(this,time,ierr)
   PetscReal :: time
   PetscErrorCode :: ierr
   
-  PetscInt :: ghosted_id, i, j, ispecies
+  PetscInt :: ghosted_id, i, j, ispecies, num_auxvars
   PetscReal :: sum_mass_species, xnacl, mass_h2o
   type(reactive_transport_auxvar_type), pointer :: rt_auxvars(:)
   type(global_auxvar_type), pointer :: global_auxvars(:)
@@ -318,11 +345,13 @@ subroutine PMAuxiliarySalinity(this,time,ierr)
     if (j == 1) then
       rt_auxvars => this%realization%patch%aux%RT%auxvars
       global_auxvars => this%realization%patch%aux%Global%auxvars
+      num_auxvars = this%realization%patch%aux%RT%num_aux
     else
       rt_auxvars => this%realization%patch%aux%RT%auxvars_bc
       global_auxvars => this%realization%patch%aux%Global%auxvars_bc
+      num_auxvars = this%realization%patch%aux%RT%num_aux_bc
     endif
-    do ghosted_id = 1, size(rt_auxvars)
+    do ghosted_id = 1, num_auxvars
       sum_mass_species = 0.d0
       do i = 1, this%salinity%nspecies
         ispecies = this%salinity%ispecies(i)
@@ -341,6 +370,31 @@ end subroutine PMAuxiliarySalinity
 
 ! ************************************************************************** !
 
+subroutine PMAuxiliaryInputRecord(this)
+  ! 
+  ! Writes ingested information to the input record file.
+  ! 
+  ! Author: Jenn Frederick, SNL
+  ! Date: 04/21/2016
+  ! 
+  
+  implicit none
+  
+  class(pm_auxiliary_type) :: this
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: id
+
+  id = INPUT_RECORD_UNIT
+
+  write(id,'(a29)',advance='no') 'pm: '
+  write(id,'(a)') this%name
+
+end subroutine PMAuxiliaryInputRecord
+
+
+! ************************************************************************** !
+
 subroutine PMAuxiliaryDestroy(this)
   ! 
   ! Destroys auxiliary process model
@@ -355,6 +409,8 @@ subroutine PMAuxiliaryDestroy(this)
   ! destroyed in realization
   nullify(this%realization)
   nullify(this%comm1)
+  nullify(this%option)
+  nullify(this%output_option)
 
   if (associated(this%salinity)) then
     deallocate(this%salinity)
