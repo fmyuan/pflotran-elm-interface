@@ -12,7 +12,7 @@ include ${PETSC_DIR}/lib/petsc/conf/rules
 MYFLAGS = -I.
 
 ifdef use_characteristic_curves
-  MYFLAGS += ${FC_DEFINE_FLAG}use_characteristic_curves_module
+  MYFLAGS += ${FC_DEFINE_FLAG}use_characteristic_curves_module ${FC_DEFINE_FLAG}smoothing2
 endif
 
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
