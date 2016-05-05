@@ -40,6 +40,7 @@ module PM_TH_class
     procedure, public :: UpdateAuxVars => PMTHUpdateAuxVars
     procedure, public :: MaxChange => PMTHMaxChange
     procedure, public :: ComputeMassBalance => PMTHComputeMassBalance
+    procedure, public :: InputRecord => PMTHInputRecord
     procedure, public :: Destroy => PMTHDestroy
   end type pm_th_type
   
@@ -291,7 +292,7 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: up
   PetscReal :: utmp
   PetscReal :: dtt
-  PetscReal :: dt_p
+  PetscReal :: dt_u
   PetscReal :: dt_tfac
   PetscInt :: ifac
   
@@ -299,16 +300,31 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   call printMsg(this%option,'PMTH%UpdateTimestep()')
 #endif
   
-  fac = 0.5d0
-  if (num_newton_iterations >= iacceleration) then
-    fac = 0.33d0
-    ut = 0.d0
+  if (iacceleration > 0) then
+    fac = 0.5d0
+    if (num_newton_iterations >= iacceleration) then
+      fac = 0.33d0
+      ut = 0.d0
+    else
+      up = this%pressure_change_governor/(this%max_pressure_change+0.1)
+      utmp = this%temperature_change_governor/ &
+             (this%max_temperature_change+1.d-5)
+      ut = min(up,utmp)
+    endif
+    dtt = fac * dt * (1.d0 + ut)
   else
+    ifac = max(min(num_newton_iterations,size(tfac)),1)
+    dt_tfac = tfac(ifac) * dt
+
+    fac = 0.5d0
     up = this%pressure_change_governor/(this%max_pressure_change+0.1)
-    utmp = this%temperature_change_governor/(this%max_temperature_change+1.d-5)
+    utmp = this%temperature_change_governor/ &
+           (this%max_temperature_change+1.d-5)
     ut = min(up,utmp)
+    dt_u = fac * dt * (1.d0 + ut)
+
+    dtt = min(dt_tfac,dt_u)
   endif
-  dtt = fac * dt * (1.d0 + ut)
 
   if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
   if (dtt > dt_max) dtt = dt_max
@@ -740,6 +756,32 @@ subroutine PMTHComputeMassBalance(this,mass_balance_array)
   call THComputeMassBalance(this%realization,mass_balance_array)
 
 end subroutine PMTHComputeMassBalance
+
+! ************************************************************************** !
+
+subroutine PMTHInputRecord(this)
+  ! 
+  ! Writes ingested information to the input record file.
+  ! 
+  ! Author: Jenn Frederick, SNL
+  ! Date: 03/21/2016
+  ! 
+  
+  implicit none
+  
+  class(pm_th_type) :: this
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: id
+
+  id = INPUT_RECORD_UNIT
+
+  write(id,'(a29)',advance='no') 'pm: '
+  write(id,'(a)') this%name
+  write(id,'(a29)',advance='no') 'mode: '
+  write(id,'(a)') 'thermo-hydro'
+
+end subroutine PMTHInputRecord
 
 ! ************************************************************************** !
 

@@ -69,6 +69,7 @@ module Timestepper_Base_class
     procedure, public :: Reset => TimestepperBaseReset
     procedure, public :: WallClockStop => TimestepperBaseWallClockStop
     procedure, public :: PrintInfo => TimestepperBasePrintInfo
+    procedure, public :: InputRecord => TimestepperBaseInputRecord
     procedure, public :: FinalizeRun => TimestepperBaseFinalizeRun
     procedure, public :: Strip => TimestepperBaseStrip
     procedure, public :: Destroy => TimestepperBaseDestroy
@@ -94,7 +95,8 @@ module Timestepper_Base_class
             TimestepperBaseGetHeader, &
             TimestepperBaseReset, &
             TimestepperBaseRegisterHeader, &
-            TimestepperBasePrintInfo
+            TimestepperBasePrintInfo, &
+            TimestepperBaseInputRecord
 
 contains
 
@@ -316,10 +318,10 @@ end subroutine TimestepperBaseUpdateDT
 
 ! ************************************************************************** !
 
-subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
-                                        stop_flag,plot_flag, &
-                                        transient_plot_flag, &
-                                        checkpoint_flag)
+subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
+                                        snapshot_plot_flag, &
+                                        observation_plot_flag, &
+                                        massbal_plot_flag,checkpoint_flag)
   ! 
   ! Sets target time for timestepper
   ! 
@@ -335,8 +337,9 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
   PetscReal :: sync_time
   type(option_type) :: option
   PetscInt :: stop_flag
-  PetscBool :: plot_flag
-  PetscBool :: transient_plot_flag
+  PetscBool :: snapshot_plot_flag
+  PetscBool :: observation_plot_flag
+  PetscBool :: massbal_plot_flag
   PetscBool :: checkpoint_flag
   
   PetscReal :: target_time
@@ -389,20 +392,20 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
   cur_waypoint => this%cur_waypoint
   ! need previous waypoint for reverting back on time step cut
   this%prev_waypoint => this%cur_waypoint
-  ! dt_max must be set from current waypoint and not updated below
+  ! dt_max must be lagged.  it can be updated below, but it must lag a waypoint.
   cumulative_time_steps = this%steps
   max_time_step = this%max_time_step
   tolerance = this%time_step_tolerance
-  !target_time = this%target_time + dt
+!  target_time = this%target_time + dt
 
   do ! we cycle just in case the next waypoint is beyond the target_time
     dt_max = cur_waypoint%dt_max
     dt = min(dt,dt_max)
-    ! ensure that the time step does not overstep the next waypoint time +
+    ! ensure that the time step does not overstep the next waypoint time + 
     ! dtmax combination.
     target_time = this%target_time + dt
 
-!---! This section of code ensures that no time step over steps the next
+!---! This section of code ensures that no time step over steps the next 
     ! maximum time step (dt_max) if a waypoint is surpassed.
     force_to_match_waypoint = PETSC_FALSE
     if (associated(cur_waypoint%next)) then
@@ -411,7 +414,7 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
           target_time > cur_waypoint%time) then
         if (this%target_time + cur_waypoint%next%dt_max < &
             cur_waypoint%time) then
-          force_to_match_waypoint = PETSC_TRUE
+          force_to_match_waypoint = PETSC_TRUE 
         else
           dt = cur_waypoint%next%dt_max
           target_time = this%target_time + dt
@@ -419,8 +422,6 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
       endif
     endif
 !---
-
-
     ! If a waypoint calls for a plot or change in src/sinks, adjust time step
     ! to match waypoint.
     force_to_match_waypoint = WaypointForceMatchToTime(cur_waypoint) .or. &
@@ -444,8 +445,9 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
       ! set new time step size based on max time
       dt = max_time - target_time
       if (dt > dt_max .and. &
-          dabs(dt-dt_max) > 1.d0) then ! 1 sec tolerance to avoid cancellation
-        dt = dt_max                    ! error from waypoint%time - time
+                                   ! 1 sec tolerance to avoid cancellation
+          dabs(dt-dt_max) > 1.d0) then 
+        dt = dt_max         ! error from waypoint%time - time
         target_time = target_time + dt
       else
         target_time = max_time
@@ -454,8 +456,9 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
           ! the time step back to its prior value after the waypoint is met.
           ! %revert_dt is a flag that does so above.
           if (force_to_match_waypoint) revert_due_to_waypoint = PETSC_TRUE
-          if (cur_waypoint%print_output) plot_flag = PETSC_TRUE
-          if (cur_waypoint%print_tr_output) transient_plot_flag = PETSC_TRUE
+          if (cur_waypoint%print_snap_output) snapshot_plot_flag = PETSC_TRUE
+          if (cur_waypoint%print_obs_output) observation_plot_flag = PETSC_TRUE
+          if (cur_waypoint%print_msbl_output) massbal_plot_flag = PETSC_TRUE
           if (cur_waypoint%print_checkpoint) checkpoint_flag = PETSC_TRUE
         endif
         if (equal_to_or_exceeds_sync_time) then
@@ -596,6 +599,30 @@ subroutine TimestepperBasePrintInfo(this,option)
   endif    
 
 end subroutine TimestepperBasePrintInfo
+
+! ************************************************************************** !
+
+subroutine TimestepperBaseInputRecord(this)
+  ! 
+  ! Prints information about the time stepper to the input record.
+  ! 
+  ! Author: Jenn Frederick, SNL
+  ! Date: 03/17/2016
+  ! 
+  
+  implicit none
+  
+  class(timestepper_base_type) :: this
+
+#ifdef DEBUG
+  call printMsg(this%option,'TimestepperBaseInputRecord()')
+#endif
+
+  write(*,*) 'TimestepperBaseInputRecord must be extended for &
+             &each timestepper mode.'
+  stop
+
+end subroutine TimestepperBaseInputRecord
 
 ! ************************************************************************** !
 
