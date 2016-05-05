@@ -231,7 +231,7 @@ contains
     internal_units = 'sec'
     waypoint1 => WaypointCreate()
     waypoint1%time          = waypoint_time * UnitsConvertToInternal(word, internal_units, option)
-    waypoint1%print_output  = PETSC_TRUE
+    waypoint1%print_snap_output  = PETSC_TRUE
     waypoint1%final         = PETSC_TRUE
     waypoint1%dt_max        = waypoint_dtmax * UnitsConvertToInternal(word, internal_units, option)
 
@@ -265,7 +265,7 @@ contains
         waypoint => waypoint_list%first
         do
           if (.not.associated(waypoint)) exit
-          waypoint%print_output = PETSC_FALSE
+          waypoint%print_snap_output = PETSC_FALSE
           waypoint => waypoint%next
         enddo
       endif
@@ -319,8 +319,8 @@ contains
     waypoint => WaypointCreate()
     waypoint%time              = waypoint_time * UnitsConvertToInternal(word, internal_units, option)
     waypoint%update_conditions = PETSC_TRUE
-    waypoint%print_output      = PETSC_FALSE
-    waypoint%print_tr_output   = PETSC_FALSE
+    waypoint%print_snap_output = PETSC_FALSE
+    waypoint%print_obs_output  = PETSC_FALSE
     waypoint%print_checkpoint  = PETSC_FALSE
     waypoint%final             = waypoint_final
     waypoint%dt_max            = waypoint_dtmax * UnitsConvertToInternal(word, internal_units, option)

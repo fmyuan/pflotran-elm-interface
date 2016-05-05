@@ -297,10 +297,8 @@ subroutine RealizationCreateDiscretization(realization)
                                            field%tran_log_xx)
         call DiscretizationDuplicateVector(discretization,field%tran_xx_loc, &
                                            field%tran_work_loc)
-        call DiscretizationDuplicateVector(discretization,field%tran_xx_loc, &
-                                           field%tran_work_loc)
       endif
-
+ 
     else ! operator splitting
       ! ndof degrees of freedom, global
       ! create the 1 dof vector for solving the individual linear systems
@@ -434,6 +432,10 @@ subroutine RealizationCreateDiscretization(realization)
       realization%comm1 => UnstructuredCommunicatorCreate()
   end select
   call realization%comm1%SetDM(discretization%dm_1dof)
+
+  if (option%flow%quasi_3d) then
+    call RealizCreateFlowMassTransferVec(realization)
+  endif
 
 end subroutine RealizationCreateDiscretization
 
@@ -767,6 +769,22 @@ subroutine RealProcessMatPropAndSatFunc(realization)
           cur_material_property%porosity_dataset => dataset
         class default
           option%io_buffer = 'Incorrect dataset type for porosity.'
+          call printErrMsg(option)
+      end select
+    endif
+    if (associated(cur_material_property%tortuosity_dataset)) then
+      string = 'MATERIAL_PROPERTY(' // trim(cur_material_property%name) // &
+               '),TORTUOSITY'
+      dataset => &
+        DatasetBaseGetPointer(realization%datasets, &
+                              cur_material_property%tortuosity_dataset%name, &
+                              string,option)
+      call DatasetDestroy(cur_material_property%tortuosity_dataset)
+      select type(dataset)
+        class is (dataset_common_hdf5_type)
+          cur_material_property%tortuosity_dataset => dataset
+        class default
+          option%io_buffer = 'Incorrect dataset type for tortuosity.'
           call printErrMsg(option)
       end select
     endif
@@ -1412,7 +1430,8 @@ subroutine RealizationAddWaypointsToList(realization,waypoint_list)
   do
     if (.not.associated(cur_waypoint)) exit
     if (cur_waypoint%final) then
-      cur_waypoint%print_output = realization%output_option%print_final
+      cur_waypoint%print_snap_output = &
+        realization%output_option%print_final_snap
       exit
     endif
     cur_waypoint => cur_waypoint%next
@@ -1820,7 +1839,9 @@ subroutine RealizationUpdatePropertiesTS(realization)
   ! since it is calculated as 1.d-sum_volfrac, it cannot be > 1
   call MaterialGetAuxVarVecLoc(patch%aux%Material,field%work_loc, &
                                POROSITY,POROSITY_MINERAL)
-  call VecMin(field%work_loc,ivalue,min_value,ierr);CHKERRQ(ierr)
+  call DiscretizationLocalToGlobal(discretization,field%work_loc, &
+                                  field%work,ONEDOF)
+  call VecMin(field%work,ivalue,min_value,ierr);CHKERRQ(ierr)
   if (min_value < 0.d0) then
     write(option%io_buffer,*) 'Sum of mineral volume fractions has ' // &
       'exceeded 1.d0 at cell (note PETSc numbering): ', ivalue

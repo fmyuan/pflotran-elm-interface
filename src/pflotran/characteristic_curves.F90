@@ -16,7 +16,7 @@ module Characteristic_Curves_module
     PetscReal :: coefficients(4)
   end type polynomial_type
  
-  ! Begin Saturation Functions
+  ! Begin Saturation Functions -------------------------------------------------------
   type :: sat_func_base_type
     type(polynomial_type), pointer :: sat_poly
     type(polynomial_type), pointer :: pres_poly
@@ -65,8 +65,8 @@ module Characteristic_Curves_module
     procedure, public :: CapillaryPressure => SF_Linear_CapillaryPressure
     procedure, public :: Saturation => SF_Linear_Saturation
   end type sat_func_Linear_type
+  ! BRAGFLO KRP9 modified Brooks-Corey Model
   type, public, extends(sat_func_base_type) :: sat_func_BF_KRP9_type
-  
   contains
     procedure, public :: Init => SF_BF_KRP9_Init
     procedure, public :: Verify => SF_BF_KRP9_Verify
@@ -99,12 +99,14 @@ module Characteristic_Curves_module
     procedure, public :: Verify => SF_BF_KRP12_Verify
     procedure, public :: CapillaryPressure => SF_BF_KRP12_CapillaryPressure
   end type sat_func_BF_KRP12_type 
-  ! End Saturation Functions
+  ! End Saturation Functions -------------------------------------------------------
 
-  ! Begin Relative Permeability Functions
+  ! Begin Relative Permeability Functions ------------------------------------------
   type :: rel_perm_func_base_type
     type(polynomial_type), pointer :: poly
+#ifdef smoothing2
     type(polynomial_type), pointer :: poly2     ! dry-end of the curve
+#endif
     PetscReal :: Sr
   contains
     procedure, public :: Init => RPFBaseInit
@@ -120,7 +122,7 @@ module Characteristic_Curves_module
     procedure, public :: Verify => RPFDefaultVerify
     procedure, public :: RelativePermeability => RPF_DefaultRelPerm
   end type rel_perm_func_default_type
-  ! Mualem-VG
+  ! Mualem-VG-liq
   type, public, extends(rel_perm_func_base_type) :: rpf_Mualem_VG_liq_type
     PetscReal :: m
   contains
@@ -129,6 +131,7 @@ module Characteristic_Curves_module
     procedure, public :: SetupPolynomials => RPF_Mualem_SetupPolynomials
     procedure, public :: RelativePermeability => RPF_Mualem_VG_Liq_RelPerm
   end type rpf_Mualem_VG_liq_type
+  ! Mualem-VG-gas
   type, public, extends(rel_perm_func_base_type) :: rpf_Mualem_VG_gas_type
     PetscReal :: m
     PetscReal :: Srg
@@ -280,15 +283,33 @@ module Characteristic_Curves_module
     procedure, public :: RelativePermeability => RPF_BRAGFLO_KRP12_Gas_RelPerm
   end type rpf_BRAGFLO_KRP12_gas_type
   ! Oil relative permeability functions
-  type, public, extends(rel_perm_func_base_type) :: rpf_TOUGH2_Linear_Oil_type
+  type, public, extends(rel_perm_func_base_type) :: rpf_TOUGH2_Linear_oil_type
     PetscReal :: Sro !
   contains
     procedure, public :: Init => RPF_TOUGH2_Linear_Oil_Init 
     procedure, public :: Verify => RPF_TOUGH2_Linear_Oil_Verify
     procedure, public :: RelativePermeability => RPF_TOUGH2_Linear_Oil_RelPerm
   end type rpf_TOUGH2_Linear_Oil_type
-  ! End Relative Permeability Functions
-  
+  type, public, extends(rel_perm_func_base_type) :: RPF_Mod_BC_type
+    PetscReal :: m   !exponential coeff. 
+    PetscReal :: Srg 
+    PetscReal :: Sro
+    PetscReal :: kr_max
+  contains
+    procedure, public :: Init => RPF_Mod_BC_Init 
+    procedure, public :: Verify => RPF_Mod_BC_Verify
+    procedure, public :: SetupPolynomials => RPF_Mod_BC_SetupPolynomials
+  end type RPF_Mod_BC_type
+  type, public, extends(RPF_Mod_BC_type) :: RPF_Mod_BC_liq_type
+  contains
+    procedure, public :: RelativePermeability => RPF_Mod_BC_Liq_RelPerm
+  end type RPF_Mod_BC_liq_type
+  type, public, extends(RPF_Mod_BC_type) :: RPF_Mod_BC_oil_type
+  contains
+    procedure, public :: RelativePermeability => RPF_Mod_BC_Oil_RelPerm
+  end type RPF_Mod_BC_oil_type
+  ! End Relative Permeability Functions -------------------------------------------
+ 
   type, public :: characteristic_curves_type
     character(len=MAXWORDLENGTH) :: name
     PetscBool :: print_me
@@ -311,6 +332,7 @@ module Characteristic_Curves_module
             CharacteristicCurvesGetID, &
             CharCurvesGetGetResidualSats, &
             CharacteristicCurvesDestroy, &
+            CharCurvesInputRecord, &
   ! required to be public for unit tests - Heeho Park
             SF_VG_Create, &
             SF_BC_Create, &
@@ -504,6 +526,12 @@ subroutine CharacteristicCurvesRead(this,input,option)
           case('TOUGH2_LINEAR_OIL')
             rel_perm_function_ptr => RPF_TOUGH2_Linear_Oil_Create()
             phase_keyword = 'OIL'
+          case('MOD_BC_LIQ')
+            rel_perm_function_ptr => RPF_Mod_BC_Liq_Create()
+            !phase_keyword = 'LIQUID'
+          case('MOD_BC_OIL')
+            rel_perm_function_ptr => RPF_Mod_BC_Oil_Create()
+            phase_keyword = 'OIL'
           case default
             call InputKeywordUnrecognized(word,'PERMEABILITY_FUNCTION',option)
         end select
@@ -521,7 +549,7 @@ subroutine CharacteristicCurvesRead(this,input,option)
             ! to pass the verification in CharacteristicCurvesVerify
             ! in case gas_rel_perm_function is not defined in the input
             ! We should change CharacteristicCurvesVerify instead
-            this%gas_rel_perm_function => rel_perm_function_ptr
+             this%gas_rel_perm_function => rel_perm_function_ptr
           case('NONE')
             this%gas_rel_perm_function => rel_perm_function_ptr
             this%liq_rel_perm_function => rel_perm_function_ptr
@@ -787,8 +815,12 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
       error_string = trim(error_string) // 'BURDINE_BF_KRP12_LIQ'
     class is(rpf_BRAGFLO_KRP12_gas_type)
       error_string = trim(error_string) // 'BURDINE_BF_KRP12_GAS'
-    class is(rpf_TOUGH2_Linear_Oil_type)
+    class is(rpf_TOUGH2_Linear_oil_type)
       error_string = trim(error_string) // 'TOUGH2_Linear_OIL'
+    class is(rpf_mod_BC_liq_type)
+      error_string = trim(error_string) // 'Mod_BC_LIQ'
+    class is(rpf_mod_BC_oil_type)
+      error_string = trim(error_string) // 'Mod_BC_OIL'
   end select
 
   do
@@ -1055,7 +1087,7 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
               'BRAGFLO KRP4 gas relative permeability function', &
               option)
         end select
-      class is(rpf_TOUGH2_Linear_Oil_type)
+      class is(rpf_TOUGH2_Linear_oil_type)
         select case(keyword)
           case('OIL_RESIDUAL_SATURATION') 
             call InputReadDouble(input,option,rpf%Sro)
@@ -1063,6 +1095,44 @@ subroutine PermeabilityFunctionRead(permeability_function,phase_keyword, &
           case default
             call InputKeywordUnrecognized(keyword, &
               'TOUGH2 LINEAR oil relative permeability function', &
+              option)
+        end select
+      class is(rpf_mod_BC_liq_type)
+        select case(keyword)
+          case('M')
+            call InputReadDouble(input,option,rpf%m)
+            call InputErrorMsg(input,option,'m - power',error_string)
+          case('OIL_RESIDUAL_SATURATION') 
+            call InputReadDouble(input,option,rpf%Sro)
+            call InputErrorMsg(input,option,'Sro',error_string)
+          case('GAS_RESIDUAL_SATURATION') 
+            call InputReadDouble(input,option,rpf%Srg)
+            call InputErrorMsg(input,option,'Srg',error_string)
+          case('LIQUID_MAX_REL_PERM') 
+            call InputReadDouble(input,option,rpf%kr_max)
+            call InputErrorMsg(input,option,'kr_max',error_string)
+          case default
+            call InputKeywordUnrecognized(keyword, &
+              'Mod BC liq relative permeability function', &
+              option)
+        end select
+      class is(rpf_mod_BC_oil_type)
+        select case(keyword)
+          case('M')
+            call InputReadDouble(input,option,rpf%m)
+            call InputErrorMsg(input,option,'m - power',error_string)
+          case('OIL_RESIDUAL_SATURATION') 
+            call InputReadDouble(input,option,rpf%Sro)
+            call InputErrorMsg(input,option,'Sro',error_string)
+          case('GAS_RESIDUAL_SATURATION') 
+            call InputReadDouble(input,option,rpf%Srg)
+            call InputErrorMsg(input,option,'Srg',error_string)
+          case('OIL_MAX_REL_PERM') 
+            call InputReadDouble(input,option,rpf%kr_max)
+            call InputErrorMsg(input,option,'kr_max',error_string)
+          case default
+            call InputKeywordUnrecognized(keyword, &
+              'Mod BC oil relative permeability function', &
               option)
         end select
       class default
@@ -1231,13 +1301,18 @@ function CharCurvesGetGetResidualSats(characteristic_curves,option)
         CharCurvesGetGetResidualSats(2) = rpf%Sr
       class is(rpf_BRAGFLO_KRP11_gas_type)
         CharCurvesGetGetResidualSats(2) = rpf%Srg
-      class is(rpf_TOUGH2_Linear_Oil_type)
+      class is(rpf_TOUGH2_Linear_oil_type)
+        CharCurvesGetGetResidualSats(2) = rpf%Sro
+      class is(rpf_mod_BC_liq_type)
+        CharCurvesGetGetResidualSats(2) = rpf%Sr
+      class is(rpf_mod_BC_oil_type)
         CharCurvesGetGetResidualSats(2) = rpf%Sro
       class default
         option%io_buffer = 'Relative permeability class not supported in ' // &
           'CharCurvesGetGetResidualSats.'
         call printErrMsg(option)
     end select
+     
   endif
 
 end function CharCurvesGetGetResidualSats
@@ -1312,6 +1387,13 @@ subroutine CharacteristicCurvesTest(characteristic_curves,option)
   call characteristic_curves%gas_rel_perm_function%Test( &
                                                  characteristic_curves%name, &
                                                  phase,option)
+
+  if ( associated(characteristic_curves%oil_rel_perm_function) ) then
+    phase = 'oil'
+    call characteristic_curves%oil_rel_perm_function%Test( &
+                                                 characteristic_curves%name, &
+                                                 phase,option)
+  end if
   
 end subroutine CharacteristicCurvesTest
 
@@ -1338,15 +1420,329 @@ subroutine CharacteristicCurvesVerify(characteristic_curves,option)
 
   call characteristic_curves%saturation_function%Verify(string,option)
   call characteristic_curves%liq_rel_perm_function%Verify(string,option)
-  call characteristic_curves%gas_rel_perm_function%Verify(string,option)
 
-  ! PO We should verify only the rel_perm_functions that have been created
-  ! change the above accordingly, at least for gas, while liq is alway present. 
-  if(associated(characteristic_curves%oil_rel_perm_function) ) then  
+  if (associated(characteristic_curves%gas_rel_perm_function) ) then
+    call characteristic_curves%gas_rel_perm_function%Verify(string,option)
+  end if
+
+  if ( associated(characteristic_curves%oil_rel_perm_function) ) then  
     call characteristic_curves%oil_rel_perm_function%Verify(string,option) 
   end if
   
 end subroutine CharacteristicCurvesVerify
+
+! **************************************************************************** !
+
+subroutine CharCurvesInputRecord(char_curve_list)
+  ! 
+  ! Prints ingested characteristic curves information to the input record file
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 04/11/2016
+  ! 
+
+  implicit none
+
+  class(characteristic_curves_type), pointer :: char_curve_list
+  
+  class(characteristic_curves_type), pointer :: cur_ccurve
+  character(len=MAXWORDLENGTH) :: word1, word2
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: id = INPUT_RECORD_UNIT
+
+  write(id,'(a)') ' '
+  write(id,'(a)') '---------------------------------------------------------&
+                  &-----------------------'
+  write(id,'(a29)',advance='no') '---------------------------: '
+  write(id,'(a)') 'CHARACTERISTIC CURVES'
+  
+  cur_ccurve => char_curve_list
+  do
+    if (.not.associated(cur_ccurve)) exit
+    
+    write(id,'(a29)',advance='no') 'characteristic curve name: '
+    write(id,'(a)') adjustl(trim(cur_ccurve%name))
+    
+    if (associated(cur_ccurve%saturation_function)) then
+      write(id,'(a29)',advance='no') 'saturation function: '
+      select type (sf => cur_ccurve%saturation_function)
+      !---------------------------------
+        class is (sat_func_VG_type)
+          write(id,'(a)') 'van genuchten'
+          write(id,'(a29)',advance='no') 'm: '
+          write(word1,*) sf%m
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'alpha: '
+          write(word1,*) sf%alpha
+          write(id,'(a)') adjustl(trim(word1))
+      !---------------------------------
+        class is (sat_func_BC_type)
+          write(id,'(a)') 'brooks corey'
+          write(id,'(a29)',advance='no') 'alpha: '
+          write(word1,*) sf%alpha
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'lambda: '
+          write(word1,*) sf%lambda
+          write(id,'(a)') adjustl(trim(word1))
+      !---------------------------------
+        class is (sat_func_Linear_type)
+          write(id,'(a)') 'linear'
+          write(id,'(a29)',advance='no') 'alpha: '
+          write(word1,*) sf%alpha
+          write(id,'(a)') adjustl(trim(word1))
+      !---------------------------------
+        class is (sat_func_BF_KRP9_type)
+          write(id,'(a)') 'Bragflo KRP9 modified brooks corey'
+      !---------------------------------
+        class is (sat_func_BF_KRP4_type)
+          write(id,'(a)') 'Bragflo KRP4 modified brooks corey'
+          write(id,'(a29)',advance='no') 'alpha: '
+          write(word1,*) sf%alpha
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'lambda: '
+          write(word1,*) sf%lambda
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'gas residual sat.: '
+          write(word1,*) sf%Srg
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'kpc: '
+          write(word1,*) sf%pcmax_flag
+          write(id,'(a)') adjustl(trim(word1))
+      !---------------------------------
+        class is (sat_func_BF_KRP11_type)
+          write(id,'(a)') 'Bragflo KRP11 modified brooks corey'
+      !---------------------------------
+        class is (sat_func_BF_KRP12_type)
+          write(id,'(a)') 'Bragflo KRP12 modified brooks corey'
+          write(id,'(a29)',advance='no') 'alpha: '
+          write(word1,*) sf%alpha
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'lambda: '
+          write(word1,*) sf%lambda
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'gas residual sat.: '
+          write(word1,*) sf%Srg
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'socmin: '
+          write(word1,*) sf%socmin
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'soceffmin: '
+          write(word1,*) sf%soceffmin
+          write(id,'(a)') adjustl(trim(word1))
+      !---------------------------------
+        class is (sat_func_default_type)
+          write(id,'(a)') 'default'
+      !---------------------------------
+      end select
+      write(id,'(a29)',advance='no') 'liquid residual sat.: '
+      write(word1,*) cur_ccurve%saturation_function%Sr
+      write(id,'(a)') adjustl(trim(word1))
+      write(id,'(a29)',advance='no') 'max capillary pressure: '
+      write(word1,*) cur_ccurve%saturation_function%pcmax
+      write(id,'(a)') adjustl(trim(word1))
+    endif
+    
+    if (associated(cur_ccurve%liq_rel_perm_function)) then
+      write(id,'(a29)',advance='no') 'liq. relative perm. func.: '
+      select type (rpf => cur_ccurve%liq_rel_perm_function)
+      !------------------------------------
+        class is (rel_perm_func_default_type)
+          write(id,'(a)') 'default'
+      !------------------------------------
+        class is (rpf_Mualem_VG_liq_type)
+          write(id,'(a)') 'mualem_vg_liq/tough2_irp7_liq'
+          write(id,'(a29)',advance='no') 'm: '
+          write(word1,*) rpf%m
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_Mualem_BC_liq_type)
+          write(id,'(a)') 'mualem_bc_liq'
+          write(id,'(a29)',advance='no') 'lambda: '
+          write(word1,*) rpf%lambda
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_Mualem_Linear_liq_type)
+          write(id,'(a)') 'mualem_linear_liq'
+          write(id,'(a29)',advance='no') 'alpha: '
+          write(word1,*) rpf%alpha
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'max capillary pressure: '
+          write(word1,*) rpf%pcmax
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_Burdine_VG_liq_type)
+          write(id,'(a)') 'burdine_vg_liq'
+          write(id,'(a29)',advance='no') 'm: '
+          write(word1,*) rpf%m
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_Burdine_BC_liq_type)
+          write(id,'(a)') 'burdine_bc_liq'
+          write(id,'(a29)',advance='no') 'lambda: '
+          write(word1,*) rpf%lambda
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_Burdine_linear_liq_type)
+          write(id,'(a)') 'burdine_linear_liq'
+      !------------------------------------
+        class is (rpf_BRAGFLO_KRP9_liq_type)
+          write(id,'(a)') 'bragflo_krp9_liq'
+      !------------------------------------
+        class is (rpf_BRAGFLO_KRP4_liq_type)
+          write(id,'(a)') 'bragflo_krp4_liq'
+          write(id,'(a29)',advance='no') 'lambda: '
+          write(word1,*) rpf%lambda
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_BRAGFLO_KRP11_liq_type)
+          write(id,'(a)') 'bragflo_krp11_liq'
+          write(id,'(a29)',advance='no') 'tolc: '
+          write(word1,*) rpf%tolc
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_BRAGFLO_KRP12_liq_type)
+          write(id,'(a)') 'bragflo_krp12_liq'
+          write(id,'(a29)',advance='no') 'lambda: '
+          write(word1,*) rpf%lambda
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class default
+          write(id,'(a)') 'none'
+      !------------------------------------
+      end select
+    endif
+    
+    if (associated(cur_ccurve%gas_rel_perm_function)) then
+      write(id,'(a29)',advance='no') 'gas relative perm. func.: '
+      select type (rpf => cur_ccurve%gas_rel_perm_function)
+      !------------------------------------
+        class is (rel_perm_func_default_type)
+          write(id,'(a)') 'default'
+      !------------------------------------
+        class is (rpf_Mualem_VG_gas_type)
+          write(id,'(a)') 'mualem_vg_gas'
+          write(id,'(a29)',advance='no') 'm: '
+          write(word1,*) rpf%m
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'gas residual sat.: '
+          write(word1,*) rpf%Srg
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_Mualem_BC_gas_type)
+          write(id,'(a)') 'mualem_bc_gas'
+          write(id,'(a29)',advance='no') 'lambda: '
+          write(word1,*) rpf%lambda
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'gas residual sat.: '
+          write(word1,*) rpf%Srg
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_Mualem_Linear_gas_type)
+          write(id,'(a)') 'mualem_linear_gas'
+          write(id,'(a29)',advance='no') 'alpha: '
+          write(word1,*) rpf%alpha
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'max capillary pressure: '
+          write(word1,*) rpf%pcmax
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'gas residual sat.: '
+          write(word1,*) rpf%Srg
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_TOUGH2_IRP7_gas_type)
+          write(id,'(a)') 'tough2_irp7_gas'
+          write(id,'(a29)',advance='no') 'm: '
+          write(word1,*) rpf%m
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'gas residual sat.: '
+          write(word1,*) rpf%Srg
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_Burdine_VG_gas_type)
+          write(id,'(a)') 'burdine_vg_gas'
+          write(id,'(a29)',advance='no') 'm: '
+          write(word1,*) rpf%m
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'gas residual sat.: '
+          write(word1,*) rpf%Srg
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_Burdine_BC_gas_type)
+          write(id,'(a)') 'burdine_bc_gas'
+          write(id,'(a29)',advance='no') 'lambda: '
+          write(word1,*) rpf%lambda
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'gas residual sat.: '
+          write(word1,*) rpf%Srg
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_Burdine_linear_gas_type)
+          write(id,'(a)') 'burdine_linear_gas'
+          write(id,'(a29)',advance='no') 'gas residual sat.: '
+          write(word1,*) rpf%Srg
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_BRAGFLO_KRP9_gas_type)
+          write(id,'(a)') 'bragflo_krp9_gas'
+          write(id,'(a29)',advance='no') 'gas residual sat.: '
+          write(word1,*) rpf%Srg
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_BRAGFLO_KRP4_gas_type)
+          write(id,'(a)') 'bragflo_krp4_gas'
+          write(id,'(a29)',advance='no') 'lambda: '
+          write(word1,*) rpf%lambda
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'gas residual sat.: '
+          write(word1,*) rpf%Srg
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_BRAGFLO_KRP11_gas_type)
+          write(id,'(a)') 'bragflo_krp11_gas'
+          write(id,'(a29)',advance='no') 'tolc: '
+          write(word1,*) rpf%tolc
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'gas residual sat.: '
+          write(word1,*) rpf%Srg
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class is (rpf_BRAGFLO_KRP12_gas_type)
+          write(id,'(a)') 'bragflo_krp12_gas'
+          write(id,'(a29)',advance='no') 'lambda: '
+          write(word1,*) rpf%lambda
+          write(id,'(a)') adjustl(trim(word1))
+          write(id,'(a29)',advance='no') 'gas residual sat.: '
+          write(word1,*) rpf%Srg
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+        class default
+          write(id,'(a)') 'none'
+      !------------------------------------
+      end select
+    endif
+    
+    if (associated(cur_ccurve%oil_rel_perm_function)) then
+      write(id,'(a29)',advance='no') 'oil relative perm. func.: '
+      select type (rpf => cur_ccurve%oil_rel_perm_function)
+      !------------------------------------
+        class is (rel_perm_func_default_type)
+          write(id,'(a)') 'default'
+      !------------------------------------
+        class is (rpf_TOUGH2_Linear_Oil_type)
+          write(id,'(a)') 'tough2_linear_oil'
+          write(id,'(a29)',advance='no') 'oil residual sat.: '
+          write(word1,*) rpf%Sro
+          write(id,'(a)') adjustl(trim(word1))
+      !------------------------------------
+      end select
+    endif
+
+    write(id,'(a29)') '---------------------------: '
+    cur_ccurve => cur_ccurve%next
+  enddo
+  
+end subroutine CharCurvesInputRecord
+
 ! End Characteristic Curves
 
 ! ************************************************************************** !
@@ -1411,7 +1807,9 @@ subroutine RPFBaseInit(this)
 
   ! Cannot allocate here.  Allocation takes place in daughter class
   nullify(this%poly)
+#ifdef smoothing2
   nullify(this%poly2)
+#endif
   this%Sr = UNINITIALIZED_DOUBLE
   
 end subroutine RPFBaseInit
@@ -1908,7 +2306,9 @@ subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
   PetscReal :: one_plus_pc_alpha_n
   PetscReal :: pc_alpha_n
   PetscReal :: pc_alpha
+#ifdef smoothing2
   PetscReal :: Hfunc, x, dx, delta, sharpness
+#endif
 
   if (liquid_saturation <= this%Sr) then
     capillary_pressure = this%pcmax
@@ -1930,10 +2330,9 @@ subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
   endif
 #endif
 
-#if 0
   capillary_pressure = min(capillary_pressure,this%pcmax)
 
-#else
+#ifdef smoothing2
   ! fmy: by VG function, mathemaatically @Sr, pc = infinity
   !      So, @pcmax, S is not necessarily equaled to Sr, and requiring smoothing
 
@@ -1956,7 +2355,8 @@ subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
 
 #endif
 
-  ! A note @Mar-30-2016: this function appears NOT called anywhere by this moment (????)
+  ! notes by fmy @Mar-30-2016: this function appears NOT called anywhere by this moment (????)
+  !        @May-05-2016: it's used when doing regression-tests of 'toil_ims' and 'general/liquid_gas.in'
 
 end subroutine SF_VG_CapillaryPressure
 
@@ -1994,17 +2394,14 @@ subroutine SF_VG_Saturation(this,capillary_pressure,liquid_saturation, &
   PetscReal :: one_plus_pc_alpha_n
   PetscReal :: Se
   PetscReal :: dSe_dpc
-  PetscReal :: x, delta, sharpness, Hfunc, dHfunc
-
   
   dsat_dpres = 0.d0
   
   if (associated(this%pres_poly)) then
-    if (capillary_pressure <= this%pres_poly%low) then
+    if (capillary_pressure < this%pres_poly%low) then
       liquid_saturation = 1.d0
       return
-
-    else if (capillary_pressure <= this%pres_poly%high) then
+    else if (capillary_pressure < this%pres_poly%high) then
       call CubicPolynomialEvaluate(this%pres_poly%coefficients, &
                                    capillary_pressure,Se,dSe_dpc)
       liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
@@ -2035,7 +2432,6 @@ subroutine SF_VG_Saturation(this,capillary_pressure,liquid_saturation, &
             (pc_alpha*one_plus_pc_alpha_n**(this%m+1.d0))
     liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
     dsat_dpres = -(1.d0-this%Sr)*dSe_dpc
-
   endif
   
 end subroutine SF_VG_Saturation
@@ -3049,25 +3445,10 @@ subroutine RPF_Mualem_SetupPolynomials(this,option,error_string)
   
   PetscReal :: b(4)
   PetscReal :: one_over_m, Se_one_over_m, m
-  PetscReal :: se_low, se_high, S, rpf, drpf
 
-#if 0
-  this%poly => PolynomialCreate()
-  ! fill matix with values
-  this%poly%low = 0.99d0  ! just below saturated
-  this%poly%high = 1.d0   ! saturated
-  
-  m = this%m
-  one_over_m = 1.d0/m
-  Se_one_over_m = this%poly%low**one_over_m
-  b(1) = 1.d0
-  b(2) = sqrt(this%poly%low)*(1.d0-(1.d0-Se_one_over_m)**m)**2.d0
-  b(3) = 0.d0
-  b(4) = 0.5d0*b(2)/this%poly%low+ &
-          2.d0*this%poly%low**(one_over_m-0.5d0)* &
-          (1.d0-Se_one_over_m)**(m-1.d0)* &
-          (1.d0-(1.d0-Se_one_over_m)**m)
-#endif
+#ifdef smoothing2
+  ! smoothing curves for two ends of wet and dry
+  PetscReal :: se_low, se_high, S, rpf, drpf
 
   ! WET-end of perm-sat curve
 
@@ -3116,6 +3497,30 @@ subroutine RPF_Mualem_SetupPolynomials(this,option,error_string)
   
   call CubicPolynomialSetup(this%poly2%high,this%poly2%low,b)
   this%poly2%coefficients(1:4) = b(1:4)
+
+#else
+
+  this%poly => PolynomialCreate()
+  ! fill matix with values
+  this%poly%low = 0.99d0  ! just below saturated
+  this%poly%high = 1.d0   ! saturated
+  
+  m = this%m
+  one_over_m = 1.d0/m
+  Se_one_over_m = this%poly%low**one_over_m
+  b(1) = 1.d0
+  b(2) = sqrt(this%poly%low)*(1.d0-(1.d0-Se_one_over_m)**m)**2.d0
+  b(3) = 0.d0
+  b(4) = 0.5d0*b(2)/this%poly%low+ &
+          2.d0*this%poly%low**(one_over_m-0.5d0)* &
+          (1.d0-Se_one_over_m)**(m-1.d0)* &
+          (1.d0-(1.d0-Se_one_over_m)**m)
+  
+  call CubicPolynomialSetup(this%poly%high,this%poly%low,b)
+  
+  this%poly%coefficients(1:4) = b(1:4)
+
+#endif
   
 end subroutine RPF_Mualem_SetupPolynomials
 
@@ -3162,15 +3567,16 @@ subroutine RPF_Mualem_VG_Liq_RelPerm(this,liquid_saturation, &
     return
   endif
   
-  ! WET-end smoothing
   if (associated(this%poly)) then
-    if (Se >= this%poly%low .and. Se <= this%poly%high) then
+    !if (Se > this%poly%low) then
+    if (Se > this%poly%low .and. Se < this%poly%high) then
       call CubicPolynomialEvaluate(this%poly%coefficients, &
                                    Se,relative_permeability,dkr_Se)
       return
     endif
   endif
 
+#ifdef smoothing2
   ! DRY-end smoothing
   if (associated(this%poly2)) then
     if (Se >= this%poly2%low .and. Se <= this%poly2%high) then
@@ -3179,8 +3585,8 @@ subroutine RPF_Mualem_VG_Liq_RelPerm(this,liquid_saturation, &
       return
     endif
   endif
+#endif
   
-  ! NORMAL range
   one_over_m = 1.d0/this%m
   Se_one_over_m = Se**one_over_m
   relative_permeability = sqrt(Se)*(1.d0-(1.d0-Se_one_over_m)**this%m)**2.d0
@@ -3188,7 +3594,7 @@ subroutine RPF_Mualem_VG_Liq_RelPerm(this,liquid_saturation, &
             2.d0*Se**(one_over_m-0.5d0)* &
                 (1.d0-Se_one_over_m)**(this%m-1.d0)* &
                 (1.d0-(1.d0-Se_one_over_m)**this%m)
-
+  
 end subroutine RPF_Mualem_VG_Liq_RelPerm
 ! End RPF: Mualem, Van Genuchten (Liquid)
 
@@ -5178,7 +5584,7 @@ function RPF_TOUGH2_Linear_Oil_Create()
   ! Author: Paolo Orsini (OGS)
   ! Date: 10/19/2015
 
-  class(rpf_TOUGH2_Linear_Oil_type), pointer :: RPF_TOUGH2_Linear_Oil_Create
+  class(rpf_TOUGH2_Linear_oil_type), pointer :: RPF_TOUGH2_Linear_Oil_Create
 
   allocate(RPF_TOUGH2_Linear_Oil_Create)
   call RPF_TOUGH2_Linear_Oil_Create%Init()
@@ -5196,7 +5602,7 @@ subroutine RPF_TOUGH2_Linear_Oil_Init(this)
 
   implicit none
   
-  class(rpf_TOUGH2_Linear_Oil_type) :: this
+  class(rpf_TOUGH2_Linear_oil_type) :: this
 
   call RPFBaseInit(this)
   this%Sro = UNINITIALIZED_DOUBLE
@@ -5211,7 +5617,7 @@ subroutine RPF_TOUGH2_Linear_Oil_Verify(this,name,option)
 
   implicit none
   
-  class(rpf_TOUGH2_Linear_Oil_type) :: this
+  class(rpf_TOUGH2_Linear_oil_type) :: this
   character(len=MAXSTRINGLENGTH) :: name
   type(option_type) :: option
   
@@ -5246,7 +5652,7 @@ subroutine RPF_TOUGH2_Linear_Oil_RelPerm(this,liquid_saturation, &
   
   implicit none
 
-  class(rpf_TOUGH2_Linear_Oil_type) :: this
+  class(rpf_TOUGH2_Linear_oil_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
   PetscReal, intent(out) :: dkr_Se
@@ -5278,6 +5684,261 @@ end subroutine RPF_TOUGH2_Linear_Oil_RelPerm
 ! End RPF: TOUGH2, Linear (Oil)
 
 ! ************************************************************************** !
+
+!Beginning RPF Modified Brooks-Corey for liq and oil phase (RPF_Mod_BC_Oil)
+
+!  procedure, public :: Init => RPF_Mod_BC_Oil_Init 
+!  procedure, public :: Verify => RPF_Mod_BC_Oil_Verify
+!  procedure, public :: SetupPolynomials => RPF_Mod_BC_SetupPolynomials
+!  procedure, public :: RelativePermeability => RPF_Mod_BC_Oil_RelPerm
+
+function RPF_Mod_BC_Liq_Create()
+
+  ! Creates the Modified BC Oil relative permeability function object
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 02/20/2016
+
+  class(rpf_mod_BC_liq_type), pointer :: RPF_Mod_BC_Liq_Create
+
+  allocate(RPF_Mod_BC_Liq_Create)
+  call RPF_Mod_BC_Liq_Create%Init()
+
+end function RPF_Mod_BC_Liq_Create
+
+! ************************************************************************** !
+
+function RPF_Mod_BC_Oil_Create()
+
+  ! Creates the Modified BC Oil relative permeability function object
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 02/20/2016
+
+  class(rpf_mod_BC_oil_type), pointer :: RPF_Mod_BC_Oil_Create
+
+  allocate(RPF_Mod_BC_Oil_Create)
+  call RPF_Mod_BC_Oil_Create%Init()
+
+end function RPF_Mod_BC_Oil_Create
+
+! ************************************************************************** !
+
+!subroutine RPF_Mod_BC_Oil_Init(this)
+subroutine RPF_Mod_BC_Init(this)
+
+  ! Initializes the Modified BC Oil relative permeability function object 
+  ! object
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 02/20/2016
+
+  implicit none
+  
+  !class(rpf_mod_BC_oil_type) :: this
+  class(rpf_mod_BC_type) :: this
+
+  call RPFBaseInit(this)
+  this%m = UNINITIALIZED_DOUBLE
+  this%Srg = UNINITIALIZED_DOUBLE
+  this%Sro = UNINITIALIZED_DOUBLE
+  this%kr_max = 1.0d0
+   
+!end subroutine RPF_Mod_BC_Oil_Init
+end subroutine RPF_Mod_BC_Init
+
+! ************************************************************************** !
+
+!subroutine RPF_Mod_BC_Oil_Verify(this,name,option)
+subroutine RPF_Mod_BC_Verify(this,name,option)
+
+  use Option_module
+
+  implicit none
+  
+  !class(rpf_mod_BC_oil_type) :: this
+  class(rpf_mod_BC_type) :: this
+  character(len=MAXSTRINGLENGTH) :: name
+  type(option_type) :: option
+  
+  character(len=MAXSTRINGLENGTH) :: string 
+
+  if (index(name,'PERMEABILITY_FUNCTION') > 0) then
+    string = name
+  else
+    select type(rpf => this)
+      class is(rpf_mod_BC_liq_type) 
+        string = trim(name) // 'PERMEABILITY_FUNCTION,MOD_BC_LIQ'
+      class is(rpf_mod_BC_oil_type)
+        string = trim(name) // 'PERMEABILITY_FUNCTION,MOD_BC_OIL'
+    end select
+  endif    
+  call RPFBaseVerify(this,string,option)
+  if (Uninitialized(this%Sro)) then
+    option%io_buffer = UninitializedMessage('OIL_RESIDUAL_SATURATION',string)
+    call printErrMsg(option)
+  endif
+  if (Uninitialized(this%Srg)) then
+    option%io_buffer = UninitializedMessage('GAS_RESIDUAL_SATURATION',string)
+    call printErrMsg(option)
+  endif  
+
+  if (Uninitialized(this%m)) then
+    option%io_buffer = UninitializedMessage('POWER EXPONENT',string)
+    call printErrMsg(option)
+  endif
+  
+!end subroutine RPF_Mod_BC_Oil_Verify
+end subroutine RPF_Mod_BC_Verify
+
+
+! ************************************************************************** !
+
+subroutine RPF_Mod_BC_SetupPolynomials(this,option,error_string)
+
+  ! Sets up polynomials for smoothing Modified BC permeability function
+
+  use Option_module
+  use Utility_module
+  
+  implicit none
+  
+  class(rpf_mod_BC_type) :: this
+  type(option_type) :: option
+  character(len=MAXSTRINGLENGTH) :: error_string
+  
+  PetscReal :: b(4)
+
+  PetscReal :: Se_ph_low
+
+  this%poly => PolynomialCreate()
+  ! fill matix with values
+  this%poly%low = 0.99d0  ! just below saturated
+  !this%poly%low = 0.95d0  ! just below saturated 
+  this%poly%high = 1.d0   ! saturated
+  Se_ph_low = this%poly%low
+  !select type(rpf => this)
+  !  class is(rpf_mod_BC_liq_type) 
+  !    Se_ph_low = ( this%poly%low - this%Sr ) / &
+  !                (1.0 - this%Sro - this%Sr - this%Srg)
+  !  class is(rpf_mod_BC_oil_type)
+  !    Se_ph_low = ( this%poly%low - this%Sro ) / &
+  !                (1.0 - this%Sro - this%Sr - this%Srg) 
+  !end select 
+
+  b(1) = this%kr_max
+  b(2) = this%kr_max * (Se_ph_low ** this%m)
+  b(3) = 0.d0
+  b(4) = this%m * this%kr_max * Se_ph_low ** (this%m - 1.0 )
+  
+  call CubicPolynomialSetup(this%poly%high,this%poly%low,b)
+  
+  this%poly%coefficients(1:4) = b(1:4)
+  
+end subroutine RPF_Mod_BC_SetupPolynomials
+
+! ************************************************************************** !
+
+subroutine RPF_Mod_BC_Liq_RelPerm(this,liquid_saturation, &
+                                     relative_permeability,dkr_Se,option)
+  ! 
+  ! Computes the relative permeability (and associated derivatives) as a 
+  ! function of saturation
+  !
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 02/21/2016
+
+  use Option_module
+  use Utility_module
+  
+  implicit none
+
+  class(rpf_Mod_BC_liq_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: relative_permeability
+  PetscReal, intent(out) :: dkr_Se
+  type(option_type), intent(inout) :: option
+  
+  PetscReal :: Se
+  
+  dkr_Se = UNINITIALIZED_DOUBLE
+
+  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sro - this%Sr - this%Srg )
+
+  if (Se >= 1.d0) then
+    relative_permeability = this%kr_max
+    return
+  else if (Se <=  0.d0) then
+    relative_permeability = 0.d0
+    return
+  endif
+
+  if (associated(this%poly)) then
+    if (Se > this%poly%low) then
+      call CubicPolynomialEvaluate(this%poly%coefficients, &
+                                   Se,relative_permeability,dkr_Se)
+      return
+    endif
+  endif
+
+  relative_permeability = this%kr_max * (Se ** this%m)
+
+end subroutine RPF_Mod_BC_Liq_RelPerm
+
+! ************************************************************************** !
+
+
+subroutine RPF_Mod_BC_Oil_RelPerm(this,liquid_saturation, &
+                                     relative_permeability,dkr_Se,option)
+  ! 
+  ! Computes the relative permeability (and associated derivatives) as a 
+  ! function of saturation
+  !
+  ! Author: Paolo Orsini (OGS)
+  ! Date: 02/20/2016
+
+  use Option_module
+  use Utility_module
+  
+  implicit none
+
+  class(rpf_Mod_BC_oil_type) :: this
+  PetscReal, intent(in) :: liquid_saturation
+  PetscReal, intent(out) :: relative_permeability
+  PetscReal, intent(out) :: dkr_Se
+  type(option_type), intent(inout) :: option
+  
+  PetscReal :: So
+  PetscReal :: Se
+  PetscReal :: Seo
+  
+  dkr_Se = UNINITIALIZED_DOUBLE
+
+  So = 1.d0 - liquid_saturation
+
+  Seo = (So - this%Sro) / (1.d0 - this%Sro - this%Sr - this%Srg ) 
+
+  if (Seo >= 1.d0) then
+    relative_permeability = this%kr_max
+    return
+  else if (Seo <=  0.d0) then
+    relative_permeability = 0.d0
+    return
+  endif
+
+  if (associated(this%poly)) then
+    if (Seo > this%poly%low) then
+      call CubicPolynomialEvaluate(this%poly%coefficients, &
+                                   Seo,relative_permeability,dkr_Se)
+      return
+    endif
+  endif
+
+  relative_permeability = this%kr_max * (Seo ** this%m)
+
+end subroutine RPF_Mod_BC_Oil_RelPerm
+
+!End RPF: Modified Brooks-Corey for the oil phase (RPF_Mod_BC_Oil)
+
+! ************************************************************************** !
+
 
 subroutine PolynomialDestroy(poly)
   ! 
@@ -5338,7 +5999,9 @@ subroutine PermeabilityFunctionDestroy(rpf)
   if (.not.associated(rpf)) return
   
   call PolynomialDestroy(rpf%poly)
+#ifdef smoothing2
   call PolynomialDestroy(rpf%poly2)
+#endif
   deallocate(rpf)
   nullify(rpf)
 
@@ -5363,6 +6026,7 @@ recursive subroutine CharacteristicCurvesDestroy(cc)
   call CharacteristicCurvesDestroy(cc%next)
   
   call SaturationFunctionDestroy(cc%saturation_function)
+
   ! the liquid and gas relative permeability pointers may pointer to the
   ! same address. if so, destroy one and nullify the other.
   if (associated(cc%liq_rel_perm_function,cc%gas_rel_perm_function)) then
@@ -5370,14 +6034,15 @@ recursive subroutine CharacteristicCurvesDestroy(cc)
     nullify(cc%gas_rel_perm_function)
   !PO how about avoiding xxx_rel_perm_function => aaa_rel_perm_function? 
   !   it should semplify code. It seems we do this only to pass verify 
-  else if(associated(cc%oil_rel_perm_function,cc%gas_rel_perm_function)) then 
+  else if (associated(cc%oil_rel_perm_function,cc%gas_rel_perm_function)) then 
     call PermeabilityFunctionDestroy(cc%oil_rel_perm_function)
     nullify(cc%gas_rel_perm_function)
   else
     call PermeabilityFunctionDestroy(cc%liq_rel_perm_function)
     call PermeabilityFunctionDestroy(cc%gas_rel_perm_function)
+    !call PermeabilityFunctionDestroy(cc%oil_rel_perm_function)
   endif
-  
+
   deallocate(cc)
   nullify(cc)
   
