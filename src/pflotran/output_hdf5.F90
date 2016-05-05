@@ -541,6 +541,7 @@ subroutine OutputHDF5OpenFile(option, output_option, var_list_type, file_id, &
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
   endif
+  if (option%print_screen_flag) &
   call printMsg(option)
 
 #endif
@@ -781,6 +782,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
   endif
+  if (option%print_screen_flag) &
   call printMsg(option)
 
   if (first) then
@@ -1222,6 +1224,7 @@ subroutine OutputHDF5UGridXDMFExplicit(realization_base,var_list_type)
   else
     option%io_buffer = '--> appending to hdf5 output file: ' // trim(filename)
   endif
+  if (option%print_screen_flag) &
   call printMsg(option)
   
   new_filename = trim(option%global_prefix) // '-domain.h5'

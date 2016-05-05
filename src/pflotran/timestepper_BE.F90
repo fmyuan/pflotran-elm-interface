@@ -472,6 +472,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
            &   1pe12.5)')  snes_reason,icut,this%cumulative_time_step_cuts, &
            option%time/tconv, &
            this%dt/tconv
+      if (option%print_screen_flag) &
       call printMsg(option)
 #endif
       if (snes_reason == SNES_DIVERGED_LINEAR_SOLVE) then
