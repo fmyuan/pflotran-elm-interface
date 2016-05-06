@@ -2301,7 +2301,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
 
       select type(sf => characteristic_curves%saturation_function)
         !class is(sat_func_VG_type)
-          ! TODO
+          ! not-yet
         class is(sat_func_BC_type)
           sf%alpha  = auxvar%bc_alpha
           sf%lambda = auxvar%bc_lambda
@@ -2317,15 +2317,15 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
       end select
 
       select type(rpf => characteristic_curves%liq_rel_perm_function)
-        !class is(rpf_Mualem_VG_liq_type) (TODO)
-
-        ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-        !error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
-        !call rpf%SetupPolynomials(option,error_string)
+        !class is(rpf_Mualem_VG_liq_type)
 
         class is(rpf_Burdine_BC_liq_type)
           rpf%lambda = auxvar%bc_lambda
           rpf%Sr  = auxvar%bc_sr1
+
+          ! needs to re-calculate some extra variables for 'saturation_function', if changed above
+          error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
+          call rpf%SetupPolynomials(option,error_string)
 
         class default
           option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
@@ -2508,7 +2508,7 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
 
       select type(sf => characteristic_curves%saturation_function)
         !class is(sat_func_VG_type)
-          ! TODO
+          ! not-yet
         class is(sat_func_BC_type)
           sf%alpha  = auxvar%bc_alpha
           sf%lambda = auxvar%bc_lambda
@@ -2524,14 +2524,15 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
       end select
 
       select type(rpf => characteristic_curves%liq_rel_perm_function)
-        !class is(rpf_Mualem_VG_liq_type)  (TODO)
-        ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-        ! error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
-        ! call rpf%SetupPolynomials(option,error_string)
+        !class is(rpf_Mualem_VG_liq_type)
 
         class is(rpf_Burdine_BC_liq_type)
           rpf%lambda = auxvar%bc_lambda
           rpf%Sr  = auxvar%bc_sr1
+
+          ! needs to re-calculate some extra variables for 'saturation_function', if changed above
+          error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
+          call rpf%SetupPolynomials(option,error_string)
 
         class default
           option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &

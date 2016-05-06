@@ -298,15 +298,14 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   select type(rpf => characteristic_curves%liq_rel_perm_function)
     !class is(rpf_Mualem_VG_liq_type)
-      ! TODO
-
-      ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-      ! error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
-      ! call rpf%SetupPolynomials(option,error_string)
-
+      !
     class is(rpf_Burdine_BC_liq_type)
       rpf%lambda = auxvar%bc_lambda
       rpf%Sr  = auxvar%bc_sr1
+
+      ! (checking) strange: the following causes regression-test failure on Mac: creep_closure_w_gas_gen.in
+      error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
+      call rpf%SetupPolynomials(option,error_string)
 
     class default
       option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
