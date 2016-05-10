@@ -2664,7 +2664,6 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
             ! m/s = (Pa: Newton/m2) /s /(Newton/kg) /(kg m-3)
             v_darcy_allowable = temp_real/option%flow_dt/(-option%gravity(3))/rho  ! option%gravity(3) is in -9.8068 m/s2
 
-print *, 'contraining v_darcy: ', v_darcy, v_darcy_allowable, temp_real, option%gravity(3), rho
 
             if (v_darcy > v_darcy_allowable) then
                v_darcy = v_darcy_allowable
