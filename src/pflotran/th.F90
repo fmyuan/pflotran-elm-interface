@@ -2079,6 +2079,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     call GlobalAuxVarCopy(global_auxvar_up,global_auxvar_pert_up,option)
     call GlobalAuxVarCopy(global_auxvar_dn,global_auxvar_pert_dn,option)
 
+    allocate(material_auxvar_pert_up,material_auxvar_pert_dn)
     call MaterialAuxVarInit(material_auxvar_pert_up,option)
     call MaterialAuxVarInit(material_auxvar_pert_dn,option)  
     call MaterialAuxVarCopy(material_auxvar_up,material_auxvar_pert_up,option)
@@ -2220,6 +2221,8 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     Jdn = J_pert_dn
     call GlobalAuxVarStrip(global_auxvar_pert_up)
     call GlobalAuxVarStrip(global_auxvar_pert_dn)    
+    call MaterialAuxVarStrip(material_auxvar_pert_up)
+    call MaterialAuxVarStrip(material_auxvar_pert_dn)
   endif
 
 end subroutine THFluxDerivative
@@ -2541,7 +2544,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: Diffg_ref, p_ref, T_ref
   PetscErrorCode :: ierr
   PetscReal :: v_darcy_allowable
-  PetscReal :: dum1
+  PetscReal :: dum1, temp_real
   PetscReal :: T_th,fct,fctT,dfctT_dT
   PetscReal :: rho
   PetscReal :: dq_lin,dP_lin
@@ -2646,6 +2649,33 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
 
         if (ukvr*Dq>floweps) then
           v_darcy = Dq * ukvr * dphi
+
+#ifdef CLM_PFLOTRAN
+          ! when coupled with CLM, 'pressure-type' BC due to water-column formed on the BC-contacted cell(s)
+          ! should not be producing 'darcy-flow' over standing water availability
+          ! NOTE: this IS not appropriate for 'injection' caused pressure-type BC.
+          temp_real = global_auxvar_up%pres(1) -  &
+                      max(global_auxvar_dn%pres(1), option%reference_pressure)
+          if (temp_real >= eps .and. (.not.option%surf_flow_on)) then
+
+            call EOSWaterdensity(global_auxvar_up%temp, &
+                                option%reference_pressure,rho,dum1,ierr)
+
+            ! m/s = (Pa: Newton/m2) /s /(Newton/kg) /(kg m-3)
+            v_darcy_allowable = temp_real/option%flow_dt/(-option%gravity(3))/rho  ! option%gravity(3) is in -9.8068 m/s2
+
+print *, 'contraining v_darcy: ', v_darcy, v_darcy_allowable, temp_real, option%gravity(3), rho
+
+            if (v_darcy > v_darcy_allowable) then
+               v_darcy = v_darcy_allowable
+               ukvr = v_darcy/Dq/dphi
+               dukvr_dp_dn = 0.d0
+               dukvr_dt_dn = 0.d0
+            endif
+
+          endif
+#endif
+
           q = v_darcy * area
           dq_dp_dn = Dq*(dukvr_dp_dn*dphi+ukvr*dphi_dp_dn)*area
           dq_dt_dn = Dq*(dukvr_dt_dn*dphi+ukvr*dphi_dt_dn)*area
@@ -2830,7 +2860,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           endif
         endif
       endif
-      
+
     case(NEUMANN_BC)
       if (dabs(auxvars(TH_PRESSURE_DOF)) > floweps) then
         v_darcy = auxvars(TH_PRESSURE_DOF)
@@ -2926,7 +2956,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
 
         ! for 'seepage' bc of pressure, turn-off thermal conduction btw cell and external seepage entity
         ! (fmy: Mar-31-2016. This appears will save computing time)
-        if (ibndtype(TH_PRESSURE_DOF) /= SEEPAGE_BC) then
+        if (ibndtype(TH_PRESSURE_DOF) /= SEEPAGE_BC .and. &
+            ibndtype(TH_PRESSURE_DOF) /= HET_SURF_SEEPAGE_BC) then
 
           Jdn(option%nflowdof,1) = Jdn(option%nflowdof,1) + &
                 area*(global_auxvar_up%temp - global_auxvar_dn%temp)*dDk_dp_dn
@@ -3247,7 +3278,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   PetscErrorCode :: ierr
   PetscReal :: fv_up, fv_dn
   PetscReal :: v_darcy_allowable
-  PetscReal :: rho,dum1
+  PetscReal :: rho,dum1, temp_real
   PetscReal :: q_approx, dq_approx
   PetscReal :: T_th,fctT,fct
   T_th  = 0.5d0
@@ -3316,6 +3347,27 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
 
         if (ukvr*Dq>floweps) then
           v_darcy = Dq * ukvr * dphi
+
+#ifdef CLM_PFLOTRAN
+          ! when coupled with CLM, 'pressure-type' BC due to water-column formed on the BC-contacted cell(s)
+          ! should not be producing 'darcy-flow' over standing water availability
+          ! NOTE: this IS not appropriate for 'injection' caused pressure-type BC.
+          temp_real = global_auxvar_up%pres(1) -  &
+                      max(global_auxvar_dn%pres(1), option%reference_pressure)
+          if (temp_real >= eps .and. (.not.option%surf_flow_on)) then
+
+            call EOSWaterdensity(global_auxvar_up%temp, &
+                                option%reference_pressure,rho,dum1,ierr)
+
+            v_darcy_allowable = temp_real/option%flow_dt/(-option%gravity(3))/rho
+
+            if (v_darcy > v_darcy_allowable) then
+               v_darcy = v_darcy_allowable
+            endif
+
+          endif
+#endif
+
         endif
       endif 
 
