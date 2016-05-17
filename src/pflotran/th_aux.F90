@@ -76,9 +76,13 @@ module TH_Aux_module
     PetscBool :: bcflux_default_scheme
 
 #ifdef CLM_PFLOTRAN
-    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
-    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda
-    PetscReal :: bc_sr1    ! Brooks Corey parameterization: sr(1)
+    PetscReal :: bc_alpha  ! cell-varied Brooks-Corey-Burdine parameter: alpha
+    PetscReal :: bc_lambda ! cell-varied Brooks-Corey-Burdine parameter: lambda
+    PetscReal :: bc_sr1    ! cell-varied Brooks-Corey-Burdine parameter: sr(1) (i.e. liquid)
+    PetscReal :: tkdry     ! cell-varied thermal conductivity (dry) - 'ckdry'
+    PetscReal :: tkwet     ! cell-varied thermal conductivity (dry) - 'ckwet'
+    PetscReal :: tkfrzoen  ! cell-varied thermal conductivity (frozen) - 'ckfrozen'
+    PetscReal :: hcapv     ! cell-varied volume heat capacity (solid material) - 'dencpr'
 #endif
 
   end type TH_auxvar_type
@@ -254,9 +258,13 @@ subroutine THAuxVarInit(auxvar,option)
   auxvar%bcflux_default_scheme           = PETSC_FALSE
 
 #ifdef CLM_PFLOTRAN
-  auxvar%bc_alpha  = 0.0d0
-  auxvar%bc_lambda = 0.0d0
-  auxvar%bc_sr1    = 1.0d-9
+  auxvar%bc_alpha  = uninit_value
+  auxvar%bc_lambda = uninit_value
+  auxvar%bc_sr1    = uninit_value
+  auxvar%tkdry     = uninit_value
+  auxvar%tkwet     = uninit_value
+  auxvar%tkfrozen  = uninit_value
+  auxvar%hcapv     = uninit_value
 #endif
 
 end subroutine THAuxVarInit
@@ -349,6 +357,10 @@ subroutine THAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%bc_alpha  = auxvar%bc_alpha
   auxvar2%bc_lambda = auxvar%bc_lambda
   auxvar2%bc_sr1    = auxvar%bc_sr1
+  auxvar2%tkdry     = auxvar%tkdry
+  auxvar2%tkwet     = auxvar%tkwet
+  auxvar2%tkfrozen  = auxvar%tkfrozen
+  auxvar2%hcapv     = auxvar%hcapv
 #endif
 
 end subroutine THAuxVarCopy

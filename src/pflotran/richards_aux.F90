@@ -32,9 +32,9 @@ module Richards_Aux_module
     PetscReal :: dsat_dp
     PetscReal :: dden_dp
 #ifdef CLM_PFLOTRAN
-    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
-    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda
-    PetscReal :: bc_sr1    ! Brooks Corey parameterization: sr(1)
+    PetscReal :: bc_alpha  ! cell-varied Brooks-Corey-Burdine parameter: alpha
+    PetscReal :: bc_lambda ! cell-varied Brooks-Corey-Burdine parameter: lambda
+    PetscReal :: bc_sr1    ! cell-varied Brooks-Corey-Burdine parameter: sr(1)
 #endif
 
     ! OLD-VAR-NAMES            = NEW-VAR

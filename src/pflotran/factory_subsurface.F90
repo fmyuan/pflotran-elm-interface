@@ -2861,7 +2861,54 @@ subroutine SubsurfaceReadInput(simulation)
     deallocate(tran_timestepper)
     nullify(tran_timestepper)
   endif
-                                      
+
+#ifdef CLM_PFLOTRAN
+  ! material_properties are by unique one for each cell, if CLM domain over-ride PF input
+  ! i.e. NO mapping provided, hack here to duplicate default materials, and then
+  ! (1) in 'strata' material propertis will be assigned to ecah cell
+  ! (2) in 'PFLOTRAN_CLM_MAIN' will do the data-passing
+  if (.not.option%mapping_files) then
+
+        material_property => realization%material_properties
+        ! re-naming/IDing all materials, BUT appending 'region' or 'strata'
+        material_property%external_id = 0
+        do
+          if (.not.associated(material_property)) exit
+          material_property%external_id = material_property%external_id + 1
+          material_property%name = 'CLMsoil' // trim(string(material_property%external_id)
+          material_property => material_property%next
+        enddo
+        do cell_id = material_property%external_id+1, grid%nmax
+          material_property%external_id = material_property%external_id+1
+          material_property%name = 'CLMsoil' // trim(string(material_property%external_id)
+          call MaterialPropertyAddToList(material_property, &
+                   realization%material_properties)
+        enddo
+        nullify(material_property)
+
+        ! BUT appending 'region' or 'strata', so that 'conditions' will not be impacted
+        region => RegionCreate()
+        region = realization%region_list%last    ! this is a tempalate to hold NON-changed values
+
+        strata => StrataCreate()
+        strata = realization%strata%last         ! this is a tempalate to hold NON-changed values
+
+        do cell_id =1, grid%nmax
+
+          call RegionAddToList(region,realization%region_list)
+
+
+          call RealizationAddStrata(realization,strata)
+
+        enddo
+
+        nullify(region)
+        nullify(strata)
+
+  endif
+
+#endif
+
 end subroutine SubsurfaceReadInput
 
 end module Factory_Subsurface_module

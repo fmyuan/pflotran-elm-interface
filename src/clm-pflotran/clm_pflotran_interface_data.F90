@@ -171,6 +171,17 @@ module clm_pflotran_interface_data
   ! -----TH vecs from CLM to PF --------------------
   ! TH properties
 
+  ! CLM's thermal properties  - mpi vectors
+  Vec :: tkwet_clmp     ! unit: W/m-K
+  Vec :: tkdry_clmp
+  Vec :: tkfrz_clmp
+  Vec :: hcapm_clmp     ! unit: J/kg-K (mass specific heat capacity)
+
+  Vec :: tkwet_pfs
+  Vec :: tkdry_pfs
+  Vec :: tkfrz_pfs
+  Vec :: hcapm_pfs
+
   ! CLM's hydraulic properties  - mpi vectors
   Vec :: hksat_x_clmp
   Vec :: hksat_y_clmp
@@ -536,6 +547,10 @@ contains
     clm_pf_idata%area_subsurf_pfp      = 0
     clm_pf_idata%area_subsurf_clms     = 0
 
+    clm_pf_idata%tkwet_clmp = 0
+    clm_pf_idata%tkdry_clmp = 0
+    clm_pf_idata%tkfrz_clmp = 0
+    clm_pf_idata%hcapm_clmp = 0
     clm_pf_idata%hksat_x_clmp = 0
     clm_pf_idata%hksat_y_clmp = 0
     clm_pf_idata%hksat_z_clmp = 0
@@ -544,6 +559,10 @@ contains
     clm_pf_idata%bulkdensity_dry_clmp = 0
     clm_pf_idata%effporosity_clmp = 0
 
+    clm_pf_idata%tkwet_pfs = 0
+    clm_pf_idata%tkdry_pfs = 0
+    clm_pf_idata%tkfrz_pfs = 0
+    clm_pf_idata%hcapm_pfs = 0
     clm_pf_idata%hksat_x_pfs = 0
     clm_pf_idata%hksat_y_pfs = 0
     clm_pf_idata%hksat_z_pfs = 0
@@ -819,6 +838,11 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%area_top_face_clmp,ierr)
 
     ! soil physical properties (3D)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkwet_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkdry_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkfrz_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hcapm_clmp,ierr)
+
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hksat_x_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hksat_y_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hksat_z_clmp,ierr)
@@ -872,6 +896,11 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%dysoil_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%dzsoil_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%area_top_face_pfs,ierr)
+
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%tkwet_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%tkdry_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%tkfrz_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%hcapm_pfs,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%hksat_x_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%hksat_y_pfs,ierr)
@@ -1183,6 +1212,15 @@ contains
       call VecDestroy(clm_pf_idata%area_top_face_clms,ierr)
 
     !----
+    if(clm_pf_idata%tkwet_clmp  /= 0) &
+      call VecDestroy(clm_pf_idata%tkwet_clmp,ierr)
+    if(clm_pf_idata%tkdry_clmp  /= 0) &
+      call VecDestroy(clm_pf_idata%tkdry_clmp,ierr)
+    if(clm_pf_idata%tkfrz_clmp  /= 0) &
+      call VecDestroy(clm_pf_idata%tkfrz_clmp,ierr)
+    if(clm_pf_idata%hcapm_clmp  /= 0) &
+      call VecDestroy(clm_pf_idata%hcapm_clmp,ierr)
+
     if(clm_pf_idata%hksat_x_clmp  /= 0) &
       call VecDestroy(clm_pf_idata%hksat_x_clmp,ierr)
     if(clm_pf_idata%hksat_y_clmp  /= 0) &
@@ -1199,6 +1237,15 @@ contains
       call VecDestroy(clm_pf_idata%watfc_clmp,ierr)
     if(clm_pf_idata%bulkdensity_dry_clmp  /= 0) &
       call VecDestroy(clm_pf_idata%bulkdensity_dry_clmp,ierr)
+
+    if(clm_pf_idata%tkwet_pfs  /= 0) &
+      call VecDestroy(clm_pf_idata%tkwet_pfs,ierr)
+    if(clm_pf_idata%tkdry_pfs  /= 0) &
+      call VecDestroy(clm_pf_idata%tkdry_pfs,ierr)
+    if(clm_pf_idata%tkfrz_pfs  /= 0) &
+      call VecDestroy(clm_pf_idata%tkfrz_pfs,ierr)
+    if(clm_pf_idata%hcapm_pfs  /= 0) &
+      call VecDestroy(clm_pf_idata%hcapm_pfs,ierr)
 
     if(clm_pf_idata%hksat_x_pfs  /= 0) &
       call VecDestroy(clm_pf_idata%hksat_x_pfs,ierr)

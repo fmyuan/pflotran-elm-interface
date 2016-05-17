@@ -497,7 +497,7 @@ contains
 
     type(Option_type), pointer :: option
     type(pflotran_model_type), pointer :: model
-    character(len=MAXWORDLENGTH), intent(in) :: id_stamp
+    character(len=MAXSTRINGLENGTH), intent(in) :: id_stamp
     PetscViewer :: viewer
 
     if (associated(model%simulation%process_model_coupler_list%checkpoint_option)) then
@@ -1001,6 +1001,11 @@ contains
     PetscReal          :: bc_lambda, bc_alpha, bc_sr
     PetscInt           :: sf_func_type, rpf_func_type
 
+    PetscScalar, pointer :: tkwet_pf_loc(:)   ! thermal conductivity at saturated (W/m/K)
+    PetscScalar, pointer :: tkdry_pf_loc(:)   ! thermal conductivity - dry (W/m/K)
+    PetscScalar, pointer :: tkfrz_pf_loc(:)   ! thermal conductivity - frozen (W/m/K)
+    PetscScalar, pointer :: hcapm_pf_loc(:)   ! mass specific heat capacity (J/kg/K)
+
     PetscScalar, pointer :: hksat_x_pf_loc(:) ! hydraulic conductivity in x-dir at saturation (mm H2O /s)
     PetscScalar, pointer :: hksat_y_pf_loc(:) ! hydraulic conductivity in y-dir at saturation (mm H2O /s)
     PetscScalar, pointer :: hksat_z_pf_loc(:) ! hydraulic conductivity in z-dir at saturation (mm H2O /s)
@@ -1055,6 +1060,25 @@ contains
     end select
 
     ! ---------------------
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    option, &
+                                    clm_pf_idata%tkwet_clmp, &
+                                    clm_pf_idata%tkwet_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    option, &
+                                    clm_pf_idata%tkdry_clmp, &
+                                    clm_pf_idata%tkdry_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    option, &
+                                    clm_pf_idata%tkfrz_clmp, &
+                                    clm_pf_idata%tkfrz_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    option, &
+                                    clm_pf_idata%hcapm_clmp, &
+                                    clm_pf_idata%hcamp_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
@@ -1119,6 +1143,15 @@ contains
     !
     !---------------------
     !
+    call VecGetArrayF90(clm_pf_idata%tkwet_pfs, tkwet_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%tkdry_pfs, tkdry_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%tkfrz_pfs, tkfrz_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%hcapm_pfs, hcapm_pf_loc, ierr)
+    CHKERRQ(ierr)
+
     call VecGetArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%hksat_y_pfs, hksat_y_pf_loc, ierr)
@@ -1260,14 +1293,19 @@ contains
         'rank=',option%myrank, 'ngmax=',grid%ngmax, 'nlmax=',grid%nlmax, &
         'local_id=',local_id, 'ghosted_id=',ghosted_id, &
         'pfp_porosity(local_id)=',porosity_loc_p(local_id), &
-        'clms_watsat(ghosted_id)=',watsat_pf_loc(ghosted_id), &
-        'saturation_function_alpha=', saturation_function%alpha, &
-        'saturation_function_lambda=', saturation_function%lambda, &
-        'saturation_function_sr=', saturation_function%sr(1), &
-        'saturation_function_pcwmax=', saturation_function%pcwmax
+        'clms_watsat(ghosted_id)=',watsat_pf_loc(ghosted_id)
 #endif
 
     enddo
+
+    call VecRestoreArrayF90(clm_pf_idata%tkwet_pfs, tkwet_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%tkdry_pfs, tkdry_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%tkfrz_pfs, tkfrz_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%hcapm_pfs, hcapm_pf_loc, ierr)
+    CHKERRQ(ierr)
 
     call VecRestoreArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
     CHKERRQ(ierr)
