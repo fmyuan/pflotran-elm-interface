@@ -324,3 +324,12 @@ src/clm-pflotran/variables.F90
 src/clm-pflotran/waypoint.F90
 src/clm-pflotran/wipp.F90
 src/clm-pflotran/wrapper_hydrogeophysics.F90
+src/clm-pflotran/geomechanics_init.F90
+src/clm-pflotran/mass_transfer.F90
+src/clm-pflotran/pm_subsurface.F90
+src/clm-pflotran/pmc_material.F90
+src/clm-pflotran/realization.F90
+src/clm-pflotran/simulation.F90
+src/clm-pflotran/surface_init.F90
+src/clm-pflotran/surface_realization.F90
+src/clm-pflotran/timestepper_geomechanics.F90
