@@ -364,6 +364,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     dvis_dp = 0.d0
     dvis_dpsat = 0.d0
     dw_dp = 0.d0
+    hw_dp = 0.d0
   endif
  
   global_auxvar%den = dw_mol

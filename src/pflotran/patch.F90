@@ -3374,7 +3374,7 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
             do local_id=1,grid%nlmax
               if (option%use_th_freezing) then
                 vec_ptr(local_id) = &
-                  patch%aux%TH%auxvars(grid%nL2G(local_id))%sat_gas
+                  patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_gas
               else
                 vec_ptr(local_id) = 0.d0
               endif
@@ -3383,14 +3383,14 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
             if (option%use_th_freezing) then
               do local_id=1,grid%nlmax
                 vec_ptr(local_id) = &
-                  patch%aux%TH%auxvars(grid%nL2G(local_id))%sat_ice
+                  patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_ice
               enddo
             endif
           case(ICE_DENSITY)
             if (option%use_th_freezing) then
               do local_id=1,grid%nlmax
                 vec_ptr(local_id) = &
-                  patch%aux%TH%auxvars(grid%nL2G(local_id))%den_ice*FMWH2O
+                  patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%den_ice*FMWH2O
               enddo
             endif
           case(LIQUID_VISCOSITY)
@@ -4613,17 +4613,17 @@ function PatchGetVariableValueAtCell(patch,field,reaction,option, &
             call printErrMsg(option,'GAS_MOLE_FRACTION not supported by TH')
           case(GAS_SATURATION)
             if (option%use_th_freezing) then
-              value = patch%aux%TH%auxvars(ghosted_id)%sat_gas
+              value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_gas
             else
               value = 0.d0
             endif
           case(ICE_SATURATION)
             if (option%use_th_freezing) then
-              value = patch%aux%TH%auxvars(ghosted_id)%sat_ice
+              value = patch%aux%TH%auxvars(ghosted_id)%ice%sat_ice
             endif
           case(ICE_DENSITY)
             if (option%use_th_freezing) then
-              value = patch%aux%TH%auxvars(ghosted_id)%den_ice*FMWH2O
+              value = patch%aux%TH%auxvars(ghosted_id)%ice%den_ice*FMWH2O
             endif
           case(LIQUID_MOLE_FRACTION)
             call printErrMsg(option,'LIQUID_MOLE_FRACTION not supported by TH')
@@ -5396,12 +5396,12 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             if (option%use_th_freezing) then
               if (vec_format == GLOBAL) then
                 do local_id=1,grid%nlmax
-                  patch%aux%TH%auxvars(grid%nL2G(local_id))%sat_gas = &
+                  patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_gas = &
                     vec_ptr(local_id)
                 enddo
               else if (vec_format == LOCAL) then
                 do ghosted_id=1,grid%ngmax
-                  patch%aux%TH%auxvars(ghosted_id)%sat_gas = vec_ptr(ghosted_id)
+                  patch%aux%TH%auxvars(ghosted_id)%ice%sat_gas = vec_ptr(ghosted_id)
                 enddo
               endif
             endif
@@ -5409,12 +5409,12 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             if (option%use_th_freezing) then
               if (vec_format == GLOBAL) then
                 do local_id=1,grid%nlmax
-                  patch%aux%TH%auxvars(grid%nL2G(local_id))%sat_ice = &
+                  patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%sat_ice = &
                     vec_ptr(local_id)
                 enddo
               else if (vec_format == LOCAL) then
                 do ghosted_id=1,grid%ngmax
-                  patch%aux%TH%auxvars(ghosted_id)%sat_ice = vec_ptr(ghosted_id)
+                  patch%aux%TH%auxvars(ghosted_id)%ice%sat_ice = vec_ptr(ghosted_id)
                 enddo
               endif
             endif
@@ -5422,12 +5422,12 @@ subroutine PatchSetVariable(patch,field,option,vec,vec_format,ivar,isubvar)
             if (option%use_th_freezing) then
               if (vec_format == GLOBAL) then
                 do local_id=1,grid%nlmax
-                  patch%aux%TH%auxvars(grid%nL2G(local_id))%den_ice = &
+                  patch%aux%TH%auxvars(grid%nL2G(local_id))%ice%den_ice = &
                     vec_ptr(local_id)
                 enddo
               else if (vec_format == LOCAL) then
                 do ghosted_id=1,grid%ngmax
-                  patch%aux%TH%auxvars(ghosted_id)%den_ice = vec_ptr(ghosted_id)
+                  patch%aux%TH%auxvars(ghosted_id)%ice%den_ice = vec_ptr(ghosted_id)
                 enddo
               endif
             endif
@@ -6938,8 +6938,12 @@ subroutine PatchGetCompMassInRegion(cell_ids,num_cells,patch,option, &
       ! aqueous species; units [mol/L-water]*[m^3-water]*[1000L/m^3-water]=[mol]
       aq_species_mass = rt_auxvars(ghosted_id)%total(j,LIQUID_PHASE) * &
                         m3_water * 1.0d3
-      ! sorbed species; units [mol/m^3-bulk]*[m^3-bulk]=[mol]
-      sorb_species_mass = rt_auxvars(ghosted_id)%total_sorb_eq(j) * m3_bulk
+      if (associated(rt_auxvars(ghosted_id)%total_sorb_eq)) then
+        ! sorbed species; units [mol/m^3-bulk]*[m^3-bulk]=[mol]
+        sorb_species_mass = rt_auxvars(ghosted_id)%total_sorb_eq(j) * m3_bulk
+      else
+        sorb_species_mass = 0.d0
+      endif
       local_total_mass = local_total_mass + aq_species_mass + &
                                             sorb_species_mass
     enddo
