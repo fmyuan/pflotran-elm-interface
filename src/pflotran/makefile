@@ -232,13 +232,6 @@ chem_obj = \
 	${common_src}reaction_sandbox_example.o \
 	${common_src}reaction_sandbox_simple.o \
 	${common_src}reaction_sandbox_ufd_wp.o \
-	${common_src}reaction_sandbox_denitr.o \
-	${common_src}reaction_sandbox_degas.o \
-	${common_src}reaction_sandbox_langmu.o \
-	${common_src}reaction_sandbox_nitrif.o \
-	${common_src}reaction_sandbox_plantn.o \
-	${common_src}reaction_sandbox_somdec.o \
-	${common_src}clm_rspfuncs.o \
 	${common_src}reaction_solid_solution.o \
 	${common_src}reaction_solid_solution_aux.o \
 	${common_src}reaction_surf_complex.o \
