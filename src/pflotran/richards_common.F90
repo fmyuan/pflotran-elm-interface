@@ -711,29 +711,6 @@ subroutine RichardsBCFluxDerivative(ibndtype,auxvars, &
             endif     !if (rich_auxvar_dn%vars_for_sflow(11) == 0.d0)
           endif   !if (option%surf_flow_on)
 
-#ifdef CLM_PFLOTRAN
-          ! when coupled with CLM, 'pressure-type' BC due to water-column formed on the BC-contacted cell(s)
-          ! should not be producing 'darcy-flow' over standing water availability
-          ! NOTE: this IS not appropriate for 'injection' caused pressure-type BC.
-          temp_real = global_auxvar_up%pres(1) -  &
-                      max(global_auxvar_dn%pres(1), option%reference_pressure)
-          if (pressure_bc_type == DIRICHLET_BC .and. temp_real >= eps) then
-
-             call EOSWaterdensity(global_auxvar_up%temp, &
-                                option%reference_pressure,rho,dum1,ierr)
-
-            v_darcy_allowable = temp_real/option%flow_dt/(-option%gravity(3))/rho
-
-            if (v_darcy > v_darcy_allowable) then
-               v_darcy = v_darcy_allowable
-               q = v_darcy * area
-               ukvr = v_darcy/Dq/dphi
-               dq_dp_dn = Dq*(dukvr_dp_dn*dphi + ukvr*dphi_dp_dn)*area
-            endif
-
-          endif     !if (pressure_bc_type == DIRICHLET_BC)
-#endif
-
         endif      !if (ukvr*Dq>floweps)
 
        endif       !if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn)
@@ -1023,27 +1000,6 @@ subroutine RichardsBCFlux(ibndtype,auxvars, &
           endif   !if (.not. rich_auxvar_dn%bcflux_default_scheme)
 
         endif     !if (pressure_bc_type == HET_SURF_SEEPAGE_BC .and. option%nsurfflowdof>0)
-
-#ifdef CLM_PFLOTRAN
-        ! when coupled with CLM, 'pressure-type' BC due to water-column formed on the BC-contacted cell(s)
-        ! should not be producing 'darcy-flow' over standing water availability
-        ! NOTE: this IS not appropriate for 'injection' caused pressure-type BC.
-        temp_real = global_auxvar_up%pres(1) -  &
-                    max(global_auxvar_dn%pres(1), option%reference_pressure)
-        if (pressure_bc_type == DIRICHLET_BC .and. temp_real >= eps) then
-
-          call EOSWaterdensity(global_auxvar_up%temp, &
-                            option%reference_pressure,rho,dum1,ierr)
-
-          v_darcy_allowable = temp_real/option%flow_dt/(-option%gravity(3))/rho
-          if (v_darcy > v_darcy_allowable) then
-            v_darcy = v_darcy_allowable
-            q = v_darcy * area
-            ukvr = v_darcy/Dq/dphi
-          endif
-
-        endif     !if (pressure_bc_type == DIRICHLET_BC)
-#endif
 
        endif      !if (ukvr*Dq>floweps)
       endif       !if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_dn%sat(1) > sir_dn)
