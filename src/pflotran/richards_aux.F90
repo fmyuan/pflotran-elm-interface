@@ -145,6 +145,7 @@ subroutine RichardsAuxVarInit(auxvar,option)
     nullify(auxvar%vars_for_sflow)
   endif
   
+
 end subroutine RichardsAuxVarInit
 
 ! ************************************************************************** !
@@ -242,16 +243,14 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
  
   global_auxvar%pres = x(1)
   global_auxvar%temp = option%reference_temperature
-
+ 
   auxvar%pc = option%reference_pressure - global_auxvar%pres(1)
   
 !***************  Liquid phase properties **************************
   pw = option%reference_pressure
   ds_dp = 0.d0
   dkr_dp = 0.d0
-
   if (auxvar%pc > 0.d0) then
-
     saturated = PETSC_FALSE
     call characteristic_curves%saturation_function% &
                                Saturation(auxvar%pc, &

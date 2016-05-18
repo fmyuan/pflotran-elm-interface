@@ -47,7 +47,6 @@ module Field_module
     Vec :: tran_rhs_coef
     
     Vec :: tran_log_xx, tran_work_loc
-    Vec :: tran_plog_xx
     
     ! mass transfer
     Vec :: flow_mass_transfer
