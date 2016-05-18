@@ -31,11 +31,6 @@ module Richards_Aux_module
 #endif
     PetscReal :: dsat_dp
     PetscReal :: dden_dp
-#ifdef CLM_PFLOTRAN
-    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
-    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda
-    PetscReal :: bc_sr1    ! Brooks Corey parameterization: sr(1)
-#endif
 
     ! OLD-VAR-NAMES            = NEW-VAR
     ! ------------------------------------------------
@@ -143,12 +138,6 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%dsat_dp = 0.d0
   auxvar%dden_dp = 0.d0
 
-#ifdef CLM_PFLOTRAN
-  auxvar%bc_alpha  = 0.0d0
-  auxvar%bc_lambda = 0.0d0
-  auxvar%bc_sr1    = 1.0d-9
-#endif
-
   if (option%surf_flow_on) then
     allocate(auxvar%vars_for_sflow(11))
     auxvar%vars_for_sflow(:) = 0.d0
@@ -192,12 +181,6 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%dsat_dp = auxvar%dsat_dp
   auxvar2%dden_dp = auxvar%dden_dp
  
-#ifdef CLM_PFLOTRAN
-  auxvar2%bc_alpha  = auxvar%bc_alpha
-  auxvar2%bc_lambda = auxvar%bc_lambda
-  auxvar2%bc_sr1    = auxvar%bc_sr1
-#endif
-
   if (option%surf_flow_on) &
     auxvar2%vars_for_sflow(:) = auxvar%vars_for_sflow(:)
 
@@ -242,7 +225,6 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscReal :: dkr_Se
   PetscReal :: aux(1)
   PetscReal, parameter :: tol = 1.d-3
-  character(len=MAXSTRINGLENGTH) :: error_string
   
   global_auxvar%sat = 0.d0
   global_auxvar%den = 0.d0
@@ -259,13 +241,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   kr = 0.d0
  
   global_auxvar%pres = x(1)
-
-!fmy: begining
-!if coupled with CLM, CLM will update temperature via the interface
-#ifndef CLM_PFLOTRAN
   global_auxvar%temp = option%reference_temperature
-#endif
-!fmy: ending
 
   auxvar%pc = option%reference_pressure - global_auxvar%pres(1)
   
@@ -275,44 +251,6 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   dkr_dp = 0.d0
 
   if (auxvar%pc > 0.d0) then
-
-#ifdef CLM_PFLOTRAN
-  ! fmy: the following only needs calling ONCE, but not yet figured out how
-  ! because CLM's every single CELL has ONE set of SF/RPF parameters
-  select type(sf => characteristic_curves%saturation_function)
-    !class is(sat_func_VG_type)
-       ! not-yet
-    class is(sat_func_BC_type)
-      sf%alpha  = auxvar%bc_alpha
-      sf%lambda = auxvar%bc_lambda
-      sf%Sr  = auxvar%bc_sr1
-        ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-      error_string = 'passing CLM characterisitc-curves parameters: sat_function'
-      call sf%SetupPolynomials(option,error_string)
-
-    class default
-      option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
-         ' when coupled with CLM.'
-      call printErrMsg(option)
-  end select
-
-  select type(rpf => characteristic_curves%liq_rel_perm_function)
-    !class is(rpf_Mualem_VG_liq_type)
-    class is(rpf_Burdine_BC_liq_type)
-      rpf%lambda = auxvar%bc_lambda
-      rpf%Sr  = auxvar%bc_sr1
-
-      ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-      error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
-      call rpf%SetupPolynomials(option,error_string)
-
-    class default
-      option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
-         ' when coupled with CLM.'
-      call printErrMsg(option)
-  end select
-
-#endif
 
     saturated = PETSC_FALSE
     call characteristic_curves%saturation_function% &

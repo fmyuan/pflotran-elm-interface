@@ -635,12 +635,6 @@ subroutine RichardsUpdateAuxVarsPatch(realization)
           xxbc(1) = xx_loc_p(ghosted_id)
       end select
      
-#ifdef CLM_PFLOTRAN
-      call RichardsAuxVarCopy(rich_auxvars(ghosted_id), &
-                              rich_auxvars_bc(sum_connection),option)
-      call GlobalAuxVarCopy(global_auxvars(ghosted_id), &
-                            global_auxvars_bc(sum_connection),option)
-#endif
  
       call RichardsAuxVarCompute(xxbc(1),rich_auxvars_bc(sum_connection), &
                                  global_auxvars_bc(sum_connection), &
@@ -1217,12 +1211,6 @@ subroutine RichardsResidualInternalConn(r,realization,skip_conn_type,ierr)
 
       if (.not.(skip_conn_type == NO_CONN)) then
         if (skip_conn(cur_connection_set%dist(1:3,iconn), skip_conn_type)) cycle
-      endif
-      if (option%flow%only_vertical_flow) then
-        !geh: place second conditional within first to avoid excessive 
-        !     dot products when .not. option%flow%only_vertical_flow
-        if (abs(dot_product(cur_connection_set%dist(1:3,iconn),unit_z)) < &
-            0.99d0) cycle
       endif
 
       icap_up = patch%sat_func_id(ghosted_id_up)
