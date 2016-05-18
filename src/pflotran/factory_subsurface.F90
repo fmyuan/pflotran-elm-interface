@@ -1401,14 +1401,16 @@ subroutine SubsurfaceReadRequiredCards(simulation)
           call InputDefaultMsg(input,option,'npz')
 
 #ifdef CLM_PFLOTRAN
-          !note that, if coupled with CLM, CLM land domain configuration
-          ! will over-ride 'npx/npy/npz' read above
-          option%io_buffer = ' CLM land mpi configuration will over-ride PF'
-          call printMsg(option)
+          if (.not. option%mapping_files) then
+            ! note that, if coupled with CLM, CLM land domain configuration
+            ! will over-ride 'npx/npy/npz' read above
+            option%io_buffer = ' CLM land mpi configuration will over-ride PF'
+            call printMsg(option)
 
-          grid%structured_grid%npx = clm_pf_idata%npx
-          grid%structured_grid%npy = clm_pf_idata%npy
-          grid%structured_grid%npz = clm_pf_idata%npz
+            grid%structured_grid%npx = clm_pf_idata%npx
+            grid%structured_grid%npy = clm_pf_idata%npy
+            grid%structured_grid%npz = clm_pf_idata%npz
+          endif
 #endif
  
           if (option%myrank == option%io_rank .and. &
