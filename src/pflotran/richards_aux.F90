@@ -32,9 +32,9 @@ module Richards_Aux_module
     PetscReal :: dsat_dp
     PetscReal :: dden_dp
 #ifdef CLM_PFLOTRAN
-    PetscReal :: bc_alpha  ! cell-varied Brooks-Corey-Burdine parameter: alpha
-    PetscReal :: bc_lambda ! cell-varied Brooks-Corey-Burdine parameter: lambda
-    PetscReal :: bc_sr1    ! cell-varied Brooks-Corey-Burdine parameter: sr(1)
+    PetscReal :: bc_alpha  ! Brooks Corey parameterization: alpha
+    PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda
+    PetscReal :: bc_sr1    ! Brooks Corey parameterization: sr(1)
 #endif
 
     ! OLD-VAR-NAMES            = NEW-VAR
@@ -298,14 +298,13 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   select type(rpf => characteristic_curves%liq_rel_perm_function)
     !class is(rpf_Mualem_VG_liq_type)
-      !
     class is(rpf_Burdine_BC_liq_type)
       rpf%lambda = auxvar%bc_lambda
       rpf%Sr  = auxvar%bc_sr1
 
-      ! Burdine_BC_liq RPF has no spline-smoothing (by May-05-2016)
-      !error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
-      !call rpf%SetupPolynomials(option,error_string)
+      ! needs to re-calculate some extra variables for 'saturation_function', if changed above
+      error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
+      call rpf%SetupPolynomials(option,error_string)
 
     class default
       option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
@@ -365,6 +364,7 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     dvis_dp = 0.d0
     dvis_dpsat = 0.d0
     dw_dp = 0.d0
+    hw_dp = 0.d0
   endif
  
   global_auxvar%den = dw_mol
