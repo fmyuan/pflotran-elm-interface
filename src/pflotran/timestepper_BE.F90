@@ -293,6 +293,13 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
   PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   Vec :: residual_vec
   PetscErrorCode :: ierr
+
+!fmy: for printing vecs if program stops
+  PetscScalar, pointer :: solution_p(:)
+  PetscScalar, pointer :: residual_p(:)
+  PetscInt :: vecsize1, vecsize2, i
+  PetscErrorCode :: ierr2
+!fmy: for printing vecs if program stops
   
   solver => this%solver
   option => process_model%option
@@ -324,7 +331,60 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
     call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
 
     call SNESSolve(solver%snes,PETSC_NULL_OBJECT, &
-                   process_model%solution_vec,ierr);CHKERRQ(ierr)
+                   process_model%solution_vec,ierr)
+
+!fmy: checking SNESSolver error and stop excuting/output messages if error occurs
+    if (ierr .ne. 0) then
+      print *, ' <-- SNES Solver ERROR @TimeStepperBEStepDT --> '
+      print *, ' Time (s): ', option%time, ' log_start_time: ', log_start_time
+      print *, ' Linear Iterations: ', sum_linear_iterations
+      print *, ' Newton Iterations: ', sum_newton_iterations
+      print *, 'PETSC error id: ', ierr
+
+      if (option%print_file_flag) then
+
+        write(option%fid_out, *) ' <-- SNES Solver ERROR @TimeStepperBEStepDT -->'
+        call VecGetLocalSize(process_model%solution_vec,vecsize1,ierr2)
+        call VecGetLocalSize(process_model%residual_vec,vecsize2,ierr2)
+
+        call VecGetArrayF90(process_model%solution_vec, solution_p, ierr2)
+        call VecGetArrayF90(process_model%residual_vec, residual_p, ierr2)
+
+        write(option%fid_out, *) 'Time(s): ', option%time
+        write(option%fid_out, *) ' <---vec no.-- solution_vec ----> '
+        do i=1, vecsize1
+          write(option%fid_out, *) i, solution_p(i)
+        enddo
+        write(option%fid_out, *) '  '
+        write(option%fid_out, *) ' <---vec no.-- residual_vec ----> '
+        do i=1, vecsize2
+          write(option%fid_out, *) i, residual_p(i)
+        enddo
+        write(option%fid_out, *) '  '
+        write(option%fid_out, *) ' Stop Executing! '
+
+        call VecRestoreArrayF90(process_model%solution_vec, solution_p, ierr2)
+        call VecRestoreArrayF90(process_model%residual_vec, residual_p, ierr2)
+
+      endif
+
+      print *, ' Stop Executing!'
+      CHKERRQ(ierr)
+    endif
+
+    !output tiny dt as needed
+    if(this%dt<2.d0*option%dt_min) then
+      if (option%print_file_flag) then
+        write(option%fid_out, *) '  '
+        write(option%fid_out, *) ' <---tiny time-step warning ----> '
+        write(option%fid_out, *) ' @Time (s): ', option%time, ' with dt_min=',option%dt_min
+        write(option%fid_out, *) ' current DT (s): ', this%dt
+      endif
+    endif
+
+!fmy: checking SNESSolver error and stop excuting/output messages if error occurs
+
+    CHKERRQ(ierr)
 
     call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
 
@@ -354,8 +414,36 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
 
       if (icut > this%max_time_step_cuts .or. this%dt < this%dt_min) then
 
-        write(option%io_buffer,'(" Stopping: Time step cut criteria &
-                                   &exceeded!")')
+        !------fmy - checking the solution to see what's going on
+        if (option%print_file_flag) then
+
+          write(option%fid_out, *) ' <-- SNES Solver checking @TimeStepperBEStepDT -->'
+          call VecGetLocalSize(process_model%solution_vec,vecsize1,ierr2)
+          call VecGetLocalSize(process_model%residual_vec,vecsize2,ierr2)
+
+          call VecGetArrayF90(process_model%solution_vec, solution_p, ierr2)
+          call VecGetArrayF90(process_model%residual_vec, residual_p, ierr2)
+
+          write(option%fid_out, *) 'Time(s): ', option%time
+          write(option%fid_out, *) ' <---vec no.-- solution_vec ----> '
+          do i=1, vecsize1
+            write(option%fid_out, *) i, solution_p(i)
+          enddo
+          write(option%fid_out, *) '  '
+          write(option%fid_out, *) ' <---vec no.-- residual_vec ----> '
+          do i=1, vecsize2
+            write(option%fid_out, *) i, residual_p(i)
+          enddo
+          write(option%fid_out, *) '  '
+          write(option%fid_out, *) ' Stop Executing! '
+
+          call VecRestoreArrayF90(process_model%solution_vec, solution_p, ierr2)
+          call VecRestoreArrayF90(process_model%residual_vec, residual_p, ierr2)
+
+        endif
+        !------fmy
+
+        write(option%io_buffer,'(" Stopping: Time step cut criteria exceeded!")')
         call printMsg(option)
         write(option%io_buffer,'("    icut =",i3,", max_time_step_cuts=",i3)') &
              icut,this%max_time_step_cuts
@@ -377,13 +465,16 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
       this%target_time = this%target_time - this%dt
 
       this%dt = 0.5d0 * this%dt  
-      
+
+#ifndef CLM_PFLOTRAN
       write(option%io_buffer,'('' -> Cut time step: snes='',i3, &
            &   '' icut= '',i2,''['',i3,'']'','' t= '',1pe12.5, '' dt= '', &
            &   1pe12.5)')  snes_reason,icut,this%cumulative_time_step_cuts, &
            option%time/tconv, &
            this%dt/tconv
+      if (option%print_screen_flag) &
       call printMsg(option)
+#endif
       if (snes_reason == SNES_DIVERGED_LINEAR_SOLVE) then
         call KSPGetIterationNumber(solver%ksp,num_linear_iterations2, &
                                    ierr);CHKERRQ(ierr)
@@ -446,6 +537,10 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
              num_linear_iterations,' / ',num_newton_iterations
     write(*,'("  --> SNES Residual: ",1p3e14.6)') fnorm, scaled_fnorm, inorm 
   endif
+
+!fmy: begining
+#ifndef CLM_PFLOTRAN
+! the following output produces a large ascii file if coupled with CLM
   if (option%print_file_flag) then
     write(option%fid_out, '(" Step ",i6," Time= ",1pe12.5," Dt= ",1pe12.5, &
       & " [",a,"]"," snes_conv_reason: ",i4,/,"  newton = ",i3, &
@@ -457,8 +552,10 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
       this%cumulative_newton_iterations,sum_linear_iterations, &
       this%cumulative_linear_iterations,icut, &
       this%cumulative_time_step_cuts
-  endif
-  
+  endif  
+#endif
+!fmy: ending
+
   option%time = this%target_time
   call process_model%FinalizeTimestep()
   

@@ -1080,6 +1080,7 @@ subroutine Output(realization_base,snapshot_plot_flag,observation_plot_flag, &
 #endif
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') &
             tend-tstart
+      if (option%print_screen_flag) &
       call printMsg(option)
     endif
    
@@ -2157,6 +2158,7 @@ subroutine OutputAvegVars(realization_base)
       call PetscLogEventEnd(logging%event_output_hdf5,ierr);CHKERRQ(ierr)
       call PetscTime(tend,ierr);CHKERRQ(ierr)
       write(option%io_buffer,'(f10.2," Seconds to write HDF5 file.")') tend-tstart
+      if (option%print_screen_flag) &
       call printMsg(option)
     endif
 

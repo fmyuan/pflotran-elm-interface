@@ -6,13 +6,24 @@ regression_test_dir = ../../regression_tests
 unit_test_dir = ./unittests
 
 
-include ${PETSC_DIR}/conf/variables
-include ${PETSC_DIR}/conf/rules
+include ${PETSC_DIR}/lib/petsc/conf/variables
+include ${PETSC_DIR}/lib/petsc/conf/rules
 
 MYFLAGS = -I.
-MYFLAGS += ${FC_DEFINE_FLAG}PROCESS_MODEL
 MYFLAGS += ${FC_DEFINE_FLAG}CLM_PFLOTRAN
-MYFLAGS += ${FC_DEFINE_FLAG}STORE_FLOWRATES
+
+# calculate the jacobians for tracking variables if coupled with CLM-CN
+ifdef nojacboian_track_vars
+  MYFLAGS += ${FC_DEFINE_FLAG}nojacobian_track_vars
+endif
+
+ifdef use_characteristic_curves
+  MYFLAGS += ${FC_DEFINE_FLAG}use_characteristic_curves_module
+endif
+
+ifdef smoothing2
+  MYFLAGS += ${FC_DEFINE_FLAG}smoothing2
+endif
 
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
 # PFLOTRAN_RXN_FLAG 
@@ -51,6 +62,11 @@ endif
 
 ifdef pcl
   MYFLAGS += ${FC_DEFINE_FLAG}PCL ${FC_DEFINE_FLAG}MUALEM_SPLINE
+endif
+
+ifdef smooth_vgm
+  MYFLAGS += ${FC_DEFINE_FLAG}MUALEM_SPLINE 
+  #MYFLAGS += ${FC_DEFINE_FLAG}VG_SPLINE 
 endif
 
 ifdef condnr
@@ -239,6 +255,7 @@ chem_obj = \
 	${common_src}reaction_sandbox_denitr.o \
 	${common_src}reaction_sandbox_degas.o \
 	${common_src}reaction_sandbox_langmu.o \
+    ${common_src}reaction_sandbox_microbial.o \
 	${common_src}reaction_sandbox_nitrif.o \
 	${common_src}reaction_sandbox_plantn.o \
 	${common_src}reaction_sandbox_somdec.o \
@@ -410,10 +427,12 @@ geomech_obj = \
 	${common_src}timestepper_steady.o
 
 clm_interface_obj = \
+	${common_src}pflotran_clm_main.o \
+	${common_src}pflotran_clm_setmapping.o \
 	${common_src}clm_pflotran_interface_data.o \
 	${common_src}mapping.o \
-	${common_src}pflotran_clm_main.o \
-	${common_src}pflotran_clm_setmapping.o
+	${common_src}geodesic.o
+	
 
 # End Source Block
 
@@ -463,13 +482,15 @@ endif
 # the long list below is easier to update from the main makefile.
 clm_pflotran_interface_data.o :
 mapping.o : option.o pflotran_constants.o input_aux.o
-pflotran_clm_main.o : factory_geomechanics.o factory_hydrogeophysics.o \
-             factory_pflotran.o factory_subsurface.o \
-             factory_surface.o factory_surfsubsurface.o \
-             multisimulation.o option.o pflotran_constants.o \
-             pflotran_provenance.o simulation_base.o \
-             clm_pflotran_interface_data.o mapping.o
-pflotran_clm_setmapping.o : mapping.o pflotran_clm_main.o
+pflotran_clm_main.o : mapping.o clm_pflotran_interface_data.o geodesic.o \
+             factory_geomechanics.o factory_hydrogeophysics.o \
+             factory_pflotran.o factory_subsurface.o factory_surface.o \
+             factory_surfsubsurface.o multisimulation.o option.o output_aux.o \
+             pflotran_constants.o pflotran_provenance.o pm_base.o \
+             simulation_base.o
+pflotran_clm_setmapping.o : pflotran_clm_main.o mapping.o
+# the subroutine for geodesic functions (author: C. F. F. Karney)
+geodesic.o :
 
 # Dependencies stemming from "use" statements.
 # These ensure that the module files are built in the correct order.
@@ -553,7 +574,7 @@ debug.o : input_aux.o option.o pflotran_constants.o
 discretization.o : dm_kludge.o grid.o grid_structured.o grid_unstructured.o \
                    grid_unstructured_aux.o grid_unstructured_explicit.o \
                    grid_unstructured_polyhedra.o input_aux.o option.o \
-                   pflotran_constants.o string.o
+                   pflotran_constants.o string.o clm_pflotran_interface_data.o
 dm_kludge.o : grid_unstructured_aux.o pflotran_constants.o
 e4d_mat_inv.o :
 e4d_run.o : e4d_vars.o
@@ -737,7 +758,7 @@ grid.o : connection.o dm_kludge.o geometry.o grid_structured.o \
          grid_unstructured_explicit.o grid_unstructured_polyhedra.o logging.o \
          option.o pflotran_constants.o region.o utility.o
 grid_structured.o : connection.o input_aux.o option.o pflotran_constants.o \
-                    utility.o
+                    utility.o clm_pflotran_interface_data.o
 grid_unstructured.o : connection.o geometry.o grid_unstructured_aux.o \
                       grid_unstructured_cell.o hdf5_aux.o input_aux.o option.o \
                       pflotran_constants.o string.o utility.o
@@ -845,7 +866,7 @@ output.o : connection.o coupler.o debug.o discretization.o field.o \
            pflotran_constants.o reaction_aux.o realization_base.o \
            realization_subsurface.o region.o string.o units.o utility.o \
            variables.o waypoint.o
-output_aux.o : option.o pflotran_constants.o region.o variables.o
+output_aux.o : option.o pflotran_constants.o variables.o
 output_common.o : connection.o coupler.o field.o global_aux.o grid.o \
                   grid_unstructured_aux.o grid_unstructured_cell.o hdf5.o \
                   hdf5_aux.o logging.o material_aux.o option.o output_aux.o \
@@ -901,7 +922,7 @@ patch.o : auxiliary.o characteristic_curves.o condition.o connection.o \
           option.o output_aux.o pflotran_constants.o reaction.o reaction_aux.o \
           reaction_mineral.o reaction_mineral_aux.o \
           reaction_surf_complex_aux.o reactive_transport_aux.o region.o \
-          richards_aux.o saturation.o saturation_function.o strata.o \
+          richards_aux.o saturation.o saturation_function.o strata.o string.o \
           surface_auxiliary.o surface_field.o surface_material.o th_aux.o \
           toil_ims_aux.o transport_constraint.o utility.o variables.o
 pflotran.o : factory_geomechanics.o factory_hydrogeophysics.o \
@@ -996,8 +1017,8 @@ pm_waste_form.o : condition.o data_mediator_vec.o dataset_ascii.o \
                   grid_structured.o grid_unstructured.o input_aux.o \
                   material_aux.o option.o output_aux.o patch.o \
                   pflotran_constants.o pm_base.o reaction_aux.o \
-                  realization_base.o realization_subsurface.o string.o units.o \
-                  utility.o
+                  reactive_transport_aux.o realization_base.o \
+                  realization_subsurface.o string.o units.o utility.o
 pmc_auxiliary.o : option.o pflotran_constants.o pm_auxiliary.o pmc_base.o \
                   realization_subsurface.o timestepper_base.o
 pmc_base.o : checkpoint.o logging.o option.o output.o output_aux.o \
@@ -1051,7 +1072,7 @@ reaction_aux.o : option.o pflotran_constants.o reaction_database_aux.o \
                  reaction_surf_complex_aux.o string.o utility.o
 reaction_clm.o : global_aux.o input_aux.o material_aux.o option.o \
                  pflotran_constants.o reaction_aux.o reaction_immobile_aux.o \
-                 reactive_transport_aux.o string.o units.o utility.o
+                 reactive_transport_aux.o string.o units.o utility.o clm_rspfuncs.o
 reaction_database.o : input_aux.o option.o pflotran_constants.o reaction.o \
                       reaction_aux.o reaction_clm.o reaction_database_aux.o \
                       reaction_immobile.o reaction_immobile_aux.o \
@@ -1250,8 +1271,8 @@ simulation_hydrogeophysics.o : option.o pflotran_constants.o \
                                simulation_subsurface.o \
                                wrapper_hydrogeophysics.o
 simulation_subsurface.o : characteristic_curves.o condition.o discretization.o \
-                          logging.o material.o option.o output.o output_aux.o \
-                          patch.o pflotran_constants.o pmc_base.o \
+                          eos.o logging.o material.o option.o output.o \
+                          output_aux.o patch.o pflotran_constants.o pmc_base.o \
                           pmc_subsurface.o pmc_third_party.o reaction_aux.o \
                           reaction_clm.o reaction_sandbox.o \
                           realization_subsurface.o region.o regression.o \
@@ -1323,7 +1344,7 @@ th.o : condition.o connection.o coupler.o debug.o discretization.o eos_water.o \
        realization_subsurface.o region.o saturation_function.o \
        secondary_continuum.o secondary_continuum_aux.o string.o th_aux.o \
        utility.o variables.o
-th_aux.o : eos_water.o global_aux.o material_aux.o option.o \
+th_aux.o :  characteristic_curves.o eos_water.o global_aux.o material_aux.o option.o \
            pflotran_constants.o saturation_function.o
 time_storage.o : option.o pflotran_constants.o
 timestepper_BE.o : checkpoint.o convergence.o input_aux.o option.o output.o \
@@ -1361,7 +1382,6 @@ wipp.o : input_aux.o lookup_table.o material_aux.o option.o \
          pflotran_constants.o string.o units.o utility.o
 wrapper_hydrogeophysics.o : e4d_run.o e4d_setup.o e4d_vars.o option.o \
                             pflotran_constants.o
-
 
 
 # developer level regression testing
