@@ -934,45 +934,6 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
   endif
   auxvar%pc =  pc
 
-#if 0
-!#ifdef CLM_PFLOTRAN
-  ! fmy: the following only needs calling ONCE, but not yet figured out how
-  ! because CLM's every single CELL has ONE set of SF/RPF parameters
-  select type(sf => characteristic_curves%saturation_function)
-    !class is(sat_func_VG_type)
-     ! not-yet
-    class is(sat_func_BC_type)
-      sf%alpha  = auxvar%bc_alpha
-      sf%lambda = auxvar%bc_lambda
-      sf%Sr  = auxvar%bc_sr1
-      ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-      error_string = 'passing CLM characterisitc-curves parameters: sat_function'
-      call sf%SetupPolynomials(option,error_string)
-
-    class default
-      option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
-         ' when coupled with CLM.'
-      call printErrMsg(option)
-  end select
-
-  select type(rpf => characteristic_curves%liq_rel_perm_function)
-    !class is(rpf_Mualem_VG_liq_type)
-    class is(rpf_Burdine_BC_liq_type)
-      rpf%lambda = auxvar%bc_lambda
-      rpf%Sr  = auxvar%bc_sr1
-
-      ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-      error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
-      call rpf%SetupPolynomials(option,error_string)
-
-    class default
-      option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
-         ' when coupled with CLM.'
-      call printErrMsg(option)
-  end select
-
-#endif
-
   !***************  phase-relevant properties and derivatives, regarding to P/T *********************
   if (auxvar%pc > 0.d0) then
     isat_state = 3      ! unsaturated
@@ -1027,47 +988,52 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
   dsg_dp = 0.d0
   dsg_dt = 0.d0
 
-  select type (sf => characteristic_curves%saturation_function)
-    ! class is(sat_func_BC_type)
-       ! not-yet
-    class is(sat_func_VG_type)
+  !select type (sf => characteristic_curves%saturation_function)
+  !  class is(sat_func_BC_type)
+    !
+  !  class is(sat_func_VG_type)
+    !
+  !  class default
+  !    option%io_buffer = 'Only van Genuchten/Brooks-Corey SF supported with ice model option'
+  !    call printErrMsg(option)
+  !end select ! select type (sf=>characteristic_curves%saturation_function)
 
-      pl0 = pc
-      call sf%Saturation(pl0, sli, dsli_dp, option)
-      ! in 'Saturaton_Function.F90', PKE subroutine: dsl_dp = -dS;
-      ! which appears opposite when using Characteristic_curves_module (see characteristic_curves.F90: line 2082)
+  pl0 = pc
+  call characteristic_curves%saturation_function%Saturation(pl0, sli, dsli_dp, option)
 
-      ! initial liq. saturation and derivatives
-      sl = sli
-      dsl_dp = dsli_dp
-      dsl_dt = 0.d0
+  ! in 'Saturaton_Function.F90', PKE subroutine: dsl_dp = -dS;
+  ! which appears opposite when using Characteristic_curves_module (see characteristic_curves.F90: line 2082)
 
-      ! if ice module turns on, 2-phase saturation recalculated (liq. and ice) under common 'pw' and 't'
-      if (option%use_th_freezing) then
-        select case (option%ice_model)
-          case (PAINTER_KARRA_EXPLICIT)
-           ! explicit model from Painter & Karra, VJZ (2014)
+  ! initial liq. saturation and derivatives
+  sl = sli
+  dsl_dp = dsli_dp
+  dsl_dt = 0.d0
+
+  ! if ice module turns on, 2-phase saturation recalculated (liq. and ice) under common 'pw' and 't'
+  if (option%use_th_freezing) then
+    select case (option%ice_model)
+      case (PAINTER_KARRA_EXPLICIT)
+        ! explicit model from Painter & Karra, VJZ (2014)
 #if 0
-           ! fmy: added, but test shows the following NOT necessary
-            rhol     = denw_mol*FMWH2O    ! kg/m3: kmol/m3*kg/kmol
-            drhol_dp = ddenw_dp*FMWH2O
-            drhol_dt = ddenw_dt*FMWH2O
+        ! fmy: added, but test shows the following NOT necessary
+        rhol     = denw_mol*FMWH2O    ! kg/m3: kmol/m3*kg/kmol
+        drhol_dp = ddenw_dp*FMWH2O
+        drhol_dt = ddenw_dt*FMWH2O
 #endif
-            ! constant 'rhol'
-            rhol     = 999.8d0            ! kg/m3: kmol/m3*kg/kmol
-            drhol_dp = 0.d0
-            drhol_dt = 0.d0
+        ! constant 'rhol'
+        rhol     = 999.8d0            ! kg/m3: kmol/m3*kg/kmol
+        drhol_dp = 0.d0
+        drhol_dt = 0.d0
 
-            Tk = tc + Tf0                                       ! convert to K
-            Tf = Tf0 - 1.d0/beta*Tf0/Lf/rhol*pl0                ! P.-K. Eq.(10): used below???
+        Tk = tc + Tf0                                       ! convert to K
+        Tf = Tf0 - 1.d0/beta*Tf0/Lf/rhol*pl0                ! P.-K. Eq.(10): used below???
 
+        tftheta = (Tk-Tf0)/Tf0                  ! P.-K. Eq.(18): theta: (Tk-Tf0)/Tf0
+        dtftheta_dt = 1.0d0/Tf0
+        dtftheta_dp = 0.d0
 
-            tftheta = (Tk-Tf0)/Tf0                  ! P.-K. Eq.(18): theta: (Tk-Tf0)/Tf0
-            dtftheta_dt = 1.0d0/Tf0
-            dtftheta_dp = 0.d0
-
-            Hfunc = sign(0.5d0, -(Tk-Tf))+0.5d0                ! Heaviside function
-            dHfunc = 0.d0
+        Hfunc = sign(0.5d0, -(Tk-Tf))+0.5d0                ! Heaviside function
+        dHfunc = 0.d0
 
 ! the following smoothing NOT works as expected, OFF now and TODO checking
 #if 0
@@ -1090,7 +1056,7 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
             dHfunc  = -0.5d0*tempreal*tempreal
 #endif
 
-            xplice = -beta*Lf*rhol*tftheta*Hfunc + pl0*(1.0-Hfunc)         ! P.-K. Eq.(18): with 'Hfunc'
+        xplice = -beta*Lf*rhol*tftheta*Hfunc + pl0*(1.0-Hfunc)         ! P.-K. Eq.(18): with 'Hfunc'
 
             !  xplice = - beta*Lf  * Hfunc*tftheta*rhol
             !           - pl0  * Hfunc
@@ -1101,10 +1067,10 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
             !  So,  dx_dt = d_{Hfunc * [-beta*Lf * tftheta*rhol - pl0]}
             !                 [step3]      [step2]    [step1]
             !
-            tempreal   = rhol*dtftheta_dt+tftheta*drhol_dt            ! [step1]
-            tempreal   = -beta*Lf*tempreal                            ! [step2]
-            dxplice_dt =  tempreal * Hfunc  &                         ! [step3]
-                        + (-beta*Lf*tftheta*rhol-pl0) * dHfunc
+        tempreal   = rhol*dtftheta_dt+tftheta*drhol_dt            ! [step1]
+        tempreal   = -beta*Lf*tempreal                            ! [step2]
+        dxplice_dt =  tempreal * Hfunc  &                         ! [step3]
+                     + (-beta*Lf*tftheta*rhol-pl0) * dHfunc
 
 
             !  xplice = - beta*Lf*Hfunc   *  tftheta*rhol
@@ -1114,35 +1080,31 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
             !
             !  So,  dx_dp = d_{-beta*Lf*Hfunc* [tftheta*rhol]}
             !               + (1.0-Hfunc)
-            dxplice_dp = -beta*Lf*Hfunc*(tftheta*drhol_dp+rhol*dtftheta_dp) &
-                         + (1.d0-Hfunc)
+        dxplice_dp = -beta*Lf*Hfunc*(tftheta*drhol_dp+rhol*dtftheta_dp) &
+                    + (1.d0-Hfunc)
 
-            call sf%Saturation(xplice, slx, dslx_dx, option)
+        call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
             ! in 'Saturaton_Function.F90', PKE subroutine: dsl_dp = -dS;
             ! which appears opposite when using Characteristic_curves_module (see characteristic_curves.F90: line 2082)
 
-            !if (Tk<=Tf) then     ! not needed if with Heaviside function
-              sl = slx
-              dsl_dt = -dslx_dx*dxplice_dt       ! In PKE subroutine of Sat_func, it's not adjusted by  'rhol(t)': dsl_dT = dS_dX*1.d0/T_0*(-beta*rho_l*L_f)
-              dsl_dp = dslx_dx*dxplice_dp        ! In PKE subroutine of Sat_func, it's 0 when Hfunc=1; it's -dS when Hfunc=0
+        !if (Tk<=Tf) then     ! not needed if with Heaviside function
+          sl = slx
+          dsl_dt = -dslx_dx*dxplice_dt       ! In PKE subroutine of Sat_func, it's not adjusted by  'rhol(t)': dsl_dT = dS_dX*1.d0/T_0*(-beta*rho_l*L_f)
+          dsl_dp = dslx_dx*dxplice_dp        ! In PKE subroutine of Sat_func, it's 0 when Hfunc=1; it's -dS when Hfunc=0
 
-              si = 1.d0 - sl/sli                 ! P.-K. Eq.(19)
-              dsi_dt = -1.d0/sli*dsl_dt          ! dsli_dt = 0 (see above)
-              dsi_dp = (sl*dsli_dp-sli*dsl_dp)/(sli**2)
+          si = 1.d0 - sl/sli                 ! P.-K. Eq.(19)
+          dsi_dt = -1.d0/sli*dsl_dt          ! dsli_dt = 0 (see above)
+          dsi_dp = (sl*dsli_dp-sli*dsl_dp)/(sli**2)
+        !endif
 
-            !endif
+      case default
+        option%io_buffer = 'THAuxVarComputeFreezing2: Ice model now only support: PAINTER_KARRA_EXPLICIT.'
+        call printErrMsg(option)
 
-          case default
-            option%io_buffer = 'THAuxVarComputeFreezing2: Ice model now only support: PAINTER_KARRA_EXPLICIT.'
-            call printErrMsg(option)
-        end select ! select case (option%ice_model)
+    end select ! select case (option%ice_model)
 
-      endif ! 'option%use_th_freezing'
+  endif ! 'option%use_th_freezing'
 
-    class default
-      option%io_buffer = 'Only van Genuchten supported with ice model option'
-      call printErrMsg(option)
-  end select ! select type (sf=>characteristic_curves%saturation_function)
   !
   sg = 1.d0 - sl - si
   dsg_dp = -dsl_dp - dsi_dp
@@ -1175,21 +1137,21 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
   dkrg_dp= 0.d0
   dkrg_dt= 0.d0
 
-  select type (rpf_liq => characteristic_curves%liq_rel_perm_function)
-    class is(rpf_Mualem_VG_liq_type)
+!  select type (rpf_liq => characteristic_curves%liq_rel_perm_function)
+!    class is(rpf_Mualem_VG_liq_type)
+    !
+!    class is(rpf_BURDINE_BC_liq_type)
+    !
+!    class default
+!      option%io_buffer = 'THAuxVarComputeFreezing2: ' // &
+!        'TH with Ice model now only support rpf_liq: Mualem_VG_liq_type/BURDINE_BC_liq_type.'
+!      call printErrMsg(option)
+!  end select
 
-      call rpf_liq%RelativePermeability(sl, kr, dkr_dse, option)
-      dkr_dp = rpf_liq%DRelPerm_DPressure(dsl_dp, dkr_dse)
+  call characteristic_curves%liq_rel_perm_function%RelativePermeability(sl, kr, dkr_dse, option)
+  dkr_dp = characteristic_curves%liq_rel_perm_function%DRelPerm_DPressure(dsl_dp, dkr_dse)
+  dkr_dt = dkr_dse/(1.d0-characteristic_curves%saturation_function%Sr)*dsl_dt
 
-      dkr_dt = dkr_dse/(1.d0-characteristic_curves%saturation_function%Sr) &
-              *dsl_dt
-
-    class default
-      option%io_buffer = 'THAuxVarComputeFreezing2: ' // &
-        'TH with Ice model now only support rpf_liq: Mualem_VG_liq_type.'
-      call printErrMsg(option)
-
-  end select
 
   !***************  liq. phase properties **************************
   ! saturation

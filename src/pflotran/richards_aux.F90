@@ -299,9 +299,9 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
       rpf%lambda = auxvar%bc_lambda
       rpf%Sr  = auxvar%bc_sr1
 
-      ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-      error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
-      call rpf%SetupPolynomials(option,error_string)
+      ! Burdine_BC_liq RPF has no spline-smoothing (@ May-05-2016)
+      !error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
+      !call rpf%SetupPolynomials(option,error_string)
 
     class default
       option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
