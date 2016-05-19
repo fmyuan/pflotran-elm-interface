@@ -15,7 +15,7 @@ contains
 ! ************************************************************************** !
 
 subroutine SaturationUpdateCoupler(coupler,option,grid,saturation_functions, &
-                                  characteristic_curves_array, sat_func_id)
+                                   sat_func_id)
   ! 
   ! Computes the pressures for a saturation
   ! initial/boundary condition
@@ -31,7 +31,6 @@ subroutine SaturationUpdateCoupler(coupler,option,grid,saturation_functions, &
   use Connection_module
   use Region_module
   use Saturation_Function_module
-  use Characteristic_Curves_module
 
   implicit none
 
@@ -39,7 +38,6 @@ subroutine SaturationUpdateCoupler(coupler,option,grid,saturation_functions, &
   type(option_type) :: option
   type(grid_type) :: grid
   type(saturation_function_ptr_type) :: saturation_functions(:)
-  type(characteristic_curves_ptr_type) :: characteristic_curves_array(:)
   PetscInt :: sat_func_id(:)
 
   PetscInt :: local_id, ghosted_id, iconn
@@ -53,8 +51,7 @@ subroutine SaturationUpdateCoupler(coupler,option,grid,saturation_functions, &
   
   condition => coupler%flow_condition
 
-  if (option%iflowmode /= RICHARDS_MODE .or. &
-      option%iflowmode /= TH_MODE ) then
+  if (option%iflowmode /= RICHARDS_MODE) then
     option%io_buffer = 'SaturationUpdateCoupler is not set up for this flow mode.'
     call printErrMsg(option)
   endif
@@ -65,23 +62,9 @@ subroutine SaturationUpdateCoupler(coupler,option,grid,saturation_functions, &
   do iconn = 1, coupler%connection_set%num_connections
     local_id = coupler%connection_set%id_dn(iconn)
     ghosted_id = grid%nL2G(local_id)
-
-#ifndef use_characteristic_curves_module
-    if (option%iflowmode == TH_MODE) then
-      call SatFuncGetCapillaryPressure(capillary_pressure,saturation, &
+    call SatFuncGetCapillaryPressure(capillary_pressure,saturation, &
                      option%reference_temperature, &
                      saturation_functions(sat_func_id(ghosted_id))%ptr,option)
-
-    elseif (option%iflowmode == RICHARDS_MODE) then
-#else
-    if (option%iflowmode == TH_MODE .or. &
-       option%iflowmode == RICHARDS_MODE ) then
-#endif
-      call characteristic_curves_array( &
-             sat_func_id(ghosted_id))%ptr% &
-             saturation_function%CapillaryPressure(saturation,capillary_pressure,option)
-    endif
-
     liquid_pressure = option%reference_pressure - capillary_pressure
     coupler%flow_aux_real_var(1,iconn) = liquid_pressure
   enddo

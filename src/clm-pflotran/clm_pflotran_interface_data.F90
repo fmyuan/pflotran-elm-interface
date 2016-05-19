@@ -45,6 +45,71 @@ module clm_pflotran_interface_data
   PetscInt, pointer :: clm_ly(:)   ! array size is 'npy'
   PetscInt, pointer :: clm_lz(:)   ! array size is 'npz'
 
+  !-------------------------------------------------------------
+  ! Number of cells for the 3D subsurface domain
+  PetscInt :: nlclm_sub ! num of local clm cells
+  PetscInt :: ngclm_sub ! num of ghosted clm cells (ghosted = local+ghosts)
+  PetscInt :: nlpf_sub  ! num of local pflotran cells
+  PetscInt :: ngpf_sub  ! num of ghosted pflotran cells (ghosted = local+ghosts)
+
+  ! Number of cells for the top/bottom cells of the 3D subsurface domain
+  PetscInt :: nlclm_2dtop  ! num of local clm cells
+  PetscInt :: ngclm_2dtop  ! num of ghosted clm cells (ghosted = local+ghosts)
+  PetscInt :: nlpf_2dtop   ! num of local pflotran cells
+  PetscInt :: ngpf_2dtop   ! num of ghosted pflotran cells (ghosted = local+ghosts)
+
+  PetscInt :: nlclm_2dbot  ! num of local clm cells
+  PetscInt :: ngclm_2dbot  ! num of ghosted clm cells (ghosted = local+ghosts)
+  PetscInt :: nlpf_2dbot   ! num of local pflotran cells
+  PetscInt :: ngpf_2dbot   ! num of ghosted pflotran cells (ghosted = local+ghosts)
+
+  ! Number of cells for the 2D surface domain
+  PetscInt :: nlclm_srf  ! num of local clm cells
+  PetscInt :: ngclm_srf  ! num of ghosted clm cells (ghosted = local+ghosts)
+  PetscInt :: nlpf_srf   ! num of local pflotran cells
+  PetscInt :: ngpf_srf   ! num of ghosted pflotran cells (ghosted = local+ghosts)
+
+  ! Mesh property
+
+  ! sub-surf/sub-base area (in 2D): the toppest/lowest cells of subsurface domain for BCs
+  ! At this moment, assumes both surf/base cells are exactly SAME in area.
+  Vec :: area_subsurf_clmp ! mpi vec
+  Vec :: area_subsurf_pfs  ! seq vec
+  Vec :: area_subsurf_pfp  ! mpi vec
+  Vec :: area_subsurf_clms ! seq vec
+
+  ! Area of top face of PF cells (in 3D) (note: a PF cell has faces (facets) of top/bottom/east/west/south/north)
+  Vec :: area_top_face_clmp ! mpi vec
+  Vec :: area_top_face_pfs  ! seq vec
+  Vec :: area_top_face_pfp  ! mpi vec
+  Vec :: area_top_face_clms ! seq vec
+
+  ! z-axis (in 3D), soil depth of center of a soil cell in unit of meters
+  Vec :: zsoil_clmp          ! mpi vec
+  Vec :: zsoil_pfs           ! seq vec
+  Vec :: zsoil_pfp           ! mpi vec
+  Vec :: zsoil_clms          ! seq vec
+
+  ! x/y-axis (in 3D), grid center of a soil cell in unit of meters
+  Vec :: xsoil_clmp          ! mpi vec
+  Vec :: xsoil_pfs           ! seq vec
+  Vec :: ysoil_clmp          ! mpi vec
+  Vec :: ysoil_pfs           ! seq vec
+
+  ! soil cell inter-nodes coordinates ('vertex' called in PF mesh; 'interface level' called in CLM soil layers)
+  Vec :: zisoil_clmp          ! mpi vec
+  Vec :: zisoil_pfs           ! seq vec
+
+  ! length/width/thickness of soil cells (in 3D) in unit of meters
+  Vec :: dxsoil_clmp          ! mpi vec
+  Vec :: dxsoil_pfs           ! seq vec
+  Vec :: dysoil_clmp          ! mpi vec
+  Vec :: dysoil_pfs           ! seq vec
+  Vec :: dzsoil_clmp          ! mpi vec
+  Vec :: dzsoil_pfs           ! seq vec
+  ! a NOTE here: Given a 3D-cell's 'area_gtop_face' and 'zsoi' known, it's possible to calculate its volume (may be useful ?)
+
+  !-------------------------------------------------------------------------------------
   ! Soil BGC decomposing pools
   PetscInt :: ndecomp_pools
   logical, pointer :: floating_cn_ratio(:)           ! TRUE => pool has variable C:N ratio
@@ -101,69 +166,7 @@ module clm_pflotran_interface_data
   character(len=32):: name_n2o = "N2Oimm"
   character(len=32):: name_n2  = "N2imm"
 
-  !-------------------------------------------------------------
-  ! Number of cells for the 3D subsurface domain
-  PetscInt :: nlclm_sub ! num of local clm cells
-  PetscInt :: ngclm_sub ! num of ghosted clm cells (ghosted = local+ghosts)
-  PetscInt :: nlpf_sub  ! num of local pflotran cells
-  PetscInt :: ngpf_sub  ! num of ghosted pflotran cells (ghosted = local+ghosts)
 
-  ! Number of cells for the top/bottom cells of the 3D subsurface domain
-  PetscInt :: nlclm_2dtop  ! num of local clm cells
-  PetscInt :: ngclm_2dtop  ! num of ghosted clm cells (ghosted = local+ghosts)
-  PetscInt :: nlpf_2dtop   ! num of local pflotran cells
-  PetscInt :: ngpf_2dtop   ! num of ghosted pflotran cells (ghosted = local+ghosts)
-
-  PetscInt :: nlclm_2dbot  ! num of local clm cells
-  PetscInt :: ngclm_2dbot  ! num of ghosted clm cells (ghosted = local+ghosts)
-  PetscInt :: nlpf_2dbot   ! num of local pflotran cells
-  PetscInt :: ngpf_2dbot   ! num of ghosted pflotran cells (ghosted = local+ghosts)
-
-  ! Number of cells for the 2D surface domain
-  PetscInt :: nlclm_srf  ! num of local clm cells
-  PetscInt :: ngclm_srf  ! num of ghosted clm cells (ghosted = local+ghosts)
-  PetscInt :: nlpf_srf   ! num of local pflotran cells
-  PetscInt :: ngpf_srf   ! num of ghosted pflotran cells (ghosted = local+ghosts)
-
-  ! (i) Mesh property
-
-  ! sub-surf/sub-base area (in 2D): the toppest/lowest cells of subsurface domain for BCs
-  ! At this moment, assumes both surf/base cells are exactly SAME in area.
-  Vec :: area_subsurf_clmp ! mpi vec
-  Vec :: area_subsurf_pfs  ! seq vec
-  Vec :: area_subsurf_pfp  ! mpi vec
-  Vec :: area_subsurf_clms ! seq vec
-
-  ! Area of top face of PF cells (in 3D) (note: a PF cell has faces (facets) of top/bottom/east/west/south/north)
-  Vec :: area_top_face_clmp ! mpi vec
-  Vec :: area_top_face_pfs  ! seq vec
-  Vec :: area_top_face_pfp  ! mpi vec
-  Vec :: area_top_face_clms ! seq vec
-
-  ! z-axis (in 3D), soil depth of center of a soil cell in unit of meters
-  Vec :: zsoil_clmp          ! mpi vec
-  Vec :: zsoil_pfs           ! seq vec
-  Vec :: zsoil_pfp           ! mpi vec
-  Vec :: zsoil_clms          ! seq vec
-
-  ! x/y-axis (in 3D), grid center of a soil cell in unit of meters
-  Vec :: xsoil_clmp          ! mpi vec
-  Vec :: xsoil_pfs           ! seq vec
-  Vec :: ysoil_clmp          ! mpi vec
-  Vec :: ysoil_pfs           ! seq vec
-
-  ! soil cell inter-nodes coordinates ('vertex' called in PF mesh; 'interface level' called in CLM soil layers)
-  Vec :: zisoil_clmp          ! mpi vec
-  Vec :: zisoil_pfs           ! seq vec
-
-  ! length/width/thickness of soil cells (in 3D) in unit of meters
-  Vec :: dxsoil_clmp          ! mpi vec
-  Vec :: dxsoil_pfs           ! seq vec
-  Vec :: dysoil_clmp          ! mpi vec
-  Vec :: dysoil_pfs           ! seq vec
-  Vec :: dzsoil_clmp          ! mpi vec
-  Vec :: dzsoil_pfs           ! seq vec
-  ! a NOTE here: Given a 3D-cell's 'area_gtop_face' and 'zsoi' known, it's possible to calculate its volume (may be useful ?)
 
   !-------------------------------------------------------------------------------------
   ! note: mapping ONLY can do from MPI vecs to Seq. vecs now
@@ -171,7 +174,7 @@ module clm_pflotran_interface_data
   ! -----TH vecs from CLM to PF --------------------
   ! TH properties
 
-  ! CLM's hydraulic properties  - mpi vectors
+  ! CLM's hydraulic properties
   Vec :: hksat_x_clmp
   Vec :: hksat_y_clmp
   Vec :: hksat_z_clmp
@@ -188,22 +191,21 @@ module clm_pflotran_interface_data
   Vec :: bulkdensity_dry_pfs
   Vec :: effporosity_pfs
 
-  ! clapp-Horburger's function
-  Vec :: sucsat_clmp
+  Vec :: sucsat_clmp   ! clapp-Horburger's function parameters - needed in BGC somehow
   Vec :: bsw_clmp
-
   Vec :: sucsat_pfs
   Vec :: bsw_pfs
 
-  ! CLM's future set of hydraulic functions ?
-  Vec :: sr_clmp    ! MVM soil hydraulic properties
-  Vec :: lamda_clmp
-  Vec :: alpha_clmp
-  Vec :: pcwmax_clmp
-  Vec :: sr_pfs     ! MVM soil hydraulic properties
-  Vec :: lamda_pfs
-  Vec :: alpha_pfs
-  Vec :: pcwmax_pfs
+  ! CLM's thermal properties
+  Vec :: tkwet_clmp
+  Vec :: tkdry_clmp
+  Vec :: tkfrz_clmp
+  Vec :: hcapv_clmp
+
+  Vec :: tkwet_pfs
+  Vec :: tkdry_pfs
+  Vec :: tkfrz_pfs
+  Vec :: hcapv_pfs
 
   ! TH state vecs from CLM (mpi) to PF (seq)
   Vec :: press_clmp                     ! water pressure head (Pa)
@@ -211,16 +213,18 @@ module clm_pflotran_interface_data
   Vec :: soillsat_clmp                  ! soil liq. water saturation (0 - 1)
   Vec :: soilisat_clmp                  ! soil ice water saturation (0 - 1)
   Vec :: soilt_clmp                     ! soil temperature (degC)
-  Vec :: h2osoi_vol_clmp                ! volume soil water content (inc. ice and liq water)
-  Vec :: t_scalar_clmp                  ! temperature response function value from CLM for decomposition reations
-  Vec :: w_scalar_clmp                  ! soil moisture response function value from CLM for decomposition reations
-  Vec :: o_scalar_clmp                  ! soil anoxic response function value from CLM for decomposition and/or CH4/NOx processes
-  Vec :: depth_scalar_clmp              ! soil depth response function value from CLM for decomposition reations
   Vec :: press_pfs
   Vec :: soilpsi_pfs
   Vec :: soillsat_pfs
   Vec :: soilisat_pfs
   Vec :: soilt_pfs
+
+  ! the following is directly used to drive BGC
+  Vec :: h2osoi_vol_clmp                ! volume soil water content (inc. ice and liq water)
+  Vec :: t_scalar_clmp                  ! temperature response function value from CLM for decomposition reations
+  Vec :: w_scalar_clmp                  ! soil moisture response function value from CLM for decomposition reations
+  Vec :: o_scalar_clmp                  ! soil anoxic response function value from CLM for decomposition and/or CH4/NOx processes
+  Vec :: depth_scalar_clmp              ! soil depth response function value from CLM for decomposition reations
   Vec :: h2osoi_vol_pfs
   Vec :: t_scalar_pfs                  ! temperature response function value from CLM for decomposition reations
   Vec :: w_scalar_pfs                  ! soil moisture response function value from CLM for decomposition reations
@@ -300,10 +304,10 @@ module clm_pflotran_interface_data
   !
 
   ! TH properties (useful to do some calculation in the interface)
-  Vec :: sr_pcwmax_pfp     ! MVM soil hydraulic properties
+  Vec :: sr_pcwmax_pfp
   Vec :: pcwmax_pfp
   Vec :: effporosity_pfp
-  Vec :: sr_pcwmax_clms    ! MVM soil hydraulic properties
+  Vec :: sr_pcwmax_clms
   Vec :: pcwmax_clms
   Vec :: effporosity_clms
 
@@ -544,6 +548,11 @@ contains
     clm_pf_idata%bulkdensity_dry_clmp = 0
     clm_pf_idata%effporosity_clmp = 0
 
+    clm_pf_idata%tkwet_clmp = 0
+    clm_pf_idata%tkdry_clmp = 0
+    clm_pf_idata%tkfrz_clmp = 0
+    clm_pf_idata%hcapv_clmp = 0
+
     clm_pf_idata%hksat_x_pfs = 0
     clm_pf_idata%hksat_y_pfs = 0
     clm_pf_idata%hksat_z_pfs = 0
@@ -552,21 +561,17 @@ contains
     clm_pf_idata%bulkdensity_dry_pfs = 0
     clm_pf_idata%effporosity_pfs   = 0
 
+    clm_pf_idata%tkwet_pfs = 0
+    clm_pf_idata%tkdry_pfs = 0
+    clm_pf_idata%tkfrz_pfs = 0
+    clm_pf_idata%hcapv_pfs = 0
+
     clm_pf_idata%sucsat_clmp = 0
     clm_pf_idata%bsw_clmp = 0
     clm_pf_idata%sucsat_pfs = 0
     clm_pf_idata%bsw_pfs = 0
    
    !--------------------------------------------------------------------
-    clm_pf_idata%sr_clmp       = 0
-    clm_pf_idata%lamda_clmp    = 0
-    clm_pf_idata%alpha_clmp    = 0
-    clm_pf_idata%pcwmax_clmp   = 0
-    clm_pf_idata%sr_pfs         = 0
-    clm_pf_idata%lamda_pfs      = 0
-    clm_pf_idata%alpha_pfs      = 0
-    clm_pf_idata%pcwmax_pfs     = 0
-
     clm_pf_idata%press_ref_clmp= 0
     clm_pf_idata%press_ref_pfs  = 0
 
@@ -583,10 +588,6 @@ contains
     clm_pf_idata%soilisat_pfs   = 0
     clm_pf_idata%soilt_pfs      = 0
     clm_pf_idata%h2osoi_vol_pfs = 0
-
-    clm_pf_idata%decomp_cpools_vr_clmp = 0
-    clm_pf_idata%decomp_npools_vr_clmp = 0
-
     !
     clm_pf_idata%t_scalar_clmp     = 0
     clm_pf_idata%w_scalar_clmp     = 0
@@ -596,6 +597,10 @@ contains
     clm_pf_idata%w_scalar_pfs     = 0
     clm_pf_idata%o_scalar_pfs     = 0
     clm_pf_idata%depth_scalar_pfs = 0
+
+    clm_pf_idata%decomp_cpools_vr_clmp = 0
+    clm_pf_idata%decomp_npools_vr_clmp = 0
+
 
     clm_pf_idata%smin_no3_vr_clmp      = 0
     clm_pf_idata%smin_nh4_vr_clmp      = 0
@@ -827,13 +832,13 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%bulkdensity_dry_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%effporosity_clmp,ierr)     ! this may/may not same as 'bd'/'watsat' above
 
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkwet_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkdry_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkfrz_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hcapv_clmp,ierr)
+
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%sucsat_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%bsw_clmp,ierr)
-
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%sr_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%lamda_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%alpha_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%pcwmax_clmp,ierr)
 
     ! TH states (3D)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%press_clmp,ierr)        ! this depends upon 'reference pressure'
@@ -881,13 +886,13 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%bulkdensity_dry_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%effporosity_pfs,ierr)
 
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkwet_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkdry_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkfrz_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hcapv_pfs,ierr)
+
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%sucsat_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%bsw_pfs,ierr)
-
-    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%sr_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%lamda_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%alpha_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%pcwmax_pfs,ierr)
 
     !
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%press_pfs,ierr)
@@ -1200,6 +1205,15 @@ contains
     if(clm_pf_idata%bulkdensity_dry_clmp  /= 0) &
       call VecDestroy(clm_pf_idata%bulkdensity_dry_clmp,ierr)
 
+    if(clm_pf_idata%tkwet_clmp  /= 0) &
+      call VecDestroy(clm_pf_idata%tkwet_clmp,ierr)
+    if(clm_pf_idata%tkdry_clmp  /= 0) &
+      call VecDestroy(clm_pf_idata%tkdry_clmp,ierr)
+    if(clm_pf_idata%tkfrz_clmp  /= 0) &
+      call VecDestroy(clm_pf_idata%tkfrz_clmp,ierr)
+    if(clm_pf_idata%hcapv_clmp  /= 0) &
+      call VecDestroy(clm_pf_idata%hcapv_clmp,ierr)
+
     if(clm_pf_idata%hksat_x_pfs  /= 0) &
       call VecDestroy(clm_pf_idata%hksat_x_pfs,ierr)
     if(clm_pf_idata%hksat_y_pfs  /= 0) &
@@ -1216,29 +1230,21 @@ contains
       call VecDestroy(clm_pf_idata%watfc_pfs,ierr)
     if(clm_pf_idata%bulkdensity_dry_pfs  /= 0) &
       call VecDestroy(clm_pf_idata%bulkdensity_dry_pfs,ierr)
-    
-    !----
-    if(clm_pf_idata%sr_clmp /= 0) &
-       call VecDestroy(clm_pf_idata%sr_clmp,ierr)
-    if(clm_pf_idata%lamda_clmp /= 0) &
-       call VecDestroy(clm_pf_idata%lamda_clmp,ierr)
-    if(clm_pf_idata%alpha_clmp /= 0) &
-       call VecDestroy(clm_pf_idata%alpha_clmp,ierr)
-    if(clm_pf_idata%pcwmax_clmp /= 0) &
-       call VecDestroy(clm_pf_idata%pcwmax_clmp,ierr)
     if(clm_pf_idata%effporosity_clmp /= 0) &
        call VecDestroy(clm_pf_idata%effporosity_clmp,ierr)
-
-    if(clm_pf_idata%sr_pfs /= 0) &
-       call VecDestroy(clm_pf_idata%sr_pfs,ierr)
-    if(clm_pf_idata%lamda_pfs /= 0) &
-       call VecDestroy(clm_pf_idata%lamda_pfs,ierr)
-    if(clm_pf_idata%alpha_pfs /= 0) &
-       call VecDestroy(clm_pf_idata%alpha_pfs,ierr)
-    if(clm_pf_idata%pcwmax_pfs /= 0) &
-       call VecDestroy(clm_pf_idata%pcwmax_pfs,ierr)
     if(clm_pf_idata%effporosity_pfs /= 0) &
        call VecDestroy(clm_pf_idata%effporosity_pfs,ierr)
+
+    !----
+    if(clm_pf_idata%tkwet_pfs  /= 0) &
+      call VecDestroy(clm_pf_idata%tkwet_pfs,ierr)
+    if(clm_pf_idata%tkdry_pfs  /= 0) &
+      call VecDestroy(clm_pf_idata%tkdry_pfs,ierr)
+    if(clm_pf_idata%tkfrz_pfs  /= 0) &
+      call VecDestroy(clm_pf_idata%tkfrz_pfs,ierr)
+    if(clm_pf_idata%hcapv_pfs  /= 0) &
+      call VecDestroy(clm_pf_idata%hcapv_pfs,ierr)
+    
 
     ! -----
     if(clm_pf_idata%sr_pcwmax_pfp /= 0) &

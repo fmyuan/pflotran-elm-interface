@@ -531,32 +531,32 @@ subroutine SatFunctionComputePolynomial(option,saturation_function)
   case(VAN_GENUCHTEN)
  
       ! return for now
-     ! return
+      return
 
       !geh: keep for now
-#ifdef VG_SPLINE
+#if 0
       ! geh: needs to be refactored to consider capillary pressure
       ! fill matix with values
       ! these are capillary pressures
-      pressure_1 = 0.d0  ! saturated
-      pressure_2 = 0.01d0*option%reference_pressure  ! just below saturated
+      pressure_low = 0  ! saturated
+      pressure_high = 0.01d0*option%reference_pressure  ! just below saturated
   
-      saturation_function%pres_spline_low = pressure_1
-      saturation_function%pres_spline_high = pressure_2
+      saturation_function%spline_low = pressure_low
+      saturation_function%spline_high = pressure_high
     
       n = 1.d0/(1.d0 - saturation_function%m)
-      b(1) = (1.d0+(pressure_2*saturation_function%alpha)**n)** &
+      b(1) = (1.d0+(pressure_high*saturation_function%alpha)**n)** &
                (-saturation_function%m)
       b(2) = 1.d0
       b(3) = -saturation_function%m*n*saturation_function%alpha* &
-             (saturation_function%alpha*pressure_2)**(n-1.d0)* &
-             (1.d0+(saturation_function%alpha*pressure_2)**n)** &
+             (saturation_function%alpha*pressure_high)**(n-1.d0)* &
+             (1.d0+(saturation_function%alpha*pressure_high)**n)** &
                (-saturation_function%m-1.d0)
       b(4) = 0.d0
   
-      call CubicPolynomialSetup(pressure_2,pressure_1,b)
+      call CubicPolynomialSetup(pressure_high,pressure_low,b)
 
-      saturation_function%pres_spline_coefficients(1:4) = b(1:4)
+      saturation_function%spline_coefficients(1:4) = b(1:4)
 #endif
 
   end select
@@ -593,11 +593,11 @@ subroutine PermFunctionComputePolynomial(option,saturation_function)
  
 #ifdef MUALEM_SPLINE
       ! fill matix with values
-      Se_low = 0.99d0  ! just below saturated
-      Se_high = 1.d0   ! saturated
+      Se_low = 0.99d0  ! saturated
+      Se_high = 1.d0  ! just below saturated
   
-      saturation_function%sat_spline_low = Se_low
-      saturation_function%sat_spline_high = Se_high
+      saturation_function%spline_low = Se_low
+      saturation_function%spline_high = Se_high
     
       m = saturation_function%m
       one_over_m = 1.d0/m
@@ -612,7 +612,7 @@ subroutine PermFunctionComputePolynomial(option,saturation_function)
   
       call CubicPolynomialSetup(Se_high,Se_low,b)
   
-      saturation_function%sat_spline_coefficients(1:4) = b(1:4)
+      saturation_function%spline_coefficients(1:4) = b(1:4)
 #endif
 
   end select
@@ -789,15 +789,15 @@ subroutine SaturationFunctionCompute2(capillary_pressure,saturation, &
   select case(saturation_function%saturation_function_itype)
     case(VAN_GENUCHTEN)
       ! reference #1
-#ifdef VG_SPLINE
-      if (pc < saturation_function%pres_spline_low) then
+#if 0
+      if (pc < saturation_function%spline_low) then
         saturation = 1.d0
         relative_perm = 1.d0
         switch_to_saturated = PETSC_TRUE
         return
-      else if (pc < saturation_function%pres_spline_high) then
+      else if (pc < saturation_function%spline_high) then
         Sr = saturation_function%Sr(iphase)
-        call CubicPolynomialEvaluate(saturation_function%pres_spline_coefficients, &
+        call CubicPolynomialEvaluate(saturation_function%spline_coefficients, &
                                      pc,Se,dSe_dpc)
         saturation = Sr + (1.d0-Sr)*Se
         dsat_dpc = (1.d0-Sr)*dSe_dpc
@@ -850,9 +850,9 @@ subroutine SaturationFunctionCompute2(capillary_pressure,saturation, &
         case(MUALEM)
           ! reference #1
 #ifdef MUALEM_SPLINE
-          if (Se > saturation_function%sat_spline_low) then
+          if (Se > saturation_function%spline_low) then
             call CubicPolynomialEvaluate( &
-              saturation_function%sat_spline_coefficients, &
+              saturation_function%spline_coefficients, &
               Se,relative_perm,dkr_dSe)
           else
 #endif          

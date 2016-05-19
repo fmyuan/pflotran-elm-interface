@@ -523,7 +523,6 @@ subroutine PMRTFinalizeTimestep(this)
     endif
   endif
 
-!fmy: begining
 #ifndef CLM_PFLOTRAN
 !the following generates a large ascii file if coupled with CLM duo to long run steps
   if (this%option%print_file_flag) then  
@@ -539,7 +538,6 @@ subroutine PMRTFinalizeTimestep(this)
     endif
   endif
 #endif
-!fmy: ending
 
 end subroutine PMRTFinalizeTimestep
 

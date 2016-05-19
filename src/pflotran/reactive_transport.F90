@@ -2239,7 +2239,7 @@ subroutine RTResidualFlux(snes,xx,r,realization,ierr)
 
       !----------------
       if ( option%flow%only_vertical_flow .or. option%transport%only_vertical_tran ) then
-         if(abs(dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xyz)) < 0.999d0) cycle
+         if(abs(dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xyz)) < 1.d-20) cycle
       end if
       !----------------
 
@@ -3095,7 +3095,7 @@ subroutine RTJacobianFlux(snes,xx,A,B,realization,ierr)
 
       !----------------
       if ( option%flow%only_vertical_flow .or. option%transport%only_vertical_tran ) then
-         if(abs(dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xyz)) < 0.999d0) cycle
+         if(abs(dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xyz)) < 1.d-20) cycle
       end if
       !----------------
 
@@ -4768,7 +4768,7 @@ subroutine RTExplicitAdvection(realization)
   PetscViewer :: viewer
 
   ! zero out xy-direction transport
-  PetscReal :: unitvec_xy(3)
+  PetscReal :: unitvec_xyz(3)
 
   procedure (TFluxLimiterDummy), pointer :: TFluxLimitPtr
   
@@ -4886,8 +4886,8 @@ subroutine RTExplicitAdvection(realization)
   endif
   
 ! Interior Flux Terms -----------------------------------
-  unitvec_xy(1:2) = 0.d0
-  unitvec_xy(3)   = 1.d0
+  unitvec_xyz(1:2) = 0.d0
+  unitvec_xyz(3)   = 1.d0
 
   call VecGetArrayF90(field%tvd_ghosts,tvd_ghosts_p,ierr);CHKERRQ(ierr)
   connection_set_list => grid%internal_connection_set_list
@@ -4909,7 +4909,7 @@ subroutine RTExplicitAdvection(realization)
 
       !----------------
       if ( option%flow%only_vertical_flow .or. option%transport%only_vertical_tran ) then
-        if(abs(dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xy))<0.999d0) cycle
+         if(abs(dot_product(cur_connection_set%dist(1:3,iconn),unitvec_xyz)) < 1.d-20) cycle
       end if
       !----------------
         

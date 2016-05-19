@@ -1819,7 +1819,6 @@ subroutine PatchUpdateCouplerAuxVarsMPH(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
-                                 patch%characteristic_curves_array, &
                                  patch%sat_func_id)
   endif
 
@@ -1922,7 +1921,6 @@ subroutine PatchUpdateCouplerAuxVarsIMS(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
-                                 patch%characteristic_curves_array, &
                                  patch%sat_func_id)
   endif
 
@@ -2025,7 +2023,6 @@ subroutine PatchUpdateCouplerAuxVarsFLASH2(patch,coupler,option)
   if (associated(flow_condition%saturation)) then
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
-                                 patch%characteristic_curves_array, &
                                  patch%sat_func_id)
   endif
 
@@ -2054,9 +2051,6 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   use Dataset_Gridded_HDF5_class
   use Dataset_Ascii_class
 
-  use Characteristic_Curves_module
-  use TH_Aux_module
-
   implicit none
   
   type(patch_type) :: patch
@@ -2079,10 +2073,6 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   PetscInt :: idof, num_connections,sum_connection
   PetscInt :: iconn, local_id, ghosted_id
   PetscInt :: iphase
-
-  character(len=MAXSTRINGLENGTH) :: error_string
-  class(characteristic_curves_type), pointer :: characteristic_curves
-  type(th_auxvar_type), pointer :: auxvar
   
   num_connections = coupler%connection_set%num_connections
 
@@ -2289,54 +2279,8 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
-
-#if defined(CLM_PFLOTRAN) && defined(use_characteristic_curves_module)
-    ! if coupled with CLM, hydraulic properties are varied for each cell, no matter what inputs are.
-    ! currently, only support 'Brooks_Coreys-Burdine' types of functions
-
-      ! TH_MODE now can use 'charateristic_curves' module
-      characteristic_curves => patch% &
-        characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr
-      auxvar => patch%aux%TH%auxvars(ghosted_id)
-
-      select type(sf => characteristic_curves%saturation_function)
-        !class is(sat_func_VG_type)
-          ! not-yet
-        class is(sat_func_BC_type)
-          sf%alpha  = auxvar%bc_alpha
-          sf%lambda = auxvar%bc_lambda
-          sf%Sr  = auxvar%bc_sr1
-          ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-          error_string = 'passing CLM characterisitc-curves parameters: sat_function'
-          call sf%SetupPolynomials(option,error_string)
-
-        class default
-          option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
-           ' when coupled with CLM.'
-          call printErrMsg(option)
-      end select
-
-      select type(rpf => characteristic_curves%liq_rel_perm_function)
-        !class is(rpf_Mualem_VG_liq_type)
-
-        class is(rpf_Burdine_BC_liq_type)
-          rpf%lambda = auxvar%bc_lambda
-          rpf%Sr  = auxvar%bc_sr1
-
-        ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-        error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
-        call rpf%SetupPolynomials(option,error_string)
-
-        class default
-          option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
-           ' when coupled with CLM.'
-          call printErrMsg(option)
-      end select
-#endif
-
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
-                                 patch%characteristic_curves_array, &
                                  patch%sat_func_id)
   endif
 
@@ -2436,8 +2380,7 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   use Condition_module
   use Hydrostatic_module
   use Saturation_module
-  use Richards_Aux_module
-  use Characteristic_Curves_module
+  
   
   use General_Aux_module
   use Grid_module
@@ -2462,10 +2405,6 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
   character(len=MAXSTRINGLENGTH) :: string, string2
   PetscErrorCode :: ierr
   
-  class(characteristic_curves_type), pointer :: characteristic_curves
-  type(richards_auxvar_type), pointer :: auxvar
-  character(len=MAXSTRINGLENGTH) :: error_string
-
   PetscInt :: idof, num_connections,sum_connection
   PetscInt :: iconn, local_id, ghosted_id
 
@@ -2496,54 +2435,8 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
     end select
   endif
   if (associated(flow_condition%saturation)) then
-
-#ifdef CLM_PFLOTRAN
-    ! if coupled with CLM, hydraulic properties are varied for each cell, no matter what inputs are.
-    ! currently, only support 'Brooks_Coreys-Burdine' types of functions
-
-      ! Richards_MODE now is using 'charateristic_curves' module only
-      characteristic_curves => patch% &
-        characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr
-      auxvar => patch%aux%Richards%auxvars(ghosted_id)
-
-      select type(sf => characteristic_curves%saturation_function)
-        !class is(sat_func_VG_type)
-          ! not-yet
-        class is(sat_func_BC_type)
-          sf%alpha  = auxvar%bc_alpha
-          sf%lambda = auxvar%bc_lambda
-          sf%Sr  = auxvar%bc_sr1
-          ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-          error_string = 'passing CLM characterisitc-curves parameters: sat_function'
-          call sf%SetupPolynomials(option,error_string)
-
-        class default
-          option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
-           ' when coupled with CLM.'
-          call printErrMsg(option)
-      end select
-
-      select type(rpf => characteristic_curves%liq_rel_perm_function)
-        !class is(rpf_Mualem_VG_liq_type)
-
-        class is(rpf_Burdine_BC_liq_type)
-          rpf%lambda = auxvar%bc_lambda
-          rpf%Sr  = auxvar%bc_sr1
-
-        ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-        error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
-        call rpf%SetupPolynomials(option,error_string)
-
-        class default
-          option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
-           ' when coupled with CLM.'
-          call printErrMsg(option)
-      end select
-#endif
-
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
                                  patch%saturation_function_array, &
-                                 patch%characteristic_curves_array, &
                                  patch%sat_func_id)
   endif
   if (associated(flow_condition%rate)) then
@@ -4129,7 +4022,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                       log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
                         patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
               enddo
-              tk = patch%aux%Global%auxvars(ghosted_id)%temp + 273.15d0
+              tk = patch%aux%Global%auxvars(ghosted_id)%temp + &
+                   273.15d0
               ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/faraday
               eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
               pe0 = eh0/ehfac
@@ -4162,7 +4056,8 @@ subroutine PatchGetVariable1(patch,field,reaction,option,output_option,vec, &
                       log(patch%aux%RT%auxvars(ghosted_id)%pri_molal(comp_id)* &
                         patch%aux%RT%auxvars(ghosted_id)%pri_act_coef(comp_id))
               enddo
-              tk = patch%aux%Global%auxvars(ghosted_id)%temp + 273.15d0
+              tk = patch%aux%Global%auxvars(ghosted_id)%temp + &
+                   273.15d0
               ehfac = IDEAL_GAS_CONSTANT*tk*LOG_TO_LN/faraday
               eh0 = ehfac*(-4.d0*ph0+lnQKgas*LN_TO_LOG+logKeh(tk))/4.d0
               pe0 = eh0/ehfac
