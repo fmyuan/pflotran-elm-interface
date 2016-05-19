@@ -4,7 +4,6 @@ module PMC_Subsurface_class
   use Realization_Subsurface_class
 
   use PFLOTRAN_Constants_module
-  use Option_module
 
   implicit none
 

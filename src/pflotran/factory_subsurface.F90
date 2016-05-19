@@ -2864,7 +2864,8 @@ subroutine SubsurfaceReadInput(simulation)
     nullify(tran_timestepper)
   endif
 
-#ifdef CLM_PFLOTRAN
+#if 0
+!!CLM_PFLOTRAN
   ! material_properties are by unique one for each cell, if CLM domain over-ride PF input
   ! i.e. NO mapping provided, hack here to duplicate default materials, and then
   ! (1) in 'strata' material propertis will be assigned to ecah cell

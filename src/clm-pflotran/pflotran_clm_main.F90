@@ -1004,7 +1004,7 @@ contains
     PetscScalar, pointer :: tkwet_pf_loc(:)   ! thermal conductivity at saturated (W/m/K)
     PetscScalar, pointer :: tkdry_pf_loc(:)   ! thermal conductivity - dry (W/m/K)
     PetscScalar, pointer :: tkfrz_pf_loc(:)   ! thermal conductivity - frozen (W/m/K)
-    PetscScalar, pointer :: hcapm_pf_loc(:)   ! mass specific heat capacity (J/kg/K)
+    PetscScalar, pointer :: hcapv_pf_loc(:)   ! volume specific heat capacity (J/m3/K)
 
     PetscScalar, pointer :: hksat_x_pf_loc(:) ! hydraulic conductivity in x-dir at saturation (mm H2O /s)
     PetscScalar, pointer :: hksat_y_pf_loc(:) ! hydraulic conductivity in y-dir at saturation (mm H2O /s)
@@ -1012,10 +1012,6 @@ contains
     PetscScalar, pointer :: watsat_pf_loc(:)  ! volumetric soil water at saturation (porosity)
     PetscScalar, pointer :: sucsat_pf_loc(:)  ! minimum soil suction (mm)
     PetscScalar, pointer :: bsw_pf_loc(:)     ! Clapp and Hornberger "b"
-    PetscScalar, pointer :: lamda_pf_loc(:)   ! Clapp and Hornberger "1/b"
-    PetscScalar, pointer :: alpha_pf_loc(:)   ! Clapp and Hornberger "alpha"
-    PetscScalar, pointer :: sr_pf_loc(:)      ! Clapp and Hornberger "sr"
-    PetscScalar, pointer :: pcwmax_pf_loc(:)  ! Clapp and Hornberger "pcwmax"
 
     ! -------------------------------------------
 
@@ -1077,8 +1073,8 @@ contains
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
-                                    clm_pf_idata%hcapm_clmp, &
-                                    clm_pf_idata%hcamp_pfs)
+                                    clm_pf_idata%hcapv_clmp, &
+                                    clm_pf_idata%hcapv_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
@@ -1112,26 +1108,6 @@ contains
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
-                                    clm_pf_idata%alpha_clmp, &
-                                    clm_pf_idata%alpha_pfs)
-
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    option, &
-                                    clm_pf_idata%lamda_clmp, &
-                                    clm_pf_idata%lamda_pfs)
-
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    option, &
-                                    clm_pf_idata%sr_clmp, &
-                                    clm_pf_idata%sr_pfs)
-
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    option, &
-                                    clm_pf_idata%pcwmax_clmp, &
-                                    clm_pf_idata%pcwmax_pfs)
-
-    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
-                                    option, &
                                     clm_pf_idata%watfc_clmp, &
                                     clm_pf_idata%watfc_pfs)
 
@@ -1149,7 +1125,7 @@ contains
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%tkfrz_pfs, tkfrz_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%hcapm_pfs, hcapm_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%hcapv_pfs, hcapv_pf_loc, ierr)
     CHKERRQ(ierr)
 
     call VecGetArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
@@ -1163,14 +1139,6 @@ contains
     call VecGetArrayF90(clm_pf_idata%watsat_pfs,  watsat_pf_loc,  ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%bsw_pfs,     bsw_pf_loc,     ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%alpha_pfs,  alpha_pf_loc,   ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%lamda_pfs,  lamda_pf_loc,   ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%sr_pfs,     sr_pf_loc,      ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%pcwmax_pfs, pcwmax_pf_loc,  ierr)
     CHKERRQ(ierr)
 
     call VecGetArrayF90(field%porosity0, porosity_loc_p, ierr)
@@ -1231,11 +1199,6 @@ contains
        ! if ( sf_func_type == VAN_GENUCHTEN .and. &
        !      rpf_func_type == MUALEM )         then
        !
-       !   bc_alpha  = alpha_pf_loc(ghosted_id)
-       !   bc_lambda = lamda_pf_loc(ghosted_id)   ! 'm' in VG function ( or, n=1/(1-m))
-       !   bc_Sr(1)  = sr_pf_loc(ghosted_id)      ! currently only for liq. water, NOTE that if at 'Sr', pc = inf
-       !   bc_pcwmax = pcwmax_pf_loc(ghosted_id)  ! this parameter IS not corresponding with 'Sr'
-
        ! currently BC-Burdine saturation/permisivity function type, with specified values to match with Clapp-Hornberger Eq.
         if ( sf_func_type == BROOKS_COREY .and. &
              rpf_func_type == BURDINE )         then
@@ -1263,9 +1226,9 @@ contains
             rich_auxvar%bc_sr1    = bc_sr
           case(TH_MODE)
             th_auxvar => th_auxvars(ghosted_id)
-            th_auxvar%bc_alpha  = bc_alpha
-            th_auxvar%bc_lambda = bc_lambda
-            th_auxvar%bc_sr1    = bc_sr
+            !th_auxvar%bc_alpha  = bc_alpha
+            !th_auxvar%bc_lambda = bc_lambda
+            !th_auxvar%bc_sr1    = bc_sr
         end select
 
       endif
@@ -1304,7 +1267,7 @@ contains
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%tkfrz_pfs, tkfrz_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%hcapm_pfs, hcapm_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%hcapv_pfs, hcapv_pf_loc, ierr)
     CHKERRQ(ierr)
 
     call VecRestoreArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
@@ -1318,14 +1281,6 @@ contains
     call VecRestoreArrayF90(clm_pf_idata%watsat_pfs,  watsat_pf_loc,  ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%bsw_pfs,     bsw_pf_loc,     ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%alpha_pfs,  alpha_pf_loc,   ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%lamda_pfs,  lamda_pf_loc,   ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%sr_pfs,     sr_pf_loc,      ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%pcwmax_pfs, pcwmax_pf_loc,  ierr)
     CHKERRQ(ierr)
 
     call VecRestoreArrayF90(field%porosity0, porosity_loc_p, ierr)
@@ -2742,7 +2697,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
       do local_id = 1, grid%nlmax
         ghosted_id = grid%nL2G(local_id)
         if (ghosted_id <=0 ) cycle
-        soilisat_pf_p(local_id) = TH_auxvars(ghosted_id)%sat_ice
+        soilisat_pf_p(local_id) = TH_auxvars(ghosted_id)%ice%sat_ice
       enddo
       call VecRestoreArrayF90(clm_pf_idata%soilisat_pfp, soilisat_pf_p, ierr)
       CHKERRQ(ierr)
