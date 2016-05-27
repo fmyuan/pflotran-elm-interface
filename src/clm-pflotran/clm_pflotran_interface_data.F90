@@ -19,11 +19,6 @@ module clm_pflotran_interface_data
 
   type, public :: clm_pflotran_idata_type
 
-  ! the following constants are for consistently coverting mass and moles btw CLM-CN and PF bgc
-  ! so that mass balance error would not be caused by these
-  PetscReal :: N_molecular_weight
-  PetscReal :: C_molecular_weight
-
   ! Time invariant data:
 
   ! num of CLM soil layers that are mapped to/from PFLOTRAN (global constants, not local copy)
@@ -110,6 +105,11 @@ module clm_pflotran_interface_data
   ! a NOTE here: Given a 3D-cell's 'area_gtop_face' and 'zsoi' known, it's possible to calculate its volume (may be useful ?)
 
   !-------------------------------------------------------------------------------------
+  ! the following constants are for consistently coverting mass and moles btw CLM-CN and PF bgc
+  ! so that mass balance error would not be caused by these
+  PetscReal :: N_molecular_weight
+  PetscReal :: C_molecular_weight
+
   ! Soil BGC decomposing pools
   PetscInt :: ndecomp_pools
   logical, pointer :: floating_cn_ratio(:)           ! TRUE => pool has variable C:N ratio
@@ -200,12 +200,12 @@ module clm_pflotran_interface_data
   Vec :: tkwet_clmp
   Vec :: tkdry_clmp
   Vec :: tkfrz_clmp
-  Vec :: hcapv_clmp
+  Vec :: hcvsol_clmp
 
   Vec :: tkwet_pfs
   Vec :: tkdry_pfs
   Vec :: tkfrz_pfs
-  Vec :: hcapv_pfs
+  Vec :: hcvsol_pfs
 
   ! TH state vecs from CLM (mpi) to PF (seq)
   Vec :: press_clmp                     ! water pressure head (Pa)
@@ -443,22 +443,6 @@ contains
     nullify(clm_pf_idata%dyclm_global)
     nullify(clm_pf_idata%dzclm_global)
 
-    nullify(clm_pf_idata%floating_cn_ratio)
-    nullify(clm_pf_idata%decomp_element_ratios)
-    nullify(clm_pf_idata%ispec_decomp_c)
-    nullify(clm_pf_idata%ispec_decomp_n)
-    nullify(clm_pf_idata%ispec_decomp_hr)
-    nullify(clm_pf_idata%ispec_decomp_nmin)
-    nullify(clm_pf_idata%ispec_decomp_nimp)
-    nullify(clm_pf_idata%ispec_decomp_nimm)
-    nullify(clm_pf_idata%decomp_pool_name)
-    nullify(clm_pf_idata%ck_decomp_c)
-    nullify(clm_pf_idata%fr_decomp_c)
-
-    !
-    clm_pf_idata%N_molecular_weight = 14.0067d0
-    clm_pf_idata%C_molecular_weight = 12.0110d0
-
     clm_pf_idata%npx = 1    !default 'np' for PF mesh decompose is 1x1x1
     clm_pf_idata%npy = 1
     clm_pf_idata%npz = 1
@@ -473,29 +457,6 @@ contains
     clm_pf_idata%x0clm_global = 0
     clm_pf_idata%y0clm_global = 0
     clm_pf_idata%z0clm_global = 0
-
-    clm_pf_idata%ndecomp_pools    = 0
-    clm_pf_idata%ndecomp_elements = 0
-
-    clm_pf_idata%ispec_hrimm   = 0
-    clm_pf_idata%ispec_nmin    = 0
-    clm_pf_idata%ispec_nimm    = 0
-    clm_pf_idata%ispec_nimp    = 0
-
-    clm_pf_idata%ispec_nh4     = 0
-    clm_pf_idata%ispec_no3     = 0
-    clm_pf_idata%ispec_nh4s    = 0
-    clm_pf_idata%ispec_no3s    = 0
-    clm_pf_idata%ispec_nh4sorb = 0
-    clm_pf_idata%ispec_plantndemand   = 0
-    clm_pf_idata%ispec_plantnh4uptake = 0
-    clm_pf_idata%ispec_plantno3uptake = 0
-    clm_pf_idata%ispec_ngasmin  = 0
-    clm_pf_idata%ispec_ngasnitr = 0
-    clm_pf_idata%ispec_ngasdeni = 0
-    clm_pf_idata%ispec_co2 = 0
-    clm_pf_idata%ispec_n2  = 0
-    clm_pf_idata%ispec_n2o = 0
 
     clm_pf_idata%nlclm_sub = 0
     clm_pf_idata%ngclm_sub = 0
@@ -540,6 +501,46 @@ contains
     clm_pf_idata%area_subsurf_pfp      = 0
     clm_pf_idata%area_subsurf_clms     = 0
 
+
+    !-------------
+    clm_pf_idata%N_molecular_weight = 14.0067d0
+    clm_pf_idata%C_molecular_weight = 12.0110d0
+    nullify(clm_pf_idata%floating_cn_ratio)
+    nullify(clm_pf_idata%decomp_element_ratios)
+    nullify(clm_pf_idata%ispec_decomp_c)
+    nullify(clm_pf_idata%ispec_decomp_n)
+    nullify(clm_pf_idata%ispec_decomp_hr)
+    nullify(clm_pf_idata%ispec_decomp_nmin)
+    nullify(clm_pf_idata%ispec_decomp_nimp)
+    nullify(clm_pf_idata%ispec_decomp_nimm)
+    nullify(clm_pf_idata%decomp_pool_name)
+    nullify(clm_pf_idata%ck_decomp_c)
+    nullify(clm_pf_idata%fr_decomp_c)
+
+    clm_pf_idata%ndecomp_pools    = 0
+    clm_pf_idata%ndecomp_elements = 0
+
+    clm_pf_idata%ispec_hrimm   = 0
+    clm_pf_idata%ispec_nmin    = 0
+    clm_pf_idata%ispec_nimm    = 0
+    clm_pf_idata%ispec_nimp    = 0
+
+    clm_pf_idata%ispec_nh4     = 0
+    clm_pf_idata%ispec_no3     = 0
+    clm_pf_idata%ispec_nh4s    = 0
+    clm_pf_idata%ispec_no3s    = 0
+    clm_pf_idata%ispec_nh4sorb = 0
+    clm_pf_idata%ispec_plantndemand   = 0
+    clm_pf_idata%ispec_plantnh4uptake = 0
+    clm_pf_idata%ispec_plantno3uptake = 0
+    clm_pf_idata%ispec_ngasmin  = 0
+    clm_pf_idata%ispec_ngasnitr = 0
+    clm_pf_idata%ispec_ngasdeni = 0
+    clm_pf_idata%ispec_co2 = 0
+    clm_pf_idata%ispec_n2  = 0
+    clm_pf_idata%ispec_n2o = 0
+
+   !--------------------------------------------------------------------
     clm_pf_idata%hksat_x_clmp = 0
     clm_pf_idata%hksat_y_clmp = 0
     clm_pf_idata%hksat_z_clmp = 0
@@ -548,10 +549,10 @@ contains
     clm_pf_idata%bulkdensity_dry_clmp = 0
     clm_pf_idata%effporosity_clmp = 0
 
-    clm_pf_idata%tkwet_clmp = 0
-    clm_pf_idata%tkdry_clmp = 0
-    clm_pf_idata%tkfrz_clmp = 0
-    clm_pf_idata%hcapv_clmp = 0
+    clm_pf_idata%tkwet_clmp  = 0
+    clm_pf_idata%tkdry_clmp  = 0
+    clm_pf_idata%tkfrz_clmp  = 0
+    clm_pf_idata%hcvsol_clmp = 0
 
     clm_pf_idata%hksat_x_pfs = 0
     clm_pf_idata%hksat_y_pfs = 0
@@ -561,10 +562,10 @@ contains
     clm_pf_idata%bulkdensity_dry_pfs = 0
     clm_pf_idata%effporosity_pfs   = 0
 
-    clm_pf_idata%tkwet_pfs = 0
-    clm_pf_idata%tkdry_pfs = 0
-    clm_pf_idata%tkfrz_pfs = 0
-    clm_pf_idata%hcapv_pfs = 0
+    clm_pf_idata%tkwet_pfs  = 0
+    clm_pf_idata%tkdry_pfs  = 0
+    clm_pf_idata%tkfrz_pfs  = 0
+    clm_pf_idata%hcvsol_pfs = 0
 
     clm_pf_idata%sucsat_clmp = 0
     clm_pf_idata%bsw_clmp = 0
@@ -589,6 +590,7 @@ contains
     clm_pf_idata%soilt_pfs      = 0
     clm_pf_idata%h2osoi_vol_pfs = 0
     !
+   !--------------------------------------------------------------------
     clm_pf_idata%t_scalar_clmp     = 0
     clm_pf_idata%w_scalar_clmp     = 0
     clm_pf_idata%o_scalar_clmp     = 0
@@ -835,7 +837,7 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkwet_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkdry_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkfrz_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hcapv_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hcvsol_clmp,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%sucsat_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%bsw_clmp,ierr)
@@ -889,7 +891,7 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkwet_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkdry_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkfrz_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hcapv_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hcvsol_pfs,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%sucsat_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%bsw_pfs,ierr)
@@ -1211,8 +1213,8 @@ contains
       call VecDestroy(clm_pf_idata%tkdry_clmp,ierr)
     if(clm_pf_idata%tkfrz_clmp  /= 0) &
       call VecDestroy(clm_pf_idata%tkfrz_clmp,ierr)
-    if(clm_pf_idata%hcapv_clmp  /= 0) &
-      call VecDestroy(clm_pf_idata%hcapv_clmp,ierr)
+    if(clm_pf_idata%hcvsol_clmp  /= 0) &
+      call VecDestroy(clm_pf_idata%hcvsol_clmp,ierr)
 
     if(clm_pf_idata%hksat_x_pfs  /= 0) &
       call VecDestroy(clm_pf_idata%hksat_x_pfs,ierr)
@@ -1242,8 +1244,8 @@ contains
       call VecDestroy(clm_pf_idata%tkdry_pfs,ierr)
     if(clm_pf_idata%tkfrz_pfs  /= 0) &
       call VecDestroy(clm_pf_idata%tkfrz_pfs,ierr)
-    if(clm_pf_idata%hcapv_pfs  /= 0) &
-      call VecDestroy(clm_pf_idata%hcapv_pfs,ierr)
+    if(clm_pf_idata%hcvsol_pfs  /= 0) &
+      call VecDestroy(clm_pf_idata%hcvsol_pfs,ierr)
     
 
     ! -----

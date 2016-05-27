@@ -41,6 +41,16 @@ module TH_Aux_module
     ! For surface-flow
     type(th_surface_flow_type), pointer :: surface
 
+#ifdef CLM_PFLOTRAN
+    PetscReal :: bc_alpha  ! Brooks Corey - Burdine parameters: alpha
+    PetscReal :: bc_lambda ! Brooks Corey - Burdine parameters: lambda
+    PetscReal :: bc_sr1    ! Brooks Corey - Burdine parameters: sr(1) (i.e. liq only)
+    PetscReal :: tkwet     ! thermal properties:
+    PetscReal :: tkdry
+    PetscReal :: tkfrz
+    PetscReal :: hcapv_solid
+#endif
+
   end type TH_auxvar_type
 
   type, public :: th_ice_type
@@ -219,6 +229,7 @@ subroutine THAuxVarInit(auxvar,option)
   auxvar%Ke        = uninit_value
   auxvar%dKe_dp    = uninit_value
   auxvar%dKe_dt    = uninit_value
+
   if (option%use_th_freezing) then
     allocate(auxvar%ice)
     auxvar%ice%Ke_fr     = uninit_value
@@ -265,6 +276,16 @@ subroutine THAuxVarInit(auxvar,option)
   else
     nullify(auxvar%surface)
   endif
+
+#ifdef CLM_PFLOTRAN
+    auxvar%bc_alpha    = uninit_value
+    auxvar%bc_lambda   = uninit_value
+    auxvar%bc_sr1      = uninit_value
+    auxvar%tkwet       = uninit_value
+    auxvar%tkdry       = uninit_value
+    auxvar%tkfrz       = uninit_value
+    auxvar%hcapv_solid = uninit_value
+#endif
   
 end subroutine THAuxVarInit
 
@@ -357,6 +378,15 @@ subroutine THAuxVarCopy(auxvar,auxvar2,option)
     auxvar2%surface%bcflux_default_scheme = &
       auxvar%surface%bcflux_default_scheme
   endif
+#ifdef CLM_PFLOTRAN
+    auxvar2%bc_alpha    = auxvar%bc_alpha
+    auxvar2%bc_lambda   = auxvar%bc_lambda
+    auxvar2%bc_sr1      = auxvar%bc_sr1
+    auxvar2%tkwet       = auxvar%tkwet
+    auxvar2%tkdry       = auxvar%tkdry
+    auxvar2%tkfrz       = auxvar%tkfrz
+    auxvar2%hcapv_solid = auxvar%hcapv_solid
+#endif
 
 end subroutine THAuxVarCopy
 
@@ -988,15 +1018,47 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
   dsg_dp = 0.d0
   dsg_dt = 0.d0
 
-  !select type (sf => characteristic_curves%saturation_function)
-  !  class is(sat_func_BC_type)
-    !
-  !  class is(sat_func_VG_type)
-    !
-  !  class default
-  !    option%io_buffer = 'Only van Genuchten/Brooks-Corey SF supported with ice model option'
-  !    call printErrMsg(option)
-  !end select ! select type (sf=>characteristic_curves%saturation_function)
+#if defined(CLM_PFLOTRAN) && defined(use_characteristic_curves_module)
+  ! fmy: the following only needs calling ONCE, but not yet figured out how
+  ! because CLM's every single CELL has ONE set of SF/RPF parameters
+  if(auxvar%bc_alpha /= UNINITIALIZED_DOUBLE) then
+    select type(sf => characteristic_curves%saturation_function)
+      !class is(sat_func_VG_type)
+        ! not-yet
+      class is(sat_func_BC_type)
+        sf%alpha  = auxvar%bc_alpha
+        sf%lambda = auxvar%bc_lambda
+        sf%Sr  = auxvar%bc_sr1
+        ! needs to re-calculate some extra variables for 'saturation_function', if changed above
+        error_string = 'passing CLM characterisitc-curves parameters: sat_function'
+        call sf%SetupPolynomials(option,error_string)
+
+      class default
+        option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
+          ' when coupled with CLM.'
+        call printErrMsg(option)
+    end select
+
+    select type(rpf => characteristic_curves%liq_rel_perm_function)
+      !class is(rpf_Mualem_VG_liq_type)
+        ! not yet
+
+      class is(rpf_Burdine_BC_liq_type)
+        rpf%lambda = auxvar%bc_lambda
+        rpf%Sr  = auxvar%bc_sr1
+
+      ! Burdine_BC_liq RPF has no spline-smoothing (@ May-05-2016)
+      !error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
+      !call rpf%SetupPolynomials(option,error_string)
+
+      class default
+        option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
+          ' when coupled with CLM.'
+        call printErrMsg(option)
+    end select
+
+  endif
+#endif
 
   pl0 = pc
   call characteristic_curves%saturation_function%Saturation(pl0, sli, dsli_dp, option)
@@ -1137,17 +1199,6 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
   dkrg_dp= 0.d0
   dkrg_dt= 0.d0
 
-!  select type (rpf_liq => characteristic_curves%liq_rel_perm_function)
-!    class is(rpf_Mualem_VG_liq_type)
-    !
-!    class is(rpf_BURDINE_BC_liq_type)
-    !
-!    class default
-!      option%io_buffer = 'THAuxVarComputeFreezing2: ' // &
-!        'TH with Ice model now only support rpf_liq: Mualem_VG_liq_type/BURDINE_BC_liq_type.'
-!      call printErrMsg(option)
-!  end select
-
   call characteristic_curves%liq_rel_perm_function%RelativePermeability(sl, kr, dkr_dse, option)
   dkr_dp = characteristic_curves%liq_rel_perm_function%DRelPerm_DPressure(dsl_dp, dkr_dse)
   dkr_dt = dkr_dse/(1.d0-characteristic_curves%saturation_function%Sr)*dsl_dt
@@ -1243,11 +1294,19 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
 
   !***************  mixture properties **************************
   ! Parameters for computation of effective thermal conductivity
-  alpha = th_parameter%alpha(ithrm)
+  alpha    = th_parameter%alpha(ithrm)
   alpha_fr = th_parameter%alpha_fr(ithrm)
-  Dk = th_parameter%ckwet(ithrm)
+  Dk     = th_parameter%ckwet(ithrm)
   Dk_dry = th_parameter%ckdry(ithrm)
   Dk_ice = th_parameter%ckfrozen(ithrm)
+
+#ifdef CLM_PFLOTRAN
+  if(auxvar%tkwet /= UNINITIALIZED_DOUBLE) then
+    Dk     = auxvar%tkwet
+    Dk_dry = auxvar%tkdry
+    Dk_ice = auxvar%tkfrz
+  endif
+#endif
 
   !Soil Kersten number
   Ke = (sl+epsilon)**(alpha)

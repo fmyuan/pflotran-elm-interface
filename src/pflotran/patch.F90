@@ -2290,19 +2290,20 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   endif
   if (associated(flow_condition%saturation)) then
 
-#if 0
-!defined(CLM_PFLOTRAN) && defined(use_characteristic_curves_module)
+#if defined(CLM_PFLOTRAN) && defined(use_characteristic_curves_module)
     ! if coupled with CLM, hydraulic properties are varied for each cell, no matter what inputs are.
     ! currently, only support 'Brooks_Coreys-Burdine' types of functions
 
-      ! TH_MODE now can use 'charateristic_curves' module
-      characteristic_curves => patch% &
+    ! TH_MODE now can use 'charateristic_curves' module
+    characteristic_curves => patch% &
         characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr
-      auxvar => patch%aux%TH%auxvars(ghosted_id)
+    auxvar => patch%aux%TH%auxvars(ghosted_id)
 
+    if(auxvar%bc_alpha /= UNINITIALIZED_DOUBLE) then
       select type(sf => characteristic_curves%saturation_function)
         !class is(sat_func_VG_type)
           ! not-yet
+
         class is(sat_func_BC_type)
           sf%alpha  = auxvar%bc_alpha
           sf%lambda = auxvar%bc_lambda
@@ -2324,15 +2325,17 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
           rpf%lambda = auxvar%bc_lambda
           rpf%Sr  = auxvar%bc_sr1
 
-        ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-        error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
-        call rpf%SetupPolynomials(option,error_string)
+         ! Burdine_BC_liq RPF has no spline-smoothing (@ May-05-2016)
+         ! error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
+         ! call rpf%SetupPolynomials(option,error_string)
 
         class default
           option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
            ' when coupled with CLM.'
           call printErrMsg(option)
       end select
+
+    endif
 #endif
 
     call SaturationUpdateCoupler(coupler,option,patch%grid, &
@@ -2502,11 +2505,12 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
     ! if coupled with CLM, hydraulic properties are varied for each cell, no matter what inputs are.
     ! currently, only support 'Brooks_Coreys-Burdine' types of functions
 
-      ! Richards_MODE now is using 'charateristic_curves' module only
-      characteristic_curves => patch% &
+    ! Richards_MODE now is using 'charateristic_curves' module only
+    characteristic_curves => patch% &
         characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr
-      auxvar => patch%aux%Richards%auxvars(ghosted_id)
+    auxvar => patch%aux%Richards%auxvars(ghosted_id)
 
+    if(auxvar%bc_alpha  > 0.d0) then
       select type(sf => characteristic_curves%saturation_function)
         !class is(sat_func_VG_type)
           ! not-yet
@@ -2531,15 +2535,17 @@ subroutine PatchUpdateCouplerAuxVarsRich(patch,coupler,option)
           rpf%lambda = auxvar%bc_lambda
           rpf%Sr  = auxvar%bc_sr1
 
-        ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-        error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
-        call rpf%SetupPolynomials(option,error_string)
+          ! Burdine_BC_liq RPF has no spline-smoothing (@ May-05-2016)
+          ! error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
+          ! call rpf%SetupPolynomials(option,error_string)
 
         class default
           option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
            ' when coupled with CLM.'
           call printErrMsg(option)
       end select
+
+    endif
 #endif
 
     call SaturationUpdateCoupler(coupler,option,patch%grid, &

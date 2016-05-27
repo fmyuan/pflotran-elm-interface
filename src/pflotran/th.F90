@@ -1364,6 +1364,15 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   u = TH_auxvar%u
   du_dt = TH_auxvar%du_dt
   du_dp = TH_auxvar%du_dp
+
+#ifdef CLM_PFLOTRAN
+  if(TH_auxvar%hcapv_solid /= UNINITIALIZED_DOUBLE) then
+    ! soil solid fraction vol. heat capacity variable with material
+    ! (esp. organic matter content, sand/clay/silt particles)
+    ! which are from CLM physical properties
+    rock_dencpr = TH_auxvar%hcapv_solid
+  endif
+#endif
   
   if (soil_compressibility_index > 0) then
     tempreal = sat*den
@@ -1586,6 +1595,16 @@ subroutine THAccumulation(auxvar,global_auxvar, &
 
 ! TechNotes, TH Mode: First term of Equation 9
   ! rock_dencpr [MJ/m^3 rock-K]
+
+#ifdef CLM_PFLOTRAN
+  if(auxvar%hcapv_solid /= UNINITIALIZED_DOUBLE) then
+    ! soil solid fraction vol. heat capacity variable with material
+    ! (esp. organic matter content, sand/clay/silt particles)
+    ! which are from CLM physical properties
+    rock_dencpr = auxvar%hcapv_solid
+  endif
+#endif
+
   eng = global_auxvar%sat(1) * &
         global_auxvar%den(1) * &
         auxvar%u * porXvol + &

@@ -1004,7 +1004,7 @@ contains
     PetscScalar, pointer :: tkwet_pf_loc(:)   ! thermal conductivity at saturated (W/m/K)
     PetscScalar, pointer :: tkdry_pf_loc(:)   ! thermal conductivity - dry (W/m/K)
     PetscScalar, pointer :: tkfrz_pf_loc(:)   ! thermal conductivity - frozen (W/m/K)
-    PetscScalar, pointer :: hcapv_pf_loc(:)   ! volume specific heat capacity (J/m3/K)
+    PetscScalar, pointer :: hcapvs_pf_loc(:)   ! volume specific heat capacity for soil particle only (J/m3/K)
 
     PetscScalar, pointer :: hksat_x_pf_loc(:) ! hydraulic conductivity in x-dir at saturation (mm H2O /s)
     PetscScalar, pointer :: hksat_y_pf_loc(:) ! hydraulic conductivity in y-dir at saturation (mm H2O /s)
@@ -1073,8 +1073,8 @@ contains
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
-                                    clm_pf_idata%hcapv_clmp, &
-                                    clm_pf_idata%hcapv_pfs)
+                                    clm_pf_idata%hcvsol_clmp, &
+                                    clm_pf_idata%hcvsol_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
@@ -1125,7 +1125,7 @@ contains
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%tkfrz_pfs, tkfrz_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%hcapv_pfs, hcapv_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%hcvsol_pfs, hcapvs_pf_loc, ierr)
     CHKERRQ(ierr)
 
     call VecGetArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
@@ -1198,7 +1198,7 @@ contains
        ! currently VG-Mulaem saturation function type - NOT YET done in CLM (TODO)
        ! if ( sf_func_type == VAN_GENUCHTEN .and. &
        !      rpf_func_type == MUALEM )         then
-       !
+
        ! currently BC-Burdine saturation/permisivity function type, with specified values to match with Clapp-Hornberger Eq.
         if ( sf_func_type == BROOKS_COREY .and. &
              rpf_func_type == BURDINE )         then
@@ -1226,9 +1226,15 @@ contains
             rich_auxvar%bc_sr1    = bc_sr
           case(TH_MODE)
             th_auxvar => th_auxvars(ghosted_id)
-            !th_auxvar%bc_alpha  = bc_alpha
-            !th_auxvar%bc_lambda = bc_lambda
-            !th_auxvar%bc_sr1    = bc_sr
+            th_auxvar%bc_alpha  = bc_alpha
+            th_auxvar%bc_lambda = bc_lambda
+            th_auxvar%bc_sr1    = bc_sr
+
+            th_auxvar%tkwet       = tkwet_pf_loc(ghosted_id)
+            th_auxvar%tkdry       = tkdry_pf_loc(ghosted_id)
+            th_auxvar%tkfrz       = tkfrz_pf_loc(ghosted_id)
+            th_auxvar%hcapv_solid = hcapvs_pf_loc(ghosted_id)
+
         end select
 
       endif
@@ -1267,7 +1273,7 @@ contains
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%tkfrz_pfs, tkfrz_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%hcapv_pfs, hcapv_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%hcvsol_pfs, hcapvs_pf_loc, ierr)
     CHKERRQ(ierr)
 
     call VecRestoreArrayF90(clm_pf_idata%hksat_x_pfs, hksat_x_pf_loc, ierr)
@@ -2141,6 +2147,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                endif
 #endif
 
+
              else
                option%io_buffer='pflotranModelSetTHbcs -  ' // &
                  ' for CLM-PFLOTRAN coupling - flow condition MUST be named as following: ' // &
@@ -2339,9 +2346,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecRestoreArrayF90(clm_pf_idata%qflux_pfs,qflx_pf_loc,ierr)
     CHKERRQ(ierr)
 
-    if(.not.found) &
-      call printMsg(option,'clm_et_ss not found in ' // &
-                       'source-sink list of subsurface model.')
+    !if(.not.found) &
+      !call printMsg(option,'clm_et_ss not found in ' // &
+      !                 'source-sink list of subsurface model.')
 
   end subroutine pflotranModelUpdateHSourceSink
 
