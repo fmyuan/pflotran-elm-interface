@@ -726,7 +726,9 @@ subroutine PMTHMaxChange(this)
   
   call THMaxChange(this%realization,this%max_pressure_change, &
                    this%max_temperature_change)
-    if (this%option%print_screen_flag) then
+#ifndef CLM_PFLOTRAN
+! the following produces a large txt file.
+  if (this%option%print_screen_flag) then
     write(*,'("  --> max chng: dpmx= ",1pe12.4," dtmpmx= ",1pe12.4)') &
       this%max_pressure_change,this%max_temperature_change
   endif
@@ -735,7 +737,7 @@ subroutine PMTHMaxChange(this)
       & " dtmpmx= ",1pe12.4)') &
       this%max_pressure_change,this%max_temperature_change
   endif 
-
+#endif
 end subroutine PMTHMaxChange
 
 ! ************************************************************************** !
