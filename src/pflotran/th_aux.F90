@@ -928,13 +928,8 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
   PetscReal, parameter :: C_a = 1.86d-3   ! air heat capacity: in MJ/kg/K at 300K
   PetscReal, parameter :: C_wv = 1.005d-3 ! liq. water heat capacity: in MJ/kg/K
 
-  PetscReal, parameter :: beta = 2.20d0          ! dimensionless -- ratio of soil ice surf. tension
   PetscReal, parameter :: Tf0  = 273.15d0        ! freezing-point at standard pressure: in K
-  PetscReal, parameter :: Lf   = 3.34d5           ! in J/kg
-  PetscReal :: Tf, tftheta, dtftheta_dt, dtftheta_dp
   PetscReal :: pl0, sli, dsli_dp, xplice, dxplice_dp, dxplice_dt, slx, dslx_dx
-  PetscReal :: rhol, drhol_dp, drhol_dt
-  PetscReal :: Hfunc, dHfunc, xTf, deltaTf, scalor, tempreal
 
   PetscReal :: tc, Tk, pres_l, pc
   PetscInt  :: i,j
@@ -1073,97 +1068,24 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
 
   ! if ice module turns on, 2-phase saturation recalculated (liq. and ice) under common 'pw' and 't'
   if (option%use_th_freezing) then
-    select case (option%ice_model)
-      case (PAINTER_KARRA_EXPLICIT)
-        ! explicit model from Painter & Karra, VJZ (2014)
-#if 0
-        ! fmy: added, but test shows the following NOT necessary
-        rhol     = denw_mol*FMWH2O    ! kg/m3: kmol/m3*kg/kmol
-        drhol_dp = ddenw_dp*FMWH2O
-        drhol_dt = ddenw_dt*FMWH2O
-#endif
-        ! constant 'rhol'
-        rhol     = 999.8d0            ! kg/m3: kmol/m3*kg/kmol
-        drhol_dp = 0.d0
-        drhol_dt = 0.d0
 
-        Tk = tc + Tf0                                       ! convert to K
-        Tf = Tf0 - 1.d0/beta*Tf0/Lf/rhol*pl0                ! P.-K. Eq.(10): used below???
+    call characteristic_curves%saturation_function%IceCapillaryPressure(pres_l, tc, &
+                                   xplice, dxplice_dp, dxplice_dt, option)
 
-        tftheta = (Tk-Tf0)/Tf0                  ! P.-K. Eq.(18): theta: (Tk-Tf0)/Tf0
-        dtftheta_dt = 1.0d0/Tf0
-        dtftheta_dp = 0.d0
+    if (xplice>0.d0 .and. xplice>pl0) then
+      call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
+        ! in 'Saturaton_Function.F90', PKE subroutine: dsl_dp = -dS;
+        ! which appears opposite when using Characteristic_curves_module (see characteristic_curves.F90: line 2082)
 
-        Hfunc = sign(0.5d0, -(Tk-Tf))+0.5d0                ! Heaviside function
-        dHfunc = 0.d0
+      sl = slx
+      dsl_dt = -dslx_dx*dxplice_dt       ! In PKE subroutine of Sat_func, it's not adjusted by  'rhol(t)': dsl_dT = dS_dX*1.d0/T_0*(-beta*rho_l*L_f)
+      dsl_dp = dslx_dx*dxplice_dp        ! In PKE subroutine of Sat_func, it's 0 when Hfunc=1; it's -dS when Hfunc=0
 
-! the following smoothing NOT works as expected, OFF now and TODO checking
-#if 0
-            ! smoothed Heaviside function (approximation)
-            ! assuming: Hfunc = 0.5d0+0.5d0*tanh(-x/scalor)
-
-            ! freezing-point depression shift (down) so that,
-            ! @Tf-1.d-5, Hfunc ~ 0 (say, 1.0d-15); @Tf-deltaTf, Hfunc = 0.5; and, @Tf-2*deltaTf, Hfunc ~ 1.0
-            deltaTf = 0.05d0
-            scalor = 1.0d0                                      ! control how wide (sharpness) of the 'Hfunc' (1.0 is the default)
-            ! @Tf, Hfunc = 1.0d-15: ==> scalor
-            tempreal = 1.d-15/0.5d0-1.d0
-            tempreal = atanh(tempreal)               ! 'atanh()' requires FORTRAN 2008 and later
-            scalor = -deltaTf/tempreal
-
-            ! shifting 'Tf' by 'deltaTf', so 'Hfunc' now runs approximately from 'Tf-deltaTf' -- 'Tf' -- 'Tf+deltaTf'
-            xTf = (Tk-(Tf-deltaTf))/scalor
-            Hfunc   = 0.5d0+0.5d0*tanh(-xTf)     ! (exp(xTf)-exp(xTf))/(exp(xTf)+exp(-xTf)) ! smoothing Heaviside function
-            tempreal= 2.d0/(exp(xTf)+exp(-xTf))  ! dHfunc w.r.t dt = -0.5*sech(x)*sech(x): sech(x) = 2/(exp(x)+exp(-x)) (because 'sech()' NOT available in most fortran intrinsic function)
-            dHfunc  = -0.5d0*tempreal*tempreal
-#endif
-
-        xplice = -beta*Lf*rhol*tftheta*Hfunc + pl0*(1.0-Hfunc)         ! P.-K. Eq.(18): with 'Hfunc'
-
-            !  xplice = - beta*Lf  * Hfunc*tftheta*rhol
-            !           - pl0  * Hfunc
-            !           + pl0
-            !
-            !  and, dpl0_dt = 0
-            !
-            !  So,  dx_dt = d_{Hfunc * [-beta*Lf * tftheta*rhol - pl0]}
-            !                 [step3]      [step2]    [step1]
-            !
-        tempreal   = rhol*dtftheta_dt+tftheta*drhol_dt            ! [step1]
-        tempreal   = -beta*Lf*tempreal                            ! [step2]
-        dxplice_dt =  tempreal * Hfunc  &                         ! [step3]
-                     + (-beta*Lf*tftheta*rhol-pl0) * dHfunc
-
-
-            !  xplice = - beta*Lf*Hfunc   *  tftheta*rhol
-            !           + (1.0-Hfunc)  * pl0
-            !
-            !  and, dHfunc_dp = 0, dt_dp = 0
-            !
-            !  So,  dx_dp = d_{-beta*Lf*Hfunc* [tftheta*rhol]}
-            !               + (1.0-Hfunc)
-        dxplice_dp = -beta*Lf*Hfunc*(tftheta*drhol_dp+rhol*dtftheta_dp) &
-                    + (1.d0-Hfunc)
-
-        call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
-            ! in 'Saturaton_Function.F90', PKE subroutine: dsl_dp = -dS;
-            ! which appears opposite when using Characteristic_curves_module (see characteristic_curves.F90: line 2082)
-
-        !if (Tk<=Tf) then     ! not needed if with Heaviside function
-          sl = slx
-          dsl_dt = -dslx_dx*dxplice_dt       ! In PKE subroutine of Sat_func, it's not adjusted by  'rhol(t)': dsl_dT = dS_dX*1.d0/T_0*(-beta*rho_l*L_f)
-          dsl_dp = dslx_dx*dxplice_dp        ! In PKE subroutine of Sat_func, it's 0 when Hfunc=1; it's -dS when Hfunc=0
-
-          si = 1.d0 - sl/sli                 ! P.-K. Eq.(19)
-          dsi_dt = -1.d0/sli*dsl_dt          ! dsli_dt = 0 (see above)
-          dsi_dp = (sl*dsli_dp-sli*dsl_dp)/(sli**2)
-        !endif
-
-      case default
-        option%io_buffer = 'THAuxVarComputeFreezing2: Ice model now only support: PAINTER_KARRA_EXPLICIT.'
-        call printErrMsg(option)
-
-    end select ! select case (option%ice_model)
+      ! ice satuation and its derivatives
+      si = 1.d0 - sl/sli                 ! P.-K. Eq.(19)
+      dsi_dt = -1.d0/sli*dsl_dt          ! dsli_dt = 0 (see above)
+      dsi_dp = (sl*dsli_dp-sli*dsl_dp)/(sli**2)
+    endif
 
   endif ! 'option%use_th_freezing'
 
@@ -1178,7 +1100,7 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
     call printErrMsg(option)
   endif
   if ((si-1.d0)>1.d-15 .or. si<-1.d-15) then
-    print *, Tk, Tf, sli, sl, si, pl0, xplice
+    print *, Tk, sli, sl, si, pl0, xplice
     option%io_buffer = 'TH with ice mode: ICE Saturation error:  >1 or <0'
     call printErrMsg(option)
   endif
