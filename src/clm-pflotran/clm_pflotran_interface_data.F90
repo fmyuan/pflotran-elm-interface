@@ -234,6 +234,8 @@ module clm_pflotran_interface_data
   ! Sink/Source of water/heat for PFLOTRAN's 3D subsurface domain
   Vec :: qflux_clmp   ! mpi vec (H2O)
   Vec :: qflux_pfs    ! seq vec
+  Vec :: qfluxt_clmp   ! mpi vec (H2O)
+  Vec :: qfluxt_pfs    ! seq vec
 
   Vec :: gflux_clmp   ! mpi vec (Heat)
   Vec :: gflux_pfs    ! seq vec
@@ -629,6 +631,8 @@ contains
 
     clm_pf_idata%qflux_clmp = 0
     clm_pf_idata%qflux_pfs  = 0
+    clm_pf_idata%qfluxt_clmp = 0
+    clm_pf_idata%qfluxt_pfs  = 0
     clm_pf_idata%gflux_clmp = 0
     clm_pf_idata%gflux_pfs  = 0
 
@@ -852,6 +856,8 @@ contains
 
     ! TH Src/Sink (3D)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%qflux_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%qfluxt_clmp,ierr)
+
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%gflux_clmp,ierr)
 
     ! TH top BC (2D)
@@ -906,6 +912,8 @@ contains
 
     ! TH Src/Sink (3D)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%qflux_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%qfluxt_pfs,ierr)
+
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%gflux_pfs,ierr)
 
     ! TH top BC (2D)
@@ -1295,6 +1303,11 @@ contains
        call VecDestroy(clm_pf_idata%qflux_clmp,ierr)
     if(clm_pf_idata%qflux_pfs  /= 0) &
        call VecDestroy(clm_pf_idata%qflux_pfs,ierr)
+    if(clm_pf_idata%qfluxt_clmp  /= 0) &
+       call VecDestroy(clm_pf_idata%qfluxt_clmp,ierr)
+    if(clm_pf_idata%qfluxt_pfs  /= 0) &
+       call VecDestroy(clm_pf_idata%qfluxt_pfs,ierr)
+
     if(clm_pf_idata%gflux_clmp  /= 0) &
        call VecDestroy(clm_pf_idata%gflux_clmp,ierr)
     if(clm_pf_idata%gflux_pfs  /= 0) &

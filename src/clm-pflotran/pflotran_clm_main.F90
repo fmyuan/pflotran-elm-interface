@@ -2264,11 +2264,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     type(connection_set_type), pointer        :: cur_connection_set
 
-    PetscScalar, pointer                      :: qflx_pf_loc(:)
+    PetscScalar, pointer                      :: qflx_pf_loc(:), qflxt_pf_loc(:)
     PetscBool                                 :: found
     PetscInt                                  :: iconn, local_id, ghosted_id
     PetscErrorCode                            :: ierr
-    PetscInt                                  :: press_dof
+    PetscInt                                  :: press_dof, temperature_dof
 
     subname = 'pflotranModelUpdateHSourceSink'
 !-------------------------------------------------------------------------
@@ -2290,13 +2290,19 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%qflux_clmp, &
                                     clm_pf_idata%qflux_pfs)
 
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    option, &
+                                    clm_pf_idata%qfluxt_clmp, &
+                                    clm_pf_idata%qfluxt_pfs)
 
     ! Find value of pressure-dof depending on flow mode
     select case (option%iflowmode)
       case (RICHARDS_MODE)
         press_dof = RICHARDS_PRESSURE_DOF
+        temperature_dof = UNINITIALIZED_INTEGER
       case (TH_MODE)
         press_dof = TH_PRESSURE_DOF
+        temperature_dof = TH_TEMPERATURE_DOF
       case default
         option%io_buffer = 'Unsupported Flow mode'
         call printErrMsg(option)
@@ -2305,6 +2311,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     ! Update the 'clm_et_ss' source/sink term
     call VecGetArrayF90(clm_pf_idata%qflux_pfs,qflx_pf_loc,ierr)
     CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%qfluxt_pfs,qflxt_pf_loc,ierr)
+    CHKERRQ(ierr)
+
     found = PETSC_FALSE
 
     source_sink => realization%patch%source_sink_list%first
@@ -2330,6 +2339,11 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
           source_sink%flow_aux_real_var(press_dof,iconn) = qflx_pf_loc(ghosted_id)
 
+          if(option%iflowmode == TH_MODE) then
+            source_sink%flow_condition%temperature%dataset%rarray(1) = qflxt_pf_loc(ghosted_id)
+
+          endif
+
 #ifdef CLM_PF_DEBUG
       ! the following checking shows data passing IS from 'ghosted_id' to 'iconn (local_id)' (multiple processors)
       write(option%myrank+200,*) 'checking H-et ss. -pf_model-UpdateSrcSink:', &
@@ -2344,6 +2358,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       source_sink => source_sink%next
     enddo
     call VecRestoreArrayF90(clm_pf_idata%qflux_pfs,qflx_pf_loc,ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%qfluxt_pfs,qflxt_pf_loc,ierr)
     CHKERRQ(ierr)
 
     !if(.not.found) &

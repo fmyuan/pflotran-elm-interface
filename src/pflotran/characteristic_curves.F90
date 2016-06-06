@@ -2180,7 +2180,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
                                    ice_pc, dice_pc_dp, dice_pc_dt, option)
   !
   ! Computes the ice capillary_pressure as a function of Pres_l, Tc
-  ! Mainly from Painter et al. (2011), Painter-K et al. (2014), and other
+  ! Mainly from Painter et al. (2011), Painter and Karra (2014)
   !
   ! Author: Fengming Yuan
   !         Based on relevant saturation_functions by Satish K.
