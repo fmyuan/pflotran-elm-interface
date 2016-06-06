@@ -1,0 +1,180 @@
+#Description# Batch simulation
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_TRANSPORT transport
+      GLOBAL_IMPLICIT
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== regression =======================================
+REGRESSION
+  CELLS
+    1
+  /
+END
+
+#=========================== useful tranport parameters =======================
+UNIFORM_VELOCITY 0.d0 0.d0 0.d0 
+
+REFERENCE_DENSITY 1.d3
+
+#=========================== chemistry ========================================
+CHEMISTRY
+  PRIMARY_SPECIES
+    NH3(aq)
+    NO3-
+    HCO3-
+    DOM
+  /
+  REDOX_SPECIES
+    NO3-
+  /
+  IMMOBILE_SPECIES
+    SOM1
+    SOM2
+    SOM3
+    SOM4
+    Bacteria
+    Fungi
+  /
+  REACTION_SANDBOX
+   CLM-DECOMP
+      POOLS
+        SOM1 12.d0
+        SOM2 12.d0
+        SOM3 10.d0
+        SOM4 10.d0
+        Bacteria 5.0d0 
+        Fungi 15.0d0
+        DOM  10.0d0
+     END
+     REACTION
+       UPSTREAM_POOL DOM
+       DOWNSTREAM_POOL SOM1     0.10d0
+       DOWNSTREAM_POOL SOM2     0.08d0
+       DOWNSTREAM_POOL SOM3     0.08d0
+       DOWNSTREAM_POOL SOM4     0.04d0
+       DOWNSTREAM_POOL Bacteria 0.35d0
+       DOWNSTREAM_POOL Fungi    0.35d0
+       RATE_CONSTANT 0.7 1/d 
+     END
+      X0EPS 1.0d-20
+      DOWNREGULATE_NH4 -1.0d-20 1.0d-18
+      DOWNREGULATE_NO3 -1.0d-20 1.0d-18
+   END
+  END
+
+#  LOG_FORMULATION
+  DATABASE ./hanford-clm.dat 
+  OUTPUT
+    all
+    TOTAL
+  /
+END
+
+#=========================== solver options ===================================
+LINEAR_SOLVER TRANSPORT
+  SOLVER DIRECT
+END
+
+NEWTON_SOLVER TRANSPORT
+  ATOL 1.d-50
+#  RTOL 1.d-12
+END
+
+#=========================== discretization ===================================
+GRID
+  TYPE structured
+  NXYZ 1 1 1
+  BOUNDS
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+#=========================== fluid properties =================================
+FLUID_PROPERTY 
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY soil1
+  ID 1
+  POROSITY 0.25d0
+  TORTUOSITY 1.d0
+END
+
+#=========================== output options ===================================
+OUTPUT
+  PERIODIC_OBSERVATION TIMESTEP 1
+END
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 400.d0 d
+  INITIAL_TIMESTEP_SIZE 1.d-2 h
+  MAXIMUM_TIMESTEP_SIZE 1.d0 d
+END
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1.d0 1.d0 1.d0
+  /
+END
+
+REGION obs_pt
+  COORDINATE 0.5 0.5 0.5
+END
+
+#=========================== observation points ===============================
+OBSERVATION
+  REGION obs_pt
+END
+
+#=========================== transport conditions =============================
+TRANSPORT_CONDITION initial
+  TYPE zero_gradient
+  CONSTRAINT_LIST
+    0.d0 initial
+  /
+END
+
+#=========================== transport constraints ============================
+CONSTRAINT initial
+  CONCENTRATIONS
+    NH3(aq) 3.d-5  T
+    NO3-    5.d-5 T
+    HCO3-   1.d-20 T
+    DOM     4.d-3  T
+  END
+  IMMOBILE
+    SOM1      1.d-20
+    SOM2      1.d-20
+    SOM3      1.d-20
+    SOM4      1.d-20
+    Bacteria  1.d-20
+    Fungi     1.d-20
+  END
+END
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL soil1
+END
+
+
