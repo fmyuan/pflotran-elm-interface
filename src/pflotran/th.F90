@@ -1985,7 +1985,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
 
       Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn
 
-#ifndef NO_VAPOR_DIFFUION  
+#ifndef NO_VAPOR_DIFFUSION
       Jup(1,1) = Jup(1,1) + (upweight*por_up*tor_up*deng_up*(Diffg_up*dsatg_dp_up &
            + satg_up*dDiffg_dp_up)* &
            (molg_up - molg_dn) + Ddiffgas_up*dmolg_dp_up)/ &
@@ -3017,6 +3017,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         
             Ddiffgas_avg = upweight*Ddiffgas_up+(1.D0 - upweight)*Ddiffgas_dn 
     
+#ifndef NO_VAPOR_DIFFUSION
             Jdn(1,1) = Jdn(1,1) + por_dn*tor_dn*(1.D0 - upweight)* &
                  Ddiffgas_dn/satg_dn*dsatg_dp_dn*(molg_up - molg_dn)/dd_dn* &
                  area
@@ -3024,6 +3025,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                  (Ddiffgas_avg/deng_dn*ddeng_dt_dn + Ddiffgas_avg/Diffg_dn* &
                  dDiffg_dt_dn)*(molg_up - molg_dn)/dd_dn*area + por_dn* &
                  tor_dn*Ddiffgas_avg*(-dmolg_dt_dn)/dd_dn*area
+#endif
          endif
       endif ! if (use_th_freezing)
 
@@ -3545,8 +3547,10 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
             endif
 
             Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn 
+#ifndef NO_VAPOR_DIFFUSION
             fluxm = fluxm + por_dn*tor_dn*Ddiffgas_avg*(molg_up - molg_dn)/ &
                  dd_dn*area
+#endif
          endif
       endif ! if (use_th_freezing)
 
@@ -3562,7 +3566,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       call printErrMsg(option)
   end select
 
-  Res(1:option%nflowspec) = fluxm
+  Res(1:option%nflowdof-1) = fluxm
   Res(option%nflowdof) = fluxe
 
 end subroutine THBCFlux

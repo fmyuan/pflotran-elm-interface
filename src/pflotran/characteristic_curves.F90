@@ -2209,10 +2209,13 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   PetscReal :: Tf, dTf_dt, dTf_dp
   PetscReal :: tftheta, dtftheta_dt, dtftheta_dp
 
+  PetscReal :: denw_kg, denw_mol, ddenw_dp, ddenw_dt
 
   PetscReal :: Hfunc, dHfunc, tempreal
 
   PetscReal :: deltaTf, xTf, a, b, c
+
+  PetscErrorCode :: ierr
 
   !---------------------
   !
@@ -2230,6 +2233,11 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   pw = max(option%reference_pressure, pres_l)
 
   ! --------------------
+
+  ! constant 'rhol'
+  rhol     = 999.8d0            ! kg/m3: kmol/m3*kg/kmol
+  drhol_dp = 0.d0
+  drhol_dt = 0.d0
 #if 0
   ! liq. water densities
   call EOSWaterDensity(min(max(tc,-1.0d0),99.9d0), min(pw, 165.4d5),      &
@@ -2243,13 +2251,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   drhol_dp = ddenw_dp*FMWH2O
   drhol_dt = ddenw_dt*FMWH2O
 
-#else
-  ! constant 'rhol'
-  rhol     = 999.8d0            ! kg/m3: kmol/m3*kg/kmol
-  drhol_dp = 0.d0
-  drhol_dt = 0.d0
 #endif
-
 
   if (option%use_th_freezing) then
 

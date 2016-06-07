@@ -2531,9 +2531,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecRestoreArrayF90(clm_pf_idata%gtemp_subbase_pfs,gtemp_subbase_pf_loc,ierr)
     CHKERRQ(ierr)
 
-    if(.not.found) &
-      call printErrMsg(option,' "clm_gflux_bc" or "clm_gpress_bc" not found in ' // &
-                       'boundary-condition list of subsurface model.')
+    !if(.not.found) &
+    !  call printMsg(option,' "clm_gflux_bc" or "clm_gpress_bc" not found in ' // &
+    !                   'boundary-condition list of subsurface model.')
 
   end subroutine pflotranModelUpdateSubsurfTCond
 
