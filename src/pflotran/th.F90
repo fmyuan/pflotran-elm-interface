@@ -1907,6 +1907,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
     endif
   endif 
 
+#ifndef NO_VAPOR_DIFFUSION
   if (option%use_th_freezing) then
     ! Added by Satish Karra, updated 11/11/11
     satg_up = auxvar_up%ice%sat_gas
@@ -1985,7 +1986,6 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
 
       Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn
 
-#ifndef NO_VAPOR_DIFFUSION
       Jup(1,1) = Jup(1,1) + (upweight*por_up*tor_up*deng_up*(Diffg_up*dsatg_dp_up &
            + satg_up*dDiffg_dp_up)* &
            (molg_up - molg_dn) + Ddiffgas_up*dmolg_dp_up)/ &
@@ -2003,10 +2003,10 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       Jdn(1,2) = Jdn(1,2) + ((1.D0 - upweight)*por_dn*tor_dn*satg_dn*(Diffg_dn* &
            ddeng_dt_dn + deng_dn*dDiffg_dp_dn)*(molg_up - molg_dn) &
            + Ddiffgas_avg*(-dmolg_dt_dn))/(dd_up + dd_dn)*area
-#endif
    endif
 
   endif ! if (use_th_freezing)
+#endif
 
         
   if (option%use_th_freezing) then
@@ -2370,7 +2370,7 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
     endif
   endif 
 
-  
+#ifndef NO_VAPOR_DIFFUSION
   if (option%use_th_freezing) then
     ! Added by Satish Karra, 10/24/11
     satg_up = auxvar_up%ice%sat_gas
@@ -2410,14 +2410,13 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
       endif
 
       Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn 
-#ifndef NO_VAPOR_DIFFUSION
       fluxm = fluxm + Ddiffgas_avg*area*(molg_up - molg_dn)/ &
            (dd_up + dd_dn)
-#endif
 
     endif
 
   endif ! if (use_th_freezing)
+#endif
 
   if (option%use_th_freezing) then
 
@@ -2977,6 +2976,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           endif
         endif
       endif
+#ifndef NO_VAPOR_DIFFUSION
       if (option%use_th_freezing) then
          ! Added by Satish Karra, 11/21/11
          satg_up = auxvar_up%ice%sat_gas
@@ -3017,7 +3017,6 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         
             Ddiffgas_avg = upweight*Ddiffgas_up+(1.D0 - upweight)*Ddiffgas_dn 
     
-#ifndef NO_VAPOR_DIFFUSION
             Jdn(1,1) = Jdn(1,1) + por_dn*tor_dn*(1.D0 - upweight)* &
                  Ddiffgas_dn/satg_dn*dsatg_dp_dn*(molg_up - molg_dn)/dd_dn* &
                  area
@@ -3025,9 +3024,9 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                  (Ddiffgas_avg/deng_dn*ddeng_dt_dn + Ddiffgas_avg/Diffg_dn* &
                  dDiffg_dt_dn)*(molg_up - molg_dn)/dd_dn*area + por_dn* &
                  tor_dn*Ddiffgas_avg*(-dmolg_dt_dn)/dd_dn*area
-#endif
          endif
       endif ! if (use_th_freezing)
+#endif
 
   end select
 
@@ -3509,6 +3508,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       fluxe = fluxe + cond
       fluxe_cond = cond
 
+#ifndef NO_VAPOR_DIFFUSION
       if (option%use_th_freezing) then
          ! Added by Satish Karra,
          satg_up = auxvar_up%ice%sat_gas
@@ -3547,12 +3547,11 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
             endif
 
             Ddiffgas_avg = upweight*Ddiffgas_up + (1.D0 - upweight)*Ddiffgas_dn 
-#ifndef NO_VAPOR_DIFFUSION
             fluxm = fluxm + por_dn*tor_dn*Ddiffgas_avg*(molg_up - molg_dn)/ &
                  dd_dn*area
-#endif
          endif
       endif ! if (use_th_freezing)
+#endif
 
     case(NEUMANN_BC)
       !geh: default internal energy units are MJ (option%scale = 1.d-6 is for J->MJ)

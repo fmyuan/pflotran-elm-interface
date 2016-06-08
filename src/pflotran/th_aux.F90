@@ -1072,20 +1072,18 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
     call characteristic_curves%saturation_function%IceCapillaryPressure(pres_l, tc, &
                                    xplice, dxplice_dp, dxplice_dt, option)
 
-    if (xplice>0.d0 .and. xplice>pl0) then
-      call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
+    call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
         ! in 'Saturaton_Function.F90', PKE subroutine: dsl_dp = -dS;
         ! which appears opposite when using Characteristic_curves_module (see characteristic_curves.F90: line 2082)
 
-      sl = slx
-      dsl_dt = -dslx_dx*dxplice_dt       ! In PKE subroutine of Sat_func, it's not adjusted by  'rhol(t)': dsl_dT = dS_dX*1.d0/T_0*(-beta*rho_l*L_f)
-      dsl_dp = dslx_dx*dxplice_dp        ! In PKE subroutine of Sat_func, it's 0 when Hfunc=1; it's -dS when Hfunc=0
+    sl = slx
+    dsl_dt = -dslx_dx*dxplice_dt       ! In PKE subroutine of Sat_func, it's not adjusted by  'rhol(t)': dsl_dT = dS_dX*1.d0/T_0*(-beta*rho_l*L_f)
+    dsl_dp = dslx_dx*dxplice_dp        ! In PKE subroutine of Sat_func, it's 0 when Hfunc=1; it's -dS when Hfunc=0
 
-      ! ice satuation and its derivatives
-      si = 1.d0 - sl/sli                 ! P.-K. Eq.(19)
-      dsi_dt = -1.d0/sli*dsl_dt          ! dsli_dt = 0 (see above)
-      dsi_dp = (sl*dsli_dp-sli*dsl_dp)/(sli**2)
-    endif
+    ! ice satuation and its derivatives
+    si = 1.d0 - sl/sli                 ! P.-K. Eq.(19)
+    dsi_dt = -1.d0/sli*dsl_dt          ! dsli_dt = 0 (see above)
+    dsi_dp = (sl*dsli_dp-sli*dsl_dp)/(sli**2)
 
   endif ! 'option%use_th_freezing'
 

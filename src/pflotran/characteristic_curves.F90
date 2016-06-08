@@ -2246,7 +2246,8 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   if (pw>165.4d5+erf(165.4d5)) ddenw_dp = 0.d0
   if (tc<-1.d0+erf(-1.d0) .or. tc>99.9d0+erf(99.9d0)) ddenw_dt = 0.d0
 
-  ! fmy: added, but test shows NOT work well
+  ! fmy: added, but test shows NOT work well.
+  !  further checking needed.
   rhol     = denw_mol*FMWH2O    ! kg/m3: kmol/m3*kg/kmol
   drhol_dp = ddenw_dp*FMWH2O
   drhol_dt = ddenw_dt*FMWH2O
@@ -2274,7 +2275,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         Hfunc = sign(0.5d0, -(Tk-Tf))+0.5d0               ! Heaviside function to truncate Eq. (18)
         dHfunc = 0.d0                                     ! in case that smoothing added in future
 
-        ice_pc = -gamma * rhol*tftheta * Hfunc                   ! P.-K. Eq.(18), first term (i.e. ice only)
+        ice_pc = -gamma * rhol*tftheta * Hfunc                  ! P.-K. Eq.(18), first term (i.e. ice only)
         !
         tempreal   = rhol*dtftheta_dt+tftheta*drhol_dt
         tempreal   = tempreal*Hfunc + (tftheta*rhol)*dHfunc
@@ -2285,10 +2286,10 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         dice_pc_dp = -gamma * tempreal
 
 !#if 0
-        ! smoothing 'ice_pc' when Tk ranging within deltaTf of Tf
+        ! smoothing 'ice_pc' when Tk ranging within deltaTf of Tf0
         deltaTf = 0.1d0
         xTf = Tk - T0
-        if (abs(Tk-Tf)<=deltaTf) then
+        if (abs(Tk-T0)<=deltaTf) then     ! A note here: tested using (Tk-Tf) and caused oscillation of ice/liq. saturation
           a = alpha*deltaTf/4.0d0
           b = -alpha/2.0d0
           c = alpha/4.0d0/deltaTf
@@ -2299,6 +2300,19 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 
         endif
 !#endif
+
+        ! using trunction function to smoothly (mathematically) transit from PCice to PCliq
+        ! this way will avoid mathematical inconsistency when using direct trunction like ">" or "<"
+
+        dice_pc_dt =  dice_pc_dt           &
+                    + pcgl*(-dHfunc)
+        dice_pc_dp =  dice_pc_dp           &
+                    + pcgl*(-dHfunc)       &
+                    + (1.d0-Hfunc)*1.d0           ! dpcgl_dp = 1.0
+
+        ice_pc =   ice_pc                  &                        ! P.-K. Eq.(18), first term (i.e. ice only)
+                 + pcgl * (1.d0 - Hfunc)                            ! second term, with Hfunc as trunction function
+
       case default
         option%io_buffer = 'SF_Ice_CapillaryPressure: characteristic-curve now only support ice-model: PAINTER_KARRA_EXPLICIT.'
         call printErrMsg(option)
