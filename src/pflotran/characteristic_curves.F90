@@ -2760,6 +2760,9 @@ subroutine SF_BC_CapillaryPressure(this,liquid_saturation, &
   
   PetscReal :: Se
   PetscReal :: dummy_real
+#ifdef smoothing2
+  PetscReal :: Hfunc, x, dx, delta, sharpness
+#endif
   
   if (liquid_saturation <= this%Sr) then
     capillary_pressure = this%pcmax
@@ -2785,6 +2788,29 @@ subroutine SF_BC_CapillaryPressure(this,liquid_saturation, &
 #endif  
 
   capillary_pressure = min(capillary_pressure,this%pcmax)
+
+#ifdef smoothing2
+  ! fmy: by BC function, mathemaatically @Sr, pc not necessarily equals to pcmax
+  !      So, @pcmax, S is not necessarily equaled to Sr, and requiring smoothing
+
+
+  ! the following is an smoothed (approxmatation) Heaviside function
+    ! Hfunc  = 0.5d0+0.5d0*tanh(x), where x = (Sat-(Sr+delta)))*sharpness
+    ! function primarily works: Sr+2*delta (~1.0) --> Sr+delta (~0.5) --> Sr(~1.d-10)
+    ! 'sat_poly%coefficients(2)' ~ saturation @ pressure lower than pcmax for starting point to smooth
+  delta   = this%pcmax/10.0d0           ! pc@0.5*(S-Sr) + 0.5*Sr
+  call SF_BC_Saturation(this, delta, x, dx, option)
+  delta = x-this%Sr
+  x = 1.d-10/0.5d0-1.d0
+  x = atanh(x)               ! 'atanh()' requires FORTRAN 2008 and later
+  sharpness = -x/delta
+
+  x = (liquid_Saturation-(this%Sr+delta))*sharpness
+  Hfunc = 0.5d0+0.50d0*tanh(x)
+
+  capillary_pressure = capillary_pressure*Hfunc + this%pcmax * (1.d0-Hfunc)
+
+#endif
   
 end subroutine SF_BC_CapillaryPressure
 
