@@ -981,8 +981,8 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
   call EOSWaterDensity(min(max(tc,-1.0d0),99.9d0), min(pw, 165.4d5), &
                           denw_kg, denw_mol, ddenw_dp, ddenw_dt, ierr)
   if (.not.saturated) ddenw_dp = 0.d0
-  if (pw>165.4d5+erf(165.4d5)) ddenw_dp = 0.d0
-  if (tc<-1.d0+erf(-1.d0) .or. tc>99.9d0+erf(99.9d0)) ddenw_dt = 0.d0
+  if (pw>165.4d5+erf(1.0d-20)) ddenw_dp = 0.d0
+  if (tc<-1.d0+erf(-1.d-20) .or. tc>99.9d0+erf(1.d-20)) ddenw_dt = 0.d0
 
   global_auxvar%den    = denw_mol
   global_auxvar%den_kg = denw_kg
@@ -993,9 +993,9 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
   ! when tc ~ -15oC, Ice-density change in the following function causes presure non-monotonic issue
   call EOSWaterDensityIce(min(max(-10.d0,tc), 0.1d0), min(pres_l, 165.4d5), &
                           den_ice, dden_ice_dt, dden_ice_dp, ierr)
-  if (pres_l>165.4d5+erf(165.4d5)) dden_ice_dp = 0.d0
-  if (tc<-10.d0+erf(-10.d0)) dden_ice_dt = 0.d0
-  if (tc>0.1d0+erf(0.1d0)) dden_ice_dt = 0.d0
+  if (pres_l>165.4d5+erf(1.d-20)) dden_ice_dp = 0.d0
+  if (tc<-10.d0+erf(-1.d-20)) dden_ice_dt = 0.d0
+  if (tc>0.1d0+erf(1.d-20)) dden_ice_dt = 0.d0
   ! erf() function appears helpful to avoid zero-pivot issue around the criteria for truncation (???)
 
   auxvar%ice%den_ice = den_ice

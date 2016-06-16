@@ -2243,8 +2243,8 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   call EOSWaterDensity(min(max(tc,-1.0d0),99.9d0), min(pw, 165.4d5),      &
                           denw_kg, denw_mol, ddenw_dp, ddenw_dt, ierr)
   if (.not.saturated) ddenw_dp = 0.d0
-  if (pw>165.4d5+erf(165.4d5)) ddenw_dp = 0.d0
-  if (tc<-1.d0+erf(-1.d0) .or. tc>99.9d0+erf(99.9d0)) ddenw_dt = 0.d0
+  if (pw>165.4d5+erf(1.d-20)) ddenw_dp = 0.d0
+  if (tc<-1.d0+erf(-1.d-20) .or. tc>99.9d0+erf(1.d-20)) ddenw_dt = 0.d0
 
   ! fmy: added, but test shows NOT work well.
   !  further checking needed.
@@ -2288,7 +2288,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         ! smoothing 'ice_pc' when Tk ranging within deltaTf of Tf0
         deltaTf = 0.01d0
         xTf = Tk - T0
-        if (abs(Tk-T0)<=deltaTf+erf(deltaTf)) then  ! erf() function appears very useful here for avoiding near threshold oscillation
+        if (abs(Tk-T0)<=deltaTf-erf(1.d-20)) then  ! erf() function appears very useful here for avoiding near threshold oscillation
           ! A note here: tested using (Tk-Tf) and caused oscillation of ice/liq. saturation
           a = alpha*deltaTf/4.0d0
           b = -alpha/2.0d0
