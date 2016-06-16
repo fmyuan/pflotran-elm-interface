@@ -2285,11 +2285,11 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         tempreal   = tempreal*Hfunc + (tftheta*rhol)*dHfunc
         dice_pc_dp = -gamma * tempreal
 
-!#if 0
         ! smoothing 'ice_pc' when Tk ranging within deltaTf of Tf0
         deltaTf = 0.01d0
         xTf = Tk - T0
-        if (abs(Tk-T0)<=deltaTf) then     ! A note here: tested using (Tk-Tf) and caused oscillation of ice/liq. saturation
+        if (abs(Tk-T0)<=deltaTf+erf(deltaTf)) then  ! erf() function appears very useful here for avoiding near threshold oscillation
+          ! A note here: tested using (Tk-Tf) and caused oscillation of ice/liq. saturation
           a = alpha*deltaTf/4.0d0
           b = -alpha/2.0d0
           c = alpha/4.0d0/deltaTf
@@ -2299,7 +2299,6 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
           dice_pc_dp = 0.d0
 
         endif
-!#endif
 
         ! using trunction function to smoothly (mathematically) transit from PCice to PCliq
         ! this way will avoid mathematical inconsistency when using direct trunction like ">" or "<"
