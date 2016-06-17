@@ -2239,7 +2239,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   drhol_dp = 0.d0
   drhol_dt = 0.d0
 #if 0
-  ! liq. water densities
+  ! liq. water density as function of P/T
   call EOSWaterDensity(min(max(tc,-1.0d0),99.9d0), min(pw, 165.4d5),      &
                           denw_kg, denw_mol, ddenw_dp, ddenw_dt, ierr)
   if (.not.saturated) ddenw_dp = 0.d0
@@ -2264,18 +2264,23 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
     dTf_dt = pcgl/alpha/alpha*(dalpha_drhol*drhol_dt)
     dTf_dp = (pcgl*dalpha_drhol*drhol_dp - alpha)/alpha/alpha   ! dpcgl_dp = 1.0
 
+    xTf = Tk - T0
+
     select case (option%ice_model)
       case (PAINTER_KARRA_EXPLICIT)
-        ! explicit model from Painter & Karra, VJZ (2014)
 
-        tftheta = (Tk-T0)/T0                              ! P.-K. Eq.(18): theta: (Tk-T0)/T0, assuming Tf~T0 (ignored FP depression) in Eq. (12)
+#if 0
+        ! The following is a slightly-modified version from PKE in saturation_function module
+
+        ! explicit model from Painter & Karra, VJZ (2014)
+        tftheta = xTf/T0                              ! P.-K. Eq.(18): theta: (Tk-T0)/T0, assuming Tf~T0 (ignored FP depression) in Eq. (12)
         dtftheta_dt = 1.0d0/T0
         dtftheta_dp = 0.d0
 
         Hfunc = sign(0.5d0, -(Tk-Tf))+0.5d0               ! Heaviside function to truncate Eq. (18)
         dHfunc = 0.d0                                     ! in case that smoothing added in future
 
-        ice_pc = -gamma * rhol*tftheta * Hfunc                  ! P.-K. Eq.(18), first term (i.e. ice only)
+        ice_pc = -gamma * rhol*tftheta * Hfunc            ! P.-K. Eq.(18), first term (i.e. ice only)
         !
         tempreal   = rhol*dtftheta_dt+tftheta*drhol_dt
         tempreal   = tempreal*Hfunc + (tftheta*rhol)*dHfunc
@@ -2285,32 +2290,53 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         tempreal   = tempreal*Hfunc + (tftheta*rhol)*dHfunc
         dice_pc_dp = -gamma * tempreal
 
-        ! smoothing 'ice_pc' when Tk ranging within deltaTf of Tf0
-        deltaTf = 0.01d0
-        xTf = Tk - T0
-        if (abs(Tk-T0)<=deltaTf-erf(1.d-20)) then  ! erf() function appears very useful here for avoiding near threshold oscillation
-          ! A note here: tested using (Tk-Tf) and caused oscillation of ice/liq. saturation
-          a = alpha*deltaTf/4.0d0
-          b = -alpha/2.0d0
-          c = alpha/4.0d0/deltaTf
-
-          ice_pc = a + b * xTf + c * xTf*xTf
-          dice_pc_dt = b + 2.0d0 * c * xTf
-          dice_pc_dp = 0.d0
-
-        endif
-
         ! using trunction function to smoothly (mathematically) transit from PCice to PCliq
         ! this way will avoid mathematical inconsistency when using direct trunction like ">" or "<"
 
-        dice_pc_dt =  dice_pc_dt           &
+        dice_pc_dt =  dice_pc_dt               &
                     + pcgl*(-dHfunc)
-        dice_pc_dp =  dice_pc_dp           &
-                    + pcgl*(-dHfunc)       &
-                    + (1.d0-Hfunc)*1.d0           ! dpcgl_dp = 1.0
+        dice_pc_dp =  dice_pc_dp               &
+                    + pcgl*(-dHfunc)           &
+                    + (1.d0-Hfunc)                ! dpcgl_dp = 1.0
 
-        ice_pc =   ice_pc                  &                        ! P.-K. Eq.(18), first term (i.e. ice only)
-                 + pcgl * (1.d0 - Hfunc)                            ! second term, with Hfunc as trunction function
+        ice_pc     =   ice_pc                  &                        ! P.-K. Eq.(18), first term (i.e. ice only)
+                     + pcgl * (1.d0 - Hfunc)                            ! second term, with Hfunc as trunction function
+
+#else
+
+        ! smoothing 'ice_pc' when Tk ranging within deltaTf of T0, from PKE's PCice to 0.0
+        ! from ATS, authored by Scott Painter et al.
+        !
+        deltaTf = 0.025d0              ! half-width of smoothing zone
+
+        dice_pc_dp = 0.d0              ! assuming that PCice not variable with 'pcgl' when iced.
+        if (abs(xTf)<deltaTf) then
+          a = deltaTf/4.0d0
+          b = -0.5d0
+          c = 0.25d0/deltaTf
+
+          tempreal   = a+b*xTf+c*xTf*xTf
+          ice_pc     = alpha*tempreal
+          dice_pc_dt = alpha*(b+2.0d0*c*xTf) + &
+                       dalpha_drhol*drhol_dt*tempreal        ! in case we need this later
+
+          !
+
+        elseif(xTf<-deltaTf) then
+          ice_pc = -alpha * xTf
+          dice_pc_dt = -alpha - &
+                       dalpha_drhol*drhol_dt*xTf             ! in case we need this later
+
+        else
+          ice_pc     = 0.d0
+          dice_pc_dt = 0.d0
+        endif
+
+        ! PCice above are from ??? to 0.0 ending @T0+deltaTf, so the following will be adding pcgl to avoid negetative ice saturation
+        ice_pc     =  ice_pc + pcgl
+        dice_pc_dp =  dice_pc_dp + 1.d0           ! dpcgl_dp = 1.0 and dpcgl_dt = 0
+
+#endif
 
       case default
         option%io_buffer = 'SF_Ice_CapillaryPressure: characteristic-curve now only support ice-model: PAINTER_KARRA_EXPLICIT.'

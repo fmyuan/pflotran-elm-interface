@@ -995,7 +995,7 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
                           den_ice, dden_ice_dt, dden_ice_dp, ierr)
   if (pres_l>165.4d5+erf(1.d-20)) dden_ice_dp = 0.d0
   if (tc<-10.d0+erf(-1.d-20)) dden_ice_dt = 0.d0
-  if (tc>0.1d0+erf(1.d-20)) dden_ice_dt = 0.d0
+  if (tc>0.01d0+erf(1.d-20)) dden_ice_dt = 0.d0
   ! erf() function appears helpful to avoid zero-pivot issue around the criteria for truncation (???)
 
   auxvar%ice%den_ice = den_ice
