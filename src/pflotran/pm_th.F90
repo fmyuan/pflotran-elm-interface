@@ -103,6 +103,7 @@ subroutine PMTHRead(this,input)
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
   PetscBool :: found
+  PetscReal :: tempreal
 
   option => this%option
   
@@ -149,6 +150,11 @@ subroutine PMTHRead(this,input)
             option%ice_model = PAINTER_KARRA_IMPLICIT
           case ('PAINTER_KARRA_EXPLICIT')
             option%ice_model = PAINTER_KARRA_EXPLICIT
+
+            call InputReadDouble(input,option,tempreal)
+            call InputDefaultMsg(input,option,'freezing-thawing smoothing')
+            if(tempreal > 1.d-10) option%frzthw_halfwidth = tempreal
+
           case ('PAINTER_KARRA_EXPLICIT_NOCRYO')
             option%ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
           case ('DALL_AMICO')

@@ -2184,6 +2184,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   !
   ! Author: Fengming Yuan
   !         Based on relevant saturation_functions by Satish K.
+  !         Revised with freezing-thawing zone smoothing following ATS algorithm
   ! Date: 06/01/2016
   !
   use Option_module
@@ -2271,6 +2272,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 
 #if 0
         ! The following is a slightly-modified version from PKE in saturation_function module
+        ! without smoothing of freezing-thawing zone
 
         ! explicit model from Painter & Karra, VJZ (2014)
         tftheta = xTf/T0                              ! P.-K. Eq.(18): theta: (Tk-T0)/T0, assuming Tf~T0 (ignored FP depression) in Eq. (12)
@@ -2307,7 +2309,8 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         ! smoothing 'ice_pc' when Tk ranging within deltaTf of T0, from PKE's PCice to 0.0
         ! from ATS, authored by Scott Painter et al.
         !
-        deltaTf = 0.025d0              ! half-width of smoothing zone
+        deltaTf = 0.0d0              ! half-width of smoothing zone (by default, NO smoothing)
+        if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = option%frzthw_halfwidth
 
         dice_pc_dp = 0.d0              ! assuming that PCice not variable with 'pcgl' when iced.
         if (abs(xTf)<deltaTf) then
@@ -2332,7 +2335,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
           dice_pc_dt = 0.d0
         endif
 
-        ! PCice above are from ??? to 0.0 ending @T0+deltaTf, so the following will be adding pcgl to avoid negetative ice saturation
+        ! PCice above are from '-alpha * xTf' to 0.0 ending @T0+deltaTf, so the following will be adding pcgl to avoid negetative ice saturation
         ice_pc     =  ice_pc + pcgl
         dice_pc_dp =  dice_pc_dp + 1.d0           ! dpcgl_dp = 1.0 and dpcgl_dt = 0
 
