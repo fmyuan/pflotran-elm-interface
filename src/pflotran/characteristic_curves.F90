@@ -2309,7 +2309,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         ! smoothing 'ice_pc' when Tk ranging within deltaTf of T0, from PKE's PCice to 0.0
         ! from ATS, authored by Scott Painter et al.
         !
-        deltaTf = 0.0d0              ! half-width of smoothing zone (by default, NO smoothing)
+        deltaTf = 1.0d-50              ! half-width of smoothing zone (by default, nearly NO smoothing)
         if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = option%frzthw_halfwidth
 
         dice_pc_dp = 0.d0              ! assuming that PCice not variable with 'pcgl' when iced.
