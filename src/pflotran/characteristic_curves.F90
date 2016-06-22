@@ -2441,10 +2441,7 @@ subroutine SF_VG_SetupPolynomials(this,option,error_string)
 
   !fmy: tests don't indicate that wet-end smoothing is necessary for VG function (???).
   !WET-end of retention curve
-  if(associated(this%pres_poly)) then
-    deallocate(this%pres_poly)
-    nullify(this%pres_poly)
-  endif
+  if (associated(this%pres_poly)) call PolynomialDestroy(this%pres_poly)
 
   low  = 0.d0  ! saturated
   high = 0.01d0*option%reference_pressure  ! just below saturated
@@ -2708,6 +2705,7 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
 
   ! polynomial fitting pc as a function of saturation
   ! 1.05 is essentially pc*alpha (i.e. pc = 1.05/alpha)
+  if (associated(this%sat_poly)) call PolynomialDestroy(this%sat_poly)
   this%sat_poly => PolynomialCreate()
   this%sat_poly%low = 1.05d0**(-this%lambda)
   this%sat_poly%high = 1.d0
@@ -2736,6 +2734,7 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   !     since it can result in saturations > 1 with both
   !     quadratic and cubic polynomials
   ! fill matix with values
+  if (associated(this%pres_poly)) call PolynomialDestroy(this%pres_poly)
   this%pres_poly => PolynomialCreate()
   this%pres_poly%low = 0.95/this%alpha
   this%pres_poly%high = 1.05/this%alpha
@@ -3664,8 +3663,8 @@ subroutine RPF_Mualem_SetupPolynomials(this,option,error_string)
   PetscReal :: se_low, se_high, S, rpf, drpf
 
   ! WET-end of perm-sat curve
+  if(associated(this%poly)) call PolynomialDestroy(this%poly)  ! just in case, which will invalidate the calling of RPF function
 
-  if(associated(this%poly)) deallocate(this%poly)  ! just in case, which will invalidate the calling of RPF function
   ! b(1:2): RPFs values for effective saturation interval ('high' -> 'low') to be interpolated
   ! b(3:4): RPFs derivatives for effective saturation interval ('high' -> 'low') to be interpolated
   se_low  = 0.99d0        ! just below saturated
@@ -3689,7 +3688,7 @@ subroutine RPF_Mualem_SetupPolynomials(this,option,error_string)
 
   ! DRY-end of perm-sat curve
 
-  if(associated(this%poly2)) deallocate(this%poly2)  ! just in case, which will invalidate the calling of RPF function
+  if(associated(this%poly2)) call PolynomialDestroy(this%poly)  ! just in case, which will invalidate the calling of RPF function
   ! b(1:2): RPFs values for effective saturation interval ('high' -> 'low') to be interpolated
   ! b(3:4): RPFs derivatives for effective saturation interval ('high' -> 'low') to be interpolated
   se_low  = 0.00d0        !
@@ -3713,6 +3712,7 @@ subroutine RPF_Mualem_SetupPolynomials(this,option,error_string)
 
 #else
 
+  if (associated(this%poly)) call PolynomialDestroy(this%poly)
   this%poly => PolynomialCreate()
   ! fill matix with values
   this%poly%low = 0.99d0  ! just below saturated
@@ -6021,6 +6021,7 @@ subroutine RPF_Mod_BC_SetupPolynomials(this,option,error_string)
 
   PetscReal :: Se_ph_low
 
+  if (associated(this%poly)) call PolynomialDestroy(this%poly)
   this%poly => PolynomialCreate()
   ! fill matix with values
   this%poly%low = 0.99d0  ! just below saturated
