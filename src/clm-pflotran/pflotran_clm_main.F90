@@ -2671,10 +2671,10 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
 
       if (option%iflowmode == RICHARDS_MODE) then
-        soilpsi_pf_p(local_id) = rich_auxvars(ghosted_id)%pc
+        soilpsi_pf_p(local_id) = -rich_auxvars(ghosted_id)%pc
 
       else if (option%iflowmode == TH_MODE) then
-        soilpsi_pf_p(local_id) = th_auxvars(ghosted_id)%pc
+        soilpsi_pf_p(local_id) = -th_auxvars(ghosted_id)%pc
 
       endif
     enddo
