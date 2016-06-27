@@ -317,6 +317,7 @@ src/clm-pflotran/geomech_grid_aux.F90
 src/clm-pflotran/geomechanics_auxiliary.F90
 src/clm-pflotran/geomechanics_condition.F90
 surface_material.F90
+src/clm-pflotran/clm_rspfuncs.F90
 src/clm-pflotran/reaction_sandbox_degas.F90
 src/clm-pflotran/reaction_sandbox_denitr.F90
 src/clm-pflotran/reaction_sandbox_langmu.F90
