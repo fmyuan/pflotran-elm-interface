@@ -899,7 +899,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
 
     select case (var_list_type)
       case (INSTANTANEOUS_VARS)
-        call OutputGetFaceVelOrFlowrateUGrid(realization_base,PETSC_FALSE)
+        call OutputGetFaceFlowrateUGrid(realization_base)
         if (output_option%print_hdf5_mass_flowrate.or.&
            output_option%print_hdf5_energy_flowrate) then
           call WriteHDF5FlowratesUGrid(realization_base,option,grp_id, &
@@ -1000,7 +1000,7 @@ subroutine OutputHDF5UGridXDMF(realization_base,var_list_type)
 
     select case (var_list_type)
       case (INSTANTANEOUS_VARS)
-        call OutputGetFaceVelOrFlowrateUGrid(realization_base,PETSC_TRUE)
+        call OutputGetFaceVelUGrid(realization_base)
         if (output_option%print_hdf5_vel_face) then
           call WriteHDF5FaceVelUGrid(realization_base,option,grp_id, &
                                      var_list_type)
@@ -3072,12 +3072,12 @@ subroutine WriteHDF5FlowratesUGrid(realization_base,option,file_id, &
 
     select case(option%iflowmode)
       case(RICHARDS_MODE)
-        string = "Mass_Flowrate [kg/s]" // CHAR(0)
+        string = "Mass_Flowrate [kg_per_s]" // CHAR(0)
       case(TH_MODE)
         if (dof==1) then
-          string = "Mass_Flowrate [kg/s]" // CHAR(0)
+          string = "Mass_Flowrate [kg_per_s]" // CHAR(0)
         else
-          string = "Energy_Flowrate [MJ/s]" // CHAR(0)
+          string = "Energy_Flowrate [MJ_per_s]" // CHAR(0)
         endif
       case default
         option%io_buffer='FLOWRATE output not implemented in this mode.'
