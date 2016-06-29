@@ -2930,12 +2930,20 @@ subroutine SF_BC_Saturation(this,capillary_pressure,liquid_saturation, &
     endif
   endif
 
-  pc_alpha_neg_lambda = (capillary_pressure*this%alpha)**(-this%lambda)
-  Se = pc_alpha_neg_lambda
-  dSe_dpc = -this%lambda/capillary_pressure*pc_alpha_neg_lambda
-  liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
-  dsat_dpres = -(1.d0-this%Sr)*dSe_dpc
+  if (capillary_pressure < this%pcmax) then
+
+   pc_alpha_neg_lambda = (capillary_pressure*this%alpha)**(-this%lambda)
+   Se = pc_alpha_neg_lambda
+   dSe_dpc = -this%lambda/capillary_pressure*pc_alpha_neg_lambda
+   liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+   dsat_dpres = -(1.d0-this%Sr)*dSe_dpc
   
+  else
+   Se = (this%pcmax*this%alpha)**(-this%lambda)
+   liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+   dsat_dpres = 0.d0
+  endif
+
 end subroutine SF_BC_Saturation
 ! End SF: Brooks-Corey
 
