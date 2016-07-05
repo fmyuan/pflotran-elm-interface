@@ -325,3 +325,4 @@ src/clm-pflotran/reaction_sandbox_microbial.F90
 src/clm-pflotran/reaction_sandbox_nitrif.F90
 src/clm-pflotran/reaction_sandbox_plantn.F90
 src/clm-pflotran/reaction_sandbox_somdec.F90
+reaction_sandbox_pnnl_cyber.F90
