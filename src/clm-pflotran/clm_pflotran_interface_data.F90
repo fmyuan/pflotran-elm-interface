@@ -197,10 +197,10 @@ module clm_pflotran_interface_data
   Vec :: bsw_pfs
 
   ! CLM's thermal properties
-  Vec :: tkwet_clmp
+  Vec :: tkwet_clmp     ! unit: W/m/K
   Vec :: tkdry_clmp
   Vec :: tkfrz_clmp
-  Vec :: hcvsol_clmp
+  Vec :: hcvsol_clmp    ! unit: J/m^3-K
 
   Vec :: tkwet_pfs
   Vec :: tkdry_pfs

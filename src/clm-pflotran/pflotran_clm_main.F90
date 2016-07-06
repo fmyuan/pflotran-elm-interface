@@ -956,6 +956,9 @@ contains
     use Field_module
     use Material_module
     use Material_Aux_class
+    use Coupler_module
+    use Connection_module
+
     use Variables_module, only : PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z, PERMEABILITY_XY, &
                                PERMEABILITY_YZ, PERMEABILITY_XZ, &
@@ -985,16 +988,18 @@ contains
     type(field_type), pointer                 :: field
 
     class(characteristic_curves_type), pointer :: characteristic_curves
-    type(richards_auxvar_type), pointer       :: rich_auxvars(:)
+    type(richards_auxvar_type), pointer       :: rich_auxvars(:), rich_auxvars_bc(:), rich_auxvars_ss(:)
     type(richards_auxvar_type), pointer       :: rich_auxvar
-    type(th_auxvar_type), pointer             :: th_auxvars(:)
+    type(th_auxvar_type), pointer             :: th_auxvars(:), th_auxvars_bc(:), th_auxvars_ss(:)
     type(th_auxvar_type), pointer             :: th_auxvar
 
     class(simulation_subsurface_type), pointer  :: simulation
     class(realization_subsurface_type), pointer :: realization
+    type(coupler_type), pointer :: boundary_condition, source_sink
+    type(connection_set_type), pointer :: cur_connection_set
 
     PetscErrorCode     :: ierr
-    PetscInt           :: local_id, ghosted_id
+    PetscInt           :: local_id, ghosted_id, iconn, sum_connection
     PetscReal          :: den, vis, grav
     PetscReal, pointer :: porosity_loc_p(:), vol_ovlap_arr(:)
     PetscReal, pointer :: perm_xx_loc_p(:), perm_yy_loc_p(:), perm_zz_loc_p(:)
@@ -1041,9 +1046,13 @@ contains
 
     select case(option%iflowmode)
       case(RICHARDS_MODE)
-        rich_auxvars   => patch%aux%Richards%auxvars
+        rich_auxvars    => patch%aux%Richards%auxvars
+        rich_auxvars_bc => patch%aux%Richards%auxvars_bc
+        rich_auxvars_ss => patch%aux%Richards%auxvars_ss
       case(TH_MODE)
-        th_auxvars   => patch%aux%TH%auxvars
+        th_auxvars      => patch%aux%TH%auxvars
+        th_auxvars_bc   => patch%aux%TH%auxvars_bc
+        th_auxvars_ss   => patch%aux%TH%auxvars_ss
       case default
         !F.-M. Yuan: if no flowmode AND no reactive-transport, then let crash the run
         ! because 'uniform_velocity' with [0, 0, 0] velocity transport doesn't need specific flowmode,
@@ -1155,7 +1164,8 @@ contains
       CHKERRQ(ierr)
     endif
 
-    !
+    ! --------------------------------------------------------------------------------------
+    ! for all internal grid cells
     do ghosted_id = 1, grid%ngmax
       local_id = grid%nG2L(ghosted_id)
       if (ghosted_id <= 0 .or. local_id <= 0) cycle
@@ -1230,10 +1240,11 @@ contains
             th_auxvar%bc_lambda = bc_lambda
             th_auxvar%bc_sr1    = bc_sr
 
-            th_auxvar%tkwet       = tkwet_pf_loc(ghosted_id)
-            th_auxvar%tkdry       = tkdry_pf_loc(ghosted_id)
-            th_auxvar%tkfrz       = tkfrz_pf_loc(ghosted_id)
-            th_auxvar%hcapv_solid = hcapvs_pf_loc(ghosted_id)
+            th_auxvar%tkwet       = tkwet_pf_loc(ghosted_id)*option%scale   ! W/m/K --> MW/m/K
+            !(note: option%scale multiplier is done in TH.F90: setuppatch(), so it's needed here too)
+            th_auxvar%tkdry       = tkdry_pf_loc(ghosted_id)*option%scale   ! W/m/K --> MW/m/K
+            th_auxvar%tkfrz       = tkfrz_pf_loc(ghosted_id)*option%scale   ! W/m/K --> MW/m/K
+            th_auxvar%hcapv_solid = hcapvs_pf_loc(ghosted_id)*option%scale   ! J/m3K --> MK/m3/K
 
         end select
 
@@ -1267,6 +1278,70 @@ contains
 
     enddo
 
+    ! --------------------------------------------------------------------------------------
+    ! for all boundary cells already defined
+    ! NOTE: here assumed that boundary cells are ALL or Partial entire grid cells in PF mesh.
+    boundary_condition => patch%boundary_condition_list%first
+    sum_connection = 0
+    do
+       if (.not.associated(boundary_condition)) exit
+       cur_connection_set => boundary_condition%connection_set
+
+       do iconn = 1, cur_connection_set%num_connections
+          sum_connection = sum_connection + 1
+
+          local_id = cur_connection_set%id_dn(iconn)
+          ghosted_id = grid%nL2G(local_id)
+          if (ghosted_id <= 0 .or. local_id <= 0) cycle
+          if (patch%imat(ghosted_id) < 0) cycle
+
+          select case(option%iflowmode)
+            case(RICHARDS_MODE)
+              call RichardsAuxVarCopy(rich_auxvars(ghosted_id),       &   ! 'rich_auxvars' have already updated above
+                                rich_auxvars_bc(sum_connection), option)
+            case(TH_MODE)
+              call THAuxVarCopy(th_auxvars(ghosted_id),               &   ! 'th_auxvars' have already updated above
+                                th_auxvars_bc(sum_connection), option)
+
+
+          end select
+
+       enddo
+       boundary_condition => boundary_condition%next
+    enddo
+
+    ! --------------------------------------------------------------------------------------
+    ! for all src/sink cells already defined
+    ! NOTE: here assumed that src/sink cells are ALL or Partial entire grid cells in PF mesh.
+    source_sink => patch%source_sink_list%first
+
+    sum_connection = 0
+    do
+      if (.not.associated(source_sink)) exit
+      cur_connection_set => source_sink%connection_set
+
+      do iconn = 1, cur_connection_set%num_connections
+        sum_connection = sum_connection + 1
+
+        local_id = cur_connection_set%id_dn(iconn)
+        ghosted_id = grid%nL2G(local_id)
+        if (ghosted_id <= 0 .or. local_id <= 0) cycle
+        if (patch%imat(ghosted_id) < 0) cycle
+
+        select case(option%iflowmode)
+          case(RICHARDS_MODE)
+            call RichardsAuxVarCopy(rich_auxvars(ghosted_id),       &   ! 'rich_auxvars' have already updated above
+                                    rich_auxvars_ss(sum_connection), option)
+          case(TH_MODE)
+            call THAuxVarCopy(th_auxvars(ghosted_id),               &   ! 'th_auxvars' have already updated above
+                              th_auxvars_ss(sum_connection), option)
+        end select
+
+      enddo
+      source_sink => source_sink%next
+    enddo
+
+    ! -------------
     call VecRestoreArrayF90(clm_pf_idata%tkwet_pfs, tkwet_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%tkdry_pfs, tkdry_pf_loc, ierr)
@@ -2040,7 +2115,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     type(coupler_type), pointer :: boundary_condition
     type(connection_set_type), pointer :: cur_connection_set
-    PetscInt :: ghosted_id, local_id, press_dof, iconn
+    PetscInt :: ghosted_id, local_id, press_dof, iconn, sum_connection
 
     PetscErrorCode     :: ierr
 
@@ -2124,80 +2199,82 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     end select
 
     boundary_condition => patch%boundary_condition_list%first
+
+    sum_connection = 0
     do
-       if (.not.associated(boundary_condition)) exit
+      if (.not.associated(boundary_condition)) exit
+      cur_connection_set => boundary_condition%connection_set
 
-       cur_connection_set => boundary_condition%connection_set
+      do iconn = 1, cur_connection_set%num_connections
+        sum_connection = sum_connection + 1
 
-       do iconn = 1, cur_connection_set%num_connections
-          local_id = cur_connection_set%id_dn(iconn)
-          ghosted_id = grid%nL2G(local_id)
-          if (ghosted_id <= 0 .or. local_id <= 0) cycle
-          if (patch%imat(ghosted_id) < 0) cycle
+        local_id = cur_connection_set%id_dn(iconn)
+        ghosted_id = grid%nL2G(local_id)
+        if (ghosted_id <= 0 .or. local_id <= 0) cycle
+        if (patch%imat(ghosted_id) < 0) cycle
 
-          if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then
-             if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
-                   boundary_condition%flow_aux_real_var(press_dof,iconn)= &
-                       qflux_subsurf_pf_loc(iconn)
+        if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then
+          if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
+            boundary_condition%flow_aux_real_var(press_dof,iconn)= &
+              qflux_subsurf_pf_loc(iconn)
 
 !#if 0
-               cur_connection_set%area(iconn) = toparea_p(local_id)     ! normally it's ON (MPI vec, it's from 'local_id')
-               if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! shut-off the BC by resetting the BC 'area' to a tiny value
-                 cur_connection_set%area(iconn) = 0.d0
-               endif
+            cur_connection_set%area(iconn) = toparea_p(local_id)     ! normally it's ON (MPI vec, it's from 'local_id')
+              if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! shut-off the BC by resetting the BC 'area' to a tiny value
+                cur_connection_set%area(iconn) = 0.d0
+              endif
 !#endif
 
-
-             else
-               option%io_buffer='pflotranModelSetTHbcs -  ' // &
-                 ' for CLM-PFLOTRAN coupling - flow condition MUST be named as following: ' // &
-                 ' "clm_gflux_bc/NEUMANN " for subsurface-top TYPE I  '
-               call printErrMsg(option)
-             endif
+          else
+            option%io_buffer='pflotranModelSetTHbcs -  ' // &
+              ' for CLM-PFLOTRAN coupling - flow condition MUST be named as following: ' // &
+              ' "clm_gflux_bc/NEUMANN " for subsurface-top TYPE I  '
+            call printErrMsg(option)
           endif
+        endif
 
-          if(StringCompare(boundary_condition%name,'clm_gpress_bc')) then
-             if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
-                   boundary_condition%flow_aux_real_var(press_dof,iconn)= &
-                       press_subsurf_pf_loc(iconn)
+        if(StringCompare(boundary_condition%name,'clm_gpress_bc')) then
+          if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
+            boundary_condition%flow_aux_real_var(press_dof,iconn)= &
+              press_subsurf_pf_loc(iconn)
 !#if 0
-               cur_connection_set%area(iconn) = 0.d0               ! normally shut-off this BC
-               if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! turn on the BC by resetting the BC 'area' to real value
-                  cur_connection_set%area(iconn) = toparea_p(local_id)
+            cur_connection_set%area(iconn) = 0.d0               ! normally shut-off this BC
+            if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! turn on the BC by resetting the BC 'area' to real value
+              cur_connection_set%area(iconn) = toparea_p(local_id)
 
-               endif
+            endif
 !#endif
 
-             else
-               option%io_buffer='pflotranModelSetTHbcs -  ' // &
+          else
+            option%io_buffer='pflotranModelSetTHbcs -  ' // &
                  ' for CLM-PFLOTRAN coupling - flow condition MUST be named as following: ' // &
                  ' "clm_gpress_bc/DIRICHLET " for subsurface-top TYPE II  '
-               call printErrMsg(option)
-             endif
-
+            call printErrMsg(option)
           endif
 
-          if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then
-              if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
-                boundary_condition%flow_aux_real_var(press_dof,iconn)= &
+        endif
+
+        if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then
+          if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
+            boundary_condition%flow_aux_real_var(press_dof,iconn)= &
                        press_subbase_pf_loc(iconn)
-              else if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
-                boundary_condition%flow_aux_real_var(press_dof,iconn)= &
+          else if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
+            boundary_condition%flow_aux_real_var(press_dof,iconn)= &
                        qflux_subbase_pf_loc(iconn)
 
-              else
-                option%io_buffer='pflotranModelSetTHbcs -  ' // &
+          else
+            option%io_buffer='pflotranModelSetTHbcs -  ' // &
                   ' for CLM-PFLOTRAN coupling - flow condition MUST be named as following: ' // &
                   ' "clm_bflux_bc/NEUMANN " for subsurface-base TYPE I;  ' // &
                   ' "clm_bflux_bc/DIRICHLET " for subsurface-base TYPE II;  '
-                call printErrMsg(option)
+            call printErrMsg(option)
 
-              end if
-          endif
+          end if
+        endif
 
-       enddo
+      enddo
 
-       boundary_condition => boundary_condition%next
+      boundary_condition => boundary_condition%next
 
     enddo
 
@@ -2266,7 +2343,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscScalar, pointer                      :: qflx_pf_loc(:), qflxt_pf_loc(:)
     PetscBool                                 :: found
-    PetscInt                                  :: iconn, local_id, ghosted_id
+    PetscInt                                  :: iconn, local_id, ghosted_id, sum_connection
     PetscErrorCode                            :: ierr
     PetscInt                                  :: press_dof, temperature_dof
 
@@ -2298,10 +2375,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     ! Find value of pressure-dof depending on flow mode
     select case (option%iflowmode)
       case (RICHARDS_MODE)
-        press_dof = RICHARDS_PRESSURE_DOF
+        press_dof       = RICHARDS_PRESSURE_DOF
         temperature_dof = UNINITIALIZED_INTEGER
       case (TH_MODE)
-        press_dof = TH_PRESSURE_DOF
+        press_dof       = TH_PRESSURE_DOF
         temperature_dof = TH_TEMPERATURE_DOF
       case default
         option%io_buffer = 'Unsupported Flow mode'
@@ -2319,6 +2396,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     source_sink => realization%patch%source_sink_list%first
     grid        => realization%patch%grid
 
+    sum_connection = 0
     do
       if (.not.associated(source_sink)) exit
 
@@ -2334,6 +2412,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         endif
 
         do iconn = 1, cur_connection_set%num_connections
+          sum_connection = sum_connection + 1
+
           local_id = cur_connection_set%id_dn(iconn)
           ghosted_id = grid%nL2G(local_id)
 
@@ -2413,7 +2493,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscScalar, pointer                      :: gflux_subbase_pf_loc(:)
     PetscScalar, pointer                      :: gtemp_subbase_pf_loc(:)
     PetscBool                                 :: found
-    PetscInt                                  :: iconn
+    PetscInt                                  :: iconn, sum_connection
     PetscErrorCode                            :: ierr
 
     subname = 'pflotranModelUpdateSubsurfTCond'
@@ -2473,6 +2553,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     found = PETSC_FALSE
     boundary_condition => patch%boundary_condition_list%first
+
+    sum_connection = 0
     do
       if (.not.associated(boundary_condition)) exit
 
@@ -2486,42 +2568,46 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         found = PETSC_TRUE
 
         do iconn = 1, cur_connection_set%num_connections
-            if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+          sum_connection = sum_connection + 1
+
+          if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
                 == NEUMANN_BC) then
-                 boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+            boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
                           gflux_subsurf_pf_loc(iconn)
 
-            elseif (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+          elseif (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
                 == DIRICHLET_BC) then
-                 boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+            boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
                           gtemp_subsurf_pf_loc(iconn)
 
-            end if
-
+          end if
 
         enddo
       endif
 
       ! BOTTOM (BASE) of subsurface
       if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then
-         do iconn = 1, cur_connection_set%num_connections
-            if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+        do iconn = 1, cur_connection_set%num_connections
+          sum_connection = sum_connection + 1
+
+          if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
                 == NEUMANN_BC) then
-                 boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+            boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
                           gflux_subbase_pf_loc(iconn)
 
-            elseif (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+          elseif (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
                 == DIRICHLET_BC) then
-                 boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+            boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
                           gtemp_subbase_pf_loc(iconn)
 
-            end if
+          end if
 
         enddo
       endif
 
       boundary_condition => boundary_condition%next
     enddo
+
     call VecRestoreArrayF90(clm_pf_idata%gflux_subsurf_pfs,gflux_subsurf_pf_loc,ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)

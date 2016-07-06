@@ -45,10 +45,10 @@ module TH_Aux_module
     PetscReal :: bc_alpha  ! Brooks Corey - Burdine parameters: alpha
     PetscReal :: bc_lambda ! Brooks Corey - Burdine parameters: lambda
     PetscReal :: bc_sr1    ! Brooks Corey - Burdine parameters: sr(1) (i.e. liq only)
-    PetscReal :: tkwet     ! thermal properties:
-    PetscReal :: tkdry
-    PetscReal :: tkfrz
-    PetscReal :: hcapv_solid
+    PetscReal :: tkwet     ! thermal properties: wet soil thermal conductivity (MW/m/K, i.e., by multiplier of option%scale)
+    PetscReal :: tkdry     ! thermal properties: dry soil thermal conductivity (MW/m/K, i.e., by multiplier of option%scale)
+    PetscReal :: tkfrz     ! thermal properties: frozen soil thermal conductivity (MW/m/K, i.e., by multiplier of option%scale)
+    PetscReal :: hcapv_solid! thermal properties: volume solid material heat capacity (MJ/m^3-K, i.e., multiplier of option%scale))
 #endif
 
   end type TH_auxvar_type
@@ -98,8 +98,8 @@ module TH_Aux_module
 
   type, public :: TH_parameter_type
     PetscReal, pointer :: dencpr(:)
-    PetscReal, pointer :: ckdry(:) ! Thermal conductivity (dry)
-    PetscReal, pointer :: ckwet(:) ! Thermal conductivity (wet)
+    PetscReal, pointer :: ckdry(:)    ! Thermal conductivity (dry)
+    PetscReal, pointer :: ckwet(:)    ! Thermal conductivity (wet)
     PetscReal, pointer :: alpha(:)
     PetscReal, pointer :: ckfrozen(:) ! Thermal conductivity (frozen soil)
     PetscReal, pointer :: alpha_fr(:) ! exponent frozen
