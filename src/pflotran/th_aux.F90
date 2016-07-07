@@ -519,10 +519,14 @@ end subroutine THAuxVarComputeNoFreezing
 ! ************************************************************************** !
 
 subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
-                                   material_auxvar, &
-                                   iphase, &
-                                   saturation_function, &
-                                   th_parameter, ithrm, &
+                                   material_auxvar,          &
+                                   iphase,                   &
+#ifdef use_characteristic_curves_module
+                                   characteristic_curves,    &
+#else
+                                   saturation_function,      &
+#endif
+                                   th_parameter, ithrm,      &
                                    option)
   ! 
   ! Computes auxillary variables for each grid cell when
@@ -539,12 +543,17 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   
   use EOS_Water_module
   use Saturation_Function_module  
+  use Characteristic_Curves_module
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
+#ifdef use_characteristic_curves_module
+  class(characteristic_curves_type), pointer :: characteristic_curves
+#else
   type(saturation_function_type) :: saturation_function
+#endif
   PetscReal :: x(option%nflowdof)
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -624,6 +633,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     dpw_dp = 1.d0
   endif  
   
+#ifndef use_characteristic_curves_module
   call CapillaryPressureThreshold(saturation_function,p_th,option)
 
   select case (option%ice_model)
@@ -645,12 +655,12 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                                        saturation_function, p_th, option)    
     case (PAINTER_KARRA_EXPLICIT)
       ! Explicit model from Painter & Karra, VJZ (2013)
-      call SatFuncComputeIcePKExplicit(global_auxvar%pres(1), & 
+      call SatFuncComputeIcePKExplicit(global_auxvar%pres(1), &
                                        global_auxvar%temp, ice_saturation, &
                                        global_auxvar%sat(1), gas_saturation, &
                                        kr, ds_dp, dsl_temp, dsg_pl, dsg_temp, &
                                        dsi_pl, dsi_temp, dkr_dp, dkr_dt, &
-                                       saturation_function, p_th, option) 
+                                       saturation_function, p_th, option)
     case (DALL_AMICO)
       ! Model from Dall'Amico (2010) and Dall' Amico et al. (2011)
       call SatFuncComputeIceDallAmico(global_auxvar%pres(1), &
@@ -675,6 +685,20 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
       option%io_buffer = 'THCAuxVarComputeIce: Ice model not recognized.'
       call printErrMsg(option)
   end select
+
+#else
+  ! using modules in 'characteristic_curves.F90' to calculate needed variables: saturations and derivatives for 3 phases
+  call THAuxVarComputeCharacteristicCurves(global_auxvar%pres(1), global_auxvar%temp,  &
+                                           characteristic_curves,                      &
+                                           global_auxvar%sat(1),  ds_dp, dsl_temp,     &
+                                           ice_saturation,       dsi_pl, dsi_temp,     &
+                                           gas_saturation,       dsg_pl, dsg_temp,     &
+                                           kr,                   dkr_dp, dkr_dt,       &
+                                           option)
+
+
+#endif
+
 
   call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,dw_dp,dw_dt,ierr)
   call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,hw_dp,hw_dt,ierr)
@@ -798,6 +822,127 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   endif
 
 end subroutine THAuxVarComputeFreezing
+
+! ************************************************************************** !
+subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,     &
+                                    characteristic_curves,       &
+                                    sl,  dsl_dpl, dsl_dt,        &
+                                    si,  dsi_dpl, dsi_dt,        &
+                                    sg,  dsg_dpl, dsg_dt,        &
+                                    kr,  dkr_dpl, dkr_dt,        &
+                                    option)
+  !
+  ! Computes auxillary variables for each grid cell when
+  ! ice and vapor phases are present
+  !
+  ! Revised by fengming Yuan @03-08-2016/CCSI-ONRL
+  ! NOTE: (1) ice_model 'PAINTER_KARRA_EXPLICIT', or, 'PAINTER_KARRA_EXPLICIT_SMOOTH'
+  !       (2) ANY saturation_function, from 'Characteristic_Curves_module'
+  !       (3) ANY permissivity function, from 'Characteristci_Curves_module' as well
+
+  use Option_module
+  use Characteristic_Curves_module
+
+  implicit none
+
+  type(option_type) :: option
+  PetscReal, intent(in) :: pres_l   ! unit: Pa
+  PetscReal, intent(in) :: tc       ! unit: oC
+  class(characteristic_curves_type) :: characteristic_curves
+
+  PetscReal, intent(out) :: sl,  dsl_dpl, dsl_dt
+  PetscReal, intent(out) :: si,  dsi_dpl, dsi_dt
+  PetscReal, intent(out) :: sg,  dsg_dpl, dsg_dt
+  PetscReal, intent(out) :: kr,  dkr_dpl, dkr_dt
+
+  ! local variables
+  PetscErrorCode :: ierr
+
+  PetscReal :: pc
+  PetscReal :: sli, dsli_dp, xplice, dxplice_dp, dxplice_dt, slx, dslx_dx
+  PetscReal :: dkr_dse
+
+  ! ----------------
+  ! (0) inputs
+  pc = max(0.d0, option%reference_pressure - pres_l)   ! always non-negative (0 = saturated)
+  if (pc > abs(characteristic_curves%saturation_function%pcmax)) then
+    pc = characteristic_curves%saturation_function%pcmax
+  endif
+
+  !
+  ! (1) saturations
+  sl      = 0.d0  !all init to zero
+  dsl_dpl = 0.d0
+  dsl_dt  = 0.d0
+  si      = 0.d0
+  dsi_dpl = 0.d0
+  dsi_dt  = 0.d0
+  sg      = 0.d0
+  dsg_dpl = 0.d0
+  dsg_dt  = 0.d0
+
+  ! initial liq. saturation and derivatives
+  call characteristic_curves%saturation_function%Saturation(pc, sli, dsli_dp, option)
+  sl      = sli
+  dsl_dpl = dsli_dp
+  dsl_dt  = 0.d0
+
+  ! if ice module turns on, 2-phase saturation recalculated (liq. and ice) under common 'pres_l' and 'tc'
+  if (option%use_th_freezing) then
+
+    call characteristic_curves%saturation_function%IceCapillaryPressure(pres_l, tc, &
+                                   xplice, dxplice_dp, dxplice_dt, option)
+
+    call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
+        ! in 'Saturaton_Function.F90', PKE subroutine: dsl_dp = -dS;
+        ! which appears opposite when using Characteristic_curves_module (see characteristic_curves.F90: line 2082)
+
+    ! liq. saturation and its derivatives, with ice-adjusted capillary pressure
+    sl      = slx
+    dsl_dt  = -dslx_dx*dxplice_dt
+    dsl_dpl = dslx_dx*dxplice_dp
+
+    ! ice satuation and its derivatives
+    si = 1.d0 - sl/sli                 ! P.-K. Eq.(19)
+    dsi_dt = -1.d0/sli*dsl_dt          ! dsli_dt = 0 (see above)
+    dsi_dpl= (sl*dsli_dp-sli*dsl_dpl)/(sli**2)
+
+  endif ! 'option%use_th_freezing'
+
+  ! gas phase
+  sg      = 1.d0 - sl - si
+  dsg_dpl = -dsl_dpl - dsi_dpl
+  dsg_dt  = -dsl_dt - dsi_dt
+
+  ! Check for bounds on saturations
+  if ((sl-1.d0)>1.d-15 .or. sl<-1.d-15) then
+    option%io_buffer = 'TH with ice mode: Liquid Saturation error: >1 or <0'
+    call printErrMsg(option)
+  endif
+  if ((si-1.d0)>1.d-15 .or. si<-1.d-15) then
+    print *, tc, sli, sl, si, pc, xplice
+    option%io_buffer = 'TH with ice mode: ICE Saturation error:  >1 or <0'
+    call printErrMsg(option)
+  endif
+  if ((sg-1.d0)>1.d-15 .or. sg<-1.d-15) then
+    option%io_buffer = 'TH with ice mode: Gas Saturation error:  >1 or <0'
+    call printErrMsg(option)
+  endif
+  if (abs((sl + si + sg)-1.d0)>1.d-10) then
+    option%io_buffer = 'TH with ice mode: Saturation not summed to 1 '
+    call printErrMsg(option)
+  endif
+
+  ! (2) relative permissivity of liq. water in multiple-phase mixture
+  kr      = 0.d0  !all initialized to zero
+  dkr_dpl = 0.d0
+  dkr_dt  = 0.d0
+
+  call characteristic_curves%liq_rel_perm_function%RelativePermeability(sl, kr, dkr_dse, option)
+  dkr_dpl = characteristic_curves%liq_rel_perm_function%DRelPerm_DPressure(dsl_dpl, dkr_dse)
+  dkr_dt  = dkr_dse/(1.d0-characteristic_curves%saturation_function%Sr)*dsl_dt
+
+end subroutine THAuxVarComputeCharacteristicCurves
 
 ! ************************************************************************** !
 

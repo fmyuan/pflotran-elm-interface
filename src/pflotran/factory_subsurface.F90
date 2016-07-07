@@ -2055,6 +2055,7 @@ subroutine SubsurfaceReadInput(simulation)
       
         if (.not.(option%iflowmode == NULL_MODE .or. &
                   option%iflowmode == RICHARDS_MODE .or. &
+                  option%iflowmode == TH_MODE .or. &
                   option%iflowmode == TOIL_IMS_MODE .or. &
                   option%iflowmode == G_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow ' // &
