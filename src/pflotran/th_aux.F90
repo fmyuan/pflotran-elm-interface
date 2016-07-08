@@ -350,7 +350,12 @@ end subroutine THAuxVarCopy
 
 subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
                                      material_auxvar, &
-                                     iphase,saturation_function, &
+                                     iphase, &
+#ifdef use_characteristic_curves_module
+                                     characteristic_curves,    &
+#else
+                                     saturation_function,      &
+#endif
                                      th_parameter, ithrm, &
                                      option)
   ! 
@@ -365,12 +370,17 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   
   use EOS_Water_module
   use Saturation_Function_module  
+  use Characteristic_Curves_module
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
+#ifdef use_characteristic_curves_module
+  class(characteristic_curves_type), pointer :: characteristic_curves
+#else
   type(saturation_function_type) :: saturation_function
+#endif
   PetscReal :: x(option%nflowdof)
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -381,7 +391,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 
   PetscErrorCode :: ierr
   PetscReal :: pw,dw_kg,dw_mol,hw,sat_pressure,visl
-  PetscReal :: kr, ds_dp, dkr_dp
+  PetscReal :: kr, ds_dp, dkr_dp, dkr_dse
   PetscReal :: dvis_dt, dvis_dp, dvis_dpsat
   PetscReal :: dw_dp, dw_dt, hw_dp, hw_dt
   PetscReal :: dpw_dp
@@ -421,12 +431,25 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 !  if (auxvar%pc > 0.d0) then
   if (auxvar%pc > 1.d0) then
     iphase = 3
+
+#ifdef use_characteristic_curves_module
+    call characteristic_curves%saturation_function%Saturation(auxvar%pc, &
+         global_auxvar%sat(1), ds_dp, option)
+
+    call characteristic_curves%liq_rel_perm_function%RelativePermeability( &
+         global_auxvar%sat(1), &
+         kr, dkr_dse, option)
+    dkr_dp = characteristic_curves%liq_rel_perm_function%DRelPerm_DPressure(ds_dp, dkr_dse)
+
+#else
     call SaturationFunctionCompute(auxvar%pc,global_auxvar%sat(1), &
                                    kr,ds_dp,dkr_dp, &
                                    saturation_function, &
                                    material_auxvar%porosity, &
                                    material_auxvar%permeability(perm_xx_index), &
                                    option)
+#endif
+
     dpw_dp = 0.d0
   else
     iphase = 1

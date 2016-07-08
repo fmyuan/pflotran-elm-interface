@@ -738,7 +738,11 @@ subroutine THUpdateAuxVarsPatch(realization)
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
+#ifdef use_characteristic_curves_module
+            patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#else
             patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#endif
             TH_parameter, ithrm, &
             option)
     endif
@@ -791,7 +795,11 @@ subroutine THUpdateAuxVarsPatch(realization)
               global_auxvars_bc(sum_connection), &
               material_auxvars(ghosted_id), &
               iphasebc, &
+#ifdef use_characteristic_curves_module
+              patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#else
               patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#endif
               TH_parameter, ithrm, &
               option)
       endif
@@ -851,7 +859,11 @@ subroutine THUpdateAuxVarsPatch(realization)
               TH_auxvars_ss(sum_connection),global_auxvars_ss(sum_connection), &
               material_auxvars(ghosted_id), &
               iphase, &
+#ifdef use_characteristic_curves_module
+              patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#else
               patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#endif
               TH_parameter, ithrm, &
               option)
       endif
@@ -1122,7 +1134,11 @@ subroutine THUpdateFixedAccumPatch(realization)
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
+#ifdef use_characteristic_curves_module
+            patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#else
             patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#endif
             TH_parameter, ithrm, &
             option)
     endif
@@ -1457,18 +1473,11 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
                                  TH_parameter, ithrm, &
                                  option)
       else
-#ifdef use_characteristic_curves_module
-        option%io_buffer='FREEZING option must be ON for using ' // &
-          'Characteristic_Curves module in TH mode: '
-        call printErrMsg(option)
-
-#else
         call THAuxVarComputeNoFreezing(x_pert,TH_auxvar_pert,&
                               global_auxvar_pert,material_auxvar_pert,&
                               iphase,sat_func, &
                               TH_parameter,ithrm, &
                               option)
-#endif
       endif
 
       call THAccumulation(TH_auxvar_pert,global_auxvar_pert, material_auxvar_pert, &
@@ -2108,12 +2117,6 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
              TH_parameter,ithrm_up, &
              option)
       else
-#ifdef use_characteristic_curves_module
-        option%io_buffer='FREEZING option must be ON for using ' // &
-          'Characteristic_Curves module in TH mode: '
-        call printErrMsg(option)
-
-#else
         call THAuxVarComputeNoFreezing(x_pert_up,auxvar_pert_up, &
              global_auxvar_pert_up, material_auxvar_pert_up, &
              iphase,sat_func_up, &
@@ -2124,7 +2127,6 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
              iphase,sat_func_dn, &
              TH_parameter,ithrm_dn, &
              option)
-#endif
       endif
 
       call THFlux(auxvar_pert_up,global_auxvar_pert_up, &
@@ -5987,12 +5989,6 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                  option)
   else
 
-#ifdef use_characteristic_curves_module
-        option%io_buffer='FREEZING option must be ON for using ' // &
-          'Characteristic_Curves module in TH mode: '
-        call printErrMsg(option)
-
-#else
     xx(1) = P_up
     xx(2) = T_up
     call THAuxVarComputeNoFreezing(xx, &
@@ -6016,7 +6012,6 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                    th_parameter, &
                                    ithrm_dn, &
                                    option)
-#endif
 
   endif
 
@@ -6059,12 +6054,6 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                  option)
   else
 
-#ifdef use_characteristic_curves_module
-        option%io_buffer='FREEZING option must be ON for using ' // &
-          'Characteristic_Curves module in TH mode: '
-        call printErrMsg(option)
-
-#else
     xx(1) = P_max
     xx(2) = T_up
     call THAuxVarComputeNoFreezing(xx, &
@@ -6074,9 +6063,9 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                    iphase, &
                                    saturation_function, &
                                    th_parameter, &
-                                   ithrm_dn, &
+                                   ithrm_up, &
                                    option)
-#endif
+
   endif
 
   if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_max%sat(1) > sir_dn) then
