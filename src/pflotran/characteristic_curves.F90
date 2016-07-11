@@ -2225,11 +2225,12 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   PetscReal :: pcgl, pw, tk
   PetscBool :: saturated
 
-  PetscReal, parameter :: beta = 2.23d0           ! dimensionless -- ratio of soil ice surf. tension
+  PetscReal, parameter :: beta = 2.33d0           ! dimensionless -- ratio of soil ice surf. tension
   PetscReal, parameter :: T0   = 273.15d0         ! freezing-point at standard pressure: in K
   PetscReal, parameter :: Lf   = HEAT_OF_FUSION   ! fusion heat (in J/kg)
   PetscReal :: gamma, alpha, dalpha_drhol
   PetscReal :: rhol, drhol_dp, drhol_dt
+  PetscReal :: rhoi
 
   PetscReal :: Tf, dTf_dt, dTf_dp
   PetscReal :: tftheta, dtftheta_dt, dtftheta_dp
@@ -2252,7 +2253,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
     saturated = PETSC_TRUE
   endif
 
-  tk = tc + T0
+  Tk = tc + T0
 
   ! if ice module turns on, 2-phase saturation recalculated (liq. and ice) under common 'pw' and 'tc'
   pw = max(option%reference_pressure, pres_l)
@@ -2263,6 +2264,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   rhol     = 999.8d0            ! kg/m3: kmol/m3*kg/kmol
   drhol_dp = 0.d0
   drhol_dt = 0.d0
+
 #if 0
   ! liq. water density as function of P/T
   call EOSWaterDensity(min(max(tc,-1.0d0),99.9d0), min(pw, 165.4d5),      &
@@ -2279,6 +2281,9 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
 
 #endif
 
+  ! constant 'rhoi' (for ice)
+  rhoi    = 916.7d0             ! kg/m3 at 273.15K
+
   if (option%use_th_freezing) then
 
     gamma       = beta*Lf
@@ -2292,6 +2297,22 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
     xTf = Tk - T0
 
     select case (option%ice_model)
+
+      case (PAINTER_EXPLICIT)
+
+        ! explicit model from Painter (Comp. Geosci, 2011)
+        ice_pc = pcgl
+        dice_pc_dt = 0.d0
+        dice_pc_dp = 1.d0
+
+        if(tc<0.d0) then
+
+          ice_pc = rhoi*beta*Lf*(-tc)/T0
+          dice_pc_dt = -rhoi*beta*Lf/T0
+          dice_pc_dp = 0.d0
+
+        endif
+
       case (PAINTER_KARRA_EXPLICIT)
 
         ! The following is a slightly-modified version from PKE in saturation_function module

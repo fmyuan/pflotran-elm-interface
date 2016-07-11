@@ -885,6 +885,8 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,     &
   PetscReal :: sli, dsli_dp, xplice, dxplice_dp, dxplice_dt, slx, dslx_dx
   PetscReal :: dkr_dse
 
+  PetscReal :: se, dse_dpc, function_A, dfunc_A_dt, function_B, dfunc_B_dpl
+
   ! ----------------
   ! (0) inputs
   pc = max(0.d0, option%reference_pressure - pres_l)   ! always non-negative (0 = saturated)
@@ -900,7 +902,7 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,     &
   si      = 0.d0
   dsi_dpl = 0.d0
   dsi_dt  = 0.d0
-  sg      = 0.d0
+  sg      = 1.d0
   dsg_dpl = 0.d0
   dsg_dt  = 0.d0
 
@@ -916,29 +918,83 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,     &
     call characteristic_curves%saturation_function%IceCapillaryPressure(pres_l, tc, &
                                    xplice, dxplice_dp, dxplice_dt, option)
 
-    call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
+    select case (option%ice_model)
+      case (PAINTER_EXPLICIT)
+
+        ! NOTE: in 'saturation_function.F90': SatFuncComputeIcePExplicit(), 'se' and 'dse_dpc' are used
+        ! while in 'characteristic_curves.F90': SF_VG_Saturaton(), the following are output:
+        !   sl = this%Sr + (1.d0-this%Sr)*Se
+        !   dsl_dpl = -(1.d0-this%Sr)*dSe_dpc
+
+        function_B = 1.d0
+        dfunc_B_dpl= 0.d0
+        if (pc>0.d0) then
+          se = (sl - characteristic_curves%saturation_function%Sr) &
+               /(1.0d0 - characteristic_curves%saturation_function%Sr)
+          dse_dpc = (-dsl_dpl)/(1.0d0 - characteristic_curves%saturation_function%Sr)
+
+          function_B = 1.d0/se
+          dfunc_B_dpl= 1.d0/(se*se)*dse_dpc
+        endif
+        !
+        function_A = 1.d0
+        dfunc_A_dt = 0.d0
+        if(tc<0.d0) then
+          call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
+          se = (slx - characteristic_curves%saturation_function%Sr) &
+              /(1.0d0 - characteristic_curves%saturation_function%Sr)
+          dse_dpc = (-dslx_dx)/(1.0d0 - characteristic_curves%saturation_function%Sr)
+
+          function_A = 1.d0/se
+          ! dfunc_A_dt = dfuncA_dslx * dslx_dx * dxplice_dt   (note: dslx_dx = dslx_dxplice)
+          dfunc_A_dt = 1.d0/(se*se)* dse_dpc
+          dfunc_A_dt = dfunc_A_dt * (-dxplice_dt)
+
+        endif
+
+        sl = 1.d0/(function_A + function_B - 1.d0)
+        sg = sl*(function_B - 1.d0)
+        si = sl*(function_A - 1.d0)
+
+        dsl_dpl = - 1.d0/(function_A + function_B - 1.d0)**(2.d0)*(dfunc_B_dpl)
+        dsl_dt  = - 1.d0/(function_A + function_B - 1.d0)**(2.d0)*(dfunc_A_dt)
+
+        dsg_dpl = dsl_dpl*(function_B - 1.d0) + sl*dfunc_B_dpl
+        dsg_dt  = dsl_dt*(function_B - 1.d0)
+
+        dsi_dpl = dsl_dpl*(function_A - 1.d0)
+        dsi_dt  = dsl_dt*(function_A - 1.d0) + sl*dfunc_A_dt
+
+      case (PAINTER_KARRA_EXPLICIT, PAINTER_KARRA_EXPLICIT_SMOOTH)
+        call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
         ! in 'Saturaton_Function.F90', PKE subroutine: dsl_dp = -dS;
         ! which appears opposite when using Characteristic_curves_module (see characteristic_curves.F90: line 2082)
 
-    ! liq. saturation and its derivatives, with ice-adjusted capillary pressure
-    sl      = slx
-    dsl_dt  = -dslx_dx*dxplice_dt
-    dsl_dpl = dslx_dx*dxplice_dp
+        ! liq. saturation and its derivatives, with ice-adjusted capillary pressure
+        sl      = slx
+        dsl_dt  = -dslx_dx*dxplice_dt
+        dsl_dpl = dslx_dx*dxplice_dp
 
-    ! ice satuation and its derivatives
-    si = 1.d0 - sl/sli                 ! P.-K. Eq.(19)
-    dsi_dt = -1.d0/sli*dsl_dt          ! dsli_dt = 0 (see above)
-    dsi_dpl= (sl*dsli_dp-sli*dsl_dpl)/(sli**2)
+        ! ice satuation and its derivatives
+        si = 1.d0 - sl/sli                 ! P.-K. Eq.(19)
+        dsi_dt = -1.d0/sli*dsl_dt          ! dsli_dt = 0 (see above)
+        dsi_dpl= (sl*dsli_dp-sli*dsl_dpl)/(sli**2)
 
+        ! gas phase
+        sg      = 1.d0 - sl - si
+        dsg_dpl = -dsl_dpl - dsi_dpl
+        dsg_dt  = -dsl_dt - dsi_dt
+
+      case default
+        option%io_buffer = 'Ice module NOT recognized'
+        call printErrMsg(option)
+
+    end select
   endif ! 'option%use_th_freezing'
-
-  ! gas phase
-  sg      = 1.d0 - sl - si
-  dsg_dpl = -dsl_dpl - dsi_dpl
-  dsg_dt  = -dsl_dt - dsi_dt
 
   ! Check for bounds on saturations
   if ((sl-1.d0)>1.d-15 .or. sl<-1.d-15) then
+    print *, tc, sli, sl, si, pc, xplice
     option%io_buffer = 'TH with ice mode: Liquid Saturation error: >1 or <0'
     call printErrMsg(option)
   endif
