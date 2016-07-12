@@ -10,7 +10,7 @@ SIMULATION
         FREEZING
         ! adding half-width for smoothing freezing-thawing zone when PKE model only 
         ! (<1.d-10 implies no-smoothing by default, ideally ranging 0.001 ~ 0.100)
-        ICE_MODEL PAINTER_KARRA_EXPLICIT_SMOOTH 0.5d-2   
+        ICE_MODEL PAINTER_KARRA_EXPLICIT_SMOOTH 0.5d-1   
       /
     /
   /
@@ -159,7 +159,7 @@ NEWTON_SOLVER FLOW
   ATOL 1D-20
   RTOL 1D-10
   STOL 1D-10      ! changing down to 1D-8 will reduce time-step BUT cause accuracy issue when smoothing FT zone
-  ITOL 1D-06      ! this is a key tol. for reducing time-step but not impact accuracy too much when smoothing FT zone
+  ITOL 1D-08      ! this is a key tol. for reducing time-step but not impact accuracy too much when smoothing FT zone
 
   MAXIT 30
   MAXF 100
