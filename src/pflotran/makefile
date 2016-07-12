@@ -113,6 +113,10 @@ ifdef use_characteristic_curves
   MYFLAGS += ${FC_DEFINE_FLAG}use_characteristic_curves_module
 endif
 
+ifdef smoothing2
+  MYFLAGS += ${FC_DEFINE_FLAG}smoothing2
+endif
+
 UPDATE_PROVENANCE=0
 ifdef provenance
   UPDATE_PROVENANCE=1

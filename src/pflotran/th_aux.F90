@@ -48,10 +48,10 @@ module TH_Aux_module
     PetscReal :: dKe_fr_dt
     ! ice
     PetscReal :: sat_ice
-    PetscReal :: sat_gas
     PetscReal :: dsat_ice_dp
-    PetscReal :: dsat_gas_dp
     PetscReal :: dsat_ice_dt
+    PetscReal :: sat_gas
+    PetscReal :: dsat_gas_dp
     PetscReal :: dsat_gas_dt
     PetscReal :: den_ice
     PetscReal :: dden_ice_dp
@@ -87,8 +87,8 @@ module TH_Aux_module
 
   type, public :: TH_parameter_type
     PetscReal, pointer :: dencpr(:)
-    PetscReal, pointer :: ckdry(:) ! Thermal conductivity (dry)
-    PetscReal, pointer :: ckwet(:) ! Thermal conductivity (wet)
+    PetscReal, pointer :: ckdry(:)    ! Thermal conductivity (dry)
+    PetscReal, pointer :: ckwet(:)    ! Thermal conductivity (wet)
     PetscReal, pointer :: alpha(:)
     PetscReal, pointer :: ckfrozen(:) ! Thermal conductivity (frozen soil)
     PetscReal, pointer :: alpha_fr(:) ! exponent frozen
