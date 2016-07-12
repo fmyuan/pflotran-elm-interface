@@ -805,8 +805,6 @@ subroutine SubsurfaceInitSimulation(simulation)
   call InitSubsurfaceSetupZeroArrays(realization)
   call OutputVariableAppendDefaults(realization%output_option% &
                                       output_snap_variable_list,option)
-    ! check for non-initialized data sets, e.g. porosity, permeability
-  call RealizationNonInitializedData(realization)
 
   if (option%nflowdof > 0) then
     select type(ts => simulation%flow_process_model_coupler%timestepper)
@@ -2097,6 +2095,7 @@ subroutine SubsurfaceReadInput(simulation)
       
         if (.not.(option%iflowmode == NULL_MODE .or. &
                   option%iflowmode == RICHARDS_MODE .or. &
+                  option%iflowmode == TH_MODE .or. &
                   option%iflowmode == TOIL_IMS_MODE .or. &
                   option%iflowmode == G_MODE)) then
           option%io_buffer = 'CHARACTERISTIC_CURVES not supported in flow ' // &
@@ -2781,6 +2780,14 @@ subroutine SubsurfaceReadInput(simulation)
         option%flow%only_vertical_flow = PETSC_TRUE
         if (option%iflowmode /= RICHARDS_MODE) then
           option%io_buffer = 'QUASI_3D implemented in RICHARDS mode.'
+          call printErrMsg(option)
+        endif
+
+!....................
+      case ('ONLY_ENERGY_EQ')
+        option%flow%only_energy_eq = PETSC_TRUE
+        if (option%iflowmode /= TH_MODE) then
+          option%io_buffer = 'ONLY_ENERGY_EQ applicable only in TH mode.'
           call printErrMsg(option)
         endif
 

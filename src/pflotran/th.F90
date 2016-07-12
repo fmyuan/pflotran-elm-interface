@@ -120,6 +120,7 @@ subroutine THSetupPatch(realization)
   use Fluid_module
   use Secondary_Continuum_Aux_module
   use Secondary_Continuum_module
+  use Characteristic_Curves_module
  
   implicit none
   
@@ -152,18 +153,25 @@ subroutine THSetupPatch(realization)
 !                    'must be initialized with the proper variables ' // &
 !                    'THAuxCreate() is called anywhere.'
 ! call printErrMsg(option)
+
+#ifdef use_characteristic_curves_module
+  allocate(patch%aux%TH%TH_parameter%sir(option%nphase, &
+                                  size(patch%characteristic_curves_array)))
+#else
   allocate(patch%aux%TH%TH_parameter%sir(option%nphase, &
                                   size(patch%saturation_function_array)))
-  
+#endif
+
   !Jitu, 08/04/2010: Check these allocations. Currently assumes only single value in the array	<modified pcl 1-13-11>
   allocate(patch%aux%TH%TH_parameter%dencpr(size(patch%material_property_array)))
   allocate(patch%aux%TH%TH_parameter%ckwet(size(patch%material_property_array)))
   allocate(patch%aux%TH%TH_parameter%ckdry(size(patch%material_property_array)))
   allocate(patch%aux%TH%TH_parameter%alpha(size(patch%material_property_array)))
-  if (option%use_th_freezing) then
+  ! let the following always on
+  !if (option%use_th_freezing) then
      allocate(patch%aux%TH%TH_parameter%ckfrozen(size(patch%material_property_array)))
      allocate(patch%aux%TH%TH_parameter%alpha_fr(size(patch%material_property_array)))
-  endif
+  !endif
 
   !Copy the values in the TH_parameter from the global realization 
   error_found = PETSC_FALSE
@@ -237,10 +245,17 @@ subroutine THSetupPatch(realization)
     call printErrMsg(option)
   endif
 
+#ifdef use_characteristic_curves_module
+  do i = 1, size(patch%characteristic_curves_array)
+    patch%aux%TH%TH_parameter%sir(:,i) = &
+        CharCurvesGetGetResidualSats(patch%characteristic_curves_array(i)%ptr,option)
+  enddo
+#else
   do i = 1, size(patch%saturation_function_array)
     patch%aux%TH%TH_parameter%sir(:,patch%saturation_function_array(i)%ptr%id) = &
       patch%saturation_function_array(i)%ptr%Sr(:)
   enddo
+#endif
 
   ! allocate auxvar data structures for all grid cells
   allocate(TH_auxvars(grid%ngmax))
@@ -711,7 +726,11 @@ subroutine THUpdateAuxVarsPatch(realization)
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
+#ifdef use_characteristic_curves_module
+            patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#else
             patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#endif
             TH_parameter, ithrm, &
             option)
     else
@@ -719,7 +738,11 @@ subroutine THUpdateAuxVarsPatch(realization)
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
+#ifdef use_characteristic_curves_module
+            patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#else
             patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#endif
             TH_parameter, ithrm, &
             option)
     endif
@@ -760,7 +783,11 @@ subroutine THUpdateAuxVarsPatch(realization)
               global_auxvars_bc(sum_connection), &
               material_auxvars(ghosted_id), &
               iphasebc, &
+#ifdef use_characteristic_curves_module
+              patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#else
               patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#endif
               TH_parameter, ithrm, &
               option)
       else
@@ -768,7 +795,11 @@ subroutine THUpdateAuxVarsPatch(realization)
               global_auxvars_bc(sum_connection), &
               material_auxvars(ghosted_id), &
               iphasebc, &
+#ifdef use_characteristic_curves_module
+              patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#else
               patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#endif
               TH_parameter, ithrm, &
               option)
       endif
@@ -816,7 +847,11 @@ subroutine THUpdateAuxVarsPatch(realization)
               TH_auxvars_ss(sum_connection),global_auxvars_ss(sum_connection), &
               material_auxvars(ghosted_id), &
               iphase, &
+#ifdef use_characteristic_curves_module
+              patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#else
               patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#endif
               TH_parameter, ithrm, &
               option)
       else
@@ -824,7 +859,11 @@ subroutine THUpdateAuxVarsPatch(realization)
               TH_auxvars_ss(sum_connection),global_auxvars_ss(sum_connection), &
               material_auxvars(ghosted_id), &
               iphase, &
+#ifdef use_characteristic_curves_module
+              patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#else
               patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#endif
               TH_parameter, ithrm, &
               option)
       endif
@@ -1083,7 +1122,11 @@ subroutine THUpdateFixedAccumPatch(realization)
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
+#ifdef use_characteristic_curves_module
+            patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#else
             patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#endif
             TH_parameter, ithrm, &
             option)
     else
@@ -1091,7 +1134,11 @@ subroutine THUpdateFixedAccumPatch(realization)
             TH_auxvars(ghosted_id),global_auxvars(ghosted_id), &
             material_auxvars(ghosted_id), &
             iphase, &
+#ifdef use_characteristic_curves_module
+            patch%characteristic_curves_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#else
             patch%saturation_function_array(int(icap_loc_p(ghosted_id)))%ptr, &
+#endif
             TH_parameter, ithrm, &
             option)
     endif
@@ -1233,6 +1280,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
 
   use Option_module
   use Saturation_Function_module
+  use Characteristic_Curves_module
   use Material_Aux_class, only : material_auxvar_type, &
                                  soil_compressibility_index, &
                                  MaterialCompressSoil
@@ -1247,7 +1295,11 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   PetscReal :: vol,por,rock_dencpr
   type(TH_parameter_type) :: th_parameter
   PetscInt :: ithrm
+#ifdef use_characteristic_curves_module
+  class(Characteristic_Curves_type), pointer :: sat_func
+#else
   type(saturation_function_type) :: sat_func
+#endif
   PetscReal :: J(option%nflowdof,option%nflowdof)
      
   PetscInt :: ispec 
@@ -1271,11 +1323,13 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
 
   ! ice variables
   PetscReal :: sat_g, p_g, den_g, p_sat, mol_g, u_g, C_g
-  PetscReal :: dpsat_dt, ddeng_dt, dmolg_dt, dsatg_dp, dsatg_dt, dug_dt
+  PetscReal :: dpsat_dt
+  PetscReal :: ddeng_dt, dmolg_dt, dsatg_dt, dug_dt
+  PetscReal :: ddeng_dp, dmolg_dp, dsatg_dp, dug_dp
   PetscReal :: sat_i, den_i, u_i
   PetscReal :: dsati_dp, dsati_dt
   PetscReal :: ddeni_dp, ddeni_dt
-  PetscReal :: dui_dt
+  PetscReal :: dui_dp, dui_dt
   PetscErrorCode :: ierr
 
   
@@ -1331,7 +1385,9 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
      u_g      = TH_auxvar%ice%u_gas
      u_i      = TH_auxvar%ice%u_ice
      dug_dt   = TH_auxvar%ice%du_gas_dt
+     dug_dp   = TH_auxvar%ice%du_gas_dp
      dui_dt   = TH_auxvar%ice%du_ice_dt
+     dui_dp   = TH_auxvar%ice%du_ice_dp
 
      den_i    = TH_auxvar%ice%den_ice
      den_g    = TH_auxvar%ice%den_gas
@@ -1339,10 +1395,14 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
      ddeni_dt = TH_auxvar%ice%dden_ice_dt
      ddeni_dp = TH_auxvar%ice%dden_ice_dp
      ddeng_dt = TH_auxvar%ice%dden_gas_dt
+     ddeng_dp = TH_auxvar%ice%dden_gas_dp
      dmolg_dt = TH_auxvar%ice%dmol_gas_dt
+     dmolg_dp = TH_auxvar%ice%dmol_gas_dp
 
      J(TH_PRESSURE_DOF,TH_PRESSURE_DOF) = J(TH_PRESSURE_DOF,TH_PRESSURE_DOF) + &
-                                          (dsatg_dp*den_g*mol_g + &
+                                          (dsatg_dp*den_g*mol_g     + &
+                                           sat_g   *den_g*dmolg_dp  + &
+                                           sat_g   *mol_g*ddeng_dp  + &
                                            dsati_dp*den_i       + &
                                            sat_i   *ddeni_dp     )*porXvol + &
                                           (sat_g   *den_g*mol_g + &
@@ -1358,8 +1418,11 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
 
      J(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) = J(TH_TEMPERATURE_DOF,TH_PRESSURE_DOF) + &
                      (dsatg_dp * den_g    * u_g + &
+                      sat_g    * ddeng_dp * u_g  + &
+                      sat_g    * dug_dp   * den_g+ &
                       dsati_dp * den_i    * u_i + &
-                      sat_i    * ddeni_dp * u_i )*porXvol + &
+                      sat_i    * ddeni_dp * u_i + &
+                      sat_i    * dui_dp   * den_i  )*porXvol + &
                      (sat_g    * den_g    * u_g + &
                       sat_i    * den_i    * u_i )*dcompressed_porosity_dp*vol
 
@@ -1421,7 +1484,7 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
                                  TH_parameter, ithrm, &
                                  option)
       else
-         call THAuxVarComputeNoFreezing(x_pert,TH_auxvar_pert,&
+        call THAuxVarComputeNoFreezing(x_pert,TH_auxvar_pert,&
                               global_auxvar_pert,material_auxvar_pert,&
                               iphase,sat_func, &
                               TH_parameter,ithrm, &
@@ -1552,6 +1615,7 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
                              
   use Option_module 
   use Saturation_Function_module             
+  use Characteristic_Curves_module
   use Connection_module
   use EOS_Water_module
   use Utility_module
@@ -1573,7 +1637,11 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   PetscInt :: ithrm_up, ithrm_dn
   PetscReal :: v_darcy, area
   PetscReal :: dist(-1:3)
+#ifdef use_characteristic_curves_module
+  class(Characteristic_Curves_type), pointer :: sat_func_up, sat_func_dn
+#else
   type(saturation_function_type) :: sat_func_up, sat_func_dn
+#endif
   type(TH_parameter_type) :: th_parameter
   PetscReal :: Jup(option%nflowdof,option%nflowdof), Jdn(option%nflowdof,option%nflowdof)
      
@@ -1779,6 +1847,16 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
       dq_dt_up = Dq*(dukvr_dt_up*dphi+ukvr*dphi_dt_up)*area
       dq_dt_dn = Dq*(dukvr_dt_dn*dphi+ukvr*dphi_dt_dn)*area
         
+
+      ! If only solving the energy equation, ensure Jup(2,2) & Jdn(2,2)
+      ! have no contribution from the mass equation
+      if (option%flow%only_energy_eq) then
+         v_darcy = 0.d0
+         q = 0.d0
+         dq_dt_up = 0.d0
+         dq_dt_dn = 0.d0
+      endif
+
       Jup(1,1) = (dq_dp_up*density_ave+q*dden_ave_dp_up)
       Jup(1,2) = (dq_dt_up*density_ave+q*dden_ave_dt_up)
 
@@ -1967,6 +2045,20 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
   Jdn(option%nflowdof,2) = Jdn(option%nflowdof,2) + Dk*area*(-1.d0) + &
                            area*(global_auxvar_up%temp - & 
                            global_auxvar_dn%temp)*dDk_dt_dn 
+
+  ! If only solving the energy equation,
+  !  - Set jacobian term corresponding to mass-equation to one, and
+  !  - Set off-diagonal jacobian terms to zero.
+  if (option%flow%only_energy_eq) then
+    Jup(1,1) = 1.d0
+    Jup(1,2) = 0.d0
+    Jup(option%nflowdof,1) = 0.d0
+
+    Jdn(1,1) = 1.d0
+    Jdn(1,2) = 0.d0
+    Jup(option%nflowdof,1) = 0.d0
+
+  endif
 
   ! note: Res is the flux contribution, for node up J = J + Jup
   !                                              dn J = J - Jdn  
@@ -2236,6 +2328,11 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
     if (ukvr > floweps) then
       v_darcy = Dq * ukvr * dphi
    
+      ! If only solving the energy equation, ensure Res(2) has no
+      ! contribution from mass equation by setting darcy velocity
+      ! to be zero
+      if (option%flow%only_energy_eq) v_darcy = 0.d0
+
       q = v_darcy * area
         
       fluxm = fluxm + q*density_ave
@@ -2311,6 +2408,9 @@ subroutine THFlux(auxvar_up,global_auxvar_up, &
 
   fluxe = fluxe + cond
 
+  ! If only solving the energy equation, ensure Res(1) is zero
+  if (option%flow%only_energy_eq) fluxm = 0.d0
+
   Res(1:option%nflowdof-1) = fluxm
   Res(option%nflowdof) = fluxe
   
@@ -2344,6 +2444,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   ! 
   use Option_module
   use Saturation_Function_module
+  use Characteristic_Curves_module
   use Connection_module
   use EOS_Water_module
   use Utility_module
@@ -2359,7 +2460,11 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: auxvars(:) ! from aux_real_var array in boundary condition
   PetscReal :: por_dn,perm_dn,Dk_dn,tor_dn
   PetscReal :: area
-  type(saturation_function_type) :: sat_func_dn  
+#ifdef use_characteristic_curves_module
+  class(Characteristic_Curves_type), pointer :: sat_func_dn
+#else
+  type(saturation_function_type) :: sat_func_dn
+#endif
   PetscReal :: Dk_dry_dn
   PetscReal :: Dk_ice_dn
   PetscReal :: alpha_dn
@@ -2763,6 +2868,13 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   Jdn(1,1) = (dq_dp_dn*density_ave+q*dden_ave_dp_dn)
   Jdn(1,2) = (dq_dt_dn*density_ave+q*dden_ave_dt_dn)
       
+  ! If only solving the energy equation, ensure Jdn(2,2) has no
+  ! contribution from mass equation
+  if (option%flow%only_energy_eq) then
+    q = 0.d0
+    dq_dt_dn = 0.d0
+  endif
+
   ! based on flux = q*density_ave*uh
   Jdn(option%nflowdof,1) =  &
      ((dq_dp_dn*density_ave+q*dden_ave_dp_dn)*uh+q*density_ave*duh_dp_dn)
@@ -2888,6 +3000,15 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
       endif ! if (use_th_freezing)
 
   end select
+
+  ! If only solving the energy equation,
+  !  - Set jacobian term corresponding to mass-equation to one, and
+  !  - Set off-diagonal jacobian terms to zero.
+  if (option%flow%only_energy_eq) then
+    Jdn(1,1) = 1.d0
+    Jdn(1,2) = 0.d0
+    Jdn(option%nflowdof,1) = 0.d0
+  endif
 
 #if 0
   if (option%flow%numerical_derivatives) then
@@ -3290,6 +3411,11 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
 
   end select
 
+  ! If only solving the energy equation, ensure Res(2) has no
+  ! contribution from mass equation by setting darcy velocity
+  ! to be zero
+  if (option%flow%only_energy_eq) q = 0.d0
+
   q = v_darcy * area
 
   if (v_darcy >= 0.D0) then
@@ -3383,6 +3509,9 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
         '" not implemented in TH mode.'
       call printErrMsg(option)
   end select
+
+  ! If only solving the energy equation, set Res(1) is 0.d0
+  if (option%flow%only_energy_eq) fluxm = 0.d0
 
   Res(1:option%nflowspec) = fluxm
   Res(option%nflowdof) = fluxe
@@ -4193,7 +4322,11 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                             material_auxvars(ghosted_id), &
                             TH_parameter%dencpr(ithrm), &
                             TH_parameter, ithrm, option, &
+#ifdef use_characteristic_curves_module
+                            patch%characteristic_curves_array(icap)%ptr, &
+#else
                             patch%saturation_function_array(icap)%ptr, &
+#endif
                             vol_frac_prim,Jup) 
 
     if (option%use_mc) then
@@ -4382,8 +4515,13 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                              cur_connection_set%area(iconn), &
                              cur_connection_set%dist(-1:3,iconn), &
                              upweight,option, &
+#ifdef use_characteristic_curves_module
+                             patch%characteristic_curves_array(icap_up)%ptr, &
+                             patch%characteristic_curves_array(icap_dn)%ptr, &
+#else
                              patch%saturation_function_array(icap_up)%ptr, &
                              patch%saturation_function_array(icap_dn)%ptr, &
+#endif
                              Dk_dry_up,Dk_dry_dn, &
                              Dk_ice_up,Dk_ice_dn, &
                              alpha_up,alpha_dn,alpha_fr_up,alpha_fr_dn, &
@@ -4472,7 +4610,11 @@ subroutine THJacobianPatch(snes,xx,A,B,realization,ierr)
                               cur_connection_set%area(iconn), &
                               cur_connection_set%dist(-1:3,iconn), &
                               option, &
+#ifdef use_characteristic_curves_module
+                              patch%characteristic_curves_array(icap_dn)%ptr,&
+#else
                               patch%saturation_function_array(icap_dn)%ptr,&
+#endif
                               Dk_dry_dn,Dk_ice_dn, &
                               Jdn)
       Jdn = -Jdn
@@ -5700,7 +5842,11 @@ subroutine THComputeCoeffsForSurfFlux(realization)
                                     material_auxvars(ghosted_id), &
                                     TH_parameter, &
                                     iphase, &
+#ifdef use_characteristic_curves_module
+                                    patch%characteristic_curves_array(icap_dn)%ptr, &
+#else
                                     patch%saturation_function_array(icap_dn)%ptr, &
+#endif
                                     dist_gravity, &
                                     area, &
                                     Dq, &
@@ -5722,7 +5868,11 @@ subroutine THComputeCoeffsForSurfFlux(realization)
                                    material_auxvars(ghosted_id), &
                                    TH_parameter, &
                                    iphase, &
+#ifdef use_characteristic_curves_module
+                                   patch%characteristic_curves_array(icap_dn)%ptr, &
+#else
                                    patch%saturation_function_array(icap_dn)%ptr, &
+#endif
                                    dist_gravity, &
                                    area, &
                                    Dq, &
@@ -5814,6 +5964,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
   use Material_Aux_class
   use Option_module
   use Saturation_Function_module
+  use Characteristic_Curves_module
   use String_module
   use Utility_module
 
@@ -5826,7 +5977,11 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
   class(material_auxvar_type) :: material_auxvar
   type(TH_parameter_type) :: th_parameter
   PetscInt :: iphase
+#ifdef use_characteristic_curves_module
+  class(characteristic_curves_type), pointer :: saturation_function
+#else
   type(saturation_function_type) :: saturation_function
+#endif
   PetscReal :: dist_gravity
   PetscReal :: area
   PetscReal :: Dq
@@ -5924,6 +6079,7 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                    th_parameter, &
                                    ithrm_dn, &
                                    option)
+
   endif
 
   ! Step-2: Find P_max/P_min for cubic polynomial approximation
@@ -5974,8 +6130,9 @@ subroutine ComputeCoeffsForApprox(P_up, T_up, ithrm_up, &
                                    iphase, &
                                    saturation_function, &
                                    th_parameter, &
-                                   ithrm_dn, &
+                                   ithrm_up, &
                                    option)
+
   endif
 
   if (global_auxvar_up%sat(1) > sir_dn .or. global_auxvar_max%sat(1) > sir_dn) then
