@@ -150,11 +150,11 @@ subroutine PMTHRead(this,input)
             option%ice_model = PAINTER_KARRA_IMPLICIT
           case ('PAINTER_KARRA_EXPLICIT')
             option%ice_model = PAINTER_KARRA_EXPLICIT
-
+          case ('PAINTER_KARRA_EXPLICIT_SMOOTH')
+            option%ice_model = PAINTER_KARRA_EXPLICIT_SMOOTH
             call InputReadDouble(input,option,tempreal)
             call InputDefaultMsg(input,option,'freezing-thawing smoothing')
             if(tempreal > 1.d-10) option%frzthw_halfwidth = tempreal
-
           case ('PAINTER_KARRA_EXPLICIT_NOCRYO')
             option%ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
           case ('DALL_AMICO')
@@ -163,7 +163,7 @@ subroutine PMTHRead(this,input)
             option%io_buffer = 'Cannot identify the specificed ice model.' // &
              'Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT' // &
              ' or PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_NOCRYO ' // &
-             ' or DALL_AMICO.'
+             ' or DALL_AMICO or PAINTER_KARRA_EXPLICIT_SMOOTH.'
             call printErrMsg(option)
           end select
       case default

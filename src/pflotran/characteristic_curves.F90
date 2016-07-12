@@ -2306,7 +2306,6 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
     select case (option%ice_model)
       case (PAINTER_KARRA_EXPLICIT)
 
-#if 0
         ! The following is a slightly-modified version from PKE in saturation_function module
         ! without smoothing of freezing-thawing zone
 
@@ -2340,7 +2339,7 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         ice_pc     =   ice_pc                  &                        ! P.-K. Eq.(18), first term (i.e. ice only)
                      + pcgl * (1.d0 - Hfunc)                            ! second term, with Hfunc as trunction function
 
-#else
+      case (PAINTER_KARRA_EXPLICIT_SMOOTH)
 
         ! smoothing 'ice_pc' when Tk ranging within deltaTf of T0, from PKE's PCice to 0.0
         ! from ATS, authored by Scott Painter et al.
@@ -2375,10 +2374,10 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         ice_pc     =  ice_pc + pcgl
         dice_pc_dp =  dice_pc_dp + 1.d0           ! dpcgl_dp = 1.0 and dpcgl_dt = 0
 
-#endif
 
       case default
-        option%io_buffer = 'SF_Ice_CapillaryPressure: characteristic-curve now only support ice-model: PAINTER_KARRA_EXPLICIT.'
+        option%io_buffer = 'SF_Ice_CapillaryPressure: characteristic-curve ' // &
+          'now only support ice-model: PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_SMOOTH.'
         call printErrMsg(option)
 
     end select ! select case (option%ice_model)
