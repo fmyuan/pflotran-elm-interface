@@ -122,7 +122,7 @@ module Option_module
     PetscBool :: update_flow_perm ! If true, permeability changes due to pressure    
     
     PetscInt :: ice_model         ! specify water/ice/vapor phase partitioning model
-    PetscReal:: frzthw_halfwidth  ! freezing-thawing point smoothing half-width (oC)
+    PetscReal:: frzthw_halfwidth  ! freezing-thawing smoothing half-width (oC)
       
     PetscReal :: flow_time, tran_time, time  ! The time elapsed in the simulation.
     PetscReal :: flow_dt ! The size of the time step.

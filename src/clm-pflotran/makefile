@@ -17,14 +17,6 @@ ifdef nojacboian_track_vars
   MYFLAGS += ${FC_DEFINE_FLAG}nojacobian_track_vars
 endif
 
-ifdef use_characteristic_curves
-  MYFLAGS += ${FC_DEFINE_FLAG}use_characteristic_curves_module
-endif
-
-ifdef smoothing2
-  MYFLAGS += ${FC_DEFINE_FLAG}smoothing2
-endif
-
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
 # PFLOTRAN_RXN_FLAG 
 ifneq (,$(filter libpflotranchem.a pflotran_rxn,$(MAKECMDGOALS)))
@@ -117,6 +109,18 @@ endif
 
 ifdef use_matseqaij_fix
   MYFLAGS += ${FC_DEFINE_FLAG}USE_MATSEQAIJ_FIX
+endif
+
+ifdef debug_geomech_regression
+  MYFLAGS += ${FC_DEFINE_FLAG}GEOMECHANICS_REGRESSION_DEBUG
+endif
+
+ifdef use_characteristic_curves
+  MYFLAGS += ${FC_DEFINE_FLAG}use_characteristic_curves_module
+endif
+
+ifdef smoothing2
+  MYFLAGS += ${FC_DEFINE_FLAG}smoothing2
 endif
 
 UPDATE_PROVENANCE=0
@@ -410,10 +414,10 @@ geomech_obj = \
 	${common_src}geomechanics_force.o \
 	${common_src}geomechanics_global.o \
 	${common_src}geomechanics_global_aux.o\
-	${common_src}geomechanics_logging.o \
 	${common_src}geomechanics_material.o \
 	${common_src}geomechanics_patch.o \
 	${common_src}geomechanics_region.o \
+	${common_src}geomechanics_regression.o \
 	${common_src}geomechanics_strata.o \
 	${common_src}output_geomechanics.o \
 	${common_src}pm_geomechanics_force.o \
@@ -591,6 +595,7 @@ factory_geomechanics.o : condition_control.o convergence.o discretization.o \
                          geomechanics_force.o geomechanics_global.o \
                          geomechanics_material.o geomechanics_patch.o \
                          geomechanics_realization.o geomechanics_region.o \
+                         geomechanics_regression.o \
                          geomechanics_strata.o grid_unstructured.o \
                          grid_unstructured_aux.o init_common.o input_aux.o \
                          logging.o option.o output.o output_aux.o \
@@ -695,7 +700,7 @@ geomech_grid_aux.o : gauss.o grid_unstructured_cell.o option.o \
                      pflotran_constants.o utility.o
 geomechanics_auxiliary.o : geomechanics_global_aux.o pflotran_constants.o
 geomechanics_condition.o : condition.o dataset.o dataset_ascii.o \
-                           dataset_base.o geomechanics_logging.o input_aux.o \
+                           dataset_base.o input_aux.o \
                            option.o pflotran_constants.o string.o \
                            time_storage.o
 geomechanics_coupler.o : geomechanics_condition.o geomechanics_region.o \
@@ -708,7 +713,7 @@ geomechanics_force.o : discretization.o field.o geomech_grid.o \
                        geomech_grid_aux.o geomechanics_auxiliary.o \
                        geomechanics_coupler.o geomechanics_debug.o \
                        geomechanics_discretization.o geomechanics_field.o \
-                       geomechanics_global_aux.o geomechanics_logging.o \
+                       geomechanics_global_aux.o \
                        geomechanics_material.o geomechanics_patch.o \
                        geomechanics_realization.o geomechanics_region.o grid.o \
                        grid_unstructured_cell.o material.o material_aux.o \
@@ -721,7 +726,6 @@ geomechanics_global.o : geomech_grid.o geomech_grid_aux.o \
                         geomechanics_patch.o geomechanics_realization.o \
                         option.o pflotran_constants.o variables.o
 geomechanics_global_aux.o : option.o pflotran_constants.o utility.o
-geomechanics_logging.o : pflotran_constants.o
 geomechanics_material.o : input_aux.o option.o pflotran_constants.o string.o
 geomechanics_patch.o : dataset_base.o geomech_grid.o geomech_grid_aux.o \
                        geomechanics_auxiliary.o geomechanics_condition.o \
@@ -742,6 +746,10 @@ geomechanics_realization.o : dataset.o dataset_base.o geomech_grid.o \
 geomechanics_region.o : geometry.o grid_unstructured_cell.o input_aux.o \
                         logging.o option.o pflotran_constants.o string.o \
                         utility.o
+geomechanics_regression.o : discretization.o  input_aux.o option.o \
+               output_geomechanics.o pflotran_constants.o \
+               string.o utility.o geomech_grid_aux.o \
+               timestepper_steady.o
 geomechanics_strata.o : geomechanics_material.o geomechanics_region.o \
                         input_aux.o option.o pflotran_constants.o string.o
 geometry.o : input_aux.o option.o pflotran_constants.o
@@ -871,7 +879,7 @@ output_common.o : connection.o coupler.o field.o global_aux.o grid.o \
 output_ekg.o : option.o output_aux.o pflotran_constants.o
 output_geomechanics.o : geomech_grid.o geomech_grid_aux.o \
                         geomechanics_discretization.o geomechanics_field.o \
-                        geomechanics_logging.o geomechanics_patch.o \
+                        geomechanics_patch.o \
                         geomechanics_realization.o grid_unstructured_cell.o \
                         hdf5.o hdf5_aux.o logging.o option.o output_aux.o \
                         output_common.o output_hdf5.o output_tecplot.o \
@@ -1267,7 +1275,8 @@ simulation_geomechanics.o : geomechanics_realization.o option.o output.o \
                             pmc_subsurface.o realization_subsurface.o \
                             regression.o simulation_base.o \
                             simulation_subsurface.o timestepper_base.o \
-                            waypoint.o
+                            waypoint.o simulation_aux.o checkpoint.o \
+                            output_aux.o geomechanics_regression.o
 simulation_hydrogeophysics.o : option.o pflotran_constants.o \
                                pmc_hydrogeophysics.o simulation_base.o \
                                simulation_subsurface.o \

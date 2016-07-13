@@ -126,8 +126,7 @@ module TH_Aux_module
             THAuxVarComputeNoFreezing, THAuxVarInit, &
             THAuxVarCopy, THAuxVarDestroy
 
-  public :: THAuxVarComputeFreezing, &
-            THAuxVarComputeFreezing2
+  public :: THAuxVarComputeFreezing
 
 contains
 
@@ -394,7 +393,12 @@ end subroutine THAuxVarCopy
 
 subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
                                      material_auxvar, &
-                                     iphase,saturation_function, &
+                                     iphase, &
+#ifdef use_characteristic_curves_module
+                                     characteristic_curves,    &
+#else
+                                     saturation_function,      &
+#endif
                                      th_parameter, ithrm, &
                                      option)
   ! 
@@ -409,12 +413,17 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   
   use EOS_Water_module
   use Saturation_Function_module  
+  use Characteristic_Curves_module
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
+#ifdef use_characteristic_curves_module
+  class(characteristic_curves_type), pointer :: characteristic_curves
+#else
   type(saturation_function_type) :: saturation_function
+#endif
   PetscReal :: x(option%nflowdof)
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -425,7 +434,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 
   PetscErrorCode :: ierr
   PetscReal :: pw,dw_kg,dw_mol,hw,sat_pressure,visl
-  PetscReal :: kr, ds_dp, dkr_dp
+  PetscReal :: kr, ds_dp, dkr_dp, dkr_dse
   PetscReal :: dvis_dt, dvis_dp, dvis_dpsat
   PetscReal :: dw_dp, dw_dt, hw_dp, hw_dt
   PetscReal :: dpw_dp
@@ -465,12 +474,25 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 !  if (auxvar%pc > 0.d0) then
   if (auxvar%pc > 1.d0) then
     iphase = 3
+
+#ifdef use_characteristic_curves_module
+    call characteristic_curves%saturation_function%Saturation(auxvar%pc, &
+         global_auxvar%sat(1), ds_dp, option)
+
+    call characteristic_curves%liq_rel_perm_function%RelativePermeability( &
+         global_auxvar%sat(1), &
+         kr, dkr_dse, option)
+    dkr_dp = characteristic_curves%liq_rel_perm_function%DRelPerm_DPressure(ds_dp, dkr_dse)
+
+#else
     call SaturationFunctionCompute(auxvar%pc,global_auxvar%sat(1), &
                                    kr,ds_dp,dkr_dp, &
                                    saturation_function, &
                                    material_auxvar%porosity, &
                                    material_auxvar%permeability(perm_xx_index), &
                                    option)
+#endif
+
     dpw_dp = 0.d0
   else
     iphase = 1
@@ -563,10 +585,14 @@ end subroutine THAuxVarComputeNoFreezing
 ! ************************************************************************** !
 
 subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
-                                   material_auxvar, &
-                                   iphase, &
-                                   saturation_function, &
-                                   th_parameter, ithrm, &
+                                   material_auxvar,          &
+                                   iphase,                   &
+#ifdef use_characteristic_curves_module
+                                   characteristic_curves,    &
+#else
+                                   saturation_function,      &
+#endif
+                                   th_parameter, ithrm,      &
                                    option)
   ! 
   ! Computes auxillary variables for each grid cell when
@@ -583,12 +609,17 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   
   use EOS_Water_module
   use Saturation_Function_module  
+  use Characteristic_Curves_module
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
+#ifdef use_characteristic_curves_module
+  class(characteristic_curves_type), pointer :: characteristic_curves
+#else
   type(saturation_function_type) :: saturation_function
+#endif
   PetscReal :: x(option%nflowdof)
   type(TH_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -617,7 +648,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   PetscReal :: p_sat
   PetscReal :: mol_g
   PetscReal :: C_g
-  PetscReal :: dmolg_dt
+  PetscReal :: dmolg_dt, dmolg_dp
   PetscReal, parameter :: C_a = 1.86d-3 ! in MJ/kg/K at 300K
   PetscReal, parameter :: C_wv = 1.005d-3 ! in MJ/kg/K
 
@@ -668,6 +699,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     dpw_dp = 1.d0
   endif  
   
+#ifndef use_characteristic_curves_module
   call CapillaryPressureThreshold(saturation_function,p_th,option)
 
   select case (option%ice_model)
@@ -689,12 +721,12 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                                        saturation_function, p_th, option)    
     case (PAINTER_KARRA_EXPLICIT)
       ! Explicit model from Painter & Karra, VJZ (2013)
-      call SatFuncComputeIcePKExplicit(global_auxvar%pres(1), & 
+      call SatFuncComputeIcePKExplicit(global_auxvar%pres(1), &
                                        global_auxvar%temp, ice_saturation, &
                                        global_auxvar%sat(1), gas_saturation, &
                                        kr, ds_dp, dsl_temp, dsg_pl, dsg_temp, &
                                        dsi_pl, dsi_temp, dkr_dp, dkr_dt, &
-                                       saturation_function, p_th, option) 
+                                       saturation_function, p_th, option)
     case (DALL_AMICO)
       ! Model from Dall'Amico (2010) and Dall' Amico et al. (2011)
       call SatFuncComputeIceDallAmico(global_auxvar%pres(1), &
@@ -720,7 +752,26 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
       call printErrMsg(option)
   end select
 
-  call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,dw_dp,dw_dt,ierr)
+#else
+  ! using modules in 'characteristic_curves.F90' to calculate needed variables: saturations and derivatives for 3 phases
+  call THAuxVarComputeCharacteristicCurves(global_auxvar%pres(1), global_auxvar%temp,  &
+                                           characteristic_curves,                      &
+                                           global_auxvar%sat(1),  ds_dp, dsl_temp,     &
+                                           ice_saturation,       dsi_pl, dsi_temp,     &
+                                           gas_saturation,       dsg_pl, dsg_temp,     &
+                                           kr,                   dkr_dp, dkr_dt,       &
+                                           option)
+
+
+#endif
+
+  call EOSWaterDensity(min(max(global_auxvar%temp,-1.0d0),99.9d0), &    ! tc: -1 ~ 99.9 oC
+                       min(pw, 165.4d5),                           &    ! p: ~ 16.54 MPa
+                       dw_kg, dw_mol, dw_dp, dw_dt, ierr)
+  if (iphase == 3) dw_dp = 0.d0
+  if (pw>165.4d5) dw_dp = 0.d0
+  if (global_auxvar%temp<-1.d0 .or. global_auxvar%temp>99.9d0) dw_dt = 0.d0
+
   call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,hw_dp,hw_dt,ierr)
   ! J/kmol -> MJ/kmol
   hw = hw * option%scale
@@ -767,8 +818,14 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   auxvar%ice%dsat_gas_dt = dsg_temp
   
   ! Calculate the density, internal energy and derivatives for ice
-  call EOSWaterDensityIce(global_auxvar%temp, global_auxvar%pres(1), &
-                          den_ice, dden_ice_dT, dden_ice_dP, ierr)
+
+  ! when tc ~ -15oC, Ice-density change in the following function causes presure non-monotonic issue
+  call EOSWaterDensityIce(min(max(-10.d0,global_auxvar%temp), 0.01d0),  &  ! tc: -10 ~ 0.01
+                          min(global_auxvar%pres(1), 165.4d5),         &
+                          den_ice, dden_ice_dT, dden_ice_dp, ierr)
+  if (global_auxvar%pres(1)>165.4d5) dden_ice_dp = 0.d0
+  if (global_auxvar%temp<-10.d0) dden_ice_dT = 0.d0
+  if (global_auxvar%temp>0.01d0) dden_ice_dT = 0.d0
 
   call EOSWaterInternalEnergyIce(global_auxvar%temp, u_ice, du_ice_dT)
 
@@ -778,21 +835,34 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   auxvar%ice%u_ice = u_ice*1.d-3                  !kJ/kmol --> MJ/kmol
   auxvar%ice%du_ice_dt = du_ice_dT*1.d-3          !kJ/kmol/K --> MJ/kmol/K 
 
-  ! Calculate the values and derivatives for density and internal energy
+  auxvar%ice%du_ice_dp = 0.d0
+
+  ! Calculate the values and derivatives for vapor density and internal energy
   call EOSWaterSaturationPressure(global_auxvar%temp, p_sat, ierr)
 
-  p_g            = option%reference_pressure
+  p_g                = pw !option%reference_pressure
   auxvar%ice%den_gas = p_g/(IDEAL_GAS_CONSTANT*(global_auxvar%temp + 273.15d0))*1.d-3 !in kmol/m3
-  mol_g          = p_sat/p_g
-  C_g            = C_wv*mol_g*FMWH2O + C_a*(1.d0 - mol_g)*FMWAIR ! in MJ/kmol/K
-  auxvar%ice%u_gas   = C_g*(global_auxvar%temp + 273.15d0)           ! in MJ/kmol
+  mol_g              = p_sat/p_g
+  C_g                = C_wv*mol_g*FMWH2O + C_a*(1.d0 - mol_g)*FMWAIR                  ! in MJ/kmol/K
+  auxvar%ice%u_gas   = C_g*(global_auxvar%temp + 273.15d0)                            ! in MJ/kmol
   auxvar%ice%mol_gas = mol_g
 
+
   auxvar%ice%dden_gas_dt = - p_g/(IDEAL_GAS_CONSTANT*(global_auxvar%temp + 273.15d0)**2)*1.d-3
-  dmolg_dt           = dpsat_dt/p_g
-  auxvar%ice%du_gas_dt   = C_g + (C_wv*dmolg_dt*FMWH2O - C_a*dmolg_dt*FMWAIR)* &
-                       (global_auxvar%temp + 273.15d0)
+  auxvar%ice%dden_gas_dp = 1.d0/(IDEAL_GAS_CONSTANT*(global_auxvar%temp + 273.15d0))*1.d-3
+  if (iphase==3) auxvar%ice%dden_gas_dp = 0.d0
+
+  dmolg_dt               = dpsat_dt/p_g
+  dmolg_dp               = -p_sat/p_g/p_g
+  if (iphase==3) dmolg_dp= 0.d0
   auxvar%ice%dmol_gas_dt = dmolg_dt
+  auxvar%ice%dmol_gas_dp = dmolg_dp
+
+  auxvar%ice%du_gas_dt   = C_g + (C_wv*dmolg_dt*FMWH2O - C_a*dmolg_dt*FMWAIR)* &
+                           (global_auxvar%temp + 273.15d0)
+  auxvar%ice%du_gas_dp   = (C_wv*FMWH2O-C_a*FMWAIR)*dmolg_dp* &
+                           (global_auxvar%temp + 273.15d0)
+
 
   ! Parameters for computation of effective thermal conductivity
   alpha = th_parameter%alpha(ithrm)
@@ -800,6 +870,14 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   Dk = th_parameter%ckwet(ithrm)
   Dk_dry = th_parameter%ckdry(ithrm)
   Dk_ice = th_parameter%ckfrozen(ithrm)
+
+#ifdef CLM_PFLOTRAN
+  if(auxvar%tkwet /= UNINITIALIZED_DOUBLE) then
+    Dk     = auxvar%tkwet
+    Dk_dry = auxvar%tkdry
+    Dk_ice = auxvar%tkfrz
+  endif
+#endif
 
   !Soil Kersten number
   Ke = (global_auxvar%sat(1) + epsilon)**(alpha)
@@ -841,179 +919,69 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     auxvar%ice%dmol_gas_dt   = 0.d0
   endif
 
-  ! zeroing a few new-added variables
-  auxvar%ice%du_gas_dp  = 0.d0
-  auxvar%ice%dden_gas_dp= 0.d0
-  auxvar%ice%du_ice_dp  = 0.d0
-  auxvar%ice%dmol_gas_dp= 0.d0
-
 end subroutine THAuxVarComputeFreezing
 
 ! ************************************************************************** !
-
-subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
-                                   material_auxvar,           &
-                                   isat_state,                &
-                                   characteristic_curves,     &
-                                   th_parameter, ithrm,       &
-                                   option)
+subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,     &
+                                    characteristic_curves,       &
+                                    sl,  dsl_dpl, dsl_dt,        &
+                                    si,  dsi_dpl, dsi_dt,        &
+                                    sg,  dsg_dpl, dsg_dt,        &
+                                    kr,  dkr_dpl, dkr_dt,        &
+                                    option)
   !
   ! Computes auxillary variables for each grid cell when
   ! ice and vapor phases are present
   !
-  ! Revised by fengming Yuan @03-08-2016/CCSI-ONRL (renamed as version 2)
-  ! NOTE: (1) ice_model 'PAINTER_KARRA_EXPLICIT'
-  !       (2) VG saturation_function, from 'Characteristic_Curves_module'
-  !       (3) smoothed MULEM permissivity function, from 'Characteristci_Curves_module' as well
+  ! Revised by fengming Yuan @03-08-2016/CCSI-ONRL
+  ! NOTE: (1) ice_model 'PAINTER_KARRA_EXPLICIT', or, 'PAINTER_KARRA_EXPLICIT_SMOOTH'
+  !       (2) ANY saturation_function, from 'Characteristic_Curves_module'
+  !       (3) ANY permissivity function, from 'Characteristci_Curves_module' as well
 
   use Option_module
-  use Global_Aux_module
-
-  use EOS_Water_module
   use Characteristic_Curves_module
-  use Material_Aux_class
 
   implicit none
 
   type(option_type) :: option
-  PetscReal,intent(in)        :: x(option%nflowdof)
-  type(TH_auxvar_type)        :: auxvar
-  type(global_auxvar_type)    :: global_auxvar
-  class(material_auxvar_type) :: material_auxvar
+  PetscReal, intent(in) :: pres_l   ! unit: Pa
+  PetscReal, intent(in) :: tc       ! unit: oC
   class(characteristic_curves_type) :: characteristic_curves
-  type(TH_parameter_type)           :: th_parameter
-  PetscInt, intent(in)  :: ithrm
-  PetscInt, intent(inout) :: isat_state
 
-  ! locals
+  PetscReal, intent(out) :: sl,  dsl_dpl, dsl_dt
+  PetscReal, intent(out) :: si,  dsi_dpl, dsi_dt
+  PetscReal, intent(out) :: sg,  dsg_dpl, dsg_dt
+  PetscReal, intent(out) :: kr,  dkr_dpl, dkr_dt
+
+  ! local variables
   PetscErrorCode :: ierr
 
-  ! liq. water
-  PetscReal :: pw, dpw_dp                            ! pressure
-  PetscReal :: denw_kg, denw_mol, ddenw_dp, ddenw_dt ! density
-  PetscReal :: hw, dhw_dp, dhw_dt                    ! enthalpy (h)
-  PetscReal :: u, du_dp, du_dt                       ! internal energy (u)
-  PetscReal :: kr, dkr_dse, dkr_dp, dkr_dt           ! permissivity (rel.)
-  PetscReal :: visl, dvisl_dp, dvisl_dt              ! viscosity
+  PetscReal :: pc
+  PetscReal :: sli, dsli_dp, xplice, dxplice_dp, dxplice_dt, slx, dslx_dx
+  PetscReal :: dkr_dse
 
-  ! ice
-  PetscReal :: den_ice, dden_ice_dt, dden_ice_dp
-  PetscReal :: u_ice, du_ice_dt
+  PetscReal :: se, dse_dpc, function_A, dfunc_A_dt, function_B, dfunc_B_dpl
 
-  ! air(gas)
-  PetscReal :: p_g
-  PetscReal :: mol_g
-  PetscReal :: C_g
-  PetscReal :: dmolg_dt, dmolg_dp
-  PetscReal :: krg, dkrg_dp, dkrg_dt                 ! permissivity (rel.)
-
-  ! saturations (multiple-phase mixture in por)
-  PetscReal :: sl, dsl_dp, dsl_dt
-  PetscReal :: sg, dsg_dp, dsg_dt
-  PetscReal :: si, dsi_dp, dsi_dt
-
-  ! thermal properties.
-  PetscReal :: Ke, Ke_fr         ! Kersten number: liq, ice
-  PetscReal :: alpha, alpha_fr   !
-  PetscReal :: dKe_dp, dKe_dt, dKe_fr_dp, dKe_fr_dt
-
-  ! misc.
-  PetscReal :: psat
-  PetscReal :: dpsat_dt, dvisl_dpsat
-
-  ! some thermal properties
-  PetscReal :: Dk
-  PetscReal :: Dk_dry
-  PetscReal :: Dk_ice
-  PetscReal, parameter :: C_a = 1.86d-3   ! air heat capacity: in MJ/kg/K at 300K
-  PetscReal, parameter :: C_wv = 1.005d-3 ! liq. water heat capacity: in MJ/kg/K
-
-  PetscReal, parameter :: Tf0  = 273.15d0        ! freezing-point at standard pressure: in K
-  PetscReal :: pl0, sli, dsli_dp, xplice, dxplice_dp, dxplice_dt, slx, dslx_dx
-
-  PetscReal :: tc, Tk, pres_l, pc
-  PetscInt  :: i,j
-  PetscBool :: saturated
-  character(len=MAXSTRINGLENGTH) :: error_string
-
-  !-----------------------------------------------------------------------------
-  pres_l = x(TH_PRESSURE_DOF)
-  tc = x(TH_TEMPERATURE_DOF)
-
-  global_auxvar%pres   = pres_l
-  global_auxvar%temp   = tc
-  global_auxvar%sat    = 0.d0    ! will be updated below
-  global_auxvar%den    = 0.d0
-  global_auxvar%den_kg = 0.d0
-
-  auxvar%h   = 0.d0
-  auxvar%u   = 0.d0
-  auxvar%kvr = 0.d0
-  auxvar%avgmw = FMWH2O
-
-  !
-  pc = max(0.d0, option%reference_pressure - global_auxvar%pres(1))   ! always non-negative (0 = saturated)
+  ! ----------------
+  ! (0) inputs
+  pc = max(0.d0, option%reference_pressure - pres_l)   ! always non-negative (0 = saturated)
   if (pc > abs(characteristic_curves%saturation_function%pcmax)) then
     pc = characteristic_curves%saturation_function%pcmax
-    global_auxvar%pres(1) = -pc + option%reference_pressure
-  endif
-  auxvar%pc =  pc
-
-  !***************  phase-relevant properties and derivatives, regarding to P/T *********************
-  if (auxvar%pc > 0.d0) then
-    isat_state = 3      ! unsaturated
-    saturated  = PETSC_FALSE
-  else
-    isat_state = 1      ! saturated
-    saturated  = PETSC_TRUE
   endif
 
-  ! assuming 3-phase H2O is under ONE common water head pressure ('pw') and temperature ('tc')
-  pw = option%reference_pressure
-  dpw_dp = 0.d0
-  if (saturated) then
-    pw = global_auxvar%pres(1)
-    dpw_dp = 1.d0
-  endif
+  !
+  ! (1) saturations
+  sl      = 0.d0  !all init to zero
+  dsl_dpl = 0.d0
+  dsl_dt  = 0.d0
+  si      = 0.d0
+  dsi_dpl = 0.d0
+  dsi_dt  = 0.d0
+  sg      = 1.d0
+  dsg_dpl = 0.d0
+  dsg_dt  = 0.d0
 
-  ! (1) densities (calculated at first, so that may be used later)
-  ! liq. water
-  call EOSWaterDensity(min(max(tc,-1.0d0),99.9d0), min(pw, 165.4d5), &
-                          denw_kg, denw_mol, ddenw_dp, ddenw_dt, ierr)
-  if (.not.saturated) ddenw_dp = 0.d0
-  if (pw>165.4d5+erf(1.0d-20)) ddenw_dp = 0.d0
-  if (tc<-1.d0+erf(-1.d-20) .or. tc>99.9d0+erf(1.d-20)) ddenw_dt = 0.d0
-
-  global_auxvar%den    = denw_mol
-  global_auxvar%den_kg = denw_kg
-  auxvar%dden_dt       = ddenw_dt
-  auxvar%dden_dp       = ddenw_dp
-
-  ! ice water, if any
-  ! when tc ~ -15oC, Ice-density change in the following function causes presure non-monotonic issue
-  call EOSWaterDensityIce(min(max(-10.d0,tc), 0.1d0), min(pres_l, 165.4d5), &
-                          den_ice, dden_ice_dt, dden_ice_dp, ierr)
-  if (pres_l>165.4d5+erf(1.d-20)) dden_ice_dp = 0.d0
-  if (tc<-10.d0+erf(-1.d-20)) dden_ice_dt = 0.d0
-  if (tc>0.01d0+erf(1.d-20)) dden_ice_dt = 0.d0
-  ! erf() function appears helpful to avoid zero-pivot issue around the criteria for truncation (???)
-
-  auxvar%ice%den_ice = den_ice
-  auxvar%ice%dden_ice_dt = dden_ice_dt
-  auxvar%ice%dden_ice_dp = dden_ice_dp
-
-  ! (2) saturations of multiple-phase water
-  sl     = 0.d0  !all init to zero
-  dsl_dp = 0.d0
-  dsl_dt = 0.d0
-  si     = 0.d0
-  dsi_dp = 0.d0
-  dsi_dt = 0.d0
-  sg     = 0.d0
-  dsg_dp = 0.d0
-  dsg_dt = 0.d0
-
-#if defined(CLM_PFLOTRAN) && defined(use_characteristic_curves_module)
+#ifdef CLM_PFLOTRAN
   ! fmy: the following only needs calling ONCE, but not yet figured out how
   ! because CLM's every single CELL has ONE set of SF/RPF parameters
   if(auxvar%bc_alpha /= UNINITIALIZED_DOUBLE) then
@@ -1055,50 +1023,100 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
   endif
 #endif
 
-  pl0 = pc
-  call characteristic_curves%saturation_function%Saturation(pl0, sli, dsli_dp, option)
-
-  ! in 'Saturaton_Function.F90', PKE subroutine: dsl_dp = -dS;
-  ! which appears opposite when using Characteristic_curves_module (see characteristic_curves.F90: line 2082)
-
   ! initial liq. saturation and derivatives
-  sl = sli
-  dsl_dp = dsli_dp
-  dsl_dt = 0.d0
+  call characteristic_curves%saturation_function%Saturation(pc, sli, dsli_dp, option)
+  sl      = sli
+  dsl_dpl = dsli_dp
+  dsl_dt  = 0.d0
 
-  ! if ice module turns on, 2-phase saturation recalculated (liq. and ice) under common 'pw' and 't'
+  ! if ice module turns on, 2-phase saturation recalculated (liq. and ice) under common 'pres_l' and 'tc'
   if (option%use_th_freezing) then
 
     call characteristic_curves%saturation_function%IceCapillaryPressure(pres_l, tc, &
                                    xplice, dxplice_dp, dxplice_dt, option)
 
-    call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
+    select case (option%ice_model)
+      case (PAINTER_EXPLICIT)
+
+        ! NOTE: in 'saturation_function.F90': SatFuncComputeIcePExplicit(), 'se' and 'dse_dpc' are used
+        ! while in 'characteristic_curves.F90': SF_VG_Saturaton(), the following are output:
+        !   sl = this%Sr + (1.d0-this%Sr)*Se
+        !   dsl_dpl = -(1.d0-this%Sr)*dSe_dpc
+
+        function_B = 1.d0
+        dfunc_B_dpl= 0.d0
+        if (pc>0.d0) then
+          se = (sl - characteristic_curves%saturation_function%Sr) &
+               /(1.0d0 - characteristic_curves%saturation_function%Sr)
+          dse_dpc = (-dsl_dpl)/(1.0d0 - characteristic_curves%saturation_function%Sr)
+
+          function_B = 1.d0/se
+          dfunc_B_dpl= 1.d0/(se*se)*dse_dpc
+        endif
+        !
+        function_A = 1.d0
+        dfunc_A_dt = 0.d0
+        if(tc<0.d0) then
+          call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
+          se = (slx - characteristic_curves%saturation_function%Sr) &
+              /(1.0d0 - characteristic_curves%saturation_function%Sr)
+          dse_dpc = (-dslx_dx)/(1.0d0 - characteristic_curves%saturation_function%Sr)
+
+          function_A = 1.d0/se
+          ! dfunc_A_dt = dfuncA_dslx * dslx_dx * dxplice_dt   (note: dslx_dx = dslx_dxplice)
+          dfunc_A_dt = 1.d0/(se*se)* dse_dpc
+          dfunc_A_dt = dfunc_A_dt * (-dxplice_dt)
+
+        endif
+
+        sl = 1.d0/(function_A + function_B - 1.d0)
+        sg = sl*(function_B - 1.d0)
+        si = sl*(function_A - 1.d0)
+
+        dsl_dpl = - 1.d0/(function_A + function_B - 1.d0)**(2.d0)*(dfunc_B_dpl)
+        dsl_dt  = - 1.d0/(function_A + function_B - 1.d0)**(2.d0)*(dfunc_A_dt)
+
+        dsg_dpl = dsl_dpl*(function_B - 1.d0) + sl*dfunc_B_dpl
+        dsg_dt  = dsl_dt*(function_B - 1.d0)
+
+        dsi_dpl = dsl_dpl*(function_A - 1.d0)
+        dsi_dt  = dsl_dt*(function_A - 1.d0) + sl*dfunc_A_dt
+
+      case (PAINTER_KARRA_EXPLICIT, PAINTER_KARRA_EXPLICIT_SMOOTH)
+        call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)
         ! in 'Saturaton_Function.F90', PKE subroutine: dsl_dp = -dS;
         ! which appears opposite when using Characteristic_curves_module (see characteristic_curves.F90: line 2082)
 
-    sl = slx
-    dsl_dt = -dslx_dx*dxplice_dt       ! In PKE subroutine of Sat_func, it's not adjusted by  'rhol(t)': dsl_dT = dS_dX*1.d0/T_0*(-beta*rho_l*L_f)
-    dsl_dp = dslx_dx*dxplice_dp        ! In PKE subroutine of Sat_func, it's 0 when Hfunc=1; it's -dS when Hfunc=0
+        ! liq. saturation and its derivatives, with ice-adjusted capillary pressure
+        sl      = slx
+        dsl_dt  = -dslx_dx*dxplice_dt
+        dsl_dpl = dslx_dx*dxplice_dp
 
-    ! ice satuation and its derivatives
-    si = 1.d0 - sl/sli                 ! P.-K. Eq.(19)
-    dsi_dt = -1.d0/sli*dsl_dt          ! dsli_dt = 0 (see above)
-    dsi_dp = (sl*dsli_dp-sli*dsl_dp)/(sli**2)
+        ! ice satuation and its derivatives
+        si = 1.d0 - sl/sli                 ! P.-K. Eq.(19)
+        dsi_dt = -1.d0/sli*dsl_dt          ! dsli_dt = 0 (see above)
+        dsi_dpl= (sl*dsli_dp-sli*dsl_dpl)/(sli**2)
 
+        ! gas phase
+        sg      = 1.d0 - sl - si
+        dsg_dpl = -dsl_dpl - dsi_dpl
+        dsg_dt  = -dsl_dt - dsi_dt
+
+      case default
+        option%io_buffer = 'Ice module NOT recognized'
+        call printErrMsg(option)
+
+    end select
   endif ! 'option%use_th_freezing'
-
-  !
-  sg = 1.d0 - sl - si
-  dsg_dp = -dsl_dp - dsi_dp
-  dsg_dt = -dsl_dt - dsi_dt
 
   ! Check for bounds on saturations
   if ((sl-1.d0)>1.d-15 .or. sl<-1.d-15) then
+    print *, tc, sli, sl, si, pc, xplice
     option%io_buffer = 'TH with ice mode: Liquid Saturation error: >1 or <0'
     call printErrMsg(option)
   endif
   if ((si-1.d0)>1.d-15 .or. si<-1.d-15) then
-    print *, Tk, sli, sl, si, pl0, xplice
+    print *, tc, sli, sl, si, pc, xplice
     option%io_buffer = 'TH with ice mode: ICE Saturation error:  >1 or <0'
     call printErrMsg(option)
   endif
@@ -1111,152 +1129,16 @@ subroutine THAuxVarComputeFreezing2(x, auxvar, global_auxvar, &
     call printErrMsg(option)
   endif
 
-  ! (3) relative permissivity of multiple-phase water
-  kr     = 0.d0  !all init to zero
-  dkr_dp = 0.d0
-  dkr_dt = 0.d0
-  krg    = 0.d0  !not yet done (TODO)
-  dkrg_dp= 0.d0
-  dkrg_dt= 0.d0
+  ! (2) relative permissivity of liq. water in multiple-phase mixture
+  kr      = 0.d0  !all initialized to zero
+  dkr_dpl = 0.d0
+  dkr_dt  = 0.d0
 
   call characteristic_curves%liq_rel_perm_function%RelativePermeability(sl, kr, dkr_dse, option)
-  dkr_dp = characteristic_curves%liq_rel_perm_function%DRelPerm_DPressure(dsl_dp, dkr_dse)
-  dkr_dt = dkr_dse/(1.d0-characteristic_curves%saturation_function%Sr)*dsl_dt
+  dkr_dpl = characteristic_curves%liq_rel_perm_function%DRelPerm_DPressure(dsl_dpl, dkr_dse)
+  dkr_dt  = dkr_dse/(1.d0-characteristic_curves%saturation_function%Sr)*dsl_dt
 
-
-  !***************  liq. phase properties **************************
-  ! saturation
-  global_auxvar%sat(1) = sl
-  auxvar%dsat_dp = dsl_dp
-  auxvar%dsat_dt = dsl_dt
-
-  ! enthalpy (h)
-  call EOSWaterEnthalpy(tc, pw, hw, dhw_dp, dhw_dt, ierr)
-  hw    = hw * option%scale     ! J/kmol -> MJ/kmol
-  dhw_dt = dhw_dt * option%scale
-  dhw_dp = dhw_dp * option%scale
-  if (.not.saturated) dhw_dp = 0.d0     !kludge since pw is constant in the unsat zone
-
-  auxvar%h     = hw
-  auxvar%dh_dp = dhw_dp
-  auxvar%dh_dt = dhw_dt
-
-  ! internal energy (u)
-  u = hw - pw / denw_mol * option%scale
-  du_dp = dhw_dp - &
-          (dpw_dp/denw_mol - pw/(denw_mol*denw_mol)*ddenw_dp)* option%scale
-  du_dt = dhw_dt + &
-          pw/(denw_mol*denw_mol)*option%scale*ddenw_dt
-
-  auxvar%u = u
-  auxvar%du_dp = du_dp
-  auxvar%du_dt = du_dt
-
-  ! viscosity
-  call EOSWaterSaturationPressure(tc,                     &
-                                  psat, dpsat_dt, ierr)
-  call EOSWaterViscosity(tc, pw, psat, dpsat_dt,          &
-              visl, dvisl_dt, dvisl_dp, dvisl_dpsat, ierr)
-  if (.not.saturated) dvisl_dp = 0.d0
-
-  auxvar%vis = visl
-  auxvar%kvr = kr/visl
-
-  auxvar%dkvr_dt = dkr_dt/visl - kr/(visl*visl)*dvisl_dt
-  auxvar%dkvr_dp = dkr_dp/visl - kr/(visl*visl)*dvisl_dp
-
-  !***************  ice phase properties **************************
-
-  auxvar%ice%sat_ice     = si
-  auxvar%ice%dsat_ice_dp = dsi_dp
-  auxvar%ice%dsat_ice_dt = dsi_dt
-
-  ! Calculate internal energy and derivatives for ice
-  call EOSWaterInternalEnergyIce(tc, u_ice, du_ice_dt)
-
-  auxvar%ice%u_ice = u_ice*1.d-3                  !kJ/kmol --> MJ/kmol
-  auxvar%ice%du_ice_dt = du_ice_dt*1.d-3          !kJ/kmol/K --> MJ/kmol/K
-  auxvar%ice%du_ice_dp = 0.d0
-
-  !***************  (air) gas phase properties **************************
-  auxvar%ice%sat_gas = sg
-  auxvar%ice%dsat_gas_dp = dsg_dp
-  auxvar%ice%dsat_gas_dt = dsg_dt
-
-  Tk    = tc + Tf0
-  p_g   = pw
-
-  mol_g    = psat/p_g
-  dmolg_dt = dpsat_dt/p_g
-  dmolg_dp = -psat/p_g/p_g
-  if (.not.saturated) dmolg_dp = 0.d0
-
-  C_g   = C_wv*mol_g*FMWH2O + C_a*(1.d0 - mol_g)*FMWAIR        ! in MJ/kmol/K
-
-! editing 'gas' density component for testing
-! test shows that, with 'gas' density as following,
-! infiltration will cause unsaturated cell temperature increase about 0.14oC if constant T BC assumed;
-! otherwise, only increase 0.02oC, and it also reduces timesteps.
-  auxvar%ice%den_gas     = p_g/(IDEAL_GAS_CONSTANT*Tk)*1.d-3       ! in kmol/m3
-  auxvar%ice%dden_gas_dt = - p_g/(IDEAL_GAS_CONSTANT*Tk**2)*1.d-3
-  auxvar%ice%dden_gas_dp = 1.d0/(IDEAL_GAS_CONSTANT*Tk)*1.d-3
-  if(.not.saturated) then
-    auxvar%ice%dden_gas_dp = 0.d0
-  endif
-
-  auxvar%ice%mol_gas     = mol_g        ! vapor fraction in (air) gas
-  auxvar%ice%dmol_gas_dt = dmolg_dt
-  auxvar%ice%dmol_gas_dp = dmolg_dp
-
-  auxvar%ice%u_gas       = C_g*Tk           ! in MJ/kmol
-  auxvar%ice%du_gas_dt   = C_g + Tk*(C_wv*FMWH2O-C_a*FMWAIR)*dmolg_dt
-  auxvar%ice%du_gas_dp   = Tk*(C_wv*FMWH2O-C_a*FMWAIR)*dmolg_dp
-
-  !***************  mixture properties **************************
-  ! Parameters for computation of effective thermal conductivity
-  alpha    = th_parameter%alpha(ithrm)
-  alpha_fr = th_parameter%alpha_fr(ithrm)
-  Dk     = th_parameter%ckwet(ithrm)
-  Dk_dry = th_parameter%ckdry(ithrm)
-  Dk_ice = th_parameter%ckfrozen(ithrm)
-
-#ifdef CLM_PFLOTRAN
-  if(auxvar%tkwet /= UNINITIALIZED_DOUBLE) then
-    Dk     = auxvar%tkwet
-    Dk_dry = auxvar%tkdry
-    Dk_ice = auxvar%tkfrz
-  endif
-#endif
-
-  !Soil Kersten number
-  Ke = (sl+epsilon)**(alpha)
-  Ke_fr = (si+epsilon)**(alpha_fr)
-  auxvar%Ke = Ke
-  auxvar%ice%Ke_fr = Ke_fr
-
-  ! Effective thermal conductivity
-  auxvar%Dk_eff = Dk*Ke + Dk_ice*Ke_fr + (1.d0 - Ke - Ke_fr)*Dk_dry
-
-  ! Derivative of Kersten number
-  dKe_dp = alpha*((sl+epsilon)**(alpha - 1.d0))*dsl_dp
-  dKe_dt = alpha*((sl+epsilon)**(alpha - 1.d0))*dsl_dt
-  dKe_fr_dt = alpha_fr*((si+epsilon)**(alpha_fr - 1.d0))*dsi_dt
-  dKe_fr_dp = alpha_fr*((si+epsilon)**(alpha_fr - 1.d0))*dsi_dp
-
-  auxvar%dKe_dp = 0.d0
-  auxvar%dKe_dt = 0.d0
-  auxvar%ice%dKe_fr_dt = 0.d0
-  auxvar%ice%dKe_fr_dp = 0.d0
-  if (sl>0.d0) then
-    auxvar%dKe_dp = dKe_dp
-    auxvar%dKe_dt = dKe_dt
-  endif
-  if (si>0.d0) then
-    auxvar%ice%dKe_fr_dp = dKe_fr_dp
-    auxvar%ice%dKe_fr_dt = dKe_fr_dt
-  endif
-
-end subroutine THAuxVarComputeFreezing2
+end subroutine THAuxVarComputeCharacteristicCurves
 
 ! ************************************************************************** !
 

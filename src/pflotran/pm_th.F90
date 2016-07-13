@@ -150,20 +150,20 @@ subroutine PMTHRead(this,input)
             option%ice_model = PAINTER_KARRA_IMPLICIT
           case ('PAINTER_KARRA_EXPLICIT')
             option%ice_model = PAINTER_KARRA_EXPLICIT
+          case ('PAINTER_KARRA_EXPLICIT_NOCRYO')
+            option%ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
           case ('PAINTER_KARRA_EXPLICIT_SMOOTH')
             option%ice_model = PAINTER_KARRA_EXPLICIT_SMOOTH
             call InputReadDouble(input,option,tempreal)
             call InputDefaultMsg(input,option,'freezing-thawing smoothing')
             if(tempreal > 1.d-10) option%frzthw_halfwidth = tempreal
-          case ('PAINTER_KARRA_EXPLICIT_NOCRYO')
-            option%ice_model = PAINTER_KARRA_EXPLICIT_NOCRYO
           case ('DALL_AMICO')
             option%ice_model = DALL_AMICO
           case default
             option%io_buffer = 'Cannot identify the specificed ice model.' // &
              'Specify PAINTER_EXPLICIT or PAINTER_KARRA_IMPLICIT' // &
              ' or PAINTER_KARRA_EXPLICIT or PAINTER_KARRA_EXPLICIT_NOCRYO ' // &
-             ' or DALL_AMICO or PAINTER_KARRA_EXPLICIT_SMOOTH.'
+             ' or PAINTER_KARRA_EXPLICIT_SMOOTH or DALL_AMICO.'
             call printErrMsg(option)
           end select
       case default
@@ -732,9 +732,7 @@ subroutine PMTHMaxChange(this)
   
   call THMaxChange(this%realization,this%max_pressure_change, &
                    this%max_temperature_change)
-#ifndef CLM_PFLOTRAN
-! the following produces a large txt file.
-  if (this%option%print_screen_flag) then
+    if (this%option%print_screen_flag) then
     write(*,'("  --> max chng: dpmx= ",1pe12.4," dtmpmx= ",1pe12.4)') &
       this%max_pressure_change,this%max_temperature_change
   endif
@@ -743,7 +741,7 @@ subroutine PMTHMaxChange(this)
       & " dtmpmx= ",1pe12.4)') &
       this%max_pressure_change,this%max_temperature_change
   endif 
-#endif
+
 end subroutine PMTHMaxChange
 
 ! ************************************************************************** !
