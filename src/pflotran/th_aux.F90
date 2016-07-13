@@ -659,6 +659,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   PetscReal :: Dk
   PetscReal :: Dk_dry
   PetscReal :: Dk_ice
+  character(len=MAXSTRINGLENGTH) :: error_string
 
   out_of_table_flag = PETSC_FALSE
  
@@ -753,6 +754,49 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   end select
 
 #else
+
+#ifdef CLM_PFLOTRAN
+  ! fmy: the following only needs calling ONCE, but not yet figured out how
+  ! because CLM's every single CELL has ONE set of SF/RPF parameters
+  if(auxvar%bc_alpha /= UNINITIALIZED_DOUBLE) then
+    select type(sf => characteristic_curves%saturation_function)
+      !class is(sat_func_VG_type)
+        ! not-yet
+      class is(sat_func_BC_type)
+        sf%alpha  = auxvar%bc_alpha
+        sf%lambda = auxvar%bc_lambda
+        sf%Sr  = auxvar%bc_sr1
+        ! needs to re-calculate some extra variables for 'saturation_function', if changed above
+        error_string = 'passing CLM characterisitc-curves parameters: sat_function'
+        call sf%SetupPolynomials(option,error_string)
+
+      class default
+        option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
+          ' when coupled with CLM.'
+        call printErrMsg(option)
+    end select
+
+    select type(rpf => characteristic_curves%liq_rel_perm_function)
+      !class is(rpf_Mualem_VG_liq_type)
+        ! not yet
+
+      class is(rpf_Burdine_BC_liq_type)
+        rpf%lambda = auxvar%bc_lambda
+        rpf%Sr  = auxvar%bc_sr1
+
+      ! Burdine_BC_liq RPF has no spline-smoothing (@ May-05-2016)
+      !error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
+      !call rpf%SetupPolynomials(option,error_string)
+
+      class default
+        option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
+          ' when coupled with CLM.'
+        call printErrMsg(option)
+    end select
+
+  endif
+#endif
+
   ! using modules in 'characteristic_curves.F90' to calculate needed variables: saturations and derivatives for 3 phases
   call THAuxVarComputeCharacteristicCurves(global_auxvar%pres(1), global_auxvar%temp,  &
                                            characteristic_curves,                      &
@@ -980,48 +1024,6 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,     &
   sg      = 1.d0
   dsg_dpl = 0.d0
   dsg_dt  = 0.d0
-
-#ifdef CLM_PFLOTRAN
-  ! fmy: the following only needs calling ONCE, but not yet figured out how
-  ! because CLM's every single CELL has ONE set of SF/RPF parameters
-  if(auxvar%bc_alpha /= UNINITIALIZED_DOUBLE) then
-    select type(sf => characteristic_curves%saturation_function)
-      !class is(sat_func_VG_type)
-        ! not-yet
-      class is(sat_func_BC_type)
-        sf%alpha  = auxvar%bc_alpha
-        sf%lambda = auxvar%bc_lambda
-        sf%Sr  = auxvar%bc_sr1
-        ! needs to re-calculate some extra variables for 'saturation_function', if changed above
-        error_string = 'passing CLM characterisitc-curves parameters: sat_function'
-        call sf%SetupPolynomials(option,error_string)
-
-      class default
-        option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
-          ' when coupled with CLM.'
-        call printErrMsg(option)
-    end select
-
-    select type(rpf => characteristic_curves%liq_rel_perm_function)
-      !class is(rpf_Mualem_VG_liq_type)
-        ! not yet
-
-      class is(rpf_Burdine_BC_liq_type)
-        rpf%lambda = auxvar%bc_lambda
-        rpf%Sr  = auxvar%bc_sr1
-
-      ! Burdine_BC_liq RPF has no spline-smoothing (@ May-05-2016)
-      !error_string = 'passing CLM characterisitc-curves parameters: rpf_function'
-      !call rpf%SetupPolynomials(option,error_string)
-
-      class default
-        option%io_buffer = 'Currently ONLY support Brooks_COREY-Burdine liq. permissivity function type' // &
-          ' when coupled with CLM.'
-        call printErrMsg(option)
-    end select
-
-  endif
-#endif
 
   ! initial liq. saturation and derivatives
   call characteristic_curves%saturation_function%Saturation(pc, sli, dsli_dp, option)
