@@ -404,7 +404,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   PetscErrorCode :: ierr
   PetscReal :: pw,dw_kg,dw_mol,hw,sat_pressure,visl
   PetscReal :: kr, ds_dp, dkr_dp, dkr_dse
-  PetscReal :: dvis_dt, dvis_dp, dvis_dpsat
+  PetscReal :: dvis_dt, dvis_dp
   PetscReal :: dw_dp, dw_dt, hw_dp, hw_dt
   PetscReal :: dpw_dp
   PetscReal :: dpsat_dt
@@ -600,7 +600,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   PetscErrorCode :: ierr
   PetscReal :: pw, dw_kg, dw_mol, hw, sat_pressure, visl
   PetscReal :: kr, ds_dp, dkr_dp, dkr_dt
-  PetscReal :: dvis_dt, dvis_dp, dvis_dpsat
+  PetscReal :: dvis_dt, dvis_dp
   PetscReal :: dw_dp, dw_dt, hw_dp, hw_dt
   PetscReal :: dpw_dp
   PetscReal :: dpsat_dt
@@ -750,7 +750,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   call EOSWaterSaturationPressure(global_auxvar%temp, sat_pressure, &
                                   dpsat_dt, ierr)
   call EOSWaterViscosity(global_auxvar%temp, pw, sat_pressure, dpsat_dt, &
-                         visl, dvis_dt,dvis_dp, dvis_dpsat, ierr)
+                         visl, dvis_dt,dvis_dp, ierr)
 
   if (iphase == 3) then !kludge since pw is constant in the unsat zone
     dvis_dp = 0.d0

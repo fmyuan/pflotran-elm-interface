@@ -117,6 +117,10 @@ ifdef smoothing2
   MYFLAGS += ${FC_DEFINE_FLAG}smoothing2
 endif
 
+ifdef geomech_debug
+  MYFLAGS += ${FC_DEFINE_FLAG}GEOMECH_DEBUG
+endif
+
 UPDATE_PROVENANCE=0
 ifdef provenance
   UPDATE_PROVENANCE=1
