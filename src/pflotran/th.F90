@@ -2917,11 +2917,19 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         ! ---------------------------
         ! Subsurface only simulation
         ! ---------------------------
-        Jdn(option%nflowdof,1) = Jdn(option%nflowdof,1) + &
+
+        ! for 'seepage' bc of pressure, turn-off thermal conduction btw cell and external seepage entity
+        ! (fmy: Mar-31-2016. This appears will save computing time)
+        if (ibndtype(TH_PRESSURE_DOF) /= SEEPAGE_BC) then
+
+          Jdn(option%nflowdof,1) = Jdn(option%nflowdof,1) + &
                 area*(global_auxvar_up%temp - global_auxvar_dn%temp)*dDk_dp_dn
 
-        Jdn(option%nflowdof,2) = Jdn(option%nflowdof,2) + Dk*area*(-1.d0) + &
+          Jdn(option%nflowdof,2) = Jdn(option%nflowdof,2) + Dk*area*(-1.d0) + &
                 area*(global_auxvar_up%temp - global_auxvar_dn%temp)*dDk_dt_dn
+
+        endif
+
       else
         ! ---------------------------
         ! Surface-subsurface simulation
@@ -3450,6 +3458,15 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
             (hw_present)) then
           cond = 0.d0
         endif
+
+      else  ! subsurface only simulation
+        ! for 'seepage' bc of pressure, turn-off thermal conduction btw cell and 'seepage' external body
+        ! so that water out flow with bulk energy move only but no thermal convection
+        ! (fmy: Mar-31-2016. This appears will save computing time)
+        if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
+          cond = 0.d0
+        endif
+
       endif
       fluxe = fluxe + cond
       fluxe_cond = cond

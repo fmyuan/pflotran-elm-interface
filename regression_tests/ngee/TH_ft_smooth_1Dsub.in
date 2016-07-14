@@ -169,7 +169,7 @@ END
 OUTPUT
   SCREEN PERIODIC 48
   PERIODIC TIMESTEP 1
-  !FORMAT HDF5
+  FORMAT HDF5
 END
 
 !=============================================================================================
