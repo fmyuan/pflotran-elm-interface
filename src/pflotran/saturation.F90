@@ -66,7 +66,7 @@ subroutine SaturationUpdateCoupler(coupler,option,grid,saturation_functions, &
     local_id = coupler%connection_set%id_dn(iconn)
     ghosted_id = grid%nL2G(local_id)
 
-#ifndef use_characteristic_curves_module
+#ifndef TH_CHARACTERISTIC_CURVES
     if (option%iflowmode == TH_MODE) then
       call SatFuncGetCapillaryPressure(capillary_pressure,saturation, &
                      option%reference_temperature, &

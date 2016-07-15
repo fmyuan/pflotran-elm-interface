@@ -101,6 +101,10 @@ ifdef debug
   MYFLAGS += ${FC_DEFINE_FLAG}DEBUG
 endif
 
+ifdef th_characteristic_curves
+  MYFLAGS += ${FC_DEFINE_FLAG}TH_CHARACTERISTIC_CURVES
+endif
+
 ifdef use_matseqaij_fix
   MYFLAGS += ${FC_DEFINE_FLAG}USE_MATSEQAIJ_FIX
 endif
@@ -109,12 +113,8 @@ ifdef debug_geomech_regression
   MYFLAGS += ${FC_DEFINE_FLAG}GEOMECHANICS_REGRESSION_DEBUG
 endif
 
-ifdef use_characteristic_curves
-  MYFLAGS += ${FC_DEFINE_FLAG}use_characteristic_curves_module
-endif
-
-ifdef smoothing2
-  MYFLAGS += ${FC_DEFINE_FLAG}smoothing2
+ifdef geomech_debug
+  MYFLAGS += ${FC_DEFINE_FLAG}GEOMECH_DEBUG
 endif
 
 UPDATE_PROVENANCE=0

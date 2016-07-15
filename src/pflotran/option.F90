@@ -414,6 +414,7 @@ subroutine OptionInitRealization(option)
   option%use_mc = PETSC_FALSE
   option%set_secondary_init_temp = PETSC_FALSE
   option%ice_model = PAINTER_EXPLICIT
+  option%frzthw_halfwidth = UNINITIALIZED_DOUBLE
   option%set_secondary_init_conc = PETSC_FALSE
   
   option%update_flow_perm = PETSC_FALSE
