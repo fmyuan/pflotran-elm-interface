@@ -59,10 +59,10 @@ module TH_Aux_module
     PetscReal :: dKe_fr_dt
     ! ice
     PetscReal :: sat_ice
-    PetscReal :: dsat_ice_dp
-    PetscReal :: dsat_ice_dt
     PetscReal :: sat_gas
+    PetscReal :: dsat_ice_dp
     PetscReal :: dsat_gas_dp
+    PetscReal :: dsat_ice_dt
     PetscReal :: dsat_gas_dt
     PetscReal :: den_ice
     PetscReal :: dden_ice_dp
@@ -98,8 +98,8 @@ module TH_Aux_module
 
   type, public :: TH_parameter_type
     PetscReal, pointer :: dencpr(:)
-    PetscReal, pointer :: ckdry(:)    ! Thermal conductivity (dry)
-    PetscReal, pointer :: ckwet(:)    ! Thermal conductivity (wet)
+    PetscReal, pointer :: ckdry(:) ! Thermal conductivity (dry)
+    PetscReal, pointer :: ckwet(:) ! Thermal conductivity (wet)
     PetscReal, pointer :: alpha(:)
     PetscReal, pointer :: ckfrozen(:) ! Thermal conductivity (frozen soil)
     PetscReal, pointer :: alpha_fr(:) ! exponent frozen
@@ -394,7 +394,7 @@ end subroutine THAuxVarCopy
 subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
                                      material_auxvar, &
                                      iphase, &
-#ifdef use_characteristic_curves_module
+#ifdef TH_CHARACTERISTIC_CURVES
                                      characteristic_curves,    &
 #else
                                      saturation_function,      &
@@ -419,7 +419,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   implicit none
 
   type(option_type) :: option
-#ifdef use_characteristic_curves_module
+#ifdef TH_CHARACTERISTIC_CURVES
   class(characteristic_curves_type), pointer :: characteristic_curves
 #else
   type(saturation_function_type) :: saturation_function
@@ -434,8 +434,8 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
 
   PetscErrorCode :: ierr
   PetscReal :: pw,dw_kg,dw_mol,hw,sat_pressure,visl
-  PetscReal :: kr, ds_dp, dkr_dp, dkr_dse
-  PetscReal :: dvis_dt, dvis_dp, dvis_dpsat
+  PetscReal :: kr, ds_dp, dkr_dp, dkr_dsl
+  PetscReal :: dvis_dt, dvis_dp
   PetscReal :: dw_dp, dw_dt, hw_dp, hw_dt
   PetscReal :: dpw_dp
   PetscReal :: dpsat_dt
@@ -475,14 +475,14 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   if (auxvar%pc > 1.d0) then
     iphase = 3
 
-#ifdef use_characteristic_curves_module
+#ifdef TH_CHARACTERISTIC_CURVES
     call characteristic_curves%saturation_function%Saturation(auxvar%pc, &
          global_auxvar%sat(1), ds_dp, option)
 
     call characteristic_curves%liq_rel_perm_function%RelativePermeability( &
          global_auxvar%sat(1), &
-         kr, dkr_dse, option)
-    dkr_dp = characteristic_curves%liq_rel_perm_function%DRelPerm_DPressure(ds_dp, dkr_dse)
+         kr, dkr_dsl, option)
+    dkr_dp = dkr_dsl*ds_dp
 
 #else
     call SaturationFunctionCompute(auxvar%pc,global_auxvar%sat(1), &
@@ -510,13 +510,13 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
   if (.not.option%flow%density_depends_on_salinity) then
     call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,dw_dp,dw_dt,ierr)
     call EOSWaterViscosity(global_auxvar%temp,pw,sat_pressure,dpsat_dt,visl, &
-                           dvis_dt,dvis_dp,dvis_dpsat,ierr)
+                           dvis_dt,dvis_dp,ierr)
   else
     aux(1) = global_auxvar%m_nacl(1)
     call EOSWaterDensityExt(global_auxvar%temp,pw,aux, &
                             dw_kg,dw_mol,dw_dp,dw_dt,ierr)
     call EOSWaterViscosityExt(global_auxvar%temp,pw,sat_pressure,dpsat_dt,aux, &
-                              visl,dvis_dt,dvis_dp,dvis_dpsat,ierr)
+                              visl,dvis_dt,dvis_dp,ierr)
   endif
   ! J/kmol -> whatever units
   hw = hw * option%scale
@@ -587,7 +587,7 @@ end subroutine THAuxVarComputeNoFreezing
 subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                                    material_auxvar,          &
                                    iphase,                   &
-#ifdef use_characteristic_curves_module
+#ifdef TH_CHARACTERISTIC_CURVES
                                    characteristic_curves,    &
 #else
                                    saturation_function,      &
@@ -615,7 +615,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   implicit none
 
   type(option_type) :: option
-#ifdef use_characteristic_curves_module
+#ifdef TH_CHARACTERISTIC_CURVES
   class(characteristic_curves_type), pointer :: characteristic_curves
 #else
   type(saturation_function_type) :: saturation_function
@@ -631,7 +631,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   PetscErrorCode :: ierr
   PetscReal :: pw, dw_kg, dw_mol, hw, sat_pressure, visl
   PetscReal :: kr, ds_dp, dkr_dp, dkr_dt
-  PetscReal :: dvis_dt, dvis_dp, dvis_dpsat
+  PetscReal :: dvis_dt, dvis_dp
   PetscReal :: dw_dp, dw_dt, hw_dp, hw_dt
   PetscReal :: dpw_dp
   PetscReal :: dpsat_dt
@@ -700,7 +700,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
     dpw_dp = 1.d0
   endif  
   
-#ifndef use_characteristic_curves_module
+#ifndef TH_CHARACTERISTIC_CURVES
   call CapillaryPressureThreshold(saturation_function,p_th,option)
 
   select case (option%ice_model)
@@ -807,6 +807,13 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                                            option)
 
 
+  if (option%ice_model == DALL_AMICO) then
+    auxvar%ice%pres_fh2o     = global_auxvar%pres(1)
+    auxvar%ice%dpres_fh2o_dp = 1.d0
+    auxvar%ice%dpres_fh2o_dt = 0.d0
+  endif
+
+
 #endif
 
   call EOSWaterDensity(min(max(global_auxvar%temp,-1.0d0),99.9d0), &    ! tc: -1 ~ 99.9 oC
@@ -825,7 +832,7 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
   call EOSWaterSaturationPressure(global_auxvar%temp, sat_pressure, &
                                   dpsat_dt, ierr)
   call EOSWaterViscosity(global_auxvar%temp, pw, sat_pressure, dpsat_dt, &
-                         visl, dvis_dt,dvis_dp, dvis_dpsat, ierr)
+                         visl, dvis_dt,dvis_dp, ierr)
 
   if (iphase == 3) then !kludge since pw is constant in the unsat zone
     dvis_dp = 0.d0
@@ -1002,7 +1009,7 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,     &
 
   PetscReal :: pc
   PetscReal :: sli, dsli_dp, xplice, dxplice_dp, dxplice_dt, slx, dslx_dx
-  PetscReal :: dkr_dse
+  PetscReal :: dkr_dsl
 
   PetscReal :: se, dse_dpc, function_A, dfunc_A_dt, function_B, dfunc_B_dpl
 
@@ -1104,6 +1111,29 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,     &
         dsg_dpl = -dsl_dpl - dsi_dpl
         dsg_dt  = -dsl_dt - dsi_dt
 
+      case (DALL_AMICO)
+
+        ! Model from Dall'Amico (2010) and Dall' Amico et al. (2011)
+        ! rewritten following 'saturation_function.F90:SatFuncComputeIceDallAmico()'
+        ! NOTE: here calculate 'saturations and its derivatives'
+
+        call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)   ! Pc1 ---> S1
+
+        !
+        sl     = slx
+        si     = sli - sl
+
+        dsl_dpl= dslx_dx * dxplice_dp
+        dsi_dpl= dsli_dp - dsl_dpl
+
+        dsl_dt = -dslx_dx * dxplice_dt
+        dsi_dt = -dsl_dt                 ! dsli_dt = 0 (see above)
+
+        ! gas phase
+        sg      = 1.d0 - sl - si
+        dsg_dpl = -dsl_dpl - dsi_dpl
+        dsg_dt  = -dsl_dt - dsi_dt
+
       case default
         option%io_buffer = 'Ice module NOT recognized'
         call printErrMsg(option)
@@ -1133,12 +1163,12 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,     &
 
   ! (2) relative permissivity of liq. water in multiple-phase mixture
   kr      = 0.d0  !all initialized to zero
-  dkr_dpl = 0.d0
+  dkr_dsl = 0.d0
   dkr_dt  = 0.d0
 
-  call characteristic_curves%liq_rel_perm_function%RelativePermeability(sl, kr, dkr_dse, option)
-  dkr_dpl = characteristic_curves%liq_rel_perm_function%DRelPerm_DPressure(dsl_dpl, dkr_dse)
-  dkr_dt  = dkr_dse/(1.d0-characteristic_curves%saturation_function%Sr)*dsl_dt
+  call characteristic_curves%liq_rel_perm_function%RelativePermeability(sl, kr, dkr_dsl, option)
+  dkr_dpl = dkr_dsl*dsl_dpl
+  dkr_dt  = dkr_dsl*dsl_dt
 
 end subroutine THAuxVarComputeCharacteristicCurves
 
