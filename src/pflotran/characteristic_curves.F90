@@ -2229,8 +2229,8 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   PetscReal :: denw_kg, denw_mol, ddenw_dp, ddenw_dt
 
   PetscReal :: Hfunc, dHfunc, tempreal
-
   PetscReal :: deltaTf, xTf, a, b, c
+  PetscReal :: beta2, T_star, T_star_th, T_star_min, T_star_max
 
   PetscErrorCode :: ierr
 
@@ -2374,9 +2374,50 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         ice_pc     =  ice_pc + pcgl
         dice_pc_dp =  dice_pc_dp + 1.d0           ! dpcgl_dp = 1.0 and dpcgl_dt = 0
 
+      case (DALL_AMICO)
+
+        ! Model from Dall'Amico (2010) and Dall' Amico et al. (2011)
+        ! rewritten following 'saturation_function.F90:SatFuncComputeIceDallAmico()'
+        ! NOTE: here only calculate Pc1 and its derivatives
+        ice_pc = pcgl
+        dice_pc_dt = 0.d0
+        dice_pc_dp = 1.d0
+
+        !
+        T_star_th  = 5.d-1                       ! unit: Kevin
+        beta2      = 1.d0   !beta                  ! NOT sure why changed to 1. in saturation_function.F90.
+
+        T_star = T0-1.d0/beta2/Lf/rhol*pcgl !Tf  ! 'T_star' should be Tf as calculated above, when using same CONSTANTS
+        T_star_min = T_star - T_star_th
+        T_star_max = T_star
+
+        ! H function
+        if (Tk<T_star_min) then
+          Hfunc = 1.0d0
+          dHfunc= 0.d0
+        else if (Tk>T_star_max) then
+          Hfunc = 0.0d0
+          dHfunc= 0.d0
+        else
+          tempreal = (Tk-T_star_min)/(T_star_max-T_star_min)
+          tempreal = 1.d0 - tempreal*tempreal
+          Hfunc = tempreal * tempreal
+          dHfunc= -4.0d0*tempreal &
+                  *(Tk-T_star_min)/(T_star_max-T_star_min)/(T_star_max-T_star_min)
+        endif
+
+        !
+        ice_pc     = pcgl - beta2 *  (Tk-T_star)/T_star *Lf*rhol * Hfunc
+        dice_pc_dt = -beta2/T_star*Lf*rhol*        &
+                     (Hfunc + (Tk-T_star)*dHfunc)    ! dT_star/dt = 0.d0
+        dice_pc_dp = 1.0d0 - Tk/T_star/T_star*Hfunc  ! dT_star/dp = -1.d0/beta2/Lf/rhol
+
       case default
         option%io_buffer = 'SF_Ice_CapillaryPressure: characteristic-curve now only support ice-model: ' // &
-          'PAINTER_KARRA_EXPLICIT, or, PAINTER_KARRA_EXPLICIT_SMOOTH. '
+          'PAINTER_KARRA_EXPLICIT, or PAINTER_KARRA_EXPLICIT_SMOOTH, or ' // &
+          'PAINTER_EXPLICIT, or ' // &
+          'DALL_AMICO '
+
         call printErrMsg(option)
 
     end select ! select case (option%ice_model)

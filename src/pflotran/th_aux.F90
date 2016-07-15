@@ -732,14 +732,18 @@ subroutine THAuxVarComputeFreezing(x, auxvar, global_auxvar, &
                                            option)
 
 
+  if (option%ice_model == DALL_AMICO) then
+    auxvar%ice%pres_fh2o     = global_auxvar%pres(1)
+    auxvar%ice%dpres_fh2o_dp = 1.d0
+    auxvar%ice%dpres_fh2o_dt = 0.d0
+  endif
+
+
 #endif
 
-  call EOSWaterDensity(min(max(global_auxvar%temp,-1.0d0),99.9d0), &    ! tc: -1 ~ 99.9 oC
-                       min(pw, 165.4d5),                           &    ! p: ~ 16.54 MPa
+  call EOSWaterDensity(global_auxvar%temp, pw,                           &
                        dw_kg, dw_mol, dw_dp, dw_dt, ierr)
   if (iphase == 3) dw_dp = 0.d0
-  if (pw>165.4d5) dw_dp = 0.d0
-  if (global_auxvar%temp<-1.d0 .or. global_auxvar%temp>99.9d0) dw_dt = 0.d0
 
   call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,dw_dp,dw_dt,ierr)
   call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,hw_dp,hw_dt,ierr)
@@ -1010,6 +1014,29 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,     &
         si = 1.d0 - sl/sli                 ! P.-K. Eq.(19)
         dsi_dt = -1.d0/sli*dsl_dt          ! dsli_dt = 0 (see above)
         dsi_dpl= (sl*dsli_dp-sli*dsl_dpl)/(sli**2)
+
+        ! gas phase
+        sg      = 1.d0 - sl - si
+        dsg_dpl = -dsl_dpl - dsi_dpl
+        dsg_dt  = -dsl_dt - dsi_dt
+
+      case (DALL_AMICO)
+
+        ! Model from Dall'Amico (2010) and Dall' Amico et al. (2011)
+        ! rewritten following 'saturation_function.F90:SatFuncComputeIceDallAmico()'
+        ! NOTE: here calculate 'saturations and its derivatives'
+
+        call characteristic_curves%saturation_function%Saturation(xplice, slx, dslx_dx, option)   ! Pc1 ---> S1
+
+        !
+        sl     = slx
+        si     = sli - sl
+
+        dsl_dpl= dslx_dx * dxplice_dp
+        dsi_dpl= dsli_dp - dsl_dpl
+
+        dsl_dt = -dslx_dx * dxplice_dt
+        dsi_dt = -dsl_dt                 ! dsli_dt = 0 (see above)
 
         ! gas phase
         sg      = 1.d0 - sl - si
