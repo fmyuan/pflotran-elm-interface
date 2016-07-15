@@ -112,7 +112,7 @@ ifdef th_characteristic_curves
 endif
 
 ifdef smoothing2
-  MYFLAGS += ${FC_DEFINE_FLAG}smoothing2
+  MYFLAGS += ${FC_DEFINE_FLAG}SMOOTHING2
 endif
 
 ifdef use_matseqaij_fix

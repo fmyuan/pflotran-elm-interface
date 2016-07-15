@@ -105,7 +105,7 @@ module Characteristic_Curves_module
   ! Begin Relative Permeability Functions -------------------------------------
   type :: rel_perm_func_base_type
     type(polynomial_type), pointer :: poly
-#ifdef smoothing2
+#ifdef SMOOTHING2
     type(polynomial_type), pointer :: poly2     ! dry-end of the curve
 #endif
     PetscReal :: Sr
@@ -1834,7 +1834,7 @@ subroutine RPFBaseInit(this)
 
   ! Cannot allocate here.  Allocation takes place in daughter class
   nullify(this%poly)
-#ifdef smoothing2
+#ifdef SMOOTHING2
   nullify(this%poly2)
 #endif
   this%Sr = UNINITIALIZED_DOUBLE
@@ -2523,7 +2523,7 @@ subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
   PetscReal :: one_plus_pc_alpha_n
   PetscReal :: pc_alpha_n
   PetscReal :: pc_alpha
-#ifdef smoothing2
+#ifdef SMOOTHING2
   PetscReal :: Hfunc, x, dx, delta, sharpness
 #endif
 
@@ -2549,7 +2549,7 @@ subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
 
   capillary_pressure = min(capillary_pressure,this%pcmax)
 
-#ifdef smoothing2
+#ifdef SMOOTHING2
   ! fmy: by VG function, mathemaatically @Sr, pc = infinity
   !      So, @pcmax, S is not necessarily equaled to Sr, and requiring smoothing
 
@@ -2820,7 +2820,7 @@ subroutine SF_BC_CapillaryPressure(this,liquid_saturation, &
   
   PetscReal :: Se
   PetscReal :: dummy_real
-#ifdef smoothing2
+#ifdef SMOOTHING2
   PetscReal :: Hfunc, x, dx, delta, sharpness
 #endif
   
@@ -2849,7 +2849,7 @@ subroutine SF_BC_CapillaryPressure(this,liquid_saturation, &
 
   capillary_pressure = min(capillary_pressure,this%pcmax)
 
-#ifdef smoothing2
+#ifdef SMOOTHING2
   ! fmy: by BC function, mathemaatically @Sr, pc not necessarily equals to pcmax
   !      So, @pcmax, S is not necessarily equaled to Sr, and requiring smoothing
 
@@ -3699,7 +3699,7 @@ subroutine RPF_Mualem_SetupPolynomials(this,option,error_string)
   PetscReal :: b(4)
   PetscReal :: one_over_m, Se_one_over_m, m
 
-#ifdef smoothing2
+#ifdef SMOOTHING2
   ! smoothing curves for two ends of wet and dry
   PetscReal :: se_low, se_high, S, rpf, drpf
 
@@ -3832,7 +3832,7 @@ subroutine RPF_Mualem_VG_Liq_RelPerm(this,liquid_saturation, &
     endif
   endif
 
-#ifdef smoothing2
+#ifdef MOOTHING2
   ! DRY-end smoothing
   if (associated(this%poly2)) then
     if (Se >= this%poly2%low .and. Se <= this%poly2%high) then
@@ -6423,7 +6423,7 @@ subroutine PermeabilityFunctionDestroy(rpf)
   if (.not.associated(rpf)) return
   
   call PolynomialDestroy(rpf%poly)
-#ifdef smoothing2
+#ifdef SMOOTHING2
   call PolynomialDestroy(rpf%poly2)
 #endif
   deallocate(rpf)

@@ -11,14 +11,6 @@ include ${PETSC_DIR}/lib/petsc/conf/rules
 
 MYFLAGS = -I.
 
-ifdef use_characteristic_curves
-  MYFLAGS += ${FC_DEFINE_FLAG}use_characteristic_curves_module
-endif
-
-ifdef smoothing2
-  MYFLAGS += ${FC_DEFINE_FLAG}smoothing2
-endif
-
 # if compiling pflotran_rxn or libpflotranchem.a, need to toggle 
 # PFLOTRAN_RXN_FLAG 
 ifneq (,$(filter libpflotranchem.a pflotran_rxn,$(MAKECMDGOALS)))
@@ -114,7 +106,7 @@ ifdef th_characteristic_curves
 endif
 
 ifdef smoothing2
-  MYFLAGS += ${FC_DEFINE_FLAG}smoothing2
+  MYFLAGS += ${FC_DEFINE_FLAG}SMOOTHING2
 endif
 
 ifdef use_matseqaij_fix
