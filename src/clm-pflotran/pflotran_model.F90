@@ -835,11 +835,21 @@ end subroutine pflotranModelSetICs
         case(RICHARDS_MODE)
           rich_aux_var => rich_aux_vars(ghosted_id)
           bc_alpha  = saturation_function%alpha
-          bc_lambda = saturation_function%lambda
+          select case(saturation_function%saturation_function_itype)
+          case(VAN_GENUCHTEN)
+             bc_lambda = saturation_function%m
+          case(BROOKS_COREY)
+             bc_lambda = saturation_function%lambda
+          end select
         case(TH_MODE)
           th_aux_var => th_aux_vars(ghosted_id)
           bc_alpha  = saturation_function%alpha
-          bc_lambda = saturation_function%lambda
+          select case(saturation_function%saturation_function_itype)
+          case(VAN_GENUCHTEN)
+             bc_lambda = saturation_function%m
+          case(BROOKS_COREY)
+             bc_lambda = saturation_function%lambda
+          end select
       end select
 
       ! bc_alpha [1/Pa]; while sucsat [mm of H20]

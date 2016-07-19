@@ -423,6 +423,7 @@ subroutine THAuxVarComputeNoFreezing(x,auxvar,global_auxvar, &
     if(auxvar%bc_alpha > 0.d0) then
        saturation_function%alpha  = auxvar%bc_alpha
        saturation_function%lambda = auxvar%bc_lambda
+       saturation_function%m      = auxvar%bc_lambda
     endif
 #endif
     call SaturationFunctionCompute(auxvar%pc,global_auxvar%sat(1), &
