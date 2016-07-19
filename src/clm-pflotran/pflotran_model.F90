@@ -724,6 +724,7 @@ end subroutine pflotranModelSetICs
     use Variables_module, only : POROSITY, PERMEABILITY_X, PERMEABILITY_Y, &
                                PERMEABILITY_Z
     use Saturation_Function_module
+    use Characteristic_Curves_module
 
     implicit none
 
@@ -741,6 +742,7 @@ end subroutine pflotranModelSetICs
     type(th_auxvar_type), pointer             :: th_aux_var
     type(simulation_base_type), pointer       :: simulation
     type(saturation_function_type)            :: saturation_function
+    class(characteristic_curves_type), pointer:: characteristic_curve
 
     PetscErrorCode     :: ierr
     PetscInt           :: ghosted_id, local_id
@@ -828,19 +830,35 @@ end subroutine pflotranModelSetICs
       if (patch%sat_func_id(ghosted_id) < 1) cycle
 
       saturation_function = patch%saturation_function_array(patch%sat_func_id(ghosted_id))%ptr
+      characteristic_curve => patch%characteristic_curves_array(patch%sat_func_id(ghosted_id))%ptr
 
       local_id = grid%nG2L(ghosted_id)
 
       select case(pflotran_model%option%iflowmode)
-        case(RICHARDS_MODE)
-          rich_aux_var => rich_aux_vars(ghosted_id)
-          bc_alpha  = saturation_function%alpha
-          select case(saturation_function%saturation_function_itype)
-          case(VAN_GENUCHTEN)
-             bc_lambda = saturation_function%m
-          case(BROOKS_COREY)
-             bc_lambda = saturation_function%lambda
-          end select
+      case(RICHARDS_MODE)
+#ifdef REFACTOR_CHARACTERISTIC_CURVES
+         select type(sf => characteristic_curves%saturation_function)
+         class is(sat_func_VG_type)
+            bc_lambda = sf%m
+            bc_alpha  = sf%alpha
+         class is(sat_func_BC_type)
+            bc_lambda = sf%lambda
+            bc_alpha  = sf%alpha
+         class default
+            option%io_buffer = 'CLM-PFLOTRAN only supports ' // &
+                 'sat_func_VG_type and sat_func_BC_type'
+            call printErrMsg(option)
+         end select
+#else
+         rich_aux_var => rich_aux_vars(ghosted_id)
+         bc_alpha  = saturation_function%alpha
+         select case(saturation_function%saturation_function_itype)
+         case(VAN_GENUCHTEN)
+            bc_lambda = saturation_function%m
+         case(BROOKS_COREY)
+            bc_lambda = saturation_function%lambda
+         end select
+#endif
         case(TH_MODE)
           th_aux_var => th_aux_vars(ghosted_id)
           bc_alpha  = saturation_function%alpha
