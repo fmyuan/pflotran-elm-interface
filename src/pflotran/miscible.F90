@@ -9,28 +9,28 @@ module Miscible_module
   
   private 
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
   
 !#include "include/petscf90.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   ! It is VERY IMPORTANT to make sure that the above .h90 file gets included.
   ! Otherwise some very strange things will happen and PETSc will give no
   ! indication of what the problem is.
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscdm.h"
-#include "finclude/petscdm.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscdm.h"
+#include "petsc/finclude/petscdm.h90"
 !#ifdef USE_PETSC216
-!#include "finclude/petscsles.h"
+!#include "petsc/finclude/petscsles.h"
 !#endif
-#include "finclude/petscsnes.h"
-#include "finclude/petscviewer.h"
-#include "finclude/petscsysdef.h"
-#include "finclude/petscis.h"
-#include "finclude/petscis.h90"
-#include "finclude/petsclog.h"
-#include "finclude/petscerror.h"
+#include "petsc/finclude/petscsnes.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscsysdef.h"
+#include "petsc/finclude/petscis.h"
+#include "petsc/finclude/petscis.h90"
+#include "petsc/finclude/petsclog.h"
+#include "petsc/finclude/petscerror.h"
 
 ! Cutoff parameters
   PetscReal, parameter :: formeps = 1.D-4
@@ -61,13 +61,13 @@ subroutine MiscibleTimeCut(realization)
   ! Date: 9/13/08
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Field_module
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   
@@ -88,11 +88,13 @@ subroutine MiscibleSetup(realization)
   ! Date: 9/13/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
+  use Output_Aux_module
    
-  type(realization_type) :: realization
-  
+  type(realization_subsurface_type) :: realization
+
+  type(output_variable_list_type), pointer :: list
   type(patch_type), pointer :: cur_patch
  
   cur_patch => realization%patch_list%first
@@ -103,7 +105,10 @@ subroutine MiscibleSetup(realization)
     cur_patch => cur_patch%next
   enddo
 
-  call MiscibleSetPlotVariables(realization)
+  list => realization%output_option%output_snap_variable_list
+  call MiscibleSetPlotVariables(list)
+  list => realization%output_option%output_obs_variable_list
+  call MiscibleSetPlotVariables(list)
 
 end subroutine MiscibleSetup
 
@@ -117,7 +122,7 @@ subroutine MiscibleSetupPatch(realization)
   ! Date: 10/1/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Option_module
   use Coupler_module
@@ -126,7 +131,7 @@ subroutine MiscibleSetupPatch(realization)
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
@@ -158,8 +163,8 @@ subroutine MiscibleSetupPatch(realization)
 ! dencpr  
   allocate(patch%aux%Miscible%Miscible_parameter%dencpr(size(patch%material_property_array)))
   do ipara = 1, size(patch%material_property_array)
-    patch%aux%Miscible%Miscible_parameter%dencpr(patch% &
-        material_property_array(ipara)%ptr%internal_id) = &
+    patch%aux%Miscible%Miscible_parameter%dencpr(iabs(patch% &
+        material_property_array(ipara)%ptr%internal_id)) = &
       patch%material_property_array(ipara)%ptr%rock_density*option%scale*&
       patch%material_property_array(ipara)%ptr%specific_heat
   enddo
@@ -167,8 +172,8 @@ subroutine MiscibleSetupPatch(realization)
 ! ckwet
   allocate(patch%aux%Miscible%Miscible_parameter%ckwet(size(patch%material_property_array)))
   do ipara = 1, size(patch%material_property_array)
-    patch%aux%Miscible%Miscible_parameter%ckwet(patch% &
-        material_property_array(ipara)%ptr%internal_id) = &
+    patch%aux%Miscible%Miscible_parameter%ckwet(iabs(patch% &
+        material_property_array(ipara)%ptr%internal_id)) = &
       patch%material_property_array(ipara)%ptr%thermal_conductivity_wet*option%scale
   enddo
 ! Miscible_parameters create_end *****************************************
@@ -197,7 +202,7 @@ subroutine MiscibleSetupPatch(realization)
   enddo
   patch%aux%Miscible%auxvars_bc => auxvars_bc
   patch%aux%Miscible%num_aux_bc = sum_connection
-  option%numerical_derivatives_flow = PETSC_TRUE
+  option%flow%numerical_derivatives = PETSC_TRUE
   
   allocate(patch%aux%Miscible%delx(option%nflowdof, grid%ngmax))
   allocate(patch%aux%Miscible%Resold_AR(grid%nlmax,option%nflowdof))
@@ -205,10 +210,6 @@ subroutine MiscibleSetupPatch(realization)
   ! should be allocated by the number of BC connections, just for debug now
   allocate(patch%aux%Miscible%Resold_FL(ConnectionGetNumberInList(patch%grid%&
            internal_connection_set_list),option%nflowdof))
-  
-  ! create zero array for zeroing residual and Jacobian (1 on diagonal)
-  ! for inactive cells (and isothermal)
-  call MiscibleCreateZeroArray(patch,option)
 
 end subroutine MiscibleSetupPatch
 
@@ -222,10 +223,10 @@ subroutine MiscibleComputeMassBalance(realization,mass_balance)
   ! Date: 07/21/2010
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nflowspec,1)
    
   type(patch_type), pointer :: cur_patch
@@ -252,7 +253,7 @@ subroutine MiscibleComputeMassBalancePatch(realization,mass_balance)
   ! Date: 07/21/2010
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Field_module
@@ -260,7 +261,7 @@ subroutine MiscibleComputeMassBalancePatch(realization,mass_balance)
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nflowspec,1)
 
   type(option_type), pointer :: option
@@ -320,14 +321,14 @@ subroutine MiscibleZeroMassBalDeltaPatch(realization)
   ! Date: 12/13/11
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Grid_module
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -373,14 +374,14 @@ subroutine MiscibleUpdateMassBalancePatch(realization)
   ! Date: 12/13/11
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Grid_module
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -433,13 +434,13 @@ end subroutine MiscibleUpdateMassBalancePatch
   ! Date: 12/10/07
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Option_module
   
   PetscInt ::  MiscibleInitGuessCheck
-  type(realization_type) :: realization
-  type(option_type), pointer:: option
+  type(realization_subsurface_type) :: realization
+  type(option_type), pointer :: option
   type(patch_type), pointer :: cur_patch
   PetscInt :: ipass, ipass0
   PetscErrorCode :: ierr
@@ -477,7 +478,7 @@ end function MiscibleInitGuessCheck
    
     use co2_span_wagner_module
      
-    use Realization_class
+    use Realization_Subsurface_class
     use Patch_module
     use Field_module
     use Grid_module
@@ -485,7 +486,7 @@ end function MiscibleInitGuessCheck
     implicit none
     
     PetscInt :: MiscibleInitGuessCheckPatch 
-    type(realization_type) :: realization
+    type(realization_subsurface_type) :: realization
     type(grid_type), pointer :: grid
     type(patch_type), pointer :: patch
     type(option_type), pointer :: option
@@ -500,7 +501,8 @@ end function MiscibleInitGuessCheck
     option => realization%option
     field => realization%field
     
-    call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+!geh: not sure why this is here, therefore, commenting out.
+!    call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
     
     ipass=1
     MiscibleInitGuessCheckPatch = ipass
@@ -517,10 +519,10 @@ subroutine MiscibleUpdateAuxVars(realization)
   ! Date: 10/10/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   
@@ -545,7 +547,7 @@ subroutine MiscibleUpdateAuxVarsPatch(realization)
   ! Date: 12/10/07
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Field_module
   use Option_module
@@ -556,7 +558,7 @@ subroutine MiscibleUpdateAuxVarsPatch(realization)
   
   implicit none
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -672,11 +674,11 @@ subroutine MiscibleInitializeTimestep(realization)
   ! Date: 10/12/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   call MiscibleUpdateFixedAccumulation(realization)
 
@@ -692,13 +694,13 @@ subroutine MiscibleUpdateSolution(realization)
   ! Date: 10/13/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Field_module
   use Patch_module
   
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(field_type), pointer :: field
   type(patch_type), pointer :: cur_patch
@@ -729,11 +731,11 @@ subroutine MiscibleUpdateSolutionPatch(realization)
   ! Date: 08/23/11
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
     
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   if (realization%option%compute_mass_balance_new) then
     call MiscibleUpdateMassBalancePatch(realization)
@@ -752,10 +754,10 @@ subroutine MiscibleUpdateFixedAccumulation(realization)
   ! Date: 10/12/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   
@@ -780,7 +782,7 @@ subroutine MiscibleUpdateFixedAccumPatch(realization)
   ! Date: 10/12/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Option_module
   use Field_module
@@ -788,7 +790,7 @@ subroutine MiscibleUpdateFixedAccumPatch(realization)
 
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -815,7 +817,7 @@ subroutine MiscibleUpdateFixedAccumPatch(realization)
   Miscible_parameter => patch%aux%Miscible%Miscible_parameter
   auxvars => patch%aux%Miscible%auxvars
     
-  call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
 !geh refactor  call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
 !geh refactor  call VecGetArrayF90(field%tortuosity_loc,tortuosity_loc_p,ierr)
@@ -840,7 +842,7 @@ subroutine MiscibleUpdateFixedAccumPatch(realization)
                               option,accum_p(istart:iend)) 
   enddo
 
-  call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
 !geh refactor  call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
 !geh refactor  call VecRestoreArrayF90(field%tortuosity_loc,tortuosity_loc_p,ierr)
@@ -970,7 +972,7 @@ subroutine MiscibleSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype
   PetscReal :: well_status, well_diameter
   PetscReal :: pressure_bh, well_factor, pressure_max, pressure_min
   PetscReal :: well_inj_water, well_inj_co2
-  PetscInt  :: np
+  PetscInt :: np
   PetscInt :: iflag
   PetscErrorCode :: ierr
   
@@ -1055,8 +1057,8 @@ subroutine MiscibleSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype
     ! injection well (well status = 2)
       if (dabs(well_status - 2D0) < 1D-1) then 
 
-        call EOSWaterDensityEnthalpy(tsrc,auxvar%pres,dw_kg,dw_mol, &
-                                     enth_src_h2o,ierr)
+        call EOSWaterDensity(tsrc,auxvar%pres,dw_kg,dw_mol,ierr)
+        call EOSWaterEnthalpy(tsrc,auxvar%pres,enth_src_h2o,ierr)
         ! J/kmol -> whatever units
         enth_src_h2o = enth_src_h2o * option%scale
         
@@ -1310,7 +1312,7 @@ subroutine MiscibleResidual(snes,xx,r,realization,ierr)
   ! Date: 10/10/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Discretization_module
   use Field_module
@@ -1324,7 +1326,7 @@ subroutine MiscibleResidual(snes,xx,r,realization,ierr)
   SNES :: snes
   Vec :: xx
   Vec :: r
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscViewer :: viewer
   PetscErrorCode :: ierr
   
@@ -1423,7 +1425,7 @@ subroutine MiscibleResidualPatch1(snes,xx,r,realization,ierr)
   ! 
 
   use Connection_module
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Grid_module
   use Option_module
@@ -1441,7 +1443,7 @@ subroutine MiscibleResidualPatch1(snes,xx,r,realization,ierr)
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
   Vec, intent(out) :: r
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: i, jn
@@ -1717,7 +1719,7 @@ subroutine MiscibleResidualPatch0(snes,xx,r,realization,ierr)
   ! 
 
   use Connection_module
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Grid_module
   use Option_module
@@ -1730,7 +1732,7 @@ subroutine MiscibleResidualPatch0(snes,xx,r,realization,ierr)
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
   Vec, intent(out) :: r
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: i, jn
@@ -1817,7 +1819,7 @@ subroutine MiscibleResidualPatch0(snes,xx,r,realization,ierr)
       print *,'Not associated global for Miscible'
     endif
 
-    if (option%numerical_derivatives_flow) then
+    if (option%flow%numerical_derivatives) then
       delx(1) = xx_loc_p((ng-1)*option%nflowdof+1)*dfac * 1.D-3
 
 !     print *,'mis_res_p: ',delx(1),xx_loc_p((ng-1)*option%nflowdof+1)
@@ -1887,7 +1889,7 @@ subroutine MiscibleResidualPatch2(snes,xx,r,realization,ierr)
   ! 
 
   use Connection_module
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Grid_module
   use Option_module
@@ -1900,7 +1902,7 @@ subroutine MiscibleResidualPatch2(snes,xx,r,realization,ierr)
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
   Vec, intent(out) :: r
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: i, jn
@@ -2143,7 +2145,7 @@ subroutine MiscibleJacobian(snes,xx,A,B,realization,ierr)
   ! Date: 10/10/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Grid_module
   use Option_module
@@ -2156,7 +2158,7 @@ subroutine MiscibleJacobian(snes,xx,A,B,realization,ierr)
   Vec :: xx
   Mat :: A, B, J
   MatType :: mat_type
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
   PetscViewer :: viewer
   type(patch_type), pointer :: cur_patch
@@ -2235,7 +2237,7 @@ subroutine MiscibleJacobianPatch1(snes,xx,A,B,realization,ierr)
   use Connection_module
   use Option_module
   use Grid_module
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Coupler_module
   use Field_module
@@ -2246,7 +2248,7 @@ subroutine MiscibleJacobianPatch1(snes,xx,A,B,realization,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
@@ -2630,7 +2632,7 @@ subroutine MiscibleJacobianPatch2(snes,xx,A,B,realization,ierr)
   use Connection_module
   use Option_module
   use Grid_module
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Coupler_module
   use Field_module
@@ -2641,7 +2643,7 @@ subroutine MiscibleJacobianPatch2(snes,xx,A,B,realization,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
@@ -2856,7 +2858,7 @@ subroutine MiscibleJacobianPatch2(snes,xx,A,B,realization,ierr)
           ra(1:option%nflowdof,1:option%nflowdof) / option%flow_dt
       case(-1)
         if (option%flow_dt > 1.d0) ra(1:option%nflowdof,1:option%nflowdof) = &
-          ra(1:option%nflowdof,1:) / option%flow_dt
+          ra(1:option%nflowdof,1:option%nflowdof) / option%flow_dt
     end select
 
     Jup = ra(1:option%nflowdof,1:option%nflowdof)
@@ -2945,94 +2947,7 @@ end subroutine MiscibleJacobianPatch2
 
 ! ************************************************************************** !
 
-subroutine MiscibleCreateZeroArray(patch,option)
-  ! 
-  ! Computes the zeroed rows for inactive grid cells
-  ! 
-  ! Author: Chuan Lu
-  ! Date: 10/13/08
-  ! 
-
-  use Patch_module
-  use Grid_module
-  use Option_module
-  
-  implicit none
-
-  type(patch_type) :: patch
-  type(option_type) :: option
-  
-  PetscInt :: ncount, idof
-  PetscInt :: local_id, ghosted_id
-
-  type(grid_type), pointer :: grid
-  PetscInt :: flag = 0
-  PetscInt :: n_zero_rows
-  PetscInt, pointer :: zero_rows_local(:)
-  PetscInt, pointer :: zero_rows_local_ghosted(:)
-  PetscErrorCode :: ierr
-    
-  grid => patch%grid
-  
-  n_zero_rows = 0
-
-  if (associated(patch%imat)) then
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) then
-        n_zero_rows = n_zero_rows + option%nflowdof
-      else
-#ifdef ISOTHERMAL
-        n_zero_rows = n_zero_rows + 1
-#endif
-      endif
-    enddo
-  else
-#ifdef ISOTHERMAL
-    n_zero_rows = n_zero_rows + grid%nlmax
-#endif
-  endif
-! print *,'zero rows=', n_zero_rows
-  allocate(zero_rows_local(n_zero_rows))
-  allocate(zero_rows_local_ghosted(n_zero_rows))
-! print *,'zero rows allocated' 
-  zero_rows_local = 0
-  zero_rows_local_ghosted = 0
-  ncount = 0
-
-  if (associated(patch%imat)) then
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) then
-        do idof = 1, option%nflowdof
-          ncount = ncount + 1
-          zero_rows_local(ncount) = (local_id-1)*option%nflowdof+idof
-          zero_rows_local_ghosted(ncount) = (ghosted_id-1)*option%nflowdof+idof-1
-        enddo
-      endif
-    enddo
-  endif
-!print *,'zero rows point 1'
-  patch%aux%Miscible%n_zero_rows = n_zero_rows
-!print *,'zero rows point 2'
-  patch%aux%Miscible%zero_rows_local => zero_rows_local
-!print *,'zero rows point 3'  
-  patch%aux%Miscible%zero_rows_local_ghosted => zero_rows_local_ghosted
-!print *,'zero rows point 4'
-  call MPI_Allreduce(n_zero_rows,flag,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_MAX, &
-                     option%mycomm,ierr)
-  if (flag > 0) patch%aux%Miscible%inactive_cells_exist = PETSC_TRUE
-
-  if (ncount /= n_zero_rows) then
-    print *, 'Error:  Mismatch in non-zero row count!', ncount, n_zero_rows
-    stop
-  endif
-! print *,'zero rows', flag
-end subroutine MiscibleCreateZeroArray
-
-! ************************************************************************** !
-
-subroutine MiscibleMaxChange(realization)
+subroutine MiscibleMaxChange(realization,dpmax,dcmax)
   ! 
   ! Computes the maximum change in the solution vector
   ! 
@@ -3040,42 +2955,37 @@ subroutine MiscibleMaxChange(realization)
   ! Date: 01/15/08
   ! 
 
-  use Realization_class
-  use Patch_module
+  use Realization_Subsurface_class
   use Field_module
   use Option_module
   use Field_module
 
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(field_type), pointer :: field
-  type(patch_type), pointer :: cur_patch
-  PetscReal :: dcmax
+  PetscReal :: dpmax, dcmax
+  PetscReal :: temp
   PetscInt :: idof
   PetscErrorCode :: ierr 
 
   option => realization%option
   field => realization%field
 
-  option%dpmax=0.D0
-  option%dtmpmax=0.D0 
-  option%dcmax=0.D0
-  option%dsmax=0.D0
-  dcmax=0.D0
+  dpmax = 0.d0
+  dcmax = 0.d0
 
   call VecWAXPY(field%flow_dxx,-1.d0,field%flow_xx,field%flow_yy, &
                 ierr);CHKERRQ(ierr)
-  call VecStrideNorm(field%flow_dxx,ZERO_INTEGER,NORM_INFINITY,option%dpmax, &
+  call VecStrideNorm(field%flow_dxx,ZERO_INTEGER,NORM_INFINITY,dpmax, &
                      ierr);CHKERRQ(ierr)
 
   do idof = 1,option%nflowdof-1 
-    dcmax = 0.D0
-    call VecStrideNorm(field%flow_dxx,idof,NORM_INFINITY,dcmax, &
+    call VecStrideNorm(field%flow_dxx,idof,NORM_INFINITY,temp, &
                        ierr);CHKERRQ(ierr)
-    if (dcmax > option%dcmax) option%dcmax = dcmax
+    dcmax = max(dcmax,temp)
   enddo
   
 end subroutine MiscibleMaxChange
@@ -3091,14 +3001,14 @@ function MiscibleGetTecplotHeader(realization, icolumn)
   ! Date: 10/13/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Field_module
 
   implicit none
   
   character(len=MAXSTRINGLENGTH) :: MiscibleGetTecplotHeader
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscInt :: icolumn
   
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -3153,7 +3063,7 @@ end function MiscibleGetTecplotHeader
 
 ! ************************************************************************** !
 
-subroutine MiscibleSetPlotVariables(realization)
+subroutine MiscibleSetPlotVariables(list)
   ! 
   ! Adds variables to be printed to list
   ! 
@@ -3161,19 +3071,13 @@ subroutine MiscibleSetPlotVariables(realization)
   ! Date: 10/15/12
   ! 
   
-  use Realization_class
   use Output_Aux_module
   use Variables_module
 
   implicit none
 
-  type(realization_type) :: realization
-  type(output_variable_type) :: output_variable
-  
-  character(len=MAXWORDLENGTH) :: name, units
   type(output_variable_list_type), pointer :: list
-  
-  list => realization%output_option%output_variable_list
+  character(len=MAXWORDLENGTH) :: name, units
   
   if (associated(list%first)) then
     return
@@ -3221,11 +3125,11 @@ subroutine MiscibleDestroy(realization)
   ! Date: 11/27/13
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
 
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   ! need to free array in aux vars
   !call MiscibleAuxDestroy(patch%aux%miscible)

@@ -8,18 +8,19 @@ module Option_Flow_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
 
   type, public :: flow_option_type 
   
-    PetscReal :: inf_rel_update_tol
-    PetscReal :: inf_scaled_res_tol   
-    PetscBool :: check_post_convergence
     PetscBool :: store_fluxes
     PetscBool :: transient_porosity
     PetscBool :: only_vertical_flow
-  
+    PetscBool :: density_depends_on_salinity
+    PetscBool :: quasi_3d
+    PetscBool :: numerical_derivatives
+    PetscBool :: only_energy_eq
+
   end type flow_option_type
   
   public :: OptionFlowCreate, &
@@ -96,13 +97,14 @@ subroutine OptionFlowInitRealization(option)
   ! These variables should be initialized once at the beginning of every 
   ! PFLOTRAN realization or simulation of a single realization
     
-  option%check_post_convergence = PETSC_FALSE
-  option%inf_rel_update_tol = UNINITIALIZED_DOUBLE
-  option%inf_scaled_res_tol = UNINITIALIZED_DOUBLE
   option%store_fluxes = PETSC_FALSE
   option%transient_porosity = PETSC_FALSE
   option%only_vertical_flow = PETSC_FALSE
-  
+  option%density_depends_on_salinity = PETSC_FALSE
+  option%quasi_3d = PETSC_FALSE
+  option%numerical_derivatives = PETSC_FALSE
+  option%only_energy_eq = PETSC_FALSE
+
 end subroutine OptionFlowInitRealization
 
 ! ************************************************************************** !

@@ -14,23 +14,23 @@ module Discretization_module
 
   private
  
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscdm.h"
-#include "finclude/petscdm.h90"
-#include "finclude/petscdmda.h"
-#include "finclude/petscdmshell.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscdm.h"
+#include "petsc/finclude/petscdm.h90"
+#include "petsc/finclude/petscdmda.h"
+#include "petsc/finclude/petscdmshell.h90"
 
   type, public :: discretization_type
     PetscInt :: itype  ! type of discretization (e.g. structured, unstructured, etc.)
     !geh: note that differentiating between implicit and explicit unstructured 
     !     grids is handled within the grid%itype variable, not discritization%itype
     character(len=MAXWORDLENGTH) :: ctype
-    PetscReal :: origin(3) ! origin of global domain
+    PetscReal :: origin_global(3) ! origin of global domain
     type(grid_type), pointer :: grid  ! pointer to a grid object
     character(len=MAXSTRINGLENGTH) :: filename
 
@@ -45,7 +45,7 @@ module Discretization_module
     VecScatter :: tvd_ghost_scatter
     
     PetscInt :: stencil_width
-    PetscInt :: stencil_type
+    PetscEnum :: stencil_type
     
   end type discretization_type
 
@@ -74,7 +74,9 @@ module Discretization_module
             DiscretizationCreateDMs,&
             DiscretizationGetDMPtrFromIndex, &
             DiscretizationUpdateTVDGhosts, &
-            DiscretAOApplicationToPetsc
+            DiscretAOApplicationToPetsc, &
+            DiscretizationInputRecord, &
+            DiscretizationPrintInfo
   
 contains
 
@@ -97,7 +99,7 @@ function DiscretizationCreate()
   allocate(discretization)
   discretization%ctype = ''
   discretization%itype = 0
-  discretization%origin = 0.d0
+  discretization%origin_global = 0.d0
   discretization%filename = ''
 
   ! nullify DM pointers
@@ -148,8 +150,8 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
   type(discretization_type),pointer :: discretization
   character(len=MAXWORDLENGTH) :: word
   type(grid_type), pointer :: grid, grid2
-  type(structured_grid_type), pointer :: str_grid
-  type(unstructured_grid_type), pointer :: un_str_grid
+  type(grid_structured_type), pointer :: str_grid
+  type(grid_unstructured_type), pointer :: un_str_grid
   character(len=MAXWORDLENGTH) :: structured_grid_ctype
   character(len=MAXWORDLENGTH) :: unstructured_grid_ctype
 
@@ -188,7 +190,7 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           case('structured')
             discretization%itype = STRUCTURED_GRID
             call InputReadWord(input,option,structured_grid_ctype,PETSC_TRUE)
-            call InputDefaultMsg(input,option,'structured_grid_type') 
+            call InputDefaultMsg(input,option,'grid_structured_type') 
             call StringToLower(structured_grid_ctype)
             select case(trim(structured_grid_ctype))
               case('cartesian')
@@ -234,11 +236,14 @@ subroutine DiscretizationReadRequiredCards(discretization,input,option)
           if (structured_grid_itype /= CYLINDRICAL_GRID) nz = 1 ! spherical has 1 cell in Z
         endif
       case('ORIGIN')
-        call InputReadDouble(input,option,discretization%origin(X_DIRECTION))
+        call InputReadDouble(input,option, &
+                             discretization%origin_global(X_DIRECTION))
         call InputErrorMsg(input,option,'X direction','Origin')
-        call InputReadDouble(input,option,discretization%origin(Y_DIRECTION))
+        call InputReadDouble(input,option, &
+                             discretization%origin_global(Y_DIRECTION))
         call InputErrorMsg(input,option,'Y direction','Origin')
-        call InputReadDouble(input,option,discretization%origin(Z_DIRECTION))
+        call InputReadDouble(input,option, &
+                             discretization%origin_global(Z_DIRECTION))
         call InputErrorMsg(input,option,'Z direction','Origin')        
       case('FILE','GRAVITY','INVERT_Z','MAX_CELLS_SHARING_A_VERTEX',&
            'STENCIL_WIDTH','STENCIL_TYPE','FLUX_METHOD')
@@ -341,8 +346,8 @@ subroutine DiscretizationRead(discretization,input,option)
   type(discretization_type),pointer :: discretization
   character(len=MAXWORDLENGTH) :: word
   type(grid_type), pointer :: grid, grid2
-  type(structured_grid_type), pointer :: str_grid
-  type(unstructured_grid_type), pointer :: un_str_grid
+  type(grid_structured_type), pointer :: str_grid
+  type(grid_unstructured_type), pointer :: un_str_grid
   character(len=MAXWORDLENGTH) :: structured_grid_ctype
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
@@ -377,7 +382,8 @@ subroutine DiscretizationRead(discretization,input,option)
           case(STRUCTURED_GRID)
             call StructGridReadDXYZ(discretization%grid%structured_grid,input,option)
           case default
-            call printErrMsg(option,'Keyword "DXYZ" not supported for unstructured grid')
+            call printErrMsg(option,&
+                           'Keyword "DXYZ" not supported for unstructured grid')
         end select
         call InputReadPflotranString(input,option) ! read END card
         call InputReadStringErrorMsg(input,option,'DISCRETIZATION,DXYZ,END')
@@ -437,22 +443,22 @@ subroutine DiscretizationRead(discretization,input,option)
             if (.not.(InputCheckExit(input,option))) then
               if (OptionPrintToScreen(option)) then
                 if (grid%structured_grid%itype == CARTESIAN_GRID) then
-                  print *, 'BOUNDS card for a cartesian structured grid must include ' // &
-                           '4 lines.  I.e.'
+                  print *, 'BOUNDS card for a cartesian structured grid ' // &
+                    'must include 4 lines.  I.e.'
                   print *, 'BOUNDS'
                   print *, '  x_min  y_min  z_min'
                   print *, '  x_max  y_max  z_max'
                   print *, 'END'
                 else if (grid%structured_grid%itype == CYLINDRICAL_GRID) then
-                  print *, 'BOUNDS card for a cylindrical structured grid must include ' // &
-                           '4 lines.  I.e.'
+                  print *, 'BOUNDS card for a cylindrical structured grid ' // &
+                    'must include 4 lines.  I.e.'
                   print *, 'BOUNDS'
                   print *, '  r_min  z_min'
                   print *, '  r_max  z_max'
                   print *, 'END'
                 else if (grid%structured_grid%itype == SPHERICAL_GRID) then
-                  print *, 'BOUNDS card for a spherical structured grid must include ' // &
-                           '4 lines.  I.e.'
+                  print *, 'BOUNDS card for a spherical structured grid ' // &
+                    'must include 4 lines.  I.e.'
                   print *, 'BOUNDS'
                   print *, '  r_min'
                   print *, '  r_max'
@@ -461,9 +467,12 @@ subroutine DiscretizationRead(discretization,input,option)
               endif
               stop
             endif            
-            discretization%origin(X_DIRECTION) = grid%structured_grid%bounds(X_DIRECTION,LOWER)
-            discretization%origin(Y_DIRECTION) = grid%structured_grid%bounds(Y_DIRECTION,LOWER)
-            discretization%origin(Z_DIRECTION) = grid%structured_grid%bounds(Z_DIRECTION,LOWER)
+            discretization%origin_global(X_DIRECTION) = &
+              grid%structured_grid%bounds(X_DIRECTION,LOWER)
+            discretization%origin_global(Y_DIRECTION) = &
+              grid%structured_grid%bounds(Y_DIRECTION,LOWER)
+            discretization%origin_global(Z_DIRECTION) = &
+              grid%structured_grid%bounds(Z_DIRECTION,LOWER)
         end select
       case ('GRAVITY')
         call InputReadDouble(input,option,option%gravity(X_DIRECTION))
@@ -548,7 +557,7 @@ subroutine DiscretizationCreateDMs(discretization, o_nflowdof, o_ntrandof, &
   !PetscInt, parameter :: stencil_width = 1
   PetscErrorCode :: ierr
   PetscInt :: i
-  type(unstructured_grid_type), pointer :: ugrid
+  type(grid_unstructured_type), pointer :: ugrid
 
   select case(discretization%itype)
     case(STRUCTURED_GRID)
@@ -655,7 +664,8 @@ subroutine DiscretizationCreateDM(discretization,dm_ptr,ndof,stencil_width, &
   type(discretization_type) :: discretization
   type(dm_ptr_type), pointer :: dm_ptr
   PetscInt :: ndof
-  PetscInt :: stencil_width,stencil_type
+  PetscInt :: stencil_width
+  PetscEnum :: stencil_type
   type(option_type) :: option
   PetscErrorCode :: ierr
 
@@ -664,15 +674,8 @@ subroutine DiscretizationCreateDM(discretization,dm_ptr,ndof,stencil_width, &
       call StructGridCreateDM(discretization%grid%structured_grid, &
                               dm_ptr%dm,ndof,stencil_width,stencil_type,option)
     case(UNSTRUCTURED_GRID)
-      call UGridCreateUGDM(discretization%grid%unstructured_grid, &
-                           dm_ptr%ugdm,ndof,option)
-      call DMShellCreate(option%mycomm,dm_ptr%dm,ierr);CHKERRQ(ierr)
-      call DMShellSetGlobalToLocalVecScatter(dm_ptr%dm,dm_ptr%ugdm%scatter_gtol, &
-                                             ierr);CHKERRQ(ierr)
-      call DMShellSetLocalToGlobalVecScatter(dm_ptr%dm,dm_ptr%ugdm%scatter_ltog, &
-                                             ierr);CHKERRQ(ierr)
-      call DMShellSetLocalToLocalVecScatter(dm_ptr%dm,dm_ptr%ugdm%scatter_ltol, &
-                                            ierr);CHKERRQ(ierr)
+      call UGridCreateUGDMShell(discretization%grid%unstructured_grid, &
+                           dm_ptr%dm,dm_ptr%ugdm,ndof,option)
   end select
 
 end subroutine DiscretizationCreateDM
@@ -703,21 +706,22 @@ subroutine DiscretizationCreateVector(discretization,dm_index,vector, &
   
   dm_ptr => DiscretizationGetDMPtrFromIndex(discretization,dm_index)
 
-  select case(discretization%itype)
-    case(STRUCTURED_GRID)
-      select case (vector_type)
-        case(GLOBAL)
-          call DMCreateGlobalVector(dm_ptr%dm,vector,ierr);CHKERRQ(ierr)
-        case(LOCAL)
-          call DMCreateLocalVector(dm_ptr%dm,vector,ierr);CHKERRQ(ierr)
-        case(NATURAL)
+  select case (vector_type)
+    case(GLOBAL)
+      call DMCreateGlobalVector(dm_ptr%dm,vector,ierr);CHKERRQ(ierr)
+    case(LOCAL)
+      call DMCreateLocalVector(dm_ptr%dm,vector,ierr);CHKERRQ(ierr)
+    case(NATURAL)
+      select case(discretization%itype)
+        case(STRUCTURED_GRID)
           call DMDACreateNaturalVector(dm_ptr%dm,vector,ierr);CHKERRQ(ierr)
-      end select
-    case(UNSTRUCTURED_GRID)
-      call UGridDMCreateVector(discretization%grid%unstructured_grid, &
-                               dm_ptr%ugdm,vector, &
-                               vector_type,option)
+        case(UNSTRUCTURED_GRID)
+          call UGridDMCreateVector(discretization%grid%unstructured_grid, &
+                                   dm_ptr%ugdm,vector, &
+                                   vector_type,option)
+        end select
   end select
+
   call VecSet(vector,0.d0,ierr);CHKERRQ(ierr)
   
 end subroutine DiscretizationCreateVector
@@ -808,8 +812,8 @@ subroutine DiscretizationCreateJacobian(discretization,dm_index,mat_type,Jacobia
   
   implicit none
   
-#include "finclude/petscis.h"
-#include "finclude/petscis.h90"
+#include "petsc/finclude/petscis.h"
+#include "petsc/finclude/petscis.h90"
 
   type(discretization_type) :: discretization
   PetscInt :: dm_index
@@ -946,8 +950,8 @@ subroutine DiscretizationCreateColoring(discretization,dm_index,option,coloring)
   
   implicit none
 
-#include "finclude/petscis.h"
-#include "finclude/petscis.h90"
+#include "petsc/finclude/petscis.h"
+#include "petsc/finclude/petscis.h90"
   
   type(discretization_type) :: discretization
   PetscInt :: dm_index
@@ -1139,10 +1143,10 @@ subroutine DiscretizationNaturalToGlobal(discretization,natural_vec,global_vec,d
       call DMDANaturalToGlobalEnd(dm_ptr%dm,natural_vec,INSERT_VALUES,global_vec, &
                                   ierr);CHKERRQ(ierr)
     case(UNSTRUCTURED_GRID)
-      call VecScatterBegin(dm_ptr%ugdm%scatter_ntog,natural_vec,global_vec, &
-                           INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-      call VecScatterEnd(dm_ptr%ugdm%scatter_ntog,natural_vec,global_vec, &
-                         INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+      call VecScatterBegin(dm_ptr%ugdm%scatter_gton,natural_vec,global_vec, &
+                           INSERT_VALUES,SCATTER_REVERSE,ierr);CHKERRQ(ierr)
+      call VecScatterEnd(dm_ptr%ugdm%scatter_gton,natural_vec,global_vec, &
+                         INSERT_VALUES,SCATTER_REVERSE,ierr);CHKERRQ(ierr)
   end select
   
 end subroutine DiscretizationNaturalToGlobal
@@ -1423,7 +1427,7 @@ subroutine DiscretAOApplicationToPetsc(discretization,int_array)
 
   implicit none
   
-#include "finclude/petscao.h"  
+#include "petsc/finclude/petscao.h"  
   
   type(discretization_type) :: discretization
   PetscInt :: int_array(:)
@@ -1440,6 +1444,87 @@ subroutine DiscretAOApplicationToPetsc(discretization,int_array)
   call AOApplicationToPetsc(ao,size(int_array),int_array,ierr);CHKERRQ(ierr)
   
 end subroutine DiscretAOApplicationToPetsc
+
+! **************************************************************************** !
+
+subroutine DiscretizationInputRecord(discretization)
+  ! 
+  ! Prints ingested grid/discretization information
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/30/2016
+  ! 
+
+  implicit none
+
+  type(discretization_type), pointer :: discretization
+
+  type(grid_type), pointer :: grid
+  character(len=MAXWORDLENGTH) :: word, word1, word2
+  PetscInt :: id = INPUT_RECORD_UNIT
+  character(len=10) :: Format, iFormat
+  
+  Format = '(ES14.7)'
+  iFormat = '(I10)'
+
+  grid => discretization%grid
+
+  write(id,'(a)') ' '
+  write(id,'(a)') ' '
+  write(id,'(a)') '---------------------------------------------------------&
+       &-----------------------'
+  write(id,'(a29)',advance='no') '---------------------------: '
+  write(id,'(a)') 'GRID'
+  write(id,'(a29)',advance='no') 'grid type: '
+  select case(grid%itype)
+    case(STRUCTURED_GRID)
+      write(id,'(a)') trim(grid%ctype)
+      write(id,'(a29)',advance='no') ': '
+      write(id,'(a)') trim(grid%structured_grid%ctype)
+      write(id,'(a29)',advance='no') 'number grid cells X: '
+      write(word,iFormat) grid%structured_grid%nx
+      write(id,'(a)') adjustl(trim(word)) 
+      write(id,'(a29)',advance='no') 'number grid cells Y: '
+      write(word,iFormat) grid%structured_grid%ny
+      write(id,'(a)') adjustl(trim(word)) 
+      write(id,'(a29)',advance='no') 'number grid cells Z: '
+      write(word,iFormat) grid%structured_grid%nz
+      write(id,'(a)') adjustl(trim(word)) 
+      write(id,'(a29)',advance='no') 'delta-X (m): '
+      write(id,'(1p10e12.4)') grid%structured_grid%dx_global
+      write(id,'(a29)',advance='no') 'delta-Y (m): '
+      write(id,'(1p10e12.4)') grid%structured_grid%dy_global
+      write(id,'(a29)',advance='no') 'delta-Z (m): '
+      write(id,'(1p10e12.4)') grid%structured_grid%dz_global
+    case(EXPLICIT_UNSTRUCTURED_GRID,IMPLICIT_UNSTRUCTURED_GRID, &
+         POLYHEDRA_UNSTRUCTURED_GRID)
+      write(id,'(a)') trim(grid%ctype)
+  end select
+
+  write(id,'(a29)',advance='no') 'bounds X: '
+  write(word1,Format) grid%structured_grid%bounds(X_DIRECTION,LOWER)
+  write(word2,Format) grid%structured_grid%bounds(X_DIRECTION,UPPER)
+  write(id,'(a)') adjustl(trim(word1)) // ' ,' // adjustl(trim(word2)) // ' m'
+  write(id,'(a29)',advance='no') 'bounds Y: '
+  write(word1,Format) grid%structured_grid%bounds(Y_DIRECTION,LOWER)
+  write(word2,Format) grid%structured_grid%bounds(Y_DIRECTION,UPPER)
+  write(id,'(a)') adjustl(trim(word1)) // ' ,' // adjustl(trim(word2)) // ' m'
+  write(id,'(a29)',advance='no') 'bounds Z: '
+  write(word1,Format) grid%structured_grid%bounds(Z_DIRECTION,LOWER)
+  write(word2,Format) grid%structured_grid%bounds(Z_DIRECTION,UPPER)
+  write(id,'(a)') adjustl(trim(word1)) // ' ,' // adjustl(trim(word2)) // ' m'
+
+  write(id,'(a29)',advance='no') 'global origin: '
+  write(word,Format) discretization%origin_global(X_DIRECTION)
+  write(id,'(a)') '(x) ' // adjustl(trim(word)) // ' m'
+  write(id,'(a29)',advance='no') ': '
+  write(word,Format) discretization%origin_global(Y_DIRECTION)
+  write(id,'(a)') '(y) ' // adjustl(trim(word)) // ' m'
+  write(id,'(a29)',advance='no') ': '
+  write(word,Format) discretization%origin_global(Z_DIRECTION)
+  write(id,'(a)') '(z) ' // adjustl(trim(word)) // ' m'
+
+end subroutine DiscretizationInputRecord
 
 ! ************************************************************************** !
 

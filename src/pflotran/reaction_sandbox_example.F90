@@ -14,7 +14,7 @@ module Reaction_Sandbox_Example_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
 ! 2. Add module variables here.  Note that one must use the PETSc data types 
 !    PetscInt, PetscReal, PetscBool to declare variables of type integer
@@ -81,11 +81,11 @@ subroutine ExampleRead(this,input,option)
   implicit none
   
   class(reaction_sandbox_example_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   PetscInt :: i
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, internal_units
   
   do 
     call InputReadPflotranString(input,option)
@@ -138,8 +138,9 @@ subroutine ExampleRead(this,input,option)
           call InputDefaultMsg(input,option)
         else              
           ! If units exist, convert to internal units of 1/s
+          internal_units = 'unitless/sec'
           this%rate_constant = this%rate_constant * &
-            UnitsConvertToInternal(word,option)
+            UnitsConvertToInternal(word,internal_units,option)
         endif
       case default
         call InputKeywordUnrecognized(word, &
@@ -261,7 +262,7 @@ subroutine ExampleReact(this,Residual,Jacobian,compute_derivative, &
   ! 1.d3 converts m^3 water -> L water
   L_water = material_auxvar%porosity*global_auxvar%sat(iphase)* &
             material_auxvar%volume*1.d3
-  ! alway subtract contribution from residual
+  ! always subtract contribution from residual
   Residual(this%species_id) = Residual(this%species_id) - &
     this%rate_constant * &  ! 1/sec
     L_water * & ! L water

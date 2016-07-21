@@ -7,9 +7,9 @@ module Geomechanics_Field_module
 
   private
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   type, public :: geomech_field_type
     Vec :: work
@@ -58,8 +58,8 @@ function GeomechFieldCreate()
 
   implicit none
   
-  type(geomech_field_type), pointer     :: GeomechFieldCreate
-  type(geomech_field_type), pointer     :: geomech_field
+  type(geomech_field_type), pointer :: GeomechFieldCreate
+  type(geomech_field_type), pointer :: geomech_field
   
   allocate(geomech_field)
 
@@ -109,8 +109,10 @@ subroutine GeomechFieldDestroy(geomech_field)
 
   implicit none
   
-  type(geomech_field_type), pointer     :: geomech_field
-  PetscErrorCode                        :: ierr
+  type(geomech_field_type), pointer :: geomech_field
+  PetscErrorCode :: ierr
+  
+  if (.not.associated(geomech_field)) return
   
   ! Destroy PetscVecs
   if (geomech_field%work /= 0) then

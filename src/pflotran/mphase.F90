@@ -9,28 +9,28 @@ module Mphase_module
   
   private 
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
   
 !#include "include/petscf90.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   ! It is VERY IMPORTANT to make sure that the above .h90 file gets included.
   ! Otherwise some very strange things will happen and PETSc will give no
   ! indication of what the problem is.
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscdm.h"
-#include "finclude/petscdm.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscdm.h"
+#include "petsc/finclude/petscdm.h90"
 !#ifdef USE_PETSC216
-!#include "finclude/petscsles.h"
+!#include "petsc/finclude/petscsles.h"
 !#endiff
-#include "finclude/petscsnes.h"
-#include "finclude/petscviewer.h"
-#include "finclude/petscsysdef.h"
-#include "finclude/petscis.h"
-#include "finclude/petscis.h90"
-#include "finclude/petsclog.h"
-#include "finclude/petscerror.h"
+#include "petsc/finclude/petscsnes.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscsysdef.h"
+#include "petsc/finclude/petscis.h"
+#include "petsc/finclude/petscis.h90"
+#include "petsc/finclude/petsclog.h"
+#include "petsc/finclude/petscerror.h"
 
 ! Cutoff parameters
   PetscReal, parameter :: formeps = 1.D-4
@@ -64,13 +64,13 @@ subroutine MphaseTimeCut(realization)
   ! Date: 5/13/08
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Field_module
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   
@@ -93,12 +93,14 @@ subroutine MphaseSetup(realization)
   ! Date: 5/13/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
+  use Output_Aux_module
    
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
+  type(output_variable_list_type), pointer :: list
   
   cur_patch => realization%patch_list%first
   do
@@ -108,7 +110,10 @@ subroutine MphaseSetup(realization)
     cur_patch => cur_patch%next
   enddo
 
-  call MphaseSetPlotVariables(realization)
+  list => realization%output_option%output_snap_variable_list
+  call MPhaseSetPlotVariables(list)
+  list => realization%output_option%output_obs_variable_list
+  call MPhaseSetPlotVariables(list)
 
 end subroutine MphaseSetup
 
@@ -122,7 +127,7 @@ subroutine MphaseSetupPatch(realization)
   ! Date: 5/13/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Option_module
   use Coupler_module
@@ -133,7 +138,7 @@ subroutine MphaseSetupPatch(realization)
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
@@ -178,16 +183,16 @@ subroutine MphaseSetupPatch(realization)
 ! dencpr  
   allocate(mphase%Mphase_parameter%dencpr(size(patch%material_property_array)))
   do ipara = 1, size(patch%material_property_array)
-    mphase%mphase_parameter%dencpr(patch%material_property_array(ipara)% &
-                                     ptr%internal_id) = &
+    mphase%mphase_parameter%dencpr(iabs(patch%material_property_array(ipara)% &
+                                        ptr%internal_id)) = &
       patch%material_property_array(ipara)%ptr%rock_density*option%scale*&
       patch%material_property_array(ipara)%ptr%specific_heat
   enddo
 ! ckwet
   allocate(mphase%Mphase_parameter%ckwet(size(patch%material_property_array)))
   do ipara = 1, size(patch%material_property_array)
-    mphase%mphase_parameter%ckwet(patch%material_property_array(ipara)% &
-                                    ptr%internal_id) = &
+    mphase%mphase_parameter%ckwet(iabs(patch%material_property_array(ipara)% &
+                                       ptr%internal_id)) = &
       patch%material_property_array(ipara)%ptr%thermal_conductivity_wet*option%scale
   enddo
   
@@ -322,12 +327,7 @@ subroutine MphaseSetupPatch(realization)
   mphase%auxvars_ss => auxvars_ss
   mphase%num_aux_ss = sum_connection
   
-  option%numerical_derivatives_flow = PETSC_TRUE
-
-! print *,' mph setup get AuxBc point'
-  ! create zero array for zeroing residual and Jacobian (1 on diagonal)
-  ! for inactive cells (and isothermal)
-  call MphaseCreateZeroArray(patch,option)
+  option%flow%numerical_derivatives = PETSC_TRUE
 
 end subroutine MphaseSetupPatch
 
@@ -339,10 +339,10 @@ subroutine MphaseComputeMassBalance(realization,mass_balance,mass_trapped)
   ! Date: 02/22/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscReal :: mass_balance(realization%option%nflowspec,realization%option%nphase)
   PetscReal :: mass_trapped(realization%option%nphase)
 
@@ -371,7 +371,7 @@ subroutine MphaseComputeMassBalancePatch(realization,mass_balance,mass_trapped)
   ! Date: 12/19/08
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Field_module
@@ -382,7 +382,7 @@ subroutine MphaseComputeMassBalancePatch(realization,mass_balance,mass_trapped)
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 ! type(saturation_function_type) :: saturation_function_type
 
   PetscReal :: mass_balance(realization%option%nflowspec,realization%option%nphase)
@@ -470,14 +470,14 @@ subroutine MphaseZeroMassBalDeltaPatch(realization)
   ! Date: 12/19/08
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Grid_module
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -524,14 +524,14 @@ subroutine MphaseUpdateMassBalancePatch(realization)
   ! Date: 12/19/08
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Grid_module
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -585,13 +585,13 @@ function MphaseInitGuessCheck(realization)
   ! Date: 12/10/07
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Option_module
   
   PetscInt ::  MphaseInitGuessCheck
-  type(realization_type) :: realization
-  type(option_type), pointer:: option
+  type(realization_subsurface_type) :: realization
+  type(option_type), pointer :: option
   type(patch_type), pointer :: cur_patch
   PetscInt :: ipass, ipass0
   PetscErrorCode :: ierr    
@@ -624,7 +624,7 @@ subroutine MPhaseUpdateReasonPatch(reason,realization)
   ! Author: Chuan Lu
   ! Date: 12/10/07
   ! 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Field_module
   use Option_module
@@ -632,8 +632,8 @@ subroutine MPhaseUpdateReasonPatch(reason,realization)
 
   implicit none
  
-  PetscInt, intent(out):: reason
-  type(realization_type) :: realization  
+  PetscInt, intent(out) :: reason
+  type(realization_subsurface_type) :: realization  
   type(patch_type),pointer :: patch
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
@@ -651,7 +651,7 @@ subroutine MPhaseUpdateReasonPatch(reason,realization)
   re = 1
  
 ! if (re > 0) then
-    call VecGetArrayF90(field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%flow_yy, yy_p, ierr);CHKERRQ(ierr)
     call VecGetArrayF90(field%iphas_loc, iphase_loc_p, ierr);CHKERRQ(ierr)
   
@@ -664,16 +664,21 @@ subroutine MPhaseUpdateReasonPatch(reason,realization)
       iipha = int(iphase_loc_p(grid%nL2G(n)))
   
 ! ******** Too huge change in pressure ****************     
-      if (dabs(xx_p(n0 + 1) - yy_p(n0 + 1)) > (1000.0D0 * option%dpmxe)) then
+!geh: I don't believe that this code is being used.  Therefore, I will add an
+!     error message and let someone sort the use of option%dpmxe later
+        option%io_buffer = 'option%dpmxe and option%dtmpmxe needs to be ' // &
+          'refactored in MPhaseUpdateReasonPatch'
+        call printErrMsg(option)      
+!geh      if (dabs(xx_p(n0 + 1) - yy_p(n0 + 1)) > (1000.0D0 * option%dpmxe)) then
         re = 0; print *,'large change in p', xx_p(n0 + 1), yy_p(n0 + 1)
         exit
-      endif
+!geh      endif
 
 ! ******** Too huge change in temperature ****************
-      if (dabs(xx_p(n0 + 2) - yy_p(n0 + 2)) > (10.0D0 * option%dtmpmxe)) then
+!geh      if (dabs(xx_p(n0 + 2) - yy_p(n0 + 2)) > (10.0D0 * option%dtmpmxe)) then
         re = 0; print *,'large change in T', xx_p(n0 + 2), yy_p(n0 + 2)
         exit
-      endif
+!geh      endif
  
 ! ******* Check 0 <= sat/con <= 1 **************************
       select case(iipha)
@@ -715,7 +720,7 @@ subroutine MPhaseUpdateReasonPatch(reason,realization)
     end do
   
 !   if (re <= 0) print *,'Sat or Con out of Region at: ',n,iipha,xx_p(n0+1:n0+3)
-    call VecRestoreArrayF90(field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%flow_yy, yy_p, ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p, ierr);CHKERRQ(ierr)
 
@@ -736,11 +741,11 @@ subroutine MPhaseUpdateReason(reason, realization)
   ! Date: 12/10/07
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   implicit none
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   PetscInt :: reason
@@ -783,7 +788,7 @@ end subroutine MPhaseUpdateReason
    
     use co2_span_wagner_module
      
-    use Realization_class
+    use Realization_Subsurface_class
     use Patch_module
     use Field_module
     use Grid_module
@@ -791,7 +796,7 @@ end subroutine MPhaseUpdateReason
     implicit none
     
     PetscInt :: MphaseInitGuessCheckPatch 
-    type(realization_type) :: realization
+    type(realization_subsurface_type) :: realization
     type(grid_type), pointer :: grid
     type(patch_type), pointer :: patch
     type(option_type), pointer :: option
@@ -807,7 +812,7 @@ end subroutine MPhaseUpdateReason
     option => realization%option
     field => realization%field
     
-    call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
     
     ipass=1
     do local_id = 1, grid%nlmax
@@ -832,8 +837,10 @@ end subroutine MPhaseUpdateReason
       endif
     enddo
 
-    call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+
     MphaseInitGuessCheckPatch = ipass
+
   end function MphaseInitGuessCheckPatch
 
 ! ************************************************************************** !
@@ -847,10 +854,10 @@ subroutine MphaseUpdateAuxVars(realization)
   ! Date: 12/10/07
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   
@@ -875,7 +882,7 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
   ! Date: 12/10/07
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Field_module
   use Option_module
@@ -886,7 +893,7 @@ subroutine MphaseUpdateAuxVarsPatch(realization)
   
   implicit none
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1095,11 +1102,11 @@ subroutine MphaseInitializeTimestep(realization)
   ! Date: 02/20/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   call MphaseUpdateFixedAccumulation(realization)
 
@@ -1115,13 +1122,13 @@ subroutine MphaseUpdateSolution(realization)
   ! Date: 02/13/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Field_module
   use Patch_module
   
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(field_type), pointer :: field
   type(patch_type), pointer :: cur_patch
@@ -1160,7 +1167,7 @@ subroutine MphaseUpdateSolutionPatch(realization)
   ! Date: 08/23/11, 02/27/14
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Grid_module
   use Option_module
@@ -1170,7 +1177,7 @@ subroutine MphaseUpdateSolutionPatch(realization)
     
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   type(grid_type), pointer :: grid
   type(patch_type), pointer :: patch
   type(option_type), pointer :: option
@@ -1247,10 +1254,10 @@ subroutine MphaseUpdateFixedAccumulation(realization)
   ! Date: 05/12/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   
@@ -1275,7 +1282,7 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
   ! Date: 05/12/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Option_module
   use Field_module
@@ -1285,7 +1292,7 @@ subroutine MphaseUpdateFixedAccumPatch(realization)
 
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1480,7 +1487,7 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
   PetscReal :: well_status, well_diameter
   PetscReal :: pressure_bh, well_factor, pressure_max, pressure_min
   PetscReal :: well_inj_water, well_inj_co2
-  PetscInt  :: np
+  PetscInt :: np
   PetscInt :: iflag
   PetscErrorCode :: ierr
   
@@ -1500,8 +1507,8 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
       msrc(1) =  msrc(1) / FMWH2O
       msrc(2) =  msrc(2) / FMWCO2
       if (msrc(1) > 0.d0) then ! H2O injection
-        call EOSWaterDensityEnthalpy(tsrc,auxvar%pres,dw_kg,dw_mol, &
-                                     enth_src_h2o,ierr)
+        call EOSWaterDensity(tsrc,auxvar%pres,dw_kg,dw_mol,ierr)
+        call EOSWaterEnthalpy(tsrc,auxvar%pres,enth_src_h2o,ierr)
         ! J/kmol -> whatever units
         enth_src_h2o = enth_src_h2o * option%scale
                                      
@@ -1517,8 +1524,8 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
         ! store volumetric rate for ss_fluid_fluxes()
         qsrc_vol(1) = msrc(1)/dw_mol
       elseif (msrc(1) < 0.d0) then ! H2O extraction
-        call EOSWaterDensityEnthalpy(auxvar%temp,auxvar%pres,dw_kg,dw_mol, &
-                                     enth_src_h2o,ierr)
+        call EOSWaterDensity(auxvar%temp,auxvar%pres,dw_kg,dw_mol,ierr)
+        call EOSWaterEnthalpy(auxvar%temp,auxvar%pres,enth_src_h2o,ierr)
         ! J/kmol -> whatever
         enth_src_h2o = enth_src_h2o * option%scale                            
 !           units: dw_mol [mol/dm^3]; dw_kg [kg/m^3]
@@ -1560,8 +1567,8 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
           enth_src_co2 = enth_src_co2 * FMWCO2
           
           ! store volumetric rate for ss_fluid_fluxes()
-          ! qsrc_phase [m^3/sec] = msrc [kmol/sec] / [kg/m^3] * [kg/kmol]  
-          qsrc_vol(2) = msrc(2)*rho/FMWCO2
+          ! qsrc_phase [m^3/sec] = msrc [kmol/sec] / [kmol/m^3]
+          qsrc_vol(2) = msrc(2)/auxvar%den(jco2)
 
         else if (option%co2eos == EOS_MRK) then
 ! MRK eos [modified version from  Kerrick and Jacobs (1981) and Weir et al. (1996).]
@@ -1636,8 +1643,8 @@ subroutine MphaseSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,csrc,auxvar,isrctype,R
     ! injection well (well status = 2)
       if ( dabs(well_status - 2.D0) < 1.D-1) then
 
-        call EOSWaterDensityEnthalpy(tsrc,auxvar%pres,dw_kg,dw_mol, &
-                                     enth_src_h2o,ierr)
+        call EOSWaterDensity(tsrc,auxvar%pres,dw_kg,dw_mol,ierr)
+        call EOSWaterEnthalpy(tsrc,auxvar%pres,enth_src_h2o,ierr)
         ! J/kmol -> whatever units
         enth_src_h2o = enth_src_h2o * option%scale
 
@@ -2069,7 +2076,7 @@ subroutine MphaseResidual(snes,xx,r,realization,ierr)
   ! Date: 12/10/07
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Discretization_module
   use Field_module
@@ -2083,7 +2090,7 @@ subroutine MphaseResidual(snes,xx,r,realization,ierr)
   SNES :: snes
   Vec :: xx
   Vec :: r
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
   
   type(discretization_type), pointer :: discretization
@@ -2164,7 +2171,7 @@ subroutine MphaseVarSwitchPatch(xx, realization, icri, ichange)
   ! Date: 3/10/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Field_module
   use Grid_module
@@ -2179,7 +2186,7 @@ subroutine MphaseVarSwitchPatch(xx, realization, icri, ichange)
 
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   Vec, intent(in) :: xx
   PetscInt :: icri,ichange 
@@ -2236,7 +2243,9 @@ subroutine MphaseVarSwitchPatch(xx, realization, icri, ichange)
 #endif
     
 ! mphase code need assemble 
+  call VecLockPop(xx,ierr); CHKERRQ(ierr)
   call VecGetArrayF90(xx, xx_p, ierr);CHKERRQ(ierr)
+  call VecLockPush(xx,ierr); CHKERRQ(ierr)
   call VecGetArrayF90(field%flow_yy, yy_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%iphas_loc, iphase_loc_p,ierr);CHKERRQ(ierr)
   
@@ -2476,7 +2485,7 @@ subroutine MphaseVarSwitchPatch(xx, realization, icri, ichange)
     end select
   enddo
 
-  call VecRestoreArrayF90(xx, xx_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(xx, xx_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_yy, yy_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%iphas_loc, iphase_loc_p,ierr);CHKERRQ(ierr)
 
@@ -2493,7 +2502,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
   ! 
 
   use Connection_module
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Grid_module
   use Option_module
@@ -2509,7 +2518,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
   Vec, intent(out) :: r
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: i, jn
@@ -2649,7 +2658,7 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
     endif
 #endif
 
-    if (option%numerical_derivatives_flow) then
+    if (option%flow%numerical_derivatives) then
       mphase%delx(1,ng) = xx_loc_p((ng-1)*option%nflowdof+1)*dfac !* 1.D-3
       mphase%delx(2,ng) = xx_loc_p((ng-1)*option%nflowdof+2)*dfac
 
@@ -2827,11 +2836,11 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
                             ss_flow_vol_flux, &
                             enthalpy_flag,option)
 
-  ! included by SK, 08/23/11 to print mass fluxes at source/sink						
+      ! included by SK, 08/23/11 to print mass fluxes at source/sink						
       if (option%compute_mass_balance_new) then
-        global_auxvars_ss(sum_connection)%mass_balance_delta(:,1) = &
-          global_auxvars_ss(sum_connection)%mass_balance_delta(:,1) - &
-          Res(:)/option%flow_dt
+        global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) = &
+          global_auxvars_ss(sum_connection)%mass_balance_delta(1:2,1) - &
+          Res(1:2)/option%flow_dt
       endif
       if (associated(patch%ss_flow_fluxes)) then
         patch%ss_flow_fluxes(:,sum_connection) = Res(:)/option%flow_dt
@@ -2972,9 +2981,9 @@ subroutine MphaseResidualPatch(snes,xx,r,realization,ierr)
       endif
       if (option%compute_mass_balance_new) then
         ! contribution to boundary
-        global_auxvars_bc(sum_connection)%mass_balance_delta(:,1) = &
-          global_auxvars_bc(sum_connection)%mass_balance_delta(:,1) &
-            - Res(:)/option%flow_dt 
+        global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) = &
+          global_auxvars_bc(sum_connection)%mass_balance_delta(1:2,1) &
+            - Res(1:2)/option%flow_dt 
       endif
 
     enddo
@@ -3146,7 +3155,7 @@ subroutine MphaseJacobian(snes,xx,A,B,realization,ierr)
   ! Date: 12/10/07
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Grid_module
   use Option_module
@@ -3157,7 +3166,7 @@ subroutine MphaseJacobian(snes,xx,A,B,realization,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
   
   Mat :: J
@@ -3222,7 +3231,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
   use Connection_module
   use Option_module
   use Grid_module
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Coupler_module
   use Field_module
@@ -3235,7 +3244,7 @@ subroutine MphaseJacobianPatch(snes,xx,A,B,realization,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
@@ -3807,109 +3816,7 @@ end subroutine MphaseJacobianPatch
 
 ! ************************************************************************** !
 
-subroutine MphaseCreateZeroArray(patch,option)
-  ! 
-  ! Computes the zeroed rows for inactive grid cells
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 12/13/07
-  ! 
-
-  use Patch_module
-  use Grid_module
-  use Option_module
-  
-  implicit none
-
-  type(patch_type) :: patch
-  type(option_type) :: option
-  
-  PetscInt :: ncount, idof
-  PetscInt :: local_id, ghosted_id
-
-  type(grid_type), pointer :: grid
-  PetscInt :: flag = 0
-  PetscInt :: n_zero_rows
-  PetscInt, pointer :: zero_rows_local(:)
-  PetscInt, pointer :: zero_rows_local_ghosted(:)
-  PetscErrorCode :: ierr
-    
-  grid => patch%grid
-  
-  n_zero_rows = 0
-
-  if (associated(patch%imat)) then
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) then
-        n_zero_rows = n_zero_rows + option%nflowdof
-      else
-#ifdef ISOTHERMAL
-        n_zero_rows = n_zero_rows + 1
-#endif
-      endif
-    enddo
-  else
-#ifdef ISOTHERMAL
-    n_zero_rows = n_zero_rows + grid%nlmax
-#endif
-  endif
-! print *,'zero rows=', n_zero_rows
-  allocate(zero_rows_local(n_zero_rows))
-  allocate(zero_rows_local_ghosted(n_zero_rows))
-! print *,'zero rows allocated' 
-  zero_rows_local = 0
-  zero_rows_local_ghosted = 0
-  ncount = 0
-
-  if (associated(patch%imat)) then
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) then
-        do idof = 1, option%nflowdof
-          ncount = ncount + 1
-          zero_rows_local(ncount) = (local_id-1)*option%nflowdof+idof
-          zero_rows_local_ghosted(ncount) = (ghosted_id-1)*option%nflowdof+idof-1
-        enddo
-      else
-#ifdef ISOTHERMAL
-        ncount = ncount + 1
-        zero_rows_local(ncount) = local_id*option%nflowdof
-        zero_rows_local_ghosted(ncount) = ghosted_id*option%nflowdof-1
-#endif
-      endif
-    enddo
-  else
-#ifdef ISOTHERMAL
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      ncount = ncount + 1
-      zero_rows_local(ncount) = local_id*option%nflowdof
-      zero_rows_local_ghosted(ncount) = ghosted_id*option%nflowdof-1
-    enddo
-#endif
-  endif
-!print *,'zero rows point 1'
-  patch%aux%Mphase%n_zero_rows = n_zero_rows
-!print *,'zero rows point 2'
-  patch%aux%Mphase%zero_rows_local => zero_rows_local
-!print *,'zero rows point 3'  
-  patch%aux%Mphase%zero_rows_local_ghosted => zero_rows_local_ghosted
-!print *,'zero rows point 4'
-  call MPI_Allreduce(n_zero_rows,flag,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_MAX, &
-                     option%mycomm,ierr)
-  if (flag > 0) patch%aux%Mphase%inactive_cells_exist = PETSC_TRUE
-
-  if (ncount /= n_zero_rows) then
-    print *, 'Error:  Mismatch in non-zero row count!', ncount, n_zero_rows
-    stop
-  endif
-! print *,'zero rows', flag
-end subroutine MphaseCreateZeroArray
-
-! ************************************************************************** !
-
-subroutine MphaseMaxChange(realization)
+subroutine MphaseMaxChange(realization,dpmax,dtmpmax,dsmax,dcmax)
   ! 
   ! Computes the maximum change in the solution vector
   ! 
@@ -3917,74 +3824,56 @@ subroutine MphaseMaxChange(realization)
   ! Date: 01/15/08
   ! 
 
-  use Realization_class
-  use Patch_module
+  use Realization_Subsurface_class
   use Field_module
   use Option_module
   use Field_module
 
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(field_type), pointer :: field
-  type(patch_type), pointer :: cur_patch
-  PetscReal :: dcmax, dsmax, max_c, max_S  
+  PetscReal :: dpmax, dtmpmax, dsmax, dcmax
   PetscErrorCode :: ierr 
 
   option => realization%option
   field => realization%field
 
-  option%dpmax=0.D0
-  option%dtmpmax=0.D0 
-  option%dcmax=0.D0
-  option%dsmax=0.D0
-  dcmax=0.D0
-  dsmax=0.D0
+  dpmax = 0.d0
+  dtmpmax = 0.d0
+  dcmax = 0.d0
+  dsmax = 0.d0
 
   call VecWAXPY(field%flow_dxx,-1.d0,field%flow_xx,field%flow_yy, &
                 ierr);CHKERRQ(ierr)
-  call VecStrideNorm(field%flow_dxx,ZERO_INTEGER,NORM_INFINITY,option%dpmax, &
+  call VecStrideNorm(field%flow_dxx,ZERO_INTEGER,NORM_INFINITY,dpmax, &
                      ierr);CHKERRQ(ierr)
-  call VecStrideNorm(field%flow_dxx,ONE_INTEGER,NORM_INFINITY,option%dtmpmax, &
+  call VecStrideNorm(field%flow_dxx,ONE_INTEGER,NORM_INFINITY,dtmpmax, &
                      ierr);CHKERRQ(ierr)
 
-  cur_patch => realization%patch_list%first
-  do
-    if (.not.associated(cur_patch)) exit
-    realization%patch => cur_patch
-    call MphaseMaxChangePatch(realization, max_c, max_s)
-    if (dcmax <max_c)  dcmax =max_c
-    if (dsmax <max_s)  dsmax =max_s
-    cur_patch => cur_patch%next
-  enddo
+  call MphaseMaxChangePatch(realization, dcmax, dsmax)
 
-  if (option%mycommsize >1)then
-    call MPI_Allreduce(dcmax,max_c,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                       MPI_MAX,option%mycomm,ierr)
-    call MPI_Allreduce(dsmax,max_s,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
-                       MPI_MAX,option%mycomm,ierr)
-    dcmax= max_C
-    dsmax = max_s
-  endif 
-  option%dcmax=dcmax
-  option%dsmax=dsmax
-  !print *, 'Max changes=', option%dpmax,option%dtmpmax, option%dcmax,option%dsmax
+  call MPI_Allreduce(MPI_IN_PLACE,dcmax,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                     MPI_MAX,option%mycomm,ierr)
+  call MPI_Allreduce(MPI_IN_PLACE,dsmax,ONE_INTEGER_MPI,MPI_DOUBLE_PRECISION, &
+                     MPI_MAX,option%mycomm,ierr)
+
 end subroutine MphaseMaxChange
 
 ! ************************************************************************** !
 
 subroutine MphaseMaxChangePatch(realization,  max_c, max_s)
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Grid_module
   use Patch_module
   use Field_module
   use Option_module
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscReal :: max_s, max_c 
 
 
@@ -4007,7 +3896,7 @@ subroutine MphaseMaxChangePatch(realization,  max_c, max_s)
   
  
 
-  call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%flow_yy,yy_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%iphas_loc,iphase_loc_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%iphas_old_loc,iphase_old_loc_p,  &
@@ -4030,7 +3919,7 @@ subroutine MphaseMaxChangePatch(realization,  max_c, max_s)
    end if
   end do
 
-  call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%flow_yy,yy_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%iphas_old_loc,iphase_old_loc_p,  &
@@ -4051,14 +3940,14 @@ function MphaseGetTecplotHeader(realization,icolumn)
   ! Date: 02/13/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Field_module
 
   implicit none
   
   character(len=MAXSTRINGLENGTH) :: MphaseGetTecplotHeader
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscInt :: icolumn
   
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -4209,7 +4098,7 @@ end function MphaseGetTecplotHeader
 
 ! ************************************************************************** !
 
-subroutine MphaseSetPlotVariables(realization)
+subroutine MphaseSetPlotVariables(list)
   ! 
   ! Adds variables to be printed to list
   ! 
@@ -4217,19 +4106,15 @@ subroutine MphaseSetPlotVariables(realization)
   ! Date: 10/15/12
   ! 
   
-  use Realization_class
   use Output_Aux_module
   use Variables_module
 
   implicit none
 
-  type(realization_type) :: realization
-  type(output_variable_type) :: output_variable
-  
-  character(len=MAXWORDLENGTH) :: name, units
   type(output_variable_list_type), pointer :: list
   
-  list => realization%output_option%output_variable_list
+  character(len=MAXWORDLENGTH) :: name, units
+  type(output_variable_type) :: output_variable
   
   if (associated(list%first)) then
     return
@@ -4525,11 +4410,11 @@ subroutine MphaseDestroy(realization)
   ! Date: 02/14/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
 
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   ! need to free array in aux vars
   !call MphaseAuxDestroy(patch%aux%mphase)

@@ -6,15 +6,15 @@ module Init_Common_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscsnes.h"
-#include "finclude/petscpc.h"
-#include "finclude/petscts.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscsnes.h"
+#include "petsc/finclude/petscpc.h"
+#include "petsc/finclude/petscts.h"
 
   public :: &
 !            Init, &
@@ -23,8 +23,13 @@ module Init_Common_module
             InitCommonReadVelocityField, &
 #endif
             InitCommonVerifyAllCouplers, &
-            setSurfaceFlowMode
-            
+            setSurfaceFlowMode, &
+            InitCommonAddOutputWaypoints
+
+#if defined(SCORPIO)
+  public :: InitCommonCreateIOGroups
+#endif  
+  
 contains
 
 ! ************************************************************************** !
@@ -97,159 +102,6 @@ end subroutine InitReadInputFilenames
 
 ! ************************************************************************** !
 
-subroutine InitSubsurfaceReadRequiredCards(realization)
-  ! 
-  ! Reads pflow input file
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 10/23/07, refactored 08/20/14
-  ! 
-
-  use Option_module
-  use Discretization_module
-  use Grid_module
-  use Input_Aux_module
-  use String_module
-  use Patch_module
-  use Realization_class
-  use HDF5_Aux_module
-
-  use General_module
-  use Reaction_module  
-  use Reaction_Aux_module  
-
-  implicit none
-
-  class(realization_type) :: realization
-
-  character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: word
-  character(len=MAXWORDLENGTH) :: card
-  type(patch_type), pointer :: patch, patch2 
-  type(grid_type), pointer :: grid
-  type(discretization_type), pointer :: discretization
-  type(option_type), pointer :: option
-  type(input_type), pointer :: input
-  
-  patch => realization%patch
-  option => realization%option
-  discretization => realization%discretization
-  
-  input => realization%input
-  
-! Read in select required cards
-!.........................................................................
-  
-  ! GRID information - GRID is a required card for every simulation
-  string = "GRID"
-  call InputFindStringInFile(input,option,string)
-  call InputFindStringErrorMsg(input,option,string)
-
-  call DiscretizationReadRequiredCards(discretization,input,option)
-  
-  select case(discretization%itype)
-    case(STRUCTURED_GRID,UNSTRUCTURED_GRID)
-      patch => PatchCreate()
-      patch%grid => discretization%grid
-      if (.not.associated(realization%patch_list)) then
-        realization%patch_list => PatchCreateList()
-      endif
-      call PatchAddToList(patch,realization%patch_list)
-      realization%patch => patch
-  end select
-
-  ! optional required cards - yes, an oxymoron, but we need to know if
-  ! these exist before we can go any further.
-  rewind(input%fid)  
-  do
-    call InputReadPflotranString(input,option)
-    if (InputError(input)) exit
-
-    call InputReadWord(input,option,word,PETSC_FALSE)
-    call StringToUpper(word)
-    card = trim(word)
-
-    select case(trim(card))
-
-!....................
-      case('DBASE_FILENAME')
-        call InputReadWord(input,option,word,PETSC_FALSE)
-        call InputErrorMsg(input,option,'filename','DBASE_FILENAME')
-        if (index(word,'.h5') > 0) then
-#if defined(PETSC_HAVE_HDF5)
-          call HDF5ReadDbase(word,option)
-#endif
-        else
-          call InputReadASCIIDbase(word,option)
-        endif
-
-!....................
-#if defined(SCORPIO)
-      case('HDF5_WRITE_GROUP_SIZE')
-        call InputReadInt(input,option,option%hdf5_write_group_size)
-        call InputErrorMsg(input,option,'HDF5_WRITE_GROUP_SIZE','Group size')
-        call InputSkipToEnd(input,option,'HDF5_WRITE_GROUP_SIZE')
-
-      case('HDF5_READ_GROUP_SIZE')
-        call InputReadInt(input,option,option%hdf5_read_group_size)
-        call InputErrorMsg(input,option,'HDF5_READ_GROUP_SIZE','Group size')
-#endif
-
-!....................
-      case('PROC')
-        ! processor decomposition
-        if (realization%discretization%itype == STRUCTURED_GRID) then
-          grid => realization%patch%grid
-          ! strip card from front of string
-          call InputReadInt(input,option,grid%structured_grid%npx)
-          call InputDefaultMsg(input,option,'npx')
-          call InputReadInt(input,option,grid%structured_grid%npy)
-          call InputDefaultMsg(input,option,'npy')
-          call InputReadInt(input,option,grid%structured_grid%npz)
-          call InputDefaultMsg(input,option,'npz')
- 
-          if (option%myrank == option%io_rank .and. &
-              option%print_to_screen) then
-            option%io_buffer = ' Processor Decomposition:'
-            call printMsg(option)
-            write(option%io_buffer,'("  npx   = ",3x,i4)') &
-              grid%structured_grid%npx
-            call printMsg(option)
-            write(option%io_buffer,'("  npy   = ",3x,i4)') &
-              grid%structured_grid%npy
-            call printMsg(option)
-            write(option%io_buffer,'("  npz   = ",3x,i4)') &
-              grid%structured_grid%npz
-            call printMsg(option)
-          endif
-  
-          if (option%mycommsize /= grid%structured_grid%npx * &
-                                 grid%structured_grid%npy * &
-                                 grid%structured_grid%npz) then
-            write(option%io_buffer,*) 'Incorrect number of processors specified: ', &
-                           grid%structured_grid%npx*grid%structured_grid%npy* &
-                           grid%structured_grid%npz,' commsize = ',option%mycommsize
-            call printErrMsg(option)
-          endif
-        endif
-  
-!....................
-      case('CHEMISTRY')
-        !geh: for some reason, we need this with CHEMISTRY read for 
-        !     multicontinuum
-        option%use_mc = PETSC_TRUE
-        call ReactionInit(realization%reaction,input,option)
-    end select
-  enddo
-  
-#if defined(SCORPIO)
-  call InitCommonCreateIOGroups(option)
-#endif  
-
-end subroutine InitSubsurfaceReadRequiredCards
-
-! ************************************************************************** !
-
 subroutine setSurfaceFlowMode(option)
   ! 
   ! Sets the flow mode for surface (richards, th, etc.)
@@ -289,13 +141,13 @@ subroutine InitCommonVerifyAllCouplers(realization)
   ! Date: 1/8/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Coupler_module
 
   implicit none
 
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
 
@@ -325,7 +177,7 @@ subroutine InitCommonVerifyCoupler(realization,patch,coupler_list)
   ! Date: 1/8/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Discretization_module
   use Option_module 
   use Coupler_module
@@ -337,7 +189,7 @@ subroutine InitCommonVerifyCoupler(realization,patch,coupler_list)
 
   implicit none
 
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(coupler_list_type), pointer :: coupler_list
 
   type(option_type), pointer :: option
@@ -415,31 +267,57 @@ subroutine InitCommonReadRegionFiles(realization)
   ! Date: 1/03/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Region_module
   use HDF5_module
+  use Option_module
 
   implicit none
 
-  class(realization_type) :: realization
-  
+  class(realization_subsurface_type) :: realization
+
+  type(option_type), pointer :: option
   type(region_type), pointer :: region
+  PetscBool :: cell_ids_exists
+  PetscBool :: face_ids_exists
+  PetscBool :: vert_ids_exists
  
-  
+  option => realization%option
   region => realization%region_list%first
   do 
     if (.not.associated(region)) exit
     if (len_trim(region%filename) > 1) then
       if (index(region%filename,'.h5') > 0) then
-        if (region%grid_type == STRUCTURED_GRID_REGION) then
-          call HDF5ReadRegionFromFile(realization,region,region%filename)
+        if (.not.region%hdf5_ugrid_kludge) then
+
+           call HDF5QueryRegionDefinition(region, region%filename, &
+                                          realization%option, &
+                cell_ids_exists, face_ids_exists, vert_ids_exists)
+
+           if ( (.not. cell_ids_exists) .and. &
+                (.not. face_ids_exists) .and. &
+                (.not. vert_ids_exists)) then
+
+              option%io_buffer = '"Regions/' // trim(region%name) // &
+                ' is not defined by "Cell Ids" or "Face Ids" or "Vertex Ids".'
+              call printErrMsg(option)
+           end if
+
+           if (cell_ids_exists .or. face_ids_exists) then
+              call HDF5ReadRegionFromFile(realization%patch%grid,region, &
+                                          region%filename,option)
+           else
+              call HDF5ReadRegionDefinedByVertex(realization%option, &
+                                                 region, region%filename)
+           end if
         else
           !geh: Do not skip this subroutine if PETSC_HAVE_HDF5 is not
           !     defined.  The subroutine prints an error message if not defined
           !     informing the user of the error.  If you skip the subroutine,
           !     no error message is printed and the user is unaware of the
           !     region not being read.
-          call HDF5ReadUnstructuredGridRegionFromFile(realization%option,region, &
+          call HDF5ReadUnstructuredGridRegionFromFile(realization%option, &
+                                                      region, &
                                                       region%filename)
         endif
       else if (index(region%filename,'.ss') > 0) then
@@ -472,7 +350,7 @@ subroutine readVectorFromFile(realization,vector,filename,vector_type)
   ! Date: 03/18/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Discretization_module
   use Field_module
   use Grid_module
@@ -484,7 +362,7 @@ subroutine readVectorFromFile(realization,vector,filename,vector_type)
   
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   Vec :: vector
   character(len=MAXWORDLENGTH) :: filename
   PetscInt :: vector_type
@@ -638,7 +516,8 @@ subroutine InitCommonCreateIOGroups(option)
 
   ! create read IO groups
   numiogroups = option%mycommsize/option%hdf5_read_group_size
-  call scorpio_iogroup_init(numiogroups, option%mycomm, option%ioread_group_id, ierr)
+  call fscorpio_iogroup_init(numiogroups, option%mycomm, &
+                             option%ioread_group_id, ierr)
 
   if ( option%hdf5_read_group_size == option%hdf5_write_group_size ) then
     ! reuse read_group to use for writing too as both groups are same size
@@ -646,12 +525,14 @@ subroutine InitCommonCreateIOGroups(option)
   else   
       ! create write IO groups
       numiogroups = option%mycommsize/option%hdf5_write_group_size
-      call scorpio_iogroup_init(numiogroups, option%mycomm, option%iowrite_group_id, ierr)
+      call fscorpio_iogroup_init(numiogroups, option%mycomm, &
+                                 option%iowrite_group_id, ierr)
   end if
 
     write(option%io_buffer, '(" Read group id :  ", i6)') option%ioread_group_id
     call printMsg(option)      
-    write(option%io_buffer, '(" Write group id :  ", i6)') option%iowrite_group_id
+    write(option%io_buffer, '(" Write group id :  ", i6)') &
+      option%iowrite_group_id
     call printMsg(option)      
   call PetscLogEventEnd(logging%event_create_iogroups,ierr);CHKERRQ(ierr)
 #endif
@@ -693,7 +574,7 @@ subroutine InitCommonReadVelocityField(realization)
   ! Date: 02/05/13
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Field_module
   use Grid_module
@@ -706,7 +587,7 @@ subroutine InitCommonReadVelocityField(realization)
 
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   character(len=MAXSTRINGLENGTH) :: filename
   
   type(field_type), pointer :: field
@@ -745,7 +626,8 @@ subroutine InitCommonReadVelocityField(realization)
         dataset_name = 'Internal Velocity Z'
     end select
     if (.not.HDF5DatasetExists(filename,group_name,dataset_name,option)) then
-      option%io_buffer = 'Dataset "' // trim(group_name) // '/' // trim(dataset_name) // &
+      option%io_buffer = 'Dataset "' // trim(group_name) // '/' // &
+        trim(dataset_name) // &
         '" not found in HDF5 file "' // trim(filename) // '".'
       call printErrMsg(option)
     endif
@@ -777,7 +659,8 @@ subroutine InitCommonReadVelocityField(realization)
     if (.not.associated(boundary_condition)) exit
     dataset_name = boundary_condition%name
     if (.not.HDF5DatasetExists(filename,group_name,dataset_name,option)) then
-      option%io_buffer = 'Dataset "' // trim(group_name) // '/' // trim(dataset_name) // &
+      option%io_buffer = 'Dataset "' // trim(group_name) // '/' // &
+        trim(dataset_name) // &
         '" not found in HDF5 file "' // trim(filename) // '".'
       call printErrMsg(option)
     endif
@@ -797,5 +680,121 @@ subroutine InitCommonReadVelocityField(realization)
 end subroutine InitCommonReadVelocityField
 
 #endif
+
+! ************************************************************************** !
+
+subroutine InitCommonAddOutputWaypoints(option,output_option,waypoint_list)
+  ! 
+  ! Adds waypoints associated with output options to waypoint list
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 02/04/16
+  ! 
+  use Output_Aux_module
+  use Waypoint_module
+  use Option_module
+  use Utility_module
+  
+  implicit none
+  
+  type(option_type) :: option
+  type(output_option_type) :: output_option
+  type(waypoint_list_type) :: waypoint_list
+  
+  type(waypoint_type), pointer :: waypoint
+  character(len=MAXWORDLENGTH) :: word
+  PetscReal :: temp_real
+  PetscReal :: final_time
+  PetscReal :: num_waypoints, warning_num_waypoints
+  PetscInt :: k
+  
+  final_time = WaypointListGetFinalTime(waypoint_list)
+  warning_num_waypoints = 15000.0
+  
+  ! Add waypoints for periodic snapshot output
+  if (output_option%periodic_snap_output_time_incr > 0.d0) then
+    temp_real = 0.d0
+    num_waypoints = final_time / output_option%periodic_snap_output_time_incr
+    if ((num_waypoints > warning_num_waypoints) .and. &
+        OptionPrintToScreen(option)) then
+       write(word,*) floor(num_waypoints)
+       write(*,*) 'WARNING: Large number (' // trim(adjustl(word)) // &
+                  ') of periodic snapshot output requested.'
+      write(*,'(a64)',advance='no') '         Creating periodic output &
+                                    &waypoints . . . Progress: 0%-'
+    endif
+    k = 0
+    do
+      k = k + 1
+      temp_real = temp_real + output_option%periodic_snap_output_time_incr
+      if (temp_real > final_time) exit
+      waypoint => WaypointCreate()
+      waypoint%time = temp_real
+      waypoint%print_snap_output = PETSC_TRUE
+      call WaypointInsertInList(waypoint,waypoint_list)
+      if ((num_waypoints > warning_num_waypoints) .and. &
+          OptionPrintToScreen(option)) then
+        call PrintProgressBarInt(floor(num_waypoints),10,k)
+      endif
+    enddo
+  endif
+
+  ! Add waypoints for periodic observation output
+  if (output_option%periodic_obs_output_time_incr > 0.d0) then
+    temp_real = 0.d0
+    num_waypoints = final_time / output_option%periodic_obs_output_time_incr
+    if ((num_waypoints > warning_num_waypoints) .and. &
+        OptionPrintToScreen(option)) then
+       write(word,*) floor(num_waypoints)
+       write(*,*) 'WARNING: Large number (' // trim(adjustl(word)) // &
+                  ') of periodic observation output requested.'
+      write(*,'(a64)',advance='no') '         Creating periodic output &
+                                    &waypoints . . . Progress: 0%-'
+    endif
+    k = 0
+    do
+      k = k + 1
+      temp_real = temp_real + output_option%periodic_obs_output_time_incr
+      if (temp_real > final_time) exit
+      waypoint => WaypointCreate()
+      waypoint%time = temp_real
+      waypoint%print_obs_output = PETSC_TRUE
+      call WaypointInsertInList(waypoint,waypoint_list)
+      if ((num_waypoints > warning_num_waypoints) .and. &
+          OptionPrintToScreen(option)) then
+        call PrintProgressBarInt(floor(num_waypoints),10,k)
+      endif
+    enddo
+  endif
+
+  ! Add waypoints for periodic mass balance output
+  if (output_option%periodic_msbl_output_time_incr > 0.d0) then
+    temp_real = 0.d0
+    num_waypoints = final_time / output_option%periodic_msbl_output_time_incr
+    if ((num_waypoints > warning_num_waypoints) .and. &
+        OptionPrintToScreen(option)) then
+       write(word,*) floor(num_waypoints)
+       write(*,*) 'WARNING: Large number (' // trim(adjustl(word)) // &
+                  ') of periodic mass balance output requested.'
+      write(*,'(a64)',advance='no') '         Creating periodic output &
+                                    &waypoints . . . Progress: 0%-'
+    endif
+    k = 0
+    do
+      k = k + 1
+      temp_real = temp_real + output_option%periodic_msbl_output_time_incr
+      if (temp_real > final_time) exit
+      waypoint => WaypointCreate()
+      waypoint%time = temp_real
+      waypoint%print_msbl_output = PETSC_TRUE
+      call WaypointInsertInList(waypoint,waypoint_list)
+      if ((num_waypoints > warning_num_waypoints) .and. &
+          OptionPrintToScreen(option)) then
+        call PrintProgressBarInt(floor(num_waypoints),10,k)
+      endif
+    enddo
+  endif 
+  
+end subroutine InitCommonAddOutputWaypoints
 
 end module Init_Common_module

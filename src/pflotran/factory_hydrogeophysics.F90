@@ -8,14 +8,14 @@ module Factory_Hydrogeophysics_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: HydrogeophysicsInitialize
 
 contains
 
 ! ************************************************************************** !
-subroutine HydrogeophysicsInitialize(simulation_base,pm_list,option)
+subroutine HydrogeophysicsInitialize(simulation)
   ! 
   ! Sets up hydrogeophysics simulation
   ! 
@@ -33,16 +33,14 @@ subroutine HydrogeophysicsInitialize(simulation_base,pm_list,option)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscis.h"
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscis.h"
+#include "petsc/finclude/petscviewer.h"
   
-  class(simulation_base_type), pointer :: simulation_base
-  class(pm_base_type), pointer :: pm_list  
-  type(option_type), pointer :: option
+  class(simulation_hydrogeophysics_type) :: simulation
 
-  class(hydrogeophysics_simulation_type), pointer :: simulation
+  type(option_type), pointer :: option
   PetscMPIInt :: mycolor_mpi, mykey_mpi
   PetscInt :: i, num_pflotran_processes, offset, num_slaves
   PetscInt :: local_size
@@ -54,9 +52,11 @@ subroutine HydrogeophysicsInitialize(simulation_base,pm_list,option)
   IS :: is_natural
   IS :: is_petsc
   PetscInt :: istart
+  PetscInt :: temp_int
   PetscViewer :: viewer
   Vec :: pflotran_tracer_vec_mpi, pflotran_tracer_vec_seq
   Vec :: pflotran_saturation_vec_mpi, pflotran_saturation_vec_seq
+  Vec :: pflotran_temperature_vec_mpi, pflotran_temperature_vec_seq
   VecScatter :: pflotran_scatter
   
 #ifdef PETSC_HAVE_MPIUNI
@@ -64,11 +64,14 @@ subroutine HydrogeophysicsInitialize(simulation_base,pm_list,option)
   call printErrMsg(option)
 #else
 
+  option => simulation%option
   ! initialize PETSc Vecs to 0
   pflotran_tracer_vec_mpi = 0
   pflotran_tracer_vec_seq = 0
   pflotran_saturation_vec_mpi = 0
   pflotran_saturation_vec_seq = 0
+  pflotran_temperature_vec_mpi = 0
+  pflotran_temperature_vec_seq = 0
 
   string = '-num_slaves'
   num_slaves = UNINITIALIZED_INTEGER
@@ -82,7 +85,6 @@ subroutine HydrogeophysicsInitialize(simulation_base,pm_list,option)
     call printErrMsg(option)
   endif
 
-  simulation => HydrogeophysicsCreate(option)
   ! store original communicator settings to be set back in HydrogeophysicsStrip
   ! in support of multirealization scenarios.
   simulation%mycomm_save = option%mycomm
@@ -183,8 +185,7 @@ subroutine HydrogeophysicsInitialize(simulation_base,pm_list,option)
 !print *, 9, simulation%myrank_save, simulation%pf_e4d_scatter_comm, simulation%pf_e4d_master_comm, MPI_COMM_NULL
   
   if (simulation%pflotran_process) then
-    simulation%process_model_list => pm_list
-    call HydrogeophysicsInitPostPetsc(simulation,option)
+    call HydrogeophysicsInitPostPetsc(simulation)
   else
     option%io_rank = -1 ! turn off I/O from E4D processes.
   endif
@@ -293,20 +294,38 @@ subroutine HydrogeophysicsInitialize(simulation_base,pm_list,option)
                       pflotran_saturation_vec_mpi,ierr);CHKERRQ(ierr)
     call VecDuplicate(pflotran_tracer_vec_seq, &
                       pflotran_saturation_vec_seq,ierr);CHKERRQ(ierr)
+    ! have to broadcast the flow mode to the e4d master
+    temp_int = option%iflowmode
+    if (simulation%pf_e4d_master_comm /= MPI_COMM_NULL) then
+      call MPI_Bcast(temp_int,ONE_INTEGER_MPI,MPI_INTEGER, &
+                     ZERO_INTEGER_MPI,simulation%pf_e4d_master_comm,ierr)
+    endif
+    if (temp_int /= NULL_MODE .and. temp_int /= RICHARDS_MODE) then
+      call VecDuplicate(pflotran_tracer_vec_mpi, &
+                        pflotran_temperature_vec_mpi,ierr);CHKERRQ(ierr)
+      call VecDuplicate(pflotran_tracer_vec_seq, &
+                        pflotran_temperature_vec_seq,ierr);CHKERRQ(ierr)
+    endif
   endif
 !print *, 'End  -----------'
 
-  simulation_base => simulation
-
   if (simulation%pflotran_process) then
+    ! tracer
     simulation%hydrogeophysics_coupler%tracer_mpi = pflotran_tracer_vec_mpi
     simulation%hydrogeophysics_coupler%tracer_seq = pflotran_tracer_vec_seq
     simulation%tracer_mpi = pflotran_tracer_vec_mpi
+    ! saturation
     simulation%hydrogeophysics_coupler%saturation_mpi = &
       pflotran_saturation_vec_mpi
     simulation%hydrogeophysics_coupler%saturation_seq = &
       pflotran_saturation_vec_seq
     simulation%saturation_mpi = pflotran_saturation_vec_mpi
+    ! temperature
+    simulation%hydrogeophysics_coupler%temperature_mpi = &
+      pflotran_temperature_vec_mpi
+    simulation%hydrogeophysics_coupler%temperature_seq = &
+      pflotran_temperature_vec_seq
+    simulation%temperature_mpi = pflotran_temperature_vec_mpi
     simulation%hydrogeophysics_coupler%pf_to_e4d_scatter = pflotran_scatter
     simulation%hydrogeophysics_coupler%pf_to_e4d_master_comm = &
       simulation%pf_e4d_master_comm
@@ -316,6 +335,8 @@ subroutine HydrogeophysicsInitialize(simulation_base,pm_list,option)
                                     pflotran_tracer_vec_seq, &
                                     pflotran_saturation_vec_mpi, &
                                     pflotran_saturation_vec_seq, &
+                                    pflotran_temperature_vec_mpi, &
+                                    pflotran_temperature_vec_seq, &
                                     pflotran_scatter, &
                                     simulation%pf_e4d_master_comm)
   endif
@@ -325,7 +346,7 @@ end subroutine HydrogeophysicsInitialize
 
 ! ************************************************************************** !
 
-subroutine HydrogeophysicsInitPostPetsc(simulation, option)
+subroutine HydrogeophysicsInitPostPetsc(simulation)
   ! 
   ! HydrogeophysicsInitializePostPetsc: Sets up hydrogeophysics simulation
   ! framework after to PETSc initialization
@@ -341,18 +362,17 @@ subroutine HydrogeophysicsInitPostPetsc(simulation, option)
   
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
-  class(hydrogeophysics_simulation_type) :: simulation
-  type(option_type), pointer :: option
+  class(simulation_hydrogeophysics_type) :: simulation
   
   class(pmc_hydrogeophysics_type), pointer :: hydrogeophysics_coupler
   character(len=MAXSTRINGLENGTH) :: string
   PetscErrorCode :: ierr
   
   ! Init() is called in SubsurfaceInitializePostPetsc
-  call SubsurfaceInitializePostPetsc(simulation, option)
+  call SubsurfaceInitializePostPetsc(simulation)
   
   ! add hydrogeophysics coupler to list
   hydrogeophysics_coupler => PMCHydrogeophysicsCreate()

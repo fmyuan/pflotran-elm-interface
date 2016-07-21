@@ -16,37 +16,51 @@ contains
     
     if (my_rank>0) then
        call slave_run
+       call cleanup
        return
     end if
    
+    if (.not. allocated(pf_porosity)) allocate(pf_porosity(pflotran_vec_size))
     if (.not. allocated(pf_tracer)) allocate(pf_tracer(pflotran_vec_size))
-    if (.not. allocated(pf_saturation)) allocate(pf_saturation(pflotran_vec_size))
-    if (.not. allocated(pf_saturation_0)) allocate(pf_saturation_0(pflotran_vec_size))
+    if (.not. allocated(pf_saturation)) &
+      allocate(pf_saturation(pflotran_vec_size))
+    if (.not. allocated(pf_saturation_0)) &
+      allocate(pf_saturation_0(pflotran_vec_size))
+    ! if energy is being modeled, pflotran_temperature_vec_mpi will be non-zero
+    if (pflotran_temperature_vec_mpi /= 0 .and. &
+        .not. allocated(pf_temperature)) &
+      allocate(pf_temperature(pflotran_vec_size))
     if (.not. allocated(sigma)) allocate(sigma(nelem))
    
 
     call get_mcomm
     call cpu_time(Cbeg)
+    call get_pf_porosity       !!get the pflotran porosity
     do while (mcomm==1)
 
        call get_pf_time      !!get the pflotran solution time
        call get_pf_sol       !!get the pflotran solution
-       if (first_flag) then
-          pf_saturation_0 = pf_saturation
-          first_flag = .false.
-       end if
+      
        call elog(36,mcomm,mcomm)
 
        call check_e4d_sim    !!see if we should do an e4d sim for this time
        
        if (sim_e4d) then
+
+          
+
+          if (first_flag) then
+             pf_saturation_0 = pf_saturation
+             !call compute_FF
+             first_flag = .false.
+          end if
+ 
           call map_pf_e4d       !!map/transform the solution to the E4D mesh
-          call send_sigma       !!send the transformed solution to the slaves 
-                   
+          call send_sigma       !!send the transformed solution to the slaves           
           call send_command(3)  !!instruct slaves to build A matrix
           call send_command(5)  !!instruct slaves to build KSP solver
           call send_command(6)  !!instruct slaves to solve  
-          call get_dpred        !!assemble the simulated data
+         call get_dpred        !!assemble the simulated data
           call cpu_time(Cbeg)
        end if
      
@@ -55,6 +69,7 @@ contains
     end do
 
     call send_command(0)  !!instruct slaves to exit
+    call cleanup
     return
 
      
@@ -67,7 +82,11 @@ contains
     integer :: tmp,i,ios,j,junk,a,b,m,n
    
 
+    open(13,file=trim(log_file),status='old',action='write',position='append')
+    write(13,*) "Min/Max Tracer Value: ",minval(pf_tracer),maxval(pf_tracer)
+    close(13)
     sim_e4d = .false.
+    
     open(10,file=trim(list_file),status='old',action='read')
     read(10,*) tmp
     do i=1,ntime
@@ -125,42 +144,85 @@ contains
     implicit none
     call MPI_BCAST(pf_time,1,MPI_DOUBLE_PRECISION,0,PFE4D_MASTER_COMM, &
                    ierr)
+   
   end subroutine get_pf_time
+  !____________________________________________________________________
+
+  !____________________________________________________________________
+  subroutine get_pf_porosity
+    implicit none
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+    integer ::  status(MPI_STATUS_SIZE)
+    PetscReal, pointer :: vec_ptr(:)
+
+ 
+    ! porosity
+    ! we actually hijack the tracer vec to transfer porosity
+    call VecScatterBegin(pflotran_scatter,pflotran_tracer_vec_mpi, &
+                         pflotran_tracer_vec_seq, &
+                         INSERT_VALUES,SCATTER_FORWARD,perr);CHKERRQ(perr)
+    call VecScatterEnd(pflotran_scatter,pflotran_tracer_vec_mpi, &
+                       pflotran_tracer_vec_seq, &
+                       INSERT_VALUES,SCATTER_FORWARD,perr);CHKERRQ(perr)
+    call VecGetArrayF90(pflotran_tracer_vec_seq,vec_ptr,perr);CHKERRQ(perr)
+    pf_porosity = real(vec_ptr)
+
+    call VecRestoreArrayF90(pflotran_tracer_vec_seq,vec_ptr, &
+                            perr);CHKERRQ(perr)
+
+  end subroutine get_pf_porosity
   !____________________________________________________________________
 
   !____________________________________________________________________
   subroutine get_pf_sol
     implicit none
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
     integer ::  status(MPI_STATUS_SIZE)
     PetscReal, pointer :: vec_ptr(:)
 
-    !!this code will change depending on how we send the PF solution
-    !!to the E4D master process here
-!geh    call MPI_RECV(pf_sol,nelem,MPI_REAL,0,0,PFE4D_COMM,status,ierr)
+ 
     ! tracer
     call VecScatterBegin(pflotran_scatter,pflotran_tracer_vec_mpi, &
                          pflotran_tracer_vec_seq, &
-                         INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                         INSERT_VALUES,SCATTER_FORWARD,perr);CHKERRQ(perr)
     call VecScatterEnd(pflotran_scatter,pflotran_tracer_vec_mpi, &
                        pflotran_tracer_vec_seq, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(pflotran_tracer_vec_seq,vec_ptr,ierr);CHKERRQ(ierr)
-    pf_tracer = vec_ptr
+                       INSERT_VALUES,SCATTER_FORWARD,perr);CHKERRQ(perr)
+    call VecGetArrayF90(pflotran_tracer_vec_seq,vec_ptr,perr);CHKERRQ(perr)
+    pf_tracer = real(vec_ptr)
+
     call VecRestoreArrayF90(pflotran_tracer_vec_seq,vec_ptr, &
-                            ierr);CHKERRQ(ierr)
+                            perr);CHKERRQ(perr)
+
     ! saturation                
     call VecScatterBegin(pflotran_scatter,pflotran_saturation_vec_mpi, &
                          pflotran_saturation_vec_seq, &
-                         INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+                         INSERT_VALUES,SCATTER_FORWARD,perr);CHKERRQ(perr)
     call VecScatterEnd(pflotran_scatter,pflotran_saturation_vec_mpi, &
                        pflotran_saturation_vec_seq, &
-                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
-    call VecGetArrayF90(pflotran_saturation_vec_seq,vec_ptr,ierr);CHKERRQ(ierr)
-    pf_saturation = vec_ptr
+                       INSERT_VALUES,SCATTER_FORWARD,perr);CHKERRQ(perr)
+    call VecGetArrayF90(pflotran_saturation_vec_seq,vec_ptr,perr);CHKERRQ(perr)
+    pf_saturation = real(vec_ptr)
     call VecRestoreArrayF90(pflotran_saturation_vec_seq,vec_ptr, &
-                            ierr);CHKERRQ(ierr)
+                            perr);CHKERRQ(perr)
+
+    ! temperature  (only modeled when energy is simulated)
+    if (pflotran_temperature_vec_mpi /= 0) then
+      call VecScatterBegin(pflotran_scatter,pflotran_temperature_vec_mpi, &
+                           pflotran_temperature_vec_seq, &
+                           INSERT_VALUES,SCATTER_FORWARD,perr);CHKERRQ(perr)
+      call VecScatterEnd(pflotran_scatter,pflotran_temperature_vec_mpi, &
+                         pflotran_temperature_vec_seq, &
+                         INSERT_VALUES,SCATTER_FORWARD,perr);CHKERRQ(perr)
+      call VecGetArrayF90(pflotran_temperature_vec_seq,vec_ptr, &
+                          perr);CHKERRQ(perr)
+      pf_temperature = real(vec_ptr)
+      call VecRestoreArrayF90(pflotran_temperature_vec_seq,vec_ptr, &
+                            perr);CHKERRQ(perr)
+    endif
+ 
   end subroutine get_pf_sol
   !____________________________________________________________________
 
@@ -170,27 +232,28 @@ contains
     implicit none
     integer :: i,cnt 
     character*40 :: filename, word
-    real :: K,St,C,parSat,delSigb,delSigf,delSigb_min
+    real :: K,St,C,parSat,delSigb,Sigf,delSigb_min
     real, parameter :: m=2.0      !!m is the saturation exponent ... assumed to be 2    
+    !real, dimension(nelem) :: pftrac
+    !pftrac=0
+    !sigma=0.001 !sigma_base
+    !do i=1,nmap
+    !   sigma(map_inds(i,1)) = sigma(map_inds(i,1))+map(i)*pf_tracer(map_inds(i,2))
+    !   pftrac(map_inds(i,1))=  pftrac(map_inds(i,1)) +map(i)*pf_tracer(map_inds(i,2))
+    !end do
+ 
+    do i=1,nmap 
 
-    !sigma=0.1
-    delSigb_min = (sw_sig-gw_sig)/FF
-    do i=1,nmap
-       !parSat  = m*gw_sig*pf_saturation_0(map_inds(i,2))/FF  !partial of sig bulk w.r.t. saturation
-       !parSigf = (pf_saturation_0(map_inds(i,2))**(m))/FF    !partial of sig bulk w.r.t. sig fluid
-       !delSat  = pf_saturation(map_inds(i,2))-pf_saturation_0(map_inds(i,2)) !change in sat from baseline
-       delSigf = gw_sig + (sw_sig-gw_sig)*pf_tracer(map_inds(i,2))           !change in pore sig from baseline
-       delSigb = (delSigf*pf_saturation(map_inds(i,2))**(m) - gw_sig*pf_saturation_0(map_inds(i,2))**(m))/FF
-       !if (delSigb > delSigb_min) delSigb=delSigb_min
+       Sigf = gw_sig + (sw_sig-gw_sig)*pf_tracer(map_inds(i,2))           !pore water conductivity
+       delSigb = (Sigf*pf_saturation(map_inds(i,2))**(m))/FF-sigma(map_inds(i,1)) 
        sigma(map_inds(i,1)) = sigma(map_inds(i,1)) + map(i)*delSigb
-   
-    end do
-  
-   
-    do i=1,nelem
-       if (sigma(i)<1e-5) sigma(i)=1e-5
-    end do
 
+    end do
+    
+    do i=1,nelem
+       if (sigma(i)<1e-6) sigma(i)=1e-6
+    end do
+ 
     !write(*,*) pf_time
     write(word,'(i15.15)') int(pf_time)
     filename = 'sigma_' // &
@@ -207,6 +270,25 @@ contains
     close(86)
 
   end subroutine map_pf_e4d
+  !____________________________________________________________________
+
+  !____________________________________________________________________
+  !subroutine compute_FF
+  !  implicit none
+  !  integer :: i
+  !  real, parameter :: m = 2
+  !  allocate(ffac(nelem))
+  !  ffac = 0
+  !  do i=1,nmap
+  !      ffac(map_inds(i,1)) = ffac(map_inds(i,1)) + map(i)*(gw_sig*pf_saturation_0(map_inds(i,2))**(m))/sigma(map_inds(i,1))
+  !  end do
+  !  open(13,file='FF_Derived.txt',status='replace',action='write')
+  !  write(13,*) nelem
+  !  do i=1,nelem
+  !     write(13,*) ffac(i)
+  !  end do
+  !  close(13)
+  !end subroutine compute_FF
   !____________________________________________________________________
 
   !____________________________________________________________________
@@ -337,18 +419,18 @@ contains
     integer, save :: num_calls = 0
     call MPI_BCAST(sigma, nelem,MPI_REAL,0,E4D_COMM,ierr)   
 !geh
-#if 0 
-write(filename,*) num_calls
-write(word,*) my_rank
-filename = 'sigma_' // trim(adjustl(word)) // '_' // &
-           trim(adjustl(filename)) // '.txt'
-open(unit=86,file=filename)
-do i = 1, nelem
-  write(86,*) sigma(i)
-enddo
-close(86)
-#endif
-num_calls = num_calls + 1
+
+!write(filename,*) num_calls
+!write(word,*) my_rank
+!filename = 'sigma_' // trim(adjustl(word)) // '_' // &
+!           trim(adjustl(filename)) // '.txt'
+!open(unit=86,file=filename,status='replace',action='write')
+!do i = 1, nelem
+!  write(86,*) sigma(i)
+!enddo
+!close(86)
+
+!num_calls = num_calls + 1
 !    print *, 'sigma received by slave', sigma(16)
   end subroutine receive_sigma
   !__________________________________________________________________
@@ -369,7 +451,7 @@ num_calls = num_calls + 1
     
     
     !zero A
-    call MatZeroEntries(A,perr)
+    call MatZeroEntries(A,perr);CHKERRQ(perr)
     
     do i=1,10*nelem
        row=rows(A_map(i))
@@ -380,25 +462,26 @@ num_calls = num_calls + 1
        !lower triangle
        if ((rbv>=2 .and. rbv<=6) .or. (cbv>=2 .and. cbv<=6)) then
           !one or both nodes are on a boundary so set to zero for bc's
-          val(1) = 0
+          val(1) = 1e-30
        else
           
           val(1) = sigma(S_map(i))*delA(i)
+    
        end if
        
        prn(1) = row-1
        pcn(1) = col-1
        
-       call MatSetValues(A,1,prn,1,pcn,val,ADD_VALUES,perr)          
+       call MatSetValues(A,1,prn,1,pcn,val,ADD_VALUES,perr);CHKERRQ(perr)
        !upper triangle
        if (row .ne. col) then
-          call MatSetValues(A,1,pcn,1,prn,val,ADD_VALUES,perr)
+          call MatSetValues(A,1,pcn,1,prn,val,ADD_VALUES,perr);CHKERRQ(perr)
        end if
        
     end do
      
-    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,perr)
-    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,perr)
+    call MatAssemblyBegin(A,MAT_FINAL_ASSEMBLY,perr);CHKERRQ(perr)
+    call MatAssemblyEnd(A,MAT_FINAL_ASSEMBLY,perr);CHKERRQ(perr)
     
     
     
@@ -408,8 +491,8 @@ num_calls = num_calls + 1
   !__________________________________________________________________
   subroutine build_ksp
     implicit none
-#include "finclude/petscksp.h"
-#include "finclude/petscksp.h90"
+#include "petsc/finclude/petscksp.h"
+#include "petsc/finclude/petscksp.h90"
     real*8 :: rtol = 1e-6
     real*8 :: atol = 1e-35
     real*8 :: dtol = 500
@@ -417,20 +500,27 @@ num_calls = num_calls + 1
     !KSPSetTolerances(KSP ksp,double rtol,double atol,double dtol,int maxits);
     
     !Set up the KSP context
-    call KSPCreate(PETSC_COMM_SELF,KS,perr)
+    call KSPCreate(PETSC_COMM_SELF,KS,perr);CHKERRQ(perr)
 !    call KSPSetOperators(KS,A,A,SAME_PRECONDITIONER,perr)
-    call KSPSetOperators(KS,A,A,perr)
-    call KSPGetPC(KS,P,perr)
+    call KSPSetOperators(KS,A,A,perr);CHKERRQ(perr)
+    call KSPGetPC(KS,P,perr);CHKERRQ(perr)
+!geh - begin
+    call KSPSetErrorIfNotConverged(KS,PETSC_TRUE,perr);CHKERRQ(perr)
+!geh - end
     !call KSPSetType(KS,KSPGMRES,perr) !use default
     !call KSPGMRESSetRestart(KS,1000,perr);
-    !call KSPGetTolerances(KS,rtol,atol,dtol,maxints,perr)
-    call KSPSetTolerances(KS,rtol,atol,dtol,maxints,perr)
-    call KSPSetFromOptions(KS,perr)
+    !call KSPGetTolerances(KS,rtol,atol,dtol,maxints,perr);CHKERRQ(perr)
+    call KSPSetTolerances(KS,rtol,atol,dtol,maxints,perr);CHKERRQ(perr)
+    call KSPSetFromOptions(KS,perr);CHKERRQ(perr)
+!geh - begin
+    ! this must come after KSPSetFromOptions (or PCSetFromOptions) as it is
+    ! overwritten by the defaults otherwise.
+    call PCFactorSetZeroPivot(P,1.d-40,perr);CHKERRQ(perr)
+!geh - end
     
   end subroutine build_ksp
   !__________________________________________________________________
-
-  !____________________________________________________________________
+ !____________________________________________________________________
   subroutine forward_run
     implicit none
     integer :: i,m,n,niter,j,enum
@@ -442,13 +532,13 @@ num_calls = num_calls + 1
     do i=1,my_ne
        !call cpu_time(tstart)
        
-       call VecGetArrayF90(psol,vloc,ierr);CHKERRQ(ierr)
+       call VecGetArrayF90(psol,vloc,perr);CHKERRQ(perr)
        vloc(1:nnodes)=dble(poles(:,i))
-       call VecRestoreArrayF90(psol,vloc,ierr);CHKERRQ(ierr)
+       call VecRestoreArrayF90(psol,vloc,perr);CHKERRQ(perr)
        enum=eind(my_rank,1)+i-1
           
        val=0.0
-       call VecSet(B,val,perr)
+       call VecSet(B,val,perr);CHKERRQ(perr)
        
        !if (i_flg) then
        !   call Add_Jpp(i)
@@ -456,37 +546,41 @@ num_calls = num_calls + 1
        
        eindx(1)=e_nods(enum)
        val=1.0
-       call VecSetValues(B,1,eindx-1,val,ADD_VALUES,perr)
-       !if (tank_flag) call VecSetValues(B,1,i_zpot-1,-val,ADD_VALUES,perr)
+       call VecSetValues(B,1,eindx-1,val,ADD_VALUES,perr);CHKERRQ(perr)
+
+       !if (tank_flag) call VecSetValues(B,1,i_zpot-1,-val,ADD_VALUES,perr);CHKERRQ(perr)
            
-       call VecAssemblyBegin(B,perr)
-       call VecAssemblyEnd(B,perr) 
+       call VecAssemblyBegin(B,perr);CHKERRQ(perr)
+       call VecAssemblyEnd(B,perr);CHKERRQ(perr)
        
-       call KSPSolve(KS,B,psol,perr)
-       
-       call VecGetArrayF90(psol,vloc,ierr);CHKERRQ(ierr)
+       call KSPSolve(KS,B,psol,perr);CHKERRQ(perr)
+       !call KSPView(KS,PETSC_VIEWER_STDOUT_SELF,perr);CHKERRQ(perr)
+
+       call VecGetArrayF90(psol,vloc,perr);CHKERRQ(perr)
        poles(:,i)= real(vloc(1:nnodes))
-       call VecRestoreArrayF90(psol,vloc,ierr);CHKERRQ(ierr)
-       
-       call KSPGetIterationNumber(KS,niter,perr)
-       call cpu_time(tend)
-       pck(1)=tend-tstart
-       pck(2)=real(niter)
-       !call MPI_SEND(pck,2,MPI_REAL,0,1,MPI_COMM_WORLD,ierr)
+       call VecRestoreArrayF90(psol,vloc,perr);CHKERRQ(perr)
+      
+       call KSPGetIterationNumber(KS,niter,perr);CHKERRQ(perr)
+       !write(*,*) my_rank,niter
+       !call cpu_time(tend)
+       !pck(1)=tend-tstart
+       !pck(2)=real(niter)
+       !call MPI_SEND(pck,2,MPI_REAL,0,1,MPI_COMM_WORLD,perr)
        !write(*,*) "Slave ",my_rank," solved for pole ",eind(my_rank,1)+i-1,'in ',tend-tstart,' seconds and ',niter,' iters'
        
     end do
     
     if (first_sol) then
-       call KSPSetInitialGuessNonzero(KS,PETSC_TRUE,perr)
+       call KSPSetInitialGuessNonzero(KS,PETSC_TRUE,perr);CHKERRQ(perr)
        first_sol=.false.
     end if
     
-    call KSPDestroy(KS,perr)
+    call KSPDestroy(KS,perr);CHKERRQ(perr)
     
     
   end subroutine forward_run
-  !____________________________________________________________________
+!_________________________________________________________________________________________________
+
 
    !__________________________________________________________________
     subroutine send_dpred
@@ -549,5 +643,47 @@ num_calls = num_calls + 1
       end do
      
   end subroutine assemble_data
+  !___________________________________________________________  
+  !___________________________________________________________
+  subroutine cleanup
+  
+        if(allocated(e4d_ranks)) deallocate(e4d_ranks)
+        if(allocated(pf_e4d_ranks)) deallocate(pf_e4d_ranks)
+        if(allocated(map_inds)) deallocate(map_inds)
+        if(allocated(s_conf)) deallocate(s_conf)
+        if(allocated(eind)) deallocate(eind)
+        if(allocated(jind)) deallocate(jind)
+        if(allocated(nbounds)) deallocate(nbounds)
+        if(allocated(zones)) deallocate(zones)
+        if(allocated(elements)) deallocate(elements)
+        if(allocated(faces)) deallocate(faces)
+        if(allocated(e_nods)) deallocate(e_nods)
+        if(allocated(rows)) deallocate(rows)
+        if(allocated(cols)) deallocate(cols)
+        if(allocated(trows)) deallocate(trows)
+        if(allocated(tcols)) deallocate(tcols)
+        if(allocated(A_map)) deallocate(A_map)
+        if(allocated(S_map)) deallocate(S_map)
+        if(allocated(my_drows)) deallocate(my_drows)
+        if(allocated(e_pos)) deallocate(e_pos)
+        if(allocated(nodes)) deallocate(nodes)
+        if(allocated(poles)) deallocate(poles)
+        if(allocated(pf_tracer)) deallocate(pf_tracer)
+        if(allocated(pf_saturation)) deallocate(pf_saturation)
+        if(allocated(pf_saturation_0)) deallocate(pf_saturation_0)
+        if(allocated(sigma)) deallocate(sigma)
+        if(allocated(dpred)) deallocate(dpred)
+        if(allocated(dobs)) deallocate(dobs)
+        if(allocated(sd)) deallocate(sd)
+        if(allocated(my_dvals)) deallocate(my_dvals)
+        if(allocated(map)) deallocate(map)
+        if(allocated(base_sigma)) deallocate(base_sigma)
+        if(allocated(ffac)) deallocate(ffac)
+        if(allocated(pfxcb)) deallocate(pfxcb)
+        if(allocated(pfycb)) deallocate(pfycb)
+        if(allocated(pfzcb)) deallocate(pfzcb)
+        if(allocated(d_nnz)) deallocate(d_nnz)
+        if(allocated(delA)) deallocate(delA)
+  end subroutine cleanup
   !___________________________________________________________
 end module e4d_run

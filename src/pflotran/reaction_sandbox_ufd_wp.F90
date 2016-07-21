@@ -16,7 +16,7 @@ module Reaction_Sandbox_UFD_WP_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, public, &
     extends(reaction_sandbox_base_type) :: reaction_sandbox_ufd_wp_type
@@ -78,11 +78,11 @@ subroutine WastePackageRead(this,input,option)
   implicit none
   
   class(reaction_sandbox_ufd_wp_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   PetscInt :: i
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, internal_units
   
   do 
     call InputReadPflotranString(input,option)
@@ -133,8 +133,9 @@ subroutine WastePackageRead(this,input,option)
           call InputDefaultMsg(input,option)
         else              
           ! If units exist, convert to internal units of 1/s
+          internal_units = 'unitless/sec'
           this%rate_constant = this%rate_constant * &
-            UnitsConvertToInternal(word,option)
+            UnitsConvertToInternal(word,internal_units,option)
         endif
       case default
         call InputKeywordUnrecognized(word, &

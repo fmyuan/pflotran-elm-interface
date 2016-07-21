@@ -6,7 +6,7 @@ module Geometry_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
  
   type, public :: point3d_type
     PetscReal :: x
@@ -77,7 +77,7 @@ subroutine GeometryReadCoordinates(input,option,region_name,coordinates)
 
   implicit none
   
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: region_name
   type(point3d_type), pointer :: coordinates(:)

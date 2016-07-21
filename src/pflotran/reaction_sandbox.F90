@@ -4,6 +4,8 @@ module Reaction_Sandbox_module
   use Reaction_Sandbox_CLM_CN_class
   use Reaction_Sandbox_UFD_WP_class
   use Reaction_Sandbox_Example_class
+  use Reaction_Sandbox_Simple_class
+  use Reaction_Sandbox_Cyber_class
   
   ! Add new reacton sandbox classes here.
   
@@ -13,7 +15,7 @@ module Reaction_Sandbox_module
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   class(reaction_sandbox_base_type), pointer, public :: rxn_sandbox_list
 
@@ -104,7 +106,7 @@ subroutine RSandboxRead1(input,option)
   
   implicit none
   
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   call RSandboxRead(rxn_sandbox_list,input,option)
@@ -129,7 +131,7 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
   implicit none
   
   class(reaction_sandbox_base_type), pointer :: local_sandbox_list  
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -154,6 +156,10 @@ subroutine RSandboxRead2(local_sandbox_list,input,option)
         new_sandbox => WastePackageCreate()
       case('EXAMPLE')
         new_sandbox => EXAMPLECreate()
+      case('SIMPLE')
+        new_sandbox => SimpleCreate()
+      case('CYBERNETIC')
+        new_sandbox => CyberCreate()
       case default
         call InputKeywordUnrecognized(word,'CHEMISTRY,REACTION_SANDBOX',option)
     end select
@@ -191,7 +197,7 @@ subroutine RSandboxSkipInput(input,option)
   
   implicit none
   
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   class(reaction_sandbox_base_type), pointer :: dummy_list

@@ -12,7 +12,7 @@ module Reaction_Surface_Complexation_module
   
   private 
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   PetscReal, parameter :: perturbation_tolerance = 1.d-5
   
@@ -43,7 +43,7 @@ subroutine SurfaceComplexationRead(reaction,input,option)
   implicit none
   
   type(reaction_type) :: reaction
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXSTRINGLENGTH) :: string

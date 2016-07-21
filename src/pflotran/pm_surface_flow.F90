@@ -8,24 +8,26 @@ module PM_Surface_Flow_class
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscsnes.h"
-#include "finclude/petscts.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscsnes.h"
+#include "petsc/finclude/petscts.h"
 
   type, public, extends(pm_surface_type) :: pm_surface_flow_type
   contains
+    procedure, public :: Read => PMSurfaceFlowRead
     procedure, public :: UpdateTimestep => PMSurfaceFlowUpdateTimestep
     procedure, public :: PreSolve => PMSurfaceFlowPreSolve
     procedure, public :: PostSolve => PMSurfaceFlowPostSolve
     procedure, public :: UpdateSolution => PMSurfaceFlowUpdateSolution
     procedure, public :: Destroy => PMSurfaceFlowDestroy
     procedure, public :: RHSFunction => PMSurfaceFlowRHSFunction
-    procedure, public :: UpdateAuxvars => PMSurfaceFlowUpdateAuxvars
+    procedure, public :: UpdateAuxVars => PMSurfaceFlowUpdateAuxVars
+    procedure, public :: InputRecord => PMSurfaceFlowInputRecord
   end type pm_surface_flow_type
 
   public :: PMSurfaceFlowCreate, &
@@ -56,6 +58,57 @@ function PMSurfaceFlowCreate()
   PMSurfaceFlowCreate => surface_flow_pm
 
 end function PMSurfaceFlowCreate
+
+! ************************************************************************** !
+
+subroutine PMSurfaceFlowRead(this,input)
+  ! 
+  ! Reads input file parameters associated with the Surface process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 01/29/15
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+  use EOS_Water_module
+  use Option_module
+
+  implicit none
+
+  class(pm_surface_flow_type) :: this
+  type(input_type), pointer :: input
+
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+  PetscBool :: found
+
+  option => this%option
+
+  error_string = 'Surface Flow Options'
+
+  input%ierr = 0
+  do
+
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+
+    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(word)
+
+    found = PETSC_FALSE
+    call PMSurfaceReadSelectCase(this,input,word,found,option)
+    if (found) cycle
+
+    select case(trim(word))
+      case default
+        call InputKeywordUnrecognized(word,error_string,option)
+    end select
+  enddo
+
+end subroutine PMSurfaceFlowRead
 
 ! ************************************************************************** !
 
@@ -116,11 +169,11 @@ subroutine PMSurfaceFlowRHSFunction(this,ts,time,xx,ff,ierr)
   implicit none
 
   class(pm_surface_flow_type) :: this
-  TS                                     :: ts
-  PetscReal                              :: time
-  Vec                                    :: xx
-  Vec                                    :: ff
-  PetscErrorCode                         :: ierr
+  TS :: ts
+  PetscReal :: time
+  Vec :: xx
+  Vec :: ff
+  PetscErrorCode :: ierr
 
   call SurfaceFlowRHSFunction(ts,time,xx,ff,this%surf_realization,ierr)
 
@@ -203,14 +256,14 @@ subroutine PMSurfaceFlowPostSolve(this)
 
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   class(pm_surface_flow_type) :: this
 
   PetscReal, pointer :: xx_p(:)
   PetscInt :: local_id
-  type(surface_field_type), pointer   :: surf_field 
+  type(surface_field_type), pointer :: surf_field 
   PetscErrorCode :: ierr
 
   surf_field => this%surf_realization%surf_field
@@ -232,7 +285,7 @@ subroutine PMSurfaceFlowPostSolve(this)
 end subroutine PMSurfaceFlowPostSolve
 
 ! ************************************************************************** !
-subroutine PMSurfaceFlowUpdateAuxvars(this)
+subroutine PMSurfaceFlowUpdateAuxVars(this)
   ! 
   ! Author: Gautam Bisht, LBNL
   ! Date: 04/30/14
@@ -245,7 +298,31 @@ subroutine PMSurfaceFlowUpdateAuxvars(this)
 
   call SurfaceFlowUpdateAuxVars(this%surf_realization)
 
-end subroutine PMSurfaceFlowUpdateAuxvars
+end subroutine PMSurfaceFlowUpdateAuxVars
+
+! ************************************************************************** !
+
+subroutine PMSurfaceFlowInputRecord(this)
+  ! 
+  ! Writes ingested information to the input record file.
+  ! 
+  ! Author: Jenn Frederick, SNL
+  ! Date: 03/21/2016
+  ! 
+  
+  implicit none
+  
+  class(pm_surface_flow_type) :: this
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: id
+
+  id = INPUT_RECORD_UNIT
+
+  write(id,'(a29)',advance='no') 'pm: '
+  write(id,'(a)') this%name
+
+end subroutine PMSurfaceFlowInputRecord
 
 ! ************************************************************************** !
 

@@ -1,7 +1,5 @@
 module Output_Geomechanics_module
 
-  use Logging_module 
-  use Geomechanics_Logging_module
   use Output_Aux_module  
   use Output_Tecplot_module
   use Output_Common_module
@@ -12,18 +10,19 @@ module Output_Geomechanics_module
   
   private
   
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscdm.h"
-#include "finclude/petscdm.h90"
-#include "finclude/petsclog.h"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscdm.h"
+#include "petsc/finclude/petscdm.h90"
+#include "petsc/finclude/petsclog.h"
 
   PetscInt, save, public :: max_local_node_size_saved = -1
   PetscBool :: geomech_hdf5_first
 
   public :: OutputGeomechanics, &
-            OutputGeomechInit
+            OutputGeomechInit, &
+            OutputGeomechGetVarFromArray
       
 contains
 
@@ -53,8 +52,8 @@ end subroutine OutputGeomechInit
 
 ! ************************************************************************** !
 
-subroutine OutputGeomechanics(geomech_realization,plot_flag, &
-                              transient_plot_flag)
+subroutine OutputGeomechanics(geomech_realization,snapshot_plot_flag, &
+                              observation_plot_flag,massbal_plot_flag)
   ! 
   ! Main driver for all geomechanics output
   ! 
@@ -63,37 +62,40 @@ subroutine OutputGeomechanics(geomech_realization,plot_flag, &
   ! 
 
   use Geomechanics_Realization_class
+  use Logging_module
   use Option_module, only : OptionCheckTouch, option_type, &
                             printMsg, printErrMsg
 
   implicit none
 
-  type(geomech_realization_type) :: geomech_realization
-  PetscBool                       :: plot_flag
-  PetscBool                       :: transient_plot_flag
+  type(realization_geomech_type) :: geomech_realization
+  PetscBool :: snapshot_plot_flag
+  PetscBool :: observation_plot_flag
+  PetscBool :: massbal_plot_flag
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscErrorCode                 :: ierr
-  PetscLogDouble                 :: tstart, tend
-  type(option_type), pointer     :: option
+  PetscErrorCode :: ierr
+  PetscLogDouble :: tstart, tend
+  type(option_type), pointer :: option
 
   option => geomech_realization%option
 
   call PetscLogStagePush(logging%stage(OUTPUT_STAGE),ierr);CHKERRQ(ierr)
 
   ! check for plot request from active directory
-  if (.not.plot_flag) then
+  if (.not.snapshot_plot_flag) then
 
     if (option%use_touch_options) then
       string = 'plot'
       if (OptionCheckTouch(option,string)) then
         geomech_realization%output_option%plot_name = 'plot'
-        plot_flag = PETSC_TRUE
+        snapshot_plot_flag = PETSC_TRUE
       endif
     endif
   endif
 
-  if (plot_flag) then
+!.....................................
+  if (snapshot_plot_flag) then
   
     if (geomech_realization%output_option%print_hdf5) then
        call OutputHDF5UGridXDMFGeomech(geomech_realization, &
@@ -102,16 +104,22 @@ subroutine OutputGeomechanics(geomech_realization,plot_flag, &
    
     if (geomech_realization%output_option%print_tecplot) then
       call PetscTime(tstart,ierr);CHKERRQ(ierr)
-      call PetscLogEventBegin(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
       call OutputTecplotGeomechanics(geomech_realization)
       call PetscTime(tend,ierr);CHKERRQ(ierr)
-      call PetscLogEventEnd(logging%event_output_tecplot,ierr);CHKERRQ(ierr)
     endif
 
   endif
 
+!......................................
+  if (observation_plot_flag) then
+  endif
+
+!......................................
+  if (massbal_plot_flag) then
+  endif
+
   ! Increment the plot number
-  if (plot_flag) then
+  if (snapshot_plot_flag) then
     geomech_realization%output_option%plot_number = &
       geomech_realization%output_option%plot_number + 1
   endif
@@ -140,7 +148,7 @@ subroutine OutputTecplotGeomechanics(geomech_realization)
   
   implicit none
 
-  type(geomech_realization_type) :: geomech_realization
+  type(realization_geomech_type) :: geomech_realization
   
   PetscInt, parameter :: icolumn = -1
   character(len=MAXSTRINGLENGTH) :: filename, string, string2
@@ -176,7 +184,8 @@ subroutine OutputTecplotGeomechanics(geomech_realization)
   option%global_prefix = tmp_global_prefix
     
   if (option%myrank == option%io_rank) then
-    option%io_buffer = '--> write tecplot geomech output file: ' // trim(filename)
+    option%io_buffer = '--> write tecplot geomech output file: ' // &
+        trim(filename)
     call printMsg(option)
     open(unit=OUTPUT_UNIT,file=filename,action="write")
     call OutputTecplotHeader(OUTPUT_UNIT,geomech_realization,icolumn)
@@ -193,13 +202,14 @@ subroutine OutputTecplotGeomechanics(geomech_realization)
   call WriteTecplotGeomechGridVertices(OUTPUT_UNIT,geomech_realization)
 
   ! loop over variables and write to file
-  cur_variable => output_option%output_variable_list%first
+  cur_variable => output_option%output_snap_variable_list%first
   do
     if (.not.associated(cur_variable)) exit
     call OutputGeomechGetVarFromArray(geomech_realization,global_vec, &
                                       cur_variable%ivar, &
                                       cur_variable%isubvar)
-    call GeomechDiscretizationGlobalToNatural(geomech_discretization,global_vec, &
+    call GeomechDiscretizationGlobalToNatural(geomech_discretization, &
+                                              global_vec, &
                                               natural_vec,ONEDOF)
     if (cur_variable%iformat == 0) then
       call WriteTecplotDataSetGeomechFromVec(OUTPUT_UNIT,geomech_realization, &
@@ -243,7 +253,7 @@ subroutine WriteTecplotGeomechGridElements(fid,geomech_realization)
   implicit none
 
   PetscInt :: fid
-  type(geomech_realization_type) :: geomech_realization
+  type(realization_geomech_type) :: geomech_realization
 
   type(geomech_grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -406,7 +416,7 @@ subroutine OutputTecplotHeader(fid,geomech_realization,icolumn)
   implicit none
 
   PetscInt :: fid
-  type(geomech_realization_type) :: geomech_realization
+  type(realization_geomech_type) :: geomech_realization
   PetscInt :: icolumn
   
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -434,7 +444,8 @@ subroutine OutputTecplotHeader(fid,geomech_realization,icolumn)
            '"Z [m]"'
   write(fid,'(a)',advance="no") trim(string)
 
-  call OutputWriteVariableListToHeader(fid,output_option%output_variable_list, &
+  call OutputWriteVariableListToHeader(fid, &
+                                      output_option%output_snap_variable_list, &
                                        '',icolumn,PETSC_TRUE,variable_count)
  ! need to terminate line
   write(fid,'(a)') ''
@@ -468,7 +479,7 @@ subroutine OutputWriteTecplotZoneHeader(fid,geomech_realization, &
   implicit none
 
   PetscInt :: fid
-  type(geomech_realization_type) :: geomech_realization
+  type(realization_geomech_type) :: geomech_realization
   PetscInt :: variable_count
   PetscInt :: tecplot_format
   
@@ -528,7 +539,7 @@ subroutine WriteTecplotGeomechGridVertices(fid,geomech_realization)
   implicit none
 
   PetscInt :: fid
-  type(geomech_realization_type) :: geomech_realization 
+  type(realization_geomech_type) :: geomech_realization 
   
   type(geomech_grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -586,8 +597,8 @@ subroutine GetVertexCoordinatesGeomech(grid,vec,direction,option)
   
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   type(geomech_grid_type) :: grid
   Vec :: vec
@@ -665,11 +676,11 @@ subroutine OutputGeomechGetVarFromArray(geomech_realization,vec,ivar,isubvar, &
 
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petsclog.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petsclog.h"
 
-  class(geomech_realization_type) :: geomech_realization
+  class(realization_geomech_type) :: geomech_realization
   Vec :: vec
   PetscInt :: ivar
   PetscInt :: isubvar
@@ -677,19 +688,14 @@ subroutine OutputGeomechGetVarFromArray(geomech_realization,vec,ivar,isubvar, &
   
   PetscErrorCode :: ierr
 
-  call PetscLogEventBegin(logging%event_output_get_var_from_array, &
-                          ierr);CHKERRQ(ierr)
-                        
   call GeomechRealizGetDataset(geomech_realization,vec,ivar,isubvar,isubvar1)
 
-  call PetscLogEventEnd(logging%event_output_get_var_from_array, &
-                        ierr);CHKERRQ(ierr)
-  
 end subroutine OutputGeomechGetVarFromArray
 
 ! ************************************************************************** !
 
-subroutine WriteTecplotDataSetGeomechFromVec(fid,geomech_realization,vec,datatype)
+subroutine WriteTecplotDataSetGeomechFromVec(fid,geomech_realization,vec, &
+                                             datatype)
   ! 
   ! Writes data from a Petsc Vec within a block
   ! of a Tecplot file
@@ -703,7 +709,7 @@ subroutine WriteTecplotDataSetGeomechFromVec(fid,geomech_realization,vec,datatyp
   implicit none
 
   PetscInt :: fid
-  type(geomech_realization_type) :: geomech_realization
+  type(realization_geomech_type) :: geomech_realization
   Vec :: vec
   PetscInt :: datatype
   PetscErrorCode :: ierr  
@@ -737,7 +743,7 @@ subroutine WriteTecplotDataSetGeomech(fid,geomech_realization,array,datatype, &
   implicit none
 
   PetscInt :: fid
-  type(geomech_realization_type) :: geomech_realization
+  type(realization_geomech_type) :: geomech_realization
   PetscReal :: array(:)
   PetscInt :: datatype
   PetscInt :: size_flag ! if size_flag /= 0, use size_flag as the local size
@@ -772,7 +778,7 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
   implicit none
   
   PetscInt :: fid
-  type(geomech_realization_type) :: geomech_realization
+  type(realization_geomech_type) :: geomech_realization
   PetscReal :: array(:)
   PetscInt :: datatype
   PetscInt :: size_flag ! if size_flag /= 0, use size_flag as the local size
@@ -803,9 +809,6 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
   grid => patch%geomech_grid
   option => geomech_realization%option
 
-  call PetscLogEventBegin(logging%event_output_write_tecplot, &
-                          ierr);CHKERRQ(ierr)
-
   ! if num_per_line exceeds 100, need to change the format statement below
   if (num_per_line > 100) then
     option%io_buffer = 'Number of values to be written to line in ' // &
@@ -830,7 +833,8 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
       call MPI_Allreduce(grid%nlmax_node,max_local_size,ONE_INTEGER_MPI, &
                          MPIU_INTEGER,MPI_MAX,option%mycomm,ierr)
       max_local_node_size_saved = max_local_size
-      write(option%io_buffer,'("max_local_node_size_saved: ",i9)') max_local_size
+      write(option%io_buffer,'("max_local_node_size_saved: ",i9)') &
+          max_local_size
       call printMsg(option)
     endif
     max_local_size = max_local_node_size_saved
@@ -933,7 +937,8 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
           num_in_array = num_in_array-iend
         endif
       else
-        call MPI_Recv(real_data_recv,recv_size_mpi,MPI_DOUBLE_PRECISION,iproc_mpi, &
+        call MPI_Recv(real_data_recv,recv_size_mpi, &
+                      MPI_DOUBLE_PRECISION,iproc_mpi, &
                       MPI_ANY_TAG,option%mycomm,status_mpi,ierr)
         if (recv_size_mpi > 0) then
           real_data(num_in_array+1:num_in_array+recv_size_mpi) = &
@@ -995,7 +1000,8 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
       call MPI_Send(integer_data,local_size_mpi,MPIU_INTEGER,option%io_rank, &
                     local_size_mpi,option%mycomm,ierr)
     else
-      call MPI_Send(real_data,local_size_mpi,MPI_DOUBLE_PRECISION,option%io_rank, &
+      call MPI_Send(real_data,local_size_mpi, &
+                    MPI_DOUBLE_PRECISION,option%io_rank, &
                     local_size_mpi,option%mycomm,ierr)
     endif
 #ifdef HANDSHAKE    
@@ -1015,9 +1021,6 @@ subroutine WriteTecplotDataSetNumPerLineGeomech(fid,geomech_realization, &
   else
     deallocate(real_data)
   endif
-
-  call PetscLogEventEnd(logging%event_output_write_tecplot, &
-                        ierr);CHKERRQ(ierr)
 
 end subroutine WriteTecplotDataSetNumPerLineGeomech
 
@@ -1083,7 +1086,8 @@ subroutine OutputXMFHeaderGeomech(fid,time,nmax,xmf_vert_len,ngvert,filename)
   write(fid,'(a)') trim(string)
 
   write(string2,*) ngvert
-  string="        <DataItem Format=""HDF"" Dimensions=""" // trim(adjustl(string2)) // " 3"">"
+  string="        <DataItem Format=""HDF"" Dimensions=""" // &
+      trim(adjustl(string2)) // " 3"">"
   write(fid,'(a)') trim(string)
 
   string="          "//trim(filename) //":/Domain/Vertices"
@@ -1100,7 +1104,8 @@ subroutine OutputXMFHeaderGeomech(fid,time,nmax,xmf_vert_len,ngvert,filename)
   write(fid,'(a)') trim(string)
 
   write(string2,*) ngvert
-  string="        <DataItem Dimensions=""" // trim(adjustl(string2)) // " 1"" Format=""HDF""> "
+  string="        <DataItem Dimensions=""" // &
+      trim(adjustl(string2)) // " 1"" Format=""HDF""> "
   write(fid,'(a)') trim(string)
 
   string="        " // trim(filename) //":/Domain/X"
@@ -1163,7 +1168,8 @@ subroutine OutputXMFAttributeGeomech(fid,nmax,attname,att_datasetname)
   write(fid,'(a)') trim(string)
 
   write(string2,*) nmax
-  string="        <DataItem Dimensions=""" // trim(adjustl(string2)) // " 1"" Format=""HDF""> "
+  string="        <DataItem Dimensions=""" // &
+      trim(adjustl(string2)) // " 1"" Format=""HDF""> "
   write(fid,'(a)') trim(string)
 
   string="        " // trim(att_datasetname)
@@ -1200,7 +1206,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
 
   implicit none
   
-  type(geomech_realization_type) :: geomech_realization
+  type(realization_geomech_type) :: geomech_realization
   PetscInt :: var_list_type
 
   call printMsg(geomech_realization%option,'')
@@ -1220,31 +1226,31 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
 #endif
 
   use hdf5
-  use HDF5_module, only : HDF5WriteUnstructuredDataSetFromVec
+  use HDF5_module, only : HDF5WriteDataSetFromVec
   use HDF5_Aux_module
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petsclog.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petsclog.h"
 
-  type(geomech_realization_type) :: geomech_realization
+  type(realization_geomech_type) :: geomech_realization
   PetscInt :: var_list_type
 
 #if defined(SCORPIO_WRITE)
-  integer:: file_id
-  integer:: data_type
-  integer:: grp_id
-  integer:: file_space_id
-  integer:: memory_space_id
-  integer:: data_set_id
-  integer:: realization_set_id
-  integer:: prop_id
+  integer :: file_id
+  integer :: data_type
+  integer :: grp_id
+  integer :: file_space_id
+  integer :: memory_space_id
+  integer :: data_set_id
+  integer :: realization_set_id
+  integer :: prop_id
   PetscMPIInt :: rank
   integer :: rank_mpi,file_space_rank_mpi
-  integer:: dims(3)
-  integer :: start(3), length(3), stride(3),istart
+  integer :: dims(3)
+  integer :: start(3), length(3), stride(3)
 #else
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
@@ -1257,7 +1263,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   PetscMPIInt :: rank
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   integer(HSIZE_T) :: dims(3)
-  integer(HSIZE_T) :: start(3), length(3), stride(3),istart
+  integer(HSIZE_T) :: start(3), length(3), stride(3)
 #endif
 
   type(geomech_grid_type), pointer :: grid
@@ -1278,6 +1284,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   character(len=MAXWORDLENGTH) :: word
   character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
   PetscReal, pointer :: array(:)
+  PetscInt :: istart
   PetscInt :: i
   PetscInt :: nviz_flow, nviz_tran, nviz_dof
   PetscInt :: current_component
@@ -1302,7 +1309,8 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
       xmf_filename = OutputFilename(output_option,option,'xmf','geomech')
     case (AVERAGED_VARS)
       string2='-aveg'
-      write(string3,'(i4)') int(option%time/output_option%periodic_output_time_incr)
+      write(string3,'(i4)') &
+          int(option%time/output_option%periodic_snap_output_time_incr)
       xmf_filename = OutputFilename(output_option,option,'xmf','geomech_aveg')
   end select
   if (output_option%print_single_h5_file) then
@@ -1313,14 +1321,15 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
     string = OutputHDF5FilenameID(output_option,option,var_list_type)
     select case (var_list_type)
       case (INSTANTANEOUS_VARS)
-        if (mod(output_option%plot_number,output_option%times_per_h5_file)==0) then
+        if (mod(output_option%plot_number, &
+              output_option%times_per_h5_file)==0) then
           first = PETSC_TRUE
         else
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod((option%time-output_option%periodic_output_time_incr)/ &
-                output_option%periodic_output_time_incr, &
+        if (mod((option%time-output_option%periodic_snap_output_time_incr)/ &
+                output_option%periodic_snap_output_time_incr, &
                 dble(output_option%times_per_h5_file))==0) then
           first = PETSC_TRUE
         else
@@ -1374,7 +1383,7 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
     call h5gcreate_f(file_id,string,grp_id,hdf5_err,OBJECT_NAMELEN_DEFAULT_F)
     call WriteHDF5CoordinatesXDMFGeomech(geomech_realization,option,grp_id)
     call h5gclose_f(grp_id,hdf5_err)
-  endif
+  endif 
 
   if (option%myrank == option%io_rank) then
     option%io_buffer = '--> write xmf geomech output file: ' // &
@@ -1405,22 +1414,25 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
   call h5eset_auto_f(ON,hdf5_err)
 
   ! write out data sets 
-  call GeomechDiscretizationCreateVector(geomech_discretization,ONEDOF,global_vec, &
+  call GeomechDiscretizationCreateVector(geomech_discretization,ONEDOF, &
+                                         global_vec, &
                                          GLOBAL,option)
-  call GeomechDiscretizationCreateVector(geomech_discretization,ONEDOF,natural_vec, &
+  call GeomechDiscretizationCreateVector(geomech_discretization,ONEDOF, &
+                                         natural_vec, &
                                          NATURAL,option)
 
   select case (var_list_type)
 
     case (INSTANTANEOUS_VARS)
       ! loop over variables and write to file
-      cur_variable => output_option%output_variable_list%first
+      cur_variable => output_option%output_snap_variable_list%first
       do
         if (.not.associated(cur_variable)) exit
         call OutputGeomechGetVarFromArray(geomech_realization,global_vec, &
                                           cur_variable%ivar, &
                                           cur_variable%isubvar)
-        call GeomechDiscretizationGlobalToNatural(geomech_discretization,global_vec, &
+        call GeomechDiscretizationGlobalToNatural(geomech_discretization, &
+                                                  global_vec, &
                                                   natural_vec,ONEDOF)
         string = cur_variable%name
         if (len_trim(cur_variable%units) > 0) then
@@ -1429,13 +1441,14 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
           string = trim(string) // ' [' // trim(word) // ']'
         endif
         if (cur_variable%iformat == 0) then
-          call HDF5WriteUnstructuredDataSetFromVec(string,option, &
+          call HDF5WriteDataSetFromVec(string,option, &
                                           natural_vec,grp_id,H5T_NATIVE_DOUBLE)
         else
-          call HDF5WriteUnstructuredDataSetFromVec(string,option, &
+          call HDF5WriteDataSetFromVec(string,option, &
                                           natural_vec,grp_id,H5T_NATIVE_INTEGER)
         endif
-        att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" // trim(string)
+        att_datasetname = trim(filename) // ":/" // &
+            trim(group_name) // "/" // trim(string)
         if (option%myrank == option%io_rank) then
           call OutputXMFAttributeGeomech(OUTPUT_UNIT,grid%nmax_node,string, &
                                          att_datasetname)
@@ -1458,9 +1471,10 @@ subroutine OutputHDF5UGridXDMFGeomech(geomech_realization,var_list_type)
           call GeomechDiscretizationGlobalToNatural(geomech_discretization, &
                                             field%avg_vars_vec(ivar), &
                                             natural_vec,ONEDOF)
-          call HDF5WriteUnstructuredDataSetFromVec(string,option, &
+          call HDF5WriteDataSetFromVec(string,option, &
                                           natural_vec,grp_id,H5T_NATIVE_DOUBLE)
-          att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" // trim(string)
+          att_datasetname = trim(filename) // ":/" // &
+              trim(group_name) // "/" // trim(string)
           if (option%myrank == option%io_rank) then
             call OutputXMFAttributeGeomech(OUTPUT_UNIT,grid%nlmax_node,string, &
                                            att_datasetname)
@@ -1506,7 +1520,7 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   ! 
 
   use hdf5
-  use HDF5_module, only : HDF5WriteUnstructuredDataSetFromVec
+  use HDF5_module, only : HDF5WriteDataSetFromVec
   use Geomechanics_Realization_class
   use Geomechanics_Grid_module
   use Geomechanics_Grid_Aux_module
@@ -1515,24 +1529,24 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petsclog.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petsclog.h"
 
-  type(geomech_realization_type) :: geomech_realization
+  type(realization_geomech_type) :: geomech_realization
   type(option_type), pointer :: option
 
 #if defined(SCORPIO_WRITE)
-  integer:: file_id
-  integer:: data_type
-  integer:: grp_id
-  integer:: file_space_id
-  integer:: memory_space_id
-  integer:: data_set_id
-  integer:: realization_set_id
-  integer:: prop_id
-  integer:: dims(3)
-  integer :: start(3), length(3), stride(3),istart
+  integer :: file_id
+  integer :: data_type
+  integer :: grp_id
+  integer :: file_space_id
+  integer :: memory_space_id
+  integer :: data_set_id
+  integer :: realization_set_id
+  integer :: prop_id
+  integer :: dims(3)
+  integer :: start(3), length(3), stride(3)
   integer :: rank_mpi,file_space_rank_mpi
   integer :: hdf5_flag
   integer, parameter :: ON=1, OFF=0
@@ -1546,12 +1560,13 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
   integer(HSIZE_T) :: dims(3)
-  integer(HSIZE_T) :: start(3), length(3), stride(3),istart
+  integer(HSIZE_T) :: start(3), length(3), stride(3)
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
 #endif
 
+  PetscInt :: istart
   type(geomech_grid_type), pointer :: grid
   character(len=MAXSTRINGLENGTH) :: string
   PetscMPIInt :: hdf5_err  
@@ -1590,9 +1605,12 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   call VecGetLocalSize(global_y_vertex_vec,local_size,ierr);CHKERRQ(ierr)
   call VecGetLocalSize(global_z_vertex_vec,local_size,ierr);CHKERRQ(ierr)
 
-  call GetVertexCoordinatesGeomech(grid,global_x_vertex_vec,X_COORDINATE,option)
-  call GetVertexCoordinatesGeomech(grid,global_y_vertex_vec,Y_COORDINATE,option)
-  call GetVertexCoordinatesGeomech(grid,global_z_vertex_vec,Z_COORDINATE,option)
+  call GetVertexCoordinatesGeomech(grid,global_x_vertex_vec, &
+                                   X_COORDINATE,option)
+  call GetVertexCoordinatesGeomech(grid,global_y_vertex_vec, &
+                                   Y_COORDINATE,option)
+  call GetVertexCoordinatesGeomech(grid,global_z_vertex_vec, &
+                                   Z_COORDINATE,option)
 
   call VecGetArrayF90(global_x_vertex_vec,vec_x_ptr,ierr);CHKERRQ(ierr)
   call VecGetArrayF90(global_y_vertex_vec,vec_y_ptr,ierr);CHKERRQ(ierr)
@@ -1664,10 +1682,8 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
     double_array((i-1)*3+3) = vec_z_ptr(i)
   enddo
 
-  call PetscLogEventBegin(geomech_logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
   call h5dwrite_f(data_set_id,H5T_NATIVE_DOUBLE,double_array,dims, &
                   hdf5_err,memory_space_id,file_space_id,prop_id)
-  call PetscLogEventEnd(geomech_logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
 
   deallocate(double_array)
   call h5pclose_f(prop_id,hdf5_err)
@@ -1683,21 +1699,21 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   ! X coord
   string = "X" // CHAR(0)
   
-  call HDF5WriteUnstructuredDataSetFromVec(string,option, &
+  call HDF5WriteDataSetFromVec(string,option, &
                                            global_x_vertex_vec, &
                                            file_id,H5T_NATIVE_DOUBLE)
 
   ! Y coord
   string = "Y" // CHAR(0)
   
-  call HDF5WriteUnstructuredDataSetFromVec(string,option, &
+  call HDF5WriteDataSetFromVec(string,option, &
                                            global_y_vertex_vec, &
                                            file_id,H5T_NATIVE_DOUBLE)
                                            
   ! Z coord
   string = "Z" // CHAR(0)
   
-  call HDF5WriteUnstructuredDataSetFromVec(string,option, &
+  call HDF5WriteDataSetFromVec(string,option, &
                                            global_z_vertex_vec, &
                                            file_id,H5T_NATIVE_DOUBLE) 
 
@@ -1735,7 +1751,8 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
   dims(1) = vert_count
   call h5screate_simple_f(rank_mpi,dims,memory_space_id,hdf5_err,dims)
 
-  call MPI_Allreduce(vert_count,dims(1),ONE_INTEGER_MPI,MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
+  call MPI_Allreduce(vert_count,dims(1),ONE_INTEGER_MPI, &
+                     MPIU_INTEGER,MPI_SUM,option%mycomm,ierr)
   geomech_realization%output_option%xmf_vert_len=int(dims(1))
 
   ! file space which is a 2D block
@@ -1803,10 +1820,8 @@ subroutine WriteHDF5CoordinatesXDMFGeomech(geomech_realization, &
     enddo
   enddo
 
-  call PetscLogEventBegin(geomech_logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
   call h5dwrite_f(data_set_id,H5T_NATIVE_INTEGER,int_array,dims, &
                   hdf5_err,memory_space_id,file_space_id,prop_id)
-  call PetscLogEventEnd(geomech_logging%event_h5dwrite_f,ierr);CHKERRQ(ierr)
 
   deallocate(int_array)
   call h5pclose_f(prop_id,hdf5_err)

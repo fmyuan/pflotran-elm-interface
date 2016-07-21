@@ -10,12 +10,12 @@ module Simulation_Hydrogeophysics_class
 
   private
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
-  type, public, extends(subsurface_simulation_type) :: &
-    hydrogeophysics_simulation_type
+  type, public, extends(simulation_subsurface_type) :: &
+    simulation_hydrogeophysics_type
     ! pointer to hydrogeophysics coupler
     class(pmc_hydrogeophysics_type), pointer :: hydrogeophysics_coupler
     PetscMPIInt :: pf_e4d_scatter_comm
@@ -29,6 +29,7 @@ module Simulation_Hydrogeophysics_class
     PetscBool :: pflotran_process
     Vec :: tracer_mpi
     Vec :: saturation_mpi
+    Vec :: temperature_mpi
     ! these PetscMPIInts are used to save the process decomposition that 
     ! enters hydrogeophysics_simulation.F90:HydrogeophysicsInitialize()
     ! - they are set in HydrogeophysicsInitialize() 
@@ -40,11 +41,12 @@ module Simulation_Hydrogeophysics_class
     PetscMPIInt :: mygroup_id_save
   contains
     procedure, public :: Init => HydrogeophysicsInit
+    procedure, public :: InputRecord => HydrogeophysInputRecord
     procedure, public :: ExecuteRun => HydrogeophysicsExecuteRun
 !    procedure, public :: RunToTime
     procedure, public :: FinalizeRun => HydrogeophysicsFinalizeRun
     procedure, public :: Strip => HydrogeophysicsStrip
-  end type hydrogeophysics_simulation_type
+  end type simulation_hydrogeophysics_type
   
   public :: HydrogeophysicsCreate, &
             HydrogeophysicsDestroy
@@ -67,7 +69,7 @@ function HydrogeophysicsCreate(option)
   
   type(option_type), pointer :: option
 
-  class(hydrogeophysics_simulation_type), pointer :: HydrogeophysicsCreate
+  class(simulation_hydrogeophysics_type), pointer :: HydrogeophysicsCreate
   
   call printMsg(option,'HydrogeophysicsCreate()')
   
@@ -90,13 +92,14 @@ subroutine HydrogeophysicsInit(this,option)
   
   implicit none
   
-  class(hydrogeophysics_simulation_type) :: this
+  class(simulation_hydrogeophysics_type) :: this
   type(option_type), pointer :: option
   
   call SubsurfaceSimulationInit(this,option)
   nullify(this%hydrogeophysics_coupler)
   this%tracer_mpi = 0
   this%saturation_mpi = 0
+  this%temperature_mpi = 0
   ! UNINITIALIZED_INTEGER denotes uninitialized
   this%pf_e4d_scatter_comm = MPI_COMM_NULL
   this%pf_e4d_scatter_grp = UNINITIALIZED_INTEGER
@@ -117,6 +120,31 @@ end subroutine HydrogeophysicsInit
 
 ! ************************************************************************** !
 
+subroutine HydrogeophysInputRecord(this)
+  ! 
+  ! Writes ingested information to the input record file.
+  ! 
+  ! Author: Jenn Frederick, SNL
+  ! Date: 03/17/2016
+  ! 
+  
+  implicit none
+  
+  class(simulation_hydrogeophysics_type) :: this
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: id = INPUT_RECORD_UNIT
+ 
+  write(id,'(a29)',advance='no') 'simulation type: '
+  write(id,'(a)') 'hydrogeophysics'
+
+  ! print output file information
+  !call OutputInputRecord(this%output_option,this%waypoint_list_hydrogeophysics)
+
+end subroutine HydrogeophysInputRecord
+
+! ************************************************************************** !
+
 subroutine HydrogeophysicsExecuteRun(this)
   ! 
   ! Author: Glenn Hammond
@@ -127,7 +155,7 @@ subroutine HydrogeophysicsExecuteRun(this)
 
   implicit none
   
-  class(hydrogeophysics_simulation_type) :: this
+  class(simulation_hydrogeophysics_type) :: this
   
   PetscReal :: final_time
   PetscReal :: dt
@@ -163,7 +191,7 @@ subroutine HydrogeophysicsFinalizeRun(this)
 
   implicit none
   
-  class(hydrogeophysics_simulation_type) :: this
+  class(simulation_hydrogeophysics_type) :: this
   
   PetscErrorCode :: ierr
   
@@ -189,7 +217,7 @@ subroutine HydrogeophysicsStrip(this)
 
   implicit none
   
-  class(hydrogeophysics_simulation_type) :: this
+  class(simulation_hydrogeophysics_type) :: this
   
   PetscErrorCode :: ierr
   
@@ -204,14 +232,21 @@ subroutine HydrogeophysicsStrip(this)
     call HydrogeophysicsWrapperDestroy(this%option)
   endif
   ! created in HydrogeophysicsInitialize()
+  ! tracer
   if (this%tracer_mpi /= 0) then
     call VecDestroy(this%tracer_mpi ,ierr);CHKERRQ(ierr)
   endif
   this%tracer_mpi = 0
+  ! saturation
   if (this%saturation_mpi /= 0) then
     call VecDestroy(this%saturation_mpi ,ierr);CHKERRQ(ierr)
   endif
   this%saturation_mpi = 0
+  ! temperature
+  if (this%temperature_mpi /= 0) then
+    call VecDestroy(this%temperature_mpi ,ierr);CHKERRQ(ierr)
+  endif
+  this%temperature_mpi = 0
 
   if (this%pf_e4d_scatter_comm /= MPI_COMM_NULL)  then
     call MPI_Comm_free(this%pf_e4d_scatter_comm,ierr)
@@ -243,7 +278,7 @@ subroutine HydrogeophysicsDestroy(simulation)
 
   implicit none
   
-  class(hydrogeophysics_simulation_type), pointer :: simulation
+  class(simulation_hydrogeophysics_type), pointer :: simulation
 
   call printMsg(simulation%option,'Hydrogeophysics%Destroy()')
   

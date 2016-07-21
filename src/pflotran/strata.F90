@@ -10,7 +10,7 @@ module Strata_module
 
   private
  
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
  
   type, public :: strata_type
@@ -25,7 +25,7 @@ module Strata_module
     type(material_property_type), pointer :: material_property ! pointer to material in material array/list
     type(region_type), pointer :: region                ! pointer to region in region array/list
     type(surface_material_property_type),pointer :: surf_material_property
-    PetscInt                                     :: isurf_material_property ! id of material in material array/list
+    PetscInt :: isurf_material_property ! id of material in material array/list
     PetscInt :: surf_or_subsurf_flag
     PetscReal :: start_time
     PetscReal :: final_time
@@ -55,6 +55,7 @@ module Strata_module
             StrataRead, &
             StrataWithinTimePeriod, &
             StrataEvolves, &
+            StrataInputRecord, &
             StrataDestroyList
   
 contains
@@ -178,14 +179,16 @@ subroutine StrataRead(strata,input,option)
   implicit none
   
   type(strata_type) :: strata
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword
   character(len=MAXSTRINGLENGTH) :: string
   character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: internal_units
 
   input%ierr = 0
+
   do
   
     call InputReadPflotranString(input,option)
@@ -203,30 +206,29 @@ subroutine StrataRead(strata,input,option)
       case('MATERIAL')
         call InputReadNChars(input,option,string,MAXSTRINGLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,'material property name','STRATA')
-        if (StringCompareIgnoreCase(string,'realization_dependent')) then
-          strata%realization_dependent = PETSC_TRUE
-          call InputReadNChars(input,option,string,MAXSTRINGLENGTH,PETSC_TRUE)
-          call InputErrorMsg(input,option,'material property name','STRATA')
-        endif
         strata%material_property_name = trim(string)
         strata%material_property_filename = string
+      case('REALIZATION_DEPENDENT')
+        strata%realization_dependent = PETSC_TRUE
       case('START_TIME')
         call InputReadDouble(input,option,strata%start_time)
         call InputErrorMsg(input,option,'start time','STRATA')
         ! read units, if present
+        internal_units = 'sec'
         call InputReadWord(input,option,word,PETSC_TRUE)
         if (input%ierr == 0) then
           strata%start_time = strata%start_time * &
-                              UnitsConvertToInternal(word,option)
+                              UnitsConvertToInternal(word,internal_units,option)
         endif
       case('FINAL_TIME')
         call InputReadDouble(input,option,strata%final_time)
         call InputErrorMsg(input,option,'final time','STRATA')
         ! read units, if present
+        internal_units = 'sec'
         call InputReadWord(input,option,word,PETSC_TRUE)
         if (input%ierr == 0) then
           strata%final_time = strata%final_time * &
-                              UnitsConvertToInternal(word,option)
+                              UnitsConvertToInternal(word,internal_units,option)
         endif
       case('INACTIVE')
         strata%active = PETSC_FALSE
@@ -327,6 +329,75 @@ function StrataEvolves(strata_list)
   enddo
   
 end function StrataEvolves
+
+! **************************************************************************** !
+
+subroutine StrataInputRecord(strata_list)
+  ! 
+  ! Prints ingested strata information to the input record file
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 04/07/2016
+  ! 
+
+  implicit none
+
+  type(strata_list_type), pointer :: strata_list
+  
+  type(strata_type), pointer :: cur_strata
+  character(len=MAXWORDLENGTH) :: word1, word2
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: id = INPUT_RECORD_UNIT
+
+  write(id,'(a)') ' '
+  write(id,'(a)') '---------------------------------------------------------&
+                  &-----------------------'
+  write(id,'(a29)',advance='no') '---------------------------: '
+  write(id,'(a)') 'STRATA'
+  
+  cur_strata => strata_list%first
+  do
+    if (.not.associated(cur_strata)) exit
+    
+    write(id,'(a29)',advance='no') 'strata material name: '
+    write(id,'(a)') adjustl(trim(cur_strata%material_property_name))
+    
+    if (len_trim(cur_strata%material_property_filename) > 0) then
+      write(id,'(a29)',advance='no') 'from file: '
+      write(id,'(a)') adjustl(trim(cur_strata%material_property_filename)) 
+    endif
+    
+    write(id,'(a29)',advance='no') 'associated region name: '
+    write(id,'(a)') adjustl(trim(cur_strata%region_name))
+    
+    write(id,'(a29)',advance='no') 'strata is: '
+    if (cur_strata%active) then
+      write(id,'(a)') 'active'
+    else
+      write(id,'(a)') 'inactive'
+    endif
+    
+    write(id,'(a29)',advance='no') 'realization-dependent: '
+    if (cur_strata%realization_dependent) then
+      write(id,'(a)') 'TRUE'
+    else
+      write(id,'(a)') 'FALSE'
+    endif
+    
+    if (initialized(cur_strata%start_time)) then
+      write(id,'(a29)',advance='no') 'start time: '
+      write(word1,*) cur_strata%start_time
+      write(id,'(a)') adjustl(trim(word1)) // ' sec'
+      write(id,'(a29)',advance='no') 'final time: '
+      write(word1,*) cur_strata%final_time
+      write(id,'(a)') adjustl(trim(word1)) // ' sec'
+    endif
+    
+    write(id,'(a29)') '---------------------------: '
+    cur_strata => cur_strata%next
+  enddo
+  
+end subroutine StrataInputRecord
 
 ! ************************************************************************** !
 

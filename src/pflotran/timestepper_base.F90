@@ -8,7 +8,7 @@ module Timestepper_Base_class
 
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
  
   PetscInt, parameter, public :: TS_CONTINUE = 0
   PetscInt, parameter, public :: TS_STOP_END_SIMULATION = 1
@@ -34,8 +34,6 @@ module Timestepper_Base_class
     PetscReal :: dt_init
     PetscReal :: dt_min
     PetscReal :: dt_max
-    PetscReal :: cfl_limiter
-    PetscReal :: cfl_limiter_ts
     PetscBool :: revert_dt
     PetscInt :: num_contig_revert_due_to_sync
     
@@ -49,6 +47,7 @@ module Timestepper_Base_class
     PetscInt :: start_time_step ! the first time step of a given run
     PetscReal :: time_step_tolerance ! scalar used in determining time step size
     PetscReal :: target_time    ! time at end of "synchronized" time step 
+    PetscBool :: print_ekg
 
     type(waypoint_type), pointer :: cur_waypoint
     type(waypoint_type), pointer :: prev_waypoint
@@ -61,11 +60,14 @@ module Timestepper_Base_class
     procedure, public :: SetTargetTime => TimestepperBaseSetTargetTime
     procedure, public :: StepDT => TimestepperBaseStepDT
     procedure, public :: UpdateDT => TimestepperBaseUpdateDT
-    procedure, public :: Checkpoint => TimestepperBaseCheckpoint
-    procedure, public :: Restart => TimestepperBaseRestart
+    procedure, public :: CheckpointBinary => TimestepperBaseCheckpointBinary
+    procedure, public :: CheckpointHDF5 => TimestepperBaseCheckpointHDF5
+    procedure, public :: RestartBinary => TimestepperBaseRestartBinary
+    procedure, public :: RestartHDF5 => TimestepperBaseRestartHDF5
     procedure, public :: Reset => TimestepperBaseReset
     procedure, public :: WallClockStop => TimestepperBaseWallClockStop
     procedure, public :: PrintInfo => TimestepperBasePrintInfo
+    procedure, public :: InputRecord => TimestepperBaseInputRecord
     procedure, public :: FinalizeRun => TimestepperBaseFinalizeRun
     procedure, public :: Strip => TimestepperBaseStrip
     procedure, public :: Destroy => TimestepperBaseDestroy
@@ -91,7 +93,8 @@ module Timestepper_Base_class
             TimestepperBaseGetHeader, &
             TimestepperBaseReset, &
             TimestepperBaseRegisterHeader, &
-            TimestepperBasePrintInfo
+            TimestepperBasePrintInfo, &
+            TimestepperBaseInputRecord
 
 contains
 
@@ -151,10 +154,8 @@ subroutine TimestepperBaseInit(this)
   this%prev_dt = 0.d0
   this%dt = 1.d0
   this%dt_init = 1.d0
-  this%dt_max = 1.d-20   ! Ten zeptoseconds.
+  this%dt_min = 1.d-20   ! Ten zeptoseconds.
   this%dt_max = 3.1536d6 ! One-tenth of a year.  
-  this%cfl_limiter = UNINITIALIZED_DOUBLE
-  this%cfl_limiter_ts = 1.d20
   
   this%time_step_cut_flag = PETSC_FALSE
   
@@ -166,6 +167,7 @@ subroutine TimestepperBaseInit(this)
   nullify(this%prev_waypoint)
   this%revert_dt = PETSC_FALSE
   this%num_contig_revert_due_to_sync = 0
+  this%print_ekg = PETSC_FALSE
   
 end subroutine TimestepperBaseInit
 
@@ -214,7 +216,7 @@ subroutine TimestepperBaseRead(this,input,option)
   implicit none
 
   class(timestepper_base_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   option%io_buffer = 'TimestepperBaseRead not supported.  Requires extension.'
@@ -257,54 +259,26 @@ subroutine TimestepperBaseProcessKeyword(this,input,option,keyword)
       call InputReadInt(input,option,this%max_time_step_cuts)
       call InputDefaultMsg(input,option,'max_time_step_cuts')
         
-    case('CFL_LIMITER')
-      call InputReadDouble(input,option,this%cfl_limiter)
-      call InputDefaultMsg(input,option,'cfl limiter')
-
     case('INITIALIZE_TO_STEADY_STATE')
       this%init_to_steady_state = PETSC_TRUE
       call InputReadDouble(input,option,this%steady_state_rel_tol)
-      call InputDefaultMsg(input,option,'steady state convergence relative tolerance')
+      call InputDefaultMsg(input,option,'steady state convergence relative &
+                                         &tolerance')
 
     case('RUN_AS_STEADY_STATE')
       this%run_as_steady_state = PETSC_TRUE
 
-    case('MAX_PRESSURE_CHANGE')
-      call InputReadDouble(input,option,option%dpmxe)
-      call InputDefaultMsg(input,option,'dpmxe')
+    case('PRINT_EKG')
+      this%print_ekg = PETSC_TRUE
+      option%print_ekg = PETSC_TRUE
 
-    case('MAX_TEMPERATURE_CHANGE')
-      call InputReadDouble(input,option,option%dtmpmxe)
-      call InputDefaultMsg(input,option,'dtmpmxe')
-  
-    case('MAX_CONCENTRATION_CHANGE')
-      call InputReadDouble(input,option,option%dcmxe)
-      call InputDefaultMsg(input,option,'dcmxe')
-
-    case('MAX_SATURATION_CHANGE')
-      call InputReadDouble(input,option,option%dsmxe)
-      call InputDefaultMsg(input,option,'dsmxe')
-
-    case('PRESSURE_DAMPENING_FACTOR')
-      call InputReadDouble(input,option,option%pressure_dampening_factor)
-      call InputErrorMsg(input,option,'PRESSURE_DAMPENING_FACTOR', &
-                          'TIMESTEPPER')
-
-    case('SATURATION_CHANGE_LIMIT')
-      call InputReadDouble(input,option,option%saturation_change_limit)
-      call InputErrorMsg(input,option,'SATURATION_CHANGE_LIMIT', &
-                          'TIMESTEPPER')
-                           
-    case('PRESSURE_CHANGE_LIMIT')
-      call InputReadDouble(input,option,option%pressure_change_limit)
-      call InputErrorMsg(input,option,'PRESSURE_CHANGE_LIMIT', &
-                          'TIMESTEPPER')
-                           
-    case('TEMPERATURE_CHANGE_LIMIT')
-      call InputReadDouble(input,option,option%temperature_change_limit)
-      call InputErrorMsg(input,option,'TEMPERATURE_CHANGE_LIMIT', &
-                          'TIMESTEPPER')
-
+    case('MAX_PRESSURE_CHANGE','MAX_TEMPERATURE_CHANGE', &
+         'MAX_CONCENTRATION_CHANGE','MAX_SATURATION_CHANGE', &
+         'PRESSURE_DAMPENING_FACTOR','SATURATION_CHANGE_LIMIT', &
+         'PRESSURE_CHANGE_LIMIT','TEMPERATURE_CHANGE_LIMIT')
+      option%io_buffer = 'Keyword "' // trim(keyword) // '" has been &
+        &deprecated in TIMESTEPPER and moved to the FLOW PM OPTIONS block.'
+      call printErrMsg(option)
     case default
       call InputKeywordUnrecognized(keyword,'TIMESTEPPER',option)
   end select
@@ -336,10 +310,10 @@ end subroutine TimestepperBaseUpdateDT
 
 ! ************************************************************************** !
 
-subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
-                                        stop_flag,plot_flag, &
-                                        transient_plot_flag, &
-                                        checkpoint_flag)
+subroutine TimestepperBaseSetTargetTime(this,sync_time,option,stop_flag, &
+                                        snapshot_plot_flag, &
+                                        observation_plot_flag, &
+                                        massbal_plot_flag,checkpoint_flag)
   ! 
   ! Sets target time for timestepper
   ! 
@@ -355,8 +329,9 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
   PetscReal :: sync_time
   type(option_type) :: option
   PetscInt :: stop_flag
-  PetscBool :: plot_flag
-  PetscBool :: transient_plot_flag
+  PetscBool :: snapshot_plot_flag
+  PetscBool :: observation_plot_flag
+  PetscBool :: massbal_plot_flag
   PetscBool :: checkpoint_flag
   
   PetscReal :: target_time
@@ -371,7 +346,9 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
   PetscBool :: equal_to_or_exceeds_sync_time
   PetscBool :: revert_due_to_waypoint
   PetscBool :: revert_due_to_sync_time
-  type(waypoint_type), pointer :: cur_waypoint
+  PetscBool :: truncated_due_to_next_dt_max
+  PetscReal :: temp_time
+  type(waypoint_type), pointer :: cur_waypoint, next_waypoint, prev_waypoint
 
 !geh: for debugging
 #ifdef DEBUG
@@ -407,19 +384,47 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
   cur_waypoint => this%cur_waypoint
   ! need previous waypoint for reverting back on time step cut
   this%prev_waypoint => this%cur_waypoint
-  ! dt_max must be set from current waypoint and not updated below
-  dt_max = cur_waypoint%dt_max
+  ! dt_max must be lagged.  it can be updated below, but it must lag a waypoint.
   cumulative_time_steps = this%steps
   max_time_step = this%max_time_step
   tolerance = this%time_step_tolerance
-  target_time = this%target_time + dt
+!  target_time = this%target_time + dt
 
-  ! If a waypoint calls for a plot or change in src/sinks, adjust time step
-  ! to match waypoint.
-  force_to_match_waypoint = WaypointForceMatchToTime(cur_waypoint)
-  equal_to_or_exceeds_waypoint = target_time + tolerance*dt >= cur_waypoint%time
-  equal_to_or_exceeds_sync_time = target_time + tolerance*dt >= sync_time
   do ! we cycle just in case the next waypoint is beyond the target_time
+    dt_max = cur_waypoint%dt_max
+    dt = min(dt,dt_max)
+    ! ensure that the time step does not overstep the next waypoint time + 
+    ! dtmax combination.
+    target_time = this%target_time + dt
+
+!---! This section of code ensures that no time step over steps the next 
+    ! maximum time step (dt_max) if a waypoint is surpassed.
+    force_to_match_waypoint = PETSC_FALSE
+    if (associated(cur_waypoint%next)) then
+      if (dt_max > cur_waypoint%next%dt_max .and. &
+          dt > cur_waypoint%next%dt_max .and. &
+          target_time > cur_waypoint%time) then
+        if (this%target_time + cur_waypoint%next%dt_max < &
+            cur_waypoint%time) then
+          force_to_match_waypoint = PETSC_TRUE 
+        else
+          dt = cur_waypoint%next%dt_max
+          target_time = this%target_time + dt
+        endif
+      endif
+    endif
+!---
+    ! If a waypoint calls for a plot or change in src/sinks, adjust time step
+    ! to match waypoint.
+    force_to_match_waypoint = WaypointForceMatchToTime(cur_waypoint) .or. &
+                              force_to_match_waypoint
+    equal_to_or_exceeds_waypoint = target_time + tolerance*dt >= &
+                                   cur_waypoint%time
+    equal_to_or_exceeds_sync_time = target_time + tolerance*dt >= sync_time
+    if (equal_to_or_exceeds_sync_time .and. sync_time < cur_waypoint%time) then
+      ! flip back if the sync time arrives before the waypoint time.
+      equal_to_or_exceeds_waypoint = PETSC_FALSE
+    endif
     if (equal_to_or_exceeds_sync_time .or. &
         (equal_to_or_exceeds_waypoint .and. force_to_match_waypoint)) then
       if (force_to_match_waypoint) then
@@ -432,8 +437,9 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
       ! set new time step size based on max time
       dt = max_time - target_time
       if (dt > dt_max .and. &
-          dabs(dt-dt_max) > 1.d0) then ! 1 sec tolerance to avoid cancellation
-        dt = dt_max                    ! error from waypoint%time - time
+                                   ! 1 sec tolerance to avoid cancellation
+          dabs(dt-dt_max) > 1.d0) then 
+        dt = dt_max         ! error from waypoint%time - time
         target_time = target_time + dt
       else
         target_time = max_time
@@ -442,8 +448,9 @@ subroutine TimestepperBaseSetTargetTime(this,sync_time,option, &
           ! the time step back to its prior value after the waypoint is met.
           ! %revert_dt is a flag that does so above.
           if (force_to_match_waypoint) revert_due_to_waypoint = PETSC_TRUE
-          if (cur_waypoint%print_output) plot_flag = PETSC_TRUE
-          if (cur_waypoint%print_tr_output) transient_plot_flag = PETSC_TRUE
+          if (cur_waypoint%print_snap_output) snapshot_plot_flag = PETSC_TRUE
+          if (cur_waypoint%print_obs_output) observation_plot_flag = PETSC_TRUE
+          if (cur_waypoint%print_msbl_output) massbal_plot_flag = PETSC_TRUE
           if (cur_waypoint%print_checkpoint) checkpoint_flag = PETSC_TRUE
         endif
         if (equal_to_or_exceeds_sync_time) then
@@ -581,7 +588,31 @@ end subroutine TimestepperBasePrintInfo
 
 ! ************************************************************************** !
 
-subroutine TimestepperBaseCheckpoint(this,viewer,option)
+subroutine TimestepperBaseInputRecord(this)
+  ! 
+  ! Prints information about the time stepper to the input record.
+  ! 
+  ! Author: Jenn Frederick, SNL
+  ! Date: 03/17/2016
+  ! 
+  
+  implicit none
+  
+  class(timestepper_base_type) :: this
+
+#ifdef DEBUG
+  call printMsg(this%option,'TimestepperBaseInputRecord()')
+#endif
+
+  write(*,*) 'TimestepperBaseInputRecord must be extended for &
+             &each timestepper mode.'
+  stop
+
+end subroutine TimestepperBaseInputRecord
+
+! ************************************************************************** !
+
+subroutine TimestepperBaseCheckpointBinary(this,viewer,option)
   ! 
   ! Checkpoints parameters/variables associated with
   ! a time stepper.
@@ -594,16 +625,62 @@ subroutine TimestepperBaseCheckpoint(this,viewer,option)
 
   implicit none
 
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscviewer.h"
 
   class(timestepper_base_type) :: this
   PetscViewer :: viewer
   type(option_type) :: option
   
-  option%io_buffer = 'TimestepperBaseCheckpoint must be extended.'
+  option%io_buffer = 'TimestepperBaseCheckpointBinary must be extended.'
   call printErrMsg(option)  
     
-end subroutine TimestepperBaseCheckpoint
+end subroutine TimestepperBaseCheckpointBinary
+
+! ************************************************************************** !
+
+subroutine TimestepperBaseCheckpointHDF5(this, chk_grp_id, option)
+  ! 
+  ! Checkpoints parameters/variables associated with a time stepper to a HDF5.
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 07/30/15
+  ! 
+
+  use Option_module
+
+  implicit none
+  
+  class(timestepper_base_type) :: this
+  PetscInt :: chk_grp_id
+  type(option_type) :: option
+
+  option%io_buffer = 'TimestepperBaseCheckpointHDF5 must be extended.'
+  call printErrMsg(option)
+
+end subroutine TimestepperBaseCheckpointHDF5
+
+! ************************************************************************** !
+
+subroutine TimestepperBaseRestartHDF5(this, chk_grp_id, option)
+  ! 
+  ! Restart parameters/variables associated with a time stepper to a HDF5.
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 08/16/15
+  ! 
+
+  use Option_module
+
+  implicit none
+
+  class(timestepper_base_type) :: this
+  PetscInt :: chk_grp_id
+  type(option_type) :: option
+
+  option%io_buffer = 'TimestepperBaseRestartHDF5 must be extended.'
+  call printErrMsg(option)
+
+end subroutine TimestepperBaseRestartHDF5
 
 ! ************************************************************************** !
 
@@ -619,7 +696,7 @@ subroutine TimestepperBaseRegisterHeader(this,bag,header)
 
   implicit none
   
-#include "finclude/petscbag.h"  
+#include "petsc/finclude/petscbag.h"  
 
   class(timestepper_base_type) :: this
   class(stepper_base_header_type) :: header
@@ -660,7 +737,7 @@ subroutine TimestepperBaseSetHeader(this,bag,header)
 
   implicit none
   
-#include "finclude/petscbag.h"  
+#include "petsc/finclude/petscbag.h"  
 
   class(timestepper_base_type) :: this
   class(stepper_base_header_type) :: header
@@ -684,7 +761,7 @@ end subroutine TimestepperBaseSetHeader
 
 ! ************************************************************************** !
 
-subroutine TimestepperBaseRestart(this,viewer,option)
+subroutine TimestepperBaseRestartBinary(this,viewer,option)
   ! 
   ! Restarts parameters/variables associated with
   ! a time stepper.
@@ -697,16 +774,16 @@ subroutine TimestepperBaseRestart(this,viewer,option)
 
   implicit none
 
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscviewer.h"
 
   class(timestepper_base_type) :: this
   PetscViewer :: viewer
   type(option_type) :: option
   
-  option%io_buffer = 'TimestepperBaseRestart must be extended.'
+  option%io_buffer = 'TimestepperBaseRestartBinary must be extended.'
   call printErrMsg(option)  
     
-end subroutine TimestepperBaseRestart
+end subroutine TimestepperBaseRestartBinary
 
 ! ************************************************************************** !
 
@@ -722,7 +799,7 @@ subroutine TimestepperBaseGetHeader(this,header)
 
   implicit none
   
-#include "finclude/petscbag.h"  
+#include "petsc/finclude/petscbag.h"  
 
   class(timestepper_base_type) :: this
   class(stepper_base_header_type) :: header
@@ -799,6 +876,25 @@ function TimestepperBaseWallClockStop(this,option)
   endif
   
 end function TimestepperBaseWallClockStop
+
+
+! ************************************************************************** !
+
+subroutine TimestepperBasePrintEKG(this)
+  ! 
+  ! Deallocates members of a time stepper
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 07/22/13
+  ! 
+
+  implicit none
+  
+  class(timestepper_base_type) :: this
+  
+  
+  
+end subroutine TimestepperBasePrintEKG
 
 ! ************************************************************************** !
 

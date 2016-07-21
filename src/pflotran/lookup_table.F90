@@ -6,7 +6,7 @@ module Lookup_Table_module
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, abstract, public :: lookup_table_base_type
     PetscInt :: dim
@@ -84,8 +84,7 @@ subroutine LookupTableBaseInit(lookup_table)
   lookup_table%dim = 0
   lookup_table%dims = 0
   nullify(lookup_table%data)
-  allocate(lookup_table%axis1)
-  call LookupTableAxisInit(lookup_table%axis1)
+  nullify(lookup_table%axis1)
 
 end subroutine LookupTableBaseInit
 

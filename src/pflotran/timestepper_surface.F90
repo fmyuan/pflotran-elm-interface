@@ -8,7 +8,7 @@ module Timestepper_Surface_class
 
   implicit none
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   private
 
@@ -17,11 +17,12 @@ module Timestepper_Surface_class
     PetscReal :: surf_subsurf_coupling_flow_dt
     type(solver_type), pointer :: solver
   contains
-    procedure, public :: Checkpoint => TimestepperSurfaceCheckpoint
+    procedure, public :: CheckpointBinary => TimestepperSurfaceCheckpointBinary
     procedure, public :: Init => TimestepperSurfaceInit
-    procedure, public :: Restart => TimestepperSurfaceRestart
+    procedure, public :: RestartBinary => TimestepperSurfaceRestartBinary
     procedure, public :: Reset => TimestepperSurfaceReset
     procedure, public :: SetTargetTime => TimestepperSurfaceSetTargetTime
+    procedure, public :: InputRecord => TimestepperSurfInputRecord
     procedure, public :: Strip => TimestepperSurfaceStrip
     procedure, public :: StepDT => TimestepperSurfaceStepDT
   end type timestepper_surface_type
@@ -37,7 +38,7 @@ module Timestepper_Surface_class
     subroutine PetscBagGetData(bag,header,ierr)
       import :: timestepper_surface_header_type
       implicit none
-#include "finclude/petscbag.h"
+#include "petsc/finclude/petscbag.h"
       PetscBag :: bag
       class(timestepper_surface_header_type), pointer :: header
       PetscErrorCode :: ierr
@@ -97,13 +98,12 @@ end subroutine TimestepperSurfaceInit
 
 ! ************************************************************************** !
 
-subroutine TimestepperSurfaceSetTargetTime(this,sync_time, &
-                                        option, &
-                                        stop_flag,plot_flag, &
-                                        transient_plot_flag, &
-                                        checkpoint_flag)
+subroutine TimestepperSurfaceSetTargetTime(this,sync_time,option,stop_flag, &
+                                           snapshot_plot_flag, &
+                                           observation_plot_flag, &
+                                           massbal_plot_flag,checkpoint_flag)
   ! 
-  ! This routine
+  ! This routine ?
   ! 
   ! Author: Gautam Bisht, LBNL
   ! Date: 07/02/13
@@ -117,8 +117,9 @@ subroutine TimestepperSurfaceSetTargetTime(this,sync_time, &
   PetscReal :: sync_time
   type(option_type) :: option
   PetscInt :: stop_flag
-  PetscBool :: plot_flag
-  PetscBool :: transient_plot_flag
+  PetscBool :: snapshot_plot_flag
+  PetscBool :: observation_plot_flag
+  PetscBool :: massbal_plot_flag
   PetscBool :: checkpoint_flag
 
   PetscReal :: dt
@@ -136,8 +137,9 @@ subroutine TimestepperSurfaceSetTargetTime(this,sync_time, &
   target_time = this%target_time + dt
   tolerance = this%time_step_tolerance
 
-  plot_flag = PETSC_FALSE
-  transient_plot_flag = PETSC_FALSE
+  snapshot_plot_flag = PETSC_FALSE
+  observation_plot_flag = PETSC_FALSE
+  massbal_plot_flag = PETSC_FALSE
   
   if (cur_waypoint%time < 1.d-40) then
     cur_waypoint => cur_waypoint%next
@@ -158,7 +160,7 @@ subroutine TimestepperSurfaceSetTargetTime(this,sync_time, &
     target_time = target_time + dt
 
     if (max_time == cur_waypoint%time) then
-      if (cur_waypoint%print_output) plot_flag = PETSC_TRUE
+      if (cur_waypoint%print_snap_output) snapshot_plot_flag = PETSC_TRUE
       if (cur_waypoint%print_checkpoint) checkpoint_flag = PETSC_TRUE
     endif
 
@@ -181,7 +183,7 @@ subroutine TimestepperSurfaceSetTargetTime(this,sync_time, &
 
       target_time = target_time + dt
 
-      if (cur_waypoint%print_output) plot_flag = PETSC_TRUE
+      if (cur_waypoint%print_snap_output) snapshot_plot_flag = PETSC_TRUE
       if (cur_waypoint%print_checkpoint) checkpoint_flag = PETSC_TRUE
     endif
   
@@ -215,9 +217,10 @@ subroutine TimestepperSurfaceStepDT(this,process_model,stop_flag)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscsnes.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscsnes.h"
+#include "petsc/finclude/petscts.h"  
 
   class(timestepper_surface_type) :: this
   class(pm_base_type) :: process_model
@@ -236,6 +239,8 @@ subroutine TimestepperSurfaceStepDT(this,process_model,stop_flag)
   call process_model%PreSolve()
 
   call TSSetTimeStep(solver%ts,option%surf_flow_dt,ierr);CHKERRQ(ierr)
+  call TSSetExactFinalTime(solver%ts,TS_EXACTFINALTIME_MATCHSTEP, &
+                           ierr);CHKERRQ(ierr)
   call TSSolve(solver%ts,process_model%solution_vec,ierr);CHKERRQ(ierr)
   call TSGetTime(solver%ts,time,ierr);CHKERRQ(ierr)
   call TSGetTimeStep(solver%ts,dtime,ierr);CHKERRQ(ierr)
@@ -256,7 +261,7 @@ end subroutine TimestepperSurfaceStepDT
 
 ! ************************************************************************** !
 
-subroutine TimestepperSurfaceCheckpoint(this,viewer,option)
+subroutine TimestepperSurfaceCheckpointBinary(this,viewer,option)
   ! 
   ! This checkpoints parameters/variables associated with surface-timestepper
   ! 
@@ -268,8 +273,8 @@ subroutine TimestepperSurfaceCheckpoint(this,viewer,option)
 
   implicit none
 
-#include "finclude/petscviewer.h"
-#include "finclude/petscbag.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscbag.h"
 
   class(timestepper_surface_type) :: this
   PetscViewer :: viewer
@@ -286,11 +291,11 @@ subroutine TimestepperSurfaceCheckpoint(this,viewer,option)
   call PetscBagView(bag,viewer,ierr);CHKERRQ(ierr)
   call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
 
-end subroutine TimestepperSurfaceCheckpoint
+end subroutine TimestepperSurfaceCheckpointBinary
 
 ! ************************************************************************** !
 
-subroutine TimestepperSurfaceRestart(this,viewer,option)
+subroutine TimestepperSurfaceRestartBinary(this,viewer,option)
   ! 
   ! This checkpoints parameters/variables associated with surface-timestepper
   ! 
@@ -302,8 +307,8 @@ subroutine TimestepperSurfaceRestart(this,viewer,option)
 
   implicit none
 
-#include "finclude/petscviewer.h"
-#include "finclude/petscbag.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscbag.h"
 
   class(timestepper_surface_type) :: this
   PetscViewer :: viewer
@@ -320,7 +325,7 @@ subroutine TimestepperSurfaceRestart(this,viewer,option)
   call TimestepperSurfaceGetHeader(this,header)
   call PetscBagDestroy(bag,ierr);CHKERRQ(ierr)
 
-end subroutine TimestepperSurfaceRestart
+end subroutine TimestepperSurfaceRestartBinary
 
 ! ************************************************************************** !
 
@@ -336,8 +341,8 @@ subroutine TimestepperSurfaceRegisterHeader(this,bag,header)
 
   implicit none
 
-#include "finclude/petscviewer.h"
-#include "finclude/petscbag.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscbag.h"
 
   class(timestepper_surface_type) :: this
   class(timestepper_surface_header_type) :: header
@@ -370,8 +375,8 @@ subroutine TimestepperSurfaceSetHeader(this,bag,header)
 
   implicit none
 
-#include "finclude/petscviewer.h"
-#include "finclude/petscbag.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscbag.h"
 
   class(timestepper_surface_type) :: this
   class(timestepper_surface_header_type) :: header
@@ -400,7 +405,7 @@ subroutine TimestepperSurfaceGetHeader(this,header)
 
   implicit none
 
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscviewer.h"
 
   class(timestepper_surface_type) :: this
   class(timestepper_surface_header_type) :: header
@@ -454,7 +459,7 @@ subroutine TimestepperSurfacePrintInfo(this,option)
 
   implicit none
   
-#include "finclude/petscts.h"  
+#include "petsc/finclude/petscts.h"  
 
   class(timestepper_surface_type) :: this
   type(option_type) :: option
@@ -471,6 +476,35 @@ subroutine TimestepperSurfacePrintInfo(this,option)
   call SolverPrintLinearInfo(this%solver,this%name,option)
   
 end subroutine TimestepperSurfacePrintInfo
+
+! ************************************************************************** !
+
+subroutine TimestepperSurfInputRecord(this)
+  ! 
+  ! Prints information about the time stepper to the input record.
+  ! To get a## format, must match that in simulation types.
+  ! 
+  ! Author: Jenn Frederick, SNL
+  ! Date: 03/17/2016
+  ! 
+  
+  implicit none
+  
+  class(timestepper_surface_type) :: this
+
+  PetscInt :: id
+  character(len=MAXWORDLENGTH) :: word
+   
+  id = INPUT_RECORD_UNIT
+
+  write(id,'(a29)',advance='no') 'pmc timestepper: '
+  write(id,'(a)') this%name
+
+  write(id,'(a29)',advance='no') 'max timestep size: '
+  write(word,*) this%dt_max_allowable
+  write(id,'(a)') trim(adjustl(word)) // ' sec'
+
+end subroutine TimestepperSurfInputRecord
 
 ! ************************************************************************** !
 

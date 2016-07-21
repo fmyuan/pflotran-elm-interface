@@ -51,32 +51,33 @@ Surface Site Density: & mole/meter$^{3}$ [mol/m$^{3}$]\\
 \protect\hypertarget{target_simulation}{}
 
 PFLOTRAN input files are divided into blocks based on the process models employed. Process models are defined within the SIMULATION block which for convenience should be located at the top of the input file (but this is not required). 
-Keywords for subsurface processes are listed in Table~\ref{flkeywd}. At present  manual pages and keywords for surface processes is still under development.
+Keywords for subsurface processes are listed in Table~\ref{flkeywd}. 
+At present manual pages and keywords for surface processes are still under development.
 Keywords within the SIMULATION block include:
 \begin{description}
-\item {\bf SIMULATION}
+\item \textbf{SIMULATION}
 \begin{description}
     \item Opens the SIMULATION block.
     \end{description}
 
-\item {\bf SIMULATION\_TYPE}  <string>
+\item \textbf{SIMULATION\_TYPE}  <string>
 \begin{description}
     \item Defines the domain to be modeled and the types of process 
     models employed. Options include:
     
-    \item {\bf SUBSURFACE}
+    \item \textbf{SUBSURFACE}
 
-    \item {\bf SURFACE\_SUBSURFACE}
+    \item \textbf{SURFACE\_SUBSURFACE}
 
-    \item {\bf HYDROGEOPHYSICS}
+    \item \textbf{HYDROGEOPHYSICS}
 \end{description}
 
-\item {\bf PROCESS\_MODELS}
+\item \textbf{PROCESS\_MODELS}
 \begin{description}
 \item Opens a block for defining all process models employed. 
     At this point, the ordering and linkage of these process 
     models is preset. For instance, SUBSURFACE\_FLOW processes 
-    always precede SUBSURFACE\_TRANSPORT processes in timestep 
+    always precede SUBSURFACE\_TRANSPORT processes in time step 
     execution. Options include:
     
 \item {\bf SUBSURFACE\_FLOW} \ <string>
@@ -240,7 +241,7 @@ END
 \toprule[1.5pt]
 \multicolumn{1}{c}{\hypertarget{target_key}{\bf Keyword}} & \multicolumn{1}{c}{\bf Description}\\
 \midrule[1pt]
-\hyperlink{target_bcon}{\bf BOUNDARY\_CONDITION} & \\
+\hyperlink{target_bcon}{\textbf{BOUNDARY\_CONDITION}} & \\
 %\hyperlink{target_brk}{\bf BREAKTHROUGH} & \\
 \hyperlink{target_brine}{\bf BRINE} & \\
 \hyperlink{target_charcrv}{\bf CHARCTERISTIC\_CURVES} & \\
@@ -1329,13 +1330,13 @@ The keyword SORPTION specifies parameters for ion-exchange and surface-complexat
 \item [ION\_EXCHANGE\_RXN] ~
 \begin{deflist}{000}
 %\item [EQUILIBRIUM]
-\item [MINERAL] {\tt Mineral Name}
+\item [MINERAL] {\tt Mineral Name} \ \ \ (Currently not implemented)
 \begin{deflist}{000}
 \item [CEC] {\tt <float>} \ [mol/m$^3$]
 %\item[SITE/CATION] {\tt Name} \ \ \ {\tt Site Density} [mol/m$^3$]
-\item[CATIONS] Exchange reactions must be written in terms of a single reference cation which must appear first in the list of cations [see \eqref{ex1}].
+\item[CATIONS] Exchange reactions must be written in terms of a single reference cation to which is appended the keyword REFERENCE in the list of cations [see example below and Eqn.\eqref{ex1}]. Order is not important.
 \begin{deflist}{000}
-\item[\tt Cation Name]  \ \ \ {\tt Selectivity\_Coefficient}
+\item[\tt Cation Name]  \ \ \ {\tt Selectivity\_Coefficient} \ \ \ [REFERENCE]
 \end{deflist}
 \item [\keyend] ~
 \end{deflist}
@@ -1403,8 +1404,8 @@ The keyword SORPTION specifies parameters for ion-exchange and surface-complexat
     ION_EXCHANGE_RXN
       CEC 0.11 ! eq/m3bulk
       CATIONS
-        Na+   1.
         Ca++  0.158489
+        Na+   1. REFERENCE
         K+    0.199526
       /
     /
@@ -1829,7 +1830,7 @@ REACTION_SANDBOX
 \midrule
 \bf Primary\_Species & List of primary species that fully describe the chemical composition of the fluid terminated by END, ., or /. The set of primary species must form an independent set of species in terms of which all homogeneous aqueous equilibrium reactions can be expressed.\\
 \midrule
-\bf Secondary\_Species & List of aqueous species in equilibrium with primary species terminated by END, ., or /.\\
+\bf Secondary\_Species & List of aqueous species in equilibrium with primary species terminated by END, ., or /. An automated python script to extract secondary species, gases and minerals is described in Appendix D.\\
 \midrule
 \bf Gas\_Species & List of gas species terminated by END, ., or /.\\
 \midrule
@@ -1962,6 +1963,13 @@ The keyword {\bf CONSTRAINT} sets up fluid compositions based on various constra
 
 %~\\
 
+\item[FREE\_ION\_GUESS] ~
+
+\begin{deflist}{000}
+\item[{\tt species\_name  guess} [molality]]
+\end{deflist}
+\item[\keyend] ~
+
 \item[MNRL, MINERALS] ~
 
 \begin{deflist}{000}
@@ -2016,6 +2024,26 @@ CONSTRAINT initial
     SO4--    6.37961e-4       T
     SiO2(aq) 5.36989e-4       T
     Tracer   2.34845e-7       F
+  /
+  FREE_ION_GUESS
+    H+       1.e-7
+    O2(aq)   1.78132e-4
+    Al+++    1.e-9
+    Ca++     1.20644e-3
+    Cu++     1.e-6
+    Fe++     1.e-9
+    Mg++     5.09772e-4
+    UO2++    2.34845e-7
+    K+       1.54789e-4
+    Na+      2.03498e-3
+    HCO3-    2.57305e-3
+    Cl-      6.97741e-4
+    F-       2.09491e-5
+    HPO4--   1.e-6
+    NO3-     4.69979e-3
+    SO4--    6.37961e-4
+    SiO2(aq) 5.36989e-4
+    Tracer   2.34845e-7
   /
   MINERALS
     Quartz         0.35  1. cm^2/cm^3
@@ -2620,6 +2648,27 @@ END
 \hfill\hyperlink{target_key}{\return}
 
 \noindent{\bf Description:} Condition coupler between regions and geomechanics boundary conditions. Since the geomechanics is solved in a quasi-steady manner, initial conditions are not needed. 
+Displacement or force conditions can be specified. Note that the values specified
+for displacement or force conditions will be applied to all the nodes of the region
+that the condition is coupled to. If one wants to specify a force $F$ on
+on a face, then the $F$ needs to be distributed based on the area around each node
+on that face. 
+For example, if the top face has nodes configuration as follows:
+\newline 1 -- 2 -- 3
+\newline | \quad   | \quad   |
+\newline 4 -- 5 -- 6     
+\newline |  \quad  | \quad   |
+\newline 7 -- 8 -- 9
+\newline with x and y in the horizontal and vertical direction, 
+and if a force $F$ on the entire face is applied in the negative z direction,
+assuming equal spacing in x and y directions, the load distribution will be:
+\newline Nodes 1, 7, 9, 3 will get $(\frac{F}{4\Delta_x\Delta_y})\times(\frac{\Delta_x\Delta_y}{4}) = \frac{F}{16}$.
+\newline Nodes 4, 2, 6, 8 will get $(\frac{F}{4\Delta_x\Delta_y})\times(\frac{\Delta_x\Delta_y}{2}) = \frac{F}{8}$.
+\newline Node 5 will get $(\frac{F}{4\Delta_x\Delta_y})\times(\Delta_x\Delta_y) = \frac{F}{4}$. 
+\newline One will then have to specify three separate regions (one with internal 
+nodes, one with corners and one with boundary nodes that are not corners), 
+and then specify three FORCE\_Z boundary conditions.
+
 
 
 {\noindent\bf Input:}
@@ -3515,7 +3564,7 @@ LINEAR_SOLVER TRANSPORT
 \item[PERMEABILITY\_CRIT\_POR] \ {\tt <float>} \ (see Eqn.\eqref{permf})
 \item[PERMEABILITY\_MIN\_SCALE\_FAC] \ {\tt <float>} \ (see Eqn.\eqref{fmin})
 \item[TORTUOSITY\_POWER] \ {\tt <float>}
-\item[MINERAL\_SURFACE\_AREA\_POWER] ~ toggle to update mineral surface area \\(see {\tt MINERAL\_KINETICS} keyword for setting porosity or volume fraction power)
+%\item[MINERAL\_SURFACE\_AREA\_POWER] Toggle to update mineral surface area \\(see {\tt MINERAL\_KINETICS} keyword for setting porosity or volume fraction power)
 %\begin{deflist}{000}
 %\item[VOLUME\_FRACTION] \ {\tt <float>} \ Volume fraction power in mineral surface area
 %\item[POROSITY] \ {\tt <float>} \ Porosity power in mineral surface area
@@ -4138,7 +4187,7 @@ END
 \item[~] -Unstructured grid: velocity outputted for internal and boundary faces. Data is outputted in HDF5 format only with no visualization support via XDMF.
 \item[VELOCITY\_AT\_CENTER] -Output cell-centered velocities (supported for structured and unstructured grids, applies to TecPlot and HDF5 output formats). Note that this is compatible only with TecPlot BLOCK format.
 
-\item[MASS\_BALANCE [DETAILED]] -Output the mass balance of the system if this card is activated. It includes global mass balance as well as fluxes at all boundaries for water and chemical species specified for output in the CHEMISTRY card. For the MPHASE mode only global mass balances are provided including supercritical CO$_2$. Output times are controlled by {\tt PERIODIC\_OBSERVATION TIMESTEP and TIME}, and printout times. Option DETAILED provides total moles of minerals.
+\item[MASS\_BALANCE] {\bf [DETAILED]} -Output the mass balance of the system if this card is activated. It includes global mass balance as well as fluxes at all boundaries for water and chemical species specified for output in the CHEMISTRY card. For the MPHASE mode only global mass balances are provided including supercritical CO$_2$. Output times are controlled by {\tt PERIODIC\_OBSERVATION TIMESTEP and TIME}, and printout times. Option DETAILED provides total moles of of each mineral.
 \end{deflist}
 \item[\keyend]
 \end{deflist}

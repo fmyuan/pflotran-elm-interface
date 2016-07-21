@@ -9,7 +9,7 @@ module co2_sw_module
 
       implicit none
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
       private
       save
@@ -349,9 +349,9 @@ subroutine interp(x1,x2,y)
       use co2_span_wagner_module, only: vappr, co2_span_wagner
       implicit none 
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
   
-      PetscReal:: x1,x2,y(15)   
+      PetscReal :: x1,x2,y(15)   
       
       PetscReal factor(1:4), fac(2,2) , iindex, jindex
       PetscReal funv(1:2,1:2,0:2), funi(1:2,1:2,0:2)

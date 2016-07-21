@@ -1,7 +1,4 @@
 module Init_Subsurface_Flow_module
-#ifndef LEGACY_SATURATION_FUNCTION
-#define REFACTOR_CHARACTERISTIC_CURVES
-#endif
 
   use PFLOTRAN_Constants_module
 
@@ -9,7 +6,7 @@ module Init_Subsurface_Flow_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: InitSubsurfFlowSetupRealization, &
             InitSubsurfFlowSetupSolvers
@@ -25,7 +22,7 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   ! 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Option_module
   use Init_Common_module
@@ -38,12 +35,13 @@ subroutine InitSubsurfFlowSetupRealization(realization)
   use Richards_module
   use TH_module
   use General_module
+  use TOilIms_module
   use Condition_Control_module
   use co2_sw_module, only : init_span_wagner
   
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -59,12 +57,10 @@ subroutine InitSubsurfFlowSetupRealization(realization)
       case(TH_MODE)
         call THSetup(realization)
       case(RICHARDS_MODE)
-#ifdef REFACTOR_CHARACTERISTIC_CURVES
         call MaterialSetup(realization%patch%aux%Material%material_parameter, &
                            patch%material_property_array, &
                            patch%characteristic_curves_array, &
                            realization%option)
-#endif
         call RichardsSetup(realization)
       case(MPH_MODE)
         call init_span_wagner(option)      
@@ -83,6 +79,12 @@ subroutine InitSubsurfFlowSetupRealization(realization)
                            patch%characteristic_curves_array, &
                            realization%option)
         call GeneralSetup(realization)
+      case(TOIL_IMS_MODE)
+        call MaterialSetup(realization%patch%aux%Material%material_parameter, &
+                           patch%material_property_array, &
+                           patch%characteristic_curves_array, &
+                           realization%option)
+        call TOilImsSetup(realization)
     end select
   
     ! assign initial conditionsRealizAssignFlowInitCond
@@ -112,6 +114,8 @@ subroutine InitSubsurfFlowSetupRealization(realization)
         !     assigned as the initial conditin if the state changes. therefore,
         !     pass in PETSC_FALSE
         call GeneralUpdateAuxVars(realization,PETSC_FALSE)
+      case(TOIL_IMS_MODE)
+        call TOilImsUpdateAuxVars(realization)
     end select
   else ! no flow mode specified
     if (len_trim(realization%nonuniform_velocity_filename) > 0) then
@@ -136,7 +140,7 @@ subroutine InitSubsurfFlowSetupSolvers(realization,convergence_context,solver)
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   ! 
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Init_Common_module
   
@@ -153,14 +157,14 @@ subroutine InitSubsurfFlowSetupSolvers(realization,convergence_context,solver)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscsnes.h"
-#include "finclude/petscpc.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscsnes.h"
+#include "petsc/finclude/petscpc.h"
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(convergence_context_type), pointer :: convergence_context
   type(solver_type), pointer :: solver
   
@@ -198,7 +202,8 @@ subroutine InitSubsurfFlowSetupSolvers(realization,convergence_context,solver)
         write(*,'(" mode = TH: p, T")')
       case(RICHARDS_MODE)
         write(*,'(" mode = Richards: p")')  
-      case(G_MODE)    
+      case(G_MODE) 
+      case(TOIL_IMS_MODE)   
     end select
   endif
 
@@ -245,7 +250,7 @@ subroutine InitSubsurfFlowSetupSolvers(realization,convergence_context,solver)
   ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
   if (option%verbosity >= 2) then
     string = '-flow_snes_view'
-    call PetscOptionsInsertString(string, ierr);CHKERRQ(ierr)
+    call PetscOptionsInsertString(PETSC_NULL_OBJECT,string, ierr);CHKERRQ(ierr)
   endif
 
   call SolverSetSNESOptions(solver)
@@ -289,7 +294,7 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   ! Date: 03/05/10, 12/04/14
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Field_module
   use Grid_module
@@ -299,10 +304,10 @@ subroutine InitSubsurfFlowReadInitCond(realization,filename)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   character(len=MAXSTRINGLENGTH) :: filename
   
   PetscInt :: local_id, idx, offset

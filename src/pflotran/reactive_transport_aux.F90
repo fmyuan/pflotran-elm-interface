@@ -10,7 +10,10 @@ module Reactive_Transport_Aux_module
   
   private 
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
+
+  PetscReal, public :: rt_itol_scaled_res = UNINITIALIZED_DOUBLE
+  PetscReal, public :: rt_itol_rel_update = UNINITIALIZED_DOUBLE
  
   type, public :: reactive_transport_auxvar_type
     ! molality

@@ -6,7 +6,7 @@ module Init_Subsurface_Tran_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: InitSubsurfTranSetupRealization, &
             InitSubsurfTranSetupSolvers
@@ -22,7 +22,7 @@ subroutine InitSubsurfTranSetupRealization(realization)
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   ! 
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   
   use Reactive_Transport_module
@@ -32,7 +32,7 @@ subroutine InitSubsurfTranSetupRealization(realization)
   
   implicit none
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   
@@ -69,7 +69,7 @@ subroutine InitSubsurfTranSetupSolvers(realization,convergence_context,solver)
   ! Author: Glenn Hammond
   ! Date: 12/04/14
   ! 
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Init_Common_module
 
@@ -81,14 +81,14 @@ subroutine InitSubsurfTranSetupSolvers(realization,convergence_context,solver)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscsnes.h"
-#include "finclude/petscpc.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscsnes.h"
+#include "petsc/finclude/petscpc.h"
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   type(convergence_context_type), pointer :: convergence_context
   type(solver_type), pointer :: solver
   
@@ -162,7 +162,8 @@ subroutine InitSubsurfTranSetupSolvers(realization,convergence_context,solver)
     ! Have PETSc do a SNES_View() at the end of each solve if verbosity > 0.
     if (option%verbosity >= 2) then
       string = '-tran_snes_view'
-      call PetscOptionsInsertString(string, ierr);CHKERRQ(ierr)
+      call PetscOptionsInsertString(PETSC_NULL_OBJECT, &
+                                    string, ierr);CHKERRQ(ierr)
     endif
 
   endif

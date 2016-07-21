@@ -1,7 +1,7 @@
 module PM_Flash2_class
 
   use PM_Base_class
-  use PM_Subsurface_class
+  use PM_Subsurface_Flow_class
   
   use PFLOTRAN_Constants_module
 
@@ -9,16 +9,17 @@ module PM_Flash2_class
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscsnes.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscsnes.h"
 
-  type, public, extends(pm_subsurface_type) :: pm_flash2_type
+  type, public, extends(pm_subsurface_flow_type) :: pm_flash2_type
   contains
+    procedure, public :: Read => PMFlash2Read
     procedure, public :: InitializeTimestep => PMFlash2InitializeTimestep
     procedure, public :: Residual => PMFlash2Residual
     procedure, public :: Jacobian => PMFlash2Jacobian
@@ -31,9 +32,10 @@ module PM_Flash2_class
 #endif
     procedure, public :: TimeCut => PMFlash2TimeCut
     procedure, public :: UpdateSolution => PMFlash2UpdateSolution
-    procedure, public :: UpdateAuxvars => PMFlash2UpdateAuxvars
+    procedure, public :: UpdateAuxVars => PMFlash2UpdateAuxVars
     procedure, public :: MaxChange => PMFlash2MaxChange
     procedure, public :: ComputeMassBalance => PMFlash2ComputeMassBalance
+    procedure, public :: InputRecord => PMFlash2InputRecord
     procedure, public :: Destroy => PMFlash2Destroy
   end type pm_flash2_type
   
@@ -58,12 +60,64 @@ function PMFlash2Create()
   class(pm_flash2_type), pointer :: flash2_pm
   
   allocate(flash2_pm)
-  call PMSubsurfaceCreate(flash2_pm)
+  call PMSubsurfaceFlowCreate(flash2_pm)
   flash2_pm%name = 'PMFlash2'
 
   PMFlash2Create => flash2_pm
   
 end function PMFlash2Create
+
+! ************************************************************************** !
+
+subroutine PMFlash2Read(this,input)
+  ! 
+  ! Reads input file parameters associated with the Flash2 process model
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 01/29/15
+  use Input_Aux_module
+  use String_module
+  use Utility_module
+  use EOS_Water_module  
+  use Option_module
+  use Flash2_Aux_module
+ 
+  implicit none
+  
+  class(pm_flash2_type) :: this
+  type(input_type), pointer :: input
+  
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: error_string
+  type(option_type), pointer :: option
+  PetscBool :: found
+
+  option => this%option
+  
+  error_string = 'Flash2 Options'
+  
+  input%ierr = 0
+  do
+  
+    call InputReadPflotranString(input,option)
+    if (InputError(input)) exit
+    if (InputCheckExit(input,option)) exit
+    
+    call InputReadWord(input,option,word,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(word)
+
+    found = PETSC_FALSE
+    call PMSubsurfaceFlowReadSelectCase(this,input,word,found,option)
+    if (found) cycle
+    
+    select case(trim(word))
+      case default
+        call InputKeywordUnrecognized(word,error_string,option)
+    end select
+  enddo
+  
+end subroutine PMFlash2Read
 
 ! ************************************************************************** !
 
@@ -85,9 +139,9 @@ subroutine PMFlash2InitializeTimestep(this)
     write(*,'(/,2("=")," FLASH2 FLOW ",65("="))')
   endif
   
-  call PMSubsurfaceInitializeTimestepA(this)
+  call PMSubsurfaceFlowInitializeTimestepA(this)
   call Flash2InitializeTimestep(this%realization)
-  call PMSubsurfaceInitializeTimestepB(this)
+  call PMSubsurfaceFlowInitializeTimestepB(this)
   
 end subroutine PMFlash2InitializeTimestep
 
@@ -156,10 +210,10 @@ subroutine PMFlash2UpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
       fac = 0.33d0
       ut = 0.d0
     else
-      up = this%option%dpmxe/(this%option%dpmax+0.1)
-      utmp = this%option%dtmpmxe/(this%option%dtmpmax+1.d-5)
-      uc = this%option%dcmxe/(this%option%dcmax+1.d-6)
-      uus= this%option%dsmxe/(this%option%dsmax+1.d-6)
+      up = this%pressure_change_governor/(this%max_pressure_change+0.1)
+      utmp = this%temperature_change_governor/(this%max_temperature_change+1.d-5)
+      uc = this%xmol_change_governor/(this%max_xmol_change+1.d-6)
+      uus= this%saturation_change_governor/(this%max_saturation_change+1.d-6)
       ut = min(up,utmp,uc,uus)
     endif
     dtt = fac * dt * (1.d0 + ut)
@@ -168,7 +222,7 @@ subroutine PMFlash2UpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
     dt_tfac = tfac(ifac) * dt
 
     fac = 0.5d0
-    up = this%option%dpmxe/(this%option%dpmax+0.1)
+    up = this%pressure_change_governor/(this%max_pressure_change+0.1)
     dt_p = fac * dt * (1.d0 + up)
 
     dtt = min(dt_tfac,dt_p)
@@ -182,6 +236,8 @@ subroutine PMFlash2UpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   !      large relative to the simulation time.  This has been removed.
       
   dt = dtt
+
+  call PMSubsurfaceFlowLimitDTByCFL(this,dt)
   
 end subroutine PMFlash2UpdateTimestep
 
@@ -233,7 +289,7 @@ end subroutine PMFlash2Jacobian
 
 ! ************************************************************************** !
 
-subroutine PMFlash2CheckUpdatePre(this,line_search,P,dP,changed,ierr)
+subroutine PMFlash2CheckUpdatePre(this,line_search,X,dX,changed,ierr)
   ! 
   ! Author: Gautam Bisht
   ! Date: 11/27/13
@@ -245,19 +301,19 @@ subroutine PMFlash2CheckUpdatePre(this,line_search,P,dP,changed,ierr)
   
   class(pm_flash2_type) :: this
   SNESLineSearch :: line_search
-  Vec :: P
-  Vec :: dP
+  Vec :: X
+  Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
   
-  call Flash2CheckUpdatePre(line_search,P,dP,changed,this%realization,ierr)
+  call Flash2CheckUpdatePre(line_search,X,dX,changed,this%realization,ierr)
 
 end subroutine PMFlash2CheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMFlash2CheckUpdatePost(this,line_search,P0,dP,P1,dP_changed, &
-                                   P1_changed,ierr)
+subroutine PMFlash2CheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+                                   X1_changed,ierr)
   ! 
   ! Author: Gautam Bisht
   ! Date: 11/27/13
@@ -269,15 +325,15 @@ subroutine PMFlash2CheckUpdatePost(this,line_search,P0,dP,P1,dP_changed, &
   
   class(pm_flash2_type) :: this
   SNESLineSearch :: line_search
-  Vec :: P0
-  Vec :: dP
-  Vec :: P1
-  PetscBool :: dP_changed
-  PetscBool :: P1_changed
+  Vec :: X0
+  Vec :: dX
+  Vec :: X1
+  PetscBool :: dX_changed
+  PetscBool :: X1_changed
   PetscErrorCode :: ierr
   
-  call Flash2CheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
-                             P1_changed,this%realization,ierr)
+  call Flash2CheckUpdatePost(line_search,X0,dX,X1,dX_changed, &
+                             X1_changed,this%realization,ierr)
 
 end subroutine PMFlash2CheckUpdatePost
 #endif
@@ -296,7 +352,7 @@ subroutine PMFlash2TimeCut(this)
   
   class(pm_flash2_type) :: this
   
-  call PMSubsurfaceTimeCut(this)
+  call PMSubsurfaceFlowTimeCut(this)
   call Flash2TimeCut(this%realization)
 
 end subroutine PMFlash2TimeCut
@@ -315,14 +371,14 @@ subroutine PMFlash2UpdateSolution(this)
   
   class(pm_flash2_type) :: this
   
-  call PMSubsurfaceUpdateSolution(this)
+  call PMSubsurfaceFlowUpdateSolution(this)
   call Flash2UpdateSolution(this%realization)
 
 end subroutine PMFlash2UpdateSolution     
 
 ! ************************************************************************** !
 
-subroutine PMFlash2UpdateAuxvars(this)
+subroutine PMFlash2UpdateAuxVars(this)
   ! 
   ! Author: Glenn Hammond
   ! Date: 04/21/14
@@ -335,7 +391,7 @@ subroutine PMFlash2UpdateAuxvars(this)
 
   call Flash2UpdateAuxVars(this%realization)
 
-end subroutine PMFlash2UpdateAuxvars   
+end subroutine PMFlash2UpdateAuxVars   
 
 ! ************************************************************************** !
 
@@ -353,18 +409,19 @@ subroutine PMFlash2MaxChange(this)
   
   class(pm_flash2_type) :: this
   
-  call Flash2MaxChange(this%realization)
+  call Flash2MaxChange(this%realization,this%max_pressure_change, &
+                       this%max_temperature_change,this%max_saturation_change)
   if (this%option%print_screen_flag) then
     write(*,'("  --> max chng: dpmx= ",1pe12.4, &
       & " dtmpmx= ",1pe12.4," dcmx= ",1pe12.4," dsmx= ",1pe12.4)') &
-          this%option%dpmax,this%option%dtmpmax,this%option%dcmax, &
-          this%option%dsmax
+          this%max_pressure_change,this%max_temperature_change, &
+          this%max_saturation_change
   endif
   if (this%option%print_file_flag) then
     write(this%option%fid_out,'("  --> max chng: dpmx= ",1pe12.4, &
       & " dtmpmx= ",1pe12.4," dcmx= ",1pe12.4," dsmx= ",1pe12.4)') &
-      this%option%dpmax,this%option%dtmpmax,this%option%dcmax, &
-      this%option%dsmax
+          this%max_pressure_change,this%max_temperature_change, &
+          this%max_saturation_change
   endif   
 
 end subroutine PMFlash2MaxChange
@@ -391,6 +448,32 @@ end subroutine PMFlash2ComputeMassBalance
 
 ! ************************************************************************** !
 
+subroutine PMFlash2InputRecord(this)
+  ! 
+  ! Writes ingested information to the input record file.
+  ! 
+  ! Author: Jenn Frederick, SNL
+  ! Date: 03/21/2016
+  ! 
+  
+  implicit none
+  
+  class(pm_flash2_type) :: this
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: id
+
+  id = INPUT_RECORD_UNIT
+
+  write(id,'(a29)',advance='no') 'pm: '
+  write(id,'(a)') this%name
+  write(id,'(a29)',advance='no') 'mode: '
+  write(id,'(a)') 'flash2'
+
+end subroutine PMFlash2InputRecord
+
+! ************************************************************************** !
+
 subroutine PMFlash2Destroy(this)
   ! 
   ! Destroys Flash2 process model
@@ -411,7 +494,7 @@ subroutine PMFlash2Destroy(this)
 
   ! preserve this ordering
   call Flash2Destroy(this%realization)
-  call PMSubsurfaceDestroy(this)
+  call PMSubsurfaceFlowDestroy(this)
   
 end subroutine PMFlash2Destroy
   

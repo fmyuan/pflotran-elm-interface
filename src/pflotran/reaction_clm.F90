@@ -1,7 +1,7 @@
 module CLM_Rxn_Base_class
   
-  ! extended from reaction_sandbox_base to implement demand based down regulation
-  ! for use in CLM_Rxn t6g 10/06/2014 
+  ! extended from reaction_sandbox_base to implement demand based 
+  ! down regulation for use in CLM_Rxn t6g 10/06/2014 
 
   use PFLOTRAN_Constants_module
 
@@ -9,7 +9,7 @@ module CLM_Rxn_Base_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, abstract, public :: clm_rxn_base_type
     class(clm_rxn_base_type), pointer :: next
@@ -57,7 +57,7 @@ module CLM_Rxn_Base_class
       implicit none
   
       class(clm_rxn_base_type) :: this
-      type(input_type) :: input
+      type(input_type), pointer :: input
       type(option_type) :: option
   
     end subroutine Base_Read 
@@ -72,7 +72,7 @@ module CLM_Rxn_Base_class
       implicit none
   
       class(clm_rxn_base_type) :: this
-      type(input_type) :: input
+      type(input_type), pointer :: input
       type(option_type) :: option
   
     end subroutine Base_SkipBlock 
@@ -158,7 +158,7 @@ contains
     implicit none
   
     class(clm_rxn_base_type) :: this
-    type(input_type) :: input
+    type(input_type), pointer :: input
     type(option_type) :: option
   
   end subroutine Base_Read
@@ -173,7 +173,7 @@ contains
     implicit none
   
     class(clm_rxn_base_type) :: this
-    type(input_type) :: input
+    type(input_type), pointer :: input
     type(option_type) :: option
   
   end subroutine Base_SkipBlock   
@@ -236,7 +236,7 @@ module CLM_Rxn_Common_module
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: CalNLimitFunc
 
@@ -322,7 +322,7 @@ module CLM_Rxn_Decomp_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter :: LITTER_DECOMP_CLMCN = 1 
   PetscInt, parameter :: LITTER_DECOMP_CLMMICROBE = 2 
@@ -337,11 +337,11 @@ module CLM_Rxn_Decomp_class
   type, public, &
     extends(clm_rxn_base_type) :: clm_rxn_clmdec_type
 
-    PetscInt  :: temperature_response_function
+    PetscInt :: temperature_response_function
     PetscReal :: Q10
-    PetscInt  :: moisture_response_function
+    PetscInt :: moisture_response_function
 
-    PetscInt  :: litter_decomp_type          ! CLM-CN or CLM-Microbe
+    PetscInt :: litter_decomp_type          ! CLM-CN or CLM-Microbe
 
     PetscReal :: half_saturation_nh4
     PetscReal :: half_saturation_no3
@@ -524,10 +524,10 @@ subroutine CLMDec_Read(this,input,option)
   implicit none
   
   class(clm_rxn_clmdec_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, internal_units
   
   type(pool_type), pointer :: new_pool, prev_pool
   type(pool_type), pointer :: new_pool_rxn, prev_pool_rxn
@@ -726,6 +726,7 @@ subroutine CLMDec_Read(this,input,option)
               nullify(new_pool_rxn)
 
             case('RATE_CONSTANT')
+              internal_units = 'mol/L-s|1/s|L/mol-s'
               call InputReadDouble(input,option,rate_constant)
               call InputErrorMsg(input,option,'rate constant', &
                      'CHEMISTRY,CLM_RXN,CLMDec,')
@@ -735,9 +736,10 @@ subroutine CLMDec_Read(this,input,option)
                 call InputDefaultMsg(input,option)
               else              
                 rate_constant = rate_constant * &
-                  UnitsConvertToInternal(word,option)
+                  UnitsConvertToInternal(word,internal_units,option)
               endif
             case('TURNOVER_TIME')
+              internal_units = 'sec'
               call InputReadDouble(input,option,turnover_time)
               call InputErrorMsg(input,option,'turnover time', &
                      'CHEMISTRY,CLM_RXN,CLMDec')
@@ -747,7 +749,7 @@ subroutine CLMDec_Read(this,input,option)
                 call InputDefaultMsg(input,option)
               else              
                 turnover_time = turnover_time * &
-                  UnitsConvertToInternal(word,option)
+                  UnitsConvertToInternal(word,internal_units,option)
               endif
             case default
               call InputKeywordUnrecognized(word, &
@@ -3119,7 +3121,7 @@ module CLM_Rxn_PlantN_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, public, &
     extends(clm_rxn_base_type) :: clm_rxn_plantn_type
@@ -3225,11 +3227,11 @@ subroutine PlantNRead(this,input,option)
   implicit none
   
   class(clm_rxn_plantn_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   PetscInt :: i
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, internal_units
   
   do 
     call InputReadPflotranString(input,option)
@@ -3723,7 +3725,7 @@ module CLM_Rxn_Nitr_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2
@@ -3820,11 +3822,11 @@ subroutine NitrRead(this,input,option)
   implicit none
   
   class(clm_rxn_nitr_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   PetscInt :: i
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, internal_units
   
   do 
     call InputReadPflotranString(input,option)
@@ -4440,7 +4442,7 @@ module CLM_Rxn_Deni_class
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_CLM4 = 1
   PetscInt, parameter :: TEMPERATURE_RESPONSE_FUNCTION_Q10 = 2
@@ -4519,11 +4521,11 @@ subroutine DeniRead(this,input,option)
   implicit none
   
   class(clm_rxn_deni_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   PetscInt :: i
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, internal_units
   
   do 
     call InputReadPflotranString(input,option)
@@ -4856,7 +4858,7 @@ module CLM_Rxn_module
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   class(clm_rxn_base_type), pointer, public :: clmrxn_list
 
@@ -4963,7 +4965,7 @@ subroutine RCLMRxnRead1(input,option)
   
   implicit none
   
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   call RCLMRxnRead(clmrxn_list,input,option)
@@ -4985,7 +4987,7 @@ subroutine RCLMRxnRead2(local_clmrxn_list,input,option)
   implicit none
   
   class(clm_rxn_base_type), pointer :: local_clmrxn_list  
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string
@@ -5083,7 +5085,7 @@ subroutine RCLMRxnSkipInput(input,option)
   
   implicit none
   
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   class(clm_rxn_base_type), pointer :: dummy_list

@@ -6,7 +6,7 @@ module Factory_PFLOTRAN_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: PFLOTRANInitializePrePetsc, &
             PFLOTRANInitializePostPetsc, &
@@ -63,6 +63,10 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   use Simulation_Base_class
   use Logging_module
   use EOS_module
+  use PM_Surface_class
+  use PM_Geomechanics_Force_class
+  use PM_Subsurface_Flow_class
+  use PM_RT_class
   
   implicit none
   
@@ -90,7 +94,7 @@ subroutine PFLOTRANInitializePostPetsc(simulation,multisimulation,option)
   endif
   
   call PFLOTRANReadSimulation(simulation,option)
-  
+
 end subroutine PFLOTRANInitializePostPetsc
 
 ! ************************************************************************** !
@@ -106,10 +110,20 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   use String_module
   
   use Simulation_Base_class
+  use Simulation_Subsurface_class
+  use Simulation_Surf_Subsurf_class
+  use Simulation_Geomechanics_class
+  use Simulation_Hydrogeophysics_class
   use PM_Base_class
+  use PM_Surface_Flow_class
   use PM_Surface_TH_class
   use PM_Geomechanics_Force_class
+  use PM_Auxiliary_class
   use PMC_Base_class
+  use Checkpoint_module
+  use Output_Aux_module
+  use Waypoint_module
+  use Units_module
   
   use Factory_Subsurface_module
   use Factory_Hydrogeophysics_module
@@ -127,38 +141,32 @@ subroutine PFLOTRANReadSimulation(simulation,option)
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXWORDLENGTH) :: name
   character(len=MAXWORDLENGTH) :: simulation_type
+  character(len=MAXWORDLENGTH) :: internal_units  
   
   class(pm_base_type), pointer :: pm_master
   class(pm_base_type), pointer :: cur_pm
   class(pm_base_type), pointer :: new_pm
+  type(checkpoint_option_type), pointer :: checkpoint_option
+  type(waypoint_list_type), pointer :: checkpoint_waypoint_list
 
   class(pmc_base_type), pointer :: pmc_master
+  
+  PetscBool :: print_ekg
   
   nullify(pm_master)
   nullify(cur_pm)
   nullify(new_pm)
   
   nullify(pmc_master)
+  nullify(checkpoint_option)
+  nullify(checkpoint_waypoint_list)
+  print_ekg = PETSC_FALSE
   
   input => InputCreate(IN_UNIT,option%input_filename,option)
 
+  simulation_type = ''
   string = 'SIMULATION'
   call InputFindStringInFile(input,option,string)
-  !TODO(geh): remove after 8/5/2015
-  if (input%ierr /= 0) then
-    call printMsg(option,'')
-    call printMsg(option,'***************************************************')
-    call printMsg(option,'')
-    call printMsg(option,'IMPORTANT: The PFLOTRAN input deck has been ' // &
-                 'refactored. Please see')
-    call printMsg(option,'')
-    call printMsg(option,'https://bitbucket.org/pflotran/' // &
-                  'pflotran-dev/wiki/Documentation/RefactoredInput')
-    call printMsg(option,'')
-    call printMsg(option,'for instructions on updating your input deck.')
-    call printMsg(option,'')
-    call printMsg(option,'***************************************************')
-  endif
   call InputFindStringErrorMsg(input,option,string)
   word = ''
   do
@@ -190,13 +198,18 @@ subroutine PFLOTRANReadSimulation(simulation,option)
               call SubsurfaceReadRTPM(input, option, new_pm)
             case('WASTE_FORM')
               call SubsurfaceReadWasteFormPM(input, option,new_pm)
+            case('UFD_DECAY')
+              call SubsurfaceReadUFDDecayPM(input, option,new_pm)
             case('HYDROGEOPHYSICS')
             case('SURFACE_SUBSURFACE')
-              option%surf_flow_on = PETSC_TRUE
-              new_pm => PMSurfaceTHCreate()
+              call SurfSubsurfaceReadFlowPM(input, option, new_pm)
             case('GEOMECHANICS_SUBSURFACE')
               option%geomech_on = PETSC_TRUE
               new_pm => PMGeomechForceCreate()
+            case('AUXILIARY')
+              new_pm => PMAuxiliaryCreate()
+              input%buf = name
+              call PMAuxiliaryRead(input,option,PMAuxiliaryCast(new_pm))
             case default
               call InputKeywordUnrecognized(word, &
                      'SIMULATION,PROCESS_MODELS',option)            
@@ -216,40 +229,87 @@ subroutine PFLOTRANReadSimulation(simulation,option)
         enddo
       case('MASTER')
         call PFLOTRANSetupPMCHierarchy(input,option,pmc_master)
+      case('PRINT_EKG')
+        option%print_ekg = PETSC_TRUE
+      case('CHECKPOINT')
+        checkpoint_option => CheckpointOptionCreate()
+        checkpoint_waypoint_list => WaypointListCreate()
+        call CheckpointRead(input,option,checkpoint_option, &
+                            checkpoint_waypoint_list)
+      case ('RESTART')
+        option%io_buffer = 'The RESTART card within SUBSURFACE block has &
+                           &been deprecated.'
+        option%restart_flag = PETSC_TRUE
+        call InputReadNChars(input,option,option%restart_filename, &
+                             MAXSTRINGLENGTH,PETSC_TRUE)
+        call InputErrorMsg(input,option,'RESTART','Restart file name') 
+        call InputReadDouble(input,option,option%restart_time)
+        if (input%ierr == 0) then
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          if (input%ierr == 0) then
+            internal_units = 'sec'
+            option%restart_time = option%restart_time* &
+              UnitsConvertToInternal(word,internal_units,option)
+          else
+            call InputDefaultMsg(input,option,'RESTART, time units')
+          endif
+        endif    
+      case('INPUT_RECORD_FILE')
+        option%input_record = PETSC_TRUE
+        call OpenAndWriteInputRecord(option)
       case default
         call InputKeywordUnrecognized(word,'SIMULATION',option)            
     end select
   enddo
+  call InputDestroy(input)
 
   if (.not.associated(pm_master)) then
     option%io_buffer = 'No process models defined in SIMULATION block.'
     call printErrMsg(option)
   endif
+  
+  if (option%print_ekg) then
+    cur_pm => pm_master
+    do
+      if (.not.associated(cur_pm)) exit
+      cur_pm%print_ekg = PETSC_TRUE
+      cur_pm => cur_pm%next
+    enddo
+  endif
 
+  ! create the simulation objects
   select case(simulation_type)
-    case('CUSTOM')
-      ! link process models with their respective couplers
-      cur_pm => pm_master
-      do
-        if (.not.associated(cur_pm)) exit
-        call PFLOTRANLinkPMToPMC(input,option,pmc_master,cur_pm)
-        cur_pm => cur_pm%next
-      enddo
-      call pmc_master%CheckNullPM(option)
     case('SUBSURFACE')
-      call SubsurfaceInitialize(simulation,pm_master,option)  
+      simulation => SubsurfaceSimulationCreate(option)
     case('HYDROGEOPHYSICS')
-      call HydrogeophysicsInitialize(simulation,pm_master,option)
+      simulation => HydrogeophysicsCreate(option)
     case('SURFACE_SUBSURFACE')
-      call SurfSubsurfaceInitialize(simulation,pm_master,option)
+      simulation => SurfSubsurfaceSimulationCreate(option)
     case('GEOMECHANICS_SUBSURFACE')
-      call GeomechanicsInitialize(simulation,pm_master,option)
+      simulation => GeomechanicsSimulationCreate(option)
     case default
-      call InputKeywordUnrecognized(word, &
+      if (len_trim(simulation_type) == 0) then
+        option%io_buffer = 'A SIMULATION_TYPE (e.g. "SIMULATION_TYPE &
+          &SUBSURFACE") must be specified within the SIMULATION block.'
+        call printErrMsg(option)
+      endif
+      call InputKeywordUnrecognized(simulation_type, &
                      'SIMULATION,SIMULATION_TYPE',option)            
   end select
-  
-  call InputDestroy(input)
+  simulation%process_model_list => pm_master
+  simulation%checkpoint_option => checkpoint_option
+  call WaypointListMerge(simulation%waypoint_list_outer, &
+                         checkpoint_waypoint_list,option)
+  select type(simulation)
+    class is(simulation_subsurface_type)
+      call SubsurfaceInitialize(simulation)  
+    class is(simulation_hydrogeophysics_type)
+      call HydrogeophysicsInitialize(simulation)
+    class is(simulation_surfsubsurface_type)
+      call SurfSubsurfaceInitialize(simulation)
+    class is(simulation_geomechanics_type)
+      call GeomechanicsInitialize(simulation)
+  end select
   
 end subroutine PFLOTRANReadSimulation
 
@@ -268,7 +328,7 @@ recursive subroutine PFLOTRANSetupPMCHierarchy(input,option,pmc)
   
   implicit none
   
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   class(pmc_base_type), pointer :: pmc
   
@@ -314,7 +374,7 @@ recursive subroutine PFLOTRANLinkPMToPMC(input,option,pmc,pm)
   
   implicit none
   
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   class(pmc_base_type), pointer :: pmc
   class(pm_base_type), pointer :: pm
@@ -323,7 +383,7 @@ recursive subroutine PFLOTRANLinkPMToPMC(input,option,pmc,pm)
   
   print *, pmc%name, pm%name
   if (StringCompareIgnoreCase(pmc%name,pm%name)) then
-    pmc%pms => pm
+    pmc%pm_list => pm
     return
   endif
   
@@ -342,6 +402,7 @@ subroutine PFLOTRANFinalize(option)
 !
   use Option_module
   use Logging_module
+  use Output_EKG_module
   
   implicit none
   
@@ -351,8 +412,9 @@ subroutine PFLOTRANFinalize(option)
   ! pushed in FinalizeRun()
   call PetscLogStagePop(ierr);CHKERRQ(ierr)
   call OptionEndTiming(option)
-  if (option%myrank == option%io_rank .and. option%print_to_file) then
+  if (OptionPrintToFile(option)) then
     close(option%fid_out)
+    call OutputEKGFinalize()
   endif
 
 end subroutine PFLOTRANFinalize
@@ -420,6 +482,10 @@ subroutine PFLOTRANInitCommandLineSettings(option)
   call InputGetCommandLineInt(string,i,option_found,option)
   if (option_found) option%verbosity = i
  
+  string = '-successful_exit_code'
+  call InputGetCommandLineInt(string,i,option_found,option)
+  if (option_found) option%successful_exit_code = i
+ 
   ! this will get overwritten later if stochastic
   string = '-realization_id'
   call InputGetCommandLineInt(string,i,option_found,option)
@@ -431,15 +497,6 @@ subroutine PFLOTRANInitCommandLineSettings(option)
     option%id = i
   endif
   
-  ! this will get overwritten later if stochastic
-  string = '-simulation_mode'
-  call InputGetCommandLineString(string,string2, &
-                                 option_found,option)
-  if (option_found) then
-    call StringToUpper(string2)
-    option%simulation_mode = string2
-  endif
-
 end subroutine PFLOTRANInitCommandLineSettings
 
 end module Factory_PFLOTRAN_module

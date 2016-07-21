@@ -7,7 +7,7 @@ module Saturation_Function_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
  
   type, public :: saturation_function_type
     PetscInt :: id
@@ -158,7 +158,7 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
   implicit none
   
   type(saturation_function_type) :: saturation_function
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   PetscInt :: iphase
   
@@ -2494,8 +2494,9 @@ subroutine SatFuncGetCapillaryPressure(capillary_pressure,saturation, &
       Se = (saturation-Sr)/(1.d0-Sr)
       os = 1.d0-Se
       f = os*(1.417d0 + os*(-2.120d0 + 1.263d0*os))
-      sigma = 1.d0 - 0.625d0 * (374.15d0 - tk)/647.3d0
-      sigma = sigma * 0.2358d0 * ((374.15d0 - tk)/647.3d0)**1.256d0
+      sigma = 1.d0 - 0.625d0 * (374.15d0 - tk)/H2O_CRITICAL_TEMPERATURE
+      sigma = sigma * 0.2358d0 * &
+              ((374.15d0 - tk)/H2O_CRITICAL_TEMPERATURE)**1.256d0
       capillary_pressure = 632455.53d0 * sigma * f
     case(LINEAR_MODEL)
       alpha = saturation_function%alpha
@@ -2649,7 +2650,7 @@ subroutine SaturationFunctionVerify(saturation_function,option)
     x(i) = sat
     y(i) = pc
     call SatFuncGetLiqRelPermFromSat(sat,krl(i),dummy_real, &
-                                     saturation_function,1, &
+                                     saturation_function,ONE_INTEGER, &
                                      PETSC_FALSE,option)
     call SatFuncGetGasRelPermFromSat(sat,krg(i),saturation_function,option)
   enddo  

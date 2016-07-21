@@ -10,14 +10,14 @@ module PM_Base_class
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscsnes.h"
-#include "finclude/petscts.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscsnes.h"
+#include "petsc/finclude/petscts.h"
 
   type, public :: pm_base_type
     character(len=MAXWORDLENGTH) :: name
@@ -25,13 +25,15 @@ module PM_Base_class
     type(output_option_type), pointer :: output_option
     Vec :: solution_vec
     Vec :: residual_vec
+    PetscBool :: print_ekg
     class(realization_base_type), pointer :: realization_base
     class(pm_base_type), pointer :: next
   contains
-    procedure, public :: Init => PMBaseInit
+    procedure, public :: Setup => PMBaseSetup
     procedure, public :: Read => PMBaseRead
     procedure, public :: SetupSolvers => PMBaseSetupSolvers
     procedure, public :: InitializeRun => PMBaseThisOnly
+    procedure, public :: InputRecord => PMBaseInputRecord
     procedure, public :: FinalizeRun => PMBaseThisOnly
     procedure, public :: Residual => PMBaseResidual
     procedure, public :: Jacobian => PMBaseJacobian
@@ -46,29 +48,32 @@ module PM_Base_class
     procedure, public :: CheckUpdatePost => PMBaseCheckUpdatePost
     procedure, public :: TimeCut => PMBaseThisOnly
     procedure, public :: UpdateSolution => PMBaseThisOnly
+    procedure, public :: UpdateAuxVars => PMBaseThisOnly
     procedure, public :: MaxChange => PMBaseThisOnly
     procedure, public :: ComputeMassBalance => PMBaseComputeMassBalance
     procedure, public :: Destroy => PMBaseThisOnly
     procedure, public :: RHSFunction => PMBaseRHSFunction
-    procedure, public :: Checkpoint => PMBaseCheckpoint
-    procedure, public :: Restart => PMBaseCheckpoint
+    procedure, public :: CheckpointBinary => PMBaseCheckpointBinary
+    procedure, public :: RestartBinary => PMBaseCheckpointBinary
+    procedure, public :: CheckpointHDF5 => PMBaseCheckpointHDF5
+    procedure, public :: RestartHDF5 => PMBaseCheckpointHDF5
   end type pm_base_type
   
   type, public :: pm_base_header_type
     PetscInt :: ndof
   end type pm_base_header_type
     
-  public :: PMBaseCreate
-  
-  public :: PMBaseResidual
-  public :: PMBaseJacobian
-  public :: PMBaseRHSFunction
+  public :: PMBaseInit, &
+            PMBaseInputRecord, &
+            PMBaseResidual, &
+            PMBaseJacobian, &
+            PMBaseRHSFunction
   
 contains
 
 ! ************************************************************************** !
 
-subroutine PMBaseCreate(this)
+subroutine PMBaseInit(this)
 
   implicit none
   
@@ -81,9 +86,10 @@ subroutine PMBaseCreate(this)
   nullify(this%realization_base)
   this%solution_vec = 0
   this%residual_vec = 0
+  this%print_ekg = PETSC_FALSE
   nullify(this%next)
   
-end subroutine PMBaseCreate
+end subroutine PMBaseInit
 
 ! ************************************************************************** !
 
@@ -91,19 +97,28 @@ subroutine PMBaseRead(this,input)
   use Input_Aux_module
   implicit none
   class(pm_base_type) :: this
-  type(input_type) :: input
-  print *, 'Must extend PMBaseRead.'
+  type(input_type), pointer :: input
+  print *, 'Must extend PMBaseRead for: ' // trim(this%name)
   stop
 end subroutine PMBaseRead
 
 ! ************************************************************************** !
 
-subroutine PMBaseInit(this)
+subroutine PMBaseSetup(this)
   implicit none
   class(pm_base_type) :: this
-  print *, 'Must extend PMBaseInit.'
+  print *, 'Must extend PMBaseSetup for: ' // trim(this%name)
   stop
-end subroutine PMBaseInit
+end subroutine PMBaseSetup
+
+! ************************************************************************** !
+
+subroutine PMBaseInputRecord(this)
+  implicit none
+  class(pm_base_type) :: this
+  print *, 'Must extend PMBaseInputRecord for: ' // trim(this%name)
+  stop
+end subroutine PMBaseInputRecord
 
 ! ************************************************************************** !
 
@@ -112,7 +127,7 @@ subroutine PMBaseSetupSolvers(this,solver)
   implicit none
   class(pm_base_type) :: this
   type(solver_type) :: solver
-  print *, 'Must extend PMBaseSetupSolvers.'
+  print *, 'Must extend PMBaseSetupSolvers for: ' // trim(this%name)
   stop
 end subroutine PMBaseSetupSolvers
 
@@ -125,7 +140,7 @@ subroutine PMBaseResidual(this,snes,xx,r,ierr)
   Vec :: xx
   Vec :: r
   PetscErrorCode :: ierr
-  print *, 'Must extend PMBaseResidual.'
+  print *, 'Must extend PMBaseResidual for: ' // trim(this%name)
   stop
 end subroutine PMBaseResidual
 
@@ -138,7 +153,7 @@ subroutine PMBaseJacobian(this,snes,xx,A,B,ierr)
   Vec :: xx
   Mat :: A, B
   PetscErrorCode :: ierr
-  print *, 'Must extend PMBaseJacobian.'
+  print *, 'Must extend PMBaseJacobian for: ' // trim(this%name)
   stop
 end subroutine PMBaseJacobian
 
@@ -153,38 +168,38 @@ subroutine PMBaseUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscInt :: iacceleration
   PetscInt :: num_newton_iterations
   PetscReal :: tfac(:)
-  print *, 'Must extend PMBaseUpdateTimestep.'
+  print *, 'Must extend PMBaseUpdateTimestep for: ' // trim(this%name)
   stop
 end subroutine PMBaseUpdateTimestep
 
 ! ************************************************************************** !
 
-subroutine PMBaseCheckUpdatePre(this,line_search,P,dP,changed,ierr)
+subroutine PMBaseCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   implicit none
   class(pm_base_type) :: this
   SNESLineSearch :: line_search
-  Vec :: P
-  Vec :: dP
+  Vec :: X
+  Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
-  print *, 'Must extend PMBaseCheckUpdatePre.'
+  print *, 'Must extend PMBaseCheckUpdatePre for: ' // trim(this%name)
   stop
 end subroutine PMBaseCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMBaseCheckUpdatePost(this,line_search,P0,dP,P1,dP_changed, &
-                                  P1_changed,ierr)
+subroutine PMBaseCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+                                 X1_changed,ierr)
   implicit none
   class(pm_base_type) :: this
   SNESLineSearch :: line_search
-  Vec :: P0
-  Vec :: dP
-  Vec :: P1
-  PetscBool :: dP_changed
-  PetscBool :: P1_changed
+  Vec :: X0
+  Vec :: dX
+  Vec :: X1
+  PetscBool :: dX_changed
+  PetscBool :: X1_changed
   PetscErrorCode :: ierr
-  print *, 'Must extend PMBaseCheckUpdatePost.'
+  print *, 'Must extend PMBaseCheckUpdatePost for: ' // trim(this%name)
   stop
 end subroutine PMBaseCheckUpdatePost
 
@@ -193,7 +208,7 @@ end subroutine PMBaseCheckUpdatePost
 subroutine PMBaseThisOnly(this)
   implicit none
   class(pm_base_type) :: this
-  print *, 'Must extend PMBaseThisOnly.'
+  print *, 'Must extend PMBaseThisOnly for: ' // trim(this%name)
   stop
 end subroutine PMBaseThisOnly
 
@@ -203,7 +218,7 @@ subroutine PMBaseThisTime(this,time)
   implicit none
   class(pm_base_type) :: this
   PetscReal :: time
-  print *, 'Must extend PMBaseThisTime.'
+  print *, 'Must extend PMBaseThisTime for: ' // trim(this%name)
   stop
 end subroutine PMBaseThisTime
 
@@ -213,8 +228,8 @@ subroutine PMBaseThisTimeError(this,time,ierr)
   implicit none
   class(pm_base_type) :: this
   PetscReal :: time
-  PetscInt :: ierr
-  print *, 'Must extend PMBaseThisTimeError.'
+  PetscErrorCode :: ierr
+  print *, 'Must extend PMBaseThisTimeError for: ' // trim(this%name)
   stop
 end subroutine PMBaseThisTimeError
 
@@ -225,7 +240,7 @@ function PMBaseFunctionThisOnly(this)
   class(pm_base_type) :: this
   PetscBool ::  PMBaseFunctionThisOnly
   PMBaseFunctionThisOnly = PETSC_TRUE
-  print *, 'Must extend PMBaseFunctionThisOnly.'
+  print *, 'Must extend PMBaseFunctionThisOnly for: ' // trim(this%name)
   stop
 end function PMBaseFunctionThisOnly
 
@@ -235,7 +250,7 @@ subroutine PMBaseComputeMassBalance(this,mass_balance_array)
   implicit none
   class(pm_base_type) :: this
   PetscReal :: mass_balance_array(:)
-  print *, 'Must extend PMBaseComputeMassBalance.'
+  print *, 'Must extend PMBaseComputeMassBalance for: ' // trim(this%name)
   stop
 end subroutine PMBaseComputeMassBalance
 
@@ -249,19 +264,47 @@ subroutine PMBaseRHSFunction(this,ts,time,xx,ff,ierr)
   Vec :: xx
   Vec :: ff
   PetscErrorCode :: ierr
-  print *, 'Must extend PMBaseRHSFunction.'
+  print *, 'Must extend PMBaseRHSFunction for: ' // trim(this%name)
   stop
 end subroutine PMBaseRHSFunction
 
 ! ************************************************************************** !
 
-subroutine PMBaseCheckpoint(this,viewer)
+subroutine PMBaseCheckpointBinary(this,viewer)
   implicit none
-#include "finclude/petscviewer.h"      
+#include "petsc/finclude/petscviewer.h"      
   class(pm_base_type) :: this
   PetscViewer :: viewer
-  print *, 'Must extend PMBaseCheckpoint/Restart.'
+!  print *, 'Must extend PMBaseCheckpointBinary/RestartBinary.'
+!  stop
+end subroutine PMBaseCheckpointBinary
+
+! ************************************************************************** !
+
+subroutine PMBaseCheckpointHDF5(this, pm_grp_id)
+
+#if  !defined(PETSC_HAVE_HDF5)
+  implicit none
+  class(pm_base_type) :: this
+  integer :: pm_grp_id
+  print *, 'PFLOTRAN must be compiled with HDF5 to ' // &
+        'write HDF5 formatted checkpoint file. Darn.'
   stop
-end subroutine PMBaseCheckpoint
+#else
+
+  use hdf5
+  implicit none
+
+  class(pm_base_type) :: this
+#if defined(SCORPIO_WRITE)
+  integer :: pm_grp_id
+#else
+  integer(HID_T) :: pm_grp_id
+#endif
+!  print *, 'Must extend PMBaseCheckpointHDF5/RestartHDF5.'
+!  stop
+#endif
+
+end subroutine PMBaseCheckpointHDF5
 
 end module PM_Base_class

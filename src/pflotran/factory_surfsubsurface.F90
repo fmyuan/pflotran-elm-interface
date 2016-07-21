@@ -8,46 +8,35 @@ module Factory_Surf_Subsurf_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
-  public :: SurfSubsurfaceInitialize
+  public :: SurfSubsurfaceInitialize, &
+            SurfSubsurfaceReadFlowPM
 
 contains
 
 ! ************************************************************************** !
 
-subroutine SurfSubsurfaceInitialize(simulation_base,pm_list,option)
+subroutine SurfSubsurfaceInitialize(simulation)
   ! 
   ! This routine
   ! 
   ! Author: Gautam Bisht, LBNL
   ! Date: 06/28/13
   ! 
-
-  use Option_module
-  use Simulation_Base_class
-  use PM_Base_class
   
   implicit none
   
-  class(simulation_base_type), pointer :: simulation_base
-  class(pm_base_type), pointer :: pm_list
-  type(option_type), pointer :: option
-
-  class(surfsubsurface_simulation_type), pointer :: simulation
+  class(simulation_surfsubsurface_type) :: simulation
 
   ! NOTE: PETSc must already have been initialized here!
-  simulation => SurfSubsurfaceSimulationCreate(option)
-  simulation%process_model_list => pm_list
-  call SurfSubsurfaceInitializePostPETSc(simulation,option)
+  call SurfSubsurfaceInitializePostPETSc(simulation)
   
-  simulation_base => simulation
-
 end subroutine SurfSubsurfaceInitialize
 
 ! ************************************************************************** !
 
-subroutine SurfSubsurfaceInitializePostPETSc(simulation, option)
+subroutine SurfSubsurfaceInitializePostPETSc(simulation)
   ! 
   ! This routine
   ! 
@@ -62,7 +51,6 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation, option)
   use Option_module
   use Init_Common_module
   use Init_Surface_module
-  use Surface_Init_module  
   use Surface_Flow_module
   use Surface_TH_module
   use Simulation_Aux_module
@@ -72,25 +60,28 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation, option)
   use PM_Base_class
   use PM_Base_Pointer_module
   use PM_Surface_class
+  use PM_Surface_Flow_class
   use PM_Surface_TH_class
   use Input_Aux_module
-  use Realization_class
+  use Realization_Subsurface_class
   use String_module
   use Waypoint_module
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Timestepper_Surface_class
   use Logging_module
+  use Output_Aux_module
   
   implicit none
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
-  class(surfsubsurface_simulation_type) :: simulation
-  type(option_type), pointer :: option
+  class(simulation_surfsubsurface_type) :: simulation
   
-  class(realization_type), pointer :: subsurf_realization
-  class(surface_realization_type), pointer :: surf_realization
+  type(option_type), pointer :: option
+  class(realization_subsurface_type), pointer :: subsurf_realization
+  class(realization_surface_type), pointer :: surf_realization
   class(pmc_base_type), pointer :: cur_process_model_coupler
+  class(pm_surface_flow_type), pointer :: pm_surface_flow
   class(pm_surface_th_type), pointer :: pm_surface_th
   class(pm_base_type), pointer :: cur_pm, prev_pm
   class(pmc_surface_type), pointer :: pmc_surface
@@ -106,12 +97,16 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation, option)
   type(waypoint_type), pointer :: waypoint
   PetscErrorCode :: ierr
   
+  option => simulation%option
   ! process command line arguments specific to subsurface
   !call SurfSubsurfInitCommandLineSettings(option)
   
   ! we need to remove the surface pm from the list while leaving the
   ! the subsurface pm linkage intact
   nullify(prev_pm)
+  nullify(pm_surface_flow)
+  nullify(pm_surface_th)
+
   cur_pm => simulation%process_model_list
   do
     if (.not.associated(cur_pm)) exit
@@ -123,20 +118,31 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation, option)
         else
           simulation%process_model_list => cur_pm%next
         endif
-        exit
+      class is(pm_surface_flow_type)
+        pm_surface_flow => cur_pm
+        if (associated(prev_pm)) then
+          prev_pm%next => cur_pm%next
+        else
+          simulation%process_model_list => cur_pm%next
+        endif
       class default
     end select
     prev_pm => cur_pm
     cur_pm => cur_pm%next
   enddo
-  call SubsurfaceInitializePostPetsc(simulation,option)
+  call SubsurfaceInitializePostPetsc(simulation)
   ! in SubsurfaceInitializePostPetsc, the first pmc in the list is set as
   ! the master, we need to negate this setting
   simulation%process_model_coupler_list%is_master = PETSC_FALSE
 
-  if (option%surf_flow_on) then
-    simulation%surf_realization => SurfRealizCreate(option)
+  if (associated(pm_surface_flow) .or. associated(pm_surface_th)) then
+    simulation%surf_realization => RealizSurfCreate(option)
     surf_realization => simulation%surf_realization
+    surf_realization%output_option => OutputOptionDuplicate(simulation%output_option)
+    nullify(surf_realization%output_option%output_snap_variable_list)
+    nullify(surf_realization%output_option%output_obs_variable_list)
+    surf_realization%output_option%output_snap_variable_list => OutputVariableListCreate()
+    surf_realization%output_option%output_obs_variable_list => OutputVariableListCreate()
     subsurf_realization => simulation%realization
     surf_realization%input => InputCreate(IN_UNIT,option%input_filename,option)
     surf_realization%subsurf_filename = &
@@ -144,64 +150,111 @@ subroutine SurfSubsurfaceInitializePostPETSc(simulation, option)
     call SurfaceInitReadRequiredCards(simulation%surf_realization)
   
     call setSurfaceFlowMode(option)
-    surf_realization%waypoint_list => WaypointListCreate()
   
-    pm_surface_th%output_option => simulation%surf_realization%output_option
-    pmc_surface => PMCSurfaceCreate()
-    pmc_surface%name = 'PMCSurface'
-    simulation%surf_flow_process_model_coupler => pmc_surface
-    pmc_surface%option => option
-    pmc_surface%pms => pm_surface_th
-    pmc_surface%pm_ptr%ptr => pm_surface_th
-    pmc_surface%surf_realization => simulation%surf_realization
-    pmc_surface%subsurf_realization => simulation%realization
-    timestepper => TimestepperSurfaceCreate()
-    pmc_surface%timestepper => timestepper
-    ! set up logging stage
-    string = trim(pm_surface_th%name) // 'Surface'
-    call LoggingCreateStage(string,pmc_surface%stage)
+    if (associated(pm_surface_flow)) then
+      pm_surface_flow%output_option => simulation%output_option
+      pmc_surface => PMCSurfaceCreate()
+      pmc_surface%name = 'PMCSurface'
+      simulation%surf_flow_process_model_coupler => pmc_surface
+      pmc_surface%option => option
+      pmc_surface%checkpoint_option => simulation%checkpoint_option
+      pmc_surface%waypoint_list => simulation%waypoint_list_surfsubsurface
+      pmc_surface%pm_list => pm_surface_flow
+      pmc_surface%pm_ptr%pm => pm_surface_flow
+      pmc_surface%surf_realization => simulation%surf_realization
+      pmc_surface%subsurf_realization => simulation%realization
+      timestepper => TimestepperSurfaceCreate()
+      pmc_surface%timestepper => timestepper
+      ! set up logging stage
+      string = trim(pm_surface_flow%name) // 'Surface'
+      call LoggingCreateStage(string,pmc_surface%stage)
+    endif
+
+    if (associated(pm_surface_th)) then
+      pm_surface_th%output_option => simulation%output_option
+      pmc_surface => PMCSurfaceCreate()
+      pmc_surface%name = 'PMCSurface'
+      simulation%surf_flow_process_model_coupler => pmc_surface
+      pmc_surface%option => option
+      pmc_surface%checkpoint_option => simulation%checkpoint_option
+      pmc_surface%waypoint_list => simulation%waypoint_list_surfsubsurface
+      pmc_surface%pm_list => pm_surface_th
+      pmc_surface%pm_ptr%pm => pm_surface_th
+      pmc_surface%surf_realization => simulation%surf_realization
+      pmc_surface%subsurf_realization => simulation%realization
+      timestepper => TimestepperSurfaceCreate()
+      pmc_surface%timestepper => timestepper
+      ! set up logging stage
+      string = trim(pm_surface_th%name) // 'Surface'
+      call LoggingCreateStage(string,pmc_surface%stage)
+    endif
     
     input => InputCreate(IN_UNIT,option%input_filename,option)    
     string = 'SURFACE_FLOW'
     call InputFindStringInFile(input,option,string)
     call InputFindStringErrorMsg(input,option,string)  
-    call SurfaceInitReadInput(surf_realization, &
-                              timestepper%solver,input,option)
+    call SurfaceReadInput(surf_realization,timestepper%solver, &
+                          simulation%waypoint_list_surfsubsurface,input)
     ! Add first waypoint
     waypoint => WaypointCreate()
     waypoint%time = 0.d0
-    call WaypointInsertInList(waypoint,surf_realization%waypoint_list)
+    call WaypointInsertInList(waypoint,simulation%waypoint_list_surfsubsurface)
   
     ! Add final_time waypoint to surface_realization
     waypoint => WaypointCreate()
     waypoint%final = PETSC_TRUE
-    waypoint%time = simulation%realization%waypoint_list%last%time
-    waypoint%print_output = PETSC_TRUE
-    call WaypointInsertInList(waypoint,surf_realization%waypoint_list)   
+    waypoint%time = simulation%waypoint_list_subsurface%last%time
+    waypoint%print_snap_output = PETSC_TRUE
+    call WaypointInsertInList(waypoint,simulation%waypoint_list_surfsubsurface)   
+    ! merge in outer waypoints (e.g. checkpoint times)
+    call WaypointListCopyAndMerge(simulation%waypoint_list_surfsubsurface, &
+                                  simulation%waypoint_list_subsurface,option)
+    call WaypointListCopyAndMerge(simulation%waypoint_list_surfsubsurface, &
+                                  simulation%waypoint_list_outer,option)
+    call InitSurfaceSetupRealization(surf_realization,subsurf_realization, &
+                                     simulation%waypoint_list_surfsubsurface)
+    call InitCommonAddOutputWaypoints(option,simulation%output_option, &
+                                      simulation%waypoint_list_surfsubsurface)
+    ! fill in holes in waypoint data
+    call WaypointListFillIn(simulation%waypoint_list_surfsubsurface,option)
+    call WaypointListRemoveExtraWaypnts(simulation% &
+                                            waypoint_list_surfsubsurface,option)
       
     if (associated(simulation%surf_flow_process_model_coupler)) then
       if (associated(simulation%surf_flow_process_model_coupler% &
                      timestepper)) then
         simulation%surf_flow_process_model_coupler%timestepper%cur_waypoint => &
-          surf_realization%waypoint_list%first
+          simulation%waypoint_list_surfsubsurface%first
       endif
     endif
-
-    call InitSurfaceSetupRealization(surf_realization,subsurf_realization)
-    call InitSurfaceSetupSolvers(surf_realization,timestepper%solver)
+    call InitSurfaceSetupSolvers(surf_realization,timestepper%solver, &
+                             simulation%waypoint_list_surfsubsurface%last%time)
 
     pmc_surface%timestepper%dt_init = surf_realization%dt_init
     pmc_surface%timestepper%dt_max = surf_realization%dt_max
     option%surf_subsurf_coupling_flow_dt = surf_realization%dt_coupling
     option%surf_flow_dt=pmc_surface%timestepper%dt_init
 
-    call pm_surface_th%PMSurfaceSetRealization(surf_realization) 
-    call pm_surface_th%Init()
-    call TSSetRHSFunction(timestepper%solver%ts, &
-                          pm_surface_th%residual_vec, &
-                          PMRHSFunction, &
-                          pmc_surface%pm_ptr, &
-                          ierr);CHKERRQ(ierr)
+    if (associated(pm_surface_flow)) then
+      call pm_surface_flow%PMSurfaceSetRealization(surf_realization)
+      call pm_surface_flow%Setup()
+      call TSSetRHSFunction(timestepper%solver%ts, &
+                            pm_surface_flow%residual_vec, &
+                            PMRHSFunction, &
+                            pmc_surface%pm_ptr, &
+                            ierr);CHKERRQ(ierr)
+    endif
+
+    if (associated(pm_surface_th)) then
+      call pm_surface_th%PMSurfaceSetRealization(surf_realization)
+      call pm_surface_th%Setup()
+      call TSSetRHSFunction(timestepper%solver%ts, &
+                            pm_surface_th%residual_vec, &
+                            PMRHSFunction, &
+                            pmc_surface%pm_ptr, &
+                            ierr);CHKERRQ(ierr)
+    endif
+
     timestepper%dt = option%surf_flow_dt
     
     nullify(simulation%process_model_coupler_list)
@@ -259,6 +312,73 @@ end subroutine SurfSubsurfaceInitializePostPETSc
 
 ! ************************************************************************** !
 
+subroutine SurfSubsurfaceReadFlowPM(input, option, pm)
+  ! 
+  ! Author: Gautam Bisht, LBNL
+  ! Date: 11/29/15
+  !
+  use Input_Aux_module
+  use Option_module
+  use String_module
+
+  use PMC_Base_class
+  use PM_Base_class
+  use PM_Surface_Flow_class
+  use PM_Surface_TH_class
+  use Init_Common_module
+
+  implicit none
+
+  type(input_type), pointer :: input
+  type(option_type), pointer :: option
+  class(pm_base_type), pointer :: pm
+
+  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXSTRINGLENGTH) :: error_string
+
+  error_string = 'SIMULATION,PROCESS_MODELS,SURFACE_SUBSURFACE'
+
+  option%surf_flow_on = PETSC_TRUE
+
+  nullify(pm)
+  word = ''
+  do
+    call InputReadPflotranString(input,option)
+    if (InputCheckExit(input,option)) exit
+    call InputReadWord(input,option,word,PETSC_FALSE)
+    call StringToUpper(word)
+    select case(word)
+      case('MODE')
+        call InputReadWord(input,option,word,PETSC_FALSE)
+        call InputErrorMsg(input,option,'mode',error_string)
+        call StringToUpper(word)
+        select case(word)
+          case('RICHARDS')
+            pm => PMSurfaceFlowCreate()
+          case('TH')
+            pm => PMSurfaceTHCreate()
+          case default
+            error_string = trim(error_string) // ',MODE'
+            call InputKeywordUnrecognized(word,error_string,option)
+        end select
+        pm%option => option
+        exit
+      case default
+        error_string = trim(error_string) // ',SURFACE_FLOW'
+        call InputKeywordUnrecognized(word,error_string,option)
+    end select
+  enddo
+
+  if (.not.associated(pm)) then
+    option%io_buffer = 'A flow MODE (card) must be included in the ' // &
+      'SURFACE_SUBSURFACE block in ' // trim(error_string) // '.'
+    call printErrMsg(option)
+  endif
+
+end subroutine SurfSubsurfaceReadFlowPM
+
+! ************************************************************************** !
+
 subroutine SurfSubsurfCreateSurfSubSurfVScats(realization, surf_realization, &
                                               surf_to_subsurf, subsurf_to_surf)
   ! 
@@ -277,30 +397,30 @@ subroutine SurfSubsurfCreateSurfSubSurfVScats(realization, surf_realization, &
   use Grid_Unstructured_module
   use Grid_Unstructured_Aux_module
   use Grid_Unstructured_Cell_module
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Region_module
-  use Surface_Realization_class
+  use Realization_Surface_class
 
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
 
-  class(realization_type),pointer         :: realization
-  class(surface_realization_type),pointer :: surf_realization
-  VecScatter                             :: surf_to_subsurf
-  VecScatter                             :: subsurf_to_surf
+  class(realization_subsurface_type),pointer :: realization
+  class(realization_surface_type),pointer :: surf_realization
+  VecScatter :: surf_to_subsurf
+  VecScatter :: subsurf_to_surf
 
-  type(option_type),pointer            :: option
-  type(unstructured_grid_type),pointer :: subsurf_grid
-  type(unstructured_grid_type),pointer :: surf_grid
-  type(patch_type),pointer             :: cur_patch
-  type(region_type),pointer            :: cur_region,top_region
-  type(region_type),pointer            :: patch_region
+  type(option_type),pointer :: option
+  type(grid_unstructured_type),pointer :: subsurf_grid
+  type(grid_unstructured_type),pointer :: surf_grid
+  type(patch_type),pointer :: cur_patch
+  type(region_type),pointer :: cur_region,top_region
+  type(region_type),pointer :: patch_region
 
   Mat :: Mat_vert_to_face_subsurf
   Mat :: Mat_vert_to_face_subsurf_transp
@@ -312,7 +432,7 @@ subroutine SurfSubsurfCreateSurfSubSurfVScats(realization, surf_realization, &
   PetscViewer :: viewer
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt,pointer::int_array(:)
+  PetscInt,pointer ::int_array(:)
   PetscInt :: offset
   PetscInt :: int_array4(4)
   PetscInt :: int_array4_0(4,1)
@@ -591,7 +711,7 @@ subroutine SurfSubsurfCreateSurfSubSurfVScat( &
   use String_module
   use Grid_Unstructured_module
   use Grid_Unstructured_Cell_module
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Field_module
   use Surface_Field_module
@@ -599,17 +719,17 @@ subroutine SurfSubsurfCreateSurfSubSurfVScat( &
   use Discretization_module
   use Grid_Unstructured_Aux_module
   use DM_Kludge_module
-  use Surface_Realization_class
+  use Realization_Surface_class
 
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
 
-  class(realization_type),pointer         :: realization
-  class(surface_realization_type),pointer :: surf_realization
+  class(realization_subsurface_type),pointer :: realization
+  class(realization_surface_type),pointer :: surf_realization
   Mat :: prod_mat
   Vec :: source_petsc_ids
   VecScatter :: scatter
@@ -619,8 +739,8 @@ subroutine SurfSubsurfCreateSurfSubSurfVScat( &
   Vec :: corr_dest_ids_vec
   Vec :: corr_dest_ids_vec_ndof
   Vec :: source_petsc_ids_ndof
-  IS  :: is_tmp1,is_tmp2
-  IS  :: is_tmp3,is_tmp4
+  IS :: is_tmp1,is_tmp2
+  IS :: is_tmp3,is_tmp4
   PetscInt,pointer :: corr_v2_ids(:)
   VecScatter :: scatter_ndof
 
@@ -632,7 +752,7 @@ subroutine SurfSubsurfCreateSurfSubSurfVScat( &
 
   type(dm_ptr_type),pointer :: dm_ptr
   character(len=MAXSTRINGLENGTH) :: string
-  PetscInt,pointer::int_array(:)
+  PetscInt,pointer ::int_array(:)
   PetscInt :: offset
   PetscInt :: int_array4(4)
   PetscInt :: int_array4_0(4,1)
@@ -642,13 +762,14 @@ subroutine SurfSubsurfCreateSurfSubSurfVScat( &
   PetscInt :: ivertex,cell_id,vertex_id_local
   PetscReal :: max_value
 
-  PetscInt,pointer               :: ia_p(:),ja_p(:)
-  PetscInt                        :: nrow,rstart,rend,icol(1)
-  PetscInt                        :: index
-  PetscInt                        :: vertex_id
-  PetscOffset                     :: iia,jja,aaa,iicol
-  PetscBool                       :: done
-  PetscScalar                     :: aa(1)
+  PetscInt,pointer :: ia_p(:),ja_p(:)
+  PetscInt :: nrow,rstart,rend,icol(1)
+  PetscInt :: index
+  PetscInt :: vertex_id
+  PetscOffset :: iia,jja,iicol
+  PetscBool :: done
+  PetscScalar, pointer :: aa_v(:)
+  PetscInt :: row, col
 
   PetscErrorCode :: ierr
   PetscBool :: found
@@ -666,23 +787,25 @@ subroutine SurfSubsurfCreateSurfSubSurfVScat( &
     call MatGetRowIJF90(prod_loc_mat,ONE_INTEGER,PETSC_FALSE,PETSC_FALSE, &
                         nrow,ia_p,ja_p,done,ierr);CHKERRQ(ierr)
     ! Get values stored in the local-matrix
-    call MatSeqAIJGetArray(prod_loc_mat,aa,aaa,ierr);CHKERRQ(ierr)
+    call MatSeqAIJGetArrayF90(prod_loc_mat,aa_v,ierr);CHKERRQ(ierr)
   else
     ! Get i and j indices of the local-matrix
     call MatGetRowIJF90(prod_mat,ONE_INTEGER,PETSC_FALSE,PETSC_FALSE, &
                         nrow,ia_p,ja_p,done,ierr);CHKERRQ(ierr)
     ! Get values stored in the local-matrix
-    call MatSeqAIJGetArray(prod_mat,aa,aaa,ierr);CHKERRQ(ierr)
+    call MatSeqAIJGetArrayF90(prod_mat,aa_v,ierr);CHKERRQ(ierr)
   endif
 
   ! For each row of the local-matrix,find the column with the largest value
   allocate(corr_v2_ids(nrow))
+  row = 1
+  col = 0
   do ii = 1,nrow
     max_value = 0.d0
     do jj = ia_p(ii),ia_p(ii + 1) - 1
-      if (aa(aaa+ jj) > max_value) then
+      if (aa_v(jj) > max_value) then
         corr_v2_ids(ii) = ja_p(jj)
-        max_value = aa(aaa+ jj)
+        max_value = aa_v(jj)
       endif
     enddo
     if (max_value<3) then
@@ -726,7 +849,10 @@ subroutine SurfSubsurfCreateSurfSubSurfVScat( &
 
   call VecDestroy(corr_dest_ids_vec,ierr);CHKERRQ(ierr)
   if (option%mycommsize>1) then
+    call MatSeqAIJRestoreArrayF90(prod_loc_mat,aa_v,ierr);CHKERRQ(ierr)
     call MatDestroy(prod_loc_mat,ierr);CHKERRQ(ierr)
+  else
+    call MatSeqAIJRestoreArrayF90(prod_mat,aa_v,ierr);CHKERRQ(ierr)
   endif
 
 end subroutine SurfSubsurfCreateSurfSubSurfVScat
@@ -742,14 +868,14 @@ subroutine SurfSubsurfCreateSubsurfVecs(subsurf_realization, option, &
   ! Date: 08/20/13
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Coupler_module
   use Option_module
   use String_module
 
   implicit none
 
-  class(realization_type),pointer :: subsurf_realization
+  class(realization_subsurface_type),pointer :: subsurf_realization
   type(option_type),pointer :: option
   Vec :: subsurf_pres
   Vec :: subsurf_pres_top_bc
@@ -823,12 +949,12 @@ subroutine SurfSubsurfCreateSurfVecs(surf_realization,option,surf_head)
   ! Date: 08/20/13
   ! 
 
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Option_module
 
   implicit none
 
-  class(surface_realization_type),pointer :: surf_realization
+  class(realization_surface_type),pointer :: surf_realization
   type(option_type),pointer :: option
   Vec :: surf_head
 

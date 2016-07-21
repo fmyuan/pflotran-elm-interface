@@ -7,8 +7,8 @@ module Mphase_pckr_module
   implicit none
 
   private
-#include "finclude/petscsys.h"
-  PetscReal, private, parameter:: pckr_sat_water_cut = 1.D0 - 5.D-7
+#include "petsc/finclude/petscsys.h"
+  PetscReal, private, parameter :: pckr_sat_water_cut = 1.D0 - 5.D-7
   
   public ::  pckrNH_noderiv, pckrHY_noderiv     
   contains 

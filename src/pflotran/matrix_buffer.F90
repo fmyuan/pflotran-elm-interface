@@ -8,11 +8,11 @@ module Matrix_Buffer_module
 
   private
 
-#include "finclude/petscsys.h"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
 
   type, public :: matrix_buffer_type
@@ -87,7 +87,7 @@ subroutine MatrixBufferInit(A,matrix_buffer,grid)
   MatType :: mat_type
   PetscInt :: local_id, ghosted_id
   PetscInt :: i, j, k
-  type(structured_grid_type), pointer :: structured_grid
+  type(grid_structured_type), pointer :: structured_grid
   PetscErrorCode :: ierr
 
   matrix_buffer%grid => grid

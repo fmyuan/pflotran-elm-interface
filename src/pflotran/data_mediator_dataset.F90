@@ -8,9 +8,9 @@ module Data_Mediator_Dataset_class
 
   private
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
  
   type, public, extends(data_mediator_base_type) :: data_mediator_dataset_type
     PetscInt :: idof
@@ -67,7 +67,7 @@ subroutine DataMediatorDatasetRead(data_mediator,input,option)
   implicit none
   
   class(data_mediator_dataset_type) :: data_mediator
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword, word
@@ -120,8 +120,8 @@ subroutine DataMediatorDatasetInit(data_mediator, discretization, &
 
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"  
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"  
   
   class(data_mediator_dataset_type) :: data_mediator
   type(discretization_type) :: discretization
@@ -186,8 +186,8 @@ recursive subroutine DataMediatorDatasetUpdate(this,data_mediator_vec,option)
   
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"  
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"  
   
   class(data_mediator_dataset_type) :: this
   Vec :: data_mediator_vec

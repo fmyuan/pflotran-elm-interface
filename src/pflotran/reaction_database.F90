@@ -10,7 +10,7 @@ module Reaction_Database_module
   
   private
   
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: DatabaseRead, BasisInit
   
@@ -720,7 +720,7 @@ subroutine DatabaseRead(reaction,option)
       flag = PETSC_TRUE
       option%io_buffer = 'Mineral (' // trim(cur_mineral%name) // &
                ') not found in database.'
-      call printMsg(option)
+      call printErrMsg(option)
     endif
     if (.not.reaction%use_geothermal_hpt) then
       if (.not.DatabaseCheckLegitimateLogKs(cur_mineral%dbaserxn, &
@@ -870,7 +870,7 @@ subroutine BasisInit(reaction,option)
   PetscInt :: itemp_high, itemp_low
   PetscInt :: species_count, max_species_count
   PetscInt :: max_monod_count, max_inhibition_count
-  PetscInt :: monod_count, inhibition_count
+  PetscInt :: monod_count, inhibition_count, activation_energy_count
   PetscInt :: forward_count, max_forward_count
   PetscInt :: backward_count, max_backward_count
   PetscInt :: max_aq_species
@@ -1984,8 +1984,8 @@ subroutine BasisInit(reaction,option)
       mineral%kinmnrl_rate_limiter = 0.d0
       allocate(mineral%kinmnrl_irreversible(mineral%nkinmnrl))
       mineral%kinmnrl_irreversible = 0
-      allocate(mineral%kinmnrl_rate(mineral%nkinmnrl))
-      mineral%kinmnrl_rate = 0.d0
+      allocate(mineral%kinmnrl_rate_constant(mineral%nkinmnrl))
+      mineral%kinmnrl_rate_constant = 0.d0
       allocate(mineral%kinmnrl_activation_energy(mineral%nkinmnrl))
       mineral%kinmnrl_activation_energy = 0.d0
       allocate(mineral%kinmnrl_molar_vol(mineral%nkinmnrl))
@@ -2025,6 +2025,24 @@ subroutine BasisInit(reaction,option)
       endif
     endif
     
+    ! Determine whether mineral scale factor is used in any TST reactions
+    cur_mineral => mineral%mineral_list
+    found = PETSC_FALSE
+    do
+      if (.not.associated(cur_mineral)) exit
+      if (associated(cur_mineral%tstrxn)) then 
+        if (Initialized(cur_mineral%tstrxn%min_scale_factor)) then
+          found = PETSC_TRUE
+          exit
+        endif
+      endif
+      cur_mineral => cur_mineral%next
+    enddo
+    if (found) then
+      allocate(mineral%kinmnrl_min_scale_factor(mineral%nkinmnrl))
+      mineral%kinmnrl_min_scale_factor = 1.d0
+    endif
+
     ! Determine whether Temkin's constant is used in any TST reactions
     cur_mineral => mineral%mineral_list
     found = PETSC_FALSE
@@ -2075,7 +2093,7 @@ subroutine BasisInit(reaction,option)
       endif
       cur_mineral => cur_mineral%next
     enddo
-    if (found) then
+    if (reaction%update_mineral_surface_area .or. found) then
       allocate(mineral%kinmnrl_surf_area_vol_frac_pwr(mineral%nkinmnrl))
       mineral%kinmnrl_surf_area_vol_frac_pwr = 0.d0    
     endif
@@ -2206,7 +2224,8 @@ subroutine BasisInit(reaction,option)
 
       ! geh - for now, the user must specify they want each individual
       !       mineral printed for non-kinetic reactions (e.g. for SI).
-      mineral%mnrl_print(imnrl) = cur_mineral%print_me
+      mineral%mnrl_print(imnrl) = cur_mineral%print_me .or. &
+                                  reaction%mineral%print_all
       if (cur_mineral%itype == MINERAL_KINETIC) then
         mineral%kinmnrl_names(ikinmnrl) = mineral%mineral_names(imnrl)
         mineral%kinmnrl_print(ikinmnrl) = cur_mineral%print_me .or. &
@@ -2307,9 +2326,13 @@ subroutine BasisInit(reaction,option)
 
           if (mineral%kinmnrl_num_prefactors(ikinmnrl) == 0) then
             ! no prefactors, rates stored in upper level
-            mineral%kinmnrl_rate(ikinmnrl) = tstrxn%rate
+            mineral%kinmnrl_rate_constant(ikinmnrl) = tstrxn%rate
             mineral%kinmnrl_activation_energy(ikinmnrl) = &
               tstrxn%activation_energy
+          endif
+          if (Initialized(tstrxn%min_scale_factor)) then
+            mineral%kinmnrl_min_scale_factor(ikinmnrl) = &
+              tstrxn%min_scale_factor
           endif
           if (Initialized(tstrxn%affinity_factor_sigma)) then
             mineral%kinmnrl_Temkin_const(ikinmnrl) = &
@@ -2727,8 +2750,8 @@ subroutine BasisInit(reaction,option)
           ! nothing to do here as the linkage to rick density is already set
         case(MINERAL_SURFACE)
           surface_complexation%srfcplxrxn_to_surf(irxn) = &
-            GetKineticMineralIDFromName(reaction%mineral, &
-                                        cur_srfcplx_rxn%surface_name)
+            GetKineticMineralIDFromName(cur_srfcplx_rxn%surface_name, &
+                                        reaction%mineral,option)
           if (surface_complexation%srfcplxrxn_to_surf(irxn) < 0) then
             option%io_buffer = 'Mineral ' // &
                                 trim(cur_srfcplx_rxn%surface_name) // &
@@ -2897,8 +2920,8 @@ subroutine BasisInit(reaction,option)
       reaction%eqionx_rxn_cation_X_offset(irxn) = icount
       if (len_trim(cur_ionx_rxn%mineral_name) > 1) then
         reaction%eqionx_rxn_to_surf(irxn) = &
-          GetKineticMineralIDFromName(reaction%mineral, &
-                                      cur_ionx_rxn%mineral_name)
+          GetKineticMineralIDFromName(cur_ionx_rxn%mineral_name, &
+                                      reaction%mineral,option)
         if (reaction%eqionx_rxn_to_surf(irxn) < 0) then
           option%io_buffer = 'Mineral ' // trim(cur_ionx_rxn%mineral_name) // &
                              ' listed in ion exchange ' // &
@@ -3170,6 +3193,7 @@ subroutine BasisInit(reaction,option)
     max_inhibition_count = 0
     monod_count = 0
     inhibition_count = 0
+    activation_energy_count = 0
     cur_microbial_rxn => microbial%microbial_rxn_list
     do
       if (.not.associated(cur_microbial_rxn)) exit
@@ -3182,6 +3206,9 @@ subroutine BasisInit(reaction,option)
                                        reaction%offset_immobile, &
                                        reaction%immobile%names, &
                                        PETSC_TRUE,option)
+      if (cur_microbial_rxn%activation_energy > 0.d0) then
+        activation_energy_count = activation_energy_count + 1
+      endif
       temp_int = cur_microbial_rxn%dbaserxn%nspec
       if (temp_int > max_species_count) max_species_count = temp_int
       temp_int = MicrobialGetMonodCount(cur_microbial_rxn)
@@ -3197,6 +3224,12 @@ subroutine BasisInit(reaction,option)
     ! rate constant
     allocate(microbial%rate_constant(microbial%nrxn))
     microbial%rate_constant = 0.d0
+
+    ! activation_energy
+    if (activation_energy_count > 0) then
+      allocate(microbial%activation_energy(microbial%nrxn))
+      microbial%activation_energy = 0.d0
+    endif
     
     ! species ids and stoichiometry
     allocate(microbial%specid(0:max_species_count,microbial%nrxn))
@@ -3248,6 +3281,9 @@ subroutine BasisInit(reaction,option)
       irxn = irxn + 1
      
       microbial%rate_constant(irxn) = cur_microbial_rxn%rate_constant
+      if (associated(microbial%activation_energy)) then
+        microbial%activation_energy(irxn) = cur_microbial_rxn%activation_energy
+      endif
       
       microbial%specid(0,irxn) = dbaserxn%nspec
       do i = 1, dbaserxn%nspec
@@ -3458,8 +3494,8 @@ subroutine BasisInit(reaction,option)
       ! associate mineral id
       if (len_trim(cur_kd_rxn%kd_mineral_name) > 1) then
         reaction%eqkdmineral(irxn) = &
-          GetKineticMineralIDFromName(reaction%mineral, &
-                                      cur_kd_rxn%kd_mineral_name)
+          GetKineticMineralIDFromName(cur_kd_rxn%kd_mineral_name, &
+                                      reaction%mineral,option)
         if (reaction%eqkdmineral(irxn) < 0) then
           option%io_buffer = 'Mineral ' // trim(cur_ionx_rxn%mineral_name) // &
                              ' listed in kd (linear sorption)' // &
@@ -3747,7 +3783,7 @@ subroutine BasisInit(reaction,option)
       write(86,'(a," ; TST ; log10_rate_constant ")',advance='no') &
         trim(mineral%kinmnrl_names(imnrl))
       write(86,'(1es13.5," moles/cm^2/sec ")',advance='no') &
-        log10(mineral%kinmnrl_rate(imnrl))
+        log10(mineral%kinmnrl_rate_constant(imnrl))
       if (mineral%kinmnrl_num_prefactors(imnrl) /= 0) then
         write(86,'(" ; ")',advance='no')
         do i = 1, mineral%kinmnrl_num_prefactors(imnrl)
@@ -3902,7 +3938,7 @@ subroutine BasisInit(reaction,option)
       write(86,'(1es13.5)') mineral%kinmnrl_logK(imnrl)
       write(86,'(1es13.5)') mineral%kinmnrl_molar_vol(imnrl)
       write(86,'(1es13.5)') mineral%kinmnrl_molar_wt(imnrl)
-      write(86,'(1es13.5)') mineral%kinmnrl_rate(1,imnrl)
+      write(86,'(1es13.5)') mineral%kinmnrl_rate_constant(1,imnrl)
       write(86,'(1es13.5)') 1.d0 ! specific surface area 1 cm^2 / cm^3
     enddo
         close(86)
@@ -4025,7 +4061,6 @@ subroutine BasisPrint(reaction,title,option)
 130 format(a,100f11.4)
 140 format(a,f6.2)
 150 format(a,es11.4,a)
-160 format(i2,a)
 
   if (OptionPrintToFile(option)) then
     write(option%fid_out,*)

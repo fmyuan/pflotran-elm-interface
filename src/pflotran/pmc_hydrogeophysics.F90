@@ -1,7 +1,7 @@
 module PMC_Hydrogeophysics_class
 
   use PMC_Base_class
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
 
   use PFLOTRAN_Constants_module
@@ -10,17 +10,19 @@ module PMC_Hydrogeophysics_class
 
   private
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
   type, public, extends(pmc_base_type) :: pmc_hydrogeophysics_type
-    class(realization_type), pointer :: realization
+    class(realization_subsurface_type), pointer :: realization
     Vec :: tracer_seq
     Vec :: saturation_seq
-    ! a pointer to xxx_mpi in hydrogeophysics_simulation_type
+    Vec :: temperature_seq
+    ! a pointer to xxx_mpi in simulation_hydrogeophysics_type
     Vec :: tracer_mpi 
     Vec :: saturation_mpi 
+    Vec :: temperature_mpi 
     VecScatter :: pf_to_e4d_scatter
     PetscMPIInt :: pf_to_e4d_master_comm
   contains
@@ -81,6 +83,8 @@ subroutine PMCHydrogeophysicsInit(this)
   this%tracer_seq = 0
   this%saturation_mpi = 0
   this%saturation_seq = 0
+  this%temperature_mpi = 0
+  this%temperature_seq = 0
   this%pf_to_e4d_scatter = 0
   this%pf_to_e4d_master_comm = 0
   
@@ -95,10 +99,16 @@ recursive subroutine PMCHydrogeophysicsInitializeRun(this)
   ! Author: Glenn Hammond
   ! Date: 07/02/13
   ! 
+  use Realization_Base_class, only : RealizationGetVariable
+  use Variables_module, only : POROSITY
 
   implicit none
   
   class(pmc_hydrogeophysics_type) :: this
+
+  PetscReal, pointer :: vec1_ptr(:)
+  PetscReal, pointer :: vec2_ptr(:)
+  PetscErrorCode :: ierr
   
   call printMsg(this%option,'PMCHydrogeophysics%InitializeRun()')
   
@@ -109,6 +119,21 @@ recursive subroutine PMCHydrogeophysicsInitializeRun(this)
   if (associated(this%peer)) then
     call this%peer%InitializeRun()
   endif
+
+  ! send porosity once to E4D through tracer Vecs
+  ! send as late as possible.
+  call RealizationGetVariable(this%realization,this%realization%field%work, &
+                              POROSITY,ZERO_INTEGER)
+  call VecGetArrayF90(this%realization%field%work,vec1_ptr,ierr);CHKERRQ(ierr)
+  call VecGetArrayF90(this%tracer_mpi,vec2_ptr,ierr);CHKERRQ(ierr)
+  vec2_ptr(:) = vec1_ptr(:)
+  call VecRestoreArrayF90(this%realization%field%work,vec1_ptr, &
+                          ierr);CHKERRQ(ierr)
+  call VecRestoreArrayF90(this%tracer_mpi,vec2_ptr,ierr);CHKERRQ(ierr)
+  call VecScatterBegin(this%pf_to_e4d_scatter,this%tracer_mpi,this%tracer_seq, &
+                       INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
+  call VecScatterEnd(this%pf_to_e4d_scatter,this%tracer_mpi,this%tracer_seq, &
+                     INSERT_VALUES,SCATTER_FORWARD,ierr);CHKERRQ(ierr)
 
 end subroutine PMCHydrogeophysicsInitializeRun
 
@@ -146,6 +171,8 @@ recursive subroutine PMCHydrogeophysicsRunToTime(this,sync_time,stop_flag)
                                   this%tracer_seq, &
                                   this%saturation_mpi, &
                                   this%saturation_seq, &
+                                  this%temperature_mpi, &
+                                  this%temperature_seq, &
                                   this%pf_to_e4d_scatter, &
                                   this%pf_to_e4d_master_comm,this%option)
 
@@ -174,15 +201,15 @@ subroutine PMCHydrogeophysicsSynchronize(this)
   ! 
 
   use Realization_Base_class, only : RealizationGetVariable
-  use Variables_module, only : PRIMARY_MOLALITY, LIQUID_SATURATION
+  use Variables_module, only : PRIMARY_MOLALITY, LIQUID_SATURATION, TEMPERATURE
   use String_module
 !  use Discretization_module
 
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscviewer.h"
 
   class(pmc_hydrogeophysics_type) :: this
 
@@ -197,7 +224,7 @@ subroutine PMCHydrogeophysicsSynchronize(this)
 #if 1
   ! tracer
   call RealizationGetVariable(this%realization,this%realization%field%work, &
-                              PRIMARY_MOLALITY,ONE_INTEGER,0)
+                              PRIMARY_MOLALITY,ONE_INTEGER,ZERO_INTEGER)
 #else
   call DiscretizationCreateVector(this%realization%discretization,ONEDOF, &
                                   natural_vec,NATURAL,this%option)
@@ -232,6 +259,18 @@ subroutine PMCHydrogeophysicsSynchronize(this)
   call VecRestoreArrayF90(this%realization%field%work,vec1_ptr, &
                           ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(this%saturation_mpi,vec2_ptr,ierr);CHKERRQ(ierr)
+  
+  ! temperature
+  if (this%temperature_mpi /= 0) then
+    call RealizationGetVariable(this%realization,this%realization%field%work, &
+                                TEMPERATURE,ZERO_INTEGER)
+    call VecGetArrayF90(this%realization%field%work,vec1_ptr,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(this%temperature_mpi,vec2_ptr,ierr);CHKERRQ(ierr)
+    vec2_ptr(:) = vec1_ptr(:)
+    call VecRestoreArrayF90(this%realization%field%work,vec1_ptr, &
+                            ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(this%temperature_mpi,vec2_ptr,ierr);CHKERRQ(ierr)
+  endif
   
 #if 0
   filename = 'pf_tracer' // trim(StringFormatInt(num_calls)) // '.txt'
@@ -295,6 +334,10 @@ subroutine PMCHydrogeophysicsStrip(this)
     call VecDestroy(this%saturation_seq,ierr);CHKERRQ(ierr)
   endif
   this%saturation_seq = 0
+  if (this%temperature_seq /= 0) then
+    call VecDestroy(this%temperature_seq,ierr);CHKERRQ(ierr)
+  endif
+  this%temperature_seq = 0
   ! created in HydrogeophysicsInitialize()
   if (this%pf_to_e4d_scatter /= 0) then
     call VecScatterDestroy(this%pf_to_e4d_scatter, ierr);CHKERRQ(ierr)
@@ -304,6 +347,7 @@ subroutine PMCHydrogeophysicsStrip(this)
   this%pf_to_e4d_master_comm = 0
   this%tracer_mpi = 0
   this%saturation_mpi = 0
+  this%temperature_mpi = 0
   
 end subroutine PMCHydrogeophysicsStrip
 

@@ -9,28 +9,28 @@ module Immis_module
   
   private 
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
   
 !#include "include/petscf90.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   ! It is VERY IMPORTANT to make sure that the above .h90 file gets included.
   ! Otherwise some very strange things will happen and PETSc will give no
   ! indication of what the problem is.
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscdm.h"
-#include "finclude/petscdm.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscdm.h"
+#include "petsc/finclude/petscdm.h90"
 !#ifdef USE_PETSC216
-!#include "finclude/petscsles.h"
+!#include "petsc/finclude/petscsles.h"
 !#endif
-#include "finclude/petscsnes.h"
-#include "finclude/petscviewer.h"
-#include "finclude/petscsysdef.h"
-#include "finclude/petscis.h"
-#include "finclude/petscis.h90"
-#include "finclude/petsclog.h"
-#include "finclude/petscerror.h"
+#include "petsc/finclude/petscsnes.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscsysdef.h"
+#include "petsc/finclude/petscis.h"
+#include "petsc/finclude/petscis.h90"
+#include "petsc/finclude/petsclog.h"
+#include "petsc/finclude/petscerror.h"
 
 ! Cutoff parameters
   PetscReal, parameter :: formeps   = 1.D-4
@@ -64,13 +64,13 @@ subroutine ImmisTimeCut(realization)
   ! Date: 9/13/08
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Field_module
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   type(option_type), pointer :: option
   type(field_type), pointer :: field
   
@@ -91,15 +91,17 @@ subroutine ImmisSetup(realization)
   ! Date: 9/13/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
+  use Output_Aux_module
   use co2_span_wagner_module
   use co2_sw_module
   use co2_span_wagner_spline_module
    
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
+  type(output_variable_list_type), pointer :: list
 
   cur_patch => realization%patch_list%first
   do
@@ -109,7 +111,10 @@ subroutine ImmisSetup(realization)
     cur_patch => cur_patch%next
   enddo
 
-  call ImmisSetPlotVariables(realization)
+  list => realization%output_option%output_snap_variable_list
+  call ImmisSetPlotVariables(list)
+  list => realization%output_option%output_obs_variable_list
+  call ImmisSetPlotVariables(list)
 
 end subroutine ImmisSetup
 
@@ -123,7 +128,7 @@ subroutine ImmisSetupPatch(realization)
   ! Date: 10/1/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Option_module
   use Coupler_module
@@ -132,7 +137,7 @@ subroutine ImmisSetupPatch(realization)
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type),pointer :: patch
@@ -170,16 +175,16 @@ subroutine ImmisSetupPatch(realization)
 ! dencpr  
   allocate(patch%aux%Immis%Immis_parameter%dencpr(size(patch%material_property_array)))
   do ipara = 1, size(patch%material_property_array)
-    patch%aux%Immis%Immis_parameter%dencpr(patch% &
-        material_property_array(ipara)%ptr%internal_id) = &
+    patch%aux%Immis%Immis_parameter%dencpr(iabs(patch% &
+        material_property_array(ipara)%ptr%internal_id)) = &
       patch%material_property_array(ipara)%ptr%rock_density*option%scale*&
       patch%material_property_array(ipara)%ptr%specific_heat
   enddo
 ! ckwet
   allocate(patch%aux%Immis%Immis_parameter%ckwet(size(patch%material_property_array)))
   do ipara = 1, size(patch%material_property_array)
-    patch%aux%Immis%Immis_parameter%ckwet(patch% &
-        material_property_array(ipara)%ptr%internal_id) = &
+    patch%aux%Immis%Immis_parameter%ckwet(iabs(patch% &
+        material_property_array(ipara)%ptr%internal_id)) = &
       patch%material_property_array(ipara)%ptr%thermal_conductivity_wet*option%scale
   enddo
 ! immis_parameters create_end *****************************************
@@ -233,12 +238,7 @@ subroutine ImmisSetupPatch(realization)
   patch%aux%Immis%auxvars_ss => auxvars_ss
   patch%aux%Immis%num_aux_ss = sum_connection
   
-  option%numerical_derivatives_flow = PETSC_TRUE
-
-  ! print *,' ims setup get AuxBc point'
-  ! create zero array for zeroing residual and Jacobian (1 on diagonal)
-  ! for inactive cells (and isothermal)
-  call ImmisCreateZeroArray(patch,option)
+  option%flow%numerical_derivatives = PETSC_TRUE
 
 end subroutine ImmisSetupPatch
 
@@ -250,10 +250,10 @@ subroutine ImmisComputeMassBalance(realization,mass_balance)
   ! Date: 02/22/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 ! PetscReal :: mass_balance(realization%option%nflowspec,realization%option%nphase)
   PetscReal :: mass_balance(realization%option%nflowspec,1)
   
@@ -281,7 +281,7 @@ subroutine ImmisComputeMassBalancePatch(realization,mass_balance)
   ! Date: 12/19/08
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Field_module
@@ -290,7 +290,7 @@ subroutine ImmisComputeMassBalancePatch(realization,mass_balance)
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 ! PetscReal :: mass_balance(realization%option%nflowspec,realization%option%nphase)
   PetscReal :: mass_balance(realization%option%nflowspec,1)
 
@@ -344,14 +344,14 @@ subroutine ImmisZeroMassBalDeltaPatch(realization)
   ! Date: 12/19/08
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Grid_module
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -398,13 +398,13 @@ end subroutine ImmisZeroMassBalDeltaPatch
   ! Date: 12/10/07
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Option_module
   
   PetscInt ::  ImmisInitGuessCheck
-  type(realization_type) :: realization
-  type(option_type), pointer:: option
+  type(realization_subsurface_type) :: realization
+  type(option_type), pointer :: option
   type(patch_type), pointer :: cur_patch
   PetscInt :: ipass, ipass0
   PetscErrorCode :: ierr    
@@ -441,7 +441,7 @@ subroutine ImmisUpdateReasonPatch(reason,realization)
   ! Author: Chuan Lu
   ! Date: 10/10/08
   ! 
-   use Realization_class
+   use Realization_Subsurface_class
    use Patch_module
    use Field_module
    use Option_module
@@ -449,8 +449,8 @@ subroutine ImmisUpdateReasonPatch(reason,realization)
 
   implicit none
  
-  PetscInt, intent(out):: reason
-  type(realization_type) :: realization  
+  PetscInt, intent(out) :: reason
+  type(realization_subsurface_type) :: realization  
   type(patch_type),pointer :: patch
   type(grid_type), pointer :: grid
   type(field_type), pointer :: field
@@ -468,7 +468,7 @@ subroutine ImmisUpdateReasonPatch(reason,realization)
   re=1
  
   if (re>0)then
-     call VecGetArrayF90(field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
+     call VecGetArrayReadF90(field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
      call VecGetArrayF90(field%flow_yy, yy_p, ierr);CHKERRQ(ierr)
 
      do n = 1,grid%nlmax
@@ -479,16 +479,21 @@ subroutine ImmisUpdateReasonPatch(reason,realization)
         n0=(n-1)* option%nflowdof
   
 ! ******** Too huge change in pressure ****************     
-        if (dabs(xx_p(n0 + 1)- yy_p(n0 + 1))> (10.0D0 * option%dpmxe))then
+!geh: I don't believe that this code is being used.  Therefore, I will add an
+!     error message and let someone sort the use of option%dpmxe later
+        option%io_buffer = 'option%dpmxe and option%dtmpmxe needs to be ' // &
+          'refactored in ImmisUpdateReasonPatch'
+        call printErrMsg(option)
+!geh        if (dabs(xx_p(n0 + 1)- yy_p(n0 + 1))> (10.0D0 * option%dpmxe))then
            re=0; print *,'huge change in p', xx_p(n0 + 1), yy_p(n0 + 1)
            exit
-        endif
+!geh        endif
 
 ! ******** Too huge change in temperature ****************
-        if (dabs(xx_p(n0 + 2)- yy_p(n0 + 2))> (10.0D0 * option%dtmpmxe))then
+!geh        if (dabs(xx_p(n0 + 2)- yy_p(n0 + 2))> (10.0D0 * option%dtmpmxe))then
            re=0; print *,'huge change in T', xx_p(n0 + 2), yy_p(n0 + 2)
            exit
-        endif
+!geh        endif
  
 ! ******* Check 0<=sat/con<=1 **************************
            if (xx_p(n0 + 3) > 1.D0)then
@@ -500,7 +505,7 @@ subroutine ImmisUpdateReasonPatch(reason,realization)
      end do
   
     if (re<=0) print *,'Sat out of Region at: ',n,xx_p(n0+1:n0+3)
-    call VecRestoreArrayF90(field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%flow_xx, xx_p, ierr);CHKERRQ(ierr)
     call VecRestoreArrayF90(field%flow_yy, yy_p, ierr);CHKERRQ(ierr)
 
    endif
@@ -518,11 +523,11 @@ subroutine ImmisUpdateReason(reason, realization)
   ! Date: 10/10/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   implicit none
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   PetscInt :: reason
@@ -564,7 +569,7 @@ end subroutine ImmisUpdateReason
    
     use co2_span_wagner_module
      
-    use Realization_class
+    use Realization_Subsurface_class
     use Patch_module
     use Field_module
     use Grid_module
@@ -572,7 +577,7 @@ end subroutine ImmisUpdateReason
     implicit none
     
     PetscInt :: ImmisInitGuessCheckPatch 
-    type(realization_type) :: realization
+    type(realization_subsurface_type) :: realization
     type(grid_type), pointer :: grid
     type(patch_type), pointer :: patch
     type(option_type), pointer :: option
@@ -588,7 +593,7 @@ end subroutine ImmisUpdateReason
     option => realization%option
     field => realization%field
     
-    call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+    call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
     
     ipass=1
     do local_id = 1, grid%nlmax
@@ -613,7 +618,7 @@ end subroutine ImmisUpdateReason
        endif
     enddo
 
-    call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+    call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
     ImmisInitGuessCheckPatch = ipass
   end function ImmisInitGuessCheckPatch
 
@@ -628,10 +633,10 @@ subroutine ImmisUpdateAuxVars(realization)
   ! Date: 10/10/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   
@@ -656,7 +661,7 @@ subroutine ImmisUpdateAuxVarsPatch(realization)
   ! Date: 12/10/07
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Field_module
   use Option_module
@@ -667,7 +672,7 @@ subroutine ImmisUpdateAuxVarsPatch(realization)
   
   implicit none
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -832,11 +837,11 @@ subroutine ImmisInitializeTimestep(realization)
   ! Date: 10/12/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   call ImmisUpdateFixedAccumulation(realization)
 
@@ -852,13 +857,13 @@ subroutine ImmisUpdateSolution(realization)
   ! Date: 10/13/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Field_module
   use Patch_module
   
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   type(field_type), pointer :: field
   type(patch_type), pointer :: cur_patch
@@ -889,11 +894,11 @@ subroutine ImmisUpdateSolutionPatch(realization)
   ! Date: 11/18/11
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
     
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   if (realization%option%compute_mass_balance_new) then
     call ImmisUpdateMassBalancePatch(realization)
@@ -911,14 +916,14 @@ subroutine ImmisUpdateMassBalancePatch(realization)
   ! Date: 12/19/08
   ! 
  
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Patch_module
   use Grid_module
  
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -964,10 +969,10 @@ subroutine ImmisUpdateFixedAccumulation(realization)
   ! Date: 10/12/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
 
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(patch_type), pointer :: cur_patch
   
@@ -992,7 +997,7 @@ subroutine ImmisUpdateFixedAccumPatch(realization)
   ! Date: 10/12/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Option_module
   use Field_module
@@ -1000,7 +1005,7 @@ subroutine ImmisUpdateFixedAccumPatch(realization)
 
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
@@ -1026,7 +1031,7 @@ subroutine ImmisUpdateFixedAccumPatch(realization)
   immis_parameter => patch%aux%Immis%immis_parameter
   auxvars => patch%aux%Immis%auxvars
     
-  call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+  call VecGetArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
   call VecGetArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
 !geh: refactor  call VecGetArrayF90(field%porosity_loc,porosity_loc_p,ierr)
 !geh: refactor  call VecGetArrayF90(field%tortuosity_loc,tortuosity_loc_p,ierr)
@@ -1051,7 +1056,7 @@ subroutine ImmisUpdateFixedAccumPatch(realization)
                               option,ZERO_INTEGER, accum_p(istart:iend)) 
   enddo
 
-  call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+  call VecRestoreArrayReadF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
   call VecRestoreArrayF90(field%icap_loc,icap_loc_p,ierr);CHKERRQ(ierr)
 !geh refactor  call VecRestoreArrayF90(field%porosity_loc,porosity_loc_p,ierr)
 !geh refactor  call VecRestoreArrayF90(field%tortuosity_loc,tortuosity_loc_p,ierr)
@@ -1159,7 +1164,7 @@ subroutine ImmisSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,auxvar,isrctype,Res, &
   PetscReal :: well_status, well_diameter
   PetscReal :: pressure_bh, well_factor, pressure_max, pressure_min
   PetscReal :: well_inj_water, well_inj_co2
-  PetscInt  :: np
+  PetscInt :: np
   PetscInt :: iflag
   PetscErrorCode :: ierr
   
@@ -1179,8 +1184,8 @@ subroutine ImmisSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,auxvar,isrctype,Res, &
       msrc(1) =  msrc(1) / FMWH2O
       msrc(2) =  msrc(2) / FMWCO2
       if (msrc(1) /= 0.d0) then ! H2O injection
-        call EOSWaterDensityEnthalpy(tsrc,auxvar%pres,dw_kg,dw_mol, &
-                                     enth_src_h2o,ierr)
+        call EOSWaterDensity(tsrc,auxvar%pres,dw_kg,dw_mol,ierr)
+        call EOSWaterEnthalpy(tsrc,auxvar%pres,enth_src_h2o,ierr)
         ! J/kmol -> whatever units
         enth_src_h2o = enth_src_h2o * option%scale
 !           units: dw_mol [mol/dm^3]; dw_kg [kg/m^3]
@@ -1223,12 +1228,12 @@ subroutine ImmisSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,auxvar,isrctype,Res, &
           
           ! store volumetric rate for ss_fluid_fluxes()
           ! qsrc_phase [m^3/sec] = msrc [kmol/sec] / [kg/m^3] * [kg/kmol]  
-          qsrc_phase(2) = msrc(2)*rho/FMWCO2
+          qsrc_phase(2) = msrc(2)/auxvar%den(jco2)
           
         else if (option%co2eos == EOS_MRK)then
 ! MRK eos [modified version from  Kerrick and Jacobs (1981) and Weir et al. (1996).]
           call CO2(tsrc,auxvar%pres, rho,fg, xphi,enth_src_co2)
-          qsrc_phase(2) = msrc(2)*rho/FMWCO2
+          qsrc_phase(2) = msrc(2)/auxvar%den(jco2)
           enth_src_co2 = enth_src_co2*FMWCO2*option%scale
       else
          call printErrMsg(option,'pflow Immis ERROR: Need specify CO2 EOS')
@@ -1299,8 +1304,8 @@ subroutine ImmisSourceSink(mmsrc,nsrcpara,psrc,tsrc,hsrc,auxvar,isrctype,Res, &
     ! injection well (well status = 2)
       if ( dabs(well_status - 2.D0) < 1.D-1) then 
 
-        call EOSWaterDensityEnthalpy(tsrc,auxvar%pres,dw_kg,dw_mol, &
-                                     enth_src_h2o,ierr)
+        call EOSWaterDensity(tsrc,auxvar%pres,dw_kg,dw_mol,ierr)
+        call EOSWaterEnthalpy(tsrc,auxvar%pres,enth_src_h2o,ierr)
         ! J/kmol -> whatever units
         enth_src_h2o = enth_src_h2o * option%scale
 
@@ -1629,7 +1634,7 @@ subroutine ImmisResidual(snes,xx,r,realization,ierr)
   ! Date: 10/10/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Discretization_module
   use Field_module
@@ -1641,7 +1646,7 @@ subroutine ImmisResidual(snes,xx,r,realization,ierr)
   SNES :: snes
   Vec :: xx
   Vec :: r
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
   
   type(discretization_type), pointer :: discretization
@@ -1699,7 +1704,7 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
   ! 
 
   use Connection_module
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Grid_module
   use Option_module
@@ -1712,7 +1717,7 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
   SNES, intent(in) :: snes
   Vec, intent(inout) :: xx
   Vec, intent(out) :: r
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: i, iphase, jn
@@ -1826,7 +1831,7 @@ subroutine ImmisResidualPatch(snes,xx,r,realization,ierr)
       patch%saturation_function_array(int(icap_loc_p(ng)))%ptr, &
       realization%fluid_properties,option)
 
-    if (option%numerical_derivatives_flow) then
+    if (option%flow%numerical_derivatives) then
       patch%aux%Immis%delx(1,ng) = xx_loc_p((ng-1)*option%nflowdof+1)*dfac * 1.D-3
         patch%aux%Immis%delx(2,ng) = xx_loc_p((ng-1)*option%nflowdof+2)*dfac
  
@@ -2226,7 +2231,7 @@ subroutine ImmisJacobian(snes,xx,A,B,realization,ierr)
   ! Date: 10/10/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Grid_module
   use Option_module
@@ -2236,7 +2241,7 @@ subroutine ImmisJacobian(snes,xx,A,B,realization,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B, J
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscErrorCode :: ierr
   
   type(patch_type), pointer :: cur_patch
@@ -2265,7 +2270,7 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
   use Connection_module
   use Option_module
   use Grid_module
-  use Realization_class
+  use Realization_Subsurface_class
   use Patch_module
   use Coupler_module
   use Field_module
@@ -2276,7 +2281,7 @@ subroutine ImmisJacobianPatch(snes,xx,A,B,realization,ierr)
   SNES :: snes
   Vec :: xx
   Mat :: A, B
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   PetscErrorCode :: ierr
   PetscInt :: nvar,neq,nr
@@ -2810,109 +2815,7 @@ end subroutine ImmisJacobianPatch
 
 ! ************************************************************************** !
 
-subroutine ImmisCreateZeroArray(patch,option)
-  ! 
-  ! Computes the zeroed rows for inactive grid cells
-  ! 
-  ! Author: Chuan Lu
-  ! Date: 10/13/08
-  ! 
-
-  use Patch_module
-  use Grid_module
-  use Option_module
-  
-  implicit none
-
-  type(patch_type) :: patch
-  type(option_type) :: option
-  
-  PetscInt :: ncount, idof
-  PetscInt :: local_id, ghosted_id
-
-  type(grid_type), pointer :: grid
-  PetscInt :: flag = 0
-  PetscInt :: n_zero_rows
-  PetscInt, pointer :: zero_rows_local(:)
-  PetscInt, pointer :: zero_rows_local_ghosted(:)
-  PetscErrorCode :: ierr
-    
-  grid => patch%grid
-  
-  n_zero_rows = 0
-
-  if (associated(patch%imat)) then
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) then
-        n_zero_rows = n_zero_rows + option%nflowdof
-      else
-#ifdef ISOTHERMAL
-        n_zero_rows = n_zero_rows + 1
-#endif
-      endif
-    enddo
-  else
-#ifdef ISOTHERMAL
-    n_zero_rows = n_zero_rows + grid%nlmax
-#endif
-  endif
-! print *,'zero rows=', n_zero_rows
-  allocate(zero_rows_local(n_zero_rows))
-  allocate(zero_rows_local_ghosted(n_zero_rows))
-! print *,'zero rows allocated' 
-  zero_rows_local = 0
-  zero_rows_local_ghosted = 0
-  ncount = 0
-
-  if (associated(patch%imat)) then
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      if (patch%imat(ghosted_id) <= 0) then
-        do idof = 1, option%nflowdof
-          ncount = ncount + 1
-          zero_rows_local(ncount) = (local_id-1)*option%nflowdof+idof
-          zero_rows_local_ghosted(ncount) = (ghosted_id-1)*option%nflowdof+idof-1
-        enddo
-      else
-#ifdef ISOTHERMAL
-        ncount = ncount + 1
-        zero_rows_local(ncount) = local_id*option%nflowdof
-        zero_rows_local_ghosted(ncount) = ghosted_id*option%nflowdof-1
-#endif
-      endif
-    enddo
-  else
-#ifdef ISOTHERMAL
-    do local_id = 1, grid%nlmax
-      ghosted_id = grid%nL2G(local_id)
-      ncount = ncount + 1
-      zero_rows_local(ncount) = local_id*option%nflowdof
-      zero_rows_local_ghosted(ncount) = ghosted_id*option%nflowdof-1
-    enddo
-#endif
-  endif
-!print *,'zero rows point 1'
-  patch%aux%Immis%n_zero_rows = n_zero_rows
-!print *,'zero rows point 2'
-  patch%aux%Immis%zero_rows_local => zero_rows_local
-!print *,'zero rows point 3'  
-  patch%aux%Immis%zero_rows_local_ghosted => zero_rows_local_ghosted
-!print *,'zero rows point 4'
-  call MPI_Allreduce(n_zero_rows,flag,ONE_INTEGER_MPI,MPIU_INTEGER,MPI_MAX, &
-                     option%mycomm,ierr)
-  if (flag > 0) patch%aux%Immis%inactive_cells_exist = PETSC_TRUE
-
-  if (ncount /= n_zero_rows) then
-    print *, 'Error:  Mismatch in non-zero row count!', ncount, n_zero_rows
-    stop
-  endif
-! print *,'zero rows', flag
-end subroutine ImmisCreateZeroArray
-
-! ************************************************************************** !
-
-subroutine ImmisMaxChange(realization)
+subroutine ImmisMaxChange(realization,dpmax,dtmpmax,dsmax)
   ! 
   ! Computes the maximum change in the solution vector
   ! 
@@ -2920,38 +2823,34 @@ subroutine ImmisMaxChange(realization)
   ! Date: 01/15/08
   ! 
 
-  use Realization_class
-  use Patch_module
+  use Realization_Subsurface_class
   use Field_module
   use Option_module
   use Field_module
 
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(field_type), pointer :: field
-  type(patch_type), pointer :: cur_patch
-  PetscReal :: dsmax, max_S  
+  PetscReal :: dpmax, dtmpmax, dsmax
   PetscErrorCode :: ierr 
 
   option => realization%option
   field => realization%field
 
-  option%dpmax=0.D0
-  option%dtmpmax=0.D0 
-  option%dcmax=0.D0
-  option%dsmax=0.D0
+  dpmax=0.D0
+  dtmpmax=0.D0 
   dsmax=0.D0
 
   call VecWAXPY(field%flow_dxx,-1.d0,field%flow_xx,field%flow_yy, &
                 ierr);CHKERRQ(ierr)
-  call VecStrideNorm(field%flow_dxx,ZERO_INTEGER,NORM_INFINITY,option%dpmax, &
+  call VecStrideNorm(field%flow_dxx,ZERO_INTEGER,NORM_INFINITY,dpmax, &
                      ierr);CHKERRQ(ierr)
-  call VecStrideNorm(field%flow_dxx,ONE_INTEGER,NORM_INFINITY,option%dtmpmax, &
+  call VecStrideNorm(field%flow_dxx,ONE_INTEGER,NORM_INFINITY,dtmpmax, &
                      ierr);CHKERRQ(ierr)
-  call VecStrideNorm(field%flow_dxx,TWO_INTEGER,NORM_INFINITY,option%dsmax, &
+  call VecStrideNorm(field%flow_dxx,TWO_INTEGER,NORM_INFINITY,dsmax, &
                      ierr);CHKERRQ(ierr)
 
   !print *, 'Max changes=', option%dpmax,option%dtmpmax, option%dcmax,option%dsmax
@@ -2968,14 +2867,14 @@ function ImmisGetTecplotHeader(realization, icolumn)
   ! Date: 10/13/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Field_module
 
   implicit none
   
   character(len=MAXSTRINGLENGTH) :: ImmisGetTecplotHeader
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   PetscInt :: icolumn
   
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -3106,7 +3005,7 @@ end function ImmisGetTecplotHeader
 
 ! ************************************************************************** !
 
-subroutine ImmisSetPlotVariables(realization)
+subroutine ImmisSetPlotVariables(list)
   ! 
   ! Adds variables to be printed to list
   ! 
@@ -3114,19 +3013,15 @@ subroutine ImmisSetPlotVariables(realization)
   ! Date: 10/15/12
   ! 
   
-  use Realization_class
   use Output_Aux_module
   use Variables_module
 
   implicit none
 
-  type(realization_type) :: realization
-  type(output_variable_type) :: output_variable
-  
-  character(len=MAXWORDLENGTH) :: name, units
   type(output_variable_list_type), pointer :: list
-  
-  list => realization%output_option%output_variable_list
+
+  type(output_variable_type) :: output_variable
+  character(len=MAXWORDLENGTH) :: name, units
   
   if (associated(list%first)) then
     return
@@ -3215,11 +3110,11 @@ subroutine ImmisDestroy(realization)
   ! Date: 10/14/08
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
 
   implicit none
   
-  type(realization_type) :: realization
+  type(realization_subsurface_type) :: realization
   
   ! need to free array in aux vars
   !call ImmisAuxDestroy(patch%aux%Immis)

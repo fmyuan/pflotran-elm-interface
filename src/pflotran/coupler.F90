@@ -10,7 +10,7 @@ module Coupler_module
 
   private
  
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   ! coupler types
   PetscInt, parameter, public :: INITIAL_COUPLER_TYPE = 1
@@ -231,7 +231,7 @@ subroutine CouplerRead(coupler,input,option)
   
   type(option_type) :: option
   type(coupler_type) :: coupler
-  type(input_type) :: input
+  type(input_type), pointer :: input
   
   character(len=MAXWORDLENGTH) :: word
 
@@ -378,6 +378,14 @@ subroutine CouplerComputeConnections(grid,option,coupler)
         else if (associated(coupler%flow_condition%concentration)) then
           ! need to calculate connection set
         endif
+        !geh: this is a workaround for defining temperature with a gridded
+        !     dataset.  still need to set up the connections.
+        if (associated(coupler%flow_condition%temperature)) then
+          select type(selector => coupler%flow_condition%temperature%dataset)
+            class is(dataset_gridded_hdf5_type)
+              nullify_connection_set = PETSC_FALSE
+          end select
+        endif
       else
         nullify_connection_set = PETSC_TRUE
       endif
@@ -404,7 +412,7 @@ subroutine CouplerComputeConnections(grid,option,coupler)
                                           region%cell_ids, &
                                      region%explicit_faceset%face_centroids, &
                                      region%explicit_faceset%face_areas, &
-                                     option)
+                                     region%name,option)
       else
         connection_set => &
           UGridExplicitSetConnections(grid%unstructured_grid% &

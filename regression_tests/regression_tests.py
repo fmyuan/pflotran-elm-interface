@@ -1,6 +1,6 @@
 #!/bin/env python
 """
-Program to manage and run PFloTran regression tests.
+Program to manage and run PFLOTRAN regression tests.
 
 """
 
@@ -172,7 +172,7 @@ class RegressionTest(object):
                        testlog)
 
         if self._restart_timestep is not None:
-            restart_file = "{0}-{1}.chk".format(self.name(),
+            restart_file = "{0}-ts{1}.chk".format(self.name(),
                                                 self._restart_timestep)
             if os.path.isfile(restart_file):
                 restart_name = "{0}-{1}".format(self._RESTART_PREFIX,
@@ -228,6 +228,12 @@ class RegressionTest(object):
         #geh: kludge for -malloc 0
         command.append("-malloc")
         command.append("0")
+        #geh: we now set the successful exit code through the command line
+        #     so that users are not confused by any error codes reported by
+        #     wrapper libraries (e.g. MPICH2) due to the non-zero 
+        #     PFLOTRAN_SUCCESS.
+        command.append("-successful_exit_code")
+        command.append("%d" % self._PFLOTRAN_SUCCESS)
         if self._input_arg is not None:
             command.append(self._input_arg)
             command.append(test_name)
@@ -330,7 +336,7 @@ class RegressionTest(object):
             cwd = os.getcwd()
             for entry in os.listdir(cwd):
                 if os.path.isfile(entry):
-                    search_checkpoint = "^({0}-)?{1}-([\d]+|restart).chk$".format(
+                    search_checkpoint = "^({0}-)?{1}-(ts[\d]+|restart).chk$".format(
                         self._RESTART_PREFIX, self.name())
                     if re.search(search_checkpoint, entry):
                         os.rename(entry, entry + ".old")
@@ -1805,7 +1811,7 @@ def setup_testlog(txtwrap):
     testlog = open(filename, 'w')
     print("  Test log file : {0}".format(filename))
 
-    print("PFloTran Regression Test Log", file=testlog)
+    print("PFLOTRAN Regression Test Log", file=testlog)
     print("Date : {0}".format(now), file=testlog)
     print("System Info :", file=testlog)
     print("    platform : {0}".format(sys.platform), file=testlog)
@@ -1929,7 +1935,8 @@ def main(options):
                                    options.check_only,
                                    testlog)
 
-            report[filename] = test_manager.run_status()
+            report_entry = config_file.split('regression_tests/')[1]
+            report[report_entry] = test_manager.run_status()
             os.chdir(root_dir)
         except Exception as error:
             message = txtwrap.fill(

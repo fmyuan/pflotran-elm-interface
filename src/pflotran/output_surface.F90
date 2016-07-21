@@ -12,12 +12,12 @@ module Output_Surface_module
 
   private
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscdm.h"
-#include "finclude/petscdm.h90"
-#include "finclude/petsclog.h"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscdm.h"
+#include "petsc/finclude/petscdm.h90"
+#include "petsc/finclude/petsclog.h"
 
 #if defined(SCORPIO_WRITE)
   include "scorpiof.h"
@@ -68,8 +68,8 @@ end subroutine OutputSurfaceInit
 
 ! ************************************************************************** !
 
-subroutine OutputSurface(surf_realization,realization,plot_flag, &
-                         transient_plot_flag)
+subroutine OutputSurface(surf_realization,realization,snapshot_plot_flag, &
+                         observation_plot_flag,massbal_plot_flag)
   ! 
   ! This subroutine is main driver for all output subroutines related to
   ! surface flows.
@@ -78,43 +78,46 @@ subroutine OutputSurface(surf_realization,realization,plot_flag, &
   ! Date: 05/29/12
   ! 
 
-  use Surface_Realization_class, only : surface_realization_type
-  use Realization_class, only : realization_type
+  use Realization_Surface_class, only : realization_surface_type
+  use Realization_Subsurface_class, only : realization_subsurface_type
   use Option_module, only : OptionCheckTouch, option_type, &
                             printMsg, printErrMsg
   use PFLOTRAN_Constants_module
 
   implicit none
 
-  class(surface_realization_type) :: surf_realization
-  class(realization_type) :: realization
-  PetscBool                      :: plot_flag
-  PetscBool                      :: transient_plot_flag
+  class(realization_surface_type) :: surf_realization
+  class(realization_subsurface_type) :: realization
+  PetscBool :: snapshot_plot_flag
+  PetscBool :: observation_plot_flag
+  PetscBool :: massbal_plot_flag
 
   character(len=MAXSTRINGLENGTH) :: string
-  PetscErrorCode                 :: ierr
-  PetscLogDouble                 :: tstart, tend
-  type(option_type), pointer     :: option
+  PetscErrorCode :: ierr
+  PetscLogDouble :: tstart, tend
+  type(option_type), pointer :: option
 
   option => surf_realization%option
 
   call PetscLogStagePush(logging%stage(OUTPUT_STAGE),ierr);CHKERRQ(ierr)
 
   ! check for plot request from active directory
-  if (.not.plot_flag) then
+  if (.not.snapshot_plot_flag) then
 
     if (option%use_touch_options) then
       string = 'plot'
       if (OptionCheckTouch(option,string)) then
         surf_realization%output_option%plot_name = 'plot'
-        plot_flag = PETSC_TRUE
+        snapshot_plot_flag = PETSC_TRUE
       endif
     endif
   endif
 
-  if (plot_flag) then
+!......................................
+  if (snapshot_plot_flag) then
     if (surf_realization%output_option%print_hdf5) then
-      call OutputSurfaceHDF5UGridXDMF(surf_realization,realization,INSTANTANEOUS_VARS)
+      call OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
+                                      INSTANTANEOUS_VARS)
     endif
   
     if (surf_realization%output_option%print_tecplot) then
@@ -140,11 +143,19 @@ subroutine OutputSurface(surf_realization,realization,plot_flag, &
 
   endif
 
+!......................................
+  if (observation_plot_flag) then
+  endif
+
+!......................................
+  if (massbal_plot_flag) then
+  endif
+
   ! Output temporally average variables
   call OutputSurfaceAvegVars(surf_realization,realization)
 
   ! Increment the plot number
-  if (plot_flag) then
+  if (snapshot_plot_flag) then
     surf_realization%output_option%plot_number = &
       surf_realization%output_option%plot_number + 1
   endif
@@ -164,8 +175,8 @@ subroutine OutputTecplotFEQUAD(surf_realization,realization)
   ! Date: 05/29/12
   ! 
 
-  use Surface_Realization_class, only : surface_realization_type
-  use Realization_class, only : realization_type
+  use Realization_Surface_class, only : realization_surface_type
+  use Realization_Subsurface_class, only : realization_subsurface_type
   use Discretization_module
   use Grid_module
   use Grid_Unstructured_Aux_module
@@ -175,8 +186,8 @@ subroutine OutputTecplotFEQUAD(surf_realization,realization)
   
   implicit none
 
-  class(surface_realization_type) :: surf_realization
-  class(realization_type) :: realization
+  class(realization_surface_type) :: surf_realization
+  class(realization_subsurface_type) :: realization
   
   PetscInt :: i
   PetscInt, parameter :: icolumn = -1
@@ -231,8 +242,8 @@ subroutine OutputTecplotFEQUAD(surf_realization,realization)
   call WriteTecplotUGridVertices(OUTPUT_UNIT,surf_realization)
   !call WriteTecplotUGridVertices(OUTPUT_UNIT,realization)
 
-  ! loop over variables and write to file
-  cur_variable => output_option%output_variable_list%first
+  ! loop over snapshot variables and write to file
+  cur_variable => output_option%output_snap_variable_list%first
   do
     if (.not.associated(cur_variable)) exit
     call OutputSurfaceGetVarFromArray(surf_realization,global_vec,cur_variable%ivar, &
@@ -269,7 +280,7 @@ subroutine OutputTecplotHeader(fid,surf_realization,icolumn)
   ! Date: 05/30/12
   ! 
 
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Grid_module
   use Option_module
   use Patch_module
@@ -277,7 +288,7 @@ subroutine OutputTecplotHeader(fid,surf_realization,icolumn)
   implicit none
 
   PetscInt :: fid
-  class(surface_realization_type) :: surf_realization
+  class(realization_surface_type) :: surf_realization
   PetscInt :: icolumn
   
   character(len=MAXSTRINGLENGTH) :: string, string2
@@ -305,7 +316,8 @@ subroutine OutputTecplotHeader(fid,surf_realization,icolumn)
            '"Z [m]"'
   write(fid,'(a)',advance='no') trim(string)
 
-  call OutputWriteVariableListToHeader(fid,output_option%output_variable_list, &
+  call OutputWriteVariableListToHeader(fid, &
+                                      output_option%output_snap_variable_list, &
                                        '',icolumn,PETSC_TRUE,variable_count)
   ! need to terminate line
   write(fid,'(a)') ''
@@ -330,7 +342,7 @@ subroutine OutputWriteTecplotZoneHeader(fid,surf_realization,variable_count, &
   ! Date: 05/30/12
   ! 
 
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Grid_module
   use Option_module
   use String_module
@@ -338,7 +350,7 @@ subroutine OutputWriteTecplotZoneHeader(fid,surf_realization,variable_count, &
   implicit none
 
   PetscInt :: fid
-  class(surface_realization_type) :: surf_realization
+  class(realization_surface_type) :: surf_realization
   PetscInt :: variable_count
   PetscInt :: tecplot_format
   
@@ -411,7 +423,7 @@ subroutine WriteTecplotUGridElements(fid, &
   ! Date: 05/30/12
   ! 
 
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Grid_module
   use Grid_Unstructured_Aux_module
   use Option_module
@@ -420,7 +432,7 @@ subroutine WriteTecplotUGridElements(fid, &
   implicit none
 
   PetscInt :: fid
-  class(surface_realization_type) :: surf_realization
+  class(realization_surface_type) :: surf_realization
 
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -493,7 +505,7 @@ subroutine WriteTecplotUGridVertices(fid,surf_realization)
   ! Date: 05/30/12
   ! 
 
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Grid_module
   use Grid_Unstructured_Aux_module
   use Option_module
@@ -503,7 +515,7 @@ subroutine WriteTecplotUGridVertices(fid,surf_realization)
   implicit none
 
   PetscInt :: fid
-  class(surface_realization_type) :: surf_realization 
+  class(realization_surface_type) :: surf_realization 
   
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
@@ -551,7 +563,7 @@ subroutine OutputHydrograph(surf_realization)
   ! Author: Gautam Bisht, LBNL
   ! 
 
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Patch_module
   use Grid_module
   use Option_module
@@ -561,7 +573,7 @@ subroutine OutputHydrograph(surf_realization)
 
   implicit none
   
-  class(surface_realization_type) :: surf_realization
+  class(realization_surface_type) :: surf_realization
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch
   type(coupler_type), pointer :: boundary_condition
@@ -672,8 +684,8 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
   ! Date: 10/29/2012
   ! 
 
-  use Surface_Realization_class
-  use Realization_class
+  use Realization_Surface_class
+  use Realization_Subsurface_class
   use Discretization_module
   use Option_module
   use Grid_module
@@ -684,8 +696,8 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
 #if !defined(PETSC_HAVE_HDF5)
   implicit none
   
-  class(surface_realization_type) :: surf_realization
-  class(realization_type) :: realization
+  class(realization_surface_type) :: surf_realization
+  class(realization_subsurface_type) :: realization
   PetscInt :: var_list_type
 
   call printMsg(surf_realization%option,'')
@@ -709,23 +721,23 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
   
   implicit none
 
-  class(surface_realization_type) :: surf_realization
-  class(realization_type) :: realization
+  class(realization_surface_type) :: surf_realization
+  class(realization_subsurface_type) :: realization
   PetscInt :: var_list_type
 
 #if defined(SCORPIO_WRITE)
-  integer:: file_id
-  integer:: data_type
-  integer:: grp_id
-  integer:: file_space_id
-  integer:: memory_space_id
-  integer:: data_set_id
-  integer:: realization_set_id
-  integer:: prop_id
+  integer :: file_id
+  integer :: data_type
+  integer :: grp_id
+  integer :: file_space_id
+  integer :: memory_space_id
+  integer :: data_set_id
+  integer :: realization_set_id
+  integer :: prop_id
   PetscMPIInt :: rank
   integer :: rank_mpi,file_space_rank_mpi
-  integer:: dims(3)
-  integer :: start(3), length(3), stride(3),istart
+  integer :: dims(3)
+  integer :: start(3), length(3), stride(3)
 #else
   integer(HID_T) :: file_id
   integer(HID_T) :: data_type
@@ -738,7 +750,7 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
   PetscMPIInt :: rank
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   integer(HSIZE_T) :: dims(3)
-  integer(HSIZE_T) :: start(3), length(3), stride(3),istart
+  integer(HSIZE_T) :: start(3), length(3), stride(3)
 #endif
 
   type(grid_type), pointer :: subsurf_grid
@@ -762,7 +774,7 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
   character(len=MAXWORDLENGTH) :: word
   character(len=2) :: free_mol_char, tot_mol_char, sec_mol_char
   PetscReal, pointer :: array(:)
-  PetscInt :: i
+  PetscInt :: i, istart
   PetscInt :: nviz_flow, nviz_tran, nviz_dof
   PetscInt :: current_component
   PetscMPIInt, parameter :: ON=1, OFF=0
@@ -792,7 +804,8 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
       xmf_filename = OutputFilename(output_option,option,'xmf','surf')
     case (AVERAGED_VARS)
       string2='-aveg'
-      write(string3,'(i4)') int(option%time/output_option%periodic_output_time_incr)
+      write(string3,'(i4)') &
+        int(option%time/output_option%periodic_snap_output_time_incr)
       xmf_filename = OutputFilename(output_option,option,'xmf','surf_aveg')
   end select
 
@@ -814,8 +827,8 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
           first = PETSC_FALSE
         endif
       case (AVERAGED_VARS)
-        if (mod((option%time-output_option%periodic_output_time_incr)/ &
-                output_option%periodic_output_time_incr, &
+        if (mod((option%time-output_option%periodic_snap_output_time_incr)/ &
+                output_option%periodic_snap_output_time_incr, &
                 dble(output_option%times_per_h5_file))==0) then
           first = PETSC_TRUE
         else
@@ -901,8 +914,8 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
 
   select case (var_list_type)
     case (INSTANTANEOUS_VARS)
-      ! loop over variables and write to file
-      cur_variable => output_option%output_variable_list%first
+      ! loop over snapshot variables and write to file
+      cur_variable => output_option%output_snap_variable_list%first
       do
         if (.not.associated(cur_variable)) exit
         call OutputSurfaceGetVarFromArray(surf_realization,global_vec,cur_variable%ivar, &
@@ -916,10 +929,10 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
           string = trim(string) // ' [' // trim(word) // ']'
         endif
         if (cur_variable%iformat == 0) then
-          call HDF5WriteUnstructuredDataSetFromVec(string,option, &
+          call HDF5WriteDataSetFromVec(string,option, &
                                           natural_vec,grp_id,H5T_NATIVE_DOUBLE)
         else
-          call HDF5WriteUnstructuredDataSetFromVec(string,option, &
+          call HDF5WriteDataSetFromVec(string,option, &
                                           natural_vec,grp_id,H5T_NATIVE_INTEGER)
         endif
         att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" // trim(string)
@@ -941,7 +954,7 @@ subroutine OutputSurfaceHDF5UGridXDMF(surf_realization,realization, &
 
           call DiscretizationGlobalToNatural(surf_discretization,surf_field%avg_vars_vec(ivar), &
                                             natural_vec,ONEDOF)
-          call HDF5WriteUnstructuredDataSetFromVec(string,option, &
+          call HDF5WriteDataSetFromVec(string,option, &
                                             natural_vec,grp_id,H5T_NATIVE_DOUBLE)
           att_datasetname = trim(filename) // ":/" // trim(group_name) // "/" // trim(string)
           if (option%myrank == option%io_rank) then
@@ -1008,8 +1021,8 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
 
   use hdf5
   use HDF5_module
-  use Surface_Realization_class
-  use Realization_class
+  use Realization_Surface_class
+  use Realization_Subsurface_class
   use Grid_module
   use Option_module
   use Grid_Unstructured_Aux_module
@@ -1017,21 +1030,21 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
   
   implicit none
   
-  class(surface_realization_type) :: surf_realization
-  class(realization_type) :: realization
+  class(realization_surface_type) :: surf_realization
+  class(realization_subsurface_type) :: realization
   type(option_type), pointer :: option
 
 #if defined(SCORPIO_WRITE)
-  integer:: file_id
-  integer:: data_type
-  integer:: grp_id
-  integer:: file_space_id
-  integer:: memory_space_id
-  integer:: data_set_id
-  integer:: realization_set_id
-  integer:: prop_id
-  integer:: dims(3)
-  integer :: start(3), length(3), stride(3),istart
+  integer :: file_id
+  integer :: data_type
+  integer :: grp_id
+  integer :: file_space_id
+  integer :: memory_space_id
+  integer :: data_set_id
+  integer :: realization_set_id
+  integer :: prop_id
+  integer :: dims(3)
+  integer :: start(3), length(3), stride(3)
   integer :: rank_mpi,file_space_rank_mpi
   integer :: hdf5_flag
   integer, parameter :: ON=1, OFF=0
@@ -1045,12 +1058,13 @@ subroutine WriteHDF5CoordinatesUGridXDMF(surf_realization,realization, &
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
   integer(HSIZE_T) :: dims(3)
-  integer(HSIZE_T) :: start(3), length(3), stride(3),istart
+  integer(HSIZE_T) :: start(3), length(3), stride(3)
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
 #endif
 
+  PetscInt :: istart
   PetscMPIInt :: hdf5_err
   type(grid_type), pointer :: surf_grid
   type(grid_type), pointer :: subsurf_grid
@@ -1528,19 +1542,19 @@ subroutine OutputSurfaceGetVarFromArray(surf_realization,vec,ivar,isubvar,isubva
   ! Date: 01/30/13
   ! 
 
-  use Surface_Realization_class, only : surface_realization_type, &
-                                        SurfRealizGetVariable
+  use Realization_Surface_class, only : realization_surface_type, &
+                                        RealizSurfGetVariable
   use Grid_module
   use Option_module
   use Field_module
 
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petsclog.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petsclog.h"
 
-  class(surface_realization_type) :: surf_realization
+  class(realization_surface_type) :: surf_realization
   Vec :: vec
   PetscInt :: ivar
   PetscInt :: isubvar
@@ -1551,7 +1565,7 @@ subroutine OutputSurfaceGetVarFromArray(surf_realization,vec,ivar,isubvar,isubva
   call PetscLogEventBegin(logging%event_output_get_var_from_array, &
                           ierr);CHKERRQ(ierr)
                         
-  call SurfRealizGetVariable(surf_realization,vec,ivar,isubvar,isubvar1)
+  call RealizSurfGetVariable(surf_realization,vec,ivar,isubvar,isubvar1)
 
   call PetscLogEventEnd(logging%event_output_get_var_from_array, &
                         ierr);CHKERRQ(ierr)
@@ -1568,8 +1582,8 @@ subroutine OutputSurfaceAvegVars(surf_realization,realization)
   ! Date: 03/22/13
   ! 
 
-  use Surface_Realization_class, only : surface_realization_type
-  use Realization_class, only : realization_type
+  use Realization_Surface_class, only : realization_surface_type
+  use Realization_Subsurface_class, only : realization_subsurface_type
   use Option_module, only : OptionCheckTouch, option_type, printMsg
   use Output_Aux_module
   use Output_Common_module, only : OutputGetVarFromArray  
@@ -1577,8 +1591,8 @@ subroutine OutputSurfaceAvegVars(surf_realization,realization)
 
   implicit none
   
-  class(surface_realization_type) :: surf_realization
-  class(realization_type) :: realization
+  class(realization_surface_type) :: surf_realization
+  class(realization_subsurface_type) :: realization
 
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
@@ -1603,7 +1617,8 @@ subroutine OutputSurfaceAvegVars(surf_realization,realization)
   output_option%aveg_var_dtime = output_option%aveg_var_dtime + dtime
   output_option%aveg_var_time = output_option%aveg_var_time + dtime
   
-  if (abs(output_option%aveg_var_dtime-output_option%periodic_output_time_incr)<1.d0) then
+  if (abs(output_option%aveg_var_dtime - &
+          output_option%periodic_snap_output_time_incr)<1.d0) then
     aveg_plot_flag=PETSC_TRUE
   else
     aveg_plot_flag=PETSC_FALSE
@@ -1649,7 +1664,7 @@ subroutine OutputSurfaceAvegVars(surf_realization,realization)
       ! Divide vector values by 'time'
       call VecGetArrayF90(surf_field%avg_vars_vec(ivar),aval_p, &
                           ierr);CHKERRQ(ierr)
-      aval_p = aval_p/output_option%periodic_output_time_incr
+      aval_p = aval_p/output_option%periodic_snap_output_time_incr
       call VecRestoreArrayF90(surf_field%avg_vars_vec(ivar),aval_p, &
                               ierr);CHKERRQ(ierr)
 
@@ -1703,7 +1718,7 @@ subroutine OutputSurfaceVariableRead(input,option,output_variable_list)
   implicit none
 
   type(option_type) :: option
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(output_variable_list_type), pointer :: output_variable_list
   
   character(len=MAXWORDLENGTH) :: word
@@ -1723,14 +1738,14 @@ subroutine OutputSurfaceVariableRead(input,option,output_variable_list)
       case ('SURFACE_LIQUID_HEAD')
         name = 'H'
         units = 'm'
-        call OutputVariableAddToList(output_variable_list,name,OUTPUT_GENERIC,units, &
-                                     SURFACE_LIQUID_HEAD)
+        call OutputVariableAddToList(output_variable_list,name,OUTPUT_GENERIC, &
+                                     units,SURFACE_LIQUID_HEAD)
 
       case ('TEMPERATURE')
         name = 'Temperature'
         units = 'C'
-        call OutputVariableAddToList(output_variable_list,name,OUTPUT_GENERIC,units, &
-                                  TEMPERATURE)
+        call OutputVariableAddToList(output_variable_list,name,OUTPUT_GENERIC, &
+                                     units,TEMPERATURE)
       case ('PROCESS_ID')
         units = ''
         name = 'Process ID'
@@ -1775,8 +1790,8 @@ function OutputSurfaceHDF5FilenameID(output_option,option,var_list_type)
                                output_option%times_per_h5_file)
     case (AVERAGED_VARS)
       file_number = floor((option%time - &
-                           output_option%periodic_output_time_incr)/ &
-                          output_option%periodic_output_time_incr/ &
+                           output_option%periodic_snap_output_time_incr)/ &
+                          output_option%periodic_snap_output_time_incr/ &
                           output_option%times_per_h5_file)
   end select
 
@@ -1809,7 +1824,7 @@ subroutine OutputSurfaceGetFlowrates(surf_realization)
 
   use hdf5
   use HDF5_module
-  use Surface_Realization_class, only : surface_realization_type
+  use Realization_Surface_class, only : realization_surface_type
   use Patch_module
   use Grid_module
   use Option_module
@@ -1824,17 +1839,17 @@ subroutine OutputSurfaceGetFlowrates(surf_realization)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petsclog.h"
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petsclog.h"
+#include "petsc/finclude/petscsys.h"
 
-  class(surface_realization_type) :: surf_realization
+  class(realization_surface_type) :: surf_realization
   type(option_type), pointer :: option
 
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
-  type(unstructured_grid_type),pointer :: ugrid
+  type(grid_unstructured_type),pointer :: ugrid
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   type(coupler_type), pointer :: boundary_condition
@@ -2021,7 +2036,7 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
 
   use hdf5
   use HDF5_module
-  use Surface_Realization_class, only : surface_realization_type
+  use Realization_Surface_class, only : realization_surface_type
   use Patch_module
   use Grid_module
   use Option_module
@@ -2036,26 +2051,26 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petsclog.h"
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petsclog.h"
+#include "petsc/finclude/petscsys.h"
 
-  class(surface_realization_type) :: surf_realization
+  class(realization_surface_type) :: surf_realization
   type(option_type), pointer :: option
   PetscInt :: var_list_type  
 
 #if defined(SCORPIO_WRITE)
-  integer:: file_id
-  integer:: data_type
-  integer:: grp_id
-  integer:: file_space_id
-  integer:: memory_space_id
-  integer:: data_set_id
-  integer:: realization_set_id
-  integer:: prop_id
-  integer:: dims(3)
-  integer :: start(3), length(3), stride(3),istart
+  integer :: file_id
+  integer :: data_type
+  integer :: grp_id
+  integer :: file_space_id
+  integer :: memory_space_id
+  integer :: data_set_id
+  integer :: realization_set_id
+  integer :: prop_id
+  integer :: dims(3)
+  integer :: start(3), length(3), stride(3)
   integer :: rank_mpi,file_space_rank_mpi
   integer :: hdf5_flag
   integer, parameter :: ON=1, OFF=0
@@ -2069,7 +2084,7 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
   integer(HID_T) :: data_set_id
   integer(HID_T) :: prop_id
   integer(HSIZE_T) :: dims(3)
-  integer(HSIZE_T) :: start(3), length(3), stride(3),istart
+  integer(HSIZE_T) :: start(3), length(3), stride(3)
   PetscMPIInt :: rank_mpi,file_space_rank_mpi
   PetscMPIInt :: hdf5_flag
   PetscMPIInt, parameter :: ON=1, OFF=0
@@ -2077,7 +2092,7 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
 
   type(patch_type), pointer :: patch
   type(grid_type), pointer :: grid
-  type(unstructured_grid_type),pointer :: ugrid
+  type(grid_unstructured_type),pointer :: ugrid
   type(connection_set_list_type), pointer :: connection_set_list
   type(connection_set_type), pointer :: cur_connection_set
   type(coupler_type), pointer :: boundary_condition
@@ -2092,6 +2107,7 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
   PetscInt :: face_id
   PetscInt :: local_id_up,local_id_dn
   PetscInt :: ghosted_id_up,ghosted_id_dn
+  PetscInt :: istart
   PetscInt :: iface_up,iface_dn
   PetscInt :: dof
   PetscInt :: sum_connection
@@ -2217,7 +2233,7 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
 
     istart = 0
     call MPI_Exscan(local_size, istart, ONE_INTEGER_MPI, &
-                  MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
+                    MPIU_INTEGER, MPI_SUM, option%mycomm, ierr)
 
     start(2) = istart
     start(1) = 0
@@ -2258,8 +2274,9 @@ subroutine WriteHDF5SurfaceFlowratesUGrid(surf_realization,file_id,var_list_type
           ! Divide the flowrate values by integration 'time'
           do iface = 1,MAX_FACE_PER_CELL_SURF
             double_array((i-1)*(MAX_FACE_PER_CELL_SURF+1)+iface+1) = &
-            vec_ptr2((i-1)*offset + (dof-1)*MAX_FACE_PER_CELL_SURF + iface + 1)/ &
-            output_option%periodic_output_time_incr
+            vec_ptr2((i-1)*offset + &
+            (dof-1)*MAX_FACE_PER_CELL_SURF + iface + 1)/ &
+            output_option%periodic_snap_output_time_incr
           enddo
         enddo
     end select

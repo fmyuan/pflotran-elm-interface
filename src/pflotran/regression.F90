@@ -8,9 +8,9 @@ module Regression_module
 
   private
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
  
   type, public :: regression_type
     type(regression_variable_type), pointer :: variable_list
@@ -107,7 +107,7 @@ subroutine RegressionRead(regression,input,option)
   implicit none
   
   type(regression_type), pointer :: regression
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword, word
@@ -192,18 +192,18 @@ subroutine RegressionCreateMapping(regression,realization)
   ! 
 
   use Option_module
-  use Realization_class
+  use Realization_Subsurface_class
   use Grid_module
   use Discretization_module
   
   implicit none
   
-#include "finclude/petscis.h"
-#include "finclude/petscis.h90"
-#include "finclude/petscviewer.h"
+#include "petsc/finclude/petscis.h"
+#include "petsc/finclude/petscis.h90"
+#include "petsc/finclude/petscviewer.h"
 
   type(regression_type), pointer :: regression
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   IS :: is_petsc
   PetscInt, allocatable :: int_array(:)
@@ -467,7 +467,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   ! Date: 10/12/12
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Timestepper_BE_class
   use Option_module
   use Discretization_module
@@ -479,7 +479,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   implicit none
   
   type(regression_type), pointer :: regression
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   ! these must be pointers as they can be null
   class(timestepper_BE_type), pointer :: flow_timestepper
   class(timestepper_BE_type), pointer :: tran_timestepper  
@@ -518,7 +518,7 @@ subroutine RegressionOutput(regression,realization,flow_timestepper, &
   call DiscretizationDuplicateVector(realization%discretization,global_vec,global_vec_vy)
   call DiscretizationDuplicateVector(realization%discretization,global_vec,global_vec_vz)
 
-  cur_variable => realization%output_option%output_variable_list%first
+  cur_variable => realization%output_option%output_snap_variable_list%first
   do 
     if (.not.associated(cur_variable)) exit
     

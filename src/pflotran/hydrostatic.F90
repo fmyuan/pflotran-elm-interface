@@ -6,7 +6,7 @@ module Hydrostatic_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: HydrostaticUpdateCoupler, &
             HydrostaticTest
@@ -38,6 +38,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   use Dataset_Ascii_class
   
   use General_Aux_module
+  use TOilIms_Aux_module
   
   implicit none
 
@@ -55,7 +56,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   PetscReal :: gas_pressure
   PetscReal :: xm_nacl
   PetscReal :: max_z, min_z, temp_real
-  PetscInt  :: num_faces, face_id_ghosted, conn_id, num_regions
+  PetscInt :: num_faces, face_id_ghosted, conn_id, num_regions
   type(connection_set_type), pointer :: conn_set_ptr
   PetscReal, pointer :: pressure_array(:)
   PetscReal, allocatable :: density_array(:), z(:)
@@ -63,6 +64,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   PetscReal :: temperature_gradient(3), concentration_gradient(3)
   PetscReal :: gravity_magnitude
   PetscReal :: z_offset
+  PetscReal :: aux(1), dummy
+  PetscErrorCode :: ierr
   
   class(dataset_gridded_hdf5_type), pointer :: datum_dataset
   PetscReal :: datum_dataset_rmax
@@ -76,6 +79,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
   
   xm_nacl = option%m_nacl * FMWNACL
   xm_nacl = xm_nacl /(1.d3 + xm_nacl)
+  aux(1) = xm_nacl
   
   nullify(pressure_array)
   nullify(datum_dataset)
@@ -130,6 +134,23 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       coupler%flow_aux_mapping(GENERAL_AIR_PRESSURE_INDEX) = 2
       coupler%flow_aux_mapping(GENERAL_TEMPERATURE_INDEX) = 3
       coupler%flow_aux_mapping(GENERAL_GAS_SATURATION_INDEX) = 3
+    case(TOIL_IMS_MODE)
+      temperature_at_datum = &
+        condition%toil_ims%temperature%dataset%rarray(1)
+      if (associated(condition%toil_ims%temperature%gradient)) then
+        temperature_gradient(1:3) = &
+          condition%toil_ims%temperature%gradient%rarray(1:3)
+      endif
+      datum(1:3) = condition%datum%rarray(1:3)
+      pressure_at_datum = &
+        condition%toil_ims%pressure%dataset%rarray(1)    
+      ! gradient is in m/m; needs conversion to Pa/m
+      if (associated(condition%toil_ims%pressure%gradient)) then
+        piezometric_head_gradient(1:3) = &
+          condition%toil_ims%pressure%gradient%rarray(1:3)
+      endif
+      coupler%flow_aux_mapping(TOIL_IMS_PRESSURE_INDEX) = 1
+      coupler%flow_aux_mapping(TOIL_IMS_TEMPERATURE_INDEX) = 3 
     case default
       ! for now, just set it; in future need to account for a different temperature datum
       if (associated(condition%temperature)) then
@@ -197,8 +218,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       endif
   end select      
       
-  call EOSWaterDensityNaCl(temperature_at_datum,pressure_at_datum, &
-                           xm_nacl,rho_kg) 
+  call EOSWaterDensityExt(temperature_at_datum,pressure_at_datum, &
+                          aux,rho_kg,dummy,ierr)
   
   gravity_magnitude = sqrt(DotProduct(option%gravity,option%gravity))
   
@@ -240,8 +261,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     idatum = int((datum(Z_DIRECTION)-min_z)/(max_z-min_z) * &
                  dble(num_pressures))+1
     pressure_array(idatum) = pressure_at_datum
-    call EOSWaterDensityNaCl(temperature_at_datum,pressure_at_datum, &
-                             xm_nacl,rho_kg) 
+    call EOSWaterDensityExt(temperature_at_datum,pressure_at_datum, &
+                            aux,rho_kg,dummy,ierr)
     temperature = temperature_at_datum
     pressure0 = pressure_at_datum
     density_array(idatum) = rho_kg
@@ -252,16 +273,18 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum+1,num_pressures
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE, MIS_MODE)
+        case(TH_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,G_MODE, MIS_MODE, &
+             TOIL_IMS_MODE)
           temperature = temperature + temperature_gradient(Z_DIRECTION)*delta_z
       end select
-      call EOSWaterDensityNaCl(temperature,pressure0,xm_nacl,rho_kg) 
-      
+      call EOSWaterDensityExt(temperature,pressure0, &
+                              aux,rho_kg,dummy,ierr)
       num_iteration = 0
       do 
         pressure = pressure0 + 0.5d0*(rho_kg+rho_zero) * &
                    option%gravity(Z_DIRECTION) * delta_z
-        call EOSWaterDensityNaCl(temperature,pressure,xm_nacl,rho_one) 
+        call EOSWaterDensityExt(temperature,pressure,aux,rho_one,dummy,ierr)
+!geh        call EOSWaterDensityNaCl(temperature,pressure,xm_nacl,rho_one) 
         if (dabs(rho_kg-rho_one) < 1.d-10) exit
         rho_kg = rho_one
         num_iteration = num_iteration + 1
@@ -282,7 +305,7 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     ! compute pressures below datum, if any
     pressure0 = pressure_array(idatum)
     select case(option%iflowmode)
-      case(TH_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,MIS_MODE,G_MODE)
+      case(TH_MODE,MPH_MODE,IMS_MODE,FLASH2_MODE,MIS_MODE,G_MODE,TOIL_IMS_MODE)
         temperature = temperature_at_datum
     end select
     dist_z = 0.d0
@@ -290,16 +313,16 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
     do ipressure=idatum-1,1,-1
       dist_z = dist_z + delta_z
       select case(option%iflowmode)
-        case(TH_MODE,MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE)
+        case(TH_MODE,MPH_MODE,IMS_MODE,MIS_MODE,FLASH2_MODE,G_MODE, &
+          TOIL_IMS_MODE)
           temperature = temperature - temperature_gradient(Z_DIRECTION)*delta_z
       end select
-      call EOSWaterDensityNaCl(temperature,pressure0,xm_nacl,rho_kg) 
-
+      call EOSWaterDensityExt(temperature,pressure0,aux,rho_kg,dummy,ierr)
       num_iteration = 0
       do                   ! notice the negative sign (-) here
         pressure = pressure0 - 0.5d0*(rho_kg+rho_zero) * &
                    option%gravity(Z_DIRECTION) * delta_z
-        call EOSWaterDensityNaCl(temperature,pressure,xm_nacl,rho_one)
+        call EOSWaterDensityExt(temperature,pressure,aux,rho_one,dummy,ierr)
         if (dabs(rho_kg-rho_one) < 1.d-10) exit
         rho_kg = rho_one
         num_iteration = num_iteration + 1
@@ -344,7 +367,6 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       call DatasetGriddedHDF5InterpolateReal(datum_dataset, &
                                           grid%x(ghosted_id)-dx_conn, &
                                           grid%y(ghosted_id)-dy_conn, &
-                                          0.d0, &
                                           0.d0,temp_real,option)
       ! temp_real is now the real datum
       dist_z = grid%z(ghosted_id)-dz_conn-temp_real
@@ -382,6 +404,8 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
       case(G_MODE)
         coupler%flow_aux_real_var(1,iconn) = pressure
       case (MPH_MODE)
+        coupler%flow_aux_real_var(1,iconn) = pressure
+      case(TOIL_IMS_MODE)
         coupler%flow_aux_real_var(1,iconn) = pressure
       case default
         if (condition%pressure%itype == SEEPAGE_BC) then
@@ -441,6 +465,13 @@ subroutine HydrostaticUpdateCoupler(coupler,option,grid)
           coupler%flow_aux_real_var(2,iconn) = concentration_at_datum
           coupler%flow_aux_int_var(GENERAL_STATE_INDEX,iconn) = LIQUID_STATE
         endif
+      case(TOIL_IMS_MODE)
+        temperature = temperature_at_datum + &
+                    temperature_gradient(X_DIRECTION)*dist_x + & ! gradient in K/m
+                    temperature_gradient(Y_DIRECTION)*dist_y + &
+                    temperature_gradient(Z_DIRECTION)*dist_z 
+        coupler%flow_aux_real_var(3,iconn) = &
+          temperature
       case default
         coupler%flow_aux_int_var(COUPLER_IPHASE_INDEX,iconn) = 1
     end select
@@ -477,6 +508,9 @@ subroutine HydrostaticTest()
   PetscReal :: rho_kg, rho_one, rho_zero, pressure0, pressure, temperature
   PetscReal :: increment(4)
   PetscReal :: xm_nacl, dist_z, dist
+  PetscReal :: aux(1)
+  PetscReal :: dummy
+  PetscErrorCode :: ierr
 
   PetscReal, pointer :: density_array(:,:), pressure_array(:,:)
   
@@ -489,6 +523,7 @@ subroutine HydrostaticTest()
   temperature = 25.d0
 
   xm_nacl = 0.d0
+  aux(1) = xm_nacl
   
   max_num_pressures = int(1000.d0/increment(1)+0.5d0)+1
   
@@ -499,7 +534,7 @@ subroutine HydrostaticTest()
   
   do i_increment = 1, num_increment
     pressure = 101325.d0
-    call EOSWaterDensityNaCl(temperature,pressure,xm_nacl,rho_kg) 
+    call EOSWaterDensityExt(temperature,pressure,aux,rho_kg,dummy,ierr)
     dist_z = 0.d0
     pressure_array(1,i_increment) = pressure
     density_array(1,i_increment) = rho_kg
@@ -509,7 +544,7 @@ subroutine HydrostaticTest()
       num_iteration = 0
       do
         pressure = pressure0 + rho_kg * 9.8068d0 * increment(i_increment)
-        call EOSWaterDensityNaCl(temperature,pressure,xm_nacl,rho_one) 
+        call EOSWaterDensityExt(temperature,pressure,aux,rho_one,dummy,ierr)
         if (dabs(rho_kg-rho_one) < 1.d-10) exit
         rho_kg = rho_one
         num_iteration = num_iteration + 1

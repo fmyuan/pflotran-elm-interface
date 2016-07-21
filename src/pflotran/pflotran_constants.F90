@@ -6,7 +6,7 @@ module PFLOTRAN_Constants_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   ! MUST INCREMENT THIS NUMBER EVERYTIME A CHECKPOINT FILE IS MODIFIED TO PREVENT
   ! COMPATIBILITY ISSUES - geh.
@@ -22,6 +22,8 @@ module PFLOTRAN_Constants_module
   ! for embedded input files.
   PetscInt, parameter, public :: MAX_IN_UNIT = 25
   PetscInt, parameter, public :: IUNIT_TEMP = 86
+  ! EKG_UNIT = 87
+  PetscInt, parameter, public :: INPUT_RECORD_UNIT = 88
   PetscInt, parameter, public :: HHISTORY_LENGTH = 1000
   ! HHISTORY_LENGTH is the length of the array used to store the differencing
   ! values h.
@@ -32,13 +34,23 @@ module PFLOTRAN_Constants_module
   PetscReal, parameter, public :: FMWCO2 = 44.0098d0
   PetscReal, parameter, public :: FMWAIR = 28.96d0
   PetscReal, parameter, public :: FMWGLYC = 76.09d0 ! propylene glycol (C3H8O2)
-  
+  PetscReal, parameter, public :: FMWOIL = 142.D0 ! used as deafault value
+
+  ! constants
+  PetscReal, parameter, public :: H2O_CRITICAL_TEMPERATURE = 647.3d0  ! K
+#if defined(MATCH_TOUGH2)
+  PetscReal, parameter, public :: H2O_CRITICAL_PRESSURE = 22.12d6 ! Pa
+#else
+  PetscReal, parameter, public :: H2O_CRITICAL_PRESSURE = 22.064d6 ! Pa
+#endif
+
   ! conversion factors
   PetscReal, parameter, public :: LOG_TO_LN = 2.30258509299d0
   PetscReal, parameter, public :: LN_TO_LOG = 0.434294481904d0  
   
   ! constants
-  PetscReal, parameter, public :: IDEAL_GAS_CONST = 8.314472d0 ! J/mol/K
+                             ! from http://physics.nist.gov/cgi-bin/cuu/Value?r
+  PetscReal, parameter, public :: IDEAL_GAS_CONSTANT = 8.31446d0 ! J/mol-K
   PetscReal, parameter, public :: HEAT_OF_FUSION = 3.34d5  ! J/kg
   PetscReal, parameter, public :: PI = 3.14159265359d0
   PetscReal, parameter, public :: Faraday = 96485.3365d0 ! C/mol
@@ -110,6 +122,7 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: G_MODE = 5
   PetscInt, parameter, public :: MIS_MODE = 6
   PetscInt, parameter, public :: TH_MODE = 7
+  PetscInt, parameter, public :: TOIL_IMS_MODE = 8
   
   ! transport modes
   PetscInt, parameter, public :: EXPLICIT_ADVECTION = 1
@@ -135,10 +148,11 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: HET_MASS_RATE_SS = 17
   PetscInt, parameter, public :: HET_DIRICHLET = 18
   PetscInt, parameter, public :: ENERGY_RATE_SS = 19
-  PetscInt, parameter, public :: HET_ENERGY_RATE_SS = 20
-  PetscInt, parameter, public :: HET_SURF_SEEPAGE_BC = 21
+  PetscInt, parameter, public :: SCALED_ENERGY_RATE_SS = 20
+  PetscInt, parameter, public :: HET_ENERGY_RATE_SS = 21
+  PetscInt, parameter, public :: HET_SURF_SEEPAGE_BC = 22
   PetscInt, parameter, public :: WELL_SS = 100
-  PetscInt, parameter, public :: SPILLOVER_BC = 22
+  PetscInt, parameter, public :: SPILLOVER_BC = 23
   
   ! source/sink scaling options
   PetscInt, parameter, public :: SCALE_BY_PERM = 1
@@ -249,9 +263,9 @@ module PFLOTRAN_Constants_module
   PetscInt, parameter, public :: PAINTER_KARRA_EXPLICIT_NOCRYO = 5
 
   ! Relative permeability averaging
-  PetscInt, parameter, public:: UPWIND = 1
-  PetscInt, parameter, public:: HARMONIC = 2
-  PetscInt, parameter, public:: DYNAMIC_HARMONIC = 3
+  PetscInt, parameter, public :: UPWIND = 1
+  PetscInt, parameter, public :: HARMONIC = 2
+  PetscInt, parameter, public :: DYNAMIC_HARMONIC = 3
 
   ! uninitialized values
   PetscInt, parameter, public :: UNINITIALIZED_INTEGER = -999

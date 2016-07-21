@@ -8,9 +8,9 @@ module Field_module
 
   private
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   type, public :: field_type 
     
@@ -181,6 +181,9 @@ subroutine FieldDestroy(field)
   
   PetscErrorCode :: ierr
   PetscInt :: ivar
+  PetscInt :: num_vecs
+
+  if (.not.associated(field)) return
 
   ! Destroy PetscVecs
   if (field%porosity0 /= 0) then
@@ -336,8 +339,9 @@ subroutine FieldDestroy(field)
   endif
 
   if (associated(field%max_change_vecs)) then
-    call VecDestroyVecsF90(size(field%max_change_vecs), &
-                           field%max_change_vecs,ierr);CHKERRQ(ierr)
+    !geh: kludge as the compiler returns i4 in 64-bit
+    num_vecs = size(field%max_change_vecs)
+    call VecDestroyVecsF90(num_vecs,field%max_change_vecs,ierr);CHKERRQ(ierr)
   endif
 
   deallocate(field)

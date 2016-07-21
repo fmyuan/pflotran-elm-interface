@@ -8,7 +8,7 @@ module Geomechanics_Strata_module
 
   private
  
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
  
   type, public :: geomech_strata_type
     PetscInt :: id                                                        ! id of strata
@@ -157,7 +157,7 @@ subroutine GeomechStrataRead(strata,input,option)
   implicit none
   
   type(geomech_strata_type) :: strata
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword

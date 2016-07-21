@@ -10,7 +10,7 @@ module Reaction_Solid_Solution_module
   
   private 
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: SolidSolutionReadFromInputFile, &
             SolidSolutionLinkNamesToIDs
@@ -36,7 +36,7 @@ subroutine SolidSolutionReadFromInputFile(solid_solution_list,input, &
   implicit none
   
   type(solid_solution_type), pointer :: solid_solution_list
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
 
   character(len=MAXSTRINGLENGTH) :: string

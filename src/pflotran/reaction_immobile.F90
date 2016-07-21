@@ -8,7 +8,7 @@ module Reaction_Immobile_module
   
   private 
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   public :: ImmobileRead, &
             ImmobileDecayRxnRead, &
@@ -35,7 +35,7 @@ subroutine ImmobileRead(immobile,input,option)
   implicit none
   
   type(immobile_type) :: immobile
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   type(immobile_species_type), pointer :: new_immobile_species, &
@@ -85,10 +85,10 @@ subroutine ImmobileDecayRxnRead(immobile,input,option)
   implicit none
   
   type(immobile_type) :: immobile
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
-  character(len=MAXWORDLENGTH) :: word
+  character(len=MAXWORDLENGTH) :: word, internal_units
   type(immobile_decay_rxn_type), pointer :: immobile_decay_rxn
   type(immobile_decay_rxn_type), pointer :: cur_immobile_decay_rxn
   
@@ -112,6 +112,7 @@ subroutine ImmobileDecayRxnRead(immobile,input,option)
                            'CHEMISTRY,IMMOBILE_DECAY_REACTION')
         immobile_decay_rxn%species_name = word
       case('RATE_CONSTANT')
+        internal_units = 'unitless/sec'
         call InputReadDouble(input,option,immobile_decay_rxn%rate_constant)  
         call InputErrorMsg(input,option,'rate cosntant', &
                              'CHEMISTRY,IMMOBILE_DECAY_REACTION') 
@@ -121,26 +122,27 @@ subroutine ImmobileDecayRxnRead(immobile,input,option)
                         'CHEMISTRY,IMMOBILE_DECAY_REACTION RATE_CONSTANT UNITS')
         else
           immobile_decay_rxn%rate_constant = &
-            UnitsConvertToInternal(word,option) * &
+            UnitsConvertToInternal(word,internal_units,option) * &
             immobile_decay_rxn%rate_constant
         endif
       case('HALF_LIFE')
+        internal_units = 'sec'
         call InputReadDouble(input,option, &
-                             immobile_decay_rxn%rate_constant)
+                             immobile_decay_rxn%half_life)
         call InputErrorMsg(input,option,'half life', &
                          'CHEMISTRY,IMMOBILE_DECAY_REACTION,REACTION')
         call InputReadWord(input,option,word,PETSC_TRUE)
         if (InputError(input)) then
           call InputDefaultMsg(input,option, &
-                            'CHEMISTRY,IMMOBILE_DECAY_REACTION HALF_LIFE UNITS')
+            'CHEMISTRY,IMMOBILE_DECAY_REACTION HALF_LIFE UNITS')
         else
-          immobile_decay_rxn%rate_constant = &
-            UnitsConvertToInternal(word,option) * &
-            immobile_decay_rxn%rate_constant
+          immobile_decay_rxn%half_life = &
+            UnitsConvertToInternal(word,internal_units,option) * &
+            immobile_decay_rxn%half_life
         endif
         ! convert half life to rate constant
         immobile_decay_rxn%rate_constant = &
-          -1.d0*log(0.5d0)/immobile_decay_rxn%rate_constant
+          -1.d0*log(0.5d0)/immobile_decay_rxn%half_life
       case default
         call InputKeywordUnrecognized(word, &
                                       'CHEMISTRY,IMMOBILE_DECAY_REACTION', &
@@ -275,11 +277,11 @@ subroutine RImmobileDecay(Res,Jac,compute_derivative,rt_auxvar, &
 
   do irxn = 1, reaction%immobile%ndecay_rxn ! for each reaction
     
-    
     ! we assume only one chemical component involved in decay reaction
     icomp = reaction%immobile%decayspecid(irxn)
-    ! units = 1/sec
-    rate_constant = reaction%immobile%decay_rate_constant(irxn)
+    ! units = m^3 bulk/sec = [1/sec] * [m^3 bulk]
+    rate_constant = reaction%immobile%decay_rate_constant(irxn)*volume
+    ! rate [mol/sec] = [m^3 bulk/sec] * [mol/m^3 bulk]
     rate = rate_constant*rt_auxvar%immobile(icomp)
     immobile_id = reaction%offset_immobile + icomp
     

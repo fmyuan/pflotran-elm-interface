@@ -40,7 +40,7 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE unstructured ./mixed.ugi
+  TYPE unstructured ./mixed.h5
 END
 
 #=========================== solver options ===================================
@@ -84,6 +84,8 @@ OUTPUT
   FORMAT TECPLOT BLOCK
   FORMAT HDF5
   VELOCITY_AT_CENTER
+  VELOCITY_AT_FACE
+  FLOWRATE
 END
 
 #=========================== times ============================================

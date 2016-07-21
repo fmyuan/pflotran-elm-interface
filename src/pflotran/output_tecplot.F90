@@ -10,17 +10,17 @@ module Output_Tecplot_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
   PetscInt, parameter, public :: TECPLOT_POINT_FORMAT = 1
   PetscInt, parameter, public :: TECPLOT_BLOCK_FORMAT = 2
   PetscInt, parameter, public :: TECPLOT_FEBRICK_FORMAT = 3
   PetscInt, parameter, public :: TECPLOT_FEQUADRILATERAL_FORMAT = 4  
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscdm.h"
-#include "finclude/petscdm.h90"
-#include "finclude/petsclog.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscdm.h"
+#include "petsc/finclude/petscdm.h90"
+#include "petsc/finclude/petsclog.h"
 
   public :: OutputTecplotBlock, & 
             OutputTecplotPoint, &
@@ -84,7 +84,8 @@ subroutine OutputTecplotHeader(fid,realization_base,icolumn)
            '"Z [m]"'
   write(fid,'(a)',advance="no") trim(string)
 
-  call OutputWriteVariableListToHeader(fid,output_option%output_variable_list, &
+  call OutputWriteVariableListToHeader(fid, &
+                                      output_option%output_snap_variable_list, &
                                        '',icolumn,PETSC_TRUE,variable_count)
   ! need to terminate line
   write(fid,'(a)') ''
@@ -284,8 +285,8 @@ subroutine OutputTecplotBlock(realization_base)
     call WriteTecplotUGridVertices(OUTPUT_UNIT,realization_base)
   endif
 
-  ! loop over variables and write to file
-  cur_variable => output_option%output_variable_list%first
+  ! loop over snapshot variables and write to file
+  cur_variable => output_option%output_snap_variable_list%first
   do
     if (.not.associated(cur_variable)) exit
     call OutputGetVarFromArray(realization_base,global_vec,cur_variable%ivar, &
@@ -995,8 +996,8 @@ subroutine OutputTecplotPoint(realization_base)
     write(OUTPUT_UNIT,1000,advance='no') grid%y(ghosted_id)
     write(OUTPUT_UNIT,1000,advance='no') grid%z(ghosted_id)
 
-    ! loop over variables and write to file
-    cur_variable => output_option%output_variable_list%first
+    ! loop over snapshot variables and write to file
+    cur_variable => output_option%output_snap_variable_list%first
     do
       if (.not.associated(cur_variable)) exit
       value = RealizGetVariableValueAtCell(realization_base,cur_variable%ivar, &
@@ -1343,7 +1344,7 @@ subroutine WriteTecplotStructuredGrid(fid,realization_base)
     count = 0
     do k=1,nz+1
       do j=1,ny+1
-        temp_real = realization_base%discretization%origin(X_DIRECTION)
+        temp_real = realization_base%discretization%origin_global(X_DIRECTION)
         write(fid,1000,advance='no') temp_real
         count = count + 1
         if (mod(count,10) == 0) then
@@ -1365,7 +1366,7 @@ subroutine WriteTecplotStructuredGrid(fid,realization_base)
     ! y-dir
     count = 0
     do k=1,nz+1
-      temp_real = realization_base%discretization%origin(Y_DIRECTION)
+      temp_real = realization_base%discretization%origin_global(Y_DIRECTION)
       do i=1,nx+1
         write(fid,1000,advance='no') temp_real
         count = count + 1
@@ -1389,7 +1390,7 @@ subroutine WriteTecplotStructuredGrid(fid,realization_base)
     if (count /= 0) write(fid,'(a)') ""
     ! z-dir
     count = 0
-    temp_real = realization_base%discretization%origin(Z_DIRECTION)
+    temp_real = realization_base%discretization%origin_global(Z_DIRECTION)
     do i=1,(nx+1)*(ny+1)
       write(fid,1000,advance='no') temp_real
       count = count + 1
@@ -1722,7 +1723,7 @@ subroutine GetCellConnectionsTecplot(grid, vec)
   implicit none
   
   type(grid_type) :: grid
-  type(unstructured_grid_type),pointer :: ugrid
+  type(grid_unstructured_type),pointer :: ugrid
   Vec :: vec
   PetscInt :: local_id
   PetscInt :: ghosted_id
@@ -2177,7 +2178,7 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
   PetscInt :: iconn
   PetscInt :: count
   PetscReal, pointer :: flowrates(:,:)
-  PetscReal, pointer :: darcy(:)
+  PetscReal, pointer :: darcy(:), area(:)
   PetscInt, pointer :: nat_ids_up(:),nat_ids_dn(:)
   PetscReal, pointer :: density(:)
   Vec :: vec_proc
@@ -2204,7 +2205,7 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
   call OutputGetExplicitIDsFlowrates(realization_base,count,vec_proc, &
                                      nat_ids_up,nat_ids_dn)
   call OutputGetExplicitFlowrates(realization_base,count,vec_proc,flowrates, &
-                                  darcy)
+                                  darcy,area)
   call OutputGetExplicitAuxVars(realization_base,count,vec_proc, &
                                 density)
     
@@ -2231,6 +2232,7 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
     write(OUTPUT_UNIT,1001,advance='no') nat_ids_dn(i)
     write(OUTPUT_UNIT,1000,advance='no') darcy(i)
     write(OUTPUT_UNIT,1000,advance='no') density(i)
+    write(OUTPUT_UNIT,1000,advance='no') area(i)
     write(OUTPUT_UNIT,'(a)')
   enddo                     
   close(OUTPUT_UNIT)
@@ -2240,6 +2242,7 @@ subroutine OutputPrintExplicitFlowrates(realization_base)
   deallocate(nat_ids_up)
   deallocate(nat_ids_dn)
   deallocate(density)
+  deallocate(area)
   
  ! Order of printing for the 2nd file
  ! cellid saturation porosity density[kg/m3] pressure[Pa]
@@ -2712,31 +2715,31 @@ subroutine WriteTecplotPolyUGridElements(fid,realization_base)
 
   write(fid,'(a)') '# number of vertices/nodes per face'
   call WriteTecplotDataSetNumPerLine(fid, realization_base, &
-                        grid%unstructured_grid%polyhedra_grid%uface_nverts*1.d0, &
-                        TECPLOT_INTEGER, &
-                        grid%unstructured_grid%polyhedra_grid%num_ufaces_local, &
-                        10)
+                      grid%unstructured_grid%polyhedra_grid%uface_nverts*1.d0, &
+                      TECPLOT_INTEGER, &
+                      grid%unstructured_grid%polyhedra_grid%num_ufaces_local, &
+                      TEN_INTEGER)
 
   write(fid,'(a)') '# id of vertices/nodes forming a face'
   call WriteTecplotDataSetNumPerLine(fid, realization_base, &
-                        grid%unstructured_grid%polyhedra_grid%uface_natvertids*1.d0, &
-                        TECPLOT_INTEGER, &
-                        grid%unstructured_grid%polyhedra_grid%num_verts_of_ufaces_local, &
-                        4)
+                  grid%unstructured_grid%polyhedra_grid%uface_natvertids*1.d0, &
+                  TECPLOT_INTEGER, &
+                  grid%unstructured_grid%polyhedra_grid%num_verts_of_ufaces_local, &
+                  FOUR_INTEGER)
 
   write(fid,'(a)') '# id of control-volume/element left of a face'
   call WriteTecplotDataSetNumPerLine(fid, realization_base, &
-                        grid%unstructured_grid%polyhedra_grid%uface_left_natcellids*1.d0, &
-                        TECPLOT_INTEGER, &
-                        grid%unstructured_grid%polyhedra_grid%num_ufaces_local, &
-                        10)
+             grid%unstructured_grid%polyhedra_grid%uface_left_natcellids*1.d0, &
+             TECPLOT_INTEGER, &
+             grid%unstructured_grid%polyhedra_grid%num_ufaces_local, &
+             TEN_INTEGER)
 
   write(fid,'(a)') '# id of control-volume/element right of a face'
   call WriteTecplotDataSetNumPerLine(fid, realization_base, &
-                        grid%unstructured_grid%polyhedra_grid%uface_right_natcellids*1.d0, &
-                        TECPLOT_INTEGER, &
-                        grid%unstructured_grid%polyhedra_grid%num_ufaces_local, &
-                        10)
+            grid%unstructured_grid%polyhedra_grid%uface_right_natcellids*1.d0, &
+            TECPLOT_INTEGER, &
+            grid%unstructured_grid%polyhedra_grid%num_ufaces_local, &
+            TEN_INTEGER)
 
 end subroutine WriteTecplotPolyUGridElements
 

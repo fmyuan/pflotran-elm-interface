@@ -13,6 +13,7 @@ SIMULATION
       GLOBAL_IMPLICIT
     /
   /
+  PRINT_EKG
 END
 
 SUBSURFACE
@@ -56,12 +57,20 @@ CHEMISTRY
   ACTIVITY_COEFFICIENTS TIMESTEP
   OUTPUT
     PH
-    all
+    ALL
     TOTAL
   /
 END
 
 #=========================== solver options ===================================
+TIMESTEPPER FLOW
+  PRINT_EKG
+END
+
+TIMESTEPPER TRANSPORT
+  PRINT_EKG
+END
+
 LINEAR_SOLVER FLOW
   SOLVER DIRECT
 END

@@ -225,6 +225,7 @@ noskip
     TOTAL
     TOTAL_SORBED
     KD
+    MINERAL_SATURATION_INDEX
   /
 END
 
@@ -267,6 +268,11 @@ FLUID_PROPERTY
 END
 
 #=========================== datasets =========================================
+DATASET Tortuosity
+  HDF5_DATASET_NAME Tortuosity
+  FILENAME parameters-543.h5
+END
+
 DATASET initial_U
   HDF5_DATASET_NAME U
   FILENAME parameters-543.h5
@@ -306,7 +312,7 @@ END
 MATERIAL_PROPERTY soil2
   ID 2
   POROSITY 0.25d0
-  TORTUOSITY 1.d0
+  TORTUOSITY DATASET Tortuosity
   CHARACTERISTIC_CURVES sf2
   PERMEABILITY
     DATASET Permeability
@@ -402,7 +408,7 @@ END
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 100.d0 d
+  FINAL_TIME 1.d-2 d
   INITIAL_TIMESTEP_SIZE 1.d-6 d
   MAXIMUM_TIMESTEP_SIZE 10.d0 d
 END
@@ -507,7 +513,7 @@ END
 
 FLOW_CONDITION injection_well
   TYPE
-    RATE scaled_volumetric_rate
+    RATE scaled_volumetric_rate neighbor_perm
   /
   RATE 1 m^3/hr
 END

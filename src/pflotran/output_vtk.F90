@@ -10,7 +10,7 @@ module Output_VTK_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter :: VTK_INTEGER = 0
   PetscInt, parameter :: VTK_REAL = 1
@@ -37,8 +37,8 @@ subroutine OutputVTK(realization_base)
  
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   class(realization_base_type) :: realization_base
   
@@ -96,7 +96,7 @@ subroutine OutputVTK(realization_base)
     write(OUTPUT_UNIT,'(''CELL_DATA'',i8)') grid%nmax
   endif
   
-  cur_variable => output_option%output_variable_list%first
+  cur_variable => output_option%output_snap_variable_list%first
   do
     if (.not.associated(cur_variable)) exit
     call OutputGetVarFromArray(realization_base,global_vec,cur_variable%ivar, &
@@ -121,13 +121,13 @@ subroutine OutputVTK(realization_base)
   if (option%myrank == option%io_rank) close(OUTPUT_UNIT)
 
 #if 1
-  if (output_option%print_tecplot_vel_cent) then
+  if (output_option%print_vtk_vel_cent) then
     call OutputVelocitiesVTK(realization_base)
   endif
 #endif
   
 #if 0  
-  if (output_option%print_tecplot_vel_face) then
+  if (output_option%print_vtk_vel_cent) then
     if (grid%structured_grid%nx > 1) then
       call OutputFluxVelocitiesVTK(realization_base,LIQUID_PHASE, &
                                           X_DIRECTION)
@@ -179,8 +179,8 @@ subroutine OutputVelocitiesVTK(realization_base)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   class(realization_base_type) :: realization_base
   
@@ -238,6 +238,10 @@ subroutine OutputVelocitiesVTK(realization_base)
   ! write out coordinates
   call WriteVTKGrid(OUTPUT_UNIT,realization_base)
 
+  if (option%myrank == option%io_rank) then
+    write(OUTPUT_UNIT,'(''CELL_DATA'',i8)') grid%nmax
+  endif
+
   word = 'Vlx'
   call OutputGetCellCenteredVelocities(realization_base,global_vec_vx, &
                                        global_vec_vy,global_vec_vz,LIQUID_PHASE)
@@ -294,18 +298,20 @@ subroutine WriteVTKGrid(fid,realization_base)
   ! 
 
   use Realization_Base_class, only : realization_base_type
+  use Discretization_module
   use Grid_module
   use Option_module
   use Patch_module
 
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   PetscInt :: fid
   class(realization_base_type) :: realization_base
   
+  type(discretization_type), pointer :: discretization
   type(grid_type), pointer :: grid
   type(option_type), pointer :: option
   type(patch_type), pointer :: patch  
@@ -320,6 +326,7 @@ subroutine WriteVTKGrid(fid,realization_base)
   
   call PetscLogEventBegin(logging%event_output_grid_vtk,ierr);CHKERRQ(ierr)
                               
+  discretization => realization_base%discretization
   patch => realization_base%patch
   grid => patch%grid
   option => realization_base%option
@@ -342,15 +349,15 @@ subroutine WriteVTKGrid(fid,realization_base)
         if (k > 0) then
           z = z + grid%structured_grid%dz_global(k)
         else
-          z = grid%structured_grid%origin(Z_DIRECTION)
+          z = discretization%origin_global(Z_DIRECTION)
         endif
         do j=0,ny
           if (j > 0) then
             y = y + grid%structured_grid%dy_global(j)
           else
-            y = grid%structured_grid%origin(Y_DIRECTION)
+            y = discretization%origin_global(Y_DIRECTION)
           endif
-          x = grid%structured_grid%origin(X_DIRECTION)
+          x = discretization%origin_global(X_DIRECTION)
           write(fid,1000) x,y,z
           do i=1,nx
             x = x + grid%structured_grid%dx_global(i)
@@ -403,8 +410,8 @@ subroutine WriteVTKDataSetFromVec(fid,realization_base,dataset_name,vec,datatype
   use Realization_Base_class, only : realization_base_type
   
   implicit none
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   PetscInt :: fid
   class(realization_base_type) :: realization_base
@@ -508,8 +515,6 @@ subroutine WriteVTKDataSet(fid,realization_base,dataset_name,array,datatype, &
   
   ! communicate data to processor 0, round robin style
   if (option%myrank == option%io_rank) then
-
-!    write(fid,'(''CELL_DATA'',i8)') grid%nmax
 
     if (datatype == VTK_INTEGER) then
       write(fid,'(''SCALARS '',a20,'' int 1'')') dataset_name

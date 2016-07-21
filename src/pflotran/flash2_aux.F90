@@ -8,7 +8,7 @@ module Flash2_Aux_module
 !#define GARCIA 1
 #define DUANDEN 1
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, public :: Flash2_auxvar_elem_type
     PetscReal :: pres
@@ -272,6 +272,7 @@ subroutine Flash2AuxVarCompute_NINC(x,auxvar,global_auxvar, &
   PetscReal :: tk, xco2, pw_kg, x1, vphi_a1, vphi_a2 
   PetscReal :: Qkco2, mco2,xco2eq
   PetscReal :: tmp 
+  PetscReal :: aux(1)
   PetscInt :: iflag  
   
   auxvar%sat = 0.d0
@@ -393,7 +394,8 @@ subroutine Flash2AuxVarCompute_NINC(x,auxvar,global_auxvar, &
 ! **************  Gas phase properties ********************
     auxvar%avgmw(2) = auxvar%xmol(3)*FMWH2O + auxvar%xmol(4)*FMWCO2
     pw = p
-    call EOSWaterDensityEnthalpy(t,pw,dw_kg,dw_mol,hw,ierr)
+    call EOSWaterDensity(t,pw,dw_kg,dw_mol,ierr)
+    call EOSWaterEnthalpy(t,pw,hw,ierr)
     hw = hw * option%scale ! J/kmol -> whatever units
     auxvar%den(2) = 1.D0/(auxvar%xmol(4)/dg + auxvar%xmol(3)/dw_mol)
     auxvar%h(2) = hg  
@@ -407,7 +409,7 @@ subroutine Flash2AuxVarCompute_NINC(x,auxvar,global_auxvar, &
 !       fluid_properties%diff_base(2)
 
 !  z factor    
-    auxvar%zco2=auxvar%den(2)/(p/IDEAL_GAS_CONST/(t+273.15D0)*1D-3)
+    auxvar%zco2=auxvar%den(2)/(p/IDEAL_GAS_CONSTANT/(t+273.15D0)*1D-3)
 
  !***************  Liquid phase properties **************************
  
@@ -420,7 +422,8 @@ subroutine Flash2AuxVarCompute_NINC(x,auxvar,global_auxvar, &
   
     xm_nacl = m_nacl * FMWNACL
     xm_nacl = xm_nacl /(1.D3 + xm_nacl)
-    call EOSWaterDensityNaCl(t, p, xm_nacl, dw_kg) 
+    aux(1) = xm_nacl
+    call EOSWaterDensityExt(t,p,aux,dw_kg,dw_mol,ierr)
     call EOSWaterViscosityNaCl(t,p,xm_nacl,visl)
     
     y_nacl = m_nacl/( m_nacl + 1D3/FMWH2O)

@@ -1,10 +1,10 @@
 module PM_TH_class
 
   use PM_Base_class
-  use PM_Subsurface_class
+  use PM_Subsurface_Flow_class
 !geh: using TH_module here fails with gfortran (internal compiler error)
 !  use TH_module
-  use Realization_class
+  use Realization_Subsurface_class
   use Communicator_Base_module
   use Option_module
   
@@ -14,18 +14,18 @@ module PM_TH_class
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscmat.h90"
-#include "finclude/petscsnes.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscmat.h90"
+#include "petsc/finclude/petscsnes.h"
 
-  type, public, extends(pm_subsurface_type) :: pm_th_type
+  type, public, extends(pm_subsurface_flow_type) :: pm_th_type
     class(communicator_type), pointer :: commN
   contains
-    procedure, public :: Init => PMTHInit
+    procedure, public :: Setup => PMTHSetup
     procedure, public :: Read => PMTHRead
     procedure, public :: InitializeTimestep => PMTHInitializeTimestep
     procedure, public :: Residual => PMTHResidual
@@ -37,9 +37,10 @@ module PM_TH_class
     procedure, public :: CheckUpdatePost => PMTHCheckUpdatePost
     procedure, public :: TimeCut => PMTHTimeCut
     procedure, public :: UpdateSolution => PMTHUpdateSolution
-    procedure, public :: UpdateAuxvars => PMTHUpdateAuxvars
+    procedure, public :: UpdateAuxVars => PMTHUpdateAuxVars
     procedure, public :: MaxChange => PMTHMaxChange
     procedure, public :: ComputeMassBalance => PMTHComputeMassBalance
+    procedure, public :: InputRecord => PMTHInputRecord
     procedure, public :: Destroy => PMTHDestroy
   end type pm_th_type
   
@@ -71,7 +72,7 @@ function PMTHCreate()
 
   nullify(th_pm%commN)
 
-  call PMSubsurfaceCreate(th_pm)
+  call PMSubsurfaceFlowCreate(th_pm)
   th_pm%name = 'PMTH'
 
   PMTHCreate => th_pm
@@ -91,15 +92,17 @@ subroutine PMTHRead(this,input)
   use Utility_module
   use EOS_Water_module  
   use Option_module
+  use TH_Aux_module
  
   implicit none
   
   class(pm_th_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   
   character(len=MAXWORDLENGTH) :: word
   character(len=MAXSTRINGLENGTH) :: error_string
   type(option_type), pointer :: option
+  PetscBool :: found
 
   option => this%option
   
@@ -115,15 +118,27 @@ subroutine PMTHRead(this,input)
     call InputReadWord(input,option,word,PETSC_TRUE)
     call InputErrorMsg(input,option,'keyword',error_string)
     call StringToUpper(word)
+
+    found = PETSC_FALSE
+    call PMSubsurfaceFlowReadSelectCase(this,input,word,found,option)
+    if (found) cycle
     
     select case(trim(word))
+      case('ITOL_SCALED_RESIDUAL')
+        call InputReadDouble(input,option,th_itol_scaled_res)
+        call InputDefaultMsg(input,option,'th_itol_scaled_res')
+        this%check_post_convergence = PETSC_TRUE
+      case('ITOL_RELATIVE_UPDATE')
+        call InputReadDouble(input,option,th_itol_rel_update)
+        call InputDefaultMsg(input,option,'th_itol_rel_update')
+        this%check_post_convergence = PETSC_TRUE        
       case('FREEZING')
         option%use_th_freezing = PETSC_TRUE
         option%io_buffer = ' TH: using FREEZING submode!'
         call printMsg(option)
         ! Override the default setting for TH-mode with freezing
-        call EOSWaterSetDensityPainter()
-        call EOSWaterSetEnthalpyPainter()
+        call EOSWaterSetDensity('PAINTER')
+        call EOSWaterSetEnthalpy('PAINTER')
       case('ICE_MODEL')
         call InputReadWord(input,option,word,PETSC_FALSE)
         call StringToUpper(word)
@@ -154,7 +169,7 @@ end subroutine PMTHRead
 
 ! ************************************************************************** !
 
-subroutine PMTHInit(this)
+subroutine PMTHSetup(this)
   ! 
   ! This routine
   ! 
@@ -171,7 +186,7 @@ subroutine PMTHInit(this)
   
   class(pm_th_type) :: this
 
-  call PMSubsurfaceInit(this)
+  call PMSubsurfaceFlowSetup(this)
   
   ! set up communicator
   select case(this%realization%discretization%itype)
@@ -182,45 +197,7 @@ subroutine PMTHInit(this)
   end select
   call this%commN%SetDM(this%realization%discretization%dm_nflowdof)
 
-end subroutine PMTHInit
-
-! ************************************************************************** !
-
-subroutine PMTHSetupSolvers(this,solver)
-  ! 
-  ! Sets up SNES solvers.
-  ! 
-  ! Author: Glenn Hammond
-  ! Date: 12/03/14
-
-  use TH_module, only : THCheckUpdatePre, THCheckUpdatePost
-  use Solver_module
-  
-  implicit none
-  
-  class(pm_subsurface_type) :: this
-  type(solver_type) :: solver
-  
-  SNESLineSearch :: linesearch
-  PetscErrorCode :: ierr
-  
-  call PMSubsurfaceSetupSolvers(this,solver)
-
-  call SNESGetLineSearch(solver%snes, linesearch, ierr);CHKERRQ(ierr)
-  if (dabs(this%option%pressure_dampening_factor) > 0.d0 .or. &
-      dabs(this%option%pressure_change_limit) > 0.d0 .or. &
-      dabs(this%option%temperature_change_limit) > 0.d0) then
-    call SNESLineSearchSetPreCheck(linesearch, &
-                                   THCheckUpdatePre, &
-                                   this%realization,ierr);CHKERRQ(ierr)
-  endif
-  if (solver%check_post_convergence) then
-    call SNESLineSearchSetPostCheck(linesearch, &
-                                    THCheckUpdatePost, &
-                                    this%realization,ierr);CHKERRQ(ierr)
-  endif
-  
-end subroutine PMTHSetupSolvers
+end subroutine PMTHSetup
 
 ! ************************************************************************** !
 
@@ -238,7 +215,7 @@ subroutine PMTHInitializeTimestep(this)
   
   class(pm_th_type) :: this
 
-  call PMSubsurfaceInitializeTimestepA(this)
+  call PMSubsurfaceFlowInitializeTimestepA(this)
 
   ! update porosity
   call this%comm1%LocalToLocal(this%realization%field%icap_loc, &
@@ -253,7 +230,7 @@ subroutine PMTHInitializeTimestep(this)
   endif
   
   call THInitializeTimestep(this%realization)
-  call PMSubsurfaceInitializeTimestepB(this)
+  call PMSubsurfaceFlowInitializeTimestepB(this)
   
 end subroutine PMTHInitializeTimestep
 
@@ -315,7 +292,7 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   PetscReal :: up
   PetscReal :: utmp
   PetscReal :: dtt
-  PetscReal :: dt_p
+  PetscReal :: dt_u
   PetscReal :: dt_tfac
   PetscInt :: ifac
   
@@ -323,16 +300,31 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   call printMsg(this%option,'PMTH%UpdateTimestep()')
 #endif
   
-  fac = 0.5d0
-  if (num_newton_iterations >= iacceleration) then
-    fac = 0.33d0
-    ut = 0.d0
+  if (iacceleration > 0) then
+    fac = 0.5d0
+    if (num_newton_iterations >= iacceleration) then
+      fac = 0.33d0
+      ut = 0.d0
+    else
+      up = this%pressure_change_governor/(this%max_pressure_change+0.1)
+      utmp = this%temperature_change_governor/ &
+             (this%max_temperature_change+1.d-5)
+      ut = min(up,utmp)
+    endif
+    dtt = fac * dt * (1.d0 + ut)
   else
-    up = this%option%dpmxe/(this%option%dpmax+0.1)
-    utmp = this%option%dtmpmxe/(this%option%dtmpmax+1.d-5)
+    ifac = max(min(num_newton_iterations,size(tfac)),1)
+    dt_tfac = tfac(ifac) * dt
+
+    fac = 0.5d0
+    up = this%pressure_change_governor/(this%max_pressure_change+0.1)
+    utmp = this%temperature_change_governor/ &
+           (this%max_temperature_change+1.d-5)
     ut = min(up,utmp)
+    dt_u = fac * dt * (1.d0 + ut)
+
+    dtt = min(dt_tfac,dt_u)
   endif
-  dtt = fac * dt * (1.d0 + ut)
 
   if (dtt > 2.d0 * dt) dtt = 2.d0 * dt
   if (dtt > dt_max) dtt = dt_max
@@ -340,6 +332,8 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   !      large relative to the simulation time.  This has been removed.
   dtt = max(dtt,dt_min)
   dt = dtt
+
+  call PMSubsurfaceFlowLimitDTByCFL(this,dt)
   
 end subroutine PMTHUpdateTimestep
 
@@ -393,7 +387,7 @@ end subroutine PMTHJacobian
 
 ! ************************************************************************** !
 
-subroutine PMTHCheckUpdatePre(this,line_search,P,dP,changed,ierr)
+subroutine PMTHCheckUpdatePre(this,line_search,X,dX,changed,ierr)
   ! 
   ! This routine
   ! 
@@ -401,25 +395,152 @@ subroutine PMTHCheckUpdatePre(this,line_search,P,dP,changed,ierr)
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THCheckUpdatePre
+  use Realization_Subsurface_class
+  use Grid_module
+  use Field_module
+  use Option_module
+  use Saturation_Function_module
+  use Patch_module
+  use TH_Aux_module
+  use Global_Aux_module
 
   implicit none
   
   class(pm_th_type) :: this
   SNESLineSearch :: line_search
-  Vec :: P
-  Vec :: dP
+  Vec :: X
+  Vec :: dX
   PetscBool :: changed
   PetscErrorCode :: ierr
   
-  call THCheckUpdatePre(line_search,P,dP,changed,this%realization,ierr)
+  PetscReal, pointer :: X_p(:)
+  PetscReal, pointer :: dX_p(:)
+  PetscReal, pointer :: r_p(:)
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(patch_type), pointer :: patch
+  type(field_type), pointer :: field
+  type(TH_auxvar_type), pointer :: TH_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)  
+  PetscInt :: local_id, ghosted_id
+  PetscReal :: P0, P1, P_R, delP, delP_old
+  PetscReal :: scale, press_limit, temp_limit
+  PetscInt :: iend, istart
+  
+  patch => this%realization%patch
+  grid => patch%grid
+  option => this%realization%option
+  field => this%realization%field
+  TH_auxvars => patch%aux%TH%auxvars
+  global_auxvars => patch%aux%Global%auxvars
+
+  if (Initialized(this%pressure_change_limit)) then
+
+    call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(X,X_p,ierr);CHKERRQ(ierr)
+
+    press_limit = dabs(this%pressure_change_limit)
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+      iend = local_id*option%nflowdof
+      istart = iend-option%nflowdof+1
+      P0 = X_p(istart)
+      delP = dX_p(istart)
+      if (press_limit < dabs(delP)) then
+        write(option%io_buffer,'("dP_trunc:",1i7,2es15.7)') &         
+          grid%nG2A(grid%nL2G(local_id)),press_limit,dabs(delP)
+        call printMsgAnyRank(option)
+      endif
+      delP = sign(min(dabs(delP),press_limit),delP)
+      dX_p(istart) = delP
+    enddo
+    
+    call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(X,X_p,ierr);CHKERRQ(ierr)
+
+  endif
+  
+  if (dabs(this%temperature_change_limit) > 0.d0) then
+      
+    call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(X,X_p,ierr);CHKERRQ(ierr)
+
+    temp_limit = dabs(this%temperature_change_limit)
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      iend = local_id*option%nflowdof
+      istart = iend-option%nflowdof+1
+      P0 = X_p(iend)
+      delP = dX_p(iend)
+      if (abs(delP) > abs(temp_limit)) then
+        write(option%io_buffer,'("dT_trunc:",1i7,2es15.7)') &
+          grid%nG2A(grid%nL2G(local_id)),temp_limit,dabs(delP)
+        call printMsgAnyRank(option)
+      endif
+      delP = sign(min(dabs(delP),temp_limit),delP)
+      dX_p(iend) = delP
+    enddo
+    
+    call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(X,X_p,ierr);CHKERRQ(ierr)
+    
+  endif
+
+
+  if (Initialized(this%pressure_dampening_factor)) then
+    ! P^p+1 = P^p - dP^p
+    P_R = option%reference_pressure
+    scale = this%pressure_dampening_factor
+
+    call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(X,X_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
+    do local_id = 1, grid%nlmax
+      iend = local_id*option%nflowdof
+      istart = iend-option%nflowdof+1
+      delP = dX_p(istart)
+      P0 = X_p(istart)
+      P1 = P0 - delP
+      if (P0 < P_R .and. P1 > P_R) then
+        write(option%io_buffer,'("U -> S:",1i7,2f12.1)') &
+          grid%nG2A(grid%nL2G(local_id)),P0,P1 
+        call printMsgAnyRank(option)
+#if 0
+        ghosted_id = grid%nL2G(local_id)
+        call RichardsPrintAuxVars(rich_auxvars(ghosted_id), &
+                                  global_auxvars(ghosted_id),ghosted_id)
+        write(option%io_buffer,'("Residual:",es15.7)') r_p(istart)
+        call printMsgAnyRank(option)
+#endif
+      else if (P1 < P_R .and. P0 > P_R) then
+        write(option%io_buffer,'("S -> U:",1i7,2f12.1)') &
+          grid%nG2A(grid%nL2G(local_id)),P0,P1
+        call printMsgAnyRank(option)
+#if 0
+        ghosted_id = grid%nL2G(local_id)
+        call RichardsPrintAuxVars(rich_auxvars(ghosted_id), &
+                                  global_auxvars(ghosted_id),ghosted_id)
+        write(option%io_buffer,'("Residual:",es15.7)') r_p(istart)
+        call printMsgAnyRank(option)
+#endif
+      endif
+      ! transition from unsaturated to saturated
+      if (P0 < P_R .and. P1 > P_R) then
+        dX_p(istart) = scale*delP
+      endif
+    enddo
+    call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(X,X_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
+  endif
 
 end subroutine PMTHCheckUpdatePre
 
 ! ************************************************************************** !
 
-subroutine PMTHCheckUpdatePost(this,line_search,P0,dP,P1,dP_changed, &
-                                  P1_changed,ierr)
+subroutine PMTHCheckUpdatePost(this,line_search,X0,dX,X1,dX_changed, &
+                                  X1_changed,ierr)
   ! 
   ! This routine
   ! 
@@ -427,22 +548,103 @@ subroutine PMTHCheckUpdatePost(this,line_search,P0,dP,P1,dP_changed, &
   ! Date: 03/90/13
   ! 
 
-  use TH_module, only : THCheckUpdatePost
+  use Realization_Subsurface_class
+  use Grid_module
+  use Field_module
+  use Option_module
+  use Secondary_Continuum_Aux_module
+  use TH_module
+  use TH_Aux_module
+  use Global_Aux_module
+  use Material_Aux_class
+  use Patch_module
 
   implicit none
   
   class(pm_th_type) :: this
   SNESLineSearch :: line_search
-  Vec :: P0
-  Vec :: dP
-  Vec :: P1
-  PetscBool :: dP_changed
-  PetscBool :: P1_changed
+  Vec :: X0
+  Vec :: dX
+  Vec :: X1
+  PetscBool :: dX_changed
+  PetscBool :: X1_changed
   PetscErrorCode :: ierr
   
-  call THCheckUpdatePost(line_search,P0,dP,P1,dP_changed, &
-                               P1_changed,this%realization,ierr)
+  PetscReal, pointer :: X1_p(:)
+  PetscReal, pointer :: dX_p(:)
+  PetscReal, pointer :: ithrm_loc_p(:)
+  PetscReal, pointer :: r_p(:)
+  type(grid_type), pointer :: grid
+  type(option_type), pointer :: option
+  type(field_type), pointer :: field
+  type(patch_type), pointer :: patch
+  type(TH_auxvar_type), pointer :: TH_auxvars(:)
+  type(global_auxvar_type), pointer :: global_auxvars(:)  
+  type(TH_parameter_type), pointer :: TH_parameter
+  type(sec_heat_type), pointer :: TH_sec_heat_vars(:)
+  class(material_auxvar_type), pointer :: material_auxvars(:)
 
+  PetscInt :: local_id, ghosted_id
+  PetscReal :: Res(2)
+  PetscReal :: inf_norm, global_inf_norm
+  PetscReal :: vol_frac_prim
+  PetscInt :: istart, iend
+  
+  patch => this%realization%patch
+  grid => patch%grid
+  option => this%realization%option
+  field => this%realization%field
+  TH_auxvars => patch%aux%TH%auxvars
+  TH_parameter => patch%aux%TH%TH_parameter
+  global_auxvars => patch%aux%Global%auxvars
+  TH_sec_heat_vars => patch%aux%SC_heat%sec_heat_vars
+  material_auxvars => patch%aux%Material%auxvars
+  
+  dX_changed = PETSC_FALSE
+  X1_changed = PETSC_FALSE
+  
+  if (this%check_post_convergence) then
+    call VecGetArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(X1,X1_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%ithrm_loc,ithrm_loc_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
+    
+    inf_norm = 0.d0
+    vol_frac_prim = 1.d0
+    
+    do local_id = 1, grid%nlmax
+      ghosted_id = grid%nL2G(local_id)
+      if (patch%imat(ghosted_id) <= 0) cycle
+    
+      iend = local_id*option%nflowdof
+      istart = iend-option%nflowdof+1
+      
+      if (option%use_mc) then
+        vol_frac_prim = TH_sec_heat_vars(local_id)%epsilon
+      endif
+
+      call THAccumulation(TH_auxvars(ghosted_id), &
+                           global_auxvars(ghosted_id), &
+                           material_auxvars(ghosted_id), &
+                           TH_parameter%dencpr(int(ithrm_loc_p(ghosted_id))), &
+                           option,vol_frac_prim,Res)
+                                                        
+      inf_norm = max(inf_norm,min(dabs(dX_p(istart)/X1_p(istart)), &
+                                  dabs(r_p(istart)/Res(1)), &
+                                  dabs(dX_p(iend)/X1_p(iend)), &
+                                  dabs(r_p(iend)/Res(2))))
+    enddo
+    call MPI_Allreduce(inf_norm,global_inf_norm,ONE_INTEGER_MPI, &
+                       MPI_DOUBLE_PRECISION, &
+                       MPI_MAX,option%mycomm,ierr)
+    option%converged = PETSC_TRUE
+    if (global_inf_norm > th_itol_scaled_res) &
+      option%converged = PETSC_FALSE
+    call VecRestoreArrayF90(dX,dX_p,ierr);CHKERRQ(ierr)
+    call VecRestoreArrayF90(X1,X1_p,ierr);CHKERRQ(ierr)
+    call VecGetArrayF90(field%flow_r,r_p,ierr);CHKERRQ(ierr)
+  endif
+  
 end subroutine PMTHCheckUpdatePost
 
 ! ************************************************************************** !
@@ -461,7 +663,7 @@ subroutine PMTHTimeCut(this)
   
   class(pm_th_type) :: this
   
-  call PMSubsurfaceTimeCut(this)
+  call PMSubsurfaceFlowTimeCut(this)
   call THTimeCut(this%realization)
 
 end subroutine PMTHTimeCut
@@ -482,7 +684,7 @@ subroutine PMTHUpdateSolution(this)
   
   class(pm_th_type) :: this
   
-  call PMSubsurfaceUpdateSolution(this)
+  call PMSubsurfaceFlowUpdateSolution(this)
   call THUpdateSolution(this%realization)
   if (this%option%surf_flow_on) &
     call THUpdateSurfaceBC(this%realization)
@@ -491,7 +693,7 @@ end subroutine PMTHUpdateSolution
 
 ! ************************************************************************** !
 
-subroutine PMTHUpdateAuxvars(this)
+subroutine PMTHUpdateAuxVars(this)
   ! 
   ! Author: Glenn Hammond
   ! Date: 04/21/14
@@ -504,7 +706,7 @@ subroutine PMTHUpdateAuxvars(this)
 
   call THUpdateAuxVars(this%realization)
 
-end subroutine PMTHUpdateAuxvars   
+end subroutine PMTHUpdateAuxVars   
 
 ! ************************************************************************** !
 
@@ -522,15 +724,16 @@ subroutine PMTHMaxChange(this)
   
   class(pm_th_type) :: this
   
-  call THMaxChange(this%realization)
+  call THMaxChange(this%realization,this%max_pressure_change, &
+                   this%max_temperature_change)
     if (this%option%print_screen_flag) then
     write(*,'("  --> max chng: dpmx= ",1pe12.4," dtmpmx= ",1pe12.4)') &
-      this%option%dpmax,this%option%dtmpmax
+      this%max_pressure_change,this%max_temperature_change
   endif
   if (this%option%print_file_flag) then
     write(this%option%fid_out,'("  --> max chng: dpmx= ",1pe12.4, &
       & " dtmpmx= ",1pe12.4)') &
-      this%option%dpmax,this%option%dtmpmax
+      this%max_pressure_change,this%max_temperature_change
   endif 
 
 end subroutine PMTHMaxChange
@@ -558,6 +761,32 @@ end subroutine PMTHComputeMassBalance
 
 ! ************************************************************************** !
 
+subroutine PMTHInputRecord(this)
+  ! 
+  ! Writes ingested information to the input record file.
+  ! 
+  ! Author: Jenn Frederick, SNL
+  ! Date: 03/21/2016
+  ! 
+  
+  implicit none
+  
+  class(pm_th_type) :: this
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: id
+
+  id = INPUT_RECORD_UNIT
+
+  write(id,'(a29)',advance='no') 'pm: '
+  write(id,'(a)') this%name
+  write(id,'(a29)',advance='no') 'mode: '
+  write(id,'(a)') 'thermo-hydro'
+
+end subroutine PMTHInputRecord
+
+! ************************************************************************** !
+
 subroutine PMTHDestroy(this)
   ! 
   ! This routine
@@ -580,7 +809,7 @@ subroutine PMTHDestroy(this)
 
   ! preserve this ordering
   call THDestroy(this%realization%patch)
-  call PMSubsurfaceDestroy(this)
+  call PMSubsurfaceFlowDestroy(this)
 
 end subroutine PMTHDestroy
 

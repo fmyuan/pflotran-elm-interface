@@ -9,7 +9,7 @@ module Timestepper_Steady_class
 
   implicit none
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
  
   type, public, extends(timestepper_BE_type) :: timestepper_steady_type
   
@@ -26,6 +26,7 @@ module Timestepper_Steady_class
  !   procedure, public :: Init => TimestepperSteadyInit
     procedure, public :: StepDT => TimestepperSteadyStepDT
     procedure, public :: UpdateDT => TimestepperSteadyUpdateDT
+    procedure, public :: InputRecord => TimestepperSteadyInputRecord
 
   end type timestepper_steady_type
 
@@ -97,8 +98,6 @@ subroutine TimestepperSteadyCreateFromBE(timestepper_BE)
   stepper%dt = timestepper_BE%dt
   stepper%dt_init = timestepper_BE%dt_init
   stepper%dt_max = timestepper_BE%dt_max
-  stepper%cfl_limiter = timestepper_BE%cfl_limiter
-  stepper%cfl_limiter_ts = timestepper_BE%cfl_limiter_ts
   
   stepper%time_step_cut_flag = timestepper_BE%time_step_cut_flag
   
@@ -200,18 +199,19 @@ subroutine TimestepperSteadyStepDT(this, process_model, stop_flag)
 
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscmat.h"
-#include "finclude/petscviewer.h"
-#include "finclude/petscsnes.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscmat.h"
+#include "petsc/finclude/petscviewer.h"
+#include "petsc/finclude/petscsnes.h"
 
   class(timestepper_steady_type) :: this
   class(pm_base_type) :: process_model
   PetscInt :: stop_flag
 
   PetscBool :: failure
-
+  PetscLogDouble :: log_start_time
+  PetscLogDouble :: log_end_time
   PetscErrorCode :: ierr
   PetscInt :: sum_newton_iterations, sum_linear_iterations
   PetscInt :: num_newton_iterations, num_linear_iterations
@@ -236,14 +236,25 @@ subroutine TimestepperSteadyStepDT(this, process_model, stop_flag)
 
   call process_model%PreSolve()
 
+  call PetscTime(log_start_time, ierr);CHKERRQ(ierr)
+
   call SNESSolve(solver%snes, PETSC_NULL_OBJECT, &
                  process_model%solution_vec, ierr);CHKERRQ(ierr)
+
+  call PetscTime(log_end_time, ierr);CHKERRQ(ierr)
+
+  this%cumulative_solver_time = &
+      this%cumulative_solver_time + &
+      (log_end_time - log_start_time)
      
   call SNESGetIterationNumber(solver%snes, num_newton_iterations,  &
                               ierr);CHKERRQ(ierr)
   call SNESGetLinearSolveIterations(solver%snes, num_linear_iterations,  &
                                     ierr);CHKERRQ(ierr)
   call SNESGetConvergedReason(solver%snes, snes_reason, ierr);CHKERRQ(ierr)
+
+  sum_newton_iterations = sum_newton_iterations + num_newton_iterations
+  sum_linear_iterations = sum_linear_iterations + num_linear_iterations
 
   if (snes_reason <= 0) then
     if (option%print_screen_flag) then
@@ -254,9 +265,6 @@ subroutine TimestepperSteadyStepDT(this, process_model, stop_flag)
     stop_flag = TS_STOP_END_SIMULATION
     return
   endif
-
-  sum_newton_iterations = sum_newton_iterations + num_newton_iterations
-  sum_linear_iterations = sum_linear_iterations + num_linear_iterations
   
   this%steps = this%steps + 1
   this%cumulative_newton_iterations = &
@@ -311,5 +319,30 @@ subroutine TimestepperSteadyStepDT(this, process_model, stop_flag)
   if (option%steady_state) stop_flag = TS_STOP_END_SIMULATION
 
 end subroutine TimestepperSteadyStepDT
+
+! ************************************************************************** !
+
+subroutine TimestepperSteadyInputRecord(this)
+  ! 
+  ! Prints information about the time stepper to the input record.
+  ! To get a## format, must match that in simulation types.
+  ! 
+  ! Author: Jenn Frederick, SNL
+  ! Date: 03/17/2016
+  ! 
+  
+  implicit none
+  
+  class(timestepper_steady_type) :: this
+
+  PetscInt :: id
+  character(len=MAXWORDLENGTH) :: word
+   
+  id = INPUT_RECORD_UNIT
+
+  write(id,'(a29)',advance='no') 'pmc timestepper: '
+  write(id,'(a)') this%name
+
+end subroutine TimestepperSteadyInputRecord
 
 end module Timestepper_Steady_class

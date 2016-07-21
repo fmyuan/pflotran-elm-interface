@@ -8,7 +8,7 @@ module Region_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   PetscInt, parameter, public :: STRUCTURED_GRID_REGION = 1
   PetscInt, parameter, public :: UNSTRUCTURED_GRID_REGION = 2
@@ -20,7 +20,9 @@ module Region_module
   PetscInt, parameter, public :: DEFINED_BY_VERTEX_IDS = 5
   PetscInt, parameter, public :: DEFINED_BY_SIDESET_UGRID = 6
   PetscInt, parameter, public :: DEFINED_BY_FACE_UGRID_EXP = 7
-  PetscInt, parameter, public :: DEFINED_BY_POLY_VOL_UGRID = 8
+  PetscInt, parameter, public :: DEFINED_BY_POLY_BOUNDARY_FACE = 8
+  PetscInt, parameter, public :: DEFINED_BY_POLY_CELL_CENTER = 9
+  PetscInt, parameter, public :: DEFINED_BY_CARTESIAN_BOUNDARY = 10
 
   type, public :: block_type        
     PetscInt :: i1,i2,j1,j2,k1,k2    
@@ -30,6 +32,7 @@ module Region_module
   type, public :: region_type
     PetscInt :: id
     PetscInt :: def_type
+    PetscBool :: hdf5_ugrid_kludge  !TODO(geh) tear this out!!!!!
     character(len=MAXWORDLENGTH) :: name
     character(len=MAXSTRINGLENGTH) :: filename
     PetscInt :: i1,i2,j1,j2,k1,k2
@@ -86,7 +89,8 @@ module Region_module
   
   public :: RegionCreate, RegionDestroy, RegionAddToList, RegionReadFromFile, &
             RegionInitList, RegionDestroyList, RegionGetPtrFromList, & 
-            RegionRead, RegionReadSideSet, RegionCreateSideset
+            RegionRead, RegionReadSideSet, RegionCreateSideset, &
+            RegionInputRecord
   
 contains
 
@@ -109,6 +113,7 @@ function RegionCreateWithNothing()
   allocate(region)
   region%id = 0
   region%def_type = 0
+  region%hdf5_ugrid_kludge = PETSC_FALSE
   region%name = ""
   region%filename = ""
   region%i1 = 0
@@ -267,6 +272,7 @@ function RegionCreateWithRegion(region)
   
   new_region%id = region%id
   new_region%def_type = region%def_type
+  new_region%hdf5_ugrid_kludge = region%hdf5_ugrid_kludge
   new_region%name = region%name
   new_region%filename = region%filename
   new_region%i1 = region%i1
@@ -408,7 +414,7 @@ subroutine RegionRead(region,input,option)
   
   type(option_type) :: option
   type(region_type) :: region
-  type(input_type) :: input
+  type(input_type), pointer :: input
   
   character(len=MAXWORDLENGTH) :: keyword, word
 
@@ -445,6 +451,29 @@ subroutine RegionRead(region,input,option)
         call InputErrorMsg(input,option,'k1','REGION')
         call InputReadInt(input,option,region%k2)
         call InputErrorMsg(input,option,'k2','REGION')
+      case('CARTESIAN_BOUNDARY')
+        region%def_type = DEFINED_BY_CARTESIAN_BOUNDARY
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        call InputErrorMsg(input,option,'cartesian boundary face','REGION')
+        call StringToUpper(word)
+        select case(word)
+          case('WEST')
+            region%iface = WEST_FACE
+          case('EAST')
+            region%iface = EAST_FACE
+          case('NORTH')
+            region%iface = NORTH_FACE
+          case('SOUTH')
+            region%iface = SOUTH_FACE
+          case('BOTTOM')
+            region%iface = BOTTOM_FACE
+          case('TOP')
+            region%iface = TOP_FACE
+          case default
+            option%io_buffer = 'Cartesian boundary face "' // trim(word) // &
+              '" not recognized.'
+            call printErrMsg(option)
+        end select
       case('COORDINATE')
         region%def_type = DEFINED_BY_COORD
         allocate(region%coordinates(1))
@@ -465,31 +494,54 @@ subroutine RegionRead(region,input,option)
         call GeometryReadCoordinates(input,option,region%name, &
                                      region%coordinates)
       case('POLYGON')
-        region%def_type = DEFINED_BY_POLY_VOL_UGRID
         if (.not.associated(region%polygonal_volume)) then
           region%polygonal_volume => GeometryCreatePolygonalVolume()
         endif
-        call InputReadWord(input,option,word,PETSC_TRUE)
-        call InputErrorMsg(input,option,'plane','REGION')
-        call StringToUpper(word)
-        select case(word)
-          case('XY')
-            call GeometryReadCoordinates(input,option,region%name, &
-                                       region%polygonal_volume%xy_coordinates)
-          case('XZ')
-            call GeometryReadCoordinates(input,option,region%name, &
-                                       region%polygonal_volume%xz_coordinates)
-          case('YZ')
-            call GeometryReadCoordinates(input,option,region%name, &
-                                       region%polygonal_volume%yz_coordinates)
-          case default
-            option%io_buffer = 'PLANE not recognized for REGION POLYGON.  ' // &
-              'Use either XY, XZ or YZ.'
-            call printErrMsg(option)
-        end select
+        do
+          call InputReadPflotranString(input,option)
+          if (InputError(input)) exit
+          if (InputCheckExit(input,option)) exit
+          call InputReadWord(input,option,word,PETSC_TRUE)
+          call InputErrorMsg(input,option,'keyword','REGION')
+          call StringToUpper(word)   
+          select case(trim(word))
+            case('TYPE')
+              call InputReadWord(input,option,word,PETSC_TRUE)
+              call InputErrorMsg(input,option,'polygon type','REGION')
+              call StringToUpper(word)
+              select case(word)
+                case('BOUNDARY_FACES_IN_VOLUME')
+                  region%def_type = DEFINED_BY_POLY_BOUNDARY_FACE
+                case('CELL_CENTERS_IN_VOLUME')
+                  region%def_type = DEFINED_BY_POLY_CELL_CENTER
+                case default
+                  option%io_buffer = 'REGION->POLYGON->"' // trim(word) // &
+                    '" not recognized.'
+                  call printErrMsg(option)
+              end select
+            case('XY')
+              call GeometryReadCoordinates(input,option,region%name, &
+                                         region%polygonal_volume%xy_coordinates)
+            case('XZ')
+              call GeometryReadCoordinates(input,option,region%name, &
+                                         region%polygonal_volume%xz_coordinates)
+            case('YZ')
+              call GeometryReadCoordinates(input,option,region%name, &
+                                         region%polygonal_volume%yz_coordinates)
+            case default
+              option%io_buffer = 'Keyword not recognized for REGION POLYGON.'
+              call printErrMsg(option)
+          end select
+        enddo
       case('FILE')
         call InputReadNChars(input,option,region%filename,MAXSTRINGLENGTH,PETSC_TRUE)
         call InputErrorMsg(input,option,'filename','REGION')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (input%ierr == 0) then
+          if (StringCompareIgnoreCase(word,'OLD_FORMAT')) then
+            region%hdf5_ugrid_kludge = PETSC_TRUE
+          endif
+        endif
       case('LIST')
         option%io_buffer = 'REGION LIST currently not implemented'
         call printErrMsg(option)
@@ -510,6 +562,10 @@ subroutine RegionRead(region,input,option)
             region%iface = BOTTOM_FACE
           case('TOP')
             region%iface = TOP_FACE
+          case default
+            option%io_buffer = 'FACE "' // trim(word) // &
+              '" not recognized.'
+            call printErrMsg(option)
         end select
       case('GRID','SURF_GRID')
         call InputReadWord(input,option,word,PETSC_TRUE)
@@ -578,9 +634,8 @@ subroutine RegionReadFromFileId(region,input,option)
   
   type(region_type) :: region
   type(option_type) :: option
-  type(input_type) :: input
+  type(input_type), pointer :: input
   
-  PetscBool :: continuation_flag
   character(len=MAXWORDLENGTH) :: word
   character(len=1) :: backslash
 
@@ -635,29 +690,6 @@ subroutine RegionReadFromFileId(region,input,option)
   
   
   count = 0
-#if 0
-  continuation_flag = PETSC_TRUE
-  do
-    if (.not.continuation_flag) exit
-    call InputReadPflotranString(input,option)
-    if (InputError(input)) exit
-    continuation_flag = PETSC_FALSE
-    if (index(input%buf,backslash) > 0) &
-      continuation_flag = PETSC_TRUE
-    input%ierr = 0
-    do
-      if (InputError(input)) exit
-      call InputReadInt(input,option,temp_int)
-      if (.not.InputError(input)) then
-        count = count + 1
-        temp_int_array(count) = temp_int
-      endif
-      if (count+1 > max_size) then ! resize temporary array
-        call reallocateIntArray(temp_int_array,max_size) 
-      endif
-    enddo
-  enddo
-#endif
 
   ! Determine if region definition in the input data is one of the following:
   !  1) Contains cell ids only : Only ONE entry per line
@@ -1170,7 +1202,145 @@ function RegionGetPtrFromList(region_name,region_list)
   
 end function RegionGetPtrFromList
 
-! ************************************************************************** !
+! **************************************************************************** !
+
+subroutine RegionInputRecord(region_list)
+  ! 
+  ! Prints ingested region information to the input record file
+  ! 
+  ! Author: Jenn Frederick
+  ! Date: 03/30/2016
+  ! 
+  use Grid_Structured_module
+
+  implicit none
+
+  type(region_list_type), pointer :: region_list
+  
+  type(region_type), pointer :: cur_region
+  character(len=MAXWORDLENGTH) :: word1, word2
+  character(len=MAXSTRINGLENGTH) :: string
+  PetscInt :: k
+  PetscInt :: id = INPUT_RECORD_UNIT
+  character(len=10) :: sFormat, iFormat
+  
+  sFormat = '(ES14.7)'
+  iFormat = '(I10)'
+
+  write(id,'(a)') ' '
+  write(id,'(a)') '---------------------------------------------------------&
+                  &-----------------------'
+  write(id,'(a29)',advance='no') '---------------------------: '
+  write(id,'(a)') 'REGIONS'
+  
+  cur_region => region_list%first
+  do
+    if (.not.associated(cur_region)) exit
+    write(id,'(a29)',advance='no') 'region: '
+    write(id,'(a)') adjustl(trim(cur_region%name))
+    if (len_trim(cur_region%filename) > 0) then
+      write(id,'(a29)',advance='no') 'from file: '
+      write(id,'(a)') adjustl(trim(cur_region%filename)) 
+    endif
+    
+    select case (cur_region%def_type)
+    !--------------------------------
+      case (DEFINED_BY_BLOCK)
+        write(id,'(a29)',advance='no') 'defined by: '
+        write(id,'(a)') 'BLOCK'
+        write(id,'(a29)',advance='no') 'I indices: '
+        write(word1,iFormat) cur_region%i1
+        write(word2,iFormat) cur_region%i2
+        write(id,'(a)') adjustl(trim(word1)) // ' ' // adjustl(trim(word2))
+        write(id,'(a29)',advance='no') 'J indices: '
+        write(word1,iFormat) cur_region%j1
+        write(word2,iFormat) cur_region%j2
+        write(id,'(a)') adjustl(trim(word1)) // ' ' // adjustl(trim(word2))
+        write(id,'(a29)',advance='no') 'K indices: '
+        write(word1,iFormat) cur_region%k1
+        write(word2,iFormat) cur_region%k2
+        write(id,'(a)') adjustl(trim(word1)) // ' ' // adjustl(trim(word2))
+    !--------------------------------
+      case (DEFINED_BY_CARTESIAN_BOUNDARY)
+        write(id,'(a29)',advance='no') 'defined by: '
+        write(id,'(a)') 'CARTESIAN BOUNDARY'
+    !--------------------------------
+      case (DEFINED_BY_COORD)
+        write(id,'(a29)',advance='no') 'defined by: '
+        write(id,'(a)') 'COORDINATE(S)'
+        write(id,'(a29)',advance='no') 'X coordinate(s): '
+        string = ''
+        do k = 1,size(cur_region%coordinates)
+         write(word1,sFormat) cur_region%coordinates(k)%x
+         string = adjustl(trim(string)) // ' ' // adjustl(trim(word1))
+        enddo
+        write(id,'(a)') adjustl(trim(string)) // ' m'
+        write(id,'(a29)',advance='no') 'Y coordinate(s): '
+        string = ''
+        do k = 1,size(cur_region%coordinates)
+          write(word1,sFormat) cur_region%coordinates(k)%y
+          string = adjustl(trim(string)) // ' ' // adjustl(trim(word1))
+        enddo
+        write(id,'(a)') adjustl(trim(string)) // ' m'
+        write(id,'(a29)',advance='no') 'Z coordinate(s): '
+        string = ''
+        do k = 1,size(cur_region%coordinates)
+          write(word1,sFormat) cur_region%coordinates(k)%z
+          string = adjustl(trim(string)) // ' ' // adjustl(trim(word1))
+        enddo
+        write(id,'(a)') adjustl(trim(string)) // ' m'
+    !--------------------------------
+      case (DEFINED_BY_CELL_AND_FACE_IDS)
+        write(id,'(a29)',advance='no') 'defined by: '
+        write(id,'(a)') 'CELL AND FACE IDS'
+    !--------------------------------
+      case (DEFINED_BY_CELL_IDS)
+        write(id,'(a29)',advance='no') 'defined by: '
+        write(id,'(a)') 'CELL IDS'
+    !--------------------------------
+      case (DEFINED_BY_VERTEX_IDS)
+        write(id,'(a29)',advance='no') 'defined by: '
+        write(id,'(a)') 'VERTEX IDS'
+    !--------------------------------
+      case (DEFINED_BY_FACE_UGRID_EXP)
+        write(id,'(a29)',advance='no') 'defined by: '
+        write(id,'(a)') 'FACE UNSTRUCTURED GRID EXPLICIT'
+    !--------------------------------
+      case (DEFINED_BY_POLY_BOUNDARY_FACE)
+        write(id,'(a29)',advance='no') 'defined by: '
+        write(id,'(a)') 'POLYGON BOUNDARY FACES IN VOLUME'
+    !--------------------------------
+      case (DEFINED_BY_POLY_CELL_CENTER)
+        write(id,'(a29)',advance='no') 'defined by: '
+        write(id,'(a)') 'POLYGON CELL CENTERS IN VOLUME'
+    !--------------------------------
+    end select
+    
+    if (cur_region%iface /= 0) then
+      write(id,'(a29)',advance='no') 'face: '
+      select case (cur_region%iface)
+        case (WEST_FACE)
+          write(id,'(a)') 'west'
+        case (EAST_FACE)
+          write(id,'(a)') 'east'
+        case (NORTH_FACE)
+          write(id,'(a)') 'north'
+        case (SOUTH_FACE)
+          write(id,'(a)') 'south'
+        case (BOTTOM_FACE)
+          write(id,'(a)') 'bottom'
+        case (TOP_FACE)
+          write(id,'(a)') 'top'
+      end select
+    endif
+    
+    write(id,'(a29)') '---------------------------: '
+    cur_region => cur_region%next
+  enddo
+  
+end subroutine RegionInputRecord
+
+! **************************************************************************** !
 
 subroutine RegionDestroySideset(sideset)
   ! 

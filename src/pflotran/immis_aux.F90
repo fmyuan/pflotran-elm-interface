@@ -8,7 +8,7 @@ module Immis_Aux_module
   
   private 
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
 type, public :: Immis_auxvar_elem_type
   PetscReal :: pres
@@ -269,6 +269,7 @@ subroutine ImmisAuxVarCompute_NINC(x,auxvar,saturation_function, &
   PetscReal :: visg, dvdp, dvdt
   PetscReal :: h(option%nphase),u(option%nphase),kr(option%nphase)
   PetscReal :: xm_nacl, x_nacl, vphi             
+  PetscReal :: aux(1)
   PetscInt :: iflag
    
   
@@ -372,11 +373,12 @@ subroutine ImmisAuxVarCompute_NINC(x,auxvar,saturation_function, &
 !   auxvar%diff(option%nflowspec+1:option%nflowspec*2) = 2.13D-5
 !       fluid_properties%diff_base(2)
 ! Note: not temperature dependent yet.       
-   auxvar%zco2 = auxvar%den(2)/(p/IDEAL_GAS_CONST/(t+273.15D0)*1D-3)
+   auxvar%zco2 = auxvar%den(2)/(p/IDEAL_GAS_CONSTANT/(t+273.15D0)*1D-3)
 !***************  Liquid phase properties **************************
  
 !  avgmw(1)= xmol(1)*FMWH2O + xmol(2)*FMWCO2 
-  call EOSWaterDensityEnthalpy(t,pw,dw_kg,dw_mol,hw,ierr) 
+  call EOSWaterDensity(t,pw,dw_kg,dw_mol,ierr) 
+  call EOSWaterEnthalpy(t,pw,hw,ierr) 
   ! J/kmol -> whatever units
   hw = hw * option%scale
 
@@ -387,7 +389,8 @@ subroutine ImmisAuxVarCompute_NINC(x,auxvar,saturation_function, &
 
   xm_nacl = option%m_nacl*FMWNACL
   xm_nacl = xm_nacl /(1.D3 + xm_nacl)
-  call EOSWaterDensityNaCl(t,p,xm_nacl,dw_kg) 
+  aux(1) = xm_nacl
+  call EOSWaterDensityExt(t,p,aux,dw_kg,dw_mol,ierr)
   call EOSWaterViscosityNaCl(t,p,xm_nacl,visl)
 
 !FEHM mixing ****************************

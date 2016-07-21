@@ -6,17 +6,24 @@ module Fracture_module
   
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
+
+  PetscInt, parameter, public :: frac_init_pres_index = 1
+  PetscInt, parameter, public :: frac_alt_pres_index = 2
+  PetscInt, parameter, public :: frac_max_poro_index = 3
+  PetscInt, parameter, public :: frac_poro_exp_index = 4
+  PetscInt, parameter, public :: frac_change_perm_x_index = 1
+  PetscInt, parameter, public :: frac_change_perm_y_index = 2
+  PetscInt, parameter, public :: frac_change_perm_z_index = 3
   
   type, public :: fracture_type
     PetscReal :: init_pressure
     PetscReal :: altered_pressure
     PetscReal :: maximum_porosity
     PetscReal :: porosity_exponent
-    PetscBool :: change_perm_x
-    PetscBool :: change_perm_y
-    PetscBool :: change_perm_z
-    PetscBool :: constant_pressure
+    PetscReal :: change_perm_x
+    PetscReal :: change_perm_y
+    PetscReal :: change_perm_z
   contains
     procedure, public :: Read => FractureRead
   end type fracture_type
@@ -25,6 +32,9 @@ module Fracture_module
 
   public :: FractureInit, &
             FractureCreate, &
+            FractureSetInitialPressure, &
+            FractureAuxvarInit, &
+            FracturePropertytoAux, &
             FractureDestroy, &
             FracturePoroEvaluate, &
             FracturePermEvaluate
@@ -67,12 +77,69 @@ subroutine FractureInit(this)
   this%altered_pressure = UNINITIALIZED_DOUBLE
   this%maximum_porosity = UNINITIALIZED_DOUBLE
   this%porosity_exponent = UNINITIALIZED_DOUBLE
-  this%change_perm_x = PETSC_FALSE
-  this%change_perm_y = PETSC_FALSE
-  this%change_perm_z = PETSC_FALSE
-  this%constant_pressure = PETSC_FALSE
+  this%change_perm_x = 0.d0
+  this%change_perm_y = 0.d0
+  this%change_perm_z = 0.d0
 
 end subroutine FractureInit
+
+! ************************************************************************** !
+
+subroutine FractureAuxvarInit(fracture_material,auxvar)
+  !
+  ! Author: Heeho Park
+  ! Date: 7/8/2015
+  !
+
+  use Material_Aux_class
+  
+  implicit none
+  
+  class(fracture_type), pointer :: fracture_material
+  class(material_auxvar_type), intent(inout) :: auxvar
+
+  if (associated(fracture_material)) then
+    allocate(auxvar%fracture)
+    allocate(auxvar%fracture%properties(4))
+    allocate(auxvar%fracture%vector(3))
+    auxvar%fracture%properties = 0.d0
+    auxvar%fracture%vector = 0.d0
+  endif
+
+end subroutine FractureAuxvarInit
+
+! ************************************************************************** !
+
+subroutine FracturePropertytoAux(auxvar,fracture_property)
+  !
+  ! Author: Heeho Park
+  ! Date: 7/8/2015
+  !
+
+  use Material_Aux_class
+  
+  implicit none
+
+  class(material_auxvar_type), intent(inout) :: auxvar
+  class(fracture_type), pointer :: fracture_property
+
+  
+  auxvar%fracture%properties(frac_init_pres_index) = &
+    fracture_property%init_pressure
+  auxvar%fracture%properties(frac_alt_pres_index) = &
+    fracture_property%altered_pressure
+  auxvar%fracture%properties(frac_max_poro_index) = &
+    fracture_property%maximum_porosity
+  auxvar%fracture%properties(frac_poro_exp_index) = &
+    fracture_property%porosity_exponent
+  auxvar%fracture%vector(frac_change_perm_x_index) = &
+    fracture_property%change_perm_x
+  auxvar%fracture%vector(frac_change_perm_y_index) = &
+    fracture_property%change_perm_y
+  auxvar%fracture%vector(frac_change_perm_z_index) = &
+    fracture_property%change_perm_z
+
+end subroutine FracturePropertytoAux
 
 ! ************************************************************************** !
 
@@ -88,7 +155,7 @@ subroutine FractureRead(this,input,option)
   implicit none
   
   class(fracture_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   character(len=MAXWORDLENGTH) :: keyword, word
   
@@ -129,13 +196,11 @@ subroutine FractureRead(this,input,option)
                           'dimensionless fracture exponent for porosity', &
                               'MATERIAL_PROPERTY,WIPP-FRACTURE')
         case('ALTER_PERM_X')
-          this%change_perm_x = PETSC_TRUE
+          this%change_perm_x = 1.d0
         case('ALTER_PERM_Y')
-          this%change_perm_y = PETSC_TRUE
+          this%change_perm_y = 1.d0
         case('ALTER_PERM_Z')
-          this%change_perm_z = PETSC_TRUE
-        case('USE_CONSTANT_PRESSURE')
-          this%constant_pressure = PETSC_TRUE
+          this%change_perm_z = 1.d0
         case default
           call InputKeywordUnrecognized(word, &
                   'MATERIAL_PROPERTY,WIPP-FRACTURE',option)
@@ -143,6 +208,27 @@ subroutine FractureRead(this,input,option)
     enddo
 
 end subroutine FractureRead
+
+! ************************************************************************** !
+
+subroutine FractureSetInitialPressure(fracture,initial_cell_pressure)
+  !
+  ! Sets the pressure referenced in fracture
+  !
+  use Material_Aux_class
+
+  implicit none
+  
+  type(fracture_auxvar_type) :: fracture
+  PetscReal, intent(in) :: initial_cell_pressure
+  
+  fracture%properties(frac_init_pres_index) = &
+    fracture%properties(frac_init_pres_index) + initial_cell_pressure
+  fracture%properties(frac_alt_pres_index) = &
+    fracture%properties(frac_alt_pres_index) + &
+    fracture%properties(frac_init_pres_index)
+
+end subroutine FractureSetInitialPressure
 
 ! ************************************************************************** !
 
@@ -175,9 +261,9 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
 
   Ci = auxvar%soil_properties(soil_compressibility_index)
   P0 = auxvar%soil_properties(soil_reference_pressure_index)
-  Pa = auxvar%fracture_properties(frac_alt_pres_index)
-  Pi = auxvar%fracture_properties(frac_init_pres_index)
-  phia = auxvar%fracture_properties(frac_max_poro_index)
+  Pa = auxvar%fracture%properties(frac_alt_pres_index)
+  Pi = auxvar%fracture%properties(frac_init_pres_index)
+  phia = auxvar%fracture%properties(frac_max_poro_index)
   phi0 = auxvar%porosity_base
   
   if (.not.associated(MaterialCompressSoilPtr, &
@@ -199,6 +285,9 @@ subroutine FracturePoroEvaluate(auxvar,pressure,compressed_porosity, &
     dcompressed_porosity_dp = exp(Ci*(pressure-P0) + &
       ((Ca-Ci)*(pressure-Pi)**2.d0) / (2.d0*(Pa-Pi))) * &
       phi0 * (Ci + ((Ca-Ci)*(pressure-Pi)) / (Pa-Pi))
+  else if (pressure >= Pa) then
+    compressed_porosity = phia
+    dcompressed_porosity_dp = 0.d0
   endif
 
 end subroutine FracturePoroEvaluate
@@ -206,7 +295,7 @@ end subroutine FracturePoroEvaluate
 ! ************************************************************************** !
                                 
 subroutine FracturePermEvaluate(auxvar,permeability,altered_perm, &
-                                    daltered_perm_dp)
+                                    daltered_perm_dp,dist)
   !
   ! Calculates permeability induced by fracture BRAGFLO_6.02_UM Eq. (136)
   ! 4.10 Pressure-Induced Fracture Treatment
@@ -227,14 +316,17 @@ subroutine FracturePermEvaluate(auxvar,permeability,altered_perm, &
   PetscReal, intent(in) :: permeability
   PetscReal, intent(out) :: altered_perm
   PetscReal, intent(out) :: daltered_perm_dp
+  PetscReal :: dist(-1:3)
 
   PetscReal :: phii, dphii_dp, n
   PetscReal :: Pi
   PetscReal :: phi
 
+  if (dot_product(dist(1:3),auxvar%fracture%vector) < 1.d-40) return
+  
   phi = auxvar%porosity
-  Pi = auxvar%fracture_properties(frac_init_pres_index)
-  n = auxvar%fracture_properties(frac_poro_exp_index)
+  phii = auxvar%porosity_base
+  n = auxvar%fracture%properties(frac_poro_exp_index)
 
   if (.not.associated(MaterialCompressSoilPtr, &
                       MaterialCompressSoilBRAGFLO)) then
@@ -242,8 +334,6 @@ subroutine FracturePermEvaluate(auxvar,permeability,altered_perm, &
       'BRAGFLO soil compressibility function.'
     call printErrMsg(option)
   endif
-  
-  call MaterialCompressSoil(auxvar, Pi, phii, dphii_dp)
   
   ! phi = altered porosity
   ! phii = porosity at initiating pressure
@@ -300,7 +390,7 @@ module Creep_Closure_module
   
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, public :: creep_closure_type
     character(len=MAXWORDLENGTH) :: material_name
@@ -383,12 +473,12 @@ subroutine CreepClosureRead(this,input,option)
   implicit none
   
   class(creep_closure_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: string
-  character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: keyword, word, internal_units
   character(len=MAXSTRINGLENGTH) :: error_string = 'CREEP_CLOSURE'
   type(input_type), pointer :: input2
   PetscInt :: temp_int
@@ -397,6 +487,7 @@ subroutine CreepClosureRead(this,input,option)
   time_units_conversion = 1.d0
   filename = ''
   input%ierr = 0
+
   do
   
     call InputReadPflotranString(input,option)
@@ -425,7 +516,7 @@ subroutine CreepClosureRead(this,input,option)
     call printErrMsg(option)
   endif
   
-  this%lookup_table => LookupTableCreateGeneral(2)
+  this%lookup_table => LookupTableCreateGeneral(TWO_INTEGER)
   error_string = 'CREEP_CLOSURE file'
   input2 => InputCreate(IUNIT_TEMP,filename,option)
   input2%ierr = 0
@@ -447,10 +538,12 @@ subroutine CreepClosureRead(this,input,option)
         call InputReadInt(input2,option,this%num_values_per_time)
         call InputErrorMsg(input2,option,'number of pressure',error_string)
       case('TIME_UNITS') 
+        internal_units = 'sec'
         call InputReadWord(input2,option,word,PETSC_TRUE) 
         call InputErrorMsg(input2,option,'UNITS','CONDITION')   
         call StringToLower(word)
-        time_units_conversion = UnitsConvertToInternal(word,option)
+        time_units_conversion = UnitsConvertToInternal(word, &
+                                internal_units,option)
       case('TIME')
         if (Uninitialized(this%num_times) .or. &
             Uninitialized(this%num_values_per_time)) then
@@ -465,21 +558,21 @@ subroutine CreepClosureRead(this,input,option)
         allocate(this%lookup_table%axis2%values(temp_int))
         allocate(this%lookup_table%data(temp_int))
         string = 'TIME in CREEP_CLOSURE'
-        call UtilityReadRealArray(this%lookup_table%axis1%values, &
-                                  -1,string, &
-                                  input2,option)
+        call UtilityReadArray(this%lookup_table%axis1%values, &
+                              NEG_ONE_INTEGER,string, &
+                              input2,option)
         this%lookup_table%axis1%values = this%lookup_table%axis1%values * &
           time_units_conversion
       case('PRESSURE') 
         string = 'PRESSURE in CREEP_CLOSURE'
-        call UtilityReadRealArray(this%lookup_table%axis2%values, &
-                                  -1, &
-                                  string,input2,option)
+        call UtilityReadArray(this%lookup_table%axis2%values, &
+                              NEG_ONE_INTEGER, &
+                              string,input2,option)
       case('POROSITY') 
         string = 'POROSITY in CREEP_CLOSURE'
-        call UtilityReadRealArray(this%lookup_table%data, &
-                                  -1, &
-                                  string,input2,option)
+        call UtilityReadArray(this%lookup_table%data, &
+                              NEG_ONE_INTEGER, &
+                              string,input2,option)
      case default
         error_string = trim(error_string) // ': ' // filename
         call InputKeywordUnrecognized(keyword,error_string,option)
@@ -543,7 +636,7 @@ subroutine CreepClosureTest(this,time,pressure)
   
   print *, time, pressure, this%Evaluate(time,pressure)
   
-end subroutine CreepClosuretest
+end subroutine CreepClosureTest
 
 ! ************************************************************************** !
 
@@ -598,7 +691,7 @@ module Klinkenberg_module
   
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, public :: klinkenberg_type
     PetscReal :: a
@@ -675,7 +768,7 @@ subroutine KlinkenbergRead(this,input,option)
   implicit none
   
   class(klinkenberg_type) :: this
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXSTRINGLENGTH) :: string
@@ -800,3 +893,159 @@ subroutine KlinkenbergDestroy2(klinkenberg)
 end subroutine KlinkenbergDestroy2
 
 end module Klinkenberg_module
+
+! ************************************************************************** !
+
+module WIPP_module
+  
+  use PFLOTRAN_Constants_module
+  use Creep_Closure_module
+
+  implicit none
+  
+  private
+
+#include "petsc/finclude/petscsys.h"
+
+  type :: wipp_type
+    class(creep_closure_type), pointer :: creep_closure
+  end type wipp_type
+  
+  type(wipp_type), pointer, public :: wipp
+  
+  interface WIPPDestroy
+    module procedure WIPPDestroy1
+    module procedure WIPPDestroy2
+  end interface
+  
+  public :: WIPPInit, &
+            WIPPGetPtr, &
+            WIPPRead, &
+            WIPPDestroy
+
+contains
+
+
+! ************************************************************************** !
+
+subroutine WIPPInit()
+  !
+  ! Author: Glenn Hammond
+  ! Date: 07/22/15
+  !
+
+  implicit none
+  
+  type(wipp_type), pointer :: WIPPCreate
+
+  if (associated(wipp)) then
+    call WIPPDestroy(wipp)
+  endif
+  nullify(wipp)  
+  
+end subroutine WIPPInit
+
+! ************************************************************************** !
+
+function WIPPGetPtr()
+  !
+  ! Author: Glenn Hammond
+  ! Date: 07/22/15
+  !
+
+  implicit none
+  
+  type(wipp_type), pointer :: WIPPGetPtr
+
+  if (.not.associated(wipp)) then
+    allocate(wipp)
+    nullify(wipp%creep_closure)
+  endif
+  
+  WIPPGetPtr => wipp
+  
+end function WIPPGetPtr
+
+! ************************************************************************** !
+
+subroutine WIPPRead(input,option)
+  ! 
+  ! Author: Glenn Hammond
+  ! Date: 10/13/14
+  ! 
+  use Option_module
+  use Input_Aux_module
+  use String_module
+  use Creep_Closure_module
+  
+  implicit none
+  
+  type(input_type), pointer :: input
+  type(option_type) :: option
+  
+  type(wipp_type), pointer :: wipp
+  character(len=MAXWORDLENGTH) :: keyword
+  character(len=MAXSTRINGLENGTH) :: error_string = 'WIPP'
+
+  wipp => WIPPGetPtr()
+  
+  input%ierr = 0
+  do
+  
+    call InputReadPflotranString(input,option)
+
+    if (InputCheckExit(input,option)) exit  
+
+    call InputReadWord(input,option,keyword,PETSC_TRUE)
+    call InputErrorMsg(input,option,'keyword',error_string)
+    call StringToUpper(keyword)   
+      
+    select case(trim(keyword))
+      case('CREEP_CLOSURE')
+        call CreepClosureInit()
+        creep_closure => CreepClosureCreate()
+        call creep_closure%Read(input,option)
+        option%flow%transient_porosity = PETSC_TRUE
+        wipp%creep_closure => creep_closure      
+     case default
+        call InputKeywordUnrecognized(keyword,error_string,option)
+    end select
+  enddo
+  
+end subroutine WIPPRead
+
+! ************************************************************************** !
+
+subroutine WIPPDestroy1()
+  !
+  ! Author: Glenn Hammond
+  ! Date: 07/22/15
+  !
+
+  implicit none
+  
+  call WIPPDestroy(wipp)
+
+end subroutine WIPPDestroy1
+
+! ************************************************************************** !
+
+subroutine WippDestroy2(wipp)
+  !
+  ! Author: Glenn Hammond
+  ! Date: 07/22/15
+  !
+
+  implicit none
+  
+  type(wipp_type), pointer :: wipp
+  
+  if (.not.associated(wipp)) return
+
+  call CreepClosureDestroy(wipp%creep_closure)
+  deallocate(wipp)
+  nullify(wipp)
+
+end subroutine WippDestroy2
+
+end module WIPP_module

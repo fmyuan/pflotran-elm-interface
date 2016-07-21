@@ -8,7 +8,7 @@ module Reaction_Mineral_Aux_module
   
   private 
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   ! mineral types
   PetscInt, parameter, public :: MINERAL_REFERENCE = 1
@@ -28,6 +28,7 @@ module Reaction_Mineral_Aux_module
   end type mineral_rxn_type
 
   type, public :: transition_state_rxn_type
+    PetscReal :: min_scale_factor
     PetscReal :: affinity_factor_sigma
     PetscReal :: affinity_factor_beta
     PetscReal :: affinity_threshold
@@ -77,6 +78,7 @@ module Reaction_Mineral_Aux_module
   
     PetscInt :: nmnrl
     PetscBool :: print_all
+    PetscBool :: print_saturation_index
     character(len=MAXWORDLENGTH), pointer :: mineral_names(:)
     
     type(mineral_rxn_type), pointer :: mineral_list
@@ -101,7 +103,7 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: kinmnrlh2ostoich(:)
     PetscReal, pointer :: kinmnrl_logK(:)
     PetscReal, pointer :: kinmnrl_logKcoef(:,:)
-    PetscReal, pointer :: kinmnrl_rate(:)
+    PetscReal, pointer :: kinmnrl_rate_constant(:)
     PetscReal, pointer :: kinmnrl_activation_energy(:)
     PetscReal, pointer :: kinmnrl_molar_vol(:)
     PetscReal, pointer :: kinmnrl_molar_wt(:)
@@ -112,6 +114,7 @@ module Reaction_Mineral_Aux_module
     PetscReal, pointer :: kinmnrl_pref_atten_coef(:,:,:)
     PetscReal, pointer :: kinmnrl_pref_rate(:,:)
     PetscReal, pointer :: kinmnrl_pref_activation_energy(:,:)
+    PetscReal, pointer :: kinmnrl_min_scale_factor(:)
     PetscReal, pointer :: kinmnrl_Temkin_const(:)
     PetscReal, pointer :: kinmnrl_affinity_power(:)
     PetscReal, pointer :: kinmnrl_affinity_threshold(:)
@@ -166,6 +169,7 @@ function MineralCreate()
     
   nullify(mineral%mineral_list)
   mineral%print_all = PETSC_FALSE
+  mineral%print_saturation_index = PETSC_FALSE
   
   ! for saturation states
   mineral%nmnrl = 0  
@@ -188,7 +192,7 @@ function MineralCreate()
   nullify(mineral%kinmnrlh2ostoich)
   nullify(mineral%kinmnrl_logK)
   nullify(mineral%kinmnrl_logKcoef)
-  nullify(mineral%kinmnrl_rate)
+  nullify(mineral%kinmnrl_rate_constant)
   nullify(mineral%kinmnrl_activation_energy)
   nullify(mineral%kinmnrl_molar_vol)
   nullify(mineral%kinmnrl_molar_wt)
@@ -201,6 +205,7 @@ function MineralCreate()
   nullify(mineral%kinmnrl_pref_rate)
   nullify(mineral%kinmnrl_pref_activation_energy)
 
+  nullify(mineral%kinmnrl_min_scale_factor)
   nullify(mineral%kinmnrl_Temkin_const)
   nullify(mineral%kinmnrl_affinity_power)
   nullify(mineral%kinmnrl_affinity_threshold)
@@ -265,6 +270,7 @@ function TransitionStateTheoryRxnCreate()
   type(transition_state_rxn_type), pointer :: tstrxn
 
   allocate(tstrxn)
+  tstrxn%min_scale_factor = UNINITIALIZED_DOUBLE
   tstrxn%affinity_factor_sigma = UNINITIALIZED_DOUBLE
   tstrxn%affinity_factor_beta = UNINITIALIZED_DOUBLE
   tstrxn%affinity_threshold = 0.d0
@@ -444,38 +450,40 @@ end function GetMineralCount
 
 ! ************************************************************************** !
 
-function GetMineralIDFromName1(mineral,name)
+function GetMineralIDFromName1(name,mineral,option)
   ! 
   ! Returns the id of mineral with the corresponding name
   ! 
   ! Author: Glenn Hammond
   ! Date: 09/04/08
   ! 
-
+  use Option_module
   use String_module
   
   implicit none
   
   type(mineral_type) :: mineral
   character(len=MAXWORDLENGTH) :: name
+  type(option_type) :: option
 
   PetscInt :: GetMineralIDFromName1
 
   GetMineralIDFromName1 = &
-    GetMineralIDFromName(mineral,name,PETSC_FALSE)
+    GetMineralIDFromName(name,mineral,PETSC_FALSE,PETSC_TRUE,option)
  
 end function GetMineralIDFromName1
 
 ! ************************************************************************** !
 
-function GetMineralIDFromName2(mineral,name,must_be_kinetic)
+function GetMineralIDFromName2(name,mineral,must_be_kinetic,return_error, &
+                               option)
   ! 
   ! Returns the id of mineral with the corresponding name
   ! 
   ! Author: Glenn Hammond
   ! Date: 09/04/08
   ! 
-
+  use Option_module
   use String_module
   
   implicit none
@@ -483,6 +491,8 @@ function GetMineralIDFromName2(mineral,name,must_be_kinetic)
   type(mineral_type) :: mineral
   character(len=MAXWORDLENGTH) :: name
   PetscBool :: must_be_kinetic
+  PetscBool :: return_error
+  type(option_type) :: option
 
   PetscInt :: GetMineralIDFromName2
   type(mineral_rxn_type), pointer :: cur_mineral
@@ -509,11 +519,17 @@ function GetMineralIDFromName2(mineral,name,must_be_kinetic)
     cur_mineral => cur_mineral%next
   enddo
 
+  if (return_error .and. GetMineralIDFromName2 <= 0) then
+    option%io_buffer = 'Mineral "' // trim(name) // &
+      '" not found among minerals in GetMineralIDFromName().'
+    call printErrMsg(option)
+  endif
+
 end function GetMineralIDFromName2
 
 ! ************************************************************************** !
 
-function GetKineticMineralIDFromName(mineral,name)
+function GetKineticMineralIDFromName(name,mineral,option)
   ! 
   ! Returns the id of kinetic mineral with the
   ! corresponding name
@@ -521,18 +537,19 @@ function GetKineticMineralIDFromName(mineral,name)
   ! Author: Glenn Hammond
   ! Date: 03/11/13
   ! 
-
+  use Option_module
   use String_module
   
   implicit none
   
-  type(mineral_type) :: mineral
   character(len=MAXWORDLENGTH) :: name
+  type(mineral_type) :: mineral
+  type(option_type) :: option
 
   PetscInt :: GetKineticMineralIDFromName
 
   GetKineticMineralIDFromName = &
-    GetMineralIDFromName(mineral,name,PETSC_TRUE)
+    GetMineralIDFromName(name,mineral,PETSC_TRUE,PETSC_TRUE,option)
 
 end function GetKineticMineralIDFromName
 
@@ -709,7 +726,7 @@ subroutine MineralDestroy(mineral)
   call DeallocateArray(mineral%kinmnrlh2ostoich)
   call DeallocateArray(mineral%kinmnrl_logK)
   call DeallocateArray(mineral%kinmnrl_logKcoef)
-  call DeallocateArray(mineral%kinmnrl_rate)
+  call DeallocateArray(mineral%kinmnrl_rate_constant)
   call DeallocateArray(mineral%kinmnrl_molar_vol)
   call DeallocateArray(mineral%kinmnrl_molar_wt)
 
@@ -721,6 +738,7 @@ subroutine MineralDestroy(mineral)
   call DeallocateArray(mineral%kinmnrl_pref_rate)
   call DeallocateArray(mineral%kinmnrl_pref_activation_energy)
   
+  call DeallocateArray(mineral%kinmnrl_min_scale_factor)
   call DeallocateArray(mineral%kinmnrl_Temkin_const)
   call DeallocateArray(mineral%kinmnrl_affinity_power)
   call DeallocateArray(mineral%kinmnrl_affinity_threshold)

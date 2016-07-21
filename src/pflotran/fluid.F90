@@ -6,7 +6,7 @@ module Fluid_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
  
   type, public :: fluid_property_type
     PetscReal :: tort_bin_diff
@@ -76,14 +76,16 @@ subroutine FluidPropertyRead(fluid_property,input,option)
   use Option_module
   use Input_Aux_module
   use String_module
+  use Units_module
 
   implicit none
   
   type(fluid_property_type) :: fluid_property
-  type(input_type) :: input
+  type(input_type), pointer :: input
   type(option_type) :: option
   
   character(len=MAXWORDLENGTH) :: keyword, word
+  character(len=MAXWORDLENGTH) :: internal_units
 
   input%ierr = 0
   do
@@ -105,6 +107,13 @@ subroutine FluidPropertyRead(fluid_property,input,option)
         call InputReadDouble(input,option,fluid_property%diffusion_coefficient)
         call InputErrorMsg(input,option,'diffusion coefficient', &
                            'FLUID_PROPERTY')
+        call InputReadWord(input,option,word,PETSC_TRUE)
+        if (input%ierr == 0) then
+          internal_units = 'm^2/sec'
+          fluid_property%diffusion_coefficient = &
+            fluid_property%diffusion_coefficient * &
+            UnitsConvertToInternal(word,internal_units,option)
+        endif
       case('DIFFUSION_ACTIVATION_ENERGY') 
         call InputReadDouble(input,option, &
                              fluid_property%diffusion_activation_energy)

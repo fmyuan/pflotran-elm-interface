@@ -11,6 +11,10 @@ SIMULATION
       GLOBAL_IMPLICIT
     /
   /
+  CHECKPOINT
+    TIMES d 50.d0 60.d0
+    PERIODIC TIMESTEP 10
+  /
 END
 
 SUBSURFACE
@@ -302,7 +306,7 @@ END
 
 FLOW_CONDITION injection_well
   TYPE
-    RATE scaled_volumetric_rate
+    RATE scaled_volumetric_rate neighbor_perm
   /
   RATE 1 m^3/hr
 END
@@ -420,8 +424,5 @@ END
 STRATA
   MATERIAL ./543.h5
 END
-
-#=========================== checkpoint / restart =============================
-CHECKPOINT 10
 
 END_SUBSURFACE

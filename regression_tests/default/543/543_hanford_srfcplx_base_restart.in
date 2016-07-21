@@ -11,6 +11,7 @@ SIMULATION
       GLOBAL_IMPLICIT
     /
   /
+  RESTART 543_hanford_srfcplx_base-restart.chk 0.d0
 END
 
 SUBSURFACE
@@ -492,7 +493,7 @@ END
 
 FLOW_CONDITION injection_well
   TYPE
-    RATE scaled_volumetric_rate
+    RATE scaled_volumetric_rate neighbor_perm
   /
   RATE 1 m^3/hr
 END
@@ -670,9 +671,5 @@ END
 STRATA
   MATERIAL ./543.h5
 END
-
-#=========================== checkpoint / restart =============================
-#CHECKPOINT 10
-RESTART 543_hanford_srfcplx_base-restart.chk 0.d0
 
 END_SUBSURFACE

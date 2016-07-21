@@ -6,7 +6,7 @@ module Surface_TH_Aux_module
 
   private
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   type, public :: Surface_TH_auxvar_type
     PetscReal :: h        ! enthalpy -- not currently used
@@ -202,10 +202,12 @@ subroutine SurfaceTHAuxVarCompute(xx,auxvar,global_auxvar, &
 
   if (global_auxvar%head(1) < MIN_SURFACE_WATER_HEIGHT) then
     global_auxvar%is_dry = PETSC_TRUE
-    call EOSWaterDensityEnthalpy(0.0d0,pw,dw_kg,dw_mol,hw,ierr)
+    call EOSWaterDensity(0.0d0,pw,dw_kg,dw_mol,ierr)
+    call EOSWaterEnthalpy(0.0d0,pw,hw,ierr)
   else
     global_auxvar%is_dry = PETSC_FALSE
-    call EOSWaterDensityEnthalpy(global_auxvar%temp,pw,dw_kg,dw_mol,hw,ierr)
+    call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol,ierr)
+    call EOSWaterEnthalpy(global_auxvar%temp,pw,hw,ierr)
   endif
 
   ! J/kmol -> whatever units

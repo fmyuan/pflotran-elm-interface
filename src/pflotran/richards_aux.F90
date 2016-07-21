@@ -1,7 +1,4 @@
 module Richards_Aux_module
-#ifndef LEGACY_SATURATION_FUNCTION
-#define REFACTOR_CHARACTERISTIC_CURVES
-#endif
 
 #ifdef BUFFER_MATRIX
   use Matrix_Buffer_module
@@ -13,7 +10,10 @@ module Richards_Aux_module
   
   private 
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
+
+  PetscReal, public :: richards_itol_scaled_res = 1.d-5
+  PetscReal, public :: richards_itol_rel_update = UNINITIALIZED_DOUBLE
 
   type, public :: richards_auxvar_type
   
@@ -36,19 +36,16 @@ module Richards_Aux_module
     PetscReal :: bc_lambda ! Brooks Corey parameterization: lambda    
 #endif
 
-    PetscReal :: P_min
-    PetscReal :: P_max
-    PetscReal :: coeff_for_cubic_approx(4)
-    PetscReal :: range_for_linear_approx(4)
-    PetscBool :: bcflux_default_scheme
+    ! OLD-VAR-NAMES            = NEW-VAR
+    ! ------------------------------------------------
+    ! P_min                    = vars_for_sflow(1)
+    ! P_max                    = vars_for_sflow(2)
+    ! coeff_for_cubic_approx   = vars_for_sflow(3:6)
+    ! range_for_linear_approx  = vars_for_sflow(7:10)
+    ! bcflux_default_scheme    = vars_for_sflow(11)
+    PetscReal, pointer :: vars_for_sflow(:)
 
   end type richards_auxvar_type
-  
-#ifndef REFACTOR_CHARACTERISTIC_CURVES
-  type, public :: richards_parameter_type
-    PetscReal, pointer :: sir(:,:)
-  end type richards_parameter_type
-#endif
   
   type, public :: richards_type
     PetscInt :: n_zero_rows
@@ -58,9 +55,6 @@ module Richards_Aux_module
     PetscBool :: auxvars_cell_pressures_up_to_date
     PetscBool :: inactive_cells_exist
     PetscInt :: num_aux, num_aux_bc, num_aux_ss
-#ifndef REFACTOR_CHARACTERISTIC_CURVES
-    type(richards_parameter_type), pointer :: richards_parameter
-#endif
     type(richards_auxvar_type), pointer :: auxvars(:)
     type(richards_auxvar_type), pointer :: auxvars_bc(:)
     type(richards_auxvar_type), pointer :: auxvars_ss(:)
@@ -104,12 +98,6 @@ function RichardsAuxCreate()
   nullify(aux%auxvars_bc)
   nullify(aux%auxvars_ss)
   aux%n_zero_rows = 0
-#ifndef REFACTOR_CHARACTERISTIC_CURVES
-  allocate(aux%richards_parameter)
-  ! don't allocate richards_parameter%sir quite yet, since we don't know the
-  ! number of saturation functions
-  nullify(aux%richards_parameter%sir)
-#endif
   nullify(aux%zero_rows_local)
   nullify(aux%zero_rows_local_ghosted)
 #ifdef BUFFER_MATRIX
@@ -154,16 +142,17 @@ subroutine RichardsAuxVarInit(auxvar,option)
   auxvar%dsat_dp = 0.d0
   auxvar%dden_dp = 0.d0
 
+  if (option%surf_flow_on) then
+    allocate(auxvar%vars_for_sflow(11))
+    auxvar%vars_for_sflow(:) = 0.d0
+  else
+    nullify(auxvar%vars_for_sflow)
+  endif
+
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   auxvar%bc_alpha  = 0.0d0
   auxvar%bc_lambda  = 0.0d0
 #endif 
-
-  auxvar%P_min = 0.d0
-  auxvar%P_max = 0.d0
-  auxvar%coeff_for_cubic_approx(:) = 0.d0
-  auxvar%range_for_linear_approx(:) = 0.d0
-  auxvar%bcflux_default_scheme = PETSC_FALSE
   
 end subroutine RichardsAuxVarInit
 
@@ -201,27 +190,20 @@ subroutine RichardsAuxVarCopy(auxvar,auxvar2,option)
   auxvar2%dsat_dp = auxvar%dsat_dp
   auxvar2%dden_dp = auxvar%dden_dp
  
+  if (option%surf_flow_on) &
+    auxvar2%vars_for_sflow(:) = auxvar%vars_for_sflow(:)
+
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
   auxvar2%bc_alpha  = auxvar%bc_alpha
   auxvar2%bc_lambda = auxvar%bc_lambda
 #endif
-
-  auxvar2%P_min = auxvar%P_min
-  auxvar2%P_max = auxvar%P_max
-  auxvar2%coeff_for_cubic_approx(:) = auxvar%coeff_for_cubic_approx(:)
-  auxvar2%range_for_linear_approx(:) = auxvar%range_for_linear_approx(:)
-  auxvar2%bcflux_default_scheme = auxvar%bcflux_default_scheme
 
 end subroutine RichardsAuxVarCopy
 
 ! ************************************************************************** !
 
 subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
-#ifdef REFACTOR_CHARACTERISTIC_CURVES
                                  characteristic_curves,option)
-#else
-                                 saturation_function,option)
-#endif
   ! 
   ! Computes auxiliary variables for each grid cell
   ! 
@@ -233,21 +215,13 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   use Global_Aux_module
   
   use EOS_Water_module
-#ifdef REFACTOR_CHARACTERISTIC_CURVES
   use Characteristic_Curves_module
-#else
-  use Saturation_Function_module
-#endif
   use Material_Aux_class
   
   implicit none
 
   type(option_type) :: option
-#ifdef REFACTOR_CHARACTERISTIC_CURVES
   class(characteristic_curves_type) :: characteristic_curves
-#else
-  type(saturation_function_type) :: saturation_function
-#endif
   PetscReal :: x(option%nflowdof)
   type(richards_auxvar_type) :: auxvar
   type(global_auxvar_type) :: global_auxvar
@@ -258,13 +232,12 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
   PetscErrorCode :: ierr
   PetscReal :: pw,dw_kg,dw_mol,hw,sat_pressure,visl
   PetscReal :: kr, ds_dp, dkr_dp
-  PetscReal :: dvis_dt, dvis_dp, dvis_dpsat
+  PetscReal :: dvis_dt, dvis_dp
   PetscReal :: dw_dp, dw_dt, hw_dp, hw_dt
   PetscReal :: pert, pw_pert, dw_kg_pert
   PetscReal :: fs, ani_A, ani_B, ani_C, ani_n, ani_coef
-#ifdef REFACTOR_CHARACTERISTIC_CURVES
-  PetscReal :: dkr_Se
-#endif
+  PetscReal :: dkr_sat
+  PetscReal :: aux(1)
   PetscReal, parameter :: tol = 1.d-3
   
   global_auxvar%sat = 0.d0
@@ -293,7 +266,6 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
 
   if (auxvar%pc > 0.d0) then
 #if defined(CLM_PFLOTRAN) || defined(CLM_OFFLINE)
-#ifdef REFACTOR_CHARACTERISTIC_CURVES
     if (auxvar%bc_alpha > 0.d0) then
       select type(sf => characteristic_curves%saturation_function)
         class is(sat_func_VG_type)
@@ -322,16 +294,8 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
           call printErrMsg(option)
       end select
     endif
-#else
-    if (auxvar%bc_alpha > 0.d0) then
-       saturation_function%alpha  = auxvar%bc_alpha
-       saturation_function%lambda = auxvar%bc_lambda
-       saturation_function%m      = auxvar%bc_lambda
-    endif
-#endif
 #endif
     saturated = PETSC_FALSE
-#ifdef REFACTOR_CHARACTERISTIC_CURVES
     call characteristic_curves%saturation_function% &
                                Saturation(auxvar%pc, &
                                           global_auxvar%sat(1), &
@@ -342,20 +306,9 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     else
       call characteristic_curves%liq_rel_perm_function% &
                        RelativePermeability(global_auxvar%sat(1), &
-                                            kr,dkr_Se,option)
-      dkr_dp = characteristic_curves%liq_rel_perm_function% &
-                                  DRelPerm_DPressure(ds_dp,dkr_Se)
+                                            kr,dkr_sat,option)
+      dkr_dp = ds_dp * dkr_sat
     endif
-#else
-    call SaturationFunctionCompute(auxvar%pc, &
-                                global_auxvar%sat(1),kr, &
-                                ds_dp,dkr_dp, &
-                                saturation_function, &
-                                material_auxvar%porosity, &
-                                material_auxvar%permeability(perm_xx_index), &
-                                saturated, &
-                                option)
-#endif
   else
     saturated = PETSC_TRUE
   endif  
@@ -371,17 +324,23 @@ subroutine RichardsAuxVarCompute(x,auxvar,global_auxvar,material_auxvar, &
     pw = global_auxvar%pres(1)
   endif
 
-  call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol, &
-                       dw_dp,dw_dt,ierr)
-! may need to compute dpsat_dt to pass to VISW
-  call EOSWaterSaturationPressure(global_auxvar%temp,sat_pressure,ierr)
-  !geh: 0.d0 passed in for derivative of pressure w/respect to temp
-  call EOSWaterViscosity(global_auxvar%temp,pw,sat_pressure,0.d0, &
-                         visl,dvis_dt,dvis_dp,dvis_dpsat,ierr) 
-!geh  dvis_dpsat = -dvis_dp   ! already handled in EOSWaterViscosity
+  if (.not.option%flow%density_depends_on_salinity) then
+    call EOSWaterDensity(global_auxvar%temp,pw,dw_kg,dw_mol, &
+                         dw_dp,dw_dt,ierr)
+    ! may need to compute dpsat_dt to pass to VISW
+    call EOSWaterSaturationPressure(global_auxvar%temp,sat_pressure,ierr)
+    !geh: 0.d0 passed in for derivative of pressure w/respect to temp
+    call EOSWaterViscosity(global_auxvar%temp,pw,sat_pressure,0.d0, &
+                           visl,dvis_dt,dvis_dp,ierr) 
+  else
+    aux(1) = global_auxvar%m_nacl(1)
+    call EOSWaterDensityExt(global_auxvar%temp,pw,aux, &
+                            dw_kg,dw_mol,dw_dp,dw_dt,ierr)
+    call EOSWaterViscosityExt(global_auxvar%temp,pw,sat_pressure,0.d0,aux, &
+                              visl,dvis_dt,dvis_dp,ierr) 
+  endif
   if (.not.saturated) then !kludge since pw is constant in the unsat zone
     dvis_dp = 0.d0
-    dvis_dpsat = 0.d0
     dw_dp = 0.d0
     hw_dp = 0.d0
   endif
@@ -453,13 +412,6 @@ subroutine RichardsAuxDestroy(aux)
   
   call DeallocateArray(aux%zero_rows_local)
   call DeallocateArray(aux%zero_rows_local_ghosted)
-#ifndef REFACTOR_CHARACTERISTIC_CURVES
-  if (associated(aux%richards_parameter)) then
-    call DeallocateArray(aux%richards_parameter%sir)
-    deallocate(aux%richards_parameter)
-  endif
-  nullify(aux%richards_parameter)
-#endif
 
 #ifdef BUFFER_MATRIX
   if (associated(aux%matrix_buffer)) then

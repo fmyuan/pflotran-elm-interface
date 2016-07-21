@@ -9,7 +9,7 @@ module HDF5_Aux_module
 
   implicit none
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
 
   private
 
@@ -36,6 +36,7 @@ module HDF5_Aux_module
             HDF5ReadDatasetReal1D, &
             HDF5ReadDataset
             HDF5GroupExists, &
+            HDF5DatasetExists, &
 #else
             HDF5GroupExists, &
             HDF5DatasetExists, &
@@ -174,13 +175,13 @@ subroutine HDF5ReadDatasetInteger2D(filename,dataset_name,read_option,option, &
   ! in
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: dataset_name
-  integer                        :: read_option
-  type(option_type)              :: option
+  integer :: read_option
+  type(option_type) :: option
   
   ! out
-  PetscInt,pointer               :: data(:,:)
-  PetscInt                       :: data_dims(2)
-  PetscInt                       :: dataset_dims(2)
+  PetscInt,pointer :: data(:,:)
+  PetscInt :: data_dims(2)
+  PetscInt :: dataset_dims(2)
   
   ! local
   PetscInt :: file_id
@@ -191,10 +192,10 @@ subroutine HDF5ReadDatasetInteger2D(filename,dataset_name,read_option,option, &
   
   ! Open file collectively
   filename = trim(filename) // CHAR(0)
-  call scorpio_open_file(filename, option%ioread_group_id, SCORPIO_FILE_READONLY, file_id, ierr)
+  call fscorpio_open_file(filename, option%ioread_group_id, SCORPIO_FILE_READONLY, file_id, ierr)
 
   ! Get dataset dimnesions
-  call scorpio_get_dataset_ndims(ndims, file_id, dataset_name, option%ioread_group_id, ierr)
+  call fscorpio_get_dataset_ndims(ndims, file_id, dataset_name, option%ioread_group_id, ierr)
   if (ndims > 2) then
     option%io_buffer='Dimension of ' // dataset_name // ' dataset in ' // filename // &
     ' is greater than to 2.'
@@ -202,7 +203,7 @@ subroutine HDF5ReadDatasetInteger2D(filename,dataset_name,read_option,option, &
   endif
   
   ! Get size of each dimension
-  call scorpio_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
+  call fscorpio_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
   
   data_dims(1) = dataset_dims(1)/option%mycommsize
   data_dims(2) = dataset_dims(2)
@@ -213,10 +214,10 @@ subroutine HDF5ReadDatasetInteger2D(filename,dataset_name,read_option,option, &
   
   allocate(data(data_dims(2),dataset_dims(1)))
   
-  call scorpio_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
+  call fscorpio_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
 
   ! Read the dataset collectively
-  call scorpio_read_dataset( data, SCORPIO_INTEGER, ndims, dataset_dims, data_dims, & 
+  call fscorpio_read_dataset( data, SCORPIO_INTEGER, ndims, dataset_dims, data_dims, & 
             file_id, dataset_name, option%ioread_group_id, SCORPIO_NONUNIFORM_CONTIGUOUS_READ, ierr)
   
   data_dims(1) = data_dims(1) + data_dims(2)
@@ -228,7 +229,7 @@ subroutine HDF5ReadDatasetInteger2D(filename,dataset_name,read_option,option, &
   dataset_dims(1) = dataset_dims(1) - dataset_dims(2)
 
   ! Close file
-  call scorpio_close_file( file_id, option%ioread_group_id, ierr)  
+  call fscorpio_close_file( file_id, option%ioread_group_id, ierr)  
 
 end subroutine HDF5ReadDatasetInteger2D
 #endif
@@ -256,13 +257,13 @@ subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
   ! in
   character(len=MAXSTRINGLENGTH) :: filename
   character(len=MAXSTRINGLENGTH) :: dataset_name
-  integer                        :: read_option
-  type(option_type)              :: option
+  integer :: read_option
+  type(option_type) :: option
   
   ! out
-  PetscReal,pointer              :: data(:,:)
-  PetscInt                       :: data_dims(2)
-  PetscInt                       :: dataset_dims(2)
+  PetscReal,pointer :: data(:,:)
+  PetscInt :: data_dims(2)
+  PetscInt :: dataset_dims(2)
   
   ! local
   integer :: file_id
@@ -273,10 +274,10 @@ subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
   
   ! Open file collectively
   filename = trim(filename) // CHAR(0)
-  call scorpio_open_file(filename, option%ioread_group_id, SCORPIO_FILE_READONLY, file_id, ierr)
+  call fscorpio_open_file(filename, option%ioread_group_id, SCORPIO_FILE_READONLY, file_id, ierr)
 
   ! Get dataset dimnesions
-  call scorpio_get_dataset_ndims(ndims, file_id, dataset_name, option%ioread_group_id, ierr)
+  call fscorpio_get_dataset_ndims(ndims, file_id, dataset_name, option%ioread_group_id, ierr)
   if (ndims > 2) then
     option%io_buffer='Dimension of ' // dataset_name // ' dataset in ' // filename // &
     ' is greater than to 2.'
@@ -284,7 +285,7 @@ subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
   endif
   
   ! Get size of each dimension
-  call scorpio_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
+  call fscorpio_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
   
   data_dims(1) = dataset_dims(1)/option%mycommsize
   data_dims(2) = dataset_dims(2)
@@ -296,10 +297,10 @@ subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
   
   allocate(data(data_dims(2),dataset_dims(1)))
   
-  call scorpio_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
+  call fscorpio_get_dataset_dims(dataset_dims, file_id, dataset_name, option%ioread_group_id, ierr)
 
   ! Read the dataset collectively
-  call scorpio_read_dataset( data, SCORPIO_DOUBLE, ndims, dataset_dims, data_dims, & 
+  call fscorpio_read_dataset( data, SCORPIO_DOUBLE, ndims, dataset_dims, data_dims, & 
             file_id, dataset_name, option%ioread_group_id, SCORPIO_NONUNIFORM_CONTIGUOUS_READ, ierr)
   
   data_dims(1) = data_dims(1) + data_dims(2)
@@ -311,7 +312,7 @@ subroutine HDF5ReadDatasetReal2D(filename,dataset_name,read_option,option, &
   dataset_dims(1) = dataset_dims(1) - dataset_dims(2)
 
   ! Close file
-  call scorpio_close_file( file_id, option%ioread_group_id, ierr)  
+  call fscorpio_close_file( file_id, option%ioread_group_id, ierr)  
 
 end subroutine HDF5ReadDatasetReal2D
 #endif
@@ -441,8 +442,8 @@ function HDF5GroupExists(filename,group_name,option)
   ! Open file collectively
   filename = trim(filename) // CHAR(0)
   group_name = trim(group_name) // CHAR(0)
-  call scorpio_open_file(filename, option%ioread_group_id, SCORPIO_FILE_READONLY, file_id, ierr)
-  call scorpio_group_exists(group_name, file_id, option%ioread_group_id, ierr)
+  call fscorpio_open_file(filename, option%ioread_group_id, SCORPIO_FILE_READONLY, file_id, ierr)
+  call fscorpio_group_exists(group_name, file_id, option%ioread_group_id, ierr)
   group_exists = (ierr == 1);
 
   if (group_exists) then
@@ -457,7 +458,7 @@ function HDF5GroupExists(filename,group_name,option)
   endif
   call printMsg(option)
 
-  call scorpio_close_file( file_id, option%ioread_group_id, ierr)  
+  call fscorpio_close_file( file_id, option%ioread_group_id, ierr)  
 #else
   ! open the file
   call h5open_f(hdf5_err)
@@ -633,18 +634,27 @@ subroutine HDF5ReadDbase(filename,option)
   character(len=MAXWORDLENGTH) :: filename
   type(option_type) :: option
   
-  PetscInt :: icount
-  PetscReal, allocatable :: buffer(:)
-  PetscInt :: num_objects, i_object, object_type, dummy_int
+  character(len=MAXWORDLENGTH), allocatable :: wbuffer(:)
+  character(len=MAXWORDLENGTH) :: wbuffer_word
+  PetscReal, allocatable :: rbuffer(:)
+  PetscInt, allocatable :: ibuffer(:)
+  PetscInt :: dummy_int
   PetscInt :: value_index
   character(len=MAXWORDLENGTH) :: object_name, word
 #if defined(PETSC_HAVE_HDF5)  
   integer(HID_T) :: file_id
+  integer(HID_T) :: num_objects
+  integer(HID_T) :: i_object
+  integer(HID_T) :: object_type
   integer(HID_T) :: prop_id
   integer(HID_T) :: dataset_id
+  integer(HID_T) :: class_id
+  integer(HID_T) :: datatype_id
+  integer(HID_T) :: datatype_id2
   integer(HID_T) :: file_space_id
   integer(HID_T) :: memory_space_id
-  integer(HSIZE_T) :: num_reals_in_dataset
+  integer(HSIZE_T) :: num_values_in_dataset
+  integer(SIZE_T) size_t_int
 !  integer(HSIZE_T) :: dims(1)
   integer(SIZE_T) :: type_size
   integer(HSIZE_T) :: offset(1), length(1), stride(1)
@@ -652,6 +662,9 @@ subroutine HDF5ReadDbase(filename,option)
   PetscMPIInt :: int_mpi
   PetscMPIInt :: hdf5_err
 #endif
+  PetscInt :: num_ints
+  PetscInt :: num_reals
+  PetscInt :: num_words
 
   call h5open_f(hdf5_err)
   option%io_buffer = 'Opening hdf5 file: ' // trim(filename)
@@ -663,28 +676,64 @@ subroutine HDF5ReadDbase(filename,option)
   call HDF5OpenFileReadOnly(filename,file_id,prop_id,option)
   call h5pclose_f(prop_id,hdf5_err)
   call h5gn_members_f(file_id, '.',num_objects, hdf5_err)
-  icount = 0
+  num_ints = 0
+  num_reals = 0
+  num_words = 0
   ! index is zero-based
   do i_object = 0, num_objects-1
     call h5gget_obj_info_idx_f(file_id,'.',i_object,object_name, &
                                object_type,hdf5_err)
-    if (object_type == H5G_DATASET_F) icount = icount + 1
+    if (object_type == H5G_DATASET_F) then
+      call h5dopen_f(file_id,object_name,dataset_id,hdf5_err)
+      call h5dget_type_f(dataset_id, datatype_id, hdf5_err)
+      call h5tget_class_f(datatype_id, class_id, hdf5_err)
+      ! cannot use a select case statement since the H5T definitions are not
+      ! guaranteed to be constant.  the preprocessor throws an error
+      if (class_id == H5T_INTEGER_F) then
+        num_ints = num_ints + 1
+      else if (class_id == H5T_FLOAT_F) then
+        num_reals = num_reals + 1
+      else if (class_id == H5T_STRING_F) then
+        num_words = num_words + 1
+      else
+        option%io_buffer = 'Unrecognized HDF5 datatype in Dbase: ' // &
+          trim(object_name)
+        call printErrMsg(option)
+      endif
+      call h5tclose_f(datatype_id, hdf5_err)
+      call h5dclose_f(dataset_id,hdf5_err)
+    endif
   enddo
   allocate(dbase)
-  allocate(dbase%card(icount))
-  dbase%card = ''
-  allocate(dbase%value(icount))
-  dbase%value = UNINITIALIZED_DOUBLE
+  if (num_ints > 0) then
+    allocate(dbase%icard(num_ints))
+    dbase%icard = ''
+    allocate(dbase%ivalue(num_ints))
+    dbase%ivalue = UNINITIALIZED_INTEGER
+  endif
+  if (num_reals > 0) then
+    allocate(dbase%rcard(num_reals))
+    dbase%rcard = ''
+    allocate(dbase%rvalue(num_reals))
+    dbase%rvalue = UNINITIALIZED_DOUBLE
+  endif
+  if (num_words > 0) then
+    allocate(dbase%ccard(num_words))
+    dbase%ccard = ''
+    allocate(dbase%cvalue(num_words))
+    dbase%cvalue = '-999'
+  endif
   value_index = 1
   if (option%id > 0) then
     value_index = option%id
   endif
-  icount = 0
+  num_ints = 0
+  num_reals = 0
+  num_words = 0
   do i_object = 0, num_objects-1
     call h5gget_obj_info_idx_f(file_id,'.',i_object,object_name, &
                                object_type,hdf5_err)
     if (object_type == H5G_DATASET_F) then
-      icount = icount + 1
 ! use once HDF5 lite is linked in PETSc      
 !      call h5ltget_dataset_info_f(file_id,object_name,dims,dummy_int, &
 !                                  type_size,hdf5_err)
@@ -711,43 +760,10 @@ subroutine HDF5ReadDbase(filename,option)
       call h5dget_space_f(dataset_id,file_space_id,hdf5_err)
       ! should be a rank=1 data space
       call h5sget_simple_extent_npoints_f(file_space_id, &
-                                          num_reals_in_dataset,hdf5_err)
-      rank_mpi = 1
-      offset = 0
-      length = num_reals_in_dataset
-      stride = 1
-      call h5pcreate_f(H5P_DATASET_XFER_F,prop_id,hdf5_err)
-#ifndef SERIAL_HDF5
-      call h5pset_dxpl_mpio_f(prop_id,H5FD_MPIO_INDEPENDENT_F,hdf5_err)
-#endif
-      call h5screate_simple_f(rank_mpi,length,memory_space_id,hdf5_err, &
-                              length)
-      allocate(buffer(num_reals_in_dataset))
-      buffer = 0.d0
-#ifdef HDF5_BROADCAST
-      if (option%myrank == option%io_rank) then                           
-#endif
-        call PetscLogEventBegin(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
-        call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,buffer,length, &
-                       hdf5_err,memory_space_id,file_space_id,prop_id)
-        call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
-#ifdef HDF5_BROADCAST
-      endif
-      if (option%mycommsize > 1) then
-        int_mpi = num_reals_in_dataset
-        call MPI_Bcast(buffer,int_mpi,MPI_DOUBLE_PRECISION, &
-                       option%io_rank,option%mycomm,ierr)
-      endif
-#endif
-      call h5pclose_f(prop_id,hdf5_err)
-      if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
-      call h5sclose_f(file_space_id,hdf5_err)
-      call h5dclose_f(dataset_id,hdf5_err)
-      call StringToUpper(object_name)
-      dbase%card(icount) = trim(object_name)
+                                          num_values_in_dataset,hdf5_err)
       if (option%id > 0) then
-        if (option%id > num_reals_in_dataset) then
-          write(word,*) num_reals_in_dataset
+        if (option%id > num_values_in_dataset) then
+          write(word,*) num_values_in_dataset
           option%io_buffer = 'Data in DBASE_FILENAME "' // &
             trim(object_name) // &
             '" is too small (' // trim(adjustl(word)) // &
@@ -755,8 +771,85 @@ subroutine HDF5ReadDbase(filename,option)
           call printErrMsg(option)
         endif
       endif
-      dbase%value(icount) = buffer(value_index)
-      deallocate(buffer)
+      rank_mpi = 1
+      offset = 0
+      length = num_values_in_dataset
+      stride = 1
+      call h5pcreate_f(H5P_DATASET_XFER_F,prop_id,hdf5_err)
+#ifndef SERIAL_HDF5
+      call h5pset_dxpl_mpio_f(prop_id,H5FD_MPIO_INDEPENDENT_F,hdf5_err)
+#endif
+      call h5screate_simple_f(rank_mpi,length,memory_space_id,hdf5_err, &
+                              length)
+
+      call h5dget_type_f(dataset_id, datatype_id, hdf5_err)
+      call h5tget_class_f(datatype_id, class_id, hdf5_err)
+      call h5tclose_f(datatype_id, hdf5_err)
+#ifdef HDF5_BROADCAST
+      if (option%myrank == option%io_rank) then                           
+#endif
+      call PetscLogEventBegin(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
+      if (class_id == H5T_INTEGER_F) then
+        allocate(ibuffer(num_values_in_dataset))
+        ibuffer = 0
+        call h5dread_f(dataset_id,H5T_NATIVE_INTEGER,ibuffer,length, &
+                       hdf5_err,memory_space_id,file_space_id,prop_id)
+      else if (class_id == H5T_FLOAT_F) then
+        allocate(rbuffer(num_values_in_dataset))
+        rbuffer = 0.d0
+        call h5dread_f(dataset_id,H5T_NATIVE_DOUBLE,rbuffer,length, &
+                       hdf5_err,memory_space_id,file_space_id,prop_id)
+      else if (class_id == H5T_STRING_F) then
+        call h5tcopy_f(H5T_NATIVE_CHARACTER,datatype_id2,hdf5_err)
+        size_t_int = MAXWORDLENGTH
+        call h5tset_size_f(datatype_id2,size_t_int,hdf5_err)
+        allocate(wbuffer(num_values_in_dataset))
+        wbuffer = ''
+        call h5dread_f(dataset_id,datatype_id2,wbuffer,length, &
+                       hdf5_err,memory_space_id,file_space_id,prop_id)
+        wbuffer_word = wbuffer(value_index)
+        deallocate(wbuffer)
+        call h5tclose_f(datatype_id2,hdf5_err)
+      endif
+      call PetscLogEventEnd(logging%event_h5dread_f,ierr);CHKERRQ(ierr)
+#ifdef HDF5_BROADCAST
+      endif
+      if (option%mycommsize > 1) then
+        int_mpi = num_values_in_dataset
+        if (class_id == H5T_INTEGER_F) then
+          call MPI_Bcast(ibuffer,int_mpi,MPI_INTEGER, &
+                         option%io_rank,option%mycomm,ierr)
+        else if (class_id == H5T_FLOAT_F) then
+          call MPI_Bcast(rbuffer,int_mpi,MPI_DOUBLE_PRECISION, &
+                         option%io_rank,option%mycomm,ierr)
+        else if (class_id == H5T_STRING_F) then
+          int_mpi = MAXWORDLENGTH
+          call MPI_Bcast(wbuffer_word,int_mpi,MPI_CHARACTER, &
+                         option%io_rank,option%mycomm,ierr)
+        endif
+      endif
+#endif
+      call h5pclose_f(prop_id,hdf5_err)
+      if (memory_space_id > -1) call h5sclose_f(memory_space_id,hdf5_err)
+      call h5sclose_f(file_space_id,hdf5_err)
+      call h5dclose_f(dataset_id,hdf5_err)
+      call StringToUpper(object_name)
+      ! these conditionals must come after the bcasts above!!!
+      if (class_id == H5T_INTEGER_F) then
+        num_ints = num_ints + 1
+        dbase%icard(num_ints) = trim(object_name)
+        dbase%ivalue(num_ints) = ibuffer(value_index)
+        deallocate(ibuffer)
+      else if (class_id == H5T_FLOAT_F) then
+        num_reals = num_reals + 1
+        dbase%rcard(num_reals) = trim(object_name)
+        dbase%rvalue(num_reals) = rbuffer(value_index)
+        deallocate(rbuffer)
+      else if (class_id == H5T_STRING_F) then
+        num_words = num_words + 1
+        dbase%ccard(num_words) = trim(object_name)
+        dbase%cvalue(num_words) = wbuffer_word
+      endif
     endif
   enddo
   call h5fclose_f(file_id,hdf5_err)

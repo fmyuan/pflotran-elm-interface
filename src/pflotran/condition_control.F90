@@ -13,9 +13,9 @@ module Condition_Control_module
 
   private
 
-#include "finclude/petscsys.h"
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscsys.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
 
   public :: CondControlAssignFlowInitCond, &
             CondControlAssignTranInitCond, &
@@ -34,7 +34,7 @@ subroutine CondControlAssignFlowInitCond(realization)
   ! Date: 11/02/07, 10/18/11
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Discretization_module
   use Region_module
   use Option_module
@@ -51,13 +51,14 @@ subroutine CondControlAssignFlowInitCond(realization)
   use Global_module
   use Global_Aux_module
   use General_Aux_module
+  use TOilIms_Aux_module
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   PetscInt :: icell, iconn, idof, iface
   PetscInt :: local_id, ghosted_id, iend, ibegin
@@ -74,6 +75,7 @@ subroutine CondControlAssignFlowInitCond(realization)
   type(coupler_type), pointer :: initial_condition
   type(patch_type), pointer :: cur_patch
   type(flow_general_condition_type), pointer :: general
+  type(flow_toil_ims_condition_type), pointer :: toil_ims
   class(dataset_base_type), pointer :: dataset
   type(global_auxvar_type) :: global_aux
   type(general_auxvar_type) :: general_aux
@@ -98,7 +100,7 @@ subroutine CondControlAssignFlowInitCond(realization)
 
   if (option%iflowmode == G_MODE) then
     call GlobalAuxVarInit(global_aux,option)
-    call GeneralAuxVarInit(general_aux,option)
+    call GeneralAuxVarInit(general_aux,PETSC_FALSE,option)
   endif
   
   cur_patch => realization%patch_list%first
@@ -261,6 +263,117 @@ subroutine CondControlAssignFlowInitCond(realization)
         call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
         call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p, &
                                 ierr);CHKERRQ(ierr)
+
+      case(TOIL_IMS_MODE)
+
+        call VecGetArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecGetArrayF90(field%iphas_loc,iphase_loc_p,ierr);CHKERRQ(ierr)
+      
+        xx_p = UNINITIALIZED_DOUBLE
+      
+        initial_condition => cur_patch%initial_condition_list%first
+
+        do
+      
+          if (.not.associated(initial_condition)) exit
+
+          if (.not.associated(initial_condition%flow_aux_real_var)) then
+            if (.not.associated(initial_condition%flow_condition)) then
+              option%io_buffer = 'Flow condition is NULL in initial condition'
+              call printErrMsg(option)
+            endif
+              
+            toil_ims => initial_condition%flow_condition%toil_ims
+              
+            string = 'in flow condition "' // &
+              trim(initial_condition%flow_condition%name) // &
+              '" within initial condition "' // &
+              trim(initial_condition%flow_condition%name) // &
+              '" must be of type Dirichlet or Hydrostatic'
+            ! check pressure condition  
+            if (.not. &
+               (toil_ims%pressure%itype == DIRICHLET_BC .or. &
+                 toil_ims%pressure%itype == HYDROSTATIC_BC)) then
+                 option%io_buffer = 'Oil pressure ' // trim(string)
+                 call printErrMsg(option)
+            endif
+            ! check saturation condition
+            if (.not. &
+               (toil_ims%saturation%itype == DIRICHLET_BC .or. &
+                 toil_ims%saturation%itype == HYDROSTATIC_BC)) then
+                 option%io_buffer = 'Oil saturation ' // trim(string)
+                call printErrMsg(option)
+            endif
+            ! check temperature condition 
+            if (.not. &
+                (toil_ims%temperature%itype == DIRICHLET_BC .or. &
+                  toil_ims%temperature%itype == HYDROSTATIC_BC)) then
+              option%io_buffer = 'Temperature ' // trim(string)
+              call printErrMsg(option)
+            endif                              
+            ! error checking.
+            do icell=1,initial_condition%region%num_cells
+              local_id = initial_condition%region%cell_ids(icell)
+              ghosted_id = grid%nL2G(local_id)
+              iend = local_id*option%nflowdof
+              ibegin = iend-option%nflowdof+1
+              if (cur_patch%imat(ghosted_id) <= 0) then
+                xx_p(ibegin:iend) = 0.d0
+                iphase_loc_p(ghosted_id) = 0
+                cycle
+              endif
+              ! decrement ibegin to give a local offset of 0
+              ibegin = ibegin - 1
+              ! assign initial conditions
+              xx_p(ibegin+TOIL_IMS_PRESSURE_DOF) = &
+                 toil_ims%pressure%dataset%rarray(1)
+              xx_p(ibegin+TOIL_IMS_SATURATION_DOF) = &
+                 toil_ims%saturation%dataset%rarray(1)
+              xx_p(ibegin+TOIL_IMS_ENERGY_DOF) = & 
+                 toil_ims%temperature%dataset%rarray(1)
+              ! iphase not required  
+              ! assign 0 to pass internal routine test at the end
+              iphase_loc_p(ghosted_id) = 0
+              !iphase_loc_p(ghosted_id) = initial_condition%flow_condition%iphase
+              !cur_patch%aux%Global%auxvars(ghosted_id)%istate = &
+              !  initial_condition%flow_condition%iphase
+            enddo
+          else ! if initial condition values defined in flow_aux_real_var
+            do iconn=1,initial_condition%connection_set%num_connections
+              local_id = initial_condition%connection_set%id_dn(iconn)
+              ghosted_id = grid%nL2G(local_id)
+              if (cur_patch%imat(ghosted_id) <= 0) then
+                iend = local_id*option%nflowdof
+                ibegin = iend-option%nflowdof+1
+                xx_p(ibegin:iend) = 0.d0
+                ! iphase not required 
+                ! assign 0 to pass internal routine test at the end
+                iphase_loc_p(ghosted_id) = 0
+                cycle
+              endif
+              offset = (local_id-1)*option%nflowdof
+              !istate = initial_condition%flow_aux_int_var(1,iconn)
+              do idof = 1, option%nflowdof
+                xx_p(offset+idof) = &
+                  initial_condition%flow_aux_real_var( &
+                    initial_condition%flow_aux_mapping( &
+                      toil_ims_dof_to_primary_vars(idof)),iconn)
+                      !dof_to_primary_variable(idof,istate)),iconn)
+                      !toil_ims_dof_to_primary_vars(3)
+              enddo
+              ! iphase not required 
+              ! assign 0 to pass internal routine test at the end
+              iphase_loc_p(ghosted_id) = 0 
+              !iphase_loc_p(ghosted_id) = istate
+              !cur_patch%aux%Global%auxvars(ghosted_id)%istate = istate
+            enddo
+          endif
+          initial_condition => initial_condition%next
+        enddo
+     
+        call VecRestoreArrayF90(field%flow_xx,xx_p, ierr);CHKERRQ(ierr)
+        call VecRestoreArrayF90(field%iphas_loc,iphase_loc_p, &
+                                ierr);CHKERRQ(ierr)
               
       case default
         ! assign initial conditions values to domain
@@ -387,7 +500,7 @@ subroutine CondControlAssignTranInitCond(realization)
   ! Date: 11/02/07, 10/18/11
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Discretization_module
   use Region_module
   use Option_module
@@ -408,10 +521,10 @@ subroutine CondControlAssignTranInitCond(realization)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   PetscInt :: icell, iconn, idof, isub_condition, temp_int, iimmobile
   PetscInt :: local_id, ghosted_id, iend, ibegin
@@ -442,6 +555,7 @@ subroutine CondControlAssignTranInitCond(realization)
   PetscBool :: use_aq_dataset
   PetscReal :: ave_num_iterations
   PetscReal :: tempreal
+  PetscInt :: prev_equilibrated_ghosted_id
   PetscReal, pointer :: iphase_loc_p(:)
   PetscReal, pointer :: flow_xx_p(:)
   PetscLogDouble :: tstart, tend
@@ -582,6 +696,7 @@ subroutine CondControlAssignTranInitCond(realization)
       endif
         
       ave_num_iterations = 0.d0
+      prev_equilibrated_ghosted_id = 0
       do icell=1,initial_condition%region%num_cells
         local_id = initial_condition%region%cell_ids(icell)
         ghosted_id = grid%nL2G(local_id)
@@ -602,7 +717,7 @@ subroutine CondControlAssignTranInitCond(realization)
             enddo
           endif
           option%iflag = grid%nG2A(grid%nL2G(local_id))
-          if (icell == 1) then
+          if (prev_equilibrated_ghosted_id == 0) then
             call ReactionEquilibrateConstraint(rt_auxvars(ghosted_id), &
               global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
               reaction, &
@@ -616,11 +731,9 @@ subroutine CondControlAssignTranInitCond(realization)
               constraint_coupler%num_iterations, &
               PETSC_FALSE,option)
           else
-!geh              call RTAuxVarCopy(rt_auxvars(ghosted_id), &
-!geh                rt_auxvars(grid%nL2G(initial_condition%region%cell_ids(icell-1))), &
-!geh                option)
+            ! copy molalities from previous equilibrated auxvar as initial guess
             rt_auxvars(ghosted_id)%pri_molal = &
-              rt_auxvars(grid%nL2G(initial_condition%region%cell_ids(icell-1)))%pri_molal
+              rt_auxvars(prev_equilibrated_ghosted_id)%pri_molal
             call ReactionEquilibrateConstraint(rt_auxvars(ghosted_id), &
               global_auxvars(ghosted_id),material_auxvars(ghosted_id), &
               reaction, &
@@ -654,6 +767,8 @@ subroutine CondControlAssignTranInitCond(realization)
               endif
           end select
 #endif
+          ! prev_eq_ghosted_id is only updated to the prev active cell
+          prev_equilibrated_ghosted_id = ghosted_id
         endif
         ! ibegin is the local non-ghosted offset: (local_id-1)*option%ntrandof+1
         offset = ibegin + reaction%offset_aqueous - 1
@@ -841,7 +956,7 @@ subroutine ConditionControlMapDatasetToVec(realization,dataset,idof, &
   ! Author: Glenn Hammond
   ! Date: 03/23/12
   ! 
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Field_module
   use Dataset_Common_HDF5_class
@@ -851,10 +966,10 @@ subroutine ConditionControlMapDatasetToVec(realization,dataset,idof, &
 
   implicit none
   
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"  
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"  
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   class(dataset_base_type), pointer :: dataset
   PetscInt :: idof
   Vec :: mdof_vec
@@ -907,7 +1022,7 @@ subroutine CondControlScaleSourceSink(realization)
   ! Date: 09/03/08, 10/18/11
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Discretization_module
   use Region_module
   use Option_module
@@ -922,12 +1037,12 @@ subroutine CondControlScaleSourceSink(realization)
 
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
-#include "finclude/petscdmda.h"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
+#include "petsc/finclude/petscdmda.h"
 
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   
   PetscErrorCode :: ierr
   
@@ -1069,7 +1184,7 @@ subroutine CondControlReadTransportIC(realization,filename)
   ! Date: 03/05/10
   ! 
 
-  use Realization_class
+  use Realization_Subsurface_class
   use Option_module
   use Field_module
   use Grid_module
@@ -1081,10 +1196,10 @@ subroutine CondControlReadTransportIC(realization,filename)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
-  class(realization_type) :: realization
+  class(realization_subsurface_type) :: realization
   character(len=MAXSTRINGLENGTH) :: filename
   
   PetscInt :: local_id, idx, offset, idof
@@ -1155,7 +1270,7 @@ end subroutine CondControlReadTransportIC
 
 subroutine CondControlAssignFlowInitCondSurface(surf_realization)
 
-  use Surface_Realization_class
+  use Realization_Surface_class
   use Discretization_module
   use Region_module
   use Option_module
@@ -1170,10 +1285,10 @@ subroutine CondControlAssignFlowInitCondSurface(surf_realization)
   
   implicit none
 
-#include "finclude/petscvec.h"
-#include "finclude/petscvec.h90"
+#include "petsc/finclude/petscvec.h"
+#include "petsc/finclude/petscvec.h90"
   
-  class(surface_realization_type) :: surf_realization
+  class(realization_surface_type) :: surf_realization
   
   PetscInt :: icell, iconn, idof, iface
   PetscInt :: local_id, ghosted_id, iend, ibegin

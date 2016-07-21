@@ -6,34 +6,35 @@ module Simulation_Subsurface_class
   use PMC_Subsurface_class
   use PMC_Third_Party_class
   use PMC_Base_class
-  use Realization_class
-
+  use Realization_Subsurface_class
+  use Waypoint_module
   use PFLOTRAN_Constants_module
 
   implicit none
 
-#include "finclude/petscsys.h"
+#include "petsc/finclude/petscsys.h"
   
   private
 
-  type, public, extends(simulation_base_type) :: subsurface_simulation_type
+  type, public, extends(simulation_base_type) :: simulation_subsurface_type
     ! pointer to flow process model coupler
     class(pmc_subsurface_type), pointer :: flow_process_model_coupler
     ! pointer to reactive transport process model coupler
     class(pmc_subsurface_type), pointer :: rt_process_model_coupler
-    class(pmc_third_party_type), pointer :: misc_process_model_coupler
     ! pointer to realization object shared by flow and reactive transport
-    class(realization_type), pointer :: realization 
+    class(realization_subsurface_type), pointer :: realization 
     ! regression object
     type(regression_type), pointer :: regression
+    type(waypoint_list_type), pointer :: waypoint_list_subsurface
   contains
     procedure, public :: Init => SubsurfaceSimulationInit
     procedure, public :: JumpStart => SubsurfaceSimulationJumpStart
+    procedure, public :: InputRecord => SubsurfaceSimInputRecord
 !    procedure, public :: ExecuteRun
 !    procedure, public :: RunToTime
     procedure, public :: FinalizeRun => SubsurfaceFinalizeRun
     procedure, public :: Strip => SubsurfaceSimulationStrip
-  end type subsurface_simulation_type
+  end type simulation_subsurface_type
   
   public :: SubsurfaceSimulationCreate, &
             SubsurfaceSimulationInit, &
@@ -59,7 +60,7 @@ function SubsurfaceSimulationCreate(option)
   
   type(option_type), pointer :: option
 
-  class(subsurface_simulation_type), pointer :: SubsurfaceSimulationCreate
+  class(simulation_subsurface_type), pointer :: SubsurfaceSimulationCreate
   
 #ifdef DEBUG
   print *, 'SimulationCreate'
@@ -79,22 +80,118 @@ subroutine SubsurfaceSimulationInit(this,option)
   ! Author: Glenn Hammond
   ! Date: 04/22/13
   ! 
-
+  use Waypoint_module
   use Option_module
   
   implicit none
   
-  class(subsurface_simulation_type) :: this
+  class(simulation_subsurface_type) :: this
   type(option_type), pointer :: option
   
   call SimulationBaseInit(this,option)
   nullify(this%flow_process_model_coupler)
   nullify(this%rt_process_model_coupler)
-  nullify(this%misc_process_model_coupler)
   nullify(this%realization)
   nullify(this%regression)
+  this%waypoint_list_subsurface => WaypointListCreate()
   
 end subroutine SubsurfaceSimulationInit
+
+! ************************************************************************** !
+
+subroutine SubsurfaceSimInputRecord(this)
+  ! 
+  ! Writes ingested information to the input record file.
+  ! 
+  ! Author: Jenn Frederick, SNL
+  ! Date: 03/17/2016
+  ! 
+  use Option_module
+  use Output_module
+  use Discretization_module
+  use Reaction_Aux_module
+  use Region_module
+  use Strata_module
+  use Material_module
+  use Characteristic_Curves_module
+  use Patch_module
+  use Condition_module
+  use EOS_module
+  use Waypoint_module
+  
+  implicit none
+  
+  class(simulation_subsurface_type) :: this
+
+  character(len=MAXWORDLENGTH) :: word
+  PetscInt :: id = INPUT_RECORD_UNIT
+  
+  if (OptionPrintToScreen(this%option)) then
+    write (*,*) 'Printing input record file.'
+  endif
+  
+  write(id,'(a)') ' '
+  write(id,'(a)') '---------------------------------------------------------&
+                  &-----------------------'
+  write(id,'(a29)',advance='no') 'simulation type: '
+  write(id,'(a)') 'subsurface'
+  write(id,'(a29)',advance='no') 'flow mode: '
+  select case(this%realization%option%iflowmode)
+    case(MPH_MODE)
+      write(id,'(a)') 'multi-phase'
+    case(RICHARDS_MODE)
+      write(id,'(a)') 'richards'
+    case(IMS_MODE)
+      write(id,'(a)') 'immiscible'
+    case(FLASH2_MODE)
+      write(id,'(a)') 'flash2'
+    case(G_MODE)
+      write(id,'(a)') 'general'
+    case(MIS_MODE)
+      write(id,'(a)') 'miscible'
+    case(TH_MODE)
+      write(id,'(a)') 'thermo-hydro'
+    case(TOIL_IMS_MODE)
+      write(id,'(a)') 'thermal-oil-immiscible'
+  end select
+  
+  ! print time information
+  call WaypointInputRecord(this%output_option,this%waypoint_list_subsurface)
+
+  ! print output file information
+  call OutputInputRecord(this%output_option,this%waypoint_list_subsurface)
+
+  ! print grid/discretization information
+  call DiscretizationInputRecord(this%realization%discretization)
+
+  ! print region information
+  call RegionInputRecord(this%realization%patch%region_list)
+  
+  ! print strata information
+  call StrataInputRecord(this%realization%patch%strata_list)
+  
+  ! print material property information
+  call MaterialPropInputRecord(this%realization%material_properties)
+  
+  ! print characteristic curves information
+  call CharCurvesInputRecord(this%realization%patch%characteristic_curves)
+
+  ! print chemistry and reactive transport information
+  call ReactionInputRecord(this%realization%reaction)
+  
+  ! print coupler information (ICs, BCs, SSs)
+  call PatchCouplerInputRecord(this%realization%patch)
+  
+  ! print flow and trans condition information
+  call FlowCondInputRecord(this%realization%flow_conditions, &
+                           this%realization%option)
+  call TranCondInputRecord(this%realization%transport_conditions, &
+                           this%realization%option)
+                       
+  ! print equation of state (eos) information
+  call EOSInputRecord()
+
+end subroutine SubsurfaceSimInputRecord
 
 ! ************************************************************************** !
 
@@ -113,14 +210,14 @@ subroutine SubsurfaceSimulationJumpStart(this)
 
   implicit none
   
-  class(subsurface_simulation_type) :: this
+  class(simulation_subsurface_type) :: this
 
   class(timestepper_base_type), pointer :: master_timestepper
   class(timestepper_base_type), pointer :: flow_timestepper
   class(timestepper_base_type), pointer :: tran_timestepper
   type(option_type), pointer :: option
   type(output_option_type), pointer :: output_option
-  PetscBool :: plot_flag, transient_plot_flag
+  PetscBool :: snapshot_plot_flag, observation_plot_flag, massbal_plot_flag
   
 #ifdef DEBUG
   call printMsg(this%option,'SubsurfaceSimulationJumpStart()')
@@ -129,6 +226,9 @@ subroutine SubsurfaceSimulationJumpStart(this)
   nullify(master_timestepper)
   nullify(flow_timestepper)
   nullify(tran_timestepper)
+  snapshot_plot_flag = PETSC_FALSE
+  observation_plot_flag = PETSC_FALSE
+  massbal_plot_flag = PETSC_FALSE
 
   option => this%option
   output_option => this%output_option
@@ -157,13 +257,14 @@ subroutine SubsurfaceSimulationJumpStart(this)
   endif
 
   ! print initial condition output if not a restarted sim
-  call OutputInit(master_timestepper%steps)
+  call OutputInit(option,master_timestepper%steps)
   if (output_option%plot_number == 0 .and. &
-      master_timestepper%max_time_step >= 0 .and. &
-      output_option%print_initial) then
-    plot_flag = PETSC_TRUE
-    transient_plot_flag = PETSC_TRUE
-    call Output(this%realization,plot_flag,transient_plot_flag)
+      master_timestepper%max_time_step >= 0) then
+    if (output_option%print_initial_snap) snapshot_plot_flag = PETSC_TRUE
+    if (output_option%print_initial_obs) observation_plot_flag = PETSC_TRUE
+    if (output_option%print_initial_massbal) massbal_plot_flag = PETSC_FALSE
+    call Output(this%realization,snapshot_plot_flag,observation_plot_flag, &
+                massbal_plot_flag)
   endif
   
   !if TIMESTEPPER->MAX_STEPS < 1, print out initial condition only
@@ -230,13 +331,14 @@ subroutine SubsurfaceFinalizeRun(this)
 
   use Timestepper_BE_class
   use Reaction_Sandbox_module, only : RSandboxDestroy
-  use SrcSink_Sandbox_module, only : SSSandboxDestroy
-  use Creep_Closure_module, only : CreepClosureDestroy
+  use SrcSink_Sandbox_module, only : SSSandboxDestroyList
+  use WIPP_module, only : WIPPDestroy
+  use Klinkenberg_module, only : KlinkenbergDestroy
   use CLM_Rxn_module, only : RCLMRxnDestroy
 
   implicit none
   
-  class(subsurface_simulation_type) :: this
+  class(simulation_subsurface_type) :: this
   
   PetscErrorCode :: ierr
   
@@ -256,8 +358,9 @@ subroutine SubsurfaceFinalizeRun(this)
       class is(timestepper_BE_type)
         flow_timestepper => ts
     end select
-    call SSSandboxDestroy()
-    call CreepClosureDestroy()
+    call SSSandboxDestroyList()
+    call WIPPDestroy()
+    call KlinkenbergDestroy()
   endif
   if (associated(this%rt_process_model_coupler)) then
     select type(ts => this%rt_process_model_coupler%timestepper)
@@ -285,7 +388,7 @@ subroutine SubsurfaceSimulationStrip(this)
 
   implicit none
   
-  class(subsurface_simulation_type) :: this
+  class(simulation_subsurface_type) :: this
   
 #ifdef DEBUG
   call printMsg(this%option,'SubsurfaceSimulationStrip()')
@@ -296,6 +399,7 @@ subroutine SubsurfaceSimulationStrip(this)
   deallocate(this%realization)
   nullify(this%realization)
   call RegressionDestroy(this%regression)
+  call WaypointListDestroy(this%waypoint_list_subsurface)
   
 end subroutine SubsurfaceSimulationStrip
 
@@ -311,7 +415,7 @@ subroutine SubsurfaceSimulationDestroy(simulation)
 
   implicit none
   
-  class(subsurface_simulation_type), pointer :: simulation
+  class(simulation_subsurface_type), pointer :: simulation
   
 #ifdef DEBUG
   call printMsg(simulation%option,'SimulationDestroy()')
