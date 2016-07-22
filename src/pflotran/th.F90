@@ -1352,7 +1352,9 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
     ! soil solid fraction vol. heat capacity variable with material
     ! (esp. organic matter content, sand/clay/silt particles)
     ! which are from CLM physical properties
-    rock_dencpr = TH_auxvar%hcapv_solid
+    rock_dencpr = material_auxvar%soil_particle_density * &
+                  material_auxvar%soil_properties(soil_heat_capacity_index)* &
+                  option%scale
   endif
 #endif
   
@@ -1575,7 +1577,9 @@ subroutine THAccumulation(auxvar,global_auxvar, &
     ! soil solid fraction vol. heat capacity variable with material
     ! (esp. organic matter content, sand/clay/silt particles)
     ! which are from CLM physical properties
-    rock_dencpr = auxvar%hcapv_solid
+    rock_dencpr = material_auxvar%soil_particle_density* &
+                  material_auxvar%soil_properties(soil_heat_capacity_index)* &
+                  option%scale
   endif
 #endif
 

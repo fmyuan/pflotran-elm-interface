@@ -992,6 +992,7 @@ contains
     type(richards_auxvar_type), pointer       :: rich_auxvar
     type(th_auxvar_type), pointer             :: th_auxvars(:), th_auxvars_bc(:), th_auxvars_ss(:)
     type(th_auxvar_type), pointer             :: th_auxvar
+    class(material_auxvar_type), pointer      :: material_auxvars(:)
 
     class(simulation_subsurface_type), pointer  :: simulation
     class(realization_subsurface_type), pointer :: realization
@@ -1018,6 +1019,8 @@ contains
     PetscScalar, pointer :: sucsat_pf_loc(:)  ! minimum soil suction (mm)
     PetscScalar, pointer :: bsw_pf_loc(:)     ! Clapp and Hornberger "b"
 
+    PetscScalar, pointer :: bd_dry_pf_loc(:)
+
     ! -------------------------------------------
 
     den = 998.2d0       ! [kg/m^3]  @ 20 degC
@@ -1043,6 +1046,7 @@ contains
     discretization  => realization%discretization
     grid            => patch%grid
     field           => realization%field
+    material_auxvars=> patch%aux%Material%auxvars
 
     select case(option%iflowmode)
       case(RICHARDS_MODE)
@@ -1150,6 +1154,9 @@ contains
     call VecGetArrayF90(clm_pf_idata%bsw_pfs,     bsw_pf_loc,     ierr)
     CHKERRQ(ierr)
 
+    call VecGetArrayF90(clm_pf_idata%bulkdensity_dry_pfs,  bd_dry_pf_loc,     ierr)
+    CHKERRQ(ierr)
+
     call VecGetArrayF90(field%porosity0, porosity_loc_p, ierr)
     CHKERRQ(ierr)
 
@@ -1244,7 +1251,6 @@ contains
             !(note: option%scale multiplier is done in TH.F90: setuppatch(), so it's needed here too)
             th_auxvar%tkdry       = tkdry_pf_loc(ghosted_id)*option%scale   ! W/m/K --> MW/m/K
             th_auxvar%tkfrz       = tkfrz_pf_loc(ghosted_id)*option%scale   ! W/m/K --> MW/m/K
-            th_auxvar%hcapv_solid = hcapvs_pf_loc(ghosted_id)*option%scale   ! J/m3K --> MK/m3/K
 
         end select
 
@@ -1276,6 +1282,12 @@ contains
         'clms_watsat(ghosted_id)=',watsat_pf_loc(ghosted_id)
 #endif
 
+      ! soil particle density (solid only)
+      material_auxvars(local_id)%soil_particle_density = &            ! kg soil particle /m3 soil particle
+        bd_dry_pf_loc(ghosted_id)/(1.d0-watsat_pf_loc(ghosted_id))    ! kg soil particle /m3 bulk soils
+
+      material_auxvars(local_id)%soil_properties(soil_heat_capacity_index) = &
+        hcapvs_pf_loc(ghosted_id)/material_auxvars(local_id)%soil_particle_density   ! J/m3-particle/K --> J/kg soil particle/K
     enddo
 
     ! --------------------------------------------------------------------------------------
@@ -1362,6 +1374,9 @@ contains
     call VecRestoreArrayF90(clm_pf_idata%watsat_pfs,  watsat_pf_loc,  ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%bsw_pfs,     bsw_pf_loc,     ierr)
+    CHKERRQ(ierr)
+
+    call VecRestoreArrayF90(clm_pf_idata%bulkdensity_dry_pfs,  bd_dry_pf_loc, ierr)
     CHKERRQ(ierr)
 
     call VecRestoreArrayF90(field%porosity0, porosity_loc_p, ierr)
@@ -2483,6 +2498,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
     type(coupler_type), pointer               :: boundary_condition
+    type(coupler_type), pointer               :: source_sink
     type(connection_set_type), pointer        :: cur_connection_set
 
     class(simulation_subsurface_type), pointer  :: simulation
@@ -2551,9 +2567,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     call VecGetArrayF90(clm_pf_idata%gtemp_subbase_pfs,gtemp_subbase_pf_loc,ierr)
     CHKERRQ(ierr)
 
-    found = PETSC_FALSE
+    ! BC conditions
     boundary_condition => patch%boundary_condition_list%first
-
     sum_connection = 0
     do
       if (.not.associated(boundary_condition)) exit
@@ -2565,24 +2580,18 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       if(StringCompare(boundary_condition%name,'clm_gflux_bc') .or. &
          StringCompare(boundary_condition%name,'clm_gpress_bc')) then
 
-        found = PETSC_TRUE
-
         do iconn = 1, cur_connection_set%num_connections
           sum_connection = sum_connection + 1
 
           if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
-                == NEUMANN_BC) then
-            boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
-                          gflux_subsurf_pf_loc(iconn)
-
-          elseif (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
-                == DIRICHLET_BC) then
+                == DIRICHLET_BC) then                    ! for water flow BC, thermal boundary MUST be 'dirichlet' type
             boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
                           gtemp_subsurf_pf_loc(iconn)
 
           end if
 
         enddo
+
       endif
 
       ! BOTTOM (BASE) of subsurface
@@ -2591,12 +2600,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           sum_connection = sum_connection + 1
 
           if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
-                == NEUMANN_BC) then
-            boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
-                          gflux_subbase_pf_loc(iconn)
-
-          elseif (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
-                == DIRICHLET_BC) then
+                == DIRICHLET_BC) then                  ! for water flow BC, thermal boundary MUST be 'dirichlet' type
             boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
                           gtemp_subbase_pf_loc(iconn)
 
@@ -2608,6 +2612,63 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       boundary_condition => boundary_condition%next
     enddo
 
+    ! Source/Sink terms
+    source_sink => realization%patch%source_sink_list%first
+    sum_connection = 0
+    do
+      if (.not.associated(source_sink)) exit
+
+      cur_connection_set => source_sink%connection_set
+
+      ! Find appropriate SrcSink from the list of flow conditions
+      ! TOP of subsurface
+      if(StringCompare(source_sink%name,'clm_ghf_ss')) then     ! ground heat flux as term of source/sink
+        do iconn = 1, cur_connection_set%num_connections
+          sum_connection = sum_connection + 1
+
+          if (source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == ENERGY_RATE_SS) then
+
+            source_sink%flow_condition%energy_rate%dataset%rarray(1) = &
+                          gflux_subsurf_pf_loc(iconn)
+
+          else if (source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == HET_ENERGY_RATE_SS) then
+
+            source_sink%flow_aux_real_var(TH_PRESSURE_DOF,iconn) = 0.d0
+
+            source_sink%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          gflux_subsurf_pf_loc(iconn)
+
+          end if
+
+        enddo
+
+      ! BOTTOM of subsurface domain
+      else if(StringCompare(source_sink%name,'clm_geohf_ss')) then     ! geo-thermal heat flux as term of source/sink
+        do iconn = 1, cur_connection_set%num_connections
+          sum_connection = sum_connection + 1
+
+          if (source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == ENERGY_RATE_SS) then
+
+            source_sink%flow_condition%energy_rate%dataset%rarray(1) = &
+                          gflux_subbase_pf_loc(iconn)
+
+          else if (source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == HET_ENERGY_RATE_SS) then
+
+            source_sink%flow_aux_real_var(TH_PRESSURE_DOF,iconn) = 0.d0
+
+            source_sink%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          gflux_subbase_pf_loc(iconn)
+
+          end if
+
+        enddo
+
+      endif
+
+      source_sink => source_sink%next
+
+    enddo
+
     call VecRestoreArrayF90(clm_pf_idata%gflux_subsurf_pfs,gflux_subsurf_pf_loc,ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
@@ -2616,10 +2677,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%gtemp_subbase_pfs,gtemp_subbase_pf_loc,ierr)
     CHKERRQ(ierr)
-
-    !if(.not.found) &
-    !  call printMsg(option,' "clm_gflux_bc" or "clm_gpress_bc" not found in ' // &
-    !                   'boundary-condition list of subsurface model.')
 
   end subroutine pflotranModelUpdateSubsurfTCond
 

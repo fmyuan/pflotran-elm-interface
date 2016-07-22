@@ -18,8 +18,8 @@ module Material_Aux_class
   PetscInt, parameter, public :: POROSITY_CURRENT = 0
   PetscInt, parameter, public :: POROSITY_MINERAL = 1
   
-!  PetscInt, public :: soil_thermal_conductivity_index
-!  PetscInt, public :: soil_heat_capacity_index
+  PetscInt, public :: soil_thermal_conductivity_index
+  PetscInt, public :: soil_heat_capacity_index
   PetscInt, public :: soil_compressibility_index
   PetscInt, public :: soil_reference_pressure_index
   PetscInt, public :: max_material_index

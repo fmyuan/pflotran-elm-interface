@@ -2324,7 +2324,7 @@ subroutine PatchUpdateCouplerAuxVarsTH(patch,coupler,option)
   endif
   if (associated(flow_condition%saturation)) then
 
-#if defined(CLM_PFLOTRAN) && defined(use_characteristic_curves_module)
+#ifdef CLM_PFLOTRAN
     ! if coupled with CLM, hydraulic properties are varied for each cell, no matter what inputs are.
     ! currently, only support 'Brooks_Coreys-Burdine' types of functions
 

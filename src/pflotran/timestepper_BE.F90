@@ -444,7 +444,7 @@ subroutine TimestepperBEStepDT(this,process_model,stop_flag)
         call printMsg(option)
         write(option%io_buffer,'("    dt   =",es15.7,", dt_min=",es15.7)') &
              this%dt/tconv,this%dt_min/tconv
-        call printMsg(option)
+        call printErrMsg(option)
         
         process_model%output_option%plot_name = 'flow_cut_to_failure'
         snapshot_plot_flag = PETSC_TRUE
