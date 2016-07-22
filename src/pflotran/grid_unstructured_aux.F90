@@ -63,12 +63,8 @@ module Grid_Unstructured_Aux_module
     type(point_type), pointer :: vertices(:)
     type(point_type), pointer :: face_centroid(:)
     PetscReal, pointer :: face_area(:)
-<<<<<<< local
     PetscInt, pointer :: nat_ids_of_other_grid(:)
-  end type unstructured_grid_type
-=======
   end type grid_unstructured_type
->>>>>>> other
   
   type, public :: unstructured_explicit_type
     PetscInt, pointer :: cell_ids(:)
