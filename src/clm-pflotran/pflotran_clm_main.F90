@@ -2332,7 +2332,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     use Connection_module
     use Coupler_module
+    use Patch_module
     use Grid_module
+    use Material_Aux_class
     use Option_module
     use String_module
 
@@ -2349,7 +2351,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     type(Option_type), pointer :: option
     type(pflotran_model_type), pointer        :: pflotran_model
     type(coupler_type), pointer               :: source_sink
+
+    type(patch_type), pointer                 :: patch
     type(grid_type), pointer                  :: grid
+    class(material_auxvar_type), pointer      :: material_auxvars(:)
 
     class(simulation_subsurface_type), pointer  :: simulation
     class(realization_subsurface_type), pointer :: realization
@@ -2375,6 +2380,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
               "currently is Not support in this simulation."
         call printErrMsg(option)
     end select
+    patch            => realization%patch
+    grid             => patch%grid
+    material_auxvars => patch%aux%Material%auxvars
+
 !-------------------------------------------------------------------------
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
@@ -2409,7 +2418,6 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     found = PETSC_FALSE
 
     source_sink => realization%patch%source_sink_list%first
-    grid        => realization%patch%grid
 
     sum_connection = 0
     do
@@ -2477,7 +2485,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     use Patch_module
     use Grid_module
-    use Field_module
+    use Material_Aux_class
     use Option_module
     use String_module
 
@@ -2495,11 +2503,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     type(Option_type), pointer :: option
     type(pflotran_model_type), pointer        :: pflotran_model
-    type(patch_type), pointer                 :: patch
-    type(grid_type), pointer                  :: grid
     type(coupler_type), pointer               :: boundary_condition
     type(coupler_type), pointer               :: source_sink
     type(connection_set_type), pointer        :: cur_connection_set
+
+    type(patch_type), pointer                 :: patch
+    type(grid_type), pointer                  :: grid
+    class(material_auxvar_type), pointer      :: material_auxvars(:)
 
     class(simulation_subsurface_type), pointer  :: simulation
     class(realization_subsurface_type), pointer :: realization
@@ -2508,8 +2518,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     PetscScalar, pointer                      :: gtemp_subsurf_pf_loc(:)
     PetscScalar, pointer                      :: gflux_subbase_pf_loc(:)
     PetscScalar, pointer                      :: gtemp_subbase_pf_loc(:)
-    PetscBool                                 :: found
+
     PetscInt                                  :: iconn, sum_connection
+    PetscInt                                  :: local_id, ghosted_id
     PetscErrorCode                            :: ierr
 
     subname = 'pflotranModelUpdateSubsurfTCond'
@@ -2525,8 +2536,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
               "currently is Not support in this simulation."
         call printErrMsg(option)
     end select
-    patch => realization%patch
-    grid  => patch%grid
+    patch            => realization%patch
+    grid             => patch%grid
+    material_auxvars => patch%aux%Material%auxvars
+
 !-------------------------------------------------------------------------
 
     if (clm_pf_idata%nlpf_2dtop <= 0 .and. clm_pf_idata%ngpf_2dtop <= 0 ) return
@@ -2626,17 +2639,21 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         do iconn = 1, cur_connection_set%num_connections
           sum_connection = sum_connection + 1
 
+          local_id = cur_connection_set%id_dn(iconn)
+          ghosted_id = grid%nL2G(local_id)
+          if (patch%imat(ghosted_id) < 0) cycle
+
           if (source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == ENERGY_RATE_SS) then
 
             source_sink%flow_condition%energy_rate%dataset%rarray(1) = &
-                          gflux_subsurf_pf_loc(iconn)
+                          gflux_subsurf_pf_loc(iconn)*material_auxvars(ghosted_id)%volume
 
           else if (source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == HET_ENERGY_RATE_SS) then
 
             source_sink%flow_aux_real_var(TH_PRESSURE_DOF,iconn) = 0.d0
 
             source_sink%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
-                          gflux_subsurf_pf_loc(iconn)
+                          gflux_subsurf_pf_loc(iconn)*material_auxvars(ghosted_id)%volume
 
           end if
 
@@ -2647,17 +2664,21 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         do iconn = 1, cur_connection_set%num_connections
           sum_connection = sum_connection + 1
 
+          local_id = cur_connection_set%id_dn(iconn)
+          ghosted_id = grid%nL2G(local_id)
+          if (patch%imat(ghosted_id) < 0) cycle
+
           if (source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == ENERGY_RATE_SS) then
 
             source_sink%flow_condition%energy_rate%dataset%rarray(1) = &
-                          gflux_subbase_pf_loc(iconn)
+                          gflux_subbase_pf_loc(iconn)*material_auxvars(ghosted_id)%volume
 
           else if (source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == HET_ENERGY_RATE_SS) then
 
             source_sink%flow_aux_real_var(TH_PRESSURE_DOF,iconn) = 0.d0
 
             source_sink%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
-                          gflux_subbase_pf_loc(iconn)
+                          gflux_subbase_pf_loc(iconn)*material_auxvars(ghosted_id)%volume
 
           end if
 
