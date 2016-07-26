@@ -50,10 +50,25 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import sys
+
+# Default options:
+plot_flag = False
+print_error = True
+passing_crit = 2.  # [% error]
 
 # Option parameters:
-plot_flag = 0
-passing_crit = 2.
+options = sys.argv[1:]
+num_options = len(options)
+for n in options:
+  if n == 'print_error=false':
+    print_error = False
+  if n == 'print_error=true':
+    print_error = True
+  if n == 'plot_flag=false':
+    plot_flag = False
+  if n == 'plot_flag=true':
+    plot_flag = True
 
 # Create the analytical solution
 x_soln = np.array([0.,5.,15.,25.,35.,45.,55.,65.,75.,85.,95.])  # [m]
@@ -84,28 +99,31 @@ for i, line in enumerate(f):
 f.close()
 
 # Extract the temperature from the output string into an array
-x_pflotran = np.array([5.,15.,25.,35.,45.,55.,65.,75.,85.,95.])
 T_pflotran = np.array(temperature.split())
 T_pflotran = T_pflotran.astype(np.float)
+x_pflotran = np.array([5.,15.,25.,35.,45.,55.,65.,75.,85.,95.])
 
 # Add boundary temperature values
 x_pflotran = np.concatenate(([0.],x_pflotran),axis=0)
 T_pflotran = np.concatenate(([1.],T_pflotran),axis=0)
 
 # Plot the PFLOTRAN and analytical solutions
-if plot_flag == 1:
-  plt.plot(x_pflotran,T_pflotran,'o',x_soln,T_soln)
-  plt.xlabel('Distance (m)')
-  plt.ylabel('Temperature (C)')
-  plt.title('Analytical vs. PFLOTRAN Solution')
-  plt.legend(('PFLOTRAN','analytical'),'best',numpoints=1)
+plt.plot(x_pflotran,T_pflotran,'o',x_soln,T_soln)
+plt.xlabel('Distance (m)')
+plt.ylabel('Temperature (C)')
+plt.title('Analytical vs. PFLOTRAN Solution')
+plt.legend(('PFLOTRAN','analytical'),'best',numpoints=1)
+plt.savefig('comparison_plot.png')
+
+if plot_flag:
   plt.show()
 
 # Calculate error between analytical and PFLOTRAN solutions
 percent_error = 100.0*(T_pflotran-T_soln)/T_soln
 max_percent_error = np.nanmax(abs(percent_error))
-print 'Percent Error (temperature):'
-print percent_error
+if print_error:
+  print 'Percent Error (temperature):'
+  print percent_error
 print 'Maximum Error:'
 print max_percent_error
 

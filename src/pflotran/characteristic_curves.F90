@@ -29,7 +29,7 @@ module Characteristic_Curves_module
     procedure, public :: SetupPolynomials => SFBaseSetupPolynomials
     procedure, public :: CapillaryPressure => SFBaseCapillaryPressure
     procedure, public :: Saturation => SFBaseSaturation
-    !added ice pc
+    !added pc function if ice exists
     procedure, public :: IceCapillaryPressure => SF_Ice_CapillaryPressure
   end type sat_func_base_type
   ! Default
@@ -45,7 +45,6 @@ module Characteristic_Curves_module
   contains
     procedure, public :: Init => SF_VG_Init
     procedure, public :: Verify => SF_VG_Verify
-    procedure, public :: SetupPolynomials => SF_VG_SetupPolynomials
     procedure, public :: CapillaryPressure => SF_VG_CapillaryPressure
     procedure, public :: Saturation => SF_VG_Saturation
   end type sat_func_VG_type  
@@ -116,7 +115,6 @@ module Characteristic_Curves_module
     procedure, public :: Test => RPF_Base_Test
     procedure, public :: SetupPolynomials => RPFBaseSetupPolynomials
     procedure, public :: RelativePermeability => RPF_Base_RelPerm
-    procedure, public :: DRelPerm_DPressure => RPFBaseDRelPerm_DPressure
   end type rel_perm_func_base_type
   ! Default
   type, public, extends(rel_perm_func_base_type) :: rel_perm_func_default_type
@@ -372,6 +370,7 @@ module Characteristic_Curves_module
             RPF_BRAGFLO_KRP12_Liq_Create, &
             RPF_BRAGFLO_KRP12_Gas_Create, &
             PolynomialCreate
+
 contains
 
 ! ************************************************************************** !
@@ -731,11 +730,6 @@ subroutine SaturationFunctionRead(saturation_function,input,option)
 
   select type(sf => saturation_function)
     class is(sat_func_VG_type)
-      if (.not.smooth) then
-        option%io_buffer = 'van-Genuchten saturation function is being used ' // &
-          'without SMOOTH option.'
-        call printWrnMsg(option)
-      endif
     class is(sat_func_BC_type)
       if (.not.smooth) then
         option%io_buffer = 'Brooks-Corey saturation function is being used ' // &
@@ -2006,7 +2000,7 @@ end subroutine SFBaseTest
 ! ************************************************************************** !
 
 subroutine RPF_Base_RelPerm(this,liquid_saturation,relative_permeability, &
-                            dkr_Se,option)
+                            dkr_sat,option)
   use Option_module
 
   implicit none
@@ -2014,27 +2008,13 @@ subroutine RPF_Base_RelPerm(this,liquid_saturation,relative_permeability, &
   class(rel_perm_func_base_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   option%io_buffer = 'RPF_Base_RelPerm must be extended.'
   call printErrMsg(option)
   
 end subroutine RPF_Base_RelPerm
-
-! ************************************************************************** !
-
-PetscReal function RPFBaseDRelPerm_DPressure(this,ds_dp,dkr_dSe)
-
-  implicit none
-  
-  class(rel_perm_func_base_type) :: this
-  PetscReal, intent(in) :: ds_dp
-  PetscReal, intent(in) :: dkr_dSe
-
-  RPFBaseDRelPerm_DPressure = ds_dp/(1.d0-this%Sr)*dkr_dSe
-  
-end function RPFBaseDRelPerm_DPressure
 
 ! ************************************************************************** !
 
@@ -2187,7 +2167,7 @@ end subroutine RPFDefaultVerify
 ! ************************************************************************** !
 
 subroutine RPF_DefaultRelPerm(this,liquid_saturation,relative_permeability, &
-                            dkr_Se,option)
+                            dkr_sat,option)
   use Option_module
 
   implicit none
@@ -2195,7 +2175,7 @@ subroutine RPF_DefaultRelPerm(this,liquid_saturation,relative_permeability, &
   class(rel_perm_func_default_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   if (liquid_saturation < 1.d0) then
@@ -2209,17 +2189,17 @@ subroutine RPF_DefaultRelPerm(this,liquid_saturation,relative_permeability, &
 end subroutine RPF_DefaultRelPerm
 ! End Default Routines
 
-
 ! ************************************************************************** !
 
 subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
                                    ice_pc, dice_pc_dp, dice_pc_dt, option)
   !
   ! Computes the ice capillary_pressure as a function of Pres_l, Tc
-  ! Mainly from Painter et al. (2011), Painter-K et al. (2014), and other
+  ! Mainly from Painter et al. (2011), Painter and Karra (2014)
   !
   ! Author: Fengming Yuan
   !         Based on relevant saturation_functions by Satish K.
+  !         Revised with freezing-thawing zone smoothing following ATS algorithm
   ! Date: 06/01/2016
   !
   use Option_module
@@ -2236,19 +2216,23 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   PetscReal :: pcgl, pw, tk
   PetscBool :: saturated
 
-  PetscReal, parameter :: beta = 2.23d0           ! dimensionless -- ratio of soil ice surf. tension
+  PetscReal, parameter :: beta = 2.33d0           ! dimensionless -- ratio of soil ice surf. tension
   PetscReal, parameter :: T0   = 273.15d0         ! freezing-point at standard pressure: in K
   PetscReal, parameter :: Lf   = HEAT_OF_FUSION   ! fusion heat (in J/kg)
   PetscReal :: gamma, alpha, dalpha_drhol
   PetscReal :: rhol, drhol_dp, drhol_dt
+  PetscReal :: rhoi
 
   PetscReal :: Tf, dTf_dt, dTf_dp
   PetscReal :: tftheta, dtftheta_dt, dtftheta_dp
 
+  PetscReal :: denw_kg, denw_mol, ddenw_dp, ddenw_dt
 
   PetscReal :: Hfunc, dHfunc, tempreal
-
   PetscReal :: deltaTf, xTf, a, b, c
+  PetscReal :: beta2, T_star, T_star_th, T_star_min, T_star_max
+
+  PetscErrorCode :: ierr
 
   !---------------------
   !
@@ -2260,32 +2244,36 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
     saturated = PETSC_TRUE
   endif
 
-  tk = tc + T0
+  Tk = tc + T0
 
   ! if ice module turns on, 2-phase saturation recalculated (liq. and ice) under common 'pw' and 'tc'
   pw = max(option%reference_pressure, pres_l)
 
   ! --------------------
-#if 0
-  ! liq. water densities
-  call EOSWaterDensity(min(max(tc,-1.0d0),99.9d0), min(pw, 165.4d5),      &
-                          denw_kg, denw_mol, ddenw_dp, ddenw_dt, ierr)
-  if (.not.saturated) ddenw_dp = 0.d0
-  if (pw>165.4d5+erf(165.4d5)) ddenw_dp = 0.d0
-  if (tc<-1.d0+erf(-1.d0) .or. tc>99.9d0+erf(99.9d0)) ddenw_dt = 0.d0
 
-  ! fmy: added, but test shows NOT work well
-  rhol     = denw_mol*FMWH2O    ! kg/m3: kmol/m3*kg/kmol
-  drhol_dp = ddenw_dp*FMWH2O
-  drhol_dt = ddenw_dt*FMWH2O
-
-#else
   ! constant 'rhol'
   rhol     = 999.8d0            ! kg/m3: kmol/m3*kg/kmol
   drhol_dp = 0.d0
   drhol_dt = 0.d0
+
+#if 0
+  ! liq. water density as function of P/T
+  call EOSWaterDensity(min(max(tc,-1.0d0),99.9d0), min(pw, 165.4d5),      &
+                          denw_kg, denw_mol, ddenw_dp, ddenw_dt, ierr)
+  if (.not.saturated) ddenw_dp = 0.d0
+  if (pw>165.4d5+erf(1.d-20)) ddenw_dp = 0.d0
+  if (tc<-1.d0+erf(-1.d-20) .or. tc>99.9d0+erf(1.d-20)) ddenw_dt = 0.d0
+
+  ! fmy: added, but test shows NOT work well.
+  !  further checking needed.
+  rhol     = denw_mol*FMWH2O    ! kg/m3: kmol/m3*kg/kmol
+  drhol_dp = ddenw_dp*FMWH2O
+  drhol_dt = ddenw_dt*FMWH2O
+
 #endif
 
+  ! constant 'rhoi' (for ice)
+  rhoi    = 916.7d0             ! kg/m3 at 273.15K
 
   if (option%use_th_freezing) then
 
@@ -2297,18 +2285,39 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
     dTf_dt = pcgl/alpha/alpha*(dalpha_drhol*drhol_dt)
     dTf_dp = (pcgl*dalpha_drhol*drhol_dp - alpha)/alpha/alpha   ! dpcgl_dp = 1.0
 
-    select case (option%ice_model)
-      case (PAINTER_KARRA_EXPLICIT)
-        ! explicit model from Painter & Karra, VJZ (2014)
+    xTf = Tk - T0
 
-        tftheta = (Tk-T0)/T0                              ! P.-K. Eq.(18): theta: (Tk-T0)/T0, assuming Tf~T0 (ignored FP depression) in Eq. (12)
+    select case (option%ice_model)
+
+      case (PAINTER_EXPLICIT)
+
+        ! explicit model from Painter (Comp. Geosci, 2011)
+        ice_pc = pcgl
+        dice_pc_dt = 0.d0
+        dice_pc_dp = 1.d0
+
+        if(tc<0.d0) then
+
+          ice_pc = rhoi*beta*Lf*(-tc)/T0
+          dice_pc_dt = -rhoi*beta*Lf/T0
+          dice_pc_dp = 0.d0
+
+        endif
+
+      case (PAINTER_KARRA_EXPLICIT)
+
+        ! The following is a slightly-modified version from PKE in saturation_function module
+        ! without smoothing of freezing-thawing zone
+
+        ! explicit model from Painter & Karra, VJZ (2014)
+        tftheta = xTf/T0                              ! P.-K. Eq.(18): theta: (Tk-T0)/T0, assuming Tf~T0 (ignored FP depression) in Eq. (12)
         dtftheta_dt = 1.0d0/T0
         dtftheta_dp = 0.d0
 
         Hfunc = sign(0.5d0, -(Tk-Tf))+0.5d0               ! Heaviside function to truncate Eq. (18)
         dHfunc = 0.d0                                     ! in case that smoothing added in future
 
-        ice_pc = -gamma * rhol*tftheta * Hfunc                   ! P.-K. Eq.(18), first term (i.e. ice only)
+        ice_pc = -gamma * rhol*tftheta * Hfunc            ! P.-K. Eq.(18), first term (i.e. ice only)
         !
         tempreal   = rhol*dtftheta_dt+tftheta*drhol_dt
         tempreal   = tempreal*Hfunc + (tftheta*rhol)*dHfunc
@@ -2318,23 +2327,97 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
         tempreal   = tempreal*Hfunc + (tftheta*rhol)*dHfunc
         dice_pc_dp = -gamma * tempreal
 
-!#if 0
-        ! smoothing 'ice_pc' when Tk ranging within deltaTf of Tf
-        deltaTf = 0.1d0
-        xTf = Tk - T0
-        if (abs(Tk-Tf)<=deltaTf) then
-          a = alpha*deltaTf/4.0d0
-          b = -alpha/2.0d0
-          c = alpha/4.0d0/deltaTf
+        ! using trunction function to smoothly (mathematically) transit from PCice to PCliq
+        ! this way will avoid mathematical inconsistency when using direct trunction like ">" or "<"
 
-          ice_pc = a + b * xTf + c * xTf*xTf
-          dice_pc_dt = b + 2.0d0 * c * xTf
-          dice_pc_dp = 0.d0
+        dice_pc_dt =  dice_pc_dt               &
+                    + pcgl*(-dHfunc)
+        dice_pc_dp =  dice_pc_dp               &
+                    + pcgl*(-dHfunc)           &
+                    + (1.d0-Hfunc)                ! dpcgl_dp = 1.0
 
+        ice_pc     =   ice_pc                  &                        ! P.-K. Eq.(18), first term (i.e. ice only)
+                     + pcgl * (1.d0 - Hfunc)                            ! second term, with Hfunc as trunction function
+
+      case (PAINTER_KARRA_EXPLICIT_SMOOTH)
+
+        ! smoothing 'ice_pc' when Tk ranging within deltaTf of T0, from PKE's PCice to 0.0
+        ! from ATS, authored by Scott Painter et al.
+        !
+        deltaTf = 1.0d-50              ! half-width of smoothing zone (by default, nearly NO smoothing)
+        if(option%frzthw_halfwidth /= UNINITIALIZED_DOUBLE) deltaTf = option%frzthw_halfwidth
+
+        dice_pc_dp = 0.d0              ! assuming that PCice not variable with 'pcgl' when iced.
+        if (abs(xTf)<deltaTf) then
+          a = deltaTf/4.0d0
+          b = -0.5d0
+          c = 0.25d0/deltaTf
+
+          tempreal   = a+b*xTf+c*xTf*xTf
+          ice_pc     = alpha*tempreal
+          dice_pc_dt = alpha*(b+2.0d0*c*xTf) + &
+                       dalpha_drhol*drhol_dt*tempreal        ! in case we need this later
+
+          !
+
+        elseif(xTf<-deltaTf) then
+          ice_pc = -alpha * xTf
+          dice_pc_dt = -alpha - &
+                       dalpha_drhol*drhol_dt*xTf             ! in case we need this later
+
+        else
+          ice_pc     = 0.d0
+          dice_pc_dt = 0.d0
         endif
-!#endif
+
+        ! PCice above are from '-alpha * xTf' to 0.0 ending @T0+deltaTf, so the following will be adding pcgl to avoid negetative ice saturation
+        ice_pc     =  ice_pc + pcgl
+        dice_pc_dp =  dice_pc_dp + 1.d0           ! dpcgl_dp = 1.0 and dpcgl_dt = 0
+
+      case (DALL_AMICO)
+
+        ! Model from Dall'Amico (2010) and Dall' Amico et al. (2011)
+        ! rewritten following 'saturation_function.F90:SatFuncComputeIceDallAmico()'
+        ! NOTE: here only calculate Pc1 and its derivatives
+        ice_pc = pcgl
+        dice_pc_dt = 0.d0
+        dice_pc_dp = 1.d0
+
+        !
+        T_star_th  = 5.d-1                       ! unit: Kevin
+        beta2      = 1.d0   !beta                  ! NOT sure why changed to 1. in saturation_function.F90.
+
+        T_star = T0-1.d0/beta2/Lf/rhol*pcgl !Tf  ! 'T_star' should be Tf as calculated above, when using same CONSTANTS
+        T_star_min = T_star - T_star_th
+        T_star_max = T_star
+
+        ! H function
+        if (Tk<T_star_min) then
+          Hfunc = 1.0d0
+          dHfunc= 0.d0
+        else if (Tk>T_star_max) then
+          Hfunc = 0.0d0
+          dHfunc= 0.d0
+        else
+          tempreal = (Tk-T_star_min)/(T_star_max-T_star_min)
+          tempreal = 1.d0 - tempreal*tempreal
+          Hfunc = tempreal * tempreal
+          dHfunc= -4.0d0*tempreal &
+                  *(Tk-T_star_min)/(T_star_max-T_star_min)/(T_star_max-T_star_min)
+        endif
+
+        !
+        ice_pc     = pcgl - beta2 *  (Tk-T_star)/T_star *Lf*rhol * Hfunc
+        dice_pc_dt = -beta2/T_star*Lf*rhol*        &
+                     (Hfunc + (Tk-T_star)*dHfunc)    ! dT_star/dt = 0.d0
+        dice_pc_dp = 1.0d0 - Tk/T_star/T_star*Hfunc  ! dT_star/dp = -1.d0/beta2/Lf/rhol
+
       case default
-        option%io_buffer = 'SF_Ice_CapillaryPressure: characteristic-curve now only support ice-model: PAINTER_KARRA_EXPLICIT.'
+        option%io_buffer = 'SF_Ice_CapillaryPressure: characteristic-curve now only support ice-model: ' // &
+          'PAINTER_KARRA_EXPLICIT, or PAINTER_KARRA_EXPLICIT_SMOOTH, or ' // &
+          'PAINTER_EXPLICIT, or ' // &
+          'DALL_AMICO '
+
         call printErrMsg(option)
 
     end select ! select case (option%ice_model)
@@ -2347,9 +2430,6 @@ subroutine SF_Ice_CapillaryPressure(this, pres_l, tc, &
   endif ! 'option%use_th_freezing'
 
 end subroutine SF_Ice_CapillaryPressure
-
-! ************************************************************************** !
-
 
 ! ************************************************************************** !
 
@@ -2415,48 +2495,6 @@ subroutine SF_VG_Verify(this,name,option)
 end subroutine SF_VG_Verify
 
 ! ************************************************************************** !
-subroutine SF_VG_SetupPolynomials(this,option,error_string)
-
-  ! Sets up polynomials for smoothing Van Genuchten saturation function
-
-  use Option_module
-  use Utility_module
-
-  implicit none
-
-  class(sat_func_VG_type) :: this
-  type(option_type) :: option
-  character(len=MAXSTRINGLENGTH) :: error_string
-
-  PetscReal :: low, high, sat, dsat
-  PetscReal :: b(4)
-
-  !fmy: tests don't indicate that wet-end smoothing is necessary for VG function (???).
-  !WET-end of retention curve
-  if(associated(this%pres_poly)) then
-    deallocate(this%pres_poly)
-    nullify(this%pres_poly)
-  endif
-
-  low  = 0.d0  ! saturated
-  high = 0.01d0*option%reference_pressure  ! just below saturated
-
-  call SF_VG_Saturation(this, high, sat, dsat, option)
-  b(1) = sat
-  b(2) = 1.d0
-  b(3) = dsat
-  b(4) = 0.d0
-
-  call CubicPolynomialSetup(high,low,b)
-
-  this%pres_poly => PolynomialCreate()
-  this%pres_poly%low = low
-  this%pres_poly%high = high
-  this%pres_poly%coefficients(1:4) = b(1:4)
-
-end subroutine SF_VG_SetupPolynomials
-
-! ************************************************************************** !
 
 subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
                                    capillary_pressure,option)
@@ -2485,9 +2523,6 @@ subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
   PetscReal :: one_plus_pc_alpha_n
   PetscReal :: pc_alpha_n
   PetscReal :: pc_alpha
-#ifdef smoothing2
-  PetscReal :: Hfunc, x, dx, delta, sharpness
-#endif
 
   if (liquid_saturation <= this%Sr) then
     capillary_pressure = this%pcmax
@@ -2510,32 +2545,6 @@ subroutine SF_VG_CapillaryPressure(this,liquid_saturation, &
 #endif
 
   capillary_pressure = min(capillary_pressure,this%pcmax)
-
-#ifdef smoothing2
-  ! fmy: by VG function, mathemaatically @Sr, pc = infinity
-  !      So, @pcmax, S is not necessarily equaled to Sr, and requiring smoothing
-
-
-  ! the following is an smoothed (approxmatation) Heaviside function
-    ! Hfunc  = 0.5d0+0.5d0*tanh(x), where x = (Sat-(Sr+delta)))*sharpness
-    ! function primarily works: Sr+2*delta (~1.0) --> Sr+delta (~0.5) --> Sr(~1.d-10)
-    ! 'sat_poly%coefficients(2)' ~ saturation @ pressure lower than pcmax for starting point to smooth
-  delta   = this%pcmax/10.0d0           ! pc@0.5*(S-Sr) + 0.5*Sr
-  call SF_VG_Saturation(this, delta, x, dx, option)
-  delta = x-this%Sr
-  x = 1.d-10/0.5d0-1.d0
-  x = atanh(x)               ! 'atanh()' requires FORTRAN 2008 and later
-  sharpness = -x/delta
-
-  x = (liquid_Saturation-(this%Sr+delta))*sharpness
-  Hfunc = 0.5d0+0.50d0*tanh(x)
-
-  capillary_pressure = capillary_pressure*Hfunc + this%pcmax * (1.d0-Hfunc)
-
-#endif
-
-  ! notes by fmy @Mar-30-2016: this function appears NOT called anywhere by this moment (????)
-  !        @May-05-2016: it's used when doing regression-tests of 'toil_ims' and 'general/liquid_gas.in'
 
 end subroutine SF_VG_CapillaryPressure
 
@@ -2597,7 +2606,7 @@ subroutine SF_VG_Saturation(this,capillary_pressure,liquid_saturation, &
     pc_alpha = capillary_pressure*this%alpha
     pc_alpha_n = pc_alpha**n
     !geh:  This conditional does not catch potential cancelation in 
-    !      the dkr_Se deriviative calculation.  Therefore, I am setting
+    !      the dkr_sat deriviative calculation.  Therefore, I am setting
     !      an epsilon here
     !   if (1.d0 + pc_alpha_n == 1.d0) then ! check for zero perturbation
     if (pc_alpha_n < pc_alpha_n_epsilon) then 
@@ -2700,6 +2709,7 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
 
   ! polynomial fitting pc as a function of saturation
   ! 1.05 is essentially pc*alpha (i.e. pc = 1.05/alpha)
+  if (associated(this%sat_poly)) call PolynomialDestroy(this%sat_poly)
   this%sat_poly => PolynomialCreate()
   this%sat_poly%low = 1.05d0**(-this%lambda)
   this%sat_poly%high = 1.d0
@@ -2728,6 +2738,7 @@ subroutine SF_BC_SetupPolynomials(this,option,error_string)
   !     since it can result in saturations > 1 with both
   !     quadratic and cubic polynomials
   ! fill matix with values
+  if (associated(this%pres_poly)) call PolynomialDestroy(this%pres_poly)
   this%pres_poly => PolynomialCreate()
   this%pres_poly%low = 0.95/this%alpha
   this%pres_poly%high = 1.05/this%alpha
@@ -2805,7 +2816,7 @@ subroutine SF_BC_CapillaryPressure(this,liquid_saturation, &
 #endif  
 
   capillary_pressure = min(capillary_pressure,this%pcmax)
-  
+
 end subroutine SF_BC_CapillaryPressure
 
 ! ************************************************************************** !
@@ -2861,12 +2872,20 @@ subroutine SF_BC_Saturation(this,capillary_pressure,liquid_saturation, &
     endif
   endif
 
-  pc_alpha_neg_lambda = (capillary_pressure*this%alpha)**(-this%lambda)
-  Se = pc_alpha_neg_lambda
-  dSe_dpc = -this%lambda/capillary_pressure*pc_alpha_neg_lambda
-  liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
-  dsat_dpres = -(1.d0-this%Sr)*dSe_dpc
+  if (capillary_pressure < this%pcmax) then
+
+    pc_alpha_neg_lambda = (capillary_pressure*this%alpha)**(-this%lambda)
+    Se = pc_alpha_neg_lambda
+    dSe_dpc = -this%lambda/capillary_pressure*pc_alpha_neg_lambda
+    liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+    dsat_dpres = -(1.d0-this%Sr)*dSe_dpc
   
+  else
+    Se = (this%pcmax*this%alpha)**(-this%lambda)
+    liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
+    dsat_dpres = 0.d0
+  endif
+
 end subroutine SF_BC_Saturation
 ! End SF: Brooks-Corey
 
@@ -3630,8 +3649,8 @@ subroutine RPF_Mualem_SetupPolynomials(this,option,error_string)
   PetscReal :: se_low, se_high, S, rpf, drpf
 
   ! WET-end of perm-sat curve
+  if(associated(this%poly)) call PolynomialDestroy(this%poly)  ! just in case, which will invalidate the calling of RPF function
 
-  if(associated(this%poly)) deallocate(this%poly)  ! just in case, which will invalidate the calling of RPF function
   ! b(1:2): RPFs values for effective saturation interval ('high' -> 'low') to be interpolated
   ! b(3:4): RPFs derivatives for effective saturation interval ('high' -> 'low') to be interpolated
   se_low  = 0.99d0        ! just below saturated
@@ -3655,7 +3674,7 @@ subroutine RPF_Mualem_SetupPolynomials(this,option,error_string)
 
   ! DRY-end of perm-sat curve
 
-  if(associated(this%poly2)) deallocate(this%poly2)  ! just in case, which will invalidate the calling of RPF function
+  if(associated(this%poly2)) call PolynomialDestroy(this%poly)  ! just in case, which will invalidate the calling of RPF function
   ! b(1:2): RPFs values for effective saturation interval ('high' -> 'low') to be interpolated
   ! b(3:4): RPFs derivatives for effective saturation interval ('high' -> 'low') to be interpolated
   se_low  = 0.00d0        !
@@ -3679,6 +3698,7 @@ subroutine RPF_Mualem_SetupPolynomials(this,option,error_string)
 
 #else
 
+  if (associated(this%poly)) call PolynomialDestroy(this%poly)
   this%poly => PolynomialCreate()
   ! fill matix with values
   this%poly%low = 0.99d0  ! just below saturated
@@ -3706,7 +3726,7 @@ end subroutine RPF_Mualem_SetupPolynomials
 ! ************************************************************************** !
 
 subroutine RPF_Mualem_VG_Liq_RelPerm(this,liquid_saturation, &
-                              relative_permeability,dkr_Se,option)
+                              relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -3727,15 +3747,17 @@ subroutine RPF_Mualem_VG_Liq_RelPerm(this,liquid_saturation, &
   class(rpf_Mualem_VG_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
   PetscReal :: one_over_m
   PetscReal :: Se_one_over_m
+  PetscReal :: dkr_Se
+  PetscReal :: dSe_sat
 
   relative_permeability = 0.d0
-  dkr_Se = 0.d0
+  dkr_sat = 0.d0
   
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
   if (Se >= 1.d0) then
@@ -3773,6 +3795,8 @@ subroutine RPF_Mualem_VG_Liq_RelPerm(this,liquid_saturation, &
             2.d0*Se**(one_over_m-0.5d0)* &
                 (1.d0-Se_one_over_m)**(this%m-1.d0)* &
                 (1.d0-(1.d0-Se_one_over_m)**this%m)
+  dSe_sat = 1.d0 / (1.d0 - this%Sr)
+  dkr_sat = dkr_Se * dSe_sat
   
 end subroutine RPF_Mualem_VG_Liq_RelPerm
 ! End RPF: Mualem, Van Genuchten (Liquid)
@@ -3839,7 +3863,7 @@ end subroutine RPF_Mualem_VG_Gas_Verify
 ! ************************************************************************** !
 
 subroutine RPF_Mualem_VG_Gas_RelPerm(this,liquid_saturation, &
-                                     relative_permeability,dkr_Se,option)
+                                     relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -3859,16 +3883,18 @@ subroutine RPF_Mualem_VG_Gas_RelPerm(this,liquid_saturation, &
   class(rpf_Mualem_VG_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
   PetscReal :: Seg
+  PetscReal :: dkr_Se
+  PetscReal :: dSe_sat
   
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
   
   relative_permeability = 0.d0
-  dkr_Se = UNINITIALIZED_DOUBLE
+  dkr_sat = UNINITIALIZED_DOUBLE
   if (Se >= 1.d0) then
     relative_permeability = 0.d0
     return
@@ -3883,6 +3909,8 @@ subroutine RPF_Mualem_VG_Gas_RelPerm(this,liquid_saturation, &
   dkr_Se = -(1.d0-Se**(1.d0/this%m))**(2.d0*this%m)/(2.d0*sqrt(Seg)) &
           - 2.d0*sqrt(Seg)*Se**(1.d0/this%m-1.d0) &
           * (1.d0-Se**(1.d0/this%m))**(2.d0*this%m-1.d0)
+  dSe_sat = 1.d0 / (1.d0 - this%Sr - this%Srg)
+  dkr_sat = dkr_Se * dSe_sat
   
 end subroutine RPF_Mualem_VG_Gas_RelPerm
 ! End RPF: Mualem, Van Genuchten (Gas)
@@ -3949,7 +3977,7 @@ end subroutine RPF_TOUGH2_IRP7_Gas_Verify
 ! ************************************************************************** !
 
 subroutine RPF_TOUGH2_IRP7_Gas_RelPerm(this,liquid_saturation, &
-                                       relative_permeability,dkr_Se,option)
+                                       relative_permeability,dkr_sat,option)
   ! 
   ! TOUGH2 IRP(7) equations from Appendix G of TOUGH2 user manual
   !
@@ -3960,22 +3988,26 @@ subroutine RPF_TOUGH2_IRP7_Gas_RelPerm(this,liquid_saturation, &
   class(rpf_TOUGH2_IRP7_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: liquid_relative_permeability
-  PetscReal :: liquid_dkr_Se
+  PetscReal :: liquid_dkr_sat
   PetscReal :: Se
   PetscReal :: Seg
+  PetscReal :: dkr_Se
+  PetscReal :: dSe_sat
 
   relative_permeability = 0.d0
-  dkr_Se = UNINITIALIZED_DOUBLE
+  dkr_sat = 0.d0
+  dkr_sat = dkr_sat / 0.d0
+  dkr_sat = dkr_sat * 0.d0
   
                  ! essentially zero
   if (this%Srg <= 0.d0) then
     call RPF_Mualem_VG_Liq_RelPerm(this,liquid_saturation, &
                             liquid_relative_permeability, &
-                            liquid_dkr_Se,option)
+                            liquid_dkr_sat,option)
     relative_permeability = 1.d0 - liquid_relative_permeability
     return
   endif  
@@ -3988,6 +4020,8 @@ subroutine RPF_TOUGH2_IRP7_Gas_RelPerm(this,liquid_saturation, &
     relative_permeability = Seg**2*(1.d0-Se*Se)
     ! Mathematica Analytical solution (Heeho Park)
     dkr_Se = -2.d0*Seg**2.d0*Se - 2.d0*Seg*(1.d0-Se**2.d0)
+    dSe_sat = 1.d0 / (1.d0 - this%Sr - this%Srg)
+    dkr_sat = dkr_Se * dSe_sat
   endif
     
 end subroutine RPF_TOUGH2_IRP7_Gas_RelPerm
@@ -4056,7 +4090,7 @@ end subroutine RPF_Burdine_BC_Liq_Verify
 ! ************************************************************************** !
 
 subroutine RPF_Burdine_BC_Liq_RelPerm(this,liquid_saturation, &
-                              relative_permeability,dkr_Se,option)
+                              relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -4076,14 +4110,16 @@ subroutine RPF_Burdine_BC_Liq_RelPerm(this,liquid_saturation, &
   class(rpf_Burdine_BC_Liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
   PetscReal :: power
+  PetscReal :: dkr_Se
+  PetscReal :: dSe_sat
 
   relative_permeability = 0.d0
-  dkr_Se = 0.d0
+  dkr_sat = 0.d0
   
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
   if (Se >= 1.d0) then
@@ -4098,6 +4134,8 @@ subroutine RPF_Burdine_BC_Liq_RelPerm(this,liquid_saturation, &
   power = 3.d0+2.d0/this%lambda
   relative_permeability = Se**power
   dkr_Se = power*relative_permeability/Se          
+  dSe_sat = 1.d0 / (1.d0 - this%Sr)
+  dkr_sat = dkr_Se * dSe_sat
   
 end subroutine RPF_Burdine_BC_Liq_RelPerm
 ! End RPF: Burdine, Brooks-Corey (Liquid)
@@ -4165,7 +4203,7 @@ end subroutine RPF_Burdine_BC_Gas_Verify
 ! ************************************************************************** !
 
 subroutine RPF_Burdine_BC_Gas_RelPerm(this,liquid_saturation, &
-                                     relative_permeability,dkr_Se,option)
+                                     relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -4185,16 +4223,18 @@ subroutine RPF_Burdine_BC_Gas_RelPerm(this,liquid_saturation, &
   class(rpf_Burdine_BC_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
   PetscReal :: Seg
+  PetscReal :: dkr_Se
+  PetscReal :: dSe_sat
   
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
   
   relative_permeability = 0.d0
-  dkr_Se = UNINITIALIZED_DOUBLE
+  dkr_sat = UNINITIALIZED_DOUBLE
   if (Se >= 1.d0) then
     relative_permeability = 0.d0
     return
@@ -4209,6 +4249,8 @@ subroutine RPF_Burdine_BC_Gas_RelPerm(this,liquid_saturation, &
   ! Mathematica Analytical solution (Heeho Park)
   dkr_Se = -(1.d0+2.d0/this%lambda)*Seg**2.d0*Se**(2.d0/this%lambda) &
            - 2.d0*Seg*(1.d0-Se**(1.d0+2.d0/this%lambda))
+  dSe_sat = 1.d0 / (1.d0 - this%Sr - this%Srg)
+  dkr_sat = dkr_Se * dSe_sat
   
 end subroutine RPF_Burdine_BC_Gas_RelPerm
 ! End RPF: Burdine, Brooks-Corey (Gas)
@@ -4277,7 +4319,7 @@ end subroutine RPF_Mualem_BC_Liq_Verify
 ! ************************************************************************** !
 
 subroutine RPF_Mualem_BC_Liq_RelPerm(this,liquid_saturation, &
-                              relative_permeability,dkr_Se,option)
+                              relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -4297,14 +4339,16 @@ subroutine RPF_Mualem_BC_Liq_RelPerm(this,liquid_saturation, &
   class(rpf_Mualem_BC_Liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
   PetscReal :: power
+  PetscReal :: dkr_Se
+  PetscReal :: dSe_sat
 
   relative_permeability = 0.d0
-  dkr_Se = 0.d0
+  dkr_sat = 0.d0
   
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
   if (Se >= 1.d0) then
@@ -4319,7 +4363,9 @@ subroutine RPF_Mualem_BC_Liq_RelPerm(this,liquid_saturation, &
   power = 2.5d0+2.d0/this%lambda
   relative_permeability = Se**power
   dkr_Se = power*relative_permeability/Se          
-  
+  dSe_sat = 1.d0 / (1.d0 - this%Sr)
+  dkr_sat = dkr_Se * dSe_sat 
+
 end subroutine RPF_Mualem_BC_Liq_RelPerm
 ! End RPF: Mualem, Brooks-Corey (Liq)
 
@@ -4385,7 +4431,7 @@ end subroutine RPF_Mualem_BC_Gas_Verify
 ! ************************************************************************** !
 
 subroutine RPF_Mualem_BC_Gas_RelPerm(this,liquid_saturation, &
-                                       relative_permeability,dkr_Se,option)
+                                       relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -4405,16 +4451,18 @@ subroutine RPF_Mualem_BC_Gas_RelPerm(this,liquid_saturation, &
   class(rpf_Mualem_BC_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
   PetscReal :: Seg
+  PetscReal :: dkr_Se
+  PetscReal :: dSe_sat
   
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
   
   relative_permeability = 0.d0
-  dkr_Se = UNINITIALIZED_DOUBLE
+  dkr_sat = UNINITIALIZED_DOUBLE
   if (Se >= 1.d0) then
     relative_permeability = 0.d0
     return
@@ -4431,6 +4479,8 @@ subroutine RPF_Mualem_BC_Gas_RelPerm(this,liquid_saturation, &
   dkr_Se = -2.d0*(1.d0+1.d0/this%lambda)*sqrt(Seg)*Se**(1.d0/this%lambda) &
           * (1.d0-Se**(1.d0+1.d0/this%lambda)) &
           - (1.d0-Se**(1.d0+1.d0/this%lambda))**2.d0/(2.d0*sqrt(Seg))
+  dSe_sat = 1.d0 / (1.d0 - this%Sr - this%Srg)
+  dkr_sat = dkr_Se * dSe_sat
   
 end subroutine RPF_Mualem_BC_Gas_RelPerm
 ! End RPF: Mualem, Brooks-Corey (Gas)
@@ -4496,7 +4546,7 @@ end subroutine RPF_Burdine_VG_Liq_Verify
 ! ************************************************************************** !
 
 subroutine RPF_Burdine_VG_Liq_RelPerm(this,liquid_saturation, &
-                              relative_permeability,dkr_Se,option)
+                              relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -4517,15 +4567,17 @@ subroutine RPF_Burdine_VG_Liq_RelPerm(this,liquid_saturation, &
   class(rpf_Burdine_VG_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
   PetscReal :: one_over_m
   PetscReal :: Se_one_over_m
+  PetscReal :: dkr_Se
+  PetscReal :: dSe_sat
 
   relative_permeability = 0.d0
-  dkr_Se = 0.d0
+  dkr_sat = 0.d0
   
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
   if (Se >= 1.d0) then
@@ -4541,6 +4593,8 @@ subroutine RPF_Burdine_VG_Liq_RelPerm(this,liquid_saturation, &
   relative_permeability = Se*Se*(1.d0-(1.d0-Se_one_over_m)**this%m)
   dkr_Se = 2.d0*relative_permeability/Se + &
                  Se*Se_one_over_m*(1.d0-Se_one_over_m)**(this%m-1.d0)
+  dSe_sat = 1.d0 / (1.d0 - this%Sr)
+  dkr_sat = dkr_Se * dSe_sat
   
 end subroutine RPF_Burdine_VG_Liq_RelPerm
 ! End RPF: Burdine, Van Genuchten (Liq)
@@ -4607,7 +4661,7 @@ end subroutine RPF_Burdine_VG_Gas_Verify
 ! ************************************************************************** !
 
 subroutine RPF_Burdine_VG_Gas_RelPerm(this,liquid_saturation, &
-                                     relative_permeability,dkr_Se,option)
+                                     relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -4627,16 +4681,18 @@ subroutine RPF_Burdine_VG_Gas_RelPerm(this,liquid_saturation, &
   class(rpf_Burdine_VG_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
   PetscReal :: Seg
-  
-  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
+  PetscReal :: dkr_Se
+  PetscReal :: dSe_sat
   
   relative_permeability = 0.d0
-  dkr_Se = UNINITIALIZED_DOUBLE
+  dkr_sat = 0.d0
+
+  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
   if (Se >= 1.d0) then
     relative_permeability = 0.d0
     return
@@ -4651,6 +4707,8 @@ subroutine RPF_Burdine_VG_Gas_RelPerm(this,liquid_saturation, &
   dkr_Se = -Seg**2.d0*Se**(1.d0/this%m-1.d0) &
           *(1.d0-Se**(1.d0/this%m))**(this%m-1.d0) &
           - 2.d0*Seg*(1.d0-Se**(1.d0/this%m))**this%m
+  dSe_sat = 1.d0 / (1.d0 - this%Sr - this%Srg)
+  dkr_sat = dkr_Se * dSe_sat
   
 end subroutine RPF_Burdine_VG_Gas_RelPerm
 ! End RPF: Burdine, Van Genuchten (Gas)
@@ -4722,7 +4780,7 @@ end subroutine RPF_Mualem_Linear_Liq_Verify
 ! ************************************************************************** !
 
 subroutine RPF_Mualem_Linear_Liq_RelPerm(this,liquid_saturation, &
-                              relative_permeability,dkr_Se,option)
+                              relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -4739,7 +4797,7 @@ subroutine RPF_Mualem_Linear_Liq_RelPerm(this,liquid_saturation, &
   class(rpf_Mualem_Linear_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
@@ -4747,10 +4805,11 @@ subroutine RPF_Mualem_Linear_Liq_RelPerm(this,liquid_saturation, &
   PetscReal :: pct_over_pcmax
   PetscReal :: pc_over_pcmax
   PetscReal :: pc_log_ratio
+  PetscReal :: dkr_Se
+  PetscReal :: dSe_sat
   
   relative_permeability = 0.d0
-  dkr_Se = 0.d0
-
+  dkr_sat = 0.d0
   
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
   if (Se >= 1.d0) then
@@ -4777,6 +4836,8 @@ subroutine RPF_Mualem_Linear_Liq_RelPerm(this,liquid_saturation, &
   dkr_Se = 2.d0*(-1.d0+pct_over_pcmax)*sqrt(Se)* log(pc_over_pcmax) / &
     (pc_over_pcmax*log(pct_over_pcmax)**2.d0) + &
     log(pc_over_pcmax)**2.d0 / (2.d0*sqrt(Se)*log(pct_over_pcmax)**2.d0)
+  dSe_sat = 1.d0 / (1.d0 - this%Sr)
+  dkr_sat = dkr_Se * dSe_sat
          
 end subroutine RPF_Mualem_Linear_Liq_RelPerm
 ! End RPF: Mualem, Linear (Liquid)
@@ -4853,7 +4914,7 @@ end subroutine RPF_Mualem_Linear_Gas_Verify
 ! ************************************************************************** !
 
 subroutine RPF_Mualem_Linear_Gas_RelPerm(this,liquid_saturation, &
-                                     relative_permeability,dkr_Se,option)
+                                     relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -4870,22 +4931,25 @@ subroutine RPF_Mualem_Linear_Gas_RelPerm(this,liquid_saturation, &
   class(rpf_Mualem_Linear_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
   PetscReal :: Seg
   PetscReal :: liquid_relative_permeability
-  PetscReal :: liquid_dkr_Se
+  PetscReal :: liquid_dkr_sat
   
   call RPF_Mualem_Linear_Liq_RelPerm(this,liquid_saturation, &
                         liquid_relative_permeability, &
-                        liquid_dkr_Se,option)
-  
-  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
+                        liquid_dkr_sat,option)
   
   relative_permeability = 0.d0
-  dkr_Se = UNINITIALIZED_DOUBLE
+  ! initialize to derivative to NaN so that not mistakenly used.
+  dkr_sat = 0.d0
+  dkr_sat = dkr_sat / 0.d0
+  dkr_sat = dkr_sat * 0.d0
+
+  Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
   if (Se >= 1.d0) then
     relative_permeability = 0.d0
     return
@@ -4959,7 +5023,7 @@ end subroutine RPF_Burdine_Linear_Liq_Verify
 ! ************************************************************************** !
 
 subroutine RPF_Burdine_Linear_Liq_RelPerm(this,liquid_saturation, &
-                              relative_permeability,dkr_Se,option)
+                              relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -4977,7 +5041,7 @@ subroutine RPF_Burdine_Linear_Liq_RelPerm(this,liquid_saturation, &
   class(rpf_Burdine_Linear_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
@@ -4985,7 +5049,7 @@ subroutine RPF_Burdine_Linear_Liq_RelPerm(this,liquid_saturation, &
   PetscReal :: Se_one_over_m
   
   relative_permeability = 0.d0
-  dkr_Se = 0.d0
+  dkr_sat = 0.d0
   
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
   if (Se >= 1.d0) then
@@ -4997,7 +5061,7 @@ subroutine RPF_Burdine_Linear_Liq_RelPerm(this,liquid_saturation, &
   endif
   
   relative_permeability = Se
-  dkr_Se = 1.d0
+  dkr_sat = 1.d0 / (1.d0 - this%Sr)
   
 end subroutine RPF_Burdine_Linear_Liq_RelPerm
 ! End RPF: Burdine, Linear (Liquid)
@@ -5064,7 +5128,7 @@ end subroutine RPF_Burdine_Linear_Gas_Verify
 ! ************************************************************************** !
 
 subroutine RPF_Burdine_Linear_Gas_RelPerm(this,liquid_saturation, &
-                                     relative_permeability,dkr_Se,option)
+                                     relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -5082,18 +5146,20 @@ subroutine RPF_Burdine_Linear_Gas_RelPerm(this,liquid_saturation, &
   class(rpf_Burdine_Linear_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
   PetscReal :: Seg
   PetscReal :: liquid_relative_permeability
-  PetscReal :: liquid_dkr_Se
+  PetscReal :: liquid_dkr_sat
+  PetscReal :: dkr_Se
+  PetscReal :: dSe_sat
   
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr - this%Srg)
   
   relative_permeability = 0.d0
-  dkr_Se = UNINITIALIZED_DOUBLE
+  dkr_sat = UNINITIALIZED_DOUBLE
   if (Se >= 1.d0) then
     relative_permeability = 0.d0
     return
@@ -5105,6 +5171,8 @@ subroutine RPF_Burdine_Linear_Gas_RelPerm(this,liquid_saturation, &
   Seg = 1.d0 - Se
   relative_permeability = Seg
   dkr_Se = -1.d0
+  dSe_sat = 1.d0 / (1.d0 - this%Sr - this%Srg)
+  dkr_sat = dkr_Se * dSe_sat
   
   end subroutine RPF_Burdine_Linear_Gas_RelPerm
 ! End Burdine Linear (Gas)
@@ -5166,7 +5234,7 @@ end subroutine RPF_BRAGFLO_KRP9_Liq_Verify
 ! ************************************************************************** !
 
 subroutine RPF_BRAGFLO_KRP9_Liq_RelPerm(this,liquid_saturation, &
-                              relative_permeability,dkr_Se,option)
+                              relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -5186,7 +5254,7 @@ subroutine RPF_BRAGFLO_KRP9_Liq_RelPerm(this,liquid_saturation, &
   class(rpf_BRAGFLO_KRP9_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
@@ -5194,7 +5262,12 @@ subroutine RPF_BRAGFLO_KRP9_Liq_RelPerm(this,liquid_saturation, &
   PetscReal :: Se_one_over_m
   
   relative_permeability = 0.d0
-  dkr_Se = 0.d0
+  print *, 'RPF_BRAGFLO_KRP9_Liq_RelPerm not validated'
+  stop
+  ! initialize to derivative to NaN so that not mistakenly used.
+  dkr_sat = 0.d0
+  dkr_sat = dkr_sat / 0.d0
+  dkr_sat = dkr_sat * 0.d0
   
   Se = (1.d0-liquid_saturation)/(liquid_saturation)
   if (liquid_saturation <= this%Sr) then
@@ -5264,7 +5337,7 @@ end subroutine RPF_BRAGFLO_KRP9_Gas_Verify
 ! ************************************************************************** !
 
 subroutine RPF_BRAGFLO_KRP9_Gas_RelPerm(this,liquid_saturation, &
-                                     relative_permeability,dkr_Se,option)
+                                     relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -5284,13 +5357,22 @@ subroutine RPF_BRAGFLO_KRP9_Gas_RelPerm(this,liquid_saturation, &
   class(rpf_BRAGFLO_KRP9_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
   PetscReal :: Seg
   PetscReal :: liquid_relative_permeability
-  PetscReal :: liquid_dkr_Se
+  PetscReal :: liquid_dkr_sat
+  PetscReal :: dkr_Se
+
+  print *, 'RPF_BRAGFLO_KRP9_Gas_RelPerm not validated'
+  stop
+  ! initialize to derivative to NaN so that not mistakenly used.
+  dkr_sat = 0.d0
+  dkr_sat = dkr_sat / 0.d0
+  dkr_sat = dkr_sat * 0.d0
+  
 
   Se = (1.d0-liquid_saturation)/(liquid_saturation)
   if (liquid_saturation <= this%Sr) then
@@ -5300,10 +5382,10 @@ subroutine RPF_BRAGFLO_KRP9_Gas_RelPerm(this,liquid_saturation, &
   
   call RPF_BRAGFLO_KRP9_Liq_RelPerm(this,liquid_saturation, &
                         liquid_relative_permeability, &
-                        liquid_dkr_Se,option)
+                        liquid_dkr_sat,option)
   
   relative_permeability = 1.d0 - liquid_relative_permeability
-  dkr_Se = -1.d0
+  dkr_Se = -1.d0 * liquid_dkr_sat
   
 end subroutine RPF_BRAGFLO_KRP9_Gas_RelPerm
 ! End RPF: BRAGFLO KRP9 (Gas)
@@ -5388,7 +5470,7 @@ end subroutine RPF_BRAGFLO_KRP4_Gas_Verify
 ! ************************************************************************** !
 
 subroutine RPF_BRAGFLO_KRP4_Gas_RelPerm(this,liquid_saturation, &
-                                     relative_permeability,dkr_Se,option)
+                                     relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -5408,17 +5490,25 @@ subroutine RPF_BRAGFLO_KRP4_Gas_RelPerm(this,liquid_saturation, &
   class(rpf_BRAGFLO_KRP4_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
   PetscReal :: Seg
   PetscReal :: gas_saturation
+  PetscReal :: dkr_Se
+  PetscReal :: dSe_sat
   
   gas_saturation = 1.0d0 - liquid_saturation
   
   relative_permeability = 0.d0
-  dkr_Se = UNINITIALIZED_DOUBLE
+  print *, 'RPF_BRAGFLO_KRP4_Gas_RelPerm not validated'
+  stop
+  ! initialize to derivative to NaN so that not mistakenly used.
+  dkr_sat = 0.d0
+  dkr_sat = dkr_sat / 0.d0
+  dkr_sat = dkr_sat * 0.d0
+  
 
   if (gas_saturation <= this%Srg) then
     relative_permeability = 0.0d0
@@ -5430,6 +5520,8 @@ subroutine RPF_BRAGFLO_KRP4_Gas_RelPerm(this,liquid_saturation, &
     ! Mathematica Analytical solution (Heeho Park)
     dkr_Se = -(1.d0+2.d0/this%lambda)*Seg**2.d0*Se**(2.d0/this%lambda) &
              - 2.d0*Seg*(1.d0-Se**(1.d0+2.d0/this%lambda))
+    dSe_sat = 1.d0 / (1.d0 - this%Sr - this%Srg)
+    dkr_sat = dkr_Se * dSe_sat
   else
     relative_permeability = 1.0d0
   endif
@@ -5502,7 +5594,7 @@ end subroutine RPF_BRAGFLO_KRP11_Liq_Verify
 ! ************************************************************************** !
 
 subroutine RPF_BRAGFLO_KRP11_Liq_RelPerm(this,liquid_saturation, &
-                              relative_permeability,dkr_Se,option)
+                              relative_permeability,dkr_sat,option)
   ! 
   ! KRP = 11 BRAGFLO relative permeability model
   ! the relative permeabilities decrease from 1 to zero linearly between
@@ -5520,7 +5612,7 @@ subroutine RPF_BRAGFLO_KRP11_Liq_RelPerm(this,liquid_saturation, &
   class(rpf_BRAGFLO_KRP11_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: gas_saturation
@@ -5529,7 +5621,12 @@ subroutine RPF_BRAGFLO_KRP11_Liq_RelPerm(this,liquid_saturation, &
   gas_saturation = 1.d0 - liquid_saturation
   
   relative_permeability = 0.d0
-  dkr_Se = 0.d0
+  print *, 'RPF_BRAGFLO_KRP11_Liq_RelPerm not validated'
+  stop
+  ! initialize to derivative to NaN so that not mistakenly used.
+  dkr_sat = 0.d0
+  dkr_sat = dkr_sat / 0.d0
+  dkr_sat = dkr_sat * 0.d0
   
   tol = this%tolc * (1 - this%Sr - this%Srg)
   
@@ -5567,7 +5664,7 @@ end function RPF_BRAGFLO_KRP11_Gas_Create
 ! ************************************************************************** !
 
 subroutine RPF_BRAGFLO_KRP11_Gas_RelPerm(this,liquid_saturation, &
-                                     relative_permeability,dkr_Se,option)
+                                     relative_permeability,dkr_sat,option)
   ! 
   ! KRP = 11 BRAGFLO relative permeability model
   ! the relative permeabilities decrease from 1 to zero linearly between
@@ -5585,7 +5682,7 @@ subroutine RPF_BRAGFLO_KRP11_Gas_RelPerm(this,liquid_saturation, &
   class(rpf_BRAGFLO_KRP11_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: gas_saturation
@@ -5594,7 +5691,13 @@ subroutine RPF_BRAGFLO_KRP11_Gas_RelPerm(this,liquid_saturation, &
   gas_saturation = 1.d0 - liquid_saturation
   
   relative_permeability = 0.d0
-  dkr_Se = 0.d0
+  print *, 'RPF_BRAGFLO_KRP11_Gas_RelPerm not validated'
+  stop
+  ! initialize to derivative to NaN so that not mistakenly used.
+  dkr_sat = 0.d0
+  dkr_sat = dkr_sat / 0.d0
+  dkr_sat = dkr_sat * 0.d0
+  
   
   tol = this%tolc * (1 - this%Sr - this%Srg)
   
@@ -5633,7 +5736,7 @@ end function RPF_BRAGFLO_KRP12_Liq_Create
 ! ************************************************************************** !
 
 subroutine RPF_BRAGFLO_KRP12_Liq_RelPerm(this,liquid_saturation, &
-                              relative_permeability,dkr_Se,option)
+                              relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -5650,14 +5753,20 @@ subroutine RPF_BRAGFLO_KRP12_Liq_RelPerm(this,liquid_saturation, &
   class(rpf_BRAGFLO_KRP12_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
   PetscReal :: power
+  PetscReal :: dkr_Se
 
   relative_permeability = 0.d0
-  dkr_Se = 0.d0
+  print *, 'RPF_BRAGFLO_KRP12_Liq_RelPerm not validated'
+  stop
+  ! initialize to derivative to NaN so that not mistakenly used.
+  dkr_sat = 0.d0
+  dkr_sat = dkr_sat / 0.d0
+  dkr_sat = dkr_sat * 0.d0
   
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
   Se = max(min(Se,1.0d0),0.0d0)
@@ -5700,7 +5809,7 @@ end function RPF_BRAGFLO_KRP12_Gas_Create
 ! ************************************************************************** !
 
 subroutine RPF_BRAGFLO_KRP12_Gas_RelPerm(this,liquid_saturation, &
-                                     relative_permeability,dkr_Se,option)
+                                     relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -5717,17 +5826,23 @@ subroutine RPF_BRAGFLO_KRP12_Gas_RelPerm(this,liquid_saturation, &
   class(rpf_BRAGFLO_KRP12_gas_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
   PetscReal :: Seg
   PetscReal :: gas_saturation
+  PetscReal :: dkr_Se
   
   gas_saturation = 1.0d0 - liquid_saturation
   
   relative_permeability = 0.d0
-  dkr_Se = UNINITIALIZED_DOUBLE
+  print *, 'RPF_BRAGFLO_KRP12_Gas_RelPerm not validated'
+  stop
+  ! initialize to derivative to NaN so that not mistakenly used.
+  dkr_sat = 0.d0
+  dkr_sat = dkr_sat / 0.d0
+  dkr_sat = dkr_sat * 0.d0
 
   if (gas_saturation <= this%Srg) then
     relative_permeability = 0.0d0
@@ -5818,7 +5933,7 @@ end subroutine RPF_TOUGH2_Linear_Oil_Verify
 ! ************************************************************************** !
 
 subroutine RPF_TOUGH2_Linear_Oil_RelPerm(this,liquid_saturation, &
-                                     relative_permeability,dkr_Se,option)
+                                     relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -5834,16 +5949,19 @@ subroutine RPF_TOUGH2_Linear_Oil_RelPerm(this,liquid_saturation, &
   class(rpf_TOUGH2_Linear_oil_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: So
   PetscReal :: Se
   PetscReal :: Seo
   PetscReal :: liquid_relative_permeability
-  PetscReal :: liquid_dkr_Se
+  PetscReal :: liquid_dkr_sat
   
-  dkr_Se = UNINITIALIZED_DOUBLE
+  ! initialize to derivative to NaN so that not mistakenly used.
+  dkr_sat = 0.d0
+  dkr_sat = dkr_sat / 0.d0
+  dkr_sat = dkr_sat * 0.d0
 
   So = 1.d0 - liquid_saturation
 
@@ -5987,6 +6105,7 @@ subroutine RPF_Mod_BC_SetupPolynomials(this,option,error_string)
 
   PetscReal :: Se_ph_low
 
+  if (associated(this%poly)) call PolynomialDestroy(this%poly)
   this%poly => PolynomialCreate()
   ! fill matix with values
   this%poly%low = 0.99d0  ! just below saturated
@@ -6016,7 +6135,7 @@ end subroutine RPF_Mod_BC_SetupPolynomials
 ! ************************************************************************** !
 
 subroutine RPF_Mod_BC_Liq_RelPerm(this,liquid_saturation, &
-                                     relative_permeability,dkr_Se,option)
+                                     relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -6032,12 +6151,16 @@ subroutine RPF_Mod_BC_Liq_RelPerm(this,liquid_saturation, &
   class(rpf_Mod_BC_liq_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: Se
+  PetscReal :: dkr_Se
   
-  dkr_Se = UNINITIALIZED_DOUBLE
+  ! initialize to derivative to NaN so that not mistakenly used.
+  dkr_sat = 0.d0
+  dkr_sat = dkr_sat / 0.d0
+  dkr_sat = dkr_sat * 0.d0
 
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sro - this%Sr - this%Srg )
 
@@ -6065,7 +6188,7 @@ end subroutine RPF_Mod_BC_Liq_RelPerm
 
 
 subroutine RPF_Mod_BC_Oil_RelPerm(this,liquid_saturation, &
-                                     relative_permeability,dkr_Se,option)
+                                     relative_permeability,dkr_sat,option)
   ! 
   ! Computes the relative permeability (and associated derivatives) as a 
   ! function of saturation
@@ -6081,14 +6204,18 @@ subroutine RPF_Mod_BC_Oil_RelPerm(this,liquid_saturation, &
   class(rpf_Mod_BC_oil_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   PetscReal :: So
   PetscReal :: Se
   PetscReal :: Seo
+  PetscReal :: dkr_Se
   
-  dkr_Se = UNINITIALIZED_DOUBLE
+  ! initialize to derivative to NaN so that not mistakenly used.
+  dkr_sat = 0.d0
+  dkr_sat = dkr_sat / 0.d0
+  dkr_sat = dkr_sat * 0.d0
 
   So = 1.d0 - liquid_saturation
 
@@ -6164,7 +6291,7 @@ end subroutine RPFConstantVerify
 ! ************************************************************************** !
 
 subroutine RPF_ConstantRelPerm(this,liquid_saturation,relative_permeability, &
-                            dkr_Se,option)
+                            dkr_sat,option)
   use Option_module
 
   implicit none
@@ -6172,11 +6299,11 @@ subroutine RPF_ConstantRelPerm(this,liquid_saturation,relative_permeability, &
   class(rel_perm_func_constant_type) :: this
   PetscReal, intent(in) :: liquid_saturation
   PetscReal, intent(out) :: relative_permeability
-  PetscReal, intent(out) :: dkr_Se
+  PetscReal, intent(out) :: dkr_sat
   type(option_type), intent(inout) :: option
   
   relative_permeability = this%kr
-  dkr_Se = 0.d0
+  dkr_sat = 0.d0
   
 end subroutine RPF_ConstantRelPerm
 
