@@ -336,7 +336,7 @@ subroutine PMTHUpdateTimestep(this,dt,dt_min,dt_max,iacceleration, &
   if (dtt > dt_max) dtt = dt_max
   ! geh: There used to be code here that cut the time step if it is too
   !      large relative to the simulation time.  This has been removed.
-  dtt = max(dtt,dt_min)
+  dtt = max(dtt,dt_min/10.d0)
   dt = dtt
 
   call PMSubsurfaceFlowLimitDTByCFL(this,dt)
@@ -732,7 +732,8 @@ subroutine PMTHMaxChange(this)
   
   call THMaxChange(this%realization,this%max_pressure_change, &
                    this%max_temperature_change)
-    if (this%option%print_screen_flag) then
+#ifndef CLM_PFLOTRAN
+  if (this%option%print_screen_flag) then
     write(*,'("  --> max chng: dpmx= ",1pe12.4," dtmpmx= ",1pe12.4)') &
       this%max_pressure_change,this%max_temperature_change
   endif
@@ -741,7 +742,7 @@ subroutine PMTHMaxChange(this)
       & " dtmpmx= ",1pe12.4)') &
       this%max_pressure_change,this%max_temperature_change
   endif 
-
+#endif
 end subroutine PMTHMaxChange
 
 ! ************************************************************************** !
