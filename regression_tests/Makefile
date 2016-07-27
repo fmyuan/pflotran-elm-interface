@@ -58,8 +58,6 @@ STANDARD_CFG = \
 	default/regions/regions.cfg \
 	default/salinity/salinity.cfg \
 	default/timestepping/timestepping.cfg \
-	geomech/uniaxial_strain/uniaxial_strain.cfg \
-	geomech/uniaxial_loading/uniaxial_loading.cfg \
 	geothermal_hpt/1D_Calcite/calcite_hpt.cfg\
 	general/general.cfg \
 	hydrogeophysics/hydrogeophysics.cfg \
@@ -77,7 +75,9 @@ STANDARD_CFG = \
 ifneq ($(strip $(PARMETIS_LIB)),)
 	STANDARD_CFG += \
 		default/discretization/discretization.cfg \
-		surfaceflow/surface_flow_only/surface_only.cfg \
+		geomech/uniaxial_strain/uniaxial_strain.cfg \
+        geomech/uniaxial_loading/uniaxial_loading.cfg \
+        surfaceflow/surface_flow_only/surface_only.cfg \
 		surfaceflow/surface_th/surface_th.cfg
 endif
 
@@ -182,8 +182,15 @@ geochemistry :
 		--config-files $(GEOCHEMISTRY_CFG) --suite geochemistry 
 
 geomechanics :
+ifneq ($(strip $(PARMETIS_LIB)),)
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \
 		--config-files $(GEOMECHANICS_CFG) --suite geomechanics 
+else
+	@echo "********************************************************"
+	@echo "  PFLOTRAN does not appear to be compiled with Parmetis."
+	@echo "  Skipping geomechanics tests."
+	@echo "********************************************************"
+endif
 
 flow :
 	-$(PYTHON) $(TEST_MANAGER) -e $(PFLOTRAN) $(TEST_OPTIONS) \

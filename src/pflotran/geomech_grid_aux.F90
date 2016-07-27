@@ -35,7 +35,7 @@ module Geomechanics_Grid_Aux_module
     AO :: ao_natural_to_petsc_nodes          ! mapping of natural to Petsc ordering of vertices
     PetscInt :: max_ndual_per_elem           ! Max. number of dual elements connected to an element
     PetscInt :: max_nnode_per_elem           ! Max. number of nodes per element
-    PetscInt :: max_elem_sharing_a_node      
+    PetscInt :: max_elem_sharing_a_node      ! Max. number of elements sharing a common node
     PetscInt, pointer :: elem_type(:)        ! Type of element
     PetscInt, pointer :: elem_nodes(:,:)     ! Node number on each element
     type(point_type), pointer :: nodes(:)    ! Coordinates of the nodes
@@ -261,6 +261,7 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
   call VecSetBlockSize(gmdm%local_vec,ndof,ierr);CHKERRQ(ierr)
   call VecSetFromOptions(gmdm%local_vec,ierr);CHKERRQ(ierr)
   
+   
   ! IS for global numbering of local, non-ghosted vertices
   ! ISCreateBlock requires block ids, not indices.  Therefore, istart should be
   ! the offset of the block from the beginning of the vector.
@@ -307,6 +308,9 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
     do ghosted_id = 1, geomech_grid%num_ghost_nodes
       int_array(ghosted_id) = (ghosted_id+geomech_grid%nlmax_node-1)
     enddo
+  else
+    allocate(int_array(1))
+    int_array(1) = 0
   endif
   
   call ISCreateBlock(option%mycomm,ndof,geomech_grid%num_ghost_nodes, &
@@ -330,6 +334,9 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
       int_array(ghosted_id) = &
         (geomech_grid%ghosted_node_ids_petsc(ghosted_id)-1)
     enddo
+  else
+    allocate(int_array(1))
+    int_array(1) = 0
   endif
   
   call ISCreateBlock(option%mycomm,ndof,geomech_grid%num_ghost_nodes, &
@@ -406,7 +413,7 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
   call PetscViewerDestroy(viewer,ierr);CHKERRQ(ierr)
 #endif    
 
-! create a local to global mapping
+ ! create a local to global mapping
 #if GEOMECH_DEBUG
   string = 'geomech_ISLocalToGlobalMapping' // ndof_word
   call printMsg(option,string)
@@ -429,8 +436,10 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
 #endif
 
   ! Create local to global scatter
-  call VecScatterCreate(gmdm%local_vec,gmdm%is_local_local,gmdm%global_vec, &
-                        gmdm%is_local_petsc,gmdm%scatter_ltog, &
+  ! Note this will also use the data from ghosted nodes on local rank into
+  ! a global vec
+  call VecScatterCreate(gmdm%local_vec,gmdm%is_ghosted_local,gmdm%global_vec, &
+                        gmdm%is_ghosted_petsc,gmdm%scatter_ltog, &
                         ierr);CHKERRQ(ierr)
                         
 #if GEOMECH_DEBUG
@@ -587,6 +596,7 @@ subroutine GMCreateGMDM(geomech_grid,gmdm,ndof,option)
   call ISLocalToGlobalMappingCreateIS(is_tmp_petsc, &
                                       gmdm%mapping_ltog_elem, &
                                       ierr);CHKERRQ(ierr)
+!  call ISDestroy(is_tmp_petsc,ierr);CHKERRQ(ierr)
               
 end subroutine GMCreateGMDM
 
