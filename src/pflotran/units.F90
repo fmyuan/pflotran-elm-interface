@@ -44,8 +44,8 @@ function UnitsConvertToInternal(units,internal_units,option)
   internal_units_buff2 = trim(internal_units)
   multi_option = PETSC_FALSE
   successful = PETSC_FALSE
-  conversion_factor = 1d0
-  UnitsConvertToInternal = 1d0
+  conversion_factor = 1.d0
+  UnitsConvertToInternal = 1.d0
   num_options = 0
   ind_or = 1
   length = 0
@@ -350,7 +350,9 @@ subroutine UnitsCategory(unit,unit_category,error,error_msg)
         unit_category(k) = 'energy'
       case('W','kW','MW')
         unit_category(k) = 'power'
-      case('mol','mole','moles','ug','mg','g','kg')
+      case('mol','mole','moles','kmol')
+        unit_category(k) = 'molar_mass'
+      case('ug','mg','g','kg')
         unit_category(k) = 'mass'
       case('C','Celcius')
         unit_category(k) = 'temperature'
@@ -358,7 +360,7 @@ subroutine UnitsCategory(unit,unit_category,error,error_msg)
         unit_category(k) = 'temperature'
         error_msg = 'Kelvin temperature units are not supported. Use Celcius.' 
         error = PETSC_TRUE
-      case('mPa','Pa','kPa','MPa','Bar')
+      case('Pa','kPa','MPa','Bar')
         unit_category(k) = 'pressure'
       case('M','mM')
         unit_category(k) = 'concentration'
@@ -458,9 +460,12 @@ subroutine UnitsConvertToSI(unit,conversion_factor,error,error_msg)
       conversion_factor = 1.d3
     case('MW')   
       conversion_factor = 1.d6
-  ! ---> MASS ---> (kilogram, mole)
+  ! ---> MOLAR MASS ---> (kilogram, mole)
     case('mol','mole','moles')
       conversion_factor = 1.d0
+    case('kmol')
+      conversion_factor = 1.d3
+  ! ---> MASS ---> (kilogram, mole)
     case('ug')
       conversion_factor = 1.d-9
     case('mg')
@@ -473,8 +478,6 @@ subroutine UnitsConvertToSI(unit,conversion_factor,error,error_msg)
     case('C','Celsius') 
       conversion_factor = 1.d0
   ! ---> PRESSURE ---> (Pascal)
-    case('mPa')
-      conversion_factor = 1.d-3
     case('Pa') 
       conversion_factor = 1.d0
     case('kPa')
