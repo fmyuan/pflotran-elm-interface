@@ -386,7 +386,7 @@ contains
     implicit none
 
     type(pflotran_model_type), pointer :: model
-    character(len=MAXWORDLENGTH), intent(in) :: id_stamp
+    character(len=MAXSTRINGLENGTH), intent(in) :: id_stamp
     PetscViewer :: viewer
 
     call model%simulation%process_model_coupler_list%CheckpointBinary(viewer,id_stamp)
@@ -1608,7 +1608,6 @@ end subroutine pflotranModelSetICs
 
     use Input_Aux_module
     use Option_module
-    use Realization_Subsurface_class
     use Grid_module
     use Patch_module
     use Coupler_module
