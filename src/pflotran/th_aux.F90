@@ -1039,6 +1039,7 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,     &
   dsl_dt  = 0.d0
 
   ! if ice module turns on, 2-phase saturation recalculated (liq. and ice) under common 'pres_l' and 'tc'
+  xplice = pc
   if (option%use_th_freezing) then
 
     call characteristic_curves%saturation_function%IceCapillaryPressure(pres_l, tc, &
@@ -1165,6 +1166,7 @@ subroutine THAuxVarComputeCharacteristicCurves( pres_l,  tc,     &
   kr      = 0.d0  !all initialized to zero
   dkr_dsl = 0.d0
   dkr_dt  = 0.d0
+  dkr_dpl = 0.d0
 
   call characteristic_curves%liq_rel_perm_function%RelativePermeability(sl, kr, dkr_dsl, option)
   dkr_dpl = dkr_dsl*dsl_dpl

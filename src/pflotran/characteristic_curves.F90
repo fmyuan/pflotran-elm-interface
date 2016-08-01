@@ -2948,11 +2948,14 @@ subroutine SF_BC_Saturation(this,capillary_pressure,liquid_saturation, &
     dSe_dpc = -this%lambda/capillary_pressure*pc_alpha_neg_lambda
     liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
     dsat_dpres = -(1.d0-this%Sr)*dSe_dpc
-  
+
+#ifdef SMOOTHING2
   else
     Se = (this%pcmax*this%alpha)**(-this%lambda)
     liquid_saturation = this%Sr + (1.d0-this%Sr)*Se
     dsat_dpres = 0.d0
+#endif
+
   endif
 
 end subroutine SF_BC_Saturation
@@ -4189,7 +4192,7 @@ subroutine RPF_Burdine_BC_Liq_RelPerm(this,liquid_saturation, &
 
   relative_permeability = 0.d0
   dkr_sat = 0.d0
-  
+
   Se = (liquid_saturation - this%Sr) / (1.d0 - this%Sr)
   if (Se >= 1.d0) then
     relative_permeability = 1.d0
@@ -4198,7 +4201,7 @@ subroutine RPF_Burdine_BC_Liq_RelPerm(this,liquid_saturation, &
     relative_permeability = 0.d0
     return
   endif
-  
+
   ! reference #1
   power = 3.d0+2.d0/this%lambda
   relative_permeability = Se**power
