@@ -2132,6 +2132,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     type(connection_set_type), pointer :: cur_connection_set
     PetscInt :: ghosted_id, local_id, press_dof, iconn, sum_connection
 
+    PetscBool:: HAVE_QFLUX_TOPBC, HAVE_PRESS_TOPBC, HAVE_EXFIL_TOPBC
+
     PetscErrorCode     :: ierr
 
     PetscScalar, pointer :: press_maxponding_pf_loc(:)  ! subsurface top boundary max. ponding pressure (Pa) (seepage BC)
@@ -2213,8 +2215,63 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         call printErrMsg(option)
     end select
 
-    boundary_condition => patch%boundary_condition_list%first
+    ! need to check the BC list first, so that we have necessary BCs in a consistent way
+    HAVE_QFLUX_TOPBC = PETSC_FALSE  ! top BC: (water) flux type (NEUMANN)
+    HAVE_PRESS_TOPBC = PETSC_FALSE  ! top BC: (water) pressure-head type (DIRICHLET)
+    HAVE_EXFIL_TOPBC = PETSC_FALSE  ! top BC: (water) pressure-type one-way (SEEPAGE: hydrostatic, but one-way) for upward/outlet water flux
 
+    boundary_condition => patch%boundary_condition_list%first
+    do
+      if (.not.associated(boundary_condition)) exit
+
+      if(StringCompare(boundary_condition%name,'clm_gwflux_bc')) then
+        if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
+          HAVE_QFLUX_TOPBC = PETSC_TRUE
+        else
+          option%io_buffer='pflotranModelSetTHbcs -  ' // &
+              ' for CLM-PFLOTRAN coupling - flow condition MUST be named as following: ' // &
+              ' "clm_gwflux_bc/NEUMANN " for subsurface-top TYPE I  '
+          call printErrMsg(option)
+        endif
+
+      elseif(StringCompare(boundary_condition%name,'clm_gpress_bc')) then
+        if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
+          HAVE_PRESS_TOPBC = PETSC_TRUE
+        else
+          option%io_buffer='pflotranModelSetTHbcs -  ' // &
+               ' for CLM-PFLOTRAN coupling - flow condition MUST be named as following: ' // &
+               ' "clm_gpress_bc/DIRICHLET " for subsurface-top TYPE II  '
+          call printErrMsg(option)
+        endif
+
+      elseif(StringCompare(boundary_condition%name,'exfiltration')) then
+        if (boundary_condition%flow_condition%itype(press_dof) == SEEPAGE_BC) then
+          HAVE_EXFIL_TOPBC = PETSC_TRUE
+        else
+          option%io_buffer='pflotranModelSetTHbcs -  ' // &
+               ' for CLM-PFLOTRAN coupling - flow condition MUST be named as following: ' // &
+               ' "exfiltration/SEEPAGE " for subsurface-top TYPE II - upward/outlet flow  '
+          call printErrMsg(option)
+        endif
+
+      endif
+      boundary_condition => boundary_condition%next
+    end do
+    if(.not.HAVE_QFLUX_TOPBC) then
+      option%io_buffer='pflotranModelSetTHbcs -  ' // &
+               ' for CLM-PFLOTRAN coupling - BC flow conditions DO NOT have : ' // &
+               ' "clm_gwflux_bc/NEUMANN " for subsurface-top TYPE I  '
+      call printMsg(option)
+    endif
+    if(HAVE_PRESS_TOPBC .and. HAVE_EXFIL_TOPBC) then
+      option%io_buffer='pflotranModelSetTHbcs -  ' // &
+               ' for CLM-PFLOTRAN coupling - BC flow conditions MUST NOT be having both : ' // &
+               ' "exfiltration/SEEPAGE " and "clm_gpress_bc/DIRICHLET" for subsurface-top '
+      call printErrMsg(option)
+    endif
+
+    ! assign data to BCs from CLM
+    boundary_condition => patch%boundary_condition_list%first
     sum_connection = 0
     do
       if (.not.associated(boundary_condition)) exit
@@ -2228,23 +2285,18 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         if (ghosted_id <= 0 .or. local_id <= 0) cycle
         if (patch%imat(ghosted_id) < 0) cycle
 
-        if(StringCompare(boundary_condition%name,'clm_gflux_bc')) then
+        if(StringCompare(boundary_condition%name,'clm_gwflux_bc')) then
           if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
             boundary_condition%flow_aux_real_var(press_dof,iconn)= &
               qflux_subsurf_pf_loc(iconn)
 
-!#if 0
-            cur_connection_set%area(iconn) = toparea_p(local_id)     ! normally it's ON (MPI vec, it's from 'local_id')
+            if (HAVE_PRESS_TOPBC) then
+              cur_connection_set%area(iconn) = toparea_p(local_id)     ! normally it's ON (MPI vec, it's from 'local_id')
               if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! shut-off the BC by resetting the BC 'area' to a tiny value
                 cur_connection_set%area(iconn) = 0.d0
               endif
-!#endif
+            endif
 
-          else
-            option%io_buffer='pflotranModelSetTHbcs -  ' // &
-              ' for CLM-PFLOTRAN coupling - flow condition MUST be named as following: ' // &
-              ' "clm_gflux_bc/NEUMANN " for subsurface-top TYPE I  '
-            call printErrMsg(option)
           endif
         endif
 
@@ -2252,19 +2304,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
             boundary_condition%flow_aux_real_var(press_dof,iconn)= &
               press_subsurf_pf_loc(iconn)
-!#if 0
-            cur_connection_set%area(iconn) = 0.d0               ! normally shut-off this BC
-            if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! turn on the BC by resetting the BC 'area' to real value
-              cur_connection_set%area(iconn) = toparea_p(local_id)
 
+            if (HAVE_QFLUX_TOPBC) then
+              cur_connection_set%area(iconn) = 0.d0               ! normally shut-off this BC
+              if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! turn on the BC by resetting the BC 'area' to real value
+                cur_connection_set%area(iconn) = toparea_p(local_id)
+              endif
             endif
-!#endif
 
-          else
-            option%io_buffer='pflotranModelSetTHbcs -  ' // &
-                 ' for CLM-PFLOTRAN coupling - flow condition MUST be named as following: ' // &
-                 ' "clm_gpress_bc/DIRICHLET " for subsurface-top TYPE II  '
-            call printErrMsg(option)
           endif
 
         endif
@@ -3116,7 +3163,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
              endif
 
-             if(StringCompare(boundary_condition%name,'clm_gflux_overflow')) then    ! surface overflow (-)
+             if(StringCompare(boundary_condition%name,'exfiltration')) then          ! exfiltration (-)
                 qsurf_subsurf_pf_loc(iconn) = &
                                -global_auxvars_bc(offset+iconn)%mass_balance(1,1)
 
