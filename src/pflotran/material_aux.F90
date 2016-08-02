@@ -408,7 +408,12 @@ subroutine MaterialCompressSoilBRAGFLO(auxvar,pressure, &
     exp(compressibility * &
         (pressure - auxvar%soil_properties(soil_reference_pressure_index)))
   dcompressed_porosity_dp = compressibility * compressed_porosity
-  
+
+  if(pressure<auxvar%soil_properties(soil_reference_pressure_index)-erf(1.d-10)) then
+    compressed_porosity = auxvar%porosity_base
+    dcompressed_porosity_dp = 0.d0
+  endif
+
 end subroutine MaterialCompressSoilBRAGFLO
 
 ! ************************************************************************** !
