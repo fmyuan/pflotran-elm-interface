@@ -2642,7 +2642,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
 
         if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
           ! boundary cell is <= pref 
-          if (global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+          !if (global_auxvar_up%pres(1)-option%reference_pressure < eps) then
             ! skip thermal conduction whenever water table is lower than cell
             skip_thermal_conduction = PETSC_TRUE
             ! flow inward
@@ -2651,7 +2651,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
               dphi_dp_dn = 0.d0
               dphi_dt_dn = 0.d0
             endif
-          endif
+
+          !endif
         endif
 
         if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
@@ -3343,14 +3344,14 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
 
         if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
           ! boundary cell is <= pref 
-          if (global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+          !if (global_auxvar_up%pres(1)-option%reference_pressure < eps) then
             ! skip thermal conduction whenever water table is lower than cell
             skip_thermal_conduction = PETSC_TRUE
             ! flow inward
             if (dphi > 0.d0) then
               dphi = 0.d0
             endif
-          endif
+          !endif
         endif
         
         if (dphi>=0.D0) then
