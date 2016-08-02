@@ -2261,7 +2261,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       option%io_buffer='pflotranModelSetTHbcs -  ' // &
                ' for CLM-PFLOTRAN coupling - BC flow conditions DO NOT have : ' // &
                ' "clm_gwflux_bc/NEUMANN " for subsurface-top TYPE I  '
-      call printMsg(option)
+      call printErrMsg(option)
     endif
     if(HAVE_PRESS_TOPBC .and. HAVE_EXFIL_TOPBC) then
       option%io_buffer='pflotranModelSetTHbcs -  ' // &
@@ -2615,7 +2615,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%gtemp_subbase_clmp, &
                                     clm_pf_idata%gtemp_subbase_pfs)
 
-    ! Update the 'clm_gflux_bc' ground heat flux/ground-temperature BC term
+    ! Update the ground heat flux/ground-temperature BC term
     call VecGetArrayF90(clm_pf_idata%gflux_subsurf_pfs,gflux_subsurf_pf_loc,ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
@@ -2637,7 +2637,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       ! Find appropriate BC from the list of boundary conditions
       ! TOP of subsurface
-      if(StringCompare(boundary_condition%name,'clm_gflux_bc') .or. &
+      if(StringCompare(boundary_condition%name,'clm_gwflux_bc') .or. &
          StringCompare(boundary_condition%name,'clm_gpress_bc')) then
 
         do iconn = 1, cur_connection_set%num_connections
