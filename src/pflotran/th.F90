@@ -1438,6 +1438,15 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   J = J/option%flow_dt
   J(option%nflowdof,:) = vol_frac_prim*J(option%nflowdof,:)
 
+  ! If only solving the energy equation,
+  !  - Set jacobian term corresponding to mass-equation to zero, and
+  !  - Set off-diagonal jacobian terms to zero.
+  if (option%flow%only_energy_eq) then
+    J(1,1) = 1.d0
+    J(1,2) = 0.d0
+    J(2,1) = 0.d0
+  endif
+
   if (option%flow%numerical_derivatives) then
     call GlobalAuxVarInit(global_auxvar_pert,option)  
     call MaterialAuxVarInit(material_auxvar_pert,option)  
@@ -2046,16 +2055,16 @@ subroutine THFluxDerivative(auxvar_up,global_auxvar_up, &
                            global_auxvar_dn%temp)*dDk_dt_dn 
 
   ! If only solving the energy equation,
-  !  - Set jacobian term corresponding to mass-equation to one, and
+  !  - Set jacobian term corresponding to mass-equation to zero, and
   !  - Set off-diagonal jacobian terms to zero.
   if (option%flow%only_energy_eq) then
-    Jup(1,1) = 1.d0
+    Jup(1,1) = 0.d0
     Jup(1,2) = 0.d0
     Jup(option%nflowdof,1) = 0.d0
 
-    Jdn(1,1) = 1.d0
+    Jdn(1,1) = 0.d0
     Jdn(1,2) = 0.d0
-    Jup(option%nflowdof,1) = 0.d0
+    Jdn(option%nflowdof,1) = 0.d0
 
   endif
 
@@ -2531,7 +2540,9 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: rho
   PetscReal :: dq_lin,dP_lin
   PetscReal :: q_approx,dq_approx
+  PetscBool :: skip_thermal_conduction
 
+  skip_thermal_conduction = PETSC_FALSE
   T_th  = 0.5d0
 
   fluxm = 0.d0
@@ -2607,11 +2618,16 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         endif
 
         if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
-              ! flow in         ! boundary cell is <= pref
-          if (dphi > 0.d0 .and. global_auxvar_up%pres(1)-option%reference_pressure < eps) then
-            dphi = 0.d0
-            dphi_dp_dn = 0.d0
-            dphi_dt_dn = 0.d0
+          ! boundary cell is <= pref 
+          if (global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+            ! skip thermal conduction whenever water table is lower than cell
+            skip_thermal_conduction = PETSC_TRUE
+            ! flow inward
+            if (dphi > 0.d0) then
+              dphi = 0.d0
+              dphi_dp_dn = 0.d0
+              dphi_dt_dn = 0.d0
+            endif
           endif
         endif
 
@@ -2886,31 +2902,39 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
       Dk =  auxvar_dn%Dk_eff / dd_dn
       !cond = Dk*area*(global_auxvar_up%temp-global_auxvar_dn%temp)
 
-      if (option%use_th_freezing) then
-        Dk_eff_dn    = auxvar_dn%Dk_eff
-        dKe_dp_dn    = auxvar_dn%dKe_dp
-        dKe_dt_dn    = auxvar_dn%dKe_dt
-        dKe_fr_dt_dn = auxvar_dn%ice%dKe_fr_dt
-        dKe_fr_dp_dn = auxvar_dn%ice%dKe_fr_dp
-        Dk           = Dk_eff_dn/dd_dn
-
-        dDk_dt_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn*dKe_dt_dn + &
-            Dk_ice_dn*dKe_fr_dt_dn + (- dKe_dt_dn - dKe_fr_dt_dn)* &
-            Dk_dry_dn)
-        dDk_dp_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn*dKe_dp_dn + &
-            Dk_ice_dn*dKe_fr_dp_dn + (- dKe_dp_dn - dKe_fr_dp_dn)* &
-            Dk_dry_dn)
-
+      if (skip_thermal_conduction) then
+        ! skip thermal conducton when the boundary pressure is below the
+        ! reference pressure (e.g. river stage is below cell center).
+        dDk_dt_dn = 0.d0
+        dDk_dp_dn = 0.d0
+        Dk = 0.d0
       else
+        if (option%use_th_freezing) then
+          Dk_eff_dn    = auxvar_dn%Dk_eff
+          dKe_dp_dn    = auxvar_dn%dKe_dp
+          dKe_dt_dn    = auxvar_dn%dKe_dt
+          dKe_fr_dt_dn = auxvar_dn%ice%dKe_fr_dt
+          dKe_fr_dp_dn = auxvar_dn%ice%dKe_fr_dp
+          Dk           = Dk_eff_dn/dd_dn
 
-        Dk_eff_dn = auxvar_dn%Dk_eff
-        dKe_dp_dn = auxvar_dn%dKe_dp
-        dKe_dt_dn = auxvar_dn%dKe_dt
-        Dk        = Dk_eff_dn/dd_dn
+          dDk_dt_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn*dKe_dt_dn + &
+              Dk_ice_dn*dKe_fr_dt_dn + (- dKe_dt_dn - dKe_fr_dt_dn)* &
+              Dk_dry_dn)
+          dDk_dp_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn*dKe_dp_dn + &
+              Dk_ice_dn*dKe_fr_dp_dn + (- dKe_dp_dn - dKe_fr_dp_dn)* &
+              Dk_dry_dn)
+  
+        else
+  
+          Dk_eff_dn = auxvar_dn%Dk_eff
+          dKe_dp_dn = auxvar_dn%dKe_dp
+          dKe_dt_dn = auxvar_dn%dKe_dt
+          Dk        = Dk_eff_dn/dd_dn
+  
+          dDk_dt_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn - Dk_dry_dn)*dKe_dt_dn
+          dDk_dp_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn - Dk_dry_dn)*dKe_dp_dn
 
-        dDk_dt_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn - Dk_dry_dn)*dKe_dt_dn
-        dDk_dp_dn = Dk**2/Dk_eff_dn**2*dd_dn*(Dk_dn - Dk_dry_dn)*dKe_dp_dn
-
+        endif
       endif
 
       if (.not. option%surf_flow_on) then
@@ -2918,17 +2942,11 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         ! Subsurface only simulation
         ! ---------------------------
 
-        ! for 'seepage' bc of pressure, turn-off thermal conduction btw cell and external seepage entity
-        ! (fmy: Mar-31-2016. This appears will save computing time)
-        if (ibndtype(TH_PRESSURE_DOF) /= SEEPAGE_BC) then
+        Jdn(option%nflowdof,1) = Jdn(option%nflowdof,1) + &
+           area*(global_auxvar_up%temp - global_auxvar_dn%temp)*dDk_dp_dn
 
-          Jdn(option%nflowdof,1) = Jdn(option%nflowdof,1) + &
-                area*(global_auxvar_up%temp - global_auxvar_dn%temp)*dDk_dp_dn
-
-          Jdn(option%nflowdof,2) = Jdn(option%nflowdof,2) + Dk*area*(-1.d0) + &
-                area*(global_auxvar_up%temp - global_auxvar_dn%temp)*dDk_dt_dn
-
-        endif
+        Jdn(option%nflowdof,2) = Jdn(option%nflowdof,2) + Dk*area*(-1.d0) + &
+           area*(global_auxvar_up%temp - global_auxvar_dn%temp)*dDk_dt_dn
 
       else
         ! ---------------------------
@@ -3009,10 +3027,10 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   end select
 
   ! If only solving the energy equation,
-  !  - Set jacobian term corresponding to mass-equation to one, and
+  !  - Set jacobian term corresponding to mass-equation to zero, and
   !  - Set off-diagonal jacobian terms to zero.
   if (option%flow%only_energy_eq) then
-    Jdn(1,1) = 1.d0
+    Jdn(1,1) = 0.d0
     Jdn(1,2) = 0.d0
     Jdn(option%nflowdof,1) = 0.d0
   endif
@@ -3223,6 +3241,9 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   PetscReal :: rho,dum1
   PetscReal :: q_approx, dq_approx
   PetscReal :: T_th,fctT,fct
+  PetscBool :: skip_thermal_conduction
+
+  skip_thermal_conduction = PETSC_FALSE
   T_th  = 0.5d0
 
   fluxm = 0.d0
@@ -3272,9 +3293,14 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
         endif
 
         if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
-          ! flow in         ! boundary cell is <= pref
-          if (dphi > 0.d0 .and. global_auxvar_up%pres(1) - option%reference_pressure < eps) then
-            dphi = 0.d0
+          ! boundary cell is <= pref 
+          if (global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+            ! skip thermal conduction whenever water table is lower than cell
+            skip_thermal_conduction = PETSC_TRUE
+            ! flow inward
+            if (dphi > 0.d0) then
+              dphi = 0.d0
+            endif
           endif
         endif
         
@@ -3441,6 +3467,12 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       Dk =  auxvar_dn%Dk_eff / dd_dn
       cond = Dk*area*(global_auxvar_up%temp-global_auxvar_dn%temp)
 
+      if (skip_thermal_conduction) then
+        ! skip thermal conducton when the boundary pressure is below the
+        ! reference pressure (e.g. river stage is below cell center).
+        cond = 0.d0
+      endif
+
       if (option%surf_flow_on) then
 
         ! ---------------------------
@@ -3460,12 +3492,6 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
         endif
 
       else  ! subsurface only simulation
-        ! for 'seepage' bc of pressure, turn-off thermal conduction btw cell and 'seepage' external body
-        ! so that water out flow with bulk energy move only but no thermal convection
-        ! (fmy: Mar-31-2016. This appears will save computing time)
-        if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
-          cond = 0.d0
-        endif
 
       endif
       fluxe = fluxe + cond
