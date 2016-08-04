@@ -436,10 +436,10 @@ function MaterialAuxIndexToPropertyName(i)
     MaterialAuxIndexToPropertyName = 'soil compressibility'
   else if (i == soil_reference_pressure_index) then
     MaterialAuxIndexToPropertyName = 'soil reference pressure'
-!  else if (i == soil_thermal_conductivity_index) then
-!    MaterialAuxIndexToPropertyName = 'soil thermal conductivity'
-!  else if (i == soil_heat_capacity_index) then
-!    MaterialAuxIndexToPropertyName = 'soil heat capacity'
+  else if (i == soil_thermal_conductivity_index) then
+    MaterialAuxIndexToPropertyName = 'soil thermal conductivity'
+  else if (i == soil_heat_capacity_index) then
+    MaterialAuxIndexToPropertyName = 'soil heat capacity'
   else
     MaterialAuxIndexToPropertyName = 'unknown property'
   end if
