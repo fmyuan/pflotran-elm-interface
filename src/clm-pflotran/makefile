@@ -111,10 +111,6 @@ ifdef th_characteristic_curves
   MYFLAGS += ${FC_DEFINE_FLAG}TH_CHARACTERISTIC_CURVES
 endif
 
-ifdef smoothing2
-  MYFLAGS += ${FC_DEFINE_FLAG}SMOOTHING2
-endif
-
 ifdef use_matseqaij_fix
   MYFLAGS += ${FC_DEFINE_FLAG}USE_MATSEQAIJ_FIX
 endif
@@ -125,6 +121,10 @@ endif
 
 ifdef geomech_debug
   MYFLAGS += ${FC_DEFINE_FLAG}GEOMECH_DEBUG
+endif
+
+ifdef smoothing2
+  MYFLAGS += ${FC_DEFINE_FLAG}SMOOTHING2
 endif
 
 UPDATE_PROVENANCE=0
