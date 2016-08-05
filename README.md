@@ -10,36 +10,18 @@ This repository is the PFLOTRAN portion for coupling. The CLM portion is in CLM-
 
 * The repository contains 3 branches for development and stable release purposes:
   
-***(1) default*** - the most updated PFLOTRAN codes (change set:c988fe5264f6dd47a5b410f64306e1d071282336 [c988fe5264f6]) with CLM-PFLOTRAN grid/mesh coupling. NOT suggested to use for production run. updated: 2016-05-18
-
-STATUS: stable
+***(1) default*** - the most updated PFLOTRAN codes (change set:c988fe5264f6dd47a5b410f64306e1d071282336 [c988fe5264f6]) with CLM-PFLOTRAN grid/mesh coupling. NOT suggested to use for production run. updated: 2016-08-05
 
 ***(2) default-bgc*** - the current develop version for coupling subsurface BGC between CLM and PFLOTRAN (both soil thermal-hydrology are from CLM45, so NO transport BUT can have diffusion). 
 
 Current Version of CLM: 4.5.35; 
-4.5_r85 (#define FLEXIBLE_POOLS in Line 2 of clm_pflotran_interfaceMod.F90).
- 
-PFLOTRAN-dev change set: c988fe5264f6dd47a5b410f64306e1d071282336 [c988fe5264f6]
 
-STATUS: Stable. (2016-05-27)
-
-***(3) default-hc*** - the current stable version for coupling subsurface BGC/HYDROLOGY (reactive-transport) between CLM and PFLOTRAN (including Richards only hydrology). 
-
-Current Version of CLM: 4.5.38; 
-4.5_r85 (!#define FLEXIBLE_POOLS in Line 2 of clm_pflotran_interfaceMod.F90).
-
-PFLOTRAN-dev change set: 7dc944a171993b2b27c4a5de84ac0856404a5194 [7dc944a17199]
-
-STATUS: UNDER test for Richards mode+BGC. (81bfd59d8396fd45272856fd96d24791e59b4966 [81bfd59d8396] @July-07-2015).  
-
-***(4) default-thc*** - the current development version of clm-pflotran, specifically for testing all thermal-hydrology and biogeochemistry portion. 
+***(3) default-thc*** - the current development version of clm-pflotran, specifically for testing all thermal-hydrology and biogeochemistry portion. 
 
 Target CLM Version: CLM4_5_1_r85. (2015-08-12).
 Stable CLM Version: CLM4_5_35. (2016-05-19). 
 
-STATUS: UNDER test for TH mode; STABLE for Richards+BGC. (2016-05-27) 
-
-PFLOTRAN-dev change set: c988fe5264f6dd47a5b410f64306e1d071282336 [c988fe5264f6] (2016-05-18)
+STATUS: UNDER test for TH mode; STABLE for Richards+BGC. (2016-08-05) 
 
 ### How do I get set up? ###
 
