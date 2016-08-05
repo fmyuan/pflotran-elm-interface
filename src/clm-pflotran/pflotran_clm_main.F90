@@ -492,7 +492,7 @@ contains
 
     type(Option_type), pointer :: option
     type(pflotran_model_type), pointer :: model
-    character(len=MAXWORDLENGTH), intent(in) :: id_stamp
+    character(len=MAXSTRINGLENGTH), intent(in) :: id_stamp
     PetscViewer :: viewer
 
     if (associated(model%simulation%process_model_coupler_list%checkpoint_option)) then

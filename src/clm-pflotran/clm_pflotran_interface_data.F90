@@ -109,6 +109,17 @@ module clm_pflotran_interface_data
   Vec :: dzsoil_pfs           ! seq vec
   ! a NOTE here: Given a 3D-cell's 'area_gtop_face' and 'zsoi' known, it's possible to calculate its volume (may be useful ?)
 
+   ! cell IDs (in 3D) (for tesing meshes)
+  Vec :: cellid_clmp          ! mpi vec
+  Vec :: cellid_pfs           ! seq vec
+  Vec :: cellid_pfp           ! mpi vec
+  Vec :: cellid_clms          ! seq vec
+   ! top layer cell IDs (in 2D) (for tesing meshes)
+  Vec :: cellid_2dtop_clmp ! mpi vec
+  Vec :: cellid_2dtop_pfs  ! seq vec
+  Vec :: cellid_2dtop_pfp  ! mpi vec
+  Vec :: cellid_2dtop_clms ! seq vec
+
   !-------------------------------------------------------------------------------------
   ! Soil BGC decomposing pools
   PetscInt :: ndecomp_pools
@@ -540,6 +551,16 @@ contains
     clm_pf_idata%area_subsurf_pfp      = 0
     clm_pf_idata%area_subsurf_clms     = 0
 
+    clm_pf_idata%cellid_clmp     = 0
+    clm_pf_idata%cellid_pfs      = 0
+    clm_pf_idata%cellid_pfp      = 0
+    clm_pf_idata%cellid_clms     = 0
+
+    clm_pf_idata%cellid_2dtop_clmp     = 0
+    clm_pf_idata%cellid_2dtop_pfs      = 0
+    clm_pf_idata%cellid_2dtop_pfp      = 0
+    clm_pf_idata%cellid_2dtop_clms     = 0
+
     clm_pf_idata%hksat_x_clmp = 0
     clm_pf_idata%hksat_y_clmp = 0
     clm_pf_idata%hksat_z_clmp = 0
@@ -823,6 +844,10 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%dzsoil_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%area_top_face_clmp,ierr)
 
+    ! soil cell ids (3D) / surface cell ids (2D)
+    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%cellid_clmp,ierr)
+    call VecDuplicate(clm_pf_idata%area_subsurf_clmp,clm_pf_idata%cellid_2dtop_clmp,ierr)
+
     ! soil physical properties (3D)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hksat_x_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hksat_y_clmp,ierr)
@@ -877,6 +902,8 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%dysoil_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%dzsoil_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%area_top_face_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%cellid_pfs,ierr)
+    call VecDuplicate(clm_pf_idata%area_subsurf_pfs,clm_pf_idata%cellid_2dtop_pfs,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%hksat_x_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%hksat_y_pfs,ierr)
@@ -928,8 +955,9 @@ contains
 
     ! (by copying) Create MPI Vectors for PFLOTRAN ------------
 
-    ! 3-D
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%area_top_face_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%cellid_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%area_subsurf_pfp,clm_pf_idata%cellid_2dtop_pfp,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%effporosity_pfp,ierr)
 
@@ -945,6 +973,8 @@ contains
     ! (by copying) create Seq. Vectors for CLM ---------
 
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%area_top_face_clms,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%cellid_clms,ierr)
+    call VecDuplicate(clm_pf_idata%area_subsurf_clms,clm_pf_idata%cellid_2dtop_clms,ierr)
 
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%effporosity_clms,ierr)
 
@@ -1133,6 +1163,13 @@ contains
     
     PetscErrorCode :: ierr
 
+    if (associated(clm_pf_idata%dxclm_global)) &
+    deallocate(clm_pf_idata%dxclm_global)
+    if (associated(clm_pf_idata%dyclm_global)) &
+    deallocate(clm_pf_idata%dyclm_global)
+    if (associated(clm_pf_idata%dzclm_global)) &
+    deallocate(clm_pf_idata%dzclm_global)
+
     !-----
     if(clm_pf_idata%zsoil_clmp /= 0) &
        call VecDestroy(clm_pf_idata%zsoil_clmp,ierr)
@@ -1188,6 +1225,14 @@ contains
       call VecDestroy(clm_pf_idata%area_top_face_clms,ierr)
 
     !----
+    if(clm_pf_idata%cellid_clmp  /= 0) &
+      call VecDestroy(clm_pf_idata%cellid_clmp,ierr)
+    if(clm_pf_idata%cellid_2dtop_clmp  /= 0) &
+      call VecDestroy(clm_pf_idata%cellid_2dtop_clmp,ierr)
+    if(clm_pf_idata%cellid_pfs  /= 0) &
+      call VecDestroy(clm_pf_idata%cellid_pfs,ierr)
+    if(clm_pf_idata%cellid_2dtop_pfs  /= 0) &
+      call VecDestroy(clm_pf_idata%cellid_2dtop_pfs,ierr)
     if(clm_pf_idata%hksat_x_clmp  /= 0) &
       call VecDestroy(clm_pf_idata%hksat_x_clmp,ierr)
     if(clm_pf_idata%hksat_y_clmp  /= 0) &
@@ -1205,6 +1250,14 @@ contains
     if(clm_pf_idata%bulkdensity_dry_clmp  /= 0) &
       call VecDestroy(clm_pf_idata%bulkdensity_dry_clmp,ierr)
 
+    if(clm_pf_idata%cellid_pfp  /= 0) &
+      call VecDestroy(clm_pf_idata%cellid_pfp,ierr)
+    if(clm_pf_idata%cellid_2dtop_pfp  /= 0) &
+      call VecDestroy(clm_pf_idata%cellid_2dtop_pfp,ierr)
+    if(clm_pf_idata%cellid_clms  /= 0) &
+      call VecDestroy(clm_pf_idata%cellid_clms,ierr)
+    if(clm_pf_idata%cellid_2dtop_pfs  /= 0) &
+      call VecDestroy(clm_pf_idata%cellid_2dtop_clms,ierr)
     if(clm_pf_idata%tkwet_clmp  /= 0) &
       call VecDestroy(clm_pf_idata%tkwet_clmp,ierr)
     if(clm_pf_idata%tkdry_clmp  /= 0) &
