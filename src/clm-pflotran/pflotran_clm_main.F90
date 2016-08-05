@@ -1514,26 +1514,14 @@ contains
     class(simulation_subsurface_type), pointer  :: simulation
     class(realization_subsurface_type), pointer :: realization
 
-    type(saturation_function_type), pointer :: saturation_function
-    type(th_auxvar_type), pointer :: th_auxvar
-
-    class(characteristic_curves_type), pointer :: characteristic_curves
-    type(richards_auxvar_type), pointer :: rich_auxvar
-
     PetscErrorCode     :: ierr
     PetscInt           :: local_id, ghosted_id
-    PetscReal          :: tempreal, tempreal2
 
     ! pf internal variables
     PetscReal, pointer :: porosity_loc_p(:)
 
     ! clm-pf-interface Vecs for PF thermal-hydroloical parameters used in CLM-PFLOTRAN interface
     PetscScalar, pointer :: porosity_loc_pfp(:)  ! soil porosity
-    PetscScalar, pointer :: sr_pcwmax_loc_pfp(:) ! soil vwc at max. capillary pressure (note: not 'Sr')
-    PetscScalar, pointer :: pcwmax_loc_pfp(:)    ! max. capillary pressure
-
-    character(len=MAXSTRINGLENGTH) :: error_string
-    PetscInt :: cur_sat_func_id
 
     subname = 'pflotranModelGetSoilPropFromPF'
 
@@ -1559,10 +1547,6 @@ contains
 
     call VecGetArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
     CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%sr_pcwmax_pfp, sr_pcwmax_loc_pfp, ierr)
-    CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%pcwmax_pfp, pcwmax_loc_pfp, ierr)
-    CHKERRQ(ierr)
 
     do local_id=1,grid%nlmax
       ghosted_id = grid%nL2G(local_id)
@@ -1574,76 +1558,17 @@ contains
       ! PF's porosity
       porosity_loc_pfp(local_id) = porosity_loc_p(local_id)
 
-      ! soil hydraulic properties ID for current cell
-      cur_sat_func_id = patch%sat_func_id(ghosted_id)
-
-      !
-      if (option%iflowmode==RICHARDS_MODE) then
-        ! Richards_MODE now is using 'charateristic_curves' module
-
-        characteristic_curves => patch% &
-          characteristic_curves_array(cur_sat_func_id)%ptr
-        rich_auxvar => patch%aux%Richards%auxvars(ghosted_id)
-
-        select type(sf => characteristic_curves%saturation_function)
-          !class is(sat_func_VG_type)
-             ! not-yet (TODO)
-          class is(sat_func_BC_type)
-            ! PF's limits on soil matrix potential (Capillary pressure)
-            pcwmax_loc_pfp(local_id) = sf%pcmax
-
-            ! PF's limits on soil water at pcwmax (NOT: not 'Sr', at which PC is nearly 'inf')
-            call sf%Saturation(sf%pcmax, tempreal, tempreal2, option)
-            sr_pcwmax_loc_pfp(local_id) = tempreal
-
-          class default
-            option%io_buffer = 'Currently ONLY support Brooks_COREY saturation function type' // &
-              ' when coupled with CLM.'
-            call printErrMsg(option)
-        end select
-
-      !
-      elseif (option%iflowmode==TH_MODE) then
-        ! 'saturation_function' module NOW only with TH_mode
-        saturation_function => patch%saturation_function_array(cur_sat_func_id)%ptr
-        th_auxvar => patch%aux%TH%auxvars(ghosted_id)
-
-        ! PF's limits on soil matrix potential (Capillary pressure)
-        pcwmax_loc_pfp(local_id) = saturation_function%pcwmax
-
-        ! PF's limits on soil water at pcwmax (NOT: not 'Sr', at which PC is nearly 'inf')
-        call SaturationFunctionCompute(saturation_function%pcwmax, tempreal, &
-                                      saturation_function, &
-                                      option)
-        sr_pcwmax_loc_pfp(local_id) = tempreal
-      endif
-
     enddo
 
     call VecRestoreArrayF90(field%porosity0,porosity_loc_p,ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%effporosity_pfp, porosity_loc_pfp, ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%sr_pcwmax_pfp, sr_pcwmax_loc_pfp, ierr)
-    CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%pcwmax_pfp, pcwmax_loc_pfp, ierr)
-    CHKERRQ(ierr)
-
     !
     call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
                                     option, &
                                     clm_pf_idata%effporosity_pfp, &
                                     clm_pf_idata%effporosity_clms)
-
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    option, &
-                                    clm_pf_idata%sr_pcwmax_pfp, &
-                                    clm_pf_idata%sr_pcwmax_clms)
-
-    call MappingSourceToDestination(pflotran_model%map_pf_sub_to_clm_sub, &
-                                    option, &
-                                    clm_pf_idata%pcwmax_pfp, &
-                                    clm_pf_idata%pcwmax_clms)
 
     ! reference pressure
     clm_pf_idata%pressure_reference = option%reference_pressure
@@ -1944,10 +1869,10 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
 
 
       if (option%iflowmode == RICHARDS_MODE) then
-        soilpsi_pf_p(local_id) = rich_auxvars(ghosted_id)%pc
+        soilpsi_pf_p(local_id) = -rich_auxvars(ghosted_id)%pc
 
       else if (option%iflowmode == TH_MODE) then
-        soilpsi_pf_p(local_id) = th_auxvars(ghosted_id)%pc
+        soilpsi_pf_p(local_id) = -th_auxvars(ghosted_id)%pc
 
       endif
     enddo
@@ -2086,7 +2011,7 @@ write(option%myrank+200,*) 'checking pflotran-model 2 (PF->CLM lsat):  ', &
     call VecGetArrayF90(clm_pf_idata%soilt_pfp, soilt_pf_p, ierr)
     CHKERRQ(ierr)
     do local_id=1,grid%nlmax
-      ghosted_id = grid%nL2G(ghosted_id)
+      ghosted_id = grid%nL2G(local_id)
       if (ghosted_id>0) then
         soilt_pf_p(local_id) = global_auxvars(ghosted_id)%temp
       endif

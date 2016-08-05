@@ -193,7 +193,7 @@ contains
     enddo
     call InputDestroy(input)
 
-    if ((.not. clm2pf_3dsub_file) .or. &
+    if ((.not. clm2pf_3dsub_file) .and. &
         (.not. pf2clm_3dsub_file) ) then
       model%option%io_buffer='One of the 3D soil-mesh mapping files not found - So,' // &
       ' CLM grids conversion to PF structured-cartesian grid USED!'
@@ -209,25 +209,37 @@ contains
 
     endif
     
-    if(   (model%option%iflowmode==TH_MODE .or. model%option%iflowmode==RICHARDS_MODE)  &
-     .and.(.not.clm2pf_bctop_file .or. .not.pf2clm_bctop_file .or. &
-           .not.clm2pf_bcbot_file .or. .not.pf2clm_bcbot_file) ) then
-      model%option%io_buffer='Running in TH_MODE/Richards_MODE without one of 4 top/bottom-cell mesh files - SO, ' // &
-      ' CLM grids conversion to PF structured-cartesian grid USED!'
-      call printMsg(model%option)
+    if(model%option%iflowmode==TH_MODE .or. model%option%iflowmode==RICHARDS_MODE) then
+      if(.not.clm2pf_bctop_file .and. .not.pf2clm_bctop_file) then
+         model%option%io_buffer='Running in TH_MODE/Richards_MODE ' // &
+          ' without pair of top-cell mesh mapping files - SO, ' // &
+          ' CLM grids conversion to PF structured-cartesian grid USED!'
+        call printMsg(model%option)
 
-      if(associated(model%map_clm_2dtop_to_pf_2dtop)) then
-        model%map_clm_2dtop_to_pf_2dtop%id = CLM_2DTOP_TO_PF_2DTOP
-      endif
-      if(associated(model%map_pf_2dtop_to_clm_2dtop)) then
-        model%map_pf_2dtop_to_clm_2dtop%id = PF_2DTOP_TO_CLM_2DTOP
+        if(associated(model%map_clm_2dtop_to_pf_2dtop)) then
+          model%map_clm_2dtop_to_pf_2dtop%id = CLM_2DTOP_TO_PF_2DTOP
+        endif
+
+        if(associated(model%map_pf_2dtop_to_clm_2dtop)) then
+          model%map_pf_2dtop_to_clm_2dtop%id = PF_2DTOP_TO_CLM_2DTOP
+        endif
+
       endif
 
-      if(associated(model%map_clm_2dbot_to_pf_2dbot)) then
-        model%map_clm_2dbot_to_pf_2dbot%id = CLM_2DBOT_TO_PF_2DBOT
-      endif
-      if(associated(model%map_pf_2dbot_to_clm_2dbot)) then
-        model%map_pf_2dbot_to_clm_2dbot%id = PF_2DBOT_TO_CLM_2DBOT
+      if(.not.clm2pf_bcbot_file .and. .not.pf2clm_bcbot_file) then
+        model%option%io_buffer='Running in TH_MODE/Richards_MODE ' // &
+          ' without pair of bottom-cell mesh mapping files - SO, ' // &
+          ' CLM grids conversion to PF structured-cartesian grid USED!'
+        call printMsg(model%option)
+
+        if(associated(model%map_clm_2dbot_to_pf_2dbot)) then
+          model%map_clm_2dbot_to_pf_2dbot%id = CLM_2DBOT_TO_PF_2DBOT
+        endif
+
+        if(associated(model%map_pf_2dbot_to_clm_2dbot)) then
+          model%map_pf_2dbot_to_clm_2dbot%id = PF_2DBOT_TO_CLM_2DBOT
+        endif
+
       endif
 
     endif

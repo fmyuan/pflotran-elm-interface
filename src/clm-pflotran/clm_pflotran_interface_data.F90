@@ -184,6 +184,7 @@ module clm_pflotran_interface_data
 
   ! -----TH vecs from CLM to PF --------------------
   ! TH properties
+  PetscReal :: pressure_reference
 
   ! CLM's hydraulic properties
   Vec :: hksat_x_clmp
@@ -206,17 +207,6 @@ module clm_pflotran_interface_data
   Vec :: bsw_clmp
   Vec :: sucsat_pfs
   Vec :: bsw_pfs
-
-  ! CLM's thermal properties
-  Vec :: tkwet_clmp
-  Vec :: tkdry_clmp
-  Vec :: tkfrz_clmp
-  Vec :: hcapv_clmp
-
-  Vec :: tkwet_pfs
-  Vec :: tkdry_pfs
-  Vec :: tkfrz_pfs
-  Vec :: hcapv_pfs
 
   ! TH state vecs from CLM (mpi) to PF (seq)
   Vec :: press_clmp                     ! water pressure head (Pa)
@@ -241,45 +231,6 @@ module clm_pflotran_interface_data
   Vec :: w_scalar_pfs                  ! soil moisture response function value from CLM for decomposition reations
   Vec :: o_scalar_pfs                  ! soil anoxic response function value from CLM for decomposition and/or CH4/NOx processes
   Vec :: depth_scalar_pfs              ! soil depth response function value from CLM for decomposition reations
-
-  ! Sink/Source of water/heat for PFLOTRAN's 3D subsurface domain
-  Vec :: qflux_clmp   ! mpi vec (H2O)
-  Vec :: qflux_pfs    ! seq vec
-
-  Vec :: gflux_clmp   ! mpi vec (Heat)
-  Vec :: gflux_pfs    ! seq vec
-
-  ! this could be atm. pressure for each grid-cell
-  Vec :: press_ref_clmp
-  Vec :: press_ref_pfs
-
-  ! BC: water pressure (Pa) on the top/bottom of 3-D subsurface domain as boundary conditions from CLM to PF
-  Vec :: press_subsurf_clmp    ! mpi vec
-  Vec :: press_subbase_clmp    ! mpi vec
-  Vec :: press_subsurf_pfs     ! seq vec
-  Vec :: press_subbase_pfs     ! seq vec
-
-  Vec :: press_maxponding_clmp ! mpi vec
-  Vec :: press_maxponding_pfs  ! seq vec
-  ! OR, BC: water infiltration/recharge(drainage) (mH2O/sec) on the top/bottom of 3-D subsurface domain as boundary conditions from CLM to PF
-  Vec :: qflux_subsurf_clmp    ! mpi vec
-  Vec :: qflux_subbase_clmp    ! mpi vec
-  Vec :: qflux_subsurf_pfs     ! seq vec
-  Vec :: qflux_subbase_pfs     ! seq vec
-
-  ! if ground heat flux at the subsurface interface is known
-  Vec :: gflux_subsurf_clmp  ! mpi vec
-  Vec :: gflux_subsurf_pfs   ! seq vec
-  ! if ground temperature at the subsurface interface is known
-  Vec :: gtemp_subsurf_clmp  ! mpi vec
-  Vec :: gtemp_subsurf_pfs   ! seq vec
-  ! if bottom heat flux at the subsurface interface is known
-  Vec :: gflux_subbase_clmp  ! mpi vec
-  Vec :: gflux_subbase_pfs   ! seq vec
-  ! bottom temperature at the subsurface domain interface is known
-  Vec :: gtemp_subbase_clmp  ! mpi vec
-  Vec :: gtemp_subbase_pfs   ! seq vec
-
 
 
   ! -----BGC vecs from CLM to PF --------------------
@@ -313,37 +264,19 @@ module clm_pflotran_interface_data
   !
   ! -----TH vecs from PF (mpi, ghosted) to CLM (seq, local) --------------------
   !
-
-  ! TH properties (useful to do some calculation in the interface)
-  Vec :: sr_pcwmax_pfp
-  Vec :: pcwmax_pfp
-  Vec :: effporosity_pfp
-  Vec :: sr_pcwmax_clms
-  Vec :: pcwmax_clms
-  Vec :: effporosity_clms
-
-  PetscReal :: pressure_reference
-
   ! TH state vecs from PF (mpi) to CLM (seq)
   Vec :: press_pfp                     ! water pressure head (Pa)
   Vec :: soilpsi_pfp                   ! soil matric potential (Pa) (negative)
   Vec :: soillsat_pfp                  ! soil liq. water saturation (0-1)
   Vec :: soilisat_pfp                  ! soil ice water saturation (0-1)
   Vec :: soilt_pfp                     ! soil temperature (degC)
+  Vec :: effporosity_pfp
   Vec :: press_clms
   Vec :: soilpsi_clms
   Vec :: soillsat_clms
   Vec :: soilisat_clms
   Vec :: soilt_clms
-
-  ! actual mass water flow rate (kgH2O/sec) through the top/bottom BC of 3-D subsurface domain
-  ! (+ in, - out)
-  Vec :: qinfl_subsurf_pfp    ! mpi vec: actual infiltration (+)
-  Vec :: qinfl_subsurf_clms   ! seq vec
-  Vec :: qsurf_subsurf_pfp    ! mpi vec: actual overland flow - potential-actual infiltration or water upwarding (-)
-  Vec :: qsurf_subsurf_clms   ! seq vec
-  Vec :: qflux_subbase_pfp    ! mpi vec: actual bottom drainage
-  Vec :: qflux_subbase_clms   ! seq vec
+  Vec :: effporosity_clms
 
 
   !
@@ -569,11 +502,6 @@ contains
     clm_pf_idata%bulkdensity_dry_clmp = 0
     clm_pf_idata%effporosity_clmp = 0
 
-    clm_pf_idata%tkwet_clmp = 0
-    clm_pf_idata%tkdry_clmp = 0
-    clm_pf_idata%tkfrz_clmp = 0
-    clm_pf_idata%hcapv_clmp = 0
-
     clm_pf_idata%hksat_x_pfs = 0
     clm_pf_idata%hksat_y_pfs = 0
     clm_pf_idata%hksat_z_pfs = 0
@@ -582,20 +510,12 @@ contains
     clm_pf_idata%bulkdensity_dry_pfs = 0
     clm_pf_idata%effporosity_pfs   = 0
 
-    clm_pf_idata%tkwet_pfs = 0
-    clm_pf_idata%tkdry_pfs = 0
-    clm_pf_idata%tkfrz_pfs = 0
-    clm_pf_idata%hcapv_pfs = 0
-
     clm_pf_idata%sucsat_clmp = 0
     clm_pf_idata%bsw_clmp = 0
     clm_pf_idata%sucsat_pfs = 0
     clm_pf_idata%bsw_pfs = 0
    
    !--------------------------------------------------------------------
-    clm_pf_idata%press_ref_clmp= 0
-    clm_pf_idata%press_ref_pfs  = 0
-
    !
     clm_pf_idata%press_clmp    = 0
     clm_pf_idata%soilpsi_clmp  = 0
@@ -646,39 +566,6 @@ contains
     clm_pf_idata%rate_smin_nh4_pfs         = 0
     clm_pf_idata%rate_plantndemand_pfs     = 0
 
-    clm_pf_idata%qflux_clmp = 0
-    clm_pf_idata%qflux_pfs  = 0
-    clm_pf_idata%gflux_clmp = 0
-    clm_pf_idata%gflux_pfs  = 0
-
-    clm_pf_idata%press_maxponding_clmp = 0
-    clm_pf_idata%press_maxponding_pfs  = 0
-    clm_pf_idata%press_subsurf_clmp = 0
-    clm_pf_idata%press_subsurf_pfs  = 0
-    clm_pf_idata%press_subbase_clmp = 0
-    clm_pf_idata%press_subbase_pfs  = 0
-    clm_pf_idata%qflux_subsurf_clmp = 0
-    clm_pf_idata%qflux_subsurf_pfs  = 0
-    clm_pf_idata%qflux_subbase_clmp = 0
-    clm_pf_idata%qflux_subbase_pfs  = 0
-
-    clm_pf_idata%gflux_subsurf_clmp = 0
-    clm_pf_idata%gflux_subsurf_pfs  = 0
-    clm_pf_idata%gtemp_subsurf_clmp = 0
-    clm_pf_idata%gtemp_subsurf_pfs  = 0
-    clm_pf_idata%gflux_subbase_clmp = 0
-    clm_pf_idata%gflux_subbase_pfs  = 0
-    clm_pf_idata%gtemp_subbase_clmp = 0
-    clm_pf_idata%gtemp_subbase_pfs  = 0
-
-    !
-    clm_pf_idata%sr_pcwmax_pfp= 0
-    clm_pf_idata%pcwmax_pfp   = 0
-    clm_pf_idata%effporosity_pfp = 0
-    clm_pf_idata%sr_pcwmax_clms= 0
-    clm_pf_idata%pcwmax_clms   = 0
-    clm_pf_idata%effporosity_clms = 0
-
     clm_pf_idata%area_top_face_clmp = 0
     clm_pf_idata%area_top_face_pfs  = 0
     clm_pf_idata%area_top_face_pfp  = 0
@@ -686,6 +573,8 @@ contains
 
     clm_pf_idata%pressure_reference = 1.01325d5
 
+    clm_pf_idata%effporosity_pfp = 0
+    clm_pf_idata%effporosity_clms = 0
     clm_pf_idata%press_pfp    = 0
     clm_pf_idata%soilpsi_pfp  = 0
     clm_pf_idata%soillsat_pfp = 0
@@ -762,13 +651,7 @@ contains
     clm_pf_idata%accngasdeni_vr_pfp       = 0
     clm_pf_idata%accngasdeni_vr_clms      = 0
 
-    ! water & aq. chemical species boundary flow
-    clm_pf_idata%qinfl_subsurf_pfp   = 0
-    clm_pf_idata%qinfl_subsurf_clms  = 0
-    clm_pf_idata%qsurf_subsurf_pfp   = 0
-    clm_pf_idata%qsurf_subsurf_clms  = 0
-    clm_pf_idata%qflux_subbase_pfp   = 0
-    clm_pf_idata%qflux_subbase_clms  = 0
+    ! aq. chemical species boundary flow
     clm_pf_idata%f_nh4_subsurf_pfp   = 0
     clm_pf_idata%f_nh4_subsurf_clms  = 0
     clm_pf_idata%f_nh4_subbase_pfp   = 0
@@ -857,11 +740,6 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%bulkdensity_dry_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%effporosity_clmp,ierr)     ! this may/may not same as 'bd'/'watsat' above
 
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkwet_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkdry_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkfrz_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hcapv_clmp,ierr)
-
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%sucsat_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%bsw_clmp,ierr)
 
@@ -872,25 +750,6 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%soilisat_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%soilt_clmp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%h2osoi_vol_clmp,ierr)
-
-    ! TH Src/Sink (3D)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%qflux_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%gflux_clmp,ierr)
-
-    ! TH top BC (2D)
-    call VecDuplicate(clm_pf_idata%area_subsurf_clmp,clm_pf_idata%press_subsurf_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%area_subsurf_clmp,clm_pf_idata%qflux_subsurf_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%area_subsurf_clmp,clm_pf_idata%gtemp_subsurf_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%area_subsurf_clmp,clm_pf_idata%gflux_subsurf_clmp,ierr)
-
-    call VecDuplicate(clm_pf_idata%area_subsurf_clmp,clm_pf_idata%press_ref_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%area_subsurf_clmp,clm_pf_idata%press_maxponding_clmp,ierr)
-
-    ! TH bottom BC (2D): supposing SAME bot-cell numbers as top-cells!
-    call VecDuplicate(clm_pf_idata%area_subsurf_clmp,clm_pf_idata%press_subbase_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%area_subsurf_clmp,clm_pf_idata%qflux_subbase_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%area_subsurf_clmp,clm_pf_idata%gflux_subbase_clmp,ierr)
-    call VecDuplicate(clm_pf_idata%area_subsurf_clmp,clm_pf_idata%gtemp_subbase_clmp,ierr)
 
     ! (by copying) Create Seq. Vectors for PFLOTRAN  ----------------------
 
@@ -913,11 +772,6 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%bulkdensity_dry_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%effporosity_pfs,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkwet_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkdry_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%tkfrz_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clmp,clm_pf_idata%hcapv_pfs,ierr)
-
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%sucsat_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%bsw_pfs,ierr)
 
@@ -929,26 +783,6 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%soilt_pfs,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%h2osoi_vol_pfs,ierr)
 
-    ! TH Src/Sink (3D)
-    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%qflux_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_pfs,clm_pf_idata%gflux_pfs,ierr)
-
-    ! TH top BC (2D)
-    call VecDuplicate(clm_pf_idata%area_subsurf_pfs,clm_pf_idata%press_subsurf_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%area_subsurf_pfs,clm_pf_idata%qflux_subsurf_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%area_subsurf_pfs,clm_pf_idata%gtemp_subsurf_pfs,ierr)            ! T
-    call VecDuplicate(clm_pf_idata%area_subsurf_pfs,clm_pf_idata%gflux_subsurf_pfs,ierr)            ! T
-
-    call VecDuplicate(clm_pf_idata%area_subsurf_pfs,clm_pf_idata%press_ref_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%area_subsurf_pfs,clm_pf_idata%press_maxponding_pfs,ierr)
-
-    ! TH bottom BC (2D): supposing SAME bot-cell numbers as top-cells!
-    call VecDuplicate(clm_pf_idata%area_subsurf_pfs,clm_pf_idata%press_subbase_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%area_subsurf_pfs,clm_pf_idata%qflux_subbase_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%area_subsurf_pfs,clm_pf_idata%gtemp_subbase_pfs,ierr)
-    call VecDuplicate(clm_pf_idata%area_subsurf_pfs,clm_pf_idata%gflux_subbase_pfs,ierr)            ! T
-
-
     !
     ! --------- For data transfer from PFLOTRAN to CLM  -------------------------------
     !
@@ -959,16 +793,12 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%cellid_pfp,ierr)
     call VecDuplicate(clm_pf_idata%area_subsurf_pfp,clm_pf_idata%cellid_2dtop_pfp,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%effporosity_pfp,ierr)
-
-    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%sr_pcwmax_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%pcwmax_pfp,ierr)
-
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%press_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%soilpsi_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%soillsat_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%soilisat_pfp,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%soilt_pfp,ierr)
+    call VecDuplicate(clm_pf_idata%zsoil_pfp,clm_pf_idata%effporosity_pfp,ierr)
 
     ! (by copying) create Seq. Vectors for CLM ---------
 
@@ -976,31 +806,12 @@ contains
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%cellid_clms,ierr)
     call VecDuplicate(clm_pf_idata%area_subsurf_clms,clm_pf_idata%cellid_2dtop_clms,ierr)
 
-    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%effporosity_clms,ierr)
-
-    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%sr_pcwmax_clms,ierr)
-    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%pcwmax_clms,ierr)
-
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%press_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%soilpsi_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%soillsat_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%soilisat_clms,ierr)
     call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%soilt_clms,ierr)
-
-    ! actual BC flow variables: 2D faces of subsurface PFLOTRAN ---to--- 2D faces of subsurface CLM
-    ! MPI Vecs for PFLOTRAN
-    call VecDuplicate(clm_pf_idata%area_subsurf_pfp,clm_pf_idata%qinfl_subsurf_pfp,ierr)
-    call VecDuplicate(clm_pf_idata%area_subsurf_pfp,clm_pf_idata%qsurf_subsurf_pfp,ierr)
-      ! the following assumes SAME bot-cell number as top-cells
-    call VecDuplicate(clm_pf_idata%area_subsurf_pfp,clm_pf_idata%qflux_subbase_pfp,ierr)
-
-    ! Seq. Vecs for CLM
-    call VecDuplicate(clm_pf_idata%area_subsurf_clms,clm_pf_idata%qinfl_subsurf_clms,ierr)
-    call VecDuplicate(clm_pf_idata%area_subsurf_clms,clm_pf_idata%qsurf_subsurf_clms,ierr)
-      ! the following assumes SAME bot-cell number as top-cells
-    call VecDuplicate(clm_pf_idata%area_subsurf_clms,clm_pf_idata%qflux_subbase_clms,ierr)
-
-
+    call VecDuplicate(clm_pf_idata%zsoil_clms,clm_pf_idata%effporosity_clms,ierr)
 
     !--------------------------------------------------------------------------------------------------------------------------
     !
@@ -1258,14 +1069,6 @@ contains
       call VecDestroy(clm_pf_idata%cellid_clms,ierr)
     if(clm_pf_idata%cellid_2dtop_pfs  /= 0) &
       call VecDestroy(clm_pf_idata%cellid_2dtop_clms,ierr)
-    if(clm_pf_idata%tkwet_clmp  /= 0) &
-      call VecDestroy(clm_pf_idata%tkwet_clmp,ierr)
-    if(clm_pf_idata%tkdry_clmp  /= 0) &
-      call VecDestroy(clm_pf_idata%tkdry_clmp,ierr)
-    if(clm_pf_idata%tkfrz_clmp  /= 0) &
-      call VecDestroy(clm_pf_idata%tkfrz_clmp,ierr)
-    if(clm_pf_idata%hcapv_clmp  /= 0) &
-      call VecDestroy(clm_pf_idata%hcapv_clmp,ierr)
 
     if(clm_pf_idata%hksat_x_pfs  /= 0) &
       call VecDestroy(clm_pf_idata%hksat_x_pfs,ierr)
@@ -1288,33 +1091,6 @@ contains
     if(clm_pf_idata%effporosity_pfs /= 0) &
        call VecDestroy(clm_pf_idata%effporosity_pfs,ierr)
 
-    !----
-    if(clm_pf_idata%tkwet_pfs  /= 0) &
-      call VecDestroy(clm_pf_idata%tkwet_pfs,ierr)
-    if(clm_pf_idata%tkdry_pfs  /= 0) &
-      call VecDestroy(clm_pf_idata%tkdry_pfs,ierr)
-    if(clm_pf_idata%tkfrz_pfs  /= 0) &
-      call VecDestroy(clm_pf_idata%tkfrz_pfs,ierr)
-    if(clm_pf_idata%hcapv_pfs  /= 0) &
-      call VecDestroy(clm_pf_idata%hcapv_pfs,ierr)
-    
-
-    ! -----
-    if(clm_pf_idata%sr_pcwmax_pfp /= 0) &
-       call VecDestroy(clm_pf_idata%sr_pcwmax_pfp,ierr)
-    if(clm_pf_idata%pcwmax_pfp /= 0) &
-       call VecDestroy(clm_pf_idata%pcwmax_pfp,ierr)
-    if(clm_pf_idata%effporosity_pfp /= 0) &
-       call VecDestroy(clm_pf_idata%effporosity_pfp,ierr)
-
-    if(clm_pf_idata%sr_pcwmax_clms /= 0) &
-       call VecDestroy(clm_pf_idata%sr_pcwmax_clms,ierr)
-    if(clm_pf_idata%pcwmax_clms /= 0) &
-       call VecDestroy(clm_pf_idata%pcwmax_clms,ierr)
-    if(clm_pf_idata%effporosity_clms /= 0) &
-       call VecDestroy(clm_pf_idata%effporosity_clms,ierr)
-
-    !----
     if(clm_pf_idata%press_clmp /= 0) &
        call VecDestroy(clm_pf_idata%press_clmp,ierr)
     if(clm_pf_idata%soilpsi_clmp /= 0) &
@@ -1341,56 +1117,6 @@ contains
     if(clm_pf_idata%h2osoi_vol_pfs /= 0) &
        call VecDestroy(clm_pf_idata%h2osoi_vol_pfs,ierr)
 
-    !-----
-    if(clm_pf_idata%qflux_clmp  /= 0) &
-       call VecDestroy(clm_pf_idata%qflux_clmp,ierr)
-    if(clm_pf_idata%qflux_pfs  /= 0) &
-       call VecDestroy(clm_pf_idata%qflux_pfs,ierr)
-    if(clm_pf_idata%gflux_clmp  /= 0) &
-       call VecDestroy(clm_pf_idata%gflux_clmp,ierr)
-    if(clm_pf_idata%gflux_pfs  /= 0) &
-       call VecDestroy(clm_pf_idata%gflux_pfs,ierr)
-
-
-    !-----
-    if(clm_pf_idata%press_maxponding_clmp  /= 0) &
-       call VecDestroy(clm_pf_idata%press_maxponding_clmp,ierr)
-    if(clm_pf_idata%press_maxponding_pfs  /= 0) &
-       call VecDestroy(clm_pf_idata%press_maxponding_pfs,ierr)
-    if(clm_pf_idata%press_subsurf_clmp  /= 0) &
-       call VecDestroy(clm_pf_idata%press_subsurf_clmp,ierr)
-    if(clm_pf_idata%press_subsurf_pfs  /= 0) &
-       call VecDestroy(clm_pf_idata%press_subsurf_pfs,ierr)
-    if(clm_pf_idata%press_subbase_clmp  /= 0) &
-       call VecDestroy(clm_pf_idata%press_subbase_clmp,ierr)
-    if(clm_pf_idata%press_subbase_pfs  /= 0) &
-       call VecDestroy(clm_pf_idata%press_subbase_pfs,ierr)
-    if(clm_pf_idata%qflux_subsurf_clmp  /= 0) &
-       call VecDestroy(clm_pf_idata%qflux_subsurf_clmp,ierr)
-    if(clm_pf_idata%qflux_subsurf_pfs  /= 0) &
-       call VecDestroy(clm_pf_idata%qflux_subsurf_pfs,ierr)
-    if(clm_pf_idata%qflux_subbase_clmp  /= 0) &
-       call VecDestroy(clm_pf_idata%qflux_subbase_clmp,ierr)
-    if(clm_pf_idata%qflux_subbase_pfs  /= 0) &
-       call VecDestroy(clm_pf_idata%qflux_subbase_pfs,ierr)
-
-    if(clm_pf_idata%gflux_subsurf_clmp  /= 0) &
-       call VecDestroy(clm_pf_idata%gflux_subsurf_clmp,ierr)
-    if(clm_pf_idata%gflux_subsurf_pfs  /= 0) &
-       call VecDestroy(clm_pf_idata%gflux_subsurf_pfs,ierr)
-    if(clm_pf_idata%gtemp_subsurf_clmp  /= 0) &
-       call VecDestroy(clm_pf_idata%gtemp_subsurf_clmp,ierr)
-    if(clm_pf_idata%gtemp_subsurf_pfs  /= 0) &
-       call VecDestroy(clm_pf_idata%gtemp_subsurf_pfs,ierr)
-    if(clm_pf_idata%gflux_subbase_clmp  /= 0) &
-       call VecDestroy(clm_pf_idata%gflux_subbase_clmp,ierr)
-    if(clm_pf_idata%gflux_subbase_pfs  /= 0) &
-       call VecDestroy(clm_pf_idata%gflux_subbase_pfs,ierr)
-    if(clm_pf_idata%gtemp_subbase_clmp  /= 0) &
-       call VecDestroy(clm_pf_idata%gtemp_subbase_clmp,ierr)
-    if(clm_pf_idata%gtemp_subbase_pfs  /= 0) &
-       call VecDestroy(clm_pf_idata%gtemp_subbase_pfs,ierr)
-
 
     ! ---- update TH states (pf-->clm)
     if(clm_pf_idata%press_pfp /= 0) &
@@ -1403,6 +1129,8 @@ contains
        call VecDestroy(clm_pf_idata%soilisat_pfp,ierr)
     if(clm_pf_idata%soilt_pfp /= 0) &
        call VecDestroy(clm_pf_idata%soilt_pfp,ierr)
+    if(clm_pf_idata%effporosity_pfp /= 0) &
+       call VecDestroy(clm_pf_idata%effporosity_pfp,ierr)
 
     if(clm_pf_idata%press_clms /= 0) &
        call VecDestroy(clm_pf_idata%press_clms,ierr)
@@ -1414,21 +1142,8 @@ contains
        call VecDestroy(clm_pf_idata%soilisat_clms,ierr)
     if(clm_pf_idata%soilt_clms /= 0) &
        call VecDestroy(clm_pf_idata%soilt_clms,ierr)
-
-    !------------------
-    if(clm_pf_idata%qinfl_subsurf_pfp /= 0) &
-       call VecDestroy(clm_pf_idata%qinfl_subsurf_pfp,ierr)
-    if(clm_pf_idata%qinfl_subsurf_clms /= 0) &
-       call VecDestroy(clm_pf_idata%qinfl_subsurf_clms,ierr)
-    if(clm_pf_idata%qsurf_subsurf_pfp /= 0) &
-       call VecDestroy(clm_pf_idata%qsurf_subsurf_pfp,ierr)
-    if(clm_pf_idata%qsurf_subsurf_clms /= 0) &
-       call VecDestroy(clm_pf_idata%qsurf_subsurf_clms,ierr)
-    if(clm_pf_idata%qflux_subbase_pfp /= 0) &
-       call VecDestroy(clm_pf_idata%qflux_subbase_pfp,ierr)
-    if(clm_pf_idata%qflux_subbase_clms /= 0) &
-       call VecDestroy(clm_pf_idata%qflux_subbase_clms,ierr)
-
+    if(clm_pf_idata%effporosity_clms /= 0) &
+       call VecDestroy(clm_pf_idata%effporosity_clms,ierr)
 
     !
     ! -----------------------------------------------------------------------------------------------------------
