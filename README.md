@@ -10,7 +10,7 @@ This repository is the PFLOTRAN portion for coupling. The CLM portion is in CLM-
 
 * The repository contains 3 branches for development and stable release purposes:
   
-***(1) default*** - the most updated PFLOTRAN codes (change set:c988fe5264f6dd47a5b410f64306e1d071282336 [c988fe5264f6]) with CLM-PFLOTRAN grid/mesh coupling. NOT suggested to use for production run. updated: 2016-08-05
+***(1) default*** - the most updated PFLOTRAN codes (change set:f9f01bbf557a7a666ad8ead0620b09392d21a2ca [f9f01bbf557a]) with CLM-PFLOTRAN grid/mesh coupling. NOT suggested to use for production run. updated: 2016-07-29
 
 ***(2) default-bgc*** - the current develop version for coupling subsurface BGC between CLM and PFLOTRAN (both soil thermal-hydrology are from CLM45, so NO transport BUT can have diffusion). 
 
@@ -27,7 +27,7 @@ STATUS: UNDER test for TH mode; STABLE for Richards+BGC. (2016-08-05)
 
 (1) hg clone the repository. 
 
-(2) hg update branch to 'default-hc'.
+(2) hg update branch to 'default-thc'.
 
 (3) if not coupled with CLM, this repository should be a stand-alone PFLOTRAN model (the Source code directory: ./Src/pflotran, and build it by issuing command: make PETSC_DIR=$PETSC_DIR pflotran, where $PETSC_DIR is your PETSC_DIR directory).
 
@@ -35,8 +35,8 @@ STATUS: UNDER test for TH mode; STABLE for Richards+BGC. (2016-08-05)
 
 First, run the script link_files.sh to copy PFLOTRAN codes
 
-Secondly, build the library: make PETSC_DIR=$PETSC_DIR use_characteristic_curves=TRUE libpflotran.a
+Secondly, build the library: make PETSC_DIR=$PETSC_DIR th_characteristic_curves=TRUE libpflotran.a
 
 Then build CLM with this library. 
 
-UPDATED: 2016-05-27
+UPDATED: 2016-08-05
