@@ -132,7 +132,7 @@ ifdef geomech_debug
 endif
 
 ifdef smoothing2
-  MYFLAGS += ${FC_DEFINE_FLAG}smoothing2
+  MYFLAGS += ${FC_DEFINE_FLAG}SMOOTHING2
 endif
 
 UPDATE_PROVENANCE=0
