@@ -413,6 +413,9 @@ subroutine MaterialCompressSoilBRAGFLO(auxvar,pressure, &
     compressed_porosity = auxvar%porosity_base
     dcompressed_porosity_dp = 0.d0
   endif
+  ! a NOTE by F.-M. YUAN (08-17-2016): there exists a high probability
+  ! to have a very large 'compressed_porosity' when pressure is too high (due to EXPONENTIAL Function of P).
+  ! this mathematical incorrection causes issues when freezing-thawing or over-infiltrating
 
 end subroutine MaterialCompressSoilBRAGFLO
 
