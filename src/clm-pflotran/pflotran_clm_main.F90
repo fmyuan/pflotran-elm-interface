@@ -2138,9 +2138,10 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     PetscScalar, pointer :: press_maxponding_pf_loc(:)  ! subsurface top boundary max. ponding pressure (Pa) (seepage BC)
     PetscScalar, pointer :: press_subsurf_pf_loc(:)     ! subsurface top boundary pressure-head (Pa) (dirichlet BC)
-    PetscScalar, pointer :: qflux_subsurf_pf_loc(:)     ! subsurface top boundary infiltration rate (m/s) (neumann BC)
+    PetscScalar, pointer :: qfluxw_subsurf_pf_loc(:)    ! subsurface top boundary infiltration rate (m/s) (neumann BC)
+    PetscScalar, pointer :: qfluxv_subsurf_pf_loc(:)    ! subsurface top boundary evaporation rate (m/s) (neumann BC)
     PetscScalar, pointer :: press_subbase_pf_loc(:)     ! bottom boundary pressure-head (Pa) (dirichlet BC)
-    PetscScalar, pointer :: qflux_subbase_pf_loc(:)     ! botoom boundary drainage flow rate (m/s) (neumann BC)
+    PetscScalar, pointer :: qfluxw_subbase_pf_loc(:)     ! botoom boundary drainage flow rate (m/s) (neumann BC)
 
     PetscScalar, pointer :: toparea_p(:)                ! subsurface top area saved
 
@@ -2170,8 +2171,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
                                     option, &
-                                    clm_pf_idata%qflux_subsurf_clmp, &
-                                    clm_pf_idata%qflux_subsurf_pfs)
+                                    clm_pf_idata%qfluxw_subsurf_clmp, &
+                                    clm_pf_idata%qfluxw_subsurf_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
+                                    option, &
+                                    clm_pf_idata%qfluxev_subsurf_clmp, &
+                                    clm_pf_idata%qfluxev_subsurf_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
                                     option, &
@@ -2185,17 +2191,19 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     call MappingSourceToDestination(pflotran_model%map_clm_2dbot_to_pf_2dbot, &
                                     option, &
-                                    clm_pf_idata%qflux_subbase_clmp, &
-                                    clm_pf_idata%qflux_subbase_pfs)
+                                    clm_pf_idata%qfluxw_subbase_clmp, &
+                                    clm_pf_idata%qfluxw_subbase_pfs)
 
     ! interface vecs of PF
     call VecGetArrayF90(clm_pf_idata%press_subsurf_pfs,  press_subsurf_pf_loc,  ierr)
     CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%qflux_subsurf_pfs,  qflux_subsurf_pf_loc,  ierr)
+    call VecGetArrayF90(clm_pf_idata%qfluxw_subsurf_pfs,  qfluxw_subsurf_pf_loc,  ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%qfluxev_subsurf_pfs,  qfluxv_subsurf_pf_loc,  ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%press_subbase_pfs,  press_subbase_pf_loc,  ierr)
     CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%qflux_subbase_pfs, qflux_subbase_pf_loc, ierr)
+    call VecGetArrayF90(clm_pf_idata%qfluxw_subbase_pfs, qfluxw_subbase_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%press_maxponding_pfs, press_maxponding_pf_loc, ierr)
     CHKERRQ(ierr)
@@ -2261,13 +2269,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       option%io_buffer='pflotranModelSetTHbcs -  ' // &
                ' for CLM-PFLOTRAN coupling - BC flow conditions DO NOT have : ' // &
                ' "clm_gwflux_bc/NEUMANN " for subsurface-top TYPE I  '
-      call printErrMsg(option)
+      call printMsg(option)
     endif
     if(HAVE_PRESS_TOPBC .and. HAVE_EXFIL_TOPBC) then
       option%io_buffer='pflotranModelSetTHbcs -  ' // &
-               ' for CLM-PFLOTRAN coupling - BC flow conditions MUST NOT be having both : ' // &
+               ' for CLM-PFLOTRAN coupling - BC flow conditions are having both : ' // &
                ' "exfiltration/SEEPAGE " and "clm_gpress_bc/DIRICHLET" for subsurface-top '
-      call printErrMsg(option)
+      call printMsg(option)
     endif
 
     ! assign data to BCs from CLM
@@ -2288,9 +2296,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
         if(StringCompare(boundary_condition%name,'clm_gwflux_bc')) then
           if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
             boundary_condition%flow_aux_real_var(press_dof,iconn)= &
-              qflux_subsurf_pf_loc(iconn)
+              qfluxw_subsurf_pf_loc(iconn)
 
-            if (HAVE_PRESS_TOPBC) then
+            if (HAVE_PRESS_TOPBC .and. HAVE_QFLUX_TOPBC) then
               cur_connection_set%area(iconn) = toparea_p(local_id)     ! normally it's ON (MPI vec, it's from 'local_id')
               if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! shut-off the BC by resetting the BC 'area' to a tiny value
                 cur_connection_set%area(iconn) = 0.d0
@@ -2305,7 +2313,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
             boundary_condition%flow_aux_real_var(press_dof,iconn)= &
               press_subsurf_pf_loc(iconn)
 
-            if (HAVE_QFLUX_TOPBC) then
+            if (HAVE_PRESS_TOPBC .and. HAVE_QFLUX_TOPBC) then
               cur_connection_set%area(iconn) = 0.d0               ! normally shut-off this BC
               if(press_subsurf_pf_loc(iconn) > clm_pf_idata%pressure_reference) then         ! turn on the BC by resetting the BC 'area' to real value
                 cur_connection_set%area(iconn) = toparea_p(local_id)
@@ -2316,18 +2324,35 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
         endif
 
+        ! for soil evaporation
+        if(StringCompare(boundary_condition%name,'clm_gevflux_bc')) then
+          if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
+            boundary_condition%flow_aux_real_var(press_dof,iconn)= &
+              qfluxv_subsurf_pf_loc(iconn)
+          endif
+        endif
+
+        ! for exfiltration
+        if(StringCompare(boundary_condition%name,'clm_exfiltration_bc')) then
+          if (boundary_condition%flow_condition%itype(press_dof) == SEEPAGE_BC) then
+            boundary_condition%flow_aux_real_var(press_dof,iconn) = &
+              max(option%reference_pressure, press_maxponding_pf_loc(iconn))
+          endif
+        endif
+
+        ! bottom water flux
         if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then
           if (boundary_condition%flow_condition%itype(press_dof) == DIRICHLET_BC) then
             boundary_condition%flow_aux_real_var(press_dof,iconn)= &
                        press_subbase_pf_loc(iconn)
           else if (boundary_condition%flow_condition%itype(press_dof) == NEUMANN_BC) then
             boundary_condition%flow_aux_real_var(press_dof,iconn)= &
-                       qflux_subbase_pf_loc(iconn)
+                       qfluxw_subbase_pf_loc(iconn)
 
-          else
+          else if (boundary_condition%flow_condition%itype(press_dof) /= ZERO_GRADIENT_BC) then
             option%io_buffer='pflotranModelSetTHbcs -  ' // &
                   ' for CLM-PFLOTRAN coupling - flow condition MUST be named as following: ' // &
-                  ' "clm_bflux_bc/NEUMANN " for subsurface-base TYPE I;  ' // &
+                  ' "clm_bflux_bc/NEUMANN or ZERO_GRADIENT" for subsurface-base TYPE I;  ' // &
                   ' "clm_bflux_bc/DIRICHLET " for subsurface-base TYPE II;  '
             call printErrMsg(option)
 
@@ -2342,11 +2367,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     call VecRestoreArrayF90(clm_pf_idata%press_subsurf_pfs, press_subsurf_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%qflux_subsurf_pfs, qflux_subsurf_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%qfluxw_subsurf_pfs, qfluxw_subsurf_pf_loc, ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%qfluxev_subsurf_pfs, qfluxv_subsurf_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%press_subbase_pfs, press_subbase_pf_loc, ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%qflux_subbase_pfs, qflux_subbase_pf_loc, ierr)
+    call VecRestoreArrayF90(clm_pf_idata%qfluxw_subbase_pfs, qfluxw_subbase_pf_loc, ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%press_maxponding_pfs, press_maxponding_pf_loc, ierr)
     CHKERRQ(ierr)
@@ -2435,13 +2462,13 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
-                                    clm_pf_idata%qflux_clmp, &
-                                    clm_pf_idata%qflux_pfs)
+                                    clm_pf_idata%qflow_clmp, &
+                                    clm_pf_idata%qflow_pfs)
 
     call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
                                     option, &
-                                    clm_pf_idata%qfluxt_clmp, &
-                                    clm_pf_idata%qfluxt_pfs)
+                                    clm_pf_idata%qflowt_clmp, &
+                                    clm_pf_idata%qflowt_pfs)
 
     ! Find value of pressure-dof depending on flow mode
     select case (option%iflowmode)
@@ -2457,9 +2484,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     end select
 
     ! Update the 'clm_et_ss' source/sink term
-    call VecGetArrayF90(clm_pf_idata%qflux_pfs,qflx_pf_loc,ierr)
+    call VecGetArrayF90(clm_pf_idata%qflow_pfs,qflx_pf_loc,ierr)
     CHKERRQ(ierr)
-    call VecGetArrayF90(clm_pf_idata%qfluxt_pfs,qflxt_pf_loc,ierr)
+    call VecGetArrayF90(clm_pf_idata%qflowt_pfs,qflxt_pf_loc,ierr)
     CHKERRQ(ierr)
 
     found = PETSC_FALSE
@@ -2487,10 +2514,16 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           local_id = cur_connection_set%id_dn(iconn)
           ghosted_id = grid%nL2G(local_id)
 
-          source_sink%flow_aux_real_var(press_dof,iconn) = qflx_pf_loc(ghosted_id)
+          source_sink%flow_aux_real_var(press_dof,iconn) = qflx_pf_loc(ghosted_id) &
+                               *material_auxvars(ghosted_id)%volume                    ! kg/m3/sec --> kg/sec
 
           if(option%iflowmode == TH_MODE) then
-            source_sink%flow_condition%temperature%dataset%rarray(1) = qflxt_pf_loc(ghosted_id)
+
+            if(source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == DIRICHLET_BC) then
+              source_sink%flow_condition%temperature%dataset%rarray(1) = qflxt_pf_loc(ghosted_id)
+            elseif(source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == HET_DIRICHLET) then
+              source_sink%flow_aux_real_var(TWO_INTEGER,iconn) = qflxt_pf_loc(ghosted_id)
+            endif
 
           endif
 
@@ -2507,9 +2540,9 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       source_sink => source_sink%next
     enddo
-    call VecRestoreArrayF90(clm_pf_idata%qflux_pfs,qflx_pf_loc,ierr)
+    call VecRestoreArrayF90(clm_pf_idata%qflow_pfs,qflx_pf_loc,ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%qfluxt_pfs,qflxt_pf_loc,ierr)
+    call VecRestoreArrayF90(clm_pf_idata%qflowt_pfs,qflxt_pf_loc,ierr)
     CHKERRQ(ierr)
 
     !if(.not.found) &
@@ -2526,8 +2559,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
   ! This routine updates subsurface boundary condtions of PFLOTRAN related to
   ! energy equation.
   !
-  ! Author: Gautam Bisht, LBNL
-  ! Date: 11/08/2013
+  ! Author: Fengming YUAN, CCSI/ESD-ORNL
+  ! Date: 08/10/2016
   !
 
     use Patch_module
@@ -2561,10 +2594,16 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     class(simulation_subsurface_type), pointer  :: simulation
     class(realization_subsurface_type), pointer :: realization
 
-    PetscScalar, pointer                      :: gflux_subsurf_pf_loc(:)
+    PetscScalar, pointer                      :: geflx_subsurf_pf_loc(:)   ! unit: MJ/m2/sec (all forms)
+    PetscScalar, pointer                      :: geflxr_subsurf_pf_loc(:)  ! unit: MJ/m2/sec (net radiation)
+    PetscScalar, pointer                      :: geflxl_subsurf_pf_loc(:)  ! unit: MJ/m2/sec (soil evaporation LE)
     PetscScalar, pointer                      :: gtemp_subsurf_pf_loc(:)
-    PetscScalar, pointer                      :: gflux_subbase_pf_loc(:)
+    PetscScalar, pointer                      :: geflx_subbase_pf_loc(:)   ! unit: MJ/m2/sec (geo-thermal flux)
     PetscScalar, pointer                      :: gtemp_subbase_pf_loc(:)
+
+    PetscScalar, pointer                      :: geflow_sub_pf_loc(:)      ! unit: MJ/m3/sec (energy flow rate)
+
+    PetscBool                                 :: HAVE_GTEMP_TOPBC, HAVE_GEV_TOPBC
 
     PetscInt                                  :: iconn, sum_connection
     PetscInt                                  :: local_id, ghosted_id
@@ -2594,10 +2633,20 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     ! Map ground-heat flux from CLM--to--PF grid
     call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
                                     option, &
-                                    clm_pf_idata%gflux_subsurf_clmp, &
-                                    clm_pf_idata%gflux_subsurf_pfs)
+                                    clm_pf_idata%eflux_subsurf_clmp, &
+                                    clm_pf_idata%eflux_subsurf_pfs)
 
-    ! Map ground temperature from CLM--to--PF grid
+    call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
+                                    option, &
+                                    clm_pf_idata%efluxr_subsurf_clmp, &
+                                    clm_pf_idata%efluxr_subsurf_pfs)
+
+    call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
+                                    option, &
+                                    clm_pf_idata%efluxl_subsurf_clmp, &
+                                    clm_pf_idata%efluxl_subsurf_pfs)
+
+    ! Map ground-soil interface temperature from CLM--to--PF grid
     call MappingSourceToDestination(pflotran_model%map_clm_2dtop_to_pf_2dtop, &
                                     option, &
                                     clm_pf_idata%gtemp_subsurf_clmp, &
@@ -2606,8 +2655,8 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
     ! Map base-heat flux from CLM--to--PF grid
     call MappingSourceToDestination(pflotran_model%map_clm_2dbot_to_pf_2dbot, &
                                     option, &
-                                    clm_pf_idata%gflux_subbase_clmp, &
-                                    clm_pf_idata%gflux_subbase_pfs)
+                                    clm_pf_idata%eflux_subbase_clmp, &
+                                    clm_pf_idata%eflux_subbase_pfs)
 
     ! Map base temperature from CLM--to--PF grid
     call MappingSourceToDestination(pflotran_model%map_clm_2dbot_to_pf_2dbot, &
@@ -2615,19 +2664,65 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
                                     clm_pf_idata%gtemp_subbase_clmp, &
                                     clm_pf_idata%gtemp_subbase_pfs)
 
-    ! Update the ground heat flux/ground-temperature BC term
-    call VecGetArrayF90(clm_pf_idata%gflux_subsurf_pfs,gflux_subsurf_pf_loc,ierr)
+    ! Map energy flow rate from CLM--to--PF cell
+    call MappingSourceToDestination(pflotran_model%map_clm_sub_to_pf_sub, &
+                                    option, &
+                                    clm_pf_idata%eflow_clmp, &
+                                    clm_pf_idata%eflow_pfs)
+
+    ! Update the heat flux/ground-temperature BC term
+    call VecGetArrayF90(clm_pf_idata%eflux_subsurf_pfs,geflx_subsurf_pf_loc,ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%efluxr_subsurf_pfs,geflxr_subsurf_pf_loc,ierr)
+    CHKERRQ(ierr)
+    call VecGetArrayF90(clm_pf_idata%efluxl_subsurf_pfs,geflxl_subsurf_pf_loc,ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
     CHKERRQ(ierr)
 
     ! Update the 'clm_bflux_bc' base heat/energy flux/base-temperature BC term
-    call VecGetArrayF90(clm_pf_idata%gflux_subbase_pfs,gflux_subbase_pf_loc,ierr)
+    call VecGetArrayF90(clm_pf_idata%eflux_subbase_pfs,geflx_subbase_pf_loc,ierr)
     CHKERRQ(ierr)
     call VecGetArrayF90(clm_pf_idata%gtemp_subbase_pfs,gtemp_subbase_pf_loc,ierr)
     CHKERRQ(ierr)
 
-    ! BC conditions
+    ! energy flow rate (source/sink)
+    call VecGetArrayF90(clm_pf_idata%eflow_pfs,geflow_sub_pf_loc,ierr)
+    CHKERRQ(ierr)
+
+    ! need to check the BC list first, so that we have necessary BCs in a consistent way
+    HAVE_GEV_TOPBC   = PETSC_FALSE  ! top BC: (water and heat) having soil evaporation flux type (NEUMANN)
+    HAVE_GTEMP_TOPBC = PETSC_FALSE  ! top BC: (heat) haveing thermal state (temperature) type (DIRICHLET)
+
+    boundary_condition => patch%boundary_condition_list%first
+    do
+      if (.not.associated(boundary_condition)) exit
+
+      if(StringCompare(boundary_condition%name,'clm_gevflux_bc')) then
+        if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) == NEUMANN_BC) then
+          HAVE_GEV_TOPBC = PETSC_TRUE
+        else
+          option%io_buffer='pflotranModelSetTcond -  ' // &
+               ' for CLM-PFLOTRAN coupling - flow condition MUST be named as following: ' // &
+               ' "clm_gevflux_bc: ENERGY_FLUX neumann " for subsurface-top TYPE I  '
+          call printErrMsg(option)
+        endif
+
+      elseif(StringCompare(boundary_condition%name,'clm_gtemp_bc')) then
+        if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) == DIRICHLET_BC) then
+          HAVE_GTEMP_TOPBC = PETSC_TRUE
+        else
+          option%io_buffer='pflotranModelSetTcond -  ' // &
+               ' for CLM-PFLOTRAN coupling - flow condition MUST be named as following: ' // &
+               ' "clm_gtemp_bc: TEMPERATURE dirichlet " for subsurface-top TYPE II  '
+          call printErrMsg(option)
+        endif
+
+      endif
+      boundary_condition => boundary_condition%next
+    end do
+
+    ! BC conditions update from CLM
     boundary_condition => patch%boundary_condition_list%first
     sum_connection = 0
     do
@@ -2637,24 +2732,143 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
       ! Find appropriate BC from the list of boundary conditions
       ! TOP of subsurface
-      if(StringCompare(boundary_condition%name,'clm_gwflux_bc') .or. &
-         StringCompare(boundary_condition%name,'clm_gpress_bc')) then
+      ! the following thermal BC is accompanying for BC water flow
+      if(StringCompare(boundary_condition%name,'clm_gpress_bc')) then
 
         do iconn = 1, cur_connection_set%num_connections
           sum_connection = sum_connection + 1
 
           if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
-                == DIRICHLET_BC) then                    ! for water flow BC, thermal boundary MUST be 'dirichlet' type
+                == DIRICHLET_BC) then
             boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
-                          gtemp_subsurf_pf_loc(iconn)
+                          gtemp_subsurf_pf_loc(iconn)                          ! so, this MUST be the temperature above first soil
+
+          elseif(boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+                /= ZERO_GRADIENT_BC) then
+            option%io_buffer='pflotranModelSetTcond -  ' // &
+               ' for CLM-PFLOTRAN coupling - BC flow/temperature condition IS NOT: ' // &
+               ' "TEMPERATURE dirichlet or zero_gradient" for subsurface-top '
+            call printErrMsg(option)
+          end if
+
+        enddo
+      endif
+      !
+      if(StringCompare(boundary_condition%name,'clm_gwflux_bc')) then
+
+        do iconn = 1, cur_connection_set%num_connections
+          sum_connection = sum_connection + 1
+
+          if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+                == NEUMANN_BC) then                    ! for liq. water flow BC, thermal conduction OFF
+            boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = 0.d0
+
+           elseif(boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+                /= ZERO_GRADIENT_BC) then
+            option%io_buffer='pflotranModelSetTcond -  ' // &
+               ' for CLM-PFLOTRAN coupling - BC flow/temperature condition "clm_gwflux_bc" MUST be: ' // &
+               ' TEMPERATURE neumann or TEMPERATURE zero_gradient '
+            call printErrMsg(option)
 
           end if
 
         enddo
 
       endif
+      !
+      if(StringCompare(boundary_condition%name,'clm_gevflux_bc')) then
+        do iconn = 1, cur_connection_set%num_connections
+          sum_connection = sum_connection + 1
+
+          if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+                == NEUMANN_BC) then                    ! for liq. water flow BC, thermal conduction OFF
+            boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                geflxl_subsurf_pf_loc(iconn)
+
+          elseif (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+                == DIRICHLET_BC) then                  ! for liq. water flow BC, water boday temperature external
+            boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                gtemp_subsurf_pf_loc(iconn)
+          else
+
+            option%io_buffer='pflotranModelSetTcond -  ' // &
+               ' for CLM-PFLOTRAN coupling - BC flow/temperature condition "clm_gevflux_bc" MUST be: ' // &
+               ' TEMPERATURE nenumann or dirichlet'
+            call printErrMsg(option)
+
+          end if
+
+        enddo
+      endif
+
+      ! the following thermal BC is usually for energy only, i.e. no water flux
+      if(StringCompare(boundary_condition%name,'clm_gtemp_bc')) then
+
+        do iconn = 1, cur_connection_set%num_connections
+          sum_connection = sum_connection + 1
+
+          if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+                == DIRICHLET_BC) then
+            boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          gtemp_subsurf_pf_loc(iconn)                          ! so, this MUST be the temperature above first soil
+
+          else
+            option%io_buffer='pflotranModelSetTHbcs -  ' // &
+               ' for CLM-PFLOTRAN coupling - BC flow/temperature condition MUST be like : ' // &
+               ' "TEMPERATURE dirichlet" for subsurface-top  TYPE II '
+            call printErrMsg(option)
+          end if
+
+        enddo
+      endif
+      !
+      if(StringCompare(boundary_condition%name,'clm_geflux_bc')) then
+
+        do iconn = 1, cur_connection_set%num_connections
+          sum_connection = sum_connection + 1
+
+          if (boundary_condition%flow_condition%itype(TH_TEMPERATURE_DOF) &
+                == NEUMANN_BC) then
+
+            ! the net energy flux of all forms, G = Rnet + (-SH) + (-LE)
+            ! (+ into soil, - out soil)
+
+            if (HAVE_GEV_TOPBC .and. HAVE_GTEMP_TOPBC) then
+              ! 'clm_gevflux_bc' is for LE, and 'clm_gtemp_bc' is for SH
+              ! (i.e. gtemp MUST be temperature above first soil)
+              boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          geflxr_subsurf_pf_loc(iconn)                         ! net radiation flux into first soil, i.e. excluding SH + LE
+
+            elseif (HAVE_GEV_TOPBC) then
+              ! LE shall not be included: G-(-LE)
+              boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          geflx_subsurf_pf_loc(iconn) - &                      ! net heat flux into first soil, i.e. excluding SH + LE
+                          geflxl_subsurf_pf_loc(iconn)                         ! excluding (negative) soil evap LE
+
+            elseif (HAVE_GTEMP_TOPBC) then
+              ! SH shall not be included: G-(-SH) = Rnet+(-LE)
+              boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          geflxr_subsurf_pf_loc(iconn) + &                     ! net radiation flux into first soil
+                          geflxl_subsurf_pf_loc(iconn)                         ! including (negative) soil evap LE
+
+            else
+              ! the net energy flux of all forms, i.e. ground heat flux G at soil interface, if ONLY known energy flux as BC
+              boundary_condition%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
+                          geflx_subsurf_pf_loc(iconn)                          ! so, this MUST be the all energy flux into first soil
+            endif
+
+          else
+            option%io_buffer='pflotranModelSetTHbcs -  ' // &
+               ' for CLM-PFLOTRAN coupling - BC flow/temperature condition MUST be like : ' // &
+               ' "ENERGY_FLUX neumann" for subsurface-top  TYPE I '
+            call printErrMsg(option)
+          end if
+
+        enddo
+      endif
 
       ! BOTTOM (BASE) of subsurface
+      ! the following thermal BC may or may not be accompanying for BC water flow
       if(StringCompare(boundary_condition%name,'clm_bflux_bc')) then
         do iconn = 1, cur_connection_set%num_connections
           sum_connection = sum_connection + 1
@@ -2681,8 +2895,7 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
       cur_connection_set => source_sink%connection_set
 
       ! Find appropriate SrcSink from the list of flow conditions
-      ! TOP of subsurface
-      if(StringCompare(source_sink%name,'clm_ghf_ss')) then     ! ground heat flux as term of source/sink
+      if(StringCompare(source_sink%name,'clm_ghf_ss')) then     ! heat flow rate as term of source/sink
         do iconn = 1, cur_connection_set%num_connections
           sum_connection = sum_connection + 1
 
@@ -2693,39 +2906,14 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
           if (source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == ENERGY_RATE_SS) then
 
             source_sink%flow_condition%energy_rate%dataset%rarray(1) = &
-                          gflux_subsurf_pf_loc(iconn)*material_auxvars(ghosted_id)%volume
+                          geflow_sub_pf_loc(iconn)*material_auxvars(ghosted_id)%volume
 
           else if (source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == HET_ENERGY_RATE_SS) then
 
             source_sink%flow_aux_real_var(TH_PRESSURE_DOF,iconn) = 0.d0
 
             source_sink%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
-                          gflux_subsurf_pf_loc(iconn)*material_auxvars(ghosted_id)%volume
-
-          end if
-
-        enddo
-
-      ! BOTTOM of subsurface domain
-      else if(StringCompare(source_sink%name,'clm_geohf_ss')) then     ! geo-thermal heat flux as term of source/sink
-        do iconn = 1, cur_connection_set%num_connections
-          sum_connection = sum_connection + 1
-
-          local_id = cur_connection_set%id_dn(iconn)
-          ghosted_id = grid%nL2G(local_id)
-          if (patch%imat(ghosted_id) < 0) cycle
-
-          if (source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == ENERGY_RATE_SS) then
-
-            source_sink%flow_condition%energy_rate%dataset%rarray(1) = &
-                          gflux_subbase_pf_loc(iconn)*material_auxvars(ghosted_id)%volume
-
-          else if (source_sink%flow_condition%itype(TH_TEMPERATURE_DOF) == HET_ENERGY_RATE_SS) then
-
-            source_sink%flow_aux_real_var(TH_PRESSURE_DOF,iconn) = 0.d0
-
-            source_sink%flow_aux_real_var(TH_TEMPERATURE_DOF,iconn) = &
-                          gflux_subbase_pf_loc(iconn)*material_auxvars(ghosted_id)%volume
+                          geflow_sub_pf_loc(iconn)*material_auxvars(ghosted_id)%volume
 
           end if
 
@@ -2737,13 +2925,19 @@ end subroutine pflotranModelSetInternalTHStatesfromCLM
 
     enddo
 
-    call VecRestoreArrayF90(clm_pf_idata%gflux_subsurf_pfs,gflux_subsurf_pf_loc,ierr)
+    call VecRestoreArrayF90(clm_pf_idata%eflux_subsurf_pfs,geflx_subsurf_pf_loc,ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%efluxr_subsurf_pfs,geflxr_subsurf_pf_loc,ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%efluxl_subsurf_pfs,geflxl_subsurf_pf_loc,ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%gtemp_subsurf_pfs,gtemp_subsurf_pf_loc,ierr)
     CHKERRQ(ierr)
-    call VecRestoreArrayF90(clm_pf_idata%gflux_subbase_pfs,gflux_subbase_pf_loc,ierr)
+    call VecRestoreArrayF90(clm_pf_idata%eflux_subbase_pfs,geflx_subbase_pf_loc,ierr)
     CHKERRQ(ierr)
     call VecRestoreArrayF90(clm_pf_idata%gtemp_subbase_pfs,gtemp_subbase_pf_loc,ierr)
+    CHKERRQ(ierr)
+    call VecRestoreArrayF90(clm_pf_idata%eflow_pfs,geflow_sub_pf_loc,ierr)
     CHKERRQ(ierr)
 
   end subroutine pflotranModelUpdateSubsurfTCond
