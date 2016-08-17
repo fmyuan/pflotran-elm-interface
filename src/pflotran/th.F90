@@ -1331,6 +1331,8 @@ subroutine THAccumDerivative(TH_auxvar,global_auxvar, &
   PetscReal :: dui_dp, dui_dt
   PetscErrorCode :: ierr
 
+
+  J(:,:) = 0.d0
   
   ! X = {p, T}; R = {R_p, R_T}
   
@@ -2479,6 +2481,7 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   use Connection_module
   use EOS_Water_module
   use Utility_module
+  use Condition_module
 
   implicit none
   
@@ -2563,9 +2566,10 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
   PetscReal :: rho
   PetscReal :: dq_lin,dP_lin
   PetscReal :: q_approx,dq_approx
-  PetscBool :: skip_thermal_conduction
+  PetscBool :: skip_thermal_conduction, skip_mass_flow
 
   skip_thermal_conduction = PETSC_FALSE
+  skip_mass_flow = PETSC_FALSE
   T_th  = 0.5d0
 
   fluxm = 0.d0
@@ -2642,14 +2646,17 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
 
         if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
           ! boundary cell is <= pref 
+          ! commenting out the following 'if ... endif' block
+          ! so that always shut-off 'flow-in' because boundary-cells CAN be under water-table
           !if (global_auxvar_up%pres(1)-option%reference_pressure < eps) then
             ! skip thermal conduction whenever water table is lower than cell
             skip_thermal_conduction = PETSC_TRUE
             ! flow inward
-            if (dphi > 0.d0) then
+            if (dphi >= 0.d0) then
               dphi = 0.d0
               dphi_dp_dn = 0.d0
               dphi_dt_dn = 0.d0
+              skip_mass_flow = PETSC_TRUE   ! also shut-off other (e.g. gas) mass flow, if any
             endif
 
           !endif
@@ -2662,8 +2669,10 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         
         if (dphi>=0.D0) then
           ukvr = auxvar_up%kvr
+          dukvr_dp_dn = auxvar_up%dkvr_dp
+          dukvr_dt_dn = auxvar_up%dkvr_dt
           if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
-            dukvr_dt_dn = auxvar_up%dkvr_dt
+            dukvr_dt_dn = auxvar_dn%dkvr_dt
           endif
         else
           ukvr = auxvar_dn%kvr
@@ -2676,6 +2685,13 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           q = v_darcy * area
           dq_dp_dn = Dq*(dukvr_dp_dn*dphi+ukvr*dphi_dp_dn)*area
           dq_dt_dn = Dq*(dukvr_dt_dn*dphi+ukvr*dphi_dt_dn)*area
+
+          ! for SEEPAGE_BC: if conduction OFF, Q W.r.t T should be off as well.
+          ! i.e. no permissivity dependence on T.
+          if(skip_thermal_conduction) then
+            dq_dt_dn = 0.d0
+          endif
+
         endif
 
 #ifdef CLM_PFLOTRAN
@@ -2740,7 +2756,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         endif
 
         ! flow in         ! boundary cell is <= pref
-        if (dphi > 0.d0 .and. global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+        !if (dphi > 0.d0 .and. global_auxvar_up%pres(1)-option%reference_pressure < eps) then
+        if (dphi > 0.d0) then  ! always shut-off 'flow-in' because boundary-cells CAN be under water-table
           dphi = 0.d0
           dphi_dp_dn = 0.d0
           dphi_dt_dn = 0.d0
@@ -2767,8 +2784,10 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         
         if (dphi>=0.D0) then
           ukvr = auxvar_up%kvr
+          dukvr_dp_dn = auxvar_up%dkvr_dp
+          dukvr_dt_dn = auxvar_up%dkvr_dt
           if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
-            dukvr_dt_dn = auxvar_up%dkvr_dt
+            dukvr_dt_dn = auxvar_dn%dkvr_dt
           endif
         else
           ukvr = auxvar_dn%kvr
@@ -2889,8 +2908,10 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
         v_darcy = auxvars(TH_PRESSURE_DOF)
         if (v_darcy > 0.d0) then 
           density_ave = global_auxvar_up%den(1)
+          dden_ave_dp_dn = auxvar_up%dden_dp
+          dden_ave_dt_dn = auxvar_up%dden_dt
           if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
-            dden_ave_dt_dn = auxvar_up%dden_dt
+            dden_ave_dt_dn = auxvar_dn%dden_dt
           endif
         else 
           density_ave = global_auxvar_dn%den(1)
@@ -2907,11 +2928,13 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
 
   if (v_darcy >= 0.D0) then
     uh = auxvar_up%h
+    duh_dp_dn = auxvar_up%dh_dp
+    duh_dt_dn = auxvar_up%dh_dt
     if (ibndtype(TH_PRESSURE_DOF) == ZERO_GRADIENT_BC) then
-      duh_dp_dn = auxvar_up%dh_dp
+      duh_dp_dn = auxvar_dn%dh_dp
     endif
     if (ibndtype(TH_TEMPERATURE_DOF) == ZERO_GRADIENT_BC) then
-      duh_dt_dn = auxvar_up%dh_dt
+      duh_dt_dn = auxvar_dn%dh_dt
     endif
   else
     uh = auxvar_dn%h
@@ -2955,6 +2978,13 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
       if (skip_thermal_conduction) then
         ! skip thermal conducton when the boundary pressure is below the
         ! reference pressure (e.g. river stage is below cell center).
+
+        Dk_eff_dn    = 0.d0
+        dKe_dp_dn    = 0.d0
+        dKe_dt_dn    = 0.d0
+        dKe_fr_dt_dn = 0.d0
+        dKe_fr_dp_dn = 0.d0
+
         dDk_dt_dn = 0.d0
         dDk_dp_dn = 0.d0
         Dk = 0.d0
@@ -3024,7 +3054,8 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
           endif
         endif
       endif
-      if (option%use_th_freezing) then
+
+      if (option%use_th_freezing .and. (.not.skip_mass_flow)) then
          ! Added by Satish Karra, 11/21/11
          satg_up = auxvar_up%ice%sat_gas
          satg_dn = auxvar_dn%ice%sat_gas
@@ -3073,6 +3104,14 @@ subroutine THBCFluxDerivative(ibndtype,auxvars, &
                  tor_dn*Ddiffgas_avg*(-dmolg_dt_dn)/dd_dn*area
          endif
       endif ! if (use_th_freezing)
+
+    case(NEUMANN_BC, ZERO_GRADIENT_BC)
+      ! do nothing, but by-passing the 'default'
+
+    case default
+      option%io_buffer = 'BC type "' // trim(GetSubConditionName(ibndtype(TH_TEMPERATURE_DOF))) // &
+        '" not implemented in TH mode.'
+      call printErrMsg(option)
 
   end select
 
@@ -3291,9 +3330,10 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
   PetscReal :: rho,dum1
   PetscReal :: q_approx, dq_approx
   PetscReal :: T_th,fctT,fct
-  PetscBool :: skip_thermal_conduction
+  PetscBool :: skip_thermal_conduction,  skip_mass_flow
 
   skip_thermal_conduction = PETSC_FALSE
+  skip_mass_flow = PETSC_FALSE
   T_th  = 0.5d0
 
   fluxm = 0.d0
@@ -3344,12 +3384,16 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
 
         if (ibndtype(TH_PRESSURE_DOF) == SEEPAGE_BC) then
           ! boundary cell is <= pref 
+
+          ! commenting out the following 'if ... endif' block
+          ! so that always shut-off 'flow-in' because boundary-cells CAN be under water-table
           !if (global_auxvar_up%pres(1)-option%reference_pressure < eps) then
             ! skip thermal conduction whenever water table is lower than cell
             skip_thermal_conduction = PETSC_TRUE
             ! flow inward
             if (dphi > 0.d0) then
               dphi = 0.d0
+              skip_mass_flow = PETSC_TRUE    ! also shut-off other (e.g. gas) flow, if any
             endif
           !endif
         endif
@@ -3416,7 +3460,9 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
           dphi = auxvar_up%ice%pres_fh2o - auxvar_dn%ice%pres_fh2o + gravity
         endif
         
-        if (dphi > 0.d0 .and. global_auxvar_up%pres(1) - option%reference_pressure < eps) then
+        !if (dphi > 0.d0 .and. global_auxvar_up%pres(1) - option%reference_pressure < eps) then
+        if (dphi > 0.d0) then
+          ! always shut-off 'flow-in' because boundary-cells CAN be under water-table
           dphi = 0.d0
         endif
         
@@ -3518,12 +3564,11 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
 
   end select
 
+  q = v_darcy * area
   ! If only solving the energy equation, ensure Res(2) has no
   ! contribution from mass equation by setting darcy velocity
   ! to be zero
   if (option%flow%only_energy_eq) q = 0.d0
-
-  q = v_darcy * area
 
   if (v_darcy >= 0.D0) then
     uh = auxvar_up%h
@@ -3571,7 +3616,7 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       fluxe = fluxe + cond
       fluxe_cond = cond
 
-      if (option%use_th_freezing) then
+      if (option%use_th_freezing .and. (.not.skip_mass_flow)) then
          ! Added by Satish Karra,
          satg_up = auxvar_up%ice%sat_gas
          satg_dn = auxvar_dn%ice%sat_gas
@@ -3618,8 +3663,10 @@ subroutine THBCFlux(ibndtype,auxvars,auxvar_up,global_auxvar_up, &
       !geh: default internal energy units are MJ (option%scale = 1.d-6 is for J->MJ)
       fluxe = fluxe + auxvars(TH_TEMPERATURE_DOF)*area*(1.d6*option%scale) ! added by SK 10/18/11
       fluxe_cond = auxvars(TH_TEMPERATURE_DOF)*area*(1.d6*option%scale)
+
     case(ZERO_GRADIENT_BC)
       ! No change in fluxe
+
     case default
       option%io_buffer = 'BC type "' // trim(GetSubConditionName(ibndtype(TH_TEMPERATURE_DOF))) // &
         '" not implemented in TH mode.'
